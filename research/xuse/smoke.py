@@ -13,6 +13,7 @@ CLICKS is a comma-separated queue consumed at every wait:
       0.txt) the bar's button numbers (1001 auto, 1002 skip, 1003 log,
       1004 save, 1005 load, 1007 hide); without it 998 = open the save
       menu, 997 = the load menu;
+  at a picture click wait (`click`): any number continues;
   anywhere: 999 = screenshot (shot01.png, ...), then take the next entry.
 When the queue is empty the game ends.
 
@@ -45,6 +46,7 @@ if '--goto' in sys.argv:
     src = src.replace(b'\n*vn2ons_title_start\n', b'\n*vn2ons_title_start\ncsp -1\ngoto *' + target + b'\n', 1)
 src = src.replace(b'textbtnwait %9\n', b'gosub *smoke_pop\n')
 src = src.replace(b'btnwait %9\n', b'gosub *smoke_pop\n')
+src = src.replace(b'\nclick\n', b'\ngosub *smoke_pop\n')
 queue = [int(c) for c in clicks.split(',') if c.strip()]
 harness = b'''
 *smoke_pop

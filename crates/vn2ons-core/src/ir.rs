@@ -109,6 +109,10 @@ pub enum Op {
     SePlay { file: String, looped: bool },
     /// `file: None` stops every sound effect.
     SeStop { file: Option<String> },
+    /// Wait for a click with the text window and every bar hidden, to look
+    /// at the picture. `skippable`: skip mode passes it (otherwise it
+    /// stops skip mode).
+    ClickWait { skippable: bool },
     /// A new chapter starts (shown in the top bar and save slots).
     Chapter { title: String },
     /// Something the converter can't express yet; kept for the report.

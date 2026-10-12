@@ -44,6 +44,8 @@ const BUTTON_VAR: &str = "%9";
 const LOCAL_VAR_BASE: u32 = 10;
 const GLOBAL_VAR_BASE: u32 = 200;
 /// Labels of the title menu loop and of its Start button's target.
+/// Click wait with everything hidden ([`Op::ClickWait`]).
+const CLICK_WAIT: &str = "vn2ons_click_wait";
 const TITLE_DRAW: &str = "vn2ons_title_draw";
 const TITLE_MENU: &str = "vn2ons_title";
 const TITLE_START: &str = "vn2ons_title_start";
@@ -106,6 +108,7 @@ pub fn emit(script: &Script) -> String {
     }
     let mut se = SeChannels::default();
     let mut needs_bit_helpers = false;
+    let mut needs_click_wait = false;
     let mut plate_visible = false;
     // What is on screen at this point in file order, to restore after a link
     // scene returns (an approximation when control flow jumps around).
@@ -368,6 +371,10 @@ pub fn emit(script: &Script) -> String {
                     writeln!(out, "dwavestop {ch}").unwrap();
                 }
             }
+            Op::ClickWait { skippable } => {
+                needs_click_wait = true;
+                writeln!(out, "mov {BUTTON_VAR},{}:gosub *{CLICK_WAIT}", u8::from(*skippable)).unwrap();
+            }
             Op::Chapter { title } => writeln!(out, "mov {},\"{}\"", menu::CHAPTER, escape(title)).unwrap(),
             Op::Unsupported { what, at } => {
                 writeln!(out, "; unsupported: {what} ({} #{})", at.file, at.index).unwrap()
@@ -377,6 +384,19 @@ pub fn emit(script: &Script) -> String {
     writeln!(out, "end").unwrap();
     if needs_bit_helpers {
         out.push_str(&bit_helpers());
+    }
+    if needs_click_wait {
+        // %9 = 1: skip mode passes. Auto mode waits a while instead.
+        writeln!(out, "*{CLICK_WAIT}").unwrap();
+        writeln!(out, "textoff").unwrap();
+        if script.button_bar.is_some() {
+            writeln!(out, "gosub *{}", menu::BAR_HIDE).unwrap();
+        }
+        writeln!(out, "isskip %108").unwrap();
+        writeln!(out, "if {BUTTON_VAR} == 1 && %108 == 1 return").unwrap();
+        writeln!(out, "if %108 == 2 delay 2000:return").unwrap();
+        writeln!(out, "click").unwrap();
+        writeln!(out, "return").unwrap();
     }
     if let Some(m) = &script.save_menu {
         menu::save_menu(&mut out, m);

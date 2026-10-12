@@ -37,6 +37,8 @@ pub(crate) const BAR_BUTTON_BASE: i32 = 1000;
 /// Sets which bars are up after a hotspot reported the pointer (%9).
 pub(crate) const BAR_HOVER: &str = "vn2ons_bar_hover";
 const BAR_CLEAR: &str = "vn2ons_bar_clear";
+/// Puts the bars away (they come back when the pointer nears an edge).
+pub(crate) const BAR_HIDE: &str = "vn2ons_bar_hide_all";
 /// Hotspots report the pointer with numbers above this.
 pub(crate) const HOVER_BASE: i32 = 2000;
 // Which bars are up (locals, so a save keeps them as they were).
@@ -370,6 +372,11 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, save_menu: bool) {
     w("return".into());
 
     // Removes every bar sprite.
+    w(format!("*{BAR_HIDE}"));
+    w(format!("mov {TOP_SHOWN},0:mov {BOTTOM_SHOWN},0"));
+    w(format!("gosub *{BAR_CLEAR}"));
+    w("print 1".into());
+    w("return".into());
     w(format!("*{BAR_CLEAR}"));
     w(BAR_SPRITES.map(|n| format!("csp {n}")).collect::<Vec<_>>().join(":"));
     w(TOP_SPRITES2.map(|n| format!("csp2 {n}")).collect::<Vec<_>>().join(":"));

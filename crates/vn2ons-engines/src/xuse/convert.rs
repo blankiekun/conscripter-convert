@@ -72,6 +72,10 @@ const OP_HIDE_TEXT: u16 = 0x43;
 /// sits on (`0.cd`): "chapter<route>]?<title>". 0x37 and 0x38 sit on the
 /// chapter's "|chpe" and "|chpl" labels and link back (chapter history).
 const OP_CHAPTER: u16 = 0x36;
+/// Waits for a click with the text window, button tray and top bars hidden
+/// (handler 0x4784b0, wait callback 0x478370). arg 0 also turns skip mode
+/// off; with arg 1 skip mode passes through.
+const OP_CLICK_WAIT: u16 = 0x68;
 /// Removes every character bust-up (arg is always -1).
 const OP_CLEAR_SPRITES: u16 = 0x8f;
 const OP_WAIT: u16 = 0x66;
@@ -1071,6 +1075,7 @@ fn lower_instr(
         OP_RETURN | OP_LINK_RETURN => return Ok(Some(Op::Return)),
         OP_CLEAR_SPRITES => return Ok(Some(Op::ClearSprites)),
         OP_HIDE_TEXT => return Ok(Some(Op::HideTextWindow)),
+        OP_CLICK_WAIT => return Ok(Some(Op::ClickWait { skippable: ins.arg != 0 })),
         OP_WAIT | OP_WAIT_2 => return Ok(Some(Op::Wait { ms: u32::from(ins.arg as u16) })),
         OP_IF_EQUAL => {
             let Some(target) = label(ins.sub.into()) else { return Ok(None) };
