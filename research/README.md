@@ -13,5 +13,5 @@ game data. Run them with `python3 -I` from outside the game directory.
 | `xarc_check.py <arc…>` | Tests CRC hypotheses on XARC archives (found CRC-16/XMODEM) |
 | `xsa_probe.py <xsa…>` | Checks the .xsa slot table across files |
 | `cdlib.py` | Helpers for .cd scripts: load sections, scan pool strings |
-| `decrypt_0cd.py <0.cd> <out>` | Recovers the 256-byte XOR key of 0.cd from byte frequencies and decrypts it |
+| `decrypt_0cd.py <0.cd> <out>` | Decrypts 0.cd with the cipher found in the exe |
 | `voice_align.py <game dir> <out.json>` | Statistically aligns voice ids to .xsa clips by text length vs clip length (needs numpy) |

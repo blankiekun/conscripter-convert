@@ -1,15 +1,17 @@
 """Decrypt HD/CDFiles/0.cd (Xuse, 最果てのイマ COMPLETE).
 
-0.cd is XORed with a repeating 256-byte key. The key is not stored here: it is
-recovered from the file itself, assuming the most common plaintext byte in
-each key column is 0 (each column's top byte covers 31-48% of its samples).
-There is no checksum to confirm it, so a few columns may still be wrong.
+Cipher from Farthest2015.exe at 0x4bcb20: the keystream starts at 0x1b and
+after each byte becomes ((k ^ 0xa1) >> 1) + (index & 0xff). (A first attempt
+recovered a 256-byte key from byte frequencies; it differed from this in only
+7 of 88,470 bytes.) The Rust version is `vn2ons cd symbols`.
 
 usage: python3 -I decrypt_0cd.py <path/to/0.cd> <out.bin>
 """
-import collections
 import sys
 
-data = open(sys.argv[1], 'rb').read()
-key = bytes(collections.Counter(data[i::256]).most_common(1)[0][0] for i in range(256))
-open(sys.argv[2], 'wb').write(bytes(b ^ key[i % 256] for i, b in enumerate(data)))
+data = bytearray(open(sys.argv[1], 'rb').read())
+k = 0x1b
+for i in range(len(data)):
+    data[i] ^= k
+    k = (((k ^ 0xa1) >> 1) + (i & 0xff)) & 0xff
+open(sys.argv[2], 'wb').write(data)

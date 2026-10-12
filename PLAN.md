@@ -159,8 +159,8 @@ First look (2026-10-12, read-only):
 | `HD/bg*.004`, `HD/bu*.004`, `HD/LensFlare.004` | 22 | `GAF4` + `Farthest` title string, high-entropy data after the header | Image container (backgrounds `bg`, character sprites `bu`); payload compressed or encrypted |
 | `CD/BV*.xsa` | 61 | **Solved** — see below | Voice archives: 15,507 clips, plain Ogg Vorbis (44.1 kHz mono) |
 | `HD/CDFiles/*.cd` | 172 | **Container solved** — see below | **Compiled scenario scripts**, one per `.rio` source file: 84,713 instructions, 82 distinct opcodes |
-| `HD/CDFiles/0.cd` | 1 | Repeating 256-byte XOR key (recovered statistically) | System database: 171 sections of records with Shift-JIS text and ASCII names (`rm161`, …). No voice ids. |
-| `HD/CDFiles/1.cd` | 1 | Encrypted with a different key; 480 bytes is too small to recover it statistically | Unknown |
+| `HD/CDFiles/0.cd` | 1 | **Solved**: cipher from the exe (`0x4bcb20`) | **Label symbol table** for all 172 scripts: 1,820 label names with code offsets, all CRCs verified. Tool: `vn2ons cd symbols`. |
+| `HD/CDFiles/1.cd` | 1 | Not the 0.cd cipher | Unknown. Possibly the `sVAR`/`eVAR` variable-definition format the exe reads (64-byte names), but still encrypted. |
 | `HD/mv000*.bin` | 3 | ~100 MB each | Movies |
 | `HD/bm0000.bin`, `k000*.bin`, `wss.bin`, `cgv.bin`, `zpkc.bin`, `silent.bin` | – | Not checked yet | BGM, SE, CG viewer data, … |
 | `res/m*.bin` | 5 | Plain `BM` | BMP images (installer/menu) |
@@ -217,8 +217,11 @@ offset of its operand record.
     length correlate at r = 0.95.
   - **Gap:** that alignment is not exact. About 1,970 ids are unmatched,
     spread over every group, so wrong voices are possible.
-  - **Exact rule:** it has to come from the exe (how it builds the file name
-    and slot from the id). `0.cd` doesn't contain voice ids.
+  - **Exact rule:** it has to come from the exe. The loader
+    (`0x47f620`) takes a **clip index**, not an id: archive `index >> 8`,
+    slot `index & 0xff`. So the id → index conversion happens before that
+    call, and there's no divide-by-10000 anywhere, which suggests a lookup
+    table. `0.cd` doesn't contain voice ids.
 
 Still unknown: the other ~80 opcodes (`0x8e` looks like fixed-size display
 parameters), the meaning of the message `sub` values, the voice mapping, the
@@ -229,9 +232,16 @@ parameters), the meaning of the message `sub` values, the voice mapping, the
 2. ~~`.xsa` reader~~ (done).
 3. `.cd` scripts: ~~container and string encoding~~, ~~instruction → pool
    link and messages~~ (done). Next: the remaining opcode semantics.
-3b. Exact voice id → clip rule: disassemble `Farthest2015.exe` around the
-   `%sBV%04d.xsa` / `%s%s%s-%s.wav` format strings. Decode `0.cd`'s record
-   layout, and find `1.cd`'s key (likely also in the exe). Most frequent opcodes first
+3b. Exact voice id → clip rule: find where the voice-play opcode turns an
+   id into a clip index (follow the `0x41` handler in the exe). Also find
+   `1.cd`'s cipher. (`0.cd`: done.)
+3c. **Encyclopedia hyperlinks.** Some words in the text are clickable and
+   open an encyclopedia entry. Messages have no inline markup, so the links
+   must come from separate opcodes or data (candidates: `0x8e`, which has
+   10,271 uses next to messages, or segment boundaries inside messages).
+   ONScripter has no in-text links, so the conversion needs a substitute:
+   for example a clickable button/menu after the message, or an
+   encyclopedia screen reachable from the menu. Most frequent opcodes first
    (`0x8e`, `0x71`, `0x76`, `0x5a`, `0x54` …), correlating instructions with
    the pool strings near them. This is the main reverse-engineering job, and
    where the opcode inferrer agent helps most (when invoked).

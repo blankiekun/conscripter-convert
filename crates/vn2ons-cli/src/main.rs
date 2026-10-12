@@ -5,6 +5,7 @@ use anyhow::{Context, Result, bail};
 use clap::{Parser, Subcommand};
 use memmap2::Mmap;
 use vn2ons_engines::xuse::cd::CdScript;
+use vn2ons_engines::xuse::symbols::{self, SymbolTable};
 use vn2ons_engines::xuse::xarc::{CrcTarget, Xarc};
 use vn2ons_engines::xuse::xsa::Xsa;
 
@@ -47,6 +48,13 @@ enum CdCommand {
     Messages { script: PathBuf },
     /// Print the strings found in the operand pool (heuristic scan)
     Strings { script: PathBuf },
+    /// Print the label symbol table (CDFiles/0.cd)
+    Symbols {
+        file: PathBuf,
+        /// Only show this script id
+        #[arg(long)]
+        script: Option<usize>,
+    },
     /// Count opcodes over many scripts
     Opstats {
         #[arg(required = true)]
@@ -97,6 +105,7 @@ fn main() -> Result<()> {
             CdCommand::Messages { script } => cd_messages(&script),
             CdCommand::Strings { script } => cd_strings(&script),
             CdCommand::Opstats { scripts } => cd_opstats(&scripts),
+            CdCommand::Symbols { file, script } => cd_symbols(&file, script),
         },
         Command::Xsa { command } => match command {
             XsaCommand::List { archive } => xsa_list(&archive),
@@ -254,6 +263,22 @@ fn cd_strings(path: &Path) -> Result<()> {
     let cd = parse_cd(path, &bytes)?;
     for (offset, s) in cd.scan_strings() {
         println!("{offset:>8}  {s}");
+    }
+    Ok(())
+}
+
+fn cd_symbols(path: &Path, only: Option<usize>) -> Result<()> {
+    let mut bytes = fs::read(path).with_context(|| format!("reading {}", path.display()))?;
+    symbols::decrypt(&mut bytes);
+    let table = SymbolTable::parse(&bytes).with_context(|| format!("parsing {}", path.display()))?;
+    for (id, syms) in table.scripts.iter().enumerate() {
+        if only.is_some_and(|o| o != id) {
+            continue;
+        }
+        println!("script {id:04}: {} labels", syms.len());
+        for s in syms {
+            println!("  {:>7}  {:?}  {}", s.code_offset / 12, s.unknown, s.name);
+        }
     }
     Ok(())
 }
