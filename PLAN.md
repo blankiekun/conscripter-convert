@@ -622,6 +622,12 @@ should carry over to the next engine.
 - **Check decoded data against the whole corpus, not one sample:** all
   46,578 messages parse, all 810 jump targets exist, and script MD5s
   verify. Corpus-wide checks catch format edge cases that one scene hides.
+- **Cross-check decoded references against asset names.** Checking every
+  sprite entry's character against its image's `bu<character>` prefix found
+  623 mismatches in one pass. They pointed to the "remove character"
+  entries, which were being drawn as character 01, and to the
+  per-character semantics of `0x8e`. Name prefixes in the asset archives
+  are a free oracle; use them for every asset reference.
 - **Use reference screenshots of the original game** for layout. Measuring
   pixels from them settled the text box and name plate in one pass.
 - **Keep a handoff file** (`saiima.md`) with a "Resume here" section.

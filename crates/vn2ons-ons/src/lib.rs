@@ -26,6 +26,8 @@ const NAME_PLATE_SPRITE: u32 = 1;
 /// `humanz 9`, slots 0-9 are drawn over the text window and the character
 /// sprites (10 and up) under it.
 const LINK_SPRITES: std::ops::RangeInclusive<u32> = 2..=9;
+/// Sprite layer n is NScripter sprite 10 + n.
+const SPRITE_BASE: u32 = 10;
 /// Scratch variable receiving the clicked button (also used by nstrace).
 const BUTTON_VAR: &str = "%9";
 /// NScripter variables: locals from %10, globals from %200. `globalon`
@@ -129,15 +131,21 @@ pub fn emit(script: &Script) -> String {
                 screen.bg = Some(image.clone());
                 screen.sprites.clear();
             }
-            Op::Sprites { sprites, fade_ms } => {
-                writeln!(out, "csp -1").unwrap();
-                for (n, s) in sprites.iter().enumerate() {
-                    // ":a;" = use the PNG's alpha channel (unverified for ogapee's build).
-                    writeln!(out, "lsp {},\":a;{}\",{},{}", 10 + n, path(&s.image), s.x, s.y).unwrap();
+            Op::Sprites { changes, fade_ms } => {
+                for c in changes {
+                    let slot = SPRITE_BASE + c.layer;
+                    match &c.sprite {
+                        Some(sp) => {
+                            writeln!(out, "{}", lsp(slot, sp)).unwrap();
+                            screen.sprites.insert(c.layer, sp.clone());
+                        }
+                        None => {
+                            writeln!(out, "csp {slot}").unwrap();
+                            screen.sprites.remove(&c.layer);
+                        }
+                    }
                 }
                 writeln!(out, "print {}", effect(*fade_ms)).unwrap();
-                plate_visible = false; // csp -1 removed it too
-                screen.sprites = sprites.clone();
             }
             Op::Text { speaker, text, voice, links } => {
                 if let Some(v) = voice {
@@ -267,11 +275,16 @@ pub fn emit(script: &Script) -> String {
     out
 }
 
+/// `lsp` for a sprite; ":a;" = use the PNG's alpha channel.
+fn lsp(slot: u32, s: &SpritePlacement) -> String {
+    format!("lsp {slot},\":a;{}\",{},{}", path(&s.image), s.x, s.y)
+}
+
 /// Background, sprites and BGM as last set, in file order.
 #[derive(Default)]
 struct Screen {
     bg: Option<String>,
-    sprites: Vec<SpritePlacement>,
+    sprites: BTreeMap<u32, SpritePlacement>,
     bgm: Option<String>,
 }
 
@@ -283,8 +296,8 @@ impl Screen {
             Some(image) => writeln!(out, "bg \"{}\",1", path(image)).unwrap(),
             None => writeln!(out, "bg black,1").unwrap(),
         }
-        for (n, s) in self.sprites.iter().enumerate() {
-            writeln!(out, "lsp {},\":a;{}\",{},{}", 10 + n, path(&s.image), s.x, s.y).unwrap();
+        for (layer, s) in &self.sprites {
+            writeln!(out, "{}", lsp(SPRITE_BASE + layer, s)).unwrap();
         }
         writeln!(out, "print 1").unwrap();
         match &self.bgm {
@@ -472,7 +485,7 @@ impl SeChannels {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use vn2ons_core::ir::{SourceLoc, SpritePlacement};
+    use vn2ons_core::ir::{SourceLoc, SpriteChange, SpritePlacement};
 
     fn script(ops: Vec<Op>) -> Script {
         Script { title: "Test".into(), width: 800, height: 600, window: None, ops }
@@ -563,9 +576,13 @@ goto *vn2ons_link1
             Op::BgmPlay { file: "bgm/track01.ogg".into(), fade_in_ms: 1000 },
             Op::Background { image: "bg/room.png".into(), fade_ms: 500 },
             Op::Sprites {
-                sprites: vec![SpritePlacement { image: "sprite/a.png".into(), x: 10, y: -20 }],
+                changes: vec![SpriteChange {
+                    layer: 3,
+                    sprite: Some(SpritePlacement { image: "sprite/a.png".into(), x: 10, y: -20 }),
+                }],
                 fade_ms: 500,
             },
+            Op::Sprites { changes: vec![SpriteChange { layer: 3, sprite: None }], fade_ms: 0 },
             Op::Text { speaker: Some("名前".into()), text: "「こんにちは」".into(), voice: None, links: vec![] },
             Op::Text { speaker: None, text: "地の文。".into(), voice: Some("voice/v1.ogg".into()), links: vec![link(1, 2, None)] },
             Op::SePlay { file: "se/k001.ogg".into(), looped: true },
@@ -589,9 +606,10 @@ bgmfadein 1000
 bgm \"bgm\\track01.ogg\"
 csp -1
 bg \"bg\\room.png\",2
-csp -1
-lsp 10,\":a;sprite\\a.png\",10,-20
+lsp 13,\":a;sprite\\a.png\",10,-20
 print 2
+csp 13
+print 1
 【名前】「こんにちは」\\
 dwave 0,\"voice\\v1.ogg\"
 地#F0C040の文#FFFFFF。\\

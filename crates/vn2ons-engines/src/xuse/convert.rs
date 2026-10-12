@@ -9,7 +9,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use thiserror::Error;
-use vn2ons_core::ir::{ArithOp, NamePlate, Op, Operand, SourceLoc, SpritePlacement, TextLink, TextWindow, Var};
+use vn2ons_core::ir::{ArithOp, NamePlate, Op, Operand, SourceLoc, SpriteChange, SpritePlacement, TextLink, TextWindow, Var};
 
 use crate::xuse::cd::{CdError, CdScript, Instr, Link, Sound};
 use crate::xuse::gaf::{Gaf, GafError};
@@ -450,23 +450,27 @@ fn lower_instr(cd: &CdScript, ins: &Instr, links: &[Link], assets: &mut AssetBan
     }
     if let Some(entries) = cd.sprites(ins) {
         let entries = entries?;
-        let mut sprites = Vec::new();
+        let mut changes = Vec::new();
         for e in &entries {
-            // Entries with sprite 0 at (0, 0) (modes 0 and 2, 382 in the game)
-            // don't show an image; most likely "remove this character".
-            if e.sprite == 0 && e.x == 0 && e.y == 0 {
+            // Each character (1-100) has its own bust-up object, and an entry
+            // only touches that one. Mode bit 0 clear removes it (handler
+            // 0x434130 deletes the "bustup-%u" object).
+            let layer = u32::from(e.character);
+            if e.mode & 1 == 0 {
+                changes.push(SpriteChange { layer, sprite: None });
                 continue;
             }
             let img = assets.sprite(e.sprite as usize)?;
             // Assumption: (x, y) is the sprite's centre on the 800×600 screen.
-            sprites.push(SpritePlacement {
+            let sprite = SpritePlacement {
                 image: img.path,
                 x: i32::from(e.x) - img.width as i32 / 2,
                 y: i32::from(e.y) - img.height as i32 / 2,
-            });
+            };
+            changes.push(SpriteChange { layer, sprite: Some(sprite) });
         }
         let fade_ms = entries.iter().map(|e| u32::from(e.fade) * SPRITE_FADE_UNIT_MS).max().unwrap_or(0);
-        return Ok(Some(Op::Sprites { sprites, fade_ms }));
+        return Ok(Some(Op::Sprites { changes, fade_ms }));
     }
     // Label-table index -> label name (index 0 is the engine's implicit
     // entry, not stored in the file; its meaning isn't known).

@@ -45,6 +45,14 @@ pub struct SpritePlacement {
     pub y: i32,
 }
 
+/// Shows (`Some`) or removes (`None`) the sprite on one layer. Each layer
+/// holds one sprite; layers not mentioned keep theirs.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SpriteChange {
+    pub layer: u32,
+    pub sprite: Option<SpritePlacement>,
+}
+
 /// A clickable word in a text page.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TextLink {
@@ -70,8 +78,8 @@ pub enum Op {
     IfEqual { var: Var, value: i32, label: String },
     /// Replace the background. Clears sprites, as most engines do.
     Background { image: String, fade_ms: u32 },
-    /// Replace the set of visible sprites (an empty list clears them).
-    Sprites { sprites: Vec<SpritePlacement>, fade_ms: u32 },
+    /// Show or remove sprites on some layers, then show the result.
+    Sprites { changes: Vec<SpriteChange>, fade_ms: u32 },
     /// One page of text, shown and then waited on. `text` may contain '\n'
     /// for line breaks. `links` are the words the original game made
     /// clickable.
