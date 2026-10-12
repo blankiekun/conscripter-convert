@@ -223,9 +223,23 @@ offset of its operand record.
     call, and there's no divide-by-10000 anywhere, which suggests a lookup
     table. `0.cd` doesn't contain voice ids.
 
-Still unknown: the other ~80 opcodes (`0x8e` looks like fixed-size display
-parameters), the meaning of the message `sub` values, the voice mapping, the
-32-byte head, and `0.cd`/`1.cd`.
+**Other opcodes (working hypotheses, from operand statistics):**
+
+| Opcode | Uses | Evidence | Probably |
+|---|---|---|---|
+| `0x10` | 895 | `arg` is always a valid label-table index; 121 point into blog scripts | jump / call to a label |
+| `0x4d`, `0x58`, `0x43` | 276 / 579 / 578 | `arg` is always a valid label-table index | call / conditional-jump variants |
+| `0x8e` | 10,271 | operand is `sub` × 44-byte entries (sub = 1–6), each with position/size values (400, 320, 300, …) and a 16-byte name field holding character names | show `sub` character sprites |
+| `0x5b`, `0x54` | 890 / 2,195 | mix label references into blog scripts with strings that also appear in nearby text | **hyperlink candidates** (see 3c) |
+
+**Blog scripts:** 60 scripts are named `15_Blog…` (ids 96–155) and 44 are
+named `11_…`. 33 story scripts have 153 label-table entries pointing into the
+blog scripts. Together with the UI files (`BlogStackBar`, `ChapterHistory`),
+this suggests the clickable words open in-game blog articles, which act as
+the encyclopedia.
+
+Still unknown: most opcode semantics, the message `sub` values, the voice
+mapping, the 32-byte head, and `1.cd`.
 
 **Plan for this game:**
 1. ~~`XARC` reader~~ (done).
@@ -237,8 +251,9 @@ parameters), the meaning of the message `sub` values, the voice mapping, the
    `1.cd`'s cipher. (`0.cd`: done.)
 3c. **Encyclopedia hyperlinks.** Some words in the text are clickable and
    open an encyclopedia entry. Messages have no inline markup, so the links
-   must come from separate opcodes or data (candidates: `0x8e`, which has
-   10,271 uses next to messages, or segment boundaries inside messages).
+   must come from separate opcodes. `0x8e` is ruled out (it shows sprites).
+   The current candidates are `0x5b` and `0x54`, which point into the `15_Blog`
+   scripts, the likely encyclopedia entries.
    ONScripter has no in-text links, so the conversion needs a substitute:
    for example a clickable button/menu after the message, or an
    encyclopedia screen reachable from the menu. Most frequent opcodes first
