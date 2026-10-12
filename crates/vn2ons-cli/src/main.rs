@@ -28,7 +28,7 @@ enum Command {
         #[command(subcommand)]
         command: CdCommand,
     },
-    /// Low-level tools for Xuse voice archives (*.xsa)
+    /// Low-level tools for Xuse sound archives (*.xsa, HD/*.bin sound banks)
     Xsa {
         #[command(subcommand)]
         command: XsaCommand,
@@ -312,10 +312,11 @@ fn cd_opstats(paths: &[PathBuf]) -> Result<()> {
 fn xsa_list(path: &Path) -> Result<()> {
     let bytes = map(path)?;
     let xsa = Xsa::parse(&bytes).with_context(|| format!("parsing {}", path.display()))?;
-    println!("{:>4}  {:>10}  {:>10}  kind", "slot", "offset", "size");
+    println!("{:>4}  {:>10}  {:>10}  {:>10}  {:>10}  kind", "slot", "offset", "size", "param0", "param1");
     for e in &xsa.entries {
         let kind = if xsa.data(e).starts_with(b"OggS") { "ogg" } else { "unknown" };
-        println!("{:>4}  {:>10}  {:>10}  {kind}", e.slot, e.data.start, e.data.len());
+        let [p0, p1] = e.params;
+        println!("{:>4}  {:>10}  {:>10}  {p0:>10}  {p1:>10}  {kind}", e.slot, e.data.start, e.data.len());
     }
     println!("{} clips", xsa.entries.len());
     Ok(())

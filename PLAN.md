@@ -161,8 +161,11 @@ First look (2026-10-12, read-only):
 | `HD/CDFiles/*.cd` | 172 | **Container solved** — see below | **Compiled scenario scripts**, one per `.rio` source file: 84,713 instructions, 82 distinct opcodes |
 | `HD/CDFiles/0.cd` | 1 | **Solved**: cipher from the exe (`0x4bcb20`) | **Label symbol table** for all 172 scripts: 1,820 label names with code offsets, all CRCs verified. Tool: `vn2ons cd symbols`. |
 | `HD/CDFiles/1.cd` | 1 | Not the 0.cd cipher | Unknown. Possibly the `sVAR`/`eVAR` variable-definition format the exe reads (64-byte names), but still encrypted. |
-| `HD/mv000*.bin` | 3 | ~100 MB each | Movies |
-| `HD/bm0000.bin`, `k000*.bin`, `wss.bin`, `cgv.bin`, `zpkc.bin`, `silent.bin` | – | Not checked yet | BGM, SE, CG viewer data, … |
+| `HD/mv000*.bin` | 3 | MPEG program stream (`00 00 01 ba`) | Movies; ffmpeg reads them directly |
+| `HD/bm0000.bin` | 1 | `.xsa` format, **solved** | BGM: 23 Ogg tracks; param 0 = loop start in samples (20 tracks loop) |
+| `HD/k0000.bin`, `k0001.bin` | 2 | `.xsa` format, **solved** | Probably sound effects: 311 Ogg clips |
+| `HD/cgv.bin`, `wss.bin`, `silent.bin` | 3 | `.xsa` format (182 / 500 slots), **solved** | 113 / 182 / 1 Ogg clips (role unknown; `wss` param 1 = length in samples) |
+| `HD/zpkc.bin` | 1 | Plain PNG, 800×600 | Image |
 | `res/m*.bin` | 5 | Plain `BM` | BMP images (installer/menu) |
 
 The exe also references `.arc` files that aren't installed (`bu.arc`, `gb.arc`,
@@ -199,6 +202,15 @@ directly, the clips can be copied over as-is.
 
 Tool: `vn2ons cd info|dump|messages|strings|opstats`.
 
+**Opcode dispatch table:** `Farthest2015.exe` at `0x4fb270`, indexed by
+the u16 opcode (0–`0x9d`, 157 handlers). Some handlers report their C++
+source file in error messages: `ScriptStd` (`0x23`, `0x30`–`0x39`),
+`TextRuby` (`0x44`, ruby/furigana), `ScriptText` (`0x46`–`0x49`), `TextIndent`
+(`0x4e`), `ScriptSound` (`0x5a`, `0x5e`, `0x5f`), `ScenarioVariable` (`0x64`,
+`0x65`, `0x9b`), `Story` (`0x93`), `AdvObjectScript_Filter` (`0x88`). `0x40`
+and `0x41` share one handler. Message records have a second block after the
+text (`u32 4, u32 0` in every message).
+
 **Opcodes so far:** for most opcodes the instruction's `arg` is the pool
 offset of its operand record.
 - `0x40`: message.
@@ -230,7 +242,9 @@ offset of its operand record.
 | `0x10` | 895 | `arg` is always a valid label-table index; 121 point into blog scripts | jump / call to a label |
 | `0x4d`, `0x58`, `0x43` | 276 / 579 / 578 | `arg` is always a valid label-table index | call / conditional-jump variants |
 | `0x8e` | 10,271 | operand is `sub` × 44-byte entries (sub = 1–6), each with position/size values (400, 320, 300, …) and a 16-byte name field holding character names | show `sub` character sprites |
-| `0x5b`, `0x54` | 890 / 2,195 | mix label references into blog scripts with strings that also appear in nearby text | **hyperlink candidates** (see 3c) |
+| `0x49` | 565 | flags, two colours, a voice-range id, then text + a short name | special voiced text display (chat/popup?); **not** hyperlinks |
+| `0x5b` | 890 | handler packs `(1 << 24) \| (arg - 1)` into a timer/wait call; sub values look like durations | wait/timer, **not** hyperlinks |
+| `0x54` | 2,195 | handler lives with the save utilities; references blog scripts | unknown |
 
 **Blog scripts:** 60 scripts are named `15_Blog…` (ids 96–155) and 44 are
 named `11_…`. 33 story scripts have 153 label-table entries pointing into the
@@ -251,9 +265,12 @@ mapping, the 32-byte head, and `1.cd`.
    `1.cd`'s cipher. (`0.cd`: done.)
 3c. **Encyclopedia hyperlinks.** Some words in the text are clickable and
    open an encyclopedia entry. Messages have no inline markup, so the links
-   must come from separate opcodes. `0x8e` is ruled out (it shows sprites).
-   The current candidates are `0x5b` and `0x54`, which point into the `15_Blog`
-   scripts, the likely encyclopedia entries.
+   must come from separate opcodes. `0x8e`, `0x49` and `0x5b` are ruled out,
+   and no opcode carries the link words. So the engine may match keywords
+   at runtime against a word list that hasn't been found yet (not in the
+   XARC archives or the `.bin` sound banks; maybe `1.cd`, or the
+   `bu`/`gb`/`lq.arc` archives the exe references but that aren't
+   installed).
    ONScripter has no in-text links, so the conversion needs a substitute:
    for example a clickable button/menu after the message, or an
    encyclopedia screen reachable from the menu. Most frequent opcodes first
