@@ -78,6 +78,16 @@ pub enum Op {
     IfEqual { var: Var, value: i32, label: String },
     /// Replace the background. Clears sprites, as most engines do.
     Background { image: String, fade_ms: u32 },
+    /// Remove every sprite layer.
+    ClearSprites,
+    /// Start collecting screen changes (background, sprites) without showing
+    /// them; [`Op::EndTransition`] (or the next text page) reveals them all
+    /// at once with a `fade_ms` cross-fade, shaped by `mask` (a greyscale
+    /// image; dark parts change first) if given. `effect` names the original
+    /// transition.
+    BeginTransition { effect: String, fade_ms: u32, mask: Option<String> },
+    /// Reveal the changes since [`Op::BeginTransition`].
+    EndTransition,
     /// Show or remove sprites on some layers, then show the result.
     Sprites { changes: Vec<SpriteChange>, fade_ms: u32 },
     /// One page of text, shown and then waited on. `text` may contain '\n'

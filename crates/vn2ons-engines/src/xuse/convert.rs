@@ -38,6 +38,18 @@ const OP_LINK_RETURN: u16 = 0x47;
 /// Timed waits: the low 16 bits of `arg` are milliseconds (the high half
 /// is a flag, meaning unknown). Both handlers install a wait callback that
 /// also checks for clicks.
+/// Arms a screen transition: changes until the next [`OP_TRANSITION_WAIT`]
+/// are revealed through it. `sub` = effect (jump table at 0x44a138);
+/// pool[arg] = u32 duration ms, u32 flags, u32 curve/parameter.
+const OP_TRANSITION: u16 = 0x76;
+/// Arms a mask ("rule") transition (`Trans_MaskBlend2`): pool[arg] = u32
+/// mask number (`mask%04u.png` in `HD/mask.arc`), i32 softness (sign =
+/// direction), then the same 12-byte timing block as 0x76.
+const OP_MASK_TRANSITION: u16 = 0x77;
+/// Waits for the running transition (a click finishes it early).
+const OP_TRANSITION_WAIT: u16 = 0x71;
+/// Removes every character bust-up (arg is always -1).
+const OP_CLEAR_SPRITES: u16 = 0x8f;
 const OP_WAIT: u16 = 0x66;
 const OP_WAIT_2: u16 = 0x72;
 const BG_PER_ARCHIVE: usize = 64;
@@ -196,6 +208,33 @@ impl AssetBank {
         let clip = (number.checked_sub(1).ok_or(ConvertError::MissingAsset { kind: "voice", number })?) % 100_000;
         let path = self.game.join("CD").join(format!("bv{:04}.xsa", clip >> 8));
         self.sound_at(path, clip & 0xff, "voice", format!("v{id}.ogg"), "voice", number)
+    }
+
+    /// Transition mask `number` from `HD/mask.arc` as a greyscale PNG
+    /// (inverted if asked).
+    pub fn mask(&mut self, number: usize, inverted: bool) -> Result<String, ConvertError> {
+        let kind = if inverted { "inverted mask" } else { "mask" };
+        if let Some(p) = self.written.get(&(kind, number)) {
+            return Ok(p.clone());
+        }
+        let path = self.game.join("HD").join("mask.arc");
+        let bytes = fs::read(&path).map_err(|source| ConvertError::Io { path: path.clone(), source })?;
+        let arc = Xarc::parse(&bytes).map_err(|source| ConvertError::Xarc { path: path.clone(), source })?;
+        let file = format!("mask{number:04}.png");
+        let entry = arc.entries.iter().find(|e| e.name == file).ok_or(ConvertError::MissingAsset { kind, number })?;
+        let mut img = image::load_from_memory_with_format(arc.data(entry), image::ImageFormat::Png)
+            .map_err(|source| ConvertError::Image { what: file.clone(), source })?
+            .to_luma8();
+        if inverted {
+            image::imageops::invert(&mut img);
+        }
+        let name = format!("system/mask{number:04}{}.png", if inverted { "r" } else { "" });
+        let mut png = Vec::new();
+        img.write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
+            .map_err(|source| ConvertError::Image { what: name.clone(), source })?;
+        write_file(&self.out.join(&name), &png)?;
+        self.written.insert((kind, number), name.clone());
+        Ok(name)
     }
 
     /// Builds the ADV text box from the game's own window graphics
@@ -414,6 +453,8 @@ pub fn lower_script(cd: &CdScript, file: &str, flow: Flow, assets: &mut AssetBan
     let mut ops = Vec::new();
     // Links (opcode 0x46) apply to the next message.
     let mut pending_links: Vec<Link> = Vec::new();
+    // A transition armed by 0x76 and not yet waited on (file order).
+    let mut transition_armed = false;
     for (index, ins) in cd.code.iter().enumerate() {
         if let Some(label) = own_labels.get(&index) {
             ops.push(Op::Label(format!("s{}_l{label}", cd.script_id)));
@@ -428,6 +469,40 @@ pub fn lower_script(cd: &CdScript, file: &str, flow: Flow, assets: &mut AssetBan
         }
         if flow == Flow::Linear && matches!(ins.op, OP_GOTO | OP_GOTO_2 | OP_GOTO_SUB | OP_IF_EQUAL | OP_GOSUB | OP_RETURN | OP_LINK_RETURN) {
             ops.push(Op::Unsupported { what: format!("opcode {:#04x} (linear mode)", ins.op), at: at() });
+            continue;
+        }
+        if ins.op == OP_MASK_TRANSITION {
+            let o = ins.arg as u32 as usize;
+            match (pool_u32(cd.pool, o), pool_u32(cd.pool, o + 4), pool_u32(cd.pool, o + 8)) {
+                (Some(number), Some(soft), Some(fade_ms)) => {
+                    // Assumption: negative softness runs the mask bright-first.
+                    let mask = match assets.mask(number as usize, (soft as i32) < 0) {
+                        Ok(m) => Some(m),
+                        Err(ConvertError::MissingAsset { .. }) => None,
+                        Err(e) => return Err(e),
+                    };
+                    transition_armed = true;
+                    let effect = format!("MaskBlend2 mask {number} softness {}", soft as i32);
+                    ops.push(Op::BeginTransition { effect, fade_ms, mask });
+                }
+                _ => ops.push(Op::Unsupported { what: format!("opcode {:#04x} (bad record)", ins.op), at: at() }),
+            }
+            continue;
+        }
+        if ins.op == OP_TRANSITION {
+            match pool_u32(cd.pool, ins.arg as u32 as usize) {
+                Some(fade_ms) => {
+                    transition_armed = true;
+                    ops.push(Op::BeginTransition { effect: transition_name(ins.sub).to_string(), fade_ms, mask: None });
+                }
+                None => ops.push(Op::Unsupported { what: format!("opcode {:#04x} (bad record)", ins.op), at: at() }),
+            }
+            continue;
+        }
+        if ins.op == OP_TRANSITION_WAIT {
+            if std::mem::take(&mut transition_armed) {
+                ops.push(Op::EndTransition);
+            }
             continue;
         }
         let links = if cd.message(ins).is_some() { std::mem::take(&mut pending_links) } else { Vec::new() };
@@ -541,6 +616,7 @@ fn lower_instr(cd: &CdScript, ins: &Instr, links: &[Link], assets: &mut AssetBan
         OP_GOTO_SUB => return Ok(label(ins.sub.into()).map(Op::Jump)),
         OP_GOSUB => return Ok(label(ins.sub.into()).map(Op::Gosub)),
         OP_RETURN | OP_LINK_RETURN => return Ok(Some(Op::Return)),
+        OP_CLEAR_SPRITES => return Ok(Some(Op::ClearSprites)),
         OP_WAIT | OP_WAIT_2 => return Ok(Some(Op::Wait { ms: u32::from(ins.arg as u16) })),
         OP_IF_EQUAL => {
             let Some(target) = label(ins.sub.into()) else { return Ok(None) };
@@ -589,6 +665,30 @@ fn own_label_at(cd: &CdScript, label: i32) -> Option<usize> {
         .iter()
         .find(|l| l.script == cd.script_id && i64::from(l.label) == i64::from(label))
         .map(|l| l.code_offset as usize / 12)
+}
+
+/// Transition effect for 0x76's `sub`, named after the engine's
+/// `Trans_*.cpp` source files (directions within a family not known).
+fn transition_name(sub: u16) -> &'static str {
+    match sub {
+        0..=3 => "Wave",
+        4 => "Dot4x4",
+        5..=8 => "SoftEdgeWipe",
+        9 => "CrossFade",
+        10..=17 => "Slide",
+        26 => "Dissolve",
+        27 => "Mosaic",
+        28..=31 => "BoxRolling",
+        32..=35 => "RollFlip",
+        36 => "SmoothCrossFade",
+        37..=40 => "Zoom",
+        41..=44 => "Scroll",
+        45 => "MeltDown black",
+        46 => "MeltDown grey",
+        47 => "MeltDown white",
+        48 => "TvPowerSwitch",
+        _ => "unknown",
+    }
 }
 
 /// About 150 sprite entries point one past the last image of their

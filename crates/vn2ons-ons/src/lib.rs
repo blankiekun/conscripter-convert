@@ -13,8 +13,10 @@ pub mod nsa;
 
 /// First effect number we define; 1 is NScripter's built-in "instant".
 const FIRST_EFFECT: u32 = 2;
-/// NScripter effect type 10 is a cross-fade.
+/// NScripter effect type 10 is a cross-fade; 18 a cross-fade shaped by a
+/// mask image (dark parts first).
 const FADE: u32 = 10;
+const MASK_FADE: u32 = 18;
 /// Sound effect channels we rotate through (0 is left for voices).
 const SE_CHANNELS: std::ops::RangeInclusive<u32> = 1..=9;
 /// Sprite slots for the name text and its plate. ONScripter draws lower
@@ -65,8 +67,11 @@ pub fn emit(script: &Script) -> String {
     // shows as mojibake on Linux, so keep it ASCII.
     let caption: String = script.title.chars().filter(|c| c.is_ascii() && *c != '"').collect();
     writeln!(out, "caption \"{}\"", caption.trim()).unwrap();
-    for (ms, n) in &effects {
-        writeln!(out, "effect {n},{FADE},{ms}").unwrap();
+    for ((ms, mask), n) in &effects {
+        match mask {
+            Some(m) => writeln!(out, "effect {n},{MASK_FADE},{ms},\"{}\"", path(m)).unwrap(),
+            None => writeln!(out, "effect {n},{FADE},{ms}").unwrap(),
+        }
     }
     writeln!(out, "game").unwrap();
     writeln!(out, "*start").unwrap();
@@ -83,7 +88,7 @@ pub fn emit(script: &Script) -> String {
         .unwrap();
     }
 
-    let effect = |ms: u32| if ms == 0 { 1 } else { effects[&ms] };
+    let effect = |ms: u32| if ms == 0 { 1 } else { effects[&(ms, None)] };
     let mut se = SeChannels::default();
     let mut needs_bit_helpers = false;
     let mut plate_visible = false;
@@ -91,7 +96,14 @@ pub fn emit(script: &Script) -> String {
     // scene returns (an approximation when control flow jumps around).
     let mut screen = Screen::default();
     let mut link_pages = 0;
+    // Effect number of an open transition: display commands only update the
+    // buffer until it is printed.
+    let mut transition: Option<u32> = None;
     for op in &script.ops {
+        if let (Some(e), Op::Text { .. }) = (transition, op) {
+            writeln!(out, "print {e}").unwrap();
+            transition = None;
+        }
         match op {
             Op::Label(name) => writeln!(out, "*{}", label(name)).unwrap(),
             Op::Jump(name) => writeln!(out, "goto *{}", label(name)).unwrap(),
@@ -126,7 +138,9 @@ pub fn emit(script: &Script) -> String {
                 // NScripter's bg keeps lsp sprites; the game removes characters
                 // when the background or CG changes.
                 writeln!(out, "csp -1").unwrap();
-                writeln!(out, "bg \"{}\",{}", path(image), effect(*fade_ms)).unwrap();
+                // Effect 0 = update the buffer only (shown by the transition).
+                let e = if transition.is_some() { 0 } else { effect(*fade_ms) };
+                writeln!(out, "bg \"{}\",{e}", path(image)).unwrap();
                 plate_visible = false;
                 screen.bg = Some(image.clone());
                 screen.sprites.clear();
@@ -145,7 +159,30 @@ pub fn emit(script: &Script) -> String {
                         }
                     }
                 }
-                writeln!(out, "print {}", effect(*fade_ms)).unwrap();
+                if transition.is_none() {
+                    writeln!(out, "print {}", effect(*fade_ms)).unwrap();
+                }
+            }
+            Op::ClearSprites => {
+                writeln!(out, "csp -1").unwrap();
+                plate_visible = false;
+                screen.sprites.clear();
+                if transition.is_none() {
+                    writeln!(out, "print 1").unwrap();
+                }
+            }
+            Op::BeginTransition { effect: name, fade_ms, mask } => {
+                writeln!(out, "; transition: {name}").unwrap();
+                transition = Some(match mask {
+                    Some(_) if *fade_ms == 0 => 1,
+                    Some(m) => effects[&(*fade_ms, Some(m.clone()))],
+                    None => effect(*fade_ms),
+                });
+            }
+            Op::EndTransition => {
+                if let Some(e) = transition.take() {
+                    writeln!(out, "print {e}").unwrap();
+                }
             }
             Op::Text { speaker, text, voice, links } => {
                 if let Some(v) = voice {
@@ -367,20 +404,22 @@ pub fn encode(source: &str) -> (Vec<u8>, usize) {
     (out, lost)
 }
 
-/// One effect number per distinct non-zero fade duration, in a stable order.
-fn fade_effects(script: &Script) -> BTreeMap<u32, u32> {
-    let mut durations: Vec<u32> = script
+/// One effect number per distinct non-zero (duration, mask) pair, in a
+/// stable order: plain cross-fades and mask cross-fades.
+fn fade_effects(script: &Script) -> BTreeMap<(u32, Option<String>), u32> {
+    let mut keys: Vec<(u32, Option<String>)> = script
         .ops
         .iter()
         .filter_map(|op| match op {
-            Op::Background { fade_ms, .. } | Op::Sprites { fade_ms, .. } => Some(*fade_ms),
+            Op::Background { fade_ms, .. } | Op::Sprites { fade_ms, .. } => Some((*fade_ms, None)),
+            Op::BeginTransition { fade_ms, mask, .. } => Some((*fade_ms, mask.clone())),
             _ => None,
         })
-        .filter(|&ms| ms > 0)
+        .filter(|(ms, _)| *ms > 0)
         .collect();
-    durations.sort_unstable();
-    durations.dedup();
-    durations.into_iter().zip(FIRST_EFFECT..).collect()
+    keys.sort_unstable();
+    keys.dedup();
+    keys.into_iter().zip(FIRST_EFFECT..).collect()
 }
 
 /// Escapes the text and wraps each link range in colour tags. Ranges are in
@@ -558,6 +597,37 @@ print 1
 bgm \"bgm\\a.ogg\"
 goto *vn2ons_link1
 *vn2ons_link1_1
+";
+        assert!(text.contains(expected), "{text}");
+    }
+
+    #[test]
+    fn transitions_reveal_changes_at_once() {
+        let sprite = SpritePlacement { image: "sprite/a.png".into(), x: 1, y: 2 };
+        let s = script(vec![
+            Op::BeginTransition { effect: "CrossFade".into(), fade_ms: 2000, mask: None },
+            Op::ClearSprites,
+            Op::Background { image: "bg/a.png".into(), fade_ms: 500 },
+            Op::Sprites { changes: vec![SpriteChange { layer: 5, sprite: Some(sprite) }], fade_ms: 500 },
+            Op::EndTransition,
+            Op::BeginTransition { effect: "MaskBlend2".into(), fade_ms: 1000, mask: Some("system/mask0009r.png".into()) },
+            Op::Background { image: "bg/b.png".into(), fade_ms: 500 },
+            Op::Text { speaker: None, text: "あ".into(), voice: None, links: vec![] },
+        ]);
+        let text = emit(&s);
+        assert!(text.contains("effect 2,10,500\neffect 3,18,1000,\"system\\mask0009r.png\"\neffect 4,10,2000\n"), "{text}");
+        let expected = "\
+; transition: CrossFade
+csp -1
+csp -1
+bg \"bg\\a.png\",0
+lsp 15,\":a;sprite\\a.png\",1,2
+print 4
+; transition: MaskBlend2
+csp -1
+bg \"bg\\b.png\",0
+print 3
+あ\\
 ";
         assert!(text.contains(expected), "{text}");
     }
