@@ -5,6 +5,7 @@ use anyhow::{Context, Result, bail};
 use clap::{Parser, Subcommand};
 use memmap2::Mmap;
 use vn2ons_engines::xuse::xarc::{CrcTarget, Xarc};
+use vn2ons_engines::xuse::xsa::Xsa;
 
 #[derive(Parser)]
 #[command(name = "vn2ons", about = "Convert Japanese visual novels to ONScripter")]
@@ -19,6 +20,24 @@ enum Command {
     Xarc {
         #[command(subcommand)]
         command: XarcCommand,
+    },
+    /// Low-level tools for Xuse voice archives (*.xsa)
+    Xsa {
+        #[command(subcommand)]
+        command: XsaCommand,
+    },
+}
+
+#[derive(Subcommand)]
+enum XsaCommand {
+    /// List clips
+    List { archive: PathBuf },
+    /// Extract clips as <archive>_<slot>.ogg into a directory
+    Extract {
+        #[arg(required = true)]
+        archives: Vec<PathBuf>,
+        #[arg(short, long)]
+        output: PathBuf,
     },
 }
 
@@ -45,6 +64,10 @@ fn main() -> Result<()> {
             XarcCommand::List { archive } => xarc_list(&archive),
             XarcCommand::Verify { archives } => xarc_verify(&archives),
             XarcCommand::Extract { archive, output } => xarc_extract(&archive, &output),
+        },
+        Command::Xsa { command } => match command {
+            XsaCommand::List { archive } => xsa_list(&archive),
+            XsaCommand::Extract { archives, output } => xsa_extract(&archives, &output),
         },
     }
 }
@@ -126,6 +149,41 @@ fn xarc_extract(path: &Path, output: &Path) -> Result<()> {
         fs::write(&dest, arc.data(e)).with_context(|| format!("writing {}", dest.display()))?;
     }
     println!("extracted {} entries to {}", arc.entries.len(), output.display());
+    Ok(())
+}
+
+fn xsa_list(path: &Path) -> Result<()> {
+    let bytes = map(path)?;
+    let xsa = Xsa::parse(&bytes).with_context(|| format!("parsing {}", path.display()))?;
+    println!("{:>4}  {:>10}  {:>10}  kind", "slot", "offset", "size");
+    for e in &xsa.entries {
+        let kind = if xsa.data(e).starts_with(b"OggS") { "ogg" } else { "unknown" };
+        println!("{:>4}  {:>10}  {:>10}  {kind}", e.slot, e.data.start, e.data.len());
+    }
+    println!("{} clips", xsa.entries.len());
+    Ok(())
+}
+
+fn xsa_extract(paths: &[PathBuf], output: &Path) -> Result<()> {
+    fs::create_dir_all(output)?;
+    let mut total = 0;
+    for path in paths {
+        let bytes = map(path)?;
+        let xsa = Xsa::parse(&bytes).with_context(|| format!("parsing {}", path.display()))?;
+        let stem = path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .with_context(|| format!("no usable file name in {}", path.display()))?
+            .to_lowercase();
+        for e in &xsa.entries {
+            let data = xsa.data(e);
+            let ext = if data.starts_with(b"OggS") { "ogg" } else { "bin" };
+            let dest = output.join(format!("{stem}_{:03}.{ext}", e.slot));
+            fs::write(&dest, data).with_context(|| format!("writing {}", dest.display()))?;
+        }
+        total += xsa.entries.len();
+    }
+    println!("extracted {total} clips from {} archives to {}", paths.len(), output.display());
     Ok(())
 }
 

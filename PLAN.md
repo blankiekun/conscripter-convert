@@ -157,7 +157,7 @@ First look (2026-10-12, read-only):
 |---|---|---|---|
 | `HD/*.arc` (env, fx, gd, mask, pal, wnd) | 6 | **Solved** — see below | Archives of UI, effects, masks, palettes: 130 entries total (64 `GAF4`, 32 plain PNG, 31 `.ap` + 2 `.def` text files, 1 RIFF palette) |
 | `HD/bg*.004`, `HD/bu*.004`, `HD/LensFlare.004` | 22 | `GAF4` + `Farthest` title string, high-entropy data after the header | Image container (backgrounds `bg`, character sprites `bu`); payload compressed or encrypted |
-| `CD/BV*.xsa` | 61 | No magic; starts with a table of (u32 size, u32 offset, …) records | Voice archives |
+| `CD/BV*.xsa` | 61 | **Solved** — see below | Voice archives: 15,507 clips, plain Ogg Vorbis (44.1 kHz mono) |
 | `HD/CDFiles/*.cd` (+ `0.cd`, `1.cd`) | 174 | No magic; byte patterns look like Shift-JIS text after a simple byte-wise transform | **Scenario scripts** (one per scene; `0.cd`/`1.cd` are special, maybe index/system) |
 | `HD/mv000*.bin` | 3 | ~100 MB each | Movies |
 | `HD/bm0000.bin`, `k000*.bin`, `wss.bin`, `cgv.bin`, `zpkc.bin`, `silent.bin` | – | Not checked yet | BGM, SE, CG viewer data, … |
@@ -175,10 +175,17 @@ data. The archive header, each entry header and each entry's data are followed
 by a big-endian CRC-16/XMODEM; all CRCs in all six archives verify. Tool:
 `vn2ons xarc list|verify|extract`.
 
+**XSA format (solved 2026-10-12):** documented in
+`crates/vn2ons-engines/src/xuse/xsa.rs`. `u32` version (1), then 256 slots of
+(size, offset, 0, 0), then the clips back to back. No names and no encryption;
+unused slots are zero and only occur at the end of the last archive. The
+global voice number is presumably `archive * 256 + slot` (to confirm against
+the scripts). Tool: `vn2ons xsa list|extract`. Since ONScripter plays Ogg
+directly, the clips can be copied over as-is.
+
 **Plan for this game:**
 1. ~~`XARC` reader~~ (done).
-2. `.xsa` reader: parse the record table and check whether entries are
-   Ogg/WAV.
+2. ~~`.xsa` reader~~ (done).
 3. `.cd` scripts: work out the text transform (start from the Shift-JIS byte
    statistics), then the command structure around the text. This is the main
    reverse-engineering job and where the opcode inferrer agent helps most.

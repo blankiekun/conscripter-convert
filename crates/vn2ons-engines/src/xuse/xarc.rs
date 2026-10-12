@@ -26,6 +26,8 @@ use std::ops::Range;
 
 use thiserror::Error;
 
+use crate::read::{Reader, Truncated};
+
 const MAGIC: &[u8; 4] = b"XARC";
 const ENTRY_MAGIC: &[u8; 4] = b"DATA";
 /// "DATA" + unknown + SYSTEMTIME + name length + data size.
@@ -35,8 +37,8 @@ const ENTRY_FIXED_LEN: usize = 4 + 4 + 16 + 4 + 4;
 pub enum XarcError {
     #[error("not an XARC archive (bad magic)")]
     BadMagic,
-    #[error("truncated: needed {needed} bytes at offset {offset:#x}, file is {len} bytes")]
-    Truncated { offset: usize, needed: usize, len: usize },
+    #[error(transparent)]
+    Truncated(#[from] Truncated),
     #[error("entry {index} at {offset:#x} does not start with \"DATA\"")]
     BadEntryMagic { index: usize, offset: usize },
 }
@@ -193,33 +195,6 @@ pub fn crc16_xmodem(data: &[u8]) -> u16 {
     crc
 }
 
-struct Reader<'a>(&'a [u8]);
-
-impl<'a> Reader<'a> {
-    fn truncated(&self, offset: usize, needed: usize) -> XarcError {
-        XarcError::Truncated { offset, needed, len: self.0.len() }
-    }
-
-    fn slice(&self, offset: usize, len: usize) -> Result<&'a [u8], XarcError> {
-        offset
-            .checked_add(len)
-            .and_then(|end| self.0.get(offset..end))
-            .ok_or_else(|| self.truncated(offset, len))
-    }
-
-    fn u16(&self, offset: usize) -> Result<u16, XarcError> {
-        Ok(u16::from_le_bytes(self.slice(offset, 2)?.try_into().unwrap()))
-    }
-
-    fn u16_be(&self, offset: usize) -> Result<u16, XarcError> {
-        Ok(u16::from_be_bytes(self.slice(offset, 2)?.try_into().unwrap()))
-    }
-
-    fn u32(&self, offset: usize) -> Result<u32, XarcError> {
-        Ok(u32::from_le_bytes(self.slice(offset, 4)?.try_into().unwrap()))
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -303,6 +278,6 @@ mod tests {
         // Huge entry count must fail cleanly, not allocate.
         let mut huge = b"XARC".to_vec();
         huge.extend_from_slice(&u32::MAX.to_le_bytes());
-        assert!(matches!(Xarc::parse(&huge), Err(XarcError::Truncated { .. })));
+        assert!(matches!(Xarc::parse(&huge), Err(XarcError::Truncated(_))));
     }
 }
