@@ -9,7 +9,10 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use thiserror::Error;
-use vn2ons_core::ir::{ArithOp, NamePlate, Op, Operand, SourceLoc, SpriteChange, SpritePlacement, TextLink, TextWindow, Var};
+use vn2ons_core::ir::{
+    ArithOp, NamePlate, Op, Operand, SourceLoc, SpriteChange, SpritePlacement, TextLink, TextWindow, TitleAction,
+    TitleButton, TitleScreen, Var,
+};
 
 use crate::xuse::cd::{CdError, CdScript, Instr, Link, Sound};
 use crate::xuse::gaf::{Gaf, GafError};
@@ -75,6 +78,8 @@ const BG_FADE_MS: u32 = 500;
 /// Opacity of the text window's base layer (estimated from a screenshot of
 /// the original game).
 const WINDOW_OPACITY_PERCENT: u32 = 55;
+/// Assumption: the title screen fades in and out over this long.
+const TITLE_FADE_MS: u32 = 1000;
 /// Assumption: the sprite entry's fade field counts 10 ms units.
 const SPRITE_FADE_UNIT_MS: u32 = 10;
 
@@ -275,42 +280,87 @@ impl AssetBank {
     /// The four PNG layers (message base, frame, name base, frame) of a
     /// `TextWnd*.004` in `HD/wnd.arc`.
     fn wnd_images(&self, file: &str) -> Result<Vec<Vec<u8>>, ConvertError> {
-        let path = self.game.join("HD").join("wnd.arc");
-        let bytes = fs::read(&path).map_err(|source| ConvertError::Io { path: path.clone(), source })?;
-        let arc = Xarc::parse(&bytes).map_err(|source| ConvertError::Xarc { path: path.clone(), source })?;
-        let entry =
-            arc.entries.iter().find(|e| e.name == file).ok_or(ConvertError::MissingAsset { kind: "text window", number: 0 })?;
-        let gaf_path = path.join(file);
-        let gaf = Gaf::parse(arc.data(entry)).map_err(|source| ConvertError::Gaf { path: gaf_path.clone(), source })?;
-        let images = gaf.images().map_err(|source| ConvertError::Gaf { path: gaf_path, source })?;
+        let images = self.gaf_images("wnd.arc", file, "text window")?;
         if images.len() < 4 {
             return Err(ConvertError::MissingAsset { kind: "text window layer", number: images.len() });
         }
-        Ok(images.iter().take(4).map(|i| i.png.to_vec()).collect())
+        Ok(images.into_iter().take(4).collect())
+    }
+
+    /// The PNGs of GAF4 container `file` inside the XARC archive `HD/{arc}`.
+    fn gaf_images(&self, arc: &str, file: &str, kind: &'static str) -> Result<Vec<Vec<u8>>, ConvertError> {
+        let path = self.game.join("HD").join(arc);
+        let bytes = fs::read(&path).map_err(|source| ConvertError::Io { path: path.clone(), source })?;
+        let arc = Xarc::parse(&bytes).map_err(|source| ConvertError::Xarc { path: path.clone(), source })?;
+        let entry = arc.entries.iter().find(|e| e.name == file).ok_or(ConvertError::MissingAsset { kind, number: 0 })?;
+        let gaf_path = path.join(file);
+        let gaf = Gaf::parse(arc.data(entry)).map_err(|source| ConvertError::Gaf { path: gaf_path.clone(), source })?;
+        let images = gaf.images().map_err(|source| ConvertError::Gaf { path: gaf_path, source })?;
+        Ok(images.iter().map(|i| i.png.to_vec()).collect())
+    }
+
+    /// The title screen from `HD/gd.arc` → `Title.004`: background (0) with
+    /// the logo (10) and "COMPLETE" (14) on it, and the menu words, each a
+    /// column of four states (normal, under the pointer, pressed, disabled).
+    /// Positions measured on a screenshot of the original. The extra modes
+    /// (cg 4, bgm 5, chapter 8, wss 13) appear after clearing the game and
+    /// aren't converted yet; neither is the options menu.
+    pub fn title_screen(&mut self) -> Result<TitleScreen, ConvertError> {
+        let images = self.gaf_images("gd.arc", "Title.004", "title screen")?;
+        let get = |n: usize| {
+            let png = images.get(n).ok_or(ConvertError::MissingAsset { kind: "title screen image", number: n })?;
+            image::load_from_memory_with_format(png, image::ImageFormat::Png)
+                .map(|i| i.to_rgba8())
+                .map_err(|source| ConvertError::Image { what: format!("Title.004 #{n}"), source })
+        };
+        let mut background = get(0)?;
+        image::imageops::overlay(&mut background, &get(10)?, 0, 171);
+        image::imageops::overlay(&mut background, &get(14)?, 101, 384);
+        let background_path = "system/title.png".to_string();
+        self.save_image(&background_path, &background)?;
+
+        let mut buttons = Vec::new();
+        for (n, name, x, y, action) in [
+            (6, "start", 631, 221, TitleAction::Start),
+            (2, "load", 631, 250, TitleAction::Load),
+            (7, "option", 631, 299, TitleAction::Unavailable),
+            (3, "exit", 631, 370, TitleAction::Exit),
+        ] {
+            let states = get(n)?;
+            let (w, h) = (states.width(), states.height() / 4);
+            let cell = |i: u32| image::imageops::crop_imm(&states, 0, i * h, w, h).to_image();
+            let strip = if action == TitleAction::Unavailable {
+                cell(3)
+            } else {
+                let mut strip = image::RgbaImage::new(w * 2, h);
+                image::imageops::replace(&mut strip, &cell(0), 0, 0);
+                image::imageops::replace(&mut strip, &cell(1), i64::from(w), 0);
+                strip
+            };
+            let image = format!("system/title_{name}.png");
+            self.save_image(&image, &strip)?;
+            buttons.push(TitleButton { image, x, y, action });
+        }
+        Ok(TitleScreen { background: background_path, fade_ms: TITLE_FADE_MS, buttons })
+    }
+
+    fn save_image(&self, name: &str, img: &image::RgbaImage) -> Result<(), ConvertError> {
+        let dest = self.out.join(name);
+        if let Some(parent) = dest.parent() {
+            fs::create_dir_all(parent).map_err(|source| ConvertError::Io { path: parent.to_path_buf(), source })?;
+        }
+        img.save(&dest).map_err(|source| ConvertError::Image { what: name.to_string(), source })
     }
 
     /// Builds the ADV text box from the game's own window graphics
     /// (`HD/wnd.arc` → `TextWnd0.004`: message base + frame, name base +
     /// frame). Positions match the original game's 800×600 layout.
     pub fn text_window(&mut self) -> Result<TextWindow, ConvertError> {
-        let path = self.game.join("HD").join("wnd.arc");
-        let bytes = fs::read(&path).map_err(|source| ConvertError::Io { path: path.clone(), source })?;
-        let arc = Xarc::parse(&bytes).map_err(|source| ConvertError::Xarc { path: path.clone(), source })?;
-        let entry = arc
-            .entries
-            .iter()
-            .find(|e| e.name == "TextWnd0.004")
-            .ok_or(ConvertError::MissingAsset { kind: "text window", number: 0 })?;
-        let gaf_path = path.join("TextWnd0.004");
-        let gaf = Gaf::parse(arc.data(entry)).map_err(|source| ConvertError::Gaf { path: gaf_path.clone(), source })?;
-        let images = gaf.images().map_err(|source| ConvertError::Gaf { path: gaf_path, source })?;
-        if images.len() < 4 {
-            return Err(ConvertError::MissingAsset { kind: "text window layer", number: images.len() });
-        }
+        let images = self.wnd_images("TextWnd0.004")?;
         let window = "system/textwnd.png".to_string();
         let plate = "system/nameplate.png".to_string();
-        self.layered(&window, images[0].png, images[1].png)?;
-        self.layered(&plate, images[2].png, images[3].png)?;
+        self.layered(&window, &images[0], &images[1])?;
+        self.layered(&plate, &images[2], &images[3])?;
         // Positions measured on screenshots of the original game.
         Ok(TextWindow {
             image: window,
@@ -343,11 +393,7 @@ impl AssetBank {
             px.0[3] = (u32::from(px.0[3]) * WINDOW_OPACITY_PERCENT / 100) as u8;
         }
         image::imageops::overlay(&mut out, &load(top)?, 0, 0);
-        let dest = self.out.join(name);
-        if let Some(parent) = dest.parent() {
-            fs::create_dir_all(parent).map_err(|source| ConvertError::Io { path: parent.to_path_buf(), source })?;
-        }
-        out.save(&dest).map_err(|source| ConvertError::Image { what: name.to_string(), source })
+        self.save_image(name, &out)
     }
 
     /// Reads every archive the `needs` touch once and writes the used

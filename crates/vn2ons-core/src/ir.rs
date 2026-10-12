@@ -140,6 +140,36 @@ pub struct NamePlate {
     pub font_size: u32,
 }
 
+/// The game's title screen: image buttons over a full-screen picture, shown
+/// before the first op runs.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TitleScreen {
+    /// Full-screen picture (logo included).
+    pub background: String,
+    pub fade_ms: u32,
+    pub buttons: Vec<TitleButton>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TitleButton {
+    /// Two cells side by side, normal and under the mouse pointer; one cell
+    /// for [`TitleAction::Unavailable`].
+    pub image: String,
+    pub x: i32,
+    pub y: i32,
+    pub action: TitleAction,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TitleAction {
+    /// Run the script from its first op.
+    Start,
+    Load,
+    Exit,
+    /// Shown but not clickable (the menu it opens isn't converted yet).
+    Unavailable,
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct Script {
     /// Window caption.
@@ -148,5 +178,7 @@ pub struct Script {
     pub height: u32,
     /// `None` = the engine's default full-screen (NVL) text window.
     pub window: Option<TextWindow>,
+    /// `None` = start the script right away.
+    pub title_screen: Option<TitleScreen>,
     pub ops: Vec<Op>,
 }

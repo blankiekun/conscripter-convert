@@ -7,7 +7,9 @@
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::Write;
 
-use vn2ons_core::ir::{ArithOp, Op, Operand, Script, SpritePlacement, TextLink, TextWindow, Var};
+use vn2ons_core::ir::{
+    ArithOp, Op, Operand, Script, SpritePlacement, TextLink, TextWindow, TitleAction, TitleScreen, Var,
+};
 
 pub mod nsa;
 
@@ -36,6 +38,9 @@ const BUTTON_VAR: &str = "%9";
 /// makes %200 and up persist across games.
 const LOCAL_VAR_BASE: u32 = 10;
 const GLOBAL_VAR_BASE: u32 = 200;
+/// Labels of the title menu loop and of its Start button's target.
+const TITLE_MENU: &str = "vn2ons_title";
+const TITLE_START: &str = "vn2ons_title_start";
 /// Colour for words the original game made clickable, and normal text.
 const LINK_COLOR: &str = "#F0C040";
 /// Link words under the mouse pointer.
@@ -86,6 +91,9 @@ pub fn emit(script: &Script) -> String {
     }
 
     let effect = |ms: u32| if ms == 0 { 1 } else { effects[&(ms, None)] };
+    if let Some(t) = &script.title_screen {
+        title_screen(&mut out, t, effect(t.fade_ms));
+    }
     let mut se = SeChannels::default();
     let mut needs_bit_helpers = false;
     let mut plate_visible = false;
@@ -325,6 +333,39 @@ pub fn emit(script: &Script) -> String {
     out
 }
 
+/// The title menu: buttons are sprites over the picture, faded in together;
+/// Start clears them and falls through to the script that follows.
+fn title_screen(out: &mut String, t: &TitleScreen, fade: u32) {
+    let buttons: Vec<_> = t.buttons.iter().zip(LINK_SPRITES).collect();
+    // Effect 0 = update the buffer only; the print shows it all.
+    writeln!(out, "bg \"{}\",0", path(&t.background)).unwrap();
+    for (b, slot) in &buttons {
+        let cells = if b.action == TitleAction::Unavailable { "" } else { "/2,0,3" };
+        writeln!(out, "lsp {slot},\":a{cells};{}\",{},{}", path(&b.image), b.x, b.y).unwrap();
+    }
+    writeln!(out, "print {fade}").unwrap();
+    writeln!(out, "*{TITLE_MENU}").unwrap();
+    let clickable: Vec<_> = buttons.iter().filter(|(b, _)| b.action != TitleAction::Unavailable).collect();
+    for (n, (_, slot)) in clickable.iter().enumerate() {
+        writeln!(out, "spbtn {slot},{}", n + 1).unwrap();
+    }
+    writeln!(out, "btnwait {BUTTON_VAR}").unwrap();
+    for (n, (b, _)) in clickable.iter().enumerate() {
+        let then = match b.action {
+            TitleAction::Start => format!("goto *{TITLE_START}"),
+            // The built-in load menu; it comes back here when cancelled.
+            TitleAction::Load => format!("systemcall load:goto *{TITLE_MENU}"),
+            TitleAction::Exit => "end".to_string(),
+            TitleAction::Unavailable => unreachable!(),
+        };
+        writeln!(out, "if {BUTTON_VAR} == {} {then}", n + 1).unwrap();
+    }
+    writeln!(out, "goto *{TITLE_MENU}").unwrap();
+    writeln!(out, "*{TITLE_START}").unwrap();
+    writeln!(out, "csp -1").unwrap();
+    writeln!(out, "bg black,{fade}").unwrap();
+}
+
 /// `setwindow` for a window: text x,y, columns,rows, font w,h, char
 /// spacing, line gap, ms per character, bold, shadow, window image, x,y.
 fn setwindow(w: &TextWindow) -> String {
@@ -437,6 +478,7 @@ fn fade_effects(script: &Script) -> BTreeMap<(u32, Option<String>), u32> {
             Op::BeginTransition { fade_ms, mask, .. } => Some((*fade_ms, mask.clone())),
             _ => None,
         })
+        .chain(script.title_screen.iter().map(|t| (t.fade_ms, None)))
         .filter(|(ms, _)| *ms > 0)
         .collect();
     keys.sort_unstable();
@@ -549,7 +591,7 @@ mod tests {
     use vn2ons_core::ir::{SourceLoc, SpriteChange, SpritePlacement};
 
     fn script(ops: Vec<Op>) -> Script {
-        Script { title: "Test".into(), width: 800, height: 600, window: None, ops }
+        Script { title: "Test".into(), width: 800, height: 600, window: None, title_screen: None, ops }
     }
 
     fn link(start: usize, len: usize, target: Option<&str>) -> TextLink {
@@ -651,6 +693,35 @@ print 3
 あ\\
 ";
         assert!(text.contains(expected), "{text}");
+    }
+
+    #[test]
+    fn title_screen_runs_before_the_script() {
+        use vn2ons_core::ir::TitleButton;
+        let button = |image: &str, action| TitleButton { image: image.into(), x: 600, y: 200, action };
+        let mut s = script(vec![Op::Text { speaker: None, text: "あ".into(), voice: None, links: vec![], continues: false }]);
+        s.title_screen = Some(TitleScreen {
+            background: "system/title.png".into(),
+            fade_ms: 1000,
+            buttons: vec![
+                button("system/start.png", TitleAction::Start),
+                button("system/option.png", TitleAction::Unavailable),
+                button("system/load.png", TitleAction::Load),
+                button("system/exit.png", TitleAction::Exit),
+            ],
+        });
+        let out = emit(&s);
+        let expected = "*start\nbg \"system\\title.png\",0\n\
+            lsp 2,\":a/2,0,3;system\\start.png\",600,200\n\
+            lsp 3,\":a;system\\option.png\",600,200\n\
+            lsp 4,\":a/2,0,3;system\\load.png\",600,200\n\
+            lsp 5,\":a/2,0,3;system\\exit.png\",600,200\n\
+            print 2\n*vn2ons_title\nspbtn 2,1\nspbtn 4,2\nspbtn 5,3\nbtnwait %9\n\
+            if %9 == 1 goto *vn2ons_title_start\n\
+            if %9 == 2 systemcall load:goto *vn2ons_title\n\
+            if %9 == 3 end\n\
+            goto *vn2ons_title\n*vn2ons_title_start\ncsp -1\nbg black,2\nあ\\\n";
+        assert!(out.contains(expected), "{out}");
     }
 
     #[test]
