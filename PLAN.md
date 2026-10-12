@@ -331,7 +331,20 @@ mapping, the 32-byte head, and `1.cd`.
      (one PNG per pose and size), so no composition is needed. Some sprite
      archives also contain 1×1 placeholder images.
 5. Movies and the remaining `.bin` files last.
-6. **System UI** (from user screenshots of the original, in
+6. **Target: a WebAssembly build of ONScripter** (per the user). What that
+   means for the conversion:
+   - **Menus:** every system screen must be a real graphical menu built in
+     the script (game graphics + `spbtn`/`btnwait`/`getmousepos`), since
+     there are no native dialogs and the built-in text menus look out of
+     place.
+   - **Right-click:** ogapee's ONScripter has no `rgosub` (send right-click
+     to a script label). Either patch the engine (we build it ourselves; a
+     small patch set kept in this repo would apply to the WASM build too)
+     or put all access behind the on-screen button bar.
+   - **Packaging:** pack assets into `.nsa` archives rather than thousands
+     of loose files (fewer browser fetches), bundle the font, and keep
+     memory use in mind (a full background archive decoded is tens of MB).
+7. **System UI** (from user screenshots of the original, in
    `out/my-screenshots/`, not committed). Each item, with the ONScripter
    tools for it:
    - **Text box:** ADV box (done) at the measured positions.
