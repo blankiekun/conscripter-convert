@@ -75,6 +75,8 @@ enum GafCommand {
         #[arg(required = true)]
         files: Vec<PathBuf>,
     },
+    /// Print each image's index and original file name
+    Names { file: PathBuf },
     /// Extract the embedded PNGs as <file>_<index>.png into a directory
     Extract {
         #[arg(required = true)]
@@ -131,6 +133,7 @@ fn main() -> Result<()> {
         },
         Command::Gaf { command } => match command {
             GafCommand::List { files } => gaf_list(&files),
+            GafCommand::Names { file } => gaf_names(&file),
             GafCommand::Extract { files, output } => gaf_extract(&files, &output),
         },
         Command::Xsa { command } => match command {
@@ -359,7 +362,7 @@ fn gaf_list(paths: &[PathBuf]) -> Result<()> {
         let gaf = parse_gaf(path)?;
         match gaf.images() {
             Ok(images) => {
-                let bytes: usize = images.iter().map(|i| i.len()).sum();
+                let bytes: usize = images.iter().map(|i| i.png.len()).sum();
                 println!("{}: {} images, {bytes} bytes of PNG, key {:?}", path.display(), images.len(), gaf.name);
             }
             Err(e) => {
@@ -374,6 +377,14 @@ fn gaf_list(paths: &[PathBuf]) -> Result<()> {
     Ok(())
 }
 
+fn gaf_names(path: &Path) -> Result<()> {
+    let gaf = parse_gaf(path)?;
+    for (i, img) in gaf.images()?.iter().enumerate() {
+        println!("{i:>4}  {}", img.file_name());
+    }
+    Ok(())
+}
+
 fn gaf_extract(paths: &[PathBuf], output: &Path) -> Result<()> {
     fs::create_dir_all(output)?;
     let mut total = 0;
@@ -384,9 +395,9 @@ fn gaf_extract(paths: &[PathBuf], output: &Path) -> Result<()> {
             .file_stem()
             .and_then(|s| s.to_str())
             .with_context(|| format!("no usable file name in {}", path.display()))?;
-        for (i, png) in images.iter().enumerate() {
+        for (i, img) in images.iter().enumerate() {
             let dest = output.join(format!("{stem}_{i:03}.png"));
-            fs::write(&dest, png).with_context(|| format!("writing {}", dest.display()))?;
+            fs::write(&dest, img.png).with_context(|| format!("writing {}", dest.display()))?;
         }
         total += images.len();
     }

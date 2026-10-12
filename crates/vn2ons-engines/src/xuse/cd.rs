@@ -44,6 +44,17 @@
 //!               u32 target, u32 reserved (0)
 //! ```
 //!
+//! ```text
+//! 0x54  background       arg = background number, 1-based (0 = none; the
+//!                        handler skips it). Background n is image n - 1
+//!                        counted across HD/bg0000.004, bg0001.004, … (64 each)
+//! 0x8e  show sprites     sub = number of entries; record = sub × 44 bytes:
+//!                        u16 mode, u16 character, u16 sprite number (0-based,
+//!                        across HD/bu*.004, 128 each), u16 fade time,
+//!                        u16 x, u16 y, then fields not decoded yet (the tail
+//!                        is mostly uninitialised memory)
+//! ```
+//!
 //! Link rows and columns are 1-based positions in the text window relative to
 //! where the next message starts: row 1 continues the line the cursor is on
 //! (the engine adds the current column), row 2+ are the following lines. For
@@ -88,6 +99,20 @@ pub enum CdError {
 pub const OP_MESSAGE: u16 = 0x40;
 pub const OP_VOICED_MESSAGE: u16 = 0x41;
 pub const OP_LINK: u16 = 0x46;
+pub const OP_BACKGROUND: u16 = 0x54;
+pub const OP_SPRITES: u16 = 0x8e;
+const SPRITE_ENTRY_LEN: usize = 44;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SpriteEntry {
+    pub mode: u16,
+    pub character: u16,
+    /// 0-based image number across the `bu*.004` archives.
+    pub sprite: u16,
+    pub fade: u16,
+    pub x: u16,
+    pub y: u16,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Link {
@@ -274,6 +299,29 @@ impl<'a> CdScript<'a> {
         })
     }
 
+    /// Decodes the entries of a show-sprites instruction, or returns `None`
+    /// for other opcodes.
+    pub fn sprites(&self, ins: &Instr) -> Option<Result<Vec<SpriteEntry>, CdError>> {
+        (ins.op == OP_SPRITES).then(|| {
+            let r = Reader(self.pool);
+            let base = ins.arg as u32 as usize;
+            (0..ins.sub as usize)
+                .map(|i| {
+                    let o = base + i * SPRITE_ENTRY_LEN;
+                    r.slice(o, SPRITE_ENTRY_LEN)?;
+                    Ok(SpriteEntry {
+                        mode: r.u16(o)?,
+                        character: r.u16(o + 2)?,
+                        sprite: r.u16(o + 4)?,
+                        fade: r.u16(o + 6)?,
+                        x: r.u16(o + 8)?,
+                        y: r.u16(o + 10)?,
+                    })
+                })
+                .collect()
+        })
+    }
+
     /// Heuristically finds the strings in the pool: positions where a
     /// plausible length is followed by valid Shift-JIS that is mostly
     /// Japanese text. Use until the operand encoding is understood.
@@ -418,6 +466,26 @@ mod tests {
         let bytes = build("l.rio", &[], &code, &pool);
         let cd = CdScript::parse(&bytes).unwrap();
         assert!(cd.link(&cd.code[0]).unwrap().is_err());
+    }
+
+    #[test]
+    fn decodes_sprites() {
+        let mut pool = Vec::new();
+        for entry in [[1u16, 2, 62, 50, 400, 300], [3, 7, 683, 20, 150, 320]] {
+            let mut rec = entry.iter().flat_map(|v| v.to_le_bytes()).collect::<Vec<u8>>();
+            rec.resize(SPRITE_ENTRY_LEN, 0xcd);
+            pool.extend(rec);
+        }
+        let code = [Instr { op: OP_SPRITES, sub: 2, arg: 0, source_pos: 0 }];
+        let bytes = build("s.rio", &[], &code, &pool);
+        let cd = CdScript::parse(&bytes).unwrap();
+        let sprites = cd.sprites(&cd.code[0]).unwrap().unwrap();
+        assert_eq!(sprites[1], SpriteEntry { mode: 3, character: 7, sprite: 683, fade: 20, x: 150, y: 320 });
+
+        let code = [Instr { op: OP_SPRITES, sub: 3, arg: 0, source_pos: 0 }];
+        let bytes = build("s.rio", &[], &code, &pool);
+        let cd = CdScript::parse(&bytes).unwrap();
+        assert!(cd.sprites(&cd.code[0]).unwrap().is_err());
     }
 
     #[test]

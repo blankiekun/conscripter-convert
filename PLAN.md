@@ -243,11 +243,11 @@ offset of its operand record.
 |---|---|---|---|
 | `0x10` | 895 | `arg` is always a valid label-table index; 121 point into blog scripts | jump / call to a label |
 | `0x4d`, `0x58`, `0x43` | 276 / 579 / 578 | `arg` is always a valid label-table index | call / conditional-jump variants |
-| `0x8e` | 10,271 | operand is `sub` × 44-byte entries (sub = 1–6), each with position/size values (400, 320, 300, …) and a 16-byte name field holding character names | show `sub` character sprites |
+| `0x8e` | 10,271 | **solved**: `sub` × 44-byte entries of `mode, character, sprite number, fade, x, y` (rest mostly uninitialised memory). The sprite number indexes `bu*.004` (128 per file, 0-based), and the file names' character codes match the `character` field | show `sub` character sprites |
+| `0x54` | 2,195 | **solved**: `arg` = background number, 1-based (0 = none, skipped by the handler); `bg*.004` holds 64 per file (`n >> 6` in the exe's loader at `0x40bff0`). The most common is 1 = `Black` | set background (sub 0/1: transition variant?) |
 | `0x46` | 214 | **solved** (from the handler at `0x477460` plus a user-supplied example) | **hyperlink** on the next message: row, column, length, style, target (see 3c) |
 | `0x49` | 565 | flags, two colours, a voice-range id, then text + a short name | special voiced text display (chat/popup?); **not** hyperlinks |
 | `0x5b` | 890 | handler packs `(1 << 24) \| (arg - 1)` into a timer/wait call; sub values look like durations | wait/timer, **not** hyperlinks |
-| `0x54` | 2,195 | handler lives with the save utilities; references blog scripts | unknown |
 
 **Blog scripts:** 60 scripts are named `15_Blog…` (ids 96–155) and 44 are
 named `11_…`. 33 story scripts have 153 label-table entries pointing into the
@@ -315,9 +315,14 @@ mapping, the 32-byte head, and `1.cd`.
    - **Contents:** inside is a tagged structure (`DSET`, `PICT`, …) holding
      one complete PNG per image. All 86 files yield exactly their header
      count (2,971 PNGs).
-   - **Still to decode:** the tagged structure around the PNGs. It probably
-     holds sprite placement and composition data (body/face offsets), which
-     the converter needs to assemble character sprites. Some sprite
+   - **Chunks:** each image is a `DSET` group holding a `PICT` (4 zero
+     bytes + PNG) and an `FTAG` with the original file name
+     (`bg20d1.png`, `04.バストアップ\\bu021203s.png`, …). Sprites come in
+     `b`/`m`/`s` variants of each pose (probably sizes). Tool:
+     `vn2ons gaf names`.
+   - **Still to decode:** the ~600-byte block before the first `DSET`. It
+     may hold sprite placement data. Sprites appear to be whole images
+     (one PNG per pose and size), so no composition is needed. Some sprite
      archives also contain 1×1 placeholder images.
 5. Movies and the remaining `.bin` files last.
 

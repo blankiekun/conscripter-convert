@@ -10,8 +10,19 @@
 //! 0x06  [u8; 64]  key name, NUL-terminated ("Farthest" or "generic"; the
 //!                 padding after the NUL is uninitialised memory)
 //! 0x46  u32 LE    image count
-//! 0x4a  ...       encrypted: a tagged structure ("DSET", "PICT", …) that
-//!                 contains one complete PNG file per image
+//! 0x4a  ...       encrypted: an unknown leading block (~600 bytes), then
+//!                 one DSET group per image
+//! ```
+//!
+//! Chunks are `tag[4], u32 LE length, u16 check (not a CRC-16 of the data;
+//! meaning unknown), data[length]`, except `DSET`, whose "length" is its
+//! number of child chunks (always 2) and which has no data of its own:
+//!
+//! ```text
+//! DSET  2 children
+//!   PICT  u32 0, then a complete PNG file
+//!   FTAG  original file name, Shift-JIS, may include a folder
+//!         ("04.バストアップ\bu021203s.png")
 //! ```
 //!
 //! Everything from 0x4a on is XORed with a key derived from the name
@@ -19,9 +30,10 @@
 //! absolute file offset: `byte ^= key[offset % (key.len() - 1)]` (the loader
 //! at 0x4af460; the key's last byte is a NUL that the cycle skips).
 //!
-//! The tagged structure around the PNGs is not decoded yet; [`Gaf::images`]
-//! finds the PNGs by their signature and walks their chunks to `IEND`. For
-//! all 86 files in the game this yields exactly the header's image count.
+//! All 86 files in the game parse this way and yield exactly the header's
+//! image count (2,971 images). Scripts refer to images by number across all
+//! archives of a kind: `bgNNNN.004` holds 64 images and `buNNNN.004` 128, so
+//! image `n` is in archive `n >> 6` (backgrounds) or `n >> 7` (sprites).
 
 use thiserror::Error;
 
@@ -42,9 +54,11 @@ pub enum GafError {
     Truncated(#[from] Truncated),
     #[error("key name is empty")]
     EmptyName,
-    #[error("PNG at {offset:#x} has no IEND chunk")]
-    UnterminatedPng { offset: usize },
-    #[error("header says {expected} images but {found} PNGs were found")]
+    #[error("expected chunk {expected:?} at {offset:#x}")]
+    UnexpectedChunk { offset: usize, expected: &'static str },
+    #[error("PICT at {offset:#x} does not contain a PNG")]
+    NotPng { offset: usize },
+    #[error("header says {expected} images but {found} were found")]
     CountMismatch { expected: usize, found: usize },
 }
 
@@ -82,6 +96,22 @@ pub fn apply_key(buf: &mut [u8], offset: usize, key: &[u8]) {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct GafImage<'a> {
+    /// Original file name (Shift-JIS decoded), possibly with a folder.
+    pub name: &'a [u8],
+    /// A complete PNG file.
+    pub png: &'a [u8],
+}
+
+impl GafImage<'_> {
+    /// The original file name without any folder part.
+    pub fn file_name(&self) -> String {
+        let (name, _, _) = encoding_rs::SHIFT_JIS.decode(self.name);
+        name.rsplit(['\\', '/']).next().unwrap_or_default().to_string()
+    }
+}
+
 #[derive(Debug)]
 pub struct Gaf {
     pub version: u16,
@@ -116,32 +146,37 @@ impl Gaf {
         &self.decrypted
     }
 
-    /// The embedded PNG files, in order. Fails if the number found differs
-    /// from the header's count.
-    pub fn images(&self) -> Result<Vec<&[u8]>, GafError> {
+    /// The images, in order. Fails if the structure doesn't match or the
+    /// number found differs from the header's count.
+    pub fn images(&self) -> Result<Vec<GafImage<'_>>, GafError> {
         let d = &self.decrypted;
         let r = Reader(d);
-        let mut out = Vec::new();
-        let mut pos = DATA_OFFSET;
-        while let Some(found) = find(&d[pos..], PNG_SIGNATURE) {
-            let start = pos + found;
-            let mut chunk = start + PNG_SIGNATURE.len();
-            loop {
-                let len = r.u32_be(chunk).map_err(|_| GafError::UnterminatedPng { offset: start })? as usize;
-                let kind = r.slice(chunk + 4, 4).map_err(|_| GafError::UnterminatedPng { offset: start })?;
-                chunk = chunk
-                    .checked_add(12 + len)
-                    .filter(|&end| end <= d.len())
-                    .ok_or(GafError::UnterminatedPng { offset: start })?;
-                if kind == b"IEND" {
-                    break;
-                }
+        let chunk = |pos: usize, tag: &'static str| -> Result<(usize, &[u8]), GafError> {
+            if r.slice(pos, 4)? != tag.as_bytes() {
+                return Err(GafError::UnexpectedChunk { offset: pos, expected: tag });
             }
-            out.push(&d[start..chunk]);
-            pos = chunk;
-        }
-        if out.len() != self.count {
-            return Err(GafError::CountMismatch { expected: self.count, found: out.len() });
+            let len = r.u32(pos + 4)? as usize;
+            Ok((pos + 10 + len, r.slice(pos + 10, len)?))
+        };
+
+        let mut out = Vec::new();
+        // The leading block isn't decoded; the first group starts at the first DSET.
+        let Some(first) = find(&d[DATA_OFFSET..], b"DSET") else {
+            return Err(GafError::CountMismatch { expected: self.count, found: 0 });
+        };
+        let mut pos = DATA_OFFSET + first;
+        while out.len() < self.count {
+            if r.slice(pos, 4)? != b"DSET" {
+                return Err(GafError::UnexpectedChunk { offset: pos, expected: "DSET" });
+            }
+            pos += 10;
+            let (next, pict) = chunk(pos, "PICT")?;
+            if pict.len() < 4 + PNG_SIGNATURE.len() || &pict[4..12] != PNG_SIGNATURE {
+                return Err(GafError::NotPng { offset: pos });
+            }
+            let (next, name) = chunk(next, "FTAG")?;
+            out.push(GafImage { name, png: &pict[4..] });
+            pos = next;
         }
         Ok(out)
     }
@@ -174,11 +209,19 @@ mod tests {
         field[name.len()] = 0;
         out.extend_from_slice(&field);
         out.extend_from_slice(&(images.len() as u32).to_le_bytes());
-        let mut body = b"DSET\x02\x00\x00\x00".to_vec();
-        for img in images {
+        let mut body = vec![0x5a; 40]; // stands in for the undecoded leading block
+        for (i, img) in images.iter().enumerate() {
+            body.extend_from_slice(b"DSET\x02\x00\x00\x00\x00\x00");
             body.extend_from_slice(b"PICT");
-            body.extend_from_slice(&(img.len() as u32).to_le_bytes());
+            body.extend_from_slice(&(img.len() as u32 + 4).to_le_bytes());
+            body.extend_from_slice(&[0; 2]);
+            body.extend_from_slice(&[0; 4]);
             body.extend_from_slice(img);
+            let name = format!("dir\\img{i}.png");
+            body.extend_from_slice(b"FTAG");
+            body.extend_from_slice(&(name.len() as u32).to_le_bytes());
+            body.extend_from_slice(&[0; 2]);
+            body.extend_from_slice(name.as_bytes());
         }
         apply_key(&mut body, DATA_OFFSET, &key_for(name));
         out.extend(body);
@@ -204,7 +247,8 @@ mod tests {
         assert_eq!(gaf.count, 3);
         let found = gaf.images().unwrap();
         assert_eq!(found.len(), 3);
-        assert_eq!(found[1], images[1].as_slice());
+        assert_eq!(found[1].png, images[1].as_slice());
+        assert_eq!(found[1].file_name(), "img1.png");
     }
 
     #[test]
@@ -216,13 +260,10 @@ mod tests {
         // Wrong count in the header.
         let mut wrong = bytes.clone();
         wrong[COUNT_OFFSET] = 2;
-        assert!(matches!(
-            Gaf::parse(&wrong).unwrap().images(),
-            Err(GafError::CountMismatch { expected: 2, found: 1 })
-        ));
+        assert!(Gaf::parse(&wrong).unwrap().images().is_err());
 
-        // PNG cut off before IEND.
+        // File cut off inside the last chunk.
         let cut = &bytes[..bytes.len() - 6];
-        assert!(matches!(Gaf::parse(cut).unwrap().images(), Err(GafError::UnterminatedPng { .. })));
+        assert!(Gaf::parse(cut).unwrap().images().is_err());
     }
 }
