@@ -81,6 +81,8 @@ pub struct AssetBank {
     used_names: HashSet<String>,
     /// The sound bank read last; voices arrive mostly in bank order.
     last_bank: Option<(PathBuf, Vec<u8>)>,
+    /// Original image names per `bu*.004` archive.
+    sprite_names: HashMap<usize, Vec<String>>,
 }
 
 /// The assets a set of scripts uses (numbers as in the script).
@@ -102,7 +104,7 @@ impl Needs {
             }
             if let Some(Ok(entries)) = cd.sprites(ins) {
                 for e in entries {
-                    if !(e.sprite == 0 && e.x == 0 && e.y == 0) {
+                    if e.mode & 1 != 0 {
                         self.sprites.insert(e.sprite as usize);
                     }
                 }
@@ -136,6 +138,7 @@ impl AssetBank {
             written: HashMap::new(),
             used_names: HashSet::new(),
             last_bank: None,
+            sprite_names: HashMap::new(),
         }
     }
 
@@ -148,6 +151,23 @@ impl AssetBank {
     /// Sprite `number` as used by opcode 0x8e (0-based).
     pub fn sprite(&mut self, number: usize) -> Result<Image, ConvertError> {
         self.image("bu", "sprite", "sprite", number, BU_PER_ARCHIVE, number)
+    }
+
+    /// Original file name of sprite `number` (e.g. `bu681102b.png`), without
+    /// extracting it; `None` past the last archive.
+    pub fn sprite_name(&mut self, number: usize) -> Result<Option<String>, ConvertError> {
+        let archive = number / BU_PER_ARCHIVE;
+        if !self.sprite_names.contains_key(&archive) {
+            let path = self.game.join("HD").join(format!("bu{archive:04}.004"));
+            if !path.exists() {
+                return Ok(None);
+            }
+            let bytes = fs::read(&path).map_err(|source| ConvertError::Io { path: path.clone(), source })?;
+            let gaf = Gaf::parse(&bytes).map_err(|source| ConvertError::Gaf { path: path.clone(), source })?;
+            let images = gaf.images().map_err(|source| ConvertError::Gaf { path: path.clone(), source })?;
+            self.sprite_names.insert(archive, images.iter().map(|i| i.file_name()).collect());
+        }
+        Ok(self.sprite_names[&archive].get(number % BU_PER_ARCHIVE).cloned())
     }
 
     /// BGM track (1-based).
@@ -495,6 +515,9 @@ fn lower_instr(cd: &CdScript, ins: &Instr, links: &[Link], assets: &mut AssetBan
                 changes.push(SpriteChange { layer, sprite: None });
                 continue;
             }
+            if points_past_poses(assets, e.character, e.sprite.into())? {
+                continue; // keep the character's current sprite
+            }
             let img = assets.sprite(e.sprite as usize)?;
             // Assumption: (x, y) is the sprite's centre on the 800×600 screen.
             let sprite = SpritePlacement {
@@ -566,6 +589,18 @@ fn own_label_at(cd: &CdScript, label: i32) -> Option<usize> {
         .iter()
         .find(|l| l.script == cd.script_id && i64::from(l.label) == i64::from(label))
         .map(|l| l.code_offset as usize / 12)
+}
+
+/// About 150 sprite entries point one past the last image of their
+/// character (`bu<character>…`), at the next character's first image or, for
+/// character 68, at the "□□□…0%" meter `bu99_000`. They look like poses
+/// missing from this edition, so the character keeps its current sprite.
+fn points_past_poses(assets: &mut AssetBank, character: u16, sprite: usize) -> Result<bool, ConvertError> {
+    let own = |name: &Option<String>| name.as_ref().is_some_and(|n| n.starts_with(&format!("bu{character:02}")));
+    if sprite == 0 || own(&assets.sprite_name(sprite)?) {
+        return Ok(false);
+    }
+    Ok(own(&assets.sprite_name(sprite - 1)?))
 }
 
 /// Resolves a label-table index (as used by 0x15/0x16/0x22 and links) to
