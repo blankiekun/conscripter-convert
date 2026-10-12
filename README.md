@@ -2,35 +2,44 @@
 
 Converts Japanese visual novels you own into games that run on
 [ONScripter](https://onscripter.osdn.jp/onscripter.html), the open-source
-NScripter clone. The output is a `0.txt` script plus `arc.nsa` archives and a
-font, playable in a stock ONScripter build (including WebAssembly builds) with
-no engine patches.
-
-The first supported game is **最果てのイマ COMPLETE** (Saihate no Ima, Xuse
-engine). The design is meant to take more engines later; see [`PLAN.md`](PLAN.md).
+NScripter clone. vn2ons reads a game's archives, images, audio and compiled
+scripts, translates them into an engine-neutral intermediate form, and writes
+a `0.txt` script plus `.nsa` archives that a stock ONScripter build (including
+WebAssembly builds) can play with no engine patches.
 
 > vn2ons ships no game data. It reads files from your own installation.
 
-## Status
+## Supported engines
 
-Work in progress. For 最果てのイマ COMPLETE:
+| Engine | Status | Tested with |
+|---|---|---|
+| Xuse | Partial (see below) | 最果てのイマ COMPLETE |
+
+Only the Xuse engine is supported for now. Other engines are planned; the
+pipeline is built so each one is a separate reader feeding the same output
+stage (see [`PLAN.md`](PLAN.md)).
+
+### Xuse support
 
 | Area | Status |
 |---|---|
 | Archives, images, BGM, sound effects, voices | ✅ Decoded |
-| Script text, speaker names, encyclopedia links | ✅ Converted |
-| Backgrounds, sprites, BGM, sound effects, voices in scripts | ✅ Converted |
-| Control flow (variables, conditions, goto, gosub/return) | ✅ Converted; routes are reached through clickable links |
+| Script text, speaker names, hyperlinks | ✅ Converted |
+| Backgrounds, sprites, music, sound effects, voices in scripts | ✅ Converted |
+| Control flow (variables, conditions, goto, gosub/return) | ✅ Converted |
 | Transitions (cross-fades, mask wipes) | ✅ Converted with the original durations |
-| ADV text box and name plate | ✅ Matches the original layout |
+| ADV text box and name plate | ✅ Converted |
 | Full-screen text modes | 🚧 In progress |
 | System menus (title, save/load, settings, backlog) | ❌ Not built yet |
 | Movies | ❌ Not converted |
 | Special text displays and ~35 rarer opcodes | ❌ Not decoded |
 
-Instructions vn2ons can't convert yet stay in `0.txt` as `;` comments naming
-their source script and instruction number, and each conversion prints a
-ranked list of them.
+Other Xuse games may convert but haven't been tried.
+
+Anything vn2ons can't convert yet stays in `0.txt` as a `;` comment naming
+its source script and instruction, and each conversion prints a ranked list
+of what was left out. Games built around custom systems (minigames, battle
+systems, menus scripted in the engine's own language) won't convert fully.
 
 ## Building
 
@@ -45,61 +54,56 @@ The binary is `target/release/vn2ons`.
 ## Converting a game
 
 ```sh
-vn2ons convert-game "/path/to/最果てのイマ COMPLETE" \
-  -o out/saiima \
-  --font /usr/share/fonts/OTF/ipagp.ttf \
-  --title "Saihate no Ima COMPLETE"
+vn2ons convert-game /path/to/game -o out/mygame \
+  --font /path/to/japanese-font.ttf --title "My Game"
 ```
 
-The game directory is the installation folder containing `HD/` and `CD/`.
-ONScripter needs a Japanese-capable font; `--font` copies it into the
-output as `default.ttf`.
+The game path is the installation directory. ONScripter needs a font that
+covers Japanese; `--font` copies it into the output as `default.ttf`.
 
 Then run ONScripter on the output directory:
 
 ```sh
-onscripter --root out/saiima
+onscripter --root out/mygame
 ```
-
-Options:
 
 | Option | Effect |
 |---|---|
 | `--loose` | Write assets as loose files instead of packing them into `.nsa` archives |
 | `--linear` | Play the story scripts in file order with no jumps (debugging aid) |
 
-To convert a single scene for testing:
-
-```sh
-vn2ons convert-script "/path/to/game" --script 3 -o out/scene-0003 --font …
-```
+`vn2ons convert-script <game> --script N -o <dir>` converts a single script,
+which is handy for testing one scene.
 
 ## Format tools
 
-Low-level subcommands for inspecting the Xuse engine's files. Run
+Low-level subcommands for inspecting Xuse game files. Run
 `vn2ons <command> --help` for details.
 
 | Command | Files | Subcommands |
 |---|---|---|
-| `vn2ons xarc` | `HD/*.arc` archives | `list`, `verify` (CRC check), `extract` |
-| `vn2ons gaf` | `*.004` GAF4 image containers | `list`, `names`, `extract` (PNG) |
-| `vn2ons xsa` | `CD/*.xsa` voice banks, `HD/*.bin` sound banks | `list`, `extract` (Ogg) |
-| `vn2ons cd` | `HD/CDFiles/*.cd` compiled scripts | `info`, `dump`, `messages`, `strings`, `symbols`, `opstats` |
+| `vn2ons xarc` | `*.arc` archives | `list`, `verify`, `extract` |
+| `vn2ons gaf` | `*.004` GAF4 image containers | `list`, `names`, `extract` |
+| `vn2ons xsa` | `*.xsa` voice banks and `*.bin` sound banks | `list`, `extract` |
+| `vn2ons cd` | `*.cd` compiled scripts | `info`, `dump`, `messages`, `strings`, `symbols`, `opstats` |
 
-## Project layout
+## How it works
+
+```
+game dir → unpack archives → decode assets, decompile scripts → IR → 0.txt + .nsa
+```
 
 | Path | Contents |
 |---|---|
-| `crates/vn2ons-core` | Engine-neutral intermediate representation (IR) |
-| `crates/vn2ons-engines` | Source engine readers; `xuse/` holds the archive, image, sound and script decoders and the script-to-IR conversion |
+| `crates/vn2ons-core` | The engine-neutral intermediate representation (IR) |
+| `crates/vn2ons-engines` | Source engine readers, one module per engine (`xuse/`) |
 | `crates/vn2ons-ons` | ONScripter output: IR → `0.txt`, NSA archive writer |
 | `crates/vn2ons-cli` | The `vn2ons` command |
-| `research/` | Python scripts used while reverse-engineering the formats (see [`research/README.md`](research/README.md)) |
-| `PLAN.md` | Design, architecture and format notes |
+| `research/` | Scripts used while reverse-engineering formats (see [`research/README.md`](research/README.md)) |
+| `PLAN.md` | Design notes and format documentation |
 
-The pipeline is: detect engine → unpack archives → decode assets and
-decompile scripts → IR → NScripter script and archives. Only `vn2ons-ons`
-knows about NScripter, so other output targets could be added later.
+Adding an engine means writing a reader in `vn2ons-engines` that produces
+the IR; only `vn2ons-ons` knows about NScripter.
 
 ## Testing
 
