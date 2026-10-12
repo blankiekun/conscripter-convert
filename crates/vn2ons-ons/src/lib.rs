@@ -78,14 +78,7 @@ pub fn emit(script: &Script) -> String {
     // setwindow redraws the screen, so it must come after `game` (ONScripter
     // crashes if it runs in the define section).
     if let Some(w) = &script.window {
-        // setwindow text x,y, columns,rows, font w,h, char spacing, line gap,
-        // ms per character, bold, shadow, window image, window x,y
-        writeln!(
-            out,
-            "setwindow {},{},{},{},{},{},1,{},20,0,1,\":a;{}\",{},{}",
-            w.text_x, w.text_y, w.columns, w.rows, w.font_size, w.font_size, w.line_gap, path(&w.image), w.x, w.y
-        )
-        .unwrap();
+        writeln!(out, "{}", setwindow(w)).unwrap();
         // Keep the window up while sprites change and pages are printed
         // (by default every print hides it until the next text, which
         // flickers); the script hides it explicitly with textoff.
@@ -103,6 +96,10 @@ pub fn emit(script: &Script) -> String {
     // Effect number of an open transition: display commands only update the
     // buffer until it is printed.
     let mut transition: Option<u32> = None;
+    // The active text window (file order; presets are called right before
+    // the text that uses them) and the lines already on its page.
+    let mut window = script.window.clone();
+    let mut page_rows = 0;
     for op in &script.ops {
         if let (Some(e), Op::Text { .. }) = (transition, op) {
             writeln!(out, "print {e}").unwrap();
@@ -168,6 +165,13 @@ pub fn emit(script: &Script) -> String {
                 }
             }
             Op::HideTextWindow => writeln!(out, "textoff").unwrap(),
+            Op::SetWindow(w) => {
+                writeln!(out, "{}", setwindow(w)).unwrap();
+                writeln!(out, "csp {NAME_PLATE_SPRITE}:csp {NAME_TEXT_SPRITE}").unwrap();
+                plate_visible = false;
+                page_rows = 0;
+                window = Some(w.clone());
+            }
             Op::ClearSprites => {
                 writeln!(out, "csp -1").unwrap();
                 plate_visible = false;
@@ -189,7 +193,7 @@ pub fn emit(script: &Script) -> String {
                     writeln!(out, "print {e}").unwrap();
                 }
             }
-            Op::Text { speaker, text, voice, links } => {
+            Op::Text { speaker, text, voice, links, continues } => {
                 if let Some(v) = voice {
                     writeln!(out, "dwave 0,\"{}\"", path(v)).unwrap();
                 }
@@ -204,7 +208,7 @@ pub fn emit(script: &Script) -> String {
                     plate_visible = true; // unknown when entered again: always set it below
                     Some(page)
                 };
-                let plate = script.window.as_ref().and_then(|w| w.name_plate.as_ref());
+                let plate = window.as_ref().and_then(|w| w.name_plate.as_ref());
                 let mut body = with_links(text, links);
                 // Sprite changes only show after a print, so print when the
                 // plate appears, changes or goes away.
@@ -237,18 +241,25 @@ pub fn emit(script: &Script) -> String {
                     .zip(text.split('\n'))
                     .map(|(l, src)| if starts_ascii(src) { format!("　{l}") } else { l.to_string() })
                     .collect();
+                let rows_before = page_rows;
+                page_rows = if *continues { page_rows + lines.len() } else { 0 };
                 let Some(page) = page else {
-                    writeln!(out, "{}\\", lines.join("\n")).unwrap();
+                    // `@` waits and keeps the text (the next page continues
+                    // below); `\` waits and clears.
+                    let end = if *continues { "@" } else { "\\" };
+                    writeln!(out, "{}{end}", lines.join("\n")).unwrap();
                     continue;
                 };
+                page_rows = 0; // link pages always end with textclear
                 // No page wait: the words become buttons and btnwait waits for
                 // a click on one of them or anywhere else (= next page).
                 writeln!(out, "{}", lines.join("\n")).unwrap();
                 let clickable = &clickable[..clickable.len().min(LINK_SPRITES.count())];
-                let window = script.window.as_ref();
+                let window = window.as_ref();
                 for (n, (link, slot)) in clickable.iter().zip(LINK_SPRITES).enumerate() {
                     let word: String = text.chars().skip(link.start).take(link.len).collect();
                     let (x, y) = window.map_or((0, 0), |w| char_position(w, text, link.start));
+                    let y = y + window.map_or(0, |w| rows_before as i32 * (w.font_size + w.line_gap) as i32);
                     let (size, gap) = window.map_or((24, 0), |w| (w.font_size, w.line_gap));
                     writeln!(
                         out,
@@ -312,6 +323,15 @@ pub fn emit(script: &Script) -> String {
         out.push_str(&bit_helpers());
     }
     out
+}
+
+/// `setwindow` for a window: text x,y, columns,rows, font w,h, char
+/// spacing, line gap, ms per character, bold, shadow, window image, x,y.
+fn setwindow(w: &TextWindow) -> String {
+    format!(
+        "setwindow {},{},{},{},{},{},1,{},20,0,1,\":a;{}\",{},{}",
+        w.text_x, w.text_y, w.columns, w.rows, w.font_size, w.font_size, w.line_gap, path(&w.image), w.x, w.y
+    )
 }
 
 /// `lsp` for a sprite; ":a;" = use the PNG's alpha channel.
@@ -569,6 +589,7 @@ mod tests {
                 text: "一行目\n学校に―――".into(),
                 voice: None,
                 links: vec![link(4, 2, Some("s10_l1")), link(0, 1, None)],
+                continues: false,
             },
         ]);
         s.window = Some(window());
@@ -612,7 +633,7 @@ goto *vn2ons_link1
             Op::EndTransition,
             Op::BeginTransition { effect: "MaskBlend2".into(), fade_ms: 1000, mask: Some("system/mask0009r.png".into()) },
             Op::Background { image: "bg/b.png".into(), fade_ms: 500 },
-            Op::Text { speaker: None, text: "あ".into(), voice: None, links: vec![] },
+            Op::Text { speaker: None, text: "あ".into(), voice: None, links: vec![], continues: false },
         ]);
         let text = emit(&s);
         assert!(text.contains("effect 2,10,500\neffect 3,18,1000,\"system\\mask0009r.png\"\neffect 4,10,2000\n"), "{text}");
@@ -630,6 +651,17 @@ print 3
 あ\\
 ";
         assert!(text.contains(expected), "{text}");
+    }
+
+    #[test]
+    fn full_screen_pages_continue() {
+        let mut nvl = window();
+        nvl.name_plate = None;
+        nvl.image = "system/textwnd5.png".into();
+        let text = |t: &str, continues| Op::Text { speaker: None, text: t.into(), voice: None, links: vec![], continues };
+        let s = script(vec![Op::SetWindow(nvl), text("一行目", true), text("二行目", false), text("新頁", false)]);
+        let out = emit(&s);
+        assert!(out.contains("\":a;system\\textwnd5.png\",47,452\ncsp 1:csp 0\n一行目@\n二行目\\\n新頁\\\n"), "{out}");
     }
 
     #[test]
@@ -653,8 +685,8 @@ print 3
                 fade_ms: 500,
             },
             Op::Sprites { changes: vec![SpriteChange { layer: 3, sprite: None }], fade_ms: 0 },
-            Op::Text { speaker: Some("名前".into()), text: "「こんにちは」".into(), voice: None, links: vec![] },
-            Op::Text { speaker: None, text: "地の文。".into(), voice: Some("voice/v1.ogg".into()), links: vec![link(1, 2, None)] },
+            Op::Text { speaker: Some("名前".into()), text: "「こんにちは」".into(), voice: None, links: vec![], continues: false },
+            Op::Text { speaker: None, text: "地の文。".into(), voice: Some("voice/v1.ogg".into()), links: vec![link(1, 2, None)], continues: false },
             Op::SePlay { file: "se/k001.ogg".into(), looped: true },
             Op::SeStop { file: Some("se/k001.ogg".into()) },
             Op::BgmStop { fade_out_ms: 2000 },
@@ -698,8 +730,8 @@ end
     fn adv_window_and_name_plate() {
         use vn2ons_core::ir::{NamePlate, TextWindow};
         let mut s = script(vec![
-            Op::Text { speaker: Some("名前".into()), text: "「台詞」".into(), voice: None, links: vec![] },
-            Op::Text { speaker: None, text: "Ghost".into(), voice: None, links: vec![] },
+            Op::Text { speaker: Some("名前".into()), text: "「台詞」".into(), voice: None, links: vec![], continues: false },
+            Op::Text { speaker: None, text: "Ghost".into(), voice: None, links: vec![], continues: false },
         ]);
         s.window = Some(TextWindow {
             image: "system/window.png".into(),
@@ -733,6 +765,7 @@ end
             text: "一行目\nabc\n三行目".into(),
             voice: None,
             links: vec![link(4, 3, None)],
+            continues: false,
         }]);
         assert!(emit(&s).contains("一行目\n　#F0C040abc#FFFFFF\n三行目\\\n"));
     }

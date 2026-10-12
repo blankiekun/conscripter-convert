@@ -6,7 +6,7 @@ use clap::{Parser, Subcommand};
 use memmap2::Mmap;
 use vn2ons_core::ir::{Op, Script};
 use vn2ons_engines::xuse::cd::CdScript;
-use vn2ons_engines::xuse::convert::{AssetBank, Flow, Needs, lower_script};
+use vn2ons_engines::xuse::convert::{AssetBank, Flow, Needs, lower_script, window_presets};
 use vn2ons_engines::xuse::gaf::Gaf;
 use vn2ons_engines::xuse::symbols::{self, SymbolTable};
 use vn2ons_engines::xuse::xarc::{CrcTarget, Xarc};
@@ -248,9 +248,10 @@ fn convert_game(game: &Path, output: &Path, font: Option<&Path>, title: &str, lo
     assets.prefetch(&needs).context("extracting assets")?;
     let window = assets.text_window().context("building the text window")?;
 
+    let presets = window_presets(&scripts);
     let mut ops = Vec::new();
     for (file, cd) in &scripts {
-        ops.extend(lower_script(cd, file, flow, &mut assets).with_context(|| format!("converting {file}"))?);
+        ops.extend(lower_script(cd, file, flow, &mut assets, &presets).with_context(|| format!("converting {file}"))?);
     }
     let ir = Script { title: title.to_string(), width: 800, height: 600, window: Some(window), ops };
     let (encoded, lost) = vn2ons_ons::encode(&vn2ons_ons::emit(&ir));
@@ -323,7 +324,9 @@ fn convert_script(game: &Path, script: u32, output: &Path, font: Option<&Path>, 
 
     let mut assets = AssetBank::new(game, output);
     let window = assets.text_window().context("building the text window")?;
-    let ops = lower_script(&cd, &file, Flow::Jumps, &mut assets).with_context(|| format!("converting {file}"))?;
+    let presets = Default::default(); // the presets live in script 2
+    let ops =
+        lower_script(&cd, &file, Flow::Jumps, &mut assets, &presets).with_context(|| format!("converting {file}"))?;
     let ir = Script { title: title.to_string(), width: 800, height: 600, window: Some(window), ops };
 
     let source = vn2ons_ons::emit(&ir);

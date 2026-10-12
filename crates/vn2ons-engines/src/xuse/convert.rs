@@ -48,6 +48,17 @@ const OP_TRANSITION: u16 = 0x76;
 const OP_MASK_TRANSITION: u16 = 0x77;
 /// Waits for the running transition (a click finishes it early).
 const OP_TRANSITION_WAIT: u16 = 0x71;
+/// Text window preset parts, found only in script 2's preset subroutines:
+/// mode (0 = message box, 1 = full screen), style (`TextWnd{style}.004` in
+/// `HD/wnd.arc`), position (x | y << 16).
+const OP_WINDOW_MODE: u16 = 0x4c;
+const OP_WINDOW_STYLE: u16 = 0x4f;
+const OP_WINDOW_POS: u16 = 0x50;
+/// Text control tags between messages (handler names "brn" and "p"):
+/// continue below after a click / start a new page. Only used in
+/// full-screen modes, where untagged messages continue too.
+const OP_TEXT_BRN: u16 = 0x52;
+const OP_TEXT_PAGE: u16 = 0x53;
 /// Hides the text window (handler 0x4772a0; arg 0 waits for the fade, 1
 /// doesn't). Used before most transitions.
 const OP_HIDE_TEXT: u16 = 0x43;
@@ -220,6 +231,62 @@ impl AssetBank {
         write_file(&self.out.join(&name), &png)?;
         self.written.insert((kind, number), name.clone());
         Ok(name)
+    }
+
+    /// Text window for a preset: the measured ADV box for style 0, else the
+    /// style's `TextWnd{n}.004` graphics at the preset's height, centred.
+    ///
+    /// Metrics per style are estimates from the window size and the longest
+    /// lines / most lines per page the game shows in that style (not yet
+    /// checked against screenshots of the original): font size, line gap,
+    /// columns, rows.
+    pub fn text_window_style(&mut self, preset: WindowPreset) -> Result<TextWindow, ConvertError> {
+        if preset.style == 0 {
+            return self.text_window();
+        }
+        let (font_size, line_gap, columns, rows) = match preset.style {
+            1 => (21, 14, 26, 12),
+            2 | 7 => (24, 11, 25, 13),
+            3 | 4 => (18, 4, 40, 23),
+            5 => (16, 11, 40, 16),
+            6 => (24, 12, 26, 5),
+            8 => (19, 15, 36, 15),
+            _ => (24, 12, 26, 3),
+        };
+        let file = format!("TextWnd{}.004", preset.style);
+        let images = self.wnd_images(&file)?;
+        let image = format!("system/textwnd{}.png", preset.style);
+        self.layered(&image, &images[0], &images[1])?;
+        let (w, _) = png_size(&images[0]);
+        let x = (800 - w as i32) / 2;
+        // The ADV box draws 3 px below its preset position (measured).
+        let y = if preset.style == 6 { preset.y + 3 } else { preset.y };
+        let name_plate = if png_size(&images[2]).1 > 1 {
+            let plate = format!("system/nameplate{}.png", preset.style);
+            self.layered(&plate, &images[2], &images[3])?;
+            Some(NamePlate { image: plate, x: x - 5, y: y - 40, text_x: x + 11, text_y: y - 28, font_size: 20 })
+        } else {
+            None
+        };
+        let text_x = x + (w as i32 - columns as i32 * (font_size as i32 + 1)) / 2;
+        Ok(TextWindow { image, x, y, text_x, text_y: y + 20, columns, rows, font_size, line_gap, name_plate })
+    }
+
+    /// The four PNG layers (message base, frame, name base, frame) of a
+    /// `TextWnd*.004` in `HD/wnd.arc`.
+    fn wnd_images(&self, file: &str) -> Result<Vec<Vec<u8>>, ConvertError> {
+        let path = self.game.join("HD").join("wnd.arc");
+        let bytes = fs::read(&path).map_err(|source| ConvertError::Io { path: path.clone(), source })?;
+        let arc = Xarc::parse(&bytes).map_err(|source| ConvertError::Xarc { path: path.clone(), source })?;
+        let entry =
+            arc.entries.iter().find(|e| e.name == file).ok_or(ConvertError::MissingAsset { kind: "text window", number: 0 })?;
+        let gaf_path = path.join(file);
+        let gaf = Gaf::parse(arc.data(entry)).map_err(|source| ConvertError::Gaf { path: gaf_path.clone(), source })?;
+        let images = gaf.images().map_err(|source| ConvertError::Gaf { path: gaf_path, source })?;
+        if images.len() < 4 {
+            return Err(ConvertError::MissingAsset { kind: "text window layer", number: images.len() });
+        }
+        Ok(images.iter().take(4).map(|i| i.png.to_vec()).collect())
     }
 
     /// Builds the ADV text box from the game's own window graphics
@@ -422,9 +489,61 @@ pub enum Flow {
     Linear,
 }
 
+/// A text window preset subroutine (see [`OP_WINDOW_MODE`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct WindowPreset {
+    pub full_screen: bool,
+    pub style: u32,
+    pub x: i32,
+    pub y: i32,
+}
+
+/// Finds the preset subroutines: labels whose code sets a window position.
+/// Keyed by IR label name.
+pub fn window_presets(scripts: &[(String, CdScript)]) -> HashMap<String, WindowPreset> {
+    let mut presets = HashMap::new();
+    for (_, cd) in scripts {
+        let own: HashMap<usize, u32> = cd
+            .labels
+            .iter()
+            .filter(|l| l.script == cd.script_id)
+            .map(|l| (l.code_offset as usize / 12 + 1, l.label))
+            .collect();
+        let (mut label, mut mode, mut style) = (None, 0, 0);
+        for (index, ins) in cd.code.iter().enumerate() {
+            if let Some(l) = own.get(&index) {
+                label = Some(*l);
+            }
+            match ins.op {
+                OP_WINDOW_MODE => mode = ins.arg,
+                OP_WINDOW_STYLE => style = ins.arg,
+                OP_WINDOW_POS => {
+                    if let Some(l) = label {
+                        let preset = WindowPreset {
+                            full_screen: mode == 1,
+                            style: style as u32,
+                            x: ins.arg & 0xffff,
+                            y: ins.arg >> 16,
+                        };
+                        presets.insert(format!("s{}_l{l}", cd.script_id), preset);
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    presets
+}
+
 /// Lowers one script. Instructions that can't be expressed yet become
 /// [`Op::Unsupported`]; assets are written through `assets`.
-pub fn lower_script(cd: &CdScript, file: &str, flow: Flow, assets: &mut AssetBank) -> Result<Vec<Op>, ConvertError> {
+pub fn lower_script(
+    cd: &CdScript,
+    file: &str,
+    flow: Flow,
+    assets: &mut AssetBank,
+    presets: &HashMap<String, WindowPreset>,
+) -> Result<Vec<Op>, ConvertError> {
     // A label's offset points at a marker instruction (a 0x10 that targets
     // itself); a jump lands just after it, so the label goes after that
     // instruction.
@@ -440,6 +559,12 @@ pub fn lower_script(cd: &CdScript, file: &str, flow: Flow, assets: &mut AssetBan
     let mut pending_links: Vec<Link> = Vec::new();
     // A transition armed by 0x76 and not yet waited on (file order).
     let mut transition_armed = false;
+    // Full-screen text mode (file order): rows of the window, the index of
+    // the last text op and the lines on its page, and whether a "p" tag
+    // followed it.
+    let mut full_screen_rows: Option<usize> = None;
+    let mut last_text: Option<(usize, usize)> = None;
+    let mut page_break = false;
     for (index, ins) in cd.code.iter().enumerate() {
         if let Some(label) = own_labels.get(&index) {
             ops.push(Op::Label(format!("s{}_l{label}", cd.script_id)));
@@ -484,6 +609,13 @@ pub fn lower_script(cd: &CdScript, file: &str, flow: Flow, assets: &mut AssetBan
             }
             continue;
         }
+        if matches!(ins.op, OP_TEXT_BRN | OP_WINDOW_MODE | OP_WINDOW_STYLE | OP_WINDOW_POS) {
+            continue; // brn = the default in full-screen modes; presets: see window_presets
+        }
+        if ins.op == OP_TEXT_PAGE {
+            page_break = true;
+            continue;
+        }
         if ins.op == OP_TRANSITION_WAIT {
             if std::mem::take(&mut transition_armed) {
                 ops.push(Op::EndTransition);
@@ -493,10 +625,35 @@ pub fn lower_script(cd: &CdScript, file: &str, flow: Flow, assets: &mut AssetBan
         let links = if cd.message(ins).is_some() { std::mem::take(&mut pending_links) } else { Vec::new() };
         let unsupported = || format!("opcode {:#04x} sub {:#x} arg {}", ins.op, ins.sub, ins.arg);
         match lower_instr(cd, ins, &links, assets) {
-            Ok(Some(Op::Text { speaker, text, voice, mut links })) if flow == Flow::Linear => {
+            Ok(Some(Op::Text { speaker, text, voice, mut links, continues })) if flow == Flow::Linear => {
                 // No jumps in linear mode, so links are colour only.
                 links.iter_mut().for_each(|l| l.target = None);
-                ops.push(Op::Text { speaker, text, voice, links });
+                ops.push(Op::Text { speaker, text, voice, links, continues });
+            }
+            Ok(Some(Op::Text { speaker, text, voice, links, .. })) => {
+                let lines = text.split('\n').count();
+                if let (Some(rows), Some((i, used))) = (full_screen_rows, last_text) {
+                    let joins = !page_break && used + lines <= rows;
+                    if joins && let Some(Op::Text { continues, .. }) = ops.get_mut(i) {
+                        *continues = true;
+                    }
+                    let used = if joins { used + lines } else { lines };
+                    last_text = Some((ops.len(), used));
+                } else if full_screen_rows.is_some() {
+                    last_text = Some((ops.len(), lines));
+                }
+                page_break = false;
+                ops.push(Op::Text { speaker, text, voice, links, continues: false });
+            }
+            Ok(Some(Op::Gosub(target))) => {
+                let preset = presets.get(&target).copied();
+                ops.push(Op::Gosub(target));
+                if let Some(p) = preset {
+                    let window = assets.text_window_style(p)?;
+                    full_screen_rows = p.full_screen.then_some(window.rows as usize);
+                    last_text = None;
+                    ops.push(Op::SetWindow(window));
+                }
             }
             Ok(Some(op)) => ops.push(op),
             Ok(None) => ops.push(Op::Unsupported { what: unsupported(), at: at() }),
@@ -550,7 +707,7 @@ fn lower_instr(cd: &CdScript, ins: &Instr, links: &[Link], assets: &mut AssetBan
             Some(Err(ConvertError::MissingAsset { .. })) | None => None,
             Some(r) => Some(r?),
         };
-        return Ok(Some(Op::Text { speaker, text: body.join("\n"), voice, links }));
+        return Ok(Some(Op::Text { speaker, text: body.join("\n"), voice, links, continues: false }));
     }
     if let Some(sound) = cd.sound(ins) {
         return Ok(Some(match sound? {

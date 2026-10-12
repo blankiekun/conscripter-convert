@@ -95,7 +95,11 @@ pub enum Op {
     /// One page of text, shown and then waited on. `text` may contain '\n'
     /// for line breaks. `links` are the words the original game made
     /// clickable.
-    Text { speaker: Option<String>, text: String, voice: Option<String>, links: Vec<TextLink> },
+    /// `continues`: the next page is added below this one after a click
+    /// instead of replacing it (full-screen text modes).
+    Text { speaker: Option<String>, text: String, voice: Option<String>, links: Vec<TextLink>, continues: bool },
+    /// Switch to another text window layout; the page starts empty.
+    SetWindow(TextWindow),
     BgmPlay { file: String, fade_in_ms: u32 },
     BgmStop { fade_out_ms: u32 },
     /// Pause; a click ends it early.
