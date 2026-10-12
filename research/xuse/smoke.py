@@ -8,8 +8,10 @@ patched 0.txt, symlinks to the rest, and the screenshots (shotNN.png).
 CLICKS is a comma-separated queue consumed at every wait:
   at a btnwait (menus, link pages): the number is the clicked button
       (0 = click elsewhere, -1 = right-click);
-  at a text page wait: 0 = click on, 998 = open the save menu, 997 = the
-      load menu (as the button bar does);
+  at a text page wait: 0 = click on; with the button bar (textgosub in
+      0.txt) the bar's button numbers (1001 auto, 1002 skip, 1003 log,
+      1004 save, 1005 load, 1007 hide); without it 998 = open the save
+      menu, 997 = the load menu;
   anywhere: 999 = screenshot (shot01.png, ...), then take the next entry.
 When the queue is empty the game ends.
 
@@ -35,6 +37,8 @@ for f in os.listdir(work):
 src = open(os.path.join(game, '0.txt'), 'rb').read()
 src = re.sub(rb'^effect (\d+),(\d+),\d+', rb'effect \1,\2,1', src, flags=re.M)
 src = re.sub(rb'^delay \d+', b'delay 1', src, flags=re.M)
+has_bar = b'\ntextgosub ' in src
+src = src.replace(b'textbtnwait %9\n', b'gosub *smoke_pop\n')
 src = src.replace(b'btnwait %9\n', b'gosub *smoke_pop\n')
 queue = [int(c) for c in clicks.split(',') if c.strip()]
 harness = b'''
@@ -73,7 +77,8 @@ goto *smoke_text
 '''
 init = b'mov %994,' + str(len(queue)).encode() + b'\n' + b''.join(
     b'mov %' + str(1000 + i).encode() + b',' + str(c).encode() + b'\n' for i, c in enumerate(queue))
-src = src.replace(b'\ngame\n', b'\ntextgosub *smoke_text\ngame\n', 1)
+if not has_bar:
+    src = src.replace(b'\ngame\n', b'\ntextgosub *smoke_text\ngame\n', 1)
 src = src.replace(b'\n*start\n', b'\n*start\n' + init, 1)
 src = src.rstrip(b'\n') + b'\n' + harness
 open(os.path.join(work, '0.txt'), 'wb').write(src)

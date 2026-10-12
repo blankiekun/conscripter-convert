@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 
 use thiserror::Error;
 use vn2ons_core::ir::{
-    ArithOp, NamePlate, Op, Operand, PageButton, Placed, Rect, SaveMenu, SourceLoc, SpriteChange, SpritePlacement,
+    ArithOp, BarAction, BarButton, ButtonBar, NamePlate, Op, Operand, PageButton, Placed, Rect, SaveMenu, SourceLoc, SpriteChange, SpritePlacement,
     TextLink, TextWindow, TitleAction, TitleButton, TitleScreen, Var,
 };
 
@@ -442,6 +442,49 @@ impl AssetBank {
             line_height: 15,
             preview: Rect { x: 390, y: 137, w: 400, h: 300 },
         })
+    }
+
+    /// The bottom button bar from `HD/wnd.arc` → `SysTray.004`: rows of
+    /// eight states side by side (normal, under the pointer, pressed,
+    /// disabled, then the same four while the mode is on). Base and frame
+    /// (0, 1) are empty. Positions measured on a screenshot of the
+    /// original, where the bar runs along the bottom edge. Not converted:
+    /// the lock button (9, keeps the bar from hiding; this bar never hides).
+    pub fn button_bar(&mut self) -> Result<ButtonBar, ConvertError> {
+        let images = self.gaf_images("wnd.arc", "SysTray.004", "button bar")?;
+        let mut buttons = Vec::new();
+        for (n, name, x, y, action) in [
+            (4, "auto", 365, 581, BarAction::Auto),
+            (5, "skip", 419, 581, BarAction::Skip),
+            (6, "log", 473, 581, BarAction::Log),
+            (2, "save", 550, 581, BarAction::Save),
+            (3, "load", 607, 581, BarAction::Load),
+            (7, "setting", 682, 581, BarAction::Unavailable),
+            (8, "hide", 756, 583, BarAction::HideWindow),
+        ] {
+            let png = images.get(n).ok_or(ConvertError::MissingAsset { kind: "button bar image", number: n })?;
+            let states = image::load_from_memory_with_format(png, image::ImageFormat::Png)
+                .map(|i| i.to_rgba8())
+                .map_err(|source| ConvertError::Image { what: format!("SysTray.004 #{n}"), source })?;
+            let (w, h) = (states.width() / 8, states.height());
+            let strip = |file: &str, cells: &[u32]| -> Result<Placed, ConvertError> {
+                let mut out = image::RgbaImage::new(w * cells.len() as u32, h);
+                for (i, &c) in cells.iter().enumerate() {
+                    let cell = image::imageops::crop_imm(&states, c * w, 0, w, h).to_image();
+                    image::imageops::replace(&mut out, &cell, i64::from(w) * i as i64, 0);
+                }
+                let image = format!("system/bar_{file}.png");
+                self.save_image(&image, &out)?;
+                Ok(Placed { image, x, y, w: out.width() as i32, h: out.height() as i32 })
+            };
+            let image = if action == BarAction::Unavailable { strip(name, &[3])? } else { strip(name, &[0, 1, 3])? };
+            let active = match action {
+                BarAction::Auto | BarAction::Skip => Some(strip(&format!("{name}_on"), &[4, 5, 7])?),
+                _ => None,
+            };
+            buttons.push(BarButton { image, active, action });
+        }
+        Ok(ButtonBar { buttons })
     }
 
     fn save_image(&self, name: &str, img: &image::RgbaImage) -> Result<(), ConvertError> {

@@ -22,9 +22,11 @@ const FADE: u32 = 10;
 const MASK_FADE: u32 = 18;
 /// Sound effect channels we rotate through (0 is left for voices).
 const SE_CHANNELS: std::ops::RangeInclusive<u32> = 1..=9;
-/// Sprite slots 0-39 belong to the menus (title, save/load), drawn over
-/// everything else (ONScripter draws lower numbers on top).
-const MENU_SPRITES: std::ops::Range<u32> = 0..40;
+/// Sprite slots 0-32 belong to the menus (title, save/load), drawn over
+/// everything else (ONScripter draws lower numbers on top); 33-39 to the
+/// button bar.
+const MENU_SPRITES: std::ops::Range<u32> = 0..33;
+const BAR_SPRITES: std::ops::Range<u32> = 33..40;
 /// Sprite slots for the name text and its plate: the text over the plate,
 /// both over the character sprites.
 const NAME_TEXT_SPRITE: u32 = 40;
@@ -74,6 +76,10 @@ pub fn emit(script: &Script) -> String {
     }
     // The caption is passed to the window system as raw Shift-JIS, which
     // shows as mojibake on Linux, so keep it ASCII.
+    if script.button_bar.is_some() {
+        // Every click wait runs the bar routine instead of waiting itself.
+        writeln!(out, "textgosub *{}", menu::WAIT).unwrap();
+    }
     let caption: String = script.title.chars().filter(|c| c.is_ascii() && *c != '"').collect();
     writeln!(out, "caption \"{}\"", caption.trim()).unwrap();
     for ((ms, mask), n) in &effects {
@@ -283,13 +289,26 @@ pub fn emit(script: &Script) -> String {
                     .unwrap();
                     writeln!(out, "spbtn {slot},{}", n + 1).unwrap();
                 }
-                writeln!(out, "print 1").unwrap();
+                if script.button_bar.is_some() {
+                    writeln!(out, "gosub *{}", menu::BAR_DRAW).unwrap();
+                } else {
+                    writeln!(out, "print 1").unwrap();
+                }
                 writeln!(out, "btnwait {BUTTON_VAR}").unwrap();
                 for slot in LINK_SPRITES.take(clickable.len()) {
                     writeln!(out, "csp {slot}").unwrap();
                 }
                 writeln!(out, "print 1").unwrap();
                 writeln!(out, "textclear").unwrap();
+                if script.button_bar.is_some() {
+                    // A bar button (or right-click): run it, then show the
+                    // page again.
+                    let max = menu::BAR_BUTTON_BASE;
+                    writeln!(out, "if {BUTTON_VAR} >= 0 && {BUTTON_VAR} <= {max} goto *{page}_0").unwrap();
+                    writeln!(out, "gosub *{}", menu::BAR_ACTION).unwrap();
+                    writeln!(out, "goto *{page}").unwrap();
+                    writeln!(out, "*{page}_0").unwrap();
+                }
                 for (n, link) in clickable.iter().enumerate() {
                     let target = link.target.as_deref().unwrap();
                     writeln!(out, "if {BUTTON_VAR} != {} goto *{page}_{}", n + 1, n + 1).unwrap();
@@ -336,6 +355,9 @@ pub fn emit(script: &Script) -> String {
     }
     if let Some(m) = &script.save_menu {
         menu::save_menu(&mut out, m);
+    }
+    if let Some(b) = &script.button_bar {
+        menu::button_bar(&mut out, b, script.save_menu.is_some());
     }
     out
 }
@@ -603,7 +625,7 @@ mod tests {
     use vn2ons_core::ir::{SourceLoc, SpriteChange, SpritePlacement};
 
     fn script(ops: Vec<Op>) -> Script {
-        Script { title: "Test".into(), width: 800, height: 600, window: None, title_screen: None, save_menu: None, ops }
+        Script { title: "Test".into(), width: 800, height: 600, window: None, title_screen: None, save_menu: None, button_bar: None, ops }
     }
 
     fn link(start: usize, len: usize, target: Option<&str>) -> TextLink {

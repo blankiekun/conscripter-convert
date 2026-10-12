@@ -1,4 +1,5 @@
-//! The save/load screen as an NScripter subroutine (see [`SaveMenu`]).
+//! The in-game menus as NScripter subroutines: the save/load screen (see
+//! [`SaveMenu`]) and the button bar shown at click waits ([`ButtonBar`]).
 //!
 //! Enter with `mov %101,1:gosub *vn2ons_save` (or `vn2ons_load`) from a
 //! click wait in the game, or with `%101` = 0 from the title screen. It
@@ -20,11 +21,19 @@
 //!   buttons and labels `lsp` sprites over them. The text window, name
 //!   plate and link words are hidden while the menu is open.
 
-use vn2ons_core::ir::{Placed, SaveMenu};
+use vn2ons_core::ir::{BarAction, ButtonBar, Placed, SaveMenu};
 
-use crate::{path, BUTTON_VAR, LINK_SPRITES, MENU_SPRITES, NAME_PLATE_SPRITE, NAME_TEXT_SPRITE};
+use crate::{path, BAR_SPRITES, BUTTON_VAR, LINK_SPRITES, MENU_SPRITES, NAME_PLATE_SPRITE, NAME_TEXT_SPRITE};
 
 pub(crate) const SAVE: &str = "vn2ons_save";
+/// The `textgosub` routine.
+pub(crate) const WAIT: &str = "vn2ons_wait";
+/// Shows the button bar and makes its buttons clickable.
+pub(crate) const BAR_DRAW: &str = "vn2ons_bar_draw";
+/// Runs the bar button in %9 (or -1, a right-click).
+pub(crate) const BAR_ACTION: &str = "vn2ons_bar_action";
+/// Bar buttons return numbers above this.
+pub(crate) const BAR_BUTTON_BASE: i32 = 1000;
 pub(crate) const LOAD: &str = "vn2ons_load";
 /// 1 when entered from the game (hide and restore the text window).
 pub(crate) const IN_GAME: &str = "%101";
@@ -38,6 +47,7 @@ const HAS_DATA: &str = "%104";
 const TMP: &str = "%105";
 const FIRST: &str = "%106"; // first slot on the page
 const SELECTED_HAS_DATA: &str = "%107";
+const MODE_STATE: &str = "%108"; // isskip: 1 skip, 2 auto
 const DATE: [&str; 6] = ["%110", "%111", "%112", "%113", "%114", "%115"];
 const LABEL: &str = "$100";
 const LINE1: &str = "$101";
@@ -98,7 +108,8 @@ pub(crate) fn save_menu(out: &mut String, m: &SaveMenu) {
     w("*vn2ons_sl".into());
     // The thumbnail: the screen as it is before the menu covers it.
     w(format!("if {MODE} == 1 getscreenshot {},{}", m.preview.w, m.preview.h));
-    let others: Vec<u32> = [NAME_TEXT_SPRITE, NAME_PLATE_SPRITE].into_iter().chain(LINK_SPRITES).collect();
+    let others: Vec<u32> =
+        BAR_SPRITES.chain([NAME_TEXT_SPRITE, NAME_PLATE_SPRITE]).chain(LINK_SPRITES).collect();
     let vsp = |on: u32| others.iter().map(|n| format!("vsp {n},{on}")).collect::<Vec<_>>().join(":");
     w(format!("if {IN_GAME} == 1 textoff:{}", vsp(0)));
     w(lsp2(BASE, &m.base, Some(m.base_opacity)));
@@ -280,6 +291,91 @@ pub(crate) fn save_menu(out: &mut String, m: &SaveMenu) {
     w("return".into());
 }
 
+/// The click-wait routine (`textgosub`): shows the bar, waits, runs the
+/// clicked button's action, and ends the wait with `texec`. Link pages
+/// call [`BAR_DRAW`] and [`BAR_ACTION`] around their own `btnwait`.
+///
+/// Button numbers are [`BAR_BUTTON_BASE`] + 1 + index; a right-click (-1)
+/// hides the text window. `textbtnwait` returns at once in skip mode and
+/// after the delay in auto mode; a click turns auto mode off.
+pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, save_menu: bool) {
+    let buttons: Vec<_> = bar.buttons.iter().zip(BAR_SPRITES).collect();
+    let mut w = |line: String| {
+        out.push_str(&line);
+        out.push('\n');
+    };
+    let lsp = |slot: u32, p: &Placed, cells: &str| format!("lsp {slot},\":a{cells};{}\",{},{}", path(&p.image), p.x, p.y);
+    let number = |i: usize| BAR_BUTTON_BASE + 1 + i as i32;
+    let label = |a: BarAction| match a {
+        BarAction::Auto => "vn2ons_bar_auto",
+        BarAction::Skip => "vn2ons_bar_skip",
+        BarAction::Log => "vn2ons_bar_log",
+        BarAction::Save => "vn2ons_bar_save",
+        BarAction::Load => "vn2ons_bar_load",
+        BarAction::HideWindow | BarAction::Unavailable => "vn2ons_bar_hide",
+    };
+
+    w(format!("*{WAIT}"));
+    w(format!("gosub *{BAR_DRAW}"));
+    w(format!("textbtnwait {BUTTON_VAR}"));
+    w(format!("if {BUTTON_VAR} >= 0 && {BUTTON_VAR} <= {BAR_BUTTON_BASE} goto *vn2ons_wait_end"));
+    w(format!("gosub *{BAR_ACTION}"));
+    // Auto and skip go on to the next page; the rest come back here.
+    for (i, (b, _)) in buttons.iter().enumerate() {
+        if matches!(b.action, BarAction::Auto | BarAction::Skip) {
+            w(format!("if {BUTTON_VAR} == {} goto *vn2ons_wait_end", number(i)));
+        }
+    }
+    w(format!("goto *{WAIT}"));
+    w("*vn2ons_wait_end".into());
+    w("texec".into());
+    w("return".into());
+
+    w(format!("*{BAR_DRAW}"));
+    w(format!("isskip {MODE_STATE}"));
+    for (i, (b, slot)) in buttons.iter().enumerate() {
+        if b.action == BarAction::Unavailable {
+            w(lsp(*slot, &b.image, ""));
+            continue;
+        }
+        w(lsp(*slot, &b.image, "/3,0,3"));
+        if let Some(active) = &b.active {
+            let state = if b.action == BarAction::Auto { 2 } else { 1 };
+            w(format!("if {MODE_STATE} == {state} {}", lsp(*slot, active, "/3,0,3")));
+        }
+        w(format!("spbtn {slot},{}", number(i)));
+    }
+    w("print 1".into());
+    w("return".into());
+
+    w(format!("*{BAR_ACTION}"));
+    w(format!("if {BUTTON_VAR} == -1 goto *vn2ons_bar_hide"));
+    for (i, (b, _)) in buttons.iter().enumerate() {
+        if b.action != BarAction::Unavailable {
+            w(format!("if {BUTTON_VAR} == {} goto *{}", number(i), label(b.action)));
+        }
+    }
+    w("return".into());
+    let mut actions: Vec<BarAction> = bar.buttons.iter().map(|b| b.action).collect();
+    actions.push(BarAction::HideWindow);
+    actions.sort_by_key(|a| label(*a));
+    actions.dedup_by_key(|a| label(*a));
+    for a in actions {
+        w(format!("*{}", label(a)));
+        match a {
+            BarAction::Auto => w("systemcall automode".into()),
+            BarAction::Skip => w("systemcall skip".into()),
+            BarAction::Log => w("systemcall lookback".into()),
+            BarAction::Save if save_menu => w(format!("mov {IN_GAME},1:gosub *{SAVE}")),
+            BarAction::Load if save_menu => w(format!("mov {IN_GAME},1:gosub *{LOAD}")),
+            BarAction::Save => w("systemcall save".into()),
+            BarAction::Load => w("systemcall load".into()),
+            BarAction::HideWindow | BarAction::Unavailable => w("systemcall windowerase".into()),
+        }
+        w("return".into());
+    }
+}
+
 /// `lsp2` places the image by its centre.
 fn lsp2(slot: u32, p: &Placed, opacity: Option<u8>) -> String {
     let (w, h) = (p.w, p.h);
@@ -338,6 +434,32 @@ mod tests {
             "savegame2 %102,$100\n",
             "loadgame %102\n",
             "mov %%105,1\n",
+        ] {
+            assert!(out.contains(line), "missing {line:?} in\n{out}");
+        }
+    }
+
+    #[test]
+    fn button_bar_routine() {
+        use vn2ons_core::ir::BarButton;
+        let bar = ButtonBar {
+            buttons: vec![
+                BarButton { image: placed("auto", 132, 19), active: Some(placed("auto_on", 132, 19)), action: BarAction::Auto },
+                BarButton { image: placed("save", 132, 19), active: None, action: BarAction::Save },
+                BarButton { image: placed("setting", 56, 19), active: None, action: BarAction::Unavailable },
+            ],
+        };
+        let mut out = String::new();
+        button_bar(&mut out, &bar, true);
+        for line in [
+            "*vn2ons_wait\ngosub *vn2ons_bar_draw\ntextbtnwait %9\n",
+            "if %9 >= 0 && %9 <= 1000 goto *vn2ons_wait_end\n",
+            "if %9 == 1001 goto *vn2ons_wait_end\ngoto *vn2ons_wait\n*vn2ons_wait_end\ntexec\nreturn\n",
+            "lsp 33,\":a/3,0,3;system\\auto.png\",10,20\nif %108 == 2 lsp 33,\":a/3,0,3;system\\auto_on.png\",10,20\nspbtn 33,1001\n",
+            "lsp 35,\":a;system\\setting.png\",10,20\nprint 1\n",
+            "if %9 == -1 goto *vn2ons_bar_hide\nif %9 == 1001 goto *vn2ons_bar_auto\nif %9 == 1002 goto *vn2ons_bar_save\nreturn\n",
+            "*vn2ons_bar_save\nmov %101,1:gosub *vn2ons_save\nreturn\n",
+            "*vn2ons_bar_hide\nsystemcall windowerase\nreturn\n",
         ] {
             assert!(out.contains(line), "missing {line:?} in\n{out}");
         }

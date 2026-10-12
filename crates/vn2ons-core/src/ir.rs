@@ -238,6 +238,36 @@ pub struct PageButton {
     pub marker_y: i32,
 }
 
+/// Buttons shown during the game's click waits: the way into the menus.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ButtonBar {
+    pub buttons: Vec<BarButton>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BarButton {
+    /// Three cells side by side: normal, under the mouse pointer,
+    /// disabled. One cell for [`BarAction::Unavailable`].
+    pub image: Placed,
+    /// The same while the mode it toggles (auto, skip) is on.
+    pub active: Option<Placed>,
+    pub action: BarAction,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BarAction {
+    Auto,
+    Skip,
+    /// The text history.
+    Log,
+    Save,
+    Load,
+    /// Hide the text window until the next click.
+    HideWindow,
+    /// Shown but not clickable (the menu it opens isn't converted yet).
+    Unavailable,
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct Script {
     /// Window caption.
@@ -250,5 +280,7 @@ pub struct Script {
     pub title_screen: Option<TitleScreen>,
     /// `None` = ONScripter's built-in save and load menus.
     pub save_menu: Option<SaveMenu>,
+    /// `None` = plain click waits (right-click opens ONScripter's menu).
+    pub button_bar: Option<ButtonBar>,
     pub ops: Vec<Op>,
 }
