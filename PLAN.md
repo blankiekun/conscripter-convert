@@ -244,6 +244,7 @@ offset of its operand record.
 | `0x10` | 895 | `arg` is always a valid label-table index; 121 point into blog scripts | jump / call to a label |
 | `0x4d`, `0x58`, `0x43` | 276 / 579 / 578 | `arg` is always a valid label-table index | call / conditional-jump variants |
 | `0x8e` | 10,271 | operand is `sub` × 44-byte entries (sub = 1–6), each with position/size values (400, 320, 300, …) and a 16-byte name field holding character names | show `sub` character sprites |
+| `0x46` | 214 | **solved** (from the handler at `0x477460` plus a user-supplied example) | **hyperlink** on the next message: row, column, length, style, target (see 3c) |
 | `0x49` | 565 | flags, two colours, a voice-range id, then text + a short name | special voiced text display (chat/popup?); **not** hyperlinks |
 | `0x5b` | 890 | handler packs `(1 << 24) \| (arg - 1)` into a timer/wait call; sub values look like durations | wait/timer, **not** hyperlinks |
 | `0x54` | 2,195 | handler lives with the save utilities; references blog scripts | unknown |
@@ -265,25 +266,31 @@ mapping, the 32-byte head, and `1.cd`.
 3b. Exact voice id → clip rule: find where the voice-play opcode turns an
    id into a clip index (follow the `0x41` handler in the exe). Also find
    `1.cd`'s cipher. (`0.cd`: done.)
-3c. **Encyclopedia hyperlinks.** Some words in the text are clickable and
-   open an encyclopedia entry. Messages have no inline markup, so the links
-   must come from separate opcodes. The links are per occurrence (the same
-   word is linked in some places and not in others, per the user), so they
-   are hardcoded in the script data, not matched against a word list. The
-   message records have been checked thoroughly: no control bytes, no
-   unusual characters beyond ordinary symbols, no per-segment flags, and the
-   trailing block is always empty. `0x8e`, `0x49` and `0x5b` are ruled out,
-   and no opcode found so far carries the link words. So the engine may match keywords
-   at runtime against a word list that hasn't been found yet (not in the
-   XARC archives or the `.bin` sound banks; maybe `1.cd`, or the
-   `bu`/`gb`/`lq.arc` archives the exe references but that aren't
-   installed).
-   ONScripter has no in-text links, so the conversion needs a substitute:
-   for example a clickable button/menu after the message, or an
-   encyclopedia screen reachable from the menu. Most frequent opcodes first
-   (`0x8e`, `0x71`, `0x76`, `0x5a`, `0x54` …), correlating instructions with
-   the pool strings near them. This is the main reverse-engineering job, and
-   where the opcode inferrer agent helps most (when invoked).
+3c. **Encyclopedia hyperlinks: found.** Opcode `0x46` sits right before
+   the message it applies to, one per linked word (214 in the game). Its
+   18-byte record is:
+   - **position:** `row, column, length` in characters (1-based, relative to
+     where the next message starts; row 1 continues the cursor's current
+     line);
+   - **style:** `0x8000 | 7` (205 links) or `| 18` (9 links);
+   - **target:** for 175 links it is an index into the script's label table.
+     Your example resolves to a label in the same script, so at least some
+     explanations are local subroutines. The other 39 targets don't resolve
+     yet.
+
+   This matches the observation that the same word is linked in some places
+   and not in others: each link is placed by hand. Tool: `vn2ons cd messages`
+   prints links with their resolved destination.
+
+   **Conversion:** ONScripter can't make words inside text clickable.
+   Options:
+   - after the message, show the linked word(s) as `btn`/`csel` choices that
+     `gosub` the target label and then return;
+   - or collect the targets into an encyclopedia menu.
+
+   Rows and columns can be dropped, since ONScripter re-wraps the text
+   anyway.
+
 4. `GAF4` images: find the compression/encryption by checking the payload for
    zlib streams or PNG/JPEG signatures after candidate transforms. The exe's
    `Gaf004Loader` is the reference if that fails.

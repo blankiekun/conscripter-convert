@@ -37,6 +37,20 @@
 //!               u32 segment count, then per segment a pool string
 //! ```
 //!
+//! ```text
+//! 0x46  hyperlink on the next message (several may precede one message)
+//!       record (18 bytes): u16 row, u16 column, u16 length in characters,
+//!               u32 style (bit 15 set; low bits 7 or 18 in this game),
+//!               u32 target, u32 reserved (0)
+//! ```
+//!
+//! Link rows and columns are 1-based positions in the text window relative to
+//! where the next message starts: row 1 continues the line the cursor is on
+//! (the engine adds the current column), row 2+ are the following lines. For
+//! 175 of the game's 214 links `target` is a valid index into this script's
+//! label table, which matches how the engine looks it up (`0x4bab70` copies a
+//! 12-byte entry); the rest are unresolved.
+//!
 //! Segments are at most ~25 characters, so they look like pre-wrapped display
 //! lines; a short first segment is often the speaker name. Voice ids look like
 //! `group * 10000 + n`; how they map to `.xsa` slots is not known yet (neither
@@ -73,6 +87,17 @@ pub enum CdError {
 
 pub const OP_MESSAGE: u16 = 0x40;
 pub const OP_VOICED_MESSAGE: u16 = 0x41;
+pub const OP_LINK: u16 = 0x46;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Link {
+    pub row: u16,
+    pub column: u16,
+    pub length: u16,
+    pub style: u32,
+    pub target: u32,
+    pub reserved: u32,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Message {
@@ -232,6 +257,23 @@ impl<'a> CdScript<'a> {
         Ok(Message { voice_id, line, segments })
     }
 
+    /// Decodes the record of a hyperlink instruction, or returns `None` for
+    /// other opcodes.
+    pub fn link(&self, ins: &Instr) -> Option<Result<Link, CdError>> {
+        (ins.op == OP_LINK).then(|| {
+            let r = Reader(self.pool);
+            let o = ins.arg as u32 as usize;
+            Ok(Link {
+                row: r.u16(o)?,
+                column: r.u16(o + 2)?,
+                length: r.u16(o + 4)?,
+                style: r.u32(o + 6)?,
+                target: r.u32(o + 10)?,
+                reserved: r.u32(o + 14)?,
+            })
+        })
+    }
+
     /// Heuristically finds the strings in the pool: positions where a
     /// plausible length is followed by valid Shift-JIS that is mostly
     /// Japanese text. Use until the operand encoding is understood.
@@ -354,6 +396,28 @@ mod tests {
         assert_eq!(voiced.voice_id, Some(120005));
         assert_eq!(voiced.segments, ["名前", "一行目の台詞", "二行目"]);
         assert!(cd.message(&cd.code[2]).is_none());
+    }
+
+    #[test]
+    fn decodes_links() {
+        let mut pool = Vec::new();
+        for v in [2u16, 8, 4] {
+            pool.extend_from_slice(&v.to_le_bytes());
+        }
+        for v in [0x8007u32, 6, 0] {
+            pool.extend_from_slice(&v.to_le_bytes());
+        }
+        let code = [Instr { op: OP_LINK, sub: 0xffff, arg: 0, source_pos: 0 }];
+        let bytes = build("l.rio", &[], &code, &pool);
+        let cd = CdScript::parse(&bytes).unwrap();
+        let link = cd.link(&cd.code[0]).unwrap().unwrap();
+        assert_eq!(link, Link { row: 2, column: 8, length: 4, style: 0x8007, target: 6, reserved: 0 });
+        assert!(cd.message(&cd.code[0]).is_none());
+
+        let code = [Instr { op: OP_LINK, sub: 0xffff, arg: 10, source_pos: 0 }];
+        let bytes = build("l.rio", &[], &code, &pool);
+        let cd = CdScript::parse(&bytes).unwrap();
+        assert!(cd.link(&cd.code[0]).unwrap().is_err());
     }
 
     #[test]

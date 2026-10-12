@@ -44,7 +44,7 @@ enum CdCommand {
     },
     /// Print the label table and instructions
     Dump { script: PathBuf },
-    /// Print the decoded messages (text) of a script
+    /// Print the decoded messages (text) and hyperlinks of a script
     Messages { script: PathBuf },
     /// Print the strings found in the operand pool (heuristic scan)
     Strings { script: PathBuf },
@@ -247,6 +247,19 @@ fn cd_messages(path: &Path) -> Result<()> {
     let bytes = map(path)?;
     let cd = parse_cd(path, &bytes)?;
     for (i, ins) in cd.code.iter().enumerate() {
+        if let Some(link) = cd.link(ins) {
+            let l = link.with_context(|| format!("instruction {i}"))?;
+            let dest = cd
+                .labels
+                .get(l.target as usize)
+                .map(|d| format!("script {} label {}", d.script, d.label))
+                .unwrap_or_else(|| "unresolved".into());
+            println!(
+                "#{i} link row {} col {} len {} style {:#x} target {} ({dest})",
+                l.row, l.column, l.length, l.style, l.target
+            );
+            continue;
+        }
         let Some(msg) = cd.message(ins) else { continue };
         let msg = msg.with_context(|| format!("instruction {i}"))?;
         let voice = msg.voice_id.map(|v| format!(" voice {v}")).unwrap_or_default();
