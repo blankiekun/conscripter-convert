@@ -23,9 +23,24 @@
 //!        [u8; 16]   MD5 of everything before it
 //! ```
 //!
-//! What each opcode does, and how instructions point into the pool, is not
-//! known yet. `source pos` never decreases within a file and looks like a byte
-//! offset into the original `.rio` source.
+//! For most opcodes `arg` is a byte offset of the operand record in the pool.
+//! `source pos` never decreases within a file and looks like a byte offset
+//! into the original `.rio` source.
+//!
+//! Known opcodes (all 46,578 message records in the game parse this way):
+//!
+//! ```text
+//! 0x40  message          sub 0x12 / 0x13 (meaning not known yet)
+//! 0x41  voiced message   sub 0x13
+//!       record: u32 id (0 for 0x40; voice id for 0x41), u32 size of the rest,
+//!               u32 line number (counts up within the script),
+//!               u32 segment count, then per segment a pool string
+//! ```
+//!
+//! Segments are at most ~25 characters, so they look like pre-wrapped display
+//! lines; a short first segment is often the speaker name. Voice ids look like
+//! `group * 10000 + n`; how they map to `.xsa` slots is not known yet (neither
+//! sorted order nor order of appearance matches the clip lengths).
 
 use md5::{Digest, Md5};
 use thiserror::Error;
@@ -52,6 +67,19 @@ pub enum CdError {
     CodeSize(usize),
     #[error("sections end at {expected:#x} but the file is {actual:#x} bytes")]
     SizeMismatch { expected: usize, actual: usize },
+    #[error("operand at pool offset {offset:#x}: {reason}")]
+    BadOperand { offset: usize, reason: &'static str },
+}
+
+pub const OP_MESSAGE: u16 = 0x40;
+pub const OP_VOICED_MESSAGE: u16 = 0x41;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Message {
+    /// Voice id for [`OP_VOICED_MESSAGE`], `None` for plain messages.
+    pub voice_id: Option<u32>,
+    pub line: u32,
+    pub segments: Vec<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -172,6 +200,38 @@ impl<'a> CdScript<'a> {
             .map(|s| s.into_owned())
     }
 
+    /// Decodes the message record of a message instruction, or returns
+    /// `None` for other opcodes.
+    pub fn message(&self, ins: &Instr) -> Option<Result<Message, CdError>> {
+        matches!(ins.op, OP_MESSAGE | OP_VOICED_MESSAGE).then(|| self.parse_message(ins))
+    }
+
+    fn parse_message(&self, ins: &Instr) -> Result<Message, CdError> {
+        let offset = ins.arg as u32 as usize;
+        let bad = |reason| CdError::BadOperand { offset, reason };
+        let r = Reader(self.pool);
+        let id = r.u32(offset)?;
+        let size = r.u32(offset + 4)? as usize;
+        let line = r.u32(offset + 8)?;
+        let count = r.u32(offset + 12)? as usize;
+        let end = (offset + 8).checked_add(size).ok_or(bad("size overflows"))?;
+        let mut pos = offset + 16;
+        let mut segments = Vec::new();
+        for _ in 0..count {
+            if pos >= end {
+                return Err(bad("more segments than the record size allows"));
+            }
+            let len = r.u32(pos)? as usize;
+            segments.push(self.pool_string(pos).ok_or(bad("segment is not valid Shift-JIS"))?);
+            pos += 4 + len;
+        }
+        if pos != end {
+            return Err(bad("segments don't fill the record"));
+        }
+        let voice_id = (ins.op == OP_VOICED_MESSAGE).then_some(id);
+        Ok(Message { voice_id, line, segments })
+    }
+
     /// Heuristically finds the strings in the pool: positions where a
     /// plausible length is followed by valid Shift-JIS that is mostly
     /// Japanese text. Use until the operand encoding is understood.
@@ -263,6 +323,52 @@ mod tests {
         assert!(cd.md5_ok());
         assert_eq!(cd.pool_string(text_at).as_deref(), Some("テストの文章です。"));
         assert_eq!(cd.scan_strings(), vec![(text_at, "テストの文章です。".to_string())]);
+    }
+
+    fn message_record(id: u32, line: u32, segments: &[&str]) -> Vec<u8> {
+        let body: Vec<u8> = segments.iter().flat_map(|s| pool_entry(s)).collect();
+        let mut out = Vec::new();
+        for v in [id, (body.len() + 8) as u32, line, segments.len() as u32] {
+            out.extend_from_slice(&v.to_le_bytes());
+        }
+        out.extend(body);
+        out
+    }
+
+    #[test]
+    fn decodes_messages() {
+        let mut pool = message_record(0, 3, &["ナレーションの行"]);
+        let voiced_at = pool.len();
+        pool.extend(message_record(120005, 4, &["名前", "一行目の台詞", "二行目"]));
+        let code = [
+            Instr { op: OP_MESSAGE, sub: 0x12, arg: 0, source_pos: 0 },
+            Instr { op: OP_VOICED_MESSAGE, sub: 0x13, arg: voiced_at as i32, source_pos: 9 },
+            Instr { op: 0x8e, sub: 1, arg: 0, source_pos: 20 },
+        ];
+        let bytes = build("m.rio", &[], &code, &pool);
+        let cd = CdScript::parse(&bytes).unwrap();
+
+        let plain = cd.message(&cd.code[0]).unwrap().unwrap();
+        assert_eq!(plain, Message { voice_id: None, line: 3, segments: vec!["ナレーションの行".into()] });
+        let voiced = cd.message(&cd.code[1]).unwrap().unwrap();
+        assert_eq!(voiced.voice_id, Some(120005));
+        assert_eq!(voiced.segments, ["名前", "一行目の台詞", "二行目"]);
+        assert!(cd.message(&cd.code[2]).is_none());
+    }
+
+    #[test]
+    fn rejects_bad_message_records() {
+        let mut pool = message_record(0, 1, &["あいう"]);
+        pool[4] += 1; // size one byte too large
+        let code = [Instr { op: OP_MESSAGE, sub: 0x12, arg: 0, source_pos: 0 }];
+        let bytes = build("m.rio", &[], &code, &pool);
+        let cd = CdScript::parse(&bytes).unwrap();
+        assert!(cd.message(&cd.code[0]).unwrap().is_err());
+
+        let code = [Instr { op: OP_MESSAGE, sub: 0x12, arg: 1_000_000, source_pos: 0 }];
+        let bytes = build("m.rio", &[], &code, &pool);
+        let cd = CdScript::parse(&bytes).unwrap();
+        assert!(cd.message(&cd.code[0]).unwrap().is_err());
     }
 
     #[test]

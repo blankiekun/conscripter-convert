@@ -196,16 +196,30 @@ directly, the clips can be copied over as-is.
 - **Operand pool:** strings are a u32 length plus Shift-JIS XORed with `0x53`.
 - **Footer:** the MD5 of everything before it. All 172 files verify.
 
-Tool: `vn2ons cd info|dump|strings|opstats`.
+Tool: `vn2ons cd info|dump|messages|strings|opstats`.
 
-Still unknown: what each opcode does, how instructions refer to pool
-entries, the 32-byte head, and `0.cd`/`1.cd`.
+**Opcodes so far:** for most opcodes the instruction's `arg` is the pool
+offset of its operand record.
+- `0x40`: message.
+- `0x41`: voiced message.
+- **Record layout** (both): `id, size, line number, segment count`, followed
+  by that many XOR-`0x53` strings. All 46,578 messages (15,620 voiced) decode.
+- **Segments:** they look like pre-wrapped display lines, often with the
+  speaker name first. There is no inline markup.
+- **Voice ids:** they have the form `group * 10000 + n` (14 groups). Mapping
+  them to `.xsa` slots by sorted order or by order of appearance gives no
+  correlation between text length and clip length, so the mapping has to come
+  from somewhere else, maybe `0.cd`/`1.cd` or the exe.
+
+Still unknown: the other ~80 opcodes (`0x8e` looks like fixed-size display
+parameters), the meaning of the message `sub` values, the voice mapping, the
+32-byte head, and `0.cd`/`1.cd`.
 
 **Plan for this game:**
 1. ~~`XARC` reader~~ (done).
 2. ~~`.xsa` reader~~ (done).
-3. `.cd` scripts: ~~container and string encoding~~ (done). Next: opcode
-   semantics and the instruction → pool link. Most frequent opcodes first
+3. `.cd` scripts: ~~container and string encoding~~, ~~instruction → pool
+   link and messages~~ (done). Next: the remaining opcode semantics. Most frequent opcodes first
    (`0x8e`, `0x71`, `0x76`, `0x5a`, `0x54` …), correlating instructions with
    the pool strings near them. This is the main reverse-engineering job, and
    where the opcode inferrer agent helps most (when invoked).
