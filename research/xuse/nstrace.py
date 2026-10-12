@@ -11,7 +11,12 @@ labels = {l[1:].strip(): i for i, l in enumerate(lines) if l.startswith('*')}
 var = collections.defaultdict(int); stack = []; hits = collections.Counter()
 def val(t):
     t = t.strip()
-    return var[int(t[1:])] if t.startswith('%') else int(t)
+    if re.fullmatch(r'-?\d+', t): return int(t)
+    if re.fullmatch(r'%\d+', t): return var[int(t[1:])]
+    # A simple expression (menu code): + - * with variables.
+    e = re.sub(r'%(\d+)', lambda m: str(var[int(m.group(1))]), t)
+    if re.fullmatch(r'[-+*() \d]+', e): return eval(e)
+    return 0
 def cond(c):
     for part in c.split('&&'):
         m = re.match(r'\s*(\S+)\s*(==|!=|>=|<=|>|<)\s*(\S+)\s*$', part)
@@ -36,7 +41,9 @@ def run_cmd(cmd):
     if op == 'gosub': stack.append(pc + 1); return labels[rest.strip()[1:]]
     if op == 'return': return stack.pop() if stack else len(lines)
     if op in ('mov', 'add', 'sub', 'mul', 'div', 'mod'):
-        a, b = rest.split(',', 1); i = int(a.strip()[1:]); v = val(b)
+        a, b = rest.split(',', 1)
+        if not re.fullmatch(r'%\d+', a.strip()): return None  # strings, indirect
+        i = int(a.strip()[1:]); v = val(b)
         var[i] = {'mov': v, 'add': var[i] + v, 'sub': var[i] - v, 'mul': var[i] * v,
                   'div': int(var[i] / v) if v else 0, 'mod': var[i] % v if v else 0}[op]
     if op == 'btnwait':

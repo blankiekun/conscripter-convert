@@ -62,6 +62,8 @@ pub struct TextLink {
     /// Label run as a subroutine when the word is clicked; it ends with
     /// [`Op::Return`], and the page is shown again. `None` = colour only.
     pub target: Option<String>,
+    /// Title of the scene the link opens (shown in the top bar).
+    pub scene: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -107,6 +109,8 @@ pub enum Op {
     SePlay { file: String, looped: bool },
     /// `file: None` stops every sound effect.
     SeStop { file: Option<String> },
+    /// A new chapter starts (shown in the top bar and save slots).
+    Chapter { title: String },
     /// Something the converter can't express yet; kept for the report.
     Unsupported { what: String, at: SourceLoc },
 }
@@ -239,9 +243,45 @@ pub struct PageButton {
 }
 
 /// Buttons shown during the game's click waits: the way into the menus.
+///
+/// The bars hide until the pointer comes near: over `reveal` (transparent,
+/// along the screen edge) this bar appears, over `hide` (the rest of the
+/// screen) all bars go away.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ButtonBar {
     pub buttons: Vec<BarButton>,
+    pub reveal: Placed,
+    pub hide: Placed,
+    /// Bars along the top edge, shown and hidden the same way.
+    pub top: Option<TopBars>,
+}
+
+/// The current chapter and the current link ("blog") scene, along the top.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TopBars {
+    pub reveal: Placed,
+    pub chapter_bar: Placed,
+    pub chapter_text: TextSpot,
+    pub scene_bar: Placed,
+    pub scene_text: TextSpot,
+    /// Shown as the scene outside any link scene.
+    pub root_scene: String,
+    /// Images shown as they are (frames, controls that aren't converted).
+    pub decorations: Vec<Placed>,
+    /// Link scene depth, "current / deepest": ten digit images 0-9 and
+    /// where the two numbers go (top-left corners).
+    pub digits: Vec<String>,
+    pub depth_at: (i32, i32),
+    pub max_depth_at: (i32, i32),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TextSpot {
+    pub x: i32,
+    pub y: i32,
+    pub font_size: u32,
+    /// Width in full-width characters.
+    pub columns: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

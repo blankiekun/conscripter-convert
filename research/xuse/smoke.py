@@ -1,6 +1,7 @@
 """Headless ONScripter smoke test with scripted clicks.
 
 usage: python3 -I smoke.py GAME_DIR WORK_DIR CLICKS [--timeout S] [--onscripter PATH]
+                           [--goto LABEL]
 
 GAME_DIR holds the converted 0.txt, arc.nsa and default.ttf; WORK_DIR gets a
 patched 0.txt, symlinks to the rest, and the screenshots (shotNN.png).
@@ -17,7 +18,8 @@ When the queue is empty the game ends.
 
 Note: the save menu's thumbnail uses the same screenshot buffer, so a 999
 between opening the save menu and saving makes the thumbnail a menu shot.
-Effects and delays are shortened to 1 ms.
+Effects and delays are shortened to 1 ms. --goto jumps to LABEL right after
+FIRST START (game state as at startup), e.g. vn2ons_link1.
 """
 import os, re, subprocess, sys
 
@@ -38,6 +40,9 @@ src = open(os.path.join(game, '0.txt'), 'rb').read()
 src = re.sub(rb'^effect (\d+),(\d+),\d+', rb'effect \1,\2,1', src, flags=re.M)
 src = re.sub(rb'^delay \d+', b'delay 1', src, flags=re.M)
 has_bar = b'\ntextgosub ' in src
+if '--goto' in sys.argv:
+    target = sys.argv[sys.argv.index('--goto') + 1].encode()
+    src = src.replace(b'\n*vn2ons_title_start\n', b'\n*vn2ons_title_start\ncsp -1\ngoto *' + target + b'\n', 1)
 src = src.replace(b'textbtnwait %9\n', b'gosub *smoke_pop\n')
 src = src.replace(b'btnwait %9\n', b'gosub *smoke_pop\n')
 queue = [int(c) for c in clicks.split(',') if c.strip()]

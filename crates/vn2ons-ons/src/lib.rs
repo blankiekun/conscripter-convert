@@ -23,20 +23,20 @@ const MASK_FADE: u32 = 18;
 /// Sound effect channels we rotate through (0 is left for voices).
 const SE_CHANNELS: std::ops::RangeInclusive<u32> = 1..=9;
 /// Sprite slots 0-32 belong to the menus (title, save/load), drawn over
-/// everything else (ONScripter draws lower numbers on top); 33-39 to the
-/// button bar.
+/// everything else (ONScripter draws lower numbers on top); 33-49 to the
+/// bars (buttons, hotspots, texts).
 const MENU_SPRITES: std::ops::Range<u32> = 0..33;
-const BAR_SPRITES: std::ops::Range<u32> = 33..40;
+const BAR_SPRITES: std::ops::Range<u32> = 33..50;
 /// Sprite slots for the name text and its plate: the text over the plate,
 /// both over the character sprites.
-const NAME_TEXT_SPRITE: u32 = 40;
-const NAME_PLATE_SPRITE: u32 = 41;
+const NAME_TEXT_SPRITE: u32 = 50;
+const NAME_PLATE_SPRITE: u32 = 51;
 /// Sprite slots for clickable link words. With `windowback` and `humanz
-/// 49`, slots up to 49 are drawn over the text window and the character
+/// 59`, slots up to 59 are drawn over the text window and the character
 /// sprites under it.
-const LINK_SPRITES: std::ops::RangeInclusive<u32> = 42..=49;
-/// Sprite layer n is NScripter sprite 50 + n.
-const SPRITE_BASE: u32 = 50;
+const LINK_SPRITES: std::ops::RangeInclusive<u32> = 52..=59;
+/// Sprite layer n is NScripter sprite 60 + n.
+const SPRITE_BASE: u32 = 60;
 /// Scratch variable receiving the clicked button (also used by nstrace).
 const BUTTON_VAR: &str = "%9";
 /// NScripter variables: locals from %10, globals from %200. `globalon`
@@ -274,7 +274,7 @@ pub fn emit(script: &Script) -> String {
                 writeln!(out, "{}", lines.join("\n")).unwrap();
                 let clickable = &clickable[..clickable.len().min(LINK_SPRITES.count())];
                 let window = window.as_ref();
-                for (n, (link, slot)) in clickable.iter().zip(LINK_SPRITES).enumerate() {
+                for (link, slot) in clickable.iter().zip(LINK_SPRITES) {
                     let word: String = text.chars().skip(link.start).take(link.len).collect();
                     let (x, y) = window.map_or((0, 0), |w| char_position(w, text, link.start));
                     let y = y + window.map_or(0, |w| rows_before as i32 * (w.font_size + w.line_gap) as i32);
@@ -287,32 +287,56 @@ pub fn emit(script: &Script) -> String {
                         link.len + 1
                     )
                     .unwrap();
+                }
+                let bar = script.button_bar.as_ref();
+                writeln!(out, "*{page}_wait").unwrap();
+                if bar.is_some() {
+                    // Clears the buttons: register the words after it.
+                    writeln!(out, "gosub *{}", menu::BAR_DRAW).unwrap();
+                }
+                for (n, slot) in LINK_SPRITES.take(clickable.len()).enumerate() {
                     writeln!(out, "spbtn {slot},{}", n + 1).unwrap();
                 }
-                if script.button_bar.is_some() {
-                    writeln!(out, "gosub *{}", menu::BAR_DRAW).unwrap();
-                } else {
+                if bar.is_none() {
                     writeln!(out, "print 1").unwrap();
                 }
                 writeln!(out, "btnwait {BUTTON_VAR}").unwrap();
+                if bar.is_some() {
+                    // The pointer near a bar, a bar button or a right-click:
+                    // handle it and wait again.
+                    writeln!(out, "if {BUTTON_VAR} <= {} goto *{page}_b", menu::HOVER_BASE).unwrap();
+                    writeln!(out, "gosub *{}", menu::BAR_HOVER).unwrap();
+                    writeln!(out, "goto *{page}_wait").unwrap();
+                    writeln!(out, "*{page}_b").unwrap();
+                    writeln!(out, "if {BUTTON_VAR} >= 0 && {BUTTON_VAR} <= {} goto *{page}_c", menu::BAR_BUTTON_BASE)
+                        .unwrap();
+                    writeln!(out, "gosub *{}", menu::BAR_ACTION).unwrap();
+                    writeln!(out, "goto *{page}_wait").unwrap();
+                    writeln!(out, "*{page}_c").unwrap();
+                }
                 for slot in LINK_SPRITES.take(clickable.len()) {
                     writeln!(out, "csp {slot}").unwrap();
                 }
                 writeln!(out, "print 1").unwrap();
                 writeln!(out, "textclear").unwrap();
-                if script.button_bar.is_some() {
-                    // A bar button (or right-click): run it, then show the
-                    // page again.
-                    let max = menu::BAR_BUTTON_BASE;
-                    writeln!(out, "if {BUTTON_VAR} >= 0 && {BUTTON_VAR} <= {max} goto *{page}_0").unwrap();
-                    writeln!(out, "gosub *{}", menu::BAR_ACTION).unwrap();
-                    writeln!(out, "goto *{page}").unwrap();
-                    writeln!(out, "*{page}_0").unwrap();
-                }
                 for (n, link) in clickable.iter().enumerate() {
                     let target = link.target.as_deref().unwrap();
                     writeln!(out, "if {BUTTON_VAR} != {} goto *{page}_{}", n + 1, n + 1).unwrap();
+                    let scenes = bar.is_some_and(|b| b.top.is_some());
+                    if scenes {
+                        // Push the scene for the top bar.
+                        let (depth, max) = (menu::SCENE_DEPTH, menu::SCENE_MAX_DEPTH);
+                        writeln!(out, "add {depth},1").unwrap();
+                        writeln!(out, "if {depth} > {max} mov {max},{depth}").unwrap();
+                        writeln!(out, "mov {},{}+{depth}", menu::TMP, menu::SCENE_TITLES).unwrap();
+                        writeln!(out, "mov ${},\"{}\"", menu::TMP, escape(link.scene.as_deref().unwrap_or("　"))).unwrap();
+                    }
                     writeln!(out, "gosub *{}", label(target)).unwrap();
+                    if scenes {
+                        let (depth, max) = (menu::SCENE_DEPTH, menu::SCENE_MAX_DEPTH);
+                        writeln!(out, "sub {depth},1").unwrap();
+                        writeln!(out, "if {depth} == 0 mov {max},0").unwrap();
+                    }
                     screen.restore(&mut out);
                     writeln!(out, "goto *{page}").unwrap();
                     writeln!(out, "*{page}_{}", n + 1).unwrap();
@@ -344,6 +368,7 @@ pub fn emit(script: &Script) -> String {
                     writeln!(out, "dwavestop {ch}").unwrap();
                 }
             }
+            Op::Chapter { title } => writeln!(out, "mov {},\"{}\"", menu::CHAPTER, escape(title)).unwrap(),
             Op::Unsupported { what, at } => {
                 writeln!(out, "; unsupported: {what} ({} #{})", at.file, at.index).unwrap()
             }
@@ -629,7 +654,7 @@ mod tests {
     }
 
     fn link(start: usize, len: usize, target: Option<&str>) -> TextLink {
-        TextLink { start, len, target: target.map(String::from) }
+        TextLink { start, len, target: target.map(String::from), scene: None }
     }
 
     fn window() -> TextWindow {
@@ -670,20 +695,21 @@ mod tests {
         ]);
         s.window = Some(window());
         let text = emit(&s);
-        assert!(text.contains("globalon\nwindowback\nhumanz 49\n"));
+        assert!(text.contains("globalon\nwindowback\nhumanz 59\n"));
         // Row 2, column 1: x = 105 + 0 * 25, y = 470 + 1 * 37.
         let expected = "\
 *vn2ons_link1
-csp 41
-csp 40
+csp 51
+csp 50
 print 1
 #F0C040一#FFFFFF行目
 #F0C040学校#FFFFFFに―――
-strsp 42,\"学校\",105,507,3,1,24,24,1,13,0,1,\"#F0C040\",\"#FFFFA0\"
-spbtn 42,1
+strsp 52,\"学校\",105,507,3,1,24,24,1,13,0,1,\"#F0C040\",\"#FFFFA0\"
+*vn2ons_link1_wait
+spbtn 52,1
 print 1
 btnwait %9
-csp 42
+csp 52
 print 1
 textclear
 if %9 != 1 goto *vn2ons_link1_1
@@ -718,7 +744,7 @@ goto *vn2ons_link1
 csp -1
 csp -1
 bg \"bg\\a.png\",0
-lsp 55,\":a;sprite\\a.png\",1,2
+lsp 65,\":a;sprite\\a.png\",1,2
 print 4
 ; transition: MaskBlend2
 csp -1
@@ -766,7 +792,7 @@ print 3
         let text = |t: &str, continues| Op::Text { speaker: None, text: t.into(), voice: None, links: vec![], continues };
         let s = script(vec![Op::SetWindow(nvl), text("一行目", true), text("二行目", false), text("新頁", false)]);
         let out = emit(&s);
-        assert!(out.contains("\":a;system\\textwnd5.png\",47,452\ncsp 41:csp 40\n一行目@\n二行目\\\n新頁\\\n"), "{out}");
+        assert!(out.contains("\":a;system\\textwnd5.png\",47,452\ncsp 51:csp 50\n一行目@\n二行目\\\n新頁\\\n"), "{out}");
     }
 
     #[test]
@@ -813,9 +839,9 @@ bgmfadein 1000
 bgm \"bgm\\track01.ogg\"
 csp -1
 bg \"bg\\room.png\",2
-lsp 53,\":a;sprite\\a.png\",10,-20
+lsp 63,\":a;sprite\\a.png\",10,-20
 print 2
-csp 53
+csp 63
 print 1
 【名前】「こんにちは」\\
 dwave 0,\"voice\\v1.ogg\"
@@ -859,8 +885,8 @@ end
         });
         let text = emit(&s);
         assert!(text.contains("setwindow 105,470,25,3,24,24,1,13,20,0,1,\":a;system\\window.png\",47,452\nerasetextwindow 0\n"));
-        assert!(text.contains("lsp 41,\":a;system\\name.png\",55,412\nstrsp 40,\"名前\",75,422,16,1,20,20,1,0,0,1\nprint 1\n「台詞」\\\n"));
-        assert!(text.contains("csp 41\ncsp 40\nprint 1\n　Ghost\\\n"));
+        assert!(text.contains("lsp 51,\":a;system\\name.png\",55,412\nstrsp 50,\"名前\",75,422,16,1,20,20,1,0,0,1\nprint 1\n「台詞」\\\n"));
+        assert!(text.contains("csp 51\ncsp 50\nprint 1\n　Ghost\\\n"));
     }
 
     #[test]

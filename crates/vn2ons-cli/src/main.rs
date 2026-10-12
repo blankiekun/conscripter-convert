@@ -6,7 +6,7 @@ use clap::{Parser, Subcommand};
 use memmap2::Mmap;
 use vn2ons_core::ir::{Op, Script};
 use vn2ons_engines::xuse::cd::CdScript;
-use vn2ons_engines::xuse::convert::{AssetBank, Flow, Needs, lower_script, window_presets};
+use vn2ons_engines::xuse::convert::{AssetBank, Flow, LabelNames, Needs, lower_script, window_presets};
 use vn2ons_engines::xuse::gaf::Gaf;
 use vn2ons_engines::xuse::symbols::{self, SymbolTable};
 use vn2ons_engines::xuse::xarc::{CrcTarget, Xarc};
@@ -249,9 +249,10 @@ fn convert_game(game: &Path, output: &Path, font: Option<&Path>, title: &str, lo
     let window = assets.text_window().context("building the text window")?;
 
     let presets = window_presets(&scripts);
+    let names = label_names(game)?;
     let mut ops = Vec::new();
     for (file, cd) in &scripts {
-        ops.extend(lower_script(cd, file, flow, &mut assets, &presets).with_context(|| format!("converting {file}"))?);
+        ops.extend(lower_script(cd, file, flow, &mut assets, &presets, &names).with_context(|| format!("converting {file}"))?);
     }
     // The linear build plays the story straight through, without a menu.
     let (title_screen, save_menu, button_bar) = if linear {
@@ -344,8 +345,9 @@ fn convert_script(game: &Path, script: u32, output: &Path, font: Option<&Path>, 
     let mut assets = AssetBank::new(game, output);
     let window = assets.text_window().context("building the text window")?;
     let presets = Default::default(); // the presets live in script 2
+    let names = label_names(game)?;
     let ops =
-        lower_script(&cd, &file, Flow::Jumps, &mut assets, &presets).with_context(|| format!("converting {file}"))?;
+        lower_script(&cd, &file, Flow::Jumps, &mut assets, &presets, &names).with_context(|| format!("converting {file}"))?;
     let ir = Script { title: title.to_string(), width: 800, height: 600, window: Some(window), title_screen: None, save_menu: None, button_bar: None, ops };
 
     let source = vn2ons_ons::emit(&ir);
@@ -527,10 +529,19 @@ fn cd_strings(path: &Path) -> Result<()> {
     Ok(())
 }
 
-fn cd_symbols(path: &Path, only: Option<usize>) -> Result<()> {
+fn read_symbols(path: &Path) -> Result<SymbolTable> {
     let mut bytes = fs::read(path).with_context(|| format!("reading {}", path.display()))?;
     symbols::decrypt(&mut bytes);
-    let table = SymbolTable::parse(&bytes).with_context(|| format!("parsing {}", path.display()))?;
+    SymbolTable::parse(&bytes).with_context(|| format!("parsing {}", path.display()))
+}
+
+/// Label names (chapter titles, link scene titles) from `HD/CDFiles/0.cd`.
+fn label_names(game: &Path) -> Result<LabelNames> {
+    Ok(LabelNames::new(&read_symbols(&game.join("HD").join("CDFiles").join("0.cd"))?))
+}
+
+fn cd_symbols(path: &Path, only: Option<usize>) -> Result<()> {
+    let table = read_symbols(path)?;
     for (id, syms) in table.scripts.iter().enumerate() {
         if only.is_some_and(|o| o != id) {
             continue;

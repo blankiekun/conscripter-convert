@@ -21,7 +21,7 @@
 //!   buttons and labels `lsp` sprites over them. The text window, name
 //!   plate and link words are hidden while the menu is open.
 
-use vn2ons_core::ir::{BarAction, ButtonBar, Placed, SaveMenu};
+use vn2ons_core::ir::{BarAction, ButtonBar, Placed, SaveMenu, TextSpot};
 
 use crate::{path, BAR_SPRITES, BUTTON_VAR, LINK_SPRITES, MENU_SPRITES, NAME_PLATE_SPRITE, NAME_TEXT_SPRITE};
 
@@ -34,6 +34,22 @@ pub(crate) const BAR_DRAW: &str = "vn2ons_bar_draw";
 pub(crate) const BAR_ACTION: &str = "vn2ons_bar_action";
 /// Bar buttons return numbers above this.
 pub(crate) const BAR_BUTTON_BASE: i32 = 1000;
+/// Sets which bars are up after a hotspot reported the pointer (%9).
+pub(crate) const BAR_HOVER: &str = "vn2ons_bar_hover";
+const BAR_CLEAR: &str = "vn2ons_bar_clear";
+/// Hotspots report the pointer with numbers above this.
+pub(crate) const HOVER_BASE: i32 = 2000;
+// Which bars are up (locals, so a save keeps them as they were).
+const TOP_SHOWN: &str = "%160";
+const BOTTOM_SHOWN: &str = "%161";
+/// Link scenes entered and not yet left; the deepest since the last time
+/// at the root; titles at $(SCENE_TITLES + depth).
+pub(crate) const SCENE_DEPTH: &str = "%150";
+pub(crate) const SCENE_MAX_DEPTH: &str = "%151";
+pub(crate) const SCENE_TITLES: u32 = 160;
+const SCENE_TMP: &str = "$151";
+/// lsp2 slots of the top bars (below the save menu's).
+const TOP_SPRITES2: std::ops::Range<u32> = 12..24;
 pub(crate) const LOAD: &str = "vn2ons_load";
 /// 1 when entered from the game (hide and restore the text window).
 pub(crate) const IN_GAME: &str = "%101";
@@ -44,7 +60,7 @@ const MODE: &str = "%100"; // 1 save, 2 load
 const SELECTED: &str = "%102"; // selected slot, 0 = none
 const SLOT: &str = "%103";
 const HAS_DATA: &str = "%104";
-const TMP: &str = "%105";
+pub(crate) const TMP: &str = "%105";
 const FIRST: &str = "%106"; // first slot on the page
 const SELECTED_HAS_DATA: &str = "%107";
 const MODE_STATE: &str = "%108"; // isskip: 1 skip, 2 auto
@@ -60,8 +76,9 @@ const PAGE: &str = "%900";
 const NEWEST: &str = "%901";
 /// Slot n is deleted when %(DELETED_BASE + n) is 1.
 const DELETED_BASE: u32 = 910;
-/// Chapter name shown under a save's date (set by chapter bookkeeping).
-pub(crate) const CHAPTER: &str = "$900";
+/// The current chapter's title (a local: saves keep it), shown in the top
+/// bar and under a save's date.
+pub(crate) const CHAPTER: &str = "$150";
 
 // lsp slots (all within MENU_SPRITES).
 const TEXT1: u32 = 0; // + row
@@ -291,15 +308,25 @@ pub(crate) fn save_menu(out: &mut String, m: &SaveMenu) {
     w("return".into());
 }
 
-/// The click-wait routine (`textgosub`): shows the bar, waits, runs the
-/// clicked button's action, and ends the wait with `texec`. Link pages
-/// call [`BAR_DRAW`] and [`BAR_ACTION`] around their own `btnwait`.
+/// The click-wait routine (`textgosub`): shows the bars the pointer has
+/// revealed, waits, runs the clicked button's action, and ends the wait
+/// with `texec`. Link pages call [`BAR_DRAW`], [`BAR_HOVER`] and
+/// [`BAR_ACTION`] around their own `btnwait`.
 ///
-/// Button numbers are [`BAR_BUTTON_BASE`] + 1 + index; a right-click (-1)
+/// Bar buttons return [`BAR_BUTTON_BASE`] + 1 + index; a right-click (-1)
 /// hides the text window. `textbtnwait` returns at once in skip mode and
 /// after the delay in auto mode; a click turns auto mode off.
+///
+/// The bars hide until the pointer comes near, as in the original:
+/// transparent hotspots along the edges and over the middle report the
+/// pointer through `getmouseover` (button numbers above [`HOVER_BASE`]),
+/// which ends the wait; the routine records which bars are up
+/// ([`TOP_SHOWN`], [`BOTTOM_SHOWN`]) and waits again.
 pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, save_menu: bool) {
-    let buttons: Vec<_> = bar.buttons.iter().zip(BAR_SPRITES).collect();
+    let mut slots = BAR_SPRITES;
+    let buttons: Vec<_> = bar.buttons.iter().zip(slots.by_ref()).collect();
+    let (reveal, hide, reveal_top, chapter_text, scene_text) =
+        (slots.next().unwrap(), slots.next().unwrap(), slots.next().unwrap(), slots.next().unwrap(), slots.next().unwrap());
     let mut w = |line: String| {
         out.push_str(&line);
         out.push('\n');
@@ -314,10 +341,12 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, save_menu: bool) {
         BarAction::Load => "vn2ons_bar_load",
         BarAction::HideWindow | BarAction::Unavailable => "vn2ons_bar_hide",
     };
+    let (hover_top, hover_bottom, hover_hide) = (HOVER_BASE + 1, HOVER_BASE + 2, HOVER_BASE + 3);
 
     w(format!("*{WAIT}"));
     w(format!("gosub *{BAR_DRAW}"));
     w(format!("textbtnwait {BUTTON_VAR}"));
+    w(format!("if {BUTTON_VAR} > {HOVER_BASE} goto *vn2ons_wait_hover"));
     w(format!("if {BUTTON_VAR} >= 0 && {BUTTON_VAR} <= {BAR_BUTTON_BASE} goto *vn2ons_wait_end"));
     w(format!("gosub *{BAR_ACTION}"));
     // Auto and skip go on to the next page; the rest come back here.
@@ -327,11 +356,33 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, save_menu: bool) {
         }
     }
     w(format!("goto *{WAIT}"));
+    w("*vn2ons_wait_hover".into());
+    w(format!("gosub *{BAR_HOVER}"));
+    w(format!("goto *{WAIT}"));
     w("*vn2ons_wait_end".into());
     w("texec".into());
     w("return".into());
 
+    w(format!("*{BAR_HOVER}"));
+    w(format!("if {BUTTON_VAR} == {hover_top} mov {TOP_SHOWN},1"));
+    w(format!("if {BUTTON_VAR} == {hover_bottom} mov {BOTTOM_SHOWN},1"));
+    w(format!("if {BUTTON_VAR} == {hover_hide} mov {TOP_SHOWN},0:mov {BOTTOM_SHOWN},0"));
+    w("return".into());
+
+    // Removes every bar sprite.
+    w(format!("*{BAR_CLEAR}"));
+    w(BAR_SPRITES.map(|n| format!("csp {n}")).collect::<Vec<_>>().join(":"));
+    w(TOP_SPRITES2.map(|n| format!("csp2 {n}")).collect::<Vec<_>>().join(":"));
+    w("return".into());
+
+    // Draws the bars that are up, or the hotspots that bring them up.
+    // Buttons registered later are tested first, so the hide hotspot comes
+    // first and link words (registered after this) win over it.
     w(format!("*{BAR_DRAW}"));
+    w("btndef clear".into());
+    w(format!("gosub *{BAR_CLEAR}"));
+    w(format!("if {TOP_SHOWN} == 1 || {BOTTOM_SHOWN} == 1 {}:spbtn {hide},{hover_hide}", lsp(hide, &bar.hide, "")));
+    w(format!("if {BOTTOM_SHOWN} == 0 {}:spbtn {reveal},{hover_bottom}:goto *vn2ons_bar_draw_top", lsp(reveal, &bar.reveal, "")));
     w(format!("isskip {MODE_STATE}"));
     for (i, (b, slot)) in buttons.iter().enumerate() {
         if b.action == BarAction::Unavailable {
@@ -345,6 +396,30 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, save_menu: bool) {
         }
         w(format!("spbtn {slot},{}", number(i)));
     }
+    w("*vn2ons_bar_draw_top".into());
+    if let Some(top) = &bar.top {
+        w(format!("if {TOP_SHOWN} == 0 {}:spbtn {reveal_top},{hover_top}:goto *vn2ons_bar_draw_end", lsp(reveal_top, &top.reveal, "")));
+        let mut sprites2 = TOP_SPRITES2;
+        for p in [&top.chapter_bar, &top.scene_bar].into_iter().chain(&top.decorations) {
+            w(lsp2(sprites2.next().unwrap(), p, None));
+        }
+        let text = |slot: u32, t: &TextSpot, var: &str| {
+            format!("strsp {slot},{var},{},{},{},1,{},{},0,0,0,1", t.x, t.y, t.columns, t.font_size, t.font_size)
+        };
+        w(text(chapter_text, &top.chapter_text, CHAPTER));
+        // The scene: its title at the current depth, or the root's.
+        w(format!("mov {SCENE_TMP},\"{}\"", top.root_scene));
+        w(format!("mov {TMP},{SCENE_TITLES}+{SCENE_DEPTH}"));
+        w(format!("if {SCENE_DEPTH} > 0 mov {SCENE_TMP},${TMP}"));
+        w(text(scene_text, &top.scene_text, SCENE_TMP));
+        for (var, (x, y), slot) in [(SCENE_DEPTH, top.depth_at, sprites2.next().unwrap()), (SCENE_MAX_DEPTH, top.max_depth_at, sprites2.next().unwrap())] {
+            for (d, image) in top.digits.iter().enumerate() {
+                w(format!("if {var} == {d} lsp2 {slot},\":a;{}\",{},{},100,100,0", path(image), x + 4, y + 6));
+            }
+        }
+    }
+    w("*vn2ons_bar_draw_end".into());
+    w(format!("getmouseover {},{}", HOVER_BASE + 1, HOVER_BASE + 3));
     w("print 1".into());
     w("return".into());
 
@@ -360,14 +435,16 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, save_menu: bool) {
     actions.push(BarAction::HideWindow);
     actions.sort_by_key(|a| label(*a));
     actions.dedup_by_key(|a| label(*a));
+    // The save menu covers the screen: put the bars away first.
+    let menu = |entry: &str| format!("mov {TOP_SHOWN},0:mov {BOTTOM_SHOWN},0\ngosub *{BAR_CLEAR}\nmov {IN_GAME},1\ngosub *{entry}");
     for a in actions {
         w(format!("*{}", label(a)));
         match a {
             BarAction::Auto => w("systemcall automode".into()),
             BarAction::Skip => w("systemcall skip".into()),
             BarAction::Log => w("systemcall lookback".into()),
-            BarAction::Save if save_menu => w(format!("mov {IN_GAME},1:gosub *{SAVE}")),
-            BarAction::Load if save_menu => w(format!("mov {IN_GAME},1:gosub *{LOAD}")),
+            BarAction::Save if save_menu => w(menu(SAVE)),
+            BarAction::Load if save_menu => w(menu(LOAD)),
             BarAction::Save => w("systemcall save".into()),
             BarAction::Load => w("systemcall load".into()),
             BarAction::HideWindow | BarAction::Unavailable => w("systemcall windowerase".into()),
@@ -448,17 +525,27 @@ mod tests {
                 BarButton { image: placed("save", 132, 19), active: None, action: BarAction::Save },
                 BarButton { image: placed("setting", 56, 19), active: None, action: BarAction::Unavailable },
             ],
+            reveal: placed("reveal", 800, 25),
+            hide: placed("hide", 800, 500),
+            top: None,
         };
         let mut out = String::new();
         button_bar(&mut out, &bar, true);
         for line in [
-            "*vn2ons_wait\ngosub *vn2ons_bar_draw\ntextbtnwait %9\n",
+            "*vn2ons_wait\ngosub *vn2ons_bar_draw\ntextbtnwait %9\nif %9 > 2000 goto *vn2ons_wait_hover\n",
             "if %9 >= 0 && %9 <= 1000 goto *vn2ons_wait_end\n",
-            "if %9 == 1001 goto *vn2ons_wait_end\ngoto *vn2ons_wait\n*vn2ons_wait_end\ntexec\nreturn\n",
+            "if %9 == 1001 goto *vn2ons_wait_end\ngoto *vn2ons_wait\n",
+            "*vn2ons_wait_end\ntexec\nreturn\n",
+            // Hotspots: the hide one first (tested last), the bottom one
+            // while the bar is down.
+            "btndef clear\ngosub *vn2ons_bar_clear\n\
+             if %160 == 1 || %161 == 1 lsp 37,\":a;system\\hide.png\",10,20:spbtn 37,2003\n\
+             if %161 == 0 lsp 36,\":a;system\\reveal.png\",10,20:spbtn 36,2002:goto *vn2ons_bar_draw_top\n",
             "lsp 33,\":a/3,0,3;system\\auto.png\",10,20\nif %108 == 2 lsp 33,\":a/3,0,3;system\\auto_on.png\",10,20\nspbtn 33,1001\n",
-            "lsp 35,\":a;system\\setting.png\",10,20\nprint 1\n",
+            "lsp 35,\":a;system\\setting.png\",10,20\n*vn2ons_bar_draw_top\n*vn2ons_bar_draw_end\ngetmouseover 2001,2003\nprint 1\n",
+            "*vn2ons_bar_hover\nif %9 == 2001 mov %160,1\nif %9 == 2002 mov %161,1\nif %9 == 2003 mov %160,0:mov %161,0\nreturn\n",
             "if %9 == -1 goto *vn2ons_bar_hide\nif %9 == 1001 goto *vn2ons_bar_auto\nif %9 == 1002 goto *vn2ons_bar_save\nreturn\n",
-            "*vn2ons_bar_save\nmov %101,1:gosub *vn2ons_save\nreturn\n",
+            "*vn2ons_bar_save\nmov %160,0:mov %161,0\ngosub *vn2ons_bar_clear\nmov %101,1\ngosub *vn2ons_save\nreturn\n",
             "*vn2ons_bar_hide\nsystemcall windowerase\nreturn\n",
         ] {
             assert!(out.contains(line), "missing {line:?} in\n{out}");

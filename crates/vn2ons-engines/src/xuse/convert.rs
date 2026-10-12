@@ -10,12 +10,14 @@ use std::path::{Path, PathBuf};
 
 use thiserror::Error;
 use vn2ons_core::ir::{
-    ArithOp, BarAction, BarButton, ButtonBar, NamePlate, Op, Operand, PageButton, Placed, Rect, SaveMenu, SourceLoc, SpriteChange, SpritePlacement,
-    TextLink, TextWindow, TitleAction, TitleButton, TitleScreen, Var,
+    ArithOp, BarAction, BarButton, ButtonBar, NamePlate, Op, Operand, PageButton, Placed, Rect, SaveMenu, SourceLoc,
+    SpriteChange, SpritePlacement, TextLink, TextSpot, TextWindow, TitleAction, TitleButton, TitleScreen, TopBars,
+    Var,
 };
 
 use crate::xuse::cd::{CdError, CdScript, Instr, Link, Sound};
 use crate::xuse::gaf::{Gaf, GafError};
+use crate::xuse::symbols::SymbolTable;
 use crate::xuse::xarc::{Xarc, XarcError};
 use crate::xuse::xsa::{Xsa, XsaError};
 
@@ -65,6 +67,11 @@ const OP_TEXT_PAGE: u16 = 0x53;
 /// Hides the text window (handler 0x4772a0; arg 0 waits for the fade, 1
 /// doesn't). Used before most transitions.
 const OP_HIDE_TEXT: u16 = 0x43;
+/// Starts a chapter: pool[arg] = (own label number, label-table index of
+/// the chapter's "|chpe" label). The engine shows the name of the label it
+/// sits on (`0.cd`): "chapter<route>]?<title>". 0x37 and 0x38 sit on the
+/// chapter's "|chpe" and "|chpl" labels and link back (chapter history).
+const OP_CHAPTER: u16 = 0x36;
 /// Removes every character bust-up (arg is always -1).
 const OP_CLEAR_SPRITES: u16 = 0x8f;
 const OP_WAIT: u16 = 0x66;
@@ -484,7 +491,74 @@ impl AssetBank {
             };
             buttons.push(BarButton { image, active, action });
         }
-        Ok(ButtonBar { buttons })
+        // Hotspots: the pointer within 25 px of the bottom shows the bar;
+        // between the top and bottom bars it hides them.
+        let reveal = self.transparent("bar_reveal", 0, 575, 800, 25)?;
+        let hide = self.transparent("bar_hide", 0, 52, 800, 523)?;
+        Ok(ButtonBar { buttons, reveal, hide, top: Some(self.top_bars()?) })
+    }
+
+    /// A fully transparent image, for a hotspot.
+    fn transparent(&self, name: &str, x: i32, y: i32, w: u32, h: u32) -> Result<Placed, ConvertError> {
+        let image = format!("system/{name}.png");
+        self.save_image(&image, &image::RgbaImage::new(w, h))?;
+        Ok(Placed { image, x, y, w: w as i32, h: h as i32 })
+    }
+
+    /// The top bars: `HD/wnd.arc` → `ChapterBar.004` (base, frame: "chapter
+    /// »") on the left and `BlogStackBar.004` on the right (bar 0/1, drop-down
+    /// 2/3, exit 4/5, next 6/7, prev 8/9, scene list 10-12, depth box 13/14,
+    /// digits 15; buttons are four states side by side, base and frame
+    /// layers separately). The scene list and the buttons, which browse
+    /// the link scenes visited, aren't converted: the buttons are shown
+    /// disabled. Positions measured on a screenshot of the original.
+    fn top_bars(&mut self) -> Result<TopBars, ConvertError> {
+        let blog = self.gaf_images("wnd.arc", "BlogStackBar.004", "blog bar")?;
+        let chapter = self.gaf_images("wnd.arc", "ChapterBar.004", "chapter bar")?;
+        let load = |images: &[Vec<u8>], n: usize| {
+            let png = images.get(n).ok_or(ConvertError::MissingAsset { kind: "top bar image", number: n })?;
+            image::load_from_memory_with_format(png, image::ImageFormat::Png)
+                .map(|i| i.to_rgba8())
+                .map_err(|source| ConvertError::Image { what: format!("top bar #{n}"), source })
+        };
+        // Layers `base`/`base + 1`, cell `cell` of `cells` side by side.
+        let layered = |this: &Self, images: &[Vec<u8>], base: usize, cell: u32, cells: u32, name: &str, x: i32, y: i32| {
+            let (b, f) = (load(images, base)?, load(images, base + 1)?);
+            let w = b.width() / cells;
+            let crop = |i: &image::RgbaImage| image::imageops::crop_imm(i, cell * w, 0, w, i.height()).to_image();
+            let img = blend_layers(crop(&b), &crop(&f));
+            let image = format!("system/{name}.png");
+            this.save_image(&image, &img)?;
+            Ok::<_, ConvertError>(Placed { image, x, y, w: img.width() as i32, h: img.height() as i32 })
+        };
+        let digit_strip = load(&blog, 15)?;
+        let dw = digit_strip.width() / 10;
+        let mut digits = Vec::new();
+        for d in 0..10 {
+            let img = image::imageops::crop_imm(&digit_strip, d * dw, 0, dw, digit_strip.height()).to_image();
+            let image = format!("system/digit{d}.png");
+            self.save_image(&image, &img)?;
+            digits.push(image);
+        }
+        let disabled = 3;
+        Ok(TopBars {
+            reveal: self.transparent("bar_reveal_top", 0, 0, 800, 25)?,
+            chapter_bar: layered(self, &chapter, 0, 0, 1, "chapter_bar", 0, 0)?,
+            chapter_text: TextSpot { x: 72, y: 7, font_size: 12, columns: 21 },
+            scene_bar: layered(self, &blog, 0, 0, 1, "scene_bar", 417, 0)?,
+            scene_text: TextSpot { x: 529, y: 7, font_size: 12, columns: 20 },
+            root_scene: "root scene".into(),
+            decorations: vec![
+                layered(self, &blog, 13, 0, 1, "scene_depth", 612, 28)?,
+                layered(self, &blog, 8, disabled, 4, "scene_prev", 710, 28)?,
+                layered(self, &blog, 6, disabled, 4, "scene_next", 736, 28)?,
+                layered(self, &blog, 4, disabled, 4, "scene_exit", 762, 28)?,
+                layered(self, &blog, 2, disabled, 4, "scene_list", 780, 3)?,
+            ],
+            digits,
+            depth_at: (662, 32),
+            max_depth_at: (682, 32),
+        })
     }
 
     fn save_image(&self, name: &str, img: &image::RgbaImage) -> Result<(), ConvertError> {
@@ -531,12 +605,7 @@ impl AssetBank {
                 .map(|i| i.to_rgba8())
                 .map_err(|source| ConvertError::Image { what: name.to_string(), source })
         };
-        let mut out = load(base)?;
-        for px in out.pixels_mut() {
-            px.0[3] = (u32::from(px.0[3]) * WINDOW_OPACITY_PERCENT / 100) as u8;
-        }
-        image::imageops::overlay(&mut out, &load(top)?, 0, 0);
-        self.save_image(name, &out)
+        self.save_image(name, &blend_layers(load(base)?, &load(top)?))
     }
 
     /// Reads every archive the `needs` touch once and writes the used
@@ -667,6 +736,44 @@ impl AssetBank {
     }
 }
 
+/// Label names from `0.cd`, by (script id, code offset in bytes).
+#[derive(Debug, Default)]
+pub struct LabelNames(HashMap<(u32, u32), String>);
+
+impl LabelNames {
+    pub fn new(table: &SymbolTable) -> Self {
+        let mut names = HashMap::new();
+        for (script, symbols) in table.scripts.iter().enumerate() {
+            for s in symbols {
+                names.insert((script as u32, s.code_offset), s.name.clone());
+            }
+        }
+        Self(names)
+    }
+
+    /// Name of `cd`'s label-table entry `index` (index 0 is implicit).
+    fn table_entry(&self, cd: &CdScript, index: i64) -> Option<&str> {
+        let l = cd.labels.get(usize::try_from(index).ok()?.checked_sub(1)?)?;
+        self.0.get(&(l.script, l.code_offset)).map(String::as_str)
+    }
+
+    /// Name of label number `label` of `cd` itself.
+    fn own(&self, cd: &CdScript, label: u32) -> Option<&str> {
+        let l = cd.labels.iter().find(|l| l.script == cd.script_id && l.label == label)?;
+        self.0.get(&(l.script, l.code_offset)).map(String::as_str)
+    }
+}
+
+/// "chapter<route>]?<title>" → title.
+fn chapter_title(name: &str) -> Option<&str> {
+    name.strip_prefix("chapter")?.split_once("]?").map(|(_, title)| title)
+}
+
+/// "blog?<title>" → title: the scenes links open.
+fn scene_title(name: &str) -> Option<&str> {
+    name.strip_prefix("blog?")
+}
+
 /// How jumps are converted.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Flow {
@@ -732,6 +839,7 @@ pub fn lower_script(
     flow: Flow,
     assets: &mut AssetBank,
     presets: &HashMap<String, WindowPreset>,
+    names: &LabelNames,
 ) -> Result<Vec<Op>, ConvertError> {
     // A label's offset points at a marker instruction (a 0x10 that targets
     // itself); a jump lands just after it, so the label goes after that
@@ -788,6 +896,16 @@ pub fn lower_script(
             }
             continue;
         }
+        if ins.op == OP_CHAPTER {
+            let title = pool_u32(cd.pool, ins.arg as u32 as usize)
+                .and_then(|label| names.own(cd, label))
+                .and_then(chapter_title);
+            match title {
+                Some(title) => ops.push(Op::Chapter { title: title.to_string() }),
+                None => ops.push(Op::Unsupported { what: format!("opcode {:#04x} (no chapter name)", ins.op), at: at() }),
+            }
+            continue;
+        }
         if ins.op == OP_TRANSITION {
             match pool_u32(cd.pool, ins.arg as u32 as usize) {
                 Some(fade_ms) => {
@@ -813,7 +931,7 @@ pub fn lower_script(
         }
         let links = if cd.message(ins).is_some() { std::mem::take(&mut pending_links) } else { Vec::new() };
         let unsupported = || format!("opcode {:#04x} sub {:#x} arg {}", ins.op, ins.sub, ins.arg);
-        match lower_instr(cd, ins, &links, assets) {
+        match lower_instr(cd, ins, &links, assets, names) {
             Ok(Some(Op::Text { speaker, text, voice, mut links, continues })) if flow == Flow::Linear => {
                 // No jumps in linear mode, so links are colour only.
                 links.iter_mut().for_each(|l| l.target = None);
@@ -874,7 +992,13 @@ fn link_range(segments: &[String], has_speaker: bool, link: &Link) -> Option<(us
     Some((before + col, len))
 }
 
-fn lower_instr(cd: &CdScript, ins: &Instr, links: &[Link], assets: &mut AssetBank) -> Result<Option<Op>, ConvertError> {
+fn lower_instr(
+    cd: &CdScript,
+    ins: &Instr,
+    links: &[Link],
+    assets: &mut AssetBank,
+    names: &LabelNames,
+) -> Result<Option<Op>, ConvertError> {
     if let Some(msg) = cd.message(ins) {
         let msg = msg?;
         let segs = &msg.segments;
@@ -887,7 +1011,8 @@ fn lower_instr(cd: &CdScript, ins: &Instr, links: &[Link], assets: &mut AssetBan
             .iter()
             .filter_map(|l| {
                 let (start, len) = link_range(segs, has_speaker, l)?;
-                Some(TextLink { start, len, target: table_label(cd, l.target.into()) })
+                let scene = names.table_entry(cd, l.target.into()).and_then(scene_title).map(String::from);
+                Some(TextLink { start, len, target: table_label(cd, l.target.into()), scene })
             })
             .collect();
         // Segments are the game's own display lines.
@@ -1029,6 +1154,15 @@ pub fn table_label(cd: &CdScript, index: i64) -> Option<String> {
 
 fn pool_u32(pool: &[u8], offset: usize) -> Option<u32> {
     pool.get(offset..offset + 4).map(|b| u32::from_le_bytes(b.try_into().unwrap()))
+}
+
+/// `top` over `base`, the base made translucent like the text window's.
+fn blend_layers(mut base: image::RgbaImage, top: &image::RgbaImage) -> image::RgbaImage {
+    for px in base.pixels_mut() {
+        px.0[3] = (u32::from(px.0[3]) * WINDOW_OPACITY_PERCENT / 100) as u8;
+    }
+    image::imageops::overlay(&mut base, top, 0, 0);
+    base
 }
 
 fn png_size(png: &[u8]) -> (u32, u32) {
