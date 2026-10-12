@@ -209,7 +209,9 @@ source file in error messages: `ScriptStd` (`0x23`, `0x30`–`0x39`),
 (`0x4e`), `ScriptSound` (`0x5a`, `0x5e`, `0x5f`), `ScenarioVariable` (`0x64`,
 `0x65`, `0x9b`), `Story` (`0x93`), `AdvObjectScript_Filter` (`0x88`). `0x40`
 and `0x41` share one handler. Message records have a second block after the
-text (`u32 4, u32 0` in every message).
+text (`u32 4, u32 0` in every message). Bit 0 of a message's `sub` means
+"has voice" (`0x13` vs `0x12`). The display code (`0x475f40`) checks the
+voice through `0x4679d0` and drops the flag if the check fails.
 
 **Opcodes so far:** for most opcodes the instruction's `arg` is the pool
 offset of its operand record.
@@ -265,8 +267,13 @@ mapping, the 32-byte head, and `1.cd`.
    `1.cd`'s cipher. (`0.cd`: done.)
 3c. **Encyclopedia hyperlinks.** Some words in the text are clickable and
    open an encyclopedia entry. Messages have no inline markup, so the links
-   must come from separate opcodes. `0x8e`, `0x49` and `0x5b` are ruled out,
-   and no opcode carries the link words. So the engine may match keywords
+   must come from separate opcodes. The links are per occurrence (the same
+   word is linked in some places and not in others, per the user), so they
+   are hardcoded in the script data, not matched against a word list. The
+   message records have been checked thoroughly: no control bytes, no
+   unusual characters beyond ordinary symbols, no per-segment flags, and the
+   trailing block is always empty. `0x8e`, `0x49` and `0x5b` are ruled out,
+   and no opcode found so far carries the link words. So the engine may match keywords
    at runtime against a word list that hasn't been found yet (not in the
    XARC archives or the `.bin` sound banks; maybe `1.cd`, or the
    `bu`/`gb`/`lq.arc` archives the exe references but that aren't
