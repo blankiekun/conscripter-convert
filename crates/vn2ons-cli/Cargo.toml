@@ -1,0 +1,15 @@
+[package]
+name = "vn2ons-cli"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "vn2ons"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+memmap2.workspace = true
+vn2ons-engines.workspace = true
