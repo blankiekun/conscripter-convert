@@ -15,9 +15,11 @@ const FIRST_EFFECT: u32 = 2;
 const FADE: u32 = 10;
 /// Sound effect channels we rotate through (0 is left for voices).
 const SE_CHANNELS: std::ops::RangeInclusive<u32> = 1..=9;
-/// Sprite slots for the name plate and its text, above any character sprite.
-const NAME_PLATE_SPRITE: u32 = 900;
-const NAME_TEXT_SPRITE: u32 = 901;
+/// Sprite slots for the name text and its plate. ONScripter draws lower
+/// numbers on top, so the text (0) is over the plate (1), and both are over
+/// the character sprites (10 and up).
+const NAME_TEXT_SPRITE: u32 = 0;
+const NAME_PLATE_SPRITE: u32 = 1;
 /// Colour for words the original game made clickable, and normal text.
 const LINK_COLOR: &str = "#F0C040";
 const TEXT_COLOR: &str = "#FFFFFF";
@@ -61,7 +63,11 @@ pub fn emit(script: &Script) -> String {
         match op {
             Op::Label(name) => writeln!(out, "*{}", label(name)).unwrap(),
             Op::Background { image, fade_ms } => {
-                writeln!(out, "bg \"{}\",{}", path(image), effect(*fade_ms)).unwrap()
+                // NScripter's bg keeps lsp sprites; the game removes characters
+                // when the background or CG changes.
+                writeln!(out, "csp -1").unwrap();
+                writeln!(out, "bg \"{}\",{}", path(image), effect(*fade_ms)).unwrap();
+                plate_visible = false;
             }
             Op::Sprites { sprites, fade_ms } => {
                 writeln!(out, "csp -1").unwrap();
@@ -306,6 +312,7 @@ game
 *scene_1
 bgmfadein 1000
 bgm \"bgm\\track01.ogg\"
+csp -1
 bg \"bg\\room.png\",2
 csp -1
 lsp 10,\":a;sprite\\a.png\",10,-20
@@ -351,8 +358,8 @@ end
         });
         let text = emit(&s);
         assert!(text.contains("setwindow 105,470,25,3,24,24,1,13,20,0,1,\":a;system\\window.png\",47,452\n"));
-        assert!(text.contains("lsp 900,\":a;system\\name.png\",55,412\nstrsp 901,\"名前\",75,422,16,1,20,20,1,0,0,1\nprint 1\n「台詞」\\\n"));
-        assert!(text.contains("csp 900\ncsp 901\nprint 1\n　Ghost\\\n"));
+        assert!(text.contains("lsp 1,\":a;system\\name.png\",55,412\nstrsp 0,\"名前\",75,422,16,1,20,20,1,0,0,1\nprint 1\n「台詞」\\\n"));
+        assert!(text.contains("csp 1\ncsp 0\nprint 1\n　Ghost\\\n"));
     }
 
     #[test]

@@ -22,6 +22,9 @@ const SE_FIRST_BANK: usize = 256;
 /// Assumption: backgrounds fade over this long (the `0x54` sub field may
 /// select the transition; not decoded yet).
 const BG_FADE_MS: u32 = 500;
+/// Opacity of the text window's base layer (estimated from a screenshot of
+/// the original game).
+const WINDOW_OPACITY_PERCENT: u32 = 55;
 /// Assumption: the sprite entry's fade field counts 10 ms units.
 const SPRITE_FADE_UNIT_MS: u32 = 10;
 
@@ -136,9 +139,10 @@ impl AssetBank {
 
     /// Writes `top` composited over `base` (both PNGs of the same size).
     ///
-    /// The game multiplies the scene by the base layer (an opaque grey
-    /// gradient). ONScripter can only alpha-blend, so the base becomes black
-    /// with alpha `1 - grey`, which darkens the scene by the same amount.
+    /// The game alpha-blends the base layer (an opaque grey gradient) over
+    /// the scene at about 55% opacity; measured on an original screenshot,
+    /// where the box's light top brightens the scene and its dark middle
+    /// darkens it.
     fn layered(&self, name: &str, base: &[u8], top: &[u8]) -> Result<(), ConvertError> {
         let load = |png: &[u8]| {
             image::load_from_memory_with_format(png, image::ImageFormat::Png)
@@ -147,10 +151,7 @@ impl AssetBank {
         };
         let mut out = load(base)?;
         for px in out.pixels_mut() {
-            let [r, g, b, a] = px.0;
-            let grey = (u32::from(r) + u32::from(g) + u32::from(b)) / 3;
-            let alpha = (255 - grey) * u32::from(a) / 255;
-            px.0 = [0, 0, 0, alpha as u8];
+            px.0[3] = (u32::from(px.0[3]) * WINDOW_OPACITY_PERCENT / 100) as u8;
         }
         image::imageops::overlay(&mut out, &load(top)?, 0, 0);
         let dest = self.out.join(name);
