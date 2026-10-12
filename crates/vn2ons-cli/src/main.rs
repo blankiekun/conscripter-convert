@@ -255,13 +255,15 @@ fn convert_game(game: &Path, output: &Path, font: Option<&Path>, title: &str, lo
         ops.extend(lower_script(cd, file, flow, &mut assets, &presets, &names).with_context(|| format!("converting {file}"))?);
     }
     // The linear build plays the story straight through, without a menu.
-    let (title_screen, save_menu, button_bar) = if linear {
-        (None, None, None)
+    let (title_screen, save_menu, button_bar, settings, backlog) = if linear {
+        (None, None, None, None, None)
     } else {
         (
             Some(assets.title_screen().context("building the title screen")?),
             Some(assets.save_menu().context("building the save menu")?),
             Some(assets.button_bar().context("building the button bar")?),
+            Some(assets.settings_menu().context("building the settings menu")?),
+            Some(assets.backlog().context("building the backlog")?),
         )
     };
     let ir = Script {
@@ -272,6 +274,8 @@ fn convert_game(game: &Path, output: &Path, font: Option<&Path>, title: &str, lo
         title_screen,
         save_menu,
         button_bar,
+        settings,
+        backlog,
         ops,
     };
     let (encoded, lost) = vn2ons_ons::encode(&vn2ons_ons::emit(&ir));
@@ -348,7 +352,7 @@ fn convert_script(game: &Path, script: u32, output: &Path, font: Option<&Path>, 
     let names = label_names(game)?;
     let ops =
         lower_script(&cd, &file, Flow::Jumps, &mut assets, &presets, &names).with_context(|| format!("converting {file}"))?;
-    let ir = Script { title: title.to_string(), width: 800, height: 600, window: Some(window), title_screen: None, save_menu: None, button_bar: None, ops };
+    let ir = Script { title: title.to_string(), width: 800, height: 600, window: Some(window), title_screen: None, save_menu: None, button_bar: None, settings: None, backlog: None, ops };
 
     let source = vn2ons_ons::emit(&ir);
     let (encoded, lost) = vn2ons_ons::encode(&source);

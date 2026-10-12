@@ -173,6 +173,7 @@ pub enum TitleAction {
     /// Run the script from its first op.
     Start,
     Load,
+    Settings,
     Exit,
     /// Shown but not clickable (the menu it opens isn't converted yet).
     Unavailable,
@@ -306,10 +307,63 @@ pub enum BarAction {
     Log,
     Save,
     Load,
+    Settings,
     /// Hide the text window until the next click.
     HideWindow,
     /// Shown but not clickable (the menu it opens isn't converted yet).
     Unavailable,
+}
+
+/// A settings screen: rows of levels 0-10 changed with minus/plus.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SettingsMenu {
+    /// Full-screen layer drawn with `base_opacity` over the screen.
+    pub base: Placed,
+    pub base_opacity: u8,
+    pub header: Placed,
+    /// Three cells: normal, under the pointer, disabled.
+    pub close: Placed,
+    pub rows: Vec<SettingRow>,
+    pub label_x: i32,
+    pub minus_x: i32,
+    pub level_x: i32,
+    pub plus_x: i32,
+    pub y: i32,
+    pub pitch: i32,
+    pub font_size: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SettingRow {
+    pub label: String,
+    pub setting: Setting,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Setting {
+    BgmVolume,
+    SeVolume,
+    VoiceVolume,
+    TextSpeed,
+    AutoSpeed,
+}
+
+/// The text history: past pages stacked from the bottom of `area` up,
+/// scrolled a page at a time.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Backlog {
+    pub base: Placed,
+    pub base_opacity: u8,
+    pub frame: Placed,
+    pub track: Placed,
+    /// Three cells each: normal, under the pointer, disabled.
+    pub up: Placed,
+    pub down: Placed,
+    pub close: Placed,
+    pub area: Rect,
+    pub font_size: u32,
+    pub line_height: i32,
+    pub columns: u32,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -326,5 +380,8 @@ pub struct Script {
     pub save_menu: Option<SaveMenu>,
     /// `None` = plain click waits (right-click opens ONScripter's menu).
     pub button_bar: Option<ButtonBar>,
+    pub settings: Option<SettingsMenu>,
+    /// `None` = ONScripter's own text history.
+    pub backlog: Option<Backlog>,
     pub ops: Vec<Op>,
 }

@@ -78,6 +78,12 @@ pub fn emit(script: &Script) -> String {
     }
     // The caption is passed to the window system as raw Shift-JIS, which
     // shows as mojibake on Linux, so keep it ASCII.
+    if script.backlog.is_some() {
+        // Wheel and arrow keys reach btnwait (backlog scrolling); keep more
+        // pages of history than the default 16.
+        writeln!(out, "usewheel").unwrap();
+        writeln!(out, "maxkaisoupage 100").unwrap();
+    }
     if script.button_bar.is_some() {
         // Every click wait runs the bar routine instead of waiting itself.
         writeln!(out, "textgosub *{}", menu::WAIT).unwrap();
@@ -92,10 +98,15 @@ pub fn emit(script: &Script) -> String {
     }
     writeln!(out, "game").unwrap();
     writeln!(out, "*start").unwrap();
+    // The text speed is a setting when there is a settings menu.
+    let speed = if script.settings.is_some() { menu::TEXT_MS } else { "20" };
+    if script.settings.is_some() {
+        menu::settings_init(&mut out);
+    }
     // setwindow redraws the screen, so it must come after `game` (ONScripter
     // crashes if it runs in the define section).
     if let Some(w) = &script.window {
-        writeln!(out, "{}", setwindow(w)).unwrap();
+        writeln!(out, "{}", setwindow(w, speed)).unwrap();
         // Keep the window up while sprites change and pages are printed
         // (by default every print hides it until the next text, which
         // flickers); the script hides it explicitly with textoff.
@@ -104,7 +115,7 @@ pub fn emit(script: &Script) -> String {
 
     let effect = |ms: u32| if ms == 0 { 1 } else { effects[&(ms, None)] };
     if let Some(t) = &script.title_screen {
-        title_screen(&mut out, t, effect(t.fade_ms), script.save_menu.is_some());
+        title_screen(&mut out, t, effect(t.fade_ms), script.save_menu.is_some(), script.settings.is_some());
     }
     let mut se = SeChannels::default();
     let mut needs_bit_helpers = false;
@@ -187,7 +198,7 @@ pub fn emit(script: &Script) -> String {
             }
             Op::HideTextWindow => writeln!(out, "textoff").unwrap(),
             Op::SetWindow(w) => {
-                writeln!(out, "{}", setwindow(w)).unwrap();
+                writeln!(out, "{}", setwindow(w, speed)).unwrap();
                 writeln!(out, "csp {NAME_PLATE_SPRITE}:csp {NAME_TEXT_SPRITE}").unwrap();
                 plate_visible = false;
                 page_rows = 0;
@@ -402,7 +413,13 @@ pub fn emit(script: &Script) -> String {
         menu::save_menu(&mut out, m);
     }
     if let Some(b) = &script.button_bar {
-        menu::button_bar(&mut out, b, script.save_menu.is_some());
+        menu::button_bar(&mut out, b, script.save_menu.is_some(), script.settings.is_some(), script.backlog.is_some());
+    }
+    if let Some(m) = &script.settings {
+        menu::settings_menu(&mut out, m);
+    }
+    if let Some(b) = &script.backlog {
+        menu::backlog(&mut out, b);
     }
     out
 }
@@ -410,7 +427,7 @@ pub fn emit(script: &Script) -> String {
 /// The title menu: buttons are sprites over the picture, faded in together;
 /// Start clears them and falls through to the script that follows. Load
 /// opens the save menu's load screen if there is one, else ONScripter's.
-fn title_screen(out: &mut String, t: &TitleScreen, fade: u32, save_menu: bool) {
+fn title_screen(out: &mut String, t: &TitleScreen, fade: u32, save_menu: bool, settings: bool) {
     let buttons: Vec<_> = t.buttons.iter().zip(MENU_SPRITES).collect();
     // Effect 0 = update the buffer only; the print shows it all.
     writeln!(out, "bg \"{}\",0", path(&t.background)).unwrap();
@@ -432,6 +449,10 @@ fn title_screen(out: &mut String, t: &TitleScreen, fade: u32, save_menu: bool) {
             TitleAction::Load if save_menu => {
                 format!("csp -1:mov {},0:gosub *{}:goto *{TITLE_DRAW}", menu::IN_GAME, menu::LOAD)
             }
+            TitleAction::Settings if settings => {
+                format!("csp -1:mov {},0:gosub *{}:goto *{TITLE_DRAW}", menu::IN_GAME, menu::SETTINGS)
+            }
+            TitleAction::Settings => continue,
             // The built-in load menu; it comes back here when cancelled.
             TitleAction::Load => format!("systemcall load:goto *{TITLE_MENU}"),
             TitleAction::Exit => "end".to_string(),
@@ -447,9 +468,10 @@ fn title_screen(out: &mut String, t: &TitleScreen, fade: u32, save_menu: bool) {
 
 /// `setwindow` for a window: text x,y, columns,rows, font w,h, char
 /// spacing, line gap, ms per character, bold, shadow, window image, x,y.
-fn setwindow(w: &TextWindow) -> String {
+/// `speed`: milliseconds per character (a number or a variable).
+fn setwindow(w: &TextWindow, speed: &str) -> String {
     format!(
-        "setwindow {},{},{},{},{},{},1,{},20,0,1,\":a;{}\",{},{}",
+        "setwindow {},{},{},{},{},{},1,{},{speed},0,1,\":a;{}\",{},{}",
         w.text_x, w.text_y, w.columns, w.rows, w.font_size, w.font_size, w.line_gap, path(&w.image), w.x, w.y
     )
 }
@@ -670,7 +692,7 @@ mod tests {
     use vn2ons_core::ir::{SourceLoc, SpriteChange, SpritePlacement};
 
     fn script(ops: Vec<Op>) -> Script {
-        Script { title: "Test".into(), width: 800, height: 600, window: None, title_screen: None, save_menu: None, button_bar: None, ops }
+        Script { title: "Test".into(), width: 800, height: 600, window: None, title_screen: None, save_menu: None, button_bar: None, settings: None, backlog: None, ops }
     }
 
     fn link(start: usize, len: usize, target: Option<&str>) -> TextLink {

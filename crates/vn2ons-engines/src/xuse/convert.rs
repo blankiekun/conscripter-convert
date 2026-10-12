@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 
 use thiserror::Error;
 use vn2ons_core::ir::{
-    ArithOp, BarAction, BarButton, ButtonBar, NamePlate, Op, Operand, PageButton, Placed, Rect, SaveMenu, SourceLoc,
+    ArithOp, Backlog, BarAction, BarButton, ButtonBar, NamePlate, Setting, SettingRow, SettingsMenu, Op, Operand, PageButton, Placed, Rect, SaveMenu, SourceLoc,
     SpriteChange, SpritePlacement, TextLink, TextSpot, TextWindow, TitleAction, TitleButton, TitleScreen, TopBars,
     Var,
 };
@@ -334,7 +334,7 @@ impl AssetBank {
         for (n, name, x, y, action) in [
             (6, "start", 631, 221, TitleAction::Start),
             (2, "load", 631, 250, TitleAction::Load),
-            (7, "option", 631, 299, TitleAction::Unavailable),
+            (7, "option", 631, 299, TitleAction::Settings),
             (3, "exit", 631, 370, TitleAction::Exit),
         ] {
             let states = get(n)?;
@@ -470,7 +470,7 @@ impl AssetBank {
             (6, "log", 473, 581, BarAction::Log),
             (2, "save", 550, 581, BarAction::Save),
             (3, "load", 607, 581, BarAction::Load),
-            (7, "setting", 682, 581, BarAction::Unavailable),
+            (7, "setting", 682, 581, BarAction::Settings),
             (8, "hide", 756, 583, BarAction::HideWindow),
         ] {
             let png = images.get(n).ok_or(ConvertError::MissingAsset { kind: "button bar image", number: n })?;
@@ -500,6 +500,95 @@ impl AssetBank {
         let reveal = self.transparent("bar_reveal", 0, 575, 800, 25)?;
         let hide = self.transparent("bar_hide", 0, 52, 800, 523)?;
         Ok(ButtonBar { buttons, reveal, hide, top: Some(self.top_bars()?) })
+    }
+
+    /// The images of a GAF4 container in `HD/{arc}`, decoded.
+    fn gaf_rgba(&self, arc: &str, file: &str, kind: &'static str) -> Result<Vec<image::RgbaImage>, ConvertError> {
+        self.gaf_images(arc, file, kind)?
+            .iter()
+            .enumerate()
+            .map(|(n, png)| {
+                image::load_from_memory_with_format(png, image::ImageFormat::Png)
+                    .map(|i| i.to_rgba8())
+                    .map_err(|source| ConvertError::Image { what: format!("{file} #{n}"), source })
+            })
+            .collect()
+    }
+
+    /// Writes `img` (cells `which` of a row of `count` side by side, or all
+    /// of it) as `system/{name}.png` at (x, y).
+    fn place(&self, name: &str, img: &image::RgbaImage, cells: Option<(u32, &[u32])>, x: i32, y: i32) -> Result<Placed, ConvertError> {
+        let out = match cells {
+            None => img.clone(),
+            Some((count, which)) => {
+                let w = img.width() / count;
+                let mut out = image::RgbaImage::new(w * which.len() as u32, img.height());
+                for (i, &c) in which.iter().enumerate() {
+                    let cell = image::imageops::crop_imm(img, c * w, 0, w, img.height()).to_image();
+                    image::imageops::replace(&mut out, &cell, i64::from(w) * i as i64, 0);
+                }
+                out
+            }
+        };
+        let image = format!("system/{name}.png");
+        self.save_image(&image, &out)?;
+        Ok(Placed { image, x, y, w: out.width() as i32, h: out.height() as i32 })
+    }
+
+    /// The settings screen. The original's settings are a Windows dialog,
+    /// so this one is made of the game's parts: the backlog's base
+    /// (`LogWnd.004` #0) and close button (#5, four states side by side),
+    /// and the title screen's "option" word (`Title.004` #12).
+    pub fn settings_menu(&mut self) -> Result<SettingsMenu, ConvertError> {
+        let log = self.gaf_rgba("wnd.arc", "LogWnd.004", "backlog")?;
+        let title = self.gaf_rgba("gd.arc", "Title.004", "title screen")?;
+        let get = |images: &[image::RgbaImage], n: usize| {
+            images.get(n).cloned().ok_or(ConvertError::MissingAsset { kind: "menu image", number: n })
+        };
+        let row = |label: &str, setting| SettingRow { label: label.to_string(), setting };
+        Ok(SettingsMenu {
+            base: self.place("menu_base", &darker(get(&log, 0)?), None, 0, 0)?,
+            base_opacity: 210,
+            header: self.place("settings_header", &get(&title, 12)?, None, 40, 20)?,
+            close: self.place("menu_close", &get(&log, 5)?, Some((4, &[0, 1, 3])), 700, 540)?,
+            rows: vec![
+                row("ＢＧＭ", Setting::BgmVolume),
+                row("効果音", Setting::SeVolume),
+                row("音声", Setting::VoiceVolume),
+                row("文字速度", Setting::TextSpeed),
+                row("オート速度", Setting::AutoSpeed),
+            ],
+            label_x: 140,
+            minus_x: 340,
+            level_x: 380,
+            plus_x: 680,
+            y: 140,
+            pitch: 70,
+            font_size: 22,
+        })
+    }
+
+    /// The backlog from `HD/wnd.arc` → `LogWnd.004`: base (0, an opaque
+    /// gradient, drawn mostly opaque), frame (1, "back log »"), scroll track
+    /// (2), down and up arrows (3, 4) and close (5), the buttons four states
+    /// side by side. Layout is ours (no screenshot of the original's).
+    pub fn backlog(&mut self) -> Result<Backlog, ConvertError> {
+        let log = self.gaf_rgba("wnd.arc", "LogWnd.004", "backlog")?;
+        let get = |n: usize| log.get(n).cloned().ok_or(ConvertError::MissingAsset { kind: "backlog image", number: n });
+        let cells: &[u32] = &[0, 1, 3];
+        Ok(Backlog {
+            base: self.place("menu_base", &darker(get(0)?), None, 0, 0)?,
+            base_opacity: 210,
+            frame: self.place("log_frame", &get(1)?, None, 0, 0)?,
+            track: self.place("log_track", &get(2)?, None, 745, 40)?,
+            up: self.place("log_up", &get(4)?, Some((4, cells)), 760, 44)?,
+            down: self.place("log_down", &get(3)?, Some((4, cells)), 760, 546)?,
+            close: self.place("menu_close", &get(5)?, Some((4, cells)), 729, 5)?,
+            area: Rect { x: 30, y: 44, w: 700, h: 516 },
+            font_size: 16,
+            line_height: 24,
+            columns: 41,
+        })
     }
 
     /// A fully transparent image, for a hotspot.
@@ -1159,6 +1248,17 @@ pub fn table_label(cd: &CdScript, index: i64) -> Option<String> {
 
 fn pool_u32(pool: &[u8], offset: usize) -> Option<u32> {
     pool.get(offset..offset + 4).map(|b| u32::from_le_bytes(b.try_into().unwrap()))
+}
+
+/// The image at half brightness. The log base is a white-to-black gradient;
+/// white text over its top half was hard to read.
+fn darker(mut img: image::RgbaImage) -> image::RgbaImage {
+    for px in img.pixels_mut() {
+        for c in &mut px.0[..3] {
+            *c /= 2;
+        }
+    }
+    img
 }
 
 /// `top` over `base`, the base made translucent like the text window's.

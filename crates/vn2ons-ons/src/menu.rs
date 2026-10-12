@@ -21,7 +21,7 @@
 //!   buttons and labels `lsp` sprites over them. The text window, name
 //!   plate and link words are hidden while the menu is open.
 
-use vn2ons_core::ir::{BarAction, ButtonBar, Placed, SaveMenu, TextSpot};
+use vn2ons_core::ir::{BarAction, Backlog, ButtonBar, Placed, SaveMenu, Setting, SettingsMenu, TextSpot};
 
 use crate::{path, BAR_SPRITES, BUTTON_VAR, LINK_SPRITES, MENU_SPRITES, NAME_PLATE_SPRITE, NAME_TEXT_SPRITE};
 
@@ -32,6 +32,28 @@ pub(crate) const WAIT: &str = "vn2ons_wait";
 pub(crate) const BAR_DRAW: &str = "vn2ons_bar_draw";
 /// Runs the bar button in %9 (or -1, a right-click).
 pub(crate) const BAR_ACTION: &str = "vn2ons_bar_action";
+pub(crate) const SETTINGS: &str = "vn2ons_settings";
+const SETTINGS_APPLY: &str = "vn2ons_settings_apply";
+pub(crate) const BACKLOG: &str = "vn2ons_backlog";
+/// Settings levels are %902-%906 (globals); %909 = 1 once they are set.
+const SETTINGS_SET: &str = "%909";
+/// Milliseconds per character, for `setwindow`.
+pub(crate) const TEXT_MS: &str = "%907";
+const TEXT_MS_STEP: u32 = 6;
+// Settings and backlog sprites (lsp, within MENU_SPRITES).
+const SETTING_MINUS: u32 = 10; // + row
+const SETTING_PLUS: u32 = 15; // + row
+const SETTING_LEVEL: u32 = 20; // + row
+const BTN_MINUS: u32 = 10;
+const BTN_PLUS: u32 = 20;
+const LOG_PAGES: u32 = 10; // text sprites 0..LOG_PAGES
+const LOG_UP: u32 = 25;
+const LOG_DOWN: u32 = 26;
+const LOG_OFFSET: &str = "%170";
+const LOG_Y: &str = "%171";
+const LOG_K: &str = "%172";
+const LOG_LINES: &str = "%173";
+const LOG_OLDER: &str = "%174";
 /// Bar buttons return numbers above this.
 pub(crate) const BAR_BUTTON_BASE: i32 = 1000;
 /// Sets which bars are up after a hotspot reported the pointer (%9).
@@ -127,8 +149,7 @@ pub(crate) fn save_menu(out: &mut String, m: &SaveMenu) {
     w("*vn2ons_sl".into());
     // The thumbnail: the screen as it is before the menu covers it.
     w(format!("if {MODE} == 1 getscreenshot {},{}", m.preview.w, m.preview.h));
-    let others: Vec<u32> =
-        BAR_SPRITES.chain([NAME_TEXT_SPRITE, NAME_PLATE_SPRITE]).chain(LINK_SPRITES).collect();
+    let others = hidden_while_open();
     let vsp = |on: u32| others.iter().map(|n| format!("vsp {n},{on}")).collect::<Vec<_>>().join(":");
     w(format!("if {IN_GAME} == 1 textoff:{}", vsp(0)));
     w(lsp2(BASE, &m.base, Some(m.base_opacity)));
@@ -324,7 +345,7 @@ pub(crate) fn save_menu(out: &mut String, m: &SaveMenu) {
 /// pointer through `getmouseover` (button numbers above [`HOVER_BASE`]),
 /// which ends the wait; the routine records which bars are up
 /// ([`TOP_SHOWN`], [`BOTTOM_SHOWN`]) and waits again.
-pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, save_menu: bool) {
+pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, save_menu: bool, settings: bool, backlog: bool) {
     let mut slots = BAR_SPRITES;
     let buttons: Vec<_> = bar.buttons.iter().zip(slots.by_ref()).collect();
     let (reveal, hide, reveal_top, chapter_text, scene_text) =
@@ -341,6 +362,7 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, save_menu: bool) {
         BarAction::Log => "vn2ons_bar_log",
         BarAction::Save => "vn2ons_bar_save",
         BarAction::Load => "vn2ons_bar_load",
+        BarAction::Settings => "vn2ons_bar_settings",
         BarAction::HideWindow | BarAction::Unavailable => "vn2ons_bar_hide",
     };
     let (hover_top, hover_bottom, hover_hide) = (HOVER_BASE + 1, HOVER_BASE + 2, HOVER_BASE + 3);
@@ -349,6 +371,8 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, save_menu: bool) {
     w(format!("gosub *{BAR_DRAW}"));
     w(format!("textbtnwait {BUTTON_VAR}"));
     w(format!("if {BUTTON_VAR} > {HOVER_BASE} goto *vn2ons_wait_hover"));
+    // Wheel down (-3) reads on, like a click; wheel up (-2) opens the log.
+    w(format!("if {BUTTON_VAR} == -3 goto *vn2ons_wait_end"));
     w(format!("if {BUTTON_VAR} >= 0 && {BUTTON_VAR} <= {BAR_BUTTON_BASE} goto *vn2ons_wait_end"));
     w(format!("gosub *{BAR_ACTION}"));
     // Auto and skip go on to the next page; the rest come back here.
@@ -432,6 +456,7 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, save_menu: bool) {
 
     w(format!("*{BAR_ACTION}"));
     w(format!("if {BUTTON_VAR} == -1 goto *vn2ons_bar_hide"));
+    w(format!("if {BUTTON_VAR} == -2 goto *vn2ons_bar_log"));
     for (i, (b, _)) in buttons.iter().enumerate() {
         if b.action != BarAction::Unavailable {
             w(format!("if {BUTTON_VAR} == {} goto *{}", number(i), label(b.action)));
@@ -440,6 +465,7 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, save_menu: bool) {
     w("return".into());
     let mut actions: Vec<BarAction> = bar.buttons.iter().map(|b| b.action).collect();
     actions.push(BarAction::HideWindow);
+    actions.push(BarAction::Log);
     actions.sort_by_key(|a| label(*a));
     actions.dedup_by_key(|a| label(*a));
     // The save menu covers the screen: put the bars away first.
@@ -449,7 +475,10 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, save_menu: bool) {
         match a {
             BarAction::Auto => w("systemcall automode".into()),
             BarAction::Skip => w("systemcall skip".into()),
+            BarAction::Log if backlog => w(menu(BACKLOG)),
             BarAction::Log => w("systemcall lookback".into()),
+            BarAction::Settings if settings => w(menu(SETTINGS)),
+            BarAction::Settings => w("return".into()),
             BarAction::Save if save_menu => w(menu(SAVE)),
             BarAction::Load if save_menu => w(menu(LOAD)),
             BarAction::Save => w("systemcall save".into()),
@@ -458,6 +487,182 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, save_menu: bool) {
         }
         w("return".into());
     }
+}
+
+/// The settings screen (see [`SettingsMenu`]): levels 0-10 in globals,
+/// applied by [`SETTINGS_APPLY`] (also run at startup by
+/// [`settings_init`]).
+pub(crate) fn settings_menu(out: &mut String, m: &SettingsMenu) {
+    let rows = &m.rows[..m.rows.len().min(MAX_ROWS)];
+    let mut w = |line: String| {
+        out.push_str(&line);
+        out.push('\n');
+    };
+    let size = m.font_size;
+    let others = hidden_while_open();
+    let vsp = |on: u32| others.iter().map(|n| format!("vsp {n},{on}")).collect::<Vec<_>>().join(":");
+    w(format!("*{SETTINGS}"));
+    w(format!("if {IN_GAME} == 1 textoff:{}", vsp(0)));
+    w(lsp2(BASE, &m.base, Some(m.base_opacity)));
+    w(lsp2(HEADER, &m.header, None));
+    w(format!("lsp {CLOSE},\":a/3,0,3;{}\",{},{}", path(&m.close.image), m.close.x, m.close.y));
+    w("*vn2ons_settings_draw".into());
+    for (r, row) in rows.iter().enumerate() {
+        let y = m.y + r as i32 * m.pitch;
+        let level = setting_var(row.setting);
+        let r = r as u32;
+        w(format!("strsp {},\"{}\",{},{y},10,1,{size},{size},0,0,0,1", TEXT1 + r, row.label, m.label_x));
+        for (slot, x, sign) in [(SETTING_MINUS + r, m.minus_x, "－"), (SETTING_PLUS + r, m.plus_x, "＋")] {
+            w(format!("strsp {slot},\"{sign}\",{x},{y},1,1,{size},{size},0,0,0,1,\"#FFFFFF\",\"#F0C040\""));
+        }
+        // "■■■■■■■□□□　７"
+        w(format!("mov {STR_TMP},\"\""));
+        for i in 1..=10 {
+            w(format!("if {level} >= {i} add {STR_TMP},\"■\""));
+            w(format!("if {level} < {i} add {STR_TMP},\"□\""));
+        }
+        w(format!("add {STR_TMP},\"　\""));
+        w(format!("itoa2 {LINE1},{level}"));
+        w(format!("add {STR_TMP},{LINE1}"));
+        w(format!("strsp {},{STR_TMP},{},{y},14,1,{size},{size},0,0,0,1", SETTING_LEVEL + r, m.level_x));
+    }
+    w("*vn2ons_settings_wait".into());
+    for r in 0..rows.len() as u32 {
+        w(format!("spbtn {},{}", SETTING_MINUS + r, BTN_MINUS + r + 1));
+        w(format!("spbtn {},{}", SETTING_PLUS + r, BTN_PLUS + r + 1));
+    }
+    w(format!("spbtn {CLOSE},{BTN_CLOSE}"));
+    w("print 1".into());
+    w(format!("btnwait {BUTTON_VAR}"));
+    w(format!("if {BUTTON_VAR} == -1 || {BUTTON_VAR} == {BTN_CLOSE} goto *vn2ons_settings_close"));
+    for (r, row) in rows.iter().enumerate() {
+        let level = setting_var(row.setting);
+        let r = r as u32;
+        w(format!("if {BUTTON_VAR} == {} && {level} > 0 sub {level},1", BTN_MINUS + r + 1));
+        w(format!("if {BUTTON_VAR} == {} && {level} < 10 add {level},1", BTN_PLUS + r + 1));
+    }
+    w(format!("gosub *{SETTINGS_APPLY}"));
+    w("goto *vn2ons_settings_draw".into());
+    w("*vn2ons_settings_close".into());
+    // texton first: it drops the pending screen updates except the window's.
+    w(format!("if {IN_GAME} == 1 texton:{}", vsp(1)));
+    w(format!("csp2 {BASE}:csp2 {HEADER}"));
+    w(MENU_SPRITES.map(|n| format!("csp {n}")).collect::<Vec<_>>().join(":"));
+    w("print 1".into());
+    w("return".into());
+
+    w(format!("*{SETTINGS_APPLY}"));
+    for (setting, cmd) in [(Setting::BgmVolume, "bgmvol"), (Setting::SeVolume, "sevol"), (Setting::VoiceVolume, "voicevol")] {
+        w(format!("mov {TMP},{}*10:{cmd} {TMP}", setting_var(setting)));
+    }
+    w(format!("mov {TEXT_MS},(10-{})*{TEXT_MS_STEP}:textspeed {TEXT_MS}", setting_var(Setting::TextSpeed)));
+    w(format!("mov {TMP},(10-{})*400+600:automode_time {TMP}", setting_var(Setting::AutoSpeed)));
+    w("return".into());
+}
+
+/// First run: default levels; every run: apply them (before `setwindow`,
+/// which takes the text speed from [`TEXT_MS`]).
+pub(crate) fn settings_init(out: &mut String) {
+    let v = setting_var;
+    out.push_str(&format!(
+        "if {SETTINGS_SET} == 0 mov {},8:mov {},8:mov {},10:mov {},7:mov {},5:mov {SETTINGS_SET},1\ngosub *{SETTINGS_APPLY}\n",
+        v(Setting::BgmVolume),
+        v(Setting::SeVolume),
+        v(Setting::VoiceVolume),
+        v(Setting::TextSpeed),
+        v(Setting::AutoSpeed)
+    ));
+}
+
+fn setting_var(s: Setting) -> &'static str {
+    match s {
+        Setting::BgmVolume => "%902",
+        Setting::SeVolume => "%903",
+        Setting::VoiceVolume => "%904",
+        Setting::TextSpeed => "%905",
+        Setting::AutoSpeed => "%906",
+    }
+}
+
+/// The text history (see [`Backlog`]). Pages come from `getlog` (0 = the
+/// page on screen); a page's line count is its length with line breaks
+/// (`getlog`) minus without (`getlogtext`), plus one. [`LOG_OFFSET`] is
+/// the newest page shown; up/wheel-up go back one page, down/wheel-down
+/// forward (past the newest: close).
+pub(crate) fn backlog(out: &mut String, b: &Backlog) {
+    let mut w = |line: String| {
+        out.push_str(&line);
+        out.push('\n');
+    };
+    let others = hidden_while_open();
+    let vsp = |on: u32| others.iter().map(|n| format!("vsp {n},{on}")).collect::<Vec<_>>().join(":");
+    let button = |slot: u32, p: &Placed| format!("lsp {slot},\":a/3,0,3;{}\",{},{}", path(&p.image), p.x, p.y);
+    let a = &b.area;
+    let size = b.font_size;
+    let gap = b.line_height - size as i32;
+    w(format!("*{BACKLOG}"));
+    w(format!("if {IN_GAME} == 1 textoff:{}", vsp(0)));
+    w(lsp2(BASE, &b.base, Some(b.base_opacity)));
+    w(lsp2(FRAME, &b.frame, None));
+    w(lsp2(HEADER, &b.track, None));
+    w(button(LOG_UP, &b.up));
+    w(button(LOG_DOWN, &b.down));
+    w(button(CLOSE, &b.close));
+    w(format!("mov {LOG_OFFSET},0"));
+    w("*vn2ons_log_draw".into());
+    w((0..LOG_PAGES).map(|n| format!("csp {n}")).collect::<Vec<_>>().join(":"));
+    w(format!("mov {LOG_Y},{}", a.y + a.h));
+    w(format!("mov {LOG_K},0"));
+    w("*vn2ons_log_page".into());
+    w(format!("if {LOG_K} >= {LOG_PAGES} goto *vn2ons_log_shown"));
+    w(format!("mov {TMP},{LOG_OFFSET}+{LOG_K}"));
+    w(format!("getlog {LINE1},{TMP}"));
+    w(format!("if {LINE1} == \"\" goto *vn2ons_log_shown"));
+    w(format!("getlogtext {LINE2},{TMP}"));
+    w(format!("len {LOG_LINES},{LINE1}"));
+    w(format!("len {TMP},{LINE2}"));
+    w(format!("mov {LOG_LINES},{LOG_LINES}-{TMP}+1"));
+    w(format!("mov {TMP},{LOG_Y}-{LOG_LINES}*{}-{}", b.line_height, b.line_height / 2));
+    // Doesn't fit: stop (but always show at least one page).
+    w(format!("if {TMP} < {} && {LOG_K} > 0 goto *vn2ons_log_shown", a.y));
+    w(format!("if {TMP} < {} mov {TMP},{}", a.y, a.y));
+    w(format!("strsp {LOG_K},{LINE1},{},{TMP},{},{LOG_LINES},{size},{size},0,{gap},0,1", a.x, b.columns));
+    w(format!("mov {LOG_Y},{TMP}"));
+    w(format!("add {LOG_K},1"));
+    w("goto *vn2ons_log_page".into());
+    w("*vn2ons_log_shown".into());
+    w(format!("cell {LOG_DOWN},0:cell {LOG_UP},0"));
+    w(format!("if {LOG_OFFSET} == 0 cell {LOG_DOWN},2"));
+    // LOG_OLDER: there is an older page to scroll to.
+    w(format!("mov {TMP},{LOG_OFFSET}+1"));
+    w(format!("getlog {LINE2},{TMP}"));
+    w(format!("mov {LOG_OLDER},1"));
+    w(format!("if {LINE2} == \"\" mov {LOG_OLDER},0:cell {LOG_UP},2"));
+    w("*vn2ons_log_wait".into());
+    w(format!("if {LOG_OLDER} == 1 spbtn {LOG_UP},1"));
+    w(format!("if {LOG_OFFSET} > 0 spbtn {LOG_DOWN},2"));
+    w(format!("spbtn {CLOSE},{BTN_CLOSE}"));
+    w("print 1".into());
+    w(format!("btnwait {BUTTON_VAR}"));
+    w(format!("if {BUTTON_VAR} == -1 || {BUTTON_VAR} == {BTN_CLOSE} goto *vn2ons_log_close"));
+    w(format!("if {BUTTON_VAR} == -2 mov {BUTTON_VAR},1"));
+    w(format!("if {BUTTON_VAR} == -3 mov {BUTTON_VAR},2"));
+    w(format!("if {BUTTON_VAR} == 1 && {LOG_OLDER} == 1 add {LOG_OFFSET},1:goto *vn2ons_log_draw"));
+    w(format!("if {BUTTON_VAR} == 2 && {LOG_OFFSET} == 0 goto *vn2ons_log_close"));
+    w(format!("if {BUTTON_VAR} == 2 sub {LOG_OFFSET},1:goto *vn2ons_log_draw"));
+    w("goto *vn2ons_log_wait".into());
+    w("*vn2ons_log_close".into());
+    w(format!("if {IN_GAME} == 1 texton:{}", vsp(1)));
+    w(format!("csp2 {BASE}:csp2 {FRAME}:csp2 {HEADER}"));
+    w(MENU_SPRITES.map(|n| format!("csp {n}")).collect::<Vec<_>>().join(":"));
+    w("print 1".into());
+    w("return".into());
+}
+
+/// Sprites hidden while a full-screen menu is open: the bars, the name
+/// plate and the link words.
+fn hidden_while_open() -> Vec<u32> {
+    BAR_SPRITES.chain([NAME_TEXT_SPRITE, NAME_PLATE_SPRITE]).chain(LINK_SPRITES).collect()
 }
 
 /// `lsp2` places the image by its centre.
@@ -537,7 +742,7 @@ mod tests {
             top: None,
         };
         let mut out = String::new();
-        button_bar(&mut out, &bar, true);
+        button_bar(&mut out, &bar, true, false, false);
         for line in [
             "*vn2ons_wait\ngosub *vn2ons_bar_draw\ntextbtnwait %9\nif %9 > 2000 goto *vn2ons_wait_hover\n",
             "if %9 >= 0 && %9 <= 1000 goto *vn2ons_wait_end\n",
@@ -551,7 +756,8 @@ mod tests {
             "lsp 33,\":a/3,0,3;system\\auto.png\",10,20\nif %108 == 2 lsp 33,\":a/3,0,3;system\\auto_on.png\",10,20\nspbtn 33,1001\n",
             "lsp 35,\":a;system\\setting.png\",10,20\n*vn2ons_bar_draw_top\n*vn2ons_bar_draw_end\ngetmouseover 2001,2003\nprint 1\n",
             "*vn2ons_bar_hover\nif %9 == 2001 mov %160,1\nif %9 == 2002 mov %161,1\nif %9 == 2003 mov %160,0:mov %161,0\nreturn\n",
-            "if %9 == -1 goto *vn2ons_bar_hide\nif %9 == 1001 goto *vn2ons_bar_auto\nif %9 == 1002 goto *vn2ons_bar_save\nreturn\n",
+            "if %9 == -1 goto *vn2ons_bar_hide\nif %9 == -2 goto *vn2ons_bar_log\nif %9 == 1001 goto *vn2ons_bar_auto\nif %9 == 1002 goto *vn2ons_bar_save\nreturn\n",
+            "*vn2ons_bar_log\nsystemcall lookback\nreturn\n",
             "*vn2ons_bar_save\nmov %160,0:mov %161,0\ngosub *vn2ons_bar_clear\nmov %101,1\ngosub *vn2ons_save\nreturn\n",
             "*vn2ons_bar_hide\nsystemcall windowerase\nreturn\n",
         ] {
