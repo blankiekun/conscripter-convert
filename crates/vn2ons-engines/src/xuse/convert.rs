@@ -79,6 +79,8 @@ pub struct AssetBank {
     images: HashMap<(&'static str, usize), Image>,
     written: HashMap<(&'static str, usize), String>,
     used_names: HashSet<String>,
+    /// The sound bank read last; voices arrive mostly in bank order.
+    last_bank: Option<(PathBuf, Vec<u8>)>,
 }
 
 /// The assets a set of scripts uses (numbers as in the script).
@@ -133,6 +135,7 @@ impl AssetBank {
             images: HashMap::new(),
             written: HashMap::new(),
             used_names: HashSet::new(),
+            last_bank: None,
         }
     }
 
@@ -162,6 +165,17 @@ impl AssetBank {
             ("k0001.bin", index - SE_FIRST_BANK)
         };
         self.sound(bank, slot, "se", format!("se{number:03}.ogg"), "sound effect", number)
+    }
+
+    /// Voice clip for a message's voice id. The engine plays clip
+    /// `(id - 1) % 100000` (`id / 100000` is the character, for the
+    /// per-character voice switch), from `CD/BV{clip >> 8}.xsa`, slot
+    /// `clip & 0xff` (handlers 0x41f080 and 0x47f620).
+    pub fn voice(&mut self, id: u32) -> Result<String, ConvertError> {
+        let number = id as usize;
+        let clip = (number.checked_sub(1).ok_or(ConvertError::MissingAsset { kind: "voice", number })?) % 100_000;
+        let path = self.game.join("CD").join(format!("bv{:04}.xsa", clip >> 8));
+        self.sound_at(path, clip & 0xff, "voice", format!("v{id}.ogg"), "voice", number)
     }
 
     /// Builds the ADV text box from the game's own window graphics
@@ -323,12 +337,28 @@ impl AssetBank {
         kind: &'static str,
         number: usize,
     ) -> Result<String, ConvertError> {
+        let path = self.game.join("HD").join(bank);
+        self.sound_at(path, slot, dir, file_name, kind, number)
+    }
+
+    fn sound_at(
+        &mut self,
+        path: PathBuf,
+        slot: usize,
+        dir: &str,
+        file_name: String,
+        kind: &'static str,
+        number: usize,
+    ) -> Result<String, ConvertError> {
         if let Some(p) = self.written.get(&(kind, number)) {
             return Ok(p.clone());
         }
-        let path = self.game.join("HD").join(bank);
-        let bytes = fs::read(&path).map_err(|source| ConvertError::Io { path: path.clone(), source })?;
-        let xsa = Xsa::parse(&bytes).map_err(|source| ConvertError::Xsa { path: path.clone(), source })?;
+        if self.last_bank.as_ref().is_none_or(|(p, _)| *p != path) {
+            let bytes = fs::read(&path).map_err(|source| ConvertError::Io { path: path.clone(), source })?;
+            self.last_bank = Some((path.clone(), bytes));
+        }
+        let bytes = &self.last_bank.as_ref().unwrap().1;
+        let xsa = Xsa::parse(bytes).map_err(|source| ConvertError::Xsa { path: path.clone(), source })?;
         let entry = xsa.entries.iter().find(|e| e.slot == slot).ok_or(ConvertError::MissingAsset { kind, number })?;
         let name = format!("{dir}/{file_name}");
         write_file(&self.out.join(&name), xsa.data(entry))?;
@@ -435,7 +465,12 @@ fn lower_instr(cd: &CdScript, ins: &Instr, links: &[Link], assets: &mut AssetBan
             })
             .collect();
         // Segments are the game's own display lines.
-        return Ok(Some(Op::Text { speaker, text: body.join("\n"), voice: None, links }));
+        // A missing clip only drops the voice, not the text.
+        let voice = match msg.voice_id.map(|id| assets.voice(id)) {
+            Some(Err(ConvertError::MissingAsset { .. })) | None => None,
+            Some(r) => Some(r?),
+        };
+        return Ok(Some(Op::Text { speaker, text: body.join("\n"), voice, links }));
     }
     if let Some(sound) = cd.sound(ins) {
         return Ok(Some(match sound? {

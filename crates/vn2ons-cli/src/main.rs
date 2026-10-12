@@ -190,7 +190,7 @@ fn main() -> Result<()> {
     }
 }
 
-const ASSET_DIRS: [&str; 5] = ["bg", "sprite", "bgm", "se", "system"];
+const ASSET_DIRS: [&str; 6] = ["bg", "sprite", "bgm", "se", "system", "voice"];
 
 fn convert_game(game: &Path, output: &Path, font: Option<&Path>, title: &str, loose: bool, linear: bool) -> Result<()> {
     let dir = game.join("HD").join("CDFiles");

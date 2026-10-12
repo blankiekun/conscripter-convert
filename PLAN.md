@@ -231,7 +231,9 @@ offset of its operand record.
     length correlate at r = 0.95.
   - **Gap:** that alignment is not exact. About 1,970 ids are unmatched,
     spread over every group, so wrong voices are possible.
-  - **Exact rule:** it has to come from the exe. The loader
+  - **Solved:** clip = (id − 1) % 100000 (see saiima.md); `id / 100000`
+    is the character. The "groups" above were characters × 10.
+  - **Exact rule (history):** it had to come from the exe. The loader
     (`0x47f620`) takes a **clip index**, not an id: archive `index >> 8`,
     slot `index & 0xff`. So the id → index conversion happens before that
     call, and there's no divide-by-10000 anywhere, which suggests a lookup
@@ -628,6 +630,9 @@ should carry over to the next engine.
   entries, which were being drawn as character 01, and to the
   per-character semantics of `0x8e`. Name prefixes in the asset archives
   are a free oracle; use them for every asset reference.
+- **Look for divide-by-constant magic numbers.** The voice rule hid behind
+  `imul 0x14f8b589; sar 13` (÷ 100000). An earlier search for a literal
+  divide by 10000 found nothing, which wrongly suggested a lookup table.
 - **Use reference screenshots of the original game** for layout. Measuring
   pixels from them settled the text box and name plate in one pass.
 - **Keep a handoff file** (`saiima.md`) with a "Resume here" section.
