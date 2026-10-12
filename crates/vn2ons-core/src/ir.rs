@@ -170,6 +170,74 @@ pub enum TitleAction {
     Unavailable,
 }
 
+/// An image with its top-left corner on screen, and its size (all cells).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Placed {
+    pub image: String,
+    pub x: i32,
+    pub y: i32,
+    pub w: i32,
+    pub h: i32,
+}
+
+/// A rectangle on screen.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Rect {
+    pub x: i32,
+    pub y: i32,
+    pub w: i32,
+    pub h: i32,
+}
+
+/// The save/load screen: `pages` pages of `rows` slots, each slot a row
+/// with a thumbnail and a two-line label; clicking a row selects it, and
+/// the save/load/delete buttons act on the selection.
+///
+/// Buttons are strips of three cells side by side: normal, under the mouse
+/// pointer, and disabled (for page buttons: the current page).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SaveMenu {
+    /// Full-screen layers over the game screen; `base` is drawn with
+    /// `base_opacity` (0-255).
+    pub base: Placed,
+    pub base_opacity: u8,
+    pub frame: Placed,
+    pub save_header: Placed,
+    pub load_header: Placed,
+    pub delete: Placed,
+    pub save: Placed,
+    pub load: Placed,
+    pub close: Placed,
+    pub pages: Vec<PageButton>,
+    /// Marks the current page's button (placed by [`PageButton`]).
+    pub page_marker: Placed,
+    pub rows: u32,
+    pub row_y: i32,
+    pub row_pitch: i32,
+    /// Positions below are relative to the row's top-left corner (x = 0).
+    /// Shown under the pointer: two cells, the first empty.
+    pub row_hover: Placed,
+    /// Added (additive blend) to the selected row.
+    pub row_selected: Placed,
+    pub thumbnail: Rect,
+    /// On the thumbnail of the most recent save.
+    pub new_icon: Placed,
+    pub text_x: i32,
+    pub text_y: i32,
+    pub font_size: u32,
+    pub line_height: i32,
+    /// The selected slot's thumbnail at full size (absolute position).
+    pub preview: Rect,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PageButton {
+    pub button: Placed,
+    /// Top-left of [`SaveMenu::page_marker`] when this page is current.
+    pub marker_x: i32,
+    pub marker_y: i32,
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct Script {
     /// Window caption.
@@ -180,5 +248,7 @@ pub struct Script {
     pub window: Option<TextWindow>,
     /// `None` = start the script right away.
     pub title_screen: Option<TitleScreen>,
+    /// `None` = ONScripter's built-in save and load menus.
+    pub save_menu: Option<SaveMenu>,
     pub ops: Vec<Op>,
 }

@@ -11,6 +11,7 @@ use vn2ons_core::ir::{
     ArithOp, Op, Operand, Script, SpritePlacement, TextLink, TextWindow, TitleAction, TitleScreen, Var,
 };
 
+mod menu;
 pub mod nsa;
 
 /// First effect number we define; 1 is NScripter's built-in "instant".
@@ -21,17 +22,19 @@ const FADE: u32 = 10;
 const MASK_FADE: u32 = 18;
 /// Sound effect channels we rotate through (0 is left for voices).
 const SE_CHANNELS: std::ops::RangeInclusive<u32> = 1..=9;
-/// Sprite slots for the name text and its plate. ONScripter draws lower
-/// numbers on top, so the text (0) is over the plate (1), and both are over
-/// the character sprites (10 and up).
-const NAME_TEXT_SPRITE: u32 = 0;
-const NAME_PLATE_SPRITE: u32 = 1;
-/// Sprite slots for clickable link words (2-9). With `windowback` and
-/// `humanz 9`, slots 0-9 are drawn over the text window and the character
-/// sprites (10 and up) under it.
-const LINK_SPRITES: std::ops::RangeInclusive<u32> = 2..=9;
-/// Sprite layer n is NScripter sprite 10 + n.
-const SPRITE_BASE: u32 = 10;
+/// Sprite slots 0-39 belong to the menus (title, save/load), drawn over
+/// everything else (ONScripter draws lower numbers on top).
+const MENU_SPRITES: std::ops::Range<u32> = 0..40;
+/// Sprite slots for the name text and its plate: the text over the plate,
+/// both over the character sprites.
+const NAME_TEXT_SPRITE: u32 = 40;
+const NAME_PLATE_SPRITE: u32 = 41;
+/// Sprite slots for clickable link words. With `windowback` and `humanz
+/// 49`, slots up to 49 are drawn over the text window and the character
+/// sprites under it.
+const LINK_SPRITES: std::ops::RangeInclusive<u32> = 42..=49;
+/// Sprite layer n is NScripter sprite 50 + n.
+const SPRITE_BASE: u32 = 50;
 /// Scratch variable receiving the clicked button (also used by nstrace).
 const BUTTON_VAR: &str = "%9";
 /// NScripter variables: locals from %10, globals from %200. `globalon`
@@ -39,6 +42,7 @@ const BUTTON_VAR: &str = "%9";
 const LOCAL_VAR_BASE: u32 = 10;
 const GLOBAL_VAR_BASE: u32 = 200;
 /// Labels of the title menu loop and of its Start button's target.
+const TITLE_DRAW: &str = "vn2ons_title_draw";
 const TITLE_MENU: &str = "vn2ons_title";
 const TITLE_START: &str = "vn2ons_title_start";
 /// Colour for words the original game made clickable, and normal text.
@@ -92,7 +96,7 @@ pub fn emit(script: &Script) -> String {
 
     let effect = |ms: u32| if ms == 0 { 1 } else { effects[&(ms, None)] };
     if let Some(t) = &script.title_screen {
-        title_screen(&mut out, t, effect(t.fade_ms));
+        title_screen(&mut out, t, effect(t.fade_ms), script.save_menu.is_some());
     }
     let mut se = SeChannels::default();
     let mut needs_bit_helpers = false;
@@ -330,15 +334,20 @@ pub fn emit(script: &Script) -> String {
     if needs_bit_helpers {
         out.push_str(&bit_helpers());
     }
+    if let Some(m) = &script.save_menu {
+        menu::save_menu(&mut out, m);
+    }
     out
 }
 
 /// The title menu: buttons are sprites over the picture, faded in together;
-/// Start clears them and falls through to the script that follows.
-fn title_screen(out: &mut String, t: &TitleScreen, fade: u32) {
-    let buttons: Vec<_> = t.buttons.iter().zip(LINK_SPRITES).collect();
+/// Start clears them and falls through to the script that follows. Load
+/// opens the save menu's load screen if there is one, else ONScripter's.
+fn title_screen(out: &mut String, t: &TitleScreen, fade: u32, save_menu: bool) {
+    let buttons: Vec<_> = t.buttons.iter().zip(MENU_SPRITES).collect();
     // Effect 0 = update the buffer only; the print shows it all.
     writeln!(out, "bg \"{}\",0", path(&t.background)).unwrap();
+    writeln!(out, "*{TITLE_DRAW}").unwrap();
     for (b, slot) in &buttons {
         let cells = if b.action == TitleAction::Unavailable { "" } else { "/2,0,3" };
         writeln!(out, "lsp {slot},\":a{cells};{}\",{},{}", path(&b.image), b.x, b.y).unwrap();
@@ -353,6 +362,9 @@ fn title_screen(out: &mut String, t: &TitleScreen, fade: u32) {
     for (n, (b, _)) in clickable.iter().enumerate() {
         let then = match b.action {
             TitleAction::Start => format!("goto *{TITLE_START}"),
+            TitleAction::Load if save_menu => {
+                format!("csp -1:mov {},0:gosub *{}:goto *{TITLE_DRAW}", menu::IN_GAME, menu::LOAD)
+            }
             // The built-in load menu; it comes back here when cancelled.
             TitleAction::Load => format!("systemcall load:goto *{TITLE_MENU}"),
             TitleAction::Exit => "end".to_string(),
@@ -591,7 +603,7 @@ mod tests {
     use vn2ons_core::ir::{SourceLoc, SpriteChange, SpritePlacement};
 
     fn script(ops: Vec<Op>) -> Script {
-        Script { title: "Test".into(), width: 800, height: 600, window: None, title_screen: None, ops }
+        Script { title: "Test".into(), width: 800, height: 600, window: None, title_screen: None, save_menu: None, ops }
     }
 
     fn link(start: usize, len: usize, target: Option<&str>) -> TextLink {
@@ -636,20 +648,20 @@ mod tests {
         ]);
         s.window = Some(window());
         let text = emit(&s);
-        assert!(text.contains("globalon\nwindowback\nhumanz 9\n"));
+        assert!(text.contains("globalon\nwindowback\nhumanz 49\n"));
         // Row 2, column 1: x = 105 + 0 * 25, y = 470 + 1 * 37.
         let expected = "\
 *vn2ons_link1
-csp 1
-csp 0
+csp 41
+csp 40
 print 1
 #F0C040一#FFFFFF行目
 #F0C040学校#FFFFFFに―――
-strsp 2,\"学校\",105,507,3,1,24,24,1,13,0,1,\"#F0C040\",\"#FFFFA0\"
-spbtn 2,1
+strsp 42,\"学校\",105,507,3,1,24,24,1,13,0,1,\"#F0C040\",\"#FFFFA0\"
+spbtn 42,1
 print 1
 btnwait %9
-csp 2
+csp 42
 print 1
 textclear
 if %9 != 1 goto *vn2ons_link1_1
@@ -684,7 +696,7 @@ goto *vn2ons_link1
 csp -1
 csp -1
 bg \"bg\\a.png\",0
-lsp 15,\":a;sprite\\a.png\",1,2
+lsp 55,\":a;sprite\\a.png\",1,2
 print 4
 ; transition: MaskBlend2
 csp -1
@@ -711,12 +723,12 @@ print 3
             ],
         });
         let out = emit(&s);
-        let expected = "*start\nbg \"system\\title.png\",0\n\
-            lsp 2,\":a/2,0,3;system\\start.png\",600,200\n\
-            lsp 3,\":a;system\\option.png\",600,200\n\
-            lsp 4,\":a/2,0,3;system\\load.png\",600,200\n\
-            lsp 5,\":a/2,0,3;system\\exit.png\",600,200\n\
-            print 2\n*vn2ons_title\nspbtn 2,1\nspbtn 4,2\nspbtn 5,3\nbtnwait %9\n\
+        let expected = "*start\nbg \"system\\title.png\",0\n*vn2ons_title_draw\n\
+            lsp 0,\":a/2,0,3;system\\start.png\",600,200\n\
+            lsp 1,\":a;system\\option.png\",600,200\n\
+            lsp 2,\":a/2,0,3;system\\load.png\",600,200\n\
+            lsp 3,\":a/2,0,3;system\\exit.png\",600,200\n\
+            print 2\n*vn2ons_title\nspbtn 0,1\nspbtn 2,2\nspbtn 3,3\nbtnwait %9\n\
             if %9 == 1 goto *vn2ons_title_start\n\
             if %9 == 2 systemcall load:goto *vn2ons_title\n\
             if %9 == 3 end\n\
@@ -732,7 +744,7 @@ print 3
         let text = |t: &str, continues| Op::Text { speaker: None, text: t.into(), voice: None, links: vec![], continues };
         let s = script(vec![Op::SetWindow(nvl), text("一行目", true), text("二行目", false), text("新頁", false)]);
         let out = emit(&s);
-        assert!(out.contains("\":a;system\\textwnd5.png\",47,452\ncsp 1:csp 0\n一行目@\n二行目\\\n新頁\\\n"), "{out}");
+        assert!(out.contains("\":a;system\\textwnd5.png\",47,452\ncsp 41:csp 40\n一行目@\n二行目\\\n新頁\\\n"), "{out}");
     }
 
     #[test]
@@ -779,9 +791,9 @@ bgmfadein 1000
 bgm \"bgm\\track01.ogg\"
 csp -1
 bg \"bg\\room.png\",2
-lsp 13,\":a;sprite\\a.png\",10,-20
+lsp 53,\":a;sprite\\a.png\",10,-20
 print 2
-csp 13
+csp 53
 print 1
 【名前】「こんにちは」\\
 dwave 0,\"voice\\v1.ogg\"
@@ -825,8 +837,8 @@ end
         });
         let text = emit(&s);
         assert!(text.contains("setwindow 105,470,25,3,24,24,1,13,20,0,1,\":a;system\\window.png\",47,452\nerasetextwindow 0\n"));
-        assert!(text.contains("lsp 1,\":a;system\\name.png\",55,412\nstrsp 0,\"名前\",75,422,16,1,20,20,1,0,0,1\nprint 1\n「台詞」\\\n"));
-        assert!(text.contains("csp 1\ncsp 0\nprint 1\n　Ghost\\\n"));
+        assert!(text.contains("lsp 41,\":a;system\\name.png\",55,412\nstrsp 40,\"名前\",75,422,16,1,20,20,1,0,0,1\nprint 1\n「台詞」\\\n"));
+        assert!(text.contains("csp 41\ncsp 40\nprint 1\n　Ghost\\\n"));
     }
 
     #[test]

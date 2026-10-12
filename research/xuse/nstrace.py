@@ -18,7 +18,8 @@ def cond(c):
         a, op, b = val(m.group(1)), m.group(2), val(m.group(3))
         if not {'==': a == b, '!=': a != b, '>=': a >= b, '<=': a <= b, '>': a > b, '<': a < b}[op]: return False
     return True
-pc = labels['start'] + 1; steps = 0; pages = 0
+# Skip the title menu: start as if FIRST START was clicked.
+pc = labels.get('vn2ons_title_start', labels['start']) + 1; steps = 0; pages = 0
 maxpages = int(sys.argv[sys.argv.index('--pages') + 1]) if '--pages' in sys.argv else 0
 cur_script = None
 click = int(sys.argv[sys.argv.index('--click') + 1]) if '--click' in sys.argv else 0

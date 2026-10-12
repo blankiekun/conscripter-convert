@@ -10,8 +10,8 @@ use std::path::{Path, PathBuf};
 
 use thiserror::Error;
 use vn2ons_core::ir::{
-    ArithOp, NamePlate, Op, Operand, SourceLoc, SpriteChange, SpritePlacement, TextLink, TextWindow, TitleAction,
-    TitleButton, TitleScreen, Var,
+    ArithOp, NamePlate, Op, Operand, PageButton, Placed, Rect, SaveMenu, SourceLoc, SpriteChange, SpritePlacement,
+    TextLink, TextWindow, TitleAction, TitleButton, TitleScreen, Var,
 };
 
 use crate::xuse::cd::{CdError, CdScript, Instr, Link, Sound};
@@ -342,6 +342,106 @@ impl AssetBank {
             buttons.push(TitleButton { image, x, y, action });
         }
         Ok(TitleScreen { background: background_path, fade_ms: TITLE_FADE_MS, buttons })
+    }
+
+    /// The save/load screen from `HD/wnd.arc` → `Save.004`: full-screen base
+    /// (2, blended like the text window) and frame (3), headers (11 load, 12
+    /// save), buttons (4 close, 5 delete, 6 load, 8 save; columns of four
+    /// states: normal, under the pointer, pressed, disabled), page numbers
+    /// (7, the same four states), current-page marker (1), row cursor (9,
+    /// opaque, black where nothing is added: the game blends it
+    /// additively), "New" icon (10). Positions measured on a screenshot of
+    /// the original and on the frame's thumbnail boxes.
+    pub fn save_menu(&mut self) -> Result<SaveMenu, ConvertError> {
+        let images = self.gaf_images("wnd.arc", "Save.004", "save menu")?;
+        let get = |n: usize| {
+            let png = images.get(n).ok_or(ConvertError::MissingAsset { kind: "save menu image", number: n })?;
+            image::load_from_memory_with_format(png, image::ImageFormat::Png)
+                .map(|i| i.to_rgba8())
+                .map_err(|source| ConvertError::Image { what: format!("Save.004 #{n}"), source })
+        };
+        let placed = |this: &Self, name: &str, img: &image::RgbaImage, x: i32, y: i32| {
+            let image = format!("system/save_{name}.png");
+            this.save_image(&image, img).map(|()| Placed { image, x, y, w: img.width() as i32, h: img.height() as i32 })
+        };
+        // Cells `which` of a column of four states, side by side.
+        let cells = |img: &image::RgbaImage, which: &[u32]| {
+            let (w, h) = (img.width(), img.height() / 4);
+            let mut strip = image::RgbaImage::new(w * which.len() as u32, h);
+            for (i, &c) in which.iter().enumerate() {
+                let cell = image::imageops::crop_imm(img, 0, c * h, w, h).to_image();
+                image::imageops::replace(&mut strip, &cell, i64::from(w) * i as i64, 0);
+            }
+            strip
+        };
+        let button = |this: &Self, name: &str, n: usize, x: i32, y: i32| placed(this, name, &cells(&get(n)?, &[0, 1, 3]), x, y);
+
+        let pages_strip = get(7)?;
+        let (strip_x, strip_y) = (458, 480);
+        let cell_h = pages_strip.height() / 4;
+        // Cut between the numbers.
+        let bounds = [0, 31, 67, 98, 136, 169, 203, 237, 271, 303, pages_strip.width()];
+        let marker = get(1)?;
+        let marker_cell = image::imageops::crop_imm(&marker, 0, 0, marker.width(), marker.height() / 4).to_image();
+        let page_marker = placed(self, "page_marker", &marker_cell, 0, 0)?;
+        let mut pages = Vec::new();
+        for (i, w) in bounds.windows(2).enumerate() {
+            let column = image::imageops::crop_imm(&pages_strip, w[0], 0, w[1] - w[0], cell_h * 4).to_image();
+            let x = strip_x + w[0] as i32;
+            let button = placed(self, &format!("page{}", i + 1), &cells(&column, &[0, 1, 2]), x, strip_y)?;
+            let centre = x + (w[1] - w[0]) as i32 / 2;
+            pages.push(PageButton { button, marker_x: centre - marker_cell.width() as i32 / 2, marker_y: strip_y });
+        }
+
+        // Row cursor: under the pointer it is drawn with alpha (brightness),
+        // leaving the thumbnail clear; the selected row is added.
+        let thumbnail = Rect { x: 14, y: 10, w: 100, h: 75 };
+        let cursor = get(9)?;
+        let mut hover = cells(&cursor, &[0, 1]);
+        let row_w = cursor.width();
+        for (x, y, px) in hover.enumerate_pixels_mut() {
+            let in_thumb = x >= row_w + thumbnail.x as u32 - 1
+                && x <= row_w + (thumbnail.x + thumbnail.w) as u32
+                && y >= thumbnail.y as u32 - 1
+                && y <= (thumbnail.y + thumbnail.h) as u32;
+            let a = px.0[..3].iter().copied().max().unwrap_or(0);
+            if x < row_w || in_thumb || a == 0 {
+                px.0 = [0; 4];
+            } else {
+                for c in &mut px.0[..3] {
+                    *c = (u32::from(*c) * 255 / u32::from(a)) as u8;
+                }
+                px.0[3] = a;
+            }
+        }
+        let row_hover = placed(self, "row_hover", &hover, 0, 0)?;
+        let row_selected = placed(self, "row_selected", &cells(&cursor, &[2]), 0, 0)?;
+
+        Ok(SaveMenu {
+            base: placed(self, "base", &get(2)?, 0, 0)?,
+            base_opacity: (255 * WINDOW_OPACITY_PERCENT / 100) as u8,
+            frame: placed(self, "frame", &get(3)?, 0, 0)?,
+            save_header: placed(self, "header_save", &get(12)?, 627, 0)?,
+            load_header: placed(self, "header_load", &get(11)?, 627, 0)?,
+            delete: button(self, "delete", 5, 512, 531)?,
+            save: button(self, "save", 8, 615, 531)?,
+            load: button(self, "load", 6, 615, 531)?,
+            close: button(self, "close", 4, 702, 531)?,
+            pages,
+            page_marker,
+            rows: 5,
+            row_y: 44,
+            row_pitch: 92,
+            row_hover,
+            row_selected,
+            thumbnail,
+            new_icon: placed(self, "new", &get(10)?, 50, 67)?,
+            text_x: 124,
+            text_y: 11,
+            font_size: 14,
+            line_height: 15,
+            preview: Rect { x: 390, y: 137, w: 400, h: 300 },
+        })
     }
 
     fn save_image(&self, name: &str, img: &image::RgbaImage) -> Result<(), ConvertError> {

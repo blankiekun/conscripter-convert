@@ -254,8 +254,15 @@ fn convert_game(game: &Path, output: &Path, font: Option<&Path>, title: &str, lo
         ops.extend(lower_script(cd, file, flow, &mut assets, &presets).with_context(|| format!("converting {file}"))?);
     }
     // The linear build plays the story straight through, without a menu.
-    let title_screen = if linear { None } else { Some(assets.title_screen().context("building the title screen")?) };
-    let ir = Script { title: title.to_string(), width: 800, height: 600, window: Some(window), title_screen, ops };
+    let (title_screen, save_menu) = if linear {
+        (None, None)
+    } else {
+        (
+            Some(assets.title_screen().context("building the title screen")?),
+            Some(assets.save_menu().context("building the save menu")?),
+        )
+    };
+    let ir = Script { title: title.to_string(), width: 800, height: 600, window: Some(window), title_screen, save_menu, ops };
     let (encoded, lost) = vn2ons_ons::encode(&vn2ons_ons::emit(&ir));
     fs::write(output.join("0.txt"), encoded)?;
     if let Some(font) = font {
@@ -329,7 +336,7 @@ fn convert_script(game: &Path, script: u32, output: &Path, font: Option<&Path>, 
     let presets = Default::default(); // the presets live in script 2
     let ops =
         lower_script(&cd, &file, Flow::Jumps, &mut assets, &presets).with_context(|| format!("converting {file}"))?;
-    let ir = Script { title: title.to_string(), width: 800, height: 600, window: Some(window), title_screen: None, ops };
+    let ir = Script { title: title.to_string(), width: 800, height: 600, window: Some(window), title_screen: None, save_menu: None, ops };
 
     let source = vn2ons_ons::emit(&ir);
     let (encoded, lost) = vn2ons_ons::encode(&source);
