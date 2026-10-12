@@ -49,7 +49,7 @@
 //!                        handler skips it). Background n is image n - 1
 //!                        counted across HD/bg0000.004, bg0001.004, … (64 each)
 //! 0x8e  show sprites     sub = number of entries; record = sub × 44 bytes:
-//!                        u16 mode, u16 character, u16 sprite number (0-based,
+//!                        u16 mode, u16 character, u16 sprite number (1-based,
 //!                        across HD/bu*.004, 128 each), u16 fade time,
 //!                        u16 x, u16 y, then fields not decoded yet (the tail
 //!                        is mostly uninitialised memory)

@@ -93,8 +93,6 @@ pub struct AssetBank {
     used_names: HashSet<String>,
     /// The sound bank read last; voices arrive mostly in bank order.
     last_bank: Option<(PathBuf, Vec<u8>)>,
-    /// Original image names per `bu*.004` archive.
-    sprite_names: HashMap<usize, Vec<String>>,
 }
 
 /// The assets a set of scripts uses (numbers as in the script).
@@ -150,7 +148,6 @@ impl AssetBank {
             written: HashMap::new(),
             used_names: HashSet::new(),
             last_bank: None,
-            sprite_names: HashMap::new(),
         }
     }
 
@@ -160,26 +157,11 @@ impl AssetBank {
         self.image("bg", "background", "bg", index, BG_PER_ARCHIVE, number)
     }
 
-    /// Sprite `number` as used by opcode 0x8e (0-based).
+    /// Sprite `number` as used by opcode 0x8e (1-based: the handler loads
+    /// image id 19,999,999 + number, bust-ups being 20,000,000 + index).
     pub fn sprite(&mut self, number: usize) -> Result<Image, ConvertError> {
-        self.image("bu", "sprite", "sprite", number, BU_PER_ARCHIVE, number)
-    }
-
-    /// Original file name of sprite `number` (e.g. `bu681102b.png`), without
-    /// extracting it; `None` past the last archive.
-    pub fn sprite_name(&mut self, number: usize) -> Result<Option<String>, ConvertError> {
-        let archive = number / BU_PER_ARCHIVE;
-        if !self.sprite_names.contains_key(&archive) {
-            let path = self.game.join("HD").join(format!("bu{archive:04}.004"));
-            if !path.exists() {
-                return Ok(None);
-            }
-            let bytes = fs::read(&path).map_err(|source| ConvertError::Io { path: path.clone(), source })?;
-            let gaf = Gaf::parse(&bytes).map_err(|source| ConvertError::Gaf { path: path.clone(), source })?;
-            let images = gaf.images().map_err(|source| ConvertError::Gaf { path: path.clone(), source })?;
-            self.sprite_names.insert(archive, images.iter().map(|i| i.file_name()).collect());
-        }
-        Ok(self.sprite_names[&archive].get(number % BU_PER_ARCHIVE).cloned())
+        let index = number.checked_sub(1).ok_or(ConvertError::MissingAsset { kind: "sprite", number })?;
+        self.image("bu", "sprite", "sprite", index, BU_PER_ARCHIVE, number)
     }
 
     /// BGM track (1-based).
@@ -303,8 +285,8 @@ impl AssetBank {
     pub fn prefetch(&mut self, needs: &Needs) -> Result<(), ConvertError> {
         let bg: Vec<usize> = needs.backgrounds.iter().filter_map(|n| n.checked_sub(1)).collect();
         self.prefetch_images("bg", "background", "bg", &bg, BG_PER_ARCHIVE, 1)?;
-        let bu: Vec<usize> = needs.sprites.iter().copied().collect();
-        self.prefetch_images("bu", "sprite", "sprite", &bu, BU_PER_ARCHIVE, 0)?;
+        let bu: Vec<usize> = needs.sprites.iter().filter_map(|n| n.checked_sub(1)).collect();
+        self.prefetch_images("bu", "sprite", "sprite", &bu, BU_PER_ARCHIVE, 1)?;
         for &t in &needs.bgm {
             let _ = self.bgm(t);
         }
@@ -315,7 +297,7 @@ impl AssetBank {
     }
 
     /// `indices` are 0-based; `number_offset` converts back to the script's
-    /// numbering (1 for backgrounds).
+    /// numbering (1 for backgrounds and sprites).
     fn prefetch_images(
         &mut self,
         prefix: &str,
@@ -590,9 +572,6 @@ fn lower_instr(cd: &CdScript, ins: &Instr, links: &[Link], assets: &mut AssetBan
                 changes.push(SpriteChange { layer, sprite: None });
                 continue;
             }
-            if points_past_poses(assets, e.character, e.sprite.into())? {
-                continue; // keep the character's current sprite
-            }
             let img = assets.sprite(e.sprite as usize)?;
             // Assumption: (x, y) is the sprite's centre on the 800×600 screen.
             let sprite = SpritePlacement {
@@ -689,18 +668,6 @@ fn transition_name(sub: u16) -> &'static str {
         48 => "TvPowerSwitch",
         _ => "unknown",
     }
-}
-
-/// About 150 sprite entries point one past the last image of their
-/// character (`bu<character>…`), at the next character's first image or, for
-/// character 68, at the "□□□…0%" meter `bu99_000`. They look like poses
-/// missing from this edition, so the character keeps its current sprite.
-fn points_past_poses(assets: &mut AssetBank, character: u16, sprite: usize) -> Result<bool, ConvertError> {
-    let own = |name: &Option<String>| name.as_ref().is_some_and(|n| n.starts_with(&format!("bu{character:02}")));
-    if sprite == 0 || own(&assets.sprite_name(sprite)?) {
-        return Ok(false);
-    }
-    Ok(own(&assets.sprite_name(sprite - 1)?))
 }
 
 /// Resolves a label-table index (as used by 0x15/0x16/0x22 and links) to

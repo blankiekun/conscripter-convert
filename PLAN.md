@@ -624,6 +624,12 @@ should carry over to the next engine.
 - **Check decoded data against the whole corpus, not one sample:** all
   46,578 messages parse, all 810 jump targets exist, and script MD5s
   verify. Corpus-wide checks catch format edge cases that one scene hides.
+- **A prefix check can't catch off-by-one inside a block.** Sprite numbers
+  were read 0-based; the character-prefix check still passed 97%, because
+  the next image is usually the same character. What exposed it: 1×1
+  placeholder images being referenced 1,639 times (0 after the fix), and
+  the handler's id constant `19,999,999 + n`. Also count references to
+  degenerate assets (empty, 1 px).
 - **Cross-check decoded references against asset names.** Checking every
   sprite entry's character against its image's `bu<character>` prefix found
   623 mismatches in one pass. They pointed to the "remove character"
