@@ -48,6 +48,9 @@ const OP_TRANSITION: u16 = 0x76;
 const OP_MASK_TRANSITION: u16 = 0x77;
 /// Waits for the running transition (a click finishes it early).
 const OP_TRANSITION_WAIT: u16 = 0x71;
+/// Hides the text window (handler 0x4772a0; arg 0 waits for the fade, 1
+/// doesn't). Used before most transitions.
+const OP_HIDE_TEXT: u16 = 0x43;
 /// Removes every character bust-up (arg is always -1).
 const OP_CLEAR_SPRITES: u16 = 0x8f;
 const OP_WAIT: u16 = 0x66;
@@ -596,6 +599,7 @@ fn lower_instr(cd: &CdScript, ins: &Instr, links: &[Link], assets: &mut AssetBan
         OP_GOSUB => return Ok(label(ins.sub.into()).map(Op::Gosub)),
         OP_RETURN | OP_LINK_RETURN => return Ok(Some(Op::Return)),
         OP_CLEAR_SPRITES => return Ok(Some(Op::ClearSprites)),
+        OP_HIDE_TEXT => return Ok(Some(Op::HideTextWindow)),
         OP_WAIT | OP_WAIT_2 => return Ok(Some(Op::Wait { ms: u32::from(ins.arg as u16) })),
         OP_IF_EQUAL => {
             let Some(target) = label(ins.sub.into()) else { return Ok(None) };

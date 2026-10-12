@@ -86,6 +86,10 @@ pub fn emit(script: &Script) -> String {
             w.text_x, w.text_y, w.columns, w.rows, w.font_size, w.font_size, w.line_gap, path(&w.image), w.x, w.y
         )
         .unwrap();
+        // Keep the window up while sprites change and pages are printed
+        // (by default every print hides it until the next text, which
+        // flickers); the script hides it explicitly with textoff.
+        writeln!(out, "erasetextwindow 0").unwrap();
     }
 
     let effect = |ms: u32| if ms == 0 { 1 } else { effects[&(ms, None)] };
@@ -163,6 +167,7 @@ pub fn emit(script: &Script) -> String {
                     writeln!(out, "print {}", effect(*fade_ms)).unwrap();
                 }
             }
+            Op::HideTextWindow => writeln!(out, "textoff").unwrap(),
             Op::ClearSprites => {
                 writeln!(out, "csp -1").unwrap();
                 plate_visible = false;
@@ -241,8 +246,6 @@ pub fn emit(script: &Script) -> String {
                 writeln!(out, "{}", lines.join("\n")).unwrap();
                 let clickable = &clickable[..clickable.len().min(LINK_SPRITES.count())];
                 let window = script.window.as_ref();
-                // Sprite commands normally hide the text window first.
-                writeln!(out, "erasetextwindow 0").unwrap();
                 for (n, (link, slot)) in clickable.iter().zip(LINK_SPRITES).enumerate() {
                     let word: String = text.chars().skip(link.start).take(link.len).collect();
                     let (x, y) = window.map_or((0, 0), |w| char_position(w, text, link.start));
@@ -263,7 +266,6 @@ pub fn emit(script: &Script) -> String {
                     writeln!(out, "csp {slot}").unwrap();
                 }
                 writeln!(out, "print 1").unwrap();
-                writeln!(out, "erasetextwindow 1").unwrap();
                 writeln!(out, "textclear").unwrap();
                 for (n, link) in clickable.iter().enumerate() {
                     let target = link.target.as_deref().unwrap();
@@ -580,14 +582,12 @@ csp 0
 print 1
 #F0C040一#FFFFFF行目
 #F0C040学校#FFFFFFに―――
-erasetextwindow 0
 strsp 2,\"学校\",105,507,3,1,24,24,1,13,0,1,\"#F0C040\",\"#FFFFA0\"
 spbtn 2,1
 print 1
 btnwait %9
 csp 2
 print 1
-erasetextwindow 1
 textclear
 if %9 != 1 goto *vn2ons_link1_1
 gosub *s10_l1
@@ -721,7 +721,7 @@ end
             }),
         });
         let text = emit(&s);
-        assert!(text.contains("setwindow 105,470,25,3,24,24,1,13,20,0,1,\":a;system\\window.png\",47,452\n"));
+        assert!(text.contains("setwindow 105,470,25,3,24,24,1,13,20,0,1,\":a;system\\window.png\",47,452\nerasetextwindow 0\n"));
         assert!(text.contains("lsp 1,\":a;system\\name.png\",55,412\nstrsp 0,\"名前\",75,422,16,1,20,20,1,0,0,1\nprint 1\n「台詞」\\\n"));
         assert!(text.contains("csp 1\ncsp 0\nprint 1\n　Ghost\\\n"));
     }
