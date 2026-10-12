@@ -306,9 +306,25 @@ mapping, the 32-byte head, and `1.cd`.
    Rows and columns can be dropped, since ONScripter re-wraps the text
    anyway.
 
-4. `GAF4` images: find the compression/encryption by checking the payload for
-   zlib streams or PNG/JPEG signatures after candidate transforms. The exe's
-   `Gaf004Loader` is the reference if that fails.
+4. `GAF4` images (in progress). What's known:
+   - **Header:** `"GAF4"`, u16 version 3, a 64-byte name field (`"Farthest"`
+     for backgrounds/sprites, `"generic"` for UI; the padding is
+     uninitialised memory from the developer's machine), then a u32 entry
+     count at `0x46`. The data after that looks fully random (IC 1.0, no key
+     period), so the images are compressed before encryption.
+   - **Loader:** a global object at `0x51f840` (vtable `0x50ccac`). The
+     wrapper (`0x40ba..`) reads the header, checks the name, builds a key
+     from the name with `0x40b2e0`, and sets it through vtable slot `+0x4`
+     (`0x4b2390`). The loader decrypts with
+     `byte ^= key[(pos - base) % (keylen - 1)]` (`0x4af460`), where base is
+     the loader's field `+0x74`.
+   - **Key generator:** transcribed in `research/xuse/gafkey.py`.
+   - **Problem:** with that key, no base offset turns the data at `0x4a`
+     into anything structured. Either the transcription is off, or an
+     encrypted/compressed entry table comes first. Next: read the code that
+     sets the base (`+0x74`) and the read path in `0x4b0870`/`0x4b2300` to
+     see exactly which file positions get decrypted, and whether entries
+     are zlib/PNG/JPEG afterwards.
 5. Movies and the remaining `.bin` files last.
 
 Any decryption keys found go in the game's profile (§11), not in the tool's
