@@ -32,6 +32,10 @@ impl<'a> Reader<'a> {
         Ok(u16::from_be_bytes(self.slice(offset, 2)?.try_into().unwrap()))
     }
 
+    pub fn u32_be(&self, offset: usize) -> Result<u32, Truncated> {
+        Ok(u32::from_be_bytes(self.slice(offset, 4)?.try_into().unwrap()))
+    }
+
     pub fn u32(&self, offset: usize) -> Result<u32, Truncated> {
         Ok(u32::from_le_bytes(self.slice(offset, 4)?.try_into().unwrap()))
     }

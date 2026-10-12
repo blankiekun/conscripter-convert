@@ -14,5 +14,6 @@ game data. Run them with `python3 -I` from outside the game directory.
 | `xsa_probe.py <xsa…>` | Checks the .xsa slot table across files |
 | `cdlib.py` | Helpers for .cd scripts: load sections, scan pool strings |
 | `decrypt_0cd.py <0.cd> <out>` | Decrypts 0.cd with the cipher found in the exe |
-| `gafkey.py` | GAF4 key generator from the exe (decryption not working yet) |
+| `gafkey.py` | GAF4 key generator and XOR from the exe |
+| `gaf_extract.py <outdir> <file.004…>` | Extracts the PNGs from GAF4 files (needs `gafkey.py`) |
 | `voice_align.py <game dir> <out.json>` | Statistically aligns voice ids to .xsa clips by text length vs clip length (needs numpy) |

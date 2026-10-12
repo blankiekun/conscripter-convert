@@ -5,6 +5,7 @@ use anyhow::{Context, Result, bail};
 use clap::{Parser, Subcommand};
 use memmap2::Mmap;
 use vn2ons_engines::xuse::cd::CdScript;
+use vn2ons_engines::xuse::gaf::Gaf;
 use vn2ons_engines::xuse::symbols::{self, SymbolTable};
 use vn2ons_engines::xuse::xarc::{CrcTarget, Xarc};
 use vn2ons_engines::xuse::xsa::Xsa;
@@ -27,6 +28,11 @@ enum Command {
     Cd {
         #[command(subcommand)]
         command: CdCommand,
+    },
+    /// Low-level tools for Xuse GAF4 image containers (*.004)
+    Gaf {
+        #[command(subcommand)]
+        command: GafCommand,
     },
     /// Low-level tools for Xuse sound archives (*.xsa, HD/*.bin sound banks)
     Xsa {
@@ -59,6 +65,22 @@ enum CdCommand {
     Opstats {
         #[arg(required = true)]
         scripts: Vec<PathBuf>,
+    },
+}
+
+#[derive(Subcommand)]
+enum GafCommand {
+    /// Show header fields and image count, checking that all images are found
+    List {
+        #[arg(required = true)]
+        files: Vec<PathBuf>,
+    },
+    /// Extract the embedded PNGs as <file>_<index>.png into a directory
+    Extract {
+        #[arg(required = true)]
+        files: Vec<PathBuf>,
+        #[arg(short, long)]
+        output: PathBuf,
     },
 }
 
@@ -106,6 +128,10 @@ fn main() -> Result<()> {
             CdCommand::Strings { script } => cd_strings(&script),
             CdCommand::Opstats { scripts } => cd_opstats(&scripts),
             CdCommand::Symbols { file, script } => cd_symbols(&file, script),
+        },
+        Command::Gaf { command } => match command {
+            GafCommand::List { files } => gaf_list(&files),
+            GafCommand::Extract { files, output } => gaf_extract(&files, &output),
         },
         Command::Xsa { command } => match command {
             XsaCommand::List { archive } => xsa_list(&archive),
@@ -319,6 +345,52 @@ fn cd_opstats(paths: &[PathBuf]) -> Result<()> {
         println!("{op:#8x}  {n:>8}  {}{more}", shown.join(","));
     }
     println!("{total} instructions, {} distinct opcodes", counts.len());
+    Ok(())
+}
+
+fn parse_gaf(path: &Path) -> Result<Gaf> {
+    let bytes = fs::read(path).with_context(|| format!("reading {}", path.display()))?;
+    Gaf::parse(&bytes).with_context(|| format!("parsing {}", path.display()))
+}
+
+fn gaf_list(paths: &[PathBuf]) -> Result<()> {
+    let mut failed = false;
+    for path in paths {
+        let gaf = parse_gaf(path)?;
+        match gaf.images() {
+            Ok(images) => {
+                let bytes: usize = images.iter().map(|i| i.len()).sum();
+                println!("{}: {} images, {bytes} bytes of PNG, key {:?}", path.display(), images.len(), gaf.name);
+            }
+            Err(e) => {
+                failed = true;
+                println!("{}: {e}", path.display());
+            }
+        }
+    }
+    if failed {
+        bail!("some files could not be fully read");
+    }
+    Ok(())
+}
+
+fn gaf_extract(paths: &[PathBuf], output: &Path) -> Result<()> {
+    fs::create_dir_all(output)?;
+    let mut total = 0;
+    for path in paths {
+        let gaf = parse_gaf(path)?;
+        let images = gaf.images().with_context(|| format!("reading images of {}", path.display()))?;
+        let stem = path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .with_context(|| format!("no usable file name in {}", path.display()))?;
+        for (i, png) in images.iter().enumerate() {
+            let dest = output.join(format!("{stem}_{i:03}.png"));
+            fs::write(&dest, png).with_context(|| format!("writing {}", dest.display()))?;
+        }
+        total += images.len();
+    }
+    println!("extracted {total} images from {} files to {}", paths.len(), output.display());
     Ok(())
 }
 

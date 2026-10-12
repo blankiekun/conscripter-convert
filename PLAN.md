@@ -156,7 +156,7 @@ First look (2026-10-12, read-only):
 | Files | Count | Magic / observation | Probably |
 |---|---|---|---|
 | `HD/*.arc` (env, fx, gd, mask, pal, wnd) | 6 | **Solved** — see below | Archives of UI, effects, masks, palettes: 130 entries total (64 `GAF4`, 32 plain PNG, 31 `.ap` + 2 `.def` text files, 1 RIFF palette) |
-| `HD/bg*.004`, `HD/bu*.004`, `HD/LensFlare.004` | 22 | `GAF4` + `Farthest` title string, high-entropy data after the header | Image container (backgrounds `bg`, character sprites `bu`); payload compressed or encrypted |
+| `HD/bg*.004`, `HD/bu*.004`, `HD/LensFlare.004` (+ 64 `.004` inside XARC) | 86 | **Solved** — `GAF4`, see below | 2,971 PNGs: backgrounds 800×600 RGB, sprites RGBA, UI parts. Tool: `vn2ons gaf list\|extract` |
 | `CD/BV*.xsa` | 61 | **Solved** — see below | Voice archives: 15,507 clips, plain Ogg Vorbis (44.1 kHz mono) |
 | `HD/CDFiles/*.cd` | 172 | **Container solved** — see below | **Compiled scenario scripts**, one per `.rio` source file: 84,713 instructions, 82 distinct opcodes |
 | `HD/CDFiles/0.cd` | 1 | **Solved**: cipher from the exe (`0x4bcb20`) | **Label symbol table** for all 172 scripts: 1,820 label names with code offsets, all CRCs verified. Tool: `vn2ons cd symbols`. |
@@ -306,25 +306,19 @@ mapping, the 32-byte head, and `1.cd`.
    Rows and columns can be dropped, since ONScripter re-wraps the text
    anyway.
 
-4. `GAF4` images (in progress). What's known:
-   - **Header:** `"GAF4"`, u16 version 3, a 64-byte name field (`"Farthest"`
-     for backgrounds/sprites, `"generic"` for UI; the padding is
-     uninitialised memory from the developer's machine), then a u32 entry
-     count at `0x46`. The data after that looks fully random (IC 1.0, no key
-     period), so the images are compressed before encryption.
-   - **Loader:** a global object at `0x51f840` (vtable `0x50ccac`). The
-     wrapper (`0x40ba..`) reads the header, checks the name, builds a key
-     from the name with `0x40b2e0`, and sets it through vtable slot `+0x4`
-     (`0x4b2390`). The loader decrypts with
-     `byte ^= key[(pos - base) % (keylen - 1)]` (`0x4af460`), where base is
-     the loader's field `+0x74`.
-   - **Key generator:** transcribed in `research/xuse/gafkey.py`.
-   - **Problem:** with that key, no base offset turns the data at `0x4a`
-     into anything structured. Either the transcription is off, or an
-     encrypted/compressed entry table comes first. Next: read the code that
-     sets the base (`+0x74`) and the read path in `0x4b0870`/`0x4b2300` to
-     see exactly which file positions get decrypted, and whether entries
-     are zlib/PNG/JPEG afterwards.
+4. ~~`GAF4` images~~ (done). Format:
+   - **Header:** `"GAF4"`, u16 version 3, a 64-byte key name (`"Farthest"` or
+     `"generic"`), and a u32 image count at `0x46`.
+   - **Encryption:** everything from `0x4a` on is XORed with a key built
+     from the name (`0x40b2e0`), indexed by file offset modulo
+     `keylen - 1`.
+   - **Contents:** inside is a tagged structure (`DSET`, `PICT`, …) holding
+     one complete PNG per image. All 86 files yield exactly their header
+     count (2,971 PNGs).
+   - **Still to decode:** the tagged structure around the PNGs. It probably
+     holds sprite placement and composition data (body/face offsets), which
+     the converter needs to assemble character sprites. Some sprite
+     archives also contain 1×1 placeholder images.
 5. Movies and the remaining `.bin` files last.
 
 Any decryption keys found go in the game's profile (§11), not in the tool's
