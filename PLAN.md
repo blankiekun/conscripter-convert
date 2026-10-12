@@ -331,6 +331,31 @@ mapping, the 32-byte head, and `1.cd`.
      (one PNG per pose and size), so no composition is needed. Some sprite
      archives also contain 1×1 placeholder images.
 5. Movies and the remaining `.bin` files last.
+6. **System UI** (from user screenshots of the original, in
+   `out/my-screenshots/`, not committed). Each item, with the ONScripter
+   tools for it:
+   - **Text box:** ADV box (done) at the measured positions.
+   - **Backlog:** a full-screen dark window (like `TextWnd5`, 714×472) with
+     the history as continuous text. ONScripter's history (`lookback*`)
+     draws in the current text window, so a full-screen look needs a
+     workaround (switching the window around the history call, to
+     investigate).
+   - **Right-click menu:** save/load/auto-save, BGM/SE/voice/system-sound
+     toggles, settings, title, hide window, history, chapter history,
+     quit. Use `rmenu`; there's no equivalent for the toggles or for
+     chapter history.
+   - **Title screen:** FIRST START / load / option / EXIT over the title art
+     (probably `gd.arc`: `Entrance.004`). Build with `spbtn`/`btnwait`.
+   - **Save/load screen:** 5 slots per page with thumbnails, 10 pages,
+     delete/save/close buttons, and a slot label of date plus chapter name.
+     Build with `savegame`/`loadgame`/`getsavestr`/`savetime`; ONScripter's
+     built-in text menu is the fallback.
+   - **Settings:** a native Windows dialog (volumes, text, mouse,
+     confirmations). Only partly possible (volume defaults, `menu_*`
+     options).
+   - **In-game bars:** the bottom button bar (auto/skip/log/save/load/
+     setting) and the top bars (chapter name, blog/scene, level). These
+     are HUD sprites and buttons from `wnd.arc`/`gd.arc`.
 
 Any decryption keys found go in the game's profile (§11), not in the tool's
 code.

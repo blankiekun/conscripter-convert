@@ -123,17 +123,18 @@ impl AssetBank {
         let plate = "system/nameplate.png".to_string();
         self.layered(&window, images[0].png, images[1].png)?;
         self.layered(&plate, images[2].png, images[3].png)?;
+        // Positions measured on screenshots of the original game.
         Ok(TextWindow {
             image: window,
             x: 47,
             y: 452,
-            text_x: 105,
-            text_y: 470,
-            columns: 25,
+            text_x: 89,
+            text_y: 474,
+            columns: 26,
             rows: 3,
             font_size: 24,
-            line_gap: 13,
-            name_plate: Some(NamePlate { image: plate, x: 60, y: 412, text_x: 82, text_y: 423, font_size: 20 }),
+            line_gap: 12,
+            name_plate: Some(NamePlate { image: plate, x: 42, y: 412, text_x: 58, text_y: 424, font_size: 20 }),
         })
     }
 
