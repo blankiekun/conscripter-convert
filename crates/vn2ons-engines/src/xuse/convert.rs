@@ -3,7 +3,7 @@
 //! Assumptions that still need checking in a running conversion are marked
 //! "assumption".
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -16,6 +16,11 @@ use crate::xuse::gaf::{Gaf, GafError};
 use crate::xuse::xarc::{Xarc, XarcError};
 use crate::xuse::xsa::{Xsa, XsaError};
 
+/// Unconditional jumps (`0x10` and `0x11` share one handler in the engine).
+const OP_GOTO: u16 = 0x10;
+const OP_GOTO_2: u16 = 0x11;
+/// Variable test; a 0x10 right after it is a conditional jump.
+const OP_TEST: u16 = 0x15;
 const BG_PER_ARCHIVE: usize = 64;
 const BU_PER_ARCHIVE: usize = 128;
 const SE_FIRST_BANK: usize = 256;
@@ -46,16 +51,55 @@ pub enum ConvertError {
     MissingAsset { kind: &'static str, number: usize },
 }
 
-/// Reads images and sounds from an installed game on demand and writes the
-/// ones that are used into the output directory.
+/// Reads images and sounds from an installed game and writes the ones that
+/// are used into the output directory. Keeps only names and sizes in memory;
+/// use [`AssetBank::prefetch`] to read each archive once for a whole game.
 pub struct AssetBank {
     game: PathBuf,
     out: PathBuf,
-    gafs: HashMap<PathBuf, Gaf>,
+    images: HashMap<(&'static str, usize), Image>,
     written: HashMap<(&'static str, usize), String>,
     used_names: HashSet<String>,
 }
 
+/// The assets a set of scripts uses (numbers as in the script).
+#[derive(Debug, Default)]
+pub struct Needs {
+    pub backgrounds: BTreeSet<usize>,
+    pub sprites: BTreeSet<usize>,
+    pub bgm: BTreeSet<usize>,
+    pub se: BTreeSet<usize>,
+}
+
+impl Needs {
+    /// Adds what `cd` refers to. Undecodable records are skipped here; the
+    /// lowering reports them.
+    pub fn add_script(&mut self, cd: &CdScript) {
+        for ins in &cd.code {
+            if ins.op == crate::xuse::cd::OP_BACKGROUND && ins.arg > 0 {
+                self.backgrounds.insert(ins.arg as usize);
+            }
+            if let Some(Ok(entries)) = cd.sprites(ins) {
+                for e in entries {
+                    if !(e.sprite == 0 && e.x == 0 && e.y == 0) {
+                        self.sprites.insert(e.sprite as usize);
+                    }
+                }
+            }
+            match cd.sound(ins) {
+                Some(Ok(Sound::BgmPlay { track, .. })) => {
+                    self.bgm.insert(track as usize);
+                }
+                Some(Ok(Sound::SePlay { sound, .. })) => {
+                    self.se.insert(sound as usize);
+                }
+                _ => {}
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct Image {
     pub path: String,
     pub width: u32,
@@ -67,7 +111,7 @@ impl AssetBank {
         Self {
             game: game.to_path_buf(),
             out: out.to_path_buf(),
-            gafs: HashMap::new(),
+            images: HashMap::new(),
             written: HashMap::new(),
             used_names: HashSet::new(),
         }
@@ -162,6 +206,72 @@ impl AssetBank {
         out.save(&dest).map_err(|source| ConvertError::Image { what: name.to_string(), source })
     }
 
+    /// Reads every archive the `needs` touch once and writes the used
+    /// assets. Numbers that don't exist are left for the lowering to report.
+    pub fn prefetch(&mut self, needs: &Needs) -> Result<(), ConvertError> {
+        let bg: Vec<usize> = needs.backgrounds.iter().filter_map(|n| n.checked_sub(1)).collect();
+        self.prefetch_images("bg", "background", "bg", &bg, BG_PER_ARCHIVE, 1)?;
+        let bu: Vec<usize> = needs.sprites.iter().copied().collect();
+        self.prefetch_images("bu", "sprite", "sprite", &bu, BU_PER_ARCHIVE, 0)?;
+        for &t in &needs.bgm {
+            let _ = self.bgm(t);
+        }
+        for &n in &needs.se {
+            let _ = self.se(n);
+        }
+        Ok(())
+    }
+
+    /// `indices` are 0-based; `number_offset` converts back to the script's
+    /// numbering (1 for backgrounds).
+    fn prefetch_images(
+        &mut self,
+        prefix: &str,
+        kind: &'static str,
+        dir: &str,
+        indices: &[usize],
+        per_archive: usize,
+        number_offset: usize,
+    ) -> Result<(), ConvertError> {
+        let mut by_archive: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
+        for &i in indices {
+            by_archive.entry(i / per_archive).or_default().push(i);
+        }
+        for (archive, wanted) in by_archive {
+            let path = self.game.join("HD").join(format!("{prefix}{archive:04}.004"));
+            if !path.exists() {
+                continue;
+            }
+            let bytes = fs::read(&path).map_err(|source| ConvertError::Io { path: path.clone(), source })?;
+            let gaf = Gaf::parse(&bytes).map_err(|source| ConvertError::Gaf { path: path.clone(), source })?;
+            let images = gaf.images().map_err(|source| ConvertError::Gaf { path: path.clone(), source })?;
+            for i in wanted {
+                if let Some(img) = images.get(i % per_archive) {
+                    self.store_image(kind, dir, i + number_offset, img)?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn store_image(
+        &mut self,
+        kind: &'static str,
+        dir: &str,
+        number: usize,
+        img: &crate::xuse::gaf::GafImage<'_>,
+    ) -> Result<Image, ConvertError> {
+        if let Some(done) = self.images.get(&(kind, number)) {
+            return Ok(done.clone());
+        }
+        let (width, height) = png_size(img.png);
+        let name = unique(&mut self.used_names, dir, &img.file_name(), number);
+        write_file(&self.out.join(&name), img.png)?;
+        let image = Image { path: name, width, height };
+        self.images.insert((kind, number), image.clone());
+        Ok(image)
+    }
+
     fn image(
         &mut self,
         prefix: &str,
@@ -171,27 +281,18 @@ impl AssetBank {
         per_archive: usize,
         number: usize,
     ) -> Result<Image, ConvertError> {
-        let path = self.game.join("HD").join(format!("{prefix}{:04}.004", index / per_archive));
-        if !self.gafs.contains_key(&path) {
-            let bytes = fs::read(&path).map_err(|source| ConvertError::Io { path: path.clone(), source })?;
-            let gaf = Gaf::parse(&bytes).map_err(|source| ConvertError::Gaf { path: path.clone(), source })?;
-            self.gafs.insert(path.clone(), gaf);
+        if let Some(done) = self.images.get(&(kind, number)) {
+            return Ok(done.clone());
         }
-        let gaf = &self.gafs[&path];
+        let path = self.game.join("HD").join(format!("{prefix}{:04}.004", index / per_archive));
+        if !path.exists() {
+            return Err(ConvertError::MissingAsset { kind, number });
+        }
+        let bytes = fs::read(&path).map_err(|source| ConvertError::Io { path: path.clone(), source })?;
+        let gaf = Gaf::parse(&bytes).map_err(|source| ConvertError::Gaf { path: path.clone(), source })?;
         let images = gaf.images().map_err(|source| ConvertError::Gaf { path: path.clone(), source })?;
         let img = images.get(index % per_archive).ok_or(ConvertError::MissingAsset { kind, number })?;
-        let (width, height) = png_size(img.png);
-
-        let out_path = match self.written.get(&(kind, number)) {
-            Some(p) => p.clone(),
-            None => {
-                let name = unique(&mut self.used_names, dir, &img.file_name(), number);
-                write_file(&self.out.join(&name), img.png)?;
-                self.written.insert((kind, number), name.clone());
-                name
-            }
-        };
-        Ok(Image { path: out_path, width, height })
+        self.store_image(kind, dir, number, img)
     }
 
     fn sound(
@@ -217,14 +318,28 @@ impl AssetBank {
     }
 }
 
+/// How jumps are converted.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Flow {
+    /// Convert unconditional jumps; conditional ones are left out.
+    Jumps,
+    /// Convert no jumps at all: every script plays straight through. A
+    /// stopgap until conditions are decoded, since a jump without its
+    /// condition can loop forever.
+    Linear,
+}
+
 /// Lowers one script. Instructions that can't be expressed yet become
 /// [`Op::Unsupported`]; assets are written through `assets`.
-pub fn lower_script(cd: &CdScript, file: &str, assets: &mut AssetBank) -> Result<Vec<Op>, ConvertError> {
+pub fn lower_script(cd: &CdScript, file: &str, flow: Flow, assets: &mut AssetBank) -> Result<Vec<Op>, ConvertError> {
+    // A label's offset points at a marker instruction (a 0x10 that targets
+    // itself); a jump lands just after it, so the label goes after that
+    // instruction.
     let own_labels: HashMap<usize, u32> = cd
         .labels
         .iter()
         .filter(|l| l.script == cd.script_id)
-        .map(|l| (l.code_offset as usize / 12, l.label))
+        .map(|l| (l.code_offset as usize / 12 + 1, l.label))
         .collect();
 
     let mut ops = Vec::new();
@@ -239,10 +354,33 @@ pub fn lower_script(cd: &CdScript, file: &str, assets: &mut AssetBank) -> Result
             continue;
         }
         let at = || SourceLoc { file: file.to_string(), index };
+        if matches!(ins.op, OP_GOTO | OP_GOTO_2) {
+            let target = cd.labels.get(ins.arg.max(0) as usize);
+            if target.is_some_and(|l| l.script == cd.script_id && l.code_offset as usize / 12 == index) {
+                continue; // label marker
+            }
+            if flow == Flow::Linear {
+                ops.push(Op::Unsupported { what: format!("jump to label table entry {} (linear mode)", ins.arg), at: at() });
+                continue;
+            }
+            // 425 of the game's 521 real jumps follow opcode 0x15 (a variable
+            // test), so they are conditional. Conditions aren't decoded yet;
+            // leave those out so the text plays through instead of always
+            // jumping.
+            if index > 0 && cd.code[index - 1].op == OP_TEST {
+                ops.push(Op::Unsupported { what: format!("conditional jump to label table entry {}", ins.arg), at: at() });
+                continue;
+            }
+        }
         let links = if cd.message(ins).is_some() { std::mem::take(&mut pending_links) } else { Vec::new() };
-        match lower_instr(cd, ins, &links, assets)? {
-            Some(op) => ops.push(op),
-            None => ops.push(Op::Unsupported { what: format!("opcode {:#04x} sub {:#x} arg {}", ins.op, ins.sub, ins.arg), at: at() }),
+        let unsupported = || format!("opcode {:#04x} sub {:#x} arg {}", ins.op, ins.sub, ins.arg);
+        match lower_instr(cd, ins, &links, assets) {
+            Ok(Some(op)) => ops.push(op),
+            Ok(None) => ops.push(Op::Unsupported { what: unsupported(), at: at() }),
+            Err(ConvertError::MissingAsset { kind, number }) => {
+                ops.push(Op::Unsupported { what: format!("{} (missing {kind} {number})", unsupported()), at: at() })
+            }
+            Err(e) => return Err(e),
         }
     }
     Ok(ops)
@@ -310,6 +448,12 @@ fn lower_instr(cd: &CdScript, ins: &Instr, links: &[Link], assets: &mut AssetBan
         }
         let fade_ms = entries.iter().map(|e| u32::from(e.fade) * SPRITE_FADE_UNIT_MS).max().unwrap_or(0);
         return Ok(Some(Op::Sprites { sprites, fade_ms }));
+    }
+    if matches!(ins.op, OP_GOTO | OP_GOTO_2) {
+        // arg indexes this script's label table; the target may be in
+        // another script. Out-of-range targets (one past the table) aren't
+        // understood yet.
+        return Ok(cd.labels.get(ins.arg.max(0) as usize).map(|l| Op::Jump(format!("s{}_l{}", l.script, l.label))));
     }
     if ins.op == crate::xuse::cd::OP_BACKGROUND {
         if ins.arg <= 0 {

@@ -23,6 +23,8 @@ pub struct SpritePlacement {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Op {
     Label(String),
+    /// Continue at a label (possibly from another source script).
+    Jump(String),
     /// Replace the background. Clears sprites, as most engines do.
     Background { image: String, fade_ms: u32 },
     /// Replace the set of visible sprites (an empty list clears them).

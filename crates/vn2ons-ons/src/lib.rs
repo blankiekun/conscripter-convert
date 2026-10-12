@@ -9,6 +9,8 @@ use std::fmt::Write;
 
 use vn2ons_core::ir::{Op, Script};
 
+pub mod nsa;
+
 /// First effect number we define; 1 is NScripter's built-in "instant".
 const FIRST_EFFECT: u32 = 2;
 /// NScripter effect type 10 is a cross-fade.
@@ -37,7 +39,13 @@ pub fn emit(script: &Script) -> String {
     };
     writeln!(out, "{mode}").unwrap();
     writeln!(out, "*define").unwrap();
-    writeln!(out, "caption \"{}\"", script.title.replace('"', "'")).unwrap();
+    // Read arc.nsa (without this ONScripter only looks for .sar archives;
+    // loose files still work either way).
+    writeln!(out, "nsa").unwrap();
+    // The caption is passed to the window system as raw Shift-JIS, which
+    // shows as mojibake on Linux, so keep it ASCII.
+    let caption: String = script.title.chars().filter(|c| c.is_ascii() && *c != '"').collect();
+    writeln!(out, "caption \"{}\"", caption.trim()).unwrap();
     for (ms, n) in &effects {
         writeln!(out, "effect {n},{FADE},{ms}").unwrap();
     }
@@ -62,6 +70,7 @@ pub fn emit(script: &Script) -> String {
     for op in &script.ops {
         match op {
             Op::Label(name) => writeln!(out, "*{}", label(name)).unwrap(),
+            Op::Jump(name) => writeln!(out, "goto *{}", label(name)).unwrap(),
             Op::Background { image, fade_ms } => {
                 // NScripter's bg keeps lsp sprites; the game removes characters
                 // when the background or CG changes.
@@ -305,6 +314,7 @@ mod tests {
         let expected = "\
 ;mode800
 *define
+nsa
 caption \"Test\"
 effect 2,10,500
 game

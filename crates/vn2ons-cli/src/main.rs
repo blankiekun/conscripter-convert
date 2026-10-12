@@ -6,7 +6,7 @@ use clap::{Parser, Subcommand};
 use memmap2::Mmap;
 use vn2ons_core::ir::{Op, Script};
 use vn2ons_engines::xuse::cd::CdScript;
-use vn2ons_engines::xuse::convert::{AssetBank, lower_script};
+use vn2ons_engines::xuse::convert::{AssetBank, Flow, Needs, lower_script};
 use vn2ons_engines::xuse::gaf::Gaf;
 use vn2ons_engines::xuse::symbols::{self, SymbolTable};
 use vn2ons_engines::xuse::xarc::{CrcTarget, Xarc};
@@ -21,6 +21,28 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Convert the whole game into an ONScripter directory: 0.txt plus
+    /// arc.nsa (arc1.nsa, …) with every asset the scripts use
+    ConvertGame {
+        /// Installed game directory (contains HD/ and CD/)
+        game: PathBuf,
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Font to copy into the output as default.ttf (ONScripter needs one)
+        #[arg(long)]
+        font: Option<PathBuf>,
+        /// Window caption
+        #[arg(long, default_value = "vn2ons")]
+        title: String,
+        /// Keep assets as loose files instead of packing them into .nsa
+        #[arg(long)]
+        loose: bool,
+        /// Play story scripts straight through in file order: skip the
+        /// engine-setup scripts (names starting with '!') and convert no
+        /// jumps. Stopgap until conditions are decoded.
+        #[arg(long)]
+        linear: bool,
+    },
     /// Convert one Xuse script (CDFiles/NNNN.cd) into an ONScripter game
     /// directory: 0.txt plus the assets it uses
     ConvertScript {
@@ -137,6 +159,9 @@ enum XarcCommand {
 
 fn main() -> Result<()> {
     match Cli::parse().command {
+        Command::ConvertGame { game, output, font, title, loose, linear } => {
+            convert_game(&game, &output, font.as_deref(), &title, loose, linear)
+        }
         Command::ConvertScript { game, script, output, font, title } => {
             convert_script(&game, script, &output, font.as_deref(), &title)
         }
@@ -165,25 +190,97 @@ fn main() -> Result<()> {
     }
 }
 
-fn convert_script(game: &Path, script: u32, output: &Path, font: Option<&Path>, title: &str) -> Result<()> {
-    let file = format!("{script:04}.cd");
-    let path = game.join("HD").join("CDFiles").join(&file);
-    let bytes = map(&path)?;
-    let cd = parse_cd(&path, &bytes)?;
+const ASSET_DIRS: [&str; 5] = ["bg", "sprite", "bgm", "se", "system"];
+
+fn convert_game(game: &Path, output: &Path, font: Option<&Path>, title: &str, loose: bool, linear: bool) -> Result<()> {
+    let dir = game.join("HD").join("CDFiles");
+    let mut ids: Vec<u32> = fs::read_dir(&dir)
+        .with_context(|| format!("reading {}", dir.display()))?
+        .filter_map(|e| e.ok())
+        .filter_map(|e| {
+            let name = e.file_name().into_string().ok()?;
+            let stem = name.strip_suffix(".cd")?;
+            (stem.len() == 4).then(|| stem.parse().ok()).flatten()
+        })
+        .collect();
+    ids.sort_unstable();
+    if ids.is_empty() {
+        bail!("no NNNN.cd scripts in {}", dir.display());
+    }
     fs::create_dir_all(output)?;
 
-    let mut assets = AssetBank::new(game, output);
-    let window = assets.text_window().context("building the text window")?;
-    let ops = lower_script(&cd, &file, &mut assets).with_context(|| format!("converting {file}"))?;
-    let ir = Script { title: title.to_string(), width: 800, height: 600, window: Some(window), ops };
+    let maps: Vec<(String, Mmap)> = ids
+        .iter()
+        .map(|id| {
+            let file = format!("{id:04}.cd");
+            Ok((file.clone(), map(&dir.join(&file))?))
+        })
+        .collect::<Result<_>>()?;
+    let mut scripts: Vec<(String, CdScript)> = maps
+        .iter()
+        .map(|(file, bytes)| Ok((file.clone(), parse_cd(&dir.join(file), bytes)?)))
+        .collect::<Result<_>>()?;
+    let flow = if linear { Flow::Linear } else { Flow::Jumps };
+    if linear {
+        let before = scripts.len();
+        scripts.retain(|(_, cd)| !cd.name.starts_with('!'));
+        println!("linear mode: skipping {} engine-setup scripts", before - scripts.len());
+    }
 
-    let source = vn2ons_ons::emit(&ir);
-    let (encoded, lost) = vn2ons_ons::encode(&source);
+    let mut needs = Needs::default();
+    for (_, cd) in &scripts {
+        needs.add_script(cd);
+    }
+    println!(
+        "{} scripts; extracting {} backgrounds, {} sprites, {} BGM tracks, {} sound effects",
+        scripts.len(),
+        needs.backgrounds.len(),
+        needs.sprites.len(),
+        needs.bgm.len(),
+        needs.se.len()
+    );
+    let mut assets = AssetBank::new(game, output);
+    assets.prefetch(&needs).context("extracting assets")?;
+    let window = assets.text_window().context("building the text window")?;
+
+    let mut ops = Vec::new();
+    for (file, cd) in &scripts {
+        ops.extend(lower_script(cd, file, flow, &mut assets).with_context(|| format!("converting {file}"))?);
+    }
+    let ir = Script { title: title.to_string(), width: 800, height: 600, window: Some(window), ops };
+    let (encoded, lost) = vn2ons_ons::encode(&vn2ons_ons::emit(&ir));
     fs::write(output.join("0.txt"), encoded)?;
     if let Some(font) = font {
         fs::copy(font, output.join("default.ttf")).with_context(|| format!("copying {}", font.display()))?;
     }
 
+    if !loose {
+        let mut files = Vec::new();
+        for d in ASSET_DIRS {
+            let Ok(entries) = fs::read_dir(output.join(d)) else { continue };
+            let mut names: Vec<_> = entries.filter_map(|e| e.ok()).map(|e| e.path()).collect();
+            names.sort();
+            for path in names {
+                let name = format!("{d}\\{}", path.file_name().unwrap().to_string_lossy());
+                files.push(vn2ons_ons::nsa::NsaFile { name, source: path });
+            }
+        }
+        let archives = vn2ons_ons::nsa::write_archives(output, &files).context("packing .nsa archives")?;
+        for d in ASSET_DIRS {
+            let _ = fs::remove_dir_all(output.join(d));
+        }
+        for a in &archives {
+            let size = fs::metadata(a)?.len();
+            println!("  {}: {:.1} MB", a.display(), size as f64 / 1e6);
+        }
+        println!("  packed {} files", files.len());
+    }
+
+    report(&ir, lost, font.is_some());
+    Ok(())
+}
+
+fn report(ir: &Script, lost: usize, has_font: bool) {
     let mut unsupported = std::collections::BTreeMap::<String, usize>::new();
     let mut converted = 0;
     for op in &ir.ops {
@@ -196,7 +293,6 @@ fn convert_script(game: &Path, script: u32, output: &Path, font: Option<&Path>, 
             _ => converted += 1,
         }
     }
-    println!("{file} ({}) -> {}", cd.name, output.join("0.txt").display());
     println!("  converted operations: {converted}");
     let total: usize = unsupported.values().sum();
     println!("  unsupported instructions: {total}");
@@ -208,9 +304,32 @@ fn convert_script(game: &Path, script: u32, output: &Path, font: Option<&Path>, 
     if lost > 0 {
         println!("  characters not representable in Shift-JIS: {lost}");
     }
-    if font.is_none() {
+    if !has_font {
         println!("  note: no --font given; ONScripter needs default.ttf in the game directory");
     }
+}
+
+fn convert_script(game: &Path, script: u32, output: &Path, font: Option<&Path>, title: &str) -> Result<()> {
+    let file = format!("{script:04}.cd");
+    let path = game.join("HD").join("CDFiles").join(&file);
+    let bytes = map(&path)?;
+    let cd = parse_cd(&path, &bytes)?;
+    fs::create_dir_all(output)?;
+
+    let mut assets = AssetBank::new(game, output);
+    let window = assets.text_window().context("building the text window")?;
+    let ops = lower_script(&cd, &file, Flow::Jumps, &mut assets).with_context(|| format!("converting {file}"))?;
+    let ir = Script { title: title.to_string(), width: 800, height: 600, window: Some(window), ops };
+
+    let source = vn2ons_ons::emit(&ir);
+    let (encoded, lost) = vn2ons_ons::encode(&source);
+    fs::write(output.join("0.txt"), encoded)?;
+    if let Some(font) = font {
+        fs::copy(font, output.join("default.ttf")).with_context(|| format!("copying {}", font.display()))?;
+    }
+
+    println!("{file} ({}) -> {}", cd.name, output.join("0.txt").display());
+    report(&ir, lost, font.is_some());
     Ok(())
 }
 
