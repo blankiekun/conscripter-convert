@@ -160,7 +160,7 @@ First look (2026-10-12, read-only):
 | `CD/BV*.xsa` | 61 | **Solved** — see below | Voice archives: 15,507 clips, plain Ogg Vorbis (44.1 kHz mono) |
 | `HD/CDFiles/*.cd` | 172 | **Container solved** — see below | **Compiled scenario scripts**, one per `.rio` source file: 84,713 instructions, 82 distinct opcodes |
 | `HD/CDFiles/0.cd` | 1 | **Solved**: cipher from the exe (`0x4bcb20`) | **Label symbol table** for all 172 scripts: 1,820 label names with code offsets, all CRCs verified. Tool: `vn2ons cd symbols`. |
-| `HD/CDFiles/1.cd` | 1 | Not the 0.cd cipher | Unknown. Possibly the `sVAR`/`eVAR` variable-definition format the exe reads (64-byte names), but still encrypted. |
+| `HD/CDFiles/1.cd` | 1 | Not the 0.cd cipher (no variant of its two constants works either) | Probably the variable definitions. The loader at `0x46de00` reads an `sVAR` file of 0x44-byte entries (64-byte names) into two tables of 20 and 150 variables; how `1.cd` gets decrypted for it is still unknown. |
 | `HD/mv000*.bin` | 3 | MPEG program stream (`00 00 01 ba`) | Movies; ffmpeg reads them directly |
 | `HD/bm0000.bin` | 1 | `.xsa` format, **solved** | BGM: 23 Ogg tracks; param 0 = loop start in samples (20 tracks loop) |
 | `HD/k0000.bin`, `k0001.bin` | 2 | `.xsa` format, **solved** | Probably sound effects: 311 Ogg clips |
@@ -275,8 +275,17 @@ mapping, the 32-byte head, and `1.cd`.
    - **style:** `0x8000 | 7` (205 links) or `| 18` (9 links);
    - **target:** for 175 links it is an index into the script's label table.
      Your example resolves to a label in the same script, so at least some
-     explanations are local subroutines. The other 39 targets don't resolve
-     yet.
+     explanations are local subroutines.
+   - **Unresolved targets:** the other 39 all equal the script's label-table
+     size, i.e. one past the last entry stored in the file. The engine checks
+     link targets against a count in the in-memory script object (`+0x30`),
+     so it must add one entry at load time. Which entry that is hasn't been
+     found yet (the static trace through `0x4ba6b0`/`0x4ba9b0` was
+     inconclusive). Next step: take one of these links in the game, see
+     where it goes, and match that back to the data.
+   - **Entries can be full scenes:** per the user, some encyclopedia entries
+     play flashbacks with sprites and other normal VN features, so a link
+     target is a full script subroutine, not just text.
 
    This matches the observation that the same word is linked in some places
    and not in others: each link is placed by hand. Tool: `vn2ons cd messages`
@@ -287,6 +296,12 @@ mapping, the 32-byte head, and `1.cd`.
    - after the message, show the linked word(s) as `btn`/`csel` choices that
      `gosub` the target label and then return;
    - or collect the targets into an encyclopedia menu.
+
+   Either way the target runs as a `gosub` with normal scene commands
+   (sprites, backgrounds, sound) and must restore the story's screen state
+   when it returns. So the converter has to save/restore the visible
+   sprites/background around the call, or the target scenes must set and
+   clear their own state.
 
    Rows and columns can be dropped, since ONScripter re-wraps the text
    anyway.
