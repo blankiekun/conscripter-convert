@@ -208,6 +208,11 @@ fn convert_game(game: &Path, output: &Path, font: Option<&Path>, title: &str, lo
         bail!("no NNNN.cd scripts in {}", dir.display());
     }
     fs::create_dir_all(output)?;
+    // Packing deletes these folders afterwards, so never start with ones
+    // that might hold someone's own files.
+    if let Some(d) = ASSET_DIRS.iter().find(|d| !loose && output.join(d).exists()) {
+        bail!("{} already exists; move it away first (it would be packed and then deleted)", output.join(d).display());
+    }
 
     let maps: Vec<(String, Mmap)> = ids
         .iter()

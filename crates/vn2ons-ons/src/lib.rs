@@ -7,7 +7,7 @@
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::Write;
 
-use vn2ons_core::ir::{ArithOp, Op, Operand, Script, Var};
+use vn2ons_core::ir::{ArithOp, Op, Operand, Script, SpritePlacement, TextLink, TextWindow, Var};
 
 pub mod nsa;
 
@@ -22,12 +22,20 @@ const SE_CHANNELS: std::ops::RangeInclusive<u32> = 1..=9;
 /// the character sprites (10 and up).
 const NAME_TEXT_SPRITE: u32 = 0;
 const NAME_PLATE_SPRITE: u32 = 1;
+/// Sprite slots for clickable link words (2-9). With `windowback` and
+/// `humanz 9`, slots 0-9 are drawn over the text window and the character
+/// sprites (10 and up) under it.
+const LINK_SPRITES: std::ops::RangeInclusive<u32> = 2..=9;
+/// Scratch variable receiving the clicked button (also used by nstrace).
+const BUTTON_VAR: &str = "%9";
 /// NScripter variables: locals from %10, globals from %200. `globalon`
 /// makes %200 and up persist across games.
 const LOCAL_VAR_BASE: u32 = 10;
 const GLOBAL_VAR_BASE: u32 = 200;
 /// Colour for words the original game made clickable, and normal text.
 const LINK_COLOR: &str = "#F0C040";
+/// Link words under the mouse pointer.
+const LINK_HOVER_COLOR: &str = "#FFFFA0";
 const TEXT_COLOR: &str = "#FFFFFF";
 
 /// Renders the script as NScripter source text (UTF-8; use [`encode`] to
@@ -47,6 +55,10 @@ pub fn emit(script: &Script) -> String {
     // loose files still work either way).
     writeln!(out, "nsa").unwrap();
     writeln!(out, "globalon").unwrap();
+    if script.window.is_some() {
+        writeln!(out, "windowback").unwrap();
+        writeln!(out, "humanz {}", LINK_SPRITES.end()).unwrap();
+    }
     // The caption is passed to the window system as raw Shift-JIS, which
     // shows as mojibake on Linux, so keep it ASCII.
     let caption: String = script.title.chars().filter(|c| c.is_ascii() && *c != '"').collect();
@@ -73,6 +85,10 @@ pub fn emit(script: &Script) -> String {
     let mut se = SeChannels::default();
     let mut needs_bit_helpers = false;
     let mut plate_visible = false;
+    // What is on screen at this point in file order, to restore after a link
+    // scene returns (an approximation when control flow jumps around).
+    let mut screen = Screen::default();
+    let mut link_pages = 0;
     for op in &script.ops {
         match op {
             Op::Label(name) => writeln!(out, "*{}", label(name)).unwrap(),
@@ -110,6 +126,8 @@ pub fn emit(script: &Script) -> String {
                 writeln!(out, "csp -1").unwrap();
                 writeln!(out, "bg \"{}\",{}", path(image), effect(*fade_ms)).unwrap();
                 plate_visible = false;
+                screen.bg = Some(image.clone());
+                screen.sprites.clear();
             }
             Op::Sprites { sprites, fade_ms } => {
                 writeln!(out, "csp -1").unwrap();
@@ -119,11 +137,23 @@ pub fn emit(script: &Script) -> String {
                 }
                 writeln!(out, "print {}", effect(*fade_ms)).unwrap();
                 plate_visible = false; // csp -1 removed it too
+                screen.sprites = sprites.clone();
             }
             Op::Text { speaker, text, voice, links } => {
                 if let Some(v) = voice {
                     writeln!(out, "dwave 0,\"{}\"", path(v)).unwrap();
                 }
+                let clickable: Vec<&TextLink> = links.iter().filter(|l| l.target.is_some()).collect();
+                let page = if clickable.is_empty() {
+                    None
+                } else {
+                    // The page is drawn again after each link scene returns.
+                    link_pages += 1;
+                    let page = format!("vn2ons_link{link_pages}");
+                    writeln!(out, "*{page}").unwrap();
+                    plate_visible = true; // unknown when entered again: always set it below
+                    Some(page)
+                };
                 let plate = script.window.as_ref().and_then(|w| w.name_plate.as_ref());
                 let mut body = with_links(text, links);
                 // Sprite changes only show after a print, so print when the
@@ -150,21 +180,66 @@ pub fn emit(script: &Script) -> String {
                     (None, _) => {}
                 }
                 // Each line of the page is its own source line; the last one
-                // ends with the page wait.
+                // ends with the page wait. A line whose text starts with ASCII
+                // would be read as a command (a colour tag is fine).
                 let lines: Vec<String> = body
                     .split('\n')
-                    .map(|l| if l.starts_with(|c: char| c.is_ascii()) { format!("　{l}") } else { l.to_string() })
+                    .zip(text.split('\n'))
+                    .map(|(l, src)| if starts_ascii(src) { format!("　{l}") } else { l.to_string() })
                     .collect();
-                writeln!(out, "{}\\", lines.join("\n")).unwrap();
+                let Some(page) = page else {
+                    writeln!(out, "{}\\", lines.join("\n")).unwrap();
+                    continue;
+                };
+                // No page wait: the words become buttons and btnwait waits for
+                // a click on one of them or anywhere else (= next page).
+                writeln!(out, "{}", lines.join("\n")).unwrap();
+                let clickable = &clickable[..clickable.len().min(LINK_SPRITES.count())];
+                let window = script.window.as_ref();
+                // Sprite commands normally hide the text window first.
+                writeln!(out, "erasetextwindow 0").unwrap();
+                for (n, (link, slot)) in clickable.iter().zip(LINK_SPRITES).enumerate() {
+                    let word: String = text.chars().skip(link.start).take(link.len).collect();
+                    let (x, y) = window.map_or((0, 0), |w| char_position(w, text, link.start));
+                    let (size, gap) = window.map_or((24, 0), |w| (w.font_size, w.line_gap));
+                    writeln!(
+                        out,
+                        "strsp {slot},\"{}\",{x},{y},{},1,{size},{size},1,{gap},0,1,\"{LINK_COLOR}\",\"{LINK_HOVER_COLOR}\"",
+                        escape(&word),
+                        // ONScripter wraps a full-width character one column early.
+                        link.len + 1
+                    )
+                    .unwrap();
+                    writeln!(out, "spbtn {slot},{}", n + 1).unwrap();
+                }
+                writeln!(out, "print 1").unwrap();
+                writeln!(out, "btnwait {BUTTON_VAR}").unwrap();
+                for slot in LINK_SPRITES.take(clickable.len()) {
+                    writeln!(out, "csp {slot}").unwrap();
+                }
+                writeln!(out, "print 1").unwrap();
+                writeln!(out, "erasetextwindow 1").unwrap();
+                writeln!(out, "textclear").unwrap();
+                for (n, link) in clickable.iter().enumerate() {
+                    let target = link.target.as_deref().unwrap();
+                    writeln!(out, "if {BUTTON_VAR} != {} goto *{page}_{}", n + 1, n + 1).unwrap();
+                    writeln!(out, "gosub *{}", label(target)).unwrap();
+                    screen.restore(&mut out);
+                    writeln!(out, "goto *{page}").unwrap();
+                    writeln!(out, "*{page}_{}", n + 1).unwrap();
+                }
             }
             Op::BgmPlay { file, fade_in_ms } => {
                 writeln!(out, "bgmfadein {fade_in_ms}").unwrap();
                 writeln!(out, "bgm \"{}\"", path(file)).unwrap();
+                screen.bgm = Some(file.clone());
             }
             Op::BgmStop { fade_out_ms } => {
                 writeln!(out, "bgmfadeout {fade_out_ms}").unwrap();
                 writeln!(out, "bgmstop").unwrap();
+                screen.bgm = None;
             }
+            Op::Wait { ms } => writeln!(out, "delay {ms}").unwrap(),
             Op::SePlay { file, looped } => {
                 let ch = se.start(file);
                 let cmd = if *looped { "dwaveloop" } else { "dwave" };
@@ -190,6 +265,53 @@ pub fn emit(script: &Script) -> String {
         out.push_str(&bit_helpers());
     }
     out
+}
+
+/// Background, sprites and BGM as last set, in file order.
+#[derive(Default)]
+struct Screen {
+    bg: Option<String>,
+    sprites: Vec<SpritePlacement>,
+    bgm: Option<String>,
+}
+
+impl Screen {
+    /// Puts the screen back after a link scene (which may change all of it).
+    fn restore(&self, out: &mut String) {
+        writeln!(out, "csp -1").unwrap();
+        match &self.bg {
+            Some(image) => writeln!(out, "bg \"{}\",1", path(image)).unwrap(),
+            None => writeln!(out, "bg black,1").unwrap(),
+        }
+        for (n, s) in self.sprites.iter().enumerate() {
+            writeln!(out, "lsp {},\":a;{}\",{},{}", 10 + n, path(&s.image), s.x, s.y).unwrap();
+        }
+        writeln!(out, "print 1").unwrap();
+        match &self.bgm {
+            Some(file) => writeln!(out, "bgm \"{}\"", path(file)).unwrap(),
+            None => writeln!(out, "bgmstop").unwrap(),
+        }
+    }
+}
+
+/// Screen position of character `index` of `text` as the text window draws
+/// it: each character is one cell of font size + 1 pixel pitch, and lines
+/// starting with ASCII got a full-width space in front. Assumes full-width
+/// characters, which holds for this game's text.
+fn char_position(w: &TextWindow, text: &str, index: usize) -> (i32, i32) {
+    let before: Vec<char> = text.chars().take(index).collect();
+    let row = before.iter().filter(|&&c| c == '\n').count();
+    let mut col = before.iter().rev().take_while(|&&c| c != '\n').count();
+    if text.split('\n').nth(row).is_some_and(starts_ascii) {
+        col += 1;
+    }
+    let x = w.text_x + col as i32 * (w.font_size as i32 + 1);
+    let y = w.text_y + row as i32 * (w.font_size + w.line_gap) as i32;
+    (x, y)
+}
+
+fn starts_ascii(line: &str) -> bool {
+    line.starts_with(|c: char| c.is_ascii())
 }
 
 const BITAND: &str = "vn2ons_bitand";
@@ -250,10 +372,10 @@ fn fade_effects(script: &Script) -> BTreeMap<u32, u32> {
 
 /// Escapes the text and wraps each link range in colour tags. Ranges are in
 /// characters of `text`; overlapping or out-of-range ones are skipped.
-fn with_links(text: &str, links: &[(usize, usize)]) -> String {
+fn with_links(text: &str, links: &[TextLink]) -> String {
     let chars: Vec<char> = text.chars().collect();
     let mut ranges: Vec<(usize, usize)> =
-        links.iter().copied().filter(|&(s, n)| n > 0 && s + n <= chars.len()).collect();
+        links.iter().map(|l| (l.start, l.len)).filter(|&(s, n)| n > 0 && s + n <= chars.len()).collect();
     ranges.sort_unstable();
     let mut out = String::new();
     let mut pos = 0;
@@ -356,6 +478,84 @@ mod tests {
         Script { title: "Test".into(), width: 800, height: 600, window: None, ops }
     }
 
+    fn link(start: usize, len: usize, target: Option<&str>) -> TextLink {
+        TextLink { start, len, target: target.map(String::from) }
+    }
+
+    fn window() -> TextWindow {
+        use vn2ons_core::ir::NamePlate;
+        TextWindow {
+            image: "system/window.png".into(),
+            x: 47,
+            y: 452,
+            text_x: 105,
+            text_y: 470,
+            columns: 25,
+            rows: 3,
+            font_size: 24,
+            line_gap: 13,
+            name_plate: Some(NamePlate {
+                image: "system/name.png".into(),
+                x: 55,
+                y: 412,
+                text_x: 75,
+                text_y: 422,
+                font_size: 20,
+            }),
+        }
+    }
+
+    #[test]
+    fn clickable_links_call_their_target() {
+        let mut s = script(vec![
+            Op::Background { image: "bg/room.png".into(), fade_ms: 0 },
+            Op::BgmPlay { file: "bgm/a.ogg".into(), fade_in_ms: 0 },
+            Op::Text {
+                speaker: None,
+                text: "一行目\n学校に―――".into(),
+                voice: None,
+                links: vec![link(4, 2, Some("s10_l1")), link(0, 1, None)],
+            },
+        ]);
+        s.window = Some(window());
+        let text = emit(&s);
+        assert!(text.contains("globalon\nwindowback\nhumanz 9\n"));
+        // Row 2, column 1: x = 105 + 0 * 25, y = 470 + 1 * 37.
+        let expected = "\
+*vn2ons_link1
+csp 1
+csp 0
+print 1
+#F0C040一#FFFFFF行目
+#F0C040学校#FFFFFFに―――
+erasetextwindow 0
+strsp 2,\"学校\",105,507,3,1,24,24,1,13,0,1,\"#F0C040\",\"#FFFFA0\"
+spbtn 2,1
+print 1
+btnwait %9
+csp 2
+print 1
+erasetextwindow 1
+textclear
+if %9 != 1 goto *vn2ons_link1_1
+gosub *s10_l1
+csp -1
+bg \"bg\\room.png\",1
+print 1
+bgm \"bgm\\a.ogg\"
+goto *vn2ons_link1
+*vn2ons_link1_1
+";
+        assert!(text.contains(expected), "{text}");
+    }
+
+    #[test]
+    fn link_positions() {
+        let w = window();
+        assert_eq!(char_position(&w, "あいう", 2), (105 + 2 * 25, 470));
+        assert_eq!(char_position(&w, "あ\nabc", 2), (105 + 25, 507));
+    }
+
     #[test]
     fn emits_a_scene() {
         let s = script(vec![
@@ -367,10 +567,11 @@ mod tests {
                 fade_ms: 500,
             },
             Op::Text { speaker: Some("名前".into()), text: "「こんにちは」".into(), voice: None, links: vec![] },
-            Op::Text { speaker: None, text: "地の文。".into(), voice: Some("voice/v1.ogg".into()), links: vec![(1, 2)] },
+            Op::Text { speaker: None, text: "地の文。".into(), voice: Some("voice/v1.ogg".into()), links: vec![link(1, 2, None)] },
             Op::SePlay { file: "se/k001.ogg".into(), looped: true },
             Op::SeStop { file: Some("se/k001.ogg".into()) },
             Op::BgmStop { fade_out_ms: 2000 },
+            Op::Wait { ms: 500 },
             Op::Unsupported { what: "op 0x76".into(), at: SourceLoc { file: "0003.cd".into(), index: 7 } },
         ]);
         let text = emit(&s);
@@ -398,6 +599,7 @@ dwaveloop 1,\"se\\k001.ogg\"
 dwavestop 1
 bgmfadeout 2000
 bgmstop
+delay 500
 ; unsupported: op 0x76 (0003.cd #7)
 end
 ";
@@ -442,14 +644,14 @@ end
             speaker: None,
             text: "一行目\nabc\n三行目".into(),
             voice: None,
-            links: vec![(4, 3)],
+            links: vec![link(4, 3, None)],
         }]);
         assert!(emit(&s).contains("一行目\n　#F0C040abc#FFFFFF\n三行目\\\n"));
     }
 
     #[test]
     fn links_are_coloured() {
-        assert_eq!(with_links("あいうえお", &[(1, 2), (3, 9)]), "あ#F0C040いう#FFFFFFえお");
+        assert_eq!(with_links("あいうえお", &[link(1, 2, None), link(3, 9, None)]), "あ#F0C040いう#FFFFFFえお");
         assert_eq!(with_links("a#b", &[]), "a＃b");
     }
 

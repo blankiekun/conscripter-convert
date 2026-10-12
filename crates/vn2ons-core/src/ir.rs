@@ -45,6 +45,17 @@ pub struct SpritePlacement {
     pub y: i32,
 }
 
+/// A clickable word in a text page.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TextLink {
+    /// Character range in the page text.
+    pub start: usize,
+    pub len: usize,
+    /// Label run as a subroutine when the word is clicked; it ends with
+    /// [`Op::Return`], and the page is shown again. `None` = colour only.
+    pub target: Option<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Op {
     Label(String),
@@ -62,11 +73,13 @@ pub enum Op {
     /// Replace the set of visible sprites (an empty list clears them).
     Sprites { sprites: Vec<SpritePlacement>, fade_ms: u32 },
     /// One page of text, shown and then waited on. `text` may contain '\n'
-    /// for line breaks. `links` are character ranges in `text` (start,
-    /// length) that the original game made clickable.
-    Text { speaker: Option<String>, text: String, voice: Option<String>, links: Vec<(usize, usize)> },
+    /// for line breaks. `links` are the words the original game made
+    /// clickable.
+    Text { speaker: Option<String>, text: String, voice: Option<String>, links: Vec<TextLink> },
     BgmPlay { file: String, fade_in_ms: u32 },
     BgmStop { fade_out_ms: u32 },
+    /// Pause; a click ends it early.
+    Wait { ms: u32 },
     SePlay { file: String, looped: bool },
     /// `file: None` stops every sound effect.
     SeStop { file: Option<String> },

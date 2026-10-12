@@ -9,7 +9,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use thiserror::Error;
-use vn2ons_core::ir::{ArithOp, NamePlate, Op, Operand, SourceLoc, SpritePlacement, TextWindow, Var};
+use vn2ons_core::ir::{ArithOp, NamePlate, Op, Operand, SourceLoc, SpritePlacement, TextLink, TextWindow, Var};
 
 use crate::xuse::cd::{CdError, CdScript, Instr, Link, Sound};
 use crate::xuse::gaf::{Gaf, GafError};
@@ -31,6 +31,15 @@ const OP_GOTO_SUB: u16 = 0x15;
 const OP_IF_EQUAL: u16 = 0x16;
 const OP_GOSUB: u16 = 0x22;
 const OP_RETURN: u16 = 0x23;
+/// Ends a scene entered through a link and goes back to the page with the
+/// link. The handler (`ScriptText.cpp`) fails with "in the root scene, can't
+/// go back further" when no link scene is active.
+const OP_LINK_RETURN: u16 = 0x47;
+/// Timed waits: the low 16 bits of `arg` are milliseconds (the high half
+/// is a flag, meaning unknown). Both handlers install a wait callback that
+/// also checks for clicks.
+const OP_WAIT: u16 = 0x66;
+const OP_WAIT_2: u16 = 0x72;
 const BG_PER_ARCHIVE: usize = 64;
 const BU_PER_ARCHIVE: usize = 128;
 const SE_FIRST_BANK: usize = 256;
@@ -367,13 +376,18 @@ pub fn lower_script(cd: &CdScript, file: &str, flow: Flow, assets: &mut AssetBan
         if matches!(ins.op, OP_GOTO | OP_GOTO_2) && own_label_at(cd, ins.arg).is_some_and(|i| i == index) {
             continue; // label marker: a jump to the label sitting on this instruction
         }
-        if flow == Flow::Linear && matches!(ins.op, OP_GOTO | OP_GOTO_2 | OP_GOTO_SUB | OP_IF_EQUAL | OP_GOSUB | OP_RETURN) {
+        if flow == Flow::Linear && matches!(ins.op, OP_GOTO | OP_GOTO_2 | OP_GOTO_SUB | OP_IF_EQUAL | OP_GOSUB | OP_RETURN | OP_LINK_RETURN) {
             ops.push(Op::Unsupported { what: format!("opcode {:#04x} (linear mode)", ins.op), at: at() });
             continue;
         }
         let links = if cd.message(ins).is_some() { std::mem::take(&mut pending_links) } else { Vec::new() };
         let unsupported = || format!("opcode {:#04x} sub {:#x} arg {}", ins.op, ins.sub, ins.arg);
         match lower_instr(cd, ins, &links, assets) {
+            Ok(Some(Op::Text { speaker, text, voice, mut links })) if flow == Flow::Linear => {
+                // No jumps in linear mode, so links are colour only.
+                links.iter_mut().for_each(|l| l.target = None);
+                ops.push(Op::Text { speaker, text, voice, links });
+            }
             Ok(Some(op)) => ops.push(op),
             Ok(None) => ops.push(Op::Unsupported { what: unsupported(), at: at() }),
             Err(ConvertError::MissingAsset { kind, number }) => {
@@ -413,7 +427,13 @@ fn lower_instr(cd: &CdScript, ins: &Instr, links: &[Link], assets: &mut AssetBan
             && (1..=8).contains(&segs[0].chars().count())
             && segs[1].starts_with(['「', '『', '（']);
         let (speaker, body) = if has_speaker { (Some(segs[0].clone()), &segs[1..]) } else { (None, &segs[..]) };
-        let links = links.iter().filter_map(|l| link_range(segs, has_speaker, l)).collect();
+        let links = links
+            .iter()
+            .filter_map(|l| {
+                let (start, len) = link_range(segs, has_speaker, l)?;
+                Some(TextLink { start, len, target: table_label(cd, l.target.into()) })
+            })
+            .collect();
         // Segments are the game's own display lines.
         return Ok(Some(Op::Text { speaker, text: body.join("\n"), voice: None, links }));
     }
@@ -458,7 +478,8 @@ fn lower_instr(cd: &CdScript, ins: &Instr, links: &[Link], assets: &mut AssetBan
         }
         OP_GOTO_SUB => return Ok(label(ins.sub.into()).map(Op::Jump)),
         OP_GOSUB => return Ok(label(ins.sub.into()).map(Op::Gosub)),
-        OP_RETURN => return Ok(Some(Op::Return)),
+        OP_RETURN | OP_LINK_RETURN => return Ok(Some(Op::Return)),
+        OP_WAIT | OP_WAIT_2 => return Ok(Some(Op::Wait { ms: u32::from(ins.arg as u16) })),
         OP_IF_EQUAL => {
             let Some(target) = label(ins.sub.into()) else { return Ok(None) };
             let o = ins.arg as u32 as usize;

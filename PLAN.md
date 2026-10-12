@@ -575,3 +575,83 @@ the batch, non-interactive cases.
 - Target: a current ONScripter fork with native Japanese text (ogapee's by
   default); onscripter-insani is dropped.
 - AI agents run only when explicitly invoked with `vn2ons ai …`.
+
+## 13. Lessons learned and ways to speed up conversion
+
+Collected while converting 最果てのイマ (Xuse). Each lesson is general and
+should carry over to the next engine.
+
+### 13.1 Lessons learned
+
+- **Learn the game's mechanics before reading its bytecode.** In 最果てのイマ
+  the in-text hyperlinks are the route choices. A link pushes a scene,
+  `0x47` returns from it, and route scenes set the flags that later steer
+  the story. A playthrough with no clicks hits a dead end that restarts
+  the chapter. The first full trace showed only that loop, and it looked
+  like a control-flow bug until the link targets were followed. Knowing
+  the hypertext mechanic up front (game wiki, playthrough video) would
+  have pointed straight at it.
+- **Error strings in the exe name opcodes.** `0x47`'s handler errors with
+  「ルートシーンにいるので、これ以上戻ることはできません」("in the root
+  scene, can't go back any further"), which settled its meaning in one
+  look. Dump the strings each handler references before tracing its logic.
+- **Find out how many index spaces a jump uses.** Xuse has two: per-script
+  label numbers (`0x10`/`0x11`) and global label-table indices (`0x15`,
+  `0x16`, `0x22`, links), and the in-memory table has an implicit entry 0
+  (off by one from the stored table). Labels sit *on* marker
+  instructions, and jumps land just after them. Getting any of this wrong
+  still produces a script that runs, so check it with a trace (13.2), not
+  by eye.
+- **A loop is not necessarily a bug.** Before "fixing" one, check whether
+  the original game loops there too (dead ends, retries, "go back to the
+  title").
+- **Count pages as they are displayed, not in file order.** Setup scripts
+  and debug menus come first in the file but are never shown, so a
+  harness that numbers pages in file order screenshots nothing.
+- **ONScripter ignores SIGTERM while it is stuck in a script loop.**
+  Always run it under `timeout -k 5 …`.
+- **Never delete an output folder without listing it first.** Users put
+  their own files there (an `onscripter` binary was lost once).
+- **Keep Shift-JIS out of the window caption.** It shows as mojibake on
+  Linux, so the caption is ASCII only.
+- **Rank opcodes by use count** (`vn2ons cd opstats`) and convert from the
+  top. Most of the visible game comes from a handful of opcodes.
+- **Source-file names and handler tables in the exe identify opcodes
+  quickly** (e.g. a handler in `Story.cpp` is story bookkeeping, not
+  display).
+- **Check decoded data against the whole corpus, not one sample:** all
+  46,578 messages parse, all 810 jump targets exist, and script MD5s
+  verify. Corpus-wide checks catch format edge cases that one scene hides.
+- **Use reference screenshots of the original game** for layout. Measuring
+  pixels from them settled the text box and name plate in one pass.
+- **Keep a handoff file** (`saiima.md`) with a "Resume here" section.
+  Context resets happen mid-task, and re-deriving state is expensive.
+
+### 13.2 Ways to speed up conversion
+
+Tooling worth building, in rough order of payoff:
+
+1. **A static tracer in the converter** (`vn2ons trace`, a Rust port of
+   `research/xuse/nstrace.py`). It runs the emitted `0.txt` without
+   ONScripter, counts displayed pages, prints the script-to-script path,
+   and flags hot loops. A 100,000-page trace of the Python version takes 0.5 s,
+   compared with minutes per real ONScripter run. Add a "click link N"
+   option so each route can be walked.
+2. **A smoke-test command** that automates the manual recipe: copy `0.txt`,
+   symlink the archives, insert `autoclick`, add a displayed-page counter
+   and screenshots at chosen pages, and run headless under `timeout -k 5`.
+   Today this is done by hand on every check.
+3. **Faster rebuilds** matter less than expected. A full `convert-game`
+   takes 23 s, mostly writing the 450 MB `arc.nsa`. A `--script-only`
+   mode would still help when iterating on lowering in a tight loop.
+4. **Tests that check the whole corpus** for decoding (every message parses,
+   every jump target exists, every referenced asset is in the archive), so
+   regressions show up in `cargo test` rather than in a run of the game.
+5. **A route map**: a graph of scripts, links and conditional jumps from
+   the trace. It shows the game's structure at a glance and lets us
+   compare scene order with the real game.
+6. **Asking for game knowledge up front:** route structure, the choice
+   mechanic, known endings. The AI agents (§8) should get this as context
+   before they start inferring opcodes.
+7. **Single-scene builds** (`convert-script`) for visual work, so one
+   scene is checked without the whole game.
