@@ -159,7 +159,8 @@ First look (2026-10-12, read-only):
 | `HD/bg*.004`, `HD/bu*.004`, `HD/LensFlare.004` | 22 | `GAF4` + `Farthest` title string, high-entropy data after the header | Image container (backgrounds `bg`, character sprites `bu`); payload compressed or encrypted |
 | `CD/BV*.xsa` | 61 | **Solved** — see below | Voice archives: 15,507 clips, plain Ogg Vorbis (44.1 kHz mono) |
 | `HD/CDFiles/*.cd` | 172 | **Container solved** — see below | **Compiled scenario scripts**, one per `.rio` source file: 84,713 instructions, 82 distinct opcodes |
-| `HD/CDFiles/0.cd`, `1.cd` | 2 | Different, fully encrypted layout | Unknown (global index or system data?) |
+| `HD/CDFiles/0.cd` | 1 | Repeating 256-byte XOR key (recovered statistically) | System database: 171 sections of records with Shift-JIS text and ASCII names (`rm161`, …). No voice ids. |
+| `HD/CDFiles/1.cd` | 1 | Encrypted with a different key; 480 bytes is too small to recover it statistically | Unknown |
 | `HD/mv000*.bin` | 3 | ~100 MB each | Movies |
 | `HD/bm0000.bin`, `k000*.bin`, `wss.bin`, `cgv.bin`, `zpkc.bin`, `silent.bin` | – | Not checked yet | BGM, SE, CG viewer data, … |
 | `res/m*.bin` | 5 | Plain `BM` | BMP images (installer/menu) |
@@ -206,10 +207,18 @@ offset of its operand record.
   by that many XOR-`0x53` strings. All 46,578 messages (15,620 voiced) decode.
 - **Segments:** they look like pre-wrapped display lines, often with the
   speaker name first. There is no inline markup.
-- **Voice ids:** they have the form `group * 10000 + n` (14 groups). Mapping
-  them to `.xsa` slots by sorted order or by order of appearance gives no
-  correlation between text length and clip length, so the mapping has to come
-  from somewhere else, maybe `0.cd`/`1.cd` or the exe.
+- **Voice ids:** they have the form `group * 10000 + n` (14 groups).
+  - **Layout:** each group occupies one contiguous run of clips, roughly in
+    ascending id order. The groups are ordered 30, 40, 50, 60, 90, 100, 101,
+    121, 131, 71, 81, 111, 11, 1, which suggests the clips are sorted by a
+    file name (the exe has `%s%s%s-%s.wav` and `%sBV%04d.xsa`).
+  - **Alignment:** a statistical alignment (`research/xuse/voice_align.py`)
+    matches 13,512 of 15,478 ids. Over those matches, text length and clip
+    length correlate at r = 0.95.
+  - **Gap:** that alignment is not exact. About 1,970 ids are unmatched,
+    spread over every group, so wrong voices are possible.
+  - **Exact rule:** it has to come from the exe (how it builds the file name
+    and slot from the id). `0.cd` doesn't contain voice ids.
 
 Still unknown: the other ~80 opcodes (`0x8e` looks like fixed-size display
 parameters), the meaning of the message `sub` values, the voice mapping, the
@@ -219,7 +228,10 @@ parameters), the meaning of the message `sub` values, the voice mapping, the
 1. ~~`XARC` reader~~ (done).
 2. ~~`.xsa` reader~~ (done).
 3. `.cd` scripts: ~~container and string encoding~~, ~~instruction → pool
-   link and messages~~ (done). Next: the remaining opcode semantics. Most frequent opcodes first
+   link and messages~~ (done). Next: the remaining opcode semantics.
+3b. Exact voice id → clip rule: disassemble `Farthest2015.exe` around the
+   `%sBV%04d.xsa` / `%s%s%s-%s.wav` format strings. Decode `0.cd`'s record
+   layout, and find `1.cd`'s key (likely also in the exe). Most frequent opcodes first
    (`0x8e`, `0x71`, `0x76`, `0x5a`, `0x54` …), correlating instructions with
    the pool strings near them. This is the main reverse-engineering job, and
    where the opcode inferrer agent helps most (when invoked).
