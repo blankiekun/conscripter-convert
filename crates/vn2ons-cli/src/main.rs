@@ -173,8 +173,9 @@ fn convert_script(game: &Path, script: u32, output: &Path, font: Option<&Path>, 
     fs::create_dir_all(output)?;
 
     let mut assets = AssetBank::new(game, output);
+    let window = assets.text_window().context("building the text window")?;
     let ops = lower_script(&cd, &file, &mut assets).with_context(|| format!("converting {file}"))?;
-    let ir = Script { title: title.to_string(), width: 800, height: 600, ops };
+    let ir = Script { title: title.to_string(), width: 800, height: 600, window: Some(window), ops };
 
     let source = vn2ons_ons::emit(&ir);
     let (encoded, lost) = vn2ons_ons::encode(&source);

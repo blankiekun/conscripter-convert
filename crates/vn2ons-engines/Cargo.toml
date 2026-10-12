@@ -6,6 +6,7 @@ license.workspace = true
 
 [dependencies]
 encoding_rs.workspace = true
+image.workspace = true
 md-5.workspace = true
 thiserror.workspace = true
 vn2ons-core.workspace = true

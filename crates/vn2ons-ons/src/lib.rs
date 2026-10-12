@@ -15,6 +15,12 @@ const FIRST_EFFECT: u32 = 2;
 const FADE: u32 = 10;
 /// Sound effect channels we rotate through (0 is left for voices).
 const SE_CHANNELS: std::ops::RangeInclusive<u32> = 1..=9;
+/// Sprite slots for the name plate and its text, above any character sprite.
+const NAME_PLATE_SPRITE: u32 = 900;
+const NAME_TEXT_SPRITE: u32 = 901;
+/// Colour for words the original game made clickable, and normal text.
+const LINK_COLOR: &str = "#F0C040";
+const TEXT_COLOR: &str = "#FFFFFF";
 
 /// Renders the script as NScripter source text (UTF-8; use [`encode`] to
 /// produce the Shift-JIS bytes ONScripter reads).
@@ -35,9 +41,22 @@ pub fn emit(script: &Script) -> String {
     }
     writeln!(out, "game").unwrap();
     writeln!(out, "*start").unwrap();
+    // setwindow redraws the screen, so it must come after `game` (ONScripter
+    // crashes if it runs in the define section).
+    if let Some(w) = &script.window {
+        // setwindow text x,y, columns,rows, font w,h, char spacing, line gap,
+        // ms per character, bold, shadow, window image, window x,y
+        writeln!(
+            out,
+            "setwindow {},{},{},{},{},{},1,{},20,0,1,\":a;{}\",{},{}",
+            w.text_x, w.text_y, w.columns, w.rows, w.font_size, w.font_size, w.line_gap, path(&w.image), w.x, w.y
+        )
+        .unwrap();
+    }
 
     let effect = |ms: u32| if ms == 0 { 1 } else { effects[&ms] };
     let mut se = SeChannels::default();
+    let mut plate_visible = false;
     for op in &script.ops {
         match op {
             Op::Label(name) => writeln!(out, "*{}", label(name)).unwrap(),
@@ -51,16 +70,44 @@ pub fn emit(script: &Script) -> String {
                     writeln!(out, "lsp {},\":a;{}\",{},{}", 10 + n, path(&s.image), s.x, s.y).unwrap();
                 }
                 writeln!(out, "print {}", effect(*fade_ms)).unwrap();
+                plate_visible = false; // csp -1 removed it too
             }
-            Op::Text { speaker, text, voice } => {
+            Op::Text { speaker, text, voice, links } => {
                 if let Some(v) = voice {
                     writeln!(out, "dwave 0,\"{}\"", path(v)).unwrap();
                 }
-                let body = match speaker {
-                    Some(name) => format!("【{}】{}", text_safe(name), text_safe(text)),
-                    None => text_safe(text),
-                };
-                writeln!(out, "{body}\\").unwrap();
+                let plate = script.window.as_ref().and_then(|w| w.name_plate.as_ref());
+                let mut body = with_links(text, links);
+                // Sprite changes only show after a print, so print when the
+                // plate appears, changes or goes away.
+                match (speaker, plate) {
+                    (Some(name), Some(p)) => {
+                        writeln!(out, "lsp {NAME_PLATE_SPRITE},\":a;{}\",{},{}", path(&p.image), p.x, p.y).unwrap();
+                        writeln!(
+                            out,
+                            "strsp {NAME_TEXT_SPRITE},\"{}\",{},{},16,1,{},{},1,0,0,1",
+                            text_safe(name), p.text_x, p.text_y, p.font_size, p.font_size
+                        )
+                        .unwrap();
+                        writeln!(out, "print 1").unwrap();
+                        plate_visible = true;
+                    }
+                    (Some(name), None) => body = format!("【{}】{body}", text_safe(name)),
+                    (None, Some(_)) if plate_visible => {
+                        writeln!(out, "csp {NAME_PLATE_SPRITE}").unwrap();
+                        writeln!(out, "csp {NAME_TEXT_SPRITE}").unwrap();
+                        writeln!(out, "print 1").unwrap();
+                        plate_visible = false;
+                    }
+                    (None, _) => {}
+                }
+                // Each line of the page is its own source line; the last one
+                // ends with the page wait.
+                let lines: Vec<String> = body
+                    .split('\n')
+                    .map(|l| if l.starts_with(|c: char| c.is_ascii()) { format!("　{l}") } else { l.to_string() })
+                    .collect();
+                writeln!(out, "{}\\", lines.join("\n")).unwrap();
             }
             Op::BgmPlay { file, fade_in_ms } => {
                 writeln!(out, "bgmfadein {fade_in_ms}").unwrap();
@@ -128,6 +175,29 @@ fn fade_effects(script: &Script) -> BTreeMap<u32, u32> {
     durations.into_iter().zip(FIRST_EFFECT..).collect()
 }
 
+/// Escapes the text and wraps each link range in colour tags. Ranges are in
+/// characters of `text`; overlapping or out-of-range ones are skipped.
+fn with_links(text: &str, links: &[(usize, usize)]) -> String {
+    let chars: Vec<char> = text.chars().collect();
+    let mut ranges: Vec<(usize, usize)> =
+        links.iter().copied().filter(|&(s, n)| n > 0 && s + n <= chars.len()).collect();
+    ranges.sort_unstable();
+    let mut out = String::new();
+    let mut pos = 0;
+    for (start, len) in ranges {
+        if start < pos {
+            continue;
+        }
+        out.push_str(&escape(&chars[pos..start].iter().collect::<String>()));
+        out.push_str(LINK_COLOR);
+        out.push_str(&escape(&chars[start..start + len].iter().collect::<String>()));
+        out.push_str(TEXT_COLOR);
+        pos = start + len;
+    }
+    out.push_str(&escape(&chars[pos..].iter().collect::<String>()));
+    out
+}
+
 /// NScripter paths use backslashes.
 fn path(p: &str) -> String {
     p.replace('/', "\\")
@@ -138,12 +208,20 @@ fn label(name: &str) -> String {
     name.chars().map(|c| if c.is_ascii_alphanumeric() || c == '_' { c } else { '_' }).collect()
 }
 
-/// Makes message text safe to place on a text line: replaces ASCII
-/// characters that NScripter treats as commands with full-width forms, and
-/// makes sure the line doesn't start with ASCII (which would be parsed as a
-/// command).
+/// Makes text safe to place on a text line: [`escape`], plus making sure the
+/// line doesn't start with ASCII (which would be parsed as a command).
 fn text_safe(text: &str) -> String {
-    let mut out: String = text
+    let mut out = escape(text);
+    if out.starts_with(|c: char| c.is_ascii()) {
+        out.insert(0, '　');
+    }
+    out
+}
+
+/// Replaces ASCII characters that NScripter treats specially in text with
+/// their full-width forms.
+fn escape(text: &str) -> String {
+    text
         .chars()
         .map(|c| match c {
             '@' => '＠',
@@ -158,14 +236,10 @@ fn text_safe(text: &str) -> String {
             '"' => '”',
             ';' => '；',
             '*' => '＊',
-            '\n' | '\r' => '　',
+            '\r' => '　',
             c => c,
         })
-        .collect();
-    if out.starts_with(|c: char| c.is_ascii()) {
-        out.insert(0, '　');
-    }
-    out
+        .collect()
 }
 
 #[derive(Default)]
@@ -201,7 +275,7 @@ mod tests {
     use vn2ons_core::ir::{SourceLoc, SpritePlacement};
 
     fn script(ops: Vec<Op>) -> Script {
-        Script { title: "Test".into(), width: 800, height: 600, ops }
+        Script { title: "Test".into(), width: 800, height: 600, window: None, ops }
     }
 
     #[test]
@@ -214,8 +288,8 @@ mod tests {
                 sprites: vec![SpritePlacement { image: "sprite/a.png".into(), x: 10, y: -20 }],
                 fade_ms: 500,
             },
-            Op::Text { speaker: Some("名前".into()), text: "「こんにちは」".into(), voice: None },
-            Op::Text { speaker: None, text: "地の文。".into(), voice: Some("voice/v1.ogg".into()) },
+            Op::Text { speaker: Some("名前".into()), text: "「こんにちは」".into(), voice: None, links: vec![] },
+            Op::Text { speaker: None, text: "地の文。".into(), voice: Some("voice/v1.ogg".into()), links: vec![(1, 2)] },
             Op::SePlay { file: "se/k001.ogg".into(), looped: true },
             Op::SeStop { file: Some("se/k001.ogg".into()) },
             Op::BgmStop { fade_out_ms: 2000 },
@@ -238,7 +312,7 @@ lsp 10,\":a;sprite\\a.png\",10,-20
 print 2
 【名前】「こんにちは」\\
 dwave 0,\"voice\\v1.ogg\"
-地の文。\\
+地#F0C040の文#FFFFFF。\\
 dwaveloop 1,\"se\\k001.ogg\"
 dwavestop 1
 bgmfadeout 2000
@@ -247,6 +321,55 @@ bgmstop
 end
 ";
         assert_eq!(text, expected);
+    }
+
+    #[test]
+    fn adv_window_and_name_plate() {
+        use vn2ons_core::ir::{NamePlate, TextWindow};
+        let mut s = script(vec![
+            Op::Text { speaker: Some("名前".into()), text: "「台詞」".into(), voice: None, links: vec![] },
+            Op::Text { speaker: None, text: "Ghost".into(), voice: None, links: vec![] },
+        ]);
+        s.window = Some(TextWindow {
+            image: "system/window.png".into(),
+            x: 47,
+            y: 452,
+            text_x: 105,
+            text_y: 470,
+            columns: 25,
+            rows: 3,
+            font_size: 24,
+            line_gap: 13,
+            name_plate: Some(NamePlate {
+                image: "system/name.png".into(),
+                x: 55,
+                y: 412,
+                text_x: 75,
+                text_y: 422,
+                font_size: 20,
+            }),
+        });
+        let text = emit(&s);
+        assert!(text.contains("setwindow 105,470,25,3,24,24,1,13,20,0,1,\":a;system\\window.png\",47,452\n"));
+        assert!(text.contains("lsp 900,\":a;system\\name.png\",55,412\nstrsp 901,\"名前\",75,422,16,1,20,20,1,0,0,1\nprint 1\n「台詞」\\\n"));
+        assert!(text.contains("csp 900\ncsp 901\nprint 1\n　Ghost\\\n"));
+    }
+
+    #[test]
+    fn multi_line_text() {
+        let s = script(vec![Op::Text {
+            speaker: None,
+            text: "一行目\nabc\n三行目".into(),
+            voice: None,
+            links: vec![(4, 3)],
+        }]);
+        assert!(emit(&s).contains("一行目\n　#F0C040abc#FFFFFF\n三行目\\\n"));
+    }
+
+    #[test]
+    fn links_are_coloured() {
+        assert_eq!(with_links("あいうえお", &[(1, 2), (3, 9)]), "あ#F0C040いう#FFFFFFえお");
+        assert_eq!(with_links("a#b", &[]), "a＃b");
     }
 
     #[test]

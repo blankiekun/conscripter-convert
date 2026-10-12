@@ -27,8 +27,10 @@ pub enum Op {
     Background { image: String, fade_ms: u32 },
     /// Replace the set of visible sprites (an empty list clears them).
     Sprites { sprites: Vec<SpritePlacement>, fade_ms: u32 },
-    /// One page of text, shown and then waited on.
-    Text { speaker: Option<String>, text: String, voice: Option<String> },
+    /// One page of text, shown and then waited on. `text` may contain '\n'
+    /// for line breaks. `links` are character ranges in `text` (start,
+    /// length) that the original game made clickable.
+    Text { speaker: Option<String>, text: String, voice: Option<String>, links: Vec<(usize, usize)> },
     BgmPlay { file: String, fade_in_ms: u32 },
     BgmStop { fade_out_ms: u32 },
     SePlay { file: String, looped: bool },
@@ -38,11 +40,42 @@ pub enum Op {
     Unsupported { what: String, at: SourceLoc },
 }
 
+/// An ADV-style text box (text at the bottom over the scene).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TextWindow {
+    /// Window background image and its top-left corner.
+    pub image: String,
+    pub x: i32,
+    pub y: i32,
+    /// Top-left of the first character.
+    pub text_x: i32,
+    pub text_y: i32,
+    pub columns: u32,
+    pub rows: u32,
+    pub font_size: u32,
+    /// Extra space between lines, in pixels.
+    pub line_gap: u32,
+    pub name_plate: Option<NamePlate>,
+}
+
+/// A separate box showing the speaker's name.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NamePlate {
+    pub image: String,
+    pub x: i32,
+    pub y: i32,
+    pub text_x: i32,
+    pub text_y: i32,
+    pub font_size: u32,
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct Script {
     /// Window caption.
     pub title: String,
     pub width: u32,
     pub height: u32,
+    /// `None` = the engine's default full-screen (NVL) text window.
+    pub window: Option<TextWindow>,
     pub ops: Vec<Op>,
 }

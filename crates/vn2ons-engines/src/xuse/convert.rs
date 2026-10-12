@@ -9,10 +9,11 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use thiserror::Error;
-use vn2ons_core::ir::{Op, SourceLoc, SpritePlacement};
+use vn2ons_core::ir::{NamePlate, Op, SourceLoc, SpritePlacement, TextWindow};
 
-use crate::xuse::cd::{CdError, CdScript, Instr, Sound};
+use crate::xuse::cd::{CdError, CdScript, Instr, Link, Sound};
 use crate::xuse::gaf::{Gaf, GafError};
+use crate::xuse::xarc::{Xarc, XarcError};
 use crate::xuse::xsa::{Xsa, XsaError};
 
 const BG_PER_ARCHIVE: usize = 64;
@@ -32,6 +33,10 @@ pub enum ConvertError {
     Gaf { path: PathBuf, source: GafError },
     #[error("{path}: {source}")]
     Xsa { path: PathBuf, source: XsaError },
+    #[error("{path}: {source}")]
+    Xarc { path: PathBuf, source: XarcError },
+    #[error("{what}: {source}")]
+    Image { what: String, source: image::ImageError },
     #[error(transparent)]
     Cd(#[from] CdError),
     #[error("{kind} {number} does not exist")]
@@ -91,6 +96,68 @@ impl AssetBank {
             ("k0001.bin", index - SE_FIRST_BANK)
         };
         self.sound(bank, slot, "se", format!("se{number:03}.ogg"), "sound effect", number)
+    }
+
+    /// Builds the ADV text box from the game's own window graphics
+    /// (`HD/wnd.arc` → `TextWnd0.004`: message base + frame, name base +
+    /// frame). Positions match the original game's 800×600 layout.
+    pub fn text_window(&mut self) -> Result<TextWindow, ConvertError> {
+        let path = self.game.join("HD").join("wnd.arc");
+        let bytes = fs::read(&path).map_err(|source| ConvertError::Io { path: path.clone(), source })?;
+        let arc = Xarc::parse(&bytes).map_err(|source| ConvertError::Xarc { path: path.clone(), source })?;
+        let entry = arc
+            .entries
+            .iter()
+            .find(|e| e.name == "TextWnd0.004")
+            .ok_or(ConvertError::MissingAsset { kind: "text window", number: 0 })?;
+        let gaf_path = path.join("TextWnd0.004");
+        let gaf = Gaf::parse(arc.data(entry)).map_err(|source| ConvertError::Gaf { path: gaf_path.clone(), source })?;
+        let images = gaf.images().map_err(|source| ConvertError::Gaf { path: gaf_path, source })?;
+        if images.len() < 4 {
+            return Err(ConvertError::MissingAsset { kind: "text window layer", number: images.len() });
+        }
+        let window = "system/textwnd.png".to_string();
+        let plate = "system/nameplate.png".to_string();
+        self.layered(&window, images[0].png, images[1].png)?;
+        self.layered(&plate, images[2].png, images[3].png)?;
+        Ok(TextWindow {
+            image: window,
+            x: 47,
+            y: 452,
+            text_x: 105,
+            text_y: 470,
+            columns: 25,
+            rows: 3,
+            font_size: 24,
+            line_gap: 13,
+            name_plate: Some(NamePlate { image: plate, x: 60, y: 412, text_x: 82, text_y: 423, font_size: 20 }),
+        })
+    }
+
+    /// Writes `top` composited over `base` (both PNGs of the same size).
+    ///
+    /// The game multiplies the scene by the base layer (an opaque grey
+    /// gradient). ONScripter can only alpha-blend, so the base becomes black
+    /// with alpha `1 - grey`, which darkens the scene by the same amount.
+    fn layered(&self, name: &str, base: &[u8], top: &[u8]) -> Result<(), ConvertError> {
+        let load = |png: &[u8]| {
+            image::load_from_memory_with_format(png, image::ImageFormat::Png)
+                .map(|i| i.to_rgba8())
+                .map_err(|source| ConvertError::Image { what: name.to_string(), source })
+        };
+        let mut out = load(base)?;
+        for px in out.pixels_mut() {
+            let [r, g, b, a] = px.0;
+            let grey = (u32::from(r) + u32::from(g) + u32::from(b)) / 3;
+            let alpha = (255 - grey) * u32::from(a) / 255;
+            px.0 = [0, 0, 0, alpha as u8];
+        }
+        image::imageops::overlay(&mut out, &load(top)?, 0, 0);
+        let dest = self.out.join(name);
+        if let Some(parent) = dest.parent() {
+            fs::create_dir_all(parent).map_err(|source| ConvertError::Io { path: parent.to_path_buf(), source })?;
+        }
+        out.save(&dest).map_err(|source| ConvertError::Image { what: name.to_string(), source })
     }
 
     fn image(
@@ -159,12 +226,19 @@ pub fn lower_script(cd: &CdScript, file: &str, assets: &mut AssetBank) -> Result
         .collect();
 
     let mut ops = Vec::new();
+    // Links (opcode 0x46) apply to the next message.
+    let mut pending_links: Vec<Link> = Vec::new();
     for (index, ins) in cd.code.iter().enumerate() {
         if let Some(label) = own_labels.get(&index) {
             ops.push(Op::Label(format!("s{}_l{label}", cd.script_id)));
         }
+        if let Some(link) = cd.link(ins) {
+            pending_links.push(link?);
+            continue;
+        }
         let at = || SourceLoc { file: file.to_string(), index };
-        match lower_instr(cd, ins, assets)? {
+        let links = if cd.message(ins).is_some() { std::mem::take(&mut pending_links) } else { Vec::new() };
+        match lower_instr(cd, ins, &links, assets)? {
             Some(op) => ops.push(op),
             None => ops.push(Op::Unsupported { what: format!("opcode {:#04x} sub {:#x} arg {}", ins.op, ins.sub, ins.arg), at: at() }),
         }
@@ -172,7 +246,26 @@ pub fn lower_script(cd: &CdScript, file: &str, assets: &mut AssetBank) -> Result
     Ok(ops)
 }
 
-fn lower_instr(cd: &CdScript, ins: &Instr, assets: &mut AssetBank) -> Result<Option<Op>, ConvertError> {
+/// Converts a link's (row, column, length) into a character range of the
+/// page text. Rows count message segments from 1, including the speaker's
+/// name segment; links that don't land inside the text are dropped.
+fn link_range(segments: &[String], has_speaker: bool, link: &Link) -> Option<(usize, usize)> {
+    let row = usize::from(link.row).checked_sub(1)?;
+    let col = usize::from(link.column).checked_sub(1)?;
+    let first_body = usize::from(has_speaker);
+    if row < first_body || row >= segments.len() {
+        return None;
+    }
+    let len = usize::from(link.length);
+    if col + len > segments[row].chars().count() {
+        return None;
+    }
+    // Body segments are joined with '\n', which counts as one character.
+    let before: usize = segments[first_body..row].iter().map(|s| s.chars().count() + 1).sum();
+    Some((before + col, len))
+}
+
+fn lower_instr(cd: &CdScript, ins: &Instr, links: &[Link], assets: &mut AssetBank) -> Result<Option<Op>, ConvertError> {
     if let Some(msg) = cd.message(ins) {
         let msg = msg?;
         let segs = &msg.segments;
@@ -181,7 +274,9 @@ fn lower_instr(cd: &CdScript, ins: &Instr, assets: &mut AssetBank) -> Result<Opt
             && (1..=8).contains(&segs[0].chars().count())
             && segs[1].starts_with(['「', '『', '（']);
         let (speaker, body) = if has_speaker { (Some(segs[0].clone()), &segs[1..]) } else { (None, &segs[..]) };
-        return Ok(Some(Op::Text { speaker, text: body.concat(), voice: None }));
+        let links = links.iter().filter_map(|l| link_range(segs, has_speaker, l)).collect();
+        // Segments are the game's own display lines.
+        return Ok(Some(Op::Text { speaker, text: body.join("\n"), voice: None, links }));
     }
     if let Some(sound) = cd.sound(ins) {
         return Ok(Some(match sound? {
@@ -261,6 +356,18 @@ mod tests {
         assert_eq!(unique(&mut used, "bg", "a b.png", 3), "bg/a_b.png");
         assert_eq!(unique(&mut used, "bg", "a b.png", 9), "bg/9_a_b.png");
         assert_eq!(unique(&mut used, "sprite", "背景.png", 1), "sprite/__.png");
+    }
+
+    #[test]
+    fn link_ranges() {
+        let segs: Vec<String> = ["名前", "「一行目です", "二行目」"].iter().map(|s| s.to_string()).collect();
+        let link = |row, column, length| Link { row, column, length, style: 0x8007, target: 0, reserved: 0 };
+        // Row 2 is the first text line (row 1 is the name).
+        assert_eq!(link_range(&segs, true, &link(2, 2, 3)), Some((1, 3)));
+        assert_eq!(link_range(&segs, true, &link(3, 1, 2)), Some((7, 2)));
+        assert_eq!(link_range(&segs, true, &link(1, 1, 2)), None);
+        assert_eq!(link_range(&segs, true, &link(3, 3, 5)), None);
+        assert_eq!(link_range(&segs[1..], false, &link(1, 2, 3)), Some((1, 3)));
     }
 
     #[test]
