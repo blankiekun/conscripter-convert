@@ -4,6 +4,7 @@ use std::path::{Component, Path, PathBuf};
 use anyhow::{Context, Result, bail};
 use clap::{Parser, Subcommand};
 use memmap2::Mmap;
+use vn2ons_engines::xuse::cd::CdScript;
 use vn2ons_engines::xuse::xarc::{CrcTarget, Xarc};
 use vn2ons_engines::xuse::xsa::Xsa;
 
@@ -21,10 +22,33 @@ enum Command {
         #[command(subcommand)]
         command: XarcCommand,
     },
+    /// Low-level tools for Xuse compiled scripts (CDFiles/*.cd)
+    Cd {
+        #[command(subcommand)]
+        command: CdCommand,
+    },
     /// Low-level tools for Xuse voice archives (*.xsa)
     Xsa {
         #[command(subcommand)]
         command: XsaCommand,
+    },
+}
+
+#[derive(Subcommand)]
+enum CdCommand {
+    /// Show header fields and check the MD5 footer
+    Info {
+        #[arg(required = true)]
+        scripts: Vec<PathBuf>,
+    },
+    /// Print the label table and instructions
+    Dump { script: PathBuf },
+    /// Print the strings found in the operand pool (heuristic scan)
+    Strings { script: PathBuf },
+    /// Count opcodes over many scripts
+    Opstats {
+        #[arg(required = true)]
+        scripts: Vec<PathBuf>,
     },
 }
 
@@ -64,6 +88,12 @@ fn main() -> Result<()> {
             XarcCommand::List { archive } => xarc_list(&archive),
             XarcCommand::Verify { archives } => xarc_verify(&archives),
             XarcCommand::Extract { archive, output } => xarc_extract(&archive, &output),
+        },
+        Command::Cd { command } => match command {
+            CdCommand::Info { scripts } => cd_info(&scripts),
+            CdCommand::Dump { script } => cd_dump(&script),
+            CdCommand::Strings { script } => cd_strings(&script),
+            CdCommand::Opstats { scripts } => cd_opstats(&scripts),
         },
         Command::Xsa { command } => match command {
             XsaCommand::List { archive } => xsa_list(&archive),
@@ -149,6 +179,90 @@ fn xarc_extract(path: &Path, output: &Path) -> Result<()> {
         fs::write(&dest, arc.data(e)).with_context(|| format!("writing {}", dest.display()))?;
     }
     println!("extracted {} entries to {}", arc.entries.len(), output.display());
+    Ok(())
+}
+
+fn parse_cd<'a>(path: &Path, bytes: &'a [u8]) -> Result<CdScript<'a>> {
+    CdScript::parse(bytes).with_context(|| format!("parsing {}", path.display()))
+}
+
+fn cd_info(paths: &[PathBuf]) -> Result<()> {
+    let mut failed = false;
+    for path in paths {
+        let bytes = map(path)?;
+        let cd = match CdScript::parse(&bytes) {
+            Ok(cd) => cd,
+            Err(e) => {
+                failed = true;
+                println!("{}: {e}", path.display());
+                continue;
+            }
+        };
+        let md5 = if cd.md5_ok() { "md5 ok" } else { "MD5 MISMATCH" };
+        failed |= !cd.md5_ok();
+        println!(
+            "{}: id {} {:?}, {} labels, {} instructions, pool {} bytes, {md5}",
+            path.display(),
+            cd.script_id,
+            cd.name,
+            cd.labels.len(),
+            cd.code.len(),
+            cd.pool.len()
+        );
+    }
+    if failed {
+        bail!("some scripts failed to parse or verify");
+    }
+    Ok(())
+}
+
+fn cd_dump(path: &Path) -> Result<()> {
+    let bytes = map(path)?;
+    let cd = parse_cd(path, &bytes)?;
+    println!("; {} (id {})", cd.name, cd.script_id);
+    println!("; labels (script, label, instruction index)");
+    for l in &cd.labels {
+        println!("label {:>4} {:>5} {:>7}", l.script, l.label, l.code_offset / 12);
+    }
+    println!("; instructions (index, op, sub, arg, source pos)");
+    for (i, ins) in cd.code.iter().enumerate() {
+        println!("{i:>7}  op {:#06x}  sub {:#06x}  arg {:>11}  @{}", ins.op, ins.sub, ins.arg, ins.source_pos);
+    }
+    Ok(())
+}
+
+fn cd_strings(path: &Path) -> Result<()> {
+    let bytes = map(path)?;
+    let cd = parse_cd(path, &bytes)?;
+    for (offset, s) in cd.scan_strings() {
+        println!("{offset:>8}  {s}");
+    }
+    Ok(())
+}
+
+fn cd_opstats(paths: &[PathBuf]) -> Result<()> {
+    let mut counts = std::collections::BTreeMap::<u16, (usize, std::collections::BTreeSet<u16>)>::new();
+    let mut total = 0;
+    for path in paths {
+        let bytes = map(path)?;
+        let Ok(cd) = CdScript::parse(&bytes) else {
+            eprintln!("skipping {} (not a numbered script)", path.display());
+            continue;
+        };
+        for ins in &cd.code {
+            let e = counts.entry(ins.op).or_default();
+            e.0 += 1;
+            e.1.insert(ins.sub);
+        }
+        total += cd.code.len();
+    }
+    println!("{:>8}  {:>8}  subs", "op", "count");
+    for (op, (n, subs)) in &counts {
+        let shown: Vec<String> = subs.iter().take(8).map(|s| format!("{s:#x}")).collect();
+        let more = if subs.len() > 8 { format!(" …(+{})", subs.len() - 8) } else { String::new() };
+        println!("{op:#8x}  {n:>8}  {}{more}", shown.join(","));
+    }
+    println!("{total} instructions, {} distinct opcodes", counts.len());
     Ok(())
 }
 

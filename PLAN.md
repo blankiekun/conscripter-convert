@@ -158,7 +158,8 @@ First look (2026-10-12, read-only):
 | `HD/*.arc` (env, fx, gd, mask, pal, wnd) | 6 | **Solved** — see below | Archives of UI, effects, masks, palettes: 130 entries total (64 `GAF4`, 32 plain PNG, 31 `.ap` + 2 `.def` text files, 1 RIFF palette) |
 | `HD/bg*.004`, `HD/bu*.004`, `HD/LensFlare.004` | 22 | `GAF4` + `Farthest` title string, high-entropy data after the header | Image container (backgrounds `bg`, character sprites `bu`); payload compressed or encrypted |
 | `CD/BV*.xsa` | 61 | **Solved** — see below | Voice archives: 15,507 clips, plain Ogg Vorbis (44.1 kHz mono) |
-| `HD/CDFiles/*.cd` (+ `0.cd`, `1.cd`) | 174 | No magic; byte patterns look like Shift-JIS text after a simple byte-wise transform | **Scenario scripts** (one per scene; `0.cd`/`1.cd` are special, maybe index/system) |
+| `HD/CDFiles/*.cd` | 172 | **Container solved** — see below | **Compiled scenario scripts**, one per `.rio` source file: 84,713 instructions, 82 distinct opcodes |
+| `HD/CDFiles/0.cd`, `1.cd` | 2 | Different, fully encrypted layout | Unknown (global index or system data?) |
 | `HD/mv000*.bin` | 3 | ~100 MB each | Movies |
 | `HD/bm0000.bin`, `k000*.bin`, `wss.bin`, `cgv.bin`, `zpkc.bin`, `silent.bin` | – | Not checked yet | BGM, SE, CG viewer data, … |
 | `res/m*.bin` | 5 | Plain `BM` | BMP images (installer/menu) |
@@ -183,12 +184,31 @@ global voice number is presumably `archive * 256 + slot` (to confirm against
 the scripts). Tool: `vn2ons xsa list|extract`. Since ONScripter plays Ogg
 directly, the clips can be copied over as-is.
 
+**CD script container (solved 2026-10-12):** documented in
+`crates/vn2ons-engines/src/xuse/cd.rs`.
+- **Head:** 32 unknown bytes (unique per file).
+- **Name:** the 260-byte source file name (`*.rio`), XORed with `0x16`.
+- **Header:** six u32s (table count + 1, code size, pool size, script id, 0, 0).
+- **Label table:** entries of (script id, label number, code offset), including
+  cross-script targets.
+- **Code:** 12-byte instructions (u16 opcode, u16 sub, i32 arg, u32 source
+  position).
+- **Operand pool:** strings are a u32 length plus Shift-JIS XORed with `0x53`.
+- **Footer:** the MD5 of everything before it. All 172 files verify.
+
+Tool: `vn2ons cd info|dump|strings|opstats`.
+
+Still unknown: what each opcode does, how instructions refer to pool
+entries, the 32-byte head, and `0.cd`/`1.cd`.
+
 **Plan for this game:**
 1. ~~`XARC` reader~~ (done).
 2. ~~`.xsa` reader~~ (done).
-3. `.cd` scripts: work out the text transform (start from the Shift-JIS byte
-   statistics), then the command structure around the text. This is the main
-   reverse-engineering job and where the opcode inferrer agent helps most.
+3. `.cd` scripts: ~~container and string encoding~~ (done). Next: opcode
+   semantics and the instruction → pool link. Most frequent opcodes first
+   (`0x8e`, `0x71`, `0x76`, `0x5a`, `0x54` …), correlating instructions with
+   the pool strings near them. This is the main reverse-engineering job, and
+   where the opcode inferrer agent helps most (when invoked).
 4. `GAF4` images: find the compression/encryption by checking the payload for
    zlib streams or PNG/JPEG signatures after candidate transforms. The exe's
    `Gaf004Loader` is the reference if that fails.
