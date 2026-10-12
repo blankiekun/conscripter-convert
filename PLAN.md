@@ -247,7 +247,13 @@ offset of its operand record.
 | `0x54` | 2,195 | **solved**: `arg` = background number, 1-based (0 = none, skipped by the handler); `bg*.004` holds 64 per file (`n >> 6` in the exe's loader at `0x40bff0`). The most common is 1 = `Black` | set background (sub 0/1: transition variant?) |
 | `0x46` | 214 | **solved** (from the handler at `0x477460` plus a user-supplied example) | **hyperlink** on the next message: row, column, length, style, target (see 3c) |
 | `0x49` | 565 | flags, two colours, a voice-range id, then text + a short name | special voiced text display (chat/popup?); **not** hyperlinks |
-| `0x5b` | 890 | handler packs `(1 << 24) \| (arg - 1)` into a timer/wait call; sub values look like durations | wait/timer, **not** hyperlinks |
+| `0x57` | 542 | **solved** (handler `0x473530` → sound request `0x47aab0`, channel 0) | play BGM: `arg` = track (1-based, `bm0000.bin` slot `arg - 1`), `sub` = fade-in ms (capped at 30 s) |
+| `0x58` | 579 | **solved** (channel 0, stop flag) | stop BGM: `arg` 0 = all, `sub` = fade-out ms |
+| `0x5a` | 2,633 | **solved** (channel 1) | play SE: packed 9-byte record `u32 ?, u8 loop, u32 sound` (1-based across `k0000.bin` + `k0001.bin`) |
+| `0x5b` | 890 | **solved** (channel 1, stop flag) | stop SE: `arg` = sound or 0 for all, `sub` = fade ms |
+| `0x15`, `0x22` | 442 / 3,094 | handlers look up script variable number `sub` (`0x470830`) | variable operations (core VM) |
+| `0x36`–`0x38` | 251 each | handlers resolve labels (`0x4706a0`) | probably choice menus |
+| `0x76` | 3,670 | sub 9 in 92% of uses; record holds durations and constants, no sound number | screen effect/transition (not decoded) |
 
 **Blog scripts:** 60 scripts are named `15_Blog…` (ids 96–155) and 44 are
 named `11_…`. 33 story scripts have 153 label-table entries pointing into the

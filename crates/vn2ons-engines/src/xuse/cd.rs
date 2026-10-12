@@ -53,7 +53,17 @@
 //!                        across HD/bu*.004, 128 each), u16 fade time,
 //!                        u16 x, u16 y, then fields not decoded yet (the tail
 //!                        is mostly uninitialised memory)
+//! 0x57  play BGM          arg = track (1-based, HD/bm0000.bin slot arg - 1),
+//!                        sub = fade-in in ms (the engine caps it at 30000)
+//! 0x58  stop BGM          arg = track, or 0 for all; sub = fade-out in ms
+//! 0x5a  play SE           record (9 bytes, packed): u32 unknown, u8 loop flag,
+//!                        u32 sound number (1-based across HD/k0000.bin,
+//!                        k0001.bin)
+//! 0x5b  stop SE           arg = sound number, or 0 for all; sub = fade in ms
 //! ```
+//!
+//! All four go through the engine's sound request routine (0x47aab0), which
+//! takes a channel (0 = BGM, 1 = SE), a 1-based number and a play/stop flag.
 //!
 //! Link rows and columns are 1-based positions in the text window relative to
 //! where the next message starts: row 1 continues the line the cursor is on
@@ -102,6 +112,20 @@ pub const OP_LINK: u16 = 0x46;
 pub const OP_BACKGROUND: u16 = 0x54;
 pub const OP_SPRITES: u16 = 0x8e;
 const SPRITE_ENTRY_LEN: usize = 44;
+pub const OP_BGM_PLAY: u16 = 0x57;
+pub const OP_BGM_STOP: u16 = 0x58;
+pub const OP_SE_PLAY: u16 = 0x5a;
+pub const OP_SE_STOP: u16 = 0x5b;
+
+/// A sound command. Numbers are 1-based as in the script; 0 in a stop
+/// command means "everything on that channel".
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Sound {
+    BgmPlay { track: u32, fade_in_ms: u16 },
+    BgmStop { track: u32, fade_out_ms: u16 },
+    SePlay { sound: u32, looped: bool, unknown: u32 },
+    SeStop { sound: u32, fade_out_ms: u16 },
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SpriteEntry {
@@ -299,6 +323,29 @@ impl<'a> CdScript<'a> {
         })
     }
 
+    /// Decodes a sound instruction, or returns `None` for other opcodes.
+    pub fn sound(&self, ins: &Instr) -> Option<Result<Sound, CdError>> {
+        let number = ins.arg.max(0) as u32;
+        Some(Ok(match ins.op {
+            OP_BGM_PLAY => Sound::BgmPlay { track: number, fade_in_ms: ins.sub.min(30000) },
+            OP_BGM_STOP => Sound::BgmStop { track: number, fade_out_ms: ins.sub.min(30000) },
+            OP_SE_STOP => Sound::SeStop { sound: number, fade_out_ms: ins.sub },
+            OP_SE_PLAY => {
+                let r = Reader(self.pool);
+                let o = ins.arg as u32 as usize;
+                let read = || -> Result<Sound, CdError> {
+                    Ok(Sound::SePlay {
+                        unknown: r.u32(o)?,
+                        looped: r.slice(o + 4, 1)?[0] != 0,
+                        sound: r.u32(o + 5)?,
+                    })
+                };
+                return Some(read());
+            }
+            _ => return None,
+        }))
+    }
+
     /// Decodes the entries of a show-sprites instruction, or returns `None`
     /// for other opcodes.
     pub fn sprites(&self, ins: &Instr) -> Option<Result<Vec<SpriteEntry>, CdError>> {
@@ -466,6 +513,34 @@ mod tests {
         let bytes = build("l.rio", &[], &code, &pool);
         let cd = CdScript::parse(&bytes).unwrap();
         assert!(cd.link(&cd.code[0]).unwrap().is_err());
+    }
+
+    #[test]
+    fn decodes_sound() {
+        let mut pool = vec![0u8; 3];
+        pool.extend_from_slice(&7u32.to_le_bytes());
+        pool.push(1);
+        pool.extend_from_slice(&125u32.to_le_bytes());
+        let code = [
+            Instr { op: OP_BGM_PLAY, sub: 2000, arg: 5, source_pos: 0 },
+            Instr { op: OP_BGM_STOP, sub: 40000, arg: 0, source_pos: 1 },
+            Instr { op: OP_SE_PLAY, sub: 0xffff, arg: 3, source_pos: 2 },
+            Instr { op: OP_SE_STOP, sub: 300, arg: 125, source_pos: 3 },
+            Instr { op: 0x10, sub: 0xffff, arg: 0, source_pos: 4 },
+        ];
+        let bytes = build("snd.rio", &[], &code, &pool);
+        let cd = CdScript::parse(&bytes).unwrap();
+        let got: Vec<_> = cd.code.iter().map(|i| cd.sound(i).map(|r| r.unwrap())).collect();
+        assert_eq!(
+            got,
+            [
+                Some(Sound::BgmPlay { track: 5, fade_in_ms: 2000 }),
+                Some(Sound::BgmStop { track: 0, fade_out_ms: 30000 }),
+                Some(Sound::SePlay { sound: 125, looped: true, unknown: 7 }),
+                Some(Sound::SeStop { sound: 125, fade_out_ms: 300 }),
+                None,
+            ]
+        );
     }
 
     #[test]
