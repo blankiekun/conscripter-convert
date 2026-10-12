@@ -468,9 +468,10 @@ fn cd_messages(path: &Path) -> Result<()> {
     for (i, ins) in cd.code.iter().enumerate() {
         if let Some(link) = cd.link(ins) {
             let l = link.with_context(|| format!("instruction {i}"))?;
-            let dest = cd
-                .labels
-                .get(l.target as usize)
+            // Link targets are label-table indices; index n is stored entry n - 1.
+            let dest = (l.target as usize)
+                .checked_sub(1)
+                .and_then(|i| cd.labels.get(i))
                 .map(|d| format!("script {} label {}", d.script, d.label))
                 .unwrap_or_else(|| "unresolved".into());
             println!(

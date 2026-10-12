@@ -9,18 +9,28 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use thiserror::Error;
-use vn2ons_core::ir::{NamePlate, Op, SourceLoc, SpritePlacement, TextWindow};
+use vn2ons_core::ir::{ArithOp, NamePlate, Op, Operand, SourceLoc, SpritePlacement, TextWindow, Var};
 
 use crate::xuse::cd::{CdError, CdScript, Instr, Link, Sound};
 use crate::xuse::gaf::{Gaf, GafError};
 use crate::xuse::xarc::{Xarc, XarcError};
 use crate::xuse::xsa::{Xsa, XsaError};
 
-/// Unconditional jumps (`0x10` and `0x11` share one handler in the engine).
+/// Control flow, from the engine's handlers.
+///
+/// - 0x10/0x11 take a label *number* in the current script (`arg`); the
+///   engine resolves it with (current script, label) at 0x4706a0.
+/// - 0x15/0x16/0x22 (and links) take a label-table *index* (`sub`), resolved
+///   at 0x470830. The engine's in-memory table has one extra entry at index
+///   0 (the header counts it, the file doesn't store it), so index `n` is
+///   stored entry `n - 1`.
 const OP_GOTO: u16 = 0x10;
 const OP_GOTO_2: u16 = 0x11;
-/// Variable test; a 0x10 right after it is a conditional jump.
-const OP_TEST: u16 = 0x15;
+const OP_GOTO_SUB: u16 = 0x15;
+/// `if v[a] == b goto label[sub]`, (a, b) as two u32 at pool[arg].
+const OP_IF_EQUAL: u16 = 0x16;
+const OP_GOSUB: u16 = 0x22;
+const OP_RETURN: u16 = 0x23;
 const BG_PER_ARCHIVE: usize = 64;
 const BU_PER_ARCHIVE: usize = 128;
 const SE_FIRST_BANK: usize = 256;
@@ -354,23 +364,12 @@ pub fn lower_script(cd: &CdScript, file: &str, flow: Flow, assets: &mut AssetBan
             continue;
         }
         let at = || SourceLoc { file: file.to_string(), index };
-        if matches!(ins.op, OP_GOTO | OP_GOTO_2) {
-            let target = cd.labels.get(ins.arg.max(0) as usize);
-            if target.is_some_and(|l| l.script == cd.script_id && l.code_offset as usize / 12 == index) {
-                continue; // label marker
-            }
-            if flow == Flow::Linear {
-                ops.push(Op::Unsupported { what: format!("jump to label table entry {} (linear mode)", ins.arg), at: at() });
-                continue;
-            }
-            // 425 of the game's 521 real jumps follow opcode 0x15 (a variable
-            // test), so they are conditional. Conditions aren't decoded yet;
-            // leave those out so the text plays through instead of always
-            // jumping.
-            if index > 0 && cd.code[index - 1].op == OP_TEST {
-                ops.push(Op::Unsupported { what: format!("conditional jump to label table entry {}", ins.arg), at: at() });
-                continue;
-            }
+        if matches!(ins.op, OP_GOTO | OP_GOTO_2) && own_label_at(cd, ins.arg).is_some_and(|i| i == index) {
+            continue; // label marker: a jump to the label sitting on this instruction
+        }
+        if flow == Flow::Linear && matches!(ins.op, OP_GOTO | OP_GOTO_2 | OP_GOTO_SUB | OP_IF_EQUAL | OP_GOSUB | OP_RETURN) {
+            ops.push(Op::Unsupported { what: format!("opcode {:#04x} (linear mode)", ins.op), at: at() });
+            continue;
         }
         let links = if cd.message(ins).is_some() { std::mem::take(&mut pending_links) } else { Vec::new() };
         let unsupported = || format!("opcode {:#04x} sub {:#x} arg {}", ins.op, ins.sub, ins.arg);
@@ -449,11 +448,46 @@ fn lower_instr(cd: &CdScript, ins: &Instr, links: &[Link], assets: &mut AssetBan
         let fade_ms = entries.iter().map(|e| u32::from(e.fade) * SPRITE_FADE_UNIT_MS).max().unwrap_or(0);
         return Ok(Some(Op::Sprites { sprites, fade_ms }));
     }
-    if matches!(ins.op, OP_GOTO | OP_GOTO_2) {
-        // arg indexes this script's label table; the target may be in
-        // another script. Out-of-range targets (one past the table) aren't
-        // understood yet.
-        return Ok(cd.labels.get(ins.arg.max(0) as usize).map(|l| Op::Jump(format!("s{}_l{}", l.script, l.label))));
+    // Label-table index -> label name (index 0 is the engine's implicit
+    // entry, not stored in the file; its meaning isn't known).
+    let label = |n: i64| table_label(cd, n);
+    let var = |v: u32| Var { global: v & 0x8000 != 0, index: (v & 0x7fff) as u16 };
+    match ins.op {
+        OP_GOTO | OP_GOTO_2 => {
+            return Ok(own_label_at(cd, ins.arg).map(|_| Op::Jump(format!("s{}_l{}", cd.script_id, ins.arg))));
+        }
+        OP_GOTO_SUB => return Ok(label(ins.sub.into()).map(Op::Jump)),
+        OP_GOSUB => return Ok(label(ins.sub.into()).map(Op::Gosub)),
+        OP_RETURN => return Ok(Some(Op::Return)),
+        OP_IF_EQUAL => {
+            let Some(target) = label(ins.sub.into()) else { return Ok(None) };
+            let o = ins.arg as u32 as usize;
+            let (Some(a), Some(b)) = (pool_u32(cd.pool, o), pool_u32(cd.pool, o + 4)) else { return Ok(None) };
+            return Ok(Some(Op::IfEqual { var: var(a), value: b as i32, label: target }));
+        }
+        // Arithmetic on variables (sub = target variable). 0x03 shares
+        // the "-= variable" handler in the engine's dispatch table.
+        0x01..=0x0e => {
+            let (op, by_var) = match ins.op {
+                0x01 => (ArithOp::Set, false),
+                0x02 => (ArithOp::Add, false),
+                0x03 => (ArithOp::Sub, true),
+                0x04 => (ArithOp::Mul, false),
+                0x05 => (ArithOp::Div, false),
+                0x06 => (ArithOp::BitAnd, false),
+                0x07 => (ArithOp::BitOr, false),
+                0x08 => (ArithOp::Set, true),
+                0x09 => (ArithOp::Add, true),
+                0x0a => (ArithOp::Sub, true),
+                0x0b => (ArithOp::Mul, true),
+                0x0c => (ArithOp::Div, true),
+                0x0d => (ArithOp::BitAnd, true),
+                _ => (ArithOp::BitOr, true),
+            };
+            let value = if by_var { Operand::Var(var(ins.arg as u32 & 0xffff)) } else { Operand::Const(ins.arg) };
+            return Ok(Some(Op::Arith { var: var(ins.sub.into()), op, value }));
+        }
+        _ => {}
     }
     if ins.op == crate::xuse::cd::OP_BACKGROUND {
         if ins.arg <= 0 {
@@ -463,6 +497,26 @@ fn lower_instr(cd: &CdScript, ins: &Instr, links: &[Link], assets: &mut AssetBan
         return Ok(Some(Op::Background { image: img.path, fade_ms: BG_FADE_MS }));
     }
     Ok(None)
+}
+
+/// The instruction index a label number of this script is placed at, if
+/// the script defines it.
+fn own_label_at(cd: &CdScript, label: i32) -> Option<usize> {
+    cd.labels
+        .iter()
+        .find(|l| l.script == cd.script_id && i64::from(l.label) == i64::from(label))
+        .map(|l| l.code_offset as usize / 12)
+}
+
+/// Resolves a label-table index (as used by 0x15/0x16/0x22 and links) to
+/// the IR label name. Index 0 is the engine's implicit entry.
+pub fn table_label(cd: &CdScript, index: i64) -> Option<String> {
+    let stored = usize::try_from(index).ok()?.checked_sub(1)?;
+    cd.labels.get(stored).map(|l| format!("s{}_l{}", l.script, l.label))
+}
+
+fn pool_u32(pool: &[u8], offset: usize) -> Option<u32> {
+    pool.get(offset..offset + 4).map(|b| u32::from_le_bytes(b.try_into().unwrap()))
 }
 
 fn png_size(png: &[u8]) -> (u32, u32) {

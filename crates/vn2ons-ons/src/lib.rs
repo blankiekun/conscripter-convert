@@ -7,7 +7,7 @@
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::Write;
 
-use vn2ons_core::ir::{Op, Script};
+use vn2ons_core::ir::{ArithOp, Op, Operand, Script, Var};
 
 pub mod nsa;
 
@@ -22,6 +22,10 @@ const SE_CHANNELS: std::ops::RangeInclusive<u32> = 1..=9;
 /// the character sprites (10 and up).
 const NAME_TEXT_SPRITE: u32 = 0;
 const NAME_PLATE_SPRITE: u32 = 1;
+/// NScripter variables: locals from %10, globals from %200. `globalon`
+/// makes %200 and up persist across games.
+const LOCAL_VAR_BASE: u32 = 10;
+const GLOBAL_VAR_BASE: u32 = 200;
 /// Colour for words the original game made clickable, and normal text.
 const LINK_COLOR: &str = "#F0C040";
 const TEXT_COLOR: &str = "#FFFFFF";
@@ -42,6 +46,7 @@ pub fn emit(script: &Script) -> String {
     // Read arc.nsa (without this ONScripter only looks for .sar archives;
     // loose files still work either way).
     writeln!(out, "nsa").unwrap();
+    writeln!(out, "globalon").unwrap();
     // The caption is passed to the window system as raw Shift-JIS, which
     // shows as mojibake on Linux, so keep it ASCII.
     let caption: String = script.title.chars().filter(|c| c.is_ascii() && *c != '"').collect();
@@ -66,11 +71,39 @@ pub fn emit(script: &Script) -> String {
 
     let effect = |ms: u32| if ms == 0 { 1 } else { effects[&ms] };
     let mut se = SeChannels::default();
+    let mut needs_bit_helpers = false;
     let mut plate_visible = false;
     for op in &script.ops {
         match op {
             Op::Label(name) => writeln!(out, "*{}", label(name)).unwrap(),
             Op::Jump(name) => writeln!(out, "goto *{}", label(name)).unwrap(),
+            Op::Gosub(name) => writeln!(out, "gosub *{}", label(name)).unwrap(),
+            Op::Return => writeln!(out, "return").unwrap(),
+            Op::Arith { var, op, value } => {
+                let value = match value {
+                    Operand::Const(n) => n.to_string(),
+                    Operand::Var(v) => var_name(*v),
+                };
+                let target = var_name(*var);
+                let cmd = match op {
+                    ArithOp::Set => "mov",
+                    ArithOp::Add => "add",
+                    ArithOp::Sub => "sub",
+                    ArithOp::Mul => "mul",
+                    ArithOp::Div => "div",
+                    ArithOp::BitAnd | ArithOp::BitOr => {
+                        // NScripter has no bitwise operators; call a helper.
+                        let routine = if *op == ArithOp::BitAnd { BITAND } else { BITOR };
+                        needs_bit_helpers = true;
+                        writeln!(out, "mov %1,{target}:mov %2,{value}:gosub *{routine}:mov {target},%3").unwrap();
+                        continue;
+                    }
+                };
+                writeln!(out, "{cmd} {target},{value}").unwrap();
+            }
+            Op::IfEqual { var, value, label: target } => {
+                writeln!(out, "if {} == {value} goto *{}", var_name(*var), label(target)).unwrap()
+            }
             Op::Background { image, fade_ms } => {
                 // NScripter's bg keeps lsp sprites; the game removes characters
                 // when the background or CG changes.
@@ -153,6 +186,31 @@ pub fn emit(script: &Script) -> String {
         }
     }
     writeln!(out, "end").unwrap();
+    if needs_bit_helpers {
+        out.push_str(&bit_helpers());
+    }
+    out
+}
+
+const BITAND: &str = "vn2ons_bitand";
+const BITOR: &str = "vn2ons_bitor";
+
+/// Subroutines computing `%3 = %1 & %2` and `%3 = %1 | %2` one bit at a
+/// time with div/mod (NScripter has no bitwise operators). They use the
+/// scratch variables %1-%8, below the converted game's variables. Works for
+/// non-negative values, which is all the game uses (flags).
+fn bit_helpers() -> String {
+    let mut out = String::new();
+    for (name, keep) in [(BITAND, "if %7 == 2 add %3,%4"), (BITOR, "if %7 > 0 add %3,%4")] {
+        writeln!(out, "*{name}").unwrap();
+        writeln!(out, "mov %3,0:mov %4,1:mov %5,%1:mov %6,%2").unwrap();
+        writeln!(out, "*{name}_loop").unwrap();
+        writeln!(out, "if %5 == 0 && %6 == 0 return").unwrap();
+        writeln!(out, "mov %7,%5:mod %7,2:mov %8,%6:mod %8,2:add %7,%8").unwrap();
+        writeln!(out, "{keep}").unwrap();
+        writeln!(out, "div %5,2:div %6,2:mul %4,2").unwrap();
+        writeln!(out, "goto *{name}_loop").unwrap();
+    }
     out
 }
 
@@ -211,6 +269,11 @@ fn with_links(text: &str, links: &[(usize, usize)]) -> String {
     }
     out.push_str(&escape(&chars[pos..].iter().collect::<String>()));
     out
+}
+
+fn var_name(v: Var) -> String {
+    let base = if v.global { GLOBAL_VAR_BASE } else { LOCAL_VAR_BASE };
+    format!("%{}", base + u32::from(v.index))
 }
 
 /// NScripter paths use backslashes.
@@ -315,6 +378,7 @@ mod tests {
 ;mode800
 *define
 nsa
+globalon
 caption \"Test\"
 effect 2,10,500
 game
@@ -387,6 +451,53 @@ end
     fn links_are_coloured() {
         assert_eq!(with_links("あいうえお", &[(1, 2), (3, 9)]), "あ#F0C040いう#FFFFFFえお");
         assert_eq!(with_links("a#b", &[]), "a＃b");
+    }
+
+    #[test]
+    fn flow_and_variables() {
+        let g = Var { global: true, index: 7 };
+        let l = Var { global: false, index: 2 };
+        let s = script(vec![
+            Op::Arith { var: g, op: ArithOp::Set, value: Operand::Const(1) },
+            Op::Arith { var: l, op: ArithOp::Add, value: Operand::Var(g) },
+            Op::IfEqual { var: g, value: 1, label: "s3_l2".into() },
+            Op::Gosub("s2_l18".into()),
+            Op::Return,
+        ]);
+        assert!(emit(&s).contains("mov %207,1\nadd %12,%207\nif %207 == 1 goto *s3_l2\ngosub *s2_l18\nreturn\n"));
+    }
+
+    #[test]
+    fn bitwise_ops_use_helpers() {
+        let g = Var { global: true, index: 9 };
+        let h = Var { global: true, index: 12 };
+        let text = emit(&script(vec![Op::Arith { var: g, op: ArithOp::BitAnd, value: Operand::Var(h) }]));
+        assert!(text.contains("mov %1,%209:mov %2,%212:gosub *vn2ons_bitand:mov %209,%3\n"));
+        assert!(text.contains("*vn2ons_bitand\n") && text.contains("*vn2ons_bitor\n"));
+        // Helpers are only emitted when needed.
+        assert!(!emit(&script(vec![])).contains("vn2ons_bitand"));
+    }
+
+    /// Runs the helper's algorithm (as emitted) in Rust to check the maths.
+    #[test]
+    fn bit_helper_algorithm() {
+        fn run(a: i32, b: i32, and: bool) -> i32 {
+            let (mut r, mut bit, mut x, mut y) = (0, 1, a, b);
+            while !(x == 0 && y == 0) {
+                let t = x % 2 + y % 2;
+                if (and && t == 2) || (!and && t > 0) {
+                    r += bit;
+                }
+                x /= 2;
+                y /= 2;
+                bit *= 2;
+            }
+            r
+        }
+        for (a, b) in [(0, 0), (1, 1), (1, 0), (6, 3), (12, 10), (255, 15), (1 << 20, (1 << 20) + 5)] {
+            assert_eq!(run(a, b, true), a & b, "{a} & {b}");
+            assert_eq!(run(a, b, false), a | b, "{a} | {b}");
+        }
     }
 
     #[test]

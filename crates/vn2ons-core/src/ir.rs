@@ -12,6 +12,31 @@ pub struct SourceLoc {
     pub index: usize,
 }
 
+/// A script variable. Global variables survive across playthroughs and
+/// saves (flags like "route cleared"); local ones belong to one game.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Var {
+    pub global: bool,
+    pub index: u16,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Operand {
+    Const(i32),
+    Var(Var),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ArithOp {
+    Set,
+    Add,
+    Sub,
+    Mul,
+    Div,
+    BitAnd,
+    BitOr,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SpritePlacement {
     pub image: String,
@@ -25,6 +50,13 @@ pub enum Op {
     Label(String),
     /// Continue at a label (possibly from another source script).
     Jump(String),
+    /// Call a label as a subroutine; [`Op::Return`] comes back.
+    Gosub(String),
+    Return,
+    /// `var = var <op> value`.
+    Arith { var: Var, op: ArithOp, value: Operand },
+    /// Jump to `label` if `var == value`.
+    IfEqual { var: Var, value: i32, label: String },
     /// Replace the background. Clears sprites, as most engines do.
     Background { image: String, fade_ms: u32 },
     /// Replace the set of visible sprites (an empty list clears them).
