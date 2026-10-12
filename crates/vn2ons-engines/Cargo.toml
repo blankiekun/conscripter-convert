@@ -8,3 +8,4 @@ license.workspace = true
 encoding_rs.workspace = true
 md-5.workspace = true
 thiserror.workspace = true
+vn2ons-core.workspace = true

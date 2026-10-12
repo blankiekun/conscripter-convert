@@ -4,7 +4,9 @@ use std::path::{Component, Path, PathBuf};
 use anyhow::{Context, Result, bail};
 use clap::{Parser, Subcommand};
 use memmap2::Mmap;
+use vn2ons_core::ir::{Op, Script};
 use vn2ons_engines::xuse::cd::CdScript;
+use vn2ons_engines::xuse::convert::{AssetBank, lower_script};
 use vn2ons_engines::xuse::gaf::Gaf;
 use vn2ons_engines::xuse::symbols::{self, SymbolTable};
 use vn2ons_engines::xuse::xarc::{CrcTarget, Xarc};
@@ -19,6 +21,23 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Convert one Xuse script (CDFiles/NNNN.cd) into an ONScripter game
+    /// directory: 0.txt plus the assets it uses
+    ConvertScript {
+        /// Installed game directory (contains HD/ and CD/)
+        game: PathBuf,
+        /// Script number (the NNNN in CDFiles/NNNN.cd)
+        #[arg(long)]
+        script: u32,
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Font to copy into the output as default.ttf (ONScripter needs one)
+        #[arg(long)]
+        font: Option<PathBuf>,
+        /// Window caption
+        #[arg(long, default_value = "vn2ons")]
+        title: String,
+    },
     /// Low-level tools for Xuse XARC archives (*.arc)
     Xarc {
         #[command(subcommand)]
@@ -118,6 +137,9 @@ enum XarcCommand {
 
 fn main() -> Result<()> {
     match Cli::parse().command {
+        Command::ConvertScript { game, script, output, font, title } => {
+            convert_script(&game, script, &output, font.as_deref(), &title)
+        }
         Command::Xarc { command } => match command {
             XarcCommand::List { archive } => xarc_list(&archive),
             XarcCommand::Verify { archives } => xarc_verify(&archives),
@@ -141,6 +163,54 @@ fn main() -> Result<()> {
             XsaCommand::Extract { archives, output } => xsa_extract(&archives, &output),
         },
     }
+}
+
+fn convert_script(game: &Path, script: u32, output: &Path, font: Option<&Path>, title: &str) -> Result<()> {
+    let file = format!("{script:04}.cd");
+    let path = game.join("HD").join("CDFiles").join(&file);
+    let bytes = map(&path)?;
+    let cd = parse_cd(&path, &bytes)?;
+    fs::create_dir_all(output)?;
+
+    let mut assets = AssetBank::new(game, output);
+    let ops = lower_script(&cd, &file, &mut assets).with_context(|| format!("converting {file}"))?;
+    let ir = Script { title: title.to_string(), width: 800, height: 600, ops };
+
+    let source = vn2ons_ons::emit(&ir);
+    let (encoded, lost) = vn2ons_ons::encode(&source);
+    fs::write(output.join("0.txt"), encoded)?;
+    if let Some(font) = font {
+        fs::copy(font, output.join("default.ttf")).with_context(|| format!("copying {}", font.display()))?;
+    }
+
+    let mut unsupported = std::collections::BTreeMap::<String, usize>::new();
+    let mut converted = 0;
+    for op in &ir.ops {
+        match op {
+            Op::Unsupported { what, .. } => {
+                let key = what.split(" sub").next().unwrap_or(what).to_string();
+                *unsupported.entry(key).or_default() += 1;
+            }
+            Op::Label(_) => {}
+            _ => converted += 1,
+        }
+    }
+    println!("{file} ({}) -> {}", cd.name, output.join("0.txt").display());
+    println!("  converted operations: {converted}");
+    let total: usize = unsupported.values().sum();
+    println!("  unsupported instructions: {total}");
+    let mut by_count: Vec<_> = unsupported.into_iter().collect();
+    by_count.sort_by_key(|a| std::cmp::Reverse(a.1));
+    for (what, n) in by_count.iter().take(12) {
+        println!("    {n:>6}  {what}");
+    }
+    if lost > 0 {
+        println!("  characters not representable in Shift-JIS: {lost}");
+    }
+    if font.is_none() {
+        println!("  note: no --font given; ONScripter needs default.ttf in the game directory");
+    }
+    Ok(())
 }
 
 fn map(path: &Path) -> Result<Mmap> {

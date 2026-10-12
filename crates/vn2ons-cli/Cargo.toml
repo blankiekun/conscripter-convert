@@ -12,4 +12,6 @@ path = "src/main.rs"
 anyhow.workspace = true
 clap.workspace = true
 memmap2.workspace = true
+vn2ons-core.workspace = true
 vn2ons-engines.workspace = true
+vn2ons-ons.workspace = true

@@ -1,6 +1,7 @@
 //! Xuse's in-house engine (最果てのイマ COMPLETE / `Farthest2015.exe`).
 
 pub mod cd;
+pub mod convert;
 pub mod gaf;
 pub mod symbols;
 pub mod xarc;

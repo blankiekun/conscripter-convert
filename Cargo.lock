@@ -322,8 +322,14 @@ dependencies = [
  "anyhow",
  "clap",
  "memmap2",
+ "vn2ons-core",
  "vn2ons-engines",
+ "vn2ons-ons",
 ]
+
+[[package]]
+name = "vn2ons-core"
+version = "0.1.0"
 
 [[package]]
 name = "vn2ons-engines"
@@ -332,6 +338,15 @@ dependencies = [
  "encoding_rs",
  "md-5",
  "thiserror",
+ "vn2ons-core",
+]
+
+[[package]]
+name = "vn2ons-ons"
+version = "0.1.0"
+dependencies = [
+ "encoding_rs",
+ "vn2ons-core",
 ]
 
 [[package]]

@@ -1,0 +1,5 @@
+[package]
+name = "vn2ons-core"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
