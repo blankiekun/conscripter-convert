@@ -82,6 +82,8 @@ fn route_counter(name: &str) -> &'static str {
 /// Guard against scripts that loop forever at convert time.
 const MAX_ITERATIONS: usize = 10_000;
 const MAX_DEPTH: usize = 64;
+/// Statements one story file may run at convert time.
+const MAX_STEPS: u64 = 2_000_000;
 
 /// Where the compiler gets the game's files from and where it puts them.
 /// Paths returned are inside the output directory, `/`-separated.
@@ -144,10 +146,30 @@ pub fn compile_run(files: &BTreeMap<String, NssFile>, start: &str, max_files: us
     let mut done = std::collections::HashSet::new();
     let mut not_compiled = std::collections::BTreeSet::new();
     let mut played = Vec::new();
+    // Ends of files whose next file is in a story flag: label, flag, state,
+    // file names dispatched so far.
+    let mut dispatches: Vec<(String, conv_core::ir::Var, State, std::collections::BTreeSet<String>)> = Vec::new();
     // The variables each file was compiled with, to report merges of paths
     // that differ.
     let mut entry_vars: HashMap<String, HashMap<String, Value>> = HashMap::new();
-    while let Some((name, state)) = queue.pop_front() {
+    loop {
+        let Some((name, state)) = queue.pop_front() else {
+            // Queue the file names the dispatched flags can hold by now.
+            let names: Vec<String> = c.codes.keys().filter(|k| k.ends_with(".nss") && files.contains_key(*k)).cloned().collect();
+            for (_, _, state, seen) in &mut dispatches {
+                for n in &names {
+                    if seen.insert(n.clone()) {
+                        let mut s = state.clone();
+                        s.vars.insert("$GameName".into(), Value::Str(n.clone()));
+                        queue.push_back((n.clone(), s));
+                    }
+                }
+            }
+            if queue.is_empty() {
+                break;
+            }
+            continue;
+        };
         if let Some(first) = entry_vars.get(&name) {
             let mut differ: Vec<&String> = first
                 .keys()
@@ -173,6 +195,13 @@ pub fn compile_run(files: &BTreeMap<String, NssFile>, start: &str, max_files: us
             not_compiled.insert(name);
             continue;
         }
+        // The helper library isn't a story file: the run reaches it for the
+        // 立方陣 minigame (function_magiccube.nss), which needs porting.
+        if c.library.contains(&file.as_str()) || file.starts_with("function") {
+            c.note(format!("run reaches {name}: a minigame, not converted"));
+            not_compiled.insert(name);
+            continue;
+        }
         done.insert(name.clone());
         not_compiled.remove(&name);
         entry_vars.insert(name.clone(), state.vars.clone());
@@ -182,8 +211,12 @@ pub fn compile_run(files: &BTreeMap<String, NssFile>, start: &str, max_files: us
             c.vars.insert(k.clone(), Value::Runtime(v));
         }
         c.forks_in_file = 0;
+        c.steps = 0;
         c.ops.push(Op::Label(file_label(&name)));
         c.file = file;
+        if std::env::var_os("NSS_TRACE").is_some() {
+            eprintln!("compiling {name}");
+        }
         c.call_scene(&format!("nss/{name}->{name}_MAIN"), false);
         c.sync(0);
         played.push(name.clone());
@@ -200,7 +233,13 @@ pub fn compile_run(files: &BTreeMap<String, NssFile>, start: &str, max_files: us
         let fork = branches.len() > 1;
         for (i, b) in branches.into_iter().enumerate() {
             let next = b.vars.get("$GameName").map(Value::string).unwrap_or_default();
-            let target = if !b.vars.get("$GameCircle").is_some_and(Value::truthy) {
+            let target = if let Some(&Value::Runtime(var)) = b.vars.get("$GameName") {
+                // The next file is in a story flag: decided by the dispatch
+                // written at the end, over every file name the flag holds.
+                let label = format!("dispatch{}", dispatches.len());
+                dispatches.push((label.clone(), var, b, std::collections::BTreeSet::new()));
+                label
+            } else if !b.vars.get("$GameCircle").is_some_and(Value::truthy) {
                 RUN_END.to_string()
             } else if next == name || next.is_empty() {
                 c.note("file didn't name a next file");
@@ -222,6 +261,16 @@ pub fn compile_run(files: &BTreeMap<String, NssFile>, start: &str, max_files: us
         if fork {
             c.ops.push(Op::Jump(RUN_END.to_string()));
         }
+    }
+    for (label, var, _, seen) in &dispatches {
+        c.ops.push(Op::Label(label.clone()));
+        for n in seen {
+            if let Some(&code) = c.codes.get(n) {
+                let value = Operand::Const(code);
+                c.ops.push(Op::If { var: *var, cmp: conv_core::ir::Compare::Eq, value, label: file_label(n) });
+            }
+        }
+        c.ops.push(Op::Jump(RUN_END.to_string()));
     }
     // Files the run reaches but doesn't include end the game.
     for name in not_compiled {
@@ -607,6 +656,8 @@ struct Compiler<'a, 'b> {
     depth: usize,
     /// Helper functions being run.
     in_function: usize,
+    /// Statements run in the current file (see [`MAX_STEPS`]).
+    steps: u64,
     /// Choices compiled so far (for unique labels).
     choices: usize,
     /// The branches of the file's last fork (a choice, or a runtime `if`
@@ -1010,6 +1061,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
             notes: BTreeMap::new(),
             depth: 0,
             in_function: 0,
+            steps: 0,
             choices: 0,
             pending_fork: None,
             fork_var: None,
@@ -1071,6 +1123,13 @@ impl<'a, 'b> Compiler<'a, 'b> {
     }
 
     fn exec(&mut self, stmt: &'a Stmt) -> Flow {
+        self.steps += 1;
+        if self.steps > MAX_STEPS {
+            if self.steps == MAX_STEPS + 1 {
+                self.note("file stopped after 2,000,000 statements at convert time");
+            }
+            return Flow::Return;
+        }
         match &stmt.kind {
             StmtKind::Expr(e) => {
                 self.eval(e);
@@ -1080,7 +1139,16 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 for i in index {
                     key = format!("{key}[{}]", self.eval(i).string());
                 }
-                let value = value.as_ref().map(|v| self.eval(v)).unwrap_or(Value::Null);
+                // `$x = $x + k` on a story flag is `$x += k`.
+                let (op, value) = match (op, value, self.flags.contains_key(&key)) {
+                    (AssignOp::Set, Some(Expr::Binary { op: o @ (BinaryOp::Add | BinaryOp::Sub), left, right }), true)
+                        if matches!(&**left, Expr::Var(v) if v == target) && index.is_empty() =>
+                    {
+                        (if *o == BinaryOp::Add { &AssignOp::Add } else { &AssignOp::Sub }, Some(&**right))
+                    }
+                    (op, value, _) => (op, value.as_ref()),
+                };
+                let value = value.map(|v| self.eval(v)).unwrap_or(Value::Null);
                 let old = self.vars.get(&key).cloned().unwrap_or(Value::Null);
                 let new = match op {
                     AssignOp::Set => value.clone(),
