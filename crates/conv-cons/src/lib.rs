@@ -13,6 +13,7 @@ use conv_core::ir::{
     TransitionStyle, Var, ZoomStyle,
 };
 
+mod extras;
 mod menu;
 pub mod nsa;
 pub mod webp;
@@ -213,7 +214,7 @@ pub fn emit(script: &Script) -> String {
 
     let effect = |ms: u32| if ms == 0 { 1 } else { effects[&(ms, Effect::Fade)] };
     if let Some(t) = &script.title_screen {
-        title_screen(&mut out, t, effect(t.fade_ms), script.save_menu.is_some(), script.settings.is_some(), script.confirm.as_ref());
+        title_screen(&mut out, t, effect(t.fade_ms), script.save_menu.is_some(), script.settings.is_some(), script.confirm.as_ref(), script.extras.is_some());
     }
     let mut se = SeChannels::default();
     let mut needs_bit_helpers = false;
@@ -811,14 +812,20 @@ pub fn emit(script: &Script) -> String {
     if let Some(d) = &script.confirm {
         menu::confirm(&mut out, d);
     }
+    if let (Some(m), Some(t)) = (&script.extras, &script.title_screen) {
+        extras::extras(&mut out, m, effect(t.fade_ms), script.settings.is_some());
+    }
     out
 }
 
 /// The title menu: buttons are sprites over the picture, faded in together;
 /// Start clears them and falls through to the script that follows. Load
 /// opens the save menu's load screen if there is one, else ONScripter's.
-fn title_screen(out: &mut String, t: &TitleScreen, fade: u32, save_menu: bool, settings: bool, confirm: Option<&ConfirmDialog>) {
+fn title_screen(out: &mut String, t: &TitleScreen, fade: u32, save_menu: bool, settings: bool, confirm: Option<&ConfirmDialog>, extras: bool) {
     let buttons: Vec<_> = t.buttons.iter().zip(MENU_SPRITES).collect();
+    if extras {
+        writeln!(out, "*{}", extras::TITLE_BACK).unwrap();
+    }
     // Effect 0 = update the buffer only; the print shows it all.
     writeln!(out, "bg \"{}\",0", path(&t.background)).unwrap();
     writeln!(out, "*{TITLE_DRAW}").unwrap();
@@ -839,6 +846,7 @@ fn title_screen(out: &mut String, t: &TitleScreen, fade: u32, save_menu: bool, s
             TitleAction::Load if save_menu => {
                 format!("csp -1:mov {},0:gosub *{}:goto *{TITLE_DRAW}", menu::IN_GAME, menu::LOAD)
             }
+            TitleAction::Settings if extras => format!("csp -1:goto *{}", extras::EXTRAS),
             TitleAction::Settings if settings => {
                 format!("csp -1:mov {},0:gosub *{}:goto *{TITLE_DRAW}", menu::IN_GAME, menu::SETTINGS)
             }
@@ -1304,7 +1312,7 @@ mod tests {
     use conv_core::ir::{Animation, Noise, SourceLoc, SpriteChange, SpriteFilter, SpritePlacement, Voice, FILTER_BLEND_COPY, FILTER_BLEND_MULTIPLY, FILTER_BRIGHTNESS, FILTER_COLOUR};
 
     fn script(ops: Vec<Op>) -> Script {
-        Script { title: "Test".into(), width: 800, height: 600, window: None, title_screen: None, save_menu: None, button_bar: None, settings: None, backlog: None, confirm: None, ops }
+        Script { title: "Test".into(), width: 800, height: 600, window: None, title_screen: None, save_menu: None, button_bar: None, settings: None, backlog: None, confirm: None, extras: None, ops }
     }
 
     fn link(start: usize, len: usize, target: Option<&str>) -> TextLink {
@@ -1520,6 +1528,58 @@ effect 6,99,1000,\"cons_zoom.dll/3,220,5\"
             if %9 == 3 end\n\
             goto *conv_title\n*conv_title_start\ncsp -1\nbg black,2\nあ\\\n";
         assert!(out.contains(expected), "{out}");
+    }
+
+    #[test]
+    fn extras_open_from_the_title_option() {
+        use conv_core::ir::{CgGallery, CgViewer, ExtrasAction, ExtrasItem, ExtrasMenu, GallerySlot, GalleryTab, Placed, TitleButton};
+        let placed = |image: &str| Placed { image: image.into(), x: 10, y: 20, w: 30, h: 40 };
+        let mut s = script(vec![]);
+        s.title_screen = Some(TitleScreen {
+            background: "system/title.png".into(),
+            fade_ms: 1000,
+            buttons: vec![TitleButton { image: "system/option.png".into(), x: 600, y: 200, action: TitleAction::Settings }],
+        });
+        let slot = GallerySlot { thumbnail: "system/t.png".into(), cgs: vec![(213, "bg/a.png".into()), (214, "bg/b.png".into())] };
+        s.extras = Some(ExtrasMenu {
+            background: "system/extras.png".into(),
+            items: vec![
+                ExtrasItem { button: placed("system/cg.png"), action: ExtrasAction::Gallery },
+                ExtrasItem { button: placed("system/exit.png"), action: ExtrasAction::Back },
+            ],
+            gallery: Some(CgGallery {
+                header: placed("h"),
+                exit: placed("x"),
+                tabs: vec![GalleryTab { button: placed("tab"), selected: "tab_on".into(), title: placed("title"), viewer_name: placed("name"), pages: vec![vec![slot]] }],
+                grid_x: 44,
+                grid_y: 142,
+                grid_dx: 108,
+                grid_dy: 92,
+                columns: 5,
+                locked: "system/locked.png".into(),
+                page_label: placed("page"),
+                page_numbers: vec!["p1".into()],
+                pages_x: 67,
+                pages_y: 521,
+                page_dx: 24,
+                page_marker: "on".into(),
+                marker_dx: 0,
+                marker_dy: -3,
+                viewer: CgViewer { panel: vec![placed("panel")], name_x: 1, name_y: 2, previous: placed("p"), next: placed("n"), hide: placed("c"), back: placed("b") },
+            }),
+        });
+        let out = emit(&s);
+        assert!(out.contains("*conv_title_back\nbg \"system\\title.png\",0\n"), "{out}");
+        assert!(out.contains("if %9 == 1 csp -1:goto *conv_extras\n"), "{out}");
+        // The gallery opens once one of its CGs is seen.
+        assert!(out.contains("if %2413 == 1 mov %128,1:if %2414 == 1 mov %128,1\n"), "{out}");
+        assert!(out.contains("if %128 == 0 cell 100,2\nif %128 == 1 spbtn 100,1\n"), "{out}");
+        // A slot is a button once one of its CGs is seen, else locked.
+        assert!(out.contains("mov %122,0:if %2413 == 1 mov %122,1:if %2414 == 1 mov %122,1\n\
+            if %122 == 1 lsp 130,\":a/2,0,3;system\\t.png\",40,138:spbtn 130,100\n\
+            if %122 == 0 lsp 130,\":a;system\\locked.png\",44,142\n"), "{out}");
+        // The viewer steps past unseen variants.
+        assert!(out.contains("*conv_cg_v0_1\nif %2414 == 0 add %124,%126:goto *conv_cg_v0\nbg \"bg\\b.png\",0:goto *conv_cg_view_show\n"), "{out}");
     }
 
     #[test]

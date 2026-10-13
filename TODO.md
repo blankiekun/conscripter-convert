@@ -402,8 +402,24 @@ engines print `z150` etc.). The web build compiles with it.
       answers yes at once for a switched-off kind (%125). Not converted:
       wheel sensitivity, the autosave / chapter history / settings / unread
       skip confirmations (no such dialogs here). Checked headless.
-- [ ] Extras after clearing (CG/BGM/chapter/scene replay), chapter
-      history, blog bar buttons, title BGM.
+- [x] CG gallery (filmed under wine with a 100% save from sagaoz.net):
+      the title's option opens the extras menu (`SubModeCommon.004` #19;
+      cg / bgm / chapter / wss / exit, as in the original even before
+      clearing; cg enabled once a gallery CG is seen). The original has
+      no settings on the title, so the menu's "option" heading opens ours.
+      Gallery table from the exe (`xuse/gallery.rs`: 5 tabs, 113 slots,
+      thumbnails from `SubModeThumb-TT-P.png`), 5 x 4 grid, locked
+      tiles, pointer frame, page numbers; viewer with previous / next
+      (skips unseen variants), clear (a click brings the panel back),
+      back. 0x54 now marks gallery CGs seen (and 0x55 with its mark
+      byte), as `%2200 + number`. `crates/conv-cons/src/extras.rs`.
+      Checked headless: layout matches the original's page (mean pixel
+      difference 0.2), variants, locked slots, pages, exits. Not done:
+      the panel's slide-away when idle (ours stays up), the voice button
+      (`cgv.bin`) and a check box of unknown use.
+- [ ] Extras: BGM room, chapter (the scene replay, by route, with
+      BLOG-1..3), WSS (system voices); chapter history, blog bar buttons,
+      title BGM.
 - [ ] Native Linux/macOS builds skip movies (`mpegplay` is disabled
       without SMPEG). Only if the user wants it.
 - [ ] Right-click: not planned (the user said skip it).

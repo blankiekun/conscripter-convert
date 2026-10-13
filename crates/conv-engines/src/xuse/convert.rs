@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 use thiserror::Error;
 use conv_core::ir::{
     Compare,
-    Animation, ArithOp, Backlog, BarAction, BarButton, ButtonBar, ConfirmDialog, NamePlate, Noise, ScreenEffect, Setting, SettingRow, SettingSwitch, SettingsMenu, Switch, Op, Operand, PageButton, Placed, Rect, Ruby, SaveMenu, TextStyle, SourceLoc, Voice, VoiceToggle,
+    Animation, ArithOp, Backlog, CgGallery, CgViewer, ExtrasAction, ExtrasItem, ExtrasMenu, GallerySlot, GalleryTab, BarAction, BarButton, ButtonBar, ConfirmDialog, NamePlate, Noise, ScreenEffect, Setting, SettingRow, SettingSwitch, SettingsMenu, Switch, Op, Operand, PageButton, Placed, Rect, Ruby, SaveMenu, TextStyle, SourceLoc, Voice, VoiceToggle,
     SpriteChange, SpriteFilter, SpritePlacement, TextLink, TextSpot, TextWindow, TitleAction, TitleButton, TitleScreen, TopBars,
     SlideLayer, TransitionStyle, Var, ZoomStyle, FILTER_BLEND_ADD, FILTER_BLEND_COPY, FILTER_BLEND_MULTIPLY, FILTER_BLEND_SCREEN, FILTER_BRIGHTNESS, FILTER_COLOUR, FILTER_MONOTONE,
     FILTER_GREYSCALE, FILTER_NEGATIVE, FILTER_BLUR, FILTER_HUE_SATURATION, FILTER_LIGHTNESS_INVERT,
@@ -24,6 +24,7 @@ use crate::xuse::cd::{
     ModuleData,
 };
 use crate::xuse::gaf::{Gaf, GafError};
+use crate::xuse::gallery;
 use crate::xuse::staffroll;
 use crate::xuse::symbols::SymbolTable;
 use crate::xuse::xarc::{Xarc, XarcError};
@@ -850,6 +851,121 @@ impl AssetBank {
             buttons.push(TitleButton { image, x, y, action });
         }
         Ok(TitleScreen { background: background_path, fade_ms: TITLE_FADE_MS, buttons })
+    }
+
+    /// The extras menu and the CG gallery (see [`gallery`]). Positions
+    /// measured on screenshots of the original.
+    pub fn extras_menu(&mut self) -> Result<ExtrasMenu, ConvertError> {
+        let title = self.gaf_rgba("gd.arc", "Title.004", "title screen")?;
+        let common = self.gaf_rgba("gd.arc", "SubModeCommon.004", "extras")?;
+        let viewer = self.gaf_rgba("gd.arc", "CgViewer.004", "CG viewer")?;
+        let get = |images: &[image::RgbaImage], n: usize| {
+            images.get(n).cloned().ok_or(ConvertError::MissingAsset { kind: "extras image", number: n })
+        };
+        let background = "system/extras.png".to_string();
+        self.save_image(&background, &get(&common, 19)?)?;
+
+        // Menu words: columns of four states (normal, under the pointer,
+        // pressed, disabled).
+        let mut items = Vec::new();
+        for (n, name, x, y, action) in [
+            (12, "option", 625, 129, ExtrasAction::Settings),
+            (4, "cg", 625, 221, ExtrasAction::Gallery),
+            (5, "bgm", 626, 250, ExtrasAction::Unavailable),
+            (8, "chapter", 626, 283, ExtrasAction::Unavailable),
+            (13, "wss", 626, 320, ExtrasAction::Unavailable),
+            (3, "exit", 626, 384, ExtrasAction::Back),
+        ] {
+            let img = get(&title, n)?;
+            // The heading is one picture; as our settings button it is its
+            // own pointer state.
+            let strip = match action {
+                ExtrasAction::Settings => column_cells(&img, 1, &[0, 0, 0]),
+                ExtrasAction::Unavailable => column_cells(&img, 4, &[3]),
+                _ => column_cells(&img, 4, &[0, 1, 3]),
+            };
+            items.push(ExtrasItem { button: self.place(&format!("extras_{name}"), &strip, None, x, y)?, action });
+        }
+
+        // The thumbnails' pointer frame (#21, added to the screen) and the
+        // locked slot (#20), both columns of four states.
+        let frame = column_cells(&get(&common, 21)?, 4, &[1]);
+        let locked = column_cells(&get(&common, 20)?, 4, &[0]);
+        let locked = self.place("cg_locked", &locked, None, 0, 0)?.image;
+        let mut tabs = Vec::new();
+        for (i, &(tab, label, heading, name)) in gallery::TAB_PICTURES.iter().enumerate() {
+            let label_img = get(&common, label)?;
+            let button = self.place(&format!("cg_tab{i}"), &column_cells(&label_img, 4, &[0, 1]), None, 624, 160 + 33 * i as i32)?;
+            let selected = self.place(&format!("cg_tab{i}_on"), &column_cells(&label_img, 4, &[1]), None, 0, 0)?.image;
+            let title = self.place(&format!("cg_title{i}"), &get(&common, heading)?, None, 96, 97)?;
+            let viewer_name = self.place(&format!("cg_name{i}"), &get(&viewer, name)?, None, 601, 545)?;
+            let mut pages = Vec::new();
+            for (p, slots) in gallery::TABS[tab].iter().enumerate() {
+                let sheet = self.arc_png("gd.arc", &format!("SubModeThumb-{:02}-{p}.png", tab + 1))?;
+                let mut page = Vec::new();
+                for (k, cgs) in slots.iter().enumerate() {
+                    let (cx, cy) = (k as u32 % 5 * gallery::THUMB_W, k as u32 / 5 * gallery::THUMB_H);
+                    let thumb = image::imageops::crop_imm(&sheet, cx, cy, gallery::THUMB_W, gallery::THUMB_H).to_image();
+                    let strip = thumbnail_cells(&thumb, &frame);
+                    let thumbnail = self.place(&format!("cg_thumb{i}_{p}_{k}"), &strip, None, 0, 0)?.image;
+                    let mut pictures = Vec::new();
+                    for &bit in *cgs {
+                        let number = usize::from(bit) + 1;
+                        pictures.push((number as u32, self.background(number)?.path));
+                    }
+                    page.push(GallerySlot { thumbnail, cgs: pictures });
+                }
+                pages.push(page);
+            }
+            tabs.push(GalleryTab { button, selected, title, viewer_name, pages });
+        }
+        let page_numbers = (0..7)
+            .map(|p| self.place(&format!("cg_page{}", p + 1), &column_cells(&get(&common, 24 + p)?, 4, &[0, 1]), None, 0, 0).map(|p| p.image))
+            .collect::<Result<_, _>>()?;
+        let gallery = CgGallery {
+            header: self.place("cg_header", &get(&common, 16)?, None, 621, 122)?,
+            exit: self.place("cg_exit", &column_cells(&get(&common, 15)?, 4, &[0, 1]), None, 624, 470)?,
+            tabs,
+            grid_x: 44,
+            grid_y: 142,
+            grid_dx: 108,
+            grid_dy: 92,
+            columns: 5,
+            locked,
+            page_label: self.place("cg_page", &get(&common, 22)?, None, 31, 529)?,
+            page_numbers,
+            pages_x: 67,
+            pages_y: 521,
+            page_dx: 24,
+            page_marker: self.place("cg_page_on", &column_cells(&get(&common, 23)?, 4, &[0]), None, 0, 0)?.image,
+            marker_dx: 0,
+            marker_dy: -3,
+            viewer: CgViewer {
+                panel: vec![
+                    // Drawn at half opacity (fitted on a screenshot of the original).
+                    self.place("cgv_base", &with_opacity(get(&viewer, 11)?, 50), None, 451, 545)?,
+                    self.place("cgv_lines", &get(&viewer, 12)?, None, 451, 545)?,
+                ],
+                name_x: 601,
+                name_y: 545,
+                previous: self.place("cgv_prev", &column_cells(&get(&viewer, 8)?, 4, &[0, 1]), None, 721, 549)?,
+                next: self.place("cgv_next", &column_cells(&get(&viewer, 7)?, 4, &[0, 1]), None, 737, 549)?,
+                hide: self.place("cgv_hide", &column_cells(&get(&viewer, 6)?, 4, &[0, 1]), None, 756, 548)?,
+                back: self.place("cgv_back", &column_cells(&get(&viewer, 5)?, 4, &[0, 1]), None, 742, 568)?,
+            },
+        };
+        Ok(ExtrasMenu { background, items, gallery: Some(gallery) })
+    }
+
+    /// A loose PNG inside the XARC archive `HD/{arc}`.
+    fn arc_png(&self, arc: &str, file: &str) -> Result<image::RgbaImage, ConvertError> {
+        let path = self.game.join("HD").join(arc);
+        let bytes = fs::read(&path).map_err(|source| ConvertError::Io { path: path.clone(), source })?;
+        let xarc = Xarc::parse(&bytes).map_err(|source| ConvertError::Xarc { path: path.clone(), source })?;
+        let entry = xarc.entries.iter().find(|e| e.name == file).ok_or(ConvertError::MissingAsset { kind: "extras image", number: 0 })?;
+        image::load_from_memory_with_format(xarc.data(entry), image::ImageFormat::Png)
+            .map(|i| i.to_rgba8())
+            .map_err(|source| ConvertError::Image { what: format!("{arc}/{file}"), source })
     }
 
     /// The save/load screen from `HD/wnd.arc` → `Save.004`: full-screen base
@@ -2132,6 +2248,9 @@ pub fn lower_script(
                         n => Some(assets.background(n as usize)?.path),
                     };
                     ops.push(Op::Overlay { image, over_sprites: layer == 2 });
+                    if cd.pool.get(o + 10).is_some_and(|&mark| mark != 0) && let Some(number) = gallery_cg(number as i32) {
+                        ops.push(Op::CgSeen { number });
+                    }
                 }
                 _ => ops.push(Op::Unsupported { what: format!("opcode {:#04x} record {record:?}", ins.op), at: at() }),
             }
@@ -2166,6 +2285,10 @@ pub fn lower_script(
         }
         if ins.op == crate::xuse::cd::OP_BACKGROUND {
             background_fill = None;
+            // 0x54 marks its picture as seen (0x4222c0's last argument).
+            if let Some(number) = gallery_cg(ins.arg) {
+                ops.push(Op::CgSeen { number });
+            }
         }
         if ins.op == OP_OPACITY && let Some(fill) = background_fill {
             // The filled background (slot 1) over nothing: darker.
@@ -2998,6 +3121,59 @@ fn pool_u32(pool: &[u8], offset: usize) -> Option<u32> {
 
 /// The image at half brightness. The log base is a white-to-black gradient;
 /// white text over its top half was hard to read.
+/// `number` (a background, 1-based) if the CG gallery shows it.
+fn gallery_cg(number: i32) -> Option<u32> {
+    let bit = u16::try_from(number.checked_sub(1)?).ok()?;
+    gallery::TABS.iter().flat_map(|t| t.iter()).flat_map(|p| p.iter()).any(|s| s.contains(&bit)).then_some(number as u32)
+}
+
+/// Cells `which` of a column of `count` cells, side by side.
+fn column_cells(img: &image::RgbaImage, count: u32, which: &[u32]) -> image::RgbaImage {
+    let (w, h) = (img.width(), img.height() / count);
+    let mut out = image::RgbaImage::new(w * which.len() as u32, h);
+    for (i, &c) in which.iter().enumerate() {
+        let cell = image::imageops::crop_imm(img, 0, c * h, w, h).to_image();
+        image::imageops::replace(&mut out, &cell, i64::from(w) * i as i64, 0);
+    }
+    out
+}
+
+/// A gallery thumbnail as two cells: alone, and under the pointer with
+/// `frame` (black where nothing is added: the game adds it to the
+/// screen) 4 px up and left of it. Over the transparent margin the frame
+/// becomes its own colour with opacity = its brightest channel.
+fn thumbnail_cells(thumb: &image::RgbaImage, frame: &image::RgbaImage) -> image::RgbaImage {
+    const OFFSET: u32 = 4;
+    let w = (thumb.width() + OFFSET).max(frame.width());
+    let h = (thumb.height() + OFFSET).max(frame.height());
+    let mut out = image::RgbaImage::new(w * 2, h);
+    image::imageops::replace(&mut out, thumb, i64::from(OFFSET), i64::from(OFFSET));
+    image::imageops::replace(&mut out, thumb, i64::from(w + OFFSET), i64::from(OFFSET));
+    for (x, y, f) in frame.enumerate_pixels() {
+        let px = out.get_pixel_mut(w + x, y);
+        let a = f32::from(px.0[3]) / 255.0;
+        let add = f.0[..3].iter().copied().max().unwrap_or(0);
+        if add == 0 {
+            continue;
+        }
+        let alpha = a.max(f32::from(add) / 255.0);
+        for c in 0..3 {
+            let premultiplied = f32::from(px.0[c]) * a + f32::from(f.0[c]);
+            px.0[c] = (premultiplied / alpha).min(255.0) as u8;
+        }
+        px.0[3] = (alpha * 255.0).round() as u8;
+    }
+    out
+}
+
+/// `img` with its opacity scaled to `percent`.
+fn with_opacity(mut img: image::RgbaImage, percent: u32) -> image::RgbaImage {
+    for px in img.pixels_mut() {
+        px.0[3] = (u32::from(px.0[3]) * percent / 100) as u8;
+    }
+    img
+}
+
 fn darker(mut img: image::RgbaImage) -> image::RgbaImage {
     for px in img.pixels_mut() {
         for c in &mut px.0[..3] {

@@ -587,6 +587,101 @@ pub enum BarAction {
     Unavailable,
 }
 
+/// The extras the title's option button opens: a menu of modes over its
+/// own background. Buttons are strips of cells side by side: normal and
+/// under the pointer, then disabled.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExtrasMenu {
+    /// Full-screen picture (shared with the modes' screens).
+    pub background: String,
+    pub items: Vec<ExtrasItem>,
+    pub gallery: Option<CgGallery>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExtrasItem {
+    pub button: Placed,
+    pub action: ExtrasAction,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExtrasAction {
+    /// The settings screen (when there is one).
+    Settings,
+    /// The CG gallery; disabled until a CG in it has been seen.
+    Gallery,
+    /// Back to the title.
+    Back,
+    /// Drawn disabled (the mode isn't converted yet).
+    Unavailable,
+}
+
+/// The CG gallery: tabs (one per heroine), each with pages of thumbnails
+/// in a grid; a thumbnail opens its CG and the variants seen of it.
+/// Buttons are strips of two cells side by side: normal, under the
+/// pointer.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CgGallery {
+    pub header: Placed,
+    pub exit: Placed,
+    pub tabs: Vec<GalleryTab>,
+    /// The grid: top-left of the first thumbnail, the pitch, columns.
+    pub grid_x: i32,
+    pub grid_y: i32,
+    pub grid_dx: i32,
+    pub grid_dy: i32,
+    pub columns: usize,
+    /// A slot whose CGs are all unseen, at the thumbnail's place.
+    pub locked: String,
+    /// "PAGE", then page numbers (one strip per page, `page_dx` apart from
+    /// `pages_x`, `pages_y`) and the current page's marker (at the
+    /// number's place plus `marker_dx`, `marker_dy`).
+    pub page_label: Placed,
+    pub page_numbers: Vec<String>,
+    pub pages_x: i32,
+    pub pages_y: i32,
+    pub page_dx: i32,
+    pub page_marker: String,
+    pub marker_dx: i32,
+    pub marker_dy: i32,
+    pub viewer: CgViewer,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GalleryTab {
+    /// The tab's button; `selected` replaces it while the tab is shown.
+    pub button: Placed,
+    pub selected: String,
+    /// Shown over the grid.
+    pub title: Placed,
+    /// Shown in the viewer's panel.
+    pub viewer_name: Placed,
+    pub pages: Vec<Vec<GallerySlot>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GallerySlot {
+    /// Two cells: normal, under the pointer.
+    pub thumbnail: String,
+    /// The CGs in viewing order: [`Op::CgSeen`] number and picture.
+    pub cgs: Vec<(u32, String)>,
+}
+
+/// The full-screen CG with a control panel: previous / next variant, hide
+/// the panel (a click shows it again), back. Buttons as in [`CgGallery`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CgViewer {
+    /// Panel pictures, drawn in order.
+    pub panel: Vec<Placed>,
+    /// Where the tab's name goes.
+    pub name_x: i32,
+    pub name_y: i32,
+    pub previous: Placed,
+    pub next: Placed,
+    pub hide: Placed,
+    pub back: Placed,
+}
+
 /// A settings screen: rows of levels 0-10 changed with minus/plus.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SettingsMenu {
@@ -742,5 +837,7 @@ pub struct Script {
     pub backlog: Option<Backlog>,
     /// `None` = act without asking.
     pub confirm: Option<ConfirmDialog>,
+    /// `None` = the title's option button opens the settings.
+    pub extras: Option<ExtrasMenu>,
     pub ops: Vec<Op>,
 }
