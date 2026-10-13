@@ -37,7 +37,7 @@
 
 use std::collections::{BTreeMap, HashMap};
 
-use conv_core::ir::{CLICK_WAIT_MARK, Op, ScreenEffect, Ruby, SpriteChange, SpritePlacement, TextWindow, TransitionStyle, Voice};
+use conv_core::ir::{ArithOp, CLICK_WAIT_MARK, Op, Operand, ScreenEffect, Ruby, SpriteChange, SpritePlacement, TextWindow, TransitionStyle, Voice};
 
 use super::nss::{AssignOp, BinaryOp, Expr, Function, Inline, Item, NssFile, Param, Stmt, StmtKind, Target, Text, UnaryOp};
 
@@ -47,6 +47,10 @@ pub const SCREEN_H: i64 = 576;
 const BOOT: &str = "0_boot_開始スクリプト.nss";
 /// Highest IR sprite layer used.
 const MAX_LAYER: u32 = 900;
+/// The NScripter variable that holds the choice just made.
+const CHOICE_VAR: conv_core::ir::Var = conv_core::ir::Var { global: false, index: 40 };
+/// Where a run of files ends.
+const RUN_END: &str = "conv_run_end";
 /// Guard against scripts that loop forever at convert time.
 const MAX_ITERATIONS: usize = 10_000;
 const MAX_DEPTH: usize = 64;
@@ -93,38 +97,103 @@ pub fn compile_scene(files: &BTreeMap<String, NssFile>, file: &str, scene: &str,
     Ok(Compiled { ops: c.ops, window: c.first_window, notes: c.notes })
 }
 
-/// Plays story files in a row from `start` (`ma01_001.nss`), as the story
+/// Plays story files from `start` (`ma01_001.nss`), as the story
 /// driver's loop does: each file's `X.nss_MAIN` scene runs its content
-/// scene and sets `$GameName` to the next file. Stops after `max_files`
-/// files, at the end of the game, or where the next file isn't known at
-/// convert time. Each file starts at a label named after it. Returns the
-/// files played.
+/// scene and sets `$GameName` to the next file. A choice forks the run:
+/// the next file of each branch is compiled from that branch's state, and
+/// the end of the file jumps to it by the choice the player made. Each
+/// file starts at a label named after it and is compiled once (from the
+/// first state that reaches it). Stops after `max_files` files. Returns
+/// the files compiled.
 pub fn compile_run(files: &BTreeMap<String, NssFile>, start: &str, max_files: usize, assets: &mut dyn Assets) -> Result<(Compiled, Vec<String>), String> {
     let (first, _) = files.get_key_value(start).ok_or_else(|| format!("no script {start}"))?;
     let mut c = Compiler::new(files, first, assets);
     c.vars.insert("$GameName".into(), Value::Str(start.to_string()));
     c.vars.insert("$GameStart".into(), Value::Int(1));
     c.vars.insert("$GameCircle".into(), Value::Int(1));
+    let mut queue = std::collections::VecDeque::from([(start.to_string(), c.snapshot())]);
+    let mut done = std::collections::HashSet::new();
+    let mut not_compiled = std::collections::BTreeSet::new();
     let mut played = Vec::new();
-    while played.len() < max_files && c.vars.get("$GameCircle").is_some_and(Value::truthy) {
-        let name = c.vars.get("$GameName").map(Value::string).unwrap_or_default();
+    while let Some((name, state)) = queue.pop_front() {
+        if done.contains(&name) {
+            continue;
+        }
         let Some((file, _)) = files.get_key_value(&name) else {
-            if !name.is_empty() {
-                c.note(format!("next file {name} doesn't exist"));
-            }
-            break;
+            c.note(format!("next file {name} doesn't exist"));
+            not_compiled.insert(name);
+            continue;
         };
-        c.ops.push(Op::Label(name.trim_end_matches(".nss").to_string()));
+        if played.len() >= max_files {
+            not_compiled.insert(name);
+            continue;
+        }
+        done.insert(name.clone());
+        not_compiled.remove(&name);
+        c.restore(state);
+        c.ops.push(Op::Label(file_label(&name)));
         c.file = file;
         c.call_scene(&format!("nss/{name}->{name}_MAIN"), false);
         c.sync(0);
         played.push(name.clone());
-        if c.vars.get("$GameName").map(Value::string).as_deref() == Some(name.as_str()) {
-            c.note("file didn't name a next file");
-            break;
+        // Branch states: the end of the file, with the variables each
+        // branch of a choice set differently.
+        let end = c.snapshot();
+        let branches = match c.pending_fork.take() {
+            None => vec![end],
+            Some(forks) => forks
+                .iter()
+                .map(|f| {
+                    let mut s = end.clone();
+                    for (k, v) in &f.vars {
+                        if forks[0].vars.get(k) != Some(v) {
+                            s.vars.insert(k.clone(), v.clone());
+                        }
+                    }
+                    for k in forks[0].vars.keys().filter(|k| !f.vars.contains_key(*k)) {
+                        s.vars.remove(k);
+                    }
+                    s
+                })
+                .collect(),
+        };
+        let fork = branches.len() > 1;
+        for (i, b) in branches.into_iter().enumerate() {
+            let next = b.vars.get("$GameName").map(Value::string).unwrap_or_default();
+            let target = if !b.vars.get("$GameCircle").is_some_and(Value::truthy) {
+                RUN_END.to_string()
+            } else if next == name || next.is_empty() {
+                c.note("file didn't name a next file");
+                RUN_END.to_string()
+            } else {
+                let l = file_label(&next);
+                if !done.contains(&next) {
+                    not_compiled.insert(next.clone());
+                    queue.push_back((next, b));
+                }
+                l
+            };
+            if fork {
+                c.ops.push(Op::If { var: CHOICE_VAR, cmp: conv_core::ir::Compare::Eq, value: i as i32, label: target });
+            } else {
+                c.ops.push(Op::Jump(target));
+            }
+        }
+        if fork {
+            c.ops.push(Op::Jump(RUN_END.to_string()));
         }
     }
+    // Files the run reaches but doesn't include end the game.
+    for name in not_compiled {
+        c.ops.push(Op::Label(file_label(&name)));
+    }
+    c.ops.push(Op::Label(RUN_END.to_string()));
     Ok((Compiled { ops: c.ops, window: c.first_window, notes: c.notes }, played))
+}
+
+/// Label of a story file's start.
+fn file_label(name: &str) -> String {
+    format!("f_{}", name.trim_end_matches(".nss"))
 }
 
 /// Files the story driver includes, directly or not, in include order.
@@ -355,9 +424,116 @@ struct Compiler<'a, 'b> {
     depth: usize,
     /// Helper functions being run.
     in_function: usize,
+    /// Choices compiled so far (for unique labels).
+    choices: usize,
+    /// The state at the end of each branch of the file's last choice.
+    pending_fork: Option<Vec<State<'a>>>,
+}
+
+/// What a branch of a choice changes at convert time.
+#[derive(Clone)]
+struct State<'a> {
+    vars: HashMap<String, Value>,
+    objects: BTreeMap<String, Object<'a>>,
+    aliases: HashMap<String, String>,
+    seq: u64,
+    shown: BTreeMap<String, Shown>,
+    font_size: i64,
+    window: Option<TextWindow>,
+    window_visible: bool,
 }
 
 impl<'a, 'b> Compiler<'a, 'b> {
+    fn snapshot(&self) -> State<'a> {
+        State {
+            vars: self.vars.clone(),
+            objects: self.objects.clone(),
+            aliases: self.aliases.clone(),
+            seq: self.seq,
+            shown: self.shown.clone(),
+            font_size: self.font_size,
+            window: self.window.clone(),
+            window_visible: self.window_visible,
+        }
+    }
+
+    fn restore(&mut self, s: State<'a>) {
+        self.vars = s.vars;
+        self.objects = s.objects;
+        self.aliases = s.aliases;
+        self.seq = s.seq;
+        self.shown = s.shown;
+        self.font_size = s.font_size;
+        self.window = s.window;
+        self.window_visible = s.window_visible;
+        self.pending_ms = 0;
+        self.pending_mask = None;
+    }
+
+    /// The `case`s of a select body, also inside `if`s (options shown
+    /// only after a clear: the condition is taken as it is now).
+    fn collect_cases(&mut self, stmts: &'a [Stmt], out: &mut Vec<&'a [Stmt]>) {
+        for s in stmts {
+            match &s.kind {
+                StmtKind::Case { body, .. } => out.push(body),
+                StmtKind::Block(b) => self.collect_cases(b, out),
+                StmtKind::If { cond, then, otherwise } => {
+                    if self.eval(cond).truthy() {
+                        self.collect_cases(then, out);
+                    } else if let Some(o) = otherwise {
+                        self.collect_cases(o, out);
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    /// `select { … case @x { … } … }`: the player picks a case. Each case
+    /// is compiled from the state before the choice; the code after the
+    /// choice goes on in the first case's state, and the run forks at the
+    /// end of the file (see [`compile_run`]). The statements before the
+    /// first `case` are the menu's input loop and are left out.
+    fn select(&mut self, body: &'a [Stmt]) {
+        let mut cases = Vec::new();
+        self.collect_cases(body, &mut cases);
+        if cases.is_empty() {
+            self.note("select without cases");
+            return;
+        }
+        self.sync(0);
+        let n = self.choices;
+        self.choices += 1;
+        // SetChoice02…06 keep the button texts in these parameters.
+        let texts: Vec<String> = (1..=cases.len())
+            .map(|i| {
+                let digit = char::from_u32('０' as u32 + i as u32).unwrap_or('?');
+                self.vars.get(&format!("$テキストデータ{digit}")).map(Value::string).filter(|t| !t.is_empty()).unwrap_or_else(|| format!("選択肢{i}"))
+            })
+            .collect();
+        let labels: Vec<String> = (0..cases.len()).map(|i| format!("choice{n}_{i}")).collect();
+        let after = format!("choice{n}_end");
+        self.ops.push(Op::Choice { options: texts.into_iter().zip(labels.iter().cloned()).collect() });
+        let base = self.snapshot();
+        let mut ends = Vec::new();
+        for (case, label) in cases.iter().zip(&labels) {
+            self.restore(base.clone());
+            self.ops.push(Op::Label(label.clone()));
+            let i = ends.len() as i32;
+            self.ops.push(Op::Arith { var: CHOICE_VAR, op: ArithOp::Set, value: Operand::Const(i) });
+            self.exec_block(case);
+            self.sync(0);
+            ends.push(self.snapshot());
+            self.ops.push(Op::Jump(after.clone()));
+        }
+        self.ops.push(Op::Label(after));
+        if self.pending_fork.is_some() {
+            self.note("second choice in one file (the run forks on the last one)");
+        }
+        self.restore(ends[0].clone());
+        self.pending_fork = Some(ends);
+    }
+
     fn new(files: &'a BTreeMap<String, NssFile>, file: &'a str, assets: &'b mut dyn Assets) -> Self {
         Compiler {
             files,
@@ -382,6 +558,8 @@ impl<'a, 'b> Compiler<'a, 'b> {
             notes: BTreeMap::new(),
             depth: 0,
             in_function: 0,
+            choices: 0,
+            pending_fork: None,
         }
     }
 
@@ -481,7 +659,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
                     }
                 }
             }
-            StmtKind::Select(_) => self.note("select (choices)"),
+            StmtKind::Select(body) => self.select(body),
             StmtKind::Case { .. } => {}
             StmtKind::CallScene(t) | StmtKind::CallChapter(t) => {
                 let chapter = matches!(stmt.kind, StmtKind::CallChapter(_));
@@ -1528,6 +1706,35 @@ scene a.nss
         assert_eq!(texts, [("　怪我をする。\u{1}痛い。\u{1}\nもがき苦しみ", true), ("　兵士", false)]);
         let wait = c.ops.iter().position(|op| matches!(op, Op::Wait { ms: 5 })).unwrap();
         assert!(matches!(c.ops[wait - 1], Op::Text { continues: true, .. }));
+    }
+
+    #[test]
+    fn a_choice_forks_the_run_to_each_branch_file() {
+        let mut files = BTreeMap::new();
+        files.insert(BOOT.to_string(), nss::parse("#include \"nss/function.nss\"\n").unwrap());
+        files.insert("function.nss".to_string(), nss::parse("function SetChoice02($テキストデータ１,$テキストデータ２){}").unwrap());
+        let main = |name: &str, body: &str| format!("scene {name}_MAIN\n{{\n{body}\n}}\n");
+        files.insert(
+            "a.nss".into(),
+            nss::parse(&main(
+                "a.nss",
+                r#"SetChoice02("はい","いいえ");
+	select { if($x){$x=0;} case @選択肢１ { $GameName = "b.nss"; $flag = 1; } case @選択肢２ { $GameName = "c.nss"; } }"#,
+            ))
+            .unwrap(),
+        );
+        files.insert("b.nss".into(), nss::parse(&main("b.nss", r#"$GameName = "d.nss";"#)).unwrap());
+        files.insert("c.nss".into(), nss::parse(&main("c.nss", r#"if($flag){$GameName = "b.nss";}else{$GameName = "d.nss";}"#)).unwrap());
+        files.insert("d.nss".into(), nss::parse(&main("d.nss", "$GameCircle = 0;")).unwrap());
+        let (c, played) = compile_run(&files, "a.nss", 10, &mut Fake).unwrap();
+        assert_eq!(played, ["a.nss", "b.nss", "c.nss", "d.nss"]);
+        let Some(Op::Choice { options }) = c.ops.iter().find(|op| matches!(op, Op::Choice { .. })) else { panic!() };
+        assert_eq!(options.iter().map(|o| o.0.as_str()).collect::<Vec<_>>(), ["はい", "いいえ"]);
+        assert!(c.ops.contains(&Op::If { var: CHOICE_VAR, cmp: conv_core::ir::Compare::Eq, value: 0, label: "f_b".into() }));
+        assert!(c.ops.contains(&Op::If { var: CHOICE_VAR, cmp: conv_core::ir::Compare::Eq, value: 1, label: "f_c".into() }));
+        // c.nss runs in the second branch's state: $flag unset, so on to d.
+        let c_start = c.ops.iter().position(|op| *op == Op::Label("f_c".into())).unwrap();
+        assert_eq!(c.ops[c_start + 1], Op::Jump("f_d".into()));
     }
 
     #[test]
