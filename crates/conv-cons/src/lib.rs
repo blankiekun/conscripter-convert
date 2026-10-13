@@ -9,7 +9,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::fmt::Write;
 
 use conv_core::ir::{
-    ArithOp, ConfirmDialog, Op, Operand, Script, Ruby, SlideLayer, SpritePlacement, TextLink, TextWindow, TitleAction, TitleScreen,
+    ArithOp, ConfirmDialog, Op, Operand, Script, Ruby, SlideLayer, TextStyle, SpritePlacement, TextLink, TextWindow, TitleAction, TitleScreen,
     TransitionStyle, Var, ZoomStyle,
 };
 
@@ -257,7 +257,7 @@ pub fn emit(script: &Script) -> String {
                     writeln!(out, "print {e}").unwrap();
                 }
             }
-            Op::Text { speaker, text, voice, links, ruby, continues } => {
+            Op::Text { speaker, text, voice, links, ruby, styles, continues } => {
                 if let Some(v) = voice {
                     if voice_switches {
                         write!(out, "if %{} == 0 ", menu::VOICE_OFF_BASE + v.character).unwrap();
@@ -276,7 +276,7 @@ pub fn emit(script: &Script) -> String {
                     Some(page)
                 };
                 let plate = window.as_ref().and_then(|w| w.name_plate.as_ref());
-                let mut body = with_markup(text, links, ruby);
+                let mut body = with_markup(text, links, ruby, styles);
                 // Sprite changes only show after a print, so print when the
                 // plate appears, changes or goes away.
                 match (speaker, plate) {
@@ -733,13 +733,13 @@ fn fade_effects(script: &Script) -> BTreeMap<(u32, Effect), u32> {
     keys.into_iter().zip(FIRST_EFFECT..).collect()
 }
 
-/// Escapes the text and wraps each link range in colour tags. Ranges are in
-/// characters of `text`; overlapping or out-of-range ones are skipped.
-/// The page text escaped, with link words coloured and ruby as NScripter's
-/// `(base/reading)`. The markup is added after escaping, which turns the
-/// text's own `(`, `/` and `)` full-width. Overlapping links, and ruby
-/// that crosses a line or a link's edge, are left out.
-fn with_markup(text: &str, links: &[TextLink], ruby: &[Ruby]) -> String {
+/// The page text escaped, with link words coloured, `styles` colours
+/// (where no link is) and ruby as NScripter's `(base/reading)`. The
+/// markup is added after escaping, which turns the text's own `(`, `/`
+/// and `)` full-width. Overlapping links, and ruby that crosses a line or
+/// a link's edge, are left out. Later styles win where they overlap;
+/// their sizes aren't drawn (ONScripter has no size tag).
+fn with_markup(text: &str, links: &[TextLink], ruby: &[Ruby], styles: &[TextStyle]) -> String {
     let chars: Vec<char> = text.chars().collect();
     let mut link_ranges: Vec<(usize, usize)> = Vec::new();
     let mut sorted: Vec<(usize, usize)> =
@@ -751,6 +751,17 @@ fn with_markup(text: &str, links: &[TextLink], ruby: &[Ruby]) -> String {
         }
     }
     let inside = |i: usize| link_ranges.iter().position(|&(s, e)| s <= i && i < e);
+    let mut colours: Vec<String> = vec![TEXT_COLOR.to_string(); chars.len()];
+    for st in styles {
+        if let Some(c) = st.colour {
+            for colour in colours.iter_mut().skip(st.start).take(st.len) {
+                *colour = format!("#{c:06X}");
+            }
+        }
+    }
+    for &(s, e) in &link_ranges {
+        colours[s..e].fill(LINK_COLOR.to_string());
+    }
     let mut readings: Vec<&Ruby> = ruby
         .iter()
         .filter(|r| {
@@ -765,10 +776,12 @@ fn with_markup(text: &str, links: &[TextLink], ruby: &[Ruby]) -> String {
 
     let mut out = String::new();
     let mut readings = readings.into_iter().peekable();
+    let mut current = TEXT_COLOR;
     let mut i = 0;
     while i < chars.len() {
-        if link_ranges.iter().any(|&(s, _)| s == i) {
-            out.push_str(LINK_COLOR);
+        if chars[i] != '\n' && colours[i] != current {
+            current = &colours[i];
+            out.push_str(current);
         }
         while readings.peek().is_some_and(|r| r.start < i) {
             readings.next(); // overlaps the previous one
@@ -781,7 +794,9 @@ fn with_markup(text: &str, links: &[TextLink], ruby: &[Ruby]) -> String {
             out.push_str(&escape(&chars[i].to_string()));
             i += 1;
         }
-        if link_ranges.iter().any(|&(_, e)| e == i) {
+        // Colour tags last past the page: end on the text colour.
+        if current != TEXT_COLOR && chars.get(i).is_none_or(|&c| c == '\n' || colours[i] == TEXT_COLOR) {
+            current = TEXT_COLOR;
             out.push_str(TEXT_COLOR);
         }
     }
@@ -925,6 +940,7 @@ mod tests {
                 voice: None,
                 links: vec![link(4, 2, Some("s10_l1")), link(0, 1, None)],
                 ruby: vec![],
+                styles: vec![],
                 continues: false,
             },
         ]);
@@ -975,7 +991,7 @@ goto *conv_link1
                 style: TransitionStyle::Fade,
             },
             Op::Background { image: "bg/b.png".into(), fade_ms: 500 },
-            Op::Text { speaker: None, text: "あ".into(), voice: None, links: vec![], ruby: vec![], continues: false },
+            Op::Text { speaker: None, text: "あ".into(), voice: None, links: vec![], ruby: vec![], styles: vec![], continues: false },
         ]);
         let text = emit(&s);
         assert!(text.contains("effect 2,10,500\neffect 3,18,1000,\"system\\mask0009r.png\"\neffect 4,10,2000\n"), "{text}");
@@ -1008,7 +1024,7 @@ print 3
             begin(TransitionStyle::Mosaic),
             Op::EndTransition,
             begin(TransitionStyle::Zoom { style: ZoomStyle::Cross, max_percent: 220, curve: 5 }),
-            Op::Text { speaker: None, text: "あ".into(), voice: None, links: vec![], ruby: vec![], continues: false },
+            Op::Text { speaker: None, text: "あ".into(), voice: None, links: vec![], ruby: vec![], styles: vec![], continues: false },
         ]);
         let text = emit(&s);
         let defs = "\
@@ -1026,7 +1042,7 @@ effect 6,99,1000,\"cons_zoom.dll/3,220,5\"
     fn title_screen_runs_before_the_script() {
         use conv_core::ir::TitleButton;
         let button = |image: &str, action| TitleButton { image: image.into(), x: 600, y: 200, action };
-        let mut s = script(vec![Op::Text { speaker: None, text: "あ".into(), voice: None, links: vec![], ruby: vec![], continues: false }]);
+        let mut s = script(vec![Op::Text { speaker: None, text: "あ".into(), voice: None, links: vec![], ruby: vec![], styles: vec![], continues: false }]);
         s.title_screen = Some(TitleScreen {
             background: "system/title.png".into(),
             fade_ms: 1000,
@@ -1056,7 +1072,7 @@ effect 6,99,1000,\"cons_zoom.dll/3,220,5\"
         let mut nvl = window();
         nvl.name_plate = None;
         nvl.image = "system/textwnd5.png".into();
-        let text = |t: &str, continues| Op::Text { speaker: None, text: t.into(), voice: None, links: vec![], ruby: vec![], continues };
+        let text = |t: &str, continues| Op::Text { speaker: None, text: t.into(), voice: None, links: vec![], ruby: vec![], styles: vec![], continues };
         let s = script(vec![Op::SetWindow(nvl), text("一行目", true), text("二行目", false), text("新頁", false)]);
         let out = emit(&s);
         assert!(out.contains("\":a;system\\textwnd5.png\",47,452\ncsp 51:csp 50\n一行目@\n二行目\\\n新頁\\\n"), "{out}");
@@ -1111,8 +1127,8 @@ effect 6,99,1000,\"cons_zoom.dll/3,220,5\"
                 ],
             },
             Op::Sprites { changes: vec![SpriteChange { layer: 3, sprite: None, keep_filters: false }], fade_ms: 0 },
-            Op::Text { speaker: Some("名前".into()), text: "「こんにちは」".into(), voice: None, links: vec![], ruby: vec![], continues: false },
-            Op::Text { speaker: None, text: "地の文。".into(), voice: Some(Voice { file: "voice/v1.ogg".into(), character: 3 }), links: vec![link(1, 2, None)], ruby: vec![], continues: false },
+            Op::Text { speaker: Some("名前".into()), text: "「こんにちは」".into(), voice: None, links: vec![], ruby: vec![], styles: vec![], continues: false },
+            Op::Text { speaker: None, text: "地の文。".into(), voice: Some(Voice { file: "voice/v1.ogg".into(), character: 3 }), links: vec![link(1, 2, None)], ruby: vec![], styles: vec![], continues: false },
             Op::SePlay { file: "se/k001.ogg".into(), looped: true },
             Op::SeStop { file: Some("se/k001.ogg".into()) },
             Op::BgmStop { fade_out_ms: 2000 },
@@ -1160,8 +1176,8 @@ end
     fn adv_window_and_name_plate() {
         use conv_core::ir::{NamePlate, TextWindow};
         let mut s = script(vec![
-            Op::Text { speaker: Some("名前".into()), text: "「台詞」".into(), voice: None, links: vec![], ruby: vec![], continues: false },
-            Op::Text { speaker: None, text: "Ghost".into(), voice: None, links: vec![], ruby: vec![], continues: false },
+            Op::Text { speaker: Some("名前".into()), text: "「台詞」".into(), voice: None, links: vec![], ruby: vec![], styles: vec![], continues: false },
+            Op::Text { speaker: None, text: "Ghost".into(), voice: None, links: vec![], ruby: vec![], styles: vec![], continues: false },
         ]);
         s.window = Some(TextWindow {
             image: "system/window.png".into(),
@@ -1204,10 +1220,10 @@ end
         });
         let voice = |n: &str| Some(Voice { file: format!("voice/{n}.ogg"), character: 1 });
         s.ops = vec![
-            Op::Text { speaker: None, text: "地の文".into(), voice: None, links: vec![], ruby: vec![], continues: true },
-            Op::Text { speaker: Some("名前".into()), text: "「一」\n「二」".into(), voice: voice("a"), links: vec![], ruby: vec![], continues: true },
-            Op::Text { speaker: Some("他".into()), text: "「三」".into(), voice: voice("b"), links: vec![], ruby: vec![], continues: false },
-            Op::Text { speaker: None, text: "地の文".into(), voice: None, links: vec![], ruby: vec![], continues: false },
+            Op::Text { speaker: None, text: "地の文".into(), voice: None, links: vec![], ruby: vec![], styles: vec![], continues: true },
+            Op::Text { speaker: Some("名前".into()), text: "「一」\n「二」".into(), voice: voice("a"), links: vec![], ruby: vec![], styles: vec![], continues: true },
+            Op::Text { speaker: Some("他".into()), text: "「三」".into(), voice: voice("b"), links: vec![], ruby: vec![], styles: vec![], continues: false },
+            Op::Text { speaker: None, text: "地の文".into(), voice: None, links: vec![], ruby: vec![], styles: vec![], continues: false },
         ];
         let text = emit(&s);
         assert!(text.contains("pretextgosub *conv_pretext\n"));
@@ -1226,6 +1242,7 @@ end
             voice: None,
             links: vec![link(4, 3, None)],
             ruby: vec![],
+            styles: vec![],
             continues: false,
         }]);
         assert!(emit(&s).contains("一行目\n　#F0C040abc #FFFFFF\n三行目\\\n"));
@@ -1233,8 +1250,8 @@ end
 
     #[test]
     fn links_are_coloured() {
-        assert_eq!(with_markup("あいうえお", &[link(1, 2, None), link(3, 9, None)], &[]), "あ#F0C040いう#FFFFFFえお");
-        assert_eq!(with_markup("a#b", &[], &[]), "a＃b");
+        assert_eq!(with_markup("あいうえお", &[link(1, 2, None), link(3, 9, None)], &[], &[]), "あ#F0C040いう#FFFFFFえお");
+        assert_eq!(with_markup("a#b", &[], &[], &[]), "a＃b");
     }
 
     #[test]
@@ -1333,16 +1350,31 @@ end
     }
 
     #[test]
+    fn style_colours() {
+        let st = |start, len, colour| TextStyle { start, len, colour, size: None };
+        // Each line returns to the text colour; links win over styles.
+        assert_eq!(
+            with_markup("あいう\nえお", &[], &[], &[st(1, 4, Some(0xffff00))]),
+            "あ#FFFF00いう#FFFFFF\n#FFFF00え#FFFFFFお"
+        );
+        assert_eq!(
+            with_markup("あいうえ", &[link(2, 1, None)], &[], &[st(0, 4, Some(0x00ff00)), st(3, 1, Some(0x0000ff))]),
+            "#00FF00あい#F0C040う#0000FFえ#FFFFFF"
+        );
+        assert_eq!(with_markup("あい", &[], &[], &[st(0, 2, None)]), "あい");
+    }
+
+    #[test]
     fn ruby_markup() {
         let r = |start, len, text: &str| Ruby { start, len, text: text.into() };
         // After escaping: the text's own parentheses stay full-width.
-        assert_eq!(with_markup("(戦ぐ)", &[], &[r(1, 1, "そよ")]), "（(戦/そよ)ぐ）");
+        assert_eq!(with_markup("(戦ぐ)", &[], &[r(1, 1, "そよ")], &[]), "（(戦/そよ)ぐ）");
         // Inside a link, but not across its edge or a line.
         assert_eq!(
-            with_markup("あ獄い\nう", &[link(0, 3, None)], &[r(1, 1, "ひとや"), r(2, 3, "x")]),
+            with_markup("あ獄い\nう", &[link(0, 3, None)], &[r(1, 1, "ひとや"), r(2, 3, "x")], &[]),
             "#F0C040あ(獄/ひとや)い#FFFFFF\nう"
         );
-        assert_eq!(with_markup("あいう", &[link(1, 2, None)], &[r(0, 2, "x")]), "あ#F0C040いう#FFFFFF");
+        assert_eq!(with_markup("あいう", &[link(1, 2, None)], &[r(0, 2, "x")], &[]), "あ#F0C040いう#FFFFFF");
         // ONScripter reads the markup one byte at a time.
         assert_eq!(align_single_bytes("a(獄/ひとや)"), "a (獄/ひとや)");
     }
@@ -1355,6 +1387,7 @@ end
             voice: None,
             links: vec![],
             ruby: vec![Ruby { start: 0, len: 1, text: "ひとや".into() }],
+            styles: vec![],
             continues: false,
         }]);
         s.window = Some(window());

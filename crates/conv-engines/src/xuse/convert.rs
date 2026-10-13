@@ -10,14 +10,14 @@ use std::path::{Path, PathBuf};
 
 use thiserror::Error;
 use conv_core::ir::{
-    ArithOp, Backlog, BarAction, BarButton, ButtonBar, ConfirmDialog, NamePlate, Setting, SettingRow, SettingsMenu, Op, Operand, PageButton, Placed, Rect, Ruby, SaveMenu, SourceLoc, Voice, VoiceToggle,
+    ArithOp, Backlog, BarAction, BarButton, ButtonBar, ConfirmDialog, NamePlate, Setting, SettingRow, SettingsMenu, Op, Operand, PageButton, Placed, Rect, Ruby, SaveMenu, TextSize, TextStyle, SourceLoc, Voice, VoiceToggle,
     SpriteChange, SpriteFilter, SpritePlacement, TextLink, TextSpot, TextWindow, TitleAction, TitleButton, TitleScreen, TopBars,
     SlideLayer, TransitionStyle, Var, ZoomStyle, FILTER_BLEND_ADD, FILTER_BLEND_COPY, FILTER_BLEND_MULTIPLY, FILTER_BLEND_SCREEN, FILTER_BRIGHTNESS, FILTER_COLOUR,
     FILTER_GREYSCALE, FILTER_NEGATIVE,
 };
 
 use crate::xuse::cd::{
-    CdError, CdScript, Instr, Link, PresetModule, Ruby as RubyRecord, Sound, SpriteEntry, PRESET_BLEND_ADD, PRESET_BLEND_ALPHA, PRESET_BLEND_COPY,
+    CdError, CdScript, Instr, Link, PresetModule, Ruby as RubyRecord, Sound, SpriteEntry, TextStyle as StyleRecord, PRESET_BLEND_ADD, PRESET_BLEND_ALPHA, PRESET_BLEND_COPY,
     PRESET_BLEND_MULTI, PRESET_BLEND_SCREEN, PRESET_KIND_BRIGHTNESS, PRESET_KIND_COLOUR, PRESET_KIND_GREYSCALE,
     PRESET_KIND_NEGATIVE,
 };
@@ -1186,6 +1186,7 @@ pub fn lower_script(
     // Links (opcode 0x46) apply to the next message.
     let mut pending_links: Vec<Link> = Vec::new();
     let mut pending_ruby: Vec<RubyRecord> = Vec::new();
+    let mut pending_styles: Vec<StyleRecord> = Vec::new();
     // A transition armed by 0x76 and not yet waited on (file order).
     let mut transition_armed = false;
     // Full-screen text mode (file order): rows of the window, the index of
@@ -1204,6 +1205,10 @@ pub fn lower_script(
         }
         if let Some(ruby) = cd.ruby(ins) {
             pending_ruby.push(ruby?);
+            continue;
+        }
+        if let Some(style) = cd.text_style(ins) {
+            pending_styles.push(style?);
             continue;
         }
         let at = || SourceLoc { file: file.to_string(), index };
@@ -1284,19 +1289,19 @@ pub fn lower_script(
             }
             continue;
         }
-        let (links, ruby) = if cd.message(ins).is_some() {
-            (std::mem::take(&mut pending_links), std::mem::take(&mut pending_ruby))
+        let (links, ruby, styles) = if cd.message(ins).is_some() {
+            (std::mem::take(&mut pending_links), std::mem::take(&mut pending_ruby), std::mem::take(&mut pending_styles))
         } else {
-            (Vec::new(), Vec::new())
+            (Vec::new(), Vec::new(), Vec::new())
         };
         let unsupported = || format!("opcode {:#04x} sub {:#x} arg {}", ins.op, ins.sub, ins.arg);
-        match lower_instr(cd, ins, &links, &ruby, assets, names) {
-            Ok(Some(Op::Text { speaker, text, voice, mut links, ruby, continues })) if flow == Flow::Linear => {
+        match lower_instr(cd, ins, &links, &ruby, &styles, assets, names) {
+            Ok(Some(Op::Text { speaker, text, voice, mut links, ruby, styles, continues })) if flow == Flow::Linear => {
                 // No jumps in linear mode, so links are colour only.
                 links.iter_mut().for_each(|l| l.target = None);
-                ops.push(Op::Text { speaker, text, voice, links, ruby, continues });
+                ops.push(Op::Text { speaker, text, voice, links, ruby, styles, continues });
             }
-            Ok(Some(Op::Text { speaker, text, voice, links, ruby, .. })) => {
+            Ok(Some(Op::Text { speaker, text, voice, links, ruby, styles, .. })) => {
                 let lines = text.split('\n').count();
                 if let (Some(rows), Some((i, used))) = (full_screen_rows, last_text) {
                     let joins = !page_break && used + lines <= rows;
@@ -1309,7 +1314,7 @@ pub fn lower_script(
                     last_text = Some((ops.len(), lines));
                 }
                 page_break = false;
-                ops.push(Op::Text { speaker, text, voice, links, ruby, continues: false });
+                ops.push(Op::Text { speaker, text, voice, links, ruby, styles, continues: false });
             }
             Ok(Some(Op::Gosub(target))) => {
                 let preset = presets.window.get(&target).copied();
@@ -1363,11 +1368,41 @@ fn ruby_range(body: &[String], ruby: &RubyRecord) -> Option<(usize, usize)> {
     Some((before + col, len))
 }
 
+/// Size [`StyleRecord::size`] that keeps the window's size.
+const STYLE_SIZE_KEEP: u16 = 0xf000;
+/// Colour [`StyleRecord::colour`] that keeps the text colour.
+const STYLE_COLOUR_KEEP: u32 = 0xff00_0000;
+
+/// A 0x49 record as a range of the text lines `body` joined with '\n'.
+/// Length 30000 (or any past the end) runs to the end of the line.
+fn text_style(body: &[String], s: &StyleRecord) -> Option<TextStyle> {
+    let line = usize::from(s.line).checked_sub(1)?;
+    let col = usize::from(s.column).checked_sub(1)?;
+    let chars = body.get(line)?.chars().count();
+    let len = usize::from(s.length).min(chars.checked_sub(col)?);
+    let colour = (s.colour != STYLE_COLOUR_KEEP).then(|| {
+        // COLORREF 0x00BBGGRR to 0xRRGGBB
+        let [r, g, b, _] = s.colour.to_le_bytes();
+        u32::from_be_bytes([0, r, g, b])
+    });
+    let size = match s.size {
+        STYLE_SIZE_KEEP => None,
+        n if n >= 0x1000 => Some(TextSize::Preset(n - 0x1000)),
+        n => Some(TextSize::Percent(n)),
+    };
+    if len == 0 || (colour.is_none() && size.is_none()) {
+        return None;
+    }
+    let before: usize = body[..line].iter().map(|s| s.chars().count() + 1).sum();
+    Some(TextStyle { start: before + col, len, colour, size })
+}
+
 fn lower_instr(
     cd: &CdScript,
     ins: &Instr,
     links: &[Link],
     ruby: &[RubyRecord],
+    styles: &[StyleRecord],
     assets: &mut AssetBank,
     names: &LabelNames,
 ) -> Result<Option<Op>, ConvertError> {
@@ -1400,7 +1435,8 @@ fn lower_instr(
                 Some(Ruby { start, len, text: r.text.clone() })
             })
             .collect();
-        return Ok(Some(Op::Text { speaker, text: body.join("\n"), voice, links, ruby, continues: false }));
+        let styles = styles.iter().filter_map(|s| text_style(body, s)).collect();
+        return Ok(Some(Op::Text { speaker, text: body.join("\n"), voice, links, ruby, styles, continues: false }));
     }
     if let Some(sound) = cd.sound(ins) {
         return Ok(Some(match sound? {
@@ -1707,6 +1743,29 @@ mod tests {
         assert_eq!(ruby_range(&body, &ruby(1, 3, 3)), None);
         assert_eq!(ruby_range(&body, &ruby(3, 1, 1)), None);
         assert_eq!(ruby_range(&body, &ruby(0, 1, 1)), None);
+    }
+
+    #[test]
+    fn text_style_ranges() {
+        let body: Vec<String> = ["「牛めし", "　……カルビ"].iter().map(|s| s.to_string()).collect();
+        let style = |line, column, length, size, colour| StyleRecord { line, column, length, size, colour, edge: STYLE_COLOUR_KEEP };
+        // 30000 runs to the end of the line; sizes below 0x1000 are percent.
+        assert_eq!(
+            text_style(&body, &style(2, 1, 30000, 94, STYLE_COLOUR_KEEP)),
+            Some(TextStyle { start: 5, len: 6, colour: None, size: Some(TextSize::Percent(94)) })
+        );
+        // COLORREF 0x00BBGGRR; 0xf000 keeps the size.
+        assert_eq!(
+            text_style(&body, &style(1, 2, 2, STYLE_SIZE_KEEP, 0x00d3_55ba)),
+            Some(TextStyle { start: 1, len: 2, colour: Some(0xba55d3), size: None })
+        );
+        assert_eq!(
+            text_style(&body, &style(1, 1, 1, 0x1006, STYLE_COLOUR_KEEP)).and_then(|s| s.size),
+            Some(TextSize::Preset(6))
+        );
+        assert_eq!(text_style(&body, &style(1, 1, 30000, STYLE_SIZE_KEEP, STYLE_COLOUR_KEEP)), None);
+        assert_eq!(text_style(&body, &style(3, 1, 1, 90, STYLE_COLOUR_KEEP)), None);
+        assert_eq!(text_style(&body, &style(1, 6, 1, 90, STYLE_COLOUR_KEEP)), None);
     }
 
     #[test]

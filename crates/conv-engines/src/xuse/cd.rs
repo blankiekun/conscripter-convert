@@ -124,6 +124,8 @@ pub const OP_VOICED_MESSAGE: u16 = 0x41;
 pub const OP_LINK: u16 = 0x46;
 /// Ruby (furigana) for the next message (handler from `TextRuby.cpp`).
 pub const OP_RUBY: u16 = 0x44;
+/// Size and colour for characters of the next message (handler 0x477990).
+pub const OP_TEXT_STYLE: u16 = 0x49;
 pub const OP_BACKGROUND: u16 = 0x54;
 pub const OP_SPRITES: u16 = 0x8e;
 const SPRITE_ENTRY_LEN: usize = 44;
@@ -210,6 +212,23 @@ pub struct Ruby {
     pub length: u16,
     pub flags: u16,
     pub text: String,
+}
+
+/// Opcode 0x49: size and colour for characters of the next message.
+/// Record: u16 line, u16 column, u16 length (30000 = to the end of the
+/// line), u16 size, u32 colour, u32 edge colour. Lines and columns count as
+/// for ruby. Size: a percentage (80-120) below 0x1000, 0x1003-0x1007
+/// presets (0x1003 for mumbling, 0x1005-0x1007 for shouting), 0xf000 to
+/// keep the size. Colours are Windows COLORREFs (0x00BBGGRR);
+/// 0xff000000 keeps the colour.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TextStyle {
+    pub line: u16,
+    pub column: u16,
+    pub length: u16,
+    pub size: u16,
+    pub colour: u32,
+    pub edge: u32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -411,6 +430,23 @@ impl<'a> CdScript<'a> {
                 text: self
                     .pool_string(o + 12)
                     .ok_or(CdError::BadOperand { offset: o, reason: "ruby is not valid Shift-JIS" })?,
+            })
+        })
+    }
+
+    /// Decodes the record of a text style instruction, or returns `None`
+    /// for other opcodes.
+    pub fn text_style(&self, ins: &Instr) -> Option<Result<TextStyle, CdError>> {
+        (ins.op == OP_TEXT_STYLE).then(|| {
+            let r = Reader(self.pool);
+            let o = ins.arg as u32 as usize;
+            Ok(TextStyle {
+                line: r.u16(o)?,
+                column: r.u16(o + 2)?,
+                length: r.u16(o + 4)?,
+                size: r.u16(o + 6)?,
+                colour: r.u32(o + 8)?,
+                edge: r.u32(o + 12)?,
             })
         })
     }

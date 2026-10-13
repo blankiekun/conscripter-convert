@@ -150,6 +150,25 @@ pub struct Ruby {
     pub text: String,
 }
 
+/// Size and colour for characters of a text page.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TextStyle {
+    /// Character range in the page text.
+    pub start: usize,
+    pub len: usize,
+    /// 0xRRGGBB; `None` keeps the colour.
+    pub colour: Option<u32>,
+    pub size: Option<TextSize>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TextSize {
+    /// Percent of the window's font size.
+    Percent(u16),
+    /// One of the original engine's preset sizes (sizes not known yet).
+    Preset(u16),
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Op {
     Label(String),
@@ -184,10 +203,11 @@ pub enum Op {
     SpriteFilters { layer: u32, filters: Vec<SpriteFilter> },
     /// One page of text, shown and then waited on. `text` may contain '\n'
     /// for line breaks. `links` are the words the original game made
-    /// clickable. `ruby`: readings shown above some of the words.
+    /// clickable. `ruby`: readings shown above some of the words. `styles`:
+    /// sizes and colours of some of the characters.
     /// `continues`: the next page is added below this one after a click
     /// instead of replacing it (full-screen text modes).
-    Text { speaker: Option<String>, text: String, voice: Option<Voice>, links: Vec<TextLink>, ruby: Vec<Ruby>, continues: bool },
+    Text { speaker: Option<String>, text: String, voice: Option<Voice>, links: Vec<TextLink>, ruby: Vec<Ruby>, styles: Vec<TextStyle>, continues: bool },
     /// Switch to another text window layout; the page starts empty.
     SetWindow(TextWindow),
     BgmPlay { file: String, fade_in_ms: u32 },

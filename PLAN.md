@@ -333,7 +333,7 @@ offset of its operand record.
 | `0x90` | 651 | **solved** (handler `0x434960`) | attach a preset to a bust-up: u16 character, u32 module field, u32 preset (0 = remove). Module type 1 = `CModule_Preset`. Converted to CONscripter's `spfilter`, reading the preset from variables (§4.2) |
 | `0x54` | 2,195 | **solved**: `arg` = background number, 1-based (0 = none, skipped by the handler); `bg*.004` holds 64 per file (`n >> 6` in the exe's loader at `0x40bff0`). The most common is 1 = `Black` | set background (sub 0/1: transition variant?) |
 | `0x46` | 214 | **solved** (from the handler at `0x477460` plus a user-supplied example) | **hyperlink** on the next message: row, column, length, style, target (see 3c) |
-| `0x49` | 565 | flags, two colours, a voice-range id, then text + a short name | special voiced text display (chat/popup?); **not** hyperlinks |
+| `0x49` | 565 | **solved** (handler `0x477990`): u16 line, u16 column, u16 length (30000 = to the end of the line), u16 size (80-120 = percent; 0x1003 mumbling, 0x1005-0x1007 shouting presets; 0xf000 = keep), u32 colour (COLORREF, 0xff000000 = keep), u32 edge colour; lines and columns count as for ruby | size and colour for characters of the next message. Colours are converted to `#RRGGBB` tags (chat-log handles, two-speaker lines); sizes are not drawn (ONScripter has no size tag) |
 | `0x57` | 542 | **solved** (handler `0x473530` → sound request `0x47aab0`, channel 0) | play BGM: `arg` = track (1-based, `bm0000.bin` slot `arg - 1`), `sub` = fade-in ms (capped at 30 s) |
 | `0x58` | 579 | **solved** (channel 0, stop flag) | stop BGM: `arg` 0 = all, `sub` = fade-out ms |
 | `0x5a` | 2,633 | **solved** (channel 1) | play SE: packed 9-byte record `u32 ?, u8 loop, u32 sound` (1-based across `k0000.bin` + `k0001.bin`) |
@@ -517,7 +517,8 @@ parts are not converted:
 - Button bar lock button (`SysTray.004` #9).
 
 **Script opcodes** (counts are remaining uses):
-- `0x49` (565): special text display (chat or popup style);
+- `0x49` sizes (about 400 messages: shouting larger, mumbling smaller;
+  colours are converted): needs a CONscripter text tag for the size;
 - `0x70` (457): unknown;
 - `0x93`/`0x94` (418): before each chapter end, unknown;
 - `0x4d` (276), `0x55` (252), `0x8c` (240), `0x6d` (198), `0x7a`/`0x7b`
