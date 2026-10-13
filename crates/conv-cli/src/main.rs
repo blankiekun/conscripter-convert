@@ -111,6 +111,12 @@ enum NssCommand {
         /// Directory with all the game's *.nss files (as extracted from nss.npa)
         dir: PathBuf,
     },
+    /// Print the route map: each story file's next files and the
+    /// conditions or choices that lead there
+    Route {
+        /// Directory with all the game's *.nss files (as extracted from nss.npa)
+        dir: PathBuf,
+    },
 }
 
 #[derive(Subcommand)]
@@ -221,6 +227,7 @@ fn main() -> Result<()> {
         Command::Nss { command } => match command {
             NssCommand::Check { paths } => nss_check(&paths),
             NssCommand::Refs { dir } => nss_refs(&dir),
+            NssCommand::Route { dir } => nss_route(&dir),
         },
     }
 }
@@ -807,8 +814,9 @@ fn nss_check(paths: &[PathBuf]) -> Result<()> {
     Ok(())
 }
 
-fn nss_refs(dir: &Path) -> Result<()> {
-    use conv_engines::nitroplus::{nss, refs};
+/// All `*.nss` in `dir`, parsed, by file name.
+fn nss_corpus(dir: &Path) -> Result<std::collections::BTreeMap<String, conv_engines::nitroplus::nss::NssFile>> {
+    use conv_engines::nitroplus::nss;
     let mut files = std::collections::BTreeMap::new();
     for path in nss_files(&[dir.to_path_buf()])? {
         let bytes = fs::read(&path).with_context(|| format!("reading {}", path.display()))?;
@@ -816,6 +824,52 @@ fn nss_refs(dir: &Path) -> Result<()> {
         let name = path.file_name().unwrap().to_string_lossy().into_owned();
         files.insert(name, file);
     }
+    Ok(files)
+}
+
+fn nss_route(dir: &Path) -> Result<()> {
+    use conv_engines::nitroplus::route::{self, Next};
+    let map = route::build(&nss_corpus(dir)?);
+    println!("Starts: {}", map.starts.join(", "));
+    let mut from = "";
+    let (mut ends, mut unknown) = (0, 0);
+    for e in &map.edges {
+        if e.from != from {
+            from = &e.from;
+            println!("{from}");
+        }
+        let to = match &e.to {
+            Next::File(f) => format!("-> {f}"),
+            Next::End(why) => {
+                ends += 1;
+                format!("END ({why})")
+            }
+            Next::Unknown(why) => {
+                unknown += 1;
+                format!("?? ({why})")
+            }
+        };
+        if e.path.is_empty() {
+            println!("  {to}");
+        } else {
+            println!("  {to}   [{}]", e.path.join("; "));
+        }
+    }
+    println!("\nUnreachable story files ({}):", map.unreachable.len());
+    for f in &map.unreachable {
+        println!("  {f}");
+    }
+    println!(
+        "\n{} reachable story files, {} edges, {ends} ends, {unknown} unresolved",
+        map.reachable.len(),
+        map.edges.len()
+    );
+    Ok(())
+}
+
+fn nss_refs(dir: &Path) -> Result<()> {
+    use conv_engines::nitroplus::refs;
+    let files = nss_corpus(dir)?;
     let report = refs::check(&files);
     for p in &report.problems {
         println!("{p}");

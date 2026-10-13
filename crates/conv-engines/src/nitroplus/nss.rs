@@ -196,6 +196,72 @@ pub enum BinaryOp {
     Rem,
 }
 
+impl fmt::Display for Var {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Var::Local(n) => write!(f, "${n}"),
+            Var::Global(n) => write!(f, "#{n}"),
+        }
+    }
+}
+
+impl BinaryOp {
+    fn symbol(self) -> &'static str {
+        match self {
+            BinaryOp::Or => "||",
+            BinaryOp::And => "&&",
+            BinaryOp::Eq => "==",
+            BinaryOp::Ne => "!=",
+            BinaryOp::Lt => "<",
+            BinaryOp::Gt => ">",
+            BinaryOp::Le => "<=",
+            BinaryOp::Ge => ">=",
+            BinaryOp::Add => "+",
+            BinaryOp::Sub => "-",
+            BinaryOp::Mul => "*",
+            BinaryOp::Div => "/",
+            BinaryOp::Rem => "%",
+        }
+    }
+}
+
+/// Source-like form (fully parenthesised binary operations).
+impl fmt::Display for Expr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Expr::Int(v) => write!(f, "{v}"),
+            Expr::Float(v) => write!(f, "{v}"),
+            Expr::Str(s) => write!(f, "\"{s}\""),
+            Expr::Color(c) => write!(f, "#{c:06x}"),
+            Expr::Word(w) => f.write_str(w),
+            Expr::Var(v) => write!(f, "{v}"),
+            Expr::Index { base, index } => write!(f, "{base}[{index}]"),
+            Expr::Call { name, args } => {
+                write!(f, "{name}(")?;
+                for (i, a) in args.iter().enumerate() {
+                    if i > 0 {
+                        f.write_str(", ")?;
+                    }
+                    write!(f, "{a}")?;
+                }
+                f.write_str(")")
+            }
+            Expr::Unary { op, expr } => {
+                let op = match op {
+                    UnaryOp::Neg => "-",
+                    UnaryOp::Not => "!",
+                    UnaryOp::Relative => "@",
+                };
+                write!(f, "{op}{expr}")
+            }
+            Expr::Binary { op, left, right } => write!(f, "({left} {} {right})", op.symbol()),
+            Expr::Point { control: false, x, y } => write!(f, "({x},{y})"),
+            Expr::Point { control: true, x, y } => write!(f, "{{{x},{y}}}"),
+            Expr::Path(points) => points.iter().try_for_each(|p| write!(f, "{p}")),
+        }
+    }
+}
+
 /// A `<PRE>` text block.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Text {
