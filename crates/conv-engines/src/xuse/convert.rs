@@ -149,6 +149,29 @@ const OP_OVERLAY: u16 = 0x55;
 /// The game uses layer 2 (34 uses, characters 1-60) and layer 1 depth 2
 /// (3, the overlay "bg-2" of 0x55) and depth 1 (1, after 0x56).
 const OP_OPACITY: u16 = 0x82;
+/// Puts an object at a position (handler 0x413bb0): u8 layer, u32 depth
+/// (found as in 0x82), i32 x, y, the centre in 0x8e's coordinates.
+const OP_POSITION: u16 = 0x7f;
+/// Adds a module to an object or removes one (handler 0x413540, then
+/// 0x413350): u8 layer, u32 depth (found as in 0x82), u32 slot, u32 kind.
+/// Kind 0x80000001 removes the slot's module; any other kind makes a
+/// key-frame motion (`AdvObject::CModule_Animation_KeyFrameMotion`, setup
+/// 0x416fe0) and is its flags: which fields the key frames have, in this
+/// order after the u32 time in ms: 0x10 u8; 0x20 i32, i32, u8; 0x40 the
+/// position (i32 x, y; u8); 0x80 i32, i32, u8; 0x100 the rotation (i32,
+/// tenths of a degree?; u8); 0x200 the opacity (u16; u8). Each u8 is how
+/// the field moves towards that key frame (0x4176f0: 0 kept, 1 a jump
+/// halfway, 2 linear, 3 a curve). A u16 key frame count follows the flags;
+/// the first key frame (time 0) is replaced by the object's state. The
+/// game slides bust-ups (9 uses, linear, one with a rotation of -900) and
+/// fades the overlay out once (opacity).
+const OP_MODULE: u16 = 0x86;
+const MODULE_REMOVE: u32 = 0x8000_0001;
+const MOTION_POSITION: u32 = 0x40;
+/// Waits for an object's module to finish (handler 0x413820): u8 layer,
+/// u32 depth, u32 slot, u8 (0xff). Each slide is followed by this wait,
+/// the removal of the module and a 0x7f to the end point.
+const OP_MODULE_WAIT: u16 = 0x87;
 /// Effect presets (0x88 defines a module, 0x90 attaches a preset to a
 /// bust-up) are kept in variables, so they follow the game's control flow:
 /// preset p, slot s is [`PRESET_FIELDS`] local variables from
@@ -1606,6 +1629,62 @@ fn preset_filters(preset: u32) -> Option<Vec<SpriteFilter>> {
     }
 }
 
+/// An opcode 0x86 record ([`OP_MODULE`]).
+#[derive(Debug)]
+struct Motion {
+    layer: u8,
+    depth: u32,
+    flags: u32,
+    /// The second key frame of a two-frame key-frame motion whose position
+    /// moves linearly; `None` for a removal and for other motions.
+    end: Option<MotionEnd>,
+}
+
+#[derive(Debug)]
+struct MotionEnd {
+    ms: u32,
+    x: i32,
+    y: i32,
+    rotation: i32,
+}
+
+fn motion(pool: &[u8], o: usize) -> Option<Motion> {
+    let u32_at = |at: usize| pool.get(at..at + 4).map(|b| u32::from_le_bytes(b.try_into().unwrap()));
+    let layer = *pool.get(o)?;
+    let depth = u32_at(o + 1)?;
+    let flags = u32_at(o + 9)?;
+    let mut motion = Motion { layer, depth, flags, end: None };
+    if flags & 0x8000_0000 != 0 {
+        return Some(motion);
+    }
+    let count = u16::from_le_bytes(pool.get(o + 13..o + 15)?.try_into().unwrap());
+    // Each field group's size in bytes, by flag (see OP_MODULE).
+    let groups = [(0x10, 1), (0x20, 9), (0x40, 9), (0x80, 9), (0x100, 5), (0x200, 3)];
+    let frame_size = 4 + groups.iter().filter(|(f, _)| flags & f != 0).map(|(_, n)| n).sum::<usize>();
+    if count != 2 || flags & MOTION_POSITION == 0 {
+        return Some(motion);
+    }
+    let mut at = o + 15 + frame_size;
+    let ms = u32_at(at)?;
+    at += 4;
+    let (mut x, mut y, mut rotation, mut linear) = (0, 0, 0, false);
+    for (flag, size) in groups.into_iter().filter(|(f, _)| flags & f != 0) {
+        match flag {
+            MOTION_POSITION => {
+                (x, y) = (u32_at(at)? as i32, u32_at(at + 4)? as i32);
+                linear = *pool.get(at + 8)? == 2;
+            }
+            0x100 => rotation = u32_at(at)? as i32,
+            _ => {}
+        }
+        at += size;
+    }
+    if linear {
+        motion.end = Some(MotionEnd { ms, x, y, rotation });
+    }
+    Some(motion)
+}
+
 /// Where a bust-up entry's image goes on screen.
 fn placement(assets: &mut AssetBank, e: &SpriteEntry) -> Result<SpritePlacement, ConvertError> {
     let img = assets.sprite(e.sprite as usize)?;
@@ -1725,6 +1804,38 @@ pub fn lower_script(
                 }
                 Some((0 | 1, 2, opacity)) if opacity <= 256 => ops.push(Op::SpriteOpacity { layer: None, opacity: opacity.into() }),
                 _ => ops.push(Op::Unsupported { what: format!("opcode {:#04x} record {record:?}", ins.op), at: at() }),
+            }
+            continue;
+        }
+        if ins.op == OP_POSITION {
+            let o = ins.arg as u32 as usize;
+            let i = |at: usize| cd.pool.get(at..at + 4).map(|b| i32::from_le_bytes(b.try_into().unwrap()));
+            let record = cd.pool.get(o..o + 5).map(|r| (r[0], u32::from_le_bytes([r[1], r[2], r[3], r[4]])));
+            match (record, i(o + 5), i(o + 9)) {
+                (Some((2, character)), Some(x), Some(y)) => ops.push(Op::SpriteMove { layer: character, x, y, ms: 0 }),
+                _ => ops.push(Op::Unsupported { what: format!("opcode {:#04x} record {record:?}", ins.op), at: at() }),
+            }
+            continue;
+        }
+        if ins.op == OP_MODULE_WAIT {
+            continue; // the slides run to their end at 0x86
+        }
+        if ins.op == OP_MODULE {
+            let o = ins.arg as u32 as usize;
+            match motion(cd.pool, o) {
+                Some(m) if m.flags == MODULE_REMOVE => {}
+                Some(Motion { layer: 2, depth, flags, end: Some(end) }) if flags & !0x100 == MOTION_POSITION => {
+                    // The original slides while the transition runs; here
+                    // the transition shows the start, then the slide runs.
+                    if std::mem::take(&mut transition_armed) {
+                        ops.push(Op::EndTransition);
+                    }
+                    ops.push(Op::SpriteMove { layer: depth, x: end.x, y: end.y, ms: end.ms });
+                    if flags & 0x100 != 0 {
+                        ops.push(Op::Unsupported { what: format!("opcode {:#04x} rotation {}", ins.op, end.rotation), at: at() });
+                    }
+                }
+                m => ops.push(Op::Unsupported { what: format!("opcode {:#04x} module {m:?}", ins.op), at: at() }),
             }
             continue;
         }

@@ -198,6 +198,7 @@ pub fn emit(script: &Script) -> String {
     }
     let mut se = SeChannels::default();
     let mut needs_bit_helpers = false;
+    let mut needs_move = false;
     let mut needs_click_wait = false;
     let mut plate_visible = false;
     let mut link_pages = 0;
@@ -307,6 +308,18 @@ pub fn emit(script: &Script) -> String {
                 }
                 if transition.is_none() {
                     writeln!(out, "print 1").unwrap();
+                }
+            }
+            Op::SpriteMove { layer, x, y, ms } => {
+                let slot = SPRITE_BASE + layer;
+                if *ms > 0 && transition.is_none() {
+                    writeln!(out, "mov %1,{slot}:mov %2,{x}:mov %3,{y}:mov %4,{ms}:gosub *{MOVE}").unwrap();
+                    needs_move = true;
+                } else {
+                    writeln!(out, "getspsize {slot},%1,%2:amsp {slot},{x}-%1/2,{y}-%2/2").unwrap();
+                    if transition.is_none() {
+                        writeln!(out, "print 1").unwrap();
+                    }
                 }
             }
             Op::ScreenFilter { slot, filter, fade_ms } => {
@@ -696,6 +709,9 @@ pub fn emit(script: &Script) -> String {
     if needs_bit_helpers {
         out.push_str(&bit_helpers());
     }
+    if needs_move {
+        out.push_str(&move_routine());
+    }
     if needs_click_wait {
         // %9 = 1: skip mode passes. Auto mode waits a while instead.
         writeln!(out, "*{CLICK_WAIT}").unwrap();
@@ -890,6 +906,29 @@ fn bit_helpers() -> String {
         writeln!(out, "goto *{name}_loop").unwrap();
     }
     out
+}
+
+const MOVE: &str = "conv_move";
+
+/// Subroutine moving sprite %1 so that its centre reaches (%2, %3) in a
+/// straight line over %4 ms ([`Op::SpriteMove`]), drawn about every 10 ms
+/// and timed by the timer, so a slow frame doesn't make it longer. Uses
+/// the scratch variables %1-%7.
+fn move_routine() -> String {
+    format!(
+        "*{MOVE}
+getspsize %1,%5,%6:div %5,2:div %6,2:sub %2,%5:sub %3,%6
+getsppos %1,%5,%6
+resettimer
+*{MOVE}_loop
+gettimer %7
+if %7 >= %4 amsp %1,%2,%3:print 1:return
+amsp %1,%5+(%2-%5)*%7/%4,%6+(%3-%6)*%7/%4
+print 1
+wait 10
+goto *{MOVE}_loop
+"
+    )
 }
 
 /// Command-line options CONscripter reads from `ons_args` in the game
@@ -1425,6 +1464,7 @@ effect 6,99,1000,\"cons_zoom.dll/3,220,5\"
             },
             Op::SpriteOpacity { layer: Some(3), opacity: 128 },
             Op::SpriteOpacity { layer: None, opacity: 256 },
+            Op::SpriteMove { layer: 3, x: -400, y: 300, ms: 0 },
             Op::Sprites { changes: vec![SpriteChange { layer: 3, sprite: None, keep_filters: false }], fade_ms: 0 },
             Op::Text { speaker: Some("名前".into()), text: "「こんにちは」".into(), voice: None, links: vec![], ruby: vec![], styles: vec![], hang: None, continues: false },
             Op::Text { speaker: None, text: "地の文。".into(), voice: Some(Voice { file: "voice/v1.ogg".into(), character: 3 }), links: vec![link(1, 2, None)], ruby: vec![], styles: vec![], hang: None, continues: false },
@@ -1458,6 +1498,8 @@ print 1
 msp 65,0,0,-255:msp 65,0,0,127
 print 1
 if %180 != 0 msp %180,0,0,-255:msp %180,0,0,255
+print 1
+getspsize 65,%1,%2:amsp 65,-400-%1/2,300-%2/2
 print 1
 csp 65
 print 1
@@ -1581,6 +1623,14 @@ end
         assert!(text.contains("*conv_bitand\n") && text.contains("*conv_bitor\n"));
         // Helpers are only emitted when needed.
         assert!(!emit(&script(vec![])).contains("conv_bitand"));
+    }
+
+    #[test]
+    fn sprite_motion_uses_the_move_routine() {
+        let text = emit(&script(vec![Op::SpriteMove { layer: 5, x: 550, y: 300, ms: 300 }]));
+        assert!(text.contains("mov %1,67:mov %2,550:mov %3,300:mov %4,300:gosub *conv_move\n"));
+        assert!(text.contains("*conv_move\n") && text.contains("*conv_move_loop\n"));
+        assert!(!emit(&script(vec![])).contains("conv_move"));
     }
 
     /// Runs the helper's algorithm (as emitted) in Rust to check the maths.

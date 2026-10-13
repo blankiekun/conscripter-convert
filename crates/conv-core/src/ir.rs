@@ -289,6 +289,11 @@ pub enum Op {
     /// picture on the layer is opaque again. Shown at once unless a
     /// transition is open.
     SpriteOpacity { layer: Option<u32>, opacity: u32 },
+    /// Move a layer's sprite so that its centre is at (x, y), in a
+    /// straight line over `ms` (0 = at once). A layer without a sprite
+    /// ignores it. A jump is shown at once unless a transition is open; a
+    /// motion is shown as it runs, so it must not be inside one.
+    SpriteMove { layer: u32, x: i32, y: i32, ms: u32 },
     /// Set (or with `None` clear) one slot of the filter on the whole
     /// picture behind the text window; slot 0 with `None` clears them
     /// all. Shown with a fade of `fade_ms` unless a transition is open.

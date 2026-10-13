@@ -26,8 +26,9 @@ notes, git-ignored) and `PLAN.md` §4.2 and §6 ("Remaining work for
 Opcodes 0x70 (leftovers), 0x59, 0x82 and 0x69 are done (unsupported
 296 → 119); the engine has new filter kinds 6-8 and 8 effect slots
 (engine `5516a1a`, released in CONscripter 0.14.0, tag `v0.14.0`,
-Android versionCode 17). Pick the next item from "3. Next
-work": the object operations 0x7c-0x87 are the biggest group left. Unchecked against the original under wine: quakes,
+Android versionCode 17). Slides (0x86/0x87/0x7f, unsupported 119 → 81) are done too, checked
+headless in 0010.cd's 沙也加 slide. Pick the next item from "3. Next
+work": 0x84/0x7d/0x7c groups are the biggest left. Unchecked against the original under wine: quakes,
 flashes (ours are under the text window; the original's cover it),
 pulses (especially presets 6-8: blend 6 is assumed to lay white over
 the copy, `tint 2`).
@@ -246,11 +247,20 @@ engines print `z150` etc.). The web build compiles with it.
 - [x] `0x69` (32): a click wait with the picture alone, passed by skip
       (checked under wine: patched `s2_l17` #73 in 0002.cd), as
       `ClickWait { skippable: true }`.
-- [ ] Opcodes still emitted as comments (119 left): `0x86` (19), `0x7f`
-      (12), `0x84` (10), `0x87` (9), `0x99` (8), `0x7b` (8, layer 2),
-      `0x9d` (6), `0x7c` (6), `0x7a` (6, layer 2), `0x7d` (5), rarer
-      ones. 0x7c-0x87 are object operations on the same key as 0x82
-      (handlers 0x413540-0x414460).
+- [x] `0x86`/`0x87`/`0x7f` (19/9/12): key-frame motions on objects
+      (`CModule_Animation_KeyFrameMotion`); the game slides bust-ups
+      (start, wait, remove, final position), always inside an armed
+      transition. Converted as `Op::SpriteMove` (`*conv_move`: `amsp`
+      steps on the timer); the transition is shown first, then the slide
+      (the original does both at once). Not converted: the overlay fade
+      (0002.cd #14) and a -90° rotation (0043.cd #440). Record layouts in
+      PLAN §6. Checked headless (0010.cd: 沙也加 slides from x 420 to 550).
+      Unsupported: 119 → 81.
+- [ ] Opcodes still emitted as comments (81 left): `0x84` (10), `0x99`
+      (8), `0x7b` (8, layer 2), `0x9d` (6), `0x7c` (6), `0x7a` (6, layer
+      2), `0x7d` (5), rarer ones. 0x7c-0x85 are object operations on the
+      same key as 0x82 (handlers 0x413940-0x414460); 0x84/0x7d/0x7c come
+      in groups (0087.cd #23, 0135.cd #48).
 - [ ] Transitions still drawn as cross-fades: Wave, Dissolve, RollFlip,
       SoftEdgeWipe, TvPowerSwitch, BoxRolling, SmoothCrossFade, Dot4x4,
       MeltDown (PLAN §6 "Accuracy").
