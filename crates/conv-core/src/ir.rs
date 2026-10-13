@@ -214,10 +214,21 @@ pub enum ScreenEffect {
     /// Rippling through `map` (a greyscale picture as large as the screen):
     /// each pixel comes from `amplitude` × sin(2π(grey/256 + phase/1000))
     /// pixels away in direction `angle` (0.1°, 0 = right, 900 = down). The
-    /// rippled picture lies over the plain one at `opacity` (0-256). Each
+    /// rippled picture lies over the plain one at `opacity` (0-256), or with
+    /// `multiply` the plain one is multiplied by it at that opacity. Each
     /// step turns the angle by `angle_step` and moves the phase by
     /// `phase_step`.
-    Ripple { map: String, time_ms: u32, interval_ms: u32, opacity: (i32, i32), amplitude: (i32, i32), angle: i32, angle_step: i32, phase_step: i32 },
+    Ripple {
+        map: String,
+        time_ms: u32,
+        interval_ms: u32,
+        opacity: (i32, i32),
+        amplitude: (i32, i32),
+        angle: i32,
+        angle_step: i32,
+        phase_step: i32,
+        multiply: bool,
+    },
     /// A copy of the picture taken when it starts, tinted (`tint` 0 none,
     /// 1 multiplied by `colour`, 2 `colour` laid over it, at
     /// `tint_opacity` 0-256), over the live picture scaled by

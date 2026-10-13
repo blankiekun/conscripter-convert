@@ -446,15 +446,16 @@ pub fn emit(script: &Script) -> String {
                         )
                         .unwrap();
                     }
-                    Some(ScreenEffect::Ripple { map, time_ms, interval_ms, opacity, amplitude, angle, angle_step, phase_step }) => {
+                    Some(ScreenEffect::Ripple { map, time_ms, interval_ms, opacity, amplitude, angle, angle_step, phase_step, multiply }) => {
                         writeln!(
                             out,
-                            "screenripple {slot},\"{}\",{time_ms},{interval_ms},{},{},{},{},{angle},{angle_step},{phase_step}",
+                            "screenripple {slot},\"{}\",{time_ms},{interval_ms},{},{},{},{},{angle},{angle_step},{phase_step}{}",
                             path(map),
                             opacity.0,
                             opacity.1,
                             amplitude.0,
-                            amplitude.1
+                            amplitude.1,
+                            if *multiply { ",1" } else { "" }
                         )
                         .unwrap();
                     }
@@ -1903,6 +1904,7 @@ end
             angle: 3150,
             angle_step: 20,
             phase_step: 30,
+            multiply: false,
         };
         let s = script(vec![
             Op::ScreenEffect { slot: 1, effect: Some(shake) },

@@ -1657,10 +1657,10 @@ fn lower_screen_module(
     }
     let displacement = match m.data {
         ModuleData::Replace(r) => Some((assets.mask(r.map as usize, false)?, r.distance, r.direction)),
-        // The zigzag's rings as a map (grey = the kernel's table index / 4).
-        // Its Multi blend (the one use: 100/256) is laid over as alpha:
-        // the original also darkens the picture by multiplying it with
-        // the shifted copy. The phase and the reduction are left out.
+        // The zigzag's rings as a map (grey = the kernel's table index / 4);
+        // its Multi blend multiplies the picture by the shifted copy
+        // (screenripple's blend 1). The phase and the reduction are left
+        // out.
         ModuleData::Zigzag(z) => Some((assets.zigzag_map(z.centre_x, z.centre_y, z.frequency)?, z.distance, z.direction)),
         _ => None,
     };
@@ -1682,6 +1682,7 @@ fn lower_screen_module(
             angle: direction,
             angle_step: 0,
             phase_step: 0,
+            multiply: multi_zigzag,
         };
         if !replaces.contains(&m.slot) {
             ops.push(Op::ScreenFilter { slot: m.slot, filter: None, fade_ms: 0 });
@@ -1767,6 +1768,7 @@ fn lower_environment(
                 angle: r.angle,
                 angle_step: r.angle_step,
                 phase_step: r.phase_step,
+                multiply: false,
             };
             ops.push(Op::ScreenEffect { slot: m.slot, effect: Some(effect) });
             true

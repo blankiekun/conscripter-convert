@@ -318,11 +318,11 @@ engines print `z150` etc.). The web build compiles with it.
       shifts each pixel by distance × sin(2π·d·freq/100/1024) along the
       direction (d = distance from the centre); converted as a still
       `screenripple` over a generated ring map (`system/zigzag_*.png`).
-      With freq 10 that is a shift of a few pixels. **Not reproduced:**
-      its Multi blend (100/256), which in the original also darkens the
-      picture (a multiply with the shifted copy); `screenripple` only lays
-      it over as alpha. An engine blend option would fix it (save format
-      change). The phase (begin angle) and reduction are left out.
+      With freq 10 that is a shift of a few pixels. Its Multi blend
+      (100/256) darkens the picture: `screenripple`'s new optional blend 1
+      (engine, unreleased) multiplies by the shifted copy; saves keep
+      their format (the parameter count is stored). The phase (begin
+      angle) and reduction are left out.
 - [ ] Opcodes still emitted as comments (2 left): the start point's debug menu (`0x62` choice + `0x30` jump table
       in 0001.cd, unreachable: nothing jumps to `s1_l0`). **Not doing the
       debug menu** (user, 2026-10-13).
