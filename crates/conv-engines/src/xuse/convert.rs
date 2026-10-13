@@ -1901,6 +1901,18 @@ impl Picture {
     }
 }
 
+/// Whether bust-up `number`, turned by the motion's end rotation (tenths of
+/// a degree) about its end centre, lies wholly off the 800×600 screen.
+fn turned_off_screen(assets: &mut AssetBank, number: u16, end: &MotionEnd) -> bool {
+    let Ok(img) = assets.sprite(number.into()) else { return false };
+    let a = f64::from(end.rotation).to_radians() / 10.0;
+    let (w, h) = (f64::from(img.width), f64::from(img.height));
+    let hw = (w * a.cos().abs() + h * a.sin().abs()) / 2.0;
+    let hh = (w * a.sin().abs() + h * a.cos().abs()) / 2.0;
+    let (x, y) = (f64::from(end.x), f64::from(end.y));
+    x - hw >= 800.0 || x + hw <= 0.0 || y - hh >= 600.0 || y + hh <= 0.0
+}
+
 /// Where a bust-up entry's image goes on screen.
 fn placement(assets: &mut AssetBank, e: &SpriteEntry) -> Result<SpritePlacement, ConvertError> {
     let img = assets.sprite(e.sprite as usize)?;
@@ -2103,7 +2115,12 @@ pub fn lower_script(
             let i = |at: usize| cd.pool.get(at..at + 4).map(|b| i32::from_le_bytes(b.try_into().unwrap()));
             let record = cd.pool.get(o..o + 5).map(|r| (r[0], u32::from_le_bytes([r[1], r[2], r[3], r[4]])));
             match (record, i(o + 5), i(o + 9)) {
-                (Some((2, character)), Some(x), Some(y)) => ops.push(Op::SpriteMove { layer: character, x, y, ms: 0 }),
+                (Some((2, character)), Some(x), Some(y)) => {
+                    if let Some(p) = placed.get_mut(&character) {
+                        (p.1, p.2) = (x, y);
+                    }
+                    ops.push(Op::SpriteMove { layer: character, x, y, ms: 0 })
+                }
                 _ => ops.push(Op::Unsupported { what: format!("opcode {:#04x} record {record:?}", ins.op), at: at() }),
             }
             continue;
@@ -2124,7 +2141,25 @@ pub fn lower_script(
                     overlay_fill = false;
                     wait_credit_ms = ms;
                 }
+                // A slide with a turn that ends off screen (0043.cd: a
+                // character falls over, -90°): drawn turning, then gone.
+                Some(Motion { layer: 2, depth, flags, end: Some(end) })
+                    if flags & !0x100 == MOTION_POSITION
+                        && end.position
+                        && end.rotation % 3600 != 0
+                        && placed.get(&depth).is_some_and(|&(n, ..)| turned_off_screen(assets, n, &end)) =>
+                {
+                    if std::mem::take(&mut transition_armed) {
+                        ops.push(Op::EndTransition);
+                    }
+                    let (number, cx, cy) = placed.remove(&depth).unwrap();
+                    let image = assets.sprite(number.into())?.path;
+                    ops.push(Op::SpriteTurn { layer: depth, image, from: (cx, cy), to: (end.x, end.y), degrees: end.rotation / 10, ms: end.ms });
+                }
                 Some(Motion { layer: 2, depth, flags, end: Some(end) }) if flags & !0x100 == MOTION_POSITION && end.position => {
+                    if let Some(p) = placed.get_mut(&depth) {
+                        (p.1, p.2) = (end.x, end.y);
+                    }
                     // The original slides while the transition runs; here
                     // the transition shows the start, then the slide runs.
                     if std::mem::take(&mut transition_armed) {

@@ -55,6 +55,8 @@ const SPRITE_BASE: u32 = 62;
 /// The lsp2 slot of a flash ([`Op::Flash`]), under the menus' and the top
 /// bars' (0-23).
 const FLASH_SPRITE2: u32 = 24;
+/// The lsp2 slot a turning sprite ([`Op::SpriteTurn`]) is drawn in.
+const TURN_SPRITE2: u32 = 25;
 /// The highest sprite number (ONScripter has 1000); also the overlay
 /// under the character sprites.
 const MAX_SPRITE: u32 = 999;
@@ -126,6 +128,7 @@ pub fn emit(script: &Script) -> String {
     let has_animation = script.ops.iter().any(|op| matches!(op, Op::Animation(_)));
     let root_returns = script.ops.iter().filter(|op| matches!(op, Op::ReturnToRoot)).count();
     let mut root_resumes = 0;
+    let mut turns = 0;
     // Shows the overlay and the static again after `csp -1`.
     let mut restore_overlay = String::new();
     if has_overlay {
@@ -323,6 +326,19 @@ pub fn emit(script: &Script) -> String {
                 if transition.is_none() {
                     writeln!(out, "print 1").unwrap();
                 }
+            }
+            Op::SpriteTurn { layer, image, from, to, degrees, ms } => {
+                // Only lsp2 sprites turn: a copy stands in while it runs.
+                // ONScripter's rot turns counter-clockwise.
+                turns += 1;
+                let (s, ms) = (TURN_SPRITE2, (*ms).max(1));
+                let ((x0, y0), (x1, y1)) = (*from, *to);
+                writeln!(out, "csp {}", SPRITE_BASE + layer).unwrap();
+                writeln!(out, "lsp2 {s},\":a;{}\",{x0},{y0},100,100,0", path(image)).unwrap();
+                writeln!(out, "print 1\nresettimer\n*conv_turn{turns}\ngettimer %7\nif %7 > {ms} mov %7,{ms}").unwrap();
+                writeln!(out, "amsp2 {s},{x0}+({})*%7/{ms},{y0}+({})*%7/{ms},100,100,{}*%7/{ms},255", x1 - x0, y1 - y0, -degrees).unwrap();
+                writeln!(out, "print 1\nif %7 < {ms} wait 10:goto *conv_turn{turns}").unwrap();
+                writeln!(out, "csp2 {s}\nprint 1").unwrap();
             }
             Op::SpriteMove { layer, x, y, ms } => {
                 let slot = SPRITE_BASE + layer;
@@ -1344,6 +1360,16 @@ goto *conv_link1
     fn scene_replay_unlocks_are_global_flags() {
         let text = emit(&script(vec![Op::SceneEnd, Op::UnlockScene { scene: 5 }, Op::Progress { bit: 3 }, Op::CgSeen { number: 519 }]));
         assert!(text.contains("; scene end\nmov %3005,1\nmov %3603,1\nmov %2719,1\n"), "{text}");
+    }
+
+    #[test]
+    fn sprite_turns_run_on_an_lsp2_copy() {
+        let turn = Op::SpriteTurn { layer: 7, image: "sprite/a.png".into(), from: (200, 400), to: (200, 900), degrees: -90, ms: 800 };
+        let text = emit(&script(vec![turn]));
+        let expected = "csp 69\nlsp2 25,\":a;sprite\\a.png\",200,400,100,100,0\nprint 1\nresettimer\n*conv_turn1\ngettimer %7\n\
+            if %7 > 800 mov %7,800\namsp2 25,200+(0)*%7/800,400+(500)*%7/800,100,100,90*%7/800,255\nprint 1\n\
+            if %7 < 800 wait 10:goto *conv_turn1\ncsp2 25\nprint 1\n";
+        assert!(text.contains(expected), "{text}");
     }
 
     #[test]

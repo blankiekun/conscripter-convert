@@ -319,6 +319,11 @@ pub enum Op {
     /// ignores it. A jump is shown at once unless a transition is open; a
     /// motion is shown as it runs, so it must not be inside one.
     SpriteMove { layer: u32, x: i32, y: i32, ms: u32 },
+    /// Move a layer's sprite (showing `image`) from centre `from` to `to`
+    /// while it turns `degrees` clockwise, in straight lines over `ms`;
+    /// it ends off screen, so the layer is empty afterwards. Shown as it
+    /// runs: not inside a transition.
+    SpriteTurn { layer: u32, image: String, from: (i32, i32), to: (i32, i32), degrees: i32, ms: u32 },
     /// Set (or with `None` clear) one slot of the filter on the whole
     /// picture behind the text window; slot 0 with `None` clears them
     /// all. Shown with a fade of `fade_ms` unless a transition is open.

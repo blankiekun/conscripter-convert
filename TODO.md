@@ -305,11 +305,15 @@ engines print `z150` etc.). The web build compiles with it.
 - [x] `0x80` (1): an object's scale (percent); 0013.cd's character 12
       at 80 %, as a pre-scaled copy (`sprite/<name>_s80x80.png`) centred
       on the same point, its 0x82 opacity put back.
-- [ ] Opcodes still emitted as comments (4 left): the
-      0x86 rotation, Zigzag (0x70 kind 12), and the start point's debug
-      menu (`0x62` choice + `0x30` jump table in 0001.cd, unreachable:
-      nothing jumps to `s1_l0`). **Not doing the debug menu** (user,
-      2026-10-13).
+- [x] The 0x86 rotation (1): 0043.cd's 章二 falls over (-90°) while
+      sliding off screen, as `Op::SpriteTurn` (an `lsp2` copy stepped with
+      `amsp2`, then removed). Direction checked under wine: Xuse turns
+      clockwise for positive angles (0x81 +45° on a bust-up); ONScripter's
+      `rot` turns counter-clockwise, hence `rot` = -angle.
+- [ ] Opcodes still emitted as comments (3 left): Zigzag (0x70 kind 12)
+      and the start point's debug menu (`0x62` choice + `0x30` jump table
+      in 0001.cd, unreachable: nothing jumps to `s1_l0`). **Not doing the
+      debug menu** (user, 2026-10-13).
 - [ ] Transitions still drawn as cross-fades: Wave, Dissolve, RollFlip,
       SoftEdgeWipe, TvPowerSwitch, BoxRolling, SmoothCrossFade, Dot4x4,
       MeltDown (PLAN §6 "Accuracy").
