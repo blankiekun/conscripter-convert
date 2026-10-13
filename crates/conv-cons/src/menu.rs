@@ -94,16 +94,9 @@ pub(crate) const CONFIRM: &str = "%109";
 const CONFIRM_TEXT: &str = "$106";
 /// Bar buttons return numbers above this.
 pub(crate) const BAR_BUTTON_BASE: i32 = 1000;
-/// Sets which bars are up after a hotspot reported the pointer (%9).
-pub(crate) const BAR_HOVER: &str = "conv_bar_hover";
 const BAR_CLEAR: &str = "conv_bar_clear";
-/// Puts the bars away (they come back when the pointer nears an edge).
+/// Puts the bars away (the next click wait draws them again).
 pub(crate) const BAR_HIDE: &str = "conv_bar_hide_all";
-/// Hotspots report the pointer with numbers above this.
-pub(crate) const HOVER_BASE: i32 = 2000;
-// Which bars are up (locals, so a save keeps them as they were).
-const TOP_SHOWN: &str = "%160";
-const BOTTOM_SHOWN: &str = "%161";
 /// Link scenes entered and not yet left; the deepest since the last time
 /// at the root; titles at $(SCENE_TITLES + depth).
 pub(crate) const SCENE_DEPTH: &str = "%150";
@@ -404,16 +397,12 @@ pub(crate) fn save_menu(out: &mut String, m: &SaveMenu, confirm: Option<&Confirm
 /// hides the text window. `textbtnwait` returns at once in skip mode and
 /// after the delay in auto mode; a click turns auto mode off.
 ///
-/// The bars hide until the pointer comes near, as in the original:
-/// transparent hotspots along the edges and over the middle report the
-/// pointer through `getmouseover` (button numbers above [`HOVER_BASE`]),
-/// which ends the wait; the routine records which bars are up
-/// ([`TOP_SHOWN`], [`BOTTOM_SHOWN`]) and waits again.
+/// The bars are always up during a click wait (the original hides them
+/// until the pointer comes near an edge).
 pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, save_menu: bool, settings: bool, backlog: bool) {
     let mut slots = BAR_SPRITES;
     let buttons: Vec<_> = bar.buttons.iter().zip(slots.by_ref()).collect();
-    let (reveal, hide, reveal_top, chapter_text, scene_text) =
-        (slots.next().unwrap(), slots.next().unwrap(), slots.next().unwrap(), slots.next().unwrap(), slots.next().unwrap());
+    let (chapter_text, scene_text) = (slots.next().unwrap(), slots.next().unwrap());
     let mut w = |line: String| {
         out.push_str(&line);
         out.push('\n');
@@ -429,12 +418,10 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, save_menu: bool, set
         BarAction::Settings => "conv_bar_settings",
         BarAction::HideWindow | BarAction::Unavailable => "conv_bar_hide",
     };
-    let (hover_top, hover_bottom, hover_hide) = (HOVER_BASE + 1, HOVER_BASE + 2, HOVER_BASE + 3);
 
     w(format!("*{WAIT}"));
     w(format!("gosub *{BAR_DRAW}"));
     w(format!("textbtnwait {BUTTON_VAR}"));
-    w(format!("if {BUTTON_VAR} > {HOVER_BASE} goto *conv_wait_hover"));
     // Wheel down (-3) reads on, like a click; wheel up (-2) opens the log.
     w(format!("if {BUTTON_VAR} == -3 goto *conv_wait_end"));
     w(format!("if {BUTTON_VAR} >= 0 && {BUTTON_VAR} <= {BAR_BUTTON_BASE} goto *conv_wait_end"));
@@ -446,22 +433,12 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, save_menu: bool, set
         }
     }
     w(format!("goto *{WAIT}"));
-    w("*conv_wait_hover".into());
-    w(format!("gosub *{BAR_HOVER}"));
-    w(format!("goto *{WAIT}"));
     w("*conv_wait_end".into());
     w("texec".into());
     w("return".into());
 
-    w(format!("*{BAR_HOVER}"));
-    w(format!("if {BUTTON_VAR} == {hover_top} mov {TOP_SHOWN},1"));
-    w(format!("if {BUTTON_VAR} == {hover_bottom} mov {BOTTOM_SHOWN},1"));
-    w(format!("if {BUTTON_VAR} == {hover_hide} mov {TOP_SHOWN},0:mov {BOTTOM_SHOWN},0"));
-    w("return".into());
-
     // Removes every bar sprite.
     w(format!("*{BAR_HIDE}"));
-    w(format!("mov {TOP_SHOWN},0:mov {BOTTOM_SHOWN},0"));
     w(format!("gosub *{BAR_CLEAR}"));
     w("print 1".into());
     w("return".into());
@@ -470,14 +447,11 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, save_menu: bool, set
     w(TOP_SPRITES2.map(|n| format!("csp2 {n}")).collect::<Vec<_>>().join(":"));
     w("return".into());
 
-    // Draws the bars that are up, or the hotspots that bring them up.
-    // Buttons registered later are tested first, so the hide hotspot comes
-    // first and link words (registered after this) win over it.
+    // Draws the bars and registers their buttons; link words are
+    // registered after this.
     w(format!("*{BAR_DRAW}"));
     w("btndef clear".into());
     w(format!("gosub *{BAR_CLEAR}"));
-    w(format!("if {TOP_SHOWN} == 1 || {BOTTOM_SHOWN} == 1 {}:spbtn {hide},{hover_hide}", lsp(hide, &bar.hide, "")));
-    w(format!("if {BOTTOM_SHOWN} == 0 {}:spbtn {reveal},{hover_bottom}:goto *conv_bar_draw_top", lsp(reveal, &bar.reveal, "")));
     w(format!("isskip {MODE_STATE}"));
     for (i, (b, slot)) in buttons.iter().enumerate() {
         if b.action == BarAction::Unavailable {
@@ -491,9 +465,7 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, save_menu: bool, set
         }
         w(format!("spbtn {slot},{}", number(i)));
     }
-    w("*conv_bar_draw_top".into());
     if let Some(top) = &bar.top {
-        w(format!("if {TOP_SHOWN} == 0 {}:spbtn {reveal_top},{hover_top}:goto *conv_bar_draw_end", lsp(reveal_top, &top.reveal, "")));
         let mut sprites2 = TOP_SPRITES2;
         for p in [&top.chapter_bar, &top.scene_bar].into_iter().chain(&top.decorations) {
             w(lsp2(sprites2.next().unwrap(), p, None));
@@ -513,8 +485,6 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, save_menu: bool, set
             }
         }
     }
-    w("*conv_bar_draw_end".into());
-    w(format!("getmouseover {},{}", HOVER_BASE + 1, HOVER_BASE + 3));
     w("print 1".into());
     w("return".into());
 
@@ -533,7 +503,7 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, save_menu: bool, set
     actions.sort_by_key(|a| label(*a));
     actions.dedup_by_key(|a| label(*a));
     // The save menu covers the screen: put the bars away first.
-    let menu = |entry: &str| format!("mov {TOP_SHOWN},0:mov {BOTTOM_SHOWN},0\ngosub *{BAR_CLEAR}\nmov {IN_GAME},1\ngosub *{entry}");
+    let menu = |entry: &str| format!("gosub *{BAR_CLEAR}\nmov {IN_GAME},1\ngosub *{entry}");
     for a in actions {
         w(format!("*{}", label(a)));
         match a {
@@ -1069,28 +1039,21 @@ mod tests {
                 BarButton { image: placed("save", 132, 19), active: None, action: BarAction::Save },
                 BarButton { image: placed("setting", 56, 19), active: None, action: BarAction::Unavailable },
             ],
-            reveal: placed("reveal", 800, 25),
-            hide: placed("hide", 800, 500),
             top: None,
         };
         let mut out = String::new();
         button_bar(&mut out, &bar, true, false, false);
         for line in [
-            "*conv_wait\ngosub *conv_bar_draw\ntextbtnwait %9\nif %9 > 2000 goto *conv_wait_hover\n",
+            "*conv_wait\ngosub *conv_bar_draw\ntextbtnwait %9\nif %9 == -3 goto *conv_wait_end\n",
             "if %9 >= 0 && %9 <= 1000 goto *conv_wait_end\n",
             "if %9 == 1001 goto *conv_wait_end\ngoto *conv_wait\n",
             "*conv_wait_end\ntexec\nreturn\n",
-            // Hotspots: the hide one first (tested last), the bottom one
-            // while the bar is down.
-            "btndef clear\ngosub *conv_bar_clear\n\
-             if %160 == 1 || %161 == 1 lsp 38,\":a;system\\hide.png\",10,20:spbtn 38,2003\n\
-             if %161 == 0 lsp 37,\":a;system\\reveal.png\",10,20:spbtn 37,2002:goto *conv_bar_draw_top\n",
+            "btndef clear\ngosub *conv_bar_clear\nisskip %108\n",
             "lsp 34,\":a/3,0,3;system\\auto.png\",10,20\nif %108 == 2 lsp 34,\":a/3,0,3;system\\auto_on.png\",10,20\nspbtn 34,1001\n",
-            "lsp 36,\":a;system\\setting.png\",10,20\n*conv_bar_draw_top\n*conv_bar_draw_end\ngetmouseover 2001,2003\nprint 1\n",
-            "*conv_bar_hover\nif %9 == 2001 mov %160,1\nif %9 == 2002 mov %161,1\nif %9 == 2003 mov %160,0:mov %161,0\nreturn\n",
+            "lsp 36,\":a;system\\setting.png\",10,20\nprint 1\nreturn\n",
             "if %9 == -1 goto *conv_bar_hide\nif %9 == -2 goto *conv_bar_log\nif %9 == 1001 goto *conv_bar_auto\nif %9 == 1002 goto *conv_bar_save\nreturn\n",
             "*conv_bar_log\nsystemcall lookback\nreturn\n",
-            "*conv_bar_save\nmov %160,0:mov %161,0\ngosub *conv_bar_clear\nmov %101,1\ngosub *conv_save\nreturn\n",
+            "*conv_bar_save\ngosub *conv_bar_clear\nmov %101,1\ngosub *conv_save\nreturn\n",
             "*conv_bar_hide\nsystemcall windowerase\nreturn\n",
         ] {
             assert!(out.contains(line), "missing {line:?} in\n{out}");

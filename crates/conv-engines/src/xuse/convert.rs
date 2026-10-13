@@ -620,11 +620,7 @@ impl AssetBank {
             };
             buttons.push(BarButton { image, active, action });
         }
-        // Hotspots: the pointer within 25 px of the bottom shows the bar;
-        // between the top and bottom bars it hides them.
-        let reveal = self.transparent("bar_reveal", 0, 575, 800, 25)?;
-        let hide = self.transparent("bar_hide", 0, 52, 800, 523)?;
-        Ok(ButtonBar { buttons, reveal, hide, top: Some(self.top_bars()?) })
+        Ok(ButtonBar { buttons, top: Some(self.top_bars()?) })
     }
 
     /// The images of a GAF4 container in `HD/{arc}`, decoded.
@@ -762,13 +758,6 @@ impl AssetBank {
         })
     }
 
-    /// A fully transparent image, for a hotspot.
-    fn transparent(&self, name: &str, x: i32, y: i32, w: u32, h: u32) -> Result<Placed, ConvertError> {
-        let image = format!("system/{name}.png");
-        self.save_image(&image, &image::RgbaImage::new(w, h))?;
-        Ok(Placed { image, x, y, w: w as i32, h: h as i32 })
-    }
-
     /// The top bars: `HD/wnd.arc` → `ChapterBar.004` (base, frame: "chapter
     /// »") on the left and `BlogStackBar.004` on the right (bar 0/1, drop-down
     /// 2/3, exit 4/5, next 6/7, prev 8/9, scene list 10-12, depth box 13/14,
@@ -806,7 +795,6 @@ impl AssetBank {
         }
         let disabled = 3;
         Ok(TopBars {
-            reveal: self.transparent("bar_reveal_top", 0, 0, 800, 25)?,
             chapter_bar: layered(self, &chapter, 0, 0, 1, "chapter_bar", 0, 0)?,
             chapter_text: TextSpot { x: 72, y: 7, font_size: 12, columns: 21 },
             scene_bar: layered(self, &blog, 0, 0, 1, "scene_bar", 417, 0)?,

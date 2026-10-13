@@ -414,23 +414,16 @@ pub struct PageButton {
 }
 
 /// Buttons shown during the game's click waits: the way into the menus.
-///
-/// The bars hide until the pointer comes near: over `reveal` (transparent,
-/// along the screen edge) this bar appears, over `hide` (the rest of the
-/// screen) all bars go away.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ButtonBar {
     pub buttons: Vec<BarButton>,
-    pub reveal: Placed,
-    pub hide: Placed,
-    /// Bars along the top edge, shown and hidden the same way.
+    /// Bars along the top edge.
     pub top: Option<TopBars>,
 }
 
 /// The current chapter and the current link ("blog") scene, along the top.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TopBars {
-    pub reveal: Placed,
     pub chapter_bar: Placed,
     pub chapter_text: TextSpot,
     pub scene_bar: Placed,

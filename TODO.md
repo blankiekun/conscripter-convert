@@ -149,6 +149,10 @@ engines print `z150` etc.). The web build compiles with it.
 - [ ] Transitions still drawn as cross-fades: Wave, Dissolve, RollFlip,
       SoftEdgeWipe, TvPowerSwitch, BoxRolling, SmoothCrossFade, Dot4x4,
       MeltDown (PLAN §6 "Accuracy").
+- [x] Bars always shown (user's request, 2026-10-13): the top bars and
+      the bottom button bar draw at every click wait; the hover hotspots
+      (`getmouseover`, `bar_reveal*`/`bar_hide` images) are gone. The
+      original hides them until the pointer nears an edge.
 - [ ] Settings options, in the user's order: text window opacity, wheel
       options, confirmation toggles.
 - [ ] Extras after clearing (CG/BGM/chapter/scene replay), chapter

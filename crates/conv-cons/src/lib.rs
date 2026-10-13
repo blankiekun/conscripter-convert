@@ -480,12 +480,7 @@ pub fn emit(script: &Script) -> String {
                 }
                 writeln!(out, "btnwait {BUTTON_VAR}").unwrap();
                 if bar.is_some() {
-                    // The pointer near a bar, a bar button or a right-click:
-                    // handle it and wait again.
-                    writeln!(out, "if {BUTTON_VAR} <= {} goto *{page}_b", menu::HOVER_BASE).unwrap();
-                    writeln!(out, "gosub *{}", menu::BAR_HOVER).unwrap();
-                    writeln!(out, "goto *{page}_wait").unwrap();
-                    writeln!(out, "*{page}_b").unwrap();
+                    // A bar button or a right-click: handle it and wait again.
                     writeln!(out, "if {BUTTON_VAR} >= 0 && {BUTTON_VAR} <= {} goto *{page}_c", menu::BAR_BUTTON_BASE)
                         .unwrap();
                     writeln!(out, "gosub *{}", menu::BAR_ACTION).unwrap();
