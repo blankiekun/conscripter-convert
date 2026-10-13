@@ -2174,12 +2174,18 @@ impl<'a, 'b> Compiler<'a, 'b> {
             // half-width character in vertical mode).
             let vertical = self.window.as_ref().is_some_and(|w| w.vertical);
             let text = if vertical { full_width(&page.text) } else { page.text.clone() };
+            let mut ruby = page.ruby.clone();
+            if vertical {
+                for r in &mut ruby {
+                    r.text = full_width(&r.text);
+                }
+            }
             self.ops.push(Op::Text {
                 speaker: None,
                 text,
                 voice,
                 links: Vec::new(),
-                ruby: page.ruby.clone(),
+                ruby,
                 styles: Vec::new(),
                 hang: None,
                 continues: page.continues,
@@ -2231,12 +2237,17 @@ impl<'a, 'b> Compiler<'a, 'b> {
     }
 }
 
-/// ASCII letters, digits and signs as their full-width forms.
+/// Half-width katakana and signs U+FF61-FF9F as full-width ones.
+const HALF_KANA: &str = "。「」、・ヲァィゥェォャュョッーアイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワン゛゜";
+
+/// ASCII letters, digits and signs, and half-width katakana, as their
+/// full-width forms, one character for one (ruby positions stay valid).
 fn full_width(s: &str) -> String {
     s.chars()
         .map(|c| match c {
             ' ' => '　',
             '!'..='~' => char::from_u32(c as u32 - 0x21 + 0xFF01).unwrap_or(c),
+            '\u{FF61}'..='\u{FF9F}' => HALF_KANA.chars().nth(c as usize - 0xFF61).unwrap_or(c),
             _ => c,
         })
         .collect()
@@ -2525,6 +2536,12 @@ scene {name}_Y
         }
         let (_, played) = compile_run(&files, "a.nss", 10, &mut Fake).unwrap();
         assert_eq!(played, ["a.nss", "b.nss", "c.nss"]);
+    }
+
+    #[test]
+    fn full_width_maps_ascii_and_half_width_kana_one_for_one() {
+        assert_eq!(full_width("A!? ･ｶﾞｰ｡"), "Ａ！？　・カ゛ー。");
+        assert_eq!(HALF_KANA.chars().count(), 0xFF9F - 0xFF61 + 1);
     }
 
     #[test]
