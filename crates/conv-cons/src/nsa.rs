@@ -91,6 +91,31 @@ fn write_one(path: &Path, files: &[(&NsaFile, u64)]) -> io::Result<()> {
     out.flush()
 }
 
+/// The names of the files in an NSA archive, as the script refers to them.
+pub fn read_names(path: &Path) -> io::Result<Vec<String>> {
+    use std::io::{BufReader, Read};
+    let mut r = BufReader::new(File::open(path)?);
+    let mut head = [0u8; 6];
+    r.read_exact(&mut head)?;
+    let count = u16::from_be_bytes([head[0], head[1]]);
+    let mut names = Vec::with_capacity(count as usize);
+    for _ in 0..count {
+        let mut name = Vec::new();
+        let mut b = [0u8; 1];
+        loop {
+            r.read_exact(&mut b)?;
+            if b[0] == 0 {
+                break;
+            }
+            name.push(b[0]);
+        }
+        let mut rest = [0u8; 13];
+        r.read_exact(&mut rest)?;
+        names.push(encoding_rs::SHIFT_JIS.decode(&name).0.into_owned());
+    }
+    Ok(names)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -118,6 +143,7 @@ mod tests {
         assert_eq!(data[15], 0);
         assert_eq!(&data[16..28], &[0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 4]);
         assert_eq!(&data[header_len..], b"AAAABB");
+        assert_eq!(read_names(&dir.join("arc.nsa")).unwrap(), ["bg\\a.png", "se\\b.ogg"]);
         std::fs::remove_dir_all(&dir).unwrap();
     }
 }

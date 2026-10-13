@@ -14,6 +14,7 @@ use conv_core::ir::{
 };
 
 mod extras;
+pub mod lint;
 mod menu;
 mod music;
 pub mod nsa;
@@ -1074,6 +1075,11 @@ pub fn encode(source: &str) -> (Vec<u8>, usize) {
         }
     }
     (out, lost)
+}
+
+/// Decodes a Shift-JIS `0.txt` (the reverse of [`encode`]).
+pub fn decode(bytes: &[u8]) -> String {
+    encoding_rs::SHIFT_JIS.decode(bytes).0.into_owned()
 }
 
 /// What an `effect` definition draws.

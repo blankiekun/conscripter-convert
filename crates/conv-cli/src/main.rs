@@ -100,6 +100,10 @@ enum Command {
         #[arg(long)]
         dry_run: bool,
     },
+    /// Check a converted game directory's 0.txt: missing labels, effect
+    /// numbers past 255, half-width characters in vertical text, files
+    /// that aren't in the archives
+    Lint { dir: PathBuf },
     /// Low-level tools for Xuse XARC archives (*.arc)
     Xarc {
         #[command(subcommand)]
@@ -271,6 +275,14 @@ fn main() -> Result<()> {
         }
         Command::ConvertNss { game, file, scene, chain, output, font, title, loose, dry_run } => {
             convert_nss(&game, &file, scene.as_deref(), chain, &output, font.as_deref(), &title, loose, dry_run)
+        }
+        Command::Lint { dir } => {
+            let report = lint_dir(&dir, true)?;
+            print!("{report}");
+            if !report.is_empty() {
+                bail!("problems found");
+            }
+            Ok(())
         }
         Command::Xarc { command } => match command {
             XarcCommand::List { archive } => xarc_list(&archive),
@@ -939,7 +951,48 @@ fn convert_nss(
     for (what, n) in notes {
         println!("    {n:>6}  {what}");
     }
+    // A dry run has no assets to look for.
+    let lint = lint_dir(output, !dry_run)?;
+    if !lint.is_empty() {
+        println!("  lint:");
+        print!("{lint}");
+    }
     Ok(())
+}
+
+/// Lints `dir/0.txt` ([`conv_cons::lint`]). With `files`, also checks that
+/// the files it names are in `dir`'s .nsa archives, or loose with an ASCII
+/// name (CONscripter doesn't find loose files with Japanese names).
+fn lint_dir(dir: &Path, files: bool) -> Result<conv_cons::lint::Report> {
+    let path = dir.join("0.txt");
+    let bytes = fs::read(&path).with_context(|| format!("reading {}", path.display()))?;
+    let script = conv_cons::decode(&bytes);
+    let mut have = std::collections::HashSet::new();
+    if files {
+        for entry in fs::read_dir(dir)? {
+            let path = entry?.path();
+            let name = path.file_name().unwrap_or_default().to_string_lossy().to_ascii_lowercase();
+            if name.starts_with("arc") && name.ends_with(".nsa") {
+                for n in conv_cons::nsa::read_names(&path).with_context(|| format!("reading {}", path.display()))? {
+                    have.insert(n.to_lowercase());
+                }
+            }
+        }
+        fn walk(dir: &Path, name: &str, have: &mut std::collections::HashSet<String>) {
+            let Ok(entries) = fs::read_dir(dir) else { return };
+            for path in entries.filter_map(|e| e.ok()).map(|e| e.path()) {
+                let file = path.file_name().unwrap_or_default().to_string_lossy().to_lowercase();
+                let name = if name.is_empty() { file } else { format!("{name}\\{file}") };
+                if path.is_dir() {
+                    walk(&path, &name, have);
+                } else if name.is_ascii() {
+                    have.insert(name);
+                }
+            }
+        }
+        walk(dir, "", &mut have);
+    }
+    Ok(conv_cons::lint::lint(&script, &|n| !files || have.contains(&n.replace('/', "\\").to_lowercase())))
 }
 
 fn open_npa<'a>(exe: &Path, path: &Path, bytes: &'a [u8]) -> Result<conv_engines::nitroplus::npa::Npa<'a>> {
