@@ -10,14 +10,14 @@ use std::path::{Path, PathBuf};
 
 use thiserror::Error;
 use conv_core::ir::{
-    ArithOp, Backlog, BarAction, BarButton, ButtonBar, ConfirmDialog, NamePlate, Setting, SettingRow, SettingsMenu, Op, Operand, PageButton, Placed, Rect, Ruby, SaveMenu, TextStyle, SourceLoc, Voice, VoiceToggle,
+    ArithOp, Backlog, BarAction, BarButton, ButtonBar, ConfirmDialog, NamePlate, Noise, Setting, SettingRow, SettingsMenu, Op, Operand, PageButton, Placed, Rect, Ruby, SaveMenu, TextStyle, SourceLoc, Voice, VoiceToggle,
     SpriteChange, SpriteFilter, SpritePlacement, TextLink, TextSpot, TextWindow, TitleAction, TitleButton, TitleScreen, TopBars,
     SlideLayer, TransitionStyle, Var, ZoomStyle, FILTER_BLEND_ADD, FILTER_BLEND_COPY, FILTER_BLEND_MULTIPLY, FILTER_BLEND_SCREEN, FILTER_BRIGHTNESS, FILTER_COLOUR, FILTER_MONOTONE,
     FILTER_GREYSCALE, FILTER_NEGATIVE,
 };
 
 use crate::xuse::cd::{
-    CdError, CdScript, Instr, Link, PresetModule, Ruby as RubyRecord, ScreenModule, Sound, SpriteEntry, TextStyle as StyleRecord, OP_TEXT_INDENT, PRESET_KIND_MONOTONE, PRESET_BLEND_ADD, PRESET_BLEND_ALPHA, PRESET_BLEND_COPY,
+    CdError, CdScript, EnvModule, Instr, Link, PresetModule, ENV_KIND_NOISE, Ruby as RubyRecord, ScreenModule, Sound, SpriteEntry, TextStyle as StyleRecord, OP_TEXT_INDENT, PRESET_KIND_MONOTONE, PRESET_BLEND_ADD, PRESET_BLEND_ALPHA, PRESET_BLEND_COPY,
     PRESET_BLEND_MULTI, PRESET_BLEND_SCREEN, PRESET_KIND_BRIGHTNESS, PRESET_KIND_COLOUR, PRESET_KIND_GREYSCALE,
     PRESET_KIND_NEGATIVE,
 };
@@ -113,6 +113,10 @@ const PRESETS: u32 = 3;
 const PRESET_SLOTS: u32 = 3;
 /// kind, blend, strength, three parameters (as in [`SpriteFilter`]).
 const PRESET_FIELDS: u32 = 6;
+/// Pictures of static in the noise strip ([`AssetBank::noise`]); the
+/// original draws new static every interval, which a short loop stands in
+/// for.
+const NOISE_FRAMES: u32 = 4;
 const OP_WAIT: u16 = 0x66;
 /// Plays `HD/mvNNNN.bin` (handler 0x478ab0, task 0x408ed0): arg's low 16
 /// bits are the number, its high 16 bits whether a click or key ends it
@@ -342,6 +346,31 @@ impl AssetBank {
             .map_err(|source| ConvertError::Image { what: name.clone(), source })?;
         write_file(&self.out.join(&name), &png)?;
         self.written.insert((kind, number), name.clone());
+        Ok(name)
+    }
+
+    /// Static for opcode 0x8c's noise ([`crate::xuse::cd::Noise`]):
+    /// [`NOISE_FRAMES`] screens of greyscale noise, one random level per
+    /// pixel, side by side in one picture.
+    pub fn noise(&mut self) -> Result<String, ConvertError> {
+        let name = "system/noise.png".to_string();
+        if self.written.contains_key(&("noise", 0)) {
+            return Ok(name);
+        }
+        let (w, h) = (800 * NOISE_FRAMES, 600);
+        // xorshift32: the same picture on every run.
+        let mut state = 0x2545_f491u32;
+        let img = image::GrayImage::from_fn(w, h, |_, _| {
+            state ^= state << 13;
+            state ^= state >> 17;
+            state ^= state << 5;
+            image::Luma([(state >> 24) as u8])
+        });
+        let mut png = Vec::new();
+        img.write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
+            .map_err(|source| ConvertError::Image { what: name.clone(), source })?;
+        write_file(&self.out.join(&name), &png)?;
+        self.written.insert(("noise", 0), name.clone());
         Ok(name)
     }
 
@@ -1208,6 +1237,43 @@ fn lower_screen_module(
     Ok(())
 }
 
+/// Opcode 0x8c: an effect over the whole screen. Only the static (kind 2)
+/// is converted; `noise_slots` are the slots whose last setting in file
+/// order was static, so clearing them removes it.
+fn lower_environment(
+    m: &EnvModule,
+    noise_slots: &mut BTreeSet<u32>,
+    assets: &mut AssetBank,
+    ops: &mut Vec<Op>,
+    at: impl Fn() -> SourceLoc,
+) -> Result<(), ConvertError> {
+    if m.slot == 0 || m.kind == 0 {
+        let was_noise = if m.slot == 0 { !std::mem::take(noise_slots).is_empty() } else { noise_slots.remove(&m.slot) };
+        // Clearing a slot nothing converted was put in changes nothing.
+        if was_noise {
+            ops.push(Op::Noise(None));
+        } else if m.slot != 0 {
+            ops.push(Op::Unsupported { what: format!("opcode 0x8c clear slot {}", m.slot), at: at() });
+        }
+        return Ok(());
+    }
+    noise_slots.remove(&m.slot);
+    match m.noise {
+        // The game always uses alpha blending (0) and greyscale (mode 1).
+        // Assumption: the rise in opacity over time_ms (up to 2 s) is
+        // left out; most of the static is set inside a transition, which
+        // fades it in.
+        Some(n) if m.kind == ENV_KIND_NOISE && n.blend == 0 && n.mode & 1 == 1 => {
+            noise_slots.insert(m.slot);
+            let image = assets.noise()?;
+            let frame_ms = n.interval_ms.max(1);
+            ops.push(Op::Noise(Some(Noise { image, frames: NOISE_FRAMES, frame_ms, opacity: u32::from(n.end_opacity.min(256)) })));
+        }
+        _ => ops.push(Op::Unsupported { what: format!("opcode 0x8c kind {}", m.kind), at: at() }),
+    }
+    Ok(())
+}
+
 /// Opcode 0x88: sets one slot of a preset (slot 0 clears every slot). A
 /// module the converter can't express clears its slot and is reported.
 fn lower_preset_module(m: &PresetModule, ops: &mut Vec<Op>, at: impl Fn() -> SourceLoc) {
@@ -1297,6 +1363,8 @@ pub fn lower_script(
     let mut full_screen_rows: Option<usize> = None;
     let mut last_text: Option<(usize, usize)> = None;
     let mut page_break = false;
+    // Opcode 0x8c slots holding static (file order).
+    let mut noise_slots = BTreeSet::new();
     for (index, ins) in cd.code.iter().enumerate() {
         if let Some(label) = own_labels.get(&index) {
             ops.push(Op::Label(format!("s{}_l{label}", cd.script_id)));
@@ -1396,6 +1464,10 @@ pub fn lower_script(
         }
         if let Some(module) = cd.screen_module(ins) {
             lower_screen_module(&module?, assets, &mut ops, at)?;
+            continue;
+        }
+        if let Some(module) = cd.environment(ins) {
+            lower_environment(&module?, &mut noise_slots, assets, &mut ops, at)?;
             continue;
         }
         if let Some(apply) = cd.apply_preset(ins) {

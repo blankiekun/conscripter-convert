@@ -130,6 +130,18 @@ pub struct SpriteFilter {
     pub params: [Operand; 3],
 }
 
+/// Static over the whole picture ([`Op::Noise`]).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Noise {
+    /// `frames` pictures of static side by side, each as large as the
+    /// screen, shown in turn for `frame_ms` each.
+    pub image: String,
+    pub frames: u32,
+    pub frame_ms: u32,
+    /// 0-256 (256 = only static).
+    pub opacity: u32,
+}
+
 /// A clickable word in a text page.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TextLink {
@@ -187,6 +199,11 @@ pub enum Op {
     /// or the sprites are cleared. Shown at once unless a transition is
     /// open.
     Overlay { image: Option<String>, over_sprites: bool },
+    /// Show (or with `None` remove) moving static over the picture: over
+    /// the sprites and the overlay, under the text window. Like the
+    /// overlay, it stays when the background changes or the sprites are
+    /// cleared. Shown at once unless a transition is open.
+    Noise(Option<Noise>),
     /// Hide the text window; the next text page shows it again.
     HideTextWindow,
     /// Show the following pages whole (`true`) or typed out at the text

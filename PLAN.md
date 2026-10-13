@@ -339,6 +339,7 @@ offset of its operand record.
 | `0x49` | 565 | **solved** (handler `0x477990`): u16 line, u16 column, u16 length (30000 = to the end of the message; the game wraps enlarged messages short enough to fit), u16 size (percent below 0x1000; 0x1000 + n = n × 25 percent from the table at `0x4fa850`, 0x1003 for mumbling, 0x1005-0x1007 for shouting; 0xf000 = keep), u32 colour (COLORREF, 0xff000000 = keep), u32 edge colour; lines and columns count as for ruby; later records override earlier ones | size and colour for characters of the next message: `#RRGGBB` and CONscripter's `!zNNN` size tag (§4.2) |
 | `0x4e` | 24 | **solved** (handler `0x494750`): arg = indent << 16 \| 1 (once 2); the indent is in half-width units of the first line (ASCII, half-width kana and Greek count 1), up to the text after the chat log's handle | hanging indent of the next message; the game puts it only before chat messages long enough to wrap. Converted to `indent N` around the message, N measured on the emitted line |
 | `0x70` | 457 | **solved** (handler `0x415a30`, objects `filter-<slot>`): u32 slot (0 = clear all), u32 layer \| fade ms << 8 (layer byte through the table at `0x503e68`: 0/2 → 0x10, 1 → 0, 3 → 0x20, 4 → 0x30), u32 kind (0 = clear the slot), u16 blend, u16 opacity, then 0x88's kind data; monotone (6) is a u32 palette, `pal%04u.pal` in `HD/pal.arc` (RIFF PAL, 256 entries for the grey levels) | filter on the whole screen, from 0x88's modules. Converted to `screenfilter` + a fade `print`. Not converted (62 uses): Smooth (1, a blur: XRange/YRange), kind 13 (a ripple, set with Smooth in wind scenes), HueSatura (3), BrightnessInvert (9), kind 12 |
+| `0x8c` | 240 | **partly solved** (handler `0x4153c0`, `AdvObjectScript_Env.cpp`, objects `environment-<slot>`): u32 slot (0 = clear all), u32 layer \| depth << 8 (the word goes to `0x4109a0` as the object's sort key, see `0x4126c0`; the game uses depth 1000), u32 kind (0 = clear the slot), then the kind's module data (setup table `0x5013bc`; module class from the creator table `0x501434` + RTTI): 1 Animation-Simple on `HD/env.arc` image 50,000,000 + n (light rays, unused), 2 Animation-RandomNoise (88 uses), 3 Filter-LensFlare (unused), 4 Animation-Replace (25: a ripple through a displacement map: u32 option, time, interval, u8 blend, u16 begin/end opacity, u32 map image, amplitude begin/end, angle, ...), 5 Animation-Vibrate (12: shaking: u32 option, time, interval, speed x/y, begin range x/y, end range x/y) | static: u8 mode, u8 blend, u16 begin/end opacity (0-256), u32 time, u32 interval; greyscale, one random byte per pixel, redrawn every interval (100 ms), the opacity rising over time. Converted to an animated sprite (4 generated frames of static, `system/noise.png`) at the end opacity, sprite 60, kept across `csp -1` like `0x55`. Kinds 4 and 5 not converted |
 | `0x57` | 542 | **solved** (handler `0x473530` → sound request `0x47aab0`, channel 0) | play BGM: `arg` = track (1-based, `bm0000.bin` slot `arg - 1`), `sub` = fade-in ms (capped at 30 s) |
 | `0x58` | 579 | **solved** (channel 0, stop flag) | stop BGM: `arg` 0 = all, `sub` = fade-out ms |
 | `0x5a` | 2,633 | **solved** (channel 1) | play SE: packed 9-byte record `u32 ?, u8 loop, u32 sound` (1-based across `k0000.bin` + `k0001.bin`) |
@@ -525,11 +526,13 @@ parts are not converted:
 - `0x70` kinds not converted (62 uses): Smooth (blur), 13 (ripple),
   HueSatura, BrightnessInvert, 12;
 - `0x93`/`0x94` (418): before each chapter end, unknown;
-- `0x8c` (240), `0x6d` (198), `0x7a`/`0x7b` (about 90 each) and about
-  30 rarer ones. `0x55` is done: a second background object, mostly the
-  `frameNN` overlays (letterbox bars, speed lines), drawn as sprite 60
+- `0x8c` kinds 4 (ripple, 25 uses) and 5 (shaking, 12): both need
+  CONscripter additions (a shake that doesn't block, a displacement
+  effect); `0x6d` (198), `0x7a`/`0x7b` (about 90 each) and about 30
+  rarer ones. `0x55` is done: a second background object, mostly the
+  `frameNN` overlays (letterbox bars, speed lines), drawn as sprite 61
   (over the characters) or 999 (under them) and kept across background
-  changes;
+  changes; `0x8c`'s static is sprite 60, over it;
 
 **Accuracy.**
 - Transitions still drawn as cross-fades: Wave (0-3, 39 uses), Dissolve

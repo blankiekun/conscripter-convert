@@ -111,10 +111,26 @@ engines print `z150` etc.). The web build compiles with it.
       10-100), putting the frame over the characters.
 - [ ] Check: 0x8e's field we read as fade (10 ms units) is passed as
       the object's depth to 0x4109a0 (the same argument as 0x55's
-      1000). Maybe it is both, maybe the fades are wrong.
-- [ ] Opcodes still emitted as comments (2,571 left): `0x93`/`0x94`
+      1000). Maybe it is both, maybe the fades are wrong. **0x70 too:**
+      its "fade ms" (timing >> 8, mostly 1000) goes to 0x4109a0 as well,
+      and 0x4126c0 makes it the object's sort key (layer bits | depth),
+      exactly like 0x8c's. So filters set outside a transition probably
+      appear at once, not with our 1 s `print` fade. Check under wine.
+- [x] `0x8c` static (kind 2, 88 uses + their clears): an animated
+      sprite of generated static (`system/noise.png`, 4 frames of
+      800×600, 100 ms each) at sprite 60, kept across `csp -1` in
+      `%116`/`$116` (link scenes save it at %130 + depth). Overlay moved
+      to sprite 61, characters to 62 + n. Not done: the opacity rise over
+      `time` (100-2000 ms; most uses sit inside a transition, which fades
+      it in). Unsupported: 2,571 → 2,404.
+- [ ] `0x8c` kinds 4 (Animation-Replace, a ripple through a
+      displacement map, 25 uses, e.g. 「ぐらり、と視界が歪んだ」) and 5
+      (Animation-Vibrate, shaking that runs while text shows, 12 uses).
+      Both need CONscripter additions; record layouts in the PLAN §6
+      opcode table.
+- [ ] Opcodes still emitted as comments (2,404 left): `0x93`/`0x94`
       (418, before each chapter end), `0x37`/`0x38` (251, chapter
-      history), `0x8c` (240), `0x6d` (198), `0x7a`/`0x7b`, `0x6e`/`0x6f`,
+      history), `0x8c` kinds 4/5 (73 with clears), `0x6d` (198), `0x7a`/`0x7b`, `0x6e`/`0x6f`,
       `0x8a`/`0x8b`, `0x70` leftovers.
 - [ ] Transitions still drawn as cross-fades: Wave, Dissolve, RollFlip,
       SoftEdgeWipe, TvPowerSwitch, BoxRolling, SmoothCrossFade, Dot4x4,

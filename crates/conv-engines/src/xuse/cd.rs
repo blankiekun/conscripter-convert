@@ -154,6 +154,18 @@ pub const PRESET_BLEND_ADD: u16 = 1;
 pub const PRESET_BLEND_MULTI: u16 = 2;
 pub const PRESET_BLEND_SCREEN: u16 = 3;
 pub const PRESET_BLEND_COPY: u16 = 5;
+/// An effect over the whole screen, "environment-<slot>" (handler
+/// 0x4153c0, `AdvObjectScript_Env.cpp`). Record: u32 slot (0 clears every
+/// slot), u32 layer | depth << 8 as in 0x70 (the game uses layer 0, depth
+/// mostly 1000), u32 kind (0 clears the slot), then the kind's data. Each
+/// kind is one animation module on an object as large as the screen (setup
+/// table at 0x5013bc; module classes from the creator table at 0x501434):
+/// 1 Animation-Simple on image 50,000,000 + n from `HD/env.arc` (light
+/// rays; unused), 2 Animation-RandomNoise, 3 Filter-LensFlare (unused),
+/// 4 Animation-Replace (a ripple through a displacement map), 5
+/// Animation-Vibrate (shaking), 6 and 7 unused.
+pub const OP_ENVIRONMENT: u16 = 0x8c;
+pub const ENV_KIND_NOISE: u32 = 2;
 pub const OP_BGM_PLAY: u16 = 0x57;
 pub const OP_BGM_STOP: u16 = 0x58;
 pub const OP_SE_PLAY: u16 = 0x5a;
@@ -220,6 +232,33 @@ pub struct ScreenModule {
     pub colour: Option<[u8; 3]>,
     pub brightness: Option<i16>,
     pub palette: Option<u32>,
+}
+
+/// Opcode 0x8c: one slot of the effects over the whole screen.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct EnvModule {
+    pub slot: u32,
+    pub kind: u32,
+    /// Static (kind 2), else `None`.
+    pub noise: Option<Noise>,
+}
+
+/// Animation-RandomNoise (module 0x72): greyscale static, one random byte
+/// per pixel from a 256 KiB table (0x43bab0's sibling 0x4398d0; mode bit 0
+/// clear picks a colour variant), drawn with `blend` at an opacity that
+/// goes from `begin_opacity` to `end_opacity` (0-256) over `time_ms`,
+/// redrawn from a new random offset every `interval_ms` (update 0x419570).
+/// Record: u8 mode, u8 blend, u16 begin, u16 end, u32 time, u32 interval
+/// (the field names are the exe's debug output). The game always uses
+/// mode 1, blend 0 (alpha), opacity from 0 and an interval of 100 ms.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Noise {
+    pub mode: u8,
+    pub blend: u8,
+    pub begin_opacity: u16,
+    pub end_opacity: u16,
+    pub time_ms: u32,
+    pub interval_ms: u32,
 }
 
 /// Opcode 0x90: attach an effect preset to a character's bust-up.
@@ -569,6 +608,29 @@ impl<'a> CdScript<'a> {
         })
     }
 
+    /// Decodes opcode 0x8c, or returns `None` for other opcodes.
+    pub fn environment(&self, ins: &Instr) -> Option<Result<EnvModule, CdError>> {
+        (ins.op == OP_ENVIRONMENT).then(|| {
+            let r = Reader(self.pool);
+            let o = ins.arg as u32 as usize;
+            let (slot, kind) = (r.u32(o)?, r.u32(o + 8)?);
+            let noise = if slot != 0 && kind == ENV_KIND_NOISE {
+                let d = r.slice(o + 12, 2)?;
+                Some(Noise {
+                    mode: d[0],
+                    blend: d[1],
+                    begin_opacity: r.u16(o + 14)?,
+                    end_opacity: r.u16(o + 16)?,
+                    time_ms: r.u32(o + 18)?,
+                    interval_ms: r.u32(o + 22)?,
+                })
+            } else {
+                None
+            };
+            Ok(EnvModule { slot, kind, noise })
+        })
+    }
+
     /// Decodes opcode 0x90, or returns `None` for other opcodes.
     pub fn apply_preset(&self, ins: &Instr) -> Option<Result<ApplyPreset, CdError>> {
         (ins.op == OP_APPLY_PRESET).then(|| {
@@ -801,6 +863,24 @@ mod tests {
         assert_eq!((colour.blend, colour.opacity), (PRESET_BLEND_MULTI, 256));
         assert_eq!(cd.apply_preset(&cd.code[2]).unwrap().unwrap(), ApplyPreset { character: 14, preset: 1 });
         assert!(cd.apply_preset(&cd.code[0]).is_none());
+    }
+
+    #[test]
+    fn decodes_environment() {
+        // Static at 120/256 (script 5) and the clear after it.
+        let pool: Vec<u8> = [concat!("01000000", "00e80300", "02000000", "0100", "0000", "7800", "64000000", "64000000"), "0100000000e8030000000000"]
+            .iter()
+            .flat_map(|h| (0..h.len()).step_by(2).map(|i| u8::from_str_radix(&h[i..i + 2], 16).unwrap()))
+            .collect();
+        let code = [
+            Instr { op: OP_ENVIRONMENT, sub: 0xffff, arg: 0, source_pos: 0 },
+            Instr { op: OP_ENVIRONMENT, sub: 0xffff, arg: 26, source_pos: 0 },
+        ];
+        let bytes = build("e.rio", &[], &code, &pool);
+        let cd = CdScript::parse(&bytes).unwrap();
+        let noise = Noise { mode: 1, blend: 0, begin_opacity: 0, end_opacity: 120, time_ms: 100, interval_ms: 100 };
+        assert_eq!(cd.environment(&cd.code[0]).unwrap().unwrap(), EnvModule { slot: 1, kind: 2, noise: Some(noise) });
+        assert_eq!(cd.environment(&cd.code[1]).unwrap().unwrap(), EnvModule { slot: 1, kind: 0, noise: None });
     }
 
     #[test]

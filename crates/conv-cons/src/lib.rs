@@ -42,10 +42,12 @@ const NAME_PLATE_SPRITE: u32 = 51;
 /// 59`, slots up to 59 are drawn over the text window and the character
 /// sprites under it.
 const LINK_SPRITES: std::ops::RangeInclusive<u32> = 52..=59;
+/// The static ([`Op::Noise`]), over the overlay.
+const NOISE_SPRITE: u32 = 60;
 /// The overlay ([`Op::Overlay`]) over the character sprites.
-const OVERLAY_SPRITE: u32 = 60;
-/// Sprite layer n is NScripter sprite 61 + n.
-const SPRITE_BASE: u32 = 61;
+const OVERLAY_SPRITE: u32 = 61;
+/// Sprite layer n is NScripter sprite 62 + n.
+const SPRITE_BASE: u32 = 62;
 /// The highest sprite number (ONScripter has 1000); also the overlay
 /// under the character sprites.
 const MAX_SPRITE: u32 = 999;
@@ -55,6 +57,12 @@ const OVERLAY_SLOT: &str = "%180";
 const OVERLAY_IMAGE: &str = "$180";
 const OVERLAY_DEPTH: &str = "%181";
 const OVERLAY_SAVED: u32 = 182;
+/// The static's opacity (0 = none, else 1-255) and image, to show it again
+/// after `csp -1`. Link scenes save them at NOISE_SAVED + depth (the depth
+/// is the overlay's counter).
+const NOISE_ALPHA: &str = "%116";
+const NOISE_IMAGE: &str = "$116";
+const NOISE_SAVED: u32 = 130;
 /// Scratch variable receiving the clicked button (also used by nstrace).
 const BUTTON_VAR: &str = "%9";
 /// NScripter variables: locals from %10, globals from %200. `globalon`
@@ -79,8 +87,15 @@ pub fn emit(script: &Script) -> String {
     let effects = fade_effects(script);
     let has_ruby = script.ops.iter().any(|op| matches!(op, Op::Text { ruby, .. } if !ruby.is_empty()));
     let has_overlay = script.ops.iter().any(|op| matches!(op, Op::Overlay { .. }));
-    // Shows the overlay again after `csp -1`.
-    let restore_overlay = format!("if {OVERLAY_SLOT} != 0 lsp {OVERLAY_SLOT},{OVERLAY_IMAGE},0,0");
+    let has_noise = script.ops.iter().any(|op| matches!(op, Op::Noise(_)));
+    // Shows the overlay and the static again after `csp -1`.
+    let mut restore_overlay = String::new();
+    if has_overlay {
+        writeln!(restore_overlay, "if {OVERLAY_SLOT} != 0 lsp {OVERLAY_SLOT},{OVERLAY_IMAGE},0,0").unwrap();
+    }
+    if has_noise {
+        writeln!(restore_overlay, "if {NOISE_ALPHA} != 0 lsp {NOISE_SPRITE},{NOISE_IMAGE},0,0,{NOISE_ALPHA}").unwrap();
+    }
     let mut out = String::new();
 
     let mode = match (script.width, script.height) {
@@ -205,9 +220,7 @@ pub fn emit(script: &Script) -> String {
                 // NScripter's bg keeps lsp sprites; the game removes characters
                 // when the background or CG changes.
                 writeln!(out, "csp -1").unwrap();
-                if has_overlay {
-                    writeln!(out, "{restore_overlay}").unwrap();
-                }
+                out.push_str(&restore_overlay);
                 // Effect 0 = update the buffer only (shown by the transition).
                 let e = if transition.is_some() { 0 } else { effect(*fade_ms) };
                 writeln!(out, "bg \"{}\",{e}", path(image)).unwrap();
@@ -271,9 +284,7 @@ pub fn emit(script: &Script) -> String {
             }
             Op::ClearSprites => {
                 writeln!(out, "csp -1").unwrap();
-                if has_overlay {
-                    writeln!(out, "{restore_overlay}").unwrap();
-                }
+                out.push_str(&restore_overlay);
                 plate_visible = false;
                 if transition.is_none() {
                     writeln!(out, "print 1").unwrap();
@@ -288,6 +299,21 @@ pub fn emit(script: &Script) -> String {
                         writeln!(out, "lsp {slot},{OVERLAY_IMAGE},0,0").unwrap();
                     }
                     None => writeln!(out, "mov {OVERLAY_SLOT},0").unwrap(),
+                }
+                if transition.is_none() {
+                    writeln!(out, "print 1").unwrap();
+                }
+            }
+            Op::Noise(noise) => {
+                writeln!(out, "csp {NOISE_SPRITE}").unwrap();
+                match noise {
+                    Some(n) => {
+                        let alpha = ((n.opacity * 255 + 128) / 256).clamp(1, 255);
+                        let image = format!(":c/{},{},0;{}", n.frames, n.frame_ms, path(&n.image));
+                        writeln!(out, "mov {NOISE_ALPHA},{alpha}:mov {NOISE_IMAGE},\"{image}\"").unwrap();
+                        writeln!(out, "lsp {NOISE_SPRITE},{NOISE_IMAGE},0,0,{NOISE_ALPHA}").unwrap();
+                    }
+                    None => writeln!(out, "mov {NOISE_ALPHA},0").unwrap(),
                 }
                 if transition.is_none() {
                     writeln!(out, "print 1").unwrap();
@@ -451,11 +477,19 @@ pub fn emit(script: &Script) -> String {
                     }
                     // The scene may change the whole screen: save the
                     // background, the game's sprites and the BGM around it.
-                    writeln!(out, "pushscreen {OVERLAY_SPRITE},{}", MAX_SPRITE).unwrap();
+                    writeln!(out, "pushscreen {NOISE_SPRITE},{}", MAX_SPRITE).unwrap();
+                    // popscreen brings the overlay and the static back; so
+                    // must the variables.
+                    if has_overlay || has_noise {
+                        writeln!(out, "add {OVERLAY_DEPTH},1").unwrap();
+                    }
                     if has_overlay {
-                        // popscreen brings the overlay back; so must the variables.
-                        writeln!(out, "add {OVERLAY_DEPTH},1:mov {},{OVERLAY_SAVED}+{OVERLAY_DEPTH}", menu::TMP).unwrap();
+                        writeln!(out, "mov {},{OVERLAY_SAVED}+{OVERLAY_DEPTH}", menu::TMP).unwrap();
                         writeln!(out, "mov %{},{OVERLAY_SLOT}:mov ${},{OVERLAY_IMAGE}", menu::TMP, menu::TMP).unwrap();
+                    }
+                    if has_noise {
+                        writeln!(out, "mov {},{NOISE_SAVED}+{OVERLAY_DEPTH}", menu::TMP).unwrap();
+                        writeln!(out, "mov %{},{NOISE_ALPHA}:mov ${},{NOISE_IMAGE}", menu::TMP, menu::TMP).unwrap();
                     }
                     writeln!(out, "gosub *{}", label(target)).unwrap();
                     if scenes {
@@ -465,8 +499,15 @@ pub fn emit(script: &Script) -> String {
                     }
                     writeln!(out, "popscreen").unwrap();
                     if has_overlay {
-                        writeln!(out, "mov {},{OVERLAY_SAVED}+{OVERLAY_DEPTH}:sub {OVERLAY_DEPTH},1", menu::TMP).unwrap();
+                        writeln!(out, "mov {},{OVERLAY_SAVED}+{OVERLAY_DEPTH}", menu::TMP).unwrap();
                         writeln!(out, "mov {OVERLAY_SLOT},%{}:mov {OVERLAY_IMAGE},${}", menu::TMP, menu::TMP).unwrap();
+                    }
+                    if has_noise {
+                        writeln!(out, "mov {},{NOISE_SAVED}+{OVERLAY_DEPTH}", menu::TMP).unwrap();
+                        writeln!(out, "mov {NOISE_ALPHA},%{}:mov {NOISE_IMAGE},${}", menu::TMP, menu::TMP).unwrap();
+                    }
+                    if has_overlay || has_noise {
+                        writeln!(out, "sub {OVERLAY_DEPTH},1").unwrap();
                     }
                     if let Some(w) = window {
                         // The scene may have switched the text window.
@@ -995,7 +1036,7 @@ impl SeChannels {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use conv_core::ir::{SourceLoc, SpriteChange, SpriteFilter, SpritePlacement, Voice, FILTER_BLEND_COPY, FILTER_BLEND_MULTIPLY, FILTER_BRIGHTNESS, FILTER_COLOUR};
+    use conv_core::ir::{Noise, SourceLoc, SpriteChange, SpriteFilter, SpritePlacement, Voice, FILTER_BLEND_COPY, FILTER_BLEND_MULTIPLY, FILTER_BRIGHTNESS, FILTER_COLOUR};
 
     fn script(ops: Vec<Op>) -> Script {
         Script { title: "Test".into(), width: 800, height: 600, window: None, title_screen: None, save_menu: None, button_bar: None, settings: None, backlog: None, confirm: None, ops }
@@ -1100,8 +1141,8 @@ goto *conv_link1
 csp -1
 csp -1
 bg \"bg\\a.png\",0
-spfilter 66,0
-lsp 66,\":a;sprite\\a.png\",1,2
+spfilter 67,0
+lsp 67,\":a;sprite\\a.png\",1,2
 print 4
 ; transition: MaskBlend2
 csp -1
@@ -1258,13 +1299,13 @@ bgmfadein 1000
 bgm \"bgm\\track01.ogg\"
 csp -1
 bg \"bg\\room.png\",2
-lsp 64,\":a;sprite\\a.png\",10,-20
+lsp 65,\":a;sprite\\a.png\",10,-20
 print 2
-spfilter 64,0
-spfilter 64,1,1,128,255,200,100
-if %40 != 0 spfilter 64,%40,%41,%42,%43,%44,%45
+spfilter 65,0
+spfilter 65,1,1,128,255,200,100
+if %40 != 0 spfilter 65,%40,%41,%42,%43,%44,%45
 print 1
-csp 64
+csp 65
 print 1
 【名前】「こんにちは」\\
 dwave 0,\"voice\\v1.ogg\"
@@ -1486,9 +1527,28 @@ end
         let out = emit(&s);
         assert!(
             out.contains(
-                "if %180 != 0 csp %180\nmov %180,60:mov $180,\":a;bg\\frame01.png\"\nlsp 60,$180,0,0\nprint 1\n\
+                "if %180 != 0 csp %180\nmov %180,61:mov $180,\":a;bg\\frame01.png\"\nlsp 61,$180,0,0\nprint 1\n\
                  csp -1\nif %180 != 0 lsp %180,$180,0,0\nbg \"bg\\room.png\",1\n\
                  if %180 != 0 csp %180\nmov %180,0\nprint 1\n"
+            ),
+            "{out}"
+        );
+    }
+
+    #[test]
+    fn noise_outlasts_the_background() {
+        let noise = Noise { image: "system/noise.png".into(), frames: 4, frame_ms: 100, opacity: 120 };
+        let s = script(vec![
+            Op::Noise(Some(noise)),
+            Op::Background { image: "bg/room.png".into(), fade_ms: 0 },
+            Op::Noise(None),
+        ]);
+        let out = emit(&s);
+        assert!(
+            out.contains(
+                "csp 60\nmov %116,120:mov $116,\":c/4,100,0;system\\noise.png\"\nlsp 60,$116,0,0,%116\nprint 1\n\
+                 csp -1\nif %116 != 0 lsp 60,$116,0,0,%116\nbg \"bg\\room.png\",1\n\
+                 csp 60\nmov %116,0\nprint 1\n"
             ),
             "{out}"
         );
