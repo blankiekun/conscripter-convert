@@ -122,6 +122,8 @@ pub enum CdError {
 pub const OP_MESSAGE: u16 = 0x40;
 pub const OP_VOICED_MESSAGE: u16 = 0x41;
 pub const OP_LINK: u16 = 0x46;
+/// Ruby (furigana) for the next message (handler from `TextRuby.cpp`).
+pub const OP_RUBY: u16 = 0x44;
 pub const OP_BACKGROUND: u16 = 0x54;
 pub const OP_SPRITES: u16 = 0x8e;
 const SPRITE_ENTRY_LEN: usize = 44;
@@ -194,6 +196,20 @@ pub struct ApplyPreset {
     pub character: u16,
     /// 1-based preset number; 0 removes the preset module.
     pub preset: u32,
+}
+
+/// Opcode 0x44: a reading shown above characters of the next message.
+/// Record: u16 line, u16 column, u16 length, u16 flags (1 or 3; no visible
+/// difference found), u32 0, then the reading as a pool string. Lines
+/// count the message's text lines (not the speaker's name), 1-based, as
+/// do columns.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Ruby {
+    pub line: u16,
+    pub column: u16,
+    pub length: u16,
+    pub flags: u16,
+    pub text: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -377,6 +393,24 @@ impl<'a> CdScript<'a> {
                 style: r.u32(o + 6)?,
                 target: r.u32(o + 10)?,
                 reserved: r.u32(o + 14)?,
+            })
+        })
+    }
+
+    /// Decodes the record of a ruby instruction, or returns `None` for
+    /// other opcodes.
+    pub fn ruby(&self, ins: &Instr) -> Option<Result<Ruby, CdError>> {
+        (ins.op == OP_RUBY).then(|| {
+            let r = Reader(self.pool);
+            let o = ins.arg as u32 as usize;
+            Ok(Ruby {
+                line: r.u16(o)?,
+                column: r.u16(o + 2)?,
+                length: r.u16(o + 4)?,
+                flags: r.u16(o + 6)?,
+                text: self
+                    .pool_string(o + 12)
+                    .ok_or(CdError::BadOperand { offset: o, reason: "ruby is not valid Shift-JIS" })?,
             })
         })
     }

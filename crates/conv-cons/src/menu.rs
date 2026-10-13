@@ -796,7 +796,9 @@ fn setting_var(s: Setting) -> &'static str {
 /// the name is clicked. A tag is only kept when there is a pretextgosub,
 /// so [`PRETEXT`] is one that does nothing but allow the save point
 /// (pretextgosub makes the text wait for `saveon`).
-pub(crate) fn backlog(out: &mut String, b: &Backlog) {
+/// `ruby`: `rubyon` is set, so `strsp` draws text with a line pitch a line
+/// gap lower (the ruby goes above it); the log is drawn that much higher.
+pub(crate) fn backlog(out: &mut String, b: &Backlog, ruby: bool) {
     let mut w = |line: String| {
         out.push_str(&line);
         out.push('\n');
@@ -807,6 +809,7 @@ pub(crate) fn backlog(out: &mut String, b: &Backlog) {
     let a = &b.area;
     let size = b.font_size;
     let gap = b.line_height - size as i32;
+    let lift = if ruby { format!("-{gap}") } else { String::new() };
     w(format!("*{PRETEXT}"));
     w("saveon".into());
     w("return".into());
@@ -843,7 +846,7 @@ pub(crate) fn backlog(out: &mut String, b: &Backlog) {
     w(format!("if {TMP} < {} mov {TMP},{}", a.y, a.y));
     w(format!("mov {LOG_SPRITE},{LOG_K}+{M}"));
     w(format!("mov {LOG_TEXT_Y},{TMP}+{LOG_NAMED}*{}", b.line_height));
-    w(format!("strsp {LOG_SPRITE},{LINE1},{},{LOG_TEXT_Y},{},{LOG_LINES},{size},{size},0,{gap},0,1", a.x, b.columns));
+    w(format!("strsp {LOG_SPRITE},{LINE1},{},{LOG_TEXT_Y}{lift},{},{LOG_LINES},{size},{size},0,{gap},0,1", a.x, b.columns));
     w(format!("if {LOG_NAMED} == 1 gosub *conv_log_name"));
     w(format!("mov {LOG_Y},{TMP}"));
     w(format!("add {LOG_K},1"));
@@ -852,7 +855,7 @@ pub(crate) fn backlog(out: &mut String, b: &Backlog) {
     w("*conv_log_name".into());
     w(format!("mov {LOG_SPRITE},{LOG_K}+{LOG_NAME_SPRITE}"));
     let name = |text: &str, colors: &str| {
-        format!("strsp {LOG_SPRITE},{text},{},{TMP},{},1,{size},{size},0,{gap},0,1,{colors}", a.x, b.columns)
+        format!("strsp {LOG_SPRITE},{text},{},{TMP}{lift},{},1,{size},{size},0,{gap},0,1,{colors}", a.x, b.columns)
     };
     w(format!("if {LOG_VOICE} == \"\" {}:return", name(LOG_NAME, &format!("\"{LOG_NAME_COLOR}\""))));
     w(format!("add {LOG_NAME},\"　♪\""));

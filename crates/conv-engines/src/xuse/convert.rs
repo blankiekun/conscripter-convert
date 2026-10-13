@@ -10,14 +10,14 @@ use std::path::{Path, PathBuf};
 
 use thiserror::Error;
 use conv_core::ir::{
-    ArithOp, Backlog, BarAction, BarButton, ButtonBar, ConfirmDialog, NamePlate, Setting, SettingRow, SettingsMenu, Op, Operand, PageButton, Placed, Rect, SaveMenu, SourceLoc, Voice, VoiceToggle,
+    ArithOp, Backlog, BarAction, BarButton, ButtonBar, ConfirmDialog, NamePlate, Setting, SettingRow, SettingsMenu, Op, Operand, PageButton, Placed, Rect, Ruby, SaveMenu, SourceLoc, Voice, VoiceToggle,
     SpriteChange, SpriteFilter, SpritePlacement, TextLink, TextSpot, TextWindow, TitleAction, TitleButton, TitleScreen, TopBars,
     SlideLayer, TransitionStyle, Var, ZoomStyle, FILTER_BLEND_ADD, FILTER_BLEND_COPY, FILTER_BLEND_MULTIPLY, FILTER_BLEND_SCREEN, FILTER_BRIGHTNESS, FILTER_COLOUR,
     FILTER_GREYSCALE, FILTER_NEGATIVE,
 };
 
 use crate::xuse::cd::{
-    CdError, CdScript, Instr, Link, PresetModule, Sound, SpriteEntry, PRESET_BLEND_ADD, PRESET_BLEND_ALPHA, PRESET_BLEND_COPY,
+    CdError, CdScript, Instr, Link, PresetModule, Ruby as RubyRecord, Sound, SpriteEntry, PRESET_BLEND_ADD, PRESET_BLEND_ALPHA, PRESET_BLEND_COPY,
     PRESET_BLEND_MULTI, PRESET_BLEND_SCREEN, PRESET_KIND_BRIGHTNESS, PRESET_KIND_COLOUR, PRESET_KIND_GREYSCALE,
     PRESET_KIND_NEGATIVE,
 };
@@ -1181,6 +1181,7 @@ pub fn lower_script(
     let mut ops = Vec::new();
     // Links (opcode 0x46) apply to the next message.
     let mut pending_links: Vec<Link> = Vec::new();
+    let mut pending_ruby: Vec<RubyRecord> = Vec::new();
     // A transition armed by 0x76 and not yet waited on (file order).
     let mut transition_armed = false;
     // Full-screen text mode (file order): rows of the window, the index of
@@ -1195,6 +1196,10 @@ pub fn lower_script(
         }
         if let Some(link) = cd.link(ins) {
             pending_links.push(link?);
+            continue;
+        }
+        if let Some(ruby) = cd.ruby(ins) {
+            pending_ruby.push(ruby?);
             continue;
         }
         let at = || SourceLoc { file: file.to_string(), index };
@@ -1275,15 +1280,19 @@ pub fn lower_script(
             }
             continue;
         }
-        let links = if cd.message(ins).is_some() { std::mem::take(&mut pending_links) } else { Vec::new() };
+        let (links, ruby) = if cd.message(ins).is_some() {
+            (std::mem::take(&mut pending_links), std::mem::take(&mut pending_ruby))
+        } else {
+            (Vec::new(), Vec::new())
+        };
         let unsupported = || format!("opcode {:#04x} sub {:#x} arg {}", ins.op, ins.sub, ins.arg);
-        match lower_instr(cd, ins, &links, assets, names) {
-            Ok(Some(Op::Text { speaker, text, voice, mut links, continues })) if flow == Flow::Linear => {
+        match lower_instr(cd, ins, &links, &ruby, assets, names) {
+            Ok(Some(Op::Text { speaker, text, voice, mut links, ruby, continues })) if flow == Flow::Linear => {
                 // No jumps in linear mode, so links are colour only.
                 links.iter_mut().for_each(|l| l.target = None);
-                ops.push(Op::Text { speaker, text, voice, links, continues });
+                ops.push(Op::Text { speaker, text, voice, links, ruby, continues });
             }
-            Ok(Some(Op::Text { speaker, text, voice, links, .. })) => {
+            Ok(Some(Op::Text { speaker, text, voice, links, ruby, .. })) => {
                 let lines = text.split('\n').count();
                 if let (Some(rows), Some((i, used))) = (full_screen_rows, last_text) {
                     let joins = !page_break && used + lines <= rows;
@@ -1296,7 +1305,7 @@ pub fn lower_script(
                     last_text = Some((ops.len(), lines));
                 }
                 page_break = false;
-                ops.push(Op::Text { speaker, text, voice, links, continues: false });
+                ops.push(Op::Text { speaker, text, voice, links, ruby, continues: false });
             }
             Ok(Some(Op::Gosub(target))) => {
                 let preset = presets.window.get(&target).copied();
@@ -1338,10 +1347,23 @@ fn link_range(segments: &[String], has_speaker: bool, link: &Link) -> Option<(us
     Some((before + col, len))
 }
 
+/// Character range of `ruby` in the text lines `body` joined with '\n'.
+fn ruby_range(body: &[String], ruby: &RubyRecord) -> Option<(usize, usize)> {
+    let line = usize::from(ruby.line).checked_sub(1)?;
+    let col = usize::from(ruby.column).checked_sub(1)?;
+    let len = usize::from(ruby.length);
+    if len == 0 || col + len > body.get(line)?.chars().count() {
+        return None;
+    }
+    let before: usize = body[..line].iter().map(|s| s.chars().count() + 1).sum();
+    Some((before + col, len))
+}
+
 fn lower_instr(
     cd: &CdScript,
     ins: &Instr,
     links: &[Link],
+    ruby: &[RubyRecord],
     assets: &mut AssetBank,
     names: &LabelNames,
 ) -> Result<Option<Op>, ConvertError> {
@@ -1367,7 +1389,14 @@ fn lower_instr(
             Some(Err(ConvertError::MissingAsset { .. })) | None => None,
             Some(r) => Some(r?),
         };
-        return Ok(Some(Op::Text { speaker, text: body.join("\n"), voice, links, continues: false }));
+        let ruby = ruby
+            .iter()
+            .filter_map(|r| {
+                let (start, len) = ruby_range(body, r)?;
+                Some(Ruby { start, len, text: r.text.clone() })
+            })
+            .collect();
+        return Ok(Some(Op::Text { speaker, text: body.join("\n"), voice, links, ruby, continues: false }));
     }
     if let Some(sound) = cd.sound(ins) {
         return Ok(Some(match sound? {
@@ -1662,6 +1691,18 @@ mod tests {
         assert_eq!(link_range(&segs, true, &link(1, 1, 2)), None);
         assert_eq!(link_range(&segs, true, &link(3, 3, 5)), None);
         assert_eq!(link_range(&segs[1..], false, &link(1, 2, 3)), Some((1, 3)));
+    }
+
+    #[test]
+    fn ruby_ranges() {
+        let body: Vec<String> = ["　吹く。", "　戦ぐ。"].iter().map(|s| s.to_string()).collect();
+        let ruby = |line, column, length| RubyRecord { line, column, length, flags: 3, text: "そよ".into() };
+        // Lines count text lines only; '\n' counts as one character.
+        assert_eq!(ruby_range(&body, &ruby(2, 2, 1)), Some((6, 1)));
+        assert_eq!(ruby_range(&body, &ruby(1, 2, 3)), Some((1, 3)));
+        assert_eq!(ruby_range(&body, &ruby(1, 3, 3)), None);
+        assert_eq!(ruby_range(&body, &ruby(3, 1, 1)), None);
+        assert_eq!(ruby_range(&body, &ruby(0, 1, 1)), None);
     }
 
     #[test]

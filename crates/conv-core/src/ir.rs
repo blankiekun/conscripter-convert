@@ -140,6 +140,16 @@ pub struct TextLink {
     pub scene: Option<String>,
 }
 
+/// A reading (furigana) shown in small type above characters of a text
+/// page.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Ruby {
+    /// Character range in the page text.
+    pub start: usize,
+    pub len: usize,
+    pub text: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Op {
     Label(String),
@@ -174,10 +184,10 @@ pub enum Op {
     SpriteFilters { layer: u32, filters: Vec<SpriteFilter> },
     /// One page of text, shown and then waited on. `text` may contain '\n'
     /// for line breaks. `links` are the words the original game made
-    /// clickable.
+    /// clickable. `ruby`: readings shown above some of the words.
     /// `continues`: the next page is added below this one after a click
     /// instead of replacing it (full-screen text modes).
-    Text { speaker: Option<String>, text: String, voice: Option<Voice>, links: Vec<TextLink>, continues: bool },
+    Text { speaker: Option<String>, text: String, voice: Option<Voice>, links: Vec<TextLink>, ruby: Vec<Ruby>, continues: bool },
     /// Switch to another text window layout; the page starts empty.
     SetWindow(TextWindow),
     BgmPlay { file: String, fade_in_ms: u32 },

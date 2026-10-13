@@ -189,9 +189,18 @@ Done without engine work:
   saves, when there is a `pretextgosub`; ours only runs `saveon`. The
   backlog reads it with `gettaglog`, splits it, shows the name above the
   page and replays the voice when the name (marked ♪) is clicked.
-
-Probably no engine work needed:
-- **Ruby (`0x44`):** ONScripter supports ruby; this is converter work.
+- **Ruby (`0x44`, 37 uses):** the record (u16 line, column, length,
+  flags; u32 0; the reading) puts a reading over characters of the next
+  message; lines count text lines without the speaker, 1-based. It
+  becomes NScripter's `(base/reading)`, added after escaping (which
+  turns the text's own parentheses full-width), and `rubyon` draws it.
+  `rubyon` puts the ruby in the line gap and draws text a line gap
+  lower, so `setwindow` and the backlog's `strsp` start a line gap
+  higher and the text stays where it was. ONScripter reads the markup
+  bytes singly, so the single-byte padding treats them like colour
+  tags. Readings wider than their base push the rest of the line right,
+  as in stock ONScripter. The 4 px gap of one full-screen style is
+  smaller than its 9 px ruby.
 
 ## 5. Asset pipeline
 
@@ -513,7 +522,7 @@ parts are not converted:
 - `0x93`/`0x94` (418): before each chapter end, unknown;
 - `0x4d` (276), `0x55` (252), `0x8c` (240), `0x6d` (198), `0x7a`/`0x7b`
   (about 90 each) and about 30 rarer ones;
-- ruby (`0x44`) and indent (`0x4e`);
+- indent (`0x4e`);
 
 **Accuracy.**
 - Transitions still drawn as cross-fades: Wave (0-3, 39 uses), Dissolve
