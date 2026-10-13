@@ -23,9 +23,11 @@ notes, git-ignored) and `PLAN.md` §4.2 and §6 ("Remaining work for
 
 ## Next
 
-Opcodes 0x93/0x94 (scene replay unlocks), 0x37/0x38 (chapter end) and
-the fx animations (0x7a/0x8b/0x8a/0x7b) are done. Pick the next item from
-"3. Next work". Unchecked against the original under wine: quakes,
+Opcodes 0x70 (leftovers), 0x59, 0x82 and 0x69 are done (unsupported
+296 → 119); the engine has new filter kinds 6-8 and 8 effect slots
+(engine `5516a1a`, not released: the next CONscripter release is needed
+for the blurs and still ripples). Pick the next item from "3. Next
+work": the object operations 0x7c-0x87 are the biggest group left. Unchecked against the original under wine: quakes,
 flashes (ours are under the text window; the original's cover it),
 pulses (especially presets 6-8: blend 6 is assumed to lay white over
 the copy, `tint 2`).
@@ -239,7 +241,14 @@ engines print `z150` etc.). The web build compiles with it.
       via `msp` (to 0, then up to the alpha). Assumption: a later `lsp`
       of the layer makes it opaque again (the original may keep the
       object's opacity). Left: layer 1 depth 1 (0006.cd #21, after 0x56).
-- [ ] Opcodes still emitted as comments (151 left): `0x69` (32), rarer ones.
+- [x] `0x69` (32): a click wait with the picture alone, passed by skip
+      (checked under wine: patched `s2_l17` #73 in 0002.cd), as
+      `ClickWait { skippable: true }`.
+- [ ] Opcodes still emitted as comments (119 left): `0x86` (19), `0x7f`
+      (12), `0x84` (10), `0x87` (9), `0x99` (8), `0x7b` (8, layer 2),
+      `0x9d` (6), `0x7c` (6), `0x7a` (6, layer 2), `0x7d` (5), rarer
+      ones. 0x7c-0x87 are object operations on the same key as 0x82
+      (handlers 0x413540-0x414460).
 - [ ] Transitions still drawn as cross-fades: Wave, Dissolve, RollFlip,
       SoftEdgeWipe, TvPowerSwitch, BoxRolling, SmoothCrossFade, Dot4x4,
       MeltDown (PLAN §6 "Accuracy").

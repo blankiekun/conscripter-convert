@@ -109,6 +109,10 @@ const REPLAY_SCENES: i32 = 600;
 /// (handler 0x4784b0, wait callback 0x478370). arg 0 also turns skip mode
 /// off; with arg 1 skip mode passes through.
 const OP_CLICK_WAIT: u16 = 0x68;
+/// The same wait without an argument (handler 0x473940, wait callback
+/// 0x473810): the picture alone with the wait icon in the corner (seen in
+/// the original under wine); skip mode passes it.
+const OP_CLICK_WAIT_SKIPPABLE: u16 = 0x69;
 /// Full-screen animations (fx), four opcodes on one object (layer u8 0,
 /// depth u32 1000; the 0x7a records with layer 2 don't load animations and
 /// aren't converted):
@@ -2104,6 +2108,7 @@ fn lower_instr(
         OP_HIDE_TEXT => return Ok(Some(Op::HideTextWindow)),
         OP_TEXT_DISPLAY => return Ok(Some(Op::InstantText(ins.arg == 1))),
         OP_CLICK_WAIT => return Ok(Some(Op::ClickWait { skippable: ins.arg != 0 })),
+        OP_CLICK_WAIT_SKIPPABLE => return Ok(Some(Op::ClickWait { skippable: true })),
         OP_MOVIE => {
             let file = assets.movie(ins.arg as u16)?;
             return Ok(Some(Op::Movie { file, skippable: ins.arg >> 16 != 0 }));
