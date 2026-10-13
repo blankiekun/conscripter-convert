@@ -136,10 +136,14 @@ pub const OP_SPRITES: u16 = 0x8e;
 const SPRITE_ENTRY_LEN: usize = 44;
 pub const OP_PRESET_MODULE: u16 = 0x88;
 pub const OP_APPLY_PRESET: u16 = 0x90;
+/// Filter on the whole screen (handler 0x415a30), from 0x88's modules.
+pub const OP_SCREEN_MODULE: u16 = 0x70;
 /// 0x88's module kinds (module type = kind + 0x63; class names from the
 /// exe's creator table at 0x501434 and RTTI). Others: 1 Smooth,
 /// 3 HueSatura, 6 Monotone, 9 BrightnessInvert, ...
 pub const PRESET_KIND_NEGATIVE: u32 = 2;
+/// Monotone: u32 palette number (`pal%04u.pal` in `HD/pal.arc`).
+pub const PRESET_KIND_MONOTONE: u32 = 6;
 pub const PRESET_KIND_BRIGHTNESS: u32 = 4;
 pub const PRESET_KIND_GREYSCALE: u32 = 5;
 pub const PRESET_KIND_COLOUR: u32 = 8;
@@ -195,6 +199,27 @@ pub struct PresetModule {
     /// The amount of a brightness filter (kind 4), printed by the exe as
     /// "Brightness=%d".
     pub brightness: Option<i16>,
+}
+
+/// Opcode 0x70: one slot of the filter on the whole screen, made of the
+/// same modules as 0x88 (the object is named `filter-<slot>`). Record:
+/// u32 slot (0 clears every slot), u32 layer | fade_ms << 8, u32 kind
+/// (0 clears the slot), u16 blend, u16 opacity, then the kind's data as
+/// in 0x88 (monotone: u32 palette). The layer byte picks where the filter
+/// sits among the screen's layers (table at 0x503e68: 0 and 2 → 0x10,
+/// 1 → 0, 3 → 0x20, 4 → 0x30); the game uses 0 and, for colour overlays
+/// and blurs set inside a transition, 2 and 3.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ScreenModule {
+    pub slot: u32,
+    pub layer: u8,
+    pub fade_ms: u32,
+    pub kind: u32,
+    pub blend: u16,
+    pub opacity: u16,
+    pub colour: Option<[u8; 3]>,
+    pub brightness: Option<i16>,
+    pub palette: Option<u32>,
 }
 
 /// Opcode 0x90: attach an effect preset to a character's bust-up.
@@ -519,6 +544,28 @@ impl<'a> CdScript<'a> {
             let brightness =
                 if slot != 0 && kind == PRESET_KIND_BRIGHTNESS { Some(r.u16(o + 20)? as i16) } else { None };
             Ok(PresetModule { preset, slot, kind, blend, opacity, colour, brightness })
+        })
+    }
+
+    /// Decodes opcode 0x70, or returns `None` for other opcodes.
+    pub fn screen_module(&self, ins: &Instr) -> Option<Result<ScreenModule, CdError>> {
+        (ins.op == OP_SCREEN_MODULE).then(|| {
+            let r = Reader(self.pool);
+            let o = ins.arg as u32 as usize;
+            let (slot, timing, kind) = (r.u32(o)?, r.u32(o + 4)?, r.u32(o + 8)?);
+            let set = slot != 0 && kind != 0;
+            let (blend, opacity) = if set { (r.u16(o + 12)?, r.u16(o + 14)?) } else { (0, 0) };
+            Ok(ScreenModule {
+                slot,
+                layer: timing as u8,
+                fade_ms: timing >> 8,
+                kind,
+                blend,
+                opacity,
+                colour: if set && kind == PRESET_KIND_COLOUR { Some(r.slice(o + 16, 3)?.try_into().unwrap()) } else { None },
+                brightness: if set && kind == PRESET_KIND_BRIGHTNESS { Some(r.u16(o + 16)? as i16) } else { None },
+                palette: if set && kind == PRESET_KIND_MONOTONE { Some(r.u32(o + 16)?) } else { None },
+            })
         })
     }
 

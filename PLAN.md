@@ -147,6 +147,7 @@ README, "CONscripter additions"):
 | `delsavegame` (delete a save and its thumbnail) | The save menu's delete button. Replaced a global flag per slot that only hid the save; a slot an older build flagged is deleted when the menu lists it |
 | `cons_slide.dll`, `cons_zoom.dll` (effect 99 plugins: slides in 8 directions, four zooms) | 0x76 transitions: Slide in/out (subs 10-25, 7 uses) and Zoom (37-40, 116 uses), decoded from the exe (`transition_style` in the Xuse converter). Scroll (41-44) maps to ONScripter's effects 11-14 and Mosaic (27) to 16 then 17, without engine work |
 | WebP in the web build (libwebp linked in; emscripten's SDL_image has no WebP) | Archive size on the web: `--webp` stores images as near-lossless WebP, 218 MB instead of 457 MB of PNG (`arc.nsa` 765 MB instead of 992 MB). Opt-in, because builds whose SDL_image lacks libwebp can't read it |
+| `screenfilter` (the `spfilter` filters on the picture behind the text window, 4 slots, kept in saves and by `pushscreen`) and `spfilter`/`screenfilter` kind 5 (monotone: greyscale plus r, g, b offsets) | 0x70 screen filters, 395 uses: darkening (brightness down to -250), greyscale and sepia (monotone palette `pal0001.pal`, grey + (28, -9, -38)) flashbacks, negatives, colour overlays, each faded in by `print` |
 | `!zNNN` text size tag (NNN percent of the window's font size, on the baseline, scaled width) | 0x49 text styles: shouting at 125-175 % and mumbling at 75-95 % in about 380 messages (NScripter text has colour tags but no size). Colours from the same records use `#RRGGBB` |
 | Text hooks in the web build (`onsyuriText`, `onsyuriChoice`, `onsyuriOverlay`) | Not for a converted game: chimimouryou lays each page's text over the game for Yomitan and reading statistics. Was a patch kept in chimimouryou (`scripts/onsyuri/text-hook.patch`) |
 
@@ -336,6 +337,7 @@ offset of its operand record.
 | `0x46` | 214 | **solved** (from the handler at `0x477460` plus a user-supplied example) | **hyperlink** on the next message: row, column, length, style, target (see 3c) |
 | `0x49` | 565 | **solved** (handler `0x477990`): u16 line, u16 column, u16 length (30000 = to the end of the message; the game wraps enlarged messages short enough to fit), u16 size (percent below 0x1000; 0x1000 + n = n × 25 percent from the table at `0x4fa850`, 0x1003 for mumbling, 0x1005-0x1007 for shouting; 0xf000 = keep), u32 colour (COLORREF, 0xff000000 = keep), u32 edge colour; lines and columns count as for ruby; later records override earlier ones | size and colour for characters of the next message: `#RRGGBB` and CONscripter's `!zNNN` size tag (§4.2) |
 | `0x4e` | 24 | **solved** (handler `0x494750`): arg = indent << 16 \| 1 (once 2); the indent is in half-width units of the first line (ASCII, half-width kana and Greek count 1), up to the text after the chat log's handle | hanging indent of the next message; the game puts it only before chat messages long enough to wrap. Converted to `indent N` around the message, N measured on the emitted line |
+| `0x70` | 457 | **solved** (handler `0x415a30`, objects `filter-<slot>`): u32 slot (0 = clear all), u32 layer \| fade ms << 8 (layer byte through the table at `0x503e68`: 0/2 → 0x10, 1 → 0, 3 → 0x20, 4 → 0x30), u32 kind (0 = clear the slot), u16 blend, u16 opacity, then 0x88's kind data; monotone (6) is a u32 palette, `pal%04u.pal` in `HD/pal.arc` (RIFF PAL, 256 entries for the grey levels) | filter on the whole screen, from 0x88's modules. Converted to `screenfilter` + a fade `print`. Not converted (62 uses): Smooth (1, a blur: XRange/YRange), kind 13 (a ripple, set with Smooth in wind scenes), HueSatura (3), BrightnessInvert (9), kind 12 |
 | `0x57` | 542 | **solved** (handler `0x473530` → sound request `0x47aab0`, channel 0) | play BGM: `arg` = track (1-based, `bm0000.bin` slot `arg - 1`), `sub` = fade-in ms (capped at 30 s) |
 | `0x58` | 579 | **solved** (channel 0, stop flag) | stop BGM: `arg` 0 = all, `sub` = fade-out ms |
 | `0x5a` | 2,633 | **solved** (channel 1) | play SE: packed 9-byte record `u32 ?, u8 loop, u32 sound` (1-based across `k0000.bin` + `k0001.bin`) |
@@ -519,7 +521,8 @@ parts are not converted:
 - Button bar lock button (`SysTray.004` #9).
 
 **Script opcodes** (counts are remaining uses):
-- `0x70` (457): unknown;
+- `0x70` kinds not converted (62 uses): Smooth (blur), 13 (ripple),
+  HueSatura, BrightnessInvert, 12;
 - `0x93`/`0x94` (418): before each chapter end, unknown;
 - `0x4d` (276), `0x55` (252), `0x8c` (240), `0x6d` (198), `0x7a`/`0x7b`
   (about 90 each) and about 30 rarer ones;

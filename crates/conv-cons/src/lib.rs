@@ -232,6 +232,19 @@ pub fn emit(script: &Script) -> String {
                     writeln!(out, "print 1").unwrap();
                 }
             }
+            Op::ScreenFilter { slot, filter, fade_ms } => {
+                match filter {
+                    None if *slot == 0 => writeln!(out, "screenfilter 0").unwrap(),
+                    None => writeln!(out, "screenfilter {slot},0").unwrap(),
+                    Some(f) => {
+                        let args = [&f.kind, &f.blend, &f.strength, &f.params[0], &f.params[1], &f.params[2]].map(|o| operand(*o));
+                        writeln!(out, "screenfilter {slot},{}", args.join(",")).unwrap();
+                    }
+                }
+                if transition.is_none() {
+                    writeln!(out, "print {}", effect(*fade_ms)).unwrap();
+                }
+            }
             Op::HideTextWindow => writeln!(out, "textoff").unwrap(),
             Op::SetWindow(w) => {
                 writeln!(out, "{}", setwindow(w, speed, has_ruby)).unwrap();
@@ -747,7 +760,9 @@ fn fade_effects(script: &Script) -> BTreeMap<(u32, Effect), u32> {
         .ops
         .iter()
         .flat_map(|op| match op {
-            Op::Background { fade_ms, .. } | Op::Sprites { fade_ms, .. } => vec![(*fade_ms, Effect::Fade)],
+            Op::Background { fade_ms, .. } | Op::Sprites { fade_ms, .. } | Op::ScreenFilter { fade_ms, .. } => {
+                vec![(*fade_ms, Effect::Fade)]
+            }
             Op::BeginTransition { fade_ms, mask, style, .. } => transition_steps(*fade_ms, mask.as_deref(), *style),
             _ => Vec::new(),
         })
@@ -938,7 +953,7 @@ impl SeChannels {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use conv_core::ir::{SourceLoc, SpriteChange, SpriteFilter, SpritePlacement, Voice, FILTER_BLEND_MULTIPLY, FILTER_COLOUR};
+    use conv_core::ir::{SourceLoc, SpriteChange, SpriteFilter, SpritePlacement, Voice, FILTER_BLEND_COPY, FILTER_BLEND_MULTIPLY, FILTER_BRIGHTNESS, FILTER_COLOUR};
 
     fn script(ops: Vec<Op>) -> Script {
         Script { title: "Test".into(), width: 800, height: 600, window: None, title_screen: None, save_menu: None, button_bar: None, settings: None, backlog: None, confirm: None, ops }
@@ -1391,6 +1406,24 @@ end
         let mut ir = script(Vec::new());
         ir.title = "最果てのイマ \"COMPLETE\"".into();
         assert!(emit(&ir).contains("caption \"最果てのイマ COMPLETE\"\n"));
+    }
+
+    #[test]
+    fn screen_filters() {
+        let dark = SpriteFilter {
+            kind: Operand::Const(FILTER_BRIGHTNESS),
+            blend: Operand::Const(FILTER_BLEND_COPY),
+            strength: Operand::Const(256),
+            params: [-200, 0, 0].map(Operand::Const),
+        };
+        let s = script(vec![
+            Op::ScreenFilter { slot: 1, filter: Some(dark), fade_ms: 1000 },
+            Op::ScreenFilter { slot: 1, filter: None, fade_ms: 0 },
+            Op::ScreenFilter { slot: 0, filter: None, fade_ms: 0 },
+        ]);
+        let out = emit(&s);
+        assert!(out.contains("effect 2,10,1000\n"), "{out}");
+        assert!(out.contains("screenfilter 1,4,0,256,-200,0,0\nprint 2\nscreenfilter 1,0\nprint 1\nscreenfilter 0\nprint 1\n"), "{out}");
     }
 
     #[test]

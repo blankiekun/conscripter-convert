@@ -12,12 +12,12 @@ use thiserror::Error;
 use conv_core::ir::{
     ArithOp, Backlog, BarAction, BarButton, ButtonBar, ConfirmDialog, NamePlate, Setting, SettingRow, SettingsMenu, Op, Operand, PageButton, Placed, Rect, Ruby, SaveMenu, TextStyle, SourceLoc, Voice, VoiceToggle,
     SpriteChange, SpriteFilter, SpritePlacement, TextLink, TextSpot, TextWindow, TitleAction, TitleButton, TitleScreen, TopBars,
-    SlideLayer, TransitionStyle, Var, ZoomStyle, FILTER_BLEND_ADD, FILTER_BLEND_COPY, FILTER_BLEND_MULTIPLY, FILTER_BLEND_SCREEN, FILTER_BRIGHTNESS, FILTER_COLOUR,
+    SlideLayer, TransitionStyle, Var, ZoomStyle, FILTER_BLEND_ADD, FILTER_BLEND_COPY, FILTER_BLEND_MULTIPLY, FILTER_BLEND_SCREEN, FILTER_BRIGHTNESS, FILTER_COLOUR, FILTER_MONOTONE,
     FILTER_GREYSCALE, FILTER_NEGATIVE,
 };
 
 use crate::xuse::cd::{
-    CdError, CdScript, Instr, Link, PresetModule, Ruby as RubyRecord, Sound, SpriteEntry, TextStyle as StyleRecord, OP_TEXT_INDENT, PRESET_BLEND_ADD, PRESET_BLEND_ALPHA, PRESET_BLEND_COPY,
+    CdError, CdScript, Instr, Link, PresetModule, Ruby as RubyRecord, ScreenModule, Sound, SpriteEntry, TextStyle as StyleRecord, OP_TEXT_INDENT, PRESET_KIND_MONOTONE, PRESET_BLEND_ADD, PRESET_BLEND_ALPHA, PRESET_BLEND_COPY,
     PRESET_BLEND_MULTI, PRESET_BLEND_SCREEN, PRESET_KIND_BRIGHTNESS, PRESET_KIND_COLOUR, PRESET_KIND_GREYSCALE,
     PRESET_KIND_NEGATIVE,
 };
@@ -268,6 +268,29 @@ impl AssetBank {
         let clip = (number.checked_sub(1).ok_or(ConvertError::MissingAsset { kind: "voice", number })?) % 100_000;
         let path = self.game.join("CD").join(format!("bv{:04}.xsa", clip >> 8));
         self.sound_at(path, clip & 0xff, "voice", format!("v{id}.ogg"), "voice", number)
+    }
+
+    /// Monotone palette `number` (`pal%04u.pal` in `HD/pal.arc`, a RIFF
+    /// PAL of 256 RGB entries for the grey levels) as offsets added to the
+    /// grey level (CONscripter's monotone filter). The game's one palette
+    /// is sepia, grey + (28, -8, -38) up to rounding; the offsets are the
+    /// mean over the grey levels 64-191, where nothing is clamped.
+    pub fn palette_offsets(&mut self, number: u32) -> Result<[i32; 3], ConvertError> {
+        let missing = || ConvertError::MissingAsset { kind: "palette", number: number as usize };
+        let path = self.game.join("HD").join("pal.arc");
+        let bytes = fs::read(&path).map_err(|source| ConvertError::Io { path: path.clone(), source })?;
+        let arc = Xarc::parse(&bytes).map_err(|source| ConvertError::Xarc { path: path.clone(), source })?;
+        let file = format!("pal{number:04}.pal");
+        let pal = arc.data(arc.entries.iter().find(|e| e.name == file).ok_or_else(missing)?);
+        // "RIFF", size, "PAL data", size, version, count, then r, g, b, flags.
+        let entries = pal.get(0x18..0x18 + 256 * 4).filter(|_| pal.starts_with(b"RIFF")).ok_or_else(missing)?;
+        let mut sum = [0i32; 3];
+        for grey in 64..192 {
+            for (k, s) in sum.iter_mut().enumerate() {
+                *s += i32::from(entries[grey * 4 + k]) - grey as i32;
+            }
+        }
+        Ok(sum.map(|s| (f64::from(s) / 128.0).round() as i32))
     }
 
     /// Transition mask `number` from `HD/mask.arc` as a greyscale PNG
@@ -1084,6 +1107,74 @@ fn preset_var(preset: u32, slot: u32, field: u32) -> Var {
     Var { global: false, index: PRESET_VAR_BASE + n as u16 }
 }
 
+/// A 0x88/0x70 module as CONscripter filter fields (kind, blend,
+/// strength, three parameters), or what can't be expressed.
+fn module_filter(
+    kind: u32,
+    blend: u16,
+    opacity: u16,
+    colour: Option<[u8; 3]>,
+    brightness: Option<i16>,
+    monotone: Option<[i32; 3]>,
+) -> Result<[i32; 6], String> {
+    let (kind, params) = match (kind, colour, brightness, monotone) {
+        (PRESET_KIND_COLOUR, Some([r, g, b]), _, _) => (FILTER_COLOUR, [r.into(), g.into(), b.into()]),
+        (PRESET_KIND_GREYSCALE, ..) => (FILTER_GREYSCALE, [0; 3]),
+        (PRESET_KIND_NEGATIVE, ..) => (FILTER_NEGATIVE, [0; 3]),
+        // The amount is on a 0-255 scale: the game goes down to -250.
+        (PRESET_KIND_BRIGHTNESS, _, Some(n), _) => (FILTER_BRIGHTNESS, [n.into(), 0, 0]),
+        (PRESET_KIND_MONOTONE, _, _, Some(offsets)) => (FILTER_MONOTONE, offsets),
+        _ => return Err(format!("filter kind {kind}")),
+    };
+    let blend = match blend {
+        PRESET_BLEND_ALPHA | PRESET_BLEND_COPY => FILTER_BLEND_COPY,
+        PRESET_BLEND_MULTI => FILTER_BLEND_MULTIPLY,
+        PRESET_BLEND_ADD => FILTER_BLEND_ADD,
+        PRESET_BLEND_SCREEN => FILTER_BLEND_SCREEN,
+        _ => return Err(format!("blend {blend}")),
+    };
+    Ok([kind, blend, i32::from(opacity.min(256)), params[0], params[1], params[2]])
+}
+
+/// Slots of CONscripter's `screenfilter` (the game uses 1-3).
+const SCREEN_FILTER_SLOTS: u32 = 4;
+
+/// Opcode 0x70: sets one slot of the screen filter. A module the
+/// converter can't express is reported and leaves the slot as it was.
+fn lower_screen_module(
+    m: &ScreenModule,
+    assets: &mut AssetBank,
+    ops: &mut Vec<Op>,
+    at: impl Fn() -> SourceLoc,
+) -> Result<(), ConvertError> {
+    if m.slot > SCREEN_FILTER_SLOTS {
+        ops.push(Op::Unsupported { what: format!("opcode 0x70 slot {}", m.slot), at: at() });
+        return Ok(());
+    }
+    if m.slot == 0 || m.kind == 0 {
+        ops.push(Op::ScreenFilter { slot: m.slot, filter: None, fade_ms: m.fade_ms });
+        return Ok(());
+    }
+    let monotone = match m.palette.map(|p| assets.palette_offsets(p)) {
+        Some(Ok(offsets)) => Some(offsets),
+        Some(Err(ConvertError::MissingAsset { .. })) | None => None,
+        Some(Err(e)) => return Err(e),
+    };
+    match module_filter(m.kind, m.blend, m.opacity, m.colour, m.brightness, monotone) {
+        Ok([kind, blend, strength, p0, p1, p2]) => {
+            let filter = SpriteFilter {
+                kind: Operand::Const(kind),
+                blend: Operand::Const(blend),
+                strength: Operand::Const(strength),
+                params: [p0, p1, p2].map(Operand::Const),
+            };
+            ops.push(Op::ScreenFilter { slot: m.slot, filter: Some(filter), fade_ms: m.fade_ms });
+        }
+        Err(what) => ops.push(Op::Unsupported { what: format!("opcode 0x70 {what}"), at: at() }),
+    }
+    Ok(())
+}
+
 /// Opcode 0x88: sets one slot of a preset (slot 0 clears every slot). A
 /// module the converter can't express clears its slot and is reported.
 fn lower_preset_module(m: &PresetModule, ops: &mut Vec<Op>, at: impl Fn() -> SourceLoc) {
@@ -1101,36 +1192,16 @@ fn lower_preset_module(m: &PresetModule, ops: &mut Vec<Op>, at: impl Fn() -> Sou
         ops.extend((1..=PRESET_SLOTS).map(|slot| set(slot, 0, 0)));
         return;
     }
-    let filter = match (m.kind, m.colour, m.brightness) {
-        (0, _, _) => None,
-        (PRESET_KIND_COLOUR, Some([r, g, b]), _) => Some((FILTER_COLOUR, [r.into(), g.into(), b.into()])),
-        (PRESET_KIND_GREYSCALE, _, _) => Some((FILTER_GREYSCALE, [0; 3])),
-        (PRESET_KIND_NEGATIVE, _, _) => Some((FILTER_NEGATIVE, [0; 3])),
-        // Assumption: the amount is on a 0-255 scale (the game uses -80
-        // and -100).
-        (PRESET_KIND_BRIGHTNESS, _, Some(n)) => Some((FILTER_BRIGHTNESS, [n.into(), 0, 0])),
-        _ => {
-            ops.push(unsupported(format!("opcode 0x88 filter kind {}", m.kind)));
-            None
-        }
-    };
-    let blend = match m.blend {
-        PRESET_BLEND_ALPHA | PRESET_BLEND_COPY => Some(FILTER_BLEND_COPY),
-        PRESET_BLEND_MULTI => Some(FILTER_BLEND_MULTIPLY),
-        PRESET_BLEND_ADD => Some(FILTER_BLEND_ADD),
-        PRESET_BLEND_SCREEN => Some(FILTER_BLEND_SCREEN),
-        _ => None,
-    };
-    match (filter, blend) {
-        (Some((kind, params)), Some(blend)) => {
-            let fields = [kind, blend, i32::from(m.opacity.min(256))].into_iter().chain(params);
-            ops.extend(fields.enumerate().map(|(field, n)| set(m.slot, field as u32, n)));
-        }
-        (Some(_), None) => {
-            ops.push(unsupported(format!("opcode 0x88 blend {}", m.blend)));
+    if m.kind == 0 {
+        ops.push(set(m.slot, 0, 0));
+        return;
+    }
+    match module_filter(m.kind, m.blend, m.opacity, m.colour, m.brightness, None) {
+        Ok(fields) => ops.extend(fields.into_iter().enumerate().map(|(field, n)| set(m.slot, field as u32, n))),
+        Err(what) => {
+            ops.push(unsupported(format!("opcode 0x88 {what}")));
             ops.push(set(m.slot, 0, 0));
         }
-        (None, _) => ops.push(set(m.slot, 0, 0)),
     }
 }
 
@@ -1273,6 +1344,10 @@ pub fn lower_script(
         }
         if let Some(module) = cd.preset_module(ins) {
             lower_preset_module(&module?, &mut ops, at);
+            continue;
+        }
+        if let Some(module) = cd.screen_module(ins) {
+            lower_screen_module(&module?, assets, &mut ops, at)?;
             continue;
         }
         if let Some(apply) = cd.apply_preset(ins) {
@@ -1799,6 +1874,18 @@ mod tests {
         assert_eq!(text_style(&body, &style(1, 1, 30000, STYLE_SIZE_KEEP, STYLE_COLOUR_KEEP)), None);
         assert_eq!(text_style(&body, &style(3, 1, 1, 90, STYLE_COLOUR_KEEP)), None);
         assert_eq!(text_style(&body, &style(1, 6, 1, 90, STYLE_COLOUR_KEEP)), None);
+    }
+
+    #[test]
+    fn module_filters() {
+        assert_eq!(module_filter(PRESET_KIND_BRIGHTNESS, 5, 256, None, Some(-200), None), Ok([4, 0, 256, -200, 0, 0]));
+        assert_eq!(
+            module_filter(PRESET_KIND_MONOTONE, 5, 300, None, None, Some([28, -8, -38])),
+            Ok([5, 0, 256, 28, -8, -38])
+        );
+        assert_eq!(module_filter(PRESET_KIND_COLOUR, 2, 128, Some([1, 2, 3]), None, None), Ok([1, 1, 128, 1, 2, 3]));
+        assert!(module_filter(1, 5, 256, None, None, None).is_err()); // Smooth (blur)
+        assert!(module_filter(PRESET_KIND_GREYSCALE, 4, 256, None, None, None).is_err());
     }
 
     #[test]

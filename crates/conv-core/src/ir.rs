@@ -107,6 +107,9 @@ pub const FILTER_GREYSCALE: i32 = 2;
 pub const FILTER_NEGATIVE: i32 = 3;
 /// The pixel plus `params[0]` (-255..255).
 pub const FILTER_BRIGHTNESS: i32 = 4;
+/// The pixel in greyscale plus the offsets in `params` (r, g, b,
+/// -255..255): a monotone such as sepia.
+pub const FILTER_MONOTONE: i32 = 5;
 /// How a filter's colour is combined with the pixel's
 /// ([`SpriteFilter::blend`]).
 pub const FILTER_BLEND_COPY: i32 = 0;
@@ -194,6 +197,10 @@ pub enum Op {
     /// empty = none), then show the result. A layer without a sprite
     /// ignores this.
     SpriteFilters { layer: u32, filters: Vec<SpriteFilter> },
+    /// Set (or with `None` clear) one slot of the filter on the whole
+    /// picture behind the text window; slot 0 with `None` clears them
+    /// all. Shown with a fade of `fade_ms` unless a transition is open.
+    ScreenFilter { slot: u32, filter: Option<SpriteFilter>, fade_ms: u32 },
     /// One page of text, shown and then waited on. `text` may contain '\n'
     /// for line breaks. `links` are the words the original game made
     /// clickable. `ruby`: readings shown above some of the words. `styles`:
