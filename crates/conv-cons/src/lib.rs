@@ -266,8 +266,8 @@ pub fn emit(script: &Script) -> String {
                 };
                 writeln!(out, "{cmd} {target},{value}").unwrap();
             }
-            Op::IfEqual { var, value, label: target } => {
-                writeln!(out, "if {} == {value} goto *{}", var_name(*var), label(target)).unwrap()
+            Op::If { var, cmp, value, label: target } => {
+                writeln!(out, "if {} {} {value} goto *{}", var_name(*var), cmp.operator(), label(target)).unwrap()
             }
             Op::Background { image, fade_ms } => {
                 // NScripter's bg keeps lsp sprites; the game removes characters
@@ -1250,6 +1250,7 @@ impl SeChannels {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use conv_core::ir::Compare;
     use conv_core::ir::{Animation, Noise, SourceLoc, SpriteChange, SpriteFilter, SpritePlacement, Voice, FILTER_BLEND_COPY, FILTER_BLEND_MULTIPLY, FILTER_BRIGHTNESS, FILTER_COLOUR};
 
     fn script(ops: Vec<Op>) -> Script {
@@ -1654,7 +1655,7 @@ end
         let s = script(vec![
             Op::Arith { var: g, op: ArithOp::Set, value: Operand::Const(1) },
             Op::Arith { var: l, op: ArithOp::Add, value: Operand::Var(g) },
-            Op::IfEqual { var: g, value: 1, label: "s3_l2".into() },
+            Op::If { var: g, cmp: Compare::Eq, value: 1, label: "s3_l2".into() },
             Op::Gosub("s2_l18".into()),
             Op::Return,
         ]);

@@ -77,6 +77,31 @@ pub enum ArithOp {
     BitOr,
 }
 
+/// Comparisons for [`Op::If`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Compare {
+    Eq,
+    Ne,
+    Lt,
+    Gt,
+    Le,
+    Ge,
+}
+
+impl Compare {
+    /// The NScripter operator.
+    pub fn operator(self) -> &'static str {
+        match self {
+            Compare::Eq => "==",
+            Compare::Ne => "!=",
+            Compare::Lt => "<",
+            Compare::Gt => ">",
+            Compare::Le => "<=",
+            Compare::Ge => ">=",
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SpritePlacement {
     pub image: String,
@@ -234,8 +259,8 @@ pub enum Op {
     Return,
     /// `var = var <op> value`.
     Arith { var: Var, op: ArithOp, value: Operand },
-    /// Jump to `label` if `var == value`.
-    IfEqual { var: Var, value: i32, label: String },
+    /// Jump to `label` if `var <cmp> value`.
+    If { var: Var, cmp: Compare, value: i32, label: String },
     /// Replace the background. Clears sprites, as most engines do.
     Background { image: String, fade_ms: u32 },
     /// Remove every sprite layer.

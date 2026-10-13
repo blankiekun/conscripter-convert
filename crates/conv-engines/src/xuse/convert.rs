@@ -10,6 +10,7 @@ use std::path::{Path, PathBuf};
 
 use thiserror::Error;
 use conv_core::ir::{
+    Compare,
     Animation, ArithOp, Backlog, BarAction, BarButton, ButtonBar, ConfirmDialog, NamePlate, Noise, ScreenEffect, Setting, SettingRow, SettingsMenu, Op, Operand, PageButton, Placed, Rect, Ruby, SaveMenu, TextStyle, SourceLoc, Voice, VoiceToggle,
     SpriteChange, SpriteFilter, SpritePlacement, TextLink, TextSpot, TextWindow, TitleAction, TitleButton, TitleScreen, TopBars,
     SlideLayer, TransitionStyle, Var, ZoomStyle, FILTER_BLEND_ADD, FILTER_BLEND_COPY, FILTER_BLEND_MULTIPLY, FILTER_BLEND_SCREEN, FILTER_BRIGHTNESS, FILTER_COLOUR, FILTER_MONOTONE,
@@ -39,8 +40,10 @@ use crate::xuse::xsa::{Xsa, XsaError};
 const OP_GOTO: u16 = 0x10;
 const OP_GOTO_2: u16 = 0x11;
 const OP_GOTO_SUB: u16 = 0x15;
-/// `if v[a] == b goto label[sub]`, (a, b) as two u32 at pool[arg].
+/// `if v[a] <cmp> b goto label[sub]`, (a, b) as two u32 at pool[arg].
 const OP_IF_EQUAL: u16 = 0x16;
+/// The last of the comparisons (0x16-0x1b: ==, !=, <, >, <=, >=).
+const OP_IF_GE: u16 = 0x1b;
 const OP_GOSUB: u16 = 0x22;
 const OP_RETURN: u16 = 0x23;
 /// Ends a scene entered through a link and goes back to the page with the
@@ -1947,7 +1950,7 @@ pub fn lower_script(
         if matches!(ins.op, OP_GOTO | OP_GOTO_2) && own_label_at(cd, ins.arg).is_some_and(|i| i == index) {
             continue; // label marker: a jump to the label sitting on this instruction
         }
-        if flow == Flow::Linear && matches!(ins.op, OP_GOTO | OP_GOTO_2 | OP_GOTO_SUB | OP_IF_EQUAL | OP_GOSUB | OP_RETURN | OP_LINK_RETURN) {
+        if flow == Flow::Linear && matches!(ins.op, OP_GOTO | OP_GOTO_2 | OP_GOTO_SUB | OP_IF_EQUAL..=OP_IF_GE | OP_GOSUB | OP_RETURN | OP_LINK_RETURN) {
             ops.push(Op::Unsupported { what: format!("opcode {:#04x} (linear mode)", ins.op), at: at() });
             continue;
         }
@@ -2585,11 +2588,15 @@ fn lower_instr(
             return Ok(Some(Op::Movie { file, skippable: ins.arg >> 16 != 0 }));
         }
         OP_WAIT | OP_WAIT_2 | OP_WAIT_3 => return Ok(Some(Op::Wait { ms: u32::from(ins.arg as u16) })),
-        OP_IF_EQUAL => {
+        OP_IF_EQUAL..=OP_IF_GE => {
+            // Handlers 0x474400 (sete), 0x474460 (setne), 0x4745e0 (setl),
+            // 0x474520 (setg), 0x474580 (setle), 0x4744c0 (setge); the
+            // jump is taken when the comparison holds (0x474340).
+            let cmp = [Compare::Eq, Compare::Ne, Compare::Lt, Compare::Gt, Compare::Le, Compare::Ge][usize::from(ins.op - OP_IF_EQUAL)];
             let Some(target) = label(ins.sub.into()) else { return Ok(None) };
             let o = ins.arg as u32 as usize;
             let (Some(a), Some(b)) = (pool_u32(cd.pool, o), pool_u32(cd.pool, o + 4)) else { return Ok(None) };
-            return Ok(Some(Op::IfEqual { var: var(a), value: b as i32, label: target }));
+            return Ok(Some(Op::If { var: var(a), cmp, value: b as i32, label: target }));
         }
         // Arithmetic on variables (sub = target variable). 0x03 shares
         // the "-= variable" handler in the engine's dispatch table.

@@ -296,7 +296,9 @@ engines print `z150` etc.). The web build compiles with it.
       125 %, then the defaults. The edge colour isn't converted.
 - [x] `0x36` without a chapter name (2): `chapterさやか]１?ビジョン` has a
       part number before the `?`; the title is the text after it.
-- [ ] Opcodes still emitted as comments (10 left):
+- [x] `0x17`-`0x1b` (1 + 1 use): the other comparisons of 0x16's `if`
+      (!=, <, >, <=, >=; handlers by their `set*`), as `Op::If`.
+- [ ] Opcodes still emitted as comments (8 left):
       rarer ones.
 - [ ] Transitions still drawn as cross-fades: Wave, Dissolve, RollFlip,
       SoftEdgeWipe, TvPowerSwitch, BoxRolling, SmoothCrossFade, Dot4x4,
