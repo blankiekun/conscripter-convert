@@ -647,7 +647,7 @@ pub fn emit(script: &Script) -> String {
                         writeln!(out, "add {depth},1").unwrap();
                         writeln!(out, "if {depth} > {max} mov {max},{depth}").unwrap();
                         writeln!(out, "mov {},{}+{depth}", menu::TMP, menu::SCENE_TITLES).unwrap();
-                        writeln!(out, "mov ${},\"{}\"", menu::TMP, escape(link.scene.as_deref().unwrap_or("　"))).unwrap();
+                        writeln!(out, "mov ${},\"{}\"", menu::TMP, sprite_text(link.scene.as_deref().unwrap_or("　"))).unwrap();
                     }
                     // The scene may change the whole screen: save the
                     // background, the game's sprites and the BGM around it.
@@ -749,7 +749,7 @@ pub fn emit(script: &Script) -> String {
                 writeln!(out, "bgmstop").unwrap();
                 writeln!(out, "mpegplay \"{}\",{}", path(file), u8::from(*skippable)).unwrap();
             }
-            Op::Chapter { title } => writeln!(out, "mov {},\"{}\"", menu::CHAPTER, escape(title)).unwrap(),
+            Op::Chapter { title } => writeln!(out, "mov {},\"{}\"", menu::CHAPTER, sprite_text(title)).unwrap(),
             Op::UnlockScene { scene } => writeln!(out, "mov %{},1", SCENE_UNLOCKED_BASE + scene).unwrap(),
             // Starts the script over: the title screen.
             Op::ReturnToTitle => writeln!(out, "reset").unwrap(),
@@ -1276,6 +1276,29 @@ fn escape(text: &str) -> String {
             c => c,
         })
         .collect()
+}
+
+/// [`escape`]s text that `strsp` (or another sprite text) will draw.
+/// Sprite texts draw half-width characters in pairs, taking the byte after
+/// one along even when it starts a full-width character (NScripter's rule:
+/// half-width characters come in pairs), so a run of an odd number of
+/// them before a full-width one gets a space at its end.
+fn sprite_text(text: &str) -> String {
+    let mut out = String::new();
+    let mut run = 0;
+    for c in escape(text).chars() {
+        let half_width = c.is_ascii() || ('\u{ff61}'..='\u{ff9f}').contains(&c);
+        if half_width {
+            run += 1;
+        } else {
+            if run % 2 == 1 {
+                out.push(' ');
+            }
+            run = 0;
+        }
+        out.push(c);
+    }
+    out
 }
 
 #[derive(Default)]
@@ -1850,6 +1873,15 @@ end
         assert_eq!(align_single_bytes("ｼｬﾄﾞｳshadow）"), "ｼｬﾄﾞｳshadow ）");
         assert_eq!(align_single_bytes("x#FEE092y#FFFFFF。"), "x #FEE092y #FFFFFF。");
         assert_eq!(align_single_bytes("ab c"), "ab c ");
+    }
+
+    #[test]
+    fn sprite_texts_pair_half_width_characters() {
+        assert_eq!(sprite_text("ＳＡＴＩＥ'Ｓ・ＴＩＭＥ"), "ＳＡＴＩＥ' Ｓ・ＴＩＭＥ");
+        assert_eq!(sprite_text("火岸－HIGAN－"), "火岸－HIGAN －");
+        assert_eq!(sprite_text("『IMA:category5』"), "『IMA:category5 』");
+        assert_eq!(sprite_text("『TCP/IP』"), "『TCP ／IP』");
+        assert_eq!(sprite_text("TypeCGC"), "TypeCGC");
     }
 
     #[test]
