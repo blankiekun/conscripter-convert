@@ -302,10 +302,14 @@ engines print `z150` etc.). The web build compiles with it.
       `reset`; `0x00` (1): a one-frame yield like 0x67.
 - [x] `0x8d` (1): waits for an environment slot's module (0007.cd: a 3 s
       ripple), as a `delay` of the module's time.
-- [ ] Opcodes still emitted as comments (5 left): `0x80`, the
+- [x] `0x80` (1): an object's scale (percent); 0013.cd's character 12
+      at 80 %, as a pre-scaled copy (`sprite/<name>_s80x80.png`) centred
+      on the same point, its 0x82 opacity put back.
+- [ ] Opcodes still emitted as comments (4 left): the
       0x86 rotation, Zigzag (0x70 kind 12), and the start point's debug
       menu (`0x62` choice + `0x30` jump table in 0001.cd, unreachable:
-      nothing jumps to `s1_l0`).
+      nothing jumps to `s1_l0`). **Not doing the debug menu** (user,
+      2026-10-13).
 - [ ] Transitions still drawn as cross-fades: Wave, Dissolve, RollFlip,
       SoftEdgeWipe, TvPowerSwitch, BoxRolling, SmoothCrossFade, Dot4x4,
       MeltDown (PLAN §6 "Accuracy").

@@ -239,6 +239,11 @@ const OP_ANCHOR: u16 = 0x7d;
 /// Shows or hides an object (handler 0x414460, 0x40f1b0): u8 layer, u32
 /// depth, u8 visible (0xff in every use).
 const OP_SHOW: u16 = 0x7c;
+/// Scales an object (handler 0x413cd0; fields +0x1a8, +0x1ac, 100 for a new
+/// object): u8 layer, u32 depth (found as in 0x82), i32 x, y percent. Once
+/// (0013.cd #10884): character 12 at 80 %, right after 0x8e showed it and
+/// 0x82 made it translucent; scaled about its centre here.
+const OP_SCALE: u16 = 0x80;
 /// Puts an object at a position (handler 0x413bb0): u8 layer, u32 depth
 /// (found as in 0x82), i32 x, y, the centre in 0x8e's coordinates.
 const OP_POSITION: u16 = 0x7f;
@@ -475,6 +480,24 @@ impl AssetBank {
     pub fn sprite(&mut self, number: usize) -> Result<Image, ConvertError> {
         let index = number.checked_sub(1).ok_or(ConvertError::MissingAsset { kind: "sprite", number })?;
         self.image("bu", "sprite", "sprite", index, BU_PER_ARCHIVE, number)
+    }
+
+    /// Sprite `number` scaled to `sx`, `sy` percent (0x80), as a copy next
+    /// to it.
+    pub fn sprite_scaled(&mut self, number: usize, sx: u32, sy: u32) -> Result<Image, ConvertError> {
+        let base = self.sprite(number)?;
+        let (width, height) = ((base.width * sx / 100).max(1), (base.height * sy / 100).max(1));
+        let stem = base.path.strip_suffix(".png").unwrap_or(&base.path);
+        let name = format!("{stem}_s{sx}x{sy}.png");
+        let key = ("scaled sprite", number * 1_000_000 + sx as usize * 1000 + sy as usize);
+        if !self.written.contains_key(&key) {
+            let src = self.out.join(&base.path);
+            let img = image::open(&src).map_err(|source| ConvertError::Image { what: base.path.clone(), source })?;
+            let scaled = image::imageops::resize(&img.to_rgba8(), width, height, image::imageops::FilterType::Lanczos3);
+            self.save_image(&name, &scaled)?;
+            self.written.insert(key, name.clone());
+        }
+        Ok(Image { path: name, width, height })
     }
 
     /// BGM track (1-based).
@@ -1925,6 +1948,10 @@ pub fn lower_script(
     let mut replace_slots = BTreeSet::new();
     // The time of the module each 0x8c slot holds, for 0x8d.
     let mut env_times: BTreeMap<u32, u32> = BTreeMap::new();
+    // Each character's bust-up (number, centre) and 0x82 opacity (file
+    // order), for 0x80.
+    let mut placed: HashMap<u32, (u16, i32, i32)> = HashMap::new();
+    let mut opacities: HashMap<u32, u32> = HashMap::new();
     // The fx object: its opacity once 0x7a made it, and the animation
     // 0x8b loaded into it (file order).
     let mut fx_opacity: Option<u32> = None;
@@ -2044,10 +2071,30 @@ pub fn lower_script(
             let record = cd.pool.get(o..o + 7).map(|r| (r[0], u32::from_le_bytes([r[1], r[2], r[3], r[4]]), u16::from_le_bytes([r[5], r[6]])));
             match record {
                 Some((2, character, opacity)) if opacity <= 256 => {
+                    opacities.insert(character, opacity.into());
                     ops.push(Op::SpriteOpacity { layer: Some(character), opacity: opacity.into() })
                 }
                 Some((0 | 1, 2, opacity)) if opacity <= 256 => ops.push(Op::SpriteOpacity { layer: None, opacity: opacity.into() }),
                 _ => ops.push(Op::Unsupported { what: format!("opcode {:#04x} record {record:?}", ins.op), at: at() }),
+            }
+            continue;
+        }
+        if ins.op == OP_SCALE {
+            let o = ins.arg as u32 as usize;
+            let record = cd.pool.get(o..o + 5).map(|r| (r[0], u32::from_le_bytes([r[1], r[2], r[3], r[4]])));
+            let scale = pool_u32(cd.pool, o + 5).zip(pool_u32(cd.pool, o + 9));
+            match (record, scale) {
+                (Some((2, layer)), Some((sx @ 1..=1000, sy @ 1..=1000))) if placed.contains_key(&layer) => {
+                    let (number, cx, cy) = placed[&layer];
+                    let img = assets.sprite_scaled(number.into(), sx, sy)?;
+                    let sprite = SpritePlacement { image: img.path, x: cx - img.width as i32 / 2, y: cy - img.height as i32 / 2 };
+                    ops.push(Op::Sprites { changes: vec![SpriteChange { layer, sprite: Some(sprite), keep_filters: true }], fade_ms: 0 });
+                    // The new picture is opaque again.
+                    if let Some(&opacity) = opacities.get(&layer) {
+                        ops.push(Op::SpriteOpacity { layer: Some(layer), opacity });
+                    }
+                }
+                _ => ops.push(Op::Unsupported { what: format!("opcode {:#04x} record {record:?} {scale:?}", ins.op), at: at() }),
             }
             continue;
         }
@@ -2359,6 +2406,21 @@ pub fn lower_script(
                 ops.push(Op::EndTransition);
             }
             continue;
+        }
+        if let Some(Ok(entries)) = cd.sprites(ins) {
+            for e in entries {
+                let layer = u32::from(e.character);
+                opacities.remove(&layer);
+                if e.mode & 1 == 1 {
+                    placed.insert(layer, (e.sprite, i32::from(e.x), i32::from(e.y)));
+                } else {
+                    placed.remove(&layer);
+                }
+            }
+        }
+        if matches!(ins.op, OP_CLEAR_SPRITES | crate::xuse::cd::OP_BACKGROUND) {
+            placed.clear();
+            opacities.clear();
         }
         let records = if cd.message(ins).is_some() { std::mem::take(&mut pending) } else { MessageRecords::default() };
         let unsupported = || format!("opcode {:#04x} sub {:#x} arg {}", ins.op, ins.sub, ins.arg);
