@@ -5,6 +5,46 @@
 //! slashes, e.g. `bg/bg20d1.png`); the engine side is responsible for writing
 //! those files.
 
+/// How a transition gets from the old picture to the new one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum TransitionStyle {
+    /// A cross-fade (shaped by the transition's mask, if it has one).
+    Fade,
+    /// `moving` travels one screen width or height in direction `dx`, `dy`
+    /// (each -1, 0 or 1; +y is down).
+    Slide { moving: SlideLayer, dx: i8, dy: i8 },
+    /// The old picture breaks into growing blocks, then the new one
+    /// sharpens from them.
+    Mosaic,
+    /// Zooms about the screen centre, up to `max_percent` (100 = no zoom),
+    /// eased by the progress to the power `curve`.
+    Zoom { style: ZoomStyle, max_percent: u32, curve: u8 },
+}
+
+/// What moves in a [`TransitionStyle::Slide`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum SlideLayer {
+    /// The new picture slides in over the old one.
+    New,
+    /// The old picture slides out, uncovering the new one.
+    Old,
+    /// Both move together (a push).
+    Both,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ZoomStyle {
+    /// The new picture shrinks into place while the old one fades out.
+    NewIn,
+    /// The old picture grows and fades out over the new one.
+    OldOut,
+    /// Into the old picture for the first half, out of the new one after.
+    Through,
+    /// The new picture shrinks into place while the old one grows and
+    /// fades out.
+    Cross,
+}
+
 /// Where an instruction came from, for reports and comments.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SourceLoc {
@@ -121,9 +161,9 @@ pub enum Op {
     /// Start collecting screen changes (background, sprites) without showing
     /// them; [`Op::EndTransition`] (or the next text page) reveals them all
     /// at once with a `fade_ms` cross-fade, shaped by `mask` (a greyscale
-    /// image; dark parts change first) if given. `effect` names the original
-    /// transition.
-    BeginTransition { effect: String, fade_ms: u32, mask: Option<String> },
+    /// image; dark parts change first) if given, or moving as `style` says.
+    /// `effect` names the original transition.
+    BeginTransition { effect: String, fade_ms: u32, mask: Option<String>, style: TransitionStyle },
     /// Reveal the changes since [`Op::BeginTransition`].
     EndTransition,
     /// Show or remove sprites on some layers, then show the result.

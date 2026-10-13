@@ -9,7 +9,8 @@ use std::collections::{BTreeMap, HashMap};
 use std::fmt::Write;
 
 use conv_core::ir::{
-    ArithOp, ConfirmDialog, Op, Operand, Script, SpritePlacement, TextLink, TextWindow, TitleAction, TitleScreen, Var,
+    ArithOp, ConfirmDialog, Op, Operand, Script, SlideLayer, SpritePlacement, TextLink, TextWindow, TitleAction, TitleScreen,
+    TransitionStyle, Var, ZoomStyle,
 };
 
 mod menu;
@@ -21,6 +22,8 @@ const FIRST_EFFECT: u32 = 2;
 /// mask image (dark parts first).
 const FADE: u32 = 10;
 const MASK_FADE: u32 = 18;
+/// ONScripter's effect 99 runs the plugin named in its image argument.
+const DLL: u32 = 99;
 /// Sound effect channels we rotate through (0 is left for voices).
 const SE_CHANNELS: std::ops::RangeInclusive<u32> = 1..=9;
 /// Sprite slots 0-5 belong to the yes/no dialog, drawn over everything
@@ -98,10 +101,12 @@ pub fn emit(script: &Script) -> String {
     }
     let caption: String = script.title.chars().filter(|c| c.is_ascii() && *c != '"').collect();
     writeln!(out, "caption \"{}\"", caption.trim()).unwrap();
-    for ((ms, mask), n) in &effects {
-        match mask {
-            Some(m) => writeln!(out, "effect {n},{MASK_FADE},{ms},\"{}\"", path(m)).unwrap(),
-            None => writeln!(out, "effect {n},{FADE},{ms}").unwrap(),
+    for ((ms, kind), n) in &effects {
+        match kind {
+            Effect::Fade => writeln!(out, "effect {n},{FADE},{ms}").unwrap(),
+            Effect::Mask(m) => writeln!(out, "effect {n},{MASK_FADE},{ms},\"{}\"", path(m)).unwrap(),
+            Effect::Builtin(k) => writeln!(out, "effect {n},{k},{ms}").unwrap(),
+            Effect::Dll(d) => writeln!(out, "effect {n},{DLL},{ms},\"{d}\"").unwrap(),
         }
     }
     // Read-text tracking (kidoku.dat, written on save and quit), for
@@ -127,7 +132,7 @@ pub fn emit(script: &Script) -> String {
         writeln!(out, "erasetextwindow 0").unwrap();
     }
 
-    let effect = |ms: u32| if ms == 0 { 1 } else { effects[&(ms, None)] };
+    let effect = |ms: u32| if ms == 0 { 1 } else { effects[&(ms, Effect::Fade)] };
     if let Some(t) = &script.title_screen {
         title_screen(&mut out, t, effect(t.fade_ms), script.save_menu.is_some(), script.settings.is_some(), script.confirm.as_ref());
     }
@@ -136,9 +141,9 @@ pub fn emit(script: &Script) -> String {
     let mut needs_click_wait = false;
     let mut plate_visible = false;
     let mut link_pages = 0;
-    // Effect number of an open transition: display commands only update the
-    // buffer until it is printed.
-    let mut transition: Option<u32> = None;
+    // Effect numbers of an open transition, printed in turn: display
+    // commands only update the buffer until then.
+    let mut transition: Option<Vec<u32>> = None;
     // The active text window (file order; presets are called right before
     // the text that uses them) and the lines already on its page.
     let mut window = script.window.clone();
@@ -146,9 +151,10 @@ pub fn emit(script: &Script) -> String {
     // The backlog tag of the page being written: its first speaker and voice.
     let mut page_tag: Option<String> = None;
     for op in &script.ops {
-        if let (Some(e), Op::Text { .. }) = (transition, op) {
-            writeln!(out, "print {e}").unwrap();
-            transition = None;
+        if let Op::Text { .. } = op {
+            for e in transition.take().unwrap_or_default() {
+                writeln!(out, "print {e}").unwrap();
+            }
         }
         match op {
             Op::Label(name) => writeln!(out, "*{}", label(name)).unwrap(),
@@ -235,16 +241,13 @@ pub fn emit(script: &Script) -> String {
                     writeln!(out, "print 1").unwrap();
                 }
             }
-            Op::BeginTransition { effect: name, fade_ms, mask } => {
+            Op::BeginTransition { effect: name, fade_ms, mask, style } => {
                 writeln!(out, "; transition: {name}").unwrap();
-                transition = Some(match mask {
-                    Some(_) if *fade_ms == 0 => 1,
-                    Some(m) => effects[&(*fade_ms, Some(m.clone()))],
-                    None => effect(*fade_ms),
-                });
+                let steps = transition_steps(*fade_ms, mask.as_deref(), *style);
+                transition = Some(if steps.is_empty() { vec![1] } else { steps.iter().map(|s| effects[s]).collect() });
             }
             Op::EndTransition => {
-                if let Some(e) = transition.take() {
+                for e in transition.take().unwrap_or_default() {
                     writeln!(out, "print {e}").unwrap();
                 }
             }
@@ -638,18 +641,75 @@ pub fn encode(source: &str) -> (Vec<u8>, usize) {
     (out, lost)
 }
 
-/// One effect number per distinct non-zero (duration, mask) pair, in a
-/// stable order: plain cross-fades and mask cross-fades.
-fn fade_effects(script: &Script) -> BTreeMap<(u32, Option<String>), u32> {
-    let mut keys: Vec<(u32, Option<String>)> = script
+/// What an `effect` definition draws.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+enum Effect {
+    Fade,
+    /// Cross-fade through a mask image.
+    Mask(String),
+    /// Another of ONScripter's numbered effects.
+    Builtin(u32),
+    /// Effect 99 with this plugin name (CONscripter's `cons_*.dll`).
+    Dll(String),
+}
+
+/// The effects a transition prints in turn, with their durations; empty
+/// for an instant one.
+fn transition_steps(fade_ms: u32, mask: Option<&str>, style: TransitionStyle) -> Vec<(u32, Effect)> {
+    if fade_ms == 0 {
+        return Vec::new();
+    }
+    let one = |e| vec![(fade_ms, e)];
+    match (mask, style) {
+        (Some(m), _) => one(Effect::Mask(m.to_string())),
+        (None, TransitionStyle::Fade) => one(Effect::Fade),
+        // ONScripter's scrolls (11-14) push both pictures; 11 moves them right.
+        (None, TransitionStyle::Slide { moving: SlideLayer::Both, dx, dy }) if dx == 0 || dy == 0 => {
+            one(Effect::Builtin(match (dx, dy) {
+                (1, _) => 11,
+                (-1, _) => 12,
+                (_, 1) => 13,
+                _ => 14,
+            }))
+        }
+        (None, TransitionStyle::Slide { moving, dx, dy }) => {
+            let layer = match moving {
+                SlideLayer::New => 0,
+                SlideLayer::Old => 1,
+                SlideLayer::Both => 2,
+            };
+            one(Effect::Dll(format!("cons_slide.dll/{layer},{dx},{dy}")))
+        }
+        // Mosaic out (16: the old picture coarsens), then in (17: the new
+        // one sharpens), half the time each.
+        (None, TransitionStyle::Mosaic) => {
+            let half = (fade_ms / 2).max(1);
+            vec![(half, Effect::Builtin(16)), ((fade_ms - half).max(1), Effect::Builtin(17))]
+        }
+        (None, TransitionStyle::Zoom { style, max_percent, curve }) => {
+            let mode = match style {
+                ZoomStyle::NewIn => 0,
+                ZoomStyle::OldOut => 1,
+                ZoomStyle::Through => 2,
+                ZoomStyle::Cross => 3,
+            };
+            one(Effect::Dll(format!("cons_zoom.dll/{mode},{max_percent},{curve}")))
+        }
+    }
+}
+
+/// One effect number per distinct (duration, effect) pair, in a stable
+/// order.
+fn fade_effects(script: &Script) -> BTreeMap<(u32, Effect), u32> {
+    let mut keys: Vec<(u32, Effect)> = script
         .ops
         .iter()
-        .filter_map(|op| match op {
-            Op::Background { fade_ms, .. } | Op::Sprites { fade_ms, .. } => Some((*fade_ms, None)),
-            Op::BeginTransition { fade_ms, mask, .. } => Some((*fade_ms, mask.clone())),
-            _ => None,
+        .flat_map(|op| match op {
+            Op::Background { fade_ms, .. } | Op::Sprites { fade_ms, .. } => vec![(*fade_ms, Effect::Fade)],
+            Op::BeginTransition { fade_ms, mask, style, .. } => transition_steps(*fade_ms, mask.as_deref(), *style),
+            _ => Vec::new(),
         })
-        .chain(script.title_screen.iter().map(|t| (t.fade_ms, None)))
+        .chain(script.title_screen.iter().map(|t| (t.fade_ms, Effect::Fade)))
         .filter(|(ms, _)| *ms > 0)
         .collect();
     keys.sort_unstable();
@@ -854,12 +914,17 @@ goto *conv_link1
     fn transitions_reveal_changes_at_once() {
         let sprite = SpritePlacement { image: "sprite/a.png".into(), x: 1, y: 2 };
         let s = script(vec![
-            Op::BeginTransition { effect: "CrossFade".into(), fade_ms: 2000, mask: None },
+            Op::BeginTransition { effect: "CrossFade".into(), fade_ms: 2000, mask: None, style: TransitionStyle::Fade },
             Op::ClearSprites,
             Op::Background { image: "bg/a.png".into(), fade_ms: 500 },
             Op::Sprites { changes: vec![SpriteChange { layer: 5, sprite: Some(sprite), keep_filters: false }], fade_ms: 500 },
             Op::EndTransition,
-            Op::BeginTransition { effect: "MaskBlend2".into(), fade_ms: 1000, mask: Some("system/mask0009r.png".into()) },
+            Op::BeginTransition {
+                effect: "MaskBlend2".into(),
+                fade_ms: 1000,
+                mask: Some("system/mask0009r.png".into()),
+                style: TransitionStyle::Fade,
+            },
             Op::Background { image: "bg/b.png".into(), fade_ms: 500 },
             Op::Text { speaker: None, text: "あ".into(), voice: None, links: vec![], continues: false },
         ]);
@@ -880,6 +945,32 @@ print 3
 あ\\
 ";
         assert!(text.contains(expected), "{text}");
+    }
+
+    #[test]
+    fn transition_styles() {
+        let begin = |style| Op::BeginTransition { effect: "x".into(), fade_ms: 1000, mask: None, style };
+        let slide = |moving, dx, dy| begin(TransitionStyle::Slide { moving, dx, dy });
+        let s = script(vec![
+            slide(SlideLayer::New, -1, 0),
+            Op::EndTransition,
+            slide(SlideLayer::Both, 0, -1),
+            Op::EndTransition,
+            begin(TransitionStyle::Mosaic),
+            Op::EndTransition,
+            begin(TransitionStyle::Zoom { style: ZoomStyle::Cross, max_percent: 220, curve: 5 }),
+            Op::Text { speaker: None, text: "あ".into(), voice: None, links: vec![], continues: false },
+        ]);
+        let text = emit(&s);
+        let defs = "\
+effect 2,16,500
+effect 3,17,500
+effect 4,14,1000
+effect 5,99,1000,\"cons_slide.dll/0,-1,0\"
+effect 6,99,1000,\"cons_zoom.dll/3,220,5\"
+";
+        assert!(text.contains(defs), "{text}");
+        assert!(text.contains("; transition: x\nprint 5\n; transition: x\nprint 4\n; transition: x\nprint 2\nprint 3\n; transition: x\nprint 6\nあ"), "{text}");
     }
 
     #[test]

@@ -145,6 +145,7 @@ README, "CONscripter additions"):
 | `spfilter` (colour filters on sprites, kept in saves) | 最果てのイマ's effect presets (0x88/0x90): lighting tints on bust-ups, plus negative, greyscale and brightness filters. Replaced ~930 pre-tinted PNGs (about 130 MB of `arc.nsa`) |
 | `pushscreen` / `popscreen` (save and restore background, sprites, filters and BGM; kept in saves) | Link scenes, which can change the whole screen before returning to their page. Replaced the converter's file-order guess of what was on screen |
 | `delsavegame` (delete a save and its thumbnail) | The save menu's delete button. Replaced a global flag per slot that only hid the save; a slot an older build flagged is deleted when the menu lists it |
+| `cons_slide.dll`, `cons_zoom.dll` (effect 99 plugins: slides in 8 directions, four zooms) | 0x76 transitions: Slide in/out (subs 10-25, 7 uses) and Zoom (37-40, 116 uses), decoded from the exe (`transition_style` in the Xuse converter). Scroll (41-44) maps to ONScripter's effects 11-14 and Mosaic (27) to 16 then 17, without engine work |
 
 Planned, from limits hit while converting 最果てのイマ (each one is worked
 around in the script today), roughly in order of payoff:
@@ -153,7 +154,6 @@ around in the script today), roughly in order of payoff:
 |---|---|---|
 | Archive size on the web | PNG only (the WASM build has no WebP decoder) | WebP support in the web build |
 | Movies (`mv*.bin`, MPEG-PS) | Not converted | Movie playback that works in the web build (e.g. an HTML5 video overlay) |
-| Slide, scroll, mosaic, zoom transitions | Drawn as cross-fades | Map to ONScripter's own effects where they exist, add the rest |
 | BGM loop points | Tracks loop from the start | Loop start for `bgm` (`loopbgm` exists but plays from memory, outside the BGM channel) |
 | Right-click menu / hide window | Everything behind the on-screen button bar | Send right-click to a script label (`rgosub`-style); not planned for now |
 
@@ -309,7 +309,7 @@ offset of its operand record.
 | `0x5b` | 890 | **solved** (channel 1, stop flag) | stop SE: `arg` = sound or 0 for all, `sub` = fade ms |
 | `0x15`, `0x22` | 442 / 3,094 | handlers look up script variable number `sub` (`0x470830`) | variable operations (core VM) |
 | `0x36`–`0x38` | 251 each | handlers resolve labels (`0x4706a0`) | probably choice menus |
-| `0x76` | 3,670 | sub 9 in 92% of uses; record holds durations and constants, no sound number | screen effect/transition (not decoded) |
+| `0x76` | 3,670 | **solved** (handler `0x449df0`): `sub` picks the `Trans_*` class through a jump table (0-3 Wave, 4 Dot4x4, 5-8 SoftEdgeWipe, 9 CrossFade, 10-17 Slide in, 18-25 Slide out, 26 Dissolve, 27 Mosaic, 28-31 BoxRolling, 32-35 RollFlip, 36 SmoothCrossFade, 37-40 Zoom, 41-44 Scroll, 45-47 MeltDown, 48 TvPowerSwitch); the record is duration, flags, easing | screen transition |
 
 **Blog scripts:** 60 scripts are named `15_Blog…` (ids 96–155) and 44 are
 named `11_…`. 33 story scripts have 153 label-table entries pointing into the
@@ -494,8 +494,10 @@ parts are not converted:
 - ruby (`0x44`) and indent (`0x4e`);
 
 **Accuracy.**
-- Transitions other than cross-fade and mask wipe (slide, scroll, mosaic,
-  zoom, ...) are drawn as cross-fades.
+- Transitions still drawn as cross-fades: Wave (0-3, 39 uses), Dissolve
+  (26, 69), RollFlip (32-35, 24), SoftEdgeWipe (5-8, 10), TvPowerSwitch
+  (48, 11), BoxRolling, SmoothCrossFade, Dot4x4, MeltDown (under 10
+  each).
 - Full-screen text styles 1-7: metrics are estimates; calibrate from
   screenshots of the original (style 5, route 10, is the most used).
 - BGM loops from the start; the original's loop points aren't read.

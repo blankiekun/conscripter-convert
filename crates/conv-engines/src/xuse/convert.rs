@@ -12,7 +12,7 @@ use thiserror::Error;
 use conv_core::ir::{
     ArithOp, Backlog, BarAction, BarButton, ButtonBar, ConfirmDialog, NamePlate, Setting, SettingRow, SettingsMenu, Op, Operand, PageButton, Placed, Rect, SaveMenu, SourceLoc, Voice, VoiceToggle,
     SpriteChange, SpriteFilter, SpritePlacement, TextLink, TextSpot, TextWindow, TitleAction, TitleButton, TitleScreen, TopBars,
-    Var, FILTER_BLEND_ADD, FILTER_BLEND_COPY, FILTER_BLEND_MULTIPLY, FILTER_BLEND_SCREEN, FILTER_BRIGHTNESS, FILTER_COLOUR,
+    SlideLayer, TransitionStyle, Var, ZoomStyle, FILTER_BLEND_ADD, FILTER_BLEND_COPY, FILTER_BLEND_MULTIPLY, FILTER_BLEND_SCREEN, FILTER_BRIGHTNESS, FILTER_COLOUR,
     FILTER_GREYSCALE, FILTER_NEGATIVE,
 };
 
@@ -1155,7 +1155,7 @@ pub fn lower_script(
                     };
                     transition_armed = true;
                     let effect = format!("MaskBlend2 mask {number} softness {}", soft as i32);
-                    ops.push(Op::BeginTransition { effect, fade_ms, mask });
+                    ops.push(Op::BeginTransition { effect, fade_ms, mask, style: TransitionStyle::Fade });
                 }
                 _ => ops.push(Op::Unsupported { what: format!("opcode {:#04x} (bad record)", ins.op), at: at() }),
             }
@@ -1175,7 +1175,12 @@ pub fn lower_script(
             match pool_u32(cd.pool, ins.arg as u32 as usize) {
                 Some(fade_ms) => {
                     transition_armed = true;
-                    ops.push(Op::BeginTransition { effect: transition_name(ins.sub).to_string(), fade_ms, mask: None });
+                    ops.push(Op::BeginTransition {
+                        effect: transition_name(ins.sub).to_string(),
+                        fade_ms,
+                        mask: None,
+                        style: transition_style(ins.sub),
+                    });
                 }
                 None => ops.push(Op::Unsupported { what: format!("opcode {:#04x} (bad record)", ins.op), at: at() }),
             }
@@ -1399,14 +1404,16 @@ fn own_label_at(cd: &CdScript, label: i32) -> Option<usize> {
 }
 
 /// Transition effect for 0x76's `sub`, named after the engine's
-/// `Trans_*.cpp` source files (directions within a family not known).
+/// `Trans_*.cpp` source files (the handler at `0x449df0` picks the class
+/// with a jump table on `sub`).
 fn transition_name(sub: u16) -> &'static str {
     match sub {
         0..=3 => "Wave",
         4 => "Dot4x4",
         5..=8 => "SoftEdgeWipe",
         9 => "CrossFade",
-        10..=17 => "Slide",
+        10..=17 => "Slide in",
+        18..=25 => "Slide out",
         26 => "Dissolve",
         27 => "Mosaic",
         28..=31 => "BoxRolling",
@@ -1419,6 +1426,44 @@ fn transition_name(sub: u16) -> &'static str {
         47 => "MeltDown white",
         48 => "TvPowerSwitch",
         _ => "unknown",
+    }
+}
+
+/// How 0x76's `sub` moves, for the families CONscripter can draw (the
+/// rest are cross-fades). From the exe:
+/// - Slide (`0x446f10`): `sub - 10` (in) or `sub - 18` (out) indexes the
+///   direction tables at `0x5006d0`/`0x5006d8` (x, y). Sliding in, the new
+///   picture starts one screen length that way and moves back into place;
+///   sliding out, the old picture moves that way. Linear in time.
+/// - Scroll (`0x446be0`): both pictures move together, `sub - 41` picks
+///   one of four draw routines (table `0x518040`): the new picture enters
+///   from below, the right, above, the left.
+/// - Mosaic (`0x446160`): blocks up to 100 px (cubic), old then new.
+/// - Zoom (`0x449800`): mode `sub - 37`, magnification `1 + f * t^5` with
+///   f = 50 (f = 1.2 for 40), 16.16 fixed point about the centre; the
+///   draw routines at `0x449160`, `0x449220`, `0x449270`, `0x449330`.
+fn transition_style(sub: u16) -> TransitionStyle {
+    const DIRECTIONS: [(i8, i8); 8] = [(0, 1), (-1, 1), (-1, 0), (-1, -1), (0, -1), (1, -1), (1, 0), (1, 1)];
+    let zoom = |style, max_percent| TransitionStyle::Zoom { style, max_percent, curve: 5 };
+    match sub {
+        10..=17 => {
+            let (dx, dy) = DIRECTIONS[usize::from(sub - 10)];
+            TransitionStyle::Slide { moving: SlideLayer::New, dx: -dx, dy: -dy }
+        }
+        18..=25 => {
+            let (dx, dy) = DIRECTIONS[usize::from(sub - 18)];
+            TransitionStyle::Slide { moving: SlideLayer::Old, dx, dy }
+        }
+        41..=44 => {
+            let (dx, dy) = [(0, -1), (-1, 0), (0, 1), (1, 0)][usize::from(sub - 41)];
+            TransitionStyle::Slide { moving: SlideLayer::Both, dx, dy }
+        }
+        27 => TransitionStyle::Mosaic,
+        37 => zoom(ZoomStyle::NewIn, 5100),
+        38 => zoom(ZoomStyle::OldOut, 5100),
+        39 => zoom(ZoomStyle::Through, 5100),
+        40 => zoom(ZoomStyle::Cross, 220),
+        _ => TransitionStyle::Fade,
     }
 }
 
@@ -1483,6 +1528,20 @@ fn write_file(path: &Path, data: &[u8]) -> Result<(), ConvertError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn transition_styles_follow_the_exe() {
+        let slide = |moving, dx, dy| TransitionStyle::Slide { moving, dx, dy };
+        // Sub 10 (direction 0, +y): the new picture starts below and moves up.
+        assert_eq!(transition_style(10), slide(SlideLayer::New, 0, -1));
+        assert_eq!(transition_style(12), slide(SlideLayer::New, 1, 0));
+        assert_eq!(transition_style(24), slide(SlideLayer::Old, 1, 0));
+        assert_eq!(transition_style(41), slide(SlideLayer::Both, 0, -1));
+        assert_eq!(transition_style(44), slide(SlideLayer::Both, 1, 0));
+        assert_eq!(transition_style(40), TransitionStyle::Zoom { style: ZoomStyle::Cross, max_percent: 220, curve: 5 });
+        assert_eq!(transition_style(9), TransitionStyle::Fade);
+        assert_eq!(transition_name(20), "Slide out");
+    }
 
     #[test]
     fn unique_names() {
