@@ -69,6 +69,8 @@ pub trait Assets {
     fn transparent(&mut self) -> String;
     /// An output image scaled to `zx`, `zy` per mille: its path and size.
     fn scaled(&mut self, image: &str, zx: i64, zy: i64) -> Option<(String, u32, u32)>;
+    /// An output image blurred with a Gaussian of `sigma`/10 px.
+    fn blurred(&mut self, image: &str, sigma: u32) -> Option<String>;
 }
 
 /// The result of compiling one scene.
@@ -263,6 +265,8 @@ struct Object<'a> {
     seq: u64,
     /// `Zoom`, per mille (x, y), about the centre.
     zoom: (i64, i64),
+    /// `SetBlur`: Gaussian sigma in tenths of a pixel (0 = none).
+    blur: u32,
 }
 
 #[derive(Debug, Clone)]
@@ -310,6 +314,9 @@ struct Shown {
     image: String,
     x: i64,
     y: i64,
+    /// Size as drawn (after `Zoom`).
+    w: i64,
+    h: i64,
     opacity: i64,
 }
 
@@ -671,7 +678,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
 
     fn create(&mut self, name: String, kind: Kind<'a>, priority: i64, w: i64, h: i64) -> &mut Object<'a> {
         self.seq += 1;
-        let o = Object { kind, priority, x: 0, y: 0, w, h, opacity: 1000, locked: false, hideable: false, seq: self.seq, zoom: (1000, 1000) };
+        let o = Object { kind, priority, x: 0, y: 0, w, h, opacity: 1000, locked: false, hideable: false, seq: self.seq, zoom: (1000, 1000), blur: 0 };
         self.objects.insert(name.clone(), o);
         self.objects.get_mut(&name).unwrap()
     }
@@ -753,6 +760,24 @@ impl<'a, 'b> Compiler<'a, 'b> {
             }
             "move" => {
                 let targets = self.matching(&arg(0));
+                let ms = arg(1).int();
+                let blocking = !matches!(arg(5), Value::Null | Value::Int(0));
+                // One picture on screen moving while the script waits: a real
+                // motion (after showing what changed before it).
+                if ms > 0 && blocking && targets.len() == 1 && self.shown.contains_key(&targets[0]) {
+                    self.sync(0);
+                    let o = self.objects.get_mut(&targets[0]).unwrap();
+                    let (x, y) = (arg(2).position(o.x, o.w, SCREEN_W), arg(3).position(o.y, o.h, SCREEN_H));
+                    let (dx, dy) = (x - o.x, y - o.y);
+                    (o.x, o.y) = (x, y);
+                    if let Some(sh) = self.shown.get_mut(&targets[0]) {
+                        sh.x += dx;
+                        sh.y += dy;
+                        let (cx, cy) = ((sh.x + sh.w / 2) as i32, (sh.y + sh.h / 2) as i32);
+                        self.ops.push(Op::SpriteMove { layer: sh.layer, x: cx, y: cy, ms: ms as u32 });
+                    }
+                    return Value::Null;
+                }
                 for t in &targets {
                     let o = self.objects.get_mut(t).unwrap();
                     o.x = arg(2).position(o.x, o.w, SCREEN_W);
@@ -801,6 +826,15 @@ impl<'a, 'b> Compiler<'a, 'b> {
                     self.note("Zoom over time drawn as a cross-fade");
                 }
                 self.timed(arg(1).int(), &arg(5));
+            }
+            "setblur" => {
+                // (obj, on, passes 1-3, ?, strength, wait). Unverified:
+                // drawn as a Gaussian of 1.5 px per pass.
+                let sigma = if arg(1).truthy() { (arg(2).int().clamp(1, 5) * 15) as u32 } else { 0 };
+                for t in self.matching(&arg(0)) {
+                    self.objects.get_mut(&t).unwrap().blur = sigma;
+                }
+                self.timed(arg(3).int(), &arg(5));
             }
             "drawtransition" => {
                 // (obj, time, from, to, softness, tempo, mask, wait): a fade
@@ -964,8 +998,8 @@ impl<'a, 'b> Compiler<'a, 'b> {
             .iter()
             .filter_map(|(n, o)| match &o.kind {
                 Kind::Image { image } if o.opacity > 0 && !o.hideable => {
-                    let shown = Shown { layer: 0, image: image.clone(), x: o.x, y: o.y, opacity: o.opacity };
-                    Some((n.clone(), shown, (o.priority, o.seq), o.zoom, (o.w, o.h)))
+                    let shown = Shown { layer: 0, image: image.clone(), x: o.x, y: o.y, w: o.w, h: o.h, opacity: o.opacity };
+                    Some((n.clone(), shown, (o.priority, o.seq), o.zoom, (o.w, o.h), o.blur))
                 }
                 _ => None,
             })
@@ -973,12 +1007,18 @@ impl<'a, 'b> Compiler<'a, 'b> {
         // Zoomed pictures: scaled copies, centred where the original was.
         let mut want: Vec<(String, Shown, (i64, u64))> = want
             .into_iter()
-            .map(|(n, mut shown, key, zoom, (w, h))| {
+            .map(|(n, mut shown, key, zoom, (w, h), blur)| {
                 if zoom != (1000, 1000)
                     && let Some((image, sw, sh)) = self.assets.scaled(&shown.image, zoom.0, zoom.1)
                 {
                     shown.x += (w - sw as i64) / 2;
                     shown.y += (h - sh as i64) / 2;
+                    (shown.w, shown.h) = (sw as i64, sh as i64);
+                    shown.image = image;
+                }
+                if blur > 0
+                    && let Some(image) = self.assets.blurred(&shown.image, blur)
+                {
                     shown.image = image;
                 }
                 (n, shown, key)
@@ -1381,6 +1421,9 @@ mod tests {
         }
         fn scaled(&mut self, image: &str, zx: i64, zy: i64) -> Option<(String, u32, u32)> {
             Some((format!("{image}@{zx}x{zy}"), (1024 * zx / 1000) as u32, (576 * zy / 1000) as u32))
+        }
+        fn blurred(&mut self, image: &str, sigma: u32) -> Option<String> {
+            Some(format!("{image}~{sigma}"))
         }
     }
 
