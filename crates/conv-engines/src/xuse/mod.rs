@@ -3,6 +3,7 @@
 pub mod cd;
 pub mod convert;
 pub mod gaf;
+pub mod staffroll;
 pub mod symbols;
 pub mod xarc;
 pub mod xsa;

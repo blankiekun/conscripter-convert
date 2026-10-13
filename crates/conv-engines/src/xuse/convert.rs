@@ -23,6 +23,7 @@ use crate::xuse::cd::{
     ModuleData,
 };
 use crate::xuse::gaf::{Gaf, GafError};
+use crate::xuse::staffroll;
 use crate::xuse::symbols::SymbolTable;
 use crate::xuse::xarc::{Xarc, XarcError};
 use crate::xuse::xsa::{Xsa, XsaError};
@@ -181,6 +182,11 @@ const OP_CLEAR_CHAPTER_HISTORY: u16 = 0x39;
 /// reads it, and no script uses 0x3c. The boot script sets "debug entry"
 /// or "release entry". Nothing to emit.
 const OP_ENTRY_NAME: u16 = 0x3b;
+/// Plays a staff roll (handler 0x4788d0, task 0x454a60; see
+/// [`staffroll`]): arg 0 or 1. Roll 1 (with its song, 223 s) opens the
+/// epilogue (0003.cd #2), which the end of 0008.cd jumps to; roll 0 (63 s)
+/// is in the boot script. Neither a click nor a key ends it.
+const OP_STAFF_ROLL: u16 = 0x91;
 /// Yields for one frame (handler 0x473d20 returns 0). Nothing to emit.
 const OP_YIELD: u16 = 0x67;
 /// Sets an object's opacity (handler 0x413f10; draw field +0x1b2).
@@ -1245,12 +1251,66 @@ impl AssetBank {
 
 const BGM: &str = "BGM track";
 const MOVIE: &str = "movie";
+const STAFF_ROLL: &str = "staff roll";
+const STAFF_ROLL_FPS: u32 = 30;
 
 impl AssetBank {
     /// Movie `number` (`HD/mvNNNN.bin`, an MPEG-1 program stream) as H.264
     /// and AAC in MP4, which browsers play. Movies stay loose files (the
     /// web build hands the file to a `<video>` element). A movie already
     /// in the output is kept: encoding takes a minute or so each.
+    /// Staff roll `number` (0x91's arg) as a movie: every frame drawn from
+    /// the exe's tables ([`staffroll`]) at 30 fps, with its song. Kept like
+    /// the movies: delete it to draw it again.
+    pub fn staff_roll(&mut self, number: usize) -> Result<String, ConvertError> {
+        let key = (STAFF_ROLL, number);
+        if let Some(p) = self.written.get(&key) {
+            return Ok(p.clone());
+        }
+        let roll = staffroll::ROLLS.get(number).ok_or(ConvertError::MissingAsset { kind: STAFF_ROLL, number })?;
+        let song = self.bgm(roll.bgm)?;
+        let song = self.out.join(song);
+        let name = format!("movie/staffroll{number}.mp4");
+        let dest = self.out.join(&name);
+        if !dest.exists() {
+            let pictures = self.gaf_rgba("gd.arc", roll.file, STAFF_ROLL)?;
+            let io = |source| ConvertError::Io { path: dest.clone(), source };
+            fs::create_dir_all(dest.parent().unwrap()).map_err(io)?;
+            let part = dest.with_extension("part.mp4");
+            let ffmpeg = |detail: String| ConvertError::Ffmpeg { path: PathBuf::from(roll.file), detail };
+            let size = format!("{}x{}", staffroll::WIDTH, staffroll::HEIGHT);
+            let seconds = format!("{:.3}", f64::from(roll.total_ms) / 1000.0);
+            let mut child = std::process::Command::new("ffmpeg")
+                .args(["-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", &size, "-r"])
+                .arg(STAFF_ROLL_FPS.to_string())
+                .args(["-i", "-", "-i"])
+                .arg(&song)
+                .args(["-map", "0:v", "-map", "1:a", "-t", &seconds])
+                .args(["-c:v", "libx264", "-preset", "slow", "-crf", "20", "-pix_fmt", "yuv420p"])
+                .args(["-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart"])
+                .arg(&part)
+                .stdin(std::process::Stdio::piped())
+                .spawn()
+                .map_err(|e| ffmpeg(e.to_string()))?;
+            let mut stdin = child.stdin.take().unwrap();
+            let mut frame = image::RgbImage::new(staffroll::WIDTH, staffroll::HEIGHT);
+            let frames = u64::from(roll.total_ms) * u64::from(STAFF_ROLL_FPS) / 1000;
+            let written = (0..frames).try_for_each(|i| {
+                staffroll::render(roll, &pictures, i as f64 * 1000.0 / f64::from(STAFF_ROLL_FPS), &mut frame);
+                io::Write::write_all(&mut stdin, frame.as_raw())
+            });
+            drop(stdin);
+            let status = child.wait().map_err(|e| ffmpeg(e.to_string()))?;
+            if let Err(e) = written.map_err(|e| ffmpeg(e.to_string())).and(if status.success() { Ok(()) } else { Err(ffmpeg(status.to_string())) }) {
+                let _ = fs::remove_file(&part);
+                return Err(e);
+            }
+            fs::rename(&part, &dest).map_err(io)?;
+        }
+        self.written.insert(key, name.clone());
+        Ok(name)
+    }
+
     pub fn movie(&mut self, number: u16) -> Result<String, ConvertError> {
         let key = (MOVIE, usize::from(number));
         if let Some(p) = self.written.get(&key) {
@@ -2105,6 +2165,16 @@ pub fn lower_script(
             match ins.arg {
                 scene @ 0..REPLAY_SCENES => ops.push(Op::UnlockScene { scene: scene as u32 }),
                 _ => ops.push(Op::Unsupported { what: format!("opcode {:#04x} arg {}", ins.op, ins.arg), at: at() }),
+            }
+            continue;
+        }
+        if ins.op == OP_STAFF_ROLL {
+            match assets.staff_roll(ins.arg as usize) {
+                Ok(file) => ops.push(Op::Movie { file, skippable: false }),
+                Err(ConvertError::MissingAsset { .. }) => {
+                    ops.push(Op::Unsupported { what: format!("opcode {:#04x} arg {}", ins.op, ins.arg), at: at() })
+                }
+                Err(e) => return Err(e),
             }
             continue;
         }

@@ -277,12 +277,16 @@ engines print `z150` etc.). The web build compiles with it.
       chapter history screen exists (then clear it here). 24 → 20.
 - [x] `0x3b` (2): the boot script's entry name ("debug entry" /
       "release entry"), read only by the unused 0x3c; nothing emitted.
-- [ ] `0x91` (2): the staff roll (`StaffRoll\Staff.cpp`, task 0x454a60;
-      tables at 0x517f30: arg 0 → `StaffRoll1.004` in `gd.arc`, 63 s, 23
-      parts; arg 1 → `StaffRoll2.004`, 222 s). Arg 1 opens the epilogue
-      (0003.cd #2), arg 0 is in the boot script (0000.cd #61).
-- [ ] Opcodes still emitted as comments (18 left): `0x36`
-      without a chapter name, `0x48`, `0x4a`, `0x91` (2 each),
+- [x] `0x91` (2): the staff roll, rendered by the converter
+      (`xuse/staffroll.rs`, tables from the exe) into
+      `movie/staffroll{0,1}.mp4` with its song (BGM 23 / 22) and played
+      with `mpegplay …,0` (the original can't be skipped). Roll 1 (223 s)
+      opens the epilogue, after the end of 0008.cd; roll 0 (63 s) is in
+      the boot script. Compared with the original under wine: frames
+      match (mean pixel difference 2-5, 10 while the panel widens).
+      **Not checked:** playback in the web build.
+- [ ] Opcodes still emitted as comments (16 left): `0x36`
+      without a chapter name, `0x48`, `0x4a` (2 each),
       rarer ones.
 - [ ] Transitions still drawn as cross-fades: Wave, Dissolve, RollFlip,
       SoftEdgeWipe, TvPowerSwitch, BoxRolling, SmoothCrossFade, Dot4x4,
