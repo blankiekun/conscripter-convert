@@ -81,6 +81,10 @@ enum Command {
         file: String,
         #[arg(long)]
         scene: Option<String>,
+        /// Play this many story files in a row from --file, following
+        /// $GameName (from each file's _MAIN scene, as the game does)
+        #[arg(long)]
+        chain: Option<usize>,
         #[arg(short, long)]
         output: PathBuf,
         /// Font to copy into the output as default.ttf (CONscripter needs one)
@@ -262,8 +266,8 @@ fn main() -> Result<()> {
         Command::ConvertScript { game, script, output, font, title, webp } => {
             convert_script(&game, script, &output, font.as_deref(), &title, webp)
         }
-        Command::ConvertNss { game, file, scene, output, font, title, loose } => {
-            convert_nss(&game, &file, scene.as_deref(), &output, font.as_deref(), &title, loose)
+        Command::ConvertNss { game, file, scene, chain, output, font, title, loose } => {
+            convert_nss(&game, &file, scene.as_deref(), chain, &output, font.as_deref(), &title, loose)
         }
         Command::Xarc { command } => match command {
             XarcCommand::List { archive } => xarc_list(&archive),
@@ -841,7 +845,8 @@ fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
 
-fn convert_nss(game: &Path, file: &str, scene: Option<&str>, output: &Path, font: Option<&Path>, title: &str, loose: bool) -> Result<()> {
+#[allow(clippy::too_many_arguments)]
+fn convert_nss(game: &Path, file: &str, scene: Option<&str>, chain: Option<usize>, output: &Path, font: Option<&Path>, title: &str, loose: bool) -> Result<()> {
     use conv_engines::nitroplus::assets::{NpaAssets, OUTPUT_DIRS};
     use conv_engines::nitroplus::{convert, nss};
     let exe = game.join("Muramasa.exe");
@@ -871,7 +876,14 @@ fn convert_nss(game: &Path, file: &str, scene: Option<&str>, output: &Path, font
     let (cg, sound, voice) = (npas.next().unwrap(), npas.next().unwrap(), npas.next().unwrap());
     let mut assets = NpaAssets::new(cg, sound, voice, output);
     let scene = scene.unwrap_or(file);
-    let compiled = convert::compile_scene(&files, file, scene, &mut assets).map_err(anyhow::Error::msg)?;
+    let compiled = match chain {
+        Some(n) => {
+            let (compiled, played) = convert::compile_run(&files, file, n, &mut assets).map_err(anyhow::Error::msg)?;
+            println!("{} files: {}", played.len(), played.join(" "));
+            compiled
+        }
+        None => convert::compile_scene(&files, file, scene, &mut assets).map_err(anyhow::Error::msg)?,
+    };
     for e in &assets.errors {
         println!("  asset error: {e}");
     }

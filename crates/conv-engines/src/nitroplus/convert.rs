@@ -37,7 +37,7 @@
 
 use std::collections::{BTreeMap, HashMap};
 
-use conv_core::ir::{CLICK_WAIT_MARK, Op, Ruby, SpriteChange, SpritePlacement, TextWindow, TransitionStyle, Voice};
+use conv_core::ir::{CLICK_WAIT_MARK, Op, ScreenEffect, Ruby, SpriteChange, SpritePlacement, TextWindow, TransitionStyle, Voice};
 
 use super::nss::{AssignOp, BinaryOp, Expr, Function, Inline, Item, NssFile, Param, Stmt, StmtKind, Target, Text, UnaryOp};
 
@@ -67,6 +67,8 @@ pub trait Assets {
     fn composite(&mut self, parts: &[(String, i64, i64, i64)]) -> Option<(String, i64, i64)>;
     /// A fully transparent picture.
     fn transparent(&mut self) -> String;
+    /// An output image scaled to `zx`, `zy` per mille: its path and size.
+    fn scaled(&mut self, image: &str, zx: i64, zy: i64) -> Option<(String, u32, u32)>;
 }
 
 /// The result of compiling one scene.
@@ -87,6 +89,40 @@ pub fn compile_scene(files: &BTreeMap<String, NssFile>, file: &str, scene: &str,
     c.run_top(body);
     c.sync(0);
     Ok(Compiled { ops: c.ops, window: c.first_window, notes: c.notes })
+}
+
+/// Plays story files in a row from `start` (`ma01_001.nss`), as the story
+/// driver's loop does: each file's `X.nss_MAIN` scene runs its content
+/// scene and sets `$GameName` to the next file. Stops after `max_files`
+/// files, at the end of the game, or where the next file isn't known at
+/// convert time. Each file starts at a label named after it. Returns the
+/// files played.
+pub fn compile_run(files: &BTreeMap<String, NssFile>, start: &str, max_files: usize, assets: &mut dyn Assets) -> Result<(Compiled, Vec<String>), String> {
+    let (first, _) = files.get_key_value(start).ok_or_else(|| format!("no script {start}"))?;
+    let mut c = Compiler::new(files, first, assets);
+    c.vars.insert("$GameName".into(), Value::Str(start.to_string()));
+    c.vars.insert("$GameStart".into(), Value::Int(1));
+    c.vars.insert("$GameCircle".into(), Value::Int(1));
+    let mut played = Vec::new();
+    while played.len() < max_files && c.vars.get("$GameCircle").is_some_and(Value::truthy) {
+        let name = c.vars.get("$GameName").map(Value::string).unwrap_or_default();
+        let Some((file, _)) = files.get_key_value(&name) else {
+            if !name.is_empty() {
+                c.note(format!("next file {name} doesn't exist"));
+            }
+            break;
+        };
+        c.ops.push(Op::Label(name.trim_end_matches(".nss").to_string()));
+        c.file = file;
+        c.call_scene(&format!("nss/{name}->{name}_MAIN"), false);
+        c.sync(0);
+        played.push(name.clone());
+        if c.vars.get("$GameName").map(Value::string).as_deref() == Some(name.as_str()) {
+            c.note("file didn't name a next file");
+            break;
+        }
+    }
+    Ok((Compiled { ops: c.ops, window: c.first_window, notes: c.notes }, played))
 }
 
 /// Files the story driver includes, directly or not, in include order.
@@ -225,6 +261,8 @@ struct Object<'a> {
     hideable: bool,
     /// Creation order: among equal priorities the newer draws on top.
     seq: u64,
+    /// `Zoom`, per mille (x, y), about the centre.
+    zoom: (i64, i64),
 }
 
 #[derive(Debug, Clone)]
@@ -297,6 +335,8 @@ struct Compiler<'a, 'b> {
     shown: BTreeMap<String, Shown>,
     /// The longest non-blocking action since the last sync.
     pending_ms: u32,
+    /// A `DrawTransition` mask for the next sync.
+    pending_mask: Option<String>,
     font_size: i64,
     window: Option<TextWindow>,
     first_window: Option<TextWindow>,
@@ -306,6 +346,8 @@ struct Compiler<'a, 'b> {
     ops: Vec<Op>,
     notes: BTreeMap<String, usize>,
     depth: usize,
+    /// Helper functions being run.
+    in_function: usize,
 }
 
 impl<'a, 'b> Compiler<'a, 'b> {
@@ -322,6 +364,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
             seq: 0,
             shown: BTreeMap::new(),
             pending_ms: 0,
+            pending_mask: None,
             font_size: 20,
             window: None,
             first_window: None,
@@ -331,6 +374,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
             ops: Vec::new(),
             notes: BTreeMap::new(),
             depth: 0,
+            in_function: 0,
         }
     }
 
@@ -371,7 +415,13 @@ impl<'a, 'b> Compiler<'a, 'b> {
 
     fn exec_block(&mut self, stmts: &'a [Stmt]) -> Flow {
         for s in stmts {
-            match self.exec(s) {
+            let flow = self.exec(s);
+            // A statement of a scene (not of a helper) has finished
+            // setting up the sounds it started.
+            if self.in_function == 0 {
+                self.flush_sounds();
+            }
+            match flow {
                 Flow::Normal => {}
                 flow => return flow,
             }
@@ -497,9 +547,11 @@ impl<'a, 'b> Compiler<'a, 'b> {
         }
         let saved = std::mem::replace(&mut self.file, file);
         self.depth += 1;
+        self.in_function += 1;
         self.frames.push(frame);
         self.exec_block(&f.body);
         self.frames.pop();
+        self.in_function -= 1;
         self.depth -= 1;
         self.file = saved;
         Value::Null
@@ -577,6 +629,19 @@ impl<'a, 'b> Compiler<'a, 'b> {
 
     // -- objects ------------------------------------------------------------
 
+    /// A string argument that names a variable (`"$Transition"`) means
+    /// that variable's value.
+    fn deref(&self, v: &Value) -> String {
+        let mut s = v.string();
+        for _ in 0..4 {
+            match self.vars.get(&s) {
+                Some(v) if s.starts_with(['$', '#']) => s = v.string(),
+                _ => break,
+            }
+        }
+        s
+    }
+
     /// The object a name argument means: `$var` names the variable holding
     /// it, `@x` goes through the alias table.
     fn object_name(&self, v: &Value) -> String {
@@ -606,7 +671,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
 
     fn create(&mut self, name: String, kind: Kind<'a>, priority: i64, w: i64, h: i64) -> &mut Object<'a> {
         self.seq += 1;
-        let o = Object { kind, priority, x: 0, y: 0, w, h, opacity: 1000, locked: false, hideable: false, seq: self.seq };
+        let o = Object { kind, priority, x: 0, y: 0, w, h, opacity: 1000, locked: false, hideable: false, seq: self.seq, zoom: (1000, 1000) };
         self.objects.insert(name.clone(), o);
         self.objects.get_mut(&name).unwrap()
     }
@@ -625,7 +690,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
         match name.to_ascii_lowercase().as_str() {
             "createtexture" => {
                 let name = self.object_name(&arg(0));
-                let src = arg(4).string();
+                let src = self.deref(&arg(4));
                 let Some((image, w, h)) = self.texture_source(&src) else {
                     self.note(format!("CreateTexture from {}", if src.contains('/') { "a missing file" } else { "an object or the screen" }));
                     self.create(name, Kind::Other, arg(1).int(), 0, 0);
@@ -726,7 +791,49 @@ impl<'a, 'b> Compiler<'a, 'b> {
                     }
                 }
             }
-            "zoom" if !(arg(2).int() == 1000 && arg(3).int() == 1000) => self.note("Zoom"),
+            "zoom" => {
+                let targets = self.matching(&arg(0));
+                for t in &targets {
+                    let o = self.objects.get_mut(t).unwrap();
+                    o.zoom = (arg(2).position(o.zoom.0, 0, 0).max(1), arg(3).position(o.zoom.1, 0, 0).max(1));
+                }
+                if arg(1).int() > 0 && targets.iter().any(|t| self.shown.contains_key(t)) {
+                    self.note("Zoom over time drawn as a cross-fade");
+                }
+                self.timed(arg(1).int(), &arg(5));
+            }
+            "drawtransition" => {
+                // (obj, time, from, to, softness, tempo, mask, wait): a fade
+                // to `to` shaped by the mask.
+                for t in self.matching(&arg(0)) {
+                    self.objects.get_mut(&t).unwrap().opacity = arg(3).int().clamp(0, 1000);
+                }
+                match self.assets.image(&self.deref(&arg(6))) {
+                    Some((mask, _, _)) => self.pending_mask = Some(mask),
+                    None => self.note(format!("DrawTransition mask missing: {}", arg(6).string())),
+                }
+                self.timed(arg(1).int(), &arg(7));
+            }
+            "shake" => {
+                // (obj, time, x, y, …, wait). A full-screen picture (or all
+                // of them): the whole picture shakes.
+                let targets = self.matching(&arg(0));
+                if !targets.iter().any(|t| self.objects[t].w >= SCREEN_W && self.objects[t].h >= SCREEN_H) {
+                    self.note("Shake of a picture smaller than the screen");
+                    self.timed(arg(1).int(), a.last().unwrap_or(&Value::Null));
+                    return Value::Null;
+                }
+                let ms = arg(1).int().max(0) as u32;
+                let (x, y) = (arg(2).int().abs() as i32, arg(3).int().abs() as i32);
+                self.sync(0);
+                if ms > 0 && (x > 0 || y > 0) {
+                    let shake = ScreenEffect::Shake { time_ms: ms, interval_ms: 16, path: false, speed: (1300, 1700), range: [(x, y), (x, y)] };
+                    self.ops.push(Op::ScreenEffect { slot: 1, effect: Some(shake) });
+                    if !matches!(a.last(), Some(Value::Null | Value::Int(0))) {
+                        self.ops.push(Op::Wait { ms });
+                    }
+                }
+            }
             "imagehorizon" => return Value::Int(self.objects.get(&self.object_name(&arg(0))).map_or(0, |o| o.w)),
             "imagevertical" => return Value::Int(self.objects.get(&self.object_name(&arg(0))).map_or(0, |o| o.h)),
             "setfont" => self.font_size = arg(1).int().max(1),
@@ -767,7 +874,8 @@ impl<'a, 'b> Compiler<'a, 'b> {
             "strstr" => return Value::Int(i64::from(arg(0).string().contains(&arg(1).string()))),
             "integer" => return Value::Int(arg(0).int()),
             // Drawing and bookkeeping that changes nothing on screen.
-            "setvertex" | "zoom" | "setfrequency" | "setpan" | "waittext" | "waitplay" | "lockvideo" | "reset" | "setshortcut" => {}
+            "setvertex" | "setfrequency" | "setpan" | "waittext" | "waitplay" | "lockvideo" | "reset" | "setshortcut" => {}
+            "createprocess" => self.note(format!("CreateProcess {}", arg(4).string())),
             other => self.note(format!("built-in {other}")),
         }
         Value::Null
@@ -841,6 +949,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
     /// pending actions' time (or `ms`, if longer).
     fn sync(&mut self, ms: u32) {
         let ms = ms.max(std::mem::take(&mut self.pending_ms));
+        let mask = self.pending_mask.take();
         self.flush_sounds();
         self.check_window();
         if self.frozen() {
@@ -850,15 +959,29 @@ impl<'a, 'b> Compiler<'a, 'b> {
             return;
         }
         // Wanted: visible pictures, by (priority, seq), top first.
-        let mut want: Vec<(String, Shown, (i64, u64))> = self
+        let want: Vec<_> = self
             .objects
             .iter()
             .filter_map(|(n, o)| match &o.kind {
                 Kind::Image { image } if o.opacity > 0 && !o.hideable => {
                     let shown = Shown { layer: 0, image: image.clone(), x: o.x, y: o.y, opacity: o.opacity };
-                    Some((n.clone(), shown, (o.priority, o.seq)))
+                    Some((n.clone(), shown, (o.priority, o.seq), o.zoom, (o.w, o.h)))
                 }
                 _ => None,
+            })
+            .collect();
+        // Zoomed pictures: scaled copies, centred where the original was.
+        let mut want: Vec<(String, Shown, (i64, u64))> = want
+            .into_iter()
+            .map(|(n, mut shown, key, zoom, (w, h))| {
+                if zoom != (1000, 1000)
+                    && let Some((image, sw, sh)) = self.assets.scaled(&shown.image, zoom.0, zoom.1)
+                {
+                    shown.x += (w - sw as i64) / 2;
+                    shown.y += (h - sh as i64) / 2;
+                    shown.image = image;
+                }
+                (n, shown, key)
             })
             .collect();
         want.sort_by_key(|w| std::cmp::Reverse(w.2));
@@ -926,7 +1049,8 @@ impl<'a, 'b> Compiler<'a, 'b> {
             }
             return;
         }
-        self.ops.push(Op::BeginTransition { effect: "Fade".into(), fade_ms: ms, mask: None, style: TransitionStyle::Fade });
+        let effect = if mask.is_some() { "DrawTransition" } else { "Fade" }.to_string();
+        self.ops.push(Op::BeginTransition { effect, fade_ms: ms, mask, style: TransitionStyle::Fade });
         if !changes.is_empty() {
             self.ops.push(Op::Sprites { changes, fade_ms: 0 });
         }
@@ -1150,9 +1274,13 @@ impl<'a, 'b> Compiler<'a, 'b> {
             });
             // The face window or name plate (part of the window image)
             // shows who speaks; the name is kept for the voice switches.
+            // Vertical text is full-width (CONscripter also exits on a
+            // half-width character in vertical mode).
+            let vertical = self.window.as_ref().is_some_and(|w| w.vertical);
+            let text = if vertical { full_width(&page.text) } else { page.text.clone() };
             self.ops.push(Op::Text {
                 speaker: None,
-                text: page.text.clone(),
+                text,
                 voice,
                 links: Vec::new(),
                 ruby: page.ruby.clone(),
@@ -1207,6 +1335,17 @@ impl<'a, 'b> Compiler<'a, 'b> {
     }
 }
 
+/// ASCII letters, digits and signs as their full-width forms.
+fn full_width(s: &str) -> String {
+    s.chars()
+        .map(|c| match c {
+            ' ' => '　',
+            '!'..='~' => char::from_u32(c as u32 - 0x21 + 0xFF01).unwrap_or(c),
+            _ => c,
+        })
+        .collect()
+}
+
 fn add(l: &Value, r: &Value) -> Value {
     match (l, r) {
         (Value::Str(_), _) | (_, Value::Str(_)) => Value::Str(l.string() + &r.string()),
@@ -1239,6 +1378,9 @@ mod tests {
         }
         fn transparent(&mut self) -> String {
             "none.png".into()
+        }
+        fn scaled(&mut self, image: &str, zx: i64, zy: i64) -> Option<(String, u32, u32)> {
+            Some((format!("{image}@{zx}x{zy}"), (1024 * zx / 1000) as u32, (576 * zy / 1000) as u32))
         }
     }
 

@@ -134,6 +134,34 @@ impl Assets for NpaAssets<'_> {
         Some((rel, x0, y0))
     }
 
+    fn scaled(&mut self, image: &str, zx: i64, zy: i64) -> Option<(String, u32, u32)> {
+        let key = format!("{image}@{zx}x{zy}");
+        if let Some(r) = self.images.get(&key) {
+            return r.clone();
+        }
+        let path = Path::new(image);
+        let stem = path.file_stem()?.to_string_lossy().into_owned();
+        let jpeg = path.extension().is_some_and(|e| e.eq_ignore_ascii_case("jpg") || e.eq_ignore_ascii_case("jpeg"));
+        let r = (|| {
+            let img = image::open(self.output.join(image)).ok()?;
+            let (w, h) = (((img.width() as i64 * zx + 500) / 1000).max(1) as u32, ((img.height() as i64 * zy + 500) / 1000).max(1) as u32);
+            let scaled = img.resize_exact(w, h, image::imageops::FilterType::Triangle);
+            let dir = path.parent().map(|p| p.to_string_lossy().into_owned()).unwrap_or_default();
+            let rel = format!("system/zoom/{}/{stem}_{zx}x{zy}.{}", dir.replace('/', "_"), if jpeg { "jpg" } else { "png" });
+            let mut data = Vec::new();
+            let mut cursor = std::io::Cursor::new(&mut data);
+            if jpeg {
+                scaled.into_rgb8().write_with_encoder(image::codecs::jpeg::JpegEncoder::new_with_quality(&mut cursor, 90)).ok()?;
+            } else {
+                scaled.into_rgba8().write_to(&mut cursor, image::ImageFormat::Png).ok()?;
+            }
+            self.write(&rel, &data);
+            Some((rel, w, h))
+        })();
+        self.images.insert(key, r.clone());
+        r
+    }
+
     fn transparent(&mut self) -> String {
         let rel = "system/transparent.png".to_string();
         if !self.output.join(&rel).exists() {
