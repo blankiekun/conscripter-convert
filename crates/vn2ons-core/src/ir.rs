@@ -331,6 +331,11 @@ pub struct SettingsMenu {
     pub y: i32,
     pub pitch: i32,
     pub font_size: u32,
+    /// "Back to the title" and "quit" (from the game only), their labels
+    /// at this height.
+    pub title_label: String,
+    pub quit_label: String,
+    pub exits_y: i32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -366,6 +371,28 @@ pub struct Backlog {
     pub columns: u32,
 }
 
+/// A yes/no question over whatever is on screen, asked before saving over
+/// a save, loading, deleting, going back to the title and quitting.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConfirmDialog {
+    /// Base and frame, centred on the screen.
+    pub base: Placed,
+    /// Three cells each: normal, under the pointer, disabled.
+    pub yes: Placed,
+    pub no: Placed,
+    pub yes_label: String,
+    pub no_label: String,
+    /// Message baseline offset from the top of `base`.
+    pub text_y: i32,
+    pub font_size: u32,
+    /// After "No.NN " (the slot).
+    pub overwrite: String,
+    pub load: String,
+    pub delete: String,
+    pub title: String,
+    pub quit: String,
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct Script {
     /// Window caption.
@@ -383,5 +410,7 @@ pub struct Script {
     pub settings: Option<SettingsMenu>,
     /// `None` = ONScripter's own text history.
     pub backlog: Option<Backlog>,
+    /// `None` = act without asking.
+    pub confirm: Option<ConfirmDialog>,
     pub ops: Vec<Op>,
 }

@@ -369,8 +369,14 @@ mapping, the 32-byte head, and `1.cd`.
      Build with `savegame`/`loadgame`/`getsavestr`/`savetime`; ONScripter's
      built-in text menu is the fallback.
    - **Settings:** a native Windows dialog (volumes, text, mouse,
-     confirmations). Only partly possible (volume defaults, `menu_*`
-     options).
+     confirmations). Converted as an in-script screen with the volumes,
+     text speed and auto speed, plus "back to the title" (`reset`) and
+     "quit" (`end`) when opened from the game.
+   - **Confirmations:** `YesNoDialog.004` (base, frame, four-state button
+     strip; no words in the images). Shown before saving over a save,
+     loading, deleting, going back to the title and quitting, with the
+     executable's messages ("No.%02u のデータに上書きします。よろしいですか？"
+     etc.) drawn with `strsp`. Its sprites are slots 0-5, above the menus.
    - **In-game bars:** the bottom button bar (auto/skip/log/save/load/
      setting) and the top bars (chapter name, blog/scene, level). These
      are HUD sprites and buttons from `wnd.arc`/`gd.arc`.
@@ -676,6 +682,15 @@ should carry over to the next engine.
   needed for alpha). The WebAssembly target loads no WebP at all, so
   output images are PNG. Check a new format with one test file in the
   target build before changing the converter.
+- **Sprite numbers set the stacking order, and saves record them.**
+  ONScripter draws lower `lsp` numbers on top, so a dialog over the menus
+  needs the lowest slots. Renumber the menu and bar slots (never saved in
+  a meaningful state) and keep the game's sprites at fixed numbers, so
+  existing saves still load correctly.
+- **The font must be fixed-width.** ONScripter draws every character in
+  a full-width cell, so a proportional font (IPA P Gothic) leaves gaps
+  after narrow glyphs such as イ, ト and ー. IPA Gothic (`ipag.ttf`) has
+  none.
 - **Keep a handoff file** (`saiima.md`) with a "Resume here" section.
   Context resets happen mid-task, and re-deriving state is expensive.
 

@@ -8,7 +8,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::fmt::Write;
 
 use vn2ons_core::ir::{
-    ArithOp, Op, Operand, Script, SpritePlacement, TextLink, TextWindow, TitleAction, TitleScreen, Var,
+    ArithOp, ConfirmDialog, Op, Operand, Script, SpritePlacement, TextLink, TextWindow, TitleAction, TitleScreen, Var,
 };
 
 mod menu;
@@ -22,11 +22,13 @@ const FADE: u32 = 10;
 const MASK_FADE: u32 = 18;
 /// Sound effect channels we rotate through (0 is left for voices).
 const SE_CHANNELS: std::ops::RangeInclusive<u32> = 1..=9;
-/// Sprite slots 0-32 belong to the menus (title, save/load), drawn over
-/// everything else (ONScripter draws lower numbers on top); 33-49 to the
-/// bars (buttons, hotspots, texts).
-const MENU_SPRITES: std::ops::Range<u32> = 0..33;
-const BAR_SPRITES: std::ops::Range<u32> = 33..50;
+/// Sprite slots 0-5 belong to the yes/no dialog, drawn over everything
+/// else (ONScripter draws lower numbers on top); 6-33 to the menus (title,
+/// save/load, settings, backlog); 34-49 to the bars (buttons, hotspots,
+/// texts).
+const DIALOG_SPRITES: std::ops::Range<u32> = 0..6;
+const MENU_SPRITES: std::ops::Range<u32> = 6..34;
+const BAR_SPRITES: std::ops::Range<u32> = 34..50;
 /// Sprite slots for the name text and its plate: the text over the plate,
 /// both over the character sprites.
 const NAME_TEXT_SPRITE: u32 = 50;
@@ -115,7 +117,7 @@ pub fn emit(script: &Script) -> String {
 
     let effect = |ms: u32| if ms == 0 { 1 } else { effects[&(ms, None)] };
     if let Some(t) = &script.title_screen {
-        title_screen(&mut out, t, effect(t.fade_ms), script.save_menu.is_some(), script.settings.is_some());
+        title_screen(&mut out, t, effect(t.fade_ms), script.save_menu.is_some(), script.settings.is_some(), script.confirm.as_ref());
     }
     let mut se = SeChannels::default();
     let mut needs_bit_helpers = false;
@@ -410,16 +412,19 @@ pub fn emit(script: &Script) -> String {
         writeln!(out, "return").unwrap();
     }
     if let Some(m) = &script.save_menu {
-        menu::save_menu(&mut out, m);
+        menu::save_menu(&mut out, m, script.confirm.as_ref());
     }
     if let Some(b) = &script.button_bar {
         menu::button_bar(&mut out, b, script.save_menu.is_some(), script.settings.is_some(), script.backlog.is_some());
     }
     if let Some(m) = &script.settings {
-        menu::settings_menu(&mut out, m);
+        menu::settings_menu(&mut out, m, script.confirm.as_ref());
     }
     if let Some(b) = &script.backlog {
         menu::backlog(&mut out, b);
+    }
+    if let Some(d) = &script.confirm {
+        menu::confirm(&mut out, d);
     }
     out
 }
@@ -427,7 +432,7 @@ pub fn emit(script: &Script) -> String {
 /// The title menu: buttons are sprites over the picture, faded in together;
 /// Start clears them and falls through to the script that follows. Load
 /// opens the save menu's load screen if there is one, else ONScripter's.
-fn title_screen(out: &mut String, t: &TitleScreen, fade: u32, save_menu: bool, settings: bool) {
+fn title_screen(out: &mut String, t: &TitleScreen, fade: u32, save_menu: bool, settings: bool, confirm: Option<&ConfirmDialog>) {
     let buttons: Vec<_> = t.buttons.iter().zip(MENU_SPRITES).collect();
     // Effect 0 = update the buffer only; the print shows it all.
     writeln!(out, "bg \"{}\",0", path(&t.background)).unwrap();
@@ -455,12 +460,19 @@ fn title_screen(out: &mut String, t: &TitleScreen, fade: u32, save_menu: bool, s
             TitleAction::Settings => continue,
             // The built-in load menu; it comes back here when cancelled.
             TitleAction::Load => format!("systemcall load:goto *{TITLE_MENU}"),
+            TitleAction::Exit if confirm.is_some() => "goto *vn2ons_title_exit".to_string(),
             TitleAction::Exit => "end".to_string(),
             TitleAction::Unavailable => unreachable!(),
         };
         writeln!(out, "if {BUTTON_VAR} == {} {then}", n + 1).unwrap();
     }
     writeln!(out, "goto *{TITLE_MENU}").unwrap();
+    if let Some(c) = confirm {
+        writeln!(out, "*vn2ons_title_exit").unwrap();
+        writeln!(out, "{}", menu::confirm_call(&c.quit)).unwrap();
+        writeln!(out, "if {} == 1 end", menu::CONFIRM).unwrap();
+        writeln!(out, "goto *{TITLE_MENU}").unwrap();
+    }
     writeln!(out, "*{TITLE_START}").unwrap();
     writeln!(out, "csp -1").unwrap();
     writeln!(out, "bg black,{fade}").unwrap();
@@ -692,7 +704,7 @@ mod tests {
     use vn2ons_core::ir::{SourceLoc, SpriteChange, SpritePlacement};
 
     fn script(ops: Vec<Op>) -> Script {
-        Script { title: "Test".into(), width: 800, height: 600, window: None, title_screen: None, save_menu: None, button_bar: None, settings: None, backlog: None, ops }
+        Script { title: "Test".into(), width: 800, height: 600, window: None, title_screen: None, save_menu: None, button_bar: None, settings: None, backlog: None, confirm: None, ops }
     }
 
     fn link(start: usize, len: usize, target: Option<&str>) -> TextLink {
@@ -814,11 +826,11 @@ print 3
         });
         let out = emit(&s);
         let expected = "*start\nbg \"system\\title.png\",0\n*vn2ons_title_draw\n\
-            lsp 0,\":a/2,0,3;system\\start.png\",600,200\n\
-            lsp 1,\":a;system\\option.png\",600,200\n\
-            lsp 2,\":a/2,0,3;system\\load.png\",600,200\n\
-            lsp 3,\":a/2,0,3;system\\exit.png\",600,200\n\
-            print 2\n*vn2ons_title\nspbtn 0,1\nspbtn 2,2\nspbtn 3,3\nbtnwait %9\n\
+            lsp 6,\":a/2,0,3;system\\start.png\",600,200\n\
+            lsp 7,\":a;system\\option.png\",600,200\n\
+            lsp 8,\":a/2,0,3;system\\load.png\",600,200\n\
+            lsp 9,\":a/2,0,3;system\\exit.png\",600,200\n\
+            print 2\n*vn2ons_title\nspbtn 6,1\nspbtn 8,2\nspbtn 9,3\nbtnwait %9\n\
             if %9 == 1 goto *vn2ons_title_start\n\
             if %9 == 2 systemcall load:goto *vn2ons_title\n\
             if %9 == 3 end\n\

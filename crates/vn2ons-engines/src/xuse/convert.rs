@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 
 use thiserror::Error;
 use vn2ons_core::ir::{
-    ArithOp, Backlog, BarAction, BarButton, ButtonBar, NamePlate, Setting, SettingRow, SettingsMenu, Op, Operand, PageButton, Placed, Rect, SaveMenu, SourceLoc,
+    ArithOp, Backlog, BarAction, BarButton, ButtonBar, ConfirmDialog, NamePlate, Setting, SettingRow, SettingsMenu, Op, Operand, PageButton, Placed, Rect, SaveMenu, SourceLoc,
     SpriteChange, SpritePlacement, TextLink, TextSpot, TextWindow, TitleAction, TitleButton, TitleScreen, TopBars,
     Var,
 };
@@ -606,6 +606,42 @@ impl AssetBank {
             y: 140,
             pitch: 70,
             font_size: 22,
+            title_label: "タイトルに戻る".into(),
+            quit_label: "ゲームを終了".into(),
+            exits_y: 540,
+        })
+    }
+
+    /// The yes/no dialog from `HD/wnd.arc` → `YesNoDialog.004`: base (0,
+    /// translucent like the text window) and frame (1), button base (2)
+    /// and frame (3), four states side by side: normal, under the pointer,
+    /// pressed, disabled. The images have no words; the messages are the
+    /// executable's.
+    pub fn confirm_dialog(&mut self) -> Result<ConfirmDialog, ConvertError> {
+        let parts = self.gaf_rgba("wnd.arc", "YesNoDialog.004", "yes/no dialog")?;
+        let get = |n: usize| parts.get(n).cloned().ok_or(ConvertError::MissingAsset { kind: "yes/no dialog image", number: n });
+        let base = blend_layers(get(0)?, &get(1)?);
+        let mut button = get(2)?;
+        image::imageops::overlay(&mut button, &get(3)?, 0, 0);
+        let (x, y) = ((800 - base.width() as i32) / 2, (600 - base.height() as i32) / 2);
+        let bw = (button.width() / 4) as i32;
+        let by = y + base.height() as i32 - button.height() as i32 - 12;
+        let cells: &[u32] = &[0, 1, 3];
+        let yes = self.place("dialog_button", &button, Some((4, cells)), 400 - bw - 16, by)?;
+        let no = Placed { x: 400 + 16, ..yes.clone() };
+        Ok(ConfirmDialog {
+            base: self.place("dialog_base", &base, None, x, y)?,
+            yes,
+            no,
+            yes_label: "はい".into(),
+            no_label: "いいえ".into(),
+            text_y: 16,
+            font_size: 20,
+            overwrite: "のデータに上書きします。よろしいですか？".into(),
+            load: "のデータをロードします。よろしいですか？".into(),
+            delete: "のデータを削除します。よろしいですか？".into(),
+            title: "タイトルへ戻りますか？".into(),
+            quit: "ゲームを終了します。よろしいですか？".into(),
         })
     }
 

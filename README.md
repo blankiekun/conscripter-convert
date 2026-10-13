@@ -31,7 +31,7 @@ stage (see [`PLAN.md`](PLAN.md)).
 | ADV text box and name plate | ✅ Converted |
 | Full-screen text modes | ✅ Converted |
 | Character colour filters (evening/night tints) | ✅ Pre-rendered |
-| System menus (title, save/load, settings, backlog, button bars) | ✅ Built as in-script menus |
+| System menus (title, save/load, settings, backlog, button bars, yes/no confirmations) | ✅ Built as in-script menus |
 | Movies | ❌ Not converted |
 | Special text displays and ~35 rarer opcodes | ❌ Not decoded |
 
@@ -60,7 +60,10 @@ vn2ons convert-game /path/to/game -o out/mygame \
 ```
 
 The game path is the installation directory. ONScripter needs a font that
-covers Japanese; `--font` copies it into the output as `default.ttf`.
+covers Japanese; `--font` copies it into the output as `default.ttf`. Use a
+fixed-width font (e.g. IPA Gothic, `ipag.ttf`): ONScripter puts each
+character in a full-width cell, so a proportional font such as IPA P
+Gothic leaves gaps after narrow kana.
 
 Then run ONScripter on the output directory:
 
