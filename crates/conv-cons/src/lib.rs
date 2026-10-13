@@ -905,9 +905,13 @@ fn setwindow(w: &TextWindow, speed: &str, ruby: bool, any_vertical: bool) -> Str
     )
 }
 
-/// `lsp` for a sprite; ":a;" = use the PNG's alpha channel.
+/// `lsp` for a sprite; ":a;" = use the PNG's alpha channel. A picture
+/// without one (JPEG) needs ":c;" (opaque): with ":a;" NScripter takes
+/// its right half for the mask.
 fn lsp(slot: u32, s: &SpritePlacement) -> String {
-    format!("lsp {slot},\":a;{}\",{},{}", path(&s.image), s.x, s.y)
+    let lower = s.image.to_ascii_lowercase();
+    let mode = if lower.ends_with(".jpg") || lower.ends_with(".jpeg") { 'c' } else { 'a' };
+    format!("lsp {slot},\":{mode};{}\",{},{}", path(&s.image), s.x, s.y)
 }
 
 /// Screen position of character `index` of `text` as the text window draws
@@ -1440,6 +1444,14 @@ goto *conv_link1
 *conv_link1_1
 ";
         assert!(text.contains(expected), "{text}");
+    }
+
+    #[test]
+    fn jpeg_sprites_are_opaque() {
+        let jpeg = SpritePlacement { image: "cg/bg/a.JPG".into(), x: 0, y: 0 };
+        assert_eq!(lsp(70, &jpeg), "lsp 70,\":c;cg\\bg\\a.JPG\",0,0");
+        let png = SpritePlacement { image: "cg/st/a.png".into(), x: 1, y: 2 };
+        assert_eq!(lsp(70, &png), "lsp 70,\":a;cg\\st\\a.png\",1,2");
     }
 
     #[test]
