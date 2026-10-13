@@ -29,13 +29,44 @@ branch `nitroplus` and may commit to local `main` without pushing: base
 on `origin/main`, not `main`.
 
 Every opcode the story uses is converted (unsupported 81 → 2: the start
-point's debug menu, which the user doesn't want). Approximations worth
-checking or improving, roughly by visibility: the Zigzag's Multi blend
-(needs an engine blend option for `screenripple`), the staff roll in the
-web build (not played yet), the transitions still drawn as cross-fades
-(list below), quakes/flashes/pulses never compared with the original.
-Wine harness: audio is muted now; scripts that FIRST START runs are in
-0004.cd (0003.cd is the epilogue).
+point's debug menu, which the user doesn't want). The fourth session
+(2026-10-13, later) did the CG gallery (`cf127f3`, item under "Extras"
+below). **Next: the other extras**, in this order unless the user says
+otherwise:
+
+1. **Chapter** = the scene replay. Filmed under wine: a list per route
+   (プロローグ, 紅緒あずさ, 本堂沙也加, 塚本葉子, 伊月笛子-1/-2, 戦争編,
+   エピローグ, BLOG-1..3; `SubModeCommon.004` #0-9, #40-54 for the
+   other names). Unlocks are already recorded (`0x93` → `%3000 + n`);
+   `0x94` (`; scene end` in 0.txt) is where a replay must return. The
+   replay list code is at 0x451090; the `rm<NNN><title>` strings in the
+   exe are probably its entries. Needs a way to start a scene from its
+   label with a clean state and come back at `; scene end`.
+2. **BGM room** (`BgmMode.004`: track names #0-21; not filmed yet: on
+   the extras menu "bgm" is the 2nd item, y 250).
+3. **WSS** (`VoiceMode.004`, `HD/wss.bin`): Windows system-sound voices
+   per character, with play / stop / save / settings; unlocked by
+   progress bit 4 + route (table 0x4fbc00). Probably only "play" makes
+   sense here.
+
+Each of these is now an `ExtrasAction::Unavailable` item in
+`extras_menu()` (convert.rs); give it its own action, IR and routine
+next to `extras.rs`'s gallery. Sprite slots 100-199 and %120-%129 are
+the extras' (title only, cleared on exit).
+
+How to see the original's extras (details in `saiima.md`, "Extras"):
+run it under wine with the 100% save the user downloaded
+(`~/Z:/Media/Visual Novels/farthest2015_muwokoerumono.zip`, from
+sagaoz.net) as `Documents\Xuse\最果てのイマ COMPLETE\Farthest2015_000.bin`
+**inside a prefix whose Documents is a real folder** (the old prefix's
+Documents was a symlink to the user's `~/Documents`; see saiima.md).
+
+Other approximations worth checking or improving, roughly by
+visibility: the Zigzag's Multi blend (needs an engine blend option for
+`screenripple`), MeltDown (3 uses, still a cross-fade), quakes, flashes
+and pulses never compared with the original. Wine harness: audio is
+muted; scripts that FIRST START runs are in 0004.cd (0003.cd is the
+epilogue).
 
 ## Done in the third session (2026-10-13)
 
