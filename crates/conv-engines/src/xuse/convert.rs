@@ -2880,6 +2880,14 @@ fn transition_style(sub: u16) -> TransitionStyle {
             let (dx, dy) = [(0, -1), (-1, 0), (0, 1), (1, 0)][usize::from(sub - 41)];
             TransitionStyle::Slide { moving: SlideLayer::Both, dx, dy }
         }
+        // Trans_Wave (setup 0x449020, draw functions from 0x51801c): the
+        // new picture behind an edge whose last 16 px bands are revealed
+        // in shrinking strips, a curtain. 0 top down, 1 right to left,
+        // 2 bottom up, 3 left to right.
+        0..=3 => {
+            let (dx, dy) = [(0, 1), (-1, 0), (0, -1), (1, 0)][usize::from(sub)];
+            TransitionStyle::Curtain { dx, dy }
+        }
         27 => TransitionStyle::Mosaic,
         TRANSITION_DISSOLVE => TransitionStyle::Threshold,
         37 => zoom(ZoomStyle::NewIn, 5100),
@@ -2963,6 +2971,10 @@ mod tests {
         assert_eq!(transition_style(44), slide(SlideLayer::Both, 1, 0));
         assert_eq!(transition_style(40), TransitionStyle::Zoom { style: ZoomStyle::Cross, max_percent: 220, curve: 5 });
         assert_eq!(transition_style(9), TransitionStyle::Fade);
+        // Wave: 0 top down, 1 right to left.
+        assert_eq!(transition_style(0), TransitionStyle::Curtain { dx: 0, dy: 1 });
+        assert_eq!(transition_style(1), TransitionStyle::Curtain { dx: -1, dy: 0 });
+        assert_eq!(transition_style(26), TransitionStyle::Threshold);
         assert_eq!(transition_name(20), "Slide out");
     }
 

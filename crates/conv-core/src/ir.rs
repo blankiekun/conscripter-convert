@@ -19,6 +19,9 @@ pub enum TransitionStyle {
     /// The old picture breaks into growing blocks, then the new one
     /// sharpens from them.
     Mosaic,
+    /// A curtain: stripes across the screen open one after another, the
+    /// edge travelling in direction `dx`, `dy` (one of them ±1).
+    Curtain { dx: i8, dy: i8 },
     /// Zooms about the screen centre, up to `max_percent` (100 = no zoom),
     /// eased by the progress to the power `curve`.
     Zoom { style: ZoomStyle, max_percent: u32, curve: u8 },

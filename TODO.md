@@ -331,9 +331,14 @@ engines print `z150` etc.). The web build compiles with it.
       ONScripter effect 15 (each pixel switches when the progress passes
       its mask level) over a tiled Bayer mask (`system/dither.png`). Not
       compared frame by frame with the original.
-- [ ] Transitions still drawn as cross-fades: Wave,
-      SoftEdgeWipe, TvPowerSwitch, BoxRolling, SmoothCrossFade, Dot4x4,
-      MeltDown (PLAN §6 "Accuracy").
+- [x] Wave (39 uses): Trans_Wave (setup 0x449020, draw functions from
+      0x51801c) is a curtain: the new picture behind an edge whose last
+      16 px bands open in shrinking strips. Converted to ONScripter's
+      curtains: sub 0 top down → 8, 1 right to left → 7, 2 bottom up → 9,
+      3 left to right → 6. Not compared frame by frame with the original.
+- [ ] Transitions still drawn as cross-fades: RollFlip (24),
+      TvPowerSwitch (11), SoftEdgeWipe (10), BoxRolling (8),
+      SmoothCrossFade (8), Dot4x4 (3), MeltDown (3) (PLAN §6 "Accuracy").
 - [x] Bars always shown (user's request, 2026-10-13): the top bars and
       the bottom button bar draw at every click wait; the hover hotspots
       (`getmouseover`, `bar_reveal*`/`bar_hide` images) are gone. The

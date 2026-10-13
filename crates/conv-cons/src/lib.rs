@@ -1038,6 +1038,14 @@ fn transition_steps(fade_ms: u32, mask: Option<&str>, style: TransitionStyle) ->
         (Some(m), TransitionStyle::Threshold) => one(Effect::HardMask(m.to_string())),
         (Some(m), _) => one(Effect::Mask(m.to_string())),
         (None, TransitionStyle::Threshold) => one(Effect::Fade),
+        // ONScripter's curtains: 6 opens from the left, 7 from the right,
+        // 8 from the top, 9 from the bottom.
+        (None, TransitionStyle::Curtain { dx, dy }) => one(Effect::Builtin(match (dx, dy) {
+            (1, _) => 6,
+            (-1, _) => 7,
+            (_, 1) => 8,
+            _ => 9,
+        })),
         (None, TransitionStyle::Fade) => one(Effect::Fade),
         // ONScripter's scrolls (11-14) push both pictures; 11 moves them right.
         (None, TransitionStyle::Slide { moving: SlideLayer::Both, dx, dy }) if dx == 0 || dy == 0 => {
