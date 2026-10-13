@@ -288,7 +288,9 @@ engines print `z150` etc.). The web build compiles with it.
       opens the epilogue, after the end of 0008.cd; roll 0 (63 s) plays
       from `*s0_l8` (route ends, when flags %210-%213 allow). Compared with the original under wine: frames
       match (mean pixel difference 2-5, 10 while the panel widens).
-      **Not checked:** playback in the web build.
+      Web build (0.15.0, headless Firefox harness): plays, 223 s, time
+      advancing in real time (muted only because the harness blocks
+      autoplay sound).
 - [x] `0x48` (2): return to the root scene. Routes 10 and 11 are entered
       from links and start with it; without it each entry left a
       `pushscreen` entry (a full stack of 32 exits the engine), the link
