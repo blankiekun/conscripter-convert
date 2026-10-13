@@ -72,6 +72,20 @@ impl<'a> NpaAssets<'a> {
         }
     }
 
+    /// Width and height of a picture in the output (one taken from the
+    /// archive, or a colour picture), without decoding it: what a dry run
+    /// needs to name and place the pictures made from it.
+    fn size(&mut self, image: &str) -> Option<(u32, u32)> {
+        if let Some(Some((_, w, h))) = self.images.get(&normalize(image)) {
+            return Some((*w, *h));
+        }
+        if let Some(size) = image.strip_prefix("system/color_").and_then(|r| r.strip_suffix(".png")).and_then(|r| r.split_once('_')).and_then(|(_, s)| s.split_once('x')) {
+            return Some((size.0.parse().ok()?, size.1.parse().ok()?));
+        }
+        let data = fs::read(self.output.join(image)).ok()?;
+        image_size(&data)
+    }
+
     fn write_png(&mut self, rel: &str, img: &image::RgbaImage) {
         let mut png = Vec::new();
         match img.write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png) {
@@ -116,29 +130,31 @@ impl Assets for NpaAssets<'_> {
         if let [(image, x, y, 1000)] = parts {
             return Some((image.clone(), *x, *y));
         }
-        let mut layers = Vec::new();
+        let mut bounds = Vec::new();
+        for (image, x, y, _) in parts {
+            let (w, h) = self.size(image)?;
+            bounds.push((*x, *y, *x + w as i64, *y + h as i64));
+        }
+        let x0 = bounds.iter().map(|b| b.0).min()?;
+        let y0 = bounds.iter().map(|b| b.1).min()?;
+        let x1 = bounds.iter().map(|b| b.2).max()?;
+        let y1 = bounds.iter().map(|b| b.3).max()?;
+        use std::hash::{Hash, Hasher};
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        parts.hash(&mut h);
+        let rel = format!("system/window_{:016x}.png", h.finish());
+        if self.dry_run || self.output.join(&rel).exists() {
+            return Some((rel, x0, y0));
+        }
+        let mut out = image::RgbaImage::new((x1 - x0) as u32, (y1 - y0) as u32);
         for (image, x, y, opacity) in parts {
             let mut img = image::open(self.output.join(image)).ok()?.into_rgba8();
             for p in img.pixels_mut() {
                 p.0[3] = (p.0[3] as i64 * opacity / 1000) as u8;
             }
-            layers.push((img, *x, *y));
+            image::imageops::overlay(&mut out, &img, x - x0, y - y0);
         }
-        let x0 = layers.iter().map(|l| l.1).min()?;
-        let y0 = layers.iter().map(|l| l.2).min()?;
-        let x1 = layers.iter().map(|l| l.1 + l.0.width() as i64).max()?;
-        let y1 = layers.iter().map(|l| l.2 + l.0.height() as i64).max()?;
-        let mut out = image::RgbaImage::new((x1 - x0) as u32, (y1 - y0) as u32);
-        for (img, x, y) in &layers {
-            image::imageops::overlay(&mut out, img, x - x0, y - y0);
-        }
-        use std::hash::{Hash, Hasher};
-        let mut h = std::collections::hash_map::DefaultHasher::new();
-        parts.hash(&mut h);
-        let rel = format!("system/window_{:016x}.png", h.finish());
-        if !self.output.join(&rel).exists() {
-            self.write_png(&rel, &out);
-        }
+        self.write_png(&rel, &out);
         Some((rel, x0, y0))
     }
 
@@ -151,11 +167,15 @@ impl Assets for NpaAssets<'_> {
         let stem = path.file_stem()?.to_string_lossy().into_owned();
         let jpeg = path.extension().is_some_and(|e| e.eq_ignore_ascii_case("jpg") || e.eq_ignore_ascii_case("jpeg"));
         let r = (|| {
-            let img = image::open(self.output.join(image)).ok()?;
-            let (w, h) = (((img.width() as i64 * zx + 500) / 1000).max(1) as u32, ((img.height() as i64 * zy + 500) / 1000).max(1) as u32);
-            let scaled = img.resize_exact(w, h, image::imageops::FilterType::Triangle);
+            let (iw, ih) = self.size(image)?;
+            let (w, h) = (((iw as i64 * zx + 500) / 1000).max(1) as u32, ((ih as i64 * zy + 500) / 1000).max(1) as u32);
             let dir = path.parent().map(|p| p.to_string_lossy().into_owned()).unwrap_or_default();
             let rel = format!("system/zoom/{}/{stem}_{zx}x{zy}.{}", dir.replace('/', "_"), if jpeg { "jpg" } else { "png" });
+            if self.dry_run {
+                return Some((rel, w, h));
+            }
+            let img = image::open(self.output.join(image)).ok()?;
+            let scaled = img.resize_exact(w, h, image::imageops::FilterType::Triangle);
             let mut data = Vec::new();
             let mut cursor = std::io::Cursor::new(&mut data);
             if jpeg {
@@ -179,10 +199,14 @@ impl Assets for NpaAssets<'_> {
         let stem = path.file_stem()?.to_string_lossy().into_owned();
         let jpeg = path.extension().is_some_and(|e| e.eq_ignore_ascii_case("jpg") || e.eq_ignore_ascii_case("jpeg"));
         let r = (|| {
-            let img = image::open(self.output.join(image)).ok()?;
-            let blurred = img.blur(sigma as f32 / 10.0);
             let dir = path.parent().map(|p| p.to_string_lossy().into_owned()).unwrap_or_default();
             let rel = format!("system/blur/{}/{stem}_{sigma}.{}", dir.replace('/', "_"), if jpeg { "jpg" } else { "png" });
+            if self.dry_run {
+                let (w, h) = self.size(image)?;
+                return Some((rel, w, h));
+            }
+            let img = image::open(self.output.join(image)).ok()?;
+            let blurred = img.blur(sigma as f32 / 10.0);
             let mut data = Vec::new();
             let mut cursor = std::io::Cursor::new(&mut data);
             if jpeg {
