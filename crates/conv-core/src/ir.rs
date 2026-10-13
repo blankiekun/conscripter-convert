@@ -51,6 +51,40 @@ pub struct SpritePlacement {
 pub struct SpriteChange {
     pub layer: u32,
     pub sprite: Option<SpritePlacement>,
+    /// The layer's colour filters ([`Op::SpriteFilters`]) stay on the new
+    /// image; otherwise they are removed. Removing the sprite always
+    /// removes them.
+    pub keep_filters: bool,
+}
+
+/// Filter kinds for [`SpriteFilter::kind`] (the numbers of CONscripter's
+/// `spfilter`). Each makes a colour for every pixel; 0 means no filter.
+/// The colour in `params` (r, g, b).
+pub const FILTER_COLOUR: i32 = 1;
+/// The pixel in greyscale.
+pub const FILTER_GREYSCALE: i32 = 2;
+/// The pixel's negative.
+pub const FILTER_NEGATIVE: i32 = 3;
+/// The pixel plus `params[0]` (-255..255).
+pub const FILTER_BRIGHTNESS: i32 = 4;
+/// How a filter's colour is combined with the pixel's
+/// ([`SpriteFilter::blend`]).
+pub const FILTER_BLEND_COPY: i32 = 0;
+pub const FILTER_BLEND_MULTIPLY: i32 = 1;
+pub const FILTER_BLEND_ADD: i32 = 2;
+pub const FILTER_BLEND_SCREEN: i32 = 3;
+
+/// A colour filter on a sprite layer. The fields are operands because a
+/// game can keep filter presets in variables.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SpriteFilter {
+    /// One of the `FILTER_*` kinds; 0 = none (skipped).
+    pub kind: Operand,
+    /// One of the `FILTER_BLEND_*` modes.
+    pub blend: Operand,
+    /// 0-256: how much of the blended colour replaces the pixel's.
+    pub strength: Operand,
+    pub params: [Operand; 3],
 }
 
 /// A clickable word in a text page.
@@ -94,6 +128,10 @@ pub enum Op {
     EndTransition,
     /// Show or remove sprites on some layers, then show the result.
     Sprites { changes: Vec<SpriteChange>, fade_ms: u32 },
+    /// Replace the colour filters on a layer's sprite (applied in order;
+    /// empty = none), then show the result. A layer without a sprite
+    /// ignores this.
+    SpriteFilters { layer: u32, filters: Vec<SpriteFilter> },
     /// One page of text, shown and then waited on. `text` may contain '\n'
     /// for line breaks. `links` are the words the original game made
     /// clickable.

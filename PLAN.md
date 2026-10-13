@@ -137,22 +137,33 @@ make -C engine/build -j"$(nproc)"     # → engine/build/onsyuri
 
 ### 4.2 CONscripter additions
 
-Engine features added for converted games. None yet; ogapee's ONScripter
-and stock ONScripter-Yuri both play the current output (Yuri with
-`--enc:sjis`).
+Engine features added for converted games (details in the engine's
+README, "CONscripter additions"):
 
-Candidates found so far, from limits hit while converting 最果てのイマ
-(each one is worked around in the script today):
+| Command | Game feature that needed it |
+|---|---|
+| `spfilter` (colour filters on sprites, kept in saves) | 最果てのイマ's effect presets (0x88/0x90): lighting tints on bust-ups, plus negative, greyscale and brightness filters. Replaced ~930 pre-tinted PNGs (about 130 MB of `arc.nsa`) |
+
+Planned, from limits hit while converting 最果てのイマ (each one is worked
+around in the script today), roughly in order of payoff:
 
 | Game feature | Workaround today | Engine feature that would fix it |
 |---|---|---|
-| Right-click menu / hide window | Everything behind the on-screen button bar | Send right-click to a script label (`rgosub`-style) |
+| Screen state around link scenes | The converter guesses, in file order, what to redraw after a link scene returns | Save and restore background, sprites and filters around a gosub (`pushscreen`/`popscreen`) |
 | Speaker names in the backlog | Names missing (the name plate is a sprite) | Store a name with each log page |
 | Voice replay from the backlog | Not converted | Store the voice file with each log page |
-| Japanese window caption | ASCII caption (Shift-JIS shows as mojibake on Linux) | Convert the caption to UTF-8 before setting it |
-| BGM loop points | Tracks loop from the start | Loop start/end for `bgm` |
-| Slide, scroll, mosaic, zoom transitions | Drawn as cross-fades | New effect types |
-| Movies (`mv*.bin`, MPEG-PS) | Not converted | Check what the web build plays first |
+| Deleting a save | A global flag per slot hides it | A delete-save command; thumbnails stored next to the saves |
+| Archive size on the web | PNG only (the WASM build has no WebP decoder) | WebP support in the web build |
+| Movies (`mv*.bin`, MPEG-PS) | Not converted | Movie playback that works in the web build (e.g. an HTML5 video overlay) |
+| Slide, scroll, mosaic, zoom transitions | Drawn as cross-fades | Map to ONScripter's own effects where they exist, add the rest |
+| BGM loop points | Tracks loop from the start | Loop start for `bgm` (`loopbgm` exists but plays from memory, outside the BGM channel) |
+| Right-click menu / hide window | Everything behind the on-screen button bar | Send right-click to a script label (`rgosub`-style); not planned for now |
+
+Probably no engine work needed:
+- **Japanese window caption:** ONScripter-Yuri's `caption` already
+  converts to UTF-8, so the ASCII-only workaround (for ogapee's build)
+  may just need dropping; test it.
+- **Ruby (`0x44`):** ONScripter supports ruby; this is converter work.
 
 ## 5. Asset pipeline
 
@@ -281,8 +292,8 @@ offset of its operand record.
 | `0x10` | 895 | `arg` is always a valid label-table index; 121 point into blog scripts | jump / call to a label |
 | `0x4d`, `0x58`, `0x43` | 276 / 579 / 578 | `arg` is always a valid label-table index | call / conditional-jump variants |
 | `0x8e` | 10,271 | **solved**: `sub` × 44-byte entries of `mode, character, sprite number, fade, x, y` (rest mostly uninitialised memory). The sprite number indexes `bu*.004` (128 per file, 0-based), and the file names' character codes match the `character` field | show `sub` character sprites |
-| `0x88` | 45 | **solved** (handler `0x415b50`, `AdvObjectScript_Filter.cpp`) | define one module of an effect preset: u32 preset, u32 slot (0 = clear), u32 module field, u32 kind (module type = kind + 0x63; 8 = `CModule_Filter_Color`), u16, u16, then kind data (colour: R, G, B). Script 2's `s2_l6`–`s2_l16` set preset 1 to one tint per lighting mood |
-| `0x90` | 651 | **solved** (handler `0x434960`) | attach a preset to a bust-up: u16 character, u32 module field, u32 preset (0 = remove). Module type 1 = `CModule_Preset`. Converted as pre-tinted sprite copies |
+| `0x88` | 45 | **solved** (handler `0x415b50`, `AdvObjectScript_Filter.cpp`) | define one module of an effect preset: u32 preset, u32 slot (0 = clear), u32 module field, u32 kind (module type = kind + 0x63; creator table at `0x501434`: 1 Smooth, 2 Negative, 3 HueSatura, 4 Brightness, 5 GrayScale, 6 Monotone, 8 Color, 9 BrightnessInvert), u16 blend (index into Alpha/Add/Multi/Screen/SignedAdd/Copy/dissolve; the game uses Multi and Copy), u16 opacity (256 = full), then kind data (colour: R, G, B; brightness: i16). Field names from the module's debug output (`Opacity=%u, Blend=%s, Brightness=%d`). Script 2's `s2_l6`–`s2_l16` set preset 1 to one tint per lighting mood |
+| `0x90` | 651 | **solved** (handler `0x434960`) | attach a preset to a bust-up: u16 character, u32 module field, u32 preset (0 = remove). Module type 1 = `CModule_Preset`. Converted to CONscripter's `spfilter`, reading the preset from variables (§4.2) |
 | `0x54` | 2,195 | **solved**: `arg` = background number, 1-based (0 = none, skipped by the handler); `bg*.004` holds 64 per file (`n >> 6` in the exe's loader at `0x40bff0`). The most common is 1 = `Black` | set background (sub 0/1: transition variant?) |
 | `0x46` | 214 | **solved** (from the handler at `0x477460` plus a user-supplied example) | **hyperlink** on the next message: row, column, length, style, target (see 3c) |
 | `0x49` | 565 | flags, two colours, a voice-range id, then text + a short name | special voiced text display (chat/popup?); **not** hyperlinks |
@@ -477,7 +488,6 @@ parts are not converted:
 - `0x4d` (276), `0x55` (252), `0x8c` (240), `0x6d` (198), `0x7a`/`0x7b`
   (about 90 each) and about 30 rarer ones;
 - ruby (`0x44`) and indent (`0x4e`);
-- colour presets 2 and 3 (brightness, monotone; about 10 uses).
 
 **Accuracy.**
 - Transitions other than cross-fade and mask wipe (slide, scroll, mosaic,
@@ -485,8 +495,9 @@ parts are not converted:
 - Full-screen text styles 1-7: metrics are estimates; calibrate from
   screenshots of the original (style 5, route 10, is the most used).
 - BGM loops from the start; the original's loop points aren't read.
-- Unchecked assumptions: colour filters multiply; negative mask softness
-  inverts the mask; text window opacity 55%; save menu base opacity.
+- Unchecked assumptions: negative mask softness inverts the mask; text
+  window opacity 55%; save menu base opacity; the brightness filter's
+  scale (the game uses -80 and -100, read as -255..255).
 
 **Media and packaging.**
 - Movies (`mv*.bin`) aren't converted; they need a format the
@@ -763,11 +774,12 @@ should carry over to the next engine.
   keeps the character's object and its attached filters; other modes
   recreate it. The corpus matches: 3,454 mode-5 changes never re-apply a
   filter, while mode 3 re-applies it in 122 of 154 cases.
-- **Effects ONScripter can't draw become pre-rendered images.** Colour
-  filters turn into tinted copies of the sprites, chosen at conversion
-  time from state tracked in file order. This needs the state to be
-  static: all 643 filter applications have their colour defined earlier
-  in the same script.
+- **Effects ONScripter can't draw: pre-render first, then add them to
+  the engine.** Colour filters were first tinted copies of the sprites,
+  chosen at conversion time from state tracked in file order (~930
+  images, 130 MB). The engine's `spfilter` replaced them, and with the
+  presets kept in variables the state follows the game's control flow
+  instead of file order.
 - **Lossy image quality is judged on the worst region.** Lossy WebP
   averages 40+ dB on this art but blurs small coloured detail (eyes,
   flowers) at every quality level, because of its 4:2:0 colour

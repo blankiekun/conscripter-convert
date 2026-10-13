@@ -152,10 +152,7 @@ pub fn emit(script: &Script) -> String {
             Op::Gosub(name) => writeln!(out, "gosub *{}", label(name)).unwrap(),
             Op::Return => writeln!(out, "return").unwrap(),
             Op::Arith { var, op, value } => {
-                let value = match value {
-                    Operand::Const(n) => n.to_string(),
-                    Operand::Var(v) => var_name(*v),
-                };
+                let value = operand(*value);
                 let target = var_name(*var);
                 let cmd = match op {
                     ArithOp::Set => "mov",
@@ -192,6 +189,10 @@ pub fn emit(script: &Script) -> String {
                     let slot = SPRITE_BASE + c.layer;
                     match &c.sprite {
                         Some(sp) => {
+                            if !c.keep_filters {
+                                // Only reloads the old image when it has filters.
+                                writeln!(out, "spfilter {slot},0").unwrap();
+                            }
                             writeln!(out, "{}", lsp(slot, sp)).unwrap();
                             screen.sprites.insert(c.layer, sp.clone());
                         }
@@ -203,6 +204,22 @@ pub fn emit(script: &Script) -> String {
                 }
                 if transition.is_none() {
                     writeln!(out, "print {}", effect(*fade_ms)).unwrap();
+                }
+            }
+            Op::SpriteFilters { layer, filters } => {
+                let slot = SPRITE_BASE + layer;
+                writeln!(out, "spfilter {slot},0").unwrap();
+                for f in filters {
+                    let args = [&f.kind, &f.blend, &f.strength, &f.params[0], &f.params[1], &f.params[2]].map(|o| operand(*o));
+                    match f.kind {
+                        Operand::Const(0) => {}
+                        Operand::Const(_) => writeln!(out, "spfilter {slot},{}", args.join(",")).unwrap(),
+                        // spfilter's kind 0 clears every filter; skip it instead.
+                        Operand::Var(_) => writeln!(out, "if {} != 0 spfilter {slot},{}", args[0], args.join(",")).unwrap(),
+                    }
+                }
+                if transition.is_none() {
+                    writeln!(out, "print 1").unwrap();
                 }
             }
             Op::HideTextWindow => writeln!(out, "textoff").unwrap(),
@@ -636,6 +653,13 @@ fn with_links(text: &str, links: &[TextLink]) -> String {
     out
 }
 
+fn operand(o: Operand) -> String {
+    match o {
+        Operand::Const(n) => n.to_string(),
+        Operand::Var(v) => var_name(v),
+    }
+}
+
 fn var_name(v: Var) -> String {
     let base = if v.global { GLOBAL_VAR_BASE } else { LOCAL_VAR_BASE };
     format!("%{}", base + u32::from(v.index))
@@ -715,7 +739,7 @@ impl SeChannels {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use conv_core::ir::{SourceLoc, SpriteChange, SpritePlacement, Voice};
+    use conv_core::ir::{SourceLoc, SpriteChange, SpriteFilter, SpritePlacement, Voice, FILTER_BLEND_MULTIPLY, FILTER_COLOUR};
 
     fn script(ops: Vec<Op>) -> Script {
         Script { title: "Test".into(), width: 800, height: 600, window: None, title_screen: None, save_menu: None, button_bar: None, settings: None, backlog: None, confirm: None, ops }
@@ -799,7 +823,7 @@ goto *conv_link1
             Op::BeginTransition { effect: "CrossFade".into(), fade_ms: 2000, mask: None },
             Op::ClearSprites,
             Op::Background { image: "bg/a.png".into(), fade_ms: 500 },
-            Op::Sprites { changes: vec![SpriteChange { layer: 5, sprite: Some(sprite) }], fade_ms: 500 },
+            Op::Sprites { changes: vec![SpriteChange { layer: 5, sprite: Some(sprite), keep_filters: false }], fade_ms: 500 },
             Op::EndTransition,
             Op::BeginTransition { effect: "MaskBlend2".into(), fade_ms: 1000, mask: Some("system/mask0009r.png".into()) },
             Op::Background { image: "bg/b.png".into(), fade_ms: 500 },
@@ -812,6 +836,7 @@ goto *conv_link1
 csp -1
 csp -1
 bg \"bg\\a.png\",0
+spfilter 65,0
 lsp 65,\":a;sprite\\a.png\",1,2
 print 4
 ; transition: MaskBlend2
@@ -870,6 +895,10 @@ print 3
         assert_eq!(char_position(&w, "あ\nabc", 2), (105 + 25, 507));
     }
 
+    fn local(index: u16) -> Operand {
+        Operand::Var(Var { global: false, index })
+    }
+
     #[test]
     fn emits_a_scene() {
         let s = script(vec![
@@ -880,10 +909,34 @@ print 3
                 changes: vec![SpriteChange {
                     layer: 3,
                     sprite: Some(SpritePlacement { image: "sprite/a.png".into(), x: 10, y: -20 }),
+                    keep_filters: true,
                 }],
                 fade_ms: 500,
             },
-            Op::Sprites { changes: vec![SpriteChange { layer: 3, sprite: None }], fade_ms: 0 },
+            Op::SpriteFilters {
+                layer: 3,
+                filters: vec![
+                    SpriteFilter {
+                        kind: Operand::Const(FILTER_COLOUR),
+                        blend: Operand::Const(FILTER_BLEND_MULTIPLY),
+                        strength: Operand::Const(128),
+                        params: [255, 200, 100].map(Operand::Const),
+                    },
+                    SpriteFilter {
+                        kind: Operand::Const(0),
+                        blend: Operand::Const(0),
+                        strength: Operand::Const(256),
+                        params: [Operand::Const(0); 3],
+                    },
+                    SpriteFilter {
+                        kind: local(30),
+                        blend: local(31),
+                        strength: local(32),
+                        params: [local(33), local(34), local(35)],
+                    },
+                ],
+            },
+            Op::Sprites { changes: vec![SpriteChange { layer: 3, sprite: None, keep_filters: false }], fade_ms: 0 },
             Op::Text { speaker: Some("名前".into()), text: "「こんにちは」".into(), voice: None, links: vec![], continues: false },
             Op::Text { speaker: None, text: "地の文。".into(), voice: Some(Voice { file: "voice/v1.ogg".into(), character: 3 }), links: vec![link(1, 2, None)], continues: false },
             Op::SePlay { file: "se/k001.ogg".into(), looped: true },
@@ -909,6 +962,10 @@ csp -1
 bg \"bg\\room.png\",2
 lsp 63,\":a;sprite\\a.png\",10,-20
 print 2
+spfilter 63,0
+spfilter 63,1,1,128,255,200,100
+if %40 != 0 spfilter 63,%40,%41,%42,%43,%44,%45
+print 1
 csp 63
 print 1
 【名前】「こんにちは」\\

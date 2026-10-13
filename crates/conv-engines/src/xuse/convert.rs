@@ -11,11 +11,16 @@ use std::path::{Path, PathBuf};
 use thiserror::Error;
 use conv_core::ir::{
     ArithOp, Backlog, BarAction, BarButton, ButtonBar, ConfirmDialog, NamePlate, Setting, SettingRow, SettingsMenu, Op, Operand, PageButton, Placed, Rect, SaveMenu, SourceLoc, Voice, VoiceToggle,
-    SpriteChange, SpritePlacement, TextLink, TextSpot, TextWindow, TitleAction, TitleButton, TitleScreen, TopBars,
-    Var,
+    SpriteChange, SpriteFilter, SpritePlacement, TextLink, TextSpot, TextWindow, TitleAction, TitleButton, TitleScreen, TopBars,
+    Var, FILTER_BLEND_ADD, FILTER_BLEND_COPY, FILTER_BLEND_MULTIPLY, FILTER_BLEND_SCREEN, FILTER_BRIGHTNESS, FILTER_COLOUR,
+    FILTER_GREYSCALE, FILTER_NEGATIVE,
 };
 
-use crate::xuse::cd::{CdError, CdScript, Instr, Link, PresetModule, Sound, SpriteEntry};
+use crate::xuse::cd::{
+    CdError, CdScript, Instr, Link, PresetModule, Sound, SpriteEntry, PRESET_BLEND_ADD, PRESET_BLEND_ALPHA, PRESET_BLEND_COPY,
+    PRESET_BLEND_MULTI, PRESET_BLEND_SCREEN, PRESET_KIND_BRIGHTNESS, PRESET_KIND_COLOUR, PRESET_KIND_GREYSCALE,
+    PRESET_KIND_NEGATIVE,
+};
 use crate::xuse::gaf::{Gaf, GafError};
 use crate::xuse::symbols::SymbolTable;
 use crate::xuse::xarc::{Xarc, XarcError};
@@ -78,11 +83,17 @@ const OP_CHAPTER: u16 = 0x36;
 const OP_CLICK_WAIT: u16 = 0x68;
 /// Removes every character bust-up (arg is always -1).
 const OP_CLEAR_SPRITES: u16 = 0x8f;
-/// Effect preset 1 is the one the game uses for colour filters on
-/// bust-ups (script 2 redefines it per lighting mood; 0x90 attaches it).
-/// The few uses of presets 2 and 3 (brightness/monotone effects in single
-/// scenes) aren't converted.
-const TINT_PRESET: u32 = 1;
+/// Effect presets (0x88 defines a module, 0x90 attaches a preset to a
+/// bust-up) are kept in variables, so they follow the game's control flow:
+/// preset p, slot s is [`PRESET_FIELDS`] local variables from
+/// [`PRESET_VAR_BASE`] (the game's own locals are 0-2). Preset 1 is the
+/// lighting tint (script 2 redefines it per mood); 2 and 3 are used in a
+/// few single scenes.
+const PRESET_VAR_BASE: u16 = 30;
+const PRESETS: u32 = 3;
+const PRESET_SLOTS: u32 = 3;
+/// kind, blend, strength, three parameters (as in [`SpriteFilter`]).
+const PRESET_FIELDS: u32 = 6;
 const OP_WAIT: u16 = 0x66;
 const OP_WAIT_2: u16 = 0x72;
 const BG_PER_ARCHIVE: usize = 64;
@@ -146,11 +157,6 @@ pub struct AssetBank {
     images: HashMap<(&'static str, usize), Image>,
     written: HashMap<(&'static str, usize), String>,
     used_names: HashSet<String>,
-    /// Colour-filtered copies of sprites, by (sprite number, colour).
-    tinted: HashMap<(usize, [u8; 3]), Image>,
-    /// The game's PNGs of the sprites written so far, so tinted copies don't
-    /// have to read an archive again.
-    sprite_png: HashMap<usize, Vec<u8>>,
     /// The sound bank read last; voices arrive mostly in bank order.
     last_bank: Option<(PathBuf, Vec<u8>)>,
 }
@@ -207,8 +213,6 @@ impl AssetBank {
             images: HashMap::new(),
             written: HashMap::new(),
             used_names: HashSet::new(),
-            tinted: HashMap::new(),
-            sprite_png: HashMap::new(),
             last_bank: None,
         }
     }
@@ -224,35 +228,6 @@ impl AssetBank {
     pub fn sprite(&mut self, number: usize) -> Result<Image, ConvertError> {
         let index = number.checked_sub(1).ok_or(ConvertError::MissingAsset { kind: "sprite", number })?;
         self.image("bu", "sprite", "sprite", index, BU_PER_ARCHIVE, number)
-    }
-
-    /// Sprite `number` through a colour filter: each colour channel is
-    /// multiplied by `colour` / 255, alpha is kept. ONScripter can't filter
-    /// a sprite while drawing it, so the filtered copy is written as its own
-    /// image.
-    ///
-    /// Assumption: `CModule_Filter_Color` multiplies (its mode field is 2
-    /// in every use; evening tints are warm, night tints blue, matching the
-    /// backgrounds they're used with).
-    pub fn tinted_sprite(&mut self, number: usize, colour: [u8; 3]) -> Result<Image, ConvertError> {
-        if let Some(done) = self.tinted.get(&(number, colour)) {
-            return Ok(done.clone());
-        }
-        let base = self.sprite(number)?;
-        let png = &self.sprite_png[&number];
-        let mut img = decode_png(png).map_err(|source| ConvertError::Image { what: base.path.clone(), source })?;
-        for px in img.pixels_mut() {
-            for (c, k) in px.0.iter_mut().zip(colour) {
-                *c = (u32::from(*c) * u32::from(k) / 255) as u8;
-            }
-        }
-        let [r, g, b] = colour;
-        let stem = base.path.strip_suffix(".png").unwrap_or(&base.path);
-        let name = format!("{stem}_{r:02x}{g:02x}{b:02x}.png");
-        self.save_image(&name, &img)?;
-        let image = Image { path: name, ..base };
-        self.tinted.insert((number, colour), image.clone());
-        Ok(image)
     }
 
     /// BGM track (1-based).
@@ -869,9 +844,6 @@ impl AssetBank {
         let (width, height) = png_size(img.png);
         let name = unique(&mut self.used_names, dir, &img.file_name(), number);
         write_file(&self.out.join(&name), img.png)?;
-        if kind == "sprite" {
-            self.sprite_png.insert(number, img.png.to_vec());
-        }
         let image = Image { path: name, width, height };
         self.images.insert((kind, number), image.clone());
         Ok(image)
@@ -1002,10 +974,6 @@ pub struct WindowPreset {
 pub struct Presets {
     /// Text window presets: labels whose code sets a window position.
     pub window: HashMap<String, WindowPreset>,
-    /// Labels that (re)define effect preset 1, with the colour it multiplies
-    /// by afterwards (`None`: cleared, or not a colour filter). Script 2
-    /// has one per lighting mood (evening `bg*e` warm, night `bg*n` blue).
-    pub tint: HashMap<String, Option<[u8; 3]>>,
 }
 
 /// Finds the preset subroutines (see [`Presets`]).
@@ -1025,14 +993,6 @@ pub fn presets(scripts: &[(String, CdScript)]) -> Result<Presets, ConvertError> 
             }
             let Some(l) = label else { continue };
             let name = format!("s{}_l{l}", cd.script_id);
-            if let Some(module) = cd.preset_module(ins) {
-                let module = module?;
-                if module.preset == TINT_PRESET {
-                    let tint = presets.tint.entry(name).or_insert(None);
-                    *tint = next_tint(*tint, &module);
-                }
-                continue;
-            }
             match ins.op {
                 OP_WINDOW_MODE => mode = ins.arg,
                 OP_WINDOW_STYLE => style = ins.arg,
@@ -1052,44 +1012,88 @@ pub fn presets(scripts: &[(String, CdScript)]) -> Result<Presets, ConvertError> 
     Ok(presets)
 }
 
-/// Preset 1's colour after `module` is added to it. Only a colour filter
-/// in slot 1 counts; other modules leave the colour as it was.
-fn next_tint(tint: Option<[u8; 3]>, module: &PresetModule) -> Option<[u8; 3]> {
-    match (module.slot, module.colour) {
-        (0, _) => None,
-        (1, Some(c)) => Some(c),
-        _ => tint,
+/// The variable holding `field` of a preset slot (1-based preset and slot).
+fn preset_var(preset: u32, slot: u32, field: u32) -> Var {
+    let n = ((preset - 1) * PRESET_SLOTS + slot - 1) * PRESET_FIELDS + field;
+    Var { global: false, index: PRESET_VAR_BASE + n as u16 }
+}
+
+/// Opcode 0x88: sets one slot of a preset (slot 0 clears every slot). A
+/// module the converter can't express clears its slot and is reported.
+fn lower_preset_module(m: &PresetModule, ops: &mut Vec<Op>, at: impl Fn() -> SourceLoc) {
+    let unsupported = |what: String| Op::Unsupported { what, at: at() };
+    if !(1..=PRESETS).contains(&m.preset) || m.slot > PRESET_SLOTS {
+        ops.push(unsupported(format!("opcode 0x88 preset {} slot {}", m.preset, m.slot)));
+        return;
+    }
+    let set = |slot: u32, field: u32, n: i32| Op::Arith {
+        var: preset_var(m.preset, slot, field),
+        op: ArithOp::Set,
+        value: Operand::Const(n),
+    };
+    if m.slot == 0 {
+        ops.extend((1..=PRESET_SLOTS).map(|slot| set(slot, 0, 0)));
+        return;
+    }
+    let filter = match (m.kind, m.colour, m.brightness) {
+        (0, _, _) => None,
+        (PRESET_KIND_COLOUR, Some([r, g, b]), _) => Some((FILTER_COLOUR, [r.into(), g.into(), b.into()])),
+        (PRESET_KIND_GREYSCALE, _, _) => Some((FILTER_GREYSCALE, [0; 3])),
+        (PRESET_KIND_NEGATIVE, _, _) => Some((FILTER_NEGATIVE, [0; 3])),
+        // Assumption: the amount is on a 0-255 scale (the game uses -80
+        // and -100).
+        (PRESET_KIND_BRIGHTNESS, _, Some(n)) => Some((FILTER_BRIGHTNESS, [n.into(), 0, 0])),
+        _ => {
+            ops.push(unsupported(format!("opcode 0x88 filter kind {}", m.kind)));
+            None
+        }
+    };
+    let blend = match m.blend {
+        PRESET_BLEND_ALPHA | PRESET_BLEND_COPY => Some(FILTER_BLEND_COPY),
+        PRESET_BLEND_MULTI => Some(FILTER_BLEND_MULTIPLY),
+        PRESET_BLEND_ADD => Some(FILTER_BLEND_ADD),
+        PRESET_BLEND_SCREEN => Some(FILTER_BLEND_SCREEN),
+        _ => None,
+    };
+    match (filter, blend) {
+        (Some((kind, params)), Some(blend)) => {
+            let fields = [kind, blend, i32::from(m.opacity.min(256))].into_iter().chain(params);
+            ops.extend(fields.enumerate().map(|(field, n)| set(m.slot, field as u32, n)));
+        }
+        (Some(_), None) => {
+            ops.push(unsupported(format!("opcode 0x88 blend {}", m.blend)));
+            ops.push(set(m.slot, 0, 0));
+        }
+        (None, _) => ops.push(set(m.slot, 0, 0)),
     }
 }
 
-/// Character bust-ups as the engine keeps them, in file order: one object
-/// per character, and the colour filter attached to it (opcode 0x90).
-#[derive(Debug, Default)]
-struct Bustups {
-    /// Preset 1's colour (see [`Presets::tint`]).
-    tint: Option<[u8; 3]>,
-    /// Shown characters: their entry and the colour their object is
-    /// filtered with.
-    shown: HashMap<u16, (SpriteEntry, Option<[u8; 3]>)>,
+/// Opcode 0x90: the filters of a preset (0 = none), read from its
+/// variables when the script runs.
+fn preset_filters(preset: u32) -> Option<Vec<SpriteFilter>> {
+    match preset {
+        0 => Some(Vec::new()),
+        1..=PRESETS => Some(
+            (1..=PRESET_SLOTS)
+                .map(|slot| {
+                    let v = |field| Operand::Var(preset_var(preset, slot, field));
+                    SpriteFilter { kind: v(0), blend: v(1), strength: v(2), params: [v(3), v(4), v(5)] }
+                })
+                .collect(),
+        ),
+        _ => None,
+    }
 }
 
-impl Bustups {
-    fn placement(
-        assets: &mut AssetBank,
-        e: &SpriteEntry,
-        colour: Option<[u8; 3]>,
-    ) -> Result<SpritePlacement, ConvertError> {
-        let img = match colour {
-            Some(c) => assets.tinted_sprite(e.sprite as usize, c)?,
-            None => assets.sprite(e.sprite as usize)?,
-        };
-        // Assumption: (x, y) is the sprite's centre on the 800×600 screen.
-        Ok(SpritePlacement {
-            image: img.path,
-            x: i32::from(e.x) - img.width as i32 / 2,
-            y: i32::from(e.y) - img.height as i32 / 2,
-        })
-    }
+/// Where a bust-up entry's image goes on screen.
+fn placement(assets: &mut AssetBank, e: &SpriteEntry) -> Result<SpritePlacement, ConvertError> {
+    let img = assets.sprite(e.sprite as usize)?;
+    // Assumption: (x, y) is the sprite's centre on the 800×600 screen.
+    Ok(SpritePlacement {
+        image: img.path,
+        x: i32::from(e.x) - img.width as i32 / 2,
+        y: i32::from(e.y) - img.height as i32 / 2,
+    })
 }
 
 /// Lowers one script. Instructions that can't be expressed yet become
@@ -1123,7 +1127,6 @@ pub fn lower_script(
     let mut full_screen_rows: Option<usize> = None;
     let mut last_text: Option<(usize, usize)> = None;
     let mut page_break = false;
-    let mut bustups = Bustups::default();
     for (index, ins) in cd.code.iter().enumerate() {
         if let Some(label) = own_labels.get(&index) {
             ops.push(Op::Label(format!("s{}_l{label}", cd.script_id)));
@@ -1186,28 +1189,16 @@ pub fn lower_script(
             continue;
         }
         if let Some(module) = cd.preset_module(ins) {
-            let module = module?;
-            if module.preset == TINT_PRESET && (module.slot == 0 || module.colour.is_some()) {
-                bustups.tint = next_tint(bustups.tint, &module);
-                continue;
-            }
+            lower_preset_module(&module?, &mut ops, at);
+            continue;
         }
         if let Some(apply) = cd.apply_preset(ins) {
             let apply = apply?;
-            let colour = match apply.preset {
-                0 => None,
-                TINT_PRESET => bustups.tint,
-                _ => {
-                    ops.push(Op::Unsupported { what: format!("opcode {:#04x} preset {}", ins.op, apply.preset), at: at() });
-                    continue;
-                }
-            };
-            // Without an object for the character the handler does nothing.
-            if let Some((e, current)) = bustups.shown.get_mut(&apply.character) {
-                *current = colour;
-                let sprite = Bustups::placement(assets, e, colour)?;
-                let change = SpriteChange { layer: u32::from(apply.character), sprite: Some(sprite) };
-                ops.push(Op::Sprites { changes: vec![change], fade_ms: 0 });
+            // Without an object for the character the handler does nothing;
+            // neither does spfilter on a layer without a sprite.
+            match preset_filters(apply.preset) {
+                Some(filters) => ops.push(Op::SpriteFilters { layer: u32::from(apply.character), filters }),
+                None => ops.push(Op::Unsupported { what: format!("opcode {:#04x} preset {}", ins.op, apply.preset), at: at() }),
             }
             continue;
         }
@@ -1219,7 +1210,7 @@ pub fn lower_script(
         }
         let links = if cd.message(ins).is_some() { std::mem::take(&mut pending_links) } else { Vec::new() };
         let unsupported = || format!("opcode {:#04x} sub {:#x} arg {}", ins.op, ins.sub, ins.arg);
-        match lower_instr(cd, ins, &links, assets, names, &mut bustups) {
+        match lower_instr(cd, ins, &links, assets, names) {
             Ok(Some(Op::Text { speaker, text, voice, mut links, continues })) if flow == Flow::Linear => {
                 // No jumps in linear mode, so links are colour only.
                 links.iter_mut().for_each(|l| l.target = None);
@@ -1242,9 +1233,6 @@ pub fn lower_script(
             }
             Ok(Some(Op::Gosub(target))) => {
                 let preset = presets.window.get(&target).copied();
-                if let Some(t) = presets.tint.get(&target) {
-                    bustups.tint = *t;
-                }
                 ops.push(Op::Gosub(target));
                 if let Some(p) = preset {
                     let window = assets.text_window_style(p)?;
@@ -1289,7 +1277,6 @@ fn lower_instr(
     links: &[Link],
     assets: &mut AssetBank,
     names: &LabelNames,
-    bustups: &mut Bustups,
 ) -> Result<Option<Op>, ConvertError> {
     if let Some(msg) = cd.message(ins) {
         let msg = msg?;
@@ -1335,17 +1322,14 @@ fn lower_instr(
             // 0x434130 deletes the "bustup-%u" object).
             let layer = u32::from(e.character);
             if e.mode & 1 == 0 {
-                bustups.shown.remove(&e.character);
-                changes.push(SpriteChange { layer, sprite: None });
+                changes.push(SpriteChange { layer, sprite: None, keep_filters: false });
                 continue;
             }
             // Mode bit 2 keeps the character's object, and with it the
             // attached filter; otherwise the handler (0x434130) deletes it
             // and creates a new one.
-            let kept = bustups.shown.get(&e.character).filter(|_| e.mode & 4 != 0).and_then(|(_, c)| *c);
-            let sprite = Bustups::placement(assets, e, kept)?;
-            bustups.shown.insert(e.character, (*e, kept));
-            changes.push(SpriteChange { layer, sprite: Some(sprite) });
+            let sprite = placement(assets, e)?;
+            changes.push(SpriteChange { layer, sprite: Some(sprite), keep_filters: e.mode & 4 != 0 });
         }
         let fade_ms = entries.iter().map(|e| u32::from(e.fade) * SPRITE_FADE_UNIT_MS).max().unwrap_or(0);
         return Ok(Some(Op::Sprites { changes, fade_ms }));
@@ -1361,10 +1345,7 @@ fn lower_instr(
         OP_GOTO_SUB => return Ok(label(ins.sub.into()).map(Op::Jump)),
         OP_GOSUB => return Ok(label(ins.sub.into()).map(Op::Gosub)),
         OP_RETURN | OP_LINK_RETURN => return Ok(Some(Op::Return)),
-        OP_CLEAR_SPRITES => {
-            bustups.shown.clear();
-            return Ok(Some(Op::ClearSprites));
-        }
+        OP_CLEAR_SPRITES => return Ok(Some(Op::ClearSprites)),
         OP_HIDE_TEXT => return Ok(Some(Op::HideTextWindow)),
         OP_CLICK_WAIT => return Ok(Some(Op::ClickWait { skippable: ins.arg != 0 })),
         OP_WAIT | OP_WAIT_2 => return Ok(Some(Op::Wait { ms: u32::from(ins.arg as u16) })),
@@ -1472,10 +1453,6 @@ fn blend_layers(mut base: image::RgbaImage, top: &image::RgbaImage) -> image::Rg
     base
 }
 
-fn decode_png(png: &[u8]) -> Result<image::RgbaImage, image::ImageError> {
-    Ok(image::load_from_memory_with_format(png, image::ImageFormat::Png)?.to_rgba8())
-}
-
 fn png_size(png: &[u8]) -> (u32, u32) {
     let be = |o: usize| png.get(o..o + 4).map_or(0, |b| u32::from_be_bytes(b.try_into().unwrap()));
     (be(16), be(20))
@@ -1513,6 +1490,41 @@ mod tests {
         assert_eq!(unique(&mut used, "bg", "a b.png", 3), "bg/a_b.png");
         assert_eq!(unique(&mut used, "bg", "a b.png", 9), "bg/9_a_b.png");
         assert_eq!(unique(&mut used, "sprite", "背景.png", 1), "sprite/__.png");
+    }
+
+    #[test]
+    fn presets_live_in_variables() {
+        let at = || SourceLoc { file: "t".into(), index: 0 };
+        let set = |var: Var, n: i32| Op::Arith { var, op: ArithOp::Set, value: Operand::Const(n) };
+        let tint = PresetModule {
+            preset: 2,
+            slot: 1,
+            kind: PRESET_KIND_COLOUR,
+            blend: PRESET_BLEND_MULTI,
+            opacity: 200,
+            colour: Some([0x64, 0, 0]),
+            brightness: None,
+        };
+        let mut ops = Vec::new();
+        lower_preset_module(&tint, &mut ops, at);
+        let v = |field| preset_var(2, 1, field);
+        let expected =
+            [(0, FILTER_COLOUR), (1, FILTER_BLEND_MULTIPLY), (2, 200), (3, 0x64), (4, 0), (5, 0)].map(|(f, n)| set(v(f), n));
+        assert_eq!(ops, expected);
+        // Preset 2 slot 1 comes after preset 1's three slots.
+        assert_eq!(v(0).index, PRESET_VAR_BASE + 18);
+
+        ops.clear();
+        lower_preset_module(&PresetModule { slot: 0, ..tint }, &mut ops, at);
+        assert_eq!(ops, (1..=3).map(|s| set(preset_var(2, s, 0), 0)).collect::<Vec<_>>());
+
+        ops.clear();
+        lower_preset_module(&PresetModule { kind: 9, colour: None, ..tint }, &mut ops, at);
+        assert!(matches!(ops[..], [Op::Unsupported { .. }, Op::Arith { .. }]));
+
+        assert_eq!(preset_filters(0), Some(vec![]));
+        assert_eq!(preset_filters(3).unwrap().len(), 3);
+        assert_eq!(preset_filters(4), None);
     }
 
     #[test]

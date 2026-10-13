@@ -127,8 +127,20 @@ pub const OP_SPRITES: u16 = 0x8e;
 const SPRITE_ENTRY_LEN: usize = 44;
 pub const OP_PRESET_MODULE: u16 = 0x88;
 pub const OP_APPLY_PRESET: u16 = 0x90;
-/// 0x88's module kind for a colour filter.
-const PRESET_KIND_COLOUR: u32 = 8;
+/// 0x88's module kinds (module type = kind + 0x63; class names from the
+/// exe's creator table at 0x501434 and RTTI). Others: 1 Smooth,
+/// 3 HueSatura, 6 Monotone, 9 BrightnessInvert, ...
+pub const PRESET_KIND_NEGATIVE: u32 = 2;
+pub const PRESET_KIND_BRIGHTNESS: u32 = 4;
+pub const PRESET_KIND_GREYSCALE: u32 = 5;
+pub const PRESET_KIND_COLOUR: u32 = 8;
+/// [`PresetModule::blend`] values used by the game (the exe's names are
+/// Alpha, Add, Multi, Screen, SignedAdd, Copy, dissolve).
+pub const PRESET_BLEND_ALPHA: u16 = 0;
+pub const PRESET_BLEND_ADD: u16 = 1;
+pub const PRESET_BLEND_MULTI: u16 = 2;
+pub const PRESET_BLEND_SCREEN: u16 = 3;
+pub const PRESET_BLEND_COPY: u16 = 5;
 pub const OP_BGM_PLAY: u16 = 0x57;
 pub const OP_BGM_STOP: u16 = 0x58;
 pub const OP_SE_PLAY: u16 = 0x5a;
@@ -163,8 +175,17 @@ pub struct PresetModule {
     /// 1-based slot in the preset; 0 clears the whole preset.
     pub slot: u32,
     pub kind: u32,
+    /// How the module's colour is combined with the pixel's (see
+    /// `PRESET_BLEND_*`).
+    pub blend: u16,
+    /// 0-256: how much of the result replaces the pixel (the exe's debug
+    /// output calls it "Opacity").
+    pub opacity: u16,
     /// The colour of a colour filter (kind 8), as R, G, B.
     pub colour: Option<[u8; 3]>,
+    /// The amount of a brightness filter (kind 4), printed by the exe as
+    /// "Brightness=%d".
+    pub brightness: Option<i16>,
 }
 
 /// Opcode 0x90: attach an effect preset to a character's bust-up.
@@ -412,13 +433,17 @@ impl<'a> CdScript<'a> {
         (ins.op == OP_PRESET_MODULE).then(|| {
             let r = Reader(self.pool);
             let o = ins.arg as u32 as usize;
+            // preset, slot, u32 ?, kind, u16 blend, u16 opacity, kind data.
             let (preset, slot, kind) = (r.u32(o)?, r.u32(o + 4)?, r.u32(o + 12)?);
+            let (blend, opacity) = if slot == 0 { (0, 0) } else { (r.u16(o + 16)?, r.u16(o + 18)?) };
             let colour = if slot != 0 && kind == PRESET_KIND_COLOUR {
                 Some(r.slice(o + 20, 3)?.try_into().unwrap())
             } else {
                 None
             };
-            Ok(PresetModule { preset, slot, kind, colour })
+            let brightness =
+                if slot != 0 && kind == PRESET_KIND_BRIGHTNESS { Some(r.u16(o + 20)? as i16) } else { None };
+            Ok(PresetModule { preset, slot, kind, blend, opacity, colour, brightness })
         })
     }
 
@@ -645,9 +670,13 @@ mod tests {
         let bytes = build("p.rio", &[], &code, &pool);
         let cd = CdScript::parse(&bytes).unwrap();
         let clear = cd.preset_module(&cd.code[0]).unwrap().unwrap();
-        assert_eq!(clear, PresetModule { preset: 1, slot: 0, kind: 0, colour: None });
+        assert_eq!(
+            clear,
+            PresetModule { preset: 1, slot: 0, kind: 0, blend: 0, opacity: 0, colour: None, brightness: None }
+        );
         let colour = cd.preset_module(&cd.code[1]).unwrap().unwrap();
         assert_eq!(colour.colour, Some([0xff, 0xe0, 0xb9]));
+        assert_eq!((colour.blend, colour.opacity), (PRESET_BLEND_MULTI, 256));
         assert_eq!(cd.apply_preset(&cd.code[2]).unwrap().unwrap(), ApplyPreset { character: 14, preset: 1 });
         assert!(cd.apply_preset(&cd.code[0]).is_none());
     }
