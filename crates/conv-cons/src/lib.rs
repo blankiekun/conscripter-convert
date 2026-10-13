@@ -520,7 +520,7 @@ pub fn emit(script: &Script) -> String {
                     Some(page)
                 };
                 let plate = window.as_ref().and_then(|w| w.name_plate.as_ref());
-                let mut body = with_markup(text, links, ruby, styles);
+                let mut body = with_markup(text, links, ruby, styles).replace(conv_core::ir::CLICK_WAIT_MARK, "@");
                 // Sprite changes only show after a print, so print when the
                 // plate appears, changes or goes away.
                 match (speaker, plate) {

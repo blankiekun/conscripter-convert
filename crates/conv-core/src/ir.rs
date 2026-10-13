@@ -241,6 +241,10 @@ pub enum ScreenEffect {
     Pulse { time_ms: u32, interval_ms: u32, zoom: (i32, i32), opacity: i32, colour: u32, tint_opacity: i32, tint: u8 },
 }
 
+/// In [`Op::Text`] text: wait for a click here and go on typing on the
+/// same page, at the same place (NScripter's `@`).
+pub const CLICK_WAIT_MARK: char = '\u{1}';
+
 /// A clickable word in a text page.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TextLink {
