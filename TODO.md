@@ -1,7 +1,7 @@
 # TODO for the next agent
 
-State on 2026-10-13 (updated by a second session while the user was
-away). Read this first, then `saiima.md` (local handoff
+State on 2026-10-13 (updated by a third session; start with "In
+progress" below). Read this first, then `saiima.md` (local handoff
 notes, git-ignored) and `PLAN.md` §4.2 and §6 ("Remaining work for
 最果てのイマ").
 
@@ -21,7 +21,82 @@ notes, git-ignored) and `PLAN.md` §4.2 and §6 ("Remaining work for
 - Never touch `out/saiima-flow` (the user's saves).
 - Test scripts: encode with `iconv -t cp932`, not `-t sjis`.
 
-## Done in the last session
+## In progress: opcode 0x6f ("surprise" pulse, 87 uses)
+
+Engine half done and pushed: CONscripter `e696995` adds
+`screenpulse slot,time,interval,zoom_x,zoom_y,opacity,colour,tint_opacity,tint`
+(engine README; same slots/stepping/saves as `screenshake`; checked
+natively and the web build compiles; **no release yet**, so bump to
+0.13.0 once the converter uses it). Converter half still to write:
+
+- Decode in `cd.rs` (`OP_SURPRISE = 0x6f`, handler 0x441a00): record
+  u32 time (the exe clamps it to 1..32767 ms), u32 preset (0-8, anything
+  else = 0). Presets (table 0x500b68, 7 i32 each): zoom x, zoom y (16.16:
+  6553/9830/13107 = 10/15/20 %), opacity (100/150/200), 0, tint colour
+  (COLORREF), tint opacity, tint blend:
+  0-2 no tint (opacity 0); 3-5 `0x8080ff` (= RGB #FF8080) at 256 with
+  blend 2 (Multi) → `tint 1`; 6-8 white at 256 with blend 6 → assumed
+  `tint 2` (blend 6 is "dissolve" in 0x88's list; unverified).
+- Lower it like `lower_quake` (convert.rs): `Op::ScreenEffect` with a new
+  `ScreenEffect::Pulse` (ir.rs) in slot 3 (0x8c uses 1-2, quakes 4),
+  then `Op::Wait { ms: time }`, then clear slot 3. zoom = (v × 1000 +
+  32768) >> 16 → 100/150/200; colour as RGB int (16744576 for #FF8080).
+  Emit `screenpulse 3,{time},10,{zx},{zy},{opacity},{colour},{tint_opacity},{tint}`
+  in conv-cons/src/lib.rs next to screenshake/screenripple.
+- Behaviour from the exe (Surprise.cpp, object at sort key 0x06000000 =
+  behind the text window): snapshot of the picture at the start, tinted,
+  drawn over the live picture scaled by 1 + f × zoom around the centre at
+  f × opacity, f = sin(π × remaining / time); the script waits, a click
+  ends it; skipped while skipping or with effects off.
+- Then: rebuild `out/saiima-cons`, check one in a headless run, update
+  PLAN §6 (the 0x6f row says "not converted") and this file, release
+  CONscripter 0.13.0 (`Version 0.13.0` commit like `c1247f4`, tag
+  `v0.13.0`, Android versionCode 15), commit the submodule pointer.
+
+## Done in the third session (2026-10-13)
+
+| Item | Converter | Engine |
+|---|---|---|
+| Release CONscripter 0.11.0 (all 5 workflows passed) | `9ea83ab` | `548b798` |
+| `0x6d` quakes → `screenshake 4,…` + `delay` + clear (198) | `16c1059` | none |
+| `0x6e` flashes → `lsp2add` colour rectangle for 100 ms (88) | `d511d99` | none |
+| Bars always shown (user's request; hover hotspots removed) | `1231002` | none |
+| Links like the original: colours measured under wine, underline, purple once visited, word sprite no longer 12 px low | `dd56369` | none |
+| Submodule → 0.12.0 (another agent's release: web hooks `onsyuriBacklog`, `onsyuriSprites`, overlay `hide`/`show`) | `9d120f3` | `da8ad6b` |
+| `screenpulse` for 0x6f | not yet | `e696995` |
+
+Unsupported instructions: 2,331 → 2,045. `out/saiima-cons` is rebuilt
+with everything except 0x6f.
+
+Notes from this session:
+- Another agent may be working on the engine at the same time: always
+  fetch and rebase before pushing either repo.
+- `smoke.py` keeps its click queue in `%1000`+, so the converter's own
+  variables must stay clear of 1000-1099 (link visited flags moved to
+  `%2000 + target` because of this).
+- Web build: the user's own web app keeps old game files per folder name;
+  if a change doesn't show there, a renamed folder fixes it. Not a
+  CONscripter bug (the user said not to fix it).
+- Headless web check of the real game: serve a dir with symlinks to
+  `arc.nsa`/`default.ttf`/`ons_args`, a patched `0.txt` (`mov
+  %101,1:goto *conv_link1` after `erasetextwindow 0`), the web
+  `conscripter.{js,wasm}`, and `conscripter.html` copied to `index.html`
+  with a canvas-posting script injected (preserveDrawingBuffer +
+  `fetch('/log/shot', …)` every 3 s); index from
+  `conscripter_index.py -i . --lazyload --args=--enc:sjis`; then
+  `web-harness/runff.sh <dir> 60` → `shot.png`.
+- Wine: the old prefix from the second session still works
+  (`/tmp/claude-1000/<project>/21025cd6-…/scratchpad`: `case_head.sh`
+  starts the game at the first ADV page, `g.sh click/move/shot`). The
+  first link (「あの場所」) is about page 170: use `nstrace.py --pages`
+  to count pages to a target line; quick clicks drop some pages, so
+  check with screenshots and count again.
+- Links, not done: the underline keeps its colour under the pointer; a
+  visited link types in yellow until its sprite (purple) appears.
+- Still unchecked against the original: quakes, flashes (ours are under
+  the text window; the original's cover it), pulses.
+
+## Done in the first session
 
 | Item | Converter | Engine |
 |---|---|---|
