@@ -111,6 +111,12 @@ const OP_SCENE_END: u16 = 0x94;
 /// and the voice mode (`VoiceMode.cpp`, `wss.bin`: bit 4 + route, table
 /// 0x4fbc00).
 const OP_PROGRESS: u16 = 0x99;
+/// Marks CG `arg` (1-based, as in 0x54) as seen in the CG gallery without
+/// showing it (handler 0x478b30: bit arg - 1 of the global set at
+/// 0x51ea18, which `CGMode.cpp` reads at 0x44cd56 and 0x44d4af; 0x55
+/// with its "mark as seen" byte sets the same bits, 0x42236b). Used 6
+/// times, for CGs 519-524.
+const OP_CG_SEEN: u16 = 0x9d;
 /// The replay set's size.
 const REPLAY_SCENES: i32 = 600;
 /// Waits for a click with the text window, button tray and top bars hidden
@@ -2008,6 +2014,13 @@ pub fn lower_script(
             match ins.sub {
                 bit @ 0..32 => ops.push(Op::Progress { bit: bit.into() }),
                 _ => ops.push(Op::Unsupported { what: format!("opcode {:#04x} sub {:#x}", ins.op, ins.sub), at: at() }),
+            }
+            continue;
+        }
+        if ins.op == OP_CG_SEEN {
+            match ins.arg {
+                number @ 1.. if (number as usize) <= 9 * BG_PER_ARCHIVE => ops.push(Op::CgSeen { number: number as u32 }),
+                _ => ops.push(Op::Unsupported { what: format!("opcode {:#04x} arg {}", ins.op, ins.arg), at: at() }),
             }
             continue;
         }

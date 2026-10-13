@@ -104,6 +104,9 @@ const LINK_VISITED_BASE: u32 = 2000;
 const SCENE_UNLOCKED_BASE: u32 = 3000;
 /// Global flags: progress flag n ([`Op::Progress`]) is set.
 const PROGRESS_BASE: u32 = 3600;
+/// Global flags: CG n ([`Op::CgSeen`], up to 9 × 64) was seen; above the
+/// link flags, below 4096 (the variable range).
+const CG_SEEN_BASE: u32 = 2200;
 const TEXT_COLOR: &str = "#FFFFFF";
 
 /// Renders the script as NScripter source text (UTF-8; use [`encode`] to
@@ -701,6 +704,7 @@ pub fn emit(script: &Script) -> String {
             Op::Chapter { title } => writeln!(out, "mov {},\"{}\"", menu::CHAPTER, escape(title)).unwrap(),
             Op::UnlockScene { scene } => writeln!(out, "mov %{},1", SCENE_UNLOCKED_BASE + scene).unwrap(),
             Op::Progress { bit } => writeln!(out, "mov %{},1", PROGRESS_BASE + bit).unwrap(),
+            Op::CgSeen { number } => writeln!(out, "mov %{},1", CG_SEEN_BASE + number).unwrap(),
             // No scene replay yet, so nothing to stop.
             Op::SceneEnd => writeln!(out, "; scene end").unwrap(),
             Op::Unsupported { what, at } => {
@@ -1302,8 +1306,8 @@ goto *conv_link1
 
     #[test]
     fn scene_replay_unlocks_are_global_flags() {
-        let text = emit(&script(vec![Op::SceneEnd, Op::UnlockScene { scene: 5 }, Op::Progress { bit: 3 }]));
-        assert!(text.contains("; scene end\nmov %3005,1\nmov %3603,1\n"), "{text}");
+        let text = emit(&script(vec![Op::SceneEnd, Op::UnlockScene { scene: 5 }, Op::Progress { bit: 3 }, Op::CgSeen { number: 519 }]));
+        assert!(text.contains("; scene end\nmov %3005,1\nmov %3603,1\nmov %2719,1\n"), "{text}");
     }
 
     #[test]

@@ -28,7 +28,7 @@ Opcodes 0x70 (leftovers), 0x59, 0x82 and 0x69 are done (unsupported
 (engine `5516a1a`, released in CONscripter 0.14.0, tag `v0.14.0`,
 Android versionCode 17). Slides (0x86/0x87/0x7f, unsupported 119 → 81) are done too, checked
 headless in 0010.cd's 沙也加 slide. Pick the next item from "3. Next
-work": 0x9d is the biggest left. Unchecked against the original under wine: quakes,
+work": only small groups are left (0x39, 0x56). Unchecked against the original under wine: quakes,
 flashes (ours are under the text window; the original's cover it),
 pulses (especially presets 6-8: blend 6 is assumed to lay white over
 the copy, `tint 2`).
@@ -265,8 +265,12 @@ engines print `z150` etc.). The web build compiles with it.
       Unsupported: 81 → 46.
 - [x] `0x99` (8): progress bits the extras read (title, voice mode),
       as global flags `%3600 + bit`. Unsupported: 46 → 38.
-- [ ] Opcodes still emitted as comments (38 left): `0x9d` (6), `0x39`
-      (4), `0x56` (3), rarer ones.
+- [x] `0x9d` (6): a CG counts as seen in the CG gallery, as global flags
+      `%2200 + n`. A gallery will also need 0x54's own seen marks (its
+      record's byte; not tracked yet). Unsupported: 38 → 32.
+- [ ] Opcodes still emitted as comments (32 left): `0x39` (4), `0x56`
+      (3), `0x36` without a chapter name, `0x3b`, `0x48`, `0x4a`, `0x67`,
+      `0x91` (2 each), rarer ones.
 - [ ] Transitions still drawn as cross-fades: Wave, Dissolve, RollFlip,
       SoftEdgeWipe, TvPowerSwitch, BoxRolling, SmoothCrossFade, Dot4x4,
       MeltDown (PLAN §6 "Accuracy").
