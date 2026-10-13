@@ -371,7 +371,11 @@ mapping, the 32-byte head, and `1.cd`.
    - **Settings:** a native Windows dialog (volumes, text, mouse,
      confirmations). Converted as an in-script screen with the volumes,
      text speed and auto speed, plus "back to the title" (`reset`) and
-     "quit" (`end`) when opened from the game.
+     "quit" (`end`) when opened from the game. A second page has the
+     dialog's 13 voice switches (11 named characters, "other women",
+     "other men"). A voice id's character is `id / 100000` (3 あずさ … 13
+     ジーン, 0 minor women, 1 minor men); each `dwave` is guarded by the
+     character's global flag (`if %(970 + c) == 0 dwave ...`).
    - **Confirmations:** `YesNoDialog.004` (base, frame, four-state button
      strip; no words in the images). Shown before saving over a save,
      loading, deleting, going back to the title and quitting, with the

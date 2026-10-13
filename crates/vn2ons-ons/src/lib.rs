@@ -102,6 +102,7 @@ pub fn emit(script: &Script) -> String {
     writeln!(out, "*start").unwrap();
     // The text speed is a setting when there is a settings menu.
     let speed = if script.settings.is_some() { menu::TEXT_MS } else { "20" };
+    let voice_switches = script.settings.as_ref().is_some_and(|s| !s.voices.is_empty());
     if script.settings.is_some() {
         menu::settings_init(&mut out);
     }
@@ -229,7 +230,10 @@ pub fn emit(script: &Script) -> String {
             }
             Op::Text { speaker, text, voice, links, continues } => {
                 if let Some(v) = voice {
-                    writeln!(out, "dwave 0,\"{}\"", path(v)).unwrap();
+                    if voice_switches {
+                        write!(out, "if %{} == 0 ", menu::VOICE_OFF_BASE + v.character).unwrap();
+                    }
+                    writeln!(out, "dwave 0,\"{}\"", path(&v.file)).unwrap();
                 }
                 let clickable: Vec<&TextLink> = links.iter().filter(|l| l.target.is_some()).collect();
                 let page = if clickable.is_empty() {
@@ -701,7 +705,7 @@ impl SeChannels {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use vn2ons_core::ir::{SourceLoc, SpriteChange, SpritePlacement};
+    use vn2ons_core::ir::{SourceLoc, SpriteChange, SpritePlacement, Voice};
 
     fn script(ops: Vec<Op>) -> Script {
         Script { title: "Test".into(), width: 800, height: 600, window: None, title_screen: None, save_menu: None, button_bar: None, settings: None, backlog: None, confirm: None, ops }
@@ -871,7 +875,7 @@ print 3
             },
             Op::Sprites { changes: vec![SpriteChange { layer: 3, sprite: None }], fade_ms: 0 },
             Op::Text { speaker: Some("名前".into()), text: "「こんにちは」".into(), voice: None, links: vec![], continues: false },
-            Op::Text { speaker: None, text: "地の文。".into(), voice: Some("voice/v1.ogg".into()), links: vec![link(1, 2, None)], continues: false },
+            Op::Text { speaker: None, text: "地の文。".into(), voice: Some(Voice { file: "voice/v1.ogg".into(), character: 3 }), links: vec![link(1, 2, None)], continues: false },
             Op::SePlay { file: "se/k001.ogg".into(), looped: true },
             Op::SeStop { file: Some("se/k001.ogg".into()) },
             Op::BgmStop { fade_out_ms: 2000 },

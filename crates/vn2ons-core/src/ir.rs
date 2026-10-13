@@ -99,7 +99,7 @@ pub enum Op {
     /// clickable.
     /// `continues`: the next page is added below this one after a click
     /// instead of replacing it (full-screen text modes).
-    Text { speaker: Option<String>, text: String, voice: Option<String>, links: Vec<TextLink>, continues: bool },
+    Text { speaker: Option<String>, text: String, voice: Option<Voice>, links: Vec<TextLink>, continues: bool },
     /// Switch to another text window layout; the page starts empty.
     SetWindow(TextWindow),
     BgmPlay { file: String, fade_in_ms: u32 },
@@ -336,6 +336,31 @@ pub struct SettingsMenu {
     pub title_label: String,
     pub quit_label: String,
     pub exits_y: i32,
+    /// Page tabs (levels, voices) at `tabs_y`, from `tabs_x`; the voice
+    /// page is left out without `voices`.
+    pub tab_labels: [String; 2],
+    pub tabs_x: i32,
+    pub tabs_y: i32,
+    /// Two columns at `label_x` and `voice_column_x`, from `y`.
+    pub voices: Vec<VoiceToggle>,
+    pub voice_column_x: i32,
+    pub voice_pitch: i32,
+}
+
+/// A voiced line's clip and whose voice it is (for the per-character
+/// voice switches, [`VoiceToggle`]).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Voice {
+    pub file: String,
+    pub character: u32,
+}
+
+/// A switch on the settings screen's voice page: voices of `characters`
+/// play only while it is on.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VoiceToggle {
+    pub label: String,
+    pub characters: Vec<u32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

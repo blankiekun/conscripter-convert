@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 
 use thiserror::Error;
 use vn2ons_core::ir::{
-    ArithOp, Backlog, BarAction, BarButton, ButtonBar, ConfirmDialog, NamePlate, Setting, SettingRow, SettingsMenu, Op, Operand, PageButton, Placed, Rect, SaveMenu, SourceLoc,
+    ArithOp, Backlog, BarAction, BarButton, ButtonBar, ConfirmDialog, NamePlate, Setting, SettingRow, SettingsMenu, Op, Operand, PageButton, Placed, Rect, SaveMenu, SourceLoc, Voice, VoiceToggle,
     SpriteChange, SpritePlacement, TextLink, TextSpot, TextWindow, TitleAction, TitleButton, TitleScreen, TopBars,
     Var,
 };
@@ -96,6 +96,26 @@ const BG_FADE_MS: u32 = 500;
 const WINDOW_OPACITY_PERCENT: u32 = 55;
 /// Assumption: the title screen fades in and out over this long.
 const TITLE_FADE_MS: u32 = 1000;
+/// A voice id's character is `id / VOICE_CHARACTER`.
+const VOICE_CHARACTER: u32 = 100_000;
+/// The original's voice switches (the settings dialog's 音声 page, in its
+/// order) and the voice characters each covers. 0 and 1 are the minor
+/// women and men (フランシス, 紅緒 / 邑西, 宗多, ...); 2 is unused.
+const VOICE_TOGGLES: [(&str, &[u32]); 13] = [
+    ("紅緒　あずさ", &[3]),
+    ("本堂　沙也加", &[4]),
+    ("塚本　葉子", &[5]),
+    ("伊月　笛子", &[6]),
+    ("樋口　章二", &[7]),
+    ("塚本　斎", &[8]),
+    ("イマ", &[9]),
+    ("貴宮　千鳥", &[10]),
+    ("南　レイ", &[11]),
+    ("シャーリー・磯下", &[12]),
+    ("ジーン・ブランシェット", &[13]),
+    ("その他の女性陣", &[0]),
+    ("その他の男達", &[1]),
+];
 /// Assumption: the sprite entry's fade field counts 10 ms units.
 const SPRITE_FADE_UNIT_MS: u32 = 10;
 
@@ -609,6 +629,15 @@ impl AssetBank {
             title_label: "タイトルに戻る".into(),
             quit_label: "ゲームを終了".into(),
             exits_y: 540,
+            tab_labels: ["音量・速度".into(), "音声".into()],
+            tabs_x: 300,
+            tabs_y: 34,
+            voices: VOICE_TOGGLES
+                .iter()
+                .map(|(label, characters)| VoiceToggle { label: label.to_string(), characters: characters.to_vec() })
+                .collect(),
+            voice_column_x: 440,
+            voice_pitch: 50,
         })
     }
 
@@ -1279,7 +1308,7 @@ fn lower_instr(
             .collect();
         // Segments are the game's own display lines.
         // A missing clip only drops the voice, not the text.
-        let voice = match msg.voice_id.map(|id| assets.voice(id)) {
+        let voice = match msg.voice_id.map(|id| assets.voice(id).map(|file| Voice { file, character: id / VOICE_CHARACTER })) {
             Some(Err(ConvertError::MissingAsset { .. })) | None => None,
             Some(r) => Some(r?),
         };

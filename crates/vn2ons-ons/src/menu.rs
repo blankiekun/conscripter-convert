@@ -21,7 +21,7 @@
 //!   buttons and labels `lsp` sprites over them. The text window, name
 //!   plate and link words are hidden while the menu is open.
 
-use vn2ons_core::ir::{BarAction, Backlog, ButtonBar, ConfirmDialog, Placed, SaveMenu, Setting, SettingsMenu, TextSpot};
+use vn2ons_core::ir::{BarAction, Backlog, ButtonBar, ConfirmDialog, Placed, SaveMenu, Setting, SettingsMenu, TextSpot, VoiceToggle};
 
 use crate::{escape, path, BAR_SPRITES, BUTTON_VAR, DIALOG_SPRITES, LINK_SPRITES, MENU_SPRITES, NAME_PLATE_SPRITE, NAME_TEXT_SPRITE};
 
@@ -46,10 +46,16 @@ const SETTING_PLUS: u32 = M + 15; // + row
 const SETTING_LEVEL: u32 = M + 20; // + row
 const SETTING_TITLE: u32 = M + 25;
 const SETTING_QUIT: u32 = M + 26;
+const SETTING_TAB: u32 = M + 5; // + page
+/// Voice switches, on the voice page (in place of the level rows).
+const SETTING_VOICE: u32 = M + 7; // + switch
+const MAX_VOICES: usize = 18;
 const BTN_MINUS: u32 = 10;
 const BTN_PLUS: u32 = 20;
 const BTN_TITLE: u32 = 30;
 const BTN_QUIT: u32 = 31;
+const BTN_TAB: u32 = 40; // + 1 + page
+const BTN_VOICE: u32 = 50; // + 1 + switch
 const LOG_PAGES: u32 = 10; // text sprites M..M + LOG_PAGES
 const LOG_UP: u32 = M + 20;
 const LOG_DOWN: u32 = M + 21;
@@ -59,6 +65,10 @@ const LOG_K: &str = "%172";
 const LOG_LINES: &str = "%173";
 const LOG_OLDER: &str = "%174";
 const LOG_SPRITE: &str = "%175";
+/// The settings page shown: 0 levels, 1 voices.
+const SETTINGS_PAGE: &str = "%176";
+/// Voice character c is muted when the global %(VOICE_OFF_BASE + c) is 1.
+pub(crate) const VOICE_OFF_BASE: u32 = 970;
 /// Asks the question in [`CONFIRM_TEXT`]; [`CONFIRM`] = 1 for yes.
 pub(crate) const CONFIRM_ROUTINE: &str = "vn2ons_confirm";
 pub(crate) const CONFIRM: &str = "%109";
@@ -527,9 +537,11 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, save_menu: bool, set
 
 /// The settings screen (see [`SettingsMenu`]): levels 0-10 in globals,
 /// applied by [`SETTINGS_APPLY`] (also run at startup by
-/// [`settings_init`]).
+/// [`settings_init`]), and on a second page the voice switches (globals
+/// from [`VOICE_OFF_BASE`], read where each voice plays).
 pub(crate) fn settings_menu(out: &mut String, m: &SettingsMenu, confirm: Option<&ConfirmDialog>) {
     let rows = &m.rows[..m.rows.len().min(MAX_ROWS)];
+    let voices = &m.voices[..m.voices.len().min(MAX_VOICES)];
     let mut w = |line: String| {
         out.push_str(&line);
         out.push('\n');
@@ -537,27 +549,51 @@ pub(crate) fn settings_menu(out: &mut String, m: &SettingsMenu, confirm: Option<
     let size = m.font_size;
     let others = hidden_while_open();
     let vsp = |on: u32| others.iter().map(|n| format!("vsp {n},{on}")).collect::<Vec<_>>().join(":");
+    // `strsp` drops a line's last character unless there is a column to
+    // spare.
+    let hover = |slot: u32, text: &str, x: i32, y: i32, chars: usize| {
+        let columns = chars + 1;
+        format!("strsp {slot},{text},{x},{y},{columns},1,{size},{size},0,0,0,1,\"#FFFFFF\",\"#F0C040\"")
+    };
+    // A switch's state is its first character's.
+    let off = |t: &VoiceToggle| format!("%{}", VOICE_OFF_BASE + t.characters.first().copied().unwrap_or(0));
+    let column_rows = voices.len().div_ceil(2);
     w(format!("*{SETTINGS}"));
     w(format!("if {IN_GAME} == 1 textoff:{}", vsp(0)));
+    w(format!("mov {SETTINGS_PAGE},0"));
     w(lsp2(BASE, &m.base, Some(m.base_opacity)));
     w(lsp2(HEADER, &m.header, None));
     w(format!("lsp {CLOSE},\":a/3,0,3;{}\",{},{}", path(&m.close.image), m.close.x, m.close.y));
     // Back to the title and quit, from the game.
     for (slot, x, label) in [(SETTING_TITLE, m.label_x, &m.title_label), (SETTING_QUIT, m.level_x, &m.quit_label)] {
-        w(format!(
-            "if {IN_GAME} == 1 strsp {slot},\"{}\",{x},{},20,1,{size},{size},0,0,0,1,\"#FFFFFF\",\"#F0C040\"",
-            escape(label),
-            m.exits_y
-        ));
+        w(format!("if {IN_GAME} == 1 {}", hover(slot, &format!("\"{}\"", escape(label)), x, m.exits_y, 20)));
     }
     w("*vn2ons_settings_draw".into());
+    w((M..SETTING_TITLE).map(|n| format!("csp {n}")).collect::<Vec<_>>().join(":"));
+    if !voices.is_empty() {
+        // Tabs: the current page's in the highlight colour, not clickable.
+        let mut x = m.tabs_x;
+        for (page, label) in m.tab_labels.iter().enumerate() {
+            let slot = SETTING_TAB + page as u32;
+            let text = format!("\"{}\"", escape(label));
+            let chars = label.chars().count();
+            w(format!("if {SETTINGS_PAGE} != {page} {}", hover(slot, &text, x, m.tabs_y, chars)));
+            w(format!(
+                "if {SETTINGS_PAGE} == {page} strsp {slot},{text},{x},{},{},1,{size},{size},0,0,0,1,\"#F0C040\"",
+                m.tabs_y,
+                chars + 1
+            ));
+            x += (chars as i32 + 2) * (size as i32 + 1);
+        }
+        w(format!("if {SETTINGS_PAGE} == 1 goto *vn2ons_settings_draw_voices"));
+    }
     for (r, row) in rows.iter().enumerate() {
         let y = m.y + r as i32 * m.pitch;
         let level = setting_var(row.setting);
         let r = r as u32;
         w(format!("strsp {},\"{}\",{},{y},10,1,{size},{size},0,0,0,1", TEXT1 + r, row.label, m.label_x));
         for (slot, x, sign) in [(SETTING_MINUS + r, m.minus_x, "－"), (SETTING_PLUS + r, m.plus_x, "＋")] {
-            w(format!("strsp {slot},\"{sign}\",{x},{y},1,1,{size},{size},0,0,0,1,\"#FFFFFF\",\"#F0C040\""));
+            w(hover(slot, &format!("\"{sign}\""), x, y, 1));
         }
         // "■■■■■■■□□□　７"
         w(format!("mov {STR_TMP},\"\""));
@@ -570,11 +606,35 @@ pub(crate) fn settings_menu(out: &mut String, m: &SettingsMenu, confirm: Option<
         w(format!("add {STR_TMP},{LINE1}"));
         w(format!("strsp {},{STR_TMP},{},{y},14,1,{size},{size},0,0,0,1", SETTING_LEVEL + r, m.level_x));
     }
+    w("goto *vn2ons_settings_wait".into());
+    // "■ name" (on) or "□ name", in two columns.
+    w("*vn2ons_settings_draw_voices".into());
+    for (i, t) in voices.iter().enumerate() {
+        let x = if i < column_rows { m.label_x } else { m.voice_column_x };
+        let y = m.y + (i % column_rows) as i32 * m.voice_pitch;
+        w(format!("mov {STR_TMP},\"■　\""));
+        w(format!("if {} == 1 mov {STR_TMP},\"□　\"", off(t)));
+        w(format!("add {STR_TMP},\"{}\"", escape(&t.label)));
+        w(hover(SETTING_VOICE + i as u32, STR_TMP, x, y, t.label.chars().count() + 2));
+    }
     w("*vn2ons_settings_wait".into());
+    w(format!("if {SETTINGS_PAGE} == 1 goto *vn2ons_settings_wait_voices"));
     for r in 0..rows.len() as u32 {
         w(format!("spbtn {},{}", SETTING_MINUS + r, BTN_MINUS + r + 1));
         w(format!("spbtn {},{}", SETTING_PLUS + r, BTN_PLUS + r + 1));
     }
+    if !voices.is_empty() {
+        w(format!("spbtn {},{}", SETTING_TAB + 1, BTN_TAB + 2));
+        w("goto *vn2ons_settings_wait_any".into());
+        w("*vn2ons_settings_wait_voices".into());
+        for i in 0..voices.len() as u32 {
+            w(format!("spbtn {},{}", SETTING_VOICE + i, BTN_VOICE + i + 1));
+        }
+        w(format!("spbtn {SETTING_TAB},{}", BTN_TAB + 1));
+    } else {
+        w("*vn2ons_settings_wait_voices".into());
+    }
+    w("*vn2ons_settings_wait_any".into());
     w(format!("if {IN_GAME} == 1 spbtn {SETTING_TITLE},{BTN_TITLE}:spbtn {SETTING_QUIT},{BTN_QUIT}"));
     w(format!("spbtn {CLOSE},{BTN_CLOSE}"));
     w("print 1".into());
@@ -582,6 +642,17 @@ pub(crate) fn settings_menu(out: &mut String, m: &SettingsMenu, confirm: Option<
     w(format!("if {BUTTON_VAR} == -1 || {BUTTON_VAR} == {BTN_CLOSE} goto *vn2ons_settings_close"));
     w(format!("if {BUTTON_VAR} == {BTN_TITLE} goto *vn2ons_settings_title"));
     w(format!("if {BUTTON_VAR} == {BTN_QUIT} goto *vn2ons_settings_quit"));
+    w(format!(
+        "if {BUTTON_VAR} > {BTN_TAB} && {BUTTON_VAR} <= {} mov {SETTINGS_PAGE},{BUTTON_VAR}-{}:goto *vn2ons_settings_draw",
+        BTN_TAB + 2,
+        BTN_TAB + 1
+    ));
+    for (i, t) in voices.iter().enumerate() {
+        let all = |v: u32| t.characters.iter().map(|c| format!("mov %{},{v}", VOICE_OFF_BASE + c)).collect::<Vec<_>>().join(":");
+        let button = BTN_VOICE + i as u32 + 1;
+        w(format!("if {BUTTON_VAR} == {button} && {} == 0 {}:goto *vn2ons_settings_draw", off(t), all(1)));
+        w(format!("if {BUTTON_VAR} == {button} {}:goto *vn2ons_settings_draw", all(0)));
+    }
     for (r, row) in rows.iter().enumerate() {
         let level = setting_var(row.setting);
         let r = r as u32;
@@ -857,6 +928,54 @@ mod tests {
             "lsp 3,\":a/3,0,3;system\\dialog_button.png\",242,305\nstrsp 1,\"はい\",295,310,10,1,18,18,0,0,0,1\n",
             "spbtn 3,1:spbtn 4,2\nprint 1\nbtnwait %9\nmov %109,0\nif %9 == 1 mov %109,1\n",
             "csp 0:csp 1:csp 2:csp 3:csp 4:csp 5\nprint 1\nreturn\n",
+        ] {
+            assert!(out.contains(line), "missing {line:?} in\n{out}");
+        }
+    }
+
+    #[test]
+    fn settings_voice_page() {
+        use vn2ons_core::ir::SettingRow;
+        let m = SettingsMenu {
+            base: placed("base", 800, 600),
+            base_opacity: 210,
+            header: placed("header", 100, 30),
+            close: placed("close", 60, 20),
+            rows: vec![SettingRow { label: "ＢＧＭ".into(), setting: Setting::BgmVolume }],
+            label_x: 140,
+            minus_x: 340,
+            level_x: 380,
+            plus_x: 680,
+            y: 140,
+            pitch: 70,
+            font_size: 22,
+            title_label: "title".into(),
+            quit_label: "quit".into(),
+            exits_y: 540,
+            tab_labels: ["音量".into(), "音声".into()],
+            tabs_x: 300,
+            tabs_y: 34,
+            voices: vec![
+                VoiceToggle { label: "あずさ".into(), characters: vec![3] },
+                VoiceToggle { label: "その他".into(), characters: vec![0, 2] },
+            ],
+            voice_column_x: 440,
+            voice_pitch: 50,
+        };
+        let mut out = String::new();
+        settings_menu(&mut out, &m, None);
+        for line in [
+            // The current tab can't be clicked; the other one can.
+            "if %176 != 1 strsp 12,\"音声\",392,34,3,1,22,22,0,0,0,1,\"#FFFFFF\",\"#F0C040\"\n",
+            "if %176 == 0 strsp 11,\"音量\",300,34,3,1,22,22,0,0,0,1,\"#F0C040\"\n",
+            "if %176 == 1 goto *vn2ons_settings_draw_voices\n",
+            // One per column: the second switch is in the second column.
+            "mov $104,\"■　\"\nif %973 == 1 mov $104,\"□　\"\nadd $104,\"あずさ\"\nstrsp 13,$104,140,140,6,1,22,22,0,0,0,1,\"#FFFFFF\",\"#F0C040\"\n",
+            "strsp 14,$104,440,140,",
+            "*vn2ons_settings_wait_voices\nspbtn 13,51\nspbtn 14,52\nspbtn 11,41\n",
+            "if %9 > 40 && %9 <= 42 mov %176,%9-41:goto *vn2ons_settings_draw\n",
+            // A switch sets all its characters.
+            "if %9 == 52 && %970 == 0 mov %970,1:mov %972,1:goto *vn2ons_settings_draw\nif %9 == 52 mov %970,0:mov %972,0:goto *vn2ons_settings_draw\n",
         ] {
             assert!(out.contains(line), "missing {line:?} in\n{out}");
         }
