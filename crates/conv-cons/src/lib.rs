@@ -85,8 +85,6 @@ pub fn emit(script: &Script) -> String {
         writeln!(out, "windowback").unwrap();
         writeln!(out, "humanz {}", LINK_SPRITES.end()).unwrap();
     }
-    // The caption is passed to the window system as raw Shift-JIS, which
-    // shows as mojibake on Linux, so keep it ASCII.
     if script.backlog.is_some() {
         // Wheel and arrow keys reach btnwait (backlog scrolling); keep more
         // pages of history than the default 16.
@@ -100,7 +98,8 @@ pub fn emit(script: &Script) -> String {
         // Every click wait runs the bar routine instead of waiting itself.
         writeln!(out, "textgosub *{}", menu::WAIT).unwrap();
     }
-    let caption: String = script.title.chars().filter(|c| c.is_ascii() && *c != '"').collect();
+    // CONscripter converts the caption to UTF-8 for the window title.
+    let caption: String = script.title.chars().filter(|&c| c != '"').collect();
     writeln!(out, "caption \"{}\"", caption.trim()).unwrap();
     for ((ms, kind), n) in &effects {
         match kind {
@@ -1279,5 +1278,12 @@ end
     fn movies_stop_the_music() {
         let out = emit(&script(vec![Op::Movie { file: "movie/mv0001.mp4".into(), skippable: true }]));
         assert!(out.contains("bgmstop\nmpegplay \"movie\\mv0001.mp4\",1\n"), "{out}");
+    }
+
+    #[test]
+    fn japanese_caption() {
+        let mut ir = script(Vec::new());
+        ir.title = "最果てのイマ \"COMPLETE\"".into();
+        assert!(emit(&ir).contains("caption \"最果てのイマ COMPLETE\"\n"));
     }
 }

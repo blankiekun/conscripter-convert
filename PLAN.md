@@ -157,6 +157,10 @@ around in the script today), roughly in order of payoff:
 | Right-click menu / hide window | Everything behind the on-screen button bar | Send right-click to a script label (`rgosub`-style); not planned for now |
 
 Done without engine work:
+- **Japanese window caption:** CONscripter's `caption` converts the
+  title from the script's encoding to UTF-8 (checked: the web page title
+  and the X11 `_NET_WM_NAME` show `最果てのイマ COMPLETE ～テスト～`), so the
+  ASCII-only filter for ogapee's build is gone.
 - **Movies:** opcode 0x97 plays `HD/mvNNNN.bin` (MPEG-1 program stream);
   arg's low 16 bits are the number, the high 16 bits whether a click or
   key ends it (handler 0x478ab0, checked at 0x408e5b). The boot script
@@ -187,9 +191,6 @@ Done without engine work:
   page and replays the voice when the name (marked ♪) is clicked.
 
 Probably no engine work needed:
-- **Japanese window caption:** ONScripter-Yuri's `caption` already
-  converts to UTF-8, so the ASCII-only workaround (for ogapee's build)
-  may just need dropping; test it.
 - **Ruby (`0x44`):** ONScripter supports ruby; this is converter work.
 
 ## 5. Asset pipeline
