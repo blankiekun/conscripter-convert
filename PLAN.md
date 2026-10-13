@@ -114,7 +114,7 @@ original), add the feature to CONscripter instead of approximating it:
    the fork builds for (the web build especially).
 2. Keep it opt-in: a new command, or an option in `ons_args`. Scripts that
    don't use it must behave exactly as in stock ONScripter-Yuri.
-3. Document it in the engine's README (a "CONscripter additions" list)
+3. Document it in the engine's `ADDITIONS.md`
    and here in §4.2, with the game feature that needed it.
 4. Commit and push in the engine repo, then commit the updated submodule
    pointer here together with the converter change that uses it.
@@ -138,7 +138,7 @@ make -C engine/build -j"$(nproc)"     # → engine/build/conscripter
 ### 4.2 CONscripter additions
 
 Engine features added for converted games (details in the engine's
-README, "CONscripter additions"):
+`ADDITIONS.md`):
 
 | Command | Game feature that needed it |
 |---|---|

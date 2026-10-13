@@ -16,8 +16,8 @@ notes, git-ignored) and `PLAN.md` §4.2 and §6 ("Remaining work for
 - No Co-Authored-By or Claude attribution lines in commits.
 - Use existing NScripter commands before adding anything to the engine.
   Engine additions are opt-in, live in `engine/src/onsyuri/` (preferably
-  `ONScripter_cons.cpp`), and are documented in the engine README's
-  "CONscripter additions" and in PLAN §4.2.
+  `ONScripter_cons.cpp`), and are documented in the engine's
+  `ADDITIONS.md` and in PLAN §4.2.
 - Never touch `out/saiima-flow` (the user's saves).
 - Test scripts: encode with `iconv -t cp932`, not `-t sjis`.
 
