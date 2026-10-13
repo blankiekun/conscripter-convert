@@ -403,6 +403,9 @@ pub enum Op {
     /// The end of a scene the scene replay can play on its own: a replay
     /// stops here; normal play goes on.
     SceneEnd,
+    /// Ask the player to pick one of `options` (text, label) in the text
+    /// window and continue at the label picked.
+    Choice { options: Vec<(String, String)> },
     /// Something the converter can't express yet; kept for the report.
     Unsupported { what: String, at: SourceLoc },
 }

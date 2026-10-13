@@ -771,6 +771,10 @@ pub fn emit(script: &Script) -> String {
             Op::CgSeen { number } => writeln!(out, "mov %{},1", CG_SEEN_BASE + number).unwrap(),
             Op::SceneEnd if has_replay => writeln!(out, "if {} == 1 goto *{}", replay::REPLAYING, replay::END).unwrap(),
             Op::SceneEnd => writeln!(out, "; scene end").unwrap(),
+            Op::Choice { options } => {
+                let items: Vec<String> = options.iter().map(|(t, l)| format!("\"{}\",*{}", text_safe(t), label(l))).collect();
+                writeln!(out, "select {}", items.join(",")).unwrap();
+            }
             Op::Unsupported { what, at } => {
                 writeln!(out, "; unsupported: {what} ({} #{})", at.file, at.index).unwrap()
             }
