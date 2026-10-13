@@ -146,6 +146,7 @@ README, "CONscripter additions"):
 | `pushscreen` / `popscreen` (save and restore background, sprites, filters and BGM; kept in saves) | Link scenes, which can change the whole screen before returning to their page. Replaced the converter's file-order guess of what was on screen |
 | `delsavegame` (delete a save and its thumbnail) | The save menu's delete button. Replaced a global flag per slot that only hid the save; a slot an older build flagged is deleted when the menu lists it |
 | `cons_slide.dll`, `cons_zoom.dll` (effect 99 plugins: slides in 8 directions, four zooms) | 0x76 transitions: Slide in/out (subs 10-25, 7 uses) and Zoom (37-40, 116 uses), decoded from the exe (`transition_style` in the Xuse converter). Scroll (41-44) maps to ONScripter's effects 11-14 and Mosaic (27) to 16 then 17, without engine work |
+| Text hooks in the web build (`onsyuriText`, `onsyuriChoice`, `onsyuriOverlay`) | Not for a converted game: chimimouryou lays each page's text over the game for Yomitan and reading statistics. Was a patch kept in chimimouryou (`scripts/onsyuri/text-hook.patch`) |
 
 Planned, from limits hit while converting 最果てのイマ (each one is worked
 around in the script today), roughly in order of payoff:
