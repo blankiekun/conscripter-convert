@@ -385,8 +385,16 @@ engines print `z150` etc.). The web build compiles with it.
       %(2000 + target). Not done: the underline keeps its colour under
       the pointer; a visited link types in yellow before its sprite
       turns it purple. (smoke.py keeps its click queue at %1000+.)
-- [ ] Settings options, in the user's order: text window opacity, wheel
-      options, confirmation toggles.
+- [x] Text window opacity (user's first settings item): a sixth level row
+      ウィンドウ透過 (%910, 0 = the window as drawn, so older saves keep it),
+      applied with CONscripter 0.16.0's new `windowtrans` (255 - level ×
+      25). Rows now draw label and level as one text sprite (labels at x
+      150, rows 60 px apart) to make room. The original's options, seen
+      under wine: テキスト (window opacity slider), マウス (wheel advances
+      text, wheel closes the backlog, wheel sensitivity), 確認メッセージ
+      (save, load, delete, autosave load, chapter history overwrite,
+      settings OK/cancel, unread skip warning, title, quit; all on).
+- [ ] Settings: wheel options and confirmation toggles (next).
 - [ ] Extras after clearing (CG/BGM/chapter/scene replay), chapter
       history, blog bar buttons, title BGM.
 - [ ] Native Linux/macOS builds skip movies (`mpegplay` is disabled

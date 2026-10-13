@@ -652,6 +652,8 @@ pub enum Setting {
     VoiceVolume,
     TextSpeed,
     AutoSpeed,
+    /// The text window's transparency (0 = as drawn, 10 = nearly gone).
+    WindowTransparency,
 }
 
 /// The text history: past pages stacked from the bottom of `area` up,

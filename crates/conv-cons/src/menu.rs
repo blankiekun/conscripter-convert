@@ -47,16 +47,18 @@ const SKIP_UNREAD: &str = "%908";
 pub(crate) const TEXT_MS: &str = "%907";
 const TEXT_MS_STEP: u32 = 6;
 // Settings and backlog sprites (lsp, within MENU_SPRITES).
-const SETTING_MINUS: u32 = M + 10; // + row
+/// A level row's label and level, one text sprite.
+const SETTING_ROW: u32 = M; // + row
+const SETTING_TAB: u32 = M + 6; // + page
+const SETTING_SKIP: u32 = M + 8;
+const SETTING_MINUS: u32 = M + 9; // + row
 const SETTING_PLUS: u32 = M + 15; // + row
-const SETTING_LEVEL: u32 = M + 20; // + row
 const SETTING_TITLE: u32 = M + 25;
 const SETTING_QUIT: u32 = M + 26;
-const SETTING_TAB: u32 = M + 5; // + page
-const SETTING_SKIP: u32 = M + 8;
+const MAX_SETTING_ROWS: usize = 6;
 /// Voice switches, on the voice page (in place of the level rows).
-const SETTING_VOICE: u32 = M + 7; // + switch
-const MAX_VOICES: usize = 18;
+const SETTING_VOICE: u32 = M + 8; // + switch
+const MAX_VOICES: usize = 17;
 const BTN_MINUS: u32 = 10;
 const BTN_PLUS: u32 = 20;
 const BTN_TITLE: u32 = 30;
@@ -528,7 +530,7 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, save_menu: bool, set
 /// [`settings_init`]), and on a second page the voice switches (globals
 /// from [`VOICE_OFF_BASE`], read where each voice plays).
 pub(crate) fn settings_menu(out: &mut String, m: &SettingsMenu, confirm: Option<&ConfirmDialog>) {
-    let rows = &m.rows[..m.rows.len().min(MAX_ROWS)];
+    let rows = &m.rows[..m.rows.len().min(MAX_SETTING_ROWS)];
     let voices = &m.voices[..m.voices.len().min(MAX_VOICES)];
     let mut w = |line: String| {
         out.push_str(&line);
@@ -579,12 +581,14 @@ pub(crate) fn settings_menu(out: &mut String, m: &SettingsMenu, confirm: Option<
         let y = m.y + r as i32 * m.pitch;
         let level = setting_var(row.setting);
         let r = r as u32;
-        w(format!("strsp {},\"{}\",{},{y},10,1,{size},{size},0,0,0,1", TEXT1 + r, row.label, m.label_x));
         for (slot, x, sign) in [(SETTING_MINUS + r, m.minus_x, "－"), (SETTING_PLUS + r, m.plus_x, "＋")] {
             w(hover(slot, &format!("\"{sign}\""), x, y, 1));
         }
-        // "■■■■■■■□□□　７"
-        w(format!("mov {STR_TMP},\"\""));
+        // "ＢＧＭ　…　■■■■■■■□□□　７": the label, padded with full-width
+        // spaces up to the level's column (minus sits over the padding).
+        let pad = ((m.level_x - m.label_x) / (size as i32 + 1)).max(row.label.chars().count() as i32 + 1) as usize;
+        let label = format!("{}{}", row.label, "　".repeat(pad - row.label.chars().count()));
+        w(format!("mov {STR_TMP},\"{}\"", escape(&label)));
         for i in 1..=10 {
             w(format!("if {level} >= {i} add {STR_TMP},\"■\""));
             w(format!("if {level} < {i} add {STR_TMP},\"□\""));
@@ -592,7 +596,7 @@ pub(crate) fn settings_menu(out: &mut String, m: &SettingsMenu, confirm: Option<
         w(format!("add {STR_TMP},\"　\""));
         w(format!("itoa2 {LINE1},{level}"));
         w(format!("add {STR_TMP},{LINE1}"));
-        w(format!("strsp {},{STR_TMP},{},{y},14,1,{size},{size},0,0,0,1", SETTING_LEVEL + r, m.level_x));
+        w(format!("strsp {},{STR_TMP},{},{y},{},1,{size},{size},0,0,0,1", SETTING_ROW + r, m.label_x, pad + 14));
     }
     if let Some(label) = &m.skip_unread_label {
         w(format!("mov {STR_TMP},\"□　\""));
@@ -682,6 +686,9 @@ pub(crate) fn settings_menu(out: &mut String, m: &SettingsMenu, confirm: Option<
     }
     w(format!("mov {TEXT_MS},(10-{})*{TEXT_MS_STEP}:textspeed {TEXT_MS}", setting_var(Setting::TextSpeed)));
     w(format!("mov {TMP},(10-{})*400+600:automode_time {TMP}", setting_var(Setting::AutoSpeed)));
+    if rows.iter().any(|r| r.setting == Setting::WindowTransparency) {
+        w(format!("mov {TMP},255-{}*25:windowtrans {TMP}", setting_var(Setting::WindowTransparency)));
+    }
     if m.skip_unread_label.is_some() {
         w(format!("if {SKIP_UNREAD} == 0 kidokumode 1"));
         w(format!("if {SKIP_UNREAD} == 1 kidokumode 0"));
@@ -751,6 +758,8 @@ fn setting_var(s: Setting) -> &'static str {
         Setting::VoiceVolume => "%904",
         Setting::TextSpeed => "%905",
         Setting::AutoSpeed => "%906",
+        // Added later: 0 (the default for older saves) is the plain window.
+        Setting::WindowTransparency => "%910",
     }
 }
 
@@ -1011,14 +1020,18 @@ mod tests {
         settings_menu(&mut out, &m, None);
         for line in [
             // The current tab can't be clicked; the other one can.
-            "if %176 != 1 strsp 12,\"音声\",392,34,3,1,22,22,0,0,0,1,\"#FFFFFF\",\"#F0C040\"\n",
-            "if %176 == 0 strsp 11,\"音量\",300,34,3,1,22,22,0,0,0,1,\"#F0C040\"\n",
+            "if %176 != 1 strsp 13,\"音声\",392,34,3,1,22,22,0,0,0,1,\"#FFFFFF\",\"#F0C040\"\n",
+            "if %176 == 0 strsp 12,\"音量\",300,34,3,1,22,22,0,0,0,1,\"#F0C040\"\n",
             "if %176 == 1 goto *conv_settings_draw_voices\n",
             // One per column: the second switch is in the second column.
-            "mov $104,\"■　\"\nif %973 == 1 mov $104,\"□　\"\nadd $104,\"あずさ\"\nstrsp 13,$104,140,140,6,1,22,22,0,0,0,1,\"#FFFFFF\",\"#F0C040\"\n",
-            "strsp 14,$104,440,140,",
-            "*conv_settings_wait_voices\nspbtn 13,51\nspbtn 14,52\nspbtn 11,41\n",
+            "mov $104,\"■　\"\nif %973 == 1 mov $104,\"□　\"\nadd $104,\"あずさ\"\nstrsp 14,$104,140,140,6,1,22,22,0,0,0,1,\"#FFFFFF\",\"#F0C040\"\n",
+            "strsp 15,$104,440,140,",
+            "*conv_settings_wait_voices\nspbtn 14,51\nspbtn 15,52\nspbtn 12,41\n",
             "if %9 > 40 && %9 <= 42 mov %176,%9-41:goto *conv_settings_draw\n",
+            // A level row: label padded to the level's column, one sprite.
+            "mov $104,\"ＢＧＭ　　　　　　　\"\n",
+            "strsp 6,$104,140,140,24,1,22,22,0,0,0,1\n",
+            "spbtn 15,11\nspbtn 21,21\n",
             // Skip unread text: under the levels, applied as kidokumode.
             "if %908 == 1 mov $104,\"■　\"\nadd $104,\"未読\"\nstrsp 14,$104,140,210,5,1,",
             "if %9 == 32 mov %908,1-%908\n",

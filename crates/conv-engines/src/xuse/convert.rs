@@ -1050,13 +1050,16 @@ impl AssetBank {
                 row("音声", Setting::VoiceVolume),
                 row("文字速度", Setting::TextSpeed),
                 row("オート速度", Setting::AutoSpeed),
+                row("ウィンドウ透過", Setting::WindowTransparency),
             ],
-            label_x: 140,
+            // Labels and levels share a text line: level_x - label_x is
+            // ten characters of 22 + 1 px.
+            label_x: 150,
             minus_x: 340,
             level_x: 380,
             plus_x: 680,
             y: 140,
-            pitch: 70,
+            pitch: 60,
             font_size: 22,
             title_label: "タイトルに戻る".into(),
             quit_label: "ゲームを終了".into(),
