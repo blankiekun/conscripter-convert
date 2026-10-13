@@ -6,7 +6,7 @@ use clap::{Parser, Subcommand};
 use memmap2::Mmap;
 use vn2ons_core::ir::{Op, Script};
 use vn2ons_engines::xuse::cd::CdScript;
-use vn2ons_engines::xuse::convert::{AssetBank, Flow, LabelNames, Needs, lower_script, window_presets};
+use vn2ons_engines::xuse::convert::{AssetBank, Flow, LabelNames, Needs, lower_script, presets};
 use vn2ons_engines::xuse::gaf::Gaf;
 use vn2ons_engines::xuse::symbols::{self, SymbolTable};
 use vn2ons_engines::xuse::xarc::{CrcTarget, Xarc};
@@ -248,7 +248,7 @@ fn convert_game(game: &Path, output: &Path, font: Option<&Path>, title: &str, lo
     assets.prefetch(&needs).context("extracting assets")?;
     let window = assets.text_window().context("building the text window")?;
 
-    let presets = window_presets(&scripts);
+    let presets = presets(&scripts).context("reading the preset subroutines")?;
     let names = label_names(game)?;
     let mut ops = Vec::new();
     for (file, cd) in &scripts {

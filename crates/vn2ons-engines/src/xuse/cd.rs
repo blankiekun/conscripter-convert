@@ -62,7 +62,20 @@
 //! 0x5b  stop SE           arg = sound number, or 0 for all; sub = fade in ms
 //! ```
 //!
-//! All four go through the engine's sound request routine (0x47aab0), which
+//! ```text
+//! 0x88  effect preset    defines one module of an effect preset
+//!                        (`AdvObjectScript_Filter.cpp`, handler 0x415b50):
+//!                        u32 preset (1-based), u32 slot (1-based; 0 clears
+//!                        the preset), u32 module field, u32 kind (module
+//!                        type = kind + 0x63; 8 = CModule_Filter_Color),
+//!                        u16, u16, then the kind's data (colour: R, G, B)
+//! 0x90  apply preset     record: u16 character (+ 2 unused bytes), u32
+//!                        module field, u32 preset (0 removes it). Attaches
+//!                        the preset to the character's bust-up object
+//!                        (handler 0x434960, module type 1 = CModule_Preset)
+//! ```
+//!
+//! All four sound opcodes go through the engine's sound request routine (0x47aab0), which
 //! takes a channel (0 = BGM, 1 = SE), a 1-based number and a play/stop flag.
 //!
 //! Link rows and columns are 1-based positions in the text window relative to
@@ -112,6 +125,10 @@ pub const OP_LINK: u16 = 0x46;
 pub const OP_BACKGROUND: u16 = 0x54;
 pub const OP_SPRITES: u16 = 0x8e;
 const SPRITE_ENTRY_LEN: usize = 44;
+pub const OP_PRESET_MODULE: u16 = 0x88;
+pub const OP_APPLY_PRESET: u16 = 0x90;
+/// 0x88's module kind for a colour filter.
+const PRESET_KIND_COLOUR: u32 = 8;
 pub const OP_BGM_PLAY: u16 = 0x57;
 pub const OP_BGM_STOP: u16 = 0x58;
 pub const OP_SE_PLAY: u16 = 0x5a;
@@ -136,6 +153,26 @@ pub struct SpriteEntry {
     pub fade: u16,
     pub x: u16,
     pub y: u16,
+}
+
+/// One module of an effect preset (opcode 0x88).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PresetModule {
+    /// 1-based preset number.
+    pub preset: u32,
+    /// 1-based slot in the preset; 0 clears the whole preset.
+    pub slot: u32,
+    pub kind: u32,
+    /// The colour of a colour filter (kind 8), as R, G, B.
+    pub colour: Option<[u8; 3]>,
+}
+
+/// Opcode 0x90: attach an effect preset to a character's bust-up.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ApplyPreset {
+    pub character: u16,
+    /// 1-based preset number; 0 removes the preset module.
+    pub preset: u32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -369,6 +406,31 @@ impl<'a> CdScript<'a> {
         })
     }
 
+    /// Decodes an effect preset module (opcode 0x88), or returns `None` for
+    /// other opcodes.
+    pub fn preset_module(&self, ins: &Instr) -> Option<Result<PresetModule, CdError>> {
+        (ins.op == OP_PRESET_MODULE).then(|| {
+            let r = Reader(self.pool);
+            let o = ins.arg as u32 as usize;
+            let (preset, slot, kind) = (r.u32(o)?, r.u32(o + 4)?, r.u32(o + 12)?);
+            let colour = if slot != 0 && kind == PRESET_KIND_COLOUR {
+                Some(r.slice(o + 20, 3)?.try_into().unwrap())
+            } else {
+                None
+            };
+            Ok(PresetModule { preset, slot, kind, colour })
+        })
+    }
+
+    /// Decodes opcode 0x90, or returns `None` for other opcodes.
+    pub fn apply_preset(&self, ins: &Instr) -> Option<Result<ApplyPreset, CdError>> {
+        (ins.op == OP_APPLY_PRESET).then(|| {
+            let r = Reader(self.pool);
+            let o = ins.arg as u32 as usize;
+            Ok(ApplyPreset { character: r.u16(o)?, preset: r.u32(o + 8)? })
+        })
+    }
+
     /// Heuristically finds the strings in the pool: positions where a
     /// plausible length is followed by valid Shift-JIS that is mostly
     /// Japanese text. Use until the operand encoding is understood.
@@ -561,6 +623,33 @@ mod tests {
         let bytes = build("s.rio", &[], &code, &pool);
         let cd = CdScript::parse(&bytes).unwrap();
         assert!(cd.sprites(&cd.code[0]).unwrap().is_err());
+    }
+
+    #[test]
+    fn decodes_presets() {
+        // Records from script 2 (clear preset 1, colour ffe0b9 in slot 1)
+        // and 0x90 in script 7.
+        let pool: Vec<u8> = [
+            "0100000000000000000000000000000000000000",
+            "0100000001000000000000000800000002000001ffe0b9",
+            "0e0000000100000001000000",
+        ]
+        .iter()
+        .flat_map(|h| (0..h.len()).step_by(2).map(|i| u8::from_str_radix(&h[i..i + 2], 16).unwrap()))
+        .collect();
+        let code = [
+            Instr { op: OP_PRESET_MODULE, sub: 0xffff, arg: 0, source_pos: 0 },
+            Instr { op: OP_PRESET_MODULE, sub: 0xffff, arg: 20, source_pos: 0 },
+            Instr { op: OP_APPLY_PRESET, sub: 0xffff, arg: 43, source_pos: 0 },
+        ];
+        let bytes = build("p.rio", &[], &code, &pool);
+        let cd = CdScript::parse(&bytes).unwrap();
+        let clear = cd.preset_module(&cd.code[0]).unwrap().unwrap();
+        assert_eq!(clear, PresetModule { preset: 1, slot: 0, kind: 0, colour: None });
+        let colour = cd.preset_module(&cd.code[1]).unwrap().unwrap();
+        assert_eq!(colour.colour, Some([0xff, 0xe0, 0xb9]));
+        assert_eq!(cd.apply_preset(&cd.code[2]).unwrap().unwrap(), ApplyPreset { character: 14, preset: 1 });
+        assert!(cd.apply_preset(&cd.code[0]).is_none());
     }
 
     #[test]

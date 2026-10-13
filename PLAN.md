@@ -123,7 +123,8 @@ changes.
 ## 5. Asset pipeline
 
 - **Images:** decode proprietary formats (TLG5/6, HG-3, CompressedBG, G00,
-  PNA, …) into the `image` crate's types and save as PNG. Then sprite
+  PNA, …) into the `image` crate's types and save as PNG (the WebAssembly
+  target has no WebP decoder, §13.1). Then sprite
   composition, resize to the target resolution, and alpha conversion according
   to `target_caps`. Run per-image work in parallel with `rayon`.
 - **Audio:** keep OGG where possible; transcode the rest with an `ffmpeg`
@@ -246,6 +247,8 @@ offset of its operand record.
 | `0x10` | 895 | `arg` is always a valid label-table index; 121 point into blog scripts | jump / call to a label |
 | `0x4d`, `0x58`, `0x43` | 276 / 579 / 578 | `arg` is always a valid label-table index | call / conditional-jump variants |
 | `0x8e` | 10,271 | **solved**: `sub` × 44-byte entries of `mode, character, sprite number, fade, x, y` (rest mostly uninitialised memory). The sprite number indexes `bu*.004` (128 per file, 0-based), and the file names' character codes match the `character` field | show `sub` character sprites |
+| `0x88` | 45 | **solved** (handler `0x415b50`, `AdvObjectScript_Filter.cpp`) | define one module of an effect preset: u32 preset, u32 slot (0 = clear), u32 module field, u32 kind (module type = kind + 0x63; 8 = `CModule_Filter_Color`), u16, u16, then kind data (colour: R, G, B). Script 2's `s2_l6`–`s2_l16` set preset 1 to one tint per lighting mood |
+| `0x90` | 651 | **solved** (handler `0x434960`) | attach a preset to a bust-up: u16 character, u32 module field, u32 preset (0 = remove). Module type 1 = `CModule_Preset`. Converted as pre-tinted sprite copies |
 | `0x54` | 2,195 | **solved**: `arg` = background number, 1-based (0 = none, skipped by the handler); `bg*.004` holds 64 per file (`n >> 6` in the exe's loader at `0x40bff0`). The most common is 1 = `Black` | set background (sub 0/1: transition variant?) |
 | `0x46` | 214 | **solved** (from the handler at `0x477460` plus a user-supplied example) | **hyperlink** on the next message: row, column, length, style, target (see 3c) |
 | `0x49` | 565 | flags, two colours, a voice-range id, then text + a short name | special voiced text display (chat/popup?); **not** hyperlinks |
@@ -641,6 +644,38 @@ should carry over to the next engine.
   divide by 10000 found nothing, which wrongly suggested a lookup table.
 - **Use reference screenshots of the original game** for layout. Measuring
   pixels from them settled the text box and name plate in one pass.
+- **MSVC RTTI maps factory ids to classes.** The chain is
+  `.?AV<class>@@` string → type descriptor → complete object locator →
+  vtable. The constructor that stores the vtable, together with a static
+  `{type id, factory}` table in `.rdata`, gives the class for each id.
+  Here that table gives 1 = `CModule_Preset` and 0x6b =
+  `CModule_Filter_Color`.
+- **An opcode's operands can refer to state defined elsewhere.** 0x90
+  only names a preset; 0x88 defines the presets, in subroutines of script
+  2. The backgrounds loaded next to each preset subroutine (`bg*e`
+  evening, `bg*n` night) fix the colour order (RGB) and the blend
+  (multiply).
+- **Object lifetime depends on sprite mode bits.** 0x8e with mode bit 2
+  keeps the character's object and its attached filters; other modes
+  recreate it. The corpus matches: 3,454 mode-5 changes never re-apply a
+  filter, while mode 3 re-applies it in 122 of 154 cases.
+- **Effects ONScripter can't draw become pre-rendered images.** Colour
+  filters turn into tinted copies of the sprites, chosen at conversion
+  time from state tracked in file order. This needs the state to be
+  static: all 643 filter applications have their colour defined earlier
+  in the same script.
+- **Lossy image quality is judged on the worst region.** Lossy WebP
+  averages 40+ dB on this art but blurs small coloured detail (eyes,
+  flowers) at every quality level, because of its 4:2:0 colour
+  subsampling. Near-lossless WebP stays within 2–3 levels per pixel at
+  about half the PNG size. Method: crop the worst 120×90 block of the
+  difference image and compare at 6×.
+- **The target's image decoder limits the asset formats.** ONScripter
+  decodes through SDL_image. SDL_image 1.2.12 reads only lossy WebP
+  without alpha (`VP8 `), not lossless (`VP8L`) or extended (`VP8X`,
+  needed for alpha). The WebAssembly target loads no WebP at all, so
+  output images are PNG. Check a new format with one test file in the
+  target build before changing the converter.
 - **Keep a handoff file** (`saiima.md`) with a "Resume here" section.
   Context resets happen mid-task, and re-deriving state is expensive.
 
@@ -659,7 +694,7 @@ Tooling worth building, in rough order of payoff:
    and screenshots at chosen pages, and run headless under `timeout -k 5`.
    Today this is done by hand on every check.
 3. **Faster rebuilds** matter less than expected. A full `convert-game`
-   takes 23 s, mostly writing the 450 MB `arc.nsa`. A `--script-only`
+   takes a few minutes, mostly writing the 1.2 GB `arc.nsa`. A `--script-only`
    mode would still help when iterating on lowering in a tight loop.
 4. **Tests that check the whole corpus** for decoding (every message parses,
    every jump target exists, every referenced asset is in the archive), so
