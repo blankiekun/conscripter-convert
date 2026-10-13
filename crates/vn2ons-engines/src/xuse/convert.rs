@@ -638,6 +638,7 @@ impl AssetBank {
                 .collect(),
             voice_column_x: 440,
             voice_pitch: 50,
+            skip_unread_label: Some("未読テキストもスキップする".into()),
         })
     }
 

@@ -345,6 +345,9 @@ pub struct SettingsMenu {
     pub voices: Vec<VoiceToggle>,
     pub voice_column_x: i32,
     pub voice_pitch: i32,
+    /// A switch under the levels: skip mode goes on through text not read
+    /// before (off: it stops there). `None`: skip skips everything.
+    pub skip_unread_label: Option<String>,
 }
 
 /// A voiced line's clip and whose voice it is (for the per-character

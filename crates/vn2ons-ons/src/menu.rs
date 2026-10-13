@@ -37,6 +37,8 @@ const SETTINGS_APPLY: &str = "vn2ons_settings_apply";
 pub(crate) const BACKLOG: &str = "vn2ons_backlog";
 /// Settings levels are %902-%906 (globals); %909 = 1 once they are set.
 const SETTINGS_SET: &str = "%909";
+/// 1: skip goes on through unread text (`kidokumode 0`).
+const SKIP_UNREAD: &str = "%908";
 /// Milliseconds per character, for `setwindow`.
 pub(crate) const TEXT_MS: &str = "%907";
 const TEXT_MS_STEP: u32 = 6;
@@ -47,6 +49,7 @@ const SETTING_LEVEL: u32 = M + 20; // + row
 const SETTING_TITLE: u32 = M + 25;
 const SETTING_QUIT: u32 = M + 26;
 const SETTING_TAB: u32 = M + 5; // + page
+const SETTING_SKIP: u32 = M + 8;
 /// Voice switches, on the voice page (in place of the level rows).
 const SETTING_VOICE: u32 = M + 7; // + switch
 const MAX_VOICES: usize = 18;
@@ -55,6 +58,7 @@ const BTN_PLUS: u32 = 20;
 const BTN_TITLE: u32 = 30;
 const BTN_QUIT: u32 = 31;
 const BTN_TAB: u32 = 40; // + 1 + page
+const BTN_SKIP: u32 = 32;
 const BTN_VOICE: u32 = 50; // + 1 + switch
 const LOG_PAGES: u32 = 10; // text sprites M..M + LOG_PAGES
 const LOG_UP: u32 = M + 20;
@@ -606,6 +610,12 @@ pub(crate) fn settings_menu(out: &mut String, m: &SettingsMenu, confirm: Option<
         w(format!("add {STR_TMP},{LINE1}"));
         w(format!("strsp {},{STR_TMP},{},{y},14,1,{size},{size},0,0,0,1", SETTING_LEVEL + r, m.level_x));
     }
+    if let Some(label) = &m.skip_unread_label {
+        w(format!("mov {STR_TMP},\"□　\""));
+        w(format!("if {SKIP_UNREAD} == 1 mov {STR_TMP},\"■　\""));
+        w(format!("add {STR_TMP},\"{}\"", escape(label)));
+        w(hover(SETTING_SKIP, STR_TMP, m.label_x, m.y + rows.len() as i32 * m.pitch, label.chars().count() + 2));
+    }
     w("goto *vn2ons_settings_wait".into());
     // "■ name" (on) or "□ name", in two columns.
     w("*vn2ons_settings_draw_voices".into());
@@ -622,6 +632,9 @@ pub(crate) fn settings_menu(out: &mut String, m: &SettingsMenu, confirm: Option<
     for r in 0..rows.len() as u32 {
         w(format!("spbtn {},{}", SETTING_MINUS + r, BTN_MINUS + r + 1));
         w(format!("spbtn {},{}", SETTING_PLUS + r, BTN_PLUS + r + 1));
+    }
+    if m.skip_unread_label.is_some() {
+        w(format!("spbtn {SETTING_SKIP},{BTN_SKIP}"));
     }
     if !voices.is_empty() {
         w(format!("spbtn {},{}", SETTING_TAB + 1, BTN_TAB + 2));
@@ -653,6 +666,7 @@ pub(crate) fn settings_menu(out: &mut String, m: &SettingsMenu, confirm: Option<
         w(format!("if {BUTTON_VAR} == {button} && {} == 0 {}:goto *vn2ons_settings_draw", off(t), all(1)));
         w(format!("if {BUTTON_VAR} == {button} {}:goto *vn2ons_settings_draw", all(0)));
     }
+    w(format!("if {BUTTON_VAR} == {BTN_SKIP} mov {SKIP_UNREAD},1-{SKIP_UNREAD}"));
     for (r, row) in rows.iter().enumerate() {
         let level = setting_var(row.setting);
         let r = r as u32;
@@ -684,6 +698,10 @@ pub(crate) fn settings_menu(out: &mut String, m: &SettingsMenu, confirm: Option<
     }
     w(format!("mov {TEXT_MS},(10-{})*{TEXT_MS_STEP}:textspeed {TEXT_MS}", setting_var(Setting::TextSpeed)));
     w(format!("mov {TMP},(10-{})*400+600:automode_time {TMP}", setting_var(Setting::AutoSpeed)));
+    if m.skip_unread_label.is_some() {
+        w(format!("if {SKIP_UNREAD} == 0 kidokumode 1"));
+        w(format!("if {SKIP_UNREAD} == 1 kidokumode 0"));
+    }
     w("return".into());
 }
 
@@ -961,6 +979,7 @@ mod tests {
             ],
             voice_column_x: 440,
             voice_pitch: 50,
+            skip_unread_label: Some("未読".into()),
         };
         let mut out = String::new();
         settings_menu(&mut out, &m, None);
@@ -974,6 +993,10 @@ mod tests {
             "strsp 14,$104,440,140,",
             "*vn2ons_settings_wait_voices\nspbtn 13,51\nspbtn 14,52\nspbtn 11,41\n",
             "if %9 > 40 && %9 <= 42 mov %176,%9-41:goto *vn2ons_settings_draw\n",
+            // Skip unread text: under the levels, applied as kidokumode.
+            "if %908 == 1 mov $104,\"■　\"\nadd $104,\"未読\"\nstrsp 14,$104,140,210,5,1,",
+            "if %9 == 32 mov %908,1-%908\n",
+            "if %908 == 0 kidokumode 1\nif %908 == 1 kidokumode 0\nreturn\n",
             // A switch sets all its characters.
             "if %9 == 52 && %970 == 0 mov %970,1:mov %972,1:goto *vn2ons_settings_draw\nif %9 == 52 mov %970,0:mov %972,0:goto *vn2ons_settings_draw\n",
         ] {

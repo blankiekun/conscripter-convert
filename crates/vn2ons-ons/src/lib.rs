@@ -98,6 +98,11 @@ pub fn emit(script: &Script) -> String {
             None => writeln!(out, "effect {n},{FADE},{ms}").unwrap(),
         }
     }
+    // Read-text tracking (kidoku.dat, written on save and quit), for
+    // skipping read text only.
+    if script.settings.as_ref().is_some_and(|s| s.skip_unread_label.is_some()) {
+        writeln!(out, "kidokuskip").unwrap();
+    }
     writeln!(out, "game").unwrap();
     writeln!(out, "*start").unwrap();
     // The text speed is a setting when there is a settings menu.

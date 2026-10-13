@@ -376,6 +376,9 @@ mapping, the 32-byte head, and `1.cd`.
      "other men"). A voice id's character is `id / 100000` (3 あずさ … 13
      ジーン, 0 minor women, 1 minor men); each `dwave` is guarded by the
      character's global flag (`if %(970 + c) == 0 dwave ...`).
+     Skip stops at unread text through ONScripter's own tracking:
+     `kidokuskip` in the define section, `kidokumode 1`; the setting
+     "未読テキストもスキップする" (global %908) switches to `kidokumode 0`.
    - **Confirmations:** `YesNoDialog.004` (base, frame, four-state button
      strip; no words in the images). Shown before saving over a save,
      loading, deleting, going back to the title and quitting, with the
@@ -404,6 +407,62 @@ license before reusing code.
 - override cases where automatic conversion gets it wrong.
 
 Profiles are also the main thing the AI agents write (see §8).
+
+### Remaining work for 最果てのイマ (as of 2026-10-12)
+
+Converted and playable: text, voices, sprites with colour filters,
+backgrounds, BGM, sound effects, transitions, text modes, clickable links,
+chapter titles, and the system screens (title, save/load, settings with
+voice switches and read-only skip, backlog, button bars, yes/no
+confirmations). 4,162 script instructions are still left as comments.
+
+**Settings screen.** The original's settings dialog has six pages; these
+parts are not converted:
+- text: window opacity, auto-mode wait per page and per character,
+  stopping skip/auto on a choice or click, font, antialiasing, decoration;
+- voice: "次の音声まで停止しない" (keep a voice playing into the next
+  line), auto-play of voices in the CG viewer;
+- sound: per-channel mute switches, the system voice;
+- mouse: wheel closes the backlog, wheel advances text, sensitivity;
+- confirmations: switches to turn each yes/no dialog off;
+- other: effect and animation switches, save preview, inactive-window
+  behaviour, shortcut-menu position, gamepad.
+
+**Other system screens.**
+- Backlog: speaker names (the name plate is a sprite, not in ONScripter's
+  text log) and voice replay.
+- Blog bar: prev/next/exit buttons and the scene list (drawn disabled).
+- Chapter history (`ChapterHistory.004`, opcodes 0x37/0x38) and the
+  autosave slots.
+- Extras unlocked after clearing: CG, BGM, chapter and scene-replay modes
+  (title images 4, 5, 8, 13). No title BGM.
+- Button bar lock button (`SysTray.004` #9).
+
+**Script opcodes** (counts are remaining uses):
+- `0x49` (565): special text display (chat or popup style);
+- `0x70` (457): unknown;
+- `0x93`/`0x94` (418): before each chapter end, unknown;
+- `0x4d` (276), `0x55` (252), `0x8c` (240), `0x6d` (198), `0x7a`/`0x7b`
+  (about 90 each) and about 30 rarer ones;
+- ruby (`0x44`) and indent (`0x4e`);
+- colour presets 2 and 3 (brightness, monotone; about 10 uses).
+
+**Accuracy.**
+- Transitions other than cross-fade and mask wipe (slide, scroll, mosaic,
+  zoom, ...) are drawn as cross-fades.
+- Full-screen text styles 1-7: metrics are estimates; calibrate from
+  screenshots of the original (style 5, route 10, is the most used).
+- BGM loops from the start; the original's loop points aren't read.
+- Unchecked assumptions: colour filters multiply; negative mask softness
+  inverts the mask; text window opacity 55%; save menu base opacity.
+
+**Media and packaging.**
+- Movies (`mv*.bin`) aren't converted; they need a format the
+  WebAssembly build plays.
+- `arc.nsa` is about 1.2 GB; if the web build can't handle it, split the
+  voices into `arc1.nsa`.
+- Check that saves, thumbnails (`savethumbN.bmp`) and `kidoku.dat`
+  persist in the WebAssembly build.
 
 ## 7. Project layout
 
@@ -695,6 +754,11 @@ should carry over to the next engine.
   a full-width cell, so a proportional font (IPA P Gothic) leaves gaps
   after narrow glyphs such as イ, ト and ー. IPA Gothic (`ipag.ttf`) has
   none.
+- **ONScripter's read tracking is by script byte offset.** `kidokuskip`
+  marks every position run (code as well as text) in `kidoku.dat`, which
+  is written on save, `end` and window close. Rebuilding `0.txt` moves the
+  offsets, so a `kidoku.dat` from an older build marks the wrong text;
+  delete it after a rebuild.
 - **Keep a handoff file** (`saiima.md`) with a "Resume here" section.
   Context resets happen mid-task, and re-deriving state is expensive.
 
