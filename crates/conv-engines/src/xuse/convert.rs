@@ -138,6 +138,13 @@ const OP_CLEAR_SPRITES: u16 = 0x8f;
 /// usual depth 1000 puts it over the bust-ups (10-100 in 0x8e). No fade of
 /// its own. It stays when the background changes or the bust-ups go.
 const OP_OVERLAY: u16 = 0x55;
+/// Sets an object's opacity (handler 0x413f10; draw field +0x1b2).
+/// Record: u8 layer, u32 depth, u16 opacity (0-256). The object is found
+/// by its key: the depth for layers 0 and 1, depth + 10 for layer 2 (a
+/// character's bust-up, as 0x90 finds it), + 110 and + 120 for 3 and 4.
+/// The game uses layer 2 (34 uses, characters 1-60) and layer 1 depth 2
+/// (3, the overlay "bg-2" of 0x55) and depth 1 (1, after 0x56).
+const OP_OPACITY: u16 = 0x82;
 /// Effect presets (0x88 defines a module, 0x90 attaches a preset to a
 /// bust-up) are kept in variables, so they follow the game's control flow:
 /// preset p, slot s is [`PRESET_FIELDS`] local variables from
@@ -1701,6 +1708,18 @@ pub fn lower_script(
                     };
                     ops.push(Op::Overlay { image, over_sprites: layer == 2 });
                 }
+                _ => ops.push(Op::Unsupported { what: format!("opcode {:#04x} record {record:?}", ins.op), at: at() }),
+            }
+            continue;
+        }
+        if ins.op == OP_OPACITY {
+            let o = ins.arg as u32 as usize;
+            let record = cd.pool.get(o..o + 7).map(|r| (r[0], u32::from_le_bytes([r[1], r[2], r[3], r[4]]), u16::from_le_bytes([r[5], r[6]])));
+            match record {
+                Some((2, character, opacity)) if opacity <= 256 => {
+                    ops.push(Op::SpriteOpacity { layer: Some(character), opacity: opacity.into() })
+                }
+                Some((0 | 1, 2, opacity)) if opacity <= 256 => ops.push(Op::SpriteOpacity { layer: None, opacity: opacity.into() }),
                 _ => ops.push(Op::Unsupported { what: format!("opcode {:#04x} record {record:?}", ins.op), at: at() }),
             }
             continue;

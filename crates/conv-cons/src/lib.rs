@@ -298,6 +298,17 @@ pub fn emit(script: &Script) -> String {
                     writeln!(out, "print 1").unwrap();
                 }
             }
+            Op::SpriteOpacity { layer, opacity } => {
+                // msp adds to the alpha and clamps it: down to 0, then up.
+                let alpha = opacity.min(&256) * 255 / 256;
+                match layer {
+                    Some(layer) => writeln!(out, "msp {0},0,0,-255:msp {0},0,0,{alpha}", SPRITE_BASE + layer).unwrap(),
+                    None => writeln!(out, "if {OVERLAY_SLOT} != 0 msp {OVERLAY_SLOT},0,0,-255:msp {OVERLAY_SLOT},0,0,{alpha}").unwrap(),
+                }
+                if transition.is_none() {
+                    writeln!(out, "print 1").unwrap();
+                }
+            }
             Op::ScreenFilter { slot, filter, fade_ms } => {
                 match filter {
                     None if *slot == 0 => writeln!(out, "screenfilter 0").unwrap(),
@@ -1412,6 +1423,8 @@ effect 6,99,1000,\"cons_zoom.dll/3,220,5\"
                     },
                 ],
             },
+            Op::SpriteOpacity { layer: Some(3), opacity: 128 },
+            Op::SpriteOpacity { layer: None, opacity: 256 },
             Op::Sprites { changes: vec![SpriteChange { layer: 3, sprite: None, keep_filters: false }], fade_ms: 0 },
             Op::Text { speaker: Some("名前".into()), text: "「こんにちは」".into(), voice: None, links: vec![], ruby: vec![], styles: vec![], hang: None, continues: false },
             Op::Text { speaker: None, text: "地の文。".into(), voice: Some(Voice { file: "voice/v1.ogg".into(), character: 3 }), links: vec![link(1, 2, None)], ruby: vec![], styles: vec![], hang: None, continues: false },
@@ -1441,6 +1454,10 @@ print 2
 spfilter 65,0
 spfilter 65,1,1,128,255,200,100
 if %40 != 0 spfilter 65,%40,%41,%42,%43,%44,%45
+print 1
+msp 65,0,0,-255:msp 65,0,0,127
+print 1
+if %180 != 0 msp %180,0,0,-255:msp %180,0,0,255
 print 1
 csp 65
 print 1

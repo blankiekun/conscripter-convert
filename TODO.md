@@ -235,7 +235,11 @@ engines print `z150` etc.). The web build compiles with it.
       uses, no animation loaded). Unsupported: 620 → 296.
 - [x] `0x59` (47): a BGM crossfade (u32 ms, u16 old track, u16 new
       track), as `bgmfadein ms` + `bgm`: the old track stops at once.
-- [ ] Opcodes still emitted as comments (188 left): `0x82` (38), `0x69` (32), rarer ones.
+- [x] `0x82` (37 of 38): an object's opacity; bust-ups and the overlay
+      via `msp` (to 0, then up to the alpha). Assumption: a later `lsp`
+      of the layer makes it opaque again (the original may keep the
+      object's opacity). Left: layer 1 depth 1 (0006.cd #21, after 0x56).
+- [ ] Opcodes still emitted as comments (151 left): `0x69` (32), rarer ones.
 - [ ] Transitions still drawn as cross-fades: Wave, Dissolve, RollFlip,
       SoftEdgeWipe, TvPowerSwitch, BoxRolling, SmoothCrossFade, Dot4x4,
       MeltDown (PLAN §6 "Accuracy").

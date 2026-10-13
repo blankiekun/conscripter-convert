@@ -284,6 +284,11 @@ pub enum Op {
     /// empty = none), then show the result. A layer without a sprite
     /// ignores this.
     SpriteFilters { layer: u32, filters: Vec<SpriteFilter> },
+    /// Set the opacity (0-256) of a layer's sprite (`Some(layer)`) or of
+    /// the overlay (`None`). A layer without a sprite ignores it; a new
+    /// picture on the layer is opaque again. Shown at once unless a
+    /// transition is open.
+    SpriteOpacity { layer: Option<u32>, opacity: u32 },
     /// Set (or with `None` clear) one slot of the filter on the whole
     /// picture behind the text window; slot 0 with `None` clears them
     /// all. Shown with a fade of `fade_ms` unless a transition is open.
