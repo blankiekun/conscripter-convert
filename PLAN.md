@@ -154,10 +154,20 @@ around in the script today), roughly in order of payoff:
 |---|---|---|
 | Archive size on the web | PNG only (the WASM build has no WebP decoder) | WebP support in the web build |
 | Movies (`mv*.bin`, MPEG-PS) | Not converted | Movie playback that works in the web build (e.g. an HTML5 video overlay) |
-| BGM loop points | Tracks loop from the start | Loop start for `bgm` (`loopbgm` exists but plays from memory, outside the BGM channel) |
 | Right-click menu / hide window | Everything behind the on-screen button bar | Send right-click to a script label (`rgosub`-style); not planned for now |
 
 Done without engine work:
+- **BGM loop points:** `bm0000.bin`'s slot param 0 is the loop start in
+  sample frames (the second before it matches each track's last second,
+  correlation 0.99-1.0); the loop runs to the end of the track. The
+  converter writes it into each `.ogg` as `LOOPSTART`/`LOOPEND` Vorbis
+  comments, which SDL_mixer (2.0.2+) loops on by itself, sample-exact,
+  when `bgm` plays music looped. SDL_mixer ignores `LOOPSTART` without an
+  end. Being in the file, the loop survives saves and works in stock
+  ONScripter. Not used: ONScripter's `bgm "(seconds)file"` loop-back,
+  which restarts and seeks the file (and isn't saved). In ONScripter-Yuri
+  it never fires, because `playSound` registers `Mix_HookMusicFinished`
+  only when `Mix_PlayMusic` fails (ogapee's ONScripter registers it before).
 - **Backlog speaker names and voice replay:** every text line starts with
   a `[name|voice]` tag (its page's first speaker shown on a name plate and
   first voice clip). ONScripter keeps a page's tag in the log, and in
@@ -500,7 +510,6 @@ parts are not converted:
   each).
 - Full-screen text styles 1-7: metrics are estimates; calibrate from
   screenshots of the original (style 5, route 10, is the most used).
-- BGM loops from the start; the original's loop points aren't read.
 - Unchecked assumptions: negative mask softness inverts the mask; text
   window opacity 55%; save menu base opacity; the brightness filter's
   scale (the game uses -80 and -100, read as -255..255).

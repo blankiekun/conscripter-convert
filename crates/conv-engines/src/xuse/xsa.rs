@@ -9,7 +9,8 @@
 //! slot[n]:      n = (offset of slot 0's data - 4) / 16; 256 for most files
 //!   u32         data size
 //!   u32         absolute data offset
-//!   u32         param 0: loop start in samples in bm0000.bin, else 0
+//!   u32         param 0: loop start in sample frames in bm0000.bin (the
+//!               loop runs to the end of the clip), else 0
 //!   u32         param 1: total length in samples in wss.bin / silent.bin, else 0
 //! data          concatenated clips (Ogg Vorbis), no padding
 //! ```

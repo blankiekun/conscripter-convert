@@ -138,6 +138,8 @@ pub enum ConvertError {
     Gaf { path: PathBuf, source: GafError },
     #[error("{path}: {source}")]
     Xsa { path: PathBuf, source: XsaError },
+    #[error("{path} slot {slot}: {source}")]
+    Ogg { path: PathBuf, slot: usize, source: crate::ogg::OggError },
     #[error("{path}: {source}")]
     Xarc { path: PathBuf, source: XarcError },
     #[error("{what}: {source}")]
@@ -233,7 +235,7 @@ impl AssetBank {
     /// BGM track (1-based).
     pub fn bgm(&mut self, track: usize) -> Result<String, ConvertError> {
         let slot = track.checked_sub(1).ok_or(ConvertError::MissingAsset { kind: "BGM track", number: track })?;
-        self.sound("bm0000.bin", slot, "bgm", format!("bgm{track:02}.ogg"), "BGM track", track)
+        self.sound("bm0000.bin", slot, "bgm", format!("bgm{track:02}.ogg"), BGM, track)
     }
 
     /// Sound effect (1-based, across `k0000.bin` and `k0001.bin`).
@@ -905,11 +907,22 @@ impl AssetBank {
         let xsa = Xsa::parse(bytes).map_err(|source| ConvertError::Xsa { path: path.clone(), source })?;
         let entry = xsa.entries.iter().find(|e| e.slot == slot).ok_or(ConvertError::MissingAsset { kind, number })?;
         let name = format!("{dir}/{file_name}");
-        write_file(&self.out.join(&name), xsa.data(entry))?;
+        // BGM: param 0 is where the loop starts, in sample frames (the audio
+        // before it matches the track's end); the loop ends at the end.
+        let loop_start = entry.params[0];
+        if kind == BGM && loop_start > 0 {
+            let tagged = crate::ogg::set_loop_start(xsa.data(entry), loop_start.into())
+                .map_err(|source| ConvertError::Ogg { path: path.clone(), slot, source })?;
+            write_file(&self.out.join(&name), &tagged)?;
+        } else {
+            write_file(&self.out.join(&name), xsa.data(entry))?;
+        }
         self.written.insert((kind, number), name.clone());
         Ok(name)
     }
 }
+
+const BGM: &str = "BGM track";
 
 /// Label names from `0.cd`, by (script id, code offset in bytes).
 #[derive(Debug, Default)]
