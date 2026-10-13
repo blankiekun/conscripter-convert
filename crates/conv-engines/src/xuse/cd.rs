@@ -138,15 +138,30 @@ pub const OP_PRESET_MODULE: u16 = 0x88;
 pub const OP_APPLY_PRESET: u16 = 0x90;
 /// Filter on the whole screen (handler 0x415a30), from 0x88's modules.
 pub const OP_SCREEN_MODULE: u16 = 0x70;
-/// 0x88's module kinds (module type = kind + 0x63; class names from the
-/// exe's creator table at 0x501434 and RTTI). Others: 1 Smooth,
-/// 3 HueSatura, 6 Monotone, 9 BrightnessInvert, ...
+/// 0x88's module kinds (module type = kind + 0x63; (type, creator) pairs
+/// at 0x501428, class names from each class's vtable). Each kind's data
+/// follows the u16 blend and u16 opacity. Others: 7 RotateScale,
+/// 10 LensFlare, 11 Mosaic (u32 width, height), 12 Zigzag (i32 centre x,
+/// y, direction, distance, frequency, begin angle, reduction; one use).
+/// Smooth (draw 0x43e670): the mean of the pixels up to u8 x, u8 y
+/// (each clamped to 0..6) away, a box clipped to the picture.
+pub const PRESET_KIND_SMOOTH: u32 = 1;
 pub const PRESET_KIND_NEGATIVE: u32 = 2;
+/// HueSatura (draw 0x436a40): i16 hue, i16 saturation, applied in HLS on
+/// 0-255 scales (0x4367e0): the hue is added; a negative saturation
+/// scales s by (256 + n) / 256, a positive one moves it toward 255 by
+/// n / 256.
+pub const PRESET_KIND_HUE_SATURATION: u32 = 3;
 /// Monotone: u32 palette number (`pal%04u.pal` in `HD/pal.arc`).
 pub const PRESET_KIND_MONOTONE: u32 = 6;
 pub const PRESET_KIND_BRIGHTNESS: u32 = 4;
 pub const PRESET_KIND_GREYSCALE: u32 = 5;
 pub const PRESET_KIND_COLOUR: u32 = 8;
+/// BrightnessInvert (draw 0x436f60): no data; the pixel's hue turned by
+/// half a turn, then inverted, i.e. its lightness inverted.
+pub const PRESET_KIND_BRIGHTNESS_INVERT: u32 = 9;
+/// Filter-Replace (draw 0x41d390): [`FilterReplace`].
+pub const PRESET_KIND_REPLACE: u32 = 13;
 /// [`PresetModule::blend`] values used by the game (the exe's names are
 /// Alpha, Add, Multi, Screen, SignedAdd, Copy, dissolve).
 pub const PRESET_BLEND_ALPHA: u16 = 0;
@@ -233,11 +248,41 @@ pub struct PresetModule {
     /// 0-256: how much of the result replaces the pixel (the exe's debug
     /// output calls it "Opacity").
     pub opacity: u16,
-    /// The colour of a colour filter (kind 8), as R, G, B.
-    pub colour: Option<[u8; 3]>,
+    pub data: ModuleData,
+}
+
+/// The kind data of a 0x88/0x70 module, for the kinds the converter
+/// reads.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ModuleData {
+    #[default]
+    None,
+    /// A colour filter (kind 8), as R, G, B.
+    Colour([u8; 3]),
     /// The amount of a brightness filter (kind 4), printed by the exe as
     /// "Brightness=%d".
-    pub brightness: Option<i16>,
+    Brightness(i16),
+    /// A monotone's palette (kind 6).
+    Palette(u32),
+    /// A blur's x and y range (kind 1, "XRange", "YRange").
+    Smooth(u8, u8),
+    /// Hue and saturation (kind 3).
+    HueSaturation(i16, i16),
+    Replace(FilterReplace),
+}
+
+/// Filter-Replace: the picture displaced through a map as by
+/// Animation-Replace ([`Ripple`]), but still: each pixel taken from
+/// `distance` × sin(2π(m/256 + begin_angle/100)) pixels away along
+/// `direction` (0.1°), m being the pixel's grey level in `mask%04u.png`
+/// number `map`. Record: u32 map, i32 direction, distance, begin angle
+/// (the exe's debug output: MapID, Direction, Distance, BeginAngle).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FilterReplace {
+    pub map: u32,
+    pub direction: i32,
+    pub distance: i32,
+    pub begin_angle: i32,
 }
 
 /// Opcode 0x70: one slot of the filter on the whole screen, made of the
@@ -256,9 +301,29 @@ pub struct ScreenModule {
     pub kind: u32,
     pub blend: u16,
     pub opacity: u16,
-    pub colour: Option<[u8; 3]>,
-    pub brightness: Option<i16>,
-    pub palette: Option<u32>,
+    pub data: ModuleData,
+}
+
+/// Reads a module's kind data at `o` (after its blend and opacity).
+fn module_data(r: &Reader, kind: u32, o: usize) -> Result<ModuleData, Truncated> {
+    let i = |k: usize| r.u32(o + 4 * k).map(|n| n as i32);
+    Ok(match kind {
+        PRESET_KIND_COLOUR => ModuleData::Colour(r.slice(o, 3)?.try_into().unwrap()),
+        PRESET_KIND_BRIGHTNESS => ModuleData::Brightness(r.u16(o)? as i16),
+        PRESET_KIND_MONOTONE => ModuleData::Palette(r.u32(o)?),
+        PRESET_KIND_SMOOTH => {
+            let d = r.slice(o, 2)?;
+            ModuleData::Smooth(d[0], d[1])
+        }
+        PRESET_KIND_HUE_SATURATION => ModuleData::HueSaturation(r.u16(o)? as i16, r.u16(o + 2)? as i16),
+        PRESET_KIND_REPLACE => ModuleData::Replace(FilterReplace {
+            map: r.u32(o)?,
+            direction: i(1)?,
+            distance: i(2)?,
+            begin_angle: i(3)?,
+        }),
+        _ => ModuleData::None,
+    })
 }
 
 /// Opcode 0x8c: one slot of the effects over the whole screen.
@@ -700,14 +765,8 @@ impl<'a> CdScript<'a> {
             // preset, slot, u32 ?, kind, u16 blend, u16 opacity, kind data.
             let (preset, slot, kind) = (r.u32(o)?, r.u32(o + 4)?, r.u32(o + 12)?);
             let (blend, opacity) = if slot == 0 { (0, 0) } else { (r.u16(o + 16)?, r.u16(o + 18)?) };
-            let colour = if slot != 0 && kind == PRESET_KIND_COLOUR {
-                Some(r.slice(o + 20, 3)?.try_into().unwrap())
-            } else {
-                None
-            };
-            let brightness =
-                if slot != 0 && kind == PRESET_KIND_BRIGHTNESS { Some(r.u16(o + 20)? as i16) } else { None };
-            Ok(PresetModule { preset, slot, kind, blend, opacity, colour, brightness })
+            let data = if slot == 0 { ModuleData::None } else { module_data(&r, kind, o + 20)? };
+            Ok(PresetModule { preset, slot, kind, blend, opacity, data })
         })
     }
 
@@ -719,17 +778,8 @@ impl<'a> CdScript<'a> {
             let (slot, timing, kind) = (r.u32(o)?, r.u32(o + 4)?, r.u32(o + 8)?);
             let set = slot != 0 && kind != 0;
             let (blend, opacity) = if set { (r.u16(o + 12)?, r.u16(o + 14)?) } else { (0, 0) };
-            Ok(ScreenModule {
-                slot,
-                layer: timing as u8,
-                fade_ms: timing >> 8,
-                kind,
-                blend,
-                opacity,
-                colour: if set && kind == PRESET_KIND_COLOUR { Some(r.slice(o + 16, 3)?.try_into().unwrap()) } else { None },
-                brightness: if set && kind == PRESET_KIND_BRIGHTNESS { Some(r.u16(o + 16)? as i16) } else { None },
-                palette: if set && kind == PRESET_KIND_MONOTONE { Some(r.u32(o + 16)?) } else { None },
-            })
+            let data = if set { module_data(&r, kind, o + 16)? } else { ModuleData::None };
+            Ok(ScreenModule { slot, layer: timing as u8, fade_ms: timing >> 8, kind, blend, opacity, data })
         })
     }
 
@@ -1033,10 +1083,10 @@ mod tests {
         let clear = cd.preset_module(&cd.code[0]).unwrap().unwrap();
         assert_eq!(
             clear,
-            PresetModule { preset: 1, slot: 0, kind: 0, blend: 0, opacity: 0, colour: None, brightness: None }
+            PresetModule { preset: 1, slot: 0, kind: 0, blend: 0, opacity: 0, data: ModuleData::None }
         );
         let colour = cd.preset_module(&cd.code[1]).unwrap().unwrap();
-        assert_eq!(colour.colour, Some([0xff, 0xe0, 0xb9]));
+        assert_eq!(colour.data, ModuleData::Colour([0xff, 0xe0, 0xb9]));
         assert_eq!((colour.blend, colour.opacity), (PRESET_BLEND_MULTI, 256));
         assert_eq!(cd.apply_preset(&cd.code[2]).unwrap().unwrap(), ApplyPreset { character: 14, preset: 1 });
         assert!(cd.apply_preset(&cd.code[0]).is_none());

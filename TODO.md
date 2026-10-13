@@ -143,9 +143,13 @@ engines print `z150` etc.). The web build compiles with it.
       another here). Unsupported: 3,099 → 2,823.
       Wine setup (scratch prefix, registry keys, script patching) is in
       `saiima.md` under "Running the original".
-- [ ] `0x70` leftovers (62 uses): Smooth (blur, XRange/YRange), kind 13
-      (ripple, with Smooth in wind scenes), HueSatura, BrightnessInvert,
-      kind 12. The layer byte (0/2 → 0x10, 3 → 0x20, ...) is ignored:
+- [x] `0x70` leftovers (61 of 62): Smooth (blur), HueSatura and
+      BrightnessInvert as new `screenfilter` kinds 6-8, Filter-Replace
+      (kind 13, wind scenes) as a still `screenripple` in slot 4 + n
+      (engine: 8 effect slots). Kind numbers were off by one before:
+      the creator table is (type, creator) pairs from 0x501428. Left:
+      Zigzag (12, one use, 0010.cd #9214). Unsupported: 296 → 235.
+      Checked headless in the wind scene of 0003.cd. The layer byte (0/2 → 0x10, 3 → 0x20, ...) is ignored:
       everything goes behind the text window. 0x88's unknown "field" is
       probably the same layer | fade-ms word as 0x70's.
 - [ ] `0x49` leftovers: the edge colour (one use), and whether enlarged
@@ -229,8 +233,7 @@ engines print `z150` etc.). The web build compiles with it.
       character, then holds its black last frame until 0x7b. `arc.nsa`
       grows by 175 MB. Not converted: the layer-2 0x7a/0x7b records (6/7
       uses, no animation loaded). Unsupported: 620 → 296.
-- [ ] Opcodes still emitted as comments (296 left): `0x70` leftovers (62),
-      `0x59` (47), `0x82` (38), `0x69` (32), rarer ones.
+- [ ] Opcodes still emitted as comments (235 left): `0x59` (47), `0x82` (38), `0x69` (32), rarer ones.
 - [ ] Transitions still drawn as cross-fades: Wave, Dissolve, RollFlip,
       SoftEdgeWipe, TvPowerSwitch, BoxRolling, SmoothCrossFade, Dot4x4,
       MeltDown (PLAN §6 "Accuracy").

@@ -13,13 +13,14 @@ use conv_core::ir::{
     Animation, ArithOp, Backlog, BarAction, BarButton, ButtonBar, ConfirmDialog, NamePlate, Noise, ScreenEffect, Setting, SettingRow, SettingsMenu, Op, Operand, PageButton, Placed, Rect, Ruby, SaveMenu, TextStyle, SourceLoc, Voice, VoiceToggle,
     SpriteChange, SpriteFilter, SpritePlacement, TextLink, TextSpot, TextWindow, TitleAction, TitleButton, TitleScreen, TopBars,
     SlideLayer, TransitionStyle, Var, ZoomStyle, FILTER_BLEND_ADD, FILTER_BLEND_COPY, FILTER_BLEND_MULTIPLY, FILTER_BLEND_SCREEN, FILTER_BRIGHTNESS, FILTER_COLOUR, FILTER_MONOTONE,
-    FILTER_GREYSCALE, FILTER_NEGATIVE,
+    FILTER_GREYSCALE, FILTER_NEGATIVE, FILTER_BLUR, FILTER_HUE_SATURATION, FILTER_LIGHTNESS_INVERT,
 };
 
 use crate::xuse::cd::{
     CdError, CdScript, EnvModule, Instr, Link, PresetModule, Quake, Surprise, SURPRISE_PRESETS, ENV_KIND_NOISE, FLASH_MS, FLASH_OPACITY, OP_FLASH, Ruby as RubyRecord, ScreenModule, Sound, SpriteEntry, TextStyle as StyleRecord, OP_TEXT_INDENT, PRESET_KIND_MONOTONE, PRESET_BLEND_ADD, PRESET_BLEND_ALPHA, PRESET_BLEND_COPY,
     PRESET_BLEND_MULTI, PRESET_BLEND_SCREEN, PRESET_KIND_BRIGHTNESS, PRESET_KIND_COLOUR, PRESET_KIND_GREYSCALE,
-    PRESET_KIND_NEGATIVE,
+    PRESET_KIND_NEGATIVE, PRESET_KIND_SMOOTH, PRESET_KIND_HUE_SATURATION, PRESET_KIND_BRIGHTNESS_INVERT, PRESET_KIND_REPLACE,
+    ModuleData,
 };
 use crate::xuse::gaf::{Gaf, GafError};
 use crate::xuse::symbols::SymbolTable;
@@ -1295,22 +1296,22 @@ fn preset_var(preset: u32, slot: u32, field: u32) -> Var {
 }
 
 /// A 0x88/0x70 module as CONscripter filter fields (kind, blend,
-/// strength, three parameters), or what can't be expressed.
-fn module_filter(
-    kind: u32,
-    blend: u16,
-    opacity: u16,
-    colour: Option<[u8; 3]>,
-    brightness: Option<i16>,
-    monotone: Option<[i32; 3]>,
-) -> Result<[i32; 6], String> {
-    let (kind, params) = match (kind, colour, brightness, monotone) {
-        (PRESET_KIND_COLOUR, Some([r, g, b]), _, _) => (FILTER_COLOUR, [r.into(), g.into(), b.into()]),
+/// strength, three parameters), or what can't be expressed. `monotone`
+/// is a monotone's palette as offsets.
+fn module_filter(kind: u32, blend: u16, opacity: u16, data: ModuleData, monotone: Option<[i32; 3]>) -> Result<[i32; 6], String> {
+    let (kind, params) = match (kind, data, monotone) {
+        (PRESET_KIND_COLOUR, ModuleData::Colour([r, g, b]), _) => (FILTER_COLOUR, [r.into(), g.into(), b.into()]),
         (PRESET_KIND_GREYSCALE, ..) => (FILTER_GREYSCALE, [0; 3]),
         (PRESET_KIND_NEGATIVE, ..) => (FILTER_NEGATIVE, [0; 3]),
         // The amount is on a 0-255 scale: the game goes down to -250.
-        (PRESET_KIND_BRIGHTNESS, _, Some(n), _) => (FILTER_BRIGHTNESS, [n.into(), 0, 0]),
-        (PRESET_KIND_MONOTONE, _, _, Some(offsets)) => (FILTER_MONOTONE, offsets),
+        (PRESET_KIND_BRIGHTNESS, ModuleData::Brightness(n), _) => (FILTER_BRIGHTNESS, [n.into(), 0, 0]),
+        (PRESET_KIND_MONOTONE, _, Some(offsets)) => (FILTER_MONOTONE, offsets),
+        // The exe clamps the ranges to 6.
+        (PRESET_KIND_SMOOTH, ModuleData::Smooth(x, y), _) => (FILTER_BLUR, [x.min(6).into(), y.min(6).into(), 0]),
+        (PRESET_KIND_HUE_SATURATION, ModuleData::HueSaturation(hue, saturation), _) => {
+            (FILTER_HUE_SATURATION, [hue.into(), saturation.into(), 0])
+        }
+        (PRESET_KIND_BRIGHTNESS_INVERT, ..) => (FILTER_LIGHTNESS_INVERT, [0; 3]),
         _ => return Err(format!("filter kind {kind}")),
     };
     let blend = match blend {
@@ -1326,10 +1327,22 @@ fn module_filter(
 /// Slots of CONscripter's `screenfilter` (the game uses 1-3).
 const SCREEN_FILTER_SLOTS: u32 = 4;
 
-/// Opcode 0x70: sets one slot of the screen filter. A module the
-/// converter can't express is reported and leaves the slot as it was.
+/// The `screenripple` slot of a 0x70 Filter-Replace in filter slot n
+/// (0x8c, 0x6f and 0x6d use 1-4).
+const REPLACE_SLOT_BASE: u32 = 4;
+
+/// The interval of a still `screenripple` (it never changes; each step
+/// redraws the screen).
+const REPLACE_INTERVAL_MS: u32 = 1000;
+
+/// Opcode 0x70: sets one slot of the screen filter. A Filter-Replace
+/// becomes a still `screenripple` in slot 4 + n; `replaces` holds the
+/// filter slots that hold one, in file order, so the next module in the
+/// slot clears it. A module the converter can't express is reported and
+/// leaves the slot as it was.
 fn lower_screen_module(
     m: &ScreenModule,
+    replaces: &mut BTreeSet<u32>,
     assets: &mut AssetBank,
     ops: &mut Vec<Op>,
     at: impl Fn() -> SourceLoc,
@@ -1338,16 +1351,56 @@ fn lower_screen_module(
         ops.push(Op::Unsupported { what: format!("opcode 0x70 slot {}", m.slot), at: at() });
         return Ok(());
     }
+    let clear_replace = |slot: u32, replaces: &mut BTreeSet<u32>, ops: &mut Vec<Op>| {
+        if replaces.remove(&slot) {
+            ops.push(Op::ScreenEffect { slot: REPLACE_SLOT_BASE + slot, effect: None });
+        }
+    };
+    if m.slot == 0 {
+        for slot in std::mem::take(replaces) {
+            ops.push(Op::ScreenEffect { slot: REPLACE_SLOT_BASE + slot, effect: None });
+        }
+    } else if m.kind == 0 || m.kind != PRESET_KIND_REPLACE {
+        clear_replace(m.slot, replaces, ops);
+    }
     if m.slot == 0 || m.kind == 0 {
         ops.push(Op::ScreenFilter { slot: m.slot, filter: None, fade_ms: m.fade_ms });
         return Ok(());
     }
-    let monotone = match m.palette.map(|p| assets.palette_offsets(p)) {
-        Some(Ok(offsets)) => Some(offsets),
-        Some(Err(ConvertError::MissingAsset { .. })) | None => None,
-        Some(Err(e)) => return Err(e),
+    if let ModuleData::Replace(r) = m.data {
+        if !matches!(m.blend, PRESET_BLEND_ALPHA | PRESET_BLEND_COPY) {
+            ops.push(Op::Unsupported { what: format!("opcode 0x70 replace blend {}", m.blend), at: at() });
+            return Ok(());
+        }
+        // Assumption: begin_angle (1/100 turn; always 1 in the game) is
+        // left out: screenripple starts at phase 0.
+        let opacity = i32::from(m.opacity.min(256));
+        let effect = ScreenEffect::Ripple {
+            map: assets.mask(r.map as usize, false)?,
+            time_ms: 0,
+            interval_ms: REPLACE_INTERVAL_MS,
+            opacity: (opacity, opacity),
+            amplitude: (r.distance, r.distance),
+            angle: r.direction,
+            angle_step: 0,
+            phase_step: 0,
+        };
+        if !replaces.contains(&m.slot) {
+            ops.push(Op::ScreenFilter { slot: m.slot, filter: None, fade_ms: 0 });
+        }
+        replaces.insert(m.slot);
+        ops.push(Op::ScreenEffect { slot: REPLACE_SLOT_BASE + m.slot, effect: Some(effect) });
+        return Ok(());
+    }
+    let monotone = match m.data {
+        ModuleData::Palette(p) => match assets.palette_offsets(p) {
+            Ok(offsets) => Some(offsets),
+            Err(ConvertError::MissingAsset { .. }) => None,
+            Err(e) => return Err(e),
+        },
+        _ => None,
     };
-    match module_filter(m.kind, m.blend, m.opacity, m.colour, m.brightness, monotone) {
+    match module_filter(m.kind, m.blend, m.opacity, m.data, monotone) {
         Ok([kind, blend, strength, p0, p1, p2]) => {
             let filter = SpriteFilter {
                 kind: Operand::Const(kind),
@@ -1516,7 +1569,7 @@ fn lower_preset_module(m: &PresetModule, ops: &mut Vec<Op>, at: impl Fn() -> Sou
         ops.push(set(m.slot, 0, 0));
         return;
     }
-    match module_filter(m.kind, m.blend, m.opacity, m.colour, m.brightness, None) {
+    match module_filter(m.kind, m.blend, m.opacity, m.data, None) {
         Ok(fields) => ops.extend(fields.into_iter().enumerate().map(|(field, n)| set(m.slot, field as u32, n))),
         Err(what) => {
             ops.push(unsupported(format!("opcode 0x88 {what}")));
@@ -1586,6 +1639,7 @@ pub fn lower_script(
     let mut page_break = false;
     // Opcode 0x8c slots and the kind each holds (file order).
     let mut env_slots = BTreeMap::new();
+    let mut replace_slots = BTreeSet::new();
     // The fx object: its opacity once 0x7a made it, and the animation
     // 0x8b loaded into it (file order).
     let mut fx_opacity: Option<u32> = None;
@@ -1761,7 +1815,7 @@ pub fn lower_script(
             continue;
         }
         if let Some(module) = cd.screen_module(ins) {
-            lower_screen_module(&module?, assets, &mut ops, at)?;
+            lower_screen_module(&module?, &mut replace_slots, assets, &mut ops, at)?;
             continue;
         }
         if let Some(module) = cd.environment(ins) {
@@ -2240,8 +2294,7 @@ mod tests {
             kind: PRESET_KIND_COLOUR,
             blend: PRESET_BLEND_MULTI,
             opacity: 200,
-            colour: Some([0x64, 0, 0]),
-            brightness: None,
+            data: ModuleData::Colour([0x64, 0, 0]),
         };
         let mut ops = Vec::new();
         lower_preset_module(&tint, &mut ops, at);
@@ -2257,7 +2310,7 @@ mod tests {
         assert_eq!(ops, (1..=3).map(|s| set(preset_var(2, s, 0), 0)).collect::<Vec<_>>());
 
         ops.clear();
-        lower_preset_module(&PresetModule { kind: 9, colour: None, ..tint }, &mut ops, at);
+        lower_preset_module(&PresetModule { kind: 12, data: ModuleData::None, ..tint }, &mut ops, at);
         assert!(matches!(ops[..], [Op::Unsupported { .. }, Op::Arith { .. }]));
 
         assert_eq!(preset_filters(0), Some(vec![]));
@@ -2315,14 +2368,21 @@ mod tests {
 
     #[test]
     fn module_filters() {
-        assert_eq!(module_filter(PRESET_KIND_BRIGHTNESS, 5, 256, None, Some(-200), None), Ok([4, 0, 256, -200, 0, 0]));
+        use ModuleData as D;
+        assert_eq!(module_filter(PRESET_KIND_BRIGHTNESS, 5, 256, D::Brightness(-200), None), Ok([4, 0, 256, -200, 0, 0]));
         assert_eq!(
-            module_filter(PRESET_KIND_MONOTONE, 5, 300, None, None, Some([28, -8, -38])),
+            module_filter(PRESET_KIND_MONOTONE, 5, 300, D::Palette(1), Some([28, -8, -38])),
             Ok([5, 0, 256, 28, -8, -38])
         );
-        assert_eq!(module_filter(PRESET_KIND_COLOUR, 2, 128, Some([1, 2, 3]), None, None), Ok([1, 1, 128, 1, 2, 3]));
-        assert!(module_filter(1, 5, 256, None, None, None).is_err()); // Smooth (blur)
-        assert!(module_filter(PRESET_KIND_GREYSCALE, 4, 256, None, None, None).is_err());
+        assert_eq!(module_filter(PRESET_KIND_COLOUR, 2, 128, D::Colour([1, 2, 3]), None), Ok([1, 1, 128, 1, 2, 3]));
+        assert_eq!(module_filter(PRESET_KIND_SMOOTH, 5, 256, D::Smooth(3, 9), None), Ok([6, 0, 256, 3, 6, 0]));
+        assert_eq!(
+            module_filter(PRESET_KIND_HUE_SATURATION, 5, 256, D::HueSaturation(0, -128), None),
+            Ok([7, 0, 256, 0, -128, 0])
+        );
+        assert_eq!(module_filter(PRESET_KIND_BRIGHTNESS_INVERT, 5, 256, D::None, None), Ok([8, 0, 256, 0, 0, 0]));
+        assert!(module_filter(12, 2, 100, D::None, None).is_err()); // Zigzag
+        assert!(module_filter(PRESET_KIND_GREYSCALE, 4, 256, D::None, None).is_err());
     }
 
     #[test]

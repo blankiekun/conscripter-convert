@@ -110,6 +110,14 @@ pub const FILTER_BRIGHTNESS: i32 = 4;
 /// The pixel in greyscale plus the offsets in `params` (r, g, b,
 /// -255..255): a monotone such as sepia.
 pub const FILTER_MONOTONE: i32 = 5;
+/// A blur: the mean of the pixels up to `params[0]`, `params[1]` pixels
+/// away (x, y).
+pub const FILTER_BLUR: i32 = 6;
+/// The pixel with its hue turned by `params[0]`/256 of a turn and its
+/// saturation moved by `params[1]` (-256 grey, 0 kept, 256 full).
+pub const FILTER_HUE_SATURATION: i32 = 7;
+/// The pixel with its lightness inverted (a negative that keeps the hue).
+pub const FILTER_LIGHTNESS_INVERT: i32 = 8;
 /// How a filter's colour is combined with the pixel's
 /// ([`SpriteFilter::blend`]).
 pub const FILTER_BLEND_COPY: i32 = 0;
