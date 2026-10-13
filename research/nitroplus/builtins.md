@@ -138,7 +138,7 @@ the face window, `Time…` = auto-advance variants.
 | `Request(obj, action)` | 3,644 | See the list after this table. |
 | `WaitText(text, timeout)` | 75 | Waits until the text has finished typing **and** the player has clicked (auto mode/skip advance on their own). `null` = no timeout. `TypeBeginCI` also calls it once before `Enter`, presumably a no-op. |
 | `<voice name= class= src=>` (tag in the block) | 35,116 | Plays `src` (+ `.ogg`, from `voice.npa`) when typing reaches the tag; `name` is the speaker shown in the backlog, `class` the per-character voice volume/mute setting (`#ConfigCV_…`). |
-| `<RUBY text="…">…</RUBY>`, `<BR>`, `<FONT …>`, `<k>` (tags) | 6,929 RUBY | Ruby, line break, font change, and `<k>` probably a click wait inside the block (**unverified**). |
+| `<RUBY text="…">…</RUBY>`, `<BR>`, `<FONT …>`, `<k>` (tags) | 6,929 RUBY | Ruby, line break, font change, `<k>` = click wait without clearing the page (seen under wine). |
 | `{ code }` inside the block | | Runs when typing reaches it (sound effects between lines in `ma01_001` text0040). |
 
 `Request` actions (31 constants; by use):
@@ -152,13 +152,18 @@ player hides it with right-click), `AddRender`/`SubRender`/`MulRender`
 (blend mode), `PushText` (show the whole text at once), `Pause`/`Resume`,
 `Passive` (`PrintBG`'s cover; probably "ignores input", **unverified**).
 
-**Open (check under wine before building the text path):** 2,513 of the
-~15,000 blocks have 12 or more written lines, but the window
-(`cg/sys/adv/textwindow.png`, 134×540 px at x = 447, y = 40) holds 5
-columns of 29 px. So the engine must page or scroll inside one block, at
-blank lines or when the box fills. libnpengine's port shows one line per
-click, which is likely wrong for narration. Take screenshots of
-`ma00_000` text0131 (10 lines, a blank line after 4) to settle it.
+**Pages (seen under wine, 2026-10-13, `ma00_000` text0010–text0050):**
+a blank line inside a `<PRE>` block ends a page. Each paragraph types
+into the empty box on its own, the click-wait icon (a flame, at
+`$SYSTEM_position_{x,y}_text_icon` = 452, 555) waits for a click, then
+the box clears for the next paragraph. So text0020's 15 lines are 5 pages,
+not one overflowing page. Single line breaks inside a paragraph are
+column breaks (the authors hard-wrap at ~25 characters). `<k>` waits for a click
+in mid-page: the text stays, the `{…}` code after it runs (text0050:
+a soldier sprite appears), and the next line types into the same page.
+Each `<voice>` paragraph is its own page with the name plate (`SetNwC`)
+above it. The window holds 5 columns of 29 px (`textwindow.png`,
+134×540 at x = 447, y = 40), and a paragraph never needs more.
 
 For CONscripter: the onsyuri base already has vertical text (`tateyoko`).
 Map `SetTextEX{C,R,L}` + `TypeBegin*` to a `setwindow` for that box
