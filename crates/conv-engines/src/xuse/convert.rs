@@ -103,6 +103,14 @@ const OP_UNLOCK_SCENE: u16 = 0x93;
 /// Ends a scene the replay can play (handler 0x4789a0): in replay modes 1
 /// and 2 (0x51ec70) it returns to the replay; in normal play it does nothing.
 const OP_SCENE_END: u16 = 0x94;
+/// Sets progress flag `sub` (handler 0x478b00: bit `sub` of the global
+/// word 0x51eb3c, saved with the system data at 0x45f801). arg is -1. The
+/// game sets bits 0-3 at the start (0000.cd, 0003.cd) and bits 4-7 at the
+/// end of each heroine's route (0009-0013.cd). The extras read them: the
+/// title (bit 3, 0x45cce9), getters for bits 1 and 2 (0x44cc60, 0x4579e0)
+/// and the voice mode (`VoiceMode.cpp`, `wss.bin`: bit 4 + route, table
+/// 0x4fbc00).
+const OP_PROGRESS: u16 = 0x99;
 /// The replay set's size.
 const REPLAY_SCENES: i32 = 600;
 /// Waits for a click with the text window, button tray and top bars hidden
@@ -1993,6 +2001,13 @@ pub fn lower_script(
             match ins.arg {
                 scene @ 0..REPLAY_SCENES => ops.push(Op::UnlockScene { scene: scene as u32 }),
                 _ => ops.push(Op::Unsupported { what: format!("opcode {:#04x} arg {}", ins.op, ins.arg), at: at() }),
+            }
+            continue;
+        }
+        if ins.op == OP_PROGRESS {
+            match ins.sub {
+                bit @ 0..32 => ops.push(Op::Progress { bit: bit.into() }),
+                _ => ops.push(Op::Unsupported { what: format!("opcode {:#04x} sub {:#x}", ins.op, ins.sub), at: at() }),
             }
             continue;
         }

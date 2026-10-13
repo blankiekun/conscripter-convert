@@ -328,6 +328,9 @@ pub enum Op {
     /// Scene `scene` of the scene replay was reached: unlock it there (a
     /// global flag, kept across playthroughs).
     UnlockScene { scene: u32 },
+    /// Progress flag `bit` (0-31) of the playthrough was reached (a global
+    /// flag, kept across playthroughs; the extras read them).
+    Progress { bit: u32 },
     /// The end of a scene the scene replay can play on its own: a replay
     /// stops here; normal play goes on.
     SceneEnd,

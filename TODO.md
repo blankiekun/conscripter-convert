@@ -28,7 +28,7 @@ Opcodes 0x70 (leftovers), 0x59, 0x82 and 0x69 are done (unsupported
 (engine `5516a1a`, released in CONscripter 0.14.0, tag `v0.14.0`,
 Android versionCode 17). Slides (0x86/0x87/0x7f, unsupported 119 → 81) are done too, checked
 headless in 0010.cd's 沙也加 slide. Pick the next item from "3. Next
-work": 0x99 and 0x9d are the biggest left. Unchecked against the original under wine: quakes,
+work": 0x9d is the biggest left. Unchecked against the original under wine: quakes,
 flashes (ours are under the text window; the original's cover it),
 pulses (especially presets 6-8: blend 6 is assumed to lay white over
 the copy, `tint 2`).
@@ -263,8 +263,10 @@ engines print `z150` etc.). The web build compiles with it.
       the stray layer 0 `0x7b` (0012.cd #916) as a plain fx removal.
       Checked headless (0135.cd meter at 70 %, 0087.cd close-up).
       Unsupported: 81 → 46.
-- [ ] Opcodes still emitted as comments (46 left): `0x99` (8), `0x9d`
-      (6), `0x39` (4), `0x56` (3), rarer ones.
+- [x] `0x99` (8): progress bits the extras read (title, voice mode),
+      as global flags `%3600 + bit`. Unsupported: 46 → 38.
+- [ ] Opcodes still emitted as comments (38 left): `0x9d` (6), `0x39`
+      (4), `0x56` (3), rarer ones.
 - [ ] Transitions still drawn as cross-fades: Wave, Dissolve, RollFlip,
       SoftEdgeWipe, TvPowerSwitch, BoxRolling, SmoothCrossFade, Dot4x4,
       MeltDown (PLAN §6 "Accuracy").
