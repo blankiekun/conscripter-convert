@@ -170,6 +170,12 @@ const OP_FILL: u16 = 0x56;
 /// dissolve). Used once, on the white overlay of 0x56 (dissolve, drawn as
 /// a cross-fade here).
 const OP_BLEND: u16 = 0x83;
+/// Clears the chapter history (handler 0x475af0, `ScriptStd.cpp`: "チャプタ
+/// 内ではチャプタ履歴をクリアできません。" inside a chapter); nothing in
+/// replay modes 1 and 2. Used at the start of 0004.cd and after the ends of
+/// 0021/0022.cd. The conversion has no chapter history yet: nothing to
+/// emit.
+const OP_CLEAR_CHAPTER_HISTORY: u16 = 0x39;
 /// Yields for one frame (handler 0x473d20 returns 0). Nothing to emit.
 const OP_YIELD: u16 = 0x67;
 /// Sets an object's opacity (handler 0x413f10; draw field +0x1b2).
@@ -1916,7 +1922,7 @@ pub fn lower_script(
         if ins.op == OP_BLEND && overlay_fill && cd.pool.get(ins.arg as u32 as usize..ins.arg as u32 as usize + 5) == Some(&[1, 2, 0, 0, 0]) {
             continue; // dissolve: the fade-out is drawn as a cross-fade
         }
-        if ins.op == OP_YIELD {
+        if ins.op == OP_YIELD || ins.op == OP_CLEAR_CHAPTER_HISTORY {
             continue;
         }
         if ins.op == crate::xuse::cd::OP_BACKGROUND {

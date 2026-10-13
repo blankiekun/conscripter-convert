@@ -273,7 +273,9 @@ engines print `z150` etc.). The web build compiles with it.
       `s2_l2` (9 calls) now ends in white fading out over 1 s (the
       original dissolves it); 0006.cd's red "Server Error" screen. Checked
       headless. Unsupported: 32 → 24.
-- [ ] Opcodes still emitted as comments (24 left): `0x39` (4), `0x36`
+- [x] `0x39` (4): clears the chapter history; nothing emitted until the
+      chapter history screen exists (then clear it here). 24 → 20.
+- [ ] Opcodes still emitted as comments (20 left): `0x36`
       without a chapter name, `0x3b`, `0x48`, `0x4a`, `0x91` (2 each),
       rarer ones.
 - [ ] Transitions still drawn as cross-fades: Wave, Dissolve, RollFlip,
