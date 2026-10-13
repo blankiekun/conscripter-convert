@@ -354,7 +354,13 @@ engines print `z150` etc.). The web build compiles with it.
       cross-fade (the plain fade is close). TvPowerSwitch had finished by
       2 s (unknown). Used subs: BoxRolling 29-31, RollFlip 32-35,
       MeltDown 46/47, TvPowerSwitch 48.
-- [ ] Transitions still drawn as cross-fades: TvPowerSwitch (11), BoxRolling (8),
+- [x] BoxRolling (8 uses): filmed 28 (from the bottom), 29 (from the
+      left), 30 (from the top); 31 assumed from the right. Converted as a
+      push of both pictures (ONScripter scrolls 11-14); the original
+      squeezes them like cube faces.
+- [ ] Transitions still drawn as cross-fades: TvPowerSwitch (11; too quick
+      to film at 0.1-0.9 s), RollFlip (24), MeltDown (3); SmoothCrossFade
+      (8) is an eased cross-fade, close enough.
       SmoothCrossFade (8), Dot4x4 (3), MeltDown (3) (PLAN §6 "Accuracy").
 - [x] Bars always shown (user's request, 2026-10-13): the top bars and
       the bottom button bar draw at every click wait; the hover hotspots

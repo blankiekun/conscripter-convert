@@ -2929,6 +2929,14 @@ fn transition_style(sub: u16) -> TransitionStyle {
             let (dx, dy) = [(0, 1), (-1, 0), (0, -1), (1, 0)][usize::from(sub)];
             TransitionStyle::Curtain { dx, dy }
         }
+        // Trans_BoxRolling (filmed under wine): the new picture rolls in
+        // like a cube face while the old one is squeezed away; 28 from
+        // the bottom, 29 from the left, 30 from the top, 31 (not filmed)
+        // from the right. Drawn as a push of both pictures.
+        28..=31 => {
+            let (dx, dy) = [(0, -1), (1, 0), (0, 1), (-1, 0)][usize::from(sub - 28)];
+            TransitionStyle::Slide { moving: SlideLayer::Both, dx, dy }
+        }
         27 => TransitionStyle::Mosaic,
         // Dot4x4: a dotted cross-fade; Dissolve passes through white (both
         // seen in the original under wine, 0004.cd #13 slowed to 8 s).
@@ -3021,6 +3029,7 @@ mod tests {
         assert_eq!(transition_style(26), TransitionStyle::ThroughWhite);
         assert_eq!(transition_style(4), TransitionStyle::Threshold);
         assert_eq!(transition_style(7), TransitionStyle::Threshold);
+        assert_eq!(transition_style(29), slide(SlideLayer::Both, 1, 0));
         assert_eq!(transition_name(20), "Slide out");
     }
 
