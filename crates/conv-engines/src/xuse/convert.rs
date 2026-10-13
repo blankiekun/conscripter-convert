@@ -99,7 +99,11 @@ const OP_WAIT: u16 = 0x66;
 /// bits are the number, its high 16 bits whether a click or key ends it
 /// (checked at 0x408e5b).
 const OP_MOVIE: u16 = 0x97;
+/// 0x72 and 0x74 share one timed wait (0x44a2f0): arg's low 16 bits are
+/// the ms; 0x74 also sets the input mask the wait checks (0x51ea0c) to
+/// 0xffffff instead of 0. Both are converted as `delay`.
 const OP_WAIT_2: u16 = 0x72;
+const OP_WAIT_3: u16 = 0x74;
 const BG_PER_ARCHIVE: usize = 64;
 const BU_PER_ARCHIVE: usize = 128;
 const SE_FIRST_BANK: usize = 256;
@@ -1448,7 +1452,7 @@ fn lower_instr(
             let file = assets.movie(ins.arg as u16)?;
             return Ok(Some(Op::Movie { file, skippable: ins.arg >> 16 != 0 }));
         }
-        OP_WAIT | OP_WAIT_2 => return Ok(Some(Op::Wait { ms: u32::from(ins.arg as u16) })),
+        OP_WAIT | OP_WAIT_2 | OP_WAIT_3 => return Ok(Some(Op::Wait { ms: u32::from(ins.arg as u16) })),
         OP_IF_EQUAL => {
             let Some(target) = label(ins.sub.into()) else { return Ok(None) };
             let o = ins.arg as u32 as usize;
