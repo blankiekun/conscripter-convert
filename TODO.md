@@ -326,11 +326,13 @@ engines print `z150` etc.). The web build compiles with it.
 - [ ] Opcodes still emitted as comments (2 left): the start point's debug menu (`0x62` choice + `0x30` jump table
       in 0001.cd, unreachable: nothing jumps to `s1_l0`). **Not doing the
       debug menu** (user, 2026-10-13).
-- [x] Dissolve (69 uses): Trans_Dissolve lays the new picture over with
-      blend 6, a 4×4 ordered dither (kernel 0x4430a0); converted as
-      ONScripter effect 15 (each pixel switches when the progress passes
-      its mask level) over a tiled Bayer mask (`system/dither.png`). Not
-      compared frame by frame with the original.
+- [x] Dissolve (69 uses) and Dot4x4 (3): filmed in the original under
+      wine (0004.cd #13 patched to each sub, 8 s; shots at 2/4/6 s).
+      Dissolve passes through white (the old picture brightens to white,
+      the new one comes out of it): two half-time fades with a white
+      `lsp2` in between. Dot4x4 is the dotted cross-fade (kernel 0x4430a0,
+      a 4×4 pattern): effect 15 over a tiled Bayer mask. (The first
+      Dissolve commit wrongly gave it the dither.)
 - [x] Wave (39 uses): Trans_Wave (setup 0x449020, draw functions from
       0x51801c) is a curtain: the new picture behind an edge whose last
       16 px bands open in shrinking strips. Converted to ONScripter's
@@ -345,6 +347,13 @@ engines print `z150` etc.). The web build compiles with it.
 - [ ] RollFlip (24): squashes a picture along one axis by sin/cos of the
       progress (0x446460; flags +0x90 axis, +0x91 sin or cos and which
       picture): a card flip. Needs a CONscripter effect plugin.
+- [ ] Also filmed: BoxRolling 28 = the new picture rises from the bottom
+      while the old is squeezed up (a cube roll); RollFlip 32 = the new
+      picture widens from a centre strip over the old; MeltDown = the old
+      picture melts down with a wavy edge; SmoothCrossFade = an eased
+      cross-fade (the plain fade is close). TvPowerSwitch had finished by
+      2 s (unknown). Used subs: BoxRolling 29-31, RollFlip 32-35,
+      MeltDown 46/47, TvPowerSwitch 48.
 - [ ] Transitions still drawn as cross-fades: TvPowerSwitch (11), BoxRolling (8),
       SmoothCrossFade (8), Dot4x4 (3), MeltDown (3) (PLAN §6 "Accuracy").
 - [x] Bars always shown (user's request, 2026-10-13): the top bars and

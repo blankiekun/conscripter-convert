@@ -13,6 +13,8 @@ pub enum TransitionStyle {
     /// With a mask: each pixel switches to the new picture at once when
     /// the progress passes its grey level (dark first).
     Threshold,
+    /// The old picture fades to white, then the new one fades in from it.
+    ThroughWhite,
     /// `moving` travels one screen width or height in direction `dx`, `dy`
     /// (each -1, 0 or 1; +y is down).
     Slide { moving: SlideLayer, dx: i8, dy: i8 },

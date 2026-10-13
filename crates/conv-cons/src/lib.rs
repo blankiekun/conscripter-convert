@@ -234,7 +234,8 @@ pub fn emit(script: &Script) -> String {
     let visited = |target: &str| LINK_VISITED_BASE + link_targets.iter().position(|&t| t == target).unwrap() as u32;
     // Effect numbers of an open transition, printed in turn: display
     // commands only update the buffer until then.
-    let mut transition: Option<Vec<u32>> = None;
+    // The lines that show an armed transition (prints and what goes between).
+    let mut transition: Option<Vec<String>> = None;
     // The active text window (file order; presets are called right before
     // the text that uses them) and the lines already on its page.
     let mut window = script.window.clone();
@@ -243,8 +244,8 @@ pub fn emit(script: &Script) -> String {
     let mut page_tag: Option<String> = None;
     for op in &script.ops {
         if let Op::Text { .. } = op {
-            for e in transition.take().unwrap_or_default() {
-                writeln!(out, "print {e}").unwrap();
+            for line in transition.take().unwrap_or_default() {
+                writeln!(out, "{line}").unwrap();
             }
         }
         match op {
@@ -473,11 +474,20 @@ pub fn emit(script: &Script) -> String {
             Op::BeginTransition { effect: name, fade_ms, mask, style } => {
                 writeln!(out, "; transition: {name}").unwrap();
                 let steps = transition_steps(*fade_ms, mask.as_deref(), *style);
-                transition = Some(if steps.is_empty() { vec![1] } else { steps.iter().map(|s| effects[s]).collect() });
+                let mut lines: Vec<String> = steps.iter().map(|s| format!("print {}", effects[s])).collect();
+                if lines.is_empty() {
+                    lines.push("print 1".into());
+                } else if *style == TransitionStyle::ThroughWhite && lines.len() == 2 {
+                    // Old to white, then white to new: white over the new picture.
+                    let (w, h) = (script.width, script.height);
+                    lines.insert(0, format!("lsp2 {FLASH_SPRITE2},\":c;>{w},{h},#ffffff\",{},{},100,100,0,255", w / 2, h / 2));
+                    lines.insert(2, format!("csp2 {FLASH_SPRITE2}"));
+                }
+                transition = Some(lines);
             }
             Op::EndTransition => {
-                for e in transition.take().unwrap_or_default() {
-                    writeln!(out, "print {e}").unwrap();
+                for line in transition.take().unwrap_or_default() {
+                    writeln!(out, "{line}").unwrap();
                 }
             }
             Op::Text { speaker, text, voice, links, ruby, styles, hang, continues } => {
@@ -1038,6 +1048,10 @@ fn transition_steps(fade_ms: u32, mask: Option<&str>, style: TransitionStyle) ->
         (Some(m), TransitionStyle::Threshold) => one(Effect::HardMask(m.to_string())),
         (Some(m), _) => one(Effect::Mask(m.to_string())),
         (None, TransitionStyle::Threshold) => one(Effect::Fade),
+        (_, TransitionStyle::ThroughWhite) => {
+            let half = (fade_ms / 2).max(1);
+            vec![(half, Effect::Fade), ((fade_ms - half).max(1), Effect::Fade)]
+        }
         // ONScripter's curtains: 6 opens from the left, 7 from the right,
         // 8 from the top, 9 from the bottom.
         (None, TransitionStyle::Curtain { dx, dy }) => one(Effect::Builtin(match (dx, dy) {
@@ -1374,6 +1388,17 @@ goto *conv_link1
     fn scene_replay_unlocks_are_global_flags() {
         let text = emit(&script(vec![Op::SceneEnd, Op::UnlockScene { scene: 5 }, Op::Progress { bit: 3 }, Op::CgSeen { number: 519 }]));
         assert!(text.contains("; scene end\nmov %3005,1\nmov %3603,1\nmov %2719,1\n"), "{text}");
+    }
+
+    #[test]
+    fn dissolve_passes_through_white() {
+        let text = emit(&script(vec![
+            Op::BeginTransition { effect: "Dissolve".into(), fade_ms: 1000, mask: None, style: TransitionStyle::ThroughWhite },
+            Op::EndTransition,
+        ]));
+        let n = |ms: u32| text.lines().find(|l| l.starts_with("effect ") && l.ends_with(&format!(",10,{ms}"))).unwrap().split([' ', ',']).nth(1).unwrap().to_string();
+        let expected = format!("lsp2 24,\":c;>800,600,#ffffff\",400,300,100,100,0,255\nprint {}\ncsp2 24\nprint {}\n", n(500), n(500));
+        assert!(text.contains(&expected), "{text}");
     }
 
     #[test]

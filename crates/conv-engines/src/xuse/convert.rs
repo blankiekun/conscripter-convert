@@ -284,8 +284,9 @@ const PRESET_FIELDS: u32 = 6;
 /// for.
 const NOISE_FRAMES: u32 = 4;
 const OP_WAIT: u16 = 0x66;
-/// 0x76's sub for Trans_Dissolve.
+/// 0x76's subs for Trans_Dissolve and Trans_Dot4x4.
 const TRANSITION_DISSOLVE: u16 = 26;
+const TRANSITION_DOT4X4: u16 = 4;
 /// Plays `HD/mvNNNN.bin` (handler 0x478ab0, task 0x408ed0): arg's low 16
 /// bits are the number, its high 16 bits whether a click or key ends it
 /// (checked at 0x408e5b).
@@ -2445,12 +2446,11 @@ pub fn lower_script(
             match pool_u32(cd.pool, ins.arg as u32 as usize) {
                 Some(fade_ms) => {
                     transition_armed = true;
-                    // Dissolve (Trans_Dissolve, draw 0x442de0) lays the new
-                    // picture over with blend 6, a 4×4 ordered dither
-                    // (kernel 0x4430a0): the mask transition over a tiled
-                    // Bayer mask reveals the same pattern step by step.
+                    // Dot4x4 (kernel 0x4430a0) copies the new picture
+                    // through a 4×4 pattern: the hard mask transition over
+                    // a tiled Bayer mask reveals the same dots.
                     let mask = match ins.sub {
-                        TRANSITION_DISSOLVE => Some(assets.dither_mask()?),
+                        TRANSITION_DOT4X4 => Some(assets.dither_mask()?),
                         // Trans_SoftEdgeWipe (setup 0x4481e0 with sub - 5;
                         // directions seen under wine): 5 up from the bottom,
                         // 6 from the left, 7 down from the top, 8 from the
@@ -2930,7 +2930,10 @@ fn transition_style(sub: u16) -> TransitionStyle {
             TransitionStyle::Curtain { dx, dy }
         }
         27 => TransitionStyle::Mosaic,
-        TRANSITION_DISSOLVE | 5..=8 => TransitionStyle::Threshold,
+        // Dot4x4: a dotted cross-fade; Dissolve passes through white (both
+        // seen in the original under wine, 0004.cd #13 slowed to 8 s).
+        TRANSITION_DOT4X4 | 5..=8 => TransitionStyle::Threshold,
+        TRANSITION_DISSOLVE => TransitionStyle::ThroughWhite,
         37 => zoom(ZoomStyle::NewIn, 5100),
         38 => zoom(ZoomStyle::OldOut, 5100),
         39 => zoom(ZoomStyle::Through, 5100),
@@ -3015,7 +3018,8 @@ mod tests {
         // Wave: 0 top down, 1 right to left.
         assert_eq!(transition_style(0), TransitionStyle::Curtain { dx: 0, dy: 1 });
         assert_eq!(transition_style(1), TransitionStyle::Curtain { dx: -1, dy: 0 });
-        assert_eq!(transition_style(26), TransitionStyle::Threshold);
+        assert_eq!(transition_style(26), TransitionStyle::ThroughWhite);
+        assert_eq!(transition_style(4), TransitionStyle::Threshold);
         assert_eq!(transition_style(7), TransitionStyle::Threshold);
         assert_eq!(transition_name(20), "Slide out");
     }
