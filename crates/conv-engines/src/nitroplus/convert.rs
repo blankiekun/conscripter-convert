@@ -58,6 +58,27 @@ const FLAG_LOCAL_BASE: u16 = 100;
 pub const GLOBAL_BORDER: u32 = 800;
 /// Where a run of files ends.
 const RUN_END: &str = "conv_run_end";
+/// Library functions that rank the heroines by their route counters with
+/// a loop (`sys_hmode.nss`): written as NScripter comparisons instead.
+/// Each counter counts up from its flag to 10, checked in this order, so
+/// a heroine's rank is 1 + the number with a higher flag + the number
+/// earlier in the order with the same flag. Results: `ARRAY["name"]` =
+/// rank (1-4), `LAST` = the name ranked last.
+const RANKINGS: [(&str, [&str; 4], &str, &str); 2] = [
+    ("RouteChicker", ["アナザー", "一条", "香奈枝", "村正"], "$RC_N", "$ルート分岐用フラグ"),
+    ("RouteChicker2", ["村正", "一条", "香奈枝", "アナザー"], "$RC_N2", "$ルート分岐用フラグ2"),
+];
+
+/// The route counter of a heroine in [`RANKINGS`].
+fn route_counter(name: &str) -> &'static str {
+    match name {
+        "一条" => "$Ichizyou_Flag",
+        "香奈枝" => "$Kanae_Flag",
+        "村正" => "$Muramasa_Flag",
+        _ => "$Others_Flag",
+    }
+}
+
 /// Guard against scripts that loop forever at convert time.
 const MAX_ITERATIONS: usize = 10_000;
 const MAX_DEPTH: usize = 64;
@@ -319,6 +340,17 @@ pub fn story_flags(files: &BTreeMap<String, NssFile>) -> HashMap<String, conv_co
                 walk(&b.body, &mut set, &mut tested);
             }
         }
+    }
+    // The rankings' counters and results.
+    for (_, order, array, last) in RANKINGS {
+        for n in order {
+            for key in [route_counter(n).to_string(), format!("{array}[{n}]")] {
+                set.insert(key.clone());
+                tested.insert(key);
+            }
+        }
+        set.insert(last.to_string());
+        tested.insert(last.to_string());
     }
     let mut flags = HashMap::new();
     let (mut local, mut global) = (FLAG_LOCAL_BASE, 0u16);
@@ -904,6 +936,35 @@ impl<'a, 'b> Compiler<'a, 'b> {
         }
     }
 
+    /// A [`RANKINGS`] function, if its counters are story flags.
+    fn ranking(&mut self, &(_, order, array, last): &(&str, [&str; 4], &str, &str)) -> bool {
+        use conv_core::ir::Compare;
+        let counters: Option<Vec<_>> = order.iter().map(|n| self.flags.get(route_counter(n)).copied()).collect();
+        let outputs: Option<Vec<_>> = order.iter().map(|n| self.flags.get(&format!("{array}[{n}]")).copied()).collect();
+        let (Some(counters), Some(outputs), Some(&last_var)) = (counters, outputs, self.flags.get(last)) else { return false };
+        for (x, (&fx, &out)) in counters.iter().zip(&outputs).enumerate() {
+            self.ops.push(Op::Arith { var: out, op: ArithOp::Set, value: Operand::Const(1) });
+            for (y, &fy) in counters.iter().enumerate().filter(|&(y, _)| y != x) {
+                // y ranks above x: a higher flag, or the same flag and earlier.
+                let above = if y < x { Compare::Ge } else { Compare::Gt };
+                self.choices += 1;
+                let skip = format!("rank{}", self.choices);
+                self.ops.push(Op::If { var: fy, cmp: negate(above), value: Operand::Var(fx), label: skip.clone() });
+                self.ops.push(Op::Arith { var: out, op: ArithOp::Add, value: Operand::Const(1) });
+                self.ops.push(Op::Label(skip));
+            }
+            self.choices += 1;
+            let skip = format!("rank{}", self.choices);
+            let code = self.code(&Value::Str(order[x].to_string())).unwrap_or(0);
+            self.ops.push(Op::If { var: out, cmp: Compare::Ne, value: Operand::Const(4), label: skip.clone() });
+            self.ops.push(Op::Arith { var: last_var, op: ArithOp::Set, value: Operand::Const(code) });
+            self.ops.push(Op::Label(skip));
+            self.vars.insert(format!("{array}[{}]", order[x]), Value::Runtime(out));
+        }
+        self.vars.insert(last.to_string(), Value::Runtime(last_var));
+        true
+    }
+
     /// An assignment to a story flag: also done at run time.
     fn assign_flag(&mut self, var: conv_core::ir::Var, op: AssignOp, old: &Value, value: &Value, new: &Value) {
         match (op, old, value) {
@@ -1166,6 +1227,11 @@ impl<'a, 'b> Compiler<'a, 'b> {
             }
             Expr::Call { name, args } => {
                 let args: Vec<Value> = args.iter().map(|a| self.eval(a)).collect();
+                if let Some(r) = RANKINGS.iter().find(|r| r.0 == name) {
+                    if self.ranking(r) {
+                        return Value::Null;
+                    }
+                }
                 match self.function(name) {
                     Some((file, f)) => self.call_function(file, f, args),
                     None => self.builtin(name, &args),
@@ -2145,6 +2211,76 @@ scene a.nss
         assert!(c.ops.contains(&Op::Arith { var: flag, op: ArithOp::Set, value: Operand::Const(1) }));
         let c_start = c.ops.iter().position(|op| *op == Op::Label("f_c".into())).unwrap();
         assert!(matches!(&c.ops[c_start + 1], Op::If { var, cmp: conv_core::ir::Compare::Eq, value: Operand::Const(0), .. } if *var == flag), "{:?}", &c.ops[c_start..]);
+    }
+
+    /// Runs the variable and jump ops of `ops` (everything else is skipped).
+    fn run_ir(ops: &[Op]) -> HashMap<conv_core::ir::Var, i32> {
+        use conv_core::ir::Compare;
+        let mut vars: HashMap<conv_core::ir::Var, i32> = HashMap::new();
+        let labels: HashMap<&str, usize> = ops.iter().enumerate().filter_map(|(i, op)| if let Op::Label(l) = op { Some((l.as_str(), i)) } else { None }).collect();
+        let mut pc = 0;
+        let mut steps = 0;
+        while pc < ops.len() && steps < 100_000 {
+            steps += 1;
+            let value = |o: &Operand, vars: &HashMap<_, i32>| match o {
+                Operand::Const(n) => *n,
+                Operand::Var(v) => vars.get(v).copied().unwrap_or(0),
+            };
+            match &ops[pc] {
+                Op::Jump(l) => {
+                    pc = labels[l.as_str()];
+                    continue;
+                }
+                Op::If { var, cmp, value: v, label } => {
+                    let (a, b) = (vars.get(var).copied().unwrap_or(0), value(v, &vars));
+                    let hit = match cmp {
+                        Compare::Eq => a == b,
+                        Compare::Ne => a != b,
+                        Compare::Lt => a < b,
+                        Compare::Gt => a > b,
+                        Compare::Le => a <= b,
+                        Compare::Ge => a >= b,
+                    };
+                    if hit {
+                        pc = labels[label.as_str()];
+                        continue;
+                    }
+                }
+                Op::Arith { var, op, value: v } => {
+                    let n = value(v, &vars);
+                    let e = vars.entry(*var).or_insert(0);
+                    match op {
+                        ArithOp::Set => *e = n,
+                        ArithOp::Add => *e += n,
+                        ArithOp::Sub => *e -= n,
+                        _ => {}
+                    }
+                }
+                _ => {}
+            }
+            pc += 1;
+        }
+        vars
+    }
+
+    #[test]
+    fn route_ranking_runs_as_runtime_comparisons() {
+        let mut files = BTreeMap::new();
+        files.insert(BOOT.to_string(), nss::parse("#include \"nss/function.nss\"\n").unwrap());
+        files.insert("function.nss".to_string(), nss::parse("function RouteChicker(){}").unwrap());
+        let story = r#"scene a.nss_MAIN
+{
+	$Others_Flag = 1; $Ichizyou_Flag = 3; $Kanae_Flag = 5; $Muramasa_Flag = 5;
+	RouteChicker();
+	$GameCircle = 0;
+}"#;
+        files.insert("a.nss".into(), nss::parse(story).unwrap());
+        let (c, _) = compile_run(&files, "a.nss", 1, &mut Fake).unwrap();
+        let vars = run_ir(&c.ops);
+        let flags = story_flags(&files);
+        let rank = |n: &str| vars.get(&flags[&format!("$RC_N[{n}]")]).copied();
+        // 香奈枝 and 村正 tie at 5: 香奈枝 is checked first.
+        assert_eq!([rank("香奈枝"), rank("村正"), rank("一条"), rank("アナザー")], [Some(1), Some(2), Some(3), Some(4)]);
     }
 
     #[test]

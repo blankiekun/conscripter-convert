@@ -70,7 +70,7 @@ pub struct SourceLoc {
 
 /// A script variable. Global variables survive across playthroughs and
 /// saves (flags like "route cleared"); local ones belong to one game.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Var {
     pub global: bool,
     pub index: u16,
