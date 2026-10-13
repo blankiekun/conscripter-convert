@@ -96,7 +96,7 @@ enum Command {
         /// Keep assets as loose files instead of packing them into .nsa
         #[arg(long)]
         loose: bool,
-        /// Compile and report only; write nothing
+        /// Compile and write 0.txt only, no assets
         #[arg(long)]
         dry_run: bool,
     },
@@ -864,9 +864,7 @@ fn convert_nss(
     use conv_engines::nitroplus::assets::{NpaAssets, OUTPUT_DIRS};
     use conv_engines::nitroplus::{convert, nss};
     let exe = game.join("Muramasa.exe");
-    if !dry_run {
-        fs::create_dir_all(output)?;
-    }
+    fs::create_dir_all(output)?;
     if let Some(d) = OUTPUT_DIRS.iter().find(|d| !loose && !dry_run && output.join(d).exists()) {
         bail!("{} already exists; move it away first (it would be packed and then deleted)", output.join(d).display());
     }
@@ -920,9 +918,10 @@ fn convert_nss(
         ops: compiled.ops,
     };
     let (encoded, lost) = conv_cons::encode(&conv_cons::emit(&ir));
+    // A dry run writes the script but no assets.
+    fs::write(output.join("0.txt"), encoded)?;
+    fs::write(output.join("ons_args"), conv_cons::ENGINE_ARGS)?;
     if !dry_run {
-        fs::write(output.join("0.txt"), encoded)?;
-        fs::write(output.join("ons_args"), conv_cons::ENGINE_ARGS)?;
         if let Some(font) = font {
             fs::copy(font, output.join("default.ttf")).with_context(|| format!("copying {}", font.display()))?;
         }
