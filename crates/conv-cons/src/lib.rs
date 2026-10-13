@@ -257,7 +257,7 @@ pub fn emit(script: &Script) -> String {
                     writeln!(out, "print {e}").unwrap();
                 }
             }
-            Op::Text { speaker, text, voice, links, ruby, styles, continues } => {
+            Op::Text { speaker, text, voice, links, ruby, styles, hang, continues } => {
                 if let Some(v) = voice {
                     if voice_switches {
                         write!(out, "if %{} == 0 ", menu::VOICE_OFF_BASE + v.character).unwrap();
@@ -323,17 +323,27 @@ pub fn emit(script: &Script) -> String {
                 }
                 let rows_before = page_rows;
                 page_rows = if *continues { page_rows + lines.len() } else { 0 };
+                let indent = hang.map_or(0, |n| hang_indent(text, n));
+                if indent > 0 {
+                    writeln!(out, "indent {indent}").unwrap();
+                }
                 let Some(page) = page else {
                     // `@` waits and keeps the text (the next page continues
                     // below); `\` waits and clears.
                     let end = if *continues { "@" } else { "\\" };
                     writeln!(out, "{}{end}", lines.join("\n")).unwrap();
+                    if indent > 0 {
+                        writeln!(out, "indent 0").unwrap();
+                    }
                     continue;
                 };
                 page_rows = 0; // link pages always end with textclear
                 // No page wait: the words become buttons and btnwait waits for
                 // a click on one of them or anywhere else (= next page).
                 writeln!(out, "{}", lines.join("\n")).unwrap();
+                if indent > 0 {
+                    writeln!(out, "indent 0").unwrap();
+                }
                 let clickable = &clickable[..clickable.len().min(LINK_SPRITES.count())];
                 let window = window.as_ref();
                 for (link, slot) in clickable.iter().zip(LINK_SPRITES) {
@@ -567,6 +577,20 @@ fn char_position(w: &TextWindow, text: &str, index: usize) -> (i32, i32) {
     let x = w.text_x + col as i32 * (w.font_size as i32 + 1);
     let y = w.text_y + row as i32 * (w.font_size + w.line_gap) as i32;
     (x, y)
+}
+
+/// `indent` (full-width characters) that puts the lines ONScripter wraps
+/// below character `hang` of the first line, as this page's first line is
+/// emitted: with the space before ASCII and the single-byte padding.
+fn hang_indent(text: &str, hang: usize) -> usize {
+    let first = text.split('\n').next().unwrap_or_default();
+    let prefix: String = first.chars().take(hang).collect();
+    let lead = if starts_ascii(first) { "　" } else { "" };
+    let half: usize = align_single_bytes(&format!("{lead}{}", escape(&prefix)))
+        .chars()
+        .map(|c| if is_single_byte(c) { 1 } else { 2 })
+        .sum();
+    half.div_ceil(2)
 }
 
 /// Outside English mode ONScripter reads single-byte text (ASCII and
@@ -959,6 +983,7 @@ mod tests {
                 links: vec![link(4, 2, Some("s10_l1")), link(0, 1, None)],
                 ruby: vec![],
                 styles: vec![],
+                hang: None,
                 continues: false,
             },
         ]);
@@ -1009,7 +1034,7 @@ goto *conv_link1
                 style: TransitionStyle::Fade,
             },
             Op::Background { image: "bg/b.png".into(), fade_ms: 500 },
-            Op::Text { speaker: None, text: "あ".into(), voice: None, links: vec![], ruby: vec![], styles: vec![], continues: false },
+            Op::Text { speaker: None, text: "あ".into(), voice: None, links: vec![], ruby: vec![], styles: vec![], hang: None, continues: false },
         ]);
         let text = emit(&s);
         assert!(text.contains("effect 2,10,500\neffect 3,18,1000,\"system\\mask0009r.png\"\neffect 4,10,2000\n"), "{text}");
@@ -1042,7 +1067,7 @@ print 3
             begin(TransitionStyle::Mosaic),
             Op::EndTransition,
             begin(TransitionStyle::Zoom { style: ZoomStyle::Cross, max_percent: 220, curve: 5 }),
-            Op::Text { speaker: None, text: "あ".into(), voice: None, links: vec![], ruby: vec![], styles: vec![], continues: false },
+            Op::Text { speaker: None, text: "あ".into(), voice: None, links: vec![], ruby: vec![], styles: vec![], hang: None, continues: false },
         ]);
         let text = emit(&s);
         let defs = "\
@@ -1060,7 +1085,7 @@ effect 6,99,1000,\"cons_zoom.dll/3,220,5\"
     fn title_screen_runs_before_the_script() {
         use conv_core::ir::TitleButton;
         let button = |image: &str, action| TitleButton { image: image.into(), x: 600, y: 200, action };
-        let mut s = script(vec![Op::Text { speaker: None, text: "あ".into(), voice: None, links: vec![], ruby: vec![], styles: vec![], continues: false }]);
+        let mut s = script(vec![Op::Text { speaker: None, text: "あ".into(), voice: None, links: vec![], ruby: vec![], styles: vec![], hang: None, continues: false }]);
         s.title_screen = Some(TitleScreen {
             background: "system/title.png".into(),
             fade_ms: 1000,
@@ -1090,7 +1115,7 @@ effect 6,99,1000,\"cons_zoom.dll/3,220,5\"
         let mut nvl = window();
         nvl.name_plate = None;
         nvl.image = "system/textwnd5.png".into();
-        let text = |t: &str, continues| Op::Text { speaker: None, text: t.into(), voice: None, links: vec![], ruby: vec![], styles: vec![], continues };
+        let text = |t: &str, continues| Op::Text { speaker: None, text: t.into(), voice: None, links: vec![], ruby: vec![], styles: vec![], hang: None, continues };
         let s = script(vec![Op::SetWindow(nvl), text("一行目", true), text("二行目", false), text("新頁", false)]);
         let out = emit(&s);
         assert!(out.contains("\":a;system\\textwnd5.png\",47,452\ncsp 51:csp 50\n一行目@\n二行目\\\n新頁\\\n"), "{out}");
@@ -1145,8 +1170,8 @@ effect 6,99,1000,\"cons_zoom.dll/3,220,5\"
                 ],
             },
             Op::Sprites { changes: vec![SpriteChange { layer: 3, sprite: None, keep_filters: false }], fade_ms: 0 },
-            Op::Text { speaker: Some("名前".into()), text: "「こんにちは」".into(), voice: None, links: vec![], ruby: vec![], styles: vec![], continues: false },
-            Op::Text { speaker: None, text: "地の文。".into(), voice: Some(Voice { file: "voice/v1.ogg".into(), character: 3 }), links: vec![link(1, 2, None)], ruby: vec![], styles: vec![], continues: false },
+            Op::Text { speaker: Some("名前".into()), text: "「こんにちは」".into(), voice: None, links: vec![], ruby: vec![], styles: vec![], hang: None, continues: false },
+            Op::Text { speaker: None, text: "地の文。".into(), voice: Some(Voice { file: "voice/v1.ogg".into(), character: 3 }), links: vec![link(1, 2, None)], ruby: vec![], styles: vec![], hang: None, continues: false },
             Op::SePlay { file: "se/k001.ogg".into(), looped: true },
             Op::SeStop { file: Some("se/k001.ogg".into()) },
             Op::BgmStop { fade_out_ms: 2000 },
@@ -1194,8 +1219,8 @@ end
     fn adv_window_and_name_plate() {
         use conv_core::ir::{NamePlate, TextWindow};
         let mut s = script(vec![
-            Op::Text { speaker: Some("名前".into()), text: "「台詞」".into(), voice: None, links: vec![], ruby: vec![], styles: vec![], continues: false },
-            Op::Text { speaker: None, text: "Ghost".into(), voice: None, links: vec![], ruby: vec![], styles: vec![], continues: false },
+            Op::Text { speaker: Some("名前".into()), text: "「台詞」".into(), voice: None, links: vec![], ruby: vec![], styles: vec![], hang: None, continues: false },
+            Op::Text { speaker: None, text: "Ghost".into(), voice: None, links: vec![], ruby: vec![], styles: vec![], hang: None, continues: false },
         ]);
         s.window = Some(TextWindow {
             image: "system/window.png".into(),
@@ -1238,10 +1263,10 @@ end
         });
         let voice = |n: &str| Some(Voice { file: format!("voice/{n}.ogg"), character: 1 });
         s.ops = vec![
-            Op::Text { speaker: None, text: "地の文".into(), voice: None, links: vec![], ruby: vec![], styles: vec![], continues: true },
-            Op::Text { speaker: Some("名前".into()), text: "「一」\n「二」".into(), voice: voice("a"), links: vec![], ruby: vec![], styles: vec![], continues: true },
-            Op::Text { speaker: Some("他".into()), text: "「三」".into(), voice: voice("b"), links: vec![], ruby: vec![], styles: vec![], continues: false },
-            Op::Text { speaker: None, text: "地の文".into(), voice: None, links: vec![], ruby: vec![], styles: vec![], continues: false },
+            Op::Text { speaker: None, text: "地の文".into(), voice: None, links: vec![], ruby: vec![], styles: vec![], hang: None, continues: true },
+            Op::Text { speaker: Some("名前".into()), text: "「一」\n「二」".into(), voice: voice("a"), links: vec![], ruby: vec![], styles: vec![], hang: None, continues: true },
+            Op::Text { speaker: Some("他".into()), text: "「三」".into(), voice: voice("b"), links: vec![], ruby: vec![], styles: vec![], hang: None, continues: false },
+            Op::Text { speaker: None, text: "地の文".into(), voice: None, links: vec![], ruby: vec![], styles: vec![], hang: None, continues: false },
         ];
         let text = emit(&s);
         assert!(text.contains("pretextgosub *conv_pretext\n"));
@@ -1261,6 +1286,7 @@ end
             links: vec![link(4, 3, None)],
             ruby: vec![],
             styles: vec![],
+            hang: None,
             continues: false,
         }]);
         assert!(emit(&s).contains("一行目\n　#F0C040abc #FFFFFF\n三行目\\\n"));
@@ -1368,6 +1394,25 @@ end
     }
 
     #[test]
+    fn hanging_indent() {
+        // "　Ghost 　": the space before ASCII, five letters and a pad.
+        assert_eq!(hang_indent("Ghost　忍、いるか", 6), 5);
+        assert_eq!(hang_indent("θ　すべて", 2), 2);
+        let mut s = script(vec![Op::Text {
+            speaker: None,
+            text: "NIN-NIN　長い行".into(),
+            voice: None,
+            links: vec![],
+            ruby: vec![],
+            styles: vec![],
+            hang: Some(8),
+            continues: true,
+        }]);
+        s.window = Some(window());
+        assert!(emit(&s).contains("indent 6\n　NIN-NIN 　長い行@\nindent 0\n"), "{}", emit(&s));
+    }
+
+    #[test]
     fn style_colours() {
         let st = |start, len, colour| TextStyle { start, len, colour, size_percent: None };
         // Each line returns to the text colour; links win over styles.
@@ -1412,6 +1457,7 @@ end
             links: vec![],
             ruby: vec![Ruby { start: 0, len: 1, text: "ひとや".into() }],
             styles: vec![],
+            hang: None,
             continues: false,
         }]);
         s.window = Some(window());

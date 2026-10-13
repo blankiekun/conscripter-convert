@@ -126,6 +126,11 @@ pub const OP_LINK: u16 = 0x46;
 pub const OP_RUBY: u16 = 0x44;
 /// Size and colour for characters of the next message (handler 0x477990).
 pub const OP_TEXT_STYLE: u16 = 0x49;
+/// Hanging indent for the next message (handler 0x494750): arg's high 16
+/// bits are where wrapped lines start, in half-width units of the first
+/// line (the chat log's handle and the space after it; the game puts it
+/// only before messages that wrap); the low bits are 1 (once 2).
+pub const OP_TEXT_INDENT: u16 = 0x4e;
 pub const OP_BACKGROUND: u16 = 0x54;
 pub const OP_SPRITES: u16 = 0x8e;
 const SPRITE_ENTRY_LEN: usize = 44;

@@ -197,10 +197,11 @@ pub enum Op {
     /// One page of text, shown and then waited on. `text` may contain '\n'
     /// for line breaks. `links` are the words the original game made
     /// clickable. `ruby`: readings shown above some of the words. `styles`:
-    /// sizes and colours of some of the characters.
+    /// sizes and colours of some of the characters. `hang`: lines the
+    /// engine wraps start below this character of the first line.
     /// `continues`: the next page is added below this one after a click
     /// instead of replacing it (full-screen text modes).
-    Text { speaker: Option<String>, text: String, voice: Option<Voice>, links: Vec<TextLink>, ruby: Vec<Ruby>, styles: Vec<TextStyle>, continues: bool },
+    Text { speaker: Option<String>, text: String, voice: Option<Voice>, links: Vec<TextLink>, ruby: Vec<Ruby>, styles: Vec<TextStyle>, hang: Option<usize>, continues: bool },
     /// Switch to another text window layout; the page starts empty.
     SetWindow(TextWindow),
     BgmPlay { file: String, fade_in_ms: u32 },

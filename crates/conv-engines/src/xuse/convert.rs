@@ -17,7 +17,7 @@ use conv_core::ir::{
 };
 
 use crate::xuse::cd::{
-    CdError, CdScript, Instr, Link, PresetModule, Ruby as RubyRecord, Sound, SpriteEntry, TextStyle as StyleRecord, PRESET_BLEND_ADD, PRESET_BLEND_ALPHA, PRESET_BLEND_COPY,
+    CdError, CdScript, Instr, Link, PresetModule, Ruby as RubyRecord, Sound, SpriteEntry, TextStyle as StyleRecord, OP_TEXT_INDENT, PRESET_BLEND_ADD, PRESET_BLEND_ALPHA, PRESET_BLEND_COPY,
     PRESET_BLEND_MULTI, PRESET_BLEND_SCREEN, PRESET_KIND_BRIGHTNESS, PRESET_KIND_COLOUR, PRESET_KIND_GREYSCALE,
     PRESET_KIND_NEGATIVE,
 };
@@ -1183,10 +1183,8 @@ pub fn lower_script(
         .collect();
 
     let mut ops = Vec::new();
-    // Links (opcode 0x46) apply to the next message.
-    let mut pending_links: Vec<Link> = Vec::new();
-    let mut pending_ruby: Vec<RubyRecord> = Vec::new();
-    let mut pending_styles: Vec<StyleRecord> = Vec::new();
+    // Links, ruby, styles and indent records apply to the next message.
+    let mut pending = MessageRecords::default();
     // A transition armed by 0x76 and not yet waited on (file order).
     let mut transition_armed = false;
     // Full-screen text mode (file order): rows of the window, the index of
@@ -1200,15 +1198,19 @@ pub fn lower_script(
             ops.push(Op::Label(format!("s{}_l{label}", cd.script_id)));
         }
         if let Some(link) = cd.link(ins) {
-            pending_links.push(link?);
+            pending.links.push(link?);
             continue;
         }
         if let Some(ruby) = cd.ruby(ins) {
-            pending_ruby.push(ruby?);
+            pending.ruby.push(ruby?);
             continue;
         }
         if let Some(style) = cd.text_style(ins) {
-            pending_styles.push(style?);
+            pending.styles.push(style?);
+            continue;
+        }
+        if ins.op == OP_TEXT_INDENT {
+            pending.indent = Some((ins.arg as u32 >> 16) as u16);
             continue;
         }
         let at = || SourceLoc { file: file.to_string(), index };
@@ -1289,19 +1291,15 @@ pub fn lower_script(
             }
             continue;
         }
-        let (links, ruby, styles) = if cd.message(ins).is_some() {
-            (std::mem::take(&mut pending_links), std::mem::take(&mut pending_ruby), std::mem::take(&mut pending_styles))
-        } else {
-            (Vec::new(), Vec::new(), Vec::new())
-        };
+        let records = if cd.message(ins).is_some() { std::mem::take(&mut pending) } else { MessageRecords::default() };
         let unsupported = || format!("opcode {:#04x} sub {:#x} arg {}", ins.op, ins.sub, ins.arg);
-        match lower_instr(cd, ins, &links, &ruby, &styles, assets, names) {
-            Ok(Some(Op::Text { speaker, text, voice, mut links, ruby, styles, continues })) if flow == Flow::Linear => {
+        match lower_instr(cd, ins, &records, assets, names) {
+            Ok(Some(Op::Text { speaker, text, voice, mut links, ruby, styles, hang, continues })) if flow == Flow::Linear => {
                 // No jumps in linear mode, so links are colour only.
                 links.iter_mut().for_each(|l| l.target = None);
-                ops.push(Op::Text { speaker, text, voice, links, ruby, styles, continues });
+                ops.push(Op::Text { speaker, text, voice, links, ruby, styles, hang, continues });
             }
-            Ok(Some(Op::Text { speaker, text, voice, links, ruby, styles, .. })) => {
+            Ok(Some(Op::Text { speaker, text, voice, links, ruby, styles, hang, .. })) => {
                 let lines = text.split('\n').count();
                 if let (Some(rows), Some((i, used))) = (full_screen_rows, last_text) {
                     let joins = !page_break && used + lines <= rows;
@@ -1314,7 +1312,7 @@ pub fn lower_script(
                     last_text = Some((ops.len(), lines));
                 }
                 page_break = false;
-                ops.push(Op::Text { speaker, text, voice, links, ruby, styles, continues: false });
+                ops.push(Op::Text { speaker, text, voice, links, ruby, styles, hang, continues: false });
             }
             Ok(Some(Op::Gosub(target))) => {
                 let preset = presets.window.get(&target).copied();
@@ -1368,6 +1366,31 @@ fn ruby_range(body: &[String], ruby: &RubyRecord) -> Option<(usize, usize)> {
     Some((before + col, len))
 }
 
+/// Records that apply to the next message: links (0x46), ruby (0x44),
+/// text styles (0x49) and the hanging indent (0x4e, half-width units).
+#[derive(Default)]
+struct MessageRecords {
+    links: Vec<Link>,
+    ruby: Vec<RubyRecord>,
+    styles: Vec<StyleRecord>,
+    indent: Option<u16>,
+}
+
+/// The character of `line` that `units` half-width units (0x4e) reach:
+/// ASCII, half-width katakana and Greek letters are one unit in the game's
+/// layout, other characters two.
+fn hang_char(line: &str, units: u16) -> Option<usize> {
+    let mut width = 0;
+    for (i, c) in line.chars().enumerate() {
+        if width >= usize::from(units) {
+            return (i > 0).then_some(i);
+        }
+        let half = c.is_ascii() || ('\u{FF61}'..='\u{FF9F}').contains(&c) || ('\u{0391}'..='\u{03C9}').contains(&c);
+        width += if half { 1 } else { 2 };
+    }
+    None
+}
+
 /// Size [`StyleRecord::size`] that keeps the window's size.
 const STYLE_SIZE_KEEP: u16 = 0xf000;
 /// Colour [`StyleRecord::colour`] that keeps the text colour.
@@ -1408,9 +1431,7 @@ fn text_style(body: &[String], s: &StyleRecord) -> Option<TextStyle> {
 fn lower_instr(
     cd: &CdScript,
     ins: &Instr,
-    links: &[Link],
-    ruby: &[RubyRecord],
-    styles: &[StyleRecord],
+    records: &MessageRecords,
     assets: &mut AssetBank,
     names: &LabelNames,
 ) -> Result<Option<Op>, ConvertError> {
@@ -1422,7 +1443,8 @@ fn lower_instr(
             && (1..=8).contains(&segs[0].chars().count())
             && segs[1].starts_with(['「', '『', '（']);
         let (speaker, body) = if has_speaker { (Some(segs[0].clone()), &segs[1..]) } else { (None, &segs[..]) };
-        let links = links
+        let links = records
+            .links
             .iter()
             .filter_map(|l| {
                 let (start, len) = link_range(segs, has_speaker, l)?;
@@ -1436,15 +1458,17 @@ fn lower_instr(
             Some(Err(ConvertError::MissingAsset { .. })) | None => None,
             Some(r) => Some(r?),
         };
-        let ruby = ruby
+        let ruby = records
+            .ruby
             .iter()
             .filter_map(|r| {
                 let (start, len) = ruby_range(body, r)?;
                 Some(Ruby { start, len, text: r.text.clone() })
             })
             .collect();
-        let styles = styles.iter().filter_map(|s| text_style(body, s)).collect();
-        return Ok(Some(Op::Text { speaker, text: body.join("\n"), voice, links, ruby, styles, continues: false }));
+        let styles = records.styles.iter().filter_map(|s| text_style(body, s)).collect();
+        let hang = records.indent.and_then(|units| hang_char(body.first()?, units));
+        return Ok(Some(Op::Text { speaker, text: body.join("\n"), voice, links, ruby, styles, hang, continues: false }));
     }
     if let Some(sound) = cd.sound(ins) {
         return Ok(Some(match sound? {
@@ -1775,6 +1799,14 @@ mod tests {
         assert_eq!(text_style(&body, &style(1, 1, 30000, STYLE_SIZE_KEEP, STYLE_COLOUR_KEEP)), None);
         assert_eq!(text_style(&body, &style(3, 1, 1, 90, STYLE_COLOUR_KEEP)), None);
         assert_eq!(text_style(&body, &style(1, 6, 1, 90, STYLE_COLOUR_KEEP)), None);
+    }
+
+    #[test]
+    fn hanging_indent() {
+        assert_eq!(hang_char("Ghost　忍、いるか！？", 7), Some(6));
+        assert_eq!(hang_char("θ　すべて", 3), Some(2));
+        assert_eq!(hang_char("Ghost　", 7), None);
+        assert_eq!(hang_char("Ghost", 0), None);
     }
 
     #[test]
