@@ -473,8 +473,11 @@ fn lex(src: &str, first_line: u32) -> Result<Vec<Token>> {
 }
 
 /// Length of the `/* … */` comment at the start of `s`, skipping strings.
+/// Comments nest: function.nss comments out old copies of the text
+/// functions with one `/* … */` holding `/*=====*/` banners.
 fn block_comment_len(s: &str) -> Option<usize> {
     let mut in_str = false;
+    let mut depth = 1;
     let mut i = 2;
     while i < s.len() {
         let rest = &s[i..];
@@ -482,8 +485,17 @@ fn block_comment_len(s: &str) -> Option<usize> {
             in_str = !in_str;
         } else if rest.starts_with('\n') {
             in_str = false;
+        } else if !in_str && rest.starts_with("/*") {
+            depth += 1;
+            i += 2;
+            continue;
         } else if !in_str && rest.starts_with("*/") {
-            return Some(i + 2);
+            depth -= 1;
+            if depth == 0 {
+                return Some(i + 2);
+            }
+            i += 2;
+            continue;
         }
         i += rest.chars().next().unwrap().len_utf8();
     }
@@ -1193,6 +1205,13 @@ mod tests {
         assert!(t.items.contains(&Inline::Str("“Long ago”".into())));
         let StmtKind::Assign { index, value: Some(Expr::Index { .. }), .. } = &s[1].kind else { panic!("{:?}", s[1]) };
         assert_eq!(index.len(), 2);
+    }
+
+    #[test]
+    fn block_comments_nest() {
+        let f = parse("function A()\n{\n}\n/*\n/*=====*/\nfunction A()\n{\n}\n/*=====*/\n*/\nfunction B()\n{\n}\n").unwrap();
+        let names: Vec<_> = f.items.iter().filter_map(|i| if let Item::Function(f) = i { Some(f.name.as_str()) } else { None }).collect();
+        assert_eq!(names, ["A", "B"]);
     }
 
     #[test]
