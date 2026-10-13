@@ -773,10 +773,12 @@ impl<'a> Parser<'a> {
         Ok(Target::Name(self.raw_until(&[";", "}"])?))
     }
 
-    /// The source text of the tokens up to one of `stops`, without spaces.
+    /// The source text of the tokens up to one of `stops` or the end of
+    /// the line, without spaces.
     fn raw_until(&mut self, stops: &[&str]) -> Result<String> {
         let start = self.pos;
-        while !self.at_end() && !stops.iter().any(|p| self.is(p)) {
+        let line = self.line();
+        while !self.at_end() && !stops.iter().any(|p| self.is(p)) && self.tokens[self.pos].line == line {
             self.pos += 1;
         }
         if self.pos == start {
@@ -1068,7 +1070,7 @@ mod tests {
     #[test]
     fn statements() {
         let s = body(
-            "$a = 1 + 2 * 3;\n#フラグ=true;\n$i++:\nif($a != 1 && !#b){ Wait(10); }else if($a){}else Foo();\nbegin:\nwhile(1){ break; }\ncall_scene $MainGameName;\ncall_scene @->ma01_002.nss_MAIN;\ncall_chapter nss/sys_load.nss;",
+            "$a = 1 + 2 * 3;\n#フラグ=true;\n$i++:\nif($a != 1 && !#b){ Wait(10); }else if($a){}else Foo();\nbegin:\nwhile(1){ break; }\ncall_scene $MainGameName;\ncall_scene @->ma01_002.nss_MAIN;\ncall_chapter nss/sys_load.nss;\ncall_scene @->x.nss\n$a=1;",
         );
         assert!(matches!(&s[0].kind, StmtKind::Assign { op: AssignOp::Set, value: Some(Expr::Binary { op: BinaryOp::Add, .. }), .. }));
         assert!(matches!(&s[1].kind, StmtKind::Assign { target: Var::Global(g), .. } if g == "フラグ"));
@@ -1079,6 +1081,8 @@ mod tests {
         assert_eq!(s[6].kind, StmtKind::CallScene(Target::Var(Var::Local("MainGameName".into()))));
         assert_eq!(s[7].kind, StmtKind::CallScene(Target::Name("@->ma01_002.nss_MAIN".into())));
         assert_eq!(s[8].kind, StmtKind::CallChapter(Target::Name("nss/sys_load.nss".into())));
+        assert_eq!(s[9].kind, StmtKind::CallScene(Target::Name("@->x.nss".into())));
+        assert!(matches!(s[10].kind, StmtKind::Assign { .. }));
     }
 
     #[test]

@@ -105,6 +105,12 @@ enum NssCommand {
         #[arg(required = true)]
         paths: Vec<PathBuf>,
     },
+    /// Check that every scene, chapter, script file and function the
+    /// scripts name exists, and list the engine built-ins they call
+    Refs {
+        /// Directory with all the game's *.nss files (as extracted from nss.npa)
+        dir: PathBuf,
+    },
 }
 
 #[derive(Subcommand)]
@@ -214,6 +220,7 @@ fn main() -> Result<()> {
         },
         Command::Nss { command } => match command {
             NssCommand::Check { paths } => nss_check(&paths),
+            NssCommand::Refs { dir } => nss_refs(&dir),
         },
     }
 }
@@ -797,6 +804,40 @@ fn nss_check(paths: &[PathBuf]) -> Result<()> {
     if failed > 0 {
         bail!("{failed} files failed to parse");
     }
+    Ok(())
+}
+
+fn nss_refs(dir: &Path) -> Result<()> {
+    use conv_engines::nitroplus::{nss, refs};
+    let mut files = std::collections::BTreeMap::new();
+    for path in nss_files(&[dir.to_path_buf()])? {
+        let bytes = fs::read(&path).with_context(|| format!("reading {}", path.display()))?;
+        let file = nss::parse(&nss::decode(&bytes)).with_context(|| format!("parsing {}", path.display()))?;
+        let name = path.file_name().unwrap().to_string_lossy().into_owned();
+        files.insert(name, file);
+    }
+    let report = refs::check(&files);
+    for p in &report.problems {
+        println!("{p}");
+    }
+    println!("\nDefined in more than one file ({}):", report.duplicates.len());
+    for (name, in_files) in &report.duplicates {
+        println!("  {name}: {}", in_files.join(", "));
+    }
+    println!("\nCalled but not defined, i.e. engine built-ins ({}):", report.builtins.len());
+    let mut builtins: Vec<_> = report.builtins.iter().collect();
+    builtins.sort_by(|a, b| b.1.cmp(a.1).then(a.0.cmp(b.0)));
+    for (name, n) in builtins {
+        println!("  {n:6} {name}");
+    }
+    println!(
+        "\n{} files; {} call targets, {} script names, {} calls checked; {} problems",
+        files.len(),
+        report.checked_targets,
+        report.checked_names,
+        report.checked_calls,
+        report.problems.len()
+    );
     Ok(())
 }
 
