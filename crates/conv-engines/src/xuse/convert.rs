@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 
 use thiserror::Error;
 use conv_core::ir::{
-    ArithOp, Backlog, BarAction, BarButton, ButtonBar, ConfirmDialog, NamePlate, Noise, Setting, SettingRow, SettingsMenu, Op, Operand, PageButton, Placed, Rect, Ruby, SaveMenu, TextStyle, SourceLoc, Voice, VoiceToggle,
+    ArithOp, Backlog, BarAction, BarButton, ButtonBar, ConfirmDialog, NamePlate, Noise, ScreenEffect, Setting, SettingRow, SettingsMenu, Op, Operand, PageButton, Placed, Rect, Ruby, SaveMenu, TextStyle, SourceLoc, Voice, VoiceToggle,
     SpriteChange, SpriteFilter, SpritePlacement, TextLink, TextSpot, TextWindow, TitleAction, TitleButton, TitleScreen, TopBars,
     SlideLayer, TransitionStyle, Var, ZoomStyle, FILTER_BLEND_ADD, FILTER_BLEND_COPY, FILTER_BLEND_MULTIPLY, FILTER_BLEND_SCREEN, FILTER_BRIGHTNESS, FILTER_COLOUR, FILTER_MONOTONE,
     FILTER_GREYSCALE, FILTER_NEGATIVE,
@@ -1237,39 +1237,83 @@ fn lower_screen_module(
     Ok(())
 }
 
-/// Opcode 0x8c: an effect over the whole screen. Only the static (kind 2)
-/// is converted; `noise_slots` are the slots whose last setting in file
-/// order was static, so clearing them removes it.
+/// Opcode 0x8c: an effect over the whole screen: static (kind 2) as a
+/// sprite, a ripple (4) and shaking (5) as CONscripter's `screenripple`
+/// and `screenshake`. `slots` holds the kind each slot was last set to in
+/// file order, so clearing a slot removes the right thing.
 fn lower_environment(
     m: &EnvModule,
-    noise_slots: &mut BTreeSet<u32>,
+    slots: &mut BTreeMap<u32, u32>,
     assets: &mut AssetBank,
     ops: &mut Vec<Op>,
     at: impl Fn() -> SourceLoc,
 ) -> Result<(), ConvertError> {
-    if m.slot == 0 || m.kind == 0 {
-        let was_noise = if m.slot == 0 { !std::mem::take(noise_slots).is_empty() } else { noise_slots.remove(&m.slot) };
-        // Clearing a slot nothing converted was put in changes nothing.
-        if was_noise {
-            ops.push(Op::Noise(None));
-        } else if m.slot != 0 {
-            ops.push(Op::Unsupported { what: format!("opcode 0x8c clear slot {}", m.slot), at: at() });
+    let clear = |slot: u32, kind: u32, ops: &mut Vec<Op>| match kind {
+        ENV_KIND_NOISE => ops.push(Op::Noise(None)),
+        _ => ops.push(Op::ScreenEffect { slot, effect: None }),
+    };
+    if m.slot == 0 {
+        let cleared = std::mem::take(slots);
+        if cleared.values().any(|&k| k == ENV_KIND_NOISE) {
+            clear(0, ENV_KIND_NOISE, ops);
+        }
+        if cleared.values().any(|&k| k != ENV_KIND_NOISE) {
+            clear(0, 0, ops);
         }
         return Ok(());
     }
-    noise_slots.remove(&m.slot);
-    match m.noise {
+    // Setting a slot replaces what it held.
+    if let Some(kind) = slots.remove(&m.slot) {
+        if m.kind == 0 || kind != m.kind {
+            clear(m.slot, kind, ops);
+        }
+    }
+    let set = match (m.noise, m.ripple, m.shake) {
         // The game always uses alpha blending (0) and greyscale (mode 1).
         // Assumption: the rise in opacity over time_ms (up to 2 s) is
         // left out; most of the static is set inside a transition, which
         // fades it in.
-        Some(n) if m.kind == ENV_KIND_NOISE && n.blend == 0 && n.mode & 1 == 1 => {
-            noise_slots.insert(m.slot);
+        (Some(n), ..) if n.blend == 0 && n.mode & 1 == 1 => {
             let image = assets.noise()?;
             let frame_ms = n.interval_ms.max(1);
             ops.push(Op::Noise(Some(Noise { image, frames: NOISE_FRAMES, frame_ms, opacity: u32::from(n.end_opacity.min(256)) })));
+            true
         }
-        _ => ops.push(Op::Unsupported { what: format!("opcode 0x8c kind {}", m.kind), at: at() }),
+        // Option 0 (the only one used): a fixed direction, not a centre.
+        (_, Some(r), _) if r.option == 0 && r.blend == 0 => {
+            let map = assets.mask(r.map as usize, false)?;
+            let effect = ScreenEffect::Ripple {
+                map,
+                time_ms: r.time_ms,
+                interval_ms: r.interval_ms,
+                opacity: (i32::from(r.begin_opacity), i32::from(r.end_opacity)),
+                amplitude: (r.begin_amplitude, r.end_amplitude),
+                angle: r.angle,
+                angle_step: r.angle_step,
+                phase_step: r.phase_step,
+            };
+            ops.push(Op::ScreenEffect { slot: m.slot, effect: Some(effect) });
+            true
+        }
+        (.., Some(s)) => {
+            let effect = ScreenEffect::Shake {
+                time_ms: s.time_ms,
+                interval_ms: s.interval_ms,
+                path: s.option & 1 == 1,
+                speed: s.speed,
+                range: [s.begin_range, s.end_range],
+            };
+            ops.push(Op::ScreenEffect { slot: m.slot, effect: Some(effect) });
+            true
+        }
+        _ if m.kind == 0 => false,
+        _ => {
+            ops.push(Op::Unsupported { what: format!("opcode 0x8c kind {}", m.kind), at: at() });
+            false
+        }
+    };
+    if set {
+        slots.insert(m.slot, m.kind);
     }
     Ok(())
 }
@@ -1363,8 +1407,8 @@ pub fn lower_script(
     let mut full_screen_rows: Option<usize> = None;
     let mut last_text: Option<(usize, usize)> = None;
     let mut page_break = false;
-    // Opcode 0x8c slots holding static (file order).
-    let mut noise_slots = BTreeSet::new();
+    // Opcode 0x8c slots and the kind each holds (file order).
+    let mut env_slots = BTreeMap::new();
     for (index, ins) in cd.code.iter().enumerate() {
         if let Some(label) = own_labels.get(&index) {
             ops.push(Op::Label(format!("s{}_l{label}", cd.script_id)));
@@ -1467,7 +1511,7 @@ pub fn lower_script(
             continue;
         }
         if let Some(module) = cd.environment(ins) {
-            lower_environment(&module?, &mut noise_slots, assets, &mut ops, at)?;
+            lower_environment(&module?, &mut env_slots, assets, &mut ops, at)?;
             continue;
         }
         if let Some(apply) = cd.apply_preset(ins) {

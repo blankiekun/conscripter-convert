@@ -9,7 +9,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::fmt::Write;
 
 use conv_core::ir::{
-    ArithOp, ConfirmDialog, Op, Operand, Script, Ruby, SlideLayer, TextStyle, SpritePlacement, TextLink, TextWindow, TitleAction, TitleScreen,
+    ArithOp, ConfirmDialog, Op, ScreenEffect, Operand, Script, Ruby, SlideLayer, TextStyle, SpritePlacement, TextLink, TextWindow, TitleAction, TitleScreen,
     TransitionStyle, Var, ZoomStyle,
 };
 
@@ -314,6 +314,37 @@ pub fn emit(script: &Script) -> String {
                         writeln!(out, "lsp {NOISE_SPRITE},{NOISE_IMAGE},0,0,{NOISE_ALPHA}").unwrap();
                     }
                     None => writeln!(out, "mov {NOISE_ALPHA},0").unwrap(),
+                }
+                if transition.is_none() {
+                    writeln!(out, "print 1").unwrap();
+                }
+            }
+            Op::ScreenEffect { slot, effect } => {
+                match effect {
+                    None => writeln!(out, "screenshake {slot}").unwrap(),
+                    Some(ScreenEffect::Shake { time_ms, interval_ms, path, speed, range }) => {
+                        let [(x0, y0), (x1, y1)] = range;
+                        writeln!(
+                            out,
+                            "screenshake {slot},{time_ms},{interval_ms},{},{},{},{x0},{y0},{x1},{y1}",
+                            u8::from(*path),
+                            speed.0,
+                            speed.1
+                        )
+                        .unwrap();
+                    }
+                    Some(ScreenEffect::Ripple { map, time_ms, interval_ms, opacity, amplitude, angle, angle_step, phase_step }) => {
+                        writeln!(
+                            out,
+                            "screenripple {slot},\"{}\",{time_ms},{interval_ms},{},{},{},{},{angle},{angle_step},{phase_step}",
+                            path(map),
+                            opacity.0,
+                            opacity.1,
+                            amplitude.0,
+                            amplitude.1
+                        )
+                        .unwrap();
+                    }
                 }
                 if transition.is_none() {
                     writeln!(out, "print 1").unwrap();
@@ -1549,6 +1580,36 @@ end
                 "csp 60\nmov %116,120:mov $116,\":c/4,100,0;system\\noise.png\"\nlsp 60,$116,0,0,%116\nprint 1\n\
                  csp -1\nif %116 != 0 lsp 60,$116,0,0,%116\nbg \"bg\\room.png\",1\n\
                  csp 60\nmov %116,0\nprint 1\n"
+            ),
+            "{out}"
+        );
+    }
+
+    #[test]
+    fn screen_effects() {
+        let shake = ScreenEffect::Shake { time_ms: 1000, interval_ms: 100, path: false, speed: (800, 800), range: [(0, 0), (30, 30)] };
+        let ripple = ScreenEffect::Ripple {
+            map: "system/mask1001.png".into(),
+            time_ms: 3000,
+            interval_ms: 100,
+            opacity: (100, 150),
+            amplitude: (5, 10),
+            angle: 3150,
+            angle_step: 20,
+            phase_step: 30,
+        };
+        let s = script(vec![
+            Op::ScreenEffect { slot: 1, effect: Some(shake) },
+            Op::ScreenEffect { slot: 2, effect: Some(ripple) },
+            Op::ScreenEffect { slot: 1, effect: None },
+            Op::ScreenEffect { slot: 0, effect: None },
+        ]);
+        let out = emit(&s);
+        assert!(
+            out.contains(
+                "screenshake 1,1000,100,0,800,800,0,0,30,30\nprint 1\n\
+                 screenripple 2,\"system\\mask1001.png\",3000,100,100,150,5,10,3150,20,30\nprint 1\n\
+                 screenshake 1\nprint 1\nscreenshake 0\nprint 1\n"
             ),
             "{out}"
         );

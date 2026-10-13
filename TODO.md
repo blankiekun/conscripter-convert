@@ -123,14 +123,16 @@ engines print `z150` etc.). The web build compiles with it.
       to sprite 61, characters to 62 + n. Not done: the opacity rise over
       `time` (100-2000 ms; most uses sit inside a transition, which fades
       it in). Unsupported: 2,571 → 2,404.
-- [ ] `0x8c` kinds 4 (Animation-Replace, a ripple through a
-      displacement map, 25 uses, e.g. 「ぐらり、と視界が歪んだ」) and 5
-      (Animation-Vibrate, shaking that runs while text shows, 12 uses).
-      Both need CONscripter additions; record layouts in the PLAN §6
-      opcode table.
-- [ ] Opcodes still emitted as comments (2,404 left): `0x93`/`0x94`
+- [x] `0x8c` kinds 4 (ripple, 25 uses, e.g. 「ぐらり、と視界が歪んだ」)
+      and 5 (shaking while a line shows, 12) as CONscripter's new
+      `screenripple` / `screenshake` (engine `75a52c0`, no release yet;
+      save files are now version 4). Maps are `system/maskNNNN.png`.
+      Unsupported: 2,404 → 2,331 (no 0x8c left). Checked headless in the
+      Jean scene of 0003.cd: the picture shakes while the text window and
+      name plate stay. Not checked against the original under wine.
+- [ ] Opcodes still emitted as comments (2,331 left): `0x93`/`0x94`
       (418, before each chapter end), `0x37`/`0x38` (251, chapter
-      history), `0x8c` kinds 4/5 (73 with clears), `0x6d` (198), `0x7a`/`0x7b`, `0x6e`/`0x6f`,
+      history), `0x6d` (198), `0x7a`/`0x7b`, `0x6e`/`0x6f`,
       `0x8a`/`0x8b`, `0x70` leftovers.
 - [ ] Transitions still drawn as cross-fades: Wave, Dissolve, RollFlip,
       SoftEdgeWipe, TvPowerSwitch, BoxRolling, SmoothCrossFade, Dot4x4,

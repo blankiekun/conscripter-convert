@@ -142,6 +142,25 @@ pub struct Noise {
     pub opacity: u32,
 }
 
+/// A moving effect on the whole picture ([`Op::ScreenEffect`]). Every
+/// `interval_ms` it takes a step; over `time_ms` its sizes go from their
+/// first to their last values, then stay.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ScreenEffect {
+    /// Shaking by up to `range` pixels (x, y; first and last). `path`
+    /// false: each axis swings on a sine wave advancing `speed`/65536 of a
+    /// turn per ms; true: the picture jumps along a fixed 7-point path,
+    /// moving on when `speed.0` × ms reaches 65536.
+    Shake { time_ms: u32, interval_ms: u32, path: bool, speed: (i32, i32), range: [(i32, i32); 2] },
+    /// Rippling through `map` (a greyscale picture as large as the screen):
+    /// each pixel comes from `amplitude` × sin(2π(grey/256 + phase/1000))
+    /// pixels away in direction `angle` (0.1°, 0 = right, 900 = down). The
+    /// rippled picture lies over the plain one at `opacity` (0-256). Each
+    /// step turns the angle by `angle_step` and moves the phase by
+    /// `phase_step`.
+    Ripple { map: String, time_ms: u32, interval_ms: u32, opacity: (i32, i32), amplitude: (i32, i32), angle: i32, angle_step: i32, phase_step: i32 },
+}
+
 /// A clickable word in a text page.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TextLink {
@@ -204,6 +223,11 @@ pub enum Op {
     /// overlay, it stays when the background changes or the sprites are
     /// cleared. Shown at once unless a transition is open.
     Noise(Option<Noise>),
+    /// Start (or with `None` stop) a moving effect on the picture behind
+    /// the text window in `slot` (1-4); slot 0 with `None` stops them all.
+    /// It runs by itself while the script goes on. Shown at once unless a
+    /// transition is open.
+    ScreenEffect { slot: u32, effect: Option<ScreenEffect> },
     /// Hide the text window; the next text page shows it again.
     HideTextWindow,
     /// Show the following pages whole (`true`) or typed out at the text

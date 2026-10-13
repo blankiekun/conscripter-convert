@@ -166,6 +166,8 @@ pub const PRESET_BLEND_COPY: u16 = 5;
 /// Animation-Vibrate (shaking), 6 and 7 unused.
 pub const OP_ENVIRONMENT: u16 = 0x8c;
 pub const ENV_KIND_NOISE: u32 = 2;
+pub const ENV_KIND_RIPPLE: u32 = 4;
+pub const ENV_KIND_SHAKE: u32 = 5;
 pub const OP_BGM_PLAY: u16 = 0x57;
 pub const OP_BGM_STOP: u16 = 0x58;
 pub const OP_SE_PLAY: u16 = 0x5a;
@@ -241,6 +243,58 @@ pub struct EnvModule {
     pub kind: u32,
     /// Static (kind 2), else `None`.
     pub noise: Option<Noise>,
+    /// A ripple (kind 4), else `None`.
+    pub ripple: Option<Ripple>,
+    /// Shaking (kind 5), else `None`.
+    pub shake: Option<Shake>,
+}
+
+/// Animation-Replace (module 0x73, draw 0x41a2d0, update 0x41a4a0): the
+/// picture under the object, each pixel taken from amp × sin(2π(m/256 +
+/// phase/1000)) pixels away along `angle` (0.1°), m being the pixel's grey
+/// level in `mask%04u.png` (`HD/mask.arc`) number `map` (sine table
+/// 0x501938, per-pixel loop 0x43d9d0), then blended over the picture with
+/// `blend` at an opacity going from `begin_opacity` to `end_opacity`
+/// (0-256) over `time_ms`, as the amplitude goes from `begin_amplitude` to
+/// `end_amplitude` pixels. Every `interval_ms` the angle turns by
+/// `angle_step` and the phase moves by `phase_step`. Record: u32 option,
+/// time, interval, u8 blend, u16 begin and end opacity, u32 map, i32
+/// amplitudes, angle, angle step, phase step (the exe's debug output:
+/// AmLenBegin, AmLenEnd, AmAngle, AmAngleMove, FreqMove). Option 0x10
+/// switches to a mode around a centre point; the game never uses it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Ripple {
+    pub option: u32,
+    pub time_ms: u32,
+    pub interval_ms: u32,
+    pub blend: u8,
+    pub begin_opacity: u16,
+    pub end_opacity: u16,
+    pub map: u32,
+    pub begin_amplitude: i32,
+    pub end_amplitude: i32,
+    pub angle: i32,
+    pub angle_step: i32,
+    pub phase_step: i32,
+}
+
+/// Animation-Vibrate (module 0x74, draw 0x41ac70, update 0x41ad60): moves
+/// the picture under the object (0x441b80 blits it onto itself) by an
+/// offset up to a range that grows from `begin_range` to `end_range`
+/// pixels over `time_ms`, updated every `interval_ms`. Option bit 0 clear:
+/// each axis on a 256-step sine wave (table 0x501538) whose phase advances
+/// by speed × ms (16.16 turns); set: along a 7-point path (table
+/// 0x501300), the next point when speed x × ms passes 65536. Record: nine
+/// u32: option, time, interval, speed x, y, begin range x, y, end range
+/// x, y.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Shake {
+    pub option: u32,
+    pub time_ms: u32,
+    pub interval_ms: u32,
+    pub speed: (i32, i32),
+    pub begin_range: (i32, i32),
+    pub end_range: (i32, i32),
 }
 
 /// Animation-RandomNoise (module 0x72): greyscale static, one random byte
@@ -627,7 +681,37 @@ impl<'a> CdScript<'a> {
             } else {
                 None
             };
-            Ok(EnvModule { slot, kind, noise })
+            let (mut ripple, mut shake) = (None, None);
+            let d = o + 12;
+            if slot != 0 && kind == ENV_KIND_RIPPLE {
+                let i = |k: usize| r.u32(d + 17 + 4 * k).map(|n| n as i32);
+                ripple = Some(Ripple {
+                    option: r.u32(d)?,
+                    time_ms: r.u32(d + 4)?,
+                    interval_ms: r.u32(d + 8)?,
+                    blend: r.slice(d + 12, 1)?[0],
+                    begin_opacity: r.u16(d + 13)?,
+                    end_opacity: r.u16(d + 15)?,
+                    map: r.u32(d + 17)?,
+                    begin_amplitude: i(1)?,
+                    end_amplitude: i(2)?,
+                    angle: i(3)?,
+                    angle_step: i(4)?,
+                    phase_step: i(5)?,
+                });
+            }
+            if slot != 0 && kind == ENV_KIND_SHAKE {
+                let i = |k: usize| r.u32(d + 4 * k).map(|n| n as i32);
+                shake = Some(Shake {
+                    option: r.u32(d)?,
+                    time_ms: r.u32(d + 4)?,
+                    interval_ms: r.u32(d + 8)?,
+                    speed: (i(3)?, i(4)?),
+                    begin_range: (i(5)?, i(6)?),
+                    end_range: (i(7)?, i(8)?),
+                });
+            }
+            Ok(EnvModule { slot, kind, noise, ripple, shake })
         })
     }
 
@@ -879,8 +963,44 @@ mod tests {
         let bytes = build("e.rio", &[], &code, &pool);
         let cd = CdScript::parse(&bytes).unwrap();
         let noise = Noise { mode: 1, blend: 0, begin_opacity: 0, end_opacity: 120, time_ms: 100, interval_ms: 100 };
-        assert_eq!(cd.environment(&cd.code[0]).unwrap().unwrap(), EnvModule { slot: 1, kind: 2, noise: Some(noise) });
-        assert_eq!(cd.environment(&cd.code[1]).unwrap().unwrap(), EnvModule { slot: 1, kind: 0, noise: None });
+        assert_eq!(cd.environment(&cd.code[0]).unwrap().unwrap(), EnvModule { slot: 1, kind: 2, noise: Some(noise), ripple: None, shake: None });
+        assert_eq!(cd.environment(&cd.code[1]).unwrap().unwrap(), EnvModule { slot: 1, kind: 0, noise: None, ripple: None, shake: None });
+
+        // The ripple in script 3 and the shaking in script 3.
+        let pool: Vec<u8> = [
+            concat!("01000000", "00e80300", "04000000", "00000000", "b80b0000", "64000000", "00", "6400", "9600"),
+            concat!("e9030000", "05000000", "0a000000", "4e0c0000", "14000000", "1e000000"),
+            concat!("01000000", "00e80300", "05000000", "00000000", "20030000", "0a000000", "20030000", "00000000"),
+            concat!("00000000", "00000000", "1e000000", "05000000"),
+        ]
+        .concat()
+        .as_bytes()
+        .chunks(2)
+        .map(|h| u8::from_str_radix(std::str::from_utf8(h).unwrap(), 16).unwrap())
+        .collect();
+        let code = [
+            Instr { op: OP_ENVIRONMENT, sub: 0xffff, arg: 0, source_pos: 0 },
+            Instr { op: OP_ENVIRONMENT, sub: 0xffff, arg: 53, source_pos: 0 },
+        ];
+        let bytes = build("e.rio", &[], &code, &pool);
+        let cd = CdScript::parse(&bytes).unwrap();
+        let ripple = Ripple {
+            option: 0,
+            time_ms: 3000,
+            interval_ms: 100,
+            blend: 0,
+            begin_opacity: 100,
+            end_opacity: 150,
+            map: 1001,
+            begin_amplitude: 5,
+            end_amplitude: 10,
+            angle: 3150,
+            angle_step: 20,
+            phase_step: 30,
+        };
+        assert_eq!(cd.environment(&cd.code[0]).unwrap().unwrap().ripple, Some(ripple));
+        let shake = Shake { option: 0, time_ms: 800, interval_ms: 10, speed: (800, 0), begin_range: (0, 0), end_range: (30, 5) };
+        assert_eq!(cd.environment(&cd.code[1]).unwrap().unwrap().shake, Some(shake));
     }
 
     #[test]
