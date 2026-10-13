@@ -519,23 +519,25 @@ license before reusing code.
 
 Profiles are also the main thing the AI agents write (see §8).
 
-### Remaining work for 最果てのイマ (as of 2026-10-12)
+### Remaining work for 最果てのイマ (as of 2026-10-13)
 
 Converted and playable: text, voices, sprites with colour filters,
 backgrounds, BGM, sound effects, transitions, text modes, clickable links,
 chapter titles, and the system screens (title, save/load, settings with
 voice switches and read-only skip, backlog, button bars, yes/no
-confirmations). 4,162 script instructions are still left as comments.
+confirmations) and the extras (CG gallery, scene replay, BGM room).
+Two script instructions are left as comments: the start point's debug
+menu, which the user doesn't want.
 
 **Settings screen.** The original's settings dialog has six pages; these
 parts are not converted:
-- text: window opacity, auto-mode wait per page and per character,
+- text: auto-mode wait per page and per character,
   stopping skip/auto on a choice or click, font, antialiasing, decoration;
 - voice: "次の音声まで停止しない" (keep a voice playing into the next
   line), auto-play of voices in the CG viewer;
 - sound: per-channel mute switches, the system voice;
-- mouse: wheel closes the backlog, wheel advances text, sensitivity;
-- confirmations: switches to turn each yes/no dialog off;
+- mouse: wheel sensitivity (the wheel switches and the confirmation
+  switches are done);
 - other: effect and animation switches, save preview, inactive-window
   behaviour, shortcut-menu position, gamepad.
 
@@ -544,7 +546,9 @@ parts are not converted:
 - Chapter history (`ChapterHistory.004`; 0x37/0x38 only end a chapter and
   clear its name, converted) and the autosave slots.
 - Extras: the CG gallery, the scene replay ("chapter") and the BGM room
-  are done; the system voices (WSS, title image 13) aren't. No title BGM.
+  are done; the system voices (WSS, title image 13) are dropped (the
+  user's decision; the item stays greyed out). No title BGM (the
+  original's title code plays none, as far as was checked).
 - Button bar lock button (`SysTray.004` #9).
 
 **Script opcodes** (counts are remaining uses):

@@ -1,6 +1,6 @@
 # TODO for the next agent
 
-State on 2026-10-13 (updated by a fourth session; start with "Next"
+State on 2026-10-13 (updated by a fifth session; start with "Next"
 below). Read this first, then `saiima.md` (local handoff
 notes, git-ignored) and `PLAN.md` §4.2 and §6 ("Remaining work for
 最果てのイマ").
@@ -28,38 +28,75 @@ Nitroplus agent works in `~/Projects/conscripter-convert-nitroplus` on
 branch `nitroplus` and may commit to local `main` without pushing: base
 on `origin/main`, not `main`.
 
-Every opcode the story uses is converted (unsupported 81 → 2: the start
-point's debug menu, which the user doesn't want). The fourth session
-(2026-10-13, later) did the CG gallery (`cf127f3`); the fifth the scene
-replay ("chapter") and the BGM room (items under "Extras" below).
-**Next: WSS**, the last extra, unless the user says otherwise:
+### Where the game stands
 
-1. **WSS** (`VoiceMode.004`, `HD/wss.bin`): Windows system-sound voices
-   per character, with play / stop / save / settings; unlocked by
-   progress bit 4 + route (table 0x4fbc00). Probably only "play" makes
-   sense here.
+The game is complete enough to play through: every opcode the story
+uses is converted (the 2 instructions left are the start point's debug
+menu, which the user doesn't want); title, save/load, settings,
+backlog, button bar, top bars and confirmations work; the extras have
+the CG gallery (`cf127f3`), the scene replay ("chapter", `3e0acdf`) and
+the BGM room (`336f237`). **WSS is dropped** (user, 2026-10-13): its menu
+item stays greyed out (`ExtrasAction::Unavailable` in `extras_menu()`).
+Findings, in case it ever comes back, are in `saiima.md` ("WSS").
 
-It is still an `ExtrasAction::Unavailable` item in
-`extras_menu()` (convert.rs); give it its own action, IR and routine
-like the gallery (`extras.rs`), the replay (`replay.rs`) and the BGM
-room (`music.rs`). Sprite slots 100-499 and %120-%129 are the
-extras' (title only, cleared on exit); the replay uses %152-%160 (kept
-while a scene plays) and sprites 200-412 for its list; the BGM room's
-song playing is %161.
+### What is left, roughly by how visible it is
 
-How to see the original's extras (details in `saiima.md`, "Extras"):
-run it under wine with the 100% save the user downloaded
+Nothing below has been asked for; check with the user before starting
+a big one.
+
+1. **Transitions and effects not matched yet:** MeltDown (3 uses, still
+   a cross-fade; filmed: the old picture melts down with a wavy edge),
+   the Zigzag filter's Multi blend (1 use; needs an engine blend option
+   for `screenripple`). Quakes, flashes and pulses were never compared
+   with the original (our flashes are under the text window; the
+   original's cover it).
+2. **Missing system screens and buttons:** chapter history
+   (`ChapterHistory.004`; 0x39 clears it, nothing emitted yet), the blog
+   bar's prev / next / exit buttons and scene list (drawn disabled), the
+   button bar's lock button (`SysTray.004` #9), autosave slots, the CG
+   viewer's voice button (`HD/cgv.bin`) and its idle slide-away.
+3. **Settings the original has and ours doesn't** (PLAN §6 "Settings
+   screen"): auto-mode waits, stopping skip/auto on a choice, keeping a
+   voice into the next line, per-channel mutes, font, etc.
+4. **Small open questions** further down this file: ruby flag 1 vs 3,
+   brightness filter scale, the 0x88 "field", 0x8e/0x70 fade vs depth,
+   `0x49` edge colour and line height of enlarged text, links' hover
+   colour of the underline, a visited link typing in yellow first.
+5. Replay/BGM room leftovers: a row's pressed look, the list window's
+   slight blur.
+
+Not planned: the debug menu, right-click menus (the user said skip),
+native Linux/macOS movie playback (only if the user asks), WSS.
+
+### Notes for working on the extras
+
+Extras code: `crates/conv-cons/src/{extras,replay,music}.rs` (emitters),
+`crates/conv-engines/src/xuse/{gallery,replay,music}.rs` (tables from
+the exe), `extras_menu()` in `convert.rs`. Sprite slots 100-499 and
+%120-%129 are the extras' (title only, cleared on exit); the replay
+uses %152-%160 (kept while a scene plays, cleared with every other local
+when a replay starts) and sprites 200-412 for its list; the BGM room's
+song playing is %161. Globals: %2000+ link visited, %2200+ CG seen,
+%3000+ scene unlocked, %3600+ progress bits, %3640-3646 settings
+switches, %3650+ scene replayed (the variable range ends at 4096).
+Sprite texts (`strsp`) must go through `sprite_text()` (odd runs of
+half-width characters break them).
+
+How to see the original (details in `saiima.md`, "Extras" and "Running
+the original"): run it under wine with the 100% save the user downloaded
 (`~/Z:/Media/Visual Novels/farthest2015_muwokoerumono.zip`, from
 sagaoz.net) as `Documents\Xuse\最果てのイマ COMPLETE\Farthest2015_000.bin`
-**inside a prefix whose Documents is a real folder** (the old prefix's
-Documents was a symlink to the user's `~/Documents`; see saiima.md).
+**inside a prefix whose Documents is a real folder**. The fourth
+session's prefix still exists:
+`/tmp/claude-1000/-home-saya-Projects-conscripter-convert/85f13091-b86b-49cb-a4ec-6478c18ba433/scratchpad/wine`
+(the 100% save is back in it). **Stop wine when done**
+(`WINEPREFIX=… wineserver -k`, and kill `Xvfb :77`): the user found
+one left running. Audio is muted; scripts that FIRST START runs are in
+0004.cd (0003.cd is the epilogue).
 
-Other approximations worth checking or improving, roughly by
-visibility: the Zigzag's Multi blend (needs an engine blend option for
-`screenripple`), MeltDown (3 uses, still a cross-fade), quakes, flashes
-and pulses never compared with the original. Wine harness: audio is
-muted; scripts that FIRST START runs are in 0004.cd (0003.cd is the
-epilogue).
+Headless checks of the converted game: `research/xuse/smoke.py` (see
+"How to build and test"); for the extras, patch `*start` of a `0.txt`
+copy to set the unlock globals first (the output is LF-only).
 
 ## Done in the third session (2026-10-13)
 
@@ -470,8 +507,9 @@ engines print `z150` etc.). The web build compiles with it.
       (`%161`). `crates/conv-cons/src/music.rs`. Checked headless: page
       matches the original (mean pixel difference 0.25), playing mark,
       mark kept after leaving. Sound not heard (headless runs are muted).
-- [ ] Extras: WSS (system voices); chapter history, blog bar buttons,
-      title BGM.
+- [x] WSS (system voices): dropped (user, 2026-10-13); the item stays
+      greyed out. Chapter history and blog bar buttons: see "Next".
+      Title BGM: none found in the original's title code.
 - [ ] Native Linux/macOS builds skip movies (`mpegplay` is disabled
       without SMPEG). Only if the user wants it.
 - [ ] Right-click: not planned (the user said skip it).
