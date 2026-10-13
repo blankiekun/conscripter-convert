@@ -139,6 +139,7 @@ pub fn compile_run(files: &BTreeMap<String, NssFile>, start: &str, max_files: us
     let (first, _) = files.get_key_value(start).ok_or_else(|| format!("no script {start}"))?;
     let mut c = Compiler::new(files, first, assets);
     c.flags = story_flags(files);
+    let dynamic_base = c.flags.values().filter(|v| !v.global).map(|v| v.index + 1).max().unwrap_or(FLAG_LOCAL_BASE);
     c.vars.insert("$GameName".into(), Value::Str(start.to_string()));
     c.vars.insert("$GameStart".into(), Value::Int(1));
     c.vars.insert("$GameCircle".into(), Value::Int(1));
@@ -210,6 +211,12 @@ pub fn compile_run(files: &BTreeMap<String, NssFile>, start: &str, max_files: us
         for (k, &v) in &c.flags {
             c.vars.insert(k.clone(), Value::Runtime(v));
         }
+        // Helper variables kept at run time belong to the file that made
+        // them; the next file sets them again before use.
+        c.vars.retain(|k, v| !matches!(v, Value::Runtime(_)) || c.flags.contains_key(k));
+        c.dynamic.clear();
+        c.dynamic_values.clear();
+        c.next_dynamic = dynamic_base;
         c.forks_in_file = 0;
         c.steps = 0;
         c.ops.push(Op::Label(file_label(&name)));
@@ -672,6 +679,11 @@ struct Compiler<'a, 'b> {
     flags: HashMap<String, conv_core::ir::Var>,
     /// Codes of the strings story flags hold ("" = 0).
     codes: HashMap<String, i32>,
+    /// Helper variables of the current file that became runtime ones at a
+    /// merge, the next variable for one, and the strings each can hold.
+    dynamic: HashMap<String, conv_core::ir::Var>,
+    next_dynamic: u16,
+    dynamic_values: HashMap<conv_core::ir::Var, std::collections::BTreeSet<String>>,
 }
 
 /// One way through a fork: its state at the end, and the op that marks it
@@ -880,14 +892,50 @@ impl<'a, 'b> Compiler<'a, 'b> {
         }
         let mut merged = leaves[0].state.clone();
         let keys: std::collections::BTreeSet<String> = leaves.iter().flat_map(|l| l.state.vars.keys().cloned()).collect();
+        let mut inserts = Vec::new();
         for k in keys.iter().filter(|k| differ(k)) {
+            // Only names of scenes or files to go to (`@->x_SELECT02`), or
+            // the variable an earlier merge made for them.
+            let known = self.dynamic.get(k).copied();
+            let scene = |v: Option<&Value>| match v {
+                Some(Value::Str(t)) => t.starts_with("@->") || t.starts_with("nss/") || t.contains(".nss"),
+                Some(Value::Null) | None => true,
+                Some(&Value::Runtime(r)) => Some(r) == known,
+                _ => false,
+            };
+            let strings = leaves.iter().all(|l| scene(l.state.vars.get(k))) && leaves.iter().any(|l| matches!(l.state.vars.get(k), Some(Value::Str(_))));
             match self.flags.get(k) {
                 Some(&v) => {
                     merged.vars.insert(k.clone(), Value::Runtime(v));
                 }
                 None if k.starts_with("$SYSTEM") => {}
+                // Different names (of a scene to call, say): kept at run time
+                // from here on, set at the end of each branch.
+                None if strings && (known.is_some() || (self.next_dynamic as u32) < GLOBAL_BORDER - 11) => {
+                    let var = known.unwrap_or_else(|| {
+                        let var = conv_core::ir::Var { global: false, index: self.next_dynamic };
+                        self.next_dynamic += 1;
+                        self.dynamic.insert(k.clone(), var);
+                        var
+                    });
+                    for l in &leaves {
+                        let v = l.state.vars.get(k).cloned().unwrap_or(Value::Null);
+                        if matches!(v, Value::Runtime(_)) {
+                            continue;
+                        }
+                        let code = self.code(&v).unwrap_or(0);
+                        self.dynamic_values.entry(var).or_default().insert(v.string());
+                        inserts.push((l.marker, Op::Arith { var, op: ArithOp::Set, value: Operand::Const(code) }));
+                    }
+                    merged.vars.insert(k.clone(), Value::Runtime(var));
+                }
                 None => self.note("branches of a runtime if end with different helper variables"),
             }
+        }
+        // After each marker, last first so the earlier positions hold.
+        inserts.sort_by_key(|i| std::cmp::Reverse(i.0));
+        for (at, op) in inserts {
+            self.ops.insert(at + 1, op);
         }
         if leaves.iter().any(|l| l.state.shown != leaves[0].state.shown) {
             self.note("branches of a runtime if end with different pictures");
@@ -916,6 +964,33 @@ impl<'a, 'b> Compiler<'a, 'b> {
             }
         }));
         self.ops.push(Op::Label(end_label));
+        self.finish_fork(leaves, own, false);
+    }
+
+    /// `call_scene $x` where `$x` is only known at run time: each scene it
+    /// can name, behind a runtime test.
+    fn call_runtime_scene(&mut self, var: conv_core::ir::Var, chapter: bool) {
+        let values: Vec<String> = self.dynamic_values.get(&var).map(|v| v.iter().cloned().collect()).unwrap_or_default();
+        if values.is_empty() {
+            self.note("call_scene to a runtime value with no known names");
+            return;
+        }
+        self.sync(0);
+        let own = self.begin_fork();
+        self.choices += 1;
+        let n = self.choices;
+        let end = format!("callrt{n}_end");
+        let base = self.snapshot();
+        let mut leaves = Vec::new();
+        for (i, v) in values.iter().enumerate() {
+            let next = format!("callrt{n}_{i}");
+            let code = self.code(&Value::Str(v.clone())).unwrap_or(0);
+            self.ops.push(Op::If { var, cmp: conv_core::ir::Compare::Ne, value: Operand::Const(code), label: next.clone() });
+            leaves.extend(self.branch(&base, |c| c.call_scene(v, chapter)));
+            self.ops.push(Op::Jump(end.clone()));
+            self.ops.push(Op::Label(next));
+        }
+        self.ops.push(Op::Label(end));
         self.finish_fork(leaves, own, false);
     }
 
@@ -1110,6 +1185,9 @@ impl<'a, 'b> Compiler<'a, 'b> {
             forks_in_file: 0,
             flags: HashMap::new(),
             codes: HashMap::new(),
+            dynamic: HashMap::new(),
+            next_dynamic: 0,
+            dynamic_values: HashMap::new(),
         }
     }
 
@@ -1242,7 +1320,13 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 let chapter = matches!(stmt.kind, StmtKind::CallChapter(_));
                 let target = match t {
                     Target::Name(n) => n.clone(),
-                    Target::Var(v) => self.vars.get(&v.to_string()).map(Value::string).unwrap_or_default(),
+                    Target::Var(v) => match self.vars.get(&v.to_string()) {
+                        Some(&Value::Runtime(var)) => {
+                            self.call_runtime_scene(var, chapter);
+                            return Flow::Normal;
+                        }
+                        v => v.map(Value::string).unwrap_or_default(),
+                    },
                 };
                 self.call_scene(&target, chapter);
             }
@@ -2371,6 +2455,44 @@ scene a.nss
             pc += 1;
         }
         vars
+    }
+
+    #[test]
+    fn a_scene_name_set_by_a_runtime_if_is_called_at_run_time_in_each_file() {
+        let mut files = BTreeMap::new();
+        files.insert(BOOT.to_string(), nss::parse("#include \"nss/function.nss\"\n").unwrap());
+        files.insert("function.nss".to_string(), nss::parse("function F(){}").unwrap());
+        // As md05_004*: the scene to call is picked by a story flag, and
+        // every file uses the same helper variable for it.
+        let file = |name: &str, x: i32, next: &str| {
+            format!(
+                r#"scene {name}_MAIN
+{{
+	if($f == true){{$S = "@->"+$GameName+"_X";}}
+	else{{$S = "@->"+$GameName+"_Y";}}
+	call_scene $S;
+	$GameName = "{next}";
+}}
+scene {name}_X
+{{
+	$g = {x};
+}}
+scene {name}_Y
+{{
+	$g = {};
+}}"#,
+                x + 1
+            )
+        };
+        files.insert("a.nss".into(), nss::parse(&file("a.nss", 1, "b.nss")).unwrap());
+        files.insert("b.nss".into(), nss::parse(&file("b.nss", 3, "d.nss")).unwrap());
+        files.insert("d.nss".into(), nss::parse("scene d.nss_MAIN\n{\n\tif($g){$f = 1;}\n\t$GameCircle = 0;\n}").unwrap());
+        let (c, played) = compile_run(&files, "a.nss", 10, &mut Fake).unwrap();
+        assert_eq!(played, ["a.nss", "b.nss", "d.nss"]);
+        let flags = story_flags(&files);
+        // $f is 0: each file calls its own _Y scene, b.nss's last.
+        assert_eq!(run_ir(&c.ops).get(&flags["$g"]), Some(&4));
+        assert!(!c.notes.contains_key("call_scene to a runtime value with no known names"), "{:?}", c.notes);
     }
 
     #[test]
