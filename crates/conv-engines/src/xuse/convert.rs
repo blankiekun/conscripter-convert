@@ -17,7 +17,7 @@ use conv_core::ir::{
 };
 
 use crate::xuse::cd::{
-    CdError, CdScript, EnvModule, Instr, Link, PresetModule, Quake, ENV_KIND_NOISE, Ruby as RubyRecord, ScreenModule, Sound, SpriteEntry, TextStyle as StyleRecord, OP_TEXT_INDENT, PRESET_KIND_MONOTONE, PRESET_BLEND_ADD, PRESET_BLEND_ALPHA, PRESET_BLEND_COPY,
+    CdError, CdScript, EnvModule, Instr, Link, PresetModule, Quake, ENV_KIND_NOISE, FLASH_MS, FLASH_OPACITY, OP_FLASH, Ruby as RubyRecord, ScreenModule, Sound, SpriteEntry, TextStyle as StyleRecord, OP_TEXT_INDENT, PRESET_KIND_MONOTONE, PRESET_BLEND_ADD, PRESET_BLEND_ALPHA, PRESET_BLEND_COPY,
     PRESET_BLEND_MULTI, PRESET_BLEND_SCREEN, PRESET_KIND_BRIGHTNESS, PRESET_KIND_COLOUR, PRESET_KIND_GREYSCALE,
     PRESET_KIND_NEGATIVE,
 };
@@ -1534,6 +1534,12 @@ pub fn lower_script(
         }
         if let Some(module) = cd.environment(ins) {
             lower_environment(&module?, &mut env_slots, assets, &mut ops, at)?;
+            continue;
+        }
+        if ins.op == OP_FLASH {
+            let c = ins.arg as u32;
+            let colour = (c & 0xff) << 16 | (c & 0xff00) | (c >> 16 & 0xff);
+            ops.push(Op::Flash { colour, opacity: FLASH_OPACITY, ms: FLASH_MS });
             continue;
         }
         if let Some(quake) = cd.quake(ins) {

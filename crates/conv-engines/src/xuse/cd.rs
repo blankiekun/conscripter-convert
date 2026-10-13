@@ -177,6 +177,14 @@ pub const ENV_KIND_SHAKE: u32 = 5;
 /// waits for it; a click ends it early. Skipped while skipping, or when
 /// the effects setting (bit 0 of 0x51ed14) is off.
 pub const OP_QUAKE: u16 = 0x6d;
+/// A flash (handler 0x441550, object 0x4413d0 at sort key 0xffffffff, over
+/// everything): `arg` is a colour (COLORREF, 0x00BBGGRR) filled over the
+/// screen with blend 1 (Add) at opacity 128 for 100 ms. The script waits
+/// for it; a click ends it early. Skipped while skipping, or with the
+/// setting at bit 16 of 0x52056c.
+pub const OP_FLASH: u16 = 0x6e;
+pub const FLASH_MS: u32 = 100;
+pub const FLASH_OPACITY: u32 = 128;
 pub const OP_BGM_PLAY: u16 = 0x57;
 pub const OP_BGM_STOP: u16 = 0x58;
 pub const OP_SE_PLAY: u16 = 0x5a;

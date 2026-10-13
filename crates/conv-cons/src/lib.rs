@@ -48,6 +48,9 @@ const NOISE_SPRITE: u32 = 60;
 const OVERLAY_SPRITE: u32 = 61;
 /// Sprite layer n is NScripter sprite 62 + n.
 const SPRITE_BASE: u32 = 62;
+/// The lsp2 slot of a flash ([`Op::Flash`]), under the menus' and the top
+/// bars' (0-23).
+const FLASH_SPRITE2: u32 = 24;
 /// The highest sprite number (ONScripter has 1000); also the overlay
 /// under the character sprites.
 const MAX_SPRITE: u32 = 999;
@@ -558,6 +561,13 @@ pub fn emit(script: &Script) -> String {
                 writeln!(out, "bgmstop").unwrap();
             }
             Op::Wait { ms } => writeln!(out, "delay {ms}").unwrap(),
+            Op::Flash { colour, opacity, ms } => {
+                // An additive sprite2: over the picture, under the text window.
+                let alpha = (opacity * 255 / 256).min(255);
+                let (w, h) = (script.width, script.height);
+                writeln!(out, "lsp2add {FLASH_SPRITE2},\":c;>{w},{h},#{colour:06x}\",{},{},100,100,0,{alpha}", w / 2, h / 2).unwrap();
+                writeln!(out, "print 1\ndelay {ms}\ncsp2 {FLASH_SPRITE2}\nprint 1").unwrap();
+            }
             Op::SePlay { file, looped } => {
                 let ch = se.start(file);
                 let cmd = if *looped { "dwaveloop" } else { "dwave" };
@@ -1611,6 +1621,15 @@ end
                  screenripple 2,\"system\\mask1001.png\",3000,100,100,150,5,10,3150,20,30\nprint 1\n\
                  screenshake 1\nprint 1\nscreenshake 0\nprint 1\n"
             ),
+            "{out}"
+        );
+    }
+
+    #[test]
+    fn flashes() {
+        let out = emit(&script(vec![Op::Flash { colour: 0xff0000, opacity: 128, ms: 100 }]));
+        assert!(
+            out.contains("lsp2add 24,\":c;>800,600,#ff0000\",400,300,100,100,0,127\nprint 1\ndelay 100\ncsp2 24\nprint 1\n"),
             "{out}"
         );
     }

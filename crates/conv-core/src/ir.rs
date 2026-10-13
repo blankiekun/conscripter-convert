@@ -228,6 +228,10 @@ pub enum Op {
     /// It runs by itself while the script goes on. Shown at once unless a
     /// transition is open.
     ScreenEffect { slot: u32, effect: Option<ScreenEffect> },
+    /// Add `colour` (0xRRGGBB) at `opacity` (0-256) to the whole picture
+    /// for `ms`, then take it away; the script waits, and a click ends it
+    /// early. Drawn at once, even while a transition is open.
+    Flash { colour: u32, opacity: u32, ms: u32 },
     /// Hide the text window; the next text page shows it again.
     HideTextWindow,
     /// Show the following pages whole (`true`) or typed out at the text
