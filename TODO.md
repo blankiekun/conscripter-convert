@@ -130,10 +130,17 @@ engines print `z150` etc.). The web build compiles with it.
       Unsupported: 2,404 → 2,331 (no 0x8c left). Checked headless in the
       Jean scene of 0003.cd: the picture shakes while the text window and
       name plate stay. Not checked against the original under wine.
-- [ ] Opcodes still emitted as comments (2,331 left): `0x93`/`0x94`
+- [x] CONscripter 0.11.0 with `screenshake`/`screenripple` (engine
+      `548b798`, tag `v0.11.0`).
+- [x] `0x6d` (198): a quake (handler 0x442000): speed, x and y range;
+      0x8c's 7-point path, ranges shrinking after 4 points, waited for.
+      Converted to `screenshake 4,…` + `delay` + `screenshake 4`.
+      Unsupported: 2,331 → 2,133. Checked headless that the picture
+      moves during the delay; not checked against the original.
+- [ ] Opcodes still emitted as comments (2,133 left): `0x93`/`0x94`
       (418, before each chapter end), `0x37`/`0x38` (251, chapter
-      history), `0x6d` (198), `0x7a`/`0x7b`, `0x6e`/`0x6f`,
-      `0x8a`/`0x8b`, `0x70` leftovers.
+      history), `0x7a`/`0x7b`, `0x6e`/`0x6f`, `0x8a`/`0x8b`, `0x70`
+      leftovers.
 - [ ] Transitions still drawn as cross-fades: Wave, Dissolve, RollFlip,
       SoftEdgeWipe, TvPowerSwitch, BoxRolling, SmoothCrossFade, Dot4x4,
       MeltDown (PLAN §6 "Accuracy").

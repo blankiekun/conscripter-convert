@@ -17,7 +17,7 @@ use conv_core::ir::{
 };
 
 use crate::xuse::cd::{
-    CdError, CdScript, EnvModule, Instr, Link, PresetModule, ENV_KIND_NOISE, Ruby as RubyRecord, ScreenModule, Sound, SpriteEntry, TextStyle as StyleRecord, OP_TEXT_INDENT, PRESET_KIND_MONOTONE, PRESET_BLEND_ADD, PRESET_BLEND_ALPHA, PRESET_BLEND_COPY,
+    CdError, CdScript, EnvModule, Instr, Link, PresetModule, Quake, ENV_KIND_NOISE, Ruby as RubyRecord, ScreenModule, Sound, SpriteEntry, TextStyle as StyleRecord, OP_TEXT_INDENT, PRESET_KIND_MONOTONE, PRESET_BLEND_ADD, PRESET_BLEND_ALPHA, PRESET_BLEND_COPY,
     PRESET_BLEND_MULTI, PRESET_BLEND_SCREEN, PRESET_KIND_BRIGHTNESS, PRESET_KIND_COLOUR, PRESET_KIND_GREYSCALE,
     PRESET_KIND_NEGATIVE,
 };
@@ -1318,6 +1318,28 @@ fn lower_environment(
     Ok(())
 }
 
+/// The `screenshake` slot for opcode 0x6d's quakes (0x8c uses 1 and 2).
+const QUAKE_SLOT: u32 = 4;
+
+/// Opcode 0x6d: a quake, as `screenshake` along the 7-point path, waited
+/// for with a `delay` (a click ends both, as in the game) and cleared.
+/// Assumption: the game holds the full range for 4 points, then shrinks
+/// it; here it shrinks from the start, over the same total time, and both
+/// axes reach 0 together.
+fn lower_quake(q: &Quake, ops: &mut Vec<Op>) {
+    let (x, y) = (q.range.0.min(1000) as i32, q.range.1.min(1000) as i32);
+    if q.speed == 0 || (x == 0 && y == 0) {
+        return;
+    }
+    let shrink = (q.speed / 4).max(50); // pixels a second
+    let time_ms = 4000 / q.speed + x.max(y) as u32 * 1000 / shrink;
+    let speed = (i64::from(q.speed) * 65536 / 1000).min(i64::from(i32::MAX)) as i32;
+    let effect = ScreenEffect::Shake { time_ms, interval_ms: 10, path: true, speed: (speed, 0), range: [(x, y), (0, 0)] };
+    ops.push(Op::ScreenEffect { slot: QUAKE_SLOT, effect: Some(effect) });
+    ops.push(Op::Wait { ms: time_ms });
+    ops.push(Op::ScreenEffect { slot: QUAKE_SLOT, effect: None });
+}
+
 /// Opcode 0x88: sets one slot of a preset (slot 0 clears every slot). A
 /// module the converter can't express clears its slot and is reported.
 fn lower_preset_module(m: &PresetModule, ops: &mut Vec<Op>, at: impl Fn() -> SourceLoc) {
@@ -1512,6 +1534,10 @@ pub fn lower_script(
         }
         if let Some(module) = cd.environment(ins) {
             lower_environment(&module?, &mut env_slots, assets, &mut ops, at)?;
+            continue;
+        }
+        if let Some(quake) = cd.quake(ins) {
+            lower_quake(&quake?, &mut ops);
             continue;
         }
         if let Some(apply) = cd.apply_preset(ins) {
@@ -2055,6 +2081,25 @@ mod tests {
         assert_eq!(module_filter(PRESET_KIND_COLOUR, 2, 128, Some([1, 2, 3]), None, None), Ok([1, 1, 128, 1, 2, 3]));
         assert!(module_filter(1, 5, 256, None, None, None).is_err()); // Smooth (blur)
         assert!(module_filter(PRESET_KIND_GREYSCALE, 4, 256, None, None, None).is_err());
+    }
+
+    #[test]
+    fn quakes_shake_and_wait() {
+        let mut ops = Vec::new();
+        lower_quake(&Quake { speed: 80, range: (10, 20) }, &mut ops);
+        // 4 points at 80 a second, then 20 px at 50 px a second.
+        let shake = ScreenEffect::Shake { time_ms: 450, interval_ms: 10, path: true, speed: (5242, 0), range: [(10, 20), (0, 0)] };
+        assert_eq!(
+            ops,
+            [
+                Op::ScreenEffect { slot: QUAKE_SLOT, effect: Some(shake) },
+                Op::Wait { ms: 450 },
+                Op::ScreenEffect { slot: QUAKE_SLOT, effect: None },
+            ]
+        );
+        ops.clear();
+        lower_quake(&Quake { speed: 80, range: (0, 0) }, &mut ops);
+        assert!(ops.is_empty());
     }
 
     #[test]

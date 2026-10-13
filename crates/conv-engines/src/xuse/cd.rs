@@ -168,6 +168,15 @@ pub const OP_ENVIRONMENT: u16 = 0x8c;
 pub const ENV_KIND_NOISE: u32 = 2;
 pub const ENV_KIND_RIPPLE: u32 = 4;
 pub const ENV_KIND_SHAKE: u32 = 5;
+/// A quake of the picture behind the text window (handler 0x442000, object
+/// 0x441ee0 at sort key 0x06000000, the bottom of the text window's band).
+/// Record: u32 speed, u32 x and y range in pixels, then 12 zero bytes. The
+/// picture moves along the 7-point path of 0x8c's shaking, `speed` points
+/// a second; after 4 points both ranges shrink by max(speed / 4, 50)
+/// pixels a second, and the effect ends when both reach 0. The script
+/// waits for it; a click ends it early. Skipped while skipping, or when
+/// the effects setting (bit 0 of 0x51ed14) is off.
+pub const OP_QUAKE: u16 = 0x6d;
 pub const OP_BGM_PLAY: u16 = 0x57;
 pub const OP_BGM_STOP: u16 = 0x58;
 pub const OP_SE_PLAY: u16 = 0x5a;
@@ -295,6 +304,13 @@ pub struct Shake {
     pub speed: (i32, i32),
     pub begin_range: (i32, i32),
     pub end_range: (i32, i32),
+}
+
+/// Opcode 0x6d: a quake ([`OP_QUAKE`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Quake {
+    pub speed: u32,
+    pub range: (u32, u32),
 }
 
 /// Animation-RandomNoise (module 0x72): greyscale static, one random byte
@@ -712,6 +728,15 @@ impl<'a> CdScript<'a> {
                 });
             }
             Ok(EnvModule { slot, kind, noise, ripple, shake })
+        })
+    }
+
+    /// Decodes opcode 0x6d, or returns `None` for other opcodes.
+    pub fn quake(&self, ins: &Instr) -> Option<Result<Quake, CdError>> {
+        (ins.op == OP_QUAKE).then(|| {
+            let r = Reader(self.pool);
+            let o = ins.arg as u32 as usize;
+            Ok(Quake { speed: r.u32(o)?, range: (r.u32(o + 4)?, r.u32(o + 8)?) })
         })
     }
 
