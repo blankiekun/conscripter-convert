@@ -14,7 +14,9 @@
 //! - Thumbnails: `getscreenshot` when the menu opens (before anything is
 //!   drawn), `savescreenshot2` to `savethumbN.bmp` next to the save files,
 //!   shown with `lsp2` (scaled down in the rows, full size as the preview).
-//! - ONScripter can't delete a save, so a global flag per slot hides it.
+//! - Delete removes the save and its thumbnail with CONscripter's
+//!   `delsavegame`. Builds before it hid deleted slots with a global flag
+//!   per slot; a slot still flagged is deleted when the menu lists it.
 //! - Layers: `lsp2` sprites are drawn under the text window and under
 //!   sprites 0-49 (`windowback`, `humanz 49`), so the base, frame,
 //!   thumbnails and the (additive) selection bar are `lsp2` sprites, and
@@ -134,7 +136,7 @@ const STR_TMP: &str = "$104";
 // Globals (`globalon` keeps %200 and up; the game uses up to %220).
 const PAGE: &str = "%900";
 const NEWEST: &str = "%901";
-/// Slot n is deleted when %(DELETED_BASE + n) is 1.
+/// Slot n was deleted by an older build when %(DELETED_BASE + n) is 1.
 const DELETED_BASE: u32 = 910;
 /// The current chapter's title (a local: saves keep it), shown in the top
 /// bar and under a save's date.
@@ -324,8 +326,6 @@ pub(crate) fn save_menu(out: &mut String, m: &SaveMenu, confirm: Option<&Confirm
     w(format!("add {LABEL},\"|\""));
     w(format!("add {LABEL},{CHAPTER}"));
     w(format!("savegame2 {SELECTED},{LABEL}"));
-    w(format!("mov {TMP},{SELECTED}+{DELETED_BASE}"));
-    w(format!("mov %{TMP},0"));
     w(format!("mov {NEWEST},{SELECTED}"));
     w("goto *conv_sl_page".into());
 
@@ -343,8 +343,9 @@ pub(crate) fn save_menu(out: &mut String, m: &SaveMenu, confirm: Option<&Confirm
     if let Some(c) = confirm {
         w(ask(&c.delete));
     }
-    w(format!("mov {TMP},{SELECTED}+{DELETED_BASE}"));
-    w(format!("mov %{TMP},1"));
+    w(format!("mov {SLOT},{SELECTED}"));
+    w("gosub *conv_sl_file".into());
+    w(format!("delsavegame {SELECTED},{FILE}"));
     w(format!("if {SELECTED} == {NEWEST} mov {NEWEST},0"));
     w("goto *conv_sl_page".into());
 
@@ -362,10 +363,10 @@ pub(crate) fn save_menu(out: &mut String, m: &SaveMenu, confirm: Option<&Confirm
 
     // Slot SLOT: HAS_DATA, LINE1 and LINE2 (its label), FILE (thumbnail).
     w("*conv_sl_slot".into());
-    w(format!("savefileexist {HAS_DATA},{SLOT}"));
-    w(format!("mov {TMP},{SLOT}+{DELETED_BASE}"));
-    w(format!("if %{TMP} == 1 mov {HAS_DATA},0"));
     w("gosub *conv_sl_file".into());
+    w(format!("mov {TMP},{SLOT}+{DELETED_BASE}"));
+    w(format!("if %{TMP} == 1 delsavegame {SLOT},{FILE}:mov %{TMP},0"));
+    w(format!("savefileexist {HAS_DATA},{SLOT}"));
     w(format!("if {HAS_DATA} == 0 goto *conv_sl_empty"));
     w(format!("getsavestr {LABEL},{SLOT}"));
     w(format!("split {LABEL},\"|\",{LINE1},{LINE2}"));
@@ -959,7 +960,10 @@ mod tests {
             "savescreenshot2 $103\n",
             "savegame2 %102,$100\n",
             "loadgame %102\n",
-            "mov %%105,1\n",
+            // Delete removes the save and its thumbnail; a slot an older
+            // build hid with a flag is deleted when listed.
+            "mov %103,%102\ngosub *conv_sl_file\ndelsavegame %102,$103\n",
+            "if %%105 == 1 delsavegame %103,$103:mov %%105,0\nsavefileexist %104,%103\n",
             // Saving over a save asks first.
             "if %107 == 0 goto *conv_sl_save\nmov %103,%102\ngosub *conv_sl_number\nmov $106,$101\nadd $106,\" over?\"\ngosub *conv_confirm\nif %109 == 0 goto *conv_sl_buttons\n*conv_sl_save\n",
         ] {

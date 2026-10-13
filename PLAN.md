@@ -144,13 +144,13 @@ README, "CONscripter additions"):
 |---|---|
 | `spfilter` (colour filters on sprites, kept in saves) | 最果てのイマ's effect presets (0x88/0x90): lighting tints on bust-ups, plus negative, greyscale and brightness filters. Replaced ~930 pre-tinted PNGs (about 130 MB of `arc.nsa`) |
 | `pushscreen` / `popscreen` (save and restore background, sprites, filters and BGM; kept in saves) | Link scenes, which can change the whole screen before returning to their page. Replaced the converter's file-order guess of what was on screen |
+| `delsavegame` (delete a save and its thumbnail) | The save menu's delete button. Replaced a global flag per slot that only hid the save; a slot an older build flagged is deleted when the menu lists it |
 
 Planned, from limits hit while converting 最果てのイマ (each one is worked
 around in the script today), roughly in order of payoff:
 
 | Game feature | Workaround today | Engine feature that would fix it |
 |---|---|---|
-| Deleting a save | A global flag per slot hides it | A delete-save command; thumbnails stored next to the saves |
 | Archive size on the web | PNG only (the WASM build has no WebP decoder) | WebP support in the web build |
 | Movies (`mv*.bin`, MPEG-PS) | Not converted | Movie playback that works in the web build (e.g. an HTML5 video overlay) |
 | Slide, scroll, mosaic, zoom transitions | Drawn as cross-fades | Map to ONScripter's own effects where they exist, add the rest |
