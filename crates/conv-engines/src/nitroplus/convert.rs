@@ -1468,10 +1468,10 @@ impl<'a, 'b> Compiler<'a, 'b> {
             }
             Expr::Call { name, args } => {
                 let args: Vec<Value> = args.iter().map(|a| self.eval(a)).collect();
-                if let Some(r) = RANKINGS.iter().find(|r| r.0 == name) {
-                    if self.ranking(r) {
-                        return Value::Null;
-                    }
+                if let Some(r) = RANKINGS.iter().find(|r| r.0 == name)
+                    && self.ranking(r)
+                {
+                    return Value::Null;
                 }
                 match self.function(name) {
                     Some((file, f)) => self.call_function(file, f, args),

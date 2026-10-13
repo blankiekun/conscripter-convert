@@ -57,10 +57,8 @@ pub fn lint(script: &str, has_file: &dyn Fn(&str) -> bool) -> Report {
             continue;
         }
         if is_text(line) {
-            if vertical {
-                if let Some(c) = half_width_in_text(line) {
-                    report.add("half-width character in vertical text (the engine exits)", i, format!("{c:?} in {}", short(line)));
-                }
+            if vertical && let Some(c) = half_width_in_text(line) {
+                report.add("half-width character in vertical text (the engine exits)", i, format!("{c:?} in {}", short(line)));
             }
             continue;
         }
@@ -70,10 +68,10 @@ pub fn lint(script: &str, has_file: &dyn Fn(&str) -> bool) -> Report {
             if cmd.starts_with("tateyoko") {
                 vertical = cmd.trim_start_matches("tateyoko").trim() == "1";
             }
-            if let Some(n) = cmd.strip_prefix("effect ").and_then(|r| r.split(',').next()).and_then(|n| n.trim().parse::<u32>().ok()) {
-                if n > 255 {
-                    report.add("effect number past 255", i, cmd);
-                }
+            if let Some(n) = cmd.strip_prefix("effect ").and_then(|r| r.split(',').next()).and_then(|n| n.trim().parse::<u32>().ok())
+                && n > 255
+            {
+                report.add("effect number past 255", i, cmd);
             }
         }
         for label in label_refs(&code) {
