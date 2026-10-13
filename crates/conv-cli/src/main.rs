@@ -90,10 +90,36 @@ enum Command {
         #[command(subcommand)]
         command: XsaCommand,
     },
+    /// Low-level tools for Nitroplus NPA archives (*.npa)
+    Npa {
+        #[command(subcommand)]
+        command: NpaCommand,
+    },
     /// Low-level tools for Nitroplus NSS scripts (*.nss, from nss.npa)
     Nss {
         #[command(subcommand)]
         command: NssCommand,
+    },
+}
+
+#[derive(Subcommand)]
+enum NpaCommand {
+    /// List the files: size and name
+    List {
+        /// The game's exe (Muramasa.exe), which holds the decryption table
+        exe: PathBuf,
+        archive: PathBuf,
+    },
+    /// Extract files, decrypted and unpacked
+    Extract {
+        /// The game's exe (Muramasa.exe), which holds the decryption table
+        exe: PathBuf,
+        archive: PathBuf,
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Only names starting with this (case-insensitive, `/` separators)
+        #[arg(long, default_value = "")]
+        prefix: String,
     },
 }
 
@@ -234,6 +260,10 @@ fn main() -> Result<()> {
         Command::Xsa { command } => match command {
             XsaCommand::List { archive } => xsa_list(&archive),
             XsaCommand::Extract { archives, output } => xsa_extract(&archives, &output),
+        },
+        Command::Npa { command } => match command {
+            NpaCommand::List { exe, archive } => npa_list(&exe, &archive),
+            NpaCommand::Extract { exe, archive, output, prefix } => npa_extract(&exe, &archive, &output, &prefix),
         },
         Command::Nss { command } => match command {
             NssCommand::Check { paths } => nss_check(&paths),
@@ -768,6 +798,41 @@ fn safe_relative_path(name: &str) -> Option<PathBuf> {
 
 fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
+}
+
+fn open_npa<'a>(exe: &Path, path: &Path, bytes: &'a [u8]) -> Result<conv_engines::nitroplus::npa::Npa<'a>> {
+    use conv_engines::nitroplus::npa::{Key, Npa};
+    let key = Key::from_exe(&fs::read(exe).with_context(|| format!("reading {}", exe.display()))?)?;
+    Npa::parse(bytes, key).with_context(|| format!("parsing {}", path.display()))
+}
+
+fn npa_list(exe: &Path, path: &Path) -> Result<()> {
+    let bytes = map(path)?;
+    let npa = open_npa(exe, path, &bytes)?;
+    for e in &npa.entries {
+        println!("{:>10}  {}", e.size, e.name);
+    }
+    println!("{} files", npa.entries.len());
+    Ok(())
+}
+
+fn npa_extract(exe: &Path, path: &Path, output: &Path, prefix: &str) -> Result<()> {
+    use conv_engines::nitroplus::npa::normalize;
+    let bytes = map(path)?;
+    let npa = open_npa(exe, path, &bytes)?;
+    let prefix = normalize(prefix);
+    let mut n = 0;
+    for e in npa.entries.iter().filter(|e| normalize(&e.name).starts_with(&prefix)) {
+        let rel = safe_relative_path(&e.name).with_context(|| format!("refusing unsafe entry name {:?}", e.name))?;
+        let dest = output.join(rel);
+        if let Some(parent) = dest.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        fs::write(&dest, npa.data(e)?).with_context(|| format!("writing {}", dest.display()))?;
+        n += 1;
+    }
+    println!("extracted {n} files to {}", output.display());
+    Ok(())
 }
 
 /// Every `*.nss` named, or found directly inside a named directory, sorted.

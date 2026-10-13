@@ -194,6 +194,7 @@ version = "0.1.0"
 dependencies = [
  "conv-core",
  "encoding_rs",
+ "flate2",
  "image",
  "md-5",
  "thiserror",
