@@ -310,8 +310,16 @@ engines print `z150` etc.). The web build compiles with it.
       `amsp2`, then removed). Direction checked under wine: Xuse turns
       clockwise for positive angles (0x81 +45° on a bust-up); ONScripter's
       `rot` turns counter-clockwise, hence `rot` = -angle.
-- [ ] Opcodes still emitted as comments (3 left): Zigzag (0x70 kind 12)
-      and the start point's debug menu (`0x62` choice + `0x30` jump table
+- [x] Zigzag (0x70 kind 12, 1 use, 0010.cd #9214): the kernel (0x43f0b0)
+      shifts each pixel by distance × sin(2π·d·freq/100/1024) along the
+      direction (d = distance from the centre); converted as a still
+      `screenripple` over a generated ring map (`system/zigzag_*.png`).
+      With freq 10 that is a shift of a few pixels. **Not reproduced:**
+      its Multi blend (100/256), which in the original also darkens the
+      picture (a multiply with the shifted copy); `screenripple` only lays
+      it over as alpha. An engine blend option would fix it (save format
+      change). The phase (begin angle) and reduction are left out.
+- [ ] Opcodes still emitted as comments (2 left): the start point's debug menu (`0x62` choice + `0x30` jump table
       in 0001.cd, unreachable: nothing jumps to `s1_l0`). **Not doing the
       debug menu** (user, 2026-10-13).
 - [ ] Transitions still drawn as cross-fades: Wave, Dissolve, RollFlip,

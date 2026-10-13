@@ -18,7 +18,7 @@ use conv_core::ir::{
 };
 
 use crate::xuse::cd::{
-    CdError, CdScript, EnvModule, Instr, Link, PresetModule, Quake, Surprise, SURPRISE_PRESETS, ENV_KIND_NOISE, FLASH_MS, FLASH_OPACITY, OP_FLASH, Ruby as RubyRecord, ScreenModule, Sound, SpriteEntry, TextStyle as StyleRecord, OP_TEXT_INDENT, PRESET_KIND_MONOTONE, PRESET_BLEND_ADD, PRESET_BLEND_ALPHA, PRESET_BLEND_COPY,
+    PRESET_KIND_ZIGZAG, CdError, CdScript, EnvModule, Instr, Link, PresetModule, Quake, Surprise, SURPRISE_PRESETS, ENV_KIND_NOISE, FLASH_MS, FLASH_OPACITY, OP_FLASH, Ruby as RubyRecord, ScreenModule, Sound, SpriteEntry, TextStyle as StyleRecord, OP_TEXT_INDENT, PRESET_KIND_MONOTONE, PRESET_BLEND_ADD, PRESET_BLEND_ALPHA, PRESET_BLEND_COPY,
     PRESET_BLEND_MULTI, PRESET_BLEND_SCREEN, PRESET_KIND_BRIGHTNESS, PRESET_KIND_COLOUR, PRESET_KIND_GREYSCALE,
     PRESET_KIND_NEGATIVE, PRESET_KIND_SMOOTH, PRESET_KIND_HUE_SATURATION, PRESET_KIND_BRIGHTNESS_INVERT, PRESET_KIND_REPLACE,
     ModuleData,
@@ -593,6 +593,28 @@ impl AssetBank {
             .map_err(|source| ConvertError::Image { what: name.clone(), source })?;
         write_file(&self.out.join(&name), &png)?;
         self.written.insert(("fill", rgb as usize), name.clone());
+        Ok(name)
+    }
+
+    /// The rings of a 0x70 Filter-Zigzag as a `screenripple` map: grey =
+    /// (d × frequency/100 mod 1024) / 4 for the distance d from the centre,
+    /// so that grey/256 is the turn of the kernel's sine (0x43f0b0).
+    pub fn zigzag_map(&mut self, cx: i32, cy: i32, frequency: i32) -> Result<String, ConvertError> {
+        let name = format!("system/zigzag_{cx}_{cy}_{frequency}.png");
+        let key = ("zigzag", (cx as usize & 0xfff) << 24 | (cy as usize & 0xfff) << 12 | (frequency as usize & 0xfff));
+        if self.written.contains_key(&key) {
+            return Ok(name);
+        }
+        let img = image::GrayImage::from_fn(800, 600, |x, y| {
+            let d = (f64::from(cx - x as i32).powi(2) + f64::from(cy - y as i32).powi(2)).sqrt();
+            let turn = (d * f64::from(frequency) / 100.0) as i64;
+            image::Luma([(turn.rem_euclid(1024) / 4) as u8])
+        });
+        let mut png = Vec::new();
+        img.write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
+            .map_err(|source| ConvertError::Image { what: name.clone(), source })?;
+        write_file(&self.out.join(&name), &png)?;
+        self.written.insert(key, name.clone());
         Ok(name)
     }
 
@@ -1579,28 +1601,38 @@ fn lower_screen_module(
         for slot in std::mem::take(replaces) {
             ops.push(Op::ScreenEffect { slot: REPLACE_SLOT_BASE + slot, effect: None });
         }
-    } else if m.kind == 0 || m.kind != PRESET_KIND_REPLACE {
+    } else if m.kind == 0 || !matches!(m.kind, PRESET_KIND_REPLACE | PRESET_KIND_ZIGZAG) {
         clear_replace(m.slot, replaces, ops);
     }
     if m.slot == 0 || m.kind == 0 {
         ops.push(Op::ScreenFilter { slot: m.slot, filter: None, fade_ms: m.fade_ms });
         return Ok(());
     }
-    if let ModuleData::Replace(r) = m.data {
-        if !matches!(m.blend, PRESET_BLEND_ALPHA | PRESET_BLEND_COPY) {
-            ops.push(Op::Unsupported { what: format!("opcode 0x70 replace blend {}", m.blend), at: at() });
+    let displacement = match m.data {
+        ModuleData::Replace(r) => Some((assets.mask(r.map as usize, false)?, r.distance, r.direction)),
+        // The zigzag's rings as a map (grey = the kernel's table index / 4).
+        // Its Multi blend (the one use: 100/256) is laid over as alpha:
+        // the original also darkens the picture by multiplying it with
+        // the shifted copy. The phase and the reduction are left out.
+        ModuleData::Zigzag(z) => Some((assets.zigzag_map(z.centre_x, z.centre_y, z.frequency)?, z.distance, z.direction)),
+        _ => None,
+    };
+    if let Some((map, distance, direction)) = displacement {
+        let multi_zigzag = matches!(m.data, ModuleData::Zigzag(_)) && m.blend == PRESET_BLEND_MULTI;
+        if !matches!(m.blend, PRESET_BLEND_ALPHA | PRESET_BLEND_COPY) && !multi_zigzag {
+            ops.push(Op::Unsupported { what: format!("opcode 0x70 kind {} blend {}", m.kind, m.blend), at: at() });
             return Ok(());
         }
         // Assumption: begin_angle (1/100 turn; always 1 in the game) is
         // left out: screenripple starts at phase 0.
         let opacity = i32::from(m.opacity.min(256));
         let effect = ScreenEffect::Ripple {
-            map: assets.mask(r.map as usize, false)?,
+            map,
             time_ms: 0,
             interval_ms: REPLACE_INTERVAL_MS,
             opacity: (opacity, opacity),
-            amplitude: (r.distance, r.distance),
-            angle: r.direction,
+            amplitude: (distance, distance),
+            angle: direction,
             angle_step: 0,
             phase_step: 0,
         };

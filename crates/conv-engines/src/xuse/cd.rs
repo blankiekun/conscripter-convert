@@ -162,6 +162,7 @@ pub const PRESET_KIND_COLOUR: u32 = 8;
 pub const PRESET_KIND_BRIGHTNESS_INVERT: u32 = 9;
 /// Filter-Replace (draw 0x41d390): [`FilterReplace`].
 pub const PRESET_KIND_REPLACE: u32 = 13;
+pub const PRESET_KIND_ZIGZAG: u32 = 12;
 /// [`PresetModule::blend`] values used by the game (the exe's names are
 /// Alpha, Add, Multi, Screen, SignedAdd, Copy, dissolve).
 pub const PRESET_BLEND_ALPHA: u16 = 0;
@@ -275,6 +276,24 @@ pub enum ModuleData {
     /// Hue and saturation (kind 3).
     HueSaturation(i16, i16),
     Replace(FilterReplace),
+    Zigzag(FilterZigzag),
+}
+
+/// Filter-Zigzag (kernel 0x43f0b0, set up by 0x41dab0): each pixel taken
+/// from `distance` × sin(2π·i/1024) pixels away along `direction` (0.1°),
+/// i = d × `frequency`/100 (+ a phase), d being the pixel's distance from
+/// (`centre_x`, `centre_y`): rings around the centre. Record: i32 centre
+/// x, y, direction, distance, frequency, begin angle, reduction (the
+/// exe's debug output names them CenterX … Reduc).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FilterZigzag {
+    pub centre_x: i32,
+    pub centre_y: i32,
+    pub direction: i32,
+    pub distance: i32,
+    pub frequency: i32,
+    pub begin_angle: i32,
+    pub reduction: i32,
 }
 
 /// Filter-Replace: the picture displaced through a map as by
@@ -327,6 +346,15 @@ fn module_data(r: &Reader, kind: u32, o: usize) -> Result<ModuleData, Truncated>
             direction: i(1)?,
             distance: i(2)?,
             begin_angle: i(3)?,
+        }),
+        PRESET_KIND_ZIGZAG => ModuleData::Zigzag(FilterZigzag {
+            centre_x: i(0)?,
+            centre_y: i(1)?,
+            direction: i(2)?,
+            distance: i(3)?,
+            frequency: i(4)?,
+            begin_angle: i(5)?,
+            reduction: i(6)?,
         }),
         _ => ModuleData::None,
     })
