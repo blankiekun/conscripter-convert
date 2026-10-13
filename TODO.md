@@ -344,9 +344,12 @@ engines print `z150` etc.). The web build compiles with it.
       Converted as a hard wipe (effect 15) through a linear gradient
       (`system/wipe_*.png`): ONScripter's soft mask fade (18) can't keep a
       narrow edge across the screen.
-- [ ] RollFlip (24): squashes a picture along one axis by sin/cos of the
-      progress (0x446460; flags +0x90 axis, +0x91 sin or cos and which
-      picture): a card flip. Needs a CONscripter effect plugin.
+- [x] RollFlip (24): a picture turning edge-on about the centre (size
+      sin/cos of progress × 90°, 0x446460; flag +0x90 the axis, +0x91
+      whether the new one grows); filmed 32 (new grows horizontally) and
+      34 (old shrinks horizontally). New engine plugin `cons_flip.dll`
+      (engine `cc1909d`, not released yet; older engines draw a
+      cross-fade). Checked on Xvfb mid-effect (band widths match sin/cos).
 - [ ] Also filmed: BoxRolling 28 = the new picture rises from the bottom
       while the old is squeezed up (a cube roll); RollFlip 32 = the new
       picture widens from a centre strip over the old; MeltDown = the old
@@ -359,7 +362,7 @@ engines print `z150` etc.). The web build compiles with it.
       push of both pictures (ONScripter scrolls 11-14); the original
       squeezes them like cube faces.
 - [ ] Transitions still drawn as cross-fades: TvPowerSwitch (11; too quick
-      to film at 0.1-0.9 s), RollFlip (24), MeltDown (3); SmoothCrossFade
+      to film at 0.1-0.9 s), MeltDown (3); SmoothCrossFade
       (8) is an eased cross-fade, close enough.
       SmoothCrossFade (8), Dot4x4 (3), MeltDown (3) (PLAN §6 "Accuracy").
 - [x] Bars always shown (user's request, 2026-10-13): the top bars and

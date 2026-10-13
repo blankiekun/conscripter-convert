@@ -1048,6 +1048,9 @@ fn transition_steps(fade_ms: u32, mask: Option<&str>, style: TransitionStyle) ->
         (Some(m), TransitionStyle::Threshold) => one(Effect::HardMask(m.to_string())),
         (Some(m), _) => one(Effect::Mask(m.to_string())),
         (None, TransitionStyle::Threshold) => one(Effect::Fade),
+        (None, TransitionStyle::Flip { horizontal, grow }) => {
+            one(Effect::Dll(format!("cons_flip.dll/{},{}", u8::from(!horizontal), u8::from(!grow))))
+        }
         (_, TransitionStyle::ThroughWhite) => {
             let half = (fade_ms / 2).max(1);
             vec![(half, Effect::Fade), ((fade_ms - half).max(1), Effect::Fade)]

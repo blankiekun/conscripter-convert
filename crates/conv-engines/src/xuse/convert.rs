@@ -2937,6 +2937,14 @@ fn transition_style(sub: u16) -> TransitionStyle {
             let (dx, dy) = [(0, -1), (1, 0), (0, 1), (-1, 0)][usize::from(sub - 28)];
             TransitionStyle::Slide { moving: SlideLayer::Both, dx, dy }
         }
+        // Trans_RollFlip (setup 0x446660, draw 0x446390; size factor sin or
+        // cos of progress × 90°, 0x446460): flag +0x90 the axis, +0x91
+        // whether the new picture grows (filmed under wine: 32 grows
+        // horizontally, 34 shrinks the old one horizontally).
+        32..=35 => {
+            let n = sub - 32;
+            TransitionStyle::Flip { horizontal: n % 2 == 0, grow: n < 2 }
+        }
         27 => TransitionStyle::Mosaic,
         // Dot4x4: a dotted cross-fade; Dissolve passes through white (both
         // seen in the original under wine, 0004.cd #13 slowed to 8 s).
@@ -3030,6 +3038,8 @@ mod tests {
         assert_eq!(transition_style(4), TransitionStyle::Threshold);
         assert_eq!(transition_style(7), TransitionStyle::Threshold);
         assert_eq!(transition_style(29), slide(SlideLayer::Both, 1, 0));
+        assert_eq!(transition_style(32), TransitionStyle::Flip { horizontal: true, grow: true });
+        assert_eq!(transition_style(35), TransitionStyle::Flip { horizontal: false, grow: false });
         assert_eq!(transition_name(20), "Slide out");
     }
 

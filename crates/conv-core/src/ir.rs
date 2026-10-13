@@ -15,6 +15,10 @@ pub enum TransitionStyle {
     Threshold,
     /// The old picture fades to white, then the new one fades in from it.
     ThroughWhite,
+    /// A picture turns edge-on about the screen centre (squeezed in width
+    /// if `horizontal`, else in height): the new one grows from a line over
+    /// the old (`grow`), or the old one shrinks to a line over the new.
+    Flip { horizontal: bool, grow: bool },
     /// `moving` travels one screen width or height in direction `dx`, `dy`
     /// (each -1, 0 or 1; +y is down).
     Slide { moving: SlideLayer, dx: i8, dy: i8 },
