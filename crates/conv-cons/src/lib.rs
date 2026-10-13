@@ -16,6 +16,7 @@ use conv_core::ir::{
 mod extras;
 mod menu;
 pub mod nsa;
+mod replay;
 pub mod webp;
 
 /// First effect number we define; 1 is NScripter's built-in "instant".
@@ -128,6 +129,8 @@ pub fn emit(script: &Script) -> String {
     let has_noise = script.ops.iter().any(|op| matches!(op, Op::Noise(_)));
     let has_animation = script.ops.iter().any(|op| matches!(op, Op::Animation(_)));
     let root_returns = script.ops.iter().filter(|op| matches!(op, Op::ReturnToRoot)).count();
+    // The replay is reached from the title's extras.
+    let has_replay = script.title_screen.is_some() && script.extras.as_ref().is_some_and(|e| e.replay.is_some());
     let mut root_resumes = 0;
     let mut turns = 0;
     // Shows the overlay and the static again after `csp -1`.
@@ -760,7 +763,7 @@ pub fn emit(script: &Script) -> String {
             }
             Op::Progress { bit } => writeln!(out, "mov %{},1", PROGRESS_BASE + bit).unwrap(),
             Op::CgSeen { number } => writeln!(out, "mov %{},1", CG_SEEN_BASE + number).unwrap(),
-            // No scene replay yet, so nothing to stop.
+            Op::SceneEnd if has_replay => writeln!(out, "if {} == 1 goto *{}", replay::REPLAYING, replay::END).unwrap(),
             Op::SceneEnd => writeln!(out, "; scene end").unwrap(),
             Op::Unsupported { what, at } => {
                 writeln!(out, "; unsupported: {what} ({} #{})", at.file, at.index).unwrap()
@@ -801,10 +804,11 @@ pub fn emit(script: &Script) -> String {
         menu::save_menu(&mut out, m, script.confirm.as_ref());
     }
     if let Some(b) = &script.button_bar {
-        menu::button_bar(&mut out, b, script.save_menu.is_some(), script.settings.is_some(), script.backlog.is_some());
+        menu::button_bar(&mut out, b, script.save_menu.is_some(), script.settings.is_some(), script.backlog.is_some(), has_replay);
     }
     if let Some(m) = &script.settings {
-        menu::settings_menu(&mut out, m, script.confirm.as_ref());
+        let replay = script.extras.as_ref().and_then(|e| e.replay.as_ref()).filter(|_| has_replay);
+        menu::settings_menu(&mut out, m, script.confirm.as_ref(), replay.map(|r| (r.leave_label.as_str(), r.leave_question.as_str())));
     }
     if let Some(b) = &script.backlog {
         menu::backlog(&mut out, b, has_ruby);
@@ -1590,6 +1594,7 @@ effect 6,99,1000,\"cons_zoom.dll/3,220,5\"
                 marker_dy: -3,
                 viewer: CgViewer { panel: vec![placed("panel")], name_x: 1, name_y: 2, previous: placed("p"), next: placed("n"), hide: placed("c"), back: placed("b") },
             }),
+            replay: None,
         });
         let out = emit(&s);
         assert!(out.contains("*conv_title_back\nbg \"system\\title.png\",0\n"), "{out}");
@@ -1603,6 +1608,65 @@ effect 6,99,1000,\"cons_zoom.dll/3,220,5\"
             if %122 == 0 lsp 130,\":a;system\\locked.png\",44,142\n"), "{out}");
         // The viewer steps past unseen variants.
         assert!(out.contains("*conv_cg_v0_1\nif %2414 == 0 add %124,%126:goto *conv_cg_v0\nbg \"bg\\b.png\",0:goto *conv_cg_view_show\n"), "{out}");
+    }
+
+    #[test]
+    fn scene_replay_plays_unlocked_scenes_to_their_end() {
+        use conv_core::ir::{ExtrasAction, ExtrasItem, ExtrasMenu, Placed, ReplayList, ReplayScene, SceneReplay, TitleButton};
+        let placed = |image: &str| Placed { image: image.into(), x: 10, y: 20, w: 30, h: 40 };
+        let mut s = script(vec![Op::Label("s4_l2".into()), Op::SceneEnd, Op::UnlockScene { scene: 5 }]);
+        s.title_screen = Some(TitleScreen {
+            background: "system/title.png".into(),
+            fade_ms: 1000,
+            buttons: vec![TitleButton { image: "system/option.png".into(), x: 600, y: 200, action: TitleAction::Settings }],
+        });
+        let scene = |scene, title: &str, label: &str, highlight| ReplayScene { scene, title: title.into(), label: label.into(), highlight };
+        s.extras = Some(ExtrasMenu {
+            background: "system/extras.png".into(),
+            items: vec![ExtrasItem { button: placed("system/chapter.png"), action: ExtrasAction::Replay }],
+            gallery: None,
+            replay: Some(SceneReplay {
+                header: placed("h"),
+                exit: placed("x"),
+                lists: vec![ReplayList {
+                    button: placed("list"),
+                    selected: placed("list_on"),
+                    scenes: vec![scene(5, "工場への道", "s14_l3", false), scene(7, "Ｈ", "s14_l5", true)],
+                }],
+                list_background: "system/back.png".into(),
+                frame: placed("frame"),
+                close: placed("close"),
+                selector: "system/row.png".into(),
+                new_mark: "system/new.png".into(),
+                rows: 23,
+                columns: 3,
+                column_dx: 258,
+                row_dy: 21,
+                row_y: 58,
+                selector_x: 15,
+                new_x: 16,
+                text_x: 21,
+                text_y: 63,
+                font_size: 14,
+                text_color: "#FEFEFE".into(),
+                highlight_color: "#FEC7C7".into(),
+                leave_label: "シーン選択に戻る".into(),
+                leave_question: "シーン選択に戻りますか？".into(),
+            }),
+        });
+        let out = emit(&s);
+        assert!(out.contains("if %9 == 1 goto *conv_replay\n"), "{out}");
+        // A replay stops at the scene's end.
+        assert!(out.contains("*s4_l2\nif %152 == 1 goto *conv_replay_end\nmov %3005,1\n"), "{out}");
+        // A list is open once one of its scenes is unlocked.
+        assert!(out.contains("mov %160,0\nif %3005 == 1 mov %160,1:if %3007 == 1 mov %160,1\n"), "{out}");
+        // Unlocked scenes get a row, "new" until replayed.
+        assert!(out.contains(
+            "*conv_replay_rows0\n\
+            if %3005 == 1 mov $130,\"工場への道\":mov %155,1:mov %156,1-%3655:mov %157,0:gosub *conv_replay_row\n\
+            if %3007 == 1 mov $130,\"Ｈ\":mov %155,2:mov %156,1-%3657:mov %157,1:gosub *conv_replay_row\n"
+        ), "{out}");
+        assert!(out.contains("*conv_replay_go0_1\nmov %3657,1\ngosub *conv_replay_begin:goto *s14_l5\n"), "{out}");
     }
 
     #[test]

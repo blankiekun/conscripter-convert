@@ -1,5 +1,5 @@
 //! The extras menu the title's option button opens, and the CG gallery
-//! (see [`ExtrasMenu`]). Both are only reached from the title, so they use
+//! (see [`ExtrasMenu`]; the scene replay is in [`crate::replay`]). Both are only reached from the title, so they use
 //! the game's sprite slots ([`SPRITES`]) and clear everything with
 //! `csp -1`.
 //!
@@ -12,7 +12,7 @@
 
 use conv_core::ir::{CgGallery, ExtrasAction, ExtrasMenu, Placed};
 
-use crate::{menu, path, BUTTON_VAR, CG_SEEN_BASE};
+use crate::{menu, path, replay, BUTTON_VAR, CG_SEEN_BASE};
 
 pub(crate) const EXTRAS: &str = "conv_extras";
 /// Back to the title screen (its background and buttons).
@@ -89,7 +89,10 @@ pub(crate) fn extras(out: &mut String, m: &ExtrasMenu, fade: u32, settings: bool
     };
     let gallery = m.gallery.as_ref();
     let clear_vars = [TAB_VAR, PAGE_VAR, TMP, SLOT_VAR, VARIANT, STEP, PAGE_FIRST, UNLOCKED, PANEL_HIDDEN]
+        .iter()
+        .chain(replay::VARS.iter())
         .map(|v| format!("mov {v},0"))
+        .collect::<Vec<_>>()
         .join(":");
     w(format!("*{EXTRAS}"));
     w("csp -1".into());
@@ -126,6 +129,14 @@ pub(crate) fn extras(out: &mut String, m: &ExtrasMenu, fade: u32, settings: bool
                 w(format!("if {UNLOCKED} == 1 spbtn {slot},{n}"));
                 buttons.push((n, format!("gosub *{GALLERY}:goto *{DRAW}")));
             }
+            ExtrasAction::Replay if m.replay.is_none() => {
+                w(format!("lsp {slot},\":a/3,0,3;{}\",{},{}:cell {slot},2", path(&item.button.image), item.button.x, item.button.y))
+            }
+            ExtrasAction::Replay => {
+                w(button(slot, &item.button, 3));
+                w(format!("spbtn {slot},{n}"));
+                buttons.push((n, format!("goto *{}", replay::REPLAY)));
+            }
             ExtrasAction::Settings => {
                 w(button(slot, &item.button, 3));
                 w(format!("spbtn {slot},{n}"));
@@ -150,6 +161,9 @@ pub(crate) fn extras(out: &mut String, m: &ExtrasMenu, fade: u32, settings: bool
     w(format!("goto *{TITLE_BACK}"));
     if let Some(g) = gallery {
         gallery_routine(out, g, &m.background);
+    }
+    if let Some(r) = &m.replay {
+        replay::replay(out, r, &m.background, DRAW);
     }
 }
 

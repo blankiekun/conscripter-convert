@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 use thiserror::Error;
 use conv_core::ir::{
     Compare,
-    Animation, ArithOp, Backlog, CgGallery, CgViewer, ExtrasAction, ExtrasItem, ExtrasMenu, GallerySlot, GalleryTab, BarAction, BarButton, ButtonBar, ConfirmDialog, NamePlate, Noise, ScreenEffect, Setting, SettingRow, SettingSwitch, SettingsMenu, Switch, Op, Operand, PageButton, Placed, Rect, Ruby, SaveMenu, TextStyle, SourceLoc, Voice, VoiceToggle,
+    Animation, ArithOp, Backlog, CgGallery, CgViewer, ExtrasAction, ExtrasItem, ExtrasMenu, GallerySlot, ReplayList, ReplayScene, SceneReplay, GalleryTab, BarAction, BarButton, ButtonBar, ConfirmDialog, NamePlate, Noise, ScreenEffect, Setting, SettingRow, SettingSwitch, SettingsMenu, Switch, Op, Operand, PageButton, Placed, Rect, Ruby, SaveMenu, TextStyle, SourceLoc, Voice, VoiceToggle,
     SpriteChange, SpriteFilter, SpritePlacement, TextLink, TextSpot, TextWindow, TitleAction, TitleButton, TitleScreen, TopBars,
     SlideLayer, TransitionStyle, Var, ZoomStyle, FILTER_BLEND_ADD, FILTER_BLEND_COPY, FILTER_BLEND_MULTIPLY, FILTER_BLEND_SCREEN, FILTER_BRIGHTNESS, FILTER_COLOUR, FILTER_MONOTONE,
     FILTER_GREYSCALE, FILTER_NEGATIVE, FILTER_BLUR, FILTER_HUE_SATURATION, FILTER_LIGHTNESS_INVERT,
@@ -25,6 +25,7 @@ use crate::xuse::cd::{
 };
 use crate::xuse::gaf::{Gaf, GafError};
 use crate::xuse::gallery;
+use crate::xuse::replay;
 use crate::xuse::staffroll;
 use crate::xuse::symbols::SymbolTable;
 use crate::xuse::xarc::{Xarc, XarcError};
@@ -855,7 +856,9 @@ impl AssetBank {
 
     /// The extras menu and the CG gallery (see [`gallery`]). Positions
     /// measured on screenshots of the original.
-    pub fn extras_menu(&mut self) -> Result<ExtrasMenu, ConvertError> {
+    /// `label(file, name)`: the converted label of a scene replay entry
+    /// ([`LabelNames::find`]); entries without one are left out.
+    pub fn extras_menu(&mut self, label: impl Fn(&str, &str) -> Option<String>) -> Result<ExtrasMenu, ConvertError> {
         let title = self.gaf_rgba("gd.arc", "Title.004", "title screen")?;
         let common = self.gaf_rgba("gd.arc", "SubModeCommon.004", "extras")?;
         let viewer = self.gaf_rgba("gd.arc", "CgViewer.004", "CG viewer")?;
@@ -872,7 +875,7 @@ impl AssetBank {
             (12, "option", 625, 129, ExtrasAction::Settings),
             (4, "cg", 625, 221, ExtrasAction::Gallery),
             (5, "bgm", 626, 250, ExtrasAction::Unavailable),
-            (8, "chapter", 626, 283, ExtrasAction::Unavailable),
+            (8, "chapter", 626, 283, ExtrasAction::Replay),
             (13, "wss", 626, 320, ExtrasAction::Unavailable),
             (3, "exit", 626, 384, ExtrasAction::Back),
         ] {
@@ -954,7 +957,102 @@ impl AssetBank {
                 back: self.place("cgv_back", &column_cells(&get(&viewer, 5)?, 4, &[0, 1]), None, 742, 568)?,
             },
         };
-        Ok(ExtrasMenu { background, items, gallery: Some(gallery) })
+        let replay = self.scene_replay(&common, &label)?;
+        Ok(ExtrasMenu { background, items, gallery: Some(gallery), replay: Some(replay) })
+    }
+
+    /// The scene replay (see [`replay`]); `common` is `SubModeCommon.004`
+    /// (its #19 is the extras' background).
+    fn scene_replay(&mut self, common: &[image::RgbaImage], label: &impl Fn(&str, &str) -> Option<String>) -> Result<SceneReplay, ConvertError> {
+        let parts = self.gaf_rgba("gd.arc", "SceneList.004", "scene replay")?;
+        let get = |images: &[image::RgbaImage], n: usize| {
+            images.get(n).cloned().ok_or(ConvertError::MissingAsset { kind: "scene replay image", number: n })
+        };
+        let header = get(common, 18)?;
+        let exit = get(common, 15)?;
+        // The menu as it stands under an open list, darkened by the band.
+        let mut menu = get(common, 19)?;
+        image::imageops::overlay(&mut menu, &header, 621, 122);
+        image::imageops::overlay(&mut menu, &column_cells(&exit, 4, &[0]), 624, 470);
+        let band = get(&parts, 0)?;
+        let darken = |img: &mut image::RgbaImage, x0: i32, y0: i32| {
+            for (x, y, px) in img.enumerate_pixels_mut() {
+                let (bx, by) = (x as i32 + x0, y as i32 + y0);
+                let inside = bx >= 0 && by >= 0 && band.get_pixel_checked(bx as u32, by as u32).is_some_and(|b| b.0[3] > 0);
+                if inside {
+                    for c in &mut px.0[..3] {
+                        *c = c.saturating_sub(replay::DARKEN);
+                    }
+                }
+            }
+        };
+        let mut lists = Vec::new();
+        for (i, l) in replay::LISTS.iter().enumerate() {
+            let img = get(common, l.picture)?;
+            let (x, y) = (replay::MENU_X, replay::MENU_Y + replay::MENU_DY * i as i32);
+            image::imageops::overlay(&mut menu, &column_cells(&img, 4, &[0]), x.into(), y.into());
+            let mut strip = column_cells(&img, 4, &[0, 1, 3]);
+            if !l.disabled {
+                // Made up: the normal state at half opacity.
+                let w = img.width();
+                image::imageops::replace(&mut strip, &with_opacity(column_cells(&img, 4, &[0]), 50), (2 * w).into(), 0);
+            }
+            let button = self.place(&format!("replay_list{i}"), &strip, None, x, y)?;
+            let mut on = column_cells(&img, 4, &[1]);
+            darken(&mut on, x, y);
+            let selected = self.place(&format!("replay_list{i}_on"), &on, None, x, y)?;
+            let scenes = l
+                .scenes
+                .iter()
+                .filter_map(|&(scene, highlight, name)| {
+                    Some(ReplayScene { scene: scene.into(), title: replay::title(name).to_string(), label: label(l.file, name)?, highlight })
+                })
+                .collect();
+            lists.push(ReplayList { button, selected, scenes });
+        }
+        darken(&mut menu, 0, 0);
+        let list_background = "system/replay_back.png".to_string();
+        self.save_image(&list_background, &menu)?;
+        // The row under the pointer is added to the screen: as alpha, its
+        // brightness.
+        let selector = get(&parts, 3)?;
+        let mut cells = column_cells(&selector, 4, &[0, 1]);
+        let w = selector.width();
+        for (x, _, px) in cells.enumerate_pixels_mut() {
+            let a = px.0[..3].iter().copied().max().unwrap_or(0);
+            if x < w || a == 0 {
+                px.0 = [0; 4];
+            } else {
+                for c in &mut px.0[..3] {
+                    *c = (u32::from(*c) * 255 / u32::from(a)) as u8;
+                }
+                px.0[3] = a;
+            }
+        }
+        Ok(SceneReplay {
+            header: self.place("replay_header", &header, None, 621, 122)?,
+            exit: self.place("replay_exit", &column_cells(&exit, 4, &[0, 1]), None, 624, 470)?,
+            lists,
+            list_background,
+            frame: self.place("replay_frame", &get(&parts, 1)?, None, 0, 0)?,
+            close: self.place("replay_close", &column_cells(&get(&parts, 2)?, 4, &[0, 1]), None, 715, 577)?,
+            selector: self.place("replay_row", &cells, None, 0, 0)?.image,
+            new_mark: self.place("replay_new", &get(&parts, 4)?, None, 0, 0)?.image,
+            rows: replay::ROWS,
+            columns: replay::COLUMNS,
+            column_dx: replay::COLUMN_DX,
+            row_dy: replay::ROW_DY,
+            row_y: replay::ROW_Y,
+            selector_x: replay::SELECTOR_X,
+            new_x: replay::NEW_X,
+            text_x: replay::TEXT_X,
+            text_y: replay::TEXT_Y,
+            font_size: replay::FONT_SIZE,
+            text_color: replay::TEXT_COLOR.to_string(),
+            highlight_color: replay::H_COLOR.to_string(),
+            leave_label: "シーン選択に戻る".to_string(),
+            leave_question: "シーン選択に戻りますか？".to_string(),
+        })
     }
 
     /// A loose PNG inside the XARC archive `HD/{arc}`.
@@ -1625,6 +1723,14 @@ impl LabelNames {
     fn own(&self, cd: &CdScript, label: u32) -> Option<&str> {
         let l = cd.labels.iter().find(|l| l.script == cd.script_id && l.label == label)?;
         self.0.get(&(l.script, l.code_offset)).map(String::as_str)
+    }
+
+    /// The converted label of the label named `name` in the script whose
+    /// source is `file` (e.g. the scene replay's `rm…` labels).
+    pub fn find(&self, scripts: &[(String, CdScript)], file: &str, name: &str) -> Option<String> {
+        let (_, cd) = scripts.iter().find(|(_, cd)| cd.name == file)?;
+        let l = cd.labels.iter().find(|l| l.script == cd.script_id && self.0.get(&(l.script, l.code_offset)).is_some_and(|n| n == name))?;
+        Some(format!("s{}_l{}", l.script, l.label))
     }
 }
 

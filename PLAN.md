@@ -543,16 +543,17 @@ parts are not converted:
 - Blog bar: prev/next/exit buttons and the scene list (drawn disabled).
 - Chapter history (`ChapterHistory.004`; 0x37/0x38 only end a chapter and
   clear its name, converted) and the autosave slots.
-- Extras unlocked after clearing: CG, BGM, chapter and scene-replay modes
-  (title images 4, 5, 8, 13). No title BGM.
+- Extras: the CG gallery and the scene replay ("chapter") are done; the
+  BGM room and the system voices (WSS) aren't (title images 5, 13). No
+  title BGM.
 - Button bar lock button (`SysTray.004` #9).
 
 **Script opcodes** (counts are remaining uses):
 - `0x70`: only Zigzag (kind 12, one use) is left; Smooth, HueSatura,
   BrightnessInvert and Filter-Replace are converted;
 - `0x93`/`0x94` are done: `0x93 N` unlocks scene N of the scene replay
-  (global flag `%3000+N`), `0x94` ends a replayed scene (a no-op in play,
-  emitted as `; scene end` until the replay exists);
+  (global flag `%3000+N`), `0x94` ends a replayed scene (a no-op in play:
+  `if %152 == 1 goto *conv_replay_end`);
 - `0x7a`/`0x8b`/`0x8a`/`0x7b` are done: full-screen animations from
   `HD/fx.arc` (an `.004` of frames and an `.ap` script each), drawn
   opaque as an animated sprite (sprite 59, a strip of frames in `fx/`)

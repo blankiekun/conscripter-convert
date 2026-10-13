@@ -295,7 +295,7 @@ fn convert_game(game: &Path, output: &Path, font: Option<&Path>, title: &str, lo
             Some(assets.settings_menu().context("building the settings menu")?),
             Some(assets.backlog().context("building the backlog")?),
             Some(assets.confirm_dialog().context("building the confirmation dialog")?),
-            Some(assets.extras_menu().context("building the extras")?),
+            Some(assets.extras_menu(|file, name| names.find(&scripts, file, name)).context("building the extras")?),
         )
     };
     let ir = Script {

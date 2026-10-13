@@ -596,6 +596,7 @@ pub struct ExtrasMenu {
     pub background: String,
     pub items: Vec<ExtrasItem>,
     pub gallery: Option<CgGallery>,
+    pub replay: Option<SceneReplay>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -610,6 +611,8 @@ pub enum ExtrasAction {
     Settings,
     /// The CG gallery; disabled until a CG in it has been seen.
     Gallery,
+    /// The scene replay.
+    Replay,
     /// Back to the title.
     Back,
     /// Drawn disabled (the mode isn't converted yet).
@@ -680,6 +683,70 @@ pub struct CgViewer {
     pub next: Placed,
     pub hide: Placed,
     pub back: Placed,
+}
+
+/// The scene replay: a menu of lists (one per route) over the extras'
+/// background; a list opens a window of the unlocked scenes' titles in
+/// columns, and a title plays its scene from its label to the scene's end
+/// ([`Op::SceneEnd`]), then shows the list again. During a replay the
+/// settings screen's "back to the title" goes back to the list instead
+/// ([`SceneReplay::leave_label`]) and the button bar has no save or load.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SceneReplay {
+    pub header: Placed,
+    /// Back to the extras menu; two cells: normal, under the pointer.
+    pub exit: Placed,
+    pub lists: Vec<ReplayList>,
+    /// Full-screen picture behind an open list: the menu as the window
+    /// darkens it, with the lists' buttons in their normal state.
+    pub list_background: String,
+    pub frame: Placed,
+    /// Two cells: normal, under the pointer.
+    pub close: Placed,
+    /// A row's button: two cells, nothing and the row under the pointer.
+    pub selector: String,
+    /// Marks a scene not replayed yet.
+    pub new_mark: String,
+    /// Rows per column (columns as many as the window holds).
+    pub rows: usize,
+    pub columns: usize,
+    pub column_dx: i32,
+    pub row_dy: i32,
+    /// The first row's top: selector and "new" mark at their x.
+    pub row_y: i32,
+    pub selector_x: i32,
+    pub new_x: i32,
+    /// The first title's top left.
+    pub text_x: i32,
+    pub text_y: i32,
+    pub font_size: u32,
+    pub text_color: String,
+    /// Colour of the titles of [`ReplayScene::highlight`] scenes.
+    pub highlight_color: String,
+    /// The settings screen's "back to the title" during a replay, and the
+    /// question it asks.
+    pub leave_label: String,
+    pub leave_question: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReplayList {
+    /// Three cells: normal, under the pointer, disabled.
+    pub button: Placed,
+    /// Drawn over [`SceneReplay::list_background`] while the list is open.
+    pub selected: Placed,
+    pub scenes: Vec<ReplayScene>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReplayScene {
+    /// Unlocked by [`Op::UnlockScene`] with this number.
+    pub scene: u32,
+    pub title: String,
+    /// Where the replay starts.
+    pub label: String,
+    /// Written in [`SceneReplay::highlight_color`].
+    pub highlight: bool,
 }
 
 /// A settings screen: rows of levels 0-10 changed with minus/plus.

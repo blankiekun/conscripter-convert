@@ -30,29 +30,23 @@ on `origin/main`, not `main`.
 
 Every opcode the story uses is converted (unsupported 81 → 2: the start
 point's debug menu, which the user doesn't want). The fourth session
-(2026-10-13, later) did the CG gallery (`cf127f3`, item under "Extras"
-below). **Next: the other extras**, in this order unless the user says
-otherwise:
+(2026-10-13, later) did the CG gallery (`cf127f3`); the fifth the scene
+replay ("chapter", item under "Extras" below). **Next: the other
+extras**, in this order unless the user says otherwise:
 
-1. **Chapter** = the scene replay. Filmed under wine: a list per route
-   (プロローグ, 紅緒あずさ, 本堂沙也加, 塚本葉子, 伊月笛子-1/-2, 戦争編,
-   エピローグ, BLOG-1..3; `SubModeCommon.004` #0-9, #40-54 for the
-   other names). Unlocks are already recorded (`0x93` → `%3000 + n`);
-   `0x94` (`; scene end` in 0.txt) is where a replay must return. The
-   replay list code is at 0x451090; the `rm<NNN><title>` strings in the
-   exe are probably its entries. Needs a way to start a scene from its
-   label with a clean state and come back at `; scene end`.
-2. **BGM room** (`BgmMode.004`: track names #0-21; not filmed yet: on
+1. **BGM room** (`BgmMode.004`: track names #0-21; not filmed yet: on
    the extras menu "bgm" is the 2nd item, y 250).
-3. **WSS** (`VoiceMode.004`, `HD/wss.bin`): Windows system-sound voices
+2. **WSS** (`VoiceMode.004`, `HD/wss.bin`): Windows system-sound voices
    per character, with play / stop / save / settings; unlocked by
    progress bit 4 + route (table 0x4fbc00). Probably only "play" makes
    sense here.
 
 Each of these is now an `ExtrasAction::Unavailable` item in
 `extras_menu()` (convert.rs); give it its own action, IR and routine
-next to `extras.rs`'s gallery. Sprite slots 100-199 and %120-%129 are
-the extras' (title only, cleared on exit).
+like the gallery (`extras.rs`) and the replay (`replay.rs`). Sprite
+slots 100-499 and %120-%129 are the extras' (title only, cleared on
+exit); the replay uses %152-%160 (kept while a scene plays) and
+sprites 200-412 for its list.
 
 How to see the original's extras (details in `saiima.md`, "Extras"):
 run it under wine with the 100% save the user downloaded
@@ -448,9 +442,27 @@ engines print `z150` etc.). The web build compiles with it.
       difference 0.2), variants, locked slots, pages, exits. Not done:
       the panel's slide-away when idle (ours stays up), the voice button
       (`cgv.bin`) and a check box of unknown use.
-- [ ] Extras: BGM room, chapter (the scene replay, by route, with
-      BLOG-1..3), WSS (system voices); chapter history, blog bar buttons,
-      title BGM.
+- [x] Scene replay ("chapter" in the extras; filmed under wine with
+      the 100% save): a menu of 11 lists (プロローグ … BLOG-3), each a
+      window of up to 3 × 23 titles over the darkened menu
+      (`SceneList.004`; the band subtracts 80 per channel, pre-rendered
+      as `system/replay_back.png`). Only unlocked scenes are listed,
+      closing up the gaps; "new" until replayed (`%3650 + scene`, set
+      when the replay starts); H scenes in pink. Table from the exe
+      (`xuse/replay.rs`, 0x4fe200: 418 entries of scene bit, H flag,
+      `rm…` label in 0014-0018.cd). A title clears the playthrough's
+      variables, sets `%152` and jumps to the `rm…` label (which calls
+      the replay set-up, 0019.cd, and jumps into the story); `0x94` now
+      emits `if %152 == 1 goto *conv_replay_end`, which stops the sound
+      and shows the list again. During a replay the bar has no save or
+      load and the settings screen's "タイトルに戻る" becomes "シーン選択に
+      戻る" (asks "シーン選択に戻りますか？", as the original's right-click
+      menu does). `crates/conv-cons/src/replay.rs`. Checked headless: list
+      layout against the original, a scene played to its end, leaving
+      from the settings, "new" cleared. Not done: the selected row's
+      pressed state, the window's slight blur.
+- [ ] Extras: BGM room, WSS (system voices); chapter history, blog bar
+      buttons, title BGM.
 - [ ] Native Linux/macOS builds skip movies (`mpegplay` is disabled
       without SMPEG). Only if the user wants it.
 - [ ] Right-click: not planned (the user said skip it).

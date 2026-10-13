@@ -410,7 +410,9 @@ pub(crate) fn save_menu(out: &mut String, m: &SaveMenu, confirm: Option<&Confirm
 ///
 /// The bars are always up during a click wait (the original hides them
 /// until the pointer comes near an edge).
-pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, save_menu: bool, settings: bool, backlog: bool) {
+/// `replay`: there is a scene replay, during which save and load are
+/// left out.
+pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, save_menu: bool, settings: bool, backlog: bool, replay: bool) {
     let mut slots = BAR_SPRITES;
     let buttons: Vec<_> = bar.buttons.iter().zip(slots.by_ref()).collect();
     let (chapter_text, scene_text) = (slots.next().unwrap(), slots.next().unwrap());
@@ -468,6 +470,10 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, save_menu: bool, set
     for (i, (b, slot)) in buttons.iter().enumerate() {
         if b.action == BarAction::Unavailable {
             w(lsp(*slot, &b.image, ""));
+            continue;
+        }
+        if replay && matches!(b.action, BarAction::Save | BarAction::Load) {
+            w(format!("if {} == 0 {}:spbtn {slot},{}", crate::replay::REPLAYING, lsp(*slot, &b.image, "/3,0,3"), number(i)));
             continue;
         }
         w(lsp(*slot, &b.image, "/3,0,3"));
@@ -539,7 +545,9 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, save_menu: bool, set
 /// applied by [`SETTINGS_APPLY`] (also run at startup by
 /// [`settings_init`]), and on a second page the voice switches (globals
 /// from [`VOICE_OFF_BASE`], read where each voice plays).
-pub(crate) fn settings_menu(out: &mut String, m: &SettingsMenu, confirm: Option<&ConfirmDialog>) {
+/// `leave`: during a scene replay, "back to the title" becomes this label
+/// and question and leads back to the replay's list.
+pub(crate) fn settings_menu(out: &mut String, m: &SettingsMenu, confirm: Option<&ConfirmDialog>, leave: Option<(&str, &str)>) {
     let rows = &m.rows[..m.rows.len().min(MAX_SETTING_ROWS)];
     let voices = &m.voices[..m.voices.len().min(MAX_VOICES)];
     let switches = &m.switches[..m.switches.len().min(MAX_SWITCHES)];
@@ -570,6 +578,10 @@ pub(crate) fn settings_menu(out: &mut String, m: &SettingsMenu, confirm: Option<
     // Back to the title and quit, from the game.
     for (slot, x, label) in [(SETTING_TITLE, m.label_x, &m.title_label), (SETTING_QUIT, m.level_x, &m.quit_label)] {
         w(format!("if {IN_GAME} == 1 {}", hover(slot, &format!("\"{}\"", escape(label)), x, m.exits_y, 20)));
+    }
+    if let Some((label, _)) = leave {
+        let text = format!("\"{}\"", escape(label));
+        w(format!("if {IN_GAME} == 1 && {} == 1 {}", crate::replay::REPLAYING, hover(SETTING_TITLE, &text, m.label_x, m.exits_y, 20)));
     }
     w("*conv_settings_draw".into());
     w((M..SETTING_TITLE).map(|n| format!("csp {n}")).collect::<Vec<_>>().join(":"));
@@ -698,8 +710,19 @@ pub(crate) fn settings_menu(out: &mut String, m: &SettingsMenu, confirm: Option<
     w(format!("gosub *{SETTINGS_APPLY}"));
     w("goto *conv_settings_draw".into());
     // `reset` starts the script over: the title screen.
+    // During a replay: back to its list instead.
+    if let Some((_, question)) = leave {
+        w("*conv_settings_title".into());
+        w(format!("if {} == 0 goto *conv_settings_title_go", crate::replay::REPLAYING));
+        if confirm.is_some() {
+            w(confirm_call(question, Switch::ConfirmTitle));
+            w(format!("if {CONFIRM} == 0 goto *conv_settings_wait"));
+        }
+        w(format!("goto *{}", crate::replay::END));
+    }
+    let title = if leave.is_some() { "conv_settings_title_go" } else { "conv_settings_title" };
     for (label, question, then, kind) in [
-        ("conv_settings_title", confirm.map(|c| &c.title), "reset", Switch::ConfirmTitle),
+        (title, confirm.map(|c| &c.title), "reset", Switch::ConfirmTitle),
         ("conv_settings_quit", confirm.map(|c| &c.quit), "end", Switch::ConfirmQuit),
     ] {
         w(format!("*{label}"));
@@ -1077,7 +1100,7 @@ mod tests {
             switches: vec![conv_core::ir::SettingSwitch { label: "セーブ確認".into(), switch: Switch::ConfirmSave }],
         };
         let mut out = String::new();
-        settings_menu(&mut out, &m, None);
+        settings_menu(&mut out, &m, None, None);
         for line in [
             // The current tab can't be clicked; the other one can.
             "if %176 != 1 strsp 28,\"音声\",392,34,3,1,22,22,0,0,0,1,\"#FFFFFF\",\"#F0C040\"\n",
@@ -1118,7 +1141,7 @@ mod tests {
             top: None,
         };
         let mut out = String::new();
-        button_bar(&mut out, &bar, true, false, false);
+        button_bar(&mut out, &bar, true, false, false, false);
         for line in [
             "*conv_wait\ngosub *conv_bar_draw\ntextbtnwait %9\nif %9 == -3 && %3640 == 0 goto *conv_wait_end\nif %9 == -3 goto *conv_wait\n",
             "if %9 >= 0 && %9 <= 1000 goto *conv_wait_end\n",
