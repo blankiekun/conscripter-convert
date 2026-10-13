@@ -1,6 +1,7 @@
 //! The extras menu the title's option button opens, and the CG gallery
-//! (see [`ExtrasMenu`]; the scene replay is in [`crate::replay`]). Both are only reached from the title, so they use
-//! the game's sprite slots ([`SPRITES`]) and clear everything with
+//! (see [`ExtrasMenu`]; the scene replay is in [`crate::replay`], the BGM
+//! room in [`crate::music`]). All are only reached from the title, so they
+//! use the game's sprite slots ([`SPRITES`]) and clear everything with
 //! `csp -1`.
 //!
 //! The gallery redraws the whole screen after every click (ONScripter drops
@@ -12,7 +13,7 @@
 
 use conv_core::ir::{CgGallery, ExtrasAction, ExtrasMenu, Placed};
 
-use crate::{menu, path, replay, BUTTON_VAR, CG_SEEN_BASE};
+use crate::{menu, music, path, replay, BUTTON_VAR, CG_SEEN_BASE};
 
 pub(crate) const EXTRAS: &str = "conv_extras";
 /// Back to the title screen (its background and buttons).
@@ -129,6 +130,14 @@ pub(crate) fn extras(out: &mut String, m: &ExtrasMenu, fade: u32, settings: bool
                 w(format!("if {UNLOCKED} == 1 spbtn {slot},{n}"));
                 buttons.push((n, format!("gosub *{GALLERY}:goto *{DRAW}")));
             }
+            ExtrasAction::Music if m.music.is_none() => {
+                w(format!("lsp {slot},\":a/3,0,3;{}\",{},{}:cell {slot},2", path(&item.button.image), item.button.x, item.button.y))
+            }
+            ExtrasAction::Music => {
+                w(button(slot, &item.button, 3));
+                w(format!("spbtn {slot},{n}"));
+                buttons.push((n, format!("goto *{}", music::MUSIC)));
+            }
             ExtrasAction::Replay if m.replay.is_none() => {
                 w(format!("lsp {slot},\":a/3,0,3;{}\",{},{}:cell {slot},2", path(&item.button.image), item.button.x, item.button.y))
             }
@@ -164,6 +173,9 @@ pub(crate) fn extras(out: &mut String, m: &ExtrasMenu, fade: u32, settings: bool
     }
     if let Some(r) = &m.replay {
         replay::replay(out, r, &m.background, DRAW);
+    }
+    if let Some(music) = &m.music {
+        music::music(out, music, &m.background, DRAW);
     }
 }
 

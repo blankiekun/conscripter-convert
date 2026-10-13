@@ -543,9 +543,8 @@ parts are not converted:
 - Blog bar: prev/next/exit buttons and the scene list (drawn disabled).
 - Chapter history (`ChapterHistory.004`; 0x37/0x38 only end a chapter and
   clear its name, converted) and the autosave slots.
-- Extras: the CG gallery and the scene replay ("chapter") are done; the
-  BGM room and the system voices (WSS) aren't (title images 5, 13). No
-  title BGM.
+- Extras: the CG gallery, the scene replay ("chapter") and the BGM room
+  are done; the system voices (WSS, title image 13) aren't. No title BGM.
 - Button bar lock button (`SysTray.004` #9).
 
 **Script opcodes** (counts are remaining uses):

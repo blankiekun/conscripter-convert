@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 use thiserror::Error;
 use conv_core::ir::{
     Compare,
-    Animation, ArithOp, Backlog, CgGallery, CgViewer, ExtrasAction, ExtrasItem, ExtrasMenu, GallerySlot, ReplayList, ReplayScene, SceneReplay, GalleryTab, BarAction, BarButton, ButtonBar, ConfirmDialog, NamePlate, Noise, ScreenEffect, Setting, SettingRow, SettingSwitch, SettingsMenu, Switch, Op, Operand, PageButton, Placed, Rect, Ruby, SaveMenu, TextStyle, SourceLoc, Voice, VoiceToggle,
+    Animation, ArithOp, Backlog, CgGallery, CgViewer, ExtrasAction, ExtrasItem, ExtrasMenu, GallerySlot, ReplayList, ReplayScene, SceneReplay, MusicRoom, MusicSong, GalleryTab, BarAction, BarButton, ButtonBar, ConfirmDialog, NamePlate, Noise, ScreenEffect, Setting, SettingRow, SettingSwitch, SettingsMenu, Switch, Op, Operand, PageButton, Placed, Rect, Ruby, SaveMenu, TextStyle, SourceLoc, Voice, VoiceToggle,
     SpriteChange, SpriteFilter, SpritePlacement, TextLink, TextSpot, TextWindow, TitleAction, TitleButton, TitleScreen, TopBars,
     SlideLayer, TransitionStyle, Var, ZoomStyle, FILTER_BLEND_ADD, FILTER_BLEND_COPY, FILTER_BLEND_MULTIPLY, FILTER_BLEND_SCREEN, FILTER_BRIGHTNESS, FILTER_COLOUR, FILTER_MONOTONE,
     FILTER_GREYSCALE, FILTER_NEGATIVE, FILTER_BLUR, FILTER_HUE_SATURATION, FILTER_LIGHTNESS_INVERT,
@@ -25,6 +25,7 @@ use crate::xuse::cd::{
 };
 use crate::xuse::gaf::{Gaf, GafError};
 use crate::xuse::gallery;
+use crate::xuse::music;
 use crate::xuse::replay;
 use crate::xuse::staffroll;
 use crate::xuse::symbols::SymbolTable;
@@ -874,7 +875,7 @@ impl AssetBank {
         for (n, name, x, y, action) in [
             (12, "option", 625, 129, ExtrasAction::Settings),
             (4, "cg", 625, 221, ExtrasAction::Gallery),
-            (5, "bgm", 626, 250, ExtrasAction::Unavailable),
+            (5, "bgm", 626, 250, ExtrasAction::Music),
             (8, "chapter", 626, 283, ExtrasAction::Replay),
             (13, "wss", 626, 320, ExtrasAction::Unavailable),
             (3, "exit", 626, 384, ExtrasAction::Back),
@@ -958,7 +959,40 @@ impl AssetBank {
             },
         };
         let replay = self.scene_replay(&common, &label)?;
-        Ok(ExtrasMenu { background, items, gallery: Some(gallery), replay: Some(replay) })
+        let music = self.music_room(&common)?;
+        Ok(ExtrasMenu { background, items, gallery: Some(gallery), replay: Some(replay), music: Some(music) })
+    }
+
+    /// The BGM room (see [`music`]); `common` is `SubModeCommon.004`.
+    fn music_room(&mut self, common: &[image::RgbaImage]) -> Result<MusicRoom, ConvertError> {
+        let titles = self.gaf_rgba("gd.arc", "BgmMode.004", "BGM room")?;
+        let get = |images: &[image::RgbaImage], n: usize| {
+            images.get(n).cloned().ok_or(ConvertError::MissingAsset { kind: "BGM room image", number: n })
+        };
+        let mut songs = Vec::new();
+        for (i, &track) in music::TRACKS.iter().enumerate() {
+            let img = get(&titles, i)?;
+            let (w, h) = (img.width() / 2, img.height() / 4);
+            // Cells (normal, under the pointer) of the left or right column.
+            let cells = |column: u32| {
+                let mut out = image::RgbaImage::new(w * 2, h);
+                for row in 0..2 {
+                    let cell = image::imageops::crop_imm(&img, column * w, row * h, w, h).to_image();
+                    image::imageops::replace(&mut out, &cell, (row * w).into(), 0);
+                }
+                out
+            };
+            let y = music::Y + music::DY * i as i32;
+            let button = self.place(&format!("music{i}"), &cells(0), None, music::X, y)?;
+            let playing = self.place(&format!("music{i}_on"), &cells(1), None, music::X, y)?.image;
+            let progress = (i == music::LOCKED).then_some(music::LOCK_BIT);
+            songs.push(MusicSong { button, playing, file: self.bgm(track)?, progress });
+        }
+        Ok(MusicRoom {
+            header: self.place("music_header", &get(common, 17)?, None, 621, 122)?,
+            exit: self.place("music_exit", &column_cells(&get(common, 15)?, 4, &[0, 1]), None, 624, 470)?,
+            songs,
+        })
     }
 
     /// The scene replay (see [`replay`]); `common` is `SubModeCommon.004`

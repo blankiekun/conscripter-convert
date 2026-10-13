@@ -597,6 +597,7 @@ pub struct ExtrasMenu {
     pub items: Vec<ExtrasItem>,
     pub gallery: Option<CgGallery>,
     pub replay: Option<SceneReplay>,
+    pub music: Option<MusicRoom>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -613,6 +614,8 @@ pub enum ExtrasAction {
     Gallery,
     /// The scene replay.
     Replay,
+    /// The BGM room.
+    Music,
     /// Back to the title.
     Back,
     /// Drawn disabled (the mode isn't converted yet).
@@ -747,6 +750,28 @@ pub struct ReplayScene {
     pub label: String,
     /// Written in [`SceneReplay::highlight_color`].
     pub highlight: bool,
+}
+
+/// The BGM room: a column of song titles over the extras' background; a
+/// title plays its song (looping), marked while it plays. The song goes
+/// on after the room is left.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MusicRoom {
+    pub header: Placed,
+    /// Back to the extras menu; two cells: normal, under the pointer.
+    pub exit: Placed,
+    pub songs: Vec<MusicSong>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MusicSong {
+    /// Two cells: normal, under the pointer.
+    pub button: Placed,
+    /// The same while the song plays (same place).
+    pub playing: String,
+    pub file: String,
+    /// Left out until [`Op::Progress`] with this bit was reached.
+    pub progress: Option<u32>,
 }
 
 /// A settings screen: rows of levels 0-10 changed with minus/plus.

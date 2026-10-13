@@ -31,22 +31,21 @@ on `origin/main`, not `main`.
 Every opcode the story uses is converted (unsupported 81 → 2: the start
 point's debug menu, which the user doesn't want). The fourth session
 (2026-10-13, later) did the CG gallery (`cf127f3`); the fifth the scene
-replay ("chapter", item under "Extras" below). **Next: the other
-extras**, in this order unless the user says otherwise:
+replay ("chapter") and the BGM room (items under "Extras" below).
+**Next: WSS**, the last extra, unless the user says otherwise:
 
-1. **BGM room** (`BgmMode.004`: track names #0-21; not filmed yet: on
-   the extras menu "bgm" is the 2nd item, y 250).
-2. **WSS** (`VoiceMode.004`, `HD/wss.bin`): Windows system-sound voices
+1. **WSS** (`VoiceMode.004`, `HD/wss.bin`): Windows system-sound voices
    per character, with play / stop / save / settings; unlocked by
    progress bit 4 + route (table 0x4fbc00). Probably only "play" makes
    sense here.
 
-Each of these is now an `ExtrasAction::Unavailable` item in
+It is still an `ExtrasAction::Unavailable` item in
 `extras_menu()` (convert.rs); give it its own action, IR and routine
-like the gallery (`extras.rs`) and the replay (`replay.rs`). Sprite
-slots 100-499 and %120-%129 are the extras' (title only, cleared on
-exit); the replay uses %152-%160 (kept while a scene plays) and
-sprites 200-412 for its list.
+like the gallery (`extras.rs`), the replay (`replay.rs`) and the BGM
+room (`music.rs`). Sprite slots 100-499 and %120-%129 are the
+extras' (title only, cleared on exit); the replay uses %152-%160 (kept
+while a scene plays) and sprites 200-412 for its list; the BGM room's
+song playing is %161.
 
 How to see the original's extras (details in `saiima.md`, "Extras"):
 run it under wine with the 100% save the user downloaded
@@ -461,8 +460,18 @@ engines print `z150` etc.). The web build compiles with it.
       layout against the original, a scene played to its end, leaving
       from the settings, "new" cleared. Not done: the selected row's
       pressed state, the window's slight blur.
-- [ ] Extras: BGM room, WSS (system voices); chapter history, blog bar
-      buttons, title BGM.
+- [x] BGM room (filmed under wine): 22 song titles (`BgmMode.004`, a
+      2 × 4 grid of cells: normal / pointer / pressed, right column while
+      playing) at (120, 71 + 20 i) under the "bgm" heading; table from
+      the exe (`xuse/music.rs`: 0x5001d0 places the songs, 0x500598 maps
+      tracks to songs; the last song, track 22, only once progress bit 0
+      is set). A click plays the song looping (clicking it again changes
+      nothing); it goes on after leaving the room and stays marked
+      (`%161`). `crates/conv-cons/src/music.rs`. Checked headless: page
+      matches the original (mean pixel difference 0.25), playing mark,
+      mark kept after leaving. Sound not heard (headless runs are muted).
+- [ ] Extras: WSS (system voices); chapter history, blog bar buttons,
+      title BGM.
 - [ ] Native Linux/macOS builds skip movies (`mpegplay` is disabled
       without SMPEG). Only if the user wants it.
 - [ ] Right-click: not planned (the user said skip it).

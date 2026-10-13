@@ -15,6 +15,7 @@ use conv_core::ir::{
 
 mod extras;
 mod menu;
+mod music;
 pub mod nsa;
 mod replay;
 pub mod webp;
@@ -1595,6 +1596,7 @@ effect 6,99,1000,\"cons_zoom.dll/3,220,5\"
                 viewer: CgViewer { panel: vec![placed("panel")], name_x: 1, name_y: 2, previous: placed("p"), next: placed("n"), hide: placed("c"), back: placed("b") },
             }),
             replay: None,
+            music: None,
         });
         let out = emit(&s);
         assert!(out.contains("*conv_title_back\nbg \"system\\title.png\",0\n"), "{out}");
@@ -1653,6 +1655,7 @@ effect 6,99,1000,\"cons_zoom.dll/3,220,5\"
                 leave_label: "シーン選択に戻る".into(),
                 leave_question: "シーン選択に戻りますか？".into(),
             }),
+            music: None,
         });
         let out = emit(&s);
         assert!(out.contains("if %9 == 1 goto *conv_replay\n"), "{out}");
@@ -1667,6 +1670,39 @@ effect 6,99,1000,\"cons_zoom.dll/3,220,5\"
             if %3007 == 1 mov $130,\"Ｈ\":mov %155,2:mov %156,1-%3657:mov %157,1:gosub *conv_replay_row\n"
         ), "{out}");
         assert!(out.contains("*conv_replay_go0_1\nmov %3657,1\ngosub *conv_replay_begin:goto *s14_l5\n"), "{out}");
+    }
+
+    #[test]
+    fn music_room_plays_a_song_and_marks_it() {
+        use conv_core::ir::{ExtrasAction, ExtrasItem, ExtrasMenu, MusicRoom, MusicSong, Placed, TitleButton};
+        let placed = |image: &str| Placed { image: image.into(), x: 120, y: 71, w: 30, h: 20 };
+        let mut s = script(vec![]);
+        s.title_screen = Some(TitleScreen {
+            background: "system/title.png".into(),
+            fade_ms: 1000,
+            buttons: vec![TitleButton { image: "system/option.png".into(), x: 600, y: 200, action: TitleAction::Settings }],
+        });
+        let song = |image: &str, file: &str, progress| MusicSong { button: placed(image), playing: format!("{image}_on"), file: file.into(), progress };
+        s.extras = Some(ExtrasMenu {
+            background: "system/extras.png".into(),
+            items: vec![ExtrasItem { button: placed("system/bgm.png"), action: ExtrasAction::Music }],
+            gallery: None,
+            replay: None,
+            music: Some(MusicRoom {
+                header: placed("h"),
+                exit: placed("x"),
+                songs: vec![song("system/s1.png", "bgm/bgm01.ogg", None), song("system/s2.png", "bgm/bgm22.ogg", Some(0))],
+            }),
+        });
+        let out = emit(&s);
+        assert!(out.contains("if %9 == 1 goto *conv_music\n"), "{out}");
+        // The song playing is drawn marked; a locked one isn't drawn.
+        assert!(out.contains(
+            "if %161 != 1 lsp 102,\":a/2,0,3;system\\s1.png\",120,71:spbtn 102,1\n\
+            if %161 == 1 lsp 102,\":a/2,0,3;system\\s1.png_on\",120,71:spbtn 102,1\n\
+            if %3600 == 1 && %161 != 2 lsp 103,"
+        ), "{out}");
+        assert!(out.contains("*conv_music1\nbgmfadein 0:bgm \"bgm\\bgm22.ogg\":goto *conv_music_draw\n"), "{out}");
     }
 
     #[test]

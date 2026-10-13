@@ -169,7 +169,7 @@ pub(crate) fn replay(out: &mut String, r: &SceneReplay, background: &str, back: 
 
     // A clean screen and story state for the scene.
     w(format!("*{BEGIN}"));
-    w("csp -1:csp2 -1".into());
+    w("csp -1:csp2 -1:bgmstop".into());
     w("bg black,1".into());
     // The playthrough's variables as a new game has them, but the replay's.
     w(format!("for {TMP}=10 to {}:mov %{TMP},0:next", FIRST_VAR - 1));
