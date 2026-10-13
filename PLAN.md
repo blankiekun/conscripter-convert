@@ -146,6 +146,7 @@ README, "CONscripter additions"):
 | `pushscreen` / `popscreen` (save and restore background, sprites, filters and BGM; kept in saves) | Link scenes, which can change the whole screen before returning to their page. Replaced the converter's file-order guess of what was on screen |
 | `delsavegame` (delete a save and its thumbnail) | The save menu's delete button. Replaced a global flag per slot that only hid the save; a slot an older build flagged is deleted when the menu lists it |
 | `cons_slide.dll`, `cons_zoom.dll` (effect 99 plugins: slides in 8 directions, four zooms) | 0x76 transitions: Slide in/out (subs 10-25, 7 uses) and Zoom (37-40, 116 uses), decoded from the exe (`transition_style` in the Xuse converter). Scroll (41-44) maps to ONScripter's effects 11-14 and Mosaic (27) to 16 then 17, without engine work |
+| WebP in the web build (libwebp linked in; emscripten's SDL_image has no WebP) | Archive size on the web: `--webp` stores images as near-lossless WebP, 218 MB instead of 457 MB of PNG (`arc.nsa` 765 MB instead of 992 MB). Opt-in, because builds whose SDL_image lacks libwebp can't read it |
 | Text hooks in the web build (`onsyuriText`, `onsyuriChoice`, `onsyuriOverlay`) | Not for a converted game: chimimouryou lays each page's text over the game for Yomitan and reading statistics. Was a patch kept in chimimouryou (`scripts/onsyuri/text-hook.patch`) |
 
 Planned, from limits hit while converting 最果てのイマ (each one is worked
@@ -153,7 +154,6 @@ around in the script today), roughly in order of payoff:
 
 | Game feature | Workaround today | Engine feature that would fix it |
 |---|---|---|
-| Archive size on the web | PNG only (the WASM build has no WebP decoder) | WebP support in the web build |
 | Movies (`mv*.bin`, MPEG-PS) | Not converted | Movie playback that works in the web build (e.g. an HTML5 video overlay) |
 | Right-click menu / hide window | Everything behind the on-screen button bar | Send right-click to a script label (`rgosub`-style); not planned for now |
 
@@ -185,8 +185,8 @@ Probably no engine work needed:
 ## 5. Asset pipeline
 
 - **Images:** decode proprietary formats (TLG5/6, HG-3, CompressedBG, G00,
-  PNA, …) into the `image` crate's types and save as PNG (the WebAssembly
-  target has no WebP decoder, §13.1). Then sprite
+  PNA, …) into the `image` crate's types and save as PNG, or with
+  `--webp` as near-lossless WebP (§13.1). Then sprite
   composition, resize to the target resolution, and alpha conversion according
   to `target_caps`. Run per-image work in parallel with `rayon`.
 - **Audio:** keep OGG where possible; transcode the rest with an `ffmpeg`
@@ -805,9 +805,10 @@ should carry over to the next engine.
 - **The target's image decoder limits the asset formats.** ONScripter
   decodes through SDL_image. SDL_image 1.2.12 reads only lossy WebP
   without alpha (`VP8 `), not lossless (`VP8L`) or extended (`VP8X`,
-  needed for alpha). The WebAssembly target loads no WebP at all, so
-  output images are PNG. Check a new format with one test file in the
-  target build before changing the converter.
+  needed for alpha). Emscripten's SDL_image port has no WebP, so
+  CONscripter's web build decodes it with its own libwebp, and PNG
+  stays the default (`--webp` opts in). Check a new format with one test
+  file in the target build before changing the converter.
 - **Sprite numbers set the stacking order, and saves record them.**
   ONScripter draws lower `lsp` numbers on top, so a dialog over the menus
   needs the lowest slots. Renumber the menu and bar slots (never saved in

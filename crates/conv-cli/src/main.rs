@@ -42,6 +42,11 @@ enum Command {
         /// jumps. Stopgap until conditions are decoded.
         #[arg(long)]
         linear: bool,
+        /// Store images as near-lossless WebP (about half the size of PNG).
+        /// Needs a CONscripter build that reads WebP: the web build, or one
+        /// whose SDL_image has libwebp
+        #[arg(long)]
+        webp: bool,
     },
     /// Convert one Xuse script (CDFiles/NNNN.cd) into a CONscripter game
     /// directory: 0.txt plus the assets it uses
@@ -59,6 +64,11 @@ enum Command {
         /// Window caption
         #[arg(long, default_value = "CONscripter-convert")]
         title: String,
+        /// Store images as near-lossless WebP (about half the size of PNG).
+        /// Needs a CONscripter build that reads WebP: the web build, or one
+        /// whose SDL_image has libwebp
+        #[arg(long)]
+        webp: bool,
     },
     /// Low-level tools for Xuse XARC archives (*.arc)
     Xarc {
@@ -159,11 +169,11 @@ enum XarcCommand {
 
 fn main() -> Result<()> {
     match Cli::parse().command {
-        Command::ConvertGame { game, output, font, title, loose, linear } => {
-            convert_game(&game, &output, font.as_deref(), &title, loose, linear)
+        Command::ConvertGame { game, output, font, title, loose, linear, webp } => {
+            convert_game(&game, &output, font.as_deref(), &title, loose, linear, webp)
         }
-        Command::ConvertScript { game, script, output, font, title } => {
-            convert_script(&game, script, &output, font.as_deref(), &title)
+        Command::ConvertScript { game, script, output, font, title, webp } => {
+            convert_script(&game, script, &output, font.as_deref(), &title, webp)
         }
         Command::Xarc { command } => match command {
             XarcCommand::List { archive } => xarc_list(&archive),
@@ -191,8 +201,26 @@ fn main() -> Result<()> {
 }
 
 const ASSET_DIRS: [&str; 6] = ["bg", "sprite", "bgm", "se", "system", "voice"];
+const IMAGE_DIRS: [&str; 3] = ["bg", "sprite", "system"];
 
-fn convert_game(game: &Path, output: &Path, font: Option<&Path>, title: &str, loose: bool, linear: bool) -> Result<()> {
+/// With `webp`, re-encodes the images in `output` as WebP and points the
+/// script at them.
+fn image_format(output: &Path, source: String, webp: bool) -> Result<String> {
+    if !webp {
+        return Ok(source);
+    }
+    let dirs: Vec<PathBuf> = IMAGE_DIRS.iter().map(|d| output.join(d)).collect();
+    let c = conv_cons::webp::convert_dirs(&dirs).context("converting images to WebP")?;
+    println!(
+        "  {} images as WebP: {:.1} MB (PNG {:.1} MB)",
+        c.files,
+        c.webp_bytes as f64 / 1e6,
+        c.png_bytes as f64 / 1e6
+    );
+    Ok(conv_cons::webp::retarget(&source))
+}
+
+fn convert_game(game: &Path, output: &Path, font: Option<&Path>, title: &str, loose: bool, linear: bool, webp: bool) -> Result<()> {
     let dir = game.join("HD").join("CDFiles");
     let mut ids: Vec<u32> = fs::read_dir(&dir)
         .with_context(|| format!("reading {}", dir.display()))?
@@ -280,7 +308,8 @@ fn convert_game(game: &Path, output: &Path, font: Option<&Path>, title: &str, lo
         confirm,
         ops,
     };
-    let (encoded, lost) = conv_cons::encode(&conv_cons::emit(&ir));
+    let source = image_format(output, conv_cons::emit(&ir), webp)?;
+    let (encoded, lost) = conv_cons::encode(&source);
     fs::write(output.join("0.txt"), encoded)?;
     fs::write(output.join("ons_args"), conv_cons::ENGINE_ARGS)?;
     if let Some(font) = font {
@@ -342,7 +371,7 @@ fn report(ir: &Script, lost: usize, has_font: bool) {
     }
 }
 
-fn convert_script(game: &Path, script: u32, output: &Path, font: Option<&Path>, title: &str) -> Result<()> {
+fn convert_script(game: &Path, script: u32, output: &Path, font: Option<&Path>, title: &str, webp: bool) -> Result<()> {
     let file = format!("{script:04}.cd");
     let path = game.join("HD").join("CDFiles").join(&file);
     let bytes = map(&path)?;
@@ -357,7 +386,7 @@ fn convert_script(game: &Path, script: u32, output: &Path, font: Option<&Path>, 
         lower_script(&cd, &file, Flow::Jumps, &mut assets, &presets, &names).with_context(|| format!("converting {file}"))?;
     let ir = Script { title: title.to_string(), width: 800, height: 600, window: Some(window), title_screen: None, save_menu: None, button_bar: None, settings: None, backlog: None, confirm: None, ops };
 
-    let source = conv_cons::emit(&ir);
+    let source = image_format(output, conv_cons::emit(&ir), webp)?;
     let (encoded, lost) = conv_cons::encode(&source);
     fs::write(output.join("0.txt"), encoded)?;
     fs::write(output.join("ons_args"), conv_cons::ENGINE_ARGS)?;

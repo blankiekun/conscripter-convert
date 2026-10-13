@@ -6,4 +6,7 @@ license.workspace = true
 
 [dependencies]
 encoding_rs.workspace = true
+image.workspace = true
+thiserror.workspace = true
+webp.workspace = true
 conv-core.workspace = true

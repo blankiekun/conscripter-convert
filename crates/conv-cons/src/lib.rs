@@ -15,6 +15,7 @@ use conv_core::ir::{
 
 mod menu;
 pub mod nsa;
+pub mod webp;
 
 /// First effect number we define; 1 is NScripter's built-in "instant".
 const FIRST_EFFECT: u32 = 2;
