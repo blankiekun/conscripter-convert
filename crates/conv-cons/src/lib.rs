@@ -104,6 +104,13 @@ const LINK_VISITED_BASE: u32 = 2000;
 const SCENE_UNLOCKED_BASE: u32 = 3000;
 /// Global flags: progress flag n ([`Op::Progress`]) is set.
 const PROGRESS_BASE: u32 = 3600;
+/// Link scenes open (gosubs from link pages), for [`Op::ReturnToRoot`].
+const LINK_NEST: &str = "%118";
+/// Set while [`Op::ReturnToRoot`] unwinds: which one to go on at.
+const ROOT_RESUME: &str = "%119";
+/// Returns from one more link scene, or at the root jumps to the
+/// [`ROOT_RESUME`] point.
+const UNWIND: &str = "conv_unwind";
 /// Global flags: CG n ([`Op::CgSeen`], up to 9 × 64) was seen; above the
 /// link flags, below 4096 (the variable range).
 const CG_SEEN_BASE: u32 = 2200;
@@ -117,6 +124,8 @@ pub fn emit(script: &Script) -> String {
     let has_overlay = script.ops.iter().any(|op| matches!(op, Op::Overlay { .. }));
     let has_noise = script.ops.iter().any(|op| matches!(op, Op::Noise(_)));
     let has_animation = script.ops.iter().any(|op| matches!(op, Op::Animation(_)));
+    let root_returns = script.ops.iter().filter(|op| matches!(op, Op::ReturnToRoot)).count();
+    let mut root_resumes = 0;
     // Shows the overlay and the static again after `csp -1`.
     let mut restore_overlay = String::new();
     if has_overlay {
@@ -630,7 +639,13 @@ pub fn emit(script: &Script) -> String {
                         writeln!(out, "mov {},{ANIMATION_SAVED}+{OVERLAY_DEPTH}", menu::TMP).unwrap();
                         writeln!(out, "mov %{},{ANIMATION_ALPHA}:mov ${},{ANIMATION_IMAGE}", menu::TMP, menu::TMP).unwrap();
                     }
+                    if root_returns > 0 {
+                        writeln!(out, "add {LINK_NEST},1").unwrap();
+                    }
                     writeln!(out, "gosub *{}", label(target)).unwrap();
+                    if root_returns > 0 {
+                        writeln!(out, "sub {LINK_NEST},1").unwrap();
+                    }
                     if scenes {
                         let (depth, max) = (menu::SCENE_DEPTH, menu::SCENE_MAX_DEPTH);
                         writeln!(out, "sub {depth},1").unwrap();
@@ -655,6 +670,9 @@ pub fn emit(script: &Script) -> String {
                     if let Some(w) = window {
                         // The scene may have switched the text window.
                         writeln!(out, "{}", setwindow(w, speed, has_ruby)).unwrap();
+                    }
+                    if root_returns > 0 {
+                        writeln!(out, "if {ROOT_RESUME} != 0 goto *{UNWIND}").unwrap();
                     }
                     writeln!(out, "print 1").unwrap();
                     writeln!(out, "goto *{page}").unwrap();
@@ -703,6 +721,11 @@ pub fn emit(script: &Script) -> String {
             }
             Op::Chapter { title } => writeln!(out, "mov {},\"{}\"", menu::CHAPTER, escape(title)).unwrap(),
             Op::UnlockScene { scene } => writeln!(out, "mov %{},1", SCENE_UNLOCKED_BASE + scene).unwrap(),
+            Op::ReturnToRoot => {
+                root_resumes += 1;
+                writeln!(out, "if {LINK_NEST} > 0 mov {ROOT_RESUME},{root_resumes}:return").unwrap();
+                writeln!(out, "*conv_root{root_resumes}").unwrap();
+            }
             Op::Progress { bit } => writeln!(out, "mov %{},1", PROGRESS_BASE + bit).unwrap(),
             Op::CgSeen { number } => writeln!(out, "mov %{},1", CG_SEEN_BASE + number).unwrap(),
             // No scene replay yet, so nothing to stop.
@@ -718,6 +741,16 @@ pub fn emit(script: &Script) -> String {
     }
     if needs_move {
         out.push_str(&move_routine());
+    }
+    if root_returns > 0 {
+        // Reached from a link page once its scene returned and the page
+        // put its screen back.
+        writeln!(out, "*{UNWIND}").unwrap();
+        writeln!(out, "if {LINK_NEST} > 0 return").unwrap();
+        writeln!(out, "mov {0},{ROOT_RESUME}:mov {ROOT_RESUME},0", menu::TMP).unwrap();
+        for n in 1..=root_returns {
+            writeln!(out, "if {} == {n} goto *conv_root{n}", menu::TMP).unwrap();
+        }
     }
     if needs_click_wait {
         // %9 = 1: skip mode passes. Auto mode waits a while instead.
@@ -1308,6 +1341,13 @@ goto *conv_link1
     fn scene_replay_unlocks_are_global_flags() {
         let text = emit(&script(vec![Op::SceneEnd, Op::UnlockScene { scene: 5 }, Op::Progress { bit: 3 }, Op::CgSeen { number: 519 }]));
         assert!(text.contains("; scene end\nmov %3005,1\nmov %3603,1\nmov %2719,1\n"), "{text}");
+    }
+
+    #[test]
+    fn return_to_root_unwinds_link_scenes() {
+        let text = emit(&script(vec![Op::ReturnToRoot, Op::Wait { ms: 1 }]));
+        assert!(text.contains("if %118 > 0 mov %119,1:return\n*conv_root1\ndelay 1\n"), "{text}");
+        assert!(text.contains("*conv_unwind\nif %118 > 0 return\nmov %105,%119:mov %119,0\nif %105 == 1 goto *conv_root1\n"), "{text}");
     }
 
     #[test]

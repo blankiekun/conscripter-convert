@@ -331,6 +331,9 @@ pub enum Op {
     /// Progress flag `bit` (0-31) of the playthrough was reached (a global
     /// flag, kept across playthroughs; the extras read them).
     Progress { bit: u32 },
+    /// Leave every open link scene, as if each returned (their screens are
+    /// put back), then go on here at the root. Nothing if none is open.
+    ReturnToRoot,
     /// CG `number` (1-based) counts as seen in the CG gallery without being
     /// shown (a global flag).
     CgSeen { number: u32 },

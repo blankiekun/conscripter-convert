@@ -185,8 +185,14 @@ const OP_ENTRY_NAME: u16 = 0x3b;
 /// Plays a staff roll (handler 0x4788d0, task 0x454a60; see
 /// [`staffroll`]): arg 0 or 1. Roll 1 (with its song, 223 s) opens the
 /// epilogue (0003.cd #2), which the end of 0008.cd jumps to; roll 0 (63 s)
-/// is in the boot script. Neither a click nor a key ends it.
+/// plays from the boot script's `s0_l8`, which the route ends call. Neither a click nor a key ends it.
 const OP_STAFF_ROLL: u16 = 0x91;
+/// Returns to the root scene (handler 0x477900, `ScriptText.cpp`): leaves
+/// every open link scene (0x467670); with none open it logs "既にルートシー
+/// ンにいるので何も行いません。" and does nothing. Routes 0010 and 0011.cd,
+/// entered from a link, start with it (#7) and never return to the link
+/// page (they end with jumps).
+const OP_RETURN_TO_ROOT: u16 = 0x48;
 /// Yields for one frame (handler 0x473d20 returns 0). Nothing to emit.
 const OP_YIELD: u16 = 0x67;
 /// Sets an object's opacity (handler 0x413f10; draw field +0x1b2).
@@ -2166,6 +2172,10 @@ pub fn lower_script(
                 scene @ 0..REPLAY_SCENES => ops.push(Op::UnlockScene { scene: scene as u32 }),
                 _ => ops.push(Op::Unsupported { what: format!("opcode {:#04x} arg {}", ins.op, ins.arg), at: at() }),
             }
+            continue;
+        }
+        if ins.op == OP_RETURN_TO_ROOT {
+            ops.push(Op::ReturnToRoot);
             continue;
         }
         if ins.op == OP_STAFF_ROLL {

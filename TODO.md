@@ -281,12 +281,18 @@ engines print `z150` etc.). The web build compiles with it.
       (`xuse/staffroll.rs`, tables from the exe) into
       `movie/staffroll{0,1}.mp4` with its song (BGM 23 / 22) and played
       with `mpegplay …,0` (the original can't be skipped). Roll 1 (223 s)
-      opens the epilogue, after the end of 0008.cd; roll 0 (63 s) is in
-      the boot script. Compared with the original under wine: frames
+      opens the epilogue, after the end of 0008.cd; roll 0 (63 s) plays
+      from `*s0_l8` (route ends, when flags %210-%213 allow). Compared with the original under wine: frames
       match (mean pixel difference 2-5, 10 while the panel widens).
       **Not checked:** playback in the web build.
-- [ ] Opcodes still emitted as comments (16 left): `0x36`
-      without a chapter name, `0x48`, `0x4a` (2 each),
+- [x] `0x48` (2): return to the root scene. Routes 10 and 11 are entered
+      from links and start with it; without it each entry left a
+      `pushscreen` entry (a full stack of 32 exits the engine), the link
+      depth and `%181` raised. Now the link pages unwind (`%118` counts open
+      link scenes, `%119` says where to go on; `*conv_unwind`). Checked
+      headless: 『たまに早く出る』 → route 10 at depth 0.
+- [ ] Opcodes still emitted as comments (14 left): `0x36`
+      without a chapter name, `0x4a` (2 each),
       rarer ones.
 - [ ] Transitions still drawn as cross-fades: Wave, Dissolve, RollFlip,
       SoftEdgeWipe, TvPowerSwitch, BoxRolling, SmoothCrossFade, Dot4x4,
