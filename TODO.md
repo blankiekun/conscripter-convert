@@ -153,6 +153,14 @@ engines print `z150` etc.). The web build compiles with it.
       the bottom button bar draw at every click wait; the hover hotspots
       (`getmouseover`, `bar_reveal*`/`bar_hide` images) are gone. The
       original hides them until the pointer nears an edge.
+- [x] Links like the original (user's request, buggylink.png): the
+      word sprite was 12 px low (rubyon lowers strsp text too) and now
+      covers the text exactly; colours measured under wine (#FEE092,
+      pointer #FEC95E; visited #DCB8FE / #CB95FE); 1 px underline (menu
+      sprite slots 6-21, redrawn at each wait); visited = global
+      %(2000 + target). Not done: the underline keeps its colour under
+      the pointer; a visited link types in yellow before its sprite
+      turns it purple. (smoke.py keeps its click queue at %1000+.)
 - [ ] Settings options, in the user's order: text window opacity, wheel
       options, confirmation toggles.
 - [ ] Extras after clearing (CG/BGM/chapter/scene replay), chapter

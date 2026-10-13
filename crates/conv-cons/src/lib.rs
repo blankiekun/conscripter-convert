@@ -78,10 +78,18 @@ const CLICK_WAIT: &str = "conv_click_wait";
 const TITLE_DRAW: &str = "conv_title_draw";
 const TITLE_MENU: &str = "conv_title";
 const TITLE_START: &str = "conv_title_start";
-/// Colour for words the original game made clickable, and normal text.
-const LINK_COLOR: &str = "#F0C040";
-/// Link words under the mouse pointer.
-const LINK_HOVER_COLOR: &str = "#FFFFA0";
+/// Colours of clickable words (measured on the original): not yet
+/// visited, visited, each also under the mouse pointer.
+const LINK_COLOR: &str = "#FEE092";
+const LINK_HOVER_COLOR: &str = "#FEC95E";
+const LINK_VISITED_COLOR: &str = "#DCB8FE";
+const LINK_VISITED_HOVER_COLOR: &str = "#CB95FE";
+/// Underlines of link words (and their shadows), two sprites per word. The
+/// menus' slots: they are drawn again at every wait of the page, so a menu
+/// opened from the bar can't leave them wrong.
+const LINK_UNDERLINE_SPRITES: std::ops::Range<u32> = MENU_SPRITES.start..MENU_SPRITES.start + 2 * 8;
+/// Global flags: link target n (in order of first use) was visited.
+const LINK_VISITED_BASE: u32 = 2000;
 const TEXT_COLOR: &str = "#FFFFFF";
 
 /// Renders the script as NScripter source text (UTF-8; use [`encode`] to
@@ -177,6 +185,17 @@ pub fn emit(script: &Script) -> String {
     let mut needs_click_wait = false;
     let mut plate_visible = false;
     let mut link_pages = 0;
+    let mut link_targets: Vec<&str> = Vec::new();
+    for op in &script.ops {
+        if let Op::Text { links, .. } = op {
+            for t in links.iter().filter_map(|l| l.target.as_deref()) {
+                if !link_targets.contains(&t) {
+                    link_targets.push(t);
+                }
+            }
+        }
+    }
+    let visited = |target: &str| LINK_VISITED_BASE + link_targets.iter().position(|&t| t == target).unwrap() as u32;
     // Effect numbers of an open transition, printed in turn: display
     // commands only update the buffer until then.
     let mut transition: Option<Vec<u32>> = None;
@@ -452,22 +471,37 @@ pub fn emit(script: &Script) -> String {
                 }
                 let clickable = &clickable[..clickable.len().min(LINK_SPRITES.count())];
                 let window = window.as_ref();
-                for (link, slot) in clickable.iter().zip(LINK_SPRITES) {
+                // Each word again as a sprite exactly over the text (the
+                // button), and its underline, in the colours of its state.
+                let mut underlines = String::new();
+                for ((link, slot), line) in clickable.iter().zip(LINK_SPRITES).zip(LINK_UNDERLINE_SPRITES.step_by(2)) {
                     let word: String = text.chars().skip(link.start).take(link.len).collect();
                     let (x, y) = window.map_or((0, 0), |w| char_position(w, text, link.start));
                     let y = y + window.map_or(0, |w| rows_before as i32 * (w.font_size + w.line_gap) as i32);
                     let (size, gap) = window.map_or((24, 0), |w| (w.font_size, w.line_gap));
-                    writeln!(
-                        out,
-                        "strsp {slot},\"{}\",{x},{y},{},1,{size},{size},1,{gap},0,1,\"{LINK_COLOR}\",\"{LINK_HOVER_COLOR}\"",
-                        escape(&word),
-                        // ONScripter wraps a full-width character one column early.
-                        link.len + 1
-                    )
-                    .unwrap();
+                    // rubyon draws sprite text a line gap lower too.
+                    let sprite_y = if has_ruby { y - gap as i32 } else { y };
+                    let flag = visited(link.target.as_deref().unwrap());
+                    for (test, colour, hover) in [("==", LINK_COLOR, LINK_HOVER_COLOR), ("!=", LINK_VISITED_COLOR, LINK_VISITED_HOVER_COLOR)] {
+                        writeln!(
+                            out,
+                            "if %{flag} {test} 0 strsp {slot},\"{}\",{x},{sprite_y},{},1,{size},{size},1,{gap},0,1,\"{colour}\",\"{hover}\"",
+                            escape(&word),
+                            // ONScripter wraps a full-width character one column early.
+                            link.len + 1
+                        )
+                        .unwrap();
+                    }
+                    // 1 px under the glyphs, as wide as the word's cells.
+                    let (ux, uy, uw) = (x + 2, y + size as i32 + 1, link.len as u32 * (size + 1) - 1);
+                    for (test, colour) in [("==", LINK_COLOR), ("!=", LINK_VISITED_COLOR)] {
+                        writeln!(underlines, "if %{flag} {test} 0 lsp {line},\":c;>{uw},1,{colour}\",{ux},{uy}").unwrap();
+                    }
+                    writeln!(underlines, "lsp {},\":c;>{uw},1,#000000\",{},{}", line + 1, ux + 1, uy + 1).unwrap();
                 }
                 let bar = script.button_bar.as_ref();
                 writeln!(out, "*{page}_wait").unwrap();
+                out.push_str(&underlines);
                 if bar.is_some() {
                     // Clears the buttons: register the words after it.
                     writeln!(out, "gosub *{}", menu::BAR_DRAW).unwrap();
@@ -487,7 +521,7 @@ pub fn emit(script: &Script) -> String {
                     writeln!(out, "goto *{page}_wait").unwrap();
                     writeln!(out, "*{page}_c").unwrap();
                 }
-                for slot in LINK_SPRITES.take(clickable.len()) {
+                for slot in LINK_SPRITES.take(clickable.len()).chain(LINK_UNDERLINE_SPRITES.take(2 * clickable.len())) {
                     writeln!(out, "csp {slot}").unwrap();
                 }
                 writeln!(out, "print 1").unwrap();
@@ -495,6 +529,7 @@ pub fn emit(script: &Script) -> String {
                 for (n, link) in clickable.iter().enumerate() {
                     let target = link.target.as_deref().unwrap();
                     writeln!(out, "if {BUTTON_VAR} != {} goto *{page}_{}", n + 1, n + 1).unwrap();
+                    writeln!(out, "mov %{},1", visited(target)).unwrap();
                     let scenes = bar.is_some_and(|b| b.top.is_some());
                     if scenes {
                         // Push the scene for the top bar.
@@ -1130,17 +1165,24 @@ mod tests {
 csp 51
 csp 50
 print 1
-#F0C040一#FFFFFF行目
-#F0C040学校#FFFFFFに―――
-strsp 52,\"学校\",105,507,3,1,24,24,1,13,0,1,\"#F0C040\",\"#FFFFA0\"
+#FEE092一#FFFFFF行目
+#FEE092学校#FFFFFFに―――
+if %2000 == 0 strsp 52,\"学校\",105,507,3,1,24,24,1,13,0,1,\"#FEE092\",\"#FEC95E\"
+if %2000 != 0 strsp 52,\"学校\",105,507,3,1,24,24,1,13,0,1,\"#DCB8FE\",\"#CB95FE\"
 *conv_link1_wait
+if %2000 == 0 lsp 6,\":c;>49,1,#FEE092\",107,532
+if %2000 != 0 lsp 6,\":c;>49,1,#DCB8FE\",107,532
+lsp 7,\":c;>49,1,#000000\",108,533
 spbtn 52,1
 print 1
 btnwait %9
 csp 52
+csp 6
+csp 7
 print 1
 textclear
 if %9 != 1 goto *conv_link1_1
+mov %2000,1
 pushscreen 60,999
 gosub *s10_l1
 popscreen
@@ -1345,7 +1387,7 @@ csp 65
 print 1
 【名前】「こんにちは」\\
 dwave 0,\"voice\\v1.ogg\"
-地#F0C040の文#FFFFFF。\\
+地#FEE092の文#FFFFFF。\\
 dwaveloop 1,\"se\\k001.ogg\"
 dwavestop 1
 bgmfadeout 2000
@@ -1431,12 +1473,12 @@ end
             hang: None,
             continues: false,
         }]);
-        assert!(emit(&s).contains("一行目\n　#F0C040abc #FFFFFF\n三行目\\\n"));
+        assert!(emit(&s).contains("一行目\n　#FEE092abc #FFFFFF\n三行目\\\n"));
     }
 
     #[test]
     fn links_are_coloured() {
-        assert_eq!(with_markup("あいうえお", &[link(1, 2, None), link(3, 9, None)], &[], &[]), "あ#F0C040いう#FFFFFFえお");
+        assert_eq!(with_markup("あいうえお", &[link(1, 2, None), link(3, 9, None)], &[], &[]), "あ#FEE092いう#FFFFFFえお");
         assert_eq!(with_markup("a#b", &[], &[], &[]), "a＃b");
     }
 
@@ -1501,7 +1543,7 @@ end
         assert_eq!(align_single_bytes(" xyz続"), " xyz 続");
         assert_eq!(align_single_bytes("a b続"), "a b 続");
         assert_eq!(align_single_bytes("ｼｬﾄﾞｳshadow）"), "ｼｬﾄﾞｳshadow ）");
-        assert_eq!(align_single_bytes("x#F0C040y#FFFFFF。"), "x #F0C040y #FFFFFF。");
+        assert_eq!(align_single_bytes("x#FEE092y#FFFFFF。"), "x #FEE092y #FFFFFF。");
         assert_eq!(align_single_bytes("ab c"), "ab c ");
     }
 
@@ -1658,7 +1700,7 @@ end
         );
         assert_eq!(
             with_markup("あいうえ", &[link(2, 1, None)], &[], &[st(0, 4, Some(0x00ff00)), st(3, 1, Some(0x0000ff))]),
-            "#00FF00あい#F0C040う#0000FFえ#FFFFFF"
+            "#00FF00あい#FEE092う#0000FFえ#FFFFFF"
         );
         assert_eq!(with_markup("あい", &[], &[], &[st(0, 2, None)]), "あい");
         let sized = |start, len, p| TextStyle { start, len, colour: None, size_percent: Some(p) };
@@ -1677,9 +1719,9 @@ end
         // Inside a link, but not across its edge or a line.
         assert_eq!(
             with_markup("あ獄い\nう", &[link(0, 3, None)], &[r(1, 1, "ひとや"), r(2, 3, "x")], &[]),
-            "#F0C040あ(獄/ひとや)い#FFFFFF\nう"
+            "#FEE092あ(獄/ひとや)い#FFFFFF\nう"
         );
-        assert_eq!(with_markup("あいう", &[link(1, 2, None)], &[r(0, 2, "x")], &[]), "あ#F0C040いう#FFFFFF");
+        assert_eq!(with_markup("あいう", &[link(1, 2, None)], &[r(0, 2, "x")], &[]), "あ#FEE092いう#FFFFFF");
         // ONScripter reads the markup one byte at a time.
         assert_eq!(align_single_bytes("a(獄/ひとや)"), "a (獄/ひとや)");
     }
