@@ -70,6 +70,29 @@ enum Command {
         #[arg(long)]
         webp: bool,
     },
+    /// Convert one Nitroplus story scene (装甲悪鬼村正) into a CONscripter
+    /// game directory: 0.txt plus the assets it uses
+    ConvertNss {
+        /// Game data directory (Muramasa.exe and the *.npa archives)
+        game: PathBuf,
+        /// Script file and scene; the scene defaults to the file's name
+        /// (its content scene)
+        #[arg(long)]
+        file: String,
+        #[arg(long)]
+        scene: Option<String>,
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Font to copy into the output as default.ttf (CONscripter needs one)
+        #[arg(long)]
+        font: Option<PathBuf>,
+        /// Window caption
+        #[arg(long, default_value = "CONscripter-convert")]
+        title: String,
+        /// Keep assets as loose files instead of packing them into .nsa
+        #[arg(long)]
+        loose: bool,
+    },
     /// Low-level tools for Xuse XARC archives (*.arc)
     Xarc {
         #[command(subcommand)]
@@ -239,6 +262,9 @@ fn main() -> Result<()> {
         Command::ConvertScript { game, script, output, font, title, webp } => {
             convert_script(&game, script, &output, font.as_deref(), &title, webp)
         }
+        Command::ConvertNss { game, file, scene, output, font, title, loose } => {
+            convert_nss(&game, &file, scene.as_deref(), &output, font.as_deref(), &title, loose)
+        }
         Command::Xarc { command } => match command {
             XarcCommand::List { archive } => xarc_list(&archive),
             XarcCommand::Verify { archives } => xarc_verify(&archives),
@@ -395,28 +421,43 @@ fn convert_game(game: &Path, output: &Path, font: Option<&Path>, title: &str, lo
     }
 
     if !loose {
-        let mut files = Vec::new();
-        for d in ASSET_DIRS {
-            let Ok(entries) = fs::read_dir(output.join(d)) else { continue };
-            let mut names: Vec<_> = entries.filter_map(|e| e.ok()).map(|e| e.path()).collect();
-            names.sort();
-            for path in names {
-                let name = format!("{d}\\{}", path.file_name().unwrap().to_string_lossy());
-                files.push(conv_cons::nsa::NsaFile { name, source: path });
-            }
-        }
-        let archives = conv_cons::nsa::write_archives(output, &files).context("packing .nsa archives")?;
-        for d in ASSET_DIRS {
-            let _ = fs::remove_dir_all(output.join(d));
-        }
-        for a in &archives {
-            let size = fs::metadata(a)?.len();
-            println!("  {}: {:.1} MB", a.display(), size as f64 / 1e6);
-        }
-        println!("  packed {} files", files.len());
+        pack(output, &ASSET_DIRS)?;
     }
 
     report(&ir, lost, font.is_some());
+    Ok(())
+}
+
+/// Packs the files under `dirs` (subfolders included) into .nsa archives,
+/// then deletes the folders.
+fn pack(output: &Path, dirs: &[&str]) -> Result<()> {
+    fn walk(dir: &Path, name: &str, files: &mut Vec<conv_cons::nsa::NsaFile>) -> Result<()> {
+        let Ok(entries) = fs::read_dir(dir) else { return Ok(()) };
+        let mut paths: Vec<_> = entries.filter_map(|e| e.ok()).map(|e| e.path()).collect();
+        paths.sort();
+        for path in paths {
+            let name = format!("{name}\\{}", path.file_name().unwrap().to_string_lossy());
+            if path.is_dir() {
+                walk(&path, &name, files)?;
+            } else {
+                files.push(conv_cons::nsa::NsaFile { name, source: path });
+            }
+        }
+        Ok(())
+    }
+    let mut files = Vec::new();
+    for d in dirs {
+        walk(&output.join(d), d, &mut files)?;
+    }
+    let archives = conv_cons::nsa::write_archives(output, &files).context("packing .nsa archives")?;
+    for d in dirs {
+        let _ = fs::remove_dir_all(output.join(d));
+    }
+    for a in &archives {
+        let size = fs::metadata(a)?.len();
+        println!("  {}: {:.1} MB", a.display(), size as f64 / 1e6);
+    }
+    println!("  packed {} files", files.len());
     Ok(())
 }
 
@@ -798,6 +839,76 @@ fn safe_relative_path(name: &str) -> Option<PathBuf> {
 
 fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
+}
+
+fn convert_nss(game: &Path, file: &str, scene: Option<&str>, output: &Path, font: Option<&Path>, title: &str, loose: bool) -> Result<()> {
+    use conv_engines::nitroplus::assets::{NpaAssets, OUTPUT_DIRS};
+    use conv_engines::nitroplus::{convert, nss};
+    let exe = game.join("Muramasa.exe");
+    fs::create_dir_all(output)?;
+    if let Some(d) = OUTPUT_DIRS.iter().find(|d| !loose && output.join(d).exists()) {
+        bail!("{} already exists; move it away first (it would be packed and then deleted)", output.join(d).display());
+    }
+    let maps: Vec<(PathBuf, Mmap)> = ["nss", "cg", "sound", "voice"]
+        .iter()
+        .map(|n| {
+            let path = game.join(format!("{n}.npa"));
+            Ok((path.clone(), map(&path)?))
+        })
+        .collect::<Result<_>>()?;
+    let mut npas = Vec::new();
+    for (path, bytes) in &maps {
+        npas.push(open_npa(&exe, path, bytes)?);
+    }
+    let mut npas = npas.into_iter();
+    let scripts = npas.next().unwrap();
+    let mut files = std::collections::BTreeMap::new();
+    for e in &scripts.entries {
+        let parsed = nss::parse(&nss::decode(&scripts.data(e)?)).with_context(|| format!("parsing {}", e.name))?;
+        let name = e.name.rsplit('\\').next().unwrap_or(&e.name).to_string();
+        files.insert(name, parsed);
+    }
+    let (cg, sound, voice) = (npas.next().unwrap(), npas.next().unwrap(), npas.next().unwrap());
+    let mut assets = NpaAssets::new(cg, sound, voice, output);
+    let scene = scene.unwrap_or(file);
+    let compiled = convert::compile_scene(&files, file, scene, &mut assets).map_err(anyhow::Error::msg)?;
+    for e in &assets.errors {
+        println!("  asset error: {e}");
+    }
+    let ir = Script {
+        title: title.to_string(),
+        width: convert::SCREEN_W as u32,
+        height: convert::SCREEN_H as u32,
+        window: compiled.window,
+        title_screen: None,
+        save_menu: None,
+        button_bar: None,
+        settings: None,
+        backlog: None,
+        confirm: None,
+        extras: None,
+        ops: compiled.ops,
+    };
+    let (encoded, lost) = conv_cons::encode(&conv_cons::emit(&ir));
+    fs::write(output.join("0.txt"), encoded)?;
+    fs::write(output.join("ons_args"), conv_cons::ENGINE_ARGS)?;
+    if let Some(font) = font {
+        fs::copy(font, output.join("default.ttf")).with_context(|| format!("copying {}", font.display()))?;
+    }
+    if !loose {
+        pack(output, &OUTPUT_DIRS)?;
+    }
+    println!("{file} -> {scene} -> {}", output.join("0.txt").display());
+    report(&ir, lost, font.is_some());
+    let mut notes: Vec<_> = compiled.notes.into_iter().collect();
+    notes.sort_by_key(|n| std::cmp::Reverse(n.1));
+    if !notes.is_empty() {
+        println!("  not converted or approximated:");
+    }
+    for (what, n) in notes {
+        println!("    {n:>6}  {what}");
+    }
+    Ok(())
 }
 
 fn open_npa<'a>(exe: &Path, path: &Path, bytes: &'a [u8]) -> Result<conv_engines::nitroplus::npa::Npa<'a>> {
