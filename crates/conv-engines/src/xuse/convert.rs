@@ -17,7 +17,7 @@ use conv_core::ir::{
 };
 
 use crate::xuse::cd::{
-    CdError, CdScript, EnvModule, Instr, Link, PresetModule, Quake, ENV_KIND_NOISE, FLASH_MS, FLASH_OPACITY, OP_FLASH, Ruby as RubyRecord, ScreenModule, Sound, SpriteEntry, TextStyle as StyleRecord, OP_TEXT_INDENT, PRESET_KIND_MONOTONE, PRESET_BLEND_ADD, PRESET_BLEND_ALPHA, PRESET_BLEND_COPY,
+    CdError, CdScript, EnvModule, Instr, Link, PresetModule, Quake, Surprise, SURPRISE_PRESETS, ENV_KIND_NOISE, FLASH_MS, FLASH_OPACITY, OP_FLASH, Ruby as RubyRecord, ScreenModule, Sound, SpriteEntry, TextStyle as StyleRecord, OP_TEXT_INDENT, PRESET_KIND_MONOTONE, PRESET_BLEND_ADD, PRESET_BLEND_ALPHA, PRESET_BLEND_COPY,
     PRESET_BLEND_MULTI, PRESET_BLEND_SCREEN, PRESET_KIND_BRIGHTNESS, PRESET_KIND_COLOUR, PRESET_KIND_GREYSCALE,
     PRESET_KIND_NEGATIVE,
 };
@@ -1328,6 +1328,36 @@ fn lower_quake(q: &Quake, ops: &mut Vec<Op>) {
     ops.push(Op::ScreenEffect { slot: QUAKE_SLOT, effect: None });
 }
 
+/// The `screenpulse` slot for opcode 0x6f's pulses.
+const PULSE_SLOT: u32 = 3;
+
+/// Opcode 0x6f: a pulse, as `screenpulse` waited for with a `delay` (a
+/// click ends both) and cleared. The tints: blend 2 (Multi) is `tint` 1;
+/// blend 6 (white, presets 6-8) is assumed to lay the colour over the copy.
+fn lower_surprise(s: &Surprise, ops: &mut Vec<Op>) {
+    let p = SURPRISE_PRESETS[s.preset];
+    let zoom = |v: i32| ((i64::from(v) * 1000 + 32768) >> 16) as i32;
+    let c = p.tint;
+    let colour = (c & 0xff) << 16 | (c & 0xff00) | (c >> 16 & 0xff);
+    let (tint, tint_opacity) = match p.tint_blend {
+        _ if p.tint_opacity == 0 => (0, 0),
+        2 => (1, p.tint_opacity),
+        _ => (2, p.tint_opacity),
+    };
+    let effect = ScreenEffect::Pulse {
+        time_ms: s.time_ms,
+        interval_ms: 10,
+        zoom: (zoom(p.zoom.0), zoom(p.zoom.1)),
+        opacity: p.opacity,
+        colour,
+        tint_opacity,
+        tint,
+    };
+    ops.push(Op::ScreenEffect { slot: PULSE_SLOT, effect: Some(effect) });
+    ops.push(Op::Wait { ms: s.time_ms });
+    ops.push(Op::ScreenEffect { slot: PULSE_SLOT, effect: None });
+}
+
 /// Opcode 0x88: sets one slot of a preset (slot 0 clears every slot). A
 /// module the converter can't express clears its slot and is reported.
 fn lower_preset_module(m: &PresetModule, ops: &mut Vec<Op>, at: impl Fn() -> SourceLoc) {
@@ -1532,6 +1562,10 @@ pub fn lower_script(
         }
         if let Some(quake) = cd.quake(ins) {
             lower_quake(&quake?, &mut ops);
+            continue;
+        }
+        if let Some(surprise) = cd.surprise(ins) {
+            lower_surprise(&surprise?, &mut ops);
             continue;
         }
         if let Some(apply) = cd.apply_preset(ins) {
@@ -2094,6 +2128,32 @@ mod tests {
         ops.clear();
         lower_quake(&Quake { speed: 80, range: (0, 0) }, &mut ops);
         assert!(ops.is_empty());
+    }
+
+    #[test]
+    fn surprises_pulse_and_wait() {
+        let mut ops = Vec::new();
+        lower_surprise(&Surprise { time_ms: 300, preset: 4 }, &mut ops);
+        let pulse = ScreenEffect::Pulse {
+            time_ms: 300,
+            interval_ms: 10,
+            zoom: (150, 150),
+            opacity: 150,
+            colour: 0xff8080,
+            tint_opacity: 256,
+            tint: 1,
+        };
+        assert_eq!(
+            ops,
+            [
+                Op::ScreenEffect { slot: PULSE_SLOT, effect: Some(pulse) },
+                Op::Wait { ms: 300 },
+                Op::ScreenEffect { slot: PULSE_SLOT, effect: None },
+            ]
+        );
+        ops.clear();
+        lower_surprise(&Surprise { time_ms: 300, preset: 0 }, &mut ops);
+        assert!(matches!(ops[0], Op::ScreenEffect { effect: Some(ScreenEffect::Pulse { zoom: (100, 100), tint: 0, tint_opacity: 0, .. }), .. }));
     }
 
     #[test]

@@ -159,6 +159,12 @@ pub enum ScreenEffect {
     /// step turns the angle by `angle_step` and moves the phase by
     /// `phase_step`.
     Ripple { map: String, time_ms: u32, interval_ms: u32, opacity: (i32, i32), amplitude: (i32, i32), angle: i32, angle_step: i32, phase_step: i32 },
+    /// A copy of the picture taken when it starts, tinted (`tint` 0 none,
+    /// 1 multiplied by `colour`, 2 `colour` laid over it, at
+    /// `tint_opacity` 0-256), over the live picture scaled by
+    /// 1 + f × `zoom`/1000 around the centre at f × `opacity` (0-256),
+    /// f = sin(π × elapsed / `time_ms`). `colour` is 0xRRGGBB.
+    Pulse { time_ms: u32, interval_ms: u32, zoom: (i32, i32), opacity: i32, colour: u32, tint_opacity: i32, tint: u8 },
 }
 
 /// A clickable word in a text page.

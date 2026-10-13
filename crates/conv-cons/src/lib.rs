@@ -367,6 +367,14 @@ pub fn emit(script: &Script) -> String {
                         )
                         .unwrap();
                     }
+                    Some(ScreenEffect::Pulse { time_ms, interval_ms, zoom, opacity, colour, tint_opacity, tint }) => {
+                        writeln!(
+                            out,
+                            "screenpulse {slot},{time_ms},{interval_ms},{},{},{opacity},{colour},{tint_opacity},{tint}",
+                            zoom.0, zoom.1
+                        )
+                        .unwrap();
+                    }
                 }
                 if transition.is_none() {
                     writeln!(out, "print 1").unwrap();
@@ -1650,13 +1658,26 @@ end
             Op::ScreenEffect { slot: 2, effect: Some(ripple) },
             Op::ScreenEffect { slot: 1, effect: None },
             Op::ScreenEffect { slot: 0, effect: None },
+            Op::ScreenEffect {
+                slot: 3,
+                effect: Some(ScreenEffect::Pulse {
+                    time_ms: 500,
+                    interval_ms: 10,
+                    zoom: (150, 150),
+                    opacity: 150,
+                    colour: 0xff8080,
+                    tint_opacity: 256,
+                    tint: 1,
+                }),
+            },
         ]);
         let out = emit(&s);
         assert!(
             out.contains(
                 "screenshake 1,1000,100,0,800,800,0,0,30,30\nprint 1\n\
                  screenripple 2,\"system\\mask1001.png\",3000,100,100,150,5,10,3150,20,30\nprint 1\n\
-                 screenshake 1\nprint 1\nscreenshake 0\nprint 1\n"
+                 screenshake 1\nprint 1\nscreenshake 0\nprint 1\n\
+                 screenpulse 3,500,10,150,150,150,16744576,256,1\nprint 1\n"
             ),
             "{out}"
         );

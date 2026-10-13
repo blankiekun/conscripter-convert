@@ -184,6 +184,14 @@ pub const OP_QUAKE: u16 = 0x6d;
 /// setting at bit 16 of 0x52056c.
 pub const OP_FLASH: u16 = 0x6e;
 pub const FLASH_MS: u32 = 100;
+/// A "surprise" pulse (handler 0x441a00, Surprise.cpp, object at sort key
+/// 0x06000000, behind the text window): a copy of the picture taken when it
+/// starts, tinted, drawn over the live picture scaled by 1 + f × zoom
+/// around the centre at f × opacity, f = sin(π × remaining / time). Record:
+/// u32 time in ms (clamped to 1..32767), u32 preset (0-8, others = 0) into
+/// [`SURPRISE_PRESETS`]. The script waits for it; a click ends it early.
+/// Skipped while skipping, or when the effects setting is off.
+pub const OP_SURPRISE: u16 = 0x6f;
 pub const FLASH_OPACITY: u32 = 128;
 pub const OP_BGM_PLAY: u16 = 0x57;
 pub const OP_BGM_STOP: u16 = 0x58;
@@ -320,6 +328,45 @@ pub struct Quake {
     pub speed: u32,
     pub range: (u32, u32),
 }
+
+/// Opcode 0x6f: a pulse ([`OP_SURPRISE`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Surprise {
+    pub time_ms: u32,
+    pub preset: usize,
+}
+
+/// One of 0x6f's presets (table 0x500b68, seven i32 each).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SurprisePreset {
+    /// 16.16 fractions of the picture's size.
+    pub zoom: (i32, i32),
+    /// 0-256.
+    pub opacity: i32,
+    /// COLORREF (0x00BBGGRR).
+    pub tint: u32,
+    /// 0-256.
+    pub tint_opacity: i32,
+    /// The blend of the tint: 2 (Multi) or 6 (in 0x88's list "dissolve").
+    pub tint_blend: i32,
+}
+
+pub const SURPRISE_PRESETS: [SurprisePreset; 9] = {
+    const fn p(zoom: i32, opacity: i32, tint: u32, tint_opacity: i32, tint_blend: i32) -> SurprisePreset {
+        SurprisePreset { zoom: (zoom, zoom), opacity, tint, tint_opacity, tint_blend }
+    }
+    [
+        p(0x1999, 100, 0xffffff, 0, 0),
+        p(0x2666, 150, 0xffffff, 0, 0),
+        p(0x3333, 200, 0xffffff, 0, 0),
+        p(0x1999, 100, 0x8080ff, 256, 2),
+        p(0x2666, 150, 0x8080ff, 256, 2),
+        p(0x3333, 200, 0x8080ff, 256, 2),
+        p(0x1999, 100, 0xffffff, 256, 6),
+        p(0x2666, 150, 0xffffff, 256, 6),
+        p(0x3333, 200, 0xffffff, 256, 6),
+    ]
+};
 
 /// Animation-RandomNoise (module 0x72): greyscale static, one random byte
 /// per pixel from a 256 KiB table (0x43bab0's sibling 0x4398d0; mode bit 0
@@ -745,6 +792,19 @@ impl<'a> CdScript<'a> {
             let r = Reader(self.pool);
             let o = ins.arg as u32 as usize;
             Ok(Quake { speed: r.u32(o)?, range: (r.u32(o + 4)?, r.u32(o + 8)?) })
+        })
+    }
+
+    /// Decodes opcode 0x6f, or returns `None` for other opcodes.
+    pub fn surprise(&self, ins: &Instr) -> Option<Result<Surprise, CdError>> {
+        (ins.op == OP_SURPRISE).then(|| {
+            let r = Reader(self.pool);
+            let o = ins.arg as u32 as usize;
+            let preset = r.u32(o + 4)? as usize;
+            Ok(Surprise {
+                time_ms: r.u32(o)?.clamp(1, 32767),
+                preset: if preset < SURPRISE_PRESETS.len() { preset } else { 0 },
+            })
         })
     }
 
