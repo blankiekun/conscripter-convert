@@ -724,21 +724,35 @@ impl<'a, 'b> Compiler<'a, 'b> {
 
     /// The `case`s of a select body, also inside `if`s (options shown
     /// only after a clear: the condition is taken as it is now).
-    fn collect_cases(&mut self, stmts: &'a [Stmt], out: &mut Vec<&'a [Stmt]>) {
+    /// `decided`: runtime `if`s already split on (by statement), and the
+    /// branch taken. Returns the first runtime `if` holding cases that
+    /// isn't decided yet.
+    fn collect_cases(&mut self, stmts: &'a [Stmt], out: &mut Vec<&'a [Stmt]>, decided: &[(*const Stmt, bool)]) -> Option<&'a Stmt> {
+        let mut open = None;
         for s in stmts {
             match &s.kind {
                 StmtKind::Case { body, .. } => out.push(body),
-                StmtKind::Block(b) => self.collect_cases(b, out),
+                StmtKind::Block(b) => open = open.or(self.collect_cases(b, out, decided)),
                 StmtKind::If { cond, then, otherwise } => {
-                    if self.eval(cond).truthy() {
-                        self.collect_cases(then, out);
+                    let has_cases = |b: &[Stmt]| b.iter().any(|s| matches!(s.kind, StmtKind::Case { .. }));
+                    let taken = match decided.iter().find(|d| std::ptr::eq(d.0, s)) {
+                        Some(&(_, t)) => t,
+                        None if self.is_runtime(cond) && (has_cases(then) || otherwise.as_deref().is_some_and(has_cases)) => {
+                            open = open.or(Some(s));
+                            continue;
+                        }
+                        None => self.eval(cond).truthy(),
+                    };
+                    if taken {
+                        open = open.or(self.collect_cases(then, out, decided));
                     } else if let Some(o) = otherwise {
-                        self.collect_cases(o, out);
+                        open = open.or(self.collect_cases(o, out, decided));
                     }
                 }
                 _ => {}
             }
         }
+        open
     }
 
     /// `select { … case @x { … } … }`: the player picks a case. Each case
@@ -747,8 +761,36 @@ impl<'a, 'b> Compiler<'a, 'b> {
     /// end of the file (see [`compile_run`]). The statements before the
     /// first `case` are the menu's input loop and are left out.
     fn select(&mut self, body: &'a [Stmt]) {
+        self.select_variant(body, &mut Vec::new());
+    }
+
+    /// A select whose options depend on runtime flags (an option shown
+    /// only after a clear): one NScripter select per variant, behind the
+    /// runtime test.
+    fn select_variant(&mut self, body: &'a [Stmt], decided: &mut Vec<(*const Stmt, bool)>) {
         let mut cases = Vec::new();
-        self.collect_cases(body, &mut cases);
+        if let Some(split) = self.collect_cases(body, &mut cases, decided) {
+            let StmtKind::If { cond, .. } = &split.kind else { unreachable!() };
+            self.sync(0);
+            let own = self.begin_fork();
+            self.choices += 1;
+            let (else_label, end_label) = (format!("sel{}_else", self.choices), format!("sel{}_end", self.choices));
+            self.jump_if(cond, false, &else_label);
+            let base = self.snapshot();
+            let mut leaves = Vec::new();
+            for taken in [true, false] {
+                if !taken {
+                    self.ops.push(Op::Jump(end_label.clone()));
+                    self.ops.push(Op::Label(else_label.clone()));
+                }
+                decided.push((split as *const Stmt, taken));
+                leaves.extend(self.branch(&base, |c| c.select_variant(body, decided)));
+                decided.pop();
+            }
+            self.ops.push(Op::Label(end_label));
+            self.finish_fork(leaves, own, true);
+            return;
+        }
         if cases.is_empty() {
             self.note("select without cases");
             return;
