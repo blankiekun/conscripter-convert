@@ -72,6 +72,15 @@ const OP_TEXT_PAGE: u16 = 0x53;
 /// Hides the text window (handler 0x4772a0; arg 0 waits for the fade, 1
 /// doesn't). Used before most transitions.
 const OP_HIDE_TEXT: u16 = 0x43;
+/// How the current text window shows its messages (handler 0x467a50; byte
+/// +0x1c of the window, copied to the message at 0x46e882): 0 types one
+/// character at a time, 1 shows the whole message at once, 2 types all
+/// its lines at the same time (seen in the original under wine). The
+/// window presets set it (1 in three full-screen ones, else 0); the story
+/// sets 1 for full-screen adverts and 2 for lines two characters say
+/// together. ONScripter can't type lines
+/// in parallel, so 2 types them one after another.
+const OP_TEXT_DISPLAY: u16 = 0x4d;
 /// Starts a chapter: pool[arg] = (own label number, label-table index of
 /// the chapter's "|chpe" label). The engine shows the name of the label it
 /// sits on (`0.cd`): "chapter<route>]?<title>". 0x37 and 0x38 sit on the
@@ -1056,6 +1065,8 @@ pub struct WindowPreset {
     pub style: u32,
     pub x: i32,
     pub y: i32,
+    /// Shows messages whole ([`OP_TEXT_DISPLAY`] 1).
+    pub instant: bool,
 }
 
 /// Subroutines that set up shared state, keyed by IR label name.
@@ -1091,8 +1102,14 @@ pub fn presets(scripts: &[(String, CdScript)]) -> Result<Presets, ConvertError> 
                         style: style as u32,
                         x: ins.arg & 0xffff,
                         y: ins.arg >> 16,
+                        instant: false,
                     };
                     presets.window.insert(name, preset);
+                }
+                OP_TEXT_DISPLAY => {
+                    if let Some(p) = presets.window.get_mut(&name) {
+                        p.instant = ins.arg == 1;
+                    }
                 }
                 _ => {}
             }
@@ -1397,6 +1414,10 @@ pub fn lower_script(
                     full_screen_rows = p.full_screen.then_some(window.rows as usize);
                     last_text = None;
                     ops.push(Op::SetWindow(window));
+                    // setwindow resets the text speed the preset set.
+                    if p.instant {
+                        ops.push(Op::InstantText(true));
+                    }
                 }
             }
             Ok(Some(op)) => ops.push(op),
@@ -1590,6 +1611,7 @@ fn lower_instr(
         OP_RETURN | OP_LINK_RETURN => return Ok(Some(Op::Return)),
         OP_CLEAR_SPRITES => return Ok(Some(Op::ClearSprites)),
         OP_HIDE_TEXT => return Ok(Some(Op::HideTextWindow)),
+        OP_TEXT_DISPLAY => return Ok(Some(Op::InstantText(ins.arg == 1))),
         OP_CLICK_WAIT => return Ok(Some(Op::ClickWait { skippable: ins.arg != 0 })),
         OP_MOVIE => {
             let file = assets.movie(ins.arg as u16)?;

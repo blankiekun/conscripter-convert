@@ -246,6 +246,7 @@ pub fn emit(script: &Script) -> String {
                 }
             }
             Op::HideTextWindow => writeln!(out, "textoff").unwrap(),
+            Op::InstantText(on) => writeln!(out, "textspeed {}", if *on { "0" } else { speed }).unwrap(),
             Op::SetWindow(w) => {
                 writeln!(out, "{}", setwindow(w, speed, has_ruby)).unwrap();
                 writeln!(out, "csp {NAME_PLATE_SPRITE}:csp {NAME_TEXT_SPRITE}").unwrap();
@@ -1094,6 +1095,14 @@ effect 6,99,1000,\"cons_zoom.dll/3,220,5\"
 ";
         assert!(text.contains(defs), "{text}");
         assert!(text.contains("; transition: x\nprint 5\n; transition: x\nprint 4\n; transition: x\nprint 2\nprint 3\n; transition: x\nprint 6\nあ"), "{text}");
+    }
+
+    #[test]
+    fn instant_text_sets_the_text_speed() {
+        let text = |t: &str| Op::Text { speaker: None, text: t.into(), voice: None, links: vec![], ruby: vec![], styles: vec![], hang: None, continues: false };
+        let s = script(vec![Op::InstantText(true), text("一"), Op::InstantText(false), text("二")]);
+        let out = emit(&s);
+        assert!(out.contains("textspeed 0\n一\\\ntextspeed 20\n二\\\n"), "{out}");
     }
 
     #[test]

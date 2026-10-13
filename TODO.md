@@ -85,9 +85,12 @@ engines print `z150` etc.). The web build compiles with it.
 
 ## 3. Next work (from PLAN §6, roughly by payoff)
 
-- [ ] `0x4d` (276): sets byte +0x1c of the current text window struct to
-      0/1/2 (0x467a50). Script 2's window presets set it; the story sets
-      1/2 around special pages. Meaning unknown without the original.
+- [x] `0x4d` (276): how the window shows messages, found by running the
+      original under wine with a patched `0002.cd`: 0 typed, 1 whole at
+      once (`textspeed 0`), 2 all lines typed together (typed one after
+      another here). Unsupported: 3,099 → 2,823.
+      Wine setup (scratch prefix, registry keys, script patching) is in
+      `saiima.md` under "Running the original".
 - [ ] `0x70` leftovers (62 uses): Smooth (blur, XRange/YRange), kind 13
       (ripple, with Smooth in wind scenes), HueSatura, BrightnessInvert,
       kind 12. The layer byte (0/2 → 0x10, 3 → 0x20, ...) is ignored:

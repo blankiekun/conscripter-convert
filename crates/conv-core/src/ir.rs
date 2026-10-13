@@ -183,6 +183,9 @@ pub enum Op {
     ClearSprites,
     /// Hide the text window; the next text page shows it again.
     HideTextWindow,
+    /// Show the following pages whole (`true`) or typed out at the text
+    /// speed (`false`). Setting the text window resets it to typed.
+    InstantText(bool),
     /// Start collecting screen changes (background, sprites) without showing
     /// them; [`Op::EndTransition`] (or the next text page) reveals them all
     /// at once with a `fade_ms` cross-fade, shaped by `mask` (a greyscale

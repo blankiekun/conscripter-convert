@@ -329,7 +329,8 @@ offset of its operand record.
 | Opcode | Uses | Evidence | Probably |
 |---|---|---|---|
 | `0x10` | 895 | `arg` is always a valid label-table index; 121 point into blog scripts | jump / call to a label |
-| `0x4d`, `0x58`, `0x43` | 276 / 579 / 578 | `arg` is always a valid label-table index | call / conditional-jump variants |
+| `0x58`, `0x43` | 579 / 578 | `arg` is always a valid label-table index | call / conditional-jump variants |
+| `0x4d` | 276 | **solved** (handler `0x467a50`; checked in the original under wine with a patched `0002.cd`) | how the current text window shows messages: 0 typed, 1 whole at once, 2 all lines typed at the same time. The window presets set it (three full-screen ones to 1). Converted to `textspeed 0` for 1, else the text speed (2 types the lines one after another) |
 | `0x8e` | 10,271 | **solved**: `sub` × 44-byte entries of `mode, character, sprite number, fade, x, y` (rest mostly uninitialised memory). The sprite number indexes `bu*.004` (128 per file, 0-based), and the file names' character codes match the `character` field | show `sub` character sprites |
 | `0x88` | 45 | **solved** (handler `0x415b50`, `AdvObjectScript_Filter.cpp`) | define one module of an effect preset: u32 preset, u32 slot (0 = clear), u32 module field, u32 kind (module type = kind + 0x63; creator table at `0x501434`: 1 Smooth, 2 Negative, 3 HueSatura, 4 Brightness, 5 GrayScale, 6 Monotone, 8 Color, 9 BrightnessInvert), u16 blend (index into Alpha/Add/Multi/Screen/SignedAdd/Copy/dissolve; the game uses Multi and Copy), u16 opacity (256 = full), then kind data (colour: R, G, B; brightness: i16). Field names from the module's debug output (`Opacity=%u, Blend=%s, Brightness=%d`). Script 2's `s2_l6`–`s2_l16` set preset 1 to one tint per lighting mood |
 | `0x90` | 651 | **solved** (handler `0x434960`) | attach a preset to a bust-up: u16 character, u32 module field, u32 preset (0 = remove). Module type 1 = `CModule_Preset`. Converted to CONscripter's `spfilter`, reading the preset from variables (§4.2) |
@@ -524,7 +525,7 @@ parts are not converted:
 - `0x70` kinds not converted (62 uses): Smooth (blur), 13 (ripple),
   HueSatura, BrightnessInvert, 12;
 - `0x93`/`0x94` (418): before each chapter end, unknown;
-- `0x4d` (276), `0x55` (252), `0x8c` (240), `0x6d` (198), `0x7a`/`0x7b`
+- `0x55` (252), `0x8c` (240), `0x6d` (198), `0x7a`/`0x7b`
   (about 90 each) and about 30 rarer ones;
 
 **Accuracy.**
