@@ -147,6 +147,7 @@ README, "CONscripter additions"):
 | `delsavegame` (delete a save and its thumbnail) | The save menu's delete button. Replaced a global flag per slot that only hid the save; a slot an older build flagged is deleted when the menu lists it |
 | `cons_slide.dll`, `cons_zoom.dll` (effect 99 plugins: slides in 8 directions, four zooms) | 0x76 transitions: Slide in/out (subs 10-25, 7 uses) and Zoom (37-40, 116 uses), decoded from the exe (`transition_style` in the Xuse converter). Scroll (41-44) maps to ONScripter's effects 11-14 and Mosaic (27) to 16 then 17, without engine work |
 | WebP in the web build (libwebp linked in; emscripten's SDL_image has no WebP) | Archive size on the web: `--webp` stores images as near-lossless WebP, 218 MB instead of 457 MB of PNG (`arc.nsa` 765 MB instead of 992 MB). Opt-in, because builds whose SDL_image lacks libwebp can't read it |
+| `!zNNN` text size tag (NNN percent of the window's font size, on the baseline, scaled width) | 0x49 text styles: shouting at 125-175 % and mumbling at 75-95 % in about 380 messages (NScripter text has colour tags but no size). Colours from the same records use `#RRGGBB` |
 | Text hooks in the web build (`onsyuriText`, `onsyuriChoice`, `onsyuriOverlay`) | Not for a converted game: chimimouryou lays each page's text over the game for Yomitan and reading statistics. Was a patch kept in chimimouryou (`scripts/onsyuri/text-hook.patch`) |
 
 Planned, from limits hit while converting 最果てのイマ (each one is worked
@@ -333,7 +334,7 @@ offset of its operand record.
 | `0x90` | 651 | **solved** (handler `0x434960`) | attach a preset to a bust-up: u16 character, u32 module field, u32 preset (0 = remove). Module type 1 = `CModule_Preset`. Converted to CONscripter's `spfilter`, reading the preset from variables (§4.2) |
 | `0x54` | 2,195 | **solved**: `arg` = background number, 1-based (0 = none, skipped by the handler); `bg*.004` holds 64 per file (`n >> 6` in the exe's loader at `0x40bff0`). The most common is 1 = `Black` | set background (sub 0/1: transition variant?) |
 | `0x46` | 214 | **solved** (from the handler at `0x477460` plus a user-supplied example) | **hyperlink** on the next message: row, column, length, style, target (see 3c) |
-| `0x49` | 565 | **solved** (handler `0x477990`): u16 line, u16 column, u16 length (30000 = to the end of the line), u16 size (80-120 = percent; 0x1003 mumbling, 0x1005-0x1007 shouting presets; 0xf000 = keep), u32 colour (COLORREF, 0xff000000 = keep), u32 edge colour; lines and columns count as for ruby | size and colour for characters of the next message. Colours are converted to `#RRGGBB` tags (chat-log handles, two-speaker lines); sizes are not drawn (ONScripter has no size tag) |
+| `0x49` | 565 | **solved** (handler `0x477990`): u16 line, u16 column, u16 length (30000 = to the end of the message; the game wraps enlarged messages short enough to fit), u16 size (percent below 0x1000; 0x1000 + n = n × 25 percent from the table at `0x4fa850`, 0x1003 for mumbling, 0x1005-0x1007 for shouting; 0xf000 = keep), u32 colour (COLORREF, 0xff000000 = keep), u32 edge colour; lines and columns count as for ruby; later records override earlier ones | size and colour for characters of the next message: `#RRGGBB` and CONscripter's `!zNNN` size tag (§4.2) |
 | `0x57` | 542 | **solved** (handler `0x473530` → sound request `0x47aab0`, channel 0) | play BGM: `arg` = track (1-based, `bm0000.bin` slot `arg - 1`), `sub` = fade-in ms (capped at 30 s) |
 | `0x58` | 579 | **solved** (channel 0, stop flag) | stop BGM: `arg` 0 = all, `sub` = fade-out ms |
 | `0x5a` | 2,633 | **solved** (channel 1) | play SE: packed 9-byte record `u32 ?, u8 loop, u32 sound` (1-based across `k0000.bin` + `k0001.bin`) |
@@ -517,8 +518,6 @@ parts are not converted:
 - Button bar lock button (`SysTray.004` #9).
 
 **Script opcodes** (counts are remaining uses):
-- `0x49` sizes (about 400 messages: shouting larger, mumbling smaller;
-  colours are converted): needs a CONscripter text tag for the size;
 - `0x70` (457): unknown;
 - `0x93`/`0x94` (418): before each chapter end, unknown;
 - `0x4d` (276), `0x55` (252), `0x8c` (240), `0x6d` (198), `0x7a`/`0x7b`

@@ -216,10 +216,10 @@ pub struct Ruby {
 
 /// Opcode 0x49: size and colour for characters of the next message.
 /// Record: u16 line, u16 column, u16 length (30000 = to the end of the
-/// line), u16 size, u32 colour, u32 edge colour. Lines and columns count as
-/// for ruby. Size: a percentage (80-120) below 0x1000, 0x1003-0x1007
-/// presets (0x1003 for mumbling, 0x1005-0x1007 for shouting), 0xf000 to
-/// keep the size. Colours are Windows COLORREFs (0x00BBGGRR);
+/// message), u16 size, u32 colour, u32 edge colour. Lines and columns count as
+/// for ruby. Size: a percentage below 0x1000, 0x1000 + n a preset of
+/// n × 25 percent (0x1003 for mumbling, 0x1005-0x1007 for shouting),
+/// 0xf000 to keep the size. Colours are Windows COLORREFs (0x00BBGGRR);
 /// 0xff000000 keeps the colour.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TextStyle {

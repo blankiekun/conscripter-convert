@@ -579,17 +579,19 @@ fn align_single_bytes(line: &str) -> String {
     let mut half = false; // a single byte waits for its pair
     let mut chars = line.chars().peekable();
     while let Some(c) = chars.next() {
-        if matches!(c, '#' | '(' | '/' | ')') || !is_single_byte(c) {
-            // Our colour tags and ruby markup are the only '#', '(', '/'
-            // and ')' left (escape() replaces the rest); ONScripter reads
-            // them one byte at a time.
+        if matches!(c, '#' | '!' | '(' | '/' | ')') || !is_single_byte(c) {
+            // Our colour and size tags and ruby markup are the only '#',
+            // '!', '(', '/' and ')' left (escape() replaces the rest);
+            // ONScripter reads them one byte at a time.
             if half {
                 out.push(' ');
                 half = false;
             }
             out.push(c);
-            if c == '#' {
-                out.extend(chars.by_ref().take(6));
+            match c {
+                '#' => out.extend(chars.by_ref().take(6)),
+                '!' => out.extend(chars.by_ref().take(4)), // !zNNN
+                _ => {}
             }
         } else {
             if half || c != ' ' {
@@ -737,8 +739,8 @@ fn fade_effects(script: &Script) -> BTreeMap<(u32, Effect), u32> {
 /// (where no link is) and ruby as NScripter's `(base/reading)`. The
 /// markup is added after escaping, which turns the text's own `(`, `/`
 /// and `)` full-width. Overlapping links, and ruby that crosses a line or
-/// a link's edge, are left out. Later styles win where they overlap;
-/// their sizes aren't drawn (ONScripter has no size tag).
+/// a link's edge, are left out. Later styles win where they overlap.
+/// Sizes use CONscripter's `!zNNN` tag.
 fn with_markup(text: &str, links: &[TextLink], ruby: &[Ruby], styles: &[TextStyle]) -> String {
     let chars: Vec<char> = text.chars().collect();
     let mut link_ranges: Vec<(usize, usize)> = Vec::new();
@@ -762,6 +764,12 @@ fn with_markup(text: &str, links: &[TextLink], ruby: &[Ruby], styles: &[TextStyl
     for &(s, e) in &link_ranges {
         colours[s..e].fill(LINK_COLOR.to_string());
     }
+    let mut sizes: Vec<u16> = vec![100; chars.len()];
+    for st in styles {
+        if let Some(p) = st.size_percent {
+            sizes.iter_mut().skip(st.start).take(st.len).for_each(|s| *s = p.clamp(1, 999));
+        }
+    }
     let mut readings: Vec<&Ruby> = ruby
         .iter()
         .filter(|r| {
@@ -777,11 +785,16 @@ fn with_markup(text: &str, links: &[TextLink], ruby: &[Ruby], styles: &[TextStyl
     let mut out = String::new();
     let mut readings = readings.into_iter().peekable();
     let mut current = TEXT_COLOR;
+    let mut size = 100;
     let mut i = 0;
     while i < chars.len() {
         if chars[i] != '\n' && colours[i] != current {
             current = &colours[i];
             out.push_str(current);
+        }
+        if chars[i] != '\n' && sizes[i] != size {
+            size = sizes[i];
+            write!(out, "!z{size:03}").unwrap();
         }
         while readings.peek().is_some_and(|r| r.start < i) {
             readings.next(); // overlaps the previous one
@@ -794,8 +807,13 @@ fn with_markup(text: &str, links: &[TextLink], ruby: &[Ruby], styles: &[TextStyl
             out.push_str(&escape(&chars[i].to_string()));
             i += 1;
         }
-        // Colour tags last past the page: end on the text colour.
-        if current != TEXT_COLOR && chars.get(i).is_none_or(|&c| c == '\n' || colours[i] == TEXT_COLOR) {
+        // Tags last past the page: end each line on the text colour and size.
+        let line_end = chars.get(i).is_none_or(|&c| c == '\n');
+        if size != 100 && (line_end || sizes[i] == 100) {
+            size = 100;
+            out.push_str("!z100");
+        }
+        if current != TEXT_COLOR && (line_end || colours[i] == TEXT_COLOR) {
             current = TEXT_COLOR;
             out.push_str(TEXT_COLOR);
         }
@@ -1351,7 +1369,7 @@ end
 
     #[test]
     fn style_colours() {
-        let st = |start, len, colour| TextStyle { start, len, colour, size: None };
+        let st = |start, len, colour| TextStyle { start, len, colour, size_percent: None };
         // Each line returns to the text colour; links win over styles.
         assert_eq!(
             with_markup("あいう\nえお", &[], &[], &[st(1, 4, Some(0xffff00))]),
@@ -1362,6 +1380,12 @@ end
             "#00FF00あい#F0C040う#0000FFえ#FFFFFF"
         );
         assert_eq!(with_markup("あい", &[], &[], &[st(0, 2, None)]), "あい");
+        let sized = |start, len, p| TextStyle { start, len, colour: None, size_percent: Some(p) };
+        assert_eq!(
+            with_markup("あい\nう", &[], &[], &[sized(0, 4, 150), TextStyle { colour: Some(0xffff00), ..sized(3, 1, 75) }]),
+            "!z150あい!z100\n#FFFF00!z075う!z100#FFFFFF"
+        );
+        assert_eq!(align_single_bytes("Ghost!z100の"), "Ghost !z100の");
     }
 
     #[test]

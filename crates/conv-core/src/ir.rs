@@ -158,15 +158,8 @@ pub struct TextStyle {
     pub len: usize,
     /// 0xRRGGBB; `None` keeps the colour.
     pub colour: Option<u32>,
-    pub size: Option<TextSize>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TextSize {
-    /// Percent of the window's font size.
-    Percent(u16),
-    /// One of the original engine's preset sizes (sizes not known yet).
-    Preset(u16),
+    /// Percent of the window's font size; `None` keeps the size.
+    pub size_percent: Option<u16>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

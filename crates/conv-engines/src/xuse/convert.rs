@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 
 use thiserror::Error;
 use conv_core::ir::{
-    ArithOp, Backlog, BarAction, BarButton, ButtonBar, ConfirmDialog, NamePlate, Setting, SettingRow, SettingsMenu, Op, Operand, PageButton, Placed, Rect, Ruby, SaveMenu, TextSize, TextStyle, SourceLoc, Voice, VoiceToggle,
+    ArithOp, Backlog, BarAction, BarButton, ButtonBar, ConfirmDialog, NamePlate, Setting, SettingRow, SettingsMenu, Op, Operand, PageButton, Placed, Rect, Ruby, SaveMenu, TextStyle, SourceLoc, Voice, VoiceToggle,
     SpriteChange, SpriteFilter, SpritePlacement, TextLink, TextSpot, TextWindow, TitleAction, TitleButton, TitleScreen, TopBars,
     SlideLayer, TransitionStyle, Var, ZoomStyle, FILTER_BLEND_ADD, FILTER_BLEND_COPY, FILTER_BLEND_MULTIPLY, FILTER_BLEND_SCREEN, FILTER_BRIGHTNESS, FILTER_COLOUR,
     FILTER_GREYSCALE, FILTER_NEGATIVE,
@@ -1374,27 +1374,35 @@ const STYLE_SIZE_KEEP: u16 = 0xf000;
 const STYLE_COLOUR_KEEP: u32 = 0xff00_0000;
 
 /// A 0x49 record as a range of the text lines `body` joined with '\n'.
-/// Length 30000 (or any past the end) runs to the end of the line.
+/// Length 30000 (or any past the end) runs to the end of the message: the
+/// game wraps the lines of enlarged messages short enough to fit.
 fn text_style(body: &[String], s: &StyleRecord) -> Option<TextStyle> {
     let line = usize::from(s.line).checked_sub(1)?;
     let col = usize::from(s.column).checked_sub(1)?;
-    let chars = body.get(line)?.chars().count();
-    let len = usize::from(s.length).min(chars.checked_sub(col)?);
+    if col >= body.get(line)?.chars().count() {
+        return None;
+    }
+    let before: usize = body[..line].iter().map(|s| s.chars().count() + 1).sum();
+    let total = body.iter().map(|s| s.chars().count() + 1).sum::<usize>() - 1;
+    let len = usize::from(s.length).min(total - before - col);
     let colour = (s.colour != STYLE_COLOUR_KEEP).then(|| {
         // COLORREF 0x00BBGGRR to 0xRRGGBB
         let [r, g, b, _] = s.colour.to_le_bytes();
         u32::from_be_bytes([0, r, g, b])
     });
+    // Sizes are percent; 0x1000 + n is a preset (table at 0x4fa850,
+    // looked up at 0x491d00).
+    const PRESET_PERCENT: [u16; 8] = [0, 25, 50, 75, 100, 125, 150, 175];
     let size = match s.size {
         STYLE_SIZE_KEEP => None,
-        n if n >= 0x1000 => Some(TextSize::Preset(n - 0x1000)),
-        n => Some(TextSize::Percent(n)),
+        n if n & 0xf000 == 0x1000 => Some(PRESET_PERCENT[usize::from(n & 0xfff).clamp(1, 7)]),
+        n if n < 0x1000 => Some(n),
+        _ => None,
     };
     if len == 0 || (colour.is_none() && size.is_none()) {
         return None;
     }
-    let before: usize = body[..line].iter().map(|s| s.chars().count() + 1).sum();
-    Some(TextStyle { start: before + col, len, colour, size })
+    Some(TextStyle { start: before + col, len, colour, size_percent: size })
 }
 
 fn lower_instr(
@@ -1749,19 +1757,20 @@ mod tests {
     fn text_style_ranges() {
         let body: Vec<String> = ["「牛めし", "　……カルビ"].iter().map(|s| s.to_string()).collect();
         let style = |line, column, length, size, colour| StyleRecord { line, column, length, size, colour, edge: STYLE_COLOUR_KEEP };
-        // 30000 runs to the end of the line; sizes below 0x1000 are percent.
+        // 30000 runs to the end of the message; sizes below 0x1000 are percent.
         assert_eq!(
             text_style(&body, &style(2, 1, 30000, 94, STYLE_COLOUR_KEEP)),
-            Some(TextStyle { start: 5, len: 6, colour: None, size: Some(TextSize::Percent(94)) })
+            Some(TextStyle { start: 5, len: 6, colour: None, size_percent: Some(94) })
         );
+        assert_eq!(text_style(&body, &style(1, 2, 30000, 94, STYLE_COLOUR_KEEP)).map(|s| (s.start, s.len)), Some((1, 10)));
         // COLORREF 0x00BBGGRR; 0xf000 keeps the size.
         assert_eq!(
             text_style(&body, &style(1, 2, 2, STYLE_SIZE_KEEP, 0x00d3_55ba)),
-            Some(TextStyle { start: 1, len: 2, colour: Some(0xba55d3), size: None })
+            Some(TextStyle { start: 1, len: 2, colour: Some(0xba55d3), size_percent: None })
         );
         assert_eq!(
-            text_style(&body, &style(1, 1, 1, 0x1006, STYLE_COLOUR_KEEP)).and_then(|s| s.size),
-            Some(TextSize::Preset(6))
+            text_style(&body, &style(1, 1, 1, 0x1006, STYLE_COLOUR_KEEP)).and_then(|s| s.size_percent),
+            Some(150)
         );
         assert_eq!(text_style(&body, &style(1, 1, 30000, STYLE_SIZE_KEEP, STYLE_COLOUR_KEEP)), None);
         assert_eq!(text_style(&body, &style(3, 1, 1, 90, STYLE_COLOUR_KEEP)), None);
