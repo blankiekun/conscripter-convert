@@ -50,9 +50,9 @@ const MAX_LAYER: u32 = 900;
 /// The NScripter variables that hold which branch of a choice or of a
 /// runtime `if` was taken (one per fork of a file, in turn).
 const FORK_VARS: std::ops::Range<u16> = 40..70;
-/// Story flags: locals from here (NScripter %110 up), globals (`#`) from
-/// the global border.
-const FLAG_LOCAL_BASE: u16 = 100;
+/// Story flags: locals from here (NScripter %300 up, past the variables
+/// the backend and its menus use), globals (`#`) from the global border.
+const FLAG_LOCAL_BASE: u16 = 290;
 /// The first global NScripter variable (locals below it are saved with each
 /// save slot, and the story flags need more than the default 200).
 pub const GLOBAL_BORDER: u32 = 800;
