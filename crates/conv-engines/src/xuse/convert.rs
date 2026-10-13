@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 use thiserror::Error;
 use conv_core::ir::{
     Compare,
-    Animation, ArithOp, Backlog, BarAction, BarButton, ButtonBar, ConfirmDialog, NamePlate, Noise, ScreenEffect, Setting, SettingRow, SettingsMenu, Op, Operand, PageButton, Placed, Rect, Ruby, SaveMenu, TextStyle, SourceLoc, Voice, VoiceToggle,
+    Animation, ArithOp, Backlog, BarAction, BarButton, ButtonBar, ConfirmDialog, NamePlate, Noise, ScreenEffect, Setting, SettingRow, SettingSwitch, SettingsMenu, Switch, Op, Operand, PageButton, Placed, Rect, Ruby, SaveMenu, TextStyle, SourceLoc, Voice, VoiceToggle,
     SpriteChange, SpriteFilter, SpritePlacement, TextLink, TextSpot, TextWindow, TitleAction, TitleButton, TitleScreen, TopBars,
     SlideLayer, TransitionStyle, Var, ZoomStyle, FILTER_BLEND_ADD, FILTER_BLEND_COPY, FILTER_BLEND_MULTIPLY, FILTER_BLEND_SCREEN, FILTER_BRIGHTNESS, FILTER_COLOUR, FILTER_MONOTONE,
     FILTER_GREYSCALE, FILTER_NEGATIVE, FILTER_BLUR, FILTER_HUE_SATURATION, FILTER_LIGHTNESS_INVERT,
@@ -1064,7 +1064,7 @@ impl AssetBank {
             title_label: "タイトルに戻る".into(),
             quit_label: "ゲームを終了".into(),
             exits_y: 540,
-            tab_labels: ["音量・速度".into(), "音声".into()],
+            tab_labels: vec!["音量・速度".into(), "音声".into(), "マウス・確認".into()],
             tabs_x: 300,
             tabs_y: 34,
             voices: VOICE_TOGGLES
@@ -1074,6 +1074,19 @@ impl AssetBank {
             voice_column_x: 440,
             voice_pitch: 50,
             skip_unread_label: Some("未読テキストもスキップする".into()),
+            // The original's マウス and 確認メッセージ pages (labels as there).
+            switches: [
+                ("マウスホイールでテキストを進める", Switch::WheelReadsOn),
+                ("マウスホイールで履歴を閉じる", Switch::WheelClosesLog),
+                ("セーブ確認", Switch::ConfirmSave),
+                ("ロード確認", Switch::ConfirmLoad),
+                ("セーブデータの削除確認", Switch::ConfirmDelete),
+                ("タイトルに戻る確認", Switch::ConfirmTitle),
+                ("ゲーム終了確認", Switch::ConfirmQuit),
+            ]
+            .into_iter()
+            .map(|(label, switch)| SettingSwitch { label: label.into(), switch })
+            .collect(),
         })
     }
 

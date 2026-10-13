@@ -611,7 +611,9 @@ pub struct SettingsMenu {
     pub exits_y: i32,
     /// Page tabs (levels, voices) at `tabs_y`, from `tabs_x`; the voice
     /// page is left out without `voices`.
-    pub tab_labels: [String; 2],
+    /// Page tabs: levels, voices, switches (a page without content is
+    /// left out at the end).
+    pub tab_labels: Vec<String>,
     pub tabs_x: i32,
     pub tabs_y: i32,
     /// Two columns at `label_x` and `voice_column_x`, from `y`.
@@ -621,6 +623,31 @@ pub struct SettingsMenu {
     /// A switch under the levels: skip mode goes on through text not read
     /// before (off: it stops there). `None`: skip skips everything.
     pub skip_unread_label: Option<String>,
+    /// On/off options on their own page (all on by default).
+    pub switches: Vec<SettingSwitch>,
+}
+
+/// One on/off option of [`SettingsMenu::switches`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SettingSwitch {
+    pub label: String,
+    pub switch: Switch,
+}
+
+/// What a [`SettingSwitch`] turns on or off.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Switch {
+    /// The mouse wheel (down) reads on at a text wait.
+    WheelReadsOn,
+    /// Wheel down on the newest backlog page closes the backlog.
+    WheelClosesLog,
+    /// Ask before saving over a slot.
+    ConfirmSave,
+    ConfirmLoad,
+    ConfirmDelete,
+    /// Ask before going back to the title.
+    ConfirmTitle,
+    ConfirmQuit,
 }
 
 /// A voiced line's clip and whose voice it is (for the per-character

@@ -9,7 +9,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::fmt::Write;
 
 use conv_core::ir::{
-    ArithOp, ConfirmDialog, Op, ScreenEffect, Operand, Script, Ruby, SlideLayer, TextStyle, SpritePlacement, TextLink, TextWindow, TitleAction, TitleScreen,
+    ArithOp, ConfirmDialog, Op, ScreenEffect, Switch, Operand, Script, Ruby, SlideLayer, TextStyle, SpritePlacement, TextLink, TextWindow, TitleAction, TitleScreen,
     TransitionStyle, Var, ZoomStyle,
 };
 
@@ -854,7 +854,7 @@ fn title_screen(out: &mut String, t: &TitleScreen, fade: u32, save_menu: bool, s
     writeln!(out, "goto *{TITLE_MENU}").unwrap();
     if let Some(c) = confirm {
         writeln!(out, "*conv_title_exit").unwrap();
-        writeln!(out, "{}", menu::confirm_call(&c.quit)).unwrap();
+        writeln!(out, "{}", menu::confirm_call(&c.quit, Switch::ConfirmQuit)).unwrap();
         writeln!(out, "if {} == 1 end", menu::CONFIRM).unwrap();
         writeln!(out, "goto *{TITLE_MENU}").unwrap();
     }

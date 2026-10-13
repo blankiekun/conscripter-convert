@@ -394,7 +394,14 @@ engines print `z150` etc.). The web build compiles with it.
       text, wheel closes the backlog, wheel sensitivity), 確認メッセージ
       (save, load, delete, autosave load, chapter history overwrite,
       settings OK/cancel, unread skip warning, title, quit; all on).
-- [ ] Settings: wheel options and confirmation toggles (next).
+- [x] Wheel options and confirmation toggles (user's 2nd and 3rd items):
+      a third settings page マウス・確認 with the original's labels:
+      wheel reads on, wheel closes the backlog, save / load / delete /
+      title / quit confirmations. Global off flags %3640-%3646 (0 = on,
+      the original's defaults; older saves get them). The dialog routine
+      answers yes at once for a switched-off kind (%125). Not converted:
+      wheel sensitivity, the autosave / chapter history / settings / unread
+      skip confirmations (no such dialogs here). Checked headless.
 - [ ] Extras after clearing (CG/BGM/chapter/scene replay), chapter
       history, blog bar buttons, title BGM.
 - [ ] Native Linux/macOS builds skip movies (`mpegplay` is disabled

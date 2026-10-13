@@ -23,7 +23,7 @@
 //!   buttons and labels `lsp` sprites over them. The text window, name
 //!   plate and link words are hidden while the menu is open.
 
-use conv_core::ir::{BarAction, Backlog, ButtonBar, ConfirmDialog, Placed, SaveMenu, Setting, SettingsMenu, TextSpot, VoiceToggle};
+use conv_core::ir::{BarAction, Backlog, ButtonBar, ConfirmDialog, Placed, SaveMenu, Setting, SettingsMenu, Switch, TextSpot, VoiceToggle};
 
 use crate::{escape, path, BAR_SPRITES, BUTTON_VAR, DIALOG_SPRITES, LINK_SPRITES, MENU_SPRITES, NAME_PLATE_SPRITE, NAME_TEXT_SPRITE};
 
@@ -49,16 +49,24 @@ const TEXT_MS_STEP: u32 = 6;
 // Settings and backlog sprites (lsp, within MENU_SPRITES).
 /// A level row's label and level, one text sprite.
 const SETTING_ROW: u32 = M; // + row
-const SETTING_TAB: u32 = M + 6; // + page
+const SETTING_TAB: u32 = M + 21; // + page
 const SETTING_SKIP: u32 = M + 8;
 const SETTING_MINUS: u32 = M + 9; // + row
 const SETTING_PLUS: u32 = M + 15; // + row
 const SETTING_TITLE: u32 = M + 25;
 const SETTING_QUIT: u32 = M + 26;
 const MAX_SETTING_ROWS: usize = 6;
-/// Voice switches, on the voice page (in place of the level rows).
-const SETTING_VOICE: u32 = M + 8; // + switch
-const MAX_VOICES: usize = 17;
+/// Voice switches, on the voice page (in place of the level rows), and the
+/// switches page's options.
+const SETTING_VOICE: u32 = M + 6; // + switch
+const MAX_VOICES: usize = 15;
+const SETTING_SWITCH: u32 = M + 6; // + switch
+const MAX_SWITCHES: usize = 15;
+const BTN_SWITCH: u32 = 70; // + 1 + switch
+/// Global "off" flags of the switches (0, the default, is on).
+const SWITCH_OFF_BASE: u32 = 3640;
+/// The confirmation being asked (a [`Switch`] + 1; 0 = always ask).
+const CONFIRM_KIND: &str = "%125";
 const BTN_MINUS: u32 = 10;
 const BTN_PLUS: u32 = 20;
 const BTN_TITLE: u32 = 30;
@@ -284,9 +292,10 @@ pub(crate) fn save_menu(out: &mut String, m: &SaveMenu, confirm: Option<&Confirm
     w("goto *conv_sl_buttons".into());
 
     // Asks "No.NN {question}" about the selected slot; no: back to waiting.
-    let ask = |question: &str| match confirm {
+    let ask = |question: &str, kind: Switch| match confirm {
         Some(_) => format!(
-            "mov {SLOT},{SELECTED}\ngosub *conv_sl_number\nmov {CONFIRM_TEXT},{LINE1}\nadd {CONFIRM_TEXT},\" {}\"\ngosub *{CONFIRM_ROUTINE}\nif {CONFIRM} == 0 goto *conv_sl_buttons",
+            "mov {SLOT},{SELECTED}\ngosub *conv_sl_number\nmov {CONFIRM_KIND},{}:mov {CONFIRM_TEXT},{LINE1}\nadd {CONFIRM_TEXT},\" {}\"\ngosub *{CONFIRM_ROUTINE}\nif {CONFIRM} == 0 goto *conv_sl_buttons",
+            switch_index(kind) + 1,
             escape(question)
         ),
         None => String::new(),
@@ -296,7 +305,7 @@ pub(crate) fn save_menu(out: &mut String, m: &SaveMenu, confirm: Option<&Confirm
     w(format!("if {MODE} == 2 goto *conv_sl_load"));
     if let Some(c) = confirm {
         w(format!("if {SELECTED_HAS_DATA} == 0 goto *conv_sl_save"));
-        w(ask(&c.overwrite));
+        w(ask(&c.overwrite, Switch::ConfirmSave));
     }
     w("*conv_sl_save".into());
     w(format!("mov {SLOT},{SELECTED}"));
@@ -327,7 +336,7 @@ pub(crate) fn save_menu(out: &mut String, m: &SaveMenu, confirm: Option<&Confirm
     w("*conv_sl_load".into());
     w(format!("if {SELECTED_HAS_DATA} == 0 goto *conv_sl_wait"));
     if let Some(c) = confirm {
-        w(ask(&c.load));
+        w(ask(&c.load, Switch::ConfirmLoad));
     }
     w("gosub *conv_sl_clear".into());
     w(format!("loadgame {SELECTED}"));
@@ -336,7 +345,7 @@ pub(crate) fn save_menu(out: &mut String, m: &SaveMenu, confirm: Option<&Confirm
 
     w("*conv_sl_delete".into());
     if let Some(c) = confirm {
-        w(ask(&c.delete));
+        w(ask(&c.delete, Switch::ConfirmDelete));
     }
     w(format!("mov {SLOT},{SELECTED}"));
     w("gosub *conv_sl_file".into());
@@ -425,7 +434,8 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, save_menu: bool, set
     w(format!("gosub *{BAR_DRAW}"));
     w(format!("textbtnwait {BUTTON_VAR}"));
     // Wheel down (-3) reads on, like a click; wheel up (-2) opens the log.
-    w(format!("if {BUTTON_VAR} == -3 goto *conv_wait_end"));
+    w(format!("if {BUTTON_VAR} == -3 && {} == 0 goto *conv_wait_end", switch_off(Switch::WheelReadsOn)));
+    w(format!("if {BUTTON_VAR} == -3 goto *{WAIT}"));
     w(format!("if {BUTTON_VAR} >= 0 && {BUTTON_VAR} <= {BAR_BUTTON_BASE} goto *conv_wait_end"));
     w(format!("gosub *{BAR_ACTION}"));
     // Auto and skip go on to the next page; the rest come back here.
@@ -532,6 +542,9 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, save_menu: bool, set
 pub(crate) fn settings_menu(out: &mut String, m: &SettingsMenu, confirm: Option<&ConfirmDialog>) {
     let rows = &m.rows[..m.rows.len().min(MAX_SETTING_ROWS)];
     let voices = &m.voices[..m.voices.len().min(MAX_VOICES)];
+    let switches = &m.switches[..m.switches.len().min(MAX_SWITCHES)];
+    // Pages: levels, voices, switches (only as many as there are tabs).
+    let pages = m.tab_labels.len().min(1 + usize::from(!voices.is_empty()) + usize::from(!switches.is_empty())) as u32;
     let mut w = |line: String| {
         out.push_str(&line);
         out.push('\n');
@@ -560,10 +573,10 @@ pub(crate) fn settings_menu(out: &mut String, m: &SettingsMenu, confirm: Option<
     }
     w("*conv_settings_draw".into());
     w((M..SETTING_TITLE).map(|n| format!("csp {n}")).collect::<Vec<_>>().join(":"));
-    if !voices.is_empty() {
+    if pages > 1 {
         // Tabs: the current page's in the highlight colour, not clickable.
         let mut x = m.tabs_x;
-        for (page, label) in m.tab_labels.iter().enumerate() {
+        for (page, label) in m.tab_labels.iter().take(pages as usize).enumerate() {
             let slot = SETTING_TAB + page as u32;
             let text = format!("\"{}\"", escape(label));
             let chars = label.chars().count();
@@ -576,6 +589,7 @@ pub(crate) fn settings_menu(out: &mut String, m: &SettingsMenu, confirm: Option<
             x += (chars as i32 + 2) * (size as i32 + 1);
         }
         w(format!("if {SETTINGS_PAGE} == 1 goto *conv_settings_draw_voices"));
+        w(format!("if {SETTINGS_PAGE} == 2 goto *conv_settings_draw_switches"));
     }
     for (r, row) in rows.iter().enumerate() {
         let y = m.y + r as i32 * m.pitch;
@@ -605,6 +619,16 @@ pub(crate) fn settings_menu(out: &mut String, m: &SettingsMenu, confirm: Option<
         w(hover(SETTING_SKIP, STR_TMP, m.label_x, m.y + rows.len() as i32 * m.pitch, label.chars().count() + 2));
     }
     w("goto *conv_settings_wait".into());
+    // "■ option" (on) or "□ option", one column.
+    w("*conv_settings_draw_switches".into());
+    for (i, s) in switches.iter().enumerate() {
+        let y = m.y + i as i32 * m.voice_pitch;
+        w(format!("mov {STR_TMP},\"■　\""));
+        w(format!("if {} == 1 mov {STR_TMP},\"□　\"", switch_off(s.switch)));
+        w(format!("add {STR_TMP},\"{}\"", escape(&s.label)));
+        w(hover(SETTING_SWITCH + i as u32, STR_TMP, m.label_x, y, s.label.chars().count() + 2));
+    }
+    w("goto *conv_settings_wait".into());
     // "■ name" (on) or "□ name", in two columns.
     w("*conv_settings_draw_voices".into());
     for (i, t) in voices.iter().enumerate() {
@@ -616,7 +640,14 @@ pub(crate) fn settings_menu(out: &mut String, m: &SettingsMenu, confirm: Option<
         w(hover(SETTING_VOICE + i as u32, STR_TMP, x, y, t.label.chars().count() + 2));
     }
     w("*conv_settings_wait".into());
+    // The other pages' tabs.
+    for p in 0..pages {
+        if pages > 1 {
+            w(format!("if {SETTINGS_PAGE} != {p} spbtn {},{}", SETTING_TAB + p, BTN_TAB + 1 + p));
+        }
+    }
     w(format!("if {SETTINGS_PAGE} == 1 goto *conv_settings_wait_voices"));
+    w(format!("if {SETTINGS_PAGE} == 2 goto *conv_settings_wait_switches"));
     for r in 0..rows.len() as u32 {
         w(format!("spbtn {},{}", SETTING_MINUS + r, BTN_MINUS + r + 1));
         w(format!("spbtn {},{}", SETTING_PLUS + r, BTN_PLUS + r + 1));
@@ -624,16 +655,15 @@ pub(crate) fn settings_menu(out: &mut String, m: &SettingsMenu, confirm: Option<
     if m.skip_unread_label.is_some() {
         w(format!("spbtn {SETTING_SKIP},{BTN_SKIP}"));
     }
-    if !voices.is_empty() {
-        w(format!("spbtn {},{}", SETTING_TAB + 1, BTN_TAB + 2));
-        w("goto *conv_settings_wait_any".into());
-        w("*conv_settings_wait_voices".into());
-        for i in 0..voices.len() as u32 {
-            w(format!("spbtn {},{}", SETTING_VOICE + i, BTN_VOICE + i + 1));
-        }
-        w(format!("spbtn {SETTING_TAB},{}", BTN_TAB + 1));
-    } else {
-        w("*conv_settings_wait_voices".into());
+    w("goto *conv_settings_wait_any".into());
+    w("*conv_settings_wait_voices".into());
+    for i in 0..voices.len() as u32 {
+        w(format!("spbtn {},{}", SETTING_VOICE + i, BTN_VOICE + i + 1));
+    }
+    w("goto *conv_settings_wait_any".into());
+    w("*conv_settings_wait_switches".into());
+    for i in 0..switches.len() as u32 {
+        w(format!("spbtn {},{}", SETTING_SWITCH + i, BTN_SWITCH + i + 1));
     }
     w("*conv_settings_wait_any".into());
     w(format!("if {IN_GAME} == 1 spbtn {SETTING_TITLE},{BTN_TITLE}:spbtn {SETTING_QUIT},{BTN_QUIT}"));
@@ -645,9 +675,13 @@ pub(crate) fn settings_menu(out: &mut String, m: &SettingsMenu, confirm: Option<
     w(format!("if {BUTTON_VAR} == {BTN_QUIT} goto *conv_settings_quit"));
     w(format!(
         "if {BUTTON_VAR} > {BTN_TAB} && {BUTTON_VAR} <= {} mov {SETTINGS_PAGE},{BUTTON_VAR}-{}:goto *conv_settings_draw",
-        BTN_TAB + 2,
+        BTN_TAB + pages,
         BTN_TAB + 1
     ));
+    for (i, s) in switches.iter().enumerate() {
+        let off = switch_off(s.switch);
+        w(format!("if {BUTTON_VAR} == {} mov {off},1-{off}:goto *conv_settings_draw", BTN_SWITCH + i as u32 + 1));
+    }
     for (i, t) in voices.iter().enumerate() {
         let all = |v: u32| t.characters.iter().map(|c| format!("mov %{},{v}", VOICE_OFF_BASE + c)).collect::<Vec<_>>().join(":");
         let button = BTN_VOICE + i as u32 + 1;
@@ -664,10 +698,13 @@ pub(crate) fn settings_menu(out: &mut String, m: &SettingsMenu, confirm: Option<
     w(format!("gosub *{SETTINGS_APPLY}"));
     w("goto *conv_settings_draw".into());
     // `reset` starts the script over: the title screen.
-    for (label, question, then) in [("conv_settings_title", confirm.map(|c| &c.title), "reset"), ("conv_settings_quit", confirm.map(|c| &c.quit), "end")] {
+    for (label, question, then, kind) in [
+        ("conv_settings_title", confirm.map(|c| &c.title), "reset", Switch::ConfirmTitle),
+        ("conv_settings_quit", confirm.map(|c| &c.quit), "end", Switch::ConfirmQuit),
+    ] {
         w(format!("*{label}"));
         if let Some(q) = question {
-            w(confirm_call(q));
+            w(confirm_call(q, kind));
             w(format!("if {CONFIRM} == 0 goto *conv_settings_wait"));
         }
         w(then.into());
@@ -697,8 +734,25 @@ pub(crate) fn settings_menu(out: &mut String, m: &SettingsMenu, confirm: Option<
 }
 
 /// Sets the question and asks it (see [`confirm`]).
-pub(crate) fn confirm_call(question: &str) -> String {
-    format!("mov {CONFIRM_TEXT},\"{}\"\ngosub *{CONFIRM_ROUTINE}", escape(question))
+pub(crate) fn confirm_call(question: &str, kind: Switch) -> String {
+    format!("mov {CONFIRM_KIND},{}:mov {CONFIRM_TEXT},\"{}\"\ngosub *{CONFIRM_ROUTINE}", switch_index(kind) + 1, escape(question))
+}
+
+fn switch_index(s: Switch) -> u32 {
+    match s {
+        Switch::WheelReadsOn => 0,
+        Switch::WheelClosesLog => 1,
+        Switch::ConfirmSave => 2,
+        Switch::ConfirmLoad => 3,
+        Switch::ConfirmDelete => 4,
+        Switch::ConfirmTitle => 5,
+        Switch::ConfirmQuit => 6,
+    }
+}
+
+/// The global that is 1 while `s` is switched off.
+pub(crate) fn switch_off(s: Switch) -> String {
+    format!("%{}", SWITCH_OFF_BASE + switch_index(s))
 }
 
 /// The yes/no dialog (see [`ConfirmDialog`]) over whatever is on screen:
@@ -714,6 +768,10 @@ pub(crate) fn confirm(out: &mut String, d: &ConfirmDialog) {
     let label_size = d.yes.h as u32 * 2 / 3;
     let centre = d.base.x + d.base.w / 2;
     w(format!("*{CONFIRM_ROUTINE}"));
+    // A confirmation switched off in the settings answers yes at once.
+    w(format!("mov {CONFIRM},1"));
+    w(format!("if {CONFIRM_KIND} > 0 mov {TMP},{}+{CONFIRM_KIND}:if %%{} == 1 mov {CONFIRM_KIND},0:return", SWITCH_OFF_BASE - 1, &TMP[1..]));
+    w(format!("mov {CONFIRM_KIND},0"));
     w(format!("lsp {DIALOG_BASE},\":a;{}\",{},{}", path(&d.base.image), d.base.x, d.base.y));
     w(format!("len {TMP},{CONFIRM_TEXT}"));
     w(format!("mov {TMP},{centre}-{TMP}*{size}/4"));
@@ -864,6 +922,7 @@ pub(crate) fn backlog(out: &mut String, b: &Backlog, ruby: bool) {
         "if {BUTTON_VAR} >= {BTN_LOG_VOICE} && {BUTTON_VAR} < {} mov {TMP},{BUTTON_VAR}-{BTN_LOG_VOICE}+{LOG_VOICES}:dwave 0,${TMP}:goto *conv_log_wait",
         BTN_LOG_VOICE + LOG_PAGES
     ));
+    w(format!("if {BUTTON_VAR} == -3 && {LOG_OFFSET} == 0 && {} == 1 goto *conv_log_wait", switch_off(Switch::WheelClosesLog)));
     w(format!("if {BUTTON_VAR} == -2 mov {BUTTON_VAR},1"));
     w(format!("if {BUTTON_VAR} == -3 mov {BUTTON_VAR},2"));
     w(format!("if {BUTTON_VAR} == 1 && {LOG_OLDER} == 1 add {LOG_OFFSET},1:goto *conv_log_draw"));
@@ -947,7 +1006,7 @@ mod tests {
             "mov %103,%102\ngosub *conv_sl_file\ndelsavegame %102,$103\n",
             "if %%105 == 1 delsavegame %103,$103:mov %%105,0\nsavefileexist %104,%103\n",
             // Saving over a save asks first.
-            "if %107 == 0 goto *conv_sl_save\nmov %103,%102\ngosub *conv_sl_number\nmov $106,$101\nadd $106,\" over?\"\ngosub *conv_confirm\nif %109 == 0 goto *conv_sl_buttons\n*conv_sl_save\n",
+            "if %107 == 0 goto *conv_sl_save\nmov %103,%102\ngosub *conv_sl_number\nmov %125,3:mov $106,$101\nadd $106,\" over?\"\ngosub *conv_confirm\nif %109 == 0 goto *conv_sl_buttons\n*conv_sl_save\n",
         ] {
             assert!(out.contains(line), "missing {line:?} in\n{out}");
         }
@@ -1005,7 +1064,7 @@ mod tests {
             title_label: "title".into(),
             quit_label: "quit".into(),
             exits_y: 540,
-            tab_labels: ["音量".into(), "音声".into()],
+            tab_labels: vec!["音量".into(), "音声".into(), "確認".into()],
             tabs_x: 300,
             tabs_y: 34,
             voices: vec![
@@ -1015,19 +1074,23 @@ mod tests {
             voice_column_x: 440,
             voice_pitch: 50,
             skip_unread_label: Some("未読".into()),
+            switches: vec![conv_core::ir::SettingSwitch { label: "セーブ確認".into(), switch: Switch::ConfirmSave }],
         };
         let mut out = String::new();
         settings_menu(&mut out, &m, None);
         for line in [
             // The current tab can't be clicked; the other one can.
-            "if %176 != 1 strsp 13,\"音声\",392,34,3,1,22,22,0,0,0,1,\"#FFFFFF\",\"#F0C040\"\n",
-            "if %176 == 0 strsp 12,\"音量\",300,34,3,1,22,22,0,0,0,1,\"#F0C040\"\n",
+            "if %176 != 1 strsp 28,\"音声\",392,34,3,1,22,22,0,0,0,1,\"#FFFFFF\",\"#F0C040\"\n",
+            "if %176 == 0 strsp 27,\"音量\",300,34,3,1,22,22,0,0,0,1,\"#F0C040\"\n",
             "if %176 == 1 goto *conv_settings_draw_voices\n",
             // One per column: the second switch is in the second column.
-            "mov $104,\"■　\"\nif %973 == 1 mov $104,\"□　\"\nadd $104,\"あずさ\"\nstrsp 14,$104,140,140,6,1,22,22,0,0,0,1,\"#FFFFFF\",\"#F0C040\"\n",
-            "strsp 15,$104,440,140,",
-            "*conv_settings_wait_voices\nspbtn 14,51\nspbtn 15,52\nspbtn 12,41\n",
-            "if %9 > 40 && %9 <= 42 mov %176,%9-41:goto *conv_settings_draw\n",
+            "mov $104,\"■　\"\nif %973 == 1 mov $104,\"□　\"\nadd $104,\"あずさ\"\nstrsp 12,$104,140,140,6,1,22,22,0,0,0,1,\"#FFFFFF\",\"#F0C040\"\n",
+            "strsp 13,$104,440,140,",
+            "*conv_settings_wait_voices\nspbtn 12,51\nspbtn 13,52\ngoto *conv_settings_wait_any\n*conv_settings_wait_switches\nspbtn 12,71\n",
+            "if %176 != 0 spbtn 27,41\nif %176 != 1 spbtn 28,42\nif %176 != 2 spbtn 29,43\n",
+            // A confirmation switch: its off flag, and the dialog answers yes when off.
+            "if %9 == 71 mov %3642,1-%3642:goto *conv_settings_draw\n",
+            "if %9 > 40 && %9 <= 43 mov %176,%9-41:goto *conv_settings_draw\n",
             // A level row: label padded to the level's column, one sprite.
             "mov $104,\"ＢＧＭ　　　　　　　\"\n",
             "strsp 6,$104,140,140,24,1,22,22,0,0,0,1\n",
@@ -1057,7 +1120,7 @@ mod tests {
         let mut out = String::new();
         button_bar(&mut out, &bar, true, false, false);
         for line in [
-            "*conv_wait\ngosub *conv_bar_draw\ntextbtnwait %9\nif %9 == -3 goto *conv_wait_end\n",
+            "*conv_wait\ngosub *conv_bar_draw\ntextbtnwait %9\nif %9 == -3 && %3640 == 0 goto *conv_wait_end\nif %9 == -3 goto *conv_wait\n",
             "if %9 >= 0 && %9 <= 1000 goto *conv_wait_end\n",
             "if %9 == 1001 goto *conv_wait_end\ngoto *conv_wait\n",
             "*conv_wait_end\ntexec\nreturn\n",
