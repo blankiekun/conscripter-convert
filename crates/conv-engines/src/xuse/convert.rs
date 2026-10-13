@@ -1391,7 +1391,9 @@ impl LabelNames {
 
 /// "chapter<route>]?<title>" → title.
 fn chapter_title(name: &str) -> Option<&str> {
-    name.strip_prefix("chapter")?.split_once("]?").map(|(_, title)| title)
+    // `chapter<route>]?<title>`; two chapters of 0010.cd have a part
+    // number before the `?` (`chapterさやか]１?ビジョン`).
+    name.strip_prefix("chapter")?.split_once(']')?.1.split_once('?').map(|(_, title)| title)
 }
 
 /// "blog?<title>" → title: the scenes links open.
@@ -2770,6 +2772,13 @@ mod tests {
         assert_eq!(transition_style(40), TransitionStyle::Zoom { style: ZoomStyle::Cross, max_percent: 220, curve: 5 });
         assert_eq!(transition_style(9), TransitionStyle::Fade);
         assert_eq!(transition_name(20), "Slide out");
+    }
+
+    #[test]
+    fn chapter_titles() {
+        assert_eq!(chapter_title("chapterさやか]?空白の机"), Some("空白の机"));
+        assert_eq!(chapter_title("chapterさやか]１?ビジョン"), Some("ビジョン"));
+        assert_eq!(chapter_title("blog?あの場所"), None);
     }
 
     #[test]

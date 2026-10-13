@@ -294,8 +294,9 @@ engines print `z150` etc.). The web build compiles with it.
 - [x] `0x4a` (2): the style of the messages that follow (0x49's value
       encoding): 0011.cd's 「こ」「わ」「せ」「た」 in orange (#ff8c00) at
       125 %, then the defaults. The edge colour isn't converted.
-- [ ] Opcodes still emitted as comments (12 left): `0x36`
-      without a chapter name (2),
+- [x] `0x36` without a chapter name (2): `chapterさやか]１?ビジョン` has a
+      part number before the `?`; the title is the text after it.
+- [ ] Opcodes still emitted as comments (10 left):
       rarer ones.
 - [ ] Transitions still drawn as cross-fades: Wave, Dissolve, RollFlip,
       SoftEdgeWipe, TvPowerSwitch, BoxRolling, SmoothCrossFade, Dot4x4,
