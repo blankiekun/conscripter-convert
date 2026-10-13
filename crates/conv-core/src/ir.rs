@@ -359,6 +359,8 @@ pub enum Op {
     /// Leave every open link scene, as if each returned (their screens are
     /// put back), then go on here at the root. Nothing if none is open.
     ReturnToRoot,
+    /// End the game and go back to the title screen (global flags stay).
+    ReturnToTitle,
     /// CG `number` (1-based) counts as seen in the CG gallery without being
     /// shown (a global flag).
     CgSeen { number: u32 },

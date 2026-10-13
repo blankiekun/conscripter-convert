@@ -298,8 +298,12 @@ engines print `z150` etc.). The web build compiles with it.
       part number before the `?`; the title is the text after it.
 - [x] `0x17`-`0x1b` (1 + 1 use): the other comparisons of 0x16's `if`
       (!=, <, >, <=, >=; handlers by their `set*`), as `Op::If`.
-- [ ] Opcodes still emitted as comments (8 left):
-      rarer ones.
+- [x] `0x96` (1): back to the title at the end of the epilogue, as
+      `reset`; `0x00` (1): a one-frame yield like 0x67.
+- [ ] Opcodes still emitted as comments (6 left): `0x8d`, `0x80`, the
+      0x86 rotation, Zigzag (0x70 kind 12), and the start point's debug
+      menu (`0x62` choice + `0x30` jump table in 0001.cd, unreachable:
+      nothing jumps to `s1_l0`).
 - [ ] Transitions still drawn as cross-fades: Wave, Dissolve, RollFlip,
       SoftEdgeWipe, TvPowerSwitch, BoxRolling, SmoothCrossFade, Dot4x4,
       MeltDown (PLAN §6 "Accuracy").

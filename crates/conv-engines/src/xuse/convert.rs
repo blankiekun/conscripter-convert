@@ -204,7 +204,13 @@ const OP_RETURN_TO_ROOT: u16 = 0x48;
 /// at 125 % in orange, then back to the defaults.
 const OP_DEFAULT_TEXT_STYLE: u16 = 0x4a;
 /// Yields for one frame (handler 0x473d20 returns 0). Nothing to emit.
+/// 0x00 has the same handler (once, at the start of 0006.cd).
 const OP_YIELD: u16 = 0x67;
+const OP_YIELD_2: u16 = 0x00;
+/// Returns to the title (handler 0x478330: stops the sounds (0x46f570),
+/// then the title task 0x45b6f0 in mode 0, as the extras do at 0x44f6c1).
+/// Once, at the very end of the epilogue (0003.cd #1280).
+const OP_RETURN_TO_TITLE: u16 = 0x96;
 /// Sets an object's opacity (handler 0x413f10; draw field +0x1b2).
 /// Record: u8 layer, u32 depth, u16 opacity (0-256). The object is found
 /// by its key: the depth for layers 0 and 1, depth + 10 for layer 2 (a
@@ -2007,7 +2013,11 @@ pub fn lower_script(
         if ins.op == OP_BLEND && overlay_fill && cd.pool.get(ins.arg as u32 as usize..ins.arg as u32 as usize + 5) == Some(&[1, 2, 0, 0, 0]) {
             continue; // dissolve: the fade-out is drawn as a cross-fade
         }
-        if matches!(ins.op, OP_YIELD | OP_CLEAR_CHAPTER_HISTORY | OP_ENTRY_NAME) {
+        if ins.op == OP_RETURN_TO_TITLE {
+            ops.push(Op::ReturnToTitle);
+            continue;
+        }
+        if matches!(ins.op, OP_YIELD | OP_YIELD_2 | OP_CLEAR_CHAPTER_HISTORY | OP_ENTRY_NAME) {
             continue;
         }
         if ins.op == crate::xuse::cd::OP_BACKGROUND {

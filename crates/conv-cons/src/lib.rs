@@ -721,6 +721,8 @@ pub fn emit(script: &Script) -> String {
             }
             Op::Chapter { title } => writeln!(out, "mov {},\"{}\"", menu::CHAPTER, escape(title)).unwrap(),
             Op::UnlockScene { scene } => writeln!(out, "mov %{},1", SCENE_UNLOCKED_BASE + scene).unwrap(),
+            // Starts the script over: the title screen.
+            Op::ReturnToTitle => writeln!(out, "reset").unwrap(),
             Op::ReturnToRoot => {
                 root_resumes += 1;
                 writeln!(out, "if {LINK_NEST} > 0 mov {ROOT_RESUME},{root_resumes}:return").unwrap();
