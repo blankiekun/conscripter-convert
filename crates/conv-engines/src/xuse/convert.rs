@@ -3262,7 +3262,7 @@ fn lower_instr(
             let Some(target) = label(ins.sub.into()) else { return Ok(None) };
             let o = ins.arg as u32 as usize;
             let (Some(a), Some(b)) = (pool_u32(cd.pool, o), pool_u32(cd.pool, o + 4)) else { return Ok(None) };
-            return Ok(Some(Op::If { var: var(a), cmp, value: b as i32, label: target }));
+            return Ok(Some(Op::If { var: var(a), cmp, value: Operand::Const(b as i32), label: target }));
         }
         // Arithmetic on variables (sub = target variable). 0x03 shares
         // the "-= variable" handler in the engine's dispatch table.

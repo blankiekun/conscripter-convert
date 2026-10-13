@@ -406,6 +406,7 @@ fn convert_game(game: &Path, output: &Path, font: Option<&Path>, title: &str, lo
         title: title.to_string(),
         width: 800,
         height: 600,
+        global_border: None,
         window: Some(window),
         title_screen,
         save_menu,
@@ -507,7 +508,7 @@ fn convert_script(game: &Path, script: u32, output: &Path, font: Option<&Path>, 
     let names = label_names(game)?;
     let ops =
         lower_script(&cd, &file, Flow::Jumps, &mut assets, &presets, &names).with_context(|| format!("converting {file}"))?;
-    let ir = Script { title: title.to_string(), width: 800, height: 600, window: Some(window), title_screen: None, save_menu: None, button_bar: None, settings: None, backlog: None, confirm: None, extras: None, ops };
+    let ir = Script { title: title.to_string(), width: 800, height: 600, global_border: None, window: Some(window), title_screen: None, save_menu: None, button_bar: None, settings: None, backlog: None, confirm: None, extras: None, ops };
 
     let source = image_format(output, conv_cons::emit(&ir), webp)?;
     let (encoded, lost) = conv_cons::encode(&source);
@@ -891,6 +892,7 @@ fn convert_nss(game: &Path, file: &str, scene: Option<&str>, chain: Option<usize
         title: title.to_string(),
         width: convert::SCREEN_W as u32,
         height: convert::SCREEN_H as u32,
+        global_border: None,
         window: compiled.window,
         title_screen: None,
         save_menu: None,

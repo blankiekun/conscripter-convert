@@ -152,11 +152,16 @@ pub fn emit(script: &Script) -> String {
     }
     let mut out = String::new();
 
-    let mode = match (script.width, script.height) {
+    let border = script.global_border.unwrap_or(GLOBAL_VAR_BASE);
+    let mut mode = match (script.width, script.height) {
         (800, 600) => ";mode800".to_string(),
         (640, 480) => ";mode640".to_string(),
         (w, h) => format!(";$S{w},{h}"),
     };
+    if script.global_border.is_some() {
+        // Variables below the border are saved with each save slot.
+        write!(mode, ",value{border}").unwrap();
+    }
     writeln!(out, "{mode}").unwrap();
     writeln!(out, "*define").unwrap();
     // Read arc.nsa (without this ONScripter only looks for .sar archives;
@@ -264,8 +269,8 @@ pub fn emit(script: &Script) -> String {
             Op::Gosub(name) => writeln!(out, "gosub *{}", label(name)).unwrap(),
             Op::Return => writeln!(out, "return").unwrap(),
             Op::Arith { var, op, value } => {
-                let value = operand(*value);
-                let target = var_name(*var);
+                let value = operand(*value, border);
+                let target = var_name(*var, border);
                 let cmd = match op {
                     ArithOp::Set => "mov",
                     ArithOp::Add => "add",
@@ -283,7 +288,7 @@ pub fn emit(script: &Script) -> String {
                 writeln!(out, "{cmd} {target},{value}").unwrap();
             }
             Op::If { var, cmp, value, label: target } => {
-                writeln!(out, "if {} {} {value} goto *{}", var_name(*var), cmp.operator(), label(target)).unwrap()
+                writeln!(out, "if {} {} {} goto *{}", var_name(*var, border), cmp.operator(), operand(*value, border), label(target)).unwrap()
             }
             Op::Background { image, fade_ms } => {
                 // NScripter's bg keeps lsp sprites; the game removes characters
@@ -317,7 +322,7 @@ pub fn emit(script: &Script) -> String {
                 let slot = SPRITE_BASE + layer;
                 writeln!(out, "spfilter {slot},0").unwrap();
                 for f in filters {
-                    let args = [&f.kind, &f.blend, &f.strength, &f.params[0], &f.params[1], &f.params[2]].map(|o| operand(*o));
+                    let args = [&f.kind, &f.blend, &f.strength, &f.params[0], &f.params[1], &f.params[2]].map(|o| operand(*o, border));
                     match f.kind {
                         Operand::Const(0) => {}
                         Operand::Const(_) => writeln!(out, "spfilter {slot},{}", args.join(",")).unwrap(),
@@ -370,7 +375,7 @@ pub fn emit(script: &Script) -> String {
                     None if *slot == 0 => writeln!(out, "screenfilter 0").unwrap(),
                     None => writeln!(out, "screenfilter {slot},0").unwrap(),
                     Some(f) => {
-                        let args = [&f.kind, &f.blend, &f.strength, &f.params[0], &f.params[1], &f.params[2]].map(|o| operand(*o));
+                        let args = [&f.kind, &f.blend, &f.strength, &f.params[0], &f.params[1], &f.params[2]].map(|o| operand(*o, border));
                         writeln!(out, "screenfilter {slot},{}", args.join(",")).unwrap();
                     }
                 }
@@ -1245,15 +1250,16 @@ fn with_markup(text: &str, links: &[TextLink], ruby: &[Ruby], styles: &[TextStyl
     out
 }
 
-fn operand(o: Operand) -> String {
+fn operand(o: Operand, border: u32) -> String {
     match o {
         Operand::Const(n) => n.to_string(),
-        Operand::Var(v) => var_name(v),
+        Operand::Var(v) => var_name(v, border),
     }
 }
 
-fn var_name(v: Var) -> String {
-    let base = if v.global { GLOBAL_VAR_BASE } else { LOCAL_VAR_BASE };
+/// `border`: the first global variable ([`Script::global_border`]).
+fn var_name(v: Var, border: u32) -> String {
+    let base = if v.global { border } else { LOCAL_VAR_BASE };
     format!("%{}", base + u32::from(v.index))
 }
 
@@ -1365,7 +1371,7 @@ mod tests {
     use conv_core::ir::{Animation, Noise, SourceLoc, SpriteChange, SpriteFilter, SpritePlacement, Voice, FILTER_BLEND_COPY, FILTER_BLEND_MULTIPLY, FILTER_BRIGHTNESS, FILTER_COLOUR};
 
     fn script(ops: Vec<Op>) -> Script {
-        Script { title: "Test".into(), width: 800, height: 600, window: None, title_screen: None, save_menu: None, button_bar: None, settings: None, backlog: None, confirm: None, extras: None, ops }
+        Script { title: "Test".into(), width: 800, height: 600, global_border: None, window: None, title_screen: None, save_menu: None, button_bar: None, settings: None, backlog: None, confirm: None, extras: None, ops }
     }
 
     fn link(start: usize, len: usize, target: Option<&str>) -> TextLink {
@@ -1958,7 +1964,7 @@ end
         let s = script(vec![
             Op::Arith { var: g, op: ArithOp::Set, value: Operand::Const(1) },
             Op::Arith { var: l, op: ArithOp::Add, value: Operand::Var(g) },
-            Op::If { var: g, cmp: Compare::Eq, value: 1, label: "s3_l2".into() },
+            Op::If { var: g, cmp: Compare::Eq, value: Operand::Const(1), label: "s3_l2".into() },
             Op::Gosub("s2_l18".into()),
             Op::Return,
         ]);

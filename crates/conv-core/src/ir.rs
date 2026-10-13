@@ -291,7 +291,7 @@ pub enum Op {
     /// `var = var <op> value`.
     Arith { var: Var, op: ArithOp, value: Operand },
     /// Jump to `label` if `var <cmp> value`.
-    If { var: Var, cmp: Compare, value: i32, label: String },
+    If { var: Var, cmp: Compare, value: Operand, label: String },
     /// Replace the background. Clears sprites, as most engines do.
     Background { image: String, fade_ms: u32 },
     /// Remove every sprite layer.
@@ -931,6 +931,10 @@ pub struct Script {
     pub title: String,
     pub width: u32,
     pub height: u32,
+    /// The first global variable (NScripter `value`): local variables (saved
+    /// with each save slot) can use more than the default 200. `None` =
+    /// NScripter's default (200).
+    pub global_border: Option<u32>,
     /// `None` = the engine's default full-screen (NVL) text window.
     pub window: Option<TextWindow>,
     /// `None` = start the script right away.

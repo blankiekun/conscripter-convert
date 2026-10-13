@@ -174,7 +174,7 @@ pub fn compile_run(files: &BTreeMap<String, NssFile>, start: &str, max_files: us
                 l
             };
             if fork {
-                c.ops.push(Op::If { var: CHOICE_VAR, cmp: conv_core::ir::Compare::Eq, value: i as i32, label: target });
+                c.ops.push(Op::If { var: CHOICE_VAR, cmp: conv_core::ir::Compare::Eq, value: Operand::Const(i as i32), label: target });
             } else {
                 c.ops.push(Op::Jump(target));
             }
@@ -1730,8 +1730,8 @@ scene a.nss
         assert_eq!(played, ["a.nss", "b.nss", "c.nss", "d.nss"]);
         let Some(Op::Choice { options }) = c.ops.iter().find(|op| matches!(op, Op::Choice { .. })) else { panic!() };
         assert_eq!(options.iter().map(|o| o.0.as_str()).collect::<Vec<_>>(), ["はい", "いいえ"]);
-        assert!(c.ops.contains(&Op::If { var: CHOICE_VAR, cmp: conv_core::ir::Compare::Eq, value: 0, label: "f_b".into() }));
-        assert!(c.ops.contains(&Op::If { var: CHOICE_VAR, cmp: conv_core::ir::Compare::Eq, value: 1, label: "f_c".into() }));
+        assert!(c.ops.contains(&Op::If { var: CHOICE_VAR, cmp: conv_core::ir::Compare::Eq, value: Operand::Const(0), label: "f_b".into() }));
+        assert!(c.ops.contains(&Op::If { var: CHOICE_VAR, cmp: conv_core::ir::Compare::Eq, value: Operand::Const(1), label: "f_c".into() }));
         // c.nss runs in the second branch's state: $flag unset, so on to d.
         let c_start = c.ops.iter().position(|op| *op == Op::Label("f_c".into())).unwrap();
         assert_eq!(c.ops[c_start + 1], Op::Jump("f_d".into()));
