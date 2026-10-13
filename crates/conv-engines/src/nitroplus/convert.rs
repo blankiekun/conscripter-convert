@@ -250,6 +250,9 @@ pub fn compile_run(files: &BTreeMap<String, NssFile>, start: &str, max_files: us
                 RUN_END.to_string()
             } else if next == name || next.is_empty() {
                 c.note("file didn't name a next file");
+                if std::env::var_os("NSS_TRACE").is_some() {
+                    eprintln!("{name}: no next file");
+                }
                 RUN_END.to_string()
             } else {
                 let l = file_label(&next);
@@ -887,6 +890,15 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 self.note("second fork in one file (the run forks on the last one)");
             }
             self.restore(leaves[0].state.clone());
+            // The code after the fork runs on every branch: story flags the
+            // branches set differently are tested at run time.
+            if own {
+                for (k, &v) in &self.flags {
+                    if differ(k) {
+                        self.vars.insert(k.clone(), Value::Runtime(v));
+                    }
+                }
+            }
             self.pending_fork = Some((var, leaves));
             return;
         }
@@ -2493,6 +2505,26 @@ scene {name}_Y
         // $f is 0: each file calls its own _Y scene, b.nss's last.
         assert_eq!(run_ir(&c.ops).get(&flags["$g"]), Some(&4));
         assert!(!c.notes.contains_key("call_scene to a runtime value with no known names"), "{:?}", c.notes);
+    }
+
+    #[test]
+    fn flags_a_choice_sets_are_tested_at_run_time_after_it() {
+        let mut files = BTreeMap::new();
+        files.insert(BOOT.to_string(), nss::parse("#include \"nss/function.nss\"\n").unwrap());
+        files.insert("function.nss".to_string(), nss::parse("function F(){}").unwrap());
+        // As mc01_010vs: the cases set flags, the next file is picked after
+        // the select.
+        let a = r#"scene a.nss_MAIN
+{
+	select { case @選択肢１ { $x = true; } case @選択肢２ { $y = true; } }
+	if($x == true){ $GameName = "b.nss"; } else if($y){ $GameName = "c.nss"; }
+}"#;
+        files.insert("a.nss".into(), nss::parse(a).unwrap());
+        for n in ["b.nss", "c.nss"] {
+            files.insert(n.into(), nss::parse(&format!("scene {n}_MAIN\n{{\n\t$GameCircle = 0;\n}}")).unwrap());
+        }
+        let (_, played) = compile_run(&files, "a.nss", 10, &mut Fake).unwrap();
+        assert_eq!(played, ["a.nss", "b.nss", "c.nss"]);
     }
 
     #[test]
