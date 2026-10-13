@@ -142,6 +142,20 @@ pub struct Noise {
     pub opacity: u32,
 }
 
+/// A full-screen animation ([`Op::Animation`]).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Animation {
+    /// The frames side by side, each as large as the screen, in the order
+    /// they play (a picture may appear more than once).
+    pub image: String,
+    /// How long each frame shows.
+    pub frame_ms: Vec<u32>,
+    /// Starts over after the last frame; otherwise the last frame stays.
+    pub looped: bool,
+    /// 0-256 (256 = opaque).
+    pub opacity: u32,
+}
+
 /// A moving effect on the whole picture ([`Op::ScreenEffect`]). Every
 /// `interval_ms` it takes a step; over `time_ms` its sizes go from their
 /// first to their last values, then stay.
@@ -229,6 +243,11 @@ pub enum Op {
     /// overlay, it stays when the background changes or the sprites are
     /// cleared. Shown at once unless a transition is open.
     Noise(Option<Noise>),
+    /// Play (or with `None` remove) a full-screen animation over the
+    /// sprites and the overlay, under the static and the text window. Like
+    /// the overlay, it stays when the background changes or the sprites
+    /// are cleared. Shown at once unless a transition is open.
+    Animation(Option<Animation>),
     /// Start (or with `None` stop) a moving effect on the picture behind
     /// the text window in `slot` (1-4); slot 0 with `None` stops them all.
     /// It runs by itself while the script goes on. Shown at once unless a

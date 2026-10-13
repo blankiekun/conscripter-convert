@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 
 use thiserror::Error;
 use conv_core::ir::{
-    ArithOp, Backlog, BarAction, BarButton, ButtonBar, ConfirmDialog, NamePlate, Noise, ScreenEffect, Setting, SettingRow, SettingsMenu, Op, Operand, PageButton, Placed, Rect, Ruby, SaveMenu, TextStyle, SourceLoc, Voice, VoiceToggle,
+    Animation, ArithOp, Backlog, BarAction, BarButton, ButtonBar, ConfirmDialog, NamePlate, Noise, ScreenEffect, Setting, SettingRow, SettingsMenu, Op, Operand, PageButton, Placed, Rect, Ruby, SaveMenu, TextStyle, SourceLoc, Voice, VoiceToggle,
     SpriteChange, SpriteFilter, SpritePlacement, TextLink, TextSpot, TextWindow, TitleAction, TitleButton, TitleScreen, TopBars,
     SlideLayer, TransitionStyle, Var, ZoomStyle, FILTER_BLEND_ADD, FILTER_BLEND_COPY, FILTER_BLEND_MULTIPLY, FILTER_BLEND_SCREEN, FILTER_BRIGHTNESS, FILTER_COLOUR, FILTER_MONOTONE,
     FILTER_GREYSCALE, FILTER_NEGATIVE,
@@ -108,6 +108,23 @@ const REPLAY_SCENES: i32 = 600;
 /// (handler 0x4784b0, wait callback 0x478370). arg 0 also turns skip mode
 /// off; with arg 1 skip mode passes through.
 const OP_CLICK_WAIT: u16 = 0x68;
+/// Full-screen animations (fx), four opcodes on one object (layer u8 0,
+/// depth u32 1000; the 0x7a records with layer 2 don't load animations and
+/// aren't converted):
+/// - 0x7a creates it (handler 0x414590): u8 layer, u32 depth, u8 group
+///   (3), u32 ?, u16 x, y, width, height, u8 blend (0 = normal), u16
+///   opacity (0-256), u8 visible;
+/// - 0x8b loads animation module 1 into it (0x416310, Aom_Animation_Parts):
+///   u8 layer, u32 depth, u32 module, u32 ?, 32-byte name (`fxNNNN`,
+///   an `.004` and an `.ap` in `HD/fx.arc`); it starts playing at once;
+/// - 0x8a waits until the module's last frame (0x416200, wait 0x4160d0;
+///   never for one that loops): u8 layer, u32 depth, u32 module, u8 a click
+///   or skip ends the wait;
+/// - 0x7b removes the object (0x414820): u8 layer, u32 depth, u8 ?.
+const OP_FX_CREATE: u16 = 0x7a;
+const OP_FX_LOAD: u16 = 0x8b;
+const OP_FX_WAIT: u16 = 0x8a;
+const OP_FX_REMOVE: u16 = 0x7b;
 /// Removes every character bust-up (arg is always -1).
 const OP_CLEAR_SPRITES: u16 = 0x8f;
 /// A second background object, "bg-<slot>" (handlers 0x422440, 0x4222c0,
@@ -212,6 +229,49 @@ pub struct AssetBank {
     used_names: HashSet<String>,
     /// The sound bank read last; voices arrive mostly in bank order.
     last_bank: Option<(PathBuf, Vec<u8>)>,
+    /// `HD/fx.arc` once read, and the animations written from it.
+    fx_arc: Option<Vec<u8>>,
+    animations: HashMap<String, Option<FxAnimation>>,
+}
+
+/// A full-screen animation from `HD/fx.arc`, written as one picture.
+#[derive(Debug, Clone)]
+pub struct FxAnimation {
+    pub image: String,
+    pub frame_ms: Vec<u32>,
+    pub looped: bool,
+}
+
+/// An animation script (`fxNNNN.ap` in `HD/fx.arc`): text statements
+/// ending in ";", "#" comments. The name, the offset ("0 0"), loop (1 =
+/// start over, else the last frame stays; Aom_Animation_Parts 0x418150),
+/// a "default" frame (not used here), the frame count, then one "picture
+/// ms flags" line per frame, pictures counted from 1 in the `.004` next
+/// to it (the flags are always 0).
+struct AnimationScript {
+    looped: bool,
+    frames: Vec<(usize, u32)>,
+}
+
+fn parse_animation_script(text: &str) -> Option<AnimationScript> {
+    let mut statements = text
+        .lines()
+        .map(|l| l.split('#').next().unwrap_or("").trim())
+        .filter(|l| !l.is_empty())
+        .map(|l| l.trim_end_matches(';').trim());
+    let _name = statements.next()?;
+    let _offset = statements.next()?;
+    let looped = statements.next()? == "1";
+    let _default = statements.next()?;
+    let count: usize = statements.next()?.parse().ok()?;
+    let frames = statements
+        .take(count)
+        .map(|l| {
+            let mut f = l.split_whitespace().map(str::parse::<u32>);
+            Some((f.next()?.ok()? as usize, f.next()?.ok()?))
+        })
+        .collect::<Option<Vec<_>>>()?;
+    (frames.len() == count && count > 0 && frames.iter().all(|&(p, _)| p > 0)).then_some(AnimationScript { looped, frames })
 }
 
 /// The assets a set of scripts uses (numbers as in the script).
@@ -273,6 +333,8 @@ impl AssetBank {
             written: HashMap::new(),
             used_names: HashSet::new(),
             last_bank: None,
+            fx_arc: None,
+            animations: HashMap::new(),
         }
     }
 
@@ -390,6 +452,63 @@ impl AssetBank {
         write_file(&self.out.join(&name), &png)?;
         self.written.insert(("noise", 0), name.clone());
         Ok(name)
+    }
+
+    /// Animation `name` from `HD/fx.arc` (`name.004` pictures played as
+    /// `name.ap` says), its frames side by side in playing order, opaque
+    /// like the original's (blend 0, Aom_Animation_Parts). `None` if its
+    /// script can't be read.
+    pub fn animation(&mut self, name: &str) -> Result<Option<FxAnimation>, ConvertError> {
+        if let Some(a) = self.animations.get(name) {
+            return Ok(a.clone());
+        }
+        let path = self.game.join("HD").join("fx.arc");
+        if self.fx_arc.is_none() {
+            self.fx_arc = Some(fs::read(&path).map_err(|source| ConvertError::Io { path: path.clone(), source })?);
+        }
+        let bytes = self.fx_arc.as_deref().unwrap();
+        let arc = Xarc::parse(bytes).map_err(|source| ConvertError::Xarc { path: path.clone(), source })?;
+        let script = arc
+            .entries
+            .iter()
+            .find(|e| e.name == format!("{name}.ap"))
+            .and_then(|e| parse_animation_script(&encoding_rs::SHIFT_JIS.decode(arc.data(e)).0));
+        let animation = match script {
+            Some(script) => self.write_animation(&arc, &path, name, &script)?,
+            None => None,
+        };
+        self.animations.insert(name.to_string(), animation.clone());
+        Ok(animation)
+    }
+
+    fn write_animation(&self, arc: &Xarc, path: &Path, name: &str, script: &AnimationScript) -> Result<Option<FxAnimation>, ConvertError> {
+        let file = format!("{name}.004");
+        let Some(entry) = arc.entries.iter().find(|e| e.name == file) else { return Ok(None) };
+        let gaf_path = path.join(&file);
+        let gaf = Gaf::parse(arc.data(entry)).map_err(|source| ConvertError::Gaf { path: gaf_path.clone(), source })?;
+        let images = gaf.images().map_err(|source| ConvertError::Gaf { path: gaf_path, source })?;
+        let mut pictures = Vec::new();
+        for i in &images {
+            let img = image::load_from_memory_with_format(i.png, image::ImageFormat::Png)
+                .map_err(|source| ConvertError::Image { what: file.clone(), source })?
+                .to_rgb8();
+            pictures.push(img);
+        }
+        let Some((w, h)) = pictures.first().map(|p| p.dimensions()) else { return Ok(None) };
+        if script.frames.iter().any(|&(p, _)| pictures.get(p - 1).is_none_or(|i| i.dimensions() != (w, h))) {
+            return Ok(None);
+        }
+        let mut strip = image::RgbImage::new(w * script.frames.len() as u32, h);
+        for (n, &(p, _)) in script.frames.iter().enumerate() {
+            image::imageops::replace(&mut strip, &pictures[p - 1], i64::from(w) * n as i64, 0);
+        }
+        let image = format!("fx/{name}.png");
+        let mut png = Vec::new();
+        strip
+            .write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
+            .map_err(|source| ConvertError::Image { what: image.clone(), source })?;
+        write_file(&self.out.join(&image), &png)?;
+        Ok(Some(FxAnimation { image, frame_ms: script.frames.iter().map(|&(_, ms)| ms).collect(), looped: script.looped }))
     }
 
     /// Text window for a preset: the measured ADV box for style 0, else the
@@ -1467,6 +1586,10 @@ pub fn lower_script(
     let mut page_break = false;
     // Opcode 0x8c slots and the kind each holds (file order).
     let mut env_slots = BTreeMap::new();
+    // The fx object: its opacity once 0x7a made it, and the animation
+    // 0x8b loaded into it (file order).
+    let mut fx_opacity: Option<u32> = None;
+    let mut fx_frames: Option<(Vec<u32>, bool)> = None;
     for (index, ins) in cd.code.iter().enumerate() {
         if let Some(label) = own_labels.get(&index) {
             ops.push(Op::Label(format!("s{}_l{label}", cd.script_id)));
@@ -1525,6 +1648,54 @@ pub fn lower_script(
                     ops.push(Op::Overlay { image, over_sprites: layer == 2 });
                 }
                 _ => ops.push(Op::Unsupported { what: format!("opcode {:#04x} record {record:?}", ins.op), at: at() }),
+            }
+            continue;
+        }
+        if matches!(ins.op, OP_FX_CREATE | OP_FX_LOAD | OP_FX_WAIT | OP_FX_REMOVE) {
+            let o = ins.arg as u32 as usize;
+            let record = cd.pool.get(o..).unwrap_or(&[]);
+            let unsupported = || Op::Unsupported { what: format!("opcode {:#04x} record {:02x?}", ins.op, &record[..record.len().min(24)]), at: at() };
+            let u16_at = |i: usize| record.get(i..i + 2).map(|b| u16::from_le_bytes([b[0], b[1]]));
+            if record.first() != Some(&0) {
+                ops.push(unsupported());
+                continue;
+            }
+            match ins.op {
+                OP_FX_CREATE => {
+                    let full_screen = [u16_at(10), u16_at(12), u16_at(14), u16_at(16)] == [Some(0), Some(0), Some(800), Some(600)];
+                    match (full_screen, record.get(18), u16_at(19)) {
+                        (true, Some(0), Some(opacity)) => fx_opacity = Some(u32::from(opacity).min(256)),
+                        _ => ops.push(unsupported()),
+                    }
+                }
+                OP_FX_LOAD => {
+                    let name = record.get(13..45).map(|n| n.split(|&b| b == 0).next().unwrap_or(&[]));
+                    let name = name.and_then(|n| std::str::from_utf8(n).ok()).filter(|n| n.starts_with("fx"));
+                    let animation = match name {
+                        Some(name) => assets.animation(name)?,
+                        None => None,
+                    };
+                    match (animation, fx_opacity) {
+                        (Some(a), Some(opacity)) => {
+                            fx_frames = Some((a.frame_ms.clone(), a.looped));
+                            ops.push(Op::Animation(Some(Animation { image: a.image, frame_ms: a.frame_ms, looped: a.looped, opacity })));
+                        }
+                        _ => ops.push(unsupported()),
+                    }
+                }
+                OP_FX_WAIT => match &fx_frames {
+                    // Until the last frame shows; a click ends `delay` too.
+                    Some((frames, false)) => ops.push(Op::Wait { ms: frames[..frames.len() - 1].iter().sum() }),
+                    Some((_, true)) => {}
+                    None => ops.push(unsupported()),
+                },
+                _ => {
+                    if fx_opacity.take().is_some() && fx_frames.take().is_some() {
+                        ops.push(Op::Animation(None));
+                    } else {
+                        ops.push(unsupported());
+                    }
+                }
             }
             continue;
         }
@@ -2171,6 +2342,16 @@ mod tests {
         ops.clear();
         lower_quake(&Quake { speed: 80, range: (0, 0) }, &mut ops);
         assert!(ops.is_empty());
+    }
+
+    #[test]
+    fn animation_scripts() {
+        let ap = "fx0401;\r\n0 0;\r\n0;\r\n5;\t\t\t\t# default\r\n3;\r\n1  33 0000;\r\n2  50 0000;\r\n1  33 0000;\r\n\r\n";
+        let s = parse_animation_script(ap).unwrap();
+        assert!(!s.looped);
+        assert_eq!(s.frames, [(1, 33), (2, 50), (1, 33)]);
+        assert!(parse_animation_script(&ap.replace("3;", "4;")).is_none());
+        assert!(parse_animation_script("fx;\n0 0;\n1;\n1;\n1;\n0 33 0;\n").is_none());
     }
 
     #[test]

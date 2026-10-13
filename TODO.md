@@ -23,8 +23,8 @@ notes, git-ignored) and `PLAN.md` §4.2 and §6 ("Remaining work for
 
 ## Next
 
-Opcodes 0x93/0x94 (scene replay unlocks) and 0x37/0x38 (chapter end)
-are done. Pick the next item from
+Opcodes 0x93/0x94 (scene replay unlocks), 0x37/0x38 (chapter end) and
+the fx animations (0x7a/0x8b/0x8a/0x7b) are done. Pick the next item from
 "3. Next work". Unchecked against the original under wine: quakes,
 flashes (ours are under the text window; the original's cover it),
 pulses (especially presets 6-8: blend 6 is assumed to lay white over
@@ -211,7 +211,26 @@ engines print `z150` etc.). The web build compiles with it.
       (ChapterBar.cpp): `mov $150,""` (an empty `strsp` is fine). Both do
       nothing in replay modes 1/2. The chapter history itself is probably
       recorded by 0x36 (0x475660); not looked at. Unsupported: 1,122 → 620.
-- [ ] Opcodes still emitted as comments (620 left): `0x7a`/`0x7b`, `0x8a`/`0x8b`, `0x70` leftovers.
+- [x] `0x7a`/`0x8b`/`0x8a`/`0x7b` (91/85/73/89): full-screen animations
+      (fx), one object at layer 0, depth 1000. 0x7a creates it (handler
+      0x414590; record: group, rect 0,0,800,600, blend 0 = normal, opacity
+      256), 0x8b loads `fxNNNN` from `HD/fx.arc` into it (Aom_Animation_Parts:
+      `.004` frames + a text `.ap`: name, offset, loop, "default" frame,
+      count, then "picture ms flags" per frame, pictures from 1); 0x8a waits
+      until the last frame (busy check 0x418230; looping ones never block;
+      a click ends it); 0x7b removes it. Converted as an opaque animated
+      sprite (`:c/N,<ms,…>,mode`, mode 1 holds the last frame) from a strip
+      of the frames in playing order (`fx/fxNNNN.png`, packed; not WebP:
+      strips reach 37,600 px), kept across `csp -1` and link scenes like
+      the static (`%117`/`$117`, saved at `%13+depth`). Sprite 59: the UI
+      slots moved down one instead (name 49/50, link words 51-58, `humanz
+      58`), so the game's sprites and old saves keep their numbers.
+      Checked headless: the slash (fx0401) covers the scene and the
+      character, then holds its black last frame until 0x7b. `arc.nsa`
+      grows by 175 MB. Not converted: the layer-2 0x7a/0x7b records (6/7
+      uses, no animation loaded). Unsupported: 620 → 296.
+- [ ] Opcodes still emitted as comments (296 left): `0x70` leftovers (62),
+      `0x59` (47), `0x82` (38), `0x69` (32), rarer ones.
 - [ ] Transitions still drawn as cross-fades: Wave, Dissolve, RollFlip,
       SoftEdgeWipe, TvPowerSwitch, BoxRolling, SmoothCrossFade, Dot4x4,
       MeltDown (PLAN §6 "Accuracy").

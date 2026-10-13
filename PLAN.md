@@ -533,8 +533,13 @@ parts are not converted:
 - `0x93`/`0x94` are done: `0x93 N` unlocks scene N of the scene replay
   (global flag `%3000+N`), `0x94` ends a replayed scene (a no-op in play,
   emitted as `; scene end` until the replay exists);
-- `0x7a`/`0x7b` (about 90 each), `0x8a`/`0x8b` and about 30 rarer ones
-  (`0x6d` quakes, `0x6e` flashes and `0x6f` pulses are done). `0x55` is done: a second background object, mostly the
+- `0x7a`/`0x8b`/`0x8a`/`0x7b` are done: full-screen animations from
+  `HD/fx.arc` (an `.004` of frames and an `.ap` script each), drawn
+  opaque as an animated sprite (sprite 59, a strip of frames in `fx/`)
+  that outlasts background changes; `0x8a` waits for a one-shot's last
+  frame. Not converted: the rarer layer-2 `0x7a`/`0x7b` records (6 and 7
+  uses), which load no animation;
+- about 30 rarer opcodes (`0x6d` quakes, `0x6e` flashes and `0x6f` pulses are done). `0x55` is done: a second background object, mostly the
   `frameNN` overlays (letterbox bars, speed lines), drawn as sprite 61
   (over the characters) or 999 (under them) and kept across background
   changes; `0x8c`'s static is sprite 60, over it;

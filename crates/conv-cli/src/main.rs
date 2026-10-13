@@ -200,7 +200,9 @@ fn main() -> Result<()> {
     }
 }
 
-const ASSET_DIRS: [&str; 6] = ["bg", "sprite", "bgm", "se", "system", "voice"];
+const ASSET_DIRS: [&str; 7] = ["bg", "sprite", "bgm", "se", "system", "voice", "fx"];
+/// Not `fx`: its animations are strips up to 47 screens wide, and WebP
+/// pictures can't be wider than 16,383 pixels.
 const IMAGE_DIRS: [&str; 3] = ["bg", "sprite", "system"];
 
 /// With `webp`, re-encodes the images in `output` as WebP and points the
