@@ -88,6 +88,9 @@ pub fn emit(script: &Script) -> String {
         // pages of history than the default 16.
         writeln!(out, "usewheel").unwrap();
         writeln!(out, "maxkaisoupage 100").unwrap();
+        // Text lines carry the speaker and voice as a tag for the backlog
+        // (gettaglog); tags are only kept with a pretextgosub.
+        writeln!(out, "pretextgosub *{}", menu::PRETEXT).unwrap();
     }
     if script.button_bar.is_some() {
         // Every click wait runs the bar routine instead of waiting itself.
@@ -140,6 +143,8 @@ pub fn emit(script: &Script) -> String {
     // the text that uses them) and the lines already on its page.
     let mut window = script.window.clone();
     let mut page_rows = 0;
+    // The backlog tag of the page being written: its first speaker and voice.
+    let mut page_tag: Option<String> = None;
     for op in &script.ops {
         if let (Some(e), Op::Text { .. }) = (transition, op) {
             writeln!(out, "print {e}").unwrap();
@@ -294,6 +299,19 @@ pub fn emit(script: &Script) -> String {
                     .zip(text.split('\n'))
                     .map(|(l, src)| align_single_bytes(&if starts_ascii(src) { format!("　{l}") } else { l.to_string() }))
                     .collect();
+                // A name the plate shows (else it's in the text already).
+                let tag_name = speaker.as_deref().filter(|_| plate.is_some()).map(escape).unwrap_or_default();
+                let tag_voice = voice.as_ref().map(|v| v.file.replace('\\', "/")).unwrap_or_default();
+                if script.backlog.is_some() && page_tag.is_none() && !(tag_name.is_empty() && tag_voice.is_empty()) {
+                    page_tag = Some(format!("[{}|{tag_voice}]", tag_name.replace('|', "｜")));
+                }
+                let lines: Vec<String> = match &page_tag {
+                    Some(tag) => lines.into_iter().map(|l| format!("{tag}{l}")).collect(),
+                    None => lines,
+                };
+                if !*continues || page.is_some() {
+                    page_tag = None;
+                }
                 let rows_before = page_rows;
                 page_rows = if *continues { page_rows + lines.len() } else { 0 };
                 let Some(page) = page else {
@@ -1028,6 +1046,36 @@ end
         assert!(text.contains("setwindow 105,470,25,3,24,24,1,13,20,0,1,\":a;system\\window.png\",47,452\nerasetextwindow 0\n"));
         assert!(text.contains("lsp 51,\":a;system\\name.png\",55,412\nstrsp 50,\"名前\",75,422,16,1,20,20,1,0,0,1\nprint 1\n「台詞」\\\n"));
         assert!(text.contains("csp 51\ncsp 50\nprint 1\n　Ghost \\\n"));
+        // With a backlog, lines carry their page's first speaker and voice.
+        use conv_core::ir::{Backlog, Placed, Rect};
+        let p = Placed { image: "system/x.png".into(), x: 0, y: 0, w: 10, h: 10 };
+        s.backlog = Some(Backlog {
+            base: p.clone(),
+            base_opacity: 200,
+            frame: p.clone(),
+            track: p.clone(),
+            up: p.clone(),
+            down: p.clone(),
+            close: p,
+            area: Rect { x: 30, y: 44, w: 700, h: 516 },
+            font_size: 16,
+            line_height: 24,
+            columns: 41,
+        });
+        let voice = |n: &str| Some(Voice { file: format!("voice/{n}.ogg"), character: 1 });
+        s.ops = vec![
+            Op::Text { speaker: None, text: "地の文".into(), voice: None, links: vec![], continues: true },
+            Op::Text { speaker: Some("名前".into()), text: "「一」\n「二」".into(), voice: voice("a"), links: vec![], continues: true },
+            Op::Text { speaker: Some("他".into()), text: "「三」".into(), voice: voice("b"), links: vec![], continues: false },
+            Op::Text { speaker: None, text: "地の文".into(), voice: None, links: vec![], continues: false },
+        ];
+        let text = emit(&s);
+        assert!(text.contains("pretextgosub *conv_pretext\n"));
+        assert!(text.contains("\n地の文@\n"));
+        assert!(text.contains("\n[名前|voice/a.ogg]「一」\n[名前|voice/a.ogg]「二」@\n"));
+        assert!(text.contains("\n[名前|voice/a.ogg]「三」\\\n"));
+        assert!(text.contains("\n地の文\\\n"));
+        assert!(text.contains("*conv_pretext\nsaveon\nreturn\n"));
     }
 
     #[test]

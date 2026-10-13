@@ -150,14 +150,20 @@ around in the script today), roughly in order of payoff:
 
 | Game feature | Workaround today | Engine feature that would fix it |
 |---|---|---|
-| Speaker names in the backlog | Names missing (the name plate is a sprite) | Store a name with each log page |
-| Voice replay from the backlog | Not converted | Store the voice file with each log page |
 | Deleting a save | A global flag per slot hides it | A delete-save command; thumbnails stored next to the saves |
 | Archive size on the web | PNG only (the WASM build has no WebP decoder) | WebP support in the web build |
 | Movies (`mv*.bin`, MPEG-PS) | Not converted | Movie playback that works in the web build (e.g. an HTML5 video overlay) |
 | Slide, scroll, mosaic, zoom transitions | Drawn as cross-fades | Map to ONScripter's own effects where they exist, add the rest |
 | BGM loop points | Tracks loop from the start | Loop start for `bgm` (`loopbgm` exists but plays from memory, outside the BGM channel) |
 | Right-click menu / hide window | Everything behind the on-screen button bar | Send right-click to a script label (`rgosub`-style); not planned for now |
+
+Done without engine work:
+- **Backlog speaker names and voice replay:** every text line starts with
+  a `[name|voice]` tag (its page's first speaker shown on a name plate and
+  first voice clip). ONScripter keeps a page's tag in the log, and in
+  saves, when there is a `pretextgosub`; ours only runs `saveon`. The
+  backlog reads it with `gettaglog`, splits it, shows the name above the
+  page and replays the voice when the name (marked ♪) is clicked.
 
 Probably no engine work needed:
 - **Japanese window caption:** ONScripter-Yuri's `caption` already
@@ -472,8 +478,6 @@ parts are not converted:
   behaviour, shortcut-menu position, gamepad.
 
 **Other system screens.**
-- Backlog: speaker names (the name plate is a sprite, not in ONScripter's
-  text log) and voice replay. Both need CONscripter additions (§4.2).
 - Blog bar: prev/next/exit buttons and the scene list (drawn disabled).
 - Chapter history (`ChapterHistory.004`, opcodes 0x37/0x38) and the
   autosave slots.
