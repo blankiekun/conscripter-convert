@@ -620,6 +620,33 @@ impl AssetBank {
         Ok(name)
     }
 
+    /// A linear gradient mask for a wipe whose edge travels in direction
+    /// (`dx`, `dy`): dark where the new picture appears first.
+    pub fn wipe_mask(&mut self, dx: i8, dy: i8) -> Result<String, ConvertError> {
+        let dir = match (dx, dy) {
+            (1, _) => "right",
+            (-1, _) => "left",
+            (_, 1) => "down",
+            _ => "up",
+        };
+        let name = format!("system/wipe_{dir}.png");
+        let key = ("wipe", usize::from(dir.as_bytes()[0]));
+        if self.written.contains_key(&key) {
+            return Ok(name);
+        }
+        let img = image::GrayImage::from_fn(800, 600, |x, y| {
+            let (pos, len) = if dx != 0 { (x, 800) } else { (y, 600) };
+            let along = if dx < 0 || dy < 0 { len - 1 - pos } else { pos };
+            image::Luma([(along * 255 / (len - 1)) as u8])
+        });
+        let mut png = Vec::new();
+        img.write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
+            .map_err(|source| ConvertError::Image { what: name.clone(), source })?;
+        write_file(&self.out.join(&name), &png)?;
+        self.written.insert(key, name.clone());
+        Ok(name)
+    }
+
     /// A 4×4 Bayer matrix tiled over the screen as a mask (16 grey
     /// levels, dark first): an ordered-dither dissolve.
     pub fn dither_mask(&mut self) -> Result<String, ConvertError> {
@@ -2422,7 +2449,21 @@ pub fn lower_script(
                     // picture over with blend 6, a 4×4 ordered dither
                     // (kernel 0x4430a0): the mask transition over a tiled
                     // Bayer mask reveals the same pattern step by step.
-                    let mask = if ins.sub == TRANSITION_DISSOLVE { Some(assets.dither_mask()?) } else { None };
+                    let mask = match ins.sub {
+                        TRANSITION_DISSOLVE => Some(assets.dither_mask()?),
+                        // Trans_SoftEdgeWipe (setup 0x4481e0 with sub - 5;
+                        // directions seen under wine): 5 up from the bottom,
+                        // 6 from the left, 7 down from the top, 8 from the
+                        // right, with a soft edge of about 64 px. Drawn as a
+                        // hard wipe through a gradient (ONScripter's soft
+                        // mask fade can't keep a narrow edge across the
+                        // screen).
+                        5..=8 => {
+                            let (dx, dy) = [(0, -1), (1, 0), (0, 1), (-1, 0)][usize::from(ins.sub - 5)];
+                            Some(assets.wipe_mask(dx, dy)?)
+                        }
+                        _ => None,
+                    };
                     ops.push(Op::BeginTransition {
                         effect: transition_name(ins.sub).to_string(),
                         fade_ms,
@@ -2889,7 +2930,7 @@ fn transition_style(sub: u16) -> TransitionStyle {
             TransitionStyle::Curtain { dx, dy }
         }
         27 => TransitionStyle::Mosaic,
-        TRANSITION_DISSOLVE => TransitionStyle::Threshold,
+        TRANSITION_DISSOLVE | 5..=8 => TransitionStyle::Threshold,
         37 => zoom(ZoomStyle::NewIn, 5100),
         38 => zoom(ZoomStyle::OldOut, 5100),
         39 => zoom(ZoomStyle::Through, 5100),
@@ -2975,6 +3016,7 @@ mod tests {
         assert_eq!(transition_style(0), TransitionStyle::Curtain { dx: 0, dy: 1 });
         assert_eq!(transition_style(1), TransitionStyle::Curtain { dx: -1, dy: 0 });
         assert_eq!(transition_style(26), TransitionStyle::Threshold);
+        assert_eq!(transition_style(7), TransitionStyle::Threshold);
         assert_eq!(transition_name(20), "Slide out");
     }
 

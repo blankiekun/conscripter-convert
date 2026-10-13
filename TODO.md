@@ -336,8 +336,16 @@ engines print `z150` etc.). The web build compiles with it.
       16 px bands open in shrinking strips. Converted to ONScripter's
       curtains: sub 0 top down → 8, 1 right to left → 7, 2 bottom up → 9,
       3 left to right → 6. Not compared frame by frame with the original.
-- [ ] Transitions still drawn as cross-fades: RollFlip (24),
-      TvPowerSwitch (11), SoftEdgeWipe (10), BoxRolling (8),
+- [x] SoftEdgeWipe (10 uses, subs 5-8): directions seen under wine (0004.cd
+      #13 patched to each sub, 8 s): 5 up from the bottom, 6 from the
+      left, 7 down from the top, 8 from the right; soft edge about 64 px.
+      Converted as a hard wipe (effect 15) through a linear gradient
+      (`system/wipe_*.png`): ONScripter's soft mask fade (18) can't keep a
+      narrow edge across the screen.
+- [ ] RollFlip (24): squashes a picture along one axis by sin/cos of the
+      progress (0x446460; flags +0x90 axis, +0x91 sin or cos and which
+      picture): a card flip. Needs a CONscripter effect plugin.
+- [ ] Transitions still drawn as cross-fades: TvPowerSwitch (11), BoxRolling (8),
       SmoothCrossFade (8), Dot4x4 (3), MeltDown (3) (PLAN §6 "Accuracy").
 - [x] Bars always shown (user's request, 2026-10-13): the top bars and
       the bottom button bar draw at every click wait; the hover hotspots
