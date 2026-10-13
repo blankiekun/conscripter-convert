@@ -28,7 +28,7 @@ Opcodes 0x70 (leftovers), 0x59, 0x82 and 0x69 are done (unsupported
 (engine `5516a1a`, released in CONscripter 0.14.0, tag `v0.14.0`,
 Android versionCode 17). Slides (0x86/0x87/0x7f, unsupported 119 → 81) are done too, checked
 headless in 0010.cd's 沙也加 slide. Pick the next item from "3. Next
-work": 0x84/0x7d/0x7c groups are the biggest left. Unchecked against the original under wine: quakes,
+work": 0x99 and 0x9d are the biggest left. Unchecked against the original under wine: quakes,
 flashes (ours are under the text window; the original's cover it),
 pulses (especially presets 6-8: blend 6 is assumed to lay white over
 the copy, `tint 2`).
@@ -256,11 +256,15 @@ engines print `z150` etc.). The web build compiles with it.
       (0002.cd #14) and a -90° rotation (0043.cd #440). Record layouts in
       PLAN §6. Checked headless (0010.cd: 沙也加 slides from x 420 to 550).
       Unsupported: 119 → 81.
-- [ ] Opcodes still emitted as comments (81 left): `0x84` (10), `0x99`
-      (8), `0x7b` (8, layer 2), `0x9d` (6), `0x7c` (6), `0x7a` (6, layer
-      2), `0x7d` (5), rarer ones. 0x7c-0x85 are object operations on the
-      same key as 0x82 (handlers 0x413940-0x414460); 0x84/0x7d/0x7c come
-      in groups (0087.cd #23, 0135.cd #48).
+- [x] `0x84`/`0x7d`/`0x7c` (10/5/6) and `0x7a`/`0x7b` on layer 2 (6/8):
+      picture, anchor and visibility of a layer 2 object (= a character's
+      bust-up slot); the blog scenes show close-ups and 0135.cd's install
+      meter this way. Converted as `Op::Sprites` on the character layer;
+      the stray layer 0 `0x7b` (0012.cd #916) as a plain fx removal.
+      Checked headless (0135.cd meter at 70 %, 0087.cd close-up).
+      Unsupported: 81 → 46.
+- [ ] Opcodes still emitted as comments (46 left): `0x99` (8), `0x9d`
+      (6), `0x39` (4), `0x56` (3), rarer ones.
 - [ ] Transitions still drawn as cross-fades: Wave, Dissolve, RollFlip,
       SoftEdgeWipe, TvPowerSwitch, BoxRolling, SmoothCrossFade, Dot4x4,
       MeltDown (PLAN §6 "Accuracy").

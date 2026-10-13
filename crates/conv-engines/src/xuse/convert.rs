@@ -114,11 +114,11 @@ const OP_CLICK_WAIT: u16 = 0x68;
 /// the original under wine); skip mode passes it.
 const OP_CLICK_WAIT_SKIPPABLE: u16 = 0x69;
 /// Full-screen animations (fx), four opcodes on one object (layer u8 0,
-/// depth u32 1000; the 0x7a records with layer 2 don't load animations and
-/// aren't converted):
+/// depth u32 1000; for 0x7a and 0x7b with layer 2 see [`OP_PICTURE`]):
 /// - 0x7a creates it (handler 0x414590): u8 layer, u32 depth, u8 group
-///   (3), u32 ?, u16 x, y, width, height, u8 blend (0 = normal), u16
-///   opacity (0-256), u8 visible;
+///   (3; the sort band through the table at 0x503e68), u32 sort depth, u16
+///   x, y, width, height, u8 blend (0 = normal), u16 opacity (0-256), u8
+///   visible;
 /// - 0x8b loads animation module 1 into it (0x416310, Aom_Animation_Parts):
 ///   u8 layer, u32 depth, u32 module, u32 ?, 32-byte name (`fxNNNN`,
 ///   an `.004` and an `.ap` in `HD/fx.arc`); it starts playing at once;
@@ -149,6 +149,23 @@ const OP_OVERLAY: u16 = 0x55;
 /// The game uses layer 2 (34 uses, characters 1-60) and layer 1 depth 2
 /// (3, the overlay "bg-2" of 0x55) and depth 1 (1, after 0x56).
 const OP_OPACITY: u16 = 0x82;
+/// Loads a picture into an object (handler 0x414180): u8 layer, u32 depth
+/// (found as in 0x82), u8 kind, u32 number (image id kind × 10,000,000 +
+/// number - 1, so kind 2 numbers bust-ups as 0x8e does), u8 ?. The game
+/// uses it on layer 2 objects that 0x7a made (6 uses: blog scenes, a
+/// hidden object at depth 2000 in band 4, above the bust-ups), then 0x7d
+/// and 0x7c; one scene (0135.cd) steps a meter through five pictures. 0x7b
+/// on layer 2 removes the object, also a bust-up 0x8e made (5 uses).
+const OP_PICTURE: u16 = 0x84;
+const PICTURE_KIND_BUSTUP: u8 = 2;
+/// Sets which point of an object its position names (handler 0x413940):
+/// u8 layer, u32 depth, u8 horizontal, u8 vertical, each 0-2 (left/top,
+/// centre, right/bottom; flags 0x504028/0x504034 in field +0x180, 0 for a
+/// new object).
+const OP_ANCHOR: u16 = 0x7d;
+/// Shows or hides an object (handler 0x414460, 0x40f1b0): u8 layer, u32
+/// depth, u8 visible (0xff in every use).
+const OP_SHOW: u16 = 0x7c;
 /// Puts an object at a position (handler 0x413bb0): u8 layer, u32 depth
 /// (found as in 0x82), i32 x, y, the centre in 0x8e's coordinates.
 const OP_POSITION: u16 = 0x7f;
@@ -1685,6 +1702,32 @@ fn motion(pool: &[u8], o: usize) -> Option<Motion> {
     Some(motion)
 }
 
+/// A layer 2 object made by 0x7a ([`OP_PICTURE`]), in file order.
+#[derive(Debug, Default)]
+struct Picture {
+    x: i32,
+    y: i32,
+    /// 0x7d's horizontal and vertical anchor (0-2).
+    anchor: (u8, u8),
+    /// Bust-up number (as in 0x8e).
+    sprite: Option<u32>,
+    visible: bool,
+}
+
+impl Picture {
+    /// The sprite change that shows the object as it now is.
+    fn change(&self, assets: &mut AssetBank, layer: u32) -> Result<Option<SpriteChange>, ConvertError> {
+        let Some(number) = self.sprite.filter(|_| self.visible) else { return Ok(None) };
+        let img = assets.sprite(number as usize)?;
+        let sprite = SpritePlacement {
+            image: img.path,
+            x: self.x - img.width as i32 * i32::from(self.anchor.0) / 2,
+            y: self.y - img.height as i32 * i32::from(self.anchor.1) / 2,
+        };
+        Ok(Some(SpriteChange { layer, sprite: Some(sprite), keep_filters: false }))
+    }
+}
+
 /// Where a bust-up entry's image goes on screen.
 fn placement(assets: &mut AssetBank, e: &SpriteEntry) -> Result<SpritePlacement, ConvertError> {
     let img = assets.sprite(e.sprite as usize)?;
@@ -1734,6 +1777,8 @@ pub fn lower_script(
     // 0x8b loaded into it (file order).
     let mut fx_opacity: Option<u32> = None;
     let mut fx_frames: Option<(Vec<u32>, bool)> = None;
+    // Layer 2 objects 0x7a made, by depth (= character layer).
+    let mut pictures: HashMap<u32, Picture> = HashMap::new();
     for (index, ins) in cd.code.iter().enumerate() {
         if let Some(label) = own_labels.get(&index) {
             ops.push(Op::Label(format!("s{}_l{label}", cd.script_id)));
@@ -1839,6 +1884,63 @@ pub fn lower_script(
             }
             continue;
         }
+        if matches!(ins.op, OP_FX_CREATE | OP_FX_REMOVE | OP_PICTURE | OP_ANCHOR | OP_SHOW)
+            && cd.pool.get(ins.arg as u32 as usize) == Some(&2)
+        {
+            let o = ins.arg as u32 as usize;
+            let record = cd.pool.get(o..).unwrap_or(&[]);
+            let unsupported = || Op::Unsupported { what: format!("opcode {:#04x} record {:02x?}", ins.op, &record[..record.len().min(24)]), at: at() };
+            let u16_at = |i: usize| record.get(i..i + 2).map(|b| u16::from_le_bytes([b[0], b[1]]));
+            let u32_at = |i: usize| record.get(i..i + 4).map(|b| u32::from_le_bytes(b.try_into().unwrap()));
+            let Some(layer) = u32_at(1) else {
+                ops.push(unsupported());
+                continue;
+            };
+            let picture = pictures.get_mut(&layer);
+            let shown = match (ins.op, picture) {
+                (OP_FX_CREATE, _) => {
+                    // Blend 0 and full opacity in every use; the size is the picture's.
+                    match (u16_at(10), u16_at(12), record.get(18), u16_at(19), record.get(21)) {
+                        (Some(x), Some(y), Some(0), Some(256), Some(&visible)) => {
+                            let picture = Picture { x: x.into(), y: y.into(), visible: visible != 0, ..Default::default() };
+                            pictures.insert(layer, picture);
+                            // The new object replaces the character's bust-up.
+                            ops.push(Op::Sprites { changes: vec![SpriteChange { layer, sprite: None, keep_filters: false }], fade_ms: 0 });
+                        }
+                        _ => ops.push(unsupported()),
+                    }
+                    continue;
+                }
+                (OP_FX_REMOVE, _) => {
+                    pictures.remove(&layer);
+                    ops.push(Op::Sprites { changes: vec![SpriteChange { layer, sprite: None, keep_filters: false }], fade_ms: 0 });
+                    continue;
+                }
+                (OP_PICTURE, Some(p)) if record.get(5) == Some(&PICTURE_KIND_BUSTUP) && u32_at(6).is_some_and(|n| n > 0) => {
+                    p.sprite = u32_at(6);
+                    p.change(assets, layer)?
+                }
+                (OP_ANCHOR, Some(p)) if matches!(record.get(5..7), Some(&[0..=2, 0..=2])) => {
+                    p.anchor = (record[5], record[6]);
+                    p.change(assets, layer)?
+                }
+                (OP_SHOW, Some(p)) if record.len() > 5 => {
+                    p.visible = record[5] != 0;
+                    match p.change(assets, layer)? {
+                        None => Some(SpriteChange { layer, sprite: None, keep_filters: false }),
+                        shown => shown,
+                    }
+                }
+                _ => {
+                    ops.push(unsupported());
+                    continue;
+                }
+            };
+            if let Some(change) = shown {
+                ops.push(Op::Sprites { changes: vec![change], fade_ms: 0 });
+            }
+            continue;
+        }
         if matches!(ins.op, OP_FX_CREATE | OP_FX_LOAD | OP_FX_WAIT | OP_FX_REMOVE) {
             let o = ins.arg as u32 as usize;
             let record = cd.pool.get(o..).unwrap_or(&[]);
@@ -1878,11 +1980,11 @@ pub fn lower_script(
                     None => ops.push(unsupported()),
                 },
                 _ => {
-                    if fx_opacity.take().is_some() && fx_frames.take().is_some() {
-                        ops.push(Op::Animation(None));
-                    } else {
-                        ops.push(unsupported());
-                    }
+                    // Also when this script didn't make it (0012.cd #916):
+                    // removing a missing object does nothing.
+                    fx_opacity = None;
+                    fx_frames = None;
+                    ops.push(Op::Animation(None));
                 }
             }
             continue;
