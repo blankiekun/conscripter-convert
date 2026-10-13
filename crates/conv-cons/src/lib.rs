@@ -40,6 +40,8 @@ const NAME_PLATE_SPRITE: u32 = 51;
 const LINK_SPRITES: std::ops::RangeInclusive<u32> = 52..=59;
 /// Sprite layer n is NScripter sprite 60 + n.
 const SPRITE_BASE: u32 = 60;
+/// The highest sprite number (ONScripter has 1000).
+const MAX_SPRITE: u32 = 999;
 /// Scratch variable receiving the clicked button (also used by nstrace).
 const BUTTON_VAR: &str = "%9";
 /// NScripter variables: locals from %10, globals from %200. `globalon`
@@ -130,9 +132,6 @@ pub fn emit(script: &Script) -> String {
     let mut needs_bit_helpers = false;
     let mut needs_click_wait = false;
     let mut plate_visible = false;
-    // What is on screen at this point in file order, to restore after a link
-    // scene returns (an approximation when control flow jumps around).
-    let mut screen = Screen::default();
     let mut link_pages = 0;
     // Effect number of an open transition: display commands only update the
     // buffer until it is printed.
@@ -181,8 +180,6 @@ pub fn emit(script: &Script) -> String {
                 let e = if transition.is_some() { 0 } else { effect(*fade_ms) };
                 writeln!(out, "bg \"{}\",{e}", path(image)).unwrap();
                 plate_visible = false;
-                screen.bg = Some(image.clone());
-                screen.sprites.clear();
             }
             Op::Sprites { changes, fade_ms } => {
                 for c in changes {
@@ -194,12 +191,8 @@ pub fn emit(script: &Script) -> String {
                                 writeln!(out, "spfilter {slot},0").unwrap();
                             }
                             writeln!(out, "{}", lsp(slot, sp)).unwrap();
-                            screen.sprites.insert(c.layer, sp.clone());
                         }
-                        None => {
-                            writeln!(out, "csp {slot}").unwrap();
-                            screen.sprites.remove(&c.layer);
-                        }
+                        None => writeln!(out, "csp {slot}").unwrap(),
                     }
                 }
                 if transition.is_none() {
@@ -233,7 +226,6 @@ pub fn emit(script: &Script) -> String {
             Op::ClearSprites => {
                 writeln!(out, "csp -1").unwrap();
                 plate_visible = false;
-                screen.sprites.clear();
                 if transition.is_none() {
                     writeln!(out, "print 1").unwrap();
                 }
@@ -374,13 +366,17 @@ pub fn emit(script: &Script) -> String {
                         writeln!(out, "mov {},{}+{depth}", menu::TMP, menu::SCENE_TITLES).unwrap();
                         writeln!(out, "mov ${},\"{}\"", menu::TMP, escape(link.scene.as_deref().unwrap_or("　"))).unwrap();
                     }
+                    // The scene may change the whole screen: save the
+                    // background, the game's sprites and the BGM around it.
+                    writeln!(out, "pushscreen {SPRITE_BASE},{}", MAX_SPRITE).unwrap();
                     writeln!(out, "gosub *{}", label(target)).unwrap();
                     if scenes {
                         let (depth, max) = (menu::SCENE_DEPTH, menu::SCENE_MAX_DEPTH);
                         writeln!(out, "sub {depth},1").unwrap();
                         writeln!(out, "if {depth} == 0 mov {max},0").unwrap();
                     }
-                    screen.restore(&mut out);
+                    writeln!(out, "popscreen").unwrap();
+                    writeln!(out, "print 1").unwrap();
                     writeln!(out, "goto *{page}").unwrap();
                     writeln!(out, "*{page}_{}", n + 1).unwrap();
                 }
@@ -388,12 +384,10 @@ pub fn emit(script: &Script) -> String {
             Op::BgmPlay { file, fade_in_ms } => {
                 writeln!(out, "bgmfadein {fade_in_ms}").unwrap();
                 writeln!(out, "bgm \"{}\"", path(file)).unwrap();
-                screen.bgm = Some(file.clone());
             }
             Op::BgmStop { fade_out_ms } => {
                 writeln!(out, "bgmfadeout {fade_out_ms}").unwrap();
                 writeln!(out, "bgmstop").unwrap();
-                screen.bgm = None;
             }
             Op::Wait { ms } => writeln!(out, "delay {ms}").unwrap(),
             Op::SePlay { file, looped } => {
@@ -518,33 +512,6 @@ fn setwindow(w: &TextWindow, speed: &str) -> String {
 /// `lsp` for a sprite; ":a;" = use the PNG's alpha channel.
 fn lsp(slot: u32, s: &SpritePlacement) -> String {
     format!("lsp {slot},\":a;{}\",{},{}", path(&s.image), s.x, s.y)
-}
-
-/// Background, sprites and BGM as last set, in file order.
-#[derive(Default)]
-struct Screen {
-    bg: Option<String>,
-    sprites: BTreeMap<u32, SpritePlacement>,
-    bgm: Option<String>,
-}
-
-impl Screen {
-    /// Puts the screen back after a link scene (which may change all of it).
-    fn restore(&self, out: &mut String) {
-        writeln!(out, "csp -1").unwrap();
-        match &self.bg {
-            Some(image) => writeln!(out, "bg \"{}\",1", path(image)).unwrap(),
-            None => writeln!(out, "bg black,1").unwrap(),
-        }
-        for (layer, s) in &self.sprites {
-            writeln!(out, "{}", lsp(SPRITE_BASE + layer, s)).unwrap();
-        }
-        writeln!(out, "print 1").unwrap();
-        match &self.bgm {
-            Some(file) => writeln!(out, "bgm \"{}\"", path(file)).unwrap(),
-            None => writeln!(out, "bgmstop").unwrap(),
-        }
-    }
 }
 
 /// Screen position of character `index` of `text` as the text window draws
@@ -805,11 +772,10 @@ csp 52
 print 1
 textclear
 if %9 != 1 goto *conv_link1_1
+pushscreen 60,999
 gosub *s10_l1
-csp -1
-bg \"bg\\room.png\",1
+popscreen
 print 1
-bgm \"bgm\\a.ogg\"
 goto *conv_link1
 *conv_link1_1
 ";

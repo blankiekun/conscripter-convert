@@ -27,7 +27,7 @@ import os, re, subprocess, sys
 game, work, clicks = sys.argv[1], sys.argv[2], sys.argv[3]
 timeout = int(sys.argv[sys.argv.index('--timeout') + 1]) if '--timeout' in sys.argv else 60
 ons = sys.argv[sys.argv.index('--engine') + 1] if '--engine' in sys.argv else \
-    os.path.join(os.path.dirname(__file__), '..', '..', 'engine', 'build', 'onsyuri')
+    os.path.join(os.path.dirname(__file__), '..', '..', 'engine', 'build', 'conscripter')
 os.makedirs(work, exist_ok=True)
 for f in ('arc.nsa', 'default.ttf', 'ons_args'):
     dst = os.path.join(work, f)

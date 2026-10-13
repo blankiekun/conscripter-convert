@@ -130,7 +130,7 @@ options to the engine, including in the web build.
 ```sh
 git submodule update --init engine
 cmake -B engine/build -S engine -DCMAKE_BUILD_TYPE=RelWithDebInfo
-make -C engine/build -j"$(nproc)"     # → engine/build/onsyuri
+make -C engine/build -j"$(nproc)"     # → engine/build/conscripter
 ```
 
 `engine/script/cross_web.sh` builds the WebAssembly version (needs emsdk).
@@ -143,13 +143,13 @@ README, "CONscripter additions"):
 | Command | Game feature that needed it |
 |---|---|
 | `spfilter` (colour filters on sprites, kept in saves) | 最果てのイマ's effect presets (0x88/0x90): lighting tints on bust-ups, plus negative, greyscale and brightness filters. Replaced ~930 pre-tinted PNGs (about 130 MB of `arc.nsa`) |
+| `pushscreen` / `popscreen` (save and restore background, sprites, filters and BGM; kept in saves) | Link scenes, which can change the whole screen before returning to their page. Replaced the converter's file-order guess of what was on screen |
 
 Planned, from limits hit while converting 最果てのイマ (each one is worked
 around in the script today), roughly in order of payoff:
 
 | Game feature | Workaround today | Engine feature that would fix it |
 |---|---|---|
-| Screen state around link scenes | The converter guesses, in file order, what to redraw after a link scene returns | Save and restore background, sprites and filters around a gosub (`pushscreen`/`popscreen`) |
 | Speaker names in the backlog | Names missing (the name plate is a sprite) | Store a name with each log page |
 | Voice replay from the backlog | Not converted | Store the voice file with each log page |
 | Deleting a save | A global flag per slot hides it | A delete-save command; thumbnails stored next to the saves |

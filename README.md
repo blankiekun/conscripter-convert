@@ -83,7 +83,7 @@ cmake -B engine/build -S engine -DCMAKE_BUILD_TYPE=RelWithDebInfo
 make -C engine/build -j"$(nproc)"
 ```
 
-The binary is `engine/build/onsyuri`. For other platforms, including the
+The binary is `engine/build/conscripter`. For other platforms, including the
 WebAssembly build (`engine/script/cross_web.sh`, needs emsdk), see
 [`engine/README.md`](engine/README.md).
 
@@ -108,7 +108,7 @@ other files.
 Then run CONscripter on the output directory:
 
 ```sh
-engine/build/onsyuri --root out/mygame
+engine/build/conscripter --root out/mygame
 ```
 
 | Option | Effect |
@@ -169,7 +169,7 @@ cargo clippy --all-targets
 ```
 
 `research/xuse/smoke.py` runs a converted game headless in
-`engine/build/onsyuri` with scripted clicks and screenshots (see its
+`engine/build/conscripter` with scripted clicks and screenshots (see its
 docstring).
 
 ## License
