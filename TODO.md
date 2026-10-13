@@ -320,7 +320,7 @@ engines print `z150` etc.). The web build compiles with it.
       `screenripple` over a generated ring map (`system/zigzag_*.png`).
       With freq 10 that is a shift of a few pixels. Its Multi blend
       (100/256) darkens the picture: `screenripple`'s new optional blend 1
-      (engine, unreleased) multiplies by the shifted copy; saves keep
+      (CONscripter 0.15.0) multiplies by the shifted copy; saves keep
       their format (the parameter count is stored). The phase (begin
       angle) and reduction are left out.
 - [ ] Opcodes still emitted as comments (2 left): the start point's debug menu (`0x62` choice + `0x30` jump table
@@ -348,8 +348,7 @@ engines print `z150` etc.). The web build compiles with it.
       sin/cos of progress × 90°, 0x446460; flag +0x90 the axis, +0x91
       whether the new one grows); filmed 32 (new grows horizontally) and
       34 (old shrinks horizontally). New engine plugin `cons_flip.dll`
-      (engine `cc1909d`, not released yet; older engines draw a
-      cross-fade). Checked on Xvfb mid-effect (band widths match sin/cos).
+      (CONscripter 0.15.0; older engines draw a cross-fade). Checked on Xvfb mid-effect (band widths match sin/cos).
 - [ ] Also filmed: BoxRolling 28 = the new picture rises from the bottom
       while the old is squeezed up (a cube roll); RollFlip 32 = the new
       picture widens from a centre strip over the old; MeltDown = the old
@@ -361,8 +360,15 @@ engines print `z150` etc.). The web build compiles with it.
       left), 30 (from the top); 31 assumed from the right. Converted as a
       push of both pictures (ONScripter scrolls 11-14); the original
       squeezes them like cube faces.
-- [ ] Transitions still drawn as cross-fades: TvPowerSwitch (11; too quick
-      to film at 0.1-0.9 s), MeltDown (3); SmoothCrossFade
+- [x] TvPowerSwitch (11): runs its own 700 ms key frames (setup 0x4485d7)
+      whatever the record says; a burst capture under wine showed the
+      picture spreading from a bright line across the middle. Most uses
+      cut to black (a television switching off): converted as a vertical
+      `cons_flip` collapse of the old picture over 700 ms.
+- [x] CONscripter 0.15.0 (engine `9f7ef7e`, tag `v0.15.0`, Android
+      versionCode 18): `cons_flip.dll`, `screenripple` blend. All 5
+      workflows passed, 9 assets.
+- [ ] Transitions still drawn as cross-fades: MeltDown (3); SmoothCrossFade
       (8) is an eased cross-fade, close enough.
       SmoothCrossFade (8), Dot4x4 (3), MeltDown (3) (PLAN §6 "Accuracy").
 - [x] Bars always shown (user's request, 2026-10-13): the top bars and

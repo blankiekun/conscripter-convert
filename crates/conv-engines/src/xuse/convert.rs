@@ -287,6 +287,8 @@ const OP_WAIT: u16 = 0x66;
 /// 0x76's subs for Trans_Dissolve and Trans_Dot4x4.
 const TRANSITION_DISSOLVE: u16 = 26;
 const TRANSITION_DOT4X4: u16 = 4;
+const TRANSITION_TV_POWER_SWITCH: u16 = 48;
+const TV_POWER_SWITCH_MS: u32 = 700;
 /// Plays `HD/mvNNNN.bin` (handler 0x478ab0, task 0x408ed0): arg's low 16
 /// bits are the number, its high 16 bits whether a click or key ends it
 /// (checked at 0x408e5b).
@@ -2448,6 +2450,9 @@ pub fn lower_script(
             match pool_u32(cd.pool, ins.arg as u32 as usize) {
                 Some(fade_ms) => {
                     transition_armed = true;
+                    // TvPowerSwitch runs its own 700 ms key frames (setup
+                    // 0x4485d7: 260 ... 700 ms) whatever the record says.
+                    let fade_ms = if ins.sub == TRANSITION_TV_POWER_SWITCH { TV_POWER_SWITCH_MS } else { fade_ms };
                     // Dot4x4 (kernel 0x4430a0) copies the new picture
                     // through a 4×4 pattern: the hard mask transition over
                     // a tiled Bayer mask reveals the same dots.
@@ -2947,6 +2952,10 @@ fn transition_style(sub: u16) -> TransitionStyle {
             let n = sub - 32;
             TransitionStyle::Flip { horizontal: n % 2 == 0, grow: n < 2 }
         }
+        // TvPowerSwitch (mostly cutting to black): a television switching
+        // off, the old picture collapsing into a line (one frame of it
+        // filmed under wine); drawn as a vertical flip.
+        TRANSITION_TV_POWER_SWITCH => TransitionStyle::Flip { horizontal: false, grow: false },
         27 => TransitionStyle::Mosaic,
         // Dot4x4: a dotted cross-fade; Dissolve passes through white (both
         // seen in the original under wine, 0004.cd #13 slowed to 8 s).
