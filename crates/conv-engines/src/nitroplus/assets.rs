@@ -26,11 +26,13 @@ pub struct NpaAssets<'a> {
     sounds: HashMap<String, Option<String>>,
     /// Files that couldn't be read or written.
     pub errors: Vec<String>,
+    /// Write nothing (a dry run: only image sizes are read).
+    pub dry_run: bool,
 }
 
 impl<'a> NpaAssets<'a> {
     pub fn new(cg: Npa<'a>, sound: Npa<'a>, voice: Npa<'a>, output: &Path) -> Self {
-        NpaAssets { cg, sound, voice, output: output.to_path_buf(), images: HashMap::new(), sounds: HashMap::new(), errors: Vec::new() }
+        NpaAssets { cg, sound, voice, output: output.to_path_buf(), images: HashMap::new(), sounds: HashMap::new(), errors: Vec::new(), dry_run: false }
     }
 
     /// Copies `entry` of the archive that `path`'s first folder names to
@@ -45,6 +47,9 @@ impl<'a> NpaAssets<'a> {
             _ => return None,
         };
         let entry = npa.find(rest)?;
+        if self.dry_run && archive != "cg" {
+            return Some(Vec::new());
+        }
         let data = match npa.data(entry) {
             Ok(d) => d,
             Err(e) => {
@@ -57,6 +62,9 @@ impl<'a> NpaAssets<'a> {
     }
 
     fn write(&mut self, rel: &str, data: &[u8]) {
+        if self.dry_run {
+            return;
+        }
         let dest = self.output.join(rel);
         let result = dest.parent().map_or(Ok(()), fs::create_dir_all).and_then(|_| fs::write(&dest, data));
         if let Err(e) = result {

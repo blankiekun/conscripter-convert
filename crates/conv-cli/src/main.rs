@@ -96,6 +96,9 @@ enum Command {
         /// Keep assets as loose files instead of packing them into .nsa
         #[arg(long)]
         loose: bool,
+        /// Compile and report only; write nothing
+        #[arg(long)]
+        dry_run: bool,
     },
     /// Low-level tools for Xuse XARC archives (*.arc)
     Xarc {
@@ -266,8 +269,8 @@ fn main() -> Result<()> {
         Command::ConvertScript { game, script, output, font, title, webp } => {
             convert_script(&game, script, &output, font.as_deref(), &title, webp)
         }
-        Command::ConvertNss { game, file, scene, chain, output, font, title, loose } => {
-            convert_nss(&game, &file, scene.as_deref(), chain, &output, font.as_deref(), &title, loose)
+        Command::ConvertNss { game, file, scene, chain, output, font, title, loose, dry_run } => {
+            convert_nss(&game, &file, scene.as_deref(), chain, &output, font.as_deref(), &title, loose, dry_run)
         }
         Command::Xarc { command } => match command {
             XarcCommand::List { archive } => xarc_list(&archive),
@@ -847,12 +850,24 @@ fn hex(bytes: &[u8]) -> String {
 }
 
 #[allow(clippy::too_many_arguments)]
-fn convert_nss(game: &Path, file: &str, scene: Option<&str>, chain: Option<usize>, output: &Path, font: Option<&Path>, title: &str, loose: bool) -> Result<()> {
+fn convert_nss(
+    game: &Path,
+    file: &str,
+    scene: Option<&str>,
+    chain: Option<usize>,
+    output: &Path,
+    font: Option<&Path>,
+    title: &str,
+    loose: bool,
+    dry_run: bool,
+) -> Result<()> {
     use conv_engines::nitroplus::assets::{NpaAssets, OUTPUT_DIRS};
     use conv_engines::nitroplus::{convert, nss};
     let exe = game.join("Muramasa.exe");
-    fs::create_dir_all(output)?;
-    if let Some(d) = OUTPUT_DIRS.iter().find(|d| !loose && output.join(d).exists()) {
+    if !dry_run {
+        fs::create_dir_all(output)?;
+    }
+    if let Some(d) = OUTPUT_DIRS.iter().find(|d| !loose && !dry_run && output.join(d).exists()) {
         bail!("{} already exists; move it away first (it would be packed and then deleted)", output.join(d).display());
     }
     let maps: Vec<(PathBuf, Mmap)> = ["nss", "cg", "sound", "voice"]
@@ -876,6 +891,7 @@ fn convert_nss(game: &Path, file: &str, scene: Option<&str>, chain: Option<usize
     }
     let (cg, sound, voice) = (npas.next().unwrap(), npas.next().unwrap(), npas.next().unwrap());
     let mut assets = NpaAssets::new(cg, sound, voice, output);
+    assets.dry_run = dry_run;
     let scene = scene.unwrap_or(file);
     let compiled = match chain {
         Some(n) => {
@@ -892,7 +908,7 @@ fn convert_nss(game: &Path, file: &str, scene: Option<&str>, chain: Option<usize
         title: title.to_string(),
         width: convert::SCREEN_W as u32,
         height: convert::SCREEN_H as u32,
-        global_border: None,
+        global_border: Some(convert::GLOBAL_BORDER),
         window: compiled.window,
         title_screen: None,
         save_menu: None,
@@ -904,13 +920,15 @@ fn convert_nss(game: &Path, file: &str, scene: Option<&str>, chain: Option<usize
         ops: compiled.ops,
     };
     let (encoded, lost) = conv_cons::encode(&conv_cons::emit(&ir));
-    fs::write(output.join("0.txt"), encoded)?;
-    fs::write(output.join("ons_args"), conv_cons::ENGINE_ARGS)?;
-    if let Some(font) = font {
-        fs::copy(font, output.join("default.ttf")).with_context(|| format!("copying {}", font.display()))?;
-    }
-    if !loose {
-        pack(output, &OUTPUT_DIRS)?;
+    if !dry_run {
+        fs::write(output.join("0.txt"), encoded)?;
+        fs::write(output.join("ons_args"), conv_cons::ENGINE_ARGS)?;
+        if let Some(font) = font {
+            fs::copy(font, output.join("default.ttf")).with_context(|| format!("copying {}", font.display()))?;
+        }
+        if !loose {
+            pack(output, &OUTPUT_DIRS)?;
+        }
     }
     println!("{file} -> {scene} -> {}", output.join("0.txt").display());
     report(&ir, lost, font.is_some());
