@@ -376,6 +376,10 @@ pub fn emit(script: &Script) -> String {
                         writeln!(out, "if {depth} == 0 mov {max},0").unwrap();
                     }
                     writeln!(out, "popscreen").unwrap();
+                    if let Some(w) = window {
+                        // The scene may have switched the text window.
+                        writeln!(out, "{}", setwindow(w, speed)).unwrap();
+                    }
                     writeln!(out, "print 1").unwrap();
                     writeln!(out, "goto *{page}").unwrap();
                     writeln!(out, "*{page}_{}", n + 1).unwrap();
@@ -775,6 +779,7 @@ if %9 != 1 goto *conv_link1_1
 pushscreen 60,999
 gosub *s10_l1
 popscreen
+setwindow 105,470,25,3,24,24,1,13,20,0,1,\":a;system\\window.png\",47,452
 print 1
 goto *conv_link1
 *conv_link1_1
