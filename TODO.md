@@ -275,8 +275,14 @@ engines print `z150` etc.). The web build compiles with it.
       headless. Unsupported: 32 → 24.
 - [x] `0x39` (4): clears the chapter history; nothing emitted until the
       chapter history screen exists (then clear it here). 24 → 20.
-- [ ] Opcodes still emitted as comments (20 left): `0x36`
-      without a chapter name, `0x3b`, `0x48`, `0x4a`, `0x91` (2 each),
+- [x] `0x3b` (2): the boot script's entry name ("debug entry" /
+      "release entry"), read only by the unused 0x3c; nothing emitted.
+- [ ] `0x91` (2): the staff roll (`StaffRoll\Staff.cpp`, task 0x454a60;
+      tables at 0x517f30: arg 0 → `StaffRoll1.004` in `gd.arc`, 63 s, 23
+      parts; arg 1 → `StaffRoll2.004`, 222 s). Arg 1 opens the epilogue
+      (0003.cd #2), arg 0 is in the boot script (0000.cd #61).
+- [ ] Opcodes still emitted as comments (18 left): `0x36`
+      without a chapter name, `0x48`, `0x4a`, `0x91` (2 each),
       rarer ones.
 - [ ] Transitions still drawn as cross-fades: Wave, Dissolve, RollFlip,
       SoftEdgeWipe, TvPowerSwitch, BoxRolling, SmoothCrossFade, Dot4x4,

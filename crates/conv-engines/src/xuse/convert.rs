@@ -176,6 +176,11 @@ const OP_BLEND: u16 = 0x83;
 /// 0021/0022.cd. The conversion has no chapter history yet: nothing to
 /// emit.
 const OP_CLEAR_CHAPTER_HISTORY: u16 = 0x39;
+/// Copies `sub` bytes of the record (a name) into the game state at +4
+/// (handler 0x478650); only 0x3c (0x4786c0, a jump when the name matches)
+/// reads it, and no script uses 0x3c. The boot script sets "debug entry"
+/// or "release entry". Nothing to emit.
+const OP_ENTRY_NAME: u16 = 0x3b;
 /// Yields for one frame (handler 0x473d20 returns 0). Nothing to emit.
 const OP_YIELD: u16 = 0x67;
 /// Sets an object's opacity (handler 0x413f10; draw field +0x1b2).
@@ -1922,7 +1927,7 @@ pub fn lower_script(
         if ins.op == OP_BLEND && overlay_fill && cd.pool.get(ins.arg as u32 as usize..ins.arg as u32 as usize + 5) == Some(&[1, 2, 0, 0, 0]) {
             continue; // dissolve: the fade-out is drawn as a cross-fade
         }
-        if ins.op == OP_YIELD || ins.op == OP_CLEAR_CHAPTER_HISTORY {
+        if matches!(ins.op, OP_YIELD | OP_CLEAR_CHAPTER_HISTORY | OP_ENTRY_NAME) {
             continue;
         }
         if ins.op == crate::xuse::cd::OP_BACKGROUND {
