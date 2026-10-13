@@ -233,7 +233,9 @@ engines print `z150` etc.). The web build compiles with it.
       character, then holds its black last frame until 0x7b. `arc.nsa`
       grows by 175 MB. Not converted: the layer-2 0x7a/0x7b records (6/7
       uses, no animation loaded). Unsupported: 620 → 296.
-- [ ] Opcodes still emitted as comments (235 left): `0x59` (47), `0x82` (38), `0x69` (32), rarer ones.
+- [x] `0x59` (47): a BGM crossfade (u32 ms, u16 old track, u16 new
+      track), as `bgmfadein ms` + `bgm`: the old track stops at once.
+- [ ] Opcodes still emitted as comments (188 left): `0x82` (38), `0x69` (32), rarer ones.
 - [ ] Transitions still drawn as cross-fades: Wave, Dissolve, RollFlip,
       SoftEdgeWipe, TvPowerSwitch, BoxRolling, SmoothCrossFade, Dot4x4,
       MeltDown (PLAN §6 "Accuracy").

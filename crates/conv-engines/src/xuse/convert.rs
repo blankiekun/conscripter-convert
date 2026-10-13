@@ -306,7 +306,7 @@ impl Needs {
                 }
             }
             match cd.sound(ins) {
-                Some(Ok(Sound::BgmPlay { track, .. })) => {
+                Some(Ok(Sound::BgmPlay { track, .. } | Sound::BgmCrossfade { to: track, .. })) => {
                     self.bgm.insert(track as usize);
                 }
                 Some(Ok(Sound::SePlay { sound, .. })) => {
@@ -2041,6 +2041,9 @@ fn lower_instr(
                 Op::BgmPlay { file: assets.bgm(track as usize)?, fade_in_ms: fade_in_ms.into() }
             }
             Sound::BgmStop { fade_out_ms, .. } => Op::BgmStop { fade_out_ms: fade_out_ms.into() },
+            // NScripter plays one BGM: the old track stops at once and the
+            // new one fades in over the crossfade's time.
+            Sound::BgmCrossfade { to, fade_ms, .. } => Op::BgmPlay { file: assets.bgm(to as usize)?, fade_in_ms: fade_ms },
             Sound::SePlay { sound, looped, .. } => Op::SePlay { file: assets.se(sound as usize)?, looped },
             Sound::SeStop { sound: 0, .. } => Op::SeStop { file: None },
             Sound::SeStop { sound, .. } => Op::SeStop { file: Some(assets.se(sound as usize)?) },

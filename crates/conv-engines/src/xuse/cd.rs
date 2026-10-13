@@ -210,6 +210,11 @@ pub const OP_SURPRISE: u16 = 0x6f;
 pub const FLASH_OPACITY: u32 = 128;
 pub const OP_BGM_PLAY: u16 = 0x57;
 pub const OP_BGM_STOP: u16 = 0x58;
+/// A BGM crossfade (handler 0x473610): record u32 fade in ms (capped at
+/// 30000), u16 track to stop (0 = every track but the new one), u16
+/// track to play. The new track starts fading in, then the old one fades
+/// out over the same time; both run at once.
+pub const OP_BGM_CROSSFADE: u16 = 0x59;
 pub const OP_SE_PLAY: u16 = 0x5a;
 pub const OP_SE_STOP: u16 = 0x5b;
 
@@ -219,6 +224,7 @@ pub const OP_SE_STOP: u16 = 0x5b;
 pub enum Sound {
     BgmPlay { track: u32, fade_in_ms: u16 },
     BgmStop { track: u32, fade_out_ms: u16 },
+    BgmCrossfade { from: u32, to: u32, fade_ms: u32 },
     SePlay { sound: u32, looped: bool, unknown: u32 },
     SeStop { sound: u32, fade_out_ms: u16 },
 }
@@ -717,6 +723,18 @@ impl<'a> CdScript<'a> {
             OP_BGM_PLAY => Sound::BgmPlay { track: number, fade_in_ms: ins.sub.min(30000) },
             OP_BGM_STOP => Sound::BgmStop { track: number, fade_out_ms: ins.sub.min(30000) },
             OP_SE_STOP => Sound::SeStop { sound: number, fade_out_ms: ins.sub },
+            OP_BGM_CROSSFADE => {
+                let r = Reader(self.pool);
+                let o = ins.arg as u32 as usize;
+                let read = || -> Result<Sound, CdError> {
+                    Ok(Sound::BgmCrossfade {
+                        fade_ms: r.u32(o)?.min(30000),
+                        from: r.u16(o + 4)?.into(),
+                        to: r.u16(o + 6)?.into(),
+                    })
+                };
+                return Some(read());
+            }
             OP_SE_PLAY => {
                 let r = Reader(self.pool);
                 let o = ins.arg as u32 as usize;
@@ -1019,11 +1037,14 @@ mod tests {
         pool.extend_from_slice(&7u32.to_le_bytes());
         pool.push(1);
         pool.extend_from_slice(&125u32.to_le_bytes());
+        // At 12: a crossfade from track 16 to 1 over 3 s.
+        pool.extend_from_slice(&[0xb8, 0x0b, 0, 0, 16, 0, 1, 0]);
         let code = [
             Instr { op: OP_BGM_PLAY, sub: 2000, arg: 5, source_pos: 0 },
             Instr { op: OP_BGM_STOP, sub: 40000, arg: 0, source_pos: 1 },
             Instr { op: OP_SE_PLAY, sub: 0xffff, arg: 3, source_pos: 2 },
             Instr { op: OP_SE_STOP, sub: 300, arg: 125, source_pos: 3 },
+            Instr { op: OP_BGM_CROSSFADE, sub: 0xffff, arg: 12, source_pos: 3 },
             Instr { op: 0x10, sub: 0xffff, arg: 0, source_pos: 4 },
         ];
         let bytes = build("snd.rio", &[], &code, &pool);
@@ -1036,6 +1057,7 @@ mod tests {
                 Some(Sound::BgmStop { track: 0, fade_out_ms: 30000 }),
                 Some(Sound::SePlay { sound: 125, looped: true, unknown: 7 }),
                 Some(Sound::SeStop { sound: 125, fade_out_ms: 300 }),
+                Some(Sound::BgmCrossfade { from: 16, to: 1, fade_ms: 3000 }),
                 None,
             ]
         );
