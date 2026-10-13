@@ -86,6 +86,15 @@ const OP_TEXT_DISPLAY: u16 = 0x4d;
 /// sits on (`0.cd`): "chapter<route>]?<title>". 0x37 and 0x38 sit on the
 /// chapter's "|chpe" and "|chpl" labels and link back (chapter history).
 const OP_CHAPTER: u16 = 0x36;
+/// Unlocks scene arg of the scene replay (handler 0x478830, Story.cpp): it
+/// sets bit arg of a 600-bit global set (0x51eaa0, saved as "RMSN"), which
+/// the replay list (0x451090) reads. One per scene, before its end.
+const OP_UNLOCK_SCENE: u16 = 0x93;
+/// Ends a scene the replay can play (handler 0x4789a0): in replay modes 1
+/// and 2 (0x51ec70) it returns to the replay; in normal play it does nothing.
+const OP_SCENE_END: u16 = 0x94;
+/// The replay set's size.
+const REPLAY_SCENES: i32 = 600;
 /// Waits for a click with the text window, button tray and top bars hidden
 /// (handler 0x4784b0, wait callback 0x478370). arg 0 also turns skip mode
 /// off; with arg 1 skip mode passes through.
@@ -1508,6 +1517,17 @@ pub fn lower_script(
                 }
                 _ => ops.push(Op::Unsupported { what: format!("opcode {:#04x} record {record:?}", ins.op), at: at() }),
             }
+            continue;
+        }
+        if ins.op == OP_UNLOCK_SCENE {
+            match ins.arg {
+                scene @ 0..REPLAY_SCENES => ops.push(Op::UnlockScene { scene: scene as u32 }),
+                _ => ops.push(Op::Unsupported { what: format!("opcode {:#04x} arg {}", ins.op, ins.arg), at: at() }),
+            }
+            continue;
+        }
+        if ins.op == OP_SCENE_END {
+            ops.push(Op::SceneEnd);
             continue;
         }
         if ins.op == OP_CHAPTER {

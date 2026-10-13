@@ -90,6 +90,8 @@ const LINK_VISITED_HOVER_COLOR: &str = "#CB95FE";
 const LINK_UNDERLINE_SPRITES: std::ops::Range<u32> = MENU_SPRITES.start..MENU_SPRITES.start + 2 * 8;
 /// Global flags: link target n (in order of first use) was visited.
 const LINK_VISITED_BASE: u32 = 2000;
+/// Global flags: scene n of the scene replay is unlocked.
+const SCENE_UNLOCKED_BASE: u32 = 3000;
 const TEXT_COLOR: &str = "#FFFFFF";
 
 /// Renders the script as NScripter source text (UTF-8; use [`encode`] to
@@ -631,6 +633,9 @@ pub fn emit(script: &Script) -> String {
                 writeln!(out, "mpegplay \"{}\",{}", path(file), u8::from(*skippable)).unwrap();
             }
             Op::Chapter { title } => writeln!(out, "mov {},\"{}\"", menu::CHAPTER, escape(title)).unwrap(),
+            Op::UnlockScene { scene } => writeln!(out, "mov %{},1", SCENE_UNLOCKED_BASE + scene).unwrap(),
+            // No scene replay yet, so nothing to stop.
+            Op::SceneEnd => writeln!(out, "; scene end").unwrap(),
             Op::Unsupported { what, at } => {
                 writeln!(out, "; unsupported: {what} ({} #{})", at.file, at.index).unwrap()
             }
@@ -1200,6 +1205,12 @@ goto *conv_link1
 *conv_link1_1
 ";
         assert!(text.contains(expected), "{text}");
+    }
+
+    #[test]
+    fn scene_replay_unlocks_are_global_flags() {
+        let text = emit(&script(vec![Op::SceneEnd, Op::UnlockScene { scene: 5 }]));
+        assert!(text.contains("; scene end\nmov %3005,1\n"), "{text}");
     }
 
     #[test]

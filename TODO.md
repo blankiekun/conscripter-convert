@@ -23,7 +23,7 @@ notes, git-ignored) and `PLAN.md` §4.2 and §6 ("Remaining work for
 
 ## Next
 
-Opcode 0x6f is done (see the table below). Pick the next item from
+Opcodes 0x93/0x94 are done (scene replay unlocks). Pick the next item from
 "3. Next work". Unchecked against the original under wine: quakes,
 flashes (ours are under the text window; the original's cover it),
 pulses (especially presets 6-8: blend 6 is assumed to lay white over
@@ -195,8 +195,14 @@ engines print `z150` etc.). The web build compiles with it.
       `screenpulse 3,…` + `delay` + `screenpulse 3`. Unsupported:
       2,045 → 1,958. Checked headless (red and white copies mid-pulse,
       clean after the clear); not against the original.
-- [ ] Opcodes still emitted as comments (1,958 left): `0x93`/`0x94`
-      (418, before each chapter end), `0x37`/`0x38` (251, chapter
+- [x] `0x93`/`0x94` (418 each): `0x93 N` (handler 0x478830) sets bit
+      N of a 600-bit global set (saved as "RMSN", read by the replay list
+      0x451090) = scene N unlocked in the scene replay; converted to the
+      global `mov %3000+N,1`. `0x94` (0x4789a0) returns to the replay in
+      replay modes 1/2 (0x51ec70) and does nothing in play; emitted as
+      `; scene end`, the place a replay must stop. Unsupported: 1,958 →
+      1,122.
+- [ ] Opcodes still emitted as comments (1,122 left): `0x37`/`0x38` (251, chapter
       history), `0x7a`/`0x7b`, `0x8a`/`0x8b`, `0x70` leftovers.
 - [ ] Transitions still drawn as cross-fades: Wave, Dissolve, RollFlip,
       SoftEdgeWipe, TvPowerSwitch, BoxRolling, SmoothCrossFade, Dot4x4,

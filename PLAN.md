@@ -530,7 +530,9 @@ parts are not converted:
 **Script opcodes** (counts are remaining uses):
 - `0x70` kinds not converted (62 uses): Smooth (blur), 13 (ripple),
   HueSatura, BrightnessInvert, 12;
-- `0x93`/`0x94` (418): before each chapter end, unknown;
+- `0x93`/`0x94` are done: `0x93 N` unlocks scene N of the scene replay
+  (global flag `%3000+N`), `0x94` ends a replayed scene (a no-op in play,
+  emitted as `; scene end` until the replay exists);
 - `0x7a`/`0x7b` (about 90 each), `0x8a`/`0x8b` and about 30 rarer ones
   (`0x6d` quakes, `0x6e` flashes and `0x6f` pulses are done). `0x55` is done: a second background object, mostly the
   `frameNN` overlays (letterbox bars, speed lines), drawn as sprite 61

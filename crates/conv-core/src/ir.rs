@@ -287,6 +287,12 @@ pub enum Op {
     Movie { file: String, skippable: bool },
     /// A new chapter starts (shown in the top bar and save slots).
     Chapter { title: String },
+    /// Scene `scene` of the scene replay was reached: unlock it there (a
+    /// global flag, kept across playthroughs).
+    UnlockScene { scene: u32 },
+    /// The end of a scene the scene replay can play on its own: a replay
+    /// stops here; normal play goes on.
+    SceneEnd,
     /// Something the converter can't express yet; kept for the report.
     Unsupported { what: String, at: SourceLoc },
 }
