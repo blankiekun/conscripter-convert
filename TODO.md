@@ -25,8 +25,8 @@ notes, git-ignored) and `PLAN.md` §4.2 and §6 ("Remaining work for
 
 Opcodes 0x70 (leftovers), 0x59, 0x82 and 0x69 are done (unsupported
 296 → 119); the engine has new filter kinds 6-8 and 8 effect slots
-(engine `5516a1a`, not released: the next CONscripter release is needed
-for the blurs and still ripples). Pick the next item from "3. Next
+(engine `5516a1a`, released in CONscripter 0.14.0, tag `v0.14.0`,
+Android versionCode 17). Pick the next item from "3. Next
 work": the object operations 0x7c-0x87 are the biggest group left. Unchecked against the original under wine: quakes,
 flashes (ours are under the text window; the original's cover it),
 pulses (especially presets 6-8: blend 6 is assumed to lay white over
@@ -154,6 +154,8 @@ engines print `z150` etc.). The web build compiles with it.
       Checked headless in the wind scene of 0003.cd. The layer byte (0/2 → 0x10, 3 → 0x20, ...) is ignored:
       everything goes behind the text window. 0x88's unknown "field" is
       probably the same layer | fade-ms word as 0x70's.
+- [x] CONscripter 0.14.0 with filter kinds 6-8 and 8 effect slots
+      (engine `4371a5a`, tag `v0.14.0`; all 5 workflows passed, 9 assets).
 - [ ] `0x49` leftovers: the edge colour (one use), and whether enlarged
       text raises the line in the original (we keep the line pitch;
       175 % touches the line above).
