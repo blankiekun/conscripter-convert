@@ -191,6 +191,9 @@ pub enum Op {
     /// at the picture. `skippable`: skip mode passes it (otherwise it
     /// stops skip mode).
     ClickWait { skippable: bool },
+    /// Play a movie full screen and wait for its end, with the music
+    /// stopped. `skippable`: a click ends it early.
+    Movie { file: String, skippable: bool },
     /// A new chapter starts (shown in the top bar and save slots).
     Chapter { title: String },
     /// Something the converter can't express yet; kept for the report.

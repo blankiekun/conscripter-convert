@@ -154,10 +154,20 @@ around in the script today), roughly in order of payoff:
 
 | Game feature | Workaround today | Engine feature that would fix it |
 |---|---|---|
-| Movies (`mv*.bin`, MPEG-PS) | Not converted | Movie playback that works in the web build (e.g. an HTML5 video overlay) |
 | Right-click menu / hide window | Everything behind the on-screen button bar | Send right-click to a script label (`rgosub`-style); not planned for now |
 
 Done without engine work:
+- **Movies:** opcode 0x97 plays `HD/mvNNNN.bin` (MPEG-1 program stream);
+  arg's low 16 bits are the number, the high 16 bits whether a click or
+  key ends it (handler 0x478ab0, checked at 0x408e5b). The boot script
+  (opening, `mv0001`), script 7 (`mv0002`, not skippable) and the
+  recollection screen (all three) use it. ffmpeg encodes them as H.264 +
+  AAC MP4 (`movie/`, loose files, about 55 MB each) and the script runs
+  `bgmstop` + `mpegplay "movie\mvNNNN.mp4",skippable`. The web build
+  already played `mpegplay` in a `<video>` element over the game; it only
+  needed a fix (it waited forever when the browser blocked autoplay with
+  sound; now it plays muted). Windows and Android hand the file to the
+  system player; the Linux and macOS builds skip movies.
 - **BGM loop points:** `bm0000.bin`'s slot param 0 is the loop start in
   sample frames (the second before it matches each track's last second,
   correlation 0.99-1.0); the loop runs to the end of the track. The
@@ -193,7 +203,7 @@ Probably no engine work needed:
   subprocess. Loop points (KiriKiri `.sli`, RealLive loop metadata) can't be
   carried over directly: either note them in the report or bake intro + loop
   into the output.
-- **Video:** `ffmpeg` to whatever the target can play.
+- **Video:** `ffmpeg` to H.264 + AAC MP4, which browsers and the system players play.
 - **Packing:** write `arc.nsa` / `.sar` natively (simple formats) and
   optionally encode `nscript.dat`.
 
@@ -516,8 +526,6 @@ parts are not converted:
   scale (the game uses -80 and -100, read as -255..255).
 
 **Media and packaging.**
-- Movies (`mv*.bin`) aren't converted; they need a format the
-  WebAssembly build plays, or a CONscripter addition.
 - `arc.nsa` is about 1.2 GB; if the web build can't handle it, split the
   voices into `arc1.nsa`.
 - Check that saves, thumbnails (`savethumbN.bmp`) and `kidoku.dat`

@@ -95,6 +95,10 @@ const PRESET_SLOTS: u32 = 3;
 /// kind, blend, strength, three parameters (as in [`SpriteFilter`]).
 const PRESET_FIELDS: u32 = 6;
 const OP_WAIT: u16 = 0x66;
+/// Plays `HD/mvNNNN.bin` (handler 0x478ab0, task 0x408ed0): arg's low 16
+/// bits are the number, its high 16 bits whether a click or key ends it
+/// (checked at 0x408e5b).
+const OP_MOVIE: u16 = 0x97;
 const OP_WAIT_2: u16 = 0x72;
 const BG_PER_ARCHIVE: usize = 64;
 const BU_PER_ARCHIVE: usize = 128;
@@ -148,6 +152,8 @@ pub enum ConvertError {
     Cd(#[from] CdError),
     #[error("{kind} {number} does not exist")]
     MissingAsset { kind: &'static str, number: usize },
+    #[error("converting {path} with ffmpeg: {detail}")]
+    Ffmpeg { path: PathBuf, detail: String },
 }
 
 /// Reads images and sounds from an installed game and writes the ones that
@@ -923,6 +929,49 @@ impl AssetBank {
 }
 
 const BGM: &str = "BGM track";
+const MOVIE: &str = "movie";
+
+impl AssetBank {
+    /// Movie `number` (`HD/mvNNNN.bin`, an MPEG-1 program stream) as H.264
+    /// and AAC in MP4, which browsers play. Movies stay loose files (the
+    /// web build hands the file to a `<video>` element). A movie already
+    /// in the output is kept: encoding takes a minute or so each.
+    pub fn movie(&mut self, number: u16) -> Result<String, ConvertError> {
+        let key = (MOVIE, usize::from(number));
+        if let Some(p) = self.written.get(&key) {
+            return Ok(p.clone());
+        }
+        let src = self.game.join("HD").join(format!("mv{number:04}.bin"));
+        if !src.exists() {
+            return Err(ConvertError::MissingAsset { kind: MOVIE, number: key.1 });
+        }
+        let name = format!("movie/mv{number:04}.mp4");
+        let dest = self.out.join(&name);
+        if !dest.exists() {
+            let io = |source| ConvertError::Io { path: dest.clone(), source };
+            fs::create_dir_all(dest.parent().unwrap()).map_err(io)?;
+            // Encode under another name so an interrupted run leaves no
+            // half-written movie behind.
+            let part = dest.with_extension("part.mp4");
+            let ffmpeg = |detail: String| ConvertError::Ffmpeg { path: src.clone(), detail };
+            let status = std::process::Command::new("ffmpeg")
+                .args(["-v", "error", "-y", "-i"])
+                .arg(&src)
+                .args(["-c:v", "libx264", "-preset", "slow", "-crf", "22", "-pix_fmt", "yuv420p"])
+                .args(["-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart"])
+                .arg(&part)
+                .status()
+                .map_err(|e| ffmpeg(e.to_string()))?;
+            if !status.success() {
+                let _ = fs::remove_file(&part);
+                return Err(ffmpeg(status.to_string()));
+            }
+            fs::rename(&part, &dest).map_err(io)?;
+        }
+        self.written.insert(key, name.clone());
+        Ok(name)
+    }
+}
 
 /// Label names from `0.cd`, by (script id, code offset in bytes).
 #[derive(Debug, Default)]
@@ -1366,6 +1415,10 @@ fn lower_instr(
         OP_CLEAR_SPRITES => return Ok(Some(Op::ClearSprites)),
         OP_HIDE_TEXT => return Ok(Some(Op::HideTextWindow)),
         OP_CLICK_WAIT => return Ok(Some(Op::ClickWait { skippable: ins.arg != 0 })),
+        OP_MOVIE => {
+            let file = assets.movie(ins.arg as u16)?;
+            return Ok(Some(Op::Movie { file, skippable: ins.arg >> 16 != 0 }));
+        }
         OP_WAIT | OP_WAIT_2 => return Ok(Some(Op::Wait { ms: u32::from(ins.arg as u16) })),
         OP_IF_EQUAL => {
             let Some(target) = label(ins.sub.into()) else { return Ok(None) };

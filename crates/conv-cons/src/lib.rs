@@ -435,6 +435,11 @@ pub fn emit(script: &Script) -> String {
                 needs_click_wait = true;
                 writeln!(out, "mov {BUTTON_VAR},{}:gosub *{CLICK_WAIT}", u8::from(*skippable)).unwrap();
             }
+            Op::Movie { file, skippable } => {
+                // The web build plays it in a <video> element over the game.
+                writeln!(out, "bgmstop").unwrap();
+                writeln!(out, "mpegplay \"{}\",{}", path(file), u8::from(*skippable)).unwrap();
+            }
             Op::Chapter { title } => writeln!(out, "mov {},\"{}\"", menu::CHAPTER, escape(title)).unwrap(),
             Op::Unsupported { what, at } => {
                 writeln!(out, "; unsupported: {what} ({} #{})", at.file, at.index).unwrap()
@@ -1268,5 +1273,11 @@ end
         assert_eq!(ch.stop("a"), Some(1));
         assert_eq!(ch.stop("a"), None);
         assert_eq!(ch.stop_all(), vec![2]);
+    }
+
+    #[test]
+    fn movies_stop_the_music() {
+        let out = emit(&script(vec![Op::Movie { file: "movie/mv0001.mp4".into(), skippable: true }]));
+        assert!(out.contains("bgmstop\nmpegplay \"movie\\mv0001.mp4\",1\n"), "{out}");
     }
 }
