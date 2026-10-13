@@ -404,10 +404,23 @@ pub enum Op {
     /// stops here; normal play goes on.
     SceneEnd,
     /// Ask the player to pick one of `options` (text, label) in the text
-    /// window and continue at the label picked.
-    Choice { options: Vec<(String, String)> },
+    /// window (or in `style`'s own window) and continue at the label
+    /// picked.
+    Choice { options: Vec<(String, String)>, style: Option<ChoiceStyle> },
     /// Something the converter can't express yet; kept for the report.
     Unsupported { what: String, at: SourceLoc },
+}
+
+/// How a choice is drawn when the game has its own look for it: the
+/// window the options are written in (one line each, the window image
+/// holds their plates) and the text colours of the option under the
+/// mouse and of the others (0xRRGGBB). The text window after the choice
+/// is set again by the next `SetWindow`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ChoiceStyle {
+    pub window: TextWindow,
+    pub on_color: u32,
+    pub off_color: u32,
 }
 
 /// An ADV-style text box (text at the bottom over the scene).

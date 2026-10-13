@@ -37,7 +37,7 @@
 
 use std::collections::{BTreeMap, HashMap};
 
-use conv_core::ir::{ArithOp, CLICK_WAIT_MARK, Op, Operand, ScreenEffect, Ruby, SpriteChange, SpritePlacement, TextWindow, TransitionStyle, Voice};
+use conv_core::ir::{ArithOp, ChoiceStyle, CLICK_WAIT_MARK, Op, Operand, ScreenEffect, Ruby, SpriteChange, SpritePlacement, TextWindow, TransitionStyle, Voice};
 
 use super::nss::{AssignOp, BinaryOp, Expr, Function, Inline, Item, NssFile, Param, Stmt, StmtKind, Target, Text, UnaryOp};
 
@@ -823,7 +823,13 @@ impl<'a, 'b> Compiler<'a, 'b> {
             .collect();
         let labels: Vec<String> = (0..cases.len()).map(|i| format!("choice{n}_{i}")).collect();
         let after = format!("choice{n}_end");
-        self.ops.push(Op::Choice { options: texts.into_iter().zip(labels.iter().cloned()).collect() });
+        let style = self.choice_style(texts.len() as i64);
+        let style_shown = style.is_some();
+        self.ops.push(Op::Choice { options: texts.into_iter().zip(labels.iter().cloned()).collect(), style });
+        if style_shown {
+            // The next text sets its own window again.
+            self.window = None;
+        }
         let base = self.snapshot();
         let mut leaves = Vec::new();
         for (case, label) in cases.iter().zip(&labels) {
@@ -835,6 +841,35 @@ impl<'a, 'b> Compiler<'a, 'b> {
         }
         self.ops.push(Op::Label(after));
         self.finish_fork(leaves, own, true);
+    }
+
+    /// The choice plates of `SetChoiceBase` (function_select.nss): `n`
+    /// vertical plates 100 px apart, the first at the right, centred on
+    /// the screen; the options in black, vertical, one per plate.
+    fn choice_style(&mut self, n: i64) -> Option<ChoiceStyle> {
+        const PITCH: i64 = 100;
+        const FONT: i64 = 20;
+        const MARGIN: i64 = 40;
+        let (plate, w, h) = self.assets.image("cg/sys/select/select001.png")?;
+        let (w, h) = (w as i64, h as i64);
+        let first = PITCH * (n - 2) + 50 + SCREEN_W / 2;
+        let y = (SCREEN_H - h) / 2;
+        let parts: Vec<_> = (0..n).map(|i| (plate.clone(), first - PITCH * i, y, 1000)).collect();
+        let (image, wx, wy) = self.assets.composite(&parts)?;
+        let window = TextWindow {
+            image,
+            x: wx as i32,
+            y: wy as i32,
+            text_x: (first - PITCH * (n - 1) + (w - FONT) / 2) as i32,
+            text_y: (y + MARGIN) as i32,
+            columns: ((h - 2 * MARGIN) / FONT) as u32,
+            rows: n as u32,
+            font_size: FONT as u32,
+            line_gap: (PITCH - FONT) as u32,
+            vertical: true,
+            name_plate: None,
+        };
+        Some(ChoiceStyle { window, on_color: 0xA00000, off_color: 0x000000 })
     }
 
     /// Starts a fork; true if it's the outermost one (nested forks share
@@ -2417,8 +2452,11 @@ scene a.nss
         files.insert("d.nss".into(), nss::parse(&main("d.nss", "$GameCircle = 0;")).unwrap());
         let (c, played) = compile_run(&files, "a.nss", 10, &mut Fake).unwrap();
         assert_eq!(played, ["a.nss", "b.nss", "c.nss", "d.nss"]);
-        let Some(Op::Choice { options }) = c.ops.iter().find(|op| matches!(op, Op::Choice { .. })) else { panic!() };
+        let Some(Op::Choice { options, style }) = c.ops.iter().find(|op| matches!(op, Op::Choice { .. })) else { panic!() };
         assert_eq!(options.iter().map(|o| o.0.as_str()).collect::<Vec<_>>(), ["はい", "いいえ"]);
+        // Two plates, the first at x 562; one vertical line on each.
+        let w = &style.as_ref().unwrap().window;
+        assert_eq!((w.x, w.rows, w.vertical, w.font_size + w.line_gap), (562, 2, true, 100));
         let var = conv_core::ir::Var { global: false, index: FORK_VARS.start };
         assert!(c.ops.contains(&Op::If { var, cmp: conv_core::ir::Compare::Eq, value: Operand::Const(0), label: "f_b".into() }));
         assert!(c.ops.contains(&Op::If { var, cmp: conv_core::ir::Compare::Eq, value: Operand::Const(1), label: "f_c".into() }));

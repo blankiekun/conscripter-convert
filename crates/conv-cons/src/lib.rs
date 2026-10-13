@@ -137,6 +137,7 @@ pub fn emit(script: &Script) -> String {
     let mut turns = 0;
     let has_vertical = script.window.iter().chain(script.ops.iter().filter_map(|op| match op {
         Op::SetWindow(w) => Some(w),
+        Op::Choice { style: Some(s), .. } => Some(&s.window),
         _ => None,
     }))
     .any(|w| w.vertical);
@@ -230,7 +231,7 @@ pub fn emit(script: &Script) -> String {
     // setwindow redraws the screen, so it must come after `game` (ONScripter
     // crashes if it runs in the define section).
     if let Some(w) = &script.window {
-        writeln!(out, "{}", setwindow(w, speed, has_ruby, has_vertical)).unwrap();
+        writeln!(out, "{}", setwindow(w, speed, has_ruby, has_vertical, true)).unwrap();
         // Keep the window up while sprites change and pages are printed
         // (by default every print hides it until the next text, which
         // flickers); the script hides it explicitly with textoff.
@@ -397,7 +398,7 @@ pub fn emit(script: &Script) -> String {
             Op::HideTextWindow => writeln!(out, "textoff").unwrap(),
             Op::InstantText(on) => writeln!(out, "textspeed {}", if *on { "0" } else { speed }).unwrap(),
             Op::SetWindow(w) => {
-                writeln!(out, "{}", setwindow(w, speed, has_ruby, has_vertical)).unwrap();
+                writeln!(out, "{}", setwindow(w, speed, has_ruby, has_vertical, true)).unwrap();
                 writeln!(out, "csp {NAME_PLATE_SPRITE}:csp {NAME_TEXT_SPRITE}").unwrap();
                 plate_visible = false;
                 page_rows = 0;
@@ -724,7 +725,7 @@ pub fn emit(script: &Script) -> String {
                     }
                     if let Some(w) = window {
                         // The scene may have switched the text window.
-                        writeln!(out, "{}", setwindow(w, speed, has_ruby, has_vertical)).unwrap();
+                        writeln!(out, "{}", setwindow(w, speed, has_ruby, has_vertical, true)).unwrap();
                     }
                     if root_returns > 0 {
                         writeln!(out, "if {ROOT_RESUME} != 0 goto *{UNWIND}").unwrap();
@@ -787,7 +788,22 @@ pub fn emit(script: &Script) -> String {
             Op::CgSeen { number } => writeln!(out, "mov %{},1", CG_SEEN_BASE + number).unwrap(),
             Op::SceneEnd if has_replay => writeln!(out, "if {} == 1 goto *{}", replay::REPLAYING, replay::END).unwrap(),
             Op::SceneEnd => writeln!(out, "; scene end").unwrap(),
-            Op::Choice { options } => {
+            Op::Choice { options, style } => {
+                if let Some(s) = style {
+                    writeln!(out, "selectcolor \"#{:06X}\",\"#{:06X}\"", s.on_color, s.off_color).unwrap();
+                    // With ruby on, vertical lines move left by the line
+                    // gap (room for the ruby at their right); the options
+                    // have none and stay on their plates.
+                    let mut w = s.window.clone();
+                    if has_ruby && w.vertical {
+                        w.text_x += w.line_gap as i32;
+                    }
+                    writeln!(out, "{}", setwindow(&w, speed, has_ruby, has_vertical, false)).unwrap();
+                    writeln!(out, "csp {NAME_PLATE_SPRITE}:csp {NAME_TEXT_SPRITE}").unwrap();
+                    plate_visible = false;
+                    page_rows = 0;
+                    window = Some(s.window.clone());
+                }
                 let items: Vec<String> = options.iter().map(|(t, l)| format!("\"{}\",*{}", text_safe(t), label(l))).collect();
                 writeln!(out, "select {}", items.join(",")).unwrap();
             }
@@ -908,18 +924,19 @@ fn title_screen(out: &mut String, t: &TitleScreen, fade: &str, save_menu: bool, 
 /// goes above it), so the window starts a line gap higher.
 /// `any_vertical`: some window is vertical, so a horizontal one must switch
 /// back.
-fn setwindow(w: &TextWindow, speed: &str, ruby: bool, any_vertical: bool) -> String {
+fn setwindow(w: &TextWindow, speed: &str, ruby: bool, any_vertical: bool, shadow: bool) -> String {
+    let shadow = shadow as u8;
     if w.vertical {
         // tateyoko first: it clears the page using the old window's size.
         // Lines are columns: x counts them, y the characters down each.
         return format!(
-            "tateyoko 1:setwindow {},{},{},{},{},{},{},0,{speed},0,1,\":a;{}\",{},{}",
+            "tateyoko 1:setwindow {},{},{},{},{},{},{},0,{speed},0,{shadow},\":a;{}\",{},{}",
             w.text_x, w.text_y, w.rows, w.columns, w.font_size, w.font_size, w.line_gap, path(&w.image), w.x, w.y
         );
     }
     let text_y = if ruby { w.text_y - w.line_gap as i32 } else { w.text_y };
     format!(
-        "{}setwindow {},{text_y},{},{},{},{},1,{},{speed},0,1,\":a;{}\",{},{}",
+        "{}setwindow {},{text_y},{},{},{},{},1,{},{speed},0,{shadow},\":a;{}\",{},{}",
         if any_vertical { "tateyoko 0:" } else { "" },
         w.text_x, w.columns, w.rows, w.font_size, w.font_size, w.line_gap, path(&w.image), w.x, w.y
     )
@@ -1384,7 +1401,7 @@ impl SeChannels {
 mod tests {
     use super::*;
     use conv_core::ir::Compare;
-    use conv_core::ir::{Animation, Noise, SourceLoc, SpriteChange, SpriteFilter, SpritePlacement, Voice, FILTER_BLEND_COPY, FILTER_BLEND_MULTIPLY, FILTER_BRIGHTNESS, FILTER_COLOUR};
+    use conv_core::ir::{Animation, ChoiceStyle, Noise, SourceLoc, SpriteChange, SpriteFilter, SpritePlacement, Voice, FILTER_BLEND_COPY, FILTER_BLEND_MULTIPLY, FILTER_BRIGHTNESS, FILTER_COLOUR};
 
     fn script(ops: Vec<Op>) -> Script {
         Script { title: "Test".into(), width: 800, height: 600, global_border: None, window: None, title_screen: None, save_menu: None, button_bar: None, settings: None, backlog: None, confirm: None, extras: None, ops }
@@ -1501,6 +1518,17 @@ goto *conv_link1
         assert!(text.starts_with(";$S1024,576\n"), "{text}");
         assert!(text.contains("tateyoko 1:setwindow 430,55,5,27,20,20,9,0,20,0,1,\":a;system\\window.png\",447,40\n"), "{text}");
         assert!(text.contains("tateyoko 0:setwindow 105,"), "{text}");
+    }
+
+    #[test]
+    fn styled_choice_has_its_own_window_and_colours() {
+        let plates = TextWindow { vertical: true, name_plate: None, x: 462, y: 68, text_x: 477, text_y: 108, columns: 18, rows: 2, font_size: 20, line_gap: 80, ..window() };
+        let style = Some(ChoiceStyle { window: plates, on_color: 0xA00000, off_color: 0 });
+        let options = vec![("はい".into(), "a".into()), ("いいえ".into(), "b".into())];
+        let text = emit(&script(vec![Op::Choice { options, style }]));
+        // No shadow; no ruby here, so text_x as given.
+        assert!(text.contains("selectcolor \"#A00000\",\"#000000\"\ntateyoko 1:setwindow 477,108,2,18,20,20,80,0,20,0,0,"), "{text}");
+        assert!(text.contains("select \"はい\",*a,\"いいえ\",*b\n"), "{text}");
     }
 
     #[test]
