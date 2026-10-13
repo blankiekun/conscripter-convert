@@ -23,15 +23,19 @@ notes, git-ignored) and `PLAN.md` §4.2 and §6 ("Remaining work for
 
 ## Next
 
-Opcodes 0x70 (leftovers), 0x59, 0x82 and 0x69 are done (unsupported
-296 → 119); the engine has new filter kinds 6-8 and 8 effect slots
-(engine `5516a1a`, released in CONscripter 0.14.0, tag `v0.14.0`,
-Android versionCode 17). Slides (0x86/0x87/0x7f, unsupported 119 → 81) are done too, checked
-headless in 0010.cd's 沙也加 slide. Pick the next item from "3. Next
-work": only small groups are left (0x39, 0x56). Unchecked against the original under wine: quakes,
-flashes (ours are under the text window; the original's cover it),
-pulses (especially presets 6-8: blend 6 is assumed to lay white over
-the copy, `tint 2`).
+Work happens on branch `xuse` (pushed; based on `origin/main`). The
+Nitroplus agent works in `~/Projects/conscripter-convert-nitroplus` on
+branch `nitroplus` and may commit to local `main` without pushing: base
+on `origin/main`, not `main`.
+
+Every opcode the story uses is converted (unsupported 81 → 2: the start
+point's debug menu, which the user doesn't want). Approximations worth
+checking or improving, roughly by visibility: the Zigzag's Multi blend
+(needs an engine blend option for `screenripple`), the staff roll in the
+web build (not played yet), the transitions still drawn as cross-fades
+(list below), quakes/flashes/pulses never compared with the original.
+Wine harness: audio is muted now; scripts that FIRST START runs are in
+0004.cd (0003.cd is the epilogue).
 
 ## Done in the third session (2026-10-13)
 
