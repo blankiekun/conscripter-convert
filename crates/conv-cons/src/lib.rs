@@ -292,7 +292,7 @@ pub fn emit(script: &Script) -> String {
                 let lines: Vec<String> = body
                     .split('\n')
                     .zip(text.split('\n'))
-                    .map(|(l, src)| if starts_ascii(src) { format!("　{l}") } else { l.to_string() })
+                    .map(|(l, src)| align_single_bytes(&if starts_ascii(src) { format!("　{l}") } else { l.to_string() }))
                     .collect();
                 let rows_before = page_rows;
                 page_rows = if *continues { page_rows + lines.len() } else { 0 };
@@ -534,6 +534,44 @@ fn char_position(w: &TextWindow, text: &str, index: usize) -> (i32, i32) {
     (x, y)
 }
 
+/// Outside English mode ONScripter reads single-byte text (ASCII and
+/// half-width katakana) two bytes at a time, skipping a space where a pair
+/// would start. A run that ends half way through a pair takes the first
+/// byte of what follows with it: a Japanese character, a colour tag or the
+/// page wait. Pads such runs with a space.
+fn align_single_bytes(line: &str) -> String {
+    let mut out = String::with_capacity(line.len() + 4);
+    let mut half = false; // a single byte waits for its pair
+    let mut chars = line.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '#' || !is_single_byte(c) {
+            // Our colour tags are the only '#' left (escape() replaces the rest).
+            if half {
+                out.push(' ');
+                half = false;
+            }
+            out.push(c);
+            if c == '#' {
+                out.extend(chars.by_ref().take(6));
+            }
+        } else {
+            if half || c != ' ' {
+                half = !half;
+            }
+            out.push(c);
+        }
+    }
+    if half {
+        out.push(' ');
+    }
+    out
+}
+
+/// One byte in Shift JIS.
+fn is_single_byte(c: char) -> bool {
+    c.is_ascii() || ('\u{FF61}'..='\u{FF9F}').contains(&c)
+}
+
 fn starts_ascii(line: &str) -> bool {
     line.starts_with(|c: char| c.is_ascii())
 }
@@ -674,6 +712,13 @@ fn escape(text: &str) -> String {
             '"' => '”',
             ';' => '；',
             '*' => '＊',
+            // Ruby, text buttons and text tags.
+            '(' => '（',
+            ')' => '）',
+            '<' => '＜',
+            '>' => '＞',
+            '[' => '［',
+            ']' => '］',
             '\r' => '　',
             c => c,
         })
@@ -982,7 +1027,7 @@ end
         let text = emit(&s);
         assert!(text.contains("setwindow 105,470,25,3,24,24,1,13,20,0,1,\":a;system\\window.png\",47,452\nerasetextwindow 0\n"));
         assert!(text.contains("lsp 51,\":a;system\\name.png\",55,412\nstrsp 50,\"名前\",75,422,16,1,20,20,1,0,0,1\nprint 1\n「台詞」\\\n"));
-        assert!(text.contains("csp 51\ncsp 50\nprint 1\n　Ghost\\\n"));
+        assert!(text.contains("csp 51\ncsp 50\nprint 1\n　Ghost \\\n"));
     }
 
     #[test]
@@ -994,7 +1039,7 @@ end
             links: vec![link(4, 3, None)],
             continues: false,
         }]);
-        assert!(emit(&s).contains("一行目\n　#F0C040abc#FFFFFF\n三行目\\\n"));
+        assert!(emit(&s).contains("一行目\n　#F0C040abc #FFFFFF\n三行目\\\n"));
     }
 
     #[test]
@@ -1054,6 +1099,18 @@ end
     fn text_is_made_safe() {
         assert_eq!(text_safe("Ghost: 50% @home"), "　Ghost: 50％ ＠home");
         assert_eq!(text_safe("「a/b」"), "「a／b」");
+    }
+
+    #[test]
+    fn single_byte_runs_keep_their_pairs() {
+        // A space where a pair would start is skipped by ONScripter.
+        assert_eq!(align_single_bytes("ABC続き"), "ABC 続き");
+        assert_eq!(align_single_bytes("AB続き"), "AB続き");
+        assert_eq!(align_single_bytes(" xyz続"), " xyz 続");
+        assert_eq!(align_single_bytes("a b続"), "a b 続");
+        assert_eq!(align_single_bytes("ｼｬﾄﾞｳshadow）"), "ｼｬﾄﾞｳshadow ）");
+        assert_eq!(align_single_bytes("x#F0C040y#FFFFFF。"), "x #F0C040y #FFFFFF。");
+        assert_eq!(align_single_bytes("ab c"), "ab c ");
     }
 
     #[test]
