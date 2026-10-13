@@ -1,7 +1,7 @@
 //! The in-game menus as NScripter subroutines: the save/load screen (see
 //! [`SaveMenu`]) and the button bar shown at click waits ([`ButtonBar`]).
 //!
-//! Enter with `mov %101,1:gosub *vn2ons_save` (or `vn2ons_load`) from a
+//! Enter with `mov %101,1:gosub *conv_save` (or `conv_load`) from a
 //! click wait in the game, or with `%101` = 0 from the title screen. It
 //! returns when closed; a successful load doesn't return.
 //!
@@ -21,20 +21,20 @@
 //!   buttons and labels `lsp` sprites over them. The text window, name
 //!   plate and link words are hidden while the menu is open.
 
-use vn2ons_core::ir::{BarAction, Backlog, ButtonBar, ConfirmDialog, Placed, SaveMenu, Setting, SettingsMenu, TextSpot, VoiceToggle};
+use conv_core::ir::{BarAction, Backlog, ButtonBar, ConfirmDialog, Placed, SaveMenu, Setting, SettingsMenu, TextSpot, VoiceToggle};
 
 use crate::{escape, path, BAR_SPRITES, BUTTON_VAR, DIALOG_SPRITES, LINK_SPRITES, MENU_SPRITES, NAME_PLATE_SPRITE, NAME_TEXT_SPRITE};
 
-pub(crate) const SAVE: &str = "vn2ons_save";
+pub(crate) const SAVE: &str = "conv_save";
 /// The `textgosub` routine.
-pub(crate) const WAIT: &str = "vn2ons_wait";
+pub(crate) const WAIT: &str = "conv_wait";
 /// Shows the button bar and makes its buttons clickable.
-pub(crate) const BAR_DRAW: &str = "vn2ons_bar_draw";
+pub(crate) const BAR_DRAW: &str = "conv_bar_draw";
 /// Runs the bar button in %9 (or -1, a right-click).
-pub(crate) const BAR_ACTION: &str = "vn2ons_bar_action";
-pub(crate) const SETTINGS: &str = "vn2ons_settings";
-const SETTINGS_APPLY: &str = "vn2ons_settings_apply";
-pub(crate) const BACKLOG: &str = "vn2ons_backlog";
+pub(crate) const BAR_ACTION: &str = "conv_bar_action";
+pub(crate) const SETTINGS: &str = "conv_settings";
+const SETTINGS_APPLY: &str = "conv_settings_apply";
+pub(crate) const BACKLOG: &str = "conv_backlog";
 /// Settings levels are %902-%906 (globals); %909 = 1 once they are set.
 const SETTINGS_SET: &str = "%909";
 /// 1: skip goes on through unread text (`kidokumode 0`).
@@ -74,16 +74,16 @@ const SETTINGS_PAGE: &str = "%176";
 /// Voice character c is muted when the global %(VOICE_OFF_BASE + c) is 1.
 pub(crate) const VOICE_OFF_BASE: u32 = 970;
 /// Asks the question in [`CONFIRM_TEXT`]; [`CONFIRM`] = 1 for yes.
-pub(crate) const CONFIRM_ROUTINE: &str = "vn2ons_confirm";
+pub(crate) const CONFIRM_ROUTINE: &str = "conv_confirm";
 pub(crate) const CONFIRM: &str = "%109";
 const CONFIRM_TEXT: &str = "$106";
 /// Bar buttons return numbers above this.
 pub(crate) const BAR_BUTTON_BASE: i32 = 1000;
 /// Sets which bars are up after a hotspot reported the pointer (%9).
-pub(crate) const BAR_HOVER: &str = "vn2ons_bar_hover";
-const BAR_CLEAR: &str = "vn2ons_bar_clear";
+pub(crate) const BAR_HOVER: &str = "conv_bar_hover";
+const BAR_CLEAR: &str = "conv_bar_clear";
 /// Puts the bars away (they come back when the pointer nears an edge).
-pub(crate) const BAR_HIDE: &str = "vn2ons_bar_hide_all";
+pub(crate) const BAR_HIDE: &str = "conv_bar_hide_all";
 /// Hotspots report the pointer with numbers above this.
 pub(crate) const HOVER_BASE: i32 = 2000;
 // Which bars are up (locals, so a save keeps them as they were).
@@ -97,7 +97,7 @@ pub(crate) const SCENE_TITLES: u32 = 160;
 const SCENE_TMP: &str = "$151";
 /// lsp2 slots of the top bars (below the save menu's).
 const TOP_SPRITES2: std::ops::Range<u32> = 12..24;
-pub(crate) const LOAD: &str = "vn2ons_load";
+pub(crate) const LOAD: &str = "conv_load";
 /// 1 when entered from the game (hide and restore the text window).
 pub(crate) const IN_GAME: &str = "%101";
 
@@ -174,10 +174,10 @@ pub(crate) fn save_menu(out: &mut String, m: &SaveMenu, confirm: Option<&Confirm
 
     w(format!("*{SAVE}"));
     w(format!("mov {MODE},1"));
-    w("goto *vn2ons_sl".into());
+    w("goto *conv_sl".into());
     w(format!("*{LOAD}"));
     w(format!("mov {MODE},2"));
-    w("*vn2ons_sl".into());
+    w("*conv_sl".into());
     // The thumbnail: the screen as it is before the menu covers it.
     w(format!("if {MODE} == 1 getscreenshot {},{}", m.preview.w, m.preview.h));
     let others = hidden_while_open();
@@ -195,14 +195,14 @@ pub(crate) fn save_menu(out: &mut String, m: &SaveMenu, confirm: Option<&Confirm
     w(format!("if {PAGE} > {} mov {PAGE},1", pages.len()));
 
     // A page: its rows and the page buttons.
-    w("*vn2ons_sl_page".into());
+    w("*conv_sl_page".into());
     w(format!("mov {SELECTED},0"));
     w(format!("csp2 {SELECTION}:csp2 {PREVIEW}:csp2 {NEW}:csp2 {MARKER}"));
     w(format!("mov {FIRST},{PAGE}*{rows}-{}", rows - 1));
     for row in 0..rows {
         let y = row_y(row);
         w(format!("mov {SLOT},{FIRST}+{row}"));
-        w("gosub *vn2ons_sl_slot".into());
+        w("gosub *conv_sl_slot".into());
         let size = m.font_size;
         for (slot, line, dy) in [(TEXT1, LINE1, 0), (TEXT2, LINE2, m.line_height)] {
             w(format!(
@@ -230,11 +230,11 @@ pub(crate) fn save_menu(out: &mut String, m: &SaveMenu, confirm: Option<&Confirm
     }
 
     // Enable the buttons that apply to the selection.
-    w("*vn2ons_sl_buttons".into());
+    w("*conv_sl_buttons".into());
     w(format!("cell {DELETE},2:cell {ACTION},2"));
     w(format!("if {SELECTED} > 0 && {SELECTED_HAS_DATA} == 1 cell {DELETE},0:cell {ACTION},0"));
     w(format!("if {SELECTED} > 0 && {MODE} == 1 cell {ACTION},0"));
-    w("*vn2ons_sl_wait".into());
+    w("*conv_sl_wait".into());
     for row in 0..rows {
         w(format!("spbtn {},{}", ROW_BUTTON + row as u32, row + 1));
     }
@@ -247,23 +247,23 @@ pub(crate) fn save_menu(out: &mut String, m: &SaveMenu, confirm: Option<&Confirm
     w("print 1".into());
     w(format!("btnwait {BUTTON_VAR}"));
     // Right-click closes, as in the original.
-    w(format!("if {BUTTON_VAR} == -1 goto *vn2ons_sl_close"));
-    w(format!("if {BUTTON_VAR} == {BTN_CLOSE} goto *vn2ons_sl_close"));
-    w(format!("if {BUTTON_VAR} == {BTN_DELETE} goto *vn2ons_sl_delete"));
-    w(format!("if {BUTTON_VAR} == {BTN_ACTION} goto *vn2ons_sl_act"));
+    w(format!("if {BUTTON_VAR} == -1 goto *conv_sl_close"));
+    w(format!("if {BUTTON_VAR} == {BTN_CLOSE} goto *conv_sl_close"));
+    w(format!("if {BUTTON_VAR} == {BTN_DELETE} goto *conv_sl_delete"));
+    w(format!("if {BUTTON_VAR} == {BTN_ACTION} goto *conv_sl_act"));
     w(format!(
-        "if {BUTTON_VAR} > {BTN_PAGE} && {BUTTON_VAR} <= {} mov {PAGE},{BUTTON_VAR}-{BTN_PAGE}:goto *vn2ons_sl_page",
+        "if {BUTTON_VAR} > {BTN_PAGE} && {BUTTON_VAR} <= {} mov {PAGE},{BUTTON_VAR}-{BTN_PAGE}:goto *conv_sl_page",
         BTN_PAGE + pages.len() as u32
     ));
-    w(format!("if {BUTTON_VAR} >= 1 && {BUTTON_VAR} <= {rows} goto *vn2ons_sl_row"));
-    w("goto *vn2ons_sl_wait".into());
+    w(format!("if {BUTTON_VAR} >= 1 && {BUTTON_VAR} <= {rows} goto *conv_sl_row"));
+    w("goto *conv_sl_wait".into());
 
     // A row was clicked: select it, or act on it if it already was.
-    w("*vn2ons_sl_row".into());
+    w("*conv_sl_row".into());
     w(format!("mov {SLOT},{FIRST}+{BUTTON_VAR}-1"));
-    w(format!("if {SLOT} == {SELECTED} goto *vn2ons_sl_act"));
+    w(format!("if {SLOT} == {SELECTED} goto *conv_sl_act"));
     w(format!("mov {SELECTED},{SLOT}"));
-    w("gosub *vn2ons_sl_slot".into());
+    w("gosub *conv_sl_slot".into());
     w(format!("mov {SELECTED_HAS_DATA},{HAS_DATA}"));
     let sel = &m.row_selected;
     w(format!("mov {TMP},({BUTTON_VAR}-1)*{}+{}", m.row_pitch, m.row_y + sel.y + sel.h / 2));
@@ -271,31 +271,31 @@ pub(crate) fn save_menu(out: &mut String, m: &SaveMenu, confirm: Option<&Confirm
     let (px, py) = (m.preview.x + m.preview.w / 2, m.preview.y + m.preview.h / 2);
     w(format!("if {HAS_DATA} == 1 lsp2 {PREVIEW},{THUMB_IMAGE},{px},{py},100,100,0"));
     w(format!("if {HAS_DATA} == 0 csp2 {PREVIEW}"));
-    w("goto *vn2ons_sl_buttons".into());
+    w("goto *conv_sl_buttons".into());
 
     // Asks "No.NN {question}" about the selected slot; no: back to waiting.
     let ask = |question: &str| match confirm {
         Some(_) => format!(
-            "mov {SLOT},{SELECTED}\ngosub *vn2ons_sl_number\nmov {CONFIRM_TEXT},{LINE1}\nadd {CONFIRM_TEXT},\" {}\"\ngosub *{CONFIRM_ROUTINE}\nif {CONFIRM} == 0 goto *vn2ons_sl_buttons",
+            "mov {SLOT},{SELECTED}\ngosub *conv_sl_number\nmov {CONFIRM_TEXT},{LINE1}\nadd {CONFIRM_TEXT},\" {}\"\ngosub *{CONFIRM_ROUTINE}\nif {CONFIRM} == 0 goto *conv_sl_buttons",
             escape(question)
         ),
         None => String::new(),
     };
-    w("*vn2ons_sl_act".into());
-    w(format!("if {SELECTED} == 0 goto *vn2ons_sl_wait"));
-    w(format!("if {MODE} == 2 goto *vn2ons_sl_load"));
+    w("*conv_sl_act".into());
+    w(format!("if {SELECTED} == 0 goto *conv_sl_wait"));
+    w(format!("if {MODE} == 2 goto *conv_sl_load"));
     if let Some(c) = confirm {
-        w(format!("if {SELECTED_HAS_DATA} == 0 goto *vn2ons_sl_save"));
+        w(format!("if {SELECTED_HAS_DATA} == 0 goto *conv_sl_save"));
         w(ask(&c.overwrite));
     }
-    w("*vn2ons_sl_save".into());
+    w("*conv_sl_save".into());
     w(format!("mov {SLOT},{SELECTED}"));
-    w("gosub *vn2ons_sl_file".into());
+    w("gosub *conv_sl_file".into());
     w(format!("savescreenshot2 {FILE}"));
     // Label: "No.NN - 20YY/MM/DD hh:mm:ss|chapter". ONScripter (Shift-JIS)
     // draws half-width characters two per cell and drops a space that
     // starts a cell, so spaces at even positions are full-width.
-    w("gosub *vn2ons_sl_number".into());
+    w("gosub *conv_sl_number".into());
     w(format!("date {},{},{}", DATE[0], DATE[1], DATE[2]));
     w(format!("time {},{},{}", DATE[3], DATE[4], DATE[5]));
     w(format!("add {LINE1},\" - 20\""));
@@ -314,64 +314,64 @@ pub(crate) fn save_menu(out: &mut String, m: &SaveMenu, confirm: Option<&Confirm
     w(format!("mov {TMP},{SELECTED}+{DELETED_BASE}"));
     w(format!("mov %{TMP},0"));
     w(format!("mov {NEWEST},{SELECTED}"));
-    w("goto *vn2ons_sl_page".into());
+    w("goto *conv_sl_page".into());
 
-    w("*vn2ons_sl_load".into());
-    w(format!("if {SELECTED_HAS_DATA} == 0 goto *vn2ons_sl_wait"));
+    w("*conv_sl_load".into());
+    w(format!("if {SELECTED_HAS_DATA} == 0 goto *conv_sl_wait"));
     if let Some(c) = confirm {
         w(ask(&c.load));
     }
-    w("gosub *vn2ons_sl_clear".into());
+    w("gosub *conv_sl_clear".into());
     w(format!("loadgame {SELECTED}"));
     // Still here: the load failed.
-    w("goto *vn2ons_sl".into());
+    w("goto *conv_sl".into());
 
-    w("*vn2ons_sl_delete".into());
+    w("*conv_sl_delete".into());
     if let Some(c) = confirm {
         w(ask(&c.delete));
     }
     w(format!("mov {TMP},{SELECTED}+{DELETED_BASE}"));
     w(format!("mov %{TMP},1"));
     w(format!("if {SELECTED} == {NEWEST} mov {NEWEST},0"));
-    w("goto *vn2ons_sl_page".into());
+    w("goto *conv_sl_page".into());
 
-    w("*vn2ons_sl_close".into());
+    w("*conv_sl_close".into());
     // texton first: it drops the pending screen updates except the window's.
     w(format!("if {IN_GAME} == 1 texton:{}", vsp(1)));
-    w("gosub *vn2ons_sl_clear".into());
+    w("gosub *conv_sl_clear".into());
     w("print 1".into());
     w("return".into());
 
-    w("*vn2ons_sl_clear".into());
+    w("*conv_sl_clear".into());
     w((0..=BASE).map(|n| format!("csp2 {n}")).collect::<Vec<_>>().join(":"));
     w(MENU_SPRITES.map(|n| format!("csp {n}")).collect::<Vec<_>>().join(":"));
     w("return".into());
 
     // Slot SLOT: HAS_DATA, LINE1 and LINE2 (its label), FILE (thumbnail).
-    w("*vn2ons_sl_slot".into());
+    w("*conv_sl_slot".into());
     w(format!("savefileexist {HAS_DATA},{SLOT}"));
     w(format!("mov {TMP},{SLOT}+{DELETED_BASE}"));
     w(format!("if %{TMP} == 1 mov {HAS_DATA},0"));
-    w("gosub *vn2ons_sl_file".into());
-    w(format!("if {HAS_DATA} == 0 goto *vn2ons_sl_empty"));
+    w("gosub *conv_sl_file".into());
+    w(format!("if {HAS_DATA} == 0 goto *conv_sl_empty"));
     w(format!("getsavestr {LABEL},{SLOT}"));
     w(format!("split {LABEL},\"|\",{LINE1},{LINE2}"));
     w(format!("if {LINE2} == \"\" mov {LINE2},\"　\""));
     w("return".into());
-    w("*vn2ons_sl_empty".into());
-    w("gosub *vn2ons_sl_number".into());
+    w("*conv_sl_empty".into());
+    w("gosub *conv_sl_number".into());
     w(format!("add {LINE1},\" - no　data\""));
     w(format!("mov {LINE2},\"　\""));
     w("return".into());
 
-    w("*vn2ons_sl_number".into());
+    w("*conv_sl_number".into());
     w(format!("mov {LINE1},\"No.\""));
     w(format!("if {SLOT} < 10 add {LINE1},\"0\""));
     w(format!("itoa {STR_TMP},{SLOT}"));
     w(format!("add {LINE1},{STR_TMP}"));
     w("return".into());
 
-    w("*vn2ons_sl_file".into());
+    w("*conv_sl_file".into());
     w(format!("itoa {STR_TMP},{SLOT}"));
     w(format!("mov {FILE},\"savethumb\""));
     w(format!("add {FILE},{STR_TMP}"));
@@ -407,35 +407,35 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, save_menu: bool, set
     let lsp = |slot: u32, p: &Placed, cells: &str| format!("lsp {slot},\":a{cells};{}\",{},{}", path(&p.image), p.x, p.y);
     let number = |i: usize| BAR_BUTTON_BASE + 1 + i as i32;
     let label = |a: BarAction| match a {
-        BarAction::Auto => "vn2ons_bar_auto",
-        BarAction::Skip => "vn2ons_bar_skip",
-        BarAction::Log => "vn2ons_bar_log",
-        BarAction::Save => "vn2ons_bar_save",
-        BarAction::Load => "vn2ons_bar_load",
-        BarAction::Settings => "vn2ons_bar_settings",
-        BarAction::HideWindow | BarAction::Unavailable => "vn2ons_bar_hide",
+        BarAction::Auto => "conv_bar_auto",
+        BarAction::Skip => "conv_bar_skip",
+        BarAction::Log => "conv_bar_log",
+        BarAction::Save => "conv_bar_save",
+        BarAction::Load => "conv_bar_load",
+        BarAction::Settings => "conv_bar_settings",
+        BarAction::HideWindow | BarAction::Unavailable => "conv_bar_hide",
     };
     let (hover_top, hover_bottom, hover_hide) = (HOVER_BASE + 1, HOVER_BASE + 2, HOVER_BASE + 3);
 
     w(format!("*{WAIT}"));
     w(format!("gosub *{BAR_DRAW}"));
     w(format!("textbtnwait {BUTTON_VAR}"));
-    w(format!("if {BUTTON_VAR} > {HOVER_BASE} goto *vn2ons_wait_hover"));
+    w(format!("if {BUTTON_VAR} > {HOVER_BASE} goto *conv_wait_hover"));
     // Wheel down (-3) reads on, like a click; wheel up (-2) opens the log.
-    w(format!("if {BUTTON_VAR} == -3 goto *vn2ons_wait_end"));
-    w(format!("if {BUTTON_VAR} >= 0 && {BUTTON_VAR} <= {BAR_BUTTON_BASE} goto *vn2ons_wait_end"));
+    w(format!("if {BUTTON_VAR} == -3 goto *conv_wait_end"));
+    w(format!("if {BUTTON_VAR} >= 0 && {BUTTON_VAR} <= {BAR_BUTTON_BASE} goto *conv_wait_end"));
     w(format!("gosub *{BAR_ACTION}"));
     // Auto and skip go on to the next page; the rest come back here.
     for (i, (b, _)) in buttons.iter().enumerate() {
         if matches!(b.action, BarAction::Auto | BarAction::Skip) {
-            w(format!("if {BUTTON_VAR} == {} goto *vn2ons_wait_end", number(i)));
+            w(format!("if {BUTTON_VAR} == {} goto *conv_wait_end", number(i)));
         }
     }
     w(format!("goto *{WAIT}"));
-    w("*vn2ons_wait_hover".into());
+    w("*conv_wait_hover".into());
     w(format!("gosub *{BAR_HOVER}"));
     w(format!("goto *{WAIT}"));
-    w("*vn2ons_wait_end".into());
+    w("*conv_wait_end".into());
     w("texec".into());
     w("return".into());
 
@@ -463,7 +463,7 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, save_menu: bool, set
     w("btndef clear".into());
     w(format!("gosub *{BAR_CLEAR}"));
     w(format!("if {TOP_SHOWN} == 1 || {BOTTOM_SHOWN} == 1 {}:spbtn {hide},{hover_hide}", lsp(hide, &bar.hide, "")));
-    w(format!("if {BOTTOM_SHOWN} == 0 {}:spbtn {reveal},{hover_bottom}:goto *vn2ons_bar_draw_top", lsp(reveal, &bar.reveal, "")));
+    w(format!("if {BOTTOM_SHOWN} == 0 {}:spbtn {reveal},{hover_bottom}:goto *conv_bar_draw_top", lsp(reveal, &bar.reveal, "")));
     w(format!("isskip {MODE_STATE}"));
     for (i, (b, slot)) in buttons.iter().enumerate() {
         if b.action == BarAction::Unavailable {
@@ -477,9 +477,9 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, save_menu: bool, set
         }
         w(format!("spbtn {slot},{}", number(i)));
     }
-    w("*vn2ons_bar_draw_top".into());
+    w("*conv_bar_draw_top".into());
     if let Some(top) = &bar.top {
-        w(format!("if {TOP_SHOWN} == 0 {}:spbtn {reveal_top},{hover_top}:goto *vn2ons_bar_draw_end", lsp(reveal_top, &top.reveal, "")));
+        w(format!("if {TOP_SHOWN} == 0 {}:spbtn {reveal_top},{hover_top}:goto *conv_bar_draw_end", lsp(reveal_top, &top.reveal, "")));
         let mut sprites2 = TOP_SPRITES2;
         for p in [&top.chapter_bar, &top.scene_bar].into_iter().chain(&top.decorations) {
             w(lsp2(sprites2.next().unwrap(), p, None));
@@ -499,14 +499,14 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, save_menu: bool, set
             }
         }
     }
-    w("*vn2ons_bar_draw_end".into());
+    w("*conv_bar_draw_end".into());
     w(format!("getmouseover {},{}", HOVER_BASE + 1, HOVER_BASE + 3));
     w("print 1".into());
     w("return".into());
 
     w(format!("*{BAR_ACTION}"));
-    w(format!("if {BUTTON_VAR} == -1 goto *vn2ons_bar_hide"));
-    w(format!("if {BUTTON_VAR} == -2 goto *vn2ons_bar_log"));
+    w(format!("if {BUTTON_VAR} == -1 goto *conv_bar_hide"));
+    w(format!("if {BUTTON_VAR} == -2 goto *conv_bar_log"));
     for (i, (b, _)) in buttons.iter().enumerate() {
         if b.action != BarAction::Unavailable {
             w(format!("if {BUTTON_VAR} == {} goto *{}", number(i), label(b.action)));
@@ -572,7 +572,7 @@ pub(crate) fn settings_menu(out: &mut String, m: &SettingsMenu, confirm: Option<
     for (slot, x, label) in [(SETTING_TITLE, m.label_x, &m.title_label), (SETTING_QUIT, m.level_x, &m.quit_label)] {
         w(format!("if {IN_GAME} == 1 {}", hover(slot, &format!("\"{}\"", escape(label)), x, m.exits_y, 20)));
     }
-    w("*vn2ons_settings_draw".into());
+    w("*conv_settings_draw".into());
     w((M..SETTING_TITLE).map(|n| format!("csp {n}")).collect::<Vec<_>>().join(":"));
     if !voices.is_empty() {
         // Tabs: the current page's in the highlight colour, not clickable.
@@ -589,7 +589,7 @@ pub(crate) fn settings_menu(out: &mut String, m: &SettingsMenu, confirm: Option<
             ));
             x += (chars as i32 + 2) * (size as i32 + 1);
         }
-        w(format!("if {SETTINGS_PAGE} == 1 goto *vn2ons_settings_draw_voices"));
+        w(format!("if {SETTINGS_PAGE} == 1 goto *conv_settings_draw_voices"));
     }
     for (r, row) in rows.iter().enumerate() {
         let y = m.y + r as i32 * m.pitch;
@@ -616,9 +616,9 @@ pub(crate) fn settings_menu(out: &mut String, m: &SettingsMenu, confirm: Option<
         w(format!("add {STR_TMP},\"{}\"", escape(label)));
         w(hover(SETTING_SKIP, STR_TMP, m.label_x, m.y + rows.len() as i32 * m.pitch, label.chars().count() + 2));
     }
-    w("goto *vn2ons_settings_wait".into());
+    w("goto *conv_settings_wait".into());
     // "■ name" (on) or "□ name", in two columns.
-    w("*vn2ons_settings_draw_voices".into());
+    w("*conv_settings_draw_voices".into());
     for (i, t) in voices.iter().enumerate() {
         let x = if i < column_rows { m.label_x } else { m.voice_column_x };
         let y = m.y + (i % column_rows) as i32 * m.voice_pitch;
@@ -627,8 +627,8 @@ pub(crate) fn settings_menu(out: &mut String, m: &SettingsMenu, confirm: Option<
         w(format!("add {STR_TMP},\"{}\"", escape(&t.label)));
         w(hover(SETTING_VOICE + i as u32, STR_TMP, x, y, t.label.chars().count() + 2));
     }
-    w("*vn2ons_settings_wait".into());
-    w(format!("if {SETTINGS_PAGE} == 1 goto *vn2ons_settings_wait_voices"));
+    w("*conv_settings_wait".into());
+    w(format!("if {SETTINGS_PAGE} == 1 goto *conv_settings_wait_voices"));
     for r in 0..rows.len() as u32 {
         w(format!("spbtn {},{}", SETTING_MINUS + r, BTN_MINUS + r + 1));
         w(format!("spbtn {},{}", SETTING_PLUS + r, BTN_PLUS + r + 1));
@@ -638,33 +638,33 @@ pub(crate) fn settings_menu(out: &mut String, m: &SettingsMenu, confirm: Option<
     }
     if !voices.is_empty() {
         w(format!("spbtn {},{}", SETTING_TAB + 1, BTN_TAB + 2));
-        w("goto *vn2ons_settings_wait_any".into());
-        w("*vn2ons_settings_wait_voices".into());
+        w("goto *conv_settings_wait_any".into());
+        w("*conv_settings_wait_voices".into());
         for i in 0..voices.len() as u32 {
             w(format!("spbtn {},{}", SETTING_VOICE + i, BTN_VOICE + i + 1));
         }
         w(format!("spbtn {SETTING_TAB},{}", BTN_TAB + 1));
     } else {
-        w("*vn2ons_settings_wait_voices".into());
+        w("*conv_settings_wait_voices".into());
     }
-    w("*vn2ons_settings_wait_any".into());
+    w("*conv_settings_wait_any".into());
     w(format!("if {IN_GAME} == 1 spbtn {SETTING_TITLE},{BTN_TITLE}:spbtn {SETTING_QUIT},{BTN_QUIT}"));
     w(format!("spbtn {CLOSE},{BTN_CLOSE}"));
     w("print 1".into());
     w(format!("btnwait {BUTTON_VAR}"));
-    w(format!("if {BUTTON_VAR} == -1 || {BUTTON_VAR} == {BTN_CLOSE} goto *vn2ons_settings_close"));
-    w(format!("if {BUTTON_VAR} == {BTN_TITLE} goto *vn2ons_settings_title"));
-    w(format!("if {BUTTON_VAR} == {BTN_QUIT} goto *vn2ons_settings_quit"));
+    w(format!("if {BUTTON_VAR} == -1 || {BUTTON_VAR} == {BTN_CLOSE} goto *conv_settings_close"));
+    w(format!("if {BUTTON_VAR} == {BTN_TITLE} goto *conv_settings_title"));
+    w(format!("if {BUTTON_VAR} == {BTN_QUIT} goto *conv_settings_quit"));
     w(format!(
-        "if {BUTTON_VAR} > {BTN_TAB} && {BUTTON_VAR} <= {} mov {SETTINGS_PAGE},{BUTTON_VAR}-{}:goto *vn2ons_settings_draw",
+        "if {BUTTON_VAR} > {BTN_TAB} && {BUTTON_VAR} <= {} mov {SETTINGS_PAGE},{BUTTON_VAR}-{}:goto *conv_settings_draw",
         BTN_TAB + 2,
         BTN_TAB + 1
     ));
     for (i, t) in voices.iter().enumerate() {
         let all = |v: u32| t.characters.iter().map(|c| format!("mov %{},{v}", VOICE_OFF_BASE + c)).collect::<Vec<_>>().join(":");
         let button = BTN_VOICE + i as u32 + 1;
-        w(format!("if {BUTTON_VAR} == {button} && {} == 0 {}:goto *vn2ons_settings_draw", off(t), all(1)));
-        w(format!("if {BUTTON_VAR} == {button} {}:goto *vn2ons_settings_draw", all(0)));
+        w(format!("if {BUTTON_VAR} == {button} && {} == 0 {}:goto *conv_settings_draw", off(t), all(1)));
+        w(format!("if {BUTTON_VAR} == {button} {}:goto *conv_settings_draw", all(0)));
     }
     w(format!("if {BUTTON_VAR} == {BTN_SKIP} mov {SKIP_UNREAD},1-{SKIP_UNREAD}"));
     for (r, row) in rows.iter().enumerate() {
@@ -674,17 +674,17 @@ pub(crate) fn settings_menu(out: &mut String, m: &SettingsMenu, confirm: Option<
         w(format!("if {BUTTON_VAR} == {} && {level} < 10 add {level},1", BTN_PLUS + r + 1));
     }
     w(format!("gosub *{SETTINGS_APPLY}"));
-    w("goto *vn2ons_settings_draw".into());
+    w("goto *conv_settings_draw".into());
     // `reset` starts the script over: the title screen.
-    for (label, question, then) in [("vn2ons_settings_title", confirm.map(|c| &c.title), "reset"), ("vn2ons_settings_quit", confirm.map(|c| &c.quit), "end")] {
+    for (label, question, then) in [("conv_settings_title", confirm.map(|c| &c.title), "reset"), ("conv_settings_quit", confirm.map(|c| &c.quit), "end")] {
         w(format!("*{label}"));
         if let Some(q) = question {
             w(confirm_call(q));
-            w(format!("if {CONFIRM} == 0 goto *vn2ons_settings_wait"));
+            w(format!("if {CONFIRM} == 0 goto *conv_settings_wait"));
         }
         w(then.into());
     }
-    w("*vn2ons_settings_close".into());
+    w("*conv_settings_close".into());
     // texton first: it drops the pending screen updates except the window's.
     w(format!("if {IN_GAME} == 1 texton:{}", vsp(1)));
     w(format!("csp2 {BASE}:csp2 {HEADER}"));
@@ -734,13 +734,13 @@ pub(crate) fn confirm(out: &mut String, d: &ConfirmDialog) {
         let y = p.y + (p.h - label_size as i32) / 2;
         w(format!("strsp {label_slot},\"{}\",{x},{y},10,1,{label_size},{label_size},0,0,0,1", escape(label)));
     }
-    w("*vn2ons_confirm_wait".into());
+    w("*conv_confirm_wait".into());
     w(format!("spbtn {DIALOG_YES},1:spbtn {DIALOG_NO},2"));
     w("print 1".into());
     w(format!("btnwait {BUTTON_VAR}"));
     w(format!("mov {CONFIRM},0"));
     w(format!("if {BUTTON_VAR} == 1 mov {CONFIRM},1"));
-    w(format!("if {BUTTON_VAR} != 1 && {BUTTON_VAR} != 2 && {BUTTON_VAR} != -1 goto *vn2ons_confirm_wait"));
+    w(format!("if {BUTTON_VAR} != 1 && {BUTTON_VAR} != 2 && {BUTTON_VAR} != -1 goto *conv_confirm_wait"));
     w(DIALOG_SPRITES.map(|n| format!("csp {n}")).collect::<Vec<_>>().join(":"));
     w("print 1".into());
     w("return".into());
@@ -795,29 +795,29 @@ pub(crate) fn backlog(out: &mut String, b: &Backlog) {
     w(button(LOG_DOWN, &b.down));
     w(button(CLOSE, &b.close));
     w(format!("mov {LOG_OFFSET},0"));
-    w("*vn2ons_log_draw".into());
+    w("*conv_log_draw".into());
     w((M..M + LOG_PAGES).map(|n| format!("csp {n}")).collect::<Vec<_>>().join(":"));
     w(format!("mov {LOG_Y},{}", a.y + a.h));
     w(format!("mov {LOG_K},0"));
-    w("*vn2ons_log_page".into());
-    w(format!("if {LOG_K} >= {LOG_PAGES} goto *vn2ons_log_shown"));
+    w("*conv_log_page".into());
+    w(format!("if {LOG_K} >= {LOG_PAGES} goto *conv_log_shown"));
     w(format!("mov {TMP},{LOG_OFFSET}+{LOG_K}"));
     w(format!("getlog {LINE1},{TMP}"));
-    w(format!("if {LINE1} == \"\" goto *vn2ons_log_shown"));
+    w(format!("if {LINE1} == \"\" goto *conv_log_shown"));
     w(format!("getlogtext {LINE2},{TMP}"));
     w(format!("len {LOG_LINES},{LINE1}"));
     w(format!("len {TMP},{LINE2}"));
     w(format!("mov {LOG_LINES},{LOG_LINES}-{TMP}+1"));
     w(format!("mov {TMP},{LOG_Y}-{LOG_LINES}*{}-{}", b.line_height, b.line_height / 2));
     // Doesn't fit: stop (but always show at least one page).
-    w(format!("if {TMP} < {} && {LOG_K} > 0 goto *vn2ons_log_shown", a.y));
+    w(format!("if {TMP} < {} && {LOG_K} > 0 goto *conv_log_shown", a.y));
     w(format!("if {TMP} < {} mov {TMP},{}", a.y, a.y));
     w(format!("mov {LOG_SPRITE},{LOG_K}+{M}"));
     w(format!("strsp {LOG_SPRITE},{LINE1},{},{TMP},{},{LOG_LINES},{size},{size},0,{gap},0,1", a.x, b.columns));
     w(format!("mov {LOG_Y},{TMP}"));
     w(format!("add {LOG_K},1"));
-    w("goto *vn2ons_log_page".into());
-    w("*vn2ons_log_shown".into());
+    w("goto *conv_log_page".into());
+    w("*conv_log_shown".into());
     w(format!("cell {LOG_DOWN},0:cell {LOG_UP},0"));
     w(format!("if {LOG_OFFSET} == 0 cell {LOG_DOWN},2"));
     // LOG_OLDER: there is an older page to scroll to.
@@ -825,20 +825,20 @@ pub(crate) fn backlog(out: &mut String, b: &Backlog) {
     w(format!("getlog {LINE2},{TMP}"));
     w(format!("mov {LOG_OLDER},1"));
     w(format!("if {LINE2} == \"\" mov {LOG_OLDER},0:cell {LOG_UP},2"));
-    w("*vn2ons_log_wait".into());
+    w("*conv_log_wait".into());
     w(format!("if {LOG_OLDER} == 1 spbtn {LOG_UP},1"));
     w(format!("if {LOG_OFFSET} > 0 spbtn {LOG_DOWN},2"));
     w(format!("spbtn {CLOSE},{BTN_CLOSE}"));
     w("print 1".into());
     w(format!("btnwait {BUTTON_VAR}"));
-    w(format!("if {BUTTON_VAR} == -1 || {BUTTON_VAR} == {BTN_CLOSE} goto *vn2ons_log_close"));
+    w(format!("if {BUTTON_VAR} == -1 || {BUTTON_VAR} == {BTN_CLOSE} goto *conv_log_close"));
     w(format!("if {BUTTON_VAR} == -2 mov {BUTTON_VAR},1"));
     w(format!("if {BUTTON_VAR} == -3 mov {BUTTON_VAR},2"));
-    w(format!("if {BUTTON_VAR} == 1 && {LOG_OLDER} == 1 add {LOG_OFFSET},1:goto *vn2ons_log_draw"));
-    w(format!("if {BUTTON_VAR} == 2 && {LOG_OFFSET} == 0 goto *vn2ons_log_close"));
-    w(format!("if {BUTTON_VAR} == 2 sub {LOG_OFFSET},1:goto *vn2ons_log_draw"));
-    w("goto *vn2ons_log_wait".into());
-    w("*vn2ons_log_close".into());
+    w(format!("if {BUTTON_VAR} == 1 && {LOG_OLDER} == 1 add {LOG_OFFSET},1:goto *conv_log_draw"));
+    w(format!("if {BUTTON_VAR} == 2 && {LOG_OFFSET} == 0 goto *conv_log_close"));
+    w(format!("if {BUTTON_VAR} == 2 sub {LOG_OFFSET},1:goto *conv_log_draw"));
+    w("goto *conv_log_wait".into());
+    w("*conv_log_close".into());
     w(format!("if {IN_GAME} == 1 texton:{}", vsp(1)));
     w(format!("csp2 {BASE}:csp2 {FRAME}:csp2 {HEADER}"));
     w(MENU_SPRITES.map(|n| format!("csp {n}")).collect::<Vec<_>>().join(":"));
@@ -862,7 +862,7 @@ fn lsp2(slot: u32, p: &Placed, opacity: Option<u8>) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use vn2ons_core::ir::{PageButton, Rect};
+    use conv_core::ir::{PageButton, Rect};
 
     fn placed(name: &str, w: i32, h: i32) -> Placed {
         Placed { image: format!("system/{name}.png"), x: 10, y: 20, w, h }
@@ -906,13 +906,13 @@ mod tests {
             // Row 2 (slot FIRST + 1): thumbnail at 25%, centred in its box.
             "if %104 == 1 lsp2 2,$105,64,183,25,25,0\n",
             "if %900 == 2 cell 22,2:lsp2 7,\":a;system\\marker.png\",214,484,100,100,0\n",
-            "if %9 > 100 && %9 <= 102 mov %900,%9-100:goto *vn2ons_sl_page\n",
+            "if %9 > 100 && %9 <= 102 mov %900,%9-100:goto *conv_sl_page\n",
             "savescreenshot2 $103\n",
             "savegame2 %102,$100\n",
             "loadgame %102\n",
             "mov %%105,1\n",
             // Saving over a save asks first.
-            "if %107 == 0 goto *vn2ons_sl_save\nmov %103,%102\ngosub *vn2ons_sl_number\nmov $106,$101\nadd $106,\" over?\"\ngosub *vn2ons_confirm\nif %109 == 0 goto *vn2ons_sl_buttons\n*vn2ons_sl_save\n",
+            "if %107 == 0 goto *conv_sl_save\nmov %103,%102\ngosub *conv_sl_number\nmov $106,$101\nadd $106,\" over?\"\ngosub *conv_confirm\nif %109 == 0 goto *conv_sl_buttons\n*conv_sl_save\n",
         ] {
             assert!(out.contains(line), "missing {line:?} in\n{out}");
         }
@@ -953,7 +953,7 @@ mod tests {
 
     #[test]
     fn settings_voice_page() {
-        use vn2ons_core::ir::SettingRow;
+        use conv_core::ir::SettingRow;
         let m = SettingsMenu {
             base: placed("base", 800, 600),
             base_opacity: 210,
@@ -987,18 +987,18 @@ mod tests {
             // The current tab can't be clicked; the other one can.
             "if %176 != 1 strsp 12,\"音声\",392,34,3,1,22,22,0,0,0,1,\"#FFFFFF\",\"#F0C040\"\n",
             "if %176 == 0 strsp 11,\"音量\",300,34,3,1,22,22,0,0,0,1,\"#F0C040\"\n",
-            "if %176 == 1 goto *vn2ons_settings_draw_voices\n",
+            "if %176 == 1 goto *conv_settings_draw_voices\n",
             // One per column: the second switch is in the second column.
             "mov $104,\"■　\"\nif %973 == 1 mov $104,\"□　\"\nadd $104,\"あずさ\"\nstrsp 13,$104,140,140,6,1,22,22,0,0,0,1,\"#FFFFFF\",\"#F0C040\"\n",
             "strsp 14,$104,440,140,",
-            "*vn2ons_settings_wait_voices\nspbtn 13,51\nspbtn 14,52\nspbtn 11,41\n",
-            "if %9 > 40 && %9 <= 42 mov %176,%9-41:goto *vn2ons_settings_draw\n",
+            "*conv_settings_wait_voices\nspbtn 13,51\nspbtn 14,52\nspbtn 11,41\n",
+            "if %9 > 40 && %9 <= 42 mov %176,%9-41:goto *conv_settings_draw\n",
             // Skip unread text: under the levels, applied as kidokumode.
             "if %908 == 1 mov $104,\"■　\"\nadd $104,\"未読\"\nstrsp 14,$104,140,210,5,1,",
             "if %9 == 32 mov %908,1-%908\n",
             "if %908 == 0 kidokumode 1\nif %908 == 1 kidokumode 0\nreturn\n",
             // A switch sets all its characters.
-            "if %9 == 52 && %970 == 0 mov %970,1:mov %972,1:goto *vn2ons_settings_draw\nif %9 == 52 mov %970,0:mov %972,0:goto *vn2ons_settings_draw\n",
+            "if %9 == 52 && %970 == 0 mov %970,1:mov %972,1:goto *conv_settings_draw\nif %9 == 52 mov %970,0:mov %972,0:goto *conv_settings_draw\n",
         ] {
             assert!(out.contains(line), "missing {line:?} in\n{out}");
         }
@@ -1006,7 +1006,7 @@ mod tests {
 
     #[test]
     fn button_bar_routine() {
-        use vn2ons_core::ir::BarButton;
+        use conv_core::ir::BarButton;
         let bar = ButtonBar {
             buttons: vec![
                 BarButton { image: placed("auto", 132, 19), active: Some(placed("auto_on", 132, 19)), action: BarAction::Auto },
@@ -1020,22 +1020,22 @@ mod tests {
         let mut out = String::new();
         button_bar(&mut out, &bar, true, false, false);
         for line in [
-            "*vn2ons_wait\ngosub *vn2ons_bar_draw\ntextbtnwait %9\nif %9 > 2000 goto *vn2ons_wait_hover\n",
-            "if %9 >= 0 && %9 <= 1000 goto *vn2ons_wait_end\n",
-            "if %9 == 1001 goto *vn2ons_wait_end\ngoto *vn2ons_wait\n",
-            "*vn2ons_wait_end\ntexec\nreturn\n",
+            "*conv_wait\ngosub *conv_bar_draw\ntextbtnwait %9\nif %9 > 2000 goto *conv_wait_hover\n",
+            "if %9 >= 0 && %9 <= 1000 goto *conv_wait_end\n",
+            "if %9 == 1001 goto *conv_wait_end\ngoto *conv_wait\n",
+            "*conv_wait_end\ntexec\nreturn\n",
             // Hotspots: the hide one first (tested last), the bottom one
             // while the bar is down.
-            "btndef clear\ngosub *vn2ons_bar_clear\n\
+            "btndef clear\ngosub *conv_bar_clear\n\
              if %160 == 1 || %161 == 1 lsp 38,\":a;system\\hide.png\",10,20:spbtn 38,2003\n\
-             if %161 == 0 lsp 37,\":a;system\\reveal.png\",10,20:spbtn 37,2002:goto *vn2ons_bar_draw_top\n",
+             if %161 == 0 lsp 37,\":a;system\\reveal.png\",10,20:spbtn 37,2002:goto *conv_bar_draw_top\n",
             "lsp 34,\":a/3,0,3;system\\auto.png\",10,20\nif %108 == 2 lsp 34,\":a/3,0,3;system\\auto_on.png\",10,20\nspbtn 34,1001\n",
-            "lsp 36,\":a;system\\setting.png\",10,20\n*vn2ons_bar_draw_top\n*vn2ons_bar_draw_end\ngetmouseover 2001,2003\nprint 1\n",
-            "*vn2ons_bar_hover\nif %9 == 2001 mov %160,1\nif %9 == 2002 mov %161,1\nif %9 == 2003 mov %160,0:mov %161,0\nreturn\n",
-            "if %9 == -1 goto *vn2ons_bar_hide\nif %9 == -2 goto *vn2ons_bar_log\nif %9 == 1001 goto *vn2ons_bar_auto\nif %9 == 1002 goto *vn2ons_bar_save\nreturn\n",
-            "*vn2ons_bar_log\nsystemcall lookback\nreturn\n",
-            "*vn2ons_bar_save\nmov %160,0:mov %161,0\ngosub *vn2ons_bar_clear\nmov %101,1\ngosub *vn2ons_save\nreturn\n",
-            "*vn2ons_bar_hide\nsystemcall windowerase\nreturn\n",
+            "lsp 36,\":a;system\\setting.png\",10,20\n*conv_bar_draw_top\n*conv_bar_draw_end\ngetmouseover 2001,2003\nprint 1\n",
+            "*conv_bar_hover\nif %9 == 2001 mov %160,1\nif %9 == 2002 mov %161,1\nif %9 == 2003 mov %160,0:mov %161,0\nreturn\n",
+            "if %9 == -1 goto *conv_bar_hide\nif %9 == -2 goto *conv_bar_log\nif %9 == 1001 goto *conv_bar_auto\nif %9 == 1002 goto *conv_bar_save\nreturn\n",
+            "*conv_bar_log\nsystemcall lookback\nreturn\n",
+            "*conv_bar_save\nmov %160,0:mov %161,0\ngosub *conv_bar_clear\nmov %101,1\ngosub *conv_save\nreturn\n",
+            "*conv_bar_hide\nsystemcall windowerase\nreturn\n",
         ] {
             assert!(out.contains(line), "missing {line:?} in\n{out}");
         }

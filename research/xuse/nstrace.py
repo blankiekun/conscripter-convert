@@ -1,4 +1,4 @@
-"""Tiny interpreter for the NScripter subset vn2ons emits; traces control flow.
+"""Tiny interpreter for the NScripter subset conscripter-convert emits; traces control flow.
 usage: python3 -I nstrace.py 0.txt [max_steps] [--show] [--pages N]
 --pages N: keep going past text pages; print the script-file sequence and
 the line of every 20th displayed page, stop after N pages.
@@ -24,7 +24,7 @@ def cond(c):
         if not {'==': a == b, '!=': a != b, '>=': a >= b, '<=': a <= b, '>': a > b, '<': a < b}[op]: return False
     return True
 # Skip the title menu: start as if FIRST START was clicked.
-pc = labels.get('vn2ons_title_start', labels['start']) + 1; steps = 0; pages = 0
+pc = labels.get('conv_title_start', labels['start']) + 1; steps = 0; pages = 0
 maxpages = int(sys.argv[sys.argv.index('--pages') + 1]) if '--pages' in sys.argv else 0
 cur_script = None
 click = int(sys.argv[sys.argv.index('--click') + 1]) if '--click' in sys.argv else 0

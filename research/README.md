@@ -15,6 +15,6 @@ game data. Run them with `python3 -I` from outside the game directory.
 | `cdlib.py` | Helpers for .cd scripts: load sections, scan pool strings |
 | `decrypt_0cd.py <0.cd> <out>` | Decrypts 0.cd with the cipher found in the exe |
 | `gafkey.py` | GAF4 key generator and XOR from the exe |
-| `nstrace.py <0.txt> [steps] [--show]` | Runs the NScripter subset vn2ons emits (labels, goto, gosub/return, arithmetic, if) to find loops or trace the path to the first text page |
+| `nstrace.py <0.txt> [steps] [--show]` | Runs the NScripter subset conscripter-convert emits (labels, goto, gosub/return, arithmetic, if) to find loops or trace the path to the first text page |
 | `gaf_extract.py <outdir> <file.004…>` | Extracts the PNGs from GAF4 files (needs `gafkey.py`) |
 | `voice_align.py <game dir> <out.json>` | Statistically aligns voice ids to .xsa clips by text length vs clip length (needs numpy) |

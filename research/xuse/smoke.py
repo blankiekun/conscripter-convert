@@ -1,9 +1,9 @@
-"""Headless ONScripter smoke test with scripted clicks.
+"""Headless CONscripter smoke test with scripted clicks.
 
-usage: python3 -I smoke.py GAME_DIR WORK_DIR CLICKS [--timeout S] [--onscripter PATH]
+usage: python3 -I smoke.py GAME_DIR WORK_DIR CLICKS [--timeout S] [--engine PATH]
                            [--goto LABEL]
 
-GAME_DIR holds the converted 0.txt, arc.nsa and default.ttf; WORK_DIR gets a
+GAME_DIR holds the converted 0.txt, arc.nsa, default.ttf and ons_args; WORK_DIR gets a
 patched 0.txt, symlinks to the rest, and the screenshots (shotNN.png).
 
 CLICKS is a comma-separated queue consumed at every wait:
@@ -20,18 +20,18 @@ When the queue is empty the game ends.
 Note: the save menu's thumbnail uses the same screenshot buffer, so a 999
 between opening the save menu and saving makes the thumbnail a menu shot.
 Effects and delays are shortened to 1 ms. --goto jumps to LABEL right after
-FIRST START (game state as at startup), e.g. vn2ons_link1.
+FIRST START (game state as at startup), e.g. conv_link1.
 """
 import os, re, subprocess, sys
 
 game, work, clicks = sys.argv[1], sys.argv[2], sys.argv[3]
 timeout = int(sys.argv[sys.argv.index('--timeout') + 1]) if '--timeout' in sys.argv else 60
-ons = sys.argv[sys.argv.index('--onscripter') + 1] if '--onscripter' in sys.argv else \
-    os.path.join(os.path.dirname(__file__), '..', '..', 'out', 'onscripter')
+ons = sys.argv[sys.argv.index('--engine') + 1] if '--engine' in sys.argv else \
+    os.path.join(os.path.dirname(__file__), '..', '..', 'engine', 'build', 'onsyuri')
 os.makedirs(work, exist_ok=True)
-for f in ('arc.nsa', 'default.ttf'):
+for f in ('arc.nsa', 'default.ttf', 'ons_args'):
     dst = os.path.join(work, f)
-    if not os.path.lexists(dst):
+    if not os.path.lexists(dst) and os.path.exists(os.path.join(game, f)):
         os.symlink(os.path.abspath(os.path.join(game, f)), dst)
 for f in os.listdir(work):
     if f.startswith('shot') or f.startswith('save') or f in ('gloval.sav', 'envdata'):
@@ -43,7 +43,7 @@ src = re.sub(rb'^delay \d+', b'delay 1', src, flags=re.M)
 has_bar = b'\ntextgosub ' in src
 if '--goto' in sys.argv:
     target = sys.argv[sys.argv.index('--goto') + 1].encode()
-    src = src.replace(b'\n*vn2ons_title_start\n', b'\n*vn2ons_title_start\ncsp -1\ngoto *' + target + b'\n', 1)
+    src = src.replace(b'\n*conv_title_start\n', b'\n*conv_title_start\ncsp -1\ngoto *' + target + b'\n', 1)
 src = src.replace(b'textbtnwait %9\n', b'gosub *smoke_pop\n')
 src = src.replace(b'btnwait %9\n', b'gosub *smoke_pop\n')
 src = src.replace(b'\nclick\n', b'\ngosub *smoke_pop\n')
@@ -75,11 +75,11 @@ texec
 return
 *smoke_save
 mov %101,1
-gosub *vn2ons_save
+gosub *conv_save
 goto *smoke_text
 *smoke_load
 mov %101,1
-gosub *vn2ons_load
+gosub *conv_load
 goto *smoke_text
 '''
 init = b'mov %994,' + str(len(queue)).encode() + b'\n' + b''.join(

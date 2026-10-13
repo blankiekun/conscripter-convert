@@ -15,6 +15,6 @@ image = { version = "0.25", default-features = false, features = ["png"] }
 md-5 = "0.10"
 memmap2 = "0.9"
 thiserror = "2"
-vn2ons-core = { path = "crates/vn2ons-core" }
-vn2ons-engines = { path = "crates/vn2ons-engines" }
-vn2ons-ons = { path = "crates/vn2ons-ons" }
+conv-core = { path = "crates/conv-core" }
+conv-engines = { path = "crates/conv-engines" }
+conv-cons = { path = "crates/conv-cons" }

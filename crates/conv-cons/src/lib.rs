@@ -1,13 +1,14 @@
-//! ONScripter output stage: turns an IR [`Script`] into `0.txt`.
+//! CONscripter output stage: turns an IR [`Script`] into `0.txt`.
 //!
-//! Targets ogapee's ONScripter with Japanese text. Things marked
+//! Targets CONscripter (ONScripter-Yuri fork) with Japanese text; the
+//! NScripter commands used also run on ogapee's ONScripter. Things marked
 //! "unverified" below follow the NScripter documentation but haven't been
 //! checked in a running engine yet (see PLAN.md, Phase 0).
 
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::Write;
 
-use vn2ons_core::ir::{
+use conv_core::ir::{
     ArithOp, ConfirmDialog, Op, Operand, Script, SpritePlacement, TextLink, TextWindow, TitleAction, TitleScreen, Var,
 };
 
@@ -47,10 +48,10 @@ const LOCAL_VAR_BASE: u32 = 10;
 const GLOBAL_VAR_BASE: u32 = 200;
 /// Labels of the title menu loop and of its Start button's target.
 /// Click wait with everything hidden ([`Op::ClickWait`]).
-const CLICK_WAIT: &str = "vn2ons_click_wait";
-const TITLE_DRAW: &str = "vn2ons_title_draw";
-const TITLE_MENU: &str = "vn2ons_title";
-const TITLE_START: &str = "vn2ons_title_start";
+const CLICK_WAIT: &str = "conv_click_wait";
+const TITLE_DRAW: &str = "conv_title_draw";
+const TITLE_MENU: &str = "conv_title";
+const TITLE_START: &str = "conv_title_start";
 /// Colour for words the original game made clickable, and normal text.
 const LINK_COLOR: &str = "#F0C040";
 /// Link words under the mouse pointer.
@@ -246,7 +247,7 @@ pub fn emit(script: &Script) -> String {
                 } else {
                     // The page is drawn again after each link scene returns.
                     link_pages += 1;
-                    let page = format!("vn2ons_link{link_pages}");
+                    let page = format!("conv_link{link_pages}");
                     writeln!(out, "*{page}").unwrap();
                     plate_visible = true; // unknown when entered again: always set it below
                     Some(page)
@@ -469,7 +470,7 @@ fn title_screen(out: &mut String, t: &TitleScreen, fade: u32, save_menu: bool, s
             TitleAction::Settings => continue,
             // The built-in load menu; it comes back here when cancelled.
             TitleAction::Load => format!("systemcall load:goto *{TITLE_MENU}"),
-            TitleAction::Exit if confirm.is_some() => "goto *vn2ons_title_exit".to_string(),
+            TitleAction::Exit if confirm.is_some() => "goto *conv_title_exit".to_string(),
             TitleAction::Exit => "end".to_string(),
             TitleAction::Unavailable => unreachable!(),
         };
@@ -477,7 +478,7 @@ fn title_screen(out: &mut String, t: &TitleScreen, fade: u32, save_menu: bool, s
     }
     writeln!(out, "goto *{TITLE_MENU}").unwrap();
     if let Some(c) = confirm {
-        writeln!(out, "*vn2ons_title_exit").unwrap();
+        writeln!(out, "*conv_title_exit").unwrap();
         writeln!(out, "{}", menu::confirm_call(&c.quit)).unwrap();
         writeln!(out, "if {} == 1 end", menu::CONFIRM).unwrap();
         writeln!(out, "goto *{TITLE_MENU}").unwrap();
@@ -549,8 +550,8 @@ fn starts_ascii(line: &str) -> bool {
     line.starts_with(|c: char| c.is_ascii())
 }
 
-const BITAND: &str = "vn2ons_bitand";
-const BITOR: &str = "vn2ons_bitor";
+const BITAND: &str = "conv_bitand";
+const BITOR: &str = "conv_bitor";
 
 /// Subroutines computing `%3 = %1 & %2` and `%3 = %1 | %2` one bit at a
 /// time with div/mod (NScripter has no bitwise operators). They use the
@@ -570,6 +571,10 @@ fn bit_helpers() -> String {
     }
     out
 }
+
+/// Command-line options CONscripter reads from `ons_args` in the game
+/// directory. Without `--enc:sjis` it reads the script as GBK.
+pub const ENGINE_ARGS: &str = "--enc:sjis\n";
 
 /// Encodes NScripter source as Shift-JIS. Characters Shift-JIS can't
 /// represent become `?`; their count is returned.
@@ -710,7 +715,7 @@ impl SeChannels {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use vn2ons_core::ir::{SourceLoc, SpriteChange, SpritePlacement, Voice};
+    use conv_core::ir::{SourceLoc, SpriteChange, SpritePlacement, Voice};
 
     fn script(ops: Vec<Op>) -> Script {
         Script { title: "Test".into(), width: 800, height: 600, window: None, title_screen: None, save_menu: None, button_bar: None, settings: None, backlog: None, confirm: None, ops }
@@ -721,7 +726,7 @@ mod tests {
     }
 
     fn window() -> TextWindow {
-        use vn2ons_core::ir::NamePlate;
+        use conv_core::ir::NamePlate;
         TextWindow {
             image: "system/window.png".into(),
             x: 47,
@@ -761,28 +766,28 @@ mod tests {
         assert!(text.contains("globalon\nwindowback\nhumanz 59\n"));
         // Row 2, column 1: x = 105 + 0 * 25, y = 470 + 1 * 37.
         let expected = "\
-*vn2ons_link1
+*conv_link1
 csp 51
 csp 50
 print 1
 #F0C040一#FFFFFF行目
 #F0C040学校#FFFFFFに―――
 strsp 52,\"学校\",105,507,3,1,24,24,1,13,0,1,\"#F0C040\",\"#FFFFA0\"
-*vn2ons_link1_wait
+*conv_link1_wait
 spbtn 52,1
 print 1
 btnwait %9
 csp 52
 print 1
 textclear
-if %9 != 1 goto *vn2ons_link1_1
+if %9 != 1 goto *conv_link1_1
 gosub *s10_l1
 csp -1
 bg \"bg\\room.png\",1
 print 1
 bgm \"bgm\\a.ogg\"
-goto *vn2ons_link1
-*vn2ons_link1_1
+goto *conv_link1
+*conv_link1_1
 ";
         assert!(text.contains(expected), "{text}");
     }
@@ -820,7 +825,7 @@ print 3
 
     #[test]
     fn title_screen_runs_before_the_script() {
-        use vn2ons_core::ir::TitleButton;
+        use conv_core::ir::TitleButton;
         let button = |image: &str, action| TitleButton { image: image.into(), x: 600, y: 200, action };
         let mut s = script(vec![Op::Text { speaker: None, text: "あ".into(), voice: None, links: vec![], continues: false }]);
         s.title_screen = Some(TitleScreen {
@@ -834,16 +839,16 @@ print 3
             ],
         });
         let out = emit(&s);
-        let expected = "*start\nbg \"system\\title.png\",0\n*vn2ons_title_draw\n\
+        let expected = "*start\nbg \"system\\title.png\",0\n*conv_title_draw\n\
             lsp 6,\":a/2,0,3;system\\start.png\",600,200\n\
             lsp 7,\":a;system\\option.png\",600,200\n\
             lsp 8,\":a/2,0,3;system\\load.png\",600,200\n\
             lsp 9,\":a/2,0,3;system\\exit.png\",600,200\n\
-            print 2\n*vn2ons_title\nspbtn 6,1\nspbtn 8,2\nspbtn 9,3\nbtnwait %9\n\
-            if %9 == 1 goto *vn2ons_title_start\n\
-            if %9 == 2 systemcall load:goto *vn2ons_title\n\
+            print 2\n*conv_title\nspbtn 6,1\nspbtn 8,2\nspbtn 9,3\nbtnwait %9\n\
+            if %9 == 1 goto *conv_title_start\n\
+            if %9 == 2 systemcall load:goto *conv_title\n\
             if %9 == 3 end\n\
-            goto *vn2ons_title\n*vn2ons_title_start\ncsp -1\nbg black,2\nあ\\\n";
+            goto *conv_title\n*conv_title_start\ncsp -1\nbg black,2\nあ\\\n";
         assert!(out.contains(expected), "{out}");
     }
 
@@ -922,7 +927,7 @@ end
 
     #[test]
     fn adv_window_and_name_plate() {
-        use vn2ons_core::ir::{NamePlate, TextWindow};
+        use conv_core::ir::{NamePlate, TextWindow};
         let mut s = script(vec![
             Op::Text { speaker: Some("名前".into()), text: "「台詞」".into(), voice: None, links: vec![], continues: false },
             Op::Text { speaker: None, text: "Ghost".into(), voice: None, links: vec![], continues: false },
@@ -989,10 +994,10 @@ end
         let g = Var { global: true, index: 9 };
         let h = Var { global: true, index: 12 };
         let text = emit(&script(vec![Op::Arith { var: g, op: ArithOp::BitAnd, value: Operand::Var(h) }]));
-        assert!(text.contains("mov %1,%209:mov %2,%212:gosub *vn2ons_bitand:mov %209,%3\n"));
-        assert!(text.contains("*vn2ons_bitand\n") && text.contains("*vn2ons_bitor\n"));
+        assert!(text.contains("mov %1,%209:mov %2,%212:gosub *conv_bitand:mov %209,%3\n"));
+        assert!(text.contains("*conv_bitand\n") && text.contains("*conv_bitor\n"));
         // Helpers are only emitted when needed.
-        assert!(!emit(&script(vec![])).contains("vn2ons_bitand"));
+        assert!(!emit(&script(vec![])).contains("conv_bitand"));
     }
 
     /// Runs the helper's algorithm (as emitted) in Rust to check the maths.

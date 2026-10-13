@@ -1,17 +1,17 @@
 [package]
-name = "vn2ons-cli"
+name = "conv-cli"
 edition.workspace = true
 version.workspace = true
 license.workspace = true
 
 [[bin]]
-name = "vn2ons"
+name = "conscripter-convert"
 path = "src/main.rs"
 
 [dependencies]
 anyhow.workspace = true
 clap.workspace = true
 memmap2.workspace = true
-vn2ons-core.workspace = true
-vn2ons-engines.workspace = true
-vn2ons-ons.workspace = true
+conv-core.workspace = true
+conv-engines.workspace = true
+conv-cons.workspace = true

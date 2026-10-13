@@ -97,7 +97,7 @@ mod tests {
 
     #[test]
     fn writes_a_readable_archive() {
-        let dir = std::env::temp_dir().join(format!("vn2ons-nsa-test-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("conscripter-convert-nsa-test-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let a = dir.join("a.png");
         let b = dir.join("b.ogg");

@@ -4,16 +4,16 @@ use std::path::{Component, Path, PathBuf};
 use anyhow::{Context, Result, bail};
 use clap::{Parser, Subcommand};
 use memmap2::Mmap;
-use vn2ons_core::ir::{Op, Script};
-use vn2ons_engines::xuse::cd::CdScript;
-use vn2ons_engines::xuse::convert::{AssetBank, Flow, LabelNames, Needs, lower_script, presets};
-use vn2ons_engines::xuse::gaf::Gaf;
-use vn2ons_engines::xuse::symbols::{self, SymbolTable};
-use vn2ons_engines::xuse::xarc::{CrcTarget, Xarc};
-use vn2ons_engines::xuse::xsa::Xsa;
+use conv_core::ir::{Op, Script};
+use conv_engines::xuse::cd::CdScript;
+use conv_engines::xuse::convert::{AssetBank, Flow, LabelNames, Needs, lower_script, presets};
+use conv_engines::xuse::gaf::Gaf;
+use conv_engines::xuse::symbols::{self, SymbolTable};
+use conv_engines::xuse::xarc::{CrcTarget, Xarc};
+use conv_engines::xuse::xsa::Xsa;
 
 #[derive(Parser)]
-#[command(name = "vn2ons", about = "Convert Japanese visual novels to ONScripter")]
+#[command(name = "conscripter-convert", about = "Convert Japanese visual novels to CONscripter")]
 struct Cli {
     #[command(subcommand)]
     command: Command,
@@ -21,18 +21,18 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
-    /// Convert the whole game into an ONScripter directory: 0.txt plus
+    /// Convert the whole game into a CONscripter game directory: 0.txt plus
     /// arc.nsa (arc1.nsa, …) with every asset the scripts use
     ConvertGame {
         /// Installed game directory (contains HD/ and CD/)
         game: PathBuf,
         #[arg(short, long)]
         output: PathBuf,
-        /// Font to copy into the output as default.ttf (ONScripter needs one)
+        /// Font to copy into the output as default.ttf (CONscripter needs one)
         #[arg(long)]
         font: Option<PathBuf>,
         /// Window caption
-        #[arg(long, default_value = "vn2ons")]
+        #[arg(long, default_value = "CONscripter-convert")]
         title: String,
         /// Keep assets as loose files instead of packing them into .nsa
         #[arg(long)]
@@ -43,7 +43,7 @@ enum Command {
         #[arg(long)]
         linear: bool,
     },
-    /// Convert one Xuse script (CDFiles/NNNN.cd) into an ONScripter game
+    /// Convert one Xuse script (CDFiles/NNNN.cd) into a CONscripter game
     /// directory: 0.txt plus the assets it uses
     ConvertScript {
         /// Installed game directory (contains HD/ and CD/)
@@ -53,11 +53,11 @@ enum Command {
         script: u32,
         #[arg(short, long)]
         output: PathBuf,
-        /// Font to copy into the output as default.ttf (ONScripter needs one)
+        /// Font to copy into the output as default.ttf (CONscripter needs one)
         #[arg(long)]
         font: Option<PathBuf>,
         /// Window caption
-        #[arg(long, default_value = "vn2ons")]
+        #[arg(long, default_value = "CONscripter-convert")]
         title: String,
     },
     /// Low-level tools for Xuse XARC archives (*.arc)
@@ -280,8 +280,9 @@ fn convert_game(game: &Path, output: &Path, font: Option<&Path>, title: &str, lo
         confirm,
         ops,
     };
-    let (encoded, lost) = vn2ons_ons::encode(&vn2ons_ons::emit(&ir));
+    let (encoded, lost) = conv_cons::encode(&conv_cons::emit(&ir));
     fs::write(output.join("0.txt"), encoded)?;
+    fs::write(output.join("ons_args"), conv_cons::ENGINE_ARGS)?;
     if let Some(font) = font {
         fs::copy(font, output.join("default.ttf")).with_context(|| format!("copying {}", font.display()))?;
     }
@@ -294,10 +295,10 @@ fn convert_game(game: &Path, output: &Path, font: Option<&Path>, title: &str, lo
             names.sort();
             for path in names {
                 let name = format!("{d}\\{}", path.file_name().unwrap().to_string_lossy());
-                files.push(vn2ons_ons::nsa::NsaFile { name, source: path });
+                files.push(conv_cons::nsa::NsaFile { name, source: path });
             }
         }
-        let archives = vn2ons_ons::nsa::write_archives(output, &files).context("packing .nsa archives")?;
+        let archives = conv_cons::nsa::write_archives(output, &files).context("packing .nsa archives")?;
         for d in ASSET_DIRS {
             let _ = fs::remove_dir_all(output.join(d));
         }
@@ -337,7 +338,7 @@ fn report(ir: &Script, lost: usize, has_font: bool) {
         println!("  characters not representable in Shift-JIS: {lost}");
     }
     if !has_font {
-        println!("  note: no --font given; ONScripter needs default.ttf in the game directory");
+        println!("  note: no --font given; CONscripter needs default.ttf in the game directory");
     }
 }
 
@@ -356,9 +357,10 @@ fn convert_script(game: &Path, script: u32, output: &Path, font: Option<&Path>, 
         lower_script(&cd, &file, Flow::Jumps, &mut assets, &presets, &names).with_context(|| format!("converting {file}"))?;
     let ir = Script { title: title.to_string(), width: 800, height: 600, window: Some(window), title_screen: None, save_menu: None, button_bar: None, settings: None, backlog: None, confirm: None, ops };
 
-    let source = vn2ons_ons::emit(&ir);
-    let (encoded, lost) = vn2ons_ons::encode(&source);
+    let source = conv_cons::emit(&ir);
+    let (encoded, lost) = conv_cons::encode(&source);
     fs::write(output.join("0.txt"), encoded)?;
+    fs::write(output.join("ons_args"), conv_cons::ENGINE_ARGS)?;
     if let Some(font) = font {
         fs::copy(font, output.join("default.ttf")).with_context(|| format!("copying {}", font.display()))?;
     }

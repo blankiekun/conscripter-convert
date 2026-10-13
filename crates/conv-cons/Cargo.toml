@@ -1,12 +1,9 @@
 [package]
-name = "vn2ons-engines"
+name = "conv-cons"
 edition.workspace = true
 version.workspace = true
 license.workspace = true
 
 [dependencies]
 encoding_rs.workspace = true
-image.workspace = true
-md-5.workspace = true
-thiserror.workspace = true
-vn2ons-core.workspace = true
+conv-core.workspace = true

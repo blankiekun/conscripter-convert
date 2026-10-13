@@ -3,7 +3,7 @@
 Cipher from Farthest2015.exe at 0x4bcb20: the keystream starts at 0x1b and
 after each byte becomes ((k ^ 0xa1) >> 1) + (index & 0xff). (A first attempt
 recovered a 256-byte key from byte frequencies; it differed from this in only
-7 of 88,470 bytes.) The Rust version is `vn2ons cd symbols`.
+7 of 88,470 bytes.) The Rust version is `conscripter-convert cd symbols`.
 
 usage: python3 -I decrypt_0cd.py <path/to/0.cd> <out.bin>
 """

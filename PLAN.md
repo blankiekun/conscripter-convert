@@ -1,18 +1,20 @@
-# vn2ons — Plan
+# CONscripter-convert — Plan
 
-Converts Japanese visual novels (that you own) into games playable on the
-open-source **ONScripter** engine (a current fork with native Japanese text
-support), and helps reverse-engineer engines it doesn't support yet — optionally
-with AI agents.
+Converts Japanese visual novels (that you own) into games playable on
+**[CONscripter](https://github.com/blankiekun/CONscripter)**, our fork of
+ONScripter-Yuri, and helps reverse-engineer engines it doesn't support yet —
+optionally with AI agents. The converter and the engine are developed
+together: when a game feature can't be reproduced with the engine's existing
+commands, the feature is added to CONscripter (§4.1).
 
 - **First target game:** 最果てのイマ (Saihate no Ima). Its engine is not yet
   identified; that's the first task (see §6).
 
-- **Language:** Rust (cargo workspace). C++ only where we link existing C/C++ code
-  (via the `cxx` crate) or build test harnesses around ONScripter itself.
+- **Language:** Rust (cargo workspace) for the converter; C++ for engine
+  features, which go into CONscripter (the `engine/` submodule).
 - **Input:** an installed game directory.
 - **Output:** `0.txt` / `nscript.dat` + `arc.nsa`/`.sar` archives + converted media,
-  runnable by the target ONScripter fork, plus a conversion report.
+  + `ons_args`, runnable by CONscripter, plus a conversion report.
 
 ## 1. Scope and expectations
 
@@ -23,7 +25,7 @@ with AI agents.
   are reported clearly, never silently broken.
 - The deterministic pipeline is the source of truth. AI agents only **propose**
   artifacts (profiles, opcode tables, mappings) that the pipeline then
-  validates. Agents **only run when explicitly invoked** (`vn2ons ai …`);
+  validates. Agents **only run when explicitly invoked** (`conscripter-convert ai …`);
   `convert`, `lint` etc. never call the API. The tool is fully usable offline.
 
 ## 2. Architecture
@@ -53,8 +55,8 @@ pub trait Engine {
 }
 ```
 
-Only the ONScripter output stage knows about NScripter, so another output
-engine could be added later.
+Only the output stage (`conv-cons`) knows about NScripter and CONscripter,
+so another output engine could be added later.
 
 ## 3. The IR (core design decision)
 
@@ -93,32 +95,64 @@ Rules:
 The output stage also writes the `*define` section (`effect` defs, window and
 font setup, menu, `game`). Text is encoded to Shift-JIS with `encoding_rs`.
 
-### Phase 0: pick the ONScripter fork and check what it supports
+### 4.1 Target engine: CONscripter
 
-Requirement: Japanese text must work natively (Shift-JIS scripts, Japanese
-fonts, correct kinsoku line breaking). Candidates:
+The target is [CONscripter](https://github.com/blankiekun/CONscripter), a
+fork of [ONScripter-Yuri](https://github.com/YuriSizuku/OnscripterYuri)
+(itself based on ONScripter-Jh). It is checked out as the `engine/`
+submodule. ONScripter-Yuri was chosen because it builds for the web
+(WebAssembly), Windows, Linux, macOS and Android from one tree, and adds
+UTF-8 scripts, Lua and arbitrary resolutions to the NScripter command set.
 
-- **ogapee's ONScripter** (the original, actively maintained, Japanese-first).
-  Default choice.
-- **ONScripter-Jh** (adds UTF-8 scripts and more modern features) as an
-  alternative if ogapee's lacks something we need.
+**Rule for engine features.** Convert with existing NScripter/ONScripter
+commands first. When a feature of the original game can't be reproduced
+that way (or only with a workaround that visibly differs from the
+original), add the feature to CONscripter instead of approximating it:
 
-onscripter-insani is no longer the target. Build the chosen fork on Arch and
-test these before relying on them:
+1. Implement it in `engine/src/onsyuri/` as a new command or option, in the
+   style of the surrounding ONScripter code, so it works on every platform
+   the fork builds for (the web build especially).
+2. Keep it opt-in: a new command, or an option in `ons_args`. Scripts that
+   don't use it must behave exactly as in stock ONScripter-Yuri.
+3. Document it in the engine's README (a "CONscripter additions" list)
+   and here in §4.2, with the game feature that needed it.
+4. Commit and push in the engine repo, then commit the updated submodule
+   pointer here together with the converter change that uses it.
 
-- **Resolution:** which `;mode` / `;$S` headers it accepts (800×600?
-  widescreen?). If 1280×720 games can't run natively, the tool has to scale
-  them down.
-- **Images:** whether PNG alpha works, or whether `:a` images with the mask
-  stored beside the picture are required.
-- **Audio:** OGG, MP3, MIDI support.
-- **Video:** what it can play (probably MPEG-1, maybe nothing). Fallback: skip
-  videos or replace them with a still image.
-- **Text:** Shift-JIS handling, line breaking, English mode.
+**Startup options.** CONscripter reads command-line options from an
+`ons_args` file in the game directory (whitespace-separated, up to 16).
+The converter writes one with `--enc:sjis`, because ONScripter-Yuri reads
+scripts as GBK by default. This is how every converted game passes
+options to the engine, including in the web build.
 
-The results go into `target_caps.toml`, which the output stage reads. If you
-switch to ONScripter-EN or ogapee's current ONScripter later, only this file
-changes.
+**Building** (Arch Linux; `sdl2_mixer` from the package or built locally):
+
+```sh
+git submodule update --init engine
+cmake -B engine/build -S engine -DCMAKE_BUILD_TYPE=RelWithDebInfo
+make -C engine/build -j"$(nproc)"     # → engine/build/onsyuri
+```
+
+`engine/script/cross_web.sh` builds the WebAssembly version (needs emsdk).
+
+### 4.2 CONscripter additions
+
+Engine features added for converted games. None yet; ogapee's ONScripter
+and stock ONScripter-Yuri both play the current output (Yuri with
+`--enc:sjis`).
+
+Candidates found so far, from limits hit while converting 最果てのイマ
+(each one is worked around in the script today):
+
+| Game feature | Workaround today | Engine feature that would fix it |
+|---|---|---|
+| Right-click menu / hide window | Everything behind the on-screen button bar | Send right-click to a script label (`rgosub`-style) |
+| Speaker names in the backlog | Names missing (the name plate is a sprite) | Store a name with each log page |
+| Voice replay from the backlog | Not converted | Store the voice file with each log page |
+| Japanese window caption | ASCII caption (Shift-JIS shows as mojibake on Linux) | Convert the caption to UTF-8 before setting it |
+| BGM loop points | Tracks loop from the start | Loop start/end for `bgm` |
+| Slide, scroll, mosaic, zoom transitions | Drawn as cross-fades | New effect types |
+| Movies (`mv*.bin`, MPEG-PS) | Not converted | Check what the web build plays first |
 
 ## 5. Asset pipeline
 
@@ -157,10 +191,10 @@ First look (2026-10-12, read-only):
 | Files | Count | Magic / observation | Probably |
 |---|---|---|---|
 | `HD/*.arc` (env, fx, gd, mask, pal, wnd) | 6 | **Solved** — see below | Archives of UI, effects, masks, palettes: 130 entries total (64 `GAF4`, 32 plain PNG, 31 `.ap` + 2 `.def` text files, 1 RIFF palette) |
-| `HD/bg*.004`, `HD/bu*.004`, `HD/LensFlare.004` (+ 64 `.004` inside XARC) | 86 | **Solved** — `GAF4`, see below | 2,971 PNGs: backgrounds 800×600 RGB, sprites RGBA, UI parts. Tool: `vn2ons gaf list\|extract` |
+| `HD/bg*.004`, `HD/bu*.004`, `HD/LensFlare.004` (+ 64 `.004` inside XARC) | 86 | **Solved** — `GAF4`, see below | 2,971 PNGs: backgrounds 800×600 RGB, sprites RGBA, UI parts. Tool: `conscripter-convert gaf list\|extract` |
 | `CD/BV*.xsa` | 61 | **Solved** — see below | Voice archives: 15,507 clips, plain Ogg Vorbis (44.1 kHz mono) |
 | `HD/CDFiles/*.cd` | 172 | **Container solved** — see below | **Compiled scenario scripts**, one per `.rio` source file: 84,713 instructions, 82 distinct opcodes |
-| `HD/CDFiles/0.cd` | 1 | **Solved**: cipher from the exe (`0x4bcb20`) | **Label symbol table** for all 172 scripts: 1,820 label names with code offsets, all CRCs verified. Tool: `vn2ons cd symbols`. |
+| `HD/CDFiles/0.cd` | 1 | **Solved**: cipher from the exe (`0x4bcb20`) | **Label symbol table** for all 172 scripts: 1,820 label names with code offsets, all CRCs verified. Tool: `conscripter-convert cd symbols`. |
 | `HD/CDFiles/1.cd` | 1 | Not the 0.cd cipher (no variant of its two constants works either) | Probably the variable definitions. The loader at `0x46de00` reads an `sVAR` file of 0x44-byte entries (64-byte names) into two tables of 20 and 150 variables; how `1.cd` gets decrypted for it is still unknown. |
 | `HD/mv000*.bin` | 3 | MPEG program stream (`00 00 01 ba`) | Movies; ffmpeg reads them directly |
 | `HD/bm0000.bin` | 1 | `.xsa` format, **solved** | BGM: 23 Ogg tracks; param 0 = loop start in samples (20 tracks loop) |
@@ -174,23 +208,23 @@ The exe also references `.arc` files that aren't installed (`bu.arc`, `gb.arc`,
 names inside the archives.
 
 **XARC format (solved 2026-10-12):** documented in
-`crates/vn2ons-engines/src/xuse/xarc.rs`. Offset table, then per entry
+`crates/conv-engines/src/xuse/xarc.rs`. Offset table, then per entry
 `"DATA"`, 4 unknown bytes (`20 00 00 00` or `20 20 00 00`), a `SYSTEMTIME`,
 name length, data size, the name with nibbles swapped, and raw (unencrypted)
 data. The archive header, each entry header and each entry's data are followed
 by a big-endian CRC-16/XMODEM; all CRCs in all six archives verify. Tool:
-`vn2ons xarc list|verify|extract`.
+`conscripter-convert xarc list|verify|extract`.
 
 **XSA format (solved 2026-10-12):** documented in
-`crates/vn2ons-engines/src/xuse/xsa.rs`. `u32` version (1), then 256 slots of
+`crates/conv-engines/src/xuse/xsa.rs`. `u32` version (1), then 256 slots of
 (size, offset, 0, 0), then the clips back to back. No names and no encryption;
 unused slots are zero and only occur at the end of the last archive. The
 global voice number is presumably `archive * 256 + slot` (to confirm against
-the scripts). Tool: `vn2ons xsa list|extract`. Since ONScripter plays Ogg
+the scripts). Tool: `conscripter-convert xsa list|extract`. Since ONScripter plays Ogg
 directly, the clips can be copied over as-is.
 
 **CD script container (solved 2026-10-12):** documented in
-`crates/vn2ons-engines/src/xuse/cd.rs`.
+`crates/conv-engines/src/xuse/cd.rs`.
 - **Head:** 32 unknown bytes (unique per file).
 - **Name:** the 260-byte source file name (`*.rio`), XORed with `0x16`.
 - **Header:** six u32s (table count + 1, code size, pool size, script id, 0, 0).
@@ -201,7 +235,7 @@ directly, the clips can be copied over as-is.
 - **Operand pool:** strings are a u32 length plus Shift-JIS XORed with `0x53`.
 - **Footer:** the MD5 of everything before it. All 172 files verify.
 
-Tool: `vn2ons cd info|dump|messages|strings|opstats`.
+Tool: `conscripter-convert cd info|dump|messages|strings|opstats`.
 
 **Opcode dispatch table:** `Farthest2015.exe` at `0x4fb270`, indexed by
 the u16 opcode (0–`0x9d`, 157 handlers). Some handlers report their C++
@@ -299,7 +333,7 @@ mapping, the 32-byte head, and `1.cd`.
      target is a full script subroutine, not just text.
 
    This matches the observation that the same word is linked in some places
-   and not in others: each link is placed by hand. Tool: `vn2ons cd messages`
+   and not in others: each link is placed by hand. Tool: `conscripter-convert cd messages`
    prints links with their resolved destination.
 
    **Conversion:** ONScripter can't make words inside text clickable.
@@ -330,22 +364,20 @@ mapping, the 32-byte head, and `1.cd`.
      bytes + PNG) and an `FTAG` with the original file name
      (`bg20d1.png`, `04.バストアップ\\bu021203s.png`, …). Sprites come in
      `b`/`m`/`s` variants of each pose (probably sizes). Tool:
-     `vn2ons gaf names`.
+     `conscripter-convert gaf names`.
    - **Still to decode:** the ~600-byte block before the first `DSET`. It
      may hold sprite placement data. Sprites appear to be whole images
      (one PNG per pose and size), so no composition is needed. Some sprite
      archives also contain 1×1 placeholder images.
 5. Movies and the remaining `.bin` files last.
-6. **Target: a WebAssembly build of ONScripter** (per the user). What that
-   means for the conversion:
-   - **Menus:** every system screen must be a real graphical menu built in
-     the script (game graphics + `spbtn`/`btnwait`/`getmousepos`), since
-     there are no native dialogs and the built-in text menus look out of
-     place.
-   - **Right-click:** ogapee's ONScripter has no `rgosub` (send right-click
-     to a script label). Either patch the engine (we build it ourselves; a
-     small patch set kept in this repo would apply to the WASM build too)
-     or put all access behind the on-screen button bar.
+6. **Target: CONscripter, especially its WebAssembly build** (§4.1). What
+   that means for the conversion:
+   - **Menus:** every system screen is a real graphical menu built in the
+     script (game graphics + `spbtn`/`btnwait`/`getmousepos`), since there
+     are no native dialogs and the built-in text menus look out of place.
+   - **Right-click:** ONScripter has no `rgosub` (send right-click to a
+     script label), so all access is behind the on-screen button bar for
+     now. This is a candidate CONscripter addition (§4.2).
    - **Packaging:** pack assets into `.nsa` archives rather than thousands
      of loose files (fewer browser fetches), bundle the font, and keep
      memory use in mind (a full background archive decoded is tens of MB).
@@ -391,7 +423,7 @@ mapping, the 32-byte head, and `1.cd`.
 Any decryption keys found go in the game's profile (§11), not in the tool's
 code.
 
-**Identifying the engine (M0):** run `vn2ons inspect` (or by hand at first:
+**Identifying the engine (M0):** run `conscripter-convert inspect` (or by hand at first:
 file extensions, archive magic bytes, strings in the `.exe`, any bundled
 DLLs) on the installed game, then compare against GARbro's format list.
 
@@ -430,7 +462,7 @@ parts are not converted:
 
 **Other system screens.**
 - Backlog: speaker names (the name plate is a sprite, not in ONScripter's
-  text log) and voice replay.
+  text log) and voice replay. Both need CONscripter additions (§4.2).
 - Blog bar: prev/next/exit buttons and the scene list (drawn disabled).
 - Chapter history (`ChapterHistory.004`, opcodes 0x37/0x38) and the
   autosave slots.
@@ -458,7 +490,7 @@ parts are not converted:
 
 **Media and packaging.**
 - Movies (`mv*.bin`) aren't converted; they need a format the
-  WebAssembly build plays.
+  WebAssembly build plays, or a CONscripter addition.
 - `arc.nsa` is about 1.2 GB; if the web build can't handle it, split the
   voices into `arc1.nsa`.
 - Check that saves, thumbnails (`savethumbN.bmp`) and `kidoku.dat`
@@ -470,15 +502,15 @@ Cargo workspace:
 
 ```
 crates/
-  vn2ons-core/       ir.rs, vfs.rs, profile.rs, report.rs, source_loc.rs
-  vn2ons-engines/    nscripter/, kirikiri/ (xp3, kag, tlg), reallive/, ...
-  vn2ons-assets/     image codecs, compositing, ffmpeg wrapper
-  vn2ons-ons/        emit.rs, varalloc.rs, effects.rs, nsa.rs, caps.rs, lint.rs
-  vn2ons-walker/     IR interpreter: branch exploration, reachability, missing files
-  vn2ons-ai/         Claude API client, agent loops, tools, response cache
-  vn2ons-mcp/        MCP server exposing the tools to Claude Code (§8.5)
-  vn2ons-cli/        `vn2ons` binary
-cpp/                 optional: C++ code linked through cxx, ONScripter test harness
+  conv-core/         ir.rs, vfs.rs, profile.rs, report.rs, source_loc.rs
+  conv-engines/      nscripter/, kirikiri/ (xp3, kag, tlg), reallive/, ...
+  conv-assets/       image codecs, compositing, ffmpeg wrapper
+  conv-cons/         emit.rs, varalloc.rs, effects.rs, nsa.rs, caps.rs, lint.rs
+  conv-walker/       IR interpreter: branch exploration, reachability, missing files
+  conv-ai/           Claude API client, agent loops, tools, response cache
+  conv-mcp/          MCP server exposing the tools to Claude Code (§8.5)
+  conv-cli/          `conscripter-convert` binary
+engine/              CONscripter (git submodule): the target engine, with our additions
 profiles/
 tests/               synthetic fixtures + insta snapshot tests
 target_caps.toml
@@ -492,14 +524,14 @@ parsing), `memmap2`, `encoding_rs`, `image` / `png`, `flate2`, `rayon`,
 **CLI:**
 
 ```
-vn2ons inspect <gamedir>                 # engine, archives, script count, unsupported features
-vn2ons extract <gamedir> -o out/         # unpack and decode only
-vn2ons convert <gamedir> -o ons/ [--profile p.toml] [--target ons]
-vn2ons lint ons/                         # check the generated script
-vn2ons walk ons/|<gamedir>               # IR walker report
-vn2ons run ons/                          # launch the target ONScripter on the result
-vn2ons ai <task> <gamedir> [...]         # run an agent (see §8)
-vn2ons mcp                               # serve tools over MCP (stdio)
+conscripter-convert inspect <gamedir>                 # engine, archives, script count, unsupported features
+conscripter-convert extract <gamedir> -o out/         # unpack and decode only
+conscripter-convert convert <gamedir> -o ons/ [--profile p.toml] [--target ons]
+conscripter-convert lint ons/                         # check the generated script
+conscripter-convert walk ons/|<gamedir>               # IR walker report
+conscripter-convert run ons/                          # launch CONscripter on the result
+conscripter-convert ai <task> <gamedir> [...]         # run an agent (see §8)
+conscripter-convert mcp                               # serve tools over MCP (stdio)
 ```
 
 ## 8. AI agent layer
@@ -507,11 +539,11 @@ vn2ons mcp                               # serve tools over MCP (stdio)
 ### 8.1 Principles
 
 1. **Proposals, not edits.** Agents write candidate artifacts (profile
-   fragments, opcode tables, mapping files) to `.vn2ons/proposals/`. Nothing
+   fragments, opcode tables, mapping files) to `.conscripter-convert/proposals/`. Nothing
    reaches the output until it passes validation (round-trip, lint, IR
-   walker, smoke run) and you approve it with `vn2ons ai accept <id>`.
+   walker, smoke run) and you approve it with `conscripter-convert ai accept <id>`.
    Agents never start on their own: `convert` failing only *suggests* the
-   matching `vn2ons ai …` command in its report.
+   matching `conscripter-convert ai …` command in its report.
 2. **Validated by tools.** Every agent gets the validators as tools, so it can
    check its own hypotheses before proposing (for example: "decompile all
    scenes with this opcode table — do the instruction lengths line up?").
@@ -542,7 +574,7 @@ vn2ons mcp                               # serve tools over MCP (stdio)
 ### 8.3 Provider and API usage
 
 - **Claude API** over HTTPS (`POST /v1/messages`). There is no official Rust
-  SDK, so `vn2ons-ai` is a thin typed client (`reqwest` + `serde`) and a
+  SDK, so `conv-ai` is a thin typed client (`reqwest` + `serde`) and a
   hand-written tool-use loop (`while stop_reason == "tool_use"`).
   Credentials come from `ANTHROPIC_API_KEY`, never from config files that
   could get committed.
@@ -584,7 +616,7 @@ engine starts with more knowledge.
 
 ### 8.5 Interactive mode: MCP server
 
-`vn2ons mcp` exposes the same tools (VFS browsing, hexdump, disasm, IR
+`conscripter-convert mcp` exposes the same tools (VFS browsing, hexdump, disasm, IR
 preview, convert, lint, walk) over MCP. That lets you do interactive reverse
 engineering with Claude Code or another MCP client. The built-in agents cover
 the batch, non-interactive cases.
@@ -601,7 +633,7 @@ the batch, non-interactive cases.
    referenced files exist in the archives, Shift-JIS is valid.
 5. **IR walker:** follows every choice branch; reports unreachable code,
    endless loops and missing files.
-6. **Smoke test:** the target ONScripter headless (Xvfb or the SDL dummy driver)
+6. **Smoke test:** CONscripter headless (Xvfb or the SDL dummy driver)
    with auto-advance; checks that it reaches the ending labels without errors
    and captures screenshots for the visual checker.
 7. **AI layer tests:** a mock API server replays recorded transcripts, so agent
@@ -615,8 +647,9 @@ the batch, non-interactive cases.
 ## 10. Milestones
 
 - **M0:** identify Saihate no Ima's engine and archive formats (from the
-  installed files); build ogapee's ONScripter, write `target_caps.toml`; set
-  up the cargo workspace and IR types.
+  installed files); build the target engine, write `target_caps.toml`; set
+  up the cargo workspace and IR types. (Done with ogapee's ONScripter; the
+  target is now CONscripter, §4.1.)
 - **M1:** NScripter output stage, NSA packer, NScripter input engine,
   round-trip tests, linter.
 - **M2:** Saihate no Ima's engine: archive reader, image/audio decoders,
@@ -646,9 +679,11 @@ the batch, non-interactive cases.
 ## 12. Decisions
 
 - First game: 最果てのイマ (Saihate no Ima); its engine is identified in M0.
-- Target: a current ONScripter fork with native Japanese text (ogapee's by
-  default); onscripter-insani is dropped.
-- AI agents run only when explicitly invoked with `vn2ons ai …`.
+- Target: CONscripter (our ONScripter-Yuri fork, `engine/` submodule).
+  Until 2026-10-12 the target was ogapee's ONScripter with no engine
+  patches; now features the original games need and ONScripter lacks are
+  added to the engine (§4.1).
+- AI agents run only when explicitly invoked with `conscripter-convert ai …`.
 
 ## 13. Lessons learned and ways to speed up conversion
 
@@ -687,8 +722,8 @@ should carry over to the next engine.
 - **Never delete an output folder without listing it first.** Users put
   their own files there (an `onscripter` binary was lost once).
 - **Keep Shift-JIS out of the window caption.** It shows as mojibake on
-  Linux, so the caption is ASCII only.
-- **Rank opcodes by use count** (`vn2ons cd opstats`) and convert from the
+  Linux, so the caption is ASCII only (a CONscripter fix is listed in §4.2).
+- **Rank opcodes by use count** (`conscripter-convert cd opstats`) and convert from the
   top. Most of the visible game comes from a handful of opcodes.
 - **Source-file names and handler tables in the exe identify opcodes
   quickly** (e.g. a handler in `Story.cpp` is story bookkeeping, not
@@ -766,7 +801,7 @@ should carry over to the next engine.
 
 Tooling worth building, in rough order of payoff:
 
-1. **A static tracer in the converter** (`vn2ons trace`, a Rust port of
+1. **A static tracer in the converter** (`conscripter-convert trace`, a Rust port of
    `research/xuse/nstrace.py`). It runs the emitted `0.txt` without
    ONScripter, counts displayed pages, prints the script-to-script path,
    and flags hot loops. A 100,000-page trace of the Python version takes 0.5 s,

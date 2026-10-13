@@ -9,7 +9,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use thiserror::Error;
-use vn2ons_core::ir::{
+use conv_core::ir::{
     ArithOp, Backlog, BarAction, BarButton, ButtonBar, ConfirmDialog, NamePlate, Setting, SettingRow, SettingsMenu, Op, Operand, PageButton, Placed, Rect, SaveMenu, SourceLoc, Voice, VoiceToggle,
     SpriteChange, SpritePlacement, TextLink, TextSpot, TextWindow, TitleAction, TitleButton, TitleScreen, TopBars,
     Var,

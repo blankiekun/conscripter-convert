@@ -1,7 +1,7 @@
 """GAF4 key generator transcribed from Farthest2015.exe (0x40b2e0), plus the
 XOR used by the loader (0x4af460): byte ^= key[offset % (len(key) - 1)],
 with the key built from the header name field ("Farthest" / "generic").
-The Rust version is crates/vn2ons-engines/src/xuse/gaf.rs.
+The Rust version is crates/conv-engines/src/xuse/gaf.rs.
 """
 def sx(b):  # sign-extend byte to 16-bit
     return b - 256 if b >= 128 else b
