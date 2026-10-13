@@ -291,8 +291,11 @@ engines print `z150` etc.). The web build compiles with it.
       depth and `%181` raised. Now the link pages unwind (`%118` counts open
       link scenes, `%119` says where to go on; `*conv_unwind`). Checked
       headless: 『たまに早く出る』 → route 10 at depth 0.
-- [ ] Opcodes still emitted as comments (14 left): `0x36`
-      without a chapter name, `0x4a` (2 each),
+- [x] `0x4a` (2): the style of the messages that follow (0x49's value
+      encoding): 0011.cd's 「こ」「わ」「せ」「た」 in orange (#ff8c00) at
+      125 %, then the defaults. The edge colour isn't converted.
+- [ ] Opcodes still emitted as comments (12 left): `0x36`
+      without a chapter name (2),
       rarer ones.
 - [ ] Transitions still drawn as cross-fades: Wave, Dissolve, RollFlip,
       SoftEdgeWipe, TvPowerSwitch, BoxRolling, SmoothCrossFade, Dot4x4,

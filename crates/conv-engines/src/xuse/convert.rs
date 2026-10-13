@@ -193,6 +193,13 @@ const OP_STAFF_ROLL: u16 = 0x91;
 /// entered from a link, start with it (#7) and never return to the link
 /// page (they end with jumps).
 const OP_RETURN_TO_ROOT: u16 = 0x48;
+/// Sets the text style of the messages that follow (handler 0x477af0;
+/// values decoded like 0x49's by 0x491d80 / 0x491e30): u16 size (0x1000 +
+/// n a preset, below 0x1000 percent, 0xf000 + k: 0 none, 1 the default,
+/// 2 kept), u32 COLORREF (top byte 0xff: k as for the size), u32 edge
+/// colour (stored twice; not converted). Used once in 0011.cd: four lines
+/// at 125 % in orange, then back to the defaults.
+const OP_DEFAULT_TEXT_STYLE: u16 = 0x4a;
 /// Yields for one frame (handler 0x473d20 returns 0). Nothing to emit.
 const OP_YIELD: u16 = 0x67;
 /// Sets an object's opacity (handler 0x413f10; draw field +0x1b2).
@@ -1912,6 +1919,8 @@ pub fn lower_script(
     let mut background_fill: Option<u32> = None;
     let mut overlay_fill = false;
     let mut wait_credit_ms = 0;
+    // 0x4a's style for whole messages (file order): colour, size.
+    let mut default_style: (Option<u32>, Option<u16>) = (None, None);
     for (index, ins) in cd.code.iter().enumerate() {
         if let Some(label) = own_labels.get(&index) {
             ops.push(Op::Label(format!("s{}_l{label}", cd.script_id)));
@@ -2174,6 +2183,27 @@ pub fn lower_script(
             }
             continue;
         }
+        if ins.op == OP_DEFAULT_TEXT_STYLE {
+            let o = ins.arg as u32 as usize;
+            let size = cd.pool.get(o..o + 2).map(|b| u16::from_le_bytes([b[0], b[1]]));
+            match (size, pool_u32(cd.pool, o + 2)) {
+                (Some(size), Some(colour)) => {
+                    default_style.1 = match size {
+                        0xf002 => default_style.1,
+                        n if n & 0xf000 == 0x1000 => Some(STYLE_PRESET_PERCENT[usize::from(n & 0xfff).clamp(1, 7)]),
+                        n if n < 0x1000 => Some(n),
+                        _ => None,
+                    };
+                    default_style.0 = match colour {
+                        0xff00_0002 => default_style.0,
+                        c if c >> 24 == 0 => Some(rgb_of(c)),
+                        _ => None,
+                    };
+                }
+                _ => ops.push(Op::Unsupported { what: format!("opcode {:#04x} (bad record)", ins.op), at: at() }),
+            }
+            continue;
+        }
         if ins.op == OP_RETURN_TO_ROOT {
             ops.push(Op::ReturnToRoot);
             continue;
@@ -2297,12 +2327,14 @@ pub fn lower_script(
         let records = if cd.message(ins).is_some() { std::mem::take(&mut pending) } else { MessageRecords::default() };
         let unsupported = || format!("opcode {:#04x} sub {:#x} arg {}", ins.op, ins.sub, ins.arg);
         match lower_instr(cd, ins, &records, assets, names) {
-            Ok(Some(Op::Text { speaker, text, voice, mut links, ruby, styles, hang, continues })) if flow == Flow::Linear => {
+            Ok(Some(Op::Text { speaker, text, voice, mut links, ruby, mut styles, hang, continues })) if flow == Flow::Linear => {
+                whole_text_style(&mut styles, &text, default_style);
                 // No jumps in linear mode, so links are colour only.
                 links.iter_mut().for_each(|l| l.target = None);
                 ops.push(Op::Text { speaker, text, voice, links, ruby, styles, hang, continues });
             }
-            Ok(Some(Op::Text { speaker, text, voice, links, ruby, styles, hang, .. })) => {
+            Ok(Some(Op::Text { speaker, text, voice, links, ruby, mut styles, hang, .. })) => {
+                whole_text_style(&mut styles, &text, default_style);
                 let lines = text.split('\n').count();
                 if let (Some(rows), Some((i, used))) = (full_screen_rows, last_text) {
                     let joins = !page_break && used + lines <= rows;
@@ -2412,6 +2444,25 @@ const STYLE_COLOUR_KEEP: u32 = 0xff00_0000;
 /// A 0x49 record as a range of the text lines `body` joined with '\n'.
 /// Length 30000 (or any past the end) runs to the end of the message: the
 /// game wraps the lines of enlarged messages short enough to fit.
+/// Sizes are percent; 0x1000 + n is a preset (table at 0x4fa850, looked
+/// up at 0x491d00).
+const STYLE_PRESET_PERCENT: [u16; 8] = [0, 25, 50, 75, 100, 125, 150, 175];
+
+/// COLORREF 0x00BBGGRR to 0xRRGGBB.
+fn rgb_of(c: u32) -> u32 {
+    let [r, g, b, _] = c.to_le_bytes();
+    u32::from_be_bytes([0, r, g, b])
+}
+
+/// Puts 0x4a's style (colour, size) on the whole message, under its own
+/// 0x49 styles.
+fn whole_text_style(styles: &mut Vec<TextStyle>, text: &str, (colour, size_percent): (Option<u32>, Option<u16>)) {
+    let len = text.chars().count();
+    if len > 0 && (colour.is_some() || size_percent.is_some()) {
+        styles.insert(0, TextStyle { start: 0, len, colour, size_percent });
+    }
+}
+
 fn text_style(body: &[String], s: &StyleRecord) -> Option<TextStyle> {
     let line = usize::from(s.line).checked_sub(1)?;
     let col = usize::from(s.column).checked_sub(1)?;
@@ -2421,17 +2472,10 @@ fn text_style(body: &[String], s: &StyleRecord) -> Option<TextStyle> {
     let before: usize = body[..line].iter().map(|s| s.chars().count() + 1).sum();
     let total = body.iter().map(|s| s.chars().count() + 1).sum::<usize>() - 1;
     let len = usize::from(s.length).min(total - before - col);
-    let colour = (s.colour != STYLE_COLOUR_KEEP).then(|| {
-        // COLORREF 0x00BBGGRR to 0xRRGGBB
-        let [r, g, b, _] = s.colour.to_le_bytes();
-        u32::from_be_bytes([0, r, g, b])
-    });
-    // Sizes are percent; 0x1000 + n is a preset (table at 0x4fa850,
-    // looked up at 0x491d00).
-    const PRESET_PERCENT: [u16; 8] = [0, 25, 50, 75, 100, 125, 150, 175];
+    let colour = (s.colour != STYLE_COLOUR_KEEP).then(|| rgb_of(s.colour));
     let size = match s.size {
         STYLE_SIZE_KEEP => None,
-        n if n & 0xf000 == 0x1000 => Some(PRESET_PERCENT[usize::from(n & 0xfff).clamp(1, 7)]),
+        n if n & 0xf000 == 0x1000 => Some(STYLE_PRESET_PERCENT[usize::from(n & 0xfff).clamp(1, 7)]),
         n if n < 0x1000 => Some(n),
         _ => None,
     };
