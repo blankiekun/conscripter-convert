@@ -134,6 +134,11 @@ pub fn emit(script: &Script) -> String {
     let has_replay = script.title_screen.is_some() && script.extras.as_ref().is_some_and(|e| e.replay.is_some());
     let mut root_resumes = 0;
     let mut turns = 0;
+    let has_vertical = script.window.iter().chain(script.ops.iter().filter_map(|op| match op {
+        Op::SetWindow(w) => Some(w),
+        _ => None,
+    }))
+    .any(|w| w.vertical);
     // Shows the overlay and the static again after `csp -1`.
     let mut restore_overlay = String::new();
     if has_overlay {
@@ -148,9 +153,9 @@ pub fn emit(script: &Script) -> String {
     let mut out = String::new();
 
     let mode = match (script.width, script.height) {
-        (800, 600) => ";mode800",
-        (640, 480) => ";mode640",
-        _ => ";mode800", // unverified: other sizes need a `;$S` header
+        (800, 600) => ";mode800".to_string(),
+        (640, 480) => ";mode640".to_string(),
+        (w, h) => format!(";$S{w},{h}"),
     };
     writeln!(out, "{mode}").unwrap();
     writeln!(out, "*define").unwrap();
@@ -209,7 +214,7 @@ pub fn emit(script: &Script) -> String {
     // setwindow redraws the screen, so it must come after `game` (ONScripter
     // crashes if it runs in the define section).
     if let Some(w) = &script.window {
-        writeln!(out, "{}", setwindow(w, speed, has_ruby)).unwrap();
+        writeln!(out, "{}", setwindow(w, speed, has_ruby, has_vertical)).unwrap();
         // Keep the window up while sprites change and pages are printed
         // (by default every print hides it until the next text, which
         // flickers); the script hides it explicitly with textoff.
@@ -376,7 +381,7 @@ pub fn emit(script: &Script) -> String {
             Op::HideTextWindow => writeln!(out, "textoff").unwrap(),
             Op::InstantText(on) => writeln!(out, "textspeed {}", if *on { "0" } else { speed }).unwrap(),
             Op::SetWindow(w) => {
-                writeln!(out, "{}", setwindow(w, speed, has_ruby)).unwrap();
+                writeln!(out, "{}", setwindow(w, speed, has_ruby, has_vertical)).unwrap();
                 writeln!(out, "csp {NAME_PLATE_SPRITE}:csp {NAME_TEXT_SPRITE}").unwrap();
                 plate_visible = false;
                 page_rows = 0;
@@ -703,7 +708,7 @@ pub fn emit(script: &Script) -> String {
                     }
                     if let Some(w) = window {
                         // The scene may have switched the text window.
-                        writeln!(out, "{}", setwindow(w, speed, has_ruby)).unwrap();
+                        writeln!(out, "{}", setwindow(w, speed, has_ruby, has_vertical)).unwrap();
                     }
                     if root_returns > 0 {
                         writeln!(out, "if {ROOT_RESUME} != 0 goto *{UNWIND}").unwrap();
@@ -881,10 +886,21 @@ fn title_screen(out: &mut String, t: &TitleScreen, fade: u32, save_menu: bool, s
 /// `speed`: milliseconds per character (a number or a variable).
 /// `ruby`: `rubyon` is set, which draws text a line gap lower (the ruby
 /// goes above it), so the window starts a line gap higher.
-fn setwindow(w: &TextWindow, speed: &str, ruby: bool) -> String {
+/// `any_vertical`: some window is vertical, so a horizontal one must switch
+/// back.
+fn setwindow(w: &TextWindow, speed: &str, ruby: bool, any_vertical: bool) -> String {
+    if w.vertical {
+        // tateyoko first: it clears the page using the old window's size.
+        // Lines are columns: x counts them, y the characters down each.
+        return format!(
+            "tateyoko 1:setwindow {},{},{},{},{},{},{},0,{speed},0,1,\":a;{}\",{},{}",
+            w.text_x, w.text_y, w.rows, w.columns, w.font_size, w.font_size, w.line_gap, path(&w.image), w.x, w.y
+        );
+    }
     let text_y = if ruby { w.text_y - w.line_gap as i32 } else { w.text_y };
     format!(
-        "setwindow {},{text_y},{},{},{},{},1,{},{speed},0,1,\":a;{}\",{},{}",
+        "{}setwindow {},{text_y},{},{},{},{},1,{},{speed},0,1,\":a;{}\",{},{}",
+        if any_vertical { "tateyoko 0:" } else { "" },
         w.text_x, w.columns, w.rows, w.font_size, w.font_size, w.line_gap, path(&w.image), w.x, w.y
     )
 }
@@ -1360,6 +1376,7 @@ mod tests {
             rows: 3,
             font_size: 24,
             line_gap: 13,
+            vertical: false,
             name_plate: Some(NamePlate {
                 image: "system/name.png".into(),
                 x: 55,
@@ -1423,6 +1440,17 @@ goto *conv_link1
 *conv_link1_1
 ";
         assert!(text.contains(expected), "{text}");
+    }
+
+    #[test]
+    fn vertical_window_on_a_wide_screen() {
+        let vertical = TextWindow { vertical: true, name_plate: None, x: 447, y: 40, text_x: 430, text_y: 55, columns: 27, rows: 5, font_size: 20, line_gap: 9, ..window() };
+        let mut s = script(vec![Op::SetWindow(window())]);
+        (s.width, s.height, s.window) = (1024, 576, Some(vertical));
+        let text = emit(&s);
+        assert!(text.starts_with(";$S1024,576\n"), "{text}");
+        assert!(text.contains("tateyoko 1:setwindow 430,55,5,27,20,20,9,0,20,0,1,\":a;system\\window.png\",447,40\n"), "{text}");
+        assert!(text.contains("tateyoko 0:setwindow 105,"), "{text}");
     }
 
     #[test]
@@ -1840,6 +1868,7 @@ end
             rows: 3,
             font_size: 24,
             line_gap: 13,
+            vertical: false,
             name_plate: Some(NamePlate {
                 image: "system/name.png".into(),
                 x: 55,

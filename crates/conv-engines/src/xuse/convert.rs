@@ -785,7 +785,7 @@ impl AssetBank {
             None
         };
         let text_x = x + (w as i32 - columns as i32 * (font_size as i32 + 1)) / 2;
-        Ok(TextWindow { image, x, y, text_x, text_y: y + 20, columns, rows, font_size, line_gap, name_plate })
+        Ok(TextWindow { image, x, y, text_x, text_y: y + 20, columns, rows, font_size, line_gap, vertical: false, name_plate })
     }
 
     /// The four PNG layers (message base, frame, name base, frame) of a
@@ -1477,6 +1477,7 @@ impl AssetBank {
             rows: 3,
             font_size: 24,
             line_gap: 12,
+            vertical: false,
             name_plate: Some(NamePlate { image: plate, x: 42, y: 412, text_x: 58, text_y: 424, font_size: 20 }),
         })
     }
