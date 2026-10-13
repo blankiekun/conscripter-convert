@@ -104,20 +104,34 @@ impl Assets for NpaAssets<'_> {
         rel
     }
 
-    fn faded(&mut self, image: &str, opacity: u32) -> Option<String> {
-        if opacity >= 1000 {
-            return Some(image.to_string());
+    fn composite(&mut self, parts: &[(String, i64, i64, i64)]) -> Option<(String, i64, i64)> {
+        if let [(image, x, y, 1000)] = parts {
+            return Some((image.clone(), *x, *y));
         }
-        let stem = Path::new(image).file_stem()?.to_string_lossy().into_owned();
-        let rel = format!("system/{stem}_{opacity}.png");
-        if !self.output.join(&rel).exists() {
+        let mut layers = Vec::new();
+        for (image, x, y, opacity) in parts {
             let mut img = image::open(self.output.join(image)).ok()?.into_rgba8();
             for p in img.pixels_mut() {
-                p.0[3] = (p.0[3] as u32 * opacity / 1000) as u8;
+                p.0[3] = (p.0[3] as i64 * opacity / 1000) as u8;
             }
-            self.write_png(&rel, &img);
+            layers.push((img, *x, *y));
         }
-        Some(rel)
+        let x0 = layers.iter().map(|l| l.1).min()?;
+        let y0 = layers.iter().map(|l| l.2).min()?;
+        let x1 = layers.iter().map(|l| l.1 + l.0.width() as i64).max()?;
+        let y1 = layers.iter().map(|l| l.2 + l.0.height() as i64).max()?;
+        let mut out = image::RgbaImage::new((x1 - x0) as u32, (y1 - y0) as u32);
+        for (img, x, y) in &layers {
+            image::imageops::overlay(&mut out, img, x - x0, y - y0);
+        }
+        use std::hash::{Hash, Hasher};
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        parts.hash(&mut h);
+        let rel = format!("system/window_{:016x}.png", h.finish());
+        if !self.output.join(&rel).exists() {
+            self.write_png(&rel, &out);
+        }
+        Some((rel, x0, y0))
     }
 
     fn transparent(&mut self) -> String {

@@ -37,7 +37,7 @@
 
 use std::collections::{BTreeMap, HashMap};
 
-use conv_core::ir::{Op, Ruby, SpriteChange, SpritePlacement, TextWindow, TransitionStyle, Voice};
+use conv_core::ir::{CLICK_WAIT_MARK, Op, Ruby, SpriteChange, SpritePlacement, TextWindow, TransitionStyle, Voice};
 
 use super::nss::{AssignOp, BinaryOp, Expr, Function, Inline, Item, NssFile, Param, Stmt, StmtKind, Target, Text, UnaryOp};
 
@@ -62,8 +62,9 @@ pub trait Assets {
     fn sound(&mut self, path: &str) -> Option<String>;
     /// A `w`×`h` picture of one colour (0xRRGGBB).
     fn color(&mut self, rgb: u32, w: u32, h: u32) -> String;
-    /// An output image with its opacity scaled by `opacity`/1000.
-    fn faded(&mut self, image: &str, opacity: u32) -> Option<String>;
+    /// Output images (path, top-left x, y, opacity 0-1000) drawn in order
+    /// into one picture over their bounding box: its path and top-left.
+    fn composite(&mut self, parts: &[(String, i64, i64, i64)]) -> Option<(String, i64, i64)>;
     /// A fully transparent picture.
     fn transparent(&mut self) -> String;
 }
@@ -242,7 +243,8 @@ struct Page<'a> {
     voice: Option<(String, String)>,
     /// Inline code to run before the page.
     code: Vec<&'a Stmt>,
-    /// Ended by `<k>`: the next page goes on below without clearing.
+    /// Ended by a `<k>` with code after it: the next page goes on below
+    /// without clearing.
     continues: bool,
 }
 
@@ -871,6 +873,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
         // Layers of the wanted pictures in drawing order, top first: each
         // must be above (lower than) the next one.
         let mut layers: Vec<Option<u32>> = want.iter().map(|w| self.shown.get(&w.0).map(|s| s.layer)).collect();
+        let mut crowded = false;
         for i in 0..want.len() {
             if layers[i].is_some() {
                 continue;
@@ -879,23 +882,33 @@ impl<'a, 'b> Compiler<'a, 'b> {
             let below = layers[i + 1..].iter().flatten().min().copied().unwrap_or(MAX_LAYER + 1);
             let ideal = ((30000 - want[i].2.0).clamp(0, 30000) * MAX_LAYER as i64 / 30000) as u32;
             if above >= below {
-                self.note("no free sprite layer between two pictures");
-                continue;
+                crowded = true;
+                break;
             }
             layers[i] = Some(ideal.clamp(above, below - 1));
         }
+        // No gap left between two pictures: spread them all out again, in
+        // the same order (pictures that move layer are drawn anew).
+        if crowded {
+            let n = want.len() as u32;
+            layers = (0..n).map(|i| Some((i + 1) * MAX_LAYER / (n + 1))).collect();
+        }
+        let mut placed = Vec::new();
         let mut new_shown = Vec::new();
         for ((name, now, _), layer) in want.into_iter().zip(&layers) {
             let Some(layer) = *layer else { continue };
             let now = Shown { layer, ..now };
             match self.shown.get(&name) {
                 Some(old) if *old == now => continue,
-                Some(old) if old.image == now.image && old.x == now.x && old.y == now.y => {
+                Some(old) if old.layer == now.layer && old.image == now.image && old.x == now.x && old.y == now.y => {
                     opacity.push(Op::SpriteOpacity { layer: Some(layer), opacity: (now.opacity * 256 / 1000) as u32 });
                 }
-                _ => {
+                old => {
+                    if let Some(old) = old.filter(|o| o.layer != layer) {
+                        changes.push(SpriteChange { layer: old.layer, sprite: None, keep_filters: false });
+                    }
                     let sprite = SpritePlacement { image: now.image.clone(), x: now.x as i32, y: now.y as i32 };
-                    changes.push(SpriteChange { layer, sprite: Some(sprite), keep_filters: false });
+                    placed.push(SpriteChange { layer, sprite: Some(sprite), keep_filters: false });
                     if now.opacity < 1000 {
                         opacity.push(Op::SpriteOpacity { layer: Some(layer), opacity: (now.opacity * 256 / 1000) as u32 });
                     }
@@ -903,6 +916,9 @@ impl<'a, 'b> Compiler<'a, 'b> {
             }
             new_shown.push((name, now));
         }
+        // Removals first: a placement may reuse a freed layer.
+        changes.retain(|c| !placed.iter().any(|p| p.layer == c.layer));
+        changes.extend(placed);
         self.shown.extend(new_shown);
         if changes.is_empty() && opacity.is_empty() {
             if ms > 0 {
@@ -1035,7 +1051,18 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 Inline::Marker(_) | Inline::Comment(_) => other = true,
                 Inline::Str(s) => line.push_str(s),
                 Inline::Code(stmts) => {
-                    if !page.text.is_empty() || !line.is_empty() {
+                    // Code after a `<k>` runs after that click: end the page
+                    // there and go on below it.
+                    let mut text = page.text.clone();
+                    if !line.is_empty() {
+                        text = if text.is_empty() { line.clone() } else { format!("{text}\n{line}") };
+                    }
+                    if let Some(before) = text.strip_suffix(CLICK_WAIT_MARK) {
+                        page.text = before.to_string();
+                        line.clear();
+                        page.continues = true;
+                        pages.push(std::mem::take(&mut page));
+                    } else if !page.text.is_empty() || !line.is_empty() {
                         self.note("code inside a page runs before it");
                     }
                     page.code.extend(stmts.iter());
@@ -1057,13 +1084,8 @@ impl<'a, 'b> Compiler<'a, 'b> {
                             }
                         }
                         ("br", _) => end_line(&mut page, &mut line),
-                        ("k", _) => {
-                            if !line.is_empty() {
-                                end_line(&mut page, &mut line);
-                            }
-                            page.continues = true;
-                            pages.push(std::mem::take(&mut page));
-                        }
+                        // A click wait where it stands, mid-line or not.
+                        ("k", _) => line.push(CLICK_WAIT_MARK),
                         ("pre", _) | ("font", _) => {}
                         (other, _) => self.note(format!("text tag <{other}>")),
                     }
@@ -1092,14 +1114,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
         let Some(Object { kind: Kind::Text(t), x, y, .. }) = self.objects.get(name) else { return };
         let (t, x, y) = (t.clone(), *x, *y);
         self.sync(0);
-        let window = self.text_window(&t, x, y);
         let pages = self.pages(t.block);
-        if self.texts_shown == 0 {
-            self.first_window = Some(window.clone());
-        } else if self.window.as_ref() != Some(&window) {
-            self.ops.push(Op::SetWindow(window.clone()));
-        }
-        self.window = Some(window);
         for page in &pages {
             for &s in &page.code {
                 self.exec(s);
@@ -1109,6 +1124,14 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 continue;
             }
             self.sync(0);
+            // Code before the page may have changed the face window.
+            let window = self.text_window(&t, x, y);
+            if self.texts_shown == 0 {
+                self.first_window = Some(window.clone());
+            } else if self.window.as_ref() != Some(&window) {
+                self.ops.push(Op::SetWindow(window.clone()));
+            }
+            self.window = Some(window);
             let voice = page.voice.as_ref().and_then(|(_, src)| {
                 let file = self.assets.sound(src)?;
                 Some(file)
@@ -1125,8 +1148,10 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 } as u32;
                 Voice { file, character }
             });
+            // The face window or name plate (part of the window image)
+            // shows who speaks; the name is kept for the voice switches.
             self.ops.push(Op::Text {
-                speaker,
+                speaker: None,
                 text: page.text.clone(),
                 voice,
                 links: Vec::new(),
@@ -1149,20 +1174,21 @@ impl<'a, 'b> Compiler<'a, 'b> {
         let rows = (h / line.max(1)).max(1) as u32;
         let vertical = t.rotation.rem_euclid(360) == 90;
         let (text_x, text_y) = if vertical { (x - rows as i64 * line, y) } else { (x, y) };
-        let back = self
+        // The window's pictures (box, face window, name plate), bottom
+        // first, drawn into one window image.
+        let mut parts: Vec<(i64, u64, (String, i64, i64, i64))> = self
             .objects
             .values()
             .filter(|o| o.hideable && o.opacity > 0)
             .filter_map(|o| match &o.kind {
-                Kind::Image { image } => Some((o.priority, image.clone(), o.x, o.y, o.opacity)),
+                Kind::Image { image } => Some((o.priority, o.seq, (image.clone(), o.x, o.y, o.opacity))),
                 _ => None,
             })
-            .max_by_key(|b| b.0);
-        let (image, wx, wy) = match back {
-            Some((_, image, wx, wy, opacity)) => match self.assets.faded(&image, opacity as u32) {
-                Some(faded) => (faded, wx, wy),
-                None => (image, wx, wy),
-            },
+            .collect();
+        parts.sort_by_key(|p| (p.0, p.1));
+        let parts: Vec<_> = parts.into_iter().map(|p| p.2).collect();
+        let (image, wx, wy) = match self.assets.composite(&parts) {
+            Some(c) => c,
             None => (self.assets.transparent(), 0, 0),
         };
         TextWindow {
@@ -1206,8 +1232,10 @@ mod tests {
         fn color(&mut self, rgb: u32, w: u32, h: u32) -> String {
             format!("color/{rgb:06x}_{w}x{h}.png")
         }
-        fn faded(&mut self, image: &str, opacity: u32) -> Option<String> {
-            Some(format!("{image}@{opacity}"))
+        fn composite(&mut self, parts: &[(String, i64, i64, i64)]) -> Option<(String, i64, i64)> {
+            let (_, x, y, _) = parts.first()?;
+            let names: Vec<String> = parts.iter().map(|(i, _, _, o)| format!("{i}@{o}")).collect();
+            Some((names.join("+"), *x, *y))
         }
         fn transparent(&mut self) -> String {
             "none.png".into()
@@ -1291,6 +1319,30 @@ scene a.nss
         assert!(matches!(&ops[last + 1], Op::Sprites { changes, .. } if changes[0].sprite.is_none()));
         // SoundPlay and OnSE aren't defined here: built-ins we don't know.
         assert!(c.notes.contains_key("built-in soundplay"));
+    }
+
+    #[test]
+    fn k_waits_in_place_and_code_after_it_runs_after_the_click() {
+        let story = r#"
+scene a.nss
+{
+<PRE @box0>
+[text0010]
+　怪我をする。<k>痛い。<k>
+もがき苦しみ<k>
+{	Wait(5);}
+　兵士
+</PRE>
+	SetText();
+	TypeBegin();
+}
+"#;
+        let c = compile(story, LIBRARY);
+        let texts: Vec<(&str, bool)> =
+            c.ops.iter().filter_map(|op| if let Op::Text { text, continues, .. } = op { Some((text.as_str(), *continues)) } else { None }).collect();
+        assert_eq!(texts, [("　怪我をする。\u{1}痛い。\u{1}\nもがき苦しみ", true), ("　兵士", false)]);
+        let wait = c.ops.iter().position(|op| matches!(op, Op::Wait { ms: 5 })).unwrap();
+        assert!(matches!(c.ops[wait - 1], Op::Text { continues: true, .. }));
     }
 
     #[test]
