@@ -92,6 +92,16 @@ const OP_CHAPTER: u16 = 0x36;
 const OP_CLICK_WAIT: u16 = 0x68;
 /// Removes every character bust-up (arg is always -1).
 const OP_CLEAR_SPRITES: u16 = 0x8f;
+/// A second background object, "bg-<slot>" (handlers 0x422440, 0x4222c0,
+/// 0x412fe0), mostly one of the `frameNN` pictures: letterbox bars, speed
+/// lines, a heart border. Record: u8 slot (always 2), u8 layer, u32 depth,
+/// u32 background (1-based as in 0x54, image id 10,000,000 + n - 1; 0
+/// removes it), u8 "mark as seen". Layers 0 and 1 are the background's
+/// (under the bust-ups), 2 the bust-ups' (0x10); 3 and 4 aren't used.
+/// Assumption: within a layer the higher depth is drawn on top, so the
+/// usual depth 1000 puts it over the bust-ups (10-100 in 0x8e). No fade of
+/// its own. It stays when the background changes or the bust-ups go.
+const OP_OVERLAY: u16 = 0x55;
 /// Effect presets (0x88 defines a module, 0x90 attaches a preset to a
 /// bust-up) are kept in variables, so they follow the game's control flow:
 /// preset p, slot s is [`PRESET_FIELDS`] local variables from
@@ -198,6 +208,12 @@ impl Needs {
         for ins in &cd.code {
             if ins.op == crate::xuse::cd::OP_BACKGROUND && ins.arg > 0 {
                 self.backgrounds.insert(ins.arg as usize);
+            }
+            if ins.op == OP_OVERLAY {
+                let number = pool_u32(cd.pool, ins.arg as u32 as usize + 6).unwrap_or(0);
+                if number > 0 {
+                    self.backgrounds.insert(number as usize);
+                }
             }
             if let Some(Ok(entries)) = cd.sprites(ins) {
                 for e in entries {
@@ -1324,6 +1340,21 @@ pub fn lower_script(
                     ops.push(Op::BeginTransition { effect, fade_ms, mask, style: TransitionStyle::Fade });
                 }
                 _ => ops.push(Op::Unsupported { what: format!("opcode {:#04x} (bad record)", ins.op), at: at() }),
+            }
+            continue;
+        }
+        if ins.op == OP_OVERLAY {
+            let o = ins.arg as u32 as usize;
+            let record = cd.pool.get(o..o + 2).zip(pool_u32(cd.pool, o + 6));
+            match record {
+                Some((&[2, layer @ 0..=2], number)) => {
+                    let image = match number {
+                        0 => None,
+                        n => Some(assets.background(n as usize)?.path),
+                    };
+                    ops.push(Op::Overlay { image, over_sprites: layer == 2 });
+                }
+                _ => ops.push(Op::Unsupported { what: format!("opcode {:#04x} record {record:?}", ins.op), at: at() }),
             }
             continue;
         }

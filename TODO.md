@@ -101,10 +101,21 @@ engines print `z150` etc.). The web build compiles with it.
       175 % touches the line above).
 - [x] CONscripter 0.10.0 with `!z` and `screenfilter` (engine `c1247f4`,
       converter `127af1b`; all 5 workflows passed, 9 assets). Save files are now version 3 (screen filters).
-- [ ] Opcodes still emitted as comments (3,518 left): `0x70` (457), `0x93`/`0x94` (418, before each
-      chapter end), `0x4d` (276), `0x55` (252), `0x37`/`0x38` (251,
-      chapter history), `0x8c` (240), `0x6d` (198), `0x7a`/`0x7b`.
-      Indent (`0x4e`).
+- [x] `0x55` (252): a second background object "bg-2" over the
+      background, mostly `frameNN` (frame01 letterbox bars, frame05
+      speed lines, frame07 hearts). It outlasts background changes, so
+      the converter keeps it in `%180`/`$180` and shows it again after
+      each `csp -1`; link scenes save it per depth. Character sprites
+      moved up one (layer n = sprite 61 + n). Unsupported: 2,823 → 2,571.
+      Assumption: the record's u32 1000 is a depth (the bust-ups' is
+      10-100), putting the frame over the characters.
+- [ ] Check: 0x8e's field we read as fade (10 ms units) is passed as
+      the object's depth to 0x4109a0 (the same argument as 0x55's
+      1000). Maybe it is both, maybe the fades are wrong.
+- [ ] Opcodes still emitted as comments (2,571 left): `0x93`/`0x94`
+      (418, before each chapter end), `0x37`/`0x38` (251, chapter
+      history), `0x8c` (240), `0x6d` (198), `0x7a`/`0x7b`, `0x6e`/`0x6f`,
+      `0x8a`/`0x8b`, `0x70` leftovers.
 - [ ] Transitions still drawn as cross-fades: Wave, Dissolve, RollFlip,
       SoftEdgeWipe, TvPowerSwitch, BoxRolling, SmoothCrossFade, Dot4x4,
       MeltDown (PLAN §6 "Accuracy").

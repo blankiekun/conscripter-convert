@@ -525,8 +525,11 @@ parts are not converted:
 - `0x70` kinds not converted (62 uses): Smooth (blur), 13 (ripple),
   HueSatura, BrightnessInvert, 12;
 - `0x93`/`0x94` (418): before each chapter end, unknown;
-- `0x55` (252), `0x8c` (240), `0x6d` (198), `0x7a`/`0x7b`
-  (about 90 each) and about 30 rarer ones;
+- `0x8c` (240), `0x6d` (198), `0x7a`/`0x7b` (about 90 each) and about
+  30 rarer ones. `0x55` is done: a second background object, mostly the
+  `frameNN` overlays (letterbox bars, speed lines), drawn as sprite 60
+  (over the characters) or 999 (under them) and kept across background
+  changes;
 
 **Accuracy.**
 - Transitions still drawn as cross-fades: Wave (0-3, 39 uses), Dissolve

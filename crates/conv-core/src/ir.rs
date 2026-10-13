@@ -181,6 +181,12 @@ pub enum Op {
     Background { image: String, fade_ms: u32 },
     /// Remove every sprite layer.
     ClearSprites,
+    /// Show (or with `None` remove) a picture laid over the background:
+    /// over the sprites if `over_sprites`, else between the background and
+    /// the sprites. Unlike sprites, it stays when the background changes
+    /// or the sprites are cleared. Shown at once unless a transition is
+    /// open.
+    Overlay { image: Option<String>, over_sprites: bool },
     /// Hide the text window; the next text page shows it again.
     HideTextWindow,
     /// Show the following pages whole (`true`) or typed out at the text

@@ -42,10 +42,19 @@ const NAME_PLATE_SPRITE: u32 = 51;
 /// 59`, slots up to 59 are drawn over the text window and the character
 /// sprites under it.
 const LINK_SPRITES: std::ops::RangeInclusive<u32> = 52..=59;
-/// Sprite layer n is NScripter sprite 60 + n.
-const SPRITE_BASE: u32 = 60;
-/// The highest sprite number (ONScripter has 1000).
+/// The overlay ([`Op::Overlay`]) over the character sprites.
+const OVERLAY_SPRITE: u32 = 60;
+/// Sprite layer n is NScripter sprite 61 + n.
+const SPRITE_BASE: u32 = 61;
+/// The highest sprite number (ONScripter has 1000); also the overlay
+/// under the character sprites.
 const MAX_SPRITE: u32 = 999;
+/// The overlay's sprite (0 = none) and image, to show it again after
+/// `csp -1`. Link scenes save them at OVERLAY_SAVED + depth.
+const OVERLAY_SLOT: &str = "%180";
+const OVERLAY_IMAGE: &str = "$180";
+const OVERLAY_DEPTH: &str = "%181";
+const OVERLAY_SAVED: u32 = 182;
 /// Scratch variable receiving the clicked button (also used by nstrace).
 const BUTTON_VAR: &str = "%9";
 /// NScripter variables: locals from %10, globals from %200. `globalon`
@@ -69,6 +78,9 @@ const TEXT_COLOR: &str = "#FFFFFF";
 pub fn emit(script: &Script) -> String {
     let effects = fade_effects(script);
     let has_ruby = script.ops.iter().any(|op| matches!(op, Op::Text { ruby, .. } if !ruby.is_empty()));
+    let has_overlay = script.ops.iter().any(|op| matches!(op, Op::Overlay { .. }));
+    // Shows the overlay again after `csp -1`.
+    let restore_overlay = format!("if {OVERLAY_SLOT} != 0 lsp {OVERLAY_SLOT},{OVERLAY_IMAGE},0,0");
     let mut out = String::new();
 
     let mode = match (script.width, script.height) {
@@ -193,6 +205,9 @@ pub fn emit(script: &Script) -> String {
                 // NScripter's bg keeps lsp sprites; the game removes characters
                 // when the background or CG changes.
                 writeln!(out, "csp -1").unwrap();
+                if has_overlay {
+                    writeln!(out, "{restore_overlay}").unwrap();
+                }
                 // Effect 0 = update the buffer only (shown by the transition).
                 let e = if transition.is_some() { 0 } else { effect(*fade_ms) };
                 writeln!(out, "bg \"{}\",{e}", path(image)).unwrap();
@@ -256,7 +271,24 @@ pub fn emit(script: &Script) -> String {
             }
             Op::ClearSprites => {
                 writeln!(out, "csp -1").unwrap();
+                if has_overlay {
+                    writeln!(out, "{restore_overlay}").unwrap();
+                }
                 plate_visible = false;
+                if transition.is_none() {
+                    writeln!(out, "print 1").unwrap();
+                }
+            }
+            Op::Overlay { image, over_sprites } => {
+                writeln!(out, "if {OVERLAY_SLOT} != 0 csp {OVERLAY_SLOT}").unwrap();
+                match image {
+                    Some(image) => {
+                        let slot = if *over_sprites { OVERLAY_SPRITE } else { MAX_SPRITE };
+                        writeln!(out, "mov {OVERLAY_SLOT},{slot}:mov {OVERLAY_IMAGE},\":a;{}\"", path(image)).unwrap();
+                        writeln!(out, "lsp {slot},{OVERLAY_IMAGE},0,0").unwrap();
+                    }
+                    None => writeln!(out, "mov {OVERLAY_SLOT},0").unwrap(),
+                }
                 if transition.is_none() {
                     writeln!(out, "print 1").unwrap();
                 }
@@ -419,7 +451,12 @@ pub fn emit(script: &Script) -> String {
                     }
                     // The scene may change the whole screen: save the
                     // background, the game's sprites and the BGM around it.
-                    writeln!(out, "pushscreen {SPRITE_BASE},{}", MAX_SPRITE).unwrap();
+                    writeln!(out, "pushscreen {OVERLAY_SPRITE},{}", MAX_SPRITE).unwrap();
+                    if has_overlay {
+                        // popscreen brings the overlay back; so must the variables.
+                        writeln!(out, "add {OVERLAY_DEPTH},1:mov {},{OVERLAY_SAVED}+{OVERLAY_DEPTH}", menu::TMP).unwrap();
+                        writeln!(out, "mov %{},{OVERLAY_SLOT}:mov ${},{OVERLAY_IMAGE}", menu::TMP, menu::TMP).unwrap();
+                    }
                     writeln!(out, "gosub *{}", label(target)).unwrap();
                     if scenes {
                         let (depth, max) = (menu::SCENE_DEPTH, menu::SCENE_MAX_DEPTH);
@@ -427,6 +464,10 @@ pub fn emit(script: &Script) -> String {
                         writeln!(out, "if {depth} == 0 mov {max},0").unwrap();
                     }
                     writeln!(out, "popscreen").unwrap();
+                    if has_overlay {
+                        writeln!(out, "mov {},{OVERLAY_SAVED}+{OVERLAY_DEPTH}:sub {OVERLAY_DEPTH},1", menu::TMP).unwrap();
+                        writeln!(out, "mov {OVERLAY_SLOT},%{}:mov {OVERLAY_IMAGE},${}", menu::TMP, menu::TMP).unwrap();
+                    }
                     if let Some(w) = window {
                         // The scene may have switched the text window.
                         writeln!(out, "{}", setwindow(w, speed, has_ruby)).unwrap();
@@ -1059,8 +1100,8 @@ goto *conv_link1
 csp -1
 csp -1
 bg \"bg\\a.png\",0
-spfilter 65,0
-lsp 65,\":a;sprite\\a.png\",1,2
+spfilter 66,0
+lsp 66,\":a;sprite\\a.png\",1,2
 print 4
 ; transition: MaskBlend2
 csp -1
@@ -1217,13 +1258,13 @@ bgmfadein 1000
 bgm \"bgm\\track01.ogg\"
 csp -1
 bg \"bg\\room.png\",2
-lsp 63,\":a;sprite\\a.png\",10,-20
+lsp 64,\":a;sprite\\a.png\",10,-20
 print 2
-spfilter 63,0
-spfilter 63,1,1,128,255,200,100
-if %40 != 0 spfilter 63,%40,%41,%42,%43,%44,%45
+spfilter 64,0
+spfilter 64,1,1,128,255,200,100
+if %40 != 0 spfilter 64,%40,%41,%42,%43,%44,%45
 print 1
-csp 63
+csp 64
 print 1
 【名前】「こんにちは」\\
 dwave 0,\"voice\\v1.ogg\"
@@ -1433,6 +1474,24 @@ end
         let out = emit(&s);
         assert!(out.contains("effect 2,10,1000\n"), "{out}");
         assert!(out.contains("screenfilter 1,4,0,256,-200,0,0\nprint 2\nscreenfilter 1,0\nprint 1\nscreenfilter 0\nprint 1\n"), "{out}");
+    }
+
+    #[test]
+    fn overlays_outlast_the_background() {
+        let s = script(vec![
+            Op::Overlay { image: Some("bg/frame01.png".into()), over_sprites: true },
+            Op::Background { image: "bg/room.png".into(), fade_ms: 0 },
+            Op::Overlay { image: None, over_sprites: true },
+        ]);
+        let out = emit(&s);
+        assert!(
+            out.contains(
+                "if %180 != 0 csp %180\nmov %180,60:mov $180,\":a;bg\\frame01.png\"\nlsp 60,$180,0,0\nprint 1\n\
+                 csp -1\nif %180 != 0 lsp %180,$180,0,0\nbg \"bg\\room.png\",1\n\
+                 if %180 != 0 csp %180\nmov %180,0\nprint 1\n"
+            ),
+            "{out}"
+        );
     }
 
     #[test]
