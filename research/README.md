@@ -18,3 +18,10 @@ game data. Run them with `python3 -I` from outside the game directory.
 | `nstrace.py <0.txt> [steps] [--show]` | Runs the NScripter subset conscripter-convert emits (labels, goto, gosub/return, arithmetic, if) to find loops or trace the path to the first text page |
 | `gaf_extract.py <outdir> <file.004…>` | Extracts the PNGs from GAF4 files (needs `gafkey.py`) |
 | `voice_align.py <game dir> <out.json>` | Statistically aligns voice ids to .xsa clips by text length vs clip length (needs numpy) |
+
+## nitroplus/ (装甲悪鬼村正)
+
+| File | What it is |
+|---|---|
+| `npa.py <exe> <npa> [out [glob]]` | Lists or extracts the encrypted NPA archives |
+| `builtins.md` | What each engine built-in does, with use counts (`conscripter-convert nss builtins`) and the NScripter mapping |

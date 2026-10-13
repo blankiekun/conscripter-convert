@@ -29,19 +29,45 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use super::nss::{Expr, Inline, Item, NssFile, Stmt, StmtKind, Target};
+use super::nss::{Expr, Inline, Item, NssFile, Stmt, StmtKind, Target, UnaryOp};
 
 #[derive(Debug, Default)]
 pub struct Report {
     /// `file: message` for every reference that doesn't resolve
     pub problems: Vec<String>,
-    /// Called names no file defines, with the number of calls
-    pub builtins: BTreeMap<String, usize>,
+    /// Called names no file defines, with how they are called
+    pub builtins: BTreeMap<String, Builtin>,
     /// Functions defined in more than one file: name → files
     pub duplicates: BTreeMap<String, Vec<String>>,
     pub checked_targets: usize,
     pub checked_names: usize,
     pub checked_calls: usize,
+}
+
+/// How the scripts call one built-in, to work out what it does.
+#[derive(Debug, Default)]
+pub struct Builtin {
+    pub calls: usize,
+    /// argument count → calls
+    pub arities: BTreeMap<usize, usize>,
+    /// per argument position: value as written (literals, variable names,
+    /// `Call(…)`, `<expr>` for anything else) → calls
+    pub args: Vec<BTreeMap<String, usize>>,
+}
+
+/// Argument summary for [`Builtin::args`].
+fn shape(e: &Expr) -> String {
+    match e {
+        Expr::Int(_) | Expr::Float(_) | Expr::Str(_) | Expr::Color(_) | Expr::Word(_) | Expr::Var(_) => e.to_string(),
+        Expr::Unary { op: UnaryOp::Relative | UnaryOp::Neg, expr }
+            if matches!(**expr, Expr::Int(_) | Expr::Float(_) | Expr::Var(_)) =>
+        {
+            e.to_string()
+        }
+        Expr::Call { name, .. } => format!("{name}(…)"),
+        Expr::Point { .. } | Expr::Path(_) => "<point>".into(),
+        _ => "<expr>".into(),
+    }
 }
 
 struct Def {
@@ -134,11 +160,22 @@ pub fn check(files: &BTreeMap<String, NssFile>) -> Report {
                 report.problems.push(format!("{name}:{line}: {p}"));
             }
         }
-        for (line, callee, args, process) in &walk.calls {
+        for (line, callee, shapes, process) in &walk.calls {
             report.checked_calls += 1;
+            let args = &shapes.len();
             match functions.get(callee.as_str()) {
                 None if *process => report.problems.push(format!("{name}:{line}: no function {callee} for CreateProcess")),
-                None => *report.builtins.entry(callee.clone()).or_default() += 1,
+                None => {
+                    let b = report.builtins.entry(callee.clone()).or_default();
+                    b.calls += 1;
+                    *b.arities.entry(*args).or_default() += 1;
+                    if b.args.len() < *args {
+                        b.args.resize_with(*args, BTreeMap::new);
+                    }
+                    for (pos, s) in shapes.iter().enumerate() {
+                        *b.args[pos].entry(s.clone()).or_default() += 1;
+                    }
+                }
                 Some(defs) => {
                     // Trailing arguments may be left out (`FwC($画像, $回想判定)`
                     // is called 18,827 times with the image only).
@@ -160,8 +197,8 @@ pub fn check(files: &BTreeMap<String, NssFile>) -> Report {
 struct Walk {
     /// (line, string literal)
     strings: Vec<(u32, String)>,
-    /// (line, name, argument count, named by CreateProcess)
-    calls: Vec<(u32, String, usize, bool)>,
+    /// (line, name, argument shapes, named by CreateProcess)
+    calls: Vec<(u32, String, Vec<String>, bool)>,
     /// (line, written-out call_scene/call_chapter target, is call_chapter)
     targets: Vec<(u32, String, bool)>,
 }
@@ -217,12 +254,12 @@ impl Walk {
         match e {
             Expr::Str(s) => self.strings.push((line, s.clone())),
             Expr::Call { name, args } => {
-                self.calls.push((line, name.clone(), args.len(), false));
+                self.calls.push((line, name.clone(), args.iter().map(shape).collect(), false));
                 // CreateProcess(name, priority, x, y, "function")
                 if name == "CreateProcess"
                     && let Some(Expr::Str(f)) = args.get(4)
                 {
-                    self.calls.push((line, f.clone(), 0, true));
+                    self.calls.push((line, f.clone(), Vec::new(), true));
                 }
                 for a in args {
                     self.expr(line, a);
@@ -265,7 +302,7 @@ mod tests {
         let files = corpus(&[
             (
                 "a.nss",
-                "chapter main{ call_scene @->a.nss; call_chapter nss/b.nss; call_scene nss/b.nss->x; $GameName = \"b.nss\"; Helper(1, 2); Fade(\"x\"); CreateProcess(\"p\", 1, 0, 0, \"Helper\"); }\nscene a.nss{}\nscene a.nss_MAIN{}",
+                "chapter main{ call_scene @->a.nss; call_chapter nss/b.nss; call_scene nss/b.nss->x; $GameName = \"b.nss\"; Helper(1, 2); Fade(\"x\", 300, @0, null, true); Fade(\"y\"); CreateProcess(\"p\", 1, 0, 0, \"Helper\"); }\nscene a.nss{}\nscene a.nss_MAIN{}",
             ),
             ("b.nss", "chapter main{}\nfunction Helper($a){}"),
         ]);
@@ -278,7 +315,11 @@ mod tests {
                 "a.nss:1: Helper called with 2 arguments, defined with 1",
             ]
         );
-        assert_eq!(r.builtins.get("Fade"), Some(&1));
+        let fade = &r.builtins["Fade"];
+        assert_eq!(fade.calls, 2);
+        assert_eq!(fade.arities, BTreeMap::from([(1, 1), (5, 1)]));
+        assert_eq!(fade.args[0], BTreeMap::from([("\"x\"".to_string(), 1), ("\"y\"".to_string(), 1)]));
+        assert_eq!(fade.args[2], BTreeMap::from([("@0".to_string(), 1)]));
         assert!(!r.builtins.contains_key("Helper"));
     }
 }

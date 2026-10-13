@@ -111,6 +111,17 @@ enum NssCommand {
         /// Directory with all the game's *.nss files (as extracted from nss.npa)
         dir: PathBuf,
     },
+    /// Show how the scripts call each engine built-in: argument counts and
+    /// the most common values in each position
+    Builtins {
+        /// Directory with all the game's *.nss files (as extracted from nss.npa)
+        dir: PathBuf,
+        /// Only these built-ins (default: all, most used first)
+        names: Vec<String>,
+        /// Values listed per argument position
+        #[arg(long, default_value_t = 8)]
+        top: usize,
+    },
     /// Print the route map: each story file's next files and the
     /// conditions or choices that lead there
     Route {
@@ -228,6 +239,7 @@ fn main() -> Result<()> {
             NssCommand::Check { paths } => nss_check(&paths),
             NssCommand::Refs { dir } => nss_refs(&dir),
             NssCommand::Route { dir } => nss_route(&dir),
+            NssCommand::Builtins { dir, names, top } => nss_builtins(&dir, &names, top),
         },
     }
 }
@@ -880,9 +892,9 @@ fn nss_refs(dir: &Path) -> Result<()> {
     }
     println!("\nCalled but not defined, i.e. engine built-ins ({}):", report.builtins.len());
     let mut builtins: Vec<_> = report.builtins.iter().collect();
-    builtins.sort_by(|a, b| b.1.cmp(a.1).then(a.0.cmp(b.0)));
-    for (name, n) in builtins {
-        println!("  {n:6} {name}");
+    builtins.sort_by(|a, b| b.1.calls.cmp(&a.1.calls).then(a.0.cmp(b.0)));
+    for (name, b) in builtins {
+        println!("  {:6} {name}", b.calls);
     }
     println!(
         "\n{} files; {} call targets, {} script names, {} calls checked; {} problems",
@@ -892,6 +904,38 @@ fn nss_refs(dir: &Path) -> Result<()> {
         report.checked_calls,
         report.problems.len()
     );
+    Ok(())
+}
+
+fn nss_builtins(dir: &Path, names: &[String], top: usize) -> Result<()> {
+    use conv_engines::nitroplus::refs;
+    let report = refs::check(&nss_corpus(dir)?);
+    let mut builtins: Vec<_> = report
+        .builtins
+        .iter()
+        .filter(|(name, _)| names.is_empty() || names.iter().any(|n| n.eq_ignore_ascii_case(name)))
+        .collect();
+    if builtins.is_empty() {
+        bail!("no built-in by those names");
+    }
+    builtins.sort_by(|a, b| b.1.calls.cmp(&a.1.calls).then(a.0.cmp(b.0)));
+    for (name, b) in builtins {
+        let arities: Vec<String> = b.arities.iter().map(|(n, c)| format!("{n} args ×{c}")).collect();
+        println!("{name}: {} calls ({})", b.calls, arities.join(", "));
+        // Array() and the like take up to 351 arguments
+        const MAX_POSITIONS: usize = 12;
+        for (pos, values) in b.args.iter().enumerate().take(MAX_POSITIONS) {
+            let mut values: Vec<_> = values.iter().collect();
+            values.sort_by(|a, b| b.1.cmp(a.1).then(a.0.cmp(b.0)));
+            let shown: Vec<String> = values.iter().take(top).map(|(v, c)| format!("{v} ×{c}")).collect();
+            let more = values.len().saturating_sub(top);
+            let more = if more > 0 { format!(", … {more} more") } else { String::new() };
+            println!("  {}: {}{more}", pos + 1, shown.join(", "));
+        }
+        if b.args.len() > MAX_POSITIONS {
+            println!("  … {} more positions", b.args.len() - MAX_POSITIONS);
+        }
+    }
     Ok(())
 }
 
