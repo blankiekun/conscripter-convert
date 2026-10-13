@@ -203,6 +203,10 @@ const OP_RETURN_TO_ROOT: u16 = 0x48;
 /// colour (stored twice; not converted). Used once in 0011.cd: four lines
 /// at 125 % in orange, then back to the defaults.
 const OP_DEFAULT_TEXT_STYLE: u16 = 0x4a;
+/// Waits until environment slot n's module has finished (handler 0x4155c0,
+/// wait task 0x4154b0; object key n + 0x78): u32 slot, u8 (0xff). Once, in
+/// 0007.cd, after a 3 s ripple.
+const OP_ENV_WAIT: u16 = 0x8d;
 /// Yields for one frame (handler 0x473d20 returns 0). Nothing to emit.
 /// 0x00 has the same handler (once, at the start of 0006.cd).
 const OP_YIELD: u16 = 0x67;
@@ -1919,6 +1923,8 @@ pub fn lower_script(
     // Opcode 0x8c slots and the kind each holds (file order).
     let mut env_slots = BTreeMap::new();
     let mut replace_slots = BTreeSet::new();
+    // The time of the module each 0x8c slot holds, for 0x8d.
+    let mut env_times: BTreeMap<u32, u32> = BTreeMap::new();
     // The fx object: its opacity once 0x7a made it, and the animation
     // 0x8b loaded into it (file order).
     let mut fx_opacity: Option<u32> = None;
@@ -2306,7 +2312,22 @@ pub fn lower_script(
             continue;
         }
         if let Some(module) = cd.environment(ins) {
-            lower_environment(&module?, &mut env_slots, assets, &mut ops, at)?;
+            let module = module?;
+            let time = module.noise.map(|n| n.time_ms).or(module.ripple.map(|r| r.time_ms)).or(module.shake.map(|s| s.time_ms));
+            match time {
+                Some(ms) => env_times.insert(module.slot, ms),
+                None => env_times.remove(&module.slot),
+            };
+            lower_environment(&module, &mut env_slots, assets, &mut ops, at)?;
+            continue;
+        }
+        if ins.op == OP_ENV_WAIT {
+            // Waits the module's whole time: the one use follows the 0x8c
+            // that set the slot at once.
+            match pool_u32(cd.pool, ins.arg as u32 as usize).and_then(|slot| env_times.get(&slot)) {
+                Some(&ms) => ops.push(Op::Wait { ms }),
+                None => ops.push(Op::Unsupported { what: format!("opcode {:#04x} (no module time)", ins.op), at: at() }),
+            }
             continue;
         }
         if ins.op == OP_FLASH {
