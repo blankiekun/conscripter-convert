@@ -285,7 +285,8 @@ pub enum Op {
     /// Play a movie full screen and wait for its end, with the music
     /// stopped. `skippable`: a click ends it early.
     Movie { file: String, skippable: bool },
-    /// A new chapter starts (shown in the top bar and save slots).
+    /// A new chapter starts (shown in the top bar and save slots); an
+    /// empty title: the chapter ended.
     Chapter { title: String },
     /// Scene `scene` of the scene replay was reached: unlock it there (a
     /// global flag, kept across playthroughs).

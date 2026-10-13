@@ -23,7 +23,8 @@ notes, git-ignored) and `PLAN.md` §4.2 and §6 ("Remaining work for
 
 ## Next
 
-Opcodes 0x93/0x94 are done (scene replay unlocks). Pick the next item from
+Opcodes 0x93/0x94 (scene replay unlocks) and 0x37/0x38 (chapter end)
+are done. Pick the next item from
 "3. Next work". Unchecked against the original under wine: quakes,
 flashes (ours are under the text window; the original's cover it),
 pulses (especially presets 6-8: blend 6 is assumed to lay white over
@@ -202,8 +203,15 @@ engines print `z150` etc.). The web build compiles with it.
       replay modes 1/2 (0x51ec70) and does nothing in play; emitted as
       `; scene end`, the place a replay must stop. Unsupported: 1,958 →
       1,122.
-- [ ] Opcodes still emitted as comments (1,122 left): `0x37`/`0x38` (251, chapter
-      history), `0x7a`/`0x7b`, `0x8a`/`0x8b`, `0x70` leftovers.
+- [x] `0x37`/`0x38` (251 each). `0x37` (0x475780, on `|chpe`) closes
+      the chapter 0x36 opened, marks the label read (SkipText.cpp) and
+      jumps to `|chpl`, which is always the next instruction: nothing
+      emitted (anything else would be reported). `0x38` (0x475970, on
+      `|chpl`) clears the chapter name and redraws the chapter bar
+      (ChapterBar.cpp): `mov $150,""` (an empty `strsp` is fine). Both do
+      nothing in replay modes 1/2. The chapter history itself is probably
+      recorded by 0x36 (0x475660); not looked at. Unsupported: 1,122 → 620.
+- [ ] Opcodes still emitted as comments (620 left): `0x7a`/`0x7b`, `0x8a`/`0x8b`, `0x70` leftovers.
 - [ ] Transitions still drawn as cross-fades: Wave, Dissolve, RollFlip,
       SoftEdgeWipe, TvPowerSwitch, BoxRolling, SmoothCrossFade, Dot4x4,
       MeltDown (PLAN §6 "Accuracy").

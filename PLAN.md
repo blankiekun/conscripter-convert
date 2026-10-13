@@ -521,8 +521,8 @@ parts are not converted:
 
 **Other system screens.**
 - Blog bar: prev/next/exit buttons and the scene list (drawn disabled).
-- Chapter history (`ChapterHistory.004`, opcodes 0x37/0x38) and the
-  autosave slots.
+- Chapter history (`ChapterHistory.004`; 0x37/0x38 only end a chapter and
+  clear its name, converted) and the autosave slots.
 - Extras unlocked after clearing: CG, BGM, chapter and scene-replay modes
   (title images 4, 5, 8, 13). No title BGM.
 - Button bar lock button (`SysTray.004` #9).

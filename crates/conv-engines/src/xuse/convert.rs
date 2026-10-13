@@ -86,6 +86,15 @@ const OP_TEXT_DISPLAY: u16 = 0x4d;
 /// sits on (`0.cd`): "chapter<route>]?<title>". 0x37 and 0x38 sit on the
 /// chapter's "|chpe" and "|chpl" labels and link back (chapter history).
 const OP_CHAPTER: u16 = 0x36;
+/// Ends the chapter (handler 0x475780, on "|chpe"): pool[arg] = (own label
+/// number, table index of "|chpl"). Outside the replay it closes the
+/// chapter 0x36 opened, marks the label read and jumps to "|chpl", which is
+/// always the next instruction (0x38), so nothing is emitted.
+const OP_CHAPTER_END: u16 = 0x37;
+/// After a chapter (handler 0x475970, on "|chpl"): outside the replay it
+/// clears the chapter name and redraws the chapter bar (0x49bb70,
+/// ChapterBar.cpp), which stays empty until the next 0x36.
+const OP_CHAPTER_CLEAR: u16 = 0x38;
 /// Unlocks scene arg of the scene replay (handler 0x478830, Story.cpp): it
 /// sets bit arg of a 600-bit global set (0x51eaa0, saved as "RMSN"), which
 /// the replay list (0x451090) reads. One per scene, before its end.
@@ -1528,6 +1537,20 @@ pub fn lower_script(
         }
         if ins.op == OP_SCENE_END {
             ops.push(Op::SceneEnd);
+            continue;
+        }
+        if ins.op == OP_CHAPTER_END {
+            let target = pool_u32(cd.pool, ins.arg as u32 as usize + 4)
+                .and_then(|i| cd.labels.get((i as usize).checked_sub(1)?));
+            let next = cd.code.get(index + 1).map(|i| i.op);
+            match target {
+                Some(l) if l.script == cd.script_id && l.code_offset as usize / 12 == index + 1 && next == Some(OP_CHAPTER_CLEAR) => {}
+                _ => ops.push(Op::Unsupported { what: format!("opcode {:#04x} (not followed by its 0x38)", ins.op), at: at() }),
+            }
+            continue;
+        }
+        if ins.op == OP_CHAPTER_CLEAR {
+            ops.push(Op::Chapter { title: String::new() });
             continue;
         }
         if ins.op == OP_CHAPTER {
