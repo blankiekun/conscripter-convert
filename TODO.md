@@ -254,6 +254,14 @@ engines print `z150` etc.). The web build compiles with it.
 
 ## Gotchas hit last session
 
+- Release CI (engine `b1de735`): the web workflow caches emsdk 6.0.12, its
+  generated ports and Lua/libwebp. A tag can only read caches saved on
+  `master`, so the workflow also runs on `master` when `build_web.yml`,
+  `cross_web.sh` or `_fetch.sh` change; after changing any of them, let
+  that run finish before tagging. To move to a newer emsdk, change
+  `EMSDK_VERSION`. Linux jobs install only their own cross compiler.
+  Web 5:21 → 1:11, Linux 6:10 → 0:52; Android (4:05) is now the slowest.
+
 - `pgrep -f <pattern>` inside a wait loop matches the loop's own shell;
   use `pgrep -x conscripter-con` or wait on a background task instead.
 - `timeout firefox …` leaves an orphaned Firefox that holds the profile
