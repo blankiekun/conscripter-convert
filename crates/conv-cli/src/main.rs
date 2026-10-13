@@ -90,6 +90,21 @@ enum Command {
         #[command(subcommand)]
         command: XsaCommand,
     },
+    /// Low-level tools for Nitroplus NSS scripts (*.nss, from nss.npa)
+    Nss {
+        #[command(subcommand)]
+        command: NssCommand,
+    },
+}
+
+#[derive(Subcommand)]
+enum NssCommand {
+    /// Parse scripts (files, or directories of *.nss) and report every
+    /// file that fails
+    Check {
+        #[arg(required = true)]
+        paths: Vec<PathBuf>,
+    },
 }
 
 #[derive(Subcommand)]
@@ -196,6 +211,9 @@ fn main() -> Result<()> {
         Command::Xsa { command } => match command {
             XsaCommand::List { archive } => xsa_list(&archive),
             XsaCommand::Extract { archives, output } => xsa_extract(&archives, &output),
+        },
+        Command::Nss { command } => match command {
+            NssCommand::Check { paths } => nss_check(&paths),
         },
     }
 }
@@ -724,6 +742,62 @@ fn safe_relative_path(name: &str) -> Option<PathBuf> {
 
 fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
+}
+
+/// Every `*.nss` named, or found directly inside a named directory, sorted.
+fn nss_files(paths: &[PathBuf]) -> Result<Vec<PathBuf>> {
+    let mut files = Vec::new();
+    for path in paths {
+        if path.is_dir() {
+            for entry in fs::read_dir(path).with_context(|| format!("reading {}", path.display()))? {
+                let p = entry?.path();
+                if p.extension().is_some_and(|e| e == "nss") {
+                    files.push(p);
+                }
+            }
+        } else {
+            files.push(path.clone());
+        }
+    }
+    files.sort();
+    Ok(files)
+}
+
+fn nss_check(paths: &[PathBuf]) -> Result<()> {
+    use conv_engines::nitroplus::nss::{self, Item};
+    let files = nss_files(paths)?;
+    let (mut failed, mut functions, mut blocks, mut skipped) = (0, 0, 0, 0);
+    for path in &files {
+        let bytes = fs::read(path).with_context(|| format!("reading {}", path.display()))?;
+        match nss::parse(&nss::decode(&bytes)) {
+            Ok(file) => {
+                for e in &file.errors {
+                    println!("{}: skipped: {e}", path.display());
+                }
+                skipped += file.errors.len();
+                for item in &file.items {
+                    match item {
+                        Item::Function(_) => functions += 1,
+                        Item::Chapter(_) | Item::Scene(_) => blocks += 1,
+                        Item::Include(_) => {}
+                    }
+                }
+            }
+            Err(e) => {
+                failed += 1;
+                println!("{}: {e}", path.display());
+            }
+        }
+    }
+    println!(
+        "{} files, {} parsed, {failed} failed; {blocks} chapters/scenes, {functions} functions; {skipped} source errors skipped",
+        files.len(),
+        files.len() - failed
+    );
+    if failed > 0 {
+        bail!("{failed} files failed to parse");
+    }
+    Ok(())
 }
 
 #[cfg(test)]
