@@ -268,9 +268,14 @@ engines print `z150` etc.). The web build compiles with it.
 - [x] `0x9d` (6): a CG counts as seen in the CG gallery, as global flags
       `%2200 + n`. A gallery will also need 0x54's own seen marks (its
       record's byte; not tracked yet). Unsupported: 38 → 32.
-- [ ] Opcodes still emitted as comments (32 left): `0x39` (4), `0x56`
-      (3), `0x36` without a chapter name, `0x3b`, `0x48`, `0x4a`, `0x67`,
-      `0x91` (2 each), rarer ones.
+- [x] `0x56`/`0x83`/`0x67` (3/1/2): colour fills of the background or
+      the overlay (generated `system/fill_rrggbb.png`); the impact routine
+      `s2_l2` (9 calls) now ends in white fading out over 1 s (the
+      original dissolves it); 0006.cd's red "Server Error" screen. Checked
+      headless. Unsupported: 32 → 24.
+- [ ] Opcodes still emitted as comments (24 left): `0x39` (4), `0x36`
+      without a chapter name, `0x3b`, `0x48`, `0x4a`, `0x91` (2 each),
+      rarer ones.
 - [ ] Transitions still drawn as cross-fades: Wave, Dissolve, RollFlip,
       SoftEdgeWipe, TvPowerSwitch, BoxRolling, SmoothCrossFade, Dot4x4,
       MeltDown (PLAN §6 "Accuracy").

@@ -156,6 +156,22 @@ const OP_CLEAR_SPRITES: u16 = 0x8f;
 /// usual depth 1000 puts it over the bust-ups (10-100 in 0x8e). No fade of
 /// its own. It stays when the background changes or the bust-ups go.
 const OP_OVERLAY: u16 = 0x55;
+/// Fills a background slot with a colour (handler 0x4224a0, then 0x412fe0
+/// with kind 1: a screen-sized object whose module 7 fills it). Record: u8
+/// slot (0 removes slots 1-10), u8 layer, u32 depth, u32 COLORREF. Slot 1
+/// is the background (0x54's), slot 2 the overlay (0x55's). Uses: black
+/// on slot 1 at boot (0000.cd), white on the overlay in the shared impact
+/// routine (0002.cd `s2_l2`, 9 calls: 0x83 sets its blend to 6, dissolve,
+/// and 0x86 fades it out over 1 s), and red on slot 1 at opacity 64 (0x82)
+/// in 0006.cd's "Server Error" scene.
+const OP_FILL: u16 = 0x56;
+/// Sets an object's blend (handler 0x414050, field +0x1b4): u8 layer, u32
+/// depth, u8 blend (0-6: Alpha, Add, Multi, Screen, SignedAdd, Copy,
+/// dissolve). Used once, on the white overlay of 0x56 (dissolve, drawn as
+/// a cross-fade here).
+const OP_BLEND: u16 = 0x83;
+/// Yields for one frame (handler 0x473d20 returns 0). Nothing to emit.
+const OP_YIELD: u16 = 0x67;
 /// Sets an object's opacity (handler 0x413f10; draw field +0x1b2).
 /// Record: u8 layer, u32 depth, u16 opacity (0-256). The object is found
 /// by its key: the depth for layers 0 and 1, depth + 10 for layer 2 (a
@@ -199,6 +215,7 @@ const OP_POSITION: u16 = 0x7f;
 const OP_MODULE: u16 = 0x86;
 const MODULE_REMOVE: u32 = 0x8000_0001;
 const MOTION_POSITION: u32 = 0x40;
+const MOTION_OPACITY: u32 = 0x200;
 /// Waits for an object's module to finish (handler 0x413820): u8 layer,
 /// u32 depth, u32 slot, u8 (0xff). Each slide is followed by this wait,
 /// the removal of the module and a 0x7f to the end point.
@@ -498,6 +515,21 @@ impl AssetBank {
     /// Static for opcode 0x8c's noise ([`crate::xuse::cd::Noise`]):
     /// [`NOISE_FRAMES`] screens of greyscale noise, one random level per
     /// pixel, side by side in one picture.
+    /// A screen filled with one colour (0xRRGGBB), for 0x56.
+    pub fn fill(&mut self, rgb: u32) -> Result<String, ConvertError> {
+        let name = format!("system/fill_{rgb:06x}.png");
+        if self.written.contains_key(&("fill", rgb as usize)) {
+            return Ok(name);
+        }
+        let img = image::RgbImage::from_pixel(800, 600, image::Rgb([(rgb >> 16) as u8, (rgb >> 8) as u8, rgb as u8]));
+        let mut png = Vec::new();
+        img.write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
+            .map_err(|source| ConvertError::Image { what: name.clone(), source })?;
+        write_file(&self.out.join(&name), &png)?;
+        self.written.insert(("fill", rgb as usize), name.clone());
+        Ok(name)
+    }
+
     pub fn noise(&mut self) -> Result<String, ConvertError> {
         let name = "system/noise.png".to_string();
         if self.written.contains_key(&("noise", 0)) {
@@ -1674,9 +1706,13 @@ struct Motion {
 #[derive(Debug)]
 struct MotionEnd {
     ms: u32,
+    /// The position moves linearly (else `x`, `y` mean nothing).
+    position: bool,
     x: i32,
     y: i32,
     rotation: i32,
+    /// The opacity at the end, if the motion has it.
+    opacity: Option<u16>,
 }
 
 fn motion(pool: &[u8], o: usize) -> Option<Motion> {
@@ -1692,26 +1728,27 @@ fn motion(pool: &[u8], o: usize) -> Option<Motion> {
     // Each field group's size in bytes, by flag (see OP_MODULE).
     let groups = [(0x10, 1), (0x20, 9), (0x40, 9), (0x80, 9), (0x100, 5), (0x200, 3)];
     let frame_size = 4 + groups.iter().filter(|(f, _)| flags & f != 0).map(|(_, n)| n).sum::<usize>();
-    if count != 2 || flags & MOTION_POSITION == 0 {
+    if count != 2 || flags & (MOTION_POSITION | MOTION_OPACITY) == 0 {
         return Some(motion);
     }
     let mut at = o + 15 + frame_size;
     let ms = u32_at(at)?;
     at += 4;
-    let (mut x, mut y, mut rotation, mut linear) = (0, 0, 0, false);
+    let mut end = MotionEnd { ms, position: false, x: 0, y: 0, rotation: 0, opacity: None };
     for (flag, size) in groups.into_iter().filter(|(f, _)| flags & f != 0) {
         match flag {
             MOTION_POSITION => {
-                (x, y) = (u32_at(at)? as i32, u32_at(at + 4)? as i32);
-                linear = *pool.get(at + 8)? == 2;
+                (end.x, end.y) = (u32_at(at)? as i32, u32_at(at + 4)? as i32);
+                end.position = *pool.get(at + 8)? == 2;
             }
-            0x100 => rotation = u32_at(at)? as i32,
+            0x100 => end.rotation = u32_at(at)? as i32,
+            MOTION_OPACITY if *pool.get(at + 2)? == 2 => end.opacity = Some(u16::from_le_bytes(pool.get(at..at + 2)?.try_into().unwrap())),
             _ => {}
         }
         at += size;
     }
-    if linear {
-        motion.end = Some(MotionEnd { ms, x, y, rotation });
+    if end.position || end.opacity.is_some() {
+        motion.end = Some(end);
     }
     Some(motion)
 }
@@ -1793,6 +1830,11 @@ pub fn lower_script(
     let mut fx_frames: Option<(Vec<u32>, bool)> = None;
     // Layer 2 objects 0x7a made, by depth (= character layer).
     let mut pictures: HashMap<u32, Picture> = HashMap::new();
+    // 0x56 fills (file order): the background's colour, whether the
+    // overlay is a fill, and the time of a fade that the next wait covers.
+    let mut background_fill: Option<u32> = None;
+    let mut overlay_fill = false;
+    let mut wait_credit_ms = 0;
     for (index, ins) in cd.code.iter().enumerate() {
         if let Some(label) = own_labels.get(&index) {
             ops.push(Op::Label(format!("s{}_l{label}", cd.script_id)));
@@ -1854,6 +1896,42 @@ pub fn lower_script(
             }
             continue;
         }
+        if ins.op == OP_FILL {
+            let o = ins.arg as u32 as usize;
+            let record = cd.pool.get(o..o + 2).zip(pool_u32(cd.pool, o + 6));
+            let rgb = |c: u32| (c & 0xff) << 16 | (c & 0xff00) | (c >> 16 & 0xff);
+            match record {
+                Some((&[1, _], colour)) => {
+                    background_fill = Some(rgb(colour));
+                    ops.push(Op::Background { image: assets.fill(rgb(colour))?, fade_ms: 0 });
+                }
+                Some((&[2, layer @ 0..=2], colour)) => {
+                    overlay_fill = true;
+                    ops.push(Op::Overlay { image: Some(assets.fill(rgb(colour))?), over_sprites: layer == 2 });
+                }
+                _ => ops.push(Op::Unsupported { what: format!("opcode {:#04x} record {record:?}", ins.op), at: at() }),
+            }
+            continue;
+        }
+        if ins.op == OP_BLEND && overlay_fill && cd.pool.get(ins.arg as u32 as usize..ins.arg as u32 as usize + 5) == Some(&[1, 2, 0, 0, 0]) {
+            continue; // dissolve: the fade-out is drawn as a cross-fade
+        }
+        if ins.op == OP_YIELD {
+            continue;
+        }
+        if ins.op == crate::xuse::cd::OP_BACKGROUND {
+            background_fill = None;
+        }
+        if ins.op == OP_OPACITY && let Some(fill) = background_fill {
+            // The filled background (slot 1) over nothing: darker.
+            let o = ins.arg as u32 as usize;
+            if cd.pool.get(o..o + 5) == Some(&[1, 1, 0, 0, 0]) && let Some(opacity) = cd.pool.get(o + 5..o + 7) {
+                let opacity = u32::from(u16::from_le_bytes([opacity[0], opacity[1]])).min(256);
+                let scaled = [16, 8, 0].iter().fold(0, |c, s| c | ((fill >> s & 0xff) * opacity / 256) << s);
+                ops.push(Op::Background { image: assets.fill(scaled)?, fade_ms: 0 });
+                continue;
+            }
+        }
         if ins.op == OP_OPACITY {
             let o = ins.arg as u32 as usize;
             let record = cd.pool.get(o..o + 7).map(|r| (r[0], u32::from_le_bytes([r[1], r[2], r[3], r[4]]), u16::from_le_bytes([r[5], r[6]])));
@@ -1883,7 +1961,16 @@ pub fn lower_script(
             let o = ins.arg as u32 as usize;
             match motion(cd.pool, o) {
                 Some(m) if m.flags == MODULE_REMOVE => {}
-                Some(Motion { layer: 2, depth, flags, end: Some(end) }) if flags & !0x100 == MOTION_POSITION => {
+                // The fill's fade-out (0x56): a timed removal; the wait
+                // after it already covers the fade.
+                Some(Motion { layer: 1, depth: 2, flags: MOTION_OPACITY, end: Some(MotionEnd { ms, opacity: Some(0), .. }) }) if overlay_fill => {
+                    ops.push(Op::BeginTransition { effect: "fill fade-out".into(), fade_ms: ms, mask: None, style: TransitionStyle::Fade });
+                    ops.push(Op::Overlay { image: None, over_sprites: false });
+                    ops.push(Op::EndTransition);
+                    overlay_fill = false;
+                    wait_credit_ms = ms;
+                }
+                Some(Motion { layer: 2, depth, flags, end: Some(end) }) if flags & !0x100 == MOTION_POSITION && end.position => {
                     // The original slides while the transition runs; here
                     // the transition shows the start, then the slide runs.
                     if std::mem::take(&mut transition_armed) {
@@ -2151,6 +2238,12 @@ pub fn lower_script(
                     if p.instant {
                         ops.push(Op::InstantText(true));
                     }
+                }
+            }
+            Ok(Some(Op::Wait { ms })) if wait_credit_ms > 0 => {
+                let ms = ms.saturating_sub(std::mem::take(&mut wait_credit_ms));
+                if ms > 0 {
+                    ops.push(Op::Wait { ms });
                 }
             }
             Ok(Some(op)) => ops.push(op),
