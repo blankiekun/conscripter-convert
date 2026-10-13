@@ -193,16 +193,26 @@ pub fn emit(script: &Script) -> String {
     }
     let caption: String = script.title.chars().filter(|&c| c != '"').collect();
     writeln!(out, "caption \"{}\"", caption.trim()).unwrap();
-    for ((ms, kind), n) in &effects {
-        match kind {
-            Effect::Fade => writeln!(out, "effect {n},{FADE},{ms}").unwrap(),
-            Effect::Mask(m) => writeln!(out, "effect {n},{MASK_FADE},{ms},\"{}\"", path(m)).unwrap(),
-            // Effect 15: a pixel is new once the progress passes its level.
-            Effect::HardMask(m) => writeln!(out, "effect {n},15,{ms},\"{}\"", path(m)).unwrap(),
-            Effect::Builtin(k) => writeln!(out, "effect {n},{k},{ms}").unwrap(),
-            Effect::Dll(d) => writeln!(out, "effect {n},{DLL},{ms},\"{d}\"").unwrap(),
-        }
-    }
+    // Numbered effects while they fit in NScripter's 2-255; past that every
+    // print carries its effect's parameters itself (`print 10,300`).
+    let numbered = effects.len() <= 254;
+    let effects: BTreeMap<(u32, Effect), String> = effects
+        .into_iter()
+        .map(|((ms, kind), n)| {
+            let params = match &kind {
+                Effect::Fade => format!("{FADE},{ms}"),
+                Effect::Mask(m) => format!("{MASK_FADE},{ms},\"{}\"", path(m)),
+                // Effect 15: a pixel is new once the progress passes its level.
+                Effect::HardMask(m) => format!("15,{ms},\"{}\"", path(m)),
+                Effect::Builtin(k) => format!("{k},{ms}"),
+                Effect::Dll(d) => format!("{DLL},{ms},\"{d}\""),
+            };
+            if numbered {
+                writeln!(out, "effect {n},{params}").unwrap();
+            }
+            ((ms, kind), if numbered { n.to_string() } else { params })
+        })
+        .collect();
     // Read-text tracking (kidoku.dat, written on save and quit), for
     // skipping read text only.
     if script.settings.as_ref().is_some_and(|s| s.skip_unread_label.is_some()) {
@@ -226,9 +236,9 @@ pub fn emit(script: &Script) -> String {
         writeln!(out, "erasetextwindow 0").unwrap();
     }
 
-    let effect = |ms: u32| if ms == 0 { 1 } else { effects[&(ms, Effect::Fade)] };
+    let effect = |ms: u32| if ms == 0 { "1".to_string() } else { effects[&(ms, Effect::Fade)].clone() };
     if let Some(t) = &script.title_screen {
-        title_screen(&mut out, t, effect(t.fade_ms), script.save_menu.is_some(), script.settings.is_some(), script.confirm.as_ref(), script.extras.is_some());
+        title_screen(&mut out, t, &effect(t.fade_ms), script.save_menu.is_some(), script.settings.is_some(), script.confirm.as_ref(), script.extras.is_some());
     }
     let mut se = SeChannels::default();
     let mut needs_bit_helpers = false;
@@ -296,7 +306,7 @@ pub fn emit(script: &Script) -> String {
                 writeln!(out, "csp -1").unwrap();
                 out.push_str(&restore_overlay);
                 // Effect 0 = update the buffer only (shown by the transition).
-                let e = if transition.is_some() { 0 } else { effect(*fade_ms) };
+                let e = if transition.is_some() { "0".to_string() } else { effect(*fade_ms) };
                 writeln!(out, "bg \"{}\",{e}", path(image)).unwrap();
                 plate_visible = false;
             }
@@ -832,7 +842,7 @@ pub fn emit(script: &Script) -> String {
         menu::confirm(&mut out, d);
     }
     if let (Some(m), Some(t)) = (&script.extras, &script.title_screen) {
-        extras::extras(&mut out, m, effect(t.fade_ms), script.settings.is_some());
+        extras::extras(&mut out, m, &effect(t.fade_ms), script.settings.is_some());
     }
     out
 }
@@ -840,7 +850,7 @@ pub fn emit(script: &Script) -> String {
 /// The title menu: buttons are sprites over the picture, faded in together;
 /// Start clears them and falls through to the script that follows. Load
 /// opens the save menu's load screen if there is one, else ONScripter's.
-fn title_screen(out: &mut String, t: &TitleScreen, fade: u32, save_menu: bool, settings: bool, confirm: Option<&ConfirmDialog>, extras: bool) {
+fn title_screen(out: &mut String, t: &TitleScreen, fade: &str, save_menu: bool, settings: bool, confirm: Option<&ConfirmDialog>, extras: bool) {
     let buttons: Vec<_> = t.buttons.iter().zip(MENU_SPRITES).collect();
     if extras {
         writeln!(out, "*{}", extras::TITLE_BACK).unwrap();
@@ -1454,6 +1464,18 @@ goto *conv_link1
 *conv_link1_1
 ";
         assert!(text.contains(expected), "{text}");
+    }
+
+    #[test]
+    fn effects_past_255_are_written_inline() {
+        let ops: Vec<Op> = (1..=300)
+            .flat_map(|ms| [Op::BeginTransition { effect: "Fade".into(), fade_ms: ms, mask: None, style: TransitionStyle::Fade }, Op::EndTransition])
+            .collect();
+        let text = emit(&script(ops));
+        assert!(!text.contains("\neffect "), "{text}");
+        assert!(text.contains("print 10,300\n"));
+        let few = emit(&script(vec![Op::BeginTransition { effect: "Fade".into(), fade_ms: 300, mask: None, style: TransitionStyle::Fade }, Op::EndTransition]));
+        assert!(few.contains("effect 2,10,300\n") && few.contains("print 2\n"), "{few}");
     }
 
     #[test]
