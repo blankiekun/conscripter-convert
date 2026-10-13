@@ -182,6 +182,8 @@ pub fn emit(script: &Script) -> String {
         match kind {
             Effect::Fade => writeln!(out, "effect {n},{FADE},{ms}").unwrap(),
             Effect::Mask(m) => writeln!(out, "effect {n},{MASK_FADE},{ms},\"{}\"", path(m)).unwrap(),
+            // Effect 15: a pixel is new once the progress passes its level.
+            Effect::HardMask(m) => writeln!(out, "effect {n},15,{ms},\"{}\"", path(m)).unwrap(),
             Effect::Builtin(k) => writeln!(out, "effect {n},{k},{ms}").unwrap(),
             Effect::Dll(d) => writeln!(out, "effect {n},{DLL},{ms},\"{d}\"").unwrap(),
         }
@@ -1017,6 +1019,8 @@ enum Effect {
     Fade,
     /// Cross-fade through a mask image.
     Mask(String),
+    /// Each pixel switches when the progress passes its mask level.
+    HardMask(String),
     /// Another of ONScripter's numbered effects.
     Builtin(u32),
     /// Effect 99 with this plugin name (CONscripter's `cons_*.dll`).
@@ -1031,7 +1035,9 @@ fn transition_steps(fade_ms: u32, mask: Option<&str>, style: TransitionStyle) ->
     }
     let one = |e| vec![(fade_ms, e)];
     match (mask, style) {
+        (Some(m), TransitionStyle::Threshold) => one(Effect::HardMask(m.to_string())),
         (Some(m), _) => one(Effect::Mask(m.to_string())),
+        (None, TransitionStyle::Threshold) => one(Effect::Fade),
         (None, TransitionStyle::Fade) => one(Effect::Fade),
         // ONScripter's scrolls (11-14) push both pictures; 11 moves them right.
         (None, TransitionStyle::Slide { moving: SlideLayer::Both, dx, dy }) if dx == 0 || dy == 0 => {

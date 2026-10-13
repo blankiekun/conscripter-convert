@@ -284,6 +284,8 @@ const PRESET_FIELDS: u32 = 6;
 /// for.
 const NOISE_FRAMES: u32 = 4;
 const OP_WAIT: u16 = 0x66;
+/// 0x76's sub for Trans_Dissolve.
+const TRANSITION_DISSOLVE: u16 = 26;
 /// Plays `HD/mvNNNN.bin` (handler 0x478ab0, task 0x408ed0): arg's low 16
 /// bits are the number, its high 16 bits whether a click or key ends it
 /// (checked at 0x408e5b).
@@ -615,6 +617,23 @@ impl AssetBank {
             .map_err(|source| ConvertError::Image { what: name.clone(), source })?;
         write_file(&self.out.join(&name), &png)?;
         self.written.insert(key, name.clone());
+        Ok(name)
+    }
+
+    /// A 4×4 Bayer matrix tiled over the screen as a mask (16 grey
+    /// levels, dark first): an ordered-dither dissolve.
+    pub fn dither_mask(&mut self) -> Result<String, ConvertError> {
+        const BAYER: [[u8; 4]; 4] = [[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]];
+        let name = "system/dither.png".to_string();
+        if self.written.contains_key(&("dither", 0)) {
+            return Ok(name);
+        }
+        let img = image::GrayImage::from_fn(800, 600, |x, y| image::Luma([BAYER[y as usize % 4][x as usize % 4] * 16 + 8]));
+        let mut png = Vec::new();
+        img.write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
+            .map_err(|source| ConvertError::Image { what: name.clone(), source })?;
+        write_file(&self.out.join(&name), &png)?;
+        self.written.insert(("dither", 0), name.clone());
         Ok(name)
     }
 
@@ -2399,10 +2418,15 @@ pub fn lower_script(
             match pool_u32(cd.pool, ins.arg as u32 as usize) {
                 Some(fade_ms) => {
                     transition_armed = true;
+                    // Dissolve (Trans_Dissolve, draw 0x442de0) lays the new
+                    // picture over with blend 6, a 4×4 ordered dither
+                    // (kernel 0x4430a0): the mask transition over a tiled
+                    // Bayer mask reveals the same pattern step by step.
+                    let mask = if ins.sub == TRANSITION_DISSOLVE { Some(assets.dither_mask()?) } else { None };
                     ops.push(Op::BeginTransition {
                         effect: transition_name(ins.sub).to_string(),
                         fade_ms,
-                        mask: None,
+                        mask,
                         style: transition_style(ins.sub),
                     });
                 }
@@ -2857,6 +2881,7 @@ fn transition_style(sub: u16) -> TransitionStyle {
             TransitionStyle::Slide { moving: SlideLayer::Both, dx, dy }
         }
         27 => TransitionStyle::Mosaic,
+        TRANSITION_DISSOLVE => TransitionStyle::Threshold,
         37 => zoom(ZoomStyle::NewIn, 5100),
         38 => zoom(ZoomStyle::OldOut, 5100),
         39 => zoom(ZoomStyle::Through, 5100),

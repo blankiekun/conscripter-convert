@@ -326,7 +326,12 @@ engines print `z150` etc.). The web build compiles with it.
 - [ ] Opcodes still emitted as comments (2 left): the start point's debug menu (`0x62` choice + `0x30` jump table
       in 0001.cd, unreachable: nothing jumps to `s1_l0`). **Not doing the
       debug menu** (user, 2026-10-13).
-- [ ] Transitions still drawn as cross-fades: Wave, Dissolve, RollFlip,
+- [x] Dissolve (69 uses): Trans_Dissolve lays the new picture over with
+      blend 6, a 4×4 ordered dither (kernel 0x4430a0); converted as
+      ONScripter effect 15 (each pixel switches when the progress passes
+      its mask level) over a tiled Bayer mask (`system/dither.png`). Not
+      compared frame by frame with the original.
+- [ ] Transitions still drawn as cross-fades: Wave,
       SoftEdgeWipe, TvPowerSwitch, BoxRolling, SmoothCrossFade, Dot4x4,
       MeltDown (PLAN §6 "Accuracy").
 - [x] Bars always shown (user's request, 2026-10-13): the top bars and
