@@ -566,6 +566,42 @@ The steps that apply them are in `docs/new-game.md`.
   `nitroplus`), branches based on `origin/main`, and staging by path
   name: the other agent's uncommitted files share the tree.
 
+### 13.1b Lessons from 装甲悪鬼村正 (Nitroplus NSS, 2026-10-13)
+
+- **With source scripts, compile by running them at convert time.** Story
+  scenes are straight runs of helper calls. Inlining the helpers, tracking
+  objects and variables, and emitting what the player sees at each wait
+  gave a readable build in one session. Only what really depends on the
+  player has to become runtime code.
+- **Find the runtime state statically, then keep it small.** Story flags
+  = variables the story files both set and test (about 190 of thousands).
+  Everything else (helper scratch, positions, names) stays convert-time.
+  A choice or a flag test forks the run; branches that lead to different
+  files dispatch at the end of the file, the rest merge.
+- **Pure-logic library code that loops over flags** (the route ranking)
+  can't be traced. Port it as a small intrinsic and test it with an IR
+  interpreter against a hand-worked example.
+- **Whole-corpus runs find what single scenes don't.** Two engine-killing
+  bugs only showed on the full game: more than 254 transition effects
+  (`effect` numbers stop at 255) and a half-width character in vertical
+  text (CONscripter exits silently). Run the whole game, at least as a
+  dry run, after every feature.
+- **Engine facts worth knowing early:** `:a` on a JPEG uses its right
+  half as the mask; loose files with Japanese names aren't found (pack
+  them); `;$Sw,h` sets any screen size, `,valueN` raises the global
+  border so more locals are saved per slot; `print 10,ms` works without
+  an `effect` definition.
+- **Check duplicate definitions for comment blocks** before deciding which
+  one is live (Muramasa keeps old helper versions inside `/* */`).
+- **Merging fork states:** a variable set again after the fork must keep
+  that later value. Small synthetic file sets in unit tests caught this.
+- **Long waits:** the shell tool kills a foreground command after 10
+  minutes (exit 137, looks like OOM). Run long jobs in the background and
+  wait for the notification. Max RSS includes the mapped archives, so it
+  overstates real memory use.
+- **Let the user watch:** a progress page (artifact) with screenshots,
+  republished at milestones, lets the user follow from their phone.
+
 ### 13.2 Ways to speed up conversion
 
 Tooling worth building, in rough order of payoff. For 最果てのイマ the
@@ -596,3 +632,25 @@ converter when a second game needs the same thing:
    before they start inferring opcodes.
 7. **Single-scene builds** (`convert-script`) for visual work, so one
    scene is checked without the whole game.
+
+From 装甲悪鬼村正:
+
+8. **Dry runs for logic, real builds for looks.** `convert-nss --dry-run`
+   compiles the whole game in about 16 s; a full build takes about 8
+   minutes, nearly all of it extracting and packing 2.4 GB of assets.
+   Make builds incremental: keep extracted assets between runs and
+   repack only what changed, or stream archive entries straight into the
+   .nsa without loose files. Extract in parallel threads.
+9. **Start a build at a label** (`--start f_ma02_003`, or the jump patch
+   used by hand today) so a scene deep in the game is checked without
+   clicking through everything before it.
+10. **A lint pass over the emitted `0.txt`**: missing labels, effect
+    count, half-width characters in vertical text, files missing from the
+    archives. Both whole-game crashes would have shown up here first.
+11. **Frontier report in the CLI**: compare the files a run reaches with
+    the route map's successors and print the condition that blocks each
+    (done by a scratch Python script today). It points straight at the
+    next thing to support.
+12. **Faster headless runs**: an engine option to auto-advance (skip mode
+    or `autoclick`) and to save a screenshot every N pages, instead of
+    xdotool clicks and ImageMagick `import` (about 2.7 s a click).
