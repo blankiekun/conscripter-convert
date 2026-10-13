@@ -647,6 +647,9 @@ From 装甲悪鬼村正:
 10. **A lint pass over the emitted `0.txt`**: missing labels, effect
     count, half-width characters in vertical text, files missing from the
     archives. Both whole-game crashes would have shown up here first.
+    Done: `conscripter-convert lint <dir>` (`conv_cons::lint`), also run
+    at the end of `convert-nss`. Its first run found a third crash case:
+    a half-width `･` in vertical ruby.
 11. **Frontier report in the CLI**: compare the files a run reaches with
     the route map's successors and print the condition that blocks each
     (done by a scratch Python script today). It points straight at the
