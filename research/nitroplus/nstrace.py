@@ -19,6 +19,8 @@ A path file has one entry per line (`#` starts a comment):
     NEWGAME           start again at *start, keeping the globals
     SAVE name / LOAD name
                       remember the run's state / go back to it
+    PUZZLE 1 / PUZZLE 0
+                      at the next tile puzzle (the 立方陣), solve it / fail
     END file          the run must have ended in `file` (an ending file)
     REACH file        the run must have passed through `file` by now
 Several path files run one after another in the same session (globals
@@ -235,6 +237,24 @@ class Run:
         self.last_choice = (self.file, pick)
         return self.jump(items[pick - 1][1])
 
+    def puzzle(self, pc):
+        """A tile puzzle (`; tile puzzle` ... its `*conv_puzzleN_answer`
+        block): sets its result as the path says and returns the pc after
+        the puzzle. Its own loop isn't run."""
+        entry = self.path[self.at] if self.at < len(self.path) else None
+        if entry is None or entry[0] != 'PUZZLE':
+            self.problem(f'{self.file}: a tile puzzle the path has no PUZZLE entry for; solving it')
+            solved = 1
+        else:
+            self.at += 1
+            solved = entry[1]
+        answer = next(i for i in range(pc, len(self.lines)) if re.fullmatch(r'\*conv_puzzle\d+_answer', self.lines[i]))
+        result = next(i for i in range(answer, len(self.lines)) if re.fullmatch(r'mov %\d+,%191', self.lines[i]))
+        self.var[int(self.lines[result].split(',')[0][5:])] = solved
+        black = next(i for i in range(result, len(self.lines)) if self.lines[i] == 'bg "#000000",0')
+        self.files[-1][1].append((solved, 'solved' if solved else 'failed', 2))
+        return black + 2
+
     def run_until_stop(self, limit=5_000_000):
         """Runs until the script ends or the next path entry isn't a choice."""
         steps = 0
@@ -251,6 +271,9 @@ class Run:
             if line.startswith('*'):
                 self.enter(line[1:].strip())
                 self.pc += 1
+                continue
+            if line == '; tile puzzle':
+                self.pc = self.puzzle(self.pc)
                 continue
             if not line or line.startswith(';') or not re.match(r'[a-z]', line):
                 if line.endswith('\\'):
@@ -330,6 +353,8 @@ def read_path(path):
         word, _, arg = line.partition(' ')
         if word in ('NEWGAME',):
             entries.append((word, None))
+        elif word == 'PUZZLE':
+            entries.append((word, int(arg)))
         elif word in ('SAVE', 'LOAD', 'END', 'REACH'):
             entries.append((word, arg.strip()))
         elif line == '*':

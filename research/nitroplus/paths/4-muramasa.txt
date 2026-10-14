@@ -3,9 +3,9 @@
 # chart entry such as 訊く：自分の事 is two selects. The chart's bad-end
 # detours (md05_010vs 2 then md05_010vsaa 2, md05_012 1, md05_013 2, and
 # md05_014 1, which the chart doesn't take) each end in the game-over
-# file mz00_000; the run loads back and takes the other option. The run stops at the 立方陣 minigame (function_magiccube.nss,
-# reached from md05_025), which isn't converted yet, so neither 村正END
-# (md06_033a) nor the TRUE END (md06_036) can be reached.
+# file mz00_000; the run loads back and takes the other option. Then the
+# 立方陣 minigame (PUZZLE entries), and both endings: 村正END (md06_033a)
+# and the TRUE END (md06_036).
 LOAD 1
 md04_045:2
 md05_004start01:2
@@ -101,4 +101,28 @@ md05_014:1
 END mz00_000
 LOAD bmd05_014
 md05_014:2
-END function_magiccube
+# The 立方陣 (md05_025 → function_magiccube): failing it offers a retry
+# (する) or the end (しない); the retry offers the easy mode (下げる).
+SAVE bmd05_025
+PUZZLE 0
+md05_025gameover:2
+END mz00_000
+LOAD bmd05_025
+PUZZLE 0
+md05_025gameover:1
+md05_025gameovera:1
+PUZZLE 1
+md05_027:1
+md05_028:2
+md05_029:2
+md05_030:1
+md05_031:2
+# The chart's last lines are two columns flattened: 殺す → 村正END;
+# ……殺せない → 選んだ道を進む → TRUE END.
+SAVE bmd06_033
+md06_033:1
+END md06_033a
+LOAD bmd06_033
+md06_033:2
+md06_034:2
+END md06_036
