@@ -202,7 +202,7 @@ N of the scene replay (`%3000+N`); `0x94` ends a replayed scene.
 | `0x8e` | 10,271 | **solved** (`op_8e` `0x4347b0`, entries copied by `0x434530`, applied by `0x434130`): `sub` × 44-byte entries of u16 `mode, character, sprite number, depth`, i16 `x, y`, then a 32-byte module name (empty in every entry; `0x434130` would attach a module of type `0x77` made from it). Mode bit 0 shows (clear: removes), bit 2 keeps the object and its filter, bit 1 = not a change: the 500 ms `Trans_CrossFade` (`mov eax,0x1f4` before `0x442c70`) starts only if some entry lacks bit 1, so the 1,301 records whose entries all have it show at once (fixed in the audit). The depth (10-150, and 1100-5000 in 62 entries) is the bust-up's drawing order, not a fade time: bust-ups fade over a fixed 500 ms. The sprite number indexes `bu*.004` (128 per file, 0-based), and the file names' character codes match the `character` field | show `sub` character sprites |
 | `0x88` | 45 | **solved** (handler `0x415b50`, `AdvObjectScript_Filter.cpp`) | define one module of an effect preset: u32 preset, u32 slot (0 = clear), u32 module field, u32 kind (module type = kind + 0x63; creator table at `0x501434`: 1 Smooth, 2 Negative, 3 HueSatura, 4 Brightness, 5 GrayScale, 6 Monotone, 8 Color, 9 BrightnessInvert), u16 blend (index into Alpha/Add/Multi/Screen/SignedAdd/Copy/dissolve; the game uses Multi and Copy), u16 opacity (256 = full), then kind data (colour: R, G, B; brightness: i16). Field names from the module's debug output (`Opacity=%u, Blend=%s, Brightness=%d`). Script 2's `s2_l6`–`s2_l16` set preset 1 to one tint per lighting mood |
 | `0x90` | 651 | **solved** (handler `0x434960`) | attach a preset to a bust-up: u16 character, u32 module field, u32 preset (0 = remove). Module type 1 = `CModule_Preset`. Converted to CONscripter's `spfilter`, reading the preset from variables (`PLAN.md` §4.2) |
-| `0x54` | 2,195 | **solved** (`op_54` `0x422380`): `arg` = background number, 1-based (0 = none, skipped by the handler); `bg*.004` holds 64 per file (`n >> 6` in the exe's loader at `0x40bff0`). The most common is 1 = `Black`. The handler starts no fade: 2,190 uses are inside an armed transition, the other 5 show at once (they faded over a guessed 500 ms before the audit) | set background |
+| `0x54` | 2,195 | **solved** (`op_54` `0x422380`): `arg` = background number, 1-based (0 = none); `bg*.004` holds 64 per file (`n >> 6` in the exe's loader at `0x40bff0`). The most common is 1 = `Black`. The handler first removes background slots 1-10 (`0x4132d0`: the background and the `0x55` overlays), puts the picture on slot 1 (layer 1, depth 0, marked seen) and, for `sub` 1-3 (41 uses of 1), picture `sub + 5` (`frame01`-`03`) on slot 2 (layer 1, depth 1: under the bust-ups). It starts no fade: 2,190 uses are inside an armed transition, the other 5 show at once. Before the audit the overlay stayed up across backgrounds (86 places), `sub` was ignored and backgrounds outside a transition faded over a guessed 500 ms | set background: `Op::Overlay(None)`, `bg`, then the frame as the overlay |
 | `0x46` | 214 | **solved** (from the handler at `0x477460` plus a user-supplied example) | **hyperlink** on the next message: row, column, length, style, target (see 3c) |
 | `0x49` | 565 | **solved** (handler `0x477990`): u16 line, u16 column, u16 length (30000 = to the end of the message; the game wraps enlarged messages short enough to fit), u16 size (percent below 0x1000; 0x1000 + n = n × 25 percent from the table at `0x4fa850`, 0x1003 for mumbling, 0x1005-0x1007 for shouting; 0xf000 = keep), u32 colour (COLORREF, 0xff000000 = keep), u32 edge colour; lines and columns count as for ruby; later records override earlier ones | size and colour for characters of the next message: `#RRGGBB` and CONscripter's `!zNNN` size tag (`PLAN.md` §4.2) |
 | `0x4e` | 24 | **solved** (handler `0x494750`): arg = indent << 16 \| 1 (once 2); the indent is in half-width units of the first line (ASCII, half-width kana and Greek count 1), up to the text after the chat log's handle | hanging indent of the next message; the game puts it only before chat messages long enough to wrap. Converted to `indent N` around the message, N measured on the emitted line |
@@ -406,8 +406,9 @@ and of `0.txt`, `docs/new-game.md` step 11.4).
   list keeps auto-play off the bars and menus (sprite map below); the
   link words 51-58 stay in, since they are the route choices. The
   checker config is `research/xuse/cons_trace_check.json` (`--config`):
-  the ignore list and the findings looked at and found meant (sprite 61
-  `bg\frame01.png`, the game's frame overlay; `%190` after a load;
+  the ignore list and the findings looked at and found meant (the frame
+  overlay, sprite 61, that a link return puts back in `s9_records2`; the
+  fade cover `lsp2 26`; `%190` after a load;
   ambient loops the scene stops itself; the ripple that stays on through
   the 「粉薬」 link scene `s61_l1`, as in the original). A single run with
   `--auto-choice first` keeps taking the same hub link and left 1,062
@@ -673,8 +674,10 @@ ones done:
   uses), which load no animation;
 - `0x6d` quakes, `0x6e` flashes and `0x6f` pulses are done. `0x55` is done: a second background object, mostly the
   `frameNN` overlays (letterbox bars, speed lines), drawn as sprite 61
-  (over the characters) or 999 (under them) and kept across background
-  changes; `0x8c`'s static is sprite 60, over it;
+  (over the characters) or 999 (under them), kept across `csp -1` but
+  removed by a background change (`0x54`, which with `sub` 1-3 puts
+  `frame01`-`03` there itself; found in the audit); `0x8c`'s static is
+  sprite 60, over it;
 
 **Accuracy.**
 - Transitions: only SmoothCrossFade (8 uses) is still a plain cross-fade

@@ -435,6 +435,9 @@ impl Needs {
         for ins in &cd.code {
             if ins.op == crate::xuse::cd::OP_BACKGROUND && ins.arg > 0 {
                 self.backgrounds.insert(ins.arg as usize);
+                if let Some(frame) = background_frame(ins.sub) {
+                    self.backgrounds.insert(frame);
+                }
             }
             if ins.op == OP_OVERLAY {
                 let number = pool_u32(cd.pool, ins.arg as u32 as usize + 6).unwrap_or(0);
@@ -2615,12 +2618,24 @@ pub fn lower_script(
         if matches!(ins.op, OP_YIELD | OP_YIELD_2 | OP_ENTRY_NAME) {
             continue;
         }
+        if ins.op == crate::xuse::cd::OP_BACKGROUND && ins.arg > 0 {
+            // op_54 first removes background slots 1-10 (0x4132d0), the
+            // overlay (0x55, slot 2) with them.
+            ops.push(Op::Overlay { image: None, over_sprites: false });
+            // It starts no fade: the picture shows at once, or with the
+            // transition armed around it.
+            ops.push(Op::Background { image: assets.background(ins.arg as usize)?.path, fade_ms: 0 });
+            if let Some(frame) = background_frame(ins.sub) {
+                ops.push(Op::Overlay { image: Some(assets.background(frame)?.path), over_sprites: false });
+            }
+        }
         if ins.op == crate::xuse::cd::OP_BACKGROUND {
             background_fill = None;
             // 0x54 marks its picture as seen (0x4222c0's last argument).
             if let Some(number) = gallery_cg(ins.arg) {
                 ops.push(Op::CgSeen { number });
             }
+            continue;
         }
         if ins.op == OP_OPACITY && let Some(fill) = background_fill {
             // The filled background (slot 1) over nothing: darker.
@@ -3482,16 +3497,14 @@ fn lower_instr(
         }
         _ => {}
     }
-    if ins.op == crate::xuse::cd::OP_BACKGROUND {
-        if ins.arg <= 0 {
-            return Ok(None);
-        }
-        let img = assets.background(ins.arg as usize)?;
-        // op_54 (0x422380) starts no fade: the picture shows at once, or
-        // with the transition armed around it.
-        return Ok(Some(Op::Background { image: img.path, fade_ms: 0 }));
-    }
     Ok(None)
+}
+
+/// 0x54's `sub` 1-3 also puts background picture `sub + 5` (`frame01`-
+/// `frame03`) on background slot 2, the overlay's (op_54, layer 1 depth 1:
+/// under the bust-ups).
+fn background_frame(sub: u16) -> Option<usize> {
+    (1..=3).contains(&sub).then_some(usize::from(sub) + 5)
 }
 
 /// The instruction index a label number of this script is placed at, if
