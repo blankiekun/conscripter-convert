@@ -185,7 +185,8 @@ N of the scene replay (`%3000+N`); `0x94` ends a replayed scene.
 | `0x10`, `0x11` | 895 (`0x10`) | label number | goto |
 | `0x15`, `0x16`, `0x22`, `0x23` | 442, 82, 3,094, 46 | label-table index | goto, if-goto, gosub, return |
 | `0x36`–`0x38` | 251 each | see "Chapters" | chapter bookkeeping |
-| `0x66`, `0x72`, `0x74` | 205, 217, 11 | low 16 bits of arg = ms (the high half a flag, meaning unknown) | timed wait; a click ends it |
+| `0x66` | 205 | low 16 bits of arg = ms (the high half a flag, meaning unknown) | timed wait; a click ends it |
+| `0x72`, `0x74` | 217, 11 (152 and 11 in `HD/CDFiles`) | **fades, not waits** (`op_72` `0x44a360`, `0x74` `0x44a390`, both → `0x44a2f0` → `0x436000`, `CTaskWork_Fade`): low 16 bits of arg = ms; high half ≠ 0 sets flag bit 0 (the other direction, `0x435f60`; no script uses it); `0x74` adds bit 0x10 = white instead of black (`0x435f20` fills with `0xffffff` or 0). Only with effects on and not skipping (`0x51ed14` bit 0, `0x51f82e`, `0x51f82c`). All uses fade out (88 × 500 ms, 37 × 3000, …), almost all at a scene's end, before `0x94 0x93` and a link return (`0x47`) or a chapter end. The colour stays until the next scene's transition | **still converted as `delay`: to fix** (fade to black / white over the time, kept until the next `csp -1` or link return) |
 | `0x77`, `0x71` | 234, 3,908 | `0x77`: u32 mask (`mask%04u.png` in `HD/mask.arc`), i32 softness (sign = direction), then `0x76`'s timing block | `0x77` arms a mask wipe (`Trans_MaskBlend2`), `0x76` (below) any other transition; `0x71` waits for it, revealing the changes made since |
 | `0x8f` | 414 | arg -1 | remove every bust-up |
 | `0x43` | 578 | arg 0 waits for the fade, 1 doesn't (handler `0x4772a0`) | hides the text window, before most transitions: `textoff` |
@@ -438,8 +439,14 @@ step 9). Helper scripts of the sessions are in `research/xuse/local/`
   prefix `drive_c/users/<user>/Documents` (and Desktop, Downloads,
   Music, Pictures, Videos) are symlinks to the real home folders, and
   the game saves to `Documents\Xuse\最果てのイマ COMPLETE\`: replace the
-  six symlinks with real folders. `WINEDLLOVERRIDES=
-  "winepulse.drv,winealsa.drv,winemenubuilder.exe=d"` keeps it silent.
+  six symlinks with real folders.
+- **Audio:** disabling `winepulse.drv`/`winealsa.drv` is not enough:
+  under wine 11 the game was still heard. Use the Muramasa recipe
+  (`docs/games/muramasa.md`): `ALSA_CONFIG_PATH=<file>` whose only
+  content is `pcm.!default { type null }` (+ `ctl.!default`,
+  `pcm.null`), `PULSE_SERVER=unix:/nonexistent` and `WINEDLLOVERRIDES=
+  "winepulse.drv,wineoss.drv,winewayland.drv=d;winemenubuilder.exe=d"`.
+  Stop wine (`wineserver -k`) and Xvfb as soon as the pictures are taken.
 - **Display:** an Xvfb display of its own, never the user's desktop.
   The game draws at screen offset (3, 29). Clicks need `xdotool
   mousedown`, a short sleep, then `mouseup`; a plain `click` is
@@ -500,7 +507,45 @@ a copy of the save works.
   (96, 97); events (114, 149 + 21 i); buttons (316 + 63 i, 466); exit
   (624, 470). Buttons are enabled by progress bit 4 + `0x4fbc00`[id].
 
-## Status: finished (2026-10-14)
+## Status: reopened (2026-10-14): fixes from the debug trace, then an opcode audit
+
+Declared finished on 2026-10-14; the 0.19 debug trace and the decompiled
+exe (`research/tools/ghidra/ghidra_export.sh`, names in
+`research/xuse/names.tsv`) then showed opcodes read wrong from `objdump`
+(`0x72`/`0x74` above). **Next, in order:**
+1. **`0x72`/`0x74` as fades** (table above): a new IR op (fade to a
+   colour over ms, at the end of `Op` in `ir.rs`), drawn as a full-screen
+   `lsp2` colour sprite over everything but the menus and top bars
+   (`FLASH_SPRITE2` is 24, `TURN_SPRITE2` 25 in `conv-cons`), faded in
+   with `print 10,<ms>`, removed by `Op::ClearSprites` (`csp -1` at a
+   scene start) and by a link return (check that `popscreen` drops it).
+2. **The static after 存在消滅 (`s22_l2`)**: the end of `0022.cd`
+   raises the static to 256 (`0x8c` noise 0 → 256 over 2 s), fades to
+   black (`0x72 2000`), waits for a click and jumps back to `s4_l1`
+   without clearing it. In the original (filmed under wine, `0004.cd`
+   patched to jump there) the next week starts clean; ours plays the
+   whole week under full static. No code clearing it was found (not
+   `op_15`, `op_36`-`op_39`, `op_68`, `op_93`/`op_94`, nor the noise
+   module, which holds its end opacity unless its mode has bit 0x10).
+   Plan: clear the environment effects at `0x39` (`Op::Noise(None)` and
+   `Op::ScreenEffect { slot: 0, effect: None }`, as `0x8c` slot 0 does);
+   `0x39` is used only at the loop restarts (start of `0004.cd`, ends of
+   `0021`/`0022`). Mark it "seen in the original, mechanism not found".
+3. **`pushscreen: too many saved screens (popscreen missing?)`** stops
+   the game (exit 2) on long routes: `cons_explore.py` hit it at
+   `*conv_link118_1` and `*conv_link98_c` (about 60,000 pages into a
+   run). Find the path that enters link scenes without leaving them.
+4. **Opcode audit**: for every opcode the converter handles, read its
+   `op_XX` in the decompiled C (the dispatch table is `opcode_table`
+   `0x4fb270`; name each handler in `names.tsv` and rerun the export),
+   compare with the opcodes table here and with the converter, and
+   record a verdict per opcode; fix each mismatch in its own commit,
+   checked with a `--replay` trace and `cons_trace_check.py --diff`.
+   Most-used and most visible first.
+5. Then `cons_explore.py` over all routes (title menus skipped:
+   `--skip-choices '^\*conv_(title|sl_|settings|confirm|extras)'`) and
+   the checker on every trace.
+
 
 Converted and playable from start to end: text, voices, sprites with
 colour filters, backgrounds, BGM with loop points, sound effects, movies,

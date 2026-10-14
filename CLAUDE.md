@@ -6,7 +6,7 @@ build.
 
 | Game | Engine | Branch / worktree | Game document |
 |---|---|---|---|
-| 最果てのイマ COMPLETE (finished) | Xuse | `xuse` | `docs/games/saihate-no-ima.md` |
+| 最果てのイマ COMPLETE (reopened: fixes, opcode audit) | Xuse | `xuse` | `docs/games/saihate-no-ima.md` |
 | 装甲悪鬼村正 (in progress) | Nitroplus NSS | `nitroplus`, `../conscripter-convert-nitroplus` | `docs/games/muramasa.md` |
 | 俺たちに翼はない, PS Vita (starting) | not identified yet | `oretsuba`, `../conscripter-convert-oretsuba` | `docs/games/oretsuba.md` |
 
