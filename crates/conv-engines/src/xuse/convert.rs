@@ -309,9 +309,6 @@ const OP_FADE_WHITE: u16 = 0x74;
 const BG_PER_ARCHIVE: usize = 64;
 const BU_PER_ARCHIVE: usize = 128;
 const SE_FIRST_BANK: usize = 256;
-/// Assumption: backgrounds fade over this long (the `0x54` sub field may
-/// select the transition; not decoded yet).
-const BG_FADE_MS: u32 = 500;
 /// Opacity of the text window's base layer (estimated from a screenshot of
 /// the original game).
 const WINDOW_OPACITY_PERCENT: u32 = 55;
@@ -3490,7 +3487,9 @@ fn lower_instr(
             return Ok(None);
         }
         let img = assets.background(ins.arg as usize)?;
-        return Ok(Some(Op::Background { image: img.path, fade_ms: BG_FADE_MS }));
+        // op_54 (0x422380) starts no fade: the picture shows at once, or
+        // with the transition armed around it.
+        return Ok(Some(Op::Background { image: img.path, fade_ms: 0 }));
     }
     Ok(None)
 }
