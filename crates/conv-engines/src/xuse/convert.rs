@@ -180,8 +180,11 @@ const OP_BLEND: u16 = 0x83;
 /// Clears the chapter history (handler 0x475af0, `ScriptStd.cpp`: "チャプタ
 /// 内ではチャプタ履歴をクリアできません。" inside a chapter); nothing in
 /// replay modes 1 and 2. Used at the start of 0004.cd and after the ends of
-/// 0021/0022.cd. The conversion has no chapter history yet: nothing to
-/// emit.
+/// 0021/0022.cd. The conversion has no chapter history yet. It is
+/// converted as a clear of the environment effects (0x8c slot 0): the end
+/// of 0022.cd (存在消滅) leaves the static at full opacity and jumps back
+/// to the start of 0004.cd, and the original starts that week clean
+/// (filmed under wine; the code that clears it wasn't found).
 const OP_CLEAR_CHAPTER_HISTORY: u16 = 0x39;
 /// Copies `sub` bytes of the record (a name) into the game state at +4
 /// (handler 0x478650); only 0x3c (0x4786c0, a jump when the name matches)
@@ -2604,7 +2607,13 @@ pub fn lower_script(
             ops.push(Op::ReturnToTitle);
             continue;
         }
-        if matches!(ins.op, OP_YIELD | OP_YIELD_2 | OP_CLEAR_CHAPTER_HISTORY | OP_ENTRY_NAME) {
+        if ins.op == OP_CLEAR_CHAPTER_HISTORY {
+            env_slots.clear();
+            ops.push(Op::Noise(None));
+            ops.push(Op::ScreenEffect { slot: 0, effect: None });
+            continue;
+        }
+        if matches!(ins.op, OP_YIELD | OP_YIELD_2 | OP_ENTRY_NAME) {
             continue;
         }
         if ins.op == crate::xuse::cd::OP_BACKGROUND {

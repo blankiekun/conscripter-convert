@@ -208,7 +208,7 @@ N of the scene replay (`%3000+N`); `0x94` ends a replayed scene.
 | `0x99` | 8 | **solved** (handler `0x478b00`) | sets progress bit `sub` of the global word `0x51eb3c` (saved with the system data, `0x45f801`): bits 0-3 at the start (0000.cd, 0003.cd), 4-7 at the end of each heroine's route (0009-0013.cd). Read by the extras: the title (bit 3, `0x45cce9`), getters for bits 1, 2, and the voice mode (`VoiceMode.cpp`, bit 4 + route via `0x4fbc00`). Converted as global flags `%3600 + bit` for the extras to come |
 | `0x9d` | 6 | **solved** (handler `0x478b30`) | marks CG `arg` (1-based, as in `0x54`) as seen without showing it: bit arg - 1 of the global set `0x51ea18`, read by `CGMode.cpp` (`0x44cd56`, `0x44d4af`); `0x55`'s "mark as seen" byte sets the same set (`0x42236b`). Used right after a `0x54` of a related CG (467 → 523). Converted as global flags `%2200 + n` (n up to 576; above the link flags, below the 4096 variables) for a CG gallery |
 | `0x56`, `0x83`, `0x67` | 3, 1, 2 | **solved** (handlers `0x4224a0` → `0x412fe0` kind 1, `0x414050`, `0x473d20`) | `0x56` fills a background slot with a colour: u8 slot (0 removes slots 1-10), u8 layer, u32 depth, u32 COLORREF; a screen-sized object with fill module 7 (`0x55` is the same with kind 0, a picture). Slot 1 = the background, 2 = the overlay. `0x83` sets an object's blend (u8 layer, u32 depth, u8 0-6: Alpha, Add, Multi, Screen, SignedAdd, Copy, dissolve). `0x67` yields one frame. Uses: black background at boot; the shared impact routine `s2_l2` (9 calls) puts white on the overlay, sets dissolve and fades it out over 1 s (`0x86` opacity motion); 0006.cd fills the background red at opacity 64 (`0x82`). Converted with generated `system/fill_rrggbb.png`: `bg` / the overlay; the fade-out as a 1 s cross-fade removal that the following 1 s wait no longer adds to; the red at 64/256 as `fill_3f0000` (over black) |
-| `0x39` | 4 | **solved** (handler `0x475af0`, `ScriptStd.cpp`) | clears the chapter history (an error inside a chapter; nothing in replay modes 1/2): start of 0004.cd, after the ends of 0021/0022.cd. Nothing emitted: no chapter history yet |
+| `0x39` | 4 | **solved** (handler `0x475af0`, `ScriptStd.cpp`) | clears the chapter history (an error inside a chapter; nothing in replay modes 1/2): start of 0004.cd, after the ends of 0021/0022.cd. No chapter history yet. The end of 0022.cd (存在消滅) leaves the static at 256 and jumps back to `s4_l1`; the original starts that week clean (filmed under wine), but no code clearing it was found (not `op_15`, `op_36`-`op_39`, `op_68`, `op_93`/`op_94`, nor the noise module) | converted as a clear of the environment effects (`0x8c` slot 0: `Op::Noise(None)`, `screenshake 0`), seen in the original, mechanism not found |
 | `0x3b`, `0x3c` | 2, 0 | **solved** (handlers `0x478650`, `0x4786c0`) | `0x3b` copies `sub` bytes of the record into the game state at +4 (an entry name: the boot script sets "debug entry" or "release entry"); `0x3c` jumps when the name matches and is never used. Nothing emitted |
 | `0x91` | 2 | **solved** (handler `0x4788d0`, task `0x454a60`, `StaffRoll\Staff.cpp`; descriptors via `0x517f30`) | the staff roll: arg 0 → `StaffRoll1.004` (63 s, BGM 23), 1 → `StaffRoll2.004` (223 s, BGM 22, the CG slideshow). A panel of key frames (clip rectangle, two picture layers with dx, dy, opacity) and a column of credits scrolling from `start` to `end`; details in `xuse/staffroll.rs`. Rendered by the converter into an MP4 with its song, played with `mpegplay` (not skippable, like the original). Checked frame by frame against the original under wine |
 | `0x48` | 2 | **solved** (handler `0x477900`, `ScriptText.cpp`) | returns to the root scene: leaves every open link scene (`0x467670`); at the root it logs "既にルートシーンにいるので何も行いません。". Routes 10 and 11 (entered from links) start with it and end with jumps. Converted as `Op::ReturnToRoot`: `return` through each link page, whose cleanup puts its screen back and then goes to `*conv_unwind` instead of showing the page again; at depth 0 it jumps to the label after the 0x48 |
@@ -520,18 +520,9 @@ exe (`research/tools/ghidra/ghidra_export.sh`, names in
    original first (`0004.cd` #23 patched); a trace of the first route
    shows the colour only at scene ends and on `s11_l54`'s 7 pages over
    white, as the script has it.
-2. **The static after 存在消滅 (`s22_l2`)**: the end of `0022.cd`
-   raises the static to 256 (`0x8c` noise 0 → 256 over 2 s), fades to
-   black (`0x72 2000`), waits for a click and jumps back to `s4_l1`
-   without clearing it. In the original (filmed under wine, `0004.cd`
-   patched to jump there) the next week starts clean; ours plays the
-   whole week under full static. No code clearing it was found (not
-   `op_15`, `op_36`-`op_39`, `op_68`, `op_93`/`op_94`, nor the noise
-   module, which holds its end opacity unless its mode has bit 0x10).
-   Plan: clear the environment effects at `0x39` (`Op::Noise(None)` and
-   `Op::ScreenEffect { slot: 0, effect: None }`, as `0x8c` slot 0 does);
-   `0x39` is used only at the loop restarts (start of `0004.cd`, ends of
-   `0021`/`0022`). Mark it "seen in the original, mechanism not found".
+2. **Done: the static after 存在消滅 (`s22_l2`)** is cleared at `0x39`
+   (table above), as the original shows it; the trace's four "static up
+   for 150 pages" findings in `s4_l2` are gone.
 3. **`pushscreen: too many saved screens (popscreen missing?)`** stops
    the game (exit 2) on long routes: `cons_explore.py` hit it at
    `*conv_link118_1` and `*conv_link98_c` (about 60,000 pages into a
