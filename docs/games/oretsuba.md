@@ -7,7 +7,7 @@ progression variables, and its status. The general process is in
 folder holding the game's Vita package and its license.
 
 - **Status:** starting (see "Status" below). Branch `oretsuba`.
-- **Scope (from the user, 2026-10-13):** the **PS Vita version**, the
+- **Scope (2026-10-13):** the **PS Vita version**, the
   whole game **with extras**. Nothing dropped yet.
 - **Engine:** not identified yet.
 
@@ -36,8 +36,8 @@ Not yet.
 Nothing converts yet.
 
 Next, in order:
-1. Decrypt the package (above). Blocked 2026-10-13: auto mode refused to
-   run the downloaded tools; the user has to allow them or run them.
+1. Decrypt the package (above). The tools are downloaded binaries:
+   running them needs approval (blocked on that 2026-10-13).
 2. Identify the engine from the decrypted files (eboot strings, archive
    magic numbers), then playbook step 0: walkthrough, this document,
    plan.

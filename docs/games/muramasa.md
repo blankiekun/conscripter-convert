@@ -160,7 +160,7 @@ The table of what each built-in does is `research/nitroplus/builtins.md`.
 
 ## Approach
 
-Decided with the user (2026-10-13): **compile NSS to NScripter, with Lua
+Decided 2026-10-13: **compile NSS to NScripter, with Lua
 as the fallback.** NSS is structured source, so functions become
 `gosub` labels, `if`/`while`/`select` labels and jumps, `$`/`#`
 variables NScripter variables, object names sprite numbers. CONscripter
