@@ -51,11 +51,14 @@ Findings, in case it ever comes back, are in `saiima.md` ("WSS").
       `two-heroines` (the user's bug: a second heroine link in one loop)
       and `no-links`. On the pre-fix converter (`fad5f9b^`) it reports the
       bug: the other heroine links still offered, たまに早く出る → s10.
-      Open: (1) the walkthrough gives 「死」 on the second loop with no
-      link; the bytecode gives it on the third (`%215 <= 2`, 0x1a is setle
-      in the exe's table), so the conversion follows the game, but the
-      walkthrough may be for another edition: settle under wine. (2) Step
-      11.5 (persistence): FIRST START zeroes the loop flags (as the
+      Settled (2026-10-13, no wine needed): the walkthroughs give 「死」
+      on the second loop with no link; COMPLETE's bytecode gives it on the
+      third (`%215 <= 2`, 0x1a is setle in the exe's table), and the
+      second is a 「リピート」 identical to the first (0021 has no
+      conditions). 愚者の館's full-voice note ("one more no-link pass
+      after 死") matches if read as two no-link loops after cycle 1, in the
+      order リピート, 死. %215 gates nothing else. The conversion follows
+      the bytecode. Open: step 11.5 (persistence): FIRST START zeroes the loop flags (as the
       bytecode does); `gloval.sav` is written only on save and on quit;
       not compared with the original yet. Fixed on the way (user's play,
       `fad5f9b`): links a jump skips (the heroine gates in 0004.cd, the
