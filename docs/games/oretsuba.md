@@ -57,10 +57,33 @@ key revision 5); it reads the keys from a Vita3K checkout
     python3 -I self2elf.py <game>/eboot.bin work.bin <Vita3K>/vita3k/packages/src/sce_utils.cpp local/eboot.elf
     python3 disasm.py local/eboot.elf > local/eboot.asm   # needs capstone
 
+**Decompiled with Ghidra** (`docs/new-game.md` §2), with the
+[VitaLoaderRedux](https://github.com/CreepNT/VitaLoaderRedux) extension
+(the release built for the installed Ghidra, unzipped into Ghidra's user
+`Extensions` folder; 1.09 for Ghidra 12.1.2):
+
+    research/tools/ghidra/ghidra_export.sh research/oretsuba/local/eboot.elf \
+        research/oretsuba/local/ghidra --names research/oretsuba/names.tsv \
+        -- -loader ArmElfPrxLoader -postScript ThumbPointerFunctions.java
+
+About 4 minutes the first time; later runs reuse the project and only
+apply `names.tsv` and export (2 minutes). The stock ELF loader also takes
+the SCE executable (type 0xfe04, `-processor ARM:LE:32:v7`) and finds the
+Thumb code, but leaves the imports unnamed; VitaLoaderRedux names the
+ones in its NID list (`sceKernel…`, `sceSaveDataDialog…`; libc calls stay
+`SceLibc_<NID>`). Analysis puts the C++ virtual methods, reached only
+through vtables, in no function (the eye catch's update at 0x81048b8a);
+`ThumbPointerFunctions.java` makes one at every Thumb pointer stored as
+data (618), 4,922 functions in all, 83% of the code (the rest is mostly
+literal pools and rodata). The decompiled C shows the ASCII strings
+inline (`"TaskList/Task%d/Tasktype"`), so grep `decomp/` for them;
+`strings.tsv` only lists cp932 ones. Every function identified goes into
+`research/oretsuba/names.tsv`, and the export is rerun.
+
 The ELF loads its code at 0x81000000 (file offset 0xe0) and its data at
 0x8115e000 (file offset 0x15d440). `disasm.py` is a linear Thumb-2
 listing with every movw/movt address resolved and the string it points
-at, so code that uses a string is found by grepping. The rodata holds
+at, still handy for grepping the raw instructions. The rodata holds
 the script engine's keys (`TaskList/Task%d/...`, `CGMODE/...`) and its
 task names, the kanji of the font's glyph table, and no menu text: the
 system screens are pictures.
