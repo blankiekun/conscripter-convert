@@ -539,10 +539,17 @@ engine's debug trace (`cons_explore.py`, 62,185 pages, 1,220 labels;
   inside a link scene. Matching it needs a copy of slots 900+ for each
   save slot, which NScripter commands can't make (an engine command that
   copies a save file would).
-- **Pictures too large for the web build.** Six `fx\fx0*.png`
-  animation strips (from `HD/fx.arc`, sprite 59) are up to 24000×600,
-  more than a browser's graphics are sure to take (4096 px). Split each
-  strip into frames or several strips, or lay the frames out in rows.
+- **Pictures "too large for the web build" (not a problem).** The
+  `fx\fx0*.png` animation strips (from `HD/fx.arc`, sprite 59: the
+  frames side by side in playing order) are up to 37600×600 (`fx0102b`,
+  47 frames; about 90 MB decoded, 24000×600 about 55 MB), and the trace
+  warned about every side over 4096 px. They work in the web build: in
+  headless Chromium it loads, draws and animates a 24000×600 strip as the
+  native build does, since pictures are decoded inside the wasm and drawn
+  in software (only the screen becomes a texture). The warning was the
+  engine's mistake, fixed in CONscripter: the trace now reports a single
+  picture over `--trace-max-image` MB (64 by default) as a "large image"
+  under the checker's `memory` rule.
 - **Long effects.** 55 transitions ask for 15 s (`print` with 15000 ms;
   `s10_l51` and others). Check against the original that the durations
   are read right.
