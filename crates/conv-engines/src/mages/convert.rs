@@ -1,0 +1,573 @@
+//! Lowers TaskList scenes to the IR.
+//!
+//! Screen: the Vita's 960×544. Scripts place things in a 1280×720 space
+//! (`:Position` is a picture's centre), so coordinates are scaled by 3/4
+//! across and 544/720 down; the CG and CHR pictures are already at the
+//! Vita's scale and are used as they are.
+//!
+//! Layers: every picture is a sprite layer, chosen by its `:Priority`
+//! (0 front … 10 back): layer `PRIORITY_STEP · priority + n`, where `n`
+//! counts down as pictures arrive, so newer pictures of one priority lie
+//! over older ones. `SpriteBG` is the background plane: a new one replaces
+//! the old. Characters are keyed by their character number, other
+//! pictures by their texture.
+//!
+//! Tasks named `…BS` (SpriteBS, CharacterOpenBS) change the picture
+//! without showing it; the next `InOut`/`InOut_Act` reveals the changes
+//! (a rule mask `RULE<Type>` from ETC.cpk over `:Time` frames).
+//!
+//! Labels: scene `S01_01A` is `mg_s01_01a`; its tag `Jump` is
+//! `mg_s01_01a_jump`.
+
+use std::collections::{BTreeMap, HashMap};
+
+use conv_core::ir::{ArithOp, Compare, Op, Operand, SourceLoc, SpriteChange, SpritePlacement, TextWindow, TransitionStyle, Var, Voice};
+
+use super::tasks::{Block, Scene, Val, parse};
+
+pub const SCREEN_W: i32 = 960;
+pub const SCREEN_H: i32 = 544;
+/// Variables from here up are global (kept across playthroughs).
+pub const GLOBAL_BORDER: u32 = 200;
+/// First variable of the per-save flags (`[Flag]` in adv.txt).
+const FLAG_BASE: u16 = 20;
+/// First global variable (`[GlobalFlag]`), past [`GLOBAL_BORDER`].
+const GLOBAL_FLAG_BASE: u16 = 210;
+const PRIORITY_STEP: u32 = 20;
+/// The front layer that `FadeOut` covers the picture with.
+const COVER_LAYER: u32 = 0;
+
+/// Frames (60 fps) to milliseconds.
+fn ms(frames: i64) -> u32 {
+    (frames.max(0) * 1000 / 60) as u32
+}
+
+fn sx(x: i64) -> i32 {
+    (x * 3 / 4) as i32
+}
+
+fn sy(y: i64) -> i32 {
+    (y * 544 / 720) as i32
+}
+
+/// The game's files, by archive ID.
+pub trait Assets {
+    /// A CG.cpk picture: output path, width, height.
+    fn cg(&mut self, id: u32) -> Option<(String, u32, u32)>;
+    /// A CHR.cpk picture.
+    fn chr(&mut self, id: u32) -> Option<(String, u32, u32)>;
+    /// The rule mask `RULE<n>` of ETC.cpk, as large as the screen.
+    fn rule(&mut self, n: u32) -> Option<String>;
+    fn voice(&mut self, id: u32) -> Option<String>;
+    fn se(&mut self, id: u32) -> Option<String>;
+    fn bgm(&mut self, id: u32) -> Option<String>;
+    /// A picture of one colour (0xRRGGBB) as large as the screen.
+    fn colour(&mut self, rgb: u32) -> String;
+    /// The text window's picture (SystemData's `meswin.png`, scaled to the
+    /// screen) and its size.
+    fn window(&mut self) -> Option<(String, u32, u32)>;
+}
+
+/// A character (`chrNNN.txt`): its pictures by pose, dress, face, size.
+#[derive(Debug, Clone, Default)]
+pub struct Character {
+    pub offset_y: Vec<i64>,
+    pub sprites: HashMap<[i64; 4], u32>,
+}
+
+/// The game: every scene plus the tables in adv.txt and chrNNN.txt.
+#[derive(Debug, Default)]
+pub struct Game {
+    pub scenes: BTreeMap<String, Scene>,
+    pub characters: HashMap<i64, Character>,
+    pub flags: Vec<String>,
+    pub global_flags: Vec<String>,
+    /// Speaker names by `:Name` number, from the scripts' comments.
+    pub names: HashMap<i64, String>,
+    /// The first scene of a new game.
+    pub start: String,
+}
+
+impl Game {
+    /// Builds the game from SCRIPT.cpk's files (name → decoded text).
+    pub fn load(scripts: &BTreeMap<String, String>) -> Result<Game, String> {
+        let mut g = Game::default();
+        let mut name_votes: HashMap<i64, HashMap<String, usize>> = HashMap::new();
+        for (file, src) in scripts {
+            let blocks = parse(src).map_err(|e| format!("{file}: {e}"))?;
+            if file.starts_with("chr") && file.ends_with(".txt") {
+                for b in blocks.iter().filter(|b| b.name == "Character") {
+                    let mut c = Character {
+                        offset_y: b.get("OffsetY").unwrap_or(&[]).iter().filter_map(Val::int).collect(),
+                        ..Character::default()
+                    };
+                    for s in &b.children {
+                        let key: Vec<i64> = s.get("Character").unwrap_or(&[]).iter().filter_map(Val::int).collect();
+                        if let (Ok(key), Some(tex)) = (key.try_into(), s.int("Texture")) {
+                            c.sprites.insert(key, tex as u32);
+                        }
+                    }
+                    if let Some(n) = b.int("CharacterNumber") {
+                        g.characters.insert(n, c);
+                    }
+                }
+            } else if file == "adv.txt" {
+                let names = |b: Option<&Block>| -> Vec<String> {
+                    b.map(|b| b.children.iter().map(|f| f.str("Name").unwrap_or("").to_string()).collect()).unwrap_or_default()
+                };
+                g.flags = names(blocks.iter().find(|b| b.name == "Flag"));
+                g.global_flags = names(blocks.iter().find(|b| b.name == "GlobalFlag"));
+                g.start = blocks
+                    .iter()
+                    .find(|b| b.name == "Scene")
+                    .and_then(|b| b.child("StartScene0"))
+                    .and_then(|b| b.str("SceneName"))
+                    .unwrap_or("S01_01")
+                    .to_string();
+            } else {
+                let scene = Scene::parse(src).map_err(|e| format!("{file}: {e}"))?;
+                if !scene.tasks.is_empty() {
+                    g.scenes.insert(file.clone(), scene);
+                }
+                // `:Name 12 // 鷹志`
+                for line in src.lines() {
+                    let t = line.trim_start();
+                    let Some(rest) = t.strip_prefix(":Name") else { continue };
+                    let Some((num, comment)) = rest.split_once("//") else { continue };
+                    let (Ok(n), name) = (num.trim().parse::<i64>(), comment.trim()) else { continue };
+                    if !name.is_empty() && !name.contains(' ') {
+                        *name_votes.entry(n).or_default().entry(name.to_string()).or_default() += 1;
+                    }
+                }
+            }
+        }
+        for (n, votes) in name_votes {
+            if let Some((name, _)) = votes.into_iter().max_by_key(|(name, c)| (*c, std::cmp::Reverse(name.clone()))) {
+                g.names.insert(n, name);
+            }
+        }
+        Ok(g)
+    }
+
+    fn flag(&self, name: &str, global: bool) -> Option<Var> {
+        let list = if global { &self.global_flags } else { &self.flags };
+        let i = list.iter().position(|f| f == name)? as u16;
+        Some(Var { global, index: if global { GLOBAL_FLAG_BASE } else { FLAG_BASE } + i })
+    }
+}
+
+pub fn scene_label(scene: &str) -> String {
+    format!("mg_{}", scene.to_ascii_lowercase())
+}
+
+fn tag_label(scene: &str, tag: &str) -> String {
+    let tag: String = tag.chars().map(|c| if c.is_ascii_alphanumeric() { c.to_ascii_lowercase() } else { '_' }).collect();
+    format!("{}_{tag}", scene_label(scene))
+}
+
+/// The text window: `meswin.png` at the bottom of the screen.
+pub fn text_window(assets: &mut dyn Assets) -> TextWindow {
+    let (image, w, h) = assets.window().unwrap_or_default();
+    let (w, h) = (w as i32, h as i32);
+    let x = (SCREEN_W - w) / 2;
+    let y = SCREEN_H - h - 4;
+    TextWindow {
+        image,
+        x,
+        y,
+        text_x: x + 64,
+        text_y: y + 22,
+        columns: 30,
+        rows: 3,
+        font_size: 22,
+        line_gap: 6,
+        vertical: false,
+        name_plate: None,
+    }
+}
+
+/// What the compiler collected besides the ops.
+#[derive(Debug, Default)]
+pub struct Compiled {
+    pub ops: Vec<Op>,
+    /// Task types not converted (or approximated), with counts.
+    pub notes: BTreeMap<String, usize>,
+}
+
+/// A picture on screen, for moving and removing it.
+#[derive(Debug, Clone)]
+struct Shown {
+    layer: u32,
+    /// Centre on screen.
+    x: i32,
+    y: i32,
+}
+
+struct Lowering<'a> {
+    game: &'a Game,
+    assets: &'a mut dyn Assets,
+    out: Compiled,
+    /// Pictures by key: `c<number>` for characters, `t<texture>`, `bg`.
+    shown: HashMap<String, Shown>,
+    next_slot: HashMap<u32, u32>,
+    /// A transition is open (staged changes wait for InOut).
+    staging: bool,
+    choices: usize,
+}
+
+impl Lowering<'_> {
+    fn note(&mut self, what: impl Into<String>) {
+        *self.out.notes.entry(what.into()).or_default() += 1;
+    }
+
+    fn unsupported(&mut self, scene: &str, index: usize, what: String) {
+        self.note(what.clone());
+        self.out.ops.push(Op::Unsupported { what, at: SourceLoc { file: scene.to_string(), index } });
+    }
+
+    fn layer(&mut self, key: &str, priority: i64) -> u32 {
+        let base = PRIORITY_STEP * priority.clamp(0, 10) as u32 + 1;
+        if let Some(s) = self.shown.get(key)
+            && s.layer >= base
+            && s.layer < base + PRIORITY_STEP - 1
+        {
+            return s.layer;
+        }
+        let n = self.next_slot.entry(base).or_insert(PRIORITY_STEP - 2);
+        let layer = base + *n;
+        *n = if *n == 0 { PRIORITY_STEP - 2 } else { *n - 1 };
+        layer
+    }
+
+    /// Shows `image` centred at script position (x, y) on `key`'s layer.
+    fn show(&mut self, key: &str, image: (String, u32, u32), x: i64, y: i64, priority: i64, fade_ms: u32) {
+        let layer = self.layer(key, priority);
+        let (path, w, h) = image;
+        let (w, h) = (w as i32, h as i32);
+        let (cx, cy) = (sx(x), sy(y));
+        let mut changes = Vec::new();
+        if let Some(old) = self.shown.get(key)
+            && old.layer != layer
+        {
+            changes.push(SpriteChange { layer: old.layer, sprite: None, keep_filters: false });
+        }
+        changes.push(SpriteChange {
+            layer,
+            sprite: Some(SpritePlacement { image: path, x: cx - w / 2, y: cy - h / 2 }),
+            keep_filters: false,
+        });
+        self.shown.insert(key.to_string(), Shown { layer, x: cx, y: cy });
+        self.out.ops.push(Op::Sprites { changes, fade_ms: if self.staging { 0 } else { fade_ms } });
+    }
+
+    fn hide(&mut self, key: &str, fade_ms: u32) {
+        if let Some(old) = self.shown.remove(key) {
+            let change = SpriteChange { layer: old.layer, sprite: None, keep_filters: false };
+            self.out.ops.push(Op::Sprites { changes: vec![change], fade_ms: if self.staging { 0 } else { fade_ms } });
+        }
+    }
+
+    /// Opens a transition for a staged task, if none is open: its look
+    /// comes from the next InOut in `tasks`.
+    fn stage(&mut self, tasks: &[Block], from: usize) {
+        if self.staging {
+            return;
+        }
+        let reveal = tasks[from..].iter().find(|t| matches!(t.task_type(), Some("InOut" | "InOut_Act")));
+        let (fade_ms, mask) = match reveal {
+            Some(t) => {
+                let time = ms(t.int("Time").unwrap_or(30));
+                let mask = match t.task_type() {
+                    Some("InOut") => t.int("Type").and_then(|n| self.assets.rule(n as u32)),
+                    _ => None,
+                };
+                (time, mask)
+            }
+            None => (0, None),
+        };
+        self.out.ops.push(Op::BeginTransition { effect: "InOut".into(), fade_ms, mask, style: TransitionStyle::Fade });
+        self.staging = true;
+    }
+
+    fn character_image(&mut self, number: &[Val]) -> Option<(String, u32, u32, i64)> {
+        let v: Vec<i64> = number.iter().filter_map(Val::int).collect();
+        let (&c, key) = v.split_first()?;
+        let ch = self.game.characters.get(&c)?;
+        let key: [i64; 4] = key.get(..4)?.try_into().ok()?;
+        let tex = *ch.sprites.get(&key)?;
+        let offset = ch.offset_y.get(key[3] as usize).copied().unwrap_or(0);
+        let (path, w, h) = self.assets.chr(tex)?;
+        Some((path, w, h, offset))
+    }
+
+    fn task(&mut self, scene: &str, tasks: &[Block], i: usize) {
+        let t = &tasks[i];
+        let Some(ty) = t.task_type() else { return };
+        let fade = |t: &Block| if t.int("FadeIn").unwrap_or(1) == 0 { 0 } else { ms(t.int("Time").unwrap_or(15)) };
+        match ty {
+            "Message" => {
+                let text = t.str("Message").unwrap_or("").to_string();
+                let speaker = t.int("Name").and_then(|n| self.game.names.get(&n).cloned());
+                let voice = t.int("Voice").and_then(|id| {
+                    let file = self.assets.voice(id as u32)?;
+                    Some(Voice { file, character: t.int("Name").unwrap_or(0) as u32 })
+                });
+                if self.staging {
+                    self.out.ops.push(Op::EndTransition);
+                    self.staging = false;
+                }
+                self.out.ops.push(Op::Text { speaker, text, voice, links: vec![], ruby: vec![], styles: vec![], hang: None, continues: false });
+            }
+            "SpriteBG" | "Sprite" | "SpriteBS" => {
+                let Some(tex) = t.int("Texture") else { return };
+                let Some(img) = self.assets.cg(tex as u32) else {
+                    self.note(format!("{ty}: missing texture {tex}"));
+                    return;
+                };
+                if ty == "SpriteBS" {
+                    self.stage(tasks, i);
+                }
+                let key = if ty == "SpriteBG" { "bg".to_string() } else { format!("t{tex}") };
+                let (x, y) = (t.int_at("Position", 0).unwrap_or(640), t.int_at("Position", 1).unwrap_or(360));
+                let prio = t.int("Priority").unwrap_or(if ty == "SpriteBG" { 10 } else { 5 });
+                self.show(&key, img, x, y, prio, fade(t));
+            }
+            "SpriteDelete" | "SpriteDeleteBG" => {
+                let tex = t.int("SpriteNumber").or_else(|| t.int("Texture")).unwrap_or(-1);
+                let key = if ty == "SpriteDeleteBG" && self.shown.contains_key("bg") { "bg".to_string() } else { format!("t{tex}") };
+                let f = if t.int("FadeOut").unwrap_or(0) == 0 { 0 } else { ms(t.int("Time").unwrap_or(15)) };
+                self.hide(&key, f);
+            }
+            "CharacterOpen" | "CharacterOpenBS" => {
+                if ty == "CharacterOpenBS" {
+                    self.stage(tasks, i);
+                }
+                for c in t.children.iter().filter(|c| c.name.starts_with("Chara")) {
+                    let Some(number) = c.get("Number") else { continue };
+                    let Some((path, w, h, offset)) = self.character_image(number) else {
+                        self.note(format!("{ty}: unknown character picture {number:?}"));
+                        continue;
+                    };
+                    let key = format!("c{}", number[0].int().unwrap_or(-1));
+                    let x = c.int_at("Position", 0).unwrap_or(640);
+                    // y 0 is the default height: centred, raised by the
+                    // character's offset.
+                    let y = 360 + c.int_at("Position", 1).unwrap_or(0) + offset;
+                    let prio = c.int("Priority").unwrap_or(9);
+                    self.show(&key, (path, w, h), x, y, prio, if ty == "CharacterOpen" { 200 } else { 0 });
+                }
+            }
+            "CharacterDelete" => {
+                for c in t.children.iter().filter(|c| c.name.starts_with("Chara")) {
+                    let n = c.int("Number").unwrap_or(-1);
+                    self.hide(&format!("c{n}"), 200);
+                }
+            }
+            "CharacterMove" => {
+                let time = ms(t.int("Time").unwrap_or(0));
+                for c in t.children.iter().filter(|c| c.name.starts_with("Chara")) {
+                    let key = format!("c{}", c.int("Number").unwrap_or(-1));
+                    let Some(s) = self.shown.get(&key).cloned() else { continue };
+                    let x = c.int_at("Position", 0).map_or(s.x, sx);
+                    self.out.ops.push(Op::SpriteMove { layer: s.layer, x, y: s.y, ms: time });
+                    self.shown.insert(key, Shown { x, ..s });
+                }
+                self.note("CharacterMove (only x)");
+            }
+            "InOut" | "InOut_Act" => {
+                if self.staging {
+                    self.out.ops.push(Op::EndTransition);
+                    self.staging = false;
+                }
+            }
+            "FadeOut" => {
+                let rgb = colour(t);
+                let image = self.assets.colour(rgb);
+                let cover = SpriteChange { layer: COVER_LAYER, sprite: Some(SpritePlacement { image, x: 0, y: 0 }), keep_filters: false };
+                self.out.ops.push(Op::Sprites { changes: vec![cover.clone()], fade_ms: ms(t.int("Time").unwrap_or(0)) });
+                // Under the cover: remove every picture (also ones an
+                // earlier scene left), then put the cover back.
+                if t.int("SpriteDelete").unwrap_or(0) != 0 {
+                    self.shown.clear();
+                    self.out.ops.push(Op::ClearSprites);
+                    self.out.ops.push(Op::Sprites { changes: vec![cover], fade_ms: 0 });
+                }
+            }
+            "FadeIn" => {
+                let change = SpriteChange { layer: COVER_LAYER, sprite: None, keep_filters: false };
+                self.out.ops.push(Op::Sprites { changes: vec![change], fade_ms: ms(t.int("Time").unwrap_or(0)) });
+            }
+            "TimeWait" => self.out.ops.push(Op::Wait { ms: ms(t.int("Time").unwrap_or(0)) }),
+            "Window" => {
+                if t.int("Visible") == Some(0) {
+                    self.out.ops.push(Op::HideTextWindow);
+                }
+            }
+            "BgmPlay" => {
+                if let Some(file) = t.int("BGM").and_then(|id| self.assets.bgm(id as u32)) {
+                    let div = t.int("Div").unwrap_or(1);
+                    self.out.ops.push(Op::BgmPlay { file, fade_in_ms: if div > 1 { ms(div) } else { 0 } });
+                }
+            }
+            "BgmStop" => self.out.ops.push(Op::BgmStop { fade_out_ms: ms(t.int("Div").unwrap_or(0)) }),
+            "SePlay" => {
+                if let Some(file) = t.int("SE").and_then(|id| self.assets.se(id as u32)) {
+                    self.out.ops.push(Op::SePlay { file, looped: t.int("Loop").unwrap_or(0) != 0 });
+                }
+            }
+            "SeStop" => {
+                let file = t.int("SE").and_then(|id| self.assets.se(id as u32));
+                self.out.ops.push(Op::SeStop { file });
+            }
+            "Tag" => {
+                if let Some(name) = t.str("Name") {
+                    self.out.ops.push(Op::Label(tag_label(scene, name)));
+                }
+            }
+            "Jump_Tag" => {
+                if let Some(tag) = t.str("NextTag") {
+                    self.out.ops.push(Op::Jump(tag_label(scene, tag)));
+                }
+            }
+            "SceneJumpDialog" => {
+                // Not offered yet: always play the scene.
+                if let Some(tag) = t.str("NextTag") {
+                    self.out.ops.push(Op::Jump(tag_label(scene, tag)));
+                }
+                self.note("SceneJumpDialog (always plays the scene)");
+            }
+            "NextScene" => {
+                if let Some(next) = t.str("NextScene") {
+                    self.out.ops.push(Op::Jump(scene_label(next)));
+                }
+            }
+            "End" => self.out.ops.push(Op::ReturnToTitle),
+            "FlagSwitch_Tag" | "GlobalFlagSwitch_Tag" => {
+                let global = ty.starts_with("Global");
+                let (Some(name), Some(tag)) = (t.str("FlagName"), t.str("NextTag")) else { return };
+                let Some(var) = self.game.flag(name, global) else {
+                    self.unsupported(scene, i, format!("{ty}: unknown flag {name}"));
+                    return;
+                };
+                let cmp = match t.str("Operator").unwrap_or("==") {
+                    "!=" => Compare::Ne,
+                    "<" => Compare::Lt,
+                    ">" => Compare::Gt,
+                    "<=" => Compare::Le,
+                    ">=" => Compare::Ge,
+                    _ => Compare::Eq,
+                };
+                let value = Operand::Const(t.int("Param").unwrap_or(0) as i32);
+                self.out.ops.push(Op::If { var, cmp, value, label: tag_label(scene, tag) });
+            }
+            "FlagOperation" | "GlobalFlagOperation" => {
+                let global = ty.starts_with("Global");
+                let Some(name) = t.str("FlagName") else { return };
+                let Some(var) = self.game.flag(name, global) else {
+                    self.unsupported(scene, i, format!("{ty}: unknown flag {name}"));
+                    return;
+                };
+                if let Some(op) = self.arith(t.get("Action").unwrap_or(&[])) {
+                    self.out.ops.push(Op::Arith { var, op: op.0, value: Operand::Const(op.1) });
+                }
+            }
+            "MessageSwitch_Tag" => self.choice(scene, t),
+            "BacklogMessage" | "SceneJumpDialogEnd" | "CharacterWait" | "SpriteMoveEnd" | "CharacterActionEnd" => {}
+            _ => self.unsupported(scene, i, ty.to_string()),
+        }
+    }
+
+    /// `"+", 1` → (Add, 1).
+    fn arith(&self, action: &[Val]) -> Option<(ArithOp, i32)> {
+        let op = match action.first()?.str()? {
+            "=" => ArithOp::Set,
+            "+" => ArithOp::Add,
+            "-" => ArithOp::Sub,
+            _ => return None,
+        };
+        Some((op, action.get(1)?.int()? as i32))
+    }
+
+    /// `MessageSwitch_Tag`: the question (`:Text`), then the answers; an
+    /// answer with a `:Message<N>Flag` changes the flag before going on.
+    fn choice(&mut self, scene: &str, t: &Block) {
+        if let Some(text) = t.str("Text") {
+            self.out.ops.push(Op::Text {
+                speaker: None,
+                text: text.to_string(),
+                voice: None,
+                links: vec![],
+                ruby: vec![],
+                styles: vec![],
+                hang: None,
+                continues: false,
+            });
+        }
+        let n = t.int("AnswerMax").unwrap_or(0);
+        let mut options = Vec::new();
+        let mut stubs = Vec::new();
+        for k in 0..n {
+            let Some(answer) = t.get(&format!("AnswerMessageNumber{k}")) else { continue };
+            let (Some(tag), Some(text)) = (answer.first().and_then(Val::str), answer.get(1).and_then(Val::str)) else { continue };
+            let target = tag_label(scene, tag);
+            match t.get(&format!("Message{k}Flag")) {
+                Some(flag) => {
+                    let stub = format!("{}_choice{}_{k}", scene_label(scene), self.choices);
+                    let var = flag.first().and_then(Val::str).and_then(|f| self.game.flag(f, false));
+                    let op = self.arith(flag.get(1..).unwrap_or(&[]));
+                    stubs.push((stub.clone(), var.zip(op), target));
+                    options.push((text.to_string(), stub));
+                }
+                None => options.push((text.to_string(), target)),
+            }
+        }
+        self.choices += 1;
+        self.out.ops.push(Op::Choice { options, style: None });
+        for (stub, change, target) in stubs {
+            self.out.ops.push(Op::Label(stub));
+            if let Some((var, (op, v))) = change {
+                self.out.ops.push(Op::Arith { var, op, value: Operand::Const(v) });
+            }
+            self.out.ops.push(Op::Jump(target));
+        }
+    }
+}
+
+fn colour(t: &Block) -> u32 {
+    let c: Vec<i64> = t.get("Color").unwrap_or(&[]).iter().filter_map(Val::int).collect();
+    match c.as_slice() {
+        [r, g, b, ..] => ((*r as u32 & 255) << 16) | ((*g as u32 & 255) << 8) | (*b as u32 & 255),
+        _ => 0,
+    }
+}
+
+/// Compiles `scenes` (all of them if empty), each at its label, after a
+/// jump to the game's first scene.
+pub fn compile(game: &Game, scenes: &[String], assets: &mut dyn Assets) -> Compiled {
+    let mut l = Lowering { game, assets, out: Compiled::default(), shown: HashMap::new(), next_slot: HashMap::new(), staging: false, choices: 0 };
+    let names: Vec<&String> = if scenes.is_empty() { game.scenes.keys().collect() } else { scenes.iter().collect() };
+    let first = names.first().map(|s| s.as_str()).unwrap_or(&game.start);
+    let first = if scenes.is_empty() { game.start.as_str() } else { first };
+    l.out.ops.push(Op::Jump(scene_label(first)));
+    for name in names {
+        let Some(scene) = game.scenes.get(name) else { continue };
+        l.out.ops.push(Op::Label(scene_label(name)));
+        if let Some(title) = &scene.title {
+            l.out.ops.push(Op::Chapter { title: title.clone() });
+        }
+        l.shown.clear();
+        l.staging = false;
+        for i in 0..scene.tasks.len() {
+            l.task(name, &scene.tasks, i);
+        }
+        if l.staging {
+            l.out.ops.push(Op::EndTransition);
+            l.staging = false;
+        }
+        // A scene without NextScene or End falls through: end the game.
+        if !matches!(l.out.ops.last(), Some(Op::Jump(_) | Op::ReturnToTitle)) {
+            l.out.ops.push(Op::ReturnToTitle);
+        }
+    }
+    l.out
+}

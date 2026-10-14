@@ -10,7 +10,7 @@ use clap::Subcommand;
 use conv_engines::mages::cpk::Archive;
 use conv_engines::mages::tasks::{self, Block, Scene};
 
-use crate::{map, safe_relative_path};
+use crate::{lint_dir, map, pack, report, safe_relative_path};
 
 #[derive(Subcommand)]
 pub enum MagesCommand {
@@ -25,6 +25,30 @@ pub enum MagesCommand {
         #[arg(long, default_value = "")]
         prefix: String,
     },
+    /// Convert scenes into a CONscripter game directory: 0.txt plus arc.nsa
+    /// with the assets they use (sounds converted with ffmpeg)
+    Convert {
+        /// The decrypted game folder (contains media/)
+        game: PathBuf,
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Only these scenes (file names such as S01_01A), in this order;
+        /// default: all, starting at the game's first scene
+        #[arg(long, value_delimiter = ',')]
+        scenes: Vec<String>,
+        /// Font to copy into the output as default.ttf (CONscripter needs one)
+        #[arg(long)]
+        font: Option<PathBuf>,
+        /// Window caption
+        #[arg(long, default_value = "俺たちに翼はない")]
+        title: String,
+        /// Keep assets as loose files instead of packing them into .nsa
+        #[arg(long)]
+        loose: bool,
+        /// Write 0.txt only, no assets
+        #[arg(long)]
+        dry_run: bool,
+    },
     /// Parse every script in <game>/media/SCRIPT.cpk, count the task types
     /// and check that every file ID they use exists
     Check {
@@ -38,6 +62,9 @@ pub fn run(command: MagesCommand) -> Result<()> {
         MagesCommand::List { archive } => list(&archive),
         MagesCommand::Extract { archive, output, prefix } => extract(&archive, &output, &prefix),
         MagesCommand::Check { game } => check(&game),
+        MagesCommand::Convert { game, output, scenes, font, title, loose, dry_run } => {
+            convert(&game, &output, &scenes, font.as_deref(), &title, loose, dry_run)
+        }
     }
 }
 
@@ -151,5 +178,115 @@ fn check(game: &Path) -> Result<()> {
     if failed > 0 || !missing.is_empty() {
         bail!("{failed} scripts failed to parse, {} kinds of missing reference", missing.len());
     }
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn convert(game: &Path, output: &Path, scenes: &[String], font: Option<&Path>, title: &str, loose: bool, dry_run: bool) -> Result<()> {
+    use conv_core::ir::Script;
+    use conv_engines::mages::assets::{ArchiveAssets, Bank, OUTPUT_DIRS};
+    use conv_engines::mages::convert::{self, Game};
+    fs::create_dir_all(output)?;
+    if let Some(d) = OUTPUT_DIRS.iter().find(|d| !loose && !dry_run && output.join(d).exists()) {
+        bail!("{} already exists; move it away first (it would be packed and then deleted)", output.join(d).display());
+    }
+    let g = Game::load(&scripts(game)?).map_err(anyhow::Error::msg)?;
+    let names = ["CG.cpk", "CHR.cpk", "ETC.cpk", "SystemData.cpk", "VOICE.AWB", "SE.AWB", "BGM.AWB"];
+    let maps: Vec<_> = names.iter().map(|n| map(&game.join("media").join(n))).collect::<Result<_>>()?;
+    let mut banks = Vec::new();
+    for (n, m) in names.iter().zip(&maps) {
+        banks.push(Bank::new(m).with_context(|| format!("reading {n}"))?);
+    }
+    let mut b = banks.into_iter();
+    let mut next = || b.next().unwrap();
+    let mut assets = ArchiveAssets::new(next(), next(), next(), next(), next(), next(), next(), output);
+    assets.dry_run = dry_run;
+    let compiled = convert::compile(&g, scenes, &mut assets);
+    let window = convert::text_window(&mut assets);
+    for e in &assets.errors {
+        println!("  asset error: {e}");
+    }
+    let ir = Script {
+        title: title.to_string(),
+        width: convert::SCREEN_W as u32,
+        height: convert::SCREEN_H as u32,
+        global_border: Some(convert::GLOBAL_BORDER),
+        window: Some(window),
+        ops: compiled.ops,
+        ..Script::default()
+    };
+    let (encoded, lost) = conv_cons::encode(&conv_cons::emit(&ir));
+    fs::write(output.join("0.txt"), encoded)?;
+    fs::write(output.join("ons_args"), conv_cons::ENGINE_ARGS)?;
+    if !dry_run {
+        audio(&assets.audio)?;
+        if let Some(font) = font {
+            fs::copy(font, output.join("default.ttf")).with_context(|| format!("copying {}", font.display()))?;
+        }
+        if !loose {
+            pack(output, &OUTPUT_DIRS)?;
+        }
+    }
+    println!("{} scenes -> {}", if scenes.is_empty() { g.scenes.len() } else { scenes.len() }, output.join("0.txt").display());
+    report(&ir, lost, font.is_some());
+    let mut notes: Vec<_> = compiled.notes.into_iter().collect();
+    notes.sort_by_key(|n| std::cmp::Reverse(n.1));
+    if !notes.is_empty() {
+        println!("  not converted or approximated:");
+    }
+    for (what, n) in notes {
+        println!("    {n:>6}  {what}");
+    }
+    let lint = lint_dir(output, !dry_run)?;
+    if !lint.is_empty() {
+        println!("  lint:");
+        print!("{lint}");
+    }
+    Ok(())
+}
+
+/// Converts the queued sounds to Ogg Vorbis with ffmpeg, in parallel.
+fn audio(jobs: &BTreeMap<String, conv_engines::mages::assets::AudioJob>) -> Result<()> {
+    use std::io::Write;
+    use std::process::{Command, Stdio};
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    let jobs: Vec<_> = jobs.values().filter(|j| !j.output.exists()).collect();
+    let next = AtomicUsize::new(0);
+    let failed = std::sync::Mutex::new(Vec::new());
+    let threads = std::thread::available_parallelism().map_or(4, |n| n.get());
+    std::thread::scope(|s| {
+        for _ in 0..threads {
+            s.spawn(|| {
+                while let Some(job) = jobs.get(next.fetch_add(1, Ordering::Relaxed)) {
+                    if let Some(dir) = job.output.parent() {
+                        let _ = fs::create_dir_all(dir);
+                    }
+                    let mut cmd = Command::new("ffmpeg");
+                    cmd.args(["-v", "error", "-y", "-i", "pipe:0", "-c:a", "libvorbis", "-q:a", "4"]);
+                    if let Some((start, end)) = job.looped {
+                        cmd.args(["-metadata", &format!("LOOPSTART={start}"), "-metadata", &format!("LOOPEND={end}")]);
+                    }
+                    cmd.arg(&job.output).stdin(Stdio::piped()).stdout(Stdio::null()).stderr(Stdio::piped());
+                    let ok = cmd.spawn().ok().and_then(|mut child| {
+                        let mut stdin = child.stdin.take()?;
+                        // ffmpeg may stop reading early; its exit status tells.
+                        let _ = stdin.write_all(job.source);
+                        drop(stdin);
+                        child.wait_with_output().ok()
+                    });
+                    match ok {
+                        Some(o) if o.status.success() => {}
+                        Some(o) => failed.lock().unwrap().push(format!("{}: {}", job.output.display(), String::from_utf8_lossy(&o.stderr).trim())),
+                        None => failed.lock().unwrap().push(format!("{}: could not run ffmpeg", job.output.display())),
+                    }
+                }
+            });
+        }
+    });
+    let failed = failed.into_inner().unwrap();
+    for f in &failed {
+        println!("  audio error: {f}");
+    }
+    println!("  {} sounds converted, {} failed", jobs.len() - failed.len(), failed.len());
     Ok(())
 }

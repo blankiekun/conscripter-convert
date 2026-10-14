@@ -111,23 +111,45 @@ Not yet: the source and the route order go here.
 
 Not yet.
 
-## Status: formats read (2026-10-13)
+## Status: first scenes play (2026-10-13)
 
-The package decrypts, every archive lists and extracts
-and the script format and its references are understood (above).
-`crates/conv-engines/src/mages/` reads the archives (`cpk.rs`) and the
-scripts (`tasks.rs`):
+`crates/conv-engines/src/mages/` reads the archives (`cpk.rs`), the
+scripts (`tasks.rs`), lowers scenes to the IR (`convert.rs`) and writes
+the assets (`assets.rs`; sounds become Ogg Vorbis through ffmpeg, BGM
+with its ADX loop as `LOOPSTART`/`LOOPEND`):
 
     conscripter-convert mages list <game>/media/CG.cpk
     conscripter-convert mages extract <game>/media/SCRIPT.cpk -o <dir>
     conscripter-convert mages check <game>
+    conscripter-convert mages convert <game> -o out/oretsuba-cons \
+        --font <ipag.ttf> [--scenes S01_01A,S01_02A]
 
 `mages check` parses all 463 scenes (65,485 messages) and finds every
-texture, voice, SE and BGM ID they use in the archives. Nothing
-converts yet.
+texture, voice, SE and BGM ID they use in the archives.
+
+Output: 960×544, the Vita's screen. Script coordinates (1280×720) are
+scaled by 3/4 across and 544/720 down; CG and CHR pictures are already
+at that scale, SystemData's are drawn at 1280×720 and are scaled by 3/4
+(`meswin.png`, the text window).
+
+| Feature | State |
+|---|---|
+| Messages, speaker names (from the scripts' `:Name N // name` comments), voices | converted |
+| Backgrounds and sprites (`SpriteBG`, `Sprite`, `SpriteBS`, deletes), by priority | converted; positions not yet checked against the original |
+| Characters (`CharacterOpen`, `…BS`, `CharacterDelete`, `CharacterMove` x only) | converted; height guessed (centre + `OffsetY`) |
+| `InOut` transitions with the RULE masks | converted; `InOut_Act` as a plain fade |
+| FadeOut/FadeIn, TimeWait, BGM, SE, Window hide | converted |
+| Tags, jumps, flag switches and operations, choices with points, NextScene | converted, not yet checked against a walkthrough |
+| SceneJumpDialog (skip a scene already read) | always plays the scene |
+| EffectQuake, Flash, EffectStart/End, SpriteMove/Quake, CharacterAction, EyeCatch, MoviePlay, Achievement, SetSceneName | not yet |
+| Title, save/load, settings, backlog, extras | not yet |
 
 Next, in order:
-1. Vertical slice: lower one scene (Message with name and voice,
-   SpriteBG, CharacterOpen, BGM, SE) to the IR and run it.
-2. Walkthrough (this document), then control flow across all scenes
-   (NextScene, tags, flags, choices) and the route check.
+1. Full build of every scene; fix what the lint and a headless run of
+   the first chapter show. Text window layout and character heights
+   from reference screenshots of the Vita game.
+2. Effects: EffectQuake, Flash, SpriteMove, EyeCatch, movies (USM →
+   MP4), InOut_Act types.
+3. Walkthrough (this document), then the route check of the converted
+   control flow.
+4. System screens and extras (CGMODE, scene replay, music).
