@@ -29,7 +29,9 @@
 //! all 913 scripts.
 
 use std::collections::HashMap;
-use std::io::Read;
+use std::fs::File;
+use std::io::{Read, Seek, SeekFrom};
+use std::sync::Mutex;
 
 use thiserror::Error;
 
@@ -51,6 +53,8 @@ pub enum NpaError {
     Inflate { name: String, source: std::io::Error },
     #[error("{name}: unpacked {got} bytes, the index says {want}")]
     Size { name: String, got: usize, want: usize },
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
 }
 
 /// The inverse of the exe's substitution table.
@@ -84,8 +88,16 @@ pub struct Entry {
     pub size: usize,
 }
 
+/// Where the archive's bytes are: in memory, or read from the file entry
+/// by entry ([`Npa::open`]), which keeps the gigabytes of `cg.npa` and
+/// `voice.npa` out of the converter's memory.
+enum Source<'a> {
+    Bytes(&'a [u8]),
+    File(Mutex<File>),
+}
+
 pub struct Npa<'a> {
-    bytes: &'a [u8],
+    source: Source<'a>,
     key: Key,
     key12: u32,
     compressed: bool,
@@ -109,6 +121,22 @@ pub fn normalize(name: &str) -> String {
 
 impl<'a> Npa<'a> {
     pub fn parse(bytes: &'a [u8], key: Key) -> Result<Npa<'a>, NpaError> {
+        Npa::parse_index(bytes, key, Source::Bytes(bytes))
+    }
+
+    /// Reads the header and index from `file`; [`Npa::data`] then reads
+    /// each entry from the file when asked.
+    pub fn open(mut file: File, key: Key) -> Result<Npa<'static>, NpaError> {
+        let mut index = vec![0; HEADER_LEN];
+        file.read_exact(&mut index)?;
+        let index_len = Reader(&index).u32(37)? as usize;
+        index.resize(HEADER_LEN + index_len, 0);
+        file.read_exact(&mut index[HEADER_LEN..])?;
+        Npa::parse_index(&index, key, Source::File(Mutex::new(file)))
+    }
+
+    /// Parses the header and index at the start of `bytes`.
+    fn parse_index(bytes: &[u8], key: Key, source: Source<'a>) -> Result<Npa<'a>, NpaError> {
         let r = Reader(bytes);
         if r.slice(0, 3)? != b"NPA" {
             return Err(NpaError::BadMagic);
@@ -139,7 +167,7 @@ impl<'a> Npa<'a> {
             }
         }
         let by_name = entries.iter().enumerate().map(|(i, e)| (normalize(&e.name), i)).collect();
-        Ok(Npa { bytes, key, key12, compressed, encrypted, data_start, entries, by_name })
+        Ok(Npa { source, key, key12, compressed, encrypted, data_start, entries, by_name })
     }
 
     /// Finds a file by name, ignoring case and separator style.
@@ -149,7 +177,16 @@ impl<'a> Npa<'a> {
 
     /// The file's contents, decrypted and unpacked.
     pub fn data(&self, e: &Entry) -> Result<Vec<u8>, NpaError> {
-        let mut b = Reader(self.bytes).slice(self.data_start + e.offset, e.stored)?.to_vec();
+        let mut b = match &self.source {
+            Source::Bytes(bytes) => Reader(bytes).slice(self.data_start + e.offset, e.stored)?.to_vec(),
+            Source::File(file) => {
+                let mut file = file.lock().unwrap_or_else(|e| e.into_inner());
+                file.seek(SeekFrom::Start((self.data_start + e.offset) as u64))?;
+                let mut b = vec![0; e.stored];
+                file.read_exact(&mut b)?;
+                b
+            }
+        };
         if self.encrypted {
             let sum: u32 = e.raw_name.iter().map(|&c| c as u32).sum();
             let k = 0x87654321u32

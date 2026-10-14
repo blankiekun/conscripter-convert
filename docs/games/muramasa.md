@@ -26,7 +26,7 @@ Paths below are relative to the repository unless they say otherwise;
 
 ## Build
 
-Whole game, script only (about 10 s, 2.2 GB peak; writes `0.txt`, no
+Whole game, script only (about 10 s, 1.2 GB peak; writes `0.txt`, no
 assets; use it for anything about logic):
 
 ```sh
@@ -37,8 +37,9 @@ target/release/conscripter-convert convert-nss <game> \
 Full build: the same without `--dry-run`, plus
 `--font <a Japanese TTF, e.g. ipam.ttf> --title 装甲悪鬼村正` (the font
 is copied into the output as `default.ttf`). It takes
-about 8 minutes and **about 6.7 GB of memory**: run it in the
-background, one at a time, and say so before starting one.
+about 3 minutes and 1.2 GB of memory (2026-10-14; it was 7 GB until
+big zooms were cut to the screen, see "How the compiler works"), and
+writes 3.5 GB. Run one at a time.
 
 - Start at `ma00_000.nss`, the new game of the boot script (the
   prologue, and the file that unlocks 魔王編). Starting anywhere else
@@ -191,7 +192,9 @@ IR ops at the points where the original waits:
   layer ordered by draw priority. A blocking `Fade`/`Move`, a `Wait` or
   a text page shows the changes since the last such point as one
   cross-fade over the action's time. Non-blocking actions join the next
-  blocking point. `PrintBG` freezes the screen under a cover and
+  blocking point. A zoomed picture is a scaled copy (`system/zoom/`);
+  one wider or taller than 4096 px (zooms go up to 60×, dives into a
+  picture) is cut to its part on the screen, so it stays loadable. `PrintBG` freezes the screen under a cover and
   rebuilds the scene; the cover's fade-out is the cross-fade.
 - **Text:** the window comes from the `SetText*` helper's layout
   (`LoadText` size and pitch, `Rotate` 90° = vertical, `Move`). Face
@@ -425,8 +428,7 @@ closely to follow the battle HUD is open.
 
 Next, in order:
 1. **A long engine skip run per route** (playbook step 4), to catch
-   engine exits deep in the game. Needs a full build (about 8 minutes,
-   6.7 GB of memory: say so before starting one).
+   engine exits deep in the game. Needs a full build (see "Build").
 2. **System screens** (step 7): title, save/load, settings, backlog,
    built as in-script menus from `cg/sys/*` parts, as for 最果てのイマ
    (`conv-cons/src/menu.rs`). A big item: check with the user first.

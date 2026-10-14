@@ -112,8 +112,10 @@ pub trait Assets {
     fn composite(&mut self, parts: &[(String, i64, i64, i64)]) -> Option<(String, i64, i64)>;
     /// A fully transparent picture.
     fn transparent(&mut self) -> String;
-    /// An output image scaled to `zx`, `zy` per mille: its path and size.
-    fn scaled(&mut self, image: &str, zx: i64, zy: i64) -> Option<(String, u32, u32)>;
+    /// An output image scaled to `zx`, `zy` per mille about the centre of
+    /// the box `at` (x, y, w, h) it fills unscaled: the picture to draw
+    /// (perhaps only its part on the screen), its top-left and size.
+    fn scaled(&mut self, image: &str, zx: i64, zy: i64, at: (i64, i64, i64, i64)) -> Option<(String, i64, i64, u32, u32)>;
     /// An output image blurred with a Gaussian of `sigma`/10 px.
     fn blurred(&mut self, image: &str, sigma: u32) -> Option<String>;
 }
@@ -1927,10 +1929,9 @@ impl<'a, 'b> Compiler<'a, 'b> {
             .into_iter()
             .map(|(n, mut shown, key, zoom, (w, h), blur)| {
                 if zoom != (1000, 1000)
-                    && let Some((image, sw, sh)) = self.assets.scaled(&shown.image, zoom.0, zoom.1)
+                    && let Some((image, x, y, sw, sh)) = self.assets.scaled(&shown.image, zoom.0, zoom.1, (shown.x, shown.y, w, h))
                 {
-                    shown.x += (w - sw as i64) / 2;
-                    shown.y += (h - sh as i64) / 2;
+                    (shown.x, shown.y) = (x, y);
                     (shown.w, shown.h) = (sw as i64, sh as i64);
                     shown.image = image;
                 }
@@ -2348,8 +2349,9 @@ mod tests {
         fn transparent(&mut self) -> String {
             "none.png".into()
         }
-        fn scaled(&mut self, image: &str, zx: i64, zy: i64) -> Option<(String, u32, u32)> {
-            Some((format!("{image}@{zx}x{zy}"), (1024 * zx / 1000) as u32, (576 * zy / 1000) as u32))
+        fn scaled(&mut self, image: &str, zx: i64, zy: i64, at: (i64, i64, i64, i64)) -> Option<(String, i64, i64, u32, u32)> {
+            let (w, h) = (1024 * zx / 1000, 576 * zy / 1000);
+            Some((format!("{image}@{zx}x{zy}"), at.0 + (at.2 - w) / 2, at.1 + (at.3 - h) / 2, w as u32, h as u32))
         }
         fn blurred(&mut self, image: &str, sigma: u32) -> Option<String> {
             Some(format!("{image}~{sigma}"))
