@@ -25,3 +25,9 @@ game data. Run them with `python3 -I` from outside the game directory.
 |---|---|
 | `npa.py <exe> <npa> [out [glob]]` | Lists or extracts the encrypted NPA archives |
 | `builtins.md` | What each engine built-in does, with use counts (`conscripter-convert nss builtins`) and the NScripter mapping |
+
+## oretsuba/ (俺たちに翼はない, PS Vita)
+
+| Script | What it does |
+|---|---|
+| `cpk.py <file> [out [glob]]` | Lists or extracts CRI archives: CPK (TOC with names, or ITOC with IDs only, as in the `.AWB` sound banks) and AFS2 (`VOICE.AWB`); decompresses CRILAYLA |
