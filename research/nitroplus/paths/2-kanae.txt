@@ -1,0 +1,60 @@
+# 復讐編 (香奈枝): rodemass chart, second column. Favouring 一条 at
+# ma03_021 gets her killed at the end of part 3, so the run goes on with
+# 香奈枝. The airship exploration (mc02_031*) is the chart's room order.
+# The chart detours through bad ends for their CGs (打つ, 待つ, 敵の太刀);
+# this path takes the surviving options only.
+ma02_003:1
+ma02_006:2
+ma02_013:2
+ma02_014:2
+ma02_018:1
+ma03_005:1
+ma03_011:2
+ma03_011b:2
+ma03_021:1
+ma04_022:1
+mc01_009vs:1
+mc01_010vs:1
+mc01_011vs:1
+mc01_011vsa:2
+mc01_011vsab:3
+mc01_019vs:2
+mc01_020vs:2
+mc01_021vs:2
+mc01_021vsb:2
+mc02_031start:2
+mc02_031rouka3:4
+mc02_031innsyoku:1
+mc02_031daidokoro:4
+mc02_031daidokoroz:1
+mc02_031syokuryou:3
+mc02_031daidokoro:2
+mc02_031daidokoroz:2
+mc02_031innsyoku:2
+mc02_031rouka3:1
+mc02_031rouka2:3
+mc02_031souko2:1
+mc02_031rouka2:1
+mc02_031rouka1:3
+mc02_031rouka1:2
+mc02_031rouka2:2
+mc02_031rouka3:4
+mc02_031innsyoku:2
+mc02_031rouka3:2
+mc02_031rouka3:4
+mc02_031innsyoku:2
+mc02_031rouka3:2
+mc03_017vs:2
+mc03_017vsb:2
+mc03_018vs:2
+mc03_018vsb:2
+mc03_023vs:1
+mc04_014vs:3
+mc04_014vsc:2
+mc04_017vs:1
+mc04_017vsa:2
+"殺すため"
+"殺す"
+"大鳥獅子吼との戦闘"
+"敵騎の視力"
+END mc04_052
