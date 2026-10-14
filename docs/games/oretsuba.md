@@ -184,7 +184,7 @@ at that scale, SystemData's are drawn at 1280×720 and are scaled by 3/4
 | `InOut` transitions with the RULE masks | converted; `InOut_Act` as a plain fade |
 | FadeOut/FadeIn, TimeWait, BGM, SE, Window hide | converted |
 | Tags, jumps, flag switches and operations, choices with points, NextScene | converted, not yet checked against a walkthrough |
-| SceneJumpDialog (skip a scene already read) | always plays the scene |
+| SceneJumpDialog (skip a scene already read) | converted: a global "read" flag per scene (`%1200` + the scene's index in name order); a read scene shows its summary and このシーンを読む / このシーンをスキップする |
 | Flash; EffectQuake/End and SpriteQuake (a screen shake dying down over `:Time`); SpriteMove (no `:Scale`, always waited on) | converted |
 | CharacterAction (`chract`'s 661 keyframed moves: bows, shakes) | converted as straight moves between keyframes, waited on; the looping ones are left out |
 | EyeCatch (a wipe with rule N to an eye-catch picture, then a fade) | a 0.5 s pause: the picture is not known |

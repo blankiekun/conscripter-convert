@@ -38,6 +38,9 @@ const FLAG_BASE: u16 = 50;
 /// First global (`[GlobalFlag]`): %410-%439, clear of conv-cons's
 /// globals (%200-%301, %900 up).
 const GLOBAL_FLAG_BASE: u16 = 210;
+/// Global variable index of scene `n`'s "read" flag (the scenes in name
+/// order): %1200 up, past conv-cons's and smoke.py's (%1000-%1099).
+const SCENE_READ_BASE: u16 = 1000;
 const PRIORITY_STEP: u32 = 20;
 /// The front layer that `FadeOut` covers the picture with.
 const COVER_LAYER: u32 = 0;
@@ -466,13 +469,7 @@ impl Lowering<'_> {
                     self.out.ops.push(Op::Jump(tag_label(scene, tag)));
                 }
             }
-            "SceneJumpDialog" => {
-                // Not offered yet: always play the scene.
-                if let Some(tag) = t.str("NextTag") {
-                    self.out.ops.push(Op::Jump(tag_label(scene, tag)));
-                }
-                self.note("SceneJumpDialog (always plays the scene)");
-            }
+            "SceneJumpDialog" => self.scene_jump(scene, t),
             "NextScene" => {
                 // `"S01_02A","SJ"`: at that scene's tag.
                 let v = t.get("NextScene").unwrap_or(&[]);
@@ -613,6 +610,29 @@ impl Lowering<'_> {
             "BacklogMessage" | "SceneJumpDialogEnd" | "MovieStop" | "EyeCatchEnd" | "CharacterWait" | "SpriteMoveEnd" | "CharacterActionEnd" => {}
             _ => self.unsupported(scene, i, ty.to_string()),
         }
+    }
+
+    /// `SceneJumpDialog`: a scene read before may be skipped. Unread, it
+    /// plays (from `:UnreadTag` if given, else `:NextTag`) and counts as
+    /// read; read, its summary (`:Text`) is shown with the choice to read
+    /// it again (`:NextTag`) or skip it (`:JumpNextTag`).
+    fn scene_jump(&mut self, scene: &str, t: &Block) {
+        let (Some(play), Some(skip)) = (t.str("NextTag"), t.str("JumpNextTag")) else { return };
+        let Some(n) = self.game.scenes.keys().position(|k| k == scene) else { return };
+        let read = Var { global: true, index: SCENE_READ_BASE + n as u16 };
+        let unread = t.str("UnreadTag").unwrap_or(play);
+        let offer = format!("{}_offer{}", scene_label(scene), self.choices);
+        self.out.ops.push(Op::If { var: read, cmp: Compare::Ne, value: Operand::Const(0), label: offer.clone() });
+        self.out.ops.push(Op::Arith { var: read, op: ArithOp::Set, value: Operand::Const(1) });
+        self.out.ops.push(Op::Jump(tag_label(scene, unread)));
+        self.out.ops.push(Op::Label(offer));
+        let summary = t.str("Text").unwrap_or("").trim_end().to_string();
+        if !summary.trim().is_empty() {
+            self.out.ops.push(Op::Text { speaker: None, text: summary, voice: None, links: vec![], ruby: vec![], styles: vec![], hang: None, continues: false });
+        }
+        let options = vec![("このシーンを読む".to_string(), tag_label(scene, play)), ("このシーンをスキップする".to_string(), tag_label(scene, skip))];
+        self.choices += 1;
+        self.out.ops.push(Op::Choice { options, style: None });
     }
 
     /// `"+", 1` → (Add, 1).
