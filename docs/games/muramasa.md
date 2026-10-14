@@ -484,28 +484,34 @@ Used to check what the engine does (`docs/new-game.md` step 9).
 ## Status: in progress (2026-10-14)
 
 The whole story compiles, the 立方陣 included, and every ending of the
-chart is reached in the converted control flow. **Engine skip runs**
-(2026-10-14, see "Testing"), the full build played in CONscripter with
-every page drawn and the files checked against nstrace:
+chart is reached in the converted control flow. **Route runs**
+(2026-10-14, see "Testing"), the full build played in CONscripter
+0.19.0 headless with `--auto-play` and a debug trace, every page drawn
+and the files checked against nstrace:
 
-| Run | Ending | Files | Time | Result |
-|---|---|---|---|---|
-| 1 | 一条END | 246 | 40 min | passed |
-| 2 | 香奈枝END | 349 | 41 min | passed |
-| 3 | 茶々丸END | 300 | 44 min | passed |
-| 9 | 村正END | 508 of 510 | 56 min | **aborted** in `md06_032` |
-| 10 | TRUE END | 514 | 56 min | passed |
+| Run | Ending | Files | Pages | Time | Result |
+|---|---|---|---|---|---|
+| 1 | 一条END | 246 | 26,709 | 20 min | passed |
+| 2 | 香奈枝END | 349 | 26,088 | 22 min | passed |
+| 3 | 茶々丸END | 300 | 29,139 | 23 min | passed |
+| 9 | 村正END | 510 | 36,279 | 28 min | passed |
+| 10 | TRUE END | 514 | 36,452 | 28 min | passed |
 
-Run 9 aborted with `malloc(): unaligned tcache chunk detected`
-(SIGABRT): heap corruption in the engine, noticed in `malloc` under
-`lspCommand` → `loadImage` → `createSurfaceFromFile` →
-SDL (`cg\anime\slash01a_02.png`). The damage happened earlier: run 10
-plays the same files without trouble, and an AddressSanitizer build
-(`-fsanitize=address`, flags as in "Build" plus the SDL2_mixer
-`PKG_CONFIG_PATH`) started at `md06_030` with `--at` reached the end
-with no error. Not found yet: an ASan run of the whole route 9 (about
-2-3 hours) would show the first bad write. Testing paused here
-(2026-10-14) while CONscripter gets better debug options.
+The same runs on Xvfb in skip mode took 40-56 minutes. On CONscripter
+0.18.0, run 9 aborted 508 files in with `malloc(): unaligned tcache
+chunk detected` (heap corruption, noticed in `malloc` under `lsp` →
+`loadImage`); on 0.19.0 it passes. A likely cause, fixed in between:
+CONscripter's `DirectReader` copied a file name's extension over its
+own buffer with an overlapping `strcpy` (engine `1d51abc`; undefined
+behaviour on file reads). ASAN_RESULT
+
+The checker (`cons_trace_check.py` with `research/nitroplus/cons_trace_check.json`)
+found one bug on the first run, the typewriter captions (below). The
+rest of its report is expected for this game: `crowd` and `offscreen`
+(NSS layers many full-screen objects and parks some off screen),
+`sound` (the battle scenes start one effect on several channels),
+`memory` (a few pre-scaled zoom pictures of 67-77 MB, see "How the
+compiler works").
 
 Fixed on the way (each found by the runs, all in the current build):
 - A `?` in horizontal text: NScripter reads it as an array reference
@@ -519,6 +525,15 @@ Fixed on the way (each found by the runs, all in the current build):
   (《興隆四一年一〇月一二日》) came out one character per column, and 30
   lines of dialogue were split in two. Found by the trace checker's
   `text` rule ("the text runs past the window") on the first route run.
+- A `/* … */` block inside a text block was printed as text (`／＊`,
+  three copies of 「暗闇星人……」, `＊／`, in 3 files). The NSS parser now
+  leaves it out like a `//` line.
+- Lines spoken in unison (66 `CreateVOICE` calls in 32 files) had no
+  voice: the helper plays them only when the setting "other voices"
+  (`#SYSTEM_voice_enable_another`) is on, which the compiler didn't
+  know. It now starts with the value a first start gives it (on), and
+  the voices play together on their own channels. Both found by the
+  checker's `voice` rule.
 - Non-blocking actions were cross-faded over their whole time at the
   next sync: a 270 s background scroll (`ma04_013vs`) blocked the
   player for 270 s, 51 cross-fades were over a minute. Now at most a
@@ -527,13 +542,12 @@ Fixed on the way (each found by the runs, all in the current build):
 
 Testing notes: other agents stop engines with `pkill -x conscripter`;
 run ours through a symlink with another name (`--engine
-out/conscripter-mura`). The skip runs and `--at` starts are in
+out/conscripter-mura`). The route runs and `--at` starts are in
 `research/nitroplus/engrun.py`.
 
 Next, in order:
-1. **Find run 9's heap corruption** (with CONscripter's new debug
-   options, or an ASan build over the whole route 9), fix it in the
-   engine, and rerun the five skip runs.
+1. Rerun the five route runs on a build with the `<?>` fix (the
+   captions in `ma01_026`), and check their traces.
 2. **System screens** (step 7): title, save/load, settings, backlog,
    built as in-script menus from `cg/sys/*` parts, as for 最果てのイマ
    (`conv-cons/src/menu.rs`); the settings screen also shows the build's

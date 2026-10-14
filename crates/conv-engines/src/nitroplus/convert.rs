@@ -1230,12 +1230,16 @@ impl<'a, 'b> Compiler<'a, 'b> {
     }
 
     fn new(files: &'a BTreeMap<String, NssFile>, file: &'a str, game: &'static Game, assets: &'b mut dyn Assets) -> Self {
+        // Settings the scripts read, at the values a first start gives them
+        // (`sys_config.nss`): the voices of lines spoken in unison
+        // (`CreateVOICE`) play only with "other voices" on.
+        let vars = HashMap::from([("#SYSTEM_voice_enable_another".to_string(), Value::Int(1))]);
         Compiler {
             files,
             library: library(files),
             game,
             assets,
-            vars: HashMap::new(),
+            vars,
             frames: Vec::new(),
             file,
             objects: BTreeMap::new(),
