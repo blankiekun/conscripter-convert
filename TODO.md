@@ -7,6 +7,24 @@ Coming back to this game: read this, then `saiima.md` (local handoff
 notes, git-ignored) and `PLAN.md` §4.2 and §6 ("Status of
 最果てのイマ").
 
+## 装甲悪鬼村正 (branch `nitroplus`): state and next
+
+Handoff notes: `muramasa.md` (local, git-ignored; its "Resume here" maps
+the work to `docs/new-game.md`).
+- State (2026-10-13): the story compiles from the NSS sources, 879 of
+  883 files from the new-game start `ma00_000.nss`; engine-checked from
+  ma01_001 to ma02_003 and at 4 forks. Playbook steps 0-6 mostly done,
+  7 (system screens) and 8 (extras) not started.
+- Step 11: walkthrough and progression variables written down
+  (`research/nitroplus/progress.py`). Found that builds starting at
+  `ma01_001` never set `#魔王編解放`, so 魔王編, 悪鬼編 and the TRUE END
+  were unreachable.
+- Next: a `0.txt` route tracer driven by the walkthrough's choice paths
+  (step 11.3-11.4); a long skip run per route in the engine; then ask
+  the user about scope (extras, 立方陣, cockpit HUD, movies) before
+  system screens.
+- Progression verified against walkthrough: no.
+
 ## Rules (from the user)
 
 - One commit per task, pushed separately. Engine (`engine/` submodule,
