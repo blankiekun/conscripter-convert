@@ -27,6 +27,8 @@ const HINTS_CORNER: (u32, u32, u32, u32) = (626, 470, 334, 70);
 const PAGE_BOX: (u32, u32, u32, u32) = (818, 22, 142, 64);
 const GLOW: [u8; 3] = [90, 130, 255];
 const HOVER_GLOW: [u8; 3] = [255, 190, 70];
+/// The atlas labels' glow.
+const BAR_GLOW: [u8; 3] = [70, 80, 255];
 
 /// Draws labels with the game's font.
 pub struct Labels<'f> {
@@ -62,22 +64,7 @@ impl<'f> Labels<'f> {
                 });
             }
         }
-        // The halo: the letters spread by 2 pixels.
-        let mut halo = vec![0f32; mask.len()];
-        for y in 0..h as i32 {
-            for x in 0..w as i32 {
-                let mut sum = 0.0;
-                for dy in -2..=2 {
-                    for dx in -2..=2 {
-                        let (sx, sy) = (x + dx, y + dy);
-                        if sx >= 0 && sy >= 0 && sx < w as i32 && sy < h as i32 {
-                            sum += mask[(sy as u32 * w + sx as u32) as usize];
-                        }
-                    }
-                }
-                halo[(y as u32 * w + x as u32) as usize] = (sum / 8.0).min(1.0);
-            }
-        }
+        let halo = spread(&mask, w, h);
         let mut img = RgbaImage::new(w, h);
         for (i, px) in img.pixels_mut().enumerate() {
             let (m, g) = (mask[i], halo[i] * 0.85);
@@ -101,6 +88,44 @@ impl<'f> Labels<'f> {
         ];
         side_by_side(&cells)
     }
+}
+
+/// A halo around a coverage mask: the letters spread by 2 pixels.
+fn spread(mask: &[f32], w: u32, h: u32) -> Vec<f32> {
+    let mut halo = vec![0f32; mask.len()];
+    for y in 0..h as i32 {
+        for x in 0..w as i32 {
+            let mut sum = 0.0;
+            for dy in -2..=2 {
+                for dx in -2..=2 {
+                    let (sx, sy) = (x + dx, y + dy);
+                    if sx >= 0 && sy >= 0 && sx < w as i32 && sy < h as i32 {
+                        sum += mask[(sy as u32 * w + sx as u32) as usize];
+                    }
+                }
+            }
+            halo[(y as u32 * w + x as u32) as usize] = (sum / 8.0).min(1.0);
+        }
+    }
+    halo
+}
+
+/// `img` over a dark halo of its own shape (`strength` 0-1), so that
+/// light letters stay readable on light pictures.
+fn shadowed(img: &RgbaImage, strength: f32) -> RgbaImage {
+    let (w, h) = img.dimensions();
+    let mask: Vec<f32> = img.pixels().map(|p| p.0[3] as f32 / 255.0).collect();
+    let halo = spread(&mask, w, h);
+    let mut out = RgbaImage::new(w, h);
+    for (i, (px, p)) in out.pixels_mut().zip(img.pixels()).enumerate() {
+        let (m, g) = (mask[i], halo[i] * strength);
+        let a = m + g * (1.0 - m);
+        if a > 0.0 {
+            let c = |k: usize| (p.0[k] as f32 * m / a) as u8;
+            *px = Rgba([c(0), c(1), c(2), (a * 255.0) as u8]);
+        }
+    }
+    out
 }
 
 fn side_by_side(cells: &[RgbaImage]) -> RgbaImage {
@@ -188,36 +213,67 @@ fn button(assets: &mut ArchiveAssets, labels: &Labels, name: &str, text: &str, s
     place(assets, name, &img, cx - w / 2, cy - h / 2)
 }
 
-/// The bar along the bottom right, under the text window's edge.
+/// The Vita's in-game labels in the skip dialog's atlas (`ss_bg1.png`):
+/// Q-Save, Q-Load, Return, Save, Load, Log, Config in 60×24 cells from
+/// x = 0, in rows from y = 746: white, glowing blue (selected), navy (for
+/// light backgrounds), faded.
+const ATLAS_LABELS: (u32, u32, u32, u32) = (0, 746, 60, 24);
+
+/// Label `column` of the atlas as a button (normal, glowing, faded),
+/// trimmed to the columns any of them covers. The Vita draws them on
+/// dark panels; here they cross the text window's white feather, so the
+/// white and faded ones get a dark halo like the font's labels.
+fn atlas_label(atlas: &RgbaImage, column: u32) -> RgbaImage {
+    let (x0, y0, w, h) = ATLAS_LABELS;
+    let x = x0 + column * w;
+    let rows = [0, 1, 3].map(|r| imageops::crop_imm(atlas, x, y0 + r * h, w, h).to_image());
+    let used = |cx: u32| rows.iter().any(|r| (0..h).any(|cy| r.get_pixel(cx, cy).0[3] > 0));
+    let (left, right) = ((0..w).find(|&c| used(c)).unwrap_or(0), (0..w).rfind(|&c| used(c)).unwrap_or(w - 1));
+    let [normal, glowing, faded] = rows.map(|r| imageops::crop_imm(&r, left, 0, right + 1 - left, h).to_image());
+    side_by_side(&[shadowed(&normal, 0.85), glowing, shadowed(&faded, 0.5)])
+}
+
+/// The bar along the bottom right, under the text window's edge: the
+/// Vita's own labels (Log, Save, Load, Config) from `ss_bg1.png`; Auto,
+/// Skip and Hide, which it has no label for, drawn with the font in their
+/// style (white, a blue glow under the pointer or while on).
 pub fn button_bar(assets: &mut ArchiveAssets, labels: &Labels) -> ButtonBar {
+    let atlas = assets.system_image("ss_bg1.png");
     let items = [
-        ("AUTO", BarAction::Auto),
-        ("SKIP", BarAction::Skip),
-        ("LOG", BarAction::Log),
-        ("SAVE", BarAction::Save),
-        ("LOAD", BarAction::Load),
-        ("CONFIG", BarAction::Settings),
-        ("HIDE", BarAction::HideWindow),
+        ("Auto", None, BarAction::Auto),
+        ("Skip", None, BarAction::Skip),
+        ("Log", Some(5), BarAction::Log),
+        ("Save", Some(3), BarAction::Save),
+        ("Load", Some(4), BarAction::Load),
+        ("Config", Some(6), BarAction::Settings),
+        ("Hide", None, BarAction::HideWindow),
     ];
-    let size = 14.0;
-    let mut x = SCREEN_W - 16;
+    let size = 17.0;
+    let drawn = |text: &str, rgb: [u8; 3], glow: [u8; 3], alpha: u8| labels.draw(text, size, rgb, glow, alpha);
+    let mut x = SCREEN_W - 12;
     let mut buttons: Vec<BarButton> = Vec::new();
-    for (text, action) in items.iter().rev() {
-        let img = labels.button(text, size);
+    for &(text, column, action) in items.iter().rev() {
+        let img = match (&atlas, column) {
+            (Some(atlas), Some(c)) => atlas_label(atlas, c),
+            _ => side_by_side(&[
+                drawn(text, [255, 255, 255], [0, 0, 0], 255),
+                drawn(text, [255, 255, 255], BAR_GLOW, 255),
+                drawn(text, [255, 255, 255], [0, 0, 0], 110),
+            ]),
+        };
         let (w, h) = ((img.width() / 3) as i32, img.height() as i32);
         x -= w;
         let name = format!("bar_{}", text.to_ascii_lowercase());
-        let image = place(assets, &name, &img, x, SCREEN_H - h - 2);
+        // The atlas's letters sit 2 pixels higher in their cells than the font's.
+        let lower = if column.is_some() && atlas.is_some() { 2 } else { 0 };
+        let image = place(assets, &name, &img, x, SCREEN_H - 16 - h / 2 + lower);
         let active = matches!(action, BarAction::Auto | BarAction::Skip).then(|| {
-            let on = side_by_side(&[
-                labels.draw(text, size, [255, 240, 200], HOVER_GLOW, 255),
-                labels.draw(text, size, [255, 255, 240], HOVER_GLOW, 255),
-                labels.draw(text, size, [200, 200, 210], GLOW, 90),
-            ]);
-            place(assets, &format!("{name}_on"), &on, image.x, image.y)
+            let on = drawn(text, [255, 255, 255], BAR_GLOW, 255);
+            let off = drawn(text, [255, 255, 255], [0, 0, 0], 110);
+            place(assets, &format!("{name}_on"), &side_by_side(&[on.clone(), on, off]), image.x, image.y)
         });
-        buttons.insert(0, BarButton { image, active, action: *action });
-        x -= 6;
+        buttons.insert(0, BarButton { image, active, action });
+        x -= 4;
     }
     ButtonBar { buttons, top: None }
 }
