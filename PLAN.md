@@ -219,7 +219,8 @@ details, record layouts and handler addresses are in the game's document):
 | 1 | **NScripter** | Round-trip test (NScripter → IR → NScripter) of the IR and output stage, no reverse engineering involved |
 | 2 | **Xuse** (最果てのイマ COMPLETE) | First real target, an undocumented in-house engine reversed from the exe. **Finished 2026-10-14** |
 | 3 | **Nitroplus NSS** (装甲悪鬼村正) | In progress (branch `nitroplus`, record in `docs/games/muramasa.md`): NSS compiles to NScripter, Lua as the fallback |
-| 4+ | KiriKiri2/KAG, RealLive/Siglus, CatSystem2, BGI/Ethornell, Yu-ris, Artemis, Majiro, Softpal… | Chosen by which games you want to convert next |
+| 4 | **5pb./MAGES TaskList** (俺たちに翼はない, PS Vita) | In progress (branch `oretsuba`, record in `docs/games/oretsuba.md`): text scripts in CRI CPK archives, lowered task by task to the IR |
+| 5+ | KiriKiri2/KAG, RealLive/Siglus, CatSystem2, BGI/Ethornell, Yu-ris, Artemis, Majiro, Softpal… | Chosen by which games you want to convert next |
 
 ### Per-game documents
 
@@ -227,6 +228,7 @@ details, record layouts and handler addresses are in the game's document):
 |---|---|---|---|---|
 | 最果てのイマ COMPLETE | Xuse | `xuse` | [`docs/games/saihate-no-ima.md`](docs/games/saihate-no-ima.md) | Finished 2026-10-14 |
 | 装甲悪鬼村正 | Nitroplus NSS | `nitroplus` | [`docs/games/muramasa.md`](docs/games/muramasa.md) | In progress |
+| 俺たちに翼はない (PS Vita) | 5pb./MAGES TaskList | `oretsuba` | [`docs/games/oretsuba.md`](docs/games/oretsuba.md) | In progress |
 
 A game's document holds what is specific to it: the install and build
 command, file formats, the opcode or command table with handler
@@ -609,6 +611,27 @@ The steps that apply them are in `docs/new-game.md`.
   overstates real memory use.
 - **Let the user watch:** a progress page (artifact) with screenshots,
   republished at milestones, lets the user follow from their phone.
+
+### 13.1c Lessons from 俺たちに翼はない (PS Vita, 2026-10-13)
+
+- **Console packages decrypt offline.** A Vita package plus its license
+  (`work.bin`) unpacks with pkg2zip; the PFS layer with Vita3K's fork of
+  psvpfsparser, which has the F00D step built in (the web service the
+  original tool needs is gone). Build both from source.
+- **Read the scripts' comments.** Ports often keep the original's names
+  in comments next to the numbers that replaced them (`:Texture 0 //
+  BG_BLACK`, `:Voice 22562 // TAK1004`). Checking every commented number
+  against the archives proved the ID scheme in one pass, and the
+  comments gave the speaker-name table without the executable.
+- **A route map straight from the scripts** (every NextScene, condition
+  and choice per scene, one line each) is the walkthrough when no
+  public one exists, and the route check follows it.
+- **Atlases without their layout table:** measure the parts from the
+  picture's alpha (`research/oretsuba/atlas.py`) and say in the game's
+  document that the placement is ours.
+- **Mind the output stage's variables:** pick the game's flag ranges
+  against the `%N` that conv-cons already writes (`grep -o '%[0-9]*'`),
+  locals below the global border and globals clear of the menus'.
 
 ### 13.2 Ways to speed up conversion
 

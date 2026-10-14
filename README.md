@@ -22,6 +22,7 @@ it is added to CONscripter rather than approximated (see
 |---|---|---|---|
 | Xuse | Complete for its first game | 最果てのイマ COMPLETE | [`docs/games/saihate-no-ima.md`](docs/games/saihate-no-ima.md) |
 | Nitroplus NSS | In progress (branch `nitroplus`) | 装甲悪鬼村正 | |
+| 5pb./MAGES TaskList (PS Vita, CRI archives) | In progress (branch `oretsuba`): the story plays, all endings reachable | 俺たちに翼はない (Vita) | [`docs/games/oretsuba.md`](docs/games/oretsuba.md) |
 
 Each engine is a separate reader feeding the same output stage (see
 [`PLAN.md`](PLAN.md)). Each game's document says what converts, what
