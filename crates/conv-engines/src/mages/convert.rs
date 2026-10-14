@@ -351,14 +351,25 @@ impl Lowering<'_> {
         layer
     }
 
-    /// Shows `image` centred at script position (x, y) on `key`'s layer.
+    /// Shows `image` centred at script position (x, y) on `key`'s layer,
+    /// removing the pictures `replaces` in the same fade.
     #[allow(clippy::too_many_arguments)]
-    fn show(&mut self, key: &str, tex: i64, image: (String, u32, u32), x: i64, y: i64, priority: i64, fade_ms: u32) {
+    fn show(&mut self, key: &str, tex: i64, image: (String, u32, u32), x: i64, y: i64, priority: i64, fade_ms: u32, replaces: &[String]) {
+        self.show_at(key, tex, image, sx(x), sy(y), priority, fade_ms, replaces);
+    }
+
+    /// `show` with the centre in screen pixels.
+    #[allow(clippy::too_many_arguments)]
+    fn show_at(&mut self, key: &str, tex: i64, image: (String, u32, u32), cx: i32, cy: i32, priority: i64, fade_ms: u32, replaces: &[String]) {
+        let mut changes: Vec<SpriteChange> = replaces
+            .iter()
+            .filter(|k| *k != key)
+            .filter_map(|k| self.shown.remove(k))
+            .map(|old| SpriteChange { layer: old.layer, sprite: None, keep_filters: false })
+            .collect();
         let layer = self.layer(key, priority);
         let (path, w, h) = image;
         let (w, h) = (w as i32, h as i32);
-        let (cx, cy) = (sx(x), sy(y));
-        let mut changes = Vec::new();
         if let Some(old) = self.shown.get(key)
             && old.layer != layer
         {
@@ -389,9 +400,18 @@ impl Lowering<'_> {
     }
 
     fn hide(&mut self, key: &str, fade_ms: u32) {
-        if let Some(old) = self.shown.remove(key) {
-            let change = SpriteChange { layer: old.layer, sprite: None, keep_filters: false };
-            self.out.ops.push(Op::Sprites { changes: vec![change], fade_ms: if self.staging { 0 } else { fade_ms } });
+        self.hide_all(&[key.to_string()], fade_ms);
+    }
+
+    /// Removes several pictures in one fade.
+    fn hide_all(&mut self, keys: &[String], fade_ms: u32) {
+        let changes: Vec<SpriteChange> = keys
+            .iter()
+            .filter_map(|k| self.shown.remove(k))
+            .map(|old| SpriteChange { layer: old.layer, sprite: None, keep_filters: false })
+            .collect();
+        if !changes.is_empty() {
+            self.out.ops.push(Op::Sprites { changes, fade_ms: if self.staging { 0 } else { fade_ms } });
         }
     }
 
@@ -454,10 +474,16 @@ impl Lowering<'_> {
                 if ty == "SpriteBS" {
                     self.stage(tasks, i);
                 }
-                let key = if ty == "SpriteBG" { "bg".to_string() } else { format!("t{tex}") };
+                let key = format!("t{tex}");
+                // SpriteBG and SpriteBS replace every picture but the
+                // characters (a background, a black cover, a white flash,
+                // an event CG); Sprite adds one, which the scripts remove
+                // by texture with SpriteDelete(BG).
+                let replaces: Vec<String> =
+                    if ty == "Sprite" { vec![] } else { self.shown.keys().filter(|k| k.starts_with('t')).cloned().collect() };
                 let (x, y) = (t.int_at("Position", 0).unwrap_or(640), t.int_at("Position", 1).unwrap_or(360));
-                let prio = t.int("Priority").unwrap_or(if ty == "SpriteBG" { 10 } else { 5 });
-                self.show(&key, tex, img, x, y, prio, fade(t));
+                let prio = t.int("Priority").unwrap_or(if ty == "Sprite" { 5 } else { 10 });
+                self.show(&key, tex, img, x, y, prio, fade(t), &replaces);
                 // A gallery CG: seen from now on (CG numbers are 1-based).
                 if let Some(flag) = t.int("CGFlag").filter(|f| *f >= 0) {
                     self.out.ops.push(Op::CgSeen { number: flag as u32 + 1 });
@@ -465,13 +491,25 @@ impl Lowering<'_> {
             }
             "SpriteDelete" | "SpriteDeleteBG" => {
                 let tex = t.int("SpriteNumber").or_else(|| t.int("Texture")).unwrap_or(-1);
-                let key = if ty == "SpriteDeleteBG" && self.shown.contains_key("bg") { "bg".to_string() } else { format!("t{tex}") };
                 let f = if t.int("FadeOut").unwrap_or(0) == 0 { 0 } else { ms(t.int("Time").unwrap_or(15)) };
-                self.hide(&key, f);
+                self.hide(&format!("t{tex}"), f);
             }
             "CharacterOpen" | "CharacterOpenBS" => {
                 if ty == "CharacterOpenBS" {
                     self.stage(tasks, i);
+                    // The characters it doesn't name leave with the old
+                    // scene (the scripts re-open or delete-all them after,
+                    // and never delete them by name).
+                    let named: Vec<String> = t
+                        .children
+                        .iter()
+                        .filter(|c| c.name.starts_with("Chara"))
+                        .filter_map(|c| c.get("Number")?.first()?.int())
+                        .map(|n| format!("c{n}"))
+                        .collect();
+                    let mut gone: Vec<String> = self.shown.keys().filter(|k| k.starts_with('c') && !named.contains(k)).cloned().collect();
+                    gone.sort();
+                    self.hide_all(&gone, 0);
                 }
                 for c in t.children.iter().filter(|c| c.name.starts_with("Chara")) {
                     let Some(number) = c.get("Number") else { continue };
@@ -480,22 +518,32 @@ impl Lowering<'_> {
                         continue;
                     };
                     let key = format!("c{}", number[0].int().unwrap_or(-1));
-                    let x = c.int_at("Position", 0).unwrap_or(640);
+                    let x = sx(c.int_at("Position", 0).unwrap_or(640));
                     // y 0 is the default height: centred, raised by the
                     // character's offset.
-                    let y = 360 + c.int_at("Position", 1).unwrap_or(0) + offset;
+                    let base_y = sy(360 + offset);
+                    let y = base_y + sy(c.int_at("Position", 1).unwrap_or(0));
                     let prio = c.int("Priority").unwrap_or(9);
-                    self.show(&key, -1, (path, w, h), x, y, prio, if ty == "CharacterOpen" { 200 } else { 0 });
+                    self.show_at(&key, -1, (path, w, h), x, y, prio, if ty == "CharacterOpen" { 200 } else { 0 }, &[]);
                     if let Some(s) = self.shown.get_mut(&key) {
-                        s.base_y = sy(360 + offset);
+                        s.base_y = base_y;
                     }
                 }
             }
             "CharacterDelete" => {
-                for c in t.children.iter().filter(|c| c.name.starts_with("Chara")) {
-                    let n = c.int("Number").unwrap_or(-1);
-                    self.hide(&format!("c{n}"), 200);
-                }
+                let listed: Vec<String> =
+                    t.children.iter().filter(|c| c.name.starts_with("Chara")).map(|c| format!("c{}", c.int("Number").unwrap_or(-1))).collect();
+                // Without a list (`:SpriteMax 0`, 962 of 1414 uses) every
+                // character leaves.
+                let keys = if listed.is_empty() {
+                    let mut all: Vec<String> = self.shown.keys().filter(|k| k.starts_with('c')).cloned().collect();
+                    all.sort();
+                    all
+                } else {
+                    listed
+                };
+                let f = if t.int("FadeOut").unwrap_or(1) == 0 { 0 } else { 200 };
+                self.hide_all(&keys, f);
             }
             "CharacterMove" => {
                 let time = ms(t.int("Time").unwrap_or(0));
