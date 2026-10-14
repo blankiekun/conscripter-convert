@@ -635,6 +635,46 @@ impl Lowering<'_> {
         self.out.ops.push(Op::Choice { options, style: None });
     }
 
+    /// START's story menu (the original's labels in `title_bg.png`): once
+    /// any ending was seen, the after-stories (adv.txt's start scenes 1-4)
+    /// are offered beside the main story. Each opens with its heroine's
+    /// ending (かるお's with the true ending); the original's rule is in
+    /// the eboot, so this one is ours.
+    fn story_menu(&mut self) {
+        const STORIES: [(&str, &str, &str); 4] = [
+            ("ある日の林田美咲", "P03_01A", "misaki_ed"),
+            ("ある日の渡来明日香", "P01_01A", "asuka_ed"),
+            ("ある日の山科京", "P02_01A", "miyako_ed"),
+            ("ある日の軽部狩男", "P04_01A", "kobato_ed"),
+        ];
+        let menu = "mg_story_menu".to_string();
+        let start = scene_label(&self.game.start);
+        for (_, _, flag) in STORIES {
+            if let Some(var) = self.game.flag(flag, true) {
+                self.out.ops.push(Op::If { var, cmp: Compare::Ne, value: Operand::Const(0), label: menu.clone() });
+            }
+        }
+        self.out.ops.push(Op::Jump(start.clone()));
+        self.out.ops.push(Op::Label(menu.clone()));
+        let mut options = vec![("俺たちに翼はない　始めから".to_string(), start)];
+        let mut gates = Vec::new();
+        for (title, scene, flag) in STORIES {
+            let gate = format!("mg_story_{}", scene.to_ascii_lowercase());
+            options.push((title.to_string(), gate.clone()));
+            gates.push((gate, scene, flag));
+        }
+        self.out.ops.push(Op::Choice { options, style: None });
+        for (gate, scene, flag) in gates {
+            self.out.ops.push(Op::Label(gate));
+            if let Some(var) = self.game.flag(flag, true) {
+                self.out.ops.push(Op::If { var, cmp: Compare::Ne, value: Operand::Const(0), label: scene_label(scene) });
+            }
+            let text = "　このお話は、まだ読むことができません。".to_string();
+            self.out.ops.push(Op::Text { speaker: None, text, voice: None, links: vec![], ruby: vec![], styles: vec![], hang: None, continues: false });
+            self.out.ops.push(Op::Jump(menu.clone()));
+        }
+    }
+
     /// `"+", 1` → (Add, 1).
     fn arith(&self, action: &[Val]) -> Option<(ArithOp, i32)> {
         let op = match action.first()?.str()? {
@@ -712,6 +752,9 @@ pub fn compile(game: &Game, scenes: &[String], assets: &mut dyn Assets) -> Compi
     let names: Vec<&String> = if scenes.is_empty() { game.scenes.keys().collect() } else { scenes.iter().collect() };
     let first = names.first().map(|s| s.as_str()).unwrap_or(&game.start);
     let first = if scenes.is_empty() { game.start.as_str() } else { first };
+    if scenes.is_empty() {
+        l.story_menu();
+    }
     l.out.ops.push(Op::Jump(scene_label(first)));
     for name in names {
         let Some(scene) = game.scenes.get(name) else { continue };

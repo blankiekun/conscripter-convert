@@ -166,8 +166,7 @@ map above, in one session (2026-10-13, all as expected):
 | 7 | 鳴 (S03_22A); with parts 1-3 cleared, S03_23A goes on to the ヨージ hint (S03_24) |
 | 8 | 小鳩, the true ending (S04_28B, S04_29A), offered only after the three clears |
 
-Not yet: a source-side simulator to diff page by page (step 11.4), and
-the after-stories (P01-P04), which no menu starts yet.
+Not yet: a source-side simulator to diff page by page (step 11.4).
 
 ## Progression variables
 
@@ -224,6 +223,7 @@ at that scale, SystemData's are drawn at 1280×720 and are scaled by 3/4
 | EffectStart/End 57 (screen-capture sprite), 52 (光玉 light balls), 54 (紙吹雪 confetti), 51 (雪 snow), 40 | not yet |
 | Achievement (trophies) | nothing to show |
 | Title screen (`title_bg.png`'s picture and labels: START, LOAD, CONFIG; GALLERY greyed) | converted; the buttons' place is ours (the layout table is in the encrypted eboot) |
+| START's story menu: 始めから and the after-stories ある日の林田美咲/渡来明日香/山科京/軽部狩男 (P03/P01/P02/P04) | converted, shown once any ending was seen; each after-story opens with its heroine's ending, かるお's with 小鳩's (our rule: the original's is in the eboot) |
 | Save/load, settings, backlog, extras | not yet (CONscripter's built-in menus) |
 
 Next, in order:
