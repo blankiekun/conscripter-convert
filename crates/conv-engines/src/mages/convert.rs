@@ -30,6 +30,10 @@ use super::tasks::{Block, Scene, Val, parse};
 
 pub const SCREEN_W: i32 = 960;
 pub const SCREEN_H: i32 = 544;
+/// The eye catch's shutters: frames and how long they take to close (the
+/// eboot's time is not known; its chapter cards fade in over 30 frames).
+const SHUTTER_FRAMES: u32 = 10;
+const SHUTTER_MS: u32 = 500;
 /// Variables from here up are global (kept across playthroughs).
 pub const GLOBAL_BORDER: u32 = 200;
 /// First local of the per-save flags (`[Flag]` in adv.txt): %60-%92,
@@ -93,6 +97,11 @@ pub trait Assets {
     /// screen: SystemData's card `card` over the place `picture` in its
     /// frame, with date `date` (0 = 11月21日; negative: none).
     fn chapter_card(&mut self, card: u32, picture: u32, date: i32) -> Option<String>;
+    /// The shutters of eye catch `ECnn` (`n`): `frames` screens side by
+    /// side of the picture's top and bottom halves sliding in from above
+    /// and below until they meet (`closing`), or sliding away from the
+    /// whole picture.
+    fn shutters(&mut self, n: u32, closing: bool, frames: u32) -> Option<String>;
     /// `count` particles of `kind` over the screen: a strip of
     /// [`super::assets::PARTICLE_FRAMES`] screens that loops.
     fn particles(&mut self, kind: Particles, count: u32) -> Option<String>;
@@ -302,6 +311,8 @@ struct Lowering<'a> {
     cover: Option<u32>,
     /// An eye catch is on the cover's layer.
     eye_catch: bool,
+    /// It is `ECnn` (n), which leaves through the shutters.
+    shutters: Option<u32>,
 }
 
 impl Lowering<'_> {
@@ -651,8 +662,10 @@ impl Lowering<'_> {
                 }
             }
             // `:Image 0,N`: CG.cpk's ECnn (27 is the title logo) over
-            // everything, on the cover's layer; EyeCatchEnd puts back what
-            // was there (the black of a FadeOut, or nothing) over `:Fade`.
+            // everything, on the cover's layer, coming in through the
+            // shutters; EyeCatchEnd puts back what was there (the black of
+            // a FadeOut, or nothing) as the shutters open over `:Fade`.
+            // `:Image 1,…` (a chapter card) fades in and out.
             "EyeCatch" => {
                 let n = t.int_at("Image", 1).unwrap_or(-1);
                 let image = match t.int_at("Image", 0) {
@@ -672,7 +685,18 @@ impl Lowering<'_> {
                         let (x, y) = ((SCREEN_W - w as i32) / 2, (SCREEN_H - h as i32) / 2);
                         let change = SpriteChange { layer: COVER_LAYER, sprite: Some(SpritePlacement { image: path, x, y }), keep_filters: false };
                         self.out.ops.push(Op::HideTextWindow);
-                        self.out.ops.push(Op::Sprites { changes: vec![change], fade_ms: 500 });
+                        let closing = if t.int_at("Image", 0) == Some(0) { self.assets.shutters(n as u32, true, SHUTTER_FRAMES) } else { None };
+                        self.shutters = None;
+                        match closing {
+                            Some(image) => {
+                                self.out.ops.push(Op::Animation(Some(Animation { image, frame_ms: vec![SHUTTER_MS / SHUTTER_FRAMES; SHUTTER_FRAMES as usize], looped: false, opacity: 256 })));
+                                self.out.ops.push(Op::Wait { ms: SHUTTER_MS });
+                                self.out.ops.push(Op::Sprites { changes: vec![change], fade_ms: 0 });
+                                self.out.ops.push(Op::Animation(None));
+                                self.shutters = Some(n as u32);
+                            }
+                            None => self.out.ops.push(Op::Sprites { changes: vec![change], fade_ms: 500 }),
+                        }
                         self.eye_catch = true;
                     }
                     // 0,-1: no picture.
@@ -684,7 +708,19 @@ impl Lowering<'_> {
                 if std::mem::take(&mut self.eye_catch) {
                     let sprite = self.cover.map(|rgb| SpritePlacement { image: self.assets.colour(rgb), x: 0, y: 0 });
                     let change = SpriteChange { layer: COVER_LAYER, sprite, keep_filters: false };
-                    self.out.ops.push(Op::Sprites { changes: vec![change], fade_ms: ms(t.int("Fade").unwrap_or(30)) });
+                    let fade_ms = ms(t.int("Fade").unwrap_or(30));
+                    match self.shutters.take().and_then(|n| self.assets.shutters(n, false, SHUTTER_FRAMES)) {
+                        // The opening shutters, first the whole picture,
+                        // over what comes back.
+                        Some(image) if fade_ms > 0 => {
+                            let frame_ms = vec![fade_ms.div_ceil(SHUTTER_FRAMES); SHUTTER_FRAMES as usize];
+                            self.out.ops.push(Op::Animation(Some(Animation { image, frame_ms, looped: false, opacity: 256 })));
+                            self.out.ops.push(Op::Sprites { changes: vec![change], fade_ms: 0 });
+                            self.out.ops.push(Op::Wait { ms: fade_ms });
+                            self.out.ops.push(Op::Animation(None));
+                        }
+                        _ => self.out.ops.push(Op::Sprites { changes: vec![change], fade_ms }),
+                    }
                 }
             }
             "MoviePlay" => match t.int("Movie").and_then(|n| self.assets.movie(n as u32)) {
@@ -957,7 +993,7 @@ fn act_style(t: &Block) -> TransitionStyle {
 /// Compiles `scenes` (all of them if empty), each at its label, after a
 /// jump to the game's first scene.
 pub fn compile(game: &Game, scenes: &[String], assets: &mut dyn Assets) -> Compiled {
-    let mut l = Lowering { game, assets, out: Compiled::default(), shown: HashMap::new(), next_slot: HashMap::new(), staging: false, choices: 0, cover: None, eye_catch: false };
+    let mut l = Lowering { game, assets, out: Compiled::default(), shown: HashMap::new(), next_slot: HashMap::new(), staging: false, choices: 0, cover: None, eye_catch: false, shutters: None };
     let names: Vec<&String> = if scenes.is_empty() { game.scenes.keys().collect() } else { scenes.iter().collect() };
     let first = names.first().map(|s| s.as_str()).unwrap_or(&game.start);
     let first = if scenes.is_empty() { game.start.as_str() } else { first };

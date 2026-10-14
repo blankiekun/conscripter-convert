@@ -374,6 +374,37 @@ impl Assets for ArchiveAssets<'_> {
         Some(path)
     }
 
+    // The eboot's eye catch type 0 (0x81048978, 0x81048b8a): the halves
+    // (960×272) centred at y −136 + 272s and 680 − 272s, s going 0 → 1
+    // while the eye catch comes and 1 → 0 when it ends.
+    fn shutters(&mut self, n: u32, closing: bool, frames: u32) -> Option<String> {
+        let path = format!("system/shutters_{n}_{}.png", if closing { "in" } else { "out" });
+        let key = (8, n << 1 | u32::from(closing));
+        if self.images.contains_key(&key) {
+            return Some(path);
+        }
+        let name = format!("EC{n:02}.png");
+        let pic = image::load_from_memory(self.cg.by_name(&name)?).ok()?.to_rgba8();
+        let (w, h) = (SCREEN_W as u32, SCREEN_H as u32);
+        let mut screen = RgbaImage::new(w, h);
+        imageops::overlay(&mut screen, &pic, (i64::from(w) - i64::from(pic.width())) / 2, (i64::from(h) - i64::from(pic.height())) / 2);
+        let top = imageops::crop_imm(&screen, 0, 0, w, h / 2).to_image();
+        let bottom = imageops::crop_imm(&screen, 0, h / 2, w, h / 2).to_image();
+        let mut strip = RgbaImage::new(w * frames, h);
+        for i in 0..frames {
+            let step = i64::from(if closing { i + 1 } else { frames - 1 - i });
+            let gap = i64::from(h / 2) * (i64::from(frames) - step) / i64::from(frames);
+            let x = i64::from(w * i);
+            let mut frame = RgbaImage::new(w, h);
+            imageops::overlay(&mut frame, &top, 0, -gap);
+            imageops::overlay(&mut frame, &bottom, 0, i64::from(h / 2) + gap);
+            imageops::replace(&mut strip, &frame, x, 0);
+        }
+        self.write_png(&path, &strip);
+        self.images.insert(key, None);
+        Some(path)
+    }
+
     fn particles(&mut self, kind: Particles, count: u32) -> Option<String> {
         let (file, cell, falls) = match kind {
             Particles::LightBalls => ("lightball.png", (32, 32), false),

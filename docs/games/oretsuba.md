@@ -280,7 +280,7 @@ at that scale, SystemData's are drawn at 1280×720 and are scaled by 3/4
 | SceneJumpDialog (skip a scene already read) | converted: a global "read" flag per scene (`%1200` + the scene's index in name order); a read scene shows its summary and このシーンを読む / このシーンをスキップする |
 | Flash; EffectQuake/End and SpriteQuake (a screen shake dying down over `:Time`); SpriteMove (no `:Scale`, always waited on) | converted |
 | CharacterAction (`chract`'s 661 keyframed moves: bows, shakes) | converted as straight moves between keyframes, waited on; the looping ones are left out |
-| EyeCatch `:Image 0,N` (CG.cpk's `ECnn`; 27 is the title logo) | converted: faded in over everything, EyeCatchEnd fades back to the FadeOut's colour. The original closes the picture's top and bottom halves (960×272) from above and below like shutters and opens them again at EyeCatchEnd (eboot 0x81048b8a; without a picture, two panels of a colour): not yet |
+| EyeCatch `:Image 0,N` (CG.cpk's `ECnn`; 27 is the title logo) | converted as in the eboot (0x81048b8a): the picture's top and bottom halves (960×272) close from above and below like shutters (500 ms, our guess) and open again at EyeCatchEnd over `:Fade`, showing the FadeOut's colour (or the scene) behind; made as 10-frame animations (`system/shutters_N_in/out.png`). `:Image 0,-1` (two panels of a colour in the eboot, 7 uses) shows nothing |
 | EyeCatch `:Image 1,card,place,date` (114 uses: the chapter cards) | converted like `:Image 0`, as one screen made from SystemData: the card `ec1_bg`…`ec6_bg` (ID 67 + card: 0-3 the four protagonists' chapters, 4-5 Karura's, 6 奈落の底) with the place (ID 74 + place: `ec_bgNN`, its times of day as A/B/C) in its frame and the date (0 = 11月21日, -1 none) cut from the calendar under the card. The original fades the three in and out and pans the place 40 pixels while it fades in; drawn where the pan ends |
 | MoviePlay: the USM movies (MPEG-1 960×544 + ADX) demuxed (`usm.rs`) and made H.264/AAC MP4s in `movie/` (loose) | converted; `:Movie` N is the Nth of OP00, OP01, OP02, the seven `ED_*` (alphabetical), Poem, OP03 (each heroine's ending scene plays her ED) |
 | EffectStart/End 53 (ノイズ: static at `:Param` density) and 42 (ブラー: a blur screen filter); SetSceneName (chapter title) | converted |
@@ -306,7 +306,6 @@ Next, in order:
    music table is for. A wave and a blur transition (`InOut_Act` 1, 6)
    would need engine effects.
 2. Looks against the original: text window size and place, character
-   heights. Needs screenshots of the Vita game.
-   The eye catch's shutters (above) are known from the eboot.
+   heights, the eye catch's speed. Needs screenshots of the Vita game.
 3. SpriteMove `:Scale` (91 zooms on CGs) needs a sprite zoom in the IR
    and conv-cons; looping CharacterActions (96).
