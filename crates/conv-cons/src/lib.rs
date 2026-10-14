@@ -18,6 +18,7 @@ pub mod lint;
 mod menu;
 mod music;
 pub mod nsa;
+mod puzzle;
 mod replay;
 pub mod webp;
 
@@ -135,6 +136,7 @@ pub fn emit(script: &Script) -> String {
     let has_replay = script.title_screen.is_some() && script.extras.as_ref().is_some_and(|e| e.replay.is_some());
     let mut root_resumes = 0;
     let mut turns = 0;
+    let mut puzzles = 0;
     let has_vertical = script.window.iter().chain(script.ops.iter().filter_map(|op| match op {
         Op::SetWindow(w) => Some(w),
         Op::Choice { style: Some(s), .. } => Some(&s.window),
@@ -822,6 +824,11 @@ pub fn emit(script: &Script) -> String {
                 let items: Vec<String> = options.iter().map(|(t, l)| format!("\"{}\",*{}", text_safe(t), label(l))).collect();
                 writeln!(out, "select {}", items.join(",")).unwrap();
             }
+            Op::TilePuzzle(p) => {
+                puzzle::emit(&mut out, p, puzzles, SPRITE_BASE, &effect, (script.width, script.height), border);
+                puzzles += 1;
+                plate_visible = false;
+            }
             Op::Unsupported { what, at } => {
                 writeln!(out, "; unsupported: {what} ({} #{})", at.file, at.index).unwrap()
             }
@@ -1201,6 +1208,7 @@ fn fade_effects(script: &Script) -> BTreeMap<(u32, Effect), u32> {
             Op::Background { fade_ms, .. } | Op::Sprites { fade_ms, .. } | Op::ScreenFilter { fade_ms, .. } => {
                 vec![(*fade_ms, Effect::Fade)]
             }
+            Op::TilePuzzle(p) => vec![(p.fade_ms, Effect::Fade)],
             Op::BeginTransition { fade_ms, mask, style, .. } => transition_steps(*fade_ms, mask.as_deref(), *style),
             _ => Vec::new(),
         })

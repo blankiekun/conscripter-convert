@@ -407,8 +407,72 @@ pub enum Op {
     /// window (or in `style`'s own window) and continue at the label
     /// picked.
     Choice { options: Vec<(String, String)>, style: Option<ChoiceStyle> },
+    /// A puzzle the player solves with the mouse on a screen of its own,
+    /// then the screen goes white and clears to black (see [`TilePuzzle`]).
+    TilePuzzle(Box<TilePuzzle>),
     /// Something the converter can't express yet; kept for the report.
     Unsupported { what: String, at: SourceLoc },
+}
+
+/// A puzzle of numbered tiles (装甲悪鬼村正's 立方陣): the player clicks a
+/// tile in the tray, then an empty cell to put it in (a right-click puts
+/// it back); clicking a filled cell empties it and the tile goes back to
+/// the tray. "Reset" empties every cell, "help" shows the rules until a
+/// click, "answer" ends the puzzle: `solved` is set to 1 when every cell
+/// holds its tile of the solution, else 0 (empty cells count as wrong).
+///
+/// Button images are two-cell strips: normal, under the mouse.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TilePuzzle {
+    /// Pictures under everything, bottom first; the first fills the screen.
+    pub backdrop: Vec<Placed>,
+    pub tiles: Vec<PuzzleTile>,
+    pub cells: Vec<PuzzleCell>,
+    /// Size of a cell, and the strips drawn over an empty cell while a
+    /// tile is picked, and over a filled one (its first cell all but
+    /// invisible, the tile's number showing through). Buttons are hit by
+    /// the alpha of their pictures, since cells may overlap.
+    pub cell_w: i32,
+    pub cell_h: i32,
+    pub empty_cell: String,
+    pub filled_cell: String,
+    pub answer: Placed,
+    pub reset: Placed,
+    pub help: Placed,
+    /// The help screen: lines (text, top-left x, y, colour 0xRRGGBB) over
+    /// the screen dimmed by half, in this font size.
+    pub help_lines: Vec<(String, i32, i32, u32)>,
+    pub help_font_size: u32,
+    /// When this variable is 1 at the start, the cells marked `easy` start
+    /// with their solution's tile, and stay filled.
+    pub easy: Option<Var>,
+    pub solved: Var,
+    /// Played while the puzzle is on screen; faded out at the answer.
+    pub bgm: Option<String>,
+    /// Fade-in of the puzzle's screen, and of each half of the white-out.
+    pub fade_ms: u32,
+}
+
+/// A tile: its button in the tray (a strip), the picture drawn over it
+/// while it is picked (an animation strip of `frames` cells, `frame_ms`
+/// each, looping), and the picture of its number inside a cell.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PuzzleTile {
+    pub button: Placed,
+    pub picked: String,
+    pub frames: u32,
+    pub frame_ms: u32,
+    pub in_cell: String,
+}
+
+/// A cell's top-left, the tile of the solution (index into
+/// [`TilePuzzle::tiles`]), and whether the easy mode fills it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PuzzleCell {
+    pub x: i32,
+    pub y: i32,
+    pub solution: usize,
+    pub easy: bool,
 }
 
 /// How a choice is drawn when the game has its own look for it: the

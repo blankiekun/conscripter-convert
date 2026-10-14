@@ -57,13 +57,13 @@ background, one at a time, and say so before starting one.
 | NPA archives, images (PNG, JPEG), BGM, sound effects, voices | ✅ Decoded (whole-corpus check not done) |
 | Movies (`.ngs`, MPEG-1) | ❌ Out of scope for now (decided 2026-10-13) |
 | Script parsing | ✅ All 913 files; 17 places that don't parse are all typos or dead code |
-| Story control flow (files, scenes, functions, `if`/`while`, choices, story flags, route ranking, heroine deaths) | ✅ Compiled; 879 of the 883 story files reached from `ma00_000` |
+| Story control flow (files, scenes, functions, `if`/`while`, choices, story flags, route ranking, heroine deaths) | ✅ Compiled; all 883 story files reached from `ma00_000` |
 | Text: vertical windows, face windows and name plates, ruby, `<k>` waits, voices | ✅ Converted |
 | Backgrounds, sprites, fades, mask wipes, zoom, shake, blur, BGM, sound effects | ✅ Converted (timed actions drawn as cross-fades, see "Leftovers") |
 | Choices | ✅ Drawn like the original's `SetChoiceBase` plates |
 | Parallel processes (`CreateProcess`: battle HUD, fire flicker, …) | ❌ Not converted; planned through Lua |
 | Additive / multiply blends, `Rotate`, `SetFrequency`, camera moves | ❌ Not converted |
-| 立方陣 minigame (`function_magiccube.nss`) | ❌ Not converted: blocks 村正END and TRUE END |
+| 立方陣 minigame (`function_magiccube.nss`) | ✅ Ported (see "The 立方陣" below) |
 | System screens (title, save/load, settings, backlog) | ❌ Not started |
 | Extras | ❌ Out of scope for now (decided 2026-10-13) |
 
@@ -208,8 +208,29 @@ IR ops at the points where the original waits:
   loops and computed names. They are written as NScripter comparisons
   (`RANKINGS`), so the ranking and the death of the heroine with the
   most affection happen at run time as in the original.
-- **Library files reached as a "next file"** (`function_magiccube.nss`)
-  are skipped with a note.
+- **The 立方陣** (`function_magiccube.nss`, the one library file the
+  story names as a next file): compiled like a story file, except that
+  its content scene becomes the ported puzzle (see "The 立方陣").
+
+**The 立方陣.** A 5×5×5 magic cube drawn as five layers: layers 1-3 are
+given, the player fills the 18 empty cells of layers 4 and 5 with 18
+numbered tiles (click a tile, then a cell; click a filled cell to take
+its tile back; right-click drops the picked tile), then clicks 解答する.
+The NSS builds it from `CreateChoice` buttons and an input loop, which
+don't compile, so it is ported: `nitroplus/magiccube.rs` holds the
+game's numbers (tray, cell positions, the solution, the six cells the
+easy mode fills) and builds an IR `Op::TilePuzzle`, which the backend
+(`conv-cons/src/puzzle.rs`) writes as a `btnwait` loop over sprite
+buttons. Its result goes to the story flag `$立方陣正解`, and the
+minigame's own `_MAIN` scene then forks to `md05_025end` or
+`md05_025gameover` at run time. Failing offers a retry (する), then the
+easy mode (下げる, `$立方陣簡易フラグ`). Not ported: the debug button
+(off screen, solves it) and the smooth blink of the picked tile (two
+steps instead). The cells are diamonds whose rectangles overlap, so the
+puzzle turns on `transbtn` (buttons hit by their pictures' alpha); a
+filled cell's button is the cell's shape at opacity 8/1000. Checked in
+the engine: solving, a wrong answer, reset, help, the easy mode, and
+both forks after the answer.
 
 **Variables in `0.txt`:**
 
@@ -287,21 +308,23 @@ python3 -I research/nitroplus/nstrace.py out/muramasa-dry/0.txt \
   --route out/muramasa-route.txt --quiet
 ```
 
-Result (2026-10-13): 0 problems. 一条END, 香奈枝END (through the whole
-airship exploration), 茶々丸END, and 悪鬼編 up to the 立方陣 with four
-bad ends checked on the way. Not done: 村正END and TRUE END (behind the
-minigame), state across relaunch and in the web build (step 11.5).
+Result (2026-10-13): 0 problems, every ending reached: 一条END,
+香奈枝END (through the whole airship exploration), 茶々丸END, 村正END and
+the TRUE END, with five bad ends checked on the way (four battles, and
+giving up at the 立方陣). A path entry `PUZZLE 1` / `PUZZLE 0` solves or
+fails the puzzle. Not done: state across relaunch and in the web build
+(step 11.5).
 
 ## Status: in progress (2026-10-13)
 
-The whole story compiles from the prologue to the 立方陣, and all four
-chart routes reach their endings in the converted control flow. Checked
+The whole story compiles, the 立方陣 included, and every ending of the
+chart is reached in the converted control flow. Checked
 in the engine: ma01_001 → ma02_003 (29 files, about 500 clicks) and four
 forks (a runtime `call_scene`, a heroine death, the ranking, a battle
-choice). Scope: extras and movies are out for now; the 立方陣 is
-being ported; how closely to follow the battle HUD is open.
+choice), and the 立方陣. Scope: extras and movies are out for now; how
+closely to follow the battle HUD is open.
 
-Next, roughly in order: the 立方陣, a long engine skip run per route,
+Next, roughly in order: a long engine skip run per route,
 the system screens (title, save/load, settings, backlog), then the
 largest gaps below.
 

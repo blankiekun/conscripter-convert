@@ -39,6 +39,7 @@ use std::collections::{BTreeMap, HashMap};
 
 use conv_core::ir::{ArithOp, ChoiceStyle, CLICK_WAIT_MARK, Op, Operand, ScreenEffect, Ruby, SpriteChange, SpritePlacement, TextWindow, TransitionStyle, Voice};
 
+use super::magiccube;
 use super::nss::{AssignOp, BinaryOp, Expr, Function, Inline, Item, NssFile, Param, Stmt, StmtKind, Target, Text, UnaryOp};
 
 pub const SCREEN_W: i64 = 1024;
@@ -225,9 +226,9 @@ pub fn compile_run(files: &BTreeMap<String, NssFile>, start: &str, max_files: us
             not_compiled.insert(name);
             continue;
         }
-        // The helper library isn't a story file: the run reaches it for the
-        // 立方陣 minigame (function_magiccube.nss), which needs porting.
-        if c.library.contains(&file.as_str()) || file.starts_with("function") {
+        // The helper library isn't a story file; the run reaches it only for
+        // the 立方陣 minigame, which is ported (see [`super::magiccube`]).
+        if (c.library.contains(&file.as_str()) || file.starts_with("function")) && file != magiccube::FILE {
             c.note(format!("run reaches {name}: a minigame, not converted"));
             not_compiled.insert(name);
             continue;
@@ -439,6 +440,9 @@ pub fn story_flags(files: &BTreeMap<String, NssFile>) -> HashMap<String, conv_co
         set.insert(last.to_string());
         tested.insert(last.to_string());
     }
+    // The 立方陣 puzzle's result, set by the ported minigame.
+    set.insert(magiccube::SOLVED.to_string());
+    tested.insert(magiccube::SOLVED.to_string());
     // SatugaiSystem and SetHex set and clear the death and revival flags
     // through names built at run time (VariableValue).
     for (name, _) in HEX {
@@ -1535,6 +1539,10 @@ impl<'a, 'b> Compiler<'a, 'b> {
             self.note(format!("call_scene to a missing file {file}"));
             return;
         };
+        if file == magiccube::FILE && scene == magiccube::FILE {
+            self.magic_cube();
+            return;
+        }
         let Some(body) = self.scene(file, &scene) else {
             self.note(format!("call_scene to a missing scene {scene}"));
             return;
@@ -1550,6 +1558,29 @@ impl<'a, 'b> Compiler<'a, 'b> {
         self.frames.pop();
         self.depth -= 1;
         self.file = saved;
+    }
+
+    /// The 立方陣 minigame's content scene: the ported puzzle. It ends as
+    /// the original does (`MathAnswer`): white, then `Delete("*")` and a
+    /// black screen.
+    fn magic_cube(&mut self) {
+        self.sync(0);
+        if self.window_visible {
+            self.ops.push(Op::HideTextWindow);
+            self.window_visible = false;
+        }
+        let easy = self.flags.get(magiccube::EASY).copied();
+        let Some(&solved) = self.flags.get(magiccube::SOLVED) else { return };
+        let Some(p) = magiccube::puzzle(self.assets, easy, solved) else {
+            self.note("立方陣: a picture is missing");
+            return;
+        };
+        self.ops.push(Op::TilePuzzle(Box::new(p)));
+        self.vars.insert(magiccube::SOLVED.into(), Value::Runtime(solved));
+        // The puzzle stops the music and clears the screen.
+        self.objects.clear();
+        self.aliases.clear();
+        self.shown.clear();
     }
 
     fn call_function(&mut self, file: &'a str, f: &'a Function, args: Vec<Value>) -> Value {
