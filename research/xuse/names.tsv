@@ -78,6 +78,12 @@
 00415340	env_clear_all	op 0x8c with slot 0
 00419570	noise_update	Animation-RandomNoise: opacity begin -> end over time, then held (mode bit 0x10 would end it)
 004784b0	op_68	script opcode 0x68: click wait (callback 0x478370)
-0044a360	op_72	script opcode 0x72: timed wait
+0044a360	op_72	script opcode 0x72: fade the picture to black (arg low 16 bits = ms)
+0044a390	op_74	script opcode 0x74: fade the picture to white
+0044a2f0	script_fade	starts the fade (only with effects on and not skipping), then waits for it
+00436000	fade_start	puts CTaskWork_Fade on the script task: colour, ms, direction flag
+00435f20	fade_draw	fills the screen with black or white at the fade's opacity
+00435f60	fade_draw_reverse	the other direction (flag bit 0; no script uses it)
+00435f90	fade_update	opacity = elapsed * 256 / ms; the colour keeps being drawn after the end
 00478830	op_93	script opcode 0x93: unlocks a scene of the scene replay
 004789a0	op_94	script opcode 0x94: end of a replayable scene

@@ -415,6 +415,10 @@ pub enum Op {
     /// A screen of pictures and image buttons over everything (see
     /// [`ButtonScreen`]); continues at the label of the button clicked.
     ButtonScreen(Box<ButtonScreen>),
+    /// Fade the picture (under the text window and the bars) to `colour`
+    /// (0xRRGGBB) over `ms`. The colour stays until the next background, a
+    /// clear of the scene's sprites or a link scene's return.
+    ScreenFade { colour: u32, ms: u32 },
 }
 
 /// A puzzle of numbered tiles (装甲悪鬼村正's 立方陣): the player clicks a

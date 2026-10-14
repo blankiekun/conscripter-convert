@@ -64,6 +64,9 @@ const SPRITE_BASE: u32 = 62;
 const FLASH_SPRITE2: u32 = 24;
 /// The lsp2 slot a turning sprite ([`Op::SpriteTurn`]) is drawn in.
 const TURN_SPRITE2: u32 = 25;
+/// The lsp2 slot of a fade to a colour ([`Op::ScreenFade`]), under the
+/// flash's.
+const FADE_SPRITE2: u32 = 26;
 /// The highest sprite number (ONScripter has 1000); also the overlay
 /// under the character sprites.
 const MAX_SPRITE: u32 = 999;
@@ -135,6 +138,12 @@ pub fn emit(script: &Script) -> String {
     let has_overlay = script.ops.iter().any(|op| matches!(op, Op::Overlay { .. }));
     let has_noise = script.ops.iter().any(|op| matches!(op, Op::Noise(_)));
     let has_animation = script.ops.iter().any(|op| matches!(op, Op::Animation(_)));
+    // What removes a fade to a colour, after `csp -1` and `popscreen`.
+    let clear_fade = if script.ops.iter().any(|op| matches!(op, Op::ScreenFade { .. })) {
+        format!(":csp2 {FADE_SPRITE2}")
+    } else {
+        String::new()
+    };
     let root_returns = script.ops.iter().filter(|op| matches!(op, Op::ReturnToRoot)).count();
     // The replay is reached from the title's extras.
     let has_replay = script.title_screen.is_some() && script.extras.as_ref().is_some_and(|e| e.replay.is_some());
@@ -315,7 +324,7 @@ pub fn emit(script: &Script) -> String {
             Op::Background { image, fade_ms } => {
                 // NScripter's bg keeps lsp sprites; the game removes characters
                 // when the background or CG changes.
-                writeln!(out, "csp -1").unwrap();
+                writeln!(out, "csp -1{clear_fade}").unwrap();
                 out.push_str(&restore_overlay);
                 // Effect 0 = update the buffer only (shown by the transition).
                 let e = if transition.is_some() { "0".to_string() } else { effect(*fade_ms) };
@@ -415,7 +424,7 @@ pub fn emit(script: &Script) -> String {
                 window = Some(w.clone());
             }
             Op::ClearSprites => {
-                writeln!(out, "csp -1").unwrap();
+                writeln!(out, "csp -1{clear_fade}").unwrap();
                 out.push_str(&restore_overlay);
                 plate_visible = false;
                 if transition.is_none() {
@@ -725,7 +734,8 @@ pub fn emit(script: &Script) -> String {
                         writeln!(out, "mov {max},{depth}").unwrap();
                         writeln!(out, "if {floor} > {depth} mov {floor},{depth}").unwrap();
                     }
-                    writeln!(out, "popscreen").unwrap();
+                    // The scene's fade to a colour isn't kept by pushscreen.
+                    writeln!(out, "popscreen{clear_fade}").unwrap();
                     if has_overlay {
                         writeln!(out, "mov {},{OVERLAY_SAVED}+{OVERLAY_DEPTH}", menu::TMP).unwrap();
                         writeln!(out, "mov {OVERLAY_SLOT},%{}:mov {OVERLAY_IMAGE},${}", menu::TMP, menu::TMP).unwrap();
@@ -772,6 +782,13 @@ pub fn emit(script: &Script) -> String {
                 let (w, h) = (script.width, script.height);
                 writeln!(out, "lsp2add {FLASH_SPRITE2},\":c;>{w},{h},#{colour:06x}\",{},{},100,100,0,{alpha}", w / 2, h / 2).unwrap();
                 writeln!(out, "print 1\ndelay {ms}\ncsp2 {FLASH_SPRITE2}\nprint 1").unwrap();
+            }
+            Op::ScreenFade { colour, ms } => {
+                // An opaque sprite2 faded in: over the picture, under the
+                // text window and the bars.
+                let (w, h) = (script.width, script.height);
+                writeln!(out, "lsp2 {FADE_SPRITE2},\":c;>{w},{h},#{colour:06x}\",{},{},100,100,0,255", w / 2, h / 2).unwrap();
+                writeln!(out, "print {}", effect(*ms)).unwrap();
             }
             Op::SePlay { file, looped } => {
                 let ch = se.start(file);
@@ -1220,6 +1237,7 @@ fn fade_effects(script: &Script) -> BTreeMap<(u32, Effect), u32> {
             Op::Background { fade_ms, .. } | Op::Sprites { fade_ms, .. } | Op::ScreenFilter { fade_ms, .. } => {
                 vec![(*fade_ms, Effect::Fade)]
             }
+            Op::ScreenFade { ms, .. } => vec![(*ms, Effect::Fade)],
             Op::TilePuzzle(p) => vec![(p.fade_ms, Effect::Fade)],
             Op::ButtonScreen(s) => vec![(s.fade_ms, Effect::Fade)],
             Op::BeginTransition { fade_ms, mask, style, .. } => transition_steps(*fade_ms, mask.as_deref(), *style),
@@ -2352,6 +2370,18 @@ end
             out.contains("lsp2add 24,\":c;>800,600,#ff0000\",400,300,100,100,0,127\nprint 1\ndelay 100\ncsp2 24\nprint 1\n"),
             "{out}"
         );
+    }
+
+    #[test]
+    fn fades_to_a_colour_until_the_next_background() {
+        let out = emit(&script(vec![
+            Op::ScreenFade { colour: 0xffffff, ms: 2000 },
+            Op::Background { image: "bg/room.png".into(), fade_ms: 0 },
+        ]));
+        assert!(out.contains("effect 2,10,2000\n"), "{out}");
+        let fade = out.find("lsp2 26,\":c;>800,600,#ffffff\",400,300,100,100,0,255\nprint 2\n").expect(&out);
+        let clear = out.find("csp -1:csp2 26\n").expect(&out);
+        assert!(fade < clear, "{out}");
     }
 
     #[test]

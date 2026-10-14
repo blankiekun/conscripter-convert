@@ -296,11 +296,13 @@ const TV_POWER_SWITCH_MS: u32 = 700;
 /// bits are the number, its high 16 bits whether a click or key ends it
 /// (checked at 0x408e5b).
 const OP_MOVIE: u16 = 0x97;
-/// 0x72 and 0x74 share one timed wait (0x44a2f0): arg's low 16 bits are
-/// the ms; 0x74 also sets the input mask the wait checks (0x51ea0c) to
-/// 0xffffff instead of 0. Both are converted as `delay`.
-const OP_WAIT_2: u16 = 0x72;
-const OP_WAIT_3: u16 = 0x74;
+/// Fades to black (0x72) or white (0x74; handlers 0x44a360, 0x44a390 →
+/// 0x44a2f0 → `CTaskWork_Fade` 0x436000, drawn by 0x435f20): arg's low 16
+/// bits are the ms; a high half ≠ 0 fades the other way (from the colour;
+/// no script does). Filmed under wine: the colour covers the picture, not
+/// the text window and the bars, and stays until the next background.
+const OP_FADE_BLACK: u16 = 0x72;
+const OP_FADE_WHITE: u16 = 0x74;
 const BG_PER_ARCHIVE: usize = 64;
 const BU_PER_ARCHIVE: usize = 128;
 const SE_FIRST_BANK: usize = 256;
@@ -3433,7 +3435,11 @@ fn lower_instr(
             let file = assets.movie(ins.arg as u16)?;
             return Ok(Some(Op::Movie { file, skippable: ins.arg >> 16 != 0 }));
         }
-        OP_WAIT | OP_WAIT_2 | OP_WAIT_3 => return Ok(Some(Op::Wait { ms: u32::from(ins.arg as u16) })),
+        OP_WAIT => return Ok(Some(Op::Wait { ms: u32::from(ins.arg as u16) })),
+        OP_FADE_BLACK | OP_FADE_WHITE if ins.arg >> 16 == 0 => {
+            let colour = if ins.op == OP_FADE_WHITE { 0xffffff } else { 0 };
+            return Ok(Some(Op::ScreenFade { colour, ms: u32::from(ins.arg as u16) }));
+        }
         OP_IF_EQUAL..=OP_IF_GE => {
             // Handlers 0x474400 (sete), 0x474460 (setne), 0x4745e0 (setl),
             // 0x474520 (setg), 0x474580 (setle), 0x4744c0 (setge); the

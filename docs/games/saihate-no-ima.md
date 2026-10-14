@@ -186,7 +186,7 @@ N of the scene replay (`%3000+N`); `0x94` ends a replayed scene.
 | `0x15`, `0x16`, `0x22`, `0x23` | 442, 82, 3,094, 46 | label-table index | goto, if-goto, gosub, return |
 | `0x36`–`0x38` | 251 each | see "Chapters" | chapter bookkeeping |
 | `0x66` | 205 | low 16 bits of arg = ms (the high half a flag, meaning unknown) | timed wait; a click ends it |
-| `0x72`, `0x74` | 217, 11 (152 and 11 in `HD/CDFiles`) | **fades, not waits** (`op_72` `0x44a360`, `0x74` `0x44a390`, both → `0x44a2f0` → `0x436000`, `CTaskWork_Fade`): low 16 bits of arg = ms; high half ≠ 0 sets flag bit 0 (the other direction, `0x435f60`; no script uses it); `0x74` adds bit 0x10 = white instead of black (`0x435f20` fills with `0xffffff` or 0). Only with effects on and not skipping (`0x51ed14` bit 0, `0x51f82e`, `0x51f82c`). All uses fade out (88 × 500 ms, 37 × 3000, …), almost all at a scene's end, before `0x94 0x93` and a link return (`0x47`) or a chapter end. The colour stays until the next scene's transition | **still converted as `delay`: to fix** (fade to black / white over the time, kept until the next `csp -1` or link return) |
+| `0x72`, `0x74` | 217, 11 | **solved** (`op_72` `0x44a360`, `op_74` `0x44a390`, both → `script_fade` `0x44a2f0` → `fade_start` `0x436000`, `CTaskWork_Fade`): low 16 bits of arg = ms; high half ≠ 0 sets flag bit 0 (the other direction, `0x435f60`; no script uses it); `0x74` adds bit 0x10 = white instead of black (`fade_draw` `0x435f20` fills with `0xffffff` or 0, opacity elapsed × 256 / ms). Only with effects on and not skipping (`0x51ed14` bit 0, `0x51f82e`, `0x51f82c`). All uses fade out (141 × 500 ms, 44 × 3000, …), almost all at a scene's end, before `0x94 0x93` and a link return (`0x47`) or a chapter end; 202 with the text window still up. Filmed under wine (`0004.cd` #23 patched to `0x72 2000`): the colour covers the picture and the bust-ups but not the text window, its name plate and the bars; the text goes on over it; it stays through a `0x76` transition, a later bust-up shows over it, the next `0x54` background replaces it. No script shows a bust-up between a fade and the next background | a fade to black / white (`Op::ScreenFade`): an opaque `lsp2 26` faded in with `print 10,ms`, removed with the next background, `csp -1` and a link return (`popscreen` doesn't keep sprite2) |
 | `0x77`, `0x71` | 234, 3,908 | `0x77`: u32 mask (`mask%04u.png` in `HD/mask.arc`), i32 softness (sign = direction), then `0x76`'s timing block | `0x77` arms a mask wipe (`Trans_MaskBlend2`), `0x76` (below) any other transition; `0x71` waits for it, revealing the changes made since |
 | `0x8f` | 414 | arg -1 | remove every bust-up |
 | `0x43` | 578 | arg 0 waits for the fade, 1 doesn't (handler `0x4772a0`) | hides the text window, before most transitions: `textoff` |
@@ -419,7 +419,8 @@ and of `0.txt`, `docs/new-game.md` step 11.4).
 - **Sprite numbers:** 0-5 yes/no dialog, 6-33 menus, 34-48 bars, 49
   name text, 50 plate, 51-58 link words (`humanz 58`), 59 full-screen
   animation, 60 static, 61 overlay, 62+ characters; `lsp2` 0-11 save
-  menu, 12-23 top bars. Save slots 900 + level hold the blog bar's
+  menu, 12-23 top bars, 24 flash, 25 a turning bust-up, 26 a fade to a
+  colour. Save slots 900 + level hold the blog bar's
   levels.
 - **Decompiling the exe:** `research/tools/ghidra/ghidra_export.sh
   <install>/Farthest2015.exe research/xuse/local/ghidra --names
@@ -513,12 +514,12 @@ Declared finished on 2026-10-14; the 0.19 debug trace and the decompiled
 exe (`research/tools/ghidra/ghidra_export.sh`, names in
 `research/xuse/names.tsv`) then showed opcodes read wrong from `objdump`
 (`0x72`/`0x74` above). **Next, in order:**
-1. **`0x72`/`0x74` as fades** (table above): a new IR op (fade to a
-   colour over ms, at the end of `Op` in `ir.rs`), drawn as a full-screen
-   `lsp2` colour sprite over everything but the menus and top bars
-   (`FLASH_SPRITE2` is 24, `TURN_SPRITE2` 25 in `conv-cons`), faded in
-   with `print 10,<ms>`, removed by `Op::ClearSprites` (`csp -1` at a
-   scene start) and by a link return (check that `popscreen` drops it).
+1. **Done: `0x72`/`0x74` as fades** (table above): `Op::ScreenFade`, an
+   opaque `lsp2 26` faded in under the text window and bars, removed with
+   the next background, `csp -1` and a link return. Filmed in the
+   original first (`0004.cd` #23 patched); a trace of the first route
+   shows the colour only at scene ends and on `s11_l54`'s 7 pages over
+   white, as the script has it.
 2. **The static after 存在消滅 (`s22_l2`)**: the end of `0022.cd`
    raises the static to 256 (`0x8c` noise 0 → 256 over 2 s), fades to
    black (`0x72 2000`), waits for a click and jumps back to `s4_l1`
