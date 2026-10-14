@@ -89,6 +89,10 @@ pub trait Assets {
     /// A `screenripple` map for horizontal waves: grey rising from 0 to
     /// 256 `cycles_x100`/100 times down the screen.
     fn wave_map(&mut self, cycles_x100: u32) -> String;
+    /// A chapter card (`EyeCatch :Image 1,card,picture,date`) as one
+    /// screen: SystemData's card `card` over the place `picture` in its
+    /// frame, with date `date` (0 = 11月21日; negative: none).
+    fn chapter_card(&mut self, card: u32, picture: u32, date: i32) -> Option<String>;
     /// `count` particles of `kind` over the screen: a strip of
     /// [`super::assets::PARTICLE_FRAMES`] screens that loops.
     fn particles(&mut self, kind: Particles, count: u32) -> Option<String>;
@@ -653,6 +657,14 @@ impl Lowering<'_> {
                 let n = t.int_at("Image", 1).unwrap_or(-1);
                 let image = match t.int_at("Image", 0) {
                     Some(0) if n >= 0 => self.assets.cg_named(&format!("EC{n:02}.png")),
+                    // A chapter card: card, place, date.
+                    Some(1) if n >= 0 => {
+                        let (place, date) = (t.int_at("Image", 2).unwrap_or(-1), t.int_at("Image", 3).unwrap_or(-1));
+                        u32::try_from(place)
+                            .ok()
+                            .and_then(|p| self.assets.chapter_card(n as u32, p, date as i32))
+                            .map(|path| (path, SCREEN_W as u32, SCREEN_H as u32))
+                    }
                     _ => None,
                 };
                 match image {

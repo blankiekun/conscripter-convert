@@ -341,6 +341,39 @@ impl Assets for ArchiveAssets<'_> {
         path
     }
 
+    // The eboot's eye catch type 1 (0x81048c68): the place (SystemData
+    // 74 + picture, 352×517) cut to 312×516 and centred at (173, 275);
+    // the card (67 + card: ec1_bg … ec6_bg, the protagonists' chapters)
+    // over the screen; the date, cell date % 6, date / 6 (169×18) of the
+    // card's calendar below y 545, centred at (754, 484). The place's
+    // cut moves 40 pixels right over the 30 frames it fades in: drawn
+    // where it ends.
+    fn chapter_card(&mut self, card: u32, picture: u32, date: i32) -> Option<String> {
+        let key = (7, card << 16 | picture << 8 | (date + 1).clamp(0, 255) as u32);
+        let path = format!("system/chapter_{card}_{picture}_{}.png", date.max(-1) + 1);
+        if self.images.contains_key(&key) {
+            return Some(path);
+        }
+        let decode = |bank: &Bank, id: u32| image::load_from_memory(bank.file(id)?.1).ok().map(|i| i.to_rgba8());
+        if card > 6 {
+            return None;
+        }
+        let card_img = decode(&self.system, 67 + card)?;
+        let place = decode(&self.system, 74 + picture)?;
+        let mut img = RgbaImage::from_pixel(SCREEN_W as u32, SCREEN_H as u32, Rgba([0, 0, 0, 255]));
+        let place = imageops::crop_imm(&place, 40, 0, 312, 516).to_image();
+        imageops::overlay(&mut img, &place, 173 - 156, 275 - 258);
+        imageops::overlay(&mut img, &imageops::crop_imm(&card_img, 0, 0, SCREEN_W as u32, SCREEN_H as u32).to_image(), 0, 0);
+        if (0..34).contains(&date) {
+            let (dx, dy) = (date as u32 % 6 * 169, 545 + date as u32 / 6 * 19);
+            let cell = imageops::crop_imm(&card_img, dx, dy, 169, 18).to_image();
+            imageops::overlay(&mut img, &cell, 754 - 84, 484 - 9);
+        }
+        self.write_png(&path, &img);
+        self.images.insert(key, None);
+        Some(path)
+    }
+
     fn particles(&mut self, kind: Particles, count: u32) -> Option<String> {
         let (file, cell, falls) = match kind {
             Particles::LightBalls => ("lightball.png", (32, 32), false),
