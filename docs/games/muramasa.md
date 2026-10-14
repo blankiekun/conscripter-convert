@@ -585,6 +585,8 @@ Next, in order:
    for a moment and raised again) keep playing at full volume, and
    loops faded that way never stop (the checker's `loop` rule). Needs a
    per-channel volume in the output (NScripter's `bgmvol`/`chvol`).
+   The exe's curve (`research/nitroplus/builtins.md`, `SetVolume`):
+   −10 dB per halving, so volume 1 is silent and 500 is 32 %.
 2. **System screens** (step 7): title, save/load, settings, backlog,
    built as in-script menus from `cg/sys/*` parts, as for 最果てのイマ
    (`conv-cons/src/menu.rs`); the settings screen also shows the build's
