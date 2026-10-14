@@ -1,0 +1,22 @@
+# 魔王編 (茶々丸): rodemass chart, third column. Needs both earlier
+# endings: ma00_000 then sets #魔王編解放, which opens option 3 at
+# ma02_014; #復讐編終了 opens option 3 at ma02_013 and ma04_005. Where the
+# chart lists two options for one select, the one taken here keeps
+# $Muramasa_Flag ahead (option 1 at ma04_005 ties 一条 with 村正 and the
+# ranking at ma05_023 picks 一条). Saves before md04_045 for 4-muramasa.
+ma02_003:1
+ma02_006:1
+ma02_013:3
+ma02_014:3
+ma02_018:2
+ma03_005:2
+ma03_011:1
+ma03_020:1
+ma03_021:3
+ma04_005:3
+ma04_022:1
+md02_032:1
+md02_043:2
+SAVE 1
+md04_045:1
+END md04_045aa
