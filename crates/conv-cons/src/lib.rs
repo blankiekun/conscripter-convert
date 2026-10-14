@@ -831,6 +831,17 @@ pub fn emit(script: &Script) -> String {
                     writeln!(out, "dwavestop {ch}").unwrap();
                 }
             }
+            // CONscripter's channel fades (PLAN.md §4.2).
+            Op::SeFadeIn { ms } => writeln!(out, "dwavefadein {ms}").unwrap(),
+            Op::SeFadeOut { file, ms } => {
+                let channels = match file {
+                    Some(file) => se.stop(file).into_iter().collect(),
+                    None => se.stop_all(),
+                };
+                for ch in channels {
+                    writeln!(out, "dwavefadeout {ch},{ms}").unwrap();
+                }
+            }
             Op::ClickWait { skippable } => {
                 needs_click_wait = true;
                 writeln!(out, "mov {BUTTON_VAR},{}:gosub *{CLICK_WAIT}", u8::from(*skippable)).unwrap();
@@ -2397,6 +2408,16 @@ end
             out.contains("lsp2add 24,\":c;>800,600,#ff0000\",400,300,100,100,0,127\nprint 1\ndelay 100\ncsp2 24\nprint 1\n"),
             "{out}"
         );
+    }
+
+    #[test]
+    fn sound_effects_fade() {
+        let out = emit(&script(vec![
+            Op::SeFadeIn { ms: 2000 },
+            Op::SePlay { file: "se/rain.ogg".into(), looped: true },
+            Op::SeFadeOut { file: Some("se/rain.ogg".into()), ms: 1500 },
+        ]));
+        assert!(out.contains("dwavefadein 2000\ndwaveloop 1,\"se\\rain.ogg\"\ndwavefadeout 1,1500\n"), "{out}");
     }
 
     #[test]

@@ -427,6 +427,11 @@ pub enum Op {
     ScreenFade { colour: u32, ms: u32 },
     /// Wait `ms` milliseconds; unlike [`Op::Wait`], a click doesn't end it.
     Pause { ms: u32 },
+    /// The next [`Op::SePlay`] fades its sound in over `ms`.
+    SeFadeIn { ms: u32 },
+    /// Fade a sound effect (`None`: every one) out over `ms`, then stop it,
+    /// going on at once; [`Op::SeStop`] stops it at once.
+    SeFadeOut { file: Option<String>, ms: u32 },
 }
 
 /// A puzzle of numbered tiles (装甲悪鬼村正's 立方陣): the player clicks a
