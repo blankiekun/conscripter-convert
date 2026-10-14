@@ -625,6 +625,8 @@ impl Lowering<'_> {
                         self.out.ops.push(Op::Sprites { changes: vec![change], fade_ms: 500 });
                         self.eye_catch = true;
                     }
+                    // 0,-1: no picture.
+                    None if t.int_at("Image", 0) == Some(0) && n < 0 => {}
                     None => self.note(format!("EyeCatch {:?}", t.get("Image").unwrap_or(&[]))),
                 }
             }
@@ -688,7 +690,8 @@ impl Lowering<'_> {
                     self.out.ops.push(Op::Chapter { title: title.to_string() });
                 }
             }
-            "BacklogMessage" | "SceneJumpDialogEnd" | "MovieStop" | "CharacterWait" | "SpriteMoveEnd" | "CharacterActionEnd" => {}
+            // CharacterStop stops a looping action, which isn't played.
+            "BacklogMessage" | "SceneJumpDialogEnd" | "MovieStop" | "CharacterStop" | "CharacterWait" | "SpriteMoveEnd" | "CharacterActionEnd" => {}
             _ => self.unsupported(scene, i, ty.to_string()),
         }
     }
