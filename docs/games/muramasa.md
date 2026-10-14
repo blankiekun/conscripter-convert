@@ -513,19 +513,30 @@ Used to check what the engine does (`docs/new-game.md` step 9).
 The whole story compiles, the 立方陣 included, and every ending of the
 chart is reached in the converted control flow. **Route runs**
 (2026-10-14, see "Testing"), the full build played in CONscripter
-0.19.0 headless with `--auto-play` and a debug trace, every page drawn
+0.19 headless with `--auto-play` and a debug trace, every page drawn
 and the files checked against nstrace:
 
 | Run | Ending | Files | Pages | Time | Result |
 |---|---|---|---|---|---|
-| 1 | 一条END | 246 | 26,704 | 17 min | passed |
-| 2 | 香奈枝END | 349 | 26,085 | 18 min | passed |
-| 3 | 茶々丸END | 300 | 29,136 | 19 min | passed |
-| 9 | 村正END | 510 | 36,276 | 24 min | passed |
-| 10 | TRUE END | 514 | 36,449 | 24 min | passed |
+| 1 | 一条END | 246 | 26,704 | 24 min | passed |
+| 2 | 香奈枝END | 349 | 26,085 | 25 min | passed |
+| 3 | 茶々丸END | 300 | 29,136 | 26 min | passed |
+| 4 | bad end (`mz00_000`) | 436 | 31,500 | 28 min | passed |
+| 5 | bad end | 438 | 31,670 | 28 min | passed |
+| 6 | bad end | 440 | 31,714 | 28 min | passed |
+| 7 | bad end | 442 | 31,777 | 28 min | passed |
+| 8 | bad end | 455 | 32,873 | 28 min | passed |
+| 9 | 村正END | 510 | 36,276 | 29 min | passed |
+| 10 | TRUE END | 514 | 36,449 | 30 min | passed |
 
-(The build with every fix below, 2026-10-14; the build before them
-passed too.) The same runs on Xvfb in skip mode took 40-56 minutes. On CONscripter
+(Round 3, 2026-10-14: the build with every fix below up to the `[text0081]`
+marker, engine 0.19.1, all ten paths side by side with `--all`; the
+times are with ten at once. Rounds 1 and 2, the five endings on the
+builds before, passed too. Round 3's checker report matches round 2's,
+with no `error` or `missing`; the only new findings are `slow` waits in
+`ma05_019` (7.8 s where the original takes about 4 s): since the alias
+fix its non-blocking 2 s `Shake` really shakes, and we play it blocking
+before the next fade.) The same runs on Xvfb in skip mode took 40-56 minutes. On CONscripter
 0.18.0, run 9 aborted 508 files in with `malloc(): unaligned tcache
 chunk detected` (heap corruption, noticed in `malloc` under `lsp` →
 `loadImage`); on 0.19.0 it passes. A likely cause, fixed in between:
@@ -635,13 +646,7 @@ out/conscripter-mura`). The route runs and `--at` starts are in
 `research/nitroplus/engrun.py`.
 
 Next, in order:
-1. **Check the route runs of the rebuilt game.** Round 3 (2026-10-14,
-   all ten paths with `--all`, engine 0.19.1, the build before d124bec)
-   was started side by side; check each run's result line and run the
-   trace checker on each `trace.jsonl`. The build has the fixes after
-   the route runs above, but not the exact names (d124bec): those
-   change only two waits and need no new runs.
-2. **Sound volume** (half done). The converter ignores `SetVolume`
+1. **Sound volume** (half done). The converter ignores `SetVolume`
    (1,406 changes of a playing sound in the build's list; starting
    volumes too) unless it goes to 0, so sounds faded to 1 keep playing
    at full volume, and loops faded that way never stop (the checker's
@@ -657,21 +662,21 @@ Next, in order:
    curve (`research/nitroplus/builtins.md`, `SetVolume`): percent =
    100·(volume/1000)^1.661, so 1 is silent and 500 is 32 %. A fade to
    0 over time could use `dwavefadeout` (CONscripter 922b73f).
-3. Check against the original: the figure in `ma01_002` (おれ→ ○□卍□○
+2. Check against the original: the figure in `ma01_002` (おれ→ ○□卍□○
    ←？ with ／＼ strokes) only lines up written horizontally, and comes
    apart in its vertical box.
-4. A replay of route 9 with `--shot-pages` (engine 0.19.0) stopped
+3. A replay of route 9 with `--shot-pages` (engine 0.19.0) stopped
    drawing at `f_md01_002:158856` (`print 10,500`, page 18,573) with
    the process spinning; the same run passed before. Not reproduced.
-5. **System screens** (step 7): title, save/load, settings, backlog,
+4. **System screens** (step 7): title, save/load, settings, backlog,
    built as in-script menus from `cg/sys/*` parts, as for 最果てのイマ
    (`conv-cons/src/menu.rs`); the settings screen also shows the build's
    version line (`version.txt`). A big item: check with the user first.
-6. The largest leftovers below: `CreateProcess` (via Lua), non-blocking
+5. The largest leftovers below: `CreateProcess` (via Lua), non-blocking
    `Move`/`Zoom`, `AddRender` (needs a per-sprite blend mode).
-7. Step 11.5: `#` flags (globals from %800) across quit and relaunch,
+6. Step 11.5: `#` flags (globals from %800) across quit and relaunch,
    and in the web build.
-8. Optional: the 18 files with no `else` (below).
+7. Optional: the 18 files with no `else` (below).
 
 **Leftovers** (counts from the dry run's notes):
 - `CreateProcess` (510 calls; the battle HUD `CP_*` in
