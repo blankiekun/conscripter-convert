@@ -85,9 +85,19 @@ system screens, extras and matching effects to the original.
   from the top. A handful of opcodes make most of the visible game.
 - Find the dispatch table in the exe. Then, for each handler: the
   strings it references (error messages name opcodes), the source-file
-  name it logs, the RTTI class it builds. Disassemble once with
-  `objdump -d -M intel --no-show-raw-insn <exe>` into
-  `research/<engine>/local/` (git-ignored) and grep that.
+  name it logs, the RTTI class it builds. **Decompile with Ghidra**
+  rather than reading raw disassembly:
+  `research/tools/ghidra/ghidra_export.sh <exe> research/<engine>/local/ghidra
+  --names research/<engine>/names.tsv` writes one pseudo-C file per
+  function (`decomp/<address>_<name>.c`, headed by its callers, callees
+  and the cp932 strings it uses) plus `functions.tsv` and `strings.tsv`.
+  Grep those first. **Every function or global you identify goes into
+  `research/<engine>/names.tsv`** (`address<TAB>name<TAB>comment`) and the
+  export is rerun (~30 s; the first run analyzes for about a minute), so
+  the next session reads named code instead of `FUN_00412a30`. Options
+  (`--rtti` for MSVC C++ classes, `-- -processor …` for ARM) are in the
+  script's header. `objdump -d -M intel` is still handy for a quick look
+  at the bytes.
 - Work out **every index space a jump uses** (per-script labels or
   global tables, implicit entries, labels on marker instructions) and
   check all targets across the corpus. A wrong guess still produces a

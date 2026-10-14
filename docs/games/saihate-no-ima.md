@@ -420,9 +420,12 @@ and of `0.txt`, `docs/new-game.md` step 11.4).
   animation, 60 static, 61 overlay, 62+ characters; `lsp2` 0-11 save
   menu, 12-23 top bars. Save slots 900 + level hold the blog bar's
   levels.
-- **Disassembly:** `objdump -d -M intel --no-show-raw-insn
-  Farthest2015.exe > research/xuse/local/exe.asm` (git-ignored). The
-  opcode dispatch table is at `0x4fb270`.
+- **Decompiling the exe:** `research/tools/ghidra/ghidra_export.sh
+  <install>/Farthest2015.exe research/xuse/local/ghidra --names
+  research/xuse/names.tsv` (pseudo-C per function, git-ignored). The
+  opcode dispatch table is at `0x4fb270`; `names.tsv` names it and every
+  handler and address this document mentions. Raw disassembly:
+  `objdump -d -M intel --no-show-raw-insn Farthest2015.exe`.
 - After a rebuild delete `kidoku.dat`: its offsets go stale.
 
 ## Running the original under wine

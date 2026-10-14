@@ -1,5 +1,4 @@
 /target
 /out
-/research/xuse/local
+/research/*/local
 __pycache__/
-/research/oretsuba/local

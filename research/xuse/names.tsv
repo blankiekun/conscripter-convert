@@ -1,0 +1,60 @@
+# Farthest2015.exe: functions and data identified so far, applied by
+# research/tools/ghidra/ghidra_export.sh --names. Columns (tab-separated):
+# address, name, comment. Details: docs/games/saihate-no-ima.md.
+004bcb20	decrypt_0cd	cipher of HD/CDFiles/0.cd
+0046de00	load_svar	reads an sVAR file (0x44-byte entries, 64-byte names) into the 20- and 150-variable tables
+0047f620	voice_clip_by_index	archive index >> 8, slot index & 0xff
+0040b2e0	gaf_key_from_name	GAF4 key, indexed by file offset modulo keylen - 1
+004fb270	opcode_table	opcode handlers, indexed by the record's u16 opcode
+00475f40	show_message	drops the voice flag when voice_exists fails
+004679d0	voice_exists
+0040bff0	load_background	bg*.004 holds 64 per file (n >> 6)
+00467670	leave_link_scene
+0045b6f0	title_task
+0051eb3c	progress_bits	saved with the system data; set by op 0x99
+0051ea18	cg_seen_bits	bit n-1 = CG n seen; set by op 0x9d and 0x55
+004109a0	object_create	arg: sort key (layer | depth << 8)
+0047aab0	sound_request
+004fe200	replay_table	16 x (used, ptr)
+00501434	module_creator_table	indexed by effect module kind
+00454a60	staff_roll_task
+004772a0	op_43	script opcode 0x43
+00415b50	op_88	script opcode 0x88
+00434960	op_90	script opcode 0x90
+00477460	op_46	script opcode 0x46
+00477990	op_49	script opcode 0x49
+00494750	op_4e	script opcode 0x4e
+00415a30	op_70	script opcode 0x70
+00473610	op_59	script opcode 0x59
+00413f10	op_82	script opcode 0x82
+00414180	op_84	script opcode 0x84
+00413940	op_7d	script opcode 0x7d
+00414460	op_7c	script opcode 0x7c
+00478b00	op_99	script opcode 0x99
+00478b30	op_9d	script opcode 0x9d
+004224a0	op_56	script opcode 0x56
+00414050	op_83	script opcode 0x83
+00473d20	op_67	script opcode 0x67 and 0x00: one-frame yield
+00475af0	op_39	script opcode 0x39
+00478650	op_3b	script opcode 0x3b
+004786c0	op_3c	script opcode 0x3c
+004788d0	op_91	script opcode 0x91
+00477900	op_48	script opcode 0x48
+00477af0	op_4a	script opcode 0x4a
+00474460	op_17_setne	script opcode 0x17 (setne)
+004745e0	op_18_setl	script opcode 0x18 (setl)
+00474520	op_19_setg	script opcode 0x19 (setg)
+00474580	op_1a_setle	script opcode 0x1a (setle)
+004744c0	op_1b_setge	script opcode 0x1b (setge)
+00478330	op_96	script opcode 0x96
+004155c0	op_8d	script opcode 0x8d
+00413cd0	op_80	script opcode 0x80
+00473940	op_69	script opcode 0x69
+00413820	op_87	script opcode 0x87
+00413bb0	op_7f	script opcode 0x7f
+004153c0	op_8c	script opcode 0x8c
+00442000	op_6d	script opcode 0x6d
+00441550	op_6e	script opcode 0x6e
+00441a00	op_6f	script opcode 0x6f
+00473530	op_57	script opcode 0x57
+00449df0	op_76	script opcode 0x76
