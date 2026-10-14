@@ -1069,6 +1069,18 @@ pub struct ConfirmDialog {
     pub delete: String,
     pub title: String,
     pub quit: String,
+    /// Questions drawn as pictures (frame and text in one, at their
+    /// place), each shown in place of `base` and the text. A dialog with
+    /// pictures draws no button labels (the buttons carry their own).
+    pub pictures: Vec<(Switch, Placed)>,
+    /// A picture over the whole screen under the dialog (black, to dim
+    /// it), and its opacity (0-255); with `pictures` only.
+    pub backdrop: Option<(Placed, u8)>,
+    /// `yes` and `no` have a fourth cell, shown while the mouse button is
+    /// held on them.
+    pub pressed: bool,
+    /// The dialog fades in over this long (0 = at once).
+    pub fade_ms: u32,
 }
 
 /// A screen of its own drawn over the scene, the text window hidden:

@@ -266,6 +266,30 @@ impl Assets for NpaAssets<'_> {
         r.map(|r| r.0)
     }
 
+    fn strip(&mut self, parts: &[&str]) -> Option<(String, u32, u32)> {
+        let mut cells = Vec::new();
+        for part in parts {
+            cells.push(self.image(part)?);
+        }
+        let w = cells.iter().map(|c| c.1).max()?;
+        let h = cells.iter().map(|c| c.2).max()?;
+        use std::hash::{Hash, Hasher};
+        let mut hash = std::collections::hash_map::DefaultHasher::new();
+        parts.hash(&mut hash);
+        let rel = format!("system/strip/{:016x}.png", hash.finish());
+        let size = (w * cells.len() as u32, h);
+        if self.dry_run || self.output.join(&rel).exists() {
+            return Some((rel, size.0, size.1));
+        }
+        let mut out = image::RgbaImage::new(size.0, size.1);
+        for (i, (cell, _, _)) in cells.iter().enumerate() {
+            let img = image::open(self.output.join(cell)).ok()?.into_rgba8();
+            image::imageops::overlay(&mut out, &img, (i as u32 * w) as i64, 0);
+        }
+        self.write_png(&rel, &out);
+        Some((rel, size.0, size.1))
+    }
+
     fn transparent(&mut self) -> String {
         let rel = "system/transparent.png".to_string();
         if !self.output.join(&rel).exists() {

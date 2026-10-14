@@ -452,5 +452,9 @@ pub fn confirm_dialog(assets: &mut ArchiveAssets, labels: &Labels) -> Option<Con
         delete: "のデータを削除します。よろしいですか？".into(),
         title: "タイトルへ戻りますか？".into(),
         quit: "ゲームを終了します。よろしいですか？".into(),
+        pictures: Vec::new(),
+        backdrop: None,
+        pressed: false,
+        fade_ms: 0,
     })
 }

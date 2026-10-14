@@ -941,7 +941,7 @@ fn convert_nss(
             eprintln!("flag {var} {name}");
         }
     }
-    let ir = Script {
+    let mut ir = Script {
         title: title.to_string(),
         width: convert::SCREEN_W as u32,
         height: convert::SCREEN_H as u32,
@@ -957,6 +957,7 @@ fn convert_nss(
         ops: compiled.ops,
         version: Some(version::line()),
     };
+    game.menus(&mut assets, &mut ir);
     let (encoded, lost) = conv_cons::encode(&conv_cons::emit(&ir));
     // A dry run writes the script but no assets.
     fs::write(output.join("0.txt"), encoded)?;

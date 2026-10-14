@@ -681,9 +681,17 @@ Next, in order:
    a dialog), Esc asks ゲームを終了しますか, the title's 終了する quits
    with no question, the backlog shows no names. Plan, in order, each
    screen checked beside the original:
-   1. Button strips joined from the `000`-`003` part files at convert
-      time; confirmations as pictures (`ConfirmDialog` + a picture per
-      question, backdrop, the 記録をしました notice).
+   1. Done: button strips joined from the `000`-`003` part files at
+      convert time (`Assets::strip`: normal, hover, disabled, pressed);
+      the yes/no questions as the game's pictures (`ConfirmDialog`
+      `pictures`, `backdrop`, `pressed`, `fade_ms`; built in
+      `convert/muramasa/screens.rs`), with the pressed state from
+      CONscripter's `spbtn num,no,pressed_cell` (625c598). Beside the
+      original (quit question, normal, both hovers, 拒否 pressed): the
+      same pixels, offset 0,0. Left for later: the 150 ms sideways
+      unroll (a fade for now), the 記録をしました notice (with the save
+      screen), 選択肢まで戻りますか and 設定を初期状態に戻す (with their
+      screens).
    2. Title: layers, hover and click sounds, BGM, `Continue` (quick
       load) and `Extras` actions.
    3. Right-click menu (a new `CommandMenu`) and the quick bar
