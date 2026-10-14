@@ -5,11 +5,10 @@ Nitroplus NSS engine. This is the game's committed record: file
 formats, the script language, how the compiler maps it to CONscripter,
 the routes and progression variables, and what is left. The general
 process is in `docs/new-game.md`, general lessons in `PLAN.md` §13.
-Local working notes are in `muramasa.md` (git-ignored, in the main
-checkout).
+Paths below are relative to the repository unless they say otherwise;
+`<game>` is the folder holding `Muramasa.exe` and the `*.npa` archives.
 
-- **Status:** in progress (see "Status" below). Branch `nitroplus`,
-  worktree `~/Projects/conscripter-convert-nitroplus`.
+- **Status:** in progress (see "Status" below). Branch `nitroplus`.
 - **Engine:** Nitroplus's NSS engine (`Muramasa.exe`, 2009). Scripts are
   shipped as **plain source text** in an encrypted NPA archive, so no
   bytecode is reversed: the converter is a compiler from NSS.
@@ -17,12 +16,11 @@ checkout).
   helpers that wrap them, and two open reimplementations read for
   semantics only (FGRE/libnpengine, nitrosharp): see
   `research/nitroplus/builtins.md`.
-- **Install:** from the disc image (InstallShield 10.5, unpacked with
-  unshield) into
-  `/home/saya/Z:/Media/Visual Novels/muramasa/r3950/FMDM_game/`: game
-  data in `ゲームデータ/`, movies in `ムービー/`. The game needs no
-  install step beyond the files. Use the local copy
-  `out/muramasa-game/` of the main checkout (the share is slow).
+- **Game files:** the retail DVD (InstallShield 10.5). Install it, or
+  unpack `product/data1.hdr` from the disc with `unshield`: the game
+  data lands in `ゲームデータ/` (this is `<game>`), the movies in
+  `ムービー/`. The game needs no registry entries, only the files. Keep
+  `<game>` on a local disk: the full build reads 3 GB of archives.
 - **Reader and compiler:** `crates/conv-engines/src/nitroplus/`;
   research scripts in `research/nitroplus/`.
 
@@ -32,12 +30,13 @@ Whole game, script only (about 10 s, 2.2 GB peak; writes `0.txt`, no
 assets; use it for anything about logic):
 
 ```sh
-target/release/conscripter-convert convert-nss out/muramasa-game \
+target/release/conscripter-convert convert-nss <game> \
   --file ma00_000.nss --chain 2000 -o out/muramasa-dry --dry-run
 ```
 
 Full build: the same without `--dry-run`, plus
-`--font /usr/share/fonts/OTF/ipam.ttf --title 装甲悪鬼村正`. It takes
+`--font <a Japanese TTF, e.g. ipam.ttf> --title 装甲悪鬼村正` (the font
+is copied into the output as `default.ttf`). It takes
 about 8 minutes and **about 6.7 GB of memory**: run it in the
 background, one at a time, and say so before starting one.
 
@@ -56,7 +55,7 @@ background, one at a time, and say so before starting one.
 | Area | Status |
 |---|---|
 | NPA archives, images (PNG, JPEG), BGM, sound effects, voices | ✅ Decoded (whole-corpus check not done) |
-| Movies (`.ngs`, MPEG-1) | ❌ Skipped for now (the user's decision, 2026-10-13) |
+| Movies (`.ngs`, MPEG-1) | ❌ Out of scope for now (decided 2026-10-13) |
 | Script parsing | ✅ All 913 files; 17 places that don't parse are all typos or dead code |
 | Story control flow (files, scenes, functions, `if`/`while`, choices, story flags, route ranking, heroine deaths) | ✅ Compiled; 879 of the 883 story files reached from `ma00_000` |
 | Text: vertical windows, face windows and name plates, ruby, `<k>` waits, voices | ✅ Converted |
@@ -66,7 +65,7 @@ background, one at a time, and say so before starting one.
 | Additive / multiply blends, `Rotate`, `SetFrequency`, camera moves | ❌ Not converted |
 | 立方陣 minigame (`function_magiccube.nss`) | ❌ Not converted: blocks 村正END and TRUE END |
 | System screens (title, save/load, settings, backlog) | ❌ Not started |
-| Extras | ❌ Skipped for now (the user's decision, 2026-10-13) |
+| Extras | ❌ Out of scope for now (decided 2026-10-13) |
 
 ## Files and formats
 
@@ -281,6 +280,8 @@ change). The committed paths in `research/nitroplus/paths/` follow the
 chart:
 
 ```sh
+conscripter-convert npa extract <game>/Muramasa.exe <game>/nss.npa -o out/muramasa-nss
+conscripter-convert nss route out/muramasa-nss > out/muramasa-route.txt
 python3 -I research/nitroplus/nstrace.py out/muramasa-dry/0.txt \
   research/nitroplus/paths/{1-ichijou,2-kanae,3-chachamaru,4-muramasa}.txt \
   --route out/muramasa-route.txt --quiet
@@ -297,9 +298,8 @@ The whole story compiles from the prologue to the 立方陣, and all four
 chart routes reach their endings in the converted control flow. Checked
 in the engine: ma01_001 → ma02_003 (29 files, about 500 clicks) and four
 forks (a runtime `call_scene`, a heroine death, the ranking, a battle
-choice). Scope from the user: extras and movies skipped for now; open
-questions are the 立方陣 (port or skip) and how closely to follow the
-battle HUD.
+choice). Scope: extras and movies are out for now; the 立方陣 is
+being ported; how closely to follow the battle HUD is open.
 
 Next, roughly in order: the 立方陣, a long engine skip run per route,
 the system screens (title, save/load, settings, backlog), then the
