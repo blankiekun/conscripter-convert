@@ -444,21 +444,57 @@ Used to check what the engine does (`docs/new-game.md` step 9).
   (780, 260) starts `ma00_000`.
 - Stop with `wineserver -k` (with `WINEPREFIX` set) and kill Xvfb by PID.
 
-## Status: in progress (2026-10-13)
+## Status: in progress (2026-10-14)
 
 The whole story compiles, the 立方陣 included, and every ending of the
-chart is reached in the converted control flow. Checked
-in the engine: ma01_001 → ma02_003 (29 files, about 500 clicks) and four
-forks (a runtime `call_scene`, a heroine death, the ranking, a battle
-choice), and the 立方陣. Scope: extras and movies are out for now; how
-closely to follow the battle HUD is open.
+chart is reached in the converted control flow. **Engine skip runs**
+(2026-10-14, see "Testing"), the full build played in CONscripter with
+every page drawn and the files checked against nstrace:
+
+| Run | Ending | Files | Time | Result |
+|---|---|---|---|---|
+| 1 | 一条END | 246 | 40 min | passed |
+| 2 | 香奈枝END | 349 | 41 min | passed |
+| 3 | 茶々丸END | 300 | 44 min | passed |
+| 9 | 村正END | 508 of 510 | 56 min | **aborted** in `md06_032` |
+| 10 | TRUE END | 514 | 56 min | passed |
+
+Run 9 aborted with `malloc(): unaligned tcache chunk detected`
+(SIGABRT): heap corruption in the engine, noticed in `malloc` under
+`lspCommand` → `loadImage` → `createSurfaceFromFile` →
+SDL (`cg\anime\slash01a_02.png`). The damage happened earlier: run 10
+plays the same files without trouble, and an AddressSanitizer build
+(`-fsanitize=address`, flags as in "Build" plus the SDL2_mixer
+`PKG_CONFIG_PATH`) started at `md06_030` with `--at` reached the end
+with no error. Not found yet: an ASan run of the whole route 9 (about
+2-3 hours) would show the first bad write. Testing paused here
+(2026-10-14) while CONscripter gets better debug options.
+
+Fixed on the way (each found by the runs, all in the current build):
+- A `?` in horizontal text: NScripter reads it as an array reference
+  and exits with 255 (the message goes to `stderr.txt`). Every route
+  passed one, in `ma03_027vs`: the NSS `<?>` tag (93 uses), passed
+  through as text. Text lines now write `?` full-width, `<?>` is
+  dropped, and lint reports a `?` in text.
+- Non-blocking actions were cross-faded over their whole time at the
+  next sync: a 270 s background scroll (`ma04_013vs`) blocked the
+  player for 270 s, 51 cross-fades were over a minute. Now at most a
+  `Wait`'s time, or 1 s where the script doesn't wait.
+- The full build ran out of memory (7 GB) on 60x zooms; now 1.2 GB.
+
+Testing notes: other agents stop engines with `pkill -x conscripter`;
+run ours through a symlink with another name (`--engine
+out/conscripter-mura`). The skip runs and `--at` starts are in
+`research/nitroplus/engrun.py`.
 
 Next, in order:
-1. **A long engine skip run per route** (playbook step 4), to catch
-   engine exits deep in the game. Needs a full build (see "Build").
+1. **Find run 9's heap corruption** (with CONscripter's new debug
+   options, or an ASan build over the whole route 9), fix it in the
+   engine, and rerun the five skip runs.
 2. **System screens** (step 7): title, save/load, settings, backlog,
    built as in-script menus from `cg/sys/*` parts, as for 最果てのイマ
-   (`conv-cons/src/menu.rs`). A big item: check with the user first.
+   (`conv-cons/src/menu.rs`); the settings screen also shows the build's
+   version line (`version.txt`). A big item: check with the user first.
 3. The largest leftovers below: `CreateProcess` (via Lua), non-blocking
    `Move`/`Zoom`, `AddRender` (needs a per-sprite blend mode).
 4. Step 11.5: `#` flags (globals from %800) across quit and relaunch,
@@ -485,3 +521,5 @@ Next, in order:
 - `SetBlur` strength is a guess (1.5 px per pass), unverified.
 - Engine: a half-width character under `tateyoko 1` exits CONscripter
   with status 255 (`ONScripter_text.cpp`, drawChar's rotation path).
+- Engine: CONscripter segfaults on `end` after a `dwave` voice with Ctrl
+  held (seen once in a small test script; not looked into).

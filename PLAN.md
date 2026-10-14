@@ -607,10 +607,26 @@ The steps that apply them are in `docs/new-game.md`.
   that later value. Small synthetic file sets in unit tests caught this.
 - **Long waits:** the shell tool kills a foreground command after 10
   minutes (exit 137, looks like OOM). Run long jobs in the background and
-  wait for the notification. Max RSS includes the mapped archives, so it
-  overstates real memory use.
+  wait for the notification.
 - **Let the user watch:** a progress page (artifact) with screenshots,
   republished at milestones, lets the user follow from their phone.
+- **Measure memory before blaming it on mapped files:** the kernel's OOM
+  line gives anon-rss. The full build's 7 GB was heap (60x zooms scaled
+  whole, 8 GB bitmaps), not the mapped archives; cutting big zooms to the
+  screen brought it to 1.2 GB. Run builds under `systemd-run --user
+  --scope -p MemoryMax=…` so a regression can't take the desktop down.
+- **Skip runs per ending find what logic checks can't** (2026-10-14): a
+  `?` in text (NScripter reads an array and exits), a 270 s cross-fade,
+  heap corruption after 500 files. Patch the choices into the script
+  (one `if` per line: a false `if` skips the rest of its line), hold
+  Ctrl on a private Xvfb (any key release ends skip mode), and start deep
+  in a route from the tracer's variables (`--at`) to reproduce in
+  seconds.
+- **CONscripter's errors go to `stderr.txt`** in the game folder
+  (`USE_FILELOG`), not to the terminal: an exit that looks silent has
+  its message there.
+- **Name the engine binary per agent** (a symlink): another agent's
+  `pkill -x conscripter` stops every run on the machine.
 
 ### 13.1c Lessons from 俺たちに翼はない (PS Vita, 2026-10-13)
 
