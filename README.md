@@ -173,6 +173,15 @@ docstring; it expects the title and menus `conv-cons` writes); `research/xuse/ns
 the engine. Per-game checks (route simulations) are listed in each
 game's document.
 
+The engine can also play a converted game by itself and write a debug
+trace (`--trace t.jsonl --auto-play 0`, headless with
+`SDL_VIDEODRIVER=dummy`). `engine/tools/cons_trace_check.py` lists what
+looks wrong in the trace: script errors and crashes, missing files,
+sprites left up, pictures a few pixels off, filters left over a CG,
+sounds left looping, garbled text, slow spots and labels never reached.
+See [`engine/DEBUG.md`](engine/DEBUG.md), and "Checking a build with the
+debug trace" in [`docs/new-game.md`](docs/new-game.md) for the recipes.
+
 ## License
 
 [GPL-3.0-or-later](LICENSE). CONscripter is GPL-2.0-or-later (see

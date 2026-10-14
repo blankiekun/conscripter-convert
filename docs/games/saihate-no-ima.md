@@ -392,6 +392,23 @@ and of `0.txt`, `docs/new-game.md` step 11.4).
   conv_link2` jumps to a label after FIRST START (link scenes open with
   an `@` before their link, so queue a 0). It can't answer `systemcall`
   menus: those hang headless.
+- **Debug trace** (`docs/new-game.md`, "Checking a build with the
+  debug trace"): `SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy
+  conscripter --root . --save-dir <scratch> --trace t.jsonl
+  --trace-ignore 22-48,lsp2:12-23 --auto-play 0`, then
+  `engine/tools/cons_trace_check.py t.jsonl --script 0.txt`. The ignore
+  list keeps auto-play off the bars and menus (sprite map below); the
+  link words 51-58 stay in, since they are the route choices. Sprite 61
+  `bg\frame01.png` is the game's frame overlay, a known `linger` false
+  positive (put it in the game's checker config). A single run with
+  `--auto-choice first` keeps taking the same hub link and left 1,062
+  labels unreached: cover the routes with `cons_explore.py`. Found so
+  far (`sound`): `se068` twice in `s30_l1` ("二度。三度。", meant), `se088`
+  and `se086` in `s13_l147`. A sound listed on two channels in one page
+  under auto-play (`se125` on 2 and 8) is usually only auto-play's speed:
+  the rule reports a sound started twice before the same click wait. Slots 900+
+  hold the blog bar's levels (below), so give `--checkpoint-every` a
+  `--checkpoint-slot` elsewhere (e.g. 500).
 - **Control flow without the engine:** `python3 -I
   research/xuse/nstrace.py 0.txt 50000000 --pages N [--click K]`;
   routes on both sides: `research/xuse/routesim.py`.

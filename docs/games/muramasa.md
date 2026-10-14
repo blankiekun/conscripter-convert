@@ -384,6 +384,27 @@ fails the puzzle. Not done: state across relaunch and in the web build
   scene, copy `0.txt`, add a label before the line and `goto` it right
   after `erasetextwindow 0`, and symlink `arc.nsa`, `default.ttf` and
   `ons_args` next to the copy.
+- **With the debug trace** (`docs/new-game.md`, "Checking a build with
+  the debug trace"), none of that is needed: `SDL_VIDEODRIVER=dummy`
+  and `--auto-play` run without Xvfb or xdotool, and `--goto <label>
+  --vars <file>` starts at a scene with the story flags preset (the
+  `--at` patch of `0.txt` did this by hand; a route replay of an hour
+  became a 22-second reproduction). Write the vars file from
+  `nstrace.py`'s flags, or let a run write it (`--dump-vars file`, at F8
+  and at exit). `--trace-vars 300-899` records the story flags as they
+  change, to compare with `nstrace.py --flags` file by file. Under `--auto-play`, skip mode no longer
+  matters (xdotool key releases used to end it).
+- **Crashes:** the 村正END run died of heap corruption 508 files in,
+  with only a core dump (malloc under `lsp`). With `--trace`, a crash
+  now ends the trace with a `crash` record: the signal, the script line,
+  the gosub chain and the last 50 commands. A script error exits with
+  2 (it was 255) and is in the trace's `error` record, so it no longer
+  looks like a silent exit.
+- **Requested durations:** auto-play shortens effects, so check the
+  trace's `long wait` warnings: `print 10,270000` (a 4.5-minute
+  cross-fade) would have blocked a real player. Pictures larger than a
+  browser texture (the converter once almost wrote a 61440×34560 zoom)
+  give an `image too large for the web` warning.
 - **The 立方陣:** patch a copy of `0.txt` to jump straight to the puzzle
   and print the result (`lsp 999,"RESULT:"+...` on stderr), then click
   through it: solving and the easy mode give 1, a wrong answer 0.
