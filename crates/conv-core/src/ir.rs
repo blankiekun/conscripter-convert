@@ -432,6 +432,10 @@ pub enum Op {
     /// Fade a sound effect (`None`: every one) out over `ms`, then stop it,
     /// going on at once; [`Op::SeStop`] stops it at once.
     SeFadeOut { file: Option<String>, ms: u32 },
+    /// The next [`Op::SePlay`] (and an [`Op::SeFadeIn`] before it) isn't
+    /// played while the player skips (a sound the original leaves out in
+    /// skip mode).
+    SeNotSkipped,
 }
 
 /// A puzzle of numbered tiles (装甲悪鬼村正's 立方陣): the player clicks a

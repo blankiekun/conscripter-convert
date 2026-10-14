@@ -230,7 +230,7 @@ N of the scene replay (`%3000+N`); `0x94` ends a replayed scene.
 | `0x6f` | 87 | **solved** (handler `0x441a00`, `Surprise.cpp`, object at sort key `0x06000000`): u32 time (1-32767 ms), u32 preset 0-8 from the table at `0x500b68` (zoom x/y 16.16 = 10/15/20 %, opacity 100/150/200, tint colour/opacity/blend: none for 0-2, light red `0x8080ff` Multi for 3-5, white blend 6 for 6-8). Takes a snapshot of the picture, tints it, and lays it over the picture scaled by 1 + f × zoom about the centre at f × opacity, f = sin(π t) over the time; the script waits | a "surprise" pulse. Converted to CONscripter's `screenpulse 3,…` (zoom 100/150/200 ‰; Multi → `tint` 1, blend 6 assumed to lay the white over the copy → `tint` 2) + `delay` + `screenpulse 3`. Not checked against the original |
 | `0x57` | 542 | **solved** (handler `0x473530` → sound request `0x47aab0`, channel 0) | play BGM: `arg` = track (1-based, `bm0000.bin` slot `arg - 1`), `sub` = fade-in ms (capped at 30 s) |
 | `0x58` | 579 | **solved** (channel 0, stop flag) | stop BGM: `arg` 0 = all, `sub` = fade-out ms |
-| `0x5a` | 2,633 | **solved** (`op_5a` `0x4736f0` → `sound_request` `0x47aab0`, channel 1) | play SE: packed 9-byte record `u32 fade-in ms, u8 loop, u32 sound` (1-based across `k0000.bin` + `k0001.bin`); a non-looping SE isn't played in skip mode. The fade-in (41 uses, 50-3000 ms, mostly loops) is CONscripter's `dwavefadein` (`Op::SeFadeIn`; added after the audit) |
+| `0x5a` | 2,633 | **solved** (`op_5a` `0x4736f0` → `sound_request` `0x47aab0`, channel 1) | play SE: packed 9-byte record `u32 fade-in ms, u8 loop, u32 sound` (1-based across `k0000.bin` + `k0001.bin`); a non-looping SE isn't played in skip mode (converted: `Op::SeNotSkipped`, `isskip` before the `dwave`). The fade-in (41 uses, 50-3000 ms, mostly loops) is CONscripter's `dwavefadein` (`Op::SeFadeIn`; added after the audit) |
 | `0x5b` | 890 | **solved** (`op_5b` `0x4737a0`, channel 1, stop flag) | stop SE: `arg` = sound or 0 for all, `sub` = fade ms: `dwavefadeout ch,ms` (`Op::SeFadeOut`), which fades and stops while the script goes on |
 | `0x76` | 3,670 | **solved** (`op_76` `0x449df0`): `sub` picks the `Trans_*` class through a jump table (0-3 Wave, 4 Dot4x4, 5-8 SoftEdgeWipe, 9 CrossFade, 10-17 Slide in, 18-25 Slide out, 26 Dissolve, 27 Mosaic, 28-31 BoxRolling, 32-35 RollFlip, 36 SmoothCrossFade, 37-40 Zoom, 41-44 Scroll, 45-47 MeltDown, 48 TvPowerSwitch); the record is u32 ms, u32 flags (bit 0 hides the windows, bits 0-1 remove the bust-ups; always 0), u32 layer byte \| depth << 8 (the transition's sort key: what it covers). Skipped when skipping or with effects off | screen transition. Not converted: the 3 `0x76` and 9 `0x77` records with a layer other than the default `0x271000` (over everything), which only cover the objects below them |
 
@@ -243,7 +243,7 @@ the rows above and the converter:
 |---|---|
 | Consistent | `0x00`, `0x01`-`0x0e` (all 14 as the converter maps them), `0x10`, `0x11`, `0x15`-`0x1b`, `0x22`, `0x23`, `0x36`-`0x38`, `0x3b`, `0x40`, `0x41`, `0x43`, `0x44`, `0x46`-`0x4a`, `0x4c`-`0x50`, `0x52`, `0x53`, `0x55`, `0x56`, `0x57`-`0x59`, `0x67`-`0x69`, `0x6d`-`0x71`, `0x7a`-`0x7d`, `0x7f`-`0x84`, `0x86`-`0x88`, `0x8a`-`0x8d`, `0x8f`-`0x91`, `0x93`, `0x94`, `0x96`, `0x97`, `0x99`, `0x9d` |
 | Fixed | `0x72`/`0x74` fades (were waits); `0x39` clears the static (seen in the original); `0x8e` records with every entry's mode bit 1 show at once; `0x54` removes the overlay, puts `frame01`-`03` up for `sub` 1-3 and starts no fade; `0x66` with a zero high half can't be clicked through; `0x5a`/`0x5b` sound effects fade in and out (new CONscripter commands `dwavefadein`, `dwavefadeout`) |
-| Not converted (rows above) | 12 transitions that cover only part of the picture (`0x76`/`0x77` layer); a non-looping SE is still played in skip mode |
+| Not converted (rows above) | 12 transitions that cover only part of the picture (`0x76`/`0x77` layer) |
 
 Two doc mistakes corrected on the way: `0x8e`'s last 32 bytes are an
 (always empty) module name, not junk; `0x76`'s third u32 is a sort key,
@@ -617,6 +617,10 @@ exe (`research/tools/ghidra/ghidra_export.sh`, names in
    still shows pages past the window: the full-screen window is set just
    before that label, so a start there is in the message box (not a
    problem in play).
+8. **Done: sound effects in skip mode.** `sound_request` leaves a
+   sound effect that doesn't loop out while skipping; the converter now
+   marks those (`Op::SeNotSkipped`) and the script writes `isskip %105`
+   and `if %105 != 1` before their `dwave` (and fade-in).
 
 
 Converted and playable from start to end: text, voices, sprites with

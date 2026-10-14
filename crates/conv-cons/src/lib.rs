@@ -280,6 +280,8 @@ pub fn emit(script: &Script) -> String {
         title_screen(&mut out, t, &effect(t.fade_ms), script.save_menu.is_some(), script.settings.is_some(), script.confirm.as_ref(), script.extras.is_some());
     }
     let mut se = SeChannels::default();
+    // The next sound effect isn't played while skipping (Op::SeNotSkipped).
+    let mut se_not_skipped = false;
     let mut needs_bit_helpers = false;
     let mut needs_move = false;
     let mut needs_zoom = false;
@@ -819,7 +821,13 @@ pub fn emit(script: &Script) -> String {
             Op::SePlay { file, looped } => {
                 let ch = se.start(file);
                 let cmd = if *looped { "dwaveloop" } else { "dwave" };
-                writeln!(out, "{cmd} {ch},\"{}\"", path(file)).unwrap();
+                let when = if std::mem::take(&mut se_not_skipped) { format!("if {} != 1 ", menu::TMP) } else { String::new() };
+                writeln!(out, "{when}{cmd} {ch},\"{}\"", path(file)).unwrap();
+            }
+            // isskip: 1 while skipping (2 in auto mode).
+            Op::SeNotSkipped => {
+                writeln!(out, "isskip {}", menu::TMP).unwrap();
+                se_not_skipped = true;
             }
             Op::SeStop { file: Some(file) } => {
                 if let Some(ch) = se.stop(file) {
@@ -832,7 +840,10 @@ pub fn emit(script: &Script) -> String {
                 }
             }
             // CONscripter's channel fades (PLAN.md §4.2).
-            Op::SeFadeIn { ms } => writeln!(out, "dwavefadein {ms}").unwrap(),
+            Op::SeFadeIn { ms } => {
+                let when = if se_not_skipped { format!("if {} != 1 ", menu::TMP) } else { String::new() };
+                writeln!(out, "{when}dwavefadein {ms}").unwrap();
+            }
             Op::SeFadeOut { file, ms } => {
                 let channels = match file {
                     Some(file) => se.stop(file).into_iter().collect(),
@@ -2418,6 +2429,20 @@ end
             Op::SeFadeOut { file: Some("se/rain.ogg".into()), ms: 1500 },
         ]));
         assert!(out.contains("dwavefadein 2000\ndwaveloop 1,\"se\\rain.ogg\"\ndwavefadeout 1,1500\n"), "{out}");
+    }
+
+    #[test]
+    fn some_sounds_are_left_out_while_skipping() {
+        let out = emit(&script(vec![
+            Op::SeNotSkipped,
+            Op::SeFadeIn { ms: 300 },
+            Op::SePlay { file: "se/door.ogg".into(), looped: false },
+            Op::SePlay { file: "se/rain.ogg".into(), looped: true },
+        ]));
+        assert!(
+            out.contains("isskip %105\nif %105 != 1 dwavefadein 300\nif %105 != 1 dwave 1,\"se\\door.ogg\"\ndwaveloop 2,\"se\\rain.ogg\"\n"),
+            "{out}"
+        );
     }
 
     #[test]

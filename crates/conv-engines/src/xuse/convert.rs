@@ -2627,6 +2627,10 @@ pub fn lower_script(
         if matches!(ins.op, OP_YIELD | OP_YIELD_2 | OP_ENTRY_NAME) {
             continue;
         }
+        // sound_request leaves out a sound that doesn't loop while skipping.
+        if let Some(Ok(Sound::SePlay { looped: false, .. })) = cd.sound(ins) {
+            ops.push(Op::SeNotSkipped);
+        }
         // op_5a passes the record's first u32 to the sound request as its
         // fade-in (0 while skipping).
         if let Some(Ok(Sound::SePlay { fade_in_ms, .. })) = cd.sound(ins)
