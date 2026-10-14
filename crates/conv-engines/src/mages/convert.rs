@@ -325,6 +325,13 @@ struct Lowering<'a> {
     eye_catch: bool,
     /// It is `ECnn` (n), which leaves through the shutters.
     shutters: Option<u32>,
+    /// Pictures an earlier scene left may be up: the eboot drops a
+    /// scene's pictures when the next one loads, so its first `SpriteBG`
+    /// or `SpriteBS` removes them all.
+    inherited: bool,
+    /// No message yet: the scene's opening, which the scripts write once
+    /// per branch (skipped or not), each after a `Tag`.
+    opening: bool,
 }
 
 impl Lowering<'_> {
@@ -436,6 +443,33 @@ impl Lowering<'_> {
         self.staging = true;
     }
 
+    /// A scene's first `SpriteBG`/`SpriteBS`: clears every picture (an
+    /// earlier scene's are unknown here) in its fade, keeping the FadeOut
+    /// cover if the scene starts under it.
+    fn replace_inherited(&mut self, key: &str, tex: i64, img: (String, u32, u32), t: &Block, fade_ms: u32) {
+        let opened = !self.staging;
+        if opened {
+            self.out.ops.push(Op::BeginTransition { effect: "SpriteBG".into(), fade_ms, mask: None, style: TransitionStyle::Fade });
+            self.staging = true;
+        }
+        self.shown.clear();
+        self.out.ops.push(Op::ClearSprites);
+        if let Some(rgb) = self.cover {
+            let image = self.assets.colour(rgb);
+            let cover = SpriteChange { layer: COVER_LAYER, sprite: Some(SpritePlacement { image, x: 0, y: 0 }), keep_filters: false };
+            self.out.ops.push(Op::Sprites { changes: vec![cover], fade_ms: 0 });
+        }
+        let (x, y) = (t.int_at("Position", 0).unwrap_or(640), t.int_at("Position", 1).unwrap_or(360));
+        self.show(key, tex, img, x, y, t.int("Priority").unwrap_or(10), 0, &[]);
+        if let Some(flag) = t.int("CGFlag").filter(|f| *f >= 0) {
+            self.out.ops.push(Op::CgSeen { number: flag as u32 + 1 });
+        }
+        if opened {
+            self.out.ops.push(Op::EndTransition);
+            self.staging = false;
+        }
+    }
+
     fn character_image(&mut self, number: &[Val]) -> Option<(String, u32, u32, i64)> {
         let v: Vec<i64> = number.iter().filter_map(Val::int).collect();
         let (&c, key) = v.split_first()?;
@@ -463,6 +497,7 @@ impl Lowering<'_> {
                     self.out.ops.push(Op::EndTransition);
                     self.staging = false;
                 }
+                self.opening = false;
                 self.out.ops.push(Op::Text { speaker, text, voice, links: vec![], ruby: vec![], styles: vec![], hang: None, continues: false });
             }
             "SpriteBG" | "Sprite" | "SpriteBS" => {
@@ -475,6 +510,10 @@ impl Lowering<'_> {
                     self.stage(tasks, i);
                 }
                 let key = format!("t{tex}");
+                if ty != "Sprite" && std::mem::take(&mut self.inherited) {
+                    self.replace_inherited(&key, tex, img, t, fade(t));
+                    return;
+                }
                 // SpriteBG and SpriteBS replace every picture but the
                 // characters (a background, a black cover, a white flash,
                 // an event CG); Sprite adds one, which the scripts remove
@@ -578,6 +617,7 @@ impl Lowering<'_> {
                 // earlier scene left), then put the cover back.
                 if t.int("SpriteDelete").unwrap_or(0) != 0 {
                     self.shown.clear();
+                    self.inherited = false;
                     self.out.ops.push(Op::ClearSprites);
                     self.out.ops.push(Op::Sprites { changes: vec![cover], fade_ms: 0 });
                 }
@@ -611,6 +651,9 @@ impl Lowering<'_> {
             }
             "Tag" => {
                 if let Some(name) = t.str("Name") {
+                    // Another branch of the opening: it starts again from
+                    // the earlier scene's pictures.
+                    self.inherited |= self.opening;
                     self.out.ops.push(Op::Label(tag_label(scene, name)));
                 }
             }
@@ -1065,7 +1108,7 @@ fn act_style(t: &Block) -> TransitionStyle {
 /// Compiles `scenes` (all of them if empty), each at its label, after a
 /// jump to the game's first scene.
 pub fn compile(game: &Game, scenes: &[String], assets: &mut dyn Assets) -> Compiled {
-    let mut l = Lowering { game, assets, out: Compiled::default(), shown: HashMap::new(), next_slot: HashMap::new(), staging: false, choices: 0, cover: None, eye_catch: false, shutters: None };
+    let mut l = Lowering { game, assets, out: Compiled::default(), shown: HashMap::new(), next_slot: HashMap::new(), staging: false, choices: 0, cover: None, eye_catch: false, shutters: None, inherited: false, opening: false };
     let names: Vec<&String> = if scenes.is_empty() { game.scenes.keys().collect() } else { scenes.iter().collect() };
     let first = names.first().map(|s| s.as_str()).unwrap_or(&game.start);
     let first = if scenes.is_empty() { game.start.as_str() } else { first };
@@ -1081,6 +1124,10 @@ pub fn compile(game: &Game, scenes: &[String], assets: &mut dyn Assets) -> Compi
         }
         l.shown.clear();
         l.staging = false;
+        l.inherited = true;
+        l.opening = true;
+        // A scene whose first fade is a FadeIn starts under the cover.
+        l.cover = scene.tasks.iter().find(|t| matches!(t.task_type(), Some("FadeIn" | "FadeOut"))).filter(|t| t.task_type() == Some("FadeIn")).map(colour);
         for i in 0..scene.tasks.len() {
             l.task(name, &scene.tasks, i);
         }
