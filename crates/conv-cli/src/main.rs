@@ -12,6 +12,8 @@ use conv_engines::xuse::symbols::{self, SymbolTable};
 use conv_engines::xuse::xarc::{CrcTarget, Xarc};
 use conv_engines::xuse::xsa::Xsa;
 
+mod mages;
+
 #[derive(Parser)]
 #[command(name = "conscripter-convert", about = "Convert Japanese visual novels to CONscripter")]
 struct Cli {
@@ -135,6 +137,12 @@ enum Command {
     Nss {
         #[command(subcommand)]
         command: NssCommand,
+    },
+    /// Tools for 5pb./MAGES' TaskList engine (俺たちに翼はない, PS Vita):
+    /// CRI archives and scripts
+    Mages {
+        #[command(subcommand)]
+        command: mages::MagesCommand,
     },
 }
 
@@ -318,6 +326,7 @@ fn main() -> Result<()> {
             NssCommand::Route { dir } => nss_route(&dir),
             NssCommand::Builtins { dir, names, top } => nss_builtins(&dir, &names, top),
         },
+        Command::Mages { command } => mages::run(command),
     }
 }
 

@@ -114,14 +114,20 @@ Not yet.
 ## Status: formats read (2026-10-13)
 
 The package decrypts, every archive lists and extracts
-(`research/oretsuba/cpk.py`), and the script format and its references
-are understood (above). Nothing converts yet.
+and the script format and its references are understood (above).
+`crates/conv-engines/src/mages/` reads the archives (`cpk.rs`) and the
+scripts (`tasks.rs`):
+
+    conscripter-convert mages list <game>/media/CG.cpk
+    conscripter-convert mages extract <game>/media/SCRIPT.cpk -o <dir>
+    conscripter-convert mages check <game>
+
+`mages check` parses all 463 scenes (65,485 messages) and finds every
+texture, voice, SE and BGM ID they use in the archives. Nothing
+converts yet.
 
 Next, in order:
-1. Rust: CPK/AFS2 reader and the TaskList parser in
-   `crates/conv-engines/src/mages/`, with `cpk list|extract` and a task
-   statistics command.
-2. Vertical slice: lower one scene (Message with name and voice,
+1. Vertical slice: lower one scene (Message with name and voice,
    SpriteBG, CharacterOpen, BGM, SE) to the IR and run it.
-3. Walkthrough (this document), then control flow across all scenes
+2. Walkthrough (this document), then control flow across all scenes
    (NextScene, tags, flags, choices) and the route check.
