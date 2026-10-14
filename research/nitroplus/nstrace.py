@@ -21,7 +21,8 @@ A path file has one entry per line (`#` starts a comment):
     END file          the run must have ended in `file` (an ending file)
     REACH file        the run must have passed through `file` by now
 Several path files run one after another in the same session (globals
-carry over), like playing the routes in order.
+carry over), like playing the routes in order. Each file after the first
+starts a new game from the title, unless it starts with LOAD.
 
 With --route, every step from one story file to the next is looked up in
 the source route map (`conscripter-convert nss route` output): a step the
@@ -336,7 +337,12 @@ def main():
     run = Run(lines, labels, route, quiet)
     for p in args[1:]:
         print(f'== {p}')
-        run.play(read_path(p))
+        path = read_path(p)
+        # A path file is a new playthrough from the title, unless it
+        # starts by loading a save.
+        if run.ended is not None and path and path[0][0] not in ('LOAD', 'NEWGAME'):
+            path = [('NEWGAME', None)] + path
+        run.play(path)
     print(f'{run.problems} problem(s)')
     sys.exit(1 if run.problems else 0)
 
