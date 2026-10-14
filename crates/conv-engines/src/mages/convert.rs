@@ -892,12 +892,14 @@ impl Lowering<'_> {
                 let Some(s) = self.shown.get(&format!("t{tex}")).cloned() else { return };
                 let (ax, ay) = (sx(t.int_at("Param", 0).unwrap_or(0)), sy(t.int_at("Param", 1).unwrap_or(0)));
                 let time = ms(t.int("Time").unwrap_or(0));
-                if (ax == 0 && ay == 0) || time == 0 {
-                    if ax == 0 && ay == 0 {
-                        self.out.ops.push(Op::SpriteMotion { layer: s.layer, keys: vec![], looped: false });
-                    } else {
-                        self.note("SpriteQuake without a time");
-                    }
+                if ax == 0 && ay == 0 {
+                    self.out.ops.push(Op::SpriteMotion { layer: s.layer, keys: vec![], looped: false });
+                    return;
+                }
+                // `:Time 0` with a size (once, S04_07A, after a `// wt`):
+                // waits for the shake an earlier task started, which a
+                // message in between has already outlasted.
+                if time == 0 {
                     return;
                 }
                 self.out.ops.push(Op::SpriteMotion { layer: s.layer, keys: quake_keys(ax, ay, time), looped: false });
