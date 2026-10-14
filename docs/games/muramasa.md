@@ -202,8 +202,11 @@ IR ops at the points where the original waits:
   into a generated window picture (`system/window_<hash>.png`, a new
   `setwindow` when it changes); speaker names aren't printed. A blank
   line ends a page, `<k>` becomes NScripter's `@`, `{code}` runs before
-  the page it starts (seen under wine). Vertical text is full-width
-  (`tateyoko 1` exits on a half-width character).
+  the page it starts (seen under wine). Vertical text is full-width.
+  A half-width letter, digit or punctuation mark under `tateyoko 1`
+  draws rotated and doesn't stop the engine (checked in Shift_JIS and
+  UTF-8 scripts), but `/` outside ruby, `#`, `?`, `%`, `$` and `@` in
+  text are read as script syntax, and a script error ends the run.
 - **Sound:** `Request(snd, Play)` with the `SetVolume`/`SetLoop` calls
   after it starts BGM or a sound effect; volume 0 on a playing sound
   stops it.
@@ -392,8 +395,10 @@ fails the puzzle. Not done: state across relaunch and in the web build
   became a 22-second reproduction). Write the vars file from
   `nstrace.py`'s flags, or let a run write it (`--dump-vars file`, at F8
   and at exit). `--trace-vars 300-899` records the story flags as they
-  change, to compare with `nstrace.py --flags` file by file. Under `--auto-play`, skip mode no longer
-  matters (xdotool key releases used to end it).
+  change, to compare with `nstrace.py --flags` file by file. Skip mode
+  used to end on any key release, which made xdotool-driven skipping
+  crawl; auto-play doesn't need it, and releasing Shift, Ctrl, Alt or a
+  function key no longer ends it (other keys and clicks still do).
 - **Crashes:** the 村正END run died of heap corruption 508 files in,
   with only a core dump (malloc under `lsp`). With `--trace`, a crash
   now ends the trace with a `crash` record: the signal, the script line,
@@ -540,7 +545,12 @@ Next, in order:
   by the story's logic one branch always matches; the fall-through ends
   the run.
 - `SetBlur` strength is a guess (1.5 px per pass), unverified.
-- Engine: a half-width character under `tateyoko 1` exits CONscripter
-  with status 255 (`ONScripter_text.cpp`, drawChar's rotation path).
+- Engine: an exit with status 255 in vertical text was put down to a
+  half-width character under `tateyoko 1`, but CONscripter draws those
+  (rotated) and nothing in drawChar exits. It was most likely a script
+  error in the text (a half-width `/`, `#`, `?` or `%`; up to 0.18.0
+  every script error exited with 255). Now a script error exits with 2
+  and the trace's `error` record gives the message and the line; the
+  checker's `text` rule finds those characters in text lines.
 - Engine: CONscripter segfaults on `end` after a `dwave` voice with Ctrl
   held (seen once in a small test script; not looked into).
