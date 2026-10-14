@@ -226,7 +226,8 @@ at that scale, SystemData's are drawn at 1280×720 and are scaled by 3/4
 | Achievement (trophies) | nothing to show |
 | Title screen (`title_bg.png`'s picture and labels: START, LOAD, CONFIG; GALLERY greyed) | converted; the buttons' place is ours (the layout table is in the encrypted eboot) |
 | START's story menu: 始めから and the after-stories ある日の林田美咲/渡来明日香/山科京/軽部狩男 (P03/P01/P02/P04) | converted, shown once any ending was seen; each after-story opens with its heroine's ending, かるお's with 小鳩's (our rule: the original's is in the eboot) |
-| Save/load, settings, backlog, extras | not yet (CONscripter's built-in menus) |
+| Button bar (AUTO SKIP LOG SAVE LOAD CONFIG HIDE), save/load (3 slots × 10 pages), settings, backlog, yes/no dialog | converted in the Vita's look, our layout (2026-10-14, the user's choice): SystemData's backgrounds (`save_bg`, `load_bg`, `bklog`), slot plates (`sl_data`), dialog frame (`dlg_bg_26`, the one without words), headers cut out where they differ from a header-less background; the Vita's controller hints and page box painted over; button labels drawn with the `--font` in the game's style (white, blue halo; gold under the pointer). Backgrounds behind conv-cons's white words are darkened. Without `--font` there are no menus |
+| Extras (CG gallery, music, movies) | not yet |
 
 Next, in order:
 1. Full build of every scene; fix what the lint and a headless run of
@@ -235,4 +236,4 @@ Next, in order:
 2. Effects: EffectStart 40, InOut_Act types, SpriteMove `:Scale`.
 3. Walkthrough (this document), then the route check of the converted
    control flow.
-4. System screens and extras (CGMODE, scene replay, music).
+4. Extras (CGMODE, scene replay, music, movies).

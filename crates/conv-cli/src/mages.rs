@@ -205,6 +205,17 @@ fn convert(game: &Path, output: &Path, scenes: &[String], font: Option<&Path>, t
     let compiled = convert::compile(&g, scenes, &mut assets);
     let window = convert::text_window(&mut assets);
     let title_screen = conv_engines::mages::screens::title(&mut assets);
+    // The menus' labels are drawn with the font.
+    let font_bytes = font.map(fs::read).transpose().context("reading the font")?;
+    let labels = font_bytes.as_deref().and_then(conv_engines::mages::menus::Labels::new);
+    let menus = labels.as_ref().map(|l| {
+        use conv_engines::mages::menus;
+        (menus::button_bar(&mut assets, l), menus::save_menu(&mut assets, l), menus::settings_menu(&mut assets, l), menus::backlog(&mut assets, l), menus::confirm_dialog(&mut assets, l))
+    });
+    let (button_bar, save_menu, settings, backlog, confirm) = match menus {
+        Some((a, b, c, d, e)) => (Some(a), b, c, d, e),
+        None => (None, None, None, None, None),
+    };
     for e in &assets.errors {
         println!("  asset error: {e}");
     }
@@ -215,6 +226,11 @@ fn convert(game: &Path, output: &Path, scenes: &[String], font: Option<&Path>, t
         global_border: Some(convert::GLOBAL_BORDER),
         window: Some(window),
         title_screen,
+        button_bar,
+        save_menu,
+        settings,
+        backlog,
+        confirm,
         ops: compiled.ops,
         ..Script::default()
     };

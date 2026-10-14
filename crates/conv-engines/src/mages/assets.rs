@@ -192,6 +192,25 @@ impl<'a> ArchiveAssets<'a> {
 }
 
 impl ArchiveAssets<'_> {
+    /// SystemData picture `file`, decoded.
+    pub fn system_image(&mut self, file: &str) -> Option<RgbaImage> {
+        let data = self.system.by_name(file)?;
+        match image::load_from_memory(data) {
+            Ok(i) => Some(i.to_rgba8()),
+            Err(e) => {
+                self.errors.push(format!("{file}: {e}"));
+                None
+            }
+        }
+    }
+
+    /// Writes a picture made by the converter as `system/<name>.png`.
+    pub fn put_system_png(&mut self, name: &str, img: &RgbaImage) -> String {
+        let path = format!("system/{name}.png");
+        self.write_png(&path, img);
+        path
+    }
+
     /// Cuts rectangles (x, y, w, h) out of SystemData picture `file` and
     /// lays them side by side, scaled by `scale_percent`, as `system/<out>`.
     pub fn system_cells(&mut self, file: &str, out: &str, cells: &[(u32, u32, u32, u32)], scale_percent: u32) -> Option<(String, u32, u32)> {
