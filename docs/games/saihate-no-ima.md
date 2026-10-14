@@ -166,6 +166,11 @@ label-table index. Targets are full scenes (link scenes, label names
 `blog?<title>`) that can change the whole screen; `0x47` returns from
 one and `0x48` returns to the root scene. Converted as buttons over the
 linked words that `gosub` the scene inside `pushscreen`/`popscreen`.
+The original's scene stack is an unbounded list (`enter_local_scene`
+`0x4674e0` → `0x463660`), and encyclopedia entries link to each other,
+so a player can nest them without end; ours nests at most 7 deep
+(`MAX_LINK_DEPTH`; the user's choice): inside the deepest, link words
+aren't buttons. The game's own scenes nest five.
 60 scripts are named `15_Blog…` (ids 96–155).
 
 **Chapters:** chapter titles are label names in `0.cd`:
@@ -523,10 +528,12 @@ exe (`research/tools/ghidra/ghidra_export.sh`, names in
 2. **Done: the static after 存在消滅 (`s22_l2`)** is cleared at `0x39`
    (table above), as the original shows it; the trace's four "static up
    for 150 pages" findings in `s4_l2` are gone.
-3. **`pushscreen: too many saved screens (popscreen missing?)`** stops
-   the game (exit 2) on long routes: `cons_explore.py` hit it at
-   `*conv_link118_1` and `*conv_link98_c` (about 60,000 pages into a
-   run). Find the path that enters link scenes without leaving them.
+3. **Done: `pushscreen: too many saved screens`.** Encyclopedia link
+   scenes that link to each other (`s99` ↔ `s137` …) nested one level per
+   click, past `pushscreen`'s 32 (and past level 7 the per-level
+   variables collided with `%190`). Link scenes now nest at most 7 deep
+   ("Hyperlinks" above). Random runs from `conv_link98` (`--seed 2`,
+   `3`) that stopped at the error now run 3,000+ pages.
 4. **Opcode audit**: for every opcode the converter handles, read its
    `op_XX` in the decompiled C (the dispatch table is `opcode_table`
    `0x4fb270`; name each handler in `names.tsv` and rerun the export),

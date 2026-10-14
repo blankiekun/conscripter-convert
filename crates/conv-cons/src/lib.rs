@@ -119,6 +119,13 @@ const LINK_VISITED_BASE: u32 = 2000;
 const SCENE_UNLOCKED_BASE: u32 = 3000;
 /// Global flags: progress flag n ([`Op::Progress`]) is set.
 const PROGRESS_BASE: u32 = 3600;
+/// Link scenes nest at most this deep: inside the deepest, link words
+/// aren't buttons. The original has no limit, but link scenes that link to
+/// each other (the encyclopedia) would nest without end, and each level
+/// takes a `pushscreen` (32 at most) and a slot in the per-level variables
+/// (OVERLAY_SAVED + depth must stay below %190). The game's own scenes
+/// nest five deep.
+const MAX_LINK_DEPTH: u32 = 7;
 /// Link scenes open (gosubs from link pages), for [`Op::ReturnToRoot`].
 const LINK_NEST: &str = "%118";
 /// Set while [`Op::ReturnToRoot`] unwinds: which one to go on at.
@@ -146,6 +153,16 @@ pub fn emit(script: &Script) -> String {
         String::new()
     };
     let root_returns = script.ops.iter().filter(|op| matches!(op, Op::ReturnToRoot)).count();
+    // The counter of open link scenes, where one is kept.
+    let link_depth = if script.button_bar.as_ref().is_some_and(|b| b.top.is_some()) {
+        Some(menu::SCENE_DEPTH)
+    } else if has_overlay || has_noise || has_animation {
+        Some(OVERLAY_DEPTH)
+    } else if root_returns > 0 {
+        Some(LINK_NEST)
+    } else {
+        None
+    };
     // The replay is reached from the title's extras.
     let has_replay = script.title_screen.is_some() && script.extras.as_ref().is_some_and(|e| e.replay.is_some());
     let mut root_resumes = 0;
@@ -667,6 +684,9 @@ pub fn emit(script: &Script) -> String {
                     writeln!(out, "gosub *{}", menu::BAR_DRAW).unwrap();
                 }
                 for (n, slot) in LINK_SPRITES.take(clickable.len()).enumerate() {
+                    if let Some(depth) = link_depth {
+                        write!(out, "if {depth} < {MAX_LINK_DEPTH} ").unwrap();
+                    }
                     writeln!(out, "spbtn {slot},{}", n + 1).unwrap();
                 }
                 if bar.is_none() {
@@ -1557,6 +1577,26 @@ goto *conv_link1
 *conv_link1_1
 ";
         assert!(text.contains(expected), "{text}");
+    }
+
+    #[test]
+    fn link_scenes_nest_at_most_seven_deep() {
+        let mut s = script(vec![
+            Op::Overlay { image: Some("bg/frame.png".into()), over_sprites: true },
+            Op::Text {
+                speaker: None,
+                text: "学校に".into(),
+                voice: None,
+                links: vec![link(0, 2, Some("s10_l1"))],
+                ruby: vec![],
+                styles: vec![],
+                hang: None,
+                continues: false,
+            },
+        ]);
+        s.window = Some(window());
+        let text = emit(&s);
+        assert!(text.contains("\nif %181 < 7 spbtn 51,1\n"), "{text}");
     }
 
     #[test]
