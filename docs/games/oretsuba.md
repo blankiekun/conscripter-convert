@@ -87,6 +87,13 @@ Found so far:
   1, 2, 3, 6 load a vertex and a fragment GXP (fragment: `decal`,
   `decal2`, `value` = progress and the `:Param`s) at 0x8115f63c,
   0x8115fb80, 0x8115fe60, 0x81160510 (735-1711 bytes).
+- Shaders: `research/oretsuba/gxp.py` cuts every GXP program out of the
+  ELF; `research/oretsuba/gxp2glsl/` builds Vita3K's shader recompiler
+  on its own (a sparse Vita3K checkout plus glslang and SPIRV-Cross at
+  its submodule commits; the CMake file says how) and prints a shader
+  as GLSL. The fragment shaders read `value` as (progress, `:Param` 0,
+  1, 2), after each type's init has scaled them (type 2 divides
+  `:Param` 1 by 720).
 
 ### Files (`<game>/media/`)
 
@@ -257,7 +264,7 @@ at that scale, SystemData's are drawn at 1280×720 and are scaled by 3/4
 | Backgrounds and sprites (`SpriteBG`, `Sprite`, `SpriteBS`, deletes), by priority | converted; positions not yet checked against the original |
 | Characters (`CharacterOpen`, `…BS`, `CharacterDelete`, `CharacterMove`) and `SpritePriority`/`CharacterPriority` | converted; the usual height guessed (centre + `OffsetY`), CharacterMove's y counted from it |
 | `InOut` transitions with the RULE masks | converted |
-| `InOut_Act` (the eboot's effect 25: `:Type` picks the class, `:Param` 0 a direction 0-3 = right, down, left, up) | types 0 (the old screen squeezes to that edge while the new one grows from the other; 21 uses) and 7 (a push; 89) as ONScripter's scrolls, 5 (to or from white or black; 9) through white; the shader types 1 (57), 2 (66), 3 (47), 6 (130) and 4 (2) as a plain fade |
+| `InOut_Act` (the eboot's effect 25: `:Type` picks the class, `:Param` 0 mostly a direction 0-3 = right, down, left, up) | 0 (the old screen squeezes to that edge while the new one grows from the other; 21 uses) and 7 (a push; 89) as ONScripter's scrolls; 5 (to or from white or black; 9) through white; 2 (a mosaic growing to `:Param` 1 pixels of 720 halfway while the screens cross-fade; 66) as ONScripter's mosaic out and in; 3 (a card turning over in perspective, old in front, new behind, about the vertical axis for `:Param` 0 below 2; 47) as `cons_flip`, the new screen turning in. As plain fades: 1 (rows waving sideways, `:Param` 1-2 the wave; 57), 6 (blurred sideways halfway, `:Param` 1 the width, `:Param` 0 = 1 only the new screen; 130), 4 (2) |
 | FadeOut/FadeIn, TimeWait, BGM, SE, Window hide | converted |
 | Tags, jumps, flag switches and operations, choices with points, NextScene | converted, not yet checked against a walkthrough |
 | SceneJumpDialog (skip a scene already read) | converted: a global "read" flag per scene (`%1200` + the scene's index in name order); a read scene shows its summary and このシーンを読む / このシーンをスキップする |
@@ -284,10 +291,10 @@ the save menu's thumbnail name, built at run time), ran 600 pages
 headless without errors, and the route check reaches all eight endings.
 
 Next, in order:
-1. More from the eboot: `InOut_Act`'s shader types 1, 2, 3, 6 need
-   their fragment shaders read (GXP blobs in the data, below; no
-   disassembler here yet), EffectStart 40, the menus' layouts, and what
-   the second music table is for.
+1. More from the eboot: EffectStart 40 (likely another shader: read it
+   with `gxp2glsl`, below), the menus' layouts, and what the second
+   music table is for. A wave and a blur transition (`InOut_Act` 1, 6)
+   would need engine effects.
 2. Looks against the original: text window size and place, character
    heights, the eye catch's wipe. Needs screenshots of the Vita game.
 3. SpriteMove `:Scale` (91 zooms on CGs) needs a sprite zoom in the IR

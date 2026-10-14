@@ -888,20 +888,28 @@ fn colour(t: &Block) -> u32 {
 }
 
 /// An `InOut_Act`'s look, from the eboot's effect 25 (`:Type` picks its
-/// class; `:Param` 0 is a direction 0-3: right, down, left, up):
+/// class; its shaders read with Vita3K's recompiler). `:Param` 0 is a
+/// direction 0-3 (right, down, left, up) unless said otherwise:
 /// - 0: the old screen squeezes to that edge while the new one grows from
 ///   the opposite edge (a push here);
 /// - 7: the old screen pushed out that way by the new one;
 /// - 5: the old screen to white (0) or the new one from white (1), the
 ///   same through black (2, 3);
-/// - 1, 2, 3, 6 are fragment shaders (old and new screen, the progress
-///   and `:Param` in one uniform) not decoded yet: a fade; so is 4.
+/// - 2: a mosaic, its blocks growing to `:Param` 1 pixels (of 720 rows)
+///   halfway and back, while the old screen fades into the new;
+/// - 3: a card turning over (perspective), the old screen in front, the
+///   new behind, about the vertical axis (`:Param` 0 below 2) or the
+///   horizontal one (a turn of the new screen growing from a line here);
+/// - 1: a fade with the rows waving sideways, 6: a fade blurred sideways
+///   halfway (both a plain fade here); 4: not looked at (2 uses).
 fn act_style(t: &Block) -> TransitionStyle {
     let direction = t.int_at("Param", 0).unwrap_or(0).clamp(0, 3);
     let (dx, dy) = [(1, 0), (0, 1), (-1, 0), (0, -1)][direction as usize];
     match t.int("Type") {
         Some(0 | 7) => TransitionStyle::Slide { moving: SlideLayer::Both, dx, dy },
         Some(5) if direction < 2 => TransitionStyle::ThroughWhite,
+        Some(2) => TransitionStyle::Mosaic,
+        Some(3) => TransitionStyle::Flip { horizontal: direction < 2, grow: true },
         _ => TransitionStyle::Fade,
     }
 }
