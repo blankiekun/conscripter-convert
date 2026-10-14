@@ -224,10 +224,11 @@ at that scale, SystemData's are drawn at 1280×720 and are scaled by 3/4
 | EffectStart/End 52 (光玉 light balls), 54 (紙吹雪 confetti), 51 (雪 snow) | converted to looping 16-frame animations made from ETC.cpk's `lightball.png`, `paper.png`, `snow.png` (`:Param` count): the balls twinkle and circle in place, snow and paper fall one screen per 2 s loop; the original's motion is not known |
 | EffectStart/End 40 (over the starry monologue background, `:Param 400,3000`) | not yet |
 | Achievement (trophies) | nothing to show |
-| Title screen (`title_bg.png`'s picture and labels: START, LOAD, CONFIG; GALLERY greyed) | converted; the buttons' place is ours (the layout table is in the encrypted eboot) |
+| Title screen (`title_bg.png`'s picture and labels: START, LOAD, GALLERY) | converted; the buttons' place is ours (the layout table is in the encrypted eboot); settings are in the extras and the in-game bar |
 | START's story menu: 始めから and the after-stories ある日の林田美咲/渡来明日香/山科京/軽部狩男 (P03/P01/P02/P04) | converted, shown once any ending was seen; each after-story opens with its heroine's ending, かるお's with 小鳩's (our rule: the original's is in the eboot) |
 | Button bar (AUTO SKIP LOG SAVE LOAD CONFIG HIDE), save/load (3 slots × 10 pages), settings, backlog, yes/no dialog | converted in the Vita's look, our layout (2026-10-14, the user's choice): SystemData's backgrounds (`save_bg`, `load_bg`, `bklog`), slot plates (`sl_data`), dialog frame (`dlg_bg_26`, the one without words), headers cut out where they differ from a header-less background; the Vita's controller hints and page box painted over; button labels drawn with the `--font` in the game's style (white, blue halo; gold under the pointer). Backgrounds behind conv-cons's white words are darkened. Without `--font` there are no menus |
-| Extras (CG gallery, music, movies) | not yet |
+| Extras menu (ALBUM, CONFIG, MUSIC, 戻る; the title's GALLERY opens it) and the CG gallery from `CGMODE` (8 heroine tabs from `gm_bg.png`'s cards, 4×5 thumbnails a page, up to 3 pages, a viewer with ◀ ▶ HIDE 戻る); scenes mark CGs seen from their `:CGFlag` | converted in the Vita's look, our layout |
+| Music room, movie room | not yet (MUSIC shown greyed) |
 
 Next, in order:
 1. Full build of every scene; fix what the lint and a headless run of
@@ -236,4 +237,4 @@ Next, in order:
 2. Effects: EffectStart 40, InOut_Act types, SpriteMove `:Scale`.
 3. Walkthrough (this document), then the route check of the converted
    control flow.
-4. Extras (CGMODE, scene replay, music, movies).
+4. Extras: music room (BGM.AWB with titles), movie room.

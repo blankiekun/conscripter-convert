@@ -204,10 +204,11 @@ fn convert(game: &Path, output: &Path, scenes: &[String], font: Option<&Path>, t
     assets.movie_dir = game.join("media").join("data");
     let compiled = convert::compile(&g, scenes, &mut assets);
     let window = convert::text_window(&mut assets);
-    let title_screen = conv_engines::mages::screens::title(&mut assets);
     // The menus' labels are drawn with the font.
     let font_bytes = font.map(fs::read).transpose().context("reading the font")?;
     let labels = font_bytes.as_deref().and_then(conv_engines::mages::menus::Labels::new);
+    let extras = if scenes.is_empty() { labels.as_ref().and_then(|l| conv_engines::mages::extras::extras(&mut assets, l, &g)) } else { None };
+    let title_screen = conv_engines::mages::screens::title(&mut assets, extras.is_some());
     let menus = labels.as_ref().map(|l| {
         use conv_engines::mages::menus;
         (menus::button_bar(&mut assets, l), menus::save_menu(&mut assets, l), menus::settings_menu(&mut assets, l), menus::backlog(&mut assets, l), menus::confirm_dialog(&mut assets, l))
@@ -231,6 +232,7 @@ fn convert(game: &Path, output: &Path, scenes: &[String], font: Option<&Path>, t
         settings,
         backlog,
         confirm,
+        extras,
         ops: compiled.ops,
         ..Script::default()
     };

@@ -121,6 +121,9 @@ pub struct Game {
     /// Speaker names by `:Name` number, from the scripts' comments.
     pub names: HashMap<i64, String>,
     pub actions: HashMap<i64, Action>,
+    /// The CG gallery (`CGMODE`): pages of entries, each entry's CG.cpk
+    /// textures and their seen flags (`:CGFlag` in the scenes).
+    pub gallery: Vec<Vec<Vec<(u32, u32)>>>,
     /// The first scene of a new game.
     pub start: String,
 }
@@ -162,6 +165,21 @@ impl Game {
                             .collect();
                         keys.sort_unstable();
                         g.actions.insert(n, Action { keys, looped: a.int("Loop").unwrap_or(0) != 0 });
+                    }
+                }
+            } else if file == "CGMODE" {
+                for b in blocks.iter().filter(|b| b.name == "CGMODE") {
+                    for page in b.children.iter().filter(|c| c.name.starts_with("Page")) {
+                        let entries = page
+                            .children
+                            .iter()
+                            .filter(|c| c.name.starts_with("List"))
+                            .map(|l| {
+                                let ints = |k| l.get(k).unwrap_or(&[]).iter().filter_map(Val::int).map(|v| v as u32).collect::<Vec<_>>();
+                                ints("Texture").into_iter().zip(ints("Flag")).collect()
+                            })
+                            .collect();
+                        g.gallery.push(entries);
                     }
                 }
             } else if file == "adv.txt" {
@@ -411,6 +429,10 @@ impl Lowering<'_> {
                 let (x, y) = (t.int_at("Position", 0).unwrap_or(640), t.int_at("Position", 1).unwrap_or(360));
                 let prio = t.int("Priority").unwrap_or(if ty == "SpriteBG" { 10 } else { 5 });
                 self.show(&key, tex, img, x, y, prio, fade(t));
+                // A gallery CG: seen from now on (CG numbers are 1-based).
+                if let Some(flag) = t.int("CGFlag").filter(|f| *f >= 0) {
+                    self.out.ops.push(Op::CgSeen { number: flag as u32 + 1 });
+                }
             }
             "SpriteDelete" | "SpriteDeleteBG" => {
                 let tex = t.int("SpriteNumber").or_else(|| t.int("Texture")).unwrap_or(-1);

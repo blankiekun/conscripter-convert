@@ -4,6 +4,7 @@
 pub mod assets;
 pub mod convert;
 pub mod cpk;
+pub mod extras;
 pub mod menus;
 pub mod screens;
 pub mod tasks;

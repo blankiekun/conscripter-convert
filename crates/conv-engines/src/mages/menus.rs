@@ -21,7 +21,7 @@ use super::convert::{SCREEN_H, SCREEN_W};
 
 /// Where SystemData's screens show the Vita's button hints (◎決定 …) and
 /// the page box (/10).
-const HINTS: (u32, u32, u32, u32) = (636, 486, 310, 38);
+pub(crate) const HINTS: (u32, u32, u32, u32) = (636, 486, 310, 38);
 const PAGE_BOX: (u32, u32, u32, u32) = (818, 22, 142, 64);
 const GLOW: [u8; 3] = [90, 130, 255];
 const HOVER_GLOW: [u8; 3] = [255, 190, 70];
@@ -38,7 +38,7 @@ impl<'f> Labels<'f> {
 
     /// `text` at `size` pixels: `rgb` letters with a `glow` halo (`alpha`
     /// 0-255 for the whole label).
-    fn draw(&self, text: &str, size: f32, rgb: [u8; 3], glow: [u8; 3], alpha: u8) -> RgbaImage {
+    pub(crate) fn draw(&self, text: &str, size: f32, rgb: [u8; 3], glow: [u8; 3], alpha: u8) -> RgbaImage {
         let font = self.font.as_scaled(PxScale::from(size));
         let pad = 4;
         let width: f32 = text.chars().map(|c| font.h_advance(font.glyph_id(c))).sum();
@@ -91,7 +91,7 @@ impl<'f> Labels<'f> {
 
     /// A button: three cells side by side, normal, under the pointer
     /// (gold halo), disabled (faded).
-    fn button(&self, text: &str, size: f32) -> RgbaImage {
+    pub(crate) fn button(&self, text: &str, size: f32) -> RgbaImage {
         let cells = [
             self.draw(text, size, [255, 255, 255], GLOW, 255),
             self.draw(text, size, [255, 255, 240], HOVER_GLOW, 255),
@@ -121,7 +121,7 @@ fn darker(mut img: RgbaImage, percent: u32) -> RgbaImage {
 
 /// Paints over `rect`: each column blends from the pixel above it to
 /// the one below (words on a soft background disappear).
-fn patch(img: &mut RgbaImage, (x, y, w, h): (u32, u32, u32, u32)) {
+pub(crate) fn patch(img: &mut RgbaImage, (x, y, w, h): (u32, u32, u32, u32)) {
     let (top, bottom) = (y.saturating_sub(1), (y + h).min(img.height() - 1));
     for cx in x..(x + w).min(img.width()) {
         let (a, b) = (*img.get_pixel(cx, top), *img.get_pixel(cx, bottom));
@@ -141,7 +141,7 @@ fn cover(img: &mut RgbaImage, from: &RgbaImage, (x, y, w, h): (u32, u32, u32, u3
 
 /// The pixels of `a` in `rect` that differ from `b` (a word one picture
 /// has and the other doesn't), the rest transparent.
-fn difference(a: &RgbaImage, b: &RgbaImage, (x, y, w, h): (u32, u32, u32, u32)) -> RgbaImage {
+pub(crate) fn difference(a: &RgbaImage, b: &RgbaImage, (x, y, w, h): (u32, u32, u32, u32)) -> RgbaImage {
     let mut out = RgbaImage::new(w, h);
     for (ox, oy, px) in out.enumerate_pixels_mut() {
         let (p, q) = (a.get_pixel(x + ox, y + oy), b.get_pixel(x + ox, y + oy));

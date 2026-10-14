@@ -14,14 +14,19 @@ const TITLE_ROW_Y: u32 = 545;
 const TITLE_ROW_H: u32 = 36;
 const TITLE_CELL_W: u32 = 170;
 
-/// The title screen: START, LOAD and CONFIG work; the extras' buttons are
-/// shown greyed until the extras exist.
-pub fn title(assets: &mut ArchiveAssets) -> Option<TitleScreen> {
+/// The title screen: START, LOAD, and GALLERY opening the extras (with
+/// the settings inside), or without extras CONFIG and GALLERY greyed.
+pub fn title(assets: &mut ArchiveAssets, extras: bool) -> Option<TitleScreen> {
     let (background, _, _) = assets.system_cells("title_bg.png", "title.png", &[(0, 0, 960, 544)], 100)?;
-    // (row in the atlas, action)
-    let rows = [(2, TitleAction::Start), (1, TitleAction::Load), (4, TitleAction::Settings), (3, TitleAction::Unavailable)];
+    // (row in the atlas, action); conv-cons opens the extras with the
+    // settings action when there are extras.
+    let rows: &[(u32, TitleAction)] = if extras {
+        &[(2, TitleAction::Start), (1, TitleAction::Load), (3, TitleAction::Settings)]
+    } else {
+        &[(2, TitleAction::Start), (1, TitleAction::Load), (4, TitleAction::Settings), (3, TitleAction::Unavailable)]
+    };
     let mut buttons = Vec::new();
-    for (i, (row, action)) in rows.into_iter().enumerate() {
+    for (i, &(row, action)) in rows.iter().enumerate() {
         let y = TITLE_ROW_Y + row * TITLE_ROW_H;
         let mut cells = vec![(0, y, TITLE_CELL_W, TITLE_ROW_H)];
         if action != TitleAction::Unavailable {

@@ -192,6 +192,11 @@ impl<'a> ArchiveAssets<'a> {
 }
 
 impl ArchiveAssets<'_> {
+    /// The PNG of CG.cpk picture `id`, as stored.
+    pub fn cg_bytes(&self, id: u32) -> Option<&[u8]> {
+        self.cg.file(id).map(|(_, d)| d)
+    }
+
     /// SystemData picture `file`, decoded.
     pub fn system_image(&mut self, file: &str) -> Option<RgbaImage> {
         let data = self.system.by_name(file)?;
