@@ -5,6 +5,7 @@ version.workspace = true
 license.workspace = true
 
 [dependencies]
+ab_glyph.workspace = true
 encoding_rs.workspace = true
 flate2.workspace = true
 image.workspace = true
