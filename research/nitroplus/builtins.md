@@ -50,7 +50,8 @@ Muramasa.exe reads the `.nss` text directly. Names below are from
   Xbox 360 leftovers in `sys_*.nss`), `Waitkey` (2, see `WaitKey`),
   and one-off typos or removed helpers (`ShakeOne`, `SceneFadeBG`,
   `CreateTextureadd`, `SL_Rightdown`, `Boxframe`, …). The converter
-  can drop them all.
+  matches names exactly too and skips these calls (the build's list
+  counts them as `skipped: no function <name>`).
 - Built-ins the exe has but the scripts never call: `CreateAnimation`,
   `CreateClipTexture`, `CreateDifferenceTexture`, `CreateFrame`,
   `Disable`, `LoadClipImage`, `LoadFile`, `LoadFont`, `LoadNPT`,
