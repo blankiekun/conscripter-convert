@@ -258,7 +258,7 @@ at that scale, SystemData's are drawn at 1280×720 and are scaled by 3/4
 | START's story menu: 始めから and the after-stories ある日の林田美咲/渡来明日香/山科京/軽部狩男 (P03/P01/P02/P04) | converted, shown once any ending was seen; each after-story opens with its heroine's ending, かるお's with 小鳩's (our rule: the original's is in the eboot) |
 | Button bar (AUTO SKIP LOG SAVE LOAD CONFIG HIDE), save/load (3 slots × 10 pages), settings, backlog, yes/no dialog | converted in the Vita's look, our layout (2026-10-14, the user's choice): SystemData's backgrounds (`save_bg`, `load_bg`, `bklog`), slot plates (`sl_data`), dialog frame (`dlg_bg_26`, the one without words), headers cut out where they differ from a header-less background; the Vita's controller hints and page box painted over; button labels drawn with the `--font` in the game's style (white, blue halo; gold under the pointer). Backgrounds behind conv-cons's white words are darkened. Without `--font` there are no menus |
 | Extras menu (ALBUM, CONFIG, MUSIC, 戻る; the title's GALLERY opens it) and the CG gallery from `CGMODE` (8 heroine tabs from `gm_bg.png`'s cards, 4×5 thumbnails a page, up to 3 pages, a viewer with ◀ ▶ HIDE 戻る); scenes mark CGs seen from their `:CGFlag` | converted in the Vita's look, our layout |
-| Music room: 67 songs from the eboot's table, their titles from `mu_bg.png` | converted, our layout: three columns of 23 titles at 3/5 size on the Vita's list panel (stretched over the room), the song playing in blue, every song open (the original's unlock rule is unknown). The second 8-song table is left out |
+| Music room: 67 songs from the eboot's table, their titles from `mu_bg.png` | converted, our layout: three columns of 23 titles at 3/5 size on the Vita's list panel (stretched over the room), the song playing in blue, every song open (the original's unlock rule is unknown). The player bar and the Vita's button hints are covered with the album's (`gm_bg.png`) snow, which has the same frame. The second 8-song table is left out |
 | Movie room | not yet |
 
 Every task of all 463 scenes converts (none left as a comment); the
@@ -268,13 +268,10 @@ the save menu's thumbnail name, built at run time), ran 600 pages
 headless without errors, and the route check reaches all eight endings.
 
 Next, in order:
-1. Music room touch-ups: the player bar's painted-out spot shows a
-   pale box, the Vita's button hints still show at the bottom right,
-   and the last row runs slightly past the panel.
-2. More from the eboot: `InOut_Act`'s types and EffectStart 40 (the
+1. More from the eboot: `InOut_Act`'s types and EffectStart 40 (the
    task handlers are found from their names' strings), the menus'
    layouts, and what the second music table is for. Then a movie room.
-3. Looks against the original: text window size and place, character
+2. Looks against the original: text window size and place, character
    heights, the eye catch's wipe. Needs screenshots of the Vita game.
-4. SpriteMove `:Scale` (91 zooms on CGs) needs a sprite zoom in the IR
+3. SpriteMove `:Scale` (91 zooms on CGs) needs a sprite zoom in the IR
    and conv-cons; looping CharacterActions (96).

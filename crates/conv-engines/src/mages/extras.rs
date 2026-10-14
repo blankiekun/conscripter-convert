@@ -49,8 +49,8 @@ const PANEL_TO: (u32, u32, u32, u32) = (24, 80, 912, 420);
 const MUSIC_ROWS: usize = 23;
 const MUSIC_X: i32 = 44;
 const MUSIC_DX: i32 = 292;
-const MUSIC_Y: i32 = 86;
-const MUSIC_DY: i32 = 18;
+const MUSIC_Y: i32 = 90;
+const MUSIC_DY: i32 = 17;
 
 fn place(assets: &mut ArchiveAssets, name: &str, img: &RgbaImage, x: i32, y: i32) -> Placed {
     let image = assets.put_system_png(name, img);
@@ -128,13 +128,14 @@ fn tinted(img: &RgbaImage, colour: [u8; 3]) -> RgbaImage {
 
 fn music(assets: &mut ArchiveAssets, labels: &Labels) -> Option<MusicRoom> {
     let atlas = assets.system_image("mu_bg.png")?;
-    // The background with its list panel over the other panels and the
-    // player's bar (painted out, softened); MUSIC stays.
+    // The background with its list panel over the other panels; the
+    // player's bar and the Vita's button hints covered with the album's
+    // snow (same frame, no bar, its own hints further right); MUSIC stays.
+    let album = assets.system_image("gm_bg.png")?;
     let mut room = imageops::crop_imm(&atlas, 0, 0, SCREEN_W as u32, SCREEN_H as u32).to_image();
-    let bar = (376, 38, 520, 48);
-    super::menus::patch(&mut room, bar);
-    let soft = imageops::blur(&imageops::crop_imm(&room, bar.0 - 16, bar.1 - 16, bar.2 + 32, bar.3 + 32).to_image(), 8.0);
-    imageops::replace(&mut room, &imageops::crop_imm(&soft, 16, 16, bar.2, bar.3).to_image(), bar.0 as i64, bar.1 as i64);
+    for (x, y, w, h, to_x) in [(370, 34, 530, 66, 370), (610, 480, 170, 60, 610), (610, 480, 190, 60, 770)] {
+        imageops::replace(&mut room, &imageops::crop_imm(&album, x, y, w, h).to_image(), to_x, y as i64);
+    }
     let panel = stretched(&imageops::crop_imm(&atlas, PANEL.0, PANEL.1, PANEL.2, PANEL.3).to_image(), PANEL_TO.2, PANEL_TO.3);
     imageops::overlay(&mut room, &panel, PANEL_TO.0 as i64, PANEL_TO.1 as i64);
     let header = imageops::crop_imm(&room, 24, 24, 130, 48).to_image();
