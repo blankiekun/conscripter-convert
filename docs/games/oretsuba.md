@@ -210,7 +210,7 @@ at that scale, SystemData's are drawn at 1280×720 and are scaled by 3/4
 |---|---|
 | Messages, speaker names (from the scripts' `:Name N // name` comments), voices | converted |
 | Backgrounds and sprites (`SpriteBG`, `Sprite`, `SpriteBS`, deletes), by priority | converted; positions not yet checked against the original |
-| Characters (`CharacterOpen`, `…BS`, `CharacterDelete`, `CharacterMove`) and `SpritePriority`/`CharacterPriority` | converted; the usual height guessed (centre + `OffsetY`), CharacterMove's y counted from it; CharacterStop (2) not yet |
+| Characters (`CharacterOpen`, `…BS`, `CharacterDelete`, `CharacterMove`) and `SpritePriority`/`CharacterPriority` | converted; the usual height guessed (centre + `OffsetY`), CharacterMove's y counted from it |
 | `InOut` transitions with the RULE masks | converted; `InOut_Act` as a plain fade |
 | FadeOut/FadeIn, TimeWait, BGM, SE, Window hide | converted |
 | Tags, jumps, flag switches and operations, choices with points, NextScene | converted, not yet checked against a walkthrough |
@@ -221,7 +221,8 @@ at that scale, SystemData's are drawn at 1280×720 and are scaled by 3/4
 | MoviePlay: the USM movies (MPEG-1 960×544 + ADX) demuxed (`usm.rs`) and made H.264/AAC MP4s in `movie/` (loose) | converted; `:Movie` N is the Nth of OP00, OP01, OP02, the seven `ED_*` (alphabetical), Poem, OP03 (each heroine's ending scene plays her ED) |
 | EffectStart/End 53 (ノイズ: static at `:Param` density) and 42 (ブラー: a blur screen filter); SetSceneName (chapter title) | converted |
 | EffectStart/End 57 (画面キャプチャースプライト: a copy of the screen drawn zoomed, at impacts) | approximated by a pulse (the copy growing and fading over the live picture, 0.4 s) |
-| EffectStart/End 52 (光玉 light balls), 54 (紙吹雪 confetti), 51 (雪 snow), 40 | not yet |
+| EffectStart/End 52 (光玉 light balls), 54 (紙吹雪 confetti), 51 (雪 snow) | converted to looping 16-frame animations made from ETC.cpk's `lightball.png`, `paper.png`, `snow.png` (`:Param` count): the balls twinkle and circle in place, snow and paper fall one screen per 2 s loop; the original's motion is not known |
+| EffectStart/End 40 (over the starry monologue background, `:Param 400,3000`) | not yet |
 | Achievement (trophies) | nothing to show |
 | Title screen (`title_bg.png`'s picture and labels: START, LOAD, CONFIG; GALLERY greyed) | converted; the buttons' place is ours (the layout table is in the encrypted eboot) |
 | START's story menu: 始めから and the after-stories ある日の林田美咲/渡来明日香/山科京/軽部狩男 (P03/P01/P02/P04) | converted, shown once any ending was seen; each after-story opens with its heroine's ending, かるお's with 小鳩's (our rule: the original's is in the eboot) |
@@ -231,7 +232,7 @@ Next, in order:
 1. Full build of every scene; fix what the lint and a headless run of
    the first chapter show. Text window layout and character heights
    from reference screenshots of the Vita game.
-2. Effects: EffectStart 52/54/51/40, InOut_Act types.
+2. Effects: EffectStart 40, InOut_Act types, SpriteMove `:Scale`.
 3. Walkthrough (this document), then the route check of the converted
    control flow.
 4. System screens and extras (CGMODE, scene replay, music).

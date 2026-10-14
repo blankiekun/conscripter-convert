@@ -22,7 +22,7 @@
 use std::collections::{BTreeMap, HashMap};
 
 use conv_core::ir::{
-    ArithOp, Compare, FILTER_BLEND_COPY, FILTER_BLUR, Noise, Op, Operand, ScreenEffect, SourceLoc, SpriteChange, SpriteFilter,
+    Animation, ArithOp, Compare, FILTER_BLEND_COPY, FILTER_BLUR, Noise, Op, Operand, ScreenEffect, SourceLoc, SpriteChange, SpriteFilter,
     SpritePlacement, TextWindow, TransitionStyle, Var, Voice,
 };
 
@@ -58,6 +58,17 @@ fn sy(y: i64) -> i32 {
     (y * 544 / 720) as i32
 }
 
+/// Particle effects drawn as looping animations.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Particles {
+    /// 光玉: floating, twinkling balls of light.
+    LightBalls,
+    /// 雪: falling snow.
+    Snow,
+    /// 紙吹雪: falling paper.
+    Confetti,
+}
+
 /// The game's files, by archive ID.
 pub trait Assets {
     /// A CG.cpk picture: output path, width, height.
@@ -75,6 +86,9 @@ pub trait Assets {
     fn movie(&mut self, n: u32) -> Option<String>;
     /// `frames` screens of grey static side by side (alpha 255).
     fn noise(&mut self, frames: u32) -> String;
+    /// `count` particles of `kind` over the screen: a strip of
+    /// [`super::assets::PARTICLE_FRAMES`] screens that loops.
+    fn particles(&mut self, kind: Particles, count: u32) -> Option<String>;
     /// A picture of one colour (0xRRGGBB) as large as the screen.
     fn colour(&mut self, rgb: u32) -> String;
     /// The text window's picture (SystemData's `meswin.png`, scaled to the
@@ -679,6 +693,29 @@ impl Lowering<'_> {
                         self.out.ops.push(Op::ScreenEffect { slot: 2, effect });
                         if start {
                             self.note("EffectStart 57 (approximated by a pulse)");
+                        }
+                    }
+                    51 | 52 | 54 => {
+                        let kind = match n {
+                            51 => Particles::Snow,
+                            52 => Particles::LightBalls,
+                            _ => Particles::Confetti,
+                        };
+                        let count = t.int_at("Param", 0).unwrap_or(60).max(1) as u32;
+                        let animation = if start {
+                            self.assets.particles(kind, count).map(|image| Animation {
+                                image,
+                                frame_ms: vec![125; super::assets::PARTICLE_FRAMES as usize],
+                                looped: true,
+                                opacity: 256,
+                            })
+                        } else {
+                            None
+                        };
+                        if start && animation.is_none() {
+                            self.note(format!("{ty} {n}: no particle picture"));
+                        } else {
+                            self.out.ops.push(Op::Animation(animation));
                         }
                     }
                     _ => self.note(format!("{ty} {n}")),
