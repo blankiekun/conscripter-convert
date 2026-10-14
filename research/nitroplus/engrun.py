@@ -4,7 +4,7 @@ paths, every page drawn, so that engine exits deep in the
 game show up.
 
     python3 -I research/nitroplus/engrun.py <game dir> <path file>...
-        --engine <conscripter binary> [--display :79] [--out <dir>]
+        --engine <conscripter binary> [--out <dir>] [--wrap '<command>']
         [--only N] [--all] [--stall 300] [--at <file>]
 
 `nstrace.py` first runs the paths over `<game dir>/0.txt` and records
@@ -22,20 +22,30 @@ a copy of the game (`<out>/<N>/`, symlinks and a patched `0.txt`):
   flags of the load time at the first select after the save;
 - each story file logs `TRACE:f_<file>` on stderr (a missing-file
   message), the end logs `TRACE:END`.
-The engine runs on its own Xvfb display, silent, in skip mode (Ctrl
-held down; a key release would end it). A run passes if the engine reached
-`TRACE:END`, exited with 0 and passed the same files as nstrace.
+The engine runs headless (`SDL_VIDEODRIVER=dummy`, no Xvfb) with
+CONscripter's `--auto-play`, every page drawn, and writes a debug trace
+(`<out>/<N>/trace.jsonl`, `engine/DEBUG.md`) with the story flags as
+they change (`--trace-vars 300-899`); a run that dies ends it with a
+`crash` or `error` record (the script line, the gosub stack, the last
+commands). Each run has its own `--save-dir`, so runs can go side by
+side. A run passes if the engine reached `TRACE:END`, exited with 0 and
+passed the same files as nstrace; check its trace with
+`engine/tools/cons_trace_check.py <out>/<N>/trace.jsonl` (the game's
+settings, `cons_trace_check.json` here, are linked beside it). `--wrap` puts a command before the
+engine's (`--wrap 'valgrind -q'`); an AddressSanitizer build is just
+another `--engine`.
 Bad ends (game over files), which the paths reach through LOAD, are
 left out unless `--all` is given; `--only N` runs only the Nth.
 `--at ma03_027vs` starts each run at that story file instead, with
 every variable as nstrace had it there (a crafted save: the variables,
 not the pictures or the music on screen), to reproduce a problem deep
 in a route in seconds; the run then goes on to the route's end.
-A run whose trace doesn't move for `--stall` seconds is stopped, with a
-screenshot (`<out>/<N>/stall.png`).
+A run whose story files don't move for `--stall` seconds is stopped.
 """
+import json
 import os
 import re
+import shutil
 import signal
 import subprocess
 import sys
@@ -191,38 +201,49 @@ def is_bad_end(file):
     return file is None or file.startswith('mz') or 'gameover' in file
 
 
-def engine_run(game, folder, engine, display, stall):
+def engine_run(folder, engine, stall, wrap=()):
+    """Plays the patched copy headless with CONscripter's auto-play
+    (no Xvfb, no key presses), writing a debug trace (`trace.jsonl`:
+    a `crash` or `error` record says where a run died) and recording
+    the story flags (`--trace-vars 300-899`) as they change."""
     log_path = os.path.join(folder, 'engine.log')
-    xvfb = subprocess.Popen(['Xvfb', display, '-nolisten', 'tcp', '-screen', '0', '1024x576x24'],
-                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    time.sleep(1)
-    env = dict(os.environ, DISPLAY=display, SDL_VIDEODRIVER='x11', SDL_AUDIODRIVER='dummy')
-    env.pop('WAYLAND_DISPLAY', None)
+    env = dict(os.environ, SDL_VIDEODRIVER='dummy', SDL_AUDIODRIVER='dummy')
+    cmd = [*wrap, engine, '--root', '.', '--save-dir', 'saves', '--trace', 'trace.jsonl',
+           '--trace-ignore', '999', '--trace-vars', '300-899', '--auto-play', '0']
     with open(log_path, 'wb') as log:
-        eng = subprocess.Popen([engine], cwd=folder, env=env, stdout=log, stderr=subprocess.STDOUT)
+        eng = subprocess.Popen(cmd, cwd=folder, env=env, stdout=log, stderr=subprocess.STDOUT)
     last, moved, why = None, time.time(), None
     try:
         while eng.poll() is None:
-            # Held, never released: the engine leaves skip mode on any key
-            # release.
-            subprocess.run(['xdotool', 'keydown', 'Control_L'], env=env, stderr=subprocess.DEVNULL)
             time.sleep(3)
             trace = traces(log_path)
             if trace[-1:] != last:
                 last, moved = trace[-1:], time.time()
             elif time.time() - moved > stall:
                 why = f'stalled {stall} s in {last}'
-                subprocess.run(['import', '-display', display, '-window', 'root',
-                                os.path.join(folder, 'stall.png')], stderr=subprocess.DEVNULL)
                 eng.kill()
                 break
     finally:
         if eng.poll() is None:
             eng.kill()
         status = eng.wait()
-        xvfb.kill()
-        xvfb.wait()
     return status, why
+
+
+def trace_end(folder):
+    """The trace's last `crash`, `error` or `end` record, in short."""
+    found = None
+    try:
+        with open(os.path.join(folder, 'trace.jsonl'), encoding='utf-8') as f:
+            for line in f:
+                if line.startswith(('{"t":"crash"', '{"t":"error"', '{"t":"end"')):
+                    found = json.loads(line)
+    except OSError:
+        return None
+    if not found:
+        return None
+    keep = {k: found[k] for k in ('t', 'signal', 'msg', 'reason', 'at', 'pg', 'stack') if k in found}
+    return json.dumps(keep, ensure_ascii=False)
 
 
 def traces(log_path):
@@ -237,7 +258,7 @@ def traces(log_path):
 
 
 def main():
-    # Killed: stop the engine and Xvfb on the way out (`finally`).
+    # Killed: stop the engine on the way out (`finally`).
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(1))
     args = sys.argv[1:]
 
@@ -251,7 +272,7 @@ def main():
 
     engine = opt('--engine')
     engine = engine and os.path.abspath(engine)
-    display = opt('--display', ':79')
+    wrap = opt('--wrap', '').split()
     out = opt('--out', 'out/muramasa-engrun')
     only = opt('--only')
     stall = int(opt('--stall', '300'))
@@ -276,13 +297,17 @@ def main():
             dst = os.path.join(folder, name)
             if name not in ('0.txt', 'gloval.sav', 'envdata', 'kidoku.dat') and not os.path.lexists(dst):
                 os.symlink(os.path.abspath(os.path.join(game, name)), dst)
-        for name in ('gloval.sav', 'kidoku.dat', 'envdata', 'engine.log', 'stall.png'):
+        for name in ('gloval.sav', 'kidoku.dat', 'envdata', 'engine.log', 'trace.jsonl'):
             if os.path.exists(os.path.join(folder, name)):
                 os.remove(os.path.join(folder, name))
+        shutil.rmtree(os.path.join(folder, 'saves'), ignore_errors=True)
         open(os.path.join(folder, '0.txt'), 'wb').write(patch(text, seg, at).encode('cp932'))
+        config = os.path.join(folder, 'cons_trace_check.json')
+        if not os.path.lexists(config):
+            os.symlink(os.path.abspath(os.path.join(os.path.dirname(__file__), 'cons_trace_check.json')), config)
         print(f'== run {n}: {len(seg["picks"])} options, {len(seg["files"])} files, ends in {seg["ended"]}', flush=True)
         t = time.time()
-        status, why = engine_run(game, folder, engine, display, stall)
+        status, why = engine_run(folder, engine, stall, wrap)
         got = traces(os.path.join(folder, 'engine.log'))
         want = [f[:-4] if f.endswith('.nss') else f for f in seg['files']]
         if at:
@@ -293,7 +318,8 @@ def main():
         if why:
             problems.append(why)
         if 'END' not in got:
-            problems.append(f'no TRACE:END; exit status {status}; last file {files[-1:] or "none"}')
+            problems.append(f'no TRACE:END; exit status {status}; last file {files[-1:] or "none"}; '
+                            f'trace: {trace_end(folder)}')
         elif status != 0:
             problems.append(f'exit status {status}')
         if 'NO_PICK' in got:

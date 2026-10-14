@@ -6,6 +6,12 @@ up move into the Rust crates; these stay as a record of how they were found.
 They read files from your own install (paths are arguments) and contain no
 game data. Run them with `python3 -I` from outside the game directory.
 
+## tools/ (any game)
+
+| Script | What it does |
+|---|---|
+| `ghidra/ghidra_export.sh <binary> <outdir> [--names <names.tsv>] [--rtti] [-- <import options>]` | Decompiles a binary with Ghidra (headless; finds `analyzeHeadless` on `PATH` or in `$GHIDRA_INSTALL_DIR/support`) into one pseudo-C file per function with its callers, callees and cp932 strings, plus `functions.tsv` and `strings.tsv`. Applies a names file first (`ApplyNames.java`) so identified functions keep their names; later runs reuse the analyzed project |
+
 ## xuse/ (最果てのイマ COMPLETE)
 
 | Script | What it does |
@@ -17,6 +23,7 @@ game data. Run them with `python3 -I` from outside the game directory.
 | `gafkey.py` | GAF4 key generator and XOR from the exe |
 | `nstrace.py <0.txt> [steps] [--show]` | Runs the NScripter subset conscripter-convert emits (labels, goto, gosub/return, arithmetic, if) to find loops or trace the path to the first text page |
 | `gaf_extract.py <outdir> <file.004…>` | Extracts the PNGs from GAF4 files (needs `gafkey.py`) |
+| `names.tsv` | Names for `Farthest2015.exe`'s functions and globals, for `ghidra_export.sh --names` |
 | `voice_align.py <game dir> <out.json>` | Statistically aligns voice ids to .xsa clips by text length vs clip length (needs numpy) |
 
 ## nitroplus/ (装甲悪鬼村正)

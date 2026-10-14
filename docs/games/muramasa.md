@@ -380,25 +380,27 @@ fails the puzzle. Not done: state across relaunch and in the web build
   at each file where they change.
 - **A few files in the engine:** `--file md05_025.nss --chain 6` without
   `--dry-run` builds only their assets (3 s, 32 MB).
-- **Headless engine runs:** an Xvfb display of its own (`-screen 0
-  1024x576x24`), `SDL_VIDEODRIVER=x11 SDL_AUDIODRIVER=dummy`,
-  `WAYLAND_DISPLAY` unset, the output folder as the working directory,
-  `xdotool` clicks and `import -window root` screenshots. To start at a
-  scene, copy `0.txt`, add a label before the line and `goto` it right
-  after `erasetextwindow 0`, and symlink `arc.nsa`, `default.ttf` and
-  `ons_args` next to the copy.
-- **With the debug trace** (`docs/new-game.md`, "Checking a build with
-  the debug trace"), none of that is needed: `SDL_VIDEODRIVER=dummy`
-  and `--auto-play` run without Xvfb or xdotool, and `--goto <label>
-  --vars <file>` starts at a scene with the story flags preset (the
-  `--at` patch of `0.txt` did this by hand; a route replay of an hour
-  became a 22-second reproduction). Write the vars file from
-  `nstrace.py`'s flags, or let a run write it (`--dump-vars file`, at F8
-  and at exit). `--trace-vars 300-899` records the story flags as they
-  change, to compare with `nstrace.py --flags` file by file. Skip mode
-  used to end on any key release, which made xdotool-driven skipping
-  crawl; auto-play doesn't need it, and releasing Shift, Ctrl, Alt or a
-  function key no longer ends it (other keys and clicks still do).
+- **Engine runs: the debug trace** (`docs/new-game.md`, "Checking a
+  build with the debug trace"). `SDL_VIDEODRIVER=dummy` and
+  `--auto-play 0` play the build headless, with no Xvfb, no xdotool and
+  no held Ctrl, and `--trace t.jsonl` records every page, choice,
+  missing file, script error and crash. Give each run its own
+  `--save-dir` (the `#` flags live there). `--goto <label> --vars
+  <file>` starts at a scene with the story flags preset (the vars file
+  from `nstrace.py`'s variables, or `--dump-vars` of another run);
+  `--trace-vars 300-899` records the story flags as they change, to
+  compare with `nstrace.py --flags` file by file. The route runs below
+  use all of this through `engrun.py`. Sprite 999 is the runs' marker
+  (`lsp 999,"TRACE:..."`): pass `--trace-ignore 999`. The game has no
+  UI sprites of its own yet.
+
+  ```sh
+  cd out/muramasa-cons
+  SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy timeout -k 5 3600 \
+      ../../engine/build/conscripter --root . --save-dir /tmp/mura-saves \
+      --trace /tmp/mura.jsonl --auto-play 0 --goto f_md06_030 --vars v.txt
+  python3 -I ../../engine/tools/cons_trace_check.py /tmp/mura.jsonl --script 0.txt
+  ```
 - **Crashes:** the 村正END run died of heap corruption 508 files in,
   with only a core dump (malloc under `lsp`). With `--trace`, a crash
   now ends the trace with a `crash` record: the signal, the script line,
@@ -421,32 +423,39 @@ fails the puzzle. Not done: state across relaunch and in the web build
   the source says); the `mc01_010vs` choice. Routes share files that
   branch on `$PreGameName` (`mb01_003_3`); that is the source's design.
 
-**Engine skip runs** (playbook step 4): `research/nitroplus/engrun.py`
-plays each ending of the route paths in CONscripter, every page drawn,
-on an Xvfb display of its own (Ctrl held down: the engine leaves skip
-mode on any key release). nstrace records the options each playthrough
-takes; the driver patches a copy of `0.txt` to take them by itself, skip
-the 立方陣 with its recorded result, and log each story file; a run
-passes if it reaches the end and passes the same files as nstrace. Five
-runs (一条END, 香奈枝END, 茶々丸END, 村正END, TRUE END; `--all` adds the
-bad ends), about 8 pages a second, one core and 200 MB each: run them
-side by side, one display each.
+**Route runs** (playbook steps 4 and 11.4): `research/nitroplus/engrun.py`
+plays each ending of the route paths in CONscripter, every page drawn.
+nstrace records the options each playthrough takes; the driver patches
+a copy of `0.txt` to take them by itself, skip the 立方陣 with its
+recorded result, and log each story file; the engine plays it headless
+with `--auto-play` and a debug trace (`<out>/<N>/trace.jsonl`, with the
+story flags as `var` records). A run passes if it reaches the end and
+passes the same files as nstrace; a run that dies names the trace's
+`crash` or `error` record. Five runs (一条END, 香奈枝END, 茶々丸END,
+村正END, TRUE END; `--all` adds the bad ends), one core each: run them
+side by side.
 
 ```sh
+P=$(ls research/nitroplus/paths/*.txt)
 for n in 1 2 3 9 10; do
-  python3 -I research/nitroplus/engrun.py out/muramasa-cons \
-    research/nitroplus/paths/{1-ichijou,2-kanae,3-chachamaru,4-muramasa}.txt \
-    --engine <conscripter> --only $n --display :8$((n % 10)) > out/engrun-$n.log &
+  python3 -I research/nitroplus/engrun.py out/muramasa-cons $P \
+    --engine <conscripter> --only $n > out/engrun-$n.log &
 done
 ```
+
+Until 2026-10-14 the runs drove the engine on Xvfb with Ctrl held down
+(skip mode), about 8 pages a second and 40-56 minutes a route.
 
 To look at one place deep in a route, `--at <file>` starts the run at
 that story file with every variable as nstrace had it there (a crafted
 save: the variables, not the pictures or music on screen); an engine
-problem there shows in seconds instead of an hour. The engine writes its
-errors to `stderr.txt` in the game folder, not to the terminal. To find
-the line, add `lsp 998,"TRACE:L<n>",0,0` before each line of the file in
-the patched copy: the last one in `stderr.txt` is the line that failed.
+problem there shows in seconds instead of an hour. `--wrap '<command>'`
+runs the engine under another program (`valgrind -q`); an
+AddressSanitizer build is just another `--engine` (configure
+`engine/` into its own folder with `-fsanitize=address
+-fno-omit-frame-pointer` in the C, C++ and linker flags, plus the
+SDL2_mixer paths of a normal build, and set
+`ASAN_OPTIONS=detect_leaks=0`).
 
 ## Running the original under wine
 
@@ -475,28 +484,42 @@ Used to check what the engine does (`docs/new-game.md` step 9).
 ## Status: in progress (2026-10-14)
 
 The whole story compiles, the 立方陣 included, and every ending of the
-chart is reached in the converted control flow. **Engine skip runs**
-(2026-10-14, see "Testing"), the full build played in CONscripter with
-every page drawn and the files checked against nstrace:
+chart is reached in the converted control flow. **Route runs**
+(2026-10-14, see "Testing"), the full build played in CONscripter
+0.19.0 headless with `--auto-play` and a debug trace, every page drawn
+and the files checked against nstrace:
 
-| Run | Ending | Files | Time | Result |
-|---|---|---|---|---|
-| 1 | 一条END | 246 | 40 min | passed |
-| 2 | 香奈枝END | 349 | 41 min | passed |
-| 3 | 茶々丸END | 300 | 44 min | passed |
-| 9 | 村正END | 508 of 510 | 56 min | **aborted** in `md06_032` |
-| 10 | TRUE END | 514 | 56 min | passed |
+| Run | Ending | Files | Pages | Time | Result |
+|---|---|---|---|---|---|
+| 1 | 一条END | 246 | 26,704 | 17 min | passed |
+| 2 | 香奈枝END | 349 | 26,085 | 18 min | passed |
+| 3 | 茶々丸END | 300 | 29,136 | 19 min | passed |
+| 9 | 村正END | 510 | 36,276 | 24 min | passed |
+| 10 | TRUE END | 514 | 36,449 | 24 min | passed |
 
-Run 9 aborted with `malloc(): unaligned tcache chunk detected`
-(SIGABRT): heap corruption in the engine, noticed in `malloc` under
-`lspCommand` → `loadImage` → `createSurfaceFromFile` →
-SDL (`cg\anime\slash01a_02.png`). The damage happened earlier: run 10
-plays the same files without trouble, and an AddressSanitizer build
-(`-fsanitize=address`, flags as in "Build" plus the SDL2_mixer
-`PKG_CONFIG_PATH`) started at `md06_030` with `--at` reached the end
-with no error. Not found yet: an ASan run of the whole route 9 (about
-2-3 hours) would show the first bad write. Testing paused here
-(2026-10-14) while CONscripter gets better debug options.
+(The build with every fix below, 2026-10-14; the build before them
+passed too.) The same runs on Xvfb in skip mode took 40-56 minutes. On CONscripter
+0.18.0, run 9 aborted 508 files in with `malloc(): unaligned tcache
+chunk detected` (heap corruption, noticed in `malloc` under `lsp` →
+`loadImage`); on 0.19.0 it passes. A likely cause, fixed in between:
+CONscripter's `DirectReader` copied a file name's extension over its
+own buffer with an overlapping `strcpy` (engine `1d51abc`; undefined
+behaviour on file reads). An AddressSanitizer build of 0.19.0 played
+the whole of run 9 (510 files, 34 min, `ASAN_OPTIONS=detect_leaks=0`)
+with no error, so no bad memory access is left on that route.
+
+The checker (`cons_trace_check.py` with `research/nitroplus/cons_trace_check.json`)
+found the seven bugs fixed below; on the rebuilt game its `text` and
+`duration` findings are gone, the favour panel no longer lingers, and
+fewer loops double and characters stay off screen. The `voice`
+findings left are lines in 『』 that have no voice in the source either.
+The rest of its report is expected for this game: `crowd` and `offscreen`
+(NSS layers many full-screen objects and parks some off screen),
+`sound` (the battle scenes layer one effect on several channels a
+few hundred ms apart, as the source does; `se戦闘_` is in the config's
+`known`),
+`memory` (a few pre-scaled zoom pictures of 67-77 MB, see "How the
+compiler works").
 
 Fixed on the way (each found by the runs, all in the current build):
 - A `?` in horizontal text: NScripter reads it as an array reference
@@ -504,6 +527,47 @@ Fixed on the way (each found by the runs, all in the current build):
   passed one, in `ma03_027vs`: the NSS `<?>` tag (93 uses), passed
   through as text. Text lines now write `?` full-width, `<?>` is
   dropped, and lint reports a `?` in text.
+- `<?>` at the end of a line joins the next text line to it, after the
+  code between them (a face change, a typewriter's key sound). It was
+  taken as a line break, so the typewriter captions of `ma01_026`
+  (《興隆四一年一〇月一二日》) came out one character per column, and 30
+  lines of dialogue were split in two. Found by the trace checker's
+  `text` rule ("the text runs past the window") on the first route run.
+- A `/* … */` block inside a text block was printed as text (`／＊`,
+  three copies of 「暗闇星人……」, `＊／`, in 3 files). The NSS parser now
+  leaves it out like a `//` line.
+- Lines spoken in unison (66 `CreateVOICE` calls in 32 files) had no
+  voice: the helper plays them only when the setting "other voices"
+  (`#SYSTEM_voice_enable_another`) is on, which the compiler didn't
+  know. It now starts with the value a first start gives it (on), and
+  the voices play together on their own channels. Both found by the
+  checker's `voice` rule.
+- `Play` on a looping sound that was still playing started a second
+  copy: `md04_048vs` calls `MusicStart` on its loop eight times to change
+  its volume and speed, and `茶々丸の世界_L` ended up on eight channels at
+  once (28 loop starts in the game). Found by the checker's `sound` rule.
+- `WaitAction(obj)` waited for every action still running, not only
+  `obj`'s: in `mb02_030vs`, `CP_EHPChange` waits on its own process
+  after a non-blocking 15 s zoom, and the player sat through a 15 s
+  fade (five such waits of 5 s or more). Found by the checker's
+  `duration` rule.
+- Branches of a runtime `if` that ended with different pictures left
+  sprites up: the code after them follows the first branch's sprite
+  layers, so a sprite another branch put elsewhere was never cleared.
+  After the favour screen (`judgment_of_count`, 村正's icon hidden only
+  while `$Muramasa_Flag` is 0) its full-screen background stayed in
+  front of the story for 150 pages. The next sync now removes what any
+  branch left and draws the merged pictures anew. Cost: after the merge
+  every branch shows the first branch's pictures (the black box over
+  村正's icon also shows when she is known, until the screen closes).
+  Found by the checker's `linger` rule.
+- A wildcard (`@StMR*`) only matched object names, not aliases: the
+  character helpers create `遠４/StMR01` with the alias `StMR01`, so
+  `Move("@StMR*", …)`, fades, shakes and deletes on them did nothing
+  (`ma02_012`: ふき stayed 600 px off screen instead of sliding in).
+  About 11,700 lines of the output changed (44 more screen shakes, real
+  moves in place of 177 waits, characters deleted when the script
+  deletes them). Found by the checker's `offscreen` rule.
 - Non-blocking actions were cross-faded over their whole time at the
   next sync: a 270 s background scroll (`ma04_013vs`) blocked the
   player for 270 s, 51 cross-fades were over a minute. Now at most a
@@ -512,13 +576,15 @@ Fixed on the way (each found by the runs, all in the current build):
 
 Testing notes: other agents stop engines with `pkill -x conscripter`;
 run ours through a symlink with another name (`--engine
-out/conscripter-mura`). The skip runs and `--at` starts are in
+out/conscripter-mura`). The route runs and `--at` starts are in
 `research/nitroplus/engrun.py`.
 
 Next, in order:
-1. **Find run 9's heap corruption** (with CONscripter's new debug
-   options, or an ASan build over the whole route 9), fix it in the
-   engine, and rerun the five skip runs.
+1. Sound volume: `SetVolume` on a playing sound is ignored unless it
+   goes to 0, so sounds faded to 1 (99 places; mostly the BGM ducked
+   for a moment and raised again) keep playing at full volume, and
+   loops faded that way never stop (the checker's `loop` rule). Needs a
+   per-channel volume in the output (NScripter's `bgmvol`/`chvol`).
 2. **System screens** (step 7): title, save/load, settings, backlog,
    built as in-script menus from `cg/sys/*` parts, as for 最果てのイマ
    (`conv-cons/src/menu.rs`); the settings screen also shows the build's

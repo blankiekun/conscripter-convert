@@ -398,9 +398,12 @@ and of `0.txt`, `docs/new-game.md` step 11.4).
   --trace-ignore 22-48,lsp2:12-23 --auto-play 0`, then
   `engine/tools/cons_trace_check.py t.jsonl --script 0.txt`. The ignore
   list keeps auto-play off the bars and menus (sprite map below); the
-  link words 51-58 stay in, since they are the route choices. Sprite 61
-  `bg\frame01.png` is the game's frame overlay, a known `linger` false
-  positive (put it in the game's checker config). A single run with
+  link words 51-58 stay in, since they are the route choices. The
+  checker config is `research/xuse/cons_trace_check.json` (`--config`):
+  the ignore list and the findings looked at and found meant (sprite 61
+  `bg\frame01.png`, the game's frame overlay; `%190` after a load;
+  ambient loops the scene stops itself; the ripple that stays on through
+  the 「粉薬」 link scene `s61_l1`, as in the original). A single run with
   `--auto-choice first` keeps taking the same hub link and left 1,062
   labels unreached: cover the routes with `cons_explore.py`. Found so
   far (`sound`): `se068` twice in `s30_l1` ("二度。三度。", meant), `se088`
@@ -417,9 +420,12 @@ and of `0.txt`, `docs/new-game.md` step 11.4).
   animation, 60 static, 61 overlay, 62+ characters; `lsp2` 0-11 save
   menu, 12-23 top bars. Save slots 900 + level hold the blog bar's
   levels.
-- **Disassembly:** `objdump -d -M intel --no-show-raw-insn
-  Farthest2015.exe > research/xuse/local/exe.asm` (git-ignored). The
-  opcode dispatch table is at `0x4fb270`.
+- **Decompiling the exe:** `research/tools/ghidra/ghidra_export.sh
+  <install>/Farthest2015.exe research/xuse/local/ghidra --names
+  research/xuse/names.tsv` (pseudo-C per function, git-ignored). The
+  opcode dispatch table is at `0x4fb270`; `names.tsv` names it and every
+  handler and address this document mentions. Raw disassembly:
+  `objdump -d -M intel --no-show-raw-insn Farthest2015.exe`.
 - After a rebuild delete `kidoku.dat`: its offsets go stale.
 
 ## Running the original under wine
@@ -562,6 +568,21 @@ engine's debug trace (`cons_explore.py`, 62,185 pages, 1,220 labels;
   converted: the depth itself (bust-ups stack by character number;
   1100-5000 probably put a bust-up over a `frameNN` overlay, which ours
   draws over every bust-up).
+- **Scenes laid out for the wrong text window (fixed).** A second run
+  (CONscripter 0.19.0) found 1,320 pages whose text ran past the window,
+  all in `s13_l3`-`s13_l37` and `s10_l98`, and 30 voices cut off on the
+  same pages. Each of those scenes comes after a footnote scene in the
+  file (`s13_l1`, `s10_l97`) that sets the full-screen window and
+  returns. The converter followed the window in file order, so it laid
+  the next scene's text out for the full-screen window (16 rows to a
+  page, names in 【】) while the game was still in the message box (3
+  rows). Now a label that the code before it can't fall into takes the
+  window its jumps, gosubs and links have when they all agree, and a
+  gosub to a subroutine that calls a preset (`s19_l1` calls `s2_l18`)
+  counts as setting that window (`Presets::entry_window`, `sub_window`;
+  tested by `windows_follow_the_callers`). The same route replayed
+  (`--replay`) has no page past the window (122 before), no voice cut
+  off and no save round-trip difference.
 
 Fixed in CONscripter by the same work: half-width katakana in Shift_JIS
 text (「影（ｼｬﾄﾞｳshadow ）」 in `s7_l8` drew as a blank and lost the next

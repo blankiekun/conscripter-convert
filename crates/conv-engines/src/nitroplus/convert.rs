@@ -670,6 +670,8 @@ struct Compiler<'a, 'b> {
     shown: BTreeMap<String, Shown>,
     /// The longest non-blocking action since the last sync.
     pending_ms: u32,
+    /// The same per object, for a `WaitAction` on one of them.
+    pending_by: HashMap<String, u32>,
     /// A `DrawTransition` mask for the next sync.
     pending_mask: Option<String>,
     font_size: i64,
@@ -729,6 +731,32 @@ struct State<'a> {
     font_size: i64,
     window: Option<TextWindow>,
     window_visible: bool,
+}
+
+/// Branches that end with different pictures on screen (the favour
+/// screen adds a picture in one branch, and every sprite after it moves
+/// up a layer): the code after them runs on all of them, so the next sync
+/// removes every sprite a branch left that the merged state doesn't use,
+/// and draws anew each picture some branch doesn't have where the merged
+/// state has it.
+fn reconcile_shown(merged: &mut BTreeMap<String, Shown>, leaves: &[Leaf<'_>]) {
+    let mut stale = BTreeMap::new();
+    for l in leaves {
+        for s in l.state.shown.values() {
+            if !merged.values().any(|m| m.layer == s.layer) {
+                stale.entry(s.layer).or_insert_with(|| s.clone());
+            }
+        }
+    }
+    for m in merged.values_mut() {
+        if leaves.iter().any(|l| !l.state.shown.values().any(|s| s == m)) {
+            // Not equal to any wanted picture: placed again.
+            m.image.clear();
+        }
+    }
+    for (layer, s) in stale {
+        merged.insert(format!(" branch layer {layer}"), s);
+    }
 }
 
 impl<'a, 'b> Compiler<'a, 'b> {
@@ -1009,6 +1037,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
         }
         if leaves.iter().any(|l| l.state.shown != leaves[0].state.shown) {
             self.note("branches of a runtime if end with different pictures");
+            reconcile_shown(&mut merged.shown, &leaves);
         }
         self.restore(merged);
     }
@@ -1230,12 +1259,16 @@ impl<'a, 'b> Compiler<'a, 'b> {
     }
 
     fn new(files: &'a BTreeMap<String, NssFile>, file: &'a str, game: &'static Game, assets: &'b mut dyn Assets) -> Self {
+        // Settings the scripts read, at the values a first start gives them
+        // (`sys_config.nss`): the voices of lines spoken in unison
+        // (`CreateVOICE`) play only with "other voices" on.
+        let vars = HashMap::from([("#SYSTEM_voice_enable_another".to_string(), Value::Int(1))]);
         Compiler {
             files,
             library: library(files),
             game,
             assets,
-            vars: HashMap::new(),
+            vars,
             frames: Vec::new(),
             file,
             objects: BTreeMap::new(),
@@ -1243,6 +1276,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
             seq: 0,
             shown: BTreeMap::new(),
             pending_ms: 0,
+            pending_by: HashMap::new(),
             pending_mask: None,
             font_size: 20,
             window: None,
@@ -1591,11 +1625,18 @@ impl<'a, 'b> Compiler<'a, 'b> {
     }
 
     /// Objects matched by a name argument (a trailing `*` is a prefix
-    /// wildcard).
+    /// wildcard, over names and aliases: `@StMR*` finds `遠４/StMR01`,
+    /// alias `StMR01`).
     fn matching(&self, v: &Value) -> Vec<String> {
         let name = self.object_name(v);
         match name.strip_suffix('*') {
-            Some(prefix) => self.objects.keys().filter(|k| k.starts_with(prefix)).cloned().collect(),
+            Some(prefix) => {
+                let mut found: std::collections::BTreeSet<String> = self.objects.keys().filter(|k| k.starts_with(prefix)).cloned().collect();
+                if !prefix.is_empty() {
+                    found.extend(self.aliases.iter().filter(|(a, o)| a.starts_with(prefix) && self.objects.contains_key(*o)).map(|(_, o)| o.clone()));
+                }
+                found.into_iter().collect()
+            }
             None if self.objects.contains_key(&name) => vec![name],
             None => Vec::new(),
         }
@@ -1678,7 +1719,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 // The text window's own fades aren't waited for: the window
                 // just shows or hides.
                 if !window_only {
-                    self.timed(arg(1).int(), &wait);
+                    self.timed(arg(1).int(), &wait, &targets);
                 } else if !matches!(wait, Value::Null | Value::Int(0)) {
                     self.check_window();
                 }
@@ -1711,7 +1752,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 if arg(1).int() > 0 && targets.iter().any(|t| self.shown.contains_key(t)) {
                     self.note("Move over time drawn as a cross-fade");
                 }
-                self.timed(arg(1).int(), &arg(5));
+                self.timed(arg(1).int(), &arg(5), &targets);
             }
             "delete" => {
                 for t in self.matching(&arg(0)) {
@@ -1750,28 +1791,30 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 if arg(1).int() > 0 && targets.iter().any(|t| self.shown.contains_key(t)) {
                     self.note("Zoom over time drawn as a cross-fade");
                 }
-                self.timed(arg(1).int(), &arg(5));
+                self.timed(arg(1).int(), &arg(5), &targets);
             }
             "setblur" => {
                 // (obj, on, passes 1-3, ?, strength, wait). Unverified:
                 // drawn as a Gaussian of 1.5 px per pass.
                 let sigma = if arg(1).truthy() { (arg(2).int().clamp(1, 5) * 15) as u32 } else { 0 };
-                for t in self.matching(&arg(0)) {
-                    self.objects.get_mut(&t).unwrap().blur = sigma;
+                let targets = self.matching(&arg(0));
+                for t in &targets {
+                    self.objects.get_mut(t).unwrap().blur = sigma;
                 }
-                self.timed(arg(3).int(), &arg(5));
+                self.timed(arg(3).int(), &arg(5), &targets);
             }
             "drawtransition" => {
                 // (obj, time, from, to, softness, tempo, mask, wait): a fade
                 // to `to` shaped by the mask.
-                for t in self.matching(&arg(0)) {
-                    self.objects.get_mut(&t).unwrap().opacity = arg(3).int().clamp(0, 1000);
+                let targets = self.matching(&arg(0));
+                for t in &targets {
+                    self.objects.get_mut(t).unwrap().opacity = arg(3).int().clamp(0, 1000);
                 }
                 match self.assets.image(&self.deref(&arg(6))) {
                     Some((mask, _, _)) => self.pending_mask = Some(mask),
                     None => self.note(format!("DrawTransition mask missing: {}", arg(6).string())),
                 }
-                self.timed(arg(1).int(), &arg(7));
+                self.timed(arg(1).int(), &arg(7), &targets);
             }
             "shake" => {
                 // (obj, time, x, y, …, wait). A full-screen picture (or all
@@ -1779,7 +1822,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 let targets = self.matching(&arg(0));
                 if !targets.iter().any(|t| self.objects[t].w >= SCREEN_W && self.objects[t].h >= SCREEN_H) {
                     self.note("Shake of a picture smaller than the screen");
-                    self.timed(arg(1).int(), a.last().unwrap_or(&Value::Null));
+                    self.timed(arg(1).int(), a.last().unwrap_or(&Value::Null), &targets);
                     return Value::Null;
                 }
                 let ms = arg(1).int().max(0) as u32;
@@ -1821,8 +1864,14 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 }
             }
             "waitaction" | "waitfade" | "waitmove" | "waitzoom" | "draw" => {
-                // Waits for the actions: their whole time.
-                let ms = std::mem::take(&mut self.pending_ms);
+                // Waits for the actions: their whole time. Given an object,
+                // only for that object's (`CP_EHPChange` waits on its own
+                // process, not on the 15 s zoom started before it).
+                let ms = if name.eq_ignore_ascii_case("draw") || matches!(arg(0), Value::Null) {
+                    std::mem::take(&mut self.pending_ms)
+                } else {
+                    self.matching(&arg(0)).iter().filter_map(|t| self.pending_by.get(t)).copied().max().unwrap_or(0)
+                };
                 self.sync(ms);
             }
             "setvolume" => self.set_volume(&arg(0), arg(1).int(), arg(2).int()),
@@ -1864,7 +1913,12 @@ impl<'a, 'b> Compiler<'a, 'b> {
             "unlock" => o.locked = false,
             "hideable" => o.hideable = true,
             "play" => {
-                if let Kind::Sound(s) = &mut o.kind {
+                // `Play` on a loop that is still playing goes on with it
+                // (`md04_048vs` calls MusicStart again on its loop to change
+                // the volume and speed); it isn't started a second time.
+                if let Kind::Sound(s) = &mut o.kind
+                    && !(s.looped && s.playing.is_some())
+                {
                     s.starting = true;
                     s.fade_ms = 0;
                 }
@@ -1889,10 +1943,16 @@ impl<'a, 'b> Compiler<'a, 'b> {
 
     /// An action of `ms` with the `wait` argument of the timed built-ins:
     /// true blocks for the action, false lets the script go on.
-    fn timed(&mut self, ms: i64, wait: &Value) {
+    fn timed(&mut self, ms: i64, wait: &Value, targets: &[String]) {
         let ms = ms.max(0) as u32;
         match wait {
-            Value::Null | Value::Int(0) => self.pending_ms = self.pending_ms.max(ms),
+            Value::Null | Value::Int(0) => {
+                self.pending_ms = self.pending_ms.max(ms);
+                for t in targets {
+                    let p = self.pending_by.entry(t.clone()).or_default();
+                    *p = (*p).max(ms);
+                }
+            }
             Value::Int(n) if *n > 1 => {
                 self.note("timed action that waits only part of its time");
                 self.sync(ms);
@@ -1910,6 +1970,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
     /// or the pending actions' time up to [`UNWAITED_MS`] if longer.
     fn sync(&mut self, ms: u32) {
         let ms = ms.max(std::mem::take(&mut self.pending_ms).min(UNWAITED_MS));
+        self.pending_by.clear();
         let mask = self.pending_mask.take();
         self.flush_sounds();
         self.check_window();
@@ -2126,6 +2187,8 @@ impl<'a, 'b> Compiler<'a, 'b> {
         // The line had something other than text (so it isn't blank).
         let mut other = false;
         let mut ruby: Option<(usize, String)> = None;
+        // The line ended in `<?>`: the next text line goes on in it.
+        let mut joined = false;
         let page_len = |page: &Page<'a>, line: &str| {
             let n = page.text.chars().count();
             n + usize::from(n > 0) + line.chars().count()
@@ -2140,8 +2203,13 @@ impl<'a, 'b> Compiler<'a, 'b> {
             match item {
                 Inline::Marker(_) | Inline::Comment(_) => other = true,
                 // `<?>` (not parsed as a tag): the text goes on after the
-                // code that follows, which runs before the page anyway.
-                Inline::Str(s) => line.push_str(&s.replace("<?>", "")),
+                // code that follows, which runs before the page anyway, on
+                // the same line (a typewriter writing one character at a
+                // time, `ma01_026`).
+                Inline::Str(s) => {
+                    joined = s.trim_end().ends_with("<?>");
+                    line.push_str(&s.replace("<?>", ""));
+                }
                 Inline::Code(stmts) => {
                     // Code after a `<k>` runs after that click: end the page
                     // there and go on below it.
@@ -2183,6 +2251,9 @@ impl<'a, 'b> Compiler<'a, 'b> {
                     }
                 }
                 Inline::Newline => {
+                    if joined && !line.is_empty() {
+                        continue;
+                    }
                     if !line.is_empty() {
                         end_line(&mut page, &mut line);
                     } else if !other && !page.text.is_empty() {
@@ -2444,6 +2515,93 @@ scene a.nss
         assert!(matches!(&ops[last + 1], Op::Sprites { changes, .. } if changes[0].sprite.is_none()));
         // SoundPlay and OnSE aren't defined here: built-ins we don't know.
         assert!(c.notes.contains_key("built-in soundplay"));
+    }
+
+    #[test]
+    fn a_wildcard_matches_aliases() {
+        let story = r#"
+scene a.nss
+{
+	CreateTexture("@遠４/StMR01", 100, 1236, 0, "cg/st/a.png");
+	SetAlias("@遠４/StMR01", "StMR01");
+	Fade("@遠４/StMR01", 0, 1000, null, true);
+	Move("@StMR*", 600, @-540, @0, null, true);
+	Wait(100);
+}
+"#;
+        let c = compile(story, LIBRARY);
+        // The centre of the 1024-wide picture at x 696.
+        let moved = c.ops.iter().any(|op| matches!(op, Op::SpriteMove { x: 1208, ms: 600, .. }));
+        assert!(moved, "{:?}", c.ops);
+    }
+
+    #[test]
+    fn wait_action_on_one_object_waits_only_for_its_actions() {
+        let story = r#"
+scene a.nss
+{
+	CreateTexture("bg", 100, 0, 0, "cg/bg/a.jpg");
+	Fade("bg", 0, 1000, null, true);
+	CreateTexture("hp", 200, 0, 0, "cg/cp/hp.png");
+	Zoom("bg", 15000, 1200, 1200, null, false);
+	Fade("hp", 300, 500, null, false);
+	WaitAction("hp", null);
+	Wait(500);
+}
+"#;
+        let c = compile(story, LIBRARY);
+        let longest = c.ops.iter().filter_map(|op| match op {
+            Op::BeginTransition { fade_ms, .. } => Some(*fade_ms),
+            Op::Wait { ms } => Some(*ms),
+            _ => None,
+        }).max();
+        assert!(longest.is_some_and(|ms| ms < 15000), "{:?}", c.ops);
+    }
+
+    #[test]
+    fn play_on_a_playing_loop_doesnt_start_it_again() {
+        let story = r#"
+scene a.nss
+{
+	CreateSound("SE01", SE, "sound/se/loop_L");
+	Request("SE01", Play);
+	SetLoop("SE01", true);
+	Wait(100);
+	Request("SE01", Play);
+	SetLoop("SE01", true);
+	Wait(100);
+}
+"#;
+        let c = compile(story, LIBRARY);
+        let plays = c.ops.iter().filter(|op| matches!(op, Op::SePlay { .. })).count();
+        assert_eq!(plays, 1);
+    }
+
+    #[test]
+    fn a_line_ending_in_question_tag_goes_on_after_the_code() {
+        let story = r#"
+scene a.nss
+{
+<PRE @box0>
+[text0030]
+《<?>
+{OnSE("se01");}
+興<?>
+{OnSE("se01");
+WaitKey(50);}
+隆<?>
+{OnSE("se02");}
+》
+
+次<?>
+</PRE>
+	SetText();
+	TypeBegin();
+}
+"#;
+        let c = compile(story, LIBRARY);
+        let texts: Vec<&str> = c.ops.iter().filter_map(|op| if let Op::Text { text, .. } = op { Some(text.as_str()) } else { None }).collect();
+        assert_eq!(texts, ["《興隆》", "次"]);
     }
 
     #[test]

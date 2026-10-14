@@ -1834,6 +1834,15 @@ pub struct WindowPreset {
 pub struct Presets {
     /// Text window presets: labels whose code sets a window position.
     pub window: HashMap<String, WindowPreset>,
+    /// The window a label is entered with, for labels the code before
+    /// can't fall into (after a return or a jump), when every jump, gosub
+    /// and link to it with a known window has the same one. The window is
+    /// otherwise followed in file order, which carries a footnote scene's
+    /// full-screen window (`s10_l97`, `s13_l1`) into the next scene.
+    pub entry_window: HashMap<String, WindowPreset>,
+    /// The window a subroutine leaves set through the presets it calls
+    /// (`s19_l1` calls `s2_l18`), for subroutines that aren't presets.
+    pub sub_window: HashMap<String, WindowPreset>,
 }
 
 /// Finds the preset subroutines (see [`Presets`]).
@@ -1875,7 +1884,142 @@ pub fn presets(scripts: &[(String, CdScript)]) -> Result<Presets, ConvertError> 
             }
         }
     }
+    presets.sub_window = sub_windows(scripts, &presets.window);
+    presets.entry_window = entry_windows(scripts, &presets.window, &presets.sub_window)?;
     Ok(presets)
+}
+
+/// The window each label that can't be fallen into is entered with (see
+/// [`Presets::entry_window`]). The window at a jump depends on the entry
+/// windows found so far, so this repeats until nothing changes.
+fn entry_windows(
+    scripts: &[(String, CdScript)],
+    window: &HashMap<String, WindowPreset>,
+    sub_window: &HashMap<String, WindowPreset>,
+) -> Result<HashMap<String, WindowPreset>, ConvertError> {
+    let mut entry: HashMap<String, WindowPreset> = HashMap::new();
+    for _ in 0..10 {
+        // The windows of each label's callers; callers whose window isn't
+        // known (before a script's first preset) don't count.
+        let mut callers: HashMap<String, Vec<WindowPreset>> = HashMap::new();
+        for (_, cd) in scripts {
+            let own: HashMap<usize, u32> = cd
+                .labels
+                .iter()
+                .filter(|l| l.script == cd.script_id)
+                .map(|l| (l.code_offset as usize / 12 + 1, l.label))
+                .collect();
+            let mut current: Option<WindowPreset> = None;
+            for (index, ins) in cd.code.iter().enumerate() {
+                if let Some(l) = own.get(&index) {
+                    let name = format!("s{}_l{l}", cd.script_id);
+                    if !falls_into(cd, index) {
+                        current = entry.get(&name).copied().or(current);
+                    }
+                }
+                let target = match ins.op {
+                    OP_GOTO | OP_GOTO_2 if own_label_at(cd, ins.arg).is_some_and(|i| i != index) => {
+                        Some(format!("s{}_l{}", cd.script_id, ins.arg))
+                    }
+                    OP_GOTO_SUB | OP_IF_EQUAL..=OP_IF_GE => table_label(cd, ins.sub.into()),
+                    OP_GOSUB => {
+                        let t = table_label(cd, ins.sub.into());
+                        if let Some(p) = t.as_ref().and_then(|t| window.get(t)) {
+                            current = Some(*p);
+                            None
+                        } else {
+                            if let Some(p) = t.as_ref().and_then(|t| sub_window.get(t)) {
+                                current = Some(*p);
+                            }
+                            t
+                        }
+                    }
+                    _ => match cd.link(ins) {
+                        Some(link) => table_label(cd, link?.target.into()),
+                        None => None,
+                    },
+                };
+                if let (Some(t), Some(p)) = (target, current) {
+                    callers.entry(t).or_default().push(p);
+                }
+            }
+        }
+        let found: HashMap<String, WindowPreset> = callers
+            .into_iter()
+            .filter(|(_, ws)| ws.windows(2).all(|w| w[0] == w[1]))
+            .map(|(t, ws)| (t, ws[0]))
+            .collect();
+        if found == entry {
+            break;
+        }
+        entry = found;
+    }
+    Ok(entry)
+}
+
+/// The window each subroutine leaves set (see [`Presets::sub_window`]):
+/// the last preset its code calls, directly or through another
+/// subroutine, before its first return.
+fn sub_windows(scripts: &[(String, CdScript)], window: &HashMap<String, WindowPreset>) -> HashMap<String, WindowPreset> {
+    let mut subs: HashMap<String, WindowPreset> = HashMap::new();
+    for _ in 0..10 {
+        let mut found = HashMap::new();
+        for (_, cd) in scripts {
+            for l in cd.labels.iter().filter(|l| l.script == cd.script_id) {
+                let name = format!("s{}_l{}", cd.script_id, l.label);
+                if window.contains_key(&name) {
+                    continue;
+                }
+                let mut current = None;
+                for ins in cd.code.iter().skip(l.code_offset as usize / 12 + 1) {
+                    match ins.op {
+                        OP_GOSUB => {
+                            let t = table_label(cd, ins.sub.into());
+                            if let Some(p) = t.as_ref().and_then(|t| window.get(t).or_else(|| subs.get(t))) {
+                                current = Some(*p);
+                            }
+                        }
+                        OP_RETURN => break,
+                        // A jump: where the code goes on isn't followed.
+                        OP_GOTO | OP_GOTO_2 | OP_GOTO_SUB | OP_IF_EQUAL..=OP_IF_GE | OP_LINK_RETURN => {
+                            current = None;
+                            break;
+                        }
+                        _ => {}
+                    }
+                }
+                if let Some(p) = current {
+                    found.insert(name, p);
+                }
+            }
+        }
+        if found == subs {
+            break;
+        }
+        subs = found;
+    }
+    subs
+}
+
+/// Sets the text window of a preset.
+fn set_window(ops: &mut Vec<Op>, assets: &mut AssetBank, p: WindowPreset) -> Result<(), ConvertError> {
+    ops.push(Op::SetWindow(assets.text_window_style(p)?));
+    // setwindow resets the text speed the preset set.
+    if p.instant {
+        ops.push(Op::InstantText(true));
+    }
+    Ok(())
+}
+
+/// Whether the instruction before the label placed at `index` (after its
+/// marker, see [`lower_script`]) can go on into it.
+fn falls_into(cd: &CdScript, index: usize) -> bool {
+    let Some(before) = index.checked_sub(2).and_then(|i| cd.code.get(i)) else { return false };
+    match before.op {
+        OP_GOTO | OP_GOTO_2 => own_label_at(cd, before.arg).is_some_and(|i| i == index - 2),
+        OP_GOTO_SUB | OP_RETURN | OP_LINK_RETURN | OP_RETURN_TO_ROOT | OP_RETURN_TO_TITLE => false,
+        _ => true,
+    }
 }
 
 /// The variable holding `field` of a preset slot (1-based preset and slot).
@@ -2335,6 +2479,8 @@ pub fn lower_script(
     // the last text op and the lines on its page, and whether a "p" tag
     // followed it.
     let mut full_screen_rows: Option<usize> = None;
+    // The last window preset set (file order).
+    let mut window_preset: Option<WindowPreset> = None;
     let mut last_text: Option<(usize, usize)> = None;
     let mut page_break = false;
     // Opcode 0x8c slots and the kind each holds (file order).
@@ -2372,7 +2518,15 @@ pub fn lower_script(
         // Labels inside a run are emitted with its paths.
         let inside_run = variants.as_ref().is_some_and(|(start, message, _)| (*start + 1..=*message).contains(&index));
         if let Some(label) = own_labels.get(&index).filter(|_| !inside_run) {
-            ops.push(Op::Label(format!("s{}_l{label}", cd.script_id)));
+            let name = format!("s{}_l{label}", cd.script_id);
+            let entered = presets.entry_window.get(&name).copied().filter(|_| !falls_into(cd, index));
+            ops.push(Op::Label(name));
+            if let Some(p) = entered.filter(|p| window_preset != Some(*p)) {
+                set_window(&mut ops, assets, p)?;
+                window_preset = Some(p);
+                full_screen_rows = p.full_screen.then_some(assets.text_window_style(p)?.rows as usize);
+                last_text = None;
+            }
         }
         if in_run && cd.message(ins).is_none() {
             continue; // emitted with the message, path by path
@@ -2911,16 +3065,16 @@ pub fn lower_script(
                 }
                 Ok(Some(Op::Gosub(target))) => {
                     let preset = presets.window.get(&target).copied();
+                    // A subroutine that sets a window through a preset: the
+                    // window is set again here, so the text after it is laid
+                    // out for that window.
+                    let sub = presets.sub_window.get(&target).copied().filter(|p| window_preset != Some(*p));
                     ops.push(Op::Gosub(target));
-                    if let Some(p) = preset {
-                        let window = assets.text_window_style(p)?;
-                        full_screen_rows = p.full_screen.then_some(window.rows as usize);
+                    if let Some(p) = preset.or(sub) {
+                        full_screen_rows = p.full_screen.then_some(assets.text_window_style(p)?.rows as usize);
                         last_text = None;
-                        ops.push(Op::SetWindow(window));
-                        // setwindow resets the text speed the preset set.
-                        if p.instant {
-                            ops.push(Op::InstantText(true));
-                        }
+                        window_preset = Some(p);
+                        set_window(&mut ops, assets, p)?;
                     }
                 }
                 Ok(Some(Op::Wait { ms })) if wait_credit_ms > 0 => {
@@ -3577,6 +3731,46 @@ mod tests {
         assert_eq!(transition_style(45), TransitionStyle::Melt { stretch_percent: 15 });
         assert_eq!(transition_style(47), TransitionStyle::Melt { stretch_percent: 240 });
         assert_eq!(transition_name(20), "Slide out");
+    }
+
+    #[test]
+    fn windows_follow_the_callers() {
+        let ins = |op, sub, arg| Instr { op, sub, arg, source_pos: 0 };
+        // Labels 0-4 of script 7 (the one `build` writes) (table indices 1-5): the start, a
+        // full-screen and a message box preset, a footnote that sets the
+        // full-screen window, and a scene after it that a jump enters with
+        // the message box.
+        let labels: Vec<crate::xuse::cd::Label> =
+            [0, 4, 8, 12, 15].iter().enumerate().map(|(l, &i)| crate::xuse::cd::Label { script: 7, label: l as u32, code_offset: i * 12 }).collect();
+        let code = [
+            ins(OP_GOTO, 0, 0),
+            ins(OP_GOSUB, 3, 0),
+            ins(OP_TEXT_DISPLAY, 0, 0),
+            ins(OP_GOTO, 0, 4),
+            ins(OP_GOTO, 0, 1),
+            ins(OP_WINDOW_MODE, 0, 1),
+            ins(OP_WINDOW_POS, 0, 0),
+            ins(OP_RETURN, 0, 0),
+            ins(OP_GOTO, 0, 2),
+            ins(OP_WINDOW_MODE, 0, 0),
+            ins(OP_WINDOW_POS, 0, 89 | 462 << 16),
+            ins(OP_RETURN, 0, 0),
+            ins(OP_GOTO, 0, 3),
+            ins(OP_GOSUB, 2, 0),
+            ins(OP_RETURN, 0, 0),
+            ins(OP_GOTO, 0, 4),
+            ins(OP_RETURN, 0, 0),
+        ];
+        let bytes = crate::xuse::cd::tests::build("w.rio", &labels, &code, &[]);
+        let scripts = vec![("w.cd".to_string(), CdScript::parse(&bytes).unwrap())];
+        let p = presets(&scripts).unwrap();
+        let full = p.window["s7_l1"];
+        let message = p.window["s7_l2"];
+        assert!(full.full_screen && !message.full_screen);
+        assert_eq!(p.sub_window.get("s7_l3"), Some(&full));
+        // In file order s1_l4 would get the footnote's window.
+        assert!(!falls_into(&scripts[0].1, 16));
+        assert_eq!(p.entry_window.get("s7_l4"), Some(&message));
     }
 
     #[test]
