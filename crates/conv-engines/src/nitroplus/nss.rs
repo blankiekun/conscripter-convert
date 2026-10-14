@@ -1001,6 +1001,18 @@ fn parse_text(body: &str, first_line: u32, errors: &mut Vec<ParseError>) -> Resu
                 line_start = false;
                 continue;
             }
+            // A block of lines commented out (`ma01_009` keeps the
+            // voiced copies of a line spoken in unison that way).
+            if trimmed.starts_with("/*") {
+                let start = text.find("/*").unwrap();
+                let Some(len) = block_comment_len(&rest[start..]) else { return err(line, "unterminated /* in text") };
+                let comment = &rest[start..start + len];
+                items.push(Inline::Comment(comment[2..len - 2].to_string()));
+                line += comment.matches('\n').count() as u32;
+                i += start + len;
+                line_start = false;
+                continue;
+            }
             if trimmed.len() > 2 && trimmed.starts_with('[') && trimmed.ends_with(']') && !trimmed[1..].contains('[') {
                 items.push(Inline::Marker(trimmed[1..trimmed.len() - 1].to_string()));
                 i += text.len();
@@ -1212,6 +1224,15 @@ mod tests {
         let f = parse("function A()\n{\n}\n/*\n/*=====*/\nfunction A()\n{\n}\n/*=====*/\n*/\nfunction B()\n{\n}\n").unwrap();
         let names: Vec<_> = f.items.iter().filter_map(|i| if let Item::Function(f) = i { Some(f.name.as_str()) } else { None }).collect();
         assert_eq!(names, ["A", "B"]);
+    }
+
+    #[test]
+    fn a_block_comment_in_text_is_left_out() {
+        let s = body("<PRE @box0>\n「暗闇星人……」\n\n/*\n<voice name=\"雄飛\" src=\"voice/a\">\n「暗闇星人……」\n*/\n</PRE>\nWait(1);");
+        let StmtKind::Text(t) = &s[0].kind else { panic!() };
+        assert!(!t.items.iter().any(|i| matches!(i, Inline::Tag(_))));
+        assert_eq!(t.items.iter().filter(|i| matches!(i, Inline::Str(_))).count(), 1);
+        assert!(matches!(&s[1].kind, StmtKind::Expr(_)) && s[1].line == 11, "{:?}", s[1]);
     }
 
     #[test]
