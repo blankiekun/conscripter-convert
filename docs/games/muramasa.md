@@ -491,10 +491,22 @@ Used to check what the engine does (`docs/new-game.md` step 9).
   are plain `.nss` in `nss.npa`, so a copy of the archive with a patched
   boot script can start any scene with its flags set and auto mode on
   (`$SYSTEM_text_auto = true`), with no clicks. `research/nitroplus/npa.py`
-  decodes the archive (the inverse table is in `npa.rs`); a packer that
-  writes it back is still to do, and is the next step before another
-  wine session. Saves (`.npf`) are the fallback: `builtin_Save`
-  (`00411ea0`) and `builtin_Load` (`00411fb0`) would give their format.
+  decodes the archive and `--pack DIR NEW.npa` writes a copy with the
+  files in `DIR` replaced (same index, keys, compression and
+  encryption). Link the patched copy as `nss.npa` in `C:\muramasa\`.
+  Example, straight to the title with no logos (uncomment the debug
+  line `//$Logo = true;` in `0_boot.nss`):
+
+  ```
+  python3 -I research/nitroplus/npa.py <game>/Muramasa.exe <game>/nss.npa nss/
+  # edit nss/0_boot.nss into patch/0_boot.nss (cp932)
+  python3 -I research/nitroplus/npa.py <game>/Muramasa.exe <game>/nss.npa --pack patch/ nss-title.npa
+  ```
+
+  Saves (`.npf`) are the fallback: `builtin_Save` (`00411ea0`) and
+  `builtin_Load` (`00411fb0`) would give their format.
+- Film transitions with `ffmpeg -f x11grab -video_size 1024x576 -i
+  :N+128,125`; single shots with `import` as above.
 
 ## Status: in progress (2026-10-14)
 
@@ -645,24 +657,21 @@ Next, in order:
    curve (`research/nitroplus/builtins.md`, `SetVolume`): percent =
    100·(volume/1000)^1.661, so 1 is silent and 500 is 32 %. A fade to
    0 over time could use `dwavefadeout` (CONscripter 922b73f).
-3. An NPA packer (`npa.rs` has the inverse table), so the original can
-   be started at any scene from a patched `nss.npa` instead of clicking
-   (`docs/new-game.md` step 9, "Running the original under wine").
-4. Check against the original: the figure in `ma01_002` (おれ→ ○□卍□○
+3. Check against the original: the figure in `ma01_002` (おれ→ ○□卍□○
    ←？ with ／＼ strokes) only lines up written horizontally, and comes
    apart in its vertical box.
-5. A replay of route 9 with `--shot-pages` (engine 0.19.0) stopped
+4. A replay of route 9 with `--shot-pages` (engine 0.19.0) stopped
    drawing at `f_md01_002:158856` (`print 10,500`, page 18,573) with
    the process spinning; the same run passed before. Not reproduced.
-6. **System screens** (step 7): title, save/load, settings, backlog,
+5. **System screens** (step 7): title, save/load, settings, backlog,
    built as in-script menus from `cg/sys/*` parts, as for 最果てのイマ
    (`conv-cons/src/menu.rs`); the settings screen also shows the build's
    version line (`version.txt`). A big item: check with the user first.
-7. The largest leftovers below: `CreateProcess` (via Lua), non-blocking
+6. The largest leftovers below: `CreateProcess` (via Lua), non-blocking
    `Move`/`Zoom`, `AddRender` (needs a per-sprite blend mode).
-8. Step 11.5: `#` flags (globals from %800) across quit and relaunch,
+7. Step 11.5: `#` flags (globals from %800) across quit and relaunch,
    and in the web build.
-9. Optional: the 18 files with no `else` (below).
+8. Optional: the 18 files with no `else` (below).
 
 **Leftovers** (counts from the dry run's notes):
 - `CreateProcess` (510 calls; the battle HUD `CP_*` in

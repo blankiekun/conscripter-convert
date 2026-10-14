@@ -2,6 +2,7 @@
 
     python3 -I npa.py Muramasa.exe nss.npa             # list: size name
     python3 -I npa.py Muramasa.exe nss.npa OUT ['GLOB']  # extract (GLOB uses '\\')
+    python3 -I npa.py Muramasa.exe nss.npa --pack DIR NEW.npa  # repack, files in DIR replaced
 
 Header: "NPA" u32 version, u32 key1, u32 key2, u8 compressed, u8 encrypted,
 u32 total, u32 folders, u32 files, u32, u32, u32 index size; data starts at
@@ -13,6 +14,10 @@ Data: the first 0x1000 + len(name) bytes are b = inv[b] - k - i, where inv is
 the inverse of the 256-byte table at exe offset 0x134830 and
 k = ((0x87654321 - sum(name)) * len(name) + key1*key2) * size  (low byte).
 Then zlib if compressed. Checked on all 913 scripts.
+
+--pack writes a copy with the same index (names, keys, order), taking each
+file from DIR (same relative path, '/' for '\\') when it is there and from
+the archive otherwise, compressed and encrypted the same way.
 """
 import fnmatch
 import os
@@ -44,6 +49,43 @@ def entries(d, h):
         yield bytes(raw), typ, off, csz, osz
 
 
+def pack(inv, src, h, index, srcdir, dst):
+    table = bytes(inv.index(i) for i in range(256))
+    key = (h['k1'] * h['k2']) & 0xffffffff
+    index = bytearray(index)
+    blobs = []
+    pos = 0
+    p = 0x29
+    replaced = 0
+    for nb, typ, off, csz, osz in entries(bytes(index), h):
+        p += 4 + len(nb)
+        if typ == 2:
+            path = os.path.join(srcdir, nb.decode('cp932').replace('\\', '/'))
+            if os.path.exists(path):
+                import zlib
+                plain = open(path, 'rb').read()
+                osz = len(plain)
+                b = bytearray(zlib.compress(plain, 9) if h['comp'] else plain)
+                if h['enc']:
+                    k = ((0x87654321 - sum(nb)) * len(nb) + key) * osz & 0xff
+                    for i in range(min(len(b), 0x1000 + len(nb))):
+                        b[i] = table[(b[i] + k + i) & 0xff]
+                b = bytes(b)
+                replaced += 1
+            else:
+                src.seek(h['start'] + off)
+                b = src.read(csz)
+            struct.pack_into('<III', index, p + 5, pos, len(b), osz)
+            blobs.append(b)
+            pos += len(b)
+        p += 17
+    with open(dst, 'wb') as f:
+        f.write(index)
+        for b in blobs:
+            f.write(b)
+    print(f'{replaced} files replaced')
+
+
 def main():
     exe = open(sys.argv[1], 'rb').read()
     table = exe[TABLE_OFFSET:TABLE_OFFSET + 256]
@@ -54,6 +96,9 @@ def main():
     index = f.read(h['start'])
     out = sys.argv[3] if len(sys.argv) > 3 else None
     pat = sys.argv[4] if len(sys.argv) > 4 else '*'
+    if out == '--pack':
+        pack(inv, f, h, index, sys.argv[4], sys.argv[5])
+        return
     key = (h['k1'] * h['k2']) & 0xffffffff
     for nb, typ, off, csz, osz in entries(index, h):
         name = nb.decode('cp932')
