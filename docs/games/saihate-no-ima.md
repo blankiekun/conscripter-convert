@@ -398,9 +398,12 @@ and of `0.txt`, `docs/new-game.md` step 11.4).
   --trace-ignore 22-48,lsp2:12-23 --auto-play 0`, then
   `engine/tools/cons_trace_check.py t.jsonl --script 0.txt`. The ignore
   list keeps auto-play off the bars and menus (sprite map below); the
-  link words 51-58 stay in, since they are the route choices. Sprite 61
-  `bg\frame01.png` is the game's frame overlay, a known `linger` false
-  positive (put it in the game's checker config). A single run with
+  link words 51-58 stay in, since they are the route choices. The
+  checker config is `research/xuse/cons_trace_check.json` (`--config`):
+  the ignore list and the findings looked at and found meant (sprite 61
+  `bg\frame01.png`, the game's frame overlay; `%190` after a load;
+  ambient loops the scene stops itself; the ripple that stays on through
+  the 「粉薬」 link scene `s61_l1`, as in the original). A single run with
   `--auto-choice first` keeps taking the same hub link and left 1,062
   labels unreached: cover the routes with `cons_explore.py`. Found so
   far (`sound`): `se068` twice in `s30_l1` ("二度。三度。", meant), `se088`

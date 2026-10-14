@@ -1,0 +1,14 @@
+{
+ "_comment": "最果てのイマ (docs/games/saihate-no-ima.md, Testing): 22-48 and lsp2 12-23 are the bars and menus; lsp 61 is the frame overlay (bg\\frame01.png); se068 twice in s30_l1 is meant; %190 is the blog bar's floor, set by every load; se028 and se225 loop until the scene's own dwavestop; screenripple 5 stays on through the 「粉薬」 link scene s61_l1 as in the original",
+ "ignore": "22-48,lsp2:12-23",
+ "coverage_skip": "^conv_",
+ "known": [
+  {"rule": "linger", "sprite": "lsp:61"},
+  {"rule": "crowd", "file": "bg\\frame01.png"},
+  {"rule": "sound", "match": "se068", "at": "^\\*s30_l1:"},
+  {"rule": "save", "match": "%190:"},
+  {"rule": "loop", "match": "se\\\\se028\\.ogg", "at": "^\\*s9_l36:"},
+  {"rule": "loop", "match": "se\\\\se225\\.ogg", "at": "^\\*s9_l76:"},
+  {"rule": "overlay", "match": "screenripple 5", "at": "^\\*(s61_l1|conv_link43_1):"}
+ ]
+}
