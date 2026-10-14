@@ -234,7 +234,6 @@ fn convert(game: &Path, output: &Path, scenes: &[String], font: Option<&Path>, t
         confirm,
         extras,
         ops: compiled.ops,
-        ..Script::default()
     };
     let (encoded, lost) = conv_cons::encode(&conv_cons::emit(&ir));
     fs::write(output.join("0.txt"), encoded)?;
