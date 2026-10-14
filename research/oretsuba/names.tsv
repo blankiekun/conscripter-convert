@@ -1,0 +1,23 @@
+# 俺たちに翼はない (PS Vita) eboot.elf: functions and data identified so far,
+# applied by research/tools/ghidra/ghidra_export.sh --names. Columns
+# (tab-separated): address, name, comment. Details: docs/games/oretsuba.md,
+# "The eboot".
+81021070	task_run	runs the current task: a switch on its type number (InOut_Act 0x83 at 0x81022f9a, EyeCatch 0x6f, SceneJumpDialog 0x84 at 0x810265b4: Yes to :JumpNextTag, No to :NextTag, unread or setting off to :UnreadTag)
+8102840a	scene_load	reads a scene script into task records (TaskList/TaskMax, TaskList/Task%d/Tasktype, ...)
+81035094	task_type_number	task type name to its number (InOut 0x82, InOut_Act 0x83, EffectStart 0x3e)
+81027680	cgmode_load	reads /media/script/CGMODE (FlagMax, PageMax, Page%d/List%d/CGMax)
+8103f75a	effect_create	makes an effect object: effect number - 1 into a tbh (EffectStart 40 at 0x8103f8f4; InOut_Act is effect 25)
+81041812	inout_act_create	InOut_Act: switch on :Type + 10, one object per type (0,4,5,7,8 two quads; 1,2,3,6 a vertex and a fragment GXP)
+810427b2	effect40_ctor	EffectStart 40 (wave over the monologue background): draws through vertex GXP 0x81161628 and fragment GXP 0x8115f304
+81048b8a	eyecatch_shutters_update	EyeCatch :Image 0 object (vtable 0x8115c59c): two half-screen sprites close as the progress goes 0 to 1/2, open after
+81048c68	eyecatch_card_update	EyeCatch :Image 1 object (vtable 0x8115c5bc): the chapter card, alpha 0 to 100 to 0
+8103e7d6	skipdialog_layout	SceneJumpDialog class (vtable 0x8115befc): lays out SystemData 62 + :BG 0
+8103e248	skipdialog_set_cells	the dialog atlas cells (rectangles centred at a point): screen, question, date, emblem, faces, Yes/No
+8103ebf2	skipdialog_draw_text	draws two strings in white, lines 27 apart: one at (81, 99), the summary at (300, 319)
+8116310c	music_bgm_table	int32 BGM.AWB IDs, 67, in mu_bg.png order; a second table of 8 follows
+81163348	movie_records	100-byte movie name records: OP00.usm, OP01, OP02, OP03, then OP00.sfd, OP02.sfd
+8115c59c	vt_eyecatch_shutters	vtable of the EyeCatch :Image 0 object
+8115c5bc	vt_eyecatch_card	vtable of the EyeCatch :Image 1 object (chapter card)
+8115befc	vt_skip_dialog	vtable of the SceneJumpDialog class
+81161628	gxp_wave_vert	vertex GXP of EffectStart 40
+8115f304	gxp_wave_frag	fragment GXP of EffectStart 40: rows moved along the diagonal by 1.5% of the width x sin(...)

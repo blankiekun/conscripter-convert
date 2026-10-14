@@ -57,10 +57,33 @@ key revision 5); it reads the keys from a Vita3K checkout
     python3 -I self2elf.py <game>/eboot.bin work.bin <Vita3K>/vita3k/packages/src/sce_utils.cpp local/eboot.elf
     python3 disasm.py local/eboot.elf > local/eboot.asm   # needs capstone
 
+**Decompiled with Ghidra** (`docs/new-game.md` §2), with the
+[VitaLoaderRedux](https://github.com/CreepNT/VitaLoaderRedux) extension
+(the release built for the installed Ghidra, unzipped into Ghidra's user
+`Extensions` folder; 1.09 for Ghidra 12.1.2):
+
+    research/tools/ghidra/ghidra_export.sh research/oretsuba/local/eboot.elf \
+        research/oretsuba/local/ghidra --names research/oretsuba/names.tsv \
+        -- -loader ArmElfPrxLoader -postScript ThumbPointerFunctions.java
+
+About 4 minutes the first time; later runs reuse the project and only
+apply `names.tsv` and export (2 minutes). The stock ELF loader also takes
+the SCE executable (type 0xfe04, `-processor ARM:LE:32:v7`) and finds the
+Thumb code, but leaves the imports unnamed; VitaLoaderRedux names the
+ones in its NID list (`sceKernel…`, `sceSaveDataDialog…`; libc calls stay
+`SceLibc_<NID>`). Analysis puts the C++ virtual methods, reached only
+through vtables, in no function (the eye catch's update at 0x81048b8a);
+`ThumbPointerFunctions.java` makes one at every Thumb pointer stored as
+data (618), 4,922 functions in all, 83% of the code (the rest is mostly
+literal pools and rodata). The decompiled C shows the ASCII strings
+inline (`"TaskList/Task%d/Tasktype"`), so grep `decomp/` for them;
+`strings.tsv` only lists cp932 ones. Every function identified goes into
+`research/oretsuba/names.tsv`, and the export is rerun.
+
 The ELF loads its code at 0x81000000 (file offset 0xe0) and its data at
 0x8115e000 (file offset 0x15d440). `disasm.py` is a linear Thumb-2
 listing with every movw/movt address resolved and the string it points
-at, so code that uses a string is found by grepping. The rodata holds
+at, still handy for grepping the raw instructions. The rodata holds
 the script engine's keys (`TaskList/Task%d/...`, `CGMODE/...`) and its
 task names, the kanji of the font's glyph table, and no menu text: the
 system screens are pictures.
@@ -287,14 +310,15 @@ message (109 characters with the name; there is no paging).
 | Feature | State |
 |---|---|
 | Messages, speaker names (from the scripts' `:Name N // name` comments), voices | converted |
-| Backgrounds and sprites (`SpriteBG`, `Sprite`, `SpriteBS`, deletes), by priority | converted; positions not yet checked against the original |
-| Characters (`CharacterOpen`, `…BS`, `CharacterDelete`, `CharacterMove`) and `SpritePriority`/`CharacterPriority` | converted; the usual height guessed (centre + `OffsetY`), CharacterMove's y counted from it |
+| Backgrounds and sprites (`SpriteBG`, `Sprite`, `SpriteBS`, deletes), by priority | converted: `SpriteBG` and `SpriteBS` replace every picture (a background, a black cover, a white flash, an event CG, in one fade), the characters too unless `:SpriteDelete 0` (the scripts never delete the characters a location change leaves, and after 37 of the 0s they delete them themselves); a scene's first picture also removes whatever the scene before left (the eboot loads each scene's textures anew). `Sprite` adds one, and `SpriteDelete`/`SpriteDeleteBG` remove the picture of their `:SpriteNumber` (a texture). Our reading of the scripts; positions not yet checked against the original |
+| Characters (`CharacterOpen`, `…BS`, `CharacterDelete`, `CharacterMove`) and `SpritePriority`/`CharacterPriority` | converted. At y 0 a character stands on the screen's bottom edge (1209 of the 1333 pictures, 630 pixels tall, are cut off along their bottom row); the eboot scales `OffsetY` (-68 for everyone standing) by 544/720, but centred that leaves them 8 pixels above the edge, so where it anchors them is still to be found. Shorter pictures (the 960×540 cut-ins) are centred plus `OffsetY`. CharacterMove's y counts from that height. `CharacterDelete` without a list (`:SpriteMax 0`, 962 of 1414) removes every character; `CharacterOpenBS` removes the characters it doesn't name (the scripts re-open or delete-all them afterwards, and only twice delete one by name) |
+| `:Color` tints (dusk 255,236,220 on 3,892 pictures, night 220,222,255 on 2,105), `:Grayscale` (479), with `:Gamma` the sepia flashbacks (188), `:Floor`/`:Ceil` film negatives (42), `:Color` alpha 0 | converted as sprite filters: a tint multiplies (`spfilter` colour, multiply), sepia is a monotone with each channel of the grey raised to 1/gamma as an offset at mid-grey (+75, +28, −47), and a picture with filters fades in inside a transition, filtered. Alpha 0 shows a character see-through; a CharacterMove that changes the alpha cross-fades to the new place and opacity over its `:Time` |
 | `InOut` transitions with the RULE masks | converted |
 | `InOut_Act` (the eboot's effect 25: `:Type` picks the class, `:Param` 0 mostly a direction 0-3 = right, down, left, up) | 0 (the old screen squeezes to that edge while the new one grows from the other; 21 uses) and 7 (a push; 89) as ONScripter's scrolls; 5 (to or from white or black; 9) through white; 2 (a mosaic growing to `:Param` 1 pixels of 720 halfway while the screens cross-fade; 66) as ONScripter's mosaic out and in; 3 (a card turning over in perspective, old in front, new behind, about the vertical axis for `:Param` 0 below 2; 47) as `cons_flip`, the new screen turning in. As plain fades: 1 (rows waving sideways, `:Param` 1-2 the wave; 57), 6 (blurred sideways halfway, `:Param` 1 the width, `:Param` 0 = 1 only the new screen; 130), 4 (2) |
 | FadeOut/FadeIn, TimeWait, BGM, SE, Window hide | converted |
 | Tags, jumps, flag switches and operations, choices with points, NextScene | converted, not yet checked against a walkthrough |
 | SceneJumpDialog (skip a scene already read) | converted: a global "read" flag per scene (`%1200` + the scene's index in name order). A read scene shows the eboot's dialog (layout below): SystemData's `ss_bg1`…`ss_bg5` by `:BG` 0 (the protagonist), このシーンをスキップしますか？, the date (`:BG` 2), the emblem (`:BG` 1), the `:CharaIcon` faces, the summary (`:Text`) drawn with the `--font`, and Yes (skip) / No buttons that glow under the pointer. The line the eboot also writes at (81, 99) is left empty (its text isn't in the task; perhaps the chapter's name). The original asks only when its setting is on; ours always asks. Without `--font`, the summary and two text choices |
-| Flash; EffectQuake/End and SpriteQuake (a screen shake dying down over `:Time`); SpriteMove (no `:Scale`, always waited on) | converted |
+| Flash; EffectQuake/End and SpriteQuake (a screen shake dying down over `:Time`); SpriteMove (always waited on) | converted; `:Scale` (90 uses) zooms the picture about its centre with CONscripter's `spzoom` (after 0.19.1), which keeps it in its place among the sprites; the zoom stays for the moves after it. The two values after `:Position` look like easing: our zooms and moves are straight |
 | CharacterAction (`chract`'s 661 keyframed moves: bows, shakes) | converted as straight moves between keyframes, waited on; the looping ones are left out |
 | EyeCatch `:Image 0,N` (CG.cpk's `ECnn`; 27 is the title logo) | converted as in the eboot (0x81048b8a): the picture's top and bottom halves (960×272) close from above and below like shutters (500 ms, our guess) and open again at EyeCatchEnd over `:Fade`, showing the FadeOut's colour (or the scene) behind; made as 10-frame animations (`system/shutters_N_in/out.png`). `:Image 0,-1` (two panels of a colour in the eboot, 7 uses) shows nothing |
 | EyeCatch `:Image 1,card,place,date` (114 uses: the chapter cards) | converted like `:Image 0`, as one screen made from SystemData: the card `ec1_bg`…`ec6_bg` (ID 67 + card: 0-3 the four protagonists' chapters, 4-5 Karura's, 6 奈落の底) with the place (ID 74 + place: `ec_bgNN`, its times of day as A/B/C) in its frame and the date (0 = 11月21日, -1 none) cut from the calendar under the card. The original fades the three in and out and pans the place 40 pixels while it fades in; drawn where the pan ends |
@@ -314,14 +338,51 @@ message (109 characters with the name; there is no paging).
 Every task of all 463 scenes converts (none left as a comment); the
 full build (`mages convert` without `--scenes`, about 4 minutes, 1.7 GB
 `arc.nsa` plus 12 MP4s in `movie/`) lints clean (one false positive:
-the save menu's thumbnail name, built at run time), ran 600 pages
-headless without errors, and the route check reaches all eight endings.
+the save menu's thumbnail name, built at run time), and the route check
+reaches all eight endings.
+
+**Checking a build with the debug trace** (`docs/new-game.md`, "Checking
+a build with the debug trace"): in `out/oretsuba-cons`,
+`SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy conscripter --root .
+--save-dir <scratch> --trace t.jsonl --trace-ignore 34-48 --auto-play 0
+--roundtrip-every 500`, then `engine/tools/cons_trace_check.py t.jsonl
+--script 0.txt --config research/oretsuba/cons_trace_check.json`. 34-48
+are the button bar; the title's buttons (6-8) must stay in, or auto-play
+has nothing to press. The config lists the false positives looked at:
+the cut-ins (`st_cin*`, 960×540 but mostly transparent: centred 2 px
+above the bottom edge, and gone when moved out to x -220 though their
+box isn't), the static and particle overlays (59, 60), impact and battle
+sounds played several times a few hundred ms apart (as the source does),
+the timed move and zoom loops, and characters faded out (alpha 0) before
+the script deletes them. Route exploration: `engine/tools/cons_explore.py
+out/oretsuba-cons --engine-args "--trace-ignore 34-48" --skip-choices
+'^\*conv_(title|sl_|settings|confirm|extras|music|movie|cg|log|backlog|load|save|bar)'`.
+
+**Found by the debug trace (2026-10-14).** Whole routes play to their
+end without a script error (18,974 pages and 16 choices; with today's
+fixes another route of 23,333 pages and 46 save/load round trips, all
+equal), then auto-play tours the title's menus. The checker found:
+- **Pictures left from the scene before (fixed).** The eboot loads each
+  scene's textures anew, but our scenes kept the previous one's
+  pictures: 347 scenes end under a black `Sprite` cover, which then lay
+  over the whole next scene (S01_02B black for 150 pages), and split
+  scenes doubled their backgrounds and cut-ins. A scene's first picture
+  (in each branch of its opening, skipped or not) now clears everything.
+- **Characters through a change of place (fixed).** `SpriteBG` kept the
+  characters, so Hiyoko from a flashback stood behind Kobato (S02_04A)
+  and Kinako (S02_06A). The scripts show that `SpriteBG`/`SpriteBS`
+  remove them unless `:SpriteDelete 0` (above).
+- **Zooms sliding pictures off the screen (fixed).** `SpriteMove :Scale`
+  moved the centre to the point zoomed in on without zooming (bg71 250
+  px down over black in S04_05I); now a real zoom (`spzoom`).
+- **Not converted, found on the way (now converted):** the `:Color`
+  tints, greyscale, sepia and negatives (above).
 
 Next, in order:
 1. More from the eboot: the menus' layouts, and what the second
    music table is for. A wave and a blur transition (`InOut_Act` 1, 6)
    would need engine effects.
 2. Looks against the original: text window size and place, character
-   heights, the eye catch's speed. Needs screenshots of the Vita game.
-3. SpriteMove `:Scale` (91 zooms on CGs) needs a sprite zoom in the IR
-   and conv-cons; looping CharacterActions (96).
+   heights (where the eboot anchors them), the eye catch's speed. Needs screenshots of the Vita game.
+3. Looping CharacterActions (96); the easing of SpriteMove and
+   CharacterMove (the two values after `:Position`).
