@@ -22,7 +22,8 @@
 use std::collections::{BTreeMap, HashMap};
 
 use conv_core::ir::{
-    ArithOp, Compare, Op, Operand, ScreenEffect, SourceLoc, SpriteChange, SpritePlacement, TextWindow, TransitionStyle, Var, Voice,
+    ArithOp, Compare, FILTER_BLEND_COPY, FILTER_BLUR, Noise, Op, Operand, ScreenEffect, SourceLoc, SpriteChange, SpriteFilter,
+    SpritePlacement, TextWindow, TransitionStyle, Var, Voice,
 };
 
 use super::tasks::{Block, Scene, Val, parse};
@@ -67,6 +68,8 @@ pub trait Assets {
     fn bgm(&mut self, id: u32) -> Option<String>;
     /// Movie `n` (`:Movie`), converted to `movie/<name>.mp4`.
     fn movie(&mut self, n: u32) -> Option<String>;
+    /// `frames` screens of grey static side by side (alpha 255).
+    fn noise(&mut self, frames: u32) -> String;
     /// A picture of one colour (0xRRGGBB) as large as the screen.
     fn colour(&mut self, rgb: u32) -> String;
     /// The text window's picture (SystemData's `meswin.png`, scaled to the
@@ -576,6 +579,37 @@ impl Lowering<'_> {
                 Some(file) => self.out.ops.push(Op::Movie { file, skippable: t.int("Skip").unwrap_or(-1) != 0 }),
                 None => self.unsupported(scene, i, format!("MoviePlay {:?}", t.int("Movie"))),
             },
+            "EffectStart" | "EffectEnd" => {
+                let n = t.int("EffectNumber").unwrap_or(-1);
+                let start = ty == "EffectStart";
+                let fade_ms = ms(t.int("Fade").unwrap_or(0));
+                match n {
+                    // ノイズ: static, :Param density 0-255.
+                    53 => {
+                        let noise = start.then(|| {
+                            let density = t.int_at("Param", 0).unwrap_or(128).clamp(0, 255) as u32;
+                            Noise { image: self.assets.noise(4), frames: 4, frame_ms: 50, opacity: density * 256 / 255 }
+                        });
+                        self.out.ops.push(Op::Noise(noise));
+                    }
+                    // ブラー: blur, :Param radius (script pixels).
+                    42 => {
+                        let filter = start.then(|| {
+                            let r = sx(t.int_at("Param", 0).unwrap_or(4)).max(1);
+                            let c = Operand::Const;
+                            SpriteFilter { kind: c(FILTER_BLUR), blend: c(FILTER_BLEND_COPY), strength: c(256), params: [c(r), c(r), c(0)] }
+                        });
+                        self.out.ops.push(Op::ScreenFilter { slot: 1, filter, fade_ms });
+                    }
+                    _ => self.note(format!("{ty} {n}")),
+                }
+            }
+            "Achievement" => {}
+            "SetSceneName" => {
+                if let Some(title) = t.str("SceneName") {
+                    self.out.ops.push(Op::Chapter { title: title.to_string() });
+                }
+            }
             "BacklogMessage" | "SceneJumpDialogEnd" | "MovieStop" | "EyeCatchEnd" | "CharacterWait" | "SpriteMoveEnd" | "CharacterActionEnd" => {}
             _ => self.unsupported(scene, i, ty.to_string()),
         }

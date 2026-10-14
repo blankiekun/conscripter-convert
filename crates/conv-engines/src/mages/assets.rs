@@ -276,6 +276,24 @@ impl Assets for ArchiveAssets<'_> {
         Some(path)
     }
 
+    fn noise(&mut self, frames: u32) -> String {
+        let path = format!("system/noise{frames}.png");
+        if !self.images.contains_key(&(4, frames)) {
+            let (w, h) = (SCREEN_W as u32, SCREEN_H as u32);
+            let mut img = RgbaImage::new(w * frames, h);
+            // A fixed LCG: the same static on every build.
+            let mut seed: u32 = 0x2545_f491;
+            for p in img.pixels_mut() {
+                seed = seed.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+                let v = (seed >> 24) as u8;
+                *p = Rgba([v, v, v, 255]);
+            }
+            self.write_png(&path, &img);
+            self.images.insert((4, frames), None);
+        }
+        path
+    }
+
     fn colour(&mut self, rgb: u32) -> String {
         let path = format!("system/c{rgb:06x}.png");
         if !self.images.contains_key(&(3, rgb)) {

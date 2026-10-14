@@ -189,7 +189,9 @@ at that scale, SystemData's are drawn at 1280×720 and are scaled by 3/4
 | CharacterAction (`chract`'s 661 keyframed moves: bows, shakes) | converted as straight moves between keyframes, waited on; the looping ones are left out |
 | EyeCatch (a wipe with rule N to an eye-catch picture, then a fade) | a 0.5 s pause: the picture is not known |
 | MoviePlay: the USM movies (MPEG-1 960×544 + ADX) demuxed (`usm.rs`) and made H.264/AAC MP4s in `movie/` (loose) | converted; `:Movie` N is the Nth of OP00, OP01, OP02, the seven `ED_*` (alphabetical), Poem, OP03 (each heroine's ending scene plays her ED) |
-| EffectStart/End, Achievement, SetSceneName | not yet |
+| EffectStart/End 53 (ノイズ: static at `:Param` density) and 42 (ブラー: a blur screen filter); SetSceneName (chapter title) | converted |
+| EffectStart/End 57 (screen-capture sprite), 52 (光玉 light balls), 54 (紙吹雪 confetti), 51 (雪 snow), 40 | not yet |
+| Achievement (trophies) | nothing to show |
 | Title screen (`title_bg.png`'s picture and labels: START, LOAD, CONFIG; GALLERY greyed) | converted; the buttons' place is ours (the layout table is in the encrypted eboot) |
 | Save/load, settings, backlog, extras | not yet (CONscripter's built-in menus) |
 
@@ -197,7 +199,8 @@ Next, in order:
 1. Full build of every scene; fix what the lint and a headless run of
    the first chapter show. Text window layout and character heights
    from reference screenshots of the Vita game.
-2. Effects: EffectStart/End, InOut_Act types, the eye-catch picture.
+2. Effects: EffectStart 57/52/54/51/40, InOut_Act types, the eye-catch
+   picture.
 3. Walkthrough (this document), then the route check of the converted
    control flow.
 4. System screens and extras (CGMODE, scene replay, music).
