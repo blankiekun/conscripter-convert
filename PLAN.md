@@ -558,10 +558,12 @@ The steps that apply them are in `docs/new-game.md`.
 **Process.**
 - **Never delete an output folder without listing it first.** Users put
   their own files there (an `onscripter` binary was lost once).
-- **Keep a handoff file** (`<game>.md`) with a "Resume here" section.
-  Context resets happen mid-task, and re-deriving state is expensive.
-- **Handoff notes go stale.** When an item is done, grep `PLAN.md`, the
-  game's document and the handoff file for it.
+- **Keep the game's state in its document** (`docs/games/<game>.md`,
+  "Status": what converts and what's next). Context resets happen
+  mid-task, and re-deriving state is expensive. It is committed and
+  public, so it holds no local paths.
+- **State notes go stale.** When an item is done, grep `PLAN.md` and
+  the game's document for it.
 - **Parallel agents need separate branches and worktrees** (`xuse`,
   `nitroplus`), branches based on `origin/main`, and staging by path
   name: the other agent's uncommitted files share the tree.
@@ -590,7 +592,13 @@ The steps that apply them are in `docs/new-game.md`.
   half as the mask; loose files with Japanese names aren't found (pack
   them); `;$Sw,h` sets any screen size, `,valueN` raises the global
   border so more locals are saved per slot; `print 10,ms` works without
-  an `effect` definition.
+  an `effect` definition; `%%n` and `$%n` (the variable whose number is
+  in `%n`) work as values and as targets.
+- **Button loops:** `btnwait` forgets its buttons once it returns, so
+  every way back into the loop defines them again. Sprite buttons are hit
+  by rectangle unless `transbtn` is on (then by alpha; `btndef` turns it
+  off); with it, a "transparent" button keeps a little alpha (8/1000) to
+  stay clickable.
 - **Check duplicate definitions for comment blocks** before deciding which
   one is live (Muramasa keeps old helper versions inside `/* */`).
 - **Merging fork states:** a variable set again after the fork must keep

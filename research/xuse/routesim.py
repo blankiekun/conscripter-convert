@@ -27,7 +27,7 @@ AZUSA, SAYAKA, FUEKO, YOUKO = '最初の頃', 'たまに早く出る', '違う�
 HEROINES = {AZUSA, SAYAKA, FUEKO, YOUKO}
 # One entry per loop: (route link, other texts to try in that loop).
 PATHS = {
-    # The walkthrough (saiima.md, "Walkthrough"): no link, the four
+    # The walkthrough (docs/games/saihate-no-ima.md, "Walkthrough"): no link, the four
     # heroines, no link, the four again, then the war arc.
     'walkthrough': [(None, ()), (AZUSA, ()), (SAYAKA, ()), (FUEKO, ()), (YOUKO, ()),
                     (None, ()), (None, ()), (AZUSA, ()), (SAYAKA, ()), (FUEKO, ()), (YOUKO, ()), (None, ()), (None, ())],
