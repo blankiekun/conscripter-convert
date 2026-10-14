@@ -116,7 +116,9 @@ original), add the feature to CONscripter instead of approximating it:
    style of the surrounding ONScripter code, so it works on every platform
    the fork builds for (the web build especially).
 2. Keep it opt-in: a new command, or an option in `ons_args`. Scripts that
-   don't use it must behave exactly as in stock ONScripter-Yuri.
+   don't use it must behave exactly as in stock ONScripter-Yuri. Bug
+   fixes are the exception: a fix to something the engine does wrong
+   applies to every script, with no command or flag.
 3. Document it in the engine's `ADDITIONS.md`
    and here in §4.2, with the game feature that needed it.
 4. Commit and push in the engine repo, then commit the updated submodule

@@ -200,7 +200,7 @@ them.
 
 When existing NScripter commands can't do it:
 1. Add it opt-in in `engine/src/onsyuri/` (`ONScripter_cons.cpp`
-   preferred). Effects are `cons_*.dll` effect-99 plugins; screen
+   preferred); a bug fix instead applies to every script, with no command. Effects are `cons_*.dll` effect-99 plugins; screen
    effects use the `screenfilter`/`screenshake` slot machinery. It must
    build for the web (emscripten) and keep its state in saves.
 2. Document it in `engine/ADDITIONS.md` and in `PLAN.md` §4.2.
