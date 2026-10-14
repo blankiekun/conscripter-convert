@@ -2170,6 +2170,14 @@ end
     fn text_is_made_safe() {
         assert_eq!(text_safe("Ghost: 50% @home"), "　Ghost: 50％ ＠home");
         assert_eq!(text_safe("「a/b」"), "「a／b」");
+        // 最果てのイマ, *conv_link19: the '?' stopped the engine (array).
+        assert_eq!(text_safe("嘘ー！?  投稿者: x"), "嘘ー！？  投稿者: x");
+        // Every ASCII character the engine's text parser reads specially:
+        // variables (% ? $), waits (@ \ _), tags (! # ( / ) < > [ ]), and
+        // what starts a token or a comment (` " ;). A ',' is only special
+        // at the start of a line, which text_safe guards.
+        let safe = text_safe("%?$@\\_!#(/)<>[]`\";*");
+        assert!(!safe.contains(|c: char| c.is_ascii()), "{safe}");
     }
 
     #[test]

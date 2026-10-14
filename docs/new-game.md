@@ -294,6 +294,13 @@ under `timeout -k 5`, with the game folder as the working directory.
 The trace needs a CONscripter newer than 0.18.0 (its `master`): move the
 `engine` submodule forward first.
 
+**Checker first, deep dives after.** After every new build, make a trace
+and run `cons_trace_check.py` on it before digging into anything by
+hand (disassembly, filming the original, reading the script). The
+checker's list gives quick things to check and fix: a missing file, a
+sprite left up, a looping sound, text with a leaked tag. Go deeper only
+for what it can't explain.
+
 **A first run.** No window and no Xvfb are needed, so several runs can go
 at once, each with its own `--save-dir` and trace:
 
