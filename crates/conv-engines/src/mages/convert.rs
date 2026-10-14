@@ -467,8 +467,12 @@ impl Lowering<'_> {
                 self.note("SceneJumpDialog (always plays the scene)");
             }
             "NextScene" => {
-                if let Some(next) = t.str("NextScene") {
-                    self.out.ops.push(Op::Jump(scene_label(next)));
+                // `"S01_02A","SJ"`: at that scene's tag.
+                let v = t.get("NextScene").unwrap_or(&[]);
+                match (v.first().and_then(Val::str), v.get(1).and_then(Val::str)) {
+                    (Some(next), Some(tag)) => self.out.ops.push(Op::Jump(tag_label(next, tag))),
+                    (Some(next), None) => self.out.ops.push(Op::Jump(scene_label(next))),
+                    _ => {}
                 }
             }
             "End" => self.out.ops.push(Op::ReturnToTitle),

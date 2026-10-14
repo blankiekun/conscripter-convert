@@ -105,11 +105,54 @@ another file. `SceneJumpDialog` offers to skip a scene already read
 
 ## Walkthrough
 
-Not yet: the source and the route order go here.
+Source: the scripts themselves (no public choice walkthrough was found;
+the route map below is read from every scene's NextScene, flag switches
+and choices, `conscripter-convert mages check` parses them). The game
+(the Vita port of 俺たちに翼はない R plus 林田美咲's route) follows one
+person's four personalities:
+
+1. **Part 1, 羽田鷹志** (S01_01 … S01_05): choices give `asu_pts`,
+   `miy_pts`, `miya_flag`. If at S01_04O `miya_flag` ≠ 0, `asu_pts` ≥ 2
+   and `miy_pts` ≥ 1, `one_second` = 1 (part 1's second half opens).
+2. **Part 2, 千歳鷲介** (S02_01A … S02_10): `hiy_pts`; at S02_06H, if
+   `one_second` = 0 and `hiy_pts` ≥ 4, `two_second` = 1.
+3. **Part 3, 成田隼人** (S03_01A …): if part 1's or part 2's second half
+   opened, `kyoutsu_rt` = 1 (the common route) and part 3 is short;
+   otherwise its choices give `nar_pts`, `nar_sister`, and S03C_01D
+   (黙る) opens 亜衣's route (`ai_rt`). S03_07A1 sets `three_second`.
+4. **Part 4, ヨージ** (S04_01A … S04_06J1). At S04_06J1 the flags pick
+   the second half:
+   - `one_second` → S01_05A: 明日香 (S01_16A, `asuka_ed`) or 京
+     (`miya_clear` and `miy_pts` ≥ 2 at S01_10F, S01_18A, `miyako_ed`);
+     at S01_14I, `asu_pts` < 4 → 美咲's route (M01_01 … M09_02,
+     `misaki_ed`). S01_19A sets `one_clear`.
+   - `two_second` → S02_10A: 日和子 (S02_16A, `hiyoko_ed`); S02_17A
+     sets `two_clear`.
+   - `three_second` → S03_16A: 鳴 (S03_22A, `naru_ed`); `ai_rt` →
+     S03C_06A: 亜衣 (S03C_20A, `ai_ed`); S03_23A sets `three_clear`.
+   - none → S04_06L, a bad end.
+5. **True ending, 小鳩**: with `one_clear`, `two_clear` and
+   `three_clear` set, S04_05I offers 救いをもたらす → S04_06J2 …
+   S04_28B (`kobato_ed`), S04_29A (`four_clear`).
+6. **After-stories** P01 (明日香), P02 (京), P03 (美咲), P04 (かるお):
+   start scenes 1-4 of adv.txt, extras of the title menu; each sets
+   `Pre_<name>` when finished.
 
 ## Progression variables
 
-Not yet.
+Declared in adv.txt: 33 per-save `[Flag]`s (variables 20-52 in the
+output) and 30 `[GlobalFlag]`s, kept across playthroughs (210-239).
+
+| Flag | Meaning (adv.txt's comment) | Set | Read |
+|---|---|---|---|
+| asu_pts, miy_pts, hiy_pts, nar_pts | affection points | choices (`:MessageNFlag`) | S01_04O, S01_10F, S01_14I, S02_06H, S03_05C |
+| miya_flag, miya_clear, miya_h, miya_hflag | 京's route switches and counters | S01 choices, S01_10G1 | S01_04A/K/O, S01_10F, S01_11A … S01_14G |
+| one_second, two_second, three_second | the part's second half opens | S01_04O, S02_06H, S03_07A1 | S02_06H, S02_09F, S02_10, S04_06J1/K |
+| kyoutsu_rt | the common route (part 3 shortened) | S02_10, S03_05C | S03_*, S04_01A, S04_06J1 |
+| ai_rt, nar_sister, HIY25 | 亜衣's route, 鳴's sister, 日和子 | S03C_01D, S03_03D/S03_05C, S02_15C | S03C_*, S04_*, S03C_02B |
+| asuka_ed … misaki_ed, kobato_ed (global) | ending seen | the ending scenes | the extras; S01_19A, S02_17A, S03_23A |
+| one_clear, two_clear, three_clear, four_clear (global) | part cleared | S01_19A, S02_17A, S03_23A, S04_29A | S04_05I (true ending), the `NEXT_HINT` messages |
+| Pre_asuka, Pre_miyako, Pre_misaki, Pre_karuo (global) | after-story read | P01_01D, P02_01E, P03_01D, P04_02B | not in the scenes (the title menu) |
 
 ## Status: first scenes play (2026-10-13)
 
