@@ -1002,7 +1002,7 @@ fn hang_indent(text: &str, hang: usize) -> usize {
     let first = text.split('\n').next().unwrap_or_default();
     let prefix: String = first.chars().take(hang).collect();
     let lead = if starts_ascii(first) { "　" } else { "" };
-    let half: usize = align_single_bytes(&format!("{lead}{}", escape(&prefix)))
+    let half: usize = align_single_bytes(&format!("{lead}{}", escape_text(&prefix)))
         .chars()
         .map(|c| if is_single_byte(c) { 1 } else { 2 })
         .sum();
@@ -1292,10 +1292,10 @@ fn with_markup(text: &str, links: &[TextLink], ruby: &[Ruby], styles: &[TextStyl
         }
         if let Some(r) = readings.next_if(|r| r.start == i) {
             let base: String = chars[i..i + r.len].iter().collect();
-            write!(out, "({}/{})", escape(&base), escape(&r.text)).unwrap();
+            write!(out, "({}/{})", escape_text(&base), escape_text(&r.text)).unwrap();
             i += r.len;
         } else {
-            out.push_str(&escape(&chars[i].to_string()));
+            out.push_str(&escape_text(&chars[i].to_string()));
             i += 1;
         }
         // Tags last past the page: end each line on the text colour and size.
@@ -1335,10 +1335,18 @@ fn label(name: &str) -> String {
     name.chars().map(|c| if c.is_ascii_alphanumeric() || c == '_' { c } else { '_' }).collect()
 }
 
-/// Makes text safe to place on a text line: [`escape`], plus making sure the
-/// line doesn't start with ASCII (which would be parsed as a command).
+/// [`escape`] for a text line, where `?` also starts an array reference
+/// (as `%` a variable): the engine exits on an undeclared one. In strings
+/// it is only a character.
+fn escape_text(text: &str) -> String {
+    escape(text).replace('?', "？")
+}
+
+/// Makes text safe to place on a text line: [`escape_text`], plus making
+/// sure the line doesn't start with ASCII (which would be parsed as a
+/// command).
 fn text_safe(text: &str) -> String {
-    let mut out = escape(text);
+    let mut out = escape_text(text);
     if out.starts_with(|c: char| c.is_ascii()) {
         out.insert(0, '　');
     }

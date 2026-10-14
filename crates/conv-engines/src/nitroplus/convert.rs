@@ -2132,7 +2132,9 @@ impl<'a, 'b> Compiler<'a, 'b> {
         for item in &t.items {
             match item {
                 Inline::Marker(_) | Inline::Comment(_) => other = true,
-                Inline::Str(s) => line.push_str(s),
+                // `<?>` (not parsed as a tag): the text goes on after the
+                // code that follows, which runs before the page anyway.
+                Inline::Str(s) => line.push_str(&s.replace("<?>", "")),
                 Inline::Code(stmts) => {
                     // Code after a `<k>` runs after that click: end the page
                     // there and go on below it.
