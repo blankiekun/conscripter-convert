@@ -138,6 +138,37 @@ person's four personalities:
    start scenes 1-4 of adv.txt, extras of the title menu; each sets
    `Pre_<name>` when finished.
 
+### Route check
+
+`research/oretsuba/nstrace.py` runs the converted `0.txt`'s control
+flow along choice paths (globals kept from run to run, as when playing
+the routes in a row) and reports the ending scene. Paths from the route
+map above, in one session (2026-10-13, all as expected):
+
+    python3 -I research/oretsuba/nstrace.py out/oretsuba-cons/0.txt --quiet \
+      "S01_02C:2,S01_02E:2,S01_03B:1,S01_04E:1,S01_04L:2,S01_08C0:1,S01_08D4:2,S01_09C0:1,=s01_19a" \
+      "S01_02C:2,S01_02E:2,S01_03B:1,S01_04E:1,S01_04L:2,S01_08C0:2,S01_08D0:3,S01_08D4:1,S01_09C0:2,S01_12B:1,S01_13B:1,=s01_19a" \
+      "S01_02C:2,S01_02E:2,S01_03B:1,S01_04E:1,S01_04L:2,S01_08C0:2,S01_08D4:2,S01_09C0:3,=m09_02" \
+      "=s02_17a" \
+      "S02_05A:2,S03_03B:2,S03_03I:2,S03_05C:2,S03C_01D:1,=s03_23a" \
+      "S02_05A:2,S03_03B:2,S03_03I:2,S03_05C:2,S03C_01D:2,=s04_06l" \
+      "S02_05A:2,=s03_24" \
+      "S04_05I:2,=s04_29a"
+
+| Run | Ending |
+|---|---|
+| 1 | 明日香 (S01_16A) |
+| 2 | 京 (S01_18A) |
+| 3 | 美咲 (M09_01) |
+| 4 | 日和子 (S02_16A), every first option |
+| 5 | 亜衣 (S03C_20A): 鳴's points kept under 2 so part 3 joins the common route |
+| 6 | the bad end (S04_06L) |
+| 7 | 鳴 (S03_22A); with parts 1-3 cleared, S03_23A goes on to the ヨージ hint (S03_24) |
+| 8 | 小鳩, the true ending (S04_28B, S04_29A), offered only after the three clears |
+
+Not yet: a source-side simulator to diff page by page (step 11.4), and
+the after-stories (P01-P04), which no menu starts yet.
+
 ## Progression variables
 
 Declared in adv.txt: 33 per-save `[Flag]`s (`%60`-`%92` in the
