@@ -20,7 +20,7 @@ Sources, strongest first:
 
 **Unverified** marks a row that rests on a guess or on one
 reimplementation only. Check those under wine before relying on them
-(saiima.md "Running the original").
+(`docs/games/muramasa.md`, "Running the original under wine").
 
 ## Conventions shared by most built-ins
 
@@ -234,7 +234,7 @@ on a channel picked per object name, looping SE (`MusicStart(…, true)`) →
 | `Shake(obj, time, x amp, y amp, x2, y2, opacity?, tempo, wait)` | 1,343 | Shakes for `time` ms. Args 5–7 mostly 0/0/1000 (**unverified**) | `quake`/`quakex/y` when `obj` is the whole screen; else Lua |
 | `SetBlur(obj, on, passes, time?, strength, wait)` | 914 | Gaussian blur; nearly always `true, 1–3, 500, 30–100, false` | engine addition (blur) or skip |
 | `Array(…)` / `AssocArray(…)` / `Count(a)` | 719 / 27 / 57 | Array literal, keyed array, length | converter: NScripter arrays (`dim`) or compile-time tables |
-| `CreateProcess(obj, prio, x, y, "Func")` | 493 | Runs NSS function `Func` as a parallel thread; `Request(obj, Start/Stop)`, `Delete(obj)` stops it | Lua coroutine (muramasa.md "Approach") |
+| `CreateProcess(obj, prio, x, y, "Func")` | 493 | Runs NSS function `Func` as a parallel thread; `Request(obj, Start/Stop)`, `Delete(obj)` stops it | Lua coroutine (`docs/games/muramasa.md`, "Approach") |
 | `BezierMove(obj, time, curve, tempo, wait)` | 471 | Move along a Bézier path (`(x,y){cx,cy}…` points) | Lua |
 | `SetNextFocus(a, b, dir)` | 283 | Menu keyboard navigation: from `a`, key `dir` goes to `b` | own menus |
 | `CreateWindow(obj, prio, x, y, w, h, clip?)` | 249 | Container object (children `obj/…`) clipped to the rect | sprite group / `lsp` positions relative |

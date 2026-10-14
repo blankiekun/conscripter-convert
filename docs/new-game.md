@@ -14,7 +14,7 @@ system screens, extras and matching effects to the original.
 
 1. **Ask the user** what they want from this game: the whole thing with
    extras, or story first? Which platforms (the web build is the main
-   one)? Anything to skip? Write the answers down in the handoff file
+   one)? Anything to skip? Write the answers down in the game's document
    (step 0.4). Things the user dropped for 最果てのイマ: the debug menu,
    right-click menus, the WSS system-voice room, native Linux/macOS
    movies.
@@ -23,26 +23,28 @@ system screens, extras and matching effects to the original.
    最果てのイマ's route choices are hyperlinks in the text. Not knowing
    that cost a session: a no-click trace loops back to the chapter start,
    and that looked like a control-flow bug. Save a walkthrough in the
-   handoff file before converting control flow (step 11.1).
+   game's document before converting control flow (step 11.1).
 3. **Identify the engine** from the install: the exe's strings,
    `.cpp`/RTTI names, archive magic numbers, config files. If it is a
    known engine (KiriKiri, NScripter, Siglus, Nitroplus NSS, ...), find
    the existing format documentation and tools before reversing anything.
 4. **Start the files that survive context resets**:
-   - `<game>.md` in the repo root, git-ignored (add it to `.gitignore`),
-     with a **"Resume here"** section at the top. It holds paths, recipes
-     and findings. Look at `saiima.md` and `muramasa.md`. Give it two
+   - `docs/games/<game>.md`, committed: the game's record and its
+     feature tracking (build command, formats, opcode or command table
+     with handler addresses, how its screens map to CONscripter,
+     testing and wine recipes, and a **"Status"** section with a table
+     of what converts and the next steps, in order). Give it two
      sections from the start for step 11: **"Walkthrough"** (with its
      source) and **"Progression variables"** (the table of step 11.2).
-   - `docs/games/<game>.md`, committed: the game's record (install and
-     build command, formats, opcode or command table with handler
-     addresses, how its screens map to CONscripter, progression
-     variables, status and leftovers). `docs/games/saihate-no-ima.md`
-     is the model. Findings move there from the handoff file once they
-     hold up.
+     `docs/games/saihate-no-ima.md` and `docs/games/muramasa.md` are the
+     models. It is public: no local paths (write `<install>` or
+     `<game>`), only commands anyone with the game can run. Keep the
+     "Status" current in the same commits as the work. There are no
+     git-ignored handoff files; where the user keeps the game goes in
+     your memory.
    - A branch per game (`xuse`, `nitroplus`), based on `origin/main`. A
      second agent works in its own worktree
-     (`~/Projects/conscripter-convert-<name>`). Merge `origin/main` into
+     (`../conscripter-convert-<name>`). Merge `origin/main` into
      it at the start of every session, keep game-specific code out of
      the shared files, and merge back into `main` at good points
      (`CLAUDE.md`, "Working beside other agents").
@@ -167,8 +169,9 @@ them.
   touch the install, no audio, an Xvfb display of its own (never the
   user's desktop). Slow a transition down by patching its duration in a
   copy of the script, and take shots at fixed fractions of it. Stop
-  wine and Xvfb afterwards. Recipes: `saiima.md`, "Running the
-  original"; `muramasa.md` for a game that needs DirectSound.
+  wine and Xvfb afterwards. Recipes: "Running the original under
+  wine" in `docs/games/saihate-no-ima.md`, and in
+  `docs/games/muramasa.md` for a game that needs DirectSound.
 - Then read the effect's kernel in the exe for the exact curve, and fit
   the filmed frames to it. Example: MeltDown, edge = h·((p − d)/(1 − d))².
 - Check our side the same way: run CONscripter on its own Xvfb display
@@ -197,14 +200,14 @@ lose the loop state between sessions.
 
 1. **Find a walkthrough first.** Before converting control flow, save a
    public walkthrough or flowchart of the routes and the unlock order in
-   the handoff file's "Walkthrough" section: which choices or links lead
+   the game document's "Walkthrough" section: which choices or links lead
    to which chapters, the loop or cycle order, the true-ending
    conditions. Note its source (site and page).
 2. **Map the progression variables.** Find every variable the script
    uses to gate routes, chapters, loops and endings. For each one,
    record its meaning, where it is set, reset and read, and whether the
    original keeps it in save data or in system data. Put the table in
-   the handoff file and in the game's document.
+   the game's document.
 3. **Check the converted branches against the walkthrough.** For each
    step of the walkthrough, follow the converted `0.txt`, or run it
    headless with a scripted click path (`research/xuse/smoke.py`) and

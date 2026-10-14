@@ -158,6 +158,21 @@ the draw priority. Most timed calls take a last "wait" argument:
 with `false`, several animations run at once until `Wait`/`WaitAction`.
 The table of what each built-in does is `research/nitroplus/builtins.md`.
 
+## Approach
+
+Decided with the user (2026-10-13): **compile NSS to NScripter, with Lua
+as the fallback.** NSS is structured source, so functions become
+`gosub` labels, `if`/`while`/`select` labels and jumps, `$`/`#`
+variables NScripter variables, object names sprite numbers. CONscripter
+builds with `USE_LUA` on every target, the web build included
+(`LUAHandler.cpp`: `luasub`/`luacall` and callbacks such as
+`NSCALL_animation`, per frame). Lua coroutines fit `CreateProcess` and
+overlapping timed actions; use them only for what NScripter can't
+express, and add to CONscripter what Lua can't drive efficiently.
+Rejected: Python in the engine (Pyodide adds 10+ MB and a slow start to
+the web build, and the hard part is the built-ins' semantics, not the
+language).
+
 ## How the compiler works
 
 `convert.rs` is the plain NSS compiler. What only this game needs lives
@@ -266,6 +281,36 @@ choice chart per route). The route map (`conscripter-convert nss route`,
 | 悪鬼編 | 村正 | `md05`-`md06` (village exploration `md05_004*`, 立方陣 at `md05_025`) | `md06_033a` 村正END, `md06_036` TRUE END | the other option at `md04_045` (load the save made before it) |
 | game over | — | `mz00_000`, `mz01_*`, `*gameover` | — | battles, failed explorations |
 
+Order in the chart: 一条 and 香奈枝 (either order) → 茶々丸 → 村正
+(load the save made before `md04_045`). The chart's last lines are two
+columns flattened: 殺す → 村正END; ……殺せない → `md06_034` 選んだ道を進む
+→ TRUE END. Choices of the chart, with the file that offers them (option
+number in brackets):
+- 一条/香奈枝 common: `ma02_003` 信用できる (1) · `ma02_006` 未熟だ (2) ·
+  `ma02_013` お断りします (2) · `ma02_014` むしろ綾弥の方が (2) · `ma02_018`
+  綺麗な方 (1) · `ma03_005` 是 (1) · `ma03_011` 一条の様子を見に行く (2) ·
+  `ma03_011b` 間違ってはいない (2) · `ma03_021` 香奈枝 (2) or 一条 (1) ·
+  `ma04_014vs` 役割に徹する (2) · `ma04_022` 娘だ (1).
+- 英雄編: `mb04_004` ……待て · `mb04_004b` 救えない · `mb04_004bb` 噛み締めて
+  → 一条END.
+- 復讐編: battles `mc01_009vs`-`mc01_021vsb`, the airship exploration
+  `mc02_031*` (about 25 room choices), `mc03_017vs`-`mc04_049vs`; two bad
+  ends at `mc04_014vsa` / `mc04_017vsa` → 香奈枝END.
+- 茶々丸: `ma02_006` 率直だ (1) · `ma02_013` ばあや殿なら…… (3, needs
+  `#復讐編終了`) · `ma02_014` 俺には村正だろう (3, needs `#魔王編解放`) ·
+  `ma02_018` 豪快な方 (2) · `ma03_005` 否 · `ma03_011` この場に留まる /
+  香奈枝の様子を見に行く · `ma03_020` 頼み込む / 黙らせる · `ma03_021`
+  ライガー (3) · `ma04_005` 一条を見る / ばあや殿を見る (3, needs
+  `#復讐編終了`) · `md02_032` そうしよう · `md02_043` ……なれない · save ·
+  `md04_045` 捨てられる → 茶々丸END. Where the chart lists two options for
+  one select, take the one that keeps `$Muramasa_Flag` ahead. On a later
+  run `mc02_030` offers to skip the airship exploration.
+- 村正: load, `md04_045` 捨てられない · village exploration `md05_004*`
+  (3 rounds) · bad ends at `md05_010vs` / `md05_012` / `md05_013` ·
+  `md05_014` 助けない · the 立方陣 (solutions for Lv.4/Lv.5 in the chart) ·
+  `md05_027`-`md05_030` 肯定/否定 · `md05_031` 村正 · `md06_033` (above).
+- 100 % CG: follow the chart and see every ending.
+
 Explorations: each room file stores its destination in `$Next_GameName`
 and goes through a clock file (`mc02_031time`, `md05_004time`), which
 advances the time and dispatches; past the limit it goes to game over.
@@ -321,6 +366,54 @@ giving up at the 立方陣). A path entry `PUZZLE 1` / `PUZZLE 0` solves or
 fails the puzzle. Not done: state across relaunch and in the web build
 (step 11.5).
 
+## Testing
+
+- **Logic:** the dry run (see "Build") and the route check (above).
+  `NSS_TRACE=1` gives the `flag %N name` lines for `nstrace.py --flags
+  <file> --watch '$Muramasa_Flag,RC_N[,死亡'`, which prints those flags
+  at each file where they change.
+- **A few files in the engine:** `--file md05_025.nss --chain 6` without
+  `--dry-run` builds only their assets (3 s, 32 MB).
+- **Headless engine runs:** an Xvfb display of its own (`-screen 0
+  1024x576x24`), `SDL_VIDEODRIVER=x11 SDL_AUDIODRIVER=dummy`,
+  `WAYLAND_DISPLAY` unset, the output folder as the working directory,
+  `xdotool` clicks and `import -window root` screenshots. To start at a
+  scene, copy `0.txt`, add a label before the line and `goto` it right
+  after `erasetextwindow 0`, and symlink `arc.nsa`, `default.ttf` and
+  `ons_args` next to the copy.
+- **The 立方陣:** patch a copy of `0.txt` to jump straight to the puzzle
+  and print the result (`lsp 999,"RESULT:"+...` on stderr), then click
+  through it: solving and the easy mode give 1, a wrong answer 0.
+- **Checked forks** (all correct): `md05_004urayama01`'s runtime
+  `call_scene`; `ma04_002` `$Ichizyou_Dead` (0 → an extra select in
+  `ma04_005`); the `ma05_023` ranking (an all-zero tie goes to `mb01`, as
+  the source says); the `mc01_010vs` choice. Routes share files that
+  branch on `$PreGameName` (`mb01_003_3`); that is the source's design.
+
+## Running the original under wine
+
+Used to check what the engine does (`docs/new-game.md` step 9).
+- A scratch `WINEPREFIX` (user folders as real folders, not symlinks to
+  home), an Xvfb display of its own (`-nolisten tcp`), `WAYLAND_DISPLAY`
+  unset and `HKCU\Software\Wine\Drivers` `Graphics=x11`, so nothing
+  reaches the desktop.
+- **Audio:** the game refuses to start without DirectSound
+  ("DirectSoundの初期化に失敗しました"), so the driver can't simply be
+  disabled. Use `Drivers\Audio=alsa`, `WINEDLLOVERRIDES=
+  "winepulse.drv,wineoss.drv,winewayland.drv=d;winemenubuilder.exe=d"`,
+  `PULSE_SERVER=unix:/nonexistent` and `ALSA_CONFIG_PATH=<file>` whose
+  only content is `pcm.!default { type null }` (+ `ctl.!default`,
+  `pcm.null`). Without the system `alsa.conf` the real cards can't be
+  opened, so the sound is discarded.
+- No registry keys: make `C:\muramasa\` a folder of symlinks to every
+  file in `<game>` and run `wine Muramasa.exe` from there.
+- Fullscreen 1024×576 is drawn at (128, 125) on a 1280×800 display.
+  Clicks: `xdotool mousedown 1; sleep 0.15; mouseup 1`. Screenshot:
+  `import -display :N -window root -crop 1024x576+128+125`. Six clicks
+  through the logos and the opening reach the title; 最初から始める at
+  (780, 260) starts `ma00_000`.
+- Stop with `wineserver -k` (with `WINEPREFIX` set) and kill Xvfb by PID.
+
 ## Status: in progress (2026-10-13)
 
 The whole story compiles, the 立方陣 included, and every ending of the
@@ -330,9 +423,18 @@ forks (a runtime `call_scene`, a heroine death, the ranking, a battle
 choice), and the 立方陣. Scope: extras and movies are out for now; how
 closely to follow the battle HUD is open.
 
-Next, roughly in order: a long engine skip run per route,
-the system screens (title, save/load, settings, backlog), then the
-largest gaps below.
+Next, in order:
+1. **A long engine skip run per route** (playbook step 4), to catch
+   engine exits deep in the game. Needs a full build (about 8 minutes,
+   6.7 GB of memory: say so before starting one).
+2. **System screens** (step 7): title, save/load, settings, backlog,
+   built as in-script menus from `cg/sys/*` parts, as for 最果てのイマ
+   (`conv-cons/src/menu.rs`). A big item: check with the user first.
+3. The largest leftovers below: `CreateProcess` (via Lua), non-blocking
+   `Move`/`Zoom`, `AddRender` (needs a per-sprite blend mode).
+4. Step 11.5: `#` flags (globals from %800) across quit and relaunch,
+   and in the web build.
+5. Optional: the 18 files with no `else` (below).
 
 **Leftovers** (counts from the dry run's notes):
 - `CreateProcess` (510 calls; the battle HUD `CP_*` in

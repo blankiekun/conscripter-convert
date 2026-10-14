@@ -4,7 +4,8 @@ The first game converted, and the reference for the Xuse engine. This
 is the game's committed record: file formats, opcodes, how its features
 map to CONscripter, the progression variables, and what is left. The
 general process is in `docs/new-game.md`, general lessons in `PLAN.md`
-§13. Local working notes are in `saiima.md` (git-ignored).
+§13. Paths below are relative to the repository unless they say
+otherwise; `<install>` is the folder holding `Farthest2015.exe`.
 
 - **Status:** finished 2026-10-14 (see "Status" below). Branch `xuse`.
 - **Engine:** Xuse's in-house engine (`Farthest2015.exe`, 32-bit, VC9).
@@ -12,7 +13,8 @@ general process is in `docs/new-game.md`, general lessons in `PLAN.md`
   `KeyFrameSequencer`. It bundles libpng, zlib and libogg/libvorbis. No
   public documentation of its formats was found: everything here was
   reversed from the exe.
-- **Install:** `/home/saya/Z:/Media/InstalledVNs/最果てのイマ COMPLETE/`.
+- **Install:** the retail game, installed (`<install>`, with `HD/` and
+  `CD/` in it).
 - **Reader:** `crates/conv-engines/src/xuse/`; research scripts in
   `research/xuse/`.
 
@@ -21,8 +23,8 @@ general process is in `docs/new-game.md`, general lessons in `PLAN.md`
 Full build (2-3 min):
 
 ```sh
-target/release/conscripter-convert convert-game "/home/saya/Z:/Media/InstalledVNs/最果てのイマ COMPLETE" \
-  -o out/saiima-cons --font /usr/share/fonts/OTF/ipag.ttf --title "Saihate no Ima COMPLETE"
+target/release/conscripter-convert convert-game <install> \
+  -o out/saiima-cons --font <a Japanese TTF, e.g. ipag.ttf> --title "Saihate no Ima COMPLETE"
 ```
 
 `out/saiima-flow` holds the user's saves: never build into it or touch
@@ -278,8 +280,8 @@ archives.
   as in stock ONScripter. The 4 px gap of one full-screen style is
   smaller than its 9 px ruby.
 
-**System screens** (measured from the user's screenshots of the
-original, `out/my-screenshots/`, not committed):
+**System screens** (measured from screenshots of the original, not
+committed):
 - **Text box:** ADV box at the measured positions; seven full-screen
   styles (metrics estimated).
 - **Backlog:** a full-screen dark window (like `TextWnd5`, 714×472) with
@@ -318,6 +320,35 @@ original, `out/my-screenshots/`, not committed):
   are dropped (their slots belong to another playthrough). The game
   nests at most five levels; the list shows six.
 
+## Walkthrough
+
+Source: public guides (BIGLOBE, ifs.nog.cc, ugukan.net 最果てのイマ攻略;
+Wikipedia for the round structure). Routes are chosen by clicking a
+heroine's underlined link in 「最初の日」 (お茶会－０ opens each loop);
+keep playing on the same system data, the game loops by itself.
+
+| Loop | In 最初の日 | Chapter / route |
+|---|---|---|
+| 1 | no link | リピート |
+| 2-5 | one heroine per loop | cycle 1: the four routes |
+| 6 | no link | リピート again |
+| 7 | no link | 死 |
+| 8-11 | one heroine per loop | cycle 2 (truth phase, text changes) |
+| 12 | none / automatic | 戦争編 → epilogue |
+
+Heroine links (guide's wording / the game's link text): あずさ
+「最初の頃」 (2nd link), さやか 「たまに早く出る」 (3rd), ふえこ
+「違う制服」 (4th, 「一人違う制服を着た伊月笛子が合流する」), ようこ
+「静かな朝」 (5th, 「いつも通りの平和な、静かな朝である」). Start with
+あずさ. Every other link is lore; all links fill BLOG-1..3.
+
+The guides list 死 right after cycle 1. COMPLETE's bytecode gives it on
+the third no-link loop (`%215 <= 2` → リピート, 0x1a = setle in the
+exe's table): the second no-link loop is a リピート identical to the
+first (0021 has no conditions). The full-voice note in 愚者の館
+(sagaoz.net, "one more no-link pass") matches this. The conversion
+follows the bytecode, and `routesim.py` confirms both sides agree.
+
 ## Progression variables
 
 Global variables (bit 0x8000 in the bytecode, `%200 + n` in `0.txt`;
@@ -349,6 +380,102 @@ of this. Progress bits for the extras (0x99) are `%3600 + bit`.
 
 Checked by `research/xuse/routesim.py` (route simulation of the bytecode
 and of `0.txt`, `docs/new-game.md` step 11.4).
+
+## Testing
+
+- **Scripted runs:** `python3 -I research/xuse/smoke.py <build>
+  <workdir> "1,0,998,1,201,999"` patches a copy of the build and plays
+  a click queue (format in its docstring: button numbers at `btnwait`s
+  and text waits; bar 1004 save, 1005 load, 1006 settings; dialog 1 yes,
+  2 no; settings 30 title, 31 quit; 999 = screenshot
+  `<workdir>/shotNN.png`). It shortens effects and delays. `--goto
+  conv_link2` jumps to a label after FIRST START (link scenes open with
+  an `@` before their link, so queue a 0). It can't answer `systemcall`
+  menus: those hang headless.
+- **Control flow without the engine:** `python3 -I
+  research/xuse/nstrace.py 0.txt 50000000 --pages N [--click K]`;
+  routes on both sides: `research/xuse/routesim.py`.
+- **Sprite numbers:** 0-5 yes/no dialog, 6-33 menus, 34-48 bars, 49
+  name text, 50 plate, 51-58 link words (`humanz 58`), 59 full-screen
+  animation, 60 static, 61 overlay, 62+ characters; `lsp2` 0-11 save
+  menu, 12-23 top bars. Save slots 900 + level hold the blog bar's
+  levels.
+- **Disassembly:** `objdump -d -M intel --no-show-raw-insn
+  Farthest2015.exe > research/xuse/local/exe.asm` (git-ignored). The
+  opcode dispatch table is at `0x4fb270`.
+- After a rebuild delete `kidoku.dat`: its offsets go stale.
+
+## Running the original under wine
+
+Used to film transitions, effects and screens (`docs/new-game.md`
+step 9). Helper scripts of the sessions are in `research/xuse/local/`
+(git-ignored).
+
+- **Prefix:** a scratch `WINEPREFIX`, never `~/.wine`. In a default
+  prefix `drive_c/users/<user>/Documents` (and Desktop, Downloads,
+  Music, Pictures, Videos) are symlinks to the real home folders, and
+  the game saves to `Documents\Xuse\最果てのイマ COMPLETE\`: replace the
+  six symlinks with real folders. `WINEDLLOVERRIDES=
+  "winepulse.drv,winealsa.drv,winemenubuilder.exe=d"` keeps it silent.
+- **Display:** an Xvfb display of its own, never the user's desktop.
+  The game draws at screen offset (3, 29). Clicks need `xdotool
+  mousedown`, a short sleep, then `mouseup`; a plain `click` is
+  ignored.
+- **Install:** the exe reads `HKLM\Software\XUSE_CORP\Farthest2015`
+  (32-bit view; `wine reg add ... /reg:32`): strings `Install` =
+  `C:\Xuse\ima\`, `HD` = `C:\Xuse\ima\HD\`, `CD` = `C:\Xuse\ima\CD\`.
+  Make `C:\Xuse\ima` a farm of symlinks to the install, so patched
+  scripts never touch it.
+- **Path to the story:** ENTER (405, 463) → click past the intro → wait
+  ~14 s → FIRST START (675, 240). Hold Ctrl to skip (it stops at
+  links). The wheel opens the log.
+- **Patching a `.cd`:** overwrite an instruction in place and fix the MD5
+  footer. Repointing a label in the file's own table does nothing
+  (cross-script calls resolve elsewhere, probably through `0.cd`). The
+  opening calls `s2_l17` before each page; its `0x43` (#73) is a safe
+  slot for experiments (`0x91 1` there plays the staff roll at the
+  first page).
+- **Extras:** they need a cleared save. sagaoz.net has full saves (CG,
+  replay and system voices 100 %: `farthest2015_muwokoerumono.zip`);
+  copy its `Farthest2015_000.bin` into the prefix's save folder. Title →
+  option (660, 315) opens the extras menu: cg 231, bgm 266, chapter 299,
+  wss 331, exit 397 (game y, x 650). The "option" heading isn't a
+  button; the original has no settings on the title, and in game the
+  bar's SETTING opens a Windows dialog.
+- Dead ends: `winedbg` can read memory but detaching crashed the game;
+  `/proc/<pid>/mem` is blocked by `ptrace_scope`.
+
+**Save files:** `Farthest2015_000.bin` (global), `Farthest2015_sys.bin`
+(SYSM), `Farthest2015.log`. The global save is "GLBL", then chunks of
+tag(4), size(u32), data, crc(u16 big-endian), the CRC being
+CRC-16/XMODEM over tag + size + data: CG ×2 (68 bytes: the seen bits at
+`0x51ea18`, then `0x51ea5c`), RMSN ×2 (76: replay bits `0x51eaa0`, the
+second set = scenes replayed, no "new") + RMSN (4), SWTC ×2, SVAR, then
+OTHR (two 7-byte strings, the progress word `0x51eb3c` at OTHR+18, a
+FILETIME, a u32 = 1) with one CRC over OTHR to the end. Patching bits in
+a copy of the save works.
+
+**Measured screens:**
+- **CG gallery:** tabs at x 624, y 160 + 33·i (selected tab = the
+  pointer cell); thumbnails 5 × 4 from (44, 142), pitch 108 × 92; "PAGE"
+  (31, 529), page numbers from (67, 521) every 24 px. The viewer's panel
+  at (451, 545) slides down to its name row after a while (ours stays
+  up); ◁ ▷ step through variants.
+- **Scene replay:** `SceneList.004` (band #0 subtracts ~80 per channel,
+  selector #3 added); rows at (16 + 258c, 58 + 21r), titles at (21, 63)
+  size ~14, H scenes #FEC7C7; locked scenes are left out. Right-click in
+  a replay is a Windows menu with "シーン選択に戻る"; the bar drops
+  save/load. The exe's replay table is 16 × (used, ptr) at `0x4fe200`.
+- **WSS** (the system-voice room, dropped): `VoiceMode.cpp`
+  (`0x45bc00`-`0x45de40`), pictures `VoiceMode.004` (#0-13 the 14 events,
+  2 × 4 cells of 19 px; #14-17 play / stop / save / set, 4 cells of
+  25 px), clips `HD/wss.bin` (182 clips: event + 14 × bank).
+  `0x4fb7a8` maps the character id to the bank (ids 1-4 and 13-21 →
+  0-12); tabs: あずさ #0, 沙也加 #1, 葉子 #4, 笛子 #3, then
+  SubModeCommon #32-40, 7 per page with NEXT #41 / PREV #42. Layout:
+  header Title.004 #13 at (627, 134); tabs (624, 160 + 28 i); heading at
+  (96, 97); events (114, 149 + 21 i); buttons (316 + 63 i, 466); exit
+  (624, 470). Buttons are enabled by progress bit 4 + `0x4fbc00`[id].
 
 ## Status: finished (2026-10-14)
 

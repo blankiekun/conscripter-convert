@@ -4,16 +4,23 @@ Converts visual novels the user owns into games for CONscripter (our
 ONScripter-Yuri fork, the `engine/` submodule), especially its web
 build.
 
-| Game | Engine | Branch / worktree | Game document | Handoff (git-ignored) |
-|---|---|---|---|---|
-| 最果てのイマ COMPLETE (finished) | Xuse | `xuse` | `docs/games/saihate-no-ima.md` | `saiima.md` |
-| 装甲悪鬼村正 (in progress) | Nitroplus NSS | `nitroplus`, `~/Projects/conscripter-convert-nitroplus` | `docs/games/muramasa.md` | `muramasa.md` |
+| Game | Engine | Branch / worktree | Game document |
+|---|---|---|---|
+| 最果てのイマ COMPLETE (finished) | Xuse | `xuse` | `docs/games/saihate-no-ima.md` |
+| 装甲悪鬼村正 (in progress) | Nitroplus NSS | `nitroplus`, `../conscripter-convert-nitroplus` | `docs/games/muramasa.md` |
 
 **Starting a new game? Read `docs/new-game.md` first.**
 
-Read first, in order: the game's handoff file (state and next steps;
-"Resume here" at the top), the game's document, `PLAN.md` §4.2 (engine
+Read first, in order: the game's document (its "Status" section holds
+the feature state and the next steps), `PLAN.md` §4.2 (engine
 additions) and §13 (lessons).
+
+Each game's state is tracked in its `docs/games/<game>.md`, which is
+public: no local paths (use placeholders such as `<game>`), only
+reproducible commands. There are no git-ignored handoff files; keep
+the document's "Status" current with every commit that changes it.
+Machine-local facts (where the user keeps a game) go in your memory,
+not in the repo.
 
 ## Rules (from the user)
 
@@ -73,7 +80,7 @@ each in its own worktree), and their work meets in shared code.
   game's own rules go in a module of their own there (for example
   `nitroplus/convert/muramasa.rs`, chosen by the CLI when it builds).
 - **Merge your game branch into `main` at good points** (tests pass, the
-  game document and the handoff file are up to date), so the other
+  game document's "Status" is up to date), so the other
   agents start from it. After merging `origin/main` into the branch, the
   push is a fast-forward: check with
   `git merge-base --is-ancestor origin/main HEAD`, then
@@ -97,10 +104,10 @@ each in its own worktree), and their work meets in shared code.
 
 - `cargo test`, `cargo clippy --all-targets`; `cargo build --release`.
 - Full build: `target/release/conscripter-convert convert-game <install
-  dir> -o out/<game>-cons --font /usr/share/fonts/OTF/ipag.ttf --title
+  dir> -o out/<game>-cons --font <a Japanese TTF, e.g. ipag.ttf> --title
   "<title>"`. Each game's exact command is in its document.
 - Engine: `make -C engine/build -j16` → `engine/build/conscripter`.
-  Web: `cd engine/script && EMSDK_HOME=~/emsdk bash ./cross_web.sh`.
+  Web: `cd engine/script && EMSDK_HOME=<emsdk dir> bash ./cross_web.sh`.
 - Headless: `SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy timeout -k 5 N
   engine/build/conscripter -r .` with the game folder as the working
   directory (otherwise `default.ttf` isn't found). Screenshot with
@@ -141,5 +148,5 @@ changed, let the `master` run finish first (tags read its caches).
 - Rebuilding `0.txt` makes `kidoku.dat` stale (byte offsets): delete it.
 - Python text-mode writes turn CRLF files into LF: check
   `grep -c $'\r$'` before committing engine files.
-- `find /` and `locate` on this machine are slow (big NAS mounts): look
-  in `~/Games`, `~/Z:/Media/InstalledVNs` and the notes first.
+- `find /` and `locate` can be slow on machines with big network
+  mounts: ask where the game is, or check your memory, first.
