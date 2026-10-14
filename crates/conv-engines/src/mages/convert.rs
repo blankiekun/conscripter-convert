@@ -308,6 +308,8 @@ struct Shown {
     /// A character's centre at `:Position` y 0.
     base_y: i32,
     look: Look,
+    /// Its zoom (SpriteMove `:Scale`), in percent.
+    zoom: u32,
 }
 
 /// How a picture is drawn: its colour filters (`:Color` tint,
@@ -438,7 +440,11 @@ impl Lowering<'_> {
         });
         self.out.ops.push(Op::Sprites { changes, fade_ms: if self.staging { 0 } else { fade_ms } });
         self.apply_look(layer, &look);
-        self.shown.insert(key.to_string(), Shown { layer, tex, x: cx, y: cy, image: path, w, h, base_y: cy, look });
+        // A new picture on the layer would keep the old one's zoom.
+        if self.shown.get(key).is_some_and(|old| old.layer == layer && old.zoom != 100) {
+            self.out.ops.push(Op::SpriteZoom { layer, x: cx, y: cy, from: 100, to: 100, ms: 0 });
+        }
+        self.shown.insert(key.to_string(), Shown { layer, tex, x: cx, y: cy, image: path, w, h, base_y: cy, look, zoom: 100 });
         if opened {
             self.out.ops.push(Op::EndTransition);
             self.staging = false;
@@ -468,6 +474,9 @@ impl Lowering<'_> {
         ];
         self.out.ops.push(Op::Sprites { changes, fade_ms: 0 });
         self.apply_look(layer, &s.look);
+        if s.zoom != 100 {
+            self.out.ops.push(Op::SpriteZoom { layer, x: s.x, y: s.y, from: 100, to: s.zoom, ms: 0 });
+        }
         self.shown.insert(key.to_string(), Shown { layer, ..s });
     }
 
@@ -845,18 +854,21 @@ impl Lowering<'_> {
                 let Some((key, s)) = self.shown.iter().find(|(_, s)| s.tex == tex).map(|(k, s)| (k.clone(), s.clone())) else {
                     return;
                 };
-                // A zoom (`:Scale` other than 1) moves the centre to the
-                // point zoomed in on, which without the zoom slides the
-                // picture off the screen: it stays where it is instead.
-                if t.get("Scale").is_some_and(|v| v.first().and_then(Val::float).is_some_and(|f| f != 1.0)) {
-                    self.note("SpriteMove :Scale (left in place)");
-                    return;
-                }
                 let x = t.int_at("Position", 0).map_or(s.x, sx);
                 let y = t.int_at("Position", 1).map_or(s.y, sy);
                 let time = ms(t.int("Time").unwrap_or(0));
-                self.out.ops.push(Op::SpriteMove { layer: s.layer, x, y, ms: time });
-                self.shown.insert(key, Shown { x, y, ..s });
+                // `:Scale` zooms the picture about its centre (a camera
+                // zoom); without it the zoom stays. The two values after
+                // `:Position` look like easing: the zoom is straight.
+                let zoom = t.get("Scale").and_then(|v| v.first()?.float()).map_or(s.zoom, |f| (f * 100.0).round() as u32);
+                // A zoomed picture moves with spzoom too, which redraws
+                // where its zoomed picture was.
+                if zoom != s.zoom || zoom != 100 {
+                    self.out.ops.push(Op::SpriteZoom { layer: s.layer, x, y, from: s.zoom, to: zoom, ms: time });
+                } else {
+                    self.out.ops.push(Op::SpriteMove { layer: s.layer, x, y, ms: time });
+                }
+                self.shown.insert(key, Shown { x, y, zoom, ..s });
             }
             // `:Image 0,N`: CG.cpk's ECnn (27 is the title logo) over
             // everything, on the cover's layer, coming in through the
