@@ -1,0 +1,186 @@
+# Converting a new game: steps and planning
+
+A playbook for an agent starting a new game. It is what 最果てのイマ
+COMPLETE (Xuse, finished 2026-10-14) taught us, put in the order that
+would have been fastest. The general lessons behind each step are in
+`PLAN.md` §13. The house rules are in `CLAUDE.md`.
+
+For scale: 最果てのイマ took about two days of agent sessions, around
+120 converter commits and ten CONscripter releases (0.8.0 to 0.17.0). The
+story played end to end after the first day. The second day went on
+system screens, extras and matching effects to the original.
+
+## 0. Before writing any code
+
+1. **Ask the user** what they want from this game: the whole thing with
+   extras, or story first? Which platforms (the web build is the main
+   one)? Anything to skip? Write the answers down in the handoff file
+   (step 0.4). Things the user dropped for 最果てのイマ: the debug menu,
+   right-click menus, the WSS system-voice room, native Linux/macOS
+   movies.
+2. **Learn the game as a player.** Read a wiki or skim a playthrough for
+   the route structure, the choice mechanic, endings and extras.
+   最果てのイマ's route choices are hyperlinks in the text. Not knowing
+   that cost a session: a no-click trace loops back to the chapter start,
+   and that looked like a control-flow bug.
+3. **Identify the engine** from the install: the exe's strings,
+   `.cpp`/RTTI names, archive magic numbers, config files. If it is a
+   known engine (KiriKiri, NScripter, Siglus, Nitroplus NSS, ...), find
+   the existing format documentation and tools before reversing anything.
+4. **Start the files that survive context resets**:
+   - `<game>.md` in the repo root, git-ignored (add it to `.gitignore`),
+     with a **"Resume here"** section at the top. It holds paths, recipes
+     and findings. Look at `saiima.md` and `muramasa.md`.
+   - A short "state / next" section in `TODO.md`, kept current.
+   - A branch per game (`xuse`, `nitroplus`), based on `origin/main`. A
+     second agent works in its own worktree
+     (`~/Projects/conscripter-convert-<name>`).
+   - Optional: a phone-visible progress page (an artifact whose shared
+     database gets one log entry per commit). The user liked following
+     the work that way.
+5. **Plan in this order:** assets → script decoding → control flow →
+   text and voices → pictures and sound in scripts → system screens →
+   extras → matching effects to the original. Each phase ends with
+   something the user can run. Plan a vertical slice first (one scene
+   with text, a picture and a voice) before going broad.
+
+## 1. Archives and assets
+
+- Write the archive reader and per-format decoders in
+  `crates/conv-engines/src/<engine>/`, one module per format, each
+  with a `conscripter-convert <format> list|extract` subcommand for
+  inspection.
+- Keys and ciphers come from the exe. Keep the throwaway Python in
+  `research/<engine>/` (run with `python3 -I`, game paths as arguments,
+  no game data committed) and port only what holds up into Rust.
+- **Check against the whole corpus:** every archive verifies (CRC/MD5),
+  every image decodes, every audio file plays. Count degenerate assets
+  (empty files, 1×1 images): references to them point to off-by-one bugs.
+- Audio: Ogg Vorbis passes through. Put loop points into the `.ogg` as
+  `LOOPSTART`/`LOOPEND` comments, which SDL_mixer loops on by itself and
+  saves never lose. Movies: ffmpeg to H.264 + AAC MP4, played with
+  `mpegplay`.
+- Images stay PNG by default; `--webp` (near-lossless) is opt-in for
+  the web build.
+
+## 2. Scripts: decode, then measure
+
+- Decode the script container fully (header, code, constant pool, label
+  tables, checksums) and dump it: `conscripter-convert cd dump` is the
+  model.
+- **Rank opcodes (or built-ins) by use count** (`cd opstats`) and work
+  from the top. A handful of opcodes make most of the visible game.
+- Find the dispatch table in the exe. Then, for each handler: the
+  strings it references (error messages name opcodes), the source-file
+  name it logs, the RTTI class it builds. Disassemble once with
+  `objdump -d -M intel --no-show-raw-insn <exe>` into
+  `research/<engine>/local/` (git-ignored) and grep that.
+- Work out **every index space a jump uses** (per-script labels or
+  global tables, implicit entries, labels on marker instructions) and
+  check all targets across the corpus. A wrong guess still produces a
+  script that runs.
+
+## 3. Lowering to the IR
+
+- The reader produces the engine-neutral IR (`crates/conv-core/src/ir.rs`).
+  Only `crates/conv-cons` knows NScripter. If the IR can't express
+  something, add an IR op or a style variant with a doc comment that says
+  what the picture does, not how the source engine does it.
+- Anything not converted yet is emitted as a `;` comment naming the
+  script and instruction. The converter prints a ranked list of what
+  was left out, and that list is the to-do list.
+- Keep converter variables and sprite numbers in documented ranges:
+  write the map down (`TODO.md` has 最果てのイマ's) before the menus
+  claim slots. Lower sprite numbers draw on top. Keep the game's own
+  sprites at fixed numbers, so old saves still load after renumbering
+  the menus.
+
+## 4. Control flow: prove it before looking at pictures
+
+- Trace the emitted `0.txt` statically (`research/xuse/nstrace.py`)
+  to count displayed pages, find hot loops and follow each route (the
+  "click link N" option). Pages count as displayed, not in file order.
+- Run it headless (recipe in `CLAUDE.md`), always under `timeout -k 5`
+  (ONScripter ignores SIGTERM in a script loop).
+- A loop isn't automatically a bug: check whether the original loops
+  there too.
+
+## 5. Text and voices
+
+- The text box and name plate are measured from screenshots of the
+  original. Fonts must be fixed-width (`ipag.ttf`).
+- Find the voice rule exactly (最果てのイマ hid it behind a
+  divide-by-constant: look for magic multipliers) and check it plays
+  every voiced line.
+- Backlog names and voice replay: a `[name|voice]` tag per line with a
+  `pretextgosub`, read back with `gettaglog`.
+- Ruby, size and colour tags: `(base/reading)` with `rubyon`, `!zNNN`,
+  `#RRGGBB`.
+
+## 6. Pictures and sound in scripts
+
+- Backgrounds, sprites, BGM, sound effects, transitions with their real
+  durations. Check sprite references against asset names: name prefixes
+  are a free oracle and find whole classes of bugs in one pass.
+- Find where effect parameters are defined. An opcode may only name a
+  preset that another opcode defined in a setup script.
+- An effect ONScripter can't draw: first try existing commands (masks,
+  `effect` numbers, `spfilter`), then add it to CONscripter (step 9).
+
+## 7. System screens
+
+Title, save/load (with thumbnails and delete), settings, backlog, the
+button bar, confirmations. Build them as in-script menus from the
+original's own parts (`menu.rs` explains the ONScripter mechanics). Where
+the original uses a Windows dialog, design one from game parts and say
+so. Check each one headless with `research/xuse/smoke.py` (scripted
+button presses and screenshots).
+
+## 8. Extras
+
+CG gallery, scene replay, music room. Their tables usually live in the
+exe or in system archives. Get a 100% save (the user points to
+sagaoz.net) and film the original's screens under wine before building
+them.
+
+## 9. Matching the original
+
+- **Film the original under wine** for anything not obvious: transitions,
+  effects, menus. Set up a scratch `WINEPREFIX` whose Documents, Desktop
+  and other user folders are **real folders, not symlinks to the user's
+  home** (games save there), use a symlink farm so patched scripts never
+  touch the install, no audio, an Xvfb display of its own (never the
+  user's desktop). Slow a transition down by patching its duration in a
+  copy of the script, and take shots at fixed fractions of it. Stop
+  wine and Xvfb afterwards. Recipes: `saiima.md`, "Running the
+  original"; `muramasa.md` for a game that needs DirectSound.
+- Then read the effect's kernel in the exe for the exact curve, and fit
+  the filmed frames to it. Example: MeltDown, edge = h·((p − d)/(1 − d))².
+- Check our side the same way: run CONscripter on its own Xvfb display
+  with `SDL_RENDER_DRIVER=software` (otherwise the grab is black) and
+  grab frames mid-effect with `import`.
+
+## 10. Engine additions
+
+When existing NScripter commands can't do it:
+1. Add it opt-in in `engine/src/onsyuri/` (`ONScripter_cons.cpp`
+   preferred). Effects are `cons_*.dll` effect-99 plugins; screen
+   effects use the `screenfilter`/`screenshake` slot machinery. It must
+   build for the web (emscripten) and keep its state in saves.
+2. Document it in `engine/ADDITIONS.md` and in `PLAN.md` §4.2.
+3. Commit and push the engine first, then commit the submodule pointer
+   together with the converter change that uses it.
+4. Release when a batch is ready: bump the version in the 7 files that
+   carry it (see `CLAUDE.md`), tag `vX.Y.0`, push the tag, and check that
+   all 5 build workflows pass and the release has its 9 assets.
+
+## 11. Finishing
+
+- The finish line is set by the user: every story instruction converted,
+  system screens and extras working, the remaining differences written
+  down as optional leftovers in `TODO.md`.
+- Update `README.md`'s support table, `PLAN.md` §6 (status) and §13
+  (new lessons), and this playbook if the process changed.
+- Rebuild into a fresh output folder. Never touch folders holding the
+  user's saves (`out/saiima-flow`), and list any folder before deleting
+  it.
