@@ -1,8 +1,9 @@
 # 悪鬼編 (村正): rodemass chart, fourth column, from the save before
 # md04_045. The village exploration (md05_004*) takes three rounds; a
 # chart entry such as 訊く：自分の事 is two selects. The chart's bad-end
-# detours (md05_010vs 2, md05_010vsaa 2, md05_012 1, md05_013 2) are left
-# out. The run stops at the 立方陣 minigame (function_magiccube.nss,
+# detours (md05_010vs 2 then md05_010vsaa 2, md05_012 1, md05_013 2, and
+# md05_014 1, which the chart doesn't take) each end in the game-over
+# file mz00_000; the run loads back and takes the other option. The run stops at the 立方陣 minigame (function_magiccube.nss,
 # reached from md05_025), which isn't converted yet, so neither 村正END
 # (md06_033a) nor the TRUE END (md06_036) can be reached.
 LOAD 1
@@ -78,8 +79,26 @@ md05_004saidenn01d:1
 md05_004byoushitsu01:3
 md05_004byoushitsu03c:2
 md05_004byoushitsu03cb:1
+SAVE bmd05_010vs
+md05_010vs:2
+md05_010vsaa:1
+md05_010vsaa:2
+END mz00_000
+LOAD bmd05_010vs
 md05_010vs:1
+SAVE bmd05_012
+md05_012:1
+END mz00_000
+LOAD bmd05_012
 md05_012:2
+SAVE bmd05_013
+md05_013:2
+END mz00_000
+LOAD bmd05_013
 md05_013:1
+SAVE bmd05_014
+md05_014:1
+END mz00_000
+LOAD bmd05_014
 md05_014:2
 END function_magiccube
