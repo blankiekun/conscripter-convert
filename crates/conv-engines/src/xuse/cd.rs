@@ -312,17 +312,21 @@ pub struct FilterReplace {
 
 /// Opcode 0x70: one slot of the filter on the whole screen, made of the
 /// same modules as 0x88 (the object is named `filter-<slot>`). Record:
-/// u32 slot (0 clears every slot), u32 layer | fade_ms << 8, u32 kind
+/// u32 slot (0 clears every slot), u32 layer | depth << 8, u32 kind
 /// (0 clears the slot), u16 blend, u16 opacity, then the kind's data as
 /// in 0x88 (monotone: u32 palette). The layer byte picks where the filter
 /// sits among the screen's layers (table at 0x503e68: 0 and 2 → 0x10,
 /// 1 → 0, 3 → 0x20, 4 → 0x30); the game uses 0 and, for colour overlays
-/// and blurs set inside a transition, 2 and 3.
+/// and blurs set inside a transition, 2 and 3. The depth is the object's
+/// sort depth within that band (0x4156d0 passes it to the object
+/// creator 0x4109a0; mostly 1000, above the bust-ups' 10-100). The filter
+/// has no fade of its own: it shows at the next frame, or with the
+/// transition around it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ScreenModule {
     pub slot: u32,
     pub layer: u8,
-    pub fade_ms: u32,
+    pub depth: u32,
     pub kind: u32,
     pub blend: u16,
     pub opacity: u16,
@@ -825,7 +829,7 @@ impl<'a> CdScript<'a> {
             let set = slot != 0 && kind != 0;
             let (blend, opacity) = if set { (r.u16(o + 12)?, r.u16(o + 14)?) } else { (0, 0) };
             let data = if set { module_data(&r, kind, o + 16)? } else { ModuleData::None };
-            Ok(ScreenModule { slot, layer: timing as u8, fade_ms: timing >> 8, kind, blend, opacity, data })
+            Ok(ScreenModule { slot, layer: timing as u8, depth: timing >> 8, kind, blend, opacity, data })
         })
     }
 

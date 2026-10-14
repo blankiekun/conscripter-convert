@@ -1926,7 +1926,7 @@ fn lower_screen_module(
         clear_replace(m.slot, replaces, ops);
     }
     if m.slot == 0 || m.kind == 0 {
-        ops.push(Op::ScreenFilter { slot: m.slot, filter: None, fade_ms: m.fade_ms });
+        ops.push(Op::ScreenFilter { slot: m.slot, filter: None, fade_ms: 0 });
         return Ok(());
     }
     let displacement = match m.data {
@@ -1981,7 +1981,7 @@ fn lower_screen_module(
                 strength: Operand::Const(strength),
                 params: [p0, p1, p2].map(Operand::Const),
             };
-            ops.push(Op::ScreenFilter { slot: m.slot, filter: Some(filter), fade_ms: m.fade_ms });
+            ops.push(Op::ScreenFilter { slot: m.slot, filter: Some(filter), fade_ms: 0 });
         }
         Err(what) => ops.push(Op::Unsupported { what: format!("opcode 0x70 {what}"), at: at() }),
     }
