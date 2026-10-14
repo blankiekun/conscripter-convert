@@ -608,6 +608,14 @@ page each punctuation mark or symbol shows on (`--shot-pages`):
   were so dear” (`mb04_008vs`, 33 such lines) showed as “Tellmethe tales
   thattomeweresodear”. CONscripter now keeps a space after other text,
   in sprite text too (2179dbd).
+- Built-in and NSS function names matched ignoring case; the exe
+  matches them exactly (`dispatch_builtin`, `call_nss_function`,
+  `research/nitroplus/builtins.md`, "In the exe") and skips a call to a
+  name it doesn't know. So `Waitkey(500)` (`md04_004`, `md06_035`) was
+  a half-second wait and `SL_Rightdown(…)` (`ma00_000`) ran
+  `SL_rightdown`; the original does neither. Names are exact now, and
+  the build's list counts the skipped calls (`skipped: no function`,
+  13 names, 179 calls, `Boxframe` 153 of them).
 
 Testing notes: other agents stop engines with `pkill -x conscripter`;
 run ours through a symlink with another name (`--engine
@@ -615,42 +623,46 @@ out/conscripter-mura`). The route runs and `--at` starts are in
 `research/nitroplus/engrun.py`.
 
 Next, in order:
-1. **Rebuild and rerun the routes.** The fixes after the route runs
-   (above) need a full build to show, and the engine moved to 0.19.1+
-   (3c7c957, 2179dbd). Run `research/nitroplus/engrun.py --all` and
-   the trace checker on each trace.
-2. **Built-in names are case-sensitive in the exe** (`dispatch_builtin`,
-   `research/nitroplus/builtins.md`, "In the exe"); the converter
-   matches them, and NSS function names, ignoring case. So it turns
-   `Waitkey(500)` (`md04_004`, `md06_035`) into a wait and runs
-   `SL_rightdown` for `SL_Rightdown(…)` (`ma00_000`), where the original
-   does nothing. Match exactly, and drop the names the exe skips (17,
-   listed there).
-3. Sound volume: `SetVolume` on a playing sound is ignored unless it
-   goes to 0, so sounds faded to 1 (99 places; mostly the BGM ducked
-   for a moment and raised again) keep playing at full volume, and
-   loops faded that way never stop (the checker's `loop` rule). Needs a
-   per-channel volume in the output (NScripter's `bgmvol`/`chvol`).
-   The exe's curve (`research/nitroplus/builtins.md`, `SetVolume`):
-   −10 dB per halving, so volume 1 is silent and 500 is 32 %.
-4. An NPA packer (`npa.rs` has the inverse table), so the original can
+1. **Check the route runs of the rebuilt game.** Round 3 (2026-10-14,
+   all ten paths with `--all`, engine 0.19.1, the build before d124bec)
+   was started side by side; check each run's result line and run the
+   trace checker on each `trace.jsonl`. The build has the fixes after
+   the route runs above, but not the exact names (d124bec): those
+   change only two waits and need no new runs.
+2. **Sound volume** (half done). The converter ignores `SetVolume`
+   (1,406 changes of a playing sound in the build's list; starting
+   volumes too) unless it goes to 0, so sounds faded to 1 keep playing
+   at full volume, and loops faded that way never stop (the checker's
+   `loop` rule). The engine side is in CONscripter (2712225):
+   `chvolfade ch,vol[,ms]` and `bgmvolfade vol[,ms]`, a script volume
+   in percent of the setting, faded while the script goes on, kept
+   with the channel for its next sounds (set it before `dwave`) and in
+   saves. Left: an IR `Op::SoundVolume { file, percent, ms }`, its
+   emitter in `conv-cons` (the channel the next `SePlay` takes when it
+   comes right before it; a script that has any gives every sound a
+   volume), and in `nitroplus/convert.rs` `set_volume` and
+   `flush_sounds` (the ramp from the volume at `Play`) with the exe's
+   curve (`research/nitroplus/builtins.md`, `SetVolume`): percent =
+   100·(volume/1000)^1.661, so 1 is silent and 500 is 32 %. A fade to
+   0 over time could use `dwavefadeout` (CONscripter 922b73f).
+3. An NPA packer (`npa.rs` has the inverse table), so the original can
    be started at any scene from a patched `nss.npa` instead of clicking
    (`docs/new-game.md` step 9, "Running the original under wine").
-5. Check against the original: the figure in `ma01_002` (おれ→ ○□卍□○
+4. Check against the original: the figure in `ma01_002` (おれ→ ○□卍□○
    ←？ with ／＼ strokes) only lines up written horizontally, and comes
    apart in its vertical box.
-6. A replay of route 9 with `--shot-pages` (engine 0.19.0) stopped
+5. A replay of route 9 with `--shot-pages` (engine 0.19.0) stopped
    drawing at `f_md01_002:158856` (`print 10,500`, page 18,573) with
    the process spinning; the same run passed before. Not reproduced.
-7. **System screens** (step 7): title, save/load, settings, backlog,
+6. **System screens** (step 7): title, save/load, settings, backlog,
    built as in-script menus from `cg/sys/*` parts, as for 最果てのイマ
    (`conv-cons/src/menu.rs`); the settings screen also shows the build's
    version line (`version.txt`). A big item: check with the user first.
-8. The largest leftovers below: `CreateProcess` (via Lua), non-blocking
+7. The largest leftovers below: `CreateProcess` (via Lua), non-blocking
    `Move`/`Zoom`, `AddRender` (needs a per-sprite blend mode).
-9. Step 11.5: `#` flags (globals from %800) across quit and relaunch,
+8. Step 11.5: `#` flags (globals from %800) across quit and relaunch,
    and in the web build.
-10. Optional: the 18 files with no `else` (below).
+9. Optional: the 18 files with no `else` (below).
 
 **Leftovers** (counts from the dry run's notes):
 - `CreateProcess` (510 calls; the battle HUD `CP_*` in

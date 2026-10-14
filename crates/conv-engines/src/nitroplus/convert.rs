@@ -539,6 +539,34 @@ impl Value {
     }
 }
 
+/// The built-ins of Muramasa.exe, as `dispatch_builtin` (`00405250`,
+/// statements) and `eval_primary` (`0043a780`, values) name them
+/// (`research/nitroplus/builtins.md`, "In the exe"). The exe matches them
+/// case-sensitively; any other name is an NSS function, and a call to a
+/// function that doesn't exist is skipped.
+const BUILTINS: [&str; 122] = [
+    "CreateName", "CreateAnimation", "CreateProcess", "CreateColor", "CreateEffect",
+    "CreateFrame", "CreateTexture", "CreateClipTexture", "CreateDifferenceTexture",
+    "CreateMask", "CreateStencil", "CreateSurface", "CreateMovie", "CreateCube", "CreateSound",
+    "CreateText", "CreateWindow", "CreateCamera", "CreateChoice", "CreateBacklog",
+    "CreateScrollbar", "LoadImage", "LoadClipImage", "LoadColor", "LoadFont", "LoadText",
+    "LoadFile", "UnloadFile", "LoadNPT", "Move", "BezierMove", "Request", "Rotate", "Shake",
+    "MoveCamera", "MoveCube", "Delete", "Disable", "Fade", "SetChip", "SetAlias", "SetVertex",
+    "SetShade", "SetTone", "SetImage", "SetSurface", "SetComposite", "SetBlur", "SetStream",
+    "SetFov", "SetNextFocus", "SetScrollbar", "SetScrollSpeed", "SetBacklog", "Zoom", "Draw",
+    "DrawEffect", "DrawTransition", "Wait", "WaitKey", "WaitMove", "WaitFade", "WaitZoom",
+    "WaitRotate", "WaitShake", "WaitPlay", "WaitText", "WaitAction", "SetVolume", "SetPan",
+    "SetFrequency", "SetLoop", "SetLoopPoint", "MoviePlay", "ClearScore", "ClearBacklog",
+    "SetBaseTextInterval", "SetFont", "Save", "Load", "DeleteSaveFile", "Position",
+    "CursorPosition", "MoveCursor", "DateTime", "WriteFile", "SetShortcut", "Escape", "Reset",
+    "Exit", "System",
+    "Random", "RemainTime", "DurationTime", "PassageTime", "ImageHorizon", "ImageVertical",
+    "Strlen", "Strstr", "String", "EnableBacklog", "ExistSave", "ReadFile", "ModuleFileName",
+    "BacklogRow", "BacklogLine", "ScrollbarValue", "Time", "MilliTime", "Integer",
+    "SoundAmplitude", "Conquest", "Message", "Array", "AssocArray", "Count", "VariableValue",
+    "EnableDirect3DHAL", "Platform", "AvailableFile", "MountSavedata", "LockVideo",
+];
+
 fn word(w: &str) -> Value {
     match w.to_ascii_lowercase().as_str() {
         "true" => Value::Int(1),
@@ -1315,16 +1343,16 @@ impl<'a, 'b> Compiler<'a, 'b> {
         })
     }
 
-    /// Current file first, then the library; later definitions win.
+    /// Current file first, then the library; later definitions win. Names
+    /// are case-sensitive, as in the exe (`call_nss_function`).
     fn function(&self, name: &str) -> Option<(&'a str, &'a Function)> {
-        let find = |file: &'a str, exact: bool| {
+        let find = |file: &'a str| {
             self.files.get(file)?.items.iter().rev().find_map(|item| match item {
-                Item::Function(f) if f.name == name || (!exact && f.name.eq_ignore_ascii_case(name)) => Some((file, f)),
+                Item::Function(f) if f.name == name => Some((file, f)),
                 _ => None,
             })
         };
-        let order: Vec<&'a str> = std::iter::once(self.file).chain(self.library.iter().rev().copied()).collect();
-        order.iter().find_map(|&f| find(f, true)).or_else(|| order.iter().find_map(|&f| find(f, false)))
+        std::iter::once(self.file).chain(self.library.iter().rev().copied()).find_map(find)
     }
 
     /// Statements of the scene itself: sounds started by a statement are
@@ -1660,8 +1688,8 @@ impl<'a, 'b> Compiler<'a, 'b> {
 
     fn builtin(&mut self, name: &str, a: &[Value]) -> Value {
         let arg = |i: usize| a.get(i).cloned().unwrap_or(Value::Null);
-        match name.to_ascii_lowercase().as_str() {
-            "createtexture" => {
+        match name {
+            "CreateTexture" => {
                 let name = self.object_name(&arg(0));
                 let src = self.deref(&arg(4));
                 let Some((image, w, h)) = self.texture_source(&src) else {
@@ -1674,7 +1702,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 o.x = arg(2).position(0, w, SCREEN_W);
                 o.y = arg(3).position(0, h, SCREEN_H);
             }
-            "createcolor" => {
+            "CreateColor" => {
                 let name = self.object_name(&arg(0));
                 let (w, h) = (arg(4).int().max(1), arg(5).int().max(1));
                 let Some(rgb) = color(&arg(6)) else {
@@ -1686,7 +1714,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 o.x = arg(2).position(0, w, SCREEN_W);
                 o.y = arg(3).position(0, h, SCREEN_H);
             }
-            "createeffect" => {
+            "CreateEffect" => {
                 let name = self.object_name(&arg(0));
                 let kind = if arg(6).string().eq_ignore_ascii_case("plain") {
                     Kind::Cover
@@ -1696,17 +1724,17 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 };
                 self.create(name, kind, arg(1).int(), SCREEN_W, SCREEN_H);
             }
-            "createwindow" | "createname" => {
+            "CreateWindow" | "CreateName" => {
                 let name = self.object_name(&arg(0));
                 self.create(name, Kind::Other, arg(1).int(), 0, 0);
             }
-            "createsound" => {
+            "CreateSound" => {
                 let name = self.object_name(&arg(0));
                 let bgm = arg(1).string().eq_ignore_ascii_case("bgm");
                 let s = SoundObject { path: arg(2).string(), bgm, volume: 1000, looped: false, starting: false, fade_ms: 0, playing: None, disused: false };
                 self.create(name, Kind::Sound(s), 0, 0, 0);
             }
-            "fade" => {
+            "Fade" => {
                 // Four arguments: no tempo.
                 let wait = if a.len() == 4 { arg(3) } else { arg(4) };
                 let targets = self.matching(&arg(0));
@@ -1724,7 +1752,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
                     self.check_window();
                 }
             }
-            "move" => {
+            "Move" => {
                 let targets = self.matching(&arg(0));
                 let ms = arg(1).int();
                 let blocking = !matches!(arg(5), Value::Null | Value::Int(0));
@@ -1754,26 +1782,26 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 }
                 self.timed(arg(1).int(), &arg(5), &targets);
             }
-            "delete" => {
+            "Delete" => {
                 for t in self.matching(&arg(0)) {
                     if !self.objects[&t].locked {
                         self.delete(&t);
                     }
                 }
             }
-            "request" => {
+            "Request" => {
                 let action = arg(1).string().to_ascii_lowercase();
                 for t in self.matching(&arg(0)) {
                     self.request(&t, &action);
                 }
             }
-            "setalias" => {
+            "SetAlias" => {
                 let (obj, alias) = (self.object_name(&arg(0)), arg(1).string());
                 if obj != alias {
                     self.aliases.insert(alias, obj);
                 }
             }
-            "rotate" => {
+            "Rotate" => {
                 for t in self.matching(&arg(0)) {
                     match &mut self.objects.get_mut(&t).unwrap().kind {
                         Kind::Text(text) => text.rotation = arg(4).position(text.rotation, 0, 0),
@@ -1782,7 +1810,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
                     }
                 }
             }
-            "zoom" => {
+            "Zoom" => {
                 let targets = self.matching(&arg(0));
                 for t in &targets {
                     let o = self.objects.get_mut(t).unwrap();
@@ -1793,7 +1821,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 }
                 self.timed(arg(1).int(), &arg(5), &targets);
             }
-            "setblur" => {
+            "SetBlur" => {
                 // (obj, on, passes 1-3, ?, strength, wait). Unverified:
                 // drawn as a Gaussian of 1.5 px per pass.
                 let sigma = if arg(1).truthy() { (arg(2).int().clamp(1, 5) * 15) as u32 } else { 0 };
@@ -1803,7 +1831,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 }
                 self.timed(arg(3).int(), &arg(5), &targets);
             }
-            "drawtransition" => {
+            "DrawTransition" => {
                 // (obj, time, from, to, softness, tempo, mask, wait): a fade
                 // to `to` shaped by the mask.
                 let targets = self.matching(&arg(0));
@@ -1816,7 +1844,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 }
                 self.timed(arg(1).int(), &arg(7), &targets);
             }
-            "shake" => {
+            "Shake" => {
                 // (obj, time, x, y, …, wait). A full-screen picture (or all
                 // of them): the whole picture shakes.
                 let targets = self.matching(&arg(0));
@@ -1836,17 +1864,17 @@ impl<'a, 'b> Compiler<'a, 'b> {
                     }
                 }
             }
-            "imagehorizon" => return Value::Int(self.objects.get(&self.object_name(&arg(0))).map_or(0, |o| o.w)),
-            "imagevertical" => return Value::Int(self.objects.get(&self.object_name(&arg(0))).map_or(0, |o| o.h)),
-            "setfont" => self.font_size = arg(1).int().max(1),
-            "loadtext" => {
+            "ImageHorizon" => return Value::Int(self.objects.get(&self.object_name(&arg(0))).map_or(0, |o| o.w)),
+            "ImageVertical" => return Value::Int(self.objects.get(&self.object_name(&arg(0))).map_or(0, |o| o.h)),
+            "SetFont" => self.font_size = arg(1).int().max(1),
+            "LoadText" => {
                 let name = self.object_name(&arg(2));
                 let font = self.font_size;
                 if let Some(Object { kind: Kind::Text(t), .. }) = self.objects.get_mut(&name) {
                     t.layout = Some((arg(3).int(), arg(4).int(), arg(5).int(), arg(6).int(), font));
                 }
             }
-            "wait" => {
+            "Wait" => {
                 // The actions still running are shown over the wait, at
                 // most.
                 let ms = arg(0).int().max(0) as u32;
@@ -1856,41 +1884,44 @@ impl<'a, 'b> Compiler<'a, 'b> {
                     self.ops.push(Op::Wait { ms: ms - shown });
                 }
             }
-            "waitkey" => {
+            "WaitKey" => {
                 self.sync(0);
                 match arg(0) {
                     Value::Null => self.ops.push(Op::ClickWait { skippable: true }),
                     ms => self.ops.push(Op::Wait { ms: ms.int().max(0) as u32 }),
                 }
             }
-            "waitaction" | "waitfade" | "waitmove" | "waitzoom" | "draw" => {
+            "WaitAction" | "WaitFade" | "WaitMove" | "WaitZoom" | "Draw" => {
                 // Waits for the actions: their whole time. Given an object,
                 // only for that object's (`CP_EHPChange` waits on its own
                 // process, not on the 15 s zoom started before it).
-                let ms = if name.eq_ignore_ascii_case("draw") || matches!(arg(0), Value::Null) {
+                let ms = if name == "Draw" || matches!(arg(0), Value::Null) {
                     std::mem::take(&mut self.pending_ms)
                 } else {
                     self.matching(&arg(0)).iter().filter_map(|t| self.pending_by.get(t)).copied().max().unwrap_or(0)
                 };
                 self.sync(ms);
             }
-            "setvolume" => self.set_volume(&arg(0), arg(1).int(), arg(2).int()),
-            "setloop" => {
+            "SetVolume" => self.set_volume(&arg(0), arg(1).int(), arg(2).int()),
+            "SetLoop" => {
                 for t in self.matching(&arg(0)) {
                     if let Kind::Sound(s) = &mut self.objects.get_mut(&t).unwrap().kind {
                         s.looped = arg(1).truthy();
                     }
                 }
             }
-            "setfrequency" if arg(2).int() != 1000 => self.note("SetFrequency"),
-            "passagetime" | "remaintime" | "durationtime" | "conquest" | "random" => return Value::Int(0),
-            "modulefilename" => return Value::Str(self.file.to_string()),
-            "strstr" => return Value::Int(i64::from(arg(0).string().contains(&arg(1).string()))),
-            "integer" => return Value::Int(arg(0).int()),
+            "SetFrequency" if arg(2).int() != 1000 => self.note("SetFrequency"),
+            "PassageTime" | "RemainTime" | "DurationTime" | "Conquest" | "Random" => return Value::Int(0),
+            "ModuleFileName" => return Value::Str(self.file.to_string()),
+            "Strstr" => return Value::Int(i64::from(arg(0).string().contains(&arg(1).string()))),
+            "Integer" => return Value::Int(arg(0).int()),
             // Drawing and bookkeeping that changes nothing on screen.
-            "setvertex" | "setfrequency" | "setpan" | "waittext" | "waitplay" | "lockvideo" | "reset" | "setshortcut" => {}
-            "createprocess" => self.note(format!("CreateProcess {}", arg(4).string())),
-            other => self.note(format!("built-in {other}")),
+            "SetVertex" | "SetFrequency" | "SetPan" | "WaitText" | "WaitPlay" | "LockVideo" | "Reset" | "SetShortcut" => {}
+            "CreateProcess" => self.note(format!("CreateProcess {}", arg(4).string())),
+            other if BUILTINS.contains(&other) => self.note(format!("built-in {other}")),
+            // No built-in and no NSS function has this name: the exe skips
+            // the call (`Waitkey(500)`, `SL_Rightdown(…)`).
+            other => self.note(format!("skipped: no function {other}")),
         }
         Value::Null
     }
@@ -2513,8 +2544,26 @@ scene a.nss
         assert!(ops.iter().any(|op| matches!(op, Op::HideTextWindow)));
         let last = ops.iter().rposition(|op| matches!(op, Op::BeginTransition { fade_ms: 500, .. })).expect("fade out");
         assert!(matches!(&ops[last + 1], Op::Sprites { changes, .. } if changes[0].sprite.is_none()));
-        // SoundPlay and OnSE aren't defined here: built-ins we don't know.
-        assert!(c.notes.contains_key("built-in soundplay"));
+        // SoundPlay and OnSE aren't defined here, and aren't built-ins.
+        assert!(c.notes.contains_key("skipped: no function SoundPlay"));
+    }
+
+    #[test]
+    fn names_are_case_sensitive_as_in_the_exe() {
+        let story = r#"
+scene a.nss
+{
+	Waitkey(500);
+	WaitKey(300);
+	sl_rightdown(1000);
+}
+"#;
+        let library = "function SL_rightdown($t)\n{\n\tWait($t);\n}\n";
+        let c = compile(story, library);
+        // `Waitkey` and `sl_rightdown` are neither built-ins nor functions.
+        let waits: Vec<u32> = c.ops.iter().filter_map(|op| match op { Op::Wait { ms } => Some(*ms), _ => None }).collect();
+        assert_eq!(waits, [300], "{:?}", c.ops);
+        assert!(c.notes.contains_key("skipped: no function Waitkey"));
     }
 
     #[test]
