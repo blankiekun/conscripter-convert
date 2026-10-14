@@ -510,6 +510,34 @@ left as comments are the start point's debug menu, which the user didn't
 want. Dropped by the user: WSS (the system-voice room), right-click
 menus, native Linux/macOS movie playback.
 
+**Found by the debug trace (2026-10-14).** A full exploration with the
+engine's debug trace (`cons_explore.py`, 62,185 pages, 1,220 labels;
+`docs/new-game.md`, "Checking a build with the debug trace") found these.
+Not fixed yet:
+- **A text line that stops the game.** `0.txt:24036` (`*conv_link19`),
+  「嘘ー！?  投稿者: イマたん（管理人）…」: the half-width `?` after 「！」
+  is read as an array reference, and the engine stops with "Array No. is
+  not declared" (exit 2). The converter must write `?`, `%`, `$` and `@`
+  in text as full-width (or escape them). It is the only such line in
+  `0.txt` (`cons_trace_check.py --script` checks every text line).
+- **`%190` after a load.** The loadgosub `*conv_scene_loaded` runs `if
+  %2900 == 0 mov %151,%150:mov %190,%150:return`, so every load sets
+  `%190` to `%150`, while in play `%190` stays 0 until it is clamped
+  (`if %190 > %150 mov %190,%150`). Check against the original whether
+  a load should set it.
+- **Pictures too large for the web build.** Six `fx\fx0*.png`
+  animation strips (from `HD/fx.arc`, sprite 59) are up to 24000×600,
+  more than a browser's graphics are sure to take (4096 px). Split each
+  strip into frames or several strips, or lay the frames out in rows.
+- **Long effects.** 55 transitions ask for 15 s (`print` with 15000 ms;
+  `s10_l51` and others). Check against the original that the durations
+  are read right.
+
+Fixed in CONscripter by the same work: half-width katakana in Shift_JIS
+text (「影（ｼｬﾄﾞｳshadow ）」 in `s7_l8` drew as a blank and lost the next
+character), and saves losing the speaker name (`strsp` 49) and looping
+sound effects on `dwave` channels.
+
 What follows is the optional leftover list, kept for whoever comes back
 to the game. Nothing in it was asked for.
 
