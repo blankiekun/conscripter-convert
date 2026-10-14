@@ -615,28 +615,42 @@ out/conscripter-mura`). The route runs and `--at` starts are in
 `research/nitroplus/engrun.py`.
 
 Next, in order:
-1. Sound volume: `SetVolume` on a playing sound is ignored unless it
+1. **Rebuild and rerun the routes.** The fixes after the route runs
+   (above) need a full build to show, and the engine moved to 0.19.1+
+   (3c7c957, 2179dbd). Run `research/nitroplus/engrun.py --all` and
+   the trace checker on each trace.
+2. **Built-in names are case-sensitive in the exe** (`dispatch_builtin`,
+   `research/nitroplus/builtins.md`, "In the exe"); the converter
+   matches them, and NSS function names, ignoring case. So it turns
+   `Waitkey(500)` (`md04_004`, `md06_035`) into a wait and runs
+   `SL_rightdown` for `SL_Rightdown(…)` (`ma00_000`), where the original
+   does nothing. Match exactly, and drop the names the exe skips (17,
+   listed there).
+3. Sound volume: `SetVolume` on a playing sound is ignored unless it
    goes to 0, so sounds faded to 1 (99 places; mostly the BGM ducked
    for a moment and raised again) keep playing at full volume, and
    loops faded that way never stop (the checker's `loop` rule). Needs a
    per-channel volume in the output (NScripter's `bgmvol`/`chvol`).
    The exe's curve (`research/nitroplus/builtins.md`, `SetVolume`):
    −10 dB per halving, so volume 1 is silent and 500 is 32 %.
-2. Check against the original: the figure in `ma01_002` (おれ→ ○□卍□○
+4. An NPA packer (`npa.rs` has the inverse table), so the original can
+   be started at any scene from a patched `nss.npa` instead of clicking
+   (`docs/new-game.md` step 9, "Running the original under wine").
+5. Check against the original: the figure in `ma01_002` (おれ→ ○□卍□○
    ←？ with ／＼ strokes) only lines up written horizontally, and comes
    apart in its vertical box.
-3. A replay of route 9 with `--shot-pages` (engine 0.19.0) stopped
+6. A replay of route 9 with `--shot-pages` (engine 0.19.0) stopped
    drawing at `f_md01_002:158856` (`print 10,500`, page 18,573) with
    the process spinning; the same run passed before. Not reproduced.
-4. **System screens** (step 7): title, save/load, settings, backlog,
+7. **System screens** (step 7): title, save/load, settings, backlog,
    built as in-script menus from `cg/sys/*` parts, as for 最果てのイマ
    (`conv-cons/src/menu.rs`); the settings screen also shows the build's
    version line (`version.txt`). A big item: check with the user first.
-5. The largest leftovers below: `CreateProcess` (via Lua), non-blocking
+8. The largest leftovers below: `CreateProcess` (via Lua), non-blocking
    `Move`/`Zoom`, `AddRender` (needs a per-sprite blend mode).
-6. Step 11.5: `#` flags (globals from %800) across quit and relaunch,
+9. Step 11.5: `#` flags (globals from %800) across quit and relaunch,
    and in the web build.
-7. Optional: the 18 files with no `else` (below).
+10. Optional: the 18 files with no `else` (below).
 
 **Leftovers** (counts from the dry run's notes):
 - `CreateProcess` (510 calls; the battle HUD `CP_*` in
