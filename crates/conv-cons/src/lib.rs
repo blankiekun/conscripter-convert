@@ -859,14 +859,7 @@ pub fn emit(script: &Script) -> String {
             Op::Choice { options, style } => {
                 if let Some(s) = style {
                     writeln!(out, "selectcolor \"#{:06X}\",\"#{:06X}\"", s.on_color, s.off_color).unwrap();
-                    // With ruby on, vertical lines move left by the line
-                    // gap (room for the ruby at their right); the options
-                    // have none and stay on their plates.
-                    let mut w = s.window.clone();
-                    if has_ruby && w.vertical {
-                        w.text_x += w.line_gap as i32;
-                    }
-                    writeln!(out, "{}", setwindow(&w, speed, has_ruby, has_vertical, false)).unwrap();
+                    writeln!(out, "{}", setwindow(&s.window, speed, has_ruby, has_vertical, false)).unwrap();
                     writeln!(out, "csp {NAME_PLATE_SPRITE}:csp {NAME_TEXT_SPRITE}").unwrap();
                     plate_visible = false;
                     page_rows = 0;
@@ -1001,7 +994,10 @@ fn title_screen(out: &mut String, t: &TitleScreen, fade: &str, save_menu: bool, 
 /// spacing, line gap, ms per character, bold, shadow, window image, x,y.
 /// `speed`: milliseconds per character (a number or a variable).
 /// `ruby`: `rubyon` is set, which draws text a line gap lower (the ruby
-/// goes above it), so the window starts a line gap higher.
+/// goes above it), so the window starts a line gap higher; vertical lines
+/// it moves left by the line gap (the ruby goes at their right), so a
+/// vertical window starts a line gap further right. The line's own gap
+/// then holds the ruby, as in the original.
 /// `any_vertical`: some window is vertical, so a horizontal one must switch
 /// back.
 fn setwindow(w: &TextWindow, speed: &str, ruby: bool, any_vertical: bool, shadow: bool) -> String {
@@ -1009,9 +1005,10 @@ fn setwindow(w: &TextWindow, speed: &str, ruby: bool, any_vertical: bool, shadow
     if w.vertical {
         // tateyoko first: it clears the page using the old window's size.
         // Lines are columns: x counts them, y the characters down each.
+        let text_x = if ruby { w.text_x + w.line_gap as i32 } else { w.text_x };
         return format!(
-            "tateyoko 1:setwindow {},{},{},{},{},{},{},0,{speed},0,{shadow},\":a;{}\",{},{}",
-            w.text_x, w.text_y, w.rows, w.columns, w.font_size, w.font_size, w.line_gap, path(&w.image), w.x, w.y
+            "tateyoko 1:setwindow {text_x},{},{},{},{},{},{},0,{speed},0,{shadow},\":a;{}\",{},{}",
+            w.text_y, w.rows, w.columns, w.font_size, w.font_size, w.line_gap, path(&w.image), w.x, w.y
         );
     }
     let text_y = if ruby { w.text_y - w.line_gap as i32 } else { w.text_y };
@@ -1439,26 +1436,10 @@ fn escape(text: &str) -> String {
 }
 
 /// [`escape`]s text that `strsp` (or another sprite text) will draw.
-/// Sprite texts draw half-width characters in pairs, taking the byte after
-/// one along even when it starts a full-width character (NScripter's rule:
-/// half-width characters come in pairs), so a run of an odd number of
-/// them before a full-width one gets a space at its end.
+/// CONscripter no longer pairs a half-width character with a full-width
+/// one after it, so an odd run needs no padding space.
 fn sprite_text(text: &str) -> String {
-    let mut out = String::new();
-    let mut run = 0;
-    for c in escape(text).chars() {
-        let half_width = c.is_ascii() || ('\u{ff61}'..='\u{ff9f}').contains(&c);
-        if half_width {
-            run += 1;
-        } else {
-            if run % 2 == 1 {
-                out.push(' ');
-            }
-            run = 0;
-        }
-        out.push(c);
-    }
-    out
+    escape(text)
 }
 
 #[derive(Default)]
@@ -2260,12 +2241,9 @@ end
     }
 
     #[test]
-    fn sprite_texts_pair_half_width_characters() {
-        assert_eq!(sprite_text("ＳＡＴＩＥ'Ｓ・ＴＩＭＥ"), "ＳＡＴＩＥ' Ｓ・ＴＩＭＥ");
-        assert_eq!(sprite_text("火岸－HIGAN－"), "火岸－HIGAN －");
-        assert_eq!(sprite_text("『IMA:category5』"), "『IMA:category5 』");
-        assert_eq!(sprite_text("『TCP/IP』"), "『TCP ／IP』");
-        assert_eq!(sprite_text("TypeCGC"), "TypeCGC");
+    fn sprite_texts_are_not_padded() {
+        assert_eq!(sprite_text("ＳＡＴＩＥ'Ｓ・ＴＩＭＥ"), "ＳＡＴＩＥ'Ｓ・ＴＩＭＥ");
+        assert_eq!(sprite_text("『TCP/IP』"), "『TCP／IP』");
     }
 
     #[test]

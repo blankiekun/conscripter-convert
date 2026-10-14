@@ -465,13 +465,18 @@ step 9). Helper scripts of the sessions are in `research/xuse/local/`
   Music, Pictures, Videos) are symlinks to the real home folders, and
   the game saves to `Documents\Xuse\最果てのイマ COMPLETE\`: replace the
   six symlinks with real folders.
-- **Audio:** disabling `winepulse.drv`/`winealsa.drv` is not enough:
-  under wine 11 the game was still heard. Use the Muramasa recipe
-  (`docs/games/muramasa.md`): `ALSA_CONFIG_PATH=<file>` whose only
-  content is `pcm.!default { type null }` (+ `ctl.!default`,
-  `pcm.null`), `PULSE_SERVER=unix:/nonexistent` and `WINEDLLOVERRIDES=
-  "winepulse.drv,wineoss.drv,winewayland.drv=d;winemenubuilder.exe=d"`.
-  Stop wine (`wineserver -k`) and Xvfb as soon as the pictures are taken.
+- **Locale:** `LANG=ja_JP.UTF-8` and `LC_ALL=ja_JP.UTF-8`, as for every
+  game under wine, so Japanese folder and file names (the save folder
+  above) come out right.
+- **Silence:** the old `WINEDLLOVERRIDES="winepulse.drv,winealsa.drv,
+  winemenubuilder.exe=d"` is not silent under wine 11 (the game was
+  heard). Use the null ALSA sink from `docs/games/muramasa.md`:
+  `ALSA_CONFIG_PATH` pointing at a file with only `pcm.!default { type
+  null }`, `PULSE_SERVER=unix:/nonexistent`, and `WINEDLLOVERRIDES=
+  "winepulse.drv,wineoss.drv,winewayland.drv=d;winemenubuilder.exe=d"`
+  (and `HKCU\Software\Wine\Drivers` `Audio=alsa`, `Graphics=x11`; the
+  game starts without a `ctl.!default`). Stop wine (`wineserver -k`) and
+  Xvfb as soon as the pictures are taken.
 - **Display:** an Xvfb display of its own, never the user's desktop.
   The game draws at screen offset (3, 29). Clicks need `xdotool
   mousedown`, a short sleep, then `mouseup`; a plain `click` is

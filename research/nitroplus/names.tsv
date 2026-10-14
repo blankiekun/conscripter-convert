@@ -1,0 +1,110 @@
+# Muramasa.exe: functions and data identified so far, applied by
+# research/tools/ghidra/ghidra_export.sh --names. Columns (tab-separated):
+# address, name, comment. Details: docs/games/muramasa.md and
+# research/nitroplus/builtins.md.
+00405250	dispatch_builtin	runs one statement: compares its text, case-sensitively, with 91 built-in names followed by ( space tab full-width space or line break (research/nitroplus/dispatch.py), calls the handler; anything else goes to call_nss_function
+00407fb0	builtin_CreateName	statement built-in CreateName, called by dispatch_builtin
+00408110	builtin_CreateAnimation	statement built-in CreateAnimation, called by dispatch_builtin
+00408300	builtin_CreateColor	statement built-in CreateColor, called by dispatch_builtin
+004085d0	builtin_CreateProcess	statement built-in CreateProcess, called by dispatch_builtin
+00408a80	builtin_CreateEffect	statement built-in CreateEffect, called by dispatch_builtin
+00408cc0	builtin_CreateTexture	statement built-in CreateTexture, called by dispatch_builtin
+00408f70	builtin_CreateClipTexture	statement built-in CreateClipTexture, called by dispatch_builtin
+00409420	builtin_CreateDifferenceTexture	statement built-in CreateDifferenceTexture, called by dispatch_builtin
+004098e0	builtin_CreateFrame	statement built-in CreateFrame, called by dispatch_builtin
+00409ce0	builtin_CreateMask	statement built-in CreateMask, called by dispatch_builtin
+00409fa0	builtin_CreateStencil	statement built-in CreateStencil, called by dispatch_builtin
+0040a570	builtin_CreateSurface	statement built-in CreateSurface, called by dispatch_builtin
+0040a830	builtin_CreateMovie	statement built-in CreateMovie, called by dispatch_builtin
+0040abd0	builtin_CreateCube	statement built-in CreateCube, called by dispatch_builtin
+0040aee0	builtin_CreateText	statement built-in CreateText, called by dispatch_builtin
+0040b3a0	builtin_CreateWindow	statement built-in CreateWindow, called by dispatch_builtin
+0040b5e0	builtin_CreateCamera	statement built-in CreateCamera, called by dispatch_builtin
+0040b7b0	builtin_CreateChoice	statement built-in CreateChoice, called by dispatch_builtin
+0040bca0	builtin_CreateSound	statement built-in CreateSound, called by dispatch_builtin
+0040beb0	builtin_CreateBacklog	statement built-in CreateBacklog, called by dispatch_builtin
+0040c030	builtin_CreateScrollbar	statement built-in CreateScrollbar, called by dispatch_builtin
+0040c360	builtin_LoadImage	statement built-in LoadImage, called by dispatch_builtin
+0040c550	builtin_LoadClipImage	statement built-in LoadClipImage, called by dispatch_builtin
+0040c900	builtin_LoadColor	statement built-in LoadColor, called by dispatch_builtin
+0040cb70	builtin_LoadFont	statement built-in LoadFont, called by dispatch_builtin; also parses the font weights (DONTCARE ... HEAVY) and shadow directions (LEFT ... AROUND)
+0040d360	builtin_LoadText	statement built-in LoadText, called by dispatch_builtin
+0040dc40	builtin_LoadFile	statement built-in LoadFile, called by dispatch_builtin
+0040dda0	builtin_UnloadFile	statement built-in UnloadFile, called by dispatch_builtin
+0040de90	builtin_LoadNPT	statement built-in LoadNPT, called by dispatch_builtin
+0040df30	builtin_Request	statement built-in Request, called by dispatch_builtin
+0040dfd0	builtin_Delete	statement built-in Delete, called by dispatch_builtin
+0040e050	builtin_Fade	statement built-in Fade, called by dispatch_builtin
+0040e150	builtin_Move	statement built-in Move, called by dispatch_builtin
+0040e270	builtin_BezierMove	statement built-in BezierMove, called by dispatch_builtin
+0040e3e0	builtin_Zoom	statement built-in Zoom, called by dispatch_builtin
+0040e4f0	builtin_Rotate	statement built-in Rotate, called by dispatch_builtin
+0040e620	builtin_Shake	statement built-in Shake, called by dispatch_builtin
+0040e7b0	builtin_MoveCamera	statement built-in MoveCamera/MoveCube, called by dispatch_builtin
+0040e8f0	builtin_WaitMove	statement built-in WaitMove, called by dispatch_builtin
+0040ea60	builtin_WaitFade	statement built-in WaitFade, called by dispatch_builtin
+0040ebd0	builtin_WaitZoom	statement built-in WaitZoom, called by dispatch_builtin
+0040ed40	builtin_WaitRotate	statement built-in WaitRotate, called by dispatch_builtin
+0040eeb0	builtin_WaitShake	statement built-in WaitShake, called by dispatch_builtin
+0040f020	builtin_WaitAction	statement built-in WaitAction, called by dispatch_builtin
+0040f190	builtin_WaitPlay	statement built-in WaitPlay, called by dispatch_builtin
+0040f300	builtin_WaitText	statement built-in WaitText, called by dispatch_builtin
+0040f470	builtin_Draw	statement built-in Draw, called by dispatch_builtin
+0040f520	builtin_DrawEffect	statement built-in DrawEffect, called by dispatch_builtin
+0040f690	builtin_DrawTransition	statement built-in DrawTransition, called by dispatch_builtin
+0040f7f0	builtin_Wait	statement built-in Wait, called by dispatch_builtin
+0040f9d0	builtin_WaitKey	statement built-in WaitKey, called by dispatch_builtin
+0040fd60	builtin_SetChip	statement built-in SetChip, called by dispatch_builtin
+0040fe60	builtin_SetAlias	statement built-in SetAlias, called by dispatch_builtin
+0040ff40	builtin_SetVertex	statement built-in SetVertex, called by dispatch_builtin
+00410040	builtin_SetShade	statement built-in SetShade, called by dispatch_builtin
+00410120	builtin_SetTone	statement built-in SetTone, called by dispatch_builtin
+00410200	builtin_SetImage	statement built-in SetImage, called by dispatch_builtin
+00410310	builtin_SetSurface	statement built-in SetSurface, called by dispatch_builtin
+00410460	builtin_SetComposite	statement built-in SetComposite, called by dispatch_builtin
+00410650	builtin_SetBlur	statement built-in SetBlur, called by dispatch_builtin
+00410890	builtin_SetStream	statement built-in SetStream, called by dispatch_builtin
+00410980	builtin_SetFov	statement built-in SetFov, called by dispatch_builtin
+00410a80	builtin_SetScrollbar	statement built-in SetScrollbar, called by dispatch_builtin
+00410b80	builtin_SetScrollSpeed	statement built-in SetScrollSpeed, called by dispatch_builtin
+00410c80	builtin_SetBacklog	statement built-in SetBacklog, called by dispatch_builtin
+00410e60	builtin_SetNextFocus	statement built-in SetNextFocus, called by dispatch_builtin
+00410f80	builtin_Disable	statement built-in Disable, called by dispatch_builtin
+00411030	builtin_SetVolume	statement built-in SetVolume, called by dispatch_builtin
+00411160	builtin_SetPan	statement built-in SetPan, called by dispatch_builtin
+00411290	builtin_SetFrequency	statement built-in SetFrequency, called by dispatch_builtin
+004113c0	builtin_SetLoop	statement built-in SetLoop, called by dispatch_builtin
+004114a0	builtin_SetLoopPoint	statement built-in SetLoopPoint, called by dispatch_builtin
+004115d0	builtin_MoviePlay	statement built-in MoviePlay, called by dispatch_builtin
+004117c0	builtin_ClearScore	statement built-in ClearScore, called by dispatch_builtin; compares an argument with LOCAL, GLOBAL
+00411900	builtin_ClearBacklog	statement built-in ClearBacklog, called by dispatch_builtin
+00411940	builtin_SetBaseTextInterval	statement built-in SetBaseTextInterval, called by dispatch_builtin
+004119e0	builtin_SetFont	statement built-in SetFont, called by dispatch_builtin; also parses the font weights and shadow directions, like builtin_LoadFont
+00411ea0	builtin_Save	statement built-in Save, called by dispatch_builtin
+00411fb0	builtin_Load	statement built-in Load, called by dispatch_builtin
+004121e0	builtin_DeleteSaveFile	statement built-in DeleteSaveFile, called by dispatch_builtin
+004122e0	builtin_Position	statement built-in Position, called by dispatch_builtin
+00412440	builtin_CursorPosition	statement built-in CursorPosition, called by dispatch_builtin
+004124f0	builtin_MoveCursor	statement built-in MoveCursor, called by dispatch_builtin
+00412590	builtin_DateTime	statement built-in DateTime, called by dispatch_builtin
+00412720	builtin_WriteFile	statement built-in WriteFile, called by dispatch_builtin
+004128d0	builtin_SetShortcut	statement built-in SetShortcut, called by dispatch_builtin
+004129a0	builtin_Escape	statement built-in Escape, called by dispatch_builtin
+00412b60	builtin_Reset	statement built-in Reset, called by dispatch_builtin
+00412c70	builtin_Exit	statement built-in Exit, called by dispatch_builtin
+00412cc0	builtin_System	statement built-in System, called by dispatch_builtin
+004130a0	call_nss_function	called for a statement name that is no built-in: looks for an NSS function of that name (objects of type 8), binds the arguments, switches to it; an unknown name is skipped, so Waitkey and XBOX360_* calls do nothing
+00414940	is_integer	true if a string holds only digits, + and -
+00438820	is_value_start	true if the text starts a value: a digit, $, #, (, +, -, or Message( Conquest( Array( AssocArray( VariableValue( ...
+0043a6f0	eval_term	( or [ starts a parenthesised expression, anything else goes to eval_primary
+0043a780	eval_primary	expression evaluator, values: the 31 value built-ins (Random, String, Count, Conquest, ...; research/nitroplus/evalnames.py), MessageBox styles, SYSTEM_ variables
+00446b20	queue_set_volume	SetVolume: fills a command record (object name, time, volume string, tempo) and applies sound_set_volume_cb to every object the name matches
+0044cb80	for_each_named_object	resolves an object name in a command record (@alias, a/b paths, * wildcards) and calls the record callback on each match
+00450550	sound_set_volume_cb	SetVolume callback per object: calls sound_set_volume with the record time
+00464b50	parse_texture_source	compares an argument with SCREEN, VIDEO, SCENE (CreateTexture sources, unverified)
+00475f50	sound_set_volume	volume string (0-1000, or @n relative to the current volume) clamped to 0-1000; time 0: set now, else start sound_volume_fade_thread. DirectSound volume = max(-10000, 3322*log10(f*v/1000)), f = the float at +0x118 (probably the volume setting), 0 = -10000; reaching 0 stops a playing sound
+004765e0	sound_stop	stops a sound (IDirectSoundBuffer::Stop) and resets its state
+00477ec0	sound_volume_fade_thread	linear volume ramp from the current to the target volume over the given time, in 50 ms steps; at the end the same 0-stops rule as sound_set_volume
+0047cd70	set_system_variable	assigns a $SYSTEM_ variable: compares the name with 62 setting names built on the stack (sound_volume_bgm, ...)
+004f6c10	_CIlog10	MSVC CRT log10 on ST0 (fldlg2/fyl2x)
+00534830	npa_name_table	256-byte substitution table for NPA names and data (file offset 0x134830; research/nitroplus/npa.py)

@@ -59,8 +59,8 @@ writes 3.5 GB. Run one at a time.
 | Movies (`.ngs`, MPEG-1) | ❌ Out of scope for now (decided 2026-10-13) |
 | Script parsing | ✅ All 913 files; 17 places that don't parse are all typos or dead code |
 | Story control flow (files, scenes, functions, `if`/`while`, choices, story flags, route ranking, heroine deaths) | ✅ Compiled; all 883 story files reached from `ma00_000` |
-| Text: vertical windows, face windows and name plates, ruby, `<k>` waits, voices | ✅ Converted |
-| Backgrounds, sprites, fades, mask wipes, zoom, shake, blur, BGM, sound effects | ✅ Converted (timed actions drawn as cross-fades, see "Leftovers") |
+| Text: vertical windows, face windows and name plates, ruby, `<k>` waits, voices | ✅ Converted; vertical columns where the original's are (checked under wine), turned marks (《「―) centred, English keeps its spaces |
+| Backgrounds, sprites, fades, mask wipes, zoom, shake, blur, BGM, sound effects | ✅ Converted (timed actions drawn as cross-fades, see "Leftovers"); volume changes on a playing sound ❌ not yet (only a fade to 0 is), see "Next" |
 | Choices | ✅ Drawn like the original's `SetChoiceBase` plates |
 | Parallel processes (`CreateProcess`: battle HUD, fire flicker, …) | ❌ Not converted; planned through Lua |
 | Additive / multiply blends, `Rotate`, `SetFrequency`, camera moves | ❌ Not converted |
@@ -480,6 +480,21 @@ Used to check what the engine does (`docs/new-game.md` step 9).
   through the logos and the opening reach the title; 最初から始める at
   (780, 260) starts `ma00_000`.
 - Stop with `wineserver -k` (with `WINEPREFIX` set) and kill Xvfb by PID.
+- `LANG=ja_JP.UTF-8` (and `LC_ALL`): without it the save folder
+  (`AppData\Roaming\Nitroplus\装甲悪鬼村正\1.00`) gets a garbled name,
+  the first save fails, and 最初から始める goes straight back to the
+  title. With it, clicking 最初から始める starts `ma00_000`.
+- Wine has no ＭＳ 明朝; fontconfig's substitute has a taller cell, so at
+  size 20 the original steps about 18 px per character instead of 20.
+  Compare where columns and lines start, not the character step.
+- **Patch first, click last** (`docs/new-game.md` step 9): the scripts
+  are plain `.nss` in `nss.npa`, so a copy of the archive with a patched
+  boot script can start any scene with its flags set and auto mode on
+  (`$SYSTEM_text_auto = true`), with no clicks. `research/nitroplus/npa.py`
+  decodes the archive (the inverse table is in `npa.rs`); a packer that
+  writes it back is still to do, and is the next step before another
+  wine session. Saves (`.npf`) are the fallback: `builtin_Save`
+  (`00411ea0`) and `builtin_Load` (`00411fb0`) would give their format.
 
 ## Status: in progress (2026-10-14)
 
@@ -574,6 +589,26 @@ Fixed on the way (each found by the runs, all in the current build):
   `Wait`'s time, or 1 s where the script doesn't wait.
 - The full build ran out of memory (7 GB) on 60x zooms; now 1.2 GB.
 
+Fixed after the route runs (2026-10-14), from screenshots of the first
+page each punctuation mark or symbol shows on (`--shot-pages`):
+- Vertical text drew the marks CONscripter turns for it (《》「」『』（）
+  ― ～ …) high and to one side of the column: 《 stuck out to the
+  left. The engine now turns them about the centre of their cell
+  (CONscripter 3c7c957), so ︽ sits on the text it opens.
+- Vertical text sat 8 px left of the original's columns (page 5 of the
+  prologue, filmed under wine): `rubyon` moves vertical lines left by
+  the line gap, which the converter undid for choice windows only. Every
+  vertical window now starts a line gap further right, and the columns
+  match the original to the pixel.
+- `[text0081]〝卵〟を…` (`md05_003`, the only marker with text after it
+  on its line) printed the marker as text, ［ｔｅｘｔ００８１］. The NSS
+  parser now reads it as a marker. Needs a full build to show.
+- English lost most of its spaces: ONScripter skipped the space before
+  each pair of half-width characters, so “Tell me the tales that to me
+  were so dear” (`mb04_008vs`, 33 such lines) showed as “Tellmethe tales
+  thattomeweresodear”. CONscripter now keeps a space after other text,
+  in sprite text too (2179dbd).
+
 Testing notes: other agents stop engines with `pkill -x conscripter`;
 run ours through a symlink with another name (`--engine
 out/conscripter-mura`). The route runs and `--at` starts are in
@@ -585,15 +620,23 @@ Next, in order:
    for a moment and raised again) keep playing at full volume, and
    loops faded that way never stop (the checker's `loop` rule). Needs a
    per-channel volume in the output (NScripter's `bgmvol`/`chvol`).
-2. **System screens** (step 7): title, save/load, settings, backlog,
+   The exe's curve (`research/nitroplus/builtins.md`, `SetVolume`):
+   −10 dB per halving, so volume 1 is silent and 500 is 32 %.
+2. Check against the original: the figure in `ma01_002` (おれ→ ○□卍□○
+   ←？ with ／＼ strokes) only lines up written horizontally, and comes
+   apart in its vertical box.
+3. A replay of route 9 with `--shot-pages` (engine 0.19.0) stopped
+   drawing at `f_md01_002:158856` (`print 10,500`, page 18,573) with
+   the process spinning; the same run passed before. Not reproduced.
+4. **System screens** (step 7): title, save/load, settings, backlog,
    built as in-script menus from `cg/sys/*` parts, as for 最果てのイマ
    (`conv-cons/src/menu.rs`); the settings screen also shows the build's
    version line (`version.txt`). A big item: check with the user first.
-3. The largest leftovers below: `CreateProcess` (via Lua), non-blocking
+5. The largest leftovers below: `CreateProcess` (via Lua), non-blocking
    `Move`/`Zoom`, `AddRender` (needs a per-sprite blend mode).
-4. Step 11.5: `#` flags (globals from %800) across quit and relaunch,
+6. Step 11.5: `#` flags (globals from %800) across quit and relaunch,
    and in the web build.
-5. Optional: the 18 files with no `else` (below).
+7. Optional: the 18 files with no `else` (below).
 
 **Leftovers** (counts from the dry run's notes):
 - `CreateProcess` (510 calls; the battle HUD `CP_*` in

@@ -17,10 +17,47 @@ Sources, strongest first:
    `maosasagawa/muramasa-android-port`, which runs this game's scripts
    up to the story; and CommitteeOfZero/nitrosharp (MIT, written for
    Chaos;Head and Steins;Gate, same script language).
+4. **Muramasa.exe itself**, decompiled (see "In the exe" below).
+   Strongest for whatever it settles; rows checked there say
+   "**exe:**".
 
 **Unverified** marks a row that rests on a guess or on one
-reimplementation only. Check those under wine before relying on them
-(`docs/games/muramasa.md`, "Running the original under wine").
+reimplementation only. Check those in the exe or under wine before
+relying on them (`docs/games/muramasa.md`, "Running the original under
+wine").
+
+## In the exe
+
+Muramasa.exe reads the `.nss` text directly. Names below are from
+`research/nitroplus/names.tsv`; the Ghidra export command is in
+`docs/new-game.md` §2.
+
+- **Statements** go to `dispatch_builtin` (`00405250`). It compares the
+  statement text byte by byte with 91 built-in names, each followed by
+  `(`, a space, a tab, a full-width space or a line break, and calls
+  one handler per name (`builtin_SetVolume` = `00411030`, …). The
+  comparison is **case-sensitive**. `research/nitroplus/dispatch.py`
+  decodes the table: `python3 -I research/nitroplus/dispatch.py
+  <export>/decomp/00405250_*.c` prints name, handler address and name.
+- **Values** (built-ins used inside expressions) are matched the same
+  way in `eval_primary` (`0043a780`): 31 names, from `Random`,
+  `String`, `Count`, `Conquest`, `RemainTime` and `ImageHorizon` to
+  `LockVideo` (`research/nitroplus/evalnames.py`).
+- **Any other name** goes to `call_nss_function` (`004130a0`), which
+  looks for an NSS function with exactly that name. If there is none,
+  the statement is skipped: no error, no effect. The scripts call 17
+  such names: `XBOX360_LockVideo` and `DialogChangeState` (18 each,
+  Xbox 360 leftovers in `sys_*.nss`), `Waitkey` (2, see `WaitKey`),
+  and one-off typos or removed helpers (`ShakeOne`, `SceneFadeBG`,
+  `CreateTextureadd`, `SL_Rightdown`, `Boxframe`, …). The converter
+  can drop them all.
+- Built-ins the exe has but the scripts never call: `CreateAnimation`,
+  `CreateClipTexture`, `CreateDifferenceTexture`, `CreateFrame`,
+  `Disable`, `LoadClipImage`, `LoadFile`, `LoadFont`, `LoadNPT`,
+  `MoveCube`, `SetBaseTextInterval`, `SetChip`, `SetComposite`,
+  `SetImage`, `UnloadFile`, `WaitMove`, `WaitRotate`, `WaitShake`;
+  values `AvailableFile`, `BacklogLine`, `BacklogRow`, `MilliTime`,
+  `MountSavedata`, `SoundAmplitude`, `Strlen`.
 
 ## Conventions shared by most built-ins
 
@@ -200,7 +237,7 @@ Lua fallback.
 |---|---|---|
 | `CreateSound(obj, kind, file)` | 48 | Loads a sound object; `kind` = `SE`, `BGM`, `VOICE` (picks the volume setting). Helpers: `CreateSE(obj, file)` (3,904; `sound/se/` + file, volume 0, alias), `OnSE(file, volume)` (2,607; one-shot SE on a rotating `OnSE01…10` object). |
 | `Request(snd, Play)` | 122 | Starts playback. |
-| `SetVolume(snd, time, volume, tempo)` | 2,556 | Volume ramp; `SetVolume("@mbgm*", 2000, 0, null)` fades the BGM out. Wildcards common. |
+| `SetVolume(snd, time, volume, tempo)` | 2,556 | Volume ramp; `SetVolume("@mbgm*", 2000, 0, null)` fades the BGM out. Wildcards common. **exe** (`sound_set_volume`, `00475f50`): `volume` is 0–1000 (`"@n"` = current + n), clamped; the ramp is linear in that number over `time` ms (time 0: at once). The sound card gets `max(−10000, 3322·log10(volume/1000))` hundredths of a dB (volume times a per-sound factor, probably the volume setting), i.e. −10 dB per halving: 500 = −10 dB, 100 = −33 dB, **1 = −99.7 dB, silent but still playing**. Reaching 0 stops a playing sound. As a linear amplitude (`chvol`, `bgmvol`): 100·(volume/1000)^1.661 %, so 500 → 32 %, 100 → 2 %. |
 | `SetLoop(snd, bool)` | 19 | Loop on/off. |
 | `SetLoopPoint(snd, start ms, end ms)` | 3 | Loop region. |
 | `SetFrequency(snd, time, rate, tempo)` | 182 | Playback speed, 1000 = normal. |
@@ -219,13 +256,13 @@ on a channel picked per object name, looping SE (`MusicStart(…, true)`) →
 | Built-in | Uses | Meaning |
 |---|---|---|
 | `Wait(ms)` | 3,939 | Sleep. NScripter `wait` (or `delay`, which a click skips). |
-| `WaitKey([ms])` | 1,639 | Wait for a click, or at most `ms`. `Waitkey` (2) is presumably the same (case-insensitive names, **unverified**). NScripter `click`, or `waittimer`/`btnwait` with timeout. |
+| `WaitKey([ms])` | 1,639 | Wait for a click, or at most `ms` (**exe:** no number = no time limit). `Waitkey` (2, `md04_004`, `md06_035`) is **not** the same: names are case-sensitive and no NSS function has that name, so the exe skips it (see "In the exe"). NScripter `click`, or `waittimer`/`btnwait` with timeout. |
 | `WaitAction(obj, timeout)` | 552 | Wait until `obj`'s running animations end. |
 | `WaitFade` / `WaitZoom` | 4 / 3 | Same, for one kind of animation only. |
 | `ModuleFileName()` | 2,005 | Name of the current script (`ma01_001`), used to form `$GameName`. Compile-time constant. |
 | `Reset()` | 886 | In `chapter main` when a story file is started directly: restart through the boot script. Only used for debugging, so ignore it. |
 | `Conquest(script, scene, bool)` | 312 | "Already read" query/mark for skip (`$AllRead = Conquest(…)`). Map to NScripter's read-text tracking (`skip` honours it) or a global flag. |
-| `Random(n)` | 1,412 | 0 … n−1 (**unverified** bound). `rnd`. |
+| `Random(n)` | 1,412 | 0 … n−1 (**exe:** generator value % n, seeded from the clock). `rnd`. |
 
 ## Tier 2: everything else, by use count
 

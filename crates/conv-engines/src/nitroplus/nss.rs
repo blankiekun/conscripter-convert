@@ -1019,6 +1019,18 @@ fn parse_text(body: &str, first_line: u32, errors: &mut Vec<ParseError>) -> Resu
                 line_start = false;
                 continue;
             }
+            // A marker with the page's first line after it
+            // (`[text0081]〝卵〟を…` in `md05_003`): the marker, then text.
+            let lead = text.len() - text.trim_start().len();
+            if let Some(digits) = text.trim_start().strip_prefix("[text").and_then(|t| t.split_once(']')).map(|(d, _)| d)
+                && !digits.is_empty()
+                && digits.bytes().all(|b| b.is_ascii_digit())
+            {
+                items.push(Inline::Marker(format!("text{digits}")));
+                i += lead + "[text]".len() + digits.len();
+                line_start = false;
+                continue;
+            }
         }
         line_start = false;
         if c == '\n' {
@@ -1233,6 +1245,14 @@ mod tests {
         assert!(!t.items.iter().any(|i| matches!(i, Inline::Tag(_))));
         assert_eq!(t.items.iter().filter(|i| matches!(i, Inline::Str(_))).count(), 1);
         assert!(matches!(&s[1].kind, StmtKind::Expr(_)) && s[1].line == 11, "{:?}", s[1]);
+    }
+
+    #[test]
+    fn a_marker_with_text_after_it_is_still_a_marker() {
+        let s = body("<PRE @box0>\n[text0081]〝卵〟を植えられたのか!?\n</PRE>\nWait(1);");
+        let StmtKind::Text(t) = &s[0].kind else { panic!() };
+        assert_eq!(t.items[0], Inline::Marker("text0081".into()));
+        assert_eq!(t.items[1], Inline::Str("〝卵〟を植えられたのか!?".into()));
     }
 
     #[test]
