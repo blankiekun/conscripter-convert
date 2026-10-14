@@ -1,8 +1,10 @@
 # TODO for the next agent
 
-State on 2026-10-13 (updated by a fifth session; start with "Next"
-below). Read this first, then `saiima.md` (local handoff
-notes, git-ignored) and `PLAN.md` §4.2 and §6 ("Remaining work for
+**最果てのイマ COMPLETE is finished** (2026-10-14, CONscripter 0.17.0).
+What follows is the record, plus optional leftovers nobody has asked
+for. **Starting a new game? Read `CLAUDE.md` and `docs/new-game.md`.**
+Coming back to this game: read this, then `saiima.md` (local handoff
+notes, git-ignored) and `PLAN.md` §4.2 and §6 ("Status of
 最果てのイマ").
 
 ## Rules (from the user)
@@ -30,7 +32,8 @@ on `origin/main`, not `main`.
 
 ### Where the game stands
 
-The game is complete enough to play through: every opcode the story
+Finished: the game plays from start to end with its system screens and
+extras. Every opcode the story
 uses is converted (the 2 instructions left are the start point's debug
 menu, which the user doesn't want); title, save/load, settings,
 backlog, button bar, top bars and confirmations work; the extras have
@@ -39,10 +42,10 @@ the BGM room (`336f237`). **WSS is dropped** (user, 2026-10-13): its menu
 item stays greyed out (`ExtrasAction::Unavailable` in `extras_menu()`).
 Findings, in case it ever comes back, are in `saiima.md` ("WSS").
 
-### What is left, roughly by how visible it is
+### Optional leftovers, roughly by how visible they are
 
 Nothing below has been asked for; check with the user before starting
-a big one.
+any of it.
 
 1. **Transitions and effects not matched yet:** every 0x76 transition
    now has its own drawing (MeltDown last, via `cons_melt.dll`; Zigzag's
@@ -438,8 +441,10 @@ engines print `z150` etc.). The web build compiles with it.
       wrong) is the per-row acceleration (a/255)²·0.45 + 0.03 (0x4451e0)
       that stretches the falling columns; mapped to a stretch of 15 / 72
       / 240 % (a guess: subs 46/47 weren't filmed). New engine plugin
-      `cons_melt.dll` (engine `48200cd`, not released yet; older engines
+      `cons_melt.dll` (engine `48200cd`, CONscripter 0.17.0; older engines
       draw a cross-fade). Checked on Xvfb mid-effect.
+- [x] CONscripter 0.17.0 (engine `5b50c76`, tag `v0.17.0`, Android
+      versionCode 20): `cons_melt.dll`.
 - [ ] Transitions still drawn as cross-fades: SmoothCrossFade (8), an
       eased cross-fade, close enough.
 - [x] Bars always shown (user's request, 2026-10-13): the top bars and

@@ -7,8 +7,9 @@ optionally with AI agents. The converter and the engine are developed
 together: when a game feature can't be reproduced with the engine's existing
 commands, the feature is added to CONscripter (§4.1).
 
-- **First target game:** 最果てのイマ (Saihate no Ima). Its engine is not yet
-  identified; that's the first task (see §6).
+- **First game:** 最果てのイマ COMPLETE (Xuse's own engine), finished
+  2026-10-14 (§6). Second: 装甲悪鬼村正 (Nitroplus NSS), in progress on
+  the `nitroplus` branch. How to start a new game: `docs/new-game.md`.
 
 - **Language:** Rust (cargo workspace) for the converter; C++ for engine
   features, which go into CONscripter (the `engine/` submodule).
@@ -147,7 +148,7 @@ Engine features added for converted games (details in the engine's
 | `delsavegame` (delete a save and its thumbnail) | The save menu's delete button. Replaced a global flag per slot that only hid the save; a slot an older build flagged is deleted when the menu lists it |
 | `cons_slide.dll`, `cons_zoom.dll` (effect 99 plugins: slides in 8 directions, four zooms) | 0x76 transitions: Slide in/out (subs 10-25, 7 uses) and Zoom (37-40, 116 uses), decoded from the exe (`transition_style` in the Xuse converter). Scroll (41-44) maps to ONScripter's effects 11-14 and Mosaic (27) to 16 then 17, without engine work |
 | `cons_flip.dll` (effect 99 plugin: a picture turning edge-on, either axis, growing or shrinking) | 0x76 RollFlip (subs 32-35, 24 uses): seen in the original under wine (the new picture widens from a centre line, or the old one narrows into it), sizes sin/cos of progress × 90° from the exe (0x446460); also TvPowerSwitch (sub 48, 11 uses) as a 700 ms vertical collapse. CONscripter 0.15.0 |
-| `cons_melt.dll` (effect 99 plugin: the old picture melts down off the screen behind a smooth random edge, falling columns stretched) | 0x76 MeltDown (subs 45-47, 3 uses): filmed under wine (sub 45), the edge spline and stretch from the exe (0x445310, 0x4458e0). Engine `48200cd`, not released yet |
+| `cons_melt.dll` (effect 99 plugin: the old picture melts down off the screen behind a smooth random edge, falling columns stretched) | 0x76 MeltDown (subs 45-47, 3 uses): filmed under wine (sub 45), the edge spline and stretch from the exe (0x445310, 0x4458e0). CONscripter 0.17.0 |
 | `windowtrans opacity` | The settings' ウィンドウ透過 row (the original's ウインドウの不透明度 slider): the text window picture drawn at 0-255 over its own alpha. CONscripter 0.16.0 |
 | WebP in the web build (libwebp linked in; emscripten's SDL_image has no WebP) | Archive size on the web: `--webp` stores images as near-lossless WebP, 218 MB instead of 457 MB of PNG (`arc.nsa` 765 MB instead of 992 MB). Opt-in, because builds whose SDL_image lacks libwebp can't read it |
 | `screenfilter` (the `spfilter` filters on the picture behind the text window, 4 slots, kept in saves and by `pushscreen`) and `spfilter`/`screenfilter` kind 5 (monotone: greyscale plus r, g, b offsets) | 0x70 screen filters, 395 uses: darkening (brightness down to -250), greyscale and sepia (monotone palette `pal0001.pal`, grey + (28, -9, -38)) flashbacks, negatives, colour overlays, each faded in by `print` |
@@ -230,8 +231,9 @@ Done without engine work:
 | Order | Engine | Why |
 |---|---|---|
 | 1 | **NScripter** | Round-trip test (NScripter → IR → NScripter) of the IR and output stage, no reverse engineering involved |
-| 2 | **Saihate no Ima's engine** (to be identified in M0) | First real target. If it turns out to be a known engine (e.g. KiriKiri), use the existing documentation; if not, this is the first job for the format sleuth and opcode inferrer |
-| 3+ | KiriKiri2/KAG, RealLive/Siglus, CatSystem2, BGI/Ethornell, Yu-ris, Artemis, Majiro, Softpal… | Chosen by which games you want to convert next |
+| 2 | **Xuse** (最果てのイマ COMPLETE) | First real target, an undocumented in-house engine reversed from the exe. **Finished 2026-10-14** |
+| 3 | **Nitroplus NSS** (装甲悪鬼村正) | In progress (branch `nitroplus`, notes in `muramasa.md`): NSS compiles to NScripter, Lua as the fallback |
+| 4+ | KiriKiri2/KAG, RealLive/Siglus, CatSystem2, BGI/Ethornell, Yu-ris, Artemis, Majiro, Softpal… | Chosen by which games you want to convert next |
 
 ### Target 1: 最果てのイマ COMPLETE (Xuse, 2015)
 
@@ -520,15 +522,24 @@ license before reusing code.
 
 Profiles are also the main thing the AI agents write (see §8).
 
-### Remaining work for 最果てのイマ (as of 2026-10-13)
+### Status of 最果てのイマ: finished (2026-10-14)
 
-Converted and playable: text, voices, sprites with colour filters,
-backgrounds, BGM, sound effects, transitions, text modes, clickable links,
-chapter titles, and the system screens (title, save/load, settings with
-voice switches and read-only skip, backlog, button bars, yes/no
-confirmations) and the extras (CG gallery, scene replay, BGM room).
-Two script instructions are left as comments: the start point's debug
-menu, which the user doesn't want.
+Converted and playable from start to end: text, voices, sprites with
+colour filters, backgrounds, BGM with loop points, sound effects, movies,
+every transition kind (Wave, Dot4x4, SoftEdgeWipe, Dissolve, BoxRolling,
+RollFlip, Zoom, Slide, Scroll, Mosaic, TvPowerSwitch and MeltDown each
+drawn their own way, most filmed in the original under wine), screen
+filters and moving effects, text modes, ruby and text sizes, clickable
+links, chapter titles, the system screens (title, save/load, settings
+with voice switches and read-only skip, backlog with names and voice
+replay, button bars, yes/no confirmations) and the extras (CG gallery,
+scene replay, BGM room). Every story instruction is converted; the two
+left as comments are the start point's debug menu, which the user didn't
+want. Dropped by the user: WSS (the system-voice room), right-click
+menus, native Linux/macOS movie playback.
+
+What follows is the optional leftover list, kept for whoever comes back
+to the game. Nothing in it was asked for.
 
 **Settings screen.** The original's settings dialog has six pages; these
 parts are not converted:
@@ -552,9 +563,11 @@ parts are not converted:
   original's title code plays none, as far as was checked).
 - Button bar lock button (`SysTray.004` #9).
 
-**Script opcodes** (counts are remaining uses):
-- `0x70`: only Zigzag (kind 12, one use) is left; Smooth, HueSatura,
-  BrightnessInvert and Filter-Replace are converted;
+**Script opcodes:** all converted (the converter reports 2 unsupported
+instructions, both in the unreachable debug menu). Notes on the last
+ones done:
+- `0x70`: every kind is converted (Zigzag last, with `screenripple`'s
+  blend);
 - `0x93`/`0x94` are done: `0x93 N` unlocks scene N of the scene replay
   (global flag `%3000+N`), `0x94` ends a replayed scene (a no-op in play:
   `if %152 == 1 goto *conv_replay_end`);
@@ -564,17 +577,18 @@ parts are not converted:
   that outlasts background changes; `0x8a` waits for a one-shot's last
   frame. Not converted: the rarer layer-2 `0x7a`/`0x7b` records (6 and 7
   uses), which load no animation;
-- about 30 rarer opcodes (`0x6d` quakes, `0x6e` flashes and `0x6f` pulses are done). `0x55` is done: a second background object, mostly the
+- `0x6d` quakes, `0x6e` flashes and `0x6f` pulses are done. `0x55` is done: a second background object, mostly the
   `frameNN` overlays (letterbox bars, speed lines), drawn as sprite 61
   (over the characters) or 999 (under them) and kept across background
   changes; `0x8c`'s static is sprite 60, over it;
 
 **Accuracy.**
-- Transitions still drawn as cross-fades: Wave (0-3, 39 uses), Dissolve
-  (26, 69), RollFlip (32-35, 24), SoftEdgeWipe (5-8, 10), TvPowerSwitch
-  (48, 11), BoxRolling, SmoothCrossFade, Dot4x4, MeltDown (under 10
-  each). Since then all but SmoothCrossFade have their own drawing
-  (TODO.md, "Transitions").
+- Transitions: only SmoothCrossFade (8 uses) is still a plain cross-fade
+  (the original eases it). BoxRolling is a push where the original
+  squeezes the pictures like cube faces; MeltDown's stretch for subs
+  46/47 is scaled from the exe, not filmed. Quakes, flashes and pulses
+  were never compared with the original (our flashes are under the text
+  window; the original's cover it).
 - Full-screen text styles 1-7: metrics are estimates; calibrate from
   screenshots of the original (style 5, route 10, is the most used).
 - Unchecked assumptions: negative mask softness inverts the mask; text
@@ -890,9 +904,44 @@ should carry over to the next engine.
 - **Keep a handoff file** (`saiima.md`) with a "Resume here" section.
   Context resets happen mid-task, and re-deriving state is expensive.
 
+From the second half (system screens, extras, matching effects):
+- **Film the original instead of guessing.** Running it under wine
+  (silent, on its own Xvfb display, a script copy patched to slow a
+  transition to 8 s, shots at fixed fractions) settled each transition
+  in one run. Static reading had got some wrong: Dissolve was given a
+  dither that belongs to Dot4x4, and it really passes through white.
+  Read the kernel in the exe afterwards for the exact curve and fit the
+  frames to it.
+- **Don't name a parameter after the values it takes.** MeltDown's
+  0/128/255 byte looked like black/grey/white. It is an acceleration.
+  Follow the value into the code before naming it.
+- **Jump tables can be two-level:** a byte table indexed by the opcode's
+  sub-number, then an address table. Reading the address table alone
+  gives wrong handlers.
+- **A wine prefix shares the user's home by default.** Its Documents,
+  Desktop etc. are symlinks to the real folders, and games save there.
+  Replace them with real folders before the first run.
+- **A 100 % save unlocks the extras at once.** Download one (sagaoz.net,
+  the user's tip) instead of playing or reverse-engineering the unlock
+  bits.
+- **Small effect plugins beat general machinery.** Each transition family
+  became a short `cons_*.dll` effect-99 plugin (slide, zoom, flip, melt),
+  checkable on Xvfb mid-effect. Release them in batches: a CONscripter
+  release is a version bump and a tag, and CI builds every platform.
+- **Ask what to drop.** The debug menu, right-click menus and the WSS
+  room were dropped by the user. Each would have been a session of work.
+- **Handoff notes go stale.** The handoff listed Zigzag's blend as open
+  after it had shipped. When an item is done, grep `TODO.md`, `PLAN.md`
+  and the handoff file for it.
+- **Parallel agents need separate branches and worktrees** (`xuse`,
+  `nitroplus`), branches based on `origin/main`, and staging by path
+  name: the other agent's uncommitted files share the tree.
+
 ### 13.2 Ways to speed up conversion
 
-Tooling worth building, in rough order of payoff:
+Tooling worth building, in rough order of payoff. None of it was built
+for 最果てのイマ (the Python scripts in `research/xuse/` did the job);
+build it into the converter when a second game needs the same thing:
 
 1. **A static tracer in the converter** (`conscripter-convert trace`, a Rust port of
    `research/xuse/nstrace.py`). It runs the emitted `0.txt` without

@@ -20,27 +20,31 @@ it is added to CONscripter rather than approximated (see
 
 | Engine | Status | Tested with |
 |---|---|---|
-| Xuse | Partial (see below) | 最果てのイマ COMPLETE |
+| Xuse | Complete for its first game | 最果てのイマ COMPLETE |
 
-Only the Xuse engine is supported for now. Other engines are planned; the
-pipeline is built so each one is a separate reader feeding the same output
-stage (see [`PLAN.md`](PLAN.md)).
+Other engines are planned (Nitroplus is in progress on its own branch);
+the pipeline is built so each one is a separate reader feeding the same
+output stage (see [`PLAN.md`](PLAN.md)). How a new game is approached is
+in [`docs/new-game.md`](docs/new-game.md).
 
 ### Xuse support
 
+最果てのイマ COMPLETE converts completely: every instruction the story
+uses is converted (only the unreachable debug menu is left out).
+
 | Area | Status |
 |---|---|
-| Archives, images, BGM, sound effects, voices | ✅ Decoded |
-| Script text, speaker names, hyperlinks | ✅ Converted |
-| Backgrounds, sprites, music, sound effects, voices in scripts | ✅ Converted |
-| Control flow (variables, conditions, goto, gosub/return) | ✅ Converted |
-| Transitions (cross-fades, mask wipes) | ✅ Converted with the original durations |
-| ADV text box and name plate | ✅ Converted |
-| Full-screen text modes | ✅ Converted |
-| Character colour filters (evening/night tints) | ✅ Pre-rendered |
-| System menus (title, save/load, settings, backlog, button bars, yes/no confirmations) | ✅ Built as in-script menus |
-| Movies | ❌ Not converted |
-| Special text displays and ~35 rarer opcodes | ❌ Not decoded |
+| Archives, images, BGM (with loop points), sound effects, voices, movies | ✅ Decoded |
+| Script text, speaker names, ruby, text sizes and colours, hyperlinks (the route choices) | ✅ Converted |
+| Backgrounds, sprites, colour filters, music, sound effects, voices in scripts | ✅ Converted |
+| Control flow (variables, conditions, goto, gosub/return, link scenes) | ✅ Converted |
+| Transitions | ✅ Every kind drawn as in the original (some via CONscripter effect plugins) |
+| Screen filters, shakes, ripples, pulses, quakes, flashes, full-screen animations | ✅ Converted |
+| ADV text box, name plate and full-screen text modes | ✅ Converted |
+| System screens (title, save/load, settings, backlog with names and voice replay, button bars, confirmations) | ✅ Built as in-script menus |
+| Extras (CG gallery, scene replay, BGM room) | ✅ Built as in-script menus |
+| Movies | ✅ Web, Windows and Android; skipped by the Linux and macOS builds |
+| Not converted | The system-voice room (WSS), the chapter history screen, the blog bar's buttons, autosave, some settings of the original's settings dialog |
 
 Other Xuse games may convert but haven't been tried.
 
@@ -147,6 +151,8 @@ game dir → unpack archives → decode assets, decompile scripts → IR → 0.t
 | `engine/` | CONscripter, the target engine (git submodule) |
 | `research/` | Scripts used while reverse-engineering formats (see [`research/README.md`](research/README.md)) |
 | `PLAN.md` | Design notes, format documentation, and the rules for engine additions |
+| `docs/new-game.md` | Steps and planning for converting a new game |
+| `CLAUDE.md` | Working rules and recipes for AI agents working on this repo |
 
 Adding a source engine means writing a reader in `conv-engines` that
 produces the IR; only `conv-cons` knows about NScripter and CONscripter.
@@ -158,7 +164,8 @@ When a game needs something the engine can't do:
 1. Add it to `engine/src/onsyuri/` as a new, opt-in command or option, so
    scripts that don't use it behave as before. It must work in the web
    build too.
-2. Document it in the engine README and in [`PLAN.md`](PLAN.md) §4.2.
+2. Document it in [`engine/ADDITIONS.md`](engine/ADDITIONS.md) and in
+   [`PLAN.md`](PLAN.md) §4.2.
 3. Commit and push it in the engine repository, then commit the new
    submodule commit here together with the converter change that uses it.
 
