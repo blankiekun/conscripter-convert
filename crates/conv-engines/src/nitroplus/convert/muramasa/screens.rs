@@ -6,7 +6,7 @@
 //! the pointer, `003` pressed, `000` disabled (where there is one); they
 //! are joined into strips of normal, hover, disabled, pressed.
 
-use conv_core::ir::{ConfirmDialog, Placed, Script, Switch};
+use conv_core::ir::{ConfirmDialog, Placed, Script, Switch, TitleAction, TitleButton, TitleScreen};
 
 use super::super::Assets;
 
@@ -16,6 +16,54 @@ const SCREEN_H: i32 = 576;
 /// Fills the script's system screens.
 pub fn menus(a: &mut dyn Assets, script: &mut Script) {
     script.confirm = confirm(a);
+    script.title_screen = title(a);
+}
+
+/// The title as it stands after its opening (`0_boot.nss`, `TitleSet`
+/// 417-673, `TitleFade` for a return visit 828-880): the background, the
+/// logo at (346,40) and the copyright at (50,540) in one picture; six
+/// vertical buttons (40×280) at y 150 with a hover sound; the title music.
+/// Start plays its sound, fades the music out over 3 s and the screen to
+/// black over 1 s, and waits 2 s (162-168, 1114-1125). 終了する quits
+/// with no question (`sys_close.nss` 45-51). Left out: the fire that
+/// flickers over the background (0 to 300/1000 and back, 600 ms each way,
+/// 1100 ms holds), the opening, and the first start's intro.
+fn title(a: &mut dyn Assets) -> Option<TitleScreen> {
+    const DIR: &str = "cg/sys/title";
+    let mut parts = Vec::new();
+    for (name, x, y) in [("偽富士背景画像", 0, 0), ("ロゴ画像", 346, 40), ("コピーライト", 50, 540)] {
+        parts.push((a.image(&format!("{DIR}/{name}.png"))?.0, x, y, 1000));
+    }
+    let (background, _, _) = a.composite(&parts)?;
+    let se = |a: &mut dyn Assets, name: &str| a.sound(&format!("sound/se/{name}"));
+    let mut buttons = Vec::new();
+    for (name, x, action, click) in [
+        ("しおりから", 822, TitleAction::Continue, Some("se特殊_鎧_装着03")),
+        ("最初から", 762, TitleAction::Start, Some("se特殊_鎧_装着03")),
+        ("電光記録", 702, TitleAction::Load, Some("se戦闘_動作_刀構え01")),
+        ("設定画面", 282, TitleAction::Settings, Some("se戦闘_動作_刀構え01")),
+        // The extras come with step 8.
+        ("特別付加", 222, TitleAction::Unavailable, None),
+        ("終了する", 162, TitleAction::Exit, None),
+    ] {
+        let state = |n: u32| format!("{DIR}/{name}-{n:03}.png");
+        let (s1, s2, s3) = (state(1), state(2), state(3));
+        let cells: Vec<&str> = if action == TitleAction::Unavailable { vec![&s1] } else { vec![&s1, &s2, &s3] };
+        let (image, _, _) = a.strip(&cells)?;
+        let click_se = click.and_then(|c| se(a, c));
+        buttons.push(TitleButton { image, x, y: 150, action, click_se });
+    }
+    Some(TitleScreen {
+        background,
+        fade_ms: 1000,
+        buttons,
+        pressed: true,
+        hover_se: se(a, "se戦闘_動作_刀構え02"),
+        bgm: a.sound("sound/bgm/mbgm04"),
+        start_bgm_fade_ms: 3000,
+        start_wait_ms: 2000,
+        exit_without_asking: true,
+    })
 }
 
 /// A button's strip from its state pictures `<dir>/00N-<name>.png`: normal,

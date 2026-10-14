@@ -542,33 +542,53 @@ pub struct NamePlate {
 
 /// The game's title screen: image buttons over a full-screen picture, shown
 /// before the first op runs.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TitleScreen {
     /// Full-screen picture (logo included).
     pub background: String,
     pub fade_ms: u32,
     pub buttons: Vec<TitleButton>,
+    /// Button strips have a third cell, shown while the mouse button is
+    /// held on the button.
+    pub pressed: bool,
+    /// Played when the pointer comes onto a button.
+    pub hover_se: Option<String>,
+    /// Music while the title is up (looping). Start fades it out over
+    /// `start_bgm_fade_ms` while the screen fades to black.
+    pub bgm: Option<String>,
+    pub start_bgm_fade_ms: u32,
+    /// After Start's fade to black, wait this long before the game.
+    pub start_wait_ms: u32,
+    /// Exit quits at once, without the [`ConfirmDialog`]'s question.
+    pub exit_without_asking: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TitleButton {
-    /// Two cells side by side, normal and under the mouse pointer; one cell
-    /// for [`TitleAction::Unavailable`].
+    /// Two cells side by side, normal and under the mouse pointer (a third,
+    /// pressed, with [`TitleScreen::pressed`]); one cell for
+    /// [`TitleAction::Unavailable`].
     pub image: String,
     pub x: i32,
     pub y: i32,
     pub action: TitleAction,
+    /// Played when the button is clicked.
+    pub click_se: Option<String>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum TitleAction {
     /// Run the script from its first op.
+    #[default]
     Start,
     Load,
     Settings,
     Exit,
     /// Shown but not clickable (the menu it opens isn't converted yet).
     Unavailable,
+    /// Load the quick save; drawn at half opacity and not clickable while
+    /// there is none.
+    Continue,
 }
 
 /// An image with its top-left corner on screen, and its size (all cells).

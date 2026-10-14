@@ -861,9 +861,9 @@ impl AssetBank {
             };
             let image = format!("system/title_{name}.png");
             self.save_image(&image, &strip)?;
-            buttons.push(TitleButton { image, x, y, action });
+            buttons.push(TitleButton { image, x, y, action, ..Default::default() });
         }
-        Ok(TitleScreen { background: background_path, fade_ms: TITLE_FADE_MS, buttons })
+        Ok(TitleScreen { background: background_path, fade_ms: TITLE_FADE_MS, buttons, ..Default::default() })
     }
 
     /// The extras menu and the CG gallery (see [`gallery`]). Positions

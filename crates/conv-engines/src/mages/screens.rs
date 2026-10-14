@@ -33,7 +33,7 @@ pub fn title(assets: &mut ArchiveAssets, extras: bool) -> Option<TitleScreen> {
             cells.push((TITLE_CELL_W, y, TITLE_CELL_W, TITLE_ROW_H));
         }
         let (image, _, _) = assets.system_cells("title_bg.png", &format!("title_{row}.png"), &cells, 100)?;
-        buttons.push(TitleButton { image, x: 960 - TITLE_CELL_W as i32 - 24, y: 330 + 40 * i as i32, action });
+        buttons.push(TitleButton { image, x: 960 - TITLE_CELL_W as i32 - 24, y: 330 + 40 * i as i32, action, ..Default::default() });
     }
-    Some(TitleScreen { background, fade_ms: 500, buttons })
+    Some(TitleScreen { background, fade_ms: 500, buttons, ..Default::default() })
 }

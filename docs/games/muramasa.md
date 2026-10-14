@@ -692,8 +692,20 @@ Next, in order:
       unroll (a fade for now), the 記録をしました notice (with the save
       screen), 選択肢まで戻りますか and 設定を初期状態に戻す (with their
       screens).
-   2. Title: layers, hover and click sounds, BGM, `Continue` (quick
-      load) and `Extras` actions.
+   2. Done (static): the title at rest, the background, logo and
+      copyright composed into one picture, the six buttons with their
+      hover (`002`) and pressed (`003`) pictures, the hover sound (刀構え02)
+      and each button's click sound, the title music, Start's 3 s music
+      fade, 1 s fade to black and 2 s wait, 終了する quitting with no
+      question, しおりから dimmed to half while there is no quick save
+      (`TitleScreen` `pressed`, `hover_se`, `bgm`, `start_*`,
+      `exit_without_asking`, `TitleAction::Continue`; CONscripter's
+      `selectvoice` now works outside the define section, 325c9e1).
+      Beside the original (normal, hover, pressed): mean difference
+      0.1-3.5 levels, from the original's fire. Left: the fire's flicker
+      and the opening (step 7); 設定画面 does nothing until the settings
+      screen exists, 電光記録盤を開く opens ONScripter's load menu until
+      the save screen does, 特別付加目録 waits for the extras (step 8).
    3. Right-click menu (a new `CommandMenu`) and the quick bar
       (`ButtonBar` with a base picture, hidden at the right edge and
       sliding in as in the original).

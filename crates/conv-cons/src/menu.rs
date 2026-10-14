@@ -147,6 +147,9 @@ const BTN_SCENE_ROW: i32 = BAR_BUTTON_BASE + 110; // + level
 /// lsp2 slots of the top bars (below the save menu's).
 const TOP_SPRITES2: std::ops::Range<u32> = 12..24;
 pub(crate) const LOAD: &str = "conv_load";
+/// The quick save's slot (the user's slots are 1-100, the link scenes'
+/// from [`SCENE_SLOT`]).
+pub(crate) const QUICK_SLOT: u32 = 890;
 /// 1 when entered from the game (hide and restore the text window).
 pub(crate) const IN_GAME: &str = "%101";
 
@@ -1168,7 +1171,7 @@ fn lsp2(slot: u32, p: &Placed, opacity: Option<u8>) -> String {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use conv_core::ir::{PageButton, Rect};
 
@@ -1229,7 +1232,7 @@ mod tests {
         }
     }
 
-    fn dialog() -> ConfirmDialog {
+    pub(crate) fn dialog() -> ConfirmDialog {
         ConfirmDialog {
             base: Placed { x: 140, y: 254, ..placed("dialog_base", 520, 91) },
             yes: Placed { x: 242, y: 305, ..placed("dialog_button", 426, 28) },
