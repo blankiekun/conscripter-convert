@@ -55,7 +55,10 @@ not in the repo.
   asked for. They decide what is dropped.
 - Running the original games under wine is allowed: a scratch prefix
   with real (not symlinked) user folders, its own Xvfb display, no
-  audio, never the user's desktop. Stop wine and Xvfb when done.
+  audio, a Japanese locale (`LANG=ja_JP.UTF-8 LC_ALL=ja_JP.UTF-8`, for
+  every game), never the user's desktop. Reach a moment by patching
+  scripts or saves before clicking through (`docs/new-game.md` step 9).
+  Stop wine and Xvfb when done.
 
 ## Working beside other agents
 

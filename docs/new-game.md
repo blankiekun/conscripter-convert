@@ -196,9 +196,9 @@ them.
      the format from the exe's save and load code first.
   3. **Click through by hand** only when neither works. It is slow, and
      a click can miss or land during a fade.
-- **Wine gotchas:** run Japanese games with `LANG=ja_JP.UTF-8`, or
-  folder and file names come out garbled and saves can fail (Muramasa's
-  new game went straight back to the title). Wine has no MS fonts, so a
+- **Wine gotchas:** run every game with `LANG=ja_JP.UTF-8` and
+  `LC_ALL=ja_JP.UTF-8`, or folder and file names come out garbled and
+  saves can fail (Muramasa's new game went straight back to the title). Wine has no MS fonts, so a
   substitute font draws the text: compare where text starts, not the
   step between characters.
 - **Film the original under wine** for anything not obvious: transitions,
