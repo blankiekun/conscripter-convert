@@ -22,3 +22,7 @@
 81161628	gxp_wave_vert	vertex GXP of EffectStart 40
 8115f304	gxp_wave_frag	fragment GXP of EffectStart 40: rows moved along the diagonal by 1.5% of the width x sin(...)
 81048978	eyecatch_shutters_init	EyeCatch :Image 0,N object init: loads CG ID N + 457 (at least 458) and halves it into two sprites
+81040714	effect57_ctor	EffectStart 57 (画面キャプチャースプライト) object: a frozen screen copy; vtable 0x8115c024
+81040940	effect57_set_params	EffectStart 57 :Param: centre from (480,272) to (x*0.75, y*0.7556), scale from 1 to p2, progress 2/p3 a step, ease type p4 (0-3), power p5
+81040a96	effect57_update	steps the progress by 2/frames and eases the centre and scale (ease_value)
+8103cc18	ease_value	from, to, t, power, type: 0 straight, 1 (t^2)^p, 2 1-((1-t)^2)^p, 3 in and out
