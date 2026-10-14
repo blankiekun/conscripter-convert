@@ -580,13 +580,24 @@ exe (`research/tools/ghidra/ghidra_export.sh`, names in
      with half-width spaces): the converter now counts each line's rows as
      the engine lays them out (`line_rows`) before joining a message onto
      the page (`conv_link34_1`).
-   Left, for whoever comes next: `s7_l22`'s blog post is one message of
-   23 lines whose header wraps to 24 rows (it would need a message split
-   across pages, links and styles included); `s157_l1:262733` ran past
-   the window in the exploration (reached from link scene `conv_link23`
-   through `s167_l1`) but not when started there; the rest of the
-   findings are the known kinds (sounds started twice, bust-ups at one
-   place, looping ambience, the 37600 px `fx` strips).
+   Left, for whoever comes next: `s157_l1:262733` ran past the window in
+   the exploration (reached from link scene `conv_link23` through
+   `s167_l1`) but not when started there; the rest of the findings are
+   the known kinds (sounds started twice, bust-ups at one place, looping
+   ambience, the 37600 px `fx` strips).
+6. **Done: messages taller than the window** (the user's list after the
+   exploration, 2026-10-14). `s7_l22`'s blog message is 24 lines whose
+   two headers wrap: `line_rows` counted the converter's text, before the
+   script writer makes `/ ( ) !` and the other special characters
+   full-width (`escape_text`), so a header like
+   「ほっとした  投稿者:ToolSmith004/どらいばあ(米) …」 looked like one row.
+   It now counts them as written, and a message taller than the
+   full-screen window goes on as many pages as it needs (`split_rows`):
+   at line ends, before the last post separator (`━`) when one is in the
+   second half of the page, with links and styles cut in two at the split
+   (a reading across it is dropped; none is). Voice, name and hanging
+   indent stay with the first page. A trace from `--goto s7_l22` has no
+   page past the window.
 
 
 Converted and playable from start to end: text, voices, sprites with

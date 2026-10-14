@@ -2484,10 +2484,9 @@ pub fn lower_script(
     let mut pending = MessageRecords::default();
     // A transition armed by 0x76 and not yet waited on (file order).
     let mut transition_armed = false;
-    // Full-screen text mode (file order): rows of the window, the index of
-    // the last text op and the lines on its page, and whether a "p" tag
-    // followed it.
-    // Rows and columns of the full-screen text window, if one is up.
+    // Full-screen text mode (file order): rows and columns of the window,
+    // the index of the last text op and the rows on its page, and whether
+    // a "p" tag followed it.
     let mut full_screen_rows: Option<(usize, usize)> = None;
     // The last window preset set (file order).
     let mut window_preset: Option<WindowPreset> = None;
@@ -3089,19 +3088,31 @@ pub fn lower_script(
                 }
                 Ok(Some(Op::Text { speaker, text, voice, links, ruby, mut styles, hang, .. })) => {
                     whole_text_style(&mut styles, &text, default_style);
-                    let lines = full_screen_rows.map_or(0, |(_, columns)| text.split('\n').map(|l| line_rows(l, columns)).sum());
-                    if let (Some((rows, _)), Some((i, used))) = (full_screen_rows, last_text) {
-                        let joins = !page_break && used + lines <= rows;
-                        if joins && let Some(Op::Text { continues, .. }) = ops.get_mut(i) {
-                            *continues = true;
+                    let rows_of = |text: &str| full_screen_rows.map_or(0, |(_, columns)| text.split('\n').map(|l| line_rows(l, columns)).sum::<usize>());
+                    // A message taller than the full-screen window goes on
+                    // as many pages as it needs (the original's proportional
+                    // font fits more on a row).
+                    let parts = match full_screen_rows {
+                        Some((rows, columns)) if rows_of(&text) > rows => split_rows(&text, &links, &ruby, &styles, rows, columns),
+                        _ => vec![PagePart { text, links, ruby, styles }],
+                    };
+                    let (mut speaker, mut voice, mut hang) = (speaker, voice, hang);
+                    for part in parts {
+                        let lines = rows_of(&part.text);
+                        if let (Some((rows, _)), Some((i, used))) = (full_screen_rows, last_text) {
+                            let joins = !page_break && used + lines <= rows;
+                            if joins && let Some(Op::Text { continues, .. }) = ops.get_mut(i) {
+                                *continues = true;
+                            }
+                            let used = if joins { used + lines } else { lines };
+                            last_text = Some((ops.len(), used));
+                        } else if full_screen_rows.is_some() {
+                            last_text = Some((ops.len(), lines));
                         }
-                        let used = if joins { used + lines } else { lines };
-                        last_text = Some((ops.len(), used));
-                    } else if full_screen_rows.is_some() {
-                        last_text = Some((ops.len(), lines));
+                        page_break = false;
+                        let PagePart { text, links, ruby, styles } = part;
+                        ops.push(Op::Text { speaker: speaker.take(), text, voice: voice.take(), links, ruby, styles, hang: hang.take(), continues: false });
                     }
-                    page_break = false;
-                    ops.push(Op::Text { speaker, text, voice, links, ruby, styles, hang, continues: false });
                 }
                 Ok(Some(Op::Gosub(target))) => {
                     let preset = presets.window.get(&target).copied();
@@ -3535,11 +3546,13 @@ fn lower_instr(
 /// draws a full-width character in a cell and a run of half-width ones two
 /// to a cell (a run of n takes n / 2 rounded up), and wraps at the edge.
 /// Half-width spaces count: the game's blog headers, which fit its
-/// proportional font, take two rows here.
+/// proportional font, take two rows here. The characters the script
+/// writer makes full-width (`escape_text` in `conv-cons`) count as such.
 fn line_rows(line: &str, columns: usize) -> usize {
+    const ESCAPED: &str = "@\\/#%$`!_\";*()<>[]?";
     let (mut cells, mut half) = (0usize, 0usize);
     for c in line.chars() {
-        if c.is_ascii() || ('\u{ff61}'..='\u{ff9f}').contains(&c) {
+        if (c.is_ascii() && !ESCAPED.contains(c)) || ('\u{ff61}'..='\u{ff9f}').contains(&c) {
             half += 1;
         } else {
             cells += half.div_ceil(2) + 1;
@@ -3548,6 +3561,63 @@ fn line_rows(line: &str, columns: usize) -> usize {
     }
     cells += half.div_ceil(2);
     cells.div_ceil(columns.max(1)).max(1)
+}
+
+/// One page of a message split by [`split_rows`]: its text and the links,
+/// readings and styles that fall in it, moved to its own character range.
+struct PagePart {
+    text: String,
+    links: Vec<TextLink>,
+    ruby: Vec<Ruby>,
+    styles: Vec<TextStyle>,
+}
+
+/// Splits a message taller than a full-screen window (`rows` by `columns`)
+/// into pages at line ends. A page that would end past a separator line
+/// (`━`, the blog's posts) ends before the last one instead, so a post
+/// isn't cut in the middle when it can be helped. Links and styles that
+/// cross a split are cut in two; a reading that crosses it is dropped.
+fn split_rows(text: &str, links: &[TextLink], ruby: &[Ruby], styles: &[TextStyle], rows: usize, columns: usize) -> Vec<PagePart> {
+    let lines: Vec<&str> = text.split('\n').collect();
+    // Line ranges [first, end) of each page.
+    let mut pages = Vec::new();
+    let mut first = 0;
+    while first < lines.len() {
+        let (mut end, mut used) = (first, 0);
+        while end < lines.len() && (end == first || used + line_rows(lines[end], columns) <= rows) {
+            used += line_rows(lines[end], columns);
+            end += 1;
+        }
+        if end < lines.len()
+            && let Some(sep) = (first + 1..end).rev().find(|&i| lines[i].starts_with('━'))
+            && sep > first + (end - first) / 2
+        {
+            end = sep;
+        }
+        pages.push((first, end));
+        first = end;
+    }
+    // Character offset of each line's start.
+    let mut starts = vec![0];
+    for l in &lines {
+        starts.push(starts.last().unwrap() + l.chars().count() + 1);
+    }
+    let clip = |s: usize, len: usize, a: usize, b: usize| {
+        let (from, to) = (s.max(a), (s + len).min(b));
+        (from < to).then(|| (from - a, to - from))
+    };
+    pages
+        .into_iter()
+        .map(|(first, end)| {
+            let (a, b) = (starts[first], starts[end] - 1);
+            PagePart {
+                text: lines[first..end].join("\n"),
+                links: links.iter().filter_map(|l| clip(l.start, l.len, a, b).map(|(start, len)| TextLink { start, len, ..l.clone() })).collect(),
+                ruby: ruby.iter().filter(|r| r.start >= a && r.start + r.len <= b).map(|r| Ruby { start: r.start - a, ..r.clone() }).collect(),
+                styles: styles.iter().filter_map(|s| clip(s.start, s.len, a, b).map(|(start, len)| TextStyle { start, len, ..*s })).collect(),
+            }
+        })
+        .collect()
 }
 
 /// 0x54's `sub` 1-3 also puts background picture `sub + 5` (`frame01`-
@@ -3921,6 +3991,27 @@ mod tests {
         assert_eq!(line_rows("ほっとした  投稿者:ToolSmith004 ／どらいばあ（米）  投稿日: 滅亡元年／06／28 22:32 ", 40), 2);
         assert_eq!(line_rows("ab", 1), 1);
         assert_eq!(line_rows("abc", 1), 2);
+        // As the converter has it, before '/' and '(' become full-width.
+        assert_eq!(line_rows("ほっとした  投稿者:ToolSmith004/どらいばあ(米)  投稿日:滅亡元年/06/28 22:32", 40), 2);
+        assert_eq!(line_rows("a/", 1), 2);
+    }
+
+    #[test]
+    fn tall_messages_split_at_posts() {
+        // 2 rows of 4 columns: "ab" "━━" "cdef" on the first page would be
+        // 3 rows; the page ends before the separator instead of after it.
+        let text = "ab\nxy\n━━\ncdefgh";
+        let link = TextLink { start: 1, len: 7, target: Some("t".into()), scene: None };
+        let ruby = [Ruby { start: 0, len: 2, text: "r".into() }, Ruby { start: 4, len: 3, text: "s".into() }];
+        let style = TextStyle { start: 9, len: 4, colour: Some(1), size_percent: None };
+        let parts = split_rows(text, std::slice::from_ref(&link), &ruby, &[style], 3, 4);
+        let texts: Vec<&str> = parts.iter().map(|p| p.text.as_str()).collect();
+        assert_eq!(texts, ["ab\nxy", "━━\ncdefgh"]);
+        assert_eq!((parts[0].links[0].start, parts[0].links[0].len), (1, 4));
+        assert_eq!((parts[1].links[0].start, parts[1].links[0].len), (0, 2));
+        assert_eq!(parts[0].ruby.len(), 1);
+        assert!(parts[1].ruby.is_empty());
+        assert_eq!((parts[1].styles[0].start, parts[1].styles[0].len), (3, 4));
     }
 
     #[test]
