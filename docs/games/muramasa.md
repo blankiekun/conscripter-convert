@@ -668,10 +668,42 @@ Next, in order:
 3. A replay of route 9 with `--shot-pages` (engine 0.19.0) stopped
    drawing at `f_md01_002:158856` (`print 10,500`, page 18,573) with
    the process spinning; the same run passed before. Not reproduced.
-4. **System screens** (step 7): title, save/load, settings, backlog,
-   built as in-script menus from `cg/sys/*` parts, as for 最果てのイマ
-   (`conv-cons/src/menu.rs`); the settings screen also shows the build's
-   version line (`version.txt`). A big item: check with the user first.
+4. **System screens** (step 7), under way. The original was filmed
+   under wine from patched boots (title, right-click menu, quick bar,
+   save/load, confirmations, settings and its voice window, backlog,
+   click-wait icon; transitions also slowed ×10); shots and videos are
+   in `research/nitroplus/local/` (git-ignored). Every confirmation is
+   drawn from `cg/sys/dialog` parts: no Windows dialog needs designing
+   (the only `Message()` box is for a display option we leave out).
+   Behaviour seen: right-click at a text wait opens the menu, wheel-up
+   opens the backlog, the wheel scrolls it a line a notch and wheel-down
+   at the newest line closes it, right-click closes every screen (No in
+   a dialog), Esc asks ゲームを終了しますか, the title's 終了する quits
+   with no question, the backlog shows no names. Plan, in order, each
+   screen checked beside the original:
+   1. Button strips joined from the `000`-`003` part files at convert
+      time; confirmations as pictures (`ConfirmDialog` + a picture per
+      question, backdrop, the 記録をしました notice).
+   2. Title: layers, hover and click sounds, BGM, `Continue` (quick
+      load) and `Extras` actions.
+   3. Right-click menu (a new `CommandMenu`) and the quick bar
+      (`ButtonBar` with a base picture, hidden at the right edge and
+      sliding in as in the original).
+   4. Save/load grid (a new `SaveGrid`: 20 slots a page, 5 pages,
+      hover details).
+   5. Backlog (line scrolling, voice icon, scroll knob) and the
+      click-wait icon.
+   6. Settings drawn as one picture (a new `PictureSettings`: vertical
+      sliders, 入/切 pairs, voice window, version line).
+   7. Motion: fire flicker, opening, menu cascade, dialog unroll, quick
+      bar slide.
+
+   The user's decisions (2026-10-14): the pressed state (`003`) becomes
+   an engine feature that is on for every script; the settings CONscripter
+   lacks (music/SE/voice mute, voice stops on click, auto waits for the
+   voice, auto/skip stop at a choice, movie skip, game speed) are added
+   to the engine the same way, not opt-in; 選択肢に戻る is implemented
+   (a save to a reserved slot before each choice).
 5. The largest leftovers below: `CreateProcess` (via Lua), non-blocking
    `Move`/`Zoom`, `AddRender` (needs a per-sprite blend mode).
 6. Step 11.5: `#` flags (globals from %800) across quit and relaunch,
