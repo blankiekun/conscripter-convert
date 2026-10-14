@@ -218,7 +218,7 @@ details, record layouts and handler addresses are in the game's document):
 |---|---|---|
 | 1 | **NScripter** | Round-trip test (NScripter → IR → NScripter) of the IR and output stage, no reverse engineering involved |
 | 2 | **Xuse** (最果てのイマ COMPLETE) | First real target, an undocumented in-house engine reversed from the exe. **Finished 2026-10-14** |
-| 3 | **Nitroplus NSS** (装甲悪鬼村正) | In progress (branch `nitroplus`, notes in `muramasa.md`): NSS compiles to NScripter, Lua as the fallback |
+| 3 | **Nitroplus NSS** (装甲悪鬼村正) | In progress (branch `nitroplus`, record in `docs/games/muramasa.md`): NSS compiles to NScripter, Lua as the fallback |
 | 4+ | KiriKiri2/KAG, RealLive/Siglus, CatSystem2, BGI/Ethornell, Yu-ris, Artemis, Majiro, Softpal… | Chosen by which games you want to convert next |
 
 ### Per-game documents
@@ -226,7 +226,7 @@ details, record layouts and handler addresses are in the game's document):
 | Game | Engine | Branch | Document | Status |
 |---|---|---|---|---|
 | 最果てのイマ COMPLETE | Xuse | `xuse` | [`docs/games/saihate-no-ima.md`](docs/games/saihate-no-ima.md) | Finished 2026-10-14 |
-| 装甲悪鬼村正 | Nitroplus NSS | `nitroplus` | `muramasa.md` (local notes, git-ignored) for now | In progress |
+| 装甲悪鬼村正 | Nitroplus NSS | `nitroplus` | [`docs/games/muramasa.md`](docs/games/muramasa.md) | In progress |
 
 A game's document holds what is specific to it: the install and build
 command, file formats, the opcode or command table with handler

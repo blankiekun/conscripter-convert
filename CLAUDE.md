@@ -7,7 +7,7 @@ build.
 | Game | Engine | Branch / worktree | Game document | Handoff (git-ignored) |
 |---|---|---|---|---|
 | 最果てのイマ COMPLETE (finished) | Xuse | `xuse` | `docs/games/saihate-no-ima.md` | `saiima.md` |
-| 装甲悪鬼村正 (in progress) | Nitroplus NSS | `nitroplus`, `~/Projects/conscripter-convert-nitroplus` | not yet | `muramasa.md` |
+| 装甲悪鬼村正 (in progress) | Nitroplus NSS | `nitroplus`, `~/Projects/conscripter-convert-nitroplus` | `docs/games/muramasa.md` | `muramasa.md` |
 
 **Starting a new game? Read `docs/new-game.md` first.**
 
