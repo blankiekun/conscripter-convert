@@ -161,7 +161,7 @@ map above, in one session (2026-10-13, all as expected):
 | 2 | 京 (S01_18A) |
 | 3 | 美咲 (M09_01) |
 | 4 | 日和子 (S02_16A), every first option |
-| 5 | 亜衣 (S03C_20A): 鳴's points kept under 2 so part 3 joins the common route |
+| 5 | 亜衣 (S03C_20A): 鳴's points kept under 2 so part 3 joins the common route; then the hint (S03_24), as parts 1 and 2 are cleared |
 | 6 | the bad end (S04_06L) |
 | 7 | 鳴 (S03_22A); with parts 1-3 cleared, S03_23A goes on to the ヨージ hint (S03_24) |
 | 8 | 小鳩, the true ending (S04_28B, S04_29A), offered only after the three clears |
