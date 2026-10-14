@@ -42,6 +42,18 @@ the BGM room (`336f237`). **WSS is dropped** (user, 2026-10-13): its menu
 item stays greyed out (`ExtrasAction::Unavailable` in `extras_menu()`).
 Findings, in case it ever comes back, are in `saiima.md` ("WSS").
 
+- [ ] Progression verified against walkthrough: no (2026-10-13). The user
+      found the chapter order doubtful. Not yet checked: `docs/new-game.md`
+      step 11. Known so far: the 「リピート」/「死」 branch is
+      `%215 <= 2` (0x1a is setle in the exe's table), so the first two
+      loops with no link give 「リピート」, where the walkthrough gives
+      「死」 on the second. FIRST START zeroes the loop flags; `gloval.sav`
+      is written only on save and on quit. Found and fixed by the user's
+      play (`fad5f9b`): links a jump skips (the heroine gates in 0004.cd,
+      the cycle if/else in 0009/0011.cd) were still shown. No route
+      simulation exists yet (step 11.4): a bytecode simulator next to
+      `nstrace.py`, compared page by page.
+
 ### Optional leftovers, roughly by how visible they are
 
 Nothing below has been asked for; check with the user before starting

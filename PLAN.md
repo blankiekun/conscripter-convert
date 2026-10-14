@@ -930,6 +930,20 @@ From the second half (system screens, extras, matching effects):
   release is a version bump and a tag, and CI builds every platform.
 - **Ask what to drop.** The debug menu, right-click menus and the WSS
   room were dropped by the user. Each would have been a session of work.
+- **Check the routes against a walkthrough before calling a game done.**
+  最果てのイマ was declared finished with every opcode converted, and
+  the user then doubted the chapter order of its loops (which loop with
+  no link gives 「リピート」 or 「死」, and whether the loop state
+  survives FIRST START and a closed browser tab). Save a walkthrough early,
+  map the variables that gate progression (save data or system data),
+  and check each step and each persistence case (`docs/new-game.md`,
+  step 11). The user then hit a real bug on the first path tried: after
+  one heroine link, the others stayed clickable and switched the route,
+  because the converter put a link on its message even when a jump
+  skipped the link record (`fad5f9b`). Static reading and spot runs had
+  missed it. Simulate each route on both sides (source bytecode with the
+  original's run-time rules, converted `0.txt`) and diff page by page,
+  including the wrong-order clicks the walkthrough warns about.
 - **Handoff notes go stale.** The handoff listed Zigzag's blend as open
   after it had shipped. When an item is done, grep `TODO.md`, `PLAN.md`
   and the handoff file for it.

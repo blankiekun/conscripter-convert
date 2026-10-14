@@ -22,7 +22,8 @@ system screens, extras and matching effects to the original.
    the route structure, the choice mechanic, endings and extras.
    最果てのイマ's route choices are hyperlinks in the text. Not knowing
    that cost a session: a no-click trace loops back to the chapter start,
-   and that looked like a control-flow bug.
+   and that looked like a control-flow bug. Save a walkthrough in the
+   handoff file before converting control flow (step 11.1).
 3. **Identify the engine** from the install: the exe's strings,
    `.cpp`/RTTI names, archive magic numbers, config files. If it is a
    known engine (KiriKiri, NScripter, Siglus, Nitroplus NSS, ...), find
@@ -30,7 +31,9 @@ system screens, extras and matching effects to the original.
 4. **Start the files that survive context resets**:
    - `<game>.md` in the repo root, git-ignored (add it to `.gitignore`),
      with a **"Resume here"** section at the top. It holds paths, recipes
-     and findings. Look at `saiima.md` and `muramasa.md`.
+     and findings. Look at `saiima.md` and `muramasa.md`. Give it two
+     sections from the start for step 11: **"Walkthrough"** (with its
+     source) and **"Progression variables"** (the table of step 11.2).
    - A short "state / next" section in `TODO.md`, kept current.
    - A branch per game (`xuse`, `nitroplus`), based on `origin/main`. A
      second agent works in its own worktree
@@ -104,6 +107,10 @@ system screens, extras and matching effects to the original.
   (ONScripter ignores SIGTERM in a script loop).
 - A loop isn't automatically a bug: check whether the original loops
   there too.
+- Map the progression variables (step 11.2) as soon as conditions
+  convert, and follow the walkthrough through the converted branches
+  (step 11.3). Build the two-sided route simulation (step 11.4) at
+  the same time and re-run it after every control-flow change.
 
 ## 5. Text and voices
 
@@ -174,11 +181,72 @@ When existing NScripter commands can't do it:
    carry it (see `CLAUDE.md`), tag `vX.Y.0`, push the tag, and check that
    all 5 build workflows pass and the release has its 9 assets.
 
-## 11. Finishing
+## 11. Route and progression check
+
+A game can't be declared finished until this is done. A converted script
+can run every page and still send the player to the wrong chapter, or
+lose the loop state between sessions.
+
+1. **Find a walkthrough first.** Before converting control flow, save a
+   public walkthrough or flowchart of the routes and the unlock order in
+   the handoff file's "Walkthrough" section: which choices or links lead
+   to which chapters, the loop or cycle order, the true-ending
+   conditions. Note its source (site and page).
+2. **Map the progression variables.** Find every variable the script
+   uses to gate routes, chapters, loops and endings. For each one,
+   record its meaning, where it is set, reset and read, and whether the
+   original keeps it in save data or in system data. Put the table in
+   the handoff file and in `PLAN.md` §6.
+3. **Check the converted branches against the walkthrough.** For each
+   step of the walkthrough, follow the converted `0.txt`, or run it
+   headless with a scripted click path (`research/xuse/smoke.py`) and
+   print the variables with the `lsp 999,"X:"+…` trick (`CLAUDE.md`).
+   Confirm the expected chapter is reached at every loop: for
+   最果てのイマ, the first loop with no choice, each heroine, the second
+   cycle and the final arc. Write down every place where the code and
+   the walkthrough disagree, and settle each one by reading the
+   original's disassembly or running the original under wine (step 9).
+   Don't just pick one.
+4. **Simulate every route, both sides, and compare.** Reading the
+   output and spot runs miss bugs that only show on some paths: after
+   最初の頃, the other heroine links in 「最初の日」 stayed clickable and
+   switched the route (`fad5f9b`), because the converter put a link on
+   its message even when a jump skipped the link record. So:
+   - **Simulate the source script** from the decoded bytecode with the
+     original engine's run-time rules (records collect until a message
+     uses them, jumps, conditions, variables). The simulator lives in
+     `research/<engine>/`. For each walkthrough path it prints, per
+     page, the text, the clickable links and their targets, and the
+     progression variables.
+   - **Simulate the converted `0.txt`** on the same click path with
+     `research/xuse/nstrace.py` (or the next engine's equivalent),
+     printing the same things.
+   - **Diff the two page by page.** Every page must show the same links
+     with the same targets and leave the same variables. Also run
+     wrong-order paths the walkthrough warns about, such as clicking a
+     second heroine link in the same loop: the original must refuse them,
+     and so must the conversion.
+   - **Lint the output for the same class of bug.** Report every jump
+     target that falls between a per-message record (link, ruby, style)
+     and its message, every link the source only shows under a
+     condition, and every page with two links on the same text.
+   Keep the scripts and the click paths so the check can be re-run after
+   any converter change that touches control flow, text or links.
+5. **Check that state persists the way it does in the original.**
+   Confirm that system-data flags survive (a) quitting and relaunching
+   natively, (b) closing and reopening the web build, (c) loading an
+   older save and (d) going back to the title and starting again.
+   Compare each case with what the original does.
+6. **Write it down.** Add a checklist entry to the game's section of
+   `TODO.md`: "progression verified against walkthrough: yes/no, date,
+   how" (which paths were simulated, and whether both sides matched). Add any new lesson to `PLAN.md` §13.
+
+## 12. Finishing
 
 - The finish line is set by the user: every story instruction converted,
-  system screens and extras working, the remaining differences written
-  down as optional leftovers in `TODO.md`.
+  system screens and extras working, the route and progression check
+  (step 11) done, the remaining differences written down as optional
+  leftovers in `TODO.md`.
 - Update `README.md`'s support table, `PLAN.md` §6 (status) and §13
   (new lessons), and this playbook if the process changed.
 - Rebuild into a fresh output folder. Never touch folders holding the
