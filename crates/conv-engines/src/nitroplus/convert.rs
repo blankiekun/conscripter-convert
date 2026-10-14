@@ -39,7 +39,6 @@ use std::collections::{BTreeMap, HashMap};
 
 use conv_core::ir::{ArithOp, ChoiceStyle, CLICK_WAIT_MARK, Op, Operand, ScreenEffect, Ruby, SpriteChange, SpritePlacement, TextWindow, TransitionStyle, Voice};
 
-use super::magiccube;
 use super::nss::{AssignOp, BinaryOp, Expr, Function, Inline, Item, NssFile, Param, Stmt, StmtKind, Target, Text, UnaryOp};
 
 pub const SCREEN_W: i64 = 1024;
@@ -67,41 +66,28 @@ const RUN_END: &str = "conv_run_end";
 /// so that a file naming itself as the next one (a retry) is told apart
 /// from one that names no next file.
 const GAME_NAME_SET: &str = "$GameName (set)";
-/// Library functions that rank the heroines by their route counters with
-/// a loop (`sys_hmode.nss`): written as NScripter comparisons instead.
-/// Each counter counts up from its flag to 10, checked in this order, so
-/// a heroine's rank is 1 + the number with a higher flag + the number
-/// earlier in the order with the same flag. Results: `ARRAY["name"]` =
-/// rank (1-4), `LAST` = the name ranked last.
-const RANKINGS: [(&str, [&str; 4], &str, &str); 2] = [
-    ("RouteChicker", ["アナザー", "一条", "香奈枝", "村正"], "$RC_N", "$ルート分岐用フラグ"),
-    ("RouteChicker2", ["村正", "一条", "香奈枝", "アナザー"], "$RC_N2", "$ルート分岐用フラグ2"),
-];
+mod muramasa;
+pub use muramasa::MURAMASA;
 
-/// The heroines of `sys_hmode.nss` (`ArrayHex`): counter name and the
-/// name in their `<name>死亡` / `<name>復活` flags, in `SetHex` order.
-const HEX: [(&str, &str); 4] = [("Others", "その他"), ("Muramasa", "村正"), ("Kanae", "香奈枝"), ("Ichizyou", "一条")];
-/// `SatugaiSystem`'s order: the first heroine whose counter is at least
-/// every other one dies (善悪相殺).
-const SATUGAI_ORDER: [&str; 4] = ["Others", "Ichizyou", "Kanae", "Muramasa"];
-
-fn hex_counter(name: &str) -> String {
-    format!("${name}_Flag")
+/// What one game adds to the compiler, in its own module under `convert/`
+/// ([`MURAMASA`]): library functions it compiles itself (written as
+/// NScripter code instead of running their loops), scenes it replaces with
+/// a port (a minigame), and the story flags its own code sets and tests.
+/// The CLI picks the game when it builds.
+pub struct Game {
+    /// A call of a function: true if the game compiled it.
+    call: for<'a, 'b> fn(&mut Compiler<'a, 'b>, &str) -> bool,
+    /// A call of scene (file, scene): true if the game replaced it.
+    scene: for<'a, 'b> fn(&mut Compiler<'a, 'b>, &str, &str) -> bool,
+    /// Story flags the game adds.
+    flags: fn() -> Vec<String>,
+    /// Library files the story may name as its next file (ported).
+    files: &'static [&'static str],
 }
 
-fn hex_flag(name: &str, what: &str) -> String {
-    let jp = HEX.iter().find(|h| h.0 == name).map_or(name, |h| h.1);
-    format!("${jp}{what}")
-}
-
-/// The route counter of a heroine in [`RANKINGS`].
-fn route_counter(name: &str) -> &'static str {
-    match name {
-        "一条" => "$Ichizyou_Flag",
-        "香奈枝" => "$Kanae_Flag",
-        "村正" => "$Muramasa_Flag",
-        _ => "$Others_Flag",
-    }
+impl Game {
+    /// A game with nothing of its own: NSS as it is.
+    pub const PLAIN: Game = Game { call: |_, _| false, scene: |_, _, _| false, flags: Vec::new, files: &[] };
 }
 
 /// Guard against scripts that loop forever at convert time.
@@ -145,9 +131,9 @@ pub struct Compiled {
 }
 
 /// Compiles scene `scene` of `file` (`ma01_001.nss`, `ma01_001.nss`).
-pub fn compile_scene(files: &BTreeMap<String, NssFile>, file: &str, scene: &str, assets: &mut dyn Assets) -> Result<Compiled, String> {
+pub fn compile_scene(files: &BTreeMap<String, NssFile>, file: &str, scene: &str, game: &'static Game, assets: &mut dyn Assets) -> Result<Compiled, String> {
     let (file, _) = files.get_key_value(file).ok_or_else(|| format!("no script {file}"))?;
-    let mut c = Compiler::new(files, file, assets);
+    let mut c = Compiler::new(files, file, game, assets);
     let body = c.scene(file, scene).ok_or_else(|| format!("no scene {scene} in {file}"))?;
     c.run_top(body);
     c.sync(0);
@@ -162,10 +148,10 @@ pub fn compile_scene(files: &BTreeMap<String, NssFile>, file: &str, scene: &str,
 /// file starts at a label named after it and is compiled once (from the
 /// first state that reaches it). Stops after `max_files` files. Returns
 /// the files compiled.
-pub fn compile_run(files: &BTreeMap<String, NssFile>, start: &str, max_files: usize, assets: &mut dyn Assets) -> Result<(Compiled, Vec<String>), String> {
+pub fn compile_run(files: &BTreeMap<String, NssFile>, start: &str, max_files: usize, game: &'static Game, assets: &mut dyn Assets) -> Result<(Compiled, Vec<String>), String> {
     let (first, _) = files.get_key_value(start).ok_or_else(|| format!("no script {start}"))?;
-    let mut c = Compiler::new(files, first, assets);
-    c.flags = story_flags(files);
+    let mut c = Compiler::new(files, first, game, assets);
+    c.flags = story_flags(files, game);
     let dynamic_base = c.flags.values().filter(|v| !v.global).map(|v| v.index + 1).max().unwrap_or(FLAG_LOCAL_BASE);
     c.vars.insert("$GameName".into(), Value::Str(start.to_string()));
     c.vars.insert("$GameStart".into(), Value::Int(1));
@@ -226,9 +212,9 @@ pub fn compile_run(files: &BTreeMap<String, NssFile>, start: &str, max_files: us
             not_compiled.insert(name);
             continue;
         }
-        // The helper library isn't a story file; the run reaches it only for
-        // the 立方陣 minigame, which is ported (see [`super::magiccube`]).
-        if (c.library.contains(&file.as_str()) || file.starts_with("function")) && file != magiccube::FILE {
+        // The helper library isn't a story file, unless the game ports it
+        // (a minigame).
+        if (c.library.contains(&file.as_str()) || file.starts_with("function")) && !game.files.contains(&file.as_str()) {
             c.note(format!("run reaches {name}: a minigame, not converted"));
             not_compiled.insert(name);
             continue;
@@ -354,7 +340,8 @@ fn with_branch_vars<'a>(end: &State<'a>, branch: &State<'a>, first: &State<'a>) 
 /// path through the game, so they are kept in NScripter variables. The
 /// engine's own (`$SYSTEM_*`) and the file chaining (`$GameName`) are left
 /// to the convert-time run.
-pub fn story_flags(files: &BTreeMap<String, NssFile>) -> HashMap<String, conv_core::ir::Var> {
+/// The game adds the variables its own code sets and tests ([`Game`]).
+pub fn story_flags(files: &BTreeMap<String, NssFile>, game: &Game) -> HashMap<String, conv_core::ir::Var> {
     use std::collections::BTreeSet;
     /// `$a["x"]` with a constant index: its key (as the compiler builds it).
     fn element(base: &Expr, index: &Expr) -> Option<String> {
@@ -429,27 +416,9 @@ pub fn story_flags(files: &BTreeMap<String, NssFile>) -> HashMap<String, conv_co
             }
         }
     }
-    // The rankings' counters and results.
-    for (_, order, array, last) in RANKINGS {
-        for n in order {
-            for key in [route_counter(n).to_string(), format!("{array}[{n}]")] {
-                set.insert(key.clone());
-                tested.insert(key);
-            }
-        }
-        set.insert(last.to_string());
-        tested.insert(last.to_string());
-    }
-    // The 立方陣 puzzle's result, set by the ported minigame.
-    set.insert(magiccube::SOLVED.to_string());
-    tested.insert(magiccube::SOLVED.to_string());
-    // SatugaiSystem and SetHex set and clear the death and revival flags
-    // through names built at run time (VariableValue).
-    for (name, _) in HEX {
-        for key in [hex_counter(name), hex_flag(name, "死亡"), hex_flag(name, "復活")] {
-            set.insert(key.clone());
-            tested.insert(key);
-        }
+    for key in (game.flags)() {
+        set.insert(key.clone());
+        tested.insert(key);
     }
     let mut flags = HashMap::new();
     let (mut local, mut global) = (FLAG_LOCAL_BASE, 0u16);
@@ -680,6 +649,7 @@ enum Flow {
 struct Compiler<'a, 'b> {
     files: &'a BTreeMap<String, NssFile>,
     library: Vec<&'a str>,
+    game: &'static Game,
     assets: &'b mut dyn Assets,
     /// Keyed `$name` / `#name` (`$a[1]` for array elements).
     vars: HashMap<String, Value>,
@@ -1231,90 +1201,6 @@ impl<'a, 'b> Compiler<'a, 'b> {
         }
     }
 
-    /// A [`RANKINGS`] function, if its counters are story flags.
-    fn ranking(&mut self, &(_, order, array, last): &(&str, [&str; 4], &str, &str)) -> bool {
-        use conv_core::ir::Compare;
-        let counters: Option<Vec<_>> = order.iter().map(|n| self.flags.get(route_counter(n)).copied()).collect();
-        let outputs: Option<Vec<_>> = order.iter().map(|n| self.flags.get(&format!("{array}[{n}]")).copied()).collect();
-        let (Some(counters), Some(outputs), Some(&last_var)) = (counters, outputs, self.flags.get(last)) else { return false };
-        for (x, (&fx, &out)) in counters.iter().zip(&outputs).enumerate() {
-            self.ops.push(Op::Arith { var: out, op: ArithOp::Set, value: Operand::Const(1) });
-            for (y, &fy) in counters.iter().enumerate().filter(|&(y, _)| y != x) {
-                // y ranks above x: a higher flag, or the same flag and earlier.
-                let above = if y < x { Compare::Ge } else { Compare::Gt };
-                self.choices += 1;
-                let skip = format!("rank{}", self.choices);
-                self.ops.push(Op::If { var: fy, cmp: negate(above), value: Operand::Var(fx), label: skip.clone() });
-                self.ops.push(Op::Arith { var: out, op: ArithOp::Add, value: Operand::Const(1) });
-                self.ops.push(Op::Label(skip));
-            }
-            self.choices += 1;
-            let skip = format!("rank{}", self.choices);
-            let code = self.code(&Value::Str(order[x].to_string())).unwrap_or(0);
-            self.ops.push(Op::If { var: out, cmp: Compare::Ne, value: Operand::Const(4), label: skip.clone() });
-            self.ops.push(Op::Arith { var: last_var, op: ArithOp::Set, value: Operand::Const(code) });
-            self.ops.push(Op::Label(skip));
-            self.vars.insert(format!("{array}[{}]", order[x]), Value::Runtime(out));
-        }
-        self.vars.insert(last.to_string(), Value::Runtime(last_var));
-        true
-    }
-
-    /// `SatugaiSystem` (sys_hmode.nss): the heroine with the highest
-    /// counter dies, the first in [`SATUGAI_ORDER`] on a tie.
-    fn satugai(&mut self) -> bool {
-        use conv_core::ir::Compare;
-        let get = |c: &Self, k: String| c.flags.get(&k).copied();
-        let counters: Option<Vec<_>> = SATUGAI_ORDER.iter().map(|n| get(self, hex_counter(n))).collect();
-        let deaths: Option<Vec<_>> = SATUGAI_ORDER.iter().map(|n| get(self, hex_flag(n, "死亡"))).collect();
-        let (Some(counters), Some(deaths)) = (counters, deaths) else { return false };
-        self.choices += 1;
-        let done = format!("satugai{}", self.choices);
-        for (x, (&fx, &death)) in counters.iter().zip(&deaths).enumerate() {
-            self.choices += 1;
-            let next = format!("satugai{}", self.choices);
-            for (_, &fy) in counters.iter().enumerate().filter(|&(y, _)| y != x) {
-                self.ops.push(Op::If { var: fx, cmp: Compare::Lt, value: Operand::Var(fy), label: next.clone() });
-            }
-            self.ops.push(Op::Arith { var: death, op: ArithOp::Set, value: Operand::Const(1) });
-            self.ops.push(Op::Jump(done.clone()));
-            self.ops.push(Op::Label(next));
-            self.vars.insert(hex_flag(SATUGAI_ORDER[x], "死亡"), Value::Runtime(death));
-        }
-        self.ops.push(Op::Label(done));
-        true
-    }
-
-    /// `SetHex` (sys_hmode.nss), the part that changes the story: a dead
-    /// heroine's counter goes to 0; a revived one also loses her death and
-    /// revival flags. (The rest updates the affection icons.)
-    fn set_hex(&mut self) -> bool {
-        use conv_core::ir::Compare;
-        let vars: Option<Vec<_>> = HEX
-            .iter()
-            .map(|&(n, _)| Some((self.flags.get(&hex_counter(n)).copied()?, self.flags.get(&hex_flag(n, "死亡")).copied()?, self.flags.get(&hex_flag(n, "復活")).copied()?)))
-            .collect();
-        let Some(vars) = vars else { return false };
-        for (i, &(counter, dead, revived)) in vars.iter().enumerate() {
-            let zero = |var| Op::Arith { var, op: ArithOp::Set, value: Operand::Const(0) };
-            self.choices += 1;
-            let alive = format!("hex{}", self.choices);
-            self.ops.push(Op::If { var: dead, cmp: Compare::Eq, value: Operand::Const(0), label: alive.clone() });
-            self.ops.push(zero(counter));
-            self.ops.push(Op::Label(alive));
-            self.choices += 1;
-            let stays = format!("hex{}", self.choices);
-            self.ops.push(Op::If { var: revived, cmp: Compare::Eq, value: Operand::Const(0), label: stays.clone() });
-            self.ops.extend([zero(counter), zero(dead), zero(revived)]);
-            self.ops.push(Op::Label(stays));
-            let name = HEX[i].0;
-            for (key, var) in [(hex_counter(name), counter), (hex_flag(name, "死亡"), dead), (hex_flag(name, "復活"), revived)] {
-                self.vars.insert(key, Value::Runtime(var));
-            }
-        }
-        true
-    }
-
     /// An assignment to a story flag: also done at run time.
     fn assign_flag(&mut self, var: conv_core::ir::Var, op: AssignOp, old: &Value, value: &Value, new: &Value) {
         match (op, old, value) {
@@ -1336,10 +1222,11 @@ impl<'a, 'b> Compiler<'a, 'b> {
         }
     }
 
-    fn new(files: &'a BTreeMap<String, NssFile>, file: &'a str, assets: &'b mut dyn Assets) -> Self {
+    fn new(files: &'a BTreeMap<String, NssFile>, file: &'a str, game: &'static Game, assets: &'b mut dyn Assets) -> Self {
         Compiler {
             files,
             library: library(files),
+            game,
             assets,
             vars: HashMap::new(),
             frames: Vec::new(),
@@ -1539,8 +1426,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
             self.note(format!("call_scene to a missing file {file}"));
             return;
         };
-        if file == magiccube::FILE && scene == magiccube::FILE {
-            self.magic_cube();
+        if (self.game.scene)(self, file, &scene) {
             return;
         }
         let Some(body) = self.scene(file, &scene) else {
@@ -1558,29 +1444,6 @@ impl<'a, 'b> Compiler<'a, 'b> {
         self.frames.pop();
         self.depth -= 1;
         self.file = saved;
-    }
-
-    /// The 立方陣 minigame's content scene: the ported puzzle. It ends as
-    /// the original does (`MathAnswer`): white, then `Delete("*")` and a
-    /// black screen.
-    fn magic_cube(&mut self) {
-        self.sync(0);
-        if self.window_visible {
-            self.ops.push(Op::HideTextWindow);
-            self.window_visible = false;
-        }
-        let easy = self.flags.get(magiccube::EASY).copied();
-        let Some(&solved) = self.flags.get(magiccube::SOLVED) else { return };
-        let Some(p) = magiccube::puzzle(self.assets, easy, solved) else {
-            self.note("立方陣: a picture is missing");
-            return;
-        };
-        self.ops.push(Op::TilePuzzle(Box::new(p)));
-        self.vars.insert(magiccube::SOLVED.into(), Value::Runtime(solved));
-        // The puzzle stops the music and clears the screen.
-        self.objects.clear();
-        self.aliases.clear();
-        self.shown.clear();
     }
 
     fn call_function(&mut self, file: &'a str, f: &'a Function, args: Vec<Value>) -> Value {
@@ -1634,12 +1497,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
             }
             Expr::Call { name, args } => {
                 let args: Vec<Value> = args.iter().map(|a| self.eval(a)).collect();
-                if let Some(r) = RANKINGS.iter().find(|r| r.0 == name)
-                    && self.ranking(r)
-                {
-                    return Value::Null;
-                }
-                if (name == "SatugaiSystem" && self.satugai()) || (name == "SetHex" && self.set_hex()) {
+                if (self.game.call)(self, name) {
                     return Value::Null;
                 }
                 match self.function(name) {
@@ -2503,7 +2361,7 @@ mod tests {
         files.insert(BOOT.to_string(), nss::parse("#include \"nss/function.nss\"\n").unwrap());
         files.insert("function.nss".to_string(), nss::parse(library).unwrap());
         files.insert("a.nss".to_string(), nss::parse(story).unwrap());
-        compile_scene(&files, "a.nss", "a.nss", &mut Fake).unwrap()
+        compile_scene(&files, "a.nss", "a.nss", &Game::PLAIN, &mut Fake).unwrap()
     }
 
     const LIBRARY: &str = r#"
@@ -2619,7 +2477,7 @@ scene a.nss
         files.insert("b.nss".into(), nss::parse(&main("b.nss", r#"$GameName = "d.nss";"#)).unwrap());
         files.insert("c.nss".into(), nss::parse(&main("c.nss", r#"if($flag){$GameName = "b.nss";}else{$GameName = "d.nss";}"#)).unwrap());
         files.insert("d.nss".into(), nss::parse(&main("d.nss", "$GameCircle = 0;")).unwrap());
-        let (c, played) = compile_run(&files, "a.nss", 10, &mut Fake).unwrap();
+        let (c, played) = compile_run(&files, "a.nss", 10, &Game::PLAIN, &mut Fake).unwrap();
         assert_eq!(played, ["a.nss", "b.nss", "c.nss", "d.nss"]);
         let Some(Op::Choice { options, style }) = c.ops.iter().find(|op| matches!(op, Op::Choice { .. })) else { panic!() };
         assert_eq!(options.iter().map(|o| o.0.as_str()).collect::<Vec<_>>(), ["はい", "いいえ"]);
@@ -2631,7 +2489,7 @@ scene a.nss
         assert!(c.ops.contains(&Op::If { var, cmp: conv_core::ir::Compare::Eq, value: Operand::Const(1), label: "f_c".into() }));
         // $flag is a story flag (set and tested by story files): set in the
         // first branch at run time, tested in c.nss at run time.
-        let flag = story_flags(&files)["$flag"];
+        let flag = story_flags(&files, &Game::PLAIN)["$flag"];
         assert!(c.ops.contains(&Op::Arith { var: flag, op: ArithOp::Set, value: Operand::Const(1) }));
         let c_start = c.ops.iter().position(|op| *op == Op::Label("f_c".into())).unwrap();
         assert!(matches!(&c.ops[c_start + 1], Op::If { var, cmp: conv_core::ir::Compare::Eq, value: Operand::Const(0), .. } if *var == flag), "{:?}", &c.ops[c_start..]);
@@ -2648,7 +2506,7 @@ scene a.nss
 	select { case @選択肢１ { $GameName = "a.nss"; } case @選択肢２ { $GameName = "b.nss"; } }"#;
         files.insert("a.nss".into(), nss::parse(&main("a.nss", a)).unwrap());
         files.insert("b.nss".into(), nss::parse(&main("b.nss", "$GameCircle = 0;")).unwrap());
-        let (c, played) = compile_run(&files, "a.nss", 10, &mut Fake).unwrap();
+        let (c, played) = compile_run(&files, "a.nss", 10, &Game::PLAIN, &mut Fake).unwrap();
         assert_eq!(played, ["a.nss", "b.nss"]);
         let var = conv_core::ir::Var { global: false, index: FORK_VARS.start };
         assert!(c.ops.contains(&Op::If { var, cmp: conv_core::ir::Compare::Eq, value: Operand::Const(0), label: "f_a".into() }), "{:?}", c.ops);
@@ -2744,9 +2602,9 @@ scene {name}_Y
         files.insert("a.nss".into(), nss::parse(&file("a.nss", 1, "b.nss")).unwrap());
         files.insert("b.nss".into(), nss::parse(&file("b.nss", 3, "d.nss")).unwrap());
         files.insert("d.nss".into(), nss::parse("scene d.nss_MAIN\n{\n\tif($g){$f = 1;}\n\t$GameCircle = 0;\n}").unwrap());
-        let (c, played) = compile_run(&files, "a.nss", 10, &mut Fake).unwrap();
+        let (c, played) = compile_run(&files, "a.nss", 10, &Game::PLAIN, &mut Fake).unwrap();
         assert_eq!(played, ["a.nss", "b.nss", "d.nss"]);
-        let flags = story_flags(&files);
+        let flags = story_flags(&files, &Game::PLAIN);
         // $f is 0: each file calls its own _Y scene, b.nss's last.
         assert_eq!(run_ir(&c.ops).get(&flags["$g"]), Some(&4));
         assert!(!c.notes.contains_key("call_scene to a runtime value with no known names"), "{:?}", c.notes);
@@ -2768,7 +2626,7 @@ scene {name}_Y
         for n in ["b.nss", "c.nss"] {
             files.insert(n.into(), nss::parse(&format!("scene {n}_MAIN\n{{\n\t$GameCircle = 0;\n}}")).unwrap());
         }
-        let (_, played) = compile_run(&files, "a.nss", 10, &mut Fake).unwrap();
+        let (_, played) = compile_run(&files, "a.nss", 10, &Game::PLAIN, &mut Fake).unwrap();
         assert_eq!(played, ["a.nss", "b.nss", "c.nss"]);
     }
 
@@ -2802,9 +2660,9 @@ scene {name}_Y
         for n in ["b.nss", "c.nss"] {
             files.insert(n.into(), nss::parse(&t_reads.replace("x.nss", n)).unwrap());
         }
-        let (c, played) = compile_run(&files, "a.nss", 10, &mut Fake).unwrap();
+        let (c, played) = compile_run(&files, "a.nss", 10, &Game::PLAIN, &mut Fake).unwrap();
         assert!(played.contains(&"c.nss".to_string()), "{played:?}");
-        let flags = story_flags(&files);
+        let flags = story_flags(&files, &Game::PLAIN);
         let next = flags["$Next"];
         let code = |name: &str| c.ops.iter().find_map(|op| match op {
             Op::If { var, value: Operand::Const(n), label, .. } if *var == next && label == &file_label(name) => Some(*n),
@@ -2834,9 +2692,9 @@ scene {name}_Y
 	$GameCircle = 0;
 }"#;
         files.insert("a.nss".into(), nss::parse(story).unwrap());
-        let (c, _) = compile_run(&files, "a.nss", 1, &mut Fake).unwrap();
+        let (c, _) = compile_run(&files, "a.nss", 1, &MURAMASA, &mut Fake).unwrap();
         let vars = run_ir(&c.ops);
-        let flags = story_flags(&files);
+        let flags = story_flags(&files, &MURAMASA);
         let rank = |n: &str| vars.get(&flags[&format!("$RC_N[{n}]")]).copied();
         // 香奈枝 and 村正 tie at 5: 香奈枝 is checked first.
         assert_eq!([rank("香奈枝"), rank("村正"), rank("一条"), rank("アナザー")], [Some(1), Some(2), Some(3), Some(4)]);
@@ -2856,9 +2714,9 @@ scene {name}_Y
 	$GameCircle = 0;
 }"#;
         files.insert("a.nss".into(), nss::parse(story).unwrap());
-        let (c, _) = compile_run(&files, "a.nss", 1, &mut Fake).unwrap();
+        let (c, _) = compile_run(&files, "a.nss", 1, &MURAMASA, &mut Fake).unwrap();
         let vars = run_ir(&c.ops);
-        let flags = story_flags(&files);
+        let flags = story_flags(&files, &MURAMASA);
         let get = |k: &str| vars.get(&flags[k]).copied().unwrap_or(0);
         // 一条 and 香奈枝 tie at 4: 一条 comes first in SatugaiSystem's order.
         assert_eq!([get("$一条死亡"), get("$香奈枝死亡"), get("$その他死亡"), get("$村正死亡")], [1, 0, 0, 0]);

@@ -20,7 +20,7 @@
 
 use conv_core::ir::{Placed, PuzzleCell, PuzzleTile, TilePuzzle, Var};
 
-use super::convert::Assets;
+use crate::nitroplus::convert::Assets;
 
 /// The file and the content scene the puzzle replaces.
 pub const FILE: &str = "function_magiccube.nss";

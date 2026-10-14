@@ -905,13 +905,16 @@ fn convert_nss(
     let mut assets = NpaAssets::new(cg, sound, voice, output);
     assets.dry_run = dry_run;
     let scene = scene.unwrap_or(file);
+    // The game's own additions to the compiler, by its exe (the only
+    // Nitroplus game so far).
+    let game = if exe.file_name().is_some_and(|n| n == "Muramasa.exe") { &convert::MURAMASA } else { &convert::Game::PLAIN };
     let compiled = match chain {
         Some(n) => {
-            let (compiled, played) = convert::compile_run(&files, file, n, &mut assets).map_err(anyhow::Error::msg)?;
+            let (compiled, played) = convert::compile_run(&files, file, n, game, &mut assets).map_err(anyhow::Error::msg)?;
             println!("{} files: {}", played.len(), played.join(" "));
             compiled
         }
-        None => convert::compile_scene(&files, file, scene, &mut assets).map_err(anyhow::Error::msg)?,
+        None => convert::compile_scene(&files, file, scene, game, &mut assets).map_err(anyhow::Error::msg)?,
     };
     for e in &assets.errors {
         println!("  asset error: {e}");

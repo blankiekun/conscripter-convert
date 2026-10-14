@@ -160,6 +160,12 @@ The table of what each built-in does is `research/nitroplus/builtins.md`.
 
 ## How the compiler works
 
+`convert.rs` is the plain NSS compiler. What only this game needs lives
+in `convert/muramasa.rs` (`MURAMASA`, a `Game`): functions it compiles
+itself, scenes it replaces with a port, story flags its own code sets.
+The CLI uses it when the game folder has `Muramasa.exe`; another NSS
+game would add its own module.
+
 `convert.rs` (read its module doc first) **runs the story at convert
 time**: helpers are inlined with their parameters bound by token, the
 engine's named objects (textures, colours, sounds, text) are modelled,
@@ -206,7 +212,7 @@ IR ops at the points where the original waits:
 - **Route ranking and deaths:** `RouteChicker`/`RouteChicker2` and
   `SatugaiSystem` (`sys_hmode.nss`) rank the heroines by affection with
   loops and computed names. They are written as NScripter comparisons
-  (`RANKINGS`), so the ranking and the death of the heroine with the
+  (`RANKINGS` in `convert/muramasa.rs`), so the ranking and the death of the heroine with the
   most affection happen at run time as in the original.
 - **The 立方陣** (`function_magiccube.nss`, the one library file the
   story names as a next file): compiled like a story file, except that
@@ -217,7 +223,7 @@ given, the player fills the 18 empty cells of layers 4 and 5 with 18
 numbered tiles (click a tile, then a cell; click a filled cell to take
 its tile back; right-click drops the picked tile), then clicks 解答する.
 The NSS builds it from `CreateChoice` buttons and an input loop, which
-don't compile, so it is ported: `nitroplus/magiccube.rs` holds the
+don't compile, so it is ported: `convert/muramasa/magiccube.rs` holds the
 game's numbers (tray, cell positions, the solution, the six cells the
 easy mode fills) and builds an IR `Op::TilePuzzle`, which the backend
 (`conv-cons/src/puzzle.rs`) writes as a `btnwait` loop over sprite

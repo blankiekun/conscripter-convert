@@ -3,7 +3,6 @@
 
 pub mod assets;
 pub mod convert;
-pub mod magiccube;
 pub mod npa;
 pub mod nss;
 pub mod refs;
