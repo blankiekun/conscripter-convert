@@ -163,6 +163,7 @@ Engine features added for converted games (details in the engine's
 | Text hooks in the web build (`onsyuriText`, `onsyuriChoice`, `onsyuriOverlay`) | Not for a converted game: chimimouryou lays each page's text over the game for Yomitan and reading statistics. Was a patch kept in chimimouryou (`scripts/onsyuri/text-hook.patch`) |
 | `dwavefadein ms` / `dwavefadeout ch,ms` (a `dwave` channel's sound fades in, or fades out and stops; SDL_mixer's channel fades) | 最果てのイマ's sound effects: 0x5a fades 41 sounds in (50 ms-3 s, mostly looping ambience) and 0x5b fades 178 out over more than 300 ms; found in the opcode audit |
 | `spzoom` (an `lsp` sprite zoomed about its centre in its place among the sprites, where `lsp2` sprites all lie over them; kept in saves and by `pushscreen`) | 俺たちに翼はない's camera zooms (SpriteMove `:Scale`, 90 uses): impacts zooming in and out on CGs and backgrounds, pans while zoomed |
+| `spmotion` (an `lsp` sprite moving by itself along keyed offsets from its place, looping or once, stepped by the timer during text and click waits; kept in saves) | 俺たちに翼はない's CharacterAction (2,312 uses: bows, shakes, 72 bobbing loops while the text goes on) and SpriteQuake (87, one background shaken) |
 
 Planned, from limits hit by converted games (each one is worked around
 in the script today), roughly in order of payoff:

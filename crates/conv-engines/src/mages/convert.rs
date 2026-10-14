@@ -134,6 +134,8 @@ pub struct Character {
 pub struct Action {
     pub keys: Vec<(i64, i64, i64)>,
     pub looped: bool,
+    /// Its length in frames (`:Frame`): a loop starts again after it.
+    pub frames: i64,
 }
 
 /// The game: every scene plus the tables in adv.txt and chrNNN.txt.
@@ -189,7 +191,8 @@ impl Game {
                             })
                             .collect();
                         keys.sort_unstable();
-                        g.actions.insert(n, Action { keys, looped: a.int("Loop").unwrap_or(0) != 0 });
+                        let frames = a.int("Frame").unwrap_or(0);
+                        g.actions.insert(n, Action { keys, looped: a.int("Loop").unwrap_or(0) != 0, frames });
                     }
                 }
             } else if file == "CGMODE" {
@@ -310,6 +313,16 @@ struct Shown {
     look: Look,
     /// Its zoom (SpriteMove `:Scale`), in percent.
     zoom: u32,
+    /// A motion (CharacterAction) runs: looping, or once for this many ms
+    /// from the message count given.
+    motion: Option<Motion>,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct Motion {
+    looped: bool,
+    ms: u32,
+    since_message: usize,
 }
 
 /// How a picture is drawn: its colour filters (`:Color` tint,
@@ -377,6 +390,8 @@ struct Lowering<'a> {
     /// No message yet: the scene's opening, which the scripts write once
     /// per branch (skipped or not), each after a `Tag`.
     opening: bool,
+    /// Messages so far, to tell whether one came since an action started.
+    messages: usize,
 }
 
 impl Lowering<'_> {
@@ -444,7 +459,7 @@ impl Lowering<'_> {
         if self.shown.get(key).is_some_and(|old| old.layer == layer && old.zoom != 100) {
             self.out.ops.push(Op::SpriteZoom { layer, x: cx, y: cy, from: 100, to: 100, ms: 0 });
         }
-        self.shown.insert(key.to_string(), Shown { layer, tex, x: cx, y: cy, image: path, w, h, base_y: cy, look, zoom: 100 });
+        self.shown.insert(key.to_string(), Shown { layer, tex, x: cx, y: cy, image: path, w, h, base_y: cy, look, zoom: 100, motion: None });
         if opened {
             self.out.ops.push(Op::EndTransition);
             self.staging = false;
@@ -572,6 +587,7 @@ impl Lowering<'_> {
                     self.staging = false;
                 }
                 self.opening = false;
+                self.messages += 1;
                 self.out.ops.push(Op::Text { speaker, text, voice, links: vec![], ruby: vec![], styles: vec![], hang: None, continues: false });
             }
             "SpriteBG" | "Sprite" | "SpriteBS" => {
@@ -804,18 +820,43 @@ impl Lowering<'_> {
                     else {
                         continue;
                     };
-                    if a.looped {
-                        self.note("CharacterAction (looping)");
+                    // Offsets from its place, keyframe to keyframe; a loop
+                    // goes back to its first key at the action's length.
+                    let mut keys: Vec<(u32, i32, i32)> = a.keys.iter().map(|&(f, x, y)| (ms(f), sx(x), sy(y))).collect();
+                    if a.looped
+                        && let Some(&(_, x, y)) = keys.first()
+                        && a.frames > a.keys.last().map_or(0, |k| k.0)
+                    {
+                        keys.push((ms(a.frames), x, y));
+                    }
+                    let length = keys.last().map_or(0, |k| k.0);
+                    if keys.is_empty() || length == 0 {
                         continue;
                     }
-                    // Straight moves from keyframe to keyframe, waited on.
-                    let mut last = 0;
-                    for &(frame, x, y) in &a.keys {
-                        let step = ms(frame - last);
-                        last = frame;
-                        self.out.ops.push(Op::SpriteMove { layer: s.layer, x: s.x + sx(x), y: s.y + sy(y), ms: step });
+                    self.out.ops.push(Op::SpriteMotion { layer: s.layer, keys, looped: a.looped });
+                    let motion = Motion { looped: a.looped, ms: length, since_message: self.messages };
+                    self.shown.insert(key, Shown { motion: Some(motion), ..s });
+                    if t.int("EndWait").unwrap_or(0) != 0 && !a.looped {
+                        self.out.ops.push(Op::Wait { ms: length });
                     }
-                    self.out.ops.push(Op::SpriteMove { layer: s.layer, x: s.x, y: s.y, ms: 0 });
+                }
+            }
+            "CharacterActionEnd" => {
+                // Ends the characters' actions (`:Character`, or every
+                // one); `:EndWait 1` waits for an action still running.
+                let only = t.int("Character").map(|n| format!("c{n}"));
+                let mut keys: Vec<String> = self.shown.iter().filter(|(k, v)| v.motion.is_some() && only.as_ref().is_none_or(|o| o == *k)).map(|(k, _)| k.clone()).collect();
+                keys.sort();
+                let wait = t.int("EndWait").unwrap_or(0) != 0;
+                for key in keys {
+                    let Some(s) = self.shown.get_mut(&key) else { continue };
+                    let Some(m) = s.motion.take() else { continue };
+                    let layer = s.layer;
+                    if m.looped || !wait {
+                        self.out.ops.push(Op::SpriteMotion { layer, keys: vec![], looped: false });
+                    } else if m.since_message == self.messages {
+                        self.out.ops.push(Op::Wait { ms: m.ms });
+                    }
                 }
             }
             "Flash" => {
@@ -1034,7 +1075,7 @@ impl Lowering<'_> {
                 }
             }
             // CharacterStop stops a looping action, which isn't played.
-            "BacklogMessage" | "SceneJumpDialogEnd" | "MovieStop" | "CharacterStop" | "CharacterWait" | "SpriteMoveEnd" | "CharacterActionEnd" => {}
+            "BacklogMessage" | "SceneJumpDialogEnd" | "MovieStop" | "CharacterStop" | "CharacterWait" | "SpriteMoveEnd" => {}
             _ => self.unsupported(scene, i, ty.to_string()),
         }
     }
@@ -1209,7 +1250,7 @@ fn act_style(t: &Block) -> TransitionStyle {
 /// Compiles `scenes` (all of them if empty), each at its label, after a
 /// jump to the game's first scene.
 pub fn compile(game: &Game, scenes: &[String], assets: &mut dyn Assets) -> Compiled {
-    let mut l = Lowering { game, assets, out: Compiled::default(), shown: HashMap::new(), next_slot: HashMap::new(), staging: false, choices: 0, cover: None, eye_catch: false, shutters: None, inherited: false, opening: false };
+    let mut l = Lowering { game, assets, out: Compiled::default(), shown: HashMap::new(), next_slot: HashMap::new(), staging: false, choices: 0, cover: None, eye_catch: false, shutters: None, inherited: false, opening: false, messages: 0 };
     let names: Vec<&String> = if scenes.is_empty() { game.scenes.keys().collect() } else { scenes.iter().collect() };
     let first = names.first().map(|s| s.as_str()).unwrap_or(&game.start);
     let first = if scenes.is_empty() { game.start.as_str() } else { first };

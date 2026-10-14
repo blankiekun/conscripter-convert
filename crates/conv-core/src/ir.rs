@@ -432,6 +432,13 @@ pub enum Op {
     /// Fade a sound effect (`None`: every one) out over `ms`, then stop it,
     /// going on at once; [`Op::SeStop`] stops it at once.
     SeFadeOut { file: Option<String>, ms: u32 },
+    /// Move a layer's sprite by itself along `keys` (ms from now, x, y
+    /// offset from its place in pixels), straight from key to key, while
+    /// the game goes on (text and click waits too): `looped` starts again
+    /// after the last key, otherwise the sprite ends back at its place. No
+    /// keys: stop the motion. A character trembling while it talks, a
+    /// background shaking.
+    SpriteMotion { layer: u32, keys: Vec<(u32, i32, i32)>, looped: bool },
 }
 
 /// A puzzle of numbered tiles (装甲悪鬼村正's 立方陣): the player clicks a

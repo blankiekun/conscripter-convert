@@ -17,6 +17,7 @@ mod button_screen;
 mod extras;
 pub mod lint;
 mod menu;
+mod motion;
 mod movies;
 mod music;
 pub mod nsa;
@@ -420,6 +421,7 @@ pub fn emit(script: &Script) -> String {
                     }
                 }
             }
+            Op::SpriteMotion { layer, keys, looped } => motion::emit(&mut out, *layer, keys, *looped),
             Op::SpriteZoom { layer, x, y, from, to, ms } => {
                 needs_zoom |= zoom::emit(&mut out, *layer, *x, *y, *from, *to, *ms, transition.is_some());
             }
