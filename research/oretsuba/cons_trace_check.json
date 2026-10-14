@@ -12,7 +12,7 @@
   },
   {
    "rule": "slow",
-   "at": "^\\*conv_move_loop:",
+   "at": "^\\*conv_(move|zoom)_loop:",
    "match": "."
   },
   {
