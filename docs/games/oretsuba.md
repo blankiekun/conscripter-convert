@@ -15,7 +15,8 @@ folder holding the game's Vita package and its license.
   (CPK archives, ADX/HCA audio, Sofdec USM movies). Scripts are plain
   Shift-JIS text, one scene per file: a list of tasks
   (`:Tasktype "Message"`, `"SpriteBG"`, …) with key/value parameters.
-  Nothing in the eboot is needed so far.
+  The eboot is decrypted (below) for the few tables the data lacks:
+  so far the music room's track list.
 
 ## Source
 
@@ -44,6 +45,33 @@ Two layers: the package (AES-CTR) and the PFS file encryption.
    with `CPK `.
 
 `<game>` below is the decrypted folder (`PCSG00299_dec`).
+
+### The eboot
+
+`<game>/eboot.bin` is still an NPDRM SELF after the steps above.
+`research/oretsuba/self2elf.py` decrypts it to an ARM ELF the way
+Vita3K's `decrypt_fself` does (klicensee from `work.bin` at 0x50,
+key revision 5); it reads the keys from a Vita3K checkout
+(`vita3k/packages/src/sce_utils.cpp`) rather than keeping them:
+
+    python3 -I self2elf.py <game>/eboot.bin work.bin <Vita3K>/vita3k/packages/src/sce_utils.cpp local/eboot.elf
+    python3 disasm.py local/eboot.elf > local/eboot.asm   # needs capstone
+
+The ELF loads its code at 0x81000000 (file offset 0xe0) and its data at
+0x8115e000 (file offset 0x15d440). `disasm.py` is a linear Thumb-2
+listing with every movw/movt address resolved and the string it points
+at, so code that uses a string is found by grepping. The rodata holds
+the script engine's keys (`TaskList/Task%d/...`, `CGMODE/...`) and its
+task names, the kanji of the font's glyph table, and no menu text: the
+system screens are pictures.
+
+Found so far:
+- Music room: an int32 table at 0x8116310c, 67 BGM.AWB IDs (0-10,
+  13-15, 20-31, 40-43, 45, 47-51, 53, 60-64, 46, 70, 71, 73-78, 80-83,
+  85, 52, 86-95), in the order of `mu_bg.png`'s titles. The code steps
+  an index 0-0x42 over it (7 rows shown) and plays `table[i]` on the
+  BGM player. A second table follows it (34, 35, 29-33, 36), stepped
+  0-7 with 4 rows shown; it has no titles in the picture.
 
 ### Files (`<game>/media/`)
 
@@ -230,7 +258,8 @@ at that scale, SystemData's are drawn at 1280×720 and are scaled by 3/4
 | START's story menu: 始めから and the after-stories ある日の林田美咲/渡来明日香/山科京/軽部狩男 (P03/P01/P02/P04) | converted, shown once any ending was seen; each after-story opens with its heroine's ending, かるお's with 小鳩's (our rule: the original's is in the eboot) |
 | Button bar (AUTO SKIP LOG SAVE LOAD CONFIG HIDE), save/load (3 slots × 10 pages), settings, backlog, yes/no dialog | converted in the Vita's look, our layout (2026-10-14, the user's choice): SystemData's backgrounds (`save_bg`, `load_bg`, `bklog`), slot plates (`sl_data`), dialog frame (`dlg_bg_26`, the one without words), headers cut out where they differ from a header-less background; the Vita's controller hints and page box painted over; button labels drawn with the `--font` in the game's style (white, blue halo; gold under the pointer). Backgrounds behind conv-cons's white words are darkened. Without `--font` there are no menus |
 | Extras menu (ALBUM, CONFIG, MUSIC, 戻る; the title's GALLERY opens it) and the CG gallery from `CGMODE` (8 heroine tabs from `gm_bg.png`'s cards, 4×5 thumbnails a page, up to 3 pages, a viewer with ◀ ▶ HIDE 戻る); scenes mark CGs seen from their `:CGFlag` | converted in the Vita's look, our layout |
-| Music room, movie room | not yet (MUSIC shown greyed) |
+| Music room: 67 songs from the eboot's table, their titles from `mu_bg.png` | converted, our layout: three columns of 23 titles at 3/5 size on the Vita's list panel (stretched over the room), the song playing in blue, every song open (the original's unlock rule is unknown). The second 8-song table is left out |
+| Movie room | not yet |
 
 Every task of all 463 scenes converts (none left as a comment); the
 full build (`mages convert` without `--scenes`, about 4 minutes, 1.7 GB
@@ -239,13 +268,12 @@ the save menu's thumbnail name, built at run time), ran 600 pages
 headless without errors, and the route check reaches all eight endings.
 
 Next, in order:
-1. The eboot: decrypting `eboot.bin` (an NPDRM SELF; Vita3K decrypts
-   them with the klicensee) would give the music room's title-to-track
-   table, the menus' real layouts and the meanings of `InOut_Act`'s
-   types and EffectStart 40.
-2. Music room (`mu_bg.png` has ~66 title pictures for BGM.AWB's 96
-   tracks; the order is not BGM ID order as far as the scripts show) and
-   a movie room.
+1. Music room touch-ups: the player bar's painted-out spot shows a
+   pale box, the Vita's button hints still show at the bottom right,
+   and the last row runs slightly past the panel.
+2. More from the eboot: `InOut_Act`'s types and EffectStart 40 (the
+   task handlers are found from their names' strings), the menus'
+   layouts, and what the second music table is for. Then a movie room.
 3. Looks against the original: text window size and place, character
    heights, the eye catch's wipe. Needs screenshots of the Vita game.
 4. SpriteMove `:Scale` (91 zooms on CGs) needs a sprite zoom in the IR
