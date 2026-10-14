@@ -299,7 +299,6 @@ at once, each with its own `--save-dir` and trace:
 
 ```sh
 cd out/<game>-cons
-mkdir -p /tmp/<game>-saves   # the engine doesn't make it; a failed first save stops the run
 SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy timeout -k 5 3600 \
     ../../engine/build/conscripter --root . --save-dir /tmp/<game>-saves \
     --trace /tmp/t.jsonl --trace-ignore <UI sprites> --auto-play 0
@@ -308,7 +307,8 @@ python3 -I ../../engine/tools/cons_trace_check.py /tmp/t.jsonl --script 0.txt
 ```
 
 - Always give `--save-dir`: a game that saves as it goes would otherwise
-  write to the player's saves (never `out/saiima-flow`).
+  write to the player's saves (never `out/saiima-flow`). The engine
+  (CONscripter 0.19.0 and later) makes the folder if it doesn't exist.
 - `--trace-ignore` takes the game's own UI sprites (the ranges in the
   game document's sprite map). They are left out of the trace and
   auto-play never presses their buttons.
@@ -388,10 +388,12 @@ first change that differs (`--only 300-899` to narrow it).
 **What a player would notice but auto-play hides.** Auto-play shortens
 effects and waits, so the trace also records what each command asked
 for: a `long wait` warning flags any `print`, `delay`, `wait` or effect
-asking for more than 10 s (`print 10,270000` is a 4.5-minute fade). An
-`image too large for the web` warning flags a picture bigger than a
-browser texture can hold (4096 px by default), and each page records
-the image memory in use, so a leak shows as a curve before it crashes.
+asking for more than 10 s (`print 10,270000` is a 4.5-minute fade). A
+`large image` warning flags a single picture that takes more than 64 MB
+(`--trace-max-image`), and each page records the image memory in use, so
+a leak shows as a curve before it crashes. A picture's width alone is no
+problem: CONscripter draws pictures in software, the web build too, so
+a 37600x600 animation strip works in a browser.
 
 **Seeing a page.** `--shot-pages 412,980-990` or `--shot-every n` saves
 pictures of chosen pages during the same run; F8 while playing with a
