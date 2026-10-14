@@ -563,9 +563,30 @@ exe (`research/tools/ghidra/ghidra_export.sh`, names in
    `0x66` unclickable waits), each checked with a replayed trace, then
    sound-effect fades (`0x5a`/`0x5b`) with CONscripter's new
    `dwavefadein`/`dwavefadeout` (the user's choice).
-5. Then `cons_explore.py` over all routes (title menus skipped:
-   `--skip-choices '^\*conv_(title|sl_|settings|confirm|extras)'`) and
-   the checker on every trace.
+5. **Done: `cons_explore.py` over all routes** (the build after items
+   1-4 and the sound fades; `--seed 1`, output in `out/saiima-explore`,
+   not in `/tmp`, whose quota a 35 MB-per-run exploration fills): 4 runs,
+   98,618 pages, 1,411 labels (1,220 before), 1,767 never reached (the
+   explorer's `untaken` choices stop finding new ground after run 1; the
+   heroine routes need choices in a set order). The checker on every
+   trace found, and this fixed:
+   - colour tags shown as text after a half-width name and a space
+     (`Ghost #FFFFFF`, `conv_link35_1`): CONscripter's new "spaces after
+     text are kept" left an odd half-width run that took the `#` as its
+     pair. Fixed in CONscripter (a half-width character isn't paired with
+     `#`, `!` or `(`);
+   - pages that ran past the full-screen window because a line wraps
+     there though it fits the original's proportional font (blog headers
+     with half-width spaces): the converter now counts each line's rows as
+     the engine lays them out (`line_rows`) before joining a message onto
+     the page (`conv_link34_1`).
+   Left, for whoever comes next: `s7_l22`'s blog post is one message of
+   23 lines whose header wraps to 24 rows (it would need a message split
+   across pages, links and styles included); `s157_l1:262733` ran past
+   the window in the exploration (reached from link scene `conv_link23`
+   through `s167_l1`) but not when started there; the rest of the
+   findings are the known kinds (sounds started twice, bust-ups at one
+   place, looping ambience, the 37600 px `fx` strips).
 
 
 Converted and playable from start to end: text, voices, sprites with

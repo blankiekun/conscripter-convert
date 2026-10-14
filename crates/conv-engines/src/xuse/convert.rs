@@ -2487,7 +2487,8 @@ pub fn lower_script(
     // Full-screen text mode (file order): rows of the window, the index of
     // the last text op and the lines on its page, and whether a "p" tag
     // followed it.
-    let mut full_screen_rows: Option<usize> = None;
+    // Rows and columns of the full-screen text window, if one is up.
+    let mut full_screen_rows: Option<(usize, usize)> = None;
     // The last window preset set (file order).
     let mut window_preset: Option<WindowPreset> = None;
     let mut last_text: Option<(usize, usize)> = None;
@@ -2533,7 +2534,12 @@ pub fn lower_script(
             if let Some(p) = entered.filter(|p| window_preset != Some(*p)) {
                 set_window(&mut ops, assets, p)?;
                 window_preset = Some(p);
-                full_screen_rows = p.full_screen.then_some(assets.text_window_style(p)?.rows as usize);
+                full_screen_rows = if p.full_screen {
+                            let w = assets.text_window_style(p)?;
+                            Some((w.rows as usize, w.columns as usize))
+                        } else {
+                            None
+                        };
                 last_text = None;
             }
         }
@@ -3083,8 +3089,8 @@ pub fn lower_script(
                 }
                 Ok(Some(Op::Text { speaker, text, voice, links, ruby, mut styles, hang, .. })) => {
                     whole_text_style(&mut styles, &text, default_style);
-                    let lines = text.split('\n').count();
-                    if let (Some(rows), Some((i, used))) = (full_screen_rows, last_text) {
+                    let lines = full_screen_rows.map_or(0, |(_, columns)| text.split('\n').map(|l| line_rows(l, columns)).sum());
+                    if let (Some((rows, _)), Some((i, used))) = (full_screen_rows, last_text) {
                         let joins = !page_break && used + lines <= rows;
                         if joins && let Some(Op::Text { continues, .. }) = ops.get_mut(i) {
                             *continues = true;
@@ -3105,7 +3111,12 @@ pub fn lower_script(
                     let sub = presets.sub_window.get(&target).copied().filter(|p| window_preset != Some(*p));
                     ops.push(Op::Gosub(target));
                     if let Some(p) = preset.or(sub) {
-                        full_screen_rows = p.full_screen.then_some(assets.text_window_style(p)?.rows as usize);
+                        full_screen_rows = if p.full_screen {
+                            let w = assets.text_window_style(p)?;
+                            Some((w.rows as usize, w.columns as usize))
+                        } else {
+                            None
+                        };
                         last_text = None;
                         window_preset = Some(p);
                         set_window(&mut ops, assets, p)?;
@@ -3520,6 +3531,25 @@ fn lower_instr(
     Ok(None)
 }
 
+/// The rows a text line takes in a window `columns` cells wide: the engine
+/// draws a full-width character in a cell and a run of half-width ones two
+/// to a cell (a run of n takes n / 2 rounded up), and wraps at the edge.
+/// Half-width spaces count: the game's blog headers, which fit its
+/// proportional font, take two rows here.
+fn line_rows(line: &str, columns: usize) -> usize {
+    let (mut cells, mut half) = (0usize, 0usize);
+    for c in line.chars() {
+        if c.is_ascii() || ('\u{ff61}'..='\u{ff9f}').contains(&c) {
+            half += 1;
+        } else {
+            cells += half.div_ceil(2) + 1;
+            half = 0;
+        }
+    }
+    cells += half.div_ceil(2);
+    cells.div_ceil(columns.max(1)).max(1)
+}
+
 /// 0x54's `sub` 1-3 also puts background picture `sub + 5` (`frame01`-
 /// `frame03`) on background slot 2, the overlay's (op_54, layer 1 depth 1:
 /// under the bust-ups).
@@ -3881,6 +3911,16 @@ mod tests {
         assert_eq!(link_range(&segs, true, &link(1, 1, 2)), None);
         assert_eq!(link_range(&segs, true, &link(3, 3, 5)), None);
         assert_eq!(link_range(&segs[1..], false, &link(1, 2, 3)), Some((1, 3)));
+    }
+
+    #[test]
+    fn rows_count_half_width_runs_two_to_a_cell() {
+        assert_eq!(line_rows("　", 40), 1);
+        assert_eq!(line_rows(&"━".repeat(40), 40), 1);
+        // 26 full-width characters and 31 half-width ones (16 cells).
+        assert_eq!(line_rows("ほっとした  投稿者:ToolSmith004 ／どらいばあ（米）  投稿日: 滅亡元年／06／28 22:32 ", 40), 2);
+        assert_eq!(line_rows("ab", 1), 1);
+        assert_eq!(line_rows("abc", 1), 2);
     }
 
     #[test]
