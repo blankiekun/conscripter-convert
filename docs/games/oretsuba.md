@@ -6,9 +6,11 @@ progression variables, and its status. The general process is in
 `docs/new-game.md`, general lessons in `PLAN.md` §13. `<pkg>` is the
 folder holding the game's Vita package and its license.
 
-- **Status:** starting (see "Status" below). Branch `oretsuba`.
+- **Status:** the whole story plays, with title, menus and the CG
+  gallery (see "Status" below). Branch `oretsuba`.
 - **Scope (2026-10-13):** the **PS Vita version**, the
-  whole game **with extras**. Nothing dropped yet.
+  whole game **with extras**. Nothing dropped yet. Menus (2026-10-14):
+  the Vita's look with mouse buttons of our own.
 - **Engine:** 5pb./MAGES' "TaskList" ADV engine on CRI middleware
   (CPK archives, ADX/HCA audio, Sofdec USM movies). Scripts are plain
   Shift-JIS text, one scene per file: a list of tasks
