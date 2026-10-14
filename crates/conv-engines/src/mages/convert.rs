@@ -22,7 +22,7 @@
 use std::collections::{BTreeMap, HashMap};
 
 use conv_core::ir::{
-    Animation, ArithOp, ButtonScreen, Compare, FILTER_BLEND_COPY, FILTER_BLUR, Noise, Op, Operand, ScreenEffect, SlideLayer, SourceLoc, SpriteChange, SpriteFilter,
+    Animation, ArithOp, ButtonScreen, Compare, FILTER_BLEND_COPY, FILTER_BLEND_MULTIPLY, FILTER_BLUR, FILTER_COLOUR, FILTER_GREYSCALE, FILTER_MONOTONE, FILTER_NEGATIVE, Noise, Op, Operand, ScreenEffect, SlideLayer, SourceLoc, SpriteChange, SpriteFilter,
     Placed, SpritePlacement, TextWindow, TransitionStyle, Var, Voice,
 };
 
@@ -307,6 +307,48 @@ struct Shown {
     h: i32,
     /// A character's centre at `:Position` y 0.
     base_y: i32,
+    look: Look,
+}
+
+/// How a picture is drawn: its colour filters (`:Color` tint,
+/// `:Grayscale`, `:Gamma` sepia, `:Floor`/`:Ceil` negative) and whether it
+/// is see-through (`:Color` alpha 0, shown later by a CharacterMove).
+#[derive(Debug, Clone, Default, PartialEq)]
+struct Look {
+    filters: Vec<SpriteFilter>,
+    hidden: bool,
+}
+
+impl Look {
+    /// The look a task's (or a `[CharaN]` block's) keys ask for.
+    fn of(b: &Block) -> Look {
+        let c = Operand::Const;
+        let filter = |kind: i32, blend: i32, params: [i32; 3]| SpriteFilter { kind: c(kind), blend: c(blend), strength: c(256), params: params.map(c) };
+        let mut filters = Vec::new();
+        if b.int("Grayscale").unwrap_or(0) != 0 {
+            let gamma: Vec<f64> = b.get("Gamma").unwrap_or(&[]).iter().filter_map(Val::float).collect();
+            match gamma.as_slice() {
+                // Sepia (3.0,1.4,0.6): each channel of the grey raised to
+                // 1/gamma, as an offset at mid-grey.
+                [r, g, bl, ..] => {
+                    let offset = |g: f64| if g > 0.0 { (255.0 * (0.5f64.powf(1.0 / g) - 0.5)).round() as i32 } else { 0 };
+                    filters.push(filter(FILTER_MONOTONE, FILTER_BLEND_COPY, [offset(*r), offset(*g), offset(*bl)]));
+                }
+                _ => filters.push(filter(FILTER_GREYSCALE, FILTER_BLEND_COPY, [0; 3])),
+            }
+        }
+        let colour: Vec<i64> = b.get("Color").unwrap_or(&[]).iter().filter_map(Val::int).collect();
+        if let [r, g, bl, ..] = colour[..]
+            && (r, g, bl) != (255, 255, 255)
+        {
+            filters.push(filter(FILTER_COLOUR, FILTER_BLEND_MULTIPLY, [r as i32, g as i32, bl as i32]));
+        }
+        // "Film reversal": white floor, black ceiling.
+        if b.get("Floor").is_some() && b.get("Ceil").is_some() {
+            filters.push(filter(FILTER_NEGATIVE, FILTER_BLEND_COPY, [0; 3]));
+        }
+        Look { filters, hidden: colour.get(3) == Some(&0) }
+    }
 }
 
 struct Lowering<'a> {
@@ -362,13 +404,19 @@ impl Lowering<'_> {
     /// Shows `image` centred at script position (x, y) on `key`'s layer,
     /// removing the pictures `replaces` in the same fade.
     #[allow(clippy::too_many_arguments)]
-    fn show(&mut self, key: &str, tex: i64, image: (String, u32, u32), x: i64, y: i64, priority: i64, fade_ms: u32, replaces: &[String]) {
-        self.show_at(key, tex, image, sx(x), sy(y), priority, fade_ms, replaces);
+    fn show(&mut self, key: &str, tex: i64, image: (String, u32, u32), x: i64, y: i64, priority: i64, fade_ms: u32, replaces: &[String], look: Look) {
+        self.show_at(key, tex, image, sx(x), sy(y), priority, fade_ms, replaces, look);
     }
 
-    /// `show` with the centre in screen pixels.
+    /// `show` with the centre in screen pixels. A picture with filters
+    /// fades in inside a transition, so that it does so filtered.
     #[allow(clippy::too_many_arguments)]
-    fn show_at(&mut self, key: &str, tex: i64, image: (String, u32, u32), cx: i32, cy: i32, priority: i64, fade_ms: u32, replaces: &[String]) {
+    fn show_at(&mut self, key: &str, tex: i64, image: (String, u32, u32), cx: i32, cy: i32, priority: i64, fade_ms: u32, replaces: &[String], look: Look) {
+        let opened = look != Look::default() && !self.staging;
+        if opened {
+            self.out.ops.push(Op::BeginTransition { effect: "Sprite".into(), fade_ms, mask: None, style: TransitionStyle::Fade });
+            self.staging = true;
+        }
         let mut changes: Vec<SpriteChange> = replaces
             .iter()
             .filter(|k| *k != key)
@@ -388,8 +436,23 @@ impl Lowering<'_> {
             sprite: Some(SpritePlacement { image: path.clone(), x: cx - w / 2, y: cy - h / 2 }),
             keep_filters: false,
         });
-        self.shown.insert(key.to_string(), Shown { layer, tex, x: cx, y: cy, image: path, w, h, base_y: cy });
         self.out.ops.push(Op::Sprites { changes, fade_ms: if self.staging { 0 } else { fade_ms } });
+        self.apply_look(layer, &look);
+        self.shown.insert(key.to_string(), Shown { layer, tex, x: cx, y: cy, image: path, w, h, base_y: cy, look });
+        if opened {
+            self.out.ops.push(Op::EndTransition);
+            self.staging = false;
+        }
+    }
+
+    /// Puts a look on a layer whose picture was just shown.
+    fn apply_look(&mut self, layer: u32, look: &Look) {
+        if !look.filters.is_empty() {
+            self.out.ops.push(Op::SpriteFilters { layer, filters: look.filters.clone() });
+        }
+        if look.hidden {
+            self.out.ops.push(Op::SpriteOpacity { layer: Some(layer), opacity: 0 });
+        }
     }
 
     /// Moves `key`'s picture to the layers of another priority, in place.
@@ -403,8 +466,9 @@ impl Lowering<'_> {
             SpriteChange { layer: s.layer, sprite: None, keep_filters: false },
             SpriteChange { layer, sprite: Some(SpritePlacement { image: s.image.clone(), x: s.x - s.w / 2, y: s.y - s.h / 2 }), keep_filters: false },
         ];
-        self.shown.insert(key.to_string(), Shown { layer, ..s });
         self.out.ops.push(Op::Sprites { changes, fade_ms: 0 });
+        self.apply_look(layer, &s.look);
+        self.shown.insert(key.to_string(), Shown { layer, ..s });
     }
 
     fn hide(&mut self, key: &str, fade_ms: u32) {
@@ -461,7 +525,7 @@ impl Lowering<'_> {
             self.out.ops.push(Op::Sprites { changes: vec![cover], fade_ms: 0 });
         }
         let (x, y) = (t.int_at("Position", 0).unwrap_or(640), t.int_at("Position", 1).unwrap_or(360));
-        self.show(key, tex, img, x, y, priority, 0, &[]);
+        self.show(key, tex, img, x, y, priority, 0, &[], Look::of(t));
         if let Some(flag) = t.int("CGFlag").filter(|f| *f >= 0) {
             self.out.ops.push(Op::CgSeen { number: flag as u32 + 1 });
         }
@@ -529,7 +593,7 @@ impl Lowering<'_> {
                     self.shown.keys().filter(|k| k.starts_with('t') || !keep_characters).cloned().collect()
                 };
                 let (x, y) = (t.int_at("Position", 0).unwrap_or(640), t.int_at("Position", 1).unwrap_or(360));
-                self.show(&key, tex, img, x, y, prio, fade(t), &replaces);
+                self.show(&key, tex, img, x, y, prio, fade(t), &replaces, Look::of(t));
                 // A gallery CG: seen from now on (CG numbers are 1-based).
                 if let Some(flag) = t.int("CGFlag").filter(|f| *f >= 0) {
                     self.out.ops.push(Op::CgSeen { number: flag as u32 + 1 });
@@ -575,7 +639,7 @@ impl Lowering<'_> {
                     let base_y = if h as i32 > SCREEN_H { SCREEN_H - h as i32 / 2 } else { sy(360 + offset) };
                     let y = base_y + sy(c.int_at("Position", 1).unwrap_or(0));
                     let prio = c.int("Priority").unwrap_or(9);
-                    self.show_at(&key, -1, (path, w, h), x, y, prio, if ty == "CharacterOpen" { 200 } else { 0 }, &[]);
+                    self.show_at(&key, -1, (path, w, h), x, y, prio, if ty == "CharacterOpen" { 200 } else { 0 }, &[], Look::of(c));
                     if let Some(s) = self.shown.get_mut(&key) {
                         s.base_y = base_y;
                     }
@@ -604,8 +668,22 @@ impl Lowering<'_> {
                     let x = c.int_at("Position", 0).map_or(s.x, sx);
                     // y is from the character's usual height.
                     let y = s.base_y + sy(c.int_at("Position", 1).unwrap_or(0));
-                    self.out.ops.push(Op::SpriteMove { layer: s.layer, x, y, ms: time });
-                    self.shown.insert(key, Shown { x, y, ..s });
+                    // `:Color` is where the colour and opacity end up.
+                    let look = if c.get("Color").is_some() { Look::of(c) } else { s.look.clone() };
+                    if look.filters != s.look.filters {
+                        self.out.ops.push(Op::SpriteFilters { layer: s.layer, filters: look.filters.clone() });
+                    }
+                    if look.hidden != s.look.hidden && !self.staging {
+                        // Fading in or out: one cross-fade to the new
+                        // place and opacity over the move's time.
+                        self.out.ops.push(Op::BeginTransition { effect: "CharacterMove".into(), fade_ms: time, mask: None, style: TransitionStyle::Fade });
+                        self.out.ops.push(Op::SpriteMove { layer: s.layer, x, y, ms: 0 });
+                        self.out.ops.push(Op::SpriteOpacity { layer: Some(s.layer), opacity: if look.hidden { 0 } else { 256 } });
+                        self.out.ops.push(Op::EndTransition);
+                    } else {
+                        self.out.ops.push(Op::SpriteMove { layer: s.layer, x, y, ms: time });
+                    }
+                    self.shown.insert(key, Shown { x, y, look, ..s });
                 }
             }
             "InOut" | "InOut_Act" => {
