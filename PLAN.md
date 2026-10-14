@@ -522,6 +522,38 @@ license before reusing code.
 
 Profiles are also the main thing the AI agents write (see §8).
 
+### Progression variables of 最果てのイマ
+
+Global variables (bit 0x8000 in the bytecode, `%200 + n` in `0.txt`;
+the original's table of 20, `0x46de00`). Assumed kept in the system
+data, not in saves, as the conversion does (`globalon`); not checked
+against the original yet (`docs/new-game.md` step 11.5). Scripts:
+0000 `!boot`, 0004 `00_プロローグ` (お茶会－０ and 最初の日), 0009 あずさ,
+0010 さやか, 0011/0012 ようこ, 0013 ふえこ, 0021 リピート, 0022 死,
+0019 `09_回想初期化` (scene replay setup).
+
+| Var | Meaning | Set | Reset | Read |
+|---|---|---|---|---|
+| %203 | 1 debug entry, 0 release entry | 0001 | | |
+| %204-%207 | constants 0, 1, 2, 1 (%207 = 0 in the scene replay) | 0000 `s0_l2` | | not read |
+| %208 | heroine chosen this loop: 1 あずさ, 2 ふえこ, 3 ようこ, 4 さやか | each link scene (`s9_l1`, `s13_l1`, `s11_l1`, `s10_l1`) | each お茶会－０ (`s4_l2`), `s0_l4` | end of 最初の日: 1 → あずさ (`s9_l3`), else ふえこ (`s13_l2`); さやか and ようこ jump to their routes from the link scene (0x48) |
+| %209 | scratch: all four heroines done (`%210 & %211 & %212 & %213`) | `s0_l6` | | `s0_l5`, `s0_l8` |
+| %210, %211, %212, %213 | あずさ, ふえこ, ようこ, さやか done this cycle | their link scenes | `s0_l4` (start, and at each cycle's end) | 最初の日 hides the heroine's link (jumps past the 0x46) |
+| %214 | a heroine link was clicked this loop | link scenes | each お茶会－０ | 最初の日 hides all heroine links; its end picks a route or no route |
+| %215 | loops with no link | end of 最初の日 (+1) | `s0_l2` | `<= 2` → リピート (0021), else 死 (0022) |
+| %216 | phase: 1 cycle 1, 2 cycle 2, 3 after it | `s0_l2`, `s0_l5`, `s0_l8`, end of the epilogue | | not read |
+| %217 | 1 in cycle 1 | `s0_l2` | `s0_l5` (all four done) | route text variants (23 places) |
+| %218 | 1 in cycle 2 | `s0_l5` (all four done) | `s0_l8` | route text variants (40 places) |
+| %219 | 1 after cycle 2: the war arc | `s0_l8` (all four done again) | end of the epilogue | route ends: → `s5_l1` (00_共通前, お茶会－１/２) |
+| %220 | routes finished | `s0_l5`, `s0_l8` (+1) | | not read |
+
+A route's end calls `s0_l5` in cycle 1 or `s0_l8` in cycle 2, then goes
+back to お茶会－０ (`s4_l1`). FIRST START runs `s0_l2`, which zeroes all
+of this. Progress bits for the extras (0x99) are `%3600 + bit`.
+
+Checked by `research/xuse/routesim.py` (route simulation of the bytecode
+and of `0.txt`, `docs/new-game.md` step 11.4).
+
 ### Status of 最果てのイマ: finished (2026-10-14)
 
 Converted and playable from start to end: text, voices, sprites with
