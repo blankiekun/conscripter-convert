@@ -714,6 +714,7 @@ pub struct ExtrasMenu {
     pub gallery: Option<CgGallery>,
     pub replay: Option<SceneReplay>,
     pub music: Option<MusicRoom>,
+    pub movies: Option<MovieRoom>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -736,6 +737,8 @@ pub enum ExtrasAction {
     Back,
     /// Drawn disabled (the mode isn't converted yet).
     Unavailable,
+    /// The movie room.
+    Movies,
 }
 
 /// The CG gallery: tabs (one per heroine), each with pages of thumbnails
@@ -890,6 +893,26 @@ pub struct MusicSong {
     pub file: String,
     /// Left out until [`Op::Progress`] with this bit was reached.
     pub progress: Option<u32>,
+}
+
+/// The movie room: a thumbnail per movie, which plays it. A movie is
+/// shown once an [`Op::Movie`] has played its file (or always, when
+/// `open`); until then the background shows through.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MovieRoom {
+    /// Back to the extras menu; two cells: normal, under the pointer.
+    pub exit: Placed,
+    pub movies: Vec<RoomMovie>,
+    /// The room's own background picture; `None` keeps the extras menu's.
+    pub background: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RoomMovie {
+    /// Two cells: normal, under the pointer.
+    pub button: Placed,
+    pub file: String,
+    pub open: bool,
 }
 
 /// A settings screen: rows of levels 0-10 changed with minus/plus.

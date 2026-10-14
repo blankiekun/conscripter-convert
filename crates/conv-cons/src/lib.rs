@@ -16,6 +16,7 @@ use conv_core::ir::{
 mod extras;
 pub mod lint;
 mod menu;
+mod movies;
 mod music;
 pub mod nsa;
 mod puzzle;
@@ -793,6 +794,9 @@ pub fn emit(script: &Script) -> String {
                 // The web build plays it in a <video> element over the game.
                 writeln!(out, "bgmstop").unwrap();
                 writeln!(out, "mpegplay \"{}\",{}", path(file), u8::from(*skippable)).unwrap();
+                if let Some(seen) = movies::seen(script, file) {
+                    writeln!(out, "{seen}").unwrap();
+                }
             }
             Op::Chapter { title } => writeln!(out, "mov {},\"{}\"", menu::CHAPTER, sprite_text(title)).unwrap(),
             Op::UnlockScene { scene } => writeln!(out, "mov %{},1", SCENE_UNLOCKED_BASE + scene).unwrap(),
@@ -1732,6 +1736,7 @@ effect 7,99,1000,\"cons_zoom.dll/3,220,5\"
             }),
             replay: None,
             music: None,
+            movies: None,
         });
         let out = emit(&s);
         assert!(out.contains("*conv_title_back\nbg \"system\\title.png\",0\n"), "{out}");
@@ -1791,6 +1796,7 @@ effect 7,99,1000,\"cons_zoom.dll/3,220,5\"
                 leave_question: "シーン選択に戻りますか？".into(),
             }),
             music: None,
+            movies: None,
         });
         let out = emit(&s);
         assert!(out.contains("if %9 == 1 goto *conv_replay\n"), "{out}");
@@ -1805,6 +1811,40 @@ effect 7,99,1000,\"cons_zoom.dll/3,220,5\"
             if %3007 == 1 mov $130,\"Ｈ\":mov %155,2:mov %156,1-%3657:mov %157,1:gosub *conv_replay_row\n"
         ), "{out}");
         assert!(out.contains("*conv_replay_go0_1\nmov %3657,1\ngosub *conv_replay_begin:goto *s14_l5\n"), "{out}");
+    }
+
+    #[test]
+    fn movie_room_shows_played_movies() {
+        use conv_core::ir::{ExtrasAction, ExtrasItem, ExtrasMenu, MovieRoom, Placed, RoomMovie, TitleButton};
+        let placed = |image: &str| Placed { image: image.into(), x: 120, y: 71, w: 30, h: 20 };
+        let mut s = script(vec![Op::Movie { file: "movie/op01.mp4".into(), skippable: true }]);
+        s.title_screen = Some(TitleScreen {
+            background: "system/title.png".into(),
+            fade_ms: 1000,
+            buttons: vec![TitleButton { image: "system/option.png".into(), x: 600, y: 200, action: TitleAction::Settings }],
+        });
+        let movie = |image: &str, file: &str, open| RoomMovie { button: placed(image), file: file.into(), open };
+        s.extras = Some(ExtrasMenu {
+            background: "system/extras.png".into(),
+            items: vec![ExtrasItem { button: placed("system/mv.png"), action: ExtrasAction::Movies }],
+            gallery: None,
+            replay: None,
+            music: None,
+            movies: Some(MovieRoom {
+                exit: placed("x"),
+                movies: vec![movie("system/m0.png", "movie/op00.mp4", true), movie("system/m1.png", "movie/op01.mp4", false)],
+                background: None,
+            }),
+        });
+        let out = emit(&s);
+        assert!(out.contains("if %9 == 1 goto *conv_movies\n"), "{out}");
+        // A scene playing a movie of the room marks it.
+        assert!(out.contains("mpegplay \"movie\\op01.mp4\",1\nmov %2801,1\n"), "{out}");
+        assert!(out.contains(
+            "lsp 102,\":a/2,0,3;system\\m0.png\",120,71:spbtn 102,1\n\
+            if %2801 == 1 lsp 103,\":a/2,0,3;system\\m1.png\",120,71:spbtn 103,2\n"
+        ), "{out}");
+        assert!(out.contains("*conv_movie1\nbgmstop:mov %161,0:mpegplay \"movie\\op01.mp4\",1:goto *conv_movies_draw\n"), "{out}");
     }
 
     #[test]
@@ -1829,6 +1869,7 @@ effect 7,99,1000,\"cons_zoom.dll/3,220,5\"
                 songs: vec![song("system/s1.png", "bgm/bgm01.ogg", None), song("system/s2.png", "bgm/bgm22.ogg", Some(0))],
                 background: Some("system/music.png".into()),
             }),
+            movies: None,
         });
         let out = emit(&s);
         assert!(out.contains("if %9 == 1 goto *conv_music\n"), "{out}");

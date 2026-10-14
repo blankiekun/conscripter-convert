@@ -9,7 +9,7 @@ use crate::{path, BUTTON_VAR, PROGRESS_BASE};
 pub(crate) const MUSIC: &str = "conv_music";
 const DRAW: &str = "conv_music_draw";
 /// The song playing (1-based; 0 = none).
-const PLAYING: &str = "%161";
+pub(crate) const PLAYING: &str = "%161";
 const HEADER: u32 = 100;
 const EXIT: u32 = 101;
 const SONG: u32 = 102; // + song

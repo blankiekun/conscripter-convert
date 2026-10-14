@@ -22,6 +22,8 @@ use super::convert::{SCREEN_H, SCREEN_W};
 /// Where SystemData's screens show the Vita's button hints (◎決定 …) and
 /// the page box (/10).
 pub(crate) const HINTS: (u32, u32, u32, u32) = (636, 486, 310, 38);
+/// Around them, to the screen's right edge.
+const HINTS_CORNER: (u32, u32, u32, u32) = (626, 470, 334, 70);
 const PAGE_BOX: (u32, u32, u32, u32) = (818, 22, 142, 64);
 const GLOW: [u8; 3] = [90, 130, 255];
 const HOVER_GLOW: [u8; 3] = [255, 190, 70];
@@ -129,6 +131,21 @@ pub(crate) fn patch(img: &mut RgbaImage, (x, y, w, h): (u32, u32, u32, u32)) {
             let t = (cy - top) as f32 / (bottom - top).max(1) as f32;
             let mix = |i: usize| (a.0[i] as f32 * (1.0 - t) + b.0[i] as f32 * t) as u8;
             img.put_pixel(cx, cy, Rgba([mix(0), mix(1), mix(2), mix(3)]));
+        }
+    }
+}
+
+/// Covers the bottom right corner (the button hints) with the snow on its
+/// left, feathered in over [`FEATHER`] pixels at the top, bottom and left.
+pub(crate) fn cover_hints(img: &mut RgbaImage) {
+    const FEATHER: u32 = 14;
+    let (x, y, w, h) = HINTS_CORNER;
+    let src = imageops::crop_imm(img, x - w, y, w, h).to_image();
+    for (cx, cy, p) in src.enumerate_pixels() {
+        let edge = cx.min(cy).min(h - 1 - cy).min(FEATHER);
+        let q = img.get_pixel_mut(x + cx, y + cy);
+        for i in 0..4 {
+            q.0[i] = ((p.0[i] as u32 * edge + q.0[i] as u32 * (FEATHER - edge)) / FEATHER) as u8;
         }
     }
 }

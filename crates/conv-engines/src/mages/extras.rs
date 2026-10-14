@@ -15,7 +15,8 @@
 use image::{Rgba, RgbaImage, imageops};
 
 use conv_core::ir::{
-    CgGallery, CgViewer, ExtrasAction, ExtrasItem, ExtrasMenu, GallerySlot, GalleryTab, MusicRoom, MusicSong, Placed,
+    CgGallery, CgViewer, ExtrasAction, ExtrasItem, ExtrasMenu, GallerySlot, GalleryTab, MovieRoom, MusicRoom, MusicSong, Placed,
+    RoomMovie,
 };
 
 use super::assets::ArchiveAssets;
@@ -87,7 +88,7 @@ pub fn extras(assets: &mut ArchiveAssets, labels: &Labels, game: &Game) -> Optio
     let parts = assets.system_image("gm_bg1.png")?;
     let title = assets.system_image("title_bg.png")?;
     let mut background = imageops::crop_imm(&album, 0, 0, SCREEN_W as u32, SCREEN_H as u32).to_image();
-    // ALBUM's header apart; the Vita's button hints painted over.
+    // ALBUM's header apart; the Vita's button hints covered.
     let header_rect = (24, 22, 120, 50);
     let plain = {
         let mut b = background.clone();
@@ -96,21 +97,23 @@ pub fn extras(assets: &mut ArchiveAssets, labels: &Labels, game: &Game) -> Optio
     };
     let header = super::menus::difference(&background, &plain, header_rect);
     background = plain;
-    super::menus::patch(&mut background, super::menus::HINTS);
+    super::menus::cover_hints(&mut background);
     let background_path = assets.put_system_png("album_bg", &background);
 
     let item = |assets: &mut ArchiveAssets, name: &str, img: &RgbaImage, i: i32| place(assets, name, img, (SCREEN_W - 170) / 2, 170 + i * 50);
     let back_img = labels.button("戻る", 20.0);
     let items = vec![
         ExtrasItem { button: item(assets, "extras_album", &title_label(&title, 5), 0), action: ExtrasAction::Gallery },
-        ExtrasItem { button: item(assets, "extras_config", &title_label(&title, 4), 1), action: ExtrasAction::Settings },
+        ExtrasItem { button: item(assets, "extras_movie", &title_label(&title, 6), 1), action: ExtrasAction::Movies },
         ExtrasItem { button: item(assets, "extras_music", &title_label(&title, 7), 2), action: ExtrasAction::Music },
-        ExtrasItem { button: place(assets, "extras_back", &back_img, (SCREEN_W - back_img.width() as i32 / 3) / 2, 400), action: ExtrasAction::Back },
+        ExtrasItem { button: item(assets, "extras_config", &title_label(&title, 4), 3), action: ExtrasAction::Settings },
+        ExtrasItem { button: place(assets, "extras_back", &back_img, (SCREEN_W - back_img.width() as i32 / 3) / 2, 420), action: ExtrasAction::Back },
     ];
 
     let gallery = gallery(assets, labels, game, &album, &parts, header);
     let music = music(assets, labels);
-    Some(ExtrasMenu { background: background_path, items, gallery, replay: None, music })
+    let movies = movies(assets, labels);
+    Some(ExtrasMenu { background: background_path, items, gallery, replay: None, music, movies })
 }
 
 /// A title tinted for the pointer (warm) or the song playing (blue).
@@ -160,6 +163,40 @@ fn music(assets: &mut ArchiveAssets, labels: &Labels) -> Option<MusicRoom> {
     ]);
     let background = Some(assets.put_system_png("music_bg", &room));
     Some(MusicRoom { header: place(assets, "music_header", &header, 24, 24), exit: place(assets, "music_exit", &exit, 860, 506), songs, background })
+}
+
+/// The movie room in the order the eboot's room plays them (OP00-OP03.usm
+/// for cursor 0-3; [`super::usm::MOVIES`] numbers), with the thumbnail's
+/// place in `mv_bg.png` and the slot it goes in. OP00, the Vita's opening,
+/// isn't played by any scene: it is always open (ours).
+const MOVIES: [(u32, u32, u32, i32, i32); 4] = [(0, 10, 722, 45, 110), (1, 298, 722, 345, 110), (2, 586, 722, 645, 110), (11, 298, 554, 45, 306)];
+/// The highlight frame around a thumbnail, and the thumbnail's place in it.
+const MOVIE_FRAME: (u32, u32, u32, u32) = (4, 546, 282, 166);
+const FRAME_INSET: (i32, i32) = (6, 7);
+
+fn movies(assets: &mut ArchiveAssets, labels: &Labels) -> Option<MovieRoom> {
+    let atlas = assets.system_image("mv_bg.png")?;
+    let mut room = imageops::crop_imm(&atlas, 0, 0, SCREEN_W as u32, SCREEN_H as u32).to_image();
+    super::menus::cover_hints(&mut room);
+    let frame = imageops::crop_imm(&atlas, MOVIE_FRAME.0, MOVIE_FRAME.1, MOVIE_FRAME.2, MOVIE_FRAME.3).to_image();
+    let mut movies = Vec::new();
+    for (i, &(n, tx, ty, x, y)) in MOVIES.iter().enumerate() {
+        let thumb = imageops::crop_imm(&atlas, tx, ty, 270, 152).to_image();
+        let mut normal = RgbaImage::new(frame.width(), frame.height());
+        imageops::replace(&mut normal, &thumb, FRAME_INSET.0 as i64, FRAME_INSET.1 as i64);
+        let mut hover = normal.clone();
+        imageops::overlay(&mut hover, &frame, 0, 0);
+        let file = assets.movie(n)?;
+        let button = place(assets, &format!("movie{i}"), &cells(&[normal, hover]), x - FRAME_INSET.0, y - FRAME_INSET.1);
+        movies.push(RoomMovie { button, file, open: n == 0 });
+    }
+    let exit_img = labels.button("戻る", 20.0);
+    let exit = cells(&[
+        imageops::crop_imm(&exit_img, 0, 0, exit_img.width() / 3, exit_img.height()).to_image(),
+        imageops::crop_imm(&exit_img, exit_img.width() / 3, 0, exit_img.width() / 3, exit_img.height()).to_image(),
+    ]);
+    let background = Some(assets.put_system_png("movie_bg", &room));
+    Some(MovieRoom { exit: place(assets, "movie_exit", &exit, 860, 506), movies, background })
 }
 
 /// A panel stretched to `w`×`h`: its corners kept, its edges stretched

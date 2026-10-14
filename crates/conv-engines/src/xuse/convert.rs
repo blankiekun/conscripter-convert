@@ -960,7 +960,7 @@ impl AssetBank {
         };
         let replay = self.scene_replay(&common, &label)?;
         let music = self.music_room(&common)?;
-        Ok(ExtrasMenu { background, items, gallery: Some(gallery), replay: Some(replay), music: Some(music) })
+        Ok(ExtrasMenu { background, items, gallery: Some(gallery), replay: Some(replay), music: Some(music), movies: None })
     }
 
     /// The BGM room (see [`music`]); `common` is `SubModeCommon.004`.
