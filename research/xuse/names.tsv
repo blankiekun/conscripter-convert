@@ -58,3 +58,26 @@
 00441a00	op_6f	script opcode 0x6f
 00473530	op_57	script opcode 0x57
 00449df0	op_76	script opcode 0x76
+004742c0	op_15	script opcode 0x15: goto a label of any script, in the current local scene
+00474940	op_22	script opcode 0x22: gosub (a label marked as a scene enters a new local scene)
+00475460	op_36	script opcode 0x36: chapter start (name in the scene and in chapter_name)
+00475780	op_37	script opcode 0x37: chapter end; inside a chapter jumps to its end point
+00475970	op_38	script opcode 0x38
+004729c0	next_instruction	the step every handler ends with: the next record's handler
+00472ab0	next_instruction_2	next_instruction for a caller that passes the task in EAX
+00464a40	clear_chapter_history	op 0x39
+004bb450	set_read_flag	SkipText.cpp: marks a text as read
+00470830	find_label	label-table index -> script and position
+0046e450	load_script	loads HD/CDFiles/<n>.cd; touches no screen object
+004708f0	goto_position	loads the script if another one, then sets the position
+00470990	enter_label	gosub and link target: pushes the call stack, or for a scene label a new local scene (enter_local_scene)
+004674e0	enter_local_scene	makes a new local scene current (current_scene)
+0051f868	current_scene	the local scene: chapter name +4, script id +0x3c, environment objects +0x28c
+004151d0	env_add	op 0x8c: adds an environment module to current_scene + 0x28c
+004152f0	env_clear_slot	op 0x8c with kind 0
+00415340	env_clear_all	op 0x8c with slot 0
+00419570	noise_update	Animation-RandomNoise: opacity begin -> end over time, then held (mode bit 0x10 would end it)
+004784b0	op_68	script opcode 0x68: click wait (callback 0x478370)
+0044a360	op_72	script opcode 0x72: timed wait
+00478830	op_93	script opcode 0x93: unlocks a scene of the scene replay
+004789a0	op_94	script opcode 0x94: end of a replayable scene
