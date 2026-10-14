@@ -8,6 +8,7 @@ build.
 |---|---|---|---|---|
 | 最果てのイマ COMPLETE (finished) | Xuse | `xuse` | `docs/games/saihate-no-ima.md` | `saiima.md` |
 | 装甲悪鬼村正 (in progress) | Nitroplus NSS | `nitroplus`, `~/Projects/conscripter-convert-nitroplus` | `docs/games/muramasa.md` | `muramasa.md` |
+| 俺たちに翼はない, PS Vita (starting) | not identified yet | `oretsuba`, `~/Projects/conscripter-convert-oretsuba` | `docs/games/oretsuba.md` (not yet) | `oretsuba.md` (in the worktree) |
 
 **Starting a new game? Read `docs/new-game.md` first.**
 
