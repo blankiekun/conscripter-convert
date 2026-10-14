@@ -147,6 +147,7 @@ Engine features added for converted games (details in the engine's
 | `delsavegame` (delete a save and its thumbnail) | The save menu's delete button. Replaced a global flag per slot that only hid the save; a slot an older build flagged is deleted when the menu lists it |
 | `cons_slide.dll`, `cons_zoom.dll` (effect 99 plugins: slides in 8 directions, four zooms) | 0x76 transitions: Slide in/out (subs 10-25, 7 uses) and Zoom (37-40, 116 uses), decoded from the exe (`transition_style` in the Xuse converter). Scroll (41-44) maps to ONScripter's effects 11-14 and Mosaic (27) to 16 then 17, without engine work |
 | `cons_flip.dll` (effect 99 plugin: a picture turning edge-on, either axis, growing or shrinking) | 0x76 RollFlip (subs 32-35, 24 uses): seen in the original under wine (the new picture widens from a centre line, or the old one narrows into it), sizes sin/cos of progress × 90° from the exe (0x446460); also TvPowerSwitch (sub 48, 11 uses) as a 700 ms vertical collapse. CONscripter 0.15.0 |
+| `cons_melt.dll` (effect 99 plugin: the old picture melts down off the screen behind a smooth random edge, falling columns stretched) | 0x76 MeltDown (subs 45-47, 3 uses): filmed under wine (sub 45), the edge spline and stretch from the exe (0x445310, 0x4458e0). Engine `48200cd`, not released yet |
 | `windowtrans opacity` | The settings' ウィンドウ透過 row (the original's ウインドウの不透明度 slider): the text window picture drawn at 0-255 over its own alpha. CONscripter 0.16.0 |
 | WebP in the web build (libwebp linked in; emscripten's SDL_image has no WebP) | Archive size on the web: `--webp` stores images as near-lossless WebP, 218 MB instead of 457 MB of PNG (`arc.nsa` 765 MB instead of 992 MB). Opt-in, because builds whose SDL_image lacks libwebp can't read it |
 | `screenfilter` (the `spfilter` filters on the picture behind the text window, 4 slots, kept in saves and by `pushscreen`) and `spfilter`/`screenfilter` kind 5 (monotone: greyscale plus r, g, b offsets) | 0x70 screen filters, 395 uses: darkening (brightness down to -250), greyscale and sepia (monotone palette `pal0001.pal`, grey + (28, -9, -38)) flashbacks, negatives, colour overlays, each faded in by `print` |
@@ -572,7 +573,8 @@ parts are not converted:
 - Transitions still drawn as cross-fades: Wave (0-3, 39 uses), Dissolve
   (26, 69), RollFlip (32-35, 24), SoftEdgeWipe (5-8, 10), TvPowerSwitch
   (48, 11), BoxRolling, SmoothCrossFade, Dot4x4, MeltDown (under 10
-  each).
+  each). Since then all but SmoothCrossFade have their own drawing
+  (TODO.md, "Transitions").
 - Full-screen text styles 1-7: metrics are estimates; calibrate from
   screenshots of the original (style 5, route 10, is the most used).
 - Unchecked assumptions: negative mask softness inverts the mask; text

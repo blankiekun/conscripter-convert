@@ -44,12 +44,11 @@ Findings, in case it ever comes back, are in `saiima.md` ("WSS").
 Nothing below has been asked for; check with the user before starting
 a big one.
 
-1. **Transitions and effects not matched yet:** MeltDown (3 uses, still
-   a cross-fade; filmed: the old picture melts down with a wavy edge),
-   the Zigzag filter's Multi blend (1 use; needs an engine blend option
-   for `screenripple`). Quakes, flashes and pulses were never compared
-   with the original (our flashes are under the text window; the
-   original's cover it).
+1. **Transitions and effects not matched yet:** every 0x76 transition
+   now has its own drawing (MeltDown last, via `cons_melt.dll`; Zigzag's
+   Multi blend via `screenripple` blend 1). Quakes, flashes and pulses
+   were never compared with the original (our flashes are under the
+   text window; the original's cover it).
 2. **Missing system screens and buttons:** chapter history
    (`ChapterHistory.004`; 0x39 clears it, nothing emitted yet), the blog
    bar's prev / next / exit buttons and scene list (drawn disabled), the
@@ -431,9 +430,18 @@ engines print `z150` etc.). The web build compiles with it.
 - [x] CONscripter 0.15.0 (engine `9f7ef7e`, tag `v0.15.0`, Android
       versionCode 18): `cons_flip.dll`, `screenripple` blend. All 5
       workflows passed, 9 assets.
-- [ ] Transitions still drawn as cross-fades: MeltDown (3); SmoothCrossFade
-      (8) is an eased cross-fade, close enough.
-      SmoothCrossFade (8), Dot4x4 (3), MeltDown (3) (PLAN §6 "Accuracy").
+- [x] MeltDown (3 uses, subs 46/47; 45 filmed under wine at 2/4/6 s of
+      8 s): a Doom-style melt. The old picture's columns fall away behind
+      a smooth random edge (spline through 11 random points, 0x445310,
+      clipped flat at 0); the filmed edge fits h·((p − d)/(1 − d))² with
+      d 0.2-0.3. The byte 0/128/255 (the "black/grey/white" names were
+      wrong) is the per-row acceleration (a/255)²·0.45 + 0.03 (0x4451e0)
+      that stretches the falling columns; mapped to a stretch of 15 / 72
+      / 240 % (a guess: subs 46/47 weren't filmed). New engine plugin
+      `cons_melt.dll` (engine `48200cd`, not released yet; older engines
+      draw a cross-fade). Checked on Xvfb mid-effect.
+- [ ] Transitions still drawn as cross-fades: SmoothCrossFade (8), an
+      eased cross-fade, close enough.
 - [x] Bars always shown (user's request, 2026-10-13): the top bars and
       the bottom button bar draw at every click wait; the hover hotspots
       (`getmouseover`, `bar_reveal*`/`bar_hide` images) are gone. The

@@ -1065,6 +1065,7 @@ fn transition_steps(fade_ms: u32, mask: Option<&str>, style: TransitionStyle) ->
         (None, TransitionStyle::Flip { horizontal, grow }) => {
             one(Effect::Dll(format!("cons_flip.dll/{},{}", u8::from(!horizontal), u8::from(!grow))))
         }
+        (None, TransitionStyle::Melt { stretch_percent }) => one(Effect::Dll(format!("cons_melt.dll/{stretch_percent}"))),
         (_, TransitionStyle::ThroughWhite) => {
             let half = (fade_ms / 2).max(1);
             vec![(half, Effect::Fade), ((fade_ms - half).max(1), Effect::Fade)]
@@ -1507,6 +1508,8 @@ print 3
             begin(TransitionStyle::Mosaic),
             Op::EndTransition,
             begin(TransitionStyle::Zoom { style: ZoomStyle::Cross, max_percent: 220, curve: 5 }),
+            Op::EndTransition,
+            begin(TransitionStyle::Melt { stretch_percent: 71 }),
             Op::Text { speaker: None, text: "あ".into(), voice: None, links: vec![], ruby: vec![], styles: vec![], hang: None, continues: false },
         ]);
         let text = emit(&s);
@@ -1514,11 +1517,12 @@ print 3
 effect 2,16,500
 effect 3,17,500
 effect 4,14,1000
-effect 5,99,1000,\"cons_slide.dll/0,-1,0\"
-effect 6,99,1000,\"cons_zoom.dll/3,220,5\"
+effect 5,99,1000,\"cons_melt.dll/71\"
+effect 6,99,1000,\"cons_slide.dll/0,-1,0\"
+effect 7,99,1000,\"cons_zoom.dll/3,220,5\"
 ";
         assert!(text.contains(defs), "{text}");
-        assert!(text.contains("; transition: x\nprint 5\n; transition: x\nprint 4\n; transition: x\nprint 2\nprint 3\n; transition: x\nprint 6\nあ"), "{text}");
+        assert!(text.contains("; transition: x\nprint 6\n; transition: x\nprint 4\n; transition: x\nprint 2\nprint 3\n; transition: x\nprint 7\n; transition: x\nprint 5\nあ"), "{text}");
     }
 
     #[test]

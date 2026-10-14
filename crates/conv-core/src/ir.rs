@@ -31,6 +31,10 @@ pub enum TransitionStyle {
     /// Zooms about the screen centre, up to `max_percent` (100 = no zoom),
     /// eased by the progress to the power `curve`.
     Zoom { style: ZoomStyle, max_percent: u32, curve: u8 },
+    /// The old picture melts down off the screen behind a wavy edge, each
+    /// column falling faster and faster; a falling column is stretched by
+    /// up to `stretch_percent` more.
+    Melt { stretch_percent: u32 },
 }
 
 /// What moves in a [`TransitionStyle::Slide`].
