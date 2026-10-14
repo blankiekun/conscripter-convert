@@ -491,13 +491,14 @@ and the files checked against nstrace:
 
 | Run | Ending | Files | Pages | Time | Result |
 |---|---|---|---|---|---|
-| 1 | 一条END | 246 | 26,709 | 20 min | passed |
-| 2 | 香奈枝END | 349 | 26,088 | 22 min | passed |
-| 3 | 茶々丸END | 300 | 29,139 | 23 min | passed |
-| 9 | 村正END | 510 | 36,279 | 28 min | passed |
-| 10 | TRUE END | 514 | 36,452 | 28 min | passed |
+| 1 | 一条END | 246 | 26,704 | 17 min | passed |
+| 2 | 香奈枝END | 349 | 26,085 | 18 min | passed |
+| 3 | 茶々丸END | 300 | 29,136 | 19 min | passed |
+| 9 | 村正END | 510 | 36,276 | 24 min | passed |
+| 10 | TRUE END | 514 | 36,449 | 24 min | passed |
 
-The same runs on Xvfb in skip mode took 40-56 minutes. On CONscripter
+(The build with every fix below, 2026-10-14; the build before them
+passed too.) The same runs on Xvfb in skip mode took 40-56 minutes. On CONscripter
 0.18.0, run 9 aborted 508 files in with `malloc(): unaligned tcache
 chunk detected` (heap corruption, noticed in `malloc` under `lsp` →
 `loadImage`); on 0.19.0 it passes. A likely cause, fixed in between:
@@ -508,8 +509,11 @@ the whole of run 9 (510 files, 34 min, `ASAN_OPTIONS=detect_leaks=0`)
 with no error, so no bad memory access is left on that route.
 
 The checker (`cons_trace_check.py` with `research/nitroplus/cons_trace_check.json`)
-found one bug on the first run, the typewriter captions (below). The
-rest of its report is expected for this game: `crowd` and `offscreen`
+found the seven bugs fixed below; on the rebuilt game its `text` and
+`duration` findings are gone, the favour panel no longer lingers, and
+fewer loops double and characters stay off screen. The `voice`
+findings left are lines in 『』 that have no voice in the source either.
+The rest of its report is expected for this game: `crowd` and `offscreen`
 (NSS layers many full-screen objects and parks some off screen),
 `sound` (the battle scenes layer one effect on several channels a
 few hundred ms apart, as the source does; `se戦闘_` is in the config's
@@ -576,8 +580,11 @@ out/conscripter-mura`). The route runs and `--at` starts are in
 `research/nitroplus/engrun.py`.
 
 Next, in order:
-1. Rerun the five route runs on a build with the `<?>` fix (the
-   captions in `ma01_026`), and check their traces.
+1. Sound volume: `SetVolume` on a playing sound is ignored unless it
+   goes to 0, so sounds faded to 1 (99 places; mostly the BGM ducked
+   for a moment and raised again) keep playing at full volume, and
+   loops faded that way never stop (the checker's `loop` rule). Needs a
+   per-channel volume in the output (NScripter's `bgmvol`/`chvol`).
 2. **System screens** (step 7): title, save/load, settings, backlog,
    built as in-script menus from `cg/sys/*` parts, as for 最果てのイマ
    (`conv-cons/src/menu.rs`); the settings screen also shows the build's
