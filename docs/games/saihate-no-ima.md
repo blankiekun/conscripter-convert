@@ -562,6 +562,21 @@ engine's debug trace (`cons_explore.py`, 62,185 pages, 1,220 labels;
   converted: the depth itself (bust-ups stack by character number;
   1100-5000 probably put a bust-up over a `frameNN` overlay, which ours
   draws over every bust-up).
+- **Scenes laid out for the wrong text window (fixed).** A second run
+  (CONscripter 0.19.0) found 1,320 pages whose text ran past the window,
+  all in `s13_l3`-`s13_l37` and `s10_l98`, and 30 voices cut off on the
+  same pages. Each of those scenes comes after a footnote scene in the
+  file (`s13_l1`, `s10_l97`) that sets the full-screen window and
+  returns. The converter followed the window in file order, so it laid
+  the next scene's text out for the full-screen window (16 rows to a
+  page, names in 【】) while the game was still in the message box (3
+  rows). Now a label that the code before it can't fall into takes the
+  window its jumps, gosubs and links have when they all agree, and a
+  gosub to a subroutine that calls a preset (`s19_l1` calls `s2_l18`)
+  counts as setting that window (`Presets::entry_window`, `sub_window`;
+  tested by `windows_follow_the_callers`). The same route replayed
+  (`--replay`) has no page past the window (122 before), no voice cut
+  off and no save round-trip difference.
 
 Fixed in CONscripter by the same work: half-width katakana in Shift_JIS
 text (「影（ｼｬﾄﾞｳshadow ）」 in `s7_l8` drew as a blank and lost the next

@@ -954,14 +954,15 @@ fn looks_japanese(s: &str) -> bool {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
 
     fn sjis(s: &str) -> Vec<u8> {
         encoding_rs::SHIFT_JIS.encode(s).0.into_owned()
     }
 
-    fn build(name: &str, labels: &[Label], code: &[Instr], pool: &[u8]) -> Vec<u8> {
+    /// A script file with these sections (for tests here and in `convert`).
+    pub(crate) fn build(name: &str, labels: &[Label], code: &[Instr], pool: &[u8]) -> Vec<u8> {
         let mut out = vec![0xAB; HEAD_LEN];
         let mut name_field = sjis(name);
         name_field.resize(NAME_LEN, 0);
