@@ -623,17 +623,28 @@ out/conscripter-mura`). The route runs and `--at` starts are in
 `research/nitroplus/engrun.py`.
 
 Next, in order:
-1. **Rebuild and rerun the routes.** The fixes after the route runs
-   (above) need a full build to show, and the engine moved to 0.19.1+
-   (3c7c957, 2179dbd). Run `research/nitroplus/engrun.py --all` and
-   the trace checker on each trace.
-2. Sound volume: `SetVolume` on a playing sound is ignored unless it
-   goes to 0, so sounds faded to 1 (99 places; mostly the BGM ducked
-   for a moment and raised again) keep playing at full volume, and
-   loops faded that way never stop (the checker's `loop` rule). Needs a
-   per-channel volume in the output (NScripter's `bgmvol`/`chvol`).
-   The exe's curve (`research/nitroplus/builtins.md`, `SetVolume`):
-   −10 dB per halving, so volume 1 is silent and 500 is 32 %.
+1. **Check the route runs of the rebuilt game.** Round 3 (2026-10-14,
+   all ten paths with `--all`, engine 0.19.1, the build before d124bec)
+   was started side by side; check each run's result line and run the
+   trace checker on each `trace.jsonl`. The build has the fixes after
+   the route runs above, but not the exact names (d124bec): those
+   change only two waits and need no new runs.
+2. **Sound volume** (half done). The converter ignores `SetVolume`
+   (1,406 changes of a playing sound in the build's list; starting
+   volumes too) unless it goes to 0, so sounds faded to 1 keep playing
+   at full volume, and loops faded that way never stop (the checker's
+   `loop` rule). The engine side is in CONscripter (2712225):
+   `chvolfade ch,vol[,ms]` and `bgmvolfade vol[,ms]`, a script volume
+   in percent of the setting, faded while the script goes on, kept
+   with the channel for its next sounds (set it before `dwave`) and in
+   saves. Left: an IR `Op::SoundVolume { file, percent, ms }`, its
+   emitter in `conv-cons` (the channel the next `SePlay` takes when it
+   comes right before it; a script that has any gives every sound a
+   volume), and in `nitroplus/convert.rs` `set_volume` and
+   `flush_sounds` (the ramp from the volume at `Play`) with the exe's
+   curve (`research/nitroplus/builtins.md`, `SetVolume`): percent =
+   100·(volume/1000)^1.661, so 1 is silent and 500 is 32 %. A fade to
+   0 over time could use `dwavefadeout` (CONscripter 922b73f).
 3. An NPA packer (`npa.rs` has the inverse table), so the original can
    be started at any scene from a patched `nss.npa` instead of clicking
    (`docs/new-game.md` step 9, "Running the original under wine").
