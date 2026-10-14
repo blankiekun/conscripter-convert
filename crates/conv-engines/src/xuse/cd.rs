@@ -50,7 +50,7 @@
 //!                        counted across HD/bg0000.004, bg0001.004, … (64 each)
 //! 0x8e  show sprites     sub = number of entries; record = sub × 44 bytes:
 //!                        u16 mode, u16 character, u16 sprite number (1-based,
-//!                        across HD/bu*.004, 128 each), u16 fade time,
+//!                        across HD/bu*.004, 128 each), u16 depth,
 //!                        u16 x, u16 y, then fields not decoded yet (the tail
 //!                        is mostly uninitialised memory)
 //! 0x57  play BGM          arg = track (1-based, HD/bm0000.bin slot arg - 1),
@@ -236,7 +236,12 @@ pub struct SpriteEntry {
     pub character: u16,
     /// 0-based image number across the `bu*.004` archives.
     pub sprite: u16,
-    pub fade: u16,
+    /// Drawing order among the bust-ups (higher on top; 10-150 in this
+    /// game, 1100-5000 over the frame overlays at 1000). Handler 0x434130
+    /// passes it to the object it creates (0x4109a0) as the overlay's depth
+    /// is (0x412fe0); it is no fade time: a bust-up fades over a fixed
+    /// 500 ms whatever its value (filmed: 50 and 1500 both take 0.5 s).
+    pub depth: u16,
     pub x: u16,
     pub y: u16,
 }
@@ -797,7 +802,7 @@ impl<'a> CdScript<'a> {
                         mode: r.u16(o)?,
                         character: r.u16(o + 2)?,
                         sprite: r.u16(o + 4)?,
-                        fade: r.u16(o + 6)?,
+                        depth: r.u16(o + 6)?,
                         x: r.u16(o + 8)?,
                         y: r.u16(o + 10)?,
                     })
@@ -1107,7 +1112,7 @@ mod tests {
         let bytes = build("s.rio", &[], &code, &pool);
         let cd = CdScript::parse(&bytes).unwrap();
         let sprites = cd.sprites(&cd.code[0]).unwrap().unwrap();
-        assert_eq!(sprites[1], SpriteEntry { mode: 3, character: 7, sprite: 683, fade: 20, x: 150, y: 320 });
+        assert_eq!(sprites[1], SpriteEntry { mode: 3, character: 7, sprite: 683, depth: 20, x: 150, y: 320 });
 
         let code = [Instr { op: OP_SPRITES, sub: 3, arg: 0, source_pos: 0 }];
         let bytes = build("s.rio", &[], &code, &pool);

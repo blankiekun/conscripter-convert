@@ -332,8 +332,10 @@ const VOICE_TOGGLES: [(&str, &[u32]); 13] = [
     ("その他の女性陣", &[0]),
     ("その他の男達", &[1]),
 ];
-/// Assumption: the sprite entry's fade field counts 10 ms units.
-const SPRITE_FADE_UNIT_MS: u32 = 10;
+/// Bust-ups (0x8e) fade in and out over this long, whatever the entry's
+/// depth (handler 0x4347b0 starts a 500 ms task, 0x442c70; filmed under
+/// wine). Skip mode shows them at once.
+const SPRITE_FADE_MS: u32 = 500;
 
 #[derive(Debug, Error)]
 pub enum ConvertError {
@@ -3254,7 +3256,7 @@ fn lower_instr(
             let sprite = placement(assets, e)?;
             changes.push(SpriteChange { layer, sprite: Some(sprite), keep_filters: e.mode & 4 != 0 });
         }
-        let fade_ms = entries.iter().map(|e| u32::from(e.fade) * SPRITE_FADE_UNIT_MS).max().unwrap_or(0);
+        let fade_ms = if entries.is_empty() { 0 } else { SPRITE_FADE_MS };
         return Ok(Some(Op::Sprites { changes, fade_ms }));
     }
     // Label-table index -> label name (index 0 is the engine's implicit
