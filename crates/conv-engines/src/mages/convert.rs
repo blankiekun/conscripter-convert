@@ -519,9 +519,14 @@ impl Lowering<'_> {
                     };
                     let key = format!("c{}", number[0].int().unwrap_or(-1));
                     let x = sx(c.int_at("Position", 0).unwrap_or(640));
-                    // y 0 is the default height: centred, raised by the
-                    // character's offset.
-                    let base_y = sy(360 + offset);
+                    // y 0 is the usual height: a picture taller than the
+                    // screen (the standing characters, cut at the waist)
+                    // stands on its bottom edge, others are centred,
+                    // raised by the character's offset. (The eboot scales
+                    // OffsetY, -68 for everyone standing, to the screen,
+                    // but centred that leaves them 8 pixels above the
+                    // edge; where it anchors them is not found yet.)
+                    let base_y = if h as i32 > SCREEN_H { SCREEN_H - h as i32 / 2 } else { sy(360 + offset) };
                     let y = base_y + sy(c.int_at("Position", 1).unwrap_or(0));
                     let prio = c.int("Priority").unwrap_or(9);
                     self.show_at(&key, -1, (path, w, h), x, y, prio, if ty == "CharacterOpen" { 200 } else { 0 }, &[]);

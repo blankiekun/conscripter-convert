@@ -288,7 +288,7 @@ message (109 characters with the name; there is no paging).
 |---|---|
 | Messages, speaker names (from the scripts' `:Name N // name` comments), voices | converted |
 | Backgrounds and sprites (`SpriteBG`, `Sprite`, `SpriteBS`, deletes), by priority | converted: `SpriteBG` and `SpriteBS` replace every picture but the characters (a background, a black cover, a white flash, an event CG, in one fade), `Sprite` adds one, and `SpriteDelete`/`SpriteDeleteBG` remove the picture of their `:SpriteNumber` (a texture). Our reading of the scripts; positions not yet checked against the original |
-| Characters (`CharacterOpen`, `…BS`, `CharacterDelete`, `CharacterMove`) and `SpritePriority`/`CharacterPriority` | converted; the usual height guessed (centre + `OffsetY`), CharacterMove's y counted from it. `CharacterDelete` without a list (`:SpriteMax 0`, 962 of 1414) removes every character; `CharacterOpenBS` removes the characters it doesn't name (the scripts re-open or delete-all them afterwards, and only twice delete one by name) |
+| Characters (`CharacterOpen`, `…BS`, `CharacterDelete`, `CharacterMove`) and `SpritePriority`/`CharacterPriority` | converted. At y 0 a character stands on the screen's bottom edge (1209 of the 1333 pictures, 630 pixels tall, are cut off along their bottom row); the eboot scales `OffsetY` (-68 for everyone standing) by 544/720, but centred that leaves them 8 pixels above the edge, so where it anchors them is still to be found. Shorter pictures (the 960×540 cut-ins) are centred plus `OffsetY`. CharacterMove's y counts from that height. `CharacterDelete` without a list (`:SpriteMax 0`, 962 of 1414) removes every character; `CharacterOpenBS` removes the characters it doesn't name (the scripts re-open or delete-all them afterwards, and only twice delete one by name) |
 | `InOut` transitions with the RULE masks | converted |
 | `InOut_Act` (the eboot's effect 25: `:Type` picks the class, `:Param` 0 mostly a direction 0-3 = right, down, left, up) | 0 (the old screen squeezes to that edge while the new one grows from the other; 21 uses) and 7 (a push; 89) as ONScripter's scrolls; 5 (to or from white or black; 9) through white; 2 (a mosaic growing to `:Param` 1 pixels of 720 halfway while the screens cross-fade; 66) as ONScripter's mosaic out and in; 3 (a card turning over in perspective, old in front, new behind, about the vertical axis for `:Param` 0 below 2; 47) as `cons_flip`, the new screen turning in. As plain fades: 1 (rows waving sideways, `:Param` 1-2 the wave; 57), 6 (blurred sideways halfway, `:Param` 1 the width, `:Param` 0 = 1 only the new screen; 130), 4 (2) |
 | FadeOut/FadeIn, TimeWait, BGM, SE, Window hide | converted |
@@ -322,6 +322,6 @@ Next, in order:
    music table is for. A wave and a blur transition (`InOut_Act` 1, 6)
    would need engine effects.
 2. Looks against the original: text window size and place, character
-   heights, the eye catch's speed. Needs screenshots of the Vita game.
+   heights (where the eboot anchors them), the eye catch's speed. Needs screenshots of the Vita game.
 3. SpriteMove `:Scale` (91 zooms on CGs) needs a sprite zoom in the IR
    and conv-cons; looping CharacterActions (96).
