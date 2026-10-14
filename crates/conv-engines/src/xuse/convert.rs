@@ -339,7 +339,9 @@ const VOICE_TOGGLES: [(&str, &[u32]); 13] = [
 ];
 /// Bust-ups (0x8e) fade in and out over this long, whatever the entry's
 /// depth (handler 0x4347b0 starts a 500 ms task, 0x442c70; filmed under
-/// wine). Skip mode shows them at once.
+/// wine). Skip mode shows them at once, and so does a record whose
+/// entries all have mode bit 1 (0x434530 counts only entries without it as
+/// changes; 1,301 records).
 const SPRITE_FADE_MS: u32 = 500;
 
 #[derive(Debug, Error)]
@@ -3421,7 +3423,7 @@ fn lower_instr(
             let sprite = placement(assets, e)?;
             changes.push(SpriteChange { layer, sprite: Some(sprite), keep_filters: e.mode & 4 != 0 });
         }
-        let fade_ms = if entries.is_empty() { 0 } else { SPRITE_FADE_MS };
+        let fade_ms = if entries.iter().all(|e| e.mode & 2 != 0) { 0 } else { SPRITE_FADE_MS };
         return Ok(Some(Op::Sprites { changes, fade_ms }));
     }
     // Label-table index -> label name (index 0 is the engine's implicit
