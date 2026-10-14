@@ -407,9 +407,11 @@ fails the puzzle. Not done: state across relaunch and in the web build
   looks like a silent exit.
 - **Requested durations:** auto-play shortens effects, so check the
   trace's `long wait` warnings: `print 10,270000` (a 4.5-minute
-  cross-fade) would have blocked a real player. Pictures larger than a
-  browser texture (the converter once almost wrote a 61440×34560 zoom)
-  give an `image too large for the web` warning.
+  cross-fade) would have blocked a real player. A single picture that
+  takes a lot of memory (the converter once almost wrote a 61440×34560
+  zoom, about 8 GB) gives a `large image` warning (`--trace-max-image`,
+  64 MB by default; CONscripter after 0.18.0 draws pictures in software,
+  the web build too, so only their memory limits them, not their width).
 - **The 立方陣:** patch a copy of `0.txt` to jump straight to the puzzle
   and print the result (`lsp 999,"RESULT:"+...` on stderr), then click
   through it: solving and the easy mode give 1, a wrong answer 0.
