@@ -193,7 +193,7 @@ N of the scene replay (`%3000+N`); `0x94` ends a replayed scene.
 | `0x4c`, `0x4f`, `0x50` | 9 each | mode, style (`TextWnd{style}.004`), position | text window preset parts, only in script 2's preset subroutines |
 | `0x47` | 160 | | return from a link scene |
 | `0x62`, `0x30` | 1 each | | not converted: only in the unreachable debug menu |
-| `0x8e` | 10,271 | **solved**: `sub` × 44-byte entries of `mode, character, sprite number, fade, x, y` (rest mostly uninitialised memory). The sprite number indexes `bu*.004` (128 per file, 0-based), and the file names' character codes match the `character` field | show `sub` character sprites |
+| `0x8e` | 10,271 | **solved**: `sub` × 44-byte entries of `mode, character, sprite number, depth, x, y` (rest mostly uninitialised memory). The depth (10-150, and 1100-5000 in 62 entries) is the bust-up's drawing order, not a fade time: bust-ups fade over a fixed 500 ms. The sprite number indexes `bu*.004` (128 per file, 0-based), and the file names' character codes match the `character` field | show `sub` character sprites |
 | `0x88` | 45 | **solved** (handler `0x415b50`, `AdvObjectScript_Filter.cpp`) | define one module of an effect preset: u32 preset, u32 slot (0 = clear), u32 module field, u32 kind (module type = kind + 0x63; creator table at `0x501434`: 1 Smooth, 2 Negative, 3 HueSatura, 4 Brightness, 5 GrayScale, 6 Monotone, 8 Color, 9 BrightnessInvert), u16 blend (index into Alpha/Add/Multi/Screen/SignedAdd/Copy/dissolve; the game uses Multi and Copy), u16 opacity (256 = full), then kind data (colour: R, G, B; brightness: i16). Field names from the module's debug output (`Opacity=%u, Blend=%s, Brightness=%d`). Script 2's `s2_l6`–`s2_l16` set preset 1 to one tint per lighting mood |
 | `0x90` | 651 | **solved** (handler `0x434960`) | attach a preset to a bust-up: u16 character, u32 module field, u32 preset (0 = remove). Module type 1 = `CModule_Preset`. Converted to CONscripter's `spfilter`, reading the preset from variables (`PLAN.md` §4.2) |
 | `0x54` | 2,195 | **solved**: `arg` = background number, 1-based (0 = none, skipped by the handler); `bg*.004` holds 64 per file (`n >> 6` in the exe's loader at `0x40bff0`). The most common is 1 = `Black` | set background (sub 0/1: transition variant?) |
@@ -512,26 +512,56 @@ menus, native Linux/macOS movie playback.
 
 **Found by the debug trace (2026-10-14).** A full exploration with the
 engine's debug trace (`cons_explore.py`, 62,185 pages, 1,220 labels;
-`docs/new-game.md`, "Checking a build with the debug trace") found these.
-Not fixed yet:
-- **A text line that stops the game.** `0.txt:24036` (`*conv_link19`),
-  「嘘ー！?  投稿者: イマたん（管理人）…」: the half-width `?` after 「！」
-  is read as an array reference, and the engine stops with "Array No. is
-  not declared" (exit 2). The converter must write `?`, `%`, `$` and `@`
-  in text as full-width (or escape them). It is the only such line in
-  `0.txt` (`cons_trace_check.py --script` checks every text line).
-- **`%190` after a load.** The loadgosub `*conv_scene_loaded` runs `if
-  %2900 == 0 mov %151,%150:mov %190,%150:return`, so every load sets
-  `%190` to `%150`, while in play `%190` stays 0 until it is clamped
-  (`if %190 > %150 mov %190,%150`). Check against the original whether
-  a load should set it.
-- **Pictures too large for the web build.** Six `fx\fx0*.png`
-  animation strips (from `HD/fx.arc`, sprite 59) are up to 24000×600,
-  more than a browser's graphics are sure to take (4096 px). Split each
-  strip into frames or several strips, or lay the frames out in rows.
-- **Long effects.** 55 transitions ask for 15 s (`print` with 15000 ms;
-  `s10_l51` and others). Check against the original that the durations
-  are read right.
+`docs/new-game.md`, "Checking a build with the debug trace") found these:
+- **A text line that stopped the game (fixed).** `0.txt:24036`
+  (`*conv_link19`), 「嘘ー！?  投稿者: イマたん（管理人）…」: the
+  half-width `?` after 「！」 was read as an array reference, and the
+  engine stopped with "Array No. is not declared" (exit 2). Text lines now
+  get every character the engine's text parser reads specially (`%`
+  `?` `$` variables, `@` `\` `_` waits, `!` `#` `(` `/` `)` `<` `>` `[`
+  `]` tags, `` ` `` `"` `;` `*`) in full-width form (`escape_text` in
+  `crates/conv-cons/src/lib.rs`, tested by `text_is_made_safe`); a run
+  from `--goto conv_link19` goes on past it.
+- **`%190` after a load (meant).** The loadgosub `*conv_scene_loaded`
+  runs `if %2900 == 0 mov %151,%150:mov %190,%150:return`, so every load
+  from the save menu sets `%190` to `%150`, while in play `%190` stays 0.
+  `%190` is not one of the game's variables (they are `%200` and up, see
+  "Progression variables") but the converter's blog-bar floor
+  (`SCENE_FLOOR` in `crates/conv-cons/src/menu.rs`): back, exit and the
+  level list only reach levels at or below it. Each level's page lives in
+  save slot 900 + level, which belongs to the current playthrough, so
+  after a load the levels above the loaded one can't be gone back to (they
+  would load another playthrough's pages) and the deeper ones are dropped
+  (`%151`). A switch between levels (`%2900` = 1) carries the floor over
+  instead. The original keeps the whole stack in its saves (the exe has
+  `SaveControl\LocalSaveStack.cpp` and `CLocalSceneStack`), so a load
+  there can still go back: a known difference, limited to a save made
+  inside a link scene. Matching it needs a copy of slots 900+ for each
+  save slot, which NScripter commands can't make (an engine command that
+  copies a save file would).
+- **Pictures "too large for the web build" (not a problem).** The
+  `fx\fx0*.png` animation strips (from `HD/fx.arc`, sprite 59: the
+  frames side by side in playing order) are up to 37600×600 (`fx0102b`,
+  47 frames; about 90 MB decoded, 24000×600 about 55 MB), and the trace
+  warned about every side over 4096 px. They work in the web build: in
+  headless Chromium it loads, draws and animates a 24000×600 strip as the
+  native build does, since pictures are decoded inside the wasm and drawn
+  in software (only the screen becomes a texture). The warning was the
+  engine's mistake, fixed in CONscripter: the trace now reports a single
+  picture over `--trace-max-image` MB (64 by default) as a "large image"
+  under the checker's `memory` rule.
+- **Long effects (fixed).** 55 transitions asked for 15 s (`print` with
+  15000 ms; `s10_l51` and others), 23 for 11 s and one for 50 s. All were
+  bust-up changes (`0x8e`): the converter read the entry's u16 at +6 as a
+  fade time in 10 ms units. It is the bust-up's depth: handler 0x434130
+  passes it to the object it creates (0x4109a0) in the place where the
+  overlay's handler (0x412fe0) passes its depth (1000). Filmed under wine
+  (0004.cd #40, 30 fps): the entry as shipped (50) and patched to 1500
+  both fade over 15 frames, 0.5 s, which is the 500 ms the 0x8e handler
+  (0x4347b0) starts. Every bust-up change now fades over 500 ms. Not
+  converted: the depth itself (bust-ups stack by character number;
+  1100-5000 probably put a bust-up over a `frameNN` overlay, which ours
+  draws over every bust-up).
 
 Fixed in CONscripter by the same work: half-width katakana in Shift_JIS
 text (「影（ｼｬﾄﾞｳshadow ）」 in `s7_l8` drew as a blank and lost the next
