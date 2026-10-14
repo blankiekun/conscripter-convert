@@ -503,13 +503,17 @@ chunk detected` (heap corruption, noticed in `malloc` under `lsp` →
 `loadImage`); on 0.19.0 it passes. A likely cause, fixed in between:
 CONscripter's `DirectReader` copied a file name's extension over its
 own buffer with an overlapping `strcpy` (engine `1d51abc`; undefined
-behaviour on file reads). ASAN_RESULT
+behaviour on file reads). An AddressSanitizer build of 0.19.0 played
+the whole of run 9 (510 files, 34 min, `ASAN_OPTIONS=detect_leaks=0`)
+with no error, so no bad memory access is left on that route.
 
 The checker (`cons_trace_check.py` with `research/nitroplus/cons_trace_check.json`)
 found one bug on the first run, the typewriter captions (below). The
 rest of its report is expected for this game: `crowd` and `offscreen`
 (NSS layers many full-screen objects and parks some off screen),
-`sound` (the battle scenes start one effect on several channels),
+`sound` (the battle scenes layer one effect on several channels a
+few hundred ms apart, as the source does; `se戦闘_` is in the config's
+`known`),
 `memory` (a few pre-scaled zoom pictures of 67-77 MB, see "How the
 compiler works").
 
@@ -534,6 +538,10 @@ Fixed on the way (each found by the runs, all in the current build):
   know. It now starts with the value a first start gives it (on), and
   the voices play together on their own channels. Both found by the
   checker's `voice` rule.
+- `Play` on a looping sound that was still playing started a second
+  copy: `md04_048vs` calls `MusicStart` on its loop eight times to change
+  its volume and speed, and `茶々丸の世界_L` ended up on eight channels at
+  once (28 loop starts in the game). Found by the checker's `sound` rule.
 - Non-blocking actions were cross-faded over their whole time at the
   next sync: a 270 s background scroll (`ma04_013vs`) blocked the
   player for 270 s, 51 cross-fades were over a minute. Now at most a

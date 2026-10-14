@@ -1868,7 +1868,12 @@ impl<'a, 'b> Compiler<'a, 'b> {
             "unlock" => o.locked = false,
             "hideable" => o.hideable = true,
             "play" => {
-                if let Kind::Sound(s) = &mut o.kind {
+                // `Play` on a loop that is still playing goes on with it
+                // (`md04_048vs` calls MusicStart again on its loop to change
+                // the volume and speed); it isn't started a second time.
+                if let Kind::Sound(s) = &mut o.kind
+                    && !(s.looped && s.playing.is_some())
+                {
                     s.starting = true;
                     s.fade_ms = 0;
                 }
@@ -2458,6 +2463,25 @@ scene a.nss
         assert!(matches!(&ops[last + 1], Op::Sprites { changes, .. } if changes[0].sprite.is_none()));
         // SoundPlay and OnSE aren't defined here: built-ins we don't know.
         assert!(c.notes.contains_key("built-in soundplay"));
+    }
+
+    #[test]
+    fn play_on_a_playing_loop_doesnt_start_it_again() {
+        let story = r#"
+scene a.nss
+{
+	CreateSound("SE01", SE, "sound/se/loop_L");
+	Request("SE01", Play);
+	SetLoop("SE01", true);
+	Wait(100);
+	Request("SE01", Play);
+	SetLoop("SE01", true);
+	Wait(100);
+}
+"#;
+        let c = compile(story, LIBRARY);
+        let plays = c.ops.iter().filter(|op| matches!(op, Op::SePlay { .. })).count();
+        assert_eq!(plays, 1);
     }
 
     #[test]
