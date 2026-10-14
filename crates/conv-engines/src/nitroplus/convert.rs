@@ -62,6 +62,10 @@ const FLAG_LOCAL_BASE: u16 = 290;
 pub const GLOBAL_BORDER: u32 = 800;
 /// Where a run of files ends.
 const RUN_END: &str = "conv_run_end";
+/// Set (in the convert-time variables) when a file assigns `$GameName`,
+/// so that a file naming itself as the next one (a retry) is told apart
+/// from one that names no next file.
+const GAME_NAME_SET: &str = "$GameName (set)";
 /// Library functions that rank the heroines by their route counters with
 /// a loop (`sys_hmode.nss`): written as NScripter comparisons instead.
 /// Each counter counts up from its flag to 10, checked in this order, so
@@ -242,6 +246,7 @@ pub fn compile_run(files: &BTreeMap<String, NssFile>, start: &str, max_files: us
         c.dynamic.clear();
         c.dynamic_values.clear();
         c.next_dynamic = dynamic_base;
+        c.vars.remove(GAME_NAME_SET);
         c.forks_in_file = 0;
         c.leaves_in_file = 0;
         c.steps = 0;
@@ -271,7 +276,7 @@ pub fn compile_run(files: &BTreeMap<String, NssFile>, start: &str, max_files: us
                 label
             } else if !b.vars.get("$GameCircle").is_some_and(Value::truthy) {
                 RUN_END.to_string()
-            } else if next == name || next.is_empty() {
+            } else if (next == name && !b.vars.contains_key(GAME_NAME_SET)) || next.is_empty() {
                 c.note("file didn't name a next file");
                 if std::env::var_os("NSS_TRACE").is_some() {
                     eprintln!("{name}: no next file");
@@ -1461,6 +1466,9 @@ impl<'a, 'b> Compiler<'a, 'b> {
                     }
                     None => new,
                 };
+                if key == "$GameName" {
+                    self.vars.insert(GAME_NAME_SET.into(), Value::Int(1));
+                }
                 self.vars.insert(key, new);
             }
             StmtKind::If { cond, then, otherwise } if self.is_runtime(cond) => {
@@ -2596,6 +2604,23 @@ scene a.nss
         assert!(c.ops.contains(&Op::Arith { var: flag, op: ArithOp::Set, value: Operand::Const(1) }));
         let c_start = c.ops.iter().position(|op| *op == Op::Label("f_c".into())).unwrap();
         assert!(matches!(&c.ops[c_start + 1], Op::If { var, cmp: conv_core::ir::Compare::Eq, value: Operand::Const(0), .. } if *var == flag), "{:?}", &c.ops[c_start..]);
+    }
+
+    #[test]
+    fn a_choice_that_names_its_own_file_replays_it() {
+        // As md05_010vsaa: option 1 shows some text and asks again.
+        let mut files = BTreeMap::new();
+        files.insert(BOOT.to_string(), nss::parse("#include \"nss/function.nss\"\n").unwrap());
+        files.insert("function.nss".to_string(), nss::parse("function SetChoice02($テキストデータ１,$テキストデータ２){}").unwrap());
+        let main = |name: &str, body: &str| format!("scene {name}_MAIN\n{{\n{body}\n}}\n");
+        let a = r#"SetChoice02("もう一度","終わる");
+	select { case @選択肢１ { $GameName = "a.nss"; } case @選択肢２ { $GameName = "b.nss"; } }"#;
+        files.insert("a.nss".into(), nss::parse(&main("a.nss", a)).unwrap());
+        files.insert("b.nss".into(), nss::parse(&main("b.nss", "$GameCircle = 0;")).unwrap());
+        let (c, played) = compile_run(&files, "a.nss", 10, &mut Fake).unwrap();
+        assert_eq!(played, ["a.nss", "b.nss"]);
+        let var = conv_core::ir::Var { global: false, index: FORK_VARS.start };
+        assert!(c.ops.contains(&Op::If { var, cmp: conv_core::ir::Compare::Eq, value: Operand::Const(0), label: "f_a".into() }), "{:?}", c.ops);
     }
 
     /// Runs the variable and jump ops of `ops` (everything else is skipped).
