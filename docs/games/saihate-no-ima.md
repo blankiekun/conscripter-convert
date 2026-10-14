@@ -580,11 +580,9 @@ exe (`research/tools/ghidra/ghidra_export.sh`, names in
      with half-width spaces): the converter now counts each line's rows as
      the engine lays them out (`line_rows`) before joining a message onto
      the page (`conv_link34_1`).
-   Left, for whoever comes next: `s157_l1:262733` ran past the window in
-   the exploration (reached from link scene `conv_link23` through
-   `s167_l1`) but not when started there; the rest of the findings are
-   the known kinds (sounds started twice, bust-ups at one place, looping
-   ambience, the 37600 px `fx` strips).
+   Left, for whoever comes next: the rest of the findings are the known
+   kinds (sounds started twice, bust-ups at one place, looping ambience,
+   the 37600 px `fx` strips).
 6. **Done: messages taller than the window** (the user's list after the
    exploration, 2026-10-14). `s7_l22`'s blog message is 24 lines whose
    two headers wrap: `line_rows` counted the converter's text, before the
@@ -598,6 +596,27 @@ exe (`research/tools/ghidra/ghidra_export.sh`, names in
    (a reading across it is dropped; none is). Voice, name and hanging
    indent stay with the first page. A trace from `--goto s7_l22` has no
    page past the window.
+7. **Done: scenes entered by a jump got the previous file's window.**
+   `s157_l1:262733` ran past the message box when reached from link scene
+   `conv_link23`. A script file starts with two label markers (`sN_l0`,
+   then `sN_l1`), and `falls_into` took the empty `sN_l0` for code
+   falling into `sN_l1`, so `sN_l1` never took the window its callers
+   agree on and kept the one the file before it ended with. In s12 and
+   s157-s169 (the COMPLETE scenes) that was a full-screen window: the
+   names were written into the text (【シャーリー】「…」) and the pages
+   laid out for 40 columns, in the message box. Now markers right before
+   a label are passed over, and the start of a file falls into nothing
+   (only `s4_l0` is ever jumped to). The rows a message takes also count
+   what the script writer adds: a full-width space before a line that
+   starts with ASCII, and the hanging indent (`indent`) on wrapped rows
+   (`line_cells`, `hang_cells`; the chat log in `conv_link35_1`), and a
+   message taller than any window, not only a full-screen one, goes on
+   two pages. An exploration of the same route (`--seed 1`, 68,619
+   pages) had 1 page past the window (5 before) before the indent fix,
+   that page (`conv_link35_1:48911`) none after it. Starting at `--goto conv_link35_1`
+   still shows pages past the window: the full-screen window is set just
+   before that label, so a start there is in the message box (not a
+   problem in play).
 
 
 Converted and playable from start to end: text, voices, sprites with
