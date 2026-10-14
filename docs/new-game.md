@@ -34,6 +34,12 @@ system screens, extras and matching effects to the original.
      and findings. Look at `saiima.md` and `muramasa.md`. Give it two
      sections from the start for step 11: **"Walkthrough"** (with its
      source) and **"Progression variables"** (the table of step 11.2).
+   - `docs/games/<game>.md`, committed: the game's record (install and
+     build command, formats, opcode or command table with handler
+     addresses, how its screens map to CONscripter, progression
+     variables, status and leftovers). `docs/games/saihate-no-ima.md`
+     is the model. Findings move there from the handoff file once they
+     hold up.
    - A short "state / next" section in `TODO.md`, kept current.
    - A branch per game (`xuse`, `nitroplus`), based on `origin/main`. A
      second agent works in its own worktree
@@ -196,7 +202,7 @@ lose the loop state between sessions.
    uses to gate routes, chapters, loops and endings. For each one,
    record its meaning, where it is set, reset and read, and whether the
    original keeps it in save data or in system data. Put the table in
-   the handoff file and in `PLAN.md` §6.
+   the handoff file and in the game's document.
 3. **Check the converted branches against the walkthrough.** For each
    step of the walkthrough, follow the converted `0.txt`, or run it
    headless with a scripted click path (`research/xuse/smoke.py`) and
@@ -252,8 +258,9 @@ lose the loop state between sessions.
   system screens and extras working, the route and progression check
   (step 11) done, the remaining differences written down as optional
   leftovers in `TODO.md`.
-- Update `README.md`'s support table, `PLAN.md` §6 (status) and §13
-  (new lessons), and this playbook if the process changed.
+- Update the game's document (status, leftovers), `README.md`'s support
+  table, `PLAN.md` §6 (the list of games) and §13 (new lessons, stated
+  for any engine), and this playbook if the process changed.
 - Rebuild into a fresh output folder. Never touch folders holding the
   user's saves (`out/saiima-flow`), and list any folder before deleting
   it.

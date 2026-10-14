@@ -18,35 +18,15 @@ it is added to CONscripter rather than approximated (see
 
 ## Supported engines
 
-| Engine | Status | Tested with |
-|---|---|---|
-| Xuse | Complete for its first game | 最果てのイマ COMPLETE |
+| Engine | Status | Tested with | Details |
+|---|---|---|---|
+| Xuse | Complete for its first game | 最果てのイマ COMPLETE | [`docs/games/saihate-no-ima.md`](docs/games/saihate-no-ima.md) |
+| Nitroplus NSS | In progress (branch `nitroplus`) | 装甲悪鬼村正 | |
 
-Other engines are planned (Nitroplus is in progress on its own branch);
-the pipeline is built so each one is a separate reader feeding the same
-output stage (see [`PLAN.md`](PLAN.md)). How a new game is approached is
-in [`docs/new-game.md`](docs/new-game.md).
-
-### Xuse support
-
-最果てのイマ COMPLETE converts completely: every instruction the story
-uses is converted (only the unreachable debug menu is left out).
-
-| Area | Status |
-|---|---|
-| Archives, images, BGM (with loop points), sound effects, voices, movies | ✅ Decoded |
-| Script text, speaker names, ruby, text sizes and colours, hyperlinks (the route choices) | ✅ Converted |
-| Backgrounds, sprites, colour filters, music, sound effects, voices in scripts | ✅ Converted |
-| Control flow (variables, conditions, goto, gosub/return, link scenes) | ✅ Converted |
-| Transitions | ✅ Every kind drawn as in the original (some via CONscripter effect plugins) |
-| Screen filters, shakes, ripples, pulses, quakes, flashes, full-screen animations | ✅ Converted |
-| ADV text box, name plate and full-screen text modes | ✅ Converted |
-| System screens (title, save/load, settings, backlog with names and voice replay, button bars, confirmations) | ✅ Built as in-script menus |
-| Extras (CG gallery, scene replay, BGM room) | ✅ Built as in-script menus |
-| Movies | ✅ Web, Windows and Android; skipped by the Linux and macOS builds |
-| Not converted | The system-voice room (WSS), the chapter history screen, the blog bar's buttons, autosave, some settings of the original's settings dialog |
-
-Other Xuse games may convert but haven't been tried.
+Each engine is a separate reader feeding the same output stage (see
+[`PLAN.md`](PLAN.md)). Each game's document says what converts, what
+doesn't and why. How a new game is approached is in
+[`docs/new-game.md`](docs/new-game.md).
 
 Anything CONscripter-convert can't convert yet stays in `0.txt` as a `;`
 comment naming its source script and instruction, and each conversion
@@ -126,8 +106,9 @@ single script, which is handy for testing one scene.
 
 ## Format tools
 
-Low-level subcommands for inspecting Xuse game files. Run
-`conscripter-convert <command> --help` for details.
+Each engine reader comes with low-level subcommands for inspecting its
+files (`list`/`extract` and the like). Run
+`conscripter-convert <command> --help` for details. For Xuse:
 
 | Command | Files | Subcommands |
 |---|---|---|
@@ -145,13 +126,14 @@ game dir → unpack archives → decode assets, decompile scripts → IR → 0.t
 | Path | Contents |
 |---|---|
 | `crates/conv-core` | The engine-neutral intermediate representation (IR) |
-| `crates/conv-engines` | Source engine readers, one module per engine (`xuse/`) |
+| `crates/conv-engines` | Source engine readers, one module per engine (`xuse/`, …) |
 | `crates/conv-cons` | CONscripter output: IR → `0.txt`, NSA archive writer |
 | `crates/conv-cli` | The `conscripter-convert` command |
 | `engine/` | CONscripter, the target engine (git submodule) |
 | `research/` | Scripts used while reverse-engineering formats (see [`research/README.md`](research/README.md)) |
-| `PLAN.md` | Design notes, format documentation, and the rules for engine additions |
+| `PLAN.md` | Design, IR, output stage, engine additions, general lessons |
 | `docs/new-game.md` | Steps and planning for converting a new game |
+| `docs/games/` | One document per game: formats, opcodes, progression variables, status |
 | `CLAUDE.md` | Working rules and recipes for AI agents working on this repo |
 
 Adding a source engine means writing a reader in `conv-engines` that
@@ -178,7 +160,9 @@ cargo clippy --all-targets
 
 `research/xuse/smoke.py` runs a converted game headless in
 `engine/build/conscripter` with scripted clicks and screenshots (see its
-docstring).
+docstring; it expects the title and menus `conv-cons` writes); `research/xuse/nstrace.py` traces an emitted `0.txt` without
+the engine. Per-game checks (route simulations) are listed in each
+game's document.
 
 ## License
 

@@ -2,16 +2,18 @@
 
 Converts visual novels the user owns into games for CONscripter (our
 ONScripter-Yuri fork, the `engine/` submodule), especially its web
-build. Finished: 最果てのイマ COMPLETE (Xuse, branch `xuse`). In progress:
-装甲悪鬼村正 (Nitroplus, branch `nitroplus`, worktree
-`~/Projects/conscripter-convert-nitroplus`, notes in `muramasa.md`).
+build.
+
+| Game | Engine | Branch / worktree | Game document | Handoff (git-ignored) |
+|---|---|---|---|---|
+| 最果てのイマ COMPLETE (finished) | Xuse | `xuse` | `docs/games/saihate-no-ima.md` | `saiima.md` |
+| 装甲悪鬼村正 (in progress) | Nitroplus NSS | `nitroplus`, `~/Projects/conscripter-convert-nitroplus` | not yet | `muramasa.md` |
 
 **Starting a new game? Read `docs/new-game.md` first.**
 
 Read first, in order: `TODO.md` (state and next steps), the game's
-local handoff file (`saiima.md`, `muramasa.md`, git-ignored, "Resume
-here" at the top), `PLAN.md` §4.2 (engine additions), §6 (per game) and
-§13 (lessons).
+handoff file ("Resume here" at the top), the game's document, `PLAN.md`
+§4.2 (engine additions) and §13 (lessons).
 
 ## Rules (from the user)
 
@@ -32,7 +34,7 @@ here" at the top), `PLAN.md` §4.2 (engine additions), §6 (per game) and
   Engine additions are opt-in, live in `engine/src/onsyuri/` (preferably
   `ONScripter_cons.cpp`), work in the web build, and are documented in
   `engine/ADDITIONS.md` and `PLAN.md` §4.2.
-- Never touch `out/saiima-flow` (the user's saves). Build into
+- Never touch the user's save folders (`out/saiima-flow`). Build into
   `out/<game>-cons`. List any folder before deleting it.
 - Check with the user before starting anything big that they haven't
   asked for. They decide what is dropped.
@@ -51,12 +53,14 @@ here" at the top), `PLAN.md` §4.2 (engine additions), §6 (per game) and
 | `engine/` | CONscripter (C++; our code in `src/onsyuri/ONScripter_cons.cpp`) |
 | `research/<engine>/` | Throwaway Python; `local/` is git-ignored (disassembly, wine scripts, shots) |
 | `docs/new-game.md` | Playbook for converting a new game |
+| `docs/games/<game>.md` | Per-game record: formats, opcodes, progression variables, status |
 
 ## Build and test
 
 - `cargo test`, `cargo clippy --all-targets`; `cargo build --release`.
-- Full Xuse build (2-3 min):
-  `target/release/conscripter-convert convert-game "/home/saya/Z:/Media/InstalledVNs/最果てのイマ COMPLETE" -o out/saiima-cons --font /usr/share/fonts/OTF/ipag.ttf --title "Saihate no Ima COMPLETE"`
+- Full build: `target/release/conscripter-convert convert-game <install
+  dir> -o out/<game>-cons --font /usr/share/fonts/OTF/ipag.ttf --title
+  "<title>"`. Each game's exact command is in its document.
 - Engine: `make -C engine/build -j16` → `engine/build/conscripter`.
   Web: `cd engine/script && EMSDK_HOME=~/emsdk bash ./cross_web.sh`.
 - Headless: `SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy timeout -k 5 N

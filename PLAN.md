@@ -7,9 +7,11 @@ optionally with AI agents. The converter and the engine are developed
 together: when a game feature can't be reproduced with the engine's existing
 commands, the feature is added to CONscripter (§4.1).
 
-- **First game:** 最果てのイマ COMPLETE (Xuse's own engine), finished
-  2026-10-14 (§6). Second: 装甲悪鬼村正 (Nitroplus NSS), in progress on
-  the `nitroplus` branch. How to start a new game: `docs/new-game.md`.
+- **Games:** each converted game has its own document in `docs/games/`
+  (formats, opcodes, progression variables, status, leftovers); the list
+  is in §6. How to start a new game: `docs/new-game.md`. This file holds
+  what is shared by every game: architecture, IR, output stage, engine
+  additions and lessons.
 
 - **Language:** Rust (cargo workspace) for the converter; C++ for engine
   features, which go into CONscripter (the `engine/` submodule).
@@ -158,58 +160,42 @@ Engine features added for converted games (details in the engine's
 | `!zNNN` text size tag (NNN percent of the window's font size, on the baseline, scaled width) | 0x49 text styles: shouting at 125-175 % and mumbling at 75-95 % in about 380 messages (NScripter text has colour tags but no size). Colours from the same records use `#RRGGBB` |
 | Text hooks in the web build (`onsyuriText`, `onsyuriChoice`, `onsyuriOverlay`) | Not for a converted game: chimimouryou lays each page's text over the game for Yomitan and reading statistics. Was a patch kept in chimimouryou (`scripts/onsyuri/text-hook.patch`) |
 
-Planned, from limits hit while converting 最果てのイマ (each one is worked
-around in the script today), roughly in order of payoff:
+Planned, from limits hit by converted games (each one is worked around
+in the script today), roughly in order of payoff:
 
 | Game feature | Workaround today | Engine feature that would fix it |
 |---|---|---|
 | Right-click menu / hide window | Everything behind the on-screen button bar | Send right-click to a script label (`rgosub`-style); not planned for now |
 
-Done without engine work:
-- **Japanese window caption:** CONscripter's `caption` converts the
-  title from the script's encoding to UTF-8 (checked: the web page title
-  and the X11 `_NET_WM_NAME` show `最果てのイマ COMPLETE ～テスト～`), so the
-  ASCII-only filter for ogapee's build is gone.
-- **Movies:** opcode 0x97 plays `HD/mvNNNN.bin` (MPEG-1 program stream);
-  arg's low 16 bits are the number, the high 16 bits whether a click or
-  key ends it (handler 0x478ab0, checked at 0x408e5b). The boot script
-  (opening, `mv0001`), script 7 (`mv0002`, not skippable) and the
-  recollection screen (all three) use it. ffmpeg encodes them as H.264 +
-  AAC MP4 (`movie/`, loose files, about 55 MB each) and the script runs
-  `bgmstop` + `mpegplay "movie\mvNNNN.mp4",skippable`. The web build
-  already played `mpegplay` in a `<video>` element over the game; it only
-  needed a fix (it waited forever when the browser blocked autoplay with
-  sound; now it plays muted). Windows and Android hand the file to the
-  system player; the Linux and macOS builds skip movies.
-- **BGM loop points:** `bm0000.bin`'s slot param 0 is the loop start in
-  sample frames (the second before it matches each track's last second,
-  correlation 0.99-1.0); the loop runs to the end of the track. The
-  converter writes it into each `.ogg` as `LOOPSTART`/`LOOPEND` Vorbis
-  comments, which SDL_mixer (2.0.2+) loops on by itself, sample-exact,
-  when `bgm` plays music looped. SDL_mixer ignores `LOOPSTART` without an
-  end. Being in the file, the loop survives saves and works in stock
-  ONScripter. Not used: ONScripter's `bgm "(seconds)file"` loop-back,
-  which restarts and seeks the file (and isn't saved). In ONScripter-Yuri
-  it never fires, because `playSound` registers `Mix_HookMusicFinished`
-  only when `Mix_PlayMusic` fails (ogapee's ONScripter registers it before).
+Done without engine work (the stock commands are enough; the per-game
+details, record layouts and handler addresses are in the game's document):
+- **Window caption:** CONscripter's `caption` converts the title from the
+  script's encoding to UTF-8, so Japanese titles show in the browser tab
+  and the window manager.
+- **Movies:** ffmpeg to H.264 + AAC MP4 (loose files in `movie/`),
+  played with `bgmstop` + `mpegplay "movie\name.mp4",skippable`. The web
+  build plays it in a `<video>` element (muted when the browser blocks
+  autoplay with sound); Windows and Android hand it to the system
+  player; the Linux and macOS builds skip movies.
+- **BGM loop points:** written into each `.ogg` as `LOOPSTART`/`LOOPEND`
+  Vorbis comments, which SDL_mixer (2.0.2+) loops on by itself,
+  sample-exact, when `bgm` plays music looped (it ignores `LOOPSTART`
+  without an end). Being in the file, the loop survives saves and works
+  in stock ONScripter. Not used: `bgm "(seconds)file"` loop-back, which
+  isn't saved and never fires in ONScripter-Yuri (`playSound` registers
+  `Mix_HookMusicFinished` only when `Mix_PlayMusic` fails).
 - **Backlog speaker names and voice replay:** every text line starts with
-  a `[name|voice]` tag (its page's first speaker shown on a name plate and
-  first voice clip). ONScripter keeps a page's tag in the log, and in
-  saves, when there is a `pretextgosub`; ours only runs `saveon`. The
-  backlog reads it with `gettaglog`, splits it, shows the name above the
-  page and replays the voice when the name (marked ♪) is clicked.
-- **Ruby (`0x44`, 37 uses):** the record (u16 line, column, length,
-  flags; u32 0; the reading) puts a reading over characters of the next
-  message; lines count text lines without the speaker, 1-based. It
-  becomes NScripter's `(base/reading)`, added after escaping (which
-  turns the text's own parentheses full-width), and `rubyon` draws it.
+  a `[name|voice]` tag. ONScripter keeps a page's tag in the log, and in
+  saves, when there is a `pretextgosub` (ours only runs `saveon`). The
+  backlog reads it with `gettaglog`, shows the name above the page and
+  replays the voice when the name is clicked.
+- **Ruby:** NScripter's `(base/reading)`, added after escaping (which
+  turns the text's own parentheses full-width), drawn by `rubyon`.
   `rubyon` puts the ruby in the line gap and draws text a line gap
-  lower, so `setwindow` and the backlog's `strsp` start a line gap
-  higher and the text stays where it was. ONScripter reads the markup
-  bytes singly, so the single-byte padding treats them like colour
-  tags. Readings wider than their base push the rest of the line right,
-  as in stock ONScripter. The 4 px gap of one full-screen style is
-  smaller than its 9 px ruby.
+  lower, so `setwindow` and the backlog's `strsp` start a line gap higher
+  to keep the text in place. ONScripter reads the markup bytes singly, so
+  single-byte padding must treat them like colour tags. Readings wider
+  than their base push the rest of the line right.
 
 ## 5. Asset pipeline
 
@@ -235,403 +221,32 @@ Done without engine work:
 | 3 | **Nitroplus NSS** (装甲悪鬼村正) | In progress (branch `nitroplus`, notes in `muramasa.md`): NSS compiles to NScripter, Lua as the fallback |
 | 4+ | KiriKiri2/KAG, RealLive/Siglus, CatSystem2, BGI/Ethornell, Yu-ris, Artemis, Majiro, Softpal… | Chosen by which games you want to convert next |
 
-### Target 1: 最果てのイマ COMPLETE (Xuse, 2015)
+### Per-game documents
 
-Installed at `/home/saya/Z:/Media/InstalledVNs/最果てのイマ COMPLETE/`.
-First look (2026-10-12, read-only):
-
-- **Engine:** Xuse's in-house engine (`Farthest2015.exe`, 32-bit, VC9). The
-  exe's debug strings mention `AdvObject`, `Gaf004Loader`, `KeyFrameSequencer`.
-  It bundles libpng, zlib and libogg/libvorbis, so images are probably PNG/JPEG
-  inside containers and audio is probably Ogg Vorbis. I found no public tool
-  that documents these formats, so expect to reverse-engineer them.
-
-| Files | Count | Magic / observation | Probably |
-|---|---|---|---|
-| `HD/*.arc` (env, fx, gd, mask, pal, wnd) | 6 | **Solved** — see below | Archives of UI, effects, masks, palettes: 130 entries total (64 `GAF4`, 32 plain PNG, 31 `.ap` + 2 `.def` text files, 1 RIFF palette) |
-| `HD/bg*.004`, `HD/bu*.004`, `HD/LensFlare.004` (+ 64 `.004` inside XARC) | 86 | **Solved** — `GAF4`, see below | 2,971 PNGs: backgrounds 800×600 RGB, sprites RGBA, UI parts. Tool: `conscripter-convert gaf list\|extract` |
-| `CD/BV*.xsa` | 61 | **Solved** — see below | Voice archives: 15,507 clips, plain Ogg Vorbis (44.1 kHz mono) |
-| `HD/CDFiles/*.cd` | 172 | **Container solved** — see below | **Compiled scenario scripts**, one per `.rio` source file: 84,713 instructions, 82 distinct opcodes |
-| `HD/CDFiles/0.cd` | 1 | **Solved**: cipher from the exe (`0x4bcb20`) | **Label symbol table** for all 172 scripts: 1,820 label names with code offsets, all CRCs verified. Tool: `conscripter-convert cd symbols`. |
-| `HD/CDFiles/1.cd` | 1 | Not the 0.cd cipher (no variant of its two constants works either) | Probably the variable definitions. The loader at `0x46de00` reads an `sVAR` file of 0x44-byte entries (64-byte names) into two tables of 20 and 150 variables; how `1.cd` gets decrypted for it is still unknown. |
-| `HD/mv000*.bin` | 3 | MPEG program stream (`00 00 01 ba`) | Movies; ffmpeg reads them directly |
-| `HD/bm0000.bin` | 1 | `.xsa` format, **solved** | BGM: 23 Ogg tracks; param 0 = loop start in samples (20 tracks loop) |
-| `HD/k0000.bin`, `k0001.bin` | 2 | `.xsa` format, **solved** | Probably sound effects: 311 Ogg clips |
-| `HD/cgv.bin`, `wss.bin`, `silent.bin` | 3 | `.xsa` format (182 / 500 slots), **solved** | 113 / 182 / 1 Ogg clips (role unknown; `wss` param 1 = length in samples) |
-| `HD/zpkc.bin` | 1 | Plain PNG, 800×600 | Image |
-| `res/m*.bin` | 5 | Plain `BM` | BMP images (installer/menu) |
-
-The exe also references `.arc` files that aren't installed (`bu.arc`, `gb.arc`,
-`lq.arc`), plus `%s-%s.wav` and `mask%04lu.png` name patterns that hint at
-names inside the archives.
-
-**XARC format (solved 2026-10-12):** documented in
-`crates/conv-engines/src/xuse/xarc.rs`. Offset table, then per entry
-`"DATA"`, 4 unknown bytes (`20 00 00 00` or `20 20 00 00`), a `SYSTEMTIME`,
-name length, data size, the name with nibbles swapped, and raw (unencrypted)
-data. The archive header, each entry header and each entry's data are followed
-by a big-endian CRC-16/XMODEM; all CRCs in all six archives verify. Tool:
-`conscripter-convert xarc list|verify|extract`.
-
-**XSA format (solved 2026-10-12):** documented in
-`crates/conv-engines/src/xuse/xsa.rs`. `u32` version (1), then 256 slots of
-(size, offset, 0, 0), then the clips back to back. No names and no encryption;
-unused slots are zero and only occur at the end of the last archive. The
-global voice number is presumably `archive * 256 + slot` (to confirm against
-the scripts). Tool: `conscripter-convert xsa list|extract`. Since ONScripter plays Ogg
-directly, the clips can be copied over as-is.
-
-**CD script container (solved 2026-10-12):** documented in
-`crates/conv-engines/src/xuse/cd.rs`.
-- **Head:** 32 unknown bytes (unique per file).
-- **Name:** the 260-byte source file name (`*.rio`), XORed with `0x16`.
-- **Header:** six u32s (table count + 1, code size, pool size, script id, 0, 0).
-- **Label table:** entries of (script id, label number, code offset), including
-  cross-script targets.
-- **Code:** 12-byte instructions (u16 opcode, u16 sub, i32 arg, u32 source
-  position).
-- **Operand pool:** strings are a u32 length plus Shift-JIS XORed with `0x53`.
-- **Footer:** the MD5 of everything before it. All 172 files verify.
-
-Tool: `conscripter-convert cd info|dump|messages|strings|opstats`.
-
-**Opcode dispatch table:** `Farthest2015.exe` at `0x4fb270`, indexed by
-the u16 opcode (0–`0x9d`, 157 handlers). Some handlers report their C++
-source file in error messages: `ScriptStd` (`0x23`, `0x30`–`0x39`),
-`TextRuby` (`0x44`, ruby/furigana), `ScriptText` (`0x46`–`0x49`), `TextIndent`
-(`0x4e`), `ScriptSound` (`0x5a`, `0x5e`, `0x5f`), `ScenarioVariable` (`0x64`,
-`0x65`, `0x9b`), `Story` (`0x93`), `AdvObjectScript_Filter` (`0x88`). `0x40`
-and `0x41` share one handler. Message records have a second block after the
-text (`u32 4, u32 0` in every message). Bit 0 of a message's `sub` means
-"has voice" (`0x13` vs `0x12`). The display code (`0x475f40`) checks the
-voice through `0x4679d0` and drops the flag if the check fails.
-
-**Opcodes so far:** for most opcodes the instruction's `arg` is the pool
-offset of its operand record.
-- `0x40`: message.
-- `0x41`: voiced message.
-- **Record layout** (both): `id, size, line number, segment count`, followed
-  by that many XOR-`0x53` strings. All 46,578 messages (15,620 voiced) decode.
-- **Segments:** they look like pre-wrapped display lines, often with the
-  speaker name first. There is no inline markup.
-- **Voice ids:** they have the form `group * 10000 + n` (14 groups).
-  - **Layout:** each group occupies one contiguous run of clips, roughly in
-    ascending id order. The groups are ordered 30, 40, 50, 60, 90, 100, 101,
-    121, 131, 71, 81, 111, 11, 1, which suggests the clips are sorted by a
-    file name (the exe has `%s%s%s-%s.wav` and `%sBV%04d.xsa`).
-  - **Alignment:** a statistical alignment (`research/xuse/voice_align.py`)
-    matches 13,512 of 15,478 ids. Over those matches, text length and clip
-    length correlate at r = 0.95.
-  - **Gap:** that alignment is not exact. About 1,970 ids are unmatched,
-    spread over every group, so wrong voices are possible.
-  - **Solved:** clip = (id − 1) % 100000 (see saiima.md); `id / 100000`
-    is the character. The "groups" above were characters × 10.
-  - **Exact rule (history):** it had to come from the exe. The loader
-    (`0x47f620`) takes a **clip index**, not an id: archive `index >> 8`,
-    slot `index & 0xff`. So the id → index conversion happens before that
-    call, and there's no divide-by-10000 anywhere, which suggests a lookup
-    table. `0.cd` doesn't contain voice ids.
-
-**Other opcodes (working hypotheses, from operand statistics):**
-
-| Opcode | Uses | Evidence | Probably |
-|---|---|---|---|
-| `0x10` | 895 | `arg` is always a valid label-table index; 121 point into blog scripts | jump / call to a label |
-| `0x58`, `0x43` | 579 / 578 | `arg` is always a valid label-table index | call / conditional-jump variants |
-| `0x4d` | 276 | **solved** (handler `0x467a50`; checked in the original under wine with a patched `0002.cd`) | how the current text window shows messages: 0 typed, 1 whole at once, 2 all lines typed at the same time. The window presets set it (three full-screen ones to 1). Converted to `textspeed 0` for 1, else the text speed (2 types the lines one after another) |
-| `0x8e` | 10,271 | **solved**: `sub` × 44-byte entries of `mode, character, sprite number, fade, x, y` (rest mostly uninitialised memory). The sprite number indexes `bu*.004` (128 per file, 0-based), and the file names' character codes match the `character` field | show `sub` character sprites |
-| `0x88` | 45 | **solved** (handler `0x415b50`, `AdvObjectScript_Filter.cpp`) | define one module of an effect preset: u32 preset, u32 slot (0 = clear), u32 module field, u32 kind (module type = kind + 0x63; creator table at `0x501434`: 1 Smooth, 2 Negative, 3 HueSatura, 4 Brightness, 5 GrayScale, 6 Monotone, 8 Color, 9 BrightnessInvert), u16 blend (index into Alpha/Add/Multi/Screen/SignedAdd/Copy/dissolve; the game uses Multi and Copy), u16 opacity (256 = full), then kind data (colour: R, G, B; brightness: i16). Field names from the module's debug output (`Opacity=%u, Blend=%s, Brightness=%d`). Script 2's `s2_l6`–`s2_l16` set preset 1 to one tint per lighting mood |
-| `0x90` | 651 | **solved** (handler `0x434960`) | attach a preset to a bust-up: u16 character, u32 module field, u32 preset (0 = remove). Module type 1 = `CModule_Preset`. Converted to CONscripter's `spfilter`, reading the preset from variables (§4.2) |
-| `0x54` | 2,195 | **solved**: `arg` = background number, 1-based (0 = none, skipped by the handler); `bg*.004` holds 64 per file (`n >> 6` in the exe's loader at `0x40bff0`). The most common is 1 = `Black` | set background (sub 0/1: transition variant?) |
-| `0x46` | 214 | **solved** (from the handler at `0x477460` plus a user-supplied example) | **hyperlink** on the next message: row, column, length, style, target (see 3c) |
-| `0x49` | 565 | **solved** (handler `0x477990`): u16 line, u16 column, u16 length (30000 = to the end of the message; the game wraps enlarged messages short enough to fit), u16 size (percent below 0x1000; 0x1000 + n = n × 25 percent from the table at `0x4fa850`, 0x1003 for mumbling, 0x1005-0x1007 for shouting; 0xf000 = keep), u32 colour (COLORREF, 0xff000000 = keep), u32 edge colour; lines and columns count as for ruby; later records override earlier ones | size and colour for characters of the next message: `#RRGGBB` and CONscripter's `!zNNN` size tag (§4.2) |
-| `0x4e` | 24 | **solved** (handler `0x494750`): arg = indent << 16 \| 1 (once 2); the indent is in half-width units of the first line (ASCII, half-width kana and Greek count 1), up to the text after the chat log's handle | hanging indent of the next message; the game puts it only before chat messages long enough to wrap. Converted to `indent N` around the message, N measured on the emitted line |
-| `0x70` | 457 | **solved** (handler `0x415a30`, objects `filter-<slot>`): u32 slot (0 = clear all), u32 layer \| depth << 8 (layer byte through the table at `0x503e68`: 0/2 → 0x10, 1 → 0, 3 → 0x20, 4 → 0x30; depth = the sort depth within that band, mostly 1000, above the bust-ups; no fade of its own), u32 kind (0 = clear the slot), u16 blend, u16 opacity, then 0x88's kind data; monotone (6) is a u32 palette, `pal%04u.pal` in `HD/pal.arc` (RIFF PAL, 256 entries for the grey levels) | filter on the whole screen, from 0x88's modules. Converted to `screenfilter` + `print 1` (or the surrounding transition); Smooth (1, u8 x, y range), HueSatura (3, i16 hue, saturation) and BrightnessInvert (9) as `screenfilter` kinds 6-8; Filter-Replace (13: u32 map, i32 direction, distance, begin angle in 1/100 turn) as a still `screenripple` in slot 4 + n. Kinds from the (type, creator) pairs at `0x501428`. Zigzag (12, one use: i32 centre x, y, direction, distance, frequency, begin angle, reduction; kernel `0x43f0b0`: each pixel from distance × sin(2π·i/1024) along the direction, i = d × frequency/100 for the distance d from the centre) as a still `screenripple` over a generated ring map; its Multi blend is drawn as alpha (the darkening is missing) |
-| `0x59` | 47 | **solved** (handler `0x473610`) | BGM crossfade: u32 fade ms (capped at 30000), u16 track to stop (0 = all but the new one), u16 track to play; the new track starts fading in, then the old fades out, at once. Converted to `bgmfadein ms` + `bgm` (NScripter has one BGM: the old track stops at once) |
-| `0x82` | 38 | **solved** (handler `0x413f10`) | set an object's opacity (field +0x1b2, 0-256): u8 layer, u32 depth, u16 opacity; the object is found by key = depth (layers 0, 1), depth + 10 (layer 2: character `depth`'s bust-up, as 0x90 finds it), + 110, + 120 (3, 4). Converted for bust-ups (34) and the 0x55 overlay (layer 1 depth 2, 3) as `msp n,0,0,-255:msp n,0,0,alpha`; a new picture is opaque again. Not converted: layer 1 depth 1 (one use after `0x56`) |
-| `0x84`, `0x7d`, `0x7c` (+ `0x7a`/`0x7b` on layer 2) | 10, 5, 6 (6, 8) | **solved** (handlers `0x414180`, `0x413940`, `0x414460`; objects found as in `0x82`) | `0x84` loads a picture into an object: u8 layer, u32 depth, u8 kind, u32 number, u8 ?; image id kind × 10,000,000 + number - 1 (kind 2 = bust-ups, numbered as in `0x8e`). `0x7d`: u8 layer, u32 depth, u8 horizontal, u8 vertical anchor (0-2: left/top, centre, right/bottom; a new object's is 0). `0x7c`: u8 layer, u32 depth, u8 visible. The blog scenes make a hidden layer 2 object with `0x7a` (depth = a character, band 4 above the bust-ups, at (650, 320) or (250, 375)), load a bust-up, centre it and show it; 0135.cd steps a 0-100 % meter (`bu99_*`) a picture a second. `0x7b` on layer 2 removes it, or a bust-up `0x8e` made (0011-0013.cd). Converted as the character layer's sprite (`Op::Sprites`) |
-| `0x99` | 8 | **solved** (handler `0x478b00`) | sets progress bit `sub` of the global word `0x51eb3c` (saved with the system data, `0x45f801`): bits 0-3 at the start (0000.cd, 0003.cd), 4-7 at the end of each heroine's route (0009-0013.cd). Read by the extras: the title (bit 3, `0x45cce9`), getters for bits 1, 2, and the voice mode (`VoiceMode.cpp`, bit 4 + route via `0x4fbc00`). Converted as global flags `%3600 + bit` for the extras to come |
-| `0x9d` | 6 | **solved** (handler `0x478b30`) | marks CG `arg` (1-based, as in `0x54`) as seen without showing it: bit arg - 1 of the global set `0x51ea18`, read by `CGMode.cpp` (`0x44cd56`, `0x44d4af`); `0x55`'s "mark as seen" byte sets the same set (`0x42236b`). Used right after a `0x54` of a related CG (467 → 523). Converted as global flags `%2200 + n` (n up to 576; above the link flags, below the 4096 variables) for a CG gallery |
-| `0x56`, `0x83`, `0x67` | 3, 1, 2 | **solved** (handlers `0x4224a0` → `0x412fe0` kind 1, `0x414050`, `0x473d20`) | `0x56` fills a background slot with a colour: u8 slot (0 removes slots 1-10), u8 layer, u32 depth, u32 COLORREF; a screen-sized object with fill module 7 (`0x55` is the same with kind 0, a picture). Slot 1 = the background, 2 = the overlay. `0x83` sets an object's blend (u8 layer, u32 depth, u8 0-6: Alpha, Add, Multi, Screen, SignedAdd, Copy, dissolve). `0x67` yields one frame. Uses: black background at boot; the shared impact routine `s2_l2` (9 calls) puts white on the overlay, sets dissolve and fades it out over 1 s (`0x86` opacity motion); 0006.cd fills the background red at opacity 64 (`0x82`). Converted with generated `system/fill_rrggbb.png`: `bg` / the overlay; the fade-out as a 1 s cross-fade removal that the following 1 s wait no longer adds to; the red at 64/256 as `fill_3f0000` (over black) |
-| `0x39` | 4 | **solved** (handler `0x475af0`, `ScriptStd.cpp`) | clears the chapter history (an error inside a chapter; nothing in replay modes 1/2): start of 0004.cd, after the ends of 0021/0022.cd. Nothing emitted: no chapter history yet |
-| `0x3b`, `0x3c` | 2, 0 | **solved** (handlers `0x478650`, `0x4786c0`) | `0x3b` copies `sub` bytes of the record into the game state at +4 (an entry name: the boot script sets "debug entry" or "release entry"); `0x3c` jumps when the name matches and is never used. Nothing emitted |
-| `0x91` | 2 | **solved** (handler `0x4788d0`, task `0x454a60`, `StaffRoll\Staff.cpp`; descriptors via `0x517f30`) | the staff roll: arg 0 → `StaffRoll1.004` (63 s, BGM 23), 1 → `StaffRoll2.004` (223 s, BGM 22, the CG slideshow). A panel of key frames (clip rectangle, two picture layers with dx, dy, opacity) and a column of credits scrolling from `start` to `end`; details in `xuse/staffroll.rs`. Rendered by the converter into an MP4 with its song, played with `mpegplay` (not skippable, like the original). Checked frame by frame against the original under wine |
-| `0x48` | 2 | **solved** (handler `0x477900`, `ScriptText.cpp`) | returns to the root scene: leaves every open link scene (`0x467670`); at the root it logs "既にルートシーンにいるので何も行いません。". Routes 10 and 11 (entered from links) start with it and end with jumps. Converted as `Op::ReturnToRoot`: `return` through each link page, whose cleanup puts its screen back and then goes to `*conv_unwind` instead of showing the page again; at depth 0 it jumps to the label after the 0x48 |
-| `0x4a` | 2 | **solved** (handler `0x477af0`; values through `0x491d80`/`0x491e30` as for `0x49`) | the style of the following messages: u16 size (0x1000 + n preset, < 0x1000 percent, 0xf000 + k: 0 none, 1 default, 2 kept), u32 COLORREF (0xff000000 + k likewise), u32 edge colour (stored at +0x60 and +0x64). 0011.cd: four one-character pages at 125 % orange, then the defaults. Converted as a whole-message style under the message's own `0x49` styles; edge not converted |
-| `0x17`-`0x1b` | 2 | **solved** (handlers `0x474460` setne, `0x4745e0` setl, `0x474520` setg, `0x474580` setle, `0x4744c0` setge) | `if v[a] <cmp> b goto label[sub]` like `0x16` (==), the jump taken when the comparison holds. Converted as `Op::If` |
-| `0x96`, `0x00` | 1, 1 | **solved** (handlers `0x478330`, `0x473d20`) | `0x96` stops the sounds and starts the title task (`0x45b6f0`, mode 0), at the end of the epilogue: converted as `reset`. `0x00` shares 0x67's handler: a one-frame yield, nothing emitted |
-| `0x8d` | 1 | **solved** (handler `0x4155c0`, wait task `0x4154b0`) | waits until environment slot n's module (object key n + 0x78) has finished: u32 slot, u8 0xff. 0007.cd waits out a 3 s ripple, then clears it. Converted as a `delay` of the module's time (exact there: it follows the 0x8c that set the slot) |
-| `0x80` | 1 | **solved** (handler `0x413cd0`; fields +0x1a8/+0x1ac, 100 for a new object; key-frame motions set them with flag 0x80) | an object's scale: u8 layer, u32 depth, i32 x, y percent. 0013.cd: character 12 at 80 % after 0x82 made it translucent. Converted as a pre-scaled copy of the bust-up centred on the same point, then the opacity again |
-| `0x69` | 32 | **solved** (handler `0x473940`, wait callback `0x473810`; checked under wine with a patched `0002.cd`) | no record: a click wait showing the picture alone (text window and bars hidden, the wait icon in the corner), passed by skip mode. Converted like 0x68 with `skippable` |
-| `0x86`, `0x87`, `0x7f` | 19, 9, 12 | **solved** (handlers `0x413540`/`0x413350`, `0x413820`, `0x413bb0`; objects found as in `0x82`) | `0x86` adds a module to an object (u8 layer, u32 depth, u32 slot, u32 kind; kind `0x80000001` removes the slot's module) — always a key-frame motion (`CModule_Animation_KeyFrameMotion`, setup `0x416fe0`): the kind is its flags, which fields each key frame has after its u32 ms (0x10 u8; 0x20/0x40/0x80 i32, i32, u8 with 0x40 the position; 0x100 i32 rotation, u8; 0x200 u16 opacity, u8), then a u16 key frame count; the first frame is replaced by the object's state; each u8 is the field's interpolation (`0x4176f0`: 0 kept, 1 a jump halfway, 2 linear, 3 a curve). `0x87` waits for it (u8 layer, u32 depth, u32 slot, u8 `0xff`); `0x7f` puts the object's centre at i32 x, y. The game slides bust-ups (9: start, wait, remove, `0x7f` to the end point; all inside an armed transition, so the original fades and slides at once) and fades the overlay out once (`0x200`, `0002.cd` #14). Converted as `Op::SpriteMove`: `*conv_move` (`getsppos`/`getspsize`, `amsp` steps on the timer); the transition is shown first, then the slide. The rotation (field +0x1b0, tenths of a degree mod 3600, clockwise; `0x81` sets it: u8 layer, u32 depth, i32 angle) of -900 in `0043.cd` #440 is drawn by `Op::SpriteTurn` (lsp2/amsp2, the sprite ends off screen). Key-frame group 0x80 is the scale (+0x1a8/+0x1ac) |
-| `0x8c` | 240 | **solved** (handler `0x4153c0`, `AdvObjectScript_Env.cpp`, objects `environment-<slot>`): u32 slot (0 = clear all), u32 layer \| depth << 8 (the word goes to `0x4109a0` as the object's sort key, see `0x4126c0`; the game uses depth 1000), u32 kind (0 = clear the slot), then the kind's module data (setup table `0x5013bc`; module class from the creator table `0x501434` + RTTI): 1 Animation-Simple on `HD/env.arc` image 50,000,000 + n (light rays, unused), 2 Animation-RandomNoise (88 uses), 3 Filter-LensFlare (unused), 4 Animation-Replace (25), 5 Animation-Vibrate (12). Layouts and maths in `cd.rs` (`Noise`, `Ripple`, `Shake`) | static: an animated sprite (4 generated frames, `system/noise.png`) at the end opacity, sprite 60, kept across `csp -1` like `0x55`; the opacity rise isn't converted. Ripple (draw `0x41a2d0`, per pixel `0x43d9d0`: each pixel from amp × sin(2π(grey/256 + phase/1000)) pixels away along the angle, map `mask%04u.png`, blended at the opacity) → `screenripple`; shaking (draw `0x41ac70`: the picture blitted onto itself at a sine or 7-point-path offset) → `screenshake` |
-| `0x6d` | 198 | **solved** (handler `0x442000`, object `0x441ee0` at sort key `0x06000000`, the bottom of the text window's band): u32 speed, u32 x and y range in pixels (mostly 80, 20, 20). The picture moves along 0x8c's 7-point path, `speed` points a second; after 4 points both ranges shrink by max(speed / 4, 50) px/s until 0. The script waits; a click ends it. Skipped while skipping or with effects off | a quake, often right after a sound effect. Converted to `screenshake 4,…` (mode 1, ranges shrinking from the start over the same total time) + `delay` + `screenshake 4` |
-| `0x6e` | 88 | **solved** (handler `0x441550`, object `0x4413d0` at sort key `0xffffffff`, over everything): `arg` = COLORREF filled over the screen with blend 1 (Add) at opacity 128 for 100 ms; the script waits, a click ends it. White for lightning and shocks, red (`0x0000ff`) for blows | a flash. Converted to `lsp2add` of a full-screen colour rectangle (`>800,600,#rrggbb`, alpha 127) for a 100 ms `delay`. Difference: sprite2 is under the text window, the original flash also covers it |
-| `0x6f` | 87 | **solved** (handler `0x441a00`, `Surprise.cpp`, object at sort key `0x06000000`): u32 time (1-32767 ms), u32 preset 0-8 from the table at `0x500b68` (zoom x/y 16.16 = 10/15/20 %, opacity 100/150/200, tint colour/opacity/blend: none for 0-2, light red `0x8080ff` Multi for 3-5, white blend 6 for 6-8). Takes a snapshot of the picture, tints it, and lays it over the picture scaled by 1 + f × zoom about the centre at f × opacity, f = sin(π t) over the time; the script waits | a "surprise" pulse. Converted to CONscripter's `screenpulse 3,…` (zoom 100/150/200 ‰; Multi → `tint` 1, blend 6 assumed to lay the white over the copy → `tint` 2) + `delay` + `screenpulse 3`. Not checked against the original |
-| `0x57` | 542 | **solved** (handler `0x473530` → sound request `0x47aab0`, channel 0) | play BGM: `arg` = track (1-based, `bm0000.bin` slot `arg - 1`), `sub` = fade-in ms (capped at 30 s) |
-| `0x58` | 579 | **solved** (channel 0, stop flag) | stop BGM: `arg` 0 = all, `sub` = fade-out ms |
-| `0x5a` | 2,633 | **solved** (channel 1) | play SE: packed 9-byte record `u32 ?, u8 loop, u32 sound` (1-based across `k0000.bin` + `k0001.bin`) |
-| `0x5b` | 890 | **solved** (channel 1, stop flag) | stop SE: `arg` = sound or 0 for all, `sub` = fade ms |
-| `0x15`, `0x22` | 442 / 3,094 | handlers look up script variable number `sub` (`0x470830`) | variable operations (core VM) |
-| `0x36`–`0x38` | 251 each | handlers resolve labels (`0x4706a0`) | probably choice menus |
-| `0x76` | 3,670 | **solved** (handler `0x449df0`): `sub` picks the `Trans_*` class through a jump table (0-3 Wave, 4 Dot4x4, 5-8 SoftEdgeWipe, 9 CrossFade, 10-17 Slide in, 18-25 Slide out, 26 Dissolve, 27 Mosaic, 28-31 BoxRolling, 32-35 RollFlip, 36 SmoothCrossFade, 37-40 Zoom, 41-44 Scroll, 45-47 MeltDown, 48 TvPowerSwitch); the record is duration, flags, easing | screen transition |
-
-**Blog scripts:** 60 scripts are named `15_Blog…` (ids 96–155) and 44 are
-named `11_…`. 33 story scripts have 153 label-table entries pointing into the
-blog scripts. Together with the UI files (`BlogStackBar`, `ChapterHistory`),
-this suggests the clickable words open in-game blog articles, which act as
-the encyclopedia.
-
-Still unknown: most opcode semantics, the message `sub` values, the voice
-mapping, the 32-byte head, and `1.cd`.
-
-**Plan for this game:**
-1. ~~`XARC` reader~~ (done).
-2. ~~`.xsa` reader~~ (done).
-3. `.cd` scripts: ~~container and string encoding~~, ~~instruction → pool
-   link and messages~~ (done). Next: the remaining opcode semantics.
-3b. Exact voice id → clip rule: find where the voice-play opcode turns an
-   id into a clip index (follow the `0x41` handler in the exe). Also find
-   `1.cd`'s cipher. (`0.cd`: done.)
-3c. **Encyclopedia hyperlinks: found.** Opcode `0x46` sits right before
-   the message it applies to, one per linked word (214 in the game). Its
-   18-byte record is:
-   - **position:** `row, column, length` in characters (1-based, relative to
-     where the next message starts; row 1 continues the cursor's current
-     line);
-   - **style:** `0x8000 | 7` (205 links) or `| 18` (9 links);
-   - **target:** for 175 links it is an index into the script's label table.
-     Your example resolves to a label in the same script, so at least some
-     explanations are local subroutines.
-   - **Unresolved targets:** the other 39 all equal the script's label-table
-     size, i.e. one past the last entry stored in the file. The engine checks
-     link targets against a count in the in-memory script object (`+0x30`),
-     so it must add one entry at load time. Which entry that is hasn't been
-     found yet (the static trace through `0x4ba6b0`/`0x4ba9b0` was
-     inconclusive). Next step: take one of these links in the game, see
-     where it goes, and match that back to the data.
-   - **Entries can be full scenes:** per the user, some encyclopedia entries
-     play flashbacks with sprites and other normal VN features, so a link
-     target is a full script subroutine, not just text.
-
-   This matches the observation that the same word is linked in some places
-   and not in others: each link is placed by hand. Tool: `conscripter-convert cd messages`
-   prints links with their resolved destination.
-
-   **Conversion:** ONScripter can't make words inside text clickable.
-   Options:
-   - after the message, show the linked word(s) as `btn`/`csel` choices that
-     `gosub` the target label and then return;
-   - or collect the targets into an encyclopedia menu.
-
-   Either way the target runs as a `gosub` with normal scene commands
-   (sprites, backgrounds, sound) and must restore the story's screen state
-   when it returns. So the converter has to save/restore the visible
-   sprites/background around the call, or the target scenes must set and
-   clear their own state.
-
-   Rows and columns can be dropped, since ONScripter re-wraps the text
-   anyway.
-
-4. ~~`GAF4` images~~ (done). Format:
-   - **Header:** `"GAF4"`, u16 version 3, a 64-byte key name (`"Farthest"` or
-     `"generic"`), and a u32 image count at `0x46`.
-   - **Encryption:** everything from `0x4a` on is XORed with a key built
-     from the name (`0x40b2e0`), indexed by file offset modulo
-     `keylen - 1`.
-   - **Contents:** inside is a tagged structure (`DSET`, `PICT`, …) holding
-     one complete PNG per image. All 86 files yield exactly their header
-     count (2,971 PNGs).
-   - **Chunks:** each image is a `DSET` group holding a `PICT` (4 zero
-     bytes + PNG) and an `FTAG` with the original file name
-     (`bg20d1.png`, `04.バストアップ\\bu021203s.png`, …). Sprites come in
-     `b`/`m`/`s` variants of each pose (probably sizes). Tool:
-     `conscripter-convert gaf names`.
-   - **Still to decode:** the ~600-byte block before the first `DSET`. It
-     may hold sprite placement data. Sprites appear to be whole images
-     (one PNG per pose and size), so no composition is needed. Some sprite
-     archives also contain 1×1 placeholder images.
-5. Movies and the remaining `.bin` files last.
-6. **Target: CONscripter, especially its WebAssembly build** (§4.1). What
-   that means for the conversion:
-   - **Menus:** every system screen is a real graphical menu built in the
-     script (game graphics + `spbtn`/`btnwait`/`getmousepos`), since there
-     are no native dialogs and the built-in text menus look out of place.
-   - **Right-click:** ONScripter has no `rgosub` (send right-click to a
-     script label), so all access is behind the on-screen button bar for
-     now. This is a candidate CONscripter addition (§4.2).
-   - **Packaging:** pack assets into `.nsa` archives rather than thousands
-     of loose files (fewer browser fetches), bundle the font, and keep
-     memory use in mind (a full background archive decoded is tens of MB).
-7. **System UI** (from user screenshots of the original, in
-   `out/my-screenshots/`, not committed). Each item, with the ONScripter
-   tools for it:
-   - **Text box:** ADV box (done) at the measured positions.
-   - **Backlog:** a full-screen dark window (like `TextWnd5`, 714×472) with
-     the history as continuous text. ONScripter's history (`lookback*`)
-     draws in the current text window, so a full-screen look needs a
-     workaround (switching the window around the history call, to
-     investigate).
-   - **Right-click menu:** save/load/auto-save, BGM/SE/voice/system-sound
-     toggles, settings, title, hide window, history, chapter history,
-     quit. Use `rmenu`; there's no equivalent for the toggles or for
-     chapter history.
-   - **Title screen:** FIRST START / load / option / EXIT over the title art
-     (probably `gd.arc`: `Entrance.004`). Build with `spbtn`/`btnwait`.
-   - **Save/load screen:** 5 slots per page with thumbnails, 10 pages,
-     delete/save/close buttons, and a slot label of date plus chapter name.
-     Build with `savegame`/`loadgame`/`getsavestr`/`savetime`; ONScripter's
-     built-in text menu is the fallback.
-   - **Settings:** a native Windows dialog (volumes, text, mouse,
-     confirmations). Converted as an in-script screen with the volumes,
-     text speed and auto speed, plus "back to the title" (`reset`) and
-     "quit" (`end`) when opened from the game. A second page has the
-     dialog's 13 voice switches (11 named characters, "other women",
-     "other men"). A voice id's character is `id / 100000` (3 あずさ … 13
-     ジーン, 0 minor women, 1 minor men); each `dwave` is guarded by the
-     character's global flag (`if %(970 + c) == 0 dwave ...`).
-     Skip stops at unread text through ONScripter's own tracking:
-     `kidokuskip` in the define section, `kidokumode 1`; the setting
-     "未読テキストもスキップする" (global %908) switches to `kidokumode 0`.
-   - **Confirmations:** `YesNoDialog.004` (base, frame, four-state button
-     strip; no words in the images). Shown before saving over a save,
-     loading, deleting, going back to the title and quitting, with the
-     executable's messages ("No.%02u のデータに上書きします。よろしいですか？"
-     etc.) drawn with `strsp`. Its sprites are slots 0-5, above the menus.
-   - **In-game bars:** the bottom button bar (auto/skip/log/save/load/
-     setting) and the top bars (chapter name, blog/scene, level). These
-     are HUD sprites and buttons from `wnd.arc`/`gd.arc`.
-
-Any decryption keys found go in the game's profile (§11), not in the tool's
-code.
-
-**Identifying the engine (M0):** run `conscripter-convert inspect` (or by hand at first:
-file extensions, archive magic bytes, strings in the `.exe`, any bundled
-DLLs) on the installed game, then compare against GARbro's format list.
-
-**Existing work to learn from:** GARbro (archive and image formats),
-arc_unpacker, VNTextPatch, rlvm/RLdev, KrkrExtract. Use them as references,
-port the logic into Rust, or (for C++ code) link through `cxx`. Check each
-license before reusing code.
-
-**Per-game profiles** (`profiles/<game>.toml`) can:
-- map custom macros to IR,
-- define sprite layer rules,
-- set per-game decryption parameters (supplied by the user),
-- override cases where automatic conversion gets it wrong.
-
-Profiles are also the main thing the AI agents write (see §8).
-
-### Progression variables of 最果てのイマ
-
-Global variables (bit 0x8000 in the bytecode, `%200 + n` in `0.txt`;
-the original's table of 20, `0x46de00`). Assumed kept in the system
-data, not in saves, as the conversion does (`globalon`); not checked
-against the original yet (`docs/new-game.md` step 11.5). Scripts:
-0000 `!boot`, 0004 `00_プロローグ` (お茶会－０ and 最初の日), 0009 あずさ,
-0010 さやか, 0011/0012 ようこ, 0013 ふえこ, 0021 リピート, 0022 死,
-0019 `09_回想初期化` (scene replay setup).
-
-| Var | Meaning | Set | Reset | Read |
+| Game | Engine | Branch | Document | Status |
 |---|---|---|---|---|
-| %203 | 1 debug entry, 0 release entry | 0001 | | |
-| %204-%207 | constants 0, 1, 2, 1 (%207 = 0 in the scene replay) | 0000 `s0_l2` | | not read |
-| %208 | heroine chosen this loop: 1 あずさ, 2 ふえこ, 3 ようこ, 4 さやか | each link scene (`s9_l1`, `s13_l1`, `s11_l1`, `s10_l1`) | each お茶会－０ (`s4_l2`), `s0_l4` | end of 最初の日: 1 → あずさ (`s9_l3`), else ふえこ (`s13_l2`); さやか and ようこ jump to their routes from the link scene (0x48) |
-| %209 | scratch: all four heroines done (`%210 & %211 & %212 & %213`) | `s0_l6` | | `s0_l5`, `s0_l8` |
-| %210, %211, %212, %213 | あずさ, ふえこ, ようこ, さやか done this cycle | their link scenes | `s0_l4` (start, and at each cycle's end) | 最初の日 hides the heroine's link (jumps past the 0x46) |
-| %214 | a heroine link was clicked this loop | link scenes | each お茶会－０ | 最初の日 hides all heroine links; its end picks a route or no route |
-| %215 | loops with no link | end of 最初の日 (+1) | `s0_l2` | `<= 2` → リピート (0021), else 死 (0022) |
-| %216 | phase: 1 cycle 1, 2 cycle 2, 3 after it | `s0_l2`, `s0_l5`, `s0_l8`, end of the epilogue | | not read |
-| %217 | 1 in cycle 1 | `s0_l2` | `s0_l5` (all four done) | route text variants (23 places) |
-| %218 | 1 in cycle 2 | `s0_l5` (all four done) | `s0_l8` | route text variants (40 places) |
-| %219 | 1 after cycle 2: the war arc | `s0_l8` (all four done again) | end of the epilogue | route ends: → `s5_l1` (00_共通前, お茶会－１/２) |
-| %220 | routes finished | `s0_l5`, `s0_l8` (+1) | | not read |
+| 最果てのイマ COMPLETE | Xuse | `xuse` | [`docs/games/saihate-no-ima.md`](docs/games/saihate-no-ima.md) | Finished 2026-10-14 |
+| 装甲悪鬼村正 | Nitroplus NSS | `nitroplus` | `muramasa.md` (local notes, git-ignored) for now | In progress |
 
-A route's end calls `s0_l5` in cycle 1 or `s0_l8` in cycle 2, then goes
-back to お茶会－０ (`s4_l1`). FIRST START runs `s0_l2`, which zeroes all
-of this. Progress bits for the extras (0x99) are `%3600 + bit`.
+A game's document holds what is specific to it: the install and build
+command, file formats, the opcode or command table with handler
+addresses, how its system screens map to CONscripter, the progression
+variables (`docs/new-game.md` step 11.2), the status and the optional
+leftovers. Start one from step 0.4 of `docs/new-game.md`.
 
-Checked by `research/xuse/routesim.py` (route simulation of the bytecode
-and of `0.txt`, `docs/new-game.md` step 11.4).
-
-### Status of 最果てのイマ: finished (2026-10-14)
-
-Converted and playable from start to end: text, voices, sprites with
-colour filters, backgrounds, BGM with loop points, sound effects, movies,
-every transition kind (Wave, Dot4x4, SoftEdgeWipe, Dissolve, BoxRolling,
-RollFlip, Zoom, Slide, Scroll, Mosaic, TvPowerSwitch and MeltDown each
-drawn their own way, most filmed in the original under wine), screen
-filters and moving effects, text modes, ruby and text sizes, clickable
-links, chapter titles, the system screens (title, save/load, settings
-with voice switches and read-only skip, backlog with names and voice
-replay, button bars, yes/no confirmations) and the extras (CG gallery,
-scene replay, BGM room). Every story instruction is converted; the two
-left as comments are the start point's debug menu, which the user didn't
-want. Dropped by the user: WSS (the system-voice room), right-click
-menus, native Linux/macOS movie playback.
-
-What follows is the optional leftover list, kept for whoever comes back
-to the game. Nothing in it was asked for.
-
-**Settings screen.** The original's settings dialog has six pages; these
-parts are not converted:
-- text: auto-mode wait per page and per character,
-  stopping skip/auto on a choice or click, font, antialiasing, decoration;
-- voice: "次の音声まで停止しない" (keep a voice playing into the next
-  line), auto-play of voices in the CG viewer;
-- sound: per-channel mute switches, the system voice;
-- mouse: wheel sensitivity (the wheel switches and the confirmation
-  switches are done);
-- other: effect and animation switches, save preview, inactive-window
-  behaviour, shortcut-menu position, gamepad.
-
-**Other system screens.**
-- Blog bar: prev/next/exit buttons and the scene list (drawn disabled).
-- Chapter history (`ChapterHistory.004`; 0x37/0x38 only end a chapter and
-  clear its name, converted) and the autosave slots.
-- Extras: the CG gallery, the scene replay ("chapter") and the BGM room
-  are done; the system voices (WSS, title image 13) are dropped (the
-  user's decision; the item stays greyed out). No title BGM (the
-  original's title code plays none, as far as was checked).
-- Button bar lock button (`SysTray.004` #9).
-
-**Script opcodes:** all converted (the converter reports 2 unsupported
-instructions, both in the unreachable debug menu). Notes on the last
-ones done:
-- `0x70`: every kind is converted (Zigzag last, with `screenripple`'s
-  blend);
-- `0x93`/`0x94` are done: `0x93 N` unlocks scene N of the scene replay
-  (global flag `%3000+N`), `0x94` ends a replayed scene (a no-op in play:
-  `if %152 == 1 goto *conv_replay_end`);
-- `0x7a`/`0x8b`/`0x8a`/`0x7b` are done: full-screen animations from
-  `HD/fx.arc` (an `.004` of frames and an `.ap` script each), drawn
-  opaque as an animated sprite (sprite 59, a strip of frames in `fx/`)
-  that outlasts background changes; `0x8a` waits for a one-shot's last
-  frame. Not converted: the rarer layer-2 `0x7a`/`0x7b` records (6 and 7
-  uses), which load no animation;
-- `0x6d` quakes, `0x6e` flashes and `0x6f` pulses are done. `0x55` is done: a second background object, mostly the
-  `frameNN` overlays (letterbox bars, speed lines), drawn as sprite 61
-  (over the characters) or 999 (under them) and kept across background
-  changes; `0x8c`'s static is sprite 60, over it;
-
-**Accuracy.**
-- Transitions: only SmoothCrossFade (8 uses) is still a plain cross-fade
-  (the original eases it). BoxRolling is a push where the original
-  squeezes the pictures like cube faces; MeltDown's stretch for subs
-  46/47 is scaled from the exe, not filmed. Quakes, flashes and pulses
-  were never compared with the original (our flashes are under the text
-  window; the original's cover it).
-- Full-screen text styles 1-7: metrics are estimates; calibrate from
-  screenshots of the original (style 5, route 10, is the most used).
-- Unchecked assumptions: negative mask softness inverts the mask; text
-  window opacity 55%; save menu base opacity; the brightness filter's
-  scale (the game uses -80 and -100, read as -255..255).
-
-**Media and packaging.**
-- `arc.nsa` is about 1.2 GB; if the web build can't handle it, split the
-  voices into `arc1.nsa`.
-- Check that saves, thumbnails (`savethumbN.bmp`) and `kidoku.dat`
-  persist in the WebAssembly build.
+**For every new engine:**
+- **Identify it** (M0): file extensions, archive magic bytes, strings in
+  the `.exe`, bundled DLLs; compare against GARbro's format list.
+- **Existing work to learn from:** GARbro (archive and image formats),
+  arc_unpacker, VNTextPatch, rlvm/RLdev, KrkrExtract. Use them as
+  references, port the logic into Rust, or (for C++ code) link through
+  `cxx`. Check each license before reusing code.
+- **Per-game profiles** (`profiles/<game>.toml`, planned) can map custom
+  macros to IR, define sprite layer rules, set per-game decryption
+  parameters (supplied by the user) and override cases where automatic
+  conversion gets it wrong. Decryption keys found go there, not in the
+  tool's code. Profiles are also the main thing the AI agents write
+  (§8).
 
 ## 7. Project layout
 
@@ -783,13 +398,13 @@ the batch, non-interactive cases.
 
 ## 10. Milestones
 
-- **M0:** identify Saihate no Ima's engine and archive formats (from the
+- **M0:** identify the first game's engine (最果てのイマ) and archive formats (from the
   installed files); build the target engine, write `target_caps.toml`; set
   up the cargo workspace and IR types. (Done with ogapee's ONScripter; the
   target is now CONscripter, §4.1.)
 - **M1:** NScripter output stage, NSA packer, NScripter input engine,
   round-trip tests, linter.
-- **M2:** Saihate no Ima's engine: archive reader, image/audio decoders,
+- **M2:** the first game's engine: archive reader, image/audio decoders,
   script decompiler, plus a game profile. First full conversion. (If the
   engine is undocumented, pull the AI layer from M4 forward, since the format
   sleuth and opcode inferrer are most useful exactly here.)
@@ -824,170 +439,138 @@ the batch, non-interactive cases.
 
 ## 13. Lessons learned and ways to speed up conversion
 
-Collected while converting 最果てのイマ (Xuse). Each lesson is general and
-should carry over to the next engine.
+General lessons, collected while converting games. Each one is stated
+for any engine, with the case that taught it as an example (most come
+from 最果てのイマ, Xuse; its details are in `docs/games/saihate-no-ima.md`).
+The steps that apply them are in `docs/new-game.md`.
 
 ### 13.1 Lessons learned
 
-- **Learn the game's mechanics before reading its bytecode.** In 最果てのイマ
-  the in-text hyperlinks are the route choices. A link pushes a scene,
-  `0x47` returns from it, and route scenes set the flags that later steer
-  the story. A playthrough with no clicks hits a dead end that restarts
-  the chapter. The first full trace showed only that loop, and it looked
-  like a control-flow bug until the link targets were followed. Knowing
-  the hypertext mechanic up front (game wiki, playthrough video) would
-  have pointed straight at it.
-- **Error strings in the exe name opcodes.** `0x47`'s handler errors with
-  「ルートシーンにいるので、これ以上戻ることはできません」("in the root
-  scene, can't go back any further"), which settled its meaning in one
-  look. Dump the strings each handler references before tracing its logic.
-- **Find out how many index spaces a jump uses.** Xuse has two: per-script
-  label numbers (`0x10`/`0x11`) and global label-table indices (`0x15`,
-  `0x16`, `0x22`, links), and the in-memory table has an implicit entry 0
-  (off by one from the stored table). Labels sit *on* marker
-  instructions, and jumps land just after them. Getting any of this wrong
-  still produces a script that runs, so check it with a trace (13.2), not
-  by eye.
+**Know the game before the bytecode.**
+- **Learn the game's mechanics first** (wiki, playthrough video): the
+  route choice mechanic, loops, endings. Example: 最果てのイマ's route
+  choices are hyperlinks in the text. A no-click trace hit a dead end
+  that restarts the chapter, which looked like a control-flow bug until
+  the link targets were followed.
 - **A loop is not necessarily a bug.** Before "fixing" one, check whether
-  the original game loops there too (dead ends, retries, "go back to the
-  title").
-- **Count pages as they are displayed, not in file order.** Setup scripts
-  and debug menus come first in the file but are never shown, so a
-  harness that numbers pages in file order screenshots nothing.
-- **ONScripter ignores SIGTERM while it is stuck in a script loop.**
-  Always run it under `timeout -k 5 …`.
-- **Never delete an output folder without listing it first.** Users put
-  their own files there (an `onscripter` binary was lost once).
-- **Keep Shift-JIS out of the window caption.** It shows as mojibake on
-  Linux, so the caption is ASCII only (a CONscripter fix is listed in §4.2).
-- **Rank opcodes by use count** (`conscripter-convert cd opstats`) and convert from the
-  top. Most of the visible game comes from a handful of opcodes.
-- **Source-file names and handler tables in the exe identify opcodes
-  quickly** (e.g. a handler in `Story.cpp` is story bookkeeping, not
-  display).
-- **Check decoded data against the whole corpus, not one sample:** all
-  46,578 messages parse, all 810 jump targets exist, and script MD5s
-  verify. Corpus-wide checks catch format edge cases that one scene hides.
-- **A prefix check can't catch off-by-one inside a block.** Sprite numbers
-  were read 0-based; the character-prefix check still passed 97%, because
-  the next image is usually the same character. What exposed it: 1×1
-  placeholder images being referenced 1,639 times (0 after the fix), and
-  the handler's id constant `19,999,999 + n`. Also count references to
-  degenerate assets (empty, 1 px).
-- **Cross-check decoded references against asset names.** Checking every
-  sprite entry's character against its image's `bu<character>` prefix found
-  623 mismatches in one pass. They pointed to the "remove character"
-  entries, which were being drawn as character 01, and to the
-  per-character semantics of `0x8e`. Name prefixes in the asset archives
-  are a free oracle; use them for every asset reference.
-- **Look for divide-by-constant magic numbers.** The voice rule hid behind
-  `imul 0x14f8b589; sar 13` (÷ 100000). An earlier search for a literal
-  divide by 10000 found nothing, which wrongly suggested a lookup table.
-- **Use reference screenshots of the original game** for layout. Measuring
-  pixels from them settled the text box and name plate in one pass.
-- **MSVC RTTI maps factory ids to classes.** The chain is
-  `.?AV<class>@@` string → type descriptor → complete object locator →
-  vtable. The constructor that stores the vtable, together with a static
-  `{type id, factory}` table in `.rdata`, gives the class for each id.
-  Here that table gives 1 = `CModule_Preset` and 0x6b =
-  `CModule_Filter_Color`.
-- **An opcode's operands can refer to state defined elsewhere.** 0x90
-  only names a preset; 0x88 defines the presets, in subroutines of script
-  2. The backgrounds loaded next to each preset subroutine (`bg*e`
-  evening, `bg*n` night) fix the colour order (RGB) and the blend
-  (multiply).
-- **Object lifetime depends on sprite mode bits.** 0x8e with mode bit 2
-  keeps the character's object and its attached filters; other modes
-  recreate it. The corpus matches: 3,454 mode-5 changes never re-apply a
-  filter, while mode 3 re-applies it in 122 of 154 cases.
-- **Effects ONScripter can't draw: pre-render first, then add them to
-  the engine.** Colour filters were first tinted copies of the sprites,
-  chosen at conversion time from state tracked in file order (~930
-  images, 130 MB). The engine's `spfilter` replaced them, and with the
-  presets kept in variables the state follows the game's control flow
-  instead of file order.
-- **Lossy image quality is judged on the worst region.** Lossy WebP
-  averages 40+ dB on this art but blurs small coloured detail (eyes,
-  flowers) at every quality level, because of its 4:2:0 colour
-  subsampling. Near-lossless WebP stays within 2–3 levels per pixel at
-  about half the PNG size. Method: crop the worst 120×90 block of the
-  difference image and compare at 6×.
-- **The target's image decoder limits the asset formats.** ONScripter
-  decodes through SDL_image. SDL_image 1.2.12 reads only lossy WebP
-  without alpha (`VP8 `), not lossless (`VP8L`) or extended (`VP8X`,
-  needed for alpha). Emscripten's SDL_image port has no WebP, so
-  CONscripter's web build decodes it with its own libwebp, and PNG
-  stays the default (`--webp` opts in). Check a new format with one test
-  file in the target build before changing the converter.
-- **Sprite numbers set the stacking order, and saves record them.**
-  ONScripter draws lower `lsp` numbers on top, so a dialog over the menus
-  needs the lowest slots. Renumber the menu and bar slots (never saved in
-  a meaningful state) and keep the game's sprites at fixed numbers, so
-  existing saves still load correctly.
-- **The font must be fixed-width.** ONScripter draws every character in
-  a full-width cell, so a proportional font (IPA P Gothic) leaves gaps
-  after narrow glyphs such as イ, ト and ー. IPA Gothic (`ipag.ttf`) has
-  none.
-- **ONScripter's read tracking is by script byte offset.** `kidokuskip`
-  marks every position run (code as well as text) in `kidoku.dat`, which
-  is written on save, `end` and window close. Rebuilding `0.txt` moves the
-  offsets, so a `kidoku.dat` from an older build marks the wrong text;
-  delete it after a rebuild.
-- **Keep a handoff file** (`saiima.md`) with a "Resume here" section.
-  Context resets happen mid-task, and re-deriving state is expensive.
+  the original loops there too (dead ends, retries, back to the title).
+- **Ask what to drop.** Debug menus, right-click menus and side rooms
+  can each cost a session. The user decides.
+- **A 100 % save unlocks the extras at once.** Download one instead of
+  playing or reverse-engineering the unlock bits.
 
-From the second half (system screens, extras, matching effects):
-- **Film the original instead of guessing.** Running it under wine
-  (silent, on its own Xvfb display, a script copy patched to slow a
-  transition to 8 s, shots at fixed fractions) settled each transition
-  in one run. Static reading had got some wrong: Dissolve was given a
-  dither that belongs to Dot4x4, and it really passes through white.
-  Read the kernel in the exe afterwards for the exact curve and fit the
-  frames to it.
-- **Don't name a parameter after the values it takes.** MeltDown's
-  0/128/255 byte looked like black/grey/white. It is an acceleration.
-  Follow the value into the code before naming it.
-- **Jump tables can be two-level:** a byte table indexed by the opcode's
+**Reading the exe.**
+- **Rank opcodes by use count** and convert from the top: a handful of
+  opcodes make most of the visible game.
+- **Strings name handlers.** Error messages, logged source-file names
+  (`Story.cpp` is bookkeeping, not display) and RTTI class names settle
+  an opcode's meaning faster than tracing its logic. Dump them first.
+- **MSVC RTTI maps factory ids to classes:** `.?AV<class>@@` string →
+  type descriptor → complete object locator → vtable. The constructor
+  that stores the vtable, with a static `{type id, factory}` table in
+  `.rdata`, gives the class for each id.
+- **Jump tables can be two-level:** a byte table indexed by the
   sub-number, then an address table. Reading the address table alone
   gives wrong handlers.
+- **Look for divide-by-constant magic numbers.** A division compiles to
+  a multiply and shift (`imul 0x14f8b589; sar 13` is ÷ 100000). Searching
+  for the literal divisor finds nothing and wrongly suggests a lookup
+  table.
+- **Follow a field into the code before naming it**, and never name it
+  after the values it takes. Examples: a 0/128/255 byte that looked like
+  black/grey/white was an acceleration; a field whose values (1000, 500,
+  0) looked like fade milliseconds was a sort depth, which the handler
+  passed to the object creator (fixed in `6b22f6d`).
+- **An operand can refer to state defined elsewhere.** An opcode may
+  only name a preset that another opcode defines in a setup script; the
+  context around the definitions (evening and night backgrounds next to
+  colour presets) can fix their meaning.
+- **Object lifetimes depend on mode bits.** Check across the corpus which
+  modes keep an object (and what is attached to it) and which recreate
+  it, before tracking state.
+
+**Checking decoded data.**
+- **Check the whole corpus, not one sample:** every message parses,
+  every jump target exists, every checksum verifies. Corpus-wide checks
+  catch edge cases that one scene hides.
+- **Find out how many index spaces a jump uses** (per-script labels,
+  global tables, implicit entries, labels on marker instructions).
+  Getting it wrong still produces a script that runs, so check it with
+  a trace, not by eye.
+- **Cross-check references against asset names.** Name prefixes in the
+  archives are a free oracle: checking each sprite reference's character
+  against its image name found 623 mismatches in one pass.
+- **A prefix check can't catch off-by-one inside a block.** The next
+  image is usually the same character, so a 0-based misread still passed
+  97 %. Count references to degenerate assets (empty files, 1×1
+  placeholders) instead: 1,639 references dropped to 0 after the fix.
+- **Count pages as they are displayed, not in file order.** Setup
+  scripts and debug menus come first in the file but are never shown.
+- **Check the routes against a walkthrough before calling a game done.**
+  Simulate each route on both sides (the source with the original's
+  run-time rules, the converted `0.txt`) and diff page by page,
+  including the wrong-order clicks the walkthrough warns about. Static
+  reading and spot runs missed a link that stayed clickable after a
+  jump skipped its record (`docs/new-game.md` step 11).
+
+**Matching the original.**
+- **Film the original instead of guessing.** Run it under wine (silent,
+  its own Xvfb display, a script copy patched to slow an effect down,
+  shots at fixed fractions), then read the effect's kernel in the exe for
+  the exact curve and fit the frames to it. Static reading had got
+  transitions wrong.
+- **Use reference screenshots of the original** for layout: measuring
+  pixels settles the text box and name plate in one pass.
 - **A wine prefix shares the user's home by default.** Its Documents,
   Desktop etc. are symlinks to the real folders, and games save there.
   Replace them with real folders before the first run.
-- **A 100 % save unlocks the extras at once.** Download one (sagaoz.net,
-  the user's tip) instead of playing or reverse-engineering the unlock
-  bits.
+- **Effects ONScripter can't draw: approximate in the converter first,
+  then add them to the engine.** Pre-tinted sprite copies (~930 images,
+  130 MB) were replaced by the engine's `spfilter`, which also follows
+  the game's control flow instead of a file-order guess.
 - **Small effect plugins beat general machinery.** Each transition family
-  became a short `cons_*.dll` effect-99 plugin (slide, zoom, flip, melt),
-  checkable on Xvfb mid-effect. Release them in batches: a CONscripter
-  release is a version bump and a tag, and CI builds every platform.
-- **Ask what to drop.** The debug menu, right-click menus and the WSS
-  room were dropped by the user. Each would have been a session of work.
-- **Check the routes against a walkthrough before calling a game done.**
-  最果てのイマ was declared finished with every opcode converted, and
-  the user then doubted the chapter order of its loops (which loop with
-  no link gives 「リピート」 or 「死」, and whether the loop state
-  survives FIRST START and a closed browser tab). Save a walkthrough early,
-  map the variables that gate progression (save data or system data),
-  and check each step and each persistence case (`docs/new-game.md`,
-  step 11). The user then hit a real bug on the first path tried: after
-  one heroine link, the others stayed clickable and switched the route,
-  because the converter put a link on its message even when a jump
-  skipped the link record (`fad5f9b`). Static reading and spot runs had
-  missed it. Simulate each route on both sides (source bytecode with the
-  original's run-time rules, converted `0.txt`) and diff page by page,
-  including the wrong-order clicks the walkthrough warns about.
-- **Handoff notes go stale.** The handoff listed Zigzag's blend as open
-  after it had shipped. When an item is done, grep `TODO.md`, `PLAN.md`
-  and the handoff file for it.
+  became a short `cons_*.dll` effect-99 plugin, checkable on Xvfb
+  mid-effect. Release them in batches: a CONscripter release is a
+  version bump and a tag, and CI builds every platform.
+
+**Target engine facts (ONScripter / CONscripter).**
+- **ONScripter ignores SIGTERM while stuck in a script loop.** Always run
+  it under `timeout -k 5 …`.
+- **Sprite numbers set the stacking order, and saves record them.**
+  Lower `lsp` numbers draw on top, so dialogs need the lowest slots.
+  Renumber menus and bars freely, but keep the game's own sprites at
+  fixed numbers so old saves still load.
+- **The font must be fixed-width.** ONScripter draws every character in
+  a full-width cell, so a proportional font leaves gaps after narrow
+  glyphs. Use IPA Gothic (`ipag.ttf`).
+- **Read tracking is by script byte offset.** `kidoku.dat` marks
+  positions in `0.txt`; after a rebuild it marks the wrong text. Delete
+  it.
+- **The target's image decoder limits the asset formats.** Check a new
+  format with one test file in every target build (the web build
+  especially) before changing the converter. WebP needed CONscripter's
+  own libwebp on the web.
+- **Judge lossy image quality on the worst region,** not the average:
+  crop the worst block of the difference image and compare it enlarged.
+  Lossy WebP's 4:2:0 subsampling blurred small coloured detail at every
+  quality level; near-lossless was fine at half the PNG size.
+
+**Process.**
+- **Never delete an output folder without listing it first.** Users put
+  their own files there (an `onscripter` binary was lost once).
+- **Keep a handoff file** (`<game>.md`) with a "Resume here" section.
+  Context resets happen mid-task, and re-deriving state is expensive.
+- **Handoff notes go stale.** When an item is done, grep `TODO.md`,
+  `PLAN.md`, the game's document and the handoff file for it.
 - **Parallel agents need separate branches and worktrees** (`xuse`,
   `nitroplus`), branches based on `origin/main`, and staging by path
   name: the other agent's uncommitted files share the tree.
 
 ### 13.2 Ways to speed up conversion
 
-Tooling worth building, in rough order of payoff. None of it was built
-for 最果てのイマ (the Python scripts in `research/xuse/` did the job);
-build it into the converter when a second game needs the same thing:
+Tooling worth building, in rough order of payoff. For 最果てのイマ the
+Python scripts in `research/xuse/` did the job; build each one into the
+converter when a second game needs the same thing:
 
 1. **A static tracer in the converter** (`conscripter-convert trace`, a Rust port of
    `research/xuse/nstrace.py`). It runs the emitted `0.txt` without
