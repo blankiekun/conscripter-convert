@@ -82,6 +82,9 @@ pub trait Assets {
     fn cg(&mut self, id: u32) -> Option<(String, u32, u32)>;
     /// A CG.cpk picture by file name (`EC27.png`), case-insensitive.
     fn cg_named(&mut self, name: &str) -> Option<(String, u32, u32)>;
+    /// The ID of a CHR.cpk picture by file name (`ST_ASU02H.png`),
+    /// case-insensitive.
+    fn chr_id(&self, name: &str) -> Option<u32>;
     /// A CHR.cpk picture.
     fn chr(&mut self, id: u32) -> Option<(String, u32, u32)>;
     /// The rule mask `RULE<n>` of ETC.cpk, as large as the screen.
@@ -559,8 +562,20 @@ impl Lowering<'_> {
         }
     }
 
-    fn character_image(&mut self, number: &[Val]) -> Option<(String, u32, u32, i64)> {
-        let v: Vec<i64> = number.iter().filter_map(Val::int).collect();
+    /// A `[CharaN]` `:Number` (character, pose, dress, face, size). One
+    /// script (S04_16B) has the placeholder `<ST_ASU02H>>` left in its
+    /// place: the picture's name, resolved through the character tables.
+    fn character_number(&self, number: &[Val]) -> Option<Vec<i64>> {
+        if let Some(Val::Word(w)) = number.first() {
+            let name = w.trim_matches(|c| c == '<' || c == '>');
+            let id = self.assets.chr_id(&format!("{name}.png"))?;
+            let (c, key) = self.game.characters.iter().find_map(|(c, ch)| ch.sprites.iter().find(|(_, t)| **t == id).map(|(k, _)| (*c, *k)))?;
+            return Some([&[c][..], &key[..]].concat());
+        }
+        Some(number.iter().filter_map(Val::int).collect())
+    }
+
+    fn character_image(&mut self, v: &[i64]) -> Option<(String, u32, u32, i64)> {
         let (&c, key) = v.split_first()?;
         let ch = self.game.characters.get(&c)?;
         let key: [i64; 4] = key.get(..4)?.try_into().ok()?;
@@ -647,12 +662,17 @@ impl Lowering<'_> {
                     self.hide_all(&gone, 0);
                 }
                 for c in t.children.iter().filter(|c| c.name.starts_with("Chara")) {
-                    let Some(number) = c.get("Number") else { continue };
+                    let Some(raw) = c.get("Number") else { continue };
+                    let Some(number) = self.character_number(raw) else {
+                        self.note(format!("{ty}: unknown character picture {raw:?}"));
+                        continue;
+                    };
+                    let number = &number[..];
                     let Some((path, w, h, offset)) = self.character_image(number) else {
                         self.note(format!("{ty}: unknown character picture {number:?}"));
                         continue;
                     };
-                    let key = format!("c{}", number[0].int().unwrap_or(-1));
+                    let key = format!("c{}", number.first().copied().unwrap_or(-1));
                     let x = sx(c.int_at("Position", 0).unwrap_or(640));
                     // y 0 is the usual height: a picture taller than the
                     // screen (the standing characters, cut at the waist)
