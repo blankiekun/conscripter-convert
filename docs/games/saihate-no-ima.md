@@ -190,9 +190,9 @@ N of the scene replay (`%3000+N`); `0x94` ends a replayed scene.
 | `0x10`, `0x11` | 895 (`0x10`) | label number | goto |
 | `0x15`, `0x16`, `0x22`, `0x23` | 442, 82, 3,094, 46 | label-table index | goto, if-goto, gosub, return |
 | `0x36`–`0x38` | 251 each | see "Chapters" | chapter bookkeeping |
-| `0x66` | 205 | low 16 bits of arg = ms (the high half a flag, meaning unknown) | timed wait; a click ends it |
+| `0x66` | 205 | **solved** (`op_66` `0x475cd0`, callback `0x475bf0`): low 16 bits of arg = ms; when the high half isn't 0 (133 uses) a click or skip mode ends the wait, otherwise (72) nothing does | timed wait: `delay` (clickable) or, high half 0, `Op::Pause` = `wait` (fixed in the audit; all were `delay` before) |
 | `0x72`, `0x74` | 217, 11 | **solved** (`op_72` `0x44a360`, `op_74` `0x44a390`, both → `script_fade` `0x44a2f0` → `fade_start` `0x436000`, `CTaskWork_Fade`): low 16 bits of arg = ms; high half ≠ 0 sets flag bit 0 (the other direction, `0x435f60`; no script uses it); `0x74` adds bit 0x10 = white instead of black (`fade_draw` `0x435f20` fills with `0xffffff` or 0, opacity elapsed × 256 / ms). Only with effects on and not skipping (`0x51ed14` bit 0, `0x51f82e`, `0x51f82c`). All uses fade out (141 × 500 ms, 44 × 3000, …), almost all at a scene's end, before `0x94 0x93` and a link return (`0x47`) or a chapter end; 202 with the text window still up. Filmed under wine (`0004.cd` #23 patched to `0x72 2000`): the colour covers the picture and the bust-ups but not the text window, its name plate and the bars; the text goes on over it; it stays through a `0x76` transition, a later bust-up shows over it, the next `0x54` background replaces it. No script shows a bust-up between a fade and the next background | a fade to black / white (`Op::ScreenFade`): an opaque `lsp2 26` faded in with `print 10,ms`, removed with the next background, `csp -1` and a link return (`popscreen` doesn't keep sprite2) |
-| `0x77`, `0x71` | 234, 3,908 | `0x77`: u32 mask (`mask%04u.png` in `HD/mask.arc`), i32 softness (sign = direction), then `0x76`'s timing block | `0x77` arms a mask wipe (`Trans_MaskBlend2`), `0x76` (below) any other transition; `0x71` waits for it, revealing the changes made since |
+| `0x77`, `0x71` | 234, 3,908 | `op_77` `0x444090`: u32 mask (`mask%04u.png` in `HD/mask.arc`), i32 softness (sign = direction), then `0x76`'s u32 ms, flags, layer | `0x77` arms a mask wipe (`Trans_MaskBlend2`), `0x76` (below) any other transition; `0x71` (`op_71` `0x44a1c0`) waits for it, revealing the changes made since |
 | `0x8f` | 414 | arg -1 | remove every bust-up |
 | `0x43` | 578 | arg 0 waits for the fade, 1 doesn't (handler `0x4772a0`) | hides the text window, before most transitions: `textoff` |
 | `0x52`, `0x53` | 1,117 / 501 | | text tags "brn" (continue below after a click) and "p" (new page), only in full-screen modes |
@@ -230,9 +230,27 @@ N of the scene replay (`%3000+N`); `0x94` ends a replayed scene.
 | `0x6f` | 87 | **solved** (handler `0x441a00`, `Surprise.cpp`, object at sort key `0x06000000`): u32 time (1-32767 ms), u32 preset 0-8 from the table at `0x500b68` (zoom x/y 16.16 = 10/15/20 %, opacity 100/150/200, tint colour/opacity/blend: none for 0-2, light red `0x8080ff` Multi for 3-5, white blend 6 for 6-8). Takes a snapshot of the picture, tints it, and lays it over the picture scaled by 1 + f × zoom about the centre at f × opacity, f = sin(π t) over the time; the script waits | a "surprise" pulse. Converted to CONscripter's `screenpulse 3,…` (zoom 100/150/200 ‰; Multi → `tint` 1, blend 6 assumed to lay the white over the copy → `tint` 2) + `delay` + `screenpulse 3`. Not checked against the original |
 | `0x57` | 542 | **solved** (handler `0x473530` → sound request `0x47aab0`, channel 0) | play BGM: `arg` = track (1-based, `bm0000.bin` slot `arg - 1`), `sub` = fade-in ms (capped at 30 s) |
 | `0x58` | 579 | **solved** (channel 0, stop flag) | stop BGM: `arg` 0 = all, `sub` = fade-out ms |
-| `0x5a` | 2,633 | **solved** (channel 1) | play SE: packed 9-byte record `u32 ?, u8 loop, u32 sound` (1-based across `k0000.bin` + `k0001.bin`) |
-| `0x5b` | 890 | **solved** (channel 1, stop flag) | stop SE: `arg` = sound or 0 for all, `sub` = fade ms |
-| `0x76` | 3,670 | **solved** (handler `0x449df0`): `sub` picks the `Trans_*` class through a jump table (0-3 Wave, 4 Dot4x4, 5-8 SoftEdgeWipe, 9 CrossFade, 10-17 Slide in, 18-25 Slide out, 26 Dissolve, 27 Mosaic, 28-31 BoxRolling, 32-35 RollFlip, 36 SmoothCrossFade, 37-40 Zoom, 41-44 Scroll, 45-47 MeltDown, 48 TvPowerSwitch); the record is duration, flags, easing | screen transition |
+| `0x5a` | 2,633 | **solved** (`op_5a` `0x4736f0` → `sound_request` `0x47aab0`, channel 1) | play SE: packed 9-byte record `u32 fade-in ms, u8 loop, u32 sound` (1-based across `k0000.bin` + `k0001.bin`); a non-looping SE isn't played in skip mode. Not converted: the fade-in (41 uses, 50-3000 ms, mostly loops), since CONscripter has no channel fade |
+| `0x5b` | 890 | **solved** (`op_5b` `0x4737a0`, channel 1, stop flag) | stop SE: `arg` = sound or 0 for all, `sub` = fade ms. Not converted: the fade (178 uses over 300 ms; stopped at once) |
+| `0x76` | 3,670 | **solved** (`op_76` `0x449df0`): `sub` picks the `Trans_*` class through a jump table (0-3 Wave, 4 Dot4x4, 5-8 SoftEdgeWipe, 9 CrossFade, 10-17 Slide in, 18-25 Slide out, 26 Dissolve, 27 Mosaic, 28-31 BoxRolling, 32-35 RollFlip, 36 SmoothCrossFade, 37-40 Zoom, 41-44 Scroll, 45-47 MeltDown, 48 TvPowerSwitch); the record is u32 ms, u32 flags (bit 0 hides the windows, bits 0-1 remove the bust-ups; always 0), u32 layer byte \| depth << 8 (the transition's sort key: what it covers). Skipped when skipping or with effects off | screen transition. Not converted: the 3 `0x76` and 9 `0x77` records with a layer other than the default `0x271000` (over everything), which only cover the objects below them |
+
+**Opcode audit (2026-10-14).** Every opcode the converter handles was
+read again in the decompiled exe (`ghidra_export.sh`; every handler of
+the dispatch table is named `op_XX` in `names.tsv`) and compared with
+the rows above and the converter:
+
+| Verdict | Opcodes |
+|---|---|
+| Consistent | `0x00`, `0x01`-`0x0e` (all 14 as the converter maps them), `0x10`, `0x11`, `0x15`-`0x1b`, `0x22`, `0x23`, `0x36`-`0x38`, `0x3b`, `0x40`, `0x41`, `0x43`, `0x44`, `0x46`-`0x4a`, `0x4c`-`0x50`, `0x52`, `0x53`, `0x55`, `0x56`, `0x57`-`0x59`, `0x67`-`0x69`, `0x6d`-`0x71`, `0x7a`-`0x7d`, `0x7f`-`0x84`, `0x86`-`0x88`, `0x8a`-`0x8d`, `0x8f`-`0x91`, `0x93`, `0x94`, `0x96`, `0x97`, `0x99`, `0x9d` |
+| Fixed | `0x72`/`0x74` fades (were waits); `0x39` clears the static (seen in the original); `0x8e` records with every entry's mode bit 1 show at once; `0x54` removes the overlay, puts `frame01`-`03` up for `sub` 1-3 and starts no fade; `0x66` with a zero high half can't be clicked through |
+| Not converted (rows above) | the fade-in of `0x5a` (41) and fade-out of `0x5b` (178 over 300 ms): no channel fade in CONscripter; 12 transitions that cover only part of the picture (`0x76`/`0x77` layer); a non-looping SE is still played in skip mode |
+
+Two doc mistakes corrected on the way: `0x8e`'s last 32 bytes are an
+(always empty) module name, not junk; `0x76`'s third u32 is a sort key,
+not an easing curve. `0x8f` removes only the bust-ups (keys 11-110), yet
+is converted with `csp -1` (the overlay, static and animation are put
+back after it; the fade cover goes, which no script shows the
+difference of).
 
 `0x76`'s `sub` → transition kind is in `transition_style`
 (`crates/conv-engines/src/xuse/convert.rs`); how each kind is drawn is in
@@ -535,13 +553,11 @@ exe (`research/tools/ghidra/ghidra_export.sh`, names in
    variables collided with `%190`). Link scenes now nest at most 7 deep
    ("Hyperlinks" above). Random runs from `conv_link98` (`--seed 2`,
    `3`) that stopped at the error now run 3,000+ pages.
-4. **Opcode audit**: for every opcode the converter handles, read its
-   `op_XX` in the decompiled C (the dispatch table is `opcode_table`
-   `0x4fb270`; name each handler in `names.tsv` and rerun the export),
-   compare with the opcodes table here and with the converter, and
-   record a verdict per opcode; fix each mismatch in its own commit,
-   checked with a `--replay` trace and `cons_trace_check.py --diff`.
-   Most-used and most visible first.
+4. **Done: the opcode audit** ("Opcode audit" under "Script bytecode"):
+   five fixes (`0x8e` mode bit 1, `0x54` overlay/frame and no fade,
+   `0x66` unclickable waits), each checked with a replayed trace. Left
+   open for the user: sound-effect fades (`0x5a`/`0x5b`) would need a
+   channel fade in CONscripter.
 5. Then `cons_explore.py` over all routes (title menus skipped:
    `--skip-choices '^\*conv_(title|sl_|settings|confirm|extras)'`) and
    the checker on every trace.
