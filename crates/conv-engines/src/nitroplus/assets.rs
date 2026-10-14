@@ -99,6 +99,8 @@ impl<'a> NpaAssets<'a> {
         let part = clip.map_or(String::new(), |(x0, y0, x1, y1)| format!("_{x0}_{y0}_{}x{}", x1 - x0, y1 - y0));
         let rel = format!("system/zoom/{}/{stem}_{zx}x{zy}{part}.{}", dir.replace('/', "_"), if jpeg { "jpg" } else { "png" });
         let (ow, oh) = clip.map_or((w, h), |(x0, y0, x1, y1)| ((x1 - x0) as u32, (y1 - y0) as u32));
+        // Its size, for pictures made from it (a dry run has no file).
+        self.images.insert(normalize(&rel), Some((rel.clone(), ow, oh)));
         if self.dry_run {
             return Some((rel, ow, oh));
         }
@@ -231,6 +233,9 @@ impl Assets for NpaAssets<'_> {
     }
 
     fn blurred(&mut self, image: &str, sigma: u32) -> Option<String> {
+        if image == "system/transparent.png" {
+            return Some(image.to_string());
+        }
         let key = format!("{image}~{sigma}");
         if let Some(r) = self.images.get(&key) {
             return r.as_ref().map(|r| r.0.clone());
