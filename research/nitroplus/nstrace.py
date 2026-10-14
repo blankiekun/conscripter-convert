@@ -33,6 +33,8 @@ import sys
 from collections import defaultdict
 
 GLOBAL_BORDER = 800
+# A path that went wrong usually loops (retry screens): stop.
+MAX_PROBLEMS = 20
 
 
 def load_script(path):
@@ -105,6 +107,10 @@ class Run:
     def problem(self, text):
         self.problems += 1
         print(f'  !! {text}')
+        if self.problems >= MAX_PROBLEMS:
+            self.report()
+            print(f'stopping after {MAX_PROBLEMS} problems')
+            sys.exit(1)
 
     def val(self, t):
         t = t.strip()
