@@ -513,6 +513,12 @@ Fixed on the way (each found by the runs, all in the current build):
   passed one, in `ma03_027vs`: the NSS `<?>` tag (93 uses), passed
   through as text. Text lines now write `?` full-width, `<?>` is
   dropped, and lint reports a `?` in text.
+- `<?>` at the end of a line joins the next text line to it, after the
+  code between them (a face change, a typewriter's key sound). It was
+  taken as a line break, so the typewriter captions of `ma01_026`
+  (《興隆四一年一〇月一二日》) came out one character per column, and 30
+  lines of dialogue were split in two. Found by the trace checker's
+  `text` rule ("the text runs past the window") on the first route run.
 - Non-blocking actions were cross-faded over their whole time at the
   next sync: a 270 s background scroll (`ma04_013vs`) blocked the
   player for 270 s, 51 cross-fades were over a minute. Now at most a

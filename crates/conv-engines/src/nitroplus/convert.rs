@@ -2126,6 +2126,8 @@ impl<'a, 'b> Compiler<'a, 'b> {
         // The line had something other than text (so it isn't blank).
         let mut other = false;
         let mut ruby: Option<(usize, String)> = None;
+        // The line ended in `<?>`: the next text line goes on in it.
+        let mut joined = false;
         let page_len = |page: &Page<'a>, line: &str| {
             let n = page.text.chars().count();
             n + usize::from(n > 0) + line.chars().count()
@@ -2140,8 +2142,13 @@ impl<'a, 'b> Compiler<'a, 'b> {
             match item {
                 Inline::Marker(_) | Inline::Comment(_) => other = true,
                 // `<?>` (not parsed as a tag): the text goes on after the
-                // code that follows, which runs before the page anyway.
-                Inline::Str(s) => line.push_str(&s.replace("<?>", "")),
+                // code that follows, which runs before the page anyway, on
+                // the same line (a typewriter writing one character at a
+                // time, `ma01_026`).
+                Inline::Str(s) => {
+                    joined = s.trim_end().ends_with("<?>");
+                    line.push_str(&s.replace("<?>", ""));
+                }
                 Inline::Code(stmts) => {
                     // Code after a `<k>` runs after that click: end the page
                     // there and go on below it.
@@ -2183,6 +2190,9 @@ impl<'a, 'b> Compiler<'a, 'b> {
                     }
                 }
                 Inline::Newline => {
+                    if joined && !line.is_empty() {
+                        continue;
+                    }
                     if !line.is_empty() {
                         end_line(&mut page, &mut line);
                     } else if !other && !page.text.is_empty() {
@@ -2444,6 +2454,33 @@ scene a.nss
         assert!(matches!(&ops[last + 1], Op::Sprites { changes, .. } if changes[0].sprite.is_none()));
         // SoundPlay and OnSE aren't defined here: built-ins we don't know.
         assert!(c.notes.contains_key("built-in soundplay"));
+    }
+
+    #[test]
+    fn a_line_ending_in_question_tag_goes_on_after_the_code() {
+        let story = r#"
+scene a.nss
+{
+<PRE @box0>
+[text0030]
+《<?>
+{OnSE("se01");}
+興<?>
+{OnSE("se01");
+WaitKey(50);}
+隆<?>
+{OnSE("se02");}
+》
+
+次<?>
+</PRE>
+	SetText();
+	TypeBegin();
+}
+"#;
+        let c = compile(story, LIBRARY);
+        let texts: Vec<&str> = c.ops.iter().filter_map(|op| if let Op::Text { text, .. } = op { Some(text.as_str()) } else { None }).collect();
+        assert_eq!(texts, ["《興隆》", "次"]);
     }
 
     #[test]
