@@ -415,6 +415,12 @@ pub enum Op {
     /// A screen of pictures and image buttons over everything (see
     /// [`ButtonScreen`]); continues at the label of the button clicked.
     ButtonScreen(Box<ButtonScreen>),
+    /// Move a layer's sprite so that its centre is at (x, y) and zoom it
+    /// about that centre from `from` to `to` percent (100 = its size), in
+    /// a straight line over `ms` (0 = at once), like [`Op::SpriteMove`]:
+    /// a camera zoom. The zoom stays on the layer until it changes again
+    /// or the sprite is removed (a new picture on the layer keeps it).
+    SpriteZoom { layer: u32, x: i32, y: i32, from: u32, to: u32, ms: u32 },
     /// Fade the picture (under the text window and the bars) to `colour`
     /// (0xRRGGBB) over `ms`. The colour stays until the next background, a
     /// clear of the scene's sprites or a link scene's return.

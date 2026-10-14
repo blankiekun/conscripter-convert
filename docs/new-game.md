@@ -96,8 +96,11 @@ system screens, extras and matching effects to the original.
   export is rerun (~30 s; the first run analyzes for about a minute), so
   the next session reads named code instead of `FUN_00412a30`. Options
   (`--rtti` for MSVC C++ classes, `-- -processor …` for ARM) are in the
-  script's header. `objdump -d -M intel` is still handy for a quick look
-  at the bytes.
+  script's header. For ARM C++ code (a Vita eboot), add `-postScript
+  ThumbPointerFunctions.java` after `--`: analysis leaves virtual methods,
+  reached only through vtables, outside any function, and the script makes
+  one at every Thumb pointer stored as data. `objdump -d -M intel` is still
+  handy for a quick look at the bytes.
 - Work out **every index space a jump uses** (per-script labels or
   global tables, implicit entries, labels on marker instructions) and
   check all targets across the corpus. A wrong guess still produces a

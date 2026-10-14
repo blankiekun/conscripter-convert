@@ -22,6 +22,7 @@ mod music;
 pub mod nsa;
 mod puzzle;
 mod replay;
+mod zoom;
 pub mod webp;
 
 /// First effect number we define; 1 is NScripter's built-in "instant".
@@ -264,6 +265,7 @@ pub fn emit(script: &Script) -> String {
     let mut se = SeChannels::default();
     let mut needs_bit_helpers = false;
     let mut needs_move = false;
+    let mut needs_zoom = false;
     let mut needs_click_wait = false;
     let mut plate_visible = false;
     let mut link_pages = 0;
@@ -400,6 +402,9 @@ pub fn emit(script: &Script) -> String {
                         writeln!(out, "print 1").unwrap();
                     }
                 }
+            }
+            Op::SpriteZoom { layer, x, y, from, to, ms } => {
+                needs_zoom |= zoom::emit(&mut out, *layer, *x, *y, *from, *to, *ms, transition.is_some());
             }
             Op::ScreenFilter { slot, filter, fade_ms } => {
                 match filter {
@@ -869,6 +874,9 @@ pub fn emit(script: &Script) -> String {
     }
     if needs_move {
         out.push_str(&move_routine());
+    }
+    if needs_zoom {
+        out.push_str(&zoom::routine());
     }
     if root_returns > 0 {
         // Reached from a link page once its scene returned and the page
