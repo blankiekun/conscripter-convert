@@ -955,26 +955,51 @@ pub fn emit(script: &Script) -> String {
 /// opens the save menu's load screen if there is one, else ONScripter's.
 fn title_screen(out: &mut String, t: &TitleScreen, fade: &str, save_menu: bool, settings: bool, confirm: Option<&ConfirmDialog>, extras: bool) {
     let buttons: Vec<_> = t.buttons.iter().zip(MENU_SPRITES).collect();
+    let cells = if t.pressed { 3 } else { 2 };
+    // %105 = 1 while there is a quick save (for Continue).
+    let quick = buttons.iter().any(|(b, _)| b.action == TitleAction::Continue);
+    let quick_exists = format!("savefileexist {},{}", menu::TMP, menu::QUICK_SLOT);
     if extras {
         writeln!(out, "*{}", extras::TITLE_BACK).unwrap();
     }
     // Effect 0 = update the buffer only; the print shows it all.
     writeln!(out, "bg \"{}\",0", path(&t.background)).unwrap();
     writeln!(out, "*{TITLE_DRAW}").unwrap();
+    if let Some(bgm) = &t.bgm {
+        writeln!(out, "bgm \"{}\"", path(bgm)).unwrap();
+    }
+    if quick {
+        writeln!(out, "{quick_exists}").unwrap();
+    }
     for (b, slot) in &buttons {
-        let cells = if b.action == TitleAction::Unavailable { "" } else { "/2,0,3" };
-        writeln!(out, "lsp {slot},\":a{cells};{}\",{},{}", path(&b.image), b.x, b.y).unwrap();
+        let image = if b.action == TitleAction::Unavailable { format!(":a;{}", path(&b.image)) } else { format!(":a/{cells},0,3;{}", path(&b.image)) };
+        writeln!(out, "lsp {slot},\"{image}\",{},{}", b.x, b.y).unwrap();
+        if b.action == TitleAction::Continue {
+            writeln!(out, "if {} == 0 lsp {slot},\"{image}\",{},{},128", menu::TMP, b.x, b.y).unwrap();
+        }
     }
     writeln!(out, "print {fade}").unwrap();
     writeln!(out, "*{TITLE_MENU}").unwrap();
+    if let Some(se) = &t.hover_se {
+        writeln!(out, "selectvoice \"\",\"{}\",\"\"", path(se)).unwrap();
+    }
+    if quick {
+        writeln!(out, "{quick_exists}").unwrap();
+    }
+    let press = if t.pressed { ",2" } else { "" };
     let clickable: Vec<_> = buttons.iter().filter(|(b, _)| b.action != TitleAction::Unavailable).collect();
-    for (n, (_, slot)) in clickable.iter().enumerate() {
-        writeln!(out, "spbtn {slot},{}", n + 1).unwrap();
+    for (n, (b, slot)) in clickable.iter().enumerate() {
+        let only = if b.action == TitleAction::Continue { format!("if {} == 1 ", menu::TMP) } else { String::new() };
+        writeln!(out, "{only}spbtn {slot},{}{press}", n + 1).unwrap();
     }
     writeln!(out, "btnwait {BUTTON_VAR}").unwrap();
+    if t.hover_se.is_some() {
+        writeln!(out, "selectvoice \"\",\"\",\"\"").unwrap();
+    }
     for (n, (b, _)) in clickable.iter().enumerate() {
         let then = match b.action {
             TitleAction::Start => format!("goto *{TITLE_START}"),
+            TitleAction::Continue => format!("csp -1:load {}", menu::QUICK_SLOT),
             TitleAction::Load if save_menu => {
                 format!("csp -1:mov {},0:gosub *{}:goto *{TITLE_DRAW}", menu::IN_GAME, menu::LOAD)
             }
@@ -985,14 +1010,15 @@ fn title_screen(out: &mut String, t: &TitleScreen, fade: &str, save_menu: bool, 
             TitleAction::Settings => continue,
             // The built-in load menu; it comes back here when cancelled.
             TitleAction::Load => format!("systemcall load:goto *{TITLE_MENU}"),
-            TitleAction::Exit if confirm.is_some() => "goto *conv_title_exit".to_string(),
+            TitleAction::Exit if confirm.is_some() && !t.exit_without_asking => "goto *conv_title_exit".to_string(),
             TitleAction::Exit => "end".to_string(),
             TitleAction::Unavailable => unreachable!(),
         };
-        writeln!(out, "if {BUTTON_VAR} == {} {then}", n + 1).unwrap();
+        let se = b.click_se.as_ref().map_or(String::new(), |se| format!("dwave {},\"{}\":", SE_CHANNELS.start(), path(se)));
+        writeln!(out, "if {BUTTON_VAR} == {} {se}{then}", n + 1).unwrap();
     }
     writeln!(out, "goto *{TITLE_MENU}").unwrap();
-    if let Some(c) = confirm {
+    if let Some(c) = confirm.filter(|_| !t.exit_without_asking) {
         writeln!(out, "*conv_title_exit").unwrap();
         writeln!(out, "{}", menu::confirm_call(&c.quit, Switch::ConfirmQuit)).unwrap();
         writeln!(out, "if {} == 1 end", menu::CONFIRM).unwrap();
@@ -1000,7 +1026,13 @@ fn title_screen(out: &mut String, t: &TitleScreen, fade: &str, save_menu: bool, 
     }
     writeln!(out, "*{TITLE_START}").unwrap();
     writeln!(out, "csp -1").unwrap();
+    if t.bgm.is_some() && t.start_bgm_fade_ms > 0 {
+        writeln!(out, "bgmfadeout {}:bgmstop:bgmfadeout 0", t.start_bgm_fade_ms).unwrap();
+    }
     writeln!(out, "bg black,{fade}").unwrap();
+    if t.start_wait_ms > 0 {
+        writeln!(out, "wait {}", t.start_wait_ms).unwrap();
+    }
 }
 
 /// `setwindow` for a window: text x,y, columns,rows, font w,h, char
@@ -1760,9 +1792,44 @@ effect 7,99,1000,\"cons_zoom.dll/3,220,5\"
     }
 
     #[test]
+    fn title_screen_sounds_pressed_cell_and_continue() {
+        use conv_core::ir::TitleButton;
+        let mut s = script(vec![Op::Text { speaker: None, text: "あ".into(), voice: None, links: vec![], ruby: vec![], styles: vec![], hang: None, continues: false }]);
+        s.confirm = Some(menu::tests::dialog());
+        s.title_screen = Some(TitleScreen {
+            background: "system/title.png".into(),
+            fade_ms: 1000,
+            buttons: vec![
+                TitleButton { image: "system/quick.png".into(), x: 822, y: 150, action: TitleAction::Continue, click_se: Some("sound/se/a.ogg".into()) },
+                TitleButton { image: "system/start.png".into(), x: 762, y: 150, action: TitleAction::Start, click_se: Some("sound/se/a.ogg".into()) },
+                TitleButton { image: "system/exit.png".into(), x: 162, y: 150, action: TitleAction::Exit, click_se: None },
+            ],
+            pressed: true,
+            hover_se: Some("sound/se/over.ogg".into()),
+            bgm: Some("sound/bgm/title.ogg".into()),
+            start_bgm_fade_ms: 3000,
+            start_wait_ms: 2000,
+            exit_without_asking: true,
+        });
+        let text = emit(&s);
+        for part in [
+            "*conv_title_draw\nbgm \"sound\\bgm\\title.ogg\"\nsavefileexist %105,890\nlsp 6,\":a/3,0,3;system\\quick.png\",822,150\nif %105 == 0 lsp 6,\":a/3,0,3;system\\quick.png\",822,150,128\n",
+            "*conv_title\nselectvoice \"\",\"sound\\se\\over.ogg\",\"\"\nsavefileexist %105,890\nif %105 == 1 spbtn 6,1,2\nspbtn 7,2,2\nspbtn 8,3,2\nbtnwait %9\nselectvoice \"\",\"\",\"\"\n",
+            "if %9 == 1 dwave 1,\"sound\\se\\a.ogg\":csp -1:load 890\n",
+            // No question before quitting.
+            "if %9 == 3 end\n",
+            "*conv_title_start\ncsp -1\nbgmfadeout 3000:bgmstop:bgmfadeout 0\nbg black,",
+            "wait 2000\n",
+        ] {
+            assert!(text.contains(part), "missing {part:?} in\n{text}");
+        }
+        assert!(!text.contains("conv_title_exit"));
+    }
+
+    #[test]
     fn title_screen_runs_before_the_script() {
         use conv_core::ir::TitleButton;
-        let button = |image: &str, action| TitleButton { image: image.into(), x: 600, y: 200, action };
+        let button = |image: &str, action| TitleButton { image: image.into(), x: 600, y: 200, action, ..Default::default() };
         let mut s = script(vec![Op::Text { speaker: None, text: "あ".into(), voice: None, links: vec![], ruby: vec![], styles: vec![], hang: None, continues: false }]);
         s.title_screen = Some(TitleScreen {
             background: "system/title.png".into(),
@@ -1773,6 +1840,7 @@ effect 7,99,1000,\"cons_zoom.dll/3,220,5\"
                 button("system/load.png", TitleAction::Load),
                 button("system/exit.png", TitleAction::Exit),
             ],
+            ..Default::default()
         });
         let out = emit(&s);
         let expected = "*start\nbg \"system\\title.png\",0\n*conv_title_draw\n\
@@ -1796,7 +1864,8 @@ effect 7,99,1000,\"cons_zoom.dll/3,220,5\"
         s.title_screen = Some(TitleScreen {
             background: "system/title.png".into(),
             fade_ms: 1000,
-            buttons: vec![TitleButton { image: "system/option.png".into(), x: 600, y: 200, action: TitleAction::Settings }],
+            buttons: vec![TitleButton { image: "system/option.png".into(), x: 600, y: 200, action: TitleAction::Settings, ..Default::default() }],
+            ..Default::default()
         });
         let slot = GallerySlot { thumbnail: "system/t.png".into(), cgs: vec![(213, "bg/a.png".into()), (214, "bg/b.png".into())] };
         s.extras = Some(ExtrasMenu {
@@ -1851,7 +1920,8 @@ effect 7,99,1000,\"cons_zoom.dll/3,220,5\"
         s.title_screen = Some(TitleScreen {
             background: "system/title.png".into(),
             fade_ms: 1000,
-            buttons: vec![TitleButton { image: "system/option.png".into(), x: 600, y: 200, action: TitleAction::Settings }],
+            buttons: vec![TitleButton { image: "system/option.png".into(), x: 600, y: 200, action: TitleAction::Settings, ..Default::default() }],
+            ..Default::default()
         });
         let scene = |scene, title: &str, label: &str, highlight| ReplayScene { scene, title: title.into(), label: label.into(), highlight };
         s.extras = Some(ExtrasMenu {
@@ -1912,7 +1982,8 @@ effect 7,99,1000,\"cons_zoom.dll/3,220,5\"
         s.title_screen = Some(TitleScreen {
             background: "system/title.png".into(),
             fade_ms: 1000,
-            buttons: vec![TitleButton { image: "system/option.png".into(), x: 600, y: 200, action: TitleAction::Settings }],
+            buttons: vec![TitleButton { image: "system/option.png".into(), x: 600, y: 200, action: TitleAction::Settings, ..Default::default() }],
+            ..Default::default()
         });
         let movie = |image: &str, file: &str, open| RoomMovie { button: placed(image), file: file.into(), open };
         s.extras = Some(ExtrasMenu {
@@ -1946,7 +2017,8 @@ effect 7,99,1000,\"cons_zoom.dll/3,220,5\"
         s.title_screen = Some(TitleScreen {
             background: "system/title.png".into(),
             fade_ms: 1000,
-            buttons: vec![TitleButton { image: "system/option.png".into(), x: 600, y: 200, action: TitleAction::Settings }],
+            buttons: vec![TitleButton { image: "system/option.png".into(), x: 600, y: 200, action: TitleAction::Settings, ..Default::default() }],
+            ..Default::default()
         });
         let song = |image: &str, file: &str, progress| MusicSong { button: placed(image), playing: format!("{image}_on"), file: file.into(), progress };
         s.extras = Some(ExtrasMenu {
