@@ -40,7 +40,6 @@ system screens, extras and matching effects to the original.
      variables, status and leftovers). `docs/games/saihate-no-ima.md`
      is the model. Findings move there from the handoff file once they
      hold up.
-   - A short "state / next" section in `TODO.md`, kept current.
    - A branch per game (`xuse`, `nitroplus`), based on `origin/main`. A
      second agent works in its own worktree
      (`~/Projects/conscripter-convert-<name>`).
@@ -99,7 +98,7 @@ system screens, extras and matching effects to the original.
   script and instruction. The converter prints a ranked list of what
   was left out, and that list is the to-do list.
 - Keep converter variables and sprite numbers in documented ranges:
-  write the map down (`TODO.md` has 最果てのイマ's) before the menus
+  write the map down (in the game's document) before the menus
   claim slots. Lower sprite numbers draw on top. Keep the game's own
   sprites at fixed numbers, so old saves still load after renumbering
   the menus.
@@ -248,8 +247,8 @@ lose the loop state between sessions.
    natively, (b) closing and reopening the web build, (c) loading an
    older save and (d) going back to the title and starting again.
    Compare each case with what the original does.
-6. **Write it down.** Add a checklist entry to the game's section of
-   `TODO.md`: "progression verified against walkthrough: yes/no, date,
+6. **Write it down.** Add a checklist entry to the game's document:
+   "progression verified against walkthrough: yes/no, date,
    how" (which paths were simulated, and whether both sides matched). Add any new lesson to `PLAN.md` §13.
 
 ## 12. Finishing
@@ -257,7 +256,7 @@ lose the loop state between sessions.
 - The finish line is set by the user: every story instruction converted,
   system screens and extras working, the route and progression check
   (step 11) done, the remaining differences written down as optional
-  leftovers in `TODO.md`.
+  leftovers in the game's document.
 - Update the game's document (status, leftovers), `README.md`'s support
   table, `PLAN.md` §6 (the list of games) and §13 (new lessons, stated
   for any engine), and this playbook if the process changed.

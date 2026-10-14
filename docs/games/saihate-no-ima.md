@@ -47,7 +47,7 @@ uses is converted (only the unreachable debug menu is left out).
 | System screens (title, save/load, settings, backlog with names and voice replay, button bars, confirmations) | ✅ Built as in-script menus |
 | Extras (CG gallery, scene replay, BGM room) | ✅ Built as in-script menus |
 | Movies | ✅ Web, Windows and Android; skipped by the Linux and macOS builds |
-| Not converted | The system-voice room (WSS), the chapter history screen, the blog bar's buttons, autosave, some settings of the original's settings dialog |
+| Not converted | The system-voice room (WSS), the chapter history screen, autosave, some settings of the original's settings dialog |
 
 Other Xuse games may convert but haven't been tried.
 
@@ -301,6 +301,22 @@ original, `out/my-screenshots/`, not committed):
   the top bars (chapter name, blog/scene, level) from `wnd.arc`/`gd.arc`.
   Right-click can't be sent to a script label, so everything is on the
   bar.
+- **Blog bar** (`BlogStackBar.004`): the link scenes entered form a
+  stack of levels (0 = the root) that the bar browses like a web
+  browser's history. Filmed under wine: back (⌄⌄) goes up one level and
+  forward (⌃⌃) down one, exit to the root, and the drop-down lists levels
+  1 to the deepest (current one marked », hover purple); every level is
+  resumed where it was left, and the level numbers read "current /
+  deepest". Back and exit need a level above, forward a level below.
+  Going on from a link page, or a scene ending, drops the levels below.
+  The list stays open and pushes the level row down 26 px per row.
+  Converted with save slots: entering a link scene saves the link page
+  to slot 900 + level, going to another level saves the current one
+  there and loads the target's (`loadgosub` carries the deepest level
+  and titles over the load). After a load from the save menu, the
+  levels above the saved one can't be gone back to and the deeper ones
+  are dropped (their slots belong to another playthrough). The game
+  nests at most five levels; the list shows six.
 
 ## Progression variables
 
@@ -366,7 +382,6 @@ parts are not converted:
   behaviour, shortcut-menu position, gamepad.
 
 **Other system screens.**
-- Blog bar: prev/next/exit buttons and the scene list (drawn disabled).
 - Chapter history (`ChapterHistory.004`; 0x37/0x38 only end a chapter and
   clear its name, converted) and the autosave slots.
 - Extras: the CG gallery, the scene replay ("chapter") and the BGM room

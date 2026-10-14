@@ -183,9 +183,12 @@ pub fn emit(script: &Script) -> String {
         // (gettaglog); tags are only kept with a pretextgosub.
         writeln!(out, "pretextgosub *{}", menu::PRETEXT).unwrap();
     }
-    if script.button_bar.is_some() {
+    if let Some(bar) = &script.button_bar {
         // Every click wait runs the bar routine instead of waiting itself.
         writeln!(out, "textgosub *{}", menu::WAIT).unwrap();
+        if bar.top.is_some() {
+            writeln!(out, "loadgosub *{}", menu::SCENE_LOADED).unwrap();
+        }
     }
     // CONscripter converts the caption to UTF-8 for the window title.
     if has_ruby {
@@ -656,6 +659,12 @@ pub fn emit(script: &Script) -> String {
                     writeln!(out, "gosub *{}", menu::BAR_ACTION).unwrap();
                     writeln!(out, "goto *{page}_wait").unwrap();
                     writeln!(out, "*{page}_c").unwrap();
+                    if bar.is_some_and(|b| b.top.is_some()) {
+                        // A link: keep this page to come back to. Saved
+                        // before textclear, which would make the snapshot
+                        // this line instead of the page.
+                        writeln!(out, "if {BUTTON_VAR} > 0 savegame {}+{}", menu::SCENE_SLOT, menu::SCENE_DEPTH).unwrap();
+                    }
                 }
                 for slot in LINK_SPRITES.take(clickable.len()).chain(LINK_UNDERLINE_SPRITES.take(2 * clickable.len())) {
                     writeln!(out, "csp {slot}").unwrap();
@@ -668,10 +677,10 @@ pub fn emit(script: &Script) -> String {
                     writeln!(out, "mov %{},1", visited(target)).unwrap();
                     let scenes = bar.is_some_and(|b| b.top.is_some());
                     if scenes {
-                        // Push the scene for the top bar.
+                        // Enter a new level (dropping any below it).
                         let (depth, max) = (menu::SCENE_DEPTH, menu::SCENE_MAX_DEPTH);
                         writeln!(out, "add {depth},1").unwrap();
-                        writeln!(out, "if {depth} > {max} mov {max},{depth}").unwrap();
+                        writeln!(out, "mov {max},{depth}").unwrap();
                         writeln!(out, "mov {},{}+{depth}", menu::TMP, menu::SCENE_TITLES).unwrap();
                         writeln!(out, "mov ${},\"{}\"", menu::TMP, sprite_text(link.scene.as_deref().unwrap_or("　"))).unwrap();
                     }
@@ -703,9 +712,11 @@ pub fn emit(script: &Script) -> String {
                         writeln!(out, "sub {LINK_NEST},1").unwrap();
                     }
                     if scenes {
-                        let (depth, max) = (menu::SCENE_DEPTH, menu::SCENE_MAX_DEPTH);
+                        // The scene ended: it can't be gone forward to.
+                        let (depth, max, floor) = (menu::SCENE_DEPTH, menu::SCENE_MAX_DEPTH, menu::SCENE_FLOOR);
                         writeln!(out, "sub {depth},1").unwrap();
-                        writeln!(out, "if {depth} == 0 mov {max},0").unwrap();
+                        writeln!(out, "mov {max},{depth}").unwrap();
+                        writeln!(out, "if {floor} > {depth} mov {floor},{depth}").unwrap();
                     }
                     writeln!(out, "popscreen").unwrap();
                     if has_overlay {
@@ -733,6 +744,10 @@ pub fn emit(script: &Script) -> String {
                     writeln!(out, "print 1").unwrap();
                     writeln!(out, "goto *{page}").unwrap();
                     writeln!(out, "*{page}_{}", n + 1).unwrap();
+                }
+                if bar.is_some_and(|b| b.top.is_some()) {
+                    // Going on from the page drops the levels below it.
+                    writeln!(out, "mov {},{}", menu::SCENE_MAX_DEPTH, menu::SCENE_DEPTH).unwrap();
                 }
             }
             Op::BgmPlay { file, fade_in_ms } => {

@@ -564,6 +564,12 @@ pub struct ButtonBar {
 }
 
 /// The current chapter and the current link ("blog") scene, along the top.
+///
+/// The link scenes entered form a stack of levels (0 is the root) that
+/// can be browsed like a web browser's history: back to the scene that
+/// linked here, forward again, out to the root, or to any level from a
+/// drop-down list. Each level is resumed where it was left. Going on
+/// from a link page, or a scene ending, drops the levels below it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TopBars {
     pub chapter_bar: Placed,
@@ -572,13 +578,31 @@ pub struct TopBars {
     pub scene_text: TextSpot,
     /// Shown as the scene outside any link scene.
     pub root_scene: String,
-    /// Images shown as they are (frames, controls that aren't converted).
-    pub decorations: Vec<Placed>,
+    /// The box behind the level numbers. It, the numbers and the back,
+    /// forward and exit buttons move down below the list while it is open.
+    pub level_box: Placed,
     /// Link scene depth, "current / deepest": ten digit images 0-9 and
     /// where the two numbers go (top-left corners).
     pub digits: Vec<String>,
     pub depth_at: (i32, i32),
     pub max_depth_at: (i32, i32),
+    /// Buttons, four cells side by side: normal, under the pointer,
+    /// pressed, disabled. Back one level, forward one level, to the root.
+    pub back: Placed,
+    pub forward: Placed,
+    pub exit: Placed,
+    /// Opens and closes the list.
+    pub list: Placed,
+    /// List rows, cells as for the buttons: one per level from 1 to the
+    /// deepest, the first at `row`'s position, `row_pitch` apart.
+    /// `current_row` marks the current level.
+    pub row: Placed,
+    pub current_row: Placed,
+    pub row_pitch: i32,
+    /// The first row's title.
+    pub row_text: TextSpot,
+    pub row_color: String,
+    pub current_row_color: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
