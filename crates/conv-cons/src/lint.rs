@@ -60,6 +60,9 @@ pub fn lint(script: &str, has_file: &dyn Fn(&str) -> bool) -> Report {
             if vertical && let Some(c) = half_width_in_text(line) {
                 report.add("half-width character in vertical text (the engine exits)", i, format!("{c:?} in {}", short(line)));
             }
+            if line.contains('?') {
+                report.add("'?' in text (read as an array: the engine exits)", i, short(line));
+            }
             continue;
         }
         let (code, strings) = split_strings(line);
@@ -187,12 +190,14 @@ tateyoko 1:setwindow 1,1,1,1,1,1,1,0,1,0,1,#000000
 　#ff0000赤い!s20字(る/び)@
 tateyoko 0:setwindow 1,1,1,1,1,1,1,0,1,0,1,#000000
 　横のOKテキスト\\
+　横の?\\
 ";
         let r = lint(script, &|n| n == "cg\\a.png");
         let kinds: Vec<_> = r.problems.iter().map(|(k, (n, _))| (*k, *n)).collect();
         assert_eq!(
             kinds,
             [
+                ("'?' in text (read as an array: the engine exits)", 2),
                 ("effect number past 255", 1),
                 ("file not in the archives or the game directory", 1),
                 ("half-width character in vertical text (the engine exits)", 1),

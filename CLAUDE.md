@@ -113,10 +113,21 @@ each in its own worktree), and their work meets in shared code.
   engine/build/conscripter -r .` with the game folder as the working
   directory (otherwise `default.ttf` isn't found). Screenshot with
   `print 1:getscreenshot 800,600:savescreenshot "x.bmp"`.
-- Headless game runs: patch a copy of `0.txt`: `textbtnwait` in
-  `*conv_wait` → `mov %9,0`; comment out `click` in `*conv_click_wait`;
-  put `mov %101,1:goto *label` right after `erasetextwindow 0` in
-  `*start`. `research/xuse/smoke.py` does scripted clicks and
+- Debug trace (CONscripter after 0.18.0; reference: `engine/DEBUG.md`;
+  recipes: `docs/new-game.md`, "Checking a build with the debug
+  trace"): `--trace t.jsonl --auto-play 0 --save-dir <scratch>` plays
+  the game by itself, headless with `SDL_VIDEODRIVER=dummy` (no Xvfb),
+  and writes one JSON line per page, per command that changed the
+  screen or sound, per choice, missing file, script error and crash. `--trace-ignore` leaves the game's own UI
+  sprites out and keeps auto-play off their buttons. Check a trace with
+  `python3 -I engine/tools/cons_trace_check.py t.jsonl --script 0.txt`.
+  Start anywhere with `--goto <label> --vars <file>` instead of patching
+  `0.txt`. Exit codes: 0 end, 1 auto-play stuck, 2 script error, 3
+  startup failure, 128+n a signal.
+- Headless game runs (the older recipe, when the trace can't do it):
+  patch a copy of `0.txt`: `textbtnwait` in `*conv_wait` → `mov %9,0`;
+  comment out `click` in `*conv_click_wait`; put `mov %101,1:goto
+  *label` right after `erasetextwindow 0` in `*start`. `research/xuse/smoke.py` does scripted clicks and
   screenshots (its click queue is `%1000+`; keep converter variables out
   of 1000-1099).
 - Frames mid-effect: run on your own Xvfb display with

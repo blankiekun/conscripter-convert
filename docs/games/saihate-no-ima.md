@@ -392,6 +392,23 @@ and of `0.txt`, `docs/new-game.md` step 11.4).
   conv_link2` jumps to a label after FIRST START (link scenes open with
   an `@` before their link, so queue a 0). It can't answer `systemcall`
   menus: those hang headless.
+- **Debug trace** (`docs/new-game.md`, "Checking a build with the
+  debug trace"): `SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy
+  conscripter --root . --save-dir <scratch> --trace t.jsonl
+  --trace-ignore 22-48,lsp2:12-23 --auto-play 0`, then
+  `engine/tools/cons_trace_check.py t.jsonl --script 0.txt`. The ignore
+  list keeps auto-play off the bars and menus (sprite map below); the
+  link words 51-58 stay in, since they are the route choices. Sprite 61
+  `bg\frame01.png` is the game's frame overlay, a known `linger` false
+  positive (put it in the game's checker config). A single run with
+  `--auto-choice first` keeps taking the same hub link and left 1,062
+  labels unreached: cover the routes with `cons_explore.py`. Found so
+  far (`sound`): `se068` twice in `s30_l1` ("二度。三度。", meant), `se088`
+  and `se086` in `s13_l147`. A sound listed on two channels in one page
+  under auto-play (`se125` on 2 and 8) is usually only auto-play's speed:
+  the rule reports a sound started twice before the same click wait. Slots 900+
+  hold the blog bar's levels (below), so give `--checkpoint-every` a
+  `--checkpoint-slot` elsewhere (e.g. 500).
 - **Control flow without the engine:** `python3 -I
   research/xuse/nstrace.py 0.txt 50000000 --pages N [--click K]`;
   routes on both sides: `research/xuse/routesim.py`.
@@ -492,6 +509,34 @@ scene replay, BGM room). Every story instruction is converted; the two
 left as comments are the start point's debug menu, which the user didn't
 want. Dropped by the user: WSS (the system-voice room), right-click
 menus, native Linux/macOS movie playback.
+
+**Found by the debug trace (2026-10-14).** A full exploration with the
+engine's debug trace (`cons_explore.py`, 62,185 pages, 1,220 labels;
+`docs/new-game.md`, "Checking a build with the debug trace") found these.
+Not fixed yet:
+- **A text line that stops the game.** `0.txt:24036` (`*conv_link19`),
+  「嘘ー！?  投稿者: イマたん（管理人）…」: the half-width `?` after 「！」
+  is read as an array reference, and the engine stops with "Array No. is
+  not declared" (exit 2). The converter must write `?`, `%`, `$` and `@`
+  in text as full-width (or escape them). It is the only such line in
+  `0.txt` (`cons_trace_check.py --script` checks every text line).
+- **`%190` after a load.** The loadgosub `*conv_scene_loaded` runs `if
+  %2900 == 0 mov %151,%150:mov %190,%150:return`, so every load sets
+  `%190` to `%150`, while in play `%190` stays 0 until it is clamped
+  (`if %190 > %150 mov %190,%150`). Check against the original whether
+  a load should set it.
+- **Pictures too large for the web build.** Six `fx\fx0*.png`
+  animation strips (from `HD/fx.arc`, sprite 59) are up to 24000×600,
+  more than a browser's graphics are sure to take (4096 px). Split each
+  strip into frames or several strips, or lay the frames out in rows.
+- **Long effects.** 55 transitions ask for 15 s (`print` with 15000 ms;
+  `s10_l51` and others). Check against the original that the durations
+  are read right.
+
+Fixed in CONscripter by the same work: half-width katakana in Shift_JIS
+text (「影（ｼｬﾄﾞｳshadow ）」 in `s7_l8` drew as a blank and lost the next
+character), and saves losing the speaker name (`strsp` 49) and looping
+sound effects on `dwave` channels.
 
 What follows is the optional leftover list, kept for whoever comes back
 to the game. Nothing in it was asked for.

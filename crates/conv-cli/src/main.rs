@@ -899,16 +899,14 @@ fn convert_nss(
     if let Some(d) = OUTPUT_DIRS.iter().find(|d| !loose && !dry_run && output.join(d).exists()) {
         bail!("{} already exists; move it away first (it would be packed and then deleted)", output.join(d).display());
     }
-    let maps: Vec<(PathBuf, Mmap)> = ["nss", "cg", "sound", "voice"]
-        .iter()
-        .map(|n| {
-            let path = game.join(format!("{n}.npa"));
-            Ok((path.clone(), map(&path)?))
-        })
-        .collect::<Result<_>>()?;
+    // Read entry by entry, not mapped: the mapped pages of cg.npa and
+    // voice.npa (3 GB) would count as the converter's memory.
+    let key = npa_key(&exe)?;
     let mut npas = Vec::new();
-    for (path, bytes) in &maps {
-        npas.push(open_npa(&exe, path, bytes)?);
+    for n in ["nss", "cg", "sound", "voice"] {
+        let path = game.join(format!("{n}.npa"));
+        let file = File::open(&path).with_context(|| format!("opening {}", path.display()))?;
+        npas.push(conv_engines::nitroplus::npa::Npa::open(file, key.clone()).with_context(|| format!("parsing {}", path.display()))?);
     }
     let mut npas = npas.into_iter();
     let scripts = npas.next().unwrap();
@@ -1028,10 +1026,12 @@ fn lint_dir(dir: &Path, files: bool) -> Result<conv_cons::lint::Report> {
     Ok(conv_cons::lint::lint(&script, &|n| !files || have.contains(&n.replace('/', "\\").to_lowercase())))
 }
 
+fn npa_key(exe: &Path) -> Result<conv_engines::nitroplus::npa::Key> {
+    Ok(conv_engines::nitroplus::npa::Key::from_exe(&fs::read(exe).with_context(|| format!("reading {}", exe.display()))?)?)
+}
+
 fn open_npa<'a>(exe: &Path, path: &Path, bytes: &'a [u8]) -> Result<conv_engines::nitroplus::npa::Npa<'a>> {
-    use conv_engines::nitroplus::npa::{Key, Npa};
-    let key = Key::from_exe(&fs::read(exe).with_context(|| format!("reading {}", exe.display()))?)?;
-    Npa::parse(bytes, key).with_context(|| format!("parsing {}", path.display()))
+    conv_engines::nitroplus::npa::Npa::parse(bytes, npa_key(exe)?).with_context(|| format!("parsing {}", path.display()))
 }
 
 fn npa_list(exe: &Path, path: &Path) -> Result<()> {

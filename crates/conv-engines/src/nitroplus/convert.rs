@@ -42,6 +42,11 @@ use conv_core::ir::{ArithOp, ChoiceStyle, CLICK_WAIT_MARK, Op, Operand, ScreenEf
 use super::nss::{AssignOp, BinaryOp, Expr, Function, Inline, Item, NssFile, Param, Stmt, StmtKind, Target, Text, UnaryOp};
 
 pub const SCREEN_W: i64 = 1024;
+/// The longest cross-fade non-blocking actions get where the script doesn't
+/// wait for them (a text page, a blocking action): the original goes on
+/// while they run, up to minutes (a background scrolling through a
+/// battle).
+const UNWAITED_MS: u32 = 1000;
 pub const SCREEN_H: i64 = 576;
 /// The story driver; the helper library is what it `#include`s.
 const BOOT: &str = "0_boot_開始スクリプト.nss";
@@ -112,8 +117,10 @@ pub trait Assets {
     fn composite(&mut self, parts: &[(String, i64, i64, i64)]) -> Option<(String, i64, i64)>;
     /// A fully transparent picture.
     fn transparent(&mut self) -> String;
-    /// An output image scaled to `zx`, `zy` per mille: its path and size.
-    fn scaled(&mut self, image: &str, zx: i64, zy: i64) -> Option<(String, u32, u32)>;
+    /// An output image scaled to `zx`, `zy` per mille about the centre of
+    /// the box `at` (x, y, w, h) it fills unscaled: the picture to draw
+    /// (perhaps only its part on the screen), its top-left and size.
+    fn scaled(&mut self, image: &str, zx: i64, zy: i64, at: (i64, i64, i64, i64)) -> Option<(String, i64, i64, u32, u32)>;
     /// An output image blurred with a Gaussian of `sigma`/10 px.
     fn blurred(&mut self, image: &str, sigma: u32) -> Option<String>;
 }
@@ -1797,9 +1804,11 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 }
             }
             "wait" => {
+                // The actions still running are shown over the wait, at
+                // most.
                 let ms = arg(0).int().max(0) as u32;
-                let shown = self.pending_ms.min(ms);
-                self.sync(0);
+                let shown = std::mem::take(&mut self.pending_ms).min(ms);
+                self.sync(shown);
                 if ms > shown {
                     self.ops.push(Op::Wait { ms: ms - shown });
                 }
@@ -1811,7 +1820,11 @@ impl<'a, 'b> Compiler<'a, 'b> {
                     ms => self.ops.push(Op::Wait { ms: ms.int().max(0) as u32 }),
                 }
             }
-            "waitaction" | "waitfade" | "waitmove" | "waitzoom" | "draw" => self.sync(0),
+            "waitaction" | "waitfade" | "waitmove" | "waitzoom" | "draw" => {
+                // Waits for the actions: their whole time.
+                let ms = std::mem::take(&mut self.pending_ms);
+                self.sync(ms);
+            }
             "setvolume" => self.set_volume(&arg(0), arg(1).int(), arg(2).int()),
             "setloop" => {
                 for t in self.matching(&arg(0)) {
@@ -1882,13 +1895,9 @@ impl<'a, 'b> Compiler<'a, 'b> {
             Value::Null | Value::Int(0) => self.pending_ms = self.pending_ms.max(ms),
             Value::Int(n) if *n > 1 => {
                 self.note("timed action that waits only part of its time");
-                self.pending_ms = self.pending_ms.max(ms);
-                self.sync(0);
+                self.sync(ms);
             }
-            _ => {
-                self.pending_ms = self.pending_ms.max(ms);
-                self.sync(0);
-            }
+            _ => self.sync(ms),
         }
     }
 
@@ -1897,10 +1906,10 @@ impl<'a, 'b> Compiler<'a, 'b> {
         self.objects.values().any(|o| matches!(o.kind, Kind::Cover) && o.opacity >= 1000)
     }
 
-    /// Shows the changes since the last sync, as a cross-fade over the
-    /// pending actions' time (or `ms`, if longer).
+    /// Shows the changes since the last sync, as a cross-fade over `ms`,
+    /// or the pending actions' time up to [`UNWAITED_MS`] if longer.
     fn sync(&mut self, ms: u32) {
-        let ms = ms.max(std::mem::take(&mut self.pending_ms));
+        let ms = ms.max(std::mem::take(&mut self.pending_ms).min(UNWAITED_MS));
         let mask = self.pending_mask.take();
         self.flush_sounds();
         self.check_window();
@@ -1927,10 +1936,9 @@ impl<'a, 'b> Compiler<'a, 'b> {
             .into_iter()
             .map(|(n, mut shown, key, zoom, (w, h), blur)| {
                 if zoom != (1000, 1000)
-                    && let Some((image, sw, sh)) = self.assets.scaled(&shown.image, zoom.0, zoom.1)
+                    && let Some((image, x, y, sw, sh)) = self.assets.scaled(&shown.image, zoom.0, zoom.1, (shown.x, shown.y, w, h))
                 {
-                    shown.x += (w - sw as i64) / 2;
-                    shown.y += (h - sh as i64) / 2;
+                    (shown.x, shown.y) = (x, y);
                     (shown.w, shown.h) = (sw as i64, sh as i64);
                     shown.image = image;
                 }
@@ -2131,7 +2139,9 @@ impl<'a, 'b> Compiler<'a, 'b> {
         for item in &t.items {
             match item {
                 Inline::Marker(_) | Inline::Comment(_) => other = true,
-                Inline::Str(s) => line.push_str(s),
+                // `<?>` (not parsed as a tag): the text goes on after the
+                // code that follows, which runs before the page anyway.
+                Inline::Str(s) => line.push_str(&s.replace("<?>", "")),
                 Inline::Code(stmts) => {
                     // Code after a `<k>` runs after that click: end the page
                     // there and go on below it.
@@ -2348,8 +2358,9 @@ mod tests {
         fn transparent(&mut self) -> String {
             "none.png".into()
         }
-        fn scaled(&mut self, image: &str, zx: i64, zy: i64) -> Option<(String, u32, u32)> {
-            Some((format!("{image}@{zx}x{zy}"), (1024 * zx / 1000) as u32, (576 * zy / 1000) as u32))
+        fn scaled(&mut self, image: &str, zx: i64, zy: i64, at: (i64, i64, i64, i64)) -> Option<(String, i64, i64, u32, u32)> {
+            let (w, h) = (1024 * zx / 1000, 576 * zy / 1000);
+            Some((format!("{image}@{zx}x{zy}"), at.0 + (at.2 - w) / 2, at.1 + (at.3 - h) / 2, w as u32, h as u32))
         }
         fn blurred(&mut self, image: &str, sigma: u32) -> Option<String> {
             Some(format!("{image}~{sigma}"))

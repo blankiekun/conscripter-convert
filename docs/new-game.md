@@ -114,7 +114,10 @@ system screens, extras and matching effects to the original.
   to count displayed pages, find hot loops and follow each route (the
   "click link N" option). Pages count as displayed, not in file order.
 - Run it headless (recipe in `CLAUDE.md`), always under `timeout -k 5`
-  (ONScripter ignores SIGTERM in a script loop).
+  (ONScripter ignores SIGTERM in a script loop). Once the story runs,
+  let it play itself with the debug trace and check the trace ("Checking
+  a build with the debug trace", below): one run finds script errors,
+  crashes, missing files and labels never reached.
 - A loop isn't automatically a bug: check whether the original loops
   there too.
 - Map the progression variables (step 11.2) as soon as conditions
@@ -151,7 +154,9 @@ button bar, confirmations. Build them as in-script menus from the
 original's own parts (`menu.rs` explains the ONScripter mechanics). Where
 the original uses a Windows dialog, design one from game parts and say
 so. Check each one headless with `research/xuse/smoke.py` (scripted
-button presses and screenshots).
+button presses and screenshots). List the screens' sprites in the game's
+trace config (below) so the trace leaves them out and auto-play never
+presses the bar's save, load or skip buttons.
 
 ## 8. Extras
 
@@ -211,7 +216,8 @@ lose the loop state between sessions.
 3. **Check the converted branches against the walkthrough.** For each
    step of the walkthrough, follow the converted `0.txt`, or run it
    headless with a scripted click path (`research/xuse/smoke.py`) and
-   print the variables with the `lsp 999,"X:"+…` trick (`CLAUDE.md`).
+   print the variables with the `lsp 999,"X:"+…` trick (`CLAUDE.md`),
+   or record them with the engine's `--trace-vars` (below).
    Confirm the expected chapter is reached at every loop: for
    最果てのイマ, the first loop with no choice, each heroine, the second
    cycle and the final arc. Write down every place where the code and
@@ -237,6 +243,12 @@ lose the loop state between sessions.
      wrong-order paths the walkthrough warns about, such as clicking a
      second heroine link in the same loop: the original must refuse them,
      and so must the conversion.
+   - **Then in the engine.** The simulators check control flow; the
+     engine's trace checks what the player sees on the same routes.
+     Replay each path with `--replay`, or let `cons_explore.py` cover the
+     routes (below), and compare the engine's `--trace-vars` records
+     with the simulator's variables file by file: that tells you why
+     two runs went different ways, not only that they did.
    - **Lint the output for the same class of bug.** Report every jump
      target that falls between a per-message record (link, ruby, style)
      and its message, every link the source only shows under a
@@ -269,3 +281,118 @@ lose the loop state between sessions.
 - Rebuild into a fresh output folder. Never touch folders holding the
   user's saves (`out/saiima-flow`), and list any folder before deleting
   it.
+
+## Checking a build with the debug trace
+
+CONscripter can play a converted game by itself and write a **trace**:
+one JSON line per text page (the sprites with their boxes, the
+background, music, sounds, filters and effects), per command that
+changed the screen or sound, per choice, per missing file, script error
+or crash. `engine/DEBUG.md` describes every record and option; this
+section is the workflow for a conversion. Run everything headless and
+under `timeout -k 5`, with the game folder as the working directory.
+The trace needs a CONscripter newer than 0.18.0 (its `master`): move the
+`engine` submodule forward first.
+
+**A first run.** No window and no Xvfb are needed, so several runs can go
+at once, each with its own `--save-dir` and trace:
+
+```sh
+cd out/<game>-cons
+SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy timeout -k 5 3600 \
+    ../../engine/build/conscripter --root . --save-dir /tmp/<game>-saves \
+    --trace /tmp/t.jsonl --trace-ignore <UI sprites> --auto-play 0
+echo $?   # 0 end, 1 auto-play stuck, 2 script error, 3 startup failure, 128+n signal
+python3 -I ../../engine/tools/cons_trace_check.py /tmp/t.jsonl --script 0.txt
+```
+
+- Always give `--save-dir`: a game that saves as it goes would otherwise
+  write to the player's saves (never `out/saiima-flow`).
+- `--trace-ignore` takes the game's own UI sprites (the ranges in the
+  game document's sprite map). They are left out of the trace and
+  auto-play never presses their buttons.
+- `--auto-choice first|cycle|random` and `--seed n` pick the route;
+  the same options and seed give the same run.
+- The checker ranks what looks wrong (script errors and crashes,
+  missing files, sprites left up across a background change, pictures
+  a few pixels above the bottom edge, filters left over a CG, sounds
+  left looping, the same sound started twice before a click, voices cut
+  off, lines missing their voice, garbled or leaked text, very long
+  waits, slow spots, memory growth, labels never reached), each at the script line
+  `*label:line` to look at and with the command that showed the sprite.
+  Its last line is a `--shot-pages` option: run again the same way with
+  it to get pictures of just those pages.
+
+**Per-game checker config.** Put the game's UI sprite ranges, its CG
+name pattern and its known false positives in a JSON file beside the
+trace or the script (`cons_trace_check.json`, or `--config FILE`), so a
+check needs no long command line. Keep each game's file next to its
+document's sprite map, and add a false positive only after looking at
+the page. For 最果てのイマ that is sprite 61 (`bg\frame01.png`, the
+game's frame overlay) for `linger`.
+
+**A crash.** A trace that ends in a `crash` record has the signal, the
+script line, the gosub chain and the last 50 commands run: read those
+before the core dump. A script error has an `error` record with the same
+place and chain; with `USE_FILELOG` builds the message also goes to the
+terminal.
+
+**Every route, not one.** One auto-play run follows one route, and a
+hub that is always answered the same way leaves whole routes unreached
+(最果てのイマ's first runs missed 1,062 labels that way).
+
+- `engine/tools/cons_explore.py` runs the engine again and again with
+  `--auto-choice untaken`, each run steered toward the options no
+  earlier trace took, until no run reaches a new label. It reports the
+  labels reached by all runs together against the script's.
+- `--replay t.jsonl` repeats an earlier run's choices exactly (and its
+  seed and `--auto-choice`), so a route the checker complained about
+  can be played again after a fix. Give each run a fresh `--save-dir`:
+  the game's global variables stay in the save folder, and a second run
+  in the same one starts from a different state. A `replay diverged` warning marks the first place the new
+  build went a different way. Compare the before and after traces with
+  `cons_trace_check.py --diff before.jsonl after.jsonl`.
+
+**Start anywhere.** `--goto <label> --vars <file>` starts at a label
+with `%`/`$` variables preset (`%312=876`, `$5=text`, one per line). It
+replaces patching `0.txt` (a scene deep in a route reproduced in seconds
+instead of an hour's replay). The vars file can come from:
+- a simulator's or the converter's tracer (write it in that format),
+- another run: `--dump-vars file` writes one at F8 and when the engine
+  exits (F8's `dump` record lists the same variables),
+- a run's `var` records (`--trace-vars`, below) or F8 dumps, turned
+  into a vars file for any page or place by
+  `engine/tools/cons_trace_vars.py t.jsonl --page N` (or `--at
+  '*label:line'`). Global variables loaded from the save folder have no
+  `var` records: take those from an F8 dump or `--dump-vars`.
+
+**Long runs.** `--checkpoint-every N` saves a slot every N pages during
+auto-play, and `--load n` starts a run from slot n, so a run that fails
+deep in a route restarts from the last checkpoint. Checkpoints go to
+slots 900 and up unless `--checkpoint-slot` says otherwise: move them if
+the game keeps its own data in those slots. Keep the game's bar in
+`--trace-ignore`, or auto-play presses its load button once a save
+exists. `--roundtrip-every N`
+saves, loads and compares the state every N pages; a `save/load
+mismatch` warning means part of the state (filters, the `pushscreen`
+stack, screen effects, variables) doesn't survive a save.
+
+**Story flags.** `--trace-vars 300-899` writes a `var` record each time
+one of those variables changes, with the script line. Compare them with
+the route simulator's variables (step 11.4) to see where and why the
+engine's flags part from the source's, file by file:
+`engine/tools/cons_trace_vars.py --diff a.jsonl b.jsonl` prints the
+first change that differs (`--only 300-899` to narrow it).
+
+**What a player would notice but auto-play hides.** Auto-play shortens
+effects and waits, so the trace also records what each command asked
+for: a `long wait` warning flags any `print`, `delay`, `wait` or effect
+asking for more than 10 s (`print 10,270000` is a 4.5-minute fade). An
+`image too large for the web` warning flags a picture bigger than a
+browser texture can hold (4096 px by default), and each page records
+the image memory in use, so a leak shows as a curve before it crashes.
+
+**Seeing a page.** `--shot-pages 412,980-990` or `--shot-every n` saves
+pictures of chosen pages during the same run; F8 while playing with a
+trace on writes the state at that moment (and natively a picture). The
+web build takes `?trace` in its URL and downloads the trace with F7.

@@ -26,7 +26,7 @@ Paths below are relative to the repository unless they say otherwise;
 
 ## Build
 
-Whole game, script only (about 10 s, 2.2 GB peak; writes `0.txt`, no
+Whole game, script only (about 10 s, 1.2 GB peak; writes `0.txt`, no
 assets; use it for anything about logic):
 
 ```sh
@@ -37,8 +37,9 @@ target/release/conscripter-convert convert-nss <game> \
 Full build: the same without `--dry-run`, plus
 `--font <a Japanese TTF, e.g. ipam.ttf> --title 装甲悪鬼村正` (the font
 is copied into the output as `default.ttf`). It takes
-about 8 minutes and **about 6.7 GB of memory**: run it in the
-background, one at a time, and say so before starting one.
+about 3 minutes and 1.2 GB of memory (2026-10-14; it was 7 GB until
+big zooms were cut to the screen, see "How the compiler works"), and
+writes 3.5 GB. Run one at a time.
 
 - Start at `ma00_000.nss`, the new game of the boot script (the
   prologue, and the file that unlocks 魔王編). Starting anywhere else
@@ -191,7 +192,9 @@ IR ops at the points where the original waits:
   layer ordered by draw priority. A blocking `Fade`/`Move`, a `Wait` or
   a text page shows the changes since the last such point as one
   cross-fade over the action's time. Non-blocking actions join the next
-  blocking point. `PrintBG` freezes the screen under a cover and
+  blocking point. A zoomed picture is a scaled copy (`system/zoom/`);
+  one wider or taller than 4096 px (zooms go up to 60×, dives into a
+  picture) is cut to its part on the screen, so it stays loadable. `PrintBG` freezes the screen under a cover and
   rebuilds the scene; the cover's fade-out is the cross-fade.
 - **Text:** the window comes from the `SetText*` helper's layout
   (`LoadText` size and pitch, `Rotate` 90° = vertical, `Move`). Face
@@ -199,8 +202,11 @@ IR ops at the points where the original waits:
   into a generated window picture (`system/window_<hash>.png`, a new
   `setwindow` when it changes); speaker names aren't printed. A blank
   line ends a page, `<k>` becomes NScripter's `@`, `{code}` runs before
-  the page it starts (seen under wine). Vertical text is full-width
-  (`tateyoko 1` exits on a half-width character).
+  the page it starts (seen under wine). Vertical text is full-width.
+  A half-width letter, digit or punctuation mark under `tateyoko 1`
+  draws rotated and doesn't stop the engine (checked in Shift_JIS and
+  UTF-8 scripts), but `/` outside ruby, `#`, `?`, `%`, `$` and `@` in
+  text are read as script syntax, and a script error ends the run.
 - **Sound:** `Request(snd, Play)` with the `SetVolume`/`SetLoop` calls
   after it starts BGM or a sound effect; volume 0 on a playing sound
   stops it.
@@ -381,6 +387,29 @@ fails the puzzle. Not done: state across relaunch and in the web build
   scene, copy `0.txt`, add a label before the line and `goto` it right
   after `erasetextwindow 0`, and symlink `arc.nsa`, `default.ttf` and
   `ons_args` next to the copy.
+- **With the debug trace** (`docs/new-game.md`, "Checking a build with
+  the debug trace"), none of that is needed: `SDL_VIDEODRIVER=dummy`
+  and `--auto-play` run without Xvfb or xdotool, and `--goto <label>
+  --vars <file>` starts at a scene with the story flags preset (the
+  `--at` patch of `0.txt` did this by hand; a route replay of an hour
+  became a 22-second reproduction). Write the vars file from
+  `nstrace.py`'s flags, or let a run write it (`--dump-vars file`, at F8
+  and at exit). `--trace-vars 300-899` records the story flags as they
+  change, to compare with `nstrace.py --flags` file by file. Skip mode
+  used to end on any key release, which made xdotool-driven skipping
+  crawl; auto-play doesn't need it, and releasing Shift, Ctrl, Alt or a
+  function key no longer ends it (other keys and clicks still do).
+- **Crashes:** the 村正END run died of heap corruption 508 files in,
+  with only a core dump (malloc under `lsp`). With `--trace`, a crash
+  now ends the trace with a `crash` record: the signal, the script line,
+  the gosub chain and the last 50 commands. A script error exits with
+  2 (it was 255) and is in the trace's `error` record, so it no longer
+  looks like a silent exit.
+- **Requested durations:** auto-play shortens effects, so check the
+  trace's `long wait` warnings: `print 10,270000` (a 4.5-minute
+  cross-fade) would have blocked a real player. Pictures larger than a
+  browser texture (the converter once almost wrote a 61440×34560 zoom)
+  give an `image too large for the web` warning.
 - **The 立方陣:** patch a copy of `0.txt` to jump straight to the puzzle
   and print the result (`lsp 999,"RESULT:"+...` on stderr), then click
   through it: solving and the easy mode give 1, a wrong answer 0.
@@ -389,6 +418,33 @@ fails the puzzle. Not done: state across relaunch and in the web build
   `ma04_005`); the `ma05_023` ranking (an all-zero tie goes to `mb01`, as
   the source says); the `mc01_010vs` choice. Routes share files that
   branch on `$PreGameName` (`mb01_003_3`); that is the source's design.
+
+**Engine skip runs** (playbook step 4): `research/nitroplus/engrun.py`
+plays each ending of the route paths in CONscripter, every page drawn,
+on an Xvfb display of its own (Ctrl held down: the engine leaves skip
+mode on any key release). nstrace records the options each playthrough
+takes; the driver patches a copy of `0.txt` to take them by itself, skip
+the 立方陣 with its recorded result, and log each story file; a run
+passes if it reaches the end and passes the same files as nstrace. Five
+runs (一条END, 香奈枝END, 茶々丸END, 村正END, TRUE END; `--all` adds the
+bad ends), about 8 pages a second, one core and 200 MB each: run them
+side by side, one display each.
+
+```sh
+for n in 1 2 3 9 10; do
+  python3 -I research/nitroplus/engrun.py out/muramasa-cons \
+    research/nitroplus/paths/{1-ichijou,2-kanae,3-chachamaru,4-muramasa}.txt \
+    --engine <conscripter> --only $n --display :8$((n % 10)) > out/engrun-$n.log &
+done
+```
+
+To look at one place deep in a route, `--at <file>` starts the run at
+that story file with every variable as nstrace had it there (a crafted
+save: the variables, not the pictures or music on screen); an engine
+problem there shows in seconds instead of an hour. The engine writes its
+errors to `stderr.txt` in the game folder, not to the terminal. To find
+the line, add `lsp 998,"TRACE:L<n>",0,0` before each line of the file in
+the patched copy: the last one in `stderr.txt` is the line that failed.
 
 ## Running the original under wine
 
@@ -414,22 +470,57 @@ Used to check what the engine does (`docs/new-game.md` step 9).
   (780, 260) starts `ma00_000`.
 - Stop with `wineserver -k` (with `WINEPREFIX` set) and kill Xvfb by PID.
 
-## Status: in progress (2026-10-13)
+## Status: in progress (2026-10-14)
 
 The whole story compiles, the 立方陣 included, and every ending of the
-chart is reached in the converted control flow. Checked
-in the engine: ma01_001 → ma02_003 (29 files, about 500 clicks) and four
-forks (a runtime `call_scene`, a heroine death, the ranking, a battle
-choice), and the 立方陣. Scope: extras and movies are out for now; how
-closely to follow the battle HUD is open.
+chart is reached in the converted control flow. **Engine skip runs**
+(2026-10-14, see "Testing"), the full build played in CONscripter with
+every page drawn and the files checked against nstrace:
+
+| Run | Ending | Files | Time | Result |
+|---|---|---|---|---|
+| 1 | 一条END | 246 | 40 min | passed |
+| 2 | 香奈枝END | 349 | 41 min | passed |
+| 3 | 茶々丸END | 300 | 44 min | passed |
+| 9 | 村正END | 508 of 510 | 56 min | **aborted** in `md06_032` |
+| 10 | TRUE END | 514 | 56 min | passed |
+
+Run 9 aborted with `malloc(): unaligned tcache chunk detected`
+(SIGABRT): heap corruption in the engine, noticed in `malloc` under
+`lspCommand` → `loadImage` → `createSurfaceFromFile` →
+SDL (`cg\anime\slash01a_02.png`). The damage happened earlier: run 10
+plays the same files without trouble, and an AddressSanitizer build
+(`-fsanitize=address`, flags as in "Build" plus the SDL2_mixer
+`PKG_CONFIG_PATH`) started at `md06_030` with `--at` reached the end
+with no error. Not found yet: an ASan run of the whole route 9 (about
+2-3 hours) would show the first bad write. Testing paused here
+(2026-10-14) while CONscripter gets better debug options.
+
+Fixed on the way (each found by the runs, all in the current build):
+- A `?` in horizontal text: NScripter reads it as an array reference
+  and exits with 255 (the message goes to `stderr.txt`). Every route
+  passed one, in `ma03_027vs`: the NSS `<?>` tag (93 uses), passed
+  through as text. Text lines now write `?` full-width, `<?>` is
+  dropped, and lint reports a `?` in text.
+- Non-blocking actions were cross-faded over their whole time at the
+  next sync: a 270 s background scroll (`ma04_013vs`) blocked the
+  player for 270 s, 51 cross-fades were over a minute. Now at most a
+  `Wait`'s time, or 1 s where the script doesn't wait.
+- The full build ran out of memory (7 GB) on 60x zooms; now 1.2 GB.
+
+Testing notes: other agents stop engines with `pkill -x conscripter`;
+run ours through a symlink with another name (`--engine
+out/conscripter-mura`). The skip runs and `--at` starts are in
+`research/nitroplus/engrun.py`.
 
 Next, in order:
-1. **A long engine skip run per route** (playbook step 4), to catch
-   engine exits deep in the game. Needs a full build (about 8 minutes,
-   6.7 GB of memory: say so before starting one).
+1. **Find run 9's heap corruption** (with CONscripter's new debug
+   options, or an ASan build over the whole route 9), fix it in the
+   engine, and rerun the five skip runs.
 2. **System screens** (step 7): title, save/load, settings, backlog,
    built as in-script menus from `cg/sys/*` parts, as for 最果てのイマ
-   (`conv-cons/src/menu.rs`). A big item: check with the user first.
+   (`conv-cons/src/menu.rs`); the settings screen also shows the build's
+   version line (`version.txt`). A big item: check with the user first.
 3. The largest leftovers below: `CreateProcess` (via Lua), non-blocking
    `Move`/`Zoom`, `AddRender` (needs a per-sprite blend mode).
 4. Step 11.5: `#` flags (globals from %800) across quit and relaunch,
@@ -454,5 +545,12 @@ Next, in order:
   by the story's logic one branch always matches; the fall-through ends
   the run.
 - `SetBlur` strength is a guess (1.5 px per pass), unverified.
-- Engine: a half-width character under `tateyoko 1` exits CONscripter
-  with status 255 (`ONScripter_text.cpp`, drawChar's rotation path).
+- Engine: an exit with status 255 in vertical text was put down to a
+  half-width character under `tateyoko 1`, but CONscripter draws those
+  (rotated) and nothing in drawChar exits. It was most likely a script
+  error in the text (a half-width `/`, `#`, `?` or `%`; up to 0.18.0
+  every script error exited with 255). Now a script error exits with 2
+  and the trace's `error` record gives the message and the line; the
+  checker's `text` rule finds those characters in text lines.
+- Engine: CONscripter segfaults on `end` after a `dwave` voice with Ctrl
+  held (seen once in a small test script; not looked into).
