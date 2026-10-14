@@ -37,7 +37,7 @@
 
 use std::collections::{BTreeMap, HashMap};
 
-use conv_core::ir::{ArithOp, ChoiceStyle, CLICK_WAIT_MARK, Op, Operand, ScreenEffect, Ruby, SpriteChange, SpritePlacement, TextWindow, TransitionStyle, Voice};
+use conv_core::ir::{ArithOp, ChoiceStyle, CLICK_WAIT_MARK, Op, Operand, ScreenEffect, Ruby, Script, SpriteChange, SpritePlacement, TextWindow, TransitionStyle, Voice};
 
 use super::nss::{AssignOp, BinaryOp, Expr, Function, Inline, Item, NssFile, Param, Stmt, StmtKind, Target, Text, UnaryOp};
 
@@ -88,11 +88,19 @@ pub struct Game {
     flags: fn() -> Vec<String>,
     /// Library files the story may name as its next file (ported).
     files: &'static [&'static str],
+    /// The game's system screens (title, menus, dialogs), built from its
+    /// own pictures into the script.
+    menus: fn(&mut dyn Assets, &mut Script),
 }
 
 impl Game {
     /// A game with nothing of its own: NSS as it is.
-    pub const PLAIN: Game = Game { call: |_, _| false, scene: |_, _, _| false, flags: Vec::new, files: &[] };
+    pub const PLAIN: Game = Game { call: |_, _| false, scene: |_, _, _| false, flags: Vec::new, files: &[], menus: |_, _| {} };
+
+    /// Fills `script`'s system screens.
+    pub fn menus(&self, assets: &mut dyn Assets, script: &mut Script) {
+        (self.menus)(assets, script)
+    }
 }
 
 /// Guard against scripts that loop forever at convert time.
@@ -123,6 +131,10 @@ pub trait Assets {
     fn scaled(&mut self, image: &str, zx: i64, zy: i64, at: (i64, i64, i64, i64)) -> Option<(String, i64, i64, u32, u32)>;
     /// An output image blurred with a Gaussian of `sigma`/10 px.
     fn blurred(&mut self, image: &str, sigma: u32) -> Option<String>;
+    /// Images the scripts name, as cells side by side in one picture (a
+    /// button's states): its path and size (all cells). Each cell is as
+    /// large as the largest part, the part at its top left.
+    fn strip(&mut self, parts: &[&str]) -> Option<(String, u32, u32)>;
 }
 
 /// The result of compiling one scene.
@@ -2466,6 +2478,9 @@ mod tests {
         }
         fn blurred(&mut self, image: &str, sigma: u32) -> Option<String> {
             Some(format!("{image}~{sigma}"))
+        }
+        fn strip(&mut self, parts: &[&str]) -> Option<(String, u32, u32)> {
+            Some((parts.join("|"), 100 * parts.len() as u32, 100))
         }
     }
 

@@ -1,16 +1,18 @@
 //! 装甲悪鬼村正's own additions to the NSS compiler ([`MURAMASA`]): the
 //! `sys_hmode.nss` functions that rank the heroines and decide who dies
 //! (their loops and computed names are written as NScripter comparisons),
-//! and the 立方陣 minigame, ported ([`magiccube`]).
+//! and the 立方陣 minigame, ported ([`magiccube`]); the system screens,
+//! built from the game's own pictures ([`screens`]).
 
 use conv_core::ir::{ArithOp, Op, Operand};
 
 use super::{negate, Compiler, Game, Value};
 
 pub mod magiccube;
+pub mod screens;
 
 /// The game's hooks; the CLI uses them for a game with `Muramasa.exe`.
-pub const MURAMASA: Game = Game { call, scene, flags, files: &[magiccube::FILE] };
+pub const MURAMASA: Game = Game { call, scene, flags, files: &[magiccube::FILE], menus: screens::menus };
 
 fn call(c: &mut Compiler<'_, '_>, name: &str) -> bool {
     if let Some(r) = RANKINGS.iter().find(|r| r.0 == name) {

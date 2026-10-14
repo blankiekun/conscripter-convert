@@ -681,11 +681,31 @@ Next, in order:
    a dialog), Esc asks ゲームを終了しますか, the title's 終了する quits
    with no question, the backlog shows no names. Plan, in order, each
    screen checked beside the original:
-   1. Button strips joined from the `000`-`003` part files at convert
-      time; confirmations as pictures (`ConfirmDialog` + a picture per
-      question, backdrop, the 記録をしました notice).
-   2. Title: layers, hover and click sounds, BGM, `Continue` (quick
-      load) and `Extras` actions.
+   1. Done: button strips joined from the `000`-`003` part files at
+      convert time (`Assets::strip`: normal, hover, disabled, pressed);
+      the yes/no questions as the game's pictures (`ConfirmDialog`
+      `pictures`, `backdrop`, `pressed`, `fade_ms`; built in
+      `convert/muramasa/screens.rs`), with the pressed state from
+      CONscripter's `spbtn num,no,pressed_cell` (625c598). Beside the
+      original (quit question, normal, both hovers, 拒否 pressed): the
+      same pixels, offset 0,0. Left for later: the 150 ms sideways
+      unroll (a fade for now), the 記録をしました notice (with the save
+      screen), 選択肢まで戻りますか and 設定を初期状態に戻す (with their
+      screens).
+   2. Done (static): the title at rest, the background, logo and
+      copyright composed into one picture, the six buttons with their
+      hover (`002`) and pressed (`003`) pictures, the hover sound (刀構え02)
+      and each button's click sound, the title music, Start's 3 s music
+      fade, 1 s fade to black and 2 s wait, 終了する quitting with no
+      question, しおりから dimmed to half while there is no quick save
+      (`TitleScreen` `pressed`, `hover_se`, `bgm`, `start_*`,
+      `exit_without_asking`, `TitleAction::Continue`; CONscripter's
+      `selectvoice` now works outside the define section, 325c9e1).
+      Beside the original (normal, hover, pressed): mean difference
+      0.1-3.5 levels, from the original's fire. Left: the fire's flicker
+      and the opening (step 7); 設定画面 does nothing until the settings
+      screen exists, 電光記録盤を開く opens ONScripter's load menu until
+      the save screen does, 特別付加目録 waits for the extras (step 8).
    3. Right-click menu (a new `CommandMenu`) and the quick bar
       (`ButtonBar` with a base picture, hidden at the right edge and
       sliding in as in the original).

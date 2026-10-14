@@ -861,9 +861,9 @@ impl AssetBank {
             };
             let image = format!("system/title_{name}.png");
             self.save_image(&image, &strip)?;
-            buttons.push(TitleButton { image, x, y, action });
+            buttons.push(TitleButton { image, x, y, action, ..Default::default() });
         }
-        Ok(TitleScreen { background: background_path, fade_ms: TITLE_FADE_MS, buttons })
+        Ok(TitleScreen { background: background_path, fade_ms: TITLE_FADE_MS, buttons, ..Default::default() })
     }
 
     /// The extras menu and the CG gallery (see [`gallery`]). Positions
@@ -1380,6 +1380,10 @@ impl AssetBank {
             delete: "のデータを削除します。よろしいですか？".into(),
             title: "タイトルへ戻りますか？".into(),
             quit: "ゲームを終了します。よろしいですか？".into(),
+            pictures: Vec::new(),
+            backdrop: None,
+            pressed: false,
+            fade_ms: 0,
         })
     }
 

@@ -147,6 +147,9 @@ const BTN_SCENE_ROW: i32 = BAR_BUTTON_BASE + 110; // + level
 /// lsp2 slots of the top bars (below the save menu's).
 const TOP_SPRITES2: std::ops::Range<u32> = 12..24;
 pub(crate) const LOAD: &str = "conv_load";
+/// The quick save's slot (the user's slots are 1-100, the link scenes'
+/// from [`SCENE_SLOT`]).
+pub(crate) const QUICK_SLOT: u32 = 890;
 /// 1 when entered from the game (hide and restore the text window).
 pub(crate) const IN_GAME: &str = "%101";
 
@@ -944,6 +947,10 @@ pub(crate) fn switch_off(s: Switch) -> String {
 /// asks [`CONFIRM_TEXT`], sets [`CONFIRM`] (1 yes, 0 no or right-click)
 /// and takes itself away. The message is centred by its length in bytes
 /// (Shift-JIS: half-width characters are one byte, half as wide).
+///
+/// A dialog with pictures shows the question's picture (or, for a question
+/// without one, the base and the text) over the backdrop; its sprites are
+/// yes, no, text, picture, backdrop from the top.
 pub(crate) fn confirm(out: &mut String, d: &ConfirmDialog) {
     let mut w = |line: String| {
         out.push_str(&line);
@@ -952,31 +959,59 @@ pub(crate) fn confirm(out: &mut String, d: &ConfirmDialog) {
     let size = d.font_size;
     let label_size = d.yes.h as u32 * 2 / 3;
     let centre = d.base.x + d.base.w / 2;
+    let pictures = !d.pictures.is_empty();
+    let (yes_slot, no_slot, text_slot, base_slot) = if pictures { (DIALOG_TEXT, DIALOG_YES_LABEL, DIALOG_NO_LABEL, DIALOG_NO) } else { (DIALOG_YES, DIALOG_NO, DIALOG_TEXT, DIALOG_BASE) };
+    let cells = if d.pressed { 4 } else { 3 };
     w(format!("*{CONFIRM_ROUTINE}"));
     // A confirmation switched off in the settings answers yes at once.
     w(format!("mov {CONFIRM},1"));
     w(format!("if {CONFIRM_KIND} > 0 mov {TMP},{}+{CONFIRM_KIND}:if %%{} == 1 mov {CONFIRM_KIND},0:return", SWITCH_OFF_BASE - 1, &TMP[1..]));
+    if let Some((b, opacity)) = d.backdrop.as_ref().filter(|_| pictures) {
+        w(format!("lsp {DIALOG_BASE},\":c;{}\",{},{},{opacity}", path(&b.image), b.x, b.y));
+    }
+    let base_and_text = [
+        format!("lsp {base_slot},\":a;{}\",{},{}", path(&d.base.image), d.base.x, d.base.y),
+        format!("len {TMP},{CONFIRM_TEXT}"),
+        format!("mov {TMP},{centre}-{TMP}*{size}/4"),
+        format!("strsp {text_slot},{CONFIRM_TEXT},{TMP},{},40,1,{size},{size},0,0,0,1", d.base.y + d.text_y),
+    ];
+    if pictures {
+        for (kind, p) in &d.pictures {
+            w(format!("if {CONFIRM_KIND} == {} lsp {base_slot},\":a;{}\",{},{}:goto *conv_confirm_drawn", switch_index(*kind) + 1, path(&p.image), p.x, p.y));
+        }
+        for line in &base_and_text {
+            w(line.clone());
+        }
+        w("*conv_confirm_drawn".into());
+    } else {
+        for line in &base_and_text {
+            w(line.clone());
+        }
+    }
     w(format!("mov {CONFIRM_KIND},0"));
-    w(format!("lsp {DIALOG_BASE},\":a;{}\",{},{}", path(&d.base.image), d.base.x, d.base.y));
-    w(format!("len {TMP},{CONFIRM_TEXT}"));
-    w(format!("mov {TMP},{centre}-{TMP}*{size}/4"));
-    w(format!("strsp {DIALOG_TEXT},{CONFIRM_TEXT},{TMP},{},40,1,{size},{size},0,0,0,1", d.base.y + d.text_y));
-    for (button, label_slot, p, label) in [(DIALOG_YES, DIALOG_YES_LABEL, &d.yes, &d.yes_label), (DIALOG_NO, DIALOG_NO_LABEL, &d.no, &d.no_label)] {
-        w(format!("lsp {button},\":a/3,0,3;{}\",{},{}", path(&p.image), p.x, p.y));
+    for (button, label_slot, p, label) in [(yes_slot, DIALOG_YES_LABEL, &d.yes, &d.yes_label), (no_slot, DIALOG_NO_LABEL, &d.no, &d.no_label)] {
+        w(format!("lsp {button},\":a/{cells},0,3;{}\",{},{}", path(&p.image), p.x, p.y));
+        if pictures {
+            continue;
+        }
         let chars = label.chars().count() as i32;
-        let x = p.x + p.w / 6 - chars * label_size as i32 / 2;
+        let x = p.x + p.w / (2 * cells) - chars * label_size as i32 / 2;
         let y = p.y + (p.h - label_size as i32) / 2;
         w(format!("strsp {label_slot},\"{}\",{x},{y},10,1,{label_size},{label_size},0,0,0,1", escape(label)));
     }
+    if d.fade_ms > 0 {
+        w(format!("print 10,{}", d.fade_ms));
+    }
     w("*conv_confirm_wait".into());
-    w(format!("spbtn {DIALOG_YES},1:spbtn {DIALOG_NO},2"));
+    let press = if d.pressed { ",3" } else { "" };
+    w(format!("spbtn {yes_slot},1{press}:spbtn {no_slot},2{press}"));
     w("print 1".into());
     w(format!("btnwait {BUTTON_VAR}"));
     w(format!("mov {CONFIRM},0"));
     w(format!("if {BUTTON_VAR} == 1 mov {CONFIRM},1"));
     w(format!("if {BUTTON_VAR} != 1 && {BUTTON_VAR} != 2 && {BUTTON_VAR} != -1 goto *conv_confirm_wait"));
     w(DIALOG_SPRITES.map(|n| format!("csp {n}")).collect::<Vec<_>>().join(":"));
-    w("print 1".into());
+    w(if d.fade_ms > 0 { format!("print 10,{}", d.fade_ms) } else { "print 1".into() });
     w("return".into());
 }
 
@@ -1136,7 +1171,7 @@ fn lsp2(slot: u32, p: &Placed, opacity: Option<u8>) -> String {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use conv_core::ir::{PageButton, Rect};
 
@@ -1197,7 +1232,7 @@ mod tests {
         }
     }
 
-    fn dialog() -> ConfirmDialog {
+    pub(crate) fn dialog() -> ConfirmDialog {
         ConfirmDialog {
             base: Placed { x: 140, y: 254, ..placed("dialog_base", 520, 91) },
             yes: Placed { x: 242, y: 305, ..placed("dialog_button", 426, 28) },
@@ -1211,6 +1246,10 @@ mod tests {
             delete: "delete?".into(),
             title: "title?".into(),
             quit: "quit?".into(),
+            pictures: Vec::new(),
+            backdrop: None,
+            pressed: false,
+            fade_ms: 0,
         }
     }
 
@@ -1228,6 +1267,29 @@ mod tests {
         ] {
             assert!(out.contains(line), "missing {line:?} in\n{out}");
         }
+    }
+
+    #[test]
+    fn confirm_with_pictures() {
+        let mut d = dialog();
+        d.pictures = vec![(Switch::ConfirmQuit, placed("quit_question", 100, 400))];
+        d.backdrop = Some((placed("black", 800, 600), 204));
+        d.pressed = true;
+        d.fade_ms = 150;
+        let mut out = String::new();
+        confirm(&mut out, &d);
+        for line in [
+            "lsp 5,\":c;system\\black.png\",10,20,204\n",
+            // The question's picture in place of the base and text; others get both.
+            "if %125 == 7 lsp 4,\":a;system\\quit_question.png\",10,20:goto *conv_confirm_drawn\nlsp 4,\":a;system\\dialog_base.png\",140,254\n",
+            "strsp 2,$106,",
+            // No labels; four cells, the fourth while pressed.
+            "lsp 0,\":a/4,0,3;system\\dialog_button.png\",242,305\nlsp 1,",
+            "print 10,150\n*conv_confirm_wait\nspbtn 0,1,3:spbtn 1,2,3\nprint 1\n",
+        ] {
+            assert!(out.contains(line), "missing {line:?} in\n{out}");
+        }
+        assert!(!out.contains("はい"));
     }
 
     #[test]
