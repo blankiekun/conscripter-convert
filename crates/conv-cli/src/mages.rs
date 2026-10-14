@@ -236,9 +236,13 @@ fn convert(game: &Path, output: &Path, scenes: &[String], font: Option<&Path>, t
         confirm,
         extras,
         ops: compiled.ops,
+        version: Some(crate::version::line()),
     };
     let (encoded, lost) = conv_cons::encode(&conv_cons::emit(&ir));
     fs::write(output.join("0.txt"), encoded)?;
+    if let Some(v) = &ir.version {
+        crate::version::write(output, title, v, package(game).as_deref())?;
+    }
     fs::write(output.join("ons_args"), conv_cons::ENGINE_ARGS)?;
     if !dry_run {
         audio(&assets.audio)?;
@@ -350,4 +354,28 @@ fn movies(jobs: &BTreeMap<String, PathBuf>, output: &Path) -> Result<()> {
         }
     }
     Ok(())
+}
+
+/// The Vita package's ID and version from `sce_sys/param.sfo`
+/// (`PCSG00299 01.00`).
+fn package(game: &Path) -> Option<String> {
+    let sfo = fs::read(game.join("sce_sys").join("param.sfo")).ok()?;
+    let u16_at = |o: usize| Some(u16::from_le_bytes(sfo.get(o..o + 2)?.try_into().ok()?) as usize);
+    let u32_at = |o: usize| Some(u32::from_le_bytes(sfo.get(o..o + 4)?.try_into().ok()?) as usize);
+    if sfo.get(..4)? != b"\0PSF" {
+        return None;
+    }
+    let (keys, data, count) = (u32_at(8)?, u32_at(12)?, u32_at(16)?);
+    let value = |want: &str| {
+        (0..count).find_map(|i| {
+            let e = 20 + 16 * i;
+            let key = sfo.get(keys + u16_at(e)?..)?;
+            let key = &key[..key.iter().position(|&b| b == 0)?];
+            (key == want.as_bytes()).then(|| {
+                let v = sfo.get(data + u32_at(e + 12)?..data + u32_at(e + 12)? + u32_at(e + 4)?)?;
+                Some(String::from_utf8_lossy(v).trim_end_matches('\0').to_string())
+            })?
+        })
+    };
+    Some(format!("{} {}", value("TITLE_ID")?, value("APP_VER")?))
 }

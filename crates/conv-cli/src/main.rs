@@ -13,6 +13,7 @@ use conv_engines::xuse::xarc::{CrcTarget, Xarc};
 use conv_engines::xuse::xsa::Xsa;
 
 mod mages;
+mod version;
 
 #[derive(Parser)]
 #[command(name = "conscripter-convert", about = "Convert Japanese visual novels to CONscripter")]
@@ -442,10 +443,14 @@ fn convert_game(game: &Path, output: &Path, font: Option<&Path>, title: &str, lo
         confirm,
         extras,
         ops,
+        version: Some(version::line()),
     };
     let source = image_format(output, conv_cons::emit(&ir), webp)?;
     let (encoded, lost) = conv_cons::encode(&source);
     fs::write(output.join("0.txt"), encoded)?;
+    if let Some(v) = &ir.version {
+        version::write(output, title, v, None)?;
+    }
     fs::write(output.join("ons_args"), conv_cons::ENGINE_ARGS)?;
     if let Some(font) = font {
         fs::copy(font, output.join("default.ttf")).with_context(|| format!("copying {}", font.display()))?;
@@ -534,11 +539,14 @@ fn convert_script(game: &Path, script: u32, output: &Path, font: Option<&Path>, 
     let names = label_names(game)?;
     let ops =
         lower_script(&cd, &file, Flow::Jumps, &mut assets, &presets, &names).with_context(|| format!("converting {file}"))?;
-    let ir = Script { title: title.to_string(), width: 800, height: 600, global_border: None, window: Some(window), title_screen: None, save_menu: None, button_bar: None, settings: None, backlog: None, confirm: None, extras: None, ops };
+    let ir = Script { title: title.to_string(), width: 800, height: 600, global_border: None, window: Some(window), title_screen: None, save_menu: None, button_bar: None, settings: None, backlog: None, confirm: None, extras: None, ops, version: Some(version::line()) };
 
     let source = image_format(output, conv_cons::emit(&ir), webp)?;
     let (encoded, lost) = conv_cons::encode(&source);
     fs::write(output.join("0.txt"), encoded)?;
+    if let Some(v) = &ir.version {
+        version::write(output, title, v, None)?;
+    }
     fs::write(output.join("ons_args"), conv_cons::ENGINE_ARGS)?;
     if let Some(font) = font {
         fs::copy(font, output.join("default.ttf")).with_context(|| format!("copying {}", font.display()))?;
@@ -949,10 +957,14 @@ fn convert_nss(
         confirm: None,
         extras: None,
         ops: compiled.ops,
+        version: Some(version::line()),
     };
     let (encoded, lost) = conv_cons::encode(&conv_cons::emit(&ir));
     // A dry run writes the script but no assets.
     fs::write(output.join("0.txt"), encoded)?;
+    if let Some(v) = &ir.version {
+        version::write(output, title, v, None)?;
+    }
     fs::write(output.join("ons_args"), conv_cons::ENGINE_ARGS)?;
     if !dry_run {
         if let Some(font) = font {

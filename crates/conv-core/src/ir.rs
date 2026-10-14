@@ -1092,4 +1092,8 @@ pub struct Script {
     /// `None` = the title's option button opens the settings.
     pub extras: Option<ExtrasMenu>,
     pub ops: Vec<Op>,
+    /// A line naming the build (its date, the converter's commit, the
+    /// engine's version), shown small on the settings screen. `None` = not
+    /// shown.
+    pub version: Option<String>,
 }
