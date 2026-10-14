@@ -512,14 +512,16 @@ menus, native Linux/macOS movie playback.
 
 **Found by the debug trace (2026-10-14).** A full exploration with the
 engine's debug trace (`cons_explore.py`, 62,185 pages, 1,220 labels;
-`docs/new-game.md`, "Checking a build with the debug trace") found these.
-Not fixed yet:
-- **A text line that stops the game.** `0.txt:24036` (`*conv_link19`),
-  「嘘ー！?  投稿者: イマたん（管理人）…」: the half-width `?` after 「！」
-  is read as an array reference, and the engine stops with "Array No. is
-  not declared" (exit 2). The converter must write `?`, `%`, `$` and `@`
-  in text as full-width (or escape them). It is the only such line in
-  `0.txt` (`cons_trace_check.py --script` checks every text line).
+`docs/new-game.md`, "Checking a build with the debug trace") found these:
+- **A text line that stopped the game (fixed).** `0.txt:24036`
+  (`*conv_link19`), 「嘘ー！?  投稿者: イマたん（管理人）…」: the
+  half-width `?` after 「！」 was read as an array reference, and the
+  engine stopped with "Array No. is not declared" (exit 2). Text lines now
+  get every character the engine's text parser reads specially (`%`
+  `?` `$` variables, `@` `\` `_` waits, `!` `#` `(` `/` `)` `<` `>` `[`
+  `]` tags, `` ` `` `"` `;` `*`) in full-width form (`escape_text` in
+  `crates/conv-cons/src/lib.rs`, tested by `text_is_made_safe`); a run
+  from `--goto conv_link19` goes on past it.
 - **`%190` after a load.** The loadgosub `*conv_scene_loaded` runs `if
   %2900 == 0 mov %151,%150:mov %190,%150:return`, so every load sets
   `%190` to `%150`, while in play `%190` stays 0 until it is clamped
