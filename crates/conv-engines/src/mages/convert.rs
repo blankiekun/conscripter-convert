@@ -516,12 +516,18 @@ impl Lowering<'_> {
                     self.replace_inherited(&key, tex, img, t, prio, fade(t));
                     return;
                 }
-                // SpriteBG and SpriteBS replace every picture but the
-                // characters (a background, a black cover, a white flash,
-                // an event CG); Sprite adds one, which the scripts remove
-                // by texture with SpriteDelete(BG).
-                let replaces: Vec<String> =
-                    if ty == "Sprite" { vec![] } else { self.shown.keys().filter(|k| k.starts_with('t')).cloned().collect() };
+                // SpriteBG and SpriteBS replace every picture (a background,
+                // a black cover, a white flash, an event CG), the
+                // characters too unless `:SpriteDelete 0` (the scripts
+                // then delete them themselves, or leave them over a black
+                // cover); Sprite adds one, which the scripts remove by
+                // texture with SpriteDelete(BG).
+                let keep_characters = t.int("SpriteDelete") == Some(0);
+                let replaces: Vec<String> = if ty == "Sprite" {
+                    vec![]
+                } else {
+                    self.shown.keys().filter(|k| k.starts_with('t') || !keep_characters).cloned().collect()
+                };
                 let (x, y) = (t.int_at("Position", 0).unwrap_or(640), t.int_at("Position", 1).unwrap_or(360));
                 self.show(&key, tex, img, x, y, prio, fade(t), &replaces);
                 // A gallery CG: seen from now on (CG numbers are 1-based).
