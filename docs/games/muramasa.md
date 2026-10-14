@@ -557,6 +557,13 @@ Fixed on the way (each found by the runs, all in the current build):
   every branch shows the first branch's pictures (the black box over
   村正's icon also shows when she is known, until the screen closes).
   Found by the checker's `linger` rule.
+- A wildcard (`@StMR*`) only matched object names, not aliases: the
+  character helpers create `遠４/StMR01` with the alias `StMR01`, so
+  `Move("@StMR*", …)`, fades, shakes and deletes on them did nothing
+  (`ma02_012`: ふき stayed 600 px off screen instead of sliding in).
+  About 11,700 lines of the output changed (44 more screen shakes, real
+  moves in place of 177 waits, characters deleted when the script
+  deletes them). Found by the checker's `offscreen` rule.
 - Non-blocking actions were cross-faded over their whole time at the
   next sync: a 270 s background scroll (`ma04_013vs`) blocked the
   player for 270 s, 51 cross-fades were over a minute. Now at most a

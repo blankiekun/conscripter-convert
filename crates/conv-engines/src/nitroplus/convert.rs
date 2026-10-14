@@ -1625,11 +1625,18 @@ impl<'a, 'b> Compiler<'a, 'b> {
     }
 
     /// Objects matched by a name argument (a trailing `*` is a prefix
-    /// wildcard).
+    /// wildcard, over names and aliases: `@StMR*` finds `遠４/StMR01`,
+    /// alias `StMR01`).
     fn matching(&self, v: &Value) -> Vec<String> {
         let name = self.object_name(v);
         match name.strip_suffix('*') {
-            Some(prefix) => self.objects.keys().filter(|k| k.starts_with(prefix)).cloned().collect(),
+            Some(prefix) => {
+                let mut found: std::collections::BTreeSet<String> = self.objects.keys().filter(|k| k.starts_with(prefix)).cloned().collect();
+                if !prefix.is_empty() {
+                    found.extend(self.aliases.iter().filter(|(a, o)| a.starts_with(prefix) && self.objects.contains_key(*o)).map(|(_, o)| o.clone()));
+                }
+                found.into_iter().collect()
+            }
             None if self.objects.contains_key(&name) => vec![name],
             None => Vec::new(),
         }
@@ -2508,6 +2515,24 @@ scene a.nss
         assert!(matches!(&ops[last + 1], Op::Sprites { changes, .. } if changes[0].sprite.is_none()));
         // SoundPlay and OnSE aren't defined here: built-ins we don't know.
         assert!(c.notes.contains_key("built-in soundplay"));
+    }
+
+    #[test]
+    fn a_wildcard_matches_aliases() {
+        let story = r#"
+scene a.nss
+{
+	CreateTexture("@遠４/StMR01", 100, 1236, 0, "cg/st/a.png");
+	SetAlias("@遠４/StMR01", "StMR01");
+	Fade("@遠４/StMR01", 0, 1000, null, true);
+	Move("@StMR*", 600, @-540, @0, null, true);
+	Wait(100);
+}
+"#;
+        let c = compile(story, LIBRARY);
+        // The centre of the 1024-wide picture at x 696.
+        let moved = c.ops.iter().any(|op| matches!(op, Op::SpriteMove { x: 1208, ms: 600, .. }));
+        assert!(moved, "{:?}", c.ops);
     }
 
     #[test]
