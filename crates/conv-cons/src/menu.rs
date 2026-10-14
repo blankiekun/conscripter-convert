@@ -55,6 +55,8 @@ const SETTING_MINUS: u32 = M + 9; // + row
 const SETTING_PLUS: u32 = M + 15; // + row
 const SETTING_TITLE: u32 = M + 25;
 const SETTING_QUIT: u32 = M + 26;
+/// The build's version line, bottom left.
+const SETTING_VERSION: u32 = M + 24;
 const MAX_SETTING_ROWS: usize = 6;
 /// Voice switches, on the voice page (in place of the level rows), and the
 /// switches page's options.
@@ -692,8 +694,16 @@ fn scene_stack(w: &mut impl FnMut(String)) {
 /// [`settings_init`]), and on a second page the voice switches (globals
 /// from [`VOICE_OFF_BASE`], read where each voice plays).
 /// `leave`: during a scene replay, "back to the title" becomes this label
-/// and question and leads back to the replay's list.
-pub(crate) fn settings_menu(out: &mut String, m: &SettingsMenu, confirm: Option<&ConfirmDialog>, leave: Option<(&str, &str)>) {
+/// and question and leads back to the replay's list. `version`: the
+/// build's line and the screen's height, the line written small in the
+/// bottom left corner.
+pub(crate) fn settings_menu(
+    out: &mut String,
+    m: &SettingsMenu,
+    confirm: Option<&ConfirmDialog>,
+    leave: Option<(&str, &str)>,
+    version: Option<(&str, u32)>,
+) {
     let rows = &m.rows[..m.rows.len().min(MAX_SETTING_ROWS)];
     let voices = &m.voices[..m.voices.len().min(MAX_VOICES)];
     let switches = &m.switches[..m.switches.len().min(MAX_SWITCHES)];
@@ -731,6 +741,12 @@ pub(crate) fn settings_menu(out: &mut String, m: &SettingsMenu, confirm: Option<
     }
     w("*conv_settings_draw".into());
     w((M..SETTING_TITLE).map(|n| format!("csp {n}")).collect::<Vec<_>>().join(":"));
+    if let Some((line, height)) = version {
+        // Half-width characters count half a column.
+        let text = crate::sprite_text(line);
+        let columns = text.chars().count().div_ceil(2) + 1;
+        w(format!("strsp {SETTING_VERSION},\"{text}\",8,{},{columns},1,14,14,0,0,0,1,\"#B0B0B0\"", height - 22));
+    }
     if pages > 1 {
         // Tabs: the current page's in the highlight colour, not clickable.
         let mut x = m.tabs_x;
@@ -1246,7 +1262,7 @@ mod tests {
             switches: vec![conv_core::ir::SettingSwitch { label: "セーブ確認".into(), switch: Switch::ConfirmSave }],
         };
         let mut out = String::new();
-        settings_menu(&mut out, &m, None, None);
+        settings_menu(&mut out, &m, None, None, None);
         for line in [
             // The current tab can't be clicked; the other one can.
             "if %176 != 1 strsp 28,\"音声\",392,34,3,1,22,22,0,0,0,1,\"#FFFFFF\",\"#F0C040\"\n",

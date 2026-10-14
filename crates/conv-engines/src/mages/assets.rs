@@ -9,13 +9,16 @@
 //! `bgm/<id>.ogg`, with the ADX loop as `LOOPSTART`/`LOOPEND`), and the
 //! USM movies MP4 files (`movie/`, loose: [`ArchiveAssets::movies`]).
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
 use image::{Rgba, RgbaImage, imageops};
 
+use conv_core::ir::Placed;
+
 use super::convert::{Assets, Particles, SCREEN_H, SCREEN_W};
+use super::menus::Labels;
 use super::cpk::Archive;
 
 /// Top-level output folders the assets go to.
@@ -74,6 +77,10 @@ pub struct ArchiveAssets<'a> {
     pub errors: Vec<String>,
     /// Write nothing (only picture sizes are read).
     pub dry_run: bool,
+    /// The `--font`, for the words drawn into pictures.
+    pub font: Option<&'a [u8]>,
+    /// Pictures cut from SystemData's atlases, by output path.
+    cut: HashSet<String>,
 }
 
 /// Width and height from a PNG header.
@@ -114,6 +121,8 @@ impl<'a> ArchiveAssets<'a> {
             movie_dir: PathBuf::new(),
             errors: Vec::new(),
             dry_run: false,
+            font: None,
+            cut: HashSet::new(),
         }
     }
 
@@ -327,6 +336,84 @@ impl Assets for ArchiveAssets<'_> {
         path
     }
 
+    fn wave_map(&mut self, cycles_x100: u32) -> String {
+        let path = format!("system/wave{cycles_x100}.png");
+        if !self.images.contains_key(&(6, cycles_x100)) {
+            let (w, h) = (SCREEN_W as u32, SCREEN_H as u32);
+            let img = RgbaImage::from_fn(w, h, |_, y| {
+                let v = (u64::from(y) * u64::from(cycles_x100) * 256 / (u64::from(h) * 100) % 256) as u8;
+                Rgba([v, v, v, 255])
+            });
+            self.write_png(&path, &img);
+            self.images.insert((6, cycles_x100), None);
+        }
+        path
+    }
+
+    // The eboot's eye catch type 1 (0x81048c68): the place (SystemData
+    // 74 + picture, 352×517) cut to 312×516 and centred at (173, 275);
+    // the card (67 + card: ec1_bg … ec6_bg, the protagonists' chapters)
+    // over the screen; the date, cell date % 6, date / 6 (169×18) of the
+    // card's calendar below y 545, centred at (754, 484). The place's
+    // cut moves 40 pixels right over the 30 frames it fades in: drawn
+    // where it ends.
+    fn chapter_card(&mut self, card: u32, picture: u32, date: i32) -> Option<String> {
+        let key = (7, card << 16 | picture << 8 | (date + 1).clamp(0, 255) as u32);
+        let path = format!("system/chapter_{card}_{picture}_{}.png", date.max(-1) + 1);
+        if self.images.contains_key(&key) {
+            return Some(path);
+        }
+        let decode = |bank: &Bank, id: u32| image::load_from_memory(bank.file(id)?.1).ok().map(|i| i.to_rgba8());
+        if card > 6 {
+            return None;
+        }
+        let card_img = decode(&self.system, 67 + card)?;
+        let place = decode(&self.system, 74 + picture)?;
+        let mut img = RgbaImage::from_pixel(SCREEN_W as u32, SCREEN_H as u32, Rgba([0, 0, 0, 255]));
+        let place = imageops::crop_imm(&place, 40, 0, 312, 516).to_image();
+        imageops::overlay(&mut img, &place, 173 - 156, 275 - 258);
+        imageops::overlay(&mut img, &imageops::crop_imm(&card_img, 0, 0, SCREEN_W as u32, SCREEN_H as u32).to_image(), 0, 0);
+        if (0..34).contains(&date) {
+            let (dx, dy) = (date as u32 % 6 * 169, 545 + date as u32 / 6 * 19);
+            let cell = imageops::crop_imm(&card_img, dx, dy, 169, 18).to_image();
+            imageops::overlay(&mut img, &cell, 754 - 84, 484 - 9);
+        }
+        self.write_png(&path, &img);
+        self.images.insert(key, None);
+        Some(path)
+    }
+
+    // The eboot's eye catch type 0 (0x81048978, 0x81048b8a): the halves
+    // (960×272) centred at y −136 + 272s and 680 − 272s, s going 0 → 1
+    // while the eye catch comes and 1 → 0 when it ends.
+    fn shutters(&mut self, n: u32, closing: bool, frames: u32) -> Option<String> {
+        let path = format!("system/shutters_{n}_{}.png", if closing { "in" } else { "out" });
+        let key = (8, n << 1 | u32::from(closing));
+        if self.images.contains_key(&key) {
+            return Some(path);
+        }
+        let name = format!("EC{n:02}.png");
+        let pic = image::load_from_memory(self.cg.by_name(&name)?).ok()?.to_rgba8();
+        let (w, h) = (SCREEN_W as u32, SCREEN_H as u32);
+        let mut screen = RgbaImage::new(w, h);
+        imageops::overlay(&mut screen, &pic, (i64::from(w) - i64::from(pic.width())) / 2, (i64::from(h) - i64::from(pic.height())) / 2);
+        let top = imageops::crop_imm(&screen, 0, 0, w, h / 2).to_image();
+        let bottom = imageops::crop_imm(&screen, 0, h / 2, w, h / 2).to_image();
+        let mut strip = RgbaImage::new(w * frames, h);
+        for i in 0..frames {
+            let step = i64::from(if closing { i + 1 } else { frames - 1 - i });
+            let gap = i64::from(h / 2) * (i64::from(frames) - step) / i64::from(frames);
+            let x = i64::from(w * i);
+            let mut frame = RgbaImage::new(w, h);
+            imageops::overlay(&mut frame, &top, 0, -gap);
+            imageops::overlay(&mut frame, &bottom, 0, i64::from(h / 2) + gap);
+            imageops::replace(&mut strip, &frame, x, 0);
+        }
+        self.write_png(&path, &strip);
+        self.images.insert(key, None);
+        Some(path)
+    }
+
     fn particles(&mut self, kind: Particles, count: u32) -> Option<String> {
         let (file, cell, falls) = match kind {
             Particles::LightBalls => ("lightball.png", (32, 32), false),
@@ -400,11 +487,76 @@ impl Assets for ArchiveAssets<'_> {
     fn window(&mut self) -> Option<(String, u32, u32)> {
         let data = self.system.by_name("meswin.png")?;
         let img = image::load_from_memory(data).ok()?.to_rgba8();
-        let (w, h) = (img.width() * 3 / 4, img.height() * 3 / 4);
-        let img = imageops::resize(&img, w, h, imageops::FilterType::CatmullRom);
+        // The window is the left 960 pixels; two loose feathers follow.
+        let (w, h) = (img.width().min(SCREEN_W as u32), img.height());
+        let img = imageops::crop_imm(&img, 0, 0, w, h).to_image();
         let path = "system/meswin.png".to_string();
         self.write_png(&path, &img);
         Some((path, w, h))
+    }
+
+    // The eboot's skip dialog (vtable 0x8115befc: layout 0x8103e7d6,
+    // refresh 0x8103e248, draw 0x8103ebf2), from SystemData 62 + the
+    // protagonist (ss_bg1 … ss_bg5), each rectangle (x, y, w, h) of the
+    // atlas centred at a point: the screen (0, 0, 960, 544); the question
+    // (606, 746, 302, 39) at (480, 184); the date (n % 6 × 138,
+    // 545 + n / 6 × 21, 138, 20) at (129, 48); the emblem (158n, 839, 158,
+    // 173) at (164, 406); up to 10 faces (id % 25 × 37, 671 + id / 25 × 37,
+    // 37, 37), the last at (858, 60) and each one before 38 to the left;
+    // Yes and No (425, 746 and 768, 60, 22; selected 60 to the right) at
+    // (415, 241) and (545, 241). The summary is written in white from
+    // (300, 319), its lines 27 apart.
+    fn skip_dialog(&mut self, bg: &[i64], faces: &[i64], text: &str, name: &str) -> Option<(Vec<Placed>, [Placed; 2])> {
+        let labels = Labels::new(self.font?)?;
+        let n = *bg.first()?;
+        if !(0..5).contains(&n) {
+            return None;
+        }
+        let mut atlas: Option<RgbaImage> = None;
+        let mut cut = |assets: &mut Self, part: String, cells: &[(i64, i64)], (w, h): (i64, i64), (cx, cy): (i64, i64)| -> Option<Placed> {
+            let path = format!("system/ss{}_{part}.png", n + 1);
+            if !assets.cut.contains(&path) {
+                if atlas.is_none() {
+                    atlas = Some(image::load_from_memory(assets.system.file(62 + n as u32)?.1).ok()?.to_rgba8());
+                }
+                let img = atlas.as_ref()?;
+                let mut sheet = RgbaImage::new(w as u32 * cells.len() as u32, h as u32);
+                for (i, &(x, y)) in cells.iter().enumerate() {
+                    let part = imageops::crop_imm(img, x as u32, y as u32, w as u32, h as u32).to_image();
+                    imageops::replace(&mut sheet, &part, i as i64 * w, 0);
+                }
+                assets.write_png(&path, &sheet);
+                assets.cut.insert(path.clone());
+            }
+            Some(Placed { image: path, x: (cx - w / 2) as i32, y: (cy - h / 2) as i32, w: (w * cells.len() as i64) as i32, h: h as i32 })
+        };
+        let mut pictures = vec![cut(self, "bg".into(), &[(0, 0)], (960, 544), (480, 272))?, cut(self, "question".into(), &[(606, 746)], (302, 39), (480, 184))?];
+        if let Some(&d) = bg.get(2).filter(|d| (0..36).contains(*d)) {
+            pictures.push(cut(self, format!("date{d}"), &[(d % 6 * 138, 545 + d / 6 * 21)], (138, 20), (129, 48))?);
+        }
+        if let Some(&e) = bg.get(1).filter(|e| (0..5).contains(*e)) {
+            pictures.push(cut(self, format!("emblem{e}"), &[(158 * e, 839)], (158, 173), (164, 406))?);
+        }
+        let shown = &faces[faces.len().saturating_sub(10)..];
+        for (k, &id) in shown.iter().rev().enumerate() {
+            if (0..50).contains(&id) {
+                pictures.push(cut(self, format!("face{id}"), &[(id % 25 * 37, 671 + id / 25 * 37)], (37, 37), (858 - 38 * k as i64, 60))?);
+            }
+        }
+        let lines: Vec<RgbaImage> = text.lines().map(|l| labels.draw(l, 21.0, [255, 255, 255], [0, 0, 0], 255)).collect();
+        if let Some(h) = lines.iter().map(|l| l.height()).max() {
+            // draw() leaves 4 pixels around the letters.
+            let mut img = RgbaImage::new(lines.iter().map(|l| l.width()).max()?, 27 * (lines.len() as u32 - 1) + h);
+            for (i, l) in lines.iter().enumerate() {
+                imageops::overlay(&mut img, l, 0, 27 * i as i64);
+            }
+            let path = format!("system/skip_{name}.png");
+            self.write_png(&path, &img);
+            pictures.push(Placed { image: path, x: 296, y: 315, w: img.width() as i32, h: img.height() as i32 });
+        }
+        let yes = cut(self, "yes".into(), &[(425, 746), (485, 746)], (60, 22), (415, 241))?;
+        let no = cut(self, "no".into(), &[(425, 768), (485, 768)], (60, 22), (545, 241))?;
+        Some((pictures, [yes, no]))
     }
 }
 

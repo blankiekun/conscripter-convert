@@ -77,6 +77,46 @@ Found so far:
   `cursor` (0-3) when the cursor's unlock byte is set; `mv_bg.png`'s
   thumbnails are CS Opening, Opening, Interlude and Prelude (OP00's
   pictures are the Vita's opening, OP03's the camcorder prelude).
+- Task handlers: the name → number function at 0x81035xxx (InOut
+  0x82, InOut_Act 0x83, EffectStart 0x3e); the task switch is the `tbh`
+  at 0x8102119a (InOut_Act at 0x81022f9a). Effects are objects made by
+  0x8103f75a (effect number − 1 into a `tbh`); InOut_Act is effect 25
+  with `:Type` + 10, whose class switch (0x81041812) makes one object
+  per type. Types 0, 4, 5, 7, 8 draw the old and new screens as two
+  quads (positions lerped by the progress, tables built in each init);
+  1, 2, 3, 6 load a vertex and a fragment GXP (fragment: `decal`,
+  `decal2`, `value` = progress and the `:Param`s) at 0x8115f63c,
+  0x8115fb80, 0x8115fe60, 0x81160510 (735-1711 bytes).
+- Shaders: `research/oretsuba/gxp.py` cuts every GXP program out of the
+  ELF; `research/oretsuba/gxp2glsl/` builds Vita3K's shader recompiler
+  on its own (a sparse Vita3K checkout plus glslang and SPIRV-Cross at
+  its submodule commits; the CMake file says how) and prints a shader
+  as GLSL. The fragment shaders read `value` as (progress, `:Param` 0,
+  1, 2), after each type's init has scaled them (type 2 divides
+  `:Param` 1 by 720).
+- EyeCatch: the task is number 0x6f; `:Image` type 0 makes the object
+  at vtable 0x8115c59c (two half-screen sprites, y −136 → 136 and
+  680 → 408 as the progress goes 0 → ½, back after), type 1 the one
+  at 0x8115c5bc (the chapter card, 0x81048c68; alpha 0 → 100 → 0).
+  Both are drawn from SystemData by ID, not by name.
+- SceneJumpDialog: task 0x84 (handler 0x810265b4: Yes goes to
+  `:JumpNextTag`, No to `:NextTag`, an unread scene or the setting off
+  to `:UnreadTag`). The dialog's class (vtable 0x8115befc) lays out
+  SystemData 62 + `:BG` 0 at 0x8103e7d6 and sets its cells at 0x8103e248
+  (rectangles of the atlas, centred at a point): the screen (0, 0,
+  960×544); the question (606, 746, 302×39) at (480, 184); the date n
+  (n % 6 × 138, 545 + n / 6 × 21, 138×20) at (129, 48); the emblem e
+  (158e, 839, 158×173) at (164, 406); up to 10 faces (id % 25 × 37,
+  671 + id / 25 × 37, 37×37), the last at (858, 60), each one before it
+  38 to the left; Yes and No (425, 746 / 768, 60×22, the selected one
+  60 to the right) at (415, 241) and (545, 241). It draws (0x8103ebf2)
+  two strings in white, lines 27 apart: one at (81, 99), the summary at
+  (300, 319). It fades over 15 frames.
+- EffectStart 40: the object made at 0x8103f8f4 (constructor
+  0x810427b2) draws the screen once through vertex GXP 0x81161628 and
+  fragment GXP 0x8115f304 with `value` = (frames/30, `:Param` 0,
+  `:Param` 1, the effect's fade level, +0x4c, which the effect base
+  steps from 0 to 1 and back in states 6 and 7).
 
 ### Files (`<game>/media/`)
 
@@ -238,30 +278,35 @@ texture, voice, SE and BGM ID they use in the archives.
 
 Output: 960×544, the Vita's screen. Script coordinates (1280×720) are
 scaled by 3/4 across and 544/720 down; CG and CHR pictures are already
-at that scale, SystemData's are drawn at 1280×720 and are scaled by 3/4
-(`meswin.png`, the text window).
+at that scale, and so are SystemData's (the screens are 960×544): the
+text window is `meswin.png`'s left 960 pixels (two loose feathers
+follow) drawn 1:1 above the button bar, its text four lines of 30 at
+23 pixels in x 120-840, y 40-144 of the window, enough for the longest
+message (109 characters with the name; there is no paging).
 
 | Feature | State |
 |---|---|
 | Messages, speaker names (from the scripts' `:Name N // name` comments), voices | converted |
 | Backgrounds and sprites (`SpriteBG`, `Sprite`, `SpriteBS`, deletes), by priority | converted; positions not yet checked against the original |
 | Characters (`CharacterOpen`, `…BS`, `CharacterDelete`, `CharacterMove`) and `SpritePriority`/`CharacterPriority` | converted; the usual height guessed (centre + `OffsetY`), CharacterMove's y counted from it |
-| `InOut` transitions with the RULE masks | converted; `InOut_Act` as a plain fade |
+| `InOut` transitions with the RULE masks | converted |
+| `InOut_Act` (the eboot's effect 25: `:Type` picks the class, `:Param` 0 mostly a direction 0-3 = right, down, left, up) | 0 (the old screen squeezes to that edge while the new one grows from the other; 21 uses) and 7 (a push; 89) as ONScripter's scrolls; 5 (to or from white or black; 9) through white; 2 (a mosaic growing to `:Param` 1 pixels of 720 halfway while the screens cross-fade; 66) as ONScripter's mosaic out and in; 3 (a card turning over in perspective, old in front, new behind, about the vertical axis for `:Param` 0 below 2; 47) as `cons_flip`, the new screen turning in. As plain fades: 1 (rows waving sideways, `:Param` 1-2 the wave; 57), 6 (blurred sideways halfway, `:Param` 1 the width, `:Param` 0 = 1 only the new screen; 130), 4 (2) |
 | FadeOut/FadeIn, TimeWait, BGM, SE, Window hide | converted |
 | Tags, jumps, flag switches and operations, choices with points, NextScene | converted, not yet checked against a walkthrough |
-| SceneJumpDialog (skip a scene already read) | converted: a global "read" flag per scene (`%1200` + the scene's index in name order); a read scene shows its summary and このシーンを読む / このシーンをスキップする |
+| SceneJumpDialog (skip a scene already read) | converted: a global "read" flag per scene (`%1200` + the scene's index in name order). A read scene shows the eboot's dialog (layout below): SystemData's `ss_bg1`…`ss_bg5` by `:BG` 0 (the protagonist), このシーンをスキップしますか？, the date (`:BG` 2), the emblem (`:BG` 1), the `:CharaIcon` faces, the summary (`:Text`) drawn with the `--font`, and Yes (skip) / No buttons that glow under the pointer. The line the eboot also writes at (81, 99) is left empty (its text isn't in the task; perhaps the chapter's name). The original asks only when its setting is on; ours always asks. Without `--font`, the summary and two text choices |
 | Flash; EffectQuake/End and SpriteQuake (a screen shake dying down over `:Time`); SpriteMove (no `:Scale`, always waited on) | converted |
 | CharacterAction (`chract`'s 661 keyframed moves: bows, shakes) | converted as straight moves between keyframes, waited on; the looping ones are left out |
-| EyeCatch `:Image 0,N` (CG.cpk's `ECnn`; 27 is the title logo) | converted: faded in over everything, EyeCatchEnd fades back to the FadeOut's colour; the original's wipe is unknown; `:Image 1,…` (1 use) not yet |
+| EyeCatch `:Image 0,N` (CG.cpk's `ECnn`; 27 is the title logo) | converted as in the eboot (0x81048b8a): the picture's top and bottom halves (960×272) close from above and below like shutters (500 ms, our guess) and open again at EyeCatchEnd over `:Fade`, showing the FadeOut's colour (or the scene) behind; made as 10-frame animations (`system/shutters_N_in/out.png`). `:Image 0,-1` (two panels of a colour in the eboot, 7 uses) shows nothing |
+| EyeCatch `:Image 1,card,place,date` (114 uses: the chapter cards) | converted like `:Image 0`, as one screen made from SystemData: the card `ec1_bg`…`ec6_bg` (ID 67 + card: 0-3 the four protagonists' chapters, 4-5 Karura's, 6 奈落の底) with the place (ID 74 + place: `ec_bgNN`, its times of day as A/B/C) in its frame and the date (0 = 11月21日, -1 none) cut from the calendar under the card. The original fades the three in and out and pans the place 40 pixels while it fades in; drawn where the pan ends |
 | MoviePlay: the USM movies (MPEG-1 960×544 + ADX) demuxed (`usm.rs`) and made H.264/AAC MP4s in `movie/` (loose) | converted; `:Movie` N is the Nth of OP00, OP01, OP02, the seven `ED_*` (alphabetical), Poem, OP03 (each heroine's ending scene plays her ED) |
 | EffectStart/End 53 (ノイズ: static at `:Param` density) and 42 (ブラー: a blur screen filter); SetSceneName (chapter title) | converted |
 | EffectStart/End 57 (画面キャプチャースプライト: a copy of the screen drawn zoomed, at impacts) | approximated by a pulse (the copy growing and fading over the live picture, 0.4 s) |
 | EffectStart/End 52 (光玉 light balls), 54 (紙吹雪 confetti), 51 (雪 snow) | converted to looping 16-frame animations made from ETC.cpk's `lightball.png`, `paper.png`, `snow.png` (`:Param` count): the balls twinkle and circle in place, snow and paper fall one screen per 2 s loop; the original's motion is not known |
-| EffectStart/End 40 (over the starry monologue background, `:Param 400,3000`) | not yet |
+| EffectStart/End 40 (a wave over the starry monologue background, `:Param 400,3000`: the eboot's shader 0x8115f304 moves each row's picture along the diagonal by 1.5% of the width × sin(2π(600y/(height × `:Param` 0) + 2t/`:Param` 1 ms)), growing in with the effect's fade; a negative `:Param` 0 waves the columns, unused) | converted as `screenripple` at 45° through a grey ramp (`system/waveN.png`, N/100 waves down the screen); EffectEnd stops it without its fade (2 uses of 30 frames) |
 | Achievement (trophies) | nothing to show |
 | Title screen (`title_bg.png`'s picture and labels: START, LOAD, GALLERY) | converted; the buttons' place is ours (the layout table is in the encrypted eboot); settings are in the extras and the in-game bar |
 | START's story menu: 始めから and the after-stories ある日の林田美咲/渡来明日香/山科京/軽部狩男 (P03/P01/P02/P04) | converted, shown once any ending was seen; each after-story opens with its heroine's ending, かるお's with 小鳩's (our rule: the original's is in the eboot) |
-| Button bar (AUTO SKIP LOG SAVE LOAD CONFIG HIDE), save/load (3 slots × 10 pages), settings, backlog, yes/no dialog | converted in the Vita's look, our layout (2026-10-14, the user's choice): SystemData's backgrounds (`save_bg`, `load_bg`, `bklog`), slot plates (`sl_data`), dialog frame (`dlg_bg_26`, the one without words), headers cut out where they differ from a header-less background; the Vita's controller hints and page box painted over; button labels drawn with the `--font` in the game's style (white, blue halo; gold under the pointer). Backgrounds behind conv-cons's white words are darkened. Without `--font` there are no menus |
+| Button bar (Auto Skip Log Save Load Config Hide), save/load (3 slots × 10 pages), settings, backlog, yes/no dialog | converted in the Vita's look, our layout (2026-10-14, the user's choice): SystemData's backgrounds (`save_bg`, `load_bg`, `bklog`), slot plates (`sl_data`), dialog frame (`dlg_bg_26`, the one without words), headers cut out where they differ from a header-less background; the Vita's controller hints and page box painted over; the bar's Log, Save, Load and Config are the Vita's own labels from `ss_bg1.png` (y 746, 60×24 cells: Q-Save, Q-Load, Return, Save, Load, Log, Config; rows white, glowing blue, navy, faded), given a dark halo where they cross the window's feather; Auto, Skip and Hide (no label in the game: `SKP1_ICON.png` only has the running indicators) are drawn with the `--font` in that style. Other labels are drawn with the `--font` in the game's style (white, blue halo; gold under the pointer). Backgrounds behind conv-cons's white words are darkened. Without `--font` there are no menus |
 | Extras menu (ALBUM, MOVIE, MUSIC, CONFIG, 戻る, labels from `title_bg.png`; the title's GALLERY opens it) and the CG gallery from `CGMODE` (8 heroine tabs from `gm_bg.png`'s cards, 4×5 thumbnails a page, up to 3 pages, a viewer with ◀ ▶ HIDE 戻る); scenes mark CGs seen from their `:CGFlag` | converted in the Vita's look, our layout |
 | Music room: 67 songs from the eboot's table, their titles from `mu_bg.png` | converted, our layout: three columns of 23 titles at 3/5 size on the Vita's list panel (stretched over the room), the song playing in blue, every song open (the original's unlock rule is unknown). The player bar and the Vita's button hints are covered with the album's (`gm_bg.png`) snow, which has the same frame. The second 8-song table is left out |
 | Movie room: OP00 (CS Opening), OP01 (Opening), OP02 (Interlude), OP03 (Prelude), the eboot's order, on `mv_bg.png`'s slots with its thumbnails (its frame under the pointer) | converted: a movie shows once a scene has played it (a global flag per movie, `%2800` + its place), OP00 always (no scene plays it; our rule). The Vita's button hints here and in the album are covered with the snow to their left, feathered in |
@@ -273,10 +318,10 @@ the save menu's thumbnail name, built at run time), ran 600 pages
 headless without errors, and the route check reaches all eight endings.
 
 Next, in order:
-1. More from the eboot: `InOut_Act`'s types and EffectStart 40 (the
-   task handlers are found from their names' strings), the menus'
-   layouts, and what the second music table is for.
+1. More from the eboot: the menus' layouts, and what the second
+   music table is for. A wave and a blur transition (`InOut_Act` 1, 6)
+   would need engine effects.
 2. Looks against the original: text window size and place, character
-   heights, the eye catch's wipe. Needs screenshots of the Vita game.
+   heights, the eye catch's speed. Needs screenshots of the Vita game.
 3. SpriteMove `:Scale` (91 zooms on CGs) needs a sprite zoom in the IR
    and conv-cons; looping CharacterActions (96).

@@ -90,6 +90,14 @@ The output folder holds `0.txt`, `arc.nsa`, `default.ttf` and `ons_args`.
 Shift-JIS); CONscripter reads it from the game folder, so keep it with the
 other files.
 
+Every build names itself, for players reporting a problem: `version.txt`
+in the output folder and a small line in the bottom-left corner of the
+settings screen read like `build 2026-10-14, converter 562cbe2,
+CONscripter 0.17.0`: the day it was converted, the converter's commit
+(`-dirty` when built from uncommitted changes) and the CONscripter
+version the repository pins. `version.txt` also names the source when
+the converter knows it (the Vita package's ID and version).
+
 Then run CONscripter on the output directory:
 
 ```sh

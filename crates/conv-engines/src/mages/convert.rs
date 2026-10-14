@@ -22,14 +22,21 @@
 use std::collections::{BTreeMap, HashMap};
 
 use conv_core::ir::{
-    Animation, ArithOp, Compare, FILTER_BLEND_COPY, FILTER_BLUR, Noise, Op, Operand, ScreenEffect, SourceLoc, SpriteChange, SpriteFilter,
-    SpritePlacement, TextWindow, TransitionStyle, Var, Voice,
+    Animation, ArithOp, ButtonScreen, Compare, FILTER_BLEND_COPY, FILTER_BLUR, Noise, Op, Operand, ScreenEffect, SlideLayer, SourceLoc, SpriteChange, SpriteFilter,
+    Placed, SpritePlacement, TextWindow, TransitionStyle, Var, Voice,
 };
 
 use super::tasks::{Block, Scene, Val, parse};
 
 pub const SCREEN_W: i32 = 960;
 pub const SCREEN_H: i32 = 544;
+/// The eye catch's shutters: frames and how long they take to close (the
+/// eboot's time is not known; its chapter cards fade in over 30 frames).
+const SHUTTER_FRAMES: u32 = 10;
+const SHUTTER_MS: u32 = 500;
+/// The skip dialog fades in and out over 15 frames (the eboot adds 1/15
+/// a frame to its opacity).
+const SKIP_DIALOG_FADE_MS: u32 = 250;
 /// Variables from here up are global (kept across playthroughs).
 pub const GLOBAL_BORDER: u32 = 200;
 /// First local of the per-save flags (`[Flag]` in adv.txt): %60-%92,
@@ -86,6 +93,18 @@ pub trait Assets {
     fn movie(&mut self, n: u32) -> Option<String>;
     /// `frames` screens of grey static side by side (alpha 255).
     fn noise(&mut self, frames: u32) -> String;
+    /// A `screenripple` map for horizontal waves: grey rising from 0 to
+    /// 256 `cycles_x100`/100 times down the screen.
+    fn wave_map(&mut self, cycles_x100: u32) -> String;
+    /// A chapter card (`EyeCatch :Image 1,card,picture,date`) as one
+    /// screen: SystemData's card `card` over the place `picture` in its
+    /// frame, with date `date` (0 = 11月21日; negative: none).
+    fn chapter_card(&mut self, card: u32, picture: u32, date: i32) -> Option<String>;
+    /// The shutters of eye catch `ECnn` (`n`): `frames` screens side by
+    /// side of the picture's top and bottom halves sliding in from above
+    /// and below until they meet (`closing`), or sliding away from the
+    /// whole picture.
+    fn shutters(&mut self, n: u32, closing: bool, frames: u32) -> Option<String>;
     /// `count` particles of `kind` over the screen: a strip of
     /// [`super::assets::PARTICLE_FRAMES`] screens that loops.
     fn particles(&mut self, kind: Particles, count: u32) -> Option<String>;
@@ -94,6 +113,12 @@ pub trait Assets {
     /// The text window's picture (SystemData's `meswin.png`, scaled to the
     /// screen) and its size.
     fn window(&mut self) -> Option<(String, u32, u32)>;
+    /// The skip dialog (`SceneJumpDialog`) in the Vita's look for `:BG`
+    /// (protagonist, emblem, date) and `:CharaIcon` (`faces`), with the
+    /// summary `text` drawn into a picture named after `name`: its
+    /// pictures from the bottom up, and its Yes and No buttons. `None`
+    /// without the font.
+    fn skip_dialog(&mut self, bg: &[i64], faces: &[i64], text: &str, name: &str) -> Option<(Vec<Placed>, [Placed; 2])>;
 }
 
 /// A character (`chrNNN.txt`): its pictures by pose, dress, face, size.
@@ -236,22 +261,25 @@ fn tag_label(scene: &str, tag: &str) -> String {
     format!("{}_{tag}", scene_label(scene))
 }
 
-/// The text window: `meswin.png` at the bottom of the screen.
+/// The text window: `meswin.png` across the bottom of the screen, above
+/// the button bar. Its panel is x 77-883, y 28-152, with round ends; the
+/// text fills x 120-840, y 40-144: four lines of 30, enough for the
+/// longest message (109 characters with the name).
 pub fn text_window(assets: &mut dyn Assets) -> TextWindow {
     let (image, w, h) = assets.window().unwrap_or_default();
     let (w, h) = (w as i32, h as i32);
     let x = (SCREEN_W - w) / 2;
-    let y = SCREEN_H - h - 4;
+    let y = SCREEN_H - h - 16;
     TextWindow {
         image,
         x,
         y,
-        text_x: x + 64,
-        text_y: y + 22,
+        text_x: x + 120,
+        text_y: y + 40,
         columns: 30,
-        rows: 3,
-        font_size: 22,
-        line_gap: 6,
+        rows: 4,
+        font_size: 23,
+        line_gap: 4,
         vertical: false,
         name_plate: None,
     }
@@ -295,6 +323,8 @@ struct Lowering<'a> {
     cover: Option<u32>,
     /// An eye catch is on the cover's layer.
     eye_catch: bool,
+    /// It is `ECnn` (n), which leaves through the shutters.
+    shutters: Option<u32>,
 }
 
 impl Lowering<'_> {
@@ -372,18 +402,17 @@ impl Lowering<'_> {
             return;
         }
         let reveal = tasks[from..].iter().find(|t| matches!(t.task_type(), Some("InOut" | "InOut_Act")));
-        let (fade_ms, mask) = match reveal {
+        let (fade_ms, mask, style) = match reveal {
             Some(t) => {
                 let time = ms(t.int("Time").unwrap_or(30));
-                let mask = match t.task_type() {
-                    Some("InOut") => t.int("Type").and_then(|n| self.assets.rule(n as u32)),
-                    _ => None,
-                };
-                (time, mask)
+                match t.task_type() {
+                    Some("InOut") => (time, t.int("Type").and_then(|n| self.assets.rule(n as u32)), TransitionStyle::Fade),
+                    _ => (time, None, act_style(t)),
+                }
             }
-            None => (0, None),
+            None => (0, None, TransitionStyle::Fade),
         };
-        self.out.ops.push(Op::BeginTransition { effect: "InOut".into(), fade_ms, mask, style: TransitionStyle::Fade });
+        self.out.ops.push(Op::BeginTransition { effect: "InOut".into(), fade_ms, mask, style });
         self.staging = true;
     }
 
@@ -645,12 +674,22 @@ impl Lowering<'_> {
                 }
             }
             // `:Image 0,N`: CG.cpk's ECnn (27 is the title logo) over
-            // everything, on the cover's layer; EyeCatchEnd puts back what
-            // was there (the black of a FadeOut, or nothing) over `:Fade`.
+            // everything, on the cover's layer, coming in through the
+            // shutters; EyeCatchEnd puts back what was there (the black of
+            // a FadeOut, or nothing) as the shutters open over `:Fade`.
+            // `:Image 1,…` (a chapter card) fades in and out.
             "EyeCatch" => {
                 let n = t.int_at("Image", 1).unwrap_or(-1);
                 let image = match t.int_at("Image", 0) {
                     Some(0) if n >= 0 => self.assets.cg_named(&format!("EC{n:02}.png")),
+                    // A chapter card: card, place, date.
+                    Some(1) if n >= 0 => {
+                        let (place, date) = (t.int_at("Image", 2).unwrap_or(-1), t.int_at("Image", 3).unwrap_or(-1));
+                        u32::try_from(place)
+                            .ok()
+                            .and_then(|p| self.assets.chapter_card(n as u32, p, date as i32))
+                            .map(|path| (path, SCREEN_W as u32, SCREEN_H as u32))
+                    }
                     _ => None,
                 };
                 match image {
@@ -658,7 +697,18 @@ impl Lowering<'_> {
                         let (x, y) = ((SCREEN_W - w as i32) / 2, (SCREEN_H - h as i32) / 2);
                         let change = SpriteChange { layer: COVER_LAYER, sprite: Some(SpritePlacement { image: path, x, y }), keep_filters: false };
                         self.out.ops.push(Op::HideTextWindow);
-                        self.out.ops.push(Op::Sprites { changes: vec![change], fade_ms: 500 });
+                        let closing = if t.int_at("Image", 0) == Some(0) { self.assets.shutters(n as u32, true, SHUTTER_FRAMES) } else { None };
+                        self.shutters = None;
+                        match closing {
+                            Some(image) => {
+                                self.out.ops.push(Op::Animation(Some(Animation { image, frame_ms: vec![SHUTTER_MS / SHUTTER_FRAMES; SHUTTER_FRAMES as usize], looped: false, opacity: 256 })));
+                                self.out.ops.push(Op::Wait { ms: SHUTTER_MS });
+                                self.out.ops.push(Op::Sprites { changes: vec![change], fade_ms: 0 });
+                                self.out.ops.push(Op::Animation(None));
+                                self.shutters = Some(n as u32);
+                            }
+                            None => self.out.ops.push(Op::Sprites { changes: vec![change], fade_ms: 500 }),
+                        }
                         self.eye_catch = true;
                     }
                     // 0,-1: no picture.
@@ -670,7 +720,19 @@ impl Lowering<'_> {
                 if std::mem::take(&mut self.eye_catch) {
                     let sprite = self.cover.map(|rgb| SpritePlacement { image: self.assets.colour(rgb), x: 0, y: 0 });
                     let change = SpriteChange { layer: COVER_LAYER, sprite, keep_filters: false };
-                    self.out.ops.push(Op::Sprites { changes: vec![change], fade_ms: ms(t.int("Fade").unwrap_or(30)) });
+                    let fade_ms = ms(t.int("Fade").unwrap_or(30));
+                    match self.shutters.take().and_then(|n| self.assets.shutters(n, false, SHUTTER_FRAMES)) {
+                        // The opening shutters, first the whole picture,
+                        // over what comes back.
+                        Some(image) if fade_ms > 0 => {
+                            let frame_ms = vec![fade_ms.div_ceil(SHUTTER_FRAMES); SHUTTER_FRAMES as usize];
+                            self.out.ops.push(Op::Animation(Some(Animation { image, frame_ms, looped: false, opacity: 256 })));
+                            self.out.ops.push(Op::Sprites { changes: vec![change], fade_ms: 0 });
+                            self.out.ops.push(Op::Wait { ms: fade_ms });
+                            self.out.ops.push(Op::Animation(None));
+                        }
+                        _ => self.out.ops.push(Op::Sprites { changes: vec![change], fade_ms }),
+                    }
                 }
             }
             "MoviePlay" => match t.int("Movie").and_then(|n| self.assets.movie(n as u32)) {
@@ -716,6 +778,31 @@ impl Lowering<'_> {
                         if start {
                             self.note("EffectStart 57 (approximated by a pulse)");
                         }
+                    }
+                    // A wave (the eboot's shader 0x8115f304, over the
+                    // starry monologue background): each row's picture
+                    // moves along the diagonal by 1.5% of the screen width
+                    // on each axis × sin(2π(600y/(height × :Param 0) +
+                    // 2t/:Param 1)), t in ms, growing in over :Fade. A
+                    // negative :Param 0 waves the columns (unused).
+                    40 => {
+                        let effect = start.then(|| {
+                            let p0 = t.int_at("Param", 0).unwrap_or(400).max(1) as u32;
+                            let p1 = t.int_at("Param", 1).unwrap_or(3000).max(1);
+                            let amp = (SCREEN_W as f64 * 0.015 * std::f64::consts::SQRT_2).round() as i32;
+                            ScreenEffect::Ripple {
+                                map: self.assets.wave_map(60_000 / p0),
+                                time_ms: fade_ms,
+                                interval_ms: 30,
+                                opacity: (256, 256),
+                                amplitude: (if fade_ms > 0 { 0 } else { amp }, amp),
+                                angle: 450,
+                                angle_step: 0,
+                                phase_step: (60_000 / p1) as i32,
+                                multiply: false,
+                            }
+                        });
+                        self.out.ops.push(Op::ScreenEffect { slot: 3, effect });
                     }
                     51 | 52 | 54 => {
                         let kind = match n {
@@ -768,8 +855,15 @@ impl Lowering<'_> {
         self.out.ops.push(Op::If { var: read, cmp: Compare::Ne, value: Operand::Const(0), label: offer.clone() });
         self.out.ops.push(Op::Arith { var: read, op: ArithOp::Set, value: Operand::Const(1) });
         self.out.ops.push(Op::Jump(tag_label(scene, unread)));
-        self.out.ops.push(Op::Label(offer));
+        self.out.ops.push(Op::Label(offer.clone()));
         let summary = t.str("Text").unwrap_or("").trim_end().to_string();
+        let ints = |key: &str| t.get(key).unwrap_or(&[]).iter().filter_map(Val::int).collect::<Vec<_>>();
+        if let Some((pictures, [yes, no])) = self.assets.skip_dialog(&ints("BG"), &ints("CharaIcon"), &summary, &offer) {
+            // このシーンをスキップしますか？ Yes skips.
+            let buttons = vec![(yes, tag_label(scene, skip)), (no, tag_label(scene, play))];
+            self.out.ops.push(Op::ButtonScreen(Box::new(ButtonScreen { pictures, buttons, fade_ms: SKIP_DIALOG_FADE_MS })));
+            return;
+        }
         if !summary.trim().is_empty() {
             self.out.ops.push(Op::Text { speaker: None, text: summary, voice: None, links: vec![], ruby: vec![], styles: vec![], hang: None, continues: false });
         }
@@ -888,10 +982,37 @@ fn colour(t: &Block) -> u32 {
     }
 }
 
+/// An `InOut_Act`'s look, from the eboot's effect 25 (`:Type` picks its
+/// class; its shaders read with Vita3K's recompiler). `:Param` 0 is a
+/// direction 0-3 (right, down, left, up) unless said otherwise:
+/// - 0: the old screen squeezes to that edge while the new one grows from
+///   the opposite edge (a push here);
+/// - 7: the old screen pushed out that way by the new one;
+/// - 5: the old screen to white (0) or the new one from white (1), the
+///   same through black (2, 3);
+/// - 2: a mosaic, its blocks growing to `:Param` 1 pixels (of 720 rows)
+///   halfway and back, while the old screen fades into the new;
+/// - 3: a card turning over (perspective), the old screen in front, the
+///   new behind, about the vertical axis (`:Param` 0 below 2) or the
+///   horizontal one (a turn of the new screen growing from a line here);
+/// - 1: a fade with the rows waving sideways, 6: a fade blurred sideways
+///   halfway (both a plain fade here); 4: not looked at (2 uses).
+fn act_style(t: &Block) -> TransitionStyle {
+    let direction = t.int_at("Param", 0).unwrap_or(0).clamp(0, 3);
+    let (dx, dy) = [(1, 0), (0, 1), (-1, 0), (0, -1)][direction as usize];
+    match t.int("Type") {
+        Some(0 | 7) => TransitionStyle::Slide { moving: SlideLayer::Both, dx, dy },
+        Some(5) if direction < 2 => TransitionStyle::ThroughWhite,
+        Some(2) => TransitionStyle::Mosaic,
+        Some(3) => TransitionStyle::Flip { horizontal: direction < 2, grow: true },
+        _ => TransitionStyle::Fade,
+    }
+}
+
 /// Compiles `scenes` (all of them if empty), each at its label, after a
 /// jump to the game's first scene.
 pub fn compile(game: &Game, scenes: &[String], assets: &mut dyn Assets) -> Compiled {
-    let mut l = Lowering { game, assets, out: Compiled::default(), shown: HashMap::new(), next_slot: HashMap::new(), staging: false, choices: 0, cover: None, eye_catch: false };
+    let mut l = Lowering { game, assets, out: Compiled::default(), shown: HashMap::new(), next_slot: HashMap::new(), staging: false, choices: 0, cover: None, eye_catch: false, shutters: None };
     let names: Vec<&String> = if scenes.is_empty() { game.scenes.keys().collect() } else { scenes.iter().collect() };
     let first = names.first().map(|s| s.as_str()).unwrap_or(&game.start);
     let first = if scenes.is_empty() { game.start.as_str() } else { first };

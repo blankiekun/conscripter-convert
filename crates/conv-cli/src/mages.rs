@@ -191,6 +191,9 @@ fn convert(game: &Path, output: &Path, scenes: &[String], font: Option<&Path>, t
         bail!("{} already exists; move it away first (it would be packed and then deleted)", output.join(d).display());
     }
     let g = Game::load(&scripts(game)?).map_err(anyhow::Error::msg)?;
+    // The menus' labels and the skip dialog's summaries are drawn with the
+    // font.
+    let font_bytes = font.map(fs::read).transpose().context("reading the font")?;
     let names = ["CG.cpk", "CHR.cpk", "ETC.cpk", "SystemData.cpk", "VOICE.AWB", "SE.AWB", "BGM.AWB"];
     let maps: Vec<_> = names.iter().map(|n| map(&game.join("media").join(n))).collect::<Result<_>>()?;
     let mut banks = Vec::new();
@@ -202,10 +205,9 @@ fn convert(game: &Path, output: &Path, scenes: &[String], font: Option<&Path>, t
     let mut assets = ArchiveAssets::new(next(), next(), next(), next(), next(), next(), next(), output);
     assets.dry_run = dry_run;
     assets.movie_dir = game.join("media").join("data");
+    assets.font = font_bytes.as_deref();
     let compiled = convert::compile(&g, scenes, &mut assets);
     let window = convert::text_window(&mut assets);
-    // The menus' labels are drawn with the font.
-    let font_bytes = font.map(fs::read).transpose().context("reading the font")?;
     let labels = font_bytes.as_deref().and_then(conv_engines::mages::menus::Labels::new);
     let extras = if scenes.is_empty() { labels.as_ref().and_then(|l| conv_engines::mages::extras::extras(&mut assets, l, &g)) } else { None };
     let title_screen = conv_engines::mages::screens::title(&mut assets, extras.is_some());
@@ -234,9 +236,13 @@ fn convert(game: &Path, output: &Path, scenes: &[String], font: Option<&Path>, t
         confirm,
         extras,
         ops: compiled.ops,
+        version: Some(crate::version::line()),
     };
     let (encoded, lost) = conv_cons::encode(&conv_cons::emit(&ir));
     fs::write(output.join("0.txt"), encoded)?;
+    if let Some(v) = &ir.version {
+        crate::version::write(output, title, v, package(game).as_deref())?;
+    }
     fs::write(output.join("ons_args"), conv_cons::ENGINE_ARGS)?;
     if !dry_run {
         audio(&assets.audio)?;
@@ -348,4 +354,28 @@ fn movies(jobs: &BTreeMap<String, PathBuf>, output: &Path) -> Result<()> {
         }
     }
     Ok(())
+}
+
+/// The Vita package's ID and version from `sce_sys/param.sfo`
+/// (`PCSG00299 01.00`).
+fn package(game: &Path) -> Option<String> {
+    let sfo = fs::read(game.join("sce_sys").join("param.sfo")).ok()?;
+    let u16_at = |o: usize| Some(u16::from_le_bytes(sfo.get(o..o + 2)?.try_into().ok()?) as usize);
+    let u32_at = |o: usize| Some(u32::from_le_bytes(sfo.get(o..o + 4)?.try_into().ok()?) as usize);
+    if sfo.get(..4)? != b"\0PSF" {
+        return None;
+    }
+    let (keys, data, count) = (u32_at(8)?, u32_at(12)?, u32_at(16)?);
+    let value = |want: &str| {
+        (0..count).find_map(|i| {
+            let e = 20 + 16 * i;
+            let key = sfo.get(keys + u16_at(e)?..)?;
+            let key = &key[..key.iter().position(|&b| b == 0)?];
+            (key == want.as_bytes()).then(|| {
+                let v = sfo.get(data + u32_at(e + 12)?..data + u32_at(e + 12)? + u32_at(e + 4)?)?;
+                Some(String::from_utf8_lossy(v).trim_end_matches('\0').to_string())
+            })?
+        })
+    };
+    Some(format!("{} {}", value("TITLE_ID")?, value("APP_VER")?))
 }

@@ -13,6 +13,7 @@ use conv_core::ir::{
     TransitionStyle, Var, ZoomStyle,
 };
 
+mod button_screen;
 mod extras;
 pub mod lint;
 mod menu;
@@ -35,8 +36,8 @@ const DLL: u32 = 99;
 const SE_CHANNELS: std::ops::RangeInclusive<u32> = 1..=9;
 /// Sprite slots 0-5 belong to the yes/no dialog, drawn over everything
 /// else (ONScripter draws lower numbers on top); 6-33 to the menus (title,
-/// save/load, settings, backlog); 34-49 to the bars (buttons, hotspots,
-/// texts).
+/// save/load, settings, backlog, [`button_screen`]s); 34-49 to the bars
+/// (buttons, hotspots, texts).
 const DIALOG_SPRITES: std::ops::Range<u32> = 0..6;
 const MENU_SPRITES: std::ops::Range<u32> = 6..34;
 /// The bars use 34-42.
@@ -140,6 +141,7 @@ pub fn emit(script: &Script) -> String {
     let mut root_resumes = 0;
     let mut turns = 0;
     let mut puzzles = 0;
+    let mut button_screens = 0;
     let has_vertical = script.window.iter().chain(script.ops.iter().filter_map(|op| match op {
         Op::SetWindow(w) => Some(w),
         Op::Choice { style: Some(s), .. } => Some(&s.window),
@@ -838,6 +840,10 @@ pub fn emit(script: &Script) -> String {
             Op::Unsupported { what, at } => {
                 writeln!(out, "; unsupported: {what} ({} #{})", at.file, at.index).unwrap()
             }
+            Op::ButtonScreen(s) => {
+                button_screen::emit(&mut out, s, button_screens, &effect(s.fade_ms), script.button_bar.is_some());
+                button_screens += 1;
+            }
         }
     }
     writeln!(out, "end").unwrap();
@@ -878,7 +884,7 @@ pub fn emit(script: &Script) -> String {
     }
     if let Some(m) = &script.settings {
         let replay = script.extras.as_ref().and_then(|e| e.replay.as_ref()).filter(|_| has_replay);
-        menu::settings_menu(&mut out, m, script.confirm.as_ref(), replay.map(|r| (r.leave_label.as_str(), r.leave_question.as_str())));
+        menu::settings_menu(&mut out, m, script.confirm.as_ref(), replay.map(|r| (r.leave_label.as_str(), r.leave_question.as_str())), script.version.as_deref().map(|v| (v, script.height)));
     }
     if let Some(b) = &script.backlog {
         menu::backlog(&mut out, b, has_ruby);
@@ -1215,6 +1221,7 @@ fn fade_effects(script: &Script) -> BTreeMap<(u32, Effect), u32> {
                 vec![(*fade_ms, Effect::Fade)]
             }
             Op::TilePuzzle(p) => vec![(p.fade_ms, Effect::Fade)],
+            Op::ButtonScreen(s) => vec![(s.fade_ms, Effect::Fade)],
             Op::BeginTransition { fade_ms, mask, style, .. } => transition_steps(*fade_ms, mask.as_deref(), *style),
             _ => Vec::new(),
         })
@@ -1438,10 +1445,10 @@ impl SeChannels {
 mod tests {
     use super::*;
     use conv_core::ir::Compare;
-    use conv_core::ir::{Animation, ChoiceStyle, Noise, SourceLoc, SpriteChange, SpriteFilter, SpritePlacement, Voice, FILTER_BLEND_COPY, FILTER_BLEND_MULTIPLY, FILTER_BRIGHTNESS, FILTER_COLOUR};
+    use conv_core::ir::{Animation, ButtonScreen, ChoiceStyle, Noise, Placed, SourceLoc, SpriteChange, SpriteFilter, SpritePlacement, Voice, FILTER_BLEND_COPY, FILTER_BLEND_MULTIPLY, FILTER_BRIGHTNESS, FILTER_COLOUR};
 
     fn script(ops: Vec<Op>) -> Script {
-        Script { title: "Test".into(), width: 800, height: 600, global_border: None, window: None, title_screen: None, save_menu: None, button_bar: None, settings: None, backlog: None, confirm: None, extras: None, ops }
+        Script { title: "Test".into(), width: 800, height: 600, global_border: None, window: None, title_screen: None, save_menu: None, button_bar: None, settings: None, backlog: None, confirm: None, extras: None, ops, version: None }
     }
 
     fn link(start: usize, len: usize, target: Option<&str>) -> TextLink {
@@ -1566,6 +1573,21 @@ goto *conv_link1
         // No shadow; no ruby here, so text_x as given.
         assert!(text.contains("selectcolor \"#A00000\",\"#000000\"\ntateyoko 1:setwindow 477,108,2,18,20,20,80,0,20,0,0,"), "{text}");
         assert!(text.contains("select \"はい\",*a,\"いいえ\",*b\n"), "{text}");
+    }
+
+    #[test]
+    fn button_screen_waits_for_its_buttons_and_fades_out() {
+        let placed = |image: &str, x, y| Placed { image: image.into(), x, y, w: 10, h: 10 };
+        let s = ButtonScreen {
+            pictures: vec![placed("system/bg.png", 0, 0), placed("system/text.png", 300, 319)],
+            buttons: vec![(placed("system/yes.png", 385, 230), "scene_jump".into()), (placed("system/no.png", 515, 230), "scene_play".into())],
+            fade_ms: 300,
+        };
+        let text = emit(&script(vec![Op::ButtonScreen(Box::new(s)), Op::Label("scene_jump".into()), Op::Label("scene_play".into())]));
+        // Buttons on top (6, 7), then the pictures from the top down.
+        assert!(text.contains("textoff\nlsp 9,\":a;system\\bg.png\",0,0\nlsp 8,\":a;system\\text.png\",300,319\nlsp 6,\":a/2,0,3;system\\yes.png\",385,230\nlsp 7,"), "{text}");
+        assert!(text.contains("*conv_bscreen0\nbtndef clear\nspbtn 6,1\nspbtn 7,2\nbtnwait %9\nif %9 == 1 csp 6:csp 7:csp 8:csp 9:print 2:goto *scene_jump\nif %9 == 2 "), "{text}");
+        assert!(text.contains("goto *scene_play\ngoto *conv_bscreen0\n"), "{text}");
     }
 
     #[test]
