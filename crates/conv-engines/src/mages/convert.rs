@@ -242,6 +242,11 @@ struct Shown {
     /// Centre on screen.
     x: i32,
     y: i32,
+    image: String,
+    w: i32,
+    h: i32,
+    /// A character's centre at `:Position` y 0.
+    base_y: i32,
 }
 
 struct Lowering<'a> {
@@ -299,11 +304,26 @@ impl Lowering<'_> {
         }
         changes.push(SpriteChange {
             layer,
-            sprite: Some(SpritePlacement { image: path, x: cx - w / 2, y: cy - h / 2 }),
+            sprite: Some(SpritePlacement { image: path.clone(), x: cx - w / 2, y: cy - h / 2 }),
             keep_filters: false,
         });
-        self.shown.insert(key.to_string(), Shown { layer, tex, x: cx, y: cy });
+        self.shown.insert(key.to_string(), Shown { layer, tex, x: cx, y: cy, image: path, w, h, base_y: cy });
         self.out.ops.push(Op::Sprites { changes, fade_ms: if self.staging { 0 } else { fade_ms } });
+    }
+
+    /// Moves `key`'s picture to the layers of another priority, in place.
+    fn reprioritize(&mut self, key: &str, priority: i64) {
+        let Some(s) = self.shown.get(key).cloned() else { return };
+        let layer = self.layer(key, priority);
+        if layer == s.layer {
+            return;
+        }
+        let changes = vec![
+            SpriteChange { layer: s.layer, sprite: None, keep_filters: false },
+            SpriteChange { layer, sprite: Some(SpritePlacement { image: s.image.clone(), x: s.x - s.w / 2, y: s.y - s.h / 2 }), keep_filters: false },
+        ];
+        self.shown.insert(key.to_string(), Shown { layer, ..s });
+        self.out.ops.push(Op::Sprites { changes, fade_ms: 0 });
     }
 
     fn hide(&mut self, key: &str, fade_ms: u32) {
@@ -401,6 +421,9 @@ impl Lowering<'_> {
                     let y = 360 + c.int_at("Position", 1).unwrap_or(0) + offset;
                     let prio = c.int("Priority").unwrap_or(9);
                     self.show(&key, -1, (path, w, h), x, y, prio, if ty == "CharacterOpen" { 200 } else { 0 });
+                    if let Some(s) = self.shown.get_mut(&key) {
+                        s.base_y = sy(360 + offset);
+                    }
                 }
             }
             "CharacterDelete" => {
@@ -415,10 +438,11 @@ impl Lowering<'_> {
                     let key = format!("c{}", c.int("Number").unwrap_or(-1));
                     let Some(s) = self.shown.get(&key).cloned() else { continue };
                     let x = c.int_at("Position", 0).map_or(s.x, sx);
-                    self.out.ops.push(Op::SpriteMove { layer: s.layer, x, y: s.y, ms: time });
-                    self.shown.insert(key, Shown { x, ..s });
+                    // y is from the character's usual height.
+                    let y = s.base_y + sy(c.int_at("Position", 1).unwrap_or(0));
+                    self.out.ops.push(Op::SpriteMove { layer: s.layer, x, y, ms: time });
+                    self.shown.insert(key, Shown { x, y, ..s });
                 }
-                self.note("CharacterMove (only x)");
             }
             "InOut" | "InOut_Act" => {
                 if self.staging {
@@ -559,6 +583,15 @@ impl Lowering<'_> {
                 if ty == "SpriteQuake" {
                     self.note("SpriteQuake (shakes the screen)");
                 }
+            }
+            "SpritePriority" | "CharacterPriority" => {
+                let v: Vec<i64> = t.get("Texture").or_else(|| t.get("Number")).unwrap_or(&[]).iter().filter_map(Val::int).collect();
+                let key = match v.as_slice() {
+                    [c, _, _, _, _] => format!("c{c}"),
+                    [tex] => self.shown.iter().find(|(_, s)| s.tex == *tex).map_or(format!("t{tex}"), |(k, _)| k.clone()),
+                    _ => return,
+                };
+                self.reprioritize(&key, t.int("Priority").unwrap_or(5));
             }
             "EffectQuakeEnd" => self.out.ops.push(Op::ScreenEffect { slot: 1, effect: None }),
             "SpriteMove" => {

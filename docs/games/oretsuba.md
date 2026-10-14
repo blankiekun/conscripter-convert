@@ -210,7 +210,7 @@ at that scale, SystemData's are drawn at 1280×720 and are scaled by 3/4
 |---|---|
 | Messages, speaker names (from the scripts' `:Name N // name` comments), voices | converted |
 | Backgrounds and sprites (`SpriteBG`, `Sprite`, `SpriteBS`, deletes), by priority | converted; positions not yet checked against the original |
-| Characters (`CharacterOpen`, `…BS`, `CharacterDelete`, `CharacterMove` x only) | converted; height guessed (centre + `OffsetY`) |
+| Characters (`CharacterOpen`, `…BS`, `CharacterDelete`, `CharacterMove`) and `SpritePriority`/`CharacterPriority` | converted; the usual height guessed (centre + `OffsetY`), CharacterMove's y counted from it; CharacterStop (2) not yet |
 | `InOut` transitions with the RULE masks | converted; `InOut_Act` as a plain fade |
 | FadeOut/FadeIn, TimeWait, BGM, SE, Window hide | converted |
 | Tags, jumps, flag switches and operations, choices with points, NextScene | converted, not yet checked against a walkthrough |
