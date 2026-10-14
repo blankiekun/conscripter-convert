@@ -574,6 +574,16 @@ Fixed on the way (each found by the runs, all in the current build):
   `Wait`'s time, or 1 s where the script doesn't wait.
 - The full build ran out of memory (7 GB) on 60x zooms; now 1.2 GB.
 
+Fixed after the route runs (2026-10-14), from screenshots of the first
+page each punctuation mark or symbol shows on (`--shot-pages`):
+- Vertical text drew the marks CONscripter turns for it (《》「」『』（）
+  ― ～ …) high and to one side of the column: 《 stuck out to the
+  left. The engine now turns them about the centre of their cell
+  (CONscripter 3c7c957), so ︽ sits on the text it opens.
+- `[text0081]〝卵〟を…` (`md05_003`, the only marker with text after it
+  on its line) printed the marker as text, ［ｔｅｘｔ００８１］. The NSS
+  parser now reads it as a marker. Needs a full build to show.
+
 Testing notes: other agents stop engines with `pkill -x conscripter`;
 run ours through a symlink with another name (`--engine
 out/conscripter-mura`). The route runs and `--at` starts are in
@@ -587,15 +597,28 @@ Next, in order:
    per-channel volume in the output (NScripter's `bgmvol`/`chvol`).
    The exe's curve (`research/nitroplus/builtins.md`, `SetVolume`):
    −10 dB per halving, so volume 1 is silent and 500 is 32 %.
-2. **System screens** (step 7): title, save/load, settings, backlog,
+2. English loses its spaces: NScripter skips an ASCII space that
+   starts a pair of half-width characters, so “Tell me the tales that
+   to me were so dear” (`mb04_008vs`) shows as “Tellmethe tales
+   thattomeweresodear”. 33 text lines have English with spaces. A
+   backquote mid-line doesn't help (CONscripter prints it). Needs an
+   engine option that keeps such spaces, or a substitute character
+   from the converter: the user's choice.
+3. Check against the original: the figure in `ma01_002` (おれ→ ○□卍□○
+   ←？ with ／＼ strokes) only lines up written horizontally, and comes
+   apart in its vertical box.
+4. A replay of route 9 with `--shot-pages` (engine 0.19.0) stopped
+   drawing at `f_md01_002:158856` (`print 10,500`, page 18,573) with
+   the process spinning; the same run passed before. Not reproduced.
+5. **System screens** (step 7): title, save/load, settings, backlog,
    built as in-script menus from `cg/sys/*` parts, as for 最果てのイマ
    (`conv-cons/src/menu.rs`); the settings screen also shows the build's
    version line (`version.txt`). A big item: check with the user first.
-3. The largest leftovers below: `CreateProcess` (via Lua), non-blocking
+6. The largest leftovers below: `CreateProcess` (via Lua), non-blocking
    `Move`/`Zoom`, `AddRender` (needs a per-sprite blend mode).
-4. Step 11.5: `#` flags (globals from %800) across quit and relaunch,
+7. Step 11.5: `#` flags (globals from %800) across quit and relaunch,
    and in the web build.
-5. Optional: the 18 files with no `else` (below).
+8. Optional: the 18 files with no `else` (below).
 
 **Leftovers** (counts from the dry run's notes):
 - `CreateProcess` (510 calls; the battle HUD `CP_*` in
