@@ -21,3 +21,4 @@
 8115befc	vt_skip_dialog	vtable of the SceneJumpDialog class
 81161628	gxp_wave_vert	vertex GXP of EffectStart 40
 8115f304	gxp_wave_frag	fragment GXP of EffectStart 40: rows moved along the diagonal by 1.5% of the width x sin(...)
+81048978	eyecatch_shutters_init	EyeCatch :Image 0,N object init: loads CG ID N + 457 (at least 458) and halves it into two sprites
