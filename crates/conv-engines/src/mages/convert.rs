@@ -100,7 +100,7 @@ pub trait Assets {
     /// screen: SystemData's card `card` over the place `picture` in its
     /// frame, with date `date` (0 = 11月21日; negative: none).
     fn chapter_card(&mut self, card: u32, picture: u32, date: i32) -> Option<String>;
-    /// The shutters of eye catch `ECnn` (`n`): `frames` screens side by
+    /// The shutters of eye catch `n` (CG ID n + 457): `frames` screens side by
     /// side of the picture's top and bottom halves sliding in from above
     /// and below until they meet (`closing`), or sliding away from the
     /// whole picture.
@@ -936,7 +936,8 @@ impl Lowering<'_> {
             "EyeCatch" => {
                 let n = t.int_at("Image", 1).unwrap_or(-1);
                 let image = match t.int_at("Image", 0) {
-                    Some(0) if n >= 0 => self.assets.cg_named(&format!("EC{n:02}.png")),
+                    // CG ID n + 457, at least 458 (the eboot, 0x81048978).
+                    Some(0) if n >= 0 => self.assets.cg((n as u32 + 457).max(458)),
                     // A chapter card: card, place, date.
                     Some(1) if n >= 0 => {
                         let (place, date) = (t.int_at("Image", 2).unwrap_or(-1), t.int_at("Image", 3).unwrap_or(-1));

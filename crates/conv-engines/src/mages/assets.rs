@@ -392,8 +392,10 @@ impl Assets for ArchiveAssets<'_> {
         if self.images.contains_key(&key) {
             return Some(path);
         }
-        let name = format!("EC{n:02}.png");
-        let pic = image::load_from_memory(self.cg.by_name(&name)?).ok()?.to_rgba8();
+        // The eboot (0x81048978) loads CG ID n + 457, at least 458: EC01
+        // is 1, but the archive has no EC20 or EC30, so 27 is EC28.
+        let id = (n + 457).max(458);
+        let pic = image::load_from_memory(self.cg_bytes(id)?).ok()?.to_rgba8();
         let (w, h) = (SCREEN_W as u32, SCREEN_H as u32);
         let mut screen = RgbaImage::new(w, h);
         imageops::overlay(&mut screen, &pic, (i64::from(w) - i64::from(pic.width())) / 2, (i64::from(h) - i64::from(pic.height())) / 2);
