@@ -560,8 +560,8 @@ The steps that apply them are in `docs/new-game.md`.
   their own files there (an `onscripter` binary was lost once).
 - **Keep a handoff file** (`<game>.md`) with a "Resume here" section.
   Context resets happen mid-task, and re-deriving state is expensive.
-- **Handoff notes go stale.** When an item is done, grep `TODO.md`,
-  `PLAN.md`, the game's document and the handoff file for it.
+- **Handoff notes go stale.** When an item is done, grep `PLAN.md`, the
+  game's document and the handoff file for it.
 - **Parallel agents need separate branches and worktrees** (`xuse`,
   `nitroplus`), branches based on `origin/main`, and staging by path
   name: the other agent's uncommitted files share the tree.

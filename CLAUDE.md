@@ -11,9 +11,9 @@ build.
 
 **Starting a new game? Read `docs/new-game.md` first.**
 
-Read first, in order: `TODO.md` (state and next steps), the game's
-handoff file ("Resume here" at the top), the game's document, `PLAN.md`
-§4.2 (engine additions) and §13 (lessons).
+Read first, in order: the game's handoff file (state and next steps;
+"Resume here" at the top), the game's document, `PLAN.md` §4.2 (engine
+additions) and §13 (lessons).
 
 ## Rules (from the user)
 
