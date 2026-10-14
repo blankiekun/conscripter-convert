@@ -326,8 +326,9 @@ struct Lowering<'a> {
     /// It is `ECnn` (n), which leaves through the shutters.
     shutters: Option<u32>,
     /// Pictures an earlier scene left may be up: the eboot drops a
-    /// scene's pictures when the next one loads, so its first `SpriteBG`
-    /// or `SpriteBS` removes them all.
+    /// scene's pictures when the next one loads, so the first picture it
+    /// shows (`SpriteBG`, `SpriteBS`, or a `Sprite` in 2 scenes) removes
+    /// them all.
     inherited: bool,
     /// No message yet: the scene's opening, which the scripts write once
     /// per branch (skipped or not), each after a `Tag`.
@@ -443,10 +444,10 @@ impl Lowering<'_> {
         self.staging = true;
     }
 
-    /// A scene's first `SpriteBG`/`SpriteBS`: clears every picture (an
+    /// A scene's first picture: clears every picture (an
     /// earlier scene's are unknown here) in its fade, keeping the FadeOut
     /// cover if the scene starts under it.
-    fn replace_inherited(&mut self, key: &str, tex: i64, img: (String, u32, u32), t: &Block, fade_ms: u32) {
+    fn replace_inherited(&mut self, key: &str, tex: i64, img: (String, u32, u32), t: &Block, priority: i64, fade_ms: u32) {
         let opened = !self.staging;
         if opened {
             self.out.ops.push(Op::BeginTransition { effect: "SpriteBG".into(), fade_ms, mask: None, style: TransitionStyle::Fade });
@@ -460,7 +461,7 @@ impl Lowering<'_> {
             self.out.ops.push(Op::Sprites { changes: vec![cover], fade_ms: 0 });
         }
         let (x, y) = (t.int_at("Position", 0).unwrap_or(640), t.int_at("Position", 1).unwrap_or(360));
-        self.show(key, tex, img, x, y, t.int("Priority").unwrap_or(10), 0, &[]);
+        self.show(key, tex, img, x, y, priority, 0, &[]);
         if let Some(flag) = t.int("CGFlag").filter(|f| *f >= 0) {
             self.out.ops.push(Op::CgSeen { number: flag as u32 + 1 });
         }
@@ -510,8 +511,9 @@ impl Lowering<'_> {
                     self.stage(tasks, i);
                 }
                 let key = format!("t{tex}");
-                if ty != "Sprite" && std::mem::take(&mut self.inherited) {
-                    self.replace_inherited(&key, tex, img, t, fade(t));
+                let prio = t.int("Priority").unwrap_or(if ty == "Sprite" { 5 } else { 10 });
+                if std::mem::take(&mut self.inherited) {
+                    self.replace_inherited(&key, tex, img, t, prio, fade(t));
                     return;
                 }
                 // SpriteBG and SpriteBS replace every picture but the
@@ -521,7 +523,6 @@ impl Lowering<'_> {
                 let replaces: Vec<String> =
                     if ty == "Sprite" { vec![] } else { self.shown.keys().filter(|k| k.starts_with('t')).cloned().collect() };
                 let (x, y) = (t.int_at("Position", 0).unwrap_or(640), t.int_at("Position", 1).unwrap_or(360));
-                let prio = t.int("Priority").unwrap_or(if ty == "Sprite" { 5 } else { 10 });
                 self.show(&key, tex, img, x, y, prio, fade(t), &replaces);
                 // A gallery CG: seen from now on (CG numbers are 1-based).
                 if let Some(flag) = t.int("CGFlag").filter(|f| *f >= 0) {
