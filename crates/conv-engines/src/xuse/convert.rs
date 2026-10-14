@@ -2332,24 +2332,25 @@ pub fn lower_script(
     let mut wait_credit_ms = 0;
     // 0x4a's style for whole messages (file order): colour, size.
     let mut default_style: (Option<u32>, Option<u16>) = (None, None);
+    // Record runs that jumps enter part-way, by first record: the message
+    // index and one variant per path (see [`unfold_records`]).
+    let mut unfolded = if flow == Flow::Jumps { unfold_records(cd, &own_labels, assets, names)? } else { HashMap::new() };
+    let mut variants: Option<(usize, usize, Vec<RecordPath>)> = None;
+    let mut unfold_id = 0;
     for (index, ins) in cd.code.iter().enumerate() {
-        if let Some(label) = own_labels.get(&index) {
+        if let Some((message, paths)) = unfolded.remove(&index) {
+            variants = Some((index, message, paths));
+        }
+        let in_run = variants.as_ref().is_some_and(|(start, message, _)| (*start..=*message).contains(&index));
+        // Labels inside a run are emitted with its paths.
+        let inside_run = variants.as_ref().is_some_and(|(start, message, _)| (*start + 1..=*message).contains(&index));
+        if let Some(label) = own_labels.get(&index).filter(|_| !inside_run) {
             ops.push(Op::Label(format!("s{}_l{label}", cd.script_id)));
         }
-        if let Some(link) = cd.link(ins) {
-            pending.links.push(link?);
-            continue;
+        if in_run && cd.message(ins).is_none() {
+            continue; // emitted with the message, path by path
         }
-        if let Some(ruby) = cd.ruby(ins) {
-            pending.ruby.push(ruby?);
-            continue;
-        }
-        if let Some(style) = cd.text_style(ins) {
-            pending.styles.push(style?);
-            continue;
-        }
-        if ins.op == OP_TEXT_INDENT {
-            pending.indent = Some((ins.arg as u32 >> 16) as u16);
+        if add_record(cd, ins, &mut pending)? {
             continue;
         }
         let at = || SourceLoc { file: file.to_string(), index };
@@ -2840,57 +2841,80 @@ pub fn lower_script(
             placed.clear();
             opacities.clear();
         }
-        let records = if cd.message(ins).is_some() { std::mem::take(&mut pending) } else { MessageRecords::default() };
-        let unsupported = || format!("opcode {:#04x} sub {:#x} arg {}", ins.op, ins.sub, ins.arg);
-        match lower_instr(cd, ins, &records, assets, names) {
-            Ok(Some(Op::Text { speaker, text, voice, mut links, ruby, mut styles, hang, continues })) if flow == Flow::Linear => {
-                whole_text_style(&mut styles, &text, default_style);
-                // No jumps in linear mode, so links are colour only.
-                links.iter_mut().for_each(|l| l.target = None);
-                ops.push(Op::Text { speaker, text, voice, links, ruby, styles, hang, continues });
+        let paths = match variants.take().filter(|_| in_run) {
+            Some((_, _, paths)) => paths,
+            None => {
+                let records = if cd.message(ins).is_some() { std::mem::take(&mut pending) } else { MessageRecords::default() };
+                vec![RecordPath { label: None, prefix: Vec::new(), records: Some(records) }]
             }
-            Ok(Some(Op::Text { speaker, text, voice, links, ruby, mut styles, hang, .. })) => {
-                whole_text_style(&mut styles, &text, default_style);
-                let lines = text.split('\n').count();
-                if let (Some(rows), Some((i, used))) = (full_screen_rows, last_text) {
-                    let joins = !page_break && used + lines <= rows;
-                    if joins && let Some(Op::Text { continues, .. }) = ops.get_mut(i) {
-                        *continues = true;
+        };
+        let after = (paths.len() > 1).then(|| {
+            unfold_id += 1;
+            format!("s{}_records{unfold_id}", cd.script_id)
+        });
+        for path in paths {
+            if let Some(label) = path.label {
+                ops.push(Op::Label(label));
+            }
+            ops.extend(path.prefix);
+            let Some(records) = path.records else { continue };
+            let unsupported = || format!("opcode {:#04x} sub {:#x} arg {}", ins.op, ins.sub, ins.arg);
+            match lower_instr(cd, ins, &records, assets, names) {
+                Ok(Some(Op::Text { speaker, text, voice, mut links, ruby, mut styles, hang, continues })) if flow == Flow::Linear => {
+                    whole_text_style(&mut styles, &text, default_style);
+                    // No jumps in linear mode, so links are colour only.
+                    links.iter_mut().for_each(|l| l.target = None);
+                    ops.push(Op::Text { speaker, text, voice, links, ruby, styles, hang, continues });
+                }
+                Ok(Some(Op::Text { speaker, text, voice, links, ruby, mut styles, hang, .. })) => {
+                    whole_text_style(&mut styles, &text, default_style);
+                    let lines = text.split('\n').count();
+                    if let (Some(rows), Some((i, used))) = (full_screen_rows, last_text) {
+                        let joins = !page_break && used + lines <= rows;
+                        if joins && let Some(Op::Text { continues, .. }) = ops.get_mut(i) {
+                            *continues = true;
+                        }
+                        let used = if joins { used + lines } else { lines };
+                        last_text = Some((ops.len(), used));
+                    } else if full_screen_rows.is_some() {
+                        last_text = Some((ops.len(), lines));
                     }
-                    let used = if joins { used + lines } else { lines };
-                    last_text = Some((ops.len(), used));
-                } else if full_screen_rows.is_some() {
-                    last_text = Some((ops.len(), lines));
+                    page_break = false;
+                    ops.push(Op::Text { speaker, text, voice, links, ruby, styles, hang, continues: false });
                 }
-                page_break = false;
-                ops.push(Op::Text { speaker, text, voice, links, ruby, styles, hang, continues: false });
-            }
-            Ok(Some(Op::Gosub(target))) => {
-                let preset = presets.window.get(&target).copied();
-                ops.push(Op::Gosub(target));
-                if let Some(p) = preset {
-                    let window = assets.text_window_style(p)?;
-                    full_screen_rows = p.full_screen.then_some(window.rows as usize);
-                    last_text = None;
-                    ops.push(Op::SetWindow(window));
-                    // setwindow resets the text speed the preset set.
-                    if p.instant {
-                        ops.push(Op::InstantText(true));
+                Ok(Some(Op::Gosub(target))) => {
+                    let preset = presets.window.get(&target).copied();
+                    ops.push(Op::Gosub(target));
+                    if let Some(p) = preset {
+                        let window = assets.text_window_style(p)?;
+                        full_screen_rows = p.full_screen.then_some(window.rows as usize);
+                        last_text = None;
+                        ops.push(Op::SetWindow(window));
+                        // setwindow resets the text speed the preset set.
+                        if p.instant {
+                            ops.push(Op::InstantText(true));
+                        }
                     }
                 }
-            }
-            Ok(Some(Op::Wait { ms })) if wait_credit_ms > 0 => {
-                let ms = ms.saturating_sub(std::mem::take(&mut wait_credit_ms));
-                if ms > 0 {
-                    ops.push(Op::Wait { ms });
+                Ok(Some(Op::Wait { ms })) if wait_credit_ms > 0 => {
+                    let ms = ms.saturating_sub(std::mem::take(&mut wait_credit_ms));
+                    if ms > 0 {
+                        ops.push(Op::Wait { ms });
+                    }
                 }
+                Ok(Some(op)) => ops.push(op),
+                Ok(None) => ops.push(Op::Unsupported { what: unsupported(), at: at() }),
+                Err(ConvertError::MissingAsset { kind, number }) => {
+                    ops.push(Op::Unsupported { what: format!("{} (missing {kind} {number})", unsupported()), at: at() })
+                }
+                Err(e) => return Err(e),
             }
-            Ok(Some(op)) => ops.push(op),
-            Ok(None) => ops.push(Op::Unsupported { what: unsupported(), at: at() }),
-            Err(ConvertError::MissingAsset { kind, number }) => {
-                ops.push(Op::Unsupported { what: format!("{} (missing {kind} {number})", unsupported()), at: at() })
+            if let Some(after) = &after {
+                ops.push(Op::Jump(after.clone()));
             }
-            Err(e) => return Err(e),
+        }
+        if let Some(after) = after {
+            ops.push(Op::Label(after));
         }
     }
     Ok(ops)
@@ -2925,6 +2949,136 @@ fn ruby_range(body: &[String], ruby: &RubyRecord) -> Option<(usize, usize)> {
     }
     let before: usize = body[..line].iter().map(|s| s.chars().count() + 1).sum();
     Some((before + col, len))
+}
+
+/// Adds `ins` to `records` if it is a record for the next message.
+fn add_record(cd: &CdScript, ins: &Instr, records: &mut MessageRecords) -> Result<bool, ConvertError> {
+    if let Some(link) = cd.link(ins) {
+        records.links.push(link?);
+    } else if let Some(ruby) = cd.ruby(ins) {
+        records.ruby.push(ruby?);
+    } else if let Some(style) = cd.text_style(ins) {
+        records.styles.push(style?);
+    } else if ins.op == OP_TEXT_INDENT {
+        records.indent = Some((ins.arg as u32 >> 16) as u16);
+    } else {
+        return Ok(false);
+    }
+    Ok(true)
+}
+
+/// One way into a run of records unfolded by [`unfold_records`]: the label
+/// it starts at (`None` for the fall-through), the jumps it takes, and the
+/// records its message gets (`None` if it jumps to another path instead).
+struct RecordPath {
+    label: Option<String>,
+    prefix: Vec<Op>,
+    records: Option<MessageRecords>,
+}
+
+/// Records collect at run time until a message uses them, so a jump to a
+/// label between the records and their message skips the ones before it.
+/// 最果てのイマ gates its route links that way (`0004.cd`: `if` a route is
+/// taken, jump past the 0x46 to the same message without the link) and
+/// picks one of two links with an if/else (`0009.cd`, `0011.cd`). For each
+/// run of records, label markers, gotos and ifs that ends in a message and
+/// has a label inside it, this lists one [`RecordPath`] per entry: the
+/// fall-through, each label, and each jump from inside the run with the
+/// records collected so far. Keyed by the run's first record; the value
+/// holds the message's index.
+fn unfold_records(
+    cd: &CdScript,
+    own_labels: &HashMap<usize, u32>,
+    assets: &mut AssetBank,
+    names: &LabelNames,
+) -> Result<HashMap<usize, (usize, Vec<RecordPath>)>, ConvertError> {
+    let is_record = |ins: &Instr| cd.link(ins).is_some() || cd.ruby(ins).is_some() || cd.text_style(ins).is_some() || ins.op == OP_TEXT_INDENT;
+    let label_name = |label: u32| format!("s{}_l{label}", cd.script_id);
+    let mut runs = HashMap::new();
+    let mut index = 0;
+    while index < cd.code.len() {
+        if !is_record(&cd.code[index]) {
+            index += 1;
+            continue;
+        }
+        let start = index;
+        let message = cd.code[start..].iter().position(|ins| !(is_record(ins) || matches!(ins.op, OP_GOTO | OP_GOTO_SUB | OP_IF_EQUAL..=OP_IF_GE)));
+        let message = message.map(|n| start + n).filter(|&m| cd.message(&cd.code[m]).is_some());
+        index = message.map_or(start + 1, |m| m + 1);
+        let Some(message) = message else { continue };
+        let inside: BTreeMap<usize, String> = (start + 1..=message).filter_map(|i| own_labels.get(&i).map(|&l| (i, label_name(l)))).collect();
+        if inside.is_empty() {
+            continue;
+        }
+        // Path entries by (index, records collected before it): name, done.
+        let mut entries: Vec<(usize, Vec<usize>, Option<String>)> = vec![(start, Vec::new(), None)];
+        entries.extend(inside.iter().map(|(&i, name)| (i, Vec::new(), Some(name.clone()))));
+        let mut paths = Vec::new();
+        let mut next = 0;
+        let mut unsupported = false;
+        while next < entries.len() {
+            let (entry, mut carried, label) = entries[next].clone();
+            next += 1;
+            let mut prefix = Vec::new();
+            let mut ends_in_message = true;
+            let mut i = entry;
+            while i < message {
+                let ins = &cd.code[i];
+                let target_of = |name: &str, carried: &[usize], entries: &mut Vec<(usize, Vec<usize>, Option<String>)>| {
+                    let at = *inside.iter().find(|(_, n)| n.as_str() == name)?.0;
+                    if let Some((_, _, l)) = entries.iter().find(|(e, c, _)| *e == at && c == carried) {
+                        return l.clone();
+                    }
+                    let name = format!("{name}_r{}", entries.len());
+                    entries.push((at, carried.to_vec(), Some(name.clone())));
+                    Some(name)
+                };
+                if is_record(ins) {
+                    carried.push(i);
+                } else if ins.op == OP_GOTO_SUB {
+                    let Some(target) = table_label(cd, ins.sub.into()) else { unsupported = true; break };
+                    match target_of(&target, &carried, &mut entries) {
+                        Some(name) => prefix.push(Op::Jump(name)),
+                        None => prefix.push(Op::Jump(target)),
+                    }
+                    ends_in_message = false;
+                    break;
+                } else if ins.op != OP_GOTO {
+                    match lower_instr(cd, ins, &MessageRecords::default(), assets, names)? {
+                        Some(Op::If { var, cmp, value, label }) => {
+                            let label = target_of(&label, &carried, &mut entries).unwrap_or(label);
+                            prefix.push(Op::If { var, cmp, value, label });
+                        }
+                        _ => {
+                            unsupported = true;
+                            break;
+                        }
+                    }
+                } else if own_label_at(cd, ins.arg) != Some(i) {
+                    unsupported = true; // a goto by label number, not a marker
+                    break;
+                }
+                i += 1;
+            }
+            if unsupported {
+                break;
+            }
+            let records = if ends_in_message {
+                let mut records = MessageRecords::default();
+                for &r in &carried {
+                    add_record(cd, &cd.code[r], &mut records)?;
+                }
+                Some(records)
+            } else {
+                None
+            };
+            paths.push(RecordPath { label, prefix, records });
+        }
+        if !unsupported {
+            runs.insert(start, (message, paths));
+        }
+    }
+    Ok(runs)
 }
 
 /// Records that apply to the next message: links (0x46), ruby (0x44),
