@@ -82,7 +82,9 @@ enum Command {
         #[arg(long)]
         scene: Option<String>,
         /// Play this many story files in a row from --file, following
-        /// $GameName (from each file's _MAIN scene, as the game does)
+        /// $GameName (from each file's _MAIN scene, as the game does).
+        /// A new game starts at ma00_000.nss (the boot script's start; it
+        /// also unlocks 魔王編 once both other routes are cleared)
         #[arg(long)]
         chain: Option<usize>,
         #[arg(short, long)]
