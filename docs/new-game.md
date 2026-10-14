@@ -299,6 +299,7 @@ at once, each with its own `--save-dir` and trace:
 
 ```sh
 cd out/<game>-cons
+mkdir -p /tmp/<game>-saves   # the engine doesn't make it; a failed first save stops the run
 SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy timeout -k 5 3600 \
     ../../engine/build/conscripter --root . --save-dir /tmp/<game>-saves \
     --trace /tmp/t.jsonl --trace-ignore <UI sprites> --auto-play 0
