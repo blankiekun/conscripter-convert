@@ -69,6 +69,22 @@ const RANKINGS: [(&str, [&str; 4], &str, &str); 2] = [
     ("RouteChicker2", ["村正", "一条", "香奈枝", "アナザー"], "$RC_N2", "$ルート分岐用フラグ2"),
 ];
 
+/// The heroines of `sys_hmode.nss` (`ArrayHex`): counter name and the
+/// name in their `<name>死亡` / `<name>復活` flags, in `SetHex` order.
+const HEX: [(&str, &str); 4] = [("Others", "その他"), ("Muramasa", "村正"), ("Kanae", "香奈枝"), ("Ichizyou", "一条")];
+/// `SatugaiSystem`'s order: the first heroine whose counter is at least
+/// every other one dies (善悪相殺).
+const SATUGAI_ORDER: [&str; 4] = ["Others", "Ichizyou", "Kanae", "Muramasa"];
+
+fn hex_counter(name: &str) -> String {
+    format!("${name}_Flag")
+}
+
+fn hex_flag(name: &str, what: &str) -> String {
+    let jp = HEX.iter().find(|h| h.0 == name).map_or(name, |h| h.1);
+    format!("${jp}{what}")
+}
+
 /// The route counter of a heroine in [`RANKINGS`].
 fn route_counter(name: &str) -> &'static str {
     match name {
@@ -413,6 +429,14 @@ pub fn story_flags(files: &BTreeMap<String, NssFile>) -> HashMap<String, conv_co
         }
         set.insert(last.to_string());
         tested.insert(last.to_string());
+    }
+    // SatugaiSystem and SetHex set and clear the death and revival flags
+    // through names built at run time (VariableValue).
+    for (name, _) in HEX {
+        for key in [hex_counter(name), hex_flag(name, "死亡"), hex_flag(name, "復活")] {
+            set.insert(key.clone());
+            tested.insert(key);
+        }
     }
     let mut flags = HashMap::new();
     let (mut local, mut global) = (FLAG_LOCAL_BASE, 0u16);
@@ -1183,6 +1207,61 @@ impl<'a, 'b> Compiler<'a, 'b> {
         true
     }
 
+    /// `SatugaiSystem` (sys_hmode.nss): the heroine with the highest
+    /// counter dies, the first in [`SATUGAI_ORDER`] on a tie.
+    fn satugai(&mut self) -> bool {
+        use conv_core::ir::Compare;
+        let get = |c: &Self, k: String| c.flags.get(&k).copied();
+        let counters: Option<Vec<_>> = SATUGAI_ORDER.iter().map(|n| get(self, hex_counter(n))).collect();
+        let deaths: Option<Vec<_>> = SATUGAI_ORDER.iter().map(|n| get(self, hex_flag(n, "死亡"))).collect();
+        let (Some(counters), Some(deaths)) = (counters, deaths) else { return false };
+        self.choices += 1;
+        let done = format!("satugai{}", self.choices);
+        for (x, (&fx, &death)) in counters.iter().zip(&deaths).enumerate() {
+            self.choices += 1;
+            let next = format!("satugai{}", self.choices);
+            for (_, &fy) in counters.iter().enumerate().filter(|&(y, _)| y != x) {
+                self.ops.push(Op::If { var: fx, cmp: Compare::Lt, value: Operand::Var(fy), label: next.clone() });
+            }
+            self.ops.push(Op::Arith { var: death, op: ArithOp::Set, value: Operand::Const(1) });
+            self.ops.push(Op::Jump(done.clone()));
+            self.ops.push(Op::Label(next));
+            self.vars.insert(hex_flag(SATUGAI_ORDER[x], "死亡"), Value::Runtime(death));
+        }
+        self.ops.push(Op::Label(done));
+        true
+    }
+
+    /// `SetHex` (sys_hmode.nss), the part that changes the story: a dead
+    /// heroine's counter goes to 0; a revived one also loses her death and
+    /// revival flags. (The rest updates the affection icons.)
+    fn set_hex(&mut self) -> bool {
+        use conv_core::ir::Compare;
+        let vars: Option<Vec<_>> = HEX
+            .iter()
+            .map(|&(n, _)| Some((self.flags.get(&hex_counter(n)).copied()?, self.flags.get(&hex_flag(n, "死亡")).copied()?, self.flags.get(&hex_flag(n, "復活")).copied()?)))
+            .collect();
+        let Some(vars) = vars else { return false };
+        for (i, &(counter, dead, revived)) in vars.iter().enumerate() {
+            let zero = |var| Op::Arith { var, op: ArithOp::Set, value: Operand::Const(0) };
+            self.choices += 1;
+            let alive = format!("hex{}", self.choices);
+            self.ops.push(Op::If { var: dead, cmp: Compare::Eq, value: Operand::Const(0), label: alive.clone() });
+            self.ops.push(zero(counter));
+            self.ops.push(Op::Label(alive));
+            self.choices += 1;
+            let stays = format!("hex{}", self.choices);
+            self.ops.push(Op::If { var: revived, cmp: Compare::Eq, value: Operand::Const(0), label: stays.clone() });
+            self.ops.extend([zero(counter), zero(dead), zero(revived)]);
+            self.ops.push(Op::Label(stays));
+            let name = HEX[i].0;
+            for (key, var) in [(hex_counter(name), counter), (hex_flag(name, "死亡"), dead), (hex_flag(name, "復活"), revived)] {
+                self.vars.insert(key, Value::Runtime(var));
+            }
+        }
+        true
+    }
+
     /// An assignment to a story flag: also done at run time.
     fn assign_flag(&mut self, var: conv_core::ir::Var, op: AssignOp, old: &Value, value: &Value, new: &Value) {
         match (op, old, value) {
@@ -1474,6 +1553,9 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 if let Some(r) = RANKINGS.iter().find(|r| r.0 == name)
                     && self.ranking(r)
                 {
+                    return Value::Null;
+                }
+                if (name == "SatugaiSystem" && self.satugai()) || (name == "SetHex" && self.set_hex()) {
                     return Value::Null;
                 }
                 match self.function(name) {
@@ -2603,6 +2685,29 @@ scene {name}_Y
         let rank = |n: &str| vars.get(&flags[&format!("$RC_N[{n}]")]).copied();
         // 香奈枝 and 村正 tie at 5: 香奈枝 is checked first.
         assert_eq!([rank("香奈枝"), rank("村正"), rank("一条"), rank("アナザー")], [Some(1), Some(2), Some(3), Some(4)]);
+    }
+
+    #[test]
+    fn the_heroine_with_the_highest_counter_dies_and_set_hex_clears_her_counter() {
+        let mut files = BTreeMap::new();
+        files.insert(BOOT.to_string(), nss::parse("#include \"nss/function.nss\"\n").unwrap());
+        files.insert("function.nss".to_string(), nss::parse("function SatugaiSystem(){}\nfunction SetHex(){}").unwrap());
+        let story = r#"scene a.nss_MAIN
+{
+	$Others_Flag = 1; $Ichizyou_Flag = 4; $Kanae_Flag = 4; $Muramasa_Flag = 2;
+	SatugaiSystem();
+	SetHex();
+	if($一条死亡 == true){ $x = 1; }
+	$GameCircle = 0;
+}"#;
+        files.insert("a.nss".into(), nss::parse(story).unwrap());
+        let (c, _) = compile_run(&files, "a.nss", 1, &mut Fake).unwrap();
+        let vars = run_ir(&c.ops);
+        let flags = story_flags(&files);
+        let get = |k: &str| vars.get(&flags[k]).copied().unwrap_or(0);
+        // 一条 and 香奈枝 tie at 4: 一条 comes first in SatugaiSystem's order.
+        assert_eq!([get("$一条死亡"), get("$香奈枝死亡"), get("$その他死亡"), get("$村正死亡")], [1, 0, 0, 0]);
+        assert_eq!([get("$Ichizyou_Flag"), get("$Kanae_Flag")], [0, 4]);
     }
 
     #[test]
