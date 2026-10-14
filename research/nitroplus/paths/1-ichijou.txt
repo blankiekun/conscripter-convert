@@ -1,0 +1,18 @@
+# 英雄編 (一条): rodemass chart, first column. The heroine with the most
+# affection dies at the end of part 3 (SatugaiSystem), so this route
+# favours 香奈枝 at ma03_021; 香奈枝 dies and 一条 survives.
+ma02_003:1
+ma02_006:2
+ma02_013:2
+ma02_014:2
+ma02_018:1
+ma03_005:1
+ma03_011:2
+ma03_011b:2
+ma03_021:2
+ma04_014vs:2
+ma04_022:1
+mb04_004:2
+mb04_004b:2
+mb04_004bb:2
+END mb04_026
