@@ -1017,22 +1017,32 @@ impl Lowering<'_> {
                         });
                         self.out.ops.push(Op::ScreenFilter { slot: 1, filter, fade_ms });
                     }
-                    // 画面キャプチャースプライト: a copy of the screen drawn
-                    // zoomed (impacts). Approximated by a pulse: the copy,
-                    // growing, over the live picture, fading.
+                    // 画面キャプチャースプライト (the eboot's 0x81040714): a
+                    // copy of the screen, frozen, zoomed onto a point at an
+                    // impact. :Param x, y (where its centre goes), scale,
+                    // frames (the eboot steps 2/frames a frame: it takes
+                    // half), ease type 0-3, power; it fades in over :Fade
+                    // and out over EffectEnd's :Fade.
                     57 => {
-                        let effect = start.then_some(ScreenEffect::Pulse {
-                            time_ms: 400,
-                            interval_ms: 16,
-                            zoom: (0, 80),
-                            opacity: 160,
-                            colour: 0xffffff,
-                            tint_opacity: 0,
-                            tint: 0,
-                        });
-                        self.out.ops.push(Op::ScreenEffect { slot: 2, effect });
                         if start {
-                            self.note("EffectStart 57 (approximated by a pulse)");
+                            let p = |k: usize, d: f64| t.get("Param").and_then(|v| v.get(k)).and_then(Val::float).unwrap_or(d);
+                            let power = p(5, 1.0);
+                            let effect = ScreenEffect::Zoom {
+                                interval_ms: 16,
+                                zoom: (p(2, 1.0).max(0.01) * 1000.0).round() as i32,
+                                centre: (sx(p(0, 640.0) as i64), sy(p(1, 360.0) as i64)),
+                                zoom_ms: ms(p(3, 1.0).max(1.0) as i64) / 2,
+                                fade_ms,
+                                ease: p(4, 0.0).clamp(0.0, 3.0) as u8,
+                                power: if power == 0.0 { 1000 } else { (power * 1000.0).round() as i32 },
+                            };
+                            self.out.ops.push(Op::ScreenEffect { slot: 2, effect: Some(effect) });
+                        } else if self.staging {
+                            self.out.ops.push(Op::ScreenEffect { slot: 2, effect: None });
+                        } else {
+                            self.out.ops.push(Op::BeginTransition { effect: "EffectEnd".into(), fade_ms, mask: None, style: TransitionStyle::Fade });
+                            self.out.ops.push(Op::ScreenEffect { slot: 2, effect: None });
+                            self.out.ops.push(Op::EndTransition);
                         }
                     }
                     // A wave (the eboot's shader 0x8115f304, over the

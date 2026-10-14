@@ -324,7 +324,7 @@ message (109 characters with the name; there is no paging).
 | EyeCatch `:Image 1,card,place,date` (114 uses: the chapter cards) | converted like `:Image 0`, as one screen made from SystemData: the card `ec1_bg`…`ec6_bg` (ID 67 + card: 0-3 the four protagonists' chapters, 4-5 Karura's, 6 奈落の底) with the place (ID 74 + place: `ec_bgNN`, its times of day as A/B/C) in its frame and the date (0 = 11月21日, -1 none) cut from the calendar under the card. The original fades the three in and out and pans the place 40 pixels while it fades in; drawn where the pan ends |
 | MoviePlay: the USM movies (MPEG-1 960×544 + ADX) demuxed (`usm.rs`) and made H.264/AAC MP4s in `movie/` (loose) | converted; `:Movie` N is the Nth of OP00, OP01, OP02, the seven `ED_*` (alphabetical), Poem, OP03 (each heroine's ending scene plays her ED) |
 | EffectStart/End 53 (ノイズ: static at `:Param` density) and 42 (ブラー: a blur screen filter); SetSceneName (chapter title) | converted |
-| EffectStart/End 57 (画面キャプチャースプライト: a copy of the screen drawn zoomed, at impacts) | approximated by a pulse (the copy growing and fading over the live picture, 0.4 s) |
+| EffectStart/End 57 (画面キャプチャースプライト, 50 uses: a frozen copy of the screen zoomed onto a point at an impact; the eboot's class at 0x81040714: `:Param` x, y where its centre goes, scale, frames, ease type 0-3, power) | converted with CONscripter's `screenzoom` (after 0.19.1): the copy's scale goes from 1 to `:Param` 2 and its centre from the screen's to (x, y) over half of `:Param` 3's frames (the eboot steps 2/frames a frame), with the eboot's easing (0x8103cc18: straight, in, out, in and out, to a power); it fades in over `:Fade` and out over EffectEnd's `:Fade` (the slot cleared inside a transition). Scale 1 is a freeze frame |
 | EffectStart/End 52 (光玉 light balls), 54 (紙吹雪 confetti), 51 (雪 snow) | converted to looping 16-frame animations made from ETC.cpk's `lightball.png`, `paper.png`, `snow.png` (`:Param` count): the balls twinkle and circle in place, snow and paper fall one screen per 2 s loop; the original's motion is not known |
 | EffectStart/End 40 (a wave over the starry monologue background, `:Param 400,3000`: the eboot's shader 0x8115f304 moves each row's picture along the diagonal by 1.5% of the width × sin(2π(600y/(height × `:Param` 0) + 2t/`:Param` 1 ms)), growing in with the effect's fade; a negative `:Param` 0 waves the columns, unused) | converted as `screenripple` at 45° through a grey ramp (`system/waveN.png`, N/100 waves down the screen); EffectEnd stops it without its fade (2 uses of 30 frames) |
 | Achievement (trophies) | nothing to show |
@@ -385,5 +385,4 @@ Next, in order:
 2. Looks against the original: text window size and place, character
    heights (where the eboot anchors them), the eye catch's speed. Needs screenshots of the Vita game.
 3. The easing of SpriteMove and CharacterMove (the two values after
-   `:Position`); EffectStart 57 as a zoomed copy of the screen (now
-   possible with `spzoom`).
+   `:Position`; probably the eboot's 0x8103cc18 curves, as in effect 57).

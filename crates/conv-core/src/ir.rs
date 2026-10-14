@@ -239,6 +239,13 @@ pub enum ScreenEffect {
     /// 1 + f × `zoom`/1000 around the centre at f × `opacity` (0-256),
     /// f = sin(π × elapsed / `time_ms`). `colour` is 0xRRGGBB.
     Pulse { time_ms: u32, interval_ms: u32, zoom: (i32, i32), opacity: i32, colour: u32, tint_opacity: i32, tint: u8 },
+    /// A copy of the picture frozen when it starts, over the live picture:
+    /// over `zoom_ms` its scale goes from 1 to `zoom`/1000 and its centre
+    /// from the screen's centre to `centre` (pixels), eased by `ease` (0
+    /// straight, 1 in, 2 out, 3 in and out, with `power`/1000); it fades
+    /// in over `fade_ms`, then stays until the slot is cleared. With
+    /// `zoom` 1000 a freeze frame.
+    Zoom { interval_ms: u32, zoom: i32, centre: (i32, i32), zoom_ms: u32, fade_ms: u32, ease: u8, power: i32 },
 }
 
 /// In [`Op::Text`] text: wait for a click here and go on typing on the

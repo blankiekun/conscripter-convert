@@ -529,6 +529,10 @@ pub fn emit(script: &Script) -> String {
                         )
                         .unwrap();
                     }
+                    Some(ScreenEffect::Zoom { interval_ms, zoom, centre, zoom_ms, fade_ms, ease, power }) => {
+                        let time = zoom_ms.max(fade_ms).max(&1);
+                        writeln!(out, "screenzoom {slot},{time},{interval_ms},{zoom},{},{},{zoom_ms},{fade_ms},{ease},{power}", centre.0, centre.1).unwrap();
+                    }
                     Some(ScreenEffect::Pulse { time_ms, interval_ms, zoom, opacity, colour, tint_opacity, tint }) => {
                         writeln!(
                             out,
