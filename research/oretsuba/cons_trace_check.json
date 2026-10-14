@@ -1,5 +1,5 @@
 {
- "_comment": "俺たちに翼はない (MAGES, Vita): sprites 34-48 are the button bar. The cut-ins (chr\\st_cin*, 960x540) are centred, 2 px above the bottom edge, and mostly transparent (st_cin022 shows x 365-595 only), so one moved out to x -220 (99 exits) is gone though its box isn't; the static (sprite 60) and the light balls etc. (59) are full-screen overlays; impacts (and the battle scenes' blows) play one SE several times a few hundred ms apart, as the source does (auto-play shortens the waits); SpriteMove runs as a timed amsp/print loop (conv_move_loop), slow only because it keeps real time",
+ "_comment": "俺たちに翼はない (MAGES, Vita): sprites 34-48 are the button bar. The cut-ins (chr\\st_cin*, 960x540) are centred, 2 px above the bottom edge, and mostly transparent (st_cin022 shows x 365-595 only), so one moved out to x -220 (99 exits) is gone though its box isn't; the static (sprite 60) and the light balls etc. (59) are full-screen overlays; impacts (and the battle scenes' blows) play one SE several times a few hundred ms apart, as the source does (auto-play shortens the waits); SpriteMove runs as a timed amsp/print loop (conv_move_loop), slow only because it keeps real time; a CharacterMove to :Color alpha 0 fades a character out, and the script deletes it later (invisible meanwhile, as in the original)",
  "ignore": "34-48",
  "known": [
   {
@@ -26,6 +26,10 @@
   {
    "rule": "linger",
    "match": "chr\\\\st_cin"
+  },
+  {
+   "rule": "invisible",
+   "match": "chr\\\\"
   }
  ]
 }
