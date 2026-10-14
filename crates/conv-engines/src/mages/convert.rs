@@ -261,22 +261,25 @@ fn tag_label(scene: &str, tag: &str) -> String {
     format!("{}_{tag}", scene_label(scene))
 }
 
-/// The text window: `meswin.png` at the bottom of the screen.
+/// The text window: `meswin.png` across the bottom of the screen, above
+/// the button bar. Its panel is x 77-883, y 28-152, with round ends; the
+/// text fills x 120-840, y 40-144: four lines of 30, enough for the
+/// longest message (109 characters with the name).
 pub fn text_window(assets: &mut dyn Assets) -> TextWindow {
     let (image, w, h) = assets.window().unwrap_or_default();
     let (w, h) = (w as i32, h as i32);
     let x = (SCREEN_W - w) / 2;
-    let y = SCREEN_H - h - 4;
+    let y = SCREEN_H - h - 16;
     TextWindow {
         image,
         x,
         y,
-        text_x: x + 64,
-        text_y: y + 22,
+        text_x: x + 120,
+        text_y: y + 40,
         columns: 30,
-        rows: 3,
-        font_size: 22,
-        line_gap: 6,
+        rows: 4,
+        font_size: 23,
+        line_gap: 4,
         vertical: false,
         name_plate: None,
     }

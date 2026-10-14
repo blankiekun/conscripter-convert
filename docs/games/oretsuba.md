@@ -278,8 +278,11 @@ texture, voice, SE and BGM ID they use in the archives.
 
 Output: 960×544, the Vita's screen. Script coordinates (1280×720) are
 scaled by 3/4 across and 544/720 down; CG and CHR pictures are already
-at that scale, SystemData's are drawn at 1280×720 and are scaled by 3/4
-(`meswin.png`, the text window).
+at that scale, and so are SystemData's (the screens are 960×544): the
+text window is `meswin.png`'s left 960 pixels (two loose feathers
+follow) drawn 1:1 above the button bar, its text four lines of 30 at
+23 pixels in x 120-840, y 40-144 of the window, enough for the longest
+message (109 characters with the name; there is no paging).
 
 | Feature | State |
 |---|---|

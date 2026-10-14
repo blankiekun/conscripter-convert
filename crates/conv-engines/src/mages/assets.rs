@@ -487,8 +487,9 @@ impl Assets for ArchiveAssets<'_> {
     fn window(&mut self) -> Option<(String, u32, u32)> {
         let data = self.system.by_name("meswin.png")?;
         let img = image::load_from_memory(data).ok()?.to_rgba8();
-        let (w, h) = (img.width() * 3 / 4, img.height() * 3 / 4);
-        let img = imageops::resize(&img, w, h, imageops::FilterType::CatmullRom);
+        // The window is the left 960 pixels; two loose feathers follow.
+        let (w, h) = (img.width().min(SCREEN_W as u32), img.height());
+        let img = imageops::crop_imm(&img, 0, 0, w, h).to_image();
         let path = "system/meswin.png".to_string();
         self.write_png(&path, &img);
         Some((path, w, h))
