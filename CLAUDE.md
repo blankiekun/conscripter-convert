@@ -42,13 +42,16 @@ not in the repo.
   `git add -A`: other agents leave uncommitted files in the tree.
 - No Co-Authored-By or Claude attribution lines in commits.
 - Use existing NScripter commands before adding to the engine.
-  New engine commands and features are opt-in, live in
+  Engine additions are not opt-in (the user, 2026-10-14): a new
+  behaviour applies to every script, with no command or flag to turn it
+  on; new commands take effect where a script uses them. They live in
   `engine/src/onsyuri/` (preferably `ONScripter_cons.cpp`), work in the
   web build, and are documented in `engine/ADDITIONS.md` and `PLAN.md`
-  §4.2. Bug fixes are not opt-in: when the engine does something wrong
-  (text misplaced, characters dropped), fix it for every script, with no
-  command or flag, and list the fix in `engine/ADDITIONS.md`. Then drop
-  any converter workaround for it.
+  §4.2. Check that a change of behaviour doesn't break another game's
+  build. Bug fixes likewise: when the engine does something wrong (text
+  misplaced, characters dropped), fix it for every script and list the
+  fix in `engine/ADDITIONS.md`. Then drop any converter workaround for
+  it.
 - Never touch the user's save folders (`out/saiima-flow`). Build into
   `out/<game>-cons`. List any folder before deleting it.
 - Check with the user before starting anything big that they haven't

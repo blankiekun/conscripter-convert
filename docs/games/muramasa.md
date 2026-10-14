@@ -702,7 +702,7 @@ Next, in order:
    an engine feature that is on for every script; the settings CONscripter
    lacks (music/SE/voice mute, voice stops on click, auto waits for the
    voice, auto/skip stop at a choice, movie skip, game speed) are added
-   to the engine the same way, not opt-in; 選択肢に戻る is implemented
+   to the engine the same way (since then no engine addition is opt-in); 選択肢に戻る is implemented
    (a save to a reserved slot before each choice).
 5. The largest leftovers below: `CreateProcess` (via Lua), non-blocking
    `Move`/`Zoom`, `AddRender` (needs a per-sprite blend mode).

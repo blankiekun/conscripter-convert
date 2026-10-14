@@ -115,10 +115,10 @@ original), add the feature to CONscripter instead of approximating it:
 1. Implement it in `engine/src/onsyuri/` as a new command or option, in the
    style of the surrounding ONScripter code, so it works on every platform
    the fork builds for (the web build especially).
-2. Keep it opt-in: a new command, or an option in `ons_args`. Scripts that
-   don't use it must behave exactly as in stock ONScripter-Yuri. Bug
-   fixes are the exception: a fix to something the engine does wrong
-   applies to every script, with no command or flag.
+2. Don't make it opt-in (the user, 2026-10-14): a new behaviour applies
+   to every script, with no command or flag to turn it on, as bug fixes
+   do; a new command takes effect where a script uses it. Check that it
+   doesn't change the other games' builds for the worse.
 3. Document it in the engine's `ADDITIONS.md`
    and here in §4.2, with the game feature that needed it.
 4. Commit and push in the engine repo, then commit the updated submodule

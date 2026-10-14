@@ -220,8 +220,9 @@ them.
 ## 10. Engine additions
 
 When existing NScripter commands can't do it:
-1. Add it opt-in in `engine/src/onsyuri/` (`ONScripter_cons.cpp`
-   preferred); a bug fix instead applies to every script, with no command. Effects are `cons_*.dll` effect-99 plugins; screen
+1. Add it in `engine/src/onsyuri/` (`ONScripter_cons.cpp` preferred).
+   It isn't opt-in: a new behaviour, like a bug fix, applies to every
+   script, with no command to turn it on. Effects are `cons_*.dll` effect-99 plugins; screen
    effects use the `screenfilter`/`screenshake` slot machinery. It must
    build for the web (emscripten) and keep its state in saves.
 2. Document it in `engine/ADDITIONS.md` and in `PLAN.md` §4.2.
