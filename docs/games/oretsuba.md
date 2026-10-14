@@ -185,7 +185,7 @@ playthroughs (`%410`-`%439`).
 | one_clear, two_clear, three_clear, four_clear (global) | part cleared | S01_19A, S02_17A, S03_23A, S04_29A | S04_05I (true ending), the `NEXT_HINT` messages |
 | Pre_asuka, Pre_miyako, Pre_misaki, Pre_karuo (global) | after-story read | P01_01D, P02_01E, P03_01D, P04_02B | not in the scenes (the title menu) |
 
-## Status: first scenes play (2026-10-13)
+## Status: the whole story plays (2026-10-14)
 
 `crates/conv-engines/src/mages/` reads the archives (`cpk.rs`), the
 scripts (`tasks.rs`), lowers scenes to the IR (`convert.rs`) and writes
@@ -230,11 +230,21 @@ at that scale, SystemData's are drawn at 1280×720 and are scaled by 3/4
 | Extras menu (ALBUM, CONFIG, MUSIC, 戻る; the title's GALLERY opens it) and the CG gallery from `CGMODE` (8 heroine tabs from `gm_bg.png`'s cards, 4×5 thumbnails a page, up to 3 pages, a viewer with ◀ ▶ HIDE 戻る); scenes mark CGs seen from their `:CGFlag` | converted in the Vita's look, our layout |
 | Music room, movie room | not yet (MUSIC shown greyed) |
 
+Every task of all 463 scenes converts (none left as a comment); the
+full build (`mages convert` without `--scenes`, about 4 minutes, 1.7 GB
+`arc.nsa` plus 12 MP4s in `movie/`) lints clean (one false positive:
+the save menu's thumbnail name, built at run time), ran 600 pages
+headless without errors, and the route check reaches all eight endings.
+
 Next, in order:
-1. Full build of every scene; fix what the lint and a headless run of
-   the first chapter show. Text window layout and character heights
-   from reference screenshots of the Vita game.
-2. Effects: EffectStart 40, InOut_Act types, SpriteMove `:Scale`.
-3. Walkthrough (this document), then the route check of the converted
-   control flow.
-4. Extras: music room (BGM.AWB with titles), movie room.
+1. The eboot: decrypting `eboot.bin` (an NPDRM SELF; Vita3K decrypts
+   them with the klicensee) would give the music room's title-to-track
+   table, the menus' real layouts and the meanings of `InOut_Act`'s
+   types and EffectStart 40.
+2. Music room (`mu_bg.png` has ~66 title pictures for BGM.AWB's 96
+   tracks; the order is not BGM ID order as far as the scripts show) and
+   a movie room.
+3. Looks against the original: text window size and place, character
+   heights, the eye catch's wipe. Needs screenshots of the Vita game.
+4. SpriteMove `:Scale` (91 zooms on CGs) needs a sprite zoom in the IR
+   and conv-cons; looping CharacterActions (96).
