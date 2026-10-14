@@ -14,6 +14,7 @@ import java.nio.file.Path;
 import ghidra.app.script.GhidraScript;
 import ghidra.program.model.address.Address;
 import ghidra.program.model.listing.Function;
+import ghidra.program.model.mem.MemoryBlock;
 import ghidra.program.model.symbol.SourceType;
 import ghidra.program.model.symbol.Symbol;
 
@@ -42,6 +43,11 @@ public class ApplyNames extends GhidraScript {
 			String name = cols[1].trim();
 			String comment = cols.length == 3 ? cols[2].trim() : "";
 			Function f = getFunctionAt(a);
+			MemoryBlock block = getMemoryBlock(a);
+			if (f == null && getInstructionAt(a) == null && block != null && block.isExecute()) {
+				// Code reached only through a table: not disassembled yet.
+				disassemble(a);
+			}
 			if (f == null && getInstructionAt(a) != null) {
 				f = createFunction(a, null);
 			}
