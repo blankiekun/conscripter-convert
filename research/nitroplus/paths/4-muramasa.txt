@@ -1,0 +1,85 @@
+# 悪鬼編 (村正): rodemass chart, fourth column, from the save before
+# md04_045. The village exploration (md05_004*) takes three rounds; a
+# chart entry such as 訊く：自分の事 is two selects. The chart's bad-end
+# detours (md05_010vs 2, md05_010vsaa 2, md05_012 1, md05_013 2) are left
+# out. The run stops at the 立方陣 minigame (function_magiccube.nss,
+# reached from md05_025), which isn't converted yet, so neither 村正END
+# (md06_033a) nor the TRUE END (md06_036) can be reached.
+LOAD 1
+md04_045:2
+md05_004start01:2
+md05_004hazure01:3
+md05_004hazure01c:2
+md05_004hazure01:3
+md05_004hazure01c:3
+md05_004hazure01:4
+md05_004hazure01d:1
+md05_004saidenn01:3
+md05_004saidenn01c:1
+md05_004saidenn01:3
+md05_004saidenn01c:2
+md05_004saidenn01:3
+md05_004saidenn01c:3
+md05_004saidenn01:4
+md05_004saidenn01d:2
+md05_004byoushitsu01:3
+md05_004byoushitsu01c:1
+md05_004byoushitsu01:3
+md05_004byoushitsu01c:2
+md05_004byoushitsu01:3
+md05_004byoushitsu01c:3
+md05_004byoushitsu01:4
+md05_004byoushitsu01d:3
+md05_004yashiki01:3
+md05_004yashiki01c:2
+md05_004yashiki01:3
+md05_004yashiki01c:3
+md05_004yashiki01:4
+md05_004yashiki01d:2
+md05_004urayama01:3
+md05_004urayama01c:2
+md05_004urayama01:3
+md05_004urayama01c:3
+md05_004urayama01:4
+md05_004start02:1
+md05_004yashiki01:3
+md05_004yashiki01c:1
+md05_004yashiki01:3
+md05_004yashiki01c:2
+md05_004yashiki01:4
+md05_004yashiki01d:2
+md05_004urayama01:3
+md05_004urayama01c:1
+md05_004urayama01:3
+md05_004urayama01c:2
+md05_004urayama01:4
+md05_004urayama01d:2
+md05_004hazure01:3
+md05_004hazure01c:1
+md05_004hazure01:3
+md05_004hazure01c:2
+md05_004hazure01:4
+md05_004hazure01d:1
+md05_004saidenn01:3
+md05_004saidenn01c:1
+md05_004saidenn01:3
+md05_004saidenn01c:2
+md05_004saidenn01:4
+md05_004saidenn01d:2
+md05_004byoushitsu01:3
+md05_004byoushitsu02c:2
+md05_004byoushitsu02cb:1
+md05_004start03:2
+md05_004hazure01:4
+md05_004hazure01d:1
+md05_004saidenn01:3
+md05_004saidenn01:4
+md05_004saidenn01d:1
+md05_004byoushitsu01:3
+md05_004byoushitsu03c:2
+md05_004byoushitsu03cb:1
+md05_010vs:1
+md05_012:2
+md05_013:1
+md05_014:2
+END function_magiccube
