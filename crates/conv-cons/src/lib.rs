@@ -85,6 +85,8 @@ const ANIMATION_IMAGE: &str = "$117";
 const ANIMATION_SAVED: u32 = 13;
 /// Scratch variable receiving the clicked button (also used by nstrace).
 const BUTTON_VAR: &str = "%9";
+// Ranges claimed by modules: %190-%289 and $200-$229, the tile puzzle's
+// state ([`puzzle`]; locals when the global border is 800).
 /// NScripter variables: locals from %10, globals from %200. `globalon`
 /// makes %200 and up persist across games.
 const LOCAL_VAR_BASE: u32 = 10;

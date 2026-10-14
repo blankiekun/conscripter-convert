@@ -21,8 +21,11 @@ additions) and §13 (lessons).
   and push `engine/` (github.com/blankiekun/CONscripter, branch
   `master`), then commit the submodule pointer together with the
   converter change.
-- Fetch and rebase before every push: the user and other agents push to
-  both repos. Push with
+- Fetch before every push: the user and other agents push to both
+  repos. Rebase only your own unpushed commits, onto the same branch's
+  remote (`git pull --rebase origin <branch>`); bring `main` into a game
+  branch by merging, never by rebasing (see "Working beside other
+  agents"). Push with
   `git -c credential.helper= -c credential.helper='!gh auth git-credential' push`
   (git has no credential helper; `gh` is logged in). Don't change the
   global git config.
@@ -42,12 +45,47 @@ additions) and §13 (lessons).
   with real (not symlinked) user folders, its own Xvfb display, no
   audio, never the user's desktop. Stop wine and Xvfb when done.
 
+## Working beside other agents
+
+Several agents work at once, one per game branch (`xuse`, `nitroplus`,
+each in its own worktree), and their work meets in shared code.
+
+- **Start every session by merging `origin/main` into your game branch**
+  (`git fetch && git merge origin/main`), before any edit, then build and
+  run `cargo test`. Merge it again before a commit that touches a hot
+  spot (below). Conflicts are small when they are fresh.
+- **Hot spots**: files every game's work changes. Before editing one,
+  check what main changed in it (`git log -p HEAD..origin/main -- <file>`).
+  Keep each edit small and in its own place:
+
+  | File | How to edit it |
+  |---|---|
+  | `crates/conv-core/src/ir.rs` | Add new types and `Op` variants at the end of their block, with a doc comment; don't reorder or reformat existing ones |
+  | `crates/conv-cons/src/lib.rs` | Put a new feature's emitter in its own module (`puzzle.rs`, `menu.rs`, `replay.rs`) and add one `match` arm here. Sprite and variable ranges are the constants at the top: claim a new range there, with a comment, and check it against the ranges other modules document |
+  | `crates/conv-cons/src/menu.rs` | Shared by every game's menus: change it only through what a game passes in its IR (`SaveMenu`, `ButtonBar`, …), not with game-specific branches |
+  | `crates/conv-cli/src/main.rs` | One subcommand per engine; keep the engine's own code in `crates/conv-engines/src/<engine>/` |
+  | `engine` (submodule pointer) | Two branches that bump it conflict, and a merge can't combine them: before bumping it, merge `origin/main` and rebase your engine commits onto CONscripter's `master`, so the pointer only moves forward |
+  | `PLAN.md`, `README.md`, `docs/new-game.md`, this file | Edit only your game's rows and paragraphs; general lessons go in `PLAN.md` §13 |
+  | `Cargo.toml`, `Cargo.lock` | Add dependencies in their own commit; on a conflict, take both sides and let `cargo build` rewrite the lock file |
+
+- **Game-specific code stays out of shared files**: an engine's reader
+  and compiler live in `crates/conv-engines/src/<engine>/`, and a single
+  game's own rules go in a module of their own there (for example
+  `nitroplus/convert/muramasa.rs`, chosen by the CLI when it builds).
+- **Merge your game branch into `main` at good points** (tests pass, the
+  game document and the handoff file are up to date), so the other
+  agents start from it. After merging `origin/main` into the branch, the
+  push is a fast-forward: check with
+  `git merge-base --is-ancestor origin/main HEAD`, then
+  `git push origin <branch>:main`. Never switch branches in another
+  agent's worktree; the main checkout belongs to whoever works there.
+
 ## Layout
 
 | Path | Contents |
 |---|---|
 | `crates/conv-core/src/ir.rs` | Engine-neutral IR |
-| `crates/conv-engines/src/<engine>/` | Source readers (`xuse/`; `nitroplus/` on its branch) |
+| `crates/conv-engines/src/<engine>/` | Source readers (`xuse/`, `nitroplus/`); a game's own rules in a module there (`nitroplus/convert/muramasa.rs`) |
 | `crates/conv-cons/` | IR → `0.txt` (`lib.rs`), menus, extras, NSA writer |
 | `crates/conv-cli/` | The `conscripter-convert` command |
 | `engine/` | CONscripter (C++; our code in `src/onsyuri/ONScripter_cons.cpp`) |

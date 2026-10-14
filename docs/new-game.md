@@ -42,7 +42,10 @@ system screens, extras and matching effects to the original.
      hold up.
    - A branch per game (`xuse`, `nitroplus`), based on `origin/main`. A
      second agent works in its own worktree
-     (`~/Projects/conscripter-convert-<name>`).
+     (`~/Projects/conscripter-convert-<name>`). Merge `origin/main` into
+     it at the start of every session, keep game-specific code out of
+     the shared files, and merge back into `main` at good points
+     (`CLAUDE.md`, "Working beside other agents").
    - Optional: a phone-visible progress page (an artifact whose shared
      database gets one log entry per commit). The user liked following
      the work that way.
