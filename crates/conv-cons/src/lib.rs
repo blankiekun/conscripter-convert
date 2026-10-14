@@ -1291,7 +1291,7 @@ fn operand(o: Operand, border: u32) -> String {
 }
 
 /// `border`: the first global variable ([`Script::global_border`]).
-fn var_name(v: Var, border: u32) -> String {
+pub fn var_name(v: Var, border: u32) -> String {
     let base = if v.global { border } else { LOCAL_VAR_BASE };
     format!("%{}", base + u32::from(v.index))
 }

@@ -135,6 +135,8 @@ pub struct Compiled {
     pub window: Option<TextWindow>,
     /// What was left out or approximated, with counts.
     pub notes: BTreeMap<String, usize>,
+    /// The story flags and their variables.
+    pub flags: HashMap<String, conv_core::ir::Var>,
 }
 
 /// Compiles scene `scene` of `file` (`ma01_001.nss`, `ma01_001.nss`).
@@ -144,7 +146,7 @@ pub fn compile_scene(files: &BTreeMap<String, NssFile>, file: &str, scene: &str,
     let body = c.scene(file, scene).ok_or_else(|| format!("no scene {scene} in {file}"))?;
     c.run_top(body);
     c.sync(0);
-    Ok(Compiled { ops: c.ops, window: c.first_window, notes: c.notes })
+    Ok(Compiled { ops: c.ops, window: c.first_window, notes: c.notes, flags: c.flags })
 }
 
 /// Plays story files from `start` (`ma01_001.nss`), as the story
@@ -308,7 +310,7 @@ pub fn compile_run(files: &BTreeMap<String, NssFile>, start: &str, max_files: us
         c.ops.push(Op::Label(file_label(&name)));
     }
     c.ops.push(Op::Label(RUN_END.to_string()));
-    Ok((Compiled { ops: c.ops, window: c.first_window, notes: c.notes }, played))
+    Ok((Compiled { ops: c.ops, window: c.first_window, notes: c.notes, flags: c.flags }, played))
 }
 
 fn negate(c: conv_core::ir::Compare) -> conv_core::ir::Compare {

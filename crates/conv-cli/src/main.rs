@@ -916,6 +916,13 @@ fn convert_nss(
     for e in &assets.errors {
         println!("  asset error: {e}");
     }
+    if std::env::var_os("NSS_TRACE").is_some() {
+        let mut flags: Vec<_> = compiled.flags.iter().map(|(name, &v)| (v.global, v.index, conv_cons::var_name(v, convert::GLOBAL_BORDER), name)).collect();
+        flags.sort();
+        for (_, _, var, name) in flags {
+            eprintln!("flag {var} {name}");
+        }
+    }
     let ir = Script {
         title: title.to_string(),
         width: convert::SCREEN_W as u32,
