@@ -661,6 +661,24 @@ impl Lowering<'_> {
                         });
                         self.out.ops.push(Op::ScreenFilter { slot: 1, filter, fade_ms });
                     }
+                    // 画面キャプチャースプライト: a copy of the screen drawn
+                    // zoomed (impacts). Approximated by a pulse: the copy,
+                    // growing, over the live picture, fading.
+                    57 => {
+                        let effect = start.then_some(ScreenEffect::Pulse {
+                            time_ms: 400,
+                            interval_ms: 16,
+                            zoom: (0, 80),
+                            opacity: 160,
+                            colour: 0xffffff,
+                            tint_opacity: 0,
+                            tint: 0,
+                        });
+                        self.out.ops.push(Op::ScreenEffect { slot: 2, effect });
+                        if start {
+                            self.note("EffectStart 57 (approximated by a pulse)");
+                        }
+                    }
                     _ => self.note(format!("{ty} {n}")),
                 }
             }
