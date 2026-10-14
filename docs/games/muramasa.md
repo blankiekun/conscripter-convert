@@ -393,6 +393,33 @@ fails the puzzle. Not done: state across relaunch and in the web build
   the source says); the `mc01_010vs` choice. Routes share files that
   branch on `$PreGameName` (`mb01_003_3`); that is the source's design.
 
+**Engine skip runs** (playbook step 4): `research/nitroplus/engrun.py`
+plays each ending of the route paths in CONscripter, every page drawn,
+on an Xvfb display of its own (Ctrl held down: the engine leaves skip
+mode on any key release). nstrace records the options each playthrough
+takes; the driver patches a copy of `0.txt` to take them by itself, skip
+the 立方陣 with its recorded result, and log each story file; a run
+passes if it reaches the end and passes the same files as nstrace. Five
+runs (一条END, 香奈枝END, 茶々丸END, 村正END, TRUE END; `--all` adds the
+bad ends), about 8 pages a second, one core and 200 MB each: run them
+side by side, one display each.
+
+```sh
+for n in 1 2 3 9 10; do
+  python3 -I research/nitroplus/engrun.py out/muramasa-cons \
+    research/nitroplus/paths/{1-ichijou,2-kanae,3-chachamaru,4-muramasa}.txt \
+    --engine <conscripter> --only $n --display :8$((n % 10)) > out/engrun-$n.log &
+done
+```
+
+To look at one place deep in a route, `--at <file>` starts the run at
+that story file with every variable as nstrace had it there (a crafted
+save: the variables, not the pictures or music on screen); an engine
+problem there shows in seconds instead of an hour. The engine writes its
+errors to `stderr.txt` in the game folder, not to the terminal. To find
+the line, add `lsp 998,"TRACE:L<n>",0,0` before each line of the file in
+the patched copy: the last one in `stderr.txt` is the line that failed.
+
 ## Running the original under wine
 
 Used to check what the engine does (`docs/new-game.md` step 9).
