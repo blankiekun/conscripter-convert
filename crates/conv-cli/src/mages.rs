@@ -203,6 +203,7 @@ fn convert(game: &Path, output: &Path, scenes: &[String], font: Option<&Path>, t
     assets.dry_run = dry_run;
     let compiled = convert::compile(&g, scenes, &mut assets);
     let window = convert::text_window(&mut assets);
+    let title_screen = conv_engines::mages::screens::title(&mut assets);
     for e in &assets.errors {
         println!("  asset error: {e}");
     }
@@ -212,6 +213,7 @@ fn convert(game: &Path, output: &Path, scenes: &[String], font: Option<&Path>, t
         height: convert::SCREEN_H as u32,
         global_border: Some(convert::GLOBAL_BORDER),
         window: Some(window),
+        title_screen,
         ops: compiled.ops,
         ..Script::default()
     };

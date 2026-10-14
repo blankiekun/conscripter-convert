@@ -184,6 +184,37 @@ impl<'a> ArchiveAssets<'a> {
     }
 }
 
+impl ArchiveAssets<'_> {
+    /// Cuts rectangles (x, y, w, h) out of SystemData picture `file` and
+    /// lays them side by side, scaled by `scale_percent`, as `system/<out>`.
+    pub fn system_cells(&mut self, file: &str, out: &str, cells: &[(u32, u32, u32, u32)], scale_percent: u32) -> Option<(String, u32, u32)> {
+        let data = self.system.by_name(file)?;
+        let img = match image::load_from_memory(data) {
+            Ok(i) => i.to_rgba8(),
+            Err(e) => {
+                self.errors.push(format!("{file}: {e}"));
+                return None;
+            }
+        };
+        let h = cells.iter().map(|c| c.3).max()?;
+        let w: u32 = cells.iter().map(|c| c.2).sum();
+        let mut sheet = RgbaImage::new(w, h);
+        let mut x = 0;
+        for &(cx, cy, cw, ch) in cells {
+            let part = imageops::crop_imm(&img, cx, cy, cw, ch).to_image();
+            imageops::replace(&mut sheet, &part, x as i64, 0);
+            x += cw;
+        }
+        let (w, h) = (w * scale_percent / 100, h * scale_percent / 100);
+        if scale_percent != 100 {
+            sheet = imageops::resize(&sheet, w, h, imageops::FilterType::CatmullRom);
+        }
+        let path = format!("system/{out}");
+        self.write_png(&path, &sheet);
+        Some((path, w, h))
+    }
+}
+
 impl Assets for ArchiveAssets<'_> {
     fn cg(&mut self, id: u32) -> Option<(String, u32, u32)> {
         self.picture(0, id)

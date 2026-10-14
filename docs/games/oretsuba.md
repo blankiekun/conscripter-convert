@@ -189,7 +189,8 @@ at that scale, SystemData's are drawn at 1280×720 and are scaled by 3/4
 | CharacterAction (`chract`'s 661 keyframed moves: bows, shakes) | converted as straight moves between keyframes, waited on; the looping ones are left out |
 | EyeCatch (a wipe with rule N to an eye-catch picture, then a fade) | a 0.5 s pause: the picture is not known |
 | EffectStart/End, MoviePlay, Achievement, SetSceneName | not yet |
-| Title, save/load, settings, backlog, extras | not yet |
+| Title screen (`title_bg.png`'s picture and labels: START, LOAD, CONFIG; GALLERY greyed) | converted; the buttons' place is ours (the layout table is in the encrypted eboot) |
+| Save/load, settings, backlog, extras | not yet (CONscripter's built-in menus) |
 
 Next, in order:
 1. Full build of every scene; fix what the lint and a headless run of
