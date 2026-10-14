@@ -42,6 +42,11 @@ use conv_core::ir::{ArithOp, ChoiceStyle, CLICK_WAIT_MARK, Op, Operand, ScreenEf
 use super::nss::{AssignOp, BinaryOp, Expr, Function, Inline, Item, NssFile, Param, Stmt, StmtKind, Target, Text, UnaryOp};
 
 pub const SCREEN_W: i64 = 1024;
+/// The longest cross-fade non-blocking actions get where the script doesn't
+/// wait for them (a text page, a blocking action): the original goes on
+/// while they run, up to minutes (a background scrolling through a
+/// battle).
+const UNWAITED_MS: u32 = 1000;
 pub const SCREEN_H: i64 = 576;
 /// The story driver; the helper library is what it `#include`s.
 const BOOT: &str = "0_boot_開始スクリプト.nss";
@@ -1799,9 +1804,11 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 }
             }
             "wait" => {
+                // The actions still running are shown over the wait, at
+                // most.
                 let ms = arg(0).int().max(0) as u32;
-                let shown = self.pending_ms.min(ms);
-                self.sync(0);
+                let shown = std::mem::take(&mut self.pending_ms).min(ms);
+                self.sync(shown);
                 if ms > shown {
                     self.ops.push(Op::Wait { ms: ms - shown });
                 }
@@ -1813,7 +1820,11 @@ impl<'a, 'b> Compiler<'a, 'b> {
                     ms => self.ops.push(Op::Wait { ms: ms.int().max(0) as u32 }),
                 }
             }
-            "waitaction" | "waitfade" | "waitmove" | "waitzoom" | "draw" => self.sync(0),
+            "waitaction" | "waitfade" | "waitmove" | "waitzoom" | "draw" => {
+                // Waits for the actions: their whole time.
+                let ms = std::mem::take(&mut self.pending_ms);
+                self.sync(ms);
+            }
             "setvolume" => self.set_volume(&arg(0), arg(1).int(), arg(2).int()),
             "setloop" => {
                 for t in self.matching(&arg(0)) {
@@ -1884,13 +1895,9 @@ impl<'a, 'b> Compiler<'a, 'b> {
             Value::Null | Value::Int(0) => self.pending_ms = self.pending_ms.max(ms),
             Value::Int(n) if *n > 1 => {
                 self.note("timed action that waits only part of its time");
-                self.pending_ms = self.pending_ms.max(ms);
-                self.sync(0);
+                self.sync(ms);
             }
-            _ => {
-                self.pending_ms = self.pending_ms.max(ms);
-                self.sync(0);
-            }
+            _ => self.sync(ms),
         }
     }
 
@@ -1899,10 +1906,10 @@ impl<'a, 'b> Compiler<'a, 'b> {
         self.objects.values().any(|o| matches!(o.kind, Kind::Cover) && o.opacity >= 1000)
     }
 
-    /// Shows the changes since the last sync, as a cross-fade over the
-    /// pending actions' time (or `ms`, if longer).
+    /// Shows the changes since the last sync, as a cross-fade over `ms`,
+    /// or the pending actions' time up to [`UNWAITED_MS`] if longer.
     fn sync(&mut self, ms: u32) {
-        let ms = ms.max(std::mem::take(&mut self.pending_ms));
+        let ms = ms.max(std::mem::take(&mut self.pending_ms).min(UNWAITED_MS));
         let mask = self.pending_mask.take();
         self.flush_sounds();
         self.check_window();
