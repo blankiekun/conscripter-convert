@@ -21,7 +21,9 @@
 
 use std::collections::{BTreeMap, HashMap};
 
-use conv_core::ir::{ArithOp, Compare, Op, Operand, SourceLoc, SpriteChange, SpritePlacement, TextWindow, TransitionStyle, Var, Voice};
+use conv_core::ir::{
+    ArithOp, Compare, Op, Operand, ScreenEffect, SourceLoc, SpriteChange, SpritePlacement, TextWindow, TransitionStyle, Var, Voice,
+};
 
 use super::tasks::{Block, Scene, Val, parse};
 
@@ -75,6 +77,14 @@ pub struct Character {
     pub sprites: HashMap<[i64; 4], u32>,
 }
 
+/// A character action (`chract`): keyframes (frame, x, y offsets in
+/// script units) and whether it repeats until `CharacterActionEnd`.
+#[derive(Debug, Clone, Default)]
+pub struct Action {
+    pub keys: Vec<(i64, i64, i64)>,
+    pub looped: bool,
+}
+
 /// The game: every scene plus the tables in adv.txt and chrNNN.txt.
 #[derive(Debug, Default)]
 pub struct Game {
@@ -84,6 +94,7 @@ pub struct Game {
     pub global_flags: Vec<String>,
     /// Speaker names by `:Name` number, from the scripts' comments.
     pub names: HashMap<i64, String>,
+    pub actions: HashMap<i64, Action>,
     /// The first scene of a new game.
     pub start: String,
 }
@@ -109,6 +120,22 @@ impl Game {
                     }
                     if let Some(n) = b.int("CharacterNumber") {
                         g.characters.insert(n, c);
+                    }
+                }
+            } else if file == "chract" {
+                for b in blocks.iter().filter(|b| b.name == "Action") {
+                    for a in &b.children {
+                        let Some(n) = a.name.strip_prefix("Action").and_then(|n| n.parse().ok()) else { continue };
+                        let mut keys: Vec<(i64, i64, i64)> = a
+                            .children
+                            .iter()
+                            .filter_map(|f| {
+                                let frame = f.name.strip_prefix("Frame")?.parse().ok()?;
+                                Some((frame, f.int("X").unwrap_or(0), f.int("Y").unwrap_or(0)))
+                            })
+                            .collect();
+                        keys.sort_unstable();
+                        g.actions.insert(n, Action { keys, looped: a.int("Loop").unwrap_or(0) != 0 });
                     }
                 }
             } else if file == "adv.txt" {
@@ -198,6 +225,8 @@ pub struct Compiled {
 #[derive(Debug, Clone)]
 struct Shown {
     layer: u32,
+    /// The texture (CG ID), or -1 for a character.
+    tex: i64,
     /// Centre on screen.
     x: i32,
     y: i32,
@@ -240,7 +269,8 @@ impl Lowering<'_> {
     }
 
     /// Shows `image` centred at script position (x, y) on `key`'s layer.
-    fn show(&mut self, key: &str, image: (String, u32, u32), x: i64, y: i64, priority: i64, fade_ms: u32) {
+    #[allow(clippy::too_many_arguments)]
+    fn show(&mut self, key: &str, tex: i64, image: (String, u32, u32), x: i64, y: i64, priority: i64, fade_ms: u32) {
         let layer = self.layer(key, priority);
         let (path, w, h) = image;
         let (w, h) = (w as i32, h as i32);
@@ -256,7 +286,7 @@ impl Lowering<'_> {
             sprite: Some(SpritePlacement { image: path, x: cx - w / 2, y: cy - h / 2 }),
             keep_filters: false,
         });
-        self.shown.insert(key.to_string(), Shown { layer, x: cx, y: cy });
+        self.shown.insert(key.to_string(), Shown { layer, tex, x: cx, y: cy });
         self.out.ops.push(Op::Sprites { changes, fade_ms: if self.staging { 0 } else { fade_ms } });
     }
 
@@ -330,7 +360,7 @@ impl Lowering<'_> {
                 let key = if ty == "SpriteBG" { "bg".to_string() } else { format!("t{tex}") };
                 let (x, y) = (t.int_at("Position", 0).unwrap_or(640), t.int_at("Position", 1).unwrap_or(360));
                 let prio = t.int("Priority").unwrap_or(if ty == "SpriteBG" { 10 } else { 5 });
-                self.show(&key, img, x, y, prio, fade(t));
+                self.show(&key, tex, img, x, y, prio, fade(t));
             }
             "SpriteDelete" | "SpriteDeleteBG" => {
                 let tex = t.int("SpriteNumber").or_else(|| t.int("Texture")).unwrap_or(-1);
@@ -354,7 +384,7 @@ impl Lowering<'_> {
                     // character's offset.
                     let y = 360 + c.int_at("Position", 1).unwrap_or(0) + offset;
                     let prio = c.int("Priority").unwrap_or(9);
-                    self.show(&key, (path, w, h), x, y, prio, if ty == "CharacterOpen" { 200 } else { 0 });
+                    self.show(&key, -1, (path, w, h), x, y, prio, if ty == "CharacterOpen" { 200 } else { 0 });
                 }
             }
             "CharacterDelete" => {
@@ -472,7 +502,69 @@ impl Lowering<'_> {
                 }
             }
             "MessageSwitch_Tag" => self.choice(scene, t),
-            "BacklogMessage" | "SceneJumpDialogEnd" | "CharacterWait" | "SpriteMoveEnd" | "CharacterActionEnd" => {}
+            "CharacterAction" => {
+                for c in t.children.iter().filter(|c| c.name.starts_with("Chara")) {
+                    let key = format!("c{}", c.int("Number").unwrap_or(-1));
+                    let (Some(s), Some(a)) = (self.shown.get(&key).cloned(), c.int("Action").and_then(|n| self.game.actions.get(&n)))
+                    else {
+                        continue;
+                    };
+                    if a.looped {
+                        self.note("CharacterAction (looping)");
+                        continue;
+                    }
+                    // Straight moves from keyframe to keyframe, waited on.
+                    let mut last = 0;
+                    for &(frame, x, y) in &a.keys {
+                        let step = ms(frame - last);
+                        last = frame;
+                        self.out.ops.push(Op::SpriteMove { layer: s.layer, x: s.x + sx(x), y: s.y + sy(y), ms: step });
+                    }
+                    self.out.ops.push(Op::SpriteMove { layer: s.layer, x: s.x, y: s.y, ms: 0 });
+                }
+            }
+            "Flash" => {
+                let c: Vec<i64> = t.get("Color").unwrap_or(&[]).iter().filter_map(Val::int).collect();
+                let alpha = c.get(3).copied().unwrap_or(255).clamp(0, 255) as u32;
+                let time = ms(t.int("InTime").unwrap_or(3) + t.int("OutTime").unwrap_or(3));
+                self.out.ops.push(Op::Flash { colour: colour(t), opacity: alpha * 256 / 255, ms: time.max(16) });
+            }
+            "EffectQuake" | "SpriteQuake" => {
+                let ax = sx(t.int_at("Param", 0).unwrap_or(30));
+                let ay = sy(t.int_at("Param", 1).unwrap_or(30));
+                let time = t.int("Time").unwrap_or(30);
+                // Shakes for :Time frames, dying down (0: until the end task).
+                let end = if time > 0 { (0, 0) } else { (ax, ay) };
+                let shake = ScreenEffect::Shake { time_ms: ms(time).max(1), interval_ms: 16, path: false, speed: (2200, 2900), range: [(ax, ay), end] };
+                self.out.ops.push(Op::ScreenEffect { slot: 1, effect: Some(shake) });
+                if t.int("Wait").unwrap_or(0) != 0 {
+                    self.out.ops.push(Op::Wait { ms: ms(time) });
+                }
+                if ty == "SpriteQuake" {
+                    self.note("SpriteQuake (shakes the screen)");
+                }
+            }
+            "EffectQuakeEnd" => self.out.ops.push(Op::ScreenEffect { slot: 1, effect: None }),
+            "SpriteMove" => {
+                let tex = t.int("SpriteNumber").or_else(|| t.int("Texture")).unwrap_or(-1);
+                let Some((key, s)) = self.shown.iter().find(|(_, s)| s.tex == tex).map(|(k, s)| (k.clone(), s.clone())) else {
+                    return;
+                };
+                let x = t.int_at("Position", 0).map_or(s.x, sx);
+                let y = t.int_at("Position", 1).map_or(s.y, sy);
+                let time = ms(t.int("Time").unwrap_or(0));
+                self.out.ops.push(Op::SpriteMove { layer: s.layer, x, y, ms: time });
+                self.shown.insert(key, Shown { x, y, ..s });
+                if t.get("Scale").is_some_and(|v| v.first().and_then(Val::float) != Some(1.0)) {
+                    self.note("SpriteMove :Scale");
+                }
+            }
+            "EyeCatch" => {
+                // The eye-catch picture isn't known yet: a pause instead.
+                self.out.ops.push(Op::Wait { ms: 500 });
+                self.note("EyeCatch (a pause)");
+            }
+            "BacklogMessage" | "SceneJumpDialogEnd" | "EyeCatchEnd" | "CharacterWait" | "SpriteMoveEnd" | "CharacterActionEnd" => {}
             _ => self.unsupported(scene, i, ty.to_string()),
         }
     }

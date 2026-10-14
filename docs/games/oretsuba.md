@@ -141,15 +141,18 @@ at that scale, SystemData's are drawn at 1280×720 and are scaled by 3/4
 | FadeOut/FadeIn, TimeWait, BGM, SE, Window hide | converted |
 | Tags, jumps, flag switches and operations, choices with points, NextScene | converted, not yet checked against a walkthrough |
 | SceneJumpDialog (skip a scene already read) | always plays the scene |
-| EffectQuake, Flash, EffectStart/End, SpriteMove/Quake, CharacterAction, EyeCatch, MoviePlay, Achievement, SetSceneName | not yet |
+| Flash; EffectQuake/End and SpriteQuake (a screen shake dying down over `:Time`); SpriteMove (no `:Scale`, always waited on) | converted |
+| CharacterAction (`chract`'s 661 keyframed moves: bows, shakes) | converted as straight moves between keyframes, waited on; the looping ones are left out |
+| EyeCatch (a wipe with rule N to an eye-catch picture, then a fade) | a 0.5 s pause: the picture is not known |
+| EffectStart/End, MoviePlay, Achievement, SetSceneName | not yet |
 | Title, save/load, settings, backlog, extras | not yet |
 
 Next, in order:
 1. Full build of every scene; fix what the lint and a headless run of
    the first chapter show. Text window layout and character heights
    from reference screenshots of the Vita game.
-2. Effects: EffectQuake, Flash, SpriteMove, EyeCatch, movies (USM →
-   MP4), InOut_Act types.
+2. Effects: EffectStart/End, movies (USM → MP4), InOut_Act types, the
+   eye-catch picture.
 3. Walkthrough (this document), then the route check of the converted
    control flow.
 4. System screens and extras (CGMODE, scene replay, music).
