@@ -50,6 +50,10 @@ const MAX_LAYER: u32 = 900;
 /// The NScripter variables that hold which branch of a choice or of a
 /// runtime `if` was taken (one per fork of a file, in turn).
 const FORK_VARS: std::ops::Range<u16> = 40..70;
+/// Which way through a fork the run took, as a number unique in the file
+/// (set at the end of every branch; fork variables are renumbered when an
+/// outer fork completes, this one isn't).
+const LEAF_VAR: u16 = 70;
 /// Story flags: locals from here (NScripter %300 up, past the variables
 /// the backend and its menus use), globals (`#`) from the global border.
 const FLAG_LOCAL_BASE: u16 = 290;
@@ -237,6 +241,7 @@ pub fn compile_run(files: &BTreeMap<String, NssFile>, start: &str, max_files: us
         c.dynamic_values.clear();
         c.next_dynamic = dynamic_base;
         c.forks_in_file = 0;
+        c.leaves_in_file = 0;
         c.steps = 0;
         c.ops.push(Op::Label(file_label(&name)));
         c.file = file;
@@ -251,10 +256,7 @@ pub fn compile_run(files: &BTreeMap<String, NssFile>, start: &str, max_files: us
         let end = c.snapshot();
         let (fork_var, branches) = match c.pending_fork.take() {
             None => (None, vec![end]),
-            Some((var, leaves)) => {
-                let first = leaves[0].state.clone();
-                (Some(var), leaves.iter().map(|l| with_branch_vars(&end, &l.state, &first)).collect())
-            }
+            Some((var, leaves, first)) => (Some(var), leaves.iter().map(|l| with_branch_vars(&end, &l.state, &first)).collect()),
         };
         let fork = branches.len() > 1;
         for (i, b) in branches.into_iter().enumerate() {
@@ -699,12 +701,14 @@ struct Compiler<'a, 'b> {
     choices: usize,
     /// The branches of the file's last fork (a choice, or a runtime `if`
     /// that sets the next file differently) and the variable that tells
-    /// them apart.
-    pending_fork: Option<(conv_core::ir::Var, Vec<Leaf<'a>>)>,
+    /// them apart, and the state the code after the fork started from.
+    pending_fork: Option<(conv_core::ir::Var, Vec<Leaf<'a>>, State<'a>)>,
     /// The fork being compiled (its branches share one variable).
     fork_var: Option<conv_core::ir::Var>,
     /// Forks in the current file (picks the next of [`FORK_VARS`]).
     forks_in_file: u16,
+    /// Leaves of forks in the current file (see [`LEAF_VAR`]).
+    leaves_in_file: i32,
     /// Story flags kept in NScripter variables (see [`story_flags`]).
     flags: HashMap<String, conv_core::ir::Var>,
     /// Codes of the strings story flags hold ("" = 0).
@@ -722,6 +726,8 @@ struct Compiler<'a, 'b> {
 struct Leaf<'a> {
     state: State<'a>,
     marker: usize,
+    /// Its value of [`LEAF_VAR`].
+    id: i32,
 }
 
 /// What a branch of a choice changes at convert time.
@@ -924,11 +930,13 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 let marker = self.ops.len();
                 let var = self.fork_var.unwrap();
                 self.ops.push(Op::Arith { var, op: ArithOp::Set, value: Operand::Const(0) });
-                vec![Leaf { state: end, marker }]
+                self.leaves_in_file += 1;
+                let id = self.leaves_in_file;
+                self.ops.push(Op::Arith { var: conv_core::ir::Var { global: false, index: LEAF_VAR }, op: ArithOp::Set, value: Operand::Const(id) });
+                vec![Leaf { state: end, marker, id }]
             }
-            Some((_, inner)) => {
-                let first = inner[0].state.clone();
-                inner.into_iter().map(|l| Leaf { state: with_branch_vars(&end, &l.state, &first), marker: l.marker }).collect()
+            Some((_, inner, first)) => {
+                inner.into_iter().map(|l| Leaf { state: with_branch_vars(&end, &l.state, &first), marker: l.marker, id: l.id }).collect()
             }
         };
         self.pending_fork = outer;
@@ -952,8 +960,13 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 self.note("second fork in one file (the run forks on the last one)");
             }
             self.restore(leaves[0].state.clone());
+            let mut first = leaves[0].state.clone();
             // The code after the fork runs on every branch: story flags the
-            // branches set differently are tested at run time.
+            // branches set differently are tested at run time, and so are
+            // names of scenes or files they set differently (the code after
+            // a choice may copy `$GameName` into a story flag). Where that
+            // code leaves them alone, each branch still goes on with its own
+            // value (`first` holds the runtime ones).
             if own {
                 for (k, &v) in &self.flags {
                     if differ(k) {
@@ -961,23 +974,30 @@ impl<'a, 'b> Compiler<'a, 'b> {
                     }
                 }
             }
-            self.pending_fork = Some((var, leaves));
+            let keys: std::collections::BTreeSet<String> = leaves.iter().flat_map(|l| l.state.vars.keys().cloned()).collect();
+            let helpers: Vec<&String> = keys.iter().filter(|k| differ(k) && !self.flags.contains_key(*k) && !k.starts_with("$SYSTEM")).collect();
+            for k in helpers {
+                let Some((var, codes)) = self.dynamic_names(k, &leaves) else { continue };
+                // Set here from the way the run came (inner forks aren't
+                // numbered for good yet, so not at the markers).
+                let leaf = conv_core::ir::Var { global: false, index: LEAF_VAR };
+                for (i, code) in codes {
+                    self.choices += 1;
+                    let skip = format!("leaf{}", self.choices);
+                    self.ops.push(Op::If { var: leaf, cmp: conv_core::ir::Compare::Ne, value: Operand::Const(leaves[i].id), label: skip.clone() });
+                    self.ops.push(Op::Arith { var, op: ArithOp::Set, value: Operand::Const(code) });
+                    self.ops.push(Op::Label(skip));
+                }
+                self.vars.insert(k.clone(), Value::Runtime(var));
+                first.vars.insert(k.clone(), Value::Runtime(var));
+            }
+            self.pending_fork = Some((var, leaves, first));
             return;
         }
         let mut merged = leaves[0].state.clone();
         let keys: std::collections::BTreeSet<String> = leaves.iter().flat_map(|l| l.state.vars.keys().cloned()).collect();
         let mut inserts = Vec::new();
         for k in keys.iter().filter(|k| differ(k)) {
-            // Only names of scenes or files to go to (`@->x_SELECT02`), or
-            // the variable an earlier merge made for them.
-            let known = self.dynamic.get(k).copied();
-            let scene = |v: Option<&Value>| match v {
-                Some(Value::Str(t)) => t.starts_with("@->") || t.starts_with("nss/") || t.contains(".nss"),
-                Some(Value::Null) | None => true,
-                Some(&Value::Runtime(r)) => Some(r) == known,
-                _ => false,
-            };
-            let strings = leaves.iter().all(|l| scene(l.state.vars.get(k))) && leaves.iter().any(|l| matches!(l.state.vars.get(k), Some(Value::Str(_))));
             match self.flags.get(k) {
                 Some(&v) => {
                     merged.vars.insert(k.clone(), Value::Runtime(v));
@@ -985,25 +1005,13 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 None if k.starts_with("$SYSTEM") => {}
                 // Different names (of a scene to call, say): kept at run time
                 // from here on, set at the end of each branch.
-                None if strings && (known.is_some() || (self.next_dynamic as u32) < GLOBAL_BORDER - 11) => {
-                    let var = known.unwrap_or_else(|| {
-                        let var = conv_core::ir::Var { global: false, index: self.next_dynamic };
-                        self.next_dynamic += 1;
-                        self.dynamic.insert(k.clone(), var);
-                        var
-                    });
-                    for l in &leaves {
-                        let v = l.state.vars.get(k).cloned().unwrap_or(Value::Null);
-                        if matches!(v, Value::Runtime(_)) {
-                            continue;
-                        }
-                        let code = self.code(&v).unwrap_or(0);
-                        self.dynamic_values.entry(var).or_default().insert(v.string());
-                        inserts.push((l.marker, Op::Arith { var, op: ArithOp::Set, value: Operand::Const(code) }));
+                None => match self.dynamic_names(k, &leaves) {
+                    Some((var, codes)) => {
+                        inserts.extend(codes.into_iter().map(|(i, code)| (leaves[i].marker, Op::Arith { var, op: ArithOp::Set, value: Operand::Const(code) })));
+                        merged.vars.insert(k.clone(), Value::Runtime(var));
                     }
-                    merged.vars.insert(k.clone(), Value::Runtime(var));
-                }
-                None => self.note("branches of a runtime if end with different helper variables"),
+                    None => self.note("branches of a runtime if end with different helper variables"),
+                },
             }
         }
         // After each marker, last first so the earlier positions hold.
@@ -1015,6 +1023,40 @@ impl<'a, 'b> Compiler<'a, 'b> {
             self.note("branches of a runtime if end with different pictures");
         }
         self.restore(merged);
+    }
+
+    /// A helper variable the leaves of a fork set to different names of
+    /// scenes or files to go to (`@->x_SELECT02`, `y.nss`): a runtime
+    /// variable from here on, with the code each leaf sets it to (leaves
+    /// that already hold it at run time left out). None for other values.
+    fn dynamic_names(&mut self, k: &str, leaves: &[Leaf<'a>]) -> Option<(conv_core::ir::Var, Vec<(usize, i32)>)> {
+        let known = self.dynamic.get(k).copied();
+        let scene = |v: Option<&Value>| match v {
+            Some(Value::Str(t)) => t.starts_with("@->") || t.starts_with("nss/") || t.contains(".nss"),
+            Some(Value::Null) | None => true,
+            Some(&Value::Runtime(r)) => Some(r) == known,
+            _ => false,
+        };
+        let strings = leaves.iter().all(|l| scene(l.state.vars.get(k))) && leaves.iter().any(|l| matches!(l.state.vars.get(k), Some(Value::Str(_))));
+        if !strings || (known.is_none() && (self.next_dynamic as u32) >= GLOBAL_BORDER - 11) {
+            return None;
+        }
+        let var = known.unwrap_or_else(|| {
+            let var = conv_core::ir::Var { global: false, index: self.next_dynamic };
+            self.next_dynamic += 1;
+            self.dynamic.insert(k.to_string(), var);
+            var
+        });
+        let mut codes = Vec::new();
+        for (i, l) in leaves.iter().enumerate() {
+            let v = l.state.vars.get(k).cloned().unwrap_or(Value::Null);
+            if matches!(v, Value::Runtime(_)) {
+                continue;
+            }
+            codes.push((i, self.code(&v).unwrap_or(0)));
+            self.dynamic_values.entry(var).or_default().insert(v.string());
+        }
+        Some((var, codes))
     }
 
     /// `if` on a story flag only the running game knows: both branches are
@@ -1312,6 +1354,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
             pending_fork: None,
             fork_var: None,
             forks_in_file: 0,
+            leaves_in_file: 0,
             flags: HashMap::new(),
             codes: HashMap::new(),
             dynamic: HashMap::new(),
@@ -2555,7 +2598,13 @@ scene a.nss
 
     /// Runs the variable and jump ops of `ops` (everything else is skipped).
     fn run_ir(ops: &[Op]) -> HashMap<conv_core::ir::Var, i32> {
+        run_ir_picking(ops, &[])
+    }
+
+    /// [`run_ir`], taking option `picks[n]` (0-based) at the nth choice.
+    fn run_ir_picking(ops: &[Op], picks: &[usize]) -> HashMap<conv_core::ir::Var, i32> {
         use conv_core::ir::Compare;
+        let mut picks = picks.iter();
         let mut vars: HashMap<conv_core::ir::Var, i32> = HashMap::new();
         let labels: HashMap<&str, usize> = ops.iter().enumerate().filter_map(|(i, op)| if let Op::Label(l) = op { Some((l.as_str(), i)) } else { None }).collect();
         let mut pc = 0;
@@ -2569,6 +2618,10 @@ scene a.nss
             match &ops[pc] {
                 Op::Jump(l) => {
                     pc = labels[l.as_str()];
+                    continue;
+                }
+                Op::Choice { options, .. } => {
+                    pc = labels[options[*picks.next().unwrap_or(&0)].1.as_str()];
                     continue;
                 }
                 Op::If { var, cmp, value: v, label } => {
@@ -2659,6 +2712,50 @@ scene {name}_Y
         }
         let (_, played) = compile_run(&files, "a.nss", 10, &mut Fake).unwrap();
         assert_eq!(played, ["a.nss", "b.nss", "c.nss"]);
+    }
+
+    #[test]
+    fn a_choice_inside_a_runtime_if_hands_each_option_s_file_to_the_code_after_it() {
+        let mut files = BTreeMap::new();
+        files.insert(BOOT.to_string(), nss::parse("#include \"nss/function.nss\"\n").unwrap());
+        files.insert("function.nss".to_string(), nss::parse("function F(){}").unwrap());
+        // As the airship rooms (mc02_031souko2): the select sets $GameName,
+        // the code after it hands that to a story flag and goes through the
+        // clock file, which dispatches on the flag.
+        let a = r#"scene a.nss_MAIN
+{
+	if($joined == true){ $GameName = "a.nss"; }
+	else{
+		select { case @選択肢１ { $GameName = "b.nss"; } case @選択肢２ { $GameName = "c.nss"; } }
+	}
+	$Next = $GameName;
+	$GameName = "t.nss";
+}"#;
+        files.insert("a.nss".into(), nss::parse(a).unwrap());
+        files.insert("t.nss".into(), nss::parse("scene t.nss_MAIN
+{
+	$GameName = $Next;
+}").unwrap());
+        let t_reads = "scene x.nss_MAIN
+{
+	if($Next == \"b.nss\"){$joined = true;}
+	$GameCircle = 0;
+}";
+        for n in ["b.nss", "c.nss"] {
+            files.insert(n.into(), nss::parse(&t_reads.replace("x.nss", n)).unwrap());
+        }
+        let (c, played) = compile_run(&files, "a.nss", 10, &mut Fake).unwrap();
+        assert!(played.contains(&"c.nss".to_string()), "{played:?}");
+        let flags = story_flags(&files);
+        let next = flags["$Next"];
+        let code = |name: &str| c.ops.iter().find_map(|op| match op {
+            Op::If { var, value: Operand::Const(n), label, .. } if *var == next && label == &file_label(name) => Some(*n),
+            _ => None,
+        });
+        for (pick, file) in [(0, "b.nss"), (1, "c.nss")] {
+            let vars = run_ir_picking(&c.ops, &[pick]);
+            assert_eq!(Some(vars[&next]), code(file), "option {} should hand on {file}", pick + 1);
+        }
     }
 
     #[test]
