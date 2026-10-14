@@ -180,6 +180,27 @@ them.
 
 ## 9. Matching the original
 
+- **Reach the moment by patching, not by clicking.** To see a page,
+  effect or menu in the original, in this order of preference:
+  1. **Patch the game's scripts** in a copy: skip the logos and title,
+     start straight at the scene, set the flags its branch needs, and let
+     the pages advance by themselves (auto mode, or a timed wait added
+     after each page). Then take Xvfb screenshots at known times. The
+     install is never touched: the patched archive goes in the symlink
+     farm in its place. Examples: 最果てのイマ's patched `.cd` files
+     (`docs/games/saihate-no-ima.md`); for Muramasa, a repacked
+     `nss.npa` (`docs/games/muramasa.md`, "Running the original under
+     wine").
+  2. **Write or edit a save file** that stands at the moment, when a
+     script patch can't get there (state the scripts can't set). Work out
+     the format from the exe's save and load code first.
+  3. **Click through by hand** only when neither works. It is slow, and
+     a click can miss or land during a fade.
+- **Wine gotchas:** run Japanese games with `LANG=ja_JP.UTF-8`, or
+  folder and file names come out garbled and saves can fail (Muramasa's
+  new game went straight back to the title). Wine has no MS fonts, so a
+  substitute font draws the text: compare where text starts, not the
+  step between characters.
 - **Film the original under wine** for anything not obvious: transitions,
   effects, menus. Set up a scratch `WINEPREFIX` whose Documents, Desktop
   and other user folders are **real folders, not symlinks to the user's

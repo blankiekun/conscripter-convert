@@ -480,6 +480,21 @@ Used to check what the engine does (`docs/new-game.md` step 9).
   through the logos and the opening reach the title; 最初から始める at
   (780, 260) starts `ma00_000`.
 - Stop with `wineserver -k` (with `WINEPREFIX` set) and kill Xvfb by PID.
+- `LANG=ja_JP.UTF-8` (and `LC_ALL`): without it the save folder
+  (`AppData\Roaming\Nitroplus\装甲悪鬼村正\1.00`) gets a garbled name,
+  the first save fails, and 最初から始める goes straight back to the
+  title. With it, clicking 最初から始める starts `ma00_000`.
+- Wine has no ＭＳ 明朝; fontconfig's substitute has a taller cell, so at
+  size 20 the original steps about 18 px per character instead of 20.
+  Compare where columns and lines start, not the character step.
+- **Patch first, click last** (`docs/new-game.md` step 9): the scripts
+  are plain `.nss` in `nss.npa`, so a copy of the archive with a patched
+  boot script can start any scene with its flags set and auto mode on
+  (`$SYSTEM_text_auto = true`), with no clicks. `research/nitroplus/npa.py`
+  decodes the archive (the inverse table is in `npa.rs`); a packer that
+  writes it back is still to do, and is the next step before another
+  wine session. Saves (`.npf`) are the fallback: `builtin_Save`
+  (`00411ea0`) and `builtin_Load` (`00411fb0`) would give their format.
 
 ## Status: in progress (2026-10-14)
 
@@ -580,6 +595,11 @@ page each punctuation mark or symbol shows on (`--shot-pages`):
   ― ～ …) high and to one side of the column: 《 stuck out to the
   left. The engine now turns them about the centre of their cell
   (CONscripter 3c7c957), so ︽ sits on the text it opens.
+- Vertical text sat 8 px left of the original's columns (page 5 of the
+  prologue, filmed under wine): `rubyon` moves vertical lines left by
+  the line gap, which the converter undid for choice windows only. Every
+  vertical window now starts a line gap further right, and the columns
+  match the original to the pixel.
 - `[text0081]〝卵〟を…` (`md05_003`, the only marker with text after it
   on its line) printed the marker as text, ［ｔｅｘｔ００８１］. The NSS
   parser now reads it as a marker. Needs a full build to show.
