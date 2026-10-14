@@ -77,6 +77,16 @@ Found so far:
   `cursor` (0-3) when the cursor's unlock byte is set; `mv_bg.png`'s
   thumbnails are CS Opening, Opening, Interlude and Prelude (OP00's
   pictures are the Vita's opening, OP03's the camcorder prelude).
+- Task handlers: the name → number function at 0x81035xxx (InOut
+  0x82, InOut_Act 0x83, EffectStart 0x3e); the task switch is the `tbh`
+  at 0x8102119a (InOut_Act at 0x81022f9a). Effects are objects made by
+  0x8103f75a (effect number − 1 into a `tbh`); InOut_Act is effect 25
+  with `:Type` + 10, whose class switch (0x81041812) makes one object
+  per type. Types 0, 4, 5, 7, 8 draw the old and new screens as two
+  quads (positions lerped by the progress, tables built in each init);
+  1, 2, 3, 6 load a vertex and a fragment GXP (fragment: `decal`,
+  `decal2`, `value` = progress and the `:Param`s) at 0x8115f63c,
+  0x8115fb80, 0x8115fe60, 0x81160510 (735-1711 bytes).
 
 ### Files (`<game>/media/`)
 
@@ -246,7 +256,8 @@ at that scale, SystemData's are drawn at 1280×720 and are scaled by 3/4
 | Messages, speaker names (from the scripts' `:Name N // name` comments), voices | converted |
 | Backgrounds and sprites (`SpriteBG`, `Sprite`, `SpriteBS`, deletes), by priority | converted; positions not yet checked against the original |
 | Characters (`CharacterOpen`, `…BS`, `CharacterDelete`, `CharacterMove`) and `SpritePriority`/`CharacterPriority` | converted; the usual height guessed (centre + `OffsetY`), CharacterMove's y counted from it |
-| `InOut` transitions with the RULE masks | converted; `InOut_Act` as a plain fade |
+| `InOut` transitions with the RULE masks | converted |
+| `InOut_Act` (the eboot's effect 25: `:Type` picks the class, `:Param` 0 a direction 0-3 = right, down, left, up) | types 0 (the old screen squeezes to that edge while the new one grows from the other; 21 uses) and 7 (a push; 89) as ONScripter's scrolls, 5 (to or from white or black; 9) through white; the shader types 1 (57), 2 (66), 3 (47), 6 (130) and 4 (2) as a plain fade |
 | FadeOut/FadeIn, TimeWait, BGM, SE, Window hide | converted |
 | Tags, jumps, flag switches and operations, choices with points, NextScene | converted, not yet checked against a walkthrough |
 | SceneJumpDialog (skip a scene already read) | converted: a global "read" flag per scene (`%1200` + the scene's index in name order); a read scene shows its summary and このシーンを読む / このシーンをスキップする |
@@ -273,9 +284,10 @@ the save menu's thumbnail name, built at run time), ran 600 pages
 headless without errors, and the route check reaches all eight endings.
 
 Next, in order:
-1. More from the eboot: `InOut_Act`'s types and EffectStart 40 (the
-   task handlers are found from their names' strings), the menus'
-   layouts, and what the second music table is for.
+1. More from the eboot: `InOut_Act`'s shader types 1, 2, 3, 6 need
+   their fragment shaders read (GXP blobs in the data, below; no
+   disassembler here yet), EffectStart 40, the menus' layouts, and what
+   the second music table is for.
 2. Looks against the original: text window size and place, character
    heights, the eye catch's wipe. Needs screenshots of the Vita game.
 3. SpriteMove `:Scale` (91 zooms on CGs) needs a sprite zoom in the IR

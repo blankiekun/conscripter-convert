@@ -22,7 +22,7 @@
 use std::collections::{BTreeMap, HashMap};
 
 use conv_core::ir::{
-    Animation, ArithOp, Compare, FILTER_BLEND_COPY, FILTER_BLUR, Noise, Op, Operand, ScreenEffect, SourceLoc, SpriteChange, SpriteFilter,
+    Animation, ArithOp, Compare, FILTER_BLEND_COPY, FILTER_BLUR, Noise, Op, Operand, ScreenEffect, SlideLayer, SourceLoc, SpriteChange, SpriteFilter,
     SpritePlacement, TextWindow, TransitionStyle, Var, Voice,
 };
 
@@ -372,18 +372,17 @@ impl Lowering<'_> {
             return;
         }
         let reveal = tasks[from..].iter().find(|t| matches!(t.task_type(), Some("InOut" | "InOut_Act")));
-        let (fade_ms, mask) = match reveal {
+        let (fade_ms, mask, style) = match reveal {
             Some(t) => {
                 let time = ms(t.int("Time").unwrap_or(30));
-                let mask = match t.task_type() {
-                    Some("InOut") => t.int("Type").and_then(|n| self.assets.rule(n as u32)),
-                    _ => None,
-                };
-                (time, mask)
+                match t.task_type() {
+                    Some("InOut") => (time, t.int("Type").and_then(|n| self.assets.rule(n as u32)), TransitionStyle::Fade),
+                    _ => (time, None, act_style(t)),
+                }
             }
-            None => (0, None),
+            None => (0, None, TransitionStyle::Fade),
         };
-        self.out.ops.push(Op::BeginTransition { effect: "InOut".into(), fade_ms, mask, style: TransitionStyle::Fade });
+        self.out.ops.push(Op::BeginTransition { effect: "InOut".into(), fade_ms, mask, style });
         self.staging = true;
     }
 
@@ -885,6 +884,25 @@ fn colour(t: &Block) -> u32 {
     match c.as_slice() {
         [r, g, b, ..] => ((*r as u32 & 255) << 16) | ((*g as u32 & 255) << 8) | (*b as u32 & 255),
         _ => 0,
+    }
+}
+
+/// An `InOut_Act`'s look, from the eboot's effect 25 (`:Type` picks its
+/// class; `:Param` 0 is a direction 0-3: right, down, left, up):
+/// - 0: the old screen squeezes to that edge while the new one grows from
+///   the opposite edge (a push here);
+/// - 7: the old screen pushed out that way by the new one;
+/// - 5: the old screen to white (0) or the new one from white (1), the
+///   same through black (2, 3);
+/// - 1, 2, 3, 6 are fragment shaders (old and new screen, the progress
+///   and `:Param` in one uniform) not decoded yet: a fade; so is 4.
+fn act_style(t: &Block) -> TransitionStyle {
+    let direction = t.int_at("Param", 0).unwrap_or(0).clamp(0, 3);
+    let (dx, dy) = [(1, 0), (0, 1), (-1, 0), (0, -1)][direction as usize];
+    match t.int("Type") {
+        Some(0 | 7) => TransitionStyle::Slide { moving: SlideLayer::Both, dx, dy },
+        Some(5) if direction < 2 => TransitionStyle::ThroughWhite,
+        _ => TransitionStyle::Fade,
     }
 }
 
