@@ -1,0 +1,11 @@
+{
+ "_comment": "俺たちに翼はない (MAGES, Vita): sprites 34-48 are the button bar. The cut-ins (chr\\st_cin*, 960x544 minus 4) are centred, 2 px above the bottom edge, and cover the background; the static (sprite 60) and the light balls etc. (59) are full-screen overlays; impacts play one SE several times a few hundred ms apart, as the source does (auto-play shortens the waits); SpriteMove runs as a timed amsp/print loop (conv_move_loop), slow only because it keeps real time",
+ "ignore": "34-48",
+ "known": [
+  {"rule": "float", "match": "chr\\\\st_cin"},
+  {"rule": "crowd", "match": "chr\\\\st_cin\\d+[a-z]?\\.png and lsp \\d+ cg\\\\"},
+  {"rule": "crowd", "match": "lsp (59|60) system\\\\"},
+  {"rule": "sound", "match": "se\\\\000(73|75)\\.ogg"},
+  {"rule": "slow", "at": "^\\*conv_move_loop:", "match": "."}
+ ]
+}
