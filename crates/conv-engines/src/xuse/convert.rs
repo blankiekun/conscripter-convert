@@ -1396,11 +1396,11 @@ impl AssetBank {
 
     /// The top bars: `HD/wnd.arc` → `ChapterBar.004` (base, frame: "chapter
     /// »") on the left and `BlogStackBar.004` on the right (bar 0/1, drop-down
-    /// 2/3, exit 4/5, next 6/7, prev 8/9, scene list 10-12, depth box 13/14,
-    /// digits 15; buttons are four states side by side, base and frame
-    /// layers separately). The scene list and the buttons, which browse
-    /// the link scenes visited, aren't converted: the buttons are shown
-    /// disabled. Positions measured on a screenshot of the original.
+    /// 2/3, exit 4/5, next 6/7, prev 8/9, list row 10/11 and its cursor 12,
+    /// depth box 13/14, digits 15; buttons and rows are four states side by
+    /// side: normal, pointer, pressed, disabled; base and frame layers
+    /// separately). Positions measured on screenshots of the original
+    /// (frame layers matched to within a pixel).
     fn top_bars(&mut self) -> Result<TopBars, ConvertError> {
         let blog = self.gaf_images("wnd.arc", "BlogStackBar.004", "blog bar")?;
         let chapter = self.gaf_images("wnd.arc", "ChapterBar.004", "chapter bar")?;
@@ -1410,15 +1410,30 @@ impl AssetBank {
                 .map(|i| i.to_rgba8())
                 .map_err(|source| ConvertError::Image { what: format!("top bar #{n}"), source })
         };
-        // Layers `base`/`base + 1`, cell `cell` of `cells` side by side.
-        let layered = |this: &Self, images: &[Vec<u8>], base: usize, cell: u32, cells: u32, name: &str, x: i32, y: i32| {
-            let (b, f) = (load(images, base)?, load(images, base + 1)?);
-            let w = b.width() / cells;
-            let crop = |i: &image::RgbaImage| image::imageops::crop_imm(i, cell * w, 0, w, i.height()).to_image();
-            let img = blend_layers(crop(&b), &crop(&f));
+        // Layers `base`/`base + 1`, cut into `count` cells side by side;
+        // `cells` of them in that order, each with `mark` drawn over it.
+        // `w` of the result is one cell's width.
+        let layered = |this: &Self,
+                       images: &[Vec<u8>],
+                       base: usize,
+                       cells: &[u32],
+                       count: u32,
+                       mark: Option<(&image::RgbaImage, i64, i64)>,
+                       name: &str,
+                       (x, y): (i32, i32)| {
+            let img = blend_layers(load(images, base)?, &load(images, base + 1)?);
+            let (w, h) = (img.width() / count, img.height());
+            let mut out = image::RgbaImage::new(w * cells.len() as u32, h);
+            for (i, &c) in cells.iter().enumerate() {
+                let mut cell = image::imageops::crop_imm(&img, c * w, 0, w, h).to_image();
+                if let Some((m, mx, my)) = mark {
+                    image::imageops::overlay(&mut cell, m, mx, my);
+                }
+                image::imageops::replace(&mut out, &cell, i64::from(w) * i as i64, 0);
+            }
             let image = format!("system/{name}.png");
-            this.save_image(&image, &img)?;
-            Ok::<_, ConvertError>(Placed { image, x, y, w: img.width() as i32, h: img.height() as i32 })
+            this.save_image(&image, &out)?;
+            Ok::<_, ConvertError>(Placed { image, x, y, w: w as i32, h: h as i32 })
         };
         let digit_strip = load(&blog, 15)?;
         let dw = digit_strip.width() / 10;
@@ -1429,23 +1444,31 @@ impl AssetBank {
             self.save_image(&image, &img)?;
             digits.push(image);
         }
-        let disabled = 3;
+        let all = &[0, 1, 2, 3];
+        // A row: cursor (») at (9, 5) on the current level's, title at
+        // (19, 4); rows push the level box down by their height.
+        let (row_x, row_y) = (531, 30);
+        let cursor = load(&blog, 12)?;
         Ok(TopBars {
-            chapter_bar: layered(self, &chapter, 0, 0, 1, "chapter_bar", 0, 0)?,
+            chapter_bar: layered(self, &chapter, 0, &[0], 1, None, "chapter_bar", (0, 0))?,
             chapter_text: TextSpot { x: 72, y: 7, font_size: 12, columns: 21 },
-            scene_bar: layered(self, &blog, 0, 0, 1, "scene_bar", 417, 0)?,
-            scene_text: TextSpot { x: 529, y: 7, font_size: 12, columns: 20 },
+            scene_bar: layered(self, &blog, 0, &[0], 1, None, "scene_bar", (416, 0))?,
+            scene_text: TextSpot { x: 524, y: 6, font_size: 14, columns: 18 },
             root_scene: "root scene".into(),
-            decorations: vec![
-                layered(self, &blog, 13, 0, 1, "scene_depth", 612, 28)?,
-                layered(self, &blog, 8, disabled, 4, "scene_prev", 710, 28)?,
-                layered(self, &blog, 6, disabled, 4, "scene_next", 736, 28)?,
-                layered(self, &blog, 4, disabled, 4, "scene_exit", 762, 28)?,
-                layered(self, &blog, 2, disabled, 4, "scene_list", 780, 3)?,
-            ],
+            level_box: layered(self, &blog, 13, &[0], 1, None, "scene_depth", (610, 30))?,
             digits,
-            depth_at: (662, 32),
-            max_depth_at: (682, 32),
+            depth_at: (664, 34),
+            max_depth_at: (685, 34),
+            back: layered(self, &blog, 8, all, 4, None, "scene_prev", (708, 30))?,
+            forward: layered(self, &blog, 6, all, 4, None, "scene_next", (734, 30))?,
+            exit: layered(self, &blog, 4, all, 4, None, "scene_exit", (764, 30))?,
+            list: layered(self, &blog, 2, all, 4, None, "scene_list", (778, 5))?,
+            row: layered(self, &blog, 10, all, 4, None, "scene_row", (row_x, row_y))?,
+            current_row: layered(self, &blog, 10, all, 4, Some((&cursor, 9, 5)), "scene_row_current", (row_x, row_y))?,
+            row_pitch: 26,
+            row_text: TextSpot { x: row_x + 19, y: row_y + 4, font_size: 14, columns: 17 },
+            row_color: "#A0A0A0".into(),
+            current_row_color: "#FFFFFF".into(),
         })
     }
 

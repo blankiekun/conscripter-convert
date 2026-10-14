@@ -23,7 +23,7 @@
 //!   buttons and labels `lsp` sprites over them. The text window, name
 //!   plate and link words are hidden while the menu is open.
 
-use conv_core::ir::{BarAction, Backlog, ButtonBar, ConfirmDialog, Placed, SaveMenu, Setting, SettingsMenu, Switch, TextSpot, VoiceToggle};
+use conv_core::ir::{BarAction, Backlog, ButtonBar, ConfirmDialog, Placed, SaveMenu, Setting, SettingsMenu, Switch, TextSpot, TopBars, VoiceToggle};
 
 use crate::{escape, path, BAR_SPRITES, BUTTON_VAR, DIALOG_SPRITES, LINK_SPRITES, MENU_SPRITES, NAME_PLATE_SPRITE, NAME_TEXT_SPRITE};
 
@@ -107,12 +107,41 @@ pub(crate) const BAR_BUTTON_BASE: i32 = 1000;
 const BAR_CLEAR: &str = "conv_bar_clear";
 /// Puts the bars away (the next click wait draws them again).
 pub(crate) const BAR_HIDE: &str = "conv_bar_hide_all";
-/// Link scenes entered and not yet left; the deepest since the last time
-/// at the root; titles at $(SCENE_TITLES + depth).
+/// The link scene level (0 = the root); the deepest level that can be
+/// gone forward to; titles at $(SCENE_TITLES + level).
 pub(crate) const SCENE_DEPTH: &str = "%150";
 pub(crate) const SCENE_MAX_DEPTH: &str = "%151";
 pub(crate) const SCENE_TITLES: u32 = 160;
 const SCENE_TMP: &str = "$151";
+/// Levels below this one can't be gone back to: their snapshots belong to
+/// another playthrough (it is the level a save was loaded at).
+pub(crate) const SCENE_FLOOR: &str = "%190";
+/// Leaving a level saves the game to save slot SCENE_SLOT + level; going to
+/// a level loads its slot (see [`scene_stack`]). The user's slots are 1-50.
+pub(crate) const SCENE_SLOT: u32 = 900;
+/// The deepest level the list shows (the game nests five).
+const SCENE_ROWS: u32 = 6;
+const SCENE_SHIFT: &str = "%191"; // how far the list pushes the level row down
+const SCENE_TARGET: &str = "%192";
+/// Globals carrying the history over a snapshot load: 1 while one is
+/// loaded, the deepest level, the floor, the titles from $SCENE_CARRY + 1.
+const SCENE_LOADING: &str = "%2900";
+const SCENE_CARRY_MAX: &str = "%2901";
+const SCENE_CARRY_FLOOR: &str = "%2902";
+const SCENE_CARRY: u32 = 2900;
+/// 1 while the list is open (global: it stays open).
+const SCENE_LIST_OPEN: &str = "%2903";
+/// The `loadgosub` routine.
+pub(crate) const SCENE_LOADED: &str = "conv_scene_loaded";
+/// List rows: title sprites at SCENE_ROW_SPRITE + 2 × row, their buttons
+/// one above (menu sprites the link underlines leave free; the bars are
+/// cleared before a menu uses them).
+const SCENE_ROW_SPRITE: u32 = M + 16;
+const BTN_SCENE_BACK: i32 = BAR_BUTTON_BASE + 101;
+const BTN_SCENE_FORWARD: i32 = BAR_BUTTON_BASE + 102;
+const BTN_SCENE_EXIT: i32 = BAR_BUTTON_BASE + 103;
+const BTN_SCENE_LIST: i32 = BAR_BUTTON_BASE + 104;
+const BTN_SCENE_ROW: i32 = BAR_BUTTON_BASE + 110; // + level
 /// lsp2 slots of the top bars (below the save menu's).
 const TOP_SPRITES2: std::ops::Range<u32> = 12..24;
 pub(crate) const LOAD: &str = "conv_load";
@@ -416,6 +445,8 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, save_menu: bool, set
     let mut slots = BAR_SPRITES;
     let buttons: Vec<_> = bar.buttons.iter().zip(slots.by_ref()).collect();
     let (chapter_text, scene_text) = (slots.next().unwrap(), slots.next().unwrap());
+    // Back, forward, exit, list.
+    let scene_buttons: [u32; 4] = std::array::from_fn(|_| slots.next().unwrap());
     let mut w = |line: String| {
         out.push_str(&line);
         out.push('\n');
@@ -458,6 +489,9 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, save_menu: bool, set
     w("return".into());
     w(format!("*{BAR_CLEAR}"));
     w(BAR_SPRITES.map(|n| format!("csp {n}")).collect::<Vec<_>>().join(":"));
+    if bar.top.is_some() {
+        w(scene_row_sprites().map(|n| format!("csp {n}")).collect::<Vec<_>>().join(":"));
+    }
     w(TOP_SPRITES2.map(|n| format!("csp2 {n}")).collect::<Vec<_>>().join(":"));
     w("return".into());
 
@@ -484,24 +518,7 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, save_menu: bool, set
         w(format!("spbtn {slot},{}", number(i)));
     }
     if let Some(top) = &bar.top {
-        let mut sprites2 = TOP_SPRITES2;
-        for p in [&top.chapter_bar, &top.scene_bar].into_iter().chain(&top.decorations) {
-            w(lsp2(sprites2.next().unwrap(), p, None));
-        }
-        let text = |slot: u32, t: &TextSpot, var: &str| {
-            format!("strsp {slot},{var},{},{},{},1,{},{},0,0,0,1", t.x, t.y, t.columns, t.font_size, t.font_size)
-        };
-        w(text(chapter_text, &top.chapter_text, CHAPTER));
-        // The scene: its title at the current depth, or the root's.
-        w(format!("mov {SCENE_TMP},\"{}\"", top.root_scene));
-        w(format!("mov {TMP},{SCENE_TITLES}+{SCENE_DEPTH}"));
-        w(format!("if {SCENE_DEPTH} > 0 mov {SCENE_TMP},${TMP}"));
-        w(text(scene_text, &top.scene_text, SCENE_TMP));
-        for (var, (x, y), slot) in [(SCENE_DEPTH, top.depth_at, sprites2.next().unwrap()), (SCENE_MAX_DEPTH, top.max_depth_at, sprites2.next().unwrap())] {
-            for (d, image) in top.digits.iter().enumerate() {
-                w(format!("if {var} == {d} lsp2 {slot},\":a;{}\",{},{},100,100,0", path(image), x + 4, y + 6));
-            }
-        }
+        scene_bar_draw(&mut w, top, chapter_text, scene_text, scene_buttons);
     }
     w("print 1".into());
     w("return".into());
@@ -509,6 +526,10 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, save_menu: bool, set
     w(format!("*{BAR_ACTION}"));
     w(format!("if {BUTTON_VAR} == -1 goto *conv_bar_hide"));
     w(format!("if {BUTTON_VAR} == -2 goto *conv_bar_log"));
+    if bar.top.is_some() {
+        let last = BTN_SCENE_ROW + SCENE_ROWS as i32;
+        w(format!("if {BUTTON_VAR} >= {BTN_SCENE_BACK} && {BUTTON_VAR} <= {last} goto *conv_scene_action"));
+    }
     for (i, (b, _)) in buttons.iter().enumerate() {
         if b.action != BarAction::Unavailable {
             w(format!("if {BUTTON_VAR} == {} goto *{}", number(i), label(b.action)));
@@ -539,6 +560,131 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, save_menu: bool, set
         }
         w("return".into());
     }
+    if bar.top.is_some() {
+        scene_stack(&mut w);
+    }
+}
+
+/// Sprites of the scene list's rows.
+fn scene_row_sprites() -> std::ops::Range<u32> {
+    SCENE_ROW_SPRITE..SCENE_ROW_SPRITE + 2 * SCENE_ROWS
+}
+
+/// Draws the top bars: chapter and scene titles, the scene list (if
+/// open), the level numbers and the buttons that browse the levels.
+fn scene_bar_draw(w: &mut impl FnMut(String), top: &TopBars, chapter_text: u32, scene_text: u32, buttons: [u32; 4]) {
+    let [back, forward, exit, list] = buttons;
+    let mut sprites2 = TOP_SPRITES2;
+    for p in [&top.chapter_bar, &top.scene_bar] {
+        w(lsp2(sprites2.next().unwrap(), p, None));
+    }
+    let text = |slot: u32, t: &TextSpot, y: i32, var: &str, colour: &str| {
+        format!("strsp {slot},{var},{},{y},{},1,{},{},0,0,0,1{colour}", t.x, t.columns, t.font_size, t.font_size)
+    };
+    // Four cells (normal, pointer, pressed, disabled); `y` may be an
+    // expression.
+    let lsp4 = |slot: u32, p: &Placed, y: &str| format!("lsp {slot},\":a/4,0,3;{}\",{},{y}", path(&p.image), p.x);
+    w(text(chapter_text, &top.chapter_text, top.chapter_text.y, CHAPTER, ""));
+    // The scene: its title at the current depth, or the root's.
+    w(format!("mov {SCENE_TMP},\"{}\"", top.root_scene));
+    w(format!("mov {TMP},{SCENE_TITLES}+{SCENE_DEPTH}"));
+    w(format!("if {SCENE_DEPTH} > 0 mov {SCENE_TMP},${TMP}"));
+    w(text(scene_text, &top.scene_text, top.scene_text.y, SCENE_TMP, ""));
+
+    w(lsp4(list, &top.list, &top.list.y.to_string()));
+    w(format!("spbtn {list},{BTN_SCENE_LIST}"));
+    // The list: a row per level from 1 to the deepest; the current one
+    // marked, those that can't be gone to disabled.
+    let pitch = top.row_pitch;
+    w(format!("mov {SCENE_SHIFT},0"));
+    w(format!("if {SCENE_LIST_OPEN} == 0 goto *conv_scene_rows_end"));
+    w(format!("mov {SCENE_SHIFT},{SCENE_MAX_DEPTH}*{pitch}"));
+    w(format!("if {SCENE_MAX_DEPTH} > {SCENE_ROWS} mov {SCENE_SHIFT},{}", SCENE_ROWS as i32 * pitch));
+    for k in 1..=SCENE_ROWS {
+        let r = k - 1;
+        let (label, button) = (SCENE_ROW_SPRITE + 2 * r, SCENE_ROW_SPRITE + 2 * r + 1);
+        let (y, text_y) = (top.row.y + r as i32 * pitch, top.row_text.y + r as i32 * pitch);
+        let title = format!("${}", SCENE_TITLES + k);
+        let colour = |c: &str| format!(",\"{c}\"");
+        w(format!("if {SCENE_MAX_DEPTH} < {k} goto *conv_scene_rows_end"));
+        w(format!(
+            "if {SCENE_DEPTH} == {k} {}:{}",
+            lsp4(button, &top.current_row, &y.to_string()),
+            text(label, &top.row_text, text_y, &title, &colour(&top.current_row_color))
+        ));
+        w(format!(
+            "if {SCENE_DEPTH} != {k} {}:{}",
+            lsp4(button, &top.row, &y.to_string()),
+            text(label, &top.row_text, text_y, &title, &colour(&top.row_color))
+        ));
+        w(format!("if {SCENE_DEPTH} != {k} && {SCENE_FLOOR} <= {k} spbtn {button},{}", BTN_SCENE_ROW + k as i32));
+        w(format!("if {SCENE_FLOOR} > {k} cell {button},3"));
+    }
+    w("*conv_scene_rows_end".into());
+
+    // The level row, below the list.
+    let shifted = |y: i32| format!("{y}+{SCENE_SHIFT}");
+    let b = &top.level_box;
+    w(format!("lsp2 {},\":a;{}\",{},{},100,100,0", sprites2.next().unwrap(), path(&b.image), b.x + b.w / 2, shifted(b.y + b.h / 2)));
+    for (var, (x, y), slot) in [(SCENE_DEPTH, top.depth_at, sprites2.next().unwrap()), (SCENE_MAX_DEPTH, top.max_depth_at, sprites2.next().unwrap())] {
+        for (d, image) in top.digits.iter().enumerate() {
+            w(format!("if {var} == {d} lsp2 {slot},\":a;{}\",{},{},100,100,0", path(image), x + 4, shifted(y + 6)));
+        }
+    }
+    // Disabled unless: back, a level above that can be gone to; forward, a
+    // level below; exit, the root can be gone to.
+    let enabled = [
+        (back, &top.back, format!("{SCENE_DEPTH} > {SCENE_FLOOR}"), BTN_SCENE_BACK),
+        (forward, &top.forward, format!("{SCENE_DEPTH} < {SCENE_MAX_DEPTH}"), BTN_SCENE_FORWARD),
+        (exit, &top.exit, format!("{SCENE_DEPTH} > 0 && {SCENE_FLOOR} == 0"), BTN_SCENE_EXIT),
+    ];
+    for (slot, p, condition, number) in enabled {
+        w(format!("{}:cell {slot},3", lsp4(slot, p, &shifted(p.y))));
+        w(format!("if {condition} cell {slot},0:spbtn {slot},{number}"));
+    }
+}
+
+/// The routines behind the scene buttons, and the `loadgosub` routine.
+///
+/// Going to another level saves the game to the current level's slot
+/// (the page the player is on, as a save from the menu would) and loads
+/// the target level's. Entering a link scene saves the link page to the
+/// current level's slot; the link pages in `lib.rs` keep the rest of the
+/// bookkeeping (see [`SCENE_DEPTH`]). The deepest level and the titles are
+/// locals and go back with a load, so they are carried over in globals.
+///
+/// A load from the save menu keeps the level saved but drops the levels
+/// below it, and the levels above it can no longer be gone back to.
+fn scene_stack(w: &mut impl FnMut(String)) {
+    let titles = || (1..=SCENE_ROWS).map(|k| (SCENE_TITLES + k, SCENE_CARRY + k));
+    w("*conv_scene_action".into());
+    w(format!("if {BUTTON_VAR} == {BTN_SCENE_LIST} goto *conv_scene_list"));
+    w(format!("if {BUTTON_VAR} == {BTN_SCENE_BACK} mov {SCENE_TARGET},{SCENE_DEPTH}-1"));
+    w(format!("if {BUTTON_VAR} == {BTN_SCENE_FORWARD} mov {SCENE_TARGET},{SCENE_DEPTH}+1"));
+    w(format!("if {BUTTON_VAR} == {BTN_SCENE_EXIT} mov {SCENE_TARGET},0"));
+    w(format!("if {BUTTON_VAR} > {BTN_SCENE_ROW} mov {SCENE_TARGET},{BUTTON_VAR}-{BTN_SCENE_ROW}"));
+    // Only levels that can be gone to.
+    w(format!("if {SCENE_TARGET} < {SCENE_FLOOR} return"));
+    w(format!("if {SCENE_TARGET} > {SCENE_MAX_DEPTH} return"));
+    w(format!("if {SCENE_TARGET} == {SCENE_DEPTH} return"));
+    w(format!("savegame {SCENE_SLOT}+{SCENE_DEPTH}"));
+    w(format!("mov {SCENE_LOADING},1:mov {SCENE_CARRY_MAX},{SCENE_MAX_DEPTH}:mov {SCENE_CARRY_FLOOR},{SCENE_FLOOR}"));
+    w(titles().map(|(local, carry)| format!("mov ${carry},${local}")).collect::<Vec<_>>().join(":"));
+    w(format!("loadgame {SCENE_SLOT}+{SCENE_TARGET}"));
+    // Only reached if the slot couldn't be loaded.
+    w(format!("mov {SCENE_LOADING},0"));
+    w("return".into());
+
+    w("*conv_scene_list".into());
+    w(format!("if {SCENE_LIST_OPEN} == 1 mov {SCENE_LIST_OPEN},0:return"));
+    w(format!("mov {SCENE_LIST_OPEN},1"));
+    w("return".into());
+
+    w(format!("*{SCENE_LOADED}"));
+    w(format!("if {SCENE_LOADING} == 0 mov {SCENE_MAX_DEPTH},{SCENE_DEPTH}:mov {SCENE_FLOOR},{SCENE_DEPTH}:return"));
+    w(format!("mov {SCENE_LOADING},0:mov {SCENE_MAX_DEPTH},{SCENE_CARRY_MAX}:mov {SCENE_FLOOR},{SCENE_CARRY_FLOOR}"));
+    w(titles().map(|(local, carry)| format!("mov ${local},${carry}")).collect::<Vec<_>>().join(":"));
+    w("return".into());
 }
 
 /// The settings screen (see [`SettingsMenu`]): levels 0-10 in globals,
@@ -1154,6 +1300,57 @@ mod tests {
             "*conv_bar_log\nsystemcall lookback\nreturn\n",
             "*conv_bar_save\ngosub *conv_bar_clear\nmov %101,1\ngosub *conv_save\nreturn\n",
             "*conv_bar_hide\nsystemcall windowerase\nreturn\n",
+        ] {
+            assert!(out.contains(line), "missing {line:?} in\n{out}");
+        }
+        assert!(!out.contains("conv_scene"), "scene routines without top bars:\n{out}");
+    }
+
+    #[test]
+    fn scene_stack_routines() {
+        let spot = TextSpot { x: 5, y: 6, font_size: 14, columns: 17 };
+        let top = TopBars {
+            chapter_bar: placed("chapter_bar", 400, 28),
+            chapter_text: spot,
+            scene_bar: placed("scene_bar", 384, 28),
+            scene_text: spot,
+            root_scene: "root scene".into(),
+            level_box: placed("scene_depth", 94, 20),
+            digits: (0..10).map(|d| format!("system/digit{d}.png")).collect(),
+            depth_at: (664, 34),
+            max_depth_at: (685, 34),
+            back: placed("scene_prev", 26, 23),
+            forward: placed("scene_next", 26, 23),
+            exit: placed("scene_exit", 38, 23),
+            list: placed("scene_list", 20, 18),
+            row: Placed { image: "system/scene_row.png".into(), x: 531, y: 30, w: 269, h: 26 },
+            current_row: Placed { image: "system/scene_row_current.png".into(), x: 531, y: 30, w: 269, h: 26 },
+            row_pitch: 26,
+            row_text: TextSpot { x: 550, y: 34, font_size: 14, columns: 17 },
+            row_color: "#A0A0A0".into(),
+            current_row_color: "#FFFFFF".into(),
+        };
+        let bar = ButtonBar { buttons: vec![], top: Some(top) };
+        let mut out = String::new();
+        button_bar(&mut out, &bar, true, false, false, false);
+        for line in [
+            // The rows clear with the bars.
+            "csp 22:csp 23:csp 24:",
+            // Buttons: back, forward, exit (disabled unless they lead somewhere), list.
+            "lsp 39,\":a/4,0,3;system\\scene_list.png\",10,20\nspbtn 39,1104\n",
+            "lsp 36,\":a/4,0,3;system\\scene_prev.png\",10,20+%191:cell 36,3\nif %150 > %190 cell 36,0:spbtn 36,1101\n",
+            "if %150 < %151 cell 37,0:spbtn 37,1102\n",
+            "if %150 > 0 && %190 == 0 cell 38,0:spbtn 38,1103\n",
+            // The list pushes the level row down.
+            "if %2903 == 0 goto *conv_scene_rows_end\nmov %191,%151*26\n",
+            "if %151 < 2 goto *conv_scene_rows_end\n",
+            "if %150 == 2 lsp 25,\":a/4,0,3;system\\scene_row_current.png\",531,56:strsp 24,$162,550,60,17,1,14,14,0,0,0,1,\"#FFFFFF\"\n",
+            "if %150 != 2 && %190 <= 2 spbtn 25,1112\nif %190 > 2 cell 25,3\n",
+            "if %9 >= 1101 && %9 <= 1116 goto *conv_scene_action\n",
+            // Going to a level: save this one, carry the history over, load.
+            "if %9 > 1110 mov %192,%9-1110\nif %192 < %190 return\nif %192 > %151 return\nif %192 == %150 return\nsavegame 900+%150\nmov %2900,1:mov %2901,%151:mov %2902,%190\nmov $2901,$161:",
+            "loadgame 900+%192\nmov %2900,0\nreturn\n",
+            "*conv_scene_loaded\nif %2900 == 0 mov %151,%150:mov %190,%150:return\n",
         ] {
             assert!(out.contains(line), "missing {line:?} in\n{out}");
         }
