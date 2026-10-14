@@ -232,6 +232,11 @@ lose the loop state between sessions.
      condition, and every page with two links on the same text.
    Keep the scripts and the click paths so the check can be re-run after
    any converter change that touches control flow, text or links.
+   最果てのイマ's is `research/xuse/routesim.py` (paths in its `PATHS`,
+   a few seconds per path). It normalizes what the conversion changes on
+   purpose (full-width `(`, `/`, `!`; inline 【name】; padded chapter
+   names) and detects a link page shown again after its scene by the
+   jump back to its label, not by its text.
 5. **Check that state persists the way it does in the original.**
    Confirm that system-data flags survive (a) quitting and relaunching
    natively, (b) closing and reopening the web build, (c) loading an

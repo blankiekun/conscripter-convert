@@ -42,17 +42,24 @@ the BGM room (`336f237`). **WSS is dropped** (user, 2026-10-13): its menu
 item stays greyed out (`ExtrasAction::Unavailable` in `extras_menu()`).
 Findings, in case it ever comes back, are in `saiima.md` ("WSS").
 
-- [ ] Progression verified against walkthrough: no (2026-10-13). The user
-      found the chapter order doubtful. Not yet checked: `docs/new-game.md`
-      step 11. Known so far: the 「リピート」/「死」 branch is
-      `%215 <= 2` (0x1a is setle in the exe's table), so the first two
-      loops with no link give 「リピート」, where the walkthrough gives
-      「死」 on the second. FIRST START zeroes the loop flags; `gloval.sav`
-      is written only on save and on quit. Found and fixed by the user's
-      play (`fad5f9b`): links a jump skips (the heroine gates in 0004.cd,
-      the cycle if/else in 0009/0011.cd) were still shown. No route
-      simulation exists yet (step 11.4): a bytecode simulator next to
-      `nstrace.py`, compared page by page.
+- [ ] Progression verified against walkthrough: partly (2026-10-13).
+      Step 11.4 done: `research/xuse/routesim.py` simulates the bytecode
+      and the converted `0.txt` on the same clicks and diffs them; all
+      paths match on every event (chapters, text, links offered, clicks
+      and targets, loop variables): `walkthrough` (11 loops to the
+      epilogue), the same with every lore link (`--lore`),
+      `two-heroines` (the user's bug: a second heroine link in one loop)
+      and `no-links`. On the pre-fix converter (`fad5f9b^`) it reports the
+      bug: the other heroine links still offered, たまに早く出る → s10.
+      Open: (1) the walkthrough gives 「死」 on the second loop with no
+      link; the bytecode gives it on the third (`%215 <= 2`, 0x1a is setle
+      in the exe's table), so the conversion follows the game, but the
+      walkthrough may be for another edition: settle under wine. (2) Step
+      11.5 (persistence): FIRST START zeroes the loop flags (as the
+      bytecode does); `gloval.sav` is written only on save and on quit;
+      not compared with the original yet. Fixed on the way (user's play,
+      `fad5f9b`): links a jump skips (the heroine gates in 0004.cd, the
+      cycle if/else in 0009/0011.cd) were still shown.
 
 ### Optional leftovers, roughly by how visible they are
 
