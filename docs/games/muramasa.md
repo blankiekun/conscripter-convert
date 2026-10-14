@@ -542,6 +542,11 @@ Fixed on the way (each found by the runs, all in the current build):
   copy: `md04_048vs` calls `MusicStart` on its loop eight times to change
   its volume and speed, and `茶々丸の世界_L` ended up on eight channels at
   once (28 loop starts in the game). Found by the checker's `sound` rule.
+- `WaitAction(obj)` waited for every action still running, not only
+  `obj`'s: in `mb02_030vs`, `CP_EHPChange` waits on its own process
+  after a non-blocking 15 s zoom, and the player sat through a 15 s
+  fade (five such waits of 5 s or more). Found by the checker's
+  `duration` rule.
 - Non-blocking actions were cross-faded over their whole time at the
   next sync: a 270 s background scroll (`ma04_013vs`) blocked the
   player for 270 s, 51 cross-fades were over a minute. Now at most a

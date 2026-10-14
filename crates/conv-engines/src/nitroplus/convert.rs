@@ -670,6 +670,8 @@ struct Compiler<'a, 'b> {
     shown: BTreeMap<String, Shown>,
     /// The longest non-blocking action since the last sync.
     pending_ms: u32,
+    /// The same per object, for a `WaitAction` on one of them.
+    pending_by: HashMap<String, u32>,
     /// A `DrawTransition` mask for the next sync.
     pending_mask: Option<String>,
     font_size: i64,
@@ -1247,6 +1249,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
             seq: 0,
             shown: BTreeMap::new(),
             pending_ms: 0,
+            pending_by: HashMap::new(),
             pending_mask: None,
             font_size: 20,
             window: None,
@@ -1682,7 +1685,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 // The text window's own fades aren't waited for: the window
                 // just shows or hides.
                 if !window_only {
-                    self.timed(arg(1).int(), &wait);
+                    self.timed(arg(1).int(), &wait, &targets);
                 } else if !matches!(wait, Value::Null | Value::Int(0)) {
                     self.check_window();
                 }
@@ -1715,7 +1718,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 if arg(1).int() > 0 && targets.iter().any(|t| self.shown.contains_key(t)) {
                     self.note("Move over time drawn as a cross-fade");
                 }
-                self.timed(arg(1).int(), &arg(5));
+                self.timed(arg(1).int(), &arg(5), &targets);
             }
             "delete" => {
                 for t in self.matching(&arg(0)) {
@@ -1754,28 +1757,30 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 if arg(1).int() > 0 && targets.iter().any(|t| self.shown.contains_key(t)) {
                     self.note("Zoom over time drawn as a cross-fade");
                 }
-                self.timed(arg(1).int(), &arg(5));
+                self.timed(arg(1).int(), &arg(5), &targets);
             }
             "setblur" => {
                 // (obj, on, passes 1-3, ?, strength, wait). Unverified:
                 // drawn as a Gaussian of 1.5 px per pass.
                 let sigma = if arg(1).truthy() { (arg(2).int().clamp(1, 5) * 15) as u32 } else { 0 };
-                for t in self.matching(&arg(0)) {
-                    self.objects.get_mut(&t).unwrap().blur = sigma;
+                let targets = self.matching(&arg(0));
+                for t in &targets {
+                    self.objects.get_mut(t).unwrap().blur = sigma;
                 }
-                self.timed(arg(3).int(), &arg(5));
+                self.timed(arg(3).int(), &arg(5), &targets);
             }
             "drawtransition" => {
                 // (obj, time, from, to, softness, tempo, mask, wait): a fade
                 // to `to` shaped by the mask.
-                for t in self.matching(&arg(0)) {
-                    self.objects.get_mut(&t).unwrap().opacity = arg(3).int().clamp(0, 1000);
+                let targets = self.matching(&arg(0));
+                for t in &targets {
+                    self.objects.get_mut(t).unwrap().opacity = arg(3).int().clamp(0, 1000);
                 }
                 match self.assets.image(&self.deref(&arg(6))) {
                     Some((mask, _, _)) => self.pending_mask = Some(mask),
                     None => self.note(format!("DrawTransition mask missing: {}", arg(6).string())),
                 }
-                self.timed(arg(1).int(), &arg(7));
+                self.timed(arg(1).int(), &arg(7), &targets);
             }
             "shake" => {
                 // (obj, time, x, y, …, wait). A full-screen picture (or all
@@ -1783,7 +1788,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 let targets = self.matching(&arg(0));
                 if !targets.iter().any(|t| self.objects[t].w >= SCREEN_W && self.objects[t].h >= SCREEN_H) {
                     self.note("Shake of a picture smaller than the screen");
-                    self.timed(arg(1).int(), a.last().unwrap_or(&Value::Null));
+                    self.timed(arg(1).int(), a.last().unwrap_or(&Value::Null), &targets);
                     return Value::Null;
                 }
                 let ms = arg(1).int().max(0) as u32;
@@ -1825,8 +1830,14 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 }
             }
             "waitaction" | "waitfade" | "waitmove" | "waitzoom" | "draw" => {
-                // Waits for the actions: their whole time.
-                let ms = std::mem::take(&mut self.pending_ms);
+                // Waits for the actions: their whole time. Given an object,
+                // only for that object's (`CP_EHPChange` waits on its own
+                // process, not on the 15 s zoom started before it).
+                let ms = if name.eq_ignore_ascii_case("draw") || matches!(arg(0), Value::Null) {
+                    std::mem::take(&mut self.pending_ms)
+                } else {
+                    self.matching(&arg(0)).iter().filter_map(|t| self.pending_by.get(t)).copied().max().unwrap_or(0)
+                };
                 self.sync(ms);
             }
             "setvolume" => self.set_volume(&arg(0), arg(1).int(), arg(2).int()),
@@ -1898,10 +1909,16 @@ impl<'a, 'b> Compiler<'a, 'b> {
 
     /// An action of `ms` with the `wait` argument of the timed built-ins:
     /// true blocks for the action, false lets the script go on.
-    fn timed(&mut self, ms: i64, wait: &Value) {
+    fn timed(&mut self, ms: i64, wait: &Value, targets: &[String]) {
         let ms = ms.max(0) as u32;
         match wait {
-            Value::Null | Value::Int(0) => self.pending_ms = self.pending_ms.max(ms),
+            Value::Null | Value::Int(0) => {
+                self.pending_ms = self.pending_ms.max(ms);
+                for t in targets {
+                    let p = self.pending_by.entry(t.clone()).or_default();
+                    *p = (*p).max(ms);
+                }
+            }
             Value::Int(n) if *n > 1 => {
                 self.note("timed action that waits only part of its time");
                 self.sync(ms);
@@ -1919,6 +1936,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
     /// or the pending actions' time up to [`UNWAITED_MS`] if longer.
     fn sync(&mut self, ms: u32) {
         let ms = ms.max(std::mem::take(&mut self.pending_ms).min(UNWAITED_MS));
+        self.pending_by.clear();
         let mask = self.pending_mask.take();
         self.flush_sounds();
         self.check_window();
@@ -2463,6 +2481,29 @@ scene a.nss
         assert!(matches!(&ops[last + 1], Op::Sprites { changes, .. } if changes[0].sprite.is_none()));
         // SoundPlay and OnSE aren't defined here: built-ins we don't know.
         assert!(c.notes.contains_key("built-in soundplay"));
+    }
+
+    #[test]
+    fn wait_action_on_one_object_waits_only_for_its_actions() {
+        let story = r#"
+scene a.nss
+{
+	CreateTexture("bg", 100, 0, 0, "cg/bg/a.jpg");
+	Fade("bg", 0, 1000, null, true);
+	CreateTexture("hp", 200, 0, 0, "cg/cp/hp.png");
+	Zoom("bg", 15000, 1200, 1200, null, false);
+	Fade("hp", 300, 500, null, false);
+	WaitAction("hp", null);
+	Wait(500);
+}
+"#;
+        let c = compile(story, LIBRARY);
+        let longest = c.ops.iter().filter_map(|op| match op {
+            Op::BeginTransition { fade_ms, .. } => Some(*fade_ms),
+            Op::Wait { ms } => Some(*ms),
+            _ => None,
+        }).max();
+        assert!(longest.is_some_and(|ms| ms < 15000), "{:?}", c.ops);
     }
 
     #[test]
