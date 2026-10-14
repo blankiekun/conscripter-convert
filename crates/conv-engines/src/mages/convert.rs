@@ -865,7 +865,27 @@ impl Lowering<'_> {
                 let time = ms(t.int("InTime").unwrap_or(3) + t.int("OutTime").unwrap_or(3));
                 self.out.ops.push(Op::Flash { colour: colour(t), opacity: alpha * 256 / 255, ms: time.max(16) });
             }
-            "EffectQuake" | "SpriteQuake" => {
+            "SpriteQuake" => {
+                // Shakes one picture (a background) by `:Param` 0, 1
+                // (x, y), dying down over `:Time` frames; zeros stop it.
+                let tex = t.int("SpriteNumber").or_else(|| t.int("Texture")).unwrap_or(-1);
+                let Some(s) = self.shown.get(&format!("t{tex}")).cloned() else { return };
+                let (ax, ay) = (sx(t.int_at("Param", 0).unwrap_or(0)), sy(t.int_at("Param", 1).unwrap_or(0)));
+                let time = ms(t.int("Time").unwrap_or(0));
+                if (ax == 0 && ay == 0) || time == 0 {
+                    if ax == 0 && ay == 0 {
+                        self.out.ops.push(Op::SpriteMotion { layer: s.layer, keys: vec![], looped: false });
+                    } else {
+                        self.note("SpriteQuake without a time");
+                    }
+                    return;
+                }
+                self.out.ops.push(Op::SpriteMotion { layer: s.layer, keys: quake_keys(ax, ay, time), looped: false });
+                if t.int("Wait").unwrap_or(0) != 0 {
+                    self.out.ops.push(Op::Wait { ms: time });
+                }
+            }
+            "EffectQuake" => {
                 let ax = sx(t.int_at("Param", 0).unwrap_or(30));
                 let ay = sy(t.int_at("Param", 1).unwrap_or(30));
                 let time = t.int("Time").unwrap_or(30);
@@ -875,9 +895,6 @@ impl Lowering<'_> {
                 self.out.ops.push(Op::ScreenEffect { slot: 1, effect: Some(shake) });
                 if t.int("Wait").unwrap_or(0) != 0 {
                     self.out.ops.push(Op::Wait { ms: ms(time) });
-                }
-                if ty == "SpriteQuake" {
-                    self.note("SpriteQuake (shakes the screen)");
                 }
             }
             "SpritePriority" | "CharacterPriority" => {
@@ -1210,6 +1227,24 @@ impl Lowering<'_> {
             self.out.ops.push(Op::Jump(target));
         }
     }
+}
+
+/// A shake dying down over `time` ms: offsets of up to (ax, ay) pixels,
+/// every 33 ms or more, alternating sides, ending at the picture's place.
+fn quake_keys(ax: i32, ay: i32, time: u32) -> Vec<(u32, i32, i32)> {
+    // spmotion takes up to 32 keys.
+    let step = (time / 31).max(33);
+    let n = (time / step).max(1);
+    let signs = [(1, 1), (-1, -1), (1, -1), (-1, 1)];
+    let mut keys: Vec<(u32, i32, i32)> = (0..n)
+        .map(|k| {
+            let left = (n - k) as i32;
+            let (sx_, sy_) = signs[k as usize % 4];
+            (k * step, sx_ * ax * left / n as i32, sy_ * ay * left / n as i32)
+        })
+        .collect();
+    keys.push((time, 0, 0));
+    keys
 }
 
 fn colour(t: &Block) -> u32 {
