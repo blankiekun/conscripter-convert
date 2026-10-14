@@ -380,25 +380,27 @@ fails the puzzle. Not done: state across relaunch and in the web build
   at each file where they change.
 - **A few files in the engine:** `--file md05_025.nss --chain 6` without
   `--dry-run` builds only their assets (3 s, 32 MB).
-- **Headless engine runs:** an Xvfb display of its own (`-screen 0
-  1024x576x24`), `SDL_VIDEODRIVER=x11 SDL_AUDIODRIVER=dummy`,
-  `WAYLAND_DISPLAY` unset, the output folder as the working directory,
-  `xdotool` clicks and `import -window root` screenshots. To start at a
-  scene, copy `0.txt`, add a label before the line and `goto` it right
-  after `erasetextwindow 0`, and symlink `arc.nsa`, `default.ttf` and
-  `ons_args` next to the copy.
-- **With the debug trace** (`docs/new-game.md`, "Checking a build with
-  the debug trace"), none of that is needed: `SDL_VIDEODRIVER=dummy`
-  and `--auto-play` run without Xvfb or xdotool, and `--goto <label>
-  --vars <file>` starts at a scene with the story flags preset (the
-  `--at` patch of `0.txt` did this by hand; a route replay of an hour
-  became a 22-second reproduction). Write the vars file from
-  `nstrace.py`'s flags, or let a run write it (`--dump-vars file`, at F8
-  and at exit). `--trace-vars 300-899` records the story flags as they
-  change, to compare with `nstrace.py --flags` file by file. Skip mode
-  used to end on any key release, which made xdotool-driven skipping
-  crawl; auto-play doesn't need it, and releasing Shift, Ctrl, Alt or a
-  function key no longer ends it (other keys and clicks still do).
+- **Engine runs: the debug trace** (`docs/new-game.md`, "Checking a
+  build with the debug trace"). `SDL_VIDEODRIVER=dummy` and
+  `--auto-play 0` play the build headless, with no Xvfb, no xdotool and
+  no held Ctrl, and `--trace t.jsonl` records every page, choice,
+  missing file, script error and crash. Give each run its own
+  `--save-dir` (the `#` flags live there). `--goto <label> --vars
+  <file>` starts at a scene with the story flags preset (the vars file
+  from `nstrace.py`'s variables, or `--dump-vars` of another run);
+  `--trace-vars 300-899` records the story flags as they change, to
+  compare with `nstrace.py --flags` file by file. The route runs below
+  use all of this through `engrun.py`. Sprite 999 is the runs' marker
+  (`lsp 999,"TRACE:..."`): pass `--trace-ignore 999`. The game has no
+  UI sprites of its own yet.
+
+  ```sh
+  cd out/muramasa-cons
+  SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy timeout -k 5 3600 \
+      ../../engine/build/conscripter --root . --save-dir /tmp/mura-saves \
+      --trace /tmp/mura.jsonl --auto-play 0 --goto f_md06_030 --vars v.txt
+  python3 -I ../../engine/tools/cons_trace_check.py /tmp/mura.jsonl --script 0.txt
+  ```
 - **Crashes:** the 村正END run died of heap corruption 508 files in,
   with only a core dump (malloc under `lsp`). With `--trace`, a crash
   now ends the trace with a `crash` record: the signal, the script line,
@@ -421,32 +423,39 @@ fails the puzzle. Not done: state across relaunch and in the web build
   the source says); the `mc01_010vs` choice. Routes share files that
   branch on `$PreGameName` (`mb01_003_3`); that is the source's design.
 
-**Engine skip runs** (playbook step 4): `research/nitroplus/engrun.py`
-plays each ending of the route paths in CONscripter, every page drawn,
-on an Xvfb display of its own (Ctrl held down: the engine leaves skip
-mode on any key release). nstrace records the options each playthrough
-takes; the driver patches a copy of `0.txt` to take them by itself, skip
-the 立方陣 with its recorded result, and log each story file; a run
-passes if it reaches the end and passes the same files as nstrace. Five
-runs (一条END, 香奈枝END, 茶々丸END, 村正END, TRUE END; `--all` adds the
-bad ends), about 8 pages a second, one core and 200 MB each: run them
-side by side, one display each.
+**Route runs** (playbook steps 4 and 11.4): `research/nitroplus/engrun.py`
+plays each ending of the route paths in CONscripter, every page drawn.
+nstrace records the options each playthrough takes; the driver patches
+a copy of `0.txt` to take them by itself, skip the 立方陣 with its
+recorded result, and log each story file; the engine plays it headless
+with `--auto-play` and a debug trace (`<out>/<N>/trace.jsonl`, with the
+story flags as `var` records). A run passes if it reaches the end and
+passes the same files as nstrace; a run that dies names the trace's
+`crash` or `error` record. Five runs (一条END, 香奈枝END, 茶々丸END,
+村正END, TRUE END; `--all` adds the bad ends), one core each: run them
+side by side.
 
 ```sh
+P=$(ls research/nitroplus/paths/*.txt)
 for n in 1 2 3 9 10; do
-  python3 -I research/nitroplus/engrun.py out/muramasa-cons \
-    research/nitroplus/paths/{1-ichijou,2-kanae,3-chachamaru,4-muramasa}.txt \
-    --engine <conscripter> --only $n --display :8$((n % 10)) > out/engrun-$n.log &
+  python3 -I research/nitroplus/engrun.py out/muramasa-cons $P \
+    --engine <conscripter> --only $n > out/engrun-$n.log &
 done
 ```
+
+Until 2026-10-14 the runs drove the engine on Xvfb with Ctrl held down
+(skip mode), about 8 pages a second and 40-56 minutes a route.
 
 To look at one place deep in a route, `--at <file>` starts the run at
 that story file with every variable as nstrace had it there (a crafted
 save: the variables, not the pictures or music on screen); an engine
-problem there shows in seconds instead of an hour. The engine writes its
-errors to `stderr.txt` in the game folder, not to the terminal. To find
-the line, add `lsp 998,"TRACE:L<n>",0,0` before each line of the file in
-the patched copy: the last one in `stderr.txt` is the line that failed.
+problem there shows in seconds instead of an hour. `--wrap '<command>'`
+runs the engine under another program (`valgrind -q`); an
+AddressSanitizer build is just another `--engine` (configure
+`engine/` into its own folder with `-fsanitize=address
+-fno-omit-frame-pointer` in the C, C++ and linker flags, plus the
+SDL2_mixer paths of a normal build, and set
+`ASAN_OPTIONS=detect_leaks=0`).
 
 ## Running the original under wine
 
