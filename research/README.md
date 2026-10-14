@@ -31,3 +31,4 @@ game data. Run them with `python3 -I` from outside the game directory.
 | Script | What it does |
 |---|---|
 | `cpk.py <file> [out [glob]]` | Lists or extracts CRI archives: CPK (TOC with names, or ITOC with IDs only, as in the `.AWB` sound banks) and AFS2 (`VOICE.AWB`); decompresses CRILAYLA |
+| `atlas.py <file.png> [first_row]` | Prints the boxes of the opaque parts of a SystemData atlas (menu labels, buttons), to cut them out |

@@ -6,7 +6,8 @@
 //! scaled by 3/4 into `system/`. Sounds can't be copied: ADX and HCA
 //! become Ogg Vorbis, which the caller does with ffmpeg from
 //! [`ArchiveAssets::audio`] (`voice/<id>.ogg`, `se/<id>.ogg`,
-//! `bgm/<id>.ogg`, with the ADX loop as `LOOPSTART`/`LOOPEND`).
+//! `bgm/<id>.ogg`, with the ADX loop as `LOOPSTART`/`LOOPEND`), and the
+//! USM movies MP4 files (`movie/`, loose: [`ArchiveAssets::movies`]).
 
 use std::collections::{BTreeMap, HashMap};
 use std::fs;
@@ -64,6 +65,10 @@ pub struct ArchiveAssets<'a> {
     output: PathBuf,
     images: HashMap<(u8, u32), Option<Picture>>,
     sounds: HashMap<(u8, u32), Option<String>>,
+    /// Movies to convert: output path (relative) → the USM file.
+    pub movies: BTreeMap<String, PathBuf>,
+    /// The folder of the USM files (`media/data`).
+    pub movie_dir: PathBuf,
     /// Sounds to convert, by output path.
     pub audio: BTreeMap<String, AudioJob<'a>>,
     pub errors: Vec<String>,
@@ -105,6 +110,8 @@ impl<'a> ArchiveAssets<'a> {
             images: HashMap::new(),
             sounds: HashMap::new(),
             audio: BTreeMap::new(),
+            movies: BTreeMap::new(),
+            movie_dir: PathBuf::new(),
             errors: Vec::new(),
             dry_run: false,
         }
@@ -255,6 +262,18 @@ impl Assets for ArchiveAssets<'_> {
 
     fn bgm(&mut self, id: u32) -> Option<String> {
         self.sound(2, id)
+    }
+
+    fn movie(&mut self, n: u32) -> Option<String> {
+        let name = super::usm::MOVIES.get(n as usize)?;
+        let source = self.movie_dir.join(format!("{name}.usm"));
+        if !source.exists() {
+            self.errors.push(format!("{} missing", source.display()));
+            return None;
+        }
+        let path = format!("movie/{}.mp4", name.to_ascii_lowercase());
+        self.movies.insert(path.clone(), source);
+        Some(path)
     }
 
     fn colour(&mut self, rgb: u32) -> String {

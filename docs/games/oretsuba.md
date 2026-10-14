@@ -188,7 +188,8 @@ at that scale, SystemData's are drawn at 1280×720 and are scaled by 3/4
 | Flash; EffectQuake/End and SpriteQuake (a screen shake dying down over `:Time`); SpriteMove (no `:Scale`, always waited on) | converted |
 | CharacterAction (`chract`'s 661 keyframed moves: bows, shakes) | converted as straight moves between keyframes, waited on; the looping ones are left out |
 | EyeCatch (a wipe with rule N to an eye-catch picture, then a fade) | a 0.5 s pause: the picture is not known |
-| EffectStart/End, MoviePlay, Achievement, SetSceneName | not yet |
+| MoviePlay: the USM movies (MPEG-1 960×544 + ADX) demuxed (`usm.rs`) and made H.264/AAC MP4s in `movie/` (loose) | converted; `:Movie` N is the Nth of OP00, OP01, OP02, the seven `ED_*` (alphabetical), Poem, OP03 (each heroine's ending scene plays her ED) |
+| EffectStart/End, Achievement, SetSceneName | not yet |
 | Title screen (`title_bg.png`'s picture and labels: START, LOAD, CONFIG; GALLERY greyed) | converted; the buttons' place is ours (the layout table is in the encrypted eboot) |
 | Save/load, settings, backlog, extras | not yet (CONscripter's built-in menus) |
 
@@ -196,8 +197,7 @@ Next, in order:
 1. Full build of every scene; fix what the lint and a headless run of
    the first chapter show. Text window layout and character heights
    from reference screenshots of the Vita game.
-2. Effects: EffectStart/End, movies (USM → MP4), InOut_Act types, the
-   eye-catch picture.
+2. Effects: EffectStart/End, InOut_Act types, the eye-catch picture.
 3. Walkthrough (this document), then the route check of the converted
    control flow.
 4. System screens and extras (CGMODE, scene replay, music).

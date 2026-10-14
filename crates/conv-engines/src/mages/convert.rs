@@ -65,6 +65,8 @@ pub trait Assets {
     fn voice(&mut self, id: u32) -> Option<String>;
     fn se(&mut self, id: u32) -> Option<String>;
     fn bgm(&mut self, id: u32) -> Option<String>;
+    /// Movie `n` (`:Movie`), converted to `movie/<name>.mp4`.
+    fn movie(&mut self, n: u32) -> Option<String>;
     /// A picture of one colour (0xRRGGBB) as large as the screen.
     fn colour(&mut self, rgb: u32) -> String;
     /// The text window's picture (SystemData's `meswin.png`, scaled to the
@@ -570,7 +572,11 @@ impl Lowering<'_> {
                 self.out.ops.push(Op::Wait { ms: 500 });
                 self.note("EyeCatch (a pause)");
             }
-            "BacklogMessage" | "SceneJumpDialogEnd" | "EyeCatchEnd" | "CharacterWait" | "SpriteMoveEnd" | "CharacterActionEnd" => {}
+            "MoviePlay" => match t.int("Movie").and_then(|n| self.assets.movie(n as u32)) {
+                Some(file) => self.out.ops.push(Op::Movie { file, skippable: t.int("Skip").unwrap_or(-1) != 0 }),
+                None => self.unsupported(scene, i, format!("MoviePlay {:?}", t.int("Movie"))),
+            },
+            "BacklogMessage" | "SceneJumpDialogEnd" | "MovieStop" | "EyeCatchEnd" | "CharacterWait" | "SpriteMoveEnd" | "CharacterActionEnd" => {}
             _ => self.unsupported(scene, i, ty.to_string()),
         }
     }

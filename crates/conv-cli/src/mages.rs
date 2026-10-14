@@ -201,6 +201,7 @@ fn convert(game: &Path, output: &Path, scenes: &[String], font: Option<&Path>, t
     let mut next = || b.next().unwrap();
     let mut assets = ArchiveAssets::new(next(), next(), next(), next(), next(), next(), next(), output);
     assets.dry_run = dry_run;
+    assets.movie_dir = game.join("media").join("data");
     let compiled = convert::compile(&g, scenes, &mut assets);
     let window = convert::text_window(&mut assets);
     let title_screen = conv_engines::mages::screens::title(&mut assets);
@@ -222,6 +223,7 @@ fn convert(game: &Path, output: &Path, scenes: &[String], font: Option<&Path>, t
     fs::write(output.join("ons_args"), conv_cons::ENGINE_ARGS)?;
     if !dry_run {
         audio(&assets.audio)?;
+        movies(&assets.movies, output)?;
         if let Some(font) = font {
             fs::copy(font, output.join("default.ttf")).with_context(|| format!("copying {}", font.display()))?;
         }
@@ -290,5 +292,43 @@ fn audio(jobs: &BTreeMap<String, conv_engines::mages::assets::AudioJob>) -> Resu
         println!("  audio error: {f}");
     }
     println!("  {} sounds converted, {} failed", jobs.len() - failed.len(), failed.len());
+    Ok(())
+}
+
+/// Converts the USM movies to H.264 + AAC MP4 with ffmpeg (loose files:
+/// CONscripter plays movies from the folder, not from archives).
+fn movies(jobs: &BTreeMap<String, PathBuf>, output: &Path) -> Result<()> {
+    use std::process::Command;
+    for (rel, usm) in jobs {
+        let dest = output.join(rel);
+        if dest.exists() {
+            continue;
+        }
+        let data = fs::read(usm).with_context(|| format!("reading {}", usm.display()))?;
+        let Some((video, audio)) = conv_engines::mages::usm::demux(&data) else {
+            println!("  movie error: {} is not a USM movie", usm.display());
+            continue;
+        };
+        let dir = dest.parent().unwrap();
+        fs::create_dir_all(dir)?;
+        let (v, a) = (dir.join("demux.m2v"), dir.join("demux.adx"));
+        fs::write(&v, video)?;
+        fs::write(&a, audio)?;
+        let status = Command::new("ffmpeg")
+            .args(["-v", "error", "-y", "-f", "mpegvideo", "-i"])
+            .arg(&v)
+            .args(["-f", "adx", "-i"])
+            .arg(&a)
+            .args(["-map", "0:v", "-map", "1:a", "-c:v", "libx264", "-crf", "20", "-preset", "medium", "-pix_fmt", "yuv420p"])
+            .args(["-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart"])
+            .arg(&dest)
+            .status();
+        let _ = fs::remove_file(&v);
+        let _ = fs::remove_file(&a);
+        match status {
+            Ok(s) if s.success() => println!("  movie {rel}"),
+            _ => println!("  movie error: ffmpeg failed on {}", usm.display()),
+        }
+    }
     Ok(())
 }
