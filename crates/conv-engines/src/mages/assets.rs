@@ -327,6 +327,20 @@ impl Assets for ArchiveAssets<'_> {
         path
     }
 
+    fn wave_map(&mut self, cycles_x100: u32) -> String {
+        let path = format!("system/wave{cycles_x100}.png");
+        if !self.images.contains_key(&(6, cycles_x100)) {
+            let (w, h) = (SCREEN_W as u32, SCREEN_H as u32);
+            let img = RgbaImage::from_fn(w, h, |_, y| {
+                let v = (u64::from(y) * u64::from(cycles_x100) * 256 / (u64::from(h) * 100) % 256) as u8;
+                Rgba([v, v, v, 255])
+            });
+            self.write_png(&path, &img);
+            self.images.insert((6, cycles_x100), None);
+        }
+        path
+    }
+
     fn particles(&mut self, kind: Particles, count: u32) -> Option<String> {
         let (file, cell, falls) = match kind {
             Particles::LightBalls => ("lightball.png", (32, 32), false),

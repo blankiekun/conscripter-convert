@@ -94,6 +94,11 @@ Found so far:
   as GLSL. The fragment shaders read `value` as (progress, `:Param` 0,
   1, 2), after each type's init has scaled them (type 2 divides
   `:Param` 1 by 720).
+- EffectStart 40: the object made at 0x8103f8f4 (constructor
+  0x810427b2) draws the screen once through vertex GXP 0x81161628 and
+  fragment GXP 0x8115f304 with `value` = (frames/30, `:Param` 0,
+  `:Param` 1, the effect's fade level, +0x4c, which the effect base
+  steps from 0 to 1 and back in states 6 and 7).
 
 ### Files (`<game>/media/`)
 
@@ -275,7 +280,7 @@ at that scale, SystemData's are drawn at 1280×720 and are scaled by 3/4
 | EffectStart/End 53 (ノイズ: static at `:Param` density) and 42 (ブラー: a blur screen filter); SetSceneName (chapter title) | converted |
 | EffectStart/End 57 (画面キャプチャースプライト: a copy of the screen drawn zoomed, at impacts) | approximated by a pulse (the copy growing and fading over the live picture, 0.4 s) |
 | EffectStart/End 52 (光玉 light balls), 54 (紙吹雪 confetti), 51 (雪 snow) | converted to looping 16-frame animations made from ETC.cpk's `lightball.png`, `paper.png`, `snow.png` (`:Param` count): the balls twinkle and circle in place, snow and paper fall one screen per 2 s loop; the original's motion is not known |
-| EffectStart/End 40 (over the starry monologue background, `:Param 400,3000`) | not yet |
+| EffectStart/End 40 (a wave over the starry monologue background, `:Param 400,3000`: the eboot's shader 0x8115f304 moves each row's picture along the diagonal by 1.5% of the width × sin(2π(600y/(height × `:Param` 0) + 2t/`:Param` 1 ms)), growing in with the effect's fade; a negative `:Param` 0 waves the columns, unused) | converted as `screenripple` at 45° through a grey ramp (`system/waveN.png`, N/100 waves down the screen); EffectEnd stops it without its fade (2 uses of 30 frames) |
 | Achievement (trophies) | nothing to show |
 | Title screen (`title_bg.png`'s picture and labels: START, LOAD, GALLERY) | converted; the buttons' place is ours (the layout table is in the encrypted eboot); settings are in the extras and the in-game bar |
 | START's story menu: 始めから and the after-stories ある日の林田美咲/渡来明日香/山科京/軽部狩男 (P03/P01/P02/P04) | converted, shown once any ending was seen; each after-story opens with its heroine's ending, かるお's with 小鳩's (our rule: the original's is in the eboot) |
@@ -291,8 +296,7 @@ the save menu's thumbnail name, built at run time), ran 600 pages
 headless without errors, and the route check reaches all eight endings.
 
 Next, in order:
-1. More from the eboot: EffectStart 40 (likely another shader: read it
-   with `gxp2glsl`, below), the menus' layouts, and what the second
+1. More from the eboot: the menus' layouts, and what the second
    music table is for. A wave and a blur transition (`InOut_Act` 1, 6)
    would need engine effects.
 2. Looks against the original: text window size and place, character

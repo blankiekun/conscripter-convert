@@ -86,6 +86,9 @@ pub trait Assets {
     fn movie(&mut self, n: u32) -> Option<String>;
     /// `frames` screens of grey static side by side (alpha 255).
     fn noise(&mut self, frames: u32) -> String;
+    /// A `screenripple` map for horizontal waves: grey rising from 0 to
+    /// 256 `cycles_x100`/100 times down the screen.
+    fn wave_map(&mut self, cycles_x100: u32) -> String;
     /// `count` particles of `kind` over the screen: a strip of
     /// [`super::assets::PARTICLE_FRAMES`] screens that loops.
     fn particles(&mut self, kind: Particles, count: u32) -> Option<String>;
@@ -715,6 +718,31 @@ impl Lowering<'_> {
                         if start {
                             self.note("EffectStart 57 (approximated by a pulse)");
                         }
+                    }
+                    // A wave (the eboot's shader 0x8115f304, over the
+                    // starry monologue background): each row's picture
+                    // moves along the diagonal by 1.5% of the screen width
+                    // on each axis × sin(2π(600y/(height × :Param 0) +
+                    // 2t/:Param 1)), t in ms, growing in over :Fade. A
+                    // negative :Param 0 waves the columns (unused).
+                    40 => {
+                        let effect = start.then(|| {
+                            let p0 = t.int_at("Param", 0).unwrap_or(400).max(1) as u32;
+                            let p1 = t.int_at("Param", 1).unwrap_or(3000).max(1);
+                            let amp = (SCREEN_W as f64 * 0.015 * std::f64::consts::SQRT_2).round() as i32;
+                            ScreenEffect::Ripple {
+                                map: self.assets.wave_map(60_000 / p0),
+                                time_ms: fade_ms,
+                                interval_ms: 30,
+                                opacity: (256, 256),
+                                amplitude: (if fade_ms > 0 { 0 } else { amp }, amp),
+                                angle: 450,
+                                angle_step: 0,
+                                phase_step: (60_000 / p1) as i32,
+                                multiply: false,
+                            }
+                        });
+                        self.out.ops.push(Op::ScreenEffect { slot: 3, effect });
                     }
                     51 | 52 | 54 => {
                         let kind = match n {
