@@ -1,7 +1,7 @@
 """Headless CONscripter smoke test with scripted clicks.
 
 usage: python3 -I smoke.py GAME_DIR WORK_DIR CLICKS [--timeout S] [--engine PATH]
-                           [--goto LABEL]
+                           [--goto LABEL] [--size WxH]
 
 GAME_DIR holds the converted 0.txt, arc.nsa, default.ttf and ons_args; WORK_DIR gets a
 patched 0.txt, symlinks to the rest, and the screenshots (shotNN.png).
@@ -20,7 +20,8 @@ When the queue is empty the game ends.
 Note: the save menu's thumbnail uses the same screenshot buffer, so a 999
 between opening the save menu and saving makes the thumbnail a menu shot.
 Effects and delays are shortened to 1 ms. --goto jumps to LABEL right after
-FIRST START (game state as at startup), e.g. conv_link1.
+FIRST START (game state as at startup), e.g. conv_link1. --size sets the
+screenshots' size (default 800x600).
 """
 import os, re, subprocess, sys
 
@@ -28,6 +29,7 @@ game, work, clicks = sys.argv[1], sys.argv[2], sys.argv[3]
 timeout = int(sys.argv[sys.argv.index('--timeout') + 1]) if '--timeout' in sys.argv else 60
 ons = sys.argv[sys.argv.index('--engine') + 1] if '--engine' in sys.argv else \
     os.path.join(os.path.dirname(__file__), '..', '..', 'engine', 'build', 'conscripter')
+size = sys.argv[sys.argv.index('--size') + 1].replace('x', ',') if '--size' in sys.argv else '800,600'
 os.makedirs(work, exist_ok=True)
 for f in ('arc.nsa', 'default.ttf', 'ons_args'):
     dst = os.path.join(work, f)
@@ -64,7 +66,7 @@ if %992 < 10 add $991,"0"
 itoa $992,%992
 add $991,$992
 add $991,".bmp"
-getscreenshot 800,600
+getscreenshot SMOKE_SIZE
 savescreenshot $991
 goto *smoke_pop
 *smoke_text
@@ -87,7 +89,7 @@ init = b'mov %994,' + str(len(queue)).encode() + b'\n' + b''.join(
 if not has_bar:
     src = src.replace(b'\ngame\n', b'\ntextgosub *smoke_text\ngame\n', 1)
 src = src.replace(b'\n*start\n', b'\n*start\n' + init, 1)
-src = src.rstrip(b'\n') + b'\n' + harness
+src = src.rstrip(b'\n') + b'\n' + harness.replace(b'SMOKE_SIZE', size.encode())
 open(os.path.join(work, '0.txt'), 'wb').write(src)
 
 env = dict(os.environ, SDL_VIDEODRIVER='dummy', SDL_AUDIODRIVER='dummy')
