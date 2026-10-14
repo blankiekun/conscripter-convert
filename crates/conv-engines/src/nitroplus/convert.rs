@@ -155,8 +155,11 @@ pub fn compile_run(files: &BTreeMap<String, NssFile>, start: &str, max_files: us
     let mut entry_vars: HashMap<String, HashMap<String, Value>> = HashMap::new();
     loop {
         let Some((name, state)) = queue.pop_front() else {
-            // Queue the file names the dispatched flags can hold by now.
-            let names: Vec<String> = c.codes.keys().filter(|k| k.ends_with(".nss") && files.contains_key(*k)).cloned().collect();
+            // Queue the file names the dispatched flags can hold by now, in
+            // the order they were met (the output stays the same each run).
+            let mut names: Vec<(i32, String)> = c.codes.iter().filter(|(k, _)| k.ends_with(".nss") && files.contains_key(*k)).map(|(k, &v)| (v, k.clone())).collect();
+            names.sort();
+            let names: Vec<String> = names.into_iter().map(|(_, k)| k).collect();
             for (_, _, state, seen) in &mut dispatches {
                 for n in &names {
                     if seen.insert(n.clone()) {
