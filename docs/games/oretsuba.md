@@ -140,8 +140,9 @@ person's four personalities:
 
 ## Progression variables
 
-Declared in adv.txt: 33 per-save `[Flag]`s (variables 20-52 in the
-output) and 30 `[GlobalFlag]`s, kept across playthroughs (210-239).
+Declared in adv.txt: 33 per-save `[Flag]`s (`%60`-`%92` in the
+output, in adv.txt's order) and 30 `[GlobalFlag]`s, kept across
+playthroughs (`%410`-`%439`).
 
 | Flag | Meaning (adv.txt's comment) | Set | Read |
 |---|---|---|---|

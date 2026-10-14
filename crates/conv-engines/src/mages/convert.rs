@@ -31,9 +31,11 @@ pub const SCREEN_W: i32 = 960;
 pub const SCREEN_H: i32 = 544;
 /// Variables from here up are global (kept across playthroughs).
 pub const GLOBAL_BORDER: u32 = 200;
-/// First variable of the per-save flags (`[Flag]` in adv.txt).
-const FLAG_BASE: u16 = 20;
-/// First global variable (`[GlobalFlag]`), past [`GLOBAL_BORDER`].
+/// First local of the per-save flags (`[Flag]` in adv.txt): %60-%92,
+/// clear of conv-cons's locals (%40-%45, %100 up).
+const FLAG_BASE: u16 = 50;
+/// First global (`[GlobalFlag]`): %410-%439, clear of conv-cons's
+/// globals (%200-%301, %900 up).
 const GLOBAL_FLAG_BASE: u16 = 210;
 const PRIORITY_STEP: u32 = 20;
 /// The front layer that `FadeOut` covers the picture with.
