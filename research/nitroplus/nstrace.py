@@ -9,6 +9,7 @@ is cleared, as when a new game starts from the title.
 
     python3 -I research/nitroplus/nstrace.py <0.txt> <path file>...
         [--route out/muramasa-route.txt] [--quiet]
+        [--flags <flag table> --watch <name>,<name>...]
 
 A path file has one entry per line (`#` starts a comment):
     ma02_003:1        at the next select, which must be in ma02_003, take
@@ -28,6 +29,11 @@ With --route, every step from one story file to the next is looked up in
 the source route map (`conscripter-convert nss route` output): a step the
 source can't take, or a choice option that leads elsewhere in the
 source, is reported as a mismatch. That is the source side of the check.
+
+--flags reads the flag table that `NSS_TRACE=1 conscripter-convert
+convert-nss` prints on stderr (`flag %308 $Ichizyou_Flag`); --watch then
+prints the named flags (`$Ichizyou_Flag`, or a part of a name such as
+`死亡`) at each story file where one of them changed.
 """
 import re
 import sys
@@ -85,8 +91,10 @@ FULL_DIGITS = str.maketrans('１２３４５６７８９０', '1234567890')
 
 
 class Run:
-    def __init__(self, lines, labels, route, quiet):
+    def __init__(self, lines, labels, route, quiet, watch=None):
         self.lines, self.labels, self.route, self.quiet = lines, labels, route, quiet
+        self.watch = watch or {}  # {variable number: flag name}
+        self.watched = None
         self.var = defaultdict(int)
         self.svar = defaultdict(str)
         self.saves = {}
@@ -147,11 +155,19 @@ class Run:
                 # ends in the option number (@選択肢１).
                 opt = self.last_choice[1]
                 want = [n for n, c in nexts if re.search(rf'choice @\D*{opt}\]?$', c.translate(FULL_DIGITS))]
-                if want and name not in want:
+                # An edge several options take is merged in the route map
+                # and loses its option label: any option may take it.
+                labelled = any('choice @' in c for n, c in nexts if n == name)
+                if want and name not in want and labelled:
                     self.problem(f'{self.file} option {opt} -> {name}, the source goes to {", ".join(want)}')
         self.file = name
         self.files.append([name, []])
         self.last_choice = None
+        if self.watch:
+            now = {n: self.var[n] for n in self.watch}
+            if now != self.watched:
+                print(f'  {name}: ' + ' '.join(f'{self.watch[n]}={v}' for n, v in now.items()))
+                self.watched = now
 
     def jump(self, target):
         label = target.strip().lstrip('*')
@@ -291,6 +307,8 @@ class Run:
                 self.ended = None
                 self.reported = False
                 print(f'  LOAD {arg} in {file}')
+            else:
+                self.problem(f'path entry {arg} left over: the run ended in {self.ended}')
 
     def report(self):
         self.reported = True
@@ -331,10 +349,28 @@ def main():
         i = args.index('--route')
         route = load_route(args[i + 1])
         del args[i:i + 2]
+    watch = {}
+    if '--flags' in args:
+        i = args.index('--flags')
+        table = {}
+        for line in open(args[i + 1], encoding='utf-8'):
+            m = re.match(r'flag %(\d+) (.+)$', line.strip())
+            if m:
+                table[m.group(2)] = int(m.group(1))
+        del args[i:i + 2]
+        if '--watch' in args:
+            i = args.index('--watch')
+            for want in args[i + 1].split(','):
+                hits = [k for k in table if k == want] or [k for k in table if want in k]
+                if not hits:
+                    sys.exit(f'no flag {want} in the table')
+                for k in hits:
+                    watch[table[k]] = k
+            del args[i:i + 2]
     quiet = '--quiet' in args
     args = [a for a in args if a != '--quiet']
     lines, labels = load_script(args[0])
-    run = Run(lines, labels, route, quiet)
+    run = Run(lines, labels, route, quiet, watch)
     for p in args[1:]:
         print(f'== {p}')
         path = read_path(p)
