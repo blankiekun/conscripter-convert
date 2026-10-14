@@ -767,14 +767,18 @@ impl Lowering<'_> {
                 let Some((key, s)) = self.shown.iter().find(|(_, s)| s.tex == tex).map(|(k, s)| (k.clone(), s.clone())) else {
                     return;
                 };
+                // A zoom (`:Scale` other than 1) moves the centre to the
+                // point zoomed in on, which without the zoom slides the
+                // picture off the screen: it stays where it is instead.
+                if t.get("Scale").is_some_and(|v| v.first().and_then(Val::float).is_some_and(|f| f != 1.0)) {
+                    self.note("SpriteMove :Scale (left in place)");
+                    return;
+                }
                 let x = t.int_at("Position", 0).map_or(s.x, sx);
                 let y = t.int_at("Position", 1).map_or(s.y, sy);
                 let time = ms(t.int("Time").unwrap_or(0));
                 self.out.ops.push(Op::SpriteMove { layer: s.layer, x, y, ms: time });
                 self.shown.insert(key, Shown { x, y, ..s });
-                if t.get("Scale").is_some_and(|v| v.first().and_then(Val::float) != Some(1.0)) {
-                    self.note("SpriteMove :Scale");
-                }
             }
             // `:Image 0,N`: CG.cpk's ECnn (27 is the title logo) over
             // everything, on the cover's layer, coming in through the
