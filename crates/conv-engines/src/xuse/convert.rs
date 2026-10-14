@@ -289,6 +289,8 @@ const PRESET_FIELDS: u32 = 6;
 /// original draws new static every interval, which a short loop stands in
 /// for.
 const NOISE_FRAMES: u32 = 4;
+/// A timed wait (handler 0x475cd0, callback 0x475bf0): arg's low 16 bits
+/// are the ms; when its high half isn't 0 a click or skip mode ends it.
 const OP_WAIT: u16 = 0x66;
 /// 0x76's subs for Trans_Dissolve and Trans_Dot4x4.
 const TRANSITION_DISSOLVE: u16 = 26;
@@ -3102,10 +3104,12 @@ pub fn lower_script(
                         set_window(&mut ops, assets, p)?;
                     }
                 }
-                Ok(Some(Op::Wait { ms })) if wait_credit_ms > 0 => {
-                    let ms = ms.saturating_sub(std::mem::take(&mut wait_credit_ms));
-                    if ms > 0 {
-                        ops.push(Op::Wait { ms });
+                Ok(Some(op @ (Op::Wait { .. } | Op::Pause { .. }))) if wait_credit_ms > 0 => {
+                    let credit = std::mem::take(&mut wait_credit_ms);
+                    match op {
+                        Op::Wait { ms } if ms > credit => ops.push(Op::Wait { ms: ms - credit }),
+                        Op::Pause { ms } if ms > credit => ops.push(Op::Pause { ms: ms - credit }),
+                        _ => {}
                     }
                 }
                 Ok(Some(op)) => ops.push(op),
@@ -3458,6 +3462,9 @@ fn lower_instr(
             let file = assets.movie(ins.arg as u16)?;
             return Ok(Some(Op::Movie { file, skippable: ins.arg >> 16 != 0 }));
         }
+        // The wait callback (0x475bf0) lets a click or skip end it only
+        // when arg's high half isn't 0.
+        OP_WAIT if ins.arg >> 16 == 0 => return Ok(Some(Op::Pause { ms: u32::from(ins.arg as u16) })),
         OP_WAIT => return Ok(Some(Op::Wait { ms: u32::from(ins.arg as u16) })),
         OP_FADE_BLACK | OP_FADE_WHITE if ins.arg >> 16 == 0 => {
             let colour = if ins.op == OP_FADE_WHITE { 0xffffff } else { 0 };

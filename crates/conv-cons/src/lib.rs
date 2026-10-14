@@ -801,6 +801,7 @@ pub fn emit(script: &Script) -> String {
                 writeln!(out, "bgmstop").unwrap();
             }
             Op::Wait { ms } => writeln!(out, "delay {ms}").unwrap(),
+            Op::Pause { ms } => writeln!(out, "wait {ms}").unwrap(),
             Op::Flash { colour, opacity, ms } => {
                 // An additive sprite2: over the picture, under the text window.
                 let alpha = (opacity * 255 / 256).min(255);
@@ -2418,6 +2419,12 @@ end
             out.contains("lsp2add 24,\":c;>800,600,#ff0000\",400,300,100,100,0,127\nprint 1\ndelay 100\ncsp2 24\nprint 1\n"),
             "{out}"
         );
+    }
+
+    #[test]
+    fn pauses_ignore_clicks() {
+        let out = emit(&script(vec![Op::Wait { ms: 300 }, Op::Pause { ms: 500 }]));
+        assert!(out.contains("delay 300\nwait 500\n"), "{out}");
     }
 
     #[test]

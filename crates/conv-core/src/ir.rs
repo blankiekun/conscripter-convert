@@ -425,6 +425,8 @@ pub enum Op {
     /// (0xRRGGBB) over `ms`. The colour stays until the next background, a
     /// clear of the scene's sprites or a link scene's return.
     ScreenFade { colour: u32, ms: u32 },
+    /// Wait `ms` milliseconds; unlike [`Op::Wait`], a click doesn't end it.
+    Pause { ms: u32 },
 }
 
 /// A puzzle of numbered tiles (装甲悪鬼村正's 立方陣): the player clicks a
