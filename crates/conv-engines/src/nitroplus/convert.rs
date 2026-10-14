@@ -733,6 +733,32 @@ struct State<'a> {
     window_visible: bool,
 }
 
+/// Branches that end with different pictures on screen (the favour
+/// screen adds a picture in one branch, and every sprite after it moves
+/// up a layer): the code after them runs on all of them, so the next sync
+/// removes every sprite a branch left that the merged state doesn't use,
+/// and draws anew each picture some branch doesn't have where the merged
+/// state has it.
+fn reconcile_shown(merged: &mut BTreeMap<String, Shown>, leaves: &[Leaf<'_>]) {
+    let mut stale = BTreeMap::new();
+    for l in leaves {
+        for s in l.state.shown.values() {
+            if !merged.values().any(|m| m.layer == s.layer) {
+                stale.entry(s.layer).or_insert_with(|| s.clone());
+            }
+        }
+    }
+    for m in merged.values_mut() {
+        if leaves.iter().any(|l| !l.state.shown.values().any(|s| s == m)) {
+            // Not equal to any wanted picture: placed again.
+            m.image.clear();
+        }
+    }
+    for (layer, s) in stale {
+        merged.insert(format!(" branch layer {layer}"), s);
+    }
+}
+
 impl<'a, 'b> Compiler<'a, 'b> {
     fn snapshot(&self) -> State<'a> {
         State {
@@ -1011,6 +1037,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
         }
         if leaves.iter().any(|l| l.state.shown != leaves[0].state.shown) {
             self.note("branches of a runtime if end with different pictures");
+            reconcile_shown(&mut merged.shown, &leaves);
         }
         self.restore(merged);
     }

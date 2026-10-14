@@ -547,6 +547,16 @@ Fixed on the way (each found by the runs, all in the current build):
   after a non-blocking 15 s zoom, and the player sat through a 15 s
   fade (five such waits of 5 s or more). Found by the checker's
   `duration` rule.
+- Branches of a runtime `if` that ended with different pictures left
+  sprites up: the code after them follows the first branch's sprite
+  layers, so a sprite another branch put elsewhere was never cleared.
+  After the favour screen (`judgment_of_count`, 村正's icon hidden only
+  while `$Muramasa_Flag` is 0) its full-screen background stayed in
+  front of the story for 150 pages. The next sync now removes what any
+  branch left and draws the merged pictures anew. Cost: after the merge
+  every branch shows the first branch's pictures (the black box over
+  村正's icon also shows when she is known, until the screen closes).
+  Found by the checker's `linger` rule.
 - Non-blocking actions were cross-faded over their whole time at the
   next sync: a 270 s background scroll (`ma04_013vs`) blocked the
   player for 270 s, 51 cross-fades were over a minute. Now at most a
