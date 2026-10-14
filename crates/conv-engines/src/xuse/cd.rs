@@ -56,7 +56,7 @@
 //! 0x57  play BGM          arg = track (1-based, HD/bm0000.bin slot arg - 1),
 //!                        sub = fade-in in ms (the engine caps it at 30000)
 //! 0x58  stop BGM          arg = track, or 0 for all; sub = fade-out in ms
-//! 0x5a  play SE           record (9 bytes, packed): u32 unknown, u8 loop flag,
+//! 0x5a  play SE           record (9 bytes, packed): u32 fade-in ms, u8 loop flag,
 //!                        u32 sound number (1-based across HD/k0000.bin,
 //!                        k0001.bin)
 //! 0x5b  stop SE           arg = sound number, or 0 for all; sub = fade in ms
@@ -226,7 +226,7 @@ pub enum Sound {
     BgmPlay { track: u32, fade_in_ms: u16 },
     BgmStop { track: u32, fade_out_ms: u16 },
     BgmCrossfade { from: u32, to: u32, fade_ms: u32 },
-    SePlay { sound: u32, looped: bool, unknown: u32 },
+    SePlay { sound: u32, looped: bool, fade_in_ms: u32 },
     SeStop { sound: u32, fade_out_ms: u16 },
 }
 
@@ -777,7 +777,7 @@ impl<'a> CdScript<'a> {
                 let o = ins.arg as u32 as usize;
                 let read = || -> Result<Sound, CdError> {
                     Ok(Sound::SePlay {
-                        unknown: r.u32(o)?,
+                        fade_in_ms: r.u32(o)?,
                         looped: r.slice(o + 4, 1)?[0] != 0,
                         sound: r.u32(o + 5)?,
                     })
@@ -1093,7 +1093,7 @@ pub(crate) mod tests {
             [
                 Some(Sound::BgmPlay { track: 5, fade_in_ms: 2000 }),
                 Some(Sound::BgmStop { track: 0, fade_out_ms: 30000 }),
-                Some(Sound::SePlay { sound: 125, looped: true, unknown: 7 }),
+                Some(Sound::SePlay { sound: 125, looped: true, fade_in_ms: 7 }),
                 Some(Sound::SeStop { sound: 125, fade_out_ms: 300 }),
                 Some(Sound::BgmCrossfade { from: 16, to: 1, fade_ms: 3000 }),
                 None,

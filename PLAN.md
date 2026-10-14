@@ -161,6 +161,7 @@ Engine features added for converted games (details in the engine's
 | `screenpulse` (a tinted copy of the picture that swells over it and fades, sin(πt); same slots as `screenshake`) | 0x6f "surprise" pulses (87 uses): 10-20 % zoom, opacity 100-200, untinted, light red or white |
 | `!zNNN` text size tag (NNN percent of the window's font size, on the baseline, scaled width) | 0x49 text styles: shouting at 125-175 % and mumbling at 75-95 % in about 380 messages (NScripter text has colour tags but no size). Colours from the same records use `#RRGGBB` |
 | Text hooks in the web build (`onsyuriText`, `onsyuriChoice`, `onsyuriOverlay`) | Not for a converted game: chimimouryou lays each page's text over the game for Yomitan and reading statistics. Was a patch kept in chimimouryou (`scripts/onsyuri/text-hook.patch`) |
+| `dwavefadein ms` / `dwavefadeout ch,ms` (a `dwave` channel's sound fades in, or fades out and stops; SDL_mixer's channel fades) | 最果てのイマ's sound effects: 0x5a fades 41 sounds in (50 ms-3 s, mostly looping ambience) and 0x5b fades 178 out over more than 300 ms; found in the opcode audit |
 | `spzoom` (an `lsp` sprite zoomed about its centre in its place among the sprites, where `lsp2` sprites all lie over them; kept in saves and by `pushscreen`) | 俺たちに翼はない's camera zooms (SpriteMove `:Scale`, 90 uses): impacts zooming in and out on CGs and backgrounds, pans while zoomed |
 
 Planned, from limits hit by converted games (each one is worked around

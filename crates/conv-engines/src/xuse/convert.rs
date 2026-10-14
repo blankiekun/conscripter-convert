@@ -2620,6 +2620,13 @@ pub fn lower_script(
         if matches!(ins.op, OP_YIELD | OP_YIELD_2 | OP_ENTRY_NAME) {
             continue;
         }
+        // op_5a passes the record's first u32 to the sound request as its
+        // fade-in (0 while skipping).
+        if let Some(Ok(Sound::SePlay { fade_in_ms, .. })) = cd.sound(ins)
+            && fade_in_ms > 0
+        {
+            ops.push(Op::SeFadeIn { ms: fade_in_ms });
+        }
         if ins.op == crate::xuse::cd::OP_BACKGROUND && ins.arg > 0 {
             // op_54 first removes background slots 1-10 (0x4132d0), the
             // overlay (0x55, slot 2) with them.
@@ -3417,8 +3424,14 @@ fn lower_instr(
             // new one fades in over the crossfade's time.
             Sound::BgmCrossfade { to, fade_ms, .. } => Op::BgmPlay { file: assets.bgm(to as usize)?, fade_in_ms: fade_ms },
             Sound::SePlay { sound, looped, .. } => Op::SePlay { file: assets.se(sound as usize)?, looped },
-            Sound::SeStop { sound: 0, .. } => Op::SeStop { file: None },
-            Sound::SeStop { sound, .. } => Op::SeStop { file: Some(assets.se(sound as usize)?) },
+            // op_5b passes the fade to the sound request (0x47aab0).
+            Sound::SeStop { sound, fade_out_ms } => {
+                let file = if sound == 0 { None } else { Some(assets.se(sound as usize)?) };
+                match fade_out_ms {
+                    0 => Op::SeStop { file },
+                    ms => Op::SeFadeOut { file, ms: ms.into() },
+                }
+            }
         }));
     }
     if let Some(entries) = cd.sprites(ins) {
