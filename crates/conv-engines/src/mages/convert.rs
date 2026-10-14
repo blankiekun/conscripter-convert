@@ -649,7 +649,13 @@ impl Lowering<'_> {
     /// `MessageSwitch_Tag`: the question (`:Text`), then the answers; an
     /// answer with a `:Message<N>Flag` changes the flag before going on.
     fn choice(&mut self, scene: &str, t: &Block) {
-        if let Some(text) = t.str("Text") {
+        // The question is usually the last message again, still on screen
+        // in the original: not shown twice.
+        let last = self.out.ops.iter().rev().find_map(|op| match op {
+            Op::Text { text, .. } => Some(text.as_str()),
+            _ => None,
+        });
+        if let Some(text) = t.str("Text").filter(|q| Some(*q) != last) {
             self.out.ops.push(Op::Text {
                 speaker: None,
                 text: text.to_string(),
