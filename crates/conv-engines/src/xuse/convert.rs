@@ -992,6 +992,7 @@ impl AssetBank {
             header: self.place("music_header", &get(common, 17)?, None, 621, 122)?,
             exit: self.place("music_exit", &column_cells(&get(common, 15)?, 4, &[0, 1]), None, 624, 470)?,
             songs,
+            background: None,
         })
     }
 

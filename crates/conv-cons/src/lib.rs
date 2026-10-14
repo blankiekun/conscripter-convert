@@ -1827,10 +1827,12 @@ effect 7,99,1000,\"cons_zoom.dll/3,220,5\"
                 header: placed("h"),
                 exit: placed("x"),
                 songs: vec![song("system/s1.png", "bgm/bgm01.ogg", None), song("system/s2.png", "bgm/bgm22.ogg", Some(0))],
+                background: Some("system/music.png".into()),
             }),
         });
         let out = emit(&s);
         assert!(out.contains("if %9 == 1 goto *conv_music\n"), "{out}");
+        assert!(out.contains("*conv_music\ncsp -1\nbg \"system\\music.png\",0\n"), "{out}");
         // The song playing is drawn marked; a locked one isn't drawn.
         assert!(out.contains(
             "if %161 != 1 lsp 102,\":a/2,0,3;system\\s1.png\",120,71:spbtn 102,1\n\

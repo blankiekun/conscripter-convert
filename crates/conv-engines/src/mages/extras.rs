@@ -8,11 +8,14 @@
 //! - `gm_bg1.png`: a "NO IMAGE" plate (4, 546, 184, 110) and a thumbnail
 //!   frame (196, 546, 186, 110).
 //! - The menu's labels come from `title_bg.png` (ALBUM, CONFIG, MUSIC).
+//! - `mu_bg.png` (960×1626): the music room's background in the top 544
+//!   rows, then the song titles, 30 rows each, from y 574: 35 in the left
+//!   column (x 0), 32 in the right (x 480), in [`TRACKS`] order.
 
 use image::{Rgba, RgbaImage, imageops};
 
 use conv_core::ir::{
-    CgGallery, CgViewer, ExtrasAction, ExtrasItem, ExtrasMenu, GallerySlot, GalleryTab, Placed,
+    CgGallery, CgViewer, ExtrasAction, ExtrasItem, ExtrasMenu, GallerySlot, GalleryTab, MusicRoom, MusicSong, Placed,
 };
 
 use super::assets::ArchiveAssets;
@@ -25,6 +28,29 @@ const THUMB_W: u32 = 120;
 const THUMB_H: u32 = 68;
 const COLUMNS: usize = 4;
 const PER_PAGE: usize = 20;
+
+/// The music room's songs (BGM.AWB IDs) in the order of `mu_bg.png`'s
+/// titles: the eboot's table at 0x8116310c, read by its music room
+/// (67 entries, 7 rows shown). A second table after it (34, 35, 29-33,
+/// 36), with no titles in the picture, is left out.
+const TRACKS: [u32; 67] = [
+    0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 13, 14, 15, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 40, 41, 42, 43, 45, 47, 48, 49,
+    50, 51, 53, 60, 61, 62, 63, 64, 46, 70, 71, 73, 74, 75, 76, 77, 78, 80, 81, 82, 83, 85, 52, 86, 87, 88, 89, 90, 91, 92, 93, 94,
+    95,
+];
+/// The titles in the picture: rows of 30 from y 574, 35 on the left.
+const TITLE_Y: u32 = 574;
+const TITLE_H: u32 = 30;
+const TITLES_LEFT: usize = 35;
+/// Ours: the list panel stretched over the screen, three columns of 23
+/// titles at 3/5 size in it.
+const PANEL: (u32, u32, u32, u32) = (78, 238, 804, 238);
+const PANEL_TO: (u32, u32, u32, u32) = (24, 80, 912, 420);
+const MUSIC_ROWS: usize = 23;
+const MUSIC_X: i32 = 44;
+const MUSIC_DX: i32 = 292;
+const MUSIC_Y: i32 = 86;
+const MUSIC_DY: i32 = 18;
 
 fn place(assets: &mut ArchiveAssets, name: &str, img: &RgbaImage, x: i32, y: i32) -> Placed {
     let image = assets.put_system_png(name, img);
@@ -83,7 +109,87 @@ pub fn extras(assets: &mut ArchiveAssets, labels: &Labels, game: &Game) -> Optio
     ];
 
     let gallery = gallery(assets, labels, game, &album, &parts, header);
-    Some(ExtrasMenu { background: background_path, items, gallery, replay: None, music: None })
+    let music = music(assets, labels);
+    Some(ExtrasMenu { background: background_path, items, gallery, replay: None, music })
+}
+
+/// A title tinted for the pointer (warm) or the song playing (blue).
+fn tinted(img: &RgbaImage, colour: [u8; 3]) -> RgbaImage {
+    let mut img = img.clone();
+    for px in img.pixels_mut() {
+        // The titles are dark letters on a white outline: the dark ones take the colour.
+        let dark = 255 - px.0[0].min(px.0[1]).min(px.0[2]);
+        for (c, &add) in px.0.iter_mut().zip(&colour) {
+            *c = (*c as u32 + add as u32 * dark as u32 / 255).min(255) as u8;
+        }
+    }
+    img
+}
+
+fn music(assets: &mut ArchiveAssets, labels: &Labels) -> Option<MusicRoom> {
+    let atlas = assets.system_image("mu_bg.png")?;
+    // The background with its list panel over the other panels and the
+    // player's bar (painted out, softened); MUSIC stays.
+    let mut room = imageops::crop_imm(&atlas, 0, 0, SCREEN_W as u32, SCREEN_H as u32).to_image();
+    let bar = (376, 38, 520, 48);
+    super::menus::patch(&mut room, bar);
+    let soft = imageops::blur(&imageops::crop_imm(&room, bar.0 - 16, bar.1 - 16, bar.2 + 32, bar.3 + 32).to_image(), 8.0);
+    imageops::replace(&mut room, &imageops::crop_imm(&soft, 16, 16, bar.2, bar.3).to_image(), bar.0 as i64, bar.1 as i64);
+    let panel = stretched(&imageops::crop_imm(&atlas, PANEL.0, PANEL.1, PANEL.2, PANEL.3).to_image(), PANEL_TO.2, PANEL_TO.3);
+    imageops::overlay(&mut room, &panel, PANEL_TO.0 as i64, PANEL_TO.1 as i64);
+    let header = imageops::crop_imm(&room, 24, 24, 130, 48).to_image();
+    let mut songs = Vec::new();
+    for (i, &track) in TRACKS.iter().enumerate() {
+        let (column, row) = if i < TITLES_LEFT { (0, i) } else { (1, i - TITLES_LEFT) };
+        let title = imageops::crop_imm(&atlas, column * 480, TITLE_Y + row as u32 * TITLE_H, 480, TITLE_H).to_image();
+        let title = trim(&title);
+        let title = imageops::resize(&title, title.width() * 3 / 5, TITLE_H * 3 / 5, imageops::FilterType::Triangle);
+        let file = assets.bgm(track)?;
+        let (x, y) = (MUSIC_X + MUSIC_DX * (i / MUSIC_ROWS) as i32, MUSIC_Y + MUSIC_DY * (i % MUSIC_ROWS) as i32);
+        let hover = tinted(&title, [230, 120, 20]);
+        let button = place(assets, &format!("music{i}"), &cells(&[title.clone(), hover.clone()]), x, y);
+        let on = tinted(&title, [40, 90, 230]);
+        let playing = assets.put_system_png(&format!("music{i}_on"), &cells(&[on, hover]));
+        songs.push(MusicSong { button, playing, file, progress: None });
+    }
+    let exit_img = labels.button("戻る", 20.0);
+    let exit = cells(&[
+        imageops::crop_imm(&exit_img, 0, 0, exit_img.width() / 3, exit_img.height()).to_image(),
+        imageops::crop_imm(&exit_img, exit_img.width() / 3, 0, exit_img.width() / 3, exit_img.height()).to_image(),
+    ]);
+    let background = Some(assets.put_system_png("music_bg", &room));
+    Some(MusicRoom { header: place(assets, "music_header", &header, 24, 24), exit: place(assets, "music_exit", &exit, 860, 506), songs, background })
+}
+
+/// A panel stretched to `w`×`h`: its corners kept, its edges stretched
+/// along, the inside from its middle (clear of the scroll bar).
+fn stretched(panel: &RgbaImage, w: u32, h: u32) -> RgbaImage {
+    const B: u32 = 16;
+    let (pw, ph) = (panel.width(), panel.height());
+    let part = |x, y, cw, ch, tw, th| imageops::resize(&imageops::crop_imm(panel, x, y, cw, ch).to_image(), tw, th, imageops::FilterType::Triangle);
+    let mut out = RgbaImage::new(w, h);
+    let (mw, mh) = (w - 2 * B, h - 2 * B);
+    let pieces = [
+        (part(0, 0, B, B, B, B), 0, 0),
+        (part(pw - B, 0, B, B, B, B), w - B, 0),
+        (part(0, ph - B, B, B, B, B), 0, h - B),
+        (part(pw - B, ph - B, B, B, B, B), w - B, h - B),
+        (part(B, 0, pw / 2, B, mw, B), B, 0),
+        (part(B, ph - B, pw / 2, B, mw, B), B, h - B),
+        (part(0, B, B, ph - 2 * B, B, mh), 0, B),
+        (part(pw - B, B, B, ph - 2 * B, B, mh), w - B, B),
+        (part(B, B, pw / 2, ph - 2 * B, mw, mh), B, B),
+    ];
+    for (img, x, y) in pieces {
+        imageops::replace(&mut out, &img, x as i64, y as i64);
+    }
+    out
+}
+
+/// `img` without its transparent columns on the right.
+fn trim(img: &RgbaImage) -> RgbaImage {
+    let w = (0..img.width()).rev().find(|&x| (0..img.height()).any(|y| img.get_pixel(x, y).0[3] > 0)).map_or(1, |x| x + 1);
+    imageops::crop_imm(img, 0, 0, w, img.height()).to_image()
 }
 
 fn gallery(assets: &mut ArchiveAssets, labels: &Labels, game: &Game, album: &RgbaImage, parts: &RgbaImage, header: RgbaImage) -> Option<CgGallery> {

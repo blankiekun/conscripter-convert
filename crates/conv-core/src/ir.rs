@@ -877,6 +877,8 @@ pub struct MusicRoom {
     /// Back to the extras menu; two cells: normal, under the pointer.
     pub exit: Placed,
     pub songs: Vec<MusicSong>,
+    /// The room's own background picture; `None` keeps the extras menu's.
+    pub background: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

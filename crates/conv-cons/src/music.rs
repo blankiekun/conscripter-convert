@@ -25,7 +25,7 @@ pub(crate) fn music(out: &mut String, m: &MusicRoom, background: &str, back: &st
     let songs = &m.songs[..m.songs.len().min(MAX_SONGS)];
     w(format!("*{MUSIC}"));
     w("csp -1".into());
-    w(format!("bg \"{}\",0", path(background)));
+    w(format!("bg \"{}\",0", path(m.background.as_deref().unwrap_or(background))));
     w(format!("*{DRAW}"));
     w("csp -1".into());
     w(format!("lsp {HEADER},\":a;{}\",{},{}", path(&m.header.image), m.header.x, m.header.y));
