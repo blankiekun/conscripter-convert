@@ -1400,26 +1400,10 @@ fn escape(text: &str) -> String {
 }
 
 /// [`escape`]s text that `strsp` (or another sprite text) will draw.
-/// Sprite texts draw half-width characters in pairs, taking the byte after
-/// one along even when it starts a full-width character (NScripter's rule:
-/// half-width characters come in pairs), so a run of an odd number of
-/// them before a full-width one gets a space at its end.
+/// CONscripter no longer pairs a half-width character with a full-width
+/// one after it, so an odd run needs no padding space.
 fn sprite_text(text: &str) -> String {
-    let mut out = String::new();
-    let mut run = 0;
-    for c in escape(text).chars() {
-        let half_width = c.is_ascii() || ('\u{ff61}'..='\u{ff9f}').contains(&c);
-        if half_width {
-            run += 1;
-        } else {
-            if run % 2 == 1 {
-                out.push(' ');
-            }
-            run = 0;
-        }
-        out.push(c);
-    }
-    out
+    escape(text)
 }
 
 #[derive(Default)]
@@ -2201,12 +2185,9 @@ end
     }
 
     #[test]
-    fn sprite_texts_pair_half_width_characters() {
-        assert_eq!(sprite_text("ＳＡＴＩＥ'Ｓ・ＴＩＭＥ"), "ＳＡＴＩＥ' Ｓ・ＴＩＭＥ");
-        assert_eq!(sprite_text("火岸－HIGAN－"), "火岸－HIGAN －");
-        assert_eq!(sprite_text("『IMA:category5』"), "『IMA:category5 』");
-        assert_eq!(sprite_text("『TCP/IP』"), "『TCP ／IP』");
-        assert_eq!(sprite_text("TypeCGC"), "TypeCGC");
+    fn sprite_texts_are_not_padded() {
+        assert_eq!(sprite_text("ＳＡＴＩＥ'Ｓ・ＴＩＭＥ"), "ＳＡＴＩＥ'Ｓ・ＴＩＭＥ");
+        assert_eq!(sprite_text("『TCP/IP』"), "『TCP／IP』");
     }
 
     #[test]
