@@ -491,29 +491,52 @@ Used to check what the engine does (`docs/new-game.md` step 9).
   are plain `.nss` in `nss.npa`, so a copy of the archive with a patched
   boot script can start any scene with its flags set and auto mode on
   (`$SYSTEM_text_auto = true`), with no clicks. `research/nitroplus/npa.py`
-  decodes the archive (the inverse table is in `npa.rs`); a packer that
-  writes it back is still to do, and is the next step before another
-  wine session. Saves (`.npf`) are the fallback: `builtin_Save`
-  (`00411ea0`) and `builtin_Load` (`00411fb0`) would give their format.
+  decodes the archive and `--pack DIR NEW.npa` writes a copy with the
+  files in `DIR` replaced (same index, keys, compression and
+  encryption). Link the patched copy as `nss.npa` in `C:\muramasa\`.
+  Example, straight to the title with no logos (uncomment the debug
+  line `//$Logo = true;` in `0_boot.nss`):
+
+  ```
+  python3 -I research/nitroplus/npa.py <game>/Muramasa.exe <game>/nss.npa nss/
+  # edit nss/0_boot.nss into patch/0_boot.nss (cp932)
+  python3 -I research/nitroplus/npa.py <game>/Muramasa.exe <game>/nss.npa --pack patch/ nss-title.npa
+  ```
+
+  Saves (`.npf`) are the fallback: `builtin_Save` (`00411ea0`) and
+  `builtin_Load` (`00411fb0`) would give their format.
+- Film transitions with `ffmpeg -f x11grab -video_size 1024x576 -i
+  :N+128,125`; single shots with `import` as above.
 
 ## Status: in progress (2026-10-14)
 
 The whole story compiles, the 立方陣 included, and every ending of the
 chart is reached in the converted control flow. **Route runs**
 (2026-10-14, see "Testing"), the full build played in CONscripter
-0.19.0 headless with `--auto-play` and a debug trace, every page drawn
+0.19 headless with `--auto-play` and a debug trace, every page drawn
 and the files checked against nstrace:
 
 | Run | Ending | Files | Pages | Time | Result |
 |---|---|---|---|---|---|
-| 1 | 一条END | 246 | 26,704 | 17 min | passed |
-| 2 | 香奈枝END | 349 | 26,085 | 18 min | passed |
-| 3 | 茶々丸END | 300 | 29,136 | 19 min | passed |
-| 9 | 村正END | 510 | 36,276 | 24 min | passed |
-| 10 | TRUE END | 514 | 36,449 | 24 min | passed |
+| 1 | 一条END | 246 | 26,704 | 24 min | passed |
+| 2 | 香奈枝END | 349 | 26,085 | 25 min | passed |
+| 3 | 茶々丸END | 300 | 29,136 | 26 min | passed |
+| 4 | bad end (`mz00_000`) | 436 | 31,500 | 28 min | passed |
+| 5 | bad end | 438 | 31,670 | 28 min | passed |
+| 6 | bad end | 440 | 31,714 | 28 min | passed |
+| 7 | bad end | 442 | 31,777 | 28 min | passed |
+| 8 | bad end | 455 | 32,873 | 28 min | passed |
+| 9 | 村正END | 510 | 36,276 | 29 min | passed |
+| 10 | TRUE END | 514 | 36,449 | 30 min | passed |
 
-(The build with every fix below, 2026-10-14; the build before them
-passed too.) The same runs on Xvfb in skip mode took 40-56 minutes. On CONscripter
+(Round 3, 2026-10-14: the build with every fix below up to the `[text0081]`
+marker, engine 0.19.1, all ten paths side by side with `--all`; the
+times are with ten at once. Rounds 1 and 2, the five endings on the
+builds before, passed too. Round 3's checker report matches round 2's,
+with no `error` or `missing`; the only new findings are `slow` waits in
+`ma05_019` (7.8 s where the original takes about 4 s): since the alias
+fix its non-blocking 2 s `Shake` really shakes, and we play it blocking
+before the next fade.) The same runs on Xvfb in skip mode took 40-56 minutes. On CONscripter
 0.18.0, run 9 aborted 508 files in with `malloc(): unaligned tcache
 chunk detected` (heap corruption, noticed in `malloc` under `lsp` →
 `loadImage`); on 0.19.0 it passes. A likely cause, fixed in between:
@@ -623,13 +646,7 @@ out/conscripter-mura`). The route runs and `--at` starts are in
 `research/nitroplus/engrun.py`.
 
 Next, in order:
-1. **Check the route runs of the rebuilt game.** Round 3 (2026-10-14,
-   all ten paths with `--all`, engine 0.19.1, the build before d124bec)
-   was started side by side; check each run's result line and run the
-   trace checker on each `trace.jsonl`. The build has the fixes after
-   the route runs above, but not the exact names (d124bec): those
-   change only two waits and need no new runs.
-2. **Sound volume** (half done). The converter ignores `SetVolume`
+1. **Sound volume** (half done). The converter ignores `SetVolume`
    (1,406 changes of a playing sound in the build's list; starting
    volumes too) unless it goes to 0, so sounds faded to 1 keep playing
    at full volume, and loops faded that way never stop (the checker's
@@ -645,24 +662,53 @@ Next, in order:
    curve (`research/nitroplus/builtins.md`, `SetVolume`): percent =
    100·(volume/1000)^1.661, so 1 is silent and 500 is 32 %. A fade to
    0 over time could use `dwavefadeout` (CONscripter 922b73f).
-3. An NPA packer (`npa.rs` has the inverse table), so the original can
-   be started at any scene from a patched `nss.npa` instead of clicking
-   (`docs/new-game.md` step 9, "Running the original under wine").
-4. Check against the original: the figure in `ma01_002` (おれ→ ○□卍□○
+2. Check against the original: the figure in `ma01_002` (おれ→ ○□卍□○
    ←？ with ／＼ strokes) only lines up written horizontally, and comes
    apart in its vertical box.
-5. A replay of route 9 with `--shot-pages` (engine 0.19.0) stopped
+3. A replay of route 9 with `--shot-pages` (engine 0.19.0) stopped
    drawing at `f_md01_002:158856` (`print 10,500`, page 18,573) with
    the process spinning; the same run passed before. Not reproduced.
-6. **System screens** (step 7): title, save/load, settings, backlog,
-   built as in-script menus from `cg/sys/*` parts, as for 最果てのイマ
-   (`conv-cons/src/menu.rs`); the settings screen also shows the build's
-   version line (`version.txt`). A big item: check with the user first.
-7. The largest leftovers below: `CreateProcess` (via Lua), non-blocking
+4. **System screens** (step 7), under way. The original was filmed
+   under wine from patched boots (title, right-click menu, quick bar,
+   save/load, confirmations, settings and its voice window, backlog,
+   click-wait icon; transitions also slowed ×10); shots and videos are
+   in `research/nitroplus/local/` (git-ignored). Every confirmation is
+   drawn from `cg/sys/dialog` parts: no Windows dialog needs designing
+   (the only `Message()` box is for a display option we leave out).
+   Behaviour seen: right-click at a text wait opens the menu, wheel-up
+   opens the backlog, the wheel scrolls it a line a notch and wheel-down
+   at the newest line closes it, right-click closes every screen (No in
+   a dialog), Esc asks ゲームを終了しますか, the title's 終了する quits
+   with no question, the backlog shows no names. Plan, in order, each
+   screen checked beside the original:
+   1. Button strips joined from the `000`-`003` part files at convert
+      time; confirmations as pictures (`ConfirmDialog` + a picture per
+      question, backdrop, the 記録をしました notice).
+   2. Title: layers, hover and click sounds, BGM, `Continue` (quick
+      load) and `Extras` actions.
+   3. Right-click menu (a new `CommandMenu`) and the quick bar
+      (`ButtonBar` with a base picture, hidden at the right edge and
+      sliding in as in the original).
+   4. Save/load grid (a new `SaveGrid`: 20 slots a page, 5 pages,
+      hover details).
+   5. Backlog (line scrolling, voice icon, scroll knob) and the
+      click-wait icon.
+   6. Settings drawn as one picture (a new `PictureSettings`: vertical
+      sliders, 入/切 pairs, voice window, version line).
+   7. Motion: fire flicker, opening, menu cascade, dialog unroll, quick
+      bar slide.
+
+   The user's decisions (2026-10-14): the pressed state (`003`) becomes
+   an engine feature that is on for every script; the settings CONscripter
+   lacks (music/SE/voice mute, voice stops on click, auto waits for the
+   voice, auto/skip stop at a choice, movie skip, game speed) are added
+   to the engine the same way (since then no engine addition is opt-in); 選択肢に戻る is implemented
+   (a save to a reserved slot before each choice).
+5. The largest leftovers below: `CreateProcess` (via Lua), non-blocking
    `Move`/`Zoom`, `AddRender` (needs a per-sprite blend mode).
-8. Step 11.5: `#` flags (globals from %800) across quit and relaunch,
+6. Step 11.5: `#` flags (globals from %800) across quit and relaunch,
    and in the web build.
-9. Optional: the 18 files with no `else` (below).
+7. Optional: the 18 files with no `else` (below).
 
 **Leftovers** (counts from the dry run's notes):
 - `CreateProcess` (510 calls; the battle HUD `CP_*` in

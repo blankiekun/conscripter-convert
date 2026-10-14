@@ -152,10 +152,9 @@ produces the IR; only `conv-cons` knows about NScripter and CONscripter.
 
 When a game needs something the engine can't do:
 
-1. Add it to `engine/src/onsyuri/` as a new, opt-in command or option, so
-   scripts that don't use it behave as before (a fix to something the
-   engine does wrong applies to every script instead). It must work in
-   the web build too.
+1. Add it to `engine/src/onsyuri/` as a new command or behaviour. Nothing
+   is opt-in: a new behaviour, like a bug fix, applies to every script.
+   It must work in the web build too.
 2. Document it in [`engine/ADDITIONS.md`](engine/ADDITIONS.md) and in
    [`PLAN.md`](PLAN.md) §4.2.
 3. Commit and push it in the engine repository, then commit the new
