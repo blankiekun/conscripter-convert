@@ -227,6 +227,11 @@ impl Assets for ArchiveAssets<'_> {
         self.picture(0, id)
     }
 
+    fn cg_named(&mut self, name: &str) -> Option<(String, u32, u32)> {
+        let id = self.cg.archive.entries.iter().find(|e| e.name.eq_ignore_ascii_case(name))?.id;
+        self.picture(0, id)
+    }
+
     fn chr(&mut self, id: u32) -> Option<(String, u32, u32)> {
         self.picture(1, id)
     }

@@ -62,6 +62,8 @@ fn sy(y: i64) -> i32 {
 pub trait Assets {
     /// A CG.cpk picture: output path, width, height.
     fn cg(&mut self, id: u32) -> Option<(String, u32, u32)>;
+    /// A CG.cpk picture by file name (`EC27.png`), case-insensitive.
+    fn cg_named(&mut self, name: &str) -> Option<(String, u32, u32)>;
     /// A CHR.cpk picture.
     fn chr(&mut self, id: u32) -> Option<(String, u32, u32)>;
     /// The rule mask `RULE<n>` of ETC.cpk, as large as the screen.
@@ -252,6 +254,10 @@ struct Lowering<'a> {
     /// A transition is open (staged changes wait for InOut).
     staging: bool,
     choices: usize,
+    /// The colour a FadeOut covers the picture with, until FadeIn.
+    cover: Option<u32>,
+    /// An eye catch is on the cover's layer.
+    eye_catch: bool,
 }
 
 impl Lowering<'_> {
@@ -422,6 +428,7 @@ impl Lowering<'_> {
             }
             "FadeOut" => {
                 let rgb = colour(t);
+                self.cover = Some(rgb);
                 let image = self.assets.colour(rgb);
                 let cover = SpriteChange { layer: COVER_LAYER, sprite: Some(SpritePlacement { image, x: 0, y: 0 }), keep_filters: false };
                 self.out.ops.push(Op::Sprites { changes: vec![cover.clone()], fade_ms: ms(t.int("Time").unwrap_or(0)) });
@@ -434,6 +441,7 @@ impl Lowering<'_> {
                 }
             }
             "FadeIn" => {
+                self.cover = None;
                 let change = SpriteChange { layer: COVER_LAYER, sprite: None, keep_filters: false };
                 self.out.ops.push(Op::Sprites { changes: vec![change], fade_ms: ms(t.int("Time").unwrap_or(0)) });
             }
@@ -567,10 +575,32 @@ impl Lowering<'_> {
                     self.note("SpriteMove :Scale");
                 }
             }
+            // `:Image 0,N`: CG.cpk's ECnn (27 is the title logo) over
+            // everything, on the cover's layer; EyeCatchEnd puts back what
+            // was there (the black of a FadeOut, or nothing) over `:Fade`.
             "EyeCatch" => {
-                // The eye-catch picture isn't known yet: a pause instead.
-                self.out.ops.push(Op::Wait { ms: 500 });
-                self.note("EyeCatch (a pause)");
+                let n = t.int_at("Image", 1).unwrap_or(-1);
+                let image = match t.int_at("Image", 0) {
+                    Some(0) if n >= 0 => self.assets.cg_named(&format!("EC{n:02}.png")),
+                    _ => None,
+                };
+                match image {
+                    Some((path, w, h)) => {
+                        let (x, y) = ((SCREEN_W - w as i32) / 2, (SCREEN_H - h as i32) / 2);
+                        let change = SpriteChange { layer: COVER_LAYER, sprite: Some(SpritePlacement { image: path, x, y }), keep_filters: false };
+                        self.out.ops.push(Op::HideTextWindow);
+                        self.out.ops.push(Op::Sprites { changes: vec![change], fade_ms: 500 });
+                        self.eye_catch = true;
+                    }
+                    None => self.note(format!("EyeCatch {:?}", t.get("Image").unwrap_or(&[]))),
+                }
+            }
+            "EyeCatchEnd" => {
+                if std::mem::take(&mut self.eye_catch) {
+                    let sprite = self.cover.map(|rgb| SpritePlacement { image: self.assets.colour(rgb), x: 0, y: 0 });
+                    let change = SpriteChange { layer: COVER_LAYER, sprite, keep_filters: false };
+                    self.out.ops.push(Op::Sprites { changes: vec![change], fade_ms: ms(t.int("Fade").unwrap_or(30)) });
+                }
             }
             "MoviePlay" => match t.int("Movie").and_then(|n| self.assets.movie(n as u32)) {
                 Some(file) => self.out.ops.push(Op::Movie { file, skippable: t.int("Skip").unwrap_or(-1) != 0 }),
@@ -607,7 +637,7 @@ impl Lowering<'_> {
                     self.out.ops.push(Op::Chapter { title: title.to_string() });
                 }
             }
-            "BacklogMessage" | "SceneJumpDialogEnd" | "MovieStop" | "EyeCatchEnd" | "CharacterWait" | "SpriteMoveEnd" | "CharacterActionEnd" => {}
+            "BacklogMessage" | "SceneJumpDialogEnd" | "MovieStop" | "CharacterWait" | "SpriteMoveEnd" | "CharacterActionEnd" => {}
             _ => self.unsupported(scene, i, ty.to_string()),
         }
     }
@@ -748,7 +778,7 @@ fn colour(t: &Block) -> u32 {
 /// Compiles `scenes` (all of them if empty), each at its label, after a
 /// jump to the game's first scene.
 pub fn compile(game: &Game, scenes: &[String], assets: &mut dyn Assets) -> Compiled {
-    let mut l = Lowering { game, assets, out: Compiled::default(), shown: HashMap::new(), next_slot: HashMap::new(), staging: false, choices: 0 };
+    let mut l = Lowering { game, assets, out: Compiled::default(), shown: HashMap::new(), next_slot: HashMap::new(), staging: false, choices: 0, cover: None, eye_catch: false };
     let names: Vec<&String> = if scenes.is_empty() { game.scenes.keys().collect() } else { scenes.iter().collect() };
     let first = names.first().map(|s| s.as_str()).unwrap_or(&game.start);
     let first = if scenes.is_empty() { game.start.as_str() } else { first };
