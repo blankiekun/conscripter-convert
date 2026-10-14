@@ -1,0 +1,11 @@
+# Muramasa.exe: functions and data identified so far, applied by
+# research/tools/ghidra/ghidra_export.sh --names. Columns (tab-separated):
+# address, name, comment. Details: docs/games/muramasa.md and
+# research/nitroplus/builtins.md.
+00534830	npa_name_table	256-byte substitution table for NPA names and data (file offset 0x134830; research/nitroplus/npa.py)
+0047cd70	set_system_variable	assigns a $SYSTEM_ variable: compares the name with 62 setting names built on the stack (sound_volume_bgm, ...)
+00464b50	parse_texture_source	compares an argument with SCREEN, VIDEO, SCENE (CreateTexture sources, unverified)
+004117c0	parse_scope	compares an argument with LOCAL, GLOBAL
+0040cb70	parse_font_style	compares font weights (DONTCARE ... HEAVY) and shadow directions (LEFT ... AROUND)
+004119e0	parse_font_style_2	the same weights and directions as parse_font_style
+0043a780	script_eval_candidate	18 KB; compares MessageBox styles (OK, YESNO, ABORTRETRYIGNORE, ...) and SYSTEM_, parses "(", calls set_system_variable: probably part of the statement evaluator (unconfirmed)
