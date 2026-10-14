@@ -353,6 +353,12 @@ hub that is always answered the same way leaves whole routes unreached
   in the same one starts from a different state. A `replay diverged` warning marks the first place the new
   build went a different way. Compare the before and after traces with
   `cons_trace_check.py --diff before.jsonl after.jsonl`.
+- A route simulator (step 11.4) can write the `--replay` file itself:
+  the engine reads only its `choice` records, in order, each with the
+  place and the answer (`{"t":"choice","at":"*label:line","picked":2}`,
+  or `"result"` for a `btnwait`), so a walkthrough path plays in the
+  engine without patching `0.txt`. The places are `0.txt` line numbers:
+  write them from the simulator's run over the same `0.txt`.
 
 **Start anywhere.** `--goto <label> --vars <file>` starts at a label
 with `%`/`$` variables preset (`%312=876`, `$5=text`, one per line). It

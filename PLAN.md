@@ -618,10 +618,11 @@ The steps that apply them are in `docs/new-game.md`.
 - **Skip runs per ending find what logic checks can't** (2026-10-14): a
   `?` in text (NScripter reads an array and exits), a 270 s cross-fade,
   heap corruption after 500 files. Patch the choices into the script
-  (one `if` per line: a false `if` skips the rest of its line), hold
-  Ctrl on a private Xvfb (any key release ends skip mode), and start deep
-  in a route from the tracer's variables (`--at`) to reproduce in
-  seconds.
+  (one `if` per line: a false `if` skips the rest of its line) or write
+  them as a `--replay` file, play headless with `--auto-play` and a
+  trace (no Xvfb, no held Ctrl; a crash leaves a `crash` record), and
+  start deep in a route from the tracer's variables (`--goto` and
+  `--vars`, or a patched start) to reproduce in seconds.
 - **CONscripter's errors go to `stderr.txt`** in the game folder
   (`USE_FILELOG`), not to the terminal: an exit that looks silent has
   its message there.
