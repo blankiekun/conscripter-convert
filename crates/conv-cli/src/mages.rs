@@ -191,6 +191,9 @@ fn convert(game: &Path, output: &Path, scenes: &[String], font: Option<&Path>, t
         bail!("{} already exists; move it away first (it would be packed and then deleted)", output.join(d).display());
     }
     let g = Game::load(&scripts(game)?).map_err(anyhow::Error::msg)?;
+    // The menus' labels and the skip dialog's summaries are drawn with the
+    // font.
+    let font_bytes = font.map(fs::read).transpose().context("reading the font")?;
     let names = ["CG.cpk", "CHR.cpk", "ETC.cpk", "SystemData.cpk", "VOICE.AWB", "SE.AWB", "BGM.AWB"];
     let maps: Vec<_> = names.iter().map(|n| map(&game.join("media").join(n))).collect::<Result<_>>()?;
     let mut banks = Vec::new();
@@ -202,10 +205,9 @@ fn convert(game: &Path, output: &Path, scenes: &[String], font: Option<&Path>, t
     let mut assets = ArchiveAssets::new(next(), next(), next(), next(), next(), next(), next(), output);
     assets.dry_run = dry_run;
     assets.movie_dir = game.join("media").join("data");
+    assets.font = font_bytes.as_deref();
     let compiled = convert::compile(&g, scenes, &mut assets);
     let window = convert::text_window(&mut assets);
-    // The menus' labels are drawn with the font.
-    let font_bytes = font.map(fs::read).transpose().context("reading the font")?;
     let labels = font_bytes.as_deref().and_then(conv_engines::mages::menus::Labels::new);
     let extras = if scenes.is_empty() { labels.as_ref().and_then(|l| conv_engines::mages::extras::extras(&mut assets, l, &g)) } else { None };
     let title_screen = conv_engines::mages::screens::title(&mut assets, extras.is_some());

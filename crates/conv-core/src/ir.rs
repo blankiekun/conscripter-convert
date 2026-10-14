@@ -412,6 +412,9 @@ pub enum Op {
     TilePuzzle(Box<TilePuzzle>),
     /// Something the converter can't express yet; kept for the report.
     Unsupported { what: String, at: SourceLoc },
+    /// A screen of pictures and image buttons over everything (see
+    /// [`ButtonScreen`]); continues at the label of the button clicked.
+    ButtonScreen(Box<ButtonScreen>),
 }
 
 /// A puzzle of numbered tiles (装甲悪鬼村正's 立方陣): the player clicks a
@@ -1049,6 +1052,18 @@ pub struct ConfirmDialog {
     pub delete: String,
     pub title: String,
     pub quit: String,
+}
+
+/// A screen of its own drawn over the scene, the text window hidden:
+/// `pictures` from the bottom up, then `buttons` (two-cell strips:
+/// normal, under the mouse), each with the label to continue at. It fades
+/// in and, once a button is clicked, out over `fade_ms`, showing the scene
+/// again.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ButtonScreen {
+    pub pictures: Vec<Placed>,
+    pub buttons: Vec<(Placed, String)>,
+    pub fade_ms: u32,
 }
 
 #[derive(Debug, Clone, Default)]

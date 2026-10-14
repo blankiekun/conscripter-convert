@@ -9,13 +9,16 @@
 //! `bgm/<id>.ogg`, with the ADX loop as `LOOPSTART`/`LOOPEND`), and the
 //! USM movies MP4 files (`movie/`, loose: [`ArchiveAssets::movies`]).
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
 use image::{Rgba, RgbaImage, imageops};
 
+use conv_core::ir::Placed;
+
 use super::convert::{Assets, Particles, SCREEN_H, SCREEN_W};
+use super::menus::Labels;
 use super::cpk::Archive;
 
 /// Top-level output folders the assets go to.
@@ -74,6 +77,10 @@ pub struct ArchiveAssets<'a> {
     pub errors: Vec<String>,
     /// Write nothing (only picture sizes are read).
     pub dry_run: bool,
+    /// The `--font`, for the words drawn into pictures.
+    pub font: Option<&'a [u8]>,
+    /// Pictures cut from SystemData's atlases, by output path.
+    cut: HashSet<String>,
 }
 
 /// Width and height from a PNG header.
@@ -114,6 +121,8 @@ impl<'a> ArchiveAssets<'a> {
             movie_dir: PathBuf::new(),
             errors: Vec::new(),
             dry_run: false,
+            font: None,
+            cut: HashSet::new(),
         }
     }
 
@@ -483,6 +492,70 @@ impl Assets for ArchiveAssets<'_> {
         let path = "system/meswin.png".to_string();
         self.write_png(&path, &img);
         Some((path, w, h))
+    }
+
+    // The eboot's skip dialog (vtable 0x8115befc: layout 0x8103e7d6,
+    // refresh 0x8103e248, draw 0x8103ebf2), from SystemData 62 + the
+    // protagonist (ss_bg1 … ss_bg5), each rectangle (x, y, w, h) of the
+    // atlas centred at a point: the screen (0, 0, 960, 544); the question
+    // (606, 746, 302, 39) at (480, 184); the date (n % 6 × 138,
+    // 545 + n / 6 × 21, 138, 20) at (129, 48); the emblem (158n, 839, 158,
+    // 173) at (164, 406); up to 10 faces (id % 25 × 37, 671 + id / 25 × 37,
+    // 37, 37), the last at (858, 60) and each one before 38 to the left;
+    // Yes and No (425, 746 and 768, 60, 22; selected 60 to the right) at
+    // (415, 241) and (545, 241). The summary is written in white from
+    // (300, 319), its lines 27 apart.
+    fn skip_dialog(&mut self, bg: &[i64], faces: &[i64], text: &str, name: &str) -> Option<(Vec<Placed>, [Placed; 2])> {
+        let labels = Labels::new(self.font?)?;
+        let n = *bg.first()?;
+        if !(0..5).contains(&n) {
+            return None;
+        }
+        let mut atlas: Option<RgbaImage> = None;
+        let mut cut = |assets: &mut Self, part: String, cells: &[(i64, i64)], (w, h): (i64, i64), (cx, cy): (i64, i64)| -> Option<Placed> {
+            let path = format!("system/ss{}_{part}.png", n + 1);
+            if !assets.cut.contains(&path) {
+                if atlas.is_none() {
+                    atlas = Some(image::load_from_memory(assets.system.file(62 + n as u32)?.1).ok()?.to_rgba8());
+                }
+                let img = atlas.as_ref()?;
+                let mut sheet = RgbaImage::new(w as u32 * cells.len() as u32, h as u32);
+                for (i, &(x, y)) in cells.iter().enumerate() {
+                    let part = imageops::crop_imm(img, x as u32, y as u32, w as u32, h as u32).to_image();
+                    imageops::replace(&mut sheet, &part, i as i64 * w, 0);
+                }
+                assets.write_png(&path, &sheet);
+                assets.cut.insert(path.clone());
+            }
+            Some(Placed { image: path, x: (cx - w / 2) as i32, y: (cy - h / 2) as i32, w: (w * cells.len() as i64) as i32, h: h as i32 })
+        };
+        let mut pictures = vec![cut(self, "bg".into(), &[(0, 0)], (960, 544), (480, 272))?, cut(self, "question".into(), &[(606, 746)], (302, 39), (480, 184))?];
+        if let Some(&d) = bg.get(2).filter(|d| (0..36).contains(*d)) {
+            pictures.push(cut(self, format!("date{d}"), &[(d % 6 * 138, 545 + d / 6 * 21)], (138, 20), (129, 48))?);
+        }
+        if let Some(&e) = bg.get(1).filter(|e| (0..5).contains(*e)) {
+            pictures.push(cut(self, format!("emblem{e}"), &[(158 * e, 839)], (158, 173), (164, 406))?);
+        }
+        let shown = &faces[faces.len().saturating_sub(10)..];
+        for (k, &id) in shown.iter().rev().enumerate() {
+            if (0..50).contains(&id) {
+                pictures.push(cut(self, format!("face{id}"), &[(id % 25 * 37, 671 + id / 25 * 37)], (37, 37), (858 - 38 * k as i64, 60))?);
+            }
+        }
+        let lines: Vec<RgbaImage> = text.lines().map(|l| labels.draw(l, 21.0, [255, 255, 255], [0, 0, 0], 255)).collect();
+        if let Some(h) = lines.iter().map(|l| l.height()).max() {
+            // draw() leaves 4 pixels around the letters.
+            let mut img = RgbaImage::new(lines.iter().map(|l| l.width()).max()?, 27 * (lines.len() as u32 - 1) + h);
+            for (i, l) in lines.iter().enumerate() {
+                imageops::overlay(&mut img, l, 0, 27 * i as i64);
+            }
+            let path = format!("system/skip_{name}.png");
+            self.write_png(&path, &img);
+            pictures.push(Placed { image: path, x: 296, y: 315, w: img.width() as i32, h: img.height() as i32 });
+        }
+        let yes = cut(self, "yes".into(), &[(425, 746), (485, 746)], (60, 22), (415, 241))?;
+        let no = cut(self, "no".into(), &[(425, 768), (485, 768)], (60, 22), (545, 241))?;
+        Some((pictures, [yes, no]))
     }
 }
 

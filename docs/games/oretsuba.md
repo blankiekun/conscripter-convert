@@ -99,6 +99,19 @@ Found so far:
   680 → 408 as the progress goes 0 → ½, back after), type 1 the one
   at 0x8115c5bc (the chapter card, 0x81048c68; alpha 0 → 100 → 0).
   Both are drawn from SystemData by ID, not by name.
+- SceneJumpDialog: task 0x84 (handler 0x810265b4: Yes goes to
+  `:JumpNextTag`, No to `:NextTag`, an unread scene or the setting off
+  to `:UnreadTag`). The dialog's class (vtable 0x8115befc) lays out
+  SystemData 62 + `:BG` 0 at 0x8103e7d6 and sets its cells at 0x8103e248
+  (rectangles of the atlas, centred at a point): the screen (0, 0,
+  960×544); the question (606, 746, 302×39) at (480, 184); the date n
+  (n % 6 × 138, 545 + n / 6 × 21, 138×20) at (129, 48); the emblem e
+  (158e, 839, 158×173) at (164, 406); up to 10 faces (id % 25 × 37,
+  671 + id / 25 × 37, 37×37), the last at (858, 60), each one before it
+  38 to the left; Yes and No (425, 746 / 768, 60×22, the selected one
+  60 to the right) at (415, 241) and (545, 241). It draws (0x8103ebf2)
+  two strings in white, lines 27 apart: one at (81, 99), the summary at
+  (300, 319). It fades over 15 frames.
 - EffectStart 40: the object made at 0x8103f8f4 (constructor
   0x810427b2) draws the screen once through vertex GXP 0x81161628 and
   fragment GXP 0x8115f304 with `value` = (frames/30, `:Param` 0,
@@ -277,7 +290,7 @@ at that scale, SystemData's are drawn at 1280×720 and are scaled by 3/4
 | `InOut_Act` (the eboot's effect 25: `:Type` picks the class, `:Param` 0 mostly a direction 0-3 = right, down, left, up) | 0 (the old screen squeezes to that edge while the new one grows from the other; 21 uses) and 7 (a push; 89) as ONScripter's scrolls; 5 (to or from white or black; 9) through white; 2 (a mosaic growing to `:Param` 1 pixels of 720 halfway while the screens cross-fade; 66) as ONScripter's mosaic out and in; 3 (a card turning over in perspective, old in front, new behind, about the vertical axis for `:Param` 0 below 2; 47) as `cons_flip`, the new screen turning in. As plain fades: 1 (rows waving sideways, `:Param` 1-2 the wave; 57), 6 (blurred sideways halfway, `:Param` 1 the width, `:Param` 0 = 1 only the new screen; 130), 4 (2) |
 | FadeOut/FadeIn, TimeWait, BGM, SE, Window hide | converted |
 | Tags, jumps, flag switches and operations, choices with points, NextScene | converted, not yet checked against a walkthrough |
-| SceneJumpDialog (skip a scene already read) | converted: a global "read" flag per scene (`%1200` + the scene's index in name order); a read scene shows its summary and このシーンを読む / このシーンをスキップする |
+| SceneJumpDialog (skip a scene already read) | converted: a global "read" flag per scene (`%1200` + the scene's index in name order). A read scene shows the eboot's dialog (layout below): SystemData's `ss_bg1`…`ss_bg5` by `:BG` 0 (the protagonist), このシーンをスキップしますか？, the date (`:BG` 2), the emblem (`:BG` 1), the `:CharaIcon` faces, the summary (`:Text`) drawn with the `--font`, and Yes (skip) / No buttons that glow under the pointer. The line the eboot also writes at (81, 99) is left empty (its text isn't in the task; perhaps the chapter's name). The original asks only when its setting is on; ours always asks. Without `--font`, the summary and two text choices |
 | Flash; EffectQuake/End and SpriteQuake (a screen shake dying down over `:Time`); SpriteMove (no `:Scale`, always waited on) | converted |
 | CharacterAction (`chract`'s 661 keyframed moves: bows, shakes) | converted as straight moves between keyframes, waited on; the looping ones are left out |
 | EyeCatch `:Image 0,N` (CG.cpk's `ECnn`; 27 is the title logo) | converted as in the eboot (0x81048b8a): the picture's top and bottom halves (960×272) close from above and below like shutters (500 ms, our guess) and open again at EyeCatchEnd over `:Fade`, showing the FadeOut's colour (or the scene) behind; made as 10-frame animations (`system/shutters_N_in/out.png`). `:Image 0,-1` (two panels of a colour in the eboot, 7 uses) shows nothing |

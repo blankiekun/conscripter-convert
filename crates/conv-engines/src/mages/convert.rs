@@ -22,8 +22,8 @@
 use std::collections::{BTreeMap, HashMap};
 
 use conv_core::ir::{
-    Animation, ArithOp, Compare, FILTER_BLEND_COPY, FILTER_BLUR, Noise, Op, Operand, ScreenEffect, SlideLayer, SourceLoc, SpriteChange, SpriteFilter,
-    SpritePlacement, TextWindow, TransitionStyle, Var, Voice,
+    Animation, ArithOp, ButtonScreen, Compare, FILTER_BLEND_COPY, FILTER_BLUR, Noise, Op, Operand, ScreenEffect, SlideLayer, SourceLoc, SpriteChange, SpriteFilter,
+    Placed, SpritePlacement, TextWindow, TransitionStyle, Var, Voice,
 };
 
 use super::tasks::{Block, Scene, Val, parse};
@@ -34,6 +34,9 @@ pub const SCREEN_H: i32 = 544;
 /// eboot's time is not known; its chapter cards fade in over 30 frames).
 const SHUTTER_FRAMES: u32 = 10;
 const SHUTTER_MS: u32 = 500;
+/// The skip dialog fades in and out over 15 frames (the eboot adds 1/15
+/// a frame to its opacity).
+const SKIP_DIALOG_FADE_MS: u32 = 250;
 /// Variables from here up are global (kept across playthroughs).
 pub const GLOBAL_BORDER: u32 = 200;
 /// First local of the per-save flags (`[Flag]` in adv.txt): %60-%92,
@@ -110,6 +113,12 @@ pub trait Assets {
     /// The text window's picture (SystemData's `meswin.png`, scaled to the
     /// screen) and its size.
     fn window(&mut self) -> Option<(String, u32, u32)>;
+    /// The skip dialog (`SceneJumpDialog`) in the Vita's look for `:BG`
+    /// (protagonist, emblem, date) and `:CharaIcon` (`faces`), with the
+    /// summary `text` drawn into a picture named after `name`: its
+    /// pictures from the bottom up, and its Yes and No buttons. `None`
+    /// without the font.
+    fn skip_dialog(&mut self, bg: &[i64], faces: &[i64], text: &str, name: &str) -> Option<(Vec<Placed>, [Placed; 2])>;
 }
 
 /// A character (`chrNNN.txt`): its pictures by pose, dress, face, size.
@@ -843,8 +852,15 @@ impl Lowering<'_> {
         self.out.ops.push(Op::If { var: read, cmp: Compare::Ne, value: Operand::Const(0), label: offer.clone() });
         self.out.ops.push(Op::Arith { var: read, op: ArithOp::Set, value: Operand::Const(1) });
         self.out.ops.push(Op::Jump(tag_label(scene, unread)));
-        self.out.ops.push(Op::Label(offer));
+        self.out.ops.push(Op::Label(offer.clone()));
         let summary = t.str("Text").unwrap_or("").trim_end().to_string();
+        let ints = |key: &str| t.get(key).unwrap_or(&[]).iter().filter_map(Val::int).collect::<Vec<_>>();
+        if let Some((pictures, [yes, no])) = self.assets.skip_dialog(&ints("BG"), &ints("CharaIcon"), &summary, &offer) {
+            // このシーンをスキップしますか？ Yes skips.
+            let buttons = vec![(yes, tag_label(scene, skip)), (no, tag_label(scene, play))];
+            self.out.ops.push(Op::ButtonScreen(Box::new(ButtonScreen { pictures, buttons, fade_ms: SKIP_DIALOG_FADE_MS })));
+            return;
+        }
         if !summary.trim().is_empty() {
             self.out.ops.push(Op::Text { speaker: None, text: summary, voice: None, links: vec![], ruby: vec![], styles: vec![], hang: None, continues: false });
         }
