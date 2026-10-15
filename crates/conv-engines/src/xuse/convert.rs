@@ -400,6 +400,8 @@ pub struct AssetBank {
     /// `HD/fx.arc` once read, and the animations written from it.
     fx_arc: Option<Vec<u8>>,
     animations: HashMap<String, Option<FxAnimation>>,
+    /// Write no files (a dry run): the names and sizes only.
+    pub dry_run: bool,
 }
 
 /// A full-screen animation from `HD/fx.arc`, written as one picture.
@@ -506,7 +508,16 @@ impl AssetBank {
             last_bank: None,
             fx_arc: None,
             animations: HashMap::new(),
+            dry_run: false,
         }
+    }
+
+    /// Writes `data` to `name` in the output, unless this is a dry run.
+    fn write(&self, name: &str, data: &[u8]) -> Result<(), ConvertError> {
+        if self.dry_run {
+            return Ok(());
+        }
+        write_file(&self.out.join(name), data)
     }
 
     /// Background `number` as used by opcode 0x54 (1-based).
@@ -530,7 +541,7 @@ impl AssetBank {
         let stem = base.path.strip_suffix(".png").unwrap_or(&base.path);
         let name = format!("{stem}_s{sx}x{sy}.png");
         let key = ("scaled sprite", number * 1_000_000 + sx as usize * 1000 + sy as usize);
-        if !self.written.contains_key(&key) {
+        if !self.dry_run && !self.written.contains_key(&key) {
             let src = self.out.join(&base.path);
             let img = image::open(&src).map_err(|source| ConvertError::Image { what: base.path.clone(), source })?;
             let scaled = image::imageops::resize(&img.to_rgba8(), width, height, image::imageops::FilterType::Lanczos3);
@@ -613,7 +624,7 @@ impl AssetBank {
         let mut png = Vec::new();
         img.write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
             .map_err(|source| ConvertError::Image { what: name.clone(), source })?;
-        write_file(&self.out.join(&name), &png)?;
+        self.write(&name, &png)?;
         self.written.insert((kind, number), name.clone());
         Ok(name)
     }
@@ -631,7 +642,7 @@ impl AssetBank {
         let mut png = Vec::new();
         img.write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
             .map_err(|source| ConvertError::Image { what: name.clone(), source })?;
-        write_file(&self.out.join(&name), &png)?;
+        self.write(&name, &png)?;
         self.written.insert(("fill", rgb as usize), name.clone());
         Ok(name)
     }
@@ -653,7 +664,7 @@ impl AssetBank {
         let mut png = Vec::new();
         img.write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
             .map_err(|source| ConvertError::Image { what: name.clone(), source })?;
-        write_file(&self.out.join(&name), &png)?;
+        self.write(&name, &png)?;
         self.written.insert(key, name.clone());
         Ok(name)
     }
@@ -680,7 +691,7 @@ impl AssetBank {
         let mut png = Vec::new();
         img.write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
             .map_err(|source| ConvertError::Image { what: name.clone(), source })?;
-        write_file(&self.out.join(&name), &png)?;
+        self.write(&name, &png)?;
         self.written.insert(key, name.clone());
         Ok(name)
     }
@@ -697,7 +708,7 @@ impl AssetBank {
         let mut png = Vec::new();
         img.write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
             .map_err(|source| ConvertError::Image { what: name.clone(), source })?;
-        write_file(&self.out.join(&name), &png)?;
+        self.write(&name, &png)?;
         self.written.insert(("dither", 0), name.clone());
         Ok(name)
     }
@@ -719,7 +730,7 @@ impl AssetBank {
         let mut png = Vec::new();
         img.write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
             .map_err(|source| ConvertError::Image { what: name.clone(), source })?;
-        write_file(&self.out.join(&name), &png)?;
+        self.write(&name, &png)?;
         self.written.insert(("noise", 0), name.clone());
         Ok(name)
     }
@@ -777,7 +788,7 @@ impl AssetBank {
         strip
             .write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
             .map_err(|source| ConvertError::Image { what: image.clone(), source })?;
-        write_file(&self.out.join(&image), &png)?;
+        self.write(&image, &png)?;
         Ok(Some(FxAnimation { image, frame_ms: script.frames.iter().map(|&(_, ms)| ms).collect(), looped: script.looped }))
     }
 
@@ -1596,6 +1607,9 @@ impl AssetBank {
     }
 
     fn save_image(&self, name: &str, img: &image::RgbaImage) -> Result<(), ConvertError> {
+        if self.dry_run {
+            return Ok(());
+        }
         let dest = self.out.join(name);
         if let Some(parent) = dest.parent() {
             fs::create_dir_all(parent).map_err(|source| ConvertError::Io { path: parent.to_path_buf(), source })?;
@@ -1703,7 +1717,7 @@ impl AssetBank {
         }
         let (width, height) = png_size(img.png);
         let name = unique(&mut self.used_names, dir, &img.file_name(), number);
-        write_file(&self.out.join(&name), img.png)?;
+        self.write(&name, img.png)?;
         let image = Image { path: name, width, height };
         self.images.insert((kind, number), image.clone());
         Ok(image)
@@ -1771,9 +1785,9 @@ impl AssetBank {
         if kind == BGM && loop_start > 0 {
             let tagged = crate::ogg::set_loop_start(xsa.data(entry), loop_start.into())
                 .map_err(|source| ConvertError::Ogg { path: path.clone(), slot, source })?;
-            write_file(&self.out.join(&name), &tagged)?;
+            self.write(&name, &tagged)?;
         } else {
-            write_file(&self.out.join(&name), xsa.data(entry))?;
+            self.write(&name, xsa.data(entry))?;
         }
         self.written.insert((kind, number), name.clone());
         Ok(name)
@@ -1803,7 +1817,7 @@ impl AssetBank {
         let song = self.out.join(song);
         let name = format!("movie/staffroll{number}.mp4");
         let dest = self.out.join(&name);
-        if !dest.exists() {
+        if !self.dry_run && !dest.exists() {
             let pictures = self.gaf_rgba("gd.arc", roll.file, STAFF_ROLL)?;
             let size = format!("{}x{}", staffroll::WIDTH, staffroll::HEIGHT);
             let seconds = format!("{:.3}", f64::from(roll.total_ms) / 1000.0);
@@ -1836,7 +1850,7 @@ impl AssetBank {
         }
         let name = format!("movie/mv{number:04}.mp4");
         let dest = self.out.join(&name);
-        if !dest.exists() {
+        if !self.dry_run && !dest.exists() {
             let mut args: Vec<std::ffi::OsString> = vec!["-i".into(), src.clone().into()];
             args.extend(media::mp4_options(22, "slow").into_iter().map(Into::into));
             media::ffmpeg(&dest, args, |_| Ok(())).map_err(|detail| ConvertError::Ffmpeg { path: src.clone(), detail })?;

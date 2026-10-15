@@ -15,6 +15,7 @@ import json
 import os
 import queue
 import shutil
+import struct
 import subprocess
 import sys
 import threading
@@ -26,6 +27,7 @@ from tkinter.scrolledtext import ScrolledText
 from typing import Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import engine  # noqa: E402
 import games  # noqa: E402
 import tools  # noqa: E402
 
@@ -55,6 +57,7 @@ class App:
         self.font_chosen = False  # by the user, not the game's default
         self.ffmpeg_dir: Optional[Path] = None
         self.build: Optional[tools.Build] = None
+        self.installing = False  # putting CONscripter into the finished build
         self.events: queue.Queue = queue.Queue()
         self.started = 0.0
         self.written = 0  # bytes this build has written so far (the most seen)
@@ -71,8 +74,11 @@ class App:
         pad = {"padx": 12, "pady": 4}
         r = self.root
         r.columnconfigure(0, weight=1)
+        # Wide rather than tall: the advanced options go two to a row.
+        r.minsize(860, 680)
+        r.geometry("960x720")
 
-        self.drop = tk.Label(r, text="", relief="groove", bd=2, height=4, cursor="hand2",
+        self.drop = tk.Label(r, text="", relief="groove", bd=2, height=3, cursor="hand2",
                              font=("TkDefaultFont", 12))
         self.drop.grid(row=0, column=0, sticky="ew", padx=12, pady=(12, 4))
         self.drop.bind("<Button-1>", lambda e: self._choose_game())
@@ -135,7 +141,7 @@ class App:
         r.bind("<Configure>", lambda e: e.widget is r and self._wrap(e.width))
         self.game_box.config(width=40)
 
-        self.log = ScrolledText(r, height=16, state="disabled", wrap="word", font=("TkFixedFont", 9))
+        self.log = ScrolledText(r, height=10, state="disabled", wrap="word", font=("TkFixedFont", 9))
         self.log.grid(row=4, column=0, sticky="nsew", padx=12, pady=(4, 12))
         r.rowconfigure(4, weight=1)
 
@@ -248,34 +254,52 @@ class App:
                 made[o.key] = v
             self.option_vars[game.key] = made
         values = self.option_vars[game.key]
-        row = 0
+        # Two options to a row, each a label and its field (a checkbox
+        # takes both): columns 0-1 and 3-4, column 2 a gap. A `wide`
+        # option has a row of its own. The help is a tooltip.
+        for c, weight in ((1, 1), (4, 1)):
+            self.adv.columnconfigure(c, weight=weight, uniform="field")
+        self.adv.columnconfigure(2, minsize=28)
+        row, side = 0, 0
         self.option_needs: list[tuple[tk.Widget, str]] = []
         for o in game.options:
+            if side and o.wide:
+                row, side = row + 1, 0
+            col = 3 * side
+            span = 4 if o.wide else 1
             if o.kind == "bool":
                 w = ttk.Checkbutton(self.adv, text=o.label, variable=values[o.key])
-                w.grid(row=row, column=0, columnspan=2, sticky="w")
-            elif o.kind == "choice":
-                ttk.Label(self.adv, text=o.label + ":").grid(row=row, column=0, sticky="w", padx=(0, 6))
-                w = ttk.Combobox(self.adv, textvariable=values[o.key], values=o.choices, state="readonly", width=12)
-                w.grid(row=row, column=1, sticky="w", pady=1)
+                w.grid(row=row, column=col, columnspan=span + 1, sticky="w", pady=2)
+                shown = (w,)
             else:
-                ttk.Label(self.adv, text=o.label + ":").grid(row=row, column=0, sticky="w", padx=(0, 6))
-                w = ttk.Entry(self.adv, textvariable=values[o.key], width=30)
-                w.grid(row=row, column=1, sticky="ew", pady=1)
+                label = ttk.Label(self.adv, text=o.label + ":")
+                label.grid(row=row, column=col, sticky="w", padx=(0, 8), pady=2)
+                if o.kind == "choice":
+                    w = ttk.Combobox(self.adv, textvariable=values[o.key], values=o.choices, state="readonly", width=18)
+                else:
+                    w = ttk.Entry(self.adv, textvariable=values[o.key], width=20)
+                w.grid(row=row, column=col + 1, columnspan=span, sticky="ew" if o.wide else "w", pady=2)
+                shown = (label, w)
+            for s in shown:
+                Tooltip(s, o.help)
             self.option_widgets.append(w)
             if o.needs:
                 self.option_needs.append((w, o.needs))
-            hint = ttk.Label(self.adv, text=o.help, foreground="#606060", wraplength=560, justify="left")
-            hint.wraps = True
-            hint.grid(row=row + 1, column=0, columnspan=2, sticky="w", padx=(20, 0), pady=(0, 4))
-            row += 2
-        reset = ttk.Button(self.adv, text="Recommended settings", command=self._reset_options)
-        reset.grid(row=row, column=0, sticky="w", pady=(2, 4))
+            if o.wide or side:
+                row, side = row + 1, 0
+            else:
+                side = 1
+        row += side
+        foot = ttk.Frame(self.adv)
+        foot.grid(row=row, column=0, columnspan=5, sticky="ew", pady=(6, 2))
+        reset = ttk.Button(foot, text="Recommended settings", command=self._reset_options)
+        reset.pack(side="left")
         self.option_widgets.append(reset)
+        ttk.Label(foot, text="Point at an option to see what it does.", foreground="#707070").pack(side="left", padx=12)
         self.command_label = ttk.Label(self.adv, text="", foreground="#404040", wraplength=560, justify="left",
                                        font=("TkFixedFont", 9))
         self.command_label.wraps = True
-        self.command_label.grid(row=row + 1, column=0, columnspan=2, sticky="w")
+        self.command_label.grid(row=row + 1, column=0, columnspan=5, sticky="w")
         self._wrap(self.root.winfo_width())
 
     def _reset_options(self) -> None:
@@ -308,7 +332,7 @@ class App:
     # --- state ----------------------------------------------------------
 
     def _busy(self) -> bool:
-        return bool(self.build and self.build.running())
+        return bool(self.build and self.build.running()) or self.installing
 
     def _ffmpeg_state(self) -> tuple[bool, str]:
         if not (self.detection and self.detection.game.needs_ffmpeg_with(self._values())):
@@ -488,11 +512,13 @@ class App:
                         self.progress.config(value=min(99.0, 100 * self.written / self.expected))
                 elif kind == "detected":
                     self._detected(*value)
+                elif kind == "installed":
+                    self._installed(value)
                 else:
                     self._exited(value)
         except queue.Empty:
             pass
-        if self._busy():
+        if self._busy() and not self.installing:
             m, s = divmod(int(time.monotonic() - self.started), 60)
             text = f"Building {self.detection.game.name}… {m}:{s:02d}"
             if self.expected:
@@ -505,10 +531,43 @@ class App:
         out = self.out_var.get()
         if self.build and self.build.cancelled:
             self._finish("Cancelled. The output folder is incomplete.", ok=False)
+        elif code == 0 and self._values().get("dry_run"):
+            self._finish(f"Done. The script is in {out}.", ok=True)
         elif code == 0:
-            self._finish(f"Done. The game is in {out}. Play it with CONscripter ({ENGINE_URL}).", ok=True)
+            self._install_engine(Path(out))
         else:
             self._finish(f"Failed (exit code {code}). The log below says why.", ok=False)
+
+    def _install_engine(self, out: Path) -> None:
+        """CONscripter for this computer into the build, named after the
+        game and with its icon (engine.py), in a thread: it downloads."""
+        d = self.detection
+        title = str(self._values().get("title") or "").strip() or d.game.name
+        self.installing = True
+        self.status.config(text="Built. Getting CONscripter for this computer…", fg="black")
+        self._log("")
+        self._refresh()
+
+        def log(line: str) -> None:
+            self.events.put(("line", line))
+
+        def run() -> None:
+            try:
+                icon = d.game.icon(d.root) if d.game.icon else None
+                result = engine.install(out, title, icon, log)
+            except Exception as e:  # noqa: BLE001 - shown to the user
+                result = e
+            self.events.put(("installed", result))
+        threading.Thread(target=run, daemon=True).start()
+
+    def _installed(self, result) -> None:
+        self.installing = False
+        out = self.out_var.get()
+        if isinstance(result, Exception):
+            self._finish(f"Done. The game is in {out}, but CONscripter could not be added ({result}): "
+                         f"download it from {ENGINE_URL}.", ok=True)
+        else:
+            self._finish(f"Done. The game is in {out}: start {result.name} to play.", ok=True)
 
     def _finish(self, text: str, ok: bool) -> None:
         self.progress.stop()
@@ -542,6 +601,43 @@ class App:
         self.log.config(state="normal")
         self.log.delete("1.0", "end")
         self.log.config(state="disabled")
+
+
+class Tooltip:
+    """`text` in a small box under `widget` while the pointer rests on it."""
+
+    def __init__(self, widget: tk.Widget, text: str) -> None:
+        self.widget, self.text = widget, text
+        self.tip: Optional[tk.Toplevel] = None
+        self.pending: Optional[str] = None
+        if text:
+            widget.bind("<Enter>", self._enter, add="+")
+            widget.bind("<Leave>", self._hide, add="+")
+            widget.bind("<ButtonPress>", self._hide, add="+")
+
+    def _enter(self, _event=None) -> None:
+        self._hide()
+        self.pending = self.widget.after(450, self._show)
+
+    def _show(self) -> None:
+        self.pending = None
+        if not self.widget.winfo_exists():
+            return
+        x = self.widget.winfo_rootx() + 8
+        y = self.widget.winfo_rooty() + self.widget.winfo_height() + 4
+        self.tip = tk.Toplevel(self.widget)
+        self.tip.wm_overrideredirect(True)
+        self.tip.wm_geometry(f"+{x}+{y}")
+        tk.Label(self.tip, text=self.text, justify="left", wraplength=380, background="#ffffe8",
+                 foreground="black", relief="solid", bd=1, padx=6, pady=4).pack()
+
+    def _hide(self, _event=None) -> None:
+        if self.pending:
+            self.widget.after_cancel(self.pending)
+            self.pending = None
+        if self.tip:
+            self.tip.destroy()
+            self.tip = None
 
 
 def _webp_factor(values: dict) -> float:
@@ -592,10 +688,21 @@ def cli_detect(folder: str) -> int:
     return 0
 
 
+# A 1×1 32-bit icon picture (BITMAPINFOHEADER, one pixel, its mask row).
+_ONE_PIXEL = (struct.pack("<IiiHHIIiiII", 40, 1, 2, 1, 32, 0, 8, 0, 0, 0, 0)
+              + b"\x00\x00\xff\xff" + b"\x00\x00\x00\x00")
+
+
 def self_test(report: str) -> int:
     """For CI: is the converter bundled and does it run, are the fonts there."""
     state: dict = {"converter": str(tools.find_converter() or ""), "dnd": TkinterDnD is not None,
-                   "fonts": {g.font: str(tools.find_font(g.font) or "") for g in games.GAMES}}
+                   "fonts": {g.font: str(tools.find_font(g.font) or "") for g in games.GAMES},
+                   "engine_asset": engine.platform_suffix()}
+    try:  # the icons need Pillow in the bundle
+        engine.png_to_ico(engine.ico_to_png(engine._ico([(1, 1, 0, 0, 1, 32)], [_ONE_PIXEL])))
+        state["pillow"] = True
+    except Exception as e:  # noqa: BLE001 - reported
+        state["pillow"] = str(e)
     if state["converter"]:
         r = subprocess.run([state["converter"], "--help"], capture_output=True, encoding="utf-8", errors="replace", env=tools.child_env())
         state["converter_runs"] = r.returncode == 0 and "convert-game" in r.stdout
@@ -603,7 +710,8 @@ def self_test(report: str) -> int:
     if ffmpeg:  # not on every CI runner; a bundle must not hide its encoders
         state["ffmpeg_missing"] = tools.ffmpeg_missing_encoders(ffmpeg)
     Path(report).write_text(json.dumps(state, indent=2), encoding="utf-8")
-    ok = state.get("converter_runs") and all(state["fonts"].values()) and state["dnd"] and not state.get("ffmpeg_missing")
+    ok = (state.get("converter_runs") and all(state["fonts"].values()) and state["dnd"]
+          and not state.get("ffmpeg_missing") and state["pillow"] is True)
     return 0 if ok else 1
 
 

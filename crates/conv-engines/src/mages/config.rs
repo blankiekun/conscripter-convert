@@ -13,7 +13,7 @@
 
 use image::{Rgba, RgbaImage, imageops};
 
-use conv_core::ir::{PictureSettings, Placed, RowControl, Setting, SettingValue, SettingsPage, Switch};
+use conv_core::ir::{PagedSettings, Placed, RowControl, Setting, SettingValue, SettingsPage, Switch};
 
 use super::assets::ArchiveAssets;
 use super::menus::{Labels, difference, patch, place, side_by_side};
@@ -257,7 +257,7 @@ fn text_button(assets: &mut ArchiveAssets, labels: &Labels, name: &str, text: &s
 
 /// The pages; `switches` (ours: the wheel, the confirmations) go on a
 /// third, `characters` are the voiced characters (キャラクター音声).
-pub fn pictures(assets: &mut ArchiveAssets, labels: &Labels, switches: &[(String, Switch)], characters: Vec<u32>) -> Option<PictureSettings> {
+pub fn pictures(assets: &mut ArchiveAssets, labels: &Labels, switches: &[(String, Switch)], characters: Vec<u32>) -> Option<PagedSettings> {
     let atlas1 = assets.system_image("bg_config_01.png")?;
     let atlas2 = assets.system_image("bg_config_02.png")?;
     let knob = crop(&atlas1, KNOB1);
@@ -343,7 +343,7 @@ pub fn pictures(assets: &mut ArchiveAssets, labels: &Labels, switches: &[(String
         let img = crop(&orig1, rect);
         place(assets, name, &side_by_side(&[img.clone(), golden(&img)]), rect.0 as i32, rect.1 as i32)
     };
-    Some(PictureSettings {
+    Some(PagedSettings {
         pages,
         prev: arrow(assets, PREV, "cfg_prev"),
         next: arrow(assets, NEXT, "cfg_next"),

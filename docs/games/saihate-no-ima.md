@@ -27,6 +27,9 @@ target/release/conscripter-convert convert-game <install> \
   -o out/saiima-cons --font <a Japanese TTF, e.g. ipag.ttf> --title "Saihate no Ima COMPLETE"
 ```
 
+`--dry-run` writes `0.txt` only, no assets (about 10 s; the same `0.txt`
+as the full build): use it for anything about logic.
+
 `out/saiima-flow` holds the user's saves: never build into it or touch
 it. `research/xuse/smoke.py` drives a build headless with scripted
 clicks; `research/xuse/routesim.py` simulates routes on both sides

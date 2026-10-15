@@ -50,6 +50,8 @@ pub enum MagesCommand {
         #[arg(long)]
         dry_run: bool,
         #[command(flatten)]
+        webp: build::WebpArgs,
+        #[command(flatten)]
         audio: build::AudioArgs,
     },
     /// Parse every script in <game>/media/SCRIPT.cpk, count the task types
@@ -65,8 +67,8 @@ pub fn run(command: MagesCommand) -> Result<()> {
         MagesCommand::List { archive } => list(&archive),
         MagesCommand::Extract { archive, output, prefix } => extract(&archive, &output, &prefix),
         MagesCommand::Check { game } => check(&game),
-        MagesCommand::Convert { game, output, scenes, font, title, loose, dry_run, audio } => {
-            convert(&game, &output, &scenes, font.as_deref(), &title, loose, dry_run, audio.format()?)
+        MagesCommand::Convert { game, output, scenes, font, title, loose, dry_run, webp, audio } => {
+            convert(&game, &output, &scenes, font.as_deref(), &title, loose, dry_run, webp.get(), audio.format()?)
         }
     }
 }
@@ -193,10 +195,11 @@ fn convert(
     title: &str,
     loose: bool,
     dry_run: bool,
+    webp: Option<Option<u8>>,
     audio_format: media::AudioFormat,
 ) -> Result<()> {
     use conv_core::ir::Script;
-    use conv_engines::mages::assets::{ArchiveAssets, Bank, OUTPUT_DIRS};
+    use conv_engines::mages::assets::{ArchiveAssets, Bank, OUTPUT_DIRS, PICTURE_DIRS};
     use conv_engines::mages::convert::{self, Game};
     build::check_output(output, &OUTPUT_DIRS, !loose && !dry_run)?;
     let g = Game::load(&scripts(game)?).map_err(anyhow::Error::msg)?;
@@ -248,7 +251,9 @@ fn convert(
         version: Some(crate::version::line()),
         ..Default::default()
     };
-    let lost = build::write_game(output, &ir, &conv_cons::emit(&ir), font.filter(|_| !dry_run), package(game).as_deref())?;
+    // A dry run writes no pictures to convert.
+    let source = build::webp_tree(output, &PICTURE_DIRS, webp.filter(|_| !dry_run), conv_cons::emit(&ir))?;
+    let lost = build::write_game(output, &ir, &source, font.filter(|_| !dry_run), package(game).as_deref())?;
     if !dry_run {
         audio(&assets.audio, output, audio_format)?;
         movies(&assets.movies, output)?;

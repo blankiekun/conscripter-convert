@@ -23,6 +23,8 @@ use crate::output::{Output, image_size};
 
 /// Top-level output folders the assets go to.
 pub const OUTPUT_DIRS: [&str; 7] = ["cg", "chr", "etc", "system", "voice", "se", "bgm"];
+/// The output folders with pictures (`--webp` converts them).
+pub const PICTURE_DIRS: [&str; 4] = ["cg", "chr", "etc", "system"];
 
 /// A picture in the output: path, width, height.
 type Picture = (String, u32, u32);

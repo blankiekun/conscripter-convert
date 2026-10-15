@@ -512,6 +512,9 @@ pub(crate) struct BarScreens<'a> {
     pub voice_stops: bool,
     /// The click-wait icon and the variables holding its top-left corner.
     pub wait_icon: Option<(&'a WaitIcon, [&'static str; 2])>,
+    /// The variable holding the story's `gamespeed` percent: the click wait
+    /// (and the menus opened from it) run at 100, the story at that.
+    pub game_speed: Option<&'static str>,
 }
 
 /// The routine that runs a bar action (`gosub` it).
@@ -607,13 +610,17 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, s: BarScreens) {
     let keys = menu.is_some_and(|m| m.key.is_some() || m.items.iter().any(|i| i.key.is_some()));
 
     w(format!("*{WAIT}"));
+    if s.game_speed.is_some() {
+        w("gamespeed 100".into());
+    }
     if menu.is_some() {
         w(format!("mov {},0", crate::command_menu::GO_ON));
     }
     w(format!("gosub *{BAR_DRAW}"));
     // The icon (drawing the bar cleared it).
     if let (Some((i, [x, y])), Some(slot)) = (s.wait_icon, icon_slot) {
-        w(format!("if {x} > 0 || {y} > 0 lsp {slot},\":a/{},{},0;{}\",{x},{y}:print 1", i.frames, i.frame_ms, path(&i.image)));
+        let ms: Vec<String> = i.frame_ms.iter().map(u32::to_string).collect();
+        w(format!("if {x} > 0 || {y} > 0 lsp {slot},\":a/{},<{}>,0;{}\",{x},{y}:print 1", ms.len(), ms.join(","), path(&i.image)));
     }
     if let Some(sl) = slide {
         // The pointer may have crossed the edge since the bar was drawn. Off
@@ -662,6 +669,9 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, s: BarScreens) {
     if s.voice_stops {
         // Voices play on channel 0.
         w(format!("if {} == 1 dwavestop 0", switch_off(Switch::VoiceKeepsPlaying)));
+    }
+    if let Some(v) = s.game_speed {
+        w(format!("gamespeed {v}"));
     }
     w("texec".into());
     w("return".into());
@@ -1085,7 +1095,7 @@ pub(crate) fn settings_menu(
     version: Option<(&str, u32)>,
 ) {
     if let Some(p) = &m.pictures {
-        crate::picture_settings::emit(out, m, p, confirm, leave);
+        crate::settings_pages::emit(out, m, p, confirm, leave);
         settings_apply(out, m);
         return;
     }
@@ -1362,9 +1372,10 @@ pub(crate) fn switch_index(s: Switch) -> u32 {
         Switch::BgmOn => 9,
         Switch::SeOn => 10,
         Switch::VoiceOn => 11,
-        Switch::SceneSkipDialog => 12,
-        Switch::StopSkipAtChoice => 13,
-        Switch::BgmFullForVoice => 14,
+        Switch::ConfirmReset => 12,
+        Switch::SceneSkipDialog => 13,
+        Switch::StopSkipAtChoice => 14,
+        Switch::BgmFullForVoice => 15,
     }
 }
 
@@ -1398,7 +1409,10 @@ pub(crate) fn confirm(out: &mut String, d: &ConfirmDialog) {
     w(format!("*{CONFIRM_ROUTINE}"));
     // A confirmation switched off in the settings answers yes at once.
     w(format!("mov {CONFIRM},1"));
-    w(format!("if {CONFIRM_KIND} > 0 mov {TMP},{}+{CONFIRM_KIND}:if %%{} == 1 mov {CONFIRM_KIND},0:return", SWITCH_OFF_BASE - 1, &TMP[1..]));
+    // (switch_off: kinds past 8 are in the second range)
+    w(format!("if {CONFIRM_KIND} > 0 mov {TMP},{}+{CONFIRM_KIND}", SWITCH_OFF_BASE - 1));
+    w(format!("if {CONFIRM_KIND} > 8 mov {TMP},{}+{CONFIRM_KIND}", SWITCH_OFF_BASE_2 - 9));
+    w(format!("if {CONFIRM_KIND} > 0 if %%{} == 1 mov {CONFIRM_KIND},0:return", &TMP[1..]));
     if let Some((b, opacity)) = d.backdrop.as_ref().filter(|_| pictures) {
         w(format!("lsp {DIALOG_BASE},\":c;{}\",{},{},{opacity}", path(&b.image), b.x, b.y));
     }
@@ -1636,10 +1650,10 @@ pub(crate) mod tests {
     /// it is listed here too.
     fn all_switches() -> Vec<Switch> {
         use Switch::*;
-        let all = vec![WheelReadsOn, WheelClosesLog, ConfirmSave, ConfirmLoad, ConfirmDelete, ConfirmTitle, ConfirmQuit, ConfirmBackToChoice, VoiceKeepsPlaying, BgmOn, SeOn, VoiceOn, SceneSkipDialog, StopSkipAtChoice, BgmFullForVoice];
+        let all = vec![WheelReadsOn, WheelClosesLog, ConfirmSave, ConfirmLoad, ConfirmDelete, ConfirmTitle, ConfirmQuit, ConfirmBackToChoice, VoiceKeepsPlaying, BgmOn, SeOn, VoiceOn, ConfirmReset, SceneSkipDialog, StopSkipAtChoice, BgmFullForVoice];
         for s in &all {
             match s {
-                WheelReadsOn | WheelClosesLog | ConfirmSave | ConfirmLoad | ConfirmDelete | ConfirmTitle | ConfirmQuit | ConfirmBackToChoice | VoiceKeepsPlaying | BgmOn | SeOn | VoiceOn | SceneSkipDialog | StopSkipAtChoice | BgmFullForVoice => {}
+                WheelReadsOn | WheelClosesLog | ConfirmSave | ConfirmLoad | ConfirmDelete | ConfirmTitle | ConfirmQuit | ConfirmBackToChoice | VoiceKeepsPlaying | BgmOn | SeOn | VoiceOn | ConfirmReset | SceneSkipDialog | StopSkipAtChoice | BgmFullForVoice => {}
             }
         }
         all
@@ -1652,7 +1666,9 @@ pub(crate) mod tests {
         let mut seen = std::collections::BTreeMap::new();
         for s in all_switches() {
             let i = switch_index(s);
-            assert!((i as usize) < MAX_SWITCHES, "{s:?}: index {i} past MAX_SWITCHES");
+            // Indexes 8 and up take %2910 and up; the picture settings'
+            // globals start at %2920.
+            assert!(i < 20, "{s:?}: index {i} past the switches' globals");
             if let Some(other) = seen.insert(i, s) {
                 panic!("{s:?} and {other:?} both have index {i}");
             }
@@ -1883,12 +1899,12 @@ pub(crate) mod tests {
             top: None,
             ..Default::default()
         };
-        let icon = WaitIcon { image: "system/icon.png".into(), frames: 32, frame_ms: 33, w: 20, h: 20 };
+        let icon = WaitIcon { image: "system/icon.png".into(), frame_ms: vec![50, 50, 500], w: 20, h: 20 };
         let mut out = String::new();
         button_bar(&mut out, &bar, BarScreens { wait_icon: Some((&icon, ["%183", "%184"])), ..Default::default() });
         for line in [
             // After the bar (which cleared it), in the bar's next free slot.
-            "gosub *conv_bar_draw\nif %183 > 0 || %184 > 0 lsp 42,\":a/32,33,0;system\\icon.png\",%183,%184:print 1\n",
+            "gosub *conv_bar_draw\nif %183 > 0 || %184 > 0 lsp 42,\":a/3,<50,50,500>,0;system\\icon.png\",%183,%184:print 1\n",
             "*conv_wait_end\ncsp 42\ntexec\n",
         ] {
             assert!(out.contains(line), "missing:\n{line}\nin:\n{out}");

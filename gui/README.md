@@ -30,7 +30,25 @@ attached for each of them too (`conscripter-convert_<version>_<platform>`).
    The bar follows how much the build has written against how much it
    usually writes (packing the archives briefly needs twice the finished
    size), so it moves unevenly; it fills when the converter ends.
-5. Play the result with [CONscripter](https://github.com/blankiekun/CONscripter/releases).
+5. Play it: after the build the app puts CONscripter into the game folder
+   (below), so starting it there plays the game.
+
+**CONscripter in the game folder**: after a build (not a dry run) the app
+downloads the [CONscripter release](https://github.com/blankiekun/CONscripter/releases)
+the build was made for (the version in its `version.txt`) for this
+computer, keeps it in a cache folder (`%LOCALAPPDATA%`, `~/Library/Caches`
+or `~/.cache`, under `conscripter-convert`), and puts it beside `0.txt`
+named after the game's title, with the game's own icon (from the
+original's `.exe`, or the Vita's `sce_sys/icon0.png`):
+
+| System | What it writes |
+|---|---|
+| Windows | `<title>.exe`, its icon replaced |
+| Linux | `<title>`, and `<title>.desktop` with `icon.png` (a program file has no icon; the launcher also starts it in the game folder, by absolute paths, so it needs a new build if the folder moves) |
+| macOS (Apple silicon; Intel Macs have no CONscripter build) | `<title>.app`, which starts CONscripter in the folder the `.app` is in |
+
+Without a connection the build still finishes, and the status says where
+to download CONscripter.
 
 | Game | Recognised by | Settings | Needs |
 |---|---|---|---|
@@ -38,19 +56,21 @@ attached for each of them too (`conscripter-convert_<version>_<platform>`).
 | 装甲悪鬼村正 | `Muramasa.exe` and `nss.npa`, `cg.npa`, `sound.npa`, `voice.npa`, `system.npa` | `convert-nss --file ma00_000.nss --chain 2000`, title 装甲悪鬼村正, IPA Mincho | |
 | 俺たちに翼はない (PS Vita) | `media/SCRIPT.cpk`, `media/CG.cpk`, `sce_sys/param.sfo`; the CPK must be decrypted | `mages convert`, IPA Gothic | ffmpeg (sounds, movies) |
 
-**Advanced options** are the converter flags that make sense for each
-game; the line under them shows the exact command. **Recommended settings**
-puts them back.
+**Advanced options** are the converter flags: every game has the same
+ones, in the same order, then its own, two to a row; pointing at one
+shows what it does. The line under them shows the exact command.
+**Recommended
+settings** puts them back.
 
 | Option | Games | Flag |
 |---|---|---|
 | Window title | all | `--title` |
-| WebP pictures, WebP quality (empty: near-lossless; 0-100: lossy, 80 is about a quarter of the size) | 最果てのイマ | `--webp`, `--webp-quality` |
+| WebP pictures, WebP quality (empty: near-lossless; 0-100: lossy, 80 is about a quarter of the size) | all | `--webp`, `--webp-quality` |
+| Voices and sound effects (vorbis/opus), their quality | all | `--audio-codec`, `--audio-quality` |
 | Loose files | all | `--loose` |
-| Script only (dry run) | 村正, 翼 | `--dry-run` |
+| Script only (dry run) | all | `--dry-run` |
 | Start at the script, story files to follow | 村正 | `--file`, `--chain` |
 | Only these scenes | 翼 | `--scenes` |
-| Voices and sound effects (vorbis/opus), their quality | all | `--audio-codec`, `--audio-quality` |
 
 **ffmpeg** is not included (its usual builds are GPL with libx264, and
 large). Install it so `ffmpeg` is on PATH (Windows: for example
