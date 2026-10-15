@@ -478,6 +478,49 @@ impl Assets for ArchiveAssets<'_> {
     // Yes and No (425, 746 and 768, 60, 22; selected 60 to the right) at
     // (415, 241) and (545, 241). The summary is written in white from
     // (300, 319), its lines 27 apart.
+    // The story menu (0x81083086): `title_bg.png`'s cells 242×60 from x 353
+    // (lit from x 595), one row each from y 545: 始めから, the 〜Prelude〜
+    // header, 美咲's, 明日香's, 京's and 狩男's after-stories, ？？？？？;
+    // centred at x 788 and y 225, 305, 365, 395, 425, 455 (？？？？？ in
+    // 狩男's place). The single-line labels lie in rows 5-33 of their cell:
+    // their buttons are those 30 rows (cut from row 3), not overlapping.
+    // The header is drawn unlit (the Vita lights it while the cursor is on
+    // an after-story).
+    fn story_menu(&mut self, locked: bool) -> Option<(Vec<Placed>, Vec<Placed>)> {
+        const X: i64 = 788;
+        let atlas = self.system_image("title_bg.png")?;
+        let title = self.put_system_png("title", &imageops::crop_imm(&atlas, 0, 0, 960, 544).to_image());
+        let cut = |assets: &mut Self, name: &str, row: u32, cy: i64, lit: bool, (top, h): (u32, u32)| -> Placed {
+            let path = format!("system/story_{name}.png");
+            let xs: &[u32] = if lit { &[353, 595] } else { &[353] };
+            let mut sheet = RgbaImage::new(242 * xs.len() as u32, h);
+            for (i, &x) in xs.iter().enumerate() {
+                let part = imageops::crop_imm(&atlas, x, 545 + row * 60 + top, 242, h).to_image();
+                imageops::replace(&mut sheet, &part, i as i64 * 242, 0);
+            }
+            if assets.cut.insert(path.clone()) {
+                assets.out.write_png(&path, &sheet);
+            }
+            Placed { image: path, x: (X - 121) as i32, y: (cy - 30 + top as i64) as i32, w: sheet.width() as i32, h: h as i32 }
+        };
+        let full = (0, 60);
+        let line = (3, 30);
+        let mut pictures = vec![
+            Placed { image: title, x: 0, y: 0, w: 960, h: 544 },
+            cut(self, "prelude", 1, 305, false, full),
+        ];
+        let mut buttons = vec![cut(self, "start", 0, 225, true, full)];
+        for (i, name) in ["misaki", "asuka", "miyako", "karuo"].iter().enumerate() {
+            let (row, cy) = (2 + i as u32, 365 + 30 * i as i64);
+            if *name == "karuo" && locked {
+                pictures.push(cut(self, "locked", 6, cy, false, line));
+            } else {
+                buttons.push(cut(self, name, row, cy, true, line));
+            }
+        }
+        Some((pictures, buttons))
+    }
+
     fn skip_dialog(&mut self, bg: &[i64], faces: &[i64], text: &str, name: &str) -> Option<(Vec<Placed>, [Placed; 2])> {
         let labels = Labels::new(self.font?)?;
         let n = *bg.first()?;
