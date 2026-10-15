@@ -7,6 +7,7 @@ use conv_core::ir::{ChoiceStyle, TextWindow};
 
 use super::{Compiler, Game};
 
+pub mod extras;
 pub mod screens;
 
 /// The game's hooks; the CLI uses them for a game with `Django.exe`.
@@ -19,6 +20,7 @@ pub const DJANGO: Game = Game {
     zoom_vertex: true,
     chapter_objects: true,
     text_drop: 7,
+    flags: extras::flags,
     choice_style,
     menus: screens::menus,
     ..Game::PLAIN
