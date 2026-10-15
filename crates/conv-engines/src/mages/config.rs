@@ -133,13 +133,18 @@ fn row_rect(y: u32) -> (u32, u32, u32, u32) {
 }
 
 /// `img` with its light pixels turned toward gold: a button under the
-/// pointer.
+/// pointer. Light means brighter than most of the picture (the page
+/// behind it, cut out with the button), so the page keeps its colour.
 fn golden(img: &RgbaImage) -> RgbaImage {
+    let lum = |p: &Rgba<u8>| (p.0[0] as u32 + p.0[1] as u32 + p.0[2] as u32) / 3;
+    let mut all: Vec<u32> = img.pixels().map(lum).collect();
+    all.sort_unstable();
+    let from = (all.get(all.len() / 2).copied().unwrap_or(200) + 10).min(250);
     let mut out = img.clone();
     for p in out.pixels_mut() {
-        let lum = (p.0[0] as u32 + p.0[1] as u32 + p.0[2] as u32) / 3;
-        if lum > 200 {
-            let t = (lum - 200) as f32 / 55.0;
+        let l = lum(p);
+        if l > from {
+            let t = (l - from) as f32 / (255 - from) as f32;
             for (c, g) in p.0.iter_mut().zip(GOLD) {
                 *c = (*c as f32 * (1.0 - t) + g as f32 * t) as u8;
             }
