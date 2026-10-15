@@ -71,9 +71,9 @@ pub const GLOBAL_BORDER: u32 = 800;
 /// Globals (`#`) past the first [`GLOBAL_ROOM`] go from here (NScripter
 /// %5200 up, past the settings switches at %970-%5095).
 const GLOBAL_OVERFLOW: u16 = 4400;
-/// Globals from [`GLOBAL_BORDER`] up to the settings' voice switches
-/// (`menu::VOICE_OFF_BASE`, %970).
-const GLOBAL_ROOM: u16 = 170;
+/// Globals from [`GLOBAL_BORDER`] up to the menus' globals (%900-%912:
+/// the save page, volumes, text speed; then the voice switches at %970).
+const GLOBAL_ROOM: u16 = 100;
 /// Where a run of files ends.
 const RUN_END: &str = "conv_run_end";
 /// Set (in the convert-time variables) when a file assigns `$GameName`,

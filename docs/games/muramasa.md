@@ -650,8 +650,17 @@ Next, in order:
 Finished work, moved out of "Status" so a session reads only the open
 state.
 
+**`#` flags off the menus' globals (2026-10-15, from the code audit,
+`docs/audit-2026-10.md` §5):** the first 170 `#` flags ran %800-%969,
+and flags 100-112 shared %900-%912 with the menus' globals: seeing
+`bg006_小光の家_03b` set the text speed (%907) to 1, and opening the save
+screen (its page, %900) unlocked the CG `bg004_鄙びた村b_02`. The first
+100 now take %800-%899 and the rest %5200 up (`GLOBAL_ROOM` 100), so a
+`gloval.sav` from an older build has some CG and replay unlocks in the
+wrong place (the user's choice; local saves are unaffected).
+
 **`#` flags across quit and relaunch (step 11.5, 2026-10-15):** every
-`#` name the story both sets and tests is a global (%800-%969, then
+`#` name the story both sets and tests is a global (%800-%899, then
 %5200 up; `;$S1024,576,value800,V8192` + `globalon`), e.g.
 `#悪鬼編終了 = true` in `md06_036.nss` is a `mov %54xx,1` there. Every
 way out (the title's 終了する, Esc → ゲームを終了, the quick bar, the
