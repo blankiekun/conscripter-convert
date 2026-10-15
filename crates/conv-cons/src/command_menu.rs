@@ -31,14 +31,15 @@ pub(crate) fn call_label(i: usize) -> String {
     format!("conv_cmd_call{i}")
 }
 
-pub(crate) fn emit(out: &mut String, m: &CommandMenu, bar: &ButtonBar) {
+/// `picture_replay`: see [`crate::menu::BarScreens::picture_replay`].
+pub(crate) fn emit(out: &mut String, m: &CommandMenu, bar: &ButtonBar, picture_replay: bool) {
     assert!(m.items.len() < MENU_SPRITES.len(), "too many command menu items");
     let mut w = |line: String| {
         out.push_str(&line);
         out.push('\n');
     };
     let slot = |i: usize| MENU_SPRITES.start + i as u32;
-    let state = m.items.iter().any(|i| disabled_while(i.action).is_some());
+    let state = m.items.iter().any(|i| disabled_while(i.action, picture_replay).is_some());
     let backdrop = format!("lsp {BACKDROP},\":a;{}\",{},{}", path(&m.backdrop.image), m.backdrop.x, m.backdrop.y);
     let item = |i: usize| {
         let b = &m.items[i].button;
@@ -49,7 +50,7 @@ pub(crate) fn emit(out: &mut String, m: &CommandMenu, bar: &ButtonBar) {
         m.items
             .iter()
             .enumerate()
-            .filter_map(|(i, it)| disabled_while(it.action).map(|off| format!("if {off} == 1 cell {},2", slot(i))))
+            .filter_map(|(i, it)| disabled_while(it.action, picture_replay).map(|off| format!("if {off} == 1 cell {},2", slot(i))))
             .collect()
     };
 
@@ -68,7 +69,7 @@ pub(crate) fn emit(out: &mut String, m: &CommandMenu, bar: &ButtonBar) {
     let disabled = cells();
     for i in 0..m.items.len() {
         w(item(i));
-        if let Some(off) = disabled_while(m.items[i].action) {
+        if let Some(off) = disabled_while(m.items[i].action, picture_replay) {
             w(format!("if {off} == 1 cell {},2", slot(i)));
         }
         w("print 1".into());
@@ -80,7 +81,7 @@ pub(crate) fn emit(out: &mut String, m: &CommandMenu, bar: &ButtonBar) {
         w(format!("gosub *{BAR_STATE}"));
     }
     for (i, it) in m.items.iter().enumerate() {
-        let only = disabled_while(it.action).map_or(String::new(), |off| format!("if {off} == 0 "));
+        let only = disabled_while(it.action, picture_replay).map_or(String::new(), |off| format!("if {off} == 0 "));
         let press = if m.pressed { ",3" } else { "" };
         w(format!("{only}cell {0},0:{only}spbtn {0},{1}{press}", slot(i), i + 1));
     }
@@ -197,7 +198,7 @@ mod tests {
     fn opens_item_by_item_and_closes_from_the_bottom() {
         let bar = ButtonBar { slide: Some(BarSlide { hidden_dx: 32, edge_x: 968, ms: 200 }), ..Default::default() };
         let mut out = String::new();
-        emit(&mut out, &menu(), &bar);
+        emit(&mut out, &menu(), &bar, false);
         for line in [
             "*conv_cmd_menu\ngosub *conv_bar_clear\nmov %143,0\ngosub *conv_bar_state\nlsp 33,\":a;system\\back.png\",0,0\nprint 10,100\nresettimer\n",
             "lsp 6,\":a/4,0,3;system\\cancel.png\",636,89\nprint 1\nwaittimer 10\n",

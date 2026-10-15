@@ -1097,10 +1097,12 @@ Next, in order:
          out over 1 s; at the end the music fades over 2 s, everything (the
          text window too) is cleared, and the list fades back in with the
          extras' music. Played through `ma01_020` and back, then out to the
-         title. Left: during a replay the original locks save, load and
-         選択肢に戻る and its menu's タイトルへ goes back to the list (ours
-         still offers them), and the 500 ms fade of `RecoIn` from the held
-         list to the scene (ours cuts).
+         title. During a replay, as in the original, save, load, しおり
+         (quick save and load) and 選択肢に戻る are greyed in the menu and the
+         quick bar (`BarScreens::picture_replay`, `menu::NO_SAVE`), and
+         タイトルに戻る (asked, then `reset`) comes back to the list (global
+         %2962, read first thing by the title). Left: the 500 ms fade of
+         `RecoIn` from the held list to the scene (ours cuts).
       5. The 3D viewer.
       6. Back to the title: the white flash and the
          return opening's tail (`TitleOpening::after_extras`).

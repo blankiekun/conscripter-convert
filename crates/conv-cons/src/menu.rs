@@ -110,6 +110,9 @@ pub(crate) const BAR_CLEAR: &str = "conv_bar_clear";
 pub(crate) const BAR_STATE: &str = "conv_bar_state";
 pub(crate) const NO_QUICK_SAVE: &str = "%141";
 pub(crate) const NO_BACK_SAVE: &str = "%142";
+/// 1 while saving and loading are locked (a picture extras' scene replay
+/// plays, [`BarScreens::picture_replay`]).
+pub(crate) const NO_SAVE: &str = "%151";
 /// A sliding bar ([`BarSlide`]): 1 while it is out; its x offset now; the
 /// slide's progress (1000 to 0); the pointer's y.
 pub(crate) const BAR_OUT: &str = "%143";
@@ -498,6 +501,10 @@ pub(crate) struct BarScreens<'a> {
     pub backlog: bool,
     /// There is a scene replay, during which save and load are left out.
     pub replay: bool,
+    /// There is a picture extras' scene replay ([`crate::picture_replay`]),
+    /// during which save, load, quick save and load and back to a choice
+    /// are disabled, and back to the title goes back to its list.
+    pub picture_replay: bool,
     pub command_menu: Option<&'a CommandMenu>,
     pub confirm: Option<&'a ConfirmDialog>,
     pub width: u32,
@@ -538,11 +545,13 @@ pub(crate) fn goes_on(a: BarAction) -> bool {
 }
 
 /// The variable that is 1 while `a` can't be run (no quick save, no save
-/// before a choice), set by [`BAR_STATE`]; `None`: always available.
-pub(crate) fn disabled_while(a: BarAction) -> Option<&'static str> {
+/// before a choice, a replay playing), set by [`BAR_STATE`]; `None`: always
+/// available.
+pub(crate) fn disabled_while(a: BarAction, picture_replay: bool) -> Option<&'static str> {
     match a {
         BarAction::QuickLoad => Some(NO_QUICK_SAVE),
         BarAction::BackToChoice => Some(NO_BACK_SAVE),
+        BarAction::Save | BarAction::Load | BarAction::QuickSave if picture_replay => Some(NO_SAVE),
         _ => None,
     }
 }
@@ -679,11 +688,16 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, s: BarScreens) {
     w("return".into());
 
     let all_actions: Vec<BarAction> = bar.buttons.iter().map(|b| b.action).chain(menu_items.iter().map(|i| i.action)).collect();
-    let state = all_actions.iter().any(|&a| disabled_while(a).is_some());
+    let state = all_actions.iter().any(|&a| disabled_while(a, s.picture_replay).is_some());
     if state {
         w(format!("*{BAR_STATE}"));
         w(format!("savefileexist {TMP},{QUICK_SLOT}:mov {NO_QUICK_SAVE},1-{TMP}"));
         w(format!("savefileexist {TMP},{BACK_SLOT}:mov {NO_BACK_SAVE},1-{TMP}"));
+        if s.picture_replay {
+            let playing = crate::picture_replay::REPLAYING;
+            w(format!("mov {NO_SAVE},{playing}"));
+            w(format!("if {playing} == 1 mov {NO_QUICK_SAVE},1:mov {NO_BACK_SAVE},1"));
+        }
         w("return".into());
     }
 
@@ -725,7 +739,7 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, s: BarScreens) {
             };
             w(format!("if {on} {}", lsp(*slot, active, cells)));
         }
-        match disabled_while(b.action) {
+        match disabled_while(b.action, s.picture_replay) {
             Some(off) => w(format!("if {off} == 1 cell {slot},2\n{only_out}if {off} == 0 spbtn {slot},{}{press}", number(i))),
             None => w(format!("{only_out}spbtn {slot},{}{press}", number(i))),
         }
@@ -880,6 +894,10 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, s: BarScreens) {
                 if let Some(c) = s.confirm {
                     w(confirm_call(if a == BarAction::Title { &c.title } else { &c.quit }, kind));
                     w(format!("if {CONFIRM} == 0 return"));
+                }
+                if a == BarAction::Title && s.picture_replay {
+                    // The title goes on to the replay's list.
+                    w(format!("if {} == 1 mov {},1", crate::picture_replay::REPLAYING, crate::picture_replay::BACK_TO_LIST));
                 }
                 w(then.into());
             }
