@@ -63,6 +63,11 @@ jobs:
     - uses: Swatinem/rust-cache@v2
       with:
         key: ${{ matrix.os.suffix }} # two jobs run on macos-14
+        # The runner images' Rust differs while a new image rolls out
+        # (windows-latest went from one to the next between two runs), and
+        # with it in the key every run missed. Cargo itself rebuilds what
+        # another rustc compiled.
+        add-rust-environment-hash-key: false
         # Saving takes up to 40 s; branches and tags read main's cache.
         save-if: ${{ github.ref == 'refs/heads/main' }}
 
