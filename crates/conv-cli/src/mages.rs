@@ -200,7 +200,7 @@ fn convert(game: &Path, output: &Path, scenes: &[String], font: Option<&Path>, t
     let mut b = banks.into_iter();
     let mut next = || b.next().unwrap();
     let mut assets = ArchiveAssets::new(next(), next(), next(), next(), next(), next(), next(), output);
-    assets.dry_run = dry_run;
+    assets.out.dry_run = dry_run;
     assets.movie_dir = game.join("media").join("data");
     assets.font = font_bytes.as_deref();
     let compiled = convert::compile(&g, scenes, &mut assets);
@@ -216,7 +216,7 @@ fn convert(game: &Path, output: &Path, scenes: &[String], font: Option<&Path>, t
         Some((a, b, c, d, e)) => (Some(a), b, c, d, e),
         None => (None, None, None, None, None),
     };
-    for e in &assets.errors {
+    for e in &assets.out.errors {
         println!("  asset error: {e}");
     }
     let ir = Script {

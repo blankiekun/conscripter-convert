@@ -828,7 +828,7 @@ fn convert_nss(
     }
     let (cg, sound, voice) = (npas.next().unwrap(), npas.next().unwrap(), npas.next().unwrap());
     let mut assets = NpaAssets::new(cg, sound, voice, output);
-    assets.dry_run = dry_run;
+    assets.out.dry_run = dry_run;
     let scene = scene.unwrap_or(file);
     // The game's own additions to the compiler, by its exe (the only
     // Nitroplus game so far).
@@ -841,7 +841,7 @@ fn convert_nss(
         }
         None => convert::compile_scene(&files, file, scene, game, &mut assets).map_err(anyhow::Error::msg)?,
     };
-    for e in &assets.errors {
+    for e in &assets.out.errors {
         println!("  asset error: {e}");
     }
     if std::env::var_os("NSS_TRACE").is_some() {
