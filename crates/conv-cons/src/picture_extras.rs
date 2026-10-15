@@ -84,7 +84,7 @@ pub(crate) fn emit(out: &mut String, e: &PictureExtras, border: u32, width: u32,
     }
     writeln!(out, "btnwait {BUTTON_VAR}").unwrap();
     if e.hover_se.is_some() {
-        writeln!(out, "selectvoice \"\",\"\",\"\"").unwrap();
+        writeln!(out, "selectvoice \"\",{},\"\"", crate::MENU_HOVER).unwrap();
     }
     writeln!(out, "if {BUTTON_VAR} == -1 goto *{BACK}").unwrap();
     for (n, (_, item)) in clickable.iter().enumerate() {

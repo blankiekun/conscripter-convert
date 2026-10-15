@@ -41,6 +41,8 @@ pub(crate) const BACKLOG: &str = "conv_backlog";
 pub(crate) const PRETEXT: &str = "conv_pretext";
 /// Settings levels are %902-%906 (globals); %909 = 1 once they are set.
 pub(crate) const SETTINGS_SET: &str = "%909";
+/// 1 once the system volume (added later than %909) has its default.
+const SYSTEM_VOLUME_SET: &str = "%912";
 /// 1: skip goes on through unread text (`kidokumode 0`).
 pub(crate) const SKIP_UNREAD: &str = "%908";
 /// Milliseconds per character, for `setwindow`.
@@ -1325,6 +1327,9 @@ fn settings_apply(out: &mut String, m: &SettingsMenu) {
         }
         w(format!("{cmd} {TMP}"));
     }
+    if has_setting(m, Setting::SystemVolume) {
+        w(format!("mov {TMP},{}*10:sysevol {TMP}", setting_var(Setting::SystemVolume)));
+    }
     w(format!("mov {TEXT_MS},(10-{})*{TEXT_MS_STEP}:textspeed {TEXT_MS}", setting_var(Setting::TextSpeed)));
     let auto = setting_var(Setting::AutoSpeed);
     match rows.iter().find_map(|r| match r.setting {
@@ -1519,7 +1524,12 @@ pub(crate) fn settings_init(out: &mut String, m: &SettingsMenu) {
     for &s in &m.switches_off {
         first.push_str(&format!(":mov {},1", switch_off(s)));
     }
-    out.push_str(&format!("if {SETTINGS_SET} == 0 {first}:mov {SETTINGS_SET},1\ngosub *{SETTINGS_APPLY}\n"));
+    out.push_str(&format!("if {SETTINGS_SET} == 0 {first}:mov {SETTINGS_SET},1\n"));
+    if has_setting(m, Setting::SystemVolume) {
+        let v = setting_var(Setting::SystemVolume);
+        out.push_str(&format!("if {SYSTEM_VOLUME_SET} == 0 mov {v},{}:mov {SYSTEM_VOLUME_SET},1\n", default_level(m, Setting::SystemVolume, 8)));
+    }
+    out.push_str(&format!("gosub *{SETTINGS_APPLY}\n"));
 }
 
 /// The levels' defaults (as [`settings_init`] sets them, the game's
@@ -1533,14 +1543,26 @@ pub(crate) fn settings_defaults(m: &SettingsMenu) -> String {
         (Setting::AutoSpeed, 5),
         (Setting::WindowTransparency, 0),
     ];
-    shared
-        .iter()
-        .map(|&(s, level)| {
-            let level = m.defaults.iter().find(|(d, _)| setting_var(*d) == setting_var(s)).map_or(level, |&(_, l)| l.min(10));
-            format!("mov {},{level}", setting_var(s))
+    let mut all = shared.to_vec();
+    if has_setting(m, Setting::SystemVolume) {
+        all.push((Setting::SystemVolume, 8));
+    }
+    all.iter().map(|&(s, level)| format!("mov {},{}", setting_var(s), default_level(m, s, level))).collect::<Vec<_>>().join(":")
+}
+
+/// Setting `s`'s default level: the game's, else `level`.
+fn default_level(m: &SettingsMenu, s: Setting, level: u32) -> u32 {
+    m.defaults.iter().find(|(d, _)| setting_var(*d) == setting_var(s)).map_or(level, |&(_, l)| l.min(10))
+}
+
+/// The settings screen has level `s` (in its rows or on a picture page).
+fn has_setting(m: &SettingsMenu, s: Setting) -> bool {
+    m.rows.iter().any(|r| r.setting == s)
+        || m.pictures.as_ref().is_some_and(|p| {
+            p.pages.iter().flat_map(|page| &page.rows).any(|c| match c {
+                conv_core::ir::RowControl::Choice { value, .. } | conv_core::ir::RowControl::Slider { value, .. } => *value == conv_core::ir::SettingValue::Level(s),
+            })
         })
-        .collect::<Vec<_>>()
-        .join(":")
 }
 
 pub(crate) fn setting_var(s: Setting) -> &'static str {
@@ -1552,6 +1574,8 @@ pub(crate) fn setting_var(s: Setting) -> &'static str {
         Setting::AutoSpeed | Setting::AutoWait { .. } => "%906",
         // Added later: 0 (the default for older saves) is the plain window.
         Setting::WindowTransparency => "%910",
+        // Added later: set to its default once [`SYSTEM_VOLUME_SET`] is 0.
+        Setting::SystemVolume => "%911",
     }
 }
 

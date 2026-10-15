@@ -1362,6 +1362,8 @@ pub enum Setting {
     /// per character: at level v it waits (10 - v) × `page_step` ms plus
     /// (10 - v) × `char_step` ms for each character of the page.
     AutoWait { page_step: u32, char_step: u32 },
+    /// The menus' sounds ([`Script::menu_sounds`]).
+    SystemVolume,
 }
 
 /// The text history: past pages stacked from the bottom of `area` up,
@@ -1506,6 +1508,19 @@ pub struct Script {
     /// The extras drawn from the game's pictures, opened by the title's
     /// [`TitleAction::Extras`].
     pub picture_extras: Option<PictureExtras>,
+    /// Sounds of every button, in every menu and on the button bar; `None`
+    /// = only the screens' own (`hover_se`, `click_se`).
+    pub menu_sounds: Option<MenuSounds>,
+}
+
+/// The menus' sounds: `hover` as the pointer comes onto a button,
+/// `confirm` when one is clicked. Played at their own volume,
+/// [`Setting::SystemVolume`] when the settings have it, else the sound
+/// effects'.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct MenuSounds {
+    pub hover: Option<String>,
+    pub confirm: Option<String>,
 }
 
 /// The save and load screens as pages of thumbnails over a picture per

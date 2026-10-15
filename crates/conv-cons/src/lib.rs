@@ -122,6 +122,9 @@ const BUTTON_VAR: &str = "%9";
 // extras' music ([`picture_sound`]). %150, a scene replay of the picture
 // extras is playing, %2962, back to its list after a reset, %151, saving
 // locked meanwhile ([`picture_replay`], [`menu::NO_SAVE`]).
+/// The menus' hover sound ([`Script::menu_sounds`]; "" none), which a
+/// screen with a hover sound of its own puts back after it.
+pub(crate) const MENU_HOVER: &str = "$118";
 /// NScripter variables: locals from %10, globals from %200. `globalon`
 /// makes %200 and up persist across games.
 const LOCAL_VAR_BASE: u32 = 10;
@@ -317,6 +320,10 @@ pub fn emit(script: &Script) -> String {
     }
     if let Some(s) = &script.picture_settings {
         picture_settings::init(&mut out, s);
+    }
+    if let Some(m) = &script.menu_sounds {
+        writeln!(out, "mov {MENU_HOVER},\"{}\":selectvoice \"\",{MENU_HOVER},\"\"", m.hover.as_deref().map(path).unwrap_or_default()).unwrap();
+        writeln!(out, "btnse \"{}\"", m.confirm.as_deref().map(path).unwrap_or_default()).unwrap();
     }
     // setwindow redraws the screen, so it must come after `game` (ONScripter
     // crashes if it runs in the define section).
@@ -1216,7 +1223,7 @@ fn title_screen(out: &mut String, t: &TitleScreen, fade: &str, save_menu: bool, 
     }
     writeln!(out, "btnwait {BUTTON_VAR}").unwrap();
     if t.hover_se.is_some() {
-        writeln!(out, "selectvoice \"\",\"\",\"\"").unwrap();
+        writeln!(out, "selectvoice \"\",{MENU_HOVER},\"\"").unwrap();
     }
     for (n, (b, _)) in clickable.iter().enumerate() {
         let then = match b.action {
@@ -2119,6 +2126,14 @@ effect 7,99,1000,\"cons_zoom.dll/3,220,5\"
     }
 
     #[test]
+    fn menu_sounds_at_startup() {
+        let mut s = script(vec![]);
+        s.menu_sounds = Some(conv_core::ir::MenuSounds { hover: Some("se/tick.ogg".into()), confirm: Some("se/ok.ogg".into()) });
+        let out = emit(&s);
+        assert!(out.contains("*start\nmov $118,\"se\\tick.ogg\":selectvoice \"\",$118,\"\"\nbtnse \"se\\ok.ogg\"\n"), "{out}");
+    }
+
+    #[test]
     fn title_screen_sounds_pressed_cell_and_continue() {
         use conv_core::ir::TitleButton;
         let mut s = script(vec![Op::Text { speaker: None, text: "あ".into(), voice: None, links: vec![], ruby: vec![], styles: vec![], hang: None, continues: false }]);
@@ -2152,7 +2167,7 @@ effect 7,99,1000,\"cons_zoom.dll/3,220,5\"
             // The glow behind the buttons, redrawn with them.
             "*conv_title_draw\nbgm \"sound\\bgm\\title.ogg\"\nlsp 33,\":c;system\\fire.jpg\",0,0:spalpha 33,1,0,0,600,256,1200,0\nsavefileexist %105,890\nlsp 6,\":a/3,0,3;system\\quick.png\",822,150\nif %105 == 0 lsp 6,\":a/3,0,3;system\\quick.png\",822,150,128\n",
             "if %60 != 0 lsp 8,\":a/3,0,3;system\\exit.png\",162,150\n",
-            "*conv_title\nselectvoice \"\",\"sound\\se\\over.ogg\",\"\"\nsavefileexist %105,890\nif %105 == 1 spbtn 6,1,2\nspbtn 7,2,2\nif %60 != 0 spbtn 8,3,2\nbtnwait %9\nselectvoice \"\",\"\",\"\"\n",
+            "*conv_title\nselectvoice \"\",\"sound\\se\\over.ogg\",\"\"\nsavefileexist %105,890\nif %105 == 1 spbtn 6,1,2\nspbtn 7,2,2\nif %60 != 0 spbtn 8,3,2\nbtnwait %9\nselectvoice \"\",$118,\"\"\n",
             "if %9 == 1 dwave 1,\"sound\\se\\a.ogg\":csp -1:loadgame 890\n",
             // No question before quitting.
             "if %9 == 3 end\n",

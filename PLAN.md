@@ -182,6 +182,7 @@ Engine features added for converted games (details in the engine's
 | `mpegplay "file",click,1` (the music goes on through the movie) | 装甲悪鬼村正's battle cuts (`CreateMovie`, `MovieSEStart`): a movie over the scene while its music plays on |
 | Movies on Linux and macOS (`mpegplay`, `movie` in the game window through the player's ffmpeg; they were disabled there) | Every game's movies (最果てのイマ's openings and staff rolls, 翼's) on the native Linux and macOS builds, which played none |
 | Opus sounds in every build (the engine decodes Ogg Opus with opusfile, compiled in by `cmake/cons_opus.cmake`, and gives SDL_mixer a WAV; no build's SDL_mixer reads Opus) | `--audio-codec opus`: voices and sound effects about half the size (最果てのイマ's 542 MB become 217 MB; 翼's HCA voices 1.7 MB a scene instead of 2.6 MB as Vorbis) |
+| `sysevol` (the volume of `wave`'s channel, where the menu sounds play) and `btnse` (a sound when a `btnwait` or `textbtnwait` ends on a button) | 俺たちに翼はない's SystemSE.AWB in every menu: the cursor's tick (`selectvoice`'s over sound) and the confirm, at システムボリューム (IR `Script::menu_sounds`, `Setting::SystemVolume`) |
 
 Planned, from limits hit by converted games (each one is worked around
 in the script today), roughly in order of payoff:
