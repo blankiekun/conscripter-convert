@@ -77,7 +77,7 @@ The other convert options (`--loose`, `--audio-codec`,
 | Additive / multiply blends, `Rotate`, `SetFrequency`, camera moves | ❌ Not converted |
 | 立方陣 minigame (`function_magiccube.nss`) | ✅ Ported (see "The 立方陣" below) |
 | System screens (title, save/load, settings, backlog) | ✅ Title, right-click menu, quick bar, confirmations, save/load, backlog, settings, favour screen, click-wait icon (each checked beside the original); 🟡 the title's fire flicker and openings left ("Next" item 4, step 7) |
-| Extras | 🟡 The menu, CG gallery, sound room, recollection and 3D viewer done; the white flash back to the title and the title's ライナー画像 button left ("Next" item 4, step 8) |
+| Extras | 🟡 The menu, CG gallery, sound room, recollection and 3D viewer done; the white flash back to the title left ("Next" item 4, step 8) |
 
 ## Files and formats
 
@@ -602,12 +602,10 @@ Next, in order:
       flag and replayed from the file's `$PLACE_reco` branch), 電磁蓄音機/
       動画映写機 (37 BGM, five songs, three movies; the track chosen stays
       the extras' music, `#エキストラＢＧＭ`), 劒冑回転目録 (46 looping 400×400
-      movies of the armour with name plates and specs, `#av_`/`#aw_`). The
-      title's ライナー画像 button (after 悪鬼編) is another extra, not yet
-      looked at. Plan, in order, each beside the original:
-      1-6. Done: the menu, the gallery, the sound room, the
-         recollection, the 3D viewer and the way back to the title
-         ("History", below).
+      movies of the armour with name plates and specs, `#av_`/`#aw_`).  Plan, in order, each beside the original:
+      1-7. Done: the menu, the gallery, the sound room, the
+         recollection, the 3D viewer, the way back to the title and the
+         title's ライナー画像 button ("History", below).
 
    The user's decisions (2026-10-14): the pressed state (`003`) becomes
    an engine feature that is on for every script; the settings CONscripter
@@ -1070,6 +1068,12 @@ page each punctuation mark or symbol shows on (`--shot-pages`):
    `title_extras2` (`opening::after_extras`, a `TitleOpening` with
    `after_extras`). The music goes on (the title's, if the sound room
    chose another).
+7. Done: the title's ライナー画像 button (`0_boot.nss`, `書記`): at
+   (60, 524) once `#悪鬼編終了` is set, it opens Nitroplus's
+   staff-comment page (`System("OPEN:http://www.nitroplus.co.jp/secret/
+   muramasamune")`, still online in 2026) in the browser, out of full
+   screen. Ours: `TitleAction::Link` and CONscripter's new `openurl`
+   (a new tab in the web build).
 
 **Motion and movies (Status, system screens step 7), done:**
 

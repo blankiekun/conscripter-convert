@@ -460,6 +460,14 @@ fn title(a: &mut dyn Assets, story: &Story) -> Option<TitleScreen> {
         let click_se = click.and_then(|c| se(a, c));
         buttons.push(TitleButton { image, x, y: 150, action, click_se, shown_by: None });
     }
+    // ライナー画像 (`0_boot.nss`), once 悪鬼編 is over: the staff comments
+    // on Nitroplus's site (`System("OPEN:...")`).
+    if let Some(&cleared) = story.flags.get("#悪鬼編終了") {
+        let state = |n: u32| format!("{DIR}/ライナー画像-{n:03}.png");
+        let (image, _, _) = a.strip(&[&state(1), &state(2), &state(3)])?;
+        let action = TitleAction::Link("http://www.nitroplus.co.jp/secret/muramasamune");
+        buttons.push(TitleButton { image, x: 60, y: 524, action, click_se: se(a, "se戦闘_動作_刀構え01"), shown_by: Some(cleared) });
+    }
     Some(TitleScreen {
         background,
         fade_ms: 1000,

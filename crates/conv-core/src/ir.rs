@@ -736,6 +736,9 @@ pub enum TitleAction {
     Continue,
     /// The [`Script::picture_extras`].
     Extras,
+    /// Open this web page in the browser (`openurl`): 装甲悪鬼村正's
+    /// ライナー画像, its staff-comment page.
+    Link(&'static str),
 }
 
 /// An image with its top-left corner on screen, and its size (all cells).

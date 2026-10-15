@@ -1299,6 +1299,7 @@ fn title_screen(out: &mut String, t: &TitleScreen, fade: &str, save_menu: bool, 
             TitleAction::Load => format!("systemcall load:goto *{TITLE_MENU}"),
             TitleAction::Exit if confirm.is_some() && !t.exit_without_asking => "goto *conv_title_exit".to_string(),
             TitleAction::Exit => "end".to_string(),
+            TitleAction::Link(url) => format!("openurl \"{url}\":goto *{TITLE_MENU}"),
             TitleAction::Unavailable => unreachable!(),
         };
         let se = b.click_se.as_ref().map_or(String::new(), |se| format!("dwave {},\"{}\":", SE_CHANNELS.start(), path(se)));
