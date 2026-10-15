@@ -31,29 +31,16 @@ enum Command {
     ConvertGame {
         /// Installed game directory (contains HD/ and CD/)
         game: PathBuf,
-        #[arg(short, long)]
-        output: PathBuf,
-        /// Font to copy into the output as default.ttf (CONscripter needs one)
-        #[arg(long)]
-        font: Option<PathBuf>,
         /// Window caption
         #[arg(long, default_value = "CONscripter-convert")]
         title: String,
-        /// Keep assets as loose files instead of packing them into .nsa
-        #[arg(long)]
-        loose: bool,
         /// Play story scripts straight through in file order: skip the
         /// engine-setup scripts (names starting with '!') and convert no
         /// jumps. Stopgap until conditions are decoded.
         #[arg(long)]
         linear: bool,
-        /// Compile and write 0.txt only, no assets
-        #[arg(long)]
-        dry_run: bool,
         #[command(flatten)]
-        webp: build::WebpArgs,
-        #[command(flatten)]
-        audio: build::AudioArgs,
+        build: build::BuildArgs,
     },
     /// Convert one Xuse script (CDFiles/NNNN.cd) into a CONscripter game
     /// directory: 0.txt plus the assets it uses
@@ -99,28 +86,15 @@ enum Command {
         /// 装甲悪鬼村正's disc)
         #[arg(long)]
         movies: Option<PathBuf>,
-        #[arg(short, long)]
-        output: PathBuf,
-        /// Font to copy into the output as default.ttf (CONscripter needs one)
-        #[arg(long)]
-        font: Option<PathBuf>,
         /// Window caption
         #[arg(long, default_value = "CONscripter-convert")]
         title: String,
-        /// Keep assets as loose files instead of packing them into .nsa
-        #[arg(long)]
-        loose: bool,
         /// The English release's folder (Full Metal Daemon Muramasa, its
         /// *.npk): its text replaces the Japanese
         #[arg(long)]
         english: Option<PathBuf>,
-        /// Compile and write 0.txt only, no assets
-        #[arg(long)]
-        dry_run: bool,
         #[command(flatten)]
-        webp: build::WebpArgs,
-        #[command(flatten)]
-        audio: build::AudioArgs,
+        build: build::BuildArgs,
     },
     /// Check a converted game directory's 0.txt: missing labels, effect
     /// numbers past 255, half-width characters in vertical text, files
@@ -295,13 +269,13 @@ enum XarcCommand {
 
 fn main() -> Result<()> {
     match Cli::parse().command {
-        Command::ConvertGame { game, output, font, title, loose, linear, dry_run, webp, audio } => {
+        Command::ConvertGame { game, title, linear, build: build::BuildArgs { output, font, loose, dry_run, webp, audio } } => {
             convert_game(&game, &output, font.as_deref(), &title, loose, linear, dry_run, webp.get(), audio.format()?)
         }
         Command::ConvertScript { game, script, output, font, title, webp, audio } => {
             convert_script(&game, script, &output, font.as_deref(), &title, webp.get(), audio.format()?)
         }
-        Command::ConvertNss { game, file, scene, chain, movies, output, font, title, loose, english, dry_run, webp, audio } => {
+        Command::ConvertNss { game, file, scene, chain, movies, title, english, build: build::BuildArgs { output, font, loose, dry_run, webp, audio } } => {
             // 続・殺戮のジャンゴ's movie/ is in the game folder; 装甲悪鬼村正's
             // ムービー beside it.
             let movies = movies.unwrap_or_else(|| if game.join("movie").is_dir() { game.join("movie") } else { game.join("../ムービー") });

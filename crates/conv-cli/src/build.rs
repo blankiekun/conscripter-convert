@@ -3,13 +3,33 @@
 
 use std::collections::BTreeMap;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail};
 use conv_core::ir::{Op, Script};
 use conv_engines::media::{self, AudioCodec, AudioFormat};
 
 use crate::version;
+
+/// What every whole-game convert command takes besides its source.
+#[derive(clap::Args, Debug)]
+pub struct BuildArgs {
+    #[arg(short, long)]
+    pub output: PathBuf,
+    /// Font to copy into the output as default.ttf (CONscripter needs one)
+    #[arg(long)]
+    pub font: Option<PathBuf>,
+    /// Keep assets as loose files instead of packing them into .nsa
+    #[arg(long)]
+    pub loose: bool,
+    /// Compile and write 0.txt only, no assets
+    #[arg(long)]
+    pub dry_run: bool,
+    #[command(flatten)]
+    pub webp: WebpArgs,
+    #[command(flatten)]
+    pub audio: AudioArgs,
+}
 
 /// `--audio-codec` and `--audio-quality`, for every convert command.
 #[derive(clap::Args, Clone, Copy, Debug)]

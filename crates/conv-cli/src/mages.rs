@@ -31,28 +31,15 @@ pub enum MagesCommand {
     Convert {
         /// The decrypted game folder (contains media/)
         game: PathBuf,
-        #[arg(short, long)]
-        output: PathBuf,
         /// Only these scenes (file names such as S01_01A), in this order;
         /// default: all, starting at the game's first scene
         #[arg(long, value_delimiter = ',')]
         scenes: Vec<String>,
-        /// Font to copy into the output as default.ttf (CONscripter needs one)
-        #[arg(long)]
-        font: Option<PathBuf>,
         /// Window caption
         #[arg(long, default_value = "俺たちに翼はない")]
         title: String,
-        /// Keep assets as loose files instead of packing them into .nsa
-        #[arg(long)]
-        loose: bool,
-        /// Write 0.txt only, no assets
-        #[arg(long)]
-        dry_run: bool,
         #[command(flatten)]
-        webp: build::WebpArgs,
-        #[command(flatten)]
-        audio: build::AudioArgs,
+        build: build::BuildArgs,
     },
     /// Parse every script in <game>/media/SCRIPT.cpk, count the task types
     /// and check that every file ID they use exists
@@ -67,7 +54,7 @@ pub fn run(command: MagesCommand) -> Result<()> {
         MagesCommand::List { archive } => list(&archive),
         MagesCommand::Extract { archive, output, prefix } => extract(&archive, &output, &prefix),
         MagesCommand::Check { game } => check(&game),
-        MagesCommand::Convert { game, output, scenes, font, title, loose, dry_run, webp, audio } => {
+        MagesCommand::Convert { game, scenes, title, build: build::BuildArgs { output, font, loose, dry_run, webp, audio } } => {
             convert(&game, &output, &scenes, font.as_deref(), &title, loose, dry_run, webp.get(), audio.format()?)
         }
     }
