@@ -94,8 +94,9 @@ enum Command {
         /// also unlocks 魔王編 once both other routes are cleared)
         #[arg(long)]
         chain: Option<usize>,
-        /// The disc's movie folder (default: `ムービー` beside the game
-        /// data, as on the disc)
+        /// The movie folder (default: the game's own `movie`, as
+        /// 続・殺戮のジャンゴ has, else `ムービー` beside the game data, as on
+        /// 装甲悪鬼村正's disc)
         #[arg(long)]
         movies: Option<PathBuf>,
         #[arg(short, long)]
@@ -297,7 +298,9 @@ fn main() -> Result<()> {
             convert_script(&game, script, &output, font.as_deref(), &title, webp.get(), audio.format()?)
         }
         Command::ConvertNss { game, file, scene, chain, movies, output, font, title, loose, dry_run, webp, audio } => {
-            let movies = movies.unwrap_or_else(|| game.join("../ムービー"));
+            // 続・殺戮のジャンゴ's movie/ is in the game folder; 装甲悪鬼村正's
+            // ムービー beside it.
+            let movies = movies.unwrap_or_else(|| if game.join("movie").is_dir() { game.join("movie") } else { game.join("../ムービー") });
             convert_nss(&game, file.as_deref(), scene.as_deref(), chain, &movies, &output, font.as_deref(), &title, loose, dry_run, webp.get(), audio.format()?)
         }
         Command::Lint { dir } => {
