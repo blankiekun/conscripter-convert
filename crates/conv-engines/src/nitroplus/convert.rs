@@ -869,8 +869,9 @@ struct Shown {
     w: i64,
     h: i64,
     opacity: i64,
-    /// Movie frames ([`Op::AnimatedSprite`]): cells, looped, zoom percent.
-    cells: Option<(u32, bool, (i32, i32))>,
+    /// Movie frames ([`Op::AnimatedSprite`]): cells, looped, zoom percent,
+    /// ms a cell.
+    cells: Option<(u32, bool, (i32, i32), u32)>,
 }
 
 enum Flow {
@@ -2616,7 +2617,11 @@ impl<'a, 'b> Compiler<'a, 'b> {
             // about the centre of its place.
             let zoom = ((o.zoom.0 * o.w / cw as i64 / 10) as i32, (o.zoom.1 * o.h / ch as i64 / 10) as i32);
             let (x, y) = (o.x + (o.w - cw as i64) / 2, o.y + (o.h - ch as i64) / 2);
-            let shown = Shown { layer: 0, image, x, y, w: cw as i64, h: ch as i64, opacity: o.opacity, cells: Some((cells, looped, zoom)) };
+            // A long movie's strip has fewer frames (see `movie_frames`):
+            // spread over its length.
+            let full = (m.info.ms * MOVIE_FPS).div_ceil(1000).max(1);
+            let frame_ms = if at.is_none() && cells < full { m.info.ms / cells.max(1) } else { 1000 / MOVIE_FPS };
+            let shown = Shown { layer: 0, image, x, y, w: cw as i64, h: ch as i64, opacity: o.opacity, cells: Some((cells, looped, zoom, frame_ms)) };
             want.push((n, shown, (o.priority, o.seq), (1000, 1000), (o.w, o.h), 0));
         }
         // Zoomed pictures: scaled copies, centred where the original was.
@@ -2693,8 +2698,8 @@ impl<'a, 'b> Compiler<'a, 'b> {
                     }
                     let sprite = SpritePlacement { image: now.image.clone(), x: now.x as i32, y: now.y as i32 };
                     match now.cells {
-                        Some((cells, looped, zoom)) => {
-                            animated.push(Op::AnimatedSprite { layer, sprite, cells, frame_ms: 1000 / MOVIE_FPS, looped, zoom });
+                        Some((cells, looped, zoom, frame_ms)) => {
+                            animated.push(Op::AnimatedSprite { layer, sprite, cells, frame_ms, looped, zoom });
                         }
                         None => placed.push(SpriteChange { layer, sprite: Some(sprite), keep_filters: false }),
                     }

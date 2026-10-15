@@ -341,13 +341,18 @@ impl Assets for NpaAssets<'_> {
         if let Some(r) = self.images.get(&key) {
             return r.as_ref().map(|(rel, cells, h)| (rel.clone(), *cells, w, *h));
         }
-        let cells = at.map_or((info.ms * MOVIE_FPS).div_ceil(1000).max(1), |_| 1);
+        // A long movie (続・殺戮のジャンゴ's 70 s ブラックホーク) at fewer
+        // frames a second: a JPEG strip is at most 65535 pixels wide.
+        let full = (info.ms * MOVIE_FPS).div_ceil(1000).max(1);
+        let fit = if alpha { full } else { (65535 / w.max(1)).max(1) };
+        let cells = at.map_or(full.min(fit), |_| 1);
+        let fps = if cells < full { f64::from(cells) * 1000.0 / f64::from(info.ms.max(1)) } else { f64::from(MOVIE_FPS) };
         let r = if self.out.dry_run {
             Some(cells)
         } else if self.out.root.join(&rel).exists() {
             self.size(&rel).map(|(sw, _)| sw / w)
         } else {
-            movie_strip(&src, at, alpha, dark, (w, h)).map(|(strip, n)| {
+            movie_strip(&src, at, alpha, dark, (w, h), fps, cells).map(|(strip, n)| {
                 let mut data = Vec::new();
                 let mut cursor = std::io::Cursor::new(&mut data);
                 let ok = if alpha {
@@ -477,9 +482,10 @@ fn probe(src: &Path) -> Option<MovieInfo> {
     Some(MovieInfo { w, h, ms, sound: max.is_some_and(|db| db > -60.0) })
 }
 
-/// A movie's frames at [`MOVIE_FPS`] (or the one at `at` ms), each
-/// `size`, side by side: the picture and the number of frames.
-fn movie_strip(src: &Path, at: Option<u32>, alpha: bool, dark: bool, (w, h): (u32, u32)) -> Option<(image::RgbaImage, u32)> {
+/// A movie's frames at `fps` (or the one at `at` ms), each `size`, side by
+/// side, at most `max` of them: the picture and the number of frames.
+#[allow(clippy::too_many_arguments)]
+fn movie_strip(src: &Path, at: Option<u32>, alpha: bool, dark: bool, (w, h): (u32, u32), fps: f64, max: u32) -> Option<(image::RgbaImage, u32)> {
     let colour = if dark { ",lutrgb=r=0:g=0:b=0" } else { "" };
     // The opacity is the bottom half's luma, in video range (16-235).
     let graph = if alpha {
@@ -489,7 +495,8 @@ fn movie_strip(src: &Path, at: Option<u32>, alpha: bool, dark: bool, (w, h): (u3
     };
     let graph = match at {
         Some(_) => graph,
-        None => format!("{graph},fps={MOVIE_FPS}"),
+        None if fps == f64::from(MOVIE_FPS) => format!("{graph},fps={MOVIE_FPS}"),
+        None => format!("{graph},fps={fps:.4}"),
     };
     let decode = |seek: &[&str], frames: bool| {
         let mut cmd = Command::new("ffmpeg");
@@ -511,10 +518,11 @@ fn movie_strip(src: &Path, at: Option<u32>, alpha: bool, dark: bool, (w, h): (u3
         let n = all.len() / frame;
         data = all.get(n.checked_sub(1)? * frame..n * frame)?.to_vec();
     }
-    let n = (data.len() / frame) as u32;
+    let n = ((data.len() / frame) as u32).min(max.max(1));
     if n == 0 {
         return None;
     }
+    data.truncate(n as usize * frame);
     let mut strip = image::RgbaImage::new(w * n, h);
     for (i, data) in data.chunks_exact(frame).enumerate() {
         let img = image::RgbaImage::from_raw(w, h, data.to_vec())?;
