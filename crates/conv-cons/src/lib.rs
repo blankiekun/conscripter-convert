@@ -9,7 +9,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::fmt::Write;
 
 use conv_core::ir::{
-    ArithOp, ConfirmDialog, Op, ScreenEffect, Switch, Operand, Script, Ruby, SlideLayer, TextStyle, SpritePlacement, TextLink, TextWindow, TitleAction, TitleScreen,
+    ArithOp, ConfirmDialog, Op, ScreenEffect, WaitIcon, Switch, Operand, Script, Ruby, SlideLayer, TextStyle, SpritePlacement, TextLink, TextWindow, TitleAction, TitleScreen,
     TransitionStyle, Var, ZoomStyle,
 };
 
@@ -73,6 +73,9 @@ const TURN_SPRITE2: u32 = 25;
 /// The lsp2 slot of a fade to a colour ([`Op::ScreenFade`]), under the
 /// flash's.
 const FADE_SPRITE2: u32 = 26;
+/// The click-wait icon's place ([`Script::wait_icon`]), set with each
+/// window; the bar's wait routine shows it.
+const WAIT_ICON_AT: [&str; 2] = ["%183", "%184"];
 /// The highest sprite number (ONScripter has 1000); also the overlay
 /// under the character sprites.
 const MAX_SPRITE: u32 = 999;
@@ -100,7 +103,8 @@ const BUTTON_VAR: &str = "%9";
 // bar ([`command_menu`], [`menu::button_bar`]); %147, %149 and $110-$113,
 // the save grid ([`save_grid`]); %190-%289 and $200-$229, the tile puzzle's
 // state ([`puzzle`]; locals when the global border is 800); %170-%179 and
-// $107-$108, the backlog ([`menu::backlog`] or [`line_log`], never both).
+// $107-$108, the backlog ([`menu::backlog`] or [`line_log`], never both);
+// %183-%184, the click-wait icon's place ([`WAIT_ICON_AT`]).
 /// NScripter variables: locals from %10, globals from %200. `globalon`
 /// makes %200 and up persist across games.
 const LOCAL_VAR_BASE: u32 = 10;
@@ -282,7 +286,7 @@ pub fn emit(script: &Script) -> String {
     // setwindow redraws the screen, so it must come after `game` (ONScripter
     // crashes if it runs in the define section).
     if let Some(w) = &script.window {
-        writeln!(out, "{}", setwindow(w, speed, has_ruby, has_vertical, true)).unwrap();
+        writeln!(out, "{}", setwindow(w, speed, has_ruby, has_vertical, true, script.wait_icon.as_ref())).unwrap();
         // Keep the window up while sprites change and pages are printed
         // (by default every print hides it until the next text, which
         // flickers); the script hides it explicitly with textoff.
@@ -467,7 +471,7 @@ pub fn emit(script: &Script) -> String {
             Op::HideTextWindow => writeln!(out, "textoff").unwrap(),
             Op::InstantText(on) => writeln!(out, "textspeed {}", if *on { "0" } else { speed }).unwrap(),
             Op::SetWindow(w) => {
-                writeln!(out, "{}", setwindow(w, speed, has_ruby, has_vertical, true)).unwrap();
+                writeln!(out, "{}", setwindow(w, speed, has_ruby, has_vertical, true, script.wait_icon.as_ref())).unwrap();
                 writeln!(out, "csp {NAME_PLATE_SPRITE}:csp {NAME_TEXT_SPRITE}").unwrap();
                 plate_visible = false;
                 page_rows = 0;
@@ -815,7 +819,7 @@ pub fn emit(script: &Script) -> String {
                     }
                     if let Some(w) = window {
                         // The scene may have switched the text window.
-                        writeln!(out, "{}", setwindow(w, speed, has_ruby, has_vertical, true)).unwrap();
+                        writeln!(out, "{}", setwindow(w, speed, has_ruby, has_vertical, true, script.wait_icon.as_ref())).unwrap();
                     }
                     if root_returns > 0 {
                         writeln!(out, "if {ROOT_RESUME} != 0 goto *{UNWIND}").unwrap();
@@ -927,7 +931,7 @@ pub fn emit(script: &Script) -> String {
             Op::Choice { options, style } => {
                 if let Some(s) = style {
                     writeln!(out, "selectcolor \"#{:06X}\",\"#{:06X}\"", s.on_color, s.off_color).unwrap();
-                    writeln!(out, "{}", setwindow(&s.window, speed, has_ruby, has_vertical, false)).unwrap();
+                    writeln!(out, "{}", setwindow(&s.window, speed, has_ruby, has_vertical, false, script.wait_icon.as_ref())).unwrap();
                     writeln!(out, "csp {NAME_PLATE_SPRITE}:csp {NAME_TEXT_SPRITE}").unwrap();
                     plate_visible = false;
                     page_rows = 0;
@@ -1008,6 +1012,7 @@ pub fn emit(script: &Script) -> String {
             width: script.width,
             height: script.height,
             voice_stops: script.settings.as_ref().is_some_and(|m| m.switches.iter().any(|s| s.switch == Switch::VoiceKeepsPlaying)),
+            wait_icon: script.wait_icon.as_ref().map(|i| (i, WAIT_ICON_AT)),
         };
         menu::button_bar(&mut out, b, screens);
         if let Some(m) = &script.command_menu {
@@ -1131,7 +1136,17 @@ fn title_screen(out: &mut String, t: &TitleScreen, fade: &str, save_menu: bool, 
 /// then holds the ruby, as in the original.
 /// `any_vertical`: some window is vertical, so a horizontal one must switch
 /// back.
-fn setwindow(w: &TextWindow, speed: &str, ruby: bool, any_vertical: bool, shadow: bool) -> String {
+fn setwindow(w: &TextWindow, speed: &str, ruby: bool, any_vertical: bool, shadow: bool, icon: Option<&WaitIcon>) -> String {
+    let mut line = setwindow_only(w, speed, ruby, any_vertical, shadow);
+    // Where the bar's wait routine shows the click-wait icon.
+    if let (Some(_), Some((x, y))) = (icon, w.wait_icon_at) {
+        line.push_str(&format!("\nmov {},{x}:mov {},{y}", WAIT_ICON_AT[0], WAIT_ICON_AT[1]));
+    }
+    line
+}
+
+/// [`setwindow`]'s window, without the icon.
+fn setwindow_only(w: &TextWindow, speed: &str, ruby: bool, any_vertical: bool, shadow: bool) -> String {
     let shadow = shadow as u8;
     if w.vertical {
         // tateyoko first: it clears the page using the old window's size.
@@ -1619,6 +1634,7 @@ mod tests {
     fn window() -> TextWindow {
         use conv_core::ir::NamePlate;
         TextWindow {
+            wait_icon_at: None,
             image: "system/window.png".into(),
             x: 47,
             y: 452,
@@ -2256,6 +2272,7 @@ end
             Op::Text { speaker: None, text: "Ghost".into(), voice: None, links: vec![], ruby: vec![], styles: vec![], hang: None, continues: false },
         ]);
         s.window = Some(TextWindow {
+            wait_icon_at: None,
             image: "system/window.png".into(),
             x: 47,
             y: 452,

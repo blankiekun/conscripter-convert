@@ -174,6 +174,8 @@ Engine features added for converted games (details in the engine's
 | `vstrsp` (`strsp` with its text in columns from the right, kept in saves and by `pushscreen`) | 装甲悪鬼村正's save screen: the chapter title and the page's text down in columns in its side panel |
 | `getplaytime` / `setplaytime` (the play time counted by the engine, kept in each save as it stands when written, put back by a load) | 装甲悪鬼村正's save screen shows each save's play time (`$PLAY_TIME`) |
 | `logrows` / `getlogrow` (the text history as rows: each page's lines cut at a column count, ruby as its base text, the page's voice on its first row) | 装甲悪鬼村正's backlog, scrolled a row at a time with a speaker icon per voiced page |
+| Movies on Linux and macOS (`mpegplay`, `movie` in the game window through the player's ffmpeg; they were disabled there) | Every game's movies (最果てのイマ's openings and staff rolls, 翼's) on the native Linux and macOS builds, which played none |
+| Opus sounds in every build (the engine decodes Ogg Opus with opusfile, compiled in by `cmake/cons_opus.cmake`, and gives SDL_mixer a WAV; no build's SDL_mixer reads Opus) | `--audio-codec opus`: voices and sound effects about half the size (最果てのイマ's 542 MB become 217 MB; 翼's HCA voices 1.7 MB a scene instead of 2.6 MB as Vorbis) |
 
 Planned, from limits hit by converted games (each one is worked around
 in the script today), roughly in order of payoff:
@@ -570,7 +572,11 @@ The steps that apply them are in `docs/new-game.md`.
 - **Judge lossy image quality on the worst region,** not the average:
   crop the worst block of the difference image and compare it enlarged.
   Lossy WebP's 4:2:0 subsampling blurred small coloured detail at every
-  quality level; near-lossless was fine at half the PNG size.
+  quality level; near-lossless was fine at half the PNG size. So lossy
+  is only an option (`--webp-quality`, with sharp YUV): at 80, 最果てのイマ's
+  script 13 pictures take 14.0 MB (near-lossless 59.7, PNG 126.4), with a
+  worst 16 px block error of 18.8 (near-lossless 10.1; sharp YUV took it
+  from 21.3); small flowers in a background soften.
 
 **Process.**
 - **Never delete an output folder without listing it first.** Users put
@@ -650,6 +656,10 @@ The steps that apply them are in `docs/new-game.md`.
   `btndown` off: a screen that wants presses sets `btndown 1` after each
   `btndef clear`, and in that mode `btnwait` also returns on the release
   and on moves with the button held (tell them apart with `isdown`).
+- **`lsp2` sprites are no place for things over the text window**: with
+  `windowback` they are drawn under it, and ONScripter doesn't step
+  their animation. An animated icon over the window is an `lsp` sprite
+  numbered at or below `humanz`.
 
 ### 13.1c Lessons from 俺たちに翼はない (PS Vita, 2026-10-13)
 

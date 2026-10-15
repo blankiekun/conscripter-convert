@@ -271,6 +271,7 @@ pub fn text_window(assets: &mut dyn Assets) -> TextWindow {
     let x = (SCREEN_W - w) / 2;
     let y = SCREEN_H - h - 16;
     TextWindow {
+        wait_icon_at: None,
         image,
         x,
         y,

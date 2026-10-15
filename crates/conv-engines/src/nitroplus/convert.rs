@@ -994,6 +994,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
         let parts: Vec<_> = (0..n).map(|i| (plate.clone(), first - PITCH * i, y, 1000)).collect();
         let (image, wx, wy) = self.assets.composite(&parts)?;
         let window = TextWindow {
+            wait_icon_at: None,
             image,
             x: wx as i32,
             y: wy as i32,
@@ -2473,7 +2474,14 @@ impl<'a, 'b> Compiler<'a, 'b> {
             Some(c) => c,
             None => (self.assets.transparent(), 0, 0),
         };
+        // The click-wait icon's place, set by each TypeBegin helper.
+        let icon = |k: &str| match self.vars.get(k) {
+            Some(Value::Int(v)) => Some(*v as i32),
+            _ => None,
+        };
+        let wait_icon_at = icon("$SYSTEM_position_x_text_icon").zip(icon("$SYSTEM_position_y_text_icon"));
         TextWindow {
+            wait_icon_at,
             image,
             x: wx as i32,
             y: wy as i32,

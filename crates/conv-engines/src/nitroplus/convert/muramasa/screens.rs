@@ -7,7 +7,7 @@
 //! are joined into strips of normal, hover, disabled, pressed.
 
 use conv_core::ir::{
-    BarAction, BarButton, BarSlide, ButtonBar, CommandItem, CommandMenu, ConfirmDialog, GridText, LineLog, Placed, Rect, SaveGrid, Script, Switch, TitleAction, TitleButton, TitleScreen,
+    BarAction, BarButton, BarSlide, ButtonBar, CommandItem, CommandMenu, ConfirmDialog, GridText, LineLog, Placed, Rect, SaveGrid, Script, Switch, TitleAction, TitleButton, TitleScreen, WaitIcon,
 };
 
 use super::super::Assets;
@@ -27,6 +27,17 @@ pub fn menus(a: &mut dyn Assets, script: &mut Script) {
     script.command_menu = command_menu(a);
     script.save_grid = save_grid(a);
     script.line_log = line_log(a);
+    script.wait_icon = wait_icon(a);
+}
+
+/// The click-wait flame (System.ini `icon_line`, `icon_page`: the 32
+/// pictures of 改行改頁アイコン), looped, at each window's
+/// `$SYSTEM_position_{x,y}_text_icon`. Its speed couldn't be filmed (wine
+/// redraws the waiting screen about once a second): 33 ms a picture.
+fn wait_icon(a: &mut dyn Assets) -> Option<WaitIcon> {
+    let parts: Vec<String> = (1..=32).map(|n| format!("cg/sys/icon/改行改頁アイコン/{n:03}.png")).collect();
+    let (image, w, h) = a.strip(&parts.iter().map(String::as_str).collect::<Vec<_>>())?;
+    Some(WaitIcon { image, frames: 32, frame_ms: 33, w: w / 32, h })
 }
 
 /// The backlog (`sys_backlog.nss`, System.ini `[バックログ]`): sixteen

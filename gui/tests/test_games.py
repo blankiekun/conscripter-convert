@@ -119,20 +119,60 @@ class Detect(unittest.TestCase):
 class Commands(unittest.TestCase):
     """The recommended settings, as the game documents give them."""
 
-    def args(self, key):
-        game = next(g for g in games.GAMES if g.key == key)
-        return game.command(Path("G"), Path("O"), Path("F.ttf"))
+    def game(self, key):
+        return next(g for g in games.GAMES if g.key == key)
+
+    def args(self, key, values=None):
+        return self.game(key).args(Path("G"), Path("O"), Path("F.ttf"), values)
 
     def test_saiima(self):
         self.assertEqual(self.args("saihate-no-ima"),
                          ["convert-game", "G", "-o", "O", "--font", "F.ttf", "--title", "Saihate no Ima COMPLETE"])
 
     def test_muramasa(self):
-        self.assertEqual(self.args("muramasa"), ["convert-nss", "G", "--file", "ma00_000.nss", "--chain", "2000",
-                                                  "-o", "O", "--font", "F.ttf", "--title", "装甲悪鬼村正"])
+        self.assertEqual(self.args("muramasa"), ["convert-nss", "G", "-o", "O", "--font", "F.ttf",
+                                                  "--title", "装甲悪鬼村正", "--file", "ma00_000.nss", "--chain", "2000"])
 
     def test_oretsuba(self):
-        self.assertEqual(self.args("oretsuba"), ["mages", "convert", "G", "-o", "O", "--font", "F.ttf"])
+        self.assertEqual(self.args("oretsuba"), ["mages", "convert", "G", "-o", "O", "--font", "F.ttf",
+                                                  "--title", "俺たちに翼はない"])
+
+    def test_options(self):
+        self.assertEqual(self.args("saihate-no-ima", {"webp": True, "loose": True, "title": " T "})[-4:],
+                         ["--title", "T", "--webp", "--loose"])
+        self.assertEqual(self.args("saihate-no-ima", {"webp": True, "webp_quality": "80"})[-3:],
+                         ["--webp", "--webp-quality", "80"])
+        self.assertNotIn("--webp-quality", self.args("saihate-no-ima", {"webp_quality": "80"}))  # needs --webp
+        self.assertEqual(self.args("muramasa", {"chain": "", "dry_run": True})[-3:],
+                         ["--file", "ma00_000.nss", "--dry-run"])
+        self.assertEqual(self.args("oretsuba", {"scenes": "S01_01A,S01_02A", "title": ""})[-2:],
+                         ["--scenes", "S01_01A,S01_02A"])
+
+    def test_audio(self):
+        for key in ("saihate-no-ima", "muramasa", "oretsuba"):
+            self.assertNotIn("--audio-codec", self.args(key))  # the default
+            args = self.args(key, {"audio_codec": "opus", "audio_quality": "24"})
+            self.assertEqual(args[args.index("--audio-codec"):args.index("--audio-codec") + 4],
+                             ["--audio-codec", "opus", "--audio-quality", "24"])
+        g = self.game("muramasa")
+        self.assertFalse(g.needs_ffmpeg_with({}))
+        self.assertTrue(g.needs_ffmpeg_with({"audio_codec": "opus"}))
+        self.assertTrue(g.needs_ffmpeg_with({"audio_quality": "2"}))
+        self.assertEqual(g.option_problems({"audio_codec": "opus", "audio_quality": "3"})[0][:13], "Their quality")
+        self.assertEqual(g.option_problems({"audio_codec": "vorbis", "audio_quality": "-1"}), [])
+        self.assertEqual(len(g.option_problems({"audio_codec": "vorbis", "audio_quality": "12"})), 1)
+        self.assertEqual(len(g.option_problems({"audio_quality": "x"})), 1)
+
+    def test_option_problems(self):
+        g = self.game("muramasa")
+        self.assertEqual(g.option_problems(g.defaults()), [])
+        self.assertEqual(len(g.option_problems({**g.defaults(), "file": " "})), 1)
+        self.assertEqual(len(g.option_problems({**g.defaults(), "chain": "two"})), 1)
+        self.assertEqual(len(g.option_problems({**g.defaults(), "chain": "0"})), 1)
+        x = self.game("saihate-no-ima")
+        self.assertEqual(x.option_problems({"webp": True, "webp_quality": "0"}), [])
+        self.assertEqual(len(x.option_problems({"webp": True, "webp_quality": "101"})), 1)
+        self.assertEqual(x.option_problems({"webp": False, "webp_quality": "101"}), [])  # unused
 
     def test_converter_accepts(self):
         """Each command parses with the converter's own --help (when built)."""
@@ -141,11 +181,27 @@ class Commands(unittest.TestCase):
             self.skipTest("conscripter-convert not built")
         import subprocess
         for g in games.GAMES:
-            args = g.command(Path("G"), Path("O"), Path("F.ttf"))
+            on = {o.key: True if o.kind == "bool" else o.choices[-1] if o.kind == "choice"
+                  else (o.default or str(max(o.low, 6))) for o in g.options}
+            args = g.args(Path("G"), Path("O"), Path("F.ttf"), on)
             sub = args[:2] if args[0] == "mages" else args[:1]
             out = subprocess.run([str(conv), *sub, "--help"], capture_output=True, encoding="utf-8", errors="replace").stdout
             for flag in (a for a in args if a.startswith("-")):
                 self.assertIn(flag, out, f"{g.key}: {flag}")
+
+
+class Written(unittest.TestCase):
+    def test_counts_only_new_files(self):
+        import time
+        with tempfile.TemporaryDirectory() as tmp:
+            d = Path(tmp)
+            touch(d, "old/a", b"x" * 100)
+            os.utime(d / "old/a", (1, 1))
+            since = time.time() - 2
+            touch(d, "bg/b", b"x" * 30)
+            touch(d, "arc.nsa", b"x" * 12)
+            self.assertEqual(tools.written_bytes(d, since), 42)
+            self.assertEqual(tools.written_bytes(d / "missing", since), 0)
 
 
 class Output(unittest.TestCase):

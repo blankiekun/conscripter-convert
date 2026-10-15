@@ -65,7 +65,7 @@ writes 3.5 GB. Run one at a time.
 | Parallel processes (`CreateProcess`: battle HUD, fire flicker, …) | ❌ Not converted; planned through Lua |
 | Additive / multiply blends, `Rotate`, `SetFrequency`, camera moves | ❌ Not converted |
 | 立方陣 minigame (`function_magiccube.nss`) | ✅ Ported (see "The 立方陣" below) |
-| System screens (title, save/load, settings, backlog) | 🟡 Title, right-click menu, quick bar, questions, save/load, favour screen done; backlog done; click-wait icon, settings and motion to do ("Next" item 4) |
+| System screens (title, save/load, settings, backlog) | 🟡 Title, right-click menu, quick bar, questions, save/load, favour screen done; backlog and click-wait icon done; settings and motion to do ("Next" item 4) |
 | Extras | ❌ Out of scope for now (decided 2026-10-13) |
 
 ## Files and formats
@@ -840,7 +840,21 @@ Next, in order:
       and panel are the same pixels, text placed within 2 px (the font
       differs). Filmed at 60 fps (`film/backlog-wheel-4up4down.mkv`), the
       original moves a row a notch in two 15 px steps about 33 ms apart;
-      ours moves the row at once. Left: the click-wait icon.
+      ours moves the row at once.
+
+      Done: the click-wait icon (`Script::wait_icon`, a new `WaitIcon`;
+      `TextWindow::wait_icon_at`). The flame's 32 pictures
+      (`改行改頁アイコン`, System.ini `icon_line`/`icon_page`) joined into a
+      strip, looped, at each window's `$SYSTEM_position_{x,y}_text_icon`
+      (read when the converter runs the window's `TypeBegin*` helper: 452,555
+      for the usual vertical box, 194 and 706 for others). The bar's wait
+      routine shows it as a sprite in the bar's range (over the text window)
+      and removes it when the wait ends, so it doesn't show while text types.
+      Beside the original: the same place, the frames fit the original's
+      pictures at offset 0,0. Not measured: its speed (wine redraws the
+      waiting screen about once a second, so the filmed frames look random);
+      ours shows a picture for 33 ms, a loop a second. Not done: the auto-mode
+      icon (自動送りアイコン, 15 pictures).
    6. Settings drawn as one picture (a new `PictureSettings`: vertical
       sliders, 入/切 pairs, voice window, version line).
    7. Motion: fire flicker, opening, menu cascade, dialog unroll, quick

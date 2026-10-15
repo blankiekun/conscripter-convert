@@ -23,7 +23,7 @@
 //!   buttons and labels `lsp` sprites over them. The text window, name
 //!   plate and link words are hidden while the menu is open.
 
-use conv_core::ir::{BarAction, Backlog, ButtonBar, CommandMenu, ConfirmDialog, Placed, SaveMenu, Setting, SettingsMenu, Switch, TextSpot, TopBars, VoiceToggle};
+use conv_core::ir::{BarAction, Backlog, ButtonBar, CommandMenu, ConfirmDialog, Placed, SaveMenu, Setting, SettingsMenu, Switch, TextSpot, TopBars, VoiceToggle, WaitIcon};
 
 use crate::{escape, path, BAR_SPRITES, BUTTON_VAR, DIALOG_SPRITES, LINK_SPRITES, MENU_SPRITES, NAME_PLATE_SPRITE, NAME_TEXT_SPRITE};
 
@@ -506,6 +506,8 @@ pub(crate) struct BarScreens<'a> {
     pub height: u32,
     /// The settings have [`Switch::VoiceKeepsPlaying`].
     pub voice_stops: bool,
+    /// The click-wait icon and the variables holding its top-left corner.
+    pub wait_icon: Option<(&'a WaitIcon, [&'static str; 2])>,
 }
 
 /// The routine that runs a bar action (`gosub` it).
@@ -577,6 +579,9 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, s: BarScreens) {
     let scene_buttons: [u32; 4] = std::array::from_fn(|_| slots.next().unwrap());
     // An invisible button over the chapter bar (see [`ChapterHistory`]).
     let chapters_slot = slots.next();
+    // The click-wait icon: over the text window (below humanz), cleared
+    // with the bar.
+    let icon_slot = s.wait_icon.map(|_| slots.next().expect("no bar sprite left for the click-wait icon"));
     let mut w = |line: String| {
         out.push_str(&line);
         out.push('\n');
@@ -602,6 +607,10 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, s: BarScreens) {
         w(format!("mov {},0", crate::command_menu::GO_ON));
     }
     w(format!("gosub *{BAR_DRAW}"));
+    // The icon (drawing the bar cleared it).
+    if let (Some((i, [x, y])), Some(slot)) = (s.wait_icon, icon_slot) {
+        w(format!("if {x} > 0 || {y} > 0 lsp {slot},\":a/{},{},0;{}\",{x},{y}:print 1", i.frames, i.frame_ms, path(&i.image)));
+    }
     if let Some(sl) = slide {
         // The pointer may have crossed the edge since the bar was drawn. Off
         // the screen (no pointer: auto-play reports the far corner) is away.
@@ -643,6 +652,9 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, s: BarScreens) {
     }
     w(format!("goto *{WAIT}"));
     w("*conv_wait_end".into());
+    if let Some(slot) = icon_slot {
+        w(format!("csp {slot}"));
+    }
     if s.voice_stops {
         // Voices play on channel 0.
         w(format!("if {} == 1 dwavestop 0", switch_off(Switch::VoiceKeepsPlaying)));
@@ -657,6 +669,7 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, s: BarScreens) {
     w("return".into());
     w(format!("*{BAR_CLEAR}"));
     w(BAR_SPRITES.map(|n| format!("csp {n}")).collect::<Vec<_>>().join(":"));
+
     if bar.top.is_some() {
         w(scene_row_sprites().map(|n| format!("csp {n}")).collect::<Vec<_>>().join(":"));
     }
@@ -1801,6 +1814,26 @@ pub(crate) mod tests {
             "mov %144,32*%145*%145/1000*%145/1000000\nif %143 == 0 mov %144,32-%144\n",
             "*conv_bar_qsave\nsavegame 890\ndwave 1,\"sound\\se\\bookmark.ogg\"\nreturn\n",
             "*conv_bar_qload\nsavefileexist %105,890:if %105 == 0 return\ngosub *conv_bar_clear\nlsp 0,\":c;>1024,576,#000000\",0,0\nprint 10,300\nloadgame 890\n",
+        ] {
+            assert!(out.contains(line), "missing:\n{line}\nin:\n{out}");
+        }
+    }
+
+    #[test]
+    fn wait_icon_shows_at_the_bar_wait() {
+        use conv_core::ir::BarButton;
+        let bar = ButtonBar {
+            buttons: vec![BarButton { image: placed("save", 132, 19), active: None, action: BarAction::Save }],
+            top: None,
+            ..Default::default()
+        };
+        let icon = WaitIcon { image: "system/icon.png".into(), frames: 32, frame_ms: 33, w: 20, h: 20 };
+        let mut out = String::new();
+        button_bar(&mut out, &bar, BarScreens { wait_icon: Some((&icon, ["%183", "%184"])), ..Default::default() });
+        for line in [
+            // After the bar (which cleared it), in the bar's next free slot.
+            "gosub *conv_bar_draw\nif %183 > 0 || %184 > 0 lsp 42,\":a/32,33,0;system\\icon.png\",%183,%184:print 1\n",
+            "*conv_wait_end\ncsp 42\ntexec\n",
         ] {
             assert!(out.contains(line), "missing:\n{line}\nin:\n{out}");
         }

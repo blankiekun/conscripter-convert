@@ -66,18 +66,18 @@ def find_ffmpeg(extra_dir: Optional[Path] = None) -> Optional[Path]:
     return Path(found) if found else None
 
 
-FFMPEG_ENCODERS = ("libx264", "aac", "libvorbis")
+FFMPEG_ENCODERS = ("libx264", "aac", "libvorbis")  # libopus too for --audio-codec opus
 
 
-def ffmpeg_missing_encoders(ffmpeg: Path) -> list[str]:
-    """The encoders the converter uses that this ffmpeg lacks."""
+def ffmpeg_missing_encoders(ffmpeg: Path, encoders: tuple[str, ...] = FFMPEG_ENCODERS) -> list[str]:
+    """The `encoders` (those the converter uses) that this ffmpeg lacks."""
     try:
         out = subprocess.run([str(ffmpeg), "-hide_banner", "-encoders"], capture_output=True, encoding="utf-8", errors="replace",
                              timeout=20, env=child_env(), **_no_window()).stdout
     except (OSError, subprocess.SubprocessError):
-        return list(FFMPEG_ENCODERS)
+        return list(encoders)
     names = {line.split()[1] for line in out.splitlines() if len(line.split()) > 1}
-    return [e for e in FFMPEG_ENCODERS if e not in names]
+    return [e for e in encoders if e not in names]
 
 
 def child_env() -> dict:
@@ -107,6 +107,30 @@ def unbundle_dll_directory() -> None:
 
 def _no_window() -> dict:
     return {"creationflags": subprocess.CREATE_NO_WINDOW} if os.name == "nt" else {}
+
+
+def written_bytes(folder: Path, since: float) -> int:
+    """The size of the files under `folder` changed at or after `since`
+    (a time.time()): what this build has written so far, not the files an
+    earlier build left there."""
+    total = 0
+    stack = [folder]
+    while stack:
+        try:
+            entries = list(os.scandir(stack.pop()))
+        except OSError:
+            continue
+        for e in entries:
+            try:
+                if e.is_dir(follow_symlinks=False):
+                    stack.append(Path(e.path))
+                else:
+                    st = e.stat(follow_symlinks=False)
+                    if st.st_mtime >= since:
+                        total += st.st_size
+            except OSError:  # deleted while we looked (the packer removes its folders)
+                pass
+    return total
 
 
 class Build:
