@@ -15,7 +15,9 @@ build.
 
 Read first, in order: the game's document (its "Status" section holds
 the feature state and the next steps), `PLAN.md` §4.2 (engine
-additions) and §13 (lessons).
+additions) and §13 (lessons). These are long: list the headings
+(`grep -n '^##' <file>`), read the "Status" section and what the task
+touches, and look up the rest by heading when you need it.
 
 Each game's state is tracked in its `docs/games/<game>.md`, which is
 public: no local paths (use placeholders such as `<game>`), only
@@ -157,6 +159,38 @@ each in its own worktree), and their work meets in shared code.
   into `＼`).
 - Read a variable headless: `lsp 999,"X:"+$1,0,0` prints "can't find
   file X:..." on stderr.
+
+## Keeping usage down
+
+Every byte read or printed stays in the context and is paid for again
+on each later turn; several agents run at once.
+
+- **Read narrowly.** `grep -n` first, then read only the lines you need
+  (`sed -n a,bp`, Read with offset/limit). Don't dump whole big files
+  (generated `0.txt`, CG lists, disassembly, traces).
+- **Trim command output.** Pipe builds and long runs through
+  `tail -n 30` or `grep -E 'error|warning|FAIL'`; write traces and logs
+  to a file and query them (`cons_trace_check.py`, `grep`, `jq`).
+- **Numbers before pictures.** Compare frames with
+  `compare -metric AE -fuzz 2% a.png b.png null:` (pixel count) or
+  `-metric RMSE`, or crop to the region in question; view an image only
+  when the numbers can't tell what is wrong, and then a crop, not the
+  whole screen.
+- **Logic checks use the dry run** (`--dry-run`, script only, seconds);
+  the full build re-renders every asset.
+- **Film the original once per screen** and keep the shots in
+  `research/<engine>/local/shots/` (git-ignored) with a name that says
+  what they show; reuse them before starting wine again.
+- **Batch** independent commands into one call; keep replies short, no
+  progress narration between steps.
+- **Stop at the end of the item asked for** (commit, push, update the
+  game document's "Status") instead of scoping ahead; the Status and
+  memory carry the state into a fresh session.
+- No `/loop`, scheduled wakeups or polling unless the user asks; wait
+  for background runs to notify.
+- Subagents only when the user asks; then give a search or a mechanical
+  job a cheaper model (`model: "haiku"` or `"sonnet"`) and ask for a
+  short report, not file dumps.
 
 ## Releasing CONscripter
 

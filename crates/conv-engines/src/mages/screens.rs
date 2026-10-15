@@ -45,5 +45,13 @@ pub fn title(assets: &mut ArchiveAssets, extras: bool) -> Option<TitleScreen> {
         let (image, _, _) = assets.system_cells("title_bg.png", &format!("title_{row}.png"), &cells, 100)?;
         buttons.push(TitleButton { image, x: TITLE_X, y: title_y(row), action, ..Default::default() });
     }
-    Some(TitleScreen { background, fade_ms: 500, buttons, ..Default::default() })
+    // SystemSE.AWB: the eboot ticks (0) as the cursor moves and confirms (1)
+    // a title item (0x8105e7a6).
+    let hover_se = assets.system_sound(0);
+    if let Some(se) = assets.system_sound(1) {
+        for b in &mut buttons {
+            b.click_se = Some(se.clone());
+        }
+    }
+    Some(TitleScreen { background, fade_ms: 500, buttons, hover_se, ..Default::default() })
 }

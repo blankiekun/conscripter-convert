@@ -4,9 +4,9 @@
 
 use std::collections::BTreeMap;
 
-use conv_core::ir::{ExtrasMode, GalleryCategory, PictureExtras, PictureExtrasItem, PictureGallery, PictureSlot, Placed, RoomTrack, RoomVideo, SlotCg, SoundRoom};
+use conv_core::ir::{ExtrasMode, GalleryCategory, PictureExtras, PictureExtrasItem, PictureGallery, PictureReplay, PictureSlot, Placed, ReplayEntry, RoomTrack, RoomVideo, SlotCg, SoundRoom};
 
-use super::super::{Assets, Story};
+use super::super::{Assets, Replay, Story};
 use crate::nitroplus::nss::{Expr, Item, NssFile, StmtKind};
 
 /// Set at the end of any route (the end roll) and when a game starts after
@@ -49,6 +49,7 @@ pub fn extras(a: &mut dyn Assets, story: &Story) -> Option<PictureExtras> {
         fade_ms: 500,
         gallery: gallery(a, story),
         sound: sound(a, story),
+        replay: replay(a, story),
     })
 }
 
@@ -127,7 +128,67 @@ fn sound_entries(files: &BTreeMap<String, NssFile>) -> Vec<(String, String, Stri
 pub fn flags(files: &BTreeMap<String, NssFile>) -> Vec<String> {
     let mut out: Vec<String> = gallery_slots(files).into_iter().flat_map(|(_, _, cgs)| cgs).map(|n| format!("#{n}")).collect();
     out.extend(sound_entries(files).into_iter().filter(|e| e.3 != "open").map(|e| format!("#{}", e.3)));
+    out.extend(replay_entries(files).into_iter().map(|(_, file)| format!("#{file}")));
     out
+}
+
+/// The recollection's scenes (`extra_recollection.nss`, `Reco`), in the
+/// order of the `#Reco` array: the CG whose thumbnail stands for it, and
+/// the story file it replays (unlocked by `#<file>`, which the file sets
+/// at its end).
+fn replay_entries(files: &BTreeMap<String, NssFile>) -> Vec<(String, String)> {
+    let calls = arrays(files, "extra_recollection.nss", "Reco");
+    let Some((_, _, order)) = calls.iter().find(|(a, k, _)| a == "#Reco" && k.is_none()) else { return Vec::new() };
+    let entries: BTreeMap<&str, &Vec<String>> = calls.iter().filter(|(a, _, _)| a == "#Reco").filter_map(|(_, k, v)| Some((k.as_deref()?, v))).collect();
+    order.iter().filter_map(|key| Some((key.clone(), entries.get(key.as_str())?.get(2)?.clone()))).collect()
+}
+
+fn replay_label(file: &str) -> String {
+    format!("conv_reco_{file}")
+}
+
+/// The recollection's scenes as subroutines: each file's `_MAIN` with
+/// `$PLACE_reco` true, which takes the files' replay branches (they set up
+/// the scene's first picture and music instead of the story's way in, and
+/// call `RecoIn`/`RecoOut`, which aren't in the story's library: the
+/// fades they make are the screen's own, [`PictureReplay`]).
+pub fn replays(files: &BTreeMap<String, NssFile>) -> Vec<Replay> {
+    replay_entries(files)
+        .into_iter()
+        .map(|(_, file)| Replay { label: replay_label(&file), file: format!("{file}.nss"), set: vec![("$PLACE_reco".to_string(), 1)] })
+        .collect()
+}
+
+/// The recollection (`extra_recollection.nss`): 背景画像, the ten scenes in
+/// the gallery's grid (`Recollection`), 空白アイコン until the scene's file
+/// has been read, its CG's thumbnail after, 選択カーソル under the pointer.
+/// A scene (`RecoFade`) fades the music out over 1 s with the screen held
+/// 500 ms; at its end (`RecoOut`) the music fades over 2 s with the screen
+/// held, and the list fades in over 500 ms.
+fn replay(a: &mut dyn Assets, story: &Story) -> Option<PictureReplay> {
+    const DIR: &str = "cg/sys/extra/reco";
+    let mut scenes = Vec::new();
+    for (cg, file) in replay_entries(story.files) {
+        let Some(&unlocked_by) = story.flags.get(&format!("#{file}")) else { continue };
+        let thumbnail = a.image(&format!("cg/sys/extra/thum/ev/{cg}.jpg"))?.0;
+        scenes.push(ReplayEntry { thumbnail, unlocked_by, label: replay_label(&file) });
+    }
+    let state = |n: u32| format!("{DIR}/退出-{n:03}.png");
+    let (exit, w, h) = a.strip(&[&state(1), &state(2), &state(3)])?;
+    Some(PictureReplay {
+        background: a.image(&format!("{DIR}/背景画像.png"))?.0,
+        exit: Placed { image: exit, x: 0, y: 438, w: w as i32, h: h as i32 },
+        first: (672, 38),
+        row_step: 100,
+        column_step: -190,
+        rows: 5,
+        blank: a.image(&format!("{DIR}/空白アイコン.png"))?.0,
+        cursor: a.strip(&["", &format!("{DIR}/選択カーソル.png")])?.0,
+        scenes,
+        open_ms: 500,
+        start_ms: 1000,
+        end_ms: 2000,
+    })
 }
 
 /// The sound room (`extra_sound.nss`, `Media`): 背景画像 with a button per
