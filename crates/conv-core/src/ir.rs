@@ -1053,6 +1053,11 @@ pub enum Setting {
     AutoSpeed,
     /// The text window's transparency (0 = as drawn, 10 = nearly gone).
     WindowTransparency,
+    /// Auto mode's speed, as levels like [`Setting::AutoSpeed`] (the same
+    /// level), for a game whose auto wait is a time per page plus a time
+    /// per character: at level v it waits (10 - v) × `page_step` ms plus
+    /// (10 - v) × `char_step` ms for each character of the page.
+    AutoWait { page_step: u32, char_step: u32 },
 }
 
 /// The text history: past pages stacked from the bottom of `area` up,

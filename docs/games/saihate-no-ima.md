@@ -621,6 +621,15 @@ exe (`research/tools/ghidra/ghidra_export.sh`, names in
    sound effect that doesn't loop out while skipping; the converter now
    marks those (`Op::SeNotSkipped`) and the script writes `isskip %105`
    and `if %105 != 1` before their `dwave` (and fade-in).
+9. **Done: the auto wait per page and per character.** The original
+   waits a time per page plus a time per character (`0x476f50`; the
+   settings' 改頁待ち時間 文章単位, 0-5 s, and 文字単位, 0-100 ms;
+   defaults 2.5 s and 20 ms, `0x46d000`). CONscripter's `automode_time`
+   takes a second number for the time per character (added for this), and
+   the settings' one オート速度 row sets both (`Setting::AutoWait`): at
+   level v, (10 - v) × 500 ms plus (10 - v) × 4 ms a character, so the
+   default level 5 is the original's default. Two rows, as in the
+   original, don't fit: the settings screen's sprites are all used.
 
 
 Converted and playable from start to end: text, voices, sprites with
@@ -715,8 +724,9 @@ to the game. Nothing in it was asked for.
 
 **Settings screen.** The original's settings dialog has six pages; these
 parts are not converted:
-- text: auto-mode wait per page and per character,
-  stopping skip/auto on a choice or click, font, antialiasing, decoration;
+- text: the auto waits per page and per character as two settings (one
+  row sets both), stopping skip/auto on a choice or click, font,
+  antialiasing, decoration;
 - voice: "次の音声まで停止しない" (keep a voice playing into the next
   line), auto-play of voices in the CG viewer;
 - sound: per-channel mute switches, the system voice;

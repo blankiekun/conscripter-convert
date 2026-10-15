@@ -910,7 +910,14 @@ pub(crate) fn settings_menu(
         w(format!("mov {TMP},{}*10:{cmd} {TMP}", setting_var(setting)));
     }
     w(format!("mov {TEXT_MS},(10-{})*{TEXT_MS_STEP}:textspeed {TEXT_MS}", setting_var(Setting::TextSpeed)));
-    w(format!("mov {TMP},(10-{})*400+600:automode_time {TMP}", setting_var(Setting::AutoSpeed)));
+    let auto = setting_var(Setting::AutoSpeed);
+    match rows.iter().find_map(|r| match r.setting {
+        Setting::AutoWait { page_step, char_step } => Some((page_step, char_step)),
+        _ => None,
+    }) {
+        Some((page, char)) => w(format!("automode_time (10-{auto})*{page},(10-{auto})*{char}")),
+        None => w(format!("mov {TMP},(10-{auto})*400+600:automode_time {TMP}")),
+    }
     if rows.iter().any(|r| r.setting == Setting::WindowTransparency) {
         w(format!("mov {TMP},255-{}*25:windowtrans {TMP}", setting_var(Setting::WindowTransparency)));
     }
@@ -1035,7 +1042,7 @@ fn setting_var(s: Setting) -> &'static str {
         Setting::SeVolume => "%903",
         Setting::VoiceVolume => "%904",
         Setting::TextSpeed => "%905",
-        Setting::AutoSpeed => "%906",
+        Setting::AutoSpeed | Setting::AutoWait { .. } => "%906",
         // Added later: 0 (the default for older saves) is the plain window.
         Setting::WindowTransparency => "%910",
     }
@@ -1432,5 +1439,43 @@ pub(crate) mod tests {
         ] {
             assert!(out.contains(line), "missing {line:?} in\n{out}");
         }
+    }
+
+    #[test]
+    fn auto_wait_per_page_and_character() {
+        use conv_core::ir::SettingRow;
+        let mut m = SettingsMenu {
+            base: placed("base", 800, 600),
+            base_opacity: 210,
+            header: placed("header", 100, 30),
+            close: placed("close", 60, 20),
+            rows: vec![SettingRow { label: "オート".into(), setting: Setting::AutoSpeed }],
+            label_x: 140,
+            minus_x: 340,
+            level_x: 380,
+            plus_x: 680,
+            y: 140,
+            pitch: 70,
+            font_size: 22,
+            title_label: "title".into(),
+            quit_label: "quit".into(),
+            exits_y: 540,
+            tab_labels: Vec::new(),
+            tabs_x: 300,
+            tabs_y: 34,
+            voices: Vec::new(),
+            voice_column_x: 440,
+            voice_pitch: 50,
+            skip_unread_label: None,
+            switches: Vec::new(),
+        };
+        let mut out = String::new();
+        settings_menu(&mut out, &m, None, None, None);
+        assert!(out.contains("mov %105,(10-%906)*400+600:automode_time %105\n"), "{out}");
+        m.rows[0].setting = Setting::AutoWait { page_step: 500, char_step: 4 };
+        let mut out = String::new();
+        settings_menu(&mut out, &m, None, None, None);
+        assert!(out.contains("automode_time (10-%906)*500,(10-%906)*4\n"), "{out}");
+        assert!(out.contains("itoa2 $101,%906\n"), "{out}");
     }
 }

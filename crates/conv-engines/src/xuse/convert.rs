@@ -1309,7 +1309,9 @@ impl AssetBank {
                 row("効果音", Setting::SeVolume),
                 row("音声", Setting::VoiceVolume),
                 row("文字速度", Setting::TextSpeed),
-                row("オート速度", Setting::AutoSpeed),
+                // Level 5 is the original's default auto wait (0x46d000):
+                // 2.5 s a page plus 20 ms a character (0x476f50).
+                row("オート速度", Setting::AutoWait { page_step: 500, char_step: 4 }),
                 row("ウィンドウ透過", Setting::WindowTransparency),
             ],
             // Labels and levels share a text line: level_x - label_x is
