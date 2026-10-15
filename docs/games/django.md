@@ -133,6 +133,11 @@ on the extracted scripts.
 - **A `Zoom` keeps the `SetVertex` point in place**: `SetBu` sets a
   standing picture's to its bottom centre, so a picture zoomed to 700
   still stands on the bottom of the screen.
+- **Children follow their parents** (`Game::family`): `@移動窓/立絵40`
+  is a child of `窓/移動窓` (`移動窓` being its alias), and deleting an
+  object deletes its children. Without it, pictures hung under a deleted
+  window stayed up for whole chapters (two extra characters at
+  dja004's first choice; image memory peaked at 131 MB, now 109).
 - **A chapter file's own objects are deleted when it ends**, except those
   hung under an object made before it. *Inferred, not checked in the exe
   or under wine*: `function.nss` makes `窓` and `音` windows "to hang

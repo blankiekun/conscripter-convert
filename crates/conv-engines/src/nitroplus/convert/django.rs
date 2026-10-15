@@ -20,6 +20,7 @@ pub const DJANGO: Game = Game {
     zoom_vertex: true,
     chapter_objects: true,
     text_drop: 7,
+    family: true,
     flags: extras::flags,
     subroutines: &extras::SCENES,
     choice_style,

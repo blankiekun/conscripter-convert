@@ -139,6 +139,12 @@ pub struct Game {
     /// ゴシック is drawn from y 480 in `box00` at 472 (under wine). 0 for
     /// 装甲悪鬼村正, whose text is vertical.
     text_drop: i64,
+    /// Children follow their parents: `@移動窓/立絵40` names a child of
+    /// the object `移動窓` is an alias of (`窓/移動窓`), and deleting an
+    /// object deletes its children (続・殺戮のジャンゴ: pictures under a
+    /// deleted window stayed up). Off for 装甲悪鬼村正 until checked: it
+    /// changes 621 places of its script.
+    family: bool,
     /// How a choice of `n` options looks.
     choice_style: for<'a, 'b> fn(&mut Compiler<'a, 'b>, i64) -> Option<ChoiceStyle>,
 }
@@ -162,6 +168,7 @@ impl Game {
         zoom_vertex: false,
         chapter_objects: false,
         text_drop: 0,
+        family: false,
         choice_style: |c, n| c.vertical_choice_style(n),
     };
 
@@ -2022,7 +2029,15 @@ impl<'a, 'b> Compiler<'a, 'b> {
             }
         }
         while let Some(rest) = s.strip_prefix('@') {
-            s = self.aliases.get(rest).cloned().unwrap_or_else(|| rest.to_string());
+            s = match self.aliases.get(rest) {
+                Some(o) => o.clone(),
+                // A child named from its parent's alias (`@移動窓/立絵40`,
+                // `移動窓` being `窓/移動窓`).
+                None => match rest.split_once('/') {
+                    Some((parent, child)) if self.game.family && self.aliases.contains_key(parent) => format!("{}/{child}", self.aliases[parent]),
+                    _ => rest.to_string(),
+                },
+            };
         }
         s
     }
@@ -2053,6 +2068,11 @@ impl<'a, 'b> Compiler<'a, 'b> {
     }
 
     fn delete(&mut self, name: &str) {
+        // Its children go with it.
+        let children: Vec<String> = self.objects.keys().filter(|_| self.game.family).filter(|k| k.len() > name.len() && k.starts_with(name) && k.as_bytes()[name.len()] == b'/').cloned().collect();
+        for c in children {
+            self.delete(&c);
+        }
         let Some(o) = self.objects.remove(name) else { return };
         if let Kind::Sound(s) = o.kind
             && let Some(file) = s.playing
@@ -2277,7 +2297,8 @@ impl<'a, 'b> Compiler<'a, 'b> {
             }
             "Delete" => {
                 for t in self.matching(&arg(0)) {
-                    if !self.objects[&t].locked {
+                    // (A child may have gone with its parent.)
+                    if self.objects.get(&t).is_some_and(|o| !o.locked) {
                         self.delete(&t);
                     }
                 }
