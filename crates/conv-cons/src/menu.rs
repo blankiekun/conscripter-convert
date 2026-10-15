@@ -277,6 +277,11 @@ pub(crate) fn save_menu(out: &mut String, m: &SaveMenu, confirm: Option<&Confirm
     let others = hidden_while_open();
     let vsp = |on: u32| others.iter().map(|n| format!("vsp {n},{on}")).collect::<Vec<_>>().join(":");
     w(format!("if {IN_GAME} == 1 textoff:{}", vsp(0)));
+    let backdrop_on = m.backdrop.map(|(slot, f)| format!("screenfilter {slot},{}", f.map(|n| n.to_string()).join(",")));
+    let backdrop_off = m.backdrop.map(|(slot, _)| format!("screenfilter {slot},0"));
+    if let Some(on) = &backdrop_on {
+        w(format!("if {IN_GAME} == 1 {on}"));
+    }
     w(lsp2(BASE, &m.base, Some(m.base_opacity)));
     w(lsp2(FRAME, &m.frame, None));
     w(format!("if {MODE} == 1 {}", lsp2(HEADER, &m.save_header, None)));
@@ -406,7 +411,10 @@ pub(crate) fn save_menu(out: &mut String, m: &SaveMenu, confirm: Option<&Confirm
     w(format!("mov {LABEL},{LINE1}"));
     w(format!("add {LABEL},\"|\""));
     w(format!("add {LABEL},{CHAPTER}"));
-    w(format!("savegame2 {SELECTED},{LABEL}"));
+    match (&backdrop_off, &backdrop_on) {
+        (Some(off), Some(on)) => w(format!("{off}:savegame2 {SELECTED},{LABEL}:{on}")),
+        _ => w(format!("savegame2 {SELECTED},{LABEL}")),
+    }
     if scene_stack {
         w("gosub *conv_scene_keep".into());
     }
@@ -442,6 +450,9 @@ pub(crate) fn save_menu(out: &mut String, m: &SaveMenu, confirm: Option<&Confirm
     w("*conv_sl_close".into());
     // texton first: it drops the pending screen updates except the window's.
     w(format!("if {IN_GAME} == 1 texton:{}", vsp(1)));
+    if let Some(off) = &backdrop_off {
+        w(format!("if {IN_GAME} == 1 {off}"));
+    }
     w("gosub *conv_sl_clear".into());
     w("print 1".into());
     w("return".into());
@@ -1673,6 +1684,7 @@ pub(crate) mod tests {
             line_height: 15,
             preview: Rect { x: 390, y: 137, w: 400, h: 300 },
             text_width: 0,
+            backdrop: Some((4, [6, 0, 256, 1, 1, 0])),
         };
         let d = dialog();
         let mut out = String::new();
@@ -1686,7 +1698,9 @@ pub(crate) mod tests {
             "if %900 == 2 cell 22,2:lsp2 7,\":a;system\\marker.png\",214,484,100,100,0\n",
             "if %9 > 100 && %9 <= 102 mov %900,%9-100:goto *conv_sl_page\n",
             "savescreenshot2 $103\n",
-            "savegame2 %102,$100\n",
+            "screenfilter 4,0:savegame2 %102,$100:screenfilter 4,6,0,256,1,1,0\n",
+            "if %101 == 1 screenfilter 4,6,0,256,1,1,0\n",
+            "if %101 == 1 screenfilter 4,0\n",
             "loadgame %102\n",
             // Delete removes the save and its thumbnail; a slot an older
             // build hid with a flag is deleted when listed.
