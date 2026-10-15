@@ -19,10 +19,11 @@ label = None
 for n, line in enumerate(lines, 1):
     if line.startswith('*'):
         label = line.split()[0]
-    elif line.startswith('select '):
+    elif line.startswith('select ') or (line.startswith('btnwait ') and label.startswith('*conv_cplate')):
+        # A select, or a choice of plates (its btnwait's result: 1, 2).
         places.append(f'{label}:{n}')
 if len(places) != len(BAD):
-    sys.exit(f'{len(places)} select lines, expected {len(BAD)}')
+    sys.exit(f'{len(places)} choices found, expected {len(BAD)}')
 os.makedirs(out, exist_ok=True)
 
 def write(name, answers):
