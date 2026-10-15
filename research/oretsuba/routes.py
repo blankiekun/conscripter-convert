@@ -48,13 +48,18 @@ def main():
             m = re.match(r"\*mg_([a-z0-9]+_[a-z0-9]+)", label)
             selects[m.group(1).upper() if m else label] = (f"{label}:{i}", len(re.findall(r",\*", line)))
     title = next(f"*conv_title:{i}" for i, line in enumerate(src, 1) if line.startswith("btnwait") and src[i - 5].startswith("*conv_title"))
+    # The title's buttons: all but START avoided.
+    start_no = next(int(m.group(1)) for line in src if (m := re.match(r"if %9 == (\d+) goto \*conv_title_start", line)))
+    at = next(i for i, line in enumerate(src) if line.strip() == "*conv_title")
+    end = next(i for i in range(at, len(src)) if src[i].startswith("btnwait"))
+    title_nos = [int(m.group(1)) for line in src[at:end] if (m := re.match(r"spbtn \d+,(\d+)", line))]
     only = {int(n) for n in args.only.split(",")} if args.only else None
     saves = os.path.join(out, "saves")
     for n, (name, path, ending) in enumerate(ROUTES, 1):
         if only and n not in only:
             continue
         want = dict(p.split(":") for p in path.split(",") if p)
-        lines = [f"{title}\t{o}\tavoid" for o in (0, 2, 3)]
+        lines = [f"{title}\t{o}\tavoid" for o in [0, *title_nos] if o != start_no]
         menu, k = selects["STORY_MENU"]
         lines += [f"{menu}\t{o}\tavoid" for o in range(2, k + 1)]
         for scene, (at, k) in selects.items():
