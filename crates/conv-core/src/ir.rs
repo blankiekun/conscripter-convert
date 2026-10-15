@@ -682,6 +682,9 @@ pub struct TitleButton {
     pub action: TitleAction,
     /// Played when the button is clicked.
     pub click_se: Option<String>,
+    /// Drawn and clickable only while this variable isn't 0 (a game's
+    /// flag: 続・殺戮のジャンゴ's EXTRA once the story is finished).
+    pub shown_by: Option<Var>,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]

@@ -1179,7 +1179,7 @@ fn title_screen(out: &mut String, t: &TitleScreen, fade: &str, save_menu: bool, 
     if picture_extras {
         writeln!(out, "*{TITLE_SPRITES}").unwrap();
     }
-    title_sprites(out, t, &buttons, quick, None);
+    title_sprites(out, t, &buttons, quick, None, border);
     writeln!(out, "print {fade}").unwrap();
     writeln!(out, "*{TITLE_MENU}").unwrap();
     if let Some(se) = &t.hover_se {
@@ -1191,7 +1191,14 @@ fn title_screen(out: &mut String, t: &TitleScreen, fade: &str, save_menu: bool, 
     let press = if t.pressed { ",2" } else { "" };
     let clickable: Vec<_> = buttons.iter().filter(|(b, _)| b.action != TitleAction::Unavailable).collect();
     for (n, (b, slot)) in clickable.iter().enumerate() {
-        let only = if b.action == TitleAction::Continue { format!("if {} == 1 ", menu::TMP) } else { String::new() };
+        let mut conds = Vec::new();
+        if b.action == TitleAction::Continue {
+            conds.push(format!("{} == 1", menu::TMP));
+        }
+        if let Some(v) = b.shown_by {
+            conds.push(format!("{} != 0", var_name(v, border)));
+        }
+        let only = if conds.is_empty() { String::new() } else { format!("if {} ", conds.join(" && ")) };
         writeln!(out, "{only}spbtn {slot},{}{press}", n + 1).unwrap();
     }
     writeln!(out, "btnwait {BUTTON_VAR}").unwrap();
@@ -1234,7 +1241,7 @@ fn title_screen(out: &mut String, t: &TitleScreen, fade: &str, save_menu: bool, 
             writeln!(out, "dwave {},\"{}\"", SE_CHANNELS.start(), path(se)).unwrap();
         }
         writeln!(out, "mpegplay \"{}\",1,1", path(&o.movie)).unwrap();
-        title_sprites(out, t, &buttons, quick, o.glow_keys.as_deref());
+        title_sprites(out, t, &buttons, quick, o.glow_keys.as_deref(), border);
         writeln!(out, "print 1").unwrap();
         writeln!(out, "goto *{TITLE_MENU}").unwrap();
     }
@@ -1300,7 +1307,7 @@ fn title_openings(out: &mut String, openings: &[conv_core::ir::TitleOpening], bo
 }
 
 /// The title's glow (with `glow_keys` in place of its own) and buttons.
-fn title_sprites(out: &mut String, t: &TitleScreen, buttons: &[(&conv_core::ir::TitleButton, u32)], quick: bool, glow_keys: Option<&[(u32, u32)]>) {
+fn title_sprites(out: &mut String, t: &TitleScreen, buttons: &[(&conv_core::ir::TitleButton, u32)], quick: bool, glow_keys: Option<&[(u32, u32)]>, border: u32) {
     let cells = if t.pressed { 3 } else { 2 };
     if let Some(g) = &t.glow {
         // Behind the buttons, which take the first menu sprites.
@@ -1313,7 +1320,8 @@ fn title_sprites(out: &mut String, t: &TitleScreen, buttons: &[(&conv_core::ir::
     }
     for (b, slot) in buttons {
         let image = if b.action == TitleAction::Unavailable { format!(":a;{}", path(&b.image)) } else { format!(":a/{cells},0,3;{}", path(&b.image)) };
-        writeln!(out, "lsp {slot},\"{image}\",{},{}", b.x, b.y).unwrap();
+        let only = b.shown_by.map_or(String::new(), |v| format!("if {} != 0 ", var_name(v, border)));
+        writeln!(out, "{only}lsp {slot},\"{image}\",{},{}", b.x, b.y).unwrap();
         if b.action == TitleAction::Continue {
             writeln!(out, "if {} == 0 lsp {slot},\"{image}\",{},{},128", menu::TMP, b.x, b.y).unwrap();
         }
@@ -2106,9 +2114,10 @@ effect 7,99,1000,\"cons_zoom.dll/3,220,5\"
             background: "system/title.png".into(),
             fade_ms: 1000,
             buttons: vec![
-                TitleButton { image: "system/quick.png".into(), x: 822, y: 150, action: TitleAction::Continue, click_se: Some("sound/se/a.ogg".into()) },
-                TitleButton { image: "system/start.png".into(), x: 762, y: 150, action: TitleAction::Start, click_se: Some("sound/se/a.ogg".into()) },
-                TitleButton { image: "system/exit.png".into(), x: 162, y: 150, action: TitleAction::Exit, click_se: None },
+                TitleButton { image: "system/quick.png".into(), x: 822, y: 150, action: TitleAction::Continue, click_se: Some("sound/se/a.ogg".into()), shown_by: None },
+                TitleButton { image: "system/start.png".into(), x: 762, y: 150, action: TitleAction::Start, click_se: Some("sound/se/a.ogg".into()), shown_by: None },
+                // Shown only once a flag is set.
+                TitleButton { image: "system/exit.png".into(), x: 162, y: 150, action: TitleAction::Exit, click_se: None, shown_by: Some(conv_core::ir::Var { global: false, index: 50 }) },
             ],
             pressed: true,
             hover_se: Some("sound/se/over.ogg".into()),
@@ -2129,7 +2138,8 @@ effect 7,99,1000,\"cons_zoom.dll/3,220,5\"
         for part in [
             // The glow behind the buttons, redrawn with them.
             "*conv_title_draw\nbgm \"sound\\bgm\\title.ogg\"\nlsp 33,\":c;system\\fire.jpg\",0,0:spalpha 33,1,0,0,600,256,1200,0\nsavefileexist %105,890\nlsp 6,\":a/3,0,3;system\\quick.png\",822,150\nif %105 == 0 lsp 6,\":a/3,0,3;system\\quick.png\",822,150,128\n",
-            "*conv_title\nselectvoice \"\",\"sound\\se\\over.ogg\",\"\"\nsavefileexist %105,890\nif %105 == 1 spbtn 6,1,2\nspbtn 7,2,2\nspbtn 8,3,2\nbtnwait %9\nselectvoice \"\",\"\",\"\"\n",
+            "if %60 != 0 lsp 8,\":a/3,0,3;system\\exit.png\",162,150\n",
+            "*conv_title\nselectvoice \"\",\"sound\\se\\over.ogg\",\"\"\nsavefileexist %105,890\nif %105 == 1 spbtn 6,1,2\nspbtn 7,2,2\nif %60 != 0 spbtn 8,3,2\nbtnwait %9\nselectvoice \"\",\"\",\"\"\n",
             "if %9 == 1 dwave 1,\"sound\\se\\a.ogg\":csp -1:loadgame 890\n",
             // No question before quitting.
             "if %9 == 3 end\n",
