@@ -109,6 +109,30 @@ def _no_window() -> dict:
     return {"creationflags": subprocess.CREATE_NO_WINDOW} if os.name == "nt" else {}
 
 
+def written_bytes(folder: Path, since: float) -> int:
+    """The size of the files under `folder` changed at or after `since`
+    (a time.time()): what this build has written so far, not the files an
+    earlier build left there."""
+    total = 0
+    stack = [folder]
+    while stack:
+        try:
+            entries = list(os.scandir(stack.pop()))
+        except OSError:
+            continue
+        for e in entries:
+            try:
+                if e.is_dir(follow_symlinks=False):
+                    stack.append(Path(e.path))
+                else:
+                    st = e.stat(follow_symlinks=False)
+                    if st.st_mtime >= since:
+                        total += st.st_size
+            except OSError:  # deleted while we looked (the packer removes its folders)
+                pass
+    return total
+
+
 class Build:
     """One converter run. `on_line` gets each line of output and `on_exit`
     the exit code, both from a reader thread."""

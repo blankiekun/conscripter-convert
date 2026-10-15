@@ -17,20 +17,39 @@ attached for each of them too (`conscripter-convert_<version>_<platform>`).
 
 1. Drop the game folder on the window, or click it to choose the folder.
    The folder above the game data works too (the app looks two levels
-   down).
+   down). The box says "Detecting the game…" while it looks, then which
+   game it found and where; with several, choose one under **Game**.
 2. Check the output folder. The default is a new folder beside the game
    folder. The app asks before using a folder that isn't empty, because
    the converter replaces what it writes there and deletes the folders it
    packs into archives.
-3. Click **Build**. A build takes several minutes and a few GB of disk;
+3. Optionally open **Advanced options** (below). Without it the game's
+   recommended settings are used.
+4. Click **Build**. A build takes several minutes and a few GB of disk;
    **Cancel** stops the converter and the ffmpeg processes it started.
-4. Play the result with [CONscripter](https://github.com/blankiekun/CONscripter/releases).
+   The bar follows how much the build has written against how much it
+   usually writes (packing the archives briefly needs twice the finished
+   size), so it moves unevenly; it fills when the converter ends.
+5. Play the result with [CONscripter](https://github.com/blankiekun/CONscripter/releases).
 
 | Game | Recognised by | Settings | Needs |
 |---|---|---|---|
 | 最果てのイマ COMPLETE | `Farthest2015.exe`, `HD/CDFiles/*.cd`, `CD/` | `convert-game`, title "Saihate no Ima COMPLETE", IPA Gothic | ffmpeg (movies) |
 | 装甲悪鬼村正 | `Muramasa.exe` and `nss.npa`, `cg.npa`, `sound.npa`, `voice.npa`, `system.npa` | `convert-nss --file ma00_000.nss --chain 2000`, title 装甲悪鬼村正, IPA Mincho | |
 | 俺たちに翼はない (PS Vita) | `media/SCRIPT.cpk`, `media/CG.cpk`, `sce_sys/param.sfo`; the CPK must be decrypted | `mages convert`, IPA Gothic | ffmpeg (sounds, movies) |
+
+**Advanced options** are the converter flags that make sense for each
+game; the line under them shows the exact command. **Recommended settings**
+puts them back.
+
+| Option | Games | Flag |
+|---|---|---|
+| Window title | all | `--title` |
+| WebP pictures, WebP quality (empty: near-lossless; 0-100: lossy, 80 is about a quarter of the size) | 最果てのイマ | `--webp`, `--webp-quality` |
+| Loose files | all | `--loose` |
+| Script only (dry run) | 村正, 翼 | `--dry-run` |
+| Start at the script, story files to follow | 村正 | `--file`, `--chain` |
+| Only these scenes | 翼 | `--scenes` |
 
 **ffmpeg** is not included (its usual builds are GPL with libx264, and
 large). Install it so `ffmpeg` is on PATH (Windows: for example
@@ -83,6 +102,7 @@ each `v*` tag.
 
 Add a `Game` entry to `GAMES` in `games.py`: its marker files, an optional
 `check` for problems the markers can't see, the converter arguments from
-the game's document, its font, whether it needs ffmpeg and about how much
-it writes. Add a fake layout and the expected command to
+the game's document, its `options` (each a converter flag; their defaults
+are the recommended settings), its font, whether it needs ffmpeg and the
+finished build's size (the progress bar and the free-space check use it). Add a fake layout and the expected command to
 `tests/test_games.py`.
