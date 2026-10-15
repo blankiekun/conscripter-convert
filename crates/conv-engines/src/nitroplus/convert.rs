@@ -121,6 +121,8 @@ pub struct Game {
     /// between files"; a scene's fade to black `黒幕` is never deleted
     /// otherwise). Inferred from the scripts, not checked in the exe.
     chapter_objects: bool,
+    /// How a choice of `n` options looks.
+    choice_style: for<'a, 'b> fn(&mut Compiler<'a, 'b>, i64) -> Option<ChoiceStyle>,
 }
 
 impl Game {
@@ -139,6 +141,7 @@ impl Game {
         relative_children: false,
         loaded_textures: false,
         chapter_objects: false,
+        choice_style: |c, n| c.vertical_choice_style(n),
     };
 
     /// Fills `script`'s system screens.
@@ -1116,7 +1119,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
             .collect();
         let labels: Vec<String> = (0..cases.len()).map(|i| format!("choice{n}_{i}")).collect();
         let after = format!("choice{n}_end");
-        let style = self.choice_style(texts.len() as i64);
+        let style = (self.game.choice_style)(self, texts.len() as i64);
         let style_shown = style.is_some();
         self.ops.push(Op::Choice { options: texts.into_iter().zip(labels.iter().cloned()).collect(), style });
         if style_shown {
@@ -1136,10 +1139,10 @@ impl<'a, 'b> Compiler<'a, 'b> {
         self.finish_fork(leaves, own, true);
     }
 
-    /// The choice plates of `SetChoiceBase` (function_select.nss): `n`
-    /// vertical plates 100 px apart, the first at the right, centred on
+    /// 装甲悪鬼村正's choice plates of `SetChoiceBase` (function_select.nss):
+    /// `n` vertical plates 100 px apart, the first at the right, centred on
     /// the screen; the options in black, vertical, one per plate.
-    fn choice_style(&mut self, n: i64) -> Option<ChoiceStyle> {
+    fn vertical_choice_style(&mut self, n: i64) -> Option<ChoiceStyle> {
         const PITCH: i64 = 100;
         const FONT: i64 = 20;
         const MARGIN: i64 = 40;
