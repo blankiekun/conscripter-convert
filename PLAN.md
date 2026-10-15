@@ -180,6 +180,7 @@ in the script today), roughly in order of payoff:
 | Game feature | Workaround today | Engine feature that would fix it |
 |---|---|---|
 | Right-click menu / hide window | Everything behind the on-screen button bar | Send right-click to a script label (`rgosub`-style); not planned for now |
+| Movies on Linux and macOS (`mpegplay`, `movie` in the game window through the player's ffmpeg; they were disabled there) | Every game's movies (最果てのイマ's openings and staff rolls, 翼's) on the native Linux and macOS builds, which played none |
 
 Done without engine work (the stock commands are enough; the per-game
 details, record layouts and handler addresses are in the game's document):
