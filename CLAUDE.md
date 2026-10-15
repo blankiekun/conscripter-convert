@@ -76,8 +76,8 @@ Several agents work at once, one per game branch (`xuse`, `nitroplus`,
 each in its own worktree), and their work meets in shared code.
 
 - **Start every session by merging `origin/main` into your game branch**
-  (`git fetch && git merge origin/main`), before any edit, then build and
-  run `cargo test`. Merge it again before a commit that touches a hot
+  (`git fetch && git merge origin/main && git submodule update engine`),
+  before any edit, then build and run `cargo test`. Merge it again before a commit that touches a hot
   spot (below). Conflicts are small when they are fresh.
 - **Hot spots**: files every game's work changes. Before editing one,
   check what main changed in it (`git log -p HEAD..origin/main -- <file>`).
@@ -90,7 +90,7 @@ each in its own worktree), and their work meets in shared code.
   | `crates/conv-cons/src/menu.rs` | Shared by every game's menus: change it only through what a game passes in its IR (`SaveMenu`, `ButtonBar`, …), not with game-specific branches |
   | `crates/conv-cons/src/switches.rs` | A new settings switch is one entry in `def` (its index and what applying it does), with the next free index in your engine's block (the table at the top: shared 20-99, xuse 100-199, mages 200-299, nitroplus 300-399, a new engine the next hundred); nothing in `menu.rs` |
   | `crates/conv-cli/src/main.rs` | One subcommand per engine; keep the engine's own code in `crates/conv-engines/src/<engine>/` |
-  | `engine` (submodule pointer) | Two branches that bump it conflict, and a merge can't combine them: before bumping it, merge `origin/main` and rebase your engine commits onto CONscripter's `master`, so the pointer only moves forward |
+  | `engine` (submodule pointer) | Two branches that bump it conflict, and a merge can't combine them: before bumping it, merge `origin/main` and rebase your engine commits onto CONscripter's `master`, so the pointer only moves forward. A merge that conflicts on it: `research/tools/merge-engine.sh` takes the newer of the two engine commits |
   | `PLAN.md`, `README.md`, `docs/new-game.md`, this file | Edit only your game's rows and paragraphs; general lessons go in `PLAN.md` §13 |
   | `Cargo.toml`, `Cargo.lock` | Add dependencies in their own commit; on a conflict, take both sides and let `cargo build` rewrite the lock file |
 
