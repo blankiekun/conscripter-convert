@@ -127,6 +127,8 @@ pub(crate) const BAR_SLIDE_OUT: &str = "conv_bar_slide_out";
 const BTN_EDGE: i32 = BAR_BUTTON_BASE + 300;
 /// 1 while the bars are unpinned ([`BarAction::Lock`]; global).
 const BAR_UNPINNED: &str = "%2908";
+/// 1 while the unpinned bar is shown: it fades in only when it was hidden.
+const BAR_SHOWN: &str = "%148";
 /// The game saved before the last choice ([`BarAction::BackToChoice`]);
 /// a global that is 1 while it is being loaded (see [`LOADED`]).
 pub(crate) const BACK_SLOT: u32 = 891;
@@ -571,7 +573,7 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, s: BarScreens) {
     let slide = bar.slide;
     // Where an unpinned bar shows ([`BarAction::Lock`]).
     let reveal = bar.buttons.iter().find_map(|b| match b.action {
-        BarAction::Lock { reveal_y } => Some(reveal_y),
+        BarAction::Lock { reveal_y, fade_ms } => Some((reveal_y, fade_ms)),
         _ => None,
     });
     // A sliding bar's x is offset by BAR_OFFSET.
@@ -668,11 +670,11 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, s: BarScreens) {
     if let Some(sl) = slide {
         w(format!("mov {BAR_OFFSET},{}:if {BAR_OUT} == 1 mov {BAR_OFFSET},0", sl.hidden_dx));
     }
-    if let Some(y) = reveal {
+    if let Some((y, _)) = reveal {
         // Unpinned and the pointer above the line: only the hotspot below
         // it. Off the screen (auto-play) is below.
         w(format!("getmousepos {TMP},{MOUSE_Y}"));
-        w(format!("if {BAR_UNPINNED} == 1 && {MOUSE_Y} < {y} btn {BTN_EDGE},0,{y},{},{},0,0:print 1:return", s.width, s.height as i32 - y));
+        w(format!("if {BAR_UNPINNED} == 1 && {MOUSE_Y} < {y} btn {BTN_EDGE},0,{y},{},{},0,0:mov {BAR_SHOWN},0:print 1:return", s.width, s.height as i32 - y));
     }
     if state {
         w(format!("gosub *{BAR_STATE}"));
@@ -711,9 +713,15 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, s: BarScreens) {
         w(format!("if {BAR_OUT} == 0 btn {BTN_EDGE},{edge},0,{},{height},0,0", width - edge));
         w(format!("if {BAR_OUT} == 1 btn {BTN_EDGE},0,0,{edge},{height},0,0"));
     }
-    if let Some(y) = reveal {
+    if let Some((y, fade_ms)) = reveal {
         // The hotspot above the bar ends the wait when the pointer leaves.
         w(format!("if {BAR_UNPINNED} == 1 btn {BTN_EDGE},0,0,{},{y},0,0", s.width));
+        // Coming down to a hidden bar, it fades in.
+        let fades: Vec<String> = buttons.iter().map(|(_, slot)| *slot).chain(bar.base.as_ref().map(|_| base_slot)).map(|n| format!("spfade {n},{fade_ms}")).collect();
+        if fade_ms > 0 && !fades.is_empty() {
+            w(format!("if {BAR_UNPINNED} == 1 && {BAR_SHOWN} == 0 {}", fades.join(":")));
+        }
+        w(format!("mov {BAR_SHOWN},1"));
     }
     if let Some(top) = &bar.top {
         // Unpinned, the top bars stay hidden.
@@ -1820,7 +1828,7 @@ pub(crate) mod tests {
     fn unpinned_bars_show_under_the_pointer() {
         use conv_core::ir::BarButton;
         let bar = ButtonBar {
-            buttons: vec![BarButton { image: placed("lock", 87, 19), active: Some(placed("lock_on", 87, 19)), action: BarAction::Lock { reveal_y: 573 } }],
+            buttons: vec![BarButton { image: placed("lock", 87, 19), active: Some(placed("lock_on", 87, 19)), action: BarAction::Lock { reveal_y: 573, fade_ms: 100 } }],
             top: None,
             ..Default::default()
         };
@@ -1829,9 +1837,9 @@ pub(crate) mod tests {
         for line in [
             "if %2908 == 1 getmouseover 1300,1300\n",
             "textbtnwait %9\nif %9 == 1300 goto *conv_wait\n",
-            "getmousepos %105,%146\nif %2908 == 1 && %146 < 573 btn 1300,0,573,800,27,0,0:print 1:return\n",
+            "getmousepos %105,%146\nif %2908 == 1 && %146 < 573 btn 1300,0,573,800,27,0,0:mov %148,0:print 1:return\n",
             "if %2908 == 1 lsp 34,\":a/3,0,3;system\\lock_on.png\",10,20\n",
-            "if %2908 == 1 btn 1300,0,0,800,573,0,0\n",
+            "if %2908 == 1 btn 1300,0,0,800,573,0,0\nif %2908 == 1 && %148 == 0 spfade 34,100\nmov %148,1\n",
             "*conv_bar_lock\nmov %2908,1-%2908\nreturn\n",
         ] {
             assert!(out.contains(line), "missing {line:?} in\n{out}");
