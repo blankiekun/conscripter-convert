@@ -236,8 +236,8 @@ mod tests {
     #[test]
     fn values_compare_and_set() {
         assert_eq!(is(&SettingValue::Level(Setting::TextSpeed), 7), "%905 == 7");
-        assert_eq!(is(&SettingValue::Switch(Switch::SceneSkipDialog), 1), "%2915 == 0");
-        assert_eq!(set(&SettingValue::Switch(Switch::SceneSkipDialog), 0), "mov %2915,1");
+        assert_eq!(is(&SettingValue::Switch(Switch::SceneSkipDialog), 1), "%2919 == 0");
+        assert_eq!(set(&SettingValue::Switch(Switch::SceneSkipDialog), 0), "mov %2919,1");
         assert_eq!(set(&SettingValue::Voices(vec![3, 5]), 0), "mov %973,1:mov %975,1");
     }
 }

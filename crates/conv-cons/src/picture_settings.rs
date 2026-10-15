@@ -15,14 +15,20 @@
 //! [`APPLY`] at startup and as they change. The game's speed is kept in
 //! [`GAME_SPEED`] and applied by the click wait as it ends (menus, which
 //! are opened from it, run at 100 %).
+//!
+//! The voice window ([`VoiceWindow`]) lays its pictures over the settings
+//! (lower sprite numbers): an entry shows once its flag is set, with a
+//! check while its characters' voices play (the per-character switches
+//! `dwave` reads, [`menu::VOICE_OFF_BASE`]); a `btn` over its box toggles
+//! them all.
 
-use conv_core::ir::{PairOption, PictureSettings, Placed, SliderSetting, Switch};
+use conv_core::ir::{PairOption, PictureSettings, Placed, SliderSetting, Switch, Var, VoiceWindow};
 
 use crate::menu::{self, CONFIRM, IN_GAME, TEXT_MS, TMP};
-use crate::{escape, path, BUTTON_VAR, MAX_SPRITE};
+use crate::{escape, path, var_name, BUTTON_VAR, MAX_SPRITE};
 
 // Globals (`globalon` keeps %200 and up): 2920-2949, after the switches'
-// second range (2910-2917), below the scene replay's flags (3000).
+// second range (2910-2919; the third is 2950 up), below the scene replay's flags (3000).
 /// 1 once the values have their defaults.
 const SET: &str = "%2920";
 /// The `gamespeed` percent the story runs at.
@@ -38,6 +44,8 @@ const DRAGGED: &str = "%170";
 const MOUSE_X: &str = "%177";
 const MOUSE_Y: &str = "%178";
 const MUTE: [&str; 3] = ["%171", "%172", "%173"];
+/// The voice window's layout shown.
+const LAYOUT: &str = "%174";
 
 pub(crate) const APPLY: &str = "conv_ps_apply";
 const DEFAULTS: &str = "conv_ps_defaults";
@@ -48,6 +56,13 @@ const KNOB: u32 = 700; // + slider
 const CLOSE: u32 = 710;
 const RESET: u32 = 711;
 const VOICE_TEST: u32 = 712;
+const VOICE_OPEN: u32 = 713;
+// The voice window, over the settings.
+const VOICE_BACKDROP: u32 = 689;
+const VOICE_BACKGROUND: u32 = 688;
+const VOICE_ENTRY: u32 = 600; // + entry
+const VOICE_CHECK: u32 = 540; // + entry
+const MAX_VOICE_ENTRIES: usize = 60;
 const CHOSEN: u32 = 720; // + 2 × pair (+ 1 off)
 const PAIR: u32 = 750; // + 2 × pair (+ 1 off)
 const TRACK: u32 = 780; // + slider
@@ -58,6 +73,8 @@ const MAX_FIXED: usize = 100;
 const BTN_CLOSE: i32 = 1;
 const BTN_RESET: i32 = 2;
 const BTN_VOICE_TEST: i32 = 3;
+const BTN_VOICES: i32 = 4;
+const BTN_VOICE_ENTRY: i32 = 100; // + entry
 const BTN_TRACK: i32 = 10; // + slider
 const BTN_PAIR: i32 = 30; // + 2 × pair (+ 1 off)
 
@@ -87,7 +104,7 @@ pub(crate) fn skips_unread(s: &PictureSettings) -> bool {
     s.pairs.iter().any(|p| p.option == PairOption::SkipUnread)
 }
 
-pub(crate) fn emit(out: &mut String, s: &PictureSettings) {
+pub(crate) fn emit(out: &mut String, s: &PictureSettings, border: u32) {
     assert!(s.sliders.len() <= MAX_SLIDERS && s.pairs.len() <= MAX_PAIRS && s.fixed.len() <= MAX_FIXED, "too many settings controls");
     let mut w = |line: String| {
         out.push_str(&line);
@@ -96,7 +113,7 @@ pub(crate) fn emit(out: &mut String, s: &PictureSettings) {
     let strip = |slot: u32, cells: u32, p: &Placed| format!("lsp {slot},\":a/{cells},0,3;{}\",{},{}", path(&p.image), p.x, p.y);
     let fade = if s.fade_ms > 0 { format!("print 10,{}", s.fade_ms) } else { "print 1".into() };
     let pair_fade = if s.pair_fade_ms > 0 { format!("print 10,{}", s.pair_fade_ms) } else { "print 1".into() };
-    let buttons: Vec<(u32, i32, &Placed)> = [(CLOSE, BTN_CLOSE, Some(&s.close)), (RESET, BTN_RESET, s.reset.as_ref()), (VOICE_TEST, BTN_VOICE_TEST, s.voice_test.as_ref())]
+    let buttons: Vec<(u32, i32, &Placed)> = [(CLOSE, BTN_CLOSE, Some(&s.close)), (RESET, BTN_RESET, s.reset.as_ref()), (VOICE_TEST, BTN_VOICE_TEST, s.voice_test.as_ref()), (VOICE_OPEN, BTN_VOICES, s.voice_window.as_ref().map(|v| &v.open))]
         .into_iter()
         .filter_map(|(slot, n, p)| Some((slot, n, p?)))
         .collect();
@@ -165,6 +182,9 @@ pub(crate) fn emit(out: &mut String, s: &PictureSettings) {
     if s.reset.is_some() {
         w(format!("if {BUTTON_VAR} == {BTN_RESET} goto *conv_ps_reset"));
     }
+    if s.voice_window.is_some() {
+        w(format!("if {BUTTON_VAR} == {BTN_VOICES} goto *conv_ps_voices"));
+    }
     if let Some(v) = &s.test_voice {
         w(format!("if {BUTTON_VAR} == {BTN_VOICE_TEST} dwave 0,\"{}\"", path(v)));
     }
@@ -222,7 +242,7 @@ pub(crate) fn emit(out: &mut String, s: &PictureSettings) {
     w("popscreen".into());
     // The scene first, then the window: texton drops the pending screen
     // updates but the window's.
-    w(fade);
+    w(fade.clone());
     w(format!("if {IN_GAME} == 1 texton"));
     w("return".into());
 
@@ -240,6 +260,10 @@ pub(crate) fn emit(out: &mut String, s: &PictureSettings) {
         w(format!("amsp {},{},{TMP}", KNOB + i as u32, l.knob.x));
     }
     w("return".into());
+
+    if let Some(v) = &s.voice_window {
+        voice_window(&mut w, v, border, &fade);
+    }
 
     w(format!("*{DEFAULTS}"));
     for (i, l) in s.sliders.iter().enumerate() {
@@ -303,10 +327,82 @@ pub(crate) fn emit(out: &mut String, s: &PictureSettings) {
     w("return".into());
 }
 
+/// The voice window's routines (`*conv_ps_voices`, back to the settings'
+/// wait when it closes).
+fn voice_window(w: &mut impl FnMut(String), v: &VoiceWindow, border: u32, fade: &str) {
+    assert!(v.layouts.iter().all(|l| l.entries.len() <= MAX_VOICE_ENTRIES), "too many voice entries");
+    let fade = if v.fade_ms > 0 { format!("print 10,{}", v.fade_ms) } else { fade.to_string() };
+    let off = |c: u32| format!("%{}", menu::VOICE_OFF_BASE + c);
+    // The test that shows entry k of layout l.
+    let shown = |l: usize, heard: Option<Var>| match heard {
+        Some(h) => format!("{LAYOUT} == {l} && {} == 1", var_name(h, border)),
+        None => format!("{LAYOUT} == {l}"),
+    };
+    let (b, opacity) = &v.backdrop;
+    w("*conv_ps_voices".into());
+    w(format!("lsp {VOICE_BACKDROP},\":c;{}\",{},{},{opacity}", path(&b.image), b.x, b.y));
+    let g = &v.background;
+    w(format!("lsp {VOICE_BACKGROUND},\":a;{}\",{},{}", path(&g.image), g.x, g.y));
+    w(format!("mov {LAYOUT},{}", v.layouts.len().saturating_sub(1)));
+    for (l, layout) in v.layouts.iter().enumerate().rev() {
+        if let Some(when) = layout.when {
+            w(format!("if {} == 1 mov {LAYOUT},{l}", var_name(when, border)));
+        }
+    }
+    w("gosub *conv_ps_voices_draw".into());
+    w(fade.clone());
+
+    w("*conv_ps_voices_wait".into());
+    w("btndef clear".into());
+    for (l, layout) in v.layouts.iter().enumerate() {
+        for (k, e) in layout.entries.iter().enumerate().filter(|(_, e)| !e.characters.is_empty()) {
+            let p = &e.picture;
+            w(format!("if {} btn {},{},{},{},{},0,0", shown(l, e.heard), BTN_VOICE_ENTRY + k as i32, p.x, p.y, e.hit.0, e.hit.1));
+        }
+    }
+    w("getkey".into());
+    w(format!("btnwait {BUTTON_VAR}"));
+    w(format!("if {BUTTON_VAR} == -1 || {BUTTON_VAR} == {} goto *conv_ps_voices_close", menu::key_code('C')));
+    for (l, layout) in v.layouts.iter().enumerate() {
+        for (k, e) in layout.entries.iter().enumerate() {
+            let Some(&first) = e.characters.first() else { continue };
+            let all = |to: u32| e.characters.iter().map(|&c| format!("mov {},{to}", off(c))).collect::<Vec<_>>().join(":");
+            let n = BTN_VOICE_ENTRY + k as i32;
+            w(format!("if {LAYOUT} == {l} && {BUTTON_VAR} == {n} && {} == 0 {}:goto *conv_ps_voices_toggled", off(first), all(1)));
+            w(format!("if {LAYOUT} == {l} && {BUTTON_VAR} == {n} {}:goto *conv_ps_voices_toggled", all(0)));
+        }
+    }
+    w("goto *conv_ps_voices_wait".into());
+    w("*conv_ps_voices_toggled".into());
+    w("gosub *conv_ps_voices_draw:print 1".into());
+    w("goto *conv_ps_voices_wait".into());
+
+    w("*conv_ps_voices_close".into());
+    w("btndef clear".into());
+    w(format!("for {TMP} = {VOICE_CHECK} to {VOICE_BACKDROP}:csp {TMP}:next"));
+    w(fade);
+    w("goto *conv_ps_wait".into());
+
+    w("*conv_ps_voices_draw".into());
+    w(format!("for {TMP} = {VOICE_CHECK} to {}:csp {TMP}:next", VOICE_ENTRY as usize + MAX_VOICE_ENTRIES - 1));
+    let c = &v.check;
+    for (l, layout) in v.layouts.iter().enumerate() {
+        for (k, e) in layout.entries.iter().enumerate() {
+            let p = &e.picture;
+            let cond = shown(l, e.heard);
+            w(format!("if {cond} lsp {},\":a;{}\",{},{}", VOICE_ENTRY + k as u32, path(&p.image), p.x, p.y));
+            // An entry with no voices in the story is always heard.
+            let heard = e.characters.first().map_or(String::new(), |&first| format!(" && {} == 0", off(first)));
+            w(format!("if {cond}{heard} lsp {},\":a;{}\",{},{}", VOICE_CHECK + k as u32, path(&c.image), p.x, p.y));
+        }
+    }
+    w("return".into());
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use conv_core::ir::{PicturePair, PictureSlider, PictureText, Rect};
+    use conv_core::ir::{PicturePair, PictureSlider, PictureText, Rect, VoiceEntry, VoiceLayout};
 
     fn placed(name: &str, x: i32, y: i32) -> Placed {
         Placed { image: format!("system/{name}.png"), x, y, w: 24, h: 7 }
@@ -337,13 +433,24 @@ mod tests {
             texts: vec![PictureText { text: "v1.00".into(), x: 453, y: 548, font_size: 11, colour: "#bb7420".into() }],
             fade_ms: 300,
             pair_fade_ms: 100,
+            voice_window: Some(VoiceWindow {
+                open: placed("open", 323, 151),
+                backdrop: (placed("black", 0, 0), 178),
+                background: placed("voices", 0, 0),
+                check: placed("check", 0, 0),
+                layouts: vec![
+                    VoiceLayout { when: Some(Var { global: true, index: 50 }), entries: vec![VoiceEntry { picture: placed("a", 790, 82), hit: (15, 142), characters: vec![3, 7], heard: Some(Var { global: true, index: 10 }) }] },
+                    VoiceLayout { when: None, entries: vec![VoiceEntry { picture: placed("b", 214, 376), hit: (15, 142), characters: vec![], heard: None }] },
+                ],
+                fade_ms: 300,
+            }),
         }
     }
 
     #[test]
     fn picture_settings_routine() {
         let mut out = String::new();
-        emit(&mut out, &settings());
+        emit(&mut out, &settings(), 800);
         for line in [
             "*conv_settings\n",
             "lsp 800,\":a;system\\aspect.png\",215,51\n",
@@ -363,6 +470,13 @@ mod tests {
             "mov %3642,1-%2930\n",
             "mov %2914,1-%2930\n",
             "mov %171,0\nmov %172,0\nmov %173,1-%2931\nsoundmute %171,%172,%173\n",
+            // The voice window: layout 0 when its flag is set.
+            "if %9 == 4 goto *conv_ps_voices\n",
+            "mov %174,1\nif %850 == 1 mov %174,0\n",
+            "if %174 == 0 && %810 == 1 btn 100,790,82,15,142,0,0\n",
+            "if %174 == 0 && %9 == 100 && %973 == 0 mov %973,1:mov %977,1:goto *conv_ps_voices_toggled\n",
+            "if %174 == 0 && %810 == 1 && %973 == 0 lsp 540,\":a;system\\check.png\",790,82\n",
+            "if %174 == 1 lsp 540,\":a;system\\check.png\",214,376\n",
         ] {
             assert!(out.contains(line), "missing {line:?} in\n{out}");
         }
