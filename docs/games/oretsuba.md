@@ -424,28 +424,34 @@ route from the story menu after its ending until auto-play's loop guard
 stops it ("3000 pages without a new label", exit 1): what matters is the
 ending scene reached. Rerun on 2026-10-15's build (all eight in one
 folder): 明日香 (S01_16A, page 25,742), 京 (S01_18A, 25,852), 美咲
-(M09_01), 日和子 (S02_16A), 亜衣 (S03C_20A); the bad end, 鳴 and 小鳩
-running. `cons_trace_check.py` on each finds no new bug: SEs played on
-two channels at once (as the source does), backgrounds up for 150 pages
-in long scenes, characters placed off screen before they move in,
-`Sprite` pictures laid over a background; the dying `EffectQuake`
-shakes it reported as never ending were given an end. Runs 9-12 of
-`routes.py` (`--only 9,10,11,12`, after the routes, in the same folder)
-play the four after-stories from the story menu.
+(M09_01), 日和子 (S02_16A), 亜衣 (S03C_20A), the bad end (S04_06L), 鳴
+(S03_22A) and 小鳩 (S04_28B) all reach their endings. 小鳩's run first
+stopped for good in S04_12B: a CONscripter bug (fixed in 6837994,
+`engine/ADDITIONS.md`): a `bgmfadeout 16:bgmstop` while `bgmfadein
+1000` was still fading the music in left it playing, and the next `bgm`
+waited forever. `cons_trace_check.py` on each finds no new bug: SEs
+played on two channels at once (as the source does: S04_07B's two
+arrows), backgrounds up for 150 pages in long scenes, characters placed
+off screen before they move in (`spmotion`), `Sprite` pictures laid
+over a background, the eased moves' loops (S04_03G's 20-second pans);
+the dying `EffectQuake` shakes it reported as never ending were given
+an end. Runs 9-12 of `routes.py` (`--only 9,10,11,12`, after the
+routes, in the same folder) play the four after-stories from the story
+menu: all four reach their last scene (P03_01D, P01_01D, P02_01E,
+P04_02B) with nothing new in their traces (京's eye catch EC21, 540 px
+tall, is centred, 2 px from each edge).
 
 Next, in order:
-1. Finish the route runs and their checks, then the after-stories
-   (`routes.py --only 9,10,11,12` on a new build).
-2. The gallery's ALBUM, MOVIE, MUSIC where the Vita shows them, over the
+1. The gallery's ALBUM, MOVIE, MUSIC where the Vita shows them, over the
    title (0x81083c0c); needs the extras menu's own background apart from
    the album's (shared code).
-3. The settings could use CONscripter's new player settings
+2. The settings could use CONscripter's new player settings
    (`clickvoicestop`, `selectkeep`) for 音声スキップ and 選択後のスキップ,
    now done in the script.
-4. Small: `:Roll` in 2 character actions (rotation keys in `spmotion`);
+3. Small: `:Roll` in 2 character actions (rotation keys in `spmotion`);
    system sounds (SystemSE.AWB), which would give システムボリューム a
    use; the story menu's 〜Prelude〜 header; the music room's volume,
    repeat and play-on.
-5. Looks against the original: text window size and place, character
+4. Looks against the original: text window size and place, character
    heights (where the eboot anchors them), the eye catch's speed, the
    wave transition's size. Needs screenshots of the Vita game.
