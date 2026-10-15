@@ -960,6 +960,10 @@ pub struct ExtrasMenu {
     pub replay: Option<SceneReplay>,
     pub music: Option<MusicRoom>,
     pub movies: Option<MovieRoom>,
+    /// The menu's own picture when it isn't the modes' `background`
+    /// (俺たちに翼はない lists the modes over the title); `None` uses
+    /// `background`.
+    pub menu_background: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
