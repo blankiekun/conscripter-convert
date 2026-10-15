@@ -10,7 +10,6 @@
 //! USM movies MP4 files (`movie/`, loose: [`ArchiveAssets::movies`]).
 
 use std::collections::{BTreeMap, HashMap, HashSet};
-use std::fs;
 use std::path::{Path, PathBuf};
 
 use image::{Rgba, RgbaImage, imageops};
@@ -20,6 +19,7 @@ use conv_core::ir::Placed;
 use super::convert::{Assets, Particles, SCREEN_H, SCREEN_W};
 use super::menus::Labels;
 use super::cpk::Archive;
+use crate::output::{Output, image_size};
 
 /// Top-level output folders the assets go to.
 pub const OUTPUT_DIRS: [&str; 7] = ["cg", "chr", "etc", "system", "voice", "se", "bgm"];
@@ -65,7 +65,6 @@ pub struct ArchiveAssets<'a> {
     pub voice: Bank<'a>,
     pub se: Bank<'a>,
     pub bgm: Bank<'a>,
-    output: PathBuf,
     images: HashMap<(u8, u32), Option<Picture>>,
     sounds: HashMap<(u8, u32), Option<String>>,
     /// Movies to convert: output path (relative) → the USM file.
@@ -74,23 +73,12 @@ pub struct ArchiveAssets<'a> {
     pub movie_dir: PathBuf,
     /// Sounds to convert, by output path.
     pub audio: BTreeMap<String, AudioJob<'a>>,
-    pub errors: Vec<String>,
-    /// Write nothing (only picture sizes are read).
-    pub dry_run: bool,
+    /// Where the files go; a dry run reads only picture sizes.
+    pub out: Output,
     /// The `--font`, for the words drawn into pictures.
     pub font: Option<&'a [u8]>,
     /// Pictures cut from SystemData's atlases, by output path.
     cut: HashSet<String>,
-}
-
-/// Width and height from a PNG header.
-fn png_size(data: &[u8]) -> Option<(u32, u32)> {
-    if data.get(..8)? != b"\x89PNG\r\n\x1a\n" {
-        return None;
-    }
-    let w = u32::from_be_bytes(data.get(16..20)?.try_into().ok()?);
-    let h = u32::from_be_bytes(data.get(20..24)?.try_into().ok()?);
-    Some((w, h))
 }
 
 /// The loop of an ADX (version 4) file: start and end sample frames.
@@ -113,38 +101,14 @@ impl<'a> ArchiveAssets<'a> {
             voice,
             se,
             bgm,
-            output: output.to_path_buf(),
             images: HashMap::new(),
             sounds: HashMap::new(),
             audio: BTreeMap::new(),
             movies: BTreeMap::new(),
             movie_dir: PathBuf::new(),
-            errors: Vec::new(),
-            dry_run: false,
+            out: Output::new(output),
             font: None,
             cut: HashSet::new(),
-        }
-    }
-
-    fn write(&mut self, rel: &str, data: &[u8]) {
-        if self.dry_run {
-            return;
-        }
-        let dest = self.output.join(rel);
-        let result = dest.parent().map_or(Ok(()), fs::create_dir_all).and_then(|_| fs::write(&dest, data));
-        if let Err(e) = result {
-            self.errors.push(format!("{}: {e}", dest.display()));
-        }
-    }
-
-    fn write_png(&mut self, rel: &str, img: &RgbaImage) {
-        if self.dry_run {
-            return;
-        }
-        let dest = self.output.join(rel);
-        let result = dest.parent().map_or(Ok(()), |p| fs::create_dir_all(p).map_err(image::ImageError::IoError)).and_then(|_| img.save(&dest));
-        if let Err(e) = result {
-            self.errors.push(format!("{}: {e}", dest.display()));
         }
     }
 
@@ -158,17 +122,17 @@ impl<'a> ArchiveAssets<'a> {
             _ => ("chr", &self.chr),
         };
         let found = bank.file(id).and_then(|(name, data)| {
-            let (w, h) = png_size(data)?;
+            let (w, h) = image_size(data).filter(|_| data.starts_with(b"\x89PNG"))?;
             let stem = name.rsplit_once('.').map_or(name, |(s, _)| s).to_ascii_lowercase();
             Some((format!("{dir}/{stem}.png"), data, w, h))
         });
         let r = match found {
             Some((path, data, w, h)) => {
-                self.write(&path, data);
+                self.out.write(&path, data);
                 Some((path, w, h))
             }
             None => {
-                self.errors.push(format!("{dir} picture {id} missing or not a PNG"));
+                self.out.errors.push(format!("{dir} picture {id} missing or not a PNG"));
                 None
             }
         };
@@ -189,11 +153,11 @@ impl<'a> ArchiveAssets<'a> {
         let r = bank.file(id).map(|(_, data)| {
             let path = format!("{dir}/{id:05}.ogg");
             let looped = if which == 2 { adx_loop(data) } else { None };
-            self.audio.insert(path.clone(), AudioJob { source: data, output: self.output.join(&path), looped });
+            self.audio.insert(path.clone(), AudioJob { source: data, output: self.out.root.join(&path), looped });
             path
         });
         if r.is_none() {
-            self.errors.push(format!("{dir} {id} missing"));
+            self.out.errors.push(format!("{dir} {id} missing"));
         }
         self.sounds.insert((which, id), r.clone());
         r
@@ -212,7 +176,7 @@ impl ArchiveAssets<'_> {
         match image::load_from_memory(data) {
             Ok(i) => Some(i.to_rgba8()),
             Err(e) => {
-                self.errors.push(format!("{file}: {e}"));
+                self.out.errors.push(format!("{file}: {e}"));
                 None
             }
         }
@@ -221,7 +185,7 @@ impl ArchiveAssets<'_> {
     /// Writes a picture made by the converter as `system/<name>.png`.
     pub fn put_system_png(&mut self, name: &str, img: &RgbaImage) -> String {
         let path = format!("system/{name}.png");
-        self.write_png(&path, img);
+        self.out.write_png(&path, img);
         path
     }
 
@@ -232,7 +196,7 @@ impl ArchiveAssets<'_> {
         let img = match image::load_from_memory(data) {
             Ok(i) => i.to_rgba8(),
             Err(e) => {
-                self.errors.push(format!("{file}: {e}"));
+                self.out.errors.push(format!("{file}: {e}"));
                 return None;
             }
         };
@@ -250,7 +214,7 @@ impl ArchiveAssets<'_> {
             sheet = imageops::resize(&sheet, w, h, imageops::FilterType::CatmullRom);
         }
         let path = format!("system/{out}");
-        self.write_png(&path, &sheet);
+        self.out.write_png(&path, &sheet);
         Some((path, w, h))
     }
 }
@@ -282,10 +246,10 @@ impl Assets for ArchiveAssets<'_> {
             match image::load_from_memory(data) {
                 Ok(img) => {
                     let img = imageops::resize(&img.to_rgba8(), SCREEN_W as u32, SCREEN_H as u32, imageops::FilterType::Triangle);
-                    self.write_png(&path, &img);
+                    self.out.write_png(&path, &img);
                 }
                 Err(e) => {
-                    self.errors.push(format!("{name}: {e}"));
+                    self.out.errors.push(format!("{name}: {e}"));
                     return None;
                 }
             }
@@ -310,7 +274,7 @@ impl Assets for ArchiveAssets<'_> {
         let name = super::usm::MOVIES.get(n as usize)?;
         let source = self.movie_dir.join(format!("{name}.usm"));
         if !source.exists() {
-            self.errors.push(format!("{} missing", source.display()));
+            self.out.errors.push(format!("{} missing", source.display()));
             return None;
         }
         let path = format!("movie/{}.mp4", name.to_ascii_lowercase());
@@ -330,7 +294,7 @@ impl Assets for ArchiveAssets<'_> {
                 let v = (seed >> 24) as u8;
                 *p = Rgba([v, v, v, 255]);
             }
-            self.write_png(&path, &img);
+            self.out.write_png(&path, &img);
             self.images.insert((4, frames), None);
         }
         path
@@ -344,7 +308,7 @@ impl Assets for ArchiveAssets<'_> {
                 let v = (u64::from(y) * u64::from(cycles_x100) * 256 / (u64::from(h) * 100) % 256) as u8;
                 Rgba([v, v, v, 255])
             });
-            self.write_png(&path, &img);
+            self.out.write_png(&path, &img);
             self.images.insert((6, cycles_x100), None);
         }
         path
@@ -378,7 +342,7 @@ impl Assets for ArchiveAssets<'_> {
             let cell = imageops::crop_imm(&card_img, dx, dy, 169, 18).to_image();
             imageops::overlay(&mut img, &cell, 754 - 84, 484 - 9);
         }
-        self.write_png(&path, &img);
+        self.out.write_png(&path, &img);
         self.images.insert(key, None);
         Some(path)
     }
@@ -409,7 +373,7 @@ impl Assets for ArchiveAssets<'_> {
             imageops::overlay(&mut frame, &bottom, 0, i64::from(h / 2) + gap);
             imageops::replace(&mut strip, &frame, x, 0);
         }
-        self.write_png(&path, &strip);
+        self.out.write_png(&path, &strip);
         self.images.insert(key, None);
         Some(path)
     }
@@ -468,7 +432,7 @@ impl Assets for ArchiveAssets<'_> {
                 }
             }
         }
-        self.write_png(&path, &strip);
+        self.out.write_png(&path, &strip);
         self.images.insert(key, None);
         Some(path)
     }
@@ -478,7 +442,7 @@ impl Assets for ArchiveAssets<'_> {
         if !self.images.contains_key(&(3, rgb)) {
             let px = Rgba([(rgb >> 16) as u8, (rgb >> 8) as u8, rgb as u8, 255]);
             let img = RgbaImage::from_pixel(SCREEN_W as u32, SCREEN_H as u32, px);
-            self.write_png(&path, &img);
+            self.out.write_png(&path, &img);
             self.images.insert((3, rgb), None);
         }
         path
@@ -491,7 +455,7 @@ impl Assets for ArchiveAssets<'_> {
         let (w, h) = (img.width().min(SCREEN_W as u32), img.height());
         let img = imageops::crop_imm(&img, 0, 0, w, h).to_image();
         let path = "system/meswin.png".to_string();
-        self.write_png(&path, &img);
+        self.out.write_png(&path, &img);
         Some((path, w, h))
     }
 
@@ -525,7 +489,7 @@ impl Assets for ArchiveAssets<'_> {
                     let part = imageops::crop_imm(img, x as u32, y as u32, w as u32, h as u32).to_image();
                     imageops::replace(&mut sheet, &part, i as i64 * w, 0);
                 }
-                assets.write_png(&path, &sheet);
+                assets.out.write_png(&path, &sheet);
                 assets.cut.insert(path.clone());
             }
             Some(Placed { image: path, x: (cx - w / 2) as i32, y: (cy - h / 2) as i32, w: (w * cells.len() as i64) as i32, h: h as i32 })
@@ -551,7 +515,7 @@ impl Assets for ArchiveAssets<'_> {
                 imageops::overlay(&mut img, l, 0, 27 * i as i64);
             }
             let path = format!("system/skip_{name}.png");
-            self.write_png(&path, &img);
+            self.out.write_png(&path, &img);
             pictures.push(Placed { image: path, x: 296, y: 315, w: img.width() as i32, h: img.height() as i32 });
         }
         let yes = cut(self, "yes".into(), &[(425, 746), (485, 746)], (60, 22), (415, 241))?;

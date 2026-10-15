@@ -9,10 +9,11 @@
 
 use std::collections::HashMap;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use super::convert::{Assets, SCREEN_H, SCREEN_W};
 use super::npa::{Npa, normalize};
+use crate::output::{Output, image_size};
 
 /// A zoomed picture wider or taller than this is cut to the screen.
 const MAX_SCALED: i64 = 4096;
@@ -24,18 +25,15 @@ pub struct NpaAssets<'a> {
     cg: Npa<'a>,
     sound: Npa<'a>,
     voice: Npa<'a>,
-    output: PathBuf,
     images: HashMap<String, Option<(String, u32, u32)>>,
     sounds: HashMap<String, Option<String>>,
-    /// Files that couldn't be read or written.
-    pub errors: Vec<String>,
-    /// Write nothing (a dry run: only image sizes are read).
-    pub dry_run: bool,
+    /// Where the files go; a dry run reads only image sizes.
+    pub out: Output,
 }
 
 impl<'a> NpaAssets<'a> {
     pub fn new(cg: Npa<'a>, sound: Npa<'a>, voice: Npa<'a>, output: &Path) -> Self {
-        NpaAssets { cg, sound, voice, output: output.to_path_buf(), images: HashMap::new(), sounds: HashMap::new(), errors: Vec::new(), dry_run: false }
+        NpaAssets { cg, sound, voice, images: HashMap::new(), sounds: HashMap::new(), out: Output::new(output) }
     }
 
     /// Copies `entry` of the archive that `path`'s first folder names to
@@ -50,29 +48,18 @@ impl<'a> NpaAssets<'a> {
             _ => return None,
         };
         let entry = npa.find(rest)?;
-        if self.dry_run && archive != "cg" {
+        if self.out.dry_run && archive != "cg" {
             return Some(Vec::new());
         }
         let data = match npa.data(entry) {
             Ok(d) => d,
             Err(e) => {
-                self.errors.push(e.to_string());
+                self.out.errors.push(e.to_string());
                 return None;
             }
         };
-        self.write(out, &data);
+        self.out.write(out, &data);
         Some(data)
-    }
-
-    fn write(&mut self, rel: &str, data: &[u8]) {
-        if self.dry_run {
-            return;
-        }
-        let dest = self.output.join(rel);
-        let result = dest.parent().map_or(Ok(()), fs::create_dir_all).and_then(|_| fs::write(&dest, data));
-        if let Err(e) = result {
-            self.errors.push(format!("{}: {e}", dest.display()));
-        }
     }
 
     /// Width and height of a picture in the output (one taken from the
@@ -85,7 +72,7 @@ impl<'a> NpaAssets<'a> {
         if let Some(size) = image.strip_prefix("system/color_").and_then(|r| r.strip_suffix(".png")).and_then(|r| r.split_once('_')).and_then(|(_, s)| s.split_once('x')) {
             return Some((size.0.parse().ok()?, size.1.parse().ok()?));
         }
-        let data = fs::read(self.output.join(image)).ok()?;
+        let data = fs::read(self.out.root.join(image)).ok()?;
         image_size(&data)
     }
 
@@ -101,10 +88,10 @@ impl<'a> NpaAssets<'a> {
         let (ow, oh) = clip.map_or((w, h), |(x0, y0, x1, y1)| ((x1 - x0) as u32, (y1 - y0) as u32));
         // Its size, for pictures made from it (a dry run has no file).
         self.images.insert(normalize(&rel), Some((rel.clone(), ow, oh)));
-        if self.dry_run {
+        if self.out.dry_run {
             return Some((rel, ow, oh));
         }
-        let img = image::open(self.output.join(image)).ok()?;
+        let img = image::open(self.out.root.join(image)).ok()?;
         let scaled = match clip {
             None => img.resize_exact(w, h, image::imageops::FilterType::Triangle),
             Some((x0, y0, x1, y1)) => {
@@ -126,16 +113,8 @@ impl<'a> NpaAssets<'a> {
         } else {
             scaled.into_rgba8().write_to(&mut cursor, image::ImageFormat::Png).ok()?;
         }
-        self.write(&rel, &data);
+        self.out.write(&rel, &data);
         Some((rel, ow, oh))
-    }
-
-    fn write_png(&mut self, rel: &str, img: &image::RgbaImage) {
-        let mut png = Vec::new();
-        match img.write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png) {
-            Ok(()) => self.write(rel, &png),
-            Err(e) => self.errors.push(format!("{rel}: {e}")),
-        }
     }
 }
 
@@ -163,9 +142,9 @@ impl Assets for NpaAssets<'_> {
 
     fn color(&mut self, rgb: u32, w: u32, h: u32) -> String {
         let rel = format!("system/color_{rgb:06x}_{w}x{h}.png");
-        if !self.output.join(&rel).exists() {
+        if !self.out.root.join(&rel).exists() {
             let [_, r, g, b] = rgb.to_be_bytes();
-            self.write_png(&rel, &image::RgbaImage::from_pixel(w, h, image::Rgba([r, g, b, 255])));
+            self.out.write_png(&rel, &image::RgbaImage::from_pixel(w, h, image::Rgba([r, g, b, 255])));
         }
         rel
     }
@@ -187,18 +166,18 @@ impl Assets for NpaAssets<'_> {
         let mut h = std::collections::hash_map::DefaultHasher::new();
         parts.hash(&mut h);
         let rel = format!("system/window_{:016x}.png", h.finish());
-        if self.dry_run || self.output.join(&rel).exists() {
+        if self.out.dry_run || self.out.root.join(&rel).exists() {
             return Some((rel, x0, y0));
         }
         let mut out = image::RgbaImage::new((x1 - x0) as u32, (y1 - y0) as u32);
         for (image, x, y, opacity) in parts {
-            let mut img = image::open(self.output.join(image)).ok()?.into_rgba8();
+            let mut img = image::open(self.out.root.join(image)).ok()?.into_rgba8();
             for p in img.pixels_mut() {
                 p.0[3] = (p.0[3] as i64 * opacity / 1000) as u8;
             }
             image::imageops::overlay(&mut out, &img, x - x0, y - y0);
         }
-        self.write_png(&rel, &out);
+        self.out.write_png(&rel, &out);
         Some((rel, x0, y0))
     }
 
@@ -246,11 +225,11 @@ impl Assets for NpaAssets<'_> {
         let r = (|| {
             let dir = path.parent().map(|p| p.to_string_lossy().into_owned()).unwrap_or_default();
             let rel = format!("system/blur/{}/{stem}_{sigma}.{}", dir.replace('/', "_"), if jpeg { "jpg" } else { "png" });
-            if self.dry_run {
+            if self.out.dry_run {
                 let (w, h) = self.size(image)?;
                 return Some((rel, w, h));
             }
-            let img = image::open(self.output.join(image)).ok()?;
+            let img = image::open(self.out.root.join(image)).ok()?;
             let blurred = img.blur(sigma as f32 / 10.0);
             let mut data = Vec::new();
             let mut cursor = std::io::Cursor::new(&mut data);
@@ -259,7 +238,7 @@ impl Assets for NpaAssets<'_> {
             } else {
                 blurred.into_rgba8().write_to(&mut cursor, image::ImageFormat::Png).ok()?;
             }
-            self.write(&rel, &data);
+            self.out.write(&rel, &data);
             Some((rel, img.width(), img.height()))
         })();
         self.images.insert(key, r.clone());
@@ -278,69 +257,23 @@ impl Assets for NpaAssets<'_> {
         parts.hash(&mut hash);
         let rel = format!("system/strip/{:016x}.png", hash.finish());
         let size = (w * cells.len() as u32, h);
-        if self.dry_run || self.output.join(&rel).exists() {
+        if self.out.dry_run || self.out.root.join(&rel).exists() {
             return Some((rel, size.0, size.1));
         }
         let mut out = image::RgbaImage::new(size.0, size.1);
         for (i, (cell, _, _)) in cells.iter().enumerate() {
-            let img = image::open(self.output.join(cell)).ok()?.into_rgba8();
+            let img = image::open(self.out.root.join(cell)).ok()?.into_rgba8();
             image::imageops::overlay(&mut out, &img, (i as u32 * w) as i64, 0);
         }
-        self.write_png(&rel, &out);
+        self.out.write_png(&rel, &out);
         Some((rel, size.0, size.1))
     }
 
     fn transparent(&mut self) -> String {
         let rel = "system/transparent.png".to_string();
-        if !self.output.join(&rel).exists() {
-            self.write_png(&rel, &image::RgbaImage::new(1, 1));
+        if !self.out.root.join(&rel).exists() {
+            self.out.write_png(&rel, &image::RgbaImage::new(1, 1));
         }
         rel
-    }
-}
-
-/// Width and height of a PNG or JPEG.
-pub fn image_size(data: &[u8]) -> Option<(u32, u32)> {
-    let be16 = |i: usize| Some(u16::from_be_bytes(data.get(i..i + 2)?.try_into().ok()?) as u32);
-    let be32 = |i: usize| Some(u32::from_be_bytes(data.get(i..i + 4)?.try_into().ok()?));
-    if data.starts_with(b"\x89PNG") {
-        return Some((be32(16)?, be32(20)?));
-    }
-    if !data.starts_with(&[0xFF, 0xD8]) {
-        return None;
-    }
-    // JPEG: walk the segments to a start-of-frame marker.
-    let mut i = 2;
-    while i + 4 <= data.len() {
-        if data[i] != 0xFF {
-            return None;
-        }
-        let marker = data[i + 1];
-        if marker == 0xFF {
-            i += 1;
-            continue;
-        }
-        let len = be16(i + 2)? as usize;
-        if (0xC0..=0xCF).contains(&marker) && !matches!(marker, 0xC4 | 0xC8 | 0xCC) {
-            return Some((be16(i + 7)?, be16(i + 5)?));
-        }
-        i += 2 + len;
-    }
-    None
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn sizes_of_png_and_jpeg() {
-        let mut png = b"\x89PNG\r\n\x1a\n\0\0\0\rIHDR".to_vec();
-        png.extend_from_slice(&1024u32.to_be_bytes());
-        png.extend_from_slice(&576u32.to_be_bytes());
-        assert_eq!(image_size(&png), Some((1024, 576)));
-        // SOI, an APP0 segment of 4 bytes, SOF0 with height 600, width 1280.
-        let jpeg = [0xFF, 0xD8, 0xFF, 0xE0, 0, 4, 0, 0, 0xFF, 0xC0, 0, 17, 8, 0x02, 0x58, 0x05, 0x00];
-        assert_eq!(image_size(&jpeg), Some((1280, 600)));
     }
 }

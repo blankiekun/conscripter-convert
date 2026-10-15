@@ -10,7 +10,7 @@ use clap::Subcommand;
 use conv_engines::mages::cpk::Archive;
 use conv_engines::mages::tasks::{self, Block, Scene};
 
-use crate::{lint_dir, map, pack, report, safe_relative_path};
+use crate::{build, map, safe_relative_path};
 
 #[derive(Subcommand)]
 pub enum MagesCommand {
@@ -186,10 +186,7 @@ fn convert(game: &Path, output: &Path, scenes: &[String], font: Option<&Path>, t
     use conv_core::ir::Script;
     use conv_engines::mages::assets::{ArchiveAssets, Bank, OUTPUT_DIRS};
     use conv_engines::mages::convert::{self, Game};
-    fs::create_dir_all(output)?;
-    if let Some(d) = OUTPUT_DIRS.iter().find(|d| !loose && !dry_run && output.join(d).exists()) {
-        bail!("{} already exists; move it away first (it would be packed and then deleted)", output.join(d).display());
-    }
+    build::check_output(output, &OUTPUT_DIRS, !loose && !dry_run)?;
     let g = Game::load(&scripts(game)?).map_err(anyhow::Error::msg)?;
     // The menus' labels and the skip dialog's summaries are drawn with the
     // font.
@@ -203,7 +200,7 @@ fn convert(game: &Path, output: &Path, scenes: &[String], font: Option<&Path>, t
     let mut b = banks.into_iter();
     let mut next = || b.next().unwrap();
     let mut assets = ArchiveAssets::new(next(), next(), next(), next(), next(), next(), next(), output);
-    assets.dry_run = dry_run;
+    assets.out.dry_run = dry_run;
     assets.movie_dir = game.join("media").join("data");
     assets.font = font_bytes.as_deref();
     let compiled = convert::compile(&g, scenes, &mut assets);
@@ -219,7 +216,7 @@ fn convert(game: &Path, output: &Path, scenes: &[String], font: Option<&Path>, t
         Some((a, b, c, d, e)) => (Some(a), b, c, d, e),
         None => (None, None, None, None, None),
     };
-    for e in &assets.errors {
+    for e in &assets.out.errors {
         println!("  asset error: {e}");
     }
     let ir = Script {
@@ -237,41 +234,18 @@ fn convert(game: &Path, output: &Path, scenes: &[String], font: Option<&Path>, t
         extras,
         ops: compiled.ops,
         version: Some(crate::version::line()),
-        command_menu: None,
-        save_grid: None,
+        ..Default::default()
     };
-    let (encoded, lost) = conv_cons::encode(&conv_cons::emit(&ir));
-    fs::write(output.join("0.txt"), encoded)?;
-    if let Some(v) = &ir.version {
-        crate::version::write(output, title, v, package(game).as_deref())?;
-    }
-    fs::write(output.join("ons_args"), conv_cons::ENGINE_ARGS)?;
+    let lost = build::write_game(output, &ir, &conv_cons::emit(&ir), font.filter(|_| !dry_run), package(game).as_deref())?;
     if !dry_run {
         audio(&assets.audio)?;
         movies(&assets.movies, output)?;
-        if let Some(font) = font {
-            fs::copy(font, output.join("default.ttf")).with_context(|| format!("copying {}", font.display()))?;
-        }
         if !loose {
-            pack(output, &OUTPUT_DIRS)?;
+            build::pack(output, &OUTPUT_DIRS)?;
         }
     }
     println!("{} scenes -> {}", if scenes.is_empty() { g.scenes.len() } else { scenes.len() }, output.join("0.txt").display());
-    report(&ir, lost, font.is_some());
-    let mut notes: Vec<_> = compiled.notes.into_iter().collect();
-    notes.sort_by_key(|n| std::cmp::Reverse(n.1));
-    if !notes.is_empty() {
-        println!("  not converted or approximated:");
-    }
-    for (what, n) in notes {
-        println!("    {n:>6}  {what}");
-    }
-    let lint = lint_dir(output, !dry_run)?;
-    if !lint.is_empty() {
-        println!("  lint:");
-        print!("{lint}");
-    }
-    Ok(())
+    build::summary(output, &ir, lost, font.is_some(), compiled.notes, Some(!dry_run))
 }
 
 /// Converts the queued sounds to Ogg Vorbis with ffmpeg, in parallel.
