@@ -751,12 +751,23 @@ Next, in order:
         drawn above everything, stays if it was out).
       - 好感度記録 (H) runs `sys_hmode.nss` compiled once as a subroutine
         (`Game::subroutines`, `conv_favour`) between `pushscreen` and
-        `popscreen`, and waits for a click (a case-less `select` that
-        breaks on a click is now a click wait, in the story's favour
-        screen too). It only shows the background so far: the screen's
-        `Array`/`AssocArray`/`VariableValue` aren't compiled yet, so the
-        icons and gauges are missing and 村正's black box sits at x 0
-        (the story's favour screen has the same gap). Next.
+        `popscreen`. Its `judgment_of_count`, the favour screen, is now a
+        port (`convert/muramasa/favour.rs`), in the story too, where only
+        its background used to show: the NSS draws it with loops over
+        arrays and counters known only at run time, which the compiler
+        can't follow (after a runtime `if` it shows the first branch's
+        pictures). The port is a new generic `Op::PictureScreen`
+        (`conv-cons/src/picture_screen.rs`): pictures in the menus'
+        sprites over the scene and its text window, each with its runtime
+        test (the icon struck out and the column covered for a dead
+        heroine, 村正's black box while her counter is 0, one gauge column
+        per count), faded in over 300 ms, closed by a click. Beside the
+        original at the first page (H): mean difference 5.0 levels, offset
+        0,0; the panel is see-through, and the text under it differs
+        (wine's substitute font), and our dimmed surround is a little
+        darker. Left out from the story's visit: the new gauges blinking in
+        and a heroine's icon being struck out with its sound the first
+        time she is dead.
       - Save, load and log open ONScripter's own screens, and 設定画面
         does nothing, until steps 4-6.
       Fixed on the way: the title's しおりから used `load`, which isn't a

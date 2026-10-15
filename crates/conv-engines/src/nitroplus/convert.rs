@@ -338,30 +338,6 @@ pub fn compile_run(files: &BTreeMap<String, NssFile>, start: &str, max_files: us
     Ok((Compiled { ops: c.ops, window: c.first_window, notes: c.notes, flags: c.flags }, played))
 }
 
-/// A `select` body with `if (… $SYSTEM_l_button_down …) { break; }`.
-fn breaks_on_click(stmts: &[Stmt]) -> bool {
-    fn mentions(e: &crate::nitroplus::nss::Expr, name: &str) -> bool {
-        use crate::nitroplus::nss::Expr;
-        match e {
-            Expr::Var(v) => v.to_string() == name,
-            Expr::Index { base, index } => mentions(base, name) || mentions(index, name),
-            Expr::Call { args, .. } => args.iter().any(|a| mentions(a, name)),
-            Expr::Unary { expr, .. } => mentions(expr, name),
-            Expr::Binary { left, right, .. } => mentions(left, name) || mentions(right, name),
-            _ => false,
-        }
-    }
-    stmts.iter().any(|s| match &s.kind {
-        StmtKind::If { cond, then, otherwise } => {
-            (mentions(cond, "$SYSTEM_l_button_down") && then.iter().any(|t| t.kind == StmtKind::Break))
-                || breaks_on_click(then)
-                || otherwise.as_deref().is_some_and(breaks_on_click)
-        }
-        StmtKind::Block(b) => breaks_on_click(b),
-        _ => false,
-    })
-}
-
 fn negate(c: conv_core::ir::Compare) -> conv_core::ir::Compare {
     use conv_core::ir::Compare::*;
     match c {
@@ -966,14 +942,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
             return;
         }
         if cases.is_empty() {
-            // An input loop: one that ends on a click (the favour screen's)
-            // is a click wait; the rest are left out.
-            if breaks_on_click(body) {
-                self.sync(0);
-                self.ops.push(Op::ClickWait { skippable: true });
-            } else {
-                self.note("select without cases");
-            }
+            self.note("select without cases");
             return;
         }
         self.sync(0);
