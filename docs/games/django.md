@@ -155,6 +155,46 @@ place and the six-argument `LoadText` (a box's text layout), a runtime
 last one's text where the window picture doesn't reach (Django draws its
 text on the scene, with no window picture).
 
+## Running the original under wine
+
+Used to compare screens and text placement (`docs/new-game.md` step 9).
+The 1.01 exe asks for its disc ("[1103] オリジナルディスクを入れて…"):
+use a no-CD 1.01 exe the user owns, copied into the scratch game folder
+(never over the install).
+
+- The silent, off-screen setup of 装甲悪鬼村正's recipe
+  (`docs/games/muramasa.md`): a scratch `WINEPREFIX` with real user
+  folders, an Xvfb display of its own, `Graphics=x11`, ALSA's null
+  device, `LANG=ja_JP.UTF-8`. `C:\django\` is a folder of symlinks to
+  `<game>` (with the 1.01 files).
+- **Run it in wine's virtual desktop** (`wine explorer
+  /desktop=django,1024x768 "C:\django\Django.exe"`): the 800×600
+  window sits at (0, 0). Windowed on a bare Xvfb, or full screen, the
+  window shows twice and loses the clicks.
+- **It only advances while it gets input**: under wine every timed
+  fade, move and page stalls until the next window message. Nudge the
+  pointer a pixel and back about 30 times a second while it runs.
+- Clicks: `xdotool mousemove X Y`, then `mousedown 1; sleep 0.15;
+  mouseup 1` (a bare `click` is often lost).
+- **Patched boots**: `research/nitroplus/django_patch.py <table> <game>/nss.npa
+  nss-patch.npa [CHAPTER [SKIP]]` writes an `nss.npa` without the logos,
+  with every ending marked seen (the title shows EXTRA and LINER NOTES),
+  and with CHAPTER, START plays from that chapter file (`dja004`), or
+  from its call naming SKIP (`_05_`). `<table>` is `npa::DJANGO_TABLE`
+  as a 256-byte file; `npa.py` takes it in place of the exe. Link the
+  copy as `nss.npa` in `C:\django\`.
+
+What it showed (2026-10-15):
+
+- Text: `box00`'s first row of ＭＳ Ｐ ゴシック 18 starts at y 480 (the
+  box is at 472), rows 27 px apart; the converter puts horizontal text
+  7 px below its box (`Game::text_drop`). The original's font is
+  proportional and draws heavier; the click-wait bullet follows the
+  last character.
+- Choices: the option is centred on its plate (MS ゴシック 22, white),
+  and the plate under the pointer turns to `select002.png`. Ours puts the
+  text 40 px in and colours it.
+
 ## Story structure and walkthrough
 
 `boot.nss` shows the logos and the title (`TitleSelect`); a new game
