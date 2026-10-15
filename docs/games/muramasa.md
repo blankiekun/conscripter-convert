@@ -627,9 +627,8 @@ Next, in order:
       movies of the armour with name plates and specs, `#av_`/`#aw_`). The
       title's ライナー画像 button (after 悪鬼編) is another extra, not yet
       looked at. Plan, in order, each beside the original:
-      1-4. Done: the menu, the gallery, the sound room and the
-         recollection ("History", below).
-      5. The 3D viewer.
+      1-5. Done: the menu, the gallery, the sound room, the
+         recollection and the 3D viewer ("History", below).
       6. Back to the title: the white flash and the
          return opening's tail (`TitleOpening::after_extras`).
       Left from 1-4: the replay cuts to its scene where the original
@@ -1067,6 +1066,23 @@ page each punctuation mark or symbol shows on (`--shot-pages`):
    タイトルに戻る (asked, then `reset`) comes back to the list (global
    %2962, read first thing by the title). Left: the 500 ms fade of
    `RecoIn` from the held list to the scene (ours cuts).
+5. Done: the 3D viewer, 劒冑回転目録 (a new `Turntable`, `conv-cons/src/
+   picture_turntable.rs`; the entries read from `extra_dimension.nss`'s
+   `Dx`): 46 entries, 24 name plates a page in two rows of twelve from
+   the right, NO until the entry's `#av_` flag is set (九〇式指揮官騎
+   and 九四式指揮官騎 open from the start, 九〇式 chosen first). The
+   chosen plate is drawn pressed, its movie (`ムービー/3d/ex_NNN.ngs`,
+   400×400, about 5 s) loops at 80,28 as frames at 15 a second (whole
+   size: only movies wider than half the screen are halved), its large
+   name plate at 480,28 and its details at 60,436, the （開放） ones
+   once `#aw_` is set. 前頁/次頁 turn the page round, 退出 or a
+   right-click goes back to the menu; 500 ms in, 300 ms between pages
+   and entries. The page and the entry are globals (%2963, %2964), as
+   the original's `#DxPage`/`#SelectDxNumber`. Checked with a shot
+   beside the original's (`--goto conv_pextras_turntable` with flags
+   set). Movie paths with a folder (`dx/3d/…`) are found now (only the
+   file name was looked up). Unchecked: the movie's speed beside the
+   original (wine draws no movie).
 
 **Motion and movies (Status, system screens step 7), done:**
 

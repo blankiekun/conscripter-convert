@@ -4,7 +4,7 @@
 
 use std::collections::BTreeMap;
 
-use conv_core::ir::{ExtrasMode, GalleryCategory, PictureExtras, PictureExtrasItem, PictureGallery, PictureReplay, PictureSlot, Placed, ReplayEntry, RoomTrack, RoomVideo, SlotCg, SoundRoom};
+use conv_core::ir::{ExtrasMode, GalleryCategory, PictureExtras, PictureExtrasItem, PictureGallery, PictureReplay, PictureSlot, Placed, ReplayEntry, RoomTrack, RoomVideo, SlotCg, SoundRoom, Turntable, TurntableEntry};
 
 use super::super::{Assets, Replay, Story};
 use crate::nitroplus::nss::{Expr, Item, NssFile, StmtKind};
@@ -50,6 +50,7 @@ pub fn extras(a: &mut dyn Assets, story: &Story) -> Option<PictureExtras> {
         gallery: gallery(a, story),
         sound: sound(a, story),
         replay: replay(a, story),
+        turntable: turntable(a, story),
     })
 }
 
@@ -129,7 +130,27 @@ pub fn flags(files: &BTreeMap<String, NssFile>) -> Vec<String> {
     let mut out: Vec<String> = gallery_slots(files).into_iter().flat_map(|(_, _, cgs)| cgs).map(|n| format!("#{n}")).collect();
     out.extend(sound_entries(files).into_iter().filter(|e| e.3 != "open").map(|e| format!("#{}", e.3)));
     out.extend(replay_entries(files).into_iter().map(|(_, file)| format!("#{file}")));
+    out.extend(turntable_entries(files).into_iter().flat_map(|(key, _, _)| [format!("#av_{key}"), format!("#aw_{key}")]));
     out
+}
+
+/// The turntable's entries (`extra_dimension.nss`, `Dx`), in the order of
+/// the `$Dx` array less its first (`何か`, which `Dimension` leaves out):
+/// key (its flags are `#av_<key>`, seen, and
+/// `#aw_<key>`, its details told), movie number (`dx/3d/ex_NNN.ngs`), the
+/// name of its pictures.
+fn turntable_entries(files: &BTreeMap<String, NssFile>) -> Vec<(String, u32, String)> {
+    let calls = arrays(files, "extra_dimension.nss", "Dx");
+    let Some((_, _, order)) = calls.iter().find(|(a, k, _)| a == "$Dx" && k.is_none()) else { return Vec::new() };
+    let entries: BTreeMap<&str, &Vec<String>> = calls.iter().filter(|(a, _, _)| a == "$Dx").filter_map(|(_, k, v)| Some((k.as_deref()?, v))).collect();
+    order
+        .iter()
+        .skip(1)
+        .filter_map(|key| {
+            let v = entries.get(key.as_str())?;
+            Some((key.clone(), v.first()?.parse().ok()?, v.get(1)?.clone()))
+        })
+        .collect()
 }
 
 /// The recollection's scenes (`extra_recollection.nss`, `Reco`), in the
@@ -323,5 +344,63 @@ fn gallery(a: &mut dyn Assets, story: &Story) -> Option<PictureGallery> {
         scroll_ms_per_px: 12,
         across: false,
         arrows_when_paged: false,
+    })
+}
+
+/// 劒冑回転目録 (`extra_dimension.nss`): 3Dビュアー背景 with 24 name plates
+/// a page in two rows of twelve from the right (`Dimension`), NO for one
+/// not seen; the chosen one's movie (400×400, looping) at 80,28, its
+/// large name plate at 480,28 and its details at 60,436 (the （開放）
+/// ones once `#aw_` is set). 九〇式指揮官騎 and 九四式指揮官騎 are open
+/// from the first visit, the first chosen. The screen fades in from the
+/// menu over 500 ms, a page or a choice over 300 (`DxFade`).
+fn turntable(a: &mut dyn Assets, story: &Story) -> Option<Turntable> {
+    const DIR: &str = "cg/sys/extra/3d";
+    const OPEN: [&str; 2] = ["九〇式指揮官騎", "九四式指揮官騎"];
+    let button = |a: &mut dyn Assets, name: &str, y: i32| {
+        let state = |n: u32| format!("{DIR}/ボタン/{name}-{n:03}.png");
+        let (image, w, h) = a.strip(&[&state(1), &state(2), &state(3)])?;
+        Some(Placed { image, x: 948, y, w: w as i32, h: h as i32 })
+    };
+    let picture = |a: &mut dyn Assets, path: &str, x: i32, y: i32| {
+        let (image, w, h) = a.image(path)?;
+        Some(Placed { image, x, y, w: w as i32, h: h as i32 })
+    };
+    let mut entries = Vec::new();
+    let mut first = 0;
+    for (k, (key, number, name)) in turntable_entries(story.files).into_iter().enumerate() {
+        let state = |n: u32| format!("{DIR}/ネームプレート/{name}-{n:03}.png");
+        let (image, w, h) = a.strip(&[&state(1), &state(2), &state(3)])?;
+        let place = k % 24;
+        let (x, y) = (910 - 30 * (place % 12) as i32, if place < 12 { 28 } else { 238 });
+        let unlocked_by = if OPEN.contains(&key.as_str()) { None } else { Some(*story.flags.get(&format!("#av_{key}"))?) };
+        if key == OPEN[0] {
+            first = k;
+        }
+        let details_after = story.flags.get(&format!("#aw_{key}")).and_then(|&v| Some((v, a.image(&format!("{DIR}/各スペック/{name}（開放）スペック.png"))?.0)));
+        let (movie, cells, mw, mh) = a.movie_frames(&format!("dx/3d/ex_{number:03}.ngs"), None, false, false)?;
+        entries.push(TurntableEntry {
+            plate: Placed { image, x, y, w: w as i32, h: h as i32 },
+            unlocked_by,
+            name: picture(a, &format!("{DIR}/ネームプレート大/{name}.png"), 480, 28)?,
+            details: picture(a, &format!("{DIR}/各スペック/{name}スペック.png"), 60, 436)?,
+            details_after,
+            movie: Placed { image: movie, x: 80, y: 28, w: mw as i32, h: mh as i32 },
+            cells,
+            frame_ms: 1000 / crate::nitroplus::convert::MOVIE_FPS,
+            zoom: 400 * 100 / mw.max(1),
+        });
+    }
+    Some(Turntable {
+        background: a.image(&format!("{DIR}/3Dビュアー背景.png"))?.0,
+        previous: button(a, "前頁", 438)?,
+        next: button(a, "次頁", 474)?,
+        exit: button(a, "退出", 510)?,
+        locked: a.image(&format!("{DIR}/NO.png"))?.0,
+        entries,
+        per_page: 24,
+        first,
+        open_ms: 500,
+        change_ms: 300,
     })
 }

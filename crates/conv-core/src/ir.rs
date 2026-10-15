@@ -1827,6 +1827,7 @@ pub struct PictureExtras {
     pub gallery: Option<PictureGallery>,
     pub sound: Option<SoundRoom>,
     pub replay: Option<PictureReplay>,
+    pub turntable: Option<Turntable>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -2041,4 +2042,46 @@ pub struct ReplayEntry {
     pub unlocked_by: Var,
     /// The scene, a subroutine.
     pub label: String,
+}
+
+/// The [`ExtrasMode::Turntable`] screen of [`PictureExtras`]: pages of
+/// name plates (`per_page` each, in their places on the page), the chosen
+/// entry's plate drawn pressed and its movie looping, name and details
+/// beside it. A plate is `locked` until its entry's flag is set. A click
+/// on a plate chooses it, `previous`/`next` turn the page (round), the
+/// screen cross-fading over `change_ms`; `exit` or a right-click goes back
+/// to the extras' menu. The page and the entry chosen are kept across
+/// games; `first` is chosen at first.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Turntable {
+    pub background: String,
+    /// Three cells each: at rest, under the pointer, pressed.
+    pub previous: Placed,
+    pub next: Placed,
+    pub exit: Placed,
+    pub locked: String,
+    pub entries: Vec<TurntableEntry>,
+    pub per_page: usize,
+    pub first: usize,
+    pub open_ms: u32,
+    pub change_ms: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TurntableEntry {
+    /// Three cells: at rest, under the pointer, pressed (chosen).
+    pub plate: Placed,
+    /// Locked while 0; `None`: always open.
+    pub unlocked_by: Option<Var>,
+    pub name: Placed,
+    pub details: Placed,
+    /// Drawn in place of `details` once the variable is non-zero.
+    pub details_after: Option<(Var, String)>,
+    /// The movie's cells side by side (`w`×`h` each), shown `frame_ms`
+    /// apart and zoomed `zoom` percent, the zoomed movie's top left at
+    /// `x`,`y`.
+    pub movie: Placed,
+    pub cells: u32,
+    pub frame_ms: u32,
+    pub zoom: u32,
 }

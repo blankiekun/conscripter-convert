@@ -30,6 +30,7 @@ mod picture_gallery;
 mod picture_replay;
 mod picture_sound;
 mod picture_settings;
+mod picture_turntable;
 mod puzzle;
 mod replay;
 mod save_grid;
@@ -121,7 +122,8 @@ const BUTTON_VAR: &str = "%9";
 // gallery ([`picture_gallery`]; only at the title). %2961, the picture
 // extras' music ([`picture_sound`]). %150, a scene replay of the picture
 // extras is playing, %2962, back to its list after a reset, %151, saving
-// locked meanwhile ([`picture_replay`], [`menu::NO_SAVE`]).
+// locked meanwhile ([`picture_replay`], [`menu::NO_SAVE`]). %2963-%2964,
+// the picture extras' turntable page and entry ([`picture_turntable`]).
 /// NScripter variables: locals from %10, globals from %200. `globalon`
 /// makes %200 and up persist across games.
 const LOCAL_VAR_BASE: u32 = 10;
