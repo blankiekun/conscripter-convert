@@ -77,7 +77,7 @@ The other convert options (`--loose`, `--audio-codec`,
 | Additive / multiply blends, `Rotate`, `SetFrequency`, camera moves | ❌ Not converted |
 | 立方陣 minigame (`function_magiccube.nss`) | ✅ Ported (see "The 立方陣" below) |
 | System screens (title, save/load, settings, backlog) | ✅ Title, right-click menu, quick bar, confirmations, save/load, backlog, settings, favour screen, click-wait icon (each checked beside the original); 🟡 the title's fire flicker and openings left ("Next" item 4, step 7) |
-| Extras | 🟡 The menu, CG gallery, sound room, recollection and 3D viewer done; the white flash back to the title left ("Next" item 4, step 8) |
+| Extras | ✅ The menu, CG gallery, sound room, recollection, 3D viewer, the way back to the title and the title's ライナー画像 link ("History", extras 1-7) |
 
 ## Files and formats
 
@@ -593,7 +593,7 @@ Next, in order:
         unchecked.
       - On Windows CONscripter only opens a movie in an outside player.
 
-   8. **Extras** (特別付加目録, `extra_*.nss`), under way. Filmed in the
+   8. **Extras** (特別付加目録, `extra_*.nss`), done. Filmed in the
       original from a patched boot (`#ClearG` and a few CGs, a song, a
       movie and a 3D entry set; shots in `research/nitroplus/local/shots/
       extras/`). Five screens: the menu, 画像映写機 (CG gallery: 349 slots
