@@ -162,7 +162,32 @@ pub trait Assets {
     /// large as the largest part, the part at its top left; a part `""` is
     /// an empty cell.
     fn strip(&mut self, parts: &[&str]) -> Option<(String, u32, u32)>;
+    /// A movie the scripts name (`dx/mvOP.ngs`), or `None` if the game has
+    /// no such file.
+    fn movie_info(&mut self, path: &str) -> Option<MovieInfo>;
+    /// The movie as a file the engine plays full screen, with its sound or
+    /// without: its output path.
+    fn movie_file(&mut self, path: &str, sound: bool) -> Option<String>;
+    /// A movie's frames at [`MOVIE_FPS`] as cells side by side in one
+    /// picture, or (`at`, ms) the one frame shown then. `alpha`: the
+    /// movie's top half is the colour, its bottom half the opacity;
+    /// `dark`: the colour is drawn black (`SubRender`). Pictures may be
+    /// smaller than the movie: the picture, the number of cells and a
+    /// cell's size.
+    fn movie_frames(&mut self, path: &str, at: Option<u32>, alpha: bool, dark: bool) -> Option<(String, u32, u32, u32)>;
 }
+
+/// A movie's size and length, and whether its sound can be heard.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MovieInfo {
+    pub w: u32,
+    pub h: u32,
+    pub ms: u32,
+    pub sound: bool,
+}
+
+/// Frames a second of a movie drawn as cells ([`Assets::movie_frames`]).
+pub const MOVIE_FPS: u32 = 15;
 
 /// The result of compiling one scene.
 #[derive(Debug, Default)]
@@ -687,8 +712,46 @@ enum Kind<'a> {
     Cover,
     Text(TextObject<'a>),
     Sound(SoundObject),
+    Movie(MovieObject),
     /// Names, windows and other objects that draw nothing themselves.
     Other,
+}
+
+/// `CreateMovie`: a movie in the scene. One the script waits for that
+/// fills the screen plays as a movie (`mpegplay`, the music going on) and
+/// then shows its last frame; any other is drawn as its frames (a loop of
+/// smoke, a cut under the text), or as one frame while paused.
+#[derive(Debug, Clone)]
+struct MovieObject {
+    path: String,
+    looped: bool,
+    /// The top half is the colour, the bottom half the opacity.
+    alpha: bool,
+    /// `SubRender`: drawn darkening (as black).
+    dark: bool,
+    info: MovieInfo,
+    state: MovieState,
+    /// Time of the movie already played as a movie that the script's own
+    /// waits for it still count (it waits for `RemainTime` after starting
+    /// it).
+    credit: u32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum MovieState {
+    /// Playing, `at` ms in (as far as the script's waits tell).
+    Playing { at: u32 },
+    Paused { at: u32 },
+    /// Played through as a movie: its last frame shows.
+    Played,
+}
+
+impl MovieObject {
+    /// Fills the screen and plays once, with nothing to blend: it can play
+    /// as a movie.
+    fn full_screen(&self, (w, h): (i64, i64)) -> bool {
+        !self.looped && !self.alpha && self.info.w as i64 >= w && self.info.h as i64 >= h
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -761,6 +824,8 @@ struct Shown {
     w: i64,
     h: i64,
     opacity: i64,
+    /// Movie frames ([`Op::AnimatedSprite`]): cells, looped, zoom percent.
+    cells: Option<(u32, bool, (i32, i32))>,
 }
 
 enum Flow {
@@ -1887,6 +1952,74 @@ impl<'a, 'b> Compiler<'a, 'b> {
         }
     }
 
+    /// Movie `name`, if it is one that fills the screen and is playing:
+    /// plays it as a movie (the sounds started with it play beside it),
+    /// then shows its last frame. The script's waits for its remaining
+    /// time are counted as played ([`MovieObject::credit`]).
+    fn play_movie(&mut self, name: &str) {
+        let Some(Object { kind: Kind::Movie(m), opacity, .. }) = self.objects.get(name) else { return };
+        let MovieState::Playing { at } = m.state else { return };
+        if !m.full_screen(self.game.screen) {
+            return;
+        }
+        let (path, opacity, left) = (m.path.clone(), *opacity, m.info.ms.saturating_sub(at));
+        let Some(file) = self.assets.movie_file(&path, false) else { return };
+        // Hidden while the screen catches up, then the last frame shows.
+        self.objects.get_mut(name).unwrap().opacity = 0;
+        self.sync(0);
+        self.ops.push(Op::SceneMovie { file, skippable: true });
+        let o = self.objects.get_mut(name).unwrap();
+        o.opacity = opacity;
+        if let Kind::Movie(m) = &mut o.kind {
+            m.state = MovieState::Played;
+            m.credit = left;
+        }
+        self.sync(0);
+    }
+
+    /// A wait of `ms`: the time movies already played as movies take off
+    /// it (what is left is returned), a movie on screen that it mostly
+    /// waits for plays as a movie, and the others go on by that much.
+    fn movie_wait(&mut self, mut ms: u32) -> u32 {
+        let screen = self.game.screen;
+        for o in self.objects.values_mut() {
+            if let Kind::Movie(m) = &mut o.kind {
+                let used = m.credit.min(ms);
+                m.credit -= used;
+                ms -= used;
+            }
+        }
+        if ms == 0 {
+            return 0;
+        }
+        let waited: Vec<String> = self
+            .objects
+            .iter()
+            .filter(|(_, o)| {
+                matches!(&o.kind, Kind::Movie(m) if m.full_screen(screen) && o.opacity > 0
+                    && matches!(m.state, MovieState::Playing { at } if ms * 2 >= m.info.ms.saturating_sub(at)))
+            })
+            .map(|(n, _)| n.clone())
+            .collect();
+        if let Some(name) = waited.first() {
+            self.play_movie(name);
+            if let Some(Object { kind: Kind::Movie(m), .. }) = self.objects.get_mut(name) {
+                let used = m.credit.min(ms);
+                m.credit -= used;
+                ms -= used;
+            }
+        }
+        for o in self.objects.values_mut() {
+            if let Kind::Movie(m) = &mut o.kind
+                && let MovieState::Playing { at } = m.state
+            {
+                let at = at + ms;
+                m.state = MovieState::Playing { at: if m.looped { at % m.info.ms.max(1) } else { at.min(m.info.ms) } };
+            }
+        }
+        ms
+    }
+
     fn builtin(&mut self, name: &str, a: &[Value]) -> Value {
         let (screen_w, screen_h) = self.game.screen;
         let arg = |i: usize| a.get(i).cloned().unwrap_or(Value::Null);
@@ -1933,6 +2066,36 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 // starts at its corner (続・殺戮のジャンゴ's boxes).
                 if a.len() >= 6 {
                     (o.x, o.y) = (arg(2).int(), arg(3).int());
+                }
+            }
+            "CreateMovie" => {
+                let name = self.object_name(&arg(0));
+                let path = self.deref(&arg(6));
+                let Some(info) = self.assets.movie_info(&path) else {
+                    self.note("CreateMovie of a missing movie");
+                    self.create(name, Kind::Other, arg(1).int(), 0, 0);
+                    return Value::Null;
+                };
+                let alpha = arg(5).truthy();
+                let (w, h) = (info.w as i64, if alpha { info.h as i64 / 2 } else { info.h as i64 });
+                let m = MovieObject { path, looped: arg(4).truthy(), alpha, dark: false, info, state: MovieState::Playing { at: 0 }, credit: 0 };
+                let o = self.create(name, Kind::Movie(m), arg(1).int(), w, h);
+                o.x = arg(2).position(0, w, screen_w);
+                o.y = arg(3).position(0, h, screen_h);
+            }
+            "MoviePlay" => {
+                // Full screen, the script waiting. A movie with sound stops
+                // the music; a silent cut lets it play on.
+                let path = self.deref(&arg(0));
+                self.sync(0);
+                let Some(info) = self.assets.movie_info(&path) else {
+                    // `mv_smg_PV` (the title's): no such file on the disc.
+                    self.note("MoviePlay of a missing movie");
+                    return Value::Null;
+                };
+                let skippable = arg(1).truthy();
+                if let Some(file) = self.assets.movie_file(&path, info.sound) {
+                    self.ops.push(if info.sound { Op::Movie { file, skippable } } else { Op::SceneMovie { file, skippable } });
                 }
             }
             "CreateSound" => {
@@ -2099,7 +2262,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
             "Wait" => {
                 // The actions still running are shown over the wait, at
                 // most.
-                let ms = arg(0).int().max(0) as u32;
+                let ms = self.movie_wait(arg(0).int().max(0) as u32);
                 let shown = std::mem::take(&mut self.pending_ms).min(ms);
                 self.sync(shown);
                 if ms > shown {
@@ -2110,7 +2273,26 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 self.sync(0);
                 match arg(0) {
                     Value::Null => self.ops.push(Op::ClickWait { skippable: true }),
-                    ms => self.ops.push(Op::Wait { ms: ms.int().max(0) as u32 }),
+                    ms => {
+                        let ms = self.movie_wait(ms.int().max(0) as u32);
+                        if ms > 0 {
+                            self.ops.push(Op::Wait { ms });
+                        }
+                    }
+                }
+            }
+            "WaitPlay" => {
+                // Until the movie's end: what played as a movie has ended.
+                for t in self.matching(&arg(0)) {
+                    self.play_movie(&t);
+                    if let Some(Object { kind: Kind::Movie(m), .. }) = self.objects.get_mut(&t) {
+                        m.credit = 0;
+                    }
+                }
+            }
+            "WaitAction" if self.matching(&arg(0)).iter().any(|t| matches!(self.objects[t].kind, Kind::Movie(_))) => {
+                for t in self.matching(&arg(0)) {
+                    self.play_movie(&t);
                 }
             }
             "WaitAction" | "WaitFade" | "WaitMove" | "WaitZoom" | "Draw" => {
@@ -2133,12 +2315,23 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 }
             }
             "SetFrequency" if arg(2).int() != 1000 => self.note("SetFrequency"),
-            "PassageTime" | "RemainTime" | "DurationTime" | "Conquest" | "Random" => return Value::Int(0),
+            "RemainTime" | "DurationTime" => {
+                let movie = self.matching(&arg(0)).iter().find_map(|t| match &self.objects[t].kind {
+                    Kind::Movie(m) => Some(m.clone()),
+                    _ => None,
+                });
+                return Value::Int(movie.map_or(0, |m| match (name, m.state) {
+                    ("DurationTime", _) | (_, MovieState::Playing { at: 0 } | MovieState::Paused { at: 0 }) => m.info.ms,
+                    (_, MovieState::Playing { at } | MovieState::Paused { at }) => m.info.ms.saturating_sub(at),
+                    (_, MovieState::Played) => 0,
+                }) as i64);
+            }
+            "PassageTime" | "Conquest" | "Random" => return Value::Int(0),
             "ModuleFileName" => return Value::Str(self.file.to_string()),
             "Strstr" => return Value::Int(i64::from(arg(0).string().contains(&arg(1).string()))),
             "Integer" => return Value::Int(arg(0).int()),
             // Drawing and bookkeeping that changes nothing on screen.
-            "SetVertex" | "SetFrequency" | "SetPan" | "WaitText" | "WaitPlay" | "LockVideo" | "Reset" | "SetShortcut" => {}
+            "SetVertex" | "SetFrequency" | "SetPan" | "WaitText" | "LockVideo" | "Reset" | "SetShortcut" => {}
             "CreateProcess" => self.note(format!("CreateProcess {}", arg(4).string())),
             other if BUILTINS.contains(&other) => self.note(format!("built-in {other}")),
             // No built-in and no NSS function has this name: the exe skips
@@ -2161,6 +2354,34 @@ impl<'a, 'b> Compiler<'a, 'b> {
 
     fn request(&mut self, name: &str, action: &str) {
         let Some(o) = self.objects.get_mut(name) else { return };
+        if let Kind::Movie(m) = &mut o.kind {
+            match action {
+                "play" => {
+                    m.state = match m.state {
+                        MovieState::Paused { at } => MovieState::Playing { at },
+                        _ => MovieState::Playing { at: 0 },
+                    };
+                    return;
+                }
+                "stop" => {
+                    m.state = MovieState::Paused { at: 0 };
+                    return;
+                }
+                "pause" => {
+                    if let MovieState::Playing { at } = m.state {
+                        m.state = MovieState::Paused { at };
+                    }
+                    return;
+                }
+                "subrender" => {
+                    m.dark = true;
+                    return;
+                }
+                // White smoke added: drawn over the scene as it is.
+                "addrender" => return,
+                _ => {}
+            }
+        }
         match action {
             "lock" => o.locked = true,
             "unlock" => o.locked = false,
@@ -2243,12 +2464,39 @@ impl<'a, 'b> Compiler<'a, 'b> {
             .iter()
             .filter_map(|(n, o)| match &o.kind {
                 Kind::Image { image } if o.opacity > 0 && !o.hideable => {
-                    let shown = Shown { layer: 0, image: image.clone(), x: o.x, y: o.y, w: o.w, h: o.h, opacity: o.opacity };
+                    let shown = Shown { layer: 0, image: image.clone(), x: o.x, y: o.y, w: o.w, h: o.h, opacity: o.opacity, cells: None };
                     Some((n.clone(), shown, (o.priority, o.seq), o.zoom, (o.w, o.h), o.blur))
                 }
                 _ => None,
             })
             .collect();
+        let movies: Vec<(String, MovieObject, Object)> = self
+            .objects
+            .iter()
+            .filter_map(|(n, o)| match &o.kind {
+                Kind::Movie(m) if o.opacity > 0 && !o.hideable => Some((n.clone(), m.clone(), Object { kind: Kind::Other, ..o.clone() })),
+                _ => None,
+            })
+            .collect();
+        let mut want = want;
+        for (n, m, o) in movies {
+            // Playing: all its frames; else the one showing.
+            let (at, looped) = match m.state {
+                MovieState::Playing { .. } => (None, m.looped),
+                MovieState::Paused { at } => (Some(at), false),
+                MovieState::Played => (Some(m.info.ms.saturating_sub(1000 / MOVIE_FPS)), false),
+            };
+            let Some((image, cells, cw, ch)) = self.assets.movie_frames(&m.path, at, m.alpha, m.dark) else {
+                self.note("movie frames missing");
+                continue;
+            };
+            // The cells are drawn zoomed to the movie's size and its Zoom,
+            // about the centre of its place.
+            let zoom = ((o.zoom.0 * o.w / cw as i64 / 10) as i32, (o.zoom.1 * o.h / ch as i64 / 10) as i32);
+            let (x, y) = (o.x + (o.w - cw as i64) / 2, o.y + (o.h - ch as i64) / 2);
+            let shown = Shown { layer: 0, image, x, y, w: cw as i64, h: ch as i64, opacity: o.opacity, cells: Some((cells, looped, zoom)) };
+            want.push((n, shown, (o.priority, o.seq), (1000, 1000), (o.w, o.h), 0));
+        }
         // Zoomed pictures: scaled copies, centred where the original was.
         let mut want: Vec<(String, Shown, (i64, u64))> = want
             .into_iter()
@@ -2301,21 +2549,33 @@ impl<'a, 'b> Compiler<'a, 'b> {
             layers = (0..n).map(|i| Some((i + 1) * MAX_LAYER / (n + 1))).collect();
         }
         let mut placed = Vec::new();
+        let mut animated = Vec::new();
+        // Layers whose movie (zoomed with spzoom) goes: removed even when a
+        // picture takes the layer, which would keep the zoom.
+        let mut unzoom: Vec<u32> = changes.iter().filter(|c| self.shown.values().any(|s| s.layer == c.layer && s.cells.is_some())).map(|c| c.layer).collect();
         let mut new_shown = Vec::new();
         for ((name, now, _), layer) in want.into_iter().zip(&layers) {
             let Some(layer) = *layer else { continue };
             let now = Shown { layer, ..now };
             match self.shown.get(&name) {
                 Some(old) if *old == now => continue,
-                Some(old) if old.layer == now.layer && old.image == now.image && old.x == now.x && old.y == now.y => {
+                Some(old) if old.layer == now.layer && old.image == now.image && old.x == now.x && old.y == now.y && old.cells == now.cells => {
                     opacity.push(Op::SpriteOpacity { layer: Some(layer), opacity: (now.opacity * 256 / 1000) as u32 });
                 }
                 old => {
-                    if let Some(old) = old.filter(|o| o.layer != layer) {
+                    if let Some(old) = old.filter(|o| o.layer != layer || (o.cells.is_some() && now.cells.is_none())) {
                         changes.push(SpriteChange { layer: old.layer, sprite: None, keep_filters: false });
+                        if old.cells.is_some() {
+                            unzoom.push(old.layer);
+                        }
                     }
                     let sprite = SpritePlacement { image: now.image.clone(), x: now.x as i32, y: now.y as i32 };
-                    placed.push(SpriteChange { layer, sprite: Some(sprite), keep_filters: false });
+                    match now.cells {
+                        Some((cells, looped, zoom)) => {
+                            animated.push(Op::AnimatedSprite { layer, sprite, cells, frame_ms: 1000 / MOVIE_FPS, looped, zoom });
+                        }
+                        None => placed.push(SpriteChange { layer, sprite: Some(sprite), keep_filters: false }),
+                    }
                     if now.opacity < 1000 {
                         opacity.push(Op::SpriteOpacity { layer: Some(layer), opacity: (now.opacity * 256 / 1000) as u32 });
                     }
@@ -2324,10 +2584,10 @@ impl<'a, 'b> Compiler<'a, 'b> {
             new_shown.push((name, now));
         }
         // Removals first: a placement may reuse a freed layer.
-        changes.retain(|c| !placed.iter().any(|p| p.layer == c.layer));
+        changes.retain(|c| unzoom.contains(&c.layer) || !placed.iter().any(|p| p.layer == c.layer));
         changes.extend(placed);
         self.shown.extend(new_shown);
-        if changes.is_empty() && opacity.is_empty() {
+        if changes.is_empty() && animated.is_empty() && opacity.is_empty() {
             if ms > 0 {
                 self.ops.push(Op::Wait { ms });
             }
@@ -2338,6 +2598,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
         if !changes.is_empty() {
             self.ops.push(Op::Sprites { changes, fade_ms: 0 });
         }
+        self.ops.extend(animated);
         self.ops.extend(opacity);
         self.ops.push(Op::EndTransition);
     }
@@ -2714,6 +2975,18 @@ mod tests {
         fn strip(&mut self, parts: &[&str]) -> Option<(String, u32, u32)> {
             Some((parts.join("|"), 100 * parts.len() as u32, 100))
         }
+        fn movie_info(&mut self, path: &str) -> Option<MovieInfo> {
+            let small = path.contains("k100");
+            Some(MovieInfo { w: if small { 400 } else { 1024 }, h: if small { 432 } else { 576 }, ms: 2000, sound: path.contains("OP") })
+        }
+        fn movie_file(&mut self, path: &str, sound: bool) -> Option<String> {
+            Some(format!("movie/{path}{}", if sound { "" } else { "-mute" }))
+        }
+        fn movie_frames(&mut self, path: &str, at: Option<u32>, alpha: bool, dark: bool) -> Option<(String, u32, u32, u32)> {
+            let (w, h) = if alpha { (200, 108) } else { (1024, 576) };
+            let cells = if at.is_some() { 1 } else { 30 };
+            Some((format!("{path}@{at:?}{}", if dark { "d" } else { "" }), cells, w, h))
+        }
     }
 
     fn compile(story: &str, library: &str) -> Compiled {
@@ -2811,6 +3084,49 @@ scene a.nss
         let waits: Vec<u32> = c.ops.iter().filter_map(|op| match op { Op::Wait { ms } => Some(*ms), _ => None }).collect();
         assert_eq!(waits, [300], "{:?}", c.ops);
         assert!(c.notes.contains_key("skipped: no function Waitkey"));
+    }
+
+    #[test]
+    fn a_cut_the_script_waits_for_plays_as_a_movie_then_shows_its_last_frame() {
+        // MovieSEStart: wait for the cut, then for RemainTime + 500.
+        let story = r#"
+scene a.nss
+{
+	CreateMovie("cut", 100, 0, 0, false, false, "dx/mv剣戟.ngs");
+	$t = RemainTime("cut");
+	WaitAction("cut", 100);
+	WaitKey($t + 500);
+	Delete("cut");
+}
+"#;
+        let c = compile(story, LIBRARY);
+        let movie = c.ops.iter().position(|op| matches!(op, Op::SceneMovie { file, .. } if file == "movie/dx/mv剣戟.ngs-mute"));
+        let last = c.ops.iter().position(|op| matches!(op, Op::AnimatedSprite { cells: 1, sprite, .. } if sprite.image.contains("Some(1934)")));
+        assert!(movie.is_some() && last > movie, "{:?}", c.ops);
+        // The movie's 2 s count as waited: 500 ms are left.
+        assert!(c.ops.iter().any(|op| matches!(op, Op::Wait { ms: 500 })), "{:?}", c.ops);
+        assert!(!c.ops.iter().any(|op| matches!(op, Op::Wait { ms } if *ms > 500)), "{:?}", c.ops);
+    }
+
+    #[test]
+    fn a_smoke_loop_plays_as_frames_zoomed_and_a_paused_cut_as_one_frame() {
+        let story = r#"
+scene a.nss
+{
+	CreateMovie("smoke", 300, 0, 0, true, true, "dx/mvk100.ngs");
+	Zoom("smoke", 0, 3000, 5000, null, true);
+	CreateMovie("cut", 400, 0, 0, false, false, "dx/mv剣戟.ngs");
+	Wait(300);
+	Request("cut", Pause);
+	Wait(100);
+}
+"#;
+        let c = compile(story, LIBRARY);
+        // 400x216 shown from 200x108 cells: 2x, then the zoom.
+        let smoke = c.ops.iter().any(|op| matches!(op, Op::AnimatedSprite { cells: 30, looped: true, zoom: (600, 1000), .. }));
+        let paused = c.ops.iter().any(|op| matches!(op, Op::AnimatedSprite { cells: 1, sprite, .. } if sprite.image.contains("Some(300)")));
+        assert!(smoke && paused, "{:?}", c.ops);
+        assert!(!c.ops.iter().any(|op| matches!(op, Op::SceneMovie { .. })), "{:?}", c.ops);
     }
 
     #[test]

@@ -961,6 +961,24 @@ pub fn emit(script: &Script) -> String {
                     writeln!(out, "{seen}").unwrap();
                 }
             }
+            Op::SceneMovie { file, skippable } => {
+                writeln!(out, "mpegplay \"{}\",{},1", path(file), u8::from(*skippable)).unwrap();
+            }
+            Op::AnimatedSprite { layer, sprite, cells, frame_ms, looped, zoom } => {
+                let slot = SPRITE_BASE + layer;
+                let lower = sprite.image.to_ascii_lowercase();
+                let mode = if lower.ends_with(".jpg") || lower.ends_with(".jpeg") { 'c' } else { 'a' };
+                // Loop mode 0 repeats the cells, 1 stops on the last.
+                let tag = format!("{mode}/{cells},{frame_ms},{}", u8::from(!*looped));
+                writeln!(out, "spfilter {slot},0").unwrap();
+                writeln!(out, "lsp {slot},\":{tag};{}\",{},{}", path(&sprite.image), sprite.x, sprite.y).unwrap();
+                if *zoom != (100, 100) {
+                    writeln!(out, "spzoom {slot},{},{}", zoom.0, zoom.1).unwrap();
+                }
+                if transition.is_none() {
+                    writeln!(out, "print 1").unwrap();
+                }
+            }
             Op::Chapter { title } => {
                 writeln!(out, "mov {},\"{}\"", menu::CHAPTER, sprite_text(title)).unwrap();
                 if has_chapters && !title.is_empty() {

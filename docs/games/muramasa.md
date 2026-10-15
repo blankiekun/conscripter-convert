@@ -51,6 +51,11 @@ The other convert options (`--loose`, `--audio-codec`,
   prologue, and the file that unlocks 魔王編). Starting anywhere else
   skips the unlock.
 - `--file X.nss` without `--chain` compiles one scene.
+- Movies are read from the disc's `ムービー/` folder, by default the one
+  beside `<game>` (as on the disc); `--movies <dir>` names another. They
+  are not in the archives. The first build encodes them to `movie/`
+  (loose files, H.264; a few minutes, kept by later builds into the same
+  output); without the folder the build leaves them out and says so.
 - `NSS_TRACE=1` prints each file as it is compiled and a `flag %N name`
   line per story flag.
 - Every build prints a ranked "not converted or approximated" list and
@@ -62,7 +67,7 @@ The other convert options (`--loose`, `--audio-codec`,
 | Area | Status |
 |---|---|
 | NPA archives, images (PNG, JPEG), BGM, sound effects, voices | ✅ Decoded (whole-corpus check not done) |
-| Movies (`.ngs`, MPEG-1) | ❌ Not played yet: planned in step 7 of the system screens plan (the user, 2026-10-15) |
+| Movies (`.ngs`, MPEG-1) | ✅ `MoviePlay` and the battle cuts the script waits for play as movies (H.264 MP4, the cuts without stopping the music); the other `CreateMovie`s (the smoke loop `mvk100`, cuts under the text, paused cuts) are drawn as their frames (2026-10-15, see step 7 of "Next") |
 | Script parsing | ✅ All 913 files; 17 places that don't parse are all typos or dead code |
 | Story control flow (files, scenes, functions, `if`/`while`, choices, story flags, route ranking, heroine deaths) | ✅ Compiled; all 883 story files reached from `ma00_000` |
 | Text: vertical windows, face windows and name plates, ruby, `<k>` waits, voices | ✅ Converted; vertical columns where the original's are (checked under wine), turned marks (《「―) centred, English keeps its spaces |
@@ -911,33 +916,50 @@ Next, in order:
       Left: the wheel over a slider.
    7. Motion and movies: the title's fire flicker and its opening (the
       title screen's own entrance), the menu cascade, the dialog unroll
-      (150 ms sideways), the quick bar sliding while text types; and the
-      movies (added by the user, 2026-10-15; the compiler skips them now,
-      so the build shows no video). They are MPEG-1 program streams
-      (`.ngs`, 1024×576, MP2 sound) in the disc's `ムービー/` folder, beside
-      `<game>`, not in the archives (33 files, 353 MB, and 46 more in
-      `ムービー/3d/` for the extras); the scripts name them `dx/<name>.ngs`.
-      Two kinds of use:
-      - `MoviePlay(file, skippable)`: full screen, the script waits
-        (`mvOP` at the end of chapter 1 in `ma01_026`, `mvOP02` in
-        `md01_018`, `mv剣戟_チャキーンチャキキーン` in `mb01_006`, `mv_smg_PV`
-        in `0_boot`). The converter's `Op::Movie` emits `mpegplay`, and
-        `moviestop` (the settings' 動画 pair) decides whether a click stops
-        it; the scripts test `#SYSTEM_break_play_movie` themselves too.
-      - `CreateMovie(name, priority, x, y, loop, alpha, file)`: a movie as
-        an object in the scene while the script goes on, in 48 story
-        files: `MovieSESet`/`MovieSESet_Loop` + `MovieSEStart`
-        (`function_process.nss` 2916-3045; 28 calls: battle cuts with a
-        sound effect started with them), `mvk100` (23 uses, looping, with
-        alpha, in `ma04_012` and others), single cuts (`mv剣戟_*`,
-        `mv焦屍剣`, `mv正宗ＶＳ村正`, …). CONscripter's `mpegplay`/`movie`
-        are full screen and blocking, so these need either an engine
-        addition (a movie as a sprite, played by the engine's ffmpeg path
-        while the script runs) or a blocking stand-in.
-      CONscripter plays movies through ffmpeg on Linux and macOS, through
-      the browser's video element on the web (which can't play MPEG-1: the
-      build must convert them, to MP4/H.264 or WebM), and on Windows only
-      opens the file in an outside player.
+      (150 ms sideways), the quick bar sliding while text types (to do);
+      and the movies (added by the user, 2026-10-15; done 2026-10-15).
+      They are MPEG-1 program streams (`.ngs`, 1024×576, MP2 sound) in
+      the disc's `ムービー/` folder, beside `<game>`, not in the archives
+      (33 files, 353 MB, and 46 more in `ムービー/3d/` for the extras); the
+      scripts name them `dx/<name>.ngs`. Each is encoded once to H.264 MP4
+      in `movie/` (ASCII names: the file's own, or `mv_` and a hash of a
+      Japanese one), which every CONscripter build plays (the web build in
+      a `<video>` element, MPEG-1 being unplayable there).
+      - `MoviePlay(file, skippable)` (full screen, the script waits:
+        `mvOP` at the end of chapter 1 in `ma01_026`, `mvOP02` in
+        `md01_018`, `mv剣戟_チャキーンチャキキーン` in `mb01_006`) is
+        `Op::Movie` (`bgmstop` + `mpegplay`) for a movie with sound, and
+        a new `Op::SceneMovie` for a silent one: `mpegplay "f",1,1`, a
+        CONscripter addition (b0de6a0) that leaves the music playing.
+        `moviestop` (the settings' 動画 pair) decides whether a click
+        stops it. `mv_smg_PV` (the title's demo, every 35 s in
+        `TitleProcess`) is not on the disc (only `mvPV.ngs`): it is left
+        out, and the title's demo loop isn't converted.
+      - `CreateMovie(name, priority, x, y, loop, alpha, file)` is a movie
+        object (`MovieObject`), as the user chose (2026-10-15: frames
+        made by the converter, no engine movie sprite):
+        - A cut that fills the screen, plays once, and that the script
+          waits for (`WaitAction`/`WaitPlay` on it, or a `Wait`/`WaitKey`
+          of at least half its remaining time, which the scripts take
+          from `RemainTime`) plays as a movie with the music going on
+          (`Op::SceneMovie`; its own sound left out, the script plays the
+          `se特殊_mv用_*` effect beside it), then shows its last frame. The
+          time played counts toward the script's following waits for it.
+          This is `MovieSESet` + `MovieSEStart` (28 calls) and the single
+          cuts with `WaitAction` (5) or `RemainTime` (2).
+        - Any other is drawn as its frames (`Op::AnimatedSprite`, an
+          `lsp` animation at 15 frames a second, half size and zoomed back
+          with `spzoom`): `mvk100` (23 uses, a 9 s loop of smoke, top half
+          colour and bottom half opacity, zoomed 3×5 and more; `SubRender`
+          draws it black, `AddRender` as it is), and `mv剣戟_チャキーンチャキキーン`
+          looping under the text (`mb02_023vs`). Paused (`Request(…, Pause)`
+          after 100-300 ms, `md01_006`, `mb03_019`) it is that one frame.
+        - Left as they are: a `Zoom` over time of the smoke jumps to its
+          end (as other zooms over time, a cross-fade), `Rotate` (the
+          smoke flipped) is ignored.
+      - The trace's auto-play skips movies (CONscripter) but reports
+        missing ones; the prologue (`--chain 2`) has three cuts.
+      - On Windows CONscripter only opens a movie in an outside player.
 
    The user's decisions (2026-10-14): the pressed state (`003`) becomes
    an engine feature that is on for every script; the settings CONscripter

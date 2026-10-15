@@ -486,6 +486,16 @@ pub enum Op {
     /// for the first half and 1 - (2(1-t))^p / 2 for the second; 0 is
     /// straight.
     MoveEase { ease: u8, exponent: u32 },
+    /// As [`Op::Movie`], but the music and the sound effects play on: a
+    /// movie without sound of its own cut into a scene (装甲悪鬼村正's
+    /// battle cuts, with their sound effect started beside them).
+    SceneMovie { file: String, skippable: bool },
+    /// Shows (as [`Op::Sprites`] does) a sprite whose picture is `cells`
+    /// pictures side by side, shown in turn for `frame_ms` each: once,
+    /// stopping on the last, or `looped`. `zoom` (x, y percent) draws it
+    /// zoomed about the centre of its place. A movie played as frames
+    /// while the script goes on.
+    AnimatedSprite { layer: u32, sprite: SpritePlacement, cells: u32, frame_ms: u32, looped: bool, zoom: (i32, i32) },
 }
 
 /// A puzzle of numbered tiles (装甲悪鬼村正's 立方陣): the player clicks a
