@@ -1055,7 +1055,21 @@ Next, in order:
          title, whose music goes on (`TitleAction::Extras`; back from the
          extras the title skips `bgm`). The `#` flags past %969 now go on
          at %5200 (the gallery's would have run into the voice switches).
-      2. The gallery. 3. The sound room. 4. The recollection.
+      2. Done: the gallery (a new `PictureGallery`, `conv-cons/src/
+         picture_gallery.rs`; the slots read from `extra_gallery.nss`'s
+         `Cg`, its 805 `#<cg>` flags declared by `flags()`): the three
+         categories (the open one pressed), 前頁/次頁 going round, 20 slots a
+         page down four columns from the right, 空白アイコン, the first CG
+         seen's thumbnail at half while some are unseen, 選択カーソル under
+         the pointer; the viewer fades each CG in over 500 ms (未見 for an
+         unseen one, black between two unseen), a picture larger than the
+         screen scrolls 12 ms a pixel on a click (a click pauses, the next
+         goes on, a right-click jumps to the end; `Vr`/`Hr` from the far
+         end), a click past the last or a right-click closes it over 300 ms.
+         Beside the original (2D, first page): mean difference 2.7 levels
+         over the grid. Found on the way: with `usewheel` a timed `btnwait`
+         returns -5, not -2, when the time runs out.
+      3. The sound room. 4. The recollection.
       5. The 3D viewer. 6. Back to the title: the white flash and the
          return opening's tail (`TitleOpening::after_extras`).
 
