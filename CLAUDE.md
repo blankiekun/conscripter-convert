@@ -122,7 +122,7 @@ each in its own worktree), and their work meets in shared code.
 | `crates/conv-engines/src/<engine>/` | Source readers (`xuse/`, `nitroplus/`); a game's own rules in a module there (`nitroplus/convert/muramasa.rs`) |
 | `crates/conv-cons/` | IR → `0.txt` (`lib.rs`), menus, extras, NSA writer |
 | `crates/conv-cli/` | The `conscripter-convert` command |
-| `engine/` | CONscripter (C++; our code in `src/onsyuri/ONScripter_cons.cpp`) |
+| `engine/` | CONscripter (C++; our code in `src/onsyuri/ONScripter_cons.cpp`, the debug trace in `ONScripter_trace.cpp`) |
 | `research/<engine>/` | Throwaway Python; `local/` is git-ignored (disassembly, wine scripts, shots) |
 | `docs/new-game.md` | Playbook for converting a new game |
 | `docs/games/<game>.md` | Per-game record: formats, opcodes, progression variables, status |
