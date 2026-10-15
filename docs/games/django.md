@@ -282,9 +282,9 @@ The story's end (`conv_run_end`) runs the boot script's `InitBGM` and
 `TitleCongratulations` (`Game::story_end`; it plays once every ending
 has been seen, and only right after one, as `$ClearL` is set there) and
 goes back to the title, as `main_root`'s loop does; the original runs
-the check as the title comes up. The congratulations' pans are drawn as
-cuts, as other moves are; not compared with the original (it wants all
-eleven endings' flags under wine).
+the check as the title comes up. The congratulations' pans move (each
+starts under a white flash and goes on while it fades); not compared
+with the original (it wants all eleven endings' flags under wine).
 
 ## Status
 
@@ -295,7 +295,7 @@ eleven endings' flags under wine).
 | Script parsing | ✅ All 249 files; 56 places that don't parse, none in the story |
 | Story control flow (56 chapters, 10 choices, bad ends) | ✅ Compiled whole (`compile_story`); in the engine the good path plays to the end (6,496 pages) and each wrong answer ends the story with its own bad end, then the game goes back to the title (`research/nitroplus/django_routes.sh`, which stops each run there, 2026-10-15) |
 | Text | 🟡 In the boxes' places (box00: 39 columns at 50,472, white on the black bar); 3,424 voiced lines; not compared with the original yet |
-| Pictures, sound in scripts | 🟡 Black bars, face windows in their frames, standing pictures, backgrounds; pictures turned over (`Rotate` by 180°, 315 calls: characters facing the other way) drawn mirrored (dja004's choice now as the original's); cameras (`CreateCamera`, `MoveCamera`, 365 calls): a camera's child of priority p drawn about the screen's centre at (its place − the camera's) × z / (1000 − p), as large, z the camera's zoom (priority is depth: measured under wine with boxes at four priorities and six camera settings, and dja001's carriage scene then matched the original's frames); its moves over time as cross-fades; what Muramasa's compiler does for effects (moves and zooms as cross-fades); every sound is found |
+| Pictures, sound in scripts | 🟡 Black bars, face windows in their frames, standing pictures, backgrounds; pictures turned over (`Rotate` by 180°, 315 calls: characters facing the other way) drawn mirrored (dja004's choice now as the original's); cameras (`CreateCamera`, `MoveCamera`, 365 calls): a camera's child of priority p drawn about the screen's centre at (its place − the camera's) × z / (1000 − p), as large, z the camera's zoom (priority is depth: measured under wine with boxes at four priorities and six camera settings, and dja001's carriage scene then matched the original's frames); moves, zooms and camera moves over time (1,765) as real motion: the engine moves the picture (`spmotion2`, keeping its last place) while the script goes on, also through the cross-fade of what else changes; 60 that also fade or change picture are still cross-fades; every sound is found |
 | Choices | ✅ Plates as picture buttons, text placed as the original's (compared under wine) |
 | System screens | 🟡 From the game's pictures (`django/screens.rs`): title, right-click menu, save/load (3×20 slots), yes/no questions, text log, settings (bullet rows as `SliderSteps`), the click-wait bullet after the last character (`getcursorpos` in the bar's wait routine); compared under wine: right-click menu, save, log, settings (text speed starts at level 5 as the original's; the two SAVE-DATA question rows drawn as they stand, ON chosen; the display options and version panel left out on purpose) |
 | Extras | 🟡 Menu, CG library, sound library, recollection, each compared with the original; left out: the doors' animation, the rifle over a category |
@@ -316,8 +316,16 @@ eleven endings' flags under wine).
    `frame03`-`frame05`) measured against the original under wine.
 4. The ranked "not converted" list: `CreateTexture` from the screen,
    `CreateColor` colours, movies.
-5. Moves, zooms and camera moves over time (drawn as cross-fades) as
-   real motion, shared with Muramasa's compiler.
+5. The 60 moves and zooms that also fade or change picture (still
+   cross-fades), and `Rotate` over time (343, drawn at once).
 6. Extras: the doors' animation and the menu's own music (left out).
-7. The congratulations' pans (`Move` over time in
-   `TitleCongratulations`) are cuts; compare with the original.
+
+## History
+
+- **Motion (2026-10-15).** `Move`, `Zoom` and `MoveCamera` over time were
+  drawn as cross-fades from the old place to the new; the congratulations'
+  pans came out as cuts. Now a picture that only moves or zooms is moved
+  by the engine (`spmotion2` in its keep mode, a zoom about the centre
+  of its place), shared with Muramasa's compiler; CONscripter steps
+  motions during `print` effects too (fe00598), so a pan that starts with
+  a fade runs through it.

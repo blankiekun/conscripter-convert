@@ -38,7 +38,7 @@
 
 use std::collections::{BTreeMap, HashMap};
 
-use conv_core::ir::{ArithOp, ChoiceStyle, CLICK_WAIT_MARK, Op, Operand, ScreenEffect, Ruby, Script, SpriteChange, SpritePlacement, TextWindow, TransitionStyle, Voice};
+use conv_core::ir::{ArithOp, ChoiceStyle, CLICK_WAIT_MARK, MotionEnd, MotionKey, Op, Operand, ScreenEffect, Ruby, Script, SpriteChange, SpritePlacement, TextWindow, TransitionStyle, Voice};
 
 use super::nss::{AssignOp, BinaryOp, Expr, Function, Inline, Item, NssFile, Param, Stmt, StmtKind, Target, Text, UnaryOp};
 
@@ -949,6 +949,26 @@ struct SoundObject {
     disused: bool,
 }
 
+/// `old` moved and zoomed into `now` over `ms` by the engine: the same
+/// picture at the same opacity, zoomed alike both ways.
+fn motion(old: &Shown, now: &Shown, ms: u32) -> Option<Op> {
+    if old.layer != now.layer || old.source != now.source || old.opacity != now.opacity || old.cells.is_some() || now.cells.is_some() {
+        return None;
+    }
+    let (zx, zy) = (now.zoom.0 * 1000 / old.zoom.0.max(1), now.zoom.1 * 1000 / old.zoom.1.max(1));
+    // (A picture cut to the screen, see `Assets::scaled`, isn't the whole.)
+    let sized = |a: i64, b: i64, z: i64| (b * 1000 - a * z).abs() <= a * 10 + 1000;
+    if (zx - zy).abs() > 5 || !sized(old.w, now.w, zx) || !sized(old.h, now.h, zy) {
+        return None;
+    }
+    let centre = |s: &Shown| (s.x + s.w / 2, s.y + s.h / 2);
+    let ((x0, y0), (x1, y1)) = (centre(old), centre(now));
+    let zoom = ((zx + 5) / 10).clamp(1, 10000) as u32;
+    let key = |ms, x, y, zoom| MotionKey { ms, x, y, zoom, angle: 0, opacity: 256 };
+    let keys = vec![key(0, 0, 0, 100), key(ms, (x1 - x0) as i32, (y1 - y0) as i32, zoom)];
+    Some(Op::SpriteMotion2 { layer: old.layer, keys, end: MotionEnd::Keep })
+}
+
 /// A sprite layer as the output currently shows it.
 #[derive(Debug, Clone, PartialEq)]
 struct Shown {
@@ -963,6 +983,20 @@ struct Shown {
     /// Movie frames ([`Op::AnimatedSprite`]): cells, looped, zoom percent,
     /// ms a cell.
     cells: Option<(u32, bool, (i32, i32), u32)>,
+    /// The picture before its zoom (mirrored, blurred), and the zoom (per
+    /// mille): a picture that only moves or zooms over time is moved by
+    /// the engine ([`Op::SpriteMotion2`]).
+    source: String,
+    zoom: (i64, i64),
+    engine: Engine,
+}
+
+/// What the engine's motions did to a [`Shown`] picture.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+struct Engine {
+    /// It draws an earlier zoom's picture, zoomed: another picture on the
+    /// layer is loaded on a fresh sprite.
+    zoomed: bool,
 }
 
 enum Flow {
@@ -2296,9 +2330,6 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 if children.is_empty() {
                     return Value::Null;
                 }
-                if arg(1).int() > 0 && children.iter().any(|t| self.shown.contains_key(t)) {
-                    self.note("MoveCamera over time drawn as a cross-fade");
-                }
                 self.timed(arg(1).int(), &arg(6), &children);
             }
             "CreateWindow" | "CreateName" => {
@@ -2389,9 +2420,6 @@ impl<'a, 'b> Compiler<'a, 'b> {
                     o.x = arg(2).position(o.x, o.w, screen_w);
                     o.y = arg(3).position(o.y, o.h, screen_h);
                 }
-                if arg(1).int() > 0 && targets.iter().any(|t| self.shown.contains_key(t)) {
-                    self.note("Move over time drawn as a cross-fade");
-                }
                 self.timed(arg(1).int(), &arg(5), &targets);
             }
             "Delete" => {
@@ -2448,9 +2476,6 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 for t in &targets {
                     let o = self.objects.get_mut(t).unwrap();
                     o.zoom = (arg(2).position(o.zoom.0, 0, 0).max(1), arg(3).position(o.zoom.1, 0, 0).max(1));
-                }
-                if arg(1).int() > 0 && targets.iter().any(|t| self.shown.contains_key(t)) {
-                    self.note("Zoom over time drawn as a cross-fade");
                 }
                 self.timed(arg(1).int(), &arg(5), &targets);
             }
@@ -2700,11 +2725,16 @@ impl<'a, 'b> Compiler<'a, 'b> {
                     *p = (*p).max(ms);
                 }
             }
-            Value::Int(n) if *n > 1 => {
-                self.note("timed action that waits only part of its time");
+            _ => {
+                if matches!(wait, Value::Int(n) if *n > 1) {
+                    self.note("timed action that waits only part of its time");
+                }
+                for t in targets {
+                    let p = self.pending_by.entry(t.clone()).or_default();
+                    *p = (*p).max(ms);
+                }
                 self.sync(ms);
             }
-            _ => self.sync(ms),
         }
     }
 
@@ -2757,8 +2787,9 @@ impl<'a, 'b> Compiler<'a, 'b> {
     /// Shows the changes since the last sync, as a cross-fade over `ms`,
     /// or the pending actions' time up to [`UNWAITED_MS`] if longer.
     fn sync(&mut self, ms: u32) {
+        let blocking = ms;
         let ms = ms.max(std::mem::take(&mut self.pending_ms).min(UNWAITED_MS));
-        self.pending_by.clear();
+        let timed = std::mem::take(&mut self.pending_by);
         let mask = self.pending_mask.take();
         self.flush_sounds();
         self.check_window();
@@ -2796,7 +2827,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
                         y = sy + (cy - sy) * k / 1000 - o.h / 2;
                         zoom = (zoom.0 * k / 1000, zoom.1 * k / 1000);
                     }
-                    let shown = Shown { layer: 0, image: image.clone(), x, y, w: o.w, h: o.h, opacity: o.opacity, cells: None };
+                    let shown = Shown { layer: 0, image: image.clone(), x, y, w: o.w, h: o.h, opacity: o.opacity, cells: None, source: String::new(), zoom: (1000, 1000), engine: Engine::default() };
                     Some((n.clone(), shown, (o.priority, o.seq), zoom, (o.w, o.h), o.blur, o.mirror()))
                 }
                 _ => None,
@@ -2830,7 +2861,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
             // spread over its length.
             let full = (m.info.ms * MOVIE_FPS).div_ceil(1000).max(1);
             let frame_ms = if at.is_none() && cells < full { m.info.ms / cells.max(1) } else { 1000 / MOVIE_FPS };
-            let shown = Shown { layer: 0, image, x, y, w: cw as i64, h: ch as i64, opacity: o.opacity, cells: Some((cells, looped, zoom, frame_ms)) };
+            let shown = Shown { layer: 0, image, x, y, w: cw as i64, h: ch as i64, opacity: o.opacity, cells: Some((cells, looped, zoom, frame_ms)), source: String::new(), zoom: (1000, 1000), engine: Engine::default() };
             want.push((n, shown, (o.priority, o.seq), (1000, 1000), (o.w, o.h), 0, (false, false)));
         }
         // Zoomed pictures: scaled copies, centred where the original was.
@@ -2842,6 +2873,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 {
                     shown.image = image;
                 }
+                (shown.source, shown.zoom) = (format!("{}#{blur}", shown.image), zoom);
                 if zoom != (1000, 1000)
                     && let Some((image, x, y, sw, sh)) = self.assets.scaled(&shown.image, zoom.0, zoom.1, (shown.x, shown.y, w, h))
                 {
@@ -2889,6 +2921,31 @@ impl<'a, 'b> Compiler<'a, 'b> {
             let n = want.len() as u32;
             layers = (0..n).map(|i| Some((i + 1) * MAX_LAYER / (n + 1))).collect();
         }
+        // Pictures that only move or zoom over time: moved by the engine
+        // while the script goes on (and during the cross-fade of the other
+        // changes), which waits only for the blocking action's time.
+        let mut moving = Vec::new();
+        for ((name, now, _), layer) in want.iter().zip(&layers) {
+            let (Some(layer), Some(old), Some(&t)) = (*layer, self.shown.get(name), timed.get(name)) else { continue };
+            let now = Shown { layer, ..now.clone() };
+            if t == 0 || *old == (Shown { engine: old.engine, ..now.clone() }) {
+                continue;
+            }
+            match motion(old, &now, t) {
+                Some(op) => {
+                    let engine = Engine { zoomed: old.engine.zoomed || old.zoom != now.zoom };
+                    self.ops.push(op);
+                    self.shown.insert(name.clone(), Shown { engine, ..now });
+                    moving.push(name.clone());
+                }
+                None if (old.x, old.y, old.w, old.h) != (now.x, now.y, now.w, now.h) => {
+                    self.note("move or zoom over time with a fade or a new picture drawn as a cross-fade");
+                }
+                None => {}
+            }
+        }
+        let rest = timed.iter().filter(|(n, _)| !moving.contains(n)).map(|(_, &t)| t).max().unwrap_or(0);
+        let ms = if moving.is_empty() { ms } else { blocking.max(rest.min(UNWAITED_MS)) };
         let mut placed = Vec::new();
         let mut animated = Vec::new();
         // Layers whose movie (zoomed with spzoom) goes: removed even when a
@@ -2897,16 +2954,17 @@ impl<'a, 'b> Compiler<'a, 'b> {
         let mut new_shown = Vec::new();
         for ((name, now, _), layer) in want.into_iter().zip(&layers) {
             let Some(layer) = *layer else { continue };
-            let now = Shown { layer, ..now };
+            let mut now = Shown { layer, ..now };
             match self.shown.get(&name) {
-                Some(old) if *old == now => continue,
+                Some(old) if *old == Shown { engine: old.engine, ..now.clone() } => continue,
                 Some(old) if old.layer == now.layer && old.image == now.image && old.x == now.x && old.y == now.y && old.cells == now.cells => {
+                    now.engine = old.engine;
                     opacity.push(Op::SpriteOpacity { layer: Some(layer), opacity: (now.opacity * 256 / 1000) as u32 });
                 }
                 old => {
-                    if let Some(old) = old.filter(|o| o.layer != layer || (o.cells.is_some() && now.cells.is_none())) {
+                    if let Some(old) = old.filter(|o| o.layer != layer || o.engine.zoomed || (o.cells.is_some() && now.cells.is_none())) {
                         changes.push(SpriteChange { layer: old.layer, sprite: None, keep_filters: false });
-                        if old.cells.is_some() {
+                        if old.cells.is_some() || old.engine.zoomed {
                             unzoom.push(old.layer);
                         }
                     }
@@ -3594,6 +3652,34 @@ scene a.nss
             let shown = c.ops.iter().any(|op| matches!(op, Op::Sprites { changes, .. } if changes.iter().any(|c| c.sprite.as_ref().is_some_and(|s| s.image == image))));
             assert!(shown, "{turn}: {:?}", c.ops);
         }
+    }
+
+    #[test]
+    fn moves_and_zooms_over_time_are_engine_motions_during_the_other_fades() {
+        let story = r#"
+scene a.nss
+{
+	CreateTexture("bg", 100, 0, 0, "cg/bg/a.jpg");
+	CreateColor("white", 50, 0, 0, 1024, 576, "White");
+	Fade("white", 0, 1000, null, true);
+	Wait(100);
+	Move("bg", 1500, @0, @-150, null, false);
+	Fade("white", 300, 0, null, true);
+	Zoom("bg", 1000, 2000, 2000, null, true);
+	Wait(100);
+}
+"#;
+        let c = compile(story, LIBRARY);
+        let motions: Vec<_> = c.ops.iter().filter_map(|op| match op {
+            Op::SpriteMotion2 { keys, end: MotionEnd::Keep, .. } => Some((keys[1].ms, keys[1].x, keys[1].y, keys[1].zoom)),
+            _ => None,
+        }).collect();
+        // The pan goes on through the white's 300 ms fade, which takes only
+        // its own time; the zoom is about the centre.
+        assert_eq!(motions, [(1500, 0, -150, 100), (1000, 0, 0, 200)], "{:?}", c.ops);
+        let pan = c.ops.iter().position(|op| matches!(op, Op::SpriteMotion2 { .. })).unwrap();
+        assert!(matches!(c.ops[pan + 1], Op::BeginTransition { fade_ms: 300, .. }), "{:?}", c.ops);
+        assert!(c.ops.iter().any(|op| matches!(op, Op::Wait { ms: 1000 })), "{:?}", c.ops);
     }
 
     #[test]
