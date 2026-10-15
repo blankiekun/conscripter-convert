@@ -1236,7 +1236,7 @@ impl AssetBank {
             (3, "load", 607, 581, BarAction::Load),
             (7, "setting", 682, 581, BarAction::Settings),
             (8, "hide", 756, 583, BarAction::HideWindow),
-            (9, "lock", 304, 581, BarAction::Lock { reveal_y: 573 }),
+            (9, "lock", 304, 581, BarAction::Lock { reveal_y: 573, fade_ms: 100 }),
         ] {
             let png = images.get(n).ok_or(ConvertError::MissingAsset { kind: "button bar image", number: n })?;
             let states = image::load_from_memory_with_format(png, image::ImageFormat::Png)

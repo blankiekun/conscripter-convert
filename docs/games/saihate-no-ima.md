@@ -731,8 +731,8 @@ exe (`research/tools/ghidra/ghidra_export.sh`, names in
    wine). By default the bars are pinned: always up, the button an open
    padlock (cells 4-7). Clicked, the padlock closes (cells 0-3) and the
    bars unpin: the top bars stay hidden, and the bottom bar shows only
-   while the pointer is below y 573, fading in over about 100 ms (not
-   converted: ours pops up). `BarAction::Lock { reveal_y }`: the global
+   while the pointer is below y 573, fading in over about 100 ms (item
+   21). `BarAction::Lock { reveal_y }`: the global
    `%2908`, and while unpinned an invisible `btn` hotspot on the other
    side of the line (`getmouseover`) ends the click wait when the
    pointer crosses it, so the bar is drawn again. Checked on our build
@@ -772,6 +772,16 @@ exe (`research/tools/ghidra/ghidra_export.sh`, names in
    such a filter change to just before the transition, where it is drawn
    with its own `print 1`; the `csp` and bust-up change after it still
    fade.
+21. **Done: the unpinned bar fades in.** When the pointer comes down to
+   the hidden bar (item 17) its sprites fade in over 100 ms
+   (`BarAction::Lock { fade_ms }`, `spfade` on each; `%148` remembers
+   whether the bar was already shown, so a new page doesn't fade it
+   again). This found two bugs in CONscripter's `spfade`, fixed there: a
+   sprite loaded without an alpha (`trans` -1) was drawn at nothing until
+   the fade ended, and each fading sprite was drawn in its own screen
+   update, so under the software renderer the buttons came up one after
+   another. Filmed on our build at 60 fps: the eight buttons rise
+   together over six frames.
 
 
 Converted and playable from start to end: text, voices, sprites with
