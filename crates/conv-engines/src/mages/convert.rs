@@ -915,7 +915,7 @@ impl Lowering<'_> {
                 let time = t.int("Time").unwrap_or(30);
                 // Shakes for :Time frames, dying down (0: until the end task).
                 let end = if time > 0 { (0, 0) } else { (ax, ay) };
-                let shake = ScreenEffect::Shake { time_ms: ms(time).max(1), interval_ms: 16, path: false, speed: (2200, 2900), range: [(ax, ay), end] };
+                let shake = ScreenEffect::Shake { time_ms: ms(time).max(1), interval_ms: 16, path: false, speed: (2200, 2900), range: [(ax, ay), end], end_ms: 0 };
                 self.out.ops.push(Op::ScreenEffect { slot: 1, effect: Some(shake) });
                 if t.int("Wait").unwrap_or(0) != 0 {
                     self.out.ops.push(Op::Wait { ms: ms(time) });

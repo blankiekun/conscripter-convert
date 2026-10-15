@@ -1,0 +1,140 @@
+name: release converter and GUI (Windows x64, Linux x64/arm64, macOS arm64/x64)
+on:
+  push:
+    tags: ['v*'] # v1.0, v0.2.0, …: builds and attaches to the release
+    branches: ['**'] # other pushes only build and test, when the GUI or this file changed
+    # (not applied to tags). Cargo.lock: a run on main saves the Rust cache
+    # the other branches and the tags start from.
+    paths: ['gui/**', '.github/workflows/release.yml', 'Cargo.lock']
+  pull_request:
+    paths: ['gui/**', '.github/workflows/release.yml', 'Cargo.lock']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# A newer push to the same branch replaces a run still going; tag runs
+# always finish.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref_type != 'tag' }}
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - {runner: windows-latest, suffix: x64_win, exe: .exe}
+          - {runner: ubuntu-22.04, suffix: x64_linux, exe: ''} # an older glibc runs on more systems
+          - {runner: ubuntu-22.04-arm, suffix: arm64_linux, exe: ''}
+          - {runner: macos-14, suffix: aarch64_darwin, exe: ''} # Apple silicon
+          # Intel Macs, built on Apple silicon (the Intel runners took twice
+          # as long and are being retired): Rust cross-compiles, and an x64
+          # Python runs PyInstaller and the bundle under Rosetta.
+          - {runner: macos-14, suffix: x64_darwin, exe: '', target: x86_64-apple-darwin, python_arch: x64}
+    runs-on: ${{ matrix.os.runner }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      NAME: ${{ github.ref_type == 'tag' && github.ref_name || 'dev' }}
+      # The converter, built for the matrix's target when it has one.
+      CONVERTER: target/${{ matrix.os.target && format('{0}/', matrix.os.target) || '' }}release/conscripter-convert${{ matrix.os.exe }}
+    steps:
+    - uses: actions/checkout@v4
+
+    # build.rs needs only the engine's version.h, not the whole submodule:
+    # the one file at the pinned commit.
+    - name: engine version
+      run: |
+        sha=$(git ls-tree HEAD engine | awk '{print $3}')
+        mkdir -p engine/src/onsyuri
+        curl -fsSL --retry 3 -o engine/src/onsyuri/version.h "https://raw.githubusercontent.com/blankiekun/CONscripter/$sha/src/onsyuri/version.h"
+        grep CONSCRIPTER_VERSION engine/src/onsyuri/version.h
+
+    # The runner images come with a stable Rust (rustup); installing it
+    # again took up to 40 s on Windows.
+    - run: rustc -V
+
+    # The dependencies, compiled. (sccache, to keep our own crates too, was
+    # tried: on the Actions cache it missed every crate on Windows and
+    # failed a quarter of its writes.)
+    - uses: Swatinem/rust-cache@v2
+      with:
+        key: ${{ matrix.os.suffix }} # two jobs run on macos-14
+        # The runner images' Rust differs while a new image rolls out
+        # (windows-latest went from one to the next between two runs), and
+        # with it in the key every run missed. Cargo itself rebuilds what
+        # another rustc compiled.
+        add-rust-environment-hash-key: false
+        # Saving takes up to 40 s; branches and tags read main's cache.
+        save-if: ${{ github.ref == 'refs/heads/main' }}
+
+    - name: build conscripter-convert
+      run: |
+        if [ -n "${{ matrix.os.target }}" ]; then
+          rustup target add ${{ matrix.os.target }}
+          cargo build --release --locked --target ${{ matrix.os.target }}
+        else
+          cargo build --release --locked
+        fi
+        file "$CONVERTER" || true
+
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+        architecture: ${{ matrix.os.python_arch }}
+        cache: pip
+        cache-dependency-path: gui/requirements.txt
+
+    - uses: actions/cache@v4
+      with:
+        path: gui/fonts
+        key: ipafont-${{ hashFiles('gui/fetch_fonts.py') }}
+
+    - name: test the GUI
+      run: |
+        pip install -r gui/requirements.txt
+        python -m unittest discover -s gui/tests -v
+
+    - name: build the GUI
+      run: |
+        python gui/fetch_fonts.py
+        python gui/build_exe.py --converter "$CONVERTER"
+
+    - name: check the GUI bundle
+      run: |
+        if [ "${{ runner.os }}" = macOS ]; then
+          gui=gui/dist/conscripter-convert-gui.app/Contents/MacOS/conscripter-convert-gui
+        else
+          gui=gui/dist/conscripter-convert-gui${{ matrix.os.exe }}
+        fi
+        "$gui" --self-test self-test.json || true
+        cat self-test.json
+        python -c "import json, sys; s = json.load(open('self-test.json')); sys.exit(not (s.get('converter_runs') and s['dnd'] and all(s['fonts'].values()) and not s.get('ffmpeg_missing')))"
+
+    - name: prepare release
+      run: |
+        mkdir release
+        cp "$CONVERTER" release/conscripter-convert_${NAME}_${{ matrix.os.suffix }}${{ matrix.os.exe }}
+        if [ "${{ runner.os }}" = macOS ]; then
+          ditto -c -k --keepParent gui/dist/conscripter-convert-gui.app release/conscripter-convert-gui_${NAME}_${{ matrix.os.suffix }}.zip
+        else
+          cp gui/dist/conscripter-convert-gui${{ matrix.os.exe }} release/conscripter-convert-gui_${NAME}_${{ matrix.os.suffix }}${{ matrix.os.exe }}
+        fi
+        ls -l release
+
+    - uses: actions/upload-artifact@v4
+      with:
+        name: conscripter-convert_${{ matrix.os.suffix }}
+        path: release/*
+
+    - name: create release
+      uses: ncipollo/release-action@v1
+      if: github.ref_type == 'tag'
+      with:
+        artifacts: "release/*"
+        allowUpdates: "true"
+        omitBodyDuringUpdate: "true" # keep the release notes written by hand
+        token: ${{ secrets.GITHUB_TOKEN }}
