@@ -906,8 +906,10 @@ ones done:
   `HD/fx.arc` (an `.004` of frames and an `.ap` script each), drawn
   opaque as an animated sprite (sprite 59, a strip of frames in `fx/`)
   that outlasts background changes; `0x8a` waits for a one-shot's last
-  frame. Not converted: the rarer layer-2 `0x7a`/`0x7b` records (6 and 7
-  uses), which load no animation;
+  frame. The rarer layer-2 `0x7a`/`0x7b` records (6 and 7 uses), which
+  load no animation, are the blog scenes' bust-ups, converted with
+  `0x84`/`0x7d`/`0x7c` as the character layer's sprite (see the opcode
+  table);
 - `0x6d` quakes, `0x6e` flashes and `0x6f` pulses are done. `0x55` is done: a second background object, mostly the
   `frameNN` overlays (letterbox bars, speed lines), drawn as sprite 61
   (over the characters) or 999 (under them), kept across `csp -1` but
