@@ -94,8 +94,9 @@ mod process;
 /// a port (a minigame), and the story flags its own code sets and tests.
 /// The CLI picks the game when it builds.
 pub struct Game {
-    /// A call of a function: true if the game compiled it.
-    call: for<'a, 'b> fn(&mut Compiler<'a, 'b>, &str) -> bool,
+    /// A call of a function with its arguments: true if the game
+    /// compiled it.
+    call: for<'a, 'b> fn(&mut Compiler<'a, 'b>, &str, &[Value]) -> bool,
     /// A call of scene (file, scene): true if the game replaced it.
     scene: for<'a, 'b> fn(&mut Compiler<'a, 'b>, &str, &str) -> bool,
     /// Story flags the game adds (it may read them from the scripts).
@@ -172,7 +173,7 @@ impl Game {
     /// A game with nothing of its own: NSS as it is.
     /// Its screen and boot script are 装甲悪鬼村正's.
     pub const PLAIN: Game = Game {
-        call: |_, _| false,
+        call: |_, _, _| false,
         scene: |_, _, _| false,
         flags: |_| Vec::new(),
         files: &[],
@@ -2090,7 +2091,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
             }
             Expr::Call { name, args } => {
                 let args: Vec<Value> = args.iter().map(|a| self.eval(a)).collect();
-                if (self.game.call)(self, name) {
+                if (self.game.call)(self, name, &args) {
                     return Value::Null;
                 }
                 match self.function(name) {
