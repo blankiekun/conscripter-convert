@@ -101,6 +101,13 @@ enum Command {
     /// numbers past 255, half-width characters in vertical text, files
     /// that aren't in the archives
     Lint { dir: PathBuf },
+    /// List the games the converter builds (as JSON with --json), or with a
+    /// folder, the ones found in it
+    Games {
+        dir: Option<PathBuf>,
+        #[arg(long)]
+        json: bool,
+    },
     /// Low-level tools for Xuse XARC archives (*.arc)
     Xarc {
         #[command(subcommand)]
@@ -150,6 +157,25 @@ fn main() -> Result<()> {
         Command::ConvertNss { game, file, scene, chain, movies, title, english, build } => {
             let run = nitroplus::build::Run { file: file.as_deref(), scene: scene.as_deref(), chain, movies: movies.as_deref(), english: english.as_deref() };
             build::run(build, &title, &nitroplus::assets::OUTPUT_DIRS, |opts| nitroplus::build::build(&game, &run, opts))
+        }
+        Command::Games { dir, json } => {
+            use conv_engines::registry;
+            if json {
+                print!("{}", registry::json());
+                return Ok(());
+            }
+            let games = match &dir {
+                Some(d) => registry::detect(d),
+                None => registry::GAMES.iter().collect(),
+            };
+            for g in &games {
+                let options = if g.options.is_empty() { String::new() } else { format!(" {}", g.options.join(" ")) };
+                println!("{} ({}, {}): conscripter-convert {} <game> -o <output> --font <ttf>{options}", g.name, g.id, g.engine, g.command.join(" "));
+            }
+            if games.is_empty() {
+                bail!("no game found");
+            }
+            Ok(())
         }
         Command::Lint { dir } => {
             let report = build::lint_dir(&dir, true)?;

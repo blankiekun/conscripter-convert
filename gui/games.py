@@ -213,6 +213,20 @@ def _muramasa_command(game: Path, output: Path, font: Path) -> list[str]:
     return ["convert-nss", str(game), "-o", str(output), "--font", str(font)]
 
 
+# --- 続・殺戮のジャンゴ (Nitroplus NSS) ---------------------------------------
+
+def _django_command(game: Path, output: Path, font: Path) -> list[str]:
+    # docs/games/django.md: without --file, the whole story.
+    return ["convert-nss", str(game), "-o", str(output), "--font", str(font)]
+
+
+def _django_check(root: Path) -> tuple[list[str], list[str]]:
+    if not (root / "cg2.npa").exists():
+        return [], ["cg2.npa is missing: the build expects the game updated to 1.01 "
+                    "(its Django.exe, nss.npa and cg2.npa over the install)"]
+    return [], []
+
+
 # --- 俺たちに翼はない (PS Vita, MAGES TaskList) -----------------------------
 
 ORETSUBA_TITLE_ID = "PCSG00299"
@@ -294,6 +308,21 @@ GAMES: tuple[Game, ...] = (
                    "How many story files to follow from the start file; 2000 is the whole story. "
                    "Empty: the start file's scene only."),
         ),
+    ),
+    Game(
+        key="django",
+        name="続・殺戮のジャンゴ",
+        engine="Nitroplus NSS",
+        markers=("Django.exe", "nss.npa", "cg.npa", "sound.npa", "voice.npa", "system.npa"),
+        command=_django_command,
+        font="ipag.ttf",
+        output_name="django-cons",
+        needs_ffmpeg=True,  # movies become strips of frames
+        size_gb=1.3,
+        doc="docs/games/django.md",
+        check=_django_check,
+        icon=lambda root: engine.exe_icon(root / "Django.exe"),
+        options=_common("続・殺戮のジャンゴ"),
     ),
     Game(
         key="oretsuba",

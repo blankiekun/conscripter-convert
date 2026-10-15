@@ -459,7 +459,11 @@ natively, at every milestone:
 - Update the game's document (status, leftovers), `README.md`'s support
   table, `PLAN.md` §6 (the list of games) and §13 (new lessons, stated
   for any engine), and this playbook if the process changed.
-- **Add the game to the GUI**: its entry in `gui/games.py` (the marker
+- **Add the game to `crates/conv-engines/src/registry.rs`** (id, name,
+  engine, marker files, command; `conscripter-convert games` lists it)
+  and to `tests/snapshot.sh`.
+- **Add the game to the GUI**: its entry in `gui/games.py` (the same
+  markers as the registry, which a test checks; the marker
   files that recognise it, the command and font from the game's
   document, whether it needs ffmpeg, about how much it writes) and a fake
   layout with the expected command in `gui/tests/test_games.py`. When the

@@ -155,12 +155,12 @@ class Commands(unittest.TestCase):
     def test_same_options_everywhere(self):
         """Every game has the shared options first, in the same order."""
         common = ["title", "webp", "webp_quality", "audio_codec", "audio_quality", "loose", "dry_run"]
-        extras = {"saihate-no-ima": [], "muramasa": ["file", "chain"], "oretsuba": ["scenes"]}
+        extras = {"saihate-no-ima": [], "muramasa": ["file", "chain"], "django": [], "oretsuba": ["scenes"]}
         for g in games.GAMES:
             self.assertEqual([o.key for o in g.options], common + extras[g.key], g.key)
 
     def test_audio(self):
-        for key in ("saihate-no-ima", "muramasa", "oretsuba"):
+        for key in ("saihate-no-ima", "muramasa", "django", "oretsuba"):
             self.assertNotIn("--audio-codec", self.args(key))  # the default
             args = self.args(key, {"audio_codec": "opus", "audio_quality": "24"})
             self.assertEqual(args[args.index("--audio-codec"):args.index("--audio-codec") + 4],
