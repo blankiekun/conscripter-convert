@@ -413,9 +413,16 @@ pub fn settings_menu(assets: &mut ArchiveAssets, labels: &Labels) -> Option<Sett
         skip_unread_label: Some("未読テキストもスキップする".into()),
         pictures: super::config::pictures(assets, labels, &switches, characters).map(Box::new),
         switches: switches.into_iter().map(|(label, switch)| SettingSwitch { label, switch }).collect(),
-        // The Vita's デフォルト設定 (0x81070e70): BGM and SE 55 %, voices
-        // 85 %, the window 70 % opaque, the music lowered for voices.
-        defaults: vec![(Setting::BgmVolume, 6), (Setting::SeVolume, 6), (Setting::VoiceVolume, 9), (Setting::WindowTransparency, 3)],
+        // The Vita's デフォルト設定 (0x81070e70): BGM, SE and system sounds
+        // 55 %, voices 85 %, the window 70 % opaque, the music lowered for
+        // voices.
+        defaults: vec![
+            (Setting::BgmVolume, 6),
+            (Setting::SeVolume, 6),
+            (Setting::VoiceVolume, 9),
+            (Setting::WindowTransparency, 3),
+            (Setting::SystemVolume, 6),
+        ],
         switches_off: vec![Switch::BgmFullForVoice],
     })
 }

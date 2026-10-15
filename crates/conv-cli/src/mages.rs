@@ -255,6 +255,7 @@ fn convert(
         extras,
         ops: compiled.ops,
         version: Some(crate::version::line()),
+        menu_sounds: conv_engines::mages::screens::menu_sounds(&mut assets),
         ..Default::default()
     };
     // A dry run writes no pictures to convert.

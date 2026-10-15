@@ -51,12 +51,13 @@ impl<'a> NpaAssets<'a> {
     /// The movie file a script path names, and its name in the output:
     /// the file's own name when it is ASCII, else a hash of it.
     fn movie_source(&self, path: &str) -> Option<(PathBuf, String)> {
+        // `dx/<name>.ngs`, or `dx/3d/<name>.ngs` (the extras' armour).
         let name = path.replace('\\', "/");
-        let name = name.rsplit('/').next()?;
+        let name = name.split_once('/').map_or(name.as_str(), |(_, rest)| rest);
         let src = self.movie_dir.as_ref()?.join(name);
-        let stem = name.strip_suffix(".ngs").unwrap_or(name);
+        let stem = name.strip_suffix(".ngs").unwrap_or(name).replace('/', "_");
         let out = if stem.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
-            stem.to_string()
+            stem
         } else {
             use std::hash::{Hash, Hasher};
             let mut h = std::collections::hash_map::DefaultHasher::new();
@@ -333,11 +334,12 @@ impl Assets for NpaAssets<'_> {
         let (src, name) = self.movie_source(path)?;
         // Frames at half size (a cut that fills the screen is 2.4 MB a
         // frame when loaded), and an alpha movie (a cloud of smoke,
-        // blurred) always: the sprite is zoomed back. A still is whole.
+        // blurred) always: the sprite is zoomed back. A still is whole, and
+        // a small movie (the extras' 400×400 armour) too.
         let (w, h) = match (alpha, at) {
             (true, _) => (info.w / 2, info.h / 4),
-            (false, None) => (info.w / 2, info.h / 2),
-            (false, Some(_)) => (info.w, info.h),
+            (false, None) if info.w as i64 > SCREEN_W / 2 => (info.w / 2, info.h / 2),
+            (false, _) => (info.w, info.h),
         };
         let when = at.map_or("all".to_string(), |ms| ms.to_string());
         let rel = format!("system/movie/{name}_{when}{}.{}", if dark { "_dark" } else { "" }, if alpha { "png" } else { "jpg" });

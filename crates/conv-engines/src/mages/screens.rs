@@ -2,7 +2,7 @@
 //! the eboot's (0x81083fd8); other parts' rectangles are measured from
 //! the pictures (`research/oretsuba/atlas.py`).
 
-use conv_core::ir::{TitleAction, TitleButton, TitleScreen};
+use conv_core::ir::{MenuSounds, TitleAction, TitleButton, TitleScreen};
 
 use super::assets::ArchiveAssets;
 
@@ -45,13 +45,12 @@ pub fn title(assets: &mut ArchiveAssets, extras: bool) -> Option<TitleScreen> {
         let (image, _, _) = assets.system_cells("title_bg.png", &format!("title_{row}.png"), &cells, 100)?;
         buttons.push(TitleButton { image, x: TITLE_X, y: title_y(row), action, ..Default::default() });
     }
-    // SystemSE.AWB: the eboot ticks (0) as the cursor moves and confirms (1)
-    // a title item (0x8105e7a6).
-    let hover_se = assets.system_sound(0);
-    if let Some(se) = assets.system_sound(1) {
-        for b in &mut buttons {
-            b.click_se = Some(se.clone());
-        }
-    }
-    Some(TitleScreen { background, fade_ms: 500, buttons, hover_se, ..Default::default() })
+    Some(TitleScreen { background, fade_ms: 500, buttons, ..Default::default() })
+}
+
+/// SystemSE.AWB's two sounds, in every menu: the eboot ticks (0) as the
+/// cursor moves and confirms (1) an item (the title's at 0x8105e7a6).
+pub fn menu_sounds(assets: &mut ArchiveAssets) -> Option<MenuSounds> {
+    let (hover, confirm) = (assets.system_sound(0), assets.system_sound(1));
+    (hover.is_some() || confirm.is_some()).then_some(MenuSounds { hover, confirm })
 }

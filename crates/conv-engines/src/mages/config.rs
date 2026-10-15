@@ -8,8 +8,8 @@
 //! level, with the snowflake at its end. A third page holds our own
 //! switches (the confirmations, the mouse wheel) in the same style.
 //!
-//! Left out: 選んだ選択肢の色を変更 and 自動クイックセーブ (not converted)
-//! and システムボリューム (no system sounds); their rows are painted over.
+//! Left out: 選んだ選択肢の色を変更 and 自動クイックセーブ (not converted);
+//! their rows are painted over.
 
 use image::{Rgba, RgbaImage, imageops};
 
@@ -125,11 +125,6 @@ fn smooth_patch(img: &mut RgbaImage, (x, y, w, h): (u32, u32, u32, u32)) {
             img.put_pixel(x + i as u32, cy, px);
         }
     }
-}
-
-/// A row from the panel's left to its right edge.
-fn row_rect(y: u32) -> (u32, u32, u32, u32) {
-    (96, y - 16, 776, 32)
 }
 
 /// `img` with its light pixels turned toward gold: a button under the
@@ -278,8 +273,6 @@ pub fn pictures(assets: &mut ArchiveAssets, labels: &Labels, switches: &[(String
     // Rows painted over top to bottom: the panel is a vertical gradient.
     let mut page1 = clean1.clone();
     patch(&mut page1, (96, ROWS[4] - 16, 776, ROWS[5] - ROWS[4] + 32));
-    let mut page2 = clean2.clone();
-    patch(&mut page2, row_rect(ROWS[3]));
     // The window's bar (row 8) also makes our オート速度 bar, on row 5.
     let window_line = fill_line(&orig1, ROWS[7]);
     let mut auto_page = page1.clone();
@@ -309,7 +302,7 @@ pub fn pictures(assets: &mut ArchiveAssets, labels: &Labels, switches: &[(String
         slider(assets, &orig1, window_line, &knob, "cfg_window", window_line, SettingValue::Level(Setting::WindowTransparency), true),
     ];
     let mut rows2 = Vec::new();
-    for (i, setting) in [Setting::VoiceVolume, Setting::BgmVolume, Setting::SeVolume].into_iter().enumerate() {
+    for (i, setting) in [Setting::VoiceVolume, Setting::BgmVolume, Setting::SeVolume, Setting::SystemVolume].into_iter().enumerate() {
         let line = fill_line(&orig2, ROWS[i]);
         rows2.push(slider(assets, &orig2, line, &knob, &format!("cfg_vol{i}"), line, SettingValue::Level(setting), false));
     }
@@ -330,7 +323,7 @@ pub fn pictures(assets: &mut ArchiveAssets, labels: &Labels, switches: &[(String
         rows3.push(choice(assets, &atlas1, &clean1, o[0], &[1, 0], sw(*s), &format!("cfg_sw{i}"), dy));
     }
 
-    let mut pages = vec![(page1, rows1), (page2, rows2)];
+    let mut pages = vec![(page1, rows1), (clean2.clone(), rows2)];
     if !rows3.is_empty() {
         pages.push((page3, rows3));
     }

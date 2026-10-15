@@ -184,7 +184,7 @@ pub(crate) fn extras(out: &mut String, m: &ExtrasMenu, fade: &str, settings: boo
         replay::replay(out, r, &m.background, DRAW);
     }
     if let Some(music) = &m.music {
-        music::music(out, music, &m.background, DRAW);
+        music::music(out, music, &m.background, DRAW, settings);
     }
     if let Some(room) = &m.movies {
         movies::movies(out, room, &m.background, DRAW);
