@@ -76,8 +76,8 @@ The other convert options (`--loose`, `--audio-codec`,
 | Parallel processes (`CreateProcess`: battle HUD, fire flicker, …) | ❌ Not converted; planned through Lua |
 | Additive / multiply blends, `Rotate`, `SetFrequency`, camera moves | ❌ Not converted |
 | 立方陣 minigame (`function_magiccube.nss`) | ✅ Ported (see "The 立方陣" below) |
-| System screens (title, save/load, settings, backlog) | 🟡 Title, right-click menu, quick bar, questions, save/load, favour screen done; backlog and click-wait icon done; settings and motion to do ("Next" item 4) |
-| Extras | ❌ Out of scope for now (decided 2026-10-13) |
+| System screens (title, save/load, settings, backlog) | ✅ Title, right-click menu, quick bar, confirmations, save/load, backlog, settings, favour screen, click-wait icon (each checked beside the original); 🟡 the title's fire flicker and openings left ("Next" item 4, step 7) |
+| Extras | 🟡 The menu, CG gallery, sound room, recollection and 3D viewer done; the white flash back to the title and the title's ライナー画像 button left ("Next" item 4, step 8) |
 
 ## Files and formats
 
