@@ -122,8 +122,11 @@ const SLIDE_K: &str = "%145";
 const MOUSE_Y: &str = "%146";
 pub(crate) const BAR_SLIDE_IN: &str = "conv_bar_slide_in";
 pub(crate) const BAR_SLIDE_OUT: &str = "conv_bar_slide_out";
-/// The sliding bar's hotspot (a `btn`, see [`button_bar`]).
+/// The sliding bar's hotspot (a `btn`, see [`button_bar`]), also the
+/// unpinned bar's ([`BarAction::Lock`]).
 const BTN_EDGE: i32 = BAR_BUTTON_BASE + 300;
+/// 1 while the bars are unpinned ([`BarAction::Lock`]; global).
+const BAR_UNPINNED: &str = "%2908";
 /// The game saved before the last choice ([`BarAction::BackToChoice`]);
 /// a global that is 1 while it is being loaded (see [`LOADED`]).
 pub(crate) const BACK_SLOT: u32 = 891;
@@ -509,6 +512,7 @@ pub(crate) fn bar_label(a: BarAction) -> &'static str {
         BarAction::Fullscreen => "conv_bar_full",
         BarAction::FastSkip => "conv_bar_fskip",
         BarAction::BackToChoice => "conv_bar_back",
+        BarAction::Lock { .. } => "conv_bar_lock",
         // The command menu's own.
         BarAction::Close | BarAction::Call => "",
     }
@@ -563,6 +567,11 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, s: BarScreens) {
         out.push('\n');
     };
     let slide = bar.slide;
+    // Where an unpinned bar shows ([`BarAction::Lock`]).
+    let reveal = bar.buttons.iter().find_map(|b| match b.action {
+        BarAction::Lock { reveal_y } => Some(reveal_y),
+        _ => None,
+    });
     // A sliding bar's x is offset by BAR_OFFSET.
     let x = |p: &Placed| if slide.is_some() { format!("{}+{BAR_OFFSET}", p.x) } else { p.x.to_string() };
     let lsp = |slot: u32, p: &Placed, cells: &str| format!("lsp {slot},\":a{cells};{}\",{},{}", path(&p.image), x(p), p.y);
@@ -587,11 +596,15 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, s: BarScreens) {
         w(format!("if {BAR_OUT} == 1 && {TMP} <= {} gosub *{BAR_SLIDE_OUT}:goto *{WAIT}", sl.edge_x));
         w(format!("getmouseover {BTN_EDGE},{BTN_EDGE}"));
     }
+    if reveal.is_some() {
+        // Unpinned: the pointer crossing the line redraws the bar.
+        w(format!("if {BAR_UNPINNED} == 1 getmouseover {BTN_EDGE},{BTN_EDGE}"));
+    }
     if keys {
         w("getkey".into());
     }
     w(format!("textbtnwait {BUTTON_VAR}"));
-    if slide.is_some() {
+    if slide.is_some() || reveal.is_some() {
         w(format!("if {BUTTON_VAR} == {BTN_EDGE} goto *{WAIT}"));
     }
     // Wheel down (-3) reads on, like a click; wheel up (-2) opens the log.
@@ -653,6 +666,12 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, s: BarScreens) {
     if let Some(sl) = slide {
         w(format!("mov {BAR_OFFSET},{}:if {BAR_OUT} == 1 mov {BAR_OFFSET},0", sl.hidden_dx));
     }
+    if let Some(y) = reveal {
+        // Unpinned and the pointer above the line: only the hotspot below
+        // it. Off the screen (auto-play) is below.
+        w(format!("getmousepos {TMP},{MOUSE_Y}"));
+        w(format!("if {BAR_UNPINNED} == 1 && {MOUSE_Y} < {y} btn {BTN_EDGE},0,{y},{},{},0,0:print 1:return", s.width, s.height as i32 - y));
+    }
     if state {
         w(format!("gosub *{BAR_STATE}"));
     }
@@ -669,8 +688,12 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, s: BarScreens) {
         }
         w(lsp(*slot, &b.image, cells));
         if let Some(active) = &b.active {
-            let state = if b.action == BarAction::Auto { 2 } else { 1 };
-            w(format!("if {MODE_STATE} == {state} {}", lsp(*slot, active, cells)));
+            let on = match b.action {
+                BarAction::Auto => format!("{MODE_STATE} == 2"),
+                BarAction::Lock { .. } => format!("{BAR_UNPINNED} == 1"),
+                _ => format!("{MODE_STATE} == 1"),
+            };
+            w(format!("if {on} {}", lsp(*slot, active, cells)));
         }
         match disabled_while(b.action) {
             Some(off) => w(format!("if {off} == 1 cell {slot},2\n{only_out}if {off} == 0 spbtn {slot},{}{press}", number(i))),
@@ -686,8 +709,19 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, s: BarScreens) {
         w(format!("if {BAR_OUT} == 0 btn {BTN_EDGE},{edge},0,{},{height},0,0", width - edge));
         w(format!("if {BAR_OUT} == 1 btn {BTN_EDGE},0,0,{edge},{height},0,0"));
     }
+    if let Some(y) = reveal {
+        // The hotspot above the bar ends the wait when the pointer leaves.
+        w(format!("if {BAR_UNPINNED} == 1 btn {BTN_EDGE},0,0,{},{y},0,0", s.width));
+    }
     if let Some(top) = &bar.top {
+        // Unpinned, the top bars stay hidden.
+        if reveal.is_some() {
+            w(format!("if {BAR_UNPINNED} == 1 goto *conv_bar_draw_end"));
+        }
         scene_bar_draw(&mut w, top, chapter_text, scene_text, scene_buttons);
+    }
+    if reveal.is_some() {
+        w("*conv_bar_draw_end".into());
     }
     w("print 1".into());
     w("return".into());
@@ -808,6 +842,7 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, s: BarScreens) {
                 w(then.into());
             }
             BarAction::Fullscreen => w(format!("isfull {TMP}\nif {TMP} == 1 menu_window:return\nmenu_full")),
+            BarAction::Lock { .. } => w(format!("mov {BAR_UNPINNED},1-{BAR_UNPINNED}")),
             BarAction::Close | BarAction::Call => unreachable!(),
         }
         w("return".into());
@@ -1723,6 +1758,28 @@ pub(crate) mod tests {
             assert!(out.contains(line), "missing {line:?} in\n{out}");
         }
         assert!(!out.contains("conv_scene"), "scene routines without top bars:\n{out}");
+    }
+
+    #[test]
+    fn unpinned_bars_show_under_the_pointer() {
+        use conv_core::ir::BarButton;
+        let bar = ButtonBar {
+            buttons: vec![BarButton { image: placed("lock", 87, 19), active: Some(placed("lock_on", 87, 19)), action: BarAction::Lock { reveal_y: 573 } }],
+            top: None,
+            ..Default::default()
+        };
+        let mut out = String::new();
+        button_bar(&mut out, &bar, BarScreens { width: 800, height: 600, ..Default::default() });
+        for line in [
+            "if %2908 == 1 getmouseover 1300,1300\n",
+            "textbtnwait %9\nif %9 == 1300 goto *conv_wait\n",
+            "getmousepos %105,%146\nif %2908 == 1 && %146 < 573 btn 1300,0,573,800,27,0,0:print 1:return\n",
+            "if %2908 == 1 lsp 34,\":a/3,0,3;system\\lock_on.png\",10,20\n",
+            "if %2908 == 1 btn 1300,0,0,800,573,0,0\n",
+            "*conv_bar_lock\nmov %2908,1-%2908\nreturn\n",
+        ] {
+            assert!(out.contains(line), "missing {line:?} in\n{out}");
+        }
     }
 
     #[test]

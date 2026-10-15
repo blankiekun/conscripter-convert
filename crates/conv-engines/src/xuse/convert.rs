@@ -1220,8 +1220,10 @@ impl AssetBank {
     /// eight states side by side (normal, under the pointer, pressed,
     /// disabled, then the same four while the mode is on). Base and frame
     /// (0, 1) are empty. Positions measured on a screenshot of the
-    /// original, where the bar runs along the bottom edge. Not converted:
-    /// the lock button (9, keeps the bar from hiding; this bar never hides).
+    /// original, where the bar runs along the bottom edge. The lock button
+    /// (9) unpins the bars (filmed under wine): the top bars hide and this
+    /// one shows only while the pointer is on it (below y 573); its open
+    /// padlock (cells 4-7) is the pinned default, the closed one unpinned.
     pub fn button_bar(&mut self) -> Result<ButtonBar, ConvertError> {
         let images = self.gaf_images("wnd.arc", "SysTray.004", "button bar")?;
         let mut buttons = Vec::new();
@@ -1233,6 +1235,7 @@ impl AssetBank {
             (3, "load", 607, 581, BarAction::Load),
             (7, "setting", 682, 581, BarAction::Settings),
             (8, "hide", 756, 583, BarAction::HideWindow),
+            (9, "lock", 304, 581, BarAction::Lock { reveal_y: 573 }),
         ] {
             let png = images.get(n).ok_or(ConvertError::MissingAsset { kind: "button bar image", number: n })?;
             let states = image::load_from_memory_with_format(png, image::ImageFormat::Png)
@@ -1249,9 +1252,14 @@ impl AssetBank {
                 self.save_image(&image, &out)?;
                 Ok(Placed { image, x, y, w: out.width() as i32, h: out.height() as i32 })
             };
-            let image = if action == BarAction::Unavailable { strip(name, &[3])? } else { strip(name, &[0, 1, 3])? };
+            let image = match action {
+                BarAction::Unavailable => strip(name, &[3])?,
+                BarAction::Lock { .. } => strip(name, &[4, 5, 7])?,
+                _ => strip(name, &[0, 1, 3])?,
+            };
             let active = match action {
                 BarAction::Auto | BarAction::Skip => Some(strip(&format!("{name}_on"), &[4, 5, 7])?),
+                BarAction::Lock { .. } => Some(strip(&format!("{name}_on"), &[0, 1, 3])?),
                 _ => None,
             };
             buttons.push(BarButton { image, active, action });

@@ -728,6 +728,17 @@ exe (`research/tools/ghidra/ghidra_export.sh`, names in
      the start, at most 12 px. Now (`lower_quake`): at most 30 points a
      second, the full range for 4 points, then shrinking: 14 frames,
      starting at 20 px.
+17. **Done: the button bar's lock button** (`SysTray.004` #9, filmed under
+   wine). By default the bars are pinned: always up, the button an open
+   padlock (cells 4-7). Clicked, the padlock closes (cells 0-3) and the
+   bars unpin: the top bars stay hidden, and the bottom bar shows only
+   while the pointer is below y 573, fading in over about 100 ms (not
+   converted: ours pops up). `BarAction::Lock { reveal_y }`: the global
+   `%2908`, and while unpinned an invisible `btn` hotspot on the other
+   side of the line (`getmouseover`) ends the click wait when the
+   pointer crosses it, so the bar is drawn again. Checked on our build
+   on its own Xvfb display (`og.sh`): the same four states as the
+   original.
 
 
 Converted and playable from start to end: text, voices, sprites with
@@ -838,7 +849,6 @@ parts are not converted:
   are done; the system voices (WSS, title image 13) are dropped (the
   user's decision; the item stays greyed out). No title BGM (the
   original's title code plays none, as far as was checked).
-- Button bar lock button (`SysTray.004` #9).
 
 **Script opcodes:** all converted (the converter reports 2 unsupported
 instructions, both in the unreachable debug menu). Notes on the last

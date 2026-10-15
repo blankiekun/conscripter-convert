@@ -807,6 +807,10 @@ pub enum BarAction {
     /// ([`CommandItem::label`]); the background, the game's sprites and the
     /// music are put back after.
     Call,
+    /// Unpins the bars (the button's `active` look) or pins them again
+    /// (the default): unpinned, the top bars stay hidden and the button
+    /// bar shows only while the pointer is below `reveal_y`.
+    Lock { reveal_y: i32 },
 }
 
 /// The extras the title's option button opens: a menu of modes over its
