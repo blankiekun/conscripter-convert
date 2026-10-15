@@ -323,6 +323,13 @@ with the original (it wants all eleven endings' flags under wine).
 
 ## History
 
+- **Music after dja009 (2026-10-15).** dja009 ends with `Delete("*")`,
+  which deleted every object, the music objects (`dj01`…, made once by
+  `InitBGM` before the first chapter) with them: 30 of the 50 chapters
+  with music played none. The script waits for that music right after
+  the `Delete("*")` (`WaitPlay("@dj*")`), so in the original it deletes
+  only the chapter's own objects, as a chapter's end does
+  (`Game::chapter_objects`).
 - **Motion (2026-10-15).** `Move`, `Zoom` and `MoveCamera` over time were
   drawn as cross-fades from the old place to the new; the congratulations'
   pans came out as cuts. Now a picture that only moves or zooms is moved

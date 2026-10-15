@@ -136,6 +136,10 @@ pub struct Game {
     /// `窓` and `音` windows are made for pictures and sounds to "hang on
     /// between files"; a scene's fade to black `黒幕` is never deleted
     /// otherwise). Inferred from the scripts, not checked in the exe.
+    /// `Delete("*")` in a chapter deletes the same objects: dja009 waits
+    /// for its music (`WaitPlay("@dj*")`) right after one, and its music
+    /// objects, made once before the first chapter, play in the later
+    /// chapters.
     chapter_objects: bool,
     /// Horizontal text starts this far below its box's top (the line's
     /// ruby space above it): 続・殺戮のジャンゴ's first row of ＭＳ Ｐ
@@ -1042,6 +1046,8 @@ struct Compiler<'a, 'b> {
     /// exists (続・殺戮のジャンゴ's `TypeBegin`): the block shows its
     /// pages as soon as it runs.
     pending_enter: Option<String>,
+    /// [`Compiler::seq`] when the chapter being run began.
+    chapter_mark: Option<u64>,
     /// `LoadText(unit, box, w, h, letter, line)` (続・殺戮のジャンゴ): the
     /// layout of every text in that box, as [`TextObject::layout`].
     box_layouts: HashMap<String, (i64, i64, i64, i64, i64)>,
@@ -1738,6 +1744,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
             window_visible: false,
             texts_shown: 0,
             pending_enter: None,
+            chapter_mark: None,
             box_layouts: HashMap::new(),
             whole_story: false,
             loaded_images: HashMap::new(),
@@ -1973,8 +1980,10 @@ impl<'a, 'b> Compiler<'a, 'b> {
         }
         let saved = std::mem::replace(&mut self.file, file);
         let mark = self.seq;
+        let saved_mark = self.chapter_mark;
         if chapter {
             self.returned = None;
+            self.chapter_mark = Some(mark);
         }
         self.depth += 1;
         self.frames.push(HashMap::new());
@@ -1982,6 +1991,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
         self.frames.pop();
         self.depth -= 1;
         self.file = saved;
+        self.chapter_mark = saved_mark;
         if chapter && self.game.chapter_objects {
             self.delete_chapter_objects(mark);
             // The way that returned early leaves the chapter too.
@@ -3186,6 +3196,36 @@ scene a.nss
         let two_shown = c.ops[..bad.unwrap()].iter().rposition(|op| matches!(op, Op::Sprites { changes, .. } if changes.iter().any(|c| c.sprite.as_ref().is_some_and(|s| s.image == "cg/two.jpg"))));
         let label = c.ops[..bad.unwrap()].iter().rposition(|op| matches!(op, Op::Label(_)));
         assert!(two_shown < label, "{:?}", c.ops);
+    }
+
+    #[test]
+    fn delete_all_in_a_chapter_keeps_what_was_made_before_it() {
+        static GAME: Game = Game { chapter_objects: true, ..Game::PLAIN };
+        let mut files = BTreeMap::new();
+        files.insert(BOOT.to_string(), nss::parse("#include \"nss/function.nss\"\n").unwrap());
+        files.insert("function.nss".to_string(), nss::parse(LIBRARY).unwrap());
+        let a = r#"scene a.nss
+{
+	CreateSound("bgm1", BGM, "sound/bgm/one");
+	call_chapter nss/b.nss;
+	Request("bgm1", Play);
+	SetLoop("bgm1", true);
+	Wait(100);
+}"#;
+        let b = r#"chapter main
+{
+	CreateTexture("pic", 100, 0, 0, "cg/one.png");
+	Fade("pic", 0, 1000, null, true);
+	Wait(100);
+	Delete("*");
+	Wait(100);
+}"#;
+        files.insert("a.nss".into(), nss::parse(a).unwrap());
+        files.insert("b.nss".into(), nss::parse(b).unwrap());
+        let c = compile_story(&files, "a.nss", "a.nss", &GAME, &mut Fake).unwrap();
+        assert!(c.ops.iter().any(|op| matches!(op, Op::BgmPlay { file, .. } if file == "sound/bgm/one.ogg")), "{:?}", c.ops);
+        let removed = c.ops.iter().any(|op| matches!(op, Op::Sprites { changes, .. } if changes.iter().any(|c| c.sprite.is_none())));
+        assert!(removed, "{:?}", c.ops);
     }
 
     #[test]

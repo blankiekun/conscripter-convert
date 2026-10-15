@@ -173,6 +173,9 @@ impl Compiler<'_, '_> {
                 }
                 self.timed(arg(1).int(), &arg(5), &targets);
             }
+            "Delete" if arg(0).string() == "*" && self.game.chapter_objects && self.chapter_mark.is_some() => {
+                self.delete_chapter_objects(self.chapter_mark.unwrap());
+            }
             "Delete" => {
                 for t in self.matching(&arg(0)) {
                     // (A child may have gone with its parent.)
