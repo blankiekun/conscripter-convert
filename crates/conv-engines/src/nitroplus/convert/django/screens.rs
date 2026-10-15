@@ -57,5 +57,6 @@ fn title(a: &mut dyn Assets) -> Option<TitleScreen> {
         start_bgm_fade_ms: 1000,
         start_wait_ms: 0,
         exit_without_asking: false,
+        glow: None,
     })
 }
