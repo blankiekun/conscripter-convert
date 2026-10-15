@@ -282,8 +282,10 @@ anything is reached (step 11.6).
 - Then read the effect's kernel in the exe for the exact curve, and fit
   the filmed frames to it. Example: MeltDown, edge = h·((p − d)/(1 − d))².
 - Check our side the same way: run CONscripter on its own Xvfb display
-  with `SDL_RENDER_DRIVER=software` (otherwise the grab is black) and
-  grab frames mid-effect with `import`.
+  with `WAYLAND_DISPLAY= SDL_VIDEODRIVER=x11 SDL_RENDER_DRIVER=software`
+  (the default renderer grabs black; without `WAYLAND_DISPLAY=` the
+  window opens on the user's desktop) and grab frames mid-effect with
+  `import -window root`.
 
 ## 10. Engine additions
 
@@ -603,3 +605,10 @@ a 37600x600 animation strip works in a browser.
 pictures of chosen pages during the same run; F8 while playing with a
 trace on writes the state at that moment (and natively a picture). The
 web build takes `?trace` in its URL and downloads the trace with F7.
+
+**When the trace can't do it** (the older recipe): patch a copy of
+`0.txt`: `textbtnwait` in `*conv_wait` → `mov %9,0`; comment out
+`click` in `*conv_click_wait`; put `mov %101,1:goto *label` right after
+`erasetextwindow 0` in `*start`. `research/xuse/smoke.py` does scripted
+clicks and screenshots (its click queue is `%1000+`; keep converter
+variables out of 1000-1099).

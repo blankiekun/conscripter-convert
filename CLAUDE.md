@@ -148,16 +148,9 @@ each in its own worktree), and their work meets in shared code.
   Start anywhere with `--goto <label> --vars <file>` instead of patching
   `0.txt`. Exit codes: 0 end, 1 auto-play stuck, 2 script error, 3
   startup failure, 128+n a signal.
-- Headless game runs (the older recipe, when the trace can't do it):
-  patch a copy of `0.txt`: `textbtnwait` in `*conv_wait` → `mov %9,0`;
-  comment out `click` in `*conv_click_wait`; put `mov %101,1:goto
-  *label` right after `erasetextwindow 0` in `*start`. `research/xuse/smoke.py` does scripted clicks and
-  screenshots (its click queue is `%1000+`; keep converter variables out
-  of 1000-1099).
-- Frames mid-effect: run on your own Xvfb display with
-  `WAYLAND_DISPLAY= SDL_VIDEODRIVER=x11 SDL_RENDER_DRIVER=software`
-  (the default renderer grabs black) and `import -window root`. Without
-  `WAYLAND_DISPLAY=` the window opens on the user's desktop.
+- Frames mid-effect and the older patched-script runs: `docs/new-game.md`
+  step 9 and "When the trace can't do it". On Xvfb always set
+  `WAYLAND_DISPLAY=`, or the window opens on the user's desktop.
 - Test scripts: encode with `iconv -t cp932` (not `sjis`, which turns `\`
   into `＼`).
 - Read a variable headless: `lsp 999,"X:"+$1,0,0` prints "can't find
