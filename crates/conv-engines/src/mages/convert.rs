@@ -447,7 +447,7 @@ struct Lowering<'a> {
     assets: &'a mut dyn Assets,
     out: Compiled,
     /// Pictures by key: `c<number>` for characters, `t<texture>`, `bg`.
-    shown: HashMap<String, Shown>,
+    shown: BTreeMap<String, Shown>,
     next_slot: HashMap<u32, u32>,
     /// A transition is open (staged changes wait for InOut).
     staging: bool,
@@ -1505,7 +1505,7 @@ fn act_style(t: &Block) -> TransitionStyle {
 /// Compiles `scenes` (all of them if empty), each at its label, after a
 /// jump to the game's first scene.
 pub fn compile(game: &Game, scenes: &[String], assets: &mut dyn Assets) -> Compiled {
-    let mut l = Lowering { game, assets, out: Compiled::default(), shown: HashMap::new(), next_slot: HashMap::new(), staging: false, choices: 0, cover: None, eye_catch: false, shutters: None, inherited: false, opening: false, messages: 0 };
+    let mut l = Lowering { game, assets, out: Compiled::default(), shown: BTreeMap::new(), next_slot: HashMap::new(), staging: false, choices: 0, cover: None, eye_catch: false, shutters: None, inherited: false, opening: false, messages: 0 };
     let names: Vec<&String> = if scenes.is_empty() { game.scenes.keys().collect() } else { scenes.iter().collect() };
     let first = names.first().map(|s| s.as_str()).unwrap_or(&game.start);
     let first = if scenes.is_empty() { game.start.as_str() } else { first };
