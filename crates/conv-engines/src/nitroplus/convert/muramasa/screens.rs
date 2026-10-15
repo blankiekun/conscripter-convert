@@ -30,6 +30,7 @@ pub fn menus(a: &mut dyn Assets, script: &mut Script, story: &Story) {
     script.line_log = line_log(a);
     script.wait_icon = wait_icon(a);
     script.picture_settings = settings(a, story);
+    script.picture_extras = super::extras::extras(a, story);
 }
 
 /// The settings screen (`sys_config.nss`): コンフィグ over the screen, its
@@ -426,7 +427,7 @@ fn title(a: &mut dyn Assets, story: &Story) -> Option<TitleScreen> {
         }
         let Some(movie) = movies[picture].clone() else { continue };
         let glow_keys = Some(vec![(0, 256), (100, 256), (700, 0), (1200, 0), (1800, 256), (2200, 256)]);
-        openings.push(TitleOpening { movie, at_launch: true, sound: launch_sound.clone(), glow_keys, when, sets, random });
+        openings.push(TitleOpening { movie, at_launch: true, sound: launch_sound.clone(), glow_keys, when, sets, random, ..Default::default() });
     }
     if let Some(movie) = super::opening::on_return(a) {
         let sound = a.delayed_sound("sound/se/se特殊_雰囲気_鎧登場演02", 1800);
@@ -443,8 +444,7 @@ fn title(a: &mut dyn Assets, story: &Story) -> Option<TitleScreen> {
         ("最初から", 762, TitleAction::Start, Some("se特殊_鎧_装着03")),
         ("電光記録", 702, TitleAction::Load, Some("se戦闘_動作_刀構え01")),
         ("設定画面", 282, TitleAction::Settings, Some("se戦闘_動作_刀構え01")),
-        // The extras come with step 8.
-        ("特別付加", 222, TitleAction::Unavailable, None),
+        ("特別付加", 222, TitleAction::Extras, Some("se特殊_鎧_装着04")),
         ("終了する", 162, TitleAction::Exit, None),
     ] {
         let state = |n: u32| format!("{DIR}/{name}-{n:03}.png");

@@ -95,13 +95,14 @@ pub(crate) fn extras(out: &mut String, m: &ExtrasMenu, fade: &str, settings: boo
         .map(|v| format!("mov {v},0"))
         .collect::<Vec<_>>()
         .join(":");
+    let menu_background = m.menu_background.as_deref().unwrap_or(&m.background);
     w(format!("*{EXTRAS}"));
     w("csp -1".into());
-    w(format!("bg \"{}\",0", path(&m.background)));
+    w(format!("bg \"{}\",0", path(menu_background)));
     w(format!("print {fade}"));
     w(format!("*{DRAW}"));
     w("csp -1".into());
-    w(format!("bg \"{}\",0", path(&m.background)));
+    w(format!("bg \"{}\",0", path(menu_background)));
     // The gallery is open once one of its CGs has been seen.
     w(format!("mov {UNLOCKED},0"));
     if let Some(g) = gallery {

@@ -658,7 +658,9 @@ pub struct TitleOpening {
     pub sets: Vec<Var>,
     /// One of a pool: the openings marked so whose `when` holds are tried
     /// together, where the first of them stands, one picked at random.
-    pub random: bool,
+    pub random: bool,    /// Only on coming back from the [`Script::picture_extras`] (instead of
+    /// [`TitleOpening::at_launch`]'s choice).
+    pub after_extras: bool,
 }
 
 /// [`TitleScreen::glow`]: a full-screen picture drawn at a changing
@@ -695,6 +697,8 @@ pub enum TitleAction {
     /// Load the quick save; drawn at half opacity and not clickable while
     /// there is none.
     Continue,
+    /// The [`Script::picture_extras`].
+    Extras,
 }
 
 /// An image with its top-left corner on screen, and its size (all cells).
@@ -960,6 +964,10 @@ pub struct ExtrasMenu {
     pub replay: Option<SceneReplay>,
     pub music: Option<MusicRoom>,
     pub movies: Option<MovieRoom>,
+    /// The menu's own picture when it isn't the modes' `background`
+    /// (俺たちに翼はない lists the modes over the title); `None` uses
+    /// `background`.
+    pub menu_background: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1304,7 +1312,7 @@ pub enum Switch {
     /// A scene already read offers to be skipped (the MAGES scene jump
     /// dialog); off: it just plays.
     SceneSkipDialog,
-    /// Skip mode stops at a choice; off: it goes on after it.
+    /// Skip and auto mode stop at a choice; off: they go on after it.
     StopSkipAtChoice,
     /// The music keeps its volume while a voice plays; off: it is lowered.
     BgmFullForVoice,
@@ -1487,6 +1495,9 @@ pub struct Script {
     /// The settings screen drawn as one picture, in place of
     /// [`Script::settings`].
     pub picture_settings: Option<PictureSettings>,
+    /// The extras drawn from the game's pictures, opened by the title's
+    /// [`TitleAction::Extras`].
+    pub picture_extras: Option<PictureExtras>,
 }
 
 /// The save and load screens as pages of thumbnails over a picture per
@@ -1789,4 +1800,46 @@ pub struct PictureText {
     pub y: i32,
     pub font_size: u32,
     pub colour: String,
+}
+
+/// Extras drawn from the game's own pictures (装甲悪鬼村正's 特別付加目録):
+/// buttons over a full-screen picture, each opening a mode or going back
+/// to the title (as does a right-click). It cross-fades in from the title
+/// and back to it over `fade_ms`. Buttons are strips of three cells: at
+/// rest, under the pointer, pressed.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PictureExtras {
+    pub background: String,
+    pub items: Vec<PictureExtrasItem>,
+    /// Played when the pointer comes onto a button.
+    pub hover_se: Option<String>,
+    /// Played on going back to the title.
+    pub back_se: Option<String>,
+    pub fade_ms: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PictureExtrasItem {
+    pub button: Placed,
+    pub mode: ExtrasMode,
+    /// Locked while this variable is 0: drawn at `locked_alpha` (0-255),
+    /// not clickable.
+    pub unlocked_by: Option<Var>,
+    pub locked_alpha: u8,
+    /// Played when it is clicked.
+    pub click_se: Option<String>,
+}
+
+/// What a [`PictureExtrasItem`] opens. A mode the script lacks is drawn
+/// but not clickable.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExtrasMode {
+    Gallery,
+    Recollection,
+    Sound,
+    /// A viewer of looping movies with their names and details (装甲悪鬼村正's
+    /// 劒冑回転目録).
+    Turntable,
+    /// Back to the title.
+    Back,
 }

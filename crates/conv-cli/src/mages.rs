@@ -221,8 +221,12 @@ fn convert(
     let compiled = convert::compile(&g, scenes, &mut assets);
     let window = convert::text_window(&mut assets);
     let labels = font_bytes.as_deref().and_then(conv_engines::mages::menus::Labels::new);
-    let extras = if scenes.is_empty() { labels.as_ref().and_then(|l| conv_engines::mages::extras::extras(&mut assets, l, &g)) } else { None };
+    let mut extras = if scenes.is_empty() { labels.as_ref().and_then(|l| conv_engines::mages::extras::extras(&mut assets, l, &g)) } else { None };
     let title_screen = conv_engines::mages::screens::title(&mut assets, extras.is_some());
+    // The extras menu is the title's GALLERY list, over the title.
+    if let (Some(e), Some(t)) = (&mut extras, &title_screen) {
+        e.menu_background = Some(t.background.clone());
+    }
     let menus = labels.as_ref().map(|l| {
         use conv_engines::mages::menus;
         (menus::button_bar(&mut assets, l), menus::save_menu(&mut assets, l), menus::settings_menu(&mut assets, l), menus::backlog(&mut assets, l), menus::confirm_dialog(&mut assets, l))

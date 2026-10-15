@@ -25,6 +25,7 @@ mod movies;
 mod music;
 pub mod nsa;
 mod picture_screen;
+mod picture_extras;
 mod picture_settings;
 mod puzzle;
 mod replay;
@@ -112,7 +113,8 @@ const BUTTON_VAR: &str = "%9";
 // %183-%184, the click-wait icon's place ([`WAIT_ICON_AT`]).
 // The settings switches' flags: %3640-%3647, %2910-%2919, %2950-%2951 and
 // %4116-%5095 ([`switches`]). %2960, the title's openings
-// ([`TITLE_SHOWN`]).
+// ([`TITLE_SHOWN`]). %5200 up: an NSS game's `#` flags past %969 (the
+// nitroplus compiler's `GLOBAL_OVERFLOW`).
 /// NScripter variables: locals from %10, globals from %200. `globalon`
 /// makes %200 and up persist across games.
 const LOCAL_VAR_BASE: u32 = 10;
@@ -129,6 +131,8 @@ const TITLE_START: &str = "conv_title_start";
 /// A global, 0 until the title has been shown in this run (the define
 /// section clears it; `reset` keeps it): which opening plays.
 const TITLE_SHOWN: &str = "%2960";
+/// The title's sprites, without its music (back from the picture extras).
+const TITLE_SPRITES: &str = "conv_title_sprites";
 /// Colours of clickable words (measured on the original): not yet
 /// visited, visited, each also under the mouse pointer.
 const LINK_COLOR: &str = "#FEE092";
@@ -300,7 +304,6 @@ pub fn emit(script: &Script) -> String {
     let speed = if has_settings { menu::TEXT_MS } else { "20" };
     let voice_switches = script.settings.as_ref().is_some_and(|s| !s.voices.is_empty()) || script.picture_settings.as_ref().is_some_and(|s| s.voice_window.is_some());
     let duck = uses_switch(script, Switch::BgmFullForVoice);
-    let keep_skip = uses_switch(script, Switch::StopSkipAtChoice);
     if script.settings.is_some() {
         menu::settings_init(&mut out, script.settings.as_ref().unwrap());
     }
@@ -1033,11 +1036,6 @@ pub fn emit(script: &Script) -> String {
                     // For going back here (the page before it, as saves are).
                     writeln!(out, "savegame {}", menu::BACK_SLOT).unwrap();
                 }
-                // Skip stops at a choice; the next text turns it on again
-                // when the setting says so.
-                if keep_skip {
-                    writeln!(out, "if {} == 1 isskip {}", menu::switch_off(Switch::StopSkipAtChoice), menu::KEEP_SKIP).unwrap();
-                }
                 let items: Vec<String> = options.iter().map(|(t, l)| format!("\"{}\",*{}", text_safe(t), label(l))).collect();
                 writeln!(out, "select {}", items.join(",")).unwrap();
             }
@@ -1111,7 +1109,6 @@ pub fn emit(script: &Script) -> String {
             confirm: script.confirm.as_ref(),
             width: script.width,
             height: script.height,
-            voice_stops: script.settings.as_ref().is_some_and(|m| m.switches.iter().any(|s| s.switch == Switch::VoiceKeepsPlaying)),
             wait_icon: script.wait_icon.as_ref().map(|i| (i, WAIT_ICON_AT)),
             game_speed: script
                 .picture_settings
@@ -1136,13 +1133,16 @@ pub fn emit(script: &Script) -> String {
     if let Some(l) = &script.line_log {
         line_log::emit(&mut out, l);
     } else if let Some(b) = &script.backlog {
-        menu::backlog(&mut out, b, has_ruby, keep_skip);
+        menu::backlog(&mut out, b, has_ruby);
     }
     if let Some(d) = &script.confirm {
         menu::confirm(&mut out, d);
     }
     if let (Some(m), Some(t)) = (&script.extras, &script.title_screen) {
         extras::extras(&mut out, m, &effect(t.fade_ms), script.settings.is_some());
+    }
+    if let (Some(e), Some(_)) = (&script.picture_extras, &script.title_screen) {
+        picture_extras::emit(&mut out, e, border);
     }
     out
 }
@@ -1156,18 +1156,26 @@ fn title_screen(out: &mut String, t: &TitleScreen, fade: &str, save_menu: bool, 
     // %105 = 1 while there is a quick save (for Continue).
     let quick = buttons.iter().any(|(b, _)| b.action == TitleAction::Continue);
     let quick_exists = format!("savefileexist {},{}", menu::TMP, menu::QUICK_SLOT);
-    if extras {
+    let picture_extras = t.buttons.iter().any(|b| b.action == TitleAction::Extras);
+    if extras || picture_extras {
         writeln!(out, "*{}", extras::TITLE_BACK).unwrap();
     }
     // Effect 0 = update the buffer only; the print shows it all.
     writeln!(out, "bg \"{}\",0", path(&t.background)).unwrap();
     title_openings(out, &t.openings, border);
+    // Back from the picture extras: the music goes on.
+    if picture_extras {
+        writeln!(out, "if {TITLE_SHOWN} == 2 mov {TITLE_SHOWN},1:goto *{TITLE_SPRITES}").unwrap();
+    }
     if !t.openings.is_empty() {
         writeln!(out, "mov {TITLE_SHOWN},1").unwrap();
     }
     writeln!(out, "*{TITLE_DRAW}").unwrap();
     if let Some(bgm) = &t.bgm {
         writeln!(out, "bgm \"{}\"", path(bgm)).unwrap();
+    }
+    if picture_extras {
+        writeln!(out, "*{TITLE_SPRITES}").unwrap();
     }
     title_sprites(out, t, &buttons, quick, None);
     writeln!(out, "print {fade}").unwrap();
@@ -1195,6 +1203,8 @@ fn title_screen(out: &mut String, t: &TitleScreen, fade: &str, save_menu: bool, 
             TitleAction::Load if save_menu => {
                 format!("csp -1:mov {},0:gosub *{}:goto *{TITLE_DRAW}", menu::IN_GAME, menu::LOAD)
             }
+            // The title stays up: the extras cross-fade in over it.
+            TitleAction::Extras => format!("goto *{}", picture_extras::EXTRAS),
             TitleAction::Settings if extras => format!("csp -1:goto *{}", extras::EXTRAS),
             TitleAction::Settings if settings => {
                 format!("csp -1:mov {},0:gosub *{}:goto *{TITLE_DRAW}", menu::IN_GAME, menu::SETTINGS)
@@ -1214,7 +1224,8 @@ fn title_screen(out: &mut String, t: &TitleScreen, fade: &str, save_menu: bool, 
     // ends on the title as the sprites show it.
     for (i, o) in t.openings.iter().enumerate() {
         writeln!(out, "*conv_title_opening{i}").unwrap();
-        if let Some(bgm) = &t.bgm {
+        // Back from the extras, the music is playing.
+        if let Some(bgm) = t.bgm.as_ref().filter(|_| !o.after_extras) {
             writeln!(out, "bgm \"{}\"", path(bgm)).unwrap();
         }
         if let Some(se) = &o.sound {
@@ -1247,7 +1258,14 @@ fn title_screen(out: &mut String, t: &TitleScreen, fade: &str, save_menu: bool, 
 /// openings that may play, %9 is the one picked).
 fn title_openings(out: &mut String, openings: &[conv_core::ir::TitleOpening], border: u32) {
     let cond = |o: &conv_core::ir::TitleOpening| {
-        let mut c = vec![format!("{TITLE_SHOWN} == {}", if o.at_launch { 0 } else { 1 })];
+        let shown = if o.after_extras {
+            2
+        } else if o.at_launch {
+            0
+        } else {
+            1
+        };
+        let mut c = vec![format!("{TITLE_SHOWN} == {shown}")];
         c.extend(o.when.iter().map(|(v, value)| format!("{} == {value}", var_name(*v, border))));
         c.join(" && ")
     };
@@ -2228,6 +2246,7 @@ effect 7,99,1000,\"cons_zoom.dll/3,220,5\"
             replay: None,
             music: None,
             movies: None,
+            menu_background: None,
         });
         let out = emit(&s);
         assert!(out.contains("*conv_title_back\nbg \"system\\title.png\",0\n"), "{out}");
@@ -2289,6 +2308,7 @@ effect 7,99,1000,\"cons_zoom.dll/3,220,5\"
             }),
             music: None,
             movies: None,
+            menu_background: None,
         });
         let out = emit(&s);
         assert!(out.contains("if %9 == 1 goto *conv_replay\n"), "{out}");
@@ -2328,9 +2348,13 @@ effect 7,99,1000,\"cons_zoom.dll/3,220,5\"
                 movies: vec![movie("system/m0.png", "movie/op00.mp4", true), movie("system/m1.png", "movie/op01.mp4", false)],
                 background: None,
             }),
+            menu_background: Some("system/title.png".into()),
         });
         let out = emit(&s);
         assert!(out.contains("if %9 == 1 goto *conv_movies\n"), "{out}");
+        // The menu over its own picture, the room over the extras' one.
+        assert!(out.contains("*conv_extras_draw\ncsp -1\nbg \"system\\title.png\",0\n"), "{out}");
+        assert!(out.contains("bg \"system\\extras.png\",0"), "{out}");
         // A scene playing a movie of the room marks it.
         assert!(out.contains("mpegplay \"movie\\op01.mp4\",1\nmov %2801,1\n"), "{out}");
         assert!(out.contains(
@@ -2364,6 +2388,7 @@ effect 7,99,1000,\"cons_zoom.dll/3,220,5\"
                 background: Some("system/music.png".into()),
             }),
             movies: None,
+            menu_background: None,
         });
         let out = emit(&s);
         assert!(out.contains("if %9 == 1 goto *conv_music\n"), "{out}");

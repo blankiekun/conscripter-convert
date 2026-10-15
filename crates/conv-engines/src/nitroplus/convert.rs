@@ -67,6 +67,12 @@ const FLAG_LOCAL_BASE: u16 = 290;
 /// The first global NScripter variable (locals below it are saved with each
 /// save slot, and the story flags need more than the default 200).
 pub const GLOBAL_BORDER: u32 = 800;
+/// Globals (`#`) past the first [`GLOBAL_ROOM`] go from here (NScripter
+/// %5200 up, past the settings switches at %970-%5095).
+const GLOBAL_OVERFLOW: u16 = 4400;
+/// Globals from [`GLOBAL_BORDER`] up to the settings' voice switches
+/// (`menu::VOICE_OFF_BASE`, %970).
+const GLOBAL_ROOM: u16 = 170;
 /// Where a run of files ends.
 const RUN_END: &str = "conv_run_end";
 /// Set (in the convert-time variables) when a file assigns `$GameName`,
@@ -88,8 +94,8 @@ pub struct Game {
     call: for<'a, 'b> fn(&mut Compiler<'a, 'b>, &str) -> bool,
     /// A call of scene (file, scene): true if the game replaced it.
     scene: for<'a, 'b> fn(&mut Compiler<'a, 'b>, &str, &str) -> bool,
-    /// Story flags the game adds.
-    flags: fn() -> Vec<String>,
+    /// Story flags the game adds (it may read them from the scripts).
+    flags: fn(&BTreeMap<String, NssFile>) -> Vec<String>,
     /// Library files the story may name as its next file (ported).
     files: &'static [&'static str],
     /// The game's system screens (title, menus, dialogs), built from its
@@ -140,7 +146,7 @@ impl Game {
     pub const PLAIN: Game = Game {
         call: |_, _| false,
         scene: |_, _, _| false,
-        flags: Vec::new,
+        flags: |_| Vec::new(),
         files: &[],
         menus: |_, _, _| {},
         subroutines: &[],
@@ -256,6 +262,9 @@ pub struct Compiled {
 pub struct Story<'a> {
     pub flags: &'a HashMap<String, conv_core::ir::Var>,
     pub voice_classes: &'a [String],
+    /// The game's scripts (the system screens' own, `sys_*` and `extra_*`,
+    /// hold their lists).
+    pub files: &'a BTreeMap<String, NssFile>,
 }
 
 /// Compiles scene `scene` of `file` (`ma01_001.nss`, `ma01_001.nss`).
@@ -584,7 +593,7 @@ pub fn story_flags(files: &BTreeMap<String, NssFile>, game: &Game) -> HashMap<St
             }
         }
     }
-    for key in (game.flags)() {
+    for key in (game.flags)(files) {
         set.insert(key.clone());
         tested.insert(key);
     }
@@ -596,7 +605,8 @@ pub fn story_flags(files: &BTreeMap<String, NssFile>, game: &Game) -> HashMap<St
         }
         let var = if name.starts_with('#') {
             global += 1;
-            conv_core::ir::Var { global: true, index: global - 1 }
+            let index = if global <= GLOBAL_ROOM { global - 1 } else { GLOBAL_OVERFLOW + global - 1 - GLOBAL_ROOM };
+            conv_core::ir::Var { global: true, index }
         } else {
             local += 1;
             conv_core::ir::Var { global: false, index: local - 1 }

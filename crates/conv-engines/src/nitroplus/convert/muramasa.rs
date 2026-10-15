@@ -7,8 +7,11 @@
 
 use conv_core::ir::{ArithOp, Op, Operand};
 
-use super::{negate, Compiler, Game, Value};
+use std::collections::BTreeMap;
 
+use super::{negate, Compiler, Game, NssFile, Value};
+
+mod extras;
 mod favour;
 pub mod magiccube;
 mod opening;
@@ -35,7 +38,7 @@ fn scene(c: &mut Compiler<'_, '_>, file: &str, scene: &str) -> bool {
 /// The rankings' counters and results, the death and revival flags that
 /// SatugaiSystem and SetHex set through names built at run time
 /// (VariableValue), and the 立方陣's result.
-fn flags() -> Vec<String> {
+fn flags(_files: &BTreeMap<String, NssFile>) -> Vec<String> {
     let mut out = Vec::new();
     for (_, order, array, last) in RANKINGS {
         for n in order {
@@ -50,6 +53,7 @@ fn flags() -> Vec<String> {
     // Set by the story, read by the settings' voice window.
     out.extend(screens::VOICES.iter().map(|(name, _)| screens::heard_flag(name)));
     out.push(screens::CHAPTER_ONE_CLEARED.to_string());
+    out.push(extras::CLEARED.to_string());
     // The routes cleared and the title's marks for them (TitleSet).
     for route in ["英雄編", "復讐編", "魔王編", "悪鬼編"] {
         out.extend([format!("#{route}終了"), format!("#{route}通過")]);

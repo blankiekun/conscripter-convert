@@ -1033,6 +1033,32 @@ Next, in order:
         the screen was dropped.
       - On Windows CONscripter only opens a movie in an outside player.
 
+   8. **Extras** (特別付加目録, `extra_*.nss`), under way. Filmed in the
+      original from a patched boot (`#ClearG` and a few CGs, a song, a
+      movie and a 3D entry set; shots in `research/nitroplus/local/shots/
+      extras/`). Five screens: the menu, 画像映写機 (CG gallery: 349 slots
+      in 2D/3D/BG, 805 CGs, each a `#<cg name>` flag the story sets),
+      回想映写機 (ten H scenes, each unlocked by its file's `#ma01_020`-style
+      flag and replayed from the file's `$PLACE_reco` branch), 電磁蓄音機/
+      動画映写機 (37 BGM, five songs, three movies; the track chosen stays
+      the extras' music, `#エキストラＢＧＭ`), 劒冑回転目録 (46 looping 400×400
+      movies of the armour with name plates and specs, `#av_`/`#aw_`). The
+      title's ライナー画像 button (after 悪鬼編) is another extra, not yet
+      looked at. Plan, in order, each beside the original:
+      1. Done: the menu (a new `PictureExtras`, `conv-cons/src/
+         picture_extras.rs`; Muramasa's values in `convert/muramasa/
+         extras.rs`): MENU背景画像 and five buttons with their hover and
+         pressed pictures; 画像, 回想 and 音楽 at 200/1000 and not clickable
+         until `#ClearG` (set at any route's end roll); the hover sound
+         (鎧_装着01), 装着06 on opening a mode, 剣戟弾く01 on leaving by
+         退出 or a right-click; 500 ms cross-fades from and back to the
+         title, whose music goes on (`TitleAction::Extras`; back from the
+         extras the title skips `bgm`). The `#` flags past %969 now go on
+         at %5200 (the gallery's would have run into the voice switches).
+      2. The gallery. 3. The sound room. 4. The recollection.
+      5. The 3D viewer. 6. Back to the title: the white flash and the
+         return opening's tail (`TitleOpening::after_extras`).
+
    The user's decisions (2026-10-14): the pressed state (`003`) becomes
    an engine feature that is on for every script; the settings CONscripter
    lacks (music/SE/voice mute, voice stops on click, auto waits for the

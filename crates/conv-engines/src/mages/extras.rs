@@ -7,7 +7,9 @@
 //!   normal (y 934) and highlighted (y 1318), in CGMODE's page order.
 //! - `gm_bg1.png`: a "NO IMAGE" plate (4, 546, 184, 110) and a thumbnail
 //!   frame (196, 546, 186, 110).
-//! - The menu's labels come from `title_bg.png` (ALBUM, CONFIG, MUSIC).
+//! - The menu is the Vita's GALLERY list (0x81083c0c): `title_bg.png`'s
+//!   ALBUM, MOVIE, MUSIC (atlas rows 5-7) over the title, in its first
+//!   three button rows; ours adds CONFIG (row 4) and 戻る below them.
 //! - `mu_bg.png` (960×1626): the music room's background in the top 544
 //!   rows, then the song titles, 30 rows each, from y 574: 35 in the left
 //!   column (x 0), 32 in the right (x 480), in [`TRACKS`] order.
@@ -77,9 +79,10 @@ fn faded(img: &RgbaImage) -> RgbaImage {
 
 /// The title atlas's label in row `row` (normal, highlighted, faded).
 fn title_label(title: &RgbaImage, row: u32) -> RgbaImage {
-    let y = 545 + row * 36;
-    let normal = imageops::crop_imm(title, 0, y, 170, 36).to_image();
-    let hover = imageops::crop_imm(title, 170, y, 170, 36).to_image();
+    use super::screens::{TITLE_CELL_W, TITLE_LIT_X, TITLE_ROW_H, TITLE_ROW_Y};
+    let y = TITLE_ROW_Y + row * TITLE_ROW_H;
+    let normal = imageops::crop_imm(title, 0, y, TITLE_CELL_W, TITLE_ROW_H).to_image();
+    let hover = imageops::crop_imm(title, TITLE_LIT_X, y, TITLE_CELL_W, TITLE_ROW_H).to_image();
     cells(&[normal.clone(), hover, faded(&normal)])
 }
 
@@ -100,20 +103,22 @@ pub fn extras(assets: &mut ArchiveAssets, labels: &Labels, game: &Game) -> Optio
     super::menus::cover_hints(&mut background);
     let background_path = assets.put_system_png("album_bg", &background);
 
-    let item = |assets: &mut ArchiveAssets, name: &str, img: &RgbaImage, i: i32| place(assets, name, img, (SCREEN_W - 170) / 2, 170 + i * 50);
+    use super::screens::{TITLE_CELL_W, TITLE_ROW_H, TITLE_X, title_y};
+    let item = |assets: &mut ArchiveAssets, name: &str, img: &RgbaImage, row: u32| place(assets, name, img, TITLE_X, title_y(row));
     let back_img = labels.button("戻る", 20.0);
+    let back_h = back_img.height() as i32;
     let items = vec![
         ExtrasItem { button: item(assets, "extras_album", &title_label(&title, 5), 0), action: ExtrasAction::Gallery },
         ExtrasItem { button: item(assets, "extras_movie", &title_label(&title, 6), 1), action: ExtrasAction::Movies },
         ExtrasItem { button: item(assets, "extras_music", &title_label(&title, 7), 2), action: ExtrasAction::Music },
         ExtrasItem { button: item(assets, "extras_config", &title_label(&title, 4), 3), action: ExtrasAction::Settings },
-        ExtrasItem { button: place(assets, "extras_back", &back_img, (SCREEN_W - back_img.width() as i32 / 3) / 2, 420), action: ExtrasAction::Back },
+        ExtrasItem { button: place(assets, "extras_back", &back_img, TITLE_X + (TITLE_CELL_W as i32 - back_img.width() as i32 / 3) / 2, title_y(4) + (TITLE_ROW_H as i32 - back_h) / 2), action: ExtrasAction::Back },
     ];
 
     let gallery = gallery(assets, labels, game, &album, &parts, header);
     let music = music(assets, labels);
     let movies = movies(assets, labels);
-    Some(ExtrasMenu { background: background_path, items, gallery, replay: None, music, movies })
+    Some(ExtrasMenu { background: background_path, items, gallery, replay: None, music, movies, menu_background: None })
 }
 
 /// A title tinted for the pointer (warm) or the song playing (blue).
