@@ -1774,6 +1774,17 @@ impl<'a, 'b> Compiler<'a, 'b> {
 
     /// The object a name argument means: `$var` names the variable holding
     /// it, `@x` goes through the alias table.
+    /// A string argument, or the value of the variable it names
+    /// (`CreateSound("x", SE, "$場所指定")`, 続・殺戮のジャンゴ's
+    /// `CreateSE`).
+    fn named_string(&self, v: &Value) -> String {
+        let s = v.string();
+        match self.vars.get(&s) {
+            Some(v) if s.starts_with(['$', '#']) => v.string(),
+            _ => s,
+        }
+    }
+
     fn object_name(&self, v: &Value) -> String {
         let mut s = v.string();
         for _ in 0..4 {
@@ -1868,7 +1879,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
             "CreateSound" => {
                 let name = self.object_name(&arg(0));
                 let bgm = arg(1).string().eq_ignore_ascii_case("bgm");
-                let s = SoundObject { path: arg(2).string(), bgm, volume: 1000, looped: false, starting: false, fade_ms: 0, playing: None, disused: false };
+                let s = SoundObject { path: self.named_string(&arg(2)), bgm, volume: 1000, looped: false, starting: false, fade_ms: 0, playing: None, disused: false };
                 self.create(name, Kind::Sound(s), 0, 0, 0);
             }
             "Fade" => {
@@ -2310,6 +2321,9 @@ impl<'a, 'b> Compiler<'a, 'b> {
             }
             let (path, bgm, looped, fade_ms) = (s.path.clone(), s.bgm, s.looped, s.fade_ms);
             let Some(file) = self.assets.sound(&path) else {
+                if std::env::var_os("NSS_TRACE").is_some() {
+                    eprintln!("missing sound {path}");
+                }
                 self.note("sound missing from the archives");
                 continue;
             };
