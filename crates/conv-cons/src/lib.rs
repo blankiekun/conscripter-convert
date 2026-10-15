@@ -9,7 +9,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::fmt::Write;
 
 use conv_core::ir::{
-    ArithOp, ConfirmDialog, Op, ScreenEffect, WaitIcon, Switch, Operand, Script, Ruby, SlideLayer, TextStyle, SpritePlacement, TextLink, TextWindow, TitleAction, TitleScreen,
+    ArithOp, ConfirmDialog, Op, ScreenEffect, SliderSetting, WaitIcon, Switch, Operand, Script, Ruby, SlideLayer, TextStyle, SpritePlacement, TextLink, TextWindow, TitleAction, TitleScreen,
     TransitionStyle, Var, ZoomStyle,
 };
 
@@ -23,6 +23,7 @@ mod movies;
 mod music;
 pub mod nsa;
 mod picture_screen;
+mod picture_settings;
 mod puzzle;
 mod replay;
 mod save_grid;
@@ -272,16 +273,20 @@ pub fn emit(script: &Script) -> String {
         .collect();
     // Read-text tracking (kidoku.dat, written on save and quit), for
     // skipping read text only.
-    if script.settings.as_ref().is_some_and(|s| s.skip_unread_label.is_some()) {
+    if script.settings.as_ref().is_some_and(|s| s.skip_unread_label.is_some()) || script.picture_settings.as_ref().is_some_and(picture_settings::skips_unread) {
         writeln!(out, "kidokuskip").unwrap();
     }
     writeln!(out, "game").unwrap();
     writeln!(out, "*start").unwrap();
     // The text speed is a setting when there is a settings menu.
-    let speed = if script.settings.is_some() { menu::TEXT_MS } else { "20" };
+    let has_settings = script.settings.is_some() || script.picture_settings.is_some();
+    let speed = if has_settings { menu::TEXT_MS } else { "20" };
     let voice_switches = script.settings.as_ref().is_some_and(|s| !s.voices.is_empty());
     if script.settings.is_some() {
         menu::settings_init(&mut out);
+    }
+    if let Some(s) = &script.picture_settings {
+        picture_settings::init(&mut out, s);
     }
     // setwindow redraws the screen, so it must come after `game` (ONScripter
     // crashes if it runs in the define section).
@@ -296,7 +301,7 @@ pub fn emit(script: &Script) -> String {
     let save_menu = script.save_menu.is_some() || script.save_grid.is_some();
     let effect = |ms: u32| if ms == 0 { "1".to_string() } else { effects[&(ms, Effect::Fade)].clone() };
     if let Some(t) = &script.title_screen {
-        title_screen(&mut out, t, &effect(t.fade_ms), save_menu, script.settings.is_some(), script.confirm.as_ref(), script.extras.is_some());
+        title_screen(&mut out, t, &effect(t.fade_ms), save_menu, has_settings, script.confirm.as_ref(), script.extras.is_some());
     }
     let back_to_choice = script.button_bar.as_ref().is_some_and(|b| menu::has_back_to_choice(b, script.command_menu.as_ref()));
     if back_to_choice {
@@ -1004,7 +1009,7 @@ pub fn emit(script: &Script) -> String {
     if let Some(b) = &script.button_bar {
         let screens = menu::BarScreens {
             save_menu,
-            settings: script.settings.is_some(),
+            settings: has_settings,
             backlog: script.backlog.is_some() || script.line_log.is_some(),
             replay: has_replay,
             command_menu: script.command_menu.as_ref(),
@@ -1013,6 +1018,11 @@ pub fn emit(script: &Script) -> String {
             height: script.height,
             voice_stops: script.settings.as_ref().is_some_and(|m| m.switches.iter().any(|s| s.switch == Switch::VoiceKeepsPlaying)),
             wait_icon: script.wait_icon.as_ref().map(|i| (i, WAIT_ICON_AT)),
+            game_speed: script
+                .picture_settings
+                .as_ref()
+                .filter(|s| s.sliders.iter().any(|l| matches!(l.setting, SliderSetting::GameSpeed { .. })))
+                .map(|_| picture_settings::GAME_SPEED),
         };
         menu::button_bar(&mut out, b, screens);
         if let Some(m) = &script.command_menu {
@@ -1022,7 +1032,9 @@ pub fn emit(script: &Script) -> String {
             chapters::emit(&mut out, h);
         }
     }
-    if let Some(m) = &script.settings {
+    if let Some(s) = &script.picture_settings {
+        picture_settings::emit(&mut out, s);
+    } else if let Some(m) = &script.settings {
         let replay = script.extras.as_ref().and_then(|e| e.replay.as_ref()).filter(|_| has_replay);
         menu::settings_menu(&mut out, m, script.confirm.as_ref(), replay.map(|r| (r.leave_label.as_str(), r.leave_question.as_str())), script.version.as_deref().map(|v| (v, script.height)));
     }

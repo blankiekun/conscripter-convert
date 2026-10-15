@@ -136,7 +136,8 @@ pub trait Assets {
     fn blurred(&mut self, image: &str, sigma: u32) -> Option<String>;
     /// Images the scripts name, as cells side by side in one picture (a
     /// button's states): its path and size (all cells). Each cell is as
-    /// large as the largest part, the part at its top left.
+    /// large as the largest part, the part at its top left; a part `""` is
+    /// an empty cell.
     fn strip(&mut self, parts: &[&str]) -> Option<(String, u32, u32)>;
 }
 

@@ -47,16 +47,11 @@ enum Command {
         /// jumps. Stopgap until conditions are decoded.
         #[arg(long)]
         linear: bool,
-        /// Store images as near-lossless WebP (about half the size of PNG).
-        /// Needs a CONscripter build that reads WebP: the web build, or one
-        /// whose SDL_image has libwebp
+        /// Compile and write 0.txt only, no assets
         #[arg(long)]
-        webp: bool,
-        /// With --webp: lossy WebP at this quality (0-100, as cwebp -q),
-        /// smaller than the near-lossless default; transparency stays
-        /// lossless
-        #[arg(long, requires = "webp", value_parser = clap::value_parser!(u8).range(0..=100))]
-        webp_quality: Option<u8>,
+        dry_run: bool,
+        #[command(flatten)]
+        webp: build::WebpArgs,
         #[command(flatten)]
         audio: build::AudioArgs,
     },
@@ -76,16 +71,8 @@ enum Command {
         /// Window caption
         #[arg(long, default_value = "CONscripter-convert")]
         title: String,
-        /// Store images as near-lossless WebP (about half the size of PNG).
-        /// Needs a CONscripter build that reads WebP: the web build, or one
-        /// whose SDL_image has libwebp
-        #[arg(long)]
-        webp: bool,
-        /// With --webp: lossy WebP at this quality (0-100, as cwebp -q),
-        /// smaller than the near-lossless default; transparency stays
-        /// lossless
-        #[arg(long, requires = "webp", value_parser = clap::value_parser!(u8).range(0..=100))]
-        webp_quality: Option<u8>,
+        #[command(flatten)]
+        webp: build::WebpArgs,
         #[command(flatten)]
         audio: build::AudioArgs,
     },
@@ -120,6 +107,8 @@ enum Command {
         /// Compile and write 0.txt only, no assets
         #[arg(long)]
         dry_run: bool,
+        #[command(flatten)]
+        webp: build::WebpArgs,
         #[command(flatten)]
         audio: build::AudioArgs,
     },
@@ -296,14 +285,14 @@ enum XarcCommand {
 
 fn main() -> Result<()> {
     match Cli::parse().command {
-        Command::ConvertGame { game, output, font, title, loose, linear, webp, webp_quality, audio } => {
-            convert_game(&game, &output, font.as_deref(), &title, loose, linear, webp.then_some(webp_quality), audio.format()?)
+        Command::ConvertGame { game, output, font, title, loose, linear, dry_run, webp, audio } => {
+            convert_game(&game, &output, font.as_deref(), &title, loose, linear, dry_run, webp.get(), audio.format()?)
         }
-        Command::ConvertScript { game, script, output, font, title, webp, webp_quality, audio } => {
-            convert_script(&game, script, &output, font.as_deref(), &title, webp.then_some(webp_quality), audio.format()?)
+        Command::ConvertScript { game, script, output, font, title, webp, audio } => {
+            convert_script(&game, script, &output, font.as_deref(), &title, webp.get(), audio.format()?)
         }
-        Command::ConvertNss { game, file, scene, chain, output, font, title, loose, dry_run, audio } => {
-            convert_nss(&game, &file, scene.as_deref(), chain, &output, font.as_deref(), &title, loose, dry_run, audio.format()?)
+        Command::ConvertNss { game, file, scene, chain, output, font, title, loose, dry_run, webp, audio } => {
+            convert_nss(&game, &file, scene.as_deref(), chain, &output, font.as_deref(), &title, loose, dry_run, webp.get(), audio.format()?)
         }
         Command::Lint { dir } => {
             let report = build::lint_dir(&dir, true)?;
@@ -381,6 +370,7 @@ fn convert_game(
     title: &str,
     loose: bool,
     linear: bool,
+    dry_run: bool,
     webp: Option<Option<u8>>,
     audio: AudioFormat,
 ) -> Result<()> {
@@ -398,7 +388,7 @@ fn convert_game(
     if ids.is_empty() {
         bail!("no NNNN.cd scripts in {}", dir.display());
     }
-    build::check_output(output, &ASSET_DIRS, !loose)?;
+    build::check_output(output, &ASSET_DIRS, !loose && !dry_run)?;
 
     let maps: Vec<(String, Mmap)> = ids
         .iter()
@@ -431,6 +421,7 @@ fn convert_game(
         needs.se.len()
     );
     let mut assets = AssetBank::new(game, output);
+    assets.dry_run = dry_run;
     assets.prefetch(&needs).context("extracting assets")?;
     let window = assets.text_window().context("building the text window")?;
 
@@ -470,6 +461,11 @@ fn convert_game(
         version: Some(version::line()),
         ..Default::default()
     };
+    if dry_run {
+        // The script only: no assets, so nothing to convert, pack or find.
+        let lost = build::write_game(output, &ir, &conv_cons::emit(&ir), None, None)?;
+        return build::summary(output, &ir, lost, font.is_some(), Default::default(), Some(false));
+    }
     let source = image_format(output, conv_cons::emit(&ir), webp)?;
     build::reencode_audio(output, &AUDIO_DIRS, audio)?;
     let lost = build::write_game(output, &ir, &source, font, None)?;
@@ -835,9 +831,10 @@ fn convert_nss(
     title: &str,
     loose: bool,
     dry_run: bool,
+    webp: Option<Option<u8>>,
     audio: AudioFormat,
 ) -> Result<()> {
-    use conv_engines::nitroplus::assets::{NpaAssets, OUTPUT_DIRS};
+    use conv_engines::nitroplus::assets::{NpaAssets, OUTPUT_DIRS, PICTURE_DIRS};
     use conv_engines::nitroplus::{convert, nss};
     let exe = game.join("Muramasa.exe");
     build::check_output(output, &OUTPUT_DIRS, !loose && !dry_run)?;
@@ -894,8 +891,9 @@ fn convert_nss(
         ..Default::default()
     };
     game.menus(&mut assets, &mut ir);
-    // A dry run writes the script but no assets.
-    let lost = build::write_game(output, &ir, &conv_cons::emit(&ir), font.filter(|_| !dry_run), None)?;
+    // A dry run writes the script but no assets (and no WebP).
+    let source = build::webp_tree(output, &PICTURE_DIRS, webp.filter(|_| !dry_run), conv_cons::emit(&ir))?;
+    let lost = build::write_game(output, &ir, &source, font.filter(|_| !dry_run), None)?;
     if !dry_run {
         // the voices and the sound effects (sound/se/x.ogg; music is sound/bgm)
         build::reencode_audio(output, &["voice", "sound/se"], audio)?;

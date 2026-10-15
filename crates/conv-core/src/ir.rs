@@ -1149,6 +1149,8 @@ pub enum Switch {
     BgmOn,
     SeOn,
     VoiceOn,
+    /// Ask before putting every setting back to its default.
+    ConfirmReset,
     /// Screen effects are drawn (off: every transition shows at once).
     Effects,
     /// The save menu shows the selected save's picture at full size.
@@ -1322,6 +1324,9 @@ pub struct Script {
     /// The icon shown at the button bar's click waits (at each window's
     /// [`TextWindow::wait_icon_at`]); `None` = none.
     pub wait_icon: Option<WaitIcon>,
+    /// The settings screen drawn as one picture, in place of
+    /// [`Script::settings`].
+    pub picture_settings: Option<PictureSettings>,
 }
 
 /// The save and load screens as pages of thumbnails over a picture per
@@ -1459,13 +1464,115 @@ pub struct LineLog {
     pub fade_ms: u32,
 }
 
-/// An animated click-wait icon ([`Script::wait_icon`]): `frames` pictures
-/// of `w`×`h` side by side in `image`, each shown `frame_ms`, looped.
+/// An animated click-wait icon ([`Script::wait_icon`]): pictures of `w`×`h`
+/// side by side in `image`, picture k shown `frame_ms[k]`, looped.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WaitIcon {
     pub image: String,
-    pub frames: u32,
-    pub frame_ms: u32,
+    pub frame_ms: Vec<u32>,
     pub w: u32,
     pub h: u32,
+}
+
+/// A settings screen drawn as one picture with its controls laid over it
+/// (Nitroplus's コンフィグ): vertical sliders, pairs of on/off pictures and
+/// a few buttons. The picture shows every control at rest; a control shows
+/// its own picture only under the pointer, and a pair its chosen side.
+/// Values are globals, applied to the engine at startup and as they change.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PictureSettings {
+    pub background: Placed,
+    /// Pictures shown over the background as they are (options left out,
+    /// drawn as they stand by default).
+    pub fixed: Vec<Placed>,
+    /// Three cells each: at rest (usually empty), under the pointer,
+    /// pressed. `close` leaves; `reset` puts every setting back to its
+    /// default after asking ([`Switch::ConfirmReset`]); `voice_test` plays
+    /// [`PictureSettings::test_voice`].
+    pub close: Placed,
+    pub reset: Option<Placed>,
+    pub voice_test: Option<Placed>,
+    pub test_voice: Option<String>,
+    pub sliders: Vec<PictureSlider>,
+    pub pairs: Vec<PicturePair>,
+    /// Lines of text shown as they are (a version line).
+    pub texts: Vec<PictureText>,
+    pub fade_ms: u32,
+    /// A pair's chosen picture fades in (and the other out) over this.
+    pub pair_fade_ms: u32,
+}
+
+/// A vertical slider of [`PictureSettings`]: the knob runs from `knob_y.0`
+/// (position 0) to `knob_y.1` (position 1000) at `knob.x`; pressing in
+/// `track` puts it under the pointer and drags it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PictureSlider {
+    pub setting: SliderSetting,
+    /// Two cells: at rest, under the pointer (or dragged).
+    pub knob: Placed,
+    pub knob_y: (i32, i32),
+    pub track: Rect,
+    /// The position (0-1000) a first start and the reset give it.
+    pub default: u32,
+}
+
+/// What a [`PictureSlider`] sets, at position p (0 at the top, 1000 at the
+/// bottom).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SliderSetting {
+    /// Full at the top, silent at the bottom (the Nitroplus exe's curve,
+    /// percent = 100 × (v/1000)^1.661 of v = 1000 - p, approximated).
+    BgmVolume,
+    SeVolume,
+    VoiceVolume,
+    /// `ms` per character at the bottom, none at the top.
+    TextSpeed { ms: u32 },
+    /// Auto mode waits `ms` per character of the page at the bottom.
+    AutoWait { ms: u32 },
+    /// The game's speed: level 12 - p × 12 / 1000 (1-12), each level a
+    /// `gamespeed` percent (`levels[level - 1]`).
+    GameSpeed { levels: [u32; 12] },
+}
+
+/// Two pictures for one on/off option of [`PictureSettings`]: three cells
+/// each (at rest, under the pointer, chosen); the chosen side shows its
+/// third cell.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PicturePair {
+    pub option: PairOption,
+    pub on: Placed,
+    pub off: Placed,
+    pub default_on: bool,
+}
+
+/// What a [`PicturePair`] turns on (the "on" side).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PairOption {
+    /// The yes/no questions are asked (off: every [`ConfirmDialog`] question
+    /// answers yes).
+    Confirm,
+    /// A click stops a movie (`moviestop`).
+    MovieStop,
+    /// Auto mode and skip stop at a choice (off: `selectkeep 1`).
+    StopAtChoice,
+    /// Skip goes on through text not read before.
+    SkipUnread,
+    /// The voice plays on after a click (off: `clickvoicestop 1`).
+    VoicePlaysOn,
+    /// Auto mode waits for the voice (off: `autovoicewait 0`).
+    AutoWaitsForVoice,
+    /// The music, the sound effects, the voices are heard (`soundmute`).
+    Bgm,
+    Se,
+    Voice,
+}
+
+/// A line of text on a picture screen.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PictureText {
+    pub text: String,
+    pub x: i32,
+    pub y: i32,
+    pub font_size: u32,
+    pub colour: String,
 }

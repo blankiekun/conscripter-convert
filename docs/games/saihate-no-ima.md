@@ -27,6 +27,9 @@ target/release/conscripter-convert convert-game <install> \
   -o out/saiima-cons --font <a Japanese TTF, e.g. ipag.ttf> --title "Saihate no Ima COMPLETE"
 ```
 
+`--dry-run` writes `0.txt` only, no assets (about 10 s; the same `0.txt`
+as the full build): use it for anything about logic.
+
 `out/saiima-flow` holds the user's saves: never build into it or touch
 it. `research/xuse/smoke.py` drives a build headless with scripted
 clicks; `research/xuse/routesim.py` simulates routes on both sides
@@ -857,7 +860,7 @@ exe (`research/tools/ghidra/ghidra_export.sh`, names in
    `textshadow`; from the next page) and チャプタ履歴の上書き確認
    (`Switch::ConfirmChapter`: the chapter history's question), all on by
    default as there. The switches page now holds 15, 26 px apart (flags
-   `%2914`-`%2917`). Left out: the two auto waits as two rows (one row
+   `%2915`-`%2918`). Left out: the two auto waits as two rows (one row
    sets both: the settings' sprites are all used by the six rows, and a
    seventh means renumbering every game's menu sprites), the four
    "選択/クリックでスキップ/オートモードを解除" boxes (on by default,

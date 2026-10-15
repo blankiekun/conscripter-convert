@@ -20,6 +20,8 @@ const MAX_SCALED: i64 = 4096;
 
 /// Top-level output folders the assets go to.
 pub const OUTPUT_DIRS: [&str; 4] = ["cg", "sound", "voice", "system"];
+/// The output folders with pictures (`--webp` converts them).
+pub const PICTURE_DIRS: [&str; 2] = ["cg", "system"];
 
 pub struct NpaAssets<'a> {
     cg: Npa<'a>,
@@ -248,10 +250,11 @@ impl Assets for NpaAssets<'_> {
     fn strip(&mut self, parts: &[&str]) -> Option<(String, u32, u32)> {
         let mut cells = Vec::new();
         for part in parts {
-            cells.push(self.image(part)?);
+            // "" is an empty cell.
+            cells.push(if part.is_empty() { None } else { Some(self.image(part)?) });
         }
-        let w = cells.iter().map(|c| c.1).max()?;
-        let h = cells.iter().map(|c| c.2).max()?;
+        let w = cells.iter().flatten().map(|c| c.1).max()?;
+        let h = cells.iter().flatten().map(|c| c.2).max()?;
         use std::hash::{Hash, Hasher};
         let mut hash = std::collections::hash_map::DefaultHasher::new();
         parts.hash(&mut hash);
@@ -261,7 +264,7 @@ impl Assets for NpaAssets<'_> {
             return Some((rel, size.0, size.1));
         }
         let mut out = image::RgbaImage::new(size.0, size.1);
-        for (i, (cell, _, _)) in cells.iter().enumerate() {
+        for (i, (cell, _, _)) in cells.iter().enumerate().filter_map(|(i, c)| Some((i, c.as_ref()?))) {
             let img = image::open(self.out.root.join(cell)).ok()?.into_rgba8();
             image::imageops::overlay(&mut out, &img, (i as u32 * w) as i64, 0);
         }
