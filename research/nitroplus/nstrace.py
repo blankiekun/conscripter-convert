@@ -205,6 +205,9 @@ class Run:
             return self.choose(items)
         if op == 'end':
             return len(self.lines)
+        # A screen's wait (the favour screen): the player clicks.
+        if op == 'btnwait':
+            self.var[int(rest.strip()[1:])] = 0
         return None
 
     def choose(self, items):
