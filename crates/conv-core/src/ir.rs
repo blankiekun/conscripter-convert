@@ -1712,6 +1712,8 @@ pub struct LineLog {
     pub font_size: u32,
     pub colour: String,
     pub fade_ms: u32,
+    /// A 1 px outline of this colour (`#RRGGBB`) around the text's letters.
+    pub outline: Option<String>,
 }
 
 /// An animated click-wait icon ([`Script::wait_icon`]): pictures of `w`×`h`

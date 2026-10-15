@@ -513,6 +513,11 @@ pub(crate) struct BarScreens<'a> {
     pub height: u32,
     /// The click-wait icon and the variables holding its top-left corner.
     pub wait_icon: Option<(&'a WaitIcon, [&'static str; 2])>,
+    /// `Some(drop)`: the icon has no place of its own and is drawn after
+    /// the text, `drop` below where `getcursorpos` puts the next character,
+    /// as the engine draws its cursor (which it doesn't while `textgosub`
+    /// runs this routine).
+    pub icon_after_text: Option<i32>,
     /// The variable holding the story's `gamespeed` percent: the click wait
     /// (and the menus opened from it) run at 100, the story at that.
     pub game_speed: Option<&'static str>,
@@ -623,7 +628,12 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, s: BarScreens) {
     // The icon (drawing the bar cleared it).
     if let (Some((i, [x, y])), Some(slot)) = (s.wait_icon, icon_slot) {
         let ms: Vec<String> = i.frame_ms.iter().map(u32::to_string).collect();
-        w(format!("if {x} > 0 || {y} > 0 lsp {slot},\":a/{},<{}>,0;{}\",{x},{y}:print 1", ms.len(), ms.join(","), path(&i.image)));
+        if let Some(drop) = s.icon_after_text {
+            w(format!("getcursorpos {TMP},{MOUSE_Y}"));
+            w(format!("lsp {slot},\":a/{},<{}>,0;{}\",{TMP},{MOUSE_Y} + {drop}:print 1", ms.len(), ms.join(","), path(&i.image)));
+        } else {
+            w(format!("if {x} > 0 || {y} > 0 lsp {slot},\":a/{},<{}>,0;{}\",{x},{y}:print 1", ms.len(), ms.join(","), path(&i.image)));
+        }
     }
     if let Some(sl) = slide {
         // The pointer may have crossed the edge since the bar was drawn. Off
@@ -1975,6 +1985,11 @@ pub(crate) mod tests {
         ] {
             assert!(out.contains(line), "missing:\n{line}\nin:\n{out}");
         }
+        // With no place of its own: after the text, below the ruby gap.
+        let mut out = String::new();
+        button_bar(&mut out, &bar, BarScreens { wait_icon: Some((&icon, ["%183", "%184"])), icon_after_text: Some(9), ..Default::default() });
+        let line = "getcursorpos %105,%146\nlsp 42,\":a/3,<50,50,500>,0;system\\icon.png\",%105,%146 + 9:print 1\n";
+        assert!(out.contains(line), "missing:\n{line}\nin:\n{out}");
     }
 
     #[test]

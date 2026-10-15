@@ -340,16 +340,21 @@ pub fn emit(script: &Script) -> String {
     }
     // An icon with no place of its own in any window: drawn after the text
     // by the engine, at line and page waits alike.
-    if let Some(i) = &script.wait_icon {
+    // `Some(drop)`: the icon goes after the text, `drop` below the place
+    // `getcursorpos` gives (the line's top; rubyon draws the text a line gap
+    // lower: the first window's, as the bar has one routine).
+    let icon_after_text = script.wait_icon.as_ref().and_then(|_| {
         let windows = script.window.iter().chain(script.ops.iter().filter_map(|op| match op {
             Op::SetWindow(w) => Some(w),
             _ => None,
         }));
-        if windows.clone().next().is_some() && windows.into_iter().all(|w| w.wait_icon_at.is_none()) {
-            let ms: Vec<String> = i.frame_ms.iter().map(u32::to_string).collect();
-            for n in 0..2 {
-                writeln!(out, "setcursor {n},\":a/{},<{}>,0;{}\",0,0", ms.len(), ms.join(","), path(&i.image)).unwrap();
-            }
+        let first = windows.clone().next()?;
+        windows.into_iter().all(|w| w.wait_icon_at.is_none()).then_some(if has_ruby { first.line_gap as i32 } else { 0 })
+    });
+    if let (Some(i), Some(_)) = (&script.wait_icon, icon_after_text) {
+        let ms: Vec<String> = i.frame_ms.iter().map(u32::to_string).collect();
+        for n in 0..2 {
+            writeln!(out, "setcursor {n},\":a/{},<{}>,0;{}\",0,0", ms.len(), ms.join(","), path(&i.image)).unwrap();
         }
     }
 
@@ -1164,6 +1169,7 @@ pub fn emit(script: &Script) -> String {
             width: script.width,
             height: script.height,
             wait_icon: script.wait_icon.as_ref().map(|i| (i, WAIT_ICON_AT)),
+            icon_after_text,
             game_speed: script
                 .picture_settings
                 .as_ref()
