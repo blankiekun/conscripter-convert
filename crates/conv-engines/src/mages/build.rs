@@ -32,14 +32,10 @@ pub fn scripts(game: &Path) -> Result<BTreeMap<String, String>> {
 
 /// Compiles `scenes` (file names such as S01_01A, in this order; empty:
 /// all, from the game's first scene) of `game` (the decrypted Vita
-/// folder, with `media/`). Without a font there are no menus: their
-/// labels are drawn with it.
+/// folder, with `media/`).
 pub fn build(game: &Path, scenes: &[String], opts: &Opts) -> Result<Built> {
     let (output, font, title, dry_run, audio_format) = (opts.output, opts.font, opts.title, opts.dry_run, opts.audio);
     let g = Game::load(&scripts(game)?).map_err(anyhow::Error::msg)?;
-    // The menus' labels and the skip dialog's summaries are drawn with the
-    // font.
-    let font_bytes = font.map(fs::read).transpose().context("reading the font")?;
     let names = ["CG.cpk", "CHR.cpk", "ETC.cpk", "SystemData.cpk", "VOICE.AWB", "SE.AWB", "BGM.AWB"];
     let maps: Vec<_> = names.iter().map(|n| map(&game.join("media").join(n))).collect::<Result<_>>()?;
     let mut banks = Vec::new();
@@ -53,10 +49,11 @@ pub fn build(game: &Path, scenes: &[String], opts: &Opts) -> Result<Built> {
     assets.system_se = system_se.as_ref().and_then(|m| Bank::new(m).ok());
     assets.out.dry_run = dry_run;
     assets.movie_dir = game.join("media").join("data");
-    assets.font = font_bytes.as_deref();
+    // The menus' labels and the skip dialog's summaries are drawn with the font.
+    assets.font = Some(font);
     let compiled = convert::compile(&g, scenes, &mut assets);
     let window = convert::text_window(&mut assets);
-    let labels = font_bytes.as_deref().and_then(super::menus::Labels::new);
+    let labels = super::menus::Labels::new(font);
     let mut extras = if scenes.is_empty() { labels.as_ref().and_then(|l| super::extras::extras(&mut assets, l, &g)) } else { None };
     let title_screen = super::screens::title(&mut assets, extras.is_some());
     // The extras menu is the title's GALLERY list, over the title.

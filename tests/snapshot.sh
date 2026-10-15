@@ -14,10 +14,6 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 games_dir=${CONS_GAMES:-$HOME/.config/conscripter-convert/games}
-# gui/fonts/ is git-ignored (gui/fetch_fonts.py): a fresh worktree has none.
-font=${CONS_FONT:-gui/fonts/ipag.ttf}
-[ -f "$font" ] || font=/usr/share/fonts/OTF/ipag.ttf
-[ -f "$font" ] || { echo "no ipag.ttf: run gui/fetch_fonts.py or set CONS_FONT" >&2; exit 2; }
 bin=target/release/conscripter-convert
 update=0
 if [ "${1:-}" = --update ]; then update=1; shift; fi
@@ -43,8 +39,7 @@ for id in "${ids[@]}"; do
         muramasa) args=(convert-nss "$game" --file ma00_000.nss --chain 2000) ;;
         muramasa-en) args=(convert-nss "$game" --file ma00_000.nss --chain 2000 --english "$english") ;;
         django) args=(convert-nss "$game") ;;
-        # Without a font MAGES writes no menus.
-        oretsuba) args=(mages convert "$game" --font "$font") ;;
+        oretsuba) args=(mages convert "$game") ;;
         *) echo "$id: unknown game"; exit 2 ;;
     esac
     if ! "$bin" "${args[@]}" -o "$out" --dry-run > "$out.log" 2>&1; then
