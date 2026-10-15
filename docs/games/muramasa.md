@@ -561,10 +561,7 @@ out/conscripter-mura`). The route runs and `--at` starts are in
 `research/nitroplus/engrun.py`.
 
 Next, in order:
-1. A replay of route 9 with `--shot-pages` (engine 0.19.0) stopped
-   drawing at `f_md01_002:158856` (`print 10,500`, page 18,573) with
-   the process spinning; the same run passed before. Not reproduced.
-2. **System screens** (step 7), under way. The original was filmed
+1. **System screens** (step 7), under way. The original was filmed
    under wine from patched boots (title, right-click menu, quick bar,
    save/load, confirmations, settings and its voice window, backlog,
    click-wait icon; transitions also slowed ×10); shots and videos are
@@ -621,11 +618,11 @@ Next, in order:
    voice, auto/skip stop at a choice, movie skip, game speed) are added
    to the engine the same way (since then no engine addition is opt-in); 選択肢に戻る is implemented
    (a save to a reserved slot before each choice).
-3. The largest leftovers below: `CreateProcess` (via Lua), non-blocking
+2. The largest leftovers below: `CreateProcess` (via Lua), non-blocking
    `Move`/`Zoom`, `AddRender` (needs a per-sprite blend mode).
-4. Step 11.5: `#` flags (globals from %800) across quit and relaunch,
+3. Step 11.5: `#` flags (globals from %800) across quit and relaunch,
    and in the web build.
-5. Optional: the 18 files with no `else` (below).
+4. Optional: the 18 files with no `else` (below).
 
 **Leftovers** (counts from the dry run's notes):
 - `CreateProcess` (510 calls; the battle HUD `CP_*` in
@@ -1202,3 +1199,13 @@ the arrows a quarter turn in vertical text (`おれ→` points down at the
 figure), so CONscripter now does too (c3d5ffc). It also draws ∧ turned
 (as ＞), which the script's own horizontal sketch in the comments
 doesn't want; probably wine's substitute font, so ∧ stays upright.
+
+**The route run that stopped drawing (2026-10-15):** a replay with
+`--shot-pages` (engine 0.19.0) once stopped at `f_md01_002`'s
+`print 10,500` (page 18,573) with the process spinning. Not reproduced
+with engine 0.22.0: the run through `md01_002` (`engrun.py --only 3 --at
+md01_002`, ending in `md04_045aa`) played its 160 files to the end, and
+again with a shot of each of its first 400 pages. Closed unless it comes
+back. On the way, nstrace looped forever in `ma02_003a`: it skipped
+`btnwait`, so the favour screen's wait loop never ended; `btnwait` now
+sets its variable to 0, a click.
