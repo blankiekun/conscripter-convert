@@ -1151,6 +1151,15 @@ pub enum Switch {
     VoiceOn,
     /// Ask before putting every setting back to its default.
     ConfirmReset,
+    /// Screen effects are drawn (off: every transition shows at once).
+    Effects,
+    /// The save menu shows the selected save's picture at full size.
+    SavePreview,
+    /// The message text has its shadow.
+    TextShadow,
+    /// Ask before going back to a chapter of the chapter history
+    /// ([`ChapterHistory`]).
+    ConfirmChapter,
 }
 
 /// A voiced line's clip and whose voice it is (for the per-character
