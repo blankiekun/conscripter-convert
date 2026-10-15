@@ -45,8 +45,10 @@ for id in "${ids[@]}"; do
     if ! "$bin" "${args[@]}" -o "$out" --dry-run > "$out.log" 2>&1; then
         echo "$id: dry run failed, see $out.log"; changed=1; continue
     fi
-    # The version line (build date, commit) changes with every build.
-    now="$(LC_ALL=C sed -E 's/build [0-9]{4}-[0-9]{2}-[0-9]{2}, converter [0-9a-f]+(-dirty)?, CONscripter [^"]*/build VERSION/' "$out/0.txt" | sha256sum | cut -d' ' -f1) $(wc -l < "$out/0.txt")"
+    # The version line (build date, commit) changes with every build, and
+    # so does the width of its strsp (a -dirty tree's line is longer).
+    now="$(LC_ALL=C sed -E -e 's/"build [0-9]{4}-[0-9]{2}-[0-9]{2}, converter [^"]*",([0-9]+,[0-9]+),[0-9]+,/"build VERSION",\1,W,/' \
+        -e 's/build [0-9]{4}-[0-9]{2}-[0-9]{2}, converter [0-9a-f]+(-dirty)?, CONscripter [^"]*/build VERSION/' "$out/0.txt" | sha256sum | cut -d' ' -f1) $(wc -l < "$out/0.txt")"
     snap=tests/snapshots/$id.txt
     if [ $update = 1 ]; then
         echo "$now" > "$snap"; echo "$id: written"
