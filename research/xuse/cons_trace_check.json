@@ -1,5 +1,5 @@
 {
- "_comment": "最果てのイマ (docs/games/saihate-no-ima.md, Testing): 22-48 and lsp2 12-23 are the bars and menus; lsp 61 is the frame overlay, which a background change removes (0x54); at s9_records2 popscreen puts the parent scene's frame back with its background; lsp2 26 is a fade to black or white (0x72/0x74), over everything under the text window; se068 twice in s30_l1 is meant; %190 is the blog bar's floor, set by every load; se028 and se225 loop until the scene's own dwavestop; screenripple 5 stays on through the 「粉薬」 link scene s61_l1 as in the original",
+ "_comment": "最果てのイマ (docs/games/saihate-no-ima.md, Testing): 22-48 and lsp2 12-23 are the bars and menus; lsp 61 is the frame overlay, which a background change removes (0x54); at s9_records2 popscreen puts the parent scene's frame back with its background; lsp2 26 is a fade to black or white (0x72/0x74), over everything under the text window; se068 twice in s30_l1 is meant; %190 is the blog bar's floor, which a load sets; se028 and se225 loop until the scene's own dwavestop; screenripple 5 stays on through the 「粉薬」 link scene s61_l1 as in the original",
  "ignore": "22-48,lsp2:12-23",
  "coverage_skip": "^conv_",
  "known": [

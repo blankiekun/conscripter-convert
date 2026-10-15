@@ -630,6 +630,17 @@ exe (`research/tools/ghidra/ghidra_export.sh`, names in
    level v, (10 - v) × 500 ms plus (10 - v) × 4 ms a character, so the
    default level 5 is the original's default. Two rows, as in the
    original, don't fit: the settings screen's sprites are all used.
+10. **Done: a save inside a link scene keeps the levels around it.**
+   The original keeps its scene stack in a save (`CLocalSceneStack`);
+   the port kept only the level saved, so after a load the levels above
+   couldn't be gone back to. A save from the menu now also copies the
+   levels' slots (900 + level, those between `%190` and `%151`) to save
+   slots 1000 + 10 × slot + level with CONscripter's new `copysavegame`
+   (`*conv_scene_keep`), deleting a slot's old ones; a load
+   (`*conv_scene_loaded`, the slot in `%2904`) copies them back and keeps
+   the floor and the deepest level as saved; deleting a save deletes
+   them. Checked with `smoke.py` from `conv_link2`: enter the link, save
+   to slot 1, load it, "back" goes to the root page, "forward" is there.
 
 
 Converted and playable from start to end: text, voices, sprites with
@@ -671,10 +682,10 @@ engine's debug trace (`cons_explore.py`, 62,185 pages, 1,220 labels;
   (`%151`). A switch between levels (`%2900` = 1) carries the floor over
   instead. The original keeps the whole stack in its saves (the exe has
   `SaveControl\LocalSaveStack.cpp` and `CLocalSceneStack`), so a load
-  there can still go back: a known difference, limited to a save made
-  inside a link scene. Matching it needs a copy of slots 900+ for each
-  save slot, which NScripter commands can't make (an engine command that
-  copies a save file would).
+  there can still go back. So does the port since 2026-10-14 (Status,
+  item 10): a save from the menu keeps the levels' slots beside it and a
+  load puts them back, with `%190` as saved; only a save made by an
+  older build loads as described above.
 - **Pictures "too large for the web build" (not a problem).** The
   `fx\fx0*.png` animation strips (from `HD/fx.arc`, sprite 59: the
   frames side by side in playing order) are up to 37600×600 (`fx0102b`,

@@ -133,6 +133,15 @@ const SCENE_CARRY_FLOOR: &str = "%2902";
 const SCENE_CARRY: u32 = 2900;
 /// 1 while the list is open (global: it stays open).
 const SCENE_LIST_OPEN: &str = "%2903";
+/// The save menu's slot being loaded (global: it outlasts the load).
+const SCENE_LOAD_SLOT: &str = "%2904";
+/// 1 once [`SCENE_LOADED`] has put a save's levels back.
+const SCENE_RESTORED: &str = "%2905";
+/// A save from the save menu keeps the levels' slots with it, level k of
+/// slot n in save slot SCENE_KEPT + 10 × n + k (levels 0-7: link scenes
+/// nest at most 7 deep), so a load can still go back and forward.
+const SCENE_KEPT: u32 = 1000;
+const SCENE_LEVELS: u32 = 8;
 /// The `loadgosub` routine.
 pub(crate) const SCENE_LOADED: &str = "conv_scene_loaded";
 /// List rows: title sprites at SCENE_ROW_SPRITE + 2 × row, their buttons
@@ -212,7 +221,9 @@ const BTN_DELETE: u32 = 200;
 const BTN_ACTION: u32 = 201;
 const BTN_CLOSE: u32 = 202;
 
-pub(crate) fn save_menu(out: &mut String, m: &SaveMenu, confirm: Option<&ConfirmDialog>) {
+/// `scene_stack`: the game has link scene levels ([`scene_stack`]), whose
+/// slots a save keeps.
+pub(crate) fn save_menu(out: &mut String, m: &SaveMenu, confirm: Option<&ConfirmDialog>, scene_stack: bool) {
     let rows = (m.rows as usize).min(MAX_ROWS);
     let pages = &m.pages[..m.pages.len().min(MAX_PAGES)];
     let mut w = |line: String| {
@@ -364,6 +375,9 @@ pub(crate) fn save_menu(out: &mut String, m: &SaveMenu, confirm: Option<&Confirm
     w(format!("add {LABEL},\"|\""));
     w(format!("add {LABEL},{CHAPTER}"));
     w(format!("savegame2 {SELECTED},{LABEL}"));
+    if scene_stack {
+        w("gosub *conv_scene_keep".into());
+    }
     w(format!("mov {NEWEST},{SELECTED}"));
     w("goto *conv_sl_page".into());
 
@@ -373,6 +387,9 @@ pub(crate) fn save_menu(out: &mut String, m: &SaveMenu, confirm: Option<&Confirm
         w(ask(&c.load, Switch::ConfirmLoad));
     }
     w("gosub *conv_sl_clear".into());
+    if scene_stack {
+        w(format!("mov {SCENE_LOAD_SLOT},{SELECTED}"));
+    }
     w(format!("loadgame {SELECTED}"));
     // Still here: the load failed.
     w("goto *conv_sl".into());
@@ -384,6 +401,9 @@ pub(crate) fn save_menu(out: &mut String, m: &SaveMenu, confirm: Option<&Confirm
     w(format!("mov {SLOT},{SELECTED}"));
     w("gosub *conv_sl_file".into());
     w(format!("delsavegame {SELECTED},{FILE}"));
+    if scene_stack {
+        w("gosub *conv_scene_drop".into());
+    }
     w(format!("if {SELECTED} == {NEWEST} mov {NEWEST},0"));
     w("goto *conv_sl_page".into());
 
@@ -658,8 +678,11 @@ fn scene_bar_draw(w: &mut impl FnMut(String), top: &TopBars, chapter_text: u32, 
 /// bookkeeping (see [`SCENE_DEPTH`]). The deepest level and the titles are
 /// locals and go back with a load, so they are carried over in globals.
 ///
-/// A load from the save menu keeps the level saved but drops the levels
-/// below it, and the levels above it can no longer be gone back to.
+/// A save from the save menu keeps the slots of the levels that can be
+/// gone to (`conv_scene_keep`, with CONscripter's `copysavegame`), and a
+/// load puts them back, as the original keeps its scene stack in a save.
+/// A save without them (made by an older build) loads at the level saved,
+/// whose levels below are dropped and above can't be gone back to.
 fn scene_stack(w: &mut impl FnMut(String)) {
     let titles = || (1..=SCENE_ROWS).map(|k| (SCENE_TITLES + k, SCENE_CARRY + k));
     w("*conv_scene_action".into());
@@ -685,8 +708,34 @@ fn scene_stack(w: &mut impl FnMut(String)) {
     w(format!("mov {SCENE_LIST_OPEN},1"));
     w("return".into());
 
+    // SELECTED: the save slot.
+    let kept = |slot: &str| format!("{SCENE_KEPT}+{slot}*10+{SLOT}");
+    w("*conv_scene_keep".into());
+    w(format!("for {SLOT}=0 to {}", SCENE_LEVELS - 1));
+    w(format!("delsavegame {}", kept(SELECTED)));
+    w(format!(
+        "if {SLOT} >= {SCENE_FLOOR} && {SLOT} <= {SCENE_MAX_DEPTH} && {SLOT} != {SCENE_DEPTH} copysavegame {SCENE_SLOT}+{SLOT},{}",
+        kept(SELECTED)
+    ));
+    w("next".into());
+    w("return".into());
+    w("*conv_scene_drop".into());
+    w(format!("for {SLOT}=0 to {}", SCENE_LEVELS - 1));
+    w(format!("delsavegame {}", kept(SELECTED)));
+    w("next".into());
+    w("return".into());
+
     w(format!("*{SCENE_LOADED}"));
-    w(format!("if {SCENE_LOADING} == 0 mov {SCENE_MAX_DEPTH},{SCENE_DEPTH}:mov {SCENE_FLOOR},{SCENE_DEPTH}:return"));
+    w(format!("if {SCENE_LOADING} == 1 goto *conv_scene_switched"));
+    // A load from the save menu: its levels back, if it kept them.
+    w(format!("mov {SCENE_RESTORED},0"));
+    w(format!("for {SLOT}=0 to {}", SCENE_LEVELS - 1));
+    w(format!("savefileexist {HAS_DATA},{}", kept(SCENE_LOAD_SLOT)));
+    w(format!("if {HAS_DATA} == 1 copysavegame {},{SCENE_SLOT}+{SLOT}:mov {SCENE_RESTORED},1", kept(SCENE_LOAD_SLOT)));
+    w("next".into());
+    w(format!("if {SCENE_RESTORED} == 0 mov {SCENE_MAX_DEPTH},{SCENE_DEPTH}:mov {SCENE_FLOOR},{SCENE_DEPTH}"));
+    w("return".into());
+    w("*conv_scene_switched".into());
     w(format!("mov {SCENE_LOADING},0:mov {SCENE_MAX_DEPTH},{SCENE_CARRY_MAX}:mov {SCENE_FLOOR},{SCENE_CARRY_FLOOR}"));
     w(titles().map(|(local, carry)| format!("mov ${local},${carry}")).collect::<Vec<_>>().join(":"));
     w("return".into());
@@ -1216,7 +1265,7 @@ pub(crate) mod tests {
         };
         let d = dialog();
         let mut out = String::new();
-        save_menu(&mut out, &m, Some(&d));
+        save_menu(&mut out, &m, Some(&d), false);
         for line in [
             "if %100 == 1 getscreenshot 400,300\n",
             // lsp2 takes the centre.
@@ -1435,7 +1484,9 @@ pub(crate) mod tests {
             // Going to a level: save this one, carry the history over, load.
             "if %9 > 1110 mov %192,%9-1110\nif %192 < %190 return\nif %192 > %151 return\nif %192 == %150 return\nsavegame 900+%150\nmov %2900,1:mov %2901,%151:mov %2902,%190\nmov $2901,$161:",
             "loadgame 900+%192\nmov %2900,0\nreturn\n",
-            "*conv_scene_loaded\nif %2900 == 0 mov %151,%150:mov %190,%150:return\n",
+            // A save keeps its levels' slots; a load puts them back.
+            "*conv_scene_keep\nfor %103=0 to 7\ndelsavegame 1000+%102*10+%103\nif %103 >= %190 && %103 <= %151 && %103 != %150 copysavegame 900+%103,1000+%102*10+%103\nnext\nreturn\n",
+            "*conv_scene_loaded\nif %2900 == 1 goto *conv_scene_switched\nmov %2905,0\nfor %103=0 to 7\nsavefileexist %104,1000+%2904*10+%103\nif %104 == 1 copysavegame 1000+%2904*10+%103,900+%103:mov %2905,1\nnext\nif %2905 == 0 mov %151,%150:mov %190,%150\nreturn\n*conv_scene_switched\n",
         ] {
             assert!(out.contains(line), "missing {line:?} in\n{out}");
         }
