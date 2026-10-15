@@ -497,6 +497,9 @@ pub(crate) struct BarScreens<'a> {
     pub voice_stops: bool,
     /// The click-wait icon and the variables holding its top-left corner.
     pub wait_icon: Option<(&'a WaitIcon, [&'static str; 2])>,
+    /// The variable holding the story's `gamespeed` percent: the click wait
+    /// (and the menus opened from it) run at 100, the story at that.
+    pub game_speed: Option<&'static str>,
 }
 
 /// The routine that runs a bar action (`gosub` it).
@@ -592,6 +595,9 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, s: BarScreens) {
     let keys = menu.is_some_and(|m| m.key.is_some() || m.items.iter().any(|i| i.key.is_some()));
 
     w(format!("*{WAIT}"));
+    if s.game_speed.is_some() {
+        w("gamespeed 100".into());
+    }
     if menu.is_some() {
         w(format!("mov {},0", crate::command_menu::GO_ON));
     }
@@ -648,6 +654,9 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, s: BarScreens) {
     if s.voice_stops {
         // Voices play on channel 0.
         w(format!("if {} == 1 dwavestop 0", switch_off(Switch::VoiceKeepsPlaying)));
+    }
+    if let Some(v) = s.game_speed {
+        w(format!("gamespeed {v}"));
     }
     w("texec".into());
     w("return".into());
@@ -1323,6 +1332,7 @@ pub(crate) fn switch_index(s: Switch) -> u32 {
         Switch::BgmOn => 9,
         Switch::SeOn => 10,
         Switch::VoiceOn => 11,
+        Switch::ConfirmReset => 12,
     }
 }
 
@@ -1356,7 +1366,10 @@ pub(crate) fn confirm(out: &mut String, d: &ConfirmDialog) {
     w(format!("*{CONFIRM_ROUTINE}"));
     // A confirmation switched off in the settings answers yes at once.
     w(format!("mov {CONFIRM},1"));
-    w(format!("if {CONFIRM_KIND} > 0 mov {TMP},{}+{CONFIRM_KIND}:if %%{} == 1 mov {CONFIRM_KIND},0:return", SWITCH_OFF_BASE - 1, &TMP[1..]));
+    // (switch_off: kinds past 8 are in the second range)
+    w(format!("if {CONFIRM_KIND} > 0 mov {TMP},{}+{CONFIRM_KIND}", SWITCH_OFF_BASE - 1));
+    w(format!("if {CONFIRM_KIND} > 8 mov {TMP},{}+{CONFIRM_KIND}", SWITCH_OFF_BASE_2 - 9));
+    w(format!("if {CONFIRM_KIND} > 0 if %%{} == 1 mov {CONFIRM_KIND},0:return", &TMP[1..]));
     if let Some((b, opacity)) = d.backdrop.as_ref().filter(|_| pictures) {
         w(format!("lsp {DIALOG_BASE},\":c;{}\",{},{},{opacity}", path(&b.image), b.x, b.y));
     }
@@ -1574,10 +1587,10 @@ pub(crate) mod tests {
     /// it is listed here too.
     fn all_switches() -> Vec<Switch> {
         use Switch::*;
-        let all = vec![WheelReadsOn, WheelClosesLog, ConfirmSave, ConfirmLoad, ConfirmDelete, ConfirmTitle, ConfirmQuit, ConfirmBackToChoice, VoiceKeepsPlaying, BgmOn, SeOn, VoiceOn];
+        let all = vec![WheelReadsOn, WheelClosesLog, ConfirmSave, ConfirmLoad, ConfirmDelete, ConfirmTitle, ConfirmQuit, ConfirmBackToChoice, VoiceKeepsPlaying, BgmOn, SeOn, VoiceOn, ConfirmReset];
         for s in &all {
             match s {
-                WheelReadsOn | WheelClosesLog | ConfirmSave | ConfirmLoad | ConfirmDelete | ConfirmTitle | ConfirmQuit | ConfirmBackToChoice | VoiceKeepsPlaying | BgmOn | SeOn | VoiceOn => {}
+                WheelReadsOn | WheelClosesLog | ConfirmSave | ConfirmLoad | ConfirmDelete | ConfirmTitle | ConfirmQuit | ConfirmBackToChoice | VoiceKeepsPlaying | BgmOn | SeOn | VoiceOn | ConfirmReset => {}
             }
         }
         all

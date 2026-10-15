@@ -7,7 +7,8 @@
 //! are joined into strips of normal, hover, disabled, pressed.
 
 use conv_core::ir::{
-    BarAction, BarButton, BarSlide, ButtonBar, CommandItem, CommandMenu, ConfirmDialog, GridText, LineLog, Placed, Rect, SaveGrid, Script, Switch, TitleAction, TitleButton, TitleScreen, WaitIcon,
+    BarAction, BarButton, BarSlide, ButtonBar, CommandItem, CommandMenu, ConfirmDialog, GridText, LineLog, PairOption, PicturePair, PictureSettings, PictureSlider, PictureText, Placed, Rect, SaveGrid,
+    Script, SliderSetting, Switch, TitleAction, TitleButton, TitleScreen, WaitIcon,
 };
 
 use super::super::Assets;
@@ -28,6 +29,87 @@ pub fn menus(a: &mut dyn Assets, script: &mut Script) {
     script.save_grid = save_grid(a);
     script.line_log = line_log(a);
     script.wait_icon = wait_icon(a);
+    script.picture_settings = settings(a);
+}
+
+/// The settings screen (`sys_config.nss`): コンフィグ over the screen, its
+/// controls laid over it (`ConfigSet`). Sliders at x 358 (voice), 430
+/// (effects), 502 (music), 610 (auto wait), 754 (text speed), 862 (game
+/// speed): the knob from y 67 to 206 over a track from y 67, 147 high
+/// (`CreateScrollbar`, バー裏側アタリ判定); a knob's place is
+/// 67 + position × 139/1000, its default position the value's at the first
+/// start (`ConfigFormat`; the volumes and speeds add 7, `$CVer`), checked
+/// against the original's knobs. The 入/切 pairs at y 183 and 213 (two take
+/// their own pictures higher up); every control's resting picture is erased
+/// (the picture shows it), its `002` shows under the pointer, a pair's
+/// chosen side its `003`, cross-faded over 100 ms. The display options
+/// (left column) are drawn as they stand by default. 承認 asks
+/// 設定を初期状態に戻す and puts the defaults back; 実験 plays a line of
+/// 景明's. The game speed's levels are the exe's table (`FUN_0047c250`:
+/// 0.5, 0.75, 1 (default 3), 1.5, 2, 3, 4, 5.5, 8, 12, 16, 32 times).
+fn settings(a: &mut dyn Assets) -> Option<PictureSettings> {
+    const DIR: &str = "cg/sys/config";
+    let picture = |a: &mut dyn Assets, name: &str, x: i32, y: i32| {
+        let (image, w, h) = a.image(&format!("{DIR}/{name}.png"))?;
+        Some(Placed { image, x, y, w: w as i32, h: h as i32 })
+    };
+    // At rest (erased: empty, or `rest`), under the pointer, pressed.
+    let control = |a: &mut dyn Assets, rest: &str, hover: &str, pressed: &str, x: i32, y: i32| {
+        let part = |n: &str| if n.is_empty() { String::new() } else { format!("{DIR}/{n}.png") };
+        let (rest, hover, pressed) = (part(rest), part(hover), part(pressed));
+        let (image, w, h) = a.strip(&[&rest, &hover, &pressed])?;
+        Some(Placed { image, x, y, w: w as i32 / 3, h: h as i32 })
+    };
+    let knob = |a: &mut dyn Assets, x: i32| {
+        let (image, w, h) = a.strip(&[&format!("{DIR}/001-矢印.png"), &format!("{DIR}/002-矢印移動時.png")])?;
+        Some(Placed { image, x, y: 67, w: w as i32 / 2, h: h as i32 })
+    };
+    let mut sliders = Vec::new();
+    for (setting, x, default) in [
+        (SliderSetting::VoiceVolume, 358, 207),
+        (SliderSetting::SeVolume, 430, 207),
+        (SliderSetting::BgmVolume, 502, 407),
+        // 0-200 ms a character (default 100): the exe waits that long for
+        // each character of the page.
+        (SliderSetting::AutoWait { ms: 200 }, 610, 507),
+        // Default 200 of 1000: 20 ms a character, as the story is shown.
+        (SliderSetting::TextSpeed { ms: 100 }, 754, 207),
+        (SliderSetting::GameSpeed { levels: [50, 75, 100, 150, 200, 300, 400, 550, 800, 1200, 1600, 3200] }, 862, 750),
+    ] {
+        sliders.push(PictureSlider { setting, knob: knob(a, x)?, knob_y: (67, 206), track: Rect { x, y: 67, w: 24, h: 147 }, default });
+    }
+    let mut pairs = Vec::new();
+    for (option, x, default_on, on, off) in [
+        (PairOption::Confirm, 827, true, ("入", 183), ("切", 213)),
+        (PairOption::MovieStop, 791, false, ("入", 183), ("切", 213)),
+        (PairOption::StopAtChoice, 719, true, ("入", 183), ("切", 213)),
+        (PairOption::SkipUnread, 683, false, ("入", 183), ("切", 213)),
+        (PairOption::VoicePlaysOn, 647, true, ("全てを再生", 63), ("クリックで停止", 133)),
+        (PairOption::AutoWaitsForVoice, 575, true, ("終了まで待つ", 49), ("再生を中断する", 137)),
+        (PairOption::Bgm, 539, true, ("入", 183), ("切", 213)),
+        (PairOption::Se, 467, true, ("入", 183), ("切", 213)),
+        (PairOption::Voice, 395, true, ("入", 183), ("切", 213)),
+    ] {
+        let side = |a: &mut dyn Assets, (name, y): (&str, i32)| control(a, "", &format!("002-{name}"), &format!("003-{name}"), x, y);
+        pairs.push(PicturePair { option, on: side(a, on)?, off: side(a, off)?, default_on });
+    }
+    // The display options as a first start leaves them: aspect not set by
+    // itself (切), display dependent, the scaling methods not chosen.
+    let fixed = vec![picture(a, "003-切", 251, 213)?, picture(a, "003-ディスプレイ依存", 215, 51)?, picture(a, "002-アスペクト方法OFF", 177, 255)?];
+    let version = |text: &str, x: i32| PictureText { text: format!("◆ＧＡＭＥ{text}バージョン情報：1.00"), x, y: 548, font_size: 11, colour: "#bb7420".into() };
+    Some(PictureSettings {
+        background: picture(a, "コンフィグ", 0, 0)?,
+        fixed,
+        close: control(a, "001-退場", "002-退場", "003-退場", 26, 108)?,
+        reset: control(a, "", "002-承認", "003-承認", 899, 197),
+        voice_test: control(a, "", "002-実験", "003-実験", 287, 197),
+        test_voice: a.sound("voice/ma01/0250430b56"),
+        sliders,
+        pairs,
+        texts: vec![version("システム", 453), version("スクリプト", 678)],
+        fade_ms: 300,
+        pair_fade_ms: 100,
+    })
 }
 
 /// The click-wait flame (System.ini `icon_line`, `icon_page`: the 32
@@ -309,6 +391,7 @@ fn confirm(a: &mut dyn Assets) -> Option<ConfirmDialog> {
         (Switch::ConfirmLoad, "この記録を呼び出しますか"),
         (Switch::ConfirmDelete, "記録を削除してよろしいか"),
         (Switch::ConfirmBackToChoice, "選択肢まで戻りますか"),
+        (Switch::ConfirmReset, "設定を初期状態に戻す"),
     ] {
         pictures.push((kind, question(a, name)?));
     }

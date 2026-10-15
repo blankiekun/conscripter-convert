@@ -717,9 +717,7 @@ Next, in order:
       `selectvoice` now works outside the define section, 325c9e1).
       Beside the original (normal, hover, pressed): mean difference
       0.1-3.5 levels, from the original's fire. Left: the fire's flicker
-      and the opening (step 7); 設定画面 does nothing until the settings
-      screen exists, 電光記録盤を開く opens ONScripter's load menu until
-      the save screen does, 特別付加目録 waits for the extras (step 8).
+      and the opening (step 7); 特別付加目録 waits for the extras (step 8).
    3. Done: the right-click menu (a new `CommandMenu`, in
       `conv-cons/src/command_menu.rs`) and the quick bar (`ButtonBar`
       with a `base` over the buttons, a `BarSlide` and the pressed cell),
@@ -782,8 +780,6 @@ Next, in order:
         darker. Left out from the story's visit: the new gauges blinking in
         and a heroine's icon being struck out with its sound the first
         time she is dead.
-      - The log opens ONScripter's own screen, and 設定画面 does
-        nothing, until steps 5-6.
       Fixed on the way: the title's しおりから used `load`, which isn't a
       command (NScripter's is `loadgame`), so it stopped the game.
    4. Done: the save and load screens (a new `SaveGrid`, emitted by
@@ -859,8 +855,42 @@ Next, in order:
       500 ms (the pause is a guess), a 2.5 s cycle (each picture's time is
       `WaitIcon::frame_ms`). Not done: the auto-mode icon (自動送りアイコン,
       15 pictures).
-   6. Settings drawn as one picture (a new `PictureSettings`: vertical
-      sliders, 入/切 pairs, voice window, version line).
+   6. Done, but for the voice window: the settings screen (a new
+      `PictureSettings`, in `conv-cons/src/picture_settings.rs`; Muramasa's
+      values in `convert/muramasa/screens.rs`, `settings()`, from
+      `sys_config.nss`). コンフィグ over the screen, the controls laid over
+      it: six vertical sliders (voice, effects and music volume, auto wait,
+      text speed, game speed), nine 入/切 pairs (questions asked, a click
+      stops movies, auto and skip stop at a choice, skip unread text, the
+      voice plays on after a click, auto waits for the voice, music, effects
+      and voices heard), 承認 (asks 設定を初期状態に戻す, a new
+      `Switch::ConfirmReset`, then puts the defaults back), 実験 (a line of
+      景明's), the version line, 退出, right-click or C to leave; it fades in
+      and out over 300 ms and a pair's choice cross-fades over 100 ms. Each
+      control's resting picture is erased in the original (the picture shows
+      it): ours are strips with an empty first cell (`Assets::strip` takes
+      `""`), the `002` under the pointer; a slider's track is an invisible
+      `exbtn` that shows its knob's hover picture, and a press there drags
+      the knob. The display options (left column) are drawn as a first start
+      leaves them, without buttons. Values are globals %2920-%2941 (a
+      slider's position 0-1000, a pair's 0/1), with the first start's
+      defaults (the knobs found in the original's shot: voice and effects
+      800, music 600, auto wait 100, text speed 200, game speed 3), applied
+      at startup and as they change by CONscripter's new player settings
+      (ddb3686: `soundmute`, `clickvoicestop`, `autovoicewait`, `selectkeep`,
+      `moviestop`, `gamespeed`; volumes with `bgmvol`/`sevol`/`voicevol`,
+      skipping with `kidokumode`). The game speed is the exe's table
+      (`FUN_0047c250`, used by `Wait` and every action: time ÷ 0.5, 0.75,
+      1 (3), 1.5, 2, 3, 4, 5.5, 8, 12, 16, 32); the click wait sets 100 and
+      puts the story's back as it ends, so menus run at normal speed, as in
+      the original. Volumes follow the exe's curve approximately
+      ((p²/50 + p)/3 for 100·(v/1000)^1.661); the auto wait is the exe's
+      per-character wait (0-200 ms a character); text speed is ours (0-100 ms
+      a character, 20 at the default, unmeasured). Beside the original
+      (wine, the first page): mean difference 1.6 levels, every pixel within
+      40 levels but the version line (the font); 入 hovered matches. Left:
+      the voice window (別窓を開く, the characters heard so far with a check
+      box each), the wheel over a slider.
    7. Motion: fire flicker, opening, menu cascade, dialog unroll, quick
       bar slide.
 
