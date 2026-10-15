@@ -608,8 +608,6 @@ Next, in order:
       1-6. Done: the menu, the gallery, the sound room, the
          recollection, the 3D viewer and the way back to the title
          ("History", below).
-      Left from 1-4: the sound room's turning icon runs at 33 ms a
-      picture, a guess.
 
    The user's decisions (2026-10-14): the pressed state (`003`) becomes
    an engine feature that is on for every script; the settings CONscripter
@@ -1016,8 +1014,10 @@ page each punctuation mark or symbol shows on (`--shot-pages`):
    (global %2961: the title's at first, opened with the extras, the
    title's music back on leaving if it differs), the playing one
    clicked again fades out over 2 s; the ten-picture A-icon turns
-   26 px left of the track playing (33 ms a picture: a guess, wine
-   films the original's process too slowly); a movie fades the music
+   26 px left of the track playing, 340 ms a picture (filmed at 100
+   frames a second with `ffmpeg -f x11grab -framerate 100 -video_size
+   26x24 -i :N+482,282 -f framemd5`: a change every 340 ms, steady
+   over 10 s, with the game at 17 % of a core); a movie fades the music
    and the screen to black over 1 s, plays (the settings' 動画 option
    decides whether a click stops it), the music comes back over 1 s
    and the black fades over 300 ms. Beside the original (the title's

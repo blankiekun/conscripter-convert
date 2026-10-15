@@ -224,9 +224,9 @@ fn replay(a: &mut dyn Assets, story: &Story) -> Option<PictureReplay> {
 /// 651, 787 from y 84, 24 apart; the songs at x 651 from y 396; the movies'
 /// thumbnails at x 102 from y 84, 150 apart). A locked song shows its
 /// `000` picture, a locked movie 空白アイコン. The playing track has the
-/// ten-picture A-icon turning 26 px left of it (its speed is a guess: the
-/// original's process draws a picture a frame, and wine films too slowly
-/// to tell). Choosing the playing track fades it out over 2 s
+/// ten-picture A-icon turning 26 px left of it, 340 ms a picture (filmed
+/// under wine at 100 frames a second: the process's loop has no wait, but
+/// the engine gives it a step every 340 ms). Choosing the playing track fades it out over 2 s
 /// (`SoundFade`); a movie fades the music and the screen to black over 1 s,
 /// then back, the black over 300 ms.
 fn sound(a: &mut dyn Assets, story: &Story) -> Option<SoundRoom> {
@@ -283,7 +283,7 @@ fn sound(a: &mut dyn Assets, story: &Story) -> Option<SoundRoom> {
         title_track,
         marker: Placed { image, x: 0, y: 0, w: w as i32, h: h as i32 },
         marker_cells: 10,
-        marker_ms: 33,
+        marker_ms: 340,
         marker_dx: 26,
         open_ms: 500,
         stop_fade_ms: 2000,
