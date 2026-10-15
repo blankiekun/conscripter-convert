@@ -1,7 +1,7 @@
 {
- "_comment": "装甲悪鬼村正 route runs (engrun.py links this into each run folder): sprite 999 and the TRACE: files are the runs' markers; one route reaches a fraction of the labels, so coverage is left to the route check; battle scenes layer one effect (se戦闘_) on several channels a few hundred ms apart, as the source does",
+ "_comment": "装甲悪鬼村正 route runs (engrun.py links this into each run folder): sprite 999 and the TRACE: files are the runs' markers; sprites 6-48 are the right-click menu (6-33) and the quick bar (34-48), which auto-play must never press; one route reaches a fraction of the labels, so coverage is left to the route check; battle scenes layer one effect (se戦闘_) on several channels a few hundred ms apart, as the source does",
  "script": "0.txt",
- "ignore": "999",
+ "ignore": "6-48,999",
  "cg": "^cg\\\\ev\\\\",
  "skip": [
   "coverage"

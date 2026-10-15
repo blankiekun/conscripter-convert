@@ -1252,7 +1252,7 @@ impl AssetBank {
             };
             buttons.push(BarButton { image, active, action });
         }
-        Ok(ButtonBar { buttons, top: Some(self.top_bars()?) })
+        Ok(ButtonBar { buttons, top: Some(self.top_bars()?), ..Default::default() })
     }
 
     /// The images of a GAF4 container in `HD/{arc}`, decoded.

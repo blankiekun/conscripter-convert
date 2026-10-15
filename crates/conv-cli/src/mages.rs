@@ -237,6 +237,7 @@ fn convert(game: &Path, output: &Path, scenes: &[String], font: Option<&Path>, t
         extras,
         ops: compiled.ops,
         version: Some(crate::version::line()),
+        command_menu: None,
     };
     let (encoded, lost) = conv_cons::encode(&conv_cons::emit(&ir));
     fs::write(output.join("0.txt"), encoded)?;

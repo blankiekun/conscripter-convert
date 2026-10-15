@@ -6,9 +6,13 @@
 //! the pointer, `003` pressed, `000` disabled (where there is one); they
 //! are joined into strips of normal, hover, disabled, pressed.
 
-use conv_core::ir::{ConfirmDialog, Placed, Script, Switch, TitleAction, TitleButton, TitleScreen};
+use conv_core::ir::{BarAction, BarButton, BarSlide, ButtonBar, CommandItem, CommandMenu, ConfirmDialog, Placed, Script, Switch, TitleAction, TitleButton, TitleScreen};
 
 use super::super::Assets;
+
+/// The favour screen (`sys_hmode.nss`), compiled as a subroutine for the
+/// menu's 好感度記録.
+pub const FAVOUR: &str = "conv_favour";
 
 const SCREEN_W: i32 = 1024;
 const SCREEN_H: i32 = 576;
@@ -17,6 +21,84 @@ const SCREEN_H: i32 = 576;
 pub fn menus(a: &mut dyn Assets, script: &mut Script) {
     script.confirm = confirm(a);
     script.title_screen = title(a);
+    script.button_bar = quick_bar(a);
+    script.command_menu = command_menu(a);
+}
+
+/// The right-click menu (`sys_menu.nss`): sixteen rows (220×20) at x 636
+/// from y 89, over a black backdrop (frame included) that fades in over
+/// 100 ms before the rows appear 10 ms apart (24-318); closing reverses
+/// it (539-577). The letters are the game's shortcuts (`0_boot.nss`
+/// 27-55, `SetShortcut`), which work at any click wait; M opens and closes
+/// the menu. 好感度記録 runs the favour screen ([`FAVOUR`]).
+fn command_menu(a: &mut dyn Assets) -> Option<CommandMenu> {
+    const DIR: &str = "cg/sys/menu";
+    let mut items = Vec::new();
+    for (n, (name, action, key)) in [
+        ("キャンセル", BarAction::Close, None),
+        ("好感度記録", BarAction::Call, Some('H')),
+        ("メッセージ消す", BarAction::HideWindow, None),
+        ("自動メッセージ", BarAction::Auto, Some('A')),
+        ("スキップ", BarAction::Skip, None),
+        ("超速スキップ", BarAction::FastSkip, Some('N')),
+        ("選択肢に戻る", BarAction::BackToChoice, Some('R')),
+        ("ログ表示", BarAction::Log, Some('B')),
+        ("セーブ", BarAction::Save, Some('S')),
+        ("ロード", BarAction::Load, Some('L')),
+        ("栞を差す", BarAction::QuickSave, Some('Q')),
+        ("栞を開く", BarAction::QuickLoad, Some('P')),
+        ("フルスクリーン", BarAction::Fullscreen, Some('F')),
+        ("設定画面", BarAction::Settings, Some('C')),
+        ("タイトルに戻る", BarAction::Title, Some('T')),
+        ("ゲーム終了", BarAction::Quit, None),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        // No pressed picture: filmed, the menu keeps the hover one while
+        // the mouse button is held.
+        let state = |n: u32| format!("{DIR}/{n:03}-{name}.png");
+        let (s1, s2, s0) = (state(1), state(2), state(0));
+        let (image, w, h) = a.strip(&[&s1, &s2, &s0])?;
+        let button = Placed { image, x: 636, y: 89 + 20 * n as i32, w: w as i32, h: h as i32 };
+        let label = (action == BarAction::Call).then(|| FAVOUR.to_string());
+        items.push(CommandItem { button, action, key, label });
+    }
+    let (image, w, h) = a.image(&format!("{DIR}/メニュー黒バック.png"))?;
+    Some(CommandMenu { backdrop: Placed { image, x: 0, y: 0, w: w as i32, h: h as i32 }, items, fade_ms: 100, step_ms: 10, key: Some('M'), pressed: false })
+}
+
+/// The quick bar (`function_quick.nss`): a base (992,26) and four buttons
+/// at x 998, off the right edge until the pointer passes x 968, then
+/// sliding in over 200 ms (`Dxl2`, 272-286). Quick save plays しおり; quick
+/// load fades to black over 300 ms (208-210). The original runs it as a
+/// process, so it also slides while text is being drawn; here it moves
+/// at click waits only.
+fn quick_bar(a: &mut dyn Assets) -> Option<ButtonBar> {
+    const DIR: &str = "cg/sys/quick";
+    let mut buttons = Vec::new();
+    for (name, y, action) in [
+        ("栞を差す", 47, BarAction::QuickSave),
+        ("栞を開く", 180, BarAction::QuickLoad),
+        ("スキップする", 290, BarAction::Skip),
+        ("メッセージを消す", 390, BarAction::HideWindow),
+    ] {
+        // Normal, hover, disabled (normal: the bar greys nothing), pressed.
+        let state = |n: u32| format!("{DIR}/{name}{n:03}.png");
+        let (s1, s2, s3) = (state(1), state(2), state(3));
+        let (image, w, h) = a.strip(&[&s1, &s2, &s1, &s3])?;
+        buttons.push(BarButton { image: Placed { image, x: 998, y, w: w as i32, h: h as i32 }, active: None, action });
+    }
+    let (image, w, h) = a.image(&format!("{DIR}/クイックメニュー台座.png"))?;
+    Some(ButtonBar {
+        buttons,
+        top: None,
+        base: Some(Placed { image, x: 992, y: 26, w: w as i32, h: h as i32 }),
+        slide: Some(BarSlide { hidden_dx: 32, edge_x: 968, ms: 200 }),
+        pressed: true,
+        quick_save_se: a.sound("sound/se/SE_sys_しおり"),
+        load_fade_ms: 300,
+    })
 }
 
 /// The title as it stands after its opening (`0_boot.nss`, `TitleSet`
@@ -98,6 +180,7 @@ fn confirm(a: &mut dyn Assets) -> Option<ConfirmDialog> {
         (Switch::ConfirmSave, "記録を上書きして良いか"),
         (Switch::ConfirmLoad, "この記録を呼び出しますか"),
         (Switch::ConfirmDelete, "記録を削除してよろしいか"),
+        (Switch::ConfirmBackToChoice, "選択肢まで戻りますか"),
     ] {
         pictures.push((kind, question(a, name)?));
     }
