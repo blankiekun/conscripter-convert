@@ -74,6 +74,13 @@ WebAssembly build (`engine/script/cross_web.sh`, needs emsdk), see
 
 ## Converting a game
 
+The easiest way: the GUI from the
+[releases](https://github.com/blankiekun/conscripter-convert/releases)
+(`conscripter-convert-gui_<version>_<platform>`). Drop the game folder on
+it; it finds which supported game it is and builds it with that game's
+recommended settings, fonts included. How to run and build it:
+[`gui/README.md`](gui/README.md). By hand:
+
 ```sh
 conscripter-convert convert-game /path/to/game -o out/mygame \
   --font /path/to/japanese-font.ttf --title "My Game"
