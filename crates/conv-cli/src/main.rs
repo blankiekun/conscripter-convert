@@ -79,7 +79,7 @@ enum Command {
     /// Convert one Nitroplus story scene (装甲悪鬼村正) into a CONscripter
     /// game directory: 0.txt plus the assets it uses
     ConvertNss {
-        /// Game data directory (Muramasa.exe and the *.npa archives)
+        /// Game data directory (Muramasa.exe or Django.exe and the *.npa archives)
         game: PathBuf,
         /// Script file and scene; the scene defaults to the file's name
         /// (its content scene)
@@ -158,13 +158,13 @@ enum Command {
 enum NpaCommand {
     /// List the files: size and name
     List {
-        /// The game's exe (Muramasa.exe), which holds the decryption table
+        /// The game's exe (Muramasa.exe, Django.exe), which picks the decryption table
         exe: PathBuf,
         archive: PathBuf,
     },
     /// Extract files, decrypted and unpacked
     Extract {
-        /// The game's exe (Muramasa.exe), which holds the decryption table
+        /// The game's exe (Muramasa.exe, Django.exe), which picks the decryption table
         exe: PathBuf,
         archive: PathBuf,
         #[arg(short, long)]
@@ -836,7 +836,8 @@ fn convert_nss(
 ) -> Result<()> {
     use conv_engines::nitroplus::assets::{NpaAssets, OUTPUT_DIRS, PICTURE_DIRS};
     use conv_engines::nitroplus::{convert, nss};
-    let exe = game.join("Muramasa.exe");
+    // The first Nitroplus exe found names the game.
+    let exe = ["Muramasa.exe", "Django.exe"].iter().map(|n| game.join(n)).find(|p| p.exists()).unwrap_or_else(|| game.join("Muramasa.exe"));
     build::check_output(output, &OUTPUT_DIRS, !loose && !dry_run)?;
     // Read entry by entry, not mapped: the mapped pages of cg.npa and
     // voice.npa (3 GB) would count as the converter's memory.
@@ -907,7 +908,8 @@ fn convert_nss(
 }
 
 fn npa_key(exe: &Path) -> Result<conv_engines::nitroplus::npa::Key> {
-    Ok(conv_engines::nitroplus::npa::Key::from_exe(&fs::read(exe).with_context(|| format!("reading {}", exe.display()))?)?)
+    let name = exe.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    Ok(conv_engines::nitroplus::npa::Key::for_exe(&name, &fs::read(exe).with_context(|| format!("reading {}", exe.display()))?)?)
 }
 
 fn open_npa<'a>(exe: &Path, path: &Path, bytes: &'a [u8]) -> Result<conv_engines::nitroplus::npa::Npa<'a>> {
