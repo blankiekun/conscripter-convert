@@ -150,11 +150,11 @@ fn wait_icon(a: &mut dyn Assets) -> Option<WaitIcon> {
 /// The text log (`sys_backlog.nss`): the parchment scroll
 /// (`バックログ背景.jpg`); one row back (708,228) and on (724,284), EXIT
 /// (690,530), the knob on the rail at x 646 from y 90 to 490
-/// (`CreateScrollbar`). Black 20 px text (`SetFont`, ＭＳ ゴシック) from
-/// (120,99), rows 24 px apart, 24 characters wide (measured under wine;
-/// the rows fill the parchment down to 507). The voice icon (`スピーカー`)
-/// left of a voiced row is ours. Left out: the text's #AAAA88 outline,
-/// the page buttons (698,138 and 724,362) and the rolls turning as it
+/// (`CreateScrollbar`). Black 20 px text with an #AAAA88 outline
+/// (`SetFont`, ＭＳ ゴシック) from (120,99), rows 24 px apart, 24
+/// characters wide (measured under wine; the rows fill the parchment down
+/// to 507). The voice icon (`スピーカー`) left of a voiced row is ours.
+/// Left out: the page buttons (698,138 and 724,362) and the rolls turning as it
 /// scrolls.
 fn line_log(a: &mut dyn Assets) -> Option<LineLog> {
     const DIR: &str = "cg/sys/backlog";
@@ -184,6 +184,7 @@ fn line_log(a: &mut dyn Assets) -> Option<LineLog> {
         font_size: 20,
         colour: "#000000".into(),
         fade_ms: 300,
+        outline: Some("#AAAA88".into()),
     })
 }
 

@@ -169,8 +169,13 @@ pub(crate) fn emit(out: &mut String, l: &LineLog) {
     w(format!("if {TMP} >= {ROWS} goto *conv_ll_knob"));
     w(format!("getlogrow {TEXT},{VOICE},{TMP}"));
     w(format!("mov {Y},{K}*{}+{}", l.row_step, l.text_y));
+    // The outline is the strsp's shadow, drawn as one by strspoutline.
+    let (outline_on, shadow, outline_off) = match &l.outline {
+        Some(c) => (format!("strspoutline \"{c}\":"), 1, ":strspoutline \"\""),
+        None => (String::new(), 0, ""),
+    };
     w(format!(
-        "if {TEXT} != \"\" mov {SPRITE},{ROW_TEXT}+{K}:strsp {SPRITE},{TEXT},{},{Y},{},1,{s},{s},0,0,0,0,\"{}\"",
+        "if {TEXT} != \"\" mov {SPRITE},{ROW_TEXT}+{K}:{outline_on}strsp {SPRITE},{TEXT},{},{Y},{},1,{s},{s},0,0,0,{shadow},\"{}\"{outline_off}",
         l.text_x,
         // A row is cut at the columns, but strsp wraps a full-width
         // character one column early: a full row would lose its last.
@@ -215,6 +220,7 @@ mod tests {
             font_size: 20,
             colour: "#000000".into(),
             fade_ms: 300,
+            outline: None,
         };
         let mut out = String::new();
         emit(&mut out, &l);

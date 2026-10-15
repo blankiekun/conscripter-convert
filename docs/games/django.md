@@ -201,7 +201,8 @@ What it showed (2026-10-15):
   proportional and draws heavier; the click-wait bullet follows the
   last character.
 - Text log: ＭＳ ゴシック 20 from (120,99), rows 24 px apart, 24
-  characters wide, black with an #AAAA88 outline (ours: no outline).
+  characters wide, black with an #AAAA88 outline (ours too since
+  2026-10-15: `strspoutline`, CONscripter after 0.22.0).
 - Save screen: pixel for pixel ours but for the NEXT button's state.
 - Choices: the option is centred about x 386 (MS ゴシック 22, white;
   ipag needs 388), and the plate under the pointer turns to
@@ -310,4 +311,4 @@ yet.
    (drawn as cross-fades), shared with Muramasa's compiler.
 7. Extras: the doors' animation and the menu's own music (left out).
 8. The title's congratulations (`TitleCongratulations`, sets
-   `#ClearAll`); the log's #AAAA88 text outline.
+   `#ClearAll`).
