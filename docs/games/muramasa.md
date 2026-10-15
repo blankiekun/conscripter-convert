@@ -627,10 +627,9 @@ Next, in order:
       movies of the armour with name plates and specs, `#av_`/`#aw_`). The
       title's ライナー画像 button (after 悪鬼編) is another extra, not yet
       looked at. Plan, in order, each beside the original:
-      1-5. Done: the menu, the gallery, the sound room, the
-         recollection and the 3D viewer ("History", below).
-      6. Back to the title: the white flash and the
-         return opening's tail (`TitleOpening::after_extras`).
+      1-6. Done: the menu, the gallery, the sound room, the
+         recollection, the 3D viewer and the way back to the title
+         ("History", below).
       Left from 1-4: the replay cuts to its scene where the original
       fades the held list out over 500 ms (`RecoIn`); the sound room's
       turning icon runs at 33 ms a picture, a guess.
@@ -1083,6 +1082,15 @@ page each punctuation mark or symbol shows on (`--shot-pages`):
    set). Movie paths with a folder (`dx/3d/…`) are found now (only the
    file name was looked up). Unchecked: the movie's speed beside the
    original (wine draws no movie).
+6. Done: back to the title (`0_boot.nss` `TitleFade`, the
+   `$エキストラタイトル` branch): the extras cut to white with
+   se戦闘_攻撃_刀衝突01 (the click's 剣戟弾く01 on a channel of its own,
+   so the clash doesn't cut it), and the title comes out of the white
+   over 1 s with the blurred background and logo spreading away: the
+   last second of the return opening, rendered from 2 s as
+   `title_extras2` (`opening::after_extras`, a `TitleOpening` with
+   `after_extras`). The music goes on (the title's, if the sound room
+   chose another).
 
 **Motion and movies (Status, system screens step 7), done:**
 

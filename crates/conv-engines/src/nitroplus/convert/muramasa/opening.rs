@@ -240,12 +240,13 @@ impl Layer {
 }
 
 /// Renders `layers` (bottom first) for `ms` into a movie.
-fn render(a: &mut dyn Assets, name: &str, ms: f64, layers: &[Layer]) -> Option<String> {
+/// `layers` from `from` to `ms`.
+fn render(a: &mut dyn Assets, name: &str, from: f64, ms: f64, layers: &[Layer]) -> Option<String> {
     // The last picture held a moment: players may stop a few frames short.
-    let frames = (ms * FPS as f64 / 1000.0).ceil() as u32 + 1 + FPS / 5;
+    let frames = ((ms - from) * FPS as f64 / 1000.0).ceil() as u32 + 1 + FPS / 5;
     let mut buf = vec![[0.0f32; 3]; (SCREEN_W * SCREEN_H) as usize];
     a.frames_movie(name, FPS, frames, &mut |i, frame: &mut RgbImage| {
-        let t = (i as f64 * 1000.0 / FPS as f64).min(ms);
+        let t = (from + i as f64 * 1000.0 / FPS as f64).min(ms);
         buf.iter_mut().for_each(|p| *p = [0.0; 3]);
         for l in layers {
             l.draw(t, &mut buf);
@@ -392,7 +393,7 @@ pub fn at_launch(a: &mut dyn Assets, picture: &str, name: &str) -> Option<String
     layers.push(red);
 
     layers.extend(buttons(a, 10200.0)?);
-    render(a, name, end, &layers)
+    render(a, name, 0.0, end, &layers)
 }
 
 /// Coming back to the title (`TitleFade`, `$Logo`): the logo grows out of
@@ -400,6 +401,18 @@ pub fn at_launch(a: &mut dyn Assets, picture: &str, name: &str) -> Option<String
 /// the title with a blurred glow of the background and logo spreading
 /// away. Ends at 3 s, as the white has faded.
 pub fn on_return(a: &mut dyn Assets) -> Option<String> {
+    let layers = return_layers(a)?;
+    render(a, "title_return2", 0.0, 3000.0, &layers)
+}
+
+/// Back from the extras (`TitleFade`, `$エキストラタイトル`): the white at
+/// once, then [`on_return`]'s last second.
+pub fn after_extras(a: &mut dyn Assets) -> Option<String> {
+    let layers = return_layers(a)?;
+    render(a, "title_extras2", 2000.0, 3000.0, &layers)
+}
+
+fn return_layers(a: &mut dyn Assets) -> Option<Vec<Layer>> {
     let fuji = format!("{DIR}/偽富士背景画像.png");
     let logo = format!("{DIR}/ロゴ画像.png");
     let mut layers = Vec::new();
@@ -433,5 +446,5 @@ pub fn on_return(a: &mut dyn Assets) -> Option<String> {
     layers.push(white);
 
     layers.extend(buttons(a, 2000.0)?);
-    render(a, "title_return2", 3000.0, &layers)
+    Some(layers)
 }

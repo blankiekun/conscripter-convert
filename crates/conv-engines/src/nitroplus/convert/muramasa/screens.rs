@@ -433,6 +433,11 @@ fn title(a: &mut dyn Assets, story: &Story) -> Option<TitleScreen> {
         let sound = a.delayed_sound("sound/se/se特殊_雰囲気_鎧登場演02", 1800);
         openings.push(TitleOpening { movie, sound, ..Default::default() });
     }
+    // The music goes on; the sword's clash with the white.
+    if let Some(movie) = super::opening::after_extras(a) {
+        let sound = a.sound("sound/se/se戦闘_攻撃_刀衝突01");
+        openings.push(TitleOpening { movie, sound, after_extras: true, ..Default::default() });
+    }
     let glow = a.overlaid(&background, "cg/ef/ef046_炎a.jpg", 2000, 300).map(|image| TitleGlow {
         image,
         keys: vec![(0, 0), (600, 256), (1100, 256), (1700, 0), (2200, 0)],
