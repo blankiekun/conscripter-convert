@@ -624,3 +624,35 @@ web build takes `?trace` in its URL and downloads the trace with F7.
 `erasetextwindow 0` in `*start`. `research/xuse/smoke.py` does scripted
 clicks and screenshots (its click queue is `%1000+`; keep converter
 variables out of 1000-1099).
+
+## Test saves at chosen scenes
+
+To hand the user (or a later check) save files that stand at the
+moments worth testing (battles, movies, minigames, route splits,
+endings), list them in a slots file, one `slot label description` a
+line, and run:
+
+```sh
+python3 -I research/tools/test_saves.py out/<game>-cons <slots.txt> -o <game>-test-saves.zip
+```
+
+For each line the engine starts at the label (`--goto`), auto-plays to
+the first click wait and saves there (`--checkpoint-every 1
+--checkpoint-slot <slot> --max-pages 2`), with a picture of that page
+(`--shot-pages 1`). A checkpoint is a bare save, without what our save
+menu adds when the player saves, so the script adds both: a 160×90
+`savethumbN.bmp` (the menu's thumbnail) and the slot's text, which
+`savegame2` appends to the file as `"<date>|<play time>|<text>"*` (cp932)
+and `getsavestr` reads back from the end; the description goes in the
+text. The zip holds the files flat and uncompressed, as the web
+player's Export Saves writes them (`save16.dat`, `savethumb16.bmp`);
+its Import Saves takes that, and so does a native save folder (unzip
+the `.dat` and `.bmp` files into it). Leave `gloval.sav` and
+`kidoku.dat` out: they would replace the player's unlocks and read
+text.
+
+The saves carry no route flags (`--goto` runs without the route's
+earlier choices), so a scene that branches on them may go another way
+than on its route; start such a scene from `--vars` instead
+("Starting anywhere" in `engine/DEBUG.md`). Muramasa's list:
+`research/nitroplus/muramasa-test-saves.txt`.
