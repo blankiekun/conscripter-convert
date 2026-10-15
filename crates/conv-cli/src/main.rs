@@ -5,6 +5,7 @@ use anyhow::{Context, Result, bail};
 use clap::{Parser, Subcommand};
 use memmap2::Mmap;
 use conv_core::ir::Script;
+use conv_engines::media::AudioFormat;
 use conv_engines::xuse::cd::CdScript;
 use conv_engines::xuse::convert::{AssetBank, Flow, LabelNames, Needs, lower_script, presets};
 use conv_engines::xuse::gaf::Gaf;
@@ -51,6 +52,13 @@ enum Command {
         /// whose SDL_image has libwebp
         #[arg(long)]
         webp: bool,
+        /// With --webp: lossy WebP at this quality (0-100, as cwebp -q),
+        /// smaller than the near-lossless default; transparency stays
+        /// lossless
+        #[arg(long, requires = "webp", value_parser = clap::value_parser!(u8).range(0..=100))]
+        webp_quality: Option<u8>,
+        #[command(flatten)]
+        audio: build::AudioArgs,
     },
     /// Convert one Xuse script (CDFiles/NNNN.cd) into a CONscripter game
     /// directory: 0.txt plus the assets it uses
@@ -73,6 +81,13 @@ enum Command {
         /// whose SDL_image has libwebp
         #[arg(long)]
         webp: bool,
+        /// With --webp: lossy WebP at this quality (0-100, as cwebp -q),
+        /// smaller than the near-lossless default; transparency stays
+        /// lossless
+        #[arg(long, requires = "webp", value_parser = clap::value_parser!(u8).range(0..=100))]
+        webp_quality: Option<u8>,
+        #[command(flatten)]
+        audio: build::AudioArgs,
     },
     /// Convert one Nitroplus story scene (装甲悪鬼村正) into a CONscripter
     /// game directory: 0.txt plus the assets it uses
@@ -105,6 +120,8 @@ enum Command {
         /// Compile and write 0.txt only, no assets
         #[arg(long)]
         dry_run: bool,
+        #[command(flatten)]
+        audio: build::AudioArgs,
     },
     /// Check a converted game directory's 0.txt: missing labels, effect
     /// numbers past 255, half-width characters in vertical text, files
@@ -279,14 +296,14 @@ enum XarcCommand {
 
 fn main() -> Result<()> {
     match Cli::parse().command {
-        Command::ConvertGame { game, output, font, title, loose, linear, webp } => {
-            convert_game(&game, &output, font.as_deref(), &title, loose, linear, webp)
+        Command::ConvertGame { game, output, font, title, loose, linear, webp, webp_quality, audio } => {
+            convert_game(&game, &output, font.as_deref(), &title, loose, linear, webp.then_some(webp_quality), audio.format()?)
         }
-        Command::ConvertScript { game, script, output, font, title, webp } => {
-            convert_script(&game, script, &output, font.as_deref(), &title, webp)
+        Command::ConvertScript { game, script, output, font, title, webp, webp_quality, audio } => {
+            convert_script(&game, script, &output, font.as_deref(), &title, webp.then_some(webp_quality), audio.format()?)
         }
-        Command::ConvertNss { game, file, scene, chain, output, font, title, loose, dry_run } => {
-            convert_nss(&game, &file, scene.as_deref(), chain, &output, font.as_deref(), &title, loose, dry_run)
+        Command::ConvertNss { game, file, scene, chain, output, font, title, loose, dry_run, audio } => {
+            convert_nss(&game, &file, scene.as_deref(), chain, &output, font.as_deref(), &title, loose, dry_run, audio.format()?)
         }
         Command::Lint { dir } => {
             let report = build::lint_dir(&dir, true)?;
@@ -336,15 +353,17 @@ const ASSET_DIRS: [&str; 7] = ["bg", "sprite", "bgm", "se", "system", "voice", "
 /// Not `fx`: its animations are strips up to 47 screens wide, and WebP
 /// pictures can't be wider than 16,383 pixels.
 const IMAGE_DIRS: [&str; 3] = ["bg", "sprite", "system"];
+/// The voices and sound effects `--audio-codec` and `--audio-quality` change.
+const AUDIO_DIRS: [&str; 2] = ["voice", "se"];
 
-/// With `webp`, re-encodes the images in `output` as WebP and points the
-/// script at them.
-fn image_format(output: &Path, source: String, webp: bool) -> Result<String> {
-    if !webp {
+/// With `webp` (Some: the lossy quality, if any), re-encodes the images in
+/// `output` as WebP and points the script at them.
+fn image_format(output: &Path, source: String, webp: Option<Option<u8>>) -> Result<String> {
+    let Some(quality) = webp else {
         return Ok(source);
-    }
+    };
     let dirs: Vec<PathBuf> = IMAGE_DIRS.iter().map(|d| output.join(d)).collect();
-    let c = conv_cons::webp::convert_dirs(&dirs).context("converting images to WebP")?;
+    let c = conv_cons::webp::convert_dirs(&dirs, quality).context("converting images to WebP")?;
     println!(
         "  {} images as WebP: {:.1} MB (PNG {:.1} MB)",
         c.files,
@@ -354,7 +373,17 @@ fn image_format(output: &Path, source: String, webp: bool) -> Result<String> {
     Ok(conv_cons::webp::retarget(&source))
 }
 
-fn convert_game(game: &Path, output: &Path, font: Option<&Path>, title: &str, loose: bool, linear: bool, webp: bool) -> Result<()> {
+#[allow(clippy::too_many_arguments)]
+fn convert_game(
+    game: &Path,
+    output: &Path,
+    font: Option<&Path>,
+    title: &str,
+    loose: bool,
+    linear: bool,
+    webp: Option<Option<u8>>,
+    audio: AudioFormat,
+) -> Result<()> {
     let dir = game.join("HD").join("CDFiles");
     let mut ids: Vec<u32> = fs::read_dir(&dir)
         .with_context(|| format!("reading {}", dir.display()))?
@@ -442,6 +471,7 @@ fn convert_game(game: &Path, output: &Path, font: Option<&Path>, title: &str, lo
         ..Default::default()
     };
     let source = image_format(output, conv_cons::emit(&ir), webp)?;
+    build::reencode_audio(output, &AUDIO_DIRS, audio)?;
     let lost = build::write_game(output, &ir, &source, font, None)?;
     if !loose {
         build::pack(output, &ASSET_DIRS)?;
@@ -449,7 +479,7 @@ fn convert_game(game: &Path, output: &Path, font: Option<&Path>, title: &str, lo
     build::summary(output, &ir, lost, font.is_some(), Default::default(), Some(true))
 }
 
-fn convert_script(game: &Path, script: u32, output: &Path, font: Option<&Path>, title: &str, webp: bool) -> Result<()> {
+fn convert_script(game: &Path, script: u32, output: &Path, font: Option<&Path>, title: &str, webp: Option<Option<u8>>, audio: AudioFormat) -> Result<()> {
     let file = format!("{script:04}.cd");
     let path = game.join("HD").join("CDFiles").join(&file);
     let bytes = map(&path)?;
@@ -465,6 +495,7 @@ fn convert_script(game: &Path, script: u32, output: &Path, font: Option<&Path>, 
     let ir = Script { title: title.to_string(), width: 800, height: 600, window: Some(window), ops, version: Some(version::line()), ..Default::default() };
 
     let source = image_format(output, conv_cons::emit(&ir), webp)?;
+    build::reencode_audio(output, &AUDIO_DIRS, audio)?;
     let lost = build::write_game(output, &ir, &source, font, None)?;
     println!("{file} ({}) -> {}", cd.name, output.join("0.txt").display());
     build::summary(output, &ir, lost, font.is_some(), Default::default(), None)
@@ -804,6 +835,7 @@ fn convert_nss(
     title: &str,
     loose: bool,
     dry_run: bool,
+    audio: AudioFormat,
 ) -> Result<()> {
     use conv_engines::nitroplus::assets::{NpaAssets, OUTPUT_DIRS};
     use conv_engines::nitroplus::{convert, nss};
@@ -864,6 +896,10 @@ fn convert_nss(
     game.menus(&mut assets, &mut ir);
     // A dry run writes the script but no assets.
     let lost = build::write_game(output, &ir, &conv_cons::emit(&ir), font.filter(|_| !dry_run), None)?;
+    if !dry_run {
+        // the voices and the sound effects (sound/se/x.ogg; music is sound/bgm)
+        build::reencode_audio(output, &["voice", "sound/se"], audio)?;
+    }
     if !dry_run && !loose {
         build::pack(output, &OUTPUT_DIRS)?;
     }

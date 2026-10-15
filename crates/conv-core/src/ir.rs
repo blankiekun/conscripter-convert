@@ -563,6 +563,9 @@ pub struct TextWindow {
     /// (`text_x`, `text_y`) is the top-left of the leftmost one.
     pub vertical: bool,
     pub name_plate: Option<NamePlate>,
+    /// Where the click-wait icon ([`Script::wait_icon`]) shows, on the
+    /// screen; `None`: after the text, where the engine puts it.
+    pub wait_icon_at: Option<(i32, i32)>,
 }
 
 /// A separate box showing the speaker's name.
@@ -865,8 +868,9 @@ pub enum BarAction {
     Call,
     /// Unpins the bars (the button's `active` look) or pins them again
     /// (the default): unpinned, the top bars stay hidden and the button
-    /// bar shows only while the pointer is below `reveal_y`.
-    Lock { reveal_y: i32 },
+    /// bar shows only while the pointer is below `reveal_y`, fading in
+    /// over `fade_ms` when the pointer comes down to it.
+    Lock { reveal_y: i32, fade_ms: u32 },
 }
 
 /// The extras the title's option button opens: a menu of modes over its
@@ -1370,6 +1374,12 @@ pub struct Script {
     /// The save and load screens as a grid of thumbnails, in place of
     /// [`Script::save_menu`].
     pub save_grid: Option<SaveGrid>,
+    /// The text history scrolled a row at a time, in place of
+    /// [`Script::backlog`].
+    pub line_log: Option<LineLog>,
+    /// The icon shown at the button bar's click waits (at each window's
+    /// [`TextWindow::wait_icon_at`]); `None` = none.
+    pub wait_icon: Option<WaitIcon>,
 }
 
 /// The save and load screens as pages of thumbnails over a picture per
@@ -1473,4 +1483,47 @@ pub struct CommandItem {
     pub key: Option<char>,
     /// The subroutine [`BarAction::Call`] runs.
     pub label: Option<String>,
+}
+
+/// The text history as rows scrolled one at a time ([`Script::line_log`]),
+/// over `background`: up to `rows` rows from (`text_x`, `text_y`),
+/// `row_step` apart, each page's lines cut at `columns` characters, ruby
+/// as its base text; the newest row at the bottom once they fill the
+/// screen. The first row of a voiced page has `voice_icon` (a button
+/// replaying the voice) at its x and the row's y plus its y. The wheel and
+/// `up`/`down` scroll a row; wheel-down at the newest row, `close` and a
+/// right-click close it. `knob` shows where the rows shown are, from
+/// `knob_y.0` (the oldest) to `knob_y.1` (the newest), and can be dragged.
+/// It fades in and out over `fade_ms`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LineLog {
+    pub background: Placed,
+    /// Four cells each: normal, under the pointer, disabled, pressed.
+    pub up: Placed,
+    pub down: Placed,
+    pub close: Placed,
+    /// Two cells: normal, under the pointer (or dragged).
+    pub knob: Placed,
+    pub knob_y: (i32, i32),
+    /// Three cells: normal, under the pointer, pressed.
+    pub voice_icon: Placed,
+    pub text_x: i32,
+    pub text_y: i32,
+    pub row_step: i32,
+    pub rows: u32,
+    pub columns: u32,
+    pub font_size: u32,
+    pub colour: String,
+    pub fade_ms: u32,
+}
+
+/// An animated click-wait icon ([`Script::wait_icon`]): `frames` pictures
+/// of `w`×`h` side by side in `image`, each shown `frame_ms`, looped.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WaitIcon {
+    pub image: String,
+    pub frames: u32,
+    pub frame_ms: u32,
+    pub w: u32,
+    pub h: u32,
 }

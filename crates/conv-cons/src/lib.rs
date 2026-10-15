@@ -9,7 +9,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::fmt::Write;
 
 use conv_core::ir::{
-    ArithOp, ConfirmDialog, Op, ScreenEffect, Switch, Operand, Script, Ruby, SlideLayer, TextStyle, SpritePlacement, TextLink, TextWindow, TitleAction, TitleScreen,
+    ArithOp, ConfirmDialog, Op, ScreenEffect, WaitIcon, Switch, Operand, Script, Ruby, SlideLayer, TextStyle, SpritePlacement, TextLink, TextWindow, TitleAction, TitleScreen,
     TransitionStyle, Var, ZoomStyle,
 };
 
@@ -28,6 +28,7 @@ mod picture_screen;
 mod puzzle;
 mod replay;
 mod save_grid;
+mod line_log;
 mod zoom;
 pub mod webp;
 
@@ -74,6 +75,9 @@ const TURN_SPRITE2: u32 = 25;
 /// The lsp2 slot of a fade to a colour ([`Op::ScreenFade`]), under the
 /// flash's.
 const FADE_SPRITE2: u32 = 26;
+/// The click-wait icon's place ([`Script::wait_icon`]), set with each
+/// window; the bar's wait routine shows it.
+const WAIT_ICON_AT: [&str; 2] = ["%183", "%184"];
 /// The highest sprite number (ONScripter has 1000); also the overlay
 /// under the character sprites.
 const MAX_SPRITE: u32 = 999;
@@ -100,7 +104,9 @@ const BUTTON_VAR: &str = "%9";
 // Ranges claimed by modules: %140-%146, the command menu and the sliding
 // bar ([`command_menu`], [`menu::button_bar`]); %147, %149 and $110-$113,
 // the save grid ([`save_grid`]); %190-%289 and $200-$229, the tile puzzle's
-// state ([`puzzle`]; locals when the global border is 800).
+// state ([`puzzle`]; locals when the global border is 800); %170-%179 and
+// $107-$108, the backlog ([`menu::backlog`] or [`line_log`], never both);
+// %183-%184, the click-wait icon's place ([`WAIT_ICON_AT`]).
 /// NScripter variables: locals from %10, globals from %200. `globalon`
 /// makes %200 and up persist across games.
 const LOCAL_VAR_BASE: u32 = 10;
@@ -218,11 +224,13 @@ pub fn emit(script: &Script) -> String {
         writeln!(out, "windowback").unwrap();
         writeln!(out, "humanz {}", LINK_SPRITES.end()).unwrap();
     }
-    if script.backlog.is_some() {
+    if script.backlog.is_some() || script.line_log.is_some() {
         // Wheel and arrow keys reach btnwait (backlog scrolling); keep more
         // pages of history than the default 16.
         writeln!(out, "usewheel").unwrap();
         writeln!(out, "maxkaisoupage 100").unwrap();
+    }
+    if script.backlog.is_some() {
         // Text lines carry the speaker and voice as a tag for the backlog
         // (gettaglog); tags are only kept with a pretextgosub.
         writeln!(out, "pretextgosub *{}", menu::PRETEXT).unwrap();
@@ -282,7 +290,7 @@ pub fn emit(script: &Script) -> String {
     // setwindow redraws the screen, so it must come after `game` (ONScripter
     // crashes if it runs in the define section).
     if let Some(w) = &script.window {
-        writeln!(out, "{}", setwindow(w, speed, has_ruby, has_vertical, true)).unwrap();
+        writeln!(out, "{}", setwindow(w, speed, has_ruby, has_vertical, true, script.wait_icon.as_ref())).unwrap();
         // Keep the window up while sprites change and pages are printed
         // (by default every print hides it until the next text, which
         // flickers); the script hides it explicitly with textoff.
@@ -471,7 +479,7 @@ pub fn emit(script: &Script) -> String {
             Op::HideTextWindow => writeln!(out, "textoff").unwrap(),
             Op::InstantText(on) => writeln!(out, "textspeed {}", if *on { "0" } else { speed }).unwrap(),
             Op::SetWindow(w) => {
-                writeln!(out, "{}", setwindow(w, speed, has_ruby, has_vertical, true)).unwrap();
+                writeln!(out, "{}", setwindow(w, speed, has_ruby, has_vertical, true, script.wait_icon.as_ref())).unwrap();
                 writeln!(out, "csp {NAME_PLATE_SPRITE}:csp {NAME_TEXT_SPRITE}").unwrap();
                 plate_visible = false;
                 page_rows = 0;
@@ -829,7 +837,7 @@ pub fn emit(script: &Script) -> String {
                     }
                     if let Some(w) = window {
                         // The scene may have switched the text window.
-                        writeln!(out, "{}", setwindow(w, speed, has_ruby, has_vertical, true)).unwrap();
+                        writeln!(out, "{}", setwindow(w, speed, has_ruby, has_vertical, true, script.wait_icon.as_ref())).unwrap();
                     }
                     if root_returns > 0 {
                         writeln!(out, "if {ROOT_RESUME} != 0 goto *{UNWIND}").unwrap();
@@ -941,7 +949,7 @@ pub fn emit(script: &Script) -> String {
             Op::Choice { options, style } => {
                 if let Some(s) = style {
                     writeln!(out, "selectcolor \"#{:06X}\",\"#{:06X}\"", s.on_color, s.off_color).unwrap();
-                    writeln!(out, "{}", setwindow(&s.window, speed, has_ruby, has_vertical, false)).unwrap();
+                    writeln!(out, "{}", setwindow(&s.window, speed, has_ruby, has_vertical, false, script.wait_icon.as_ref())).unwrap();
                     writeln!(out, "csp {NAME_PLATE_SPRITE}:csp {NAME_TEXT_SPRITE}").unwrap();
                     plate_visible = false;
                     page_rows = 0;
@@ -1020,13 +1028,14 @@ pub fn emit(script: &Script) -> String {
         let screens = menu::BarScreens {
             save_menu,
             settings: script.settings.is_some(),
-            backlog: script.backlog.is_some(),
+            backlog: script.backlog.is_some() || script.line_log.is_some(),
             replay: has_replay,
             command_menu: script.command_menu.as_ref(),
             confirm: script.confirm.as_ref(),
             width: script.width,
             height: script.height,
             voice_stops: script.settings.as_ref().is_some_and(|m| m.switches.iter().any(|s| s.switch == Switch::VoiceKeepsPlaying)),
+            wait_icon: script.wait_icon.as_ref().map(|i| (i, WAIT_ICON_AT)),
         };
         menu::button_bar(&mut out, b, screens);
         if let Some(m) = &script.command_menu {
@@ -1040,7 +1049,9 @@ pub fn emit(script: &Script) -> String {
         let replay = script.extras.as_ref().and_then(|e| e.replay.as_ref()).filter(|_| has_replay);
         menu::settings_menu(&mut out, m, script.confirm.as_ref(), replay.map(|r| (r.leave_label.as_str(), r.leave_question.as_str())), script.version.as_deref().map(|v| (v, script.height)));
     }
-    if let Some(b) = &script.backlog {
+    if let Some(l) = &script.line_log {
+        line_log::emit(&mut out, l);
+    } else if let Some(b) = &script.backlog {
         menu::backlog(&mut out, b, has_ruby, keep_skip);
     }
     if let Some(d) = &script.confirm {
@@ -1137,7 +1148,8 @@ fn title_screen(out: &mut String, t: &TitleScreen, fade: &str, save_menu: bool, 
     }
 }
 
-/// `setwindow` for a window: text x,y, columns,rows, font w,h, char
+/// `setwindow3` for a window (`setwindow` without flushing the text
+/// history, which games switching windows mid-story would lose): text x,y, columns,rows, font w,h, char
 /// spacing, line gap, ms per character, bold, shadow, window image, x,y.
 /// `speed`: milliseconds per character (a number or a variable).
 /// `ruby`: `rubyon` is set, which draws text a line gap lower (the ruby
@@ -1147,20 +1159,30 @@ fn title_screen(out: &mut String, t: &TitleScreen, fade: &str, save_menu: bool, 
 /// then holds the ruby, as in the original.
 /// `any_vertical`: some window is vertical, so a horizontal one must switch
 /// back.
-fn setwindow(w: &TextWindow, speed: &str, ruby: bool, any_vertical: bool, shadow: bool) -> String {
+fn setwindow(w: &TextWindow, speed: &str, ruby: bool, any_vertical: bool, shadow: bool, icon: Option<&WaitIcon>) -> String {
+    let mut line = setwindow_only(w, speed, ruby, any_vertical, shadow);
+    // Where the bar's wait routine shows the click-wait icon.
+    if let (Some(_), Some((x, y))) = (icon, w.wait_icon_at) {
+        line.push_str(&format!("\nmov {},{x}:mov {},{y}", WAIT_ICON_AT[0], WAIT_ICON_AT[1]));
+    }
+    line
+}
+
+/// [`setwindow`]'s window, without the icon.
+fn setwindow_only(w: &TextWindow, speed: &str, ruby: bool, any_vertical: bool, shadow: bool) -> String {
     let shadow = shadow as u8;
     if w.vertical {
         // tateyoko first: it clears the page using the old window's size.
         // Lines are columns: x counts them, y the characters down each.
         let text_x = if ruby { w.text_x + w.line_gap as i32 } else { w.text_x };
         return format!(
-            "tateyoko 1:setwindow {text_x},{},{},{},{},{},{},0,{speed},0,{shadow},\":a;{}\",{},{}",
+            "tateyoko 1:setwindow3 {text_x},{},{},{},{},{},{},0,{speed},0,{shadow},\":a;{}\",{},{}",
             w.text_y, w.rows, w.columns, w.font_size, w.font_size, w.line_gap, path(&w.image), w.x, w.y
         );
     }
     let text_y = if ruby { w.text_y - w.line_gap as i32 } else { w.text_y };
     format!(
-        "{}setwindow {},{text_y},{},{},{},{},1,{},{speed},0,{shadow},\":a;{}\",{},{}",
+        "{}setwindow3 {},{text_y},{},{},{},{},1,{},{speed},0,{shadow},\":a;{}\",{},{}",
         if any_vertical { "tateyoko 0:" } else { "" },
         w.text_x, w.columns, w.rows, w.font_size, w.font_size, w.line_gap, path(&w.image), w.x, w.y
     )
@@ -1639,6 +1661,7 @@ mod tests {
     fn window() -> TextWindow {
         use conv_core::ir::NamePlate;
         TextWindow {
+            wait_icon_at: None,
             image: "system/window.png".into(),
             x: 47,
             y: 452,
@@ -1706,7 +1729,7 @@ mov %2000,1
 pushscreen 59,999
 gosub *s10_l1
 popscreen
-setwindow 105,470,25,3,24,24,1,13,20,0,1,\":a;system\\window.png\",47,452
+setwindow3 105,470,25,3,24,24,1,13,20,0,1,\":a;system\\window.png\",47,452
 print 1
 goto *conv_link1
 *conv_link1_1
@@ -1761,8 +1784,8 @@ goto *conv_link1
         (s.width, s.height, s.window) = (1024, 576, Some(vertical));
         let text = emit(&s);
         assert!(text.starts_with(";$S1024,576\n"), "{text}");
-        assert!(text.contains("tateyoko 1:setwindow 430,55,5,27,20,20,9,0,20,0,1,\":a;system\\window.png\",447,40\n"), "{text}");
-        assert!(text.contains("tateyoko 0:setwindow 105,"), "{text}");
+        assert!(text.contains("tateyoko 1:setwindow3 430,55,5,27,20,20,9,0,20,0,1,\":a;system\\window.png\",447,40\n"), "{text}");
+        assert!(text.contains("tateyoko 0:setwindow3 105,"), "{text}");
     }
 
     #[test]
@@ -1772,7 +1795,7 @@ goto *conv_link1
         let options = vec![("はい".into(), "a".into()), ("いいえ".into(), "b".into())];
         let text = emit(&script(vec![Op::Choice { options, style }]));
         // No shadow; no ruby here, so text_x as given.
-        assert!(text.contains("selectcolor \"#A00000\",\"#000000\"\ntateyoko 1:setwindow 477,108,2,18,20,20,80,0,20,0,0,"), "{text}");
+        assert!(text.contains("selectcolor \"#A00000\",\"#000000\"\ntateyoko 1:setwindow3 477,108,2,18,20,20,80,0,20,0,0,"), "{text}");
         assert!(text.contains("select \"はい\",*a,\"いいえ\",*b\n"), "{text}");
     }
 
@@ -2276,6 +2299,7 @@ end
             Op::Text { speaker: None, text: "Ghost".into(), voice: None, links: vec![], ruby: vec![], styles: vec![], hang: None, continues: false },
         ]);
         s.window = Some(TextWindow {
+            wait_icon_at: None,
             image: "system/window.png".into(),
             x: 47,
             y: 452,
@@ -2296,7 +2320,7 @@ end
             }),
         });
         let text = emit(&s);
-        assert!(text.contains("setwindow 105,470,25,3,24,24,1,13,20,0,1,\":a;system\\window.png\",47,452\nerasetextwindow 0\n"));
+        assert!(text.contains("setwindow3 105,470,25,3,24,24,1,13,20,0,1,\":a;system\\window.png\",47,452\nerasetextwindow 0\n"));
         assert!(text.contains("lsp 50,\":a;system\\name.png\",55,412\nstrsp 49,\"名前\",75,422,16,1,20,20,1,0,0,1\nprint 1\n「台詞」\\\n"));
         assert!(text.contains("csp 50\ncsp 49\nprint 1\n　Ghost \\\n"));
         // With a backlog, lines carry their page's first speaker and voice.
@@ -2718,7 +2742,7 @@ end
         s.window = Some(window());
         let out = emit(&s);
         assert!(out.contains("rubyon\n"));
-        assert!(out.contains("setwindow 105,457,25,3,24,24,1,13,"), "{out}");
+        assert!(out.contains("setwindow3 105,457,25,3,24,24,1,13,"), "{out}");
         assert!(out.contains("(獄/ひとや)\\\n"), "{out}");
     }
 }

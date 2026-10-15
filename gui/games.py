@@ -19,18 +19,124 @@ from typing import Callable, Optional
 
 
 @dataclass(frozen=True)
+class Option:
+    """An advanced setting, shown under "Advanced options": a converter
+    flag. A "bool" adds `flag` when on; "text", "int" and "number" add
+    `flag` and the value, and are left out when empty (unless `required`);
+    a "choice" (one of `choices`) adds them unless it is the default. An
+    option with `needs` is used only when that "bool" option is on, and
+    `check(value, values)` returns a problem with the value, or None."""
+    key: str
+    label: str
+    flag: str
+    kind: str = "bool"  # "bool", "text", "int", "number" or "choice"
+    default: object = False
+    help: str = ""
+    required: bool = False
+    needs: str = ""
+    low: int = 1  # an "int" option's range
+    high: int = 1_000_000
+    choices: tuple[str, ...] = ()
+    check: Optional[Callable[[str, dict], Optional[str]]] = None
+
+
+def _title(default: str) -> Option:
+    return Option("title", "Window title", "--title", "text", default, "The game window's caption.")
+
+
+def _is_number(v: str) -> bool:
+    try:
+        float(v)
+        return True
+    except ValueError:
+        return False
+
+
+def _audio_quality_check(v: str, values: dict) -> Optional[str]:
+    low, high = (6, 256) if values.get("audio_codec") == "opus" else (-1, 10)
+    if _is_number(v) and not low <= float(v) <= high:
+        return f"from {low} to {high} for {values.get('audio_codec', 'vorbis').capitalize()}."
+    return None
+
+
+# Every convert command takes these (crates/conv-cli/src/build.rs, AudioArgs).
+AUDIO = (
+    Option("audio_codec", "Voices and sound effects", "--audio-codec", "choice", "vorbis",
+           "vorbis: the game's own sounds, as they are. opus: re-encoded with ffmpeg, about half the size "
+           "(the voices are most of a game's sound); needs CONscripter 0.21.0 or later. Music stays Vorbis.",
+           choices=("vorbis", "opus")),
+    Option("audio_quality", "Their quality", "--audio-quality", "number", "",
+           "Opus: kbit/s per channel, 6-256 (empty: 32, about Vorbis's quality at half the size). "
+           "Vorbis: -1 to 10 (ffmpeg's -q:a), re-encoding the game's sounds. "
+           "Empty with Vorbis: the game's own sounds.",
+           check=_audio_quality_check),
+)
+
+LOOSE = Option("loose", "Loose files (no .nsa archives)", "--loose",
+               help="Keep the pictures and sounds as files in folders instead of packing them into arc.nsa.")
+DRY_RUN = Option("dry_run", "Script only (dry run)", "--dry-run",
+                 help="Write 0.txt only, no pictures or sounds: a quick check that the scripts convert.")
+
+
+@dataclass(frozen=True)
 class Game:
     key: str
     name: str  # shown to the user
     engine: str
     markers: tuple[str, ...]  # relative paths that must exist (a trailing / = a folder)
-    command: Callable[[Path, Path, Path], list[str]]  # (game, output, font) -> converter arguments
+    command: Callable[[Path, Path, Path], list[str]]  # (game, output, font) -> the arguments before the options
     font: str  # recommended bundled font file
     output_name: str  # default output folder name
     needs_ffmpeg: bool
-    size_gb: float  # about how much the build writes
+    size_gb: float  # about how big the finished build is
     doc: str  # the game's document in the repository
     check: Optional[Callable[[Path], tuple[list[str], list[str]]]] = None  # -> (problems, warnings)
+    options: tuple[Option, ...] = ()  # the advanced settings; their defaults are the recommended ones
+
+    def defaults(self) -> dict[str, object]:
+        return {o.key: o.default for o in self.options}
+
+    def args(self, game: Path, output: Path, font: Path, values: Optional[dict] = None) -> list[str]:
+        """The whole converter command line, with `values` (the defaults
+        when None) for the options."""
+        values = {**self.defaults(), **(values or {})}
+        args = self.command(game, output, font)
+        for o in self.options:
+            v = values[o.key]
+            if o.needs and not values[o.needs]:
+                continue
+            if o.kind == "bool":
+                if v:
+                    args.append(o.flag)
+            elif o.kind == "choice":
+                if v != o.default:
+                    args += [o.flag, str(v)]
+            elif str(v).strip():
+                args += [o.flag, str(v).strip()]
+        return args
+
+    def needs_ffmpeg_with(self, values: dict) -> bool:
+        """Whether the build runs ffmpeg with these options (re-encoding
+        the voices needs it even where the game's own build doesn't)."""
+        values = {**self.defaults(), **values}
+        return self.needs_ffmpeg or values.get("audio_codec") == "opus" or bool(str(values.get("audio_quality", "")).strip())
+
+    def option_problems(self, values: dict) -> list[str]:
+        values = {**self.defaults(), **values}
+        out = []
+        for o in self.options:
+            v = str(values[o.key]).strip()
+            if o.kind == "bool" or (o.needs and not values[o.needs]):
+                continue
+            if o.required and not v:
+                out.append(f"{o.label}: needs a value.")
+            elif o.kind == "int" and v and not (v.isdigit() and o.low <= int(v) <= o.high):
+                out.append(f"{o.label}: must be a whole number from {o.low} to {o.high}.")
+            elif o.kind == "number" and v and not _is_number(v):
+                out.append(f"{o.label}: must be a number.")
+            elif o.check and v and (problem := o.check(v, values)):
+                out.append(f"{o.label}: {problem}")
+        return out
 
 
 @dataclass
@@ -50,8 +156,7 @@ def _has(root: Path, marker: str) -> bool:
 
 def _saiima_command(game: Path, output: Path, font: Path) -> list[str]:
     # docs/games/saihate-no-ima.md, "Build"
-    return ["convert-game", str(game), "-o", str(output), "--font", str(font),
-            "--title", "Saihate no Ima COMPLETE"]
+    return ["convert-game", str(game), "-o", str(output), "--font", str(font)]
 
 
 def _saiima_check(root: Path) -> tuple[list[str], list[str]]:
@@ -65,9 +170,8 @@ def _saiima_check(root: Path) -> tuple[list[str], list[str]]:
 
 def _muramasa_command(game: Path, output: Path, font: Path) -> list[str]:
     # docs/games/muramasa.md: the new game starts at ma00_000.nss, and
-    # --chain 2000 follows the story through every file.
-    return ["convert-nss", str(game), "--file", "ma00_000.nss", "--chain", "2000",
-            "-o", str(output), "--font", str(font), "--title", "装甲悪鬼村正"]
+    # --chain 2000 follows the story through every file (the options).
+    return ["convert-nss", str(game), "-o", str(output), "--font", str(font)]
 
 
 # --- 俺たちに翼はない (PS Vita, MAGES TaskList) -----------------------------
@@ -95,7 +199,7 @@ def read_sfo(path: Path) -> dict[str, object]:
 
 
 def _oretsuba_command(game: Path, output: Path, font: Path) -> list[str]:
-    # docs/games/oretsuba.md, "Status": all scenes, the default title.
+    # docs/games/oretsuba.md, "Status": all scenes.
     return ["mages", "convert", str(game), "-o", str(output), "--font", str(font)]
 
 
@@ -125,9 +229,21 @@ GAMES: tuple[Game, ...] = (
         font="ipag.ttf",
         output_name="saihate-no-ima-cons",
         needs_ffmpeg=True,  # movies and the staff roll become MP4s
-        size_gb=2.0,
+        size_gb=1.5,
         doc="docs/games/saihate-no-ima.md",
         check=_saiima_check,
+        options=(
+            _title("Saihate no Ima COMPLETE"),
+            Option("webp", "WebP pictures (half the size, or less with a quality)", "--webp",
+                   help="Store pictures as WebP instead of PNG. Plays in the web build of CONscripter, "
+                        "and in a desktop build only if its SDL_image reads WebP."),
+            Option("webp_quality", "WebP quality", "--webp-quality", "int", "",
+                   "0-100, as in image editors: lossy WebP at that quality, far smaller (80: about a quarter "
+                   "of near-lossless, and hard to tell apart). Empty: near-lossless.",
+                   needs="webp", low=0, high=100),
+            *AUDIO,
+            LOOSE,
+        ),
     ),
     Game(
         key="muramasa",
@@ -138,8 +254,19 @@ GAMES: tuple[Game, ...] = (
         font="ipam.ttf",  # the game's text is in a Mincho face
         output_name="muramasa-cons",
         needs_ffmpeg=False,
-        size_gb=3.5,
+        size_gb=3.7,
         doc="docs/games/muramasa.md",
+        options=(
+            _title("装甲悪鬼村正"),
+            Option("file", "Start at the script", "--file", "text", "ma00_000.nss",
+                   "The story file the build starts at. A new game starts at ma00_000.nss.", required=True),
+            Option("chain", "Story files to follow", "--chain", "int", "2000",
+                   "How many story files to follow from the start file; 2000 is the whole story. "
+                   "Empty: the start file's scene only."),
+            *AUDIO,
+            LOOSE,
+            DRY_RUN,
+        ),
     ),
     Game(
         key="oretsuba",
@@ -150,9 +277,18 @@ GAMES: tuple[Game, ...] = (
         font="ipag.ttf",
         output_name="oretsuba-cons",
         needs_ffmpeg=True,  # sounds become Ogg, movies MP4
-        size_gb=2.0,
+        size_gb=2.3,
         doc="docs/games/oretsuba.md",
         check=_oretsuba_check,
+        options=(
+            _title("俺たちに翼はない"),
+            Option("scenes", "Only these scenes", "--scenes", "text", "",
+                   "Scene names such as S01_01A, separated by commas, played in that order. "
+                   "Empty: every scene, with the menus and extras."),
+            *AUDIO,
+            LOOSE,
+            DRY_RUN,
+        ),
     ),
 )
 

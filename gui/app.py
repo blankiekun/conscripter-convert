@@ -17,6 +17,7 @@ import queue
 import shutil
 import subprocess
 import sys
+import threading
 import time
 import tkinter as tk
 from pathlib import Path
@@ -45,12 +46,19 @@ class App:
         self.converter = tools.find_converter()
         self.detections: list[games.Detection] = []
         self.detection: Optional[games.Detection] = None
+        self.folder: Optional[Path] = None
+        self.detecting = False
+        # The advanced options' values, per game (kept when switching games).
+        self.option_vars: dict[str, dict[str, tk.Variable]] = {}
+        self.option_widgets: list[tk.Widget] = []
         self.font: Optional[Path] = None
         self.font_chosen = False  # by the user, not the game's default
         self.ffmpeg_dir: Optional[Path] = None
         self.build: Optional[tools.Build] = None
         self.events: queue.Queue = queue.Queue()
         self.started = 0.0
+        self.written = 0  # bytes this build has written so far (the most seen)
+        self.expected = 0.0  # about how many it writes, 0 = unknown
         self.log_lines: list[str] = []
         self._layout()
         self._refresh()
@@ -102,6 +110,13 @@ class App:
         self.ffmpeg_button = ttk.Button(info, text="Locate…", command=self._choose_ffmpeg)
         self.ffmpeg_button.grid(row=4, column=2, padx=(6, 0))
 
+        self.adv_button = ttk.Button(info, text="▸ Advanced options", command=self._toggle_advanced)
+        self.adv_button.grid(row=5, column=0, columnspan=2, sticky="w", pady=(6, 0))
+        self.adv = ttk.Frame(info, padding=(16, 4, 0, 0))
+        self.adv.columnconfigure(1, weight=1)
+        self.adv.grid(row=6, column=0, columnspan=3, sticky="ew")
+        self.adv.grid_remove()
+
         bar = ttk.Frame(r)
         bar.grid(row=2, column=0, sticky="ew", **pad)
         bar.columnconfigure(3, weight=1)
@@ -128,32 +143,55 @@ class App:
         self.status.config(wraplength=max(200, width - 30))
         self.notes.config(wraplength=max(200, width - 110))
         self.ffmpeg_label.config(wraplength=max(200, width - 200))
+        for w in self.adv.winfo_children():
+            if getattr(w, "wraps", False):
+                w.config(wraplength=max(200, width - 80))
 
     # --- choosing -------------------------------------------------------
 
     def _dropped(self, event) -> None:
         paths = self.root.tk.splitlist(event.data)
-        if paths and not self._busy():
+        if paths and not self._busy() and not self.detecting:
             self._load(Path(paths[0]))
 
     def _choose_game(self) -> None:
-        if self._busy():
+        if self._busy() or self.detecting:
             return
         d = filedialog.askdirectory(title="The game folder")
         if d:
             self._load(Path(d))
 
     def _load(self, folder: Path) -> None:
+        """Look for a game in `folder`, in a thread: on a network share
+        reading the folders can take a while."""
         if folder.is_file():
             folder = folder.parent
+        self.folder, self.detecting = folder, True
+        self.detection, self.detections = None, []
+        self.game_box.config(values=[])
+        self.game_var.set("")
+        self._build_options()
         self.root.config(cursor="watch")
-        self.root.update_idletasks()
-        try:
-            self.detections = games.detect(folder)
-        finally:
-            self.root.config(cursor="")
-        self.folder = folder
+        self._refresh()
+
+        def run() -> None:
+            try:
+                found = games.detect(folder)
+            except Exception as e:  # noqa: BLE001 - shown to the user
+                found = e
+            self.events.put(("detected", (folder, found)))
+        threading.Thread(target=run, daemon=True).start()
+
+    def _detected(self, folder: Path, found) -> None:
+        if folder != self.folder:
+            return  # an older drop
+        self.detecting = False
+        self.root.config(cursor="")
         self._clear_log()
+        if isinstance(found, Exception):
+            self._log(f"Could not read {folder}: {found}")
+            found = []
+        self.detections = found
         self.status.config(text="")
         if not self.detections:
             self.detection = None
@@ -165,6 +203,8 @@ class App:
         else:
             self.game_box.config(values=[f"{d.game.name}  —  {d.root}" for d in self.detections])
             self._pick(0)
+            if len(self.detections) > 1:
+                self._log(f"{len(self.detections)} games found; choose one under Game.")
         self._refresh()
 
     def _pick(self, i: int) -> None:
@@ -173,7 +213,75 @@ class App:
         self.out_var.set(str(games.default_output(d)))
         if not self.font_chosen:
             self.font = tools.find_font(d.game.font)
+        self._build_options()
         self._refresh()
+
+    # --- advanced options -----------------------------------------------
+
+    def _toggle_advanced(self) -> None:
+        if self.adv.winfo_ismapped():
+            self.adv.grid_remove()
+            self.adv_button.config(text="▸ Advanced options")
+        else:
+            self.adv.grid()
+            self.adv_button.config(text="▾ Advanced options")
+
+    def _values(self) -> dict:
+        if not self.detection:
+            return {}
+        return {k: v.get() for k, v in self.option_vars.get(self.detection.game.key, {}).items()}
+
+    def _build_options(self) -> None:
+        """The detected game's options, from its `Game.options`."""
+        for w in self.adv.winfo_children():
+            w.destroy()
+        self.option_widgets = []
+        game = self.detection.game if self.detection else None
+        if not game:
+            ttk.Label(self.adv, text="Choose a game folder first.", foreground="#606060").grid(row=0, column=0, sticky="w")
+            return
+        if game.key not in self.option_vars:
+            made: dict[str, tk.Variable] = {}
+            for o in game.options:
+                v = tk.BooleanVar(value=bool(o.default)) if o.kind == "bool" else tk.StringVar(value=str(o.default))
+                v.trace_add("write", lambda *a: self._refresh())
+                made[o.key] = v
+            self.option_vars[game.key] = made
+        values = self.option_vars[game.key]
+        row = 0
+        self.option_needs: list[tuple[tk.Widget, str]] = []
+        for o in game.options:
+            if o.kind == "bool":
+                w = ttk.Checkbutton(self.adv, text=o.label, variable=values[o.key])
+                w.grid(row=row, column=0, columnspan=2, sticky="w")
+            elif o.kind == "choice":
+                ttk.Label(self.adv, text=o.label + ":").grid(row=row, column=0, sticky="w", padx=(0, 6))
+                w = ttk.Combobox(self.adv, textvariable=values[o.key], values=o.choices, state="readonly", width=12)
+                w.grid(row=row, column=1, sticky="w", pady=1)
+            else:
+                ttk.Label(self.adv, text=o.label + ":").grid(row=row, column=0, sticky="w", padx=(0, 6))
+                w = ttk.Entry(self.adv, textvariable=values[o.key], width=30)
+                w.grid(row=row, column=1, sticky="ew", pady=1)
+            self.option_widgets.append(w)
+            if o.needs:
+                self.option_needs.append((w, o.needs))
+            hint = ttk.Label(self.adv, text=o.help, foreground="#606060", wraplength=560, justify="left")
+            hint.wraps = True
+            hint.grid(row=row + 1, column=0, columnspan=2, sticky="w", padx=(20, 0), pady=(0, 4))
+            row += 2
+        reset = ttk.Button(self.adv, text="Recommended settings", command=self._reset_options)
+        reset.grid(row=row, column=0, sticky="w", pady=(2, 4))
+        self.option_widgets.append(reset)
+        self.command_label = ttk.Label(self.adv, text="", foreground="#404040", wraplength=560, justify="left",
+                                       font=("TkFixedFont", 9))
+        self.command_label.wraps = True
+        self.command_label.grid(row=row + 1, column=0, columnspan=2, sticky="w")
+        self._wrap(self.root.winfo_width())
+
+    def _reset_options(self) -> None:
+        if self.detection:
+            for k, v in self.detection.game.defaults().items():
+                self.option_vars[self.detection.game.key][k].set(v)
 
     def _choose_output(self) -> None:
         d = filedialog.askdirectory(title="Where to put the converted game")
@@ -203,16 +311,17 @@ class App:
         return bool(self.build and self.build.running())
 
     def _ffmpeg_state(self) -> tuple[bool, str]:
-        if not (self.detection and self.detection.game.needs_ffmpeg):
+        if not (self.detection and self.detection.game.needs_ffmpeg_with(self._values())):
             return True, "not needed for this game"
         ff = tools.find_ffmpeg(self.ffmpeg_dir)
         if not ff:
             return False, ("NOT FOUND. This game needs ffmpeg (with libx264): install it and put it on PATH, "
                            "or click Locate….")
-        missing = getattr(self, "_ffmpeg_checked", {}).get(ff)
+        encoders = tools.FFMPEG_ENCODERS + (("libopus",) if self._values().get("audio_codec") == "opus" else ())
+        missing = getattr(self, "_ffmpeg_checked", {}).get((ff, encoders))
         if missing is None:
-            missing = tools.ffmpeg_missing_encoders(ff)
-            self._ffmpeg_checked = {ff: missing}
+            missing = tools.ffmpeg_missing_encoders(ff, encoders)
+            self._ffmpeg_checked = {(ff, encoders): missing}
         if missing:
             return False, f"{ff} lacks the encoders {', '.join(missing)}: install a full ffmpeg build."
         return True, str(ff)
@@ -222,10 +331,16 @@ class App:
             return
         busy = self._busy()
         d = self.detection
-        if TkinterDnD:
-            self.drop.config(text="Drop the game folder here\n(or click to choose it)")
+        how = "drop the game folder here, or click to choose it" if TkinterDnD else "click to choose the game folder"
+        if self.detecting:
+            self.drop.config(text=f"Detecting the game…\n{self.folder}", fg="#404040")
+        elif d:
+            self.drop.config(text=f"Detected: {d.game.name}  ({d.game.engine})\n{d.root}\n"
+                                  f"(another game: {how})", fg="#006000" if not d.problems else "#b05000")
+        elif self.folder:
+            self.drop.config(text=f"No supported game found in\n{self.folder}\n({how})", fg="#c00000")
         else:
-            self.drop.config(text="Click to choose the game folder")
+            self.drop.config(text=how[0].upper() + how[1:], fg="black")
         notes = []
         ready = True
         if not self.converter:
@@ -234,6 +349,9 @@ class App:
         if d:
             notes += [f"✗ {p}" for p in d.problems] + [f"! {w}" for w in d.warnings]
             ready &= not d.problems
+            option_problems = d.game.option_problems(self._values())
+            notes += [f"✗ {p}" for p in option_problems]
+            ready &= not option_problems
             out = Path(self.out_var.get().strip()) if self.out_var.get().strip() else None
             if not out:
                 ready = False
@@ -247,8 +365,8 @@ class App:
         self.notes.config(text="\n".join(notes))
         if not busy and not self.status.cget("text").startswith(("✓", "✗")):
             self.status.config(fg="black", text=(
-                f"Ready: {d.game.name} with its recommended settings ({d.game.doc}); "
-                f"writes about {d.game.size_gb:.1f} GB." if d and ready else ""))
+                f"Ready: {d.game.name} with {self._settings_name()}; "
+                f"{self._size_text()}." if d and ready else ""))
         self.font_label.config(text=font_name(self.font) if self.font else "none found: choose a Japanese TTF (IPA Gothic)")
         ready &= self.font is not None
         ok, text = self._ffmpeg_state() if d else (True, "")
@@ -257,6 +375,37 @@ class App:
         self.start_button.config(state="normal" if ready and not busy else "disabled")
         self.cancel_button.config(state="normal" if busy else "disabled")
         self.open_button.config(state="normal" if d and Path(self.out_var.get()).is_dir() and not busy else "disabled")
+        values = self._values()
+        for w in self.option_widgets:
+            off = busy or any(w is n and not values.get(k) for n, k in getattr(self, "option_needs", []))
+            w.config(state="disabled" if off else "readonly" if isinstance(w, ttk.Combobox) else "normal")
+        if d and getattr(self, "command_label", None) and self.command_label.winfo_exists():
+            out = Path(self.out_var.get().strip() or d.game.output_name)
+            args = d.game.args(d.root, out, self.font or Path(d.game.font), self._values())
+            self.command_label.config(text="conscripter-convert " + " ".join(_quote(a) for a in args))
+
+    def _settings_name(self) -> str:
+        if self.detection and self._values() != self.detection.game.defaults():
+            return "your settings (Advanced options)"
+        return f"its recommended settings ({self.detection.game.doc})"
+
+    def _peak_gb(self) -> float:
+        """The most disk the build uses: packing writes the archives while
+        the loose files are still there."""
+        v = self._values()
+        if v.get("dry_run"):
+            return 0.0
+        size = self.detection.game.size_gb * _webp_factor(v)
+        return size if v.get("loose") else size * 2
+
+    def _size_text(self) -> str:
+        v = self._values()
+        if v.get("dry_run"):
+            return "writes the script only"
+        size = self.detection.game.size_gb * _webp_factor(v)
+        if v.get("loose"):
+            return f"writes about {size:.1f} GB"
+        return f"about {size:.1f} GB when done, {self._peak_gb():.1f} GB free needed while it packs"
 
     # --- building -------------------------------------------------------
 
@@ -272,7 +421,9 @@ class App:
                     "packs into archives (such as image/ or sound/), whatever they hold. "
                     "Use it anyway?"), icon="warning", default="no"):
                 return False
-        need = self.detection.game.size_gb
+        need = self._peak_gb()
+        if not need:
+            return True
         probe = out
         while not probe.exists() and probe.parent != probe:
             probe = probe.parent
@@ -291,10 +442,10 @@ class App:
         out = Path(self.out_var.get().strip()).expanduser()
         if not d or not self.font or not self.converter or not self._confirm_output(out):
             return
-        args = d.game.command(d.root, out, self.font)
+        args = d.game.args(d.root, out, self.font, self._values())
         self._clear_log()
         self._log("$ conscripter-convert " + " ".join(_quote(a) for a in args))
-        ff = tools.find_ffmpeg(self.ffmpeg_dir) if d.game.needs_ffmpeg else None
+        ff = tools.find_ffmpeg(self.ffmpeg_dir) if d.game.needs_ffmpeg_with(self._values()) else None
         try:
             self.build = tools.Build(self.converter, args, lambda s: self.events.put(("line", s)),
                                      lambda c: self.events.put(("exit", c)), ff.parent if ff else None)
@@ -302,10 +453,24 @@ class App:
             self._finish(f"Could not start the converter: {e}", ok=False)
             return
         self.started = time.monotonic()
-        self.progress.config(mode="indeterminate")
-        self.progress.start(12)
+        self.written, self.expected = 0, self._peak_gb() * 1e9
+        if self.expected:
+            # The bar follows the bytes written: the converter prints
+            # little until the end.
+            self.progress.config(mode="determinate", value=0)
+            self._watch_output(self.build, out, time.time() - 2)
+        else:
+            self.progress.config(mode="indeterminate")
+            self.progress.start(12)
         self.status.config(text=f"Building {d.game.name}… (this takes several minutes)", fg="black")
         self._refresh()
+
+    def _watch_output(self, build: tools.Build, out: Path, since: float) -> None:
+        def run() -> None:
+            while build.running():
+                self.events.put(("written", tools.written_bytes(out, since)))
+                time.sleep(1.5)
+        threading.Thread(target=run, daemon=True).start()
 
     def _cancel(self) -> None:
         if self.build and messagebox.askyesno(APP_TITLE, "Stop the build? The output folder is left half-written."):
@@ -317,13 +482,23 @@ class App:
                 kind, value = self.events.get_nowait()
                 if kind == "line":
                     self._log(value)
+                elif kind == "written":
+                    if self._busy():
+                        self.written = max(self.written, value)
+                        self.progress.config(value=min(99.0, 100 * self.written / self.expected))
+                elif kind == "detected":
+                    self._detected(*value)
                 else:
                     self._exited(value)
         except queue.Empty:
             pass
         if self._busy():
             m, s = divmod(int(time.monotonic() - self.started), 60)
-            self.status.config(text=f"Building {self.detection.game.name}… {m}:{s:02d}")
+            text = f"Building {self.detection.game.name}… {m}:{s:02d}"
+            if self.expected:
+                pct = min(99, int(100 * self.written / self.expected))
+                text += f", {self.written / 1e9:.1f} GB written (about {pct}%)"
+            self.status.config(text=text)
         self.root.after(100, self._poll)
 
     def _exited(self, code: int) -> None:
@@ -369,6 +544,13 @@ class App:
         self.log.config(state="disabled")
 
 
+def _webp_factor(values: dict) -> float:
+    """About how much smaller WebP makes a build (the pictures are most of it)."""
+    if not values.get("webp"):
+        return 1.0
+    return 0.5 if str(values.get("webp_quality", "")).strip() else 0.7
+
+
 BUNDLED_FONTS = {"ipag.ttf": "IPA Gothic", "ipam.ttf": "IPA Mincho"}
 
 
@@ -403,7 +585,7 @@ def cli_detect(folder: str) -> int:
             print(f"  problem: {p}")
         for w in d.warnings:
             print(f"  warning: {w}")
-        args = d.game.command(d.root, games.default_output(d), font or Path(d.game.font))
+        args = d.game.args(d.root, games.default_output(d), font or Path(d.game.font))
         print("  conscripter-convert " + " ".join(_quote(a) for a in args))
         if d.game.needs_ffmpeg:
             print(f"  ffmpeg: {tools.find_ffmpeg() or 'NOT FOUND'}")

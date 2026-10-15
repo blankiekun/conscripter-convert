@@ -160,7 +160,7 @@ Engine features added for converted games (details in the engine's
 | `spfilter`/`screenfilter` kinds 6 (blur: box mean over x, y ranges), 7 (hue and saturation) and 8 (lightness inverted) | 0x70's Smooth (40 uses, mostly a 3 px blur for flashbacks and wind), HueSatura (4, desaturating) and BrightnessInvert (1) |
 | `screenshake` and `screenripple` (effects that move by themselves on the picture behind the text window, 8 shared slots, stepped like sprite animations, kept in saves; a shake given an `end` stops by itself, for NSS's timed `Shake`) | 0x8c's Animation-Vibrate (12 uses: shaking while a line is shown) and Animation-Replace (25: a ripple through `mask1001.png` and others, 「視界が歪んだ」). The parameters are the original modules'. 0x70's Filter-Replace (16 uses, wind and heat haze) is a still `screenripple` in slots 5-8 |
 | `screenpulse` (a tinted copy of the picture that swells over it and fades, sin(πt); same slots as `screenshake`) | 0x6f "surprise" pulses (87 uses): 10-20 % zoom, opacity 100-200, untinted, light red or white |
-| `spfade num,ms[,from]` (a sprite fades in by itself while the script goes on) | 0x8c's static (Animation-RandomNoise), whose opacity rises from 0 over up to 2 s (37 of 88 uses take 1-2 s) |
+| `spfade num,ms[,from]` (a sprite fades in by itself while the script goes on) | 0x8c's static (Animation-RandomNoise), whose opacity rises from 0 over up to 2 s (37 of 88 uses take 1-2 s); the unpinned button bar's 100 ms fade-in |
 | `spz num,over` (a sprite drawn right over another instead of at its own number; kept in saves and by `pushscreen`) | 最果てのイマ's bust-ups at depth 1100-5000 (62 entries), which the original draws over the frame overlay (depth 1000) but under the static and the animations |
 | `screenflash opacity,colour` (a colour added over everything on the screen, the text window included) | 0x6e flashes (88 uses), whose object sorts over everything (key `0xffffffff`); an `lsp2add` stays under the text window |
 | `!zNNN` text size tag (NNN percent of the window's font size, on the baseline, scaled width) | 0x49 text styles: shouting at 125-175 % and mumbling at 75-95 % in about 380 messages (NScripter text has colour tags but no size). Colours from the same records use `#RRGGBB` |
@@ -174,6 +174,9 @@ Engine features added for converted games (details in the engine's
 | `getkey` (letter keys end the next `btnwait`/`textbtnwait`, -1000 minus the letter's code) | 装甲悪鬼村正's shortcuts (`SetShortcut`): M opens the right-click menu, and H, A, N, R, B, S, L, Q, P, F, C, T run its items at any click wait |
 | `vstrsp` (`strsp` with its text in columns from the right, kept in saves and by `pushscreen`) | 装甲悪鬼村正's save screen: the chapter title and the page's text down in columns in its side panel |
 | `getplaytime` / `setplaytime` (the play time counted by the engine, kept in each save as it stands when written, put back by a load) | 装甲悪鬼村正's save screen shows each save's play time (`$PLAY_TIME`) |
+| `logrows` / `getlogrow` (the text history as rows: each page's lines cut at a column count, ruby as its base text, the page's voice on its first row) | 装甲悪鬼村正's backlog, scrolled a row at a time with a speaker icon per voiced page |
+| Movies on Linux and macOS (`mpegplay`, `movie` in the game window through the player's ffmpeg; they were disabled there) | Every game's movies (最果てのイマ's openings and staff rolls, 翼's) on the native Linux and macOS builds, which played none |
+| Opus sounds in every build (the engine decodes Ogg Opus with opusfile, compiled in by `cmake/cons_opus.cmake`, and gives SDL_mixer a WAV; no build's SDL_mixer reads Opus) | `--audio-codec opus`: voices and sound effects about half the size (最果てのイマ's 542 MB become 217 MB; 翼's HCA voices 1.7 MB a scene instead of 2.6 MB as Vorbis) |
 
 Planned, from limits hit by converted games (each one is worked around
 in the script today), roughly in order of payoff:
@@ -570,7 +573,11 @@ The steps that apply them are in `docs/new-game.md`.
 - **Judge lossy image quality on the worst region,** not the average:
   crop the worst block of the difference image and compare it enlarged.
   Lossy WebP's 4:2:0 subsampling blurred small coloured detail at every
-  quality level; near-lossless was fine at half the PNG size.
+  quality level; near-lossless was fine at half the PNG size. So lossy
+  is only an option (`--webp-quality`, with sharp YUV): at 80, 最果てのイマ's
+  script 13 pictures take 14.0 MB (near-lossless 59.7, PNG 126.4), with a
+  worst 16 px block error of 18.8 (near-lossless 10.1; sharp YUV took it
+  from 21.3); small flowers in a background soften.
 
 **Process.**
 - **Never delete an output folder without listing it first.** Users put
@@ -643,6 +650,17 @@ The steps that apply them are in `docs/new-game.md`.
   its message there.
 - **Name the engine binary per agent** (a symlink): another agent's
   `pkill -x conscripter` stops every run on the machine.
+
+- **`setwindow` flushes the backlog** (NScripter's rule): a converter
+  that sets the window again for each text block keeps no history. The
+  converter emits `setwindow3`, which doesn't. And `btndef` turns
+  `btndown` off: a screen that wants presses sets `btndown 1` after each
+  `btndef clear`, and in that mode `btnwait` also returns on the release
+  and on moves with the button held (tell them apart with `isdown`).
+- **`lsp2` sprites are no place for things over the text window**: with
+  `windowback` they are drawn under it, and ONScripter doesn't step
+  their animation. An animated icon over the window is an `lsp` sprite
+  numbered at or below `humanz`.
 
 ### 13.1c Lessons from 俺たちに翼はない (PS Vita, 2026-10-13)
 

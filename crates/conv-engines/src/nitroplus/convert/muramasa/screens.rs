@@ -7,7 +7,7 @@
 //! are joined into strips of normal, hover, disabled, pressed.
 
 use conv_core::ir::{
-    BarAction, BarButton, BarSlide, ButtonBar, CommandItem, CommandMenu, ConfirmDialog, GridText, Placed, Rect, SaveGrid, Script, Switch, TitleAction, TitleButton, TitleScreen,
+    BarAction, BarButton, BarSlide, ButtonBar, CommandItem, CommandMenu, ConfirmDialog, GridText, LineLog, Placed, Rect, SaveGrid, Script, Switch, TitleAction, TitleButton, TitleScreen, WaitIcon,
 };
 
 use super::super::Assets;
@@ -26,6 +26,51 @@ pub fn menus(a: &mut dyn Assets, script: &mut Script) {
     script.button_bar = quick_bar(a);
     script.command_menu = command_menu(a);
     script.save_grid = save_grid(a);
+    script.line_log = line_log(a);
+    script.wait_icon = wait_icon(a);
+}
+
+/// The click-wait flame (System.ini `icon_line`, `icon_page`: the 32
+/// pictures of 改行改頁アイコン), looped, at each window's
+/// `$SYSTEM_position_{x,y}_text_icon`. Its speed couldn't be filmed (wine
+/// redraws the waiting screen about once a second): 33 ms a picture.
+fn wait_icon(a: &mut dyn Assets) -> Option<WaitIcon> {
+    let parts: Vec<String> = (1..=32).map(|n| format!("cg/sys/icon/改行改頁アイコン/{n:03}.png")).collect();
+    let (image, w, h) = a.strip(&parts.iter().map(String::as_str).collect::<Vec<_>>())?;
+    Some(WaitIcon { image, frames: 32, frame_ms: 33, w: w / 32, h })
+}
+
+/// The backlog (`sys_backlog.nss`, System.ini `[バックログ]`): sixteen
+/// rows of 26 characters from (140,49), 30 apart, MS 明朝 20 in black,
+/// over バックログ背景; a voiced line's speaker icon (`icon_voice`) at
+/// x 102 on its first row. 逆 (898,168) and 進 (898,303) scroll a row,
+/// 退出 (927,438) closes; the scrollbar's knob runs from y 50 to 461 at
+/// x 860 (`CreateScrollbar`). It fades in and out over 300 ms.
+fn line_log(a: &mut dyn Assets) -> Option<LineLog> {
+    const DIR: &str = "cg/sys/backlog";
+    let strip = |a: &mut dyn Assets, names: &[&str], x: i32, y: i32| {
+        let parts: Vec<String> = names.iter().map(|n| format!("{DIR}/{n}.png")).collect();
+        let (image, w, h) = a.strip(&parts.iter().map(String::as_str).collect::<Vec<_>>())?;
+        Some(Placed { image, x, y, w: w as i32, h: h as i32 })
+    };
+    let (background, w, h) = a.image(&format!("{DIR}/バックログ背景.png"))?;
+    Some(LineLog {
+        background: Placed { image: background, x: 0, y: 0, w: w as i32, h: h as i32 },
+        up: button(a, DIR, "逆", 898, 168, false)?,
+        down: button(a, DIR, "進", 898, 303, false)?,
+        close: button(a, DIR, "退出", 927, 438, false)?,
+        knob: strip(a, &["001-スクロール", "002-スクロール"], 860, 461)?,
+        knob_y: (50, 461),
+        voice_icon: strip(a, &["001-スピーカ", "002-スピーカ", "003-スピーカ"], 102, 0)?,
+        text_x: 140,
+        text_y: 49,
+        row_step: 30,
+        rows: 16,
+        columns: 26,
+        font_size: 20,
+        colour: "#000000".into(),
+        fade_ms: 300,
+    })
 }
 
 /// The save and load screens (`sys_save.nss`, `sys_load.nss`): five pages
