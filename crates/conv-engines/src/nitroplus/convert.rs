@@ -795,6 +795,9 @@ struct Compiler<'a, 'b> {
     /// exists (続・殺戮のジャンゴ's `TypeBegin`): the block shows its
     /// pages as soon as it runs.
     pending_enter: Option<String>,
+    /// `LoadText(unit, box, w, h, letter, line)` (続・殺戮のジャンゴ): the
+    /// layout of every text in that box, as [`TextObject::layout`].
+    box_layouts: HashMap<String, (i64, i64, i64, i64, i64)>,
     voice_classes: Vec<String>,
     ops: Vec<Op>,
     notes: BTreeMap<String, usize>,
@@ -1434,6 +1437,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
             window_visible: false,
             texts_shown: 0,
             pending_enter: None,
+            box_layouts: HashMap::new(),
             voice_classes: Vec::new(),
             ops: Vec::new(),
             notes: BTreeMap::new(),
@@ -1874,7 +1878,12 @@ impl<'a, 'b> Compiler<'a, 'b> {
             }
             "CreateWindow" | "CreateName" => {
                 let name = self.object_name(&arg(0));
-                self.create(name, Kind::Other, arg(1).int(), 0, 0);
+                let o = self.create(name, Kind::Other, arg(1).int(), 0, 0);
+                // (name, priority, x, y, w, h, ?): a text in the window
+                // starts at its corner (続・殺戮のジャンゴ's boxes).
+                if a.len() >= 6 {
+                    (o.x, o.y) = (arg(2).int(), arg(3).int());
+                }
             }
             "CreateSound" => {
                 let name = self.object_name(&arg(0));
@@ -2026,6 +2035,10 @@ impl<'a, 'b> Compiler<'a, 'b> {
             "ImageHorizon" => return Value::Int(self.objects.get(&self.object_name(&arg(0))).map_or(0, |o| o.w)),
             "ImageVertical" => return Value::Int(self.objects.get(&self.object_name(&arg(0))).map_or(0, |o| o.h)),
             "SetFont" => self.font_size = arg(1).int().max(1),
+            "LoadText" if a.len() == 6 => {
+                let layout = (arg(2).int(), arg(3).int(), arg(4).int(), arg(5).int(), self.font_size);
+                self.box_layouts.insert(self.object_name(&arg(1)), layout);
+            }
             "LoadText" => {
                 let name = self.object_name(&arg(2));
                 let font = self.font_size;
@@ -2367,9 +2380,10 @@ impl<'a, 'b> Compiler<'a, 'b> {
             let prev = prev.trim_start_matches('@').to_string();
             self.objects.remove(&prev);
         }
-        let text = TextObject { block: t, layout: None, rotation: 0 };
-        let priority = self.objects.get(&window).map_or(20001, |o| o.priority);
-        self.create(name.clone(), Kind::Text(text), priority, 0, 0);
+        let text = TextObject { block: t, layout: self.box_layouts.get(&window).copied(), rotation: 0 };
+        let (priority, x, y) = self.objects.get(&window).map_or((20001, 0, 0), |o| (o.priority, o.x, o.y));
+        let o = self.create(name.clone(), Kind::Text(text), priority, 0, 0);
+        (o.x, o.y) = (x, y);
         self.vars.insert("$SYSTEM_present_preprocess".into(), Value::Str(format!("@{window}")));
         self.vars.insert("$SYSTEM_present_text".into(), Value::Str(format!("@{name}")));
         if let Some(pending) = self.pending_enter.take() {
