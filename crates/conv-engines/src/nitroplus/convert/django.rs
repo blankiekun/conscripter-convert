@@ -21,6 +21,7 @@ pub const DJANGO: Game = Game {
     chapter_objects: true,
     text_drop: 7,
     flags: extras::flags,
+    subroutines: &extras::SCENES,
     choice_style,
     menus: screens::menus,
     ..Game::PLAIN
