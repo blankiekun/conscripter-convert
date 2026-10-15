@@ -7,10 +7,12 @@ license.workspace = true
 [dependencies]
 ab_glyph.workspace = true
 aes.workspace = true
+anyhow.workspace = true
 encoding_rs.workspace = true
 flate2.workspace = true
 image.workspace = true
 md-5.workspace = true
+memmap2.workspace = true
 thiserror.workspace = true
 zstd.workspace = true
 conv-core.workspace = true
