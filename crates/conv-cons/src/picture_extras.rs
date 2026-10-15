@@ -36,7 +36,7 @@ fn has_mode(e: &PictureExtras, mode: ExtrasMode) -> bool {
         ExtrasMode::Gallery => e.gallery.is_some(),
         ExtrasMode::Sound => e.sound.is_some(),
         ExtrasMode::Recollection => e.replay.is_some(),
-        _ => false,
+        ExtrasMode::Turntable => e.turntable.is_some(),
     }
 }
 
@@ -111,5 +111,8 @@ pub(crate) fn emit(out: &mut String, e: &PictureExtras, border: u32, width: u32,
     if let Some(r) = &e.replay {
         let music = e.sound.as_ref().map(|_| format!("gosub *{}", crate::picture_sound::PLAY));
         crate::picture_replay::emit(out, r, border, music.as_deref());
+    }
+    if let Some(t) = &e.turntable {
+        crate::picture_turntable::emit(out, t, border);
     }
 }

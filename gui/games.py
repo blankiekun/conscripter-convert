@@ -41,6 +41,9 @@ class Option:
     choices: tuple[str, ...] = ()
     check: Optional[Callable[[str, dict], Optional[str]]] = None
     wide: bool = False  # the app gives it a whole row (long text); the others go two to a row
+    # The app shows a slider over these (value, label) pairs, given the
+    # other values; "" is the converter's default.
+    steps: Optional[Callable[[dict], tuple[tuple[str, str], ...]]] = None
 
 
 def _title(default: str) -> Option:
@@ -62,6 +65,13 @@ def _audio_quality_check(v: str, values: dict) -> Optional[str]:
     return None
 
 
+def _audio_quality_steps(values: dict) -> tuple[tuple[str, str], ...]:
+    if values.get("audio_codec") == "opus":
+        return tuple(("", "32 kbit/s (default)") if k == 32 else (str(k), f"{k} kbit/s")
+                     for k in (6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256))
+    return (("", "the game's own"), *((str(q), str(q)) for q in range(-1, 11)))
+
+
 # Every convert command takes these (crates/conv-cli/src/build.rs, AudioArgs).
 AUDIO = (
     Option("audio_codec", "Voices and sound effects", "--audio-codec", "choice", "vorbis",
@@ -72,7 +82,7 @@ AUDIO = (
            "Opus: kbit/s per channel, 6-256 (empty: 32, about Vorbis's quality at half the size). "
            "Vorbis: -1 to 10 (ffmpeg's -q:a), re-encoding the game's sounds. "
            "Empty with Vorbis: the game's own sounds.",
-           check=_audio_quality_check),
+           check=_audio_quality_check, steps=_audio_quality_steps),
 )
 
 LOOSE = Option("loose", "Loose files (no .nsa archives)", "--loose",
@@ -88,7 +98,8 @@ WEBP = (
     Option("webp_quality", "WebP quality", "--webp-quality", "int", "",
            "0-100, as in image editors: lossy WebP at that quality, far smaller (80: about a quarter "
            "of near-lossless, and hard to tell apart). Empty: near-lossless.",
-           needs="webp", low=0, high=100),
+           needs="webp", low=0, high=100,
+           steps=lambda _: (*((str(q), str(q)) for q in range(0, 101, 5)), ("", "near-lossless"))),
 )
 
 
