@@ -1087,8 +1087,22 @@ Next, in order:
          the extras draw PNGs with `:a;` and JPEGs with `:c;`
          (`picture_extras::pic`); and a duplicate label (`conv_ps_draw`,
          the settings') sent the room to the settings' drawing.
-      4. The recollection.
-      5. The 3D viewer. 6. Back to the title: the white flash and the
+      4. Done: the recollection (a new `PictureReplay`, `conv-cons/src/
+         picture_replay.rs`; the scenes read from `extra_recollection.nss`'s
+         `Reco`): the ten scenes in the gallery's grid, 空白アイコン until the
+         scene's file has been read (`#ma01_020`, set at the file's end), its
+         CG's thumbnail after. Each scene is its file's `_MAIN` compiled once
+         more as a subroutine with `$PLACE_reco` true (a new `Game::replays`),
+         which takes the files' own replay branches. A click fades the music
+         out over 1 s; at the end the music fades over 2 s, everything (the
+         text window too) is cleared, and the list fades back in with the
+         extras' music. Played through `ma01_020` and back, then out to the
+         title. Left: during a replay the original locks save, load and
+         選択肢に戻る and its menu's タイトルへ goes back to the list (ours
+         still offers them), and the 500 ms fade of `RecoIn` from the held
+         list to the scene (ours cuts).
+      5. The 3D viewer.
+      6. Back to the title: the white flash and the
          return opening's tail (`TitleOpening::after_extras`).
 
    The user's decisions (2026-10-14): the pressed state (`003`) becomes

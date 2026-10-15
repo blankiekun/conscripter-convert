@@ -1826,6 +1826,7 @@ pub struct PictureExtras {
     pub fade_ms: u32,
     pub gallery: Option<PictureGallery>,
     pub sound: Option<SoundRoom>,
+    pub replay: Option<PictureReplay>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1999,4 +2000,39 @@ pub enum MotionEnd {
     /// angle goes back to 0). A later motion on it (also stopping one)
     /// first takes a motion still running to its end.
     Keep,
+}
+
+/// The scene replay of [`PictureExtras`]: a slot per scene over its own
+/// picture, down the columns from `first` as [`PictureGallery`]'s; an
+/// unlocked scene shows its thumbnail, a locked one `blank`, with `cursor`
+/// over the pointer's. A click fades the music out over `start_ms` and
+/// plays the scene (a gosub to its label); at its end the music fades out
+/// and the screen holds over `end_ms`, then the list cross-fades back in
+/// over `open_ms` with the extras' music. `exit` or a right-click goes
+/// back to the extras' menu.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PictureReplay {
+    pub background: String,
+    /// Three cells: at rest, under the pointer, pressed.
+    pub exit: Placed,
+    pub first: (i32, i32),
+    pub row_step: i32,
+    pub column_step: i32,
+    pub rows: u32,
+    pub blank: String,
+    /// Two cells: nothing, the cursor.
+    pub cursor: String,
+    pub scenes: Vec<ReplayEntry>,
+    pub open_ms: u32,
+    pub start_ms: u32,
+    pub end_ms: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReplayEntry {
+    pub thumbnail: String,
+    /// Unlocked once non-zero.
+    pub unlocked_by: Var,
+    /// The scene, a subroutine.
+    pub label: String,
 }

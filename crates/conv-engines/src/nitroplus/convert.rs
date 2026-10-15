@@ -1037,7 +1037,9 @@ impl<'a, 'b> Compiler<'a, 'b> {
     fn subroutines(&mut self, initial: &State<'a>, dynamic_base: u16) {
         let local = |index| conv_core::ir::Var { global: false, index };
         let kept: Vec<u16> = (FORK_VARS.start..FORK_VARS.end).chain([LEAF_VAR]).collect();
-        let mut list: Vec<(String, String, Vec<(String, Value)>)> = self.game.subroutines.iter().map(|&(l, t)| (l.to_string(), t.to_string(), Vec::new())).collect();
+        // Label, target, variables set.
+        type Entry = (String, String, Vec<(String, Value)>);
+        let mut list: Vec<Entry> = self.game.subroutines.iter().map(|&(l, t)| (l.to_string(), t.to_string(), Vec::new())).collect();
         for r in (self.game.replays)(self.files) {
             let mut set: Vec<(String, Value)> = r.set.into_iter().map(|(k, n)| (k, Value::Int(n))).collect();
             set.push(("$GameName".to_string(), Value::Str(r.file.clone())));
@@ -3586,7 +3588,7 @@ scene {name}_Y
             _ => None,
         }).collect();
         assert_eq!(sets.first(), Some(&7), "{:?}", &c.ops[at..]);
-        assert!(matches!(c.ops[at..].iter().find(|op| matches!(op, Op::Return)), Some(_)));
+        assert!(c.ops[at..].iter().any(|op| matches!(op, Op::Return)));
     }
 
     #[test]
