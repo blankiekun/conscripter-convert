@@ -941,7 +941,8 @@ pub fn emit(script: &Script) -> String {
         menu::save_menu(&mut out, m, script.confirm.as_ref(), script.button_bar.as_ref().is_some_and(|b| b.top.is_some()));
     }
     if let Some(b) = &script.button_bar {
-        menu::button_bar(&mut out, b, script.save_menu.is_some(), script.settings.is_some(), script.backlog.is_some(), has_replay);
+        let voice_stops = script.settings.as_ref().is_some_and(|m| m.switches.iter().any(|s| s.switch == Switch::VoiceKeepsPlaying));
+        menu::button_bar(&mut out, b, script.save_menu.is_some(), script.settings.is_some(), script.backlog.is_some(), has_replay, voice_stops);
     }
     if let Some(m) = &script.settings {
         let replay = script.extras.as_ref().and_then(|e| e.replay.as_ref()).filter(|_| has_replay);

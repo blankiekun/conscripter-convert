@@ -1326,7 +1326,7 @@ impl AssetBank {
             title_label: "タイトルに戻る".into(),
             quit_label: "ゲームを終了".into(),
             exits_y: 540,
-            tab_labels: vec!["音量・速度".into(), "音声".into(), "マウス・確認".into()],
+            tab_labels: vec!["音量・速度".into(), "音声".into(), "その他".into()],
             tabs_x: 300,
             tabs_y: 34,
             voices: VOICE_TOGGLES
@@ -1345,6 +1345,8 @@ impl AssetBank {
                 ("セーブデータの削除確認", Switch::ConfirmDelete),
                 ("タイトルに戻る確認", Switch::ConfirmTitle),
                 ("ゲーム終了確認", Switch::ConfirmQuit),
+                // The 音声 page's; on by default (0x51ed59, 0x46d000).
+                ("次の音声まで停止しない", Switch::VoiceKeepsPlaying),
             ]
             .into_iter()
             .map(|(label, switch)| SettingSwitch { label: label.into(), switch })

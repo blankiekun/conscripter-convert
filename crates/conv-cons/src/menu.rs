@@ -65,8 +65,11 @@ const MAX_VOICES: usize = 15;
 const SETTING_SWITCH: u32 = M + 6; // + switch
 const MAX_SWITCHES: usize = 15;
 const BTN_SWITCH: u32 = 70; // + 1 + switch
-/// Global "off" flags of the switches (0, the default, is on).
+/// Global "off" flags of the switches (0, the default, is on): the first
+/// seven from SWITCH_OFF_BASE, the others from SWITCH_OFF_BASE_2 (the
+/// scene replay's flags start at 3650).
 const SWITCH_OFF_BASE: u32 = 3640;
+const SWITCH_OFF_BASE_2: u32 = 2910;
 /// The confirmation being asked (a [`Switch`] + 1; 0 = always ask).
 const CONFIRM_KIND: &str = "%125";
 const BTN_MINUS: u32 = 10;
@@ -466,7 +469,8 @@ pub(crate) fn save_menu(out: &mut String, m: &SaveMenu, confirm: Option<&Confirm
 /// until the pointer comes near an edge).
 /// `replay`: there is a scene replay, during which save and load are
 /// left out.
-pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, save_menu: bool, settings: bool, backlog: bool, replay: bool) {
+/// `voice_stops`: the settings have [`Switch::VoiceKeepsPlaying`].
+pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, save_menu: bool, settings: bool, backlog: bool, replay: bool, voice_stops: bool) {
     let mut slots = BAR_SPRITES;
     let buttons: Vec<_> = bar.buttons.iter().zip(slots.by_ref()).collect();
     let (chapter_text, scene_text) = (slots.next().unwrap(), slots.next().unwrap());
@@ -504,6 +508,10 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, save_menu: bool, set
     }
     w(format!("goto *{WAIT}"));
     w("*conv_wait_end".into());
+    if voice_stops {
+        // Voices play on channel 0.
+        w(format!("if {} == 1 dwavestop 0", switch_off(Switch::VoiceKeepsPlaying)));
+    }
     w("texec".into());
     w("return".into());
 
@@ -991,12 +999,16 @@ fn switch_index(s: Switch) -> u32 {
         Switch::ConfirmDelete => 4,
         Switch::ConfirmTitle => 5,
         Switch::ConfirmQuit => 6,
+        Switch::VoiceKeepsPlaying => 7,
     }
 }
 
 /// The global that is 1 while `s` is switched off.
 pub(crate) fn switch_off(s: Switch) -> String {
-    format!("%{}", SWITCH_OFF_BASE + switch_index(s))
+    match switch_index(s) {
+        i @ 0..=6 => format!("%{}", SWITCH_OFF_BASE + i),
+        i => format!("%{}", SWITCH_OFF_BASE_2 + i - 7),
+    }
 }
 
 /// The yes/no dialog (see [`ConfirmDialog`]) over whatever is on screen:
@@ -1421,7 +1433,7 @@ pub(crate) mod tests {
             top: None,
         };
         let mut out = String::new();
-        button_bar(&mut out, &bar, true, false, false, false);
+        button_bar(&mut out, &bar, true, false, false, false, false);
         for line in [
             "*conv_wait\ngosub *conv_bar_draw\ntextbtnwait %9\nif %9 == -3 && %3640 == 0 goto *conv_wait_end\nif %9 == -3 goto *conv_wait\n",
             "if %9 >= 0 && %9 <= 1000 goto *conv_wait_end\n",
@@ -1438,6 +1450,15 @@ pub(crate) mod tests {
             assert!(out.contains(line), "missing {line:?} in\n{out}");
         }
         assert!(!out.contains("conv_scene"), "scene routines without top bars:\n{out}");
+    }
+
+    #[test]
+    fn voices_stop_on_a_click_when_switched_off() {
+        let bar = ButtonBar { buttons: Vec::new(), top: None };
+        let mut out = String::new();
+        button_bar(&mut out, &bar, true, false, false, false, true);
+        assert!(out.contains("*conv_wait_end\nif %2910 == 1 dwavestop 0\ntexec\n"), "{out}");
+        assert_eq!(switch_off(Switch::ConfirmQuit), "%3646");
     }
 
     #[test]
@@ -1466,7 +1487,7 @@ pub(crate) mod tests {
         };
         let bar = ButtonBar { buttons: vec![], top: Some(top) };
         let mut out = String::new();
-        button_bar(&mut out, &bar, true, false, false, false);
+        button_bar(&mut out, &bar, true, false, false, false, false);
         for line in [
             // The rows clear with the bars.
             "csp 22:csp 23:csp 24:",

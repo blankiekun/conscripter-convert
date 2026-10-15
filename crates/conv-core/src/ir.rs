@@ -1020,6 +1020,9 @@ pub enum Switch {
     /// Ask before going back to the title.
     ConfirmTitle,
     ConfirmQuit,
+    /// A voice goes on playing after the click that reads on, until the
+    /// next voice (off: the click stops it).
+    VoiceKeepsPlaying,
 }
 
 /// A voiced line's clip and whose voice it is (for the per-character

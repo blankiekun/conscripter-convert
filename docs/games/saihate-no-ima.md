@@ -611,9 +611,10 @@ exe (`research/tools/ghidra/ghidra_export.sh`, names in
    starts with ASCII, and the hanging indent (`indent`) on wrapped rows
    (`line_cells`, `hang_cells`; the chat log in `conv_link35_1`), and a
    message taller than any window, not only a full-screen one, goes on
-   two pages. An exploration of the same route (`--seed 1`, 68,619
-   pages) had 1 page past the window (5 before) before the indent fix,
-   that page (`conv_link35_1:48911`) none after it. Starting at `--goto conv_link35_1`
+   two pages. Explorations of the same route (`--seed 1`, 68,619 pages)
+   had 5 pages past the window before these fixes, 1 before the indent
+   fix (`conv_link35_1:48911`) and none after it; the other findings
+   didn't change. Starting at `--goto conv_link35_1`
    still shows pages past the window: the full-screen window is set just
    before that label, so a start there is in the message box (not a
    problem in play).
@@ -641,6 +642,15 @@ exe (`research/tools/ghidra/ghidra_export.sh`, names in
    the floor and the deepest level as saved; deleting a save deletes
    them. Checked with `smoke.py` from `conv_link2`: enter the link, save
    to slot 1, load it, "back" goes to the root page, "forward" is there.
+11. **Done: 「次の音声まで停止しない」.** The original's voice page has
+   it, on by default (field 0x72, `0x51ed59` = 1 in `0x46d000`): a voice
+   plays on after a click until the next voice, as the port always did.
+   It is now a switch on the settings' third page (renamed その他 from
+   マウス・確認), `Switch::VoiceKeepsPlaying`; off, the click that reads
+   on stops the voice (`dwavestop 0` in `*conv_wait_end`). Its flag is
+   `%2910`: the switches' flags from `%3640` end where the scene
+   replay's start (`%3650`), so switches after the seventh start at
+   `%2910`.
 
 
 Converted and playable from start to end: text, voices, sprites with
@@ -738,8 +748,7 @@ parts are not converted:
 - text: the auto waits per page and per character as two settings (one
   row sets both), stopping skip/auto on a choice or click, font,
   antialiasing, decoration;
-- voice: "次の音声まで停止しない" (keep a voice playing into the next
-  line), auto-play of voices in the CG viewer;
+- voice: auto-play of voices in the CG viewer;
 - sound: per-channel mute switches, the system voice;
 - mouse: wheel sensitivity (the wheel switches and the confirmation
   switches are done);
