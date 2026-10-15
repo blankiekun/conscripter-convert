@@ -65,7 +65,10 @@ pub(crate) fn emit(out: &mut String, g: &PictureGallery, border: u32, width: u32
     assert!(per_page <= MAX_SLOTS && g.categories.len() as u32 <= MAX_CATEGORIES, "a picture gallery larger than its sprites");
     let pages: Vec<usize> = g.categories.iter().map(|c| c.slots.len().div_ceil(per_page as usize).max(1)).collect();
     let max_pages = pages.iter().copied().max().unwrap_or(1);
-    let place = |i: u32| (g.first.0 + g.column_step * (i / g.rows) as i32, g.first.1 + g.row_step * (i % g.rows) as i32);
+    let place = |i: u32| {
+        let (column, row) = if g.across { (i % g.columns, i / g.columns) } else { (i / g.rows, i % g.rows) };
+        (g.first.0 + g.column_step * column as i32, g.first.1 + g.row_step * row as i32)
+    };
     let mut w = |line: String| {
         out.push_str(&line);
         out.push('\n');
@@ -89,9 +92,14 @@ pub(crate) fn emit(out: &mut String, g: &PictureGallery, border: u32, width: u32
         w(format!("if {CATEGORY} == {c} cell {slot},2"));
         w(format!("if {CATEGORY} != {c} spbtn {slot},{}", BTN_CATEGORY + c as u32));
     }
+    // Only in a category of more pages, if so asked.
+    let paged: Vec<String> = pages.iter().enumerate().filter(|(_, n)| **n > 1).map(|(c, _)| format!("if {CATEGORY} == {c} ")).collect();
     for (slot, b, n) in [(PREVIOUS, &g.previous, BTN_PREVIOUS), (NEXT, &g.next, BTN_NEXT), (EXIT, &g.exit, BTN_EXIT)] {
-        w(button(slot, b));
-        w(format!("spbtn {slot},{n},2"));
+        let only = if g.arrows_when_paged && slot != EXIT { paged.clone() } else { vec![String::new()] };
+        for only in only {
+            w(format!("{only}{}", button(slot, b)));
+            w(format!("{only}spbtn {slot},{n},2"));
+        }
     }
     let counts = &pages;
     let targets: Vec<String> = (0..g.categories.len())
@@ -160,7 +168,14 @@ pub(crate) fn emit(out: &mut String, g: &PictureGallery, border: u32, width: u32
                 let (over_x, over_y) = ((p.w - width as i32).max(0), (p.h - height as i32).max(0));
                 // The far end (bottom or right) and the top left.
                 let far = (-over_x, -over_y);
-                let (start, end) = if slot.reversed { (far, (0, 0)) } else { ((0, 0), far) };
+                let (mut start, mut end) = if slot.reversed { (far, (0, 0)) } else { ((0, 0), far) };
+                // Along an axis that doesn't scroll, the picture's own place.
+                if over_x == 0 {
+                    (start.0, end.0) = (p.x, p.x);
+                }
+                if over_y == 0 {
+                    (start.1, end.1) = (p.y, p.y);
+                }
                 w(format!("if {seen} == 0 goto *{label}_{k}u"));
                 w(format!("lsp {VIEW},\":c;{}\",{},{}:print 10,{}", path(&p.image), start.0, start.1, g.view_fade_ms));
                 w(format!("mov {PREVIOUS_UNSEEN},0:gosub *{CLICK}"));

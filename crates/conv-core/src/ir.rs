@@ -1886,6 +1886,11 @@ pub struct PictureGallery {
     pub view_fade_ms: u32,
     pub close_ms: u32,
     pub scroll_ms_per_px: u32,
+    /// Slots run along the rows instead (`column_step` apart, the next row
+    /// `row_step` below): 続・殺戮のジャンゴ's five across.
+    pub across: bool,
+    /// Previous and next show only in a category of more than one page.
+    pub arrows_when_paged: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1906,7 +1911,8 @@ pub struct PictureSlot {
 pub struct SlotCg {
     /// Non-zero once the CG has been seen.
     pub seen: Var,
-    /// The full picture and its size.
+    /// The full picture and its size; one no larger than the screen is
+    /// shown at its x, y.
     pub picture: Placed,
     pub thumbnail: String,
 }
