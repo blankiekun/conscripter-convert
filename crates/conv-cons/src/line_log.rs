@@ -172,7 +172,9 @@ pub(crate) fn emit(out: &mut String, l: &LineLog) {
     w(format!(
         "if {TEXT} != \"\" mov {SPRITE},{ROW_TEXT}+{K}:strsp {SPRITE},{TEXT},{},{Y},{},1,{s},{s},0,0,0,0,\"{}\"",
         l.text_x,
-        l.columns,
+        // A row is cut at the columns, but strsp wraps a full-width
+        // character one column early: a full row would lose its last.
+        l.columns + 1,
         l.colour,
         s = l.font_size
     ));
@@ -223,7 +225,7 @@ mod tests {
             // The last row's voice button.
             "mov %105,%170+15:getlogrow $107,$108,%105:if $108 != \"\" spbtn 945,25,2\n",
             "if %9 == -3 && %170 >= %174 goto *conv_ll_close\n",
-            "strsp %175,$107,140,%173,26,1,20,20,0,0,0,0,\"#000000\"\n",
+            "strsp %175,$107,140,%173,27,1,20,20,0,0,0,0,\"#000000\"\n",
             "lsp %175,\":a/3,0,3;system\\voice.png\",102,%173+3\n",
             "if %174 > 0 mov %179,%170*411/%174+50\n",
             "btndown 0:btndef clear\n",
