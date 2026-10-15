@@ -67,6 +67,8 @@ pub struct ArchiveAssets<'a> {
     pub voice: Bank<'a>,
     pub se: Bank<'a>,
     pub bgm: Bank<'a>,
+    /// `SystemSE.AWB`: the menus' two sounds (0 a tick, 1 a confirm).
+    pub system_se: Option<Bank<'a>>,
     images: HashMap<(u8, u32), Option<Picture>>,
     sounds: HashMap<(u8, u32), Option<String>>,
     /// Movies to convert: output path (relative) → the USM file.
@@ -103,6 +105,7 @@ impl<'a> ArchiveAssets<'a> {
             voice,
             se,
             bgm,
+            system_se: None,
             images: HashMap::new(),
             sounds: HashMap::new(),
             audio: BTreeMap::new(),
@@ -142,18 +145,21 @@ impl<'a> ArchiveAssets<'a> {
         r
     }
 
-    /// Queues sound `id` of bank `which` (0 voice, 1 SE, 2 BGM).
+    /// Queues sound `id` of bank `which` (0 voice, 1 SE, 2 BGM, 3 system
+    /// SE).
     fn sound(&mut self, which: u8, id: u32) -> Option<String> {
         if let Some(r) = self.sounds.get(&(which, id)) {
             return r.clone();
         }
         let (dir, bank) = match which {
-            0 => ("voice", &self.voice),
-            1 => ("se", &self.se),
-            _ => ("bgm", &self.bgm),
+            0 => ("voice", Some(&self.voice)),
+            1 => ("se", Some(&self.se)),
+            2 => ("bgm", Some(&self.bgm)),
+            _ => ("se", self.system_se.as_ref()),
         };
-        let r = bank.file(id).map(|(_, data)| {
-            let path = format!("{dir}/{id:05}.ogg");
+        let prefix = if which == 3 { "sys" } else { "" };
+        let r = bank.and_then(|b| b.file(id)).map(|(_, data)| {
+            let path = format!("{dir}/{prefix}{id:05}.ogg");
             let looped = if which == 2 { adx_loop(data) } else { None };
             self.audio.insert(path.clone(), AudioJob { source: data, output: self.out.root.join(&path), looped });
             path
@@ -167,6 +173,11 @@ impl<'a> ArchiveAssets<'a> {
 }
 
 impl ArchiveAssets<'_> {
+    /// System sound `id` (0 the cursor's tick, 1 a confirm), converted.
+    pub fn system_sound(&mut self, id: u32) -> Option<String> {
+        self.sound(3, id)
+    }
+
     /// The PNG of CG.cpk picture `id`, as stored.
     pub fn cg_bytes(&self, id: u32) -> Option<&[u8]> {
         self.cg.file(id).map(|(_, d)| d)
