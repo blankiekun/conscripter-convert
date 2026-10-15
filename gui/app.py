@@ -254,6 +254,10 @@ class App:
             if o.kind == "bool":
                 w = ttk.Checkbutton(self.adv, text=o.label, variable=values[o.key])
                 w.grid(row=row, column=0, columnspan=2, sticky="w")
+            elif o.kind == "choice":
+                ttk.Label(self.adv, text=o.label + ":").grid(row=row, column=0, sticky="w", padx=(0, 6))
+                w = ttk.Combobox(self.adv, textvariable=values[o.key], values=o.choices, state="readonly", width=12)
+                w.grid(row=row, column=1, sticky="w", pady=1)
             else:
                 ttk.Label(self.adv, text=o.label + ":").grid(row=row, column=0, sticky="w", padx=(0, 6))
                 w = ttk.Entry(self.adv, textvariable=values[o.key], width=30)
@@ -307,16 +311,17 @@ class App:
         return bool(self.build and self.build.running())
 
     def _ffmpeg_state(self) -> tuple[bool, str]:
-        if not (self.detection and self.detection.game.needs_ffmpeg):
+        if not (self.detection and self.detection.game.needs_ffmpeg_with(self._values())):
             return True, "not needed for this game"
         ff = tools.find_ffmpeg(self.ffmpeg_dir)
         if not ff:
             return False, ("NOT FOUND. This game needs ffmpeg (with libx264): install it and put it on PATH, "
                            "or click Locate….")
-        missing = getattr(self, "_ffmpeg_checked", {}).get(ff)
+        encoders = tools.FFMPEG_ENCODERS + (("libopus",) if self._values().get("audio_codec") == "opus" else ())
+        missing = getattr(self, "_ffmpeg_checked", {}).get((ff, encoders))
         if missing is None:
-            missing = tools.ffmpeg_missing_encoders(ff)
-            self._ffmpeg_checked = {ff: missing}
+            missing = tools.ffmpeg_missing_encoders(ff, encoders)
+            self._ffmpeg_checked = {(ff, encoders): missing}
         if missing:
             return False, f"{ff} lacks the encoders {', '.join(missing)}: install a full ffmpeg build."
         return True, str(ff)
@@ -373,7 +378,7 @@ class App:
         values = self._values()
         for w in self.option_widgets:
             off = busy or any(w is n and not values.get(k) for n, k in getattr(self, "option_needs", []))
-            w.config(state="disabled" if off else "normal")
+            w.config(state="disabled" if off else "readonly" if isinstance(w, ttk.Combobox) else "normal")
         if d and getattr(self, "command_label", None) and self.command_label.winfo_exists():
             out = Path(self.out_var.get().strip() or d.game.output_name)
             args = d.game.args(d.root, out, self.font or Path(d.game.font), self._values())
@@ -440,7 +445,7 @@ class App:
         args = d.game.args(d.root, out, self.font, self._values())
         self._clear_log()
         self._log("$ conscripter-convert " + " ".join(_quote(a) for a in args))
-        ff = tools.find_ffmpeg(self.ffmpeg_dir) if d.game.needs_ffmpeg else None
+        ff = tools.find_ffmpeg(self.ffmpeg_dir) if d.game.needs_ffmpeg_with(self._values()) else None
         try:
             self.build = tools.Build(self.converter, args, lambda s: self.events.put(("line", s)),
                                      lambda c: self.events.put(("exit", c)), ff.parent if ff else None)

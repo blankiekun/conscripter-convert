@@ -50,6 +50,7 @@ puts them back.
 | Script only (dry run) | 村正, 翼 | `--dry-run` |
 | Start at the script, story files to follow | 村正 | `--file`, `--chain` |
 | Only these scenes | 翼 | `--scenes` |
+| Voices and sound effects (vorbis/opus), their quality | all | `--audio-codec`, `--audio-quality` |
 
 **ffmpeg** is not included (its usual builds are GPL with libx264, and
 large). Install it so `ffmpeg` is on PATH (Windows: for example

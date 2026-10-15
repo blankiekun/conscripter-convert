@@ -21,24 +21,56 @@ from typing import Callable, Optional
 @dataclass(frozen=True)
 class Option:
     """An advanced setting, shown under "Advanced options": a converter
-    flag. A "bool" adds `flag` when on; "text" and "int" add `flag` and
-    the value, and are left out when empty (unless `required`). An option
-    with `needs` is used only when that "bool" option is on."""
+    flag. A "bool" adds `flag` when on; "text", "int" and "number" add
+    `flag` and the value, and are left out when empty (unless `required`);
+    a "choice" (one of `choices`) adds them unless it is the default. An
+    option with `needs` is used only when that "bool" option is on, and
+    `check(value, values)` returns a problem with the value, or None."""
     key: str
     label: str
     flag: str
-    kind: str = "bool"  # "bool", "text" or "int"
+    kind: str = "bool"  # "bool", "text", "int", "number" or "choice"
     default: object = False
     help: str = ""
     required: bool = False
     needs: str = ""
     low: int = 1  # an "int" option's range
     high: int = 1_000_000
+    choices: tuple[str, ...] = ()
+    check: Optional[Callable[[str, dict], Optional[str]]] = None
 
 
 def _title(default: str) -> Option:
     return Option("title", "Window title", "--title", "text", default, "The game window's caption.")
 
+
+def _is_number(v: str) -> bool:
+    try:
+        float(v)
+        return True
+    except ValueError:
+        return False
+
+
+def _audio_quality_check(v: str, values: dict) -> Optional[str]:
+    low, high = (6, 256) if values.get("audio_codec") == "opus" else (-1, 10)
+    if _is_number(v) and not low <= float(v) <= high:
+        return f"from {low} to {high} for {values.get('audio_codec', 'vorbis').capitalize()}."
+    return None
+
+
+# Every convert command takes these (crates/conv-cli/src/build.rs, AudioArgs).
+AUDIO = (
+    Option("audio_codec", "Voices and sound effects", "--audio-codec", "choice", "vorbis",
+           "vorbis: the game's own sounds, as they are. opus: re-encoded with ffmpeg, about half the size "
+           "(the voices are most of a game's sound); needs a CONscripter newer than 0.20. Music stays Vorbis.",
+           choices=("vorbis", "opus")),
+    Option("audio_quality", "Their quality", "--audio-quality", "number", "",
+           "Opus: kbit/s per channel, 6-256 (empty: 32, about Vorbis's quality at half the size). "
+           "Vorbis: -1 to 10 (ffmpeg's -q:a), re-encoding the game's sounds. "
+           "Empty with Vorbis: the game's own sounds.",
+           check=_audio_quality_check),
+)
 
 LOOSE = Option("loose", "Loose files (no .nsa archives)", "--loose",
                help="Keep the pictures and sounds as files in folders instead of packing them into arc.nsa.")
@@ -76,9 +108,18 @@ class Game:
             if o.kind == "bool":
                 if v:
                     args.append(o.flag)
+            elif o.kind == "choice":
+                if v != o.default:
+                    args += [o.flag, str(v)]
             elif str(v).strip():
                 args += [o.flag, str(v).strip()]
         return args
+
+    def needs_ffmpeg_with(self, values: dict) -> bool:
+        """Whether the build runs ffmpeg with these options (re-encoding
+        the voices needs it even where the game's own build doesn't)."""
+        values = {**self.defaults(), **values}
+        return self.needs_ffmpeg or values.get("audio_codec") == "opus" or bool(str(values.get("audio_quality", "")).strip())
 
     def option_problems(self, values: dict) -> list[str]:
         values = {**self.defaults(), **values}
@@ -91,6 +132,10 @@ class Game:
                 out.append(f"{o.label}: needs a value.")
             elif o.kind == "int" and v and not (v.isdigit() and o.low <= int(v) <= o.high):
                 out.append(f"{o.label}: must be a whole number from {o.low} to {o.high}.")
+            elif o.kind == "number" and v and not _is_number(v):
+                out.append(f"{o.label}: must be a number.")
+            elif o.check and v and (problem := o.check(v, values)):
+                out.append(f"{o.label}: {problem}")
         return out
 
 
@@ -196,6 +241,7 @@ GAMES: tuple[Game, ...] = (
                    "0-100, as in image editors: lossy WebP at that quality, far smaller (80: about a quarter "
                    "of near-lossless, and hard to tell apart). Empty: near-lossless.",
                    needs="webp", low=0, high=100),
+            *AUDIO,
             LOOSE,
         ),
     ),
@@ -217,6 +263,7 @@ GAMES: tuple[Game, ...] = (
             Option("chain", "Story files to follow", "--chain", "int", "2000",
                    "How many story files to follow from the start file; 2000 is the whole story. "
                    "Empty: the start file's scene only."),
+            *AUDIO,
             LOOSE,
             DRY_RUN,
         ),
@@ -238,6 +285,7 @@ GAMES: tuple[Game, ...] = (
             Option("scenes", "Only these scenes", "--scenes", "text", "",
                    "Scene names such as S01_01A, separated by commas, played in that order. "
                    "Empty: every scene, with the menus and extras."),
+            *AUDIO,
             LOOSE,
             DRY_RUN,
         ),

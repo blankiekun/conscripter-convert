@@ -148,6 +148,21 @@ class Commands(unittest.TestCase):
         self.assertEqual(self.args("oretsuba", {"scenes": "S01_01A,S01_02A", "title": ""})[-2:],
                          ["--scenes", "S01_01A,S01_02A"])
 
+    def test_audio(self):
+        for key in ("saihate-no-ima", "muramasa", "oretsuba"):
+            self.assertNotIn("--audio-codec", self.args(key))  # the default
+            args = self.args(key, {"audio_codec": "opus", "audio_quality": "24"})
+            self.assertEqual(args[args.index("--audio-codec"):args.index("--audio-codec") + 4],
+                             ["--audio-codec", "opus", "--audio-quality", "24"])
+        g = self.game("muramasa")
+        self.assertFalse(g.needs_ffmpeg_with({}))
+        self.assertTrue(g.needs_ffmpeg_with({"audio_codec": "opus"}))
+        self.assertTrue(g.needs_ffmpeg_with({"audio_quality": "2"}))
+        self.assertEqual(g.option_problems({"audio_codec": "opus", "audio_quality": "3"})[0][:13], "Their quality")
+        self.assertEqual(g.option_problems({"audio_codec": "vorbis", "audio_quality": "-1"}), [])
+        self.assertEqual(len(g.option_problems({"audio_codec": "vorbis", "audio_quality": "12"})), 1)
+        self.assertEqual(len(g.option_problems({"audio_quality": "x"})), 1)
+
     def test_option_problems(self):
         g = self.game("muramasa")
         self.assertEqual(g.option_problems(g.defaults()), [])
@@ -166,7 +181,8 @@ class Commands(unittest.TestCase):
             self.skipTest("conscripter-convert not built")
         import subprocess
         for g in games.GAMES:
-            on = {o.key: True if o.kind == "bool" else (o.default or str(o.low)) for o in g.options}
+            on = {o.key: True if o.kind == "bool" else o.choices[-1] if o.kind == "choice"
+                  else (o.default or str(max(o.low, 6))) for o in g.options}
             args = g.args(Path("G"), Path("O"), Path("F.ttf"), on)
             sub = args[:2] if args[0] == "mages" else args[:1]
             out = subprocess.run([str(conv), *sub, "--help"], capture_output=True, encoding="utf-8", errors="replace").stdout
