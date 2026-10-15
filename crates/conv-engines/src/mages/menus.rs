@@ -13,7 +13,7 @@ use image::{Rgba, RgbaImage, imageops};
 
 use conv_core::ir::{
     BarAction, BarButton, Backlog, ButtonBar, ConfirmDialog, PageButton, Placed, Rect, SaveMenu, Setting, SettingRow, SettingSwitch,
-    SettingsMenu, Switch,
+    SettingsMenu, Switch, VoiceToggle,
 };
 
 use super::assets::ArchiveAssets;
@@ -128,7 +128,7 @@ fn shadowed(img: &RgbaImage, strength: f32) -> RgbaImage {
     out
 }
 
-fn side_by_side(cells: &[RgbaImage]) -> RgbaImage {
+pub(crate) fn side_by_side(cells: &[RgbaImage]) -> RgbaImage {
     let (w, h) = (cells.iter().map(|c| c.width()).max().unwrap_or(1), cells.iter().map(|c| c.height()).max().unwrap_or(1));
     let mut out = RgbaImage::new(w * cells.len() as u32, h);
     for (i, c) in cells.iter().enumerate() {
@@ -201,7 +201,7 @@ fn transparent(assets: &mut ArchiveAssets) -> String {
     assets.put_system_png("none", &RgbaImage::new(1, 1))
 }
 
-fn place(assets: &mut ArchiveAssets, name: &str, img: &RgbaImage, x: i32, y: i32) -> Placed {
+pub(crate) fn place(assets: &mut ArchiveAssets, name: &str, img: &RgbaImage, x: i32, y: i32) -> Placed {
     let image = assets.put_system_png(name, img);
     Placed { image, x, y, w: img.width() as i32, h: img.height() as i32 }
 }
@@ -361,6 +361,22 @@ pub fn settings_menu(assets: &mut ArchiveAssets, labels: &Labels) -> Option<Sett
     let header = difference(&config, &base, header_rect);
     let base = darker(base, 45);
     let row = |label: &str, setting| SettingRow { label: label.to_string(), setting };
+    let switches: Vec<(String, Switch)> = [
+        ("マウスホイールでテキストを進める", Switch::WheelReadsOn),
+        ("マウスホイールで履歴を閉じる", Switch::WheelClosesLog),
+        ("セーブ確認", Switch::ConfirmSave),
+        ("ロード確認", Switch::ConfirmLoad),
+        ("セーブデータの削除確認", Switch::ConfirmDelete),
+        ("タイトルに戻る確認", Switch::ConfirmTitle),
+        ("ゲーム終了確認", Switch::ConfirmQuit),
+    ]
+    .into_iter()
+    .map(|(l, s)| (l.to_string(), s))
+    .collect();
+    // One switch for all the voices (キャラクター音声), whose lines are
+    // all character 0.
+    let characters = vec![0];
+    let voices = vec![VoiceToggle { label: "キャラクター音声".into(), characters: characters.clone() }];
     Some(SettingsMenu {
         base: place(assets, "menu_base", &base, 0, 0),
         base_opacity: 255,
@@ -388,23 +404,12 @@ pub fn settings_menu(assets: &mut ArchiveAssets, labels: &Labels) -> Option<Sett
         tab_labels: vec!["音量・速度".into(), "その他".into()],
         tabs_x: 300,
         tabs_y: 40,
-        voices: vec![],
+        voices,
         voice_column_x: 440,
         voice_pitch: 50,
         skip_unread_label: Some("未読テキストもスキップする".into()),
-        pictures: None,
-        switches: [
-            ("マウスホイールでテキストを進める", Switch::WheelReadsOn),
-            ("マウスホイールで履歴を閉じる", Switch::WheelClosesLog),
-            ("セーブ確認", Switch::ConfirmSave),
-            ("ロード確認", Switch::ConfirmLoad),
-            ("セーブデータの削除確認", Switch::ConfirmDelete),
-            ("タイトルに戻る確認", Switch::ConfirmTitle),
-            ("ゲーム終了確認", Switch::ConfirmQuit),
-        ]
-        .into_iter()
-        .map(|(label, switch)| SettingSwitch { label: label.into(), switch })
-        .collect(),
+        pictures: super::config::pictures(assets, labels, &switches, characters).map(Box::new),
+        switches: switches.into_iter().map(|(label, switch)| SettingSwitch { label, switch }).collect(),
     })
 }
 

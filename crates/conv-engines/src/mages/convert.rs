@@ -23,7 +23,7 @@ use std::collections::{BTreeMap, HashMap};
 
 use conv_core::ir::{
     Animation, ArithOp, ButtonScreen, Compare, FILTER_BLEND_COPY, FILTER_BLEND_MULTIPLY, FILTER_BLUR, FILTER_COLOUR, FILTER_GREYSCALE, FILTER_MONOTONE, FILTER_NEGATIVE, Noise, Op, Operand, ScreenEffect, SlideLayer, SourceLoc, SpriteChange, SpriteFilter,
-    Placed, SpritePlacement, TextWindow, TransitionStyle, Var, Voice,
+    Placed, SpritePlacement, Switch, TextWindow, TransitionStyle, Var, Voice,
 };
 
 use super::tasks::{Block, Scene, Val, parse};
@@ -595,7 +595,9 @@ impl Lowering<'_> {
                 let speaker = t.int("Name").and_then(|n| self.game.names.get(&n).cloned());
                 let voice = t.int("Voice").and_then(|id| {
                     let file = self.assets.voice(id as u32)?;
-                    Some(Voice { file, character: t.int("Name").unwrap_or(0) as u32 })
+                    // One voice switch for everyone (キャラクター音声
+                    // 全てON / 全てOFF): character 0.
+                    Some(Voice { file, character: 0 })
                 });
                 if self.staging {
                     self.out.ops.push(Op::EndTransition);
@@ -1144,6 +1146,8 @@ impl Lowering<'_> {
         self.out.ops.push(Op::Arith { var: read, op: ArithOp::Set, value: Operand::Const(1) });
         self.out.ops.push(Op::Jump(tag_label(scene, unread)));
         self.out.ops.push(Op::Label(offer.clone()));
+        // シーンスキップ機能 OFF: a read scene just plays.
+        self.out.ops.push(Op::IfSwitch { switch: Switch::SceneSkipDialog, on: false, label: tag_label(scene, play) });
         let summary = t.str("Text").unwrap_or("").trim_end().to_string();
         let ints = |key: &str| t.get(key).unwrap_or(&[]).iter().filter_map(Val::int).collect::<Vec<_>>();
         if let Some((pictures, [yes, no])) = self.assets.skip_dialog(&ints("BG"), &ints("CharaIcon"), &summary, &offer) {
