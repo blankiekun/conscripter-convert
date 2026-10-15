@@ -1069,7 +1069,25 @@ Next, in order:
          Beside the original (2D, first page): mean difference 2.7 levels
          over the grid. Found on the way: with `usewheel` a timed `btnwait`
          returns -5, not -2, when the time runs out.
-      3. The sound room. 4. The recollection.
+      3. Done: the sound room (a new `SoundRoom`, `conv-cons/src/
+         picture_sound.rs`; the entries read from `extra_sound.nss`'s
+         `Sound`): 37 BGM, five songs (`000` picture until `#msong0N`), three
+         movies (空白アイコン until `#mvOP02`) at the script's places; a
+         track plays looping and stays the extras' music across games
+         (global %2961: the title's at first, opened with the extras, the
+         title's music back on leaving if it differs), the playing one
+         clicked again fades out over 2 s; the ten-picture A-icon turns
+         26 px left of the track playing (33 ms a picture: a guess, wine
+         films the original's process too slowly); a movie fades the music
+         and the screen to black over 1 s, plays (the settings' 動画 option
+         decides whether a click stops it), the music comes back over 1 s
+         and the black fades over 300 ms. Beside the original (the title's
+         track playing): mean difference 1.3 levels, the icon's picture
+         aside. Found on the way: `:c;` draws a PNG's transparent pixels;
+         the extras draw PNGs with `:a;` and JPEGs with `:c;`
+         (`picture_extras::pic`); and a duplicate label (`conv_ps_draw`,
+         the settings') sent the room to the settings' drawing.
+      4. The recollection.
       5. The 3D viewer. 6. Back to the title: the white flash and the
          return opening's tail (`TitleOpening::after_extras`).
 

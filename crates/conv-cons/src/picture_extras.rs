@@ -23,6 +23,12 @@ pub(crate) const TITLE_BACK: &str = crate::extras::TITLE_BACK;
 const BACKGROUND: u32 = MAX_SPRITE;
 const ITEM: u32 = MENU_SPRITES.start; // + item
 
+/// A picture for `lsp`: a JPEG as it is, another (a PNG) with its alpha.
+pub(crate) fn pic(p: &str) -> String {
+    let mode = if p.to_ascii_lowercase().ends_with(".jpg") { ":c;" } else { ":a;" };
+    format!("{mode}{}", path(p))
+}
+
 /// Whether `mode` has a screen in this script.
 fn has_mode(e: &PictureExtras, mode: ExtrasMode) -> bool {
     match mode {
@@ -50,7 +56,7 @@ pub(crate) fn emit(out: &mut String, e: &PictureExtras, border: u32, width: u32,
     }
     writeln!(out, "*{DRAW}").unwrap();
     writeln!(out, "csp -1").unwrap();
-    writeln!(out, "lsp {BACKGROUND},\":a;{}\",0,0", path(&e.background)).unwrap();
+    writeln!(out, "lsp {BACKGROUND},\"{}\",0,0", pic(&e.background)).unwrap();
     for (i, item) in e.items.iter().enumerate() {
         let b = &item.button;
         let slot = ITEM + i as u32;

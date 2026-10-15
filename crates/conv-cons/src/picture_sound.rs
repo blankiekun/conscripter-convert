@@ -13,6 +13,7 @@
 
 use conv_core::ir::SoundRoom;
 
+use crate::picture_extras::pic;
 use crate::{path, BUTTON_VAR, DIALOG_SPRITES, MAX_SPRITE, MENU_SPRITES};
 
 pub(crate) const SOUND: &str = "conv_pextras_sound";
@@ -99,7 +100,7 @@ pub(crate) fn emit(out: &mut String, r: &SoundRoom, border: u32, width: u32, hei
 
     w(format!("*{DRAW}"));
     w("csp -1".into());
-    w(format!("lsp {BACKGROUND},\":a;{}\",0,0", path(&r.background)));
+    w(format!("lsp {BACKGROUND},\"{}\",0,0", pic(&r.background)));
     w(format!("lsp {EXIT},\":a/3,0,3;{}\",{},{}:spbtn {EXIT},{BTN_EXIT},2", path(&r.exit.image), r.exit.x, r.exit.y));
     for (i, t) in r.tracks.iter().enumerate() {
         let b = &t.button;
@@ -109,7 +110,7 @@ pub(crate) fn emit(out: &mut String, r: &SoundRoom, border: u32, width: u32, hei
             Some(v) => {
                 w(format!("if {v} != 0 {open}"));
                 if let Some(l) = &t.locked {
-                    w(format!("if {v} == 0 lsp {slot},\":a;{}\",{},{}", path(l), b.x, b.y));
+                    w(format!("if {v} == 0 lsp {slot},\"{}\",{},{}", pic(l), b.x, b.y));
                 }
             }
             None => w(open),
@@ -127,9 +128,9 @@ pub(crate) fn emit(out: &mut String, r: &SoundRoom, border: u32, width: u32, hei
     for (j, m) in r.movies.iter().enumerate() {
         let p = &m.thumbnail;
         let open = format!(
-            "lsp {},\":a;{}\",{},{}:lsp {},\":a/2,0,3;{}\",{},{}:spbtn {},{}",
+            "lsp {},\"{}\",{},{}:lsp {},\":a/2,0,3;{}\",{},{}:spbtn {},{}",
             VIDEO + j as u32,
-            path(&p.image),
+            pic(&p.image),
             p.x,
             p.y,
             VIDEO_CURSOR + j as u32,
@@ -142,7 +143,7 @@ pub(crate) fn emit(out: &mut String, r: &SoundRoom, border: u32, width: u32, hei
         match unlocked(m.unlocked_by) {
             Some(v) => {
                 w(format!("if {v} != 0 {open}"));
-                w(format!("if {v} == 0 lsp {},\":a;{}\",{},{}", VIDEO + j as u32, path(&m.locked), p.x, p.y));
+                w(format!("if {v} == 0 lsp {},\"{}\",{},{}", VIDEO + j as u32, pic(&m.locked), p.x, p.y));
             }
             None => w(open),
         }
