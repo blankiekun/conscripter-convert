@@ -8,8 +8,10 @@ and shows its output; it converts nothing itself.
 
 Releases ship it as one file per platform with the converter and the
 fonts inside: `conscripter-convert-gui_<version>_x64_win.exe`,
-`…_x64_linux`, and `…_aarch64_darwin.zip` (a `.app`, unsigned: open it with
-right click → Open the first time).
+`…_x64_linux`, `…_arm64_linux`, and `…_aarch64_darwin.zip` /
+`…_x64_darwin.zip` for Apple silicon / Intel Macs (a `.app`, unsigned:
+open it with right click → Open the first time). The bare converter is
+attached for each of them too (`conscripter-convert_<version>_<platform>`).
 
 ## Using it
 

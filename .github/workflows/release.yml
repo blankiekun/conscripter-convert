@@ -1,4 +1,4 @@
-name: release converter and GUI (Windows, Linux, macOS)
+name: release converter and GUI (Windows x64, Linux x64/arm64, macOS arm64/x64)
 on:
   push:
     tags: ['v*'] # v1.0, v0.2.0, …: builds and attaches to the release
@@ -18,7 +18,9 @@ jobs:
         os:
           - {runner: windows-latest, suffix: x64_win, exe: .exe}
           - {runner: ubuntu-22.04, suffix: x64_linux, exe: ''} # an older glibc runs on more systems
-          - {runner: macos-14, suffix: aarch64_darwin, exe: ''}
+          - {runner: ubuntu-22.04-arm, suffix: arm64_linux, exe: ''}
+          - {runner: macos-14, suffix: aarch64_darwin, exe: ''} # Apple silicon
+          - {runner: macos-15-intel, suffix: x64_darwin, exe: ''}
     runs-on: ${{ matrix.os.runner }}
     defaults:
       run:
