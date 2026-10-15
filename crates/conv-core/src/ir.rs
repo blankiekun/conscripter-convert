@@ -39,6 +39,14 @@ pub enum TransitionStyle {
     /// turning a quarter turn, seen straight on: the new face comes in
     /// moving in direction `dx`, `dy` (one of them ±1), both squeezed.
     Cube { dx: i8, dy: i8 },
+    /// A cross-fade with the rows waving sideways (`direction` 0 or 2; 1
+    /// or 3 the columns up and down; 2 and 3 the other way), each shifted
+    /// by up to `amplitude`/1000 of the screen, `waves`/10 waves down it,
+    /// the most halfway.
+    Wave { direction: u8, amplitude: u32, waves: u32 },
+    /// A cross-fade with the pictures blurred sideways by up to `radius`
+    /// pixels either side halfway; `new_only`: only the new picture.
+    Blur { radius: u32, new_only: bool },
 }
 
 /// What moves in a [`TransitionStyle::Slide`].

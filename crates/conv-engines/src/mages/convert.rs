@@ -1330,8 +1330,11 @@ fn colour(t: &Block) -> u32 {
 /// - 3: a card turning over (perspective), the old screen in front, the
 ///   new behind, about the vertical axis (`:Param` 0 below 2) or the
 ///   horizontal one (a turn of the new screen growing from a line here);
-/// - 1: a fade with the rows waving sideways, 6: a fade blurred sideways
-///   halfway (both a plain fade here); 4: not looked at (2 uses).
+/// - 1: a fade with the rows waving sideways (`:Param` 1 the size, 2 the
+///   waves; their scale is a guess: the shader's constants are uniforms);
+/// - 6: a fade blurred sideways, the most halfway, by `:Param` 1 pixels
+///   of 1280 either side, `:Param` 0 = 1 only the new screen;
+/// - 4: not looked at (2 uses).
 fn act_style(t: &Block) -> TransitionStyle {
     let direction = t.int_at("Param", 0).unwrap_or(0).clamp(0, 3);
     let (dx, dy) = [(1, 0), (0, 1), (-1, 0), (0, -1)][direction as usize];
@@ -1340,6 +1343,14 @@ fn act_style(t: &Block) -> TransitionStyle {
         Some(5) if direction < 2 => TransitionStyle::ThroughWhite,
         Some(2) => TransitionStyle::Mosaic,
         Some(3) => TransitionStyle::Flip { horizontal: direction < 2, grow: true },
+        Some(1) => {
+            let param = |i: usize| -> f64 { t.get("Param").and_then(|v| v.get(i)?.float()).unwrap_or(0.0) };
+            TransitionStyle::Wave { direction: direction as u8, amplitude: (param(1) * 100.0).round() as u32, waves: (param(2) * 10.0).round() as u32 }
+        }
+        Some(6) => TransitionStyle::Blur {
+            radius: t.int_at("Param", 1).map_or(0, |r| (r.max(0) as f64 * 0.75).round() as u32),
+            new_only: t.int_at("Param", 0) == Some(1),
+        },
         _ => TransitionStyle::Fade,
     }
 }

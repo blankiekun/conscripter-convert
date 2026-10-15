@@ -1418,6 +1418,8 @@ fn transition_steps(fade_ms: u32, mask: Option<&str>, style: TransitionStyle) ->
         }
         (None, TransitionStyle::Melt { stretch_percent }) => one(Effect::Dll(format!("cons_melt.dll/{stretch_percent}"))),
         (None, TransitionStyle::Cube { dx, dy }) => one(Effect::Dll(format!("cons_cube.dll/{dx},{dy}"))),
+        (None, TransitionStyle::Wave { direction, amplitude, waves }) => one(Effect::Dll(format!("cons_wave.dll/{direction},{amplitude},{waves}"))),
+        (None, TransitionStyle::Blur { radius, new_only }) => one(Effect::Dll(format!("cons_blur.dll/{radius},{}", u8::from(new_only)))),
         (_, TransitionStyle::ThroughWhite) => {
             let half = (fade_ms / 2).max(1);
             vec![(half, Effect::Fade), ((fade_ms - half).max(1), Effect::Fade)]
