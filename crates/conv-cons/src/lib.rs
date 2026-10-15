@@ -40,6 +40,8 @@ mod switches;
 mod line_log;
 mod zoom;
 pub mod webp;
+mod vars;
+pub use vars::clashes;
 
 /// First effect number we define; 1 is NScripter's built-in "instant".
 const FIRST_EFFECT: u32 = 2;
@@ -107,9 +109,11 @@ const NOISE_SAVED: u32 = 130;
 /// (free locals between the game's own and the presets').
 const ANIMATION_ALPHA: &str = "%117";
 const ANIMATION_IMAGE: &str = "$117";
-const ANIMATION_SAVED: u32 = 13;
+const ANIMATION_SAVED: u32 = 21;
 /// Scratch variable receiving the clicked button (also used by nstrace).
 const BUTTON_VAR: &str = "%9";
+// Every range below is also in `conv_core::alloc`, which the build checks
+// the game's variables against (the `vars` tests keep the two in step).
 // Ranges claimed by modules: %140-%146, the command menu and the sliding
 // bar ([`command_menu`], [`menu::button_bar`]); %147, %149 and $110-$113,
 // the save grid ([`save_grid`]); %190-%289 and $200-$229, the tile puzzle's

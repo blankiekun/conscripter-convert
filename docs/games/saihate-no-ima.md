@@ -618,6 +618,13 @@ ones done:
 Finished work, moved out of "Status" so a session reads only the open
 state. Items are referred to elsewhere as "History, item N".
 
+**Variables (2026-10-15, from the code audit):** the animation's state
+per link-scene level moved from %13-%20 to %21-%28: the game's local
+%13 (read once in script 6, `if %13 != 4603`, never set) shared it.
+No visible change: the test went the same way either way. A save made
+inside a link scene while an animation plays (from an older build) may
+show that animation's opacity wrong once after a load.
+
 **The list after the reopening (2026-10-14), all done:**
 1. **Done: `0x72`/`0x74` as fades** (table above): `Op::ScreenFade`, an
    opaque `lsp2 26` faded in under the text window and bars, removed with

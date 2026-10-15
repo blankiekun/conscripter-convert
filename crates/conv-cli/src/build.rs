@@ -127,8 +127,13 @@ pub fn check_output(output: &Path, dirs: &[&str], packs: bool) -> Result<()> {
 /// Writes the game into `output`: `0.txt` from `source` (the emitted
 /// script), `version.txt` (with `package`, the source's own version, when
 /// known), `ons_args` and, when given, the font as `default.ttf`. Returns
-/// the number of characters Shift-JIS can't show.
+/// the number of characters Shift-JIS can't show. Fails when a game
+/// variable is one conv-cons keeps for itself ([`conv_cons::clashes`]).
 pub fn write_game(output: &Path, ir: &Script, source: &str, font: Option<&Path>, package: Option<&str>) -> Result<usize> {
+    let clashes = conv_cons::clashes(ir);
+    if !clashes.is_empty() {
+        anyhow::bail!("the game's variables overlap conv-cons' (conv_core::alloc):\n{}", clashes.join("\n"));
+    }
     let (encoded, lost) = conv_cons::encode(source);
     fs::write(output.join("0.txt"), encoded)?;
     if let Some(v) = &ir.version {
