@@ -112,7 +112,7 @@ commands first. When a feature of the original game can't be reproduced
 that way (or only with a workaround that visibly differs from the
 original), add the feature to CONscripter instead of approximating it:
 
-1. Implement it in `engine/src/onsyuri/` as a new command or option, in the
+1. Implement it in `engine/src/cons/` as a new command or option, in the
    style of the surrounding ONScripter code, so it works on every platform
    the fork builds for (the web build especially).
 2. Don't make it opt-in (the user, 2026-10-14): a new behaviour applies

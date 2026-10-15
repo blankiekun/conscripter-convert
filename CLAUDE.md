@@ -53,7 +53,7 @@ not in the repo.
   Engine additions are not opt-in (the user, 2026-10-14): a new
   behaviour applies to every script, with no command or flag to turn it
   on; new commands take effect where a script uses them. They live in
-  `engine/src/onsyuri/` (preferably `ONScripter_cons.cpp`), work in the
+  `engine/src/cons/` (preferably `ONScripter_cons.cpp`), work in the
   web build, and are documented in `engine/ADDITIONS.md` and `PLAN.md`
   §4.2. Check that a change of behaviour doesn't break another game's
   build. Bug fixes likewise: when the engine does something wrong (text
@@ -122,7 +122,7 @@ each in its own worktree), and their work meets in shared code.
 | `crates/conv-engines/src/<engine>/` | Source readers (`xuse/`, `nitroplus/`); a game's own rules in a module there (`nitroplus/convert/muramasa.rs`) |
 | `crates/conv-cons/` | IR → `0.txt` (`lib.rs`), menus, extras, NSA writer |
 | `crates/conv-cli/` | The `conscripter-convert` command |
-| `engine/` | CONscripter (C++; our code in `src/onsyuri/ONScripter_cons.cpp`, the debug trace in `ONScripter_trace.cpp`) |
+| `engine/` | CONscripter (C++; our code in `src/cons/ONScripter_cons.cpp`, the debug trace in `ONScripter_trace.cpp`) |
 | `research/<engine>/` | Throwaway Python; `local/` is git-ignored (disassembly, wine scripts, shots) |
 | `docs/new-game.md` | Playbook for converting a new game |
 | `docs/games/<game>.md` | Per-game record: formats, opcodes, progression variables, status |

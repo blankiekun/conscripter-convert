@@ -298,7 +298,7 @@ anything is reached (step 11.6).
 ## 10. Engine additions
 
 When existing NScripter commands can't do it:
-1. Add it in `engine/src/onsyuri/` (`ONScripter_cons.cpp` preferred).
+1. Add it in `engine/src/cons/` (`ONScripter_cons.cpp` preferred).
    It isn't opt-in: a new behaviour, like a bug fix, applies to every
    script, with no command to turn it on. Effects are `cons_*.dll` effect-99 plugins; screen
    effects use the `screenfilter`/`screenshake` slot machinery. It must
@@ -442,7 +442,7 @@ natively, at every milestone:
   index of the files:
 
       conscripter-convert <command> <game> -o out/<game>-web --font <ipag.ttf> --loose
-      python3 -I engine/src/onsyuri_web/conscripter_index.py -i out/<game>-web \
+      python3 -I engine/src/cons_web/conscripter_index.py -i out/<game>-web \
           -o out/<game>-web/onsyuri_index.json --title <game> --lazyload
       cp engine/build_web/conscripter.{html,js,wasm} engine/build_web/favicon.ico out/<game>-web/
       python3 -m http.server 8000 -d out/<game>-web   # then open /conscripter.html

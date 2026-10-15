@@ -49,9 +49,9 @@ jobs:
     - name: engine version
       run: |
         sha=$(git ls-tree HEAD engine | awk '{print $3}')
-        mkdir -p engine/src/onsyuri
-        curl -fsSL --retry 3 -o engine/src/onsyuri/version.h "https://raw.githubusercontent.com/blankiekun/CONscripter/$sha/src/onsyuri/version.h"
-        grep CONSCRIPTER_VERSION engine/src/onsyuri/version.h
+        mkdir -p engine/src/cons
+        curl -fsSL --retry 3 -o engine/src/cons/version.h "https://raw.githubusercontent.com/blankiekun/CONscripter/$sha/src/cons/version.h"
+        grep CONSCRIPTER_VERSION engine/src/cons/version.h
 
     # The runner images come with a stable Rust (rustup); installing it
     # again took up to 40 s on Windows.

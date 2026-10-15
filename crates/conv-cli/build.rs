@@ -15,7 +15,7 @@ fn main() {
     let dirty = git(&["status", "--porcelain", "--untracked-files=no"]).is_some_and(|s| !s.is_empty());
     println!("cargo:rustc-env=CONV_COMMIT={commit}{}", if dirty { "-dirty" } else { "" });
 
-    let header = "../../engine/src/onsyuri/version.h";
+    let header = "../../engine/src/cons/version.h";
     let engine = std::fs::read_to_string(header)
         .ok()
         .and_then(|h| h.lines().find_map(|l| l.strip_prefix("#define CONSCRIPTER_VERSION ").map(|v| v.trim().trim_matches('"').to_string())))

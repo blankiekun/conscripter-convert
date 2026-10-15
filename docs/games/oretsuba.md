@@ -372,7 +372,7 @@ engine (`cd engine/script && EMSDK_HOME=<emsdk> bash ./cross_web.sh`) and
 an index:
 
     conscripter-convert mages convert <game> -o out/oretsuba-web --font <ipag.ttf> --loose
-    python3 -I engine/src/onsyuri_web/conscripter_index.py -i out/oretsuba-web \
+    python3 -I engine/src/cons_web/conscripter_index.py -i out/oretsuba-web \
         -o out/oretsuba-web/onsyuri_index.json --title oretsuba --lazyload
     cp engine/build_web/conscripter.{html,js,wasm} engine/build_web/favicon.ico out/oretsuba-web/
     python3 -m http.server 8000 -d out/oretsuba-web   # then open /conscripter.html

@@ -112,7 +112,7 @@ the feature goes into the engine, not an approximation in the converter
 
 - Engine code is in the `engine/` submodule
   ([blankiekun/CONscripter](https://github.com/blankiekun/CONscripter)),
-  ours in `engine/src/onsyuri/`, preferably `ONScripter_cons.cpp`.
+  ours in `engine/src/cons/`, preferably `ONScripter_cons.cpp`.
 - Nothing is opt-in: a new behaviour or bug fix applies to every script,
   with no flag to turn it on. Check that it doesn't change another
   game's output.

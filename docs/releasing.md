@@ -1,10 +1,10 @@
 # Releasing CONscripter
 
-Bump the version in `asset/icon1.rc`, `src/onsyuri/version.h`,
-`src/onsyuri_android/app/build.gradle` (also `versionCode` + 1),
-`src/onsyuri_android/app/res/values/strings.xml`,
-`src/onsyuri_libretro/conscripter_libretro.info`,
-`src/onsyuri_libretro/libretro.cpp` and `src/onsyuri_web/conscripter.html`
+Bump the version in `asset/icon1.rc`, `src/cons/version.h`,
+`src/cons_android/app/build.gradle` (also `versionCode` + 1),
+`src/cons_android/app/res/values/strings.xml`,
+`src/cons_libretro/conscripter_libretro.info`,
+`src/cons_libretro/libretro.cpp` and `src/cons_web/conscripter.html`
 (CRLF: edit it byte-safely). Leave `ONS_JH_VERSION` alone. Commit
 "Version X.Y.0", tag `vX.Y.0`, push `master` and the tag. Five workflows
 run on tags (Linux, Windows, macOS, web, Android); the release should
