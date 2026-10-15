@@ -16,15 +16,21 @@ It has no NPA archives and no NSS scripts.
   `default.ttf` (or in its place), proportional character widths instead
   of the fixed grid, line wrapping at spaces, ASCII punctuation kept
   as is (not turned into full-width forms).
+- **Plan (from the scripts, 2026-10-15):** the port's scenario scripts
+  (`nut/*.nut`) are a line-by-line transcription of the Japanese NSS
+  (same sprite names, coordinates, files with `.png` for `.jpg`; screen
+  1024×576 in both). So the English build reuses the existing Muramasa
+  converter on the Japanese NSS and swaps in the English text, joined
+  by the Japanese text (below), and takes the English pictures where
+  they differ (the redesigned menus in `cg/sys`, pictures with words).
 - **Next:**
-  1. Read the Squirrel bytecode (`SCRP`/`RIQS` headers): the scenario
-     scripts and the `lang/en/*.nut` text tables (`TransText`,
-     `TransAddText`, `TransChoice`, `TransLog`, `TransVoice`, with markup
-     such as `<center>`, `<RUBY text='…'>`, `<I>`, `<K>`). Find out how a
-     text line is keyed, and whether the lines map onto the Japanese NSS
-     scripts the existing converter already reads, which would let the
-     English build reuse that converter with the text swapped.
-  2. The engine items above.
+  1. Read NPK3 and the text tables in the converter (Rust: AES-256-CBC,
+     zstd, the Squirrel literal reader of `nut.py`), and build the
+     segment → English map.
+  2. The engine items above, then the converter's text emitter for
+     English (no full-width conversion, the markup below).
+  3. The English menus from `cg/sys` (1876 pictures), filmed against
+     the English original under wine.
 
 ## Archives (NPK3)
 
@@ -56,3 +62,29 @@ plus `patch/*.npk` mounted after them (opener 0x401960).
 - `font.npk`: `media/font/droidserif-muramasa.ttf` only.
 - `system.npk`: `setting.ini` (`SCREEN_WIDTH=1024`, `SCREEN_HEIGHT=576`),
   shaders.
+
+## Scripts (Squirrel 3)
+
+    python3 -I research/nitroplus/nut.py FILE.nut [--strings | --tables]
+
+- Files: `SCRP`, u32 header size 0x10, two u32; then a Squirrel 3
+  closure stream (32-bit SQInteger, 1-byte chars, UTF-8) whose header
+  keeps only sizeof(SQChar), and whose functions end in u32 stack size,
+  u8 generator, u8 varparams. All 1884 files parse.
+- Opcodes are renumbered against stock 3.1: `LINE` to `GETK` (0-9),
+  `LOAD`, `LOADINT`, `PREPCALLK`, `CALL`, `NEWSLOT` decode right; others
+  don't (`NEWOBJ` sits at 30, table-literal slots at 61, booleans and
+  nulls come out as `DIV`/`BITW`). The text join needs none of them; the
+  VM's dispatch in the exe would give the full map.
+- `nut/<scene>.nut`: the scenario, one `scene` function calling the
+  NSS builtins by name (`CreateTextureSP`, `FadeDelete`, `St`, …). Each
+  text block is `Print(key, japanese)`, where the Japanese is an NSS
+  `<PRE>` block cut at its inline `{…}` code, so one NSS block gives
+  one or more Prints (39,038 Prints for 14,527 blocks).
+- `lang/en/<scene>.nut`: `TransText[key] = english` (39,010 rows, plus
+  120 `TransLog`). Each value repeats the Japanese as `//` lines, then
+  the English, with `<voice …>` tags, `<center>`, `<I>`, `<K>`, `<br>`,
+  `<RUBY text='…'>`.
+- Join: 38,465 of 38,798 NSS segments (99.1 %) equal a Print's text once
+  `//` lines, tags and whitespace are removed. The misses are the 《…》
+  incantation blocks in ma00_000 and similar, still to look at.
