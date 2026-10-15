@@ -7,7 +7,13 @@ It has no NPA archives and no NSS scripts.
 
 ## Status
 
-- **Works:** reading every archive (`research/nitroplus/npk.py`, below).
+- **Works:** reading every archive (`npk.rs`; `research/nitroplus/npk.py`,
+  below); the English text in the converter: `convert-nss <game> --file
+  ma00_000.nss --chain 2000 --english <english game> …` reads the
+  English release's `script.npk` and puts its text into the Japanese
+  NSS (`english.rs`): 38,919 stretches of text replaced, 278 left in
+  Japanese (mostly the 《…》 incantations; not looked at yet). The text
+  still comes out full-width (`Ｓｕｚｕｋａｗａ`) and `<i>` is dropped.
 - **Decided (the user, 2026-10-15):** the text font is the release's own
   `droidserif-muramasa.ttf` (font.npk); the menus follow the English
   port's redesigned screens, not the Japanese PC ones; filming the
@@ -24,11 +30,10 @@ It has no NPA archives and no NSS scripts.
   by the Japanese text (below), and takes the English pictures where
   they differ (the redesigned menus in `cg/sys`, pictures with words).
 - **Next:**
-  1. Read NPK3 and the text tables in the converter (Rust: AES-256-CBC,
-     zstd, the Squirrel literal reader of `nut.py`), and build the
-     segment → English map.
-  2. The engine items above, then the converter's text emitter for
-     English (no full-width conversion, the markup below).
+  1. The engine items above, then the converter's text emitter for
+     English (no full-width conversion; `<i>`, `<center>`, `<K>`,
+     `<br>`), with the release's `droidserif-muramasa.ttf` (font.npk).
+  2. The 278 stretches left in Japanese.
   3. The English menus from `cg/sys` (1876 pictures), filmed against
      the English original under wine.
 

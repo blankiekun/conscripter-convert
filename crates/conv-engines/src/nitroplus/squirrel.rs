@@ -1,0 +1,197 @@
+//! Compiled Squirrel 3 scripts of Muramasa's English release
+//! (`script.npk`), read for their text only.
+//!
+//! A file is `"SCRP"`, u32 header size (0x10), two u32; then a Squirrel 3
+//! closure stream: u16 0xFAFA, `"RIQS"`, u32 sizeof(SQChar) (1; the stock
+//! sizes of SQInteger and SQFloat are left out), the main function,
+//! `"LIAT"`. SQInteger is 32-bit, strings UTF-8. A function is its parts,
+//! each after a `"TRAP"` tag: source and name; eight counts; literals;
+//! parameters; outer values; locals; line infos; default parameters;
+//! instructions (8 bytes: i32 arg1, u8 op, arg0, arg2, arg3); functions;
+//! then u32 stack size, u8 generator, u8 varparams.
+//!
+//! The opcodes are renumbered against stock 3.1; the ones read here
+//! (`LOAD` 1, `LOADINT` 2, `PREPCALLK` 8, `GETK` 9, `NEWSLOT` 11) are
+//! not. `research/nitroplus/nut.py` disassembles a whole file.
+
+use crate::read::{Reader, Truncated};
+
+const LOAD: u8 = 1;
+const LOADINT: u8 = 2;
+const PREPCALLK: u8 = 8;
+const GETK: u8 = 9;
+const NEWSLOT: u8 = 11;
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Literal {
+    Str(String),
+    Int(i32),
+    Other,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct Instr {
+    op: u8,
+    arg1: i32,
+}
+
+#[derive(Debug, Default)]
+pub struct Function {
+    pub literals: Vec<Literal>,
+    code: Vec<Instr>,
+    pub functions: Vec<Function>,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum SquirrelError {
+    #[error("not a compiled script: expected {0:?} at {1:#x}")]
+    Tag(&'static str, usize),
+    #[error("unknown object type {0:#x} at {1:#x}")]
+    Object(u32, usize),
+    #[error(transparent)]
+    Truncated(#[from] Truncated),
+}
+
+struct Cursor<'a> {
+    r: Reader<'a>,
+    pos: usize,
+}
+
+impl Cursor<'_> {
+    fn u32(&mut self) -> Result<u32, Truncated> {
+        let v = self.r.u32(self.pos)?;
+        self.pos += 4;
+        Ok(v)
+    }
+
+    fn tag(&mut self, tag: &'static str) -> Result<(), SquirrelError> {
+        if self.r.slice(self.pos, tag.len())? != tag.as_bytes() {
+            return Err(SquirrelError::Tag(tag, self.pos));
+        }
+        self.pos += tag.len();
+        Ok(())
+    }
+
+    fn object(&mut self) -> Result<Literal, SquirrelError> {
+        let at = self.pos;
+        Ok(match self.u32()? {
+            0x0800_0010 => {
+                let n = self.u32()? as usize;
+                let s = String::from_utf8_lossy(self.r.slice(self.pos, n)?).into_owned();
+                self.pos += n;
+                Literal::Str(s)
+            }
+            0x0500_0002 => Literal::Int(self.u32()? as i32),
+            // float, bool
+            0x0500_0004 | 0x0100_0008 => {
+                self.u32()?;
+                Literal::Other
+            }
+            0x0100_0001 => Literal::Other,
+            t => return Err(SquirrelError::Object(t, at)),
+        })
+    }
+
+    fn function(&mut self) -> Result<Function, SquirrelError> {
+        self.tag("TRAP")?;
+        self.object()?;
+        self.object()?;
+        self.tag("TRAP")?;
+        let mut n = [0; 8];
+        for c in &mut n {
+            *c = self.u32()? as usize;
+        }
+        let [nlit, npar, nout, nloc, nline, ndef, nins, nfun] = n;
+        let mut f = Function::default();
+        self.tag("TRAP")?;
+        for _ in 0..nlit {
+            f.literals.push(self.object()?);
+        }
+        self.tag("TRAP")?;
+        for _ in 0..npar {
+            self.object()?;
+        }
+        self.tag("TRAP")?;
+        for _ in 0..nout {
+            self.u32()?;
+            self.object()?;
+            self.object()?;
+        }
+        self.tag("TRAP")?;
+        for _ in 0..nloc {
+            self.object()?;
+            self.pos += 12;
+        }
+        self.tag("TRAP")?;
+        self.pos += nline * 8;
+        self.tag("TRAP")?;
+        self.pos += ndef * 4;
+        self.tag("TRAP")?;
+        for _ in 0..nins {
+            let arg1 = self.u32()? as i32;
+            let op = self.r.slice(self.pos, 1)?[0];
+            self.pos += 4;
+            f.code.push(Instr { op, arg1 });
+        }
+        self.tag("TRAP")?;
+        for _ in 0..nfun {
+            f.functions.push(self.function()?);
+        }
+        self.pos += 6;
+        Ok(f)
+    }
+}
+
+/// The main function of a compiled script.
+pub fn load(bytes: &[u8]) -> Result<Function, SquirrelError> {
+    let r = Reader(bytes);
+    if r.slice(0, 4)? != b"SCRP" {
+        return Err(SquirrelError::Tag("SCRP", 0));
+    }
+    let mut c = Cursor { pos: r.u32(4)? as usize, r };
+    if c.r.slice(c.pos, 2)? != [0xfa, 0xfa] {
+        return Err(SquirrelError::Tag("\u{fafa}", c.pos));
+    }
+    c.pos += 2;
+    c.tag("RIQS")?;
+    c.u32()?;
+    let main = c.function()?;
+    c.tag("LIAT")?;
+    Ok(main)
+}
+
+impl Function {
+    fn str(&self, i: i32) -> Option<&str> {
+        match self.literals.get(usize::try_from(i).ok()?) {
+            Some(Literal::Str(s)) => Some(s),
+            _ => None,
+        }
+    }
+
+    /// Every `name(int, "string", …)` call in this function and the ones
+    /// inside it: the scenes' `Print(key, japanese)`.
+    pub fn calls_int_str(&self, name: &str, out: &mut Vec<(i32, String)>) {
+        for w in self.code.windows(3) {
+            if w[0].op == PREPCALLK && self.str(w[0].arg1) == Some(name) && w[1].op == LOADINT && w[2].op == LOAD
+                && let Some(s) = self.str(w[2].arg1)
+            {
+                out.push((w[1].arg1, s.to_string()));
+            }
+        }
+        self.functions.iter().for_each(|f| f.calls_int_str(name, out));
+    }
+
+    /// Every `table[int] <- "string"` in this function: the English text
+    /// files' `TransText[key] <- english`.
+    pub fn table_rows(&self, table: &str) -> Vec<(i32, String)> {
+        let mut out = Vec::new();
+        for w in self.code.windows(4) {
+            if w[0].op == GETK && self.str(w[0].arg1) == Some(table) && w[1].op == LOADINT && w[2].op == LOAD && w[3].op == NEWSLOT
+                && let Some(s) = self.str(w[2].arg1)
+            {
+                out.push((w[1].arg1, s.to_string()));
+            }
+        }
+        out
+    }
+}
