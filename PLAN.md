@@ -174,6 +174,7 @@ Engine features added for converted games (details in the engine's
 | `vstrsp` (`strsp` with its text in columns from the right, kept in saves and by `pushscreen`) | 装甲悪鬼村正's save screen: the chapter title and the page's text down in columns in its side panel |
 | `getplaytime` / `setplaytime` (the play time counted by the engine, kept in each save as it stands when written, put back by a load) | 装甲悪鬼村正's save screen shows each save's play time (`$PLAY_TIME`) |
 | Movies on Linux and macOS (`mpegplay`, `movie` in the game window through the player's ffmpeg; they were disabled there) | Every game's movies (最果てのイマ's openings and staff rolls, 翼's) on the native Linux and macOS builds, which played none |
+| Opus sounds in every build (the engine decodes Ogg Opus with opusfile, compiled in by `cmake/cons_opus.cmake`, and gives SDL_mixer a WAV; no build's SDL_mixer reads Opus) | `--audio-codec opus`: voices and sound effects about half the size (最果てのイマ's 542 MB become 217 MB; 翼's HCA voices 1.7 MB a scene instead of 2.6 MB as Vorbis) |
 
 Planned, from limits hit by converted games (each one is worked around
 in the script today), roughly in order of payoff:

@@ -49,6 +49,8 @@ pub enum MagesCommand {
         /// Write 0.txt only, no assets
         #[arg(long)]
         dry_run: bool,
+        #[command(flatten)]
+        audio: build::AudioArgs,
     },
     /// Parse every script in <game>/media/SCRIPT.cpk, count the task types
     /// and check that every file ID they use exists
@@ -63,8 +65,8 @@ pub fn run(command: MagesCommand) -> Result<()> {
         MagesCommand::List { archive } => list(&archive),
         MagesCommand::Extract { archive, output, prefix } => extract(&archive, &output, &prefix),
         MagesCommand::Check { game } => check(&game),
-        MagesCommand::Convert { game, output, scenes, font, title, loose, dry_run } => {
-            convert(&game, &output, &scenes, font.as_deref(), &title, loose, dry_run)
+        MagesCommand::Convert { game, output, scenes, font, title, loose, dry_run, audio } => {
+            convert(&game, &output, &scenes, font.as_deref(), &title, loose, dry_run, audio.format()?)
         }
     }
 }
@@ -183,7 +185,16 @@ fn check(game: &Path) -> Result<()> {
 }
 
 #[allow(clippy::too_many_arguments)]
-fn convert(game: &Path, output: &Path, scenes: &[String], font: Option<&Path>, title: &str, loose: bool, dry_run: bool) -> Result<()> {
+fn convert(
+    game: &Path,
+    output: &Path,
+    scenes: &[String],
+    font: Option<&Path>,
+    title: &str,
+    loose: bool,
+    dry_run: bool,
+    audio_format: media::AudioFormat,
+) -> Result<()> {
     use conv_core::ir::Script;
     use conv_engines::mages::assets::{ArchiveAssets, Bank, OUTPUT_DIRS};
     use conv_engines::mages::convert::{self, Game};
@@ -239,7 +250,7 @@ fn convert(game: &Path, output: &Path, scenes: &[String], font: Option<&Path>, t
     };
     let lost = build::write_game(output, &ir, &conv_cons::emit(&ir), font.filter(|_| !dry_run), package(game).as_deref())?;
     if !dry_run {
-        audio(&assets.audio)?;
+        audio(&assets.audio, output, audio_format)?;
         movies(&assets.movies, output)?;
         if !loose {
             build::pack(output, &OUTPUT_DIRS)?;
@@ -249,10 +260,21 @@ fn convert(game: &Path, output: &Path, scenes: &[String], font: Option<&Path>, t
     build::summary(output, &ir, lost, font.is_some(), compiled.notes, Some(!dry_run))
 }
 
-/// Converts the queued sounds to Ogg Vorbis with ffmpeg, in parallel.
-fn audio(jobs: &BTreeMap<String, conv_engines::mages::assets::AudioJob>) -> Result<()> {
+/// Converts the queued sounds with ffmpeg, in parallel: music to Ogg
+/// Vorbis, voices and sound effects as `format` asks (Vorbis by default).
+/// Sounds already made are skipped, unless a voice or sound effect was
+/// made with another format.
+fn audio(jobs: &BTreeMap<String, conv_engines::mages::assets::AudioJob>, output: &Path, format: media::AudioFormat) -> Result<()> {
     use std::sync::atomic::{AtomicUsize, Ordering};
-    let jobs: Vec<_> = jobs.values().filter(|j| !j.output.exists()).collect();
+    let speech = |j: &conv_engines::mages::assets::AudioJob| j.output.starts_with(output.join("voice")) || j.output.starts_with(output.join("se"));
+    let tag = format.tag();
+    let made = |j: &conv_engines::mages::assets::AudioJob| {
+        use std::io::Read;
+        let Ok(file) = fs::File::open(&j.output) else { return false };
+        let mut head = Vec::new();
+        file.take(8192).read_to_end(&mut head).is_ok() && (!speech(j) || head.windows(tag.len()).any(|w| w == tag.as_bytes()))
+    };
+    let jobs: Vec<_> = jobs.values().filter(|j| !made(j)).collect();
     let next = AtomicUsize::new(0);
     let failed = std::sync::Mutex::new(Vec::new());
     let threads = std::thread::available_parallelism().map_or(4, |n| n.get());
@@ -260,7 +282,12 @@ fn audio(jobs: &BTreeMap<String, conv_engines::mages::assets::AudioJob>) -> Resu
         for _ in 0..threads {
             s.spawn(|| {
                 while let Some(job) = jobs.get(next.fetch_add(1, Ordering::Relaxed)) {
-                    let mut args = vec!["-i".to_string(), "pipe:0".into(), "-c:a".into(), "libvorbis".into(), "-q:a".into(), "4".into()];
+                    let mut args = vec!["-i".to_string(), "pipe:0".into()];
+                    if speech(job) {
+                        args.extend(format.ffmpeg_options(media::channels(job.source).unwrap_or(2)));
+                    } else {
+                        args.extend(["-c:a".into(), "libvorbis".into(), "-q:a".into(), "4".into()]);
+                    }
                     if let Some((start, end)) = job.looped {
                         args.extend(["-metadata".into(), format!("LOOPSTART={start}"), "-metadata".into(), format!("LOOPEND={end}")]);
                     }

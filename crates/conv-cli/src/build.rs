@@ -7,8 +7,70 @@ use std::path::Path;
 
 use anyhow::{Context, Result, bail};
 use conv_core::ir::{Op, Script};
+use conv_engines::media::{self, AudioCodec, AudioFormat};
 
 use crate::version;
+
+/// `--audio-codec` and `--audio-quality`, for every convert command.
+#[derive(clap::Args, Clone, Copy, Debug)]
+pub struct AudioArgs {
+    /// Voices and sound effects as vorbis (the game's own files are kept
+    /// as they are) or opus (re-encoded with ffmpeg, about half the size;
+    /// CONscripter 0.21 or later plays it). Music stays Vorbis
+    #[arg(long, value_enum, default_value_t = Codec::Vorbis)]
+    audio_codec: Codec,
+    /// Their quality: for vorbis ffmpeg's -q:a, -1 to 10 (re-encodes the
+    /// game's own files); for opus kbit/s per channel, 6 to 256 (default 32)
+    #[arg(long, allow_negative_numbers = true)]
+    audio_quality: Option<f32>,
+}
+
+#[derive(clap::ValueEnum, Clone, Copy, Debug, PartialEq)]
+enum Codec {
+    Vorbis,
+    Opus,
+}
+
+impl AudioArgs {
+    pub fn format(&self) -> Result<AudioFormat> {
+        let codec = match self.audio_codec {
+            Codec::Vorbis => AudioCodec::Vorbis,
+            Codec::Opus => AudioCodec::Opus,
+        };
+        if let Some(q) = self.audio_quality {
+            let (low, high) = if codec == AudioCodec::Opus { (6.0, 256.0) } else { (-1.0, 10.0) };
+            if !(low..=high).contains(&q) {
+                bail!("--audio-quality {q}: must be from {low} to {high} for {:?}", self.audio_codec);
+            }
+        }
+        Ok(AudioFormat { codec, quality: self.audio_quality })
+    }
+}
+
+/// Re-encodes the voices and sound effects under `dirs` (in `output`) as
+/// `format` asks, before they are packed. Nothing to do for the default.
+pub fn reencode_audio(output: &Path, dirs: &[&str], format: AudioFormat) -> Result<()> {
+    if !format.reencodes() {
+        return Ok(());
+    }
+    let paths: Vec<_> = dirs.iter().map(|d| output.join(d)).collect();
+    let r = media::reencode_dirs(&paths, format);
+    for f in r.failed.iter().take(10) {
+        println!("  audio error: {f}");
+    }
+    if r.files == 0 && !r.failed.is_empty() {
+        bail!("{} sounds couldn't be re-encoded (is ffmpeg installed, with {}?)", r.failed.len(), if format.codec == AudioCodec::Opus { "libopus" } else { "libvorbis" });
+    }
+    println!(
+        "  {} voices and sound effects as {}: {:.1} MB ({:.1} MB before), {} failed",
+        r.files,
+        format.tag().trim_start_matches("CONSCRIPTER_AUDIO="),
+        r.bytes_after as f64 / 1e6,
+        r.bytes_before as f64 / 1e6,
+        r.failed.len()
+    );
+    Ok(())
+}
 
 /// Fails if one of the asset folders `dirs` is already in `output`:
 /// packing deletes them afterwards, so a build never starts with folders
