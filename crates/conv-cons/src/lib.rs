@@ -1175,6 +1175,21 @@ fn escape(text: &str) -> String {
         .collect()
 }
 
+/// Text for a single-byte line (after a backquote), where only the click
+/// waits and the backquote itself are special: those turn full-width,
+/// everything else stays as written.
+fn single_byte_text(text: &str) -> String {
+    text.chars()
+        .map(|c| match c {
+            '@' => '＠',
+            '\\' => '＼',
+            '`' => '｀',
+            '\r' => ' ',
+            c => c,
+        })
+        .collect()
+}
+
 /// [`escape`]s text that `strsp` (or another sprite text) will draw.
 /// CONscripter no longer pairs a half-width character with a full-width
 /// one after it, so an odd run needs no padding space.
@@ -2106,6 +2121,7 @@ end
     fn text_is_made_safe() {
         assert_eq!(text_safe("Ghost: 50% @home"), "　Ghost: 50％ ＠home");
         assert_eq!(text_safe("「a/b」"), "「a／b」");
+        assert_eq!(single_byte_text("\"Hey! 50% (a/b) #1 @me\\`\""), "\"Hey! 50% (a/b) #1 ＠me＼｀\"");
         // 最果てのイマ, *conv_link19: the '?' stopped the engine (array).
         assert_eq!(text_safe("嘘ー！?  投稿者: x"), "嘘ー！？  投稿者: x");
         // Every ASCII character the engine's text parser reads specially:

@@ -12,16 +12,31 @@ It has no NPA archives and no NSS scripts.
   ma00_000.nss --chain 2000 --english <english game> …` reads the
   English release's `script.npk` and puts its text into the Japanese
   NSS (`english.rs`): 38,919 stretches of text replaced, 278 left in
-  Japanese (mostly the 《…》 incantations; not looked at yet). The text
-  still comes out full-width (`Ｓｕｚｕｋａｗａ`) and `<i>` is dropped.
+  Japanese (mostly the 《…》 incantations; not looked at yet). With
+  `--english` the text is written as it is, one paragraph a line after a
+  backquote (`Script::single_byte_text`), and the vertical text boxes
+  become horizontal 280×150 boxes from the vertical text's top left,
+  line pitch 21 (`MURAMASA_EN`; the port's `text0` in
+  `function_textbox.nut`: `CreateTextArea(…, 575-150-11, 55+1, 280, 150)`).
+  CONscripter draws it proportionally in the release's
+  `droidserif-muramasa.ttf` (pass it as `--font`) and wraps at spaces;
+  checked headless on the first pages (`ma00_000`). The port's ㉑-㉗
+  (spaces of set widths around italics) become spaces.
 - **Decided (the user, 2026-10-15):** the text font is the release's own
   `droidserif-muramasa.ttf` (font.npk); the menus follow the English
   port's redesigned screens, not the Japanese PC ones; filming the
   English original under wine is allowed.
-- **Engine needs for English text:** a Latin font next to the Japanese
-  `default.ttf` (or in its place), proportional character widths instead
-  of the fixed grid, line wrapping at spaces, ASCII punctuation kept
-  as is (not turned into full-width forms).
+- **Not yet:** `<I>` italics and `<center>` are dropped; the boxes still
+  show the Japanese vertical window picture (the port's own is in
+  `cg/sys`); the text box sizes for the other boxes (`text1` 238,436
+  701×150 at the bottom, `text2` 130,60 724×576 full screen) aren't
+  used yet, every rotated box takes `text0`'s size.
+- **Bug (shared with the Japanese build):** 23 pages after a vertical
+  choice are drawn in the choice's window (`setwindow3 557,108,…,18`), at
+  chapter labels reached by `goto` (`*f_mb02_008`): the compiler's window
+  tracking follows file order, not the jumps. The Japanese text just
+  lands in the wrong place; the English build exits there (half-width
+  text in a vertical window; the dry run's lint lists them).
 - **Plan (from the scripts, 2026-10-15):** the port's scenario scripts
   (`nut/*.nut`) are a line-by-line transcription of the Japanese NSS
   (same sprite names, coordinates, files with `.png` for `.jpg`; screen
@@ -30,12 +45,12 @@ It has no NPA archives and no NSS scripts.
   by the Japanese text (below), and takes the English pictures where
   they differ (the redesigned menus in `cg/sys`, pictures with words).
 - **Next:**
-  1. The engine items above, then the converter's text emitter for
-     English (no full-width conversion; `<i>`, `<center>`, `<K>`,
-     `<br>`), with the release's `droidserif-muramasa.ttf` (font.npk).
+  1. The 23 pages in the choice window (above), then a full build with
+     `--font droidserif-muramasa.ttf`, played on with the trace.
   2. The 278 stretches left in Japanese.
-  3. The English menus from `cg/sys` (1876 pictures), filmed against
-     the English original under wine.
+  3. The English pictures: the text window and the redesigned menus in
+     `cg/sys` (1876 pictures), filmed against the English original
+     under wine; `<I>`, `<center>`, the other box sizes.
 
 ## Archives (NPK3)
 
@@ -79,7 +94,9 @@ plus `patch/*.npk` mounted after them (opener 0x401960).
 - Opcodes are renumbered against stock 3.1: `LINE` to `GETK` (0-9),
   `LOAD`, `LOADINT`, `PREPCALLK`, `CALL`, `NEWSLOT` decode right; others
   don't (`NEWOBJ` sits at 30, table-literal slots at 61, booleans and
-  nulls come out as `DIV`/`BITW`). The text join needs none of them; the
+  nulls come out as `DIV`/`BITW`). The op shown as `ADD a b c op` is the
+  arithmetic one: its last operand is the operator's character (43 `+`,
+  45 `-`, 42 `*`), so `575 150 ADD…45` is 575 - 150. The text join needs none of them; the
   VM's dispatch in the exe would give the full map.
 - `nut/<scene>.nut`: the scenario, one `scene` function calling the
   NSS builtins by name (`CreateTextureSP`, `FadeDelete`, `St`, …). Each

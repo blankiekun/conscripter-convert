@@ -60,7 +60,7 @@ pub fn lint(script: &str, has_file: &dyn Fn(&str) -> bool) -> Report {
             if vertical && let Some(c) = half_width_in_text(line) {
                 report.add("half-width character in vertical text (the engine exits)", i, format!("{c:?} in {}", short(line)));
             }
-            if line.contains('?') {
+            if line.contains('?') && !line.starts_with('`') { // a backquote line has no variables
                 report.add("'?' in text (read as an array: the engine exits)", i, short(line));
             }
             continue;

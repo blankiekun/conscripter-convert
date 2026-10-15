@@ -371,7 +371,8 @@ impl<'a> Emitter<'a> {
                 Some(page)
             };
             let plate = window.as_ref().and_then(|w| w.name_plate.as_ref());
-            let mut body = with_markup(text, links, ruby, styles).replace(conv_core::ir::CLICK_WAIT_MARK, "@");
+            let mut body = if script.single_byte_text { single_byte_text(text) } else { with_markup(text, links, ruby, styles) }
+                .replace(conv_core::ir::CLICK_WAIT_MARK, "@");
             // Sprite changes only show after a print, so print when the
             // plate appears, changes or goes away.
             match (speaker, plate) {
@@ -401,7 +402,10 @@ impl<'a> Emitter<'a> {
             let lines: Vec<String> = body
                 .split('\n')
                 .zip(text.split('\n'))
-                .map(|(l, src)| align_single_bytes(&if starts_ascii(src) { format!("　{l}") } else { l.to_string() }))
+                .map(|(l, src)| match () {
+                    _ if script.single_byte_text => l.to_string(),
+                    _ => align_single_bytes(&if starts_ascii(src) { format!("　{l}") } else { l.to_string() }),
+                })
                 .collect();
             // A name the plate shows (else it's in the text already).
             let tag_name = speaker.as_deref().filter(|_| plate.is_some()).map(escape).unwrap_or_default();
@@ -413,6 +417,8 @@ impl<'a> Emitter<'a> {
                 Some(tag) => lines.into_iter().map(|l| format!("{tag}{l}")).collect(),
                 None => lines,
             };
+            // A backquote starts a single-byte text line, whatever follows.
+            let lines: Vec<String> = if script.single_byte_text { lines.into_iter().map(|l| format!("`{l}")).collect() } else { lines };
             if !*continues || page.is_some() {
                 *page_tag = None;
             }

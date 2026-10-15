@@ -671,7 +671,7 @@ then `end` or SIGTERM in a click wait, relaunched with the same
 `--save-dir`: all read back). Web: the engine writes the globals at a
 wait when they changed and syncs IndexedDB; that was only at click
 waits, so auto mode lost them when the tab closed. CONscripter now does
-it at any wait (`ADDITIONS.md`). Checked in headless Chromium
+it at any wait (`COMMANDS.md`). Checked in headless Chromium
 (Playwright): a value added in a loop of timed waits is read back after
 a reload.
 

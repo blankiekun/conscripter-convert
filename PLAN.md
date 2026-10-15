@@ -119,8 +119,7 @@ original), add the feature to CONscripter instead of approximating it:
    to every script, with no command or flag to turn it on, as bug fixes
    do; a new command takes effect where a script uses it. Check that it
    doesn't change the other games' builds for the worse.
-3. Document it in the engine's `ADDITIONS.md`
-   and here in §4.2, with the game feature that needed it.
+3. List it here in §4.2, with the game feature that needed it.
 4. Commit and push in the engine repo, then commit the updated submodule
    pointer here together with the converter change that uses it.
 
@@ -143,7 +142,7 @@ make -C engine/build -j"$(nproc)"     # → engine/build/conscripter
 ### 4.2 CONscripter additions
 
 Engine features added for converted games (details in the engine's
-`ADDITIONS.md`):
+`COMMANDS.md`):
 
 | Command | Game feature that needed it |
 |---|---|
@@ -185,6 +184,7 @@ Engine features added for converted games (details in the engine's
 | Movies on Linux and macOS (`mpegplay`, `movie` in the game window through the player's ffmpeg; they were disabled there) | Every game's movies (最果てのイマ's openings and staff rolls, 翼's) on the native Linux and macOS builds, which played none |
 | Opus sounds in every build (the engine decodes Ogg Opus with opusfile, compiled in by `cmake/cons_opus.cmake`, and gives SDL_mixer a WAV; no build's SDL_mixer reads Opus) | `--audio-codec opus`: voices and sound effects about half the size (最果てのイマ's 542 MB become 217 MB; 翼's HCA voices 1.7 MB a scene instead of 2.6 MB as Vorbis) |
 | `sysevol` (the volume of `wave`'s channel, where the menu sounds play) and `btnse` (a sound when a `btnwait` or `textbtnwait` ends on a button) | 俺たちに翼はない's SystemSE.AWB in every menu: the cursor's tick (`selectvoice`'s over sound) and the confirm, at システムボリューム (IR `Script::menu_sounds`, `Setting::SystemVolume`) |
+| Proportional text (in a proportional font, half-width characters on a horizontal line take their own width plus half the character spacing, one at a time, and lines break at spaces; a monospaced font keeps the grid) and a `!` that starts no tag drawn as text | Full Metal Daemon Muramasa's English text in the release's Droid Serif, one paragraph a line for the engine to wrap (`"Hey! You!"` lost its `!`). CONscripter after 0.23.0 |
 
 Planned, from limits hit by converted games (each one is worked around
 in the script today), roughly in order of payoff:

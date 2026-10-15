@@ -117,7 +117,7 @@ the feature goes into the engine, not an approximation in the converter
   with no flag to turn it on. Check that it doesn't change another
   game's output.
 - It must work in the web build (`engine/script/cross_web.sh`).
-- Document it in `engine/ADDITIONS.md` and `PLAN.md` §4.2.
+- List it in `PLAN.md` §4.2.
 - Send the engine change to CONscripter first; the converter change that
   uses it then moves the submodule pointer in the same commit.
 

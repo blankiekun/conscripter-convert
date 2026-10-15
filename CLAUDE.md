@@ -54,11 +54,10 @@ not in the repo.
   behaviour applies to every script, with no command or flag to turn it
   on; new commands take effect where a script uses them. They live in
   `engine/src/cons/` (preferably `ONScripter_cons.cpp`), work in the
-  web build, and are documented in `engine/ADDITIONS.md` and `PLAN.md`
-  §4.2. Check that a change of behaviour doesn't break another game's
+  web build, and are listed in `PLAN.md` §4.2 (the engine's
+  `COMMANDS.md` is the reference for every script command). Check that a change of behaviour doesn't break another game's
   build. Bug fixes likewise: when the engine does something wrong (text
-  misplaced, characters dropped), fix it for every script and list the
-  fix in `engine/ADDITIONS.md`. Then drop any converter workaround for
+  misplaced, characters dropped), fix it for every script. Then drop any converter workaround for
   it.
 - Never touch the user's save folders (`out/saiima-flow`). Build into
   `out/<game>-cons`. List any folder before deleting it.
