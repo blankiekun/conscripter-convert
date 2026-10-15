@@ -3,7 +3,9 @@
 //! `sys_*.nss`). Not compared with the original yet (it asks for its disc
 //! under wine).
 
-use conv_core::ir::{BarAction, ButtonBar, CommandItem, CommandMenu, GridText, Placed, Rect, SaveGrid, Script, TitleAction, TitleButton, TitleScreen};
+use conv_core::ir::{
+    BarAction, ButtonBar, CommandItem, CommandMenu, ConfirmDialog, GridText, Placed, Rect, SaveGrid, Script, Switch, TitleAction, TitleButton, TitleScreen,
+};
 
 use super::super::{Assets, Story};
 
@@ -14,6 +16,52 @@ pub fn menus(a: &mut dyn Assets, script: &mut Script, _story: &Story) {
     script.button_bar = Some(ButtonBar { buttons: Vec::new(), top: None, base: None, slide: None, pressed: true, quick_save_se: None, load_fade_ms: 0 });
     script.command_menu = command_menu(a);
     script.save_grid = save_grid(a);
+    script.confirm = confirm(a);
+}
+
+/// The yes/no questions (`sys_close.nss` and the others): a full-screen
+/// picture (a black silhouette with the question in orange) over the
+/// screen as it is, はい at (281,238) and いいえ at (454,238), fading in
+/// and out over 200 ms. Opened with no menu up, the original draws them
+/// 70 px lower; they are always opened from a menu here. The game asks
+/// nothing before deleting a save (it can't) or resetting the settings.
+fn confirm(a: &mut dyn Assets) -> Option<ConfirmDialog> {
+    const DIR: &str = "cg/sys/dialog";
+    let mut pictures = Vec::new();
+    for (kind, name) in [
+        (Switch::ConfirmQuit, "ゲーム終了？"),
+        (Switch::ConfirmTitle, "タイトル戻る？"),
+        (Switch::ConfirmSave, "セーブする？"),
+        (Switch::ConfirmLoad, "ロードする？"),
+        (Switch::ConfirmBackToChoice, "選択肢にもどる？"),
+    ] {
+        let (image, w, h) = a.image(&format!("{DIR}/{name}.png"))?;
+        pictures.push((kind, Placed { image, x: 0, y: 0, w: w as i32, h: h as i32 }));
+    }
+    let button = |a: &mut dyn Assets, name: &str, x: i32| {
+        let state = |n: u32| format!("{DIR}/{name}-{n:02}.png");
+        let (s1, s2, s3) = (state(1), state(2), state(3));
+        let (image, w, h) = a.strip(&[&s1, &s2, &s1, &s3])?;
+        Some(Placed { image, x, y: 238, w: w as i32, h: h as i32 })
+    };
+    Some(ConfirmDialog {
+        base: pictures[0].1.clone(),
+        yes: button(a, "yes", 281)?,
+        no: button(a, "no", 454)?,
+        yes_label: String::new(),
+        no_label: String::new(),
+        text_y: 0,
+        font_size: 20,
+        overwrite: String::new(),
+        load: String::new(),
+        delete: String::new(),
+        title: String::new(),
+        quit: String::new(),
+        pictures,
+        backdrop: None,
+        pressed: true,
+        fade_ms: 200,
+    })
 }
 
 /// The save and load screens (`sys_save.nss`, `sys_load.nss`): three
