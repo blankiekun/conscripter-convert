@@ -561,13 +561,10 @@ out/conscripter-mura`). The route runs and `--at` starts are in
 `research/nitroplus/engrun.py`.
 
 Next, in order:
-1. Check against the original: the figure in `ma01_002` (おれ→ ○□卍□○
-   ←？ with ／＼ strokes) only lines up written horizontally, and comes
-   apart in its vertical box.
-2. A replay of route 9 with `--shot-pages` (engine 0.19.0) stopped
+1. A replay of route 9 with `--shot-pages` (engine 0.19.0) stopped
    drawing at `f_md01_002:158856` (`print 10,500`, page 18,573) with
    the process spinning; the same run passed before. Not reproduced.
-3. **System screens** (step 7), under way. The original was filmed
+2. **System screens** (step 7), under way. The original was filmed
    under wine from patched boots (title, right-click menu, quick bar,
    save/load, confirmations, settings and its voice window, backlog,
    click-wait icon; transitions also slowed ×10); shots and videos are
@@ -624,11 +621,11 @@ Next, in order:
    voice, auto/skip stop at a choice, movie skip, game speed) are added
    to the engine the same way (since then no engine addition is opt-in); 選択肢に戻る is implemented
    (a save to a reserved slot before each choice).
-4. The largest leftovers below: `CreateProcess` (via Lua), non-blocking
+3. The largest leftovers below: `CreateProcess` (via Lua), non-blocking
    `Move`/`Zoom`, `AddRender` (needs a per-sprite blend mode).
-5. Step 11.5: `#` flags (globals from %800) across quit and relaunch,
+4. Step 11.5: `#` flags (globals from %800) across quit and relaunch,
    and in the web build.
-6. Optional: the 18 files with no `else` (below).
+5. Optional: the 18 files with no `else` (below).
 
 **Leftovers** (counts from the dry run's notes):
 - `CreateProcess` (510 calls; the battle HUD `CP_*` in
@@ -1195,3 +1192,13 @@ plays is a `SoundVolume` ramp, and reaching 0 stops it: `SeFadeOut`
 music. The engine ramps linearly in percent, the original linearly in
 its volume number (a fade sounds a little different midway). A
 240-second auto-play gave the same trace-check findings as before.
+
+**The figure in `ma01_002` (2026-10-15):** checked beside the original
+under wine (a boot patched to start `ma01_002`; shots in
+`research/nitroplus/local/shots/fig-ma01_002-orig-*.png`). The strokes
+(／＼ around ○□卍□○) line up the same in both; the note that it came
+apart in the vertical box was wrong. What differed: the original turns
+the arrows a quarter turn in vertical text (`おれ→` points down at the
+figure), so CONscripter now does too (c3d5ffc). It also draws ∧ turned
+(as ＞), which the script's own horizontal sketch in the comments
+doesn't want; probably wine's substitute font, so ∧ stays upright.
