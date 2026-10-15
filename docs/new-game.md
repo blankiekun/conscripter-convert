@@ -263,7 +263,12 @@ anything is reached (step 11.6).
   home** (games save there), use a symlink farm so patched scripts never
   touch the install, no audio, an Xvfb display of its own (never the
   user's desktop). Slow a transition down by patching its duration in a
-  copy of the script, and take shots at fixed fractions of it. Stop
+  copy of the script, and take shots at fixed fractions of it. Film
+  each screen once and keep the shots in `research/<engine>/local/shots/`
+  (git-ignored), named for what they show, so later checks reuse them
+  instead of starting wine again. Compare ours with them by numbers
+  first (`compare -metric AE -fuzz 2%`, on a crop), and look at a
+  picture only when the numbers don't say what differs. Stop
   wine and Xvfb afterwards. Recipes: "Running the original under
   wine" in `docs/games/saihate-no-ima.md`, and in
   `docs/games/muramasa.md` for a game that needs DirectSound.
