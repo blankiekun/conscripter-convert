@@ -30,6 +30,7 @@ mod puzzle;
 mod replay;
 mod save_grid;
 mod settings_pages;
+mod switches;
 mod line_log;
 mod zoom;
 pub mod webp;
@@ -109,10 +110,15 @@ const BUTTON_VAR: &str = "%9";
 // state ([`puzzle`]; locals when the global border is 800); %170-%179 and
 // $107-$108, the backlog ([`menu::backlog`] or [`line_log`], never both);
 // %183-%184, the click-wait icon's place ([`WAIT_ICON_AT`]).
+// The settings switches' flags: %3640-%3647, %2910-%2919, %2950-%2951 and
+// %4116-%5095 ([`switches`]).
 /// NScripter variables: locals from %10, globals from %200. `globalon`
 /// makes %200 and up persist across games.
 const LOCAL_VAR_BASE: u32 = 10;
 const GLOBAL_VAR_BASE: u32 = 200;
+/// Variables the script declares (`;$V`; ONScripter's default is 4096):
+/// %4096 up hold the settings switches' flags ([`switches`]).
+pub(crate) const VARIABLE_RANGE: u32 = 8192;
 /// Labels of the title menu loop and of its Start button's target.
 /// Click wait with everything hidden ([`Op::ClickWait`]).
 const CLICK_WAIT: &str = "conv_click_wait";
@@ -216,6 +222,7 @@ pub fn emit(script: &Script) -> String {
         // Variables below the border are saved with each save slot.
         write!(mode, ",value{border}").unwrap();
     }
+    write!(mode, ",V{VARIABLE_RANGE}").unwrap();
     writeln!(out, "{mode}").unwrap();
     writeln!(out, "*define").unwrap();
     // Read arc.nsa (without this ONScripter only looks for .sar archives;
@@ -1824,7 +1831,7 @@ goto *conv_link1
         let mut s = script(vec![Op::SetWindow(window())]);
         (s.width, s.height, s.window) = (1024, 576, Some(vertical));
         let text = emit(&s);
-        assert!(text.starts_with(";$S1024,576\n"), "{text}");
+        assert!(text.starts_with(";$S1024,576,V8192\n"), "{text}");
         assert!(text.contains("tateyoko 1:setwindow3 430,55,5,27,20,20,9,0,20,0,1,\":a;system\\window.png\",447,40\n"), "{text}");
         assert!(text.contains("tateyoko 0:setwindow3 105,"), "{text}");
     }
@@ -2291,7 +2298,7 @@ effect 7,99,1000,\"cons_zoom.dll/3,220,5\"
         ]);
         let text = emit(&s);
         let expected = "\
-;mode800
+;mode800,V8192
 *define
 nsa
 globalon
