@@ -93,8 +93,9 @@ pub(crate) fn emit(out: &mut String, e: &PictureExtras, border: u32, width: u32,
     }
     writeln!(out, "goto *{WAIT}").unwrap();
     writeln!(out, "*{BACK}").unwrap();
+    // A channel of its own: the title's opening sound comes at once.
     if let Some(se) = &e.back_se {
-        writeln!(out, "dwave {},\"{}\"", SE_CHANNELS.start(), path(se)).unwrap();
+        writeln!(out, "dwave {},\"{}\"", SE_CHANNELS.start() + 1, path(se)).unwrap();
     }
     if let Some(r) = &e.sound {
         writeln!(out, "{}", crate::picture_sound::back_to_title(r)).unwrap();
