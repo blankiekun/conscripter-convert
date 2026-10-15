@@ -851,10 +851,14 @@ Next, in order:
       routine shows it as a sprite in the bar's range (over the text window)
       and removes it when the wait ends, so it doesn't show while text types.
       Beside the original: the same place, the frames fit the original's
-      pictures at offset 0,0. Not measured: its speed (wine redraws the
-      waiting screen about once a second, so the filmed frames look random);
-      ours shows a picture for 33 ms, a loop a second. Not done: the auto-mode
-      icon (自動送りアイコン, 15 pictures).
+      pictures at offset 0,0. Pictures 1-19 are the flame burning, 20-32 it
+      withering to smoke; watched in the original on a real display (wine
+      under Xvfb redraws the waiting screen only about once a second), it
+      burns about a second, withers about as long and lights again after a
+      pause: ours shows 1-19 for 53 ms each, 20-32 for 77 ms, then waits
+      500 ms (the pause is a guess), a 2.5 s cycle (each picture's time is
+      `WaitIcon::frame_ms`). Not done: the auto-mode icon (自動送りアイコン,
+      15 pictures).
    6. Settings drawn as one picture (a new `PictureSettings`: vertical
       sliders, 入/切 pairs, voice window, version line).
    7. Motion: fire flicker, opening, menu cascade, dialog unroll, quick

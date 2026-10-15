@@ -1441,13 +1441,12 @@ pub struct LineLog {
     pub fade_ms: u32,
 }
 
-/// An animated click-wait icon ([`Script::wait_icon`]): `frames` pictures
-/// of `w`×`h` side by side in `image`, each shown `frame_ms`, looped.
+/// An animated click-wait icon ([`Script::wait_icon`]): pictures of `w`×`h`
+/// side by side in `image`, picture k shown `frame_ms[k]`, looped.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WaitIcon {
     pub image: String,
-    pub frames: u32,
-    pub frame_ms: u32,
+    pub frame_ms: Vec<u32>,
     pub w: u32,
     pub h: u32,
 }

@@ -32,12 +32,18 @@ pub fn menus(a: &mut dyn Assets, script: &mut Script) {
 
 /// The click-wait flame (System.ini `icon_line`, `icon_page`: the 32
 /// pictures of 改行改頁アイコン), looped, at each window's
-/// `$SYSTEM_position_{x,y}_text_icon`. Its speed couldn't be filmed (wine
-/// redraws the waiting screen about once a second): 33 ms a picture.
+/// `$SYSTEM_position_{x,y}_text_icon`. Pictures 1-19 are the flame
+/// burning, 20-32 it withering to a wisp of smoke. Watched in the original
+/// (wine under Xvfb redraws the waiting screen only about once a second,
+/// so it couldn't be filmed): the flame burns about a second, withers
+/// about as long, and lights again after a pause (here half a second).
 fn wait_icon(a: &mut dyn Assets) -> Option<WaitIcon> {
     let parts: Vec<String> = (1..=32).map(|n| format!("cg/sys/icon/改行改頁アイコン/{n:03}.png")).collect();
     let (image, w, h) = a.strip(&parts.iter().map(String::as_str).collect::<Vec<_>>())?;
-    Some(WaitIcon { image, frames: 32, frame_ms: 33, w: w / 32, h })
+    let mut frame_ms = vec![53; 19];
+    frame_ms.extend([77; 13]);
+    frame_ms[31] += 500;
+    Some(WaitIcon { image, frame_ms, w: w / 32, h })
 }
 
 /// The backlog (`sys_backlog.nss`, System.ini `[バックログ]`): sixteen
