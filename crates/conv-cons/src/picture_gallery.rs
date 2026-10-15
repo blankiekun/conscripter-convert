@@ -81,7 +81,7 @@ pub(crate) fn emit(out: &mut String, g: &PictureGallery, border: u32, width: u32
     w(format!("mov {CATEGORY},0:mov {PAGE},0:mov {FADE},{}", g.open_ms));
     w(format!("*{DRAW}"));
     w("csp -1".into());
-    w(format!("lsp {BACKGROUND},\":c;{}\",0,0", path(&g.background)));
+    w(format!("lsp {BACKGROUND},\":a;{}\",0,0", path(&g.background)));
     for (c, category) in g.categories.iter().enumerate() {
         let slot = CATEGORY_BUTTON + c as u32;
         w(button(slot, &category.button));
@@ -133,9 +133,9 @@ pub(crate) fn emit(out: &mut String, g: &PictureGallery, border: u32, width: u32
                 for cg in &slot.cgs {
                     w(format!("if {} != 0 inc {TMP}", var_name(cg.seen, border)));
                 }
-                w(format!("lsp {},\":c;{}\",{x},{y}", THUMB + i as u32, path(&g.blank)));
+                w(format!("lsp {},\":a;{}\",{x},{y}", THUMB + i as u32, path(&g.blank)));
                 for cg in slot.cgs.iter().rev() {
-                    w(format!("if {} != 0 lsp {},\":c;{}\",{x},{y}", var_name(cg.seen, border), THUMB + i as u32, path(&cg.thumbnail)));
+                    w(format!("if {} != 0 lsp {},\":a;{}\",{x},{y}", var_name(cg.seen, border), THUMB + i as u32, path(&cg.thumbnail)));
                 }
                 w(format!("if {TMP} > 0 && {TMP} < {n} amsp {},{x},{y},{}", THUMB + i as u32, g.partial_alpha));
                 w(format!("if {TMP} > 0 lsp {},\":a/2,0,3;{}\",{x},{y}:spbtn {},{}", CURSOR + i as u32, path(&g.cursor), CURSOR + i as u32, i + 1));
@@ -162,7 +162,7 @@ pub(crate) fn emit(out: &mut String, g: &PictureGallery, border: u32, width: u32
                 let far = (-over_x, -over_y);
                 let (start, end) = if slot.reversed { (far, (0, 0)) } else { ((0, 0), far) };
                 w(format!("if {seen} == 0 goto *{label}_{k}u"));
-                w(format!("lsp {VIEW},\":c;{}\",{},{}:print 10,{}", path(&p.image), start.0, start.1, g.view_fade_ms));
+                w(format!("lsp {VIEW},\":a;{}\",{},{}:print 10,{}", path(&p.image), start.0, start.1, g.view_fade_ms));
                 w(format!("mov {PREVIOUS_UNSEEN},0:gosub *{CLICK}"));
                 w(format!("if {BUTTON_VAR} == -1 goto *{CLOSE}"));
                 if over_x > 0 || over_y > 0 {
@@ -174,7 +174,7 @@ pub(crate) fn emit(out: &mut String, g: &PictureGallery, border: u32, width: u32
                 w(format!("goto *{label}_{k}n"));
                 w(format!("*{label}_{k}u"));
                 w(format!("if {PREVIOUS_UNSEEN} == 1 csp {VIEW}:print 10,150"));
-                w(format!("lsp {VIEW},\":c;{}\",0,0:print 10,{}", path(&g.unseen), g.view_fade_ms));
+                w(format!("lsp {VIEW},\":a;{}\",0,0:print 10,{}", path(&g.unseen), g.view_fade_ms));
                 w(format!("mov {PREVIOUS_UNSEEN},1:gosub *{CLICK}"));
                 w(format!("if {BUTTON_VAR} == -1 goto *{CLOSE}"));
                 w(format!("*{label}_{k}n"));

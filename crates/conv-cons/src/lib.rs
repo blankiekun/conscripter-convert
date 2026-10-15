@@ -27,6 +27,7 @@ pub mod nsa;
 mod picture_screen;
 mod picture_extras;
 mod picture_gallery;
+mod picture_sound;
 mod picture_settings;
 mod puzzle;
 mod replay;
@@ -116,7 +117,8 @@ const BUTTON_VAR: &str = "%9";
 // %4116-%5095 ([`switches`]). %2960, the title's openings
 // ([`TITLE_SHOWN`]). %5200 up: an NSS game's `#` flags past %969 (the
 // nitroplus compiler's `GLOBAL_OVERFLOW`). %130-%139, the picture extras'
-// gallery ([`picture_gallery`]; only at the title).
+// gallery ([`picture_gallery`]; only at the title). %2961, the picture
+// extras' music ([`picture_sound`]).
 /// NScripter variables: locals from %10, globals from %200. `globalon`
 /// makes %200 and up persist across games.
 const LOCAL_VAR_BASE: u32 = 10;
