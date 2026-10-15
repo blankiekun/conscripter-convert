@@ -16,6 +16,7 @@ pub const DJANGO: Game = Game {
     story: Some((STORY, "SelectStoryMode")),
     relative_children: true,
     loaded_textures: true,
+    zoom_vertex: true,
     chapter_objects: true,
     choice_style,
     menus: screens::menus,

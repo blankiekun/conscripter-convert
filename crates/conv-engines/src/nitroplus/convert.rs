@@ -115,6 +115,10 @@ pub struct Game {
     /// face-window frames). Off for 装甲悪鬼村正, whose choice plates come
     /// from `SetChoiceBase` and would be drawn twice.
     loaded_textures: bool,
+    /// A `Zoom` keeps the object's `SetVertex` point in place (続・殺戮の
+    /// ジャンゴ's standing pictures zoom about their bottom centre). Off
+    /// for 装甲悪鬼村正: not checked against it.
+    zoom_vertex: bool,
     /// The objects a chapter file made are deleted when it ends, except
     /// those hung under an object made before it (続・殺戮のジャンゴ: its
     /// `窓` and `音` windows are made for pictures and sounds to "hang on
@@ -140,6 +144,7 @@ impl Game {
         story: None,
         relative_children: false,
         loaded_textures: false,
+        zoom_vertex: false,
         chapter_objects: false,
         choice_style: |c, n| c.vertical_choice_style(n),
     };
@@ -810,6 +815,9 @@ struct Object<'a> {
     zoom: (i64, i64),
     /// `SetBlur`: Gaussian sigma in tenths of a pixel (0 = none).
     blur: u32,
+    /// `SetVertex`: the point (from the top left) a zoom keeps in place,
+    /// with [`Game::zoom_vertex`]; `None` = the centre.
+    vertex: Option<(i64, i64)>,
 }
 
 #[derive(Debug, Clone)]
@@ -1998,7 +2006,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
 
     fn create(&mut self, name: String, kind: Kind<'a>, priority: i64, w: i64, h: i64) -> &mut Object<'a> {
         self.seq += 1;
-        let o = Object { kind, priority, x: 0, y: 0, w, h, opacity: 1000, locked: false, hideable: false, seq: self.seq, zoom: (1000, 1000), blur: 0 };
+        let o = Object { kind, priority, x: 0, y: 0, w, h, opacity: 1000, locked: false, hideable: false, seq: self.seq, zoom: (1000, 1000), blur: 0, vertex: None };
         self.objects.insert(name.clone(), o);
         self.objects.get_mut(&name).unwrap()
     }
@@ -2405,6 +2413,20 @@ impl<'a, 'b> Compiler<'a, 'b> {
             "Strstr" => return Value::Int(i64::from(arg(0).string().contains(&arg(1).string()))),
             "Integer" => return Value::Int(arg(0).int()),
             // Drawing and bookkeeping that changes nothing on screen.
+            "SetVertex" if self.game.zoom_vertex => {
+                // (name, x: left | center | right | px, y: top | middle |
+                // bottom | px), from the object's top left.
+                let place = |v: &Value, size: i64, near: &str, far: &str| match v {
+                    Value::Str(w) if w.eq_ignore_ascii_case(near) => 0,
+                    Value::Str(w) if w.eq_ignore_ascii_case(far) => size,
+                    Value::Str(w) if w.eq_ignore_ascii_case("center") || w.eq_ignore_ascii_case("middle") => size / 2,
+                    v => v.int(),
+                };
+                for t in self.matching(&arg(0)) {
+                    let o = self.objects.get_mut(&t).unwrap();
+                    o.vertex = Some((place(&arg(1), o.w, "left", "right"), place(&arg(2), o.h, "top", "bottom")));
+                }
+            }
             "SetVertex" | "SetFrequency" | "SetPan" | "WaitText" | "LockVideo" | "Reset" | "SetShortcut" => {}
             "CreateProcess" => self.note(format!("CreateProcess {}", arg(4).string())),
             other if BUILTINS.contains(&other) => self.note(format!("built-in {other}")),
@@ -2557,7 +2579,13 @@ impl<'a, 'b> Compiler<'a, 'b> {
             .iter()
             .filter_map(|(n, o)| match &o.kind {
                 Kind::Image { image } if o.opacity > 0 && !o.hideable => {
-                    let (px, py) = self.parent_offset(n);
+                    let (mut px, mut py) = self.parent_offset(n);
+                    // A zoom about the vertex: the picture scaled about its
+                    // centre, moved so that the vertex stays in place.
+                    if let Some((vx, vy)) = o.vertex {
+                        px += (vx - o.w / 2) * (1000 - o.zoom.0) / 1000;
+                        py += (vy - o.h / 2) * (1000 - o.zoom.1) / 1000;
+                    }
                     let shown = Shown { layer: 0, image: image.clone(), x: o.x + px, y: o.y + py, w: o.w, h: o.h, opacity: o.opacity, cells: None };
                     Some((n.clone(), shown, (o.priority, o.seq), o.zoom, (o.w, o.h), o.blur))
                 }
