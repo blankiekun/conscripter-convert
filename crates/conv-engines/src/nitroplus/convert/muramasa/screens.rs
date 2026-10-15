@@ -483,12 +483,16 @@ fn title(a: &mut dyn Assets, story: &Story) -> Option<TitleScreen> {
     })
 }
 
+/// A launch picture and its [`TitleOpening`] fields: the file, `when`,
+/// `sets`, `random`.
+type LaunchPicture = (&'static str, Vec<(Var, i32)>, Vec<Var>, bool);
+
 /// The launch opening's picture, as `TitleSet` picks it: a route's own the
 /// first time after clearing it (悪鬼編, then 魔王編's while 悪鬼編 isn't
 /// cleared, 英雄編, 復讐編; each marked `#…通過` once shown), else one at
 /// random among the cleared routes' and 村正鎮座. Rules whose flags the
 /// story lacks are left out.
-fn launch_pictures(story: &Story) -> Vec<(&'static str, Vec<(Var, i32)>, Vec<Var>, bool)> {
+fn launch_pictures(story: &Story) -> Vec<LaunchPicture> {
     let flag = |route: &str, what: &str| story.flags.get(&format!("#{route}{what}")).copied();
     let (akki, maou, eiyuu, fukushuu) = ("cg/ev/ev267_真生悪鬼ＥＤ_a.jpg", "cg/ev/ev501_村正鎮座.jpg", "cg/ev/ev165_最終正宗_a.jpg", "cg/ev/ev004_香奈枝の凶眼_a.jpg");
     let mut out = Vec::new();

@@ -2300,10 +2300,10 @@ fn lower_environment(
         return Ok(());
     }
     // Setting a slot replaces what it held.
-    if let Some(kind) = slots.remove(&m.slot) {
-        if m.kind == 0 || kind != m.kind {
-            clear(m.slot, kind, ops);
-        }
+    if let Some(kind) = slots.remove(&m.slot)
+        && (m.kind == 0 || kind != m.kind)
+    {
+        clear(m.slot, kind, ops);
     }
     let set = match (m.noise, m.ripple, m.shake) {
         // The game always uses alpha blending (0) and greyscale (mode 1),
@@ -3930,7 +3930,7 @@ fn transition_style(sub: u16) -> TransitionStyle {
         // horizontally, 34 shrinks the old one horizontally).
         32..=35 => {
             let n = sub - 32;
-            TransitionStyle::Flip { horizontal: n % 2 == 0, grow: n < 2 }
+            TransitionStyle::Flip { horizontal: n.is_multiple_of(2), grow: n < 2 }
         }
         // TvPowerSwitch (mostly cutting to black): a television switching
         // off, the old picture collapsing into a line (one frame of it

@@ -3346,7 +3346,9 @@ impl<'a, 'b> Compiler<'a, 'b> {
         let (text_x, text_y) = if vertical { (x - rows as i64 * line, y) } else { (x, y + self.game.text_drop) };
         // The window's pictures (box, face window, name plate), bottom
         // first, drawn into one window image.
-        let mut parts: Vec<(i64, u64, (String, i64, i64, i64))> = self
+        // (priority, creation order, (picture, x, y, opacity))
+        type Part = (i64, u64, (String, i64, i64, i64));
+        let mut parts: Vec<Part> = self
             .objects
             .values()
             .filter(|o| o.hideable && o.opacity > 0)

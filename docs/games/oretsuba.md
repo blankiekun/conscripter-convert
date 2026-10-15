@@ -378,8 +378,8 @@ an index:
     python3 -m http.server 8000 -d out/oretsuba-web   # then open /conscripter.html
 
 2.2 GB, 27,472 files (index first, then the engine's files, so they
-aren't listed). `mages convert` has no `--webp` yet (`convert-game`
-has).
+aren't listed). `--webp` would store the pictures as WebP (smaller);
+not tried in the web build yet.
 
 Tested in headless Chromium (2026-10-15, CONscripter 0.21.0, driven
 over its DevTools port with `?trace`): the title in about a second, the

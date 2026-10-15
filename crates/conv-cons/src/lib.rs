@@ -319,8 +319,8 @@ pub fn emit(script: &Script) -> String {
     let speed = if has_settings { menu::TEXT_MS } else { "20" };
     let voice_switches = script.settings.as_ref().is_some_and(|s| !s.voices.is_empty()) || script.picture_settings.as_ref().is_some_and(|s| s.voice_window.is_some());
     let duck = uses_switch(script, Switch::BgmFullForVoice);
-    if script.settings.is_some() {
-        menu::settings_init(&mut out, script.settings.as_ref().unwrap());
+    if let Some(s) = &script.settings {
+        menu::settings_init(&mut out, s);
     }
     if let Some(s) = &script.picture_settings {
         picture_settings::init(&mut out, s);
