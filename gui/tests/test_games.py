@@ -174,6 +174,17 @@ class Commands(unittest.TestCase):
         self.assertEqual(len(g.option_problems({"audio_codec": "vorbis", "audio_quality": "12"})), 1)
         self.assertEqual(len(g.option_problems({"audio_quality": "x"})), 1)
 
+    def test_slider_steps(self):
+        # Every step is a valid value, and the default is one of them.
+        g = self.game("muramasa")
+        for values in ({"webp": True}, {"audio_codec": "opus"}, {"audio_codec": "vorbis"}):
+            for o in g.options:
+                if o.steps:
+                    steps = [v for v, _ in o.steps({**g.defaults(), **values})]
+                    self.assertIn(o.default, steps)
+                    for v in steps:
+                        self.assertEqual(g.option_problems({**values, o.key: v}), [], (o.key, v))
+
     def test_option_problems(self):
         g = self.game("muramasa")
         self.assertEqual(g.option_problems(g.defaults()), [])
