@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail};
 use conv_core::ir::{Op, Script};
+use conv_engines::build::{Built, Opts};
 use conv_engines::media::{self, AudioCodec, AudioFormat};
 
 use crate::version;
@@ -29,6 +30,28 @@ pub struct BuildArgs {
     pub webp: WebpArgs,
     #[command(flatten)]
     pub audio: AudioArgs,
+}
+
+/// A whole-game build: checks the output folder (`output_dirs`: the
+/// asset folders, packed into `arc.nsa`), lets the engine compile the game
+/// and write its assets (`compile`), then emits the script, converts
+/// pictures and sounds, writes, packs and reports.
+pub fn run(args: BuildArgs, title: &str, output_dirs: &[&str], compile: impl FnOnce(&Opts) -> Result<Built>) -> Result<()> {
+    let BuildArgs { output, font, loose, dry_run, webp, audio } = args;
+    check_output(&output, output_dirs, !loose && !dry_run)?;
+    let opts = Opts { output: &output, title, font: font.as_deref(), dry_run, audio: audio.format()? };
+    let Built { mut ir, notes, picture_dirs, audio_dirs, package } = compile(&opts)?;
+    ir.version = Some(version::line());
+    // A dry run writes the script but no assets (no WebP, no sound).
+    let source = webp_tree(&output, picture_dirs, webp.get().filter(|_| !dry_run), conv_cons::emit(&ir))?;
+    if !dry_run {
+        reencode_audio(&output, audio_dirs, opts.audio)?;
+    }
+    let lost = write_game(&output, &ir, &source, font.as_deref().filter(|_| !dry_run), package.as_deref())?;
+    if !dry_run && !loose {
+        pack(&output, output_dirs)?;
+    }
+    summary(&output, &ir, lost, font.is_some(), notes, Some(!dry_run))
 }
 
 /// `--audio-codec` and `--audio-quality`, for every convert command.

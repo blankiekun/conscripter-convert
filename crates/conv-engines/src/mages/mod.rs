@@ -2,6 +2,7 @@
 //! scripts in CRI CPK archives, ADX/HCA sound in AWB banks.
 
 pub mod assets;
+pub mod build;
 pub mod config;
 pub mod convert;
 pub mod cpk;

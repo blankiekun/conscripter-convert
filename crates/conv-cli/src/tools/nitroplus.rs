@@ -6,6 +6,8 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result, bail};
 use clap::Subcommand;
 
+use conv_engines::nitroplus::build::npa_key;
+
 use crate::{map, safe_relative_path};
 
 #[derive(Subcommand)]
@@ -62,10 +64,6 @@ pub enum NssCommand {
     },
 }
 
-pub(crate) fn npa_key(exe: &Path) -> Result<conv_engines::nitroplus::npa::Key> {
-    let name = exe.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-    Ok(conv_engines::nitroplus::npa::Key::for_exe(&name, &fs::read(exe).with_context(|| format!("reading {}", exe.display()))?)?)
-}
 
 pub(crate) fn open_npa<'a>(exe: &Path, path: &Path, bytes: &'a [u8]) -> Result<conv_engines::nitroplus::npa::Npa<'a>> {
     conv_engines::nitroplus::npa::Npa::parse(bytes, npa_key(exe)?).with_context(|| format!("parsing {}", path.display()))

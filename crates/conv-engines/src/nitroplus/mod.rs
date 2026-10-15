@@ -3,6 +3,7 @@
 //! for its text.
 
 pub mod assets;
+pub mod build;
 pub mod convert;
 pub mod english;
 pub mod npa;

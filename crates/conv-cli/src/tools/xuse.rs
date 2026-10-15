@@ -7,10 +7,9 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result, bail};
 use clap::Subcommand;
 use conv_engines::xuse::cd::CdScript;
-use conv_engines::xuse::convert::LabelNames;
 use conv_engines::xuse::gaf::Gaf;
-use conv_engines::xuse::symbols::{self, SymbolTable};
 use conv_engines::xuse::xarc::{CrcTarget, Xarc};
+use conv_engines::xuse::build::{parse_cd, read_symbols};
 use conv_engines::xuse::xsa::Xsa;
 
 use crate::{map, safe_relative_path};
@@ -164,9 +163,6 @@ pub(crate) fn xarc_extract(path: &Path, output: &Path) -> Result<()> {
     Ok(())
 }
 
-pub(crate) fn parse_cd<'a>(path: &Path, bytes: &'a [u8]) -> Result<CdScript<'a>> {
-    CdScript::parse(bytes).with_context(|| format!("parsing {}", path.display()))
-}
 
 pub(crate) fn cd_info(paths: &[PathBuf]) -> Result<()> {
     let mut failed = false;
@@ -251,16 +247,7 @@ pub(crate) fn cd_strings(path: &Path) -> Result<()> {
     Ok(())
 }
 
-pub(crate) fn read_symbols(path: &Path) -> Result<SymbolTable> {
-    let mut bytes = fs::read(path).with_context(|| format!("reading {}", path.display()))?;
-    symbols::decrypt(&mut bytes);
-    SymbolTable::parse(&bytes).with_context(|| format!("parsing {}", path.display()))
-}
 
-/// Label names (chapter titles, link scene titles) from `HD/CDFiles/0.cd`.
-pub(crate) fn label_names(game: &Path) -> Result<LabelNames> {
-    Ok(LabelNames::new(&read_symbols(&game.join("HD").join("CDFiles").join("0.cd"))?))
-}
 
 pub(crate) fn cd_symbols(path: &Path, only: Option<usize>) -> Result<()> {
     let table = read_symbols(path)?;
