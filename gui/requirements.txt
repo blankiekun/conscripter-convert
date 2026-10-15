@@ -1,6 +1,8 @@
 # The app itself needs only the standard library (tkinter); tkinterdnd2
 # adds drag and drop, Pillow puts the game's icon on the CONscripter it
-# adds. PyInstaller makes the single-file executable.
+# adds, certifi has the certificates it downloads CONscripter with.
+# PyInstaller makes the single-file executable.
 tkinterdnd2==0.6.4
 pyinstaller==6.22.3
 pillow==12.3.0
+certifi==2026.7.22
