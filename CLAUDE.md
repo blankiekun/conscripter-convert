@@ -23,6 +23,9 @@ Each game's state is tracked in its `docs/games/<game>.md`, which is
 public: no local paths (use placeholders such as `<game>`), only
 reproducible commands. There are no git-ignored handoff files; keep
 the document's "Status" current with every commit that changes it.
+"Status" holds only the open state (what works, what is left, next
+steps): when an item is done, move its write-up to the "History"
+section after it, so a session reads Status alone.
 Machine-local facts (where the user keeps a game) go in your memory,
 not in the repo.
 
