@@ -22,6 +22,7 @@ def main() -> int:
     p = argparse.ArgumentParser()
     p.add_argument("--converter", type=Path, default=HERE.parent / "target" / "release" / f"conscripter-convert{EXE}")
     a = p.parse_args()
+    a.converter = a.converter.resolve()  # PyInstaller resolves relative paths against --specpath
     if not a.converter.is_file():
         sys.exit(f"{a.converter} not found: run cargo build --release first")
     fonts = HERE / "fonts"
