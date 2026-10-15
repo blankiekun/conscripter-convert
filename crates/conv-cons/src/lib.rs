@@ -482,6 +482,9 @@ pub fn emit(script: &Script) -> String {
             }
             // CONscripter's spfade.
             Op::NoiseFadeIn { ms } => noise_fade_in = Some(*ms),
+            // CONscripter's spz: drawn right over the overlay's sprite.
+            Op::SpriteInFront { layer, front: true } => writeln!(out, "spz {},{OVERLAY_SPRITE}", SPRITE_BASE + layer).unwrap(),
+            Op::SpriteInFront { layer, front: false } => writeln!(out, "spz {}", SPRITE_BASE + layer).unwrap(),
             Op::Noise(noise) => {
                 writeln!(out, "csp {NOISE_SPRITE}").unwrap();
                 match noise {
@@ -2522,6 +2525,12 @@ end
             ),
             "{out}"
         );
+    }
+
+    #[test]
+    fn sprites_in_front_of_the_overlay() {
+        let out = emit(&script(vec![Op::SpriteInFront { layer: 7, front: true }, Op::SpriteInFront { layer: 7, front: false }]));
+        assert!(out.contains("spz 69,61\nspz 69\n"), "{out}");
     }
 
     #[test]

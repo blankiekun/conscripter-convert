@@ -442,6 +442,10 @@ pub enum Op {
     /// The next [`Op::Noise`]'s static rises from nothing to its opacity
     /// over `ms`, while the script goes on.
     NoiseFadeIn { ms: u32 },
+    /// Draw a layer's sprite in front of an [`Op::Overlay`] over the sprites
+    /// (but under [`Op::Noise`] and [`Op::Animation`]), or (`front` false)
+    /// back at its place. It stays until the sprite is removed.
+    SpriteInFront { layer: u32, front: bool },
 }
 
 /// A puzzle of numbered tiles (装甲悪鬼村正's 立方陣): the player clicks a

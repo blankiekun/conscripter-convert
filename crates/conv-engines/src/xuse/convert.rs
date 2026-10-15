@@ -296,6 +296,10 @@ const OP_WAIT: u16 = 0x66;
 const TRANSITION_DISSOLVE: u16 = 26;
 const TRANSITION_DOT4X4: u16 = 4;
 const TRANSITION_TV_POWER_SWITCH: u16 = 48;
+const TRANSITION_SMOOTH_CROSS_FADE: u16 = 36;
+/// The deepest a bust-up usually sits (0x8e's depth: 10-150, then
+/// 1100-5000 for the few drawn over the overlay).
+const BUST_UP_DEPTH_MAX: u32 = 1000;
 const TV_POWER_SWITCH_MS: u32 = 700;
 /// Plays `HD/mvNNNN.bin` (handler 0x478ab0, task 0x408ed0): arg's low 16
 /// bits are the number, its high 16 bits whether a click or key ends it
@@ -2527,6 +2531,12 @@ pub fn lower_script(
     // overlay is a fill, and the time of a fade that the next wait covers.
     let mut background_fill: Option<u32> = None;
     let mut overlay_fill = false;
+    // The depth of the overlay over the sprites, while one is up, and the
+    // bust-up layers drawn in front of it (Op::SpriteInFront).
+    let mut overlay_depth: Option<u32> = None;
+    let mut in_front: HashSet<u32> = HashSet::new();
+    // SmoothCrossFade's last third: a wait after the transition.
+    let mut smooth_tail: Option<u32> = None;
     let mut wait_credit_ms = 0;
     // 0x4a's style for whole messages (file order): colour, size.
     let mut default_style: (Option<u32>, Option<u16>) = (None, None);
@@ -2594,7 +2604,9 @@ pub fn lower_script(
                         0 => None,
                         n => Some(assets.background(n as usize)?.path),
                     };
-                    ops.push(Op::Overlay { image, over_sprites: layer == 2 });
+                    let over = overlay_over(layer, pool_u32(cd.pool, o + 2).unwrap_or(0));
+                    overlay_depth = over.filter(|_| image.is_some());
+                    ops.push(Op::Overlay { image, over_sprites: over.is_some() });
                     if cd.pool.get(o + 10).is_some_and(|&mark| mark != 0) && let Some(number) = gallery_cg(number as i32) {
                         ops.push(Op::CgSeen { number });
                     }
@@ -2614,7 +2626,9 @@ pub fn lower_script(
                 }
                 Some((&[2, layer @ 0..=2], colour)) => {
                     overlay_fill = true;
-                    ops.push(Op::Overlay { image: Some(assets.fill(rgb(colour))?), over_sprites: layer == 2 });
+                    let over = overlay_over(layer, pool_u32(cd.pool, o + 2).unwrap_or(0));
+                    overlay_depth = over;
+                    ops.push(Op::Overlay { image: Some(assets.fill(rgb(colour))?), over_sprites: over.is_some() });
                 }
                 _ => ops.push(Op::Unsupported { what: format!("opcode {:#04x} record {record:?}", ins.op), at: at() }),
             }
@@ -2650,6 +2664,7 @@ pub fn lower_script(
         if ins.op == crate::xuse::cd::OP_BACKGROUND && ins.arg > 0 {
             // op_54 first removes background slots 1-10 (0x4132d0), the
             // overlay (0x55, slot 2) with them.
+            overlay_depth = None;
             ops.push(Op::Overlay { image: None, over_sprites: false });
             // It starts no fade: the picture shows at once, or with the
             // transition armed around it.
@@ -2734,6 +2749,7 @@ pub fn lower_script(
                 // after it already covers the fade.
                 Some(Motion { layer: 1, depth: 2, flags: MOTION_OPACITY, end: Some(MotionEnd { ms, opacity: Some(0), .. }) }) if overlay_fill => {
                     ops.push(Op::BeginTransition { effect: "fill fade-out".into(), fade_ms: ms, mask: None, style: TransitionStyle::Fade });
+                    overlay_depth = None;
                     ops.push(Op::Overlay { image: None, over_sprites: false });
                     ops.push(Op::EndTransition);
                     overlay_fill = false;
@@ -2967,7 +2983,16 @@ pub fn lower_script(
                     transition_armed = true;
                     // TvPowerSwitch runs its own 700 ms key frames (setup
                     // 0x4485d7: 260 ... 700 ms) whatever the record says.
-                    let fade_ms = if ins.sub == TRANSITION_TV_POWER_SWITCH { TV_POWER_SWITCH_MS } else { fade_ms };
+                    let mut fade_ms = if ins.sub == TRANSITION_TV_POWER_SWITCH { TV_POWER_SWITCH_MS } else { fade_ms };
+                    // SmoothCrossFade (filmed under wine, 3 s): the old
+                    // picture stays for a third of the time, cross-fades
+                    // in the second third and the new one stays for the
+                    // last (with a slight blur either side, left out).
+                    if ins.sub == TRANSITION_SMOOTH_CROSS_FADE {
+                        ops.push(Op::Wait { ms: fade_ms / 3 });
+                        smooth_tail = Some(fade_ms / 3);
+                        fade_ms /= 3;
+                    }
                     // Dot4x4 (kernel 0x4430a0) copies the new picture
                     // through a 4×4 pattern: the hard mask transition over
                     // a tiled Bayer mask reveals the same dots.
@@ -3059,6 +3084,9 @@ pub fn lower_script(
         if ins.op == OP_TRANSITION_WAIT {
             if std::mem::take(&mut transition_armed) {
                 ops.push(Op::EndTransition);
+                if let Some(ms) = smooth_tail.take() {
+                    ops.push(Op::Wait { ms });
+                }
             }
             continue;
         }
@@ -3068,14 +3096,30 @@ pub fn lower_script(
                 opacities.remove(&layer);
                 if e.mode & 1 == 1 {
                     placed.insert(layer, (e.sprite, i32::from(e.x), i32::from(e.y)));
+                    // A bust-up deeper than the overlay (1100-5000; filmed
+                    // under wine) is drawn over it, under the static and
+                    // the animations.
+                    // Every time: a csp -1 in a subroutine (s2_l17) puts
+                    // it back unseen.
+                    let front = u32::from(e.depth) > BUST_UP_DEPTH_MAX && overlay_depth.is_none_or(|d| u32::from(e.depth) > d);
+                    if front || in_front.contains(&layer) {
+                        ops.push(Op::SpriteInFront { layer, front });
+                    }
+                    if front {
+                        in_front.insert(layer);
+                    } else {
+                        in_front.remove(&layer);
+                    }
                 } else {
                     placed.remove(&layer);
+                    in_front.remove(&layer);
                 }
             }
         }
         if matches!(ins.op, OP_CLEAR_SPRITES | crate::xuse::cd::OP_BACKGROUND) {
             placed.clear();
             opacities.clear();
+            in_front.clear();
         }
         let paths = match variants.take().filter(|_| in_run) {
             Some((_, _, paths)) => paths,
@@ -3594,6 +3638,15 @@ fn hang_cells(text: &str, hang: Option<usize>) -> usize {
     hang.map_or(0, |n| line_cells(&text.split('\n').next().unwrap_or_default().chars().take(n).collect::<String>()))
 }
 
+/// The depth of an overlay (0x55, 0x58) drawn over the bust-ups, or `None`
+/// for one under them: objects sort by layer, then depth (filmed under
+/// wine): layer 0 and 1 are under the bust-ups, and layer 2 shares their
+/// band, where most bust-ups sit at depth 10-150 and the overlays at 1000
+/// (a few at 0-100, under them).
+fn overlay_over(layer: u8, depth: u32) -> Option<u32> {
+    (layer == 2 && depth > 150).then_some(depth)
+}
+
 /// The rows and columns of a window preset, and whether it is full-screen.
 fn window_size_of(assets: &mut AssetBank, p: WindowPreset) -> Result<(usize, usize, bool), ConvertError> {
     let w = assets.text_window_style(p)?;
@@ -4053,6 +4106,13 @@ mod tests {
         assert_eq!(hang_cells("ab　あい\nx", Some(3)), 3);
         // 最果てのイマ's chat log (conv_link35_1): written 「　NIN-NIN 　…」.
         assert_eq!(line_cells("NIN-NIN　数としては、してるけど……その、実際には生存している人とかがいるかなと"), 41);
+    }
+
+    #[test]
+    fn overlays_sort_by_layer_then_depth() {
+        assert_eq!(overlay_over(2, 1000), Some(1000));
+        assert_eq!(overlay_over(2, 1), None);
+        assert_eq!(overlay_over(0, 1000), None);
     }
 
     #[test]
