@@ -707,9 +707,8 @@ exe (`research/tools/ghidra/ghidra_export.sh`, names in
      character 7 over the letterbox bars;
    - SmoothCrossFade (3 s): the old picture stays a third of the time,
      cross-fades in the second third, the new one stays the last third;
-     the pictures blur slightly either side (about 3 % less edge
-     contrast, left out). Converted as `delay`, a cross-fade of a third,
-     `delay`.
+     the pictures blur slightly either side (item 22). Converted as
+     `delay`, a cross-fade of a third, `delay`.
 16. **Done: quakes, flashes and pulses compared with the original.**
    Filmed the same way, each in place of message #21 (after two text
    pages), and ours on the same picture (`ours.sh`):
@@ -782,6 +781,18 @@ exe (`research/tools/ghidra/ghidra_export.sh`, names in
    update, so under the software renderer the buttons came up one after
    another. Filmed on our build at 60 fps: the eight buttons rise
    together over six frames.
+22. **Done: SmoothCrossFade's blur.** Measured on item 15's film (30 fps,
+   fitting each frame against the sharp picture blurred by a Gaussian):
+   the new picture comes out of the cross-fade blurred by about σ 1,
+   about σ 0.5 halfway through the last third and sharp after three
+   quarters of it, then stays; the old picture blurs at the start (its
+   sky is too smooth to measure the radius: taken as the same). The
+   converter now sets a 3×3 mean blur (`screenfilter 4,6,0,256,1,1,0`,
+   the closest to σ 1; slot 4, the game's filters use 1-3) with
+   `print 1` before the first third's `delay`, cross-fades with it on,
+   then clears it with a fade over three quarters of the last third and
+   waits the rest (`end_transition`). 8 uses in the game. Filmed on our
+   build: blurred at the start, sharp at the end.
 
 
 Converted and playable from start to end: text, voices, sprites with
@@ -918,8 +929,7 @@ ones done:
   sprite 60, over it;
 
 **Accuracy.**
-- Transitions: SmoothCrossFade's slight blur either side of its
-  cross-fade is left out (item 15). BoxRolling is a push where the original
+- Transitions: BoxRolling is a push where the original
   squeezes the pictures like cube faces; MeltDown's stretch for subs
   46/47 is scaled from the exe, not filmed.
 - Full-screen text styles 1-7: metrics are estimates; calibrate from

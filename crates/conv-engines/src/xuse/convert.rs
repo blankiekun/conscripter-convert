@@ -298,6 +298,21 @@ const TRANSITION_DISSOLVE: u16 = 26;
 const TRANSITION_DOT4X4: u16 = 4;
 const TRANSITION_TV_POWER_SWITCH: u16 = 48;
 const TRANSITION_SMOOTH_CROSS_FADE: u16 = 36;
+/// The `screenfilter` slot of SmoothCrossFade's blur (the game's filters
+/// use 1-3).
+const SMOOTH_BLUR_SLOT: u32 = 4;
+
+/// Ends an armed transition, and SmoothCrossFade's last third (`tail`):
+/// the new picture comes in blurred and sharpens over three quarters of
+/// it (filmed: Gaussian σ about 1 to none), then stays.
+fn end_transition(ops: &mut Vec<Op>, tail: &mut Option<u32>) {
+    ops.push(Op::EndTransition);
+    if let Some(ms) = tail.take() {
+        let sharpen = ms * 3 / 4;
+        ops.push(Op::ScreenFilter { slot: SMOOTH_BLUR_SLOT, filter: None, fade_ms: sharpen });
+        ops.push(Op::Wait { ms: ms - sharpen });
+    }
+}
 /// The deepest a bust-up usually sits (0x8e's depth: 10-150, then
 /// 1100-5000 for the few drawn over the overlay).
 const BUST_UP_DEPTH_MAX: u32 = 1000;
@@ -2815,7 +2830,7 @@ pub fn lower_script(
                         && placed.get(&depth).is_some_and(|&(n, ..)| turned_off_screen(assets, n, &end)) =>
                 {
                     if std::mem::take(&mut transition_armed) {
-                        ops.push(Op::EndTransition);
+                        end_transition(&mut ops, &mut smooth_tail);
                     }
                     let (number, cx, cy) = placed.remove(&depth).unwrap();
                     let image = assets.sprite(number.into())?.path;
@@ -2828,7 +2843,7 @@ pub fn lower_script(
                     // The original slides while the transition runs; here
                     // the transition shows the start, then the slide runs.
                     if std::mem::take(&mut transition_armed) {
-                        ops.push(Op::EndTransition);
+                        end_transition(&mut ops, &mut smooth_tail);
                     }
                     ops.push(Op::SpriteMove { layer: depth, x: end.x, y: end.y, ms: end.ms });
                     if flags & 0x100 != 0 {
@@ -3038,10 +3053,18 @@ pub fn lower_script(
                     // 0x4485d7: 260 ... 700 ms) whatever the record says.
                     let mut fade_ms = if ins.sub == TRANSITION_TV_POWER_SWITCH { TV_POWER_SWITCH_MS } else { fade_ms };
                     // SmoothCrossFade (filmed under wine, 3 s): the old
-                    // picture stays for a third of the time, cross-fades
-                    // in the second third and the new one stays for the
-                    // last (with a slight blur either side, left out).
+                    // picture blurs at once (about a Gaussian σ 1: a 3×3
+                    // mean) and stays for a third of the time, cross-fades
+                    // in the second third and the new one sharpens in the
+                    // last ([`end_transition`]).
                     if ins.sub == TRANSITION_SMOOTH_CROSS_FADE {
+                        let blur = SpriteFilter {
+                            kind: Operand::Const(FILTER_BLUR),
+                            blend: Operand::Const(FILTER_BLEND_COPY),
+                            strength: Operand::Const(256),
+                            params: [1, 1, 0].map(Operand::Const),
+                        };
+                        ops.push(Op::ScreenFilter { slot: SMOOTH_BLUR_SLOT, filter: Some(blur), fade_ms: 0 });
                         ops.push(Op::Wait { ms: fade_ms / 3 });
                         smooth_tail = Some(fade_ms / 3);
                         fade_ms /= 3;
@@ -3150,10 +3173,7 @@ pub fn lower_script(
         }
         if ins.op == OP_TRANSITION_WAIT {
             if std::mem::take(&mut transition_armed) {
-                ops.push(Op::EndTransition);
-                if let Some(ms) = smooth_tail.take() {
-                    ops.push(Op::Wait { ms });
-                }
+                end_transition(&mut ops, &mut smooth_tail);
             }
             continue;
         }
