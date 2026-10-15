@@ -77,7 +77,7 @@ The other convert options (`--loose`, `--audio-codec`,
 | Additive / multiply blends, `Rotate`, `SetFrequency`, camera moves | ❌ Not converted |
 | 立方陣 minigame (`function_magiccube.nss`) | ✅ Ported (see "The 立方陣" below) |
 | System screens (title, save/load, settings, backlog) | ✅ Title, right-click menu, quick bar, confirmations, save/load, backlog, settings, favour screen, click-wait icon (each checked beside the original); 🟡 the title's fire flicker and openings left ("Next" item 4, step 7) |
-| Extras | 🟡 The menu, CG gallery, sound room, recollection and 3D viewer done; the white flash back to the title and the title's ライナー画像 button left ("Next" item 4, step 8) |
+| Extras | ✅ The menu, CG gallery, sound room, recollection, 3D viewer, the way back to the title and the title's ライナー画像 link ("History", extras 1-7) |
 
 ## Files and formats
 
@@ -593,7 +593,7 @@ Next, in order:
         unchecked.
       - On Windows CONscripter only opens a movie in an outside player.
 
-   8. **Extras** (特別付加目録, `extra_*.nss`), under way. Filmed in the
+   8. **Extras** (特別付加目録, `extra_*.nss`), done. Filmed in the
       original from a patched boot (`#ClearG` and a few CGs, a song, a
       movie and a 3D entry set; shots in `research/nitroplus/local/shots/
       extras/`). Five screens: the menu, 画像映写機 (CG gallery: 349 slots
@@ -602,15 +602,10 @@ Next, in order:
       flag and replayed from the file's `$PLACE_reco` branch), 電磁蓄音機/
       動画映写機 (37 BGM, five songs, three movies; the track chosen stays
       the extras' music, `#エキストラＢＧＭ`), 劒冑回転目録 (46 looping 400×400
-      movies of the armour with name plates and specs, `#av_`/`#aw_`). The
-      title's ライナー画像 button (after 悪鬼編) is another extra, not yet
-      looked at. Plan, in order, each beside the original:
-      1-6. Done: the menu, the gallery, the sound room, the
-         recollection, the 3D viewer and the way back to the title
-         ("History", below).
-      Left from 1-4: the replay cuts to its scene where the original
-      fades the held list out over 500 ms (`RecoIn`); the sound room's
-      turning icon runs at 33 ms a picture, a guess.
+      movies of the armour with name plates and specs, `#av_`/`#aw_`).  Plan, in order, each beside the original:
+      1-7. Done: the menu, the gallery, the sound room, the
+         recollection, the 3D viewer, the way back to the title and the
+         title's ライナー画像 button ("History", below).
 
    The user's decisions (2026-10-14): the pressed state (`003`) becomes
    an engine feature that is on for every script; the settings CONscripter
@@ -1017,8 +1012,10 @@ page each punctuation mark or symbol shows on (`--shot-pages`):
    (global %2961: the title's at first, opened with the extras, the
    title's music back on leaving if it differs), the playing one
    clicked again fades out over 2 s; the ten-picture A-icon turns
-   26 px left of the track playing (33 ms a picture: a guess, wine
-   films the original's process too slowly); a movie fades the music
+   26 px left of the track playing, 340 ms a picture (filmed at 100
+   frames a second with `ffmpeg -f x11grab -framerate 100 -video_size
+   26x24 -i :N+482,282 -f framemd5`: a change every 340 ms, steady
+   over 10 s, with the game at 17 % of a core); a movie fades the music
    and the screen to black over 1 s, plays (the settings' 動画 option
    decides whether a click stops it), the music comes back over 1 s
    and the black fades over 300 ms. Beside the original (the title's
@@ -1041,8 +1038,10 @@ page each punctuation mark or symbol shows on (`--shot-pages`):
    (quick save and load) and 選択肢に戻る are greyed in the menu and the
    quick bar (`BarScreens::picture_replay`, `menu::NO_SAVE`), and
    タイトルに戻る (asked, then `reset`) comes back to the list (global
-   %2962, read first thing by the title). Left: the 500 ms fade of
-   `RecoIn` from the held list to the scene (ours cuts).
+   %2962, read first thing by the title). The list stays held over
+   the scene's first picture, a freeze frame in screen-effect slot 4
+   (`PictureReplay::hold`), until the scene's `RecoIn` fades it out
+   over 500 ms and waits 1 s, as the original's `RecoScreen`.
 5. Done: the 3D viewer, 劒冑回転目録 (a new `Turntable`, `conv-cons/src/
    picture_turntable.rs`; the entries read from `extra_dimension.nss`'s
    `Dx`): 46 entries, 24 name plates a page in two rows of twelve from
@@ -1069,6 +1068,12 @@ page each punctuation mark or symbol shows on (`--shot-pages`):
    `title_extras2` (`opening::after_extras`, a `TitleOpening` with
    `after_extras`). The music goes on (the title's, if the sound room
    chose another).
+7. Done: the title's ライナー画像 button (`0_boot.nss`, `書記`): at
+   (60, 524) once `#悪鬼編終了` is set, it opens Nitroplus's
+   staff-comment page (`System("OPEN:http://www.nitroplus.co.jp/secret/
+   muramasamune")`, still online in 2026) in the browser, out of full
+   screen. Ours: `TitleAction::Link` and CONscripter's new `openurl`
+   (a new tab in the web build).
 
 **Motion and movies (Status, system screens step 7), done:**
 

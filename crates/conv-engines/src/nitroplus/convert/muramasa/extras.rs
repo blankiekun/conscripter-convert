@@ -6,12 +6,16 @@ use std::collections::BTreeMap;
 
 use conv_core::ir::{ExtrasMode, GalleryCategory, PictureExtras, PictureExtrasItem, PictureGallery, PictureReplay, PictureSlot, Placed, ReplayEntry, RoomTrack, RoomVideo, SlotCg, SoundRoom, Turntable, TurntableEntry};
 
-use super::super::{Assets, Replay, Story};
+use super::super::{Assets, Replay, Story, SCREEN_H, SCREEN_W};
 use crate::nitroplus::nss::{Expr, Item, NssFile, StmtKind};
 
 /// Set at the end of any route (the end roll) and when a game starts after
 /// one: the gallery, the recollection and the sound room open.
 pub const CLEARED: &str = "#ClearG";
+
+/// The screen-effect slot that holds the recollection's list over a
+/// scene's first pictures until `RecoIn` fades it out.
+pub const HOLD_SLOT: u32 = 4;
 
 /// The menu (`extra_menu.nss`, `ExtraSet`): MENU背景画像 with five buttons;
 /// 画像, 回想 and 音楽 drawn at 200/1000 and not clickable until
@@ -184,7 +188,8 @@ pub fn replays(files: &BTreeMap<String, NssFile>) -> Vec<Replay> {
 /// the gallery's grid (`Recollection`), 空白アイコン until the scene's file
 /// has been read, its CG's thumbnail after, 選択カーソル under the pointer.
 /// A scene (`RecoFade`) fades the music out over 1 s with the screen held
-/// 500 ms; at its end (`RecoOut`) the music fades over 2 s with the screen
+/// 500 ms, and the held list fades out over 500 ms at the scene's `RecoIn`
+/// ([`HOLD_SLOT`]); at its end (`RecoOut`) the music fades over 2 s with the screen
 /// held, and the list fades in over 500 ms.
 fn replay(a: &mut dyn Assets, story: &Story) -> Option<PictureReplay> {
     const DIR: &str = "cg/sys/extra/reco";
@@ -210,6 +215,7 @@ fn replay(a: &mut dyn Assets, story: &Story) -> Option<PictureReplay> {
         start_ms: 1000,
         end_ms: 2000,
         across: None,
+        hold: Some((HOLD_SLOT, (SCREEN_W as i32 / 2, SCREEN_H as i32 / 2))),
     })
 }
 
@@ -218,9 +224,9 @@ fn replay(a: &mut dyn Assets, story: &Story) -> Option<PictureReplay> {
 /// 651, 787 from y 84, 24 apart; the songs at x 651 from y 396; the movies'
 /// thumbnails at x 102 from y 84, 150 apart). A locked song shows its
 /// `000` picture, a locked movie 空白アイコン. The playing track has the
-/// ten-picture A-icon turning 26 px left of it (its speed is a guess: the
-/// original's process draws a picture a frame, and wine films too slowly
-/// to tell). Choosing the playing track fades it out over 2 s
+/// ten-picture A-icon turning 26 px left of it, 340 ms a picture (filmed
+/// under wine at 100 frames a second: the process's loop has no wait, but
+/// the engine gives it a step every 340 ms). Choosing the playing track fades it out over 2 s
 /// (`SoundFade`); a movie fades the music and the screen to black over 1 s,
 /// then back, the black over 300 ms.
 fn sound(a: &mut dyn Assets, story: &Story) -> Option<SoundRoom> {
@@ -277,7 +283,7 @@ fn sound(a: &mut dyn Assets, story: &Story) -> Option<SoundRoom> {
         title_track,
         marker: Placed { image, x: 0, y: 0, w: w as i32, h: h as i32 },
         marker_cells: 10,
-        marker_ms: 33,
+        marker_ms: 340,
         marker_dx: 26,
         open_ms: 500,
         stop_fade_ms: 2000,

@@ -392,5 +392,6 @@ fn replay(a: &mut dyn Assets, story: &Story) -> Option<PictureReplay> {
         start_ms: 500,
         end_ms: 500,
         across: Some(5),
+        hold: None,
     })
 }

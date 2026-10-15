@@ -736,6 +736,9 @@ pub enum TitleAction {
     Continue,
     /// The [`Script::picture_extras`].
     Extras,
+    /// Open this web page in the browser (`openurl`): 装甲悪鬼村正's
+    /// ライナー画像, its staff-comment page.
+    Link(&'static str),
 }
 
 /// An image with its top-left corner on screen, and its size (all cells).
@@ -2103,6 +2106,11 @@ pub struct PictureReplay {
     /// Slots run along rows of this many instead (`column_step` apart, the
     /// next row `row_step` below): 続・殺戮のジャンゴ's five across.
     pub across: Option<u32>,
+    /// The list stays frozen over the scene's first pictures, in this
+    /// screen-effect slot (a [`ScreenEffect::Zoom`] at 100 % about
+    /// `.1`, the screen's centre), until the scene clears the slot
+    /// (装甲悪鬼村正's `RecoIn` fades it out).
+    pub hold: Option<(u32, (i32, i32))>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

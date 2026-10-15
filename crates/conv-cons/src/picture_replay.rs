@@ -61,12 +61,18 @@ pub(crate) fn emit(out: &mut String, r: &PictureReplay, border: u32, music: Opti
     w(format!("gosub *{DRAW}:print 1:goto *{WAIT}"));
     for (i, s) in r.scenes.iter().enumerate() {
         w(format!("*conv_prp_s{i}"));
+        if let Some((slot, (x, y))) = r.hold {
+            w(format!("screenzoom {slot},1,1,1000,{x},{y},0,0,0,0:print 1"));
+        }
         w(format!("bgmvolfade 0,{}:wait {}", r.start_ms, r.start_ms));
         w(format!("csp -1:bgmstop:bgmvolfade 100:mov {REPLAYING},1"));
         w(format!("gosub *{}:goto *{END}", s.label));
     }
     w(format!("*{END}"));
     w(format!("mov {REPLAYING},0"));
+    if let Some((slot, _)) = r.hold {
+        w(format!("screenzoom {slot}"));
+    }
     w(format!("bgmvolfade 0,{}:wait {}", r.end_ms, r.end_ms));
     w("csp -1:csp2 -1:bgmstop:stopallsound:bgmvolfade 100:textclear:erasetextwindow 1:bg black,1".into());
     if let Some(m) = music {
