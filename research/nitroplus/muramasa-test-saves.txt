@@ -1,4 +1,4 @@
-# Test saves for 装甲悪鬼村正 (research/tools/test_saves.py): slot, label, what it tests.
+# Test saves for 装甲悪鬼村正 (research/tools/test_saves.py, route variables from route_vars.py): slot, label, what it tests.
 1 f_ma00_000 序章 OP映像
 2 f_ma01_022vs 初戦 映像
 3 f_ma01_026 OP

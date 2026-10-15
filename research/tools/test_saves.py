@@ -1,17 +1,20 @@
 #!/usr/bin/env python3
 """Make save files that stand at chosen scenes of a converted game.
 
-usage: test_saves.py GAME_DIR SLOTS.txt -o OUT.zip [--engine EXE] [--work DIR]
+usage: test_saves.py GAME_DIR SLOTS.txt -o OUT.zip [--vars-dir DIR] [--engine EXE] [--work DIR]
 
 SLOTS.txt: one save a line, "slot label description" (`#` lines and
 blank lines skipped), e.g. `20 f_md05_025 立方陣`. For each line the
-engine starts at the label (`--goto`, no route flags), auto-plays to the
-first click wait, saves there (`--checkpoint-*`) and screenshots it.
+engine starts at the label (`--goto`), auto-plays to the first click
+wait, saves there (`--checkpoint-*`) and screenshots it.
 Each save then gets what the save menu would have written: a 160x90
 `savethumbN.bmp` and the `"date|play time|text"*` string `getsavestr`
 reads from the end of the file (the description goes in the text).
 OUT.zip holds the files flat, uncompressed, as the web player's Export
 Saves writes them; its Import Saves (and a native save folder) take it.
+With `--vars-dir`, a label's `<label>.txt` there (a `--vars` file, e.g.
+from research/nitroplus/route_vars.py) sets the route's variables first;
+without one the save has none of the route's earlier choices.
 """
 import argparse
 import datetime
@@ -25,6 +28,7 @@ p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDes
 p.add_argument("game")
 p.add_argument("slots")
 p.add_argument("-o", "--out", required=True)
+p.add_argument("--vars-dir", help="per-label --vars files, <label>.txt")
 p.add_argument("--engine", help="default: the game folder's own launcher, else engine/build/conscripter")
 p.add_argument("--work", help="scratch folder (default: a temporary one)")
 a = p.parse_args()
@@ -48,10 +52,14 @@ with zipfile.ZipFile(a.out, "w", zipfile.ZIP_STORED) as z:
             continue
         slot, label, *desc = line.split(maxsplit=2)
         shots = os.path.join(work, "shot" + slot)
+        vars_file = a.vars_dir and os.path.join(os.path.abspath(a.vars_dir), label + ".txt")
+        if vars_file and not os.path.exists(vars_file):
+            raise SystemExit(f"slot {slot}: no {vars_file}")
         r = subprocess.run(["timeout", "-k", "5", "300", engine, "-r", ".", "--save-dir", saves,
                             "--trace", os.path.join(work, f"save{slot}.jsonl"), "--goto", label,
                             "--auto-play", "0", "--checkpoint-every", "1", "--checkpoint-slot", slot,
-                            "--max-pages", "2", "--shot-pages", "1", "--shot-dir", shots],
+                            "--max-pages", "2", "--shot-pages", "1", "--shot-dir", shots]
+                           + (["--vars", vars_file] if vars_file else []),
                            cwd=game, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         dat = os.path.join(saves, f"save{slot}.dat")
         if r.returncode != 0 or not os.path.exists(dat):

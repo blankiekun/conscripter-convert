@@ -651,8 +651,21 @@ the `.dat` and `.bmp` files into it). Leave `gloval.sav` and
 `kidoku.dat` out: they would replace the player's unlocks and read
 text.
 
-The saves carry no route flags (`--goto` runs without the route's
-earlier choices), so a scene that branches on them may go another way
-than on its route; start such a scene from `--vars` instead
-("Starting anywhere" in `engine/DEBUG.md`). Muramasa's list:
-`research/nitroplus/muramasa-test-saves.txt`.
+Without `--vars-dir` the saves carry none of the route's earlier
+choices, so a scene that branches on them may go another way. With
+`--vars-dir <dir>`, each label's `<dir>/<label>.txt` (a `--vars` file,
+"Starting anywhere" in `engine/DEBUG.md`) sets the variables first, and
+the save holds them. For Muramasa, `research/nitroplus/route_vars.py`
+writes those files from the route paths, as nstrace has every variable
+when a path first enters the label (a second, no engine run):
+
+```sh
+L=$(grep -v '^#' research/nitroplus/muramasa-test-saves.txt | awk '{print $2}' | paste -sd,)
+python3 -I research/nitroplus/route_vars.py out/muramasa-cons <vars dir> research/nitroplus/paths/*.txt --labels $L
+python3 -I research/tools/test_saves.py out/muramasa-cons research/nitroplus/muramasa-test-saves.txt \
+    --vars-dir <vars dir> -o muramasa-test-saves.zip
+```
+
+Global variables (the `#` flags from finished routes, `%800` up) live in
+`gloval.sav`, not in a save, so they are set for the run but don't come
+with the zip.
