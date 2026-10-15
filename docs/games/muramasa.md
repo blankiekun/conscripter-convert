@@ -540,25 +540,10 @@ and the files checked against nstrace:
 | 9 | 村正END | 510 | 36,276 | 29 min | passed |
 | 10 | TRUE END | 514 | 36,449 | 30 min | passed |
 
-(Round 3, 2026-10-14: the build with every fix below up to the `[text0081]`
-marker, engine 0.19.1, all ten paths side by side with `--all`; the
-times are with ten at once. Rounds 1 and 2, the five endings on the
-builds before, passed too. Round 3's checker report matches round 2's,
-with no `error` or `missing`; the only new findings are `slow` waits in
-`ma05_019` (7.8 s where the original takes about 4 s): since the alias
-fix its non-blocking 2 s `Shake` really shakes, and we play it blocking
-before the next fade.) The same runs on Xvfb in skip mode took 40-56 minutes. On CONscripter
-0.18.0, run 9 aborted 508 files in with `malloc(): unaligned tcache
-chunk detected` (heap corruption, noticed in `malloc` under `lsp` →
-`loadImage`); on 0.19.0 it passes. A likely cause, fixed in between:
-CONscripter's `DirectReader` copied a file name's extension over its
-own buffer with an overlapping `strcpy` (engine `1d51abc`; undefined
-behaviour on file reads). An AddressSanitizer build of 0.19.0 played
-the whole of run 9 (510 files, 34 min, `ASAN_OPTIONS=detect_leaks=0`)
-with no error, so no bad memory access is left on that route.
+(How the runs were made and what they fixed: "History", below.)
 
 The checker (`cons_trace_check.py` with `research/nitroplus/cons_trace_check.json`)
-found the seven bugs fixed below; on the rebuilt game its `text` and
+found the seven bugs fixed in "History"; on the rebuilt game its `text` and
 `duration` findings are gone, the favour panel no longer lingers, and
 fewer loops double and characters stay off screen. The `voice`
 findings left are lines in 『』 that have no voice in the source either.
@@ -569,101 +554,6 @@ few hundred ms apart, as the source does; `se戦闘_` is in the config's
 `known`),
 `memory` (a few pre-scaled zoom pictures of 67-77 MB, see "How the
 compiler works").
-
-Fixed on the way (each found by the runs, all in the current build):
-- A `?` in horizontal text: NScripter reads it as an array reference
-  and exits with 255 (the message goes to `stderr.txt`). Every route
-  passed one, in `ma03_027vs`: the NSS `<?>` tag (93 uses), passed
-  through as text. Text lines now write `?` full-width, `<?>` is
-  dropped, and lint reports a `?` in text.
-- `<?>` at the end of a line joins the next text line to it, after the
-  code between them (a face change, a typewriter's key sound). It was
-  taken as a line break, so the typewriter captions of `ma01_026`
-  (《興隆四一年一〇月一二日》) came out one character per column, and 30
-  lines of dialogue were split in two. Found by the trace checker's
-  `text` rule ("the text runs past the window") on the first route run.
-- A `/* … */` block inside a text block was printed as text (`／＊`,
-  three copies of 「暗闇星人……」, `＊／`, in 3 files). The NSS parser now
-  leaves it out like a `//` line.
-- Lines spoken in unison (66 `CreateVOICE` calls in 32 files) had no
-  voice: the helper plays them only when the setting "other voices"
-  (`#SYSTEM_voice_enable_another`) is on, which the compiler didn't
-  know. It now starts with the value a first start gives it (on), and
-  the voices play together on their own channels. Both found by the
-  checker's `voice` rule.
-- `Play` on a looping sound that was still playing started a second
-  copy: `md04_048vs` calls `MusicStart` on its loop eight times to change
-  its volume and speed, and `茶々丸の世界_L` ended up on eight channels at
-  once (28 loop starts in the game). Found by the checker's `sound` rule.
-- `WaitAction(obj)` waited for every action still running, not only
-  `obj`'s: in `mb02_030vs`, `CP_EHPChange` waits on its own process
-  after a non-blocking 15 s zoom, and the player sat through a 15 s
-  fade (five such waits of 5 s or more). Found by the checker's
-  `duration` rule.
-- Branches of a runtime `if` that ended with different pictures left
-  sprites up: the code after them follows the first branch's sprite
-  layers, so a sprite another branch put elsewhere was never cleared.
-  After the favour screen (`judgment_of_count`, 村正's icon hidden only
-  while `$Muramasa_Flag` is 0) its full-screen background stayed in
-  front of the story for 150 pages. The next sync now removes what any
-  branch left and draws the merged pictures anew. Cost: after the merge
-  every branch shows the first branch's pictures (the black box over
-  村正's icon also shows when she is known, until the screen closes).
-  Found by the checker's `linger` rule.
-- A wildcard (`@StMR*`) only matched object names, not aliases: the
-  character helpers create `遠４/StMR01` with the alias `StMR01`, so
-  `Move("@StMR*", …)`, fades, shakes and deletes on them did nothing
-  (`ma02_012`: ふき stayed 600 px off screen instead of sliding in).
-  About 11,700 lines of the output changed (44 more screen shakes, real
-  moves in place of 177 waits, characters deleted when the script
-  deletes them). Found by the checker's `offscreen` rule.
-- Non-blocking actions were cross-faded over their whole time at the
-  next sync: a 270 s background scroll (`ma04_013vs`) blocked the
-  player for 270 s, 51 cross-fades were over a minute. Now at most a
-  `Wait`'s time, or 1 s where the script doesn't wait.
-- The full build ran out of memory (7 GB) on 60x zooms; now 1.2 GB.
-
-Fixed after the route runs (2026-10-14), from screenshots of the first
-page each punctuation mark or symbol shows on (`--shot-pages`):
-- Vertical text drew the marks CONscripter turns for it (《》「」『』（）
-  ― ～ …) high and to one side of the column: 《 stuck out to the
-  left. The engine now turns them about the centre of their cell
-  (CONscripter 3c7c957), so ︽ sits on the text it opens.
-- Vertical text sat 8 px left of the original's columns (page 5 of the
-  prologue, filmed under wine): `rubyon` moves vertical lines left by
-  the line gap, which the converter undid for choice windows only. Every
-  vertical window now starts a line gap further right, and the columns
-  match the original to the pixel.
-- `[text0081]〝卵〟を…` (`md05_003`, the only marker with text after it
-  on its line) printed the marker as text, ［ｔｅｘｔ００８１］. The NSS
-  parser now reads it as a marker. Needs a full build to show.
-- English lost most of its spaces: ONScripter skipped the space before
-  each pair of half-width characters, so “Tell me the tales that to me
-  were so dear” (`mb04_008vs`, 33 such lines) showed as “Tellmethe tales
-  thattomeweresodear”. CONscripter now keeps a space after other text,
-  in sprite text too (2179dbd).
-- Built-in and NSS function names matched ignoring case; the exe
-  matches them exactly (`dispatch_builtin`, `call_nss_function`,
-  `research/nitroplus/builtins.md`, "In the exe") and skips a call to a
-  name it doesn't know. So `Waitkey(500)` (`md04_004`, `md06_035`) was
-  a half-second wait and `SL_Rightdown(…)` (`ma00_000`) ran
-  `SL_rightdown`; the original does neither. Names are exact now, and
-  the build's list counts the skipped calls (`skipped: no function`,
-  13 names, 179 calls, `Boxframe` 153 of them).
-- The screen kept shaking through the whole prologue, from the first
-  `Shake` (`ma00_000`, 1 s) on: `screenshake` keeps its last size until
-  its slot is cleared, and the converter never cleared it. An NSS
-  `Shake` lasts its time, or until its picture is deleted (shakes of
-  500 s or 36 minutes end that way), and 0 ms or 0 px stops it. The
-  converter now gives each shake its time as `screenshake`'s new `end`
-  (CONscripter 81d0b80) and clears the slot when the shaken picture
-  goes or a stopping `Shake` comes. The checker missed it: its
-  `overlay` rule looked for an effect left on after `bg` changed, and
-  this game draws everything as sprites over `bg black`. It now also
-  reports a shake with no end left on for 30 pages (`--shake`), and
-  the trace counts the waits auto-play skips toward a shake's end. On
-  the prologue (419 pages) the old build gives two `overlay` findings,
-  the new one none.
 
 Testing notes: other agents stop engines with `pkill -x conscripter`;
 run ours through a symlink with another name (`--engine
@@ -706,217 +596,10 @@ Next, in order:
    a dialog), Esc asks ゲームを終了しますか, the title's 終了する quits
    with no question, the backlog shows no names. Plan, in order, each
    screen checked beside the original:
-   1. Done: button strips joined from the `000`-`003` part files at
-      convert time (`Assets::strip`: normal, hover, disabled, pressed);
-      the yes/no questions as the game's pictures (`ConfirmDialog`
-      `pictures`, `backdrop`, `pressed`, `fade_ms`; built in
-      `convert/muramasa/screens.rs`), with the pressed state from
-      CONscripter's `spbtn num,no,pressed_cell` (625c598). Beside the
-      original (quit question, normal, both hovers, 拒否 pressed): the
-      same pixels, offset 0,0. The 150 ms sideways unroll is done (step
-      7). Left for later: the 記録をしました notice (with the save
-      screen), 選択肢まで戻りますか and 設定を初期状態に戻す (with their
-      screens).
-   2. Done (static): the title at rest, the background, logo and
-      copyright composed into one picture, the six buttons with their
-      hover (`002`) and pressed (`003`) pictures, the hover sound (刀構え02)
-      and each button's click sound, the title music, Start's 3 s music
-      fade, 1 s fade to black and 2 s wait, 終了する quitting with no
-      question, しおりから dimmed to half while there is no quick save
-      (`TitleScreen` `pressed`, `hover_se`, `bgm`, `start_*`,
-      `exit_without_asking`, `TitleAction::Continue`; CONscripter's
-      `selectvoice` now works outside the define section, 325c9e1).
-      Beside the original (normal, hover, pressed): mean difference
-      0.1-3.5 levels, from the original's fire. The fire's glow is done
-      (step 7); left: the opening (step 7); 特別付加目録 waits for the
-      extras (step 8).
-   3. Done: the right-click menu (a new `CommandMenu`, in
-      `conv-cons/src/command_menu.rs`) and the quick bar (`ButtonBar`
-      with a `base` over the buttons, a `BarSlide` and the pressed cell),
-      built in `convert/muramasa/screens.rs`. The menu: sixteen rows over
-      メニュー黒バック, opened by a right-click or M at a click wait; the
-      backdrop fades in over 100 ms, then the rows appear 10 ms apart from
-      the top; closing, they go from the bottom, then the backdrop fades
-      out (filmed: the rows go first, though `sys_menu.nss` starts the
-      fade with them). Filmed at 60 fps beside the original, opening and
-      closing land within a frame. It closes on キャンセル, M, a
-      right-click, or after skip, 超速, auto or hide; save, load, log,
-      settings, 好感度記録, title and quit come back to it. The game's
-      shortcut letters work at any click wait (CONscripter's `getkey`,
-      53555cf). The quick bar waits 32 px off the right edge and slides
-      in over 200 ms (cubic ease-out, `Dxl2`) when the pointer passes
-      x 968, out when it goes back: an invisible `btn` hotspot with
-      `getmouseover` ends the click wait when the pointer crosses the
-      edge, so no engine change was needed. While it is out a click that
-      misses its buttons doesn't advance. Its base carries the words and
-      lies over the buttons, which are colour washes behind it. Quick
-      save (slot 890, しおり sound) and quick load (300 ms to black) ask
-      nothing. 選択肢に戻る: every choice saves to slot 891 first; the item
-      is greyed while there is none, asks 選択肢まで戻りますか, and loads it
-      after 300 ms to black; a new game and every other load delete it
-      (`loadgosub`), as the original does with 9999. Beside the original
-      (no quick save, セーブ under the pointer): mean difference 0.36
-      levels over the screen, 0.88 in the menu, offset 0,0; quick bar at
-      rest 1.8, hovered 1.0-1.9, pressed 1.0, offset 0,0; the slide's
-      pixel steps match frame for frame (ours starts about 130 ms sooner:
-      the original polls the pointer in a process). Differences left:
-      - The menu has no pressed picture: filmed at 30 fps, the original
-        keeps the hover picture while the mouse button is held (its
-        `003` files are never shown), so the menu does the same.
-      - The bar moves only at click waits; the original's process also
-        slides it while text is being drawn.
-      - 超速スキップ skips like スキップ (pages shown): CONscripter has no
-        skip that hides them.
-      - Esc opens the menu (it is ONScripter's right-click); in the
-        original it asks ゲームを終了しますか. Space reads on and Ctrl
-        skips while held, as in ONScripter; in the original Space hides
-        the window.
-      - The bar is put away while the menu is open (the original's,
-        drawn above everything, stays if it was out).
-      - 好感度記録 (H) runs `sys_hmode.nss` compiled once as a subroutine
-        (`Game::subroutines`, `conv_favour`) between `pushscreen` and
-        `popscreen`. Its `judgment_of_count`, the favour screen, is now a
-        port (`convert/muramasa/favour.rs`), in the story too, where only
-        its background used to show: the NSS draws it with loops over
-        arrays and counters known only at run time, which the compiler
-        can't follow (after a runtime `if` it shows the first branch's
-        pictures). The port is a new generic `Op::PictureScreen`
-        (`conv-cons/src/picture_screen.rs`): pictures in the menus'
-        sprites over the scene and its text window, each with its runtime
-        test (the icon struck out and the column covered for a dead
-        heroine, 村正's black box while her counter is 0, one gauge column
-        per count), faded in over 300 ms, closed by a click. Beside the
-        original at the first page (H): mean difference 5.0 levels, offset
-        0,0; the panel is see-through, and the text under it differs
-        (wine's substitute font), and our dimmed surround is a little
-        darker. Left out from the story's visit: the new gauges blinking in
-        and a heroine's icon being struck out with its sound the first
-        time she is dead.
-      Fixed on the way: the title's しおりから used `load`, which isn't a
-      command (NScripter's is `loadgame`), so it stopped the game.
-   4. Done: the save and load screens (a new `SaveGrid`, emitted by
-      `conv-cons/src/save_grid.rs`, Muramasa's values in
-      `convert/muramasa/screens.rs` from `sys_save.nss`/`sys_load.nss`).
-      Five pages of twenty thumbnails over each page's own picture
-      (数字01-20背景save … 数字80-100背景load), four columns from the right,
-      under サムネールワク; 前頁/次頁 go round, 削除 toggles delete mode
-      (削除ボタン-003 over it), 退出, a right-click or the screen's key
-      (S, L) leave; it cross-fades in and out over 300 ms. The slot under
-      the pointer gets the hover frame and its details: the date, the
-      play time, the chapter (`$TITLE_NOW`, now `Op::Chapter`) and the
-      page's text down in columns from the right (CONscripter's
-      `vstrsp`, 3034b55), and a larger thumbnail. Each slot is an
-      invisible `exbtn` whose hover command shows its details. A click
-      saves (asking 記録を上書きして良いか over a full slot, then
-      記録をしました over the dimmed page until a click), loads (asking)
-      or deletes (asking). The thumbnail is the scene without the text
-      window, as in the original. The play time is CONscripter's
-      (`getplaytime`/`setplaytime`, 8b92e5b): the engine counts it, a
-      save keeps it, a load puts it back, a new game starts at 0. The
-      label of a save holds date|time|chapter|text (`savegame2`,
-      `getsavestr`); the text comes from `getlog`, with the page's line
-      breaks as the original keeps them. Beside the original under wine
-      (save screen, empty slot hovered: mean difference 0.91 levels,
-      offset 0,0; a filled slot hovered at the first page: 1.93, with no
-      pixel different in the grid, thumbnails included; the rest is the
-      text). Differences left:
-      - The texts are drawn in ipam, the original in MS 明朝, which wine
-        replaces with a narrower font sitting 2-10 px lower: our date
-        and play time are wider, and a column of the last line holds
-        20 characters where wine fits 22.
-      - The converter breaks a page's lines to fit the window, and those
-        breaks show in the last line; the original's `$SYSTEM_last_text`
-        has only the source's.
-      - No transitions inside the screen (the details appear at once;
-        the original fades them).
-   5. Done: the backlog (a new `LineLog`, in
-      `conv-cons/src/line_log.rs`; Muramasa's values in
-      `convert/muramasa/screens.rs`, `line_log()`): sixteen rows of 26
-      characters over バックログ背景, the history laid out as rows by
-      CONscripter (`logrows`, `getlogrow`, 8a7a34e: each page's lines cut
-      at 26, ruby as its base text, a voiced page's voice on its first
-      row). The speaker icon (x 102) replays the voice; the wheel and
-      逆/進 scroll a row, wheel-down at the newest row, 退出 and a
-      right-click close; the knob (x 860, y 50 oldest to 461 newest)
-      can be dragged. It fades in and out over 300 ms. Wheel-up at a
-      click wait and the menu's ログ表示 open it. The history used to end
-      at the last window change: NScripter's `setwindow` flushes it, and
-      the converter re-sets the window for each text block. Every game's
-      window changes are now `setwindow3` (the same without the flush;
-      Saihate's opening trace has the same pages either way). Beside the
-      original (wine, the same pages): at the newest row the icons, knob
-      and panel are the same pixels, text placed within 2 px (the font
-      differs). Filmed at 60 fps (`film/backlog-wheel-4up4down.mkv`), the
-      original moves a row a notch in two 15 px steps about 33 ms apart;
-      ours moves the row at once.
-
-      Done: the click-wait icon (`Script::wait_icon`, a new `WaitIcon`;
-      `TextWindow::wait_icon_at`). The flame's 32 pictures
-      (`改行改頁アイコン`, System.ini `icon_line`/`icon_page`) joined into a
-      strip, looped, at each window's `$SYSTEM_position_{x,y}_text_icon`
-      (read when the converter runs the window's `TypeBegin*` helper: 452,555
-      for the usual vertical box, 194 and 706 for others). The bar's wait
-      routine shows it as a sprite in the bar's range (over the text window)
-      and removes it when the wait ends, so it doesn't show while text types.
-      Beside the original: the same place, the frames fit the original's
-      pictures at offset 0,0. Pictures 1-19 are the flame burning, 20-32 it
-      withering to smoke; watched in the original on a real display (wine
-      under Xvfb redraws the waiting screen only about once a second), it
-      burns about a second, withers about as long and lights again after a
-      pause: ours shows 1-19 for 53 ms each, 20-32 for 77 ms, then waits
-      500 ms (the pause is a guess), a 2.5 s cycle (each picture's time is
-      `WaitIcon::frame_ms`). Not done: the auto-mode icon (自動送りアイコン,
-      15 pictures).
-   6. Done: the settings screen (a new
-      `PictureSettings`, in `conv-cons/src/picture_settings.rs`; Muramasa's
-      values in `convert/muramasa/screens.rs`, `settings()`, from
-      `sys_config.nss`). コンフィグ over the screen, the controls laid over
-      it: six vertical sliders (voice, effects and music volume, auto wait,
-      text speed, game speed), nine 入/切 pairs (questions asked, a click
-      stops movies, auto and skip stop at a choice, skip unread text, the
-      voice plays on after a click, auto waits for the voice, music, effects
-      and voices heard), 承認 (asks 設定を初期状態に戻す, a new
-      `Switch::ConfirmReset`, then puts the defaults back), 実験 (a line of
-      景明's), the version line, 退出, right-click or C to leave; it fades in
-      and out over 300 ms and a pair's choice cross-fades over 100 ms. Each
-      control's resting picture is erased in the original (the picture shows
-      it): ours are strips with an empty first cell (`Assets::strip` takes
-      `""`), the `002` under the pointer; a slider's track is an invisible
-      `exbtn` that shows its knob's hover picture, and a press there drags
-      the knob. The display options (left column) are drawn as a first start
-      leaves them, without buttons. Values are globals %2920-%2941 (a
-      slider's position 0-1000, a pair's 0/1), with the first start's
-      defaults (the knobs found in the original's shot: voice and effects
-      800, music 600, auto wait 100, text speed 200, game speed 3), applied
-      at startup and as they change by CONscripter's new player settings
-      (ddb3686: `soundmute`, `clickvoicestop`, `autovoicewait`, `selectkeep`,
-      `moviestop`, `gamespeed`; volumes with `bgmvol`/`sevol`/`voicevol`,
-      skipping with `kidokumode`). The game speed is the exe's table
-      (`FUN_0047c250`, used by `Wait` and every action: time ÷ 0.5, 0.75,
-      1 (3), 1.5, 2, 3, 4, 5.5, 8, 12, 16, 32); the click wait sets 100 and
-      puts the story's back as it ends, so menus run at normal speed, as in
-      the original. Volumes follow the exe's curve approximately
-      ((p²/50 + p)/3 for 100·(v/1000)^1.661); the auto wait is the exe's
-      per-character wait (0-200 ms a character); text speed is ours (0-100 ms
-      a character, 20 at the default, unmeasured). Beside the original
-      (wine, the first page): mean difference 1.6 levels, every pixel within
-      40 levels but the version line (the font); 入 hovered matches.
-      The voice window (別窓を開く, a new `VoiceWindow`): ボイスセレクトウィンドウ背景
-      over black at 700/1000, each character's picture once the story has set
-      its `#voice_on_<name>` (55 flags, and `#一章クリア`, declared by the
-      game's `flags()`: the story sets them, only `sys_config` reads them),
-      with ボイスチェック on its box while its voices play; clicking the box
-      mutes or unmutes every voice of its class (`Story::voice_classes`, the
-      compiler's character numbers, passed to `menus()` with the flags; the
-      switches are the `%970+c` that `dwave` reads). Until 一章クリア it lists
-      fourteen characters with their `1章_` pictures, after it all 55, as
-      `ConfigVoiceArray` does. Classes of no entry (高官, 皇路, …) always
-      play, as `#SYSTEM_voice_enable_another` is never turned off. Beside the
-      original at the first page (その他男声 and その他女声 heard): mean
-      difference 0.57 levels, every pixel within 40 but the version line.
-      Left: the wheel over a slider.
+   1-6. Done: button strips, the title, the right-click menu, save and
+   load, the backlog and the settings screen ("History", below).
    7. Motion and movies: the title's fire flicker and its openings, the
-      dialog unroll, the menu cascade (step 3) are done. Left, by the
+      dialog unroll, the menu cascade (step 3, in "History") are done. Left, by the
       user's choice (2026-10-15): the quick bar sliding while text types
       (it slides at click waits; doing it while text types needs the
       engine to move the bar);
@@ -1144,3 +827,334 @@ Next, in order:
   checker's `text` rule finds those characters in text lines.
 - Engine: CONscripter segfaults on `end` after a `dwave` voice with Ctrl
   held (seen once in a small test script; not looked into).
+
+## History
+
+Finished work, moved out of "Status" so a session reads only the open
+state.
+
+**The route runs, round 3 (2026-10-14):**
+
+(Round 3, 2026-10-14: the build with every fix below up to the `[text0081]`
+marker, engine 0.19.1, all ten paths side by side with `--all`; the
+times are with ten at once. Rounds 1 and 2, the five endings on the
+builds before, passed too. Round 3's checker report matches round 2's,
+with no `error` or `missing`; the only new findings are `slow` waits in
+`ma05_019` (7.8 s where the original takes about 4 s): since the alias
+fix its non-blocking 2 s `Shake` really shakes, and we play it blocking
+before the next fade.) The same runs on Xvfb in skip mode took 40-56 minutes. On CONscripter
+0.18.0, run 9 aborted 508 files in with `malloc(): unaligned tcache
+chunk detected` (heap corruption, noticed in `malloc` under `lsp` →
+`loadImage`); on 0.19.0 it passes. A likely cause, fixed in between:
+CONscripter's `DirectReader` copied a file name's extension over its
+own buffer with an overlapping `strcpy` (engine `1d51abc`; undefined
+behaviour on file reads). An AddressSanitizer build of 0.19.0 played
+the whole of run 9 (510 files, 34 min, `ASAN_OPTIONS=detect_leaks=0`)
+with no error, so no bad memory access is left on that route.
+
+Fixed on the way (each found by the runs, all in the current build):
+- A `?` in horizontal text: NScripter reads it as an array reference
+  and exits with 255 (the message goes to `stderr.txt`). Every route
+  passed one, in `ma03_027vs`: the NSS `<?>` tag (93 uses), passed
+  through as text. Text lines now write `?` full-width, `<?>` is
+  dropped, and lint reports a `?` in text.
+- `<?>` at the end of a line joins the next text line to it, after the
+  code between them (a face change, a typewriter's key sound). It was
+  taken as a line break, so the typewriter captions of `ma01_026`
+  (《興隆四一年一〇月一二日》) came out one character per column, and 30
+  lines of dialogue were split in two. Found by the trace checker's
+  `text` rule ("the text runs past the window") on the first route run.
+- A `/* … */` block inside a text block was printed as text (`／＊`,
+  three copies of 「暗闇星人……」, `＊／`, in 3 files). The NSS parser now
+  leaves it out like a `//` line.
+- Lines spoken in unison (66 `CreateVOICE` calls in 32 files) had no
+  voice: the helper plays them only when the setting "other voices"
+  (`#SYSTEM_voice_enable_another`) is on, which the compiler didn't
+  know. It now starts with the value a first start gives it (on), and
+  the voices play together on their own channels. Both found by the
+  checker's `voice` rule.
+- `Play` on a looping sound that was still playing started a second
+  copy: `md04_048vs` calls `MusicStart` on its loop eight times to change
+  its volume and speed, and `茶々丸の世界_L` ended up on eight channels at
+  once (28 loop starts in the game). Found by the checker's `sound` rule.
+- `WaitAction(obj)` waited for every action still running, not only
+  `obj`'s: in `mb02_030vs`, `CP_EHPChange` waits on its own process
+  after a non-blocking 15 s zoom, and the player sat through a 15 s
+  fade (five such waits of 5 s or more). Found by the checker's
+  `duration` rule.
+- Branches of a runtime `if` that ended with different pictures left
+  sprites up: the code after them follows the first branch's sprite
+  layers, so a sprite another branch put elsewhere was never cleared.
+  After the favour screen (`judgment_of_count`, 村正's icon hidden only
+  while `$Muramasa_Flag` is 0) its full-screen background stayed in
+  front of the story for 150 pages. The next sync now removes what any
+  branch left and draws the merged pictures anew. Cost: after the merge
+  every branch shows the first branch's pictures (the black box over
+  村正's icon also shows when she is known, until the screen closes).
+  Found by the checker's `linger` rule.
+- A wildcard (`@StMR*`) only matched object names, not aliases: the
+  character helpers create `遠４/StMR01` with the alias `StMR01`, so
+  `Move("@StMR*", …)`, fades, shakes and deletes on them did nothing
+  (`ma02_012`: ふき stayed 600 px off screen instead of sliding in).
+  About 11,700 lines of the output changed (44 more screen shakes, real
+  moves in place of 177 waits, characters deleted when the script
+  deletes them). Found by the checker's `offscreen` rule.
+- Non-blocking actions were cross-faded over their whole time at the
+  next sync: a 270 s background scroll (`ma04_013vs`) blocked the
+  player for 270 s, 51 cross-fades were over a minute. Now at most a
+  `Wait`'s time, or 1 s where the script doesn't wait.
+- The full build ran out of memory (7 GB) on 60x zooms; now 1.2 GB.
+
+Fixed after the route runs (2026-10-14), from screenshots of the first
+page each punctuation mark or symbol shows on (`--shot-pages`):
+- Vertical text drew the marks CONscripter turns for it (《》「」『』（）
+  ― ～ …) high and to one side of the column: 《 stuck out to the
+  left. The engine now turns them about the centre of their cell
+  (CONscripter 3c7c957), so ︽ sits on the text it opens.
+- Vertical text sat 8 px left of the original's columns (page 5 of the
+  prologue, filmed under wine): `rubyon` moves vertical lines left by
+  the line gap, which the converter undid for choice windows only. Every
+  vertical window now starts a line gap further right, and the columns
+  match the original to the pixel.
+- `[text0081]〝卵〟を…` (`md05_003`, the only marker with text after it
+  on its line) printed the marker as text, ［ｔｅｘｔ００８１］. The NSS
+  parser now reads it as a marker. Needs a full build to show.
+- English lost most of its spaces: ONScripter skipped the space before
+  each pair of half-width characters, so “Tell me the tales that to me
+  were so dear” (`mb04_008vs`, 33 such lines) showed as “Tellmethe tales
+  thattomeweresodear”. CONscripter now keeps a space after other text,
+  in sprite text too (2179dbd).
+- Built-in and NSS function names matched ignoring case; the exe
+  matches them exactly (`dispatch_builtin`, `call_nss_function`,
+  `research/nitroplus/builtins.md`, "In the exe") and skips a call to a
+  name it doesn't know. So `Waitkey(500)` (`md04_004`, `md06_035`) was
+  a half-second wait and `SL_Rightdown(…)` (`ma00_000`) ran
+  `SL_rightdown`; the original does neither. Names are exact now, and
+  the build's list counts the skipped calls (`skipped: no function`,
+  13 names, 179 calls, `Boxframe` 153 of them).
+- The screen kept shaking through the whole prologue, from the first
+  `Shake` (`ma00_000`, 1 s) on: `screenshake` keeps its last size until
+  its slot is cleared, and the converter never cleared it. An NSS
+  `Shake` lasts its time, or until its picture is deleted (shakes of
+  500 s or 36 minutes end that way), and 0 ms or 0 px stops it. The
+  converter now gives each shake its time as `screenshake`'s new `end`
+  (CONscripter 81d0b80) and clears the slot when the shaken picture
+  goes or a stopping `Shake` comes. The checker missed it: its
+  `overlay` rule looked for an effect left on after `bg` changed, and
+  this game draws everything as sprites over `bg black`. It now also
+  reports a shake with no end left on for 30 pages (`--shake`), and
+  the trace counts the waits auto-play skips toward a shake's end. On
+  the prologue (419 pages) the old build gives two `overlay` findings,
+  the new one none.
+
+**System screens done (Status, next item 4, steps 1-6):**
+
+1. Done: button strips joined from the `000`-`003` part files at
+   convert time (`Assets::strip`: normal, hover, disabled, pressed);
+   the yes/no questions as the game's pictures (`ConfirmDialog`
+   `pictures`, `backdrop`, `pressed`, `fade_ms`; built in
+   `convert/muramasa/screens.rs`), with the pressed state from
+   CONscripter's `spbtn num,no,pressed_cell` (625c598). Beside the
+   original (quit question, normal, both hovers, 拒否 pressed): the
+   same pixels, offset 0,0. The 150 ms sideways unroll is done (step
+   7). Left for later: the 記録をしました notice (with the save
+   screen), 選択肢まで戻りますか and 設定を初期状態に戻す (with their
+   screens).
+2. Done (static): the title at rest, the background, logo and
+   copyright composed into one picture, the six buttons with their
+   hover (`002`) and pressed (`003`) pictures, the hover sound (刀構え02)
+   and each button's click sound, the title music, Start's 3 s music
+   fade, 1 s fade to black and 2 s wait, 終了する quitting with no
+   question, しおりから dimmed to half while there is no quick save
+   (`TitleScreen` `pressed`, `hover_se`, `bgm`, `start_*`,
+   `exit_without_asking`, `TitleAction::Continue`; CONscripter's
+   `selectvoice` now works outside the define section, 325c9e1).
+   Beside the original (normal, hover, pressed): mean difference
+   0.1-3.5 levels, from the original's fire. The fire's glow is done
+   (step 7); left: the opening (step 7); 特別付加目録 waits for the
+   extras (step 8).
+3. Done: the right-click menu (a new `CommandMenu`, in
+   `conv-cons/src/command_menu.rs`) and the quick bar (`ButtonBar`
+   with a `base` over the buttons, a `BarSlide` and the pressed cell),
+   built in `convert/muramasa/screens.rs`. The menu: sixteen rows over
+   メニュー黒バック, opened by a right-click or M at a click wait; the
+   backdrop fades in over 100 ms, then the rows appear 10 ms apart from
+   the top; closing, they go from the bottom, then the backdrop fades
+   out (filmed: the rows go first, though `sys_menu.nss` starts the
+   fade with them). Filmed at 60 fps beside the original, opening and
+   closing land within a frame. It closes on キャンセル, M, a
+   right-click, or after skip, 超速, auto or hide; save, load, log,
+   settings, 好感度記録, title and quit come back to it. The game's
+   shortcut letters work at any click wait (CONscripter's `getkey`,
+   53555cf). The quick bar waits 32 px off the right edge and slides
+   in over 200 ms (cubic ease-out, `Dxl2`) when the pointer passes
+   x 968, out when it goes back: an invisible `btn` hotspot with
+   `getmouseover` ends the click wait when the pointer crosses the
+   edge, so no engine change was needed. While it is out a click that
+   misses its buttons doesn't advance. Its base carries the words and
+   lies over the buttons, which are colour washes behind it. Quick
+   save (slot 890, しおり sound) and quick load (300 ms to black) ask
+   nothing. 選択肢に戻る: every choice saves to slot 891 first; the item
+   is greyed while there is none, asks 選択肢まで戻りますか, and loads it
+   after 300 ms to black; a new game and every other load delete it
+   (`loadgosub`), as the original does with 9999. Beside the original
+   (no quick save, セーブ under the pointer): mean difference 0.36
+   levels over the screen, 0.88 in the menu, offset 0,0; quick bar at
+   rest 1.8, hovered 1.0-1.9, pressed 1.0, offset 0,0; the slide's
+   pixel steps match frame for frame (ours starts about 130 ms sooner:
+   the original polls the pointer in a process). Differences left:
+   - The menu has no pressed picture: filmed at 30 fps, the original
+     keeps the hover picture while the mouse button is held (its
+     `003` files are never shown), so the menu does the same.
+   - The bar moves only at click waits; the original's process also
+     slides it while text is being drawn.
+   - 超速スキップ skips like スキップ (pages shown): CONscripter has no
+     skip that hides them.
+   - Esc opens the menu (it is ONScripter's right-click); in the
+     original it asks ゲームを終了しますか. Space reads on and Ctrl
+     skips while held, as in ONScripter; in the original Space hides
+     the window.
+   - The bar is put away while the menu is open (the original's,
+     drawn above everything, stays if it was out).
+   - 好感度記録 (H) runs `sys_hmode.nss` compiled once as a subroutine
+     (`Game::subroutines`, `conv_favour`) between `pushscreen` and
+     `popscreen`. Its `judgment_of_count`, the favour screen, is now a
+     port (`convert/muramasa/favour.rs`), in the story too, where only
+     its background used to show: the NSS draws it with loops over
+     arrays and counters known only at run time, which the compiler
+     can't follow (after a runtime `if` it shows the first branch's
+     pictures). The port is a new generic `Op::PictureScreen`
+     (`conv-cons/src/picture_screen.rs`): pictures in the menus'
+     sprites over the scene and its text window, each with its runtime
+     test (the icon struck out and the column covered for a dead
+     heroine, 村正's black box while her counter is 0, one gauge column
+     per count), faded in over 300 ms, closed by a click. Beside the
+     original at the first page (H): mean difference 5.0 levels, offset
+     0,0; the panel is see-through, and the text under it differs
+     (wine's substitute font), and our dimmed surround is a little
+     darker. Left out from the story's visit: the new gauges blinking in
+     and a heroine's icon being struck out with its sound the first
+     time she is dead.
+   Fixed on the way: the title's しおりから used `load`, which isn't a
+   command (NScripter's is `loadgame`), so it stopped the game.
+4. Done: the save and load screens (a new `SaveGrid`, emitted by
+   `conv-cons/src/save_grid.rs`, Muramasa's values in
+   `convert/muramasa/screens.rs` from `sys_save.nss`/`sys_load.nss`).
+   Five pages of twenty thumbnails over each page's own picture
+   (数字01-20背景save … 数字80-100背景load), four columns from the right,
+   under サムネールワク; 前頁/次頁 go round, 削除 toggles delete mode
+   (削除ボタン-003 over it), 退出, a right-click or the screen's key
+   (S, L) leave; it cross-fades in and out over 300 ms. The slot under
+   the pointer gets the hover frame and its details: the date, the
+   play time, the chapter (`$TITLE_NOW`, now `Op::Chapter`) and the
+   page's text down in columns from the right (CONscripter's
+   `vstrsp`, 3034b55), and a larger thumbnail. Each slot is an
+   invisible `exbtn` whose hover command shows its details. A click
+   saves (asking 記録を上書きして良いか over a full slot, then
+   記録をしました over the dimmed page until a click), loads (asking)
+   or deletes (asking). The thumbnail is the scene without the text
+   window, as in the original. The play time is CONscripter's
+   (`getplaytime`/`setplaytime`, 8b92e5b): the engine counts it, a
+   save keeps it, a load puts it back, a new game starts at 0. The
+   label of a save holds date|time|chapter|text (`savegame2`,
+   `getsavestr`); the text comes from `getlog`, with the page's line
+   breaks as the original keeps them. Beside the original under wine
+   (save screen, empty slot hovered: mean difference 0.91 levels,
+   offset 0,0; a filled slot hovered at the first page: 1.93, with no
+   pixel different in the grid, thumbnails included; the rest is the
+   text). Differences left:
+   - The texts are drawn in ipam, the original in MS 明朝, which wine
+     replaces with a narrower font sitting 2-10 px lower: our date
+     and play time are wider, and a column of the last line holds
+     20 characters where wine fits 22.
+   - The converter breaks a page's lines to fit the window, and those
+     breaks show in the last line; the original's `$SYSTEM_last_text`
+     has only the source's.
+   - No transitions inside the screen (the details appear at once;
+     the original fades them).
+5. Done: the backlog (a new `LineLog`, in
+   `conv-cons/src/line_log.rs`; Muramasa's values in
+   `convert/muramasa/screens.rs`, `line_log()`): sixteen rows of 26
+   characters over バックログ背景, the history laid out as rows by
+   CONscripter (`logrows`, `getlogrow`, 8a7a34e: each page's lines cut
+   at 26, ruby as its base text, a voiced page's voice on its first
+   row). The speaker icon (x 102) replays the voice; the wheel and
+   逆/進 scroll a row, wheel-down at the newest row, 退出 and a
+   right-click close; the knob (x 860, y 50 oldest to 461 newest)
+   can be dragged. It fades in and out over 300 ms. Wheel-up at a
+   click wait and the menu's ログ表示 open it. The history used to end
+   at the last window change: NScripter's `setwindow` flushes it, and
+   the converter re-sets the window for each text block. Every game's
+   window changes are now `setwindow3` (the same without the flush;
+   Saihate's opening trace has the same pages either way). Beside the
+   original (wine, the same pages): at the newest row the icons, knob
+   and panel are the same pixels, text placed within 2 px (the font
+   differs). Filmed at 60 fps (`film/backlog-wheel-4up4down.mkv`), the
+   original moves a row a notch in two 15 px steps about 33 ms apart;
+   ours moves the row at once.
+
+   Done: the click-wait icon (`Script::wait_icon`, a new `WaitIcon`;
+   `TextWindow::wait_icon_at`). The flame's 32 pictures
+   (`改行改頁アイコン`, System.ini `icon_line`/`icon_page`) joined into a
+   strip, looped, at each window's `$SYSTEM_position_{x,y}_text_icon`
+   (read when the converter runs the window's `TypeBegin*` helper: 452,555
+   for the usual vertical box, 194 and 706 for others). The bar's wait
+   routine shows it as a sprite in the bar's range (over the text window)
+   and removes it when the wait ends, so it doesn't show while text types.
+   Beside the original: the same place, the frames fit the original's
+   pictures at offset 0,0. Pictures 1-19 are the flame burning, 20-32 it
+   withering to smoke; watched in the original on a real display (wine
+   under Xvfb redraws the waiting screen only about once a second), it
+   burns about a second, withers about as long and lights again after a
+   pause: ours shows 1-19 for 53 ms each, 20-32 for 77 ms, then waits
+   500 ms (the pause is a guess), a 2.5 s cycle (each picture's time is
+   `WaitIcon::frame_ms`). Not done: the auto-mode icon (自動送りアイコン,
+   15 pictures).
+6. Done: the settings screen (a new
+   `PictureSettings`, in `conv-cons/src/picture_settings.rs`; Muramasa's
+   values in `convert/muramasa/screens.rs`, `settings()`, from
+   `sys_config.nss`). コンフィグ over the screen, the controls laid over
+   it: six vertical sliders (voice, effects and music volume, auto wait,
+   text speed, game speed), nine 入/切 pairs (questions asked, a click
+   stops movies, auto and skip stop at a choice, skip unread text, the
+   voice plays on after a click, auto waits for the voice, music, effects
+   and voices heard), 承認 (asks 設定を初期状態に戻す, a new
+   `Switch::ConfirmReset`, then puts the defaults back), 実験 (a line of
+   景明's), the version line, 退出, right-click or C to leave; it fades in
+   and out over 300 ms and a pair's choice cross-fades over 100 ms. Each
+   control's resting picture is erased in the original (the picture shows
+   it): ours are strips with an empty first cell (`Assets::strip` takes
+   `""`), the `002` under the pointer; a slider's track is an invisible
+   `exbtn` that shows its knob's hover picture, and a press there drags
+   the knob. The display options (left column) are drawn as a first start
+   leaves them, without buttons. Values are globals %2920-%2941 (a
+   slider's position 0-1000, a pair's 0/1), with the first start's
+   defaults (the knobs found in the original's shot: voice and effects
+   800, music 600, auto wait 100, text speed 200, game speed 3), applied
+   at startup and as they change by CONscripter's new player settings
+   (ddb3686: `soundmute`, `clickvoicestop`, `autovoicewait`, `selectkeep`,
+   `moviestop`, `gamespeed`; volumes with `bgmvol`/`sevol`/`voicevol`,
+   skipping with `kidokumode`). The game speed is the exe's table
+   (`FUN_0047c250`, used by `Wait` and every action: time ÷ 0.5, 0.75,
+   1 (3), 1.5, 2, 3, 4, 5.5, 8, 12, 16, 32); the click wait sets 100 and
+   puts the story's back as it ends, so menus run at normal speed, as in
+   the original. Volumes follow the exe's curve approximately
+   ((p²/50 + p)/3 for 100·(v/1000)^1.661); the auto wait is the exe's
+   per-character wait (0-200 ms a character); text speed is ours (0-100 ms
+   a character, 20 at the default, unmeasured). Beside the original
+   (wine, the first page): mean difference 1.6 levels, every pixel within
+   40 levels but the version line (the font); 入 hovered matches.
+   The voice window (別窓を開く, a new `VoiceWindow`): ボイスセレクトウィンドウ背景
+   over black at 700/1000, each character's picture once the story has set
+   its `#voice_on_<name>` (55 flags, and `#一章クリア`, declared by the
+   game's `flags()`: the story sets them, only `sys_config` reads them),
+   with ボイスチェック on its box while its voices play; clicking the box
+   mutes or unmutes every voice of its class (`Story::voice_classes`, the
+   compiler's character numbers, passed to `menus()` with the flags; the
+   switches are the `%970+c` that `dwave` reads). Until 一章クリア it lists
+   fourteen characters with their `1章_` pictures, after it all 55, as
+   `ConfigVoiceArray` does. Classes of no entry (高官, 皇路, …) always
+   play, as `#SYSTEM_voice_enable_another` is never turned off. Beside the
+   original at the first page (その他男声 and その他女声 heard): mean
+   difference 0.57 levels, every pixel within 40 but the version line.
+   Left: the wheel over a slider.
