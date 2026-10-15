@@ -5,8 +5,9 @@
 
 use conv_core::ir::{ChoicePlates, ChoiceStyle, TextWindow};
 
-use super::{Compiler, Game};
+use super::{Compiler, Game, Value};
 
+mod battle;
 pub mod extras;
 pub mod screens;
 
@@ -15,6 +16,7 @@ pub const DJANGO: Game = Game {
     screen: (800, 600),
     boot: "boot.nss",
     story: Some((STORY, "SelectStoryMode")),
+    call,
     relative_children: true,
     loaded_textures: true,
     zoom_vertex: true,
@@ -28,6 +30,11 @@ pub const DJANGO: Game = Game {
     menus: screens::menus,
     ..Game::PLAIN
 };
+
+/// The functions compiled as the game's own: the battle's movies.
+fn call(c: &mut Compiler<'_, '_>, name: &str, args: &[Value]) -> bool {
+    name == "VS400" && c.vs400(args)
+}
 
 /// The story driver: its `SelectStoryMode` (what `main` runs unless
 /// `$SelectDebug`, the developers' chapter select, which the boot script
