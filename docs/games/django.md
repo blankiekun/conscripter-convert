@@ -283,16 +283,15 @@ yet.
 | Text | 🟡 In the boxes' places (box00: 39 columns at 50,472, white on the black bar); 3,424 voiced lines; not compared with the original yet |
 | Pictures, sound in scripts | 🟡 Black bars, face windows in their frames, standing pictures, backgrounds; what Muramasa's compiler does for effects (moves and zooms as cross-fades); every sound is found |
 | Choices | ✅ Plates as picture buttons, text placed as the original's (compared under wine) |
-| System screens | 🟡 From the game's pictures (`django/screens.rs`): title, right-click menu, save/load (3×20 slots), yes/no questions, text log, settings (bullet rows as `SliderSteps`), the click-wait bullet; not compared with the original (it wants its disc under wine) |
+| System screens | 🟡 From the game's pictures (`django/screens.rs`): title, right-click menu, save/load (3×20 slots), yes/no questions, text log, settings (bullet rows as `SliderSteps`), the click-wait bullet; compared under wine: right-click menu, save, log, settings (text speed starts at level 5 as the original's; the two SAVE-DATA question rows drawn as they stand, ON chosen; the display options and version panel left out on purpose) |
 | Extras | 🟡 Menu, CG library, sound library, recollection, each compared with the original; left out: the doors' animation, the rifle over a category |
 | Saves | 🟡 `--roundtrip-every 100` over the first 1,500 pages: no save/load mismatch; saves from the screens not tried by hand |
 | Web build | 🟡 Plays in a browser (title, story pages); saves, sound and touch not checked yet |
 
 ### Next
 
-1. Under wine (recipe above): the choices (centred text, the plate
-   picture under the pointer), the save/load screens, the log and the
-   settings beside ours; the chapter-end rule above.
+1. Under wine (recipe above): the chapter-end rule above; dja004's
+   choice (characters misplaced beside `shots/choice.png`, camera).
 2. The rest of the trace checker's list (`cons_trace_check.py` on
    `out/django-routes/good.jsonl`): one page runs past the window
    (dja023_02 `[text029]`: a 21-character line in box02, 20 columns of a

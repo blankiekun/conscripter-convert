@@ -49,9 +49,9 @@ pub fn menus(a: &mut dyn Assets, script: &mut Script, story: &Story) {
 /// system.ini: 7, 9, 10); GAME-SPEED is the engine's play speed 3
 /// (NORMAL, default), 5 (QUICK-A), 12 (QUICK-B), 1 (LOWSPEC), each the
 /// percent of 装甲悪鬼村正's exe table (assumed the same engine). Left
-/// out and drawn as they stand by default: the two questions' rows (one
-/// switch here turns all questions off), the display options, the
-/// character voices window, the voice test, DEFAULT (it would ask with no
+/// out and drawn as they stand by default: the two questions' rows (ON
+/// chosen, OFF at rest; one switch here turns all questions off), the
+/// display options, the character voices window, the voice test, DEFAULT (it would ask with no
 /// picture of its own), the links.
 fn settings(a: &mut dyn Assets) -> Option<PictureSettings> {
     const DIR: &str = "cg/sys/config";
@@ -89,7 +89,9 @@ fn settings(a: &mut dyn Assets) -> Option<PictureSettings> {
     }
     let sliders = vec![
         stepped(SliderSetting::GameSpeed { levels: [50, 75, 100, 150, 200, 300, 400, 550, 800, 1200, 1600, 3200] }, presets, speed(3), false),
-        stepped(SliderSetting::TextSpeed { ms: 50 }, bullets(a, 212, &text_speed)?, text_speed(10), true),
+        // The engine starts at 500 (level 5, under wine; config_default's
+        // 1000 is DEFAULT's).
+        stepped(SliderSetting::TextSpeed { ms: 50 }, bullets(a, 212, &text_speed)?, text_speed(5), true),
         stepped(SliderSetting::AutoWait { ms: 200 }, bullets(a, 308, &per_char)?, per_char(5), true),
         stepped(SliderSetting::BgmVolume, bullets(a, 422, &volume)?, volume(7), true),
         stepped(SliderSetting::SeVolume, bullets(a, 470, &volume)?, volume(9), true),
@@ -112,6 +114,8 @@ fn settings(a: &mut dyn Assets) -> Option<PictureSettings> {
         picture(a, "001-初期化_x450-y58", 450, 58)?,
         picture(a, "on-003", 386, 82)?,
         picture(a, "on-003", 386, 106)?,
+        picture(a, "off-001", 440, 82)?,
+        picture(a, "off-001", 440, 106)?,
         picture(a, "各キャラ-001", 293, 362)?,
         picture(a, "vioce-test-01", 440, 542)?,
         picture(a, "ディスプレイ依存-003", 516, 82)?,
