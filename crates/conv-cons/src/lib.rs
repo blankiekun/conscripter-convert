@@ -1141,6 +1141,12 @@ fn title_screen(out: &mut String, t: &TitleScreen, fade: &str, save_menu: bool, 
     // Effect 0 = update the buffer only; the print shows it all.
     writeln!(out, "bg \"{}\",0", path(&t.background)).unwrap();
     writeln!(out, "*{TITLE_DRAW}").unwrap();
+    if let Some(g) = &t.glow {
+        // Behind the buttons, which take the first menu sprites.
+        let slot = MENU_SPRITES.end - 1;
+        let keys: Vec<String> = g.keys.iter().map(|(t, a)| format!("{t},{a}")).collect();
+        writeln!(out, "lsp {slot},\":c;{}\",0,0:spalpha {slot},1,{}", path(&g.image), keys.join(",")).unwrap();
+    }
     if let Some(bgm) = &t.bgm {
         writeln!(out, "bgm \"{}\"", path(bgm)).unwrap();
     }
@@ -2007,10 +2013,12 @@ effect 7,99,1000,\"cons_zoom.dll/3,220,5\"
             start_bgm_fade_ms: 3000,
             start_wait_ms: 2000,
             exit_without_asking: true,
+            glow: Some(conv_core::ir::TitleGlow { image: "system/fire.jpg".into(), keys: vec![(0, 0), (600, 256), (1200, 0)] }),
         });
         let text = emit(&s);
         for part in [
-            "*conv_title_draw\nbgm \"sound\\bgm\\title.ogg\"\nsavefileexist %105,890\nlsp 6,\":a/3,0,3;system\\quick.png\",822,150\nif %105 == 0 lsp 6,\":a/3,0,3;system\\quick.png\",822,150,128\n",
+            // The glow behind the buttons, redrawn with them.
+            "*conv_title_draw\nlsp 33,\":c;system\\fire.jpg\",0,0:spalpha 33,1,0,0,600,256,1200,0\nbgm \"sound\\bgm\\title.ogg\"\nsavefileexist %105,890\nlsp 6,\":a/3,0,3;system\\quick.png\",822,150\nif %105 == 0 lsp 6,\":a/3,0,3;system\\quick.png\",822,150,128\n",
             "*conv_title\nselectvoice \"\",\"sound\\se\\over.ogg\",\"\"\nsavefileexist %105,890\nif %105 == 1 spbtn 6,1,2\nspbtn 7,2,2\nspbtn 8,3,2\nbtnwait %9\nselectvoice \"\",\"\",\"\"\n",
             "if %9 == 1 dwave 1,\"sound\\se\\a.ogg\":csp -1:loadgame 890\n",
             // No question before quitting.

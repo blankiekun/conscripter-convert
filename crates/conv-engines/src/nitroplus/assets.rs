@@ -365,6 +365,41 @@ impl Assets for NpaAssets<'_> {
         r.map(|n| (rel, n, w, h))
     }
 
+    fn overlaid(&mut self, base: &str, top: &str, zoom: i64, opacity: i64) -> Option<String> {
+        let (top, tw, th) = self.image(top)?;
+        use std::hash::{Hash, Hasher};
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        (base, &top, zoom, opacity).hash(&mut h);
+        let rel = format!("system/overlay_{:016x}.jpg", h.finish());
+        if self.out.dry_run || self.out.root.join(&rel).exists() {
+            return Some(rel);
+        }
+        let base_img = image::open(self.out.root.join(base)).ok()?.into_rgb8();
+        let top_img = image::open(self.out.root.join(&top)).ok()?.into_rgb8();
+        let (sw, sh) = base_img.dimensions();
+        let (cx, cy) = (tw as f64 / 2.0, th as f64 / 2.0);
+        let z = zoom.max(1) as f64 / 1000.0;
+        let a = opacity.clamp(0, 1000) as f64 / 1000.0;
+        let mut out = base_img.clone();
+        for (x, y, p) in out.enumerate_pixels_mut() {
+            // The top picture's pixel under this one (nearest).
+            let (tx, ty) = (((x as f64 + 0.5 - cx) / z + cx) as i64, ((y as f64 + 0.5 - cy) / z + cy) as i64);
+            if tx < 0 || ty < 0 || tx >= tw as i64 || ty >= th as i64 || x >= sw || y >= sh {
+                continue;
+            }
+            let t = top_img.get_pixel(tx as u32, ty as u32);
+            for c in 0..3 {
+                let (b, f) = (p.0[c] as f64 / 255.0, t.0[c] as f64 / 255.0);
+                let o = if b < 0.5 { 2.0 * b * f } else { 1.0 - 2.0 * (1.0 - b) * (1.0 - f) };
+                p.0[c] = ((b + (o - b) * a) * 255.0).round() as u8;
+            }
+        }
+        let mut data = Vec::new();
+        image::DynamicImage::ImageRgb8(out).write_with_encoder(image::codecs::jpeg::JpegEncoder::new_with_quality(&mut std::io::Cursor::new(&mut data), 92)).ok()?;
+        self.out.write(&rel, &data);
+        Some(rel)
+    }
+
     fn transparent(&mut self) -> String {
         let rel = "system/transparent.png".to_string();
         if !self.out.root.join(&rel).exists() {

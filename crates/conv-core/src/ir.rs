@@ -628,6 +628,17 @@ pub struct TitleScreen {
     pub start_wait_ms: u32,
     /// Exit quits at once, without the [`ConfirmDialog`]'s question.
     pub exit_without_asking: bool,
+    /// A picture over the background, under the buttons, glowing in and
+    /// out by itself (装甲悪鬼村正's fire).
+    pub glow: Option<TitleGlow>,
+}
+
+/// [`TitleScreen::glow`]: a full-screen picture drawn at a changing
+/// opacity, looping along `keys` (ms from the start, opacity 0-256).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct TitleGlow {
+    pub image: String,
+    pub keys: Vec<(u32, u32)>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
