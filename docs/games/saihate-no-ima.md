@@ -638,7 +638,7 @@ exe (`research/tools/ghidra/ghidra_export.sh`, names in
    levels' slots (900 + level, those between `%190` and `%151`) to save
    slots 1000 + 10 × slot + level with CONscripter's new `copysavegame`
    (`*conv_scene_keep`), deleting a slot's old ones; a load
-   (`*conv_scene_loaded`, the slot in `%2904`) copies them back and keeps
+   (`*conv_scene_loaded`, the slot in `%2906`) copies them back and keeps
    the floor and the deepest level as saved; deleting a save deletes
    them. Checked with `smoke.py` from `conv_link2`: enter the link, save
    to slot 1, load it, "back" goes to the root page, "forward" is there.

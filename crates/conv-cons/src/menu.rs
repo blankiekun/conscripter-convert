@@ -157,9 +157,9 @@ const SCENE_CARRY: u32 = 2900;
 /// 1 while the list is open (global: it stays open).
 const SCENE_LIST_OPEN: &str = "%2903";
 /// The save menu's slot being loaded (global: it outlasts the load).
-const SCENE_LOAD_SLOT: &str = "%2904";
+const SCENE_LOAD_SLOT: &str = "%2906";
 /// 1 once [`SCENE_LOADED`] has put a save's levels back.
-const SCENE_RESTORED: &str = "%2905";
+const SCENE_RESTORED: &str = "%2907";
 /// A save from the save menu keeps the levels' slots with it, level k of
 /// slot n in save slot SCENE_KEPT + 10 × n + k (levels 0-7: link scenes
 /// nest at most 7 deep), so a load can still go back and forward.
@@ -1780,7 +1780,7 @@ pub(crate) mod tests {
             "loadgame 900+%192\nmov %2900,0\nreturn\n",
             // A save keeps its levels' slots; a load puts them back.
             "*conv_scene_keep\nfor %103=0 to 7\ndelsavegame 1000+%102*10+%103\nif %103 >= %190 && %103 <= %151 && %103 != %150 copysavegame 900+%103,1000+%102*10+%103\nnext\nreturn\n",
-            "*conv_scene_loaded\nif %2900 == 1 goto *conv_scene_switched\nmov %2905,0\nfor %103=0 to 7\nsavefileexist %104,1000+%2904*10+%103\nif %104 == 1 copysavegame 1000+%2904*10+%103,900+%103:mov %2905,1\nnext\nif %2905 == 0 mov %151,%150:mov %190,%150\nreturn\n*conv_scene_switched\n",
+            "*conv_scene_loaded\nif %2900 == 1 goto *conv_scene_switched\nmov %2907,0\nfor %103=0 to 7\nsavefileexist %104,1000+%2906*10+%103\nif %104 == 1 copysavegame 1000+%2906*10+%103,900+%103:mov %2907,1\nnext\nif %2907 == 0 mov %151,%150:mov %190,%150\nreturn\n*conv_scene_switched\n",
         ] {
             assert!(out.contains(line), "missing {line:?} in\n{out}");
         }
