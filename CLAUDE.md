@@ -15,7 +15,9 @@ build.
 
 Read first, in order: the game's document (its "Status" section holds
 the feature state and the next steps), `PLAN.md` §4.2 (engine
-additions) and §13 (lessons).
+additions) and §13 (lessons). These are long: list the headings
+(`grep -n '^##' <file>`), read the "Status" section and what the task
+touches, and look up the rest by heading when you need it.
 
 Each game's state is tracked in its `docs/games/<game>.md`, which is
 public: no local paths (use placeholders such as `<game>`), only
@@ -186,6 +188,9 @@ on each later turn; several agents run at once.
   memory carry the state into a fresh session.
 - No `/loop`, scheduled wakeups or polling unless the user asks; wait
   for background runs to notify.
+- Subagents only when the user asks; then give a search or a mechanical
+  job a cheaper model (`model: "haiku"` or `"sonnet"`) and ask for a
+  short report, not file dumps.
 
 ## Releasing CONscripter
 
