@@ -422,32 +422,30 @@ engine, and SDL turns that SIGTERM into a quit, so the trace just ends
 (`{"t":"end"}` without a reason, exit 0) mid-scene. Each run replays the
 route from the story menu after its ending until auto-play's loop guard
 stops it ("3000 pages without a new label", exit 1): what matters is the
-ending scene reached. Reached so far: 明日香 (S01_16A), 美咲 (M09_01),
-日和子 (S02_16A), 亜衣 (S03C_20A, then the hint S03_24), the bad end
-(S04_06L); 京 crashed in SDL's audio thread while the machine's memory
-was full (not reproduced) and is to be run again; 鳴 and 小鳩 were
-running.
+ending scene reached. Rerun on 2026-10-15's build (all eight in one
+folder): 明日香 (S01_16A, page 25,742), 京 (S01_18A, 25,852), 美咲
+(M09_01), 日和子 (S02_16A), 亜衣 (S03C_20A); the bad end, 鳴 and 小鳩
+running. `cons_trace_check.py` on each finds no new bug: SEs played on
+two channels at once (as the source does), backgrounds up for 150 pages
+in long scenes, characters placed off screen before they move in,
+`Sprite` pictures laid over a background; the dying `EffectQuake`
+shakes it reported as never ending were given an end. Runs 9-12 of
+`routes.py` (`--only 9,10,11,12`, after the routes, in the same folder)
+play the four after-stories from the story menu.
 
 Next, in order:
-1. Finish the route runs (`routes.py --only 7,8`, then `--only 2` in the
-   same out folder), check each trace with `cons_trace_check.py
-   --config research/oretsuba/cons_trace_check.json`, and play the four
-   after-stories from the story menu (unlocked by the endings) with the
-   trace.
-2. Try the web build (CONscripter after 0.19.1, with `spzoom`,
-   `spmotion`, `screenzoom`): the settings screen, a zoom, a looping
-   character action, a save and load.
-3. More from the eboot with Ghidra (names in `research/oretsuba/names.tsv`):
-   the music room's unlock rule and its second 8-song table, which ending
-   each after-story starts from, the menus' layouts (title, save/load),
-   the settings' defaults.
-4. The easing of SpriteMove and CharacterMove (the two values after
-   `:Position`; probably the eboot's ease function 0x8103cc18, type and
-   power, as in effect 57; about 50 moves).
-5. `InOut_Act` 1 (rows waving) and 6 (a sideways blur), plain fades now,
-   would need engine effects.
-6. Small: `:Roll` in 2 character actions; system sounds (SystemSE.AWB),
-   which would give the settings' システムボリューム a use.
-7. Looks against the original: text window size and place, character
-   heights (where the eboot anchors them), the eye catch's speed. Needs
-   screenshots of the Vita game.
+1. Finish the route runs and their checks, then the after-stories
+   (`routes.py --only 9,10,11,12` on a new build).
+2. The gallery's ALBUM, MOVIE, MUSIC where the Vita shows them, over the
+   title (0x81083c0c); needs the extras menu's own background apart from
+   the album's (shared code).
+3. The settings could use CONscripter's new player settings
+   (`clickvoicestop`, `selectkeep`) for 音声スキップ and 選択後のスキップ,
+   now done in the script.
+4. Small: `:Roll` in 2 character actions (rotation keys in `spmotion`);
+   system sounds (SystemSE.AWB), which would give システムボリューム a
+   use; the story menu's 〜Prelude〜 header; the music room's volume,
+   repeat and play-on.
+5. Looks against the original: text window size and place, character
+   heights (where the eboot anchors them), the eye catch's speed, the
+   wave transition's size. Needs screenshots of the Vita game.

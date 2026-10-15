@@ -28,6 +28,15 @@ ROUTES = [
     ("鳴", "S02_05A:2", "mg_s03_22a"),
     ("小鳩", "S04_05I:2", "mg_s04_28b"),
 ]
+# The after-stories, runs 9-12: the story menu's option and the last
+# scene (run them after the routes, in the same out folder: the menu
+# needs an ending, 狩男's a part cleared).
+AFTER = [
+    ("ある日の林田美咲", 2, "mg_p03_01d"),
+    ("ある日の渡来明日香", 3, "mg_p01_01d"),
+    ("ある日の山科京", 4, "mg_p02_01e"),
+    ("ある日の軽部狩男", 5, "mg_p04_02b"),
+]
 
 
 def main():
@@ -35,7 +44,7 @@ def main():
     ap.add_argument("game")
     ap.add_argument("engine")
     ap.add_argument("out")
-    ap.add_argument("--only", help="route numbers (1-8), comma-separated; default all")
+    ap.add_argument("--only", help="route numbers (1-8, 9-12 the after-stories), comma-separated; default 1-8")
     args = ap.parse_args()
     game, engine, out = (os.path.abspath(p) for p in (args.game, args.engine, args.out))
     os.makedirs(out, exist_ok=True)
@@ -55,13 +64,14 @@ def main():
     title_nos = [int(m.group(1)) for line in src[at:end] if (m := re.match(r"spbtn \d+,(\d+)", line))]
     only = {int(n) for n in args.only.split(",")} if args.only else None
     saves = os.path.join(out, "saves")
-    for n, (name, path, ending) in enumerate(ROUTES, 1):
-        if only and n not in only:
+    runs = [(name, path, ending, 1) for name, path, ending in ROUTES] + [(name, "", ending, option) for name, option, ending in AFTER]
+    for n, (name, path, ending, story) in enumerate(runs, 1):
+        if (only and n not in only) or (not only and n > len(ROUTES)):
             continue
         want = dict(p.split(":") for p in path.split(",") if p)
         lines = [f"{title}\t{o}\tavoid" for o in [0, *title_nos] if o != start_no]
         menu, k = selects["STORY_MENU"]
-        lines += [f"{menu}\t{o}\tavoid" for o in range(2, k + 1)]
+        lines += [f"{menu}\t{o}\tavoid" for o in range(1, k + 1) if o != story]
         for scene, (at, k) in selects.items():
             if scene != "STORY_MENU":
                 pick = int(want.get(scene, 1))
