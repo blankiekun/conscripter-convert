@@ -9,7 +9,9 @@ windowed.
 With CHAPTER (a prefix such as `dja023`), START plays from that chapter
 file: `main_root`'s earlier `call_chapter`s are commented out. With SKIP
 too (a name in the chapter file, `cut` or `scene`), the chapter file's own
-calls before that one are commented out as well.
+calls before that one are commented out as well. A CHAPTER starting
+with `extra_` (`extra_sound`) is instead opened by the title's EXTRA, in
+place of the extras' menu (whose doors' zoom stalls under wine).
 """
 import os
 import re
@@ -56,8 +58,12 @@ def main():
         old = '#SYSTEM_product_code="ZokuSatsurikunoJyango";'
         assert t.count(old) == 1
         t = t.replace(old, old + '\r\n\t#SYSTEM_window_full = false;')
+        if chapter and chapter.startswith('extra_'):
+            old = 'call_chapter nss/extra_menu.nss;'
+            assert t.count(old) == 1
+            t = t.replace(old, f'call_chapter nss/{chapter}.nss;')
         open(p, 'wb').write(t.encode('cp932'))
-        if chapter:
+        if chapter and not chapter.startswith('extra_'):
             start = 'dja000_開始スクリプト.nss'
             npa(table, src, d, start)
             p = os.path.join(d, start)

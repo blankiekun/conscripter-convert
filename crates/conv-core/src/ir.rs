@@ -1962,6 +1962,9 @@ pub struct RoomTrack {
     /// when `None`), not clickable.
     pub unlocked_by: Option<Var>,
     pub locked: Option<String>,
+    /// Drawn in the button's place while the track plays (still the
+    /// button): 続・殺戮のジャンゴ's title in white.
+    pub playing: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

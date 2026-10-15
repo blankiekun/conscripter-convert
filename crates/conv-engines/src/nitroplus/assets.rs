@@ -20,14 +20,17 @@ use crate::output::{Output, image_size};
 const MAX_SCALED: i64 = 4096;
 
 /// Top-level output folders the assets go to.
-pub const OUTPUT_DIRS: [&str; 4] = ["cg", "sound", "voice", "system"];
+pub const OUTPUT_DIRS: [&str; 5] = ["cg", "cg2", "sound", "voice", "system"];
 /// The output folders with pictures (`--webp` converts them).
-pub const PICTURE_DIRS: [&str; 2] = ["cg", "system"];
+pub const PICTURE_DIRS: [&str; 3] = ["cg", "cg2", "system"];
 
 pub struct NpaAssets<'a> {
     cg: Npa<'a>,
     sound: Npa<'a>,
     voice: Npa<'a>,
+    /// `cg2.npa`, which 続・殺戮のジャンゴ's 1.01 update adds (its scripts'
+    /// `cg2/…` pictures).
+    pub cg2: Option<Npa<'a>>,
     images: HashMap<String, Option<(String, u32, u32)>>,
     sounds: HashMap<String, Option<String>>,
     movies: HashMap<String, Option<MovieInfo>>,
@@ -42,7 +45,7 @@ pub struct NpaAssets<'a> {
 
 impl<'a> NpaAssets<'a> {
     pub fn new(cg: Npa<'a>, sound: Npa<'a>, voice: Npa<'a>, output: &Path) -> Self {
-        NpaAssets { cg, sound, voice, images: HashMap::new(), sounds: HashMap::new(), movies: HashMap::new(), movie_dir: None, out: Output::new(output), screen: (SCREEN_W, SCREEN_H) }
+        NpaAssets { cg, sound, voice, cg2: None, images: HashMap::new(), sounds: HashMap::new(), movies: HashMap::new(), movie_dir: None, out: Output::new(output), screen: (SCREEN_W, SCREEN_H) }
     }
 
     /// The movie file a script path names, and its name in the output:
@@ -70,12 +73,13 @@ impl<'a> NpaAssets<'a> {
         let (archive, rest) = path.split_once('/')?;
         let npa = match archive {
             "cg" => &self.cg,
+            "cg2" => self.cg2.as_ref()?,
             "sound" => &self.sound,
             "voice" => &self.voice,
             _ => return None,
         };
         let entry = npa.find(rest)?;
-        if self.out.dry_run && archive != "cg" {
+        if self.out.dry_run && archive != "cg" && archive != "cg2" {
             return Some(Vec::new());
         }
         let data = match npa.data(entry) {

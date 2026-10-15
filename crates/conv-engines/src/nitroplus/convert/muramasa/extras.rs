@@ -228,7 +228,7 @@ fn sound(a: &mut dyn Assets, story: &Story) -> Option<SoundRoom> {
             if name == "@mbgm04" {
                 title_track = tracks.len();
             }
-            tracks.push(RoomTrack { button: Placed { image, x, y, w: w as i32, h: h as i32 }, file, unlocked_by, locked });
+            tracks.push(RoomTrack { button: Placed { image, x, y, w: w as i32, h: h as i32 }, file, unlocked_by, locked, playing: None });
         }
         // The next entry's place (`Media`).
         match k + 2 {

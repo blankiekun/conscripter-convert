@@ -870,6 +870,12 @@ fn convert_nss(
     let (cg, sound, voice) = (npas.next().unwrap(), npas.next().unwrap(), npas.next().unwrap());
     let mut assets = NpaAssets::new(cg, sound, voice, output);
     assets.out.dry_run = dry_run;
+    // 続・殺戮のジャンゴ 1.01's own pictures.
+    let cg2 = game.join("cg2.npa");
+    if cg2.exists() {
+        let file = File::open(&cg2).with_context(|| format!("opening {}", cg2.display()))?;
+        assets.cg2 = Some(conv_engines::nitroplus::npa::Npa::open(file, key.clone()).with_context(|| format!("parsing {}", cg2.display()))?);
+    }
     if movies.is_dir() {
         assets.movie_dir = Some(movies.to_path_buf());
     } else {

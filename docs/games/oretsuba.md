@@ -364,25 +364,7 @@ the script deletes them. Route exploration: `engine/tools/cons_explore.py
 out/oretsuba-cons --engine-args "--trace-ignore 34-48" --skip-choices
 '^\*conv_(title|sl_|settings|confirm|extras|music|movie|cg|log|backlog|load|save|bar)'`.
 
-**Found by the debug trace (2026-10-14).** Whole routes play to their
-end without a script error (18,974 pages and 16 choices; with today's
-fixes another route of 23,333 pages and 46 save/load round trips, all
-equal), then auto-play tours the title's menus. The checker found:
-- **Pictures left from the scene before (fixed).** The eboot loads each
-  scene's textures anew, but our scenes kept the previous one's
-  pictures: 347 scenes end under a black `Sprite` cover, which then lay
-  over the whole next scene (S01_02B black for 150 pages), and split
-  scenes doubled their backgrounds and cut-ins. A scene's first picture
-  (in each branch of its opening, skipped or not) now clears everything.
-- **Characters through a change of place (fixed).** `SpriteBG` kept the
-  characters, so Hiyoko from a flashback stood behind Kobato (S02_04A)
-  and Kinako (S02_06A). The scripts show that `SpriteBG`/`SpriteBS`
-  remove them unless `:SpriteDelete 0` (above).
-- **Zooms sliding pictures off the screen (fixed).** `SpriteMove :Scale`
-  moved the centre to the point zoomed in on without zooming (bg71 250
-  px down over black in S04_05I); now a real zoom (`spzoom`).
-- **Not converted, found on the way (now converted):** the `:Color`
-  tints, greyscale, sepia and negatives (above).
+The debug trace's first findings, all fixed, are in "History", below.
 
 **Web build.** The game as loose files (the page fetches each file as
 it needs it; one 1.9 GB `arc.nsa` would be fetched whole), the web
@@ -448,3 +430,28 @@ Next, in order:
 2. Looks against the original: text window size and place, character
    heights (where the eboot anchors them), the eye catch's speed, the
    wave transition's size. Needs screenshots of the Vita game.
+
+## History
+
+Finished work, moved out of "Status" so a session reads only the open
+state.
+
+**Found by the debug trace (2026-10-14).** Whole routes play to their
+end without a script error (18,974 pages and 16 choices; with today's
+fixes another route of 23,333 pages and 46 save/load round trips, all
+equal), then auto-play tours the title's menus. The checker found:
+- **Pictures left from the scene before (fixed).** The eboot loads each
+  scene's textures anew, but our scenes kept the previous one's
+  pictures: 347 scenes end under a black `Sprite` cover, which then lay
+  over the whole next scene (S01_02B black for 150 pages), and split
+  scenes doubled their backgrounds and cut-ins. A scene's first picture
+  (in each branch of its opening, skipped or not) now clears everything.
+- **Characters through a change of place (fixed).** `SpriteBG` kept the
+  characters, so Hiyoko from a flashback stood behind Kobato (S02_04A)
+  and Kinako (S02_06A). The scripts show that `SpriteBG`/`SpriteBS`
+  remove them unless `:SpriteDelete 0` (above).
+- **Zooms sliding pictures off the screen (fixed).** `SpriteMove :Scale`
+  moved the centre to the point zoomed in on without zooming (bg71 250
+  px down over black in S04_05I); now a real zoom (`spzoom`).
+- **Not converted, found on the way (now converted):** the `:Color`
+  tints, greyscale, sepia and negatives (above).

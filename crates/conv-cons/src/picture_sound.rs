@@ -115,6 +115,9 @@ pub(crate) fn emit(out: &mut String, r: &SoundRoom, border: u32, width: u32, hei
             }
             None => w(open),
         }
+        if let Some(p) = &t.playing {
+            w(format!("if {MUSIC} == {} lsp {slot},\"{}\",{},{}", number(i), pic(p), b.x, b.y));
+        }
         w(format!(
             "if {MUSIC} == {} lsp {MARKER},\":a/{},{},0;{}\",{},{}",
             number(i),
