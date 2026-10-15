@@ -199,7 +199,12 @@ on each later turn; several agents run at once.
   `model: "sonnet"` for mechanical edits, doc updates, build-test-commit
   loops and route runs. Keep design, engine work, reverse engineering
   and hard debugging yourself. Give the subagent the exact task and
-  the files, and ask for a short report, not file dumps.
+  the files, and ask for a short report, not file dumps. Don't
+  delegate when the job needs much of what you already know (the
+  session's findings, many files read, a long chain of reasoning):
+  a subagent starts empty and re-reading all that costs more than
+  doing the job yourself. Delegate only what a few lines of prompt
+  can fully describe.
 
 ## Releasing CONscripter
 
