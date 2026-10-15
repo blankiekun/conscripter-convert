@@ -442,6 +442,9 @@ pub enum Op {
     /// The next [`Op::Noise`]'s static rises from nothing to its opacity
     /// over `ms`, while the script goes on.
     NoiseFadeIn { ms: u32 },
+    /// A screen of pictures over the scene until a click (see
+    /// [`PictureScreen`]).
+    PictureScreen(Box<PictureScreen>),
 }
 
 /// A puzzle of numbered tiles (装甲悪鬼村正's 立方陣): the player clicks a
@@ -797,8 +800,8 @@ pub enum BarAction {
     /// [`Switch::ConfirmBackToChoice`]); disabled while there is none.
     BackToChoice,
     /// Run the script's subroutine at the item's label
-    /// ([`CommandItem::label`]), the text window hidden; the background,
-    /// the game's sprites and the music are put back after.
+    /// ([`CommandItem::label`]); the background, the game's sprites and the
+    /// music are put back after.
     Call,
 }
 
@@ -1182,6 +1185,25 @@ pub struct ButtonScreen {
     pub pictures: Vec<Placed>,
     pub buttons: Vec<(Placed, String)>,
     pub fade_ms: u32,
+}
+
+/// A screen drawn over the scene and its text window until a click (left
+/// or right): pictures on numbered layers, the higher drawn on top.
+/// A picture with a condition is shown only while its variable compares
+/// with the value; of the pictures on one layer the last one shown wins.
+/// It fades in and out over `fade_ms`; the scene's own pictures stay as
+/// they are under it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PictureScreen {
+    pub pictures: Vec<ScreenPicture>,
+    pub fade_ms: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScreenPicture {
+    pub layer: u32,
+    pub picture: Placed,
+    pub when: Option<(Var, Compare, i32)>,
 }
 
 #[derive(Debug, Clone, Default)]
