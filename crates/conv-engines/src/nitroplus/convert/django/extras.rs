@@ -7,7 +7,7 @@
 
 use std::collections::BTreeMap;
 
-use conv_core::ir::{ExtrasMode, GalleryCategory, PictureExtras, PictureExtrasItem, PictureGallery, PictureSlot, Placed, SlotCg};
+use conv_core::ir::{ExtrasMode, GalleryCategory, PictureExtras, PictureExtrasItem, PictureGallery, PictureSlot, Placed, RoomTrack, SlotCg, SoundRoom};
 
 use super::super::{Assets, Story};
 use crate::nitroplus::nss::{AssignOp, BinaryOp, Expr, Item, NssFile, Stmt, StmtKind, Var};
@@ -30,7 +30,8 @@ pub fn flags(_: &BTreeMap<String, NssFile>) -> Vec<String> {
 /// (615,551), each `001` at rest, `002` under the pointer, `003` pressed;
 /// it comes in from black over 500 ms. Left out: the doors swinging open
 /// (`扉02`, `扉03`) with the screen zooming in on the way to a library,
-/// the menu's music (`dj_INS12`).
+/// the menu's own music (`dj_INS12` where the sound library has chosen
+/// nothing; ours keeps the title's).
 pub fn extras(a: &mut dyn Assets, story: &Story) -> Option<PictureExtras> {
     const DIR: &str = "cg/sys/extra/menu";
     let mut parts = Vec::new();
@@ -56,7 +57,7 @@ pub fn extras(a: &mut dyn Assets, story: &Story) -> Option<PictureExtras> {
         back_se: None,
         fade_ms: 500,
         gallery: gallery(a, story),
-        sound: None,
+        sound: sound(a),
     })
 }
 
@@ -234,5 +235,90 @@ fn gallery(a: &mut dyn Assets, story: &Story) -> Option<PictureGallery> {
         scroll_ms_per_px: 6,
         across: true,
         arrows_when_paged: true,
+    })
+}
+
+/// The sound library's songs in order (`extra_sound.nss`, `snd_play`):
+/// the BGM files (`InitBGM`).
+const SONGS: [&str; 35] = [
+    "DJ_OP_Brindiamo!～俺たちに乾杯",
+    "DJ_INS_スィートウォーター讃歌",
+    "DJ_INS_スィートウォーター讃歌民衆",
+    "DJ_INS_ColdMetal",
+    "dj01",
+    "dj02",
+    "dj02b",
+    "dj03",
+    "dj04",
+    "dj05",
+    "dj06",
+    "dj07",
+    "dj08",
+    "dj09",
+    "dj09b",
+    "dj10",
+    "dj11",
+    "dj12",
+    "dj13",
+    "dj14",
+    "dj15",
+    "dj16",
+    "dj17",
+    "dj18",
+    "dj19",
+    "dj20",
+    "dj21",
+    "dj21b",
+    "dj22",
+    "dj23",
+    "DJ23_harmonica",
+    "DJ23_harp",
+    "dj23b",
+    "dj23b_harp",
+    "dj24",
+];
+
+/// The sound library (`extra_sound.nss`): `sound-back` with 35 titles
+/// (`kyoku/sound-NNN`, `001` at rest, `002` under the pointer, `003` in
+/// white while it plays) down two columns from (136,92) and (438,92), 20
+/// px apart; the horse (`uma/uma-001`-`011`, 50 ms a frame) runs 34 px
+/// left of the title playing; EXIT at (702,538). A title plays its song
+/// looping, which stays the extras' music. The title's music
+/// (`dj23_harmonica`) plays at first. Differences: clicking the title
+/// playing stops it (the original starts it again); the song fades in
+/// over 2 s in the original.
+fn sound(a: &mut dyn Assets) -> Option<SoundRoom> {
+    const DIR: &str = "cg/sys/extra/sound";
+    let mut tracks = Vec::new();
+    for (i, song) in SONGS.iter().enumerate() {
+        let state = |n: u32| format!("cg2/sys/extra/sound/kyoku/sound-{:03}-{n:03}.png", i + 1);
+        let (image, w, h) = a.strip(&[&state(1), &state(2)])?;
+        let (x, y) = if i < 18 { (136, 92 + 20 * i as i32) } else { (438, 92 + 20 * (i as i32 - 18)) };
+        tracks.push(RoomTrack {
+            button: Placed { image, x, y, w: w as i32, h: h as i32 },
+            file: a.sound(&format!("sound/bgm/{song}"))?,
+            unlocked_by: None,
+            locked: None,
+            playing: Some(a.image(&state(3))?.0),
+        });
+    }
+    let frames: Vec<String> = (1..=11).map(|n| format!("{DIR}/uma/uma-{n:03}.png")).collect();
+    let frames: Vec<&str> = frames.iter().map(String::as_str).collect();
+    let (marker, mw, mh) = a.strip(&frames)?;
+    let (exit, ew, eh) = a.strip(&[&format!("{DIR}/exit/sound-exit001.png"), &format!("{DIR}/exit/sound-exit002.png"), &format!("{DIR}/exit/sound-exit003.png")])?;
+    Some(SoundRoom {
+        background: a.image("cg2/sys/extra/sound/sound-back.png")?.0,
+        exit: Placed { image: exit, x: 702, y: 538, w: ew as i32, h: eh as i32 },
+        tracks,
+        movies: Vec::new(),
+        title_track: 30,
+        marker: Placed { image: marker, x: 0, y: 0, w: mw as i32, h: mh as i32 },
+        marker_cells: 11,
+        marker_ms: 50,
+        marker_dx: 34,
+        open_ms: 500,
+        stop_fade_ms: 1000,
+        movie_fade_ms: 0,
+        movie_back_ms: 0,
     })
 }
