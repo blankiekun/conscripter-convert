@@ -41,10 +41,6 @@ jobs:
       NAME: ${{ github.ref_type == 'tag' && github.ref_name || 'dev' }}
       # The converter, built for the matrix's target when it has one.
       CONVERTER: target/${{ matrix.os.target && format('{0}/', matrix.os.target) || '' }}release/conscripter-convert${{ matrix.os.exe }}
-      # sccache keeps every compiled crate, ours included (a cache of
-      # target/ kept only the dependencies), in the Actions cache.
-      SCCACHE_GHA_ENABLED: 'true'
-      RUSTC_WRAPPER: sccache
     steps:
     - uses: actions/checkout@v4
 
@@ -61,7 +57,14 @@ jobs:
     # again took up to 40 s on Windows.
     - run: rustc -V
 
-    - uses: mozilla-actions/sccache-action@v0.0.9
+    # The dependencies, compiled. (sccache, to keep our own crates too, was
+    # tried: on the Actions cache it missed every crate on Windows and
+    # failed a quarter of its writes.)
+    - uses: Swatinem/rust-cache@v2
+      with:
+        key: ${{ matrix.os.suffix }} # two jobs run on macos-14
+        # Saving takes up to 40 s; branches and tags read main's cache.
+        save-if: ${{ github.ref == 'refs/heads/main' }}
 
     - name: build conscripter-convert
       run: |
@@ -72,7 +75,6 @@ jobs:
           cargo build --release --locked
         fi
         file "$CONVERTER" || true
-        sccache --show-stats
 
     - uses: actions/setup-python@v5
       with:
