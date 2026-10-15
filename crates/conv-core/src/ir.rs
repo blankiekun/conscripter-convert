@@ -2029,6 +2029,9 @@ pub struct PictureReplay {
     pub open_ms: u32,
     pub start_ms: u32,
     pub end_ms: u32,
+    /// Slots run along rows of this many instead (`column_step` apart, the
+    /// next row `row_step` below): 続・殺戮のジャンゴ's five across.
+    pub across: Option<u32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
