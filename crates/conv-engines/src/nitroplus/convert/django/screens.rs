@@ -12,7 +12,7 @@ use conv_core::ir::{PairOption, PicturePair, PictureSettings, PictureSlider, Sli
 use super::super::{Assets, Story};
 
 /// Fills the script's system screens.
-pub fn menus(a: &mut dyn Assets, script: &mut Script, _story: &Story) {
+pub fn menus(a: &mut dyn Assets, script: &mut Script, story: &Story) {
     script.title_screen = title(a);
     // The game has no button bar; the command menu runs a bar's actions.
     script.button_bar = Some(ButtonBar { buttons: Vec::new(), top: None, base: None, slide: None, pressed: true, quick_save_se: None, load_fade_ms: 0 });
@@ -22,6 +22,18 @@ pub fn menus(a: &mut dyn Assets, script: &mut Script, _story: &Story) {
     script.line_log = line_log(a);
     script.wait_icon = wait_icon(a);
     script.picture_settings = settings(a);
+    script.picture_extras = super::extras::extras(a, story);
+    if let Some(t) = script.title_screen.as_mut() {
+        let cleared = story.flags.get(super::extras::CLEARED).copied();
+        for b in &mut t.buttons {
+            if b.action == TitleAction::Extras || b.action == TitleAction::Unavailable {
+                b.shown_by = cleared;
+            }
+        }
+        if script.picture_extras.is_none() {
+            t.buttons.iter_mut().filter(|b| b.action == TitleAction::Extras).for_each(|b| b.action = TitleAction::Unavailable);
+        }
+    }
 }
 
 /// The settings screen (`sys_config.nss`) over `コンフィグ地`: rows of ten
@@ -340,7 +352,7 @@ fn title(a: &mut dyn Assets) -> Option<TitleScreen> {
         ("start", 210, 291, TitleAction::Start),
         ("load", 434, 356, TitleAction::Load),
         ("config", 142, 393, TitleAction::Settings),
-        ("extra", 22, 415, TitleAction::Unavailable),
+        ("extra", 22, 415, TitleAction::Extras),
         ("exit", 691, 449, TitleAction::Exit),
         ("liner", 457, 479, TitleAction::Unavailable),
     ] {

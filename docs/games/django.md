@@ -16,12 +16,12 @@ in an older version (`NitroplusSystem2.0`), so it reuses
   files. To keep the install untouched, make a folder of symlinks to the
   install's files with the update's three files linked over them.
 
-## Scope (to confirm with the user)
+## Scope
 
-The user wasn't asked yet (step 0.1 of `docs/new-game.md`: the work
-started while they were away). Assumed until they answer, as for
-Muramasa: story first, the web build as the main platform, extras
-(CG gallery, scene replay, music room) and movies later.
+Asked 2026-10-15: the story first, the web build as the main platform,
+and the extras (CG library, recollection, sound library) wanted too.
+Running the original under wine with a no-CD exe the user owns is
+allowed.
 
 ## Build
 
@@ -195,6 +195,27 @@ What it showed (2026-10-15):
   and the plate under the pointer turns to `select002.png`. Ours puts the
   text 40 px in and colours it.
 
+## Extras
+
+`boot.nss` shows EXTRA and LINER NOTES once the story is finished
+(`#ClearG`); EXTRA calls `extra_menu.nss`. Converted in
+`nitroplus/convert/django/extras.rs` on Muramasa's `PictureExtras`:
+
+- **Menu**: the saloon with its doors shut, CG LIBRARY, RECOLLECTION
+  LIBRARY, SOUND LIBRARY, EXIT. The doors swinging open and the zoom
+  through them are left out.
+- **CG library** (`extra_cg.nss`, `PictureGallery`): five categories
+  (wanted posters), 20 thumbnails a page five across, ARTIFACT's three
+  pages with BACK (next page) and NEXT (the one before). The script
+  locks nothing: every picture is open once EXTRA is, except おめでとう画像
+  (`#ClearAll`, set by the title's congratulations after every
+  ending). Pictures larger than the screen are shown at half size; tall
+  ones scroll up from their bottom. Beside the original under wine
+  (2026-10-15): the page and the viewer match pixel for pixel, but for
+  the rifle animation over a category under the pointer (left out).
+- **Recollection, sound library**: not converted yet (drawn, not
+  clickable).
+
 ## Story structure and walkthrough
 
 `boot.nss` shows the logos and the title (`TitleSelect`); a new game
@@ -242,14 +263,15 @@ yet.
 | Pictures, sound in scripts | 🟡 Black bars, face windows in their frames, standing pictures, backgrounds; what Muramasa's compiler does for effects (moves and zooms as cross-fades); every sound is found |
 | Choices | 🟡 Django's plates; text place and hover colour guessed |
 | System screens | 🟡 From the game's pictures (`django/screens.rs`): title, right-click menu, save/load (3×20 slots), yes/no questions, text log, settings (bullet rows as `SliderSteps`), the click-wait bullet; not compared with the original (it wants its disc under wine) |
-| Extras | ❌ Not started (scope to confirm) |
+| Extras | 🟡 Menu and CG library (compared with the original); recollection and sound library not yet |
 | Saves | 🟡 `--roundtrip-every 100` over the first 1,500 pages: no save/load mismatch; saves from the screens not tried by hand |
 | Web build | 🟡 Plays in a browser (title, story pages); saves, sound and touch not checked yet |
 
 ### Next
 
-1. Run the original under wine (a recipe like Muramasa's) to check the
-   text's place, the choices and the chapter-end rule above.
+1. Under wine (recipe above): the choices (centred text, the plate
+   picture under the pointer), the save/load screens, the log and the
+   settings beside ours; the chapter-end rule above.
 2. The rest of the trace checker's list (`cons_trace_check.py` on
    `out/django-routes/good.jsonl`): one page runs past the window
    (dja023_02 `[text029]`: a 21-character line in box02, 20 columns of a
@@ -266,4 +288,8 @@ yet.
    above the bottom bar.
 6. Camera moves (`MoveCamera`, 365 calls) and moves and zooms over time
    (drawn as cross-fades), shared with Muramasa's compiler.
-7. Ask the user the scope questions (above).
+7. Extras: the recollection (`extra_recollection.nss`, ten scenes from
+   `extra_N_*.nss`) and the sound library (`extra_sound.nss`), on
+   Muramasa's IR where it fits (`SoundRoom`).
+8. The title's congratulations (`TitleCongratulations`, sets
+   `#ClearAll`) and the click-wait bullet after the text.
