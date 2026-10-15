@@ -997,6 +997,9 @@ struct Engine {
     /// It draws an earlier zoom's picture, zoomed: another picture on the
     /// layer is loaded on a fresh sprite.
     zoomed: bool,
+    /// It moved (and may still be moving): not counted as covering what
+    /// is under it.
+    moved: bool,
 }
 
 enum Flow {
@@ -2890,6 +2893,23 @@ impl<'a, 'b> Compiler<'a, 'b> {
             })
             .collect();
         want.sort_by_key(|w| std::cmp::Reverse(w.2));
+        // Pictures under an opaque one that fills the screen (an old
+        // background left up under a new one) aren't drawn.
+        let (sw, sh) = self.game.screen;
+        let cover = want.iter().position(|(n, s, _)| {
+            let still = !self.shown.get(n).is_some_and(|o| o.engine.moved) && !timed.contains_key(n);
+            still
+                && s.cells.is_none()
+                && s.opacity >= 1000
+                && s.image.to_ascii_lowercase().ends_with(".jpg")
+                && s.x <= 0
+                && s.y <= 0
+                && s.x + s.w >= sw
+                && s.y + s.h >= sh
+        });
+        if let Some(i) = cover {
+            want.truncate(i + 1);
+        }
 
         let mut changes = Vec::new();
         let mut opacity = Vec::new();
@@ -2933,7 +2953,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
             }
             match motion(old, &now, t) {
                 Some(op) => {
-                    let engine = Engine { zoomed: old.engine.zoomed || old.zoom != now.zoom };
+                    let engine = Engine { zoomed: old.engine.zoomed || old.zoom != now.zoom, moved: true };
                     self.ops.push(op);
                     self.shown.insert(name.clone(), Shown { engine, ..now });
                     moving.push(name.clone());
@@ -3286,8 +3306,10 @@ impl<'a, 'b> Compiler<'a, 'b> {
     fn text_window(&mut self, t: &TextObject<'a>, x: i64, y: i64) -> TextWindow {
         let (w, h, letter, line, font) = t.layout.unwrap_or((550, 150, 0, 29, self.font_size));
         let columns = (w / (font + letter).max(1)).max(1) as u32;
-        let rows = (h / line.max(1)).max(1) as u32;
         let vertical = t.rotation.rem_euclid(360) == 90;
+        // Across: as many lines as end inside the box (box02: 130 px at a
+        // 27 px pitch holds five 18 px lines, the last ending at 126).
+        let rows = if vertical { h / line.max(1) } else { (h - font) / line.max(1) + 1 }.max(1) as u32;
         let (text_x, text_y) = if vertical { (x - rows as i64 * line, y) } else { (x, y + self.game.text_drop) };
         // The window's pictures (box, face window, name plate), bottom
         // first, drawn into one window image.
@@ -3660,7 +3682,7 @@ scene a.nss
 scene a.nss
 {
 	CreateTexture("bg", 100, 0, 0, "cg/bg/a.jpg");
-	CreateColor("white", 50, 0, 0, 1024, 576, "White");
+	CreateColor("white", 200, 0, 0, 1024, 576, "White");
 	Fade("white", 0, 1000, null, true);
 	Wait(100);
 	Move("bg", 1500, @0, @-150, null, false);
@@ -3680,6 +3702,32 @@ scene a.nss
         let pan = c.ops.iter().position(|op| matches!(op, Op::SpriteMotion2 { .. })).unwrap();
         assert!(matches!(c.ops[pan + 1], Op::BeginTransition { fade_ms: 300, .. }), "{:?}", c.ops);
         assert!(c.ops.iter().any(|op| matches!(op, Op::Wait { ms: 1000 })), "{:?}", c.ops);
+    }
+
+    #[test]
+    fn a_picture_under_an_opaque_full_screen_one_isnt_drawn() {
+        let story = r#"
+scene a.nss
+{
+	CreateTexture("old", 100, 0, 0, "cg/bg/a.jpg");
+	Fade("old", 0, 1000, null, true);
+	Wait(100);
+	CreateTexture("new", 200, 0, 0, "cg/bg/b.jpg");
+	Fade("new", 500, 1000, null, true);
+	Wait(100);
+	Fade("new", 500, 0, null, true);
+	Wait(100);
+}
+"#;
+        let c = compile(story, LIBRARY);
+        // Shown, covered (removed once the cover is up), shown again.
+        let old: Vec<_> = c.ops.iter().flat_map(|op| match op {
+            Op::Sprites { changes, .. } => changes.iter().filter(|c| c.sprite.as_ref().is_some_and(|s| s.image == "cg/bg/a.jpg")).collect(),
+            _ => Vec::new(),
+        }).collect();
+        assert_eq!(old.len(), 2, "{:?}", c.ops);
+        let removals = c.ops.iter().filter(|op| matches!(op, Op::Sprites { changes, .. } if changes.iter().any(|c| c.sprite.is_none()))).count();
+        assert_eq!(removals, 2, "{:?}", c.ops);
     }
 
     #[test]

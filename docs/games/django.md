@@ -294,8 +294,8 @@ with the original (it wants all eleven endings' flags under wine).
 | Movies (MPEG-1) | 🟡 Found in `<game>/movie` (the default) and drawn as Muramasa's compiler draws them (strips of frames at 15 a second); two long ones get fewer frames so that their JPEG strip stays within 65,535 px (`mv_ブラックホーク`, 70 s: 163 frames, 2.3 a second) |
 | Script parsing | ✅ All 249 files; 56 places that don't parse, none in the story |
 | Story control flow (56 chapters, 10 choices, bad ends) | ✅ Compiled whole (`compile_story`); in the engine the good path plays to the end (6,496 pages) and each wrong answer ends the story with its own bad end, then the game goes back to the title (`research/nitroplus/django_routes.sh`, which stops each run there, 2026-10-15) |
-| Text | 🟡 In the boxes' places (box00: 39 columns at 50,472, white on the black bar); 3,424 voiced lines; not compared with the original yet |
-| Pictures, sound in scripts | 🟡 Black bars, face windows in their frames, standing pictures, backgrounds; pictures turned over (`Rotate` by 180°, 315 calls: characters facing the other way) drawn mirrored (dja004's choice now as the original's); cameras (`CreateCamera`, `MoveCamera`, 365 calls): a camera's child of priority p drawn about the screen's centre at (its place − the camera's) × z / (1000 − p), as large, z the camera's zoom (priority is depth: measured under wine with boxes at four priorities and six camera settings, and dja001's carriage scene then matched the original's frames); moves, zooms and camera moves over time (1,765) as real motion: the engine moves the picture (`spmotion2`, keeping its last place) while the script goes on, also through the cross-fade of what else changes; 60 that also fade or change picture are still cross-fades; every sound is found |
+| Text | 🟡 In the boxes' places (box00: 39 columns at 50,472, white on the black bar; five rows, as many as end inside the 130 px box); 3,424 voiced lines; not compared with the original yet |
+| Pictures, sound in scripts | 🟡 Black bars, face windows in their frames, standing pictures, backgrounds; pictures turned over (`Rotate` by 180°, 315 calls: characters facing the other way) drawn mirrored (dja004's choice now as the original's); cameras (`CreateCamera`, `MoveCamera`, 365 calls): a camera's child of priority p drawn about the screen's centre at (its place − the camera's) × z / (1000 − p), as large, z the camera's zoom (priority is depth: measured under wine with boxes at four priorities and six camera settings, and dja001's carriage scene then matched the original's frames); moves, zooms and camera moves over time (1,765) as real motion: the engine moves the picture (`spmotion2`, keeping its last place) while the script goes on, also through the cross-fade of what else changes; 60 that also fade or change picture are still cross-fades; a picture under an opaque full-screen one isn't drawn (old backgrounds the script leaves up under `窓`); every sound is found |
 | Choices | ✅ Plates as picture buttons, text placed as the original's (compared under wine) |
 | System screens | 🟡 From the game's pictures (`django/screens.rs`): title, right-click menu, save/load (3×20 slots), yes/no questions, text log, settings (bullet rows as `SliderSteps`), the click-wait bullet after the last character (`getcursorpos` in the bar's wait routine); compared under wine: right-click menu, save, log, settings (text speed starts at level 5 as the original's; the two SAVE-DATA question rows drawn as they stand, ON chosen; the display options and version panel left out on purpose) |
 | Extras | 🟡 Menu, CG library, sound library, recollection, each compared with the original; left out: the doors' animation, the rifle over a category |
@@ -305,13 +305,10 @@ with the original (it wants all eleven endings' flags under wine).
 ### Next
 
 1. Under wine (recipe above): the chapter-end rule above.
-2. The rest of the trace checker's list (`cons_trace_check.py` on
-   `out/django-routes/good.jsonl`): one page runs past the window
-   (dja023_02 `[text029]`: a 21-character line in box02, 20 columns of a
-   fixed-width font; the original's proportional ＭＳ Ｐ ゴシック fits it);
-   sounds started twice; pictures left up across 150 pages (old
-   backgrounds hung under `窓` until their chapter ends, covered by the
-   newer ones); image memory peaks at 101 MB.
+2. The trace checker's remaining findings: image memory peaks at
+   101 MB (the two long movies' strips, 75 MB each); "sounds on two
+   channels at once" are the script's own (the same shot or horse on
+   two sound objects, started 500 ms apart) and stay.
 3. The text window and name plates (`box00`-`box05`, face windows
    `frame03`-`frame05`) measured against the original under wine.
 4. The ranked "not converted" list: `CreateTexture` from the screen,
@@ -329,3 +326,10 @@ with the original (it wants all eleven endings' flags under wine).
   of its place), shared with Muramasa's compiler; CONscripter steps
   motions during `print` effects too (fe00598), so a pan that starts with
   a fade runs through it.
+- **Trace checker (2026-10-15).** The page past the window (dja023_02
+  `[text029]`, a 21-character line in `box02`'s 20 columns) fits: a
+  horizontal box holds as many rows as end inside it (five in 130 px at
+  a 27 px pitch, not 130 / 27 = 4). Old backgrounds left up under newer
+  ones aren't drawn while an opaque full-screen picture covers them (the
+  checker's "crowd" findings are scenes with five or six characters at
+  once, and stay).
