@@ -861,9 +861,13 @@ fn convert_nss(
     let mut assets = NpaAssets::new(cg, sound, voice, output);
     assets.out.dry_run = dry_run;
     let scene = scene.unwrap_or(file);
-    // The game's own additions to the compiler, by its exe (the only
-    // Nitroplus game so far).
-    let game = if exe.file_name().is_some_and(|n| n == "Muramasa.exe") { &convert::MURAMASA } else { &convert::Game::PLAIN };
+    // The game's own additions to the compiler, by its exe.
+    let game = match exe.file_name().and_then(|n| n.to_str()) {
+        Some("Muramasa.exe") => &convert::MURAMASA,
+        Some("Django.exe") => &convert::DJANGO,
+        _ => &convert::Game::PLAIN,
+    };
+    assets.screen = game.screen;
     let compiled = match chain {
         Some(n) => {
             let (compiled, played) = convert::compile_run(&files, file, n, game, &mut assets).map_err(anyhow::Error::msg)?;
@@ -885,8 +889,8 @@ fn convert_nss(
     let story = convert::Story { flags: &compiled.flags, voice_classes: &compiled.voice_classes };
     let mut ir = Script {
         title: title.to_string(),
-        width: convert::SCREEN_W as u32,
-        height: convert::SCREEN_H as u32,
+        width: game.screen.0 as u32,
+        height: game.screen.1 as u32,
         global_border: Some(convert::GLOBAL_BORDER),
         window: compiled.window,
         ops: compiled.ops,

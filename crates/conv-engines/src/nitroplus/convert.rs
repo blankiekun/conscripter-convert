@@ -41,6 +41,7 @@ use conv_core::ir::{ArithOp, ChoiceStyle, CLICK_WAIT_MARK, Op, Operand, ScreenEf
 
 use super::nss::{AssignOp, BinaryOp, Expr, Function, Inline, Item, NssFile, Param, Stmt, StmtKind, Target, Text, UnaryOp};
 
+/// 装甲悪鬼村正's screen ([`Game::screen`]).
 pub const SCREEN_W: i64 = 1024;
 /// The longest cross-fade non-blocking actions get where the script doesn't
 /// wait for them (a text page, a blocking action): the original goes on
@@ -48,7 +49,8 @@ pub const SCREEN_W: i64 = 1024;
 /// battle).
 const UNWAITED_MS: u32 = 1000;
 pub const SCREEN_H: i64 = 576;
-/// The story driver; the helper library is what it `#include`s.
+/// 装甲悪鬼村正's story driver ([`Game::boot`]); the helper library is what
+/// it `#include`s.
 const BOOT: &str = "0_boot_開始スクリプト.nss";
 /// Highest IR sprite layer used.
 const MAX_LAYER: u32 = 900;
@@ -73,6 +75,8 @@ const RUN_END: &str = "conv_run_end";
 const GAME_NAME_SET: &str = "$GameName (set)";
 mod muramasa;
 pub use muramasa::MURAMASA;
+mod django;
+pub use django::DJANGO;
 
 /// What one game adds to the compiler, in its own module under `convert/`
 /// ([`MURAMASA`]): library functions it compiles itself (written as
@@ -94,11 +98,25 @@ pub struct Game {
     /// Chapters compiled once more as subroutines (label, `nss/file.nss`)
     /// for the system screens to call, such as a screen the menu opens.
     subroutines: &'static [(&'static str, &'static str)],
+    /// The screen's width and height.
+    pub screen: (i64, i64),
+    /// The boot script: the files it `#include`s are the helper library.
+    boot: &'static str,
 }
 
 impl Game {
     /// A game with nothing of its own: NSS as it is.
-    pub const PLAIN: Game = Game { call: |_, _| false, scene: |_, _, _| false, flags: Vec::new, files: &[], menus: |_, _, _| {}, subroutines: &[] };
+    /// Its screen and boot script are 装甲悪鬼村正's.
+    pub const PLAIN: Game = Game {
+        call: |_, _| false,
+        scene: |_, _, _| false,
+        flags: Vec::new,
+        files: &[],
+        menus: |_, _, _| {},
+        subroutines: &[],
+        screen: (SCREEN_W, SCREEN_H),
+        boot: BOOT,
+    };
 
     /// Fills `script`'s system screens.
     pub fn menus(&self, assets: &mut dyn Assets, script: &mut Script, story: &Story) {
@@ -446,7 +464,7 @@ pub fn story_flags(files: &BTreeMap<String, NssFile>, game: &Game) -> HashMap<St
             }
         }
     }
-    let library: Vec<&str> = library(files);
+    let library: Vec<&str> = library(files, game);
     let (mut set, mut tested) = (BTreeSet::new(), BTreeSet::new());
     for (name, file) in files {
         let story = !library.contains(&name.as_str()) && !["0_", "sys_", "extra_", "function"].iter().any(|p| name.starts_with(p));
@@ -487,7 +505,7 @@ fn file_label(name: &str) -> String {
 }
 
 /// Files the story driver includes, directly or not, in include order.
-pub fn library(files: &BTreeMap<String, NssFile>) -> Vec<&str> {
+pub fn library<'a>(files: &'a BTreeMap<String, NssFile>, game: &Game) -> Vec<&'a str> {
     fn visit<'a>(files: &'a BTreeMap<String, NssFile>, name: &str, out: &mut Vec<&'a str>) {
         let Some((key, file)) = files.get_key_value(name) else { return };
         if out.contains(&key.as_str()) {
@@ -502,8 +520,8 @@ pub fn library(files: &BTreeMap<String, NssFile>) -> Vec<&str> {
         }
     }
     let mut out = Vec::new();
-    visit(files, BOOT, &mut out);
-    out.retain(|&f| f != BOOT);
+    visit(files, game.boot, &mut out);
+    out.retain(|&f| f != game.boot);
     out
 }
 
@@ -999,8 +1017,8 @@ impl<'a, 'b> Compiler<'a, 'b> {
         const MARGIN: i64 = 40;
         let (plate, w, h) = self.assets.image("cg/sys/select/select001.png")?;
         let (w, h) = (w as i64, h as i64);
-        let first = PITCH * (n - 2) + 50 + SCREEN_W / 2;
-        let y = (SCREEN_H - h) / 2;
+        let first = PITCH * (n - 2) + 50 + self.game.screen.0 / 2;
+        let y = (self.game.screen.1 - h) / 2;
         let parts: Vec<_> = (0..n).map(|i| (plate.clone(), first - PITCH * i, y, 1000)).collect();
         let (image, wx, wy) = self.assets.composite(&parts)?;
         let window = TextWindow {
@@ -1364,7 +1382,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
         let vars = HashMap::from([("#SYSTEM_voice_enable_another".to_string(), Value::Int(1))]);
         Compiler {
             files,
-            library: library(files),
+            library: library(files, game),
             game,
             assets,
             vars,
@@ -1765,6 +1783,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
     }
 
     fn builtin(&mut self, name: &str, a: &[Value]) -> Value {
+        let (screen_w, screen_h) = self.game.screen;
         let arg = |i: usize| a.get(i).cloned().unwrap_or(Value::Null);
         match name {
             "CreateTexture" => {
@@ -1777,8 +1796,8 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 };
                 let (w, h) = (w as i64, h as i64);
                 let o = self.create(name, Kind::Image { image }, arg(1).int(), w, h);
-                o.x = arg(2).position(0, w, SCREEN_W);
-                o.y = arg(3).position(0, h, SCREEN_H);
+                o.x = arg(2).position(0, w, screen_w);
+                o.y = arg(3).position(0, h, screen_h);
             }
             "CreateColor" => {
                 let name = self.object_name(&arg(0));
@@ -1789,8 +1808,8 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 };
                 let image = self.assets.color(rgb, w as u32, h as u32);
                 let o = self.create(name, Kind::Image { image }, arg(1).int(), w, h);
-                o.x = arg(2).position(0, w, SCREEN_W);
-                o.y = arg(3).position(0, h, SCREEN_H);
+                o.x = arg(2).position(0, w, screen_w);
+                o.y = arg(3).position(0, h, screen_h);
             }
             "CreateEffect" => {
                 let name = self.object_name(&arg(0));
@@ -1800,7 +1819,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
                     self.note(format!("CreateEffect {}", arg(6).string()));
                     Kind::Other
                 };
-                self.create(name, kind, arg(1).int(), SCREEN_W, SCREEN_H);
+                self.create(name, kind, arg(1).int(), screen_w, screen_h);
             }
             "CreateWindow" | "CreateName" => {
                 let name = self.object_name(&arg(0));
@@ -1839,7 +1858,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 if ms > 0 && blocking && targets.len() == 1 && self.shown.contains_key(&targets[0]) {
                     self.sync(0);
                     let o = self.objects.get_mut(&targets[0]).unwrap();
-                    let (x, y) = (arg(2).position(o.x, o.w, SCREEN_W), arg(3).position(o.y, o.h, SCREEN_H));
+                    let (x, y) = (arg(2).position(o.x, o.w, screen_w), arg(3).position(o.y, o.h, screen_h));
                     let (dx, dy) = (x - o.x, y - o.y);
                     (o.x, o.y) = (x, y);
                     if let Some(sh) = self.shown.get_mut(&targets[0]) {
@@ -1852,8 +1871,8 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 }
                 for t in &targets {
                     let o = self.objects.get_mut(t).unwrap();
-                    o.x = arg(2).position(o.x, o.w, SCREEN_W);
-                    o.y = arg(3).position(o.y, o.h, SCREEN_H);
+                    o.x = arg(2).position(o.x, o.w, screen_w);
+                    o.y = arg(3).position(o.y, o.h, screen_h);
                 }
                 if arg(1).int() > 0 && targets.iter().any(|t| self.shown.contains_key(t)) {
                     self.note("Move over time drawn as a cross-fade");
@@ -1926,7 +1945,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 // (obj, time, x, y, …, wait). A full-screen picture (or all
                 // of them): the whole picture shakes.
                 let targets = self.matching(&arg(0));
-                if !targets.iter().any(|t| self.objects[t].w >= SCREEN_W && self.objects[t].h >= SCREEN_H) {
+                if !targets.iter().any(|t| self.objects[t].w >= screen_w && self.objects[t].h >= screen_h) {
                     self.note("Shake of a picture smaller than the screen");
                     self.timed(arg(1).int(), a.last().unwrap_or(&Value::Null), &targets);
                     return Value::Null;
