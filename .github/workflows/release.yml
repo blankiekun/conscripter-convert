@@ -29,13 +29,22 @@ jobs:
           - {runner: ubuntu-22.04, suffix: x64_linux, exe: ''} # an older glibc runs on more systems
           - {runner: ubuntu-22.04-arm, suffix: arm64_linux, exe: ''}
           - {runner: macos-14, suffix: aarch64_darwin, exe: ''} # Apple silicon
-          - {runner: macos-15-intel, suffix: x64_darwin, exe: ''}
+          # Intel Macs, built on Apple silicon (the Intel runners took twice
+          # as long and are being retired): Rust cross-compiles, and an x64
+          # Python runs PyInstaller and the bundle under Rosetta.
+          - {runner: macos-14, suffix: x64_darwin, exe: '', target: x86_64-apple-darwin, python_arch: x64}
     runs-on: ${{ matrix.os.runner }}
     defaults:
       run:
         shell: bash
     env:
       NAME: ${{ github.ref_type == 'tag' && github.ref_name || 'dev' }}
+      # The converter, built for the matrix's target when it has one.
+      CONVERTER: target/${{ matrix.os.target && format('{0}/', matrix.os.target) || '' }}release/conscripter-convert${{ matrix.os.exe }}
+      # sccache keeps every compiled crate, ours included (a cache of
+      # target/ kept only the dependencies), in the Actions cache.
+      SCCACHE_GHA_ENABLED: 'true'
+      RUSTC_WRAPPER: sccache
     steps:
     - uses: actions/checkout@v4
 
@@ -52,17 +61,23 @@ jobs:
     # again took up to 40 s on Windows.
     - run: rustc -V
 
-    - uses: Swatinem/rust-cache@v2
-      with:
-        # Saving takes up to 40 s; branches and tags read main's cache.
-        save-if: ${{ github.ref == 'refs/heads/main' }}
+    - uses: mozilla-actions/sccache-action@v0.0.9
 
     - name: build conscripter-convert
-      run: cargo build --release --locked
+      run: |
+        if [ -n "${{ matrix.os.target }}" ]; then
+          rustup target add ${{ matrix.os.target }}
+          cargo build --release --locked --target ${{ matrix.os.target }}
+        else
+          cargo build --release --locked
+        fi
+        file "$CONVERTER" || true
+        sccache --show-stats
 
     - uses: actions/setup-python@v5
       with:
         python-version: '3.12'
+        architecture: ${{ matrix.os.python_arch }}
         cache: pip
         cache-dependency-path: gui/requirements.txt
 
@@ -79,7 +94,7 @@ jobs:
     - name: build the GUI
       run: |
         python gui/fetch_fonts.py
-        python gui/build_exe.py --converter target/release/conscripter-convert${{ matrix.os.exe }}
+        python gui/build_exe.py --converter "$CONVERTER"
 
     - name: check the GUI bundle
       run: |
@@ -90,12 +105,12 @@ jobs:
         fi
         "$gui" --self-test self-test.json || true
         cat self-test.json
-        python -c "import json, sys; s = json.load(open('self-test.json')); sys.exit(not (s.get('converter_runs') and s['dnd'] and all(s['fonts'].values())))"
+        python -c "import json, sys; s = json.load(open('self-test.json')); sys.exit(not (s.get('converter_runs') and s['dnd'] and all(s['fonts'].values()) and not s.get('ffmpeg_missing')))"
 
     - name: prepare release
       run: |
         mkdir release
-        cp target/release/conscripter-convert${{ matrix.os.exe }} release/conscripter-convert_${NAME}_${{ matrix.os.suffix }}${{ matrix.os.exe }}
+        cp "$CONVERTER" release/conscripter-convert_${NAME}_${{ matrix.os.suffix }}${{ matrix.os.exe }}
         if [ "${{ runner.os }}" = macOS ]; then
           ditto -c -k --keepParent gui/dist/conscripter-convert-gui.app release/conscripter-convert-gui_${NAME}_${{ matrix.os.suffix }}.zip
         else
