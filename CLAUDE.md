@@ -186,7 +186,10 @@ on each later turn; several agents run at once.
   cost in past sessions: never Read a full-size PNG, look through
   `research/tools/view.py a.png [b.png] [--crop WxH+X+Y] [--scale 50]
   [-o out.png]`, which crops, halves and puts the shots side by side
-  in one small image (original and ours in one read).
+  in one small image (original and ours in one read). A hook
+  (`.claude/hooks/image_read.py`) refuses the first Read of an image
+  over 250,000 pixels; if `view.py` really can't do the job, say why
+  and Read it again.
 - **Logic checks use the dry run** (`--dry-run`, script only, seconds);
   the full build re-renders every asset.
 - **Film the original once per screen** and keep the shots in
