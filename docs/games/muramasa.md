@@ -615,9 +615,7 @@ Next, in order:
    (a save to a reserved slot before each choice).
 2. The largest leftovers below: `CreateProcess` (via Lua), non-blocking
    `Move`/`Zoom`, `AddRender` (needs a per-sprite blend mode).
-3. Step 11.5: `#` flags (globals from %800) across quit and relaunch,
-   and in the web build.
-4. Optional: the 18 files with no `else` (below).
+3. Optional: the 18 files with no `else` (below).
 
 **Leftovers** (counts from the dry run's notes):
 - `CreateProcess` (510 calls; the battle HUD `CP_*` in
@@ -651,6 +649,22 @@ Next, in order:
 
 Finished work, moved out of "Status" so a session reads only the open
 state.
+
+**`#` flags across quit and relaunch (step 11.5, 2026-10-15):** every
+`#` name the story both sets and tests is a global (%800-%969, then
+%5200 up; `;$S1024,576,value800,V8192` + `globalon`), e.g.
+`#悪鬼編終了 = true` in `md06_036.nss` is a `mov %54xx,1` there. Every
+way out (the title's 終了する, Esc → ゲームを終了, the quick bar, the
+story's end) is `end`, which writes `gloval.sav`, as closing the window
+does; a save writes it too. Checked headless with a small script
+(`;$S1024,576,value800,V8192`, `globalon`, %800/%969/%5200/%8191 set,
+then `end` or SIGTERM in a click wait, relaunched with the same
+`--save-dir`: all read back). Web: the engine writes the globals at a
+wait when they changed and syncs IndexedDB; that was only at click
+waits, so auto mode lost them when the tab closed. CONscripter now does
+it at any wait (`ADDITIONS.md`). Checked in headless Chromium
+(Playwright): a value added in a loop of timed waits is read back after
+a reload.
 
 **The route runs, round 3 (2026-10-14):**
 
