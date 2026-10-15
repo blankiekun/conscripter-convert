@@ -49,9 +49,15 @@ mod tests {
     /// the table.
     #[test]
     fn conv_cons_variables_are_in_the_table() {
-        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
-        for entry in std::fs::read_dir(dir).unwrap() {
-            let path = entry.unwrap().path();
+        let mut dirs = vec![std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src")];
+        let mut files = Vec::new();
+        while let Some(dir) = dirs.pop() {
+            for entry in std::fs::read_dir(dir).unwrap() {
+                let path = entry.unwrap().path();
+                if path.is_dir() { dirs.push(path) } else { files.push(path) }
+            }
+        }
+        for path in files {
             let text = std::fs::read_to_string(&path).unwrap();
             let code = text.split("\nmod tests").next().unwrap();
             for (i, line) in code.lines().enumerate() {
