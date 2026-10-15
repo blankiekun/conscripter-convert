@@ -14,6 +14,7 @@ use conv_core::ir::{
 };
 
 mod button_screen;
+mod chapters;
 mod command_menu;
 mod extras;
 pub mod lint;
@@ -148,6 +149,7 @@ pub fn emit(script: &Script) -> String {
     let has_ruby = script.ops.iter().any(|op| matches!(op, Op::Text { ruby, .. } if !ruby.is_empty()));
     let has_overlay = script.ops.iter().any(|op| matches!(op, Op::Overlay { .. }));
     let has_noise = script.ops.iter().any(|op| matches!(op, Op::Noise(_)));
+    let has_chapters = script.button_bar.as_ref().and_then(|b| b.top.as_ref()).is_some_and(|t| t.chapter_history.is_some());
     let has_animation = script.ops.iter().any(|op| matches!(op, Op::Animation(_)));
     // What removes a fade to a colour, after `csp -1` and `popscreen`.
     let clear_fade = if script.ops.iter().any(|op| matches!(op, Op::ScreenFade { .. })) {
@@ -890,7 +892,14 @@ pub fn emit(script: &Script) -> String {
                     writeln!(out, "{seen}").unwrap();
                 }
             }
-            Op::Chapter { title } => writeln!(out, "mov {},\"{}\"", menu::CHAPTER, sprite_text(title)).unwrap(),
+            Op::Chapter { title } => {
+                writeln!(out, "mov {},\"{}\"", menu::CHAPTER, sprite_text(title)).unwrap();
+                if has_chapters && !title.is_empty() {
+                    writeln!(out, "gosub *{}", chapters::KEEP).unwrap();
+                }
+            }
+            Op::ChapterHistoryClear if has_chapters => writeln!(out, "mov {},0:mov {},0", chapters::COUNT, chapters::CURRENT).unwrap(),
+            Op::ChapterHistoryClear => {}
             Op::UnlockScene { scene } => writeln!(out, "mov %{},1", SCENE_UNLOCKED_BASE + scene).unwrap(),
             // Starts the script over: the title screen.
             Op::ReturnToTitle => writeln!(out, "reset").unwrap(),
@@ -988,6 +997,9 @@ pub fn emit(script: &Script) -> String {
         menu::button_bar(&mut out, b, screens);
         if let Some(m) = &script.command_menu {
             command_menu::emit(&mut out, m, b);
+        }
+        if let Some(h) = b.top.as_ref().and_then(|t| t.chapter_history.as_ref()) {
+            chapters::emit(&mut out, h);
         }
     }
     if let Some(m) = &script.settings {

@@ -49,7 +49,7 @@ uses is converted (only the unreachable debug menu is left out).
 | System screens (title, save/load, settings, backlog with names and voice replay, button bars, confirmations) | ✅ Built as in-script menus |
 | Extras (CG gallery, scene replay, BGM room) | ✅ Built as in-script menus |
 | Movies | ✅ Web, Windows and Android; skipped by the Linux and macOS builds |
-| Not converted | The system-voice room (WSS), the chapter history screen, autosave, some settings of the original's settings dialog |
+| Not converted | The system-voice room (WSS), autosave (in the dropped right-click menu), some settings of the original's settings dialog |
 
 Other Xuse games may convert but haven't been tried.
 
@@ -746,6 +746,24 @@ exe (`research/tools/ghidra/ghidra_export.sh`, names in
    `%2913`). Off, the channel's volume is 0 and its level is kept; a
    toggle applies at once. The page's rows are 36 px apart now (was 50)
    to fit eleven switches.
+19. **Done: the chapter history** (`ChapterHistory.004`, filmed under
+   wine). Clicking the top chapter bar opens it over the scene (text
+   window hidden): the chapters reached since 0x39 last cleared it (at
+   each loop's start), three columns of 19 rows, the current one
+   bracketed, the row under the pointer highlighted. Choosing one asks
+   「チャプタ "…" に移動します。よろしいですか？」 and goes back to the
+   start of that chapter; the chapters after it stay listed until a new
+   one is reached. The port (`crates/conv-cons/src/chapters.rs`,
+   `TopBars::chapter_history`): each `Op::Chapter` keeps the game there
+   (`savepoint`, `savegame2` with the title) in save slot 700 + entry;
+   the entries and the current one are locals `%193`/`%194` (a save
+   keeps its own history), carried over the load that goes back
+   (`%2909`); `Op::ChapterHistoryClear` (0x39) empties it. The rows
+   follow the pointer with a 50 ms `btntime`; the chapter bar's button
+   is an invisible sprite in the bar's slot 48, so auto-play's
+   `--trace-ignore 22-48` keeps out of it. Checked on our build on its
+   own Xvfb display against the original: the list, the hover, the
+   question, and going back keeps the later chapters.
 
 
 Converted and playable from start to end: text, voices, sprites with
@@ -850,8 +868,9 @@ parts are not converted:
   behaviour, shortcut-menu position, gamepad.
 
 **Other system screens.**
-- Chapter history (`ChapterHistory.004`; 0x37/0x38 only end a chapter and
-  clear its name, converted) and the autosave slots.
+- The autosave slots: the original's are in its right-click menu
+  (オートセーブ ▶ 「1 - 開始位置へ戻る」, back to where the session
+  started), which was dropped.
 - Extras: the CG gallery, the scene replay ("chapter") and the BGM room
   are done; the system voices (WSS, title image 13) are dropped (the
   user's decision; the item stays greyed out). No title BGM (the

@@ -449,6 +449,8 @@ pub enum Op {
     /// (but under [`Op::Noise`] and [`Op::Animation`]), or (`front` false)
     /// back at its place. It stays until the sprite is removed.
     SpriteInFront { layer: u32, front: bool },
+    /// The [`ChapterHistory`] starts over, empty.
+    ChapterHistoryClear,
 }
 
 /// A puzzle of numbered tiles (装甲悪鬼村正's 立方陣): the player clicks a
@@ -751,6 +753,43 @@ pub struct TopBars {
     pub row_text: TextSpot,
     pub row_color: String,
     pub current_row_color: String,
+    /// Opened by clicking the chapter bar; `None`: the bar isn't a button.
+    pub chapter_history: Option<ChapterHistory>,
+}
+
+/// The chapters reached since the history was last cleared
+/// ([`Op::ChapterHistoryClear`]), listed in columns over the scene: each
+/// [`Op::Chapter`] keeps the game as it is there, and choosing a chapter
+/// (after a yes/no question) goes back to it; the chapters after it stay
+/// listed until another one is reached.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ChapterHistory {
+    /// Full-screen pictures, `base` drawn at `base_opacity` (0-255).
+    pub base: Placed,
+    pub base_opacity: u8,
+    pub frame: Placed,
+    /// Three cells: normal, under the pointer, disabled.
+    pub close: Placed,
+    /// A row's look under the pointer, at the row's place.
+    pub hover: Placed,
+    /// Marks the current chapter's row, at its offset (`x`, `y`) from the
+    /// row's place.
+    pub current: Placed,
+    /// Rows: the first column's first row at (`x`, `y`), then `row_pitch`
+    /// down and `column_pitch` across, `rows` to a column, each
+    /// `row_width` wide; the title starts at `text_dx`, `text_dy` in it.
+    pub x: i32,
+    pub y: i32,
+    pub row_pitch: i32,
+    pub column_pitch: i32,
+    pub rows: u32,
+    pub columns: u32,
+    pub row_width: i32,
+    pub text_dx: i32,
+    pub text_dy: i32,
+    pub font_size: u32,
+    /// The question asked before going back, around the chapter's title.
+    pub question: (String, String),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -12,7 +12,7 @@ use thiserror::Error;
 use conv_core::ir::{
     Compare,
     Animation, ArithOp, Backlog, CgGallery, CgViewer, ExtrasAction, ExtrasItem, ExtrasMenu, GallerySlot, ReplayList, ReplayScene, SceneReplay, MusicRoom, MusicSong, GalleryTab, BarAction, BarButton, ButtonBar, ConfirmDialog, NamePlate, Noise, ScreenEffect, Setting, SettingRow, SettingSwitch, SettingsMenu, Switch, Op, Operand, PageButton, Placed, Rect, Ruby, SaveMenu, TextStyle, SourceLoc, Voice, VoiceToggle,
-    SpriteChange, SpriteFilter, SpritePlacement, TextLink, TextSpot, TextWindow, TitleAction, TitleButton, TitleScreen, TopBars,
+    SpriteChange, SpriteFilter, SpritePlacement, TextLink, TextSpot, TextWindow, TitleAction, TitleButton, TitleScreen, TopBars, ChapterHistory,
     SlideLayer, TransitionStyle, Var, ZoomStyle, FILTER_BLEND_ADD, FILTER_BLEND_COPY, FILTER_BLEND_MULTIPLY, FILTER_BLEND_SCREEN, FILTER_BRIGHTNESS, FILTER_COLOUR, FILTER_MONOTONE,
     FILTER_GREYSCALE, FILTER_NEGATIVE, FILTER_BLUR, FILTER_HUE_SATURATION, FILTER_LIGHTNESS_INVERT,
 };
@@ -1506,6 +1506,59 @@ impl AssetBank {
             row_text: TextSpot { x: row_x + 19, y: row_y + 4, font_size: 14, columns: 17 },
             row_color: "#A0A0A0".into(),
             current_row_color: "#FFFFFF".into(),
+            chapter_history: Some(self.chapter_history()?),
+        })
+    }
+
+    /// The chapter history (`wnd.arc` → `ChapterHistory.004`: #0 base, #1
+    /// frame, #2 and #3 the close button's base and lettering, four states
+    /// of 21 px stacked, #4 the current chapter's bracket, #5 the row
+    /// highlight, additive, four states of 25 px stacked). Layout and
+    /// opacity measured on screenshots of the original under wine: rows 24
+    /// px apart from (16, 83), columns 258 px apart, 19 rows to a column.
+    fn chapter_history(&mut self) -> Result<ChapterHistory, ConvertError> {
+        let images = self.gaf_rgba("wnd.arc", "ChapterHistory.004", "chapter history")?;
+        let get = |n: usize| images.get(n).cloned().ok_or(ConvertError::MissingAsset { kind: "chapter history image", number: n });
+        let (close_base, close_text) = (get(2)?, get(3)?);
+        let (cw, ch) = (close_base.width(), close_base.height() / 4);
+        // Normal, under the pointer, disabled: the lettering over the base.
+        let mut close = image::RgbaImage::new(cw * 3, ch);
+        for (i, state) in [0u32, 1, 3].into_iter().enumerate() {
+            let mut cell = image::imageops::crop_imm(&close_base, 0, state * ch, cw, ch).to_image();
+            image::imageops::overlay(&mut cell, &image::imageops::crop_imm(&close_text, 0, state * ch, cw, ch).to_image(), 0, 0);
+            image::imageops::replace(&mut close, &cell, i64::from(cw) * i as i64, 0);
+        }
+        // The highlight is added to the screen: as alpha, its brightest
+        // channel is the opacity.
+        let cursor = get(5)?;
+        let mut hover = image::imageops::crop_imm(&cursor, 0, cursor.height() / 4, cursor.width(), cursor.height() / 4).to_image();
+        for p in hover.pixels_mut() {
+            let a = p[0].max(p[1]).max(p[2]);
+            if a == 0 {
+                *p = image::Rgba([0, 0, 0, 0]);
+            } else {
+                let scale = |c: u8| (u32::from(c) * 255 / u32::from(a)) as u8;
+                *p = image::Rgba([scale(p[0]), scale(p[1]), scale(p[2]), a]);
+            }
+        }
+        Ok(ChapterHistory {
+            base: self.place("chapters_base", &get(0)?, None, 0, 0)?,
+            base_opacity: 140,
+            frame: self.place("chapters_frame", &get(1)?, None, 0, 0)?,
+            close: self.place("chapters_close", &close, None, 715, 576)?,
+            hover: self.place("chapters_hover", &hover, None, 0, 0)?,
+            current: self.place("chapters_current", &get(4)?, None, -16, 0)?,
+            x: 16,
+            y: 83,
+            row_pitch: 24,
+            column_pitch: 258,
+            rows: 19,
+            columns: 3,
+            row_width: 256,
+            text_dx: 5,
+            text_dy: 5,
+            font_size: 13,
+            question: ("チャプタ“".into(), "”に移動します。よろしいですか？".into()),
         })
     }
 
@@ -2668,6 +2721,7 @@ pub fn lower_script(
             env_slots.clear();
             ops.push(Op::Noise(None));
             ops.push(Op::ScreenEffect { slot: 0, effect: None });
+            ops.push(Op::ChapterHistoryClear);
             continue;
         }
         if matches!(ins.op, OP_YIELD | OP_YIELD_2 | OP_ENTRY_NAME) {

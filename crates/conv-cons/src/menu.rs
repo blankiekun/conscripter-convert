@@ -71,7 +71,7 @@ const BTN_SWITCH: u32 = 70; // + 1 + switch
 const SWITCH_OFF_BASE: u32 = 3640;
 const SWITCH_OFF_BASE_2: u32 = 2910;
 /// The confirmation being asked (a [`Switch`] + 1; 0 = always ask).
-const CONFIRM_KIND: &str = "%125";
+pub(crate) const CONFIRM_KIND: &str = "%125";
 const BTN_MINUS: u32 = 10;
 const BTN_PLUS: u32 = 20;
 const BTN_TITLE: u32 = 30;
@@ -106,7 +106,7 @@ pub(crate) const VOICE_OFF_BASE: u32 = 970;
 /// Asks the question in [`CONFIRM_TEXT`]; [`CONFIRM`] = 1 for yes.
 pub(crate) const CONFIRM_ROUTINE: &str = "conv_confirm";
 pub(crate) const CONFIRM: &str = "%109";
-const CONFIRM_TEXT: &str = "$106";
+pub(crate) const CONFIRM_TEXT: &str = "$106";
 /// Bar buttons return numbers above this.
 pub(crate) const BAR_BUTTON_BASE: i32 = 1000;
 pub(crate) const BAR_CLEAR: &str = "conv_bar_clear";
@@ -562,6 +562,8 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, s: BarScreens) {
     let (chapter_text, scene_text) = (slots.next().unwrap(), slots.next().unwrap());
     // Back, forward, exit, list.
     let scene_buttons: [u32; 4] = std::array::from_fn(|_| slots.next().unwrap());
+    // An invisible button over the chapter bar (see [`ChapterHistory`]).
+    let chapters_slot = slots.next();
     let mut w = |line: String| {
         out.push_str(&line);
         out.push('\n');
@@ -719,6 +721,9 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, s: BarScreens) {
             w(format!("if {BAR_UNPINNED} == 1 goto *conv_bar_draw_end"));
         }
         scene_bar_draw(&mut w, top, chapter_text, scene_text, scene_buttons);
+        if let (Some(_), Some(slot)) = (&top.chapter_history, chapters_slot) {
+            w(crate::chapters::hotspot(top, slot));
+        }
     }
     if reveal.is_some() {
         w("*conv_bar_draw_end".into());
@@ -776,6 +781,9 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, s: BarScreens) {
     if bar.top.is_some() {
         let last = BTN_SCENE_ROW + SCENE_ROWS as i32;
         w(format!("if {BUTTON_VAR} >= {BTN_SCENE_BACK} && {BUTTON_VAR} <= {last} goto *conv_scene_action"));
+        if bar.top.as_ref().is_some_and(|t| t.chapter_history.is_some()) {
+            w(format!("if {BUTTON_VAR} == {} goto *{}", crate::chapters::BTN_OPEN, crate::chapters::OPEN));
+        }
     }
     for (i, (b, _)) in buttons.iter().enumerate() {
         if b.action != BarAction::Unavailable {
@@ -860,7 +868,7 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, s: BarScreens) {
         w("return".into());
     }
     if bar.top.is_some() {
-        scene_stack(&mut w);
+        scene_stack(&mut w, bar.top.as_ref().is_some_and(|t| t.chapter_history.is_some()));
     }
 }
 
@@ -962,7 +970,9 @@ fn scene_bar_draw(w: &mut impl FnMut(String), top: &TopBars, chapter_text: u32, 
 /// load puts them back, as the original keeps its scene stack in a save.
 /// A save without them (made by an older build) loads at the level saved,
 /// whose levels below are dropped and above can't be gone back to.
-fn scene_stack(w: &mut impl FnMut(String)) {
+/// `chapters`: there is a [`ChapterHistory`](conv_core::ir::ChapterHistory),
+/// whose entries a load may carry over.
+fn scene_stack(w: &mut impl FnMut(String), chapters: bool) {
     let titles = || (1..=SCENE_ROWS).map(|k| (SCENE_TITLES + k, SCENE_CARRY + k));
     w("*conv_scene_action".into());
     w(format!("if {BUTTON_VAR} == {BTN_SCENE_LIST} goto *conv_scene_list"));
@@ -1005,6 +1015,9 @@ fn scene_stack(w: &mut impl FnMut(String)) {
     w("return".into());
 
     w(format!("*{SCENE_LOADED}"));
+    if chapters {
+        w(format!("gosub *{}", crate::chapters::LOADED));
+    }
     w(format!("if {SCENE_LOADING} == 1 goto *conv_scene_switched"));
     // A load from the save menu: its levels back, if it kept them.
     w(format!("mov {SCENE_RESTORED},0"));
@@ -1515,7 +1528,7 @@ pub(crate) fn backlog(out: &mut String, b: &Backlog, ruby: bool) {
 
 /// Sprites hidden while a full-screen menu is open: the bars, the name
 /// plate and the link words.
-fn hidden_while_open() -> Vec<u32> {
+pub(crate) fn hidden_while_open() -> Vec<u32> {
     BAR_SPRITES.chain([NAME_TEXT_SPRITE, NAME_PLATE_SPRITE]).chain(LINK_SPRITES).collect()
 }
 
@@ -1807,10 +1820,9 @@ pub(crate) mod tests {
         assert_eq!(switch_off(Switch::ConfirmQuit), "%3646");
     }
 
-    #[test]
-    fn scene_stack_routines() {
+    pub(crate) fn top_bars() -> TopBars {
         let spot = TextSpot { x: 5, y: 6, font_size: 14, columns: 17 };
-        let top = TopBars {
+        TopBars {
             chapter_bar: placed("chapter_bar", 400, 28),
             chapter_text: spot,
             scene_bar: placed("scene_bar", 384, 28),
@@ -1830,7 +1842,13 @@ pub(crate) mod tests {
             row_text: TextSpot { x: 550, y: 34, font_size: 14, columns: 17 },
             row_color: "#A0A0A0".into(),
             current_row_color: "#FFFFFF".into(),
-        };
+            chapter_history: None,
+        }
+    }
+
+    #[test]
+    fn scene_stack_routines() {
+        let top = top_bars();
         let bar = ButtonBar { buttons: vec![], top: Some(top), ..Default::default() };
         let mut out = String::new();
         button_bar(&mut out, &bar, BarScreens { save_menu: true, ..Default::default() });
