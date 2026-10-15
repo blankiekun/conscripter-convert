@@ -9,6 +9,10 @@ For scale: 最果てのイマ took about two days of agent sessions, around
 120 converter commits and ten CONscripter releases (0.8.0 to 0.17.0). The
 story played end to end after the first day. The second day went on
 system screens, extras and matching effects to the original.
+装甲悪鬼村正 (Nitroplus NSS) and 俺たちに翼はない (PS Vita, MAGES)
+followed in parallel from 2026-10-13, each in its own branch: about 70
+commits each in their first two days, by which time the whole story
+converted, every ending reachable.
 
 ## 0. Before writing any code
 
@@ -59,6 +63,15 @@ system screens, extras and matching effects to the original.
 
 ## 1. Archives and assets
 
+- **Reuse the shared code before writing your own.** The engines
+  share how files are written (`conv_engines::output::Output`: the
+  output folder, dry runs, collected errors, `write`, `write_png`,
+  `image_size`), how sounds and movies are made
+  (`conv_engines::media`: `ffmpeg` through a `.part` file,
+  `mp4_options`) and the end of a build (`crates/conv-cli/src/build.rs`:
+  `check_output`, `write_game`, `pack`, `summary` with the notes and the
+  lint). A new engine's asset bank keeps only what is its own: reading
+  its archives, its caches and its output names (saves record them).
 - Write the archive reader and per-format decoders in
   `crates/conv-engines/src/<engine>/`, one module per format, each
   with a `conscripter-convert <format> list|extract` subcommand for
@@ -74,7 +87,7 @@ system screens, extras and matching effects to the original.
   saves never lose. Movies: ffmpeg to H.264 + AAC MP4, played with
   `mpegplay`.
 - Images stay PNG by default; `--webp` (near-lossless) is opt-in for
-  the web build.
+  the web build (`convert-game` has it; the other engines don't yet).
 
 ## 2. Scripts: decode, then measure
 
@@ -120,17 +133,34 @@ system screens, extras and matching effects to the original.
   claim slots. Lower sprite numbers draw on top. Keep the game's own
   sprites at fixed numbers, so old saves still load after renumbering
   the menus.
+- **Claim them against what conv-cons already uses.** The menus write
+  variables of their own (`grep -o '%[0-9]*' 0.txt`, and the constants
+  at the top of `menu.rs` and `lib.rs`): pick the game's flags clear of
+  them, locals below the global border, globals clear of the menus'.
+  A new settings switch takes the next free number in `switch_index`
+  and is added to the test that no two share one: branches adding
+  switches at the same time both took 9-11 once. Never move a number
+  once a build is out (step 11.9).
 
 ## 4. Control flow: prove it before looking at pictures
 
-- Trace the emitted `0.txt` statically (`research/xuse/nstrace.py`)
-  to count displayed pages, find hot loops and follow each route (the
-  "click link N" option). Pages count as displayed, not in file order.
-- Run it headless (recipe in `CLAUDE.md`), always under `timeout -k 5`
-  (ONScripter ignores SIGTERM in a script loop). Once the story runs,
-  let it play itself with the debug trace and check the trace ("Checking
-  a build with the debug trace", below): one run finds script errors,
-  crashes, missing files and labels never reached.
+- **After every feature, compile the whole game and lint it.** A dry
+  run (`--dry-run`: the script only, no assets; under 20 s for a whole
+  game; `convert-nss` and `mages convert` have it, give a new engine's
+  command one too) then `conscripter-convert lint <dir>`: missing
+  labels, effect numbers past 255, a `?` in text, half-width characters
+  in vertical text, files missing from the archives. Two of 村正's engine-killing bugs only showed on the whole
+  game, and lint's first run found a third.
+- **Then let the engine play it** with the debug trace and check the
+  trace ("Checking a build with the debug trace", below): one run finds
+  script errors, crashes, missing files and labels never reached, and
+  `cons_explore.py` covers every route. This is the default headless
+  check; always under `timeout -k 5` (ONScripter ignores SIGTERM in a
+  script loop).
+- The older tools still help where the engine can't: a static tracer
+  of `0.txt` (`research/xuse/nstrace.py`: displayed pages, hot loops,
+  every route in seconds with "click link N"; pages count as displayed,
+  not in file order) and the patched-`0.txt` recipe in `CLAUDE.md`.
 - A loop isn't automatically a bug: check whether the original loops
   there too.
 - Map the progression variables (step 11.2) as soon as conditions
@@ -149,6 +179,11 @@ system screens, extras and matching effects to the original.
   `pretextgosub`, read back with `gettaglog`.
 - Ruby, size and colour tags: `(base/reading)` with `rubyon`, `!zNNN`,
   `#RRGGBB`.
+- **Check that the longest text fits.** Find the longest message, with
+  its name and its ruby, over the whole corpus and measure it against
+  the window's lines and columns (俺たちに翼はない: 109 characters, four
+  lines of 30). The trace's "text ran past the window" warning only
+  covers the pages a run reached.
 
 ## 6. Pictures and sound in scripts
 
@@ -168,10 +203,25 @@ enables at each point (no save yet, no choice yet, nothing unlocked)
 is checked in step 11.6. Build them as in-script menus from the
 original's own parts (`menu.rs` explains the ONScripter mechanics). Where
 the original uses a Windows dialog, design one from game parts and say
-so. Check each one headless with `research/xuse/smoke.py` (scripted
-button presses and screenshots). List the screens' sprites in the game's
-trace config (below) so the trace leaves them out and auto-play never
-presses the bar's save, load or skip buttons.
+so.
+
+- **Start from the screens the IR already has**: `SaveMenu` and
+  `SaveGrid` (save and load), `SettingsMenu` (with `PictureSettings`, on
+  the `oretsuba` branch until it merges, for a settings screen drawn
+  from the game's own pictures), `ButtonBar`,
+  `CommandMenu`, `Backlog`, `ConfirmDialog`, `PictureScreen`. A game
+  changes them through what it puts in the IR, never with game-specific
+  branches in `menu.rs`. Add a new screen type only for a screen none of
+  them can draw, and make it general enough for the next game.
+- **State the engine could keep goes in the engine.** When a screen needs
+  something the engine can track (play time, counters, save details),
+  add a CONscripter command instead of script arithmetic: 村正's save
+  grid first counted play time in script, then got `getplaytime`.
+- Check each screen headless with the trace's `--shot-pages` or
+  `research/xuse/smoke.py` (scripted button presses and screenshots).
+  List the screens' sprites in the game's trace config (below) so the
+  trace leaves them out and auto-play never presses the bar's save, load
+  or skip buttons.
 
 ## 8. Extras
 
@@ -233,7 +283,9 @@ When existing NScripter commands can't do it:
    together with the converter change that uses it.
 4. Release when a batch is ready: bump the version in the 7 files that
    carry it (see `CLAUDE.md`), tag `vX.Y.0`, push the tag, and check that
-   all 5 build workflows pass and the release has its 9 assets.
+   all 5 build workflows pass and the release has its 9 assets. Then
+   write the release notes (a changelog grouped by what changed for a
+   game or a player; `CLAUDE.md` has the command).
 
 ## 11. Route and progression check
 
@@ -252,10 +304,11 @@ lose the loop state between sessions.
    original keeps it in save data or in system data. Put the table in
    the game's document.
 3. **Check the converted branches against the walkthrough.** For each
-   step of the walkthrough, follow the converted `0.txt`, or run it
-   headless with a scripted click path (`research/xuse/smoke.py`) and
-   print the variables with the `lsp 999,"X:"+…` trick (`CLAUDE.md`),
-   or record them with the engine's `--trace-vars` (below).
+   step of the walkthrough, play it in the engine (a `--replay` file of
+   its choices, below) and record the variables with `--trace-vars`; or
+   follow the converted `0.txt` by hand, or with a scripted click path
+   (`research/xuse/smoke.py`) and the `lsp 999,"X:"+…` trick
+   (`CLAUDE.md`).
    Confirm the expected chapter is reached at every loop: for
    最果てのイマ, the first loop with no choice, each heroine, the second
    cycle and the final arc. Write down every place where the code and
@@ -325,11 +378,62 @@ lose the loop state between sessions.
    go back to; 最果てのイマ's replay leaves out the scenes not unlocked
    yet. Locked state is usually in system data: check it survives as in
    step 5.
-7. **Write it down.** Add a checklist entry to the game's document:
+7. **Check that every setting does what the original's does.** For each
+   setting: its default, what it changes, when it takes effect and that
+   it is kept across quitting (system data). Compare in particular:
+   skip (read text only or everything; stops at a choice or goes on),
+   auto mode's speed and whether it waits for the voice, how the volume
+   levels and the mute switches combine, whether a voice stops at the
+   next click, the text speed's slowest and fastest. Write the
+   original's rule next to each row of the game's settings table.
+8. **Check every way of giving input.** Right-click, the mouse wheel and
+   the original's keyboard shortcuts (Enter, Space, Ctrl for skip,
+   Escape, the function keys) do what they do in the original, on the
+   page and on every screen. Every screen can be left by mouse, by
+   keyboard and by touch: the web build on a phone and the Android build
+   have no right-click and no wheel, so no screen may need one to close
+   (a dialog that only a right-click dismisses traps a phone player).
+   Check that clicks during a fade, a movie or a transition don't skip
+   more than the original's do.
+9. **Check that saves survive a rebuild.** Players keep their saves
+   across our builds, so before a build goes to the user, load the
+   previous build's saves (story slots and system data) into it, natively
+   and in the web build. Global variables, the game's sprite numbers,
+   setting switches and save-slot numbers must not move between builds
+   (`--roundtrip-every` only checks one build against itself). Read
+   marks (`kidoku.dat`) are lost on every rebuild of `0.txt`; say so to
+   the user rather than ship a stale one.
+10. **Write it down.** Add a checklist entry to the game's document:
    "progression verified against walkthrough: yes/no, date,
    how" (which paths were simulated, and whether both sides matched). Add any new lesson to `PLAN.md` §13.
 
-## 12. Finishing
+## 12. The web build
+
+The web build is the main platform, so play it in a browser, not only
+natively, at every milestone:
+
+- Make it as loose files (the page fetches each file when it needs it;
+  one big `arc.nsa` would be fetched whole), with the web engine and an
+  index of the files:
+
+      conscripter-convert <command> <game> -o out/<game>-web --font <ipag.ttf> --loose
+      python3 -I engine/src/onsyuri_web/conscripter_index.py -i out/<game>-web \
+          -o out/<game>-web/onsyuri_index.json --title <game> --lazyload
+      cp engine/build_web/conscripter.{html,js,wasm} engine/build_web/favicon.ico out/<game>-web/
+      python3 -m http.server 8000 -d out/<game>-web   # then open /conscripter.html
+
+  (the web engine: `cd engine/script && EMSDK_HOME=<emsdk> bash
+  ./cross_web.sh`). `docs/games/oretsuba.md` has the whole recipe.
+- Check: the first page's loading time; music and voices once the
+  browser lets sound play (the first click), and movies (muted when the
+  browser blocks sound); saves and system data surviving a page reload
+  and a closed tab (step 11.5); the screens by touch (step 11.8); the
+  picture memory on long routes (the trace's per-page image memory; the
+  web build has less to spare). `?trace` in the URL and F7 give the same
+  trace as natively.
+- Note the package's size and file count in the game's document.
+
+## 13. Finishing
 
 - The finish line is set by the user: every story instruction converted,
   system screens and extras working, the route and progression check
@@ -338,6 +442,13 @@ lose the loop state between sessions.
 - Update the game's document (status, leftovers), `README.md`'s support
   table, `PLAN.md` §6 (the list of games) and §13 (new lessons, stated
   for any engine), and this playbook if the process changed.
+- **Add the game to the GUI**: its entry in `gui/games.py` (the marker
+  files that recognise it, the command and font from the game's
+  document, whether it needs ffmpeg, about how much it writes) and a fake
+  layout with the expected command in `gui/tests/test_games.py`. When the
+  document's build command changes, change the entry in the same commit.
+  The converter's releases (a `v*` tag, `.github/workflows/release.yml`)
+  ship the GUI.
 - Rebuild into a fresh output folder. Never touch folders holding the
   user's saves (`out/saiima-flow`), and list any folder before deleting
   it.
@@ -440,7 +551,12 @@ instead of an hour's replay). The vars file can come from:
   '*label:line'`). Global variables loaded from the save folder have no
   `var` records: take those from an F8 dump or `--dump-vars`.
 
-**Long runs.** `--checkpoint-every N` saves a slot every N pages during
+**Long runs.** Other agents stop engines with `pkill -x conscripter`,
+which ends every run on the machine: run long traces through a symlink
+with another name (`ln -s conscripter out/conscripter-<game>`). Run
+builds and engine runs under `systemd-run --user --scope -p
+MemoryMax=…` so a memory regression can't take the desktop down (村正's
+full build once grew to 7 GB). `--checkpoint-every N` saves a slot every N pages during
 auto-play, and `--load n` starts a run from slot n, so a run that fails
 deep in a route restarts from the last checkpoint. Checkpoints go to
 slots 900 and up unless `--checkpoint-slot` says otherwise: move them if
