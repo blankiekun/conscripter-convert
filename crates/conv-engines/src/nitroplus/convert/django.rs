@@ -6,7 +6,15 @@
 use super::Game;
 
 /// The game's hooks; the CLI uses them for a game with `Django.exe`.
-pub const DJANGO: Game = Game { screen: (800, 600), boot: "boot.nss", story: Some((STORY, "SelectStoryMode")), ..Game::PLAIN };
+pub const DJANGO: Game = Game {
+    screen: (800, 600),
+    boot: "boot.nss",
+    story: Some((STORY, "SelectStoryMode")),
+    relative_children: true,
+    loaded_textures: true,
+    chapter_objects: true,
+    ..Game::PLAIN
+};
 
 /// The story driver: its `SelectStoryMode` (what `main` runs unless
 /// `$SelectDebug`, the developers' chapter select, which the boot script

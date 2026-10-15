@@ -106,6 +106,21 @@ pub struct Game {
     /// chapter files ([`compile_story`]), for a game without
     /// 装甲悪鬼村正's `$GameName` chain.
     pub story: Option<(&'static str, &'static str)>,
+    /// A child object (`frame03/顔窓31`) is placed from its parent's
+    /// place, not the screen's corner (続・殺戮のジャンゴ's face windows).
+    /// Off for 装甲悪鬼村正, whose children of cameras and windows weren't
+    /// checked against it.
+    relative_children: bool,
+    /// `CreateTexture` from a `LoadImage` picture draws it (続・殺戮のジャンゴ's
+    /// face-window frames). Off for 装甲悪鬼村正, whose choice plates come
+    /// from `SetChoiceBase` and would be drawn twice.
+    loaded_textures: bool,
+    /// The objects a chapter file made are deleted when it ends, except
+    /// those hung under an object made before it (続・殺戮のジャンゴ: its
+    /// `窓` and `音` windows are made for pictures and sounds to "hang on
+    /// between files"; a scene's fade to black `黒幕` is never deleted
+    /// otherwise). Inferred from the scripts, not checked in the exe.
+    chapter_objects: bool,
 }
 
 impl Game {
@@ -121,6 +136,9 @@ impl Game {
         screen: (SCREEN_W, SCREEN_H),
         boot: BOOT,
         story: None,
+        relative_children: false,
+        loaded_textures: false,
+        chapter_objects: false,
     };
 
     /// Fills `script`'s system screens.
@@ -871,6 +889,8 @@ struct Compiler<'a, 'b> {
     box_layouts: HashMap<String, (i64, i64, i64, i64, i64)>,
     /// Compiling a whole story in one stream ([`compile_story`]).
     whole_story: bool,
+    /// `LoadImage` pictures by object name: (output path, w, h).
+    loaded_images: HashMap<String, (String, u32, u32)>,
     voice_classes: Vec<String>,
     ops: Vec<Op>,
     notes: BTreeMap<String, usize>,
@@ -1533,6 +1553,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
             pending_enter: None,
             box_layouts: HashMap::new(),
             whole_story: false,
+            loaded_images: HashMap::new(),
             voice_classes: Vec::new(),
             ops: Vec::new(),
             notes: BTreeMap::new(),
@@ -1763,12 +1784,31 @@ impl<'a, 'b> Compiler<'a, 'b> {
             return;
         }
         let saved = std::mem::replace(&mut self.file, file);
+        let mark = self.seq;
         self.depth += 1;
         self.frames.push(HashMap::new());
         self.exec_block(body);
         self.frames.pop();
         self.depth -= 1;
         self.file = saved;
+        if chapter && self.game.chapter_objects {
+            self.delete_chapter_objects(mark);
+        }
+    }
+
+    /// Deletes the objects made since `mark` ([`Game::chapter_objects`])
+    /// whose first name part is one of them too.
+    fn delete_chapter_objects(&mut self, mark: u64) {
+        let new = |c: &Self, n: &str| c.objects.get(n).is_some_and(|o| o.seq > mark);
+        let gone: Vec<String> = self
+            .objects
+            .keys()
+            .filter(|n| new(self, n) && new(self, n.split('/').next().unwrap_or(n)))
+            .cloned()
+            .collect();
+        for n in gone {
+            self.delete(&n);
+        }
     }
 
     fn call_function(&mut self, file: &'a str, f: &'a Function, args: Vec<Value>) -> Value {
@@ -2025,6 +2065,17 @@ impl<'a, 'b> Compiler<'a, 'b> {
         let (screen_w, screen_h) = self.game.screen;
         let arg = |i: usize| a.get(i).cloned().unwrap_or(Value::Null);
         match name {
+            "LoadImage" if self.game.loaded_textures => {
+                // (name, path): a picture other objects are made from
+                // (`CreateTexture("frame03", …, "@LoadFrame")`), not shown.
+                let name = self.object_name(&arg(0));
+                match self.assets.image(&self.deref(&arg(1))) {
+                    Some(img) => {
+                        self.loaded_images.insert(name, img);
+                    }
+                    None => self.note("LoadImage of a missing file"),
+                }
+            }
             "CreateTexture" => {
                 let name = self.object_name(&arg(0));
                 let src = self.deref(&arg(4));
@@ -2352,7 +2403,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
         let name = self.object_name(&Value::Str(src.to_string()));
         match self.objects.get(&name) {
             Some(Object { kind: Kind::Image { image }, w, h, .. }) => Some((image.clone(), *w as u32, *h as u32)),
-            _ => None,
+            _ => self.loaded_images.get(&name).cloned(),
         }
     }
 
@@ -2439,6 +2490,25 @@ impl<'a, 'b> Compiler<'a, 'b> {
         }
     }
 
+    /// Where a child object's place counts from: the sum of the places of
+    /// the objects its name runs through (`@frame03/顔窓31` at 25,25 in
+    /// `frame03` at 25,80 is at 50,105).
+    fn parent_offset(&self, name: &str) -> (i64, i64) {
+        let (mut x, mut y) = (0, 0);
+        if !self.game.relative_children {
+            return (x, y);
+        }
+        let mut end = 0;
+        while let Some(i) = name[end..].find('/') {
+            end += i;
+            if let Some(p) = self.objects.get(&name[..end]) {
+                (x, y) = (x + p.x, y + p.y);
+            }
+            end += 1;
+        }
+        (x, y)
+    }
+
     /// The screen is frozen while an opaque `Plain` cover is up.
     fn frozen(&self) -> bool {
         self.objects.values().any(|o| matches!(o.kind, Kind::Cover) && o.opacity >= 1000)
@@ -2468,7 +2538,8 @@ impl<'a, 'b> Compiler<'a, 'b> {
             .iter()
             .filter_map(|(n, o)| match &o.kind {
                 Kind::Image { image } if o.opacity > 0 && !o.hideable => {
-                    let shown = Shown { layer: 0, image: image.clone(), x: o.x, y: o.y, w: o.w, h: o.h, opacity: o.opacity, cells: None };
+                    let (px, py) = self.parent_offset(n);
+                    let shown = Shown { layer: 0, image: image.clone(), x: o.x + px, y: o.y + py, w: o.w, h: o.h, opacity: o.opacity, cells: None };
                     Some((n.clone(), shown, (o.priority, o.seq), o.zoom, (o.w, o.h), o.blur))
                 }
                 _ => None,
