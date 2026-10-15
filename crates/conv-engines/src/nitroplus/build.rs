@@ -90,6 +90,7 @@ pub fn build(game: &Path, run: &Run, opts: &Opts) -> Result<Built> {
     }
     // The game's own additions to the compiler, by its exe.
     let g = GAMES.iter().find(|(exe, _)| *exe == exe_name).map_or(&Game::PLAIN, |(_, g)| *g);
+    let g = if run.english.is_some() && exe_name == "Muramasa.exe" { &convert::MURAMASA_EN } else { g };
     assets.screen = g.screen;
     let (file, scene) = match (run.file, g.story) {
         (Some(file), _) => (file, run.scene.unwrap_or(file)),
@@ -123,6 +124,7 @@ pub fn build(game: &Path, run: &Run, opts: &Opts) -> Result<Built> {
         global_border: Some(convert::GLOBAL_BORDER),
         window: compiled.window,
         ops: compiled.ops,
+        single_byte_text: run.english.is_some(),
         ..Default::default()
     };
     g.menus(&mut assets, &mut ir, &story);

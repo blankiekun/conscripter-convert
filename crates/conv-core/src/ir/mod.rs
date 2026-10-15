@@ -660,4 +660,8 @@ pub struct Script {
     /// Sounds of every button, in every menu and on the button bar; `None`
     /// = only the screens' own (`hover_se`, `click_se`).
     pub menu_sounds: Option<MenuSounds>,
+    /// The text is single-byte (English): each text line is written as it
+    /// is, ASCII punctuation and spaces kept, for a proportional font; not
+    /// turned full-width, no links, ruby or styles.
+    pub single_byte_text: bool,
 }

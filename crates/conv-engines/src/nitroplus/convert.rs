@@ -83,7 +83,7 @@ const GAME_NAME_SET: &str = "$GameName (set)";
 mod builtin;
 mod sync;
 mod muramasa;
-pub use muramasa::MURAMASA;
+pub use muramasa::{MURAMASA, MURAMASA_EN};
 mod django;
 pub use django::DJANGO;
 
@@ -156,6 +156,11 @@ pub struct Game {
     /// `TitleCongratulations`: the latter reads the flags the ending just
     /// set).
     story_end: &'static [&'static str],
+    /// A vertical (90° `Rotate`d) text box is written horizontally in a
+    /// box of this width and height, with this line pitch, from the top
+    /// left of the vertical text: Full Metal Daemon Muramasa's English
+    /// port, whose `text0` is 280×150 (`function_textbox.nut`).
+    horizontal_box: Option<(i64, i64, i64)>,
 }
 
 impl Game {
@@ -180,6 +185,7 @@ impl Game {
         family: false,
         choice_style: |c, n| c.vertical_choice_style(n),
         story_end: &[],
+        horizontal_box: None,
     };
 
     /// Fills `script`'s system screens.
@@ -2724,6 +2730,10 @@ impl<'a, 'b> Compiler<'a, 'b> {
         // 27 px pitch holds five 18 px lines, the last ending at 126).
         let rows = if vertical { h / line.max(1) } else { (h - font) / line.max(1) + 1 }.max(1) as u32;
         let (text_x, text_y) = if vertical { (x - rows as i64 * line, y) } else { (x, y + self.game.text_drop) };
+        let (mut columns, mut rows, mut line, mut vertical) = (columns, rows, line, vertical);
+        if let (true, Some((w, h, pitch))) = (vertical, self.game.horizontal_box) {
+            (columns, rows, line, vertical) = ((w / font.max(1)).max(1) as u32, ((h - font) / pitch.max(1) + 1).max(1) as u32, pitch, false);
+        }
         // The window's pictures (box, face window, name plate), bottom
         // first, drawn into one window image.
         // (priority, creation order, (picture, x, y, opacity))

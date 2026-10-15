@@ -165,6 +165,9 @@ impl Scene<'_> {
             out.extend(run);
             return;
         };
+        // ㉑-㉗ are the port's spaces of set widths (its font draws them
+        // blank), around italics; Shift-JIS has none of them.
+        let english: String = english.chars().map(|c| if ('\u{3251}'..='\u{3257}').contains(&c) { ' ' } else { c }).collect();
         let Ok(parsed) = nss::parse_text(&english, line, &mut Vec::new()) else {
             self.report.missed.push((self.file.to_string(), jp));
             out.extend(run);
