@@ -7,6 +7,8 @@ use conv_core::ir::{
     BarAction, ButtonBar, CommandItem, CommandMenu, ConfirmDialog, GridText, LineLog, Placed, Rect, SaveGrid, Script, Switch, TitleAction, TitleButton, TitleScreen, WaitIcon,
 };
 
+use conv_core::ir::{PairOption, PicturePair, PictureSettings, PictureSlider, SliderSetting, SliderSteps};
+
 use super::super::{Assets, Story};
 
 /// Fills the script's system screens.
@@ -19,6 +21,104 @@ pub fn menus(a: &mut dyn Assets, script: &mut Script, _story: &Story) {
     script.confirm = confirm(a);
     script.line_log = line_log(a);
     script.wait_icon = wait_icon(a);
+    script.picture_settings = settings(a);
+}
+
+/// The settings screen (`sys_config.nss`) over `コンフィグ地`: rows of ten
+/// bullets (`bar-弾`, 12 px apart from x 306) for the text speed (y 212),
+/// auto mode's wait (308) and the BGM, SE and voice volumes (422, 470,
+/// 518), every bullet up to the chosen one red (`setgrade`); ON (x 386)
+/// and OFF (440) pairs; GAME-SPEED's four presets at y 188; EXIT
+/// (650,518). Pictures: `-001` at rest, `-002` under the pointer, `-003`
+/// chosen. Values as `config_default` and `setgrade` set them: text speed
+/// level k is `k × 100` (level 1 none), its slowest 50 ms a character
+/// (ours: the engine's unit isn't known); auto mode waits `20 × k` ms a
+/// character (default 5); volumes `k × 100` of 1000 (defaults from
+/// system.ini: 7, 9, 10); GAME-SPEED is the engine's play speed 3
+/// (NORMAL, default), 5 (QUICK-A), 12 (QUICK-B), 1 (LOWSPEC), each the
+/// percent of 装甲悪鬼村正's exe table (assumed the same engine). Left
+/// out and drawn as they stand by default: the two questions' rows (one
+/// switch here turns all questions off), the display options, the
+/// character voices window, the voice test, DEFAULT (it would ask with no
+/// picture of its own), the links.
+fn settings(a: &mut dyn Assets) -> Option<PictureSettings> {
+    const DIR: &str = "cg/sys/config";
+    let button = |a: &mut dyn Assets, name: &str, x: i32, y: i32| {
+        let state = |n: u32| format!("{DIR}/{name}-{n:03}.png");
+        let (s1, s2, s3) = (state(1), state(2), state(3));
+        let (image, w, h) = a.strip(&[&s1, &s2, &s3])?;
+        Some(Placed { image, x, y, w: w as i32, h: h as i32 })
+    };
+    let picture = |a: &mut dyn Assets, name: &str, x: i32, y: i32| {
+        let (image, w, h) = a.image(&format!("{DIR}/{name}.png"))?;
+        Some(Placed { image, x, y, w: w as i32, h: h as i32 })
+    };
+    let (background, w, h) = a.image(&format!("{DIR}/コンフィグ地.png"))?;
+    let none = Placed { image: a.transparent(), x: 0, y: 0, w: 1, h: 1 };
+    let stepped = |setting: SliderSetting, buttons: Vec<(Placed, u32)>, default: u32, filled: bool| PictureSlider {
+        setting,
+        knob: none.clone(),
+        knob_y: (0, 0),
+        track: Rect { x: 0, y: 0, w: 0, h: 0 },
+        default,
+        steps: Some(SliderSteps { buttons, filled }),
+    };
+    let bullets = |a: &mut dyn Assets, y: i32, position: &dyn Fn(u32) -> u32| -> Option<Vec<(Placed, u32)>> {
+        (1..=10).map(|k| Some((button(a, "bar-弾", 306 + 12 * (k as i32 - 1), y)?, position(k)))).collect()
+    };
+    let text_speed = |k: u32| if k == 1 { 0 } else { k * 100 };
+    let per_char = |k: u32| k * 100;
+    let volume = |k: u32| 1000 - k * 100;
+    // The level a position of SliderSetting::GameSpeed gives: 12 - p × 12 / 1000.
+    let speed = |level: u32| ((12 - level) * 1000).div_ceil(12);
+    let mut presets = Vec::new();
+    for (name, x, level) in [("normal", 162, 3), ("quick-a", 238, 5), ("quick-b", 314, 12), ("lowspec", 392, 1)] {
+        presets.push((button(a, name, x, 188)?, speed(level)));
+    }
+    let sliders = vec![
+        stepped(SliderSetting::GameSpeed { levels: [50, 75, 100, 150, 200, 300, 400, 550, 800, 1200, 1600, 3200] }, presets, speed(3), false),
+        stepped(SliderSetting::TextSpeed { ms: 50 }, bullets(a, 212, &text_speed)?, text_speed(10), true),
+        stepped(SliderSetting::AutoWait { ms: 200 }, bullets(a, 308, &per_char)?, per_char(5), true),
+        stepped(SliderSetting::BgmVolume, bullets(a, 422, &volume)?, volume(7), true),
+        stepped(SliderSetting::SeVolume, bullets(a, 470, &volume)?, volume(9), true),
+        stepped(SliderSetting::VoiceVolume, bullets(a, 518, &volume)?, volume(10), true),
+    ];
+    let mut pairs = Vec::new();
+    for (option, y, default_on) in [
+        (PairOption::MovieStop, 130, false),
+        (PairOption::StopAtChoice, 236, true),
+        (PairOption::SkipUnread, 260, false),
+        (PairOption::Bgm, 398, true),
+        (PairOption::Se, 446, true),
+        (PairOption::Voice, 494, true),
+    ] {
+        pairs.push(PicturePair { option, on: button(a, "on", 386, y)?, off: button(a, "off", 440, y)?, default_on });
+    }
+    pairs.push(PicturePair { option: PairOption::VoicePlaysOn, on: button(a, "全て再生", 294, 284)?, off: button(a, "クリックで停止", 368, 284)?, default_on: true });
+    pairs.push(PicturePair { option: PairOption::AutoWaitsForVoice, on: button(a, "終了まで待つ", 272, 332)?, off: button(a, "再生を中断する", 368, 332)?, default_on: true });
+    let fixed = vec![
+        picture(a, "001-初期化_x450-y58", 450, 58)?,
+        picture(a, "on-003", 386, 82)?,
+        picture(a, "on-003", 386, 106)?,
+        picture(a, "各キャラ-001", 293, 362)?,
+        picture(a, "vioce-test-01", 440, 542)?,
+        picture(a, "ディスプレイ依存-003", 516, 82)?,
+        picture(a, "ユーザー-001", 516, 476)?,
+    ];
+    Some(PictureSettings {
+        background: Placed { image: background, x: 0, y: 0, w: w as i32, h: h as i32 },
+        fixed,
+        close: button(a, "exit", 650, 518)?,
+        reset: None,
+        voice_test: None,
+        test_voice: None,
+        sliders,
+        pairs,
+        texts: Vec::new(),
+        fade_ms: 300,
+        pair_fade_ms: 0,
+        voice_window: None,
+    })
 }
 
 /// The click-wait icon (system.ini `icon_page`: `Bullet-%03d.png#20`; the
