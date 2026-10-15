@@ -669,6 +669,11 @@ pub struct SaveMenu {
     pub line_height: i32,
     /// The selected slot's thumbnail at full size (absolute position).
     pub preview: Rect,
+    /// A screen filter over the scene while the menu is open in game: the
+    /// `screenfilter` slot (one the game leaves free then), then kind,
+    /// blend, strength and the three parameters. It is off while a save is
+    /// written, since saves keep the screen filters.
+    pub backdrop: Option<(u32, [i32; 6])>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

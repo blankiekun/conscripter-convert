@@ -799,8 +799,11 @@ exe (`research/tools/ghidra/ghidra_export.sh`, names in
      a = 0.495 on every row, C the base picture's grey gradient (226 to
      19). The converter had 55 %; now 50 % (`WINDOW_OPACITY_PERCENT`).
    - Save menu base: also 0.50 (the same constant). The scene behind
-     it is also blurred slightly (best fit Gaussian σ 1), not converted
-     yet.
+     it is also blurred slightly (best fit Gaussian σ 1): converted as
+     `SaveMenu::backdrop`, a 3×3 mean in `screenfilter` slot 4 while the
+     menu is open in game, off while `savegame2` writes the save (saves
+     keep the screen filters). Checked on our build: blurred in the
+     menu, sharp after closing it and after loading the save made there.
    - Brightness filter: `0004.cd` #16 patched to kind 4 (brightness),
      -100, against no filter: every channel goes down by 99, clipped at
      0. So the value adds on a 0-255 scale, as converted.
@@ -950,7 +953,6 @@ ones done:
   46/47 is scaled from the exe, not filmed.
 - Full-screen text styles 1-7: metrics are estimates; calibrate from
   screenshots of the original (style 5, route 10, is the most used).
-- The save menu blurs the scene behind it slightly (item 23).
 
 **Media and packaging.**
 - `arc.nsa` is about 1.2 GB; if the web build can't handle it, split the
