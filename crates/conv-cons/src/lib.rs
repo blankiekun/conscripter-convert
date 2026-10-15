@@ -16,6 +16,7 @@ use conv_core::ir::{
 mod button_screen;
 mod chapters;
 mod command_menu;
+mod ease;
 mod extras;
 pub mod lint;
 mod menu;
@@ -319,6 +320,10 @@ pub fn emit(script: &Script) -> String {
     let mut needs_bit_helpers = false;
     let mut needs_move = false;
     let mut needs_zoom = false;
+    // The next move's or zoom's curve ([`Op::MoveEase`]), and the eased
+    // subroutines used (zoom, ease, exponent).
+    let mut move_ease: Option<(u8, u32)> = None;
+    let mut eased = std::collections::BTreeSet::new();
     let mut needs_click_wait = false;
     let mut plate_visible = false;
     let mut link_pages = 0;
@@ -444,11 +449,22 @@ pub fn emit(script: &Script) -> String {
                 writeln!(out, "print 1\nif %7 < {ms} wait 10:goto *conv_turn{turns}").unwrap();
                 writeln!(out, "csp2 {s}\nprint 1").unwrap();
             }
+            Op::MoveEase { ease, exponent } => move_ease = Some((*ease, *exponent)).filter(|&(e, _)| (1..=3).contains(&e)),
             Op::SpriteMove { layer, x, y, ms } => {
                 let slot = SPRITE_BASE + layer;
+                let ease = move_ease.take();
                 if *ms > 0 && transition.is_none() {
-                    writeln!(out, "mov %1,{slot}:mov %2,{x}:mov %3,{y}:mov %4,{ms}:gosub *{MOVE}").unwrap();
-                    needs_move = true;
+                    let routine = match ease {
+                        Some((e, n)) => {
+                            eased.insert((false, e, n));
+                            ease::label(false, e, n)
+                        }
+                        None => {
+                            needs_move = true;
+                            MOVE.to_string()
+                        }
+                    };
+                    writeln!(out, "mov %1,{slot}:mov %2,{x}:mov %3,{y}:mov %4,{ms}:gosub *{routine}").unwrap();
                 } else {
                     writeln!(out, "getspsize {slot},%1,%2:amsp {slot},{x}-%1/2,{y}-%2/2").unwrap();
                     if transition.is_none() {
@@ -461,7 +477,14 @@ pub fn emit(script: &Script) -> String {
             }
             Op::SpriteMotion { layer, keys, looped } => motion::emit(&mut out, *layer, keys, *looped),
             Op::SpriteZoom { layer, x, y, from, to, ms } => {
-                needs_zoom |= zoom::emit(&mut out, *layer, *x, *y, *from, *to, *ms, transition.is_some());
+                let ease = move_ease.take();
+                let routine = ease.map(|(e, n)| ease::label(true, e, n));
+                if zoom::emit(&mut out, *layer, *x, *y, *from, *to, *ms, transition.is_some(), routine.as_deref()) {
+                    match ease {
+                        Some((e, n)) => _ = eased.insert((true, e, n)),
+                        None => needs_zoom = true,
+                    }
+                }
             }
             Op::ScreenFilter { slot, filter, fade_ms } => {
                 match filter {
@@ -994,6 +1017,9 @@ pub fn emit(script: &Script) -> String {
     }
     if needs_zoom {
         out.push_str(&zoom::routine());
+    }
+    for (zoom, e, n) in eased {
+        out.push_str(&ease::routine(zoom, e, n));
     }
     if root_returns > 0 {
         // Reached from a link page once its scene returned and the page

@@ -729,6 +729,7 @@ impl Lowering<'_> {
                         self.out.ops.push(Op::SpriteOpacity { layer: Some(s.layer), opacity: if look.hidden { 0 } else { 256 } });
                         self.out.ops.push(Op::EndTransition);
                     } else {
+                        self.ease(c);
                         self.out.ops.push(Op::SpriteMove { layer: s.layer, x, y, ms: time });
                     }
                     self.shown.insert(key, Shown { x, y, look, ..s });
@@ -942,9 +943,9 @@ impl Lowering<'_> {
                 let y = t.int_at("Position", 1).map_or(s.y, sy);
                 let time = ms(t.int("Time").unwrap_or(0));
                 // `:Scale` zooms the picture about its centre (a camera
-                // zoom); without it the zoom stays. The two values after
-                // `:Position` look like easing: the zoom is straight.
+                // zoom); without it the zoom stays.
                 let zoom = t.get("Scale").and_then(|v| v.first()?.float()).map_or(s.zoom, |f| (f * 100.0).round() as u32);
+                self.ease(t);
                 // A zoomed picture moves with spzoom too, which redraws
                 // where its zoomed picture was.
                 if zoom != s.zoom || zoom != 100 {
@@ -1212,6 +1213,19 @@ impl Lowering<'_> {
             let text = "　このお話は、まだ読むことができません。".to_string();
             self.out.ops.push(Op::Text { speaker: None, text, voice: None, links: vec![], ruby: vec![], styles: vec![], hang: None, continues: false });
             self.out.ops.push(Op::Jump(menu.clone()));
+        }
+    }
+
+    /// A move's curve: `:Position x,y,type,power` eases with the eboot's
+    /// ease_value (0x8103cc18; 0 straight, 1 in, 2 out, 3 in and out),
+    /// which raises t² to the power.
+    fn ease(&mut self, t: &Block) {
+        let v = t.get("Position").unwrap_or(&[]);
+        let ease = v.get(2).and_then(Val::float).unwrap_or(0.0) as u8;
+        if (1..=3).contains(&ease) {
+            let power = v.get(3).and_then(Val::float).filter(|p| *p > 0.0).unwrap_or(1.0);
+            let exponent = ((power * 2.0).round() as u32).max(1);
+            self.out.ops.push(Op::MoveEase { ease, exponent });
         }
     }
 

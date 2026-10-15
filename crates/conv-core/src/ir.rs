@@ -468,6 +468,12 @@ pub enum Op {
     SpriteMotion { layer: u32, keys: Vec<(u32, i32, i32)>, looped: bool },
     /// Jump to `label` if `switch` (a setting, [`Switch`]) is `on`.
     IfSwitch { switch: Switch, on: bool, label: String },
+    /// The next timed [`Op::SpriteMove`] or [`Op::SpriteZoom`] eases (the
+    /// MAGES engine's curves): with t the progress 0-1 and p =
+    /// `exponent`, `ease` 1 goes as t^p, 2 as 1 - (1-t)^p, 3 as (2t)^p / 2
+    /// for the first half and 1 - (2(1-t))^p / 2 for the second; 0 is
+    /// straight.
+    MoveEase { ease: u8, exponent: u32 },
 }
 
 /// A puzzle of numbered tiles (装甲悪鬼村正's 立方陣): the player clicks a
