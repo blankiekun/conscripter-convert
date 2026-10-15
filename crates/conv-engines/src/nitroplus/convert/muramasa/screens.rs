@@ -8,10 +8,10 @@
 
 use conv_core::ir::{
     BarAction, BarButton, BarSlide, ButtonBar, CommandItem, CommandMenu, ConfirmDialog, GridText, LineLog, PairOption, PicturePair, PictureSettings, PictureSlider, PictureText, Placed, Rect, SaveGrid,
-    Script, SliderSetting, Switch, TitleAction, TitleButton, TitleScreen, WaitIcon,
+    Script, SliderSetting, Switch, TitleAction, TitleButton, TitleScreen, VoiceEntry, VoiceLayout, VoiceWindow, WaitIcon,
 };
 
-use super::super::Assets;
+use super::super::{Assets, Story};
 
 /// The favour screen (`sys_hmode.nss`), compiled as a subroutine for the
 /// menu's 好感度記録.
@@ -21,7 +21,7 @@ const SCREEN_W: i32 = 1024;
 const SCREEN_H: i32 = 576;
 
 /// Fills the script's system screens.
-pub fn menus(a: &mut dyn Assets, script: &mut Script) {
+pub fn menus(a: &mut dyn Assets, script: &mut Script, story: &Story) {
     script.confirm = confirm(a);
     script.title_screen = title(a);
     script.button_bar = quick_bar(a);
@@ -29,7 +29,7 @@ pub fn menus(a: &mut dyn Assets, script: &mut Script) {
     script.save_grid = save_grid(a);
     script.line_log = line_log(a);
     script.wait_icon = wait_icon(a);
-    script.picture_settings = settings(a);
+    script.picture_settings = settings(a, story);
 }
 
 /// The settings screen (`sys_config.nss`): コンフィグ over the screen, its
@@ -47,7 +47,7 @@ pub fn menus(a: &mut dyn Assets, script: &mut Script) {
 /// 設定を初期状態に戻す and puts the defaults back; 実験 plays a line of
 /// 景明's. The game speed's levels are the exe's table (`FUN_0047c250`:
 /// 0.5, 0.75, 1 (default 3), 1.5, 2, 3, 4, 5.5, 8, 12, 16, 32 times).
-fn settings(a: &mut dyn Assets) -> Option<PictureSettings> {
+fn settings(a: &mut dyn Assets, story: &Story) -> Option<PictureSettings> {
     const DIR: &str = "cg/sys/config";
     let picture = |a: &mut dyn Assets, name: &str, x: i32, y: i32| {
         let (image, w, h) = a.image(&format!("{DIR}/{name}.png"))?;
@@ -109,6 +109,88 @@ fn settings(a: &mut dyn Assets) -> Option<PictureSettings> {
         texts: vec![version("システム", 453), version("スクリプト", 678)],
         fade_ms: 300,
         pair_fade_ms: 100,
+        voice_window: voice_window(a, story),
+    })
+}
+
+/// The characters of the voice window (`VoiceResetSet`): each one's name
+/// (its pictures, its `#voice_on_` flag) and its voices' class.
+pub(super) const VOICES: [(&str, &str); 55] = [
+    ("湊斗景明", "景明"), ("村正", "村正さん"), ("新田雄飛", "雄飛"), ("来栖野小夏", "小夏"), ("稲城忠保", "忠保"),
+    ("鈴川令法", "鈴川"), ("大鳥香奈枝", "香奈枝"), ("永倉さよ", "さよ"), ("綾弥一条", "一条"), ("雪車町一蔵", "雪車町"),
+    ("真改", "真改"), ("長坂右京", "長坂"), ("小太郎", "小太郎"), ("弥源太", "弥源太"), ("ふき", "ふき"),
+    ("ふな", "ふな"), ("足利護氏", "護氏"), ("大鳥獅子吼", "獅子吼"), ("遊佐童心", "童心"), ("今川雷蝶", "雷蝶"),
+    ("足利茶々丸", "茶々丸"), ("署長", "署長"), ("キャノン", "キャノン"), ("ガーゲット", "ガーゲット"), ("舞殿宮", "舞殿宮"),
+    ("皇路操", "操"), ("皇路卓", "卓"), ("二世村正", "二世村正"), ("柳生常闇斎", "常闇斎"), ("芳養", "芳養"),
+    ("研究所長", "研究所長"), ("義清", "義清"), ("青江", "青江"), ("皆斗本家", "本家"), ("湊斗統", "統"),
+    ("山賊の首領", "首領姉"), ("首領の弟", "首領弟"), ("正宗", "正宗"), ("岡部桜子", "桜子"), ("足利邦氏", "邦氏"),
+    ("ウィロー", "ウィロー"), ("黒瀬童子", "黒瀬"), ("コブデン", "コブデン"), ("ウォルフ", "ウォルフ"), ("永倉翁", "永倉翁"),
+    ("大鳥花枝", "花枝"), ("始祖村正", "始祖村正"), ("飽間", "飽間"), ("浦夢", "浦夢"), ("サシュアント", "サシュアント"),
+    ("オーリガ", "オーリガ"), ("孤児の光", "コヒカリ"), ("銀星号", "光"), ("その他男声", "その他男声"), ("その他女声", "その他女声"),
+];
+/// The flag set at the end of chapter 1 (`ma01_026`): the window then
+/// lists everyone, with other pictures.
+pub(super) const CHAPTER_ONE_CLEARED: &str = "#一章クリア";
+
+pub(super) fn heard_flag(name: &str) -> String {
+    format!("#voice_on_{name}")
+}
+
+/// The voice window (`ConfigVoiceSet`, `ConfigVoiceArray`): ボイスセレクト
+/// ウィンドウ背景 over black at 700/1000, a character's picture (32×142, its
+/// box at the top) once its `#voice_on_` flag is set, nineteen to a row
+/// from (790,82) leftwards 32 apart, rows at y 82, 229 and 376, the box's
+/// 15 px the button; ボイスチェック on the box while the voices play. Until
+/// 一章クリア it lists nine characters in the first places and five in the
+/// last, with their `1章_` pictures. Each switch mutes the voices of its
+/// class (voices of other classes always play: `#SYSTEM_voice_enable_another`
+/// is never turned off). It cross-fades in and out over 300 ms.
+fn voice_window(a: &mut dyn Assets, story: &Story) -> Option<VoiceWindow> {
+    const DIR: &str = "cg/sys/config";
+    let place = |slot: i32| match slot {
+        1..=19 => (790 - 32 * (slot - 1), 82),
+        20..=38 => (790 - 32 * (slot - 20), 229),
+        _ => (790 - 32 * (slot - 39), 376),
+    };
+    let layout = |a: &mut dyn Assets, names: &[(i32, &str)], prefix: &str| -> Option<Vec<VoiceEntry>> {
+        let mut entries = Vec::new();
+        for &(slot, name) in names {
+            let (x, y) = place(slot);
+            let (image, w, h) = a.image(&format!("{DIR}/data/{prefix}{name}.png"))?;
+            let class = VOICES.iter().find(|v| v.0 == name).map(|v| v.1)?;
+            let characters = story.voice_classes.iter().enumerate().filter(|(_, c)| c.as_str() == class).map(|(i, _)| i as u32).collect();
+            entries.push(VoiceEntry {
+                picture: Placed { image, x, y, w: w as i32, h: h as i32 },
+                hit: (15, 142),
+                characters,
+                heard: story.flags.get(&heard_flag(name)).copied(),
+            });
+        }
+        Some(entries)
+    };
+    let all: Vec<(i32, &str)> = VOICES.iter().enumerate().map(|(i, v)| (i as i32 + 1, v.0)).collect();
+    let chapter_one: Vec<(i32, &str)> = ["新田雄飛", "来栖野小夏", "稲城忠保", "鈴川令法", "大鳥香奈枝", "永倉さよ", "綾弥一条", "雪車町一蔵", "真改"]
+        .into_iter()
+        .enumerate()
+        .map(|(i, n)| (i as i32 + 1, n))
+        .chain(["湊斗景明", "村正", "銀星号", "その他男声", "その他女声"].into_iter().enumerate().map(|(i, n)| (i as i32 + 53, n)))
+        .collect();
+    let layouts = vec![
+        VoiceLayout { when: story.flags.get(CHAPTER_ONE_CLEARED).copied(), entries: layout(a, &all, "")? },
+        VoiceLayout { when: None, entries: layout(a, &chapter_one, "1章_")? },
+    ];
+    let (background, w, h) = a.image(&format!("{DIR}/data/ボイスセレクトウィンドウ背景.png"))?;
+    let (check, cw, ch) = a.image(&format!("{DIR}/data/ボイスチェック.png"))?;
+    let part = |n: &str| format!("{DIR}/{n}-別窓を開く.png");
+    let (open, ow, oh) = a.strip(&["", &part("002"), &part("003")])?;
+    let black = a.color(0, SCREEN_W as u32, SCREEN_H as u32);
+    Some(VoiceWindow {
+        open: Placed { image: open, x: 323, y: 151, w: ow as i32 / 3, h: oh as i32 },
+        backdrop: (Placed { image: black, x: 0, y: 0, w: SCREEN_W, h: SCREEN_H }, 178),
+        background: Placed { image: background, x: 0, y: 0, w: w as i32, h: h as i32 },
+        check: Placed { image: check, x: 0, y: 0, w: cw as i32, h: ch as i32 },
+        layouts,
+        fade_ms: 300,
     })
 }
 

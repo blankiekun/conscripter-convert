@@ -861,7 +861,7 @@ Next, in order:
       500 ms (the pause is a guess), a 2.5 s cycle (each picture's time is
       `WaitIcon::frame_ms`). Not done: the auto-mode icon (自動送りアイコン,
       15 pictures).
-   6. Done, but for the voice window: the settings screen (a new
+   6. Done: the settings screen (a new
       `PictureSettings`, in `conv-cons/src/picture_settings.rs`; Muramasa's
       values in `convert/muramasa/screens.rs`, `settings()`, from
       `sys_config.nss`). コンフィグ over the screen, the controls laid over
@@ -894,9 +894,21 @@ Next, in order:
       per-character wait (0-200 ms a character); text speed is ours (0-100 ms
       a character, 20 at the default, unmeasured). Beside the original
       (wine, the first page): mean difference 1.6 levels, every pixel within
-      40 levels but the version line (the font); 入 hovered matches. Left:
-      the voice window (別窓を開く, the characters heard so far with a check
-      box each), the wheel over a slider.
+      40 levels but the version line (the font); 入 hovered matches.
+      The voice window (別窓を開く, a new `VoiceWindow`): ボイスセレクトウィンドウ背景
+      over black at 700/1000, each character's picture once the story has set
+      its `#voice_on_<name>` (55 flags, and `#一章クリア`, declared by the
+      game's `flags()`: the story sets them, only `sys_config` reads them),
+      with ボイスチェック on its box while its voices play; clicking the box
+      mutes or unmutes every voice of its class (`Story::voice_classes`, the
+      compiler's character numbers, passed to `menus()` with the flags; the
+      switches are the `%970+c` that `dwave` reads). Until 一章クリア it lists
+      fourteen characters with their `1章_` pictures, after it all 55, as
+      `ConfigVoiceArray` does. Classes of no entry (高官, 皇路, …) always
+      play, as `#SYSTEM_voice_enable_another` is never turned off. Beside the
+      original at the first page (その他男声 and その他女声 heard): mean
+      difference 0.57 levels, every pixel within 40 but the version line.
+      Left: the wheel over a slider.
    7. Motion: fire flicker, opening, menu cascade, dialog unroll, quick
       bar slide.
 

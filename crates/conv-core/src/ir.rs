@@ -1500,6 +1500,42 @@ pub struct PictureSettings {
     pub fade_ms: u32,
     /// A pair's chosen picture fades in (and the other out) over this.
     pub pair_fade_ms: u32,
+    /// Opened by its own button: a switch for each character's voice.
+    pub voice_window: Option<VoiceWindow>,
+}
+
+/// A window of [`PictureSettings`] with a switch for each character's
+/// voice (Nitroplus's 別窓を開く): the characters' pictures over a
+/// background, a check mark on those heard. Its layout is the first of
+/// `layouts` whose flag is set, or the last. Right-click or C closes it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VoiceWindow {
+    /// Three cells: at rest (usually empty), under the pointer, pressed.
+    pub open: Placed,
+    /// A full-screen colour drawn at the opacity (0-255) under the background.
+    pub backdrop: (Placed, u8),
+    pub background: Placed,
+    /// Drawn at an entry's top-left while its voices are heard.
+    pub check: Placed,
+    pub layouts: Vec<VoiceLayout>,
+    pub fade_ms: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VoiceLayout {
+    pub when: Option<Var>,
+    pub entries: Vec<VoiceEntry>,
+}
+
+/// One character of a [`VoiceWindow`]: shown (and clickable in `hit`, at
+/// the picture's top-left) once its flag `heard` is set; mutes and unmutes
+/// the voices of `characters` ([`Voice::character`]) together.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VoiceEntry {
+    pub picture: Placed,
+    pub hit: (i32, i32),
+    pub characters: Vec<u32>,
+    pub heard: Option<Var>,
 }
 
 /// A vertical slider of [`PictureSettings`]: the knob runs from `knob_y.0`

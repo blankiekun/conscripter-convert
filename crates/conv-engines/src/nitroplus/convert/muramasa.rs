@@ -46,6 +46,9 @@ fn flags() -> Vec<String> {
         out.extend([hex_counter(name), hex_flag(name, "死亡"), hex_flag(name, "復活")]);
     }
     out.push(magiccube::SOLVED.to_string());
+    // Set by the story, read by the settings' voice window.
+    out.extend(screens::VOICES.iter().map(|(name, _)| screens::heard_flag(name)));
+    out.push(screens::CHAPTER_ONE_CLEARED.to_string());
     out
 }
 
