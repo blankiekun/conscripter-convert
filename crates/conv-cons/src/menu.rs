@@ -35,14 +35,17 @@ pub(crate) const BAR_DRAW: &str = "conv_bar_draw";
 /// Runs the bar button in %9 (or -1, a right-click).
 pub(crate) const BAR_ACTION: &str = "conv_bar_action";
 pub(crate) const SETTINGS: &str = "conv_settings";
-const SETTINGS_APPLY: &str = "conv_settings_apply";
+pub(crate) const SETTINGS_APPLY: &str = "conv_settings_apply";
 pub(crate) const BACKLOG: &str = "conv_backlog";
 /// The `pretextgosub` routine (see [`backlog`]).
 pub(crate) const PRETEXT: &str = "conv_pretext";
 /// Settings levels are %902-%906 (globals); %909 = 1 once they are set.
-const SETTINGS_SET: &str = "%909";
+pub(crate) const SETTINGS_SET: &str = "%909";
+/// 1: skip was on at a choice and goes on at the next text
+/// ([`Switch::StopSkipAtChoice`] off).
+pub(crate) const KEEP_SKIP: &str = "%131";
 /// 1: skip goes on through unread text (`kidokumode 0`).
-const SKIP_UNREAD: &str = "%908";
+pub(crate) const SKIP_UNREAD: &str = "%908";
 /// Milliseconds per character, for `setwindow`.
 pub(crate) const TEXT_MS: &str = "%907";
 const TEXT_MS_STEP: u32 = 6;
@@ -65,13 +68,7 @@ const MAX_VOICES: usize = 15;
 const SETTING_SWITCH: u32 = M + 6; // + switch
 const MAX_SWITCHES: usize = 15;
 const BTN_SWITCH: u32 = 70; // + 1 + switch
-/// Global "off" flags of the switches (0, the default, is on): the first
-/// eight from SWITCH_OFF_BASE, the others from SWITCH_OFF_BASE_2 (the
-/// scene replay's flags start at 3650).
-const SWITCH_OFF_BASE: u32 = 3640;
-const SWITCH_OFF_BASE_2: u32 = 2910;
-/// Switch indices (their flags) end at %2949; a page shows MAX_SWITCHES.
-const MAX_SWITCH_INDEX: u32 = 8 + 40;
+// The switches' flags: see `switches.rs`.
 /// The confirmation being asked (a [`Switch`] + 1; 0 = always ask).
 pub(crate) const CONFIRM_KIND: &str = "%125";
 const BTN_MINUS: u32 = 10;
@@ -102,7 +99,7 @@ const LOG_NAME_SPRITE: u32 = M + 10;
 const LOG_NAME_COLOR: &str = "#D8C088";
 const BTN_LOG_VOICE: u32 = 210; // + k
 /// The settings page shown: 0 levels, 1 voices.
-const SETTINGS_PAGE: &str = "%176";
+pub(crate) const SETTINGS_PAGE: &str = "%176";
 /// Voice character c is muted when the global %(VOICE_OFF_BASE + c) is 1.
 pub(crate) const VOICE_OFF_BASE: u32 = 970;
 /// Asks the question in [`CONFIRM_TEXT`]; [`CONFIRM`] = 1 for yes.
@@ -244,7 +241,7 @@ const MARKER: u32 = 7;
 const SELECTION: u32 = 8;
 const HEADER: u32 = 9;
 const FRAME: u32 = 10;
-const BASE: u32 = 11;
+pub(crate) const BASE: u32 = 11;
 // Button numbers returned by btnwait: rows 1.., pages 101..
 const BTN_PAGE: u32 = 100;
 const BTN_DELETE: u32 = 200;
@@ -302,9 +299,10 @@ pub(crate) fn save_menu(out: &mut String, m: &SaveMenu, confirm: Option<&Confirm
         w(format!("mov {SLOT},{FIRST}+{row}"));
         w("gosub *conv_sl_slot".into());
         let size = m.font_size;
+        let cols = if m.text_width > 0 { (m.text_width / size.max(1)).max(1) } else { 40 };
         for (slot, line, dy) in [(TEXT1, LINE1, 0), (TEXT2, LINE2, m.line_height)] {
             w(format!(
-                "strsp {},{line},{},{},40,1,{size},{size},0,0,0,1",
+                "strsp {},{line},{},{},{cols},1,{size},{size},0,0,0,1",
                 slot + row as u32,
                 m.text_x,
                 y + m.text_y + dy
@@ -1093,6 +1091,11 @@ pub(crate) fn settings_menu(
     leave: Option<(&str, &str)>,
     version: Option<(&str, u32)>,
 ) {
+    if let Some(p) = &m.pictures {
+        crate::settings_pages::emit(out, m, p, confirm, leave);
+        settings_apply(out, m);
+        return;
+    }
     let rows = &m.rows[..m.rows.len().min(MAX_SETTING_ROWS)];
     let voices = &m.voices[..m.voices.len().min(MAX_VOICES)];
     let switches = &m.switches[..m.switches.len().min(MAX_SWITCHES)];
@@ -1243,8 +1246,8 @@ pub(crate) fn settings_menu(
     ));
     for (i, s) in switches.iter().enumerate() {
         let off = switch_off(s.switch);
-        // A sound switch applies at once.
-        let apply = if matches!(s.switch, Switch::BgmOn | Switch::SeOn | Switch::VoiceOn | Switch::Effects | Switch::TextShadow) { format!("gosub *{SETTINGS_APPLY}:") } else { String::new() };
+        // A switch the apply routine puts into effect does so at once.
+        let apply = if crate::switches::apply(s.switch) != crate::switches::Apply::Read { format!("gosub *{SETTINGS_APPLY}:") } else { String::new() };
         w(format!("if {BUTTON_VAR} == {} mov {off},1-{off}:{apply}goto *conv_settings_draw", BTN_SWITCH + i as u32 + 1));
     }
     for (i, t) in voices.iter().enumerate() {
@@ -1292,21 +1295,26 @@ pub(crate) fn settings_menu(
     w(MENU_SPRITES.map(|n| format!("csp {n}")).collect::<Vec<_>>().join(":"));
     w("print 1".into());
     w("return".into());
+    settings_apply(out, m);
+}
 
+/// The routine putting the settings into effect (volumes, speeds, window,
+/// skip).
+fn settings_apply(out: &mut String, m: &SettingsMenu) {
+    let rows = &m.rows[..m.rows.len().min(MAX_SETTING_ROWS)];
+    let mut w = |line: String| {
+        out.push_str(&line);
+        out.push('\n');
+    };
     w(format!("*{SETTINGS_APPLY}"));
-    for (setting, cmd, on) in [
-        (Setting::BgmVolume, "bgmvol", Switch::BgmOn),
-        (Setting::SeVolume, "sevol", Switch::SeOn),
-        (Setting::VoiceVolume, "voicevol", Switch::VoiceOn),
-    ] {
-        if switches.iter().any(|s| s.switch == on) {
-            // Muted: volume 0, the level kept.
-            w(format!("mov {TMP},{}*10", setting_var(setting)));
-            w(format!("if {} == 1 mov {TMP},0", switch_off(on)));
-            w(format!("{cmd} {TMP}"));
-        } else {
-            w(format!("mov {TMP},{}*10:{cmd} {TMP}", setting_var(setting)));
+    let used = used_switches(m);
+    for (setting, cmd) in [(Setting::BgmVolume, "bgmvol"), (Setting::SeVolume, "sevol"), (Setting::VoiceVolume, "voicevol")] {
+        w(format!("mov {TMP},{}*10", setting_var(setting)));
+        // A switch muting it: volume 0, the level kept.
+        for &s in used.iter().filter(|&&s| crate::switches::apply(s) == crate::switches::Apply::Mutes(setting)) {
+            w(format!("if {} == 1 mov {TMP},0", switch_off(s)));
         }
+        w(format!("{cmd} {TMP}"));
     }
     w(format!("mov {TEXT_MS},(10-{})*{TEXT_MS_STEP}:textspeed {TEXT_MS}", setting_var(Setting::TextSpeed)));
     let auto = setting_var(Setting::AutoSpeed);
@@ -1320,13 +1328,12 @@ pub(crate) fn settings_menu(
     if rows.iter().any(|r| r.setting == Setting::WindowTransparency) {
         w(format!("mov {TMP},255-{}*25:windowtrans {TMP}", setting_var(Setting::WindowTransparency)));
     }
-    if switches.iter().any(|s| s.switch == Switch::Effects) {
-        w(format!("effectoff {}", switch_off(Switch::Effects)));
-    }
-    if switches.iter().any(|s| s.switch == Switch::TextShadow) {
-        let off = switch_off(Switch::TextShadow);
-        w(format!("if {off} == 0 textshadow 1"));
-        w(format!("if {off} == 1 textshadow 0"));
+    for &s in &used {
+        if let crate::switches::Apply::Commands { on, off } = crate::switches::apply(s) {
+            let flag = switch_off(s);
+            w(format!("if {flag} == 0 {on}"));
+            w(format!("if {flag} == 1 {off}"));
+        }
     }
     if m.skip_unread_label.is_some() {
         w(format!("if {SKIP_UNREAD} == 0 kidokumode 1"));
@@ -1335,40 +1342,45 @@ pub(crate) fn settings_menu(
     w("return".into());
 }
 
+/// The switches the settings screen has (in its list or on picture
+/// pages), each once.
+fn used_switches(m: &SettingsMenu) -> Vec<Switch> {
+    let mut all: Vec<Switch> = m.switches.iter().map(|s| s.switch).collect();
+    if let Some(p) = &m.pictures {
+        for c in p.pages.iter().flat_map(|page| &page.rows) {
+            let (conv_core::ir::RowControl::Choice { value, .. } | conv_core::ir::RowControl::Slider { value, .. }) = c;
+            if let conv_core::ir::SettingValue::Switch(s) = value {
+                all.push(*s);
+            }
+        }
+    }
+    let mut seen = std::collections::BTreeSet::new();
+    all.retain(|&s| seen.insert(switch_index(s)));
+    all
+}
+
+/// The settings screen has switch `s` (in its list or on a picture page).
+pub(crate) fn has_switch(m: &SettingsMenu, s: Switch) -> bool {
+    m.switches.iter().any(|x| x.switch == s)
+        || m.pictures.as_ref().is_some_and(|p| {
+            p.pages.iter().flat_map(|page| &page.rows).any(|c| match c {
+                conv_core::ir::RowControl::Choice { value, .. } | conv_core::ir::RowControl::Slider { value, .. } => *value == conv_core::ir::SettingValue::Switch(s),
+            })
+        })
+}
+
 /// Sets the question and asks it (see [`confirm`]).
 pub(crate) fn confirm_call(question: &str, kind: Switch) -> String {
     format!("mov {CONFIRM_KIND},{}:mov {CONFIRM_TEXT},\"{}\"\ngosub *{CONFIRM_ROUTINE}", switch_index(kind) + 1, escape(question))
 }
 
 pub(crate) fn switch_index(s: Switch) -> u32 {
-    match s {
-        Switch::WheelReadsOn => 0,
-        Switch::WheelClosesLog => 1,
-        Switch::ConfirmSave => 2,
-        Switch::ConfirmLoad => 3,
-        Switch::ConfirmDelete => 4,
-        Switch::ConfirmTitle => 5,
-        Switch::ConfirmQuit => 6,
-        Switch::ConfirmBackToChoice => 7,
-        Switch::VoiceKeepsPlaying => 8,
-        Switch::BgmOn => 9,
-        Switch::SeOn => 10,
-        Switch::VoiceOn => 11,
-        Switch::ConfirmReset => 12,
-        Switch::Effects => 13,
-        Switch::SavePreview => 14,
-        Switch::TextShadow => 15,
-        Switch::ConfirmChapter => 16,
-    }
+    crate::switches::index(s)
 }
 
 /// The global that is 1 while `s` is switched off.
 pub(crate) fn switch_off(s: Switch) -> String {
-    debug_assert!(switch_index(s) < MAX_SWITCH_INDEX);
-    match switch_index(s) {
-        i @ 0..=7 => format!("%{}", SWITCH_OFF_BASE + i),
-        i => format!("%{}", SWITCH_OFF_BASE_2 + i - 8),
-    }
+    format!("%{}", crate::switches::off_var(switch_index(s)))
 }
 
 /// The yes/no dialog (see [`ConfirmDialog`]) over whatever is on screen:
@@ -1393,9 +1405,10 @@ pub(crate) fn confirm(out: &mut String, d: &ConfirmDialog) {
     w(format!("*{CONFIRM_ROUTINE}"));
     // A confirmation switched off in the settings answers yes at once.
     w(format!("mov {CONFIRM},1"));
-    // (switch_off: kinds past 8 are in the second range)
-    w(format!("if {CONFIRM_KIND} > 0 mov {TMP},{}+{CONFIRM_KIND}", SWITCH_OFF_BASE - 1));
-    w(format!("if {CONFIRM_KIND} > 8 mov {TMP},{}+{CONFIRM_KIND}", SWITCH_OFF_BASE_2 - 9));
+    // The switch's flag (switch_off).
+    for line in crate::switches::off_var_lines(CONFIRM_KIND, TMP).lines() {
+        w(line.to_string());
+    }
     w(format!("if {CONFIRM_KIND} > 0 if %%{} == 1 mov {CONFIRM_KIND},0:return", &TMP[1..]));
     if let Some((b, opacity)) = d.backdrop.as_ref().filter(|_| pictures) {
         w(format!("lsp {DIALOG_BASE},\":c;{}\",{},{},{opacity}", path(&b.image), b.x, b.y));
@@ -1448,19 +1461,36 @@ pub(crate) fn confirm(out: &mut String, d: &ConfirmDialog) {
 
 /// First run: default levels; every run: apply them (before `setwindow`,
 /// which takes the text speed from [`TEXT_MS`]).
-pub(crate) fn settings_init(out: &mut String) {
-    let v = setting_var;
-    out.push_str(&format!(
-        "if {SETTINGS_SET} == 0 mov {},8:mov {},8:mov {},10:mov {},7:mov {},5:mov {SETTINGS_SET},1\ngosub *{SETTINGS_APPLY}\n",
-        v(Setting::BgmVolume),
-        v(Setting::SeVolume),
-        v(Setting::VoiceVolume),
-        v(Setting::TextSpeed),
-        v(Setting::AutoSpeed)
-    ));
+pub(crate) fn settings_init(out: &mut String, m: &SettingsMenu) {
+    let mut first = settings_defaults(m);
+    for &s in &m.switches_off {
+        first.push_str(&format!(":mov {},1", switch_off(s)));
+    }
+    out.push_str(&format!("if {SETTINGS_SET} == 0 {first}:mov {SETTINGS_SET},1\ngosub *{SETTINGS_APPLY}\n"));
 }
 
-fn setting_var(s: Setting) -> &'static str {
+/// The levels' defaults (as [`settings_init`] sets them, the game's
+/// [`SettingsMenu::defaults`] over the shared ones), as commands.
+pub(crate) fn settings_defaults(m: &SettingsMenu) -> String {
+    let shared = [
+        (Setting::BgmVolume, 8),
+        (Setting::SeVolume, 8),
+        (Setting::VoiceVolume, 10),
+        (Setting::TextSpeed, 7),
+        (Setting::AutoSpeed, 5),
+        (Setting::WindowTransparency, 0),
+    ];
+    shared
+        .iter()
+        .map(|&(s, level)| {
+            let level = m.defaults.iter().find(|(d, _)| setting_var(*d) == setting_var(s)).map_or(level, |&(_, l)| l.min(10));
+            format!("mov {},{level}", setting_var(s))
+        })
+        .collect::<Vec<_>>()
+        .join(":")
+}
+
+pub(crate) fn setting_var(s: Setting) -> &'static str {
     match s {
         Setting::BgmVolume => "%902",
         Setting::SeVolume => "%903",
@@ -1486,7 +1516,7 @@ fn setting_var(s: Setting) -> &'static str {
 /// (pretextgosub makes the text wait for `saveon`).
 /// `ruby`: `rubyon` is set, so `strsp` draws text with a line pitch a line
 /// gap lower (the ruby goes above it); the log is drawn that much higher.
-pub(crate) fn backlog(out: &mut String, b: &Backlog, ruby: bool) {
+pub(crate) fn backlog(out: &mut String, b: &Backlog, ruby: bool, keep_skip: bool) {
     let mut w = |line: String| {
         out.push_str(&line);
         out.push('\n');
@@ -1499,6 +1529,9 @@ pub(crate) fn backlog(out: &mut String, b: &Backlog, ruby: bool) {
     let gap = b.line_height - size as i32;
     let lift = if ruby { format!("-{gap}") } else { String::new() };
     w(format!("*{PRETEXT}"));
+    if keep_skip {
+        w(format!("if {KEEP_SKIP} == 1 mov {KEEP_SKIP},0:systemcall skip"));
+    }
     w("saveon".into());
     w("return".into());
     w(format!("*{BACKLOG}"));
@@ -1595,7 +1628,7 @@ pub(crate) fn hidden_while_open() -> Vec<u32> {
 }
 
 /// `lsp2` places the image by its centre.
-fn lsp2(slot: u32, p: &Placed, opacity: Option<u8>) -> String {
+pub(crate) fn lsp2(slot: u32, p: &Placed, opacity: Option<u8>) -> String {
     let (w, h) = (p.w, p.h);
     let opacity = opacity.map_or(String::new(), |o| format!(",{o}"));
     format!("lsp2 {slot},\":a;{}\",{},{},100,100,0{opacity}", path(&p.image), p.x + w / 2, p.y + h / 2)
@@ -1608,37 +1641,6 @@ pub(crate) mod tests {
 
     fn placed(name: &str, w: i32, h: i32) -> Placed {
         Placed { image: format!("system/{name}.png"), x: 10, y: 20, w, h }
-    }
-
-    /// Every [`Switch`]. The match makes a new one fail to compile until
-    /// it is listed here too.
-    fn all_switches() -> Vec<Switch> {
-        use Switch::*;
-        let all = vec![
-            WheelReadsOn, WheelClosesLog, ConfirmSave, ConfirmLoad, ConfirmDelete, ConfirmTitle, ConfirmQuit, ConfirmBackToChoice, VoiceKeepsPlaying, BgmOn, SeOn,
-            VoiceOn, ConfirmReset, Effects, SavePreview, TextShadow, ConfirmChapter,
-        ];
-        for s in &all {
-            match s {
-                WheelReadsOn | WheelClosesLog | ConfirmSave | ConfirmLoad | ConfirmDelete | ConfirmTitle | ConfirmQuit | ConfirmBackToChoice | VoiceKeepsPlaying | BgmOn | SeOn | VoiceOn
-                | ConfirmReset | Effects | SavePreview | TextShadow | ConfirmChapter => {}
-            }
-        }
-        all
-    }
-
-    /// Two switches with one index would share their global (branches
-    /// adding switches at once both took the next free number).
-    #[test]
-    fn switches_have_their_own_index() {
-        let mut seen = std::collections::BTreeMap::new();
-        for s in all_switches() {
-            let i = switch_index(s);
-            assert!(i < MAX_SWITCH_INDEX, "{s:?}: index {i} past MAX_SWITCH_INDEX");
-            if let Some(other) = seen.insert(i, s) {
-                panic!("{s:?} and {other:?} both have index {i}");
-            }
-        }
     }
 
     #[test]
@@ -1668,6 +1670,7 @@ pub(crate) mod tests {
             font_size: 14,
             line_height: 15,
             preview: Rect { x: 390, y: 137, w: 400, h: 300 },
+            text_width: 0,
             backdrop: Some((4, [6, 0, 256, 1, 1, 0])),
         };
         let d = dialog();
@@ -1786,6 +1789,9 @@ pub(crate) mod tests {
             voice_column_x: 440,
             voice_pitch: 50,
             skip_unread_label: Some("未読".into()),
+            pictures: None,
+            defaults: Vec::new(),
+            switches_off: Vec::new(),
             switches: vec![conv_core::ir::SettingSwitch { label: "セーブ確認".into(), switch: Switch::ConfirmSave }],
         };
         let mut out = String::new();
@@ -2019,6 +2025,9 @@ pub(crate) mod tests {
             voice_column_x: 440,
             voice_pitch: 50,
             skip_unread_label: None,
+            pictures: None,
+            defaults: Vec::new(),
+            switches_off: Vec::new(),
             switches: Vec::new(),
         };
         let mut out = String::new();

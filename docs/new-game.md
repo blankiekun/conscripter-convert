@@ -208,9 +208,10 @@ the original uses a Windows dialog, design one from game parts and say
 so.
 
 - **Start from the screens the IR already has**: `SaveMenu` and
-  `SaveGrid` (save and load), `SettingsMenu` (with `PictureSettings`, on
-  the `oretsuba` branch until it merges, for a settings screen drawn
-  from the game's own pictures), `ButtonBar`,
+  `SaveGrid` (save and load), `SettingsMenu` (with `PagedSettings` for
+  pages drawn from the game's own pictures, option words and level bars),
+  `PictureSettings` (one picture with sliders and on/off pairs),
+  `ButtonBar`,
   `CommandMenu`, `Backlog`, `ConfirmDialog`, `PictureScreen`. A game
   changes them through what it puts in the IR, never with game-specific
   branches in `menu.rs`. Add a new screen type only for a screen none of

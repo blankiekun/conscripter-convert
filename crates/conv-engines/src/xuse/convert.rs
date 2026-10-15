@@ -1250,6 +1250,7 @@ impl AssetBank {
             font_size: 14,
             line_height: 15,
             preview: Rect { x: 390, y: 137, w: 400, h: 300 },
+            text_width: 0,
             // The scene behind is blurred slightly (measured under wine:
             // Gaussian σ about 1): a 3×3 mean, in SmoothCrossFade's slot.
             backdrop: Some((SMOOTH_BLUR_SLOT, [FILTER_BLUR, FILTER_BLEND_COPY, 256, 1, 1, 0])),
@@ -1389,6 +1390,9 @@ impl AssetBank {
             // 15 switches in one column above the exits at 540.
             voice_pitch: 26,
             skip_unread_label: Some("未読テキストもスキップする".into()),
+            pictures: None,
+            defaults: Vec::new(),
+            switches_off: Vec::new(),
             // The original's マウス and 確認メッセージ pages (labels as there).
             switches: [
                 ("マウスホイールでテキストを進める", Switch::WheelReadsOn),

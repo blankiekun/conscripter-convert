@@ -703,6 +703,11 @@ def self_test(report: str) -> int:
         state["pillow"] = True
     except Exception as e:  # noqa: BLE001 - reported
         state["pillow"] = str(e)
+    try:  # the downloads need certificates that work on any system
+        import certifi
+        state["certifi"] = Path(certifi.where()).is_file()
+    except ImportError:
+        state["certifi"] = False
     if state["converter"]:
         r = subprocess.run([state["converter"], "--help"], capture_output=True, encoding="utf-8", errors="replace", env=tools.child_env())
         state["converter_runs"] = r.returncode == 0 and "convert-game" in r.stdout
@@ -711,7 +716,7 @@ def self_test(report: str) -> int:
         state["ffmpeg_missing"] = tools.ffmpeg_missing_encoders(ffmpeg)
     Path(report).write_text(json.dumps(state, indent=2), encoding="utf-8")
     ok = (state.get("converter_runs") and all(state["fonts"].values()) and state["dnd"]
-          and not state.get("ffmpeg_missing") and state["pillow"] is True)
+          and not state.get("ffmpeg_missing") and state["pillow"] is True and state["certifi"])
     return 0 if ok else 1
 
 

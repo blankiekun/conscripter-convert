@@ -23,7 +23,7 @@ use std::collections::{BTreeMap, HashMap};
 
 use conv_core::ir::{
     Animation, ArithOp, ButtonScreen, Compare, FILTER_BLEND_COPY, FILTER_BLEND_MULTIPLY, FILTER_BLUR, FILTER_COLOUR, FILTER_GREYSCALE, FILTER_MONOTONE, FILTER_NEGATIVE, Noise, Op, Operand, ScreenEffect, SlideLayer, SourceLoc, SpriteChange, SpriteFilter,
-    Placed, SpritePlacement, TextWindow, TransitionStyle, Var, Voice,
+    Placed, SpritePlacement, Switch, TextWindow, TransitionStyle, Var, Voice,
 };
 
 use super::tasks::{Block, Scene, Val, parse};
@@ -82,6 +82,9 @@ pub trait Assets {
     fn cg(&mut self, id: u32) -> Option<(String, u32, u32)>;
     /// A CG.cpk picture by file name (`EC27.png`), case-insensitive.
     fn cg_named(&mut self, name: &str) -> Option<(String, u32, u32)>;
+    /// The ID of a CHR.cpk picture by file name (`ST_ASU02H.png`),
+    /// case-insensitive.
+    fn chr_id(&self, name: &str) -> Option<u32>;
     /// A CHR.cpk picture.
     fn chr(&mut self, id: u32) -> Option<(String, u32, u32)>;
     /// The rule mask `RULE<n>` of ETC.cpk, as large as the screen.
@@ -100,7 +103,7 @@ pub trait Assets {
     /// screen: SystemData's card `card` over the place `picture` in its
     /// frame, with date `date` (0 = 11月21日; negative: none).
     fn chapter_card(&mut self, card: u32, picture: u32, date: i32) -> Option<String>;
-    /// The shutters of eye catch `ECnn` (`n`): `frames` screens side by
+    /// The shutters of eye catch `n` (CG ID n + 457): `frames` screens side by
     /// side of the picture's top and bottom halves sliding in from above
     /// and below until they meet (`closing`), or sliding away from the
     /// whole picture.
@@ -134,6 +137,8 @@ pub struct Character {
 pub struct Action {
     pub keys: Vec<(i64, i64, i64)>,
     pub looped: bool,
+    /// Its length in frames (`:Frame`): a loop starts again after it.
+    pub frames: i64,
 }
 
 /// The game: every scene plus the tables in adv.txt and chrNNN.txt.
@@ -189,7 +194,8 @@ impl Game {
                             })
                             .collect();
                         keys.sort_unstable();
-                        g.actions.insert(n, Action { keys, looped: a.int("Loop").unwrap_or(0) != 0 });
+                        let frames = a.int("Frame").unwrap_or(0);
+                        g.actions.insert(n, Action { keys, looped: a.int("Loop").unwrap_or(0) != 0, frames });
                     }
                 }
             } else if file == "CGMODE" {
@@ -311,6 +317,16 @@ struct Shown {
     look: Look,
     /// Its zoom (SpriteMove `:Scale`), in percent.
     zoom: u32,
+    /// A motion (CharacterAction) runs: looping, or once for this many ms
+    /// from the message count given.
+    motion: Option<Motion>,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct Motion {
+    looped: bool,
+    ms: u32,
+    since_message: usize,
 }
 
 /// How a picture is drawn: its colour filters (`:Color` tint,
@@ -378,6 +394,8 @@ struct Lowering<'a> {
     /// No message yet: the scene's opening, which the scripts write once
     /// per branch (skipped or not), each after a `Tag`.
     opening: bool,
+    /// Messages so far, to tell whether one came since an action started.
+    messages: usize,
 }
 
 impl Lowering<'_> {
@@ -445,7 +463,7 @@ impl Lowering<'_> {
         if self.shown.get(key).is_some_and(|old| old.layer == layer && old.zoom != 100) {
             self.out.ops.push(Op::SpriteZoom { layer, x: cx, y: cy, from: 100, to: 100, ms: 0 });
         }
-        self.shown.insert(key.to_string(), Shown { layer, tex, x: cx, y: cy, image: path, w, h, base_y: cy, look, zoom: 100 });
+        self.shown.insert(key.to_string(), Shown { layer, tex, x: cx, y: cy, image: path, w, h, base_y: cy, look, zoom: 100, motion: None });
         if opened {
             self.out.ops.push(Op::EndTransition);
             self.staging = false;
@@ -545,8 +563,20 @@ impl Lowering<'_> {
         }
     }
 
-    fn character_image(&mut self, number: &[Val]) -> Option<(String, u32, u32, i64)> {
-        let v: Vec<i64> = number.iter().filter_map(Val::int).collect();
+    /// A `[CharaN]` `:Number` (character, pose, dress, face, size). One
+    /// script (S04_16B) has the placeholder `<ST_ASU02H>>` left in its
+    /// place: the picture's name, resolved through the character tables.
+    fn character_number(&self, number: &[Val]) -> Option<Vec<i64>> {
+        if let Some(Val::Word(w)) = number.first() {
+            let name = w.trim_matches(|c| c == '<' || c == '>');
+            let id = self.assets.chr_id(&format!("{name}.png"))?;
+            let (c, key) = self.game.characters.iter().find_map(|(c, ch)| ch.sprites.iter().find(|(_, t)| **t == id).map(|(k, _)| (*c, *k)))?;
+            return Some([&[c][..], &key[..]].concat());
+        }
+        Some(number.iter().filter_map(Val::int).collect())
+    }
+
+    fn character_image(&mut self, v: &[i64]) -> Option<(String, u32, u32, i64)> {
         let (&c, key) = v.split_first()?;
         let ch = self.game.characters.get(&c)?;
         let key: [i64; 4] = key.get(..4)?.try_into().ok()?;
@@ -566,13 +596,16 @@ impl Lowering<'_> {
                 let speaker = t.int("Name").and_then(|n| self.game.names.get(&n).cloned());
                 let voice = t.int("Voice").and_then(|id| {
                     let file = self.assets.voice(id as u32)?;
-                    Some(Voice { file, character: t.int("Name").unwrap_or(0) as u32 })
+                    // One voice switch for everyone (キャラクター音声
+                    // 全てON / 全てOFF): character 0.
+                    Some(Voice { file, character: 0 })
                 });
                 if self.staging {
                     self.out.ops.push(Op::EndTransition);
                     self.staging = false;
                 }
                 self.opening = false;
+                self.messages += 1;
                 self.out.ops.push(Op::Text { speaker, text, voice, links: vec![], ruby: vec![], styles: vec![], hang: None, continues: false });
             }
             "SpriteBG" | "Sprite" | "SpriteBS" => {
@@ -632,12 +665,17 @@ impl Lowering<'_> {
                     self.hide_all(&gone, 0);
                 }
                 for c in t.children.iter().filter(|c| c.name.starts_with("Chara")) {
-                    let Some(number) = c.get("Number") else { continue };
+                    let Some(raw) = c.get("Number") else { continue };
+                    let Some(number) = self.character_number(raw) else {
+                        self.note(format!("{ty}: unknown character picture {raw:?}"));
+                        continue;
+                    };
+                    let number = &number[..];
                     let Some((path, w, h, offset)) = self.character_image(number) else {
                         self.note(format!("{ty}: unknown character picture {number:?}"));
                         continue;
                     };
-                    let key = format!("c{}", number[0].int().unwrap_or(-1));
+                    let key = format!("c{}", number.first().copied().unwrap_or(-1));
                     let x = sx(c.int_at("Position", 0).unwrap_or(640));
                     // y 0 is the usual height: a picture taller than the
                     // screen (the standing characters, cut at the waist)
@@ -691,6 +729,7 @@ impl Lowering<'_> {
                         self.out.ops.push(Op::SpriteOpacity { layer: Some(s.layer), opacity: if look.hidden { 0 } else { 256 } });
                         self.out.ops.push(Op::EndTransition);
                     } else {
+                        self.ease(c);
                         self.out.ops.push(Op::SpriteMove { layer: s.layer, x, y, ms: time });
                     }
                     self.shown.insert(key, Shown { x, y, look, ..s });
@@ -805,18 +844,43 @@ impl Lowering<'_> {
                     else {
                         continue;
                     };
-                    if a.looped {
-                        self.note("CharacterAction (looping)");
+                    // Offsets from its place, keyframe to keyframe; a loop
+                    // goes back to its first key at the action's length.
+                    let mut keys: Vec<(u32, i32, i32)> = a.keys.iter().map(|&(f, x, y)| (ms(f), sx(x), sy(y))).collect();
+                    if a.looped
+                        && let Some(&(_, x, y)) = keys.first()
+                        && a.frames > a.keys.last().map_or(0, |k| k.0)
+                    {
+                        keys.push((ms(a.frames), x, y));
+                    }
+                    let length = keys.last().map_or(0, |k| k.0);
+                    if keys.is_empty() || length == 0 {
                         continue;
                     }
-                    // Straight moves from keyframe to keyframe, waited on.
-                    let mut last = 0;
-                    for &(frame, x, y) in &a.keys {
-                        let step = ms(frame - last);
-                        last = frame;
-                        self.out.ops.push(Op::SpriteMove { layer: s.layer, x: s.x + sx(x), y: s.y + sy(y), ms: step });
+                    self.out.ops.push(Op::SpriteMotion { layer: s.layer, keys, looped: a.looped });
+                    let motion = Motion { looped: a.looped, ms: length, since_message: self.messages };
+                    self.shown.insert(key, Shown { motion: Some(motion), ..s });
+                    if t.int("EndWait").unwrap_or(0) != 0 && !a.looped {
+                        self.out.ops.push(Op::Wait { ms: length });
                     }
-                    self.out.ops.push(Op::SpriteMove { layer: s.layer, x: s.x, y: s.y, ms: 0 });
+                }
+            }
+            "CharacterActionEnd" => {
+                // Ends the characters' actions (`:Character`, or every
+                // one); `:EndWait 1` waits for an action still running.
+                let only = t.int("Character").map(|n| format!("c{n}"));
+                let mut keys: Vec<String> = self.shown.iter().filter(|(k, v)| v.motion.is_some() && only.as_ref().is_none_or(|o| o == *k)).map(|(k, _)| k.clone()).collect();
+                keys.sort();
+                let wait = t.int("EndWait").unwrap_or(0) != 0;
+                for key in keys {
+                    let Some(s) = self.shown.get_mut(&key) else { continue };
+                    let Some(m) = s.motion.take() else { continue };
+                    let layer = s.layer;
+                    if m.looped || !wait {
+                        self.out.ops.push(Op::SpriteMotion { layer, keys: vec![], looped: false });
+                    } else if m.since_message == self.messages {
+                        self.out.ops.push(Op::Wait { ms: m.ms });
+                    }
                 }
             }
             "Flash" => {
@@ -825,19 +889,39 @@ impl Lowering<'_> {
                 let time = ms(t.int("InTime").unwrap_or(3) + t.int("OutTime").unwrap_or(3));
                 self.out.ops.push(Op::Flash { colour: colour(t), opacity: alpha * 256 / 255, ms: time.max(16) });
             }
-            "EffectQuake" | "SpriteQuake" => {
+            "SpriteQuake" => {
+                // Shakes one picture (a background) by `:Param` 0, 1
+                // (x, y), dying down over `:Time` frames; zeros stop it.
+                let tex = t.int("SpriteNumber").or_else(|| t.int("Texture")).unwrap_or(-1);
+                let Some(s) = self.shown.get(&format!("t{tex}")).cloned() else { return };
+                let (ax, ay) = (sx(t.int_at("Param", 0).unwrap_or(0)), sy(t.int_at("Param", 1).unwrap_or(0)));
+                let time = ms(t.int("Time").unwrap_or(0));
+                if ax == 0 && ay == 0 {
+                    self.out.ops.push(Op::SpriteMotion { layer: s.layer, keys: vec![], looped: false });
+                    return;
+                }
+                // `:Time 0` with a size (once, S04_07A, after a `// wt`):
+                // waits for the shake an earlier task started, which a
+                // message in between has already outlasted.
+                if time == 0 {
+                    return;
+                }
+                self.out.ops.push(Op::SpriteMotion { layer: s.layer, keys: quake_keys(ax, ay, time), looped: false });
+                if t.int("Wait").unwrap_or(0) != 0 {
+                    self.out.ops.push(Op::Wait { ms: time });
+                }
+            }
+            "EffectQuake" => {
                 let ax = sx(t.int_at("Param", 0).unwrap_or(30));
                 let ay = sy(t.int_at("Param", 1).unwrap_or(30));
                 let time = t.int("Time").unwrap_or(30);
-                // Shakes for :Time frames, dying down (0: until the end task).
-                let end = if time > 0 { (0, 0) } else { (ax, ay) };
-                let shake = ScreenEffect::Shake { time_ms: ms(time).max(1), interval_ms: 16, path: false, speed: (2200, 2900), range: [(ax, ay), end], end_ms: 0 };
+                // Shakes for :Time frames, dying down, then stops (0: until
+                // the end task).
+                let (end, end_ms) = if time > 0 { ((0, 0), ms(time)) } else { ((ax, ay), 0) };
+                let shake = ScreenEffect::Shake { time_ms: ms(time).max(1), interval_ms: 16, path: false, speed: (2200, 2900), range: [(ax, ay), end], end_ms };
                 self.out.ops.push(Op::ScreenEffect { slot: 1, effect: Some(shake) });
                 if t.int("Wait").unwrap_or(0) != 0 {
                     self.out.ops.push(Op::Wait { ms: ms(time) });
-                }
-                if ty == "SpriteQuake" {
-                    self.note("SpriteQuake (shakes the screen)");
                 }
             }
             "SpritePriority" | "CharacterPriority" => {
@@ -859,9 +943,9 @@ impl Lowering<'_> {
                 let y = t.int_at("Position", 1).map_or(s.y, sy);
                 let time = ms(t.int("Time").unwrap_or(0));
                 // `:Scale` zooms the picture about its centre (a camera
-                // zoom); without it the zoom stays. The two values after
-                // `:Position` look like easing: the zoom is straight.
+                // zoom); without it the zoom stays.
                 let zoom = t.get("Scale").and_then(|v| v.first()?.float()).map_or(s.zoom, |f| (f * 100.0).round() as u32);
+                self.ease(t);
                 // A zoomed picture moves with spzoom too, which redraws
                 // where its zoomed picture was.
                 if zoom != s.zoom || zoom != 100 {
@@ -879,7 +963,8 @@ impl Lowering<'_> {
             "EyeCatch" => {
                 let n = t.int_at("Image", 1).unwrap_or(-1);
                 let image = match t.int_at("Image", 0) {
-                    Some(0) if n >= 0 => self.assets.cg_named(&format!("EC{n:02}.png")),
+                    // CG ID n + 457, at least 458 (the eboot, 0x81048978).
+                    Some(0) if n >= 0 => self.assets.cg((n as u32 + 457).max(458)),
                     // A chapter card: card, place, date.
                     Some(1) if n >= 0 => {
                         let (place, date) = (t.int_at("Image", 2).unwrap_or(-1), t.int_at("Image", 3).unwrap_or(-1));
@@ -959,22 +1044,32 @@ impl Lowering<'_> {
                         });
                         self.out.ops.push(Op::ScreenFilter { slot: 1, filter, fade_ms });
                     }
-                    // 画面キャプチャースプライト: a copy of the screen drawn
-                    // zoomed (impacts). Approximated by a pulse: the copy,
-                    // growing, over the live picture, fading.
+                    // 画面キャプチャースプライト (the eboot's 0x81040714): a
+                    // copy of the screen, frozen, zoomed onto a point at an
+                    // impact. :Param x, y (where its centre goes), scale,
+                    // frames (the eboot steps 2/frames a frame: it takes
+                    // half), ease type 0-3, power; it fades in over :Fade
+                    // and out over EffectEnd's :Fade.
                     57 => {
-                        let effect = start.then_some(ScreenEffect::Pulse {
-                            time_ms: 400,
-                            interval_ms: 16,
-                            zoom: (0, 80),
-                            opacity: 160,
-                            colour: 0xffffff,
-                            tint_opacity: 0,
-                            tint: 0,
-                        });
-                        self.out.ops.push(Op::ScreenEffect { slot: 2, effect });
                         if start {
-                            self.note("EffectStart 57 (approximated by a pulse)");
+                            let p = |k: usize, d: f64| t.get("Param").and_then(|v| v.get(k)).and_then(Val::float).unwrap_or(d);
+                            let power = p(5, 1.0);
+                            let effect = ScreenEffect::Zoom {
+                                interval_ms: 16,
+                                zoom: (p(2, 1.0).max(0.01) * 1000.0).round() as i32,
+                                centre: (sx(p(0, 640.0) as i64), sy(p(1, 360.0) as i64)),
+                                zoom_ms: ms(p(3, 1.0).max(1.0) as i64) / 2,
+                                fade_ms,
+                                ease: p(4, 0.0).clamp(0.0, 3.0) as u8,
+                                power: if power == 0.0 { 1000 } else { (power * 1000.0).round() as i32 },
+                            };
+                            self.out.ops.push(Op::ScreenEffect { slot: 2, effect: Some(effect) });
+                        } else if self.staging {
+                            self.out.ops.push(Op::ScreenEffect { slot: 2, effect: None });
+                        } else {
+                            self.out.ops.push(Op::BeginTransition { effect: "EffectEnd".into(), fade_ms, mask: None, style: TransitionStyle::Fade });
+                            self.out.ops.push(Op::ScreenEffect { slot: 2, effect: None });
+                            self.out.ops.push(Op::EndTransition);
                         }
                     }
                     // A wave (the eboot's shader 0x8115f304, over the
@@ -1035,7 +1130,7 @@ impl Lowering<'_> {
                 }
             }
             // CharacterStop stops a looping action, which isn't played.
-            "BacklogMessage" | "SceneJumpDialogEnd" | "MovieStop" | "CharacterStop" | "CharacterWait" | "SpriteMoveEnd" | "CharacterActionEnd" => {}
+            "BacklogMessage" | "SceneJumpDialogEnd" | "MovieStop" | "CharacterStop" | "CharacterWait" | "SpriteMoveEnd" => {}
             _ => self.unsupported(scene, i, ty.to_string()),
         }
     }
@@ -1054,6 +1149,8 @@ impl Lowering<'_> {
         self.out.ops.push(Op::Arith { var: read, op: ArithOp::Set, value: Operand::Const(1) });
         self.out.ops.push(Op::Jump(tag_label(scene, unread)));
         self.out.ops.push(Op::Label(offer.clone()));
+        // シーンスキップ機能 OFF: a read scene just plays.
+        self.out.ops.push(Op::IfSwitch { switch: Switch::SceneSkipDialog, on: false, label: tag_label(scene, play) });
         let summary = t.str("Text").unwrap_or("").trim_end().to_string();
         let ints = |key: &str| t.get(key).unwrap_or(&[]).iter().filter_map(Val::int).collect::<Vec<_>>();
         if let Some((pictures, [yes, no])) = self.assets.skip_dialog(&ints("BG"), &ints("CharaIcon"), &summary, &offer) {
@@ -1070,21 +1167,24 @@ impl Lowering<'_> {
         self.out.ops.push(Op::Choice { options, style: None });
     }
 
-    /// START's story menu (the original's labels in `title_bg.png`): once
-    /// any ending was seen, the after-stories (adv.txt's start scenes 1-4)
-    /// are offered beside the main story. Each opens with its heroine's
-    /// ending (かるお's with the true ending); the original's rule is in
-    /// the eboot, so this one is ours.
+    /// START's story menu (the original's labels in `title_bg.png`), as
+    /// the eboot has it (0x8105e69c, 0x81083086, 0x81084c26): START opens
+    /// it once any of the first six global flags is set (明日香's, 京's,
+    /// 亜衣's or 鳴's ending, part 1 or 2 cleared), otherwise it starts the
+    /// story. 美咲's, 明日香's and 京's after-stories (adv.txt's start
+    /// scenes 1-3) are then open; 狩男's (4) once part 1, 2 or 3 is
+    /// cleared (the Vita shows ？？？？？ until then).
     fn story_menu(&mut self) {
-        const STORIES: [(&str, &str, &str); 4] = [
-            ("ある日の林田美咲", "P03_01A", "misaki_ed"),
-            ("ある日の渡来明日香", "P01_01A", "asuka_ed"),
-            ("ある日の山科京", "P02_01A", "miyako_ed"),
-            ("ある日の軽部狩男", "P04_01A", "kobato_ed"),
+        const SHOWN: [&str; 6] = ["asuka_ed", "miyako_ed", "ai_ed", "naru_ed", "one_clear", "two_clear"];
+        const STORIES: [(&str, &str, &[&str]); 4] = [
+            ("ある日の林田美咲", "P03_01A", &[]),
+            ("ある日の渡来明日香", "P01_01A", &[]),
+            ("ある日の山科京", "P02_01A", &[]),
+            ("ある日の軽部狩男", "P04_01A", &["one_clear", "two_clear", "three_clear"]),
         ];
         let menu = "mg_story_menu".to_string();
         let start = scene_label(&self.game.start);
-        for (_, _, flag) in STORIES {
+        for flag in SHOWN {
             if let Some(var) = self.game.flag(flag, true) {
                 self.out.ops.push(Op::If { var, cmp: Compare::Ne, value: Operand::Const(0), label: menu.clone() });
             }
@@ -1093,20 +1193,39 @@ impl Lowering<'_> {
         self.out.ops.push(Op::Label(menu.clone()));
         let mut options = vec![("俺たちに翼はない　始めから".to_string(), start)];
         let mut gates = Vec::new();
-        for (title, scene, flag) in STORIES {
+        for (title, scene, flags) in STORIES {
+            if flags.is_empty() {
+                options.push((title.to_string(), scene_label(scene)));
+                continue;
+            }
             let gate = format!("mg_story_{}", scene.to_ascii_lowercase());
             options.push((title.to_string(), gate.clone()));
-            gates.push((gate, scene, flag));
+            gates.push((gate, scene, flags));
         }
         self.out.ops.push(Op::Choice { options, style: None });
-        for (gate, scene, flag) in gates {
+        for (gate, scene, flags) in gates {
             self.out.ops.push(Op::Label(gate));
-            if let Some(var) = self.game.flag(flag, true) {
-                self.out.ops.push(Op::If { var, cmp: Compare::Ne, value: Operand::Const(0), label: scene_label(scene) });
+            for flag in flags {
+                if let Some(var) = self.game.flag(flag, true) {
+                    self.out.ops.push(Op::If { var, cmp: Compare::Ne, value: Operand::Const(0), label: scene_label(scene) });
+                }
             }
             let text = "　このお話は、まだ読むことができません。".to_string();
             self.out.ops.push(Op::Text { speaker: None, text, voice: None, links: vec![], ruby: vec![], styles: vec![], hang: None, continues: false });
             self.out.ops.push(Op::Jump(menu.clone()));
+        }
+    }
+
+    /// A move's curve: `:Position x,y,type,power` eases with the eboot's
+    /// ease_value (0x8103cc18; 0 straight, 1 in, 2 out, 3 in and out),
+    /// which raises t² to the power.
+    fn ease(&mut self, t: &Block) {
+        let v = t.get("Position").unwrap_or(&[]);
+        let ease = v.get(2).and_then(Val::float).unwrap_or(0.0) as u8;
+        if (1..=3).contains(&ease) {
+            let power = v.get(3).and_then(Val::float).filter(|p| *p > 0.0).unwrap_or(1.0);
+            let exponent = ((power * 2.0).round() as u32).max(1);
+            self.out.ops.push(Op::MoveEase { ease, exponent });
         }
     }
 
@@ -1172,6 +1291,24 @@ impl Lowering<'_> {
     }
 }
 
+/// A shake dying down over `time` ms: offsets of up to (ax, ay) pixels,
+/// every 33 ms or more, alternating sides, ending at the picture's place.
+fn quake_keys(ax: i32, ay: i32, time: u32) -> Vec<(u32, i32, i32)> {
+    // spmotion takes up to 32 keys.
+    let step = (time / 31).max(33);
+    let n = (time / step).max(1);
+    let signs = [(1, 1), (-1, -1), (1, -1), (-1, 1)];
+    let mut keys: Vec<(u32, i32, i32)> = (0..n)
+        .map(|k| {
+            let left = (n - k) as i32;
+            let (sx_, sy_) = signs[k as usize % 4];
+            (k * step, sx_ * ax * left / n as i32, sy_ * ay * left / n as i32)
+        })
+        .collect();
+    keys.push((time, 0, 0));
+    keys
+}
+
 fn colour(t: &Block) -> u32 {
     let c: Vec<i64> = t.get("Color").unwrap_or(&[]).iter().filter_map(Val::int).collect();
     match c.as_slice() {
@@ -1193,8 +1330,11 @@ fn colour(t: &Block) -> u32 {
 /// - 3: a card turning over (perspective), the old screen in front, the
 ///   new behind, about the vertical axis (`:Param` 0 below 2) or the
 ///   horizontal one (a turn of the new screen growing from a line here);
-/// - 1: a fade with the rows waving sideways, 6: a fade blurred sideways
-///   halfway (both a plain fade here); 4: not looked at (2 uses).
+/// - 1: a fade with the rows waving sideways (`:Param` 1 the size, 2 the
+///   waves; their scale is a guess: the shader's constants are uniforms);
+/// - 6: a fade blurred sideways, the most halfway, by `:Param` 1 pixels
+///   of 1280 either side, `:Param` 0 = 1 only the new screen;
+/// - 4: not looked at (2 uses).
 fn act_style(t: &Block) -> TransitionStyle {
     let direction = t.int_at("Param", 0).unwrap_or(0).clamp(0, 3);
     let (dx, dy) = [(1, 0), (0, 1), (-1, 0), (0, -1)][direction as usize];
@@ -1203,6 +1343,14 @@ fn act_style(t: &Block) -> TransitionStyle {
         Some(5) if direction < 2 => TransitionStyle::ThroughWhite,
         Some(2) => TransitionStyle::Mosaic,
         Some(3) => TransitionStyle::Flip { horizontal: direction < 2, grow: true },
+        Some(1) => {
+            let param = |i: usize| -> f64 { t.get("Param").and_then(|v| v.get(i)?.float()).unwrap_or(0.0) };
+            TransitionStyle::Wave { direction: direction as u8, amplitude: (param(1) * 100.0).round() as u32, waves: (param(2) * 10.0).round() as u32 }
+        }
+        Some(6) => TransitionStyle::Blur {
+            radius: t.int_at("Param", 1).map_or(0, |r| (r.max(0) as f64 * 0.75).round() as u32),
+            new_only: t.int_at("Param", 0) == Some(1),
+        },
         _ => TransitionStyle::Fade,
     }
 }
@@ -1210,7 +1358,7 @@ fn act_style(t: &Block) -> TransitionStyle {
 /// Compiles `scenes` (all of them if empty), each at its label, after a
 /// jump to the game's first scene.
 pub fn compile(game: &Game, scenes: &[String], assets: &mut dyn Assets) -> Compiled {
-    let mut l = Lowering { game, assets, out: Compiled::default(), shown: HashMap::new(), next_slot: HashMap::new(), staging: false, choices: 0, cover: None, eye_catch: false, shutters: None, inherited: false, opening: false };
+    let mut l = Lowering { game, assets, out: Compiled::default(), shown: HashMap::new(), next_slot: HashMap::new(), staging: false, choices: 0, cover: None, eye_catch: false, shutters: None, inherited: false, opening: false, messages: 0 };
     let names: Vec<&String> = if scenes.is_empty() { game.scenes.keys().collect() } else { scenes.iter().collect() };
     let first = names.first().map(|s| s.as_str()).unwrap_or(&game.start);
     let first = if scenes.is_empty() { game.start.as_str() } else { first };

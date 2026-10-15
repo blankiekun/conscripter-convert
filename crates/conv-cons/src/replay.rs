@@ -23,7 +23,7 @@ pub(crate) const END: &str = "conv_replay_end";
 /// back to the list).
 pub(crate) const REPLAYING: &str = "%152";
 /// Global flags: scene n has been replayed (no "new" mark); above the
-/// settings switches, n up to 445 (the variable range ends at 4096).
+/// settings switches, n up to 445 (the switches' flags are from 4096).
 const REPLAYED_BASE: u32 = 3650;
 const VARIABLE_RANGE: u32 = 4096;
 const DRAW: &str = "conv_replay_draw";

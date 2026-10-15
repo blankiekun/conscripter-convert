@@ -62,7 +62,7 @@ The other convert options (`--loose`, `--audio-codec`,
 | Area | Status |
 |---|---|
 | NPA archives, images (PNG, JPEG), BGM, sound effects, voices | ✅ Decoded (whole-corpus check not done) |
-| Movies (`.ngs`, MPEG-1) | ❌ Out of scope for now (decided 2026-10-13) |
+| Movies (`.ngs`, MPEG-1) | ❌ Not played yet: planned in step 7 of the system screens plan (the user, 2026-10-15) |
 | Script parsing | ✅ All 913 files; 17 places that don't parse are all typos or dead code |
 | Story control flow (files, scenes, functions, `if`/`while`, choices, story flags, route ranking, heroine deaths) | ✅ Compiled; all 883 story files reached from `ma00_000` |
 | Text: vertical windows, face windows and name plates, ruby, `<k>` waits, voices | ✅ Converted; vertical columns where the original's are (checked under wine), turned marks (《「―) centred, English keeps its spaces |
@@ -909,8 +909,35 @@ Next, in order:
       original at the first page (その他男声 and その他女声 heard): mean
       difference 0.57 levels, every pixel within 40 but the version line.
       Left: the wheel over a slider.
-   7. Motion: fire flicker, opening, menu cascade, dialog unroll, quick
-      bar slide.
+   7. Motion and movies: the title's fire flicker and its opening (the
+      title screen's own entrance), the menu cascade, the dialog unroll
+      (150 ms sideways), the quick bar sliding while text types; and the
+      movies (added by the user, 2026-10-15; the compiler skips them now,
+      so the build shows no video). They are MPEG-1 program streams
+      (`.ngs`, 1024×576, MP2 sound) in the disc's `ムービー/` folder, beside
+      `<game>`, not in the archives (33 files, 353 MB, and 46 more in
+      `ムービー/3d/` for the extras); the scripts name them `dx/<name>.ngs`.
+      Two kinds of use:
+      - `MoviePlay(file, skippable)`: full screen, the script waits
+        (`mvOP` at the end of chapter 1 in `ma01_026`, `mvOP02` in
+        `md01_018`, `mv剣戟_チャキーンチャキキーン` in `mb01_006`, `mv_smg_PV`
+        in `0_boot`). The converter's `Op::Movie` emits `mpegplay`, and
+        `moviestop` (the settings' 動画 pair) decides whether a click stops
+        it; the scripts test `#SYSTEM_break_play_movie` themselves too.
+      - `CreateMovie(name, priority, x, y, loop, alpha, file)`: a movie as
+        an object in the scene while the script goes on, in 48 story
+        files: `MovieSESet`/`MovieSESet_Loop` + `MovieSEStart`
+        (`function_process.nss` 2916-3045; 28 calls: battle cuts with a
+        sound effect started with them), `mvk100` (23 uses, looping, with
+        alpha, in `ma04_012` and others), single cuts (`mv剣戟_*`,
+        `mv焦屍剣`, `mv正宗ＶＳ村正`, …). CONscripter's `mpegplay`/`movie`
+        are full screen and blocking, so these need either an engine
+        addition (a movie as a sprite, played by the engine's ffmpeg path
+        while the script runs) or a blocking stand-in.
+      CONscripter plays movies through ffmpeg on Linux and macOS, through
+      the browser's video element on the web (which can't play MPEG-1: the
+      build must convert them, to MP4/H.264 or WebM), and on Windows only
+      opens the file in an outside player.
 
    The user's decisions (2026-10-14): the pressed state (`003`) becomes
    an engine feature that is on for every script; the settings CONscripter
