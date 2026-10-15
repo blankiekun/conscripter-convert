@@ -169,6 +169,7 @@ Engine features added for converted games (details in the engine's
 | `spzoom` (an `lsp` sprite zoomed about its centre in its place among the sprites, where `lsp2` sprites all lie over them; kept in saves and by `pushscreen`) | 俺たちに翼はない's camera zooms (SpriteMove `:Scale`, 90 uses): impacts zooming in and out on CGs and backgrounds, pans while zoomed |
 | `spbtn num,no,pressed_cell` (the cell a sprite button shows while the mouse button is held on it) | 装甲悪鬼村正's buttons have a pressed picture (`003`, `MouseClick`) for every button; first used by its yes/no dialogs |
 | `selectvoice` outside the define section (an empty name is no sound) | 装甲悪鬼村正's title plays a sound when the pointer comes onto a button, and only there |
+| `getkey` (letter keys end the next `btnwait`/`textbtnwait`, -1000 minus the letter's code) | 装甲悪鬼村正's shortcuts (`SetShortcut`): M opens the right-click menu, and H, A, N, R, B, S, L, Q, P, F, C, T run its items at any click wait |
 
 Planned, from limits hit by converted games (each one is worked around
 in the script today), roughly in order of payoff:

@@ -706,9 +706,61 @@ Next, in order:
       and the opening (step 7); 設定画面 does nothing until the settings
       screen exists, 電光記録盤を開く opens ONScripter's load menu until
       the save screen does, 特別付加目録 waits for the extras (step 8).
-   3. Right-click menu (a new `CommandMenu`) and the quick bar
-      (`ButtonBar` with a base picture, hidden at the right edge and
-      sliding in as in the original).
+   3. Done: the right-click menu (a new `CommandMenu`, in
+      `conv-cons/src/command_menu.rs`) and the quick bar (`ButtonBar`
+      with a `base` over the buttons, a `BarSlide` and the pressed cell),
+      built in `convert/muramasa/screens.rs`. The menu: sixteen rows over
+      メニュー黒バック, opened by a right-click or M at a click wait; the
+      backdrop fades in over 100 ms, then the rows appear 10 ms apart from
+      the top; closing, they go from the bottom, then the backdrop fades
+      out (filmed: the rows go first, though `sys_menu.nss` starts the
+      fade with them). Filmed at 60 fps beside the original, opening and
+      closing land within a frame. It closes on キャンセル, M, a
+      right-click, or after skip, 超速, auto or hide; save, load, log,
+      settings, 好感度記録, title and quit come back to it. The game's
+      shortcut letters work at any click wait (CONscripter's `getkey`,
+      53555cf). The quick bar waits 32 px off the right edge and slides
+      in over 200 ms (cubic ease-out, `Dxl2`) when the pointer passes
+      x 968, out when it goes back: an invisible `btn` hotspot with
+      `getmouseover` ends the click wait when the pointer crosses the
+      edge, so no engine change was needed. While it is out a click that
+      misses its buttons doesn't advance. Its base carries the words and
+      lies over the buttons, which are colour washes behind it. Quick
+      save (slot 890, しおり sound) and quick load (300 ms to black) ask
+      nothing. 選択肢に戻る: every choice saves to slot 891 first; the item
+      is greyed while there is none, asks 選択肢まで戻りますか, and loads it
+      after 300 ms to black; a new game and every other load delete it
+      (`loadgosub`), as the original does with 9999. Beside the original
+      (no quick save, セーブ under the pointer): mean difference 0.36
+      levels over the screen, 0.88 in the menu, offset 0,0; quick bar at
+      rest 1.8, hovered 1.0-1.9, pressed 1.0, offset 0,0; the slide's
+      pixel steps match frame for frame (ours starts about 130 ms sooner:
+      the original polls the pointer in a process). Differences left:
+      - The menu has no pressed picture: filmed at 30 fps, the original
+        keeps the hover picture while the mouse button is held (its
+        `003` files are never shown), so the menu does the same.
+      - The bar moves only at click waits; the original's process also
+        slides it while text is being drawn.
+      - 超速スキップ skips like スキップ (pages shown): CONscripter has no
+        skip that hides them.
+      - Esc opens the menu (it is ONScripter's right-click); in the
+        original it asks ゲームを終了しますか. Space reads on and Ctrl
+        skips while held, as in ONScripter; in the original Space hides
+        the window.
+      - The bar is put away while the menu is open (the original's,
+        drawn above everything, stays if it was out).
+      - 好感度記録 (H) runs `sys_hmode.nss` compiled once as a subroutine
+        (`Game::subroutines`, `conv_favour`) between `pushscreen` and
+        `popscreen`, and waits for a click (a case-less `select` that
+        breaks on a click is now a click wait, in the story's favour
+        screen too). It only shows the background so far: the screen's
+        `Array`/`AssocArray`/`VariableValue` aren't compiled yet, so the
+        icons and gauges are missing and 村正's black box sits at x 0
+        (the story's favour screen has the same gap). Next.
+      - Save, load and log open ONScripter's own screens, and 設定画面
+        does nothing, until steps 4-6.
+      Fixed on the way: the title's しおりから used `load`, which isn't a
+      command (NScripter's is `loadgame`), so it stopped the game.
    4. Save/load grid (a new `SaveGrid`: 20 slots a page, 5 pages,
       hover details).
    5. Backlog (line scrolling, voice icon, scroll knob) and the

@@ -649,8 +649,8 @@ exe (`research/tools/ghidra/ghidra_export.sh`, names in
    マウス・確認), `Switch::VoiceKeepsPlaying`; off, the click that reads
    on stops the voice (`dwavestop 0` in `*conv_wait_end`). Its flag is
    `%2910`: the switches' flags from `%3640` end where the scene
-   replay's start (`%3650`), so switches after the seventh start at
-   `%2910`.
+   replay's start (`%3650`), so switches after the eighth (Muramasa's
+   `ConfirmBackToChoice`, `%3647`) start at `%2910`.
 12. **Done: flashes cover the text window.** `0x6e`'s object sorts over
    everything (key `0xffffffff`); the port's flash was an `lsp2add`,
    which the engine draws under the text window. CONscripter's new

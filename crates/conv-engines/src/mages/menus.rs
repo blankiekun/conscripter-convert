@@ -275,7 +275,7 @@ pub fn button_bar(assets: &mut ArchiveAssets, labels: &Labels) -> ButtonBar {
         buttons.insert(0, BarButton { image, active, action });
         x -= 4;
     }
-    ButtonBar { buttons, top: None }
+    ButtonBar { buttons, top: None, ..Default::default() }
 }
 
 /// Save/load: `save_bg.png`/`load_bg.png` with their headers, three

@@ -14,6 +14,7 @@ use conv_core::ir::{
 };
 
 mod button_screen;
+mod command_menu;
 mod extras;
 pub mod lint;
 mod menu;
@@ -91,7 +92,8 @@ const ANIMATION_IMAGE: &str = "$117";
 const ANIMATION_SAVED: u32 = 13;
 /// Scratch variable receiving the clicked button (also used by nstrace).
 const BUTTON_VAR: &str = "%9";
-// Ranges claimed by modules: %190-%289 and $200-$229, the tile puzzle's
+// Ranges claimed by modules: %140-%149, the command menu and the sliding
+// bar ([`command_menu`], [`menu::button_bar`]); %190-%289 and $200-$229, the tile puzzle's
 // state ([`puzzle`]; locals when the global border is 800).
 /// NScripter variables: locals from %10, globals from %200. `globalon`
 /// makes %200 and up persist across games.
@@ -220,7 +222,9 @@ pub fn emit(script: &Script) -> String {
     if let Some(bar) = &script.button_bar {
         // Every click wait runs the bar routine instead of waiting itself.
         writeln!(out, "textgosub *{}", menu::WAIT).unwrap();
-        if bar.top.is_some() {
+        if menu::has_back_to_choice(bar, script.command_menu.as_ref()) {
+            writeln!(out, "loadgosub *{}", menu::LOADED).unwrap();
+        } else if bar.top.is_some() {
             writeln!(out, "loadgosub *{}", menu::SCENE_LOADED).unwrap();
         }
     }
@@ -278,6 +282,11 @@ pub fn emit(script: &Script) -> String {
     let effect = |ms: u32| if ms == 0 { "1".to_string() } else { effects[&(ms, Effect::Fade)].clone() };
     if let Some(t) = &script.title_screen {
         title_screen(&mut out, t, &effect(t.fade_ms), script.save_menu.is_some(), script.settings.is_some(), script.confirm.as_ref(), script.extras.is_some());
+    }
+    let back_to_choice = script.button_bar.as_ref().is_some_and(|b| menu::has_back_to_choice(b, script.command_menu.as_ref()));
+    if back_to_choice {
+        // A new game has no choice to go back to.
+        writeln!(out, "delsavegame {}", menu::BACK_SLOT).unwrap();
     }
     let mut se = SeChannels::default();
     // The next sound effect isn't played while skipping (Op::SeNotSkipped).
@@ -898,6 +907,10 @@ pub fn emit(script: &Script) -> String {
                     page_rows = 0;
                     window = Some(s.window.clone());
                 }
+                if back_to_choice {
+                    // For going back here (the page before it, as saves are).
+                    writeln!(out, "savegame {}", menu::BACK_SLOT).unwrap();
+                }
                 let items: Vec<String> = options.iter().map(|(t, l)| format!("\"{}\",*{}", text_safe(t), label(l))).collect();
                 writeln!(out, "select {}", items.join(",")).unwrap();
             }
@@ -952,8 +965,21 @@ pub fn emit(script: &Script) -> String {
         menu::save_menu(&mut out, m, script.confirm.as_ref(), script.button_bar.as_ref().is_some_and(|b| b.top.is_some()));
     }
     if let Some(b) = &script.button_bar {
-        let voice_stops = script.settings.as_ref().is_some_and(|m| m.switches.iter().any(|s| s.switch == Switch::VoiceKeepsPlaying));
-        menu::button_bar(&mut out, b, script.save_menu.is_some(), script.settings.is_some(), script.backlog.is_some(), has_replay, voice_stops);
+        let screens = menu::BarScreens {
+            save_menu: script.save_menu.is_some(),
+            settings: script.settings.is_some(),
+            backlog: script.backlog.is_some(),
+            replay: has_replay,
+            command_menu: script.command_menu.as_ref(),
+            confirm: script.confirm.as_ref(),
+            width: script.width,
+            height: script.height,
+            voice_stops: script.settings.as_ref().is_some_and(|m| m.switches.iter().any(|s| s.switch == Switch::VoiceKeepsPlaying)),
+        };
+        menu::button_bar(&mut out, b, screens);
+        if let Some(m) = &script.command_menu {
+            command_menu::emit(&mut out, m, b);
+        }
     }
     if let Some(m) = &script.settings {
         let replay = script.extras.as_ref().and_then(|e| e.replay.as_ref()).filter(|_| has_replay);
@@ -1020,7 +1046,7 @@ fn title_screen(out: &mut String, t: &TitleScreen, fade: &str, save_menu: bool, 
     for (n, (b, _)) in clickable.iter().enumerate() {
         let then = match b.action {
             TitleAction::Start => format!("goto *{TITLE_START}"),
-            TitleAction::Continue => format!("csp -1:load {}", menu::QUICK_SLOT),
+            TitleAction::Continue => format!("csp -1:loadgame {}", menu::QUICK_SLOT),
             TitleAction::Load if save_menu => {
                 format!("csp -1:mov {},0:gosub *{}:goto *{TITLE_DRAW}", menu::IN_GAME, menu::LOAD)
             }
@@ -1542,7 +1568,7 @@ mod tests {
     use conv_core::ir::{Animation, ButtonScreen, ChoiceStyle, Noise, Placed, SourceLoc, SpriteChange, SpriteFilter, SpritePlacement, Voice, FILTER_BLEND_COPY, FILTER_BLEND_MULTIPLY, FILTER_BRIGHTNESS, FILTER_COLOUR};
 
     fn script(ops: Vec<Op>) -> Script {
-        Script { title: "Test".into(), width: 800, height: 600, global_border: None, window: None, title_screen: None, save_menu: None, button_bar: None, settings: None, backlog: None, confirm: None, extras: None, ops, version: None }
+        Script { title: "Test".into(), width: 800, height: 600, global_border: None, window: None, title_screen: None, save_menu: None, button_bar: None, settings: None, backlog: None, confirm: None, extras: None, ops, version: None, command_menu: None }
     }
 
     fn link(start: usize, len: usize, target: Option<&str>) -> TextLink {
@@ -1836,7 +1862,7 @@ effect 7,99,1000,\"cons_zoom.dll/3,220,5\"
         for part in [
             "*conv_title_draw\nbgm \"sound\\bgm\\title.ogg\"\nsavefileexist %105,890\nlsp 6,\":a/3,0,3;system\\quick.png\",822,150\nif %105 == 0 lsp 6,\":a/3,0,3;system\\quick.png\",822,150,128\n",
             "*conv_title\nselectvoice \"\",\"sound\\se\\over.ogg\",\"\"\nsavefileexist %105,890\nif %105 == 1 spbtn 6,1,2\nspbtn 7,2,2\nspbtn 8,3,2\nbtnwait %9\nselectvoice \"\",\"\",\"\"\n",
-            "if %9 == 1 dwave 1,\"sound\\se\\a.ogg\":csp -1:load 890\n",
+            "if %9 == 1 dwave 1,\"sound\\se\\a.ogg\":csp -1:loadgame 890\n",
             // No question before quitting.
             "if %9 == 3 end\n",
             "*conv_title_start\ncsp -1\nbgmfadeout 3000:bgmstop:bgmfadeout 0\nbg black,",
