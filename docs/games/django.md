@@ -119,6 +119,10 @@ on the extracted scripts.
   or under wine*: `function.nss` makes `窓` and `音` windows "to hang
   pictures and sounds on between files", and the fade to black `黒幕`
   at the end of `dja001_…_01` is never deleted otherwise.
+- **System screens** (`django/screens.rs`): what is ours rather than
+  the original's is written in each function's comment (where the log's
+  text sits, the hover colour of the choices, the save screen's
+  see-through parts for what Django lacks).
 - **Choices** (`choice_style`): `SetChoice02`'s 530×68 plates one under
   the other from (138,244), white 22 px text. Where the text sits on the
   plate (40 px in, centred vertically) and the hover colour (the
@@ -178,7 +182,7 @@ yet.
 | Text | 🟡 In the boxes' places (box00: 39 columns at 50,472, white on the black bar); 3,424 voiced lines; not compared with the original yet |
 | Pictures, sound in scripts | 🟡 Black bars, face windows in their frames, standing pictures, backgrounds; what Muramasa's compiler does for effects (moves and zooms as cross-fades); every sound is found |
 | Choices | 🟡 Django's plates; text place and hover colour guessed |
-| System screens | ❌ Not started |
+| System screens | 🟡 Title, right-click menu, save/load (3×20 slots), yes/no questions, text log done from the game's pictures (`django/screens.rs`); settings ❌ (needs a control the IR lacks: rows of ten bullets); the click-wait icons (`Tumbleweed`, `Bullet`) ❌ |
 | Extras | ❌ Not started (scope to confirm) |
 
 ### Next
@@ -192,5 +196,7 @@ yet.
    `frame03`-`frame05`) measured against the original under wine.
 4. The ranked "not converted" list: `MoveCamera`, `CreateTexture` from
    the screen, `CreateColor` colours, movies.
-5. System screens: title, save/load, settings, backlog.
+5. The settings screen (`sys_config.nss`): a new `PictureSettings`
+   control, a row of N level buttons (ten bullets), then the ON/OFF pairs.
+   Click-wait icons from `system.ini` (20 frames each).
 6. Ask the user the scope questions (above).
