@@ -3,7 +3,7 @@
 //! `sys_*.nss`). Not compared with the original yet (it asks for its disc
 //! under wine).
 
-use conv_core::ir::{BarAction, ButtonBar, CommandItem, CommandMenu, Placed, Script, TitleAction, TitleButton, TitleScreen};
+use conv_core::ir::{BarAction, ButtonBar, CommandItem, CommandMenu, GridText, Placed, Rect, SaveGrid, Script, TitleAction, TitleButton, TitleScreen};
 
 use super::super::{Assets, Story};
 
@@ -13,6 +13,71 @@ pub fn menus(a: &mut dyn Assets, script: &mut Script, _story: &Story) {
     // The game has no button bar; the command menu runs a bar's actions.
     script.button_bar = Some(ButtonBar { buttons: Vec::new(), top: None, base: None, slide: None, pressed: true, quick_save_se: None, load_fade_ms: 0 });
     script.command_menu = command_menu(a);
+    script.save_grid = save_grid(a);
+}
+
+/// The save and load screens (`sys_save.nss`, `sys_load.nss`): three
+/// pages of 20 slots over a picture each (`save-load-back01-20` …, the
+/// slot numbers printed on it, with the empty slots' icon and the black
+/// box under the preview drawn in), five across from (50,80), 150 apart, the
+/// next row 96 below; thumbnails 100×75. The save or load logo at
+/// (50,24). Under the pointer: the thumbnail larger at (461,481),
+/// 136×101, the date at (50,486) and the last line at (50,518) in white,
+/// the play time at (606,30) in #EE9933 (18 px; the number above the date
+/// is left out). NEXT (650,490) goes round the pages; EXIT (632,542). The
+/// original has no previous page, delete, frame or new-save mark: those
+/// are see-through here, the buttons off the screen.
+fn save_grid(a: &mut dyn Assets) -> Option<SaveGrid> {
+    let mut pages = [Vec::new(), Vec::new()];
+    for range in ["01-20", "21-40", "41-60"] {
+        for (mode, list) in ["save", "load"].iter().zip(pages.iter_mut()) {
+            let back = a.image(&format!("cg/sys/{mode}/save-load-back{range}.png"))?.0;
+            let logo = a.image(&format!("cg/sys/{mode}/{mode}-logo.png"))?.0;
+            let mut parts = vec![(back, 0, 0, 1000), (logo, 50, 24, 1000), (a.color(0, 136, 101), 461, 481, 1000)];
+            // An empty slot's icon; a save's thumbnail covers it.
+            let icon = a.image(&format!("cg/sys/{mode}/save-load-icon.png"))?.0;
+            parts.extend((0..20).map(|i| (icon.clone(), 50 + 150 * (i % 5), 80 + 96 * (i / 5), 1000)));
+            list.push(a.composite(&parts)?.0);
+        }
+    }
+    let [save_pages, load_pages] = pages;
+    let button = |a: &mut dyn Assets, name: &str, x: i32, y: i32| {
+        let state = |n: u32| format!("cg/sys/save/{name}-{n:02}.png");
+        let (s1, s2, s3) = (state(1), state(2), state(3));
+        let (image, w, h) = a.strip(&[&s1, &s2, &s1, &s3])?;
+        Some(Placed { image, x, y, w: w as i32, h: h as i32 })
+    };
+    let none = |a: &mut dyn Assets, x: i32, y: i32| Placed { image: a.transparent(), x, y, w: 1, h: 1 };
+    let text = |x: i32, y: i32, lines: u32, chars: u32, colour: &str| GridText { x, y, font_size: 18, lines, chars, line_gap: 0, char_gap: 0, colour: colour.into(), vertical: false };
+    Some(SaveGrid {
+        save_pages,
+        load_pages,
+        frames: None,
+        first: (50, 80),
+        row_step: 96,
+        column_step: 150,
+        rows: 4,
+        columns: 5,
+        thumb_w: 100,
+        thumb_h: 75,
+        hover: none(a, 0, 0),
+        hover_offset: (0, 0),
+        new_mark: none(a, 0, 0),
+        new_offset: (0, 0),
+        previous: none(a, -100, -100),
+        next: button(a, "next", 650, 490)?,
+        delete: none(a, -100, -100),
+        delete_on: none(a, -100, -100),
+        close: button(a, "exit", 632, 542)?,
+        preview: Rect { x: 461, y: 481, w: 136, h: 101 },
+        date: text(50, 486, 1, 20, "#ffffff"),
+        play_time: text(606, 30, 1, 12, "#ee9933"),
+        chapter: text(50, 464, 0, 0, "#ffffff"),
+        line: text(50, 518, 2, 19, "#ffffff"),
+        saved: None,
+        fade_ms: 300,
+        across: true,
+    })
 }
 
 /// The right-click menu (`sys_menu.nss`): twelve rows (236×24) at x 282
@@ -95,7 +160,6 @@ fn title(a: &mut dyn Assets) -> Option<TitleScreen> {
         start_bgm_fade_ms: 1000,
         start_wait_ms: 0,
         exit_without_asking: false,
-        glow: None,
-        openings: Vec::new(),
+        ..Default::default()
     })
 }
