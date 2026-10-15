@@ -1,0 +1,240 @@
+//! Turning the objects' changes into ops at each wait ([`Compiler::sync`]).
+
+use super::*;
+
+impl Compiler<'_, '_> {
+    /// Shows the changes since the last sync, as a cross-fade over `ms`,
+    /// or the pending actions' time up to [`UNWAITED_MS`] if longer.
+    pub(super) fn sync(&mut self, ms: u32) {
+        let blocking = ms;
+        let ms = ms.max(std::mem::take(&mut self.pending_ms).min(UNWAITED_MS));
+        let timed = std::mem::take(&mut self.pending_by);
+        let mask = self.pending_mask.take();
+        self.flush_sounds();
+        self.check_window();
+        if !self.shaken.is_empty() && !self.shaken.iter().any(|t| self.objects.get(t).is_some_and(|o| o.opacity > 0)) {
+            self.shaken.clear();
+            self.ops.push(Op::ScreenEffect { slot: 1, effect: None });
+        }
+        if self.frozen() {
+            if ms > 0 {
+                self.ops.push(Op::Wait { ms });
+            }
+            return;
+        }
+        // Wanted: visible pictures, by (priority, seq), top first.
+        let want: Vec<_> = self
+            .objects
+            .iter()
+            .filter_map(|(n, o)| match &o.kind {
+                Kind::Image { image } if o.opacity > 0 && !o.hideable => {
+                    let (mut px, mut py) = self.parent_offset(n);
+                    // A zoom about the vertex: the picture scaled about its
+                    // centre, moved so that the vertex stays in place.
+                    if let Some((vx, vy)) = o.vertex {
+                        px += (vx - o.w / 2) * (1000 - o.zoom.0) / 1000;
+                        py += (vy - o.h / 2) * (1000 - o.zoom.1) / 1000;
+                    }
+                    let (mut x, mut y, mut zoom) = (o.x + px, o.y + py, o.zoom);
+                    // A camera's zoom: the picture's centre moved away from
+                    // the screen's, the picture scaled as much.
+                    let k = self.camera_zoom(n, o.priority)?;
+                    if k != 1000 {
+                        let (cx, cy) = (x + o.w / 2, y + o.h / 2);
+                        let (sx, sy) = (self.game.screen.0 / 2, self.game.screen.1 / 2);
+                        x = sx + (cx - sx) * k / 1000 - o.w / 2;
+                        y = sy + (cy - sy) * k / 1000 - o.h / 2;
+                        zoom = (zoom.0 * k / 1000, zoom.1 * k / 1000);
+                    }
+                    let shown = Shown { layer: 0, image: image.clone(), x, y, w: o.w, h: o.h, opacity: o.opacity, cells: None, source: String::new(), zoom: (1000, 1000), engine: Engine::default() };
+                    Some((n.clone(), shown, (o.priority, o.seq), zoom, (o.w, o.h), o.blur, o.mirror()))
+                }
+                _ => None,
+            })
+            .collect();
+        let movies: Vec<(String, MovieObject, Object)> = self
+            .objects
+            .iter()
+            .filter_map(|(n, o)| match &o.kind {
+                Kind::Movie(m) if o.opacity > 0 && !o.hideable => Some((n.clone(), m.clone(), Object { kind: Kind::Other, ..o.clone() })),
+                _ => None,
+            })
+            .collect();
+        let mut want = want;
+        for (n, m, o) in movies {
+            // Playing: all its frames; else the one showing.
+            let (at, looped) = match m.state {
+                MovieState::Playing { .. } => (None, m.looped),
+                MovieState::Paused { at } => (Some(at), false),
+                MovieState::Played => (Some(m.info.ms.saturating_sub(1000 / MOVIE_FPS)), false),
+            };
+            let Some((image, cells, cw, ch)) = self.assets.movie_frames(&m.path, at, m.alpha, m.dark) else {
+                self.note("movie frames missing");
+                continue;
+            };
+            // The cells are drawn zoomed to the movie's size and its Zoom,
+            // about the centre of its place.
+            let zoom = ((o.zoom.0 * o.w / cw as i64 / 10) as i32, (o.zoom.1 * o.h / ch as i64 / 10) as i32);
+            let (x, y) = (o.x + (o.w - cw as i64) / 2, o.y + (o.h - ch as i64) / 2);
+            // A long movie's strip has fewer frames (see `movie_frames`):
+            // spread over its length.
+            let full = (m.info.ms * MOVIE_FPS).div_ceil(1000).max(1);
+            let frame_ms = if at.is_none() && cells < full { m.info.ms / cells.max(1) } else { 1000 / MOVIE_FPS };
+            let shown = Shown { layer: 0, image, x, y, w: cw as i64, h: ch as i64, opacity: o.opacity, cells: Some((cells, looped, zoom, frame_ms)), source: String::new(), zoom: (1000, 1000), engine: Engine::default() };
+            want.push((n, shown, (o.priority, o.seq), (1000, 1000), (o.w, o.h), 0, (false, false)));
+        }
+        // Zoomed pictures: scaled copies, centred where the original was.
+        let mut want: Vec<(String, Shown, (i64, u64))> = want
+            .into_iter()
+            .map(|(n, mut shown, key, zoom, (w, h), blur, (mx, my))| {
+                if (mx || my)
+                    && let Some(image) = self.assets.mirrored(&shown.image, mx, my)
+                {
+                    shown.image = image;
+                }
+                (shown.source, shown.zoom) = (format!("{}#{blur}", shown.image), zoom);
+                if zoom != (1000, 1000)
+                    && let Some((image, x, y, sw, sh)) = self.assets.scaled(&shown.image, zoom.0, zoom.1, (shown.x, shown.y, w, h))
+                {
+                    (shown.x, shown.y) = (x, y);
+                    (shown.w, shown.h) = (sw as i64, sh as i64);
+                    shown.image = image;
+                }
+                if blur > 0
+                    && let Some(image) = self.assets.blurred(&shown.image, blur)
+                {
+                    shown.image = image;
+                }
+                (n, shown, key)
+            })
+            .collect();
+        want.sort_by_key(|w| std::cmp::Reverse(w.2));
+        // Pictures under an opaque one that fills the screen (an old
+        // background left up under a new one) aren't drawn.
+        let (sw, sh) = self.game.screen;
+        let cover = want.iter().position(|(n, s, _)| {
+            let still = !self.shown.get(n).is_some_and(|o| o.engine.moved) && !timed.contains_key(n);
+            still
+                && s.cells.is_none()
+                && s.opacity >= 1000
+                && s.image.to_ascii_lowercase().ends_with(".jpg")
+                && s.x <= 0
+                && s.y <= 0
+                && s.x + s.w >= sw
+                && s.y + s.h >= sh
+        });
+        if let Some(i) = cover {
+            want.truncate(i + 1);
+        }
+
+        let mut changes = Vec::new();
+        let mut opacity = Vec::new();
+        let gone: Vec<String> = self.shown.keys().filter(|n| !want.iter().any(|w| &w.0 == *n)).cloned().collect();
+        for n in gone {
+            let s = self.shown.remove(&n).unwrap();
+            changes.push(SpriteChange { layer: s.layer, sprite: None, keep_filters: false });
+        }
+        // Layers of the wanted pictures in drawing order, top first: each
+        // must be above (lower than) the next one.
+        let mut layers: Vec<Option<u32>> = want.iter().map(|w| self.shown.get(&w.0).map(|s| s.layer)).collect();
+        let mut crowded = false;
+        for i in 0..want.len() {
+            if layers[i].is_some() {
+                continue;
+            }
+            let above = layers[..i].iter().flatten().max().map_or(0, |l| l + 1);
+            let below = layers[i + 1..].iter().flatten().min().copied().unwrap_or(MAX_LAYER + 1);
+            let ideal = ((30000 - want[i].2.0).clamp(0, 30000) * MAX_LAYER as i64 / 30000) as u32;
+            if above >= below {
+                crowded = true;
+                break;
+            }
+            layers[i] = Some(ideal.clamp(above, below - 1));
+        }
+        // No gap left between two pictures: spread them all out again, in
+        // the same order (pictures that move layer are drawn anew).
+        if crowded {
+            let n = want.len() as u32;
+            layers = (0..n).map(|i| Some((i + 1) * MAX_LAYER / (n + 1))).collect();
+        }
+        // Pictures that only move or zoom over time: moved by the engine
+        // while the script goes on (and during the cross-fade of the other
+        // changes), which waits only for the blocking action's time.
+        let mut moving = Vec::new();
+        for ((name, now, _), layer) in want.iter().zip(&layers) {
+            let (Some(layer), Some(old), Some(&t)) = (*layer, self.shown.get(name), timed.get(name)) else { continue };
+            let now = Shown { layer, ..now.clone() };
+            if t == 0 || *old == (Shown { engine: old.engine, ..now.clone() }) {
+                continue;
+            }
+            match motion(old, &now, t) {
+                Some(op) => {
+                    let engine = Engine { zoomed: old.engine.zoomed || old.zoom != now.zoom, moved: true };
+                    self.ops.push(op);
+                    self.shown.insert(name.clone(), Shown { engine, ..now });
+                    moving.push(name.clone());
+                }
+                None if (old.x, old.y, old.w, old.h) != (now.x, now.y, now.w, now.h) => {
+                    self.note("move or zoom over time with a fade or a new picture drawn as a cross-fade");
+                }
+                None => {}
+            }
+        }
+        let rest = timed.iter().filter(|(n, _)| !moving.contains(n)).map(|(_, &t)| t).max().unwrap_or(0);
+        let ms = if moving.is_empty() { ms } else { blocking.max(rest.min(UNWAITED_MS)) };
+        let mut placed = Vec::new();
+        let mut animated = Vec::new();
+        // Layers whose movie (zoomed with spzoom) goes: removed even when a
+        // picture takes the layer, which would keep the zoom.
+        let mut unzoom: Vec<u32> = changes.iter().filter(|c| self.shown.values().any(|s| s.layer == c.layer && s.cells.is_some())).map(|c| c.layer).collect();
+        let mut new_shown = Vec::new();
+        for ((name, now, _), layer) in want.into_iter().zip(&layers) {
+            let Some(layer) = *layer else { continue };
+            let mut now = Shown { layer, ..now };
+            match self.shown.get(&name) {
+                Some(old) if *old == Shown { engine: old.engine, ..now.clone() } => continue,
+                Some(old) if old.layer == now.layer && old.image == now.image && old.x == now.x && old.y == now.y && old.cells == now.cells => {
+                    now.engine = old.engine;
+                    opacity.push(Op::SpriteOpacity { layer: Some(layer), opacity: (now.opacity * 256 / 1000) as u32 });
+                }
+                old => {
+                    if let Some(old) = old.filter(|o| o.layer != layer || o.engine.zoomed || (o.cells.is_some() && now.cells.is_none())) {
+                        changes.push(SpriteChange { layer: old.layer, sprite: None, keep_filters: false });
+                        if old.cells.is_some() || old.engine.zoomed {
+                            unzoom.push(old.layer);
+                        }
+                    }
+                    let sprite = SpritePlacement { image: now.image.clone(), x: now.x as i32, y: now.y as i32 };
+                    match now.cells {
+                        Some((cells, looped, zoom, frame_ms)) => {
+                            animated.push(Op::AnimatedSprite { layer, sprite, cells, frame_ms, looped, zoom });
+                        }
+                        None => placed.push(SpriteChange { layer, sprite: Some(sprite), keep_filters: false }),
+                    }
+                    if now.opacity < 1000 {
+                        opacity.push(Op::SpriteOpacity { layer: Some(layer), opacity: (now.opacity * 256 / 1000) as u32 });
+                    }
+                }
+            }
+            new_shown.push((name, now));
+        }
+        // Removals first: a placement may reuse a freed layer.
+        changes.retain(|c| unzoom.contains(&c.layer) || !placed.iter().any(|p| p.layer == c.layer));
+        changes.extend(placed);
+        self.shown.extend(new_shown);
+        if changes.is_empty() && animated.is_empty() && opacity.is_empty() {
+            if ms > 0 {
+                self.ops.push(Op::Wait { ms });
+            }
+            return;
+        }
+        let effect = if mask.is_some() { "DrawTransition" } else { "Fade" }.to_string();
+        self.ops.push(Op::BeginTransition { effect, fade_ms: ms, mask, style: TransitionStyle::Fade });
+        if !changes.is_empty() {
+            self.ops.push(Op::Sprites { changes, fade_ms: 0 });
+        }
+        self.ops.extend(animated);
+        self.ops.extend(opacity);
+        self.ops.push(Op::EndTransition);
+    }
+}
