@@ -1386,8 +1386,8 @@ impl AssetBank {
                 .map(|(label, characters)| VoiceToggle { label: label.to_string(), characters: characters.to_vec() })
                 .collect(),
             voice_column_x: 440,
-            // 11 switches in one column above the exits at 540.
-            voice_pitch: 36,
+            // 15 switches in one column above the exits at 540.
+            voice_pitch: 26,
             skip_unread_label: Some("未読テキストもスキップする".into()),
             // The original's マウス and 確認メッセージ pages (labels as there).
             switches: [
@@ -1404,6 +1404,12 @@ impl AssetBank {
                 ("ＢＧＭを鳴らす", Switch::BgmOn),
                 ("効果音を鳴らす", Switch::SeOn),
                 ("音声を鳴らす", Switch::VoiceOn),
+                // The その他, テキスト and 確認メッセージ pages' (all on by
+                // default, as filmed under wine).
+                ("画面エフェクトを使用", Switch::Effects),
+                ("セーブファイルのプレビューを表示", Switch::SavePreview),
+                ("文字装飾", Switch::TextShadow),
+                ("チャプタ履歴の上書き確認", Switch::ConfirmChapter),
             ]
             .into_iter()
             .map(|(label, switch)| SettingSwitch { label: label.into(), switch })

@@ -882,6 +882,7 @@ fn convert_nss(
             eprintln!("flag {var} {name}");
         }
     }
+    let story = convert::Story { flags: &compiled.flags, voice_classes: &compiled.voice_classes };
     let mut ir = Script {
         title: title.to_string(),
         width: convert::SCREEN_W as u32,
@@ -892,7 +893,7 @@ fn convert_nss(
         version: Some(version::line()),
         ..Default::default()
     };
-    game.menus(&mut assets, &mut ir);
+    game.menus(&mut assets, &mut ir, &story);
     // A dry run writes the script but no assets (and no WebP).
     let source = build::webp_tree(output, &PICTURE_DIRS, webp.filter(|_| !dry_run), conv_cons::emit(&ir))?;
     let lost = build::write_game(output, &ir, &source, font.filter(|_| !dry_run), None)?;

@@ -70,6 +70,8 @@ const BTN_SWITCH: u32 = 70; // + 1 + switch
 /// scene replay's flags start at 3650).
 const SWITCH_OFF_BASE: u32 = 3640;
 const SWITCH_OFF_BASE_2: u32 = 2910;
+/// Switch indices (their flags) end at %2949; a page shows MAX_SWITCHES.
+const MAX_SWITCH_INDEX: u32 = 8 + 40;
 /// The confirmation being asked (a [`Switch`] + 1; 0 = always ask).
 pub(crate) const CONFIRM_KIND: &str = "%125";
 const BTN_MINUS: u32 = 10;
@@ -365,7 +367,8 @@ pub(crate) fn save_menu(out: &mut String, m: &SaveMenu, confirm: Option<&Confirm
     w(format!("mov {TMP},({BUTTON_VAR}-1)*{}+{}", m.row_pitch, m.row_y + sel.y + sel.h / 2));
     w(format!("lsp2add {SELECTION},\":c;{}\",{},{TMP},100,100,0", path(&sel.image), sel.x + sel.w / 2));
     let (px, py) = (m.preview.x + m.preview.w / 2, m.preview.y + m.preview.h / 2);
-    w(format!("if {HAS_DATA} == 1 lsp2 {PREVIEW},{THUMB_IMAGE},{px},{py},100,100,0"));
+    // (Switched off, no picture: the flag is 0 in a game without the switch.)
+    w(format!("if {HAS_DATA} == 1 && {} == 0 lsp2 {PREVIEW},{THUMB_IMAGE},{px},{py},100,100,0", switch_off(Switch::SavePreview)));
     w(format!("if {HAS_DATA} == 0 csp2 {PREVIEW}"));
     w("goto *conv_sl_buttons".into());
 
@@ -1241,7 +1244,7 @@ pub(crate) fn settings_menu(
     for (i, s) in switches.iter().enumerate() {
         let off = switch_off(s.switch);
         // A sound switch applies at once.
-        let apply = if matches!(s.switch, Switch::BgmOn | Switch::SeOn | Switch::VoiceOn) { format!("gosub *{SETTINGS_APPLY}:") } else { String::new() };
+        let apply = if matches!(s.switch, Switch::BgmOn | Switch::SeOn | Switch::VoiceOn | Switch::Effects | Switch::TextShadow) { format!("gosub *{SETTINGS_APPLY}:") } else { String::new() };
         w(format!("if {BUTTON_VAR} == {} mov {off},1-{off}:{apply}goto *conv_settings_draw", BTN_SWITCH + i as u32 + 1));
     }
     for (i, t) in voices.iter().enumerate() {
@@ -1317,6 +1320,14 @@ pub(crate) fn settings_menu(
     if rows.iter().any(|r| r.setting == Setting::WindowTransparency) {
         w(format!("mov {TMP},255-{}*25:windowtrans {TMP}", setting_var(Setting::WindowTransparency)));
     }
+    if switches.iter().any(|s| s.switch == Switch::Effects) {
+        w(format!("effectoff {}", switch_off(Switch::Effects)));
+    }
+    if switches.iter().any(|s| s.switch == Switch::TextShadow) {
+        let off = switch_off(Switch::TextShadow);
+        w(format!("if {off} == 0 textshadow 1"));
+        w(format!("if {off} == 1 textshadow 0"));
+    }
     if m.skip_unread_label.is_some() {
         w(format!("if {SKIP_UNREAD} == 0 kidokumode 1"));
         w(format!("if {SKIP_UNREAD} == 1 kidokumode 0"));
@@ -1344,11 +1355,16 @@ pub(crate) fn switch_index(s: Switch) -> u32 {
         Switch::SeOn => 10,
         Switch::VoiceOn => 11,
         Switch::ConfirmReset => 12,
+        Switch::Effects => 13,
+        Switch::SavePreview => 14,
+        Switch::TextShadow => 15,
+        Switch::ConfirmChapter => 16,
     }
 }
 
 /// The global that is 1 while `s` is switched off.
 pub(crate) fn switch_off(s: Switch) -> String {
+    debug_assert!(switch_index(s) < MAX_SWITCH_INDEX);
     match switch_index(s) {
         i @ 0..=7 => format!("%{}", SWITCH_OFF_BASE + i),
         i => format!("%{}", SWITCH_OFF_BASE_2 + i - 8),
@@ -1598,10 +1614,14 @@ pub(crate) mod tests {
     /// it is listed here too.
     fn all_switches() -> Vec<Switch> {
         use Switch::*;
-        let all = vec![WheelReadsOn, WheelClosesLog, ConfirmSave, ConfirmLoad, ConfirmDelete, ConfirmTitle, ConfirmQuit, ConfirmBackToChoice, VoiceKeepsPlaying, BgmOn, SeOn, VoiceOn, ConfirmReset];
+        let all = vec![
+            WheelReadsOn, WheelClosesLog, ConfirmSave, ConfirmLoad, ConfirmDelete, ConfirmTitle, ConfirmQuit, ConfirmBackToChoice, VoiceKeepsPlaying, BgmOn, SeOn,
+            VoiceOn, ConfirmReset, Effects, SavePreview, TextShadow, ConfirmChapter,
+        ];
         for s in &all {
             match s {
-                WheelReadsOn | WheelClosesLog | ConfirmSave | ConfirmLoad | ConfirmDelete | ConfirmTitle | ConfirmQuit | ConfirmBackToChoice | VoiceKeepsPlaying | BgmOn | SeOn | VoiceOn | ConfirmReset => {}
+                WheelReadsOn | WheelClosesLog | ConfirmSave | ConfirmLoad | ConfirmDelete | ConfirmTitle | ConfirmQuit | ConfirmBackToChoice | VoiceKeepsPlaying | BgmOn | SeOn | VoiceOn
+                | ConfirmReset | Effects | SavePreview | TextShadow | ConfirmChapter => {}
             }
         }
         all
@@ -1614,7 +1634,7 @@ pub(crate) mod tests {
         let mut seen = std::collections::BTreeMap::new();
         for s in all_switches() {
             let i = switch_index(s);
-            assert!((i as usize) < MAX_SWITCHES, "{s:?}: index {i} past MAX_SWITCHES");
+            assert!(i < MAX_SWITCH_INDEX, "{s:?}: index {i} past MAX_SWITCH_INDEX");
             if let Some(other) = seen.insert(i, s) {
                 panic!("{s:?} and {other:?} both have index {i}");
             }
