@@ -11,10 +11,16 @@ use super::assets::ArchiveAssets;
 /// 168, one row every 36 pixels from y 545 (QUICK LOAD, LOAD, START,
 /// GALLERY, CONFIG). The eboot (0x81083fd8) draws row N at (786, 258 +
 /// 41.25 N): we have no quick save, so its place stays empty.
-const TITLE_ROW_Y: u32 = 545;
-const TITLE_ROW_H: u32 = 36;
-const TITLE_CELL_W: u32 = 173;
-const TITLE_LIT_X: u32 = 168;
+pub(super) const TITLE_ROW_Y: u32 = 545;
+pub(super) const TITLE_ROW_H: u32 = 36;
+pub(super) const TITLE_CELL_W: u32 = 173;
+pub(super) const TITLE_LIT_X: u32 = 168;
+/// Where the title's buttons go: x, and the y of row N.
+pub(super) const TITLE_X: i32 = 786;
+
+pub(super) fn title_y(row: u32) -> i32 {
+    (258.0 + 41.25 * row as f32).round() as i32
+}
 
 /// The title screen: START, LOAD, and GALLERY opening the extras (with
 /// the settings inside), or without extras CONFIG and GALLERY greyed.
@@ -35,7 +41,7 @@ pub fn title(assets: &mut ArchiveAssets, extras: bool) -> Option<TitleScreen> {
             cells.push((TITLE_LIT_X, y, TITLE_CELL_W, TITLE_ROW_H));
         }
         let (image, _, _) = assets.system_cells("title_bg.png", &format!("title_{row}.png"), &cells, 100)?;
-        buttons.push(TitleButton { image, x: 786, y: (258.0 + 41.25 * row as f32).round() as i32, action, ..Default::default() });
+        buttons.push(TitleButton { image, x: TITLE_X, y: title_y(row), action, ..Default::default() });
     }
     Some(TitleScreen { background, fade_ms: 500, buttons, ..Default::default() })
 }
