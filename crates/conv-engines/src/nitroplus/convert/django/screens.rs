@@ -146,11 +146,12 @@ fn wait_icon(a: &mut dyn Assets) -> Option<WaitIcon> {
 /// The text log (`sys_backlog.nss`): the parchment scroll
 /// (`バックログ背景.jpg`); one row back (708,228) and on (724,284), EXIT
 /// (690,530), the knob on the rail at x 646 from y 90 to 490
-/// (`CreateScrollbar`). Black 20 px text (`SetFont`). Where the engine's
-/// `CreateBacklog` puts the text isn't in the scripts: on the parchment
-/// from (90,92), 16 rows 26 px apart, 25 characters wide, the voice icon
-/// (`スピーカー`) left of a voiced row: ours. Left out: the page buttons
-/// (698,138 and 724,362) and the rolls turning as it scrolls.
+/// (`CreateScrollbar`). Black 20 px text (`SetFont`, ＭＳ ゴシック) from
+/// (120,99), rows 24 px apart, 24 characters wide (measured under wine;
+/// the rows fill the parchment down to 507). The voice icon (`スピーカー`)
+/// left of a voiced row is ours. Left out: the text's #AAAA88 outline,
+/// the page buttons (698,138 and 724,362) and the rolls turning as it
+/// scrolls.
 fn line_log(a: &mut dyn Assets) -> Option<LineLog> {
     const DIR: &str = "cg/sys/backlog";
     let strip = |a: &mut dyn Assets, names: &[&str], x: i32, y: i32| {
@@ -171,11 +172,11 @@ fn line_log(a: &mut dyn Assets) -> Option<LineLog> {
         knob: strip(a, &["スクロール001", "スクロール002"], 635, 90)?,
         knob_y: (90, 460),
         voice_icon: strip(a, &["スピーカー001", "スピーカー002", "スピーカー003"], 60, 0)?,
-        text_x: 90,
-        text_y: 92,
-        row_step: 26,
-        rows: 16,
-        columns: 25,
+        text_x: 120,
+        text_y: 99,
+        row_step: 24,
+        rows: 17,
+        columns: 24,
         font_size: 20,
         colour: "#000000".into(),
         fade_ms: 300,
