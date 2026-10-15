@@ -591,6 +591,9 @@ Next, in order:
         (the buttons used to blink off and on as the movie ended);
         open: the scene cuts (`Op::SceneMovie`) load their last frame
         after the movie, so the scene before it flashes and fades back.
+        The rule also reports a movie started with the text window
+        shown, which the movie covers (CONscripter da2d851); the
+        prologue's cuts have it hidden.
       - 動画 切 is `moviestop -1` (the script's flag, as
         `MoviePlay(f, #SYSTEM_break_play_movie)`): the title's openings
         are always skippable, `mvOP`/`mvOP02` only with 動画 入
