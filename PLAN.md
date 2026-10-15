@@ -173,6 +173,7 @@ Engine features added for converted games (details in the engine's
 | `getkey` (letter keys end the next `btnwait`/`textbtnwait`, -1000 minus the letter's code) | 装甲悪鬼村正's shortcuts (`SetShortcut`): M opens the right-click menu, and H, A, N, R, B, S, L, Q, P, F, C, T run its items at any click wait |
 | `vstrsp` (`strsp` with its text in columns from the right, kept in saves and by `pushscreen`) | 装甲悪鬼村正's save screen: the chapter title and the page's text down in columns in its side panel |
 | `getplaytime` / `setplaytime` (the play time counted by the engine, kept in each save as it stands when written, put back by a load) | 装甲悪鬼村正's save screen shows each save's play time (`$PLAY_TIME`) |
+| `logrows` / `getlogrow` (the text history as rows: each page's lines cut at a column count, ruby as its base text, the page's voice on its first row) | 装甲悪鬼村正's backlog, scrolled a row at a time with a speaker icon per voiced page |
 | Movies on Linux and macOS (`mpegplay`, `movie` in the game window through the player's ffmpeg; they were disabled there) | Every game's movies (最果てのイマ's openings and staff rolls, 翼's) on the native Linux and macOS builds, which played none |
 | Opus sounds in every build (the engine decodes Ogg Opus with opusfile, compiled in by `cmake/cons_opus.cmake`, and gives SDL_mixer a WAV; no build's SDL_mixer reads Opus) | `--audio-codec opus`: voices and sound effects about half the size (最果てのイマ's 542 MB become 217 MB; 翼's HCA voices 1.7 MB a scene instead of 2.6 MB as Vorbis) |
 
@@ -648,6 +649,13 @@ The steps that apply them are in `docs/new-game.md`.
   its message there.
 - **Name the engine binary per agent** (a symlink): another agent's
   `pkill -x conscripter` stops every run on the machine.
+
+- **`setwindow` flushes the backlog** (NScripter's rule): a converter
+  that sets the window again for each text block keeps no history. The
+  converter emits `setwindow3`, which doesn't. And `btndef` turns
+  `btndown` off: a screen that wants presses sets `btndown 1` after each
+  `btndef clear`, and in that mode `btnwait` also returns on the release
+  and on moves with the button held (tell them apart with `isdown`).
 
 ### 13.1c Lessons from 俺たちに翼はない (PS Vita, 2026-10-13)
 
