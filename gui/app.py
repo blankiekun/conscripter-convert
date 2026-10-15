@@ -262,6 +262,7 @@ class App:
         self.adv.columnconfigure(2, minsize=28)
         row, side = 0, 0
         self.option_needs: list[tuple[tk.Widget, str]] = []
+        self.sliders: list[tuple[games.Option, ttk.Scale, ttk.Label]] = []
         for o in game.options:
             if side and o.wide:
                 row, side = row + 1, 0
@@ -276,9 +277,18 @@ class App:
                 label.grid(row=row, column=col, sticky="w", padx=(0, 8), pady=2)
                 if o.kind == "choice":
                     w = ttk.Combobox(self.adv, textvariable=values[o.key], values=o.choices, state="readonly", width=18)
+                elif o.steps:
+                    box = ttk.Frame(self.adv)
+                    box.grid(row=row, column=col + 1, columnspan=span, sticky="ew", pady=2)
+                    w = ttk.Scale(box, from_=0, length=120, command=lambda i, o=o: self._slide(o, i))
+                    w.pack(side="left", fill="x", expand=True)
+                    shown_value = ttk.Label(box, width=18)
+                    shown_value.pack(side="left", padx=(6, 0))
+                    self.sliders.append((o, w, shown_value))
                 else:
                     w = ttk.Entry(self.adv, textvariable=values[o.key], width=20)
-                w.grid(row=row, column=col + 1, columnspan=span, sticky="ew" if o.wide else "w", pady=2)
+                if not o.steps:
+                    w.grid(row=row, column=col + 1, columnspan=span, sticky="ew" if o.wide else "w", pady=2)
                 shown = (label, w)
             for s in shown:
                 Tooltip(s, o.help)
@@ -301,6 +311,12 @@ class App:
         self.command_label.wraps = True
         self.command_label.grid(row=row + 1, column=0, columnspan=5, sticky="w")
         self._wrap(self.root.winfo_width())
+
+    def _slide(self, o: games.Option, index: str) -> None:
+        values = self._values()
+        value = o.steps(values)[round(float(index))][0]
+        if values[o.key] != value:
+            self.option_vars[self.detection.game.key][o.key].set(value)
 
     def _reset_options(self) -> None:
         if self.detection:
@@ -403,6 +419,17 @@ class App:
         for w in self.option_widgets:
             off = busy or any(w is n and not values.get(k) for n, k in getattr(self, "option_needs", []))
             w.config(state="disabled" if off else "readonly" if isinstance(w, ttk.Combobox) else "normal")
+        for o, scale, shown_value in getattr(self, "sliders", []):
+            if not scale.winfo_exists():
+                continue
+            steps = o.steps(values)
+            at = [v for v, _ in steps].index(values[o.key]) if values[o.key] in [v for v, _ in steps] else None
+            if at is None:  # the steps changed (another codec): back to the default
+                self.option_vars[d.game.key][o.key].set("")
+                return
+            scale.config(to=len(steps) - 1)
+            scale.set(at)
+            shown_value.config(text=steps[at][1])
         if d and getattr(self, "command_label", None) and self.command_label.winfo_exists():
             out = Path(self.out_var.get().strip() or d.game.output_name)
             args = d.game.args(d.root, out, self.font or Path(d.game.font), self._values())
