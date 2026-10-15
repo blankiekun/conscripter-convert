@@ -3,12 +3,21 @@ on:
   push:
     tags: ['v*'] # v1.0, v0.2.0, …: builds and attaches to the release
     branches: ['**'] # other pushes only build and test, when the GUI or this file changed
-    paths: ['gui/**', '.github/workflows/release.yml'] # (not applied to tags)
+    # (not applied to tags). Cargo.lock: a run on main saves the Rust cache
+    # the other branches and the tags start from.
+    paths: ['gui/**', '.github/workflows/release.yml', 'Cargo.lock']
   pull_request:
+    paths: ['gui/**', '.github/workflows/release.yml', 'Cargo.lock']
   workflow_dispatch:
 
 permissions:
   contents: write
+
+# A newer push to the same branch replaces a run still going; tag runs
+# always finish.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref_type != 'tag' }}
 
 jobs:
   build:
@@ -29,12 +38,24 @@ jobs:
       NAME: ${{ github.ref_type == 'tag' && github.ref_name || 'dev' }}
     steps:
     - uses: actions/checkout@v4
-      with:
-        submodules: true # build.rs reads the engine's version
 
-    - uses: dtolnay/rust-toolchain@stable
+    # build.rs needs only the engine's version.h, not the whole submodule:
+    # the one file at the pinned commit.
+    - name: engine version
+      run: |
+        sha=$(git ls-tree HEAD engine | awk '{print $3}')
+        mkdir -p engine/src/onsyuri
+        curl -fsSL --retry 3 -o engine/src/onsyuri/version.h "https://raw.githubusercontent.com/blankiekun/CONscripter/$sha/src/onsyuri/version.h"
+        grep CONSCRIPTER_VERSION engine/src/onsyuri/version.h
+
+    # The runner images come with a stable Rust (rustup); installing it
+    # again took up to 40 s on Windows.
+    - run: rustc -V
 
     - uses: Swatinem/rust-cache@v2
+      with:
+        # Saving takes up to 40 s; branches and tags read main's cache.
+        save-if: ${{ github.ref == 'refs/heads/main' }}
 
     - name: build conscripter-convert
       run: cargo build --release --locked
@@ -42,6 +63,13 @@ jobs:
     - uses: actions/setup-python@v5
       with:
         python-version: '3.12'
+        cache: pip
+        cache-dependency-path: gui/requirements.txt
+
+    - uses: actions/cache@v4
+      with:
+        path: gui/fonts
+        key: ipafont-${{ hashFiles('gui/fetch_fonts.py') }}
 
     - name: test the GUI
       run: |
