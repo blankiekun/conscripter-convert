@@ -214,7 +214,9 @@ fn convert(
     }
     let mut b = banks.into_iter();
     let mut next = || b.next().unwrap();
+    let system_se = map(&game.join("media").join("SystemSE.AWB")).ok();
     let mut assets = ArchiveAssets::new(next(), next(), next(), next(), next(), next(), next(), output);
+    assets.system_se = system_se.as_ref().and_then(|m| Bank::new(m).ok());
     assets.out.dry_run = dry_run;
     assets.movie_dir = game.join("media").join("data");
     assets.font = font_bytes.as_deref();

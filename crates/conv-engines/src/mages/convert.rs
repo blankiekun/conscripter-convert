@@ -37,6 +37,8 @@ const SHUTTER_MS: u32 = 500;
 /// The skip dialog fades in and out over 15 frames (the eboot adds 1/15
 /// a frame to its opacity).
 const SKIP_DIALOG_FADE_MS: u32 = 250;
+/// The story menu fades in over the title, and out once an item is chosen.
+const STORY_MENU_FADE_MS: u32 = 300;
 /// Variables from here up are global (kept across playthroughs).
 pub const GLOBAL_BORDER: u32 = 200;
 /// First local of the per-save flags (`[Flag]` in adv.txt): %60-%92,
@@ -122,6 +124,11 @@ pub trait Assets {
     /// pictures from the bottom up, and its Yes and No buttons. `None`
     /// without the font.
     fn skip_dialog(&mut self, bg: &[i64], faces: &[i64], text: &str, name: &str) -> Option<(Vec<Placed>, [Placed; 2])>;
+    /// START's story menu in the Vita's look: its pictures from the bottom
+    /// up (the title, the 〜Prelude〜 header, ？？？？？ in 狩男's place when
+    /// `locked`), and the buttons 始めから and the after-stories of 美咲,
+    /// 明日香, 京 and (unless `locked`) 狩男.
+    fn story_menu(&mut self, locked: bool) -> Option<(Vec<Placed>, Vec<Placed>)>;
 }
 
 /// A character (`chrNNN.txt`): its pictures by pose, dress, face, size.
@@ -1306,6 +1313,9 @@ impl Lowering<'_> {
         }
         self.out.ops.push(Op::Jump(start.clone()));
         self.out.ops.push(Op::Label(menu.clone()));
+        if self.story_menu_pictures(&start, &STORIES) {
+            return;
+        }
         let mut options = vec![("俺たちに翼はない　始めから".to_string(), start)];
         let mut gates = Vec::new();
         for (title, scene, flags) in STORIES {
@@ -1329,6 +1339,28 @@ impl Lowering<'_> {
             self.out.ops.push(Op::Text { speaker: None, text, voice: None, links: vec![], ruby: vec![], styles: vec![], hang: None, continues: false });
             self.out.ops.push(Op::Jump(menu.clone()));
         }
+    }
+
+    /// The story menu as the Vita draws it ([`Assets::story_menu`]): one
+    /// screen with 狩男's after-story open, one with it locked, chosen by
+    /// its flags. False without the pictures.
+    fn story_menu_pictures(&mut self, start: &str, stories: &[(&str, &str, &[&str]); 4]) -> bool {
+        let (Some(open), Some(locked)) = (self.assets.story_menu(false), self.assets.story_menu(true)) else { return false };
+        let open_label = "mg_story_menu_open".to_string();
+        for flag in stories[3].2 {
+            if let Some(var) = self.game.flag(flag, true) {
+                self.out.ops.push(Op::If { var, cmp: Compare::Ne, value: Operand::Const(0), label: open_label.clone() });
+            }
+        }
+        let targets: Vec<String> = std::iter::once(start.to_string()).chain(stories.iter().map(|s| scene_label(s.1))).collect();
+        for (label, (pictures, buttons)) in [(None, locked), (Some(open_label), open)] {
+            if let Some(label) = label {
+                self.out.ops.push(Op::Label(label));
+            }
+            let buttons = buttons.into_iter().zip(targets.iter().cloned()).collect();
+            self.out.ops.push(Op::ButtonScreen(Box::new(ButtonScreen { pictures, buttons, fade_ms: STORY_MENU_FADE_MS })));
+        }
+        true
     }
 
     /// A move's curve: `:Position x,y,type,power` eases with the eboot's
