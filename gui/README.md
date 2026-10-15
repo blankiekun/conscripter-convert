@@ -39,8 +39,9 @@ attached for each of them too (`conscripter-convert_<version>_<platform>`).
 | 俺たちに翼はない (PS Vita) | `media/SCRIPT.cpk`, `media/CG.cpk`, `sce_sys/param.sfo`; the CPK must be decrypted | `mages convert`, IPA Gothic | ffmpeg (sounds, movies) |
 
 **Advanced options** are the converter flags: every game has the same
-ones, in the same order, then its own. The line under them shows the
-exact command. **Recommended
+ones, in the same order, then its own, two to a row; pointing at one
+shows what it does. The line under them shows the exact command.
+**Recommended
 settings** puts them back.
 
 | Option | Games | Flag |

@@ -38,10 +38,11 @@ class Option:
     high: int = 1_000_000
     choices: tuple[str, ...] = ()
     check: Optional[Callable[[str, dict], Optional[str]]] = None
+    wide: bool = False  # the app gives it a whole row (long text); the others go two to a row
 
 
 def _title(default: str) -> Option:
-    return Option("title", "Window title", "--title", "text", default, "The game window's caption.")
+    return Option("title", "Window title", "--title", "text", default, "The game window's caption.", wide=True)
 
 
 def _is_number(v: str) -> bool:
@@ -287,7 +288,7 @@ GAMES: tuple[Game, ...] = (
             *_common("俺たちに翼はない"),
             Option("scenes", "Only these scenes", "--scenes", "text", "",
                    "Scene names such as S01_01A, separated by commas, played in that order. "
-                   "Empty: every scene, with the menus and extras."),
+                   "Empty: every scene, with the menus and extras.", wide=True),
         ),
     ),
 )
