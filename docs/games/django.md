@@ -36,6 +36,22 @@ Without `--file`, `convert-nss` compiles Django's whole story
 The full build adds `--font <a Japanese TTF, e.g. ipag.ttf> --title
 続・殺戮のジャンゴ` and drops `--dry-run`.
 
+**Web build** (loose files; needs CONscripter 4d94b92 or later, which
+finds loose files with Japanese names):
+
+```sh
+target/release/conscripter-convert convert-nss <game> -o out/django-web \
+    --font <ipag.ttf> --title 続・殺戮のジャンゴ --loose --webp --webp-quality 80
+python3 -I engine/src/onsyuri_web/conscripter_index.py -i out/django-web \
+    -o out/django-web/onsyuri_index.json --title 続・殺戮のジャンゴ --lazyload
+cp engine/build_web/conscripter.{html,js,wasm} engine/build_web/favicon.ico out/django-web/
+python3 -m http.server 8000 -d out/django-web   # then open /conscripter.html
+```
+
+680 MB in 5,705 files (2026-10-15). Checked in headless Chromium: the
+title, and with `?trace&auto-play=40` the story's first pages with
+their pictures, face windows and text.
+
 **Checking the routes.** After a full build into `out/django-cons`:
 
 ```sh
@@ -184,6 +200,7 @@ yet.
 | Choices | 🟡 Django's plates; text place and hover colour guessed |
 | System screens | 🟡 From the game's pictures (`django/screens.rs`): title, right-click menu, save/load (3×20 slots), yes/no questions, text log, settings (bullet rows as `SliderSteps`), the click-wait bullet; not compared with the original (it wants its disc under wine) |
 | Extras | ❌ Not started (scope to confirm) |
+| Web build | 🟡 Plays in a browser (title, story pages); saves, sound and touch not checked yet |
 
 ### Next
 
@@ -196,7 +213,9 @@ yet.
    `frame03`-`frame05`) measured against the original under wine.
 4. The ranked "not converted" list: `MoveCamera`, `CreateTexture` from
    the screen, `CreateColor` colours, movies.
-5. The two long movies (see the table).
+5. The two long movies (see the table). Standing pictures end in a
+   straight edge at y 390 (above the bottom bar at 470): check against
+   the original.
 6. Camera moves (`MoveCamera`, 365 calls) and moves and zooms over time
    (drawn as cross-fades), shared with Muramasa's compiler.
 7. Ask the user the scope questions (above).
