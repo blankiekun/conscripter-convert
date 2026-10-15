@@ -5,7 +5,7 @@
 //! ported ([`favour`]); the system screens, built from the game's own
 //! pictures ([`screens`]).
 
-use conv_core::ir::{ArithOp, Op, Operand};
+use conv_core::ir::{ArithOp, Op, Operand, TransitionStyle};
 
 use std::collections::BTreeMap;
 
@@ -24,7 +24,7 @@ fn call(c: &mut Compiler<'_, '_>, name: &str) -> bool {
     if let Some(r) = RANKINGS.iter().find(|r| r.0 == name) {
         return c.ranking(r);
     }
-    (name == "SatugaiSystem" && c.satugai()) || (name == "SetHex" && c.set_hex()) || (name == "judgment_of_count" && c.favour_screen())
+    (name == "RecoIn" && c.reco_in()) || (name == "SatugaiSystem" && c.satugai()) || (name == "SetHex" && c.set_hex()) || (name == "judgment_of_count" && c.favour_screen())
 }
 
 fn scene(c: &mut Compiler<'_, '_>, file: &str, scene: &str) -> bool {
@@ -181,6 +181,20 @@ impl Compiler<'_, '_> {
                 self.vars.insert(key, Value::Runtime(var));
             }
         }
+        true
+    }
+
+    /// `RecoIn` (`extra_recollection.nss`), at a recollection scene's
+    /// start: the held list ([`extras::HOLD_SLOT`]) fades out over 500 ms
+    /// onto the scene's first picture, then 1 s passes.
+    fn reco_in(&mut self) -> bool {
+        self.sync(0);
+        self.ops.extend([
+            Op::BeginTransition { effect: "Fade".into(), fade_ms: 500, mask: None, style: TransitionStyle::Fade },
+            Op::ScreenEffect { slot: extras::HOLD_SLOT, effect: None },
+            Op::EndTransition,
+            Op::Pause { ms: 1000 },
+        ]);
         true
     }
 

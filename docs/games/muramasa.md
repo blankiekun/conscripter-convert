@@ -608,9 +608,8 @@ Next, in order:
       1-6. Done: the menu, the gallery, the sound room, the
          recollection, the 3D viewer and the way back to the title
          ("History", below).
-      Left from 1-4: the replay cuts to its scene where the original
-      fades the held list out over 500 ms (`RecoIn`); the sound room's
-      turning icon runs at 33 ms a picture, a guess.
+      Left from 1-4: the sound room's turning icon runs at 33 ms a
+      picture, a guess.
 
    The user's decisions (2026-10-14): the pressed state (`003`) becomes
    an engine feature that is on for every script; the settings CONscripter
@@ -1041,8 +1040,10 @@ page each punctuation mark or symbol shows on (`--shot-pages`):
    (quick save and load) and 選択肢に戻る are greyed in the menu and the
    quick bar (`BarScreens::picture_replay`, `menu::NO_SAVE`), and
    タイトルに戻る (asked, then `reset`) comes back to the list (global
-   %2962, read first thing by the title). Left: the 500 ms fade of
-   `RecoIn` from the held list to the scene (ours cuts).
+   %2962, read first thing by the title). The list stays held over
+   the scene's first picture, a freeze frame in screen-effect slot 4
+   (`PictureReplay::hold`), until the scene's `RecoIn` fades it out
+   over 500 ms and waits 1 s, as the original's `RecoScreen`.
 5. Done: the 3D viewer, 劒冑回転目録 (a new `Turntable`, `conv-cons/src/
    picture_turntable.rs`; the entries read from `extra_dimension.nss`'s
    `Dx`): 46 entries, 24 name plates a page in two rows of twelve from
