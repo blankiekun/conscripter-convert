@@ -1,0 +1,88 @@
+name: release converter and GUI (Windows, Linux, macOS)
+on:
+  push:
+    tags: ['v*'] # v1.0, v0.2.0, …: builds and attaches to the release
+    branches: ['**'] # other pushes only build and test, when the GUI or this file changed
+    paths: ['gui/**', '.github/workflows/release.yml'] # (not applied to tags)
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - {runner: windows-latest, suffix: x64_win, exe: .exe}
+          - {runner: ubuntu-22.04, suffix: x64_linux, exe: ''} # an older glibc runs on more systems
+          - {runner: macos-14, suffix: aarch64_darwin, exe: ''}
+    runs-on: ${{ matrix.os.runner }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      NAME: ${{ github.ref_type == 'tag' && github.ref_name || 'dev' }}
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: true # build.rs reads the engine's version
+
+    - uses: dtolnay/rust-toolchain@stable
+
+    - uses: Swatinem/rust-cache@v2
+
+    - name: build conscripter-convert
+      run: cargo build --release --locked
+
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+
+    - name: test the GUI
+      run: |
+        pip install -r gui/requirements.txt
+        python -m unittest discover -s gui/tests -v
+
+    - name: build the GUI
+      run: |
+        python gui/fetch_fonts.py
+        python gui/build_exe.py --converter target/release/conscripter-convert${{ matrix.os.exe }}
+
+    - name: check the GUI bundle
+      run: |
+        if [ "${{ runner.os }}" = macOS ]; then
+          gui=gui/dist/conscripter-convert-gui.app/Contents/MacOS/conscripter-convert-gui
+        else
+          gui=gui/dist/conscripter-convert-gui${{ matrix.os.exe }}
+        fi
+        "$gui" --self-test self-test.json || true
+        cat self-test.json
+        python -c "import json, sys; s = json.load(open('self-test.json')); sys.exit(not (s.get('converter_runs') and s['dnd'] and all(s['fonts'].values())))"
+
+    - name: prepare release
+      run: |
+        mkdir release
+        cp target/release/conscripter-convert${{ matrix.os.exe }} release/conscripter-convert_${NAME}_${{ matrix.os.suffix }}${{ matrix.os.exe }}
+        if [ "${{ runner.os }}" = macOS ]; then
+          ditto -c -k --keepParent gui/dist/conscripter-convert-gui.app release/conscripter-convert-gui_${NAME}_${{ matrix.os.suffix }}.zip
+        else
+          cp gui/dist/conscripter-convert-gui${{ matrix.os.exe }} release/conscripter-convert-gui_${NAME}_${{ matrix.os.suffix }}${{ matrix.os.exe }}
+        fi
+        ls -l release
+
+    - uses: actions/upload-artifact@v4
+      with:
+        name: conscripter-convert_${{ matrix.os.suffix }}
+        path: release/*
+
+    - name: create release
+      uses: ncipollo/release-action@v1
+      if: github.ref_type == 'tag'
+      with:
+        artifacts: "release/*"
+        allowUpdates: "true"
+        omitBodyDuringUpdate: "true" # keep the release notes written by hand
+        token: ${{ secrets.GITHUB_TOKEN }}
