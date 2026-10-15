@@ -1487,6 +1487,12 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 if key == "$GameName" {
                     self.vars.insert(GAME_NAME_SET.into(), Value::Int(1));
                 }
+                // The chapter title the save screen shows.
+                if key == "$TITLE_NOW"
+                    && let Value::Str(t) = &new
+                {
+                    self.ops.push(Op::Chapter { title: t.trim_matches(' ').to_string() });
+                }
                 self.vars.insert(key, new);
             }
             StmtKind::If { cond, then, otherwise } if self.is_runtime(cond) => {

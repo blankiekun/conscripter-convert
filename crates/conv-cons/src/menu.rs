@@ -74,7 +74,7 @@ const BTN_SWITCH: u32 = 70; // + 1 + switch
 const SWITCH_OFF_BASE: u32 = 3640;
 const SWITCH_OFF_BASE_2: u32 = 2910;
 /// The confirmation being asked (a [`Switch`] + 1; 0 = always ask).
-const CONFIRM_KIND: &str = "%125";
+pub(crate) const CONFIRM_KIND: &str = "%125";
 const BTN_MINUS: u32 = 10;
 const BTN_PLUS: u32 = 20;
 const BTN_TITLE: u32 = 30;
@@ -109,7 +109,7 @@ pub(crate) const VOICE_OFF_BASE: u32 = 970;
 /// Asks the question in [`CONFIRM_TEXT`]; [`CONFIRM`] = 1 for yes.
 pub(crate) const CONFIRM_ROUTINE: &str = "conv_confirm";
 pub(crate) const CONFIRM: &str = "%109";
-const CONFIRM_TEXT: &str = "$106";
+pub(crate) const CONFIRM_TEXT: &str = "$106";
 /// Bar buttons return numbers above this.
 pub(crate) const BAR_BUTTON_BASE: i32 = 1000;
 pub(crate) const BAR_CLEAR: &str = "conv_bar_clear";
@@ -125,8 +125,11 @@ const SLIDE_K: &str = "%145";
 const MOUSE_Y: &str = "%146";
 pub(crate) const BAR_SLIDE_IN: &str = "conv_bar_slide_in";
 pub(crate) const BAR_SLIDE_OUT: &str = "conv_bar_slide_out";
-/// The sliding bar's hotspot (a `btn`, see [`button_bar`]).
+/// The sliding bar's hotspot (a `btn`, see [`button_bar`]), also the
+/// unpinned bar's ([`BarAction::Lock`]).
 const BTN_EDGE: i32 = BAR_BUTTON_BASE + 300;
+/// 1 while the bars are unpinned ([`BarAction::Lock`]; global).
+const BAR_UNPINNED: &str = "%2908";
 /// The game saved before the last choice ([`BarAction::BackToChoice`]);
 /// a global that is 1 while it is being loaded (see [`LOADED`]).
 pub(crate) const BACK_SLOT: u32 = 891;
@@ -160,9 +163,9 @@ const SCENE_CARRY: u32 = 2900;
 /// 1 while the list is open (global: it stays open).
 const SCENE_LIST_OPEN: &str = "%2903";
 /// The save menu's slot being loaded (global: it outlasts the load).
-const SCENE_LOAD_SLOT: &str = "%2904";
+pub(crate) const SCENE_LOAD_SLOT: &str = "%2906";
 /// 1 once [`SCENE_LOADED`] has put a save's levels back.
-const SCENE_RESTORED: &str = "%2905";
+const SCENE_RESTORED: &str = "%2907";
 /// A save from the save menu keeps the levels' slots with it, level k of
 /// slot n in save slot SCENE_KEPT + 10 × n + k (levels 0-7: link scenes
 /// nest at most 7 deep), so a load can still go back and forward.
@@ -190,24 +193,24 @@ pub(crate) const IN_GAME: &str = "%101";
 
 // Local scratch variables (below the game's locals at %10-%12 would be too
 // close; these are free).
-const MODE: &str = "%100"; // 1 save, 2 load
-const SELECTED: &str = "%102"; // selected slot, 0 = none
-const SLOT: &str = "%103";
-const HAS_DATA: &str = "%104";
+pub(crate) const MODE: &str = "%100"; // 1 save, 2 load
+pub(crate) const SELECTED: &str = "%102"; // selected slot, 0 = none
+pub(crate) const SLOT: &str = "%103";
+pub(crate) const HAS_DATA: &str = "%104";
 pub(crate) const TMP: &str = "%105";
-const FIRST: &str = "%106"; // first slot on the page
+pub(crate) const FIRST: &str = "%106"; // first slot on the page
 const SELECTED_HAS_DATA: &str = "%107";
 const MODE_STATE: &str = "%108"; // isskip: 1 skip, 2 auto
-const DATE: [&str; 6] = ["%110", "%111", "%112", "%113", "%114", "%115"];
-const LABEL: &str = "$100";
+pub(crate) const DATE: [&str; 6] = ["%110", "%111", "%112", "%113", "%114", "%115"];
+pub(crate) const LABEL: &str = "$100";
 const LINE1: &str = "$101";
 const LINE2: &str = "$102";
-const FILE: &str = "$103"; // thumbnail file
-const THUMB_IMAGE: &str = "$105"; // the same with its sprite tag
-const STR_TMP: &str = "$104";
+pub(crate) const FILE: &str = "$103"; // thumbnail file
+pub(crate) const THUMB_IMAGE: &str = "$105"; // the same with its sprite tag
+pub(crate) const STR_TMP: &str = "$104";
 // Globals (`globalon` keeps %200 and up; the game uses up to %220).
-const PAGE: &str = "%900";
-const NEWEST: &str = "%901";
+pub(crate) const PAGE: &str = "%900";
+pub(crate) const NEWEST: &str = "%901";
 /// Slot n was deleted by an older build when %(DELETED_BASE + n) is 1.
 const DELETED_BASE: u32 = 910;
 /// The current chapter's title (a local: saves keep it), shown in the top
@@ -512,6 +515,7 @@ pub(crate) fn bar_label(a: BarAction) -> &'static str {
         BarAction::Fullscreen => "conv_bar_full",
         BarAction::FastSkip => "conv_bar_fskip",
         BarAction::BackToChoice => "conv_bar_back",
+        BarAction::Lock { .. } => "conv_bar_lock",
         // The command menu's own.
         BarAction::Close | BarAction::Call => "",
     }
@@ -561,11 +565,18 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, s: BarScreens) {
     let (chapter_text, scene_text) = (slots.next().unwrap(), slots.next().unwrap());
     // Back, forward, exit, list.
     let scene_buttons: [u32; 4] = std::array::from_fn(|_| slots.next().unwrap());
+    // An invisible button over the chapter bar (see [`ChapterHistory`]).
+    let chapters_slot = slots.next();
     let mut w = |line: String| {
         out.push_str(&line);
         out.push('\n');
     };
     let slide = bar.slide;
+    // Where an unpinned bar shows ([`BarAction::Lock`]).
+    let reveal = bar.buttons.iter().find_map(|b| match b.action {
+        BarAction::Lock { reveal_y } => Some(reveal_y),
+        _ => None,
+    });
     // A sliding bar's x is offset by BAR_OFFSET.
     let x = |p: &Placed| if slide.is_some() { format!("{}+{BAR_OFFSET}", p.x) } else { p.x.to_string() };
     let lsp = |slot: u32, p: &Placed, cells: &str| format!("lsp {slot},\":a{cells};{}\",{},{}", path(&p.image), x(p), p.y);
@@ -590,11 +601,15 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, s: BarScreens) {
         w(format!("if {BAR_OUT} == 1 && {TMP} <= {} gosub *{BAR_SLIDE_OUT}:goto *{WAIT}", sl.edge_x));
         w(format!("getmouseover {BTN_EDGE},{BTN_EDGE}"));
     }
+    if reveal.is_some() {
+        // Unpinned: the pointer crossing the line redraws the bar.
+        w(format!("if {BAR_UNPINNED} == 1 getmouseover {BTN_EDGE},{BTN_EDGE}"));
+    }
     if keys {
         w("getkey".into());
     }
     w(format!("textbtnwait {BUTTON_VAR}"));
-    if slide.is_some() {
+    if slide.is_some() || reveal.is_some() {
         w(format!("if {BUTTON_VAR} == {BTN_EDGE} goto *{WAIT}"));
     }
     // Wheel down (-3) reads on, like a click; wheel up (-2) opens the log.
@@ -656,6 +671,12 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, s: BarScreens) {
     if let Some(sl) = slide {
         w(format!("mov {BAR_OFFSET},{}:if {BAR_OUT} == 1 mov {BAR_OFFSET},0", sl.hidden_dx));
     }
+    if let Some(y) = reveal {
+        // Unpinned and the pointer above the line: only the hotspot below
+        // it. Off the screen (auto-play) is below.
+        w(format!("getmousepos {TMP},{MOUSE_Y}"));
+        w(format!("if {BAR_UNPINNED} == 1 && {MOUSE_Y} < {y} btn {BTN_EDGE},0,{y},{},{},0,0:print 1:return", s.width, s.height as i32 - y));
+    }
     if state {
         w(format!("gosub *{BAR_STATE}"));
     }
@@ -672,8 +693,12 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, s: BarScreens) {
         }
         w(lsp(*slot, &b.image, cells));
         if let Some(active) = &b.active {
-            let state = if b.action == BarAction::Auto { 2 } else { 1 };
-            w(format!("if {MODE_STATE} == {state} {}", lsp(*slot, active, cells)));
+            let on = match b.action {
+                BarAction::Auto => format!("{MODE_STATE} == 2"),
+                BarAction::Lock { .. } => format!("{BAR_UNPINNED} == 1"),
+                _ => format!("{MODE_STATE} == 1"),
+            };
+            w(format!("if {on} {}", lsp(*slot, active, cells)));
         }
         match disabled_while(b.action) {
             Some(off) => w(format!("if {off} == 1 cell {slot},2\n{only_out}if {off} == 0 spbtn {slot},{}{press}", number(i))),
@@ -689,8 +714,22 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, s: BarScreens) {
         w(format!("if {BAR_OUT} == 0 btn {BTN_EDGE},{edge},0,{},{height},0,0", width - edge));
         w(format!("if {BAR_OUT} == 1 btn {BTN_EDGE},0,0,{edge},{height},0,0"));
     }
+    if let Some(y) = reveal {
+        // The hotspot above the bar ends the wait when the pointer leaves.
+        w(format!("if {BAR_UNPINNED} == 1 btn {BTN_EDGE},0,0,{},{y},0,0", s.width));
+    }
     if let Some(top) = &bar.top {
+        // Unpinned, the top bars stay hidden.
+        if reveal.is_some() {
+            w(format!("if {BAR_UNPINNED} == 1 goto *conv_bar_draw_end"));
+        }
         scene_bar_draw(&mut w, top, chapter_text, scene_text, scene_buttons);
+        if let (Some(_), Some(slot)) = (&top.chapter_history, chapters_slot) {
+            w(crate::chapters::hotspot(top, slot));
+        }
+    }
+    if reveal.is_some() {
+        w("*conv_bar_draw_end".into());
     }
     w("print 1".into());
     w("return".into());
@@ -745,6 +784,9 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, s: BarScreens) {
     if bar.top.is_some() {
         let last = BTN_SCENE_ROW + SCENE_ROWS as i32;
         w(format!("if {BUTTON_VAR} >= {BTN_SCENE_BACK} && {BUTTON_VAR} <= {last} goto *conv_scene_action"));
+        if bar.top.as_ref().is_some_and(|t| t.chapter_history.is_some()) {
+            w(format!("if {BUTTON_VAR} == {} goto *{}", crate::chapters::BTN_OPEN, crate::chapters::OPEN));
+        }
     }
     for (i, (b, _)) in buttons.iter().enumerate() {
         if b.action != BarAction::Unavailable {
@@ -811,6 +853,7 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, s: BarScreens) {
                 w(then.into());
             }
             BarAction::Fullscreen => w(format!("isfull {TMP}\nif {TMP} == 1 menu_window:return\nmenu_full")),
+            BarAction::Lock { .. } => w(format!("mov {BAR_UNPINNED},1-{BAR_UNPINNED}")),
             BarAction::Close | BarAction::Call => unreachable!(),
         }
         w("return".into());
@@ -828,7 +871,7 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, s: BarScreens) {
         w("return".into());
     }
     if bar.top.is_some() {
-        scene_stack(&mut w);
+        scene_stack(&mut w, bar.top.as_ref().is_some_and(|t| t.chapter_history.is_some()));
     }
 }
 
@@ -930,7 +973,9 @@ fn scene_bar_draw(w: &mut impl FnMut(String), top: &TopBars, chapter_text: u32, 
 /// load puts them back, as the original keeps its scene stack in a save.
 /// A save without them (made by an older build) loads at the level saved,
 /// whose levels below are dropped and above can't be gone back to.
-fn scene_stack(w: &mut impl FnMut(String)) {
+/// `chapters`: there is a [`ChapterHistory`](conv_core::ir::ChapterHistory),
+/// whose entries a load may carry over.
+fn scene_stack(w: &mut impl FnMut(String), chapters: bool) {
     let titles = || (1..=SCENE_ROWS).map(|k| (SCENE_TITLES + k, SCENE_CARRY + k));
     w("*conv_scene_action".into());
     w(format!("if {BUTTON_VAR} == {BTN_SCENE_LIST} goto *conv_scene_list"));
@@ -973,6 +1018,9 @@ fn scene_stack(w: &mut impl FnMut(String)) {
     w("return".into());
 
     w(format!("*{SCENE_LOADED}"));
+    if chapters {
+        w(format!("gosub *{}", crate::chapters::LOADED));
+    }
     w(format!("if {SCENE_LOADING} == 1 goto *conv_scene_switched"));
     // A load from the save menu: its levels back, if it kept them.
     w(format!("mov {SCENE_RESTORED},0"));
@@ -1158,7 +1206,9 @@ pub(crate) fn settings_menu(
     ));
     for (i, s) in switches.iter().enumerate() {
         let off = switch_off(s.switch);
-        w(format!("if {BUTTON_VAR} == {} mov {off},1-{off}:goto *conv_settings_draw", BTN_SWITCH + i as u32 + 1));
+        // A sound switch applies at once.
+        let apply = if matches!(s.switch, Switch::BgmOn | Switch::SeOn | Switch::VoiceOn) { format!("gosub *{SETTINGS_APPLY}:") } else { String::new() };
+        w(format!("if {BUTTON_VAR} == {} mov {off},1-{off}:{apply}goto *conv_settings_draw", BTN_SWITCH + i as u32 + 1));
     }
     for (i, t) in voices.iter().enumerate() {
         let all = |v: u32| t.characters.iter().map(|c| format!("mov %{},{v}", VOICE_OFF_BASE + c)).collect::<Vec<_>>().join(":");
@@ -1217,8 +1267,19 @@ fn settings_apply(out: &mut String, m: &SettingsMenu) {
         out.push('\n');
     };
     w(format!("*{SETTINGS_APPLY}"));
-    for (setting, cmd) in [(Setting::BgmVolume, "bgmvol"), (Setting::SeVolume, "sevol"), (Setting::VoiceVolume, "voicevol")] {
-        w(format!("mov {TMP},{}*10:{cmd} {TMP}", setting_var(setting)));
+    for (setting, cmd, on) in [
+        (Setting::BgmVolume, "bgmvol", Switch::BgmOn),
+        (Setting::SeVolume, "sevol", Switch::SeOn),
+        (Setting::VoiceVolume, "voicevol", Switch::VoiceOn),
+    ] {
+        if has_switch(m, on) {
+            // Muted: volume 0, the level kept.
+            w(format!("mov {TMP},{}*10", setting_var(setting)));
+            w(format!("if {} == 1 mov {TMP},0", switch_off(on)));
+            w(format!("{cmd} {TMP}"));
+        } else {
+            w(format!("mov {TMP},{}*10:{cmd} {TMP}", setting_var(setting)));
+        }
     }
     w(format!("mov {TEXT_MS},(10-{})*{TEXT_MS_STEP}:textspeed {TEXT_MS}", setting_var(Setting::TextSpeed)));
     let auto = setting_var(Setting::AutoSpeed);
@@ -1239,12 +1300,22 @@ fn settings_apply(out: &mut String, m: &SettingsMenu) {
     w("return".into());
 }
 
+/// The settings screen has switch `s` (in its list or on a picture page).
+pub(crate) fn has_switch(m: &SettingsMenu, s: Switch) -> bool {
+    m.switches.iter().any(|x| x.switch == s)
+        || m.pictures.as_ref().is_some_and(|p| {
+            p.pages.iter().flat_map(|page| &page.rows).any(|c| match c {
+                conv_core::ir::RowControl::Choice { value, .. } | conv_core::ir::RowControl::Slider { value, .. } => *value == conv_core::ir::SettingValue::Switch(s),
+            })
+        })
+}
+
 /// Sets the question and asks it (see [`confirm`]).
 pub(crate) fn confirm_call(question: &str, kind: Switch) -> String {
     format!("mov {CONFIRM_KIND},{}:mov {CONFIRM_TEXT},\"{}\"\ngosub *{CONFIRM_ROUTINE}", switch_index(kind) + 1, escape(question))
 }
 
-fn switch_index(s: Switch) -> u32 {
+pub(crate) fn switch_index(s: Switch) -> u32 {
     match s {
         Switch::WheelReadsOn => 0,
         Switch::WheelClosesLog => 1,
@@ -1255,7 +1326,9 @@ fn switch_index(s: Switch) -> u32 {
         Switch::ConfirmQuit => 6,
         Switch::ConfirmBackToChoice => 7,
         Switch::VoiceKeepsPlaying => 8,
-        // 9-11 are the xuse branch's BgmOn, SeOn, VoiceOn.
+        Switch::BgmOn => 9,
+        Switch::SeOn => 10,
+        Switch::VoiceOn => 11,
         Switch::SceneSkipDialog => 12,
         Switch::StopSkipAtChoice => 13,
         Switch::BgmFullForVoice => 14,
@@ -1523,6 +1596,33 @@ pub(crate) mod tests {
         Placed { image: format!("system/{name}.png"), x: 10, y: 20, w, h }
     }
 
+    /// Every [`Switch`]. The match makes a new one fail to compile until
+    /// it is listed here too.
+    fn all_switches() -> Vec<Switch> {
+        use Switch::*;
+        let all = vec![WheelReadsOn, WheelClosesLog, ConfirmSave, ConfirmLoad, ConfirmDelete, ConfirmTitle, ConfirmQuit, ConfirmBackToChoice, VoiceKeepsPlaying, BgmOn, SeOn, VoiceOn, SceneSkipDialog, StopSkipAtChoice, BgmFullForVoice];
+        for s in &all {
+            match s {
+                WheelReadsOn | WheelClosesLog | ConfirmSave | ConfirmLoad | ConfirmDelete | ConfirmTitle | ConfirmQuit | ConfirmBackToChoice | VoiceKeepsPlaying | BgmOn | SeOn | VoiceOn | SceneSkipDialog | StopSkipAtChoice | BgmFullForVoice => {}
+            }
+        }
+        all
+    }
+
+    /// Two switches with one index would share their global (branches
+    /// adding switches at once both took the next free number).
+    #[test]
+    fn switches_have_their_own_index() {
+        let mut seen = std::collections::BTreeMap::new();
+        for s in all_switches() {
+            let i = switch_index(s);
+            assert!((i as usize) < MAX_SWITCHES, "{s:?}: index {i} past MAX_SWITCHES");
+            if let Some(other) = seen.insert(i, s) {
+                panic!("{s:?} and {other:?} both have index {i}");
+            }
+        }
+    }
+
     #[test]
     fn save_menu_routine() {
         let page = |n: i32| PageButton { button: placed(&format!("page{n}"), 30, 27), marker_x: 100 * n, marker_y: 480 };
@@ -1766,6 +1866,28 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn unpinned_bars_show_under_the_pointer() {
+        use conv_core::ir::BarButton;
+        let bar = ButtonBar {
+            buttons: vec![BarButton { image: placed("lock", 87, 19), active: Some(placed("lock_on", 87, 19)), action: BarAction::Lock { reveal_y: 573 } }],
+            top: None,
+            ..Default::default()
+        };
+        let mut out = String::new();
+        button_bar(&mut out, &bar, BarScreens { width: 800, height: 600, ..Default::default() });
+        for line in [
+            "if %2908 == 1 getmouseover 1300,1300\n",
+            "textbtnwait %9\nif %9 == 1300 goto *conv_wait\n",
+            "getmousepos %105,%146\nif %2908 == 1 && %146 < 573 btn 1300,0,573,800,27,0,0:print 1:return\n",
+            "if %2908 == 1 lsp 34,\":a/3,0,3;system\\lock_on.png\",10,20\n",
+            "if %2908 == 1 btn 1300,0,0,800,573,0,0\n",
+            "*conv_bar_lock\nmov %2908,1-%2908\nreturn\n",
+        ] {
+            assert!(out.contains(line), "missing {line:?} in\n{out}");
+        }
+    }
+
+    #[test]
     fn voices_stop_on_a_click_when_switched_off() {
         let bar = ButtonBar { buttons: Vec::new(), top: None, ..Default::default() };
         let mut out = String::new();
@@ -1774,10 +1896,9 @@ pub(crate) mod tests {
         assert_eq!(switch_off(Switch::ConfirmQuit), "%3646");
     }
 
-    #[test]
-    fn scene_stack_routines() {
+    pub(crate) fn top_bars() -> TopBars {
         let spot = TextSpot { x: 5, y: 6, font_size: 14, columns: 17 };
-        let top = TopBars {
+        TopBars {
             chapter_bar: placed("chapter_bar", 400, 28),
             chapter_text: spot,
             scene_bar: placed("scene_bar", 384, 28),
@@ -1797,7 +1918,13 @@ pub(crate) mod tests {
             row_text: TextSpot { x: 550, y: 34, font_size: 14, columns: 17 },
             row_color: "#A0A0A0".into(),
             current_row_color: "#FFFFFF".into(),
-        };
+            chapter_history: None,
+        }
+    }
+
+    #[test]
+    fn scene_stack_routines() {
+        let top = top_bars();
         let bar = ButtonBar { buttons: vec![], top: Some(top), ..Default::default() };
         let mut out = String::new();
         button_bar(&mut out, &bar, BarScreens { save_menu: true, ..Default::default() });
@@ -1820,7 +1947,7 @@ pub(crate) mod tests {
             "loadgame 900+%192\nmov %2900,0\nreturn\n",
             // A save keeps its levels' slots; a load puts them back.
             "*conv_scene_keep\nfor %103=0 to 7\ndelsavegame 1000+%102*10+%103\nif %103 >= %190 && %103 <= %151 && %103 != %150 copysavegame 900+%103,1000+%102*10+%103\nnext\nreturn\n",
-            "*conv_scene_loaded\nif %2900 == 1 goto *conv_scene_switched\nmov %2905,0\nfor %103=0 to 7\nsavefileexist %104,1000+%2904*10+%103\nif %104 == 1 copysavegame 1000+%2904*10+%103,900+%103:mov %2905,1\nnext\nif %2905 == 0 mov %151,%150:mov %190,%150\nreturn\n*conv_scene_switched\n",
+            "*conv_scene_loaded\nif %2900 == 1 goto *conv_scene_switched\nmov %2907,0\nfor %103=0 to 7\nsavefileexist %104,1000+%2906*10+%103\nif %104 == 1 copysavegame 1000+%2906*10+%103,900+%103:mov %2907,1\nnext\nif %2907 == 0 mov %151,%150:mov %190,%150\nreturn\n*conv_scene_switched\n",
         ] {
             assert!(out.contains(line), "missing {line:?} in\n{out}");
         }
@@ -1862,6 +1989,13 @@ pub(crate) mod tests {
         let mut out = String::new();
         settings_menu(&mut out, &m, None, None, None);
         assert!(out.contains("automode_time (10-%906)*500,(10-%906)*4\n"), "{out}");
+        // A mute switch: volume 0, the level kept; applied when toggled.
+        m.switches = vec![conv_core::ir::SettingSwitch { label: "ＢＧＭ".into(), switch: Switch::BgmOn }];
+        m.tab_labels = vec!["a".into(), "b".into()];
+        let mut out = String::new();
+        settings_menu(&mut out, &m, None, None, None);
+        assert!(out.contains("mov %105,%902*10\nif %2911 == 1 mov %105,0\nbgmvol %105\n"), "{out}");
+        assert!(out.contains("if %9 == 71 mov %2911,1-%2911:gosub *conv_settings_apply:goto *conv_settings_draw\n"), "{out}");
         assert!(out.contains("itoa2 $101,%906\n"), "{out}");
     }
 }

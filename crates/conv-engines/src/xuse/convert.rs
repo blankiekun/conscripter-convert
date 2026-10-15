@@ -12,7 +12,7 @@ use thiserror::Error;
 use conv_core::ir::{
     Compare,
     Animation, ArithOp, Backlog, CgGallery, CgViewer, ExtrasAction, ExtrasItem, ExtrasMenu, GallerySlot, ReplayList, ReplayScene, SceneReplay, MusicRoom, MusicSong, GalleryTab, BarAction, BarButton, ButtonBar, ConfirmDialog, NamePlate, Noise, ScreenEffect, Setting, SettingRow, SettingSwitch, SettingsMenu, Switch, Op, Operand, PageButton, Placed, Rect, Ruby, SaveMenu, TextStyle, SourceLoc, Voice, VoiceToggle,
-    SpriteChange, SpriteFilter, SpritePlacement, TextLink, TextSpot, TextWindow, TitleAction, TitleButton, TitleScreen, TopBars,
+    SpriteChange, SpriteFilter, SpritePlacement, TextLink, TextSpot, TextWindow, TitleAction, TitleButton, TitleScreen, TopBars, ChapterHistory,
     SlideLayer, TransitionStyle, Var, ZoomStyle, FILTER_BLEND_ADD, FILTER_BLEND_COPY, FILTER_BLEND_MULTIPLY, FILTER_BLEND_SCREEN, FILTER_BRIGHTNESS, FILTER_COLOUR, FILTER_MONOTONE,
     FILTER_GREYSCALE, FILTER_NEGATIVE, FILTER_BLUR, FILTER_HUE_SATURATION, FILTER_LIGHTNESS_INVERT,
 };
@@ -296,6 +296,10 @@ const OP_WAIT: u16 = 0x66;
 const TRANSITION_DISSOLVE: u16 = 26;
 const TRANSITION_DOT4X4: u16 = 4;
 const TRANSITION_TV_POWER_SWITCH: u16 = 48;
+const TRANSITION_SMOOTH_CROSS_FADE: u16 = 36;
+/// The deepest a bust-up usually sits (0x8e's depth: 10-150, then
+/// 1100-5000 for the few drawn over the overlay).
+const BUST_UP_DEPTH_MAX: u32 = 1000;
 const TV_POWER_SWITCH_MS: u32 = 700;
 /// Plays `HD/mvNNNN.bin` (handler 0x478ab0, task 0x408ed0): arg's low 16
 /// bits are the number, its high 16 bits whether a click or key ends it
@@ -1216,8 +1220,10 @@ impl AssetBank {
     /// eight states side by side (normal, under the pointer, pressed,
     /// disabled, then the same four while the mode is on). Base and frame
     /// (0, 1) are empty. Positions measured on a screenshot of the
-    /// original, where the bar runs along the bottom edge. Not converted:
-    /// the lock button (9, keeps the bar from hiding; this bar never hides).
+    /// original, where the bar runs along the bottom edge. The lock button
+    /// (9) unpins the bars (filmed under wine): the top bars hide and this
+    /// one shows only while the pointer is on it (below y 573); its open
+    /// padlock (cells 4-7) is the pinned default, the closed one unpinned.
     pub fn button_bar(&mut self) -> Result<ButtonBar, ConvertError> {
         let images = self.gaf_images("wnd.arc", "SysTray.004", "button bar")?;
         let mut buttons = Vec::new();
@@ -1229,6 +1235,7 @@ impl AssetBank {
             (3, "load", 607, 581, BarAction::Load),
             (7, "setting", 682, 581, BarAction::Settings),
             (8, "hide", 756, 583, BarAction::HideWindow),
+            (9, "lock", 304, 581, BarAction::Lock { reveal_y: 573 }),
         ] {
             let png = images.get(n).ok_or(ConvertError::MissingAsset { kind: "button bar image", number: n })?;
             let states = image::load_from_memory_with_format(png, image::ImageFormat::Png)
@@ -1245,9 +1252,14 @@ impl AssetBank {
                 self.save_image(&image, &out)?;
                 Ok(Placed { image, x, y, w: out.width() as i32, h: out.height() as i32 })
             };
-            let image = if action == BarAction::Unavailable { strip(name, &[3])? } else { strip(name, &[0, 1, 3])? };
+            let image = match action {
+                BarAction::Unavailable => strip(name, &[3])?,
+                BarAction::Lock { .. } => strip(name, &[4, 5, 7])?,
+                _ => strip(name, &[0, 1, 3])?,
+            };
             let active = match action {
                 BarAction::Auto | BarAction::Skip => Some(strip(&format!("{name}_on"), &[4, 5, 7])?),
+                BarAction::Lock { .. } => Some(strip(&format!("{name}_on"), &[0, 1, 3])?),
                 _ => None,
             };
             buttons.push(BarButton { image, active, action });
@@ -1334,7 +1346,8 @@ impl AssetBank {
                 .map(|(label, characters)| VoiceToggle { label: label.to_string(), characters: characters.to_vec() })
                 .collect(),
             voice_column_x: 440,
-            voice_pitch: 50,
+            // 11 switches in one column above the exits at 540.
+            voice_pitch: 36,
             skip_unread_label: Some("未読テキストもスキップする".into()),
             pictures: None,
             // The original's マウス and 確認メッセージ pages (labels as there).
@@ -1348,6 +1361,10 @@ impl AssetBank {
                 ("ゲーム終了確認", Switch::ConfirmQuit),
                 // The 音声 page's; on by default (0x51ed59, 0x46d000).
                 ("次の音声まで停止しない", Switch::VoiceKeepsPlaying),
+                // The サウンド page's ミュート boxes (unticked by default).
+                ("ＢＧＭを鳴らす", Switch::BgmOn),
+                ("効果音を鳴らす", Switch::SeOn),
+                ("音声を鳴らす", Switch::VoiceOn),
             ]
             .into_iter()
             .map(|(label, switch)| SettingSwitch { label: label.into(), switch })
@@ -1490,6 +1507,59 @@ impl AssetBank {
             row_text: TextSpot { x: row_x + 19, y: row_y + 4, font_size: 14, columns: 17 },
             row_color: "#A0A0A0".into(),
             current_row_color: "#FFFFFF".into(),
+            chapter_history: Some(self.chapter_history()?),
+        })
+    }
+
+    /// The chapter history (`wnd.arc` → `ChapterHistory.004`: #0 base, #1
+    /// frame, #2 and #3 the close button's base and lettering, four states
+    /// of 21 px stacked, #4 the current chapter's bracket, #5 the row
+    /// highlight, additive, four states of 25 px stacked). Layout and
+    /// opacity measured on screenshots of the original under wine: rows 24
+    /// px apart from (16, 83), columns 258 px apart, 19 rows to a column.
+    fn chapter_history(&mut self) -> Result<ChapterHistory, ConvertError> {
+        let images = self.gaf_rgba("wnd.arc", "ChapterHistory.004", "chapter history")?;
+        let get = |n: usize| images.get(n).cloned().ok_or(ConvertError::MissingAsset { kind: "chapter history image", number: n });
+        let (close_base, close_text) = (get(2)?, get(3)?);
+        let (cw, ch) = (close_base.width(), close_base.height() / 4);
+        // Normal, under the pointer, disabled: the lettering over the base.
+        let mut close = image::RgbaImage::new(cw * 3, ch);
+        for (i, state) in [0u32, 1, 3].into_iter().enumerate() {
+            let mut cell = image::imageops::crop_imm(&close_base, 0, state * ch, cw, ch).to_image();
+            image::imageops::overlay(&mut cell, &image::imageops::crop_imm(&close_text, 0, state * ch, cw, ch).to_image(), 0, 0);
+            image::imageops::replace(&mut close, &cell, i64::from(cw) * i as i64, 0);
+        }
+        // The highlight is added to the screen: as alpha, its brightest
+        // channel is the opacity.
+        let cursor = get(5)?;
+        let mut hover = image::imageops::crop_imm(&cursor, 0, cursor.height() / 4, cursor.width(), cursor.height() / 4).to_image();
+        for p in hover.pixels_mut() {
+            let a = p[0].max(p[1]).max(p[2]);
+            if a == 0 {
+                *p = image::Rgba([0, 0, 0, 0]);
+            } else {
+                let scale = |c: u8| (u32::from(c) * 255 / u32::from(a)) as u8;
+                *p = image::Rgba([scale(p[0]), scale(p[1]), scale(p[2]), a]);
+            }
+        }
+        Ok(ChapterHistory {
+            base: self.place("chapters_base", &get(0)?, None, 0, 0)?,
+            base_opacity: 140,
+            frame: self.place("chapters_frame", &get(1)?, None, 0, 0)?,
+            close: self.place("chapters_close", &close, None, 715, 576)?,
+            hover: self.place("chapters_hover", &hover, None, 0, 0)?,
+            current: self.place("chapters_current", &get(4)?, None, -16, 0)?,
+            x: 16,
+            y: 83,
+            row_pitch: 24,
+            column_pitch: 258,
+            rows: 19,
+            columns: 3,
+            row_width: 256,
+            text_dx: 5,
+            text_dy: 5,
+            font_size: 13,
+            question: ("チャプタ“".into(), "”に移動します。よろしいですか？".into()),
         })
     }
 
@@ -2280,13 +2350,23 @@ fn lower_quake(q: &Quake, ops: &mut Vec<Op>) {
         return;
     }
     let shrink = (q.speed / 4).max(50); // pixels a second
-    let time_ms = 4000 / q.speed + x.max(y) as u32 * 1000 / shrink;
-    let speed = (i64::from(q.speed) * 65536 / 1000).min(i64::from(i32::MAX)) as i32;
-    let effect = ScreenEffect::Shake { time_ms, interval_ms: 10, path: true, speed: (speed, 0), range: [(x, y), (0, 0)] };
-    ops.push(Op::ScreenEffect { slot: QUAKE_SLOT, effect: Some(effect) });
-    ops.push(Op::Wait { ms: time_ms });
+    // Filmed under wine (speed 80): the picture jumps to the next point
+    // every frame (30 a second), at the full range for the first points,
+    // then the range shrinks: two shakes, the second shrinking to 0.
+    let points = q.speed.min(QUAKE_POINTS_PER_S);
+    let hold_ms = 4000 / points;
+    let shrink_ms = x.max(y) as u32 * 1000 / shrink;
+    let speed = (i64::from(points) * 65536 / 1000) as i32;
+    for (time_ms, to) in [(hold_ms, (x, y)), (shrink_ms, (0, 0))] {
+        let effect = ScreenEffect::Shake { time_ms, interval_ms: 10, path: true, speed: (speed, 0), range: [(x, y), to] };
+        ops.push(Op::ScreenEffect { slot: QUAKE_SLOT, effect: Some(effect) });
+        ops.push(Op::Wait { ms: time_ms });
+    }
     ops.push(Op::ScreenEffect { slot: QUAKE_SLOT, effect: None });
 }
+
+/// A quake's points a second at most: one a frame at the original's 30.
+const QUAKE_POINTS_PER_S: u32 = 30;
 
 /// The `screenpulse` slot for opcode 0x6f's pulses.
 const PULSE_SLOT: u32 = 3;
@@ -2528,6 +2608,12 @@ pub fn lower_script(
     // overlay is a fill, and the time of a fade that the next wait covers.
     let mut background_fill: Option<u32> = None;
     let mut overlay_fill = false;
+    // The depth of the overlay over the sprites, while one is up, and the
+    // bust-up layers drawn in front of it (Op::SpriteInFront).
+    let mut overlay_depth: Option<u32> = None;
+    let mut in_front: HashSet<u32> = HashSet::new();
+    // SmoothCrossFade's last third: a wait after the transition.
+    let mut smooth_tail: Option<u32> = None;
     let mut wait_credit_ms = 0;
     // 0x4a's style for whole messages (file order): colour, size.
     let mut default_style: (Option<u32>, Option<u16>) = (None, None);
@@ -2595,7 +2681,9 @@ pub fn lower_script(
                         0 => None,
                         n => Some(assets.background(n as usize)?.path),
                     };
-                    ops.push(Op::Overlay { image, over_sprites: layer == 2 });
+                    let over = overlay_over(layer, pool_u32(cd.pool, o + 2).unwrap_or(0));
+                    overlay_depth = over.filter(|_| image.is_some());
+                    ops.push(Op::Overlay { image, over_sprites: over.is_some() });
                     if cd.pool.get(o + 10).is_some_and(|&mark| mark != 0) && let Some(number) = gallery_cg(number as i32) {
                         ops.push(Op::CgSeen { number });
                     }
@@ -2615,7 +2703,9 @@ pub fn lower_script(
                 }
                 Some((&[2, layer @ 0..=2], colour)) => {
                     overlay_fill = true;
-                    ops.push(Op::Overlay { image: Some(assets.fill(rgb(colour))?), over_sprites: layer == 2 });
+                    let over = overlay_over(layer, pool_u32(cd.pool, o + 2).unwrap_or(0));
+                    overlay_depth = over;
+                    ops.push(Op::Overlay { image: Some(assets.fill(rgb(colour))?), over_sprites: over.is_some() });
                 }
                 _ => ops.push(Op::Unsupported { what: format!("opcode {:#04x} record {record:?}", ins.op), at: at() }),
             }
@@ -2632,6 +2722,7 @@ pub fn lower_script(
             env_slots.clear();
             ops.push(Op::Noise(None));
             ops.push(Op::ScreenEffect { slot: 0, effect: None });
+            ops.push(Op::ChapterHistoryClear);
             continue;
         }
         if matches!(ins.op, OP_YIELD | OP_YIELD_2 | OP_ENTRY_NAME) {
@@ -2651,6 +2742,7 @@ pub fn lower_script(
         if ins.op == crate::xuse::cd::OP_BACKGROUND && ins.arg > 0 {
             // op_54 first removes background slots 1-10 (0x4132d0), the
             // overlay (0x55, slot 2) with them.
+            overlay_depth = None;
             ops.push(Op::Overlay { image: None, over_sprites: false });
             // It starts no fade: the picture shows at once, or with the
             // transition armed around it.
@@ -2735,6 +2827,7 @@ pub fn lower_script(
                 // after it already covers the fade.
                 Some(Motion { layer: 1, depth: 2, flags: MOTION_OPACITY, end: Some(MotionEnd { ms, opacity: Some(0), .. }) }) if overlay_fill => {
                     ops.push(Op::BeginTransition { effect: "fill fade-out".into(), fade_ms: ms, mask: None, style: TransitionStyle::Fade });
+                    overlay_depth = None;
                     ops.push(Op::Overlay { image: None, over_sprites: false });
                     ops.push(Op::EndTransition);
                     overlay_fill = false;
@@ -2968,7 +3061,16 @@ pub fn lower_script(
                     transition_armed = true;
                     // TvPowerSwitch runs its own 700 ms key frames (setup
                     // 0x4485d7: 260 ... 700 ms) whatever the record says.
-                    let fade_ms = if ins.sub == TRANSITION_TV_POWER_SWITCH { TV_POWER_SWITCH_MS } else { fade_ms };
+                    let mut fade_ms = if ins.sub == TRANSITION_TV_POWER_SWITCH { TV_POWER_SWITCH_MS } else { fade_ms };
+                    // SmoothCrossFade (filmed under wine, 3 s): the old
+                    // picture stays for a third of the time, cross-fades
+                    // in the second third and the new one stays for the
+                    // last (with a slight blur either side, left out).
+                    if ins.sub == TRANSITION_SMOOTH_CROSS_FADE {
+                        ops.push(Op::Wait { ms: fade_ms / 3 });
+                        smooth_tail = Some(fade_ms / 3);
+                        fade_ms /= 3;
+                    }
                     // Dot4x4 (kernel 0x4430a0) copies the new picture
                     // through a 4×4 pattern: the hard mask transition over
                     // a tiled Bayer mask reveals the same dots.
@@ -3060,6 +3162,9 @@ pub fn lower_script(
         if ins.op == OP_TRANSITION_WAIT {
             if std::mem::take(&mut transition_armed) {
                 ops.push(Op::EndTransition);
+                if let Some(ms) = smooth_tail.take() {
+                    ops.push(Op::Wait { ms });
+                }
             }
             continue;
         }
@@ -3069,14 +3174,30 @@ pub fn lower_script(
                 opacities.remove(&layer);
                 if e.mode & 1 == 1 {
                     placed.insert(layer, (e.sprite, i32::from(e.x), i32::from(e.y)));
+                    // A bust-up deeper than the overlay (1100-5000; filmed
+                    // under wine) is drawn over it, under the static and
+                    // the animations.
+                    // Every time: a csp -1 in a subroutine (s2_l17) puts
+                    // it back unseen.
+                    let front = u32::from(e.depth) > BUST_UP_DEPTH_MAX && overlay_depth.is_none_or(|d| u32::from(e.depth) > d);
+                    if front || in_front.contains(&layer) {
+                        ops.push(Op::SpriteInFront { layer, front });
+                    }
+                    if front {
+                        in_front.insert(layer);
+                    } else {
+                        in_front.remove(&layer);
+                    }
                 } else {
                     placed.remove(&layer);
+                    in_front.remove(&layer);
                 }
             }
         }
         if matches!(ins.op, OP_CLEAR_SPRITES | crate::xuse::cd::OP_BACKGROUND) {
             placed.clear();
             opacities.clear();
+            in_front.clear();
         }
         let paths = match variants.take().filter(|_| in_run) {
             Some((_, _, paths)) => paths,
@@ -3595,6 +3716,15 @@ fn hang_cells(text: &str, hang: Option<usize>) -> usize {
     hang.map_or(0, |n| line_cells(&text.split('\n').next().unwrap_or_default().chars().take(n).collect::<String>()))
 }
 
+/// The depth of an overlay (0x55, 0x58) drawn over the bust-ups, or `None`
+/// for one under them: objects sort by layer, then depth (filmed under
+/// wine): layer 0 and 1 are under the bust-ups, and layer 2 shares their
+/// band, where most bust-ups sit at depth 10-150 and the overlays at 1000
+/// (a few at 0-100, under them).
+fn overlay_over(layer: u8, depth: u32) -> Option<u32> {
+    (layer == 2 && depth > 150).then_some(depth)
+}
+
 /// The rows and columns of a window preset, and whether it is full-screen.
 fn window_size_of(assets: &mut AssetBank, p: WindowPreset) -> Result<(usize, usize, bool), ConvertError> {
     let w = assets.text_window_style(p)?;
@@ -4057,6 +4187,13 @@ mod tests {
     }
 
     #[test]
+    fn overlays_sort_by_layer_then_depth() {
+        assert_eq!(overlay_over(2, 1000), Some(1000));
+        assert_eq!(overlay_over(2, 1), None);
+        assert_eq!(overlay_over(0, 1000), None);
+    }
+
+    #[test]
     fn tall_messages_split_at_posts() {
         // 2 rows of 4 columns: "ab" "━━" "cdef" on the first page would be
         // 3 rows; the page ends before the separator instead of after it.
@@ -4133,13 +4270,16 @@ mod tests {
     fn quakes_shake_and_wait() {
         let mut ops = Vec::new();
         lower_quake(&Quake { speed: 80, range: (10, 20) }, &mut ops);
-        // 4 points at 80 a second, then 20 px at 50 px a second.
-        let shake = ScreenEffect::Shake { time_ms: 450, interval_ms: 10, path: true, speed: (5242, 0), range: [(10, 20), (0, 0)] };
+        // 4 points at 30 a second at the full range, then shrinking 20 px
+        // at 50 px a second.
+        let shake = |time_ms, to| ScreenEffect::Shake { time_ms, interval_ms: 10, path: true, speed: (1966, 0), range: [(10, 20), to] };
         assert_eq!(
             ops,
             [
-                Op::ScreenEffect { slot: QUAKE_SLOT, effect: Some(shake) },
-                Op::Wait { ms: 450 },
+                Op::ScreenEffect { slot: QUAKE_SLOT, effect: Some(shake(133, (10, 20))) },
+                Op::Wait { ms: 133 },
+                Op::ScreenEffect { slot: QUAKE_SLOT, effect: Some(shake(400, (0, 0))) },
+                Op::Wait { ms: 400 },
                 Op::ScreenEffect { slot: QUAKE_SLOT, effect: None },
             ]
         );

@@ -4,7 +4,7 @@ use std::path::{Component, Path, PathBuf};
 use anyhow::{Context, Result, bail};
 use clap::{Parser, Subcommand};
 use memmap2::Mmap;
-use conv_core::ir::{Op, Script};
+use conv_core::ir::Script;
 use conv_engines::xuse::cd::CdScript;
 use conv_engines::xuse::convert::{AssetBank, Flow, LabelNames, Needs, lower_script, presets};
 use conv_engines::xuse::gaf::Gaf;
@@ -12,6 +12,7 @@ use conv_engines::xuse::symbols::{self, SymbolTable};
 use conv_engines::xuse::xarc::{CrcTarget, Xarc};
 use conv_engines::xuse::xsa::Xsa;
 
+mod build;
 mod mages;
 mod version;
 
@@ -288,7 +289,7 @@ fn main() -> Result<()> {
             convert_nss(&game, &file, scene.as_deref(), chain, &output, font.as_deref(), &title, loose, dry_run)
         }
         Command::Lint { dir } => {
-            let report = lint_dir(&dir, true)?;
+            let report = build::lint_dir(&dir, true)?;
             print!("{report}");
             if !report.is_empty() {
                 bail!("problems found");
@@ -368,12 +369,7 @@ fn convert_game(game: &Path, output: &Path, font: Option<&Path>, title: &str, lo
     if ids.is_empty() {
         bail!("no NNNN.cd scripts in {}", dir.display());
     }
-    fs::create_dir_all(output)?;
-    // Packing deletes these folders afterwards, so never start with ones
-    // that might hold someone's own files.
-    if let Some(d) = ASSET_DIRS.iter().find(|d| !loose && output.join(d).exists()) {
-        bail!("{} already exists; move it away first (it would be packed and then deleted)", output.join(d).display());
-    }
+    build::check_output(output, &ASSET_DIRS, !loose)?;
 
     let maps: Vec<(String, Mmap)> = ids
         .iter()
@@ -433,7 +429,6 @@ fn convert_game(game: &Path, output: &Path, font: Option<&Path>, title: &str, lo
         title: title.to_string(),
         width: 800,
         height: 600,
-        global_border: None,
         window: Some(window),
         title_screen,
         save_menu,
@@ -444,87 +439,14 @@ fn convert_game(game: &Path, output: &Path, font: Option<&Path>, title: &str, lo
         extras,
         ops,
         version: Some(version::line()),
-        command_menu: None,
+        ..Default::default()
     };
     let source = image_format(output, conv_cons::emit(&ir), webp)?;
-    let (encoded, lost) = conv_cons::encode(&source);
-    fs::write(output.join("0.txt"), encoded)?;
-    if let Some(v) = &ir.version {
-        version::write(output, title, v, None)?;
-    }
-    fs::write(output.join("ons_args"), conv_cons::ENGINE_ARGS)?;
-    if let Some(font) = font {
-        fs::copy(font, output.join("default.ttf")).with_context(|| format!("copying {}", font.display()))?;
-    }
-
+    let lost = build::write_game(output, &ir, &source, font, None)?;
     if !loose {
-        pack(output, &ASSET_DIRS)?;
+        build::pack(output, &ASSET_DIRS)?;
     }
-
-    report(&ir, lost, font.is_some());
-    Ok(())
-}
-
-/// Packs the files under `dirs` (subfolders included) into .nsa archives,
-/// then deletes the folders.
-fn pack(output: &Path, dirs: &[&str]) -> Result<()> {
-    fn walk(dir: &Path, name: &str, files: &mut Vec<conv_cons::nsa::NsaFile>) -> Result<()> {
-        let Ok(entries) = fs::read_dir(dir) else { return Ok(()) };
-        let mut paths: Vec<_> = entries.filter_map(|e| e.ok()).map(|e| e.path()).collect();
-        paths.sort();
-        for path in paths {
-            let name = format!("{name}\\{}", path.file_name().unwrap().to_string_lossy());
-            if path.is_dir() {
-                walk(&path, &name, files)?;
-            } else {
-                files.push(conv_cons::nsa::NsaFile { name, source: path });
-            }
-        }
-        Ok(())
-    }
-    let mut files = Vec::new();
-    for d in dirs {
-        walk(&output.join(d), d, &mut files)?;
-    }
-    let archives = conv_cons::nsa::write_archives(output, &files).context("packing .nsa archives")?;
-    for d in dirs {
-        let _ = fs::remove_dir_all(output.join(d));
-    }
-    for a in &archives {
-        let size = fs::metadata(a)?.len();
-        println!("  {}: {:.1} MB", a.display(), size as f64 / 1e6);
-    }
-    println!("  packed {} files", files.len());
-    Ok(())
-}
-
-fn report(ir: &Script, lost: usize, has_font: bool) {
-    let mut unsupported = std::collections::BTreeMap::<String, usize>::new();
-    let mut converted = 0;
-    for op in &ir.ops {
-        match op {
-            Op::Unsupported { what, .. } => {
-                let key = what.split(" sub").next().unwrap_or(what).to_string();
-                *unsupported.entry(key).or_default() += 1;
-            }
-            Op::Label(_) => {}
-            _ => converted += 1,
-        }
-    }
-    println!("  converted operations: {converted}");
-    let total: usize = unsupported.values().sum();
-    println!("  unsupported instructions: {total}");
-    let mut by_count: Vec<_> = unsupported.into_iter().collect();
-    by_count.sort_by_key(|a| std::cmp::Reverse(a.1));
-    for (what, n) in by_count.iter().take(12) {
-        println!("    {n:>6}  {what}");
-    }
-    if lost > 0 {
-        println!("  characters not representable in Shift-JIS: {lost}");
-    }
-    if !has_font {
-        println!("  note: no --font given; CONscripter needs default.ttf in the game directory");
-    }
+    build::summary(output, &ir, lost, font.is_some(), Default::default(), Some(true))
 }
 
 fn convert_script(game: &Path, script: u32, output: &Path, font: Option<&Path>, title: &str, webp: bool) -> Result<()> {
@@ -540,22 +462,12 @@ fn convert_script(game: &Path, script: u32, output: &Path, font: Option<&Path>, 
     let names = label_names(game)?;
     let ops =
         lower_script(&cd, &file, Flow::Jumps, &mut assets, &presets, &names).with_context(|| format!("converting {file}"))?;
-    let ir = Script { title: title.to_string(), width: 800, height: 600, global_border: None, window: Some(window), title_screen: None, save_menu: None, button_bar: None, settings: None, backlog: None, confirm: None, extras: None, ops, version: Some(version::line()), command_menu: None };
+    let ir = Script { title: title.to_string(), width: 800, height: 600, window: Some(window), ops, version: Some(version::line()), ..Default::default() };
 
     let source = image_format(output, conv_cons::emit(&ir), webp)?;
-    let (encoded, lost) = conv_cons::encode(&source);
-    fs::write(output.join("0.txt"), encoded)?;
-    if let Some(v) = &ir.version {
-        version::write(output, title, v, None)?;
-    }
-    fs::write(output.join("ons_args"), conv_cons::ENGINE_ARGS)?;
-    if let Some(font) = font {
-        fs::copy(font, output.join("default.ttf")).with_context(|| format!("copying {}", font.display()))?;
-    }
-
+    let lost = build::write_game(output, &ir, &source, font, None)?;
     println!("{file} ({}) -> {}", cd.name, output.join("0.txt").display());
-    report(&ir, lost, font.is_some());
-    Ok(())
+    build::summary(output, &ir, lost, font.is_some(), Default::default(), None)
 }
 
 fn map(path: &Path) -> Result<Mmap> {
@@ -896,10 +808,7 @@ fn convert_nss(
     use conv_engines::nitroplus::assets::{NpaAssets, OUTPUT_DIRS};
     use conv_engines::nitroplus::{convert, nss};
     let exe = game.join("Muramasa.exe");
-    fs::create_dir_all(output)?;
-    if let Some(d) = OUTPUT_DIRS.iter().find(|d| !loose && !dry_run && output.join(d).exists()) {
-        bail!("{} already exists; move it away first (it would be packed and then deleted)", output.join(d).display());
-    }
+    build::check_output(output, &OUTPUT_DIRS, !loose && !dry_run)?;
     // Read entry by entry, not mapped: the mapped pages of cg.npa and
     // voice.npa (3 GB) would count as the converter's memory.
     let key = npa_key(&exe)?;
@@ -919,7 +828,7 @@ fn convert_nss(
     }
     let (cg, sound, voice) = (npas.next().unwrap(), npas.next().unwrap(), npas.next().unwrap());
     let mut assets = NpaAssets::new(cg, sound, voice, output);
-    assets.dry_run = dry_run;
+    assets.out.dry_run = dry_run;
     let scene = scene.unwrap_or(file);
     // The game's own additions to the compiler, by its exe (the only
     // Nitroplus game so far).
@@ -932,7 +841,7 @@ fn convert_nss(
         }
         None => convert::compile_scene(&files, file, scene, game, &mut assets).map_err(anyhow::Error::msg)?,
     };
-    for e in &assets.errors {
+    for e in &assets.out.errors {
         println!("  asset error: {e}");
     }
     if std::env::var_os("NSS_TRACE").is_some() {
@@ -948,85 +857,19 @@ fn convert_nss(
         height: convert::SCREEN_H as u32,
         global_border: Some(convert::GLOBAL_BORDER),
         window: compiled.window,
-        title_screen: None,
-        save_menu: None,
-        button_bar: None,
-        settings: None,
-        backlog: None,
-        confirm: None,
-        extras: None,
         ops: compiled.ops,
         version: Some(version::line()),
-        command_menu: None,
+        ..Default::default()
     };
     game.menus(&mut assets, &mut ir);
-    let (encoded, lost) = conv_cons::encode(&conv_cons::emit(&ir));
     // A dry run writes the script but no assets.
-    fs::write(output.join("0.txt"), encoded)?;
-    if let Some(v) = &ir.version {
-        version::write(output, title, v, None)?;
-    }
-    fs::write(output.join("ons_args"), conv_cons::ENGINE_ARGS)?;
-    if !dry_run {
-        if let Some(font) = font {
-            fs::copy(font, output.join("default.ttf")).with_context(|| format!("copying {}", font.display()))?;
-        }
-        if !loose {
-            pack(output, &OUTPUT_DIRS)?;
-        }
+    let lost = build::write_game(output, &ir, &conv_cons::emit(&ir), font.filter(|_| !dry_run), None)?;
+    if !dry_run && !loose {
+        build::pack(output, &OUTPUT_DIRS)?;
     }
     println!("{file} -> {scene} -> {}", output.join("0.txt").display());
-    report(&ir, lost, font.is_some());
-    let mut notes: Vec<_> = compiled.notes.into_iter().collect();
-    notes.sort_by_key(|n| std::cmp::Reverse(n.1));
-    if !notes.is_empty() {
-        println!("  not converted or approximated:");
-    }
-    for (what, n) in notes {
-        println!("    {n:>6}  {what}");
-    }
     // A dry run has no assets to look for.
-    let lint = lint_dir(output, !dry_run)?;
-    if !lint.is_empty() {
-        println!("  lint:");
-        print!("{lint}");
-    }
-    Ok(())
-}
-
-/// Lints `dir/0.txt` ([`conv_cons::lint`]). With `files`, also checks that
-/// the files it names are in `dir`'s .nsa archives, or loose with an ASCII
-/// name (CONscripter doesn't find loose files with Japanese names).
-fn lint_dir(dir: &Path, files: bool) -> Result<conv_cons::lint::Report> {
-    let path = dir.join("0.txt");
-    let bytes = fs::read(&path).with_context(|| format!("reading {}", path.display()))?;
-    let script = conv_cons::decode(&bytes);
-    let mut have = std::collections::HashSet::new();
-    if files {
-        for entry in fs::read_dir(dir)? {
-            let path = entry?.path();
-            let name = path.file_name().unwrap_or_default().to_string_lossy().to_ascii_lowercase();
-            if name.starts_with("arc") && name.ends_with(".nsa") {
-                for n in conv_cons::nsa::read_names(&path).with_context(|| format!("reading {}", path.display()))? {
-                    have.insert(n.to_lowercase());
-                }
-            }
-        }
-        fn walk(dir: &Path, name: &str, have: &mut std::collections::HashSet<String>) {
-            let Ok(entries) = fs::read_dir(dir) else { return };
-            for path in entries.filter_map(|e| e.ok()).map(|e| e.path()) {
-                let file = path.file_name().unwrap_or_default().to_string_lossy().to_lowercase();
-                let name = if name.is_empty() { file } else { format!("{name}\\{file}") };
-                if path.is_dir() {
-                    walk(&path, &name, have);
-                } else if name.is_ascii() {
-                    have.insert(name);
-                }
-            }
-        }
-        walk(dir, "", &mut have);
-    }
-    Ok(conv_cons::lint::lint(&script, &|n| !files || have.contains(&n.replace('/', "\\").to_lowercase())))
+    build::summary(output, &ir, lost, font.is_some(), compiled.notes, Some(!dry_run))
 }
 
 fn npa_key(exe: &Path) -> Result<conv_engines::nitroplus::npa::Key> {

@@ -452,6 +452,12 @@ pub enum Op {
     /// A screen of pictures over the scene until a click (see
     /// [`PictureScreen`]).
     PictureScreen(Box<PictureScreen>),
+    /// Draw a layer's sprite in front of an [`Op::Overlay`] over the sprites
+    /// (but under [`Op::Noise`] and [`Op::Animation`]), or (`front` false)
+    /// back at its place. It stays until the sprite is removed.
+    SpriteInFront { layer: u32, front: bool },
+    /// The [`ChapterHistory`] starts over, empty.
+    ChapterHistoryClear,
     /// Move a layer's sprite by itself along `keys` (ms from now, x, y
     /// offset from its place in pixels), straight from key to key, while
     /// the game goes on (text and click waits too): `looped` starts again
@@ -763,6 +769,43 @@ pub struct TopBars {
     pub row_text: TextSpot,
     pub row_color: String,
     pub current_row_color: String,
+    /// Opened by clicking the chapter bar; `None`: the bar isn't a button.
+    pub chapter_history: Option<ChapterHistory>,
+}
+
+/// The chapters reached since the history was last cleared
+/// ([`Op::ChapterHistoryClear`]), listed in columns over the scene: each
+/// [`Op::Chapter`] keeps the game as it is there, and choosing a chapter
+/// (after a yes/no question) goes back to it; the chapters after it stay
+/// listed until another one is reached.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ChapterHistory {
+    /// Full-screen pictures, `base` drawn at `base_opacity` (0-255).
+    pub base: Placed,
+    pub base_opacity: u8,
+    pub frame: Placed,
+    /// Three cells: normal, under the pointer, disabled.
+    pub close: Placed,
+    /// A row's look under the pointer, at the row's place.
+    pub hover: Placed,
+    /// Marks the current chapter's row, at its offset (`x`, `y`) from the
+    /// row's place.
+    pub current: Placed,
+    /// Rows: the first column's first row at (`x`, `y`), then `row_pitch`
+    /// down and `column_pitch` across, `rows` to a column, each
+    /// `row_width` wide; the title starts at `text_dx`, `text_dy` in it.
+    pub x: i32,
+    pub y: i32,
+    pub row_pitch: i32,
+    pub column_pitch: i32,
+    pub rows: u32,
+    pub columns: u32,
+    pub row_width: i32,
+    pub text_dx: i32,
+    pub text_dy: i32,
+    pub font_size: u32,
+    /// The question asked before going back, around the chapter's title.
+    pub question: (String, String),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -819,6 +862,10 @@ pub enum BarAction {
     /// ([`CommandItem::label`]); the background, the game's sprites and the
     /// music are put back after.
     Call,
+    /// Unpins the bars (the button's `active` look) or pins them again
+    /// (the default): unpinned, the top bars stay hidden and the button
+    /// bar shows only while the pointer is below `reveal_y`.
+    Lock { reveal_y: i32 },
 }
 
 /// The extras the title's option button opens: a menu of modes over its
@@ -1152,6 +1199,11 @@ pub enum Switch {
     /// A voice goes on playing after the click that reads on, until the
     /// next voice (off: the click stops it).
     VoiceKeepsPlaying,
+    /// The music, the sound effects, the voices are heard (off: muted,
+    /// whatever their level).
+    BgmOn,
+    SeOn,
+    VoiceOn,
     /// A scene already read offers to be skipped (the MAGES scene jump
     /// dialog); off: it just plays.
     SceneSkipDialog,
@@ -1314,6 +1366,76 @@ pub struct Script {
     pub version: Option<String>,
     /// `None` = right-click at a click wait does what the button bar does.
     pub command_menu: Option<CommandMenu>,
+    /// The save and load screens as a grid of thumbnails, in place of
+    /// [`Script::save_menu`].
+    pub save_grid: Option<SaveGrid>,
+}
+
+/// The save and load screens as pages of thumbnails over a picture per
+/// page (one set for saving, one for loading). Slots run down the columns
+/// from `first`, `row_step` apart, the next column `column_step` away. The
+/// slot under the pointer is framed and its details show (the date, the
+/// play time, the chapter, the last line, a larger thumbnail); a click
+/// saves (asking before overwriting, then a notice until a click), loads
+/// (asking), or in delete mode deletes (asking). Previous and next page go
+/// round; a right-click or `close` leaves. It cross-fades in and out, and
+/// from page to page, over `fade_ms`.
+///
+/// Buttons are strips of four cells: normal, under the pointer, disabled,
+/// pressed.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SaveGrid {
+    pub save_pages: Vec<String>,
+    pub load_pages: Vec<String>,
+    /// Over the thumbnails (their frames), full screen.
+    pub frames: Option<Placed>,
+    pub first: (i32, i32),
+    pub row_step: i32,
+    pub column_step: i32,
+    pub rows: u32,
+    pub columns: u32,
+    /// The thumbnails' size (the screen scaled down).
+    pub thumb_w: u32,
+    pub thumb_h: u32,
+    /// Around the slot under the pointer, `offset` from its top left.
+    pub hover: Placed,
+    pub hover_offset: (i32, i32),
+    /// On the newest save, `offset` from its top left.
+    pub new_mark: Placed,
+    pub new_offset: (i32, i32),
+    pub previous: Placed,
+    pub next: Placed,
+    /// Toggles delete mode; `delete_on` is shown over it while it is on.
+    pub delete: Placed,
+    pub delete_on: Placed,
+    pub close: Placed,
+    /// The slot under the pointer's thumbnail, larger, filling this box.
+    pub preview: Rect,
+    pub date: GridText,
+    pub play_time: GridText,
+    pub chapter: GridText,
+    pub line: GridText,
+    /// Shown over a dimmed screen after saving, until a click.
+    pub saved: Option<Placed>,
+    pub fade_ms: u32,
+}
+
+/// A text of [`SaveGrid`]: its box's top left (for vertical text, its top
+/// right column's left edge), the size of its characters, how many lines
+/// of how many characters, the gaps, the colour.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GridText {
+    pub x: i32,
+    pub y: i32,
+    pub font_size: u32,
+    pub lines: u32,
+    pub chars: u32,
+    pub line_gap: u32,
+    /// Between characters (may be negative).
+    pub char_gap: i32,
+    pub colour: String,
+    /// In columns, top to bottom, from the right.
+    pub vertical: bool,
 }
 
 /// A menu of commands opened over the game at a click wait, by a

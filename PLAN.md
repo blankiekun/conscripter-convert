@@ -161,6 +161,7 @@ Engine features added for converted games (details in the engine's
 | `screenshake` and `screenripple` (effects that move by themselves on the picture behind the text window, 8 shared slots, stepped like sprite animations, kept in saves) | 0x8c's Animation-Vibrate (12 uses: shaking while a line is shown) and Animation-Replace (25: a ripple through `mask1001.png` and others, 「視界が歪んだ」). The parameters are the original modules'. 0x70's Filter-Replace (16 uses, wind and heat haze) is a still `screenripple` in slots 5-8 |
 | `screenpulse` (a tinted copy of the picture that swells over it and fades, sin(πt); same slots as `screenshake`) | 0x6f "surprise" pulses (87 uses): 10-20 % zoom, opacity 100-200, untinted, light red or white |
 | `spfade num,ms[,from]` (a sprite fades in by itself while the script goes on) | 0x8c's static (Animation-RandomNoise), whose opacity rises from 0 over up to 2 s (37 of 88 uses take 1-2 s) |
+| `spz num,over` (a sprite drawn right over another instead of at its own number; kept in saves and by `pushscreen`) | 最果てのイマ's bust-ups at depth 1100-5000 (62 entries), which the original draws over the frame overlay (depth 1000) but under the static and the animations |
 | `screenflash opacity,colour` (a colour added over everything on the screen, the text window included) | 0x6e flashes (88 uses), whose object sorts over everything (key `0xffffffff`); an `lsp2add` stays under the text window |
 | `!zNNN` text size tag (NNN percent of the window's font size, on the baseline, scaled width) | 0x49 text styles: shouting at 125-175 % and mumbling at 75-95 % in about 380 messages (NScripter text has colour tags but no size). Colours from the same records use `#RRGGBB` |
 | Text hooks in the web build (`onsyuriText`, `onsyuriChoice`, `onsyuriOverlay`) | Not for a converted game: chimimouryou lays each page's text over the game for Yomitan and reading statistics. Was a patch kept in chimimouryou (`scripts/onsyuri/text-hook.patch`) |
@@ -171,6 +172,8 @@ Engine features added for converted games (details in the engine's
 | `spbtn num,no,pressed_cell` (the cell a sprite button shows while the mouse button is held on it) | 装甲悪鬼村正's buttons have a pressed picture (`003`, `MouseClick`) for every button; first used by its yes/no dialogs |
 | `selectvoice` outside the define section (an empty name is no sound) | 装甲悪鬼村正's title plays a sound when the pointer comes onto a button, and only there |
 | `getkey` (letter keys end the next `btnwait`/`textbtnwait`, -1000 minus the letter's code) | 装甲悪鬼村正's shortcuts (`SetShortcut`): M opens the right-click menu, and H, A, N, R, B, S, L, Q, P, F, C, T run its items at any click wait |
+| `vstrsp` (`strsp` with its text in columns from the right, kept in saves and by `pushscreen`) | 装甲悪鬼村正's save screen: the chapter title and the page's text down in columns in its side panel |
+| `getplaytime` / `setplaytime` (the play time counted by the engine, kept in each save as it stands when written, put back by a load) | 装甲悪鬼村正's save screen shows each save's play time (`$PLAY_TIME`) |
 
 Planned, from limits hit by converted games (each one is worked around
 in the script today), roughly in order of payoff:

@@ -163,8 +163,9 @@ fn label_refs(code: &str) -> Vec<&str> {
 /// A file name in a string argument (`":a;cg\bg\a.png"` → `cg\bg\a.png`).
 fn file_name(s: &str) -> Option<&str> {
     let name = if s.starts_with(':') { &s[s.find(';')? + 1..] } else { s };
-    let ext = name.rsplit_once('.')?.1.to_ascii_lowercase();
-    (EXTENSIONS.contains(&ext.as_str()) && !name.contains(['$', '%'])).then_some(name)
+    let (stem, ext) = name.rsplit_once('.')?;
+    // A bare extension is added to a name built at run time.
+    (!stem.is_empty() && EXTENSIONS.contains(&ext.to_ascii_lowercase().as_str()) && !name.contains(['$', '%'])).then_some(name)
 }
 
 fn short(line: &str) -> String {
@@ -185,6 +186,7 @@ select \"a\",*start,\"b\",*gone
 mov %1,%2*%3
 lsp 1,\":a;cg\\a.png\",0,0
 lsp 2,\":c;cg\\b.jpg\",0,0
+add $1,\".bmp\"
 tateyoko 1:setwindow 1,1,1,1,1,1,1,0,1,0,1,#000000
 　縦の!?テキスト\\
 　#ff0000赤い!s20字(る/び)@
