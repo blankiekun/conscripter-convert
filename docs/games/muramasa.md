@@ -65,7 +65,7 @@ writes 3.5 GB. Run one at a time.
 | Parallel processes (`CreateProcess`: battle HUD, fire flicker, …) | ❌ Not converted; planned through Lua |
 | Additive / multiply blends, `Rotate`, `SetFrequency`, camera moves | ❌ Not converted |
 | 立方陣 minigame (`function_magiccube.nss`) | ✅ Ported (see "The 立方陣" below) |
-| System screens (title, save/load, settings, backlog) | 🟡 Title, right-click menu, quick bar, questions, save/load, favour screen done; backlog, settings and motion to do ("Next" item 4) |
+| System screens (title, save/load, settings, backlog) | 🟡 Title, right-click menu, quick bar, questions, save/load, favour screen done; backlog done; click-wait icon, settings and motion to do ("Next" item 4) |
 | Extras | ❌ Out of scope for now (decided 2026-10-13) |
 
 ## Files and formats
@@ -821,8 +821,26 @@ Next, in order:
         has only the source's.
       - No transitions inside the screen (the details appear at once;
         the original fades them).
-   5. Backlog (line scrolling, voice icon, scroll knob) and the
-      click-wait icon.
+   5. Done: the backlog (a new `LineLog`, in
+      `conv-cons/src/line_log.rs`; Muramasa's values in
+      `convert/muramasa/screens.rs`, `line_log()`): sixteen rows of 26
+      characters over バックログ背景, the history laid out as rows by
+      CONscripter (`logrows`, `getlogrow`, 8a7a34e: each page's lines cut
+      at 26, ruby as its base text, a voiced page's voice on its first
+      row). The speaker icon (x 102) replays the voice; the wheel and
+      逆/進 scroll a row, wheel-down at the newest row, 退出 and a
+      right-click close; the knob (x 860, y 50 oldest to 461 newest)
+      can be dragged. It fades in and out over 300 ms. Wheel-up at a
+      click wait and the menu's ログ表示 open it. The history used to end
+      at the last window change: NScripter's `setwindow` flushes it, and
+      the converter re-sets the window for each text block. Every game's
+      window changes are now `setwindow3` (the same without the flush;
+      Saihate's opening trace has the same pages either way). Beside the
+      original (wine, the same pages): at the newest row the icons, knob
+      and panel are the same pixels, text placed within 2 px (the font
+      differs). Filmed at 60 fps (`film/backlog-wheel-4up4down.mkv`), the
+      original moves a row a notch in two 15 px steps about 33 ms apart;
+      ours moves the row at once. Left: the click-wait icon.
    6. Settings drawn as one picture (a new `PictureSettings`: vertical
       sliders, 入/切 pairs, voice window, version line).
    7. Motion: fire flicker, opening, menu cascade, dialog unroll, quick
