@@ -344,6 +344,7 @@ pub fn save_menu(assets: &mut ArchiveAssets, labels: &Labels) -> Option<SaveMenu
         font_size: 16,
         line_height: 28,
         preview,
+        backdrop: None,
     })
 }
 

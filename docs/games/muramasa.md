@@ -41,6 +41,12 @@ about 3 minutes and 1.2 GB of memory (2026-10-14; it was 7 GB until
 big zooms were cut to the screen, see "How the compiler works"), and
 writes 3.5 GB. Run one at a time.
 
+`--webp` (near-lossless) or `--webp --webp-quality 80` (lossy) stores
+the pictures as WebP, for the web build: the first two files
+(`--chain 2`) have 497 pictures, 66.5 MB as PNG, 13.3 MB at quality 80.
+The other convert options (`--loose`, `--audio-codec`,
+`--audio-quality`) are listed in the README.
+
 - Start at `ma00_000.nss`, the new game of the boot script (the
   prologue, and the file that unlocks 魔王編). Starting anywhere else
   skips the unlock.

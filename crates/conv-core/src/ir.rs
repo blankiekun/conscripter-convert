@@ -35,6 +35,10 @@ pub enum TransitionStyle {
     /// column falling faster and faster; a falling column is stretched by
     /// up to `stretch_percent` more.
     Melt { stretch_percent: u32 },
+    /// The pictures are two faces of a cube as large as the screen,
+    /// turning a quarter turn, seen straight on: the new face comes in
+    /// moving in direction `dx`, `dy` (one of them ±1), both squeezed.
+    Cube { dx: i8, dy: i8 },
 }
 
 /// What moves in a [`TransitionStyle::Slide`].
@@ -672,6 +676,11 @@ pub struct SaveMenu {
     pub line_height: i32,
     /// The selected slot's thumbnail at full size (absolute position).
     pub preview: Rect,
+    /// A screen filter over the scene while the menu is open in game: the
+    /// `screenfilter` slot (one the game leaves free then), then kind,
+    /// blend, strength and the three parameters. It is off while a save is
+    /// written, since saves keep the screen filters.
+    pub backdrop: Option<(u32, [i32; 6])>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

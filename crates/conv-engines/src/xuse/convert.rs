@@ -331,9 +331,10 @@ const OP_FADE_WHITE: u16 = 0x74;
 const BG_PER_ARCHIVE: usize = 64;
 const BU_PER_ARCHIVE: usize = 128;
 const SE_FIRST_BANK: usize = 256;
-/// Opacity of the text window's base layer (estimated from a screenshot of
-/// the original game).
-const WINDOW_OPACITY_PERCENT: u32 = 55;
+/// Opacity of the text window's base layer, and of the save menu's:
+/// measured under wine against the same scene without them, 0.495 on
+/// every row of the box's gradient and 0.50 on the save menu's.
+const WINDOW_OPACITY_PERCENT: u32 = 50;
 /// Assumption: the title screen fades in and out over this long.
 const TITLE_FADE_MS: u32 = 1000;
 /// A voice id's character is `id / VOICE_CHARACTER`.
@@ -399,6 +400,8 @@ pub struct AssetBank {
     /// `HD/fx.arc` once read, and the animations written from it.
     fx_arc: Option<Vec<u8>>,
     animations: HashMap<String, Option<FxAnimation>>,
+    /// Write no files (a dry run): the names and sizes only.
+    pub dry_run: bool,
 }
 
 /// A full-screen animation from `HD/fx.arc`, written as one picture.
@@ -505,7 +508,16 @@ impl AssetBank {
             last_bank: None,
             fx_arc: None,
             animations: HashMap::new(),
+            dry_run: false,
         }
+    }
+
+    /// Writes `data` to `name` in the output, unless this is a dry run.
+    fn write(&self, name: &str, data: &[u8]) -> Result<(), ConvertError> {
+        if self.dry_run {
+            return Ok(());
+        }
+        write_file(&self.out.join(name), data)
     }
 
     /// Background `number` as used by opcode 0x54 (1-based).
@@ -529,7 +541,7 @@ impl AssetBank {
         let stem = base.path.strip_suffix(".png").unwrap_or(&base.path);
         let name = format!("{stem}_s{sx}x{sy}.png");
         let key = ("scaled sprite", number * 1_000_000 + sx as usize * 1000 + sy as usize);
-        if !self.written.contains_key(&key) {
+        if !self.dry_run && !self.written.contains_key(&key) {
             let src = self.out.join(&base.path);
             let img = image::open(&src).map_err(|source| ConvertError::Image { what: base.path.clone(), source })?;
             let scaled = image::imageops::resize(&img.to_rgba8(), width, height, image::imageops::FilterType::Lanczos3);
@@ -612,7 +624,7 @@ impl AssetBank {
         let mut png = Vec::new();
         img.write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
             .map_err(|source| ConvertError::Image { what: name.clone(), source })?;
-        write_file(&self.out.join(&name), &png)?;
+        self.write(&name, &png)?;
         self.written.insert((kind, number), name.clone());
         Ok(name)
     }
@@ -630,7 +642,7 @@ impl AssetBank {
         let mut png = Vec::new();
         img.write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
             .map_err(|source| ConvertError::Image { what: name.clone(), source })?;
-        write_file(&self.out.join(&name), &png)?;
+        self.write(&name, &png)?;
         self.written.insert(("fill", rgb as usize), name.clone());
         Ok(name)
     }
@@ -652,7 +664,7 @@ impl AssetBank {
         let mut png = Vec::new();
         img.write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
             .map_err(|source| ConvertError::Image { what: name.clone(), source })?;
-        write_file(&self.out.join(&name), &png)?;
+        self.write(&name, &png)?;
         self.written.insert(key, name.clone());
         Ok(name)
     }
@@ -679,7 +691,7 @@ impl AssetBank {
         let mut png = Vec::new();
         img.write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
             .map_err(|source| ConvertError::Image { what: name.clone(), source })?;
-        write_file(&self.out.join(&name), &png)?;
+        self.write(&name, &png)?;
         self.written.insert(key, name.clone());
         Ok(name)
     }
@@ -696,7 +708,7 @@ impl AssetBank {
         let mut png = Vec::new();
         img.write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
             .map_err(|source| ConvertError::Image { what: name.clone(), source })?;
-        write_file(&self.out.join(&name), &png)?;
+        self.write(&name, &png)?;
         self.written.insert(("dither", 0), name.clone());
         Ok(name)
     }
@@ -718,7 +730,7 @@ impl AssetBank {
         let mut png = Vec::new();
         img.write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
             .map_err(|source| ConvertError::Image { what: name.clone(), source })?;
-        write_file(&self.out.join(&name), &png)?;
+        self.write(&name, &png)?;
         self.written.insert(("noise", 0), name.clone());
         Ok(name)
     }
@@ -776,7 +788,7 @@ impl AssetBank {
         strip
             .write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
             .map_err(|source| ConvertError::Image { what: image.clone(), source })?;
-        write_file(&self.out.join(&image), &png)?;
+        self.write(&image, &png)?;
         Ok(Some(FxAnimation { image, frame_ms: script.frames.iter().map(|&(_, ms)| ms).collect(), looped: script.looped }))
     }
 
@@ -791,14 +803,20 @@ impl AssetBank {
         if preset.style == 0 {
             return self.text_window();
         }
-        let (font_size, line_gap, columns, rows) = match preset.style {
-            1 => (21, 14, 26, 12),
-            2 | 7 => (24, 11, 25, 13),
-            3 | 4 => (18, 4, 40, 23),
-            5 => (16, 11, 40, 16),
-            6 => (24, 12, 26, 5),
-            8 => (19, 15, 36, 15),
-            _ => (24, 12, 26, 3),
+        // Font size, line gap, columns, rows and the first character's
+        // offset from the window: measured under wine, the opening's pages
+        // shown in each style (`0002.cd`'s ADV preset patched), against
+        // ours on the same lines, to 2-3 px. Characters advance by the font
+        // size + 1, so an 18 px pitch is a 17 px font. `None`: estimated
+        // (style 6, which the game doesn't use).
+        let (font_size, line_gap, columns, rows, offset) = match preset.style {
+            1 => (24, 12, 24, 12, Some((21, 24))),
+            2 | 7 => (24, 12, 25, 13, Some((48, 35))),
+            3 | 4 => (17, 5, 40, 23, Some((41, 26))),
+            5 => (17, 11, 36, 16, Some((33, 21))),
+            6 => (24, 12, 26, 5, None),
+            8 => (20, 13, 36, 15, Some((43, 60))),
+            _ => (24, 12, 26, 3, None),
         };
         let file = format!("TextWnd{}.004", preset.style);
         let images = self.wnd_images(&file)?;
@@ -815,8 +833,11 @@ impl AssetBank {
         } else {
             None
         };
-        let text_x = x + (w as i32 - columns as i32 * (font_size as i32 + 1)) / 2;
-        Ok(TextWindow { image, x, y, text_x, text_y: y + 20, columns, rows, font_size, line_gap, vertical: false, name_plate, wait_icon_at: None })
+        let (text_x, text_y) = match offset {
+            Some((dx, dy)) => (x + dx, y + dy),
+            None => (x + (w as i32 - columns as i32 * (font_size as i32 + 1)) / 2, y + 20),
+        };
+        Ok(TextWindow { image, x, y, text_x, text_y, columns, rows, font_size, line_gap, vertical: false, name_plate, wait_icon_at: None })
     }
 
     /// The four PNG layers (message base, frame, name base, frame) of a
@@ -1229,6 +1250,9 @@ impl AssetBank {
             font_size: 14,
             line_height: 15,
             preview: Rect { x: 390, y: 137, w: 400, h: 300 },
+            // The scene behind is blurred slightly (measured under wine:
+            // Gaussian σ about 1): a 3×3 mean, in SmoothCrossFade's slot.
+            backdrop: Some((SMOOTH_BLUR_SLOT, [FILTER_BLUR, FILTER_BLEND_COPY, 256, 1, 1, 0])),
         })
     }
 
@@ -1579,6 +1603,9 @@ impl AssetBank {
     }
 
     fn save_image(&self, name: &str, img: &image::RgbaImage) -> Result<(), ConvertError> {
+        if self.dry_run {
+            return Ok(());
+        }
         let dest = self.out.join(name);
         if let Some(parent) = dest.parent() {
             fs::create_dir_all(parent).map_err(|source| ConvertError::Io { path: parent.to_path_buf(), source })?;
@@ -1615,9 +1642,8 @@ impl AssetBank {
     /// Writes `top` composited over `base` (both PNGs of the same size).
     ///
     /// The game alpha-blends the base layer (an opaque grey gradient) over
-    /// the scene at about 55% opacity; measured on an original screenshot,
-    /// where the box's light top brightens the scene and its dark middle
-    /// darkens it.
+    /// the scene at 50% opacity ([`WINDOW_OPACITY_PERCENT`]): the box's
+    /// light top brightens the scene and its dark middle darkens it.
     fn layered(&self, name: &str, base: &[u8], top: &[u8]) -> Result<(), ConvertError> {
         let load = |png: &[u8]| {
             image::load_from_memory_with_format(png, image::ImageFormat::Png)
@@ -1687,7 +1713,7 @@ impl AssetBank {
         }
         let (width, height) = png_size(img.png);
         let name = unique(&mut self.used_names, dir, &img.file_name(), number);
-        write_file(&self.out.join(&name), img.png)?;
+        self.write(&name, img.png)?;
         let image = Image { path: name, width, height };
         self.images.insert((kind, number), image.clone());
         Ok(image)
@@ -1755,9 +1781,9 @@ impl AssetBank {
         if kind == BGM && loop_start > 0 {
             let tagged = crate::ogg::set_loop_start(xsa.data(entry), loop_start.into())
                 .map_err(|source| ConvertError::Ogg { path: path.clone(), slot, source })?;
-            write_file(&self.out.join(&name), &tagged)?;
+            self.write(&name, &tagged)?;
         } else {
-            write_file(&self.out.join(&name), xsa.data(entry))?;
+            self.write(&name, xsa.data(entry))?;
         }
         self.written.insert((kind, number), name.clone());
         Ok(name)
@@ -1787,7 +1813,7 @@ impl AssetBank {
         let song = self.out.join(song);
         let name = format!("movie/staffroll{number}.mp4");
         let dest = self.out.join(&name);
-        if !dest.exists() {
+        if !self.dry_run && !dest.exists() {
             let pictures = self.gaf_rgba("gd.arc", roll.file, STAFF_ROLL)?;
             let size = format!("{}x{}", staffroll::WIDTH, staffroll::HEIGHT);
             let seconds = format!("{:.3}", f64::from(roll.total_ms) / 1000.0);
@@ -1820,7 +1846,7 @@ impl AssetBank {
         }
         let name = format!("movie/mv{number:04}.mp4");
         let dest = self.out.join(&name);
-        if !dest.exists() {
+        if !self.dry_run && !dest.exists() {
             let mut args: Vec<std::ffi::OsString> = vec!["-i".into(), src.clone().into()];
             args.extend(media::mp4_options(22, "slow").into_iter().map(Into::into));
             media::ffmpeg(&dest, args, |_| Ok(())).map_err(|detail| ConvertError::Ffmpeg { path: src.clone(), detail })?;
@@ -3875,13 +3901,16 @@ fn transition_style(sub: u16) -> TransitionStyle {
             let (dx, dy) = [(0, 1), (-1, 0), (0, -1), (1, 0)][usize::from(sub)];
             TransitionStyle::Curtain { dx, dy }
         }
-        // Trans_BoxRolling (filmed under wine): the new picture rolls in
-        // like a cube face while the old one is squeezed away; 28 from
-        // the bottom, 29 from the left, 30 from the top, 31 (not filmed)
-        // from the right. Drawn as a push of both pictures.
+        // Trans_BoxRolling (setup 0x4427a0, step 0x442420, draw 0x442190;
+        // filmed under wine, 29 and 31 slowed to 3 s): two faces of a cube
+        // turning a quarter turn, seen straight on: the faces' outer edge
+        // is at -(cos + sin) / 2 of the width (the step's sum), the shared
+        // edge at (sin - cos) / 2, each picture squeezed to its face. 28
+        // from the bottom, 29 from the left, 30 from the top, 31 from the
+        // right.
         28..=31 => {
             let (dx, dy) = [(0, -1), (1, 0), (0, 1), (-1, 0)][usize::from(sub - 28)];
-            TransitionStyle::Slide { moving: SlideLayer::Both, dx, dy }
+            TransitionStyle::Cube { dx, dy }
         }
         // Trans_RollFlip (setup 0x446660, draw 0x446390; size factor sin or
         // cos of progress × 90°, 0x446460): flag +0x90 the axis, +0x91
@@ -4052,7 +4081,7 @@ mod tests {
         assert_eq!(transition_style(26), TransitionStyle::ThroughWhite);
         assert_eq!(transition_style(4), TransitionStyle::Threshold);
         assert_eq!(transition_style(7), TransitionStyle::Threshold);
-        assert_eq!(transition_style(29), slide(SlideLayer::Both, 1, 0));
+        assert_eq!(transition_style(29), TransitionStyle::Cube { dx: 1, dy: 0 });
         assert_eq!(transition_style(32), TransitionStyle::Flip { horizontal: true, grow: true });
         assert_eq!(transition_style(35), TransitionStyle::Flip { horizontal: false, grow: false });
         assert_eq!(transition_style(45), TransitionStyle::Melt { stretch_percent: 15 });

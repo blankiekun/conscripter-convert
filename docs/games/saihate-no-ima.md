@@ -27,6 +27,9 @@ target/release/conscripter-convert convert-game <install> \
   -o out/saiima-cons --font <a Japanese TTF, e.g. ipag.ttf> --title "Saihate no Ima COMPLETE"
 ```
 
+`--dry-run` writes `0.txt` only, no assets (about 10 s; the same `0.txt`
+as the full build): use it for anything about logic.
+
 `out/saiima-flow` holds the user's saves: never build into it or touch
 it. `research/xuse/smoke.py` drives a build headless with scripted
 clicks; `research/xuse/routesim.py` simulates routes on both sides
@@ -793,6 +796,53 @@ exe (`research/tools/ghidra/ghidra_export.sh`, names in
    then clears it with a fade over three quarters of the last third and
    waits the rest (`end_transition`). 8 uses in the game. Filmed on our
    build: blurred at the start, sharp at the end.
+23. **Done: the four unchecked assumptions, checked under wine.**
+   - Text window opacity: the same page shot with the box and hidden
+     (the bar's × button), fitted row by row as scene × (1 - a) + C × a:
+     a = 0.495 on every row, C the base picture's grey gradient (226 to
+     19). The converter had 55 %; now 50 % (`WINDOW_OPACITY_PERCENT`).
+   - Save menu base: also 0.50 (the same constant). The scene behind
+     it is also blurred slightly (best fit Gaussian σ 1): converted as
+     `SaveMenu::backdrop`, a 3×3 mean in `screenfilter` slot 4 while the
+     menu is open in game, off while `savegame2` writes the save (saves
+     keep the screen filters). Checked on our build: blurred in the
+     menu, sharp after closing it and after loading the save made there.
+   - Brightness filter: `0004.cd` #16 patched to kind 4 (brightness),
+     -100, against no filter: every channel goes down by 99, clipped at
+     0. So the value adds on a 0-255 scale, as converted.
+   - Negative mask softness: #13 patched to a `0x77` with mask 9 (bright
+     in the centre, dark at the edges), 2 s, softness -30 and +30
+     (`patch/Mn`, `patch/Mp`). With -30 the new picture grows from the
+     centre (bright first), with +30 from the edges (dark first), as
+     converted. Negative is the common case: 200 of the 234 `0x77`.
+24. **Done: the full-screen text styles, measured.** `0002.cd`'s ADV
+   preset (#79-#82: `0x4c` mode, `0x4f` style, `0x50` position, `0x4d`
+   instant) patched to each style in turn (`patch/S1`-`S8`), the opening
+   shot after five pages; ours drawn with the same lines under each
+   style's `setwindow` (`--goto` a test label, `--shot-pages`). The
+   white text with its dark shadow was found row by row in both and the
+   line tops, left edges and character pitch compared. Changes: style 1
+   is a 24 px font (was 21), 24 columns; styles 2/7 start 24 px right and
+   15 px lower, line gap 12; styles 3/4 an 18 px pitch (17 px font), 21
+   px right; style 5 (the footnotes, the most used) an 18 px pitch and
+   28 px lines (was 17 and 27), 36 columns to stay in the box, 16 px
+   right; style 8 a 21 px pitch, 33 px lines, 42 px lower. All now within
+   2 px of the original. Style 6 isn't used by the game and keeps its
+   estimate. The original draws with a substitute for MS Gothic under
+   wine, so the strokes' weight wasn't compared. Styles 3/4 write a
+   speaker's name after the line (「…」忍), 5 on a line of its own, but
+   no full-screen scene has a speaker.
+25. **Done: BoxRolling as a turning cube.** `0004.cd` #13 patched to subs
+   29 and 31 slowed to 3 s (`patch/T29`, `T31`; `T46`, `T47` film
+   MeltDown). The step function (0x442420) sums -(cos + sin) / 2: two
+   faces of a cube as wide as the screen turning a quarter turn, seen
+   straight on, each picture squeezed to its face (sin, cos) and cut at
+   the screen's edges; fitted on the film at the middle (edge at x 380,
+   the old picture's left 560 columns in 420 px; the model: 360, 583 in
+   440). CONscripter's new `cons_cube.dll/dx,dy` draws it
+   (`TransitionStyle::Cube`); it was a push of both pictures. 8 uses.
+   The exe also runs three passes over the new face (0x4291f0), probably
+   shading, not converted.
 
 
 Converted and playable from start to end: text, voices, sprites with
@@ -929,14 +979,8 @@ ones done:
   sprite 60, over it;
 
 **Accuracy.**
-- Transitions: BoxRolling is a push where the original
-  squeezes the pictures like cube faces; MeltDown's stretch for subs
-  46/47 is scaled from the exe, not filmed.
-- Full-screen text styles 1-7: metrics are estimates; calibrate from
-  screenshots of the original (style 5, route 10, is the most used).
-- Unchecked assumptions: negative mask softness inverts the mask; text
-  window opacity 55%; save menu base opacity; the brightness filter's
-  scale (the game uses -80 and -100, read as -255..255).
+- Transitions: MeltDown's stretch for subs 46/47 is scaled from the exe
+  (filmed for item 25, not yet compared).
 
 **Media and packaging.**
 - `arc.nsa` is about 1.2 GB; if the web build can't handle it, split the

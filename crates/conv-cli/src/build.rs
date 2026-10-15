@@ -47,6 +47,46 @@ impl AudioArgs {
     }
 }
 
+/// `--webp` and `--webp-quality`, for every convert command.
+#[derive(clap::Args, Clone, Copy, Debug)]
+pub struct WebpArgs {
+    /// Store images as near-lossless WebP (about half the size of PNG).
+    /// Needs a CONscripter build that reads WebP: the web build, or one
+    /// whose SDL_image has libwebp
+    #[arg(long)]
+    webp: bool,
+    /// With --webp: lossy WebP at this quality (0-100, as cwebp -q),
+    /// smaller than the near-lossless default; transparency stays
+    /// lossless
+    #[arg(long, requires = "webp", value_parser = clap::value_parser!(u8).range(0..=100))]
+    webp_quality: Option<u8>,
+}
+
+impl WebpArgs {
+    /// None for PNG; with --webp, the lossy quality, if any.
+    pub fn get(&self) -> Option<Option<u8>> {
+        self.webp.then_some(self.webp_quality)
+    }
+}
+
+/// With `webp` (Some: the lossy quality, if any), re-encodes the pictures
+/// under `dirs` in `output` (subfolders included) as WebP and points the
+/// script `source` at them. Pictures too large for WebP stay PNG.
+pub fn webp_tree(output: &Path, dirs: &[&str], webp: Option<Option<u8>>, source: String) -> Result<String> {
+    let Some(quality) = webp else {
+        return Ok(source);
+    };
+    let t = conv_cons::webp::convert_tree(output, dirs, quality).context("converting images to WebP")?;
+    println!(
+        "  {} images as WebP: {:.1} MB (PNG {:.1} MB); {} too large for WebP kept as PNG",
+        t.totals.files,
+        t.totals.webp_bytes as f64 / 1e6,
+        t.totals.png_bytes as f64 / 1e6,
+        t.too_large
+    );
+    Ok(conv_cons::webp::retarget_names(&source, &t.names))
+}
+
 /// Re-encodes the voices and sound effects under `dirs` (in `output`) as
 /// `format` asks, before they are packed. Nothing to do for the default.
 pub fn reencode_audio(output: &Path, dirs: &[&str], format: AudioFormat) -> Result<()> {

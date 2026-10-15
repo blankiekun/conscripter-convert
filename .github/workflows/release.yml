@@ -112,7 +112,7 @@ jobs:
         fi
         "$gui" --self-test self-test.json || true
         cat self-test.json
-        python -c "import json, sys; s = json.load(open('self-test.json')); sys.exit(not (s.get('converter_runs') and s['dnd'] and all(s['fonts'].values()) and not s.get('ffmpeg_missing')))"
+        python -c "import json, sys; s = json.load(open('self-test.json')); sys.exit(not (s.get('converter_runs') and s['dnd'] and all(s['fonts'].values()) and not s.get('ffmpeg_missing') and s.get('pillow') is True))"
 
     - name: prepare release
       run: |
