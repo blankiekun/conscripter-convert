@@ -235,7 +235,7 @@ N of the scene replay (`%3000+N`); `0x94` ends a replayed scene.
 | `0x58` | 579 | **solved** (channel 0, stop flag) | stop BGM: `arg` 0 = all, `sub` = fade-out ms |
 | `0x5a` | 2,633 | **solved** (`op_5a` `0x4736f0` → `sound_request` `0x47aab0`, channel 1) | play SE: packed 9-byte record `u32 fade-in ms, u8 loop, u32 sound` (1-based across `k0000.bin` + `k0001.bin`); a non-looping SE isn't played in skip mode (converted: `Op::SeNotSkipped`, `isskip` before the `dwave`). The fade-in (41 uses, 50-3000 ms, mostly loops) is CONscripter's `dwavefadein` (`Op::SeFadeIn`; added after the audit) |
 | `0x5b` | 890 | **solved** (`op_5b` `0x4737a0`, channel 1, stop flag) | stop SE: `arg` = sound or 0 for all, `sub` = fade ms: `dwavefadeout ch,ms` (`Op::SeFadeOut`), which fades and stops while the script goes on |
-| `0x76` | 3,670 | **solved** (`op_76` `0x449df0`): `sub` picks the `Trans_*` class through a jump table (0-3 Wave, 4 Dot4x4, 5-8 SoftEdgeWipe, 9 CrossFade, 10-17 Slide in, 18-25 Slide out, 26 Dissolve, 27 Mosaic, 28-31 BoxRolling, 32-35 RollFlip, 36 SmoothCrossFade, 37-40 Zoom, 41-44 Scroll, 45-47 MeltDown, 48 TvPowerSwitch); the record is u32 ms, u32 flags (bit 0 hides the windows, bits 0-1 remove the bust-ups; always 0), u32 layer byte \| depth << 8 (the transition's sort key: what it covers). Skipped when skipping or with effects off | screen transition. The 3 `0x76` and 9 `0x77` records with another key cover only the objects sorting below it (Status, item 15): in 11 of them that is everything they change, and in `0011.cd` #193 a filter cleared inside a 0.5 s cross-fade goes at once, before it (Status, item 20) |
+| `0x76` | 3,670 | **solved** (`op_76` `0x449df0`): `sub` picks the `Trans_*` class through a jump table (0-3 Wave, 4 Dot4x4, 5-8 SoftEdgeWipe, 9 CrossFade, 10-17 Slide in, 18-25 Slide out, 26 Dissolve, 27 Mosaic, 28-31 BoxRolling, 32-35 RollFlip, 36 SmoothCrossFade, 37-40 Zoom, 41-44 Scroll, 45-47 MeltDown, 48 TvPowerSwitch); the record is u32 ms, u32 flags (bit 0 hides the windows, bits 0-1 remove the bust-ups; always 0), u32 layer byte \| depth << 8 (the transition's sort key: what it covers). Skipped when skipping or with effects off | screen transition. The 3 `0x76` and 9 `0x77` records with another key cover only the objects sorting below it (History, item 15): in 11 of them that is everything they change, and in `0011.cd` #193 a filter cleared inside a 0.5 s cross-fade goes at once, before it (History, item 20) |
 
 **Opcode audit (2026-10-14).** Every opcode the converter handles was
 read again in the decompiled exe (`ghidra_export.sh`; every handler of
@@ -541,10 +541,84 @@ a copy of the save works.
 
 ## Status: reopened (2026-10-14): fixes from the debug trace, then an opcode audit
 
-Declared finished on 2026-10-14; the 0.19 debug trace and the decompiled
-exe (`research/tools/ghidra/ghidra_export.sh`, names in
-`research/xuse/names.tsv`) then showed opcodes read wrong from `objdump`
-(`0x72`/`0x74` above). **Next, in order:**
+Declared finished on 2026-10-14, then reopened the same day: the 0.19
+debug trace and the decompiled exe (`research/tools/ghidra/ghidra_export.sh`,
+names in `research/xuse/names.tsv`) showed opcodes read wrong from
+`objdump`. All 26 items of that list are done, and so is everything the
+debug trace found ("History", below). Nothing is open.
+
+Converted and playable from start to end: text, voices, sprites with
+colour filters, backgrounds, BGM with loop points, sound effects, movies,
+every transition kind (Wave, Dot4x4, SoftEdgeWipe, Dissolve, BoxRolling,
+RollFlip, Zoom, Slide, Scroll, Mosaic, TvPowerSwitch and MeltDown each
+drawn their own way, most filmed in the original under wine), screen
+filters and moving effects, text modes, ruby and text sizes, clickable
+links, chapter titles, the system screens (title, save/load, settings
+with voice switches and read-only skip, backlog with names and voice
+replay, button bars, yes/no confirmations) and the extras (CG gallery,
+scene replay, BGM room). Every story instruction is converted; the two
+left as comments are the start point's debug menu, which the user didn't
+want. Dropped by the user: WSS (the system-voice room), right-click
+menus, native Linux/macOS movie playback.
+
+What follows is the optional leftover list, kept for whoever comes back
+to the game. Nothing in it was asked for.
+
+**Settings screen.** The original's settings dialog has six pages; these
+parts are not converted:
+see History, item 26: the auto waits as two rows, the skip/auto
+switches (their defaults are converted), antialiasing, the CG viewer's
+voices, the system voice, wheel sensitivity, frame rate, inactive-window
+behaviour, the shortcut menu and gamepad.
+
+**Other system screens.**
+- The autosave slots: the original's are in its right-click menu
+  (オートセーブ ▶ 「1 - 開始位置へ戻る」, back to where the session
+  started), which was dropped.
+- Extras: the CG gallery, the scene replay ("chapter") and the BGM room
+  are done; the system voices (WSS, title image 13) are dropped (the
+  user's decision; the item stays greyed out). No title BGM (the
+  original's title code plays none, as far as was checked).
+
+**Script opcodes:** all converted (the converter reports 2 unsupported
+instructions, both in the unreachable debug menu). Notes on the last
+ones done:
+- `0x70`: every kind is converted (Zigzag last, with `screenripple`'s
+  blend);
+- `0x93`/`0x94` are done: `0x93 N` unlocks scene N of the scene replay
+  (global flag `%3000+N`), `0x94` ends a replayed scene (a no-op in play:
+  `if %152 == 1 goto *conv_replay_end`);
+- `0x7a`/`0x8b`/`0x8a`/`0x7b` are done: full-screen animations from
+  `HD/fx.arc` (an `.004` of frames and an `.ap` script each), drawn
+  opaque as an animated sprite (sprite 59, a strip of frames in `fx/`)
+  that outlasts background changes; `0x8a` waits for a one-shot's last
+  frame. The rarer layer-2 `0x7a`/`0x7b` records (6 and 7 uses), which
+  load no animation, are the blog scenes' bust-ups, converted with
+  `0x84`/`0x7d`/`0x7c` as the character layer's sprite (see the opcode
+  table);
+- `0x6d` quakes, `0x6e` flashes and `0x6f` pulses are done. `0x55` is done: a second background object, mostly the
+  `frameNN` overlays (letterbox bars, speed lines), drawn as sprite 61
+  (over the characters) or 999 (under them), kept across `csp -1` but
+  removed by a background change (`0x54`, which with `sub` 1-3 puts
+  `frame01`-`03` there itself; found in the audit); `0x8c`'s static is
+  sprite 60, over it;
+
+**Accuracy.**
+- Transitions: MeltDown's stretch for subs 46/47 is scaled from the exe
+  (filmed for item 25, not yet compared).
+
+**Media and packaging.**
+- `arc.nsa` is about 1.2 GB; if the web build can't handle it, split the
+  voices into `arc1.nsa`.
+- Check that saves, thumbnails (`savethumbN.bmp`) and `kidoku.dat`
+  persist in the WebAssembly build.
+
+## History
+
+Finished work, moved out of "Status" so a session reads only the open
+state. Items are referred to elsewhere as "History, item N".
+
+**The list after the reopening (2026-10-14), all done:**
 1. **Done: `0x72`/`0x74` as fades** (table above): `Op::ScreenFade`, an
    opaque `lsp2 26` faded in under the text window and bars, removed with
    the next background, `csp -1` and a link return. Filmed in the
@@ -871,21 +945,6 @@ exe (`research/tools/ghidra/ghidra_export.sh`, names in
    at once), the autosave's load question (no autosave) and wheel
    sensitivity.
 
-
-Converted and playable from start to end: text, voices, sprites with
-colour filters, backgrounds, BGM with loop points, sound effects, movies,
-every transition kind (Wave, Dot4x4, SoftEdgeWipe, Dissolve, BoxRolling,
-RollFlip, Zoom, Slide, Scroll, Mosaic, TvPowerSwitch and MeltDown each
-drawn their own way, most filmed in the original under wine), screen
-filters and moving effects, text modes, ruby and text sizes, clickable
-links, chapter titles, the system screens (title, save/load, settings
-with voice switches and read-only skip, backlog with names and voice
-replay, button bars, yes/no confirmations) and the extras (CG gallery,
-scene replay, BGM room). Every story instruction is converted; the two
-left as comments are the start point's debug menu, which the user didn't
-want. Dropped by the user: WSS (the system-voice room), right-click
-menus, native Linux/macOS movie playback.
-
 **Found by the debug trace (2026-10-14).** A full exploration with the
 engine's debug trace (`cons_explore.py`, 62,185 pages, 1,220 labels;
 `docs/new-game.md`, "Checking a build with the debug trace") found these:
@@ -911,7 +970,7 @@ engine's debug trace (`cons_explore.py`, 62,185 pages, 1,220 labels;
   (`%151`). A switch between levels (`%2900` = 1) carries the floor over
   instead. The original keeps the whole stack in its saves (the exe has
   `SaveControl\LocalSaveStack.cpp` and `CLocalSceneStack`), so a load
-  there can still go back. So does the port since 2026-10-14 (Status,
+  there can still go back. So does the port since 2026-10-14 (History,
   item 10): a save from the menu keeps the levels' slots beside it and a
   load puts them back, with `%190` as saved; only a save made by an
   older build loads as described above.
@@ -936,7 +995,7 @@ engine's debug trace (`cons_explore.py`, 62,185 pages, 1,220 labels;
   both fade over 15 frames, 0.5 s, which is the 500 ms the 0x8e handler
   (0x4347b0) starts. Every bust-up change now fades over 500 ms. The
   depth itself: bust-ups stack by character number here; those at
-  1100-5000 are drawn over the `frameNN` overlay (Status, item 15).
+  1100-5000 are drawn over the `frameNN` overlay (History, item 15).
 - **Scenes laid out for the wrong text window (fixed).** A second run
   (CONscripter 0.19.0) found 1,320 pages whose text ran past the window,
   all in `s13_l3`-`s13_l37` and `s10_l98`, and 30 voices cut off on the
@@ -957,55 +1016,3 @@ Fixed in CONscripter by the same work: half-width katakana in Shift_JIS
 text (「影（ｼｬﾄﾞｳshadow ）」 in `s7_l8` drew as a blank and lost the next
 character), and saves losing the speaker name (`strsp` 49) and looping
 sound effects on `dwave` channels.
-
-What follows is the optional leftover list, kept for whoever comes back
-to the game. Nothing in it was asked for.
-
-**Settings screen.** The original's settings dialog has six pages; these
-parts are not converted:
-see Status, item 26: the auto waits as two rows, the skip/auto
-switches (their defaults are converted), antialiasing, the CG viewer's
-voices, the system voice, wheel sensitivity, frame rate, inactive-window
-behaviour, the shortcut menu and gamepad.
-
-**Other system screens.**
-- The autosave slots: the original's are in its right-click menu
-  (オートセーブ ▶ 「1 - 開始位置へ戻る」, back to where the session
-  started), which was dropped.
-- Extras: the CG gallery, the scene replay ("chapter") and the BGM room
-  are done; the system voices (WSS, title image 13) are dropped (the
-  user's decision; the item stays greyed out). No title BGM (the
-  original's title code plays none, as far as was checked).
-
-**Script opcodes:** all converted (the converter reports 2 unsupported
-instructions, both in the unreachable debug menu). Notes on the last
-ones done:
-- `0x70`: every kind is converted (Zigzag last, with `screenripple`'s
-  blend);
-- `0x93`/`0x94` are done: `0x93 N` unlocks scene N of the scene replay
-  (global flag `%3000+N`), `0x94` ends a replayed scene (a no-op in play:
-  `if %152 == 1 goto *conv_replay_end`);
-- `0x7a`/`0x8b`/`0x8a`/`0x7b` are done: full-screen animations from
-  `HD/fx.arc` (an `.004` of frames and an `.ap` script each), drawn
-  opaque as an animated sprite (sprite 59, a strip of frames in `fx/`)
-  that outlasts background changes; `0x8a` waits for a one-shot's last
-  frame. The rarer layer-2 `0x7a`/`0x7b` records (6 and 7 uses), which
-  load no animation, are the blog scenes' bust-ups, converted with
-  `0x84`/`0x7d`/`0x7c` as the character layer's sprite (see the opcode
-  table);
-- `0x6d` quakes, `0x6e` flashes and `0x6f` pulses are done. `0x55` is done: a second background object, mostly the
-  `frameNN` overlays (letterbox bars, speed lines), drawn as sprite 61
-  (over the characters) or 999 (under them), kept across `csp -1` but
-  removed by a background change (`0x54`, which with `sub` 1-3 puts
-  `frame01`-`03` there itself; found in the audit); `0x8c`'s static is
-  sprite 60, over it;
-
-**Accuracy.**
-- Transitions: MeltDown's stretch for subs 46/47 is scaled from the exe
-  (filmed for item 25, not yet compared).
-
-**Media and packaging.**
-- `arc.nsa` is about 1.2 GB; if the web build can't handle it, split the
-  voices into `arc1.nsa`.
-- Check that saves, thumbnails (`savethumbN.bmp`) and `kidoku.dat`
-  persist in the WebAssembly build.
