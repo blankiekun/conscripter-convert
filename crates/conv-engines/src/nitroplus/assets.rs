@@ -507,6 +507,14 @@ impl Assets for NpaAssets<'_> {
         Some(rel)
     }
 
+    fn sound_ms(&mut self, path: &str) -> Option<u32> {
+        let key = normalize(path);
+        let file = if key.ends_with(".ogg") { key } else { format!("{key}.ogg") };
+        let npa = &self.sound;
+        let data = npa.data(npa.find(file.strip_prefix("sound/")?)?).ok()?;
+        ogg_ms(&data)
+    }
+
     fn transparent(&mut self) -> String {
         let rel = "system/transparent.png".to_string();
         if !self.out.root.join(&rel).exists() {
@@ -514,6 +522,16 @@ impl Assets for NpaAssets<'_> {
         }
         rel
     }
+}
+
+/// An Ogg Vorbis file's length: its last page's granule position (the
+/// samples so far) over the sample rate of its identification header.
+fn ogg_ms(data: &[u8]) -> Option<u32> {
+    let id = data.windows(7).position(|w| w == b"\x01vorbis")?;
+    let rate = u32::from_le_bytes(data.get(id + 12..id + 16)?.try_into().ok()?);
+    let last = data.windows(4).rposition(|w| w == b"OggS")?;
+    let samples = u64::from_le_bytes(data.get(last + 6..last + 14)?.try_into().ok()?);
+    (rate > 0).then(|| (samples * 1000 / rate as u64) as u32)
 }
 
 /// A movie's size, length and whether its sound is above -60 dB (some

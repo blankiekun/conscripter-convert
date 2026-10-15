@@ -513,6 +513,12 @@ pub enum Op {
     /// the volume the sound starts at. In a script that has any, a sound
     /// started without one starts at 100.
     SoundVolume { file: Option<String>, percent: u32, ms: u32 },
+    /// Plays `file` as the music `after_ms` from now (0: at once) while
+    /// the script goes on, `looped` or once; a music op before then
+    /// cancels it. Music a script starts on a timer: a loop a set time
+    /// after its intro, a song some seconds after a line (続・殺戮のジャンゴ's
+    /// processes).
+    BgmLater { file: String, after_ms: u32, looped: bool },
 }
 
 /// A puzzle of numbered tiles (装甲悪鬼村正's 立方陣): the player clicks a

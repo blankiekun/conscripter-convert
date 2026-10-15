@@ -315,14 +315,27 @@ with the original (it wants all eleven endings' flags under wine).
    two sound objects, started 500 ms apart) and stay.
 2. The text window and name plates (`box00`-`box05`, face windows
    `frame03`-`frame05`) measured against the original under wine.
-3. The ranked "not converted" list: `CreateTexture` from the screen,
-   `CreateColor` colours, movies.
+3. The rest of the "not converted" list, by what shows most: the
+   400-vs-3 battle (dja050: four movies that play while the button is
+   held, the user's choice, with the rolling 0-400 counter, the
+   muzzle flashes and the "hold" prompt; none is drawn yet), the
+   looping shakes (`ShakeVLoop*`, 9), the strobe, dja001's Black Hawk
+   pan, then additive flashes, a movie's rotation, sepia.
 4. The 60 moves and zooms that also fade or change picture (still
    cross-fades), and `Rotate` over time (343, drawn at once).
 5. Extras: the doors' animation and the menu's own music (left out).
 
 ## History
 
+- **Music processes (2026-10-15).** Four `CreateProcess` functions only
+  play music on a timer: dja050's and dja056's themes (an intro, its loop
+  7,720 and 10,700 ms later), dja056_08's insert song five seconds after
+  a line, dja003's jingle in two parts. A process whose function calls
+  only `SoundPlay`, `MusicStart`, `Wait`, `WaitPlay` and `CreateBGM` is
+  run when `Request(…, Start)` starts it, its waits counted on a clock
+  (`WaitPlay` by the Ogg's length), and each music becomes `bgmonce` or
+  `bgm` at once or CONscripter's `bgmlater ms` after
+  (`nitroplus/convert/process.rs`). The other processes are still noted.
 - **Music after dja009 (2026-10-15).** dja009 ends with `Delete("*")`,
   which deleted every object, the music objects (`dj01`…, made once by
   `InitBGM` before the first chapter) with them: 30 of the 50 chapters
