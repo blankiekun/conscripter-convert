@@ -160,7 +160,7 @@ const SCENE_CARRY: u32 = 2900;
 /// 1 while the list is open (global: it stays open).
 const SCENE_LIST_OPEN: &str = "%2903";
 /// The save menu's slot being loaded (global: it outlasts the load).
-const SCENE_LOAD_SLOT: &str = "%2906";
+pub(crate) const SCENE_LOAD_SLOT: &str = "%2906";
 /// 1 once [`SCENE_LOADED`] has put a save's levels back.
 const SCENE_RESTORED: &str = "%2907";
 /// A save from the save menu keeps the levels' slots with it, level k of
@@ -190,24 +190,24 @@ pub(crate) const IN_GAME: &str = "%101";
 
 // Local scratch variables (below the game's locals at %10-%12 would be too
 // close; these are free).
-const MODE: &str = "%100"; // 1 save, 2 load
-const SELECTED: &str = "%102"; // selected slot, 0 = none
-const SLOT: &str = "%103";
-const HAS_DATA: &str = "%104";
+pub(crate) const MODE: &str = "%100"; // 1 save, 2 load
+pub(crate) const SELECTED: &str = "%102"; // selected slot, 0 = none
+pub(crate) const SLOT: &str = "%103";
+pub(crate) const HAS_DATA: &str = "%104";
 pub(crate) const TMP: &str = "%105";
-const FIRST: &str = "%106"; // first slot on the page
+pub(crate) const FIRST: &str = "%106"; // first slot on the page
 const SELECTED_HAS_DATA: &str = "%107";
 const MODE_STATE: &str = "%108"; // isskip: 1 skip, 2 auto
-const DATE: [&str; 6] = ["%110", "%111", "%112", "%113", "%114", "%115"];
-const LABEL: &str = "$100";
+pub(crate) const DATE: [&str; 6] = ["%110", "%111", "%112", "%113", "%114", "%115"];
+pub(crate) const LABEL: &str = "$100";
 const LINE1: &str = "$101";
 const LINE2: &str = "$102";
-const FILE: &str = "$103"; // thumbnail file
-const THUMB_IMAGE: &str = "$105"; // the same with its sprite tag
-const STR_TMP: &str = "$104";
+pub(crate) const FILE: &str = "$103"; // thumbnail file
+pub(crate) const THUMB_IMAGE: &str = "$105"; // the same with its sprite tag
+pub(crate) const STR_TMP: &str = "$104";
 // Globals (`globalon` keeps %200 and up; the game uses up to %220).
-const PAGE: &str = "%900";
-const NEWEST: &str = "%901";
+pub(crate) const PAGE: &str = "%900";
+pub(crate) const NEWEST: &str = "%901";
 /// Slot n was deleted by an older build when %(DELETED_BASE + n) is 1.
 const DELETED_BASE: u32 = 910;
 /// The current chapter's title (a local: saves keep it), shown in the top
@@ -1287,7 +1287,7 @@ pub(crate) fn confirm_call(question: &str, kind: Switch) -> String {
     format!("mov {CONFIRM_KIND},{}:mov {CONFIRM_TEXT},\"{}\"\ngosub *{CONFIRM_ROUTINE}", switch_index(kind) + 1, escape(question))
 }
 
-fn switch_index(s: Switch) -> u32 {
+pub(crate) fn switch_index(s: Switch) -> u32 {
     match s {
         Switch::WheelReadsOn => 0,
         Switch::WheelClosesLog => 1,

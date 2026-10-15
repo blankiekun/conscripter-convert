@@ -65,7 +65,7 @@ writes 3.5 GB. Run one at a time.
 | Parallel processes (`CreateProcess`: battle HUD, fire flicker, …) | ❌ Not converted; planned through Lua |
 | Additive / multiply blends, `Rotate`, `SetFrequency`, camera moves | ❌ Not converted |
 | 立方陣 minigame (`function_magiccube.nss`) | ✅ Ported (see "The 立方陣" below) |
-| System screens (title, save/load, settings, backlog) | ❌ Not started |
+| System screens (title, save/load, settings, backlog) | 🟡 Title, right-click menu, quick bar, questions, save/load, favour screen done; backlog, settings and motion to do ("Next" item 4) |
 | Extras | ❌ Out of scope for now (decided 2026-10-13) |
 
 ## Files and formats
@@ -768,12 +768,45 @@ Next, in order:
         darker. Left out from the story's visit: the new gauges blinking in
         and a heroine's icon being struck out with its sound the first
         time she is dead.
-      - Save, load and log open ONScripter's own screens, and 設定画面
-        does nothing, until steps 4-6.
+      - The log opens ONScripter's own screen, and 設定画面 does
+        nothing, until steps 5-6.
       Fixed on the way: the title's しおりから used `load`, which isn't a
       command (NScripter's is `loadgame`), so it stopped the game.
-   4. Save/load grid (a new `SaveGrid`: 20 slots a page, 5 pages,
-      hover details).
+   4. Done: the save and load screens (a new `SaveGrid`, emitted by
+      `conv-cons/src/save_grid.rs`, Muramasa's values in
+      `convert/muramasa/screens.rs` from `sys_save.nss`/`sys_load.nss`).
+      Five pages of twenty thumbnails over each page's own picture
+      (数字01-20背景save … 数字80-100背景load), four columns from the right,
+      under サムネールワク; 前頁/次頁 go round, 削除 toggles delete mode
+      (削除ボタン-003 over it), 退出, a right-click or the screen's key
+      (S, L) leave; it cross-fades in and out over 300 ms. The slot under
+      the pointer gets the hover frame and its details: the date, the
+      play time, the chapter (`$TITLE_NOW`, now `Op::Chapter`) and the
+      page's text down in columns from the right (CONscripter's
+      `vstrsp`, 3034b55), and a larger thumbnail. Each slot is an
+      invisible `exbtn` whose hover command shows its details. A click
+      saves (asking 記録を上書きして良いか over a full slot, then
+      記録をしました over the dimmed page until a click), loads (asking)
+      or deletes (asking). The thumbnail is the scene without the text
+      window, as in the original. The play time is CONscripter's
+      (`getplaytime`/`setplaytime`, 8b92e5b): the engine counts it, a
+      save keeps it, a load puts it back, a new game starts at 0. The
+      label of a save holds date|time|chapter|text (`savegame2`,
+      `getsavestr`); the text comes from `getlog`, with the page's line
+      breaks as the original keeps them. Beside the original under wine
+      (save screen, empty slot hovered: mean difference 0.91 levels,
+      offset 0,0; a filled slot hovered at the first page: 1.93, with no
+      pixel different in the grid, thumbnails included; the rest is the
+      text). Differences left:
+      - The texts are drawn in ipam, the original in MS 明朝, which wine
+        replaces with a narrower font sitting 2-10 px lower: our date
+        and play time are wider, and a column of the last line holds
+        20 characters where wine fits 22.
+      - The converter breaks a page's lines to fit the window, and those
+        breaks show in the last line; the original's `$SYSTEM_last_text`
+        has only the source's.
+      - No transitions inside the screen (the details appear at once;
+        the original fades them).
    5. Backlog (line scrolling, voice icon, scroll knob) and the
       click-wait icon.
    6. Settings drawn as one picture (a new `PictureSettings`: vertical
