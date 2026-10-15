@@ -176,13 +176,13 @@ yet.
 | Area | Status |
 |---|---|
 | NPA archives (key), images, sounds | ✅ Every file decodes |
-| Movies (MPEG-1) | ❌ Not yet (scope to confirm) |
+| Movies (MPEG-1) | 🟡 Found in `<game>/movie` (the default) and drawn as Muramasa's compiler draws them; two long ones (a 1,050-frame strip, likely `mv_ブラックホーク`, 70 s) aren't written: a JPEG strip can't be that wide, and decoded it would take ~500 MB |
 | Script parsing | ✅ All 249 files; 56 places that don't parse, none in the story |
 | Story control flow (56 chapters, 10 choices, bad ends) | ✅ Compiled whole (`compile_story`); in the engine the good path plays to the end (6,496 pages) and each wrong answer ends the game with its own bad end (`research/nitroplus/django_routes.sh`, 2026-10-15) |
 | Text | 🟡 In the boxes' places (box00: 39 columns at 50,472, white on the black bar); 3,424 voiced lines; not compared with the original yet |
 | Pictures, sound in scripts | 🟡 Black bars, face windows in their frames, standing pictures, backgrounds; what Muramasa's compiler does for effects (moves and zooms as cross-fades); every sound is found |
 | Choices | 🟡 Django's plates; text place and hover colour guessed |
-| System screens | 🟡 Title, right-click menu, save/load (3×20 slots), yes/no questions, text log done from the game's pictures (`django/screens.rs`); settings ❌ (needs a control the IR lacks: rows of ten bullets); the click-wait icons (`Tumbleweed`, `Bullet`) ❌ |
+| System screens | 🟡 From the game's pictures (`django/screens.rs`): title, right-click menu, save/load (3×20 slots), yes/no questions, text log, settings (bullet rows as `SliderSteps`), the click-wait bullet; not compared with the original (it wants its disc under wine) |
 | Extras | ❌ Not started (scope to confirm) |
 
 ### Next
@@ -196,7 +196,7 @@ yet.
    `frame03`-`frame05`) measured against the original under wine.
 4. The ranked "not converted" list: `MoveCamera`, `CreateTexture` from
    the screen, `CreateColor` colours, movies.
-5. The settings screen (`sys_config.nss`): a new `PictureSettings`
-   control, a row of N level buttons (ten bullets), then the ON/OFF pairs.
-   Click-wait icons from `system.ini` (20 frames each).
-6. Ask the user the scope questions (above).
+5. The two long movies (see the table).
+6. Camera moves (`MoveCamera`, 365 calls) and moves and zooms over time
+   (drawn as cross-fades), shared with Muramasa's compiler.
+7. Ask the user the scope questions (above).
