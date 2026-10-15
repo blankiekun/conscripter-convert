@@ -829,6 +829,17 @@ exe (`research/tools/ghidra/ghidra_export.sh`, names in
    wine, so the strokes' weight wasn't compared. Styles 3/4 write a
    speaker's name after the line (「…」忍), 5 on a line of its own, but
    no full-screen scene has a speaker.
+25. **Done: BoxRolling as a turning cube.** `0004.cd` #13 patched to subs
+   29 and 31 slowed to 3 s (`patch/T29`, `T31`; `T46`, `T47` film
+   MeltDown). The step function (0x442420) sums -(cos + sin) / 2: two
+   faces of a cube as wide as the screen turning a quarter turn, seen
+   straight on, each picture squeezed to its face (sin, cos) and cut at
+   the screen's edges; fitted on the film at the middle (edge at x 380,
+   the old picture's left 560 columns in 420 px; the model: 360, 583 in
+   440). CONscripter's new `cons_cube.dll/dx,dy` draws it
+   (`TransitionStyle::Cube`); it was a push of both pictures. 8 uses.
+   The exe also runs three passes over the new face (0x4291f0), probably
+   shading, not converted.
 
 
 Converted and playable from start to end: text, voices, sprites with
@@ -965,9 +976,8 @@ ones done:
   sprite 60, over it;
 
 **Accuracy.**
-- Transitions: BoxRolling is a push where the original
-  squeezes the pictures like cube faces; MeltDown's stretch for subs
-  46/47 is scaled from the exe, not filmed.
+- Transitions: MeltDown's stretch for subs 46/47 is scaled from the exe
+  (filmed for item 25, not yet compared).
 
 **Media and packaging.**
 - `arc.nsa` is about 1.2 GB; if the web build can't handle it, split the

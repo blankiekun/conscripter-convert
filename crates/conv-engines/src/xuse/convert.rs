@@ -3886,13 +3886,16 @@ fn transition_style(sub: u16) -> TransitionStyle {
             let (dx, dy) = [(0, 1), (-1, 0), (0, -1), (1, 0)][usize::from(sub)];
             TransitionStyle::Curtain { dx, dy }
         }
-        // Trans_BoxRolling (filmed under wine): the new picture rolls in
-        // like a cube face while the old one is squeezed away; 28 from
-        // the bottom, 29 from the left, 30 from the top, 31 (not filmed)
-        // from the right. Drawn as a push of both pictures.
+        // Trans_BoxRolling (setup 0x4427a0, step 0x442420, draw 0x442190;
+        // filmed under wine, 29 and 31 slowed to 3 s): two faces of a cube
+        // turning a quarter turn, seen straight on: the faces' outer edge
+        // is at -(cos + sin) / 2 of the width (the step's sum), the shared
+        // edge at (sin - cos) / 2, each picture squeezed to its face. 28
+        // from the bottom, 29 from the left, 30 from the top, 31 from the
+        // right.
         28..=31 => {
             let (dx, dy) = [(0, -1), (1, 0), (0, 1), (-1, 0)][usize::from(sub - 28)];
-            TransitionStyle::Slide { moving: SlideLayer::Both, dx, dy }
+            TransitionStyle::Cube { dx, dy }
         }
         // Trans_RollFlip (setup 0x446660, draw 0x446390; size factor sin or
         // cos of progress × 90°, 0x446460): flag +0x90 the axis, +0x91
@@ -4063,7 +4066,7 @@ mod tests {
         assert_eq!(transition_style(26), TransitionStyle::ThroughWhite);
         assert_eq!(transition_style(4), TransitionStyle::Threshold);
         assert_eq!(transition_style(7), TransitionStyle::Threshold);
-        assert_eq!(transition_style(29), slide(SlideLayer::Both, 1, 0));
+        assert_eq!(transition_style(29), TransitionStyle::Cube { dx: 1, dy: 0 });
         assert_eq!(transition_style(32), TransitionStyle::Flip { horizontal: true, grow: true });
         assert_eq!(transition_style(35), TransitionStyle::Flip { horizontal: false, grow: false });
         assert_eq!(transition_style(45), TransitionStyle::Melt { stretch_percent: 15 });
