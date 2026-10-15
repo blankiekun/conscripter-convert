@@ -25,6 +25,7 @@ mod movies;
 mod music;
 pub mod nsa;
 mod picture_screen;
+mod picture_extras;
 mod picture_settings;
 mod puzzle;
 mod replay;
@@ -130,6 +131,8 @@ const TITLE_START: &str = "conv_title_start";
 /// A global, 0 until the title has been shown in this run (the define
 /// section clears it; `reset` keeps it): which opening plays.
 const TITLE_SHOWN: &str = "%2960";
+/// The title's sprites, without its music (back from the picture extras).
+const TITLE_SPRITES: &str = "conv_title_sprites";
 /// Colours of clickable words (measured on the original): not yet
 /// visited, visited, each also under the mouse pointer.
 const LINK_COLOR: &str = "#FEE092";
@@ -1145,6 +1148,9 @@ pub fn emit(script: &Script) -> String {
     if let (Some(m), Some(t)) = (&script.extras, &script.title_screen) {
         extras::extras(&mut out, m, &effect(t.fade_ms), script.settings.is_some());
     }
+    if let (Some(e), Some(_)) = (&script.picture_extras, &script.title_screen) {
+        picture_extras::emit(&mut out, e, border);
+    }
     out
 }
 
@@ -1157,18 +1163,26 @@ fn title_screen(out: &mut String, t: &TitleScreen, fade: &str, save_menu: bool, 
     // %105 = 1 while there is a quick save (for Continue).
     let quick = buttons.iter().any(|(b, _)| b.action == TitleAction::Continue);
     let quick_exists = format!("savefileexist {},{}", menu::TMP, menu::QUICK_SLOT);
-    if extras {
+    let picture_extras = t.buttons.iter().any(|b| b.action == TitleAction::Extras);
+    if extras || picture_extras {
         writeln!(out, "*{}", extras::TITLE_BACK).unwrap();
     }
     // Effect 0 = update the buffer only; the print shows it all.
     writeln!(out, "bg \"{}\",0", path(&t.background)).unwrap();
     title_openings(out, &t.openings, border);
+    // Back from the picture extras: the music goes on.
+    if picture_extras {
+        writeln!(out, "if {TITLE_SHOWN} == 2 mov {TITLE_SHOWN},1:goto *{TITLE_SPRITES}").unwrap();
+    }
     if !t.openings.is_empty() {
         writeln!(out, "mov {TITLE_SHOWN},1").unwrap();
     }
     writeln!(out, "*{TITLE_DRAW}").unwrap();
     if let Some(bgm) = &t.bgm {
         writeln!(out, "bgm \"{}\"", path(bgm)).unwrap();
+    }
+    if picture_extras {
+        writeln!(out, "*{TITLE_SPRITES}").unwrap();
     }
     title_sprites(out, t, &buttons, quick, None);
     writeln!(out, "print {fade}").unwrap();
@@ -1196,6 +1210,8 @@ fn title_screen(out: &mut String, t: &TitleScreen, fade: &str, save_menu: bool, 
             TitleAction::Load if save_menu => {
                 format!("csp -1:mov {},0:gosub *{}:goto *{TITLE_DRAW}", menu::IN_GAME, menu::LOAD)
             }
+            // The title stays up: the extras cross-fade in over it.
+            TitleAction::Extras => format!("goto *{}", picture_extras::EXTRAS),
             TitleAction::Settings if extras => format!("csp -1:goto *{}", extras::EXTRAS),
             TitleAction::Settings if settings => {
                 format!("csp -1:mov {},0:gosub *{}:goto *{TITLE_DRAW}", menu::IN_GAME, menu::SETTINGS)
@@ -1215,7 +1231,8 @@ fn title_screen(out: &mut String, t: &TitleScreen, fade: &str, save_menu: bool, 
     // ends on the title as the sprites show it.
     for (i, o) in t.openings.iter().enumerate() {
         writeln!(out, "*conv_title_opening{i}").unwrap();
-        if let Some(bgm) = &t.bgm {
+        // Back from the extras, the music is playing.
+        if let Some(bgm) = t.bgm.as_ref().filter(|_| !o.after_extras) {
             writeln!(out, "bgm \"{}\"", path(bgm)).unwrap();
         }
         if let Some(se) = &o.sound {
@@ -1248,7 +1265,14 @@ fn title_screen(out: &mut String, t: &TitleScreen, fade: &str, save_menu: bool, 
 /// openings that may play, %9 is the one picked).
 fn title_openings(out: &mut String, openings: &[conv_core::ir::TitleOpening], border: u32) {
     let cond = |o: &conv_core::ir::TitleOpening| {
-        let mut c = vec![format!("{TITLE_SHOWN} == {}", if o.at_launch { 0 } else { 1 })];
+        let shown = if o.after_extras {
+            2
+        } else if o.at_launch {
+            0
+        } else {
+            1
+        };
+        let mut c = vec![format!("{TITLE_SHOWN} == {shown}")];
         c.extend(o.when.iter().map(|(v, value)| format!("{} == {value}", var_name(*v, border))));
         c.join(" && ")
     };
