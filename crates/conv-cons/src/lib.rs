@@ -2229,6 +2229,7 @@ effect 7,99,1000,\"cons_zoom.dll/3,220,5\"
             replay: None,
             music: None,
             movies: None,
+            menu_background: None,
         });
         let out = emit(&s);
         assert!(out.contains("*conv_title_back\nbg \"system\\title.png\",0\n"), "{out}");
@@ -2290,6 +2291,7 @@ effect 7,99,1000,\"cons_zoom.dll/3,220,5\"
             }),
             music: None,
             movies: None,
+            menu_background: None,
         });
         let out = emit(&s);
         assert!(out.contains("if %9 == 1 goto *conv_replay\n"), "{out}");
@@ -2329,9 +2331,13 @@ effect 7,99,1000,\"cons_zoom.dll/3,220,5\"
                 movies: vec![movie("system/m0.png", "movie/op00.mp4", true), movie("system/m1.png", "movie/op01.mp4", false)],
                 background: None,
             }),
+            menu_background: Some("system/title.png".into()),
         });
         let out = emit(&s);
         assert!(out.contains("if %9 == 1 goto *conv_movies\n"), "{out}");
+        // The menu over its own picture, the room over the extras' one.
+        assert!(out.contains("*conv_extras_draw\ncsp -1\nbg \"system\\title.png\",0\n"), "{out}");
+        assert!(out.contains("bg \"system\\extras.png\",0"), "{out}");
         // A scene playing a movie of the room marks it.
         assert!(out.contains("mpegplay \"movie\\op01.mp4\",1\nmov %2801,1\n"), "{out}");
         assert!(out.contains(
@@ -2365,6 +2371,7 @@ effect 7,99,1000,\"cons_zoom.dll/3,220,5\"
                 background: Some("system/music.png".into()),
             }),
             movies: None,
+            menu_background: None,
         });
         let out = emit(&s);
         assert!(out.contains("if %9 == 1 goto *conv_music\n"), "{out}");
