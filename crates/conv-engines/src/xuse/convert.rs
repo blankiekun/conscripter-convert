@@ -298,6 +298,21 @@ const TRANSITION_DISSOLVE: u16 = 26;
 const TRANSITION_DOT4X4: u16 = 4;
 const TRANSITION_TV_POWER_SWITCH: u16 = 48;
 const TRANSITION_SMOOTH_CROSS_FADE: u16 = 36;
+/// The `screenfilter` slot of SmoothCrossFade's blur (the game's filters
+/// use 1-3).
+const SMOOTH_BLUR_SLOT: u32 = 4;
+
+/// Ends an armed transition, and SmoothCrossFade's last third (`tail`):
+/// the new picture comes in blurred and sharpens over three quarters of
+/// it (filmed: Gaussian σ about 1 to none), then stays.
+fn end_transition(ops: &mut Vec<Op>, tail: &mut Option<u32>) {
+    ops.push(Op::EndTransition);
+    if let Some(ms) = tail.take() {
+        let sharpen = ms * 3 / 4;
+        ops.push(Op::ScreenFilter { slot: SMOOTH_BLUR_SLOT, filter: None, fade_ms: sharpen });
+        ops.push(Op::Wait { ms: ms - sharpen });
+    }
+}
 /// The deepest a bust-up usually sits (0x8e's depth: 10-150, then
 /// 1100-5000 for the few drawn over the overlay).
 const BUST_UP_DEPTH_MAX: u32 = 1000;
@@ -1236,7 +1251,7 @@ impl AssetBank {
             (3, "load", 607, 581, BarAction::Load),
             (7, "setting", 682, 581, BarAction::Settings),
             (8, "hide", 756, 583, BarAction::HideWindow),
-            (9, "lock", 304, 581, BarAction::Lock { reveal_y: 573 }),
+            (9, "lock", 304, 581, BarAction::Lock { reveal_y: 573, fade_ms: 100 }),
         ] {
             let png = images.get(n).ok_or(ConvertError::MissingAsset { kind: "button bar image", number: n })?;
             let states = image::load_from_memory_with_format(png, image::ImageFormat::Png)
@@ -2582,6 +2597,10 @@ pub fn lower_script(
     let mut in_front: HashSet<u32> = HashSet::new();
     // SmoothCrossFade's last third: a wait after the transition.
     let mut smooth_tail: Option<u32> = None;
+    // Where the armed 0x76 transition starts in `ops` when its key (the
+    // third u32: layer byte, depth << 8) is below the top band: it covers
+    // only the objects sorting under it.
+    let mut keyed_start: Option<usize> = None;
     let mut wait_credit_ms = 0;
     // 0x4a's style for whole messages (file order): colour, size.
     let mut default_style: (Option<u32>, Option<u16>) = (None, None);
@@ -2633,6 +2652,7 @@ pub fn lower_script(
                         Err(e) => return Err(e),
                     };
                     transition_armed = true;
+                    keyed_start = None;
                     let effect = format!("MaskBlend2 mask {number} softness {}", soft as i32);
                     ops.push(Op::BeginTransition { effect, fade_ms, mask, style: TransitionStyle::Fade });
                 }
@@ -2810,7 +2830,7 @@ pub fn lower_script(
                         && placed.get(&depth).is_some_and(|&(n, ..)| turned_off_screen(assets, n, &end)) =>
                 {
                     if std::mem::take(&mut transition_armed) {
-                        ops.push(Op::EndTransition);
+                        end_transition(&mut ops, &mut smooth_tail);
                     }
                     let (number, cx, cy) = placed.remove(&depth).unwrap();
                     let image = assets.sprite(number.into())?.path;
@@ -2823,7 +2843,7 @@ pub fn lower_script(
                     // The original slides while the transition runs; here
                     // the transition shows the start, then the slide runs.
                     if std::mem::take(&mut transition_armed) {
-                        ops.push(Op::EndTransition);
+                        end_transition(&mut ops, &mut smooth_tail);
                     }
                     ops.push(Op::SpriteMove { layer: depth, x: end.x, y: end.y, ms: end.ms });
                     if flags & 0x100 != 0 {
@@ -3027,14 +3047,24 @@ pub fn lower_script(
             match pool_u32(cd.pool, ins.arg as u32 as usize) {
                 Some(fade_ms) => {
                     transition_armed = true;
+                    let key = pool_u32(cd.pool, ins.arg as u32 as usize + 8);
+                    keyed_start = key.filter(|k| matches!(k & 0xff, 1..=3)).map(|_| ops.len());
                     // TvPowerSwitch runs its own 700 ms key frames (setup
                     // 0x4485d7: 260 ... 700 ms) whatever the record says.
                     let mut fade_ms = if ins.sub == TRANSITION_TV_POWER_SWITCH { TV_POWER_SWITCH_MS } else { fade_ms };
                     // SmoothCrossFade (filmed under wine, 3 s): the old
-                    // picture stays for a third of the time, cross-fades
-                    // in the second third and the new one stays for the
-                    // last (with a slight blur either side, left out).
+                    // picture blurs at once (about a Gaussian σ 1: a 3×3
+                    // mean) and stays for a third of the time, cross-fades
+                    // in the second third and the new one sharpens in the
+                    // last ([`end_transition`]).
                     if ins.sub == TRANSITION_SMOOTH_CROSS_FADE {
+                        let blur = SpriteFilter {
+                            kind: Operand::Const(FILTER_BLUR),
+                            blend: Operand::Const(FILTER_BLEND_COPY),
+                            strength: Operand::Const(256),
+                            params: [1, 1, 0].map(Operand::Const),
+                        };
+                        ops.push(Op::ScreenFilter { slot: SMOOTH_BLUR_SLOT, filter: Some(blur), fade_ms: 0 });
                         ops.push(Op::Wait { ms: fade_ms / 3 });
                         smooth_tail = Some(fade_ms / 3);
                         fade_ms /= 3;
@@ -3080,7 +3110,21 @@ pub fn lower_script(
             continue;
         }
         if let Some(module) = cd.screen_module(ins) {
-            lower_screen_module(&module?, &mut replace_slots, assets, &mut ops, at)?;
+            let module = module?;
+            match keyed_start.as_mut().filter(|_| transition_armed && module.layer == 0) {
+                // A layer-0 filter sorts over everything (it darkens the
+                // bust-ups), above such a transition's key: it changes at
+                // once, before the transition (filmed: 0011.cd #193 clears
+                // one inside a 0.5 s cross-fade keyed layer 2 depth 100).
+                Some(start) => {
+                    let mut now = Vec::new();
+                    lower_screen_module(&module, &mut replace_slots, assets, &mut now, at)?;
+                    let n = now.len();
+                    ops.splice(*start..*start, now);
+                    *start += n;
+                }
+                None => lower_screen_module(&module, &mut replace_slots, assets, &mut ops, at)?,
+            }
             continue;
         }
         if let Some(module) = cd.environment(ins) {
@@ -3129,10 +3173,7 @@ pub fn lower_script(
         }
         if ins.op == OP_TRANSITION_WAIT {
             if std::mem::take(&mut transition_armed) {
-                ops.push(Op::EndTransition);
-                if let Some(ms) = smooth_tail.take() {
-                    ops.push(Op::Wait { ms });
-                }
+                end_transition(&mut ops, &mut smooth_tail);
             }
             continue;
         }
