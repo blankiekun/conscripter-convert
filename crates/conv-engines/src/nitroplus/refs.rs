@@ -106,6 +106,8 @@ pub fn check(files: &BTreeMap<String, NssFile>) -> Report {
             Some(("@", block)) => (current, block),
             Some((path, block)) => (path.strip_prefix("nss/").unwrap_or(path), block),
             None if chapter => (target.strip_prefix("nss/").unwrap_or(target), "main"),
+            // `call_cut main_stage` (続・殺戮のジャンゴ): a scene of this file
+            None if blocks.get(current).is_some_and(|names| names.contains(target)) => return None,
             None => return Some(format!("scene target without '->': {target}")),
         };
         match blocks.get(file) {
