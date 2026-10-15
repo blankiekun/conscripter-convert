@@ -314,6 +314,7 @@ fn save_grid(a: &mut dyn Assets) -> Option<SaveGrid> {
         line: text(898, 45, 18, 3, 20, -1, "#000000", true),
         saved,
         fade_ms: 300,
+        across: false,
     })
 }
 

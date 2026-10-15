@@ -7,6 +7,8 @@ use conv_core::ir::{ChoiceStyle, TextWindow};
 
 use super::{Compiler, Game};
 
+pub mod screens;
+
 /// The game's hooks; the CLI uses them for a game with `Django.exe`.
 pub const DJANGO: Game = Game {
     screen: (800, 600),
@@ -16,6 +18,7 @@ pub const DJANGO: Game = Game {
     loaded_textures: true,
     chapter_objects: true,
     choice_style,
+    menus: screens::menus,
     ..Game::PLAIN
 };
 
