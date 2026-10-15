@@ -915,10 +915,37 @@ Next, in order:
       original at the first page (その他男声 and その他女声 heard): mean
       difference 0.57 levels, every pixel within 40 but the version line.
       Left: the wheel over a slider.
-   7. Motion and movies: the title's fire flicker (done) and its opening
-      (the title screen's own entrance), the menu cascade, the dialog
-      unroll (150 ms sideways), the quick bar sliding while text types (to
-      do);
+   7. Motion and movies: the title's fire flicker and its openings
+      (done), the menu cascade, the dialog unroll (150 ms sideways), the
+      quick bar sliding while text types (to do);
+      - The openings (`TitleFade`): at launch (`!$Logo`, 11.2 s) 善悪相殺
+        drifts in, 村正鎮座 zooms out of the dark, two bursts of blood
+        sprays (multiplied, swinging in about a corner), drops and red
+        (added), the fire overlaid, a white flash, the title; on coming
+        back to the title (3 s) the logo grows out of the dark, the
+        background drops in from above, a white flash, a blurred glow of
+        the background and logo spreading away. CONscripter can't blend
+        sprites so, so the converter draws both frame by frame from the
+        script's timeline (`convert/muramasa/opening.rs`: every `Fade`,
+        `Zoom`, `Rotate` about its `SetVertex`, `Move`, the tempos,
+        `MoveFRP`'s random Bézier shake from a fixed seed, `SetBlur` and
+        `SetShade` as blurs; `MiddleWave` as a fade) into silent H.264
+        movies (`movie/title_launch2.mp4`, `title_return2.mp4`) that end
+        on the title at rest, buttons included (しおりから at half). The
+        title (`TitleScreen::openings`) starts the music, the sound
+        effect at the flash (se特殊_雰囲気_鎧登場演02, made with silence
+        before it), plays the movie with `mpegplay "f",1,1`, and puts the
+        sprites up at once; the glow then starts where the original's
+        process is (`TitleOpening::glow_keys`). The global %2960 tells the
+        launch (cleared in the define section; `reset` keeps it). In
+        CONscripter the hand-over differs by 1.5 levels (the player drops
+        the last frames: the last picture is held 200 ms). Beside the
+        original's launch under wine (a shot about every 0.8 s, wine
+        redraws slowly) the same pictures come in the same order. Left:
+        the original picks the launch picture by the routes cleared
+        (悪鬼編's, 英雄編's, 復讐編's, or at random among them); ours is
+        always 村正鎮座, that of a game with none cleared. The logos and
+        the warning before it (`TitleLogo`) aren't converted.
       - The fire: `TitleSet` puts `ef046_炎a.jpg` (1920×1200) over the
         title at (0,0), zoomed 2× about its centre, drawn in overlay
         (`OverlayRender`, darkening this dark picture), and `CreateTPO1`'s

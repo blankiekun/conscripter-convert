@@ -8,7 +8,7 @@
 
 use conv_core::ir::{
     BarAction, BarButton, BarSlide, ButtonBar, CommandItem, CommandMenu, ConfirmDialog, GridText, LineLog, PairOption, PicturePair, PictureSettings, PictureSlider, PictureText, Placed, Rect, SaveGrid,
-    Script, SliderSetting, Switch, TitleAction, TitleButton, TitleGlow, TitleScreen, VoiceEntry, VoiceLayout, VoiceWindow, WaitIcon,
+    Script, SliderSetting, Switch, TitleAction, TitleButton, TitleGlow, TitleOpening, TitleScreen, VoiceEntry, VoiceLayout, VoiceWindow, WaitIcon,
 };
 
 use super::super::{Assets, Story};
@@ -412,6 +412,17 @@ fn title(a: &mut dyn Assets) -> Option<TitleScreen> {
     // The fire (ef046_炎a, 2x, OverlayRender) glows from nothing to 300
     // over 600 ms, holds, and back, each 1100 ms (CreateTPO1 in
     // 0_boot.nss's TitleSet).
+    // The openings end with the fire at 300 (at launch, partway through
+    // its glow) or at nothing (on coming back).
+    let mut openings = Vec::new();
+    if let Some(movie) = super::opening::at_launch(a) {
+        let sound = a.delayed_sound("sound/se/se特殊_雰囲気_鎧登場演02", 10200);
+        openings.push(TitleOpening { movie, at_launch: true, sound, glow_keys: Some(vec![(0, 256), (100, 256), (700, 0), (1200, 0), (1800, 256), (2200, 256)]) });
+    }
+    if let Some(movie) = super::opening::on_return(a) {
+        let sound = a.delayed_sound("sound/se/se特殊_雰囲気_鎧登場演02", 1800);
+        openings.push(TitleOpening { movie, at_launch: false, sound, glow_keys: None });
+    }
     let glow = a.overlaid(&background, "cg/ef/ef046_炎a.jpg", 2000, 300).map(|image| TitleGlow {
         image,
         keys: vec![(0, 0), (600, 256), (1100, 256), (1700, 0), (2200, 0)],
@@ -445,6 +456,7 @@ fn title(a: &mut dyn Assets) -> Option<TitleScreen> {
         start_wait_ms: 2000,
         exit_without_asking: true,
         glow,
+        openings,
     })
 }
 

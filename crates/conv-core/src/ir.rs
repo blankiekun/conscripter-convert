@@ -631,6 +631,26 @@ pub struct TitleScreen {
     /// A picture over the background, under the buttons, glowing in and
     /// out by itself (装甲悪鬼村正's fire).
     pub glow: Option<TitleGlow>,
+    /// How the title comes up: the first opening whose `at_launch` fits
+    /// (at the first title of a run, or on coming back to it) plays before
+    /// the buttons show. None fits: the title fades in.
+    pub openings: Vec<TitleOpening>,
+}
+
+/// [`TitleScreen::openings`]: a silent movie of the title coming up, ending
+/// on the title as it rests (buttons included), with the title music
+/// started under it.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct TitleOpening {
+    pub movie: String,
+    /// Only at the first title after the game starts (else only on coming
+    /// back to the title).
+    pub at_launch: bool,
+    /// Started with the movie (a sound effect with silence before it).
+    pub sound: Option<String>,
+    /// [`TitleGlow::keys`] for the glow's start after this opening (it
+    /// may be partway through a glow).
+    pub glow_keys: Option<Vec<(u32, u32)>>,
 }
 
 /// [`TitleScreen::glow`]: a full-screen picture drawn at a changing

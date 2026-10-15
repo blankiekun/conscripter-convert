@@ -11,6 +11,7 @@ use super::{negate, Compiler, Game, Value};
 
 mod favour;
 pub mod magiccube;
+mod opening;
 pub mod screens;
 
 /// The game's hooks; the CLI uses them for a game with `Muramasa.exe`.
