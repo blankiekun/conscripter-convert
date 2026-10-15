@@ -812,6 +812,23 @@ exe (`research/tools/ghidra/ghidra_export.sh`, names in
      (`patch/Mn`, `patch/Mp`). With -30 the new picture grows from the
      centre (bright first), with +30 from the edges (dark first), as
      converted. Negative is the common case: 200 of the 234 `0x77`.
+24. **Done: the full-screen text styles, measured.** `0002.cd`'s ADV
+   preset (#79-#82: `0x4c` mode, `0x4f` style, `0x50` position, `0x4d`
+   instant) patched to each style in turn (`patch/S1`-`S8`), the opening
+   shot after five pages; ours drawn with the same lines under each
+   style's `setwindow` (`--goto` a test label, `--shot-pages`). The
+   white text with its dark shadow was found row by row in both and the
+   line tops, left edges and character pitch compared. Changes: style 1
+   is a 24 px font (was 21), 24 columns; styles 2/7 start 24 px right and
+   15 px lower, line gap 12; styles 3/4 an 18 px pitch (17 px font), 21
+   px right; style 5 (the footnotes, the most used) an 18 px pitch and
+   28 px lines (was 17 and 27), 36 columns to stay in the box, 16 px
+   right; style 8 a 21 px pitch, 33 px lines, 42 px lower. All now within
+   2 px of the original. Style 6 isn't used by the game and keeps its
+   estimate. The original draws with a substitute for MS Gothic under
+   wine, so the strokes' weight wasn't compared. Styles 3/4 write a
+   speaker's name after the line (「…」忍), 5 on a line of its own, but
+   no full-screen scene has a speaker.
 
 
 Converted and playable from start to end: text, voices, sprites with
@@ -951,8 +968,6 @@ ones done:
 - Transitions: BoxRolling is a push where the original
   squeezes the pictures like cube faces; MeltDown's stretch for subs
   46/47 is scaled from the exe, not filmed.
-- Full-screen text styles 1-7: metrics are estimates; calibrate from
-  screenshots of the original (style 5, route 10, is the most used).
 
 **Media and packaging.**
 - `arc.nsa` is about 1.2 GB; if the web build can't handle it, split the

@@ -792,14 +792,20 @@ impl AssetBank {
         if preset.style == 0 {
             return self.text_window();
         }
-        let (font_size, line_gap, columns, rows) = match preset.style {
-            1 => (21, 14, 26, 12),
-            2 | 7 => (24, 11, 25, 13),
-            3 | 4 => (18, 4, 40, 23),
-            5 => (16, 11, 40, 16),
-            6 => (24, 12, 26, 5),
-            8 => (19, 15, 36, 15),
-            _ => (24, 12, 26, 3),
+        // Font size, line gap, columns, rows and the first character's
+        // offset from the window: measured under wine, the opening's pages
+        // shown in each style (`0002.cd`'s ADV preset patched), against
+        // ours on the same lines, to 2-3 px. Characters advance by the font
+        // size + 1, so an 18 px pitch is a 17 px font. `None`: estimated
+        // (style 6, which the game doesn't use).
+        let (font_size, line_gap, columns, rows, offset) = match preset.style {
+            1 => (24, 12, 24, 12, Some((21, 24))),
+            2 | 7 => (24, 12, 25, 13, Some((48, 35))),
+            3 | 4 => (17, 5, 40, 23, Some((41, 26))),
+            5 => (17, 11, 36, 16, Some((33, 21))),
+            6 => (24, 12, 26, 5, None),
+            8 => (20, 13, 36, 15, Some((43, 60))),
+            _ => (24, 12, 26, 3, None),
         };
         let file = format!("TextWnd{}.004", preset.style);
         let images = self.wnd_images(&file)?;
@@ -816,8 +822,11 @@ impl AssetBank {
         } else {
             None
         };
-        let text_x = x + (w as i32 - columns as i32 * (font_size as i32 + 1)) / 2;
-        Ok(TextWindow { image, x, y, text_x, text_y: y + 20, columns, rows, font_size, line_gap, vertical: false, name_plate })
+        let (text_x, text_y) = match offset {
+            Some((dx, dy)) => (x + dx, y + dy),
+            None => (x + (w as i32 - columns as i32 * (font_size as i32 + 1)) / 2, y + 20),
+        };
+        Ok(TextWindow { image, x, y, text_x, text_y, columns, rows, font_size, line_gap, vertical: false, name_plate })
     }
 
     /// The four PNG layers (message base, frame, name base, frame) of a
