@@ -906,7 +906,7 @@ fn convert_nss(
             eprintln!("flag {var} {name}");
         }
     }
-    let story = convert::Story { flags: &compiled.flags, voice_classes: &compiled.voice_classes };
+    let story = convert::Story { flags: &compiled.flags, voice_classes: &compiled.voice_classes, files: &files };
     let mut ir = Script {
         title: title.to_string(),
         width: game.screen.0 as u32,

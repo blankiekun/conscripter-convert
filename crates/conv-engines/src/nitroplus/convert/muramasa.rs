@@ -7,7 +7,9 @@
 
 use conv_core::ir::{ArithOp, Op, Operand};
 
-use super::{negate, Compiler, Game, Value};
+use std::collections::BTreeMap;
+
+use super::{negate, Compiler, Game, NssFile, Value};
 
 mod favour;
 pub mod magiccube;
@@ -35,7 +37,7 @@ fn scene(c: &mut Compiler<'_, '_>, file: &str, scene: &str) -> bool {
 /// The rankings' counters and results, the death and revival flags that
 /// SatugaiSystem and SetHex set through names built at run time
 /// (VariableValue), and the 立方陣's result.
-fn flags() -> Vec<String> {
+fn flags(_files: &BTreeMap<String, NssFile>) -> Vec<String> {
     let mut out = Vec::new();
     for (_, order, array, last) in RANKINGS {
         for n in order {
