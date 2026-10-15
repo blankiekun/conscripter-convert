@@ -341,9 +341,11 @@ pub fn save_menu(assets: &mut ArchiveAssets, labels: &Labels) -> Option<SaveMenu
         new_icon: place(assets, "sl_new", &labels.draw("NEW", 14.0, [255, 240, 200], HOVER_GLOW, 255), row_x + 36, 74),
         text_x: row_x + 172,
         text_y: 34,
-        font_size: 16,
+        font_size: 14,
         line_height: 28,
         preview,
+        // To the plate's right edge, less a margin.
+        text_width: plate.width().saturating_sub(172 + 12),
     })
 }
 

@@ -688,6 +688,9 @@ pub struct SaveMenu {
     pub line_height: i32,
     /// The selected slot's thumbnail at full size (absolute position).
     pub preview: Rect,
+    /// Room for a row's text lines in pixels, past which they are cut
+    /// (0: 40 characters).
+    pub text_width: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

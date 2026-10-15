@@ -298,9 +298,10 @@ pub(crate) fn save_menu(out: &mut String, m: &SaveMenu, confirm: Option<&Confirm
         w(format!("mov {SLOT},{FIRST}+{row}"));
         w("gosub *conv_sl_slot".into());
         let size = m.font_size;
+        let cols = if m.text_width > 0 { (m.text_width / size.max(1)).max(1) } else { 40 };
         for (slot, line, dy) in [(TEXT1, LINE1, 0), (TEXT2, LINE2, m.line_height)] {
             w(format!(
-                "strsp {},{line},{},{},40,1,{size},{size},0,0,0,1",
+                "strsp {},{line},{},{},{cols},1,{size},{size},0,0,0,1",
                 slot + row as u32,
                 m.text_x,
                 y + m.text_y + dy
@@ -1671,6 +1672,7 @@ pub(crate) mod tests {
             font_size: 14,
             line_height: 15,
             preview: Rect { x: 390, y: 137, w: 400, h: 300 },
+            text_width: 0,
         };
         let d = dialog();
         let mut out = String::new();

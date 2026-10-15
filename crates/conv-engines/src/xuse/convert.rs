@@ -1229,6 +1229,7 @@ impl AssetBank {
             font_size: 14,
             line_height: 15,
             preview: Rect { x: 390, y: 137, w: 400, h: 300 },
+            text_width: 0,
         })
     }
 
