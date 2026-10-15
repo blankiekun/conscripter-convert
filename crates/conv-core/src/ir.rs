@@ -1145,6 +1145,12 @@ pub struct SettingsMenu {
     /// the fields above still give the settings' defaults and what they
     /// apply.
     pub pictures: Option<Box<PictureSettings>>,
+    /// Levels (0-10) to start from, and to go back to with the defaults
+    /// button, where they differ from the shared ones (music and sound
+    /// effects 8, voices 10, text speed 7, auto speed 5, window 0).
+    pub defaults: Vec<(Setting, u32)>,
+    /// Switches that start off (and go back off with the defaults button).
+    pub switches_off: Vec<Switch>,
 }
 
 /// A settings screen made of a game's own pictures: pages switched with

@@ -1450,30 +1450,33 @@ pub(crate) fn confirm(out: &mut String, d: &ConfirmDialog) {
 
 /// First run: default levels; every run: apply them (before `setwindow`,
 /// which takes the text speed from [`TEXT_MS`]).
-pub(crate) fn settings_init(out: &mut String) {
-    let v = setting_var;
-    out.push_str(&format!(
-        "if {SETTINGS_SET} == 0 mov {},8:mov {},8:mov {},10:mov {},7:mov {},5:mov {SETTINGS_SET},1\ngosub *{SETTINGS_APPLY}\n",
-        v(Setting::BgmVolume),
-        v(Setting::SeVolume),
-        v(Setting::VoiceVolume),
-        v(Setting::TextSpeed),
-        v(Setting::AutoSpeed)
-    ));
+pub(crate) fn settings_init(out: &mut String, m: &SettingsMenu) {
+    let mut first = settings_defaults(m);
+    for &s in &m.switches_off {
+        first.push_str(&format!(":mov {},1", switch_off(s)));
+    }
+    out.push_str(&format!("if {SETTINGS_SET} == 0 {first}:mov {SETTINGS_SET},1\ngosub *{SETTINGS_APPLY}\n"));
 }
 
-/// The levels' defaults (as [`settings_init`] sets them), as commands.
-pub(crate) fn settings_defaults(_m: &SettingsMenu) -> String {
-    let v = setting_var;
-    format!(
-        "mov {},8:mov {},8:mov {},10:mov {},7:mov {},5:mov {},0",
-        v(Setting::BgmVolume),
-        v(Setting::SeVolume),
-        v(Setting::VoiceVolume),
-        v(Setting::TextSpeed),
-        v(Setting::AutoSpeed),
-        v(Setting::WindowTransparency)
-    )
+/// The levels' defaults (as [`settings_init`] sets them, the game's
+/// [`SettingsMenu::defaults`] over the shared ones), as commands.
+pub(crate) fn settings_defaults(m: &SettingsMenu) -> String {
+    let shared = [
+        (Setting::BgmVolume, 8),
+        (Setting::SeVolume, 8),
+        (Setting::VoiceVolume, 10),
+        (Setting::TextSpeed, 7),
+        (Setting::AutoSpeed, 5),
+        (Setting::WindowTransparency, 0),
+    ];
+    shared
+        .iter()
+        .map(|&(s, level)| {
+            let level = m.defaults.iter().find(|(d, _)| setting_var(*d) == setting_var(s)).map_or(level, |&(_, l)| l.min(10));
+            format!("mov {},{level}", setting_var(s))
+        })
+        .collect::<Vec<_>>()
+        .join(":")
 }
 
 pub(crate) fn setting_var(s: Setting) -> &'static str {
@@ -1803,6 +1806,8 @@ pub(crate) mod tests {
             voice_pitch: 50,
             skip_unread_label: Some("未読".into()),
             pictures: None,
+            defaults: Vec::new(),
+            switches_off: Vec::new(),
             switches: vec![conv_core::ir::SettingSwitch { label: "セーブ確認".into(), switch: Switch::ConfirmSave }],
         };
         let mut out = String::new();
@@ -2037,6 +2042,8 @@ pub(crate) mod tests {
             voice_pitch: 50,
             skip_unread_label: None,
             pictures: None,
+            defaults: Vec::new(),
+            switches_off: Vec::new(),
             switches: Vec::new(),
         };
         let mut out = String::new();

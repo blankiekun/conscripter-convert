@@ -170,7 +170,8 @@ pub(crate) fn emit(out: &mut String, m: &SettingsMenu, p: &PictureSettings, conf
                 RowControl::Choice { value, .. } | RowControl::Slider { value, .. } => value,
             };
             match v {
-                SettingValue::Switch(_) | SettingValue::Voices(_) => defaults.push(set(v, 1)),
+                SettingValue::Switch(s) => defaults.push(set(v, i32::from(!m.switches_off.contains(s)))),
+                SettingValue::Voices(_) => defaults.push(set(v, 1)),
                 SettingValue::SkipUnread => defaults.push(set(v, 0)),
                 SettingValue::Level(_) => {}
             }

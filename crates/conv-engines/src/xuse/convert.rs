@@ -1380,6 +1380,8 @@ impl AssetBank {
             voice_pitch: 36,
             skip_unread_label: Some("未読テキストもスキップする".into()),
             pictures: None,
+            defaults: Vec::new(),
+            switches_off: Vec::new(),
             // The original's マウス and 確認メッセージ pages (labels as there).
             switches: [
                 ("マウスホイールでテキストを進める", Switch::WheelReadsOn),

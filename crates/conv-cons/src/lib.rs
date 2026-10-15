@@ -286,7 +286,7 @@ pub fn emit(script: &Script) -> String {
     let duck = uses_switch(script, Switch::BgmFullForVoice);
     let keep_skip = uses_switch(script, Switch::StopSkipAtChoice);
     if script.settings.is_some() {
-        menu::settings_init(&mut out);
+        menu::settings_init(&mut out, script.settings.as_ref().unwrap());
     }
     // setwindow redraws the screen, so it must come after `game` (ONScripter
     // crashes if it runs in the define section).
