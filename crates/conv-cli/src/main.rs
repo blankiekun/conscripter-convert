@@ -851,7 +851,8 @@ fn convert_nss(
     let mut npas = npas.into_iter();
     let scripts = npas.next().unwrap();
     let mut files = std::collections::BTreeMap::new();
-    for e in &scripts.entries {
+    // 続・殺戮のジャンゴ 1.01's nss.npa also holds SourceSafe's vssver2.scc.
+    for e in scripts.entries.iter().filter(|e| e.name.to_lowercase().ends_with(".nss")) {
         let parsed = nss::parse(&nss::decode(&scripts.data(e)?)).with_context(|| format!("parsing {}", e.name))?;
         let name = e.name.rsplit('\\').next().unwrap_or(&e.name).to_string();
         files.insert(name, parsed);
