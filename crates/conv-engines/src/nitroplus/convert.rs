@@ -2047,6 +2047,20 @@ impl<'a, 'b> Compiler<'a, 'b> {
     /// alias `StMR01`).
     fn matching(&self, v: &Value) -> Vec<String> {
         let name = self.object_name(v);
+        // A `*` before the end (`@選択肢*/MouseUsual/*`): any characters;
+        // the first part may name aliases.
+        if self.game.family && name.trim_end_matches('*').contains('*') {
+            let mut found: std::collections::BTreeSet<String> = self.objects.keys().filter(|k| glob(&name, k)).cloned().collect();
+            if let Some((first, rest)) = name.split_once('/') {
+                for (a, o) in &self.aliases {
+                    if glob(first, a) {
+                        let pattern = format!("{o}/{rest}");
+                        found.extend(self.objects.keys().filter(|k| glob(&pattern, k)).cloned());
+                    }
+                }
+            }
+            return found.into_iter().collect();
+        }
         match name.strip_suffix('*') {
             Some(prefix) => {
                 let mut found: std::collections::BTreeSet<String> = self.objects.keys().filter(|k| k.starts_with(prefix)).cloned().collect();
@@ -3103,6 +3117,24 @@ impl<'a, 'b> Compiler<'a, 'b> {
     }
 }
 
+/// Whether `name` fits `pattern`, whose `*`s stand for any characters.
+fn glob(pattern: &str, name: &str) -> bool {
+    let mut parts = pattern.split('*');
+    let first = parts.next().unwrap_or("");
+    let Some(mut rest) = name.strip_prefix(first) else { return false };
+    let parts: Vec<&str> = parts.collect();
+    for (i, part) in parts.iter().enumerate() {
+        if i == parts.len() - 1 {
+            return rest.ends_with(part);
+        }
+        match rest.find(part) {
+            Some(at) => rest = &rest[at + part.len()..],
+            None => return false,
+        }
+    }
+    rest.is_empty()
+}
+
 /// Half-width katakana and signs U+FF61-FF9F as full-width ones.
 const HALF_KANA: &str = "。「」、・ヲァィゥェォャュョッーアイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワン゛゜";
 
@@ -3723,6 +3755,15 @@ scene {name}_Y
         // 一条 and 香奈枝 tie at 4: 一条 comes first in SatugaiSystem's order.
         assert_eq!([get("$一条死亡"), get("$香奈枝死亡"), get("$その他死亡"), get("$村正死亡")], [1, 0, 0, 0]);
         assert_eq!([get("$Ichizyou_Flag"), get("$Kanae_Flag")], [0, 4]);
+    }
+
+    #[test]
+    fn glob_matches_stars_anywhere() {
+        assert!(glob("選択肢*/MouseUsual/*", "選択肢１/MouseUsual/選択肢１板１"));
+        assert!(!glob("選択肢*/MouseUsual/*", "選択肢１/MouseOver/選択肢１板２"));
+        assert!(glob("a*", "a/b"));
+        assert!(glob("*b", "ab") && !glob("*b", "ba"));
+        assert!(!glob("a*c", "ab"));
     }
 
     #[test]

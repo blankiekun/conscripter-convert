@@ -135,7 +135,10 @@ on the extracted scripts.
   still stands on the bottom of the screen.
 - **Children follow their parents** (`Game::family`): `@移動窓/立絵40`
   is a child of `窓/移動窓` (`移動窓` being its alias), and deleting an
-  object deletes its children. Without it, pictures hung under a deleted
+  object deletes its children; a `*` before the end of a name
+  (`@選択肢*/MouseUsual/*`) matches any characters, the first part
+  aliases too (the choices' hover and pressed plates were drawn over
+  the scene, the script's fades to hide them matching nothing). Without it, pictures hung under a deleted
   window stayed up for whole chapters (two extra characters at
   dja004's first choice; image memory peaked at 131 MB, now 109).
 - **A chapter file's own objects are deleted when it ends**, except those
