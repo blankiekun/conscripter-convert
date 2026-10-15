@@ -150,10 +150,11 @@ on the extracted scripts.
   the original's is written in each function's comment (where the log's
   text sits, the hover colour of the choices, the save screen's
   see-through parts for what Django lacks).
-- **Choices** (`choice_style`): `SetChoice02`'s 530×68 plates one under
-  the other from (138,244), white 22 px text. Where the text sits on the
-  plate (40 px in, centred vertically) and the hover colour (the
-  original swaps the plate's picture) are ours until measured.
+- **Choices** (`choice_style`, `ChoicePlates`): `SetChoice02`'s 530×68
+  plates one under the other from (138,244) as picture buttons
+  (`select002` under the pointer), the options in white 22 px text
+  centred about x 388, 18 px below the plate's top: within a pixel of
+  the original under wine.
 
 General NSS fixes made for Django that every game gets: hex numbers
 (`0x000000`), a string naming a variable as `CreateSound`'s path
@@ -199,9 +200,9 @@ What it showed (2026-10-15):
   7 px below its box (`Game::text_drop`). The original's font is
   proportional and draws heavier; the click-wait bullet follows the
   last character.
-- Choices: the option is centred on its plate (MS ゴシック 22, white),
-  and the plate under the pointer turns to `select002.png`. Ours puts the
-  text 40 px in and colours it.
+- Choices: the option is centred about x 386 (MS ゴシック 22, white;
+  ipag needs 388), and the plate under the pointer turns to
+  `select002.png`; ours does the same since 2026-10-15.
 
 ## Extras
 
@@ -278,7 +279,7 @@ yet.
 | Story control flow (56 chapters, 10 choices, bad ends) | ✅ Compiled whole (`compile_story`); in the engine the good path plays to the end (6,496 pages) and each wrong answer ends the game with its own bad end (`research/nitroplus/django_routes.sh`, 2026-10-15) |
 | Text | 🟡 In the boxes' places (box00: 39 columns at 50,472, white on the black bar); 3,424 voiced lines; not compared with the original yet |
 | Pictures, sound in scripts | 🟡 Black bars, face windows in their frames, standing pictures, backgrounds; what Muramasa's compiler does for effects (moves and zooms as cross-fades); every sound is found |
-| Choices | 🟡 Django's plates; text place and hover colour guessed |
+| Choices | ✅ Plates as picture buttons, text placed as the original's (compared under wine) |
 | System screens | 🟡 From the game's pictures (`django/screens.rs`): title, right-click menu, save/load (3×20 slots), yes/no questions, text log, settings (bullet rows as `SliderSteps`), the click-wait bullet; not compared with the original (it wants its disc under wine) |
 | Extras | 🟡 Menu, CG library, sound library, recollection, each compared with the original; left out: the doors' animation, the rifle over a category |
 | Saves | 🟡 `--roundtrip-every 100` over the first 1,500 pages: no save/load mismatch; saves from the screens not tried by hand |

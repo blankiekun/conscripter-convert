@@ -3,7 +3,7 @@
 //! `boot.nss`, whose `#include`s are the helper library, and the story
 //! driver compiled whole.
 
-use conv_core::ir::{ChoiceStyle, TextWindow};
+use conv_core::ir::{ChoicePlates, ChoiceStyle, TextWindow};
 
 use super::{Compiler, Game};
 
@@ -34,16 +34,19 @@ pub const DJANGO: Game = Game {
 /// and ends the game after a death (a bad end).
 const STORY: &str = "dja000_開始スクリプト.nss";
 
-/// `SetChoice02` (function_select.nss): 530×68 plates (`select001.png`)
-/// one under the other from (138, 244), the options in white 22 px text.
-/// Where the text sits on its plate isn't measured yet (40 px in, centred
-/// vertically); the original swaps the plate's picture under the mouse,
-/// which a colour stands for here.
+/// `SetChoice02` (function_select.nss): 530×68 plates (`select001.png`,
+/// `select002.png` under the pointer) one under the other from (138, 244),
+/// the options in white 22 px text centred about x 386 (not the plate's
+/// centre, 403), their tops 21 px below the plate's (measured under
+/// wine); they fade in over 300 ms. The window is the same plates for a
+/// game without [`ChoicePlates`].
 fn choice_style(c: &mut Compiler<'_, '_>, n: i64) -> Option<ChoiceStyle> {
     const X: i64 = 138;
     const Y: i64 = 244;
     const FONT: i64 = 22;
     const INSET: i64 = 40;
+    const TEXT_X: i32 = 388;
+    const TEXT_DY: i32 = 18;
     let (plate, w, h) = c.assets.image("cg/sys/select/select001.png")?;
     let (w, h) = (w as i64, h as i64);
     let parts: Vec<_> = (0..n).map(|i| (plate.clone(), X, Y + h * i, 1000)).collect();
@@ -62,5 +65,7 @@ fn choice_style(c: &mut Compiler<'_, '_>, n: i64) -> Option<ChoiceStyle> {
         vertical: false,
         name_plate: None,
     };
-    Some(ChoiceStyle { window, on_color: 0xFFD070, off_color: 0xFFFFFF })
+    let (image, _, _) = c.assets.strip(&["cg/sys/select/select001.png", "cg/sys/select/select002.png"])?;
+    let plates = ChoicePlates { image, x: X as i32, y: Y as i32, step: h as i32, text_x: TEXT_X, text_dy: TEXT_DY, font_size: FONT as u32, colour: "#FFFFFF".into(), fade_ms: 300 };
+    Some(ChoiceStyle { window, on_color: 0xFFD070, off_color: 0xFFFFFF, plates: Some(plates) })
 }
