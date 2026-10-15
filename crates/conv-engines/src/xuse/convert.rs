@@ -331,9 +331,10 @@ const OP_FADE_WHITE: u16 = 0x74;
 const BG_PER_ARCHIVE: usize = 64;
 const BU_PER_ARCHIVE: usize = 128;
 const SE_FIRST_BANK: usize = 256;
-/// Opacity of the text window's base layer (estimated from a screenshot of
-/// the original game).
-const WINDOW_OPACITY_PERCENT: u32 = 55;
+/// Opacity of the text window's base layer, and of the save menu's:
+/// measured under wine against the same scene without them, 0.495 on
+/// every row of the box's gradient and 0.50 on the save menu's.
+const WINDOW_OPACITY_PERCENT: u32 = 50;
 /// Assumption: the title screen fades in and out over this long.
 const TITLE_FADE_MS: u32 = 1000;
 /// A voice id's character is `id / VOICE_CHARACTER`.
@@ -1614,9 +1615,8 @@ impl AssetBank {
     /// Writes `top` composited over `base` (both PNGs of the same size).
     ///
     /// The game alpha-blends the base layer (an opaque grey gradient) over
-    /// the scene at about 55% opacity; measured on an original screenshot,
-    /// where the box's light top brightens the scene and its dark middle
-    /// darkens it.
+    /// the scene at 50% opacity ([`WINDOW_OPACITY_PERCENT`]): the box's
+    /// light top brightens the scene and its dark middle darkens it.
     fn layered(&self, name: &str, base: &[u8], top: &[u8]) -> Result<(), ConvertError> {
         let load = |png: &[u8]| {
             image::load_from_memory_with_format(png, image::ImageFormat::Png)

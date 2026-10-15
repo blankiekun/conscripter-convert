@@ -793,6 +793,22 @@ exe (`research/tools/ghidra/ghidra_export.sh`, names in
    then clears it with a fade over three quarters of the last third and
    waits the rest (`end_transition`). 8 uses in the game. Filmed on our
    build: blurred at the start, sharp at the end.
+23. **Done: the four unchecked assumptions, checked under wine.**
+   - Text window opacity: the same page shot with the box and hidden
+     (the bar's × button), fitted row by row as scene × (1 - a) + C × a:
+     a = 0.495 on every row, C the base picture's grey gradient (226 to
+     19). The converter had 55 %; now 50 % (`WINDOW_OPACITY_PERCENT`).
+   - Save menu base: also 0.50 (the same constant). The scene behind
+     it is also blurred slightly (best fit Gaussian σ 1), not converted
+     yet.
+   - Brightness filter: `0004.cd` #16 patched to kind 4 (brightness),
+     -100, against no filter: every channel goes down by 99, clipped at
+     0. So the value adds on a 0-255 scale, as converted.
+   - Negative mask softness: #13 patched to a `0x77` with mask 9 (bright
+     in the centre, dark at the edges), 2 s, softness -30 and +30
+     (`patch/Mn`, `patch/Mp`). With -30 the new picture grows from the
+     centre (bright first), with +30 from the edges (dark first), as
+     converted. Negative is the common case: 200 of the 234 `0x77`.
 
 
 Converted and playable from start to end: text, voices, sprites with
@@ -934,9 +950,7 @@ ones done:
   46/47 is scaled from the exe, not filmed.
 - Full-screen text styles 1-7: metrics are estimates; calibrate from
   screenshots of the original (style 5, route 10, is the most used).
-- Unchecked assumptions: negative mask softness inverts the mask; text
-  window opacity 55%; save menu base opacity; the brightness filter's
-  scale (the game uses -80 and -100, read as -255..255).
+- The save menu blurs the scene behind it slightly (item 23).
 
 **Media and packaging.**
 - `arc.nsa` is about 1.2 GB; if the web build can't handle it, split the
