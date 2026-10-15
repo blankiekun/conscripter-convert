@@ -283,7 +283,7 @@ playthroughs (`%410`-`%439`).
 | one_clear, two_clear, three_clear, four_clear (global) | part cleared | S01_19A, S02_17A, S03_23A, S04_29A | S04_05I (true ending), the `NEXT_HINT` messages |
 | Pre_asuka, Pre_miyako, Pre_misaki, Pre_karuo (global) | after-story read | P01_01D, P02_01E, P03_01D, P04_02B | not in the scenes (the title menu) |
 
-## Status: the whole story plays (2026-10-14)
+## Status: the whole story plays (2026-10-15)
 
 `crates/conv-engines/src/mages/` reads the archives (`cpk.rs`), the
 scripts (`tasks.rs`), lowers scenes to the IR (`convert.rs`) and writes
@@ -336,7 +336,8 @@ message (109 characters with the name; there is no paging).
 | Music room: 67 songs from the eboot's table, their titles from `mu_bg.png` | converted, our layout: three columns of 23 titles at 3/5 size on the Vita's list panel (stretched over the room), the song playing in blue, every song open (the original's unlock rule is unknown). The player bar and the Vita's button hints are covered with the album's (`gm_bg.png`) snow, which has the same frame. The second 8-song table is left out |
 | Movie room: OP00 (CS Opening), OP01 (Opening), OP02 (Interlude), OP03 (Prelude), the eboot's order, on `mv_bg.png`'s slots with its thumbnails (its frame under the pointer) | converted: a movie shows once a scene has played it (a global flag per movie, `%2800` + its place), OP00 always (no scene plays it; our rule). The Vita's button hints here and in the album are covered with the snow to their left, feathered in |
 
-Every task of all 463 scenes converts (none left as a comment); the
+Every task of all 463 scenes converts (none left as a comment, and the
+converter's "not converted" list is empty); the
 full build (`mages convert` without `--scenes`, about 4 minutes, 1.7 GB
 `arc.nsa` plus 12 MP4s in `movie/`) lints clean (one false positive:
 the save menu's thumbnail name, built at run time), and the route check
@@ -379,11 +380,42 @@ equal), then auto-play tours the title's menus. The checker found:
 - **Not converted, found on the way (now converted):** the `:Color`
   tints, greyscale, sepia and negatives (above).
 
+**Steered route runs (2026-10-15).** `research/oretsuba/routes.py` plays
+the route map's eight paths in the engine one after another in one save
+folder (the global clears carry over), each with the debug trace and
+save/load round trips: `--auto-choice untaken` with a `--taken` file that
+marks every option but the path's `avoid`. Run it with a copy of the
+engine under another name: other agents' `pkill -x conscripter` stops the
+engine, and SDL turns that SIGTERM into a quit, so the trace just ends
+(`{"t":"end"}` without a reason, exit 0) mid-scene. Each run replays the
+route from the story menu after its ending until auto-play's loop guard
+stops it ("3000 pages without a new label", exit 1): what matters is the
+ending scene reached. Reached so far: 明日香 (S01_16A), 美咲 (M09_01),
+日和子 (S02_16A), 亜衣 (S03C_20A, then the hint S03_24), the bad end
+(S04_06L); 京 crashed in SDL's audio thread while the machine's memory
+was full (not reproduced) and is to be run again; 鳴 and 小鳩 were
+running.
+
 Next, in order:
-1. More from the eboot: the menus' layouts, and what the second
-   music table is for. A wave and a blur transition (`InOut_Act` 1, 6)
+1. Finish the route runs (`routes.py --only 7,8`, then `--only 2` in the
+   same out folder), check each trace with `cons_trace_check.py
+   --config research/oretsuba/cons_trace_check.json`, and play the four
+   after-stories from the story menu (unlocked by the endings) with the
+   trace.
+2. Try the web build (CONscripter after 0.19.1, with `spzoom`,
+   `spmotion`, `screenzoom`): the settings screen, a zoom, a looping
+   character action, a save and load.
+3. More from the eboot with Ghidra (names in `research/oretsuba/names.tsv`):
+   the music room's unlock rule and its second 8-song table, which ending
+   each after-story starts from, the menus' layouts (title, save/load),
+   the settings' defaults.
+4. The easing of SpriteMove and CharacterMove (the two values after
+   `:Position`; probably the eboot's ease function 0x8103cc18, type and
+   power, as in effect 57; about 50 moves).
+5. `InOut_Act` 1 (rows waving) and 6 (a sideways blur), plain fades now,
    would need engine effects.
-2. Looks against the original: text window size and place, character
-   heights (where the eboot anchors them), the eye catch's speed. Needs screenshots of the Vita game.
-3. The easing of SpriteMove and CharacterMove (the two values after
-   `:Position`; probably the eboot's 0x8103cc18 curves, as in effect 57).
+6. Small: `:Roll` in 2 character actions; system sounds (SystemSE.AWB),
+   which would give the settings' システムボリューム a use.
+7. Looks against the original: text window size and place, character
+   heights (where the eboot anchors them), the eye catch's speed. Needs
+   screenshots of the Vita game.
