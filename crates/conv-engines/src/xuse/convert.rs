@@ -2582,6 +2582,10 @@ pub fn lower_script(
     let mut in_front: HashSet<u32> = HashSet::new();
     // SmoothCrossFade's last third: a wait after the transition.
     let mut smooth_tail: Option<u32> = None;
+    // Where the armed 0x76 transition starts in `ops` when its key (the
+    // third u32: layer byte, depth << 8) is below the top band: it covers
+    // only the objects sorting under it.
+    let mut keyed_start: Option<usize> = None;
     let mut wait_credit_ms = 0;
     // 0x4a's style for whole messages (file order): colour, size.
     let mut default_style: (Option<u32>, Option<u16>) = (None, None);
@@ -2633,6 +2637,7 @@ pub fn lower_script(
                         Err(e) => return Err(e),
                     };
                     transition_armed = true;
+                    keyed_start = None;
                     let effect = format!("MaskBlend2 mask {number} softness {}", soft as i32);
                     ops.push(Op::BeginTransition { effect, fade_ms, mask, style: TransitionStyle::Fade });
                 }
@@ -3027,6 +3032,8 @@ pub fn lower_script(
             match pool_u32(cd.pool, ins.arg as u32 as usize) {
                 Some(fade_ms) => {
                     transition_armed = true;
+                    let key = pool_u32(cd.pool, ins.arg as u32 as usize + 8);
+                    keyed_start = key.filter(|k| matches!(k & 0xff, 1..=3)).map(|_| ops.len());
                     // TvPowerSwitch runs its own 700 ms key frames (setup
                     // 0x4485d7: 260 ... 700 ms) whatever the record says.
                     let mut fade_ms = if ins.sub == TRANSITION_TV_POWER_SWITCH { TV_POWER_SWITCH_MS } else { fade_ms };
@@ -3080,7 +3087,21 @@ pub fn lower_script(
             continue;
         }
         if let Some(module) = cd.screen_module(ins) {
-            lower_screen_module(&module?, &mut replace_slots, assets, &mut ops, at)?;
+            let module = module?;
+            match keyed_start.as_mut().filter(|_| transition_armed && module.layer == 0) {
+                // A layer-0 filter sorts over everything (it darkens the
+                // bust-ups), above such a transition's key: it changes at
+                // once, before the transition (filmed: 0011.cd #193 clears
+                // one inside a 0.5 s cross-fade keyed layer 2 depth 100).
+                Some(start) => {
+                    let mut now = Vec::new();
+                    lower_screen_module(&module, &mut replace_slots, assets, &mut now, at)?;
+                    let n = now.len();
+                    ops.splice(*start..*start, now);
+                    *start += n;
+                }
+                None => lower_screen_module(&module, &mut replace_slots, assets, &mut ops, at)?,
+            }
             continue;
         }
         if let Some(module) = cd.environment(ins) {

@@ -232,7 +232,7 @@ N of the scene replay (`%3000+N`); `0x94` ends a replayed scene.
 | `0x58` | 579 | **solved** (channel 0, stop flag) | stop BGM: `arg` 0 = all, `sub` = fade-out ms |
 | `0x5a` | 2,633 | **solved** (`op_5a` `0x4736f0` → `sound_request` `0x47aab0`, channel 1) | play SE: packed 9-byte record `u32 fade-in ms, u8 loop, u32 sound` (1-based across `k0000.bin` + `k0001.bin`); a non-looping SE isn't played in skip mode (converted: `Op::SeNotSkipped`, `isskip` before the `dwave`). The fade-in (41 uses, 50-3000 ms, mostly loops) is CONscripter's `dwavefadein` (`Op::SeFadeIn`; added after the audit) |
 | `0x5b` | 890 | **solved** (`op_5b` `0x4737a0`, channel 1, stop flag) | stop SE: `arg` = sound or 0 for all, `sub` = fade ms: `dwavefadeout ch,ms` (`Op::SeFadeOut`), which fades and stops while the script goes on |
-| `0x76` | 3,670 | **solved** (`op_76` `0x449df0`): `sub` picks the `Trans_*` class through a jump table (0-3 Wave, 4 Dot4x4, 5-8 SoftEdgeWipe, 9 CrossFade, 10-17 Slide in, 18-25 Slide out, 26 Dissolve, 27 Mosaic, 28-31 BoxRolling, 32-35 RollFlip, 36 SmoothCrossFade, 37-40 Zoom, 41-44 Scroll, 45-47 MeltDown, 48 TvPowerSwitch); the record is u32 ms, u32 flags (bit 0 hides the windows, bits 0-1 remove the bust-ups; always 0), u32 layer byte \| depth << 8 (the transition's sort key: what it covers). Skipped when skipping or with effects off | screen transition. The 3 `0x76` and 9 `0x77` records with another key cover only the objects sorting below it (Status, item 15): in 11 of them that is everything they change, and in `0011.cd` #193 a filter cleared inside a 0.5 s cross-fade goes at once in the original, faded here |
+| `0x76` | 3,670 | **solved** (`op_76` `0x449df0`): `sub` picks the `Trans_*` class through a jump table (0-3 Wave, 4 Dot4x4, 5-8 SoftEdgeWipe, 9 CrossFade, 10-17 Slide in, 18-25 Slide out, 26 Dissolve, 27 Mosaic, 28-31 BoxRolling, 32-35 RollFlip, 36 SmoothCrossFade, 37-40 Zoom, 41-44 Scroll, 45-47 MeltDown, 48 TvPowerSwitch); the record is u32 ms, u32 flags (bit 0 hides the windows, bits 0-1 remove the bust-ups; always 0), u32 layer byte \| depth << 8 (the transition's sort key: what it covers). Skipped when skipping or with effects off | screen transition. The 3 `0x76` and 9 `0x77` records with another key cover only the objects sorting below it (Status, item 15): in 11 of them that is everything they change, and in `0011.cd` #193 a filter cleared inside a 0.5 s cross-fade goes at once, before it (Status, item 20) |
 
 **Opcode audit (2026-10-14).** Every opcode the converter handles was
 read again in the decompiled exe (`ghidra_export.sh`; every handler of
@@ -242,8 +242,7 @@ the rows above and the converter:
 | Verdict | Opcodes |
 |---|---|
 | Consistent | `0x00`, `0x01`-`0x0e` (all 14 as the converter maps them), `0x10`, `0x11`, `0x15`-`0x1b`, `0x22`, `0x23`, `0x36`-`0x38`, `0x3b`, `0x40`, `0x41`, `0x43`, `0x44`, `0x46`-`0x4a`, `0x4c`-`0x50`, `0x52`, `0x53`, `0x55`, `0x56`, `0x57`-`0x59`, `0x67`-`0x69`, `0x6d`-`0x71`, `0x7a`-`0x7d`, `0x7f`-`0x84`, `0x86`-`0x88`, `0x8a`-`0x8d`, `0x8f`-`0x91`, `0x93`, `0x94`, `0x96`, `0x97`, `0x99`, `0x9d` |
-| Fixed | `0x72`/`0x74` fades (were waits); `0x39` clears the static (seen in the original); `0x8e` records with every entry's mode bit 1 show at once; `0x54` removes the overlay, puts `frame01`-`03` up for `sub` 1-3 and starts no fade; `0x66` with a zero high half can't be clicked through; `0x5a`/`0x5b` sound effects fade in and out (new CONscripter commands `dwavefadein`, `dwavefadeout`) |
-| Not converted (rows above) | the 0.5 s fade of one filter clear that the original's transition leaves out (`0011.cd` #193) |
+| Fixed | `0x76` keyed under a layer-0 filter change: the change shows at once (`0011.cd` #193); `0x72`/`0x74` fades (were waits); `0x39` clears the static (seen in the original); `0x8e` records with every entry's mode bit 1 show at once; `0x54` removes the overlay, puts `frame01`-`03` up for `sub` 1-3 and starts no fade; `0x66` with a zero high half can't be clicked through; `0x5a`/`0x5b` sound effects fade in and out (new CONscripter commands `dwavefadein`, `dwavefadeout`) |
 
 Two doc mistakes corrected on the way: `0x8e`'s last 32 bytes are an
 (always empty) module name, not junk; `0x76`'s third u32 is a sort key,
@@ -695,7 +694,7 @@ exe (`research/tools/ghidra/ghidra_export.sh`, names in
      with this, 11 cover everything they change (the two Zooms change a
      bust-up of depth 40 and a frame of depth 1, under their key at
      depth 45); the twelfth (`0011.cd` #193) clears a layer-0 filter at
-     once. So nothing to convert there;
+     once (converted: item 20);
    - a layer-0 frame (0x55, depth 1000) is under the depth-50 bust-up, a
      layer-2 one over it; a layer-0 brightness filter (0x70, depth 1000)
      darkens the bust-up too (0x70's layer table differs). Overlays are
@@ -764,6 +763,15 @@ exe (`research/tools/ghidra/ghidra_export.sh`, names in
    `--trace-ignore 22-48` keeps out of it. Checked on our build on its
    own Xvfb display against the original: the list, the hover, the
    question, and going back keeps the later chapters.
+20. **Done: a filter change inside a keyed transition shows at once.**
+   Of the three `0x76` records keyed below the top band (the record's
+   third u32 has layer byte 1-3), `0011.cd` #193 (a 0.5 s CrossFade
+   keyed layer 2 depth 100) clears a layer-0 filter (`0x70`) before its
+   `0x71`. A layer-0 filter sorts over the key, so the original clears it
+   at once while the rest cross-fades (item 15). The converter now moves
+   such a filter change to just before the transition, where it is drawn
+   with its own `print 1`; the `csp` and bust-up change after it still
+   fade.
 
 
 Converted and playable from start to end: text, voices, sprites with
