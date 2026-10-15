@@ -959,6 +959,16 @@ Next, in order:
           smoke flipped) is ignored.
       - The trace's auto-play skips movies (CONscripter) but reports
         missing ones; the prologue (`--chain 2`) has three cuts.
+      - The original under wine draws no movie (`CreateMovie` leaves the
+        scene as it was, `md04_045`'s first page matches its bare
+        background): wine decodes MPEG-1 through 32-bit GStreamer
+        plugins, which the test machine lacks, so the movies can't be
+        compared there yet. The smoke's strength (`SubRender` subtracts
+        the white smoke; ours draws it black over the scene, lighter) is
+        unchecked.
+      - Engine fixes found on the way (f8d4cf4): `spzoom` on an animated
+        sprite showed only its first cell, and a screen update partly off
+        the screen was dropped.
       - On Windows CONscripter only opens a movie in an outside player.
 
    The user's decisions (2026-10-14): the pressed state (`003`) becomes

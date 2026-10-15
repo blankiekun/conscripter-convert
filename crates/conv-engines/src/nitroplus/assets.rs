@@ -397,8 +397,9 @@ fn probe(src: &Path) -> Option<MovieInfo> {
 /// `size`, side by side: the picture and the number of frames.
 fn movie_strip(src: &Path, at: Option<u32>, alpha: bool, dark: bool, (w, h): (u32, u32)) -> Option<(image::RgbaImage, u32)> {
     let colour = if dark { ",lutrgb=r=0:g=0:b=0" } else { "" };
+    // The opacity is the bottom half's luma, in video range (16-235).
     let graph = if alpha {
-        format!("[0:v]split[a][b];[a]crop=iw:ih/2:0:0{colour}[c];[b]crop=iw:ih/2:0:ih/2,format=gray[m];[c][m]alphamerge,scale={w}:{h}")
+        format!("[0:v]split[a][b];[a]crop=iw:ih/2:0:0{colour}[c];[b]crop=iw:ih/2:0:ih/2,lutyuv=y=clip((val-16)*255/219\\,0\\,255),format=gray[m];[c][m]alphamerge,scale={w}:{h}")
     } else {
         format!("[0:v]scale={w}:{h}{colour}")
     };
