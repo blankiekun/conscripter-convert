@@ -116,6 +116,7 @@ engine/build/conscripter --root out/mygame
 | `--loose` | Write assets as loose files instead of packing them into `.nsa` archives |
 | `--linear` | Play the story scripts in file order with no jumps (debugging aid) |
 | `--webp` | Store images as near-lossless WebP, about half the size of PNG. CONscripter's web build reads it; native builds need an SDL_image with libwebp |
+| `--webp-quality N` | With `--webp`: lossy WebP at quality N (0-100, as `cwebp -q`; transparency stays lossless). 80 makes the pictures about a quarter of the near-lossless size and is hard to tell apart |
 
 `conscripter-convert convert-script <game> --script N -o <dir>` converts a
 single script, which is handy for testing one scene.

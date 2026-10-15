@@ -51,6 +51,11 @@ enum Command {
         /// whose SDL_image has libwebp
         #[arg(long)]
         webp: bool,
+        /// With --webp: lossy WebP at this quality (0-100, as cwebp -q),
+        /// smaller than the near-lossless default; transparency stays
+        /// lossless
+        #[arg(long, requires = "webp", value_parser = clap::value_parser!(u8).range(0..=100))]
+        webp_quality: Option<u8>,
     },
     /// Convert one Xuse script (CDFiles/NNNN.cd) into a CONscripter game
     /// directory: 0.txt plus the assets it uses
@@ -73,6 +78,11 @@ enum Command {
         /// whose SDL_image has libwebp
         #[arg(long)]
         webp: bool,
+        /// With --webp: lossy WebP at this quality (0-100, as cwebp -q),
+        /// smaller than the near-lossless default; transparency stays
+        /// lossless
+        #[arg(long, requires = "webp", value_parser = clap::value_parser!(u8).range(0..=100))]
+        webp_quality: Option<u8>,
     },
     /// Convert one Nitroplus story scene (装甲悪鬼村正) into a CONscripter
     /// game directory: 0.txt plus the assets it uses
@@ -279,11 +289,11 @@ enum XarcCommand {
 
 fn main() -> Result<()> {
     match Cli::parse().command {
-        Command::ConvertGame { game, output, font, title, loose, linear, webp } => {
-            convert_game(&game, &output, font.as_deref(), &title, loose, linear, webp)
+        Command::ConvertGame { game, output, font, title, loose, linear, webp, webp_quality } => {
+            convert_game(&game, &output, font.as_deref(), &title, loose, linear, webp.then_some(webp_quality))
         }
-        Command::ConvertScript { game, script, output, font, title, webp } => {
-            convert_script(&game, script, &output, font.as_deref(), &title, webp)
+        Command::ConvertScript { game, script, output, font, title, webp, webp_quality } => {
+            convert_script(&game, script, &output, font.as_deref(), &title, webp.then_some(webp_quality))
         }
         Command::ConvertNss { game, file, scene, chain, output, font, title, loose, dry_run } => {
             convert_nss(&game, &file, scene.as_deref(), chain, &output, font.as_deref(), &title, loose, dry_run)
@@ -337,14 +347,14 @@ const ASSET_DIRS: [&str; 7] = ["bg", "sprite", "bgm", "se", "system", "voice", "
 /// pictures can't be wider than 16,383 pixels.
 const IMAGE_DIRS: [&str; 3] = ["bg", "sprite", "system"];
 
-/// With `webp`, re-encodes the images in `output` as WebP and points the
-/// script at them.
-fn image_format(output: &Path, source: String, webp: bool) -> Result<String> {
-    if !webp {
+/// With `webp` (Some: the lossy quality, if any), re-encodes the images in
+/// `output` as WebP and points the script at them.
+fn image_format(output: &Path, source: String, webp: Option<Option<u8>>) -> Result<String> {
+    let Some(quality) = webp else {
         return Ok(source);
-    }
+    };
     let dirs: Vec<PathBuf> = IMAGE_DIRS.iter().map(|d| output.join(d)).collect();
-    let c = conv_cons::webp::convert_dirs(&dirs).context("converting images to WebP")?;
+    let c = conv_cons::webp::convert_dirs(&dirs, quality).context("converting images to WebP")?;
     println!(
         "  {} images as WebP: {:.1} MB (PNG {:.1} MB)",
         c.files,
@@ -354,7 +364,7 @@ fn image_format(output: &Path, source: String, webp: bool) -> Result<String> {
     Ok(conv_cons::webp::retarget(&source))
 }
 
-fn convert_game(game: &Path, output: &Path, font: Option<&Path>, title: &str, loose: bool, linear: bool, webp: bool) -> Result<()> {
+fn convert_game(game: &Path, output: &Path, font: Option<&Path>, title: &str, loose: bool, linear: bool, webp: Option<Option<u8>>) -> Result<()> {
     let dir = game.join("HD").join("CDFiles");
     let mut ids: Vec<u32> = fs::read_dir(&dir)
         .with_context(|| format!("reading {}", dir.display()))?
@@ -449,7 +459,7 @@ fn convert_game(game: &Path, output: &Path, font: Option<&Path>, title: &str, lo
     build::summary(output, &ir, lost, font.is_some(), Default::default(), Some(true))
 }
 
-fn convert_script(game: &Path, script: u32, output: &Path, font: Option<&Path>, title: &str, webp: bool) -> Result<()> {
+fn convert_script(game: &Path, script: u32, output: &Path, font: Option<&Path>, title: &str, webp: Option<Option<u8>>) -> Result<()> {
     let file = format!("{script:04}.cd");
     let path = game.join("HD").join("CDFiles").join(&file);
     let bytes = map(&path)?;
