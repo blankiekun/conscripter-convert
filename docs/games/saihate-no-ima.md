@@ -839,7 +839,34 @@ exe (`research/tools/ghidra/ghidra_export.sh`, names in
    440). CONscripter's new `cons_cube.dll/dx,dy` draws it
    (`TransitionStyle::Cube`); it was a push of both pictures. 8 uses.
    The exe also runs three passes over the new face (0x4291f0), probably
-   shading, not converted.
+   shading, not converted. MeltDown 46/47 (3 uses; 45, which the
+   converter's melt was fitted to, is never used) differs from our melt:
+   the films show columns starting to fall between 0.4 and 0.8 of the
+   time and the old picture smeared into narrow fingers. The draw code
+   (0x4458e0, 0x4456b0) works per row: one shift grows with time, a
+   column starts when the shift passes its random curve value, and the
+   old picture's rows below that point are pulled down by an offset that
+   grows by the acceleration (0x4451e0: ((b/255)^2 × 0.45 + 0.03) /
+   height) on each row. Not ported: the decompiler lost some arguments.
+26. **Done: four more of the original's settings** (its dialog filmed
+   under wine, all six pages, for the options and defaults): 画面エフェ
+   クトを使用 (`Switch::Effects`: off, every transition shows at once;
+   CONscripter's new `effectoff`), セーブファイルのプレビューを表示
+   (`Switch::SavePreview`: the save menu's large picture), 文字装飾
+   (`Switch::TextShadow`: the message text's shadow, CONscripter's new
+   `textshadow`; from the next page) and チャプタ履歴の上書き確認
+   (`Switch::ConfirmChapter`: the chapter history's question), all on by
+   default as there. The switches page now holds 15, 26 px apart (flags
+   `%2914`-`%2917`). Left out: the two auto waits as two rows (one row
+   sets both: the settings' sprites are all used by the six rows, and a
+   seventh means renumbering every game's menu sprites), the four
+   "選択/クリックでスキップ/オートモードを解除" boxes (on by default,
+   which is how the port behaves: links stop skip and auto, a click
+   stops them), antialiasing, the frame rate, the shortcut menu's
+   position and keys (no right-click menu), running while inactive,
+   gamepad, the settings dialog's own OK/cancel questions (ours applies
+   at once), the autosave's load question (no autosave) and wheel
+   sensitivity.
 
 
 Converted and playable from start to end: text, voices, sprites with
@@ -933,15 +960,10 @@ to the game. Nothing in it was asked for.
 
 **Settings screen.** The original's settings dialog has six pages; these
 parts are not converted:
-- text: the auto waits per page and per character as two settings (one
-  row sets both), stopping skip/auto on a choice or click, font,
-  antialiasing, decoration;
-- voice: auto-play of voices in the CG viewer;
-- sound: the system voice;
-- mouse: wheel sensitivity (the wheel switches and the confirmation
-  switches are done);
-- other: effect and animation switches, save preview, inactive-window
-  behaviour, shortcut-menu position, gamepad.
+see Status, item 26: the auto waits as two rows, the skip/auto
+switches (their defaults are converted), antialiasing, the CG viewer's
+voices, the system voice, wheel sensitivity, frame rate, inactive-window
+behaviour, the shortcut menu and gamepad.
 
 **Other system screens.**
 - The autosave slots: the original's are in its right-click menu

@@ -174,7 +174,8 @@ pub(crate) fn emit(out: &mut String, h: &ChapterHistory) {
     w(format!("mov {CONFIRM_TEXT},\"{}\"", escape(&h.question.0)));
     w(format!("add {CONFIRM_TEXT},{TITLE}"));
     w(format!("add {CONFIRM_TEXT},\"{}\"", escape(&h.question.1)));
-    w(format!("mov {},0:gosub *{CONFIRM_ROUTINE}", crate::menu::CONFIRM_KIND));
+    // Switched off, it goes without asking.
+    w(format!("mov {CONFIRM},1:if {} == 0 mov {},0:gosub *{CONFIRM_ROUTINE}", crate::menu::switch_off(conv_core::ir::Switch::ConfirmChapter), crate::menu::CONFIRM_KIND));
     w(format!("if {CONFIRM} == 0 goto *conv_chapters_wait"));
     w(format!("mov {CARRY},{COUNT}+1"));
     w("gosub *conv_chapters_clear".into());
