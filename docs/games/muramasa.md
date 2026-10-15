@@ -603,105 +603,7 @@ Next, in order:
       user's choice (2026-10-15): the quick bar sliding while text types
       (it slides at click waits; doing it while text types needs the
       engine to move the bar);
-      - The yes/no questions (`sys_close.nss` and the others alike): the
-        question and its buttons are zoomed sideways from nothing to
-        whole in 150 ms (`Dxl1`) about the middle while they and the black
-        fade in; closing, back to nothing in 150 ms while all fade out in
-        200 ms (filmed ×10 slowed: the text is squeezed, not uncovered).
-        Ours (`ConfirmDialog::unroll`, `Unroll { x: 512, close_ms: 200 }`):
-        a frame about every 16 ms, timed by `waittimer`, each sprite
-        `amsp`'d toward the line x 512 and `spzoom`'d sideways with its
-        alpha, and the backdrop faded. The original's buttons turn about
-        their own vertices (515 and 499), ours about 512: at most 13 px
-        apart, for 150 ms. Filmed at 60 fps: five frames in, three out,
-        as the original.
-      - The openings (`TitleFade`): at launch (`!$Logo`, 11.2 s) 善悪相殺
-        drifts in, 村正鎮座 zooms out of the dark, two bursts of blood
-        sprays (multiplied, swinging in about a corner), drops and red
-        (added), the fire overlaid, a white flash, the title; on coming
-        back to the title (3 s) the logo grows out of the dark, the
-        background drops in from above, a white flash, a blurred glow of
-        the background and logo spreading away. CONscripter can't blend
-        sprites so, so the converter draws both frame by frame from the
-        script's timeline (`convert/muramasa/opening.rs`: every `Fade`,
-        `Zoom`, `Rotate` about its `SetVertex`, `Move`, the tempos,
-        `MoveFRP`'s random Bézier shake from a fixed seed, `SetBlur` and
-        `SetShade` as blurs; `MiddleWave` as a fade) into silent H.264
-        movies (`movie/title_launch2.mp4`, `title_return2.mp4`) that end
-        on the title at rest, buttons included (しおりから at half). The
-        title (`TitleScreen::openings`) starts the music, the sound
-        effect at the flash (se特殊_雰囲気_鎧登場演02, made with silence
-        before it), plays the movie with `mpegplay "f",1,1`, and puts the
-        sprites up at once; the glow then starts where the original's
-        process is (`TitleOpening::glow_keys`). The global %2960 tells the
-        launch (cleared in the define section; `reset` keeps it). In
-        CONscripter the hand-over differs by 1.5 levels (the player drops
-        the last frames: the last picture is held 200 ms). Beside the
-        original's launch under wine (a shot about every 0.8 s, wine
-        redraws slowly) the same pictures come in the same order. The
-        launch picture is picked as `TitleSet` does (the user, 2026-10-15):
-        the first launch after clearing 悪鬼編 shows 真生悪鬼ＥＤ, else
-        after 魔王編 (悪鬼編 not cleared) 村正鎮座, after 英雄編 最終正宗,
-        after 復讐編 香奈枝の凶眼, each once (`#…通過`, declared by
-        `flags()` with the `#…終了` flags); otherwise one at random among
-        the cleared routes' and 村正鎮座. Four movies
-        (`title_launch2_ev267`, `_ev501`, `_ev165`, `_ev004`), chosen by
-        `TitleOpening::when`/`sets`/`random` (NScripter `rnd` over the pool).
-        Checked: with `#英雄編終了` set the launch plays 最終正宗's. The
-        logos and the warning before it (`TitleLogo`) aren't converted.
-      - The fire: `TitleSet` puts `ef046_炎a.jpg` (1920×1200) over the
-        title at (0,0), zoomed 2× about its centre, drawn in overlay
-        (`OverlayRender`, darkening this dark picture), and `CreateTPO1`'s
-        process fades it from 0 to 300 over 600 ms, holds until 1100 ms,
-        back to 0 by 1700 ms, holds until 2200 ms, for ever. Ours: the
-        converter draws the title with the fire overlaid at 300
-        (`Assets::overlaid`) and CONscripter's new `spalpha` (0ae2e87)
-        fades that picture in and out over the title with the same keys
-        (`TitleScreen::glow`). Beside the original under wine: the left
-        edge's red swings by about 10 levels in both (50-60 there,
-        45-55 ours; wine's picture is 5 levels lighter throughout). Where
-        the zoomed fire sits can't be told from shots (it is a soft
-        picture and moves the screen by 3 levels at most).
-      and the movies (added by the user, 2026-10-15; done 2026-10-15).
-      They are MPEG-1 program streams (`.ngs`, 1024×576, MP2 sound) in
-      the disc's `ムービー/` folder, beside `<game>`, not in the archives
-      (33 files, 353 MB, and 46 more in `ムービー/3d/` for the extras); the
-      scripts name them `dx/<name>.ngs`. Each is encoded once to H.264 MP4
-      in `movie/` (ASCII names: the file's own, or `mv_` and a hash of a
-      Japanese one), which every CONscripter build plays (the web build in
-      a `<video>` element, MPEG-1 being unplayable there).
-      - `MoviePlay(file, skippable)` (full screen, the script waits:
-        `mvOP` at the end of chapter 1 in `ma01_026`, `mvOP02` in
-        `md01_018`, `mv剣戟_チャキーンチャキキーン` in `mb01_006`) is
-        `Op::Movie` (`bgmstop` + `mpegplay`) for a movie with sound, and
-        a new `Op::SceneMovie` for a silent one: `mpegplay "f",1,1`, a
-        CONscripter addition (b0de6a0) that leaves the music playing.
-        `moviestop` (the settings' 動画 pair) decides whether a click
-        stops it. `mv_smg_PV` (the title's demo, every 35 s in
-        `TitleProcess`) is not on the disc (only `mvPV.ngs`): it is left
-        out, and the title's demo loop isn't converted.
-      - `CreateMovie(name, priority, x, y, loop, alpha, file)` is a movie
-        object (`MovieObject`), as the user chose (2026-10-15: frames
-        made by the converter, no engine movie sprite):
-        - A cut that fills the screen, plays once, and that the script
-          waits for (`WaitAction`/`WaitPlay` on it, or a `Wait`/`WaitKey`
-          of at least half its remaining time, which the scripts take
-          from `RemainTime`) plays as a movie with the music going on
-          (`Op::SceneMovie`; its own sound left out, the script plays the
-          `se特殊_mv用_*` effect beside it), then shows its last frame. The
-          time played counts toward the script's following waits for it.
-          This is `MovieSESet` + `MovieSEStart` (28 calls) and the single
-          cuts with `WaitAction` (5) or `RemainTime` (2).
-        - Any other is drawn as its frames (`Op::AnimatedSprite`, an
-          `lsp` animation at 15 frames a second, half size and zoomed back
-          with `spzoom`): `mvk100` (23 uses, a 9 s loop of smoke, top half
-          colour and bottom half opacity, zoomed 3×5 and more; `SubRender`
-          draws it black, `AddRender` as it is), and `mv剣戟_チャキーンチャキキーン`
-          looping under the text (`mb02_023vs`). Paused (`Request(…, Pause)`
-          after 100-300 ms, `md01_006`, `mb03_019`) it is that one frame.
-        - Left as they are: a `Zoom` over time of the smoke jumps to its
-          end (as other zooms over time, a cross-fade), `Rotate` (the
-          smoke flipped) is ignored.
+      - How each was done: "History", below.
       - The trace's auto-play skips movies (CONscripter) but reports
         missing ones; the prologue (`--chain 2`) has three cuts.
       - The original under wine draws no movie (`CreateMovie` leaves the
@@ -711,9 +613,6 @@ Next, in order:
         compared there yet. The smoke's strength (`SubRender` subtracts
         the white smoke; ours draws it black over the scene, lighter) is
         unchecked.
-      - Engine fixes found on the way (f8d4cf4): `spzoom` on an animated
-        sprite showed only its first cell, and a screen update partly off
-        the screen was dropped.
       - On Windows CONscripter only opens a movie in an outside player.
 
    8. **Extras** (特別付加目録, `extra_*.nss`), under way. Filmed in the
@@ -1168,3 +1067,108 @@ page each punctuation mark or symbol shows on (`--shot-pages`):
    タイトルに戻る (asked, then `reset`) comes back to the list (global
    %2962, read first thing by the title). Left: the 500 ms fade of
    `RecoIn` from the held list to the scene (ours cuts).
+
+**Motion and movies (Status, system screens step 7), done:**
+
+- The yes/no questions (`sys_close.nss` and the others alike): the
+  question and its buttons are zoomed sideways from nothing to
+  whole in 150 ms (`Dxl1`) about the middle while they and the black
+  fade in; closing, back to nothing in 150 ms while all fade out in
+  200 ms (filmed ×10 slowed: the text is squeezed, not uncovered).
+  Ours (`ConfirmDialog::unroll`, `Unroll { x: 512, close_ms: 200 }`):
+  a frame about every 16 ms, timed by `waittimer`, each sprite
+  `amsp`'d toward the line x 512 and `spzoom`'d sideways with its
+  alpha, and the backdrop faded. The original's buttons turn about
+  their own vertices (515 and 499), ours about 512: at most 13 px
+  apart, for 150 ms. Filmed at 60 fps: five frames in, three out,
+  as the original.
+- The openings (`TitleFade`): at launch (`!$Logo`, 11.2 s) 善悪相殺
+  drifts in, 村正鎮座 zooms out of the dark, two bursts of blood
+  sprays (multiplied, swinging in about a corner), drops and red
+  (added), the fire overlaid, a white flash, the title; on coming
+  back to the title (3 s) the logo grows out of the dark, the
+  background drops in from above, a white flash, a blurred glow of
+  the background and logo spreading away. CONscripter can't blend
+  sprites so, so the converter draws both frame by frame from the
+  script's timeline (`convert/muramasa/opening.rs`: every `Fade`,
+  `Zoom`, `Rotate` about its `SetVertex`, `Move`, the tempos,
+  `MoveFRP`'s random Bézier shake from a fixed seed, `SetBlur` and
+  `SetShade` as blurs; `MiddleWave` as a fade) into silent H.264
+  movies (`movie/title_launch2.mp4`, `title_return2.mp4`) that end
+  on the title at rest, buttons included (しおりから at half). The
+  title (`TitleScreen::openings`) starts the music, the sound
+  effect at the flash (se特殊_雰囲気_鎧登場演02, made with silence
+  before it), plays the movie with `mpegplay "f",1,1`, and puts the
+  sprites up at once; the glow then starts where the original's
+  process is (`TitleOpening::glow_keys`). The global %2960 tells the
+  launch (cleared in the define section; `reset` keeps it). In
+  CONscripter the hand-over differs by 1.5 levels (the player drops
+  the last frames: the last picture is held 200 ms). Beside the
+  original's launch under wine (a shot about every 0.8 s, wine
+  redraws slowly) the same pictures come in the same order. The
+  launch picture is picked as `TitleSet` does (the user, 2026-10-15):
+  the first launch after clearing 悪鬼編 shows 真生悪鬼ＥＤ, else
+  after 魔王編 (悪鬼編 not cleared) 村正鎮座, after 英雄編 最終正宗,
+  after 復讐編 香奈枝の凶眼, each once (`#…通過`, declared by
+  `flags()` with the `#…終了` flags); otherwise one at random among
+  the cleared routes' and 村正鎮座. Four movies
+  (`title_launch2_ev267`, `_ev501`, `_ev165`, `_ev004`), chosen by
+  `TitleOpening::when`/`sets`/`random` (NScripter `rnd` over the pool).
+  Checked: with `#英雄編終了` set the launch plays 最終正宗's. The
+  logos and the warning before it (`TitleLogo`) aren't converted.
+- The fire: `TitleSet` puts `ef046_炎a.jpg` (1920×1200) over the
+  title at (0,0), zoomed 2× about its centre, drawn in overlay
+  (`OverlayRender`, darkening this dark picture), and `CreateTPO1`'s
+  process fades it from 0 to 300 over 600 ms, holds until 1100 ms,
+  back to 0 by 1700 ms, holds until 2200 ms, for ever. Ours: the
+  converter draws the title with the fire overlaid at 300
+  (`Assets::overlaid`) and CONscripter's new `spalpha` (0ae2e87)
+  fades that picture in and out over the title with the same keys
+  (`TitleScreen::glow`). Beside the original under wine: the left
+  edge's red swings by about 10 levels in both (50-60 there,
+  45-55 ours; wine's picture is 5 levels lighter throughout). Where
+  the zoomed fire sits can't be told from shots (it is a soft
+  picture and moves the screen by 3 levels at most).
+and the movies (added by the user, 2026-10-15; done 2026-10-15).
+They are MPEG-1 program streams (`.ngs`, 1024×576, MP2 sound) in
+the disc's `ムービー/` folder, beside `<game>`, not in the archives
+(33 files, 353 MB, and 46 more in `ムービー/3d/` for the extras); the
+scripts name them `dx/<name>.ngs`. Each is encoded once to H.264 MP4
+in `movie/` (ASCII names: the file's own, or `mv_` and a hash of a
+Japanese one), which every CONscripter build plays (the web build in
+a `<video>` element, MPEG-1 being unplayable there).
+- `MoviePlay(file, skippable)` (full screen, the script waits:
+  `mvOP` at the end of chapter 1 in `ma01_026`, `mvOP02` in
+  `md01_018`, `mv剣戟_チャキーンチャキキーン` in `mb01_006`) is
+  `Op::Movie` (`bgmstop` + `mpegplay`) for a movie with sound, and
+  a new `Op::SceneMovie` for a silent one: `mpegplay "f",1,1`, a
+  CONscripter addition (b0de6a0) that leaves the music playing.
+  `moviestop` (the settings' 動画 pair) decides whether a click
+  stops it. `mv_smg_PV` (the title's demo, every 35 s in
+  `TitleProcess`) is not on the disc (only `mvPV.ngs`): it is left
+  out, and the title's demo loop isn't converted.
+- `CreateMovie(name, priority, x, y, loop, alpha, file)` is a movie
+  object (`MovieObject`), as the user chose (2026-10-15: frames
+  made by the converter, no engine movie sprite):
+  - A cut that fills the screen, plays once, and that the script
+    waits for (`WaitAction`/`WaitPlay` on it, or a `Wait`/`WaitKey`
+    of at least half its remaining time, which the scripts take
+    from `RemainTime`) plays as a movie with the music going on
+    (`Op::SceneMovie`; its own sound left out, the script plays the
+    `se特殊_mv用_*` effect beside it), then shows its last frame. The
+    time played counts toward the script's following waits for it.
+    This is `MovieSESet` + `MovieSEStart` (28 calls) and the single
+    cuts with `WaitAction` (5) or `RemainTime` (2).
+  - Any other is drawn as its frames (`Op::AnimatedSprite`, an
+    `lsp` animation at 15 frames a second, half size and zoomed back
+    with `spzoom`): `mvk100` (23 uses, a 9 s loop of smoke, top half
+    colour and bottom half opacity, zoomed 3×5 and more; `SubRender`
+    draws it black, `AddRender` as it is), and `mv剣戟_チャキーンチャキキーン`
+    looping under the text (`mb02_023vs`). Paused (`Request(…, Pause)`
+    after 100-300 ms, `md01_006`, `mb03_019`) it is that one frame.
+  - Left as they are: a `Zoom` over time of the smoke jumps to its
+    end (as other zooms over time, a cross-fade), `Rotate` (the
+    smoke flipped) is ignored.
+- Engine fixes found on the way (f8d4cf4): `spzoom` on an animated
+  sprite showed only its first cell, and a screen update partly off
+  the screen was dropped.
