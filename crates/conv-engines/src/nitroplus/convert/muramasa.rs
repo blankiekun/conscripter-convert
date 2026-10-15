@@ -50,6 +50,10 @@ fn flags() -> Vec<String> {
     // Set by the story, read by the settings' voice window.
     out.extend(screens::VOICES.iter().map(|(name, _)| screens::heard_flag(name)));
     out.push(screens::CHAPTER_ONE_CLEARED.to_string());
+    // The routes cleared and the title's marks for them (TitleSet).
+    for route in ["英雄編", "復讐編", "魔王編", "悪鬼編"] {
+        out.extend([format!("#{route}終了"), format!("#{route}通過")]);
+    }
     out
 }
 

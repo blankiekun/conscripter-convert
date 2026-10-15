@@ -916,8 +916,10 @@ Next, in order:
       difference 0.57 levels, every pixel within 40 but the version line.
       Left: the wheel over a slider.
    7. Motion and movies: the title's fire flicker and its openings, the
-      dialog unroll (done), the menu cascade, the quick bar sliding while
-      text types (to do);
+      dialog unroll, the menu cascade (step 3) are done. Left, by the
+      user's choice (2026-10-15): the quick bar sliding while text types
+      (it slides at click waits; doing it while text types needs the
+      engine to move the bar);
       - The yes/no questions (`sys_close.nss` and the others alike): the
         question and its buttons are zoomed sideways from nothing to
         whole in 150 ms (`Dxl1`) about the middle while they and the black
@@ -953,11 +955,17 @@ Next, in order:
         CONscripter the hand-over differs by 1.5 levels (the player drops
         the last frames: the last picture is held 200 ms). Beside the
         original's launch under wine (a shot about every 0.8 s, wine
-        redraws slowly) the same pictures come in the same order. Left:
-        the original picks the launch picture by the routes cleared
-        (悪鬼編's, 英雄編's, 復讐編's, or at random among them); ours is
-        always 村正鎮座, that of a game with none cleared. The logos and
-        the warning before it (`TitleLogo`) aren't converted.
+        redraws slowly) the same pictures come in the same order. The
+        launch picture is picked as `TitleSet` does (the user, 2026-10-15):
+        the first launch after clearing 悪鬼編 shows 真生悪鬼ＥＤ, else
+        after 魔王編 (悪鬼編 not cleared) 村正鎮座, after 英雄編 最終正宗,
+        after 復讐編 香奈枝の凶眼, each once (`#…通過`, declared by
+        `flags()` with the `#…終了` flags); otherwise one at random among
+        the cleared routes' and 村正鎮座. Four movies
+        (`title_launch2_ev267`, `_ev501`, `_ev165`, `_ev004`), chosen by
+        `TitleOpening::when`/`sets`/`random` (NScripter `rnd` over the pool).
+        Checked: with `#英雄編終了` set the launch plays 最終正宗's. The
+        logos and the warning before it (`TitleLogo`) aren't converted.
       - The fire: `TitleSet` puts `ef046_炎a.jpg` (1920×1200) over the
         title at (0,0), zoomed 2× about its centre, drawn in overlay
         (`OverlayRender`, darkening this dark picture), and `CreateTPO1`'s

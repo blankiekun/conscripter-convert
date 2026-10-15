@@ -8,7 +8,7 @@
 
 use conv_core::ir::{
     BarAction, BarButton, BarSlide, ButtonBar, CommandItem, CommandMenu, ConfirmDialog, GridText, LineLog, PairOption, PicturePair, PictureSettings, PictureSlider, PictureText, Placed, Rect, SaveGrid,
-    Script, SliderSetting, Switch, TitleAction, TitleButton, TitleGlow, TitleOpening, Unroll, TitleScreen, VoiceEntry, VoiceLayout, VoiceWindow, WaitIcon,
+    Script, SliderSetting, Switch, TitleAction, TitleButton, TitleGlow, TitleOpening, TitleScreen, Unroll, Var, VoiceEntry, VoiceLayout, VoiceWindow, WaitIcon,
 };
 
 use super::super::{Assets, Story};
@@ -23,7 +23,7 @@ const SCREEN_H: i32 = 576;
 /// Fills the script's system screens.
 pub fn menus(a: &mut dyn Assets, script: &mut Script, story: &Story) {
     script.confirm = confirm(a);
-    script.title_screen = title(a);
+    script.title_screen = title(a, story);
     script.button_bar = quick_bar(a);
     script.command_menu = command_menu(a);
     script.save_grid = save_grid(a);
@@ -403,7 +403,7 @@ fn quick_bar(a: &mut dyn Assets) -> Option<ButtonBar> {
 /// with no question (`sys_close.nss` 45-51). Left out: the fire that
 /// flickers over the background (0 to 300/1000 and back, 600 ms each way,
 /// 1100 ms holds), the opening, and the first start's intro.
-fn title(a: &mut dyn Assets) -> Option<TitleScreen> {
+fn title(a: &mut dyn Assets, story: &Story) -> Option<TitleScreen> {
     const DIR: &str = "cg/sys/title";
     let mut parts = Vec::new();
     for (name, x, y) in [("偽富士背景画像", 0, 0), ("ロゴ画像", 346, 40), ("コピーライト", 50, 540)] {
@@ -416,13 +416,21 @@ fn title(a: &mut dyn Assets) -> Option<TitleScreen> {
     // The openings end with the fire at 300 (at launch, partway through
     // its glow) or at nothing (on coming back).
     let mut openings = Vec::new();
-    if let Some(movie) = super::opening::at_launch(a) {
-        let sound = a.delayed_sound("sound/se/se特殊_雰囲気_鎧登場演02", 10200);
-        openings.push(TitleOpening { movie, at_launch: true, sound, glow_keys: Some(vec![(0, 256), (100, 256), (700, 0), (1200, 0), (1800, 256), (2200, 256)]) });
+    let launch_sound = a.delayed_sound("sound/se/se特殊_雰囲気_鎧登場演02", 10200);
+    let mut movies = std::collections::HashMap::new();
+    for (picture, when, sets, random) in launch_pictures(story) {
+        if !movies.contains_key(picture) {
+            let name = format!("title_launch2_{}", &picture[6..11]);
+            let m = super::opening::at_launch(a, picture, &name);
+            movies.insert(picture, m);
+        }
+        let Some(movie) = movies[picture].clone() else { continue };
+        let glow_keys = Some(vec![(0, 256), (100, 256), (700, 0), (1200, 0), (1800, 256), (2200, 256)]);
+        openings.push(TitleOpening { movie, at_launch: true, sound: launch_sound.clone(), glow_keys, when, sets, random });
     }
     if let Some(movie) = super::opening::on_return(a) {
         let sound = a.delayed_sound("sound/se/se特殊_雰囲気_鎧登場演02", 1800);
-        openings.push(TitleOpening { movie, at_launch: false, sound, glow_keys: None });
+        openings.push(TitleOpening { movie, sound, ..Default::default() });
     }
     let glow = a.overlaid(&background, "cg/ef/ef046_炎a.jpg", 2000, 300).map(|image| TitleGlow {
         image,
@@ -459,6 +467,35 @@ fn title(a: &mut dyn Assets) -> Option<TitleScreen> {
         glow,
         openings,
     })
+}
+
+/// The launch opening's picture, as `TitleSet` picks it: a route's own the
+/// first time after clearing it (悪鬼編, then 魔王編's while 悪鬼編 isn't
+/// cleared, 英雄編, 復讐編; each marked `#…通過` once shown), else one at
+/// random among the cleared routes' and 村正鎮座. Rules whose flags the
+/// story lacks are left out.
+fn launch_pictures(story: &Story) -> Vec<(&'static str, Vec<(Var, i32)>, Vec<Var>, bool)> {
+    let flag = |route: &str, what: &str| story.flags.get(&format!("#{route}{what}")).copied();
+    let (akki, maou, eiyuu, fukushuu) = ("cg/ev/ev267_真生悪鬼ＥＤ_a.jpg", "cg/ev/ev501_村正鎮座.jpg", "cg/ev/ev165_最終正宗_a.jpg", "cg/ev/ev004_香奈枝の凶眼_a.jpg");
+    let mut out = Vec::new();
+    for (picture, when, sets) in [
+        (akki, [("悪鬼編", "終了", 1), ("悪鬼編", "通過", 0)], "悪鬼編"),
+        (maou, [("魔王編", "終了", 1), ("悪鬼編", "終了", 0)], "魔王編"),
+        (eiyuu, [("英雄編", "終了", 1), ("英雄編", "通過", 0)], "英雄編"),
+        (fukushuu, [("復讐編", "終了", 1), ("復讐編", "通過", 0)], "復讐編"),
+    ] {
+        let when: Option<Vec<(Var, i32)>> = when.iter().map(|(r, w, v)| flag(r, w).map(|f| (f, *v))).collect();
+        if let (Some(when), Some(set)) = (when, flag(sets, "通過")) {
+            out.push((picture, when, vec![set], false));
+        }
+    }
+    for (picture, route) in [(eiyuu, "英雄編"), (fukushuu, "復讐編"), (akki, "悪鬼編")] {
+        if let Some(done) = flag(route, "終了") {
+            out.push((picture, vec![(done, 1)], Vec::new(), true));
+        }
+    }
+    out.push((maou, Vec::new(), Vec::new(), true));
+    out
 }
 
 /// A button's strip from its state pictures `<dir>/00N-<name>.png`: normal,

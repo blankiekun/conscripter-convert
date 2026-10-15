@@ -651,6 +651,14 @@ pub struct TitleOpening {
     /// [`TitleGlow::keys`] for the glow's start after this opening (it
     /// may be partway through a glow).
     pub glow_keys: Option<Vec<(u32, u32)>>,
+    /// Plays only while each of these variables has its value (a game's
+    /// flags: the routes cleared).
+    pub when: Vec<(Var, i32)>,
+    /// Set to 1 when it plays.
+    pub sets: Vec<Var>,
+    /// One of a pool: the openings marked so whose `when` holds are tried
+    /// together, where the first of them stands, one picked at random.
+    pub random: bool,
 }
 
 /// [`TitleScreen::glow`]: a full-screen picture drawn at a changing

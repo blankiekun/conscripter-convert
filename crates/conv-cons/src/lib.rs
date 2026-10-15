@@ -334,7 +334,7 @@ pub fn emit(script: &Script) -> String {
     let save_menu = script.save_menu.is_some() || script.save_grid.is_some();
     let effect = |ms: u32| if ms == 0 { "1".to_string() } else { effects[&(ms, Effect::Fade)].clone() };
     if let Some(t) = &script.title_screen {
-        title_screen(&mut out, t, &effect(t.fade_ms), save_menu, has_settings, script.confirm.as_ref(), script.extras.is_some());
+        title_screen(&mut out, t, &effect(t.fade_ms), save_menu, has_settings, script.confirm.as_ref(), script.extras.is_some(), border);
     }
     let back_to_choice = script.button_bar.as_ref().is_some_and(|b| menu::has_back_to_choice(b, script.command_menu.as_ref()));
     if back_to_choice {
@@ -1150,7 +1150,8 @@ pub fn emit(script: &Script) -> String {
 /// The title menu: buttons are sprites over the picture, faded in together;
 /// Start clears them and falls through to the script that follows. Load
 /// opens the save menu's load screen if there is one, else ONScripter's.
-fn title_screen(out: &mut String, t: &TitleScreen, fade: &str, save_menu: bool, settings: bool, confirm: Option<&ConfirmDialog>, extras: bool) {
+#[allow(clippy::too_many_arguments)]
+fn title_screen(out: &mut String, t: &TitleScreen, fade: &str, save_menu: bool, settings: bool, confirm: Option<&ConfirmDialog>, extras: bool, border: u32) {
     let buttons: Vec<_> = t.buttons.iter().zip(MENU_SPRITES).collect();
     // %105 = 1 while there is a quick save (for Continue).
     let quick = buttons.iter().any(|(b, _)| b.action == TitleAction::Continue);
@@ -1160,10 +1161,7 @@ fn title_screen(out: &mut String, t: &TitleScreen, fade: &str, save_menu: bool, 
     }
     // Effect 0 = update the buffer only; the print shows it all.
     writeln!(out, "bg \"{}\",0", path(&t.background)).unwrap();
-    for (i, o) in t.openings.iter().enumerate() {
-        let shown = if o.at_launch { 0 } else { 1 };
-        writeln!(out, "if {TITLE_SHOWN} == {shown} mov {TITLE_SHOWN},1:goto *conv_title_opening{i}").unwrap();
-    }
+    title_openings(out, &t.openings, border);
     if !t.openings.is_empty() {
         writeln!(out, "mov {TITLE_SHOWN},1").unwrap();
     }
@@ -1241,6 +1239,43 @@ fn title_screen(out: &mut String, t: &TitleScreen, fade: &str, save_menu: bool, 
     writeln!(out, "bg black,{fade}").unwrap();
     if t.start_wait_ms > 0 {
         writeln!(out, "wait {}", t.start_wait_ms).unwrap();
+    }
+}
+
+/// Which opening plays: the first whose conditions hold, a random pool
+/// tried as one where its first member stands (%105 counts the pool's
+/// openings that may play, %9 is the one picked).
+fn title_openings(out: &mut String, openings: &[conv_core::ir::TitleOpening], border: u32) {
+    let cond = |o: &conv_core::ir::TitleOpening| {
+        let mut c = vec![format!("{TITLE_SHOWN} == {}", if o.at_launch { 0 } else { 1 })];
+        c.extend(o.when.iter().map(|(v, value)| format!("{} == {value}", var_name(*v, border))));
+        c.join(" && ")
+    };
+    let then = |i: usize, o: &conv_core::ir::TitleOpening| {
+        let sets: String = o.sets.iter().map(|v| format!("mov {},1:", var_name(*v, border))).collect();
+        format!("mov {TITLE_SHOWN},1:{sets}goto *conv_title_opening{i}")
+    };
+    let mut pool_done = false;
+    for (i, o) in openings.iter().enumerate() {
+        if !o.random {
+            writeln!(out, "if {} {}", cond(o), then(i, o)).unwrap();
+            continue;
+        }
+        if pool_done {
+            continue;
+        }
+        pool_done = true;
+        let pool: Vec<(usize, &conv_core::ir::TitleOpening)> = openings.iter().enumerate().filter(|(_, o)| o.random).collect();
+        writeln!(out, "mov {},0", menu::TMP).unwrap();
+        for (_, o) in &pool {
+            writeln!(out, "if {} inc {}", cond(o), menu::TMP).unwrap();
+        }
+        writeln!(out, "if {} > 0 rnd {BUTTON_VAR},{}", menu::TMP, menu::TMP).unwrap();
+        writeln!(out, "mov {},0", menu::TMP).unwrap();
+        for (k, o) in &pool {
+            writeln!(out, "if {} && {BUTTON_VAR} == {} {}", cond(o), menu::TMP, then(*k, o)).unwrap();
+            writeln!(out, "if {} inc {}", cond(o), menu::TMP).unwrap();
+        }
     }
 }
 
@@ -2067,6 +2102,7 @@ effect 7,99,1000,\"cons_zoom.dll/3,220,5\"
                 at_launch: true,
                 sound: Some("sound/se/op.ogg".into()),
                 glow_keys: Some(vec![(0, 256), (100, 256), (700, 0)]),
+                ..Default::default()
             }],
         });
         let text = emit(&s);
@@ -2092,6 +2128,33 @@ effect 7,99,1000,\"cons_zoom.dll/3,220,5\"
         ] {
             assert!(text.contains(part), "missing {part:?} in\n{text}");
         }
+    }
+
+    #[test]
+    fn title_openings_by_flags_then_at_random() {
+        use conv_core::ir::{TitleOpening, Var};
+        let (done, seen) = (Var { global: true, index: 5 }, Var { global: true, index: 6 });
+        let opening = |movie: &str, when: Vec<(Var, i32)>, sets: Vec<Var>, random| TitleOpening { movie: movie.into(), at_launch: true, when, sets, random, ..Default::default() };
+        let openings = [
+            opening("first", vec![(done, 1), (seen, 0)], vec![seen], false),
+            opening("route", vec![(done, 1)], vec![], true),
+            opening("plain", vec![], vec![], true),
+        ];
+        let mut out = String::new();
+        title_openings(&mut out, &openings, 800);
+        assert_eq!(
+            out,
+            "if %2960 == 0 && %805 == 1 && %806 == 0 mov %2960,1:mov %806,1:goto *conv_title_opening0\n\
+             mov %105,0\n\
+             if %2960 == 0 && %805 == 1 inc %105\n\
+             if %2960 == 0 inc %105\n\
+             if %105 > 0 rnd %9,%105\n\
+             mov %105,0\n\
+             if %2960 == 0 && %805 == 1 && %9 == %105 mov %2960,1:goto *conv_title_opening1\n\
+             if %2960 == 0 && %805 == 1 inc %105\n\
+             if %2960 == 0 && %9 == %105 mov %2960,1:goto *conv_title_opening2\n\
+             if %2960 == 0 inc %105\n"
+        );
     }
 
     #[test]

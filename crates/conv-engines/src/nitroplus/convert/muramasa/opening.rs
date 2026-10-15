@@ -281,14 +281,13 @@ fn buttons(a: &mut dyn Assets, at: f64) -> Option<Vec<Layer>> {
 const BLUR: f32 = 3.0;
 
 /// The first title after the game starts (`TitleFade`, `!$Logo`): 善悪相殺
-/// drifts in, 村正鎮座 zooms out of the dark, two bursts of blood and red,
-/// a white flash, the title. Ends at 11.2 s, as the white has faded. The
-/// picture is 村正鎮座, the one of a game with no route cleared (the
-/// original picks by the routes cleared).
-pub fn at_launch(a: &mut dyn Assets) -> Option<String> {
+/// drifts in, `picture` (the title picks it by the routes cleared) zooms
+/// out of the dark, two bursts of blood and red, a white flash, the title.
+/// Ends at 11.2 s, as the white has faded. `name`: the movie's.
+pub fn at_launch(a: &mut dyn Assets, picture: &str, name: &str) -> Option<String> {
     let fuji = format!("{DIR}/偽富士背景画像.png");
     let logo = format!("{DIR}/ロゴ画像.png");
-    let muramasa = "cg/ev/ev501_村正鎮座.jpg";
+    let muramasa = picture;
     let end = 11200.0;
     let mut layers = Vec::new();
 
@@ -393,7 +392,7 @@ pub fn at_launch(a: &mut dyn Assets) -> Option<String> {
     layers.push(red);
 
     layers.extend(buttons(a, 10200.0)?);
-    render(a, "title_launch2", end, &layers)
+    render(a, name, end, &layers)
 }
 
 /// Coming back to the title (`TitleFade`, `$Logo`): the logo grows out of
