@@ -163,7 +163,9 @@ system screens, extras and matching effects to the original.
 ## 7. System screens
 
 Title, save/load (with thumbnails and delete), settings, backlog, the
-button bar, confirmations. Build them as in-script menus from the
+button bar, confirmations. Which buttons the original shows or
+enables at each point (no save yet, no choice yet, nothing unlocked)
+is checked in step 11.6. Build them as in-script menus from the
 original's own parts (`menu.rs` explains the ONScripter mechanics). Where
 the original uses a Windows dialog, design one from game parts and say
 so. Check each one headless with `research/xuse/smoke.py` (scripted
@@ -176,7 +178,8 @@ presses the bar's save, load or skip buttons.
 CG gallery, scene replay, music room. Their tables usually live in the
 exe or in system archives. Get a 100% save (the user points to
 sagaoz.net) and film the original's screens under wine before building
-them.
+them, with a fresh system data as well, to see what is locked before
+anything is reached (step 11.6).
 
 ## 9. Matching the original
 
@@ -300,7 +303,29 @@ lose the loop state between sessions.
    natively, (b) closing and reopening the web build, (c) loading an
    older save and (d) going back to the title and starting again.
    Compare each case with what the original does.
-6. **Write it down.** Add a checklist entry to the game's document:
+6. **Check when every button may be shown or used.** Many buttons
+   appear, light up or open only after something has happened, and a
+   conversion easily shows them all from the start. List every button
+   and item on the title, the menus, the bars and the extras (gallery
+   tabs and thumbnails, replay scenes, music and movie room entries,
+   chapter or route entries, story menus) and for each one write down,
+   in the game's document, what the original needs before it is shown,
+   enabled or opened: an ending seen, a route cleared, a CG or scene
+   reached, a save existing, a choice behind the player, the game's own
+   unlock flag. Find the rule in the exe or the scripts, or see it
+   under wine with a fresh system data and with a 100% save; where it
+   can't be found, choose one, and say in the document that the rule is
+   ours. Then check the conversion in both states: on a fresh start
+   (nothing seen, no saves) every locked button must be hidden or greyed
+   and refuse a click, as in the original; with the unlocks reached
+   (by play, or the variables set with `--vars`) each one must appear.
+   Examples: 俺たちに翼はない's after-stories show once an ending was
+   seen and its music room opens every song (the original's rule is
+   unknown); 村正's 選択肢まで戻る is greyed while there is no choice to
+   go back to; 最果てのイマ's replay leaves out the scenes not unlocked
+   yet. Locked state is usually in system data: check it survives as in
+   step 5.
+7. **Write it down.** Add a checklist entry to the game's document:
    "progression verified against walkthrough: yes/no, date,
    how" (which paths were simulated, and whether both sides matched). Add any new lesson to `PLAN.md` §13.
 
@@ -308,7 +333,7 @@ lose the loop state between sessions.
 
 - The finish line is set by the user: every story instruction converted,
   system screens and extras working, the route and progression check
-  (step 11) done, the remaining differences written down as optional
+  (step 11, unlocks included) done, the remaining differences written down as optional
   leftovers in the game's document.
 - Update the game's document (status, leftovers), `README.md`'s support
   table, `PLAN.md` §6 (the list of games) and §13 (new lessons, stated
