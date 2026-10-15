@@ -77,6 +77,23 @@ LOOSE = Option("loose", "Loose files (no .nsa archives)", "--loose",
 DRY_RUN = Option("dry_run", "Script only (dry run)", "--dry-run",
                  help="Write 0.txt only, no pictures or sounds: a quick check that the scripts convert.")
 
+# Every convert command takes these too (build.rs, WebpArgs).
+WEBP = (
+    Option("webp", "WebP pictures", "--webp",
+           help="Store pictures as WebP instead of PNG: about half the size, or less with a quality. "
+                "Plays in the web build of CONscripter, and in a desktop build only if its SDL_image reads WebP."),
+    Option("webp_quality", "WebP quality", "--webp-quality", "int", "",
+           "0-100, as in image editors: lossy WebP at that quality, far smaller (80: about a quarter "
+           "of near-lossless, and hard to tell apart). Empty: near-lossless.",
+           needs="webp", low=0, high=100),
+)
+
+
+def _common(title: str) -> tuple[Option, ...]:
+    """The options every game has, in the order the app shows them; a
+    game's own follow."""
+    return (_title(title), *WEBP, *AUDIO, LOOSE, DRY_RUN)
+
 
 @dataclass(frozen=True)
 class Game:
@@ -232,18 +249,7 @@ GAMES: tuple[Game, ...] = (
         size_gb=1.5,
         doc="docs/games/saihate-no-ima.md",
         check=_saiima_check,
-        options=(
-            _title("Saihate no Ima COMPLETE"),
-            Option("webp", "WebP pictures (half the size, or less with a quality)", "--webp",
-                   help="Store pictures as WebP instead of PNG. Plays in the web build of CONscripter, "
-                        "and in a desktop build only if its SDL_image reads WebP."),
-            Option("webp_quality", "WebP quality", "--webp-quality", "int", "",
-                   "0-100, as in image editors: lossy WebP at that quality, far smaller (80: about a quarter "
-                   "of near-lossless, and hard to tell apart). Empty: near-lossless.",
-                   needs="webp", low=0, high=100),
-            *AUDIO,
-            LOOSE,
-        ),
+        options=_common("Saihate no Ima COMPLETE"),
     ),
     Game(
         key="muramasa",
@@ -257,15 +263,12 @@ GAMES: tuple[Game, ...] = (
         size_gb=3.7,
         doc="docs/games/muramasa.md",
         options=(
-            _title("装甲悪鬼村正"),
+            *_common("装甲悪鬼村正"),
             Option("file", "Start at the script", "--file", "text", "ma00_000.nss",
                    "The story file the build starts at. A new game starts at ma00_000.nss.", required=True),
             Option("chain", "Story files to follow", "--chain", "int", "2000",
                    "How many story files to follow from the start file; 2000 is the whole story. "
                    "Empty: the start file's scene only."),
-            *AUDIO,
-            LOOSE,
-            DRY_RUN,
         ),
     ),
     Game(
@@ -281,13 +284,10 @@ GAMES: tuple[Game, ...] = (
         doc="docs/games/oretsuba.md",
         check=_oretsuba_check,
         options=(
-            _title("俺たちに翼はない"),
+            *_common("俺たちに翼はない"),
             Option("scenes", "Only these scenes", "--scenes", "text", "",
                    "Scene names such as S01_01A, separated by commas, played in that order. "
                    "Empty: every scene, with the menus and extras."),
-            *AUDIO,
-            LOOSE,
-            DRY_RUN,
         ),
     ),
 )
