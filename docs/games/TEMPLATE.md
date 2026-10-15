@@ -1,0 +1,62 @@
+# <Title> (<engine>)
+
+Copy this file to `docs/games/<id>.md` (the id of the game's entry in
+`crates/conv-engines/src/registry.rs` and of `tests/snapshots/<id>.txt`)
+and keep its headings, so that every session finds the same section in
+every game (`python3 -I research/tools/mdsec.py docs/games/<id>.md
+Status`). The document is public: no local paths (`<game>` for the game
+folder), only commands anyone with the game can run.
+
+## Scope
+
+What the user owns (release, version, platform), what is converted and
+what the user chose to drop.
+
+## Build
+
+The full build and the dry run, exactly:
+
+```sh
+target/release/conscripter-convert <command> <game> -o out/<id>-cons \
+  --font <a Japanese TTF, e.g. ipag.ttf> --title "<title>"
+```
+
+The web build, when it differs from `docs/new-game.md` step 12.
+
+## Files and formats
+
+Archives, scripts, pictures, sounds, movies: how each is read (or a
+pointer to the engine's other game that documents it).
+
+## Script language
+
+Opcodes or commands ranked by use, what each becomes in the IR, and
+what is left out.
+
+## Story structure and walkthrough
+
+Routes, endings, the choice mechanic; the route map and how it was made.
+
+## Progression variables
+
+The game's flags and where they land in NScripter's variables (locals,
+globals; clear of `conv_core::alloc`'s ranges).
+
+## Testing
+
+The trace check (config, `--trace-ignore` ranges), route runs, wine
+recipes for filming the original.
+
+## Status
+
+Only the open state: a table of the areas (✅ done, 🟡 partly, ❌ not
+started), then "Next", in order. About 60 lines at most. When an item
+is done, its write-up moves to "History".
+
+### Next
+
+1. …
+
+## History
+
+Finished work, newest first, each with its date.

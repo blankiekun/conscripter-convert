@@ -33,7 +33,8 @@ converted, every ending reachable.
    known engine (KiriKiri, NScripter, Siglus, Nitroplus NSS, ...), find
    the existing format documentation and tools before reversing anything.
 4. **Start the files that survive context resets**:
-   - `docs/games/<game>.md`, committed: the game's record and its
+   - `docs/games/<game>.md` (copied from `docs/games/TEMPLATE.md`; a
+     new engine also follows `docs/new-engine.md`), committed: the game's record and its
      feature tracking (build command, formats, opcode or command table
      with handler addresses, how its screens map to CONscripter,
      testing and wine recipes, and a **"Status"** section with a table
@@ -221,8 +222,15 @@ so.
   `ButtonBar`,
   `CommandMenu`, `Backlog`, `ConfirmDialog`, `PictureScreen`. A game
   changes them through what it puts in the IR, never with game-specific
-  branches in `menu.rs`. Add a new screen type only for a screen none of
+  branches in `menu/`. Add a new screen type only for a screen none of
   them can draw, and make it general enough for the next game.
+- **Two families of screens**: the picture ones (`SaveGrid`, `LineLog`,
+  `PictureSettings`, `PictureExtras`, `CommandMenu`: Nitroplus's) are
+  laid out from the original's own pictures, the classic ones
+  (`SaveMenu`, `Backlog`, `SettingsMenu`, `ExtrasMenu`: Xuse, MAGES)
+  arrange the game's parts in a layout of ours. Start from the picture
+  family when the original draws its screens as pictures (most do);
+  a third family needs the user's yes.
 - **State the engine could keep goes in the engine.** When a screen needs
   something the engine can track (play time, counters, save details),
   add a CONscripter command instead of script arithmetic: 村正's save

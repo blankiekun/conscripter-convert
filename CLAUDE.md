@@ -12,7 +12,8 @@ build.
 | 続・殺戮のジャンゴ (starting) | Nitroplus NSS (older) | `django`, `../conscripter-convert-django` | `docs/games/django.md` |
 | Full Metal Daemon Muramasa, English (starting) | Nitroplus Diesel (NPK3, Squirrel) | `muramasa-en`, `../conscripter-convert-muramasa-en` | `docs/games/muramasa-en.md` |
 
-**Starting a new game? Read `docs/new-game.md` first.**
+**Starting a new game? Read `docs/new-game.md` first** (and
+`docs/new-engine.md` for a new engine).
 
 Read first, in order: the game's document (its "Status" section holds
 the feature state and the next steps), `PLAN.md` §4.2 (engine
