@@ -9,9 +9,10 @@
 
 use std::collections::HashMap;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::process::Command;
 
-use super::convert::{Assets, SCREEN_H, SCREEN_W};
+use super::convert::{Assets, MOVIE_FPS, MovieInfo, SCREEN_H, SCREEN_W};
 use super::npa::{Npa, normalize};
 use crate::output::{Output, image_size};
 
@@ -29,13 +30,35 @@ pub struct NpaAssets<'a> {
     voice: Npa<'a>,
     images: HashMap<String, Option<(String, u32, u32)>>,
     sounds: HashMap<String, Option<String>>,
+    movies: HashMap<String, Option<MovieInfo>>,
+    /// The disc's movie folder (`ムービー`, beside the game data): the
+    /// scripts' `dx/<name>.ngs` are `<name>.ngs` there.
+    pub movie_dir: Option<PathBuf>,
     /// Where the files go; a dry run reads only image sizes.
     pub out: Output,
 }
 
 impl<'a> NpaAssets<'a> {
     pub fn new(cg: Npa<'a>, sound: Npa<'a>, voice: Npa<'a>, output: &Path) -> Self {
-        NpaAssets { cg, sound, voice, images: HashMap::new(), sounds: HashMap::new(), out: Output::new(output) }
+        NpaAssets { cg, sound, voice, images: HashMap::new(), sounds: HashMap::new(), movies: HashMap::new(), movie_dir: None, out: Output::new(output) }
+    }
+
+    /// The movie file a script path names, and its name in the output:
+    /// the file's own name when it is ASCII, else a hash of it.
+    fn movie_source(&self, path: &str) -> Option<(PathBuf, String)> {
+        let name = path.replace('\\', "/");
+        let name = name.rsplit('/').next()?;
+        let src = self.movie_dir.as_ref()?.join(name);
+        let stem = name.strip_suffix(".ngs").unwrap_or(name);
+        let out = if stem.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
+            stem.to_string()
+        } else {
+            use std::hash::{Hash, Hasher};
+            let mut h = std::collections::hash_map::DefaultHasher::new();
+            stem.hash(&mut h);
+            format!("mv_{:08x}", h.finish() as u32)
+        };
+        src.is_file().then_some((src, out))
     }
 
     /// Copies `entry` of the archive that `path`'s first folder names to
@@ -272,6 +295,74 @@ impl Assets for NpaAssets<'_> {
         Some((rel, size.0, size.1))
     }
 
+    fn movie_info(&mut self, path: &str) -> Option<MovieInfo> {
+        if let Some(r) = self.movies.get(path) {
+            return *r;
+        }
+        let r = self.movie_source(path).and_then(|(src, _)| probe(&src));
+        self.movies.insert(path.to_string(), r);
+        r
+    }
+
+    fn movie_file(&mut self, path: &str, sound: bool) -> Option<String> {
+        let (src, name) = self.movie_source(path)?;
+        let rel = format!("movie/{name}{}.mp4", if sound { "" } else { "_mute" });
+        let dest = self.out.root.join(&rel);
+        if !self.out.dry_run && !dest.exists() {
+            let mut args: Vec<std::ffi::OsString> = vec!["-i".into(), src.clone().into()];
+            args.extend(crate::media::mp4_options(22, "slow").into_iter().map(Into::into));
+            if !sound {
+                args.push("-an".into());
+            }
+            if let Err(e) = crate::media::ffmpeg(&dest, args, |_| Ok(())) {
+                self.out.errors.push(format!("{}: {e}", src.display()));
+                return None;
+            }
+        }
+        Some(rel)
+    }
+
+    fn movie_frames(&mut self, path: &str, at: Option<u32>, alpha: bool, dark: bool) -> Option<(String, u32, u32, u32)> {
+        let info = self.movie_info(path)?;
+        let (src, name) = self.movie_source(path)?;
+        // Frames at half size (a cut that fills the screen is 2.4 MB a
+        // frame when loaded), and an alpha movie (a cloud of smoke,
+        // blurred) always: the sprite is zoomed back. A still is whole.
+        let (w, h) = match (alpha, at) {
+            (true, _) => (info.w / 2, info.h / 4),
+            (false, None) => (info.w / 2, info.h / 2),
+            (false, Some(_)) => (info.w, info.h),
+        };
+        let when = at.map_or("all".to_string(), |ms| ms.to_string());
+        let rel = format!("system/movie/{name}_{when}{}.{}", if dark { "_dark" } else { "" }, if alpha { "png" } else { "jpg" });
+        let key = format!("movie:{rel}");
+        if let Some(r) = self.images.get(&key) {
+            return r.as_ref().map(|(rel, cells, h)| (rel.clone(), *cells, w, *h));
+        }
+        let cells = at.map_or((info.ms * MOVIE_FPS).div_ceil(1000).max(1), |_| 1);
+        let r = if self.out.dry_run {
+            Some(cells)
+        } else if self.out.root.join(&rel).exists() {
+            self.size(&rel).map(|(sw, _)| sw / w)
+        } else {
+            movie_strip(&src, at, alpha, dark, (w, h)).map(|(strip, n)| {
+                let mut data = Vec::new();
+                let mut cursor = std::io::Cursor::new(&mut data);
+                let ok = if alpha {
+                    strip.write_to(&mut cursor, image::ImageFormat::Png).is_ok()
+                } else {
+                    image::DynamicImage::ImageRgba8(strip).into_rgb8().write_with_encoder(image::codecs::jpeg::JpegEncoder::new_with_quality(&mut cursor, 90)).is_ok()
+                };
+                if ok {
+                    self.out.write(&rel, &data);
+                }
+                n
+            })
+        };
+        self.images.insert(key, r.map(|n| (rel.clone(), n, h)));
+        r.map(|n| (rel, n, w, h))
+    }
+
     fn transparent(&mut self) -> String {
         let rel = "system/transparent.png".to_string();
         if !self.out.root.join(&rel).exists() {
@@ -279,4 +370,68 @@ impl Assets for NpaAssets<'_> {
         }
         rel
     }
+}
+
+/// A movie's size, length and whether its sound is above -60 dB (some
+/// battle cuts carry a silent track), by ffprobe and ffmpeg.
+fn probe(src: &Path) -> Option<MovieInfo> {
+    let out = Command::new("ffprobe")
+        .args(["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height:format=duration", "-of", "default=nw=1"])
+        .arg(src)
+        .output()
+        .ok()?;
+    let text = String::from_utf8_lossy(&out.stdout);
+    let field = |k: &str| text.lines().find_map(|l| l.strip_prefix(k)).map(str::trim);
+    let w = field("width=")?.parse().ok()?;
+    let h = field("height=")?.parse().ok()?;
+    let ms = (field("duration=")?.parse::<f64>().ok()? * 1000.0).round() as u32;
+    let out = Command::new("ffmpeg").args(["-v", "info", "-nostdin", "-i"]).arg(src).args(["-vn", "-af", "volumedetect", "-f", "null", "-"]).output().ok()?;
+    let log = String::from_utf8_lossy(&out.stderr);
+    let max = log.lines().find_map(|l| l.split_once("max_volume:")).and_then(|(_, v)| v.trim().trim_end_matches("dB").trim().parse::<f64>().ok());
+    Some(MovieInfo { w, h, ms, sound: max.is_some_and(|db| db > -60.0) })
+}
+
+/// A movie's frames at [`MOVIE_FPS`] (or the one at `at` ms), each
+/// `size`, side by side: the picture and the number of frames.
+fn movie_strip(src: &Path, at: Option<u32>, alpha: bool, dark: bool, (w, h): (u32, u32)) -> Option<(image::RgbaImage, u32)> {
+    let colour = if dark { ",lutrgb=r=0:g=0:b=0" } else { "" };
+    let graph = if alpha {
+        format!("[0:v]split[a][b];[a]crop=iw:ih/2:0:0{colour}[c];[b]crop=iw:ih/2:0:ih/2,format=gray[m];[c][m]alphamerge,scale={w}:{h}")
+    } else {
+        format!("[0:v]scale={w}:{h}{colour}")
+    };
+    let graph = match at {
+        Some(_) => graph,
+        None => format!("{graph},fps={MOVIE_FPS}"),
+    };
+    let decode = |seek: &[&str], frames: bool| {
+        let mut cmd = Command::new("ffmpeg");
+        cmd.args(["-v", "error", "-nostdin"]).args(seek).arg("-i").arg(src).args(["-filter_complex", &graph, "-an"]);
+        if frames {
+            cmd.args(["-frames:v", "1"]);
+        }
+        cmd.args(["-f", "rawvideo", "-pix_fmt", "rgba", "-"]).output().ok().map(|o| o.stdout)
+    };
+    let frame = (w * h * 4) as usize;
+    let mut data = match at {
+        Some(ms) => decode(&["-ss", &format!("{:.3}", f64::from(ms) / 1000.0)], true)?,
+        None => decode(&[], false)?,
+    };
+    // A time past the last frame (seeks in these streams land late): the
+    // last frame.
+    if data.len() < frame && at.is_some() {
+        let all = decode(&["-sseof", "-1"], false)?;
+        let n = all.len() / frame;
+        data = all.get(n.checked_sub(1)? * frame..n * frame)?.to_vec();
+    }
+    let n = (data.len() / frame) as u32;
+    if n == 0 {
+        return None;
+    }
+    let mut strip = image::RgbaImage::new(w * n, h);
+    for (i, data) in data.chunks_exact(frame).enumerate() {
+        let img = image::RgbaImage::from_raw(w, h, data.to_vec())?;
+        image::imageops::replace(&mut strip, &img, i as i64 * w as i64, 0);
+    }
+    Some((strip, n))
 }

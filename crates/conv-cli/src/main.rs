@@ -93,6 +93,10 @@ enum Command {
         /// also unlocks 魔王編 once both other routes are cleared)
         #[arg(long)]
         chain: Option<usize>,
+        /// The disc's movie folder (default: `ムービー` beside the game
+        /// data, as on the disc)
+        #[arg(long)]
+        movies: Option<PathBuf>,
         #[arg(short, long)]
         output: PathBuf,
         /// Font to copy into the output as default.ttf (CONscripter needs one)
@@ -291,8 +295,9 @@ fn main() -> Result<()> {
         Command::ConvertScript { game, script, output, font, title, webp, audio } => {
             convert_script(&game, script, &output, font.as_deref(), &title, webp.get(), audio.format()?)
         }
-        Command::ConvertNss { game, file, scene, chain, output, font, title, loose, dry_run, webp, audio } => {
-            convert_nss(&game, &file, scene.as_deref(), chain, &output, font.as_deref(), &title, loose, dry_run, webp.get(), audio.format()?)
+        Command::ConvertNss { game, file, scene, chain, movies, output, font, title, loose, dry_run, webp, audio } => {
+            let movies = movies.unwrap_or_else(|| game.join("../ムービー"));
+            convert_nss(&game, &file, scene.as_deref(), chain, &movies, &output, font.as_deref(), &title, loose, dry_run, webp.get(), audio.format()?)
         }
         Command::Lint { dir } => {
             let report = build::lint_dir(&dir, true)?;
@@ -826,6 +831,7 @@ fn convert_nss(
     file: &str,
     scene: Option<&str>,
     chain: Option<usize>,
+    movies: &Path,
     output: &Path,
     font: Option<&Path>,
     title: &str,
@@ -858,6 +864,11 @@ fn convert_nss(
     let (cg, sound, voice) = (npas.next().unwrap(), npas.next().unwrap(), npas.next().unwrap());
     let mut assets = NpaAssets::new(cg, sound, voice, output);
     assets.out.dry_run = dry_run;
+    if movies.is_dir() {
+        assets.movie_dir = Some(movies.to_path_buf());
+    } else {
+        println!("no movie folder at {}: the movies are left out", movies.display());
+    }
     let scene = scene.unwrap_or(file);
     // The game's own additions to the compiler, by its exe (the only
     // Nitroplus game so far).
