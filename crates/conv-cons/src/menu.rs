@@ -1548,6 +1548,33 @@ pub(crate) mod tests {
         Placed { image: format!("system/{name}.png"), x: 10, y: 20, w, h }
     }
 
+    /// Every [`Switch`]. The match makes a new one fail to compile until
+    /// it is listed here too.
+    fn all_switches() -> Vec<Switch> {
+        use Switch::*;
+        let all = vec![WheelReadsOn, WheelClosesLog, ConfirmSave, ConfirmLoad, ConfirmDelete, ConfirmTitle, ConfirmQuit, ConfirmBackToChoice, VoiceKeepsPlaying, BgmOn, SeOn, VoiceOn];
+        for s in &all {
+            match s {
+                WheelReadsOn | WheelClosesLog | ConfirmSave | ConfirmLoad | ConfirmDelete | ConfirmTitle | ConfirmQuit | ConfirmBackToChoice | VoiceKeepsPlaying | BgmOn | SeOn | VoiceOn => {}
+            }
+        }
+        all
+    }
+
+    /// Two switches with one index would share their global (branches
+    /// adding switches at once both took the next free number).
+    #[test]
+    fn switches_have_their_own_index() {
+        let mut seen = std::collections::BTreeMap::new();
+        for s in all_switches() {
+            let i = switch_index(s);
+            assert!((i as usize) < MAX_SWITCHES, "{s:?}: index {i} past MAX_SWITCHES");
+            if let Some(other) = seen.insert(i, s) {
+                panic!("{s:?} and {other:?} both have index {i}");
+            }
+        }
+    }
+
     #[test]
     fn save_menu_routine() {
         let page = |n: i32| PageButton { button: placed(&format!("page{n}"), 30, 27), marker_x: 100 * n, marker_y: 480 };
