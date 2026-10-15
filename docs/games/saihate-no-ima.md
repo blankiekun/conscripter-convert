@@ -667,6 +667,18 @@ exe (`research/tools/ghidra/ghidra_export.sh`, names in
    (`Op::NoiseFadeIn`). Inside a transition the transition's snapshot
    catches the static at the start of its rise, and the rest of the rise
    follows the transition.
+14. **Done: a guided run through all twelve loops.** The explorer's runs
+   stop finding new ground because the heroine routes need their links
+   clicked in a set order. `research/xuse/route.py <build>/0.txt` writes
+   a `--choices` file (the heroine links of 最初の日 found by their text:
+   none in loops 1, 6 and 7, あずさ, さやか, ふえこ, ようこ in 2-5 and
+   8-11); `cons_explore.py <build> --route route.txt --runs 1 --stop-known
+   0` then plays the whole game (70,186 pages, to the title after the
+   epilogue). Its findings are the known kinds, nothing new. It reaches
+   1,415 labels, as the plain exploration did: of the 1,766 left, all
+   but a few dozen are the extras (the CG viewer's 425, the scene
+   replay's 440) and the scene replay's own scripts (0014-0018, 0020,
+   `09_回想*`), which only the extras menu enters.
 
 
 Converted and playable from start to end: text, voices, sprites with
