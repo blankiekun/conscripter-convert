@@ -277,6 +277,53 @@ impl Assets for NpaAssets<'_> {
         r.map(|r| r.0)
     }
 
+    fn mirrored(&mut self, image: &str, x: bool, y: bool) -> Option<String> {
+        if image == "system/transparent.png" || image.starts_with("system/color_") {
+            return Some(image.to_string());
+        }
+        let flip = format!("{}{}", if x { "x" } else { "" }, if y { "y" } else { "" });
+        let key = format!("{image}~{flip}");
+        if let Some(r) = self.images.get(&key) {
+            return r.as_ref().map(|r| r.0.clone());
+        }
+        let path = Path::new(image);
+        let stem = path.file_stem()?.to_string_lossy().into_owned();
+        let ext = path.extension().map(|e| e.to_string_lossy().to_ascii_lowercase()).unwrap_or_default();
+        let r = (|| {
+            let dir = path.parent().map(|p| p.to_string_lossy().into_owned()).unwrap_or_default();
+            let rel = format!("system/mirror/{}/{stem}_{flip}.{ext}", dir.replace('/', "_"));
+            if self.out.dry_run {
+                let (w, h) = self.size(image)?;
+                return Some((rel, w, h));
+            }
+            // Read and written as they are: a JPEG keeps its quality, a
+            // PNG (perhaps a strip of cells) is the same size.
+            let mut img = image::open(self.out.root.join(image)).ok()?;
+            let (w, h) = (img.width(), img.height());
+            if x {
+                img = img.fliph();
+            }
+            if y {
+                img = img.flipv();
+            }
+            let mut data = Vec::new();
+            let mut cursor = std::io::Cursor::new(&mut data);
+            if ext == "jpg" || ext == "jpeg" {
+                img.into_rgb8().write_with_encoder(image::codecs::jpeg::JpegEncoder::new_with_quality(&mut cursor, 90)).ok()?;
+            } else {
+                img.into_rgba8().write_to(&mut cursor, image::ImageFormat::Png).ok()?;
+            }
+            self.out.write(&rel, &data);
+            Some((rel, w, h))
+        })();
+        // Its size, for pictures made from it (a dry run has no file).
+        if let Some((rel, w, h)) = &r {
+            self.images.insert(normalize(rel), Some((rel.clone(), *w, *h)));
+        }
+        self.images.insert(key, r.clone());
+        r.map(|r| r.0)
+    }
+
     fn strip(&mut self, parts: &[&str]) -> Option<(String, u32, u32)> {
         let mut cells = Vec::new();
         for part in parts {
