@@ -889,8 +889,9 @@ struct Object<'a> {
     /// with [`Game::zoom_vertex`]; `None` = the centre.
     vertex: Option<(i64, i64)>,
     /// `Rotate`: degrees about the x, y and z axes. A picture turned past
-    /// 90° about y shows mirrored left to right, about x upside down;
-    /// other turns aren't drawn.
+    /// 90° about y shows mirrored left to right, about x upside down, and
+    /// about z (a half turn) both; the turns combine. Other turns aren't
+    /// drawn.
     turn: (i64, i64, i64),
 }
 
@@ -898,7 +899,8 @@ impl Object<'_> {
     /// Mirrored (left to right, upside down) as its turn shows it.
     fn mirror(&self) -> (bool, bool) {
         let back = |deg: i64| (91..270).contains(&deg.rem_euclid(360));
-        (back(self.turn.1), back(self.turn.0))
+        let half = back(self.turn.2);
+        (back(self.turn.1) != half, back(self.turn.0) != half)
     }
 }
 
@@ -2387,13 +2389,14 @@ impl<'a, 'b> Compiler<'a, 'b> {
                     let o = self.objects.get_mut(t).unwrap();
                     let (before, mirror) = (o.turn, o.mirror());
                     o.turn = (arg(2).position(o.turn.0, 0, 0), arg(3).position(o.turn.1, 0, 0), arg(4).position(o.turn.2, 0, 0));
-                    let turn = o.turn;
+                    let (turn, mirrored) = (o.turn, o.mirror() != (false, false));
                     if o.mirror() != mirror && !matches!(o.kind, Kind::Text(_)) {
                         flipped.push(t.clone());
                     }
                     match &mut o.kind {
                         Kind::Text(text) => text.rotation = turn.2,
-                        _ if turn.2.rem_euclid(360) != 0 => self.note("Rotate about z"),
+                        _ if turn.2.rem_euclid(180) != 0 => self.note("Rotate about z"),
+                        Kind::Movie(_) if mirrored => self.note("Rotate of a movie"),
                         _ if arg(1).int() > 0 && turn != before => self.note("Rotate over time drawn at once"),
                         _ => {}
                     }
@@ -3513,6 +3516,14 @@ scene a.nss
         // Turned once: mirrored; twice: back as it was.
         assert_eq!(images.first(), Some(&"cg/st/a.png~x"), "{:?}", c.ops);
         assert_eq!(images.last(), Some(&"cg/st/a.png"), "{:?}", c.ops);
+        // A half turn in its plane is both mirrors; with x 180 as well, left
+        // to right only.
+        for (turn, image) in [("@0, @0, @180", "cg/st/a.png~xy"), ("180, 0, 180", "cg/st/a.png~x")] {
+            let story = format!("scene a.nss\n{{\n\tCreateTexture(\"st\", 100, 0, 0, \"cg/st/a.png\");\n\tRotate(\"st\", 0, {turn}, null, true);\n\tFade(\"st\", 0, 1000, null, true);\n\tWait(100);\n}}\n");
+            let c = compile(&story, LIBRARY);
+            let shown = c.ops.iter().any(|op| matches!(op, Op::Sprites { changes, .. } if changes.iter().any(|c| c.sprite.as_ref().is_some_and(|s| s.image == image))));
+            assert!(shown, "{turn}: {:?}", c.ops);
+        }
     }
 
     #[test]
