@@ -739,6 +739,13 @@ exe (`research/tools/ghidra/ghidra_export.sh`, names in
    pointer crosses it, so the bar is drawn again. Checked on our build
    on its own Xvfb display (`og.sh`): the same four states as the
    original.
+18. **Done: mute switches.** The original's サウンド page has a ミュート
+   box per channel. They are three more switches on the settings' third
+   page, on by default: 「ＢＧＭを鳴らす」, 「効果音を鳴らす」,
+   「音声を鳴らす」 (`Switch::BgmOn`, `SeOn`, `VoiceOn`; flags `%2911`-
+   `%2913`). Off, the channel's volume is 0 and its level is kept; a
+   toggle applies at once. The page's rows are 36 px apart now (was 50)
+   to fit eleven switches.
 
 
 Converted and playable from start to end: text, voices, sprites with
@@ -836,7 +843,7 @@ parts are not converted:
   row sets both), stopping skip/auto on a choice or click, font,
   antialiasing, decoration;
 - voice: auto-play of voices in the CG viewer;
-- sound: per-channel mute switches, the system voice;
+- sound: the system voice;
 - mouse: wheel sensitivity (the wheel switches and the confirmation
   switches are done);
 - other: effect and animation switches, save preview, inactive-window

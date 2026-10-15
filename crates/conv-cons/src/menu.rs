@@ -1185,7 +1185,9 @@ pub(crate) fn settings_menu(
     ));
     for (i, s) in switches.iter().enumerate() {
         let off = switch_off(s.switch);
-        w(format!("if {BUTTON_VAR} == {} mov {off},1-{off}:goto *conv_settings_draw", BTN_SWITCH + i as u32 + 1));
+        // A sound switch applies at once.
+        let apply = if matches!(s.switch, Switch::BgmOn | Switch::SeOn | Switch::VoiceOn) { format!("gosub *{SETTINGS_APPLY}:") } else { String::new() };
+        w(format!("if {BUTTON_VAR} == {} mov {off},1-{off}:{apply}goto *conv_settings_draw", BTN_SWITCH + i as u32 + 1));
     }
     for (i, t) in voices.iter().enumerate() {
         let all = |v: u32| t.characters.iter().map(|c| format!("mov %{},{v}", VOICE_OFF_BASE + c)).collect::<Vec<_>>().join(":");
@@ -1234,8 +1236,19 @@ pub(crate) fn settings_menu(
     w("return".into());
 
     w(format!("*{SETTINGS_APPLY}"));
-    for (setting, cmd) in [(Setting::BgmVolume, "bgmvol"), (Setting::SeVolume, "sevol"), (Setting::VoiceVolume, "voicevol")] {
-        w(format!("mov {TMP},{}*10:{cmd} {TMP}", setting_var(setting)));
+    for (setting, cmd, on) in [
+        (Setting::BgmVolume, "bgmvol", Switch::BgmOn),
+        (Setting::SeVolume, "sevol", Switch::SeOn),
+        (Setting::VoiceVolume, "voicevol", Switch::VoiceOn),
+    ] {
+        if switches.iter().any(|s| s.switch == on) {
+            // Muted: volume 0, the level kept.
+            w(format!("mov {TMP},{}*10", setting_var(setting)));
+            w(format!("if {} == 1 mov {TMP},0", switch_off(on)));
+            w(format!("{cmd} {TMP}"));
+        } else {
+            w(format!("mov {TMP},{}*10:{cmd} {TMP}", setting_var(setting)));
+        }
     }
     w(format!("mov {TEXT_MS},(10-{})*{TEXT_MS_STEP}:textspeed {TEXT_MS}", setting_var(Setting::TextSpeed)));
     let auto = setting_var(Setting::AutoSpeed);
@@ -1272,6 +1285,9 @@ fn switch_index(s: Switch) -> u32 {
         Switch::ConfirmQuit => 6,
         Switch::ConfirmBackToChoice => 7,
         Switch::VoiceKeepsPlaying => 8,
+        Switch::BgmOn => 9,
+        Switch::SeOn => 10,
+        Switch::VoiceOn => 11,
     }
 }
 
@@ -1878,6 +1894,13 @@ pub(crate) mod tests {
         let mut out = String::new();
         settings_menu(&mut out, &m, None, None, None);
         assert!(out.contains("automode_time (10-%906)*500,(10-%906)*4\n"), "{out}");
+        // A mute switch: volume 0, the level kept; applied when toggled.
+        m.switches = vec![conv_core::ir::SettingSwitch { label: "ＢＧＭ".into(), switch: Switch::BgmOn }];
+        m.tab_labels = vec!["a".into(), "b".into()];
+        let mut out = String::new();
+        settings_menu(&mut out, &m, None, None, None);
+        assert!(out.contains("mov %105,%902*10\nif %2911 == 1 mov %105,0\nbgmvol %105\n"), "{out}");
+        assert!(out.contains("if %9 == 71 mov %2911,1-%2911:gosub *conv_settings_apply:goto *conv_settings_draw\n"), "{out}");
         assert!(out.contains("itoa2 $101,%906\n"), "{out}");
     }
 }

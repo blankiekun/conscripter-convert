@@ -1091,6 +1091,11 @@ pub enum Switch {
     /// A voice goes on playing after the click that reads on, until the
     /// next voice (off: the click stops it).
     VoiceKeepsPlaying,
+    /// The music, the sound effects, the voices are heard (off: muted,
+    /// whatever their level).
+    BgmOn,
+    SeOn,
+    VoiceOn,
 }
 
 /// A voiced line's clip and whose voice it is (for the per-character
