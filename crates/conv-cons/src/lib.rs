@@ -811,6 +811,10 @@ pub fn emit(script: &Script) -> String {
                 writeln!(out, "lsp2add {FLASH_SPRITE2},\":c;>{w},{h},#{colour:06x}\",{},{},100,100,0,{alpha}", w / 2, h / 2).unwrap();
                 writeln!(out, "print 1\ndelay {ms}\ncsp2 {FLASH_SPRITE2}\nprint 1").unwrap();
             }
+            // CONscripter's screenflash adds the colour over everything.
+            Op::ScreenFlash { colour, opacity, ms } => {
+                writeln!(out, "screenflash {},\"#{colour:06x}\"\nprint 1\ndelay {ms}\nscreenflash 0\nprint 1", opacity.min(&256)).unwrap();
+            }
             Op::ScreenFade { colour, ms } => {
                 // An opaque sprite2 faded in: over the picture, under the
                 // text window and the bars.
@@ -2483,6 +2487,12 @@ end
             ),
             "{out}"
         );
+    }
+
+    #[test]
+    fn screen_flashes() {
+        let out = emit(&script(vec![Op::ScreenFlash { colour: 0xff0000, opacity: 128, ms: 100 }]));
+        assert!(out.contains("screenflash 128,\"#ff0000\"\nprint 1\ndelay 100\nscreenflash 0\nprint 1\n"), "{out}");
     }
 
     #[test]

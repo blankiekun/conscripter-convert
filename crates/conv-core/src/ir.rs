@@ -436,6 +436,9 @@ pub enum Op {
     /// played while the player skips (a sound the original leaves out in
     /// skip mode).
     SeNotSkipped,
+    /// Like [`Op::Flash`], but over everything on the screen: the text
+    /// window, the bars and the menus' buttons too.
+    ScreenFlash { colour: u32, opacity: u32, ms: u32 },
 }
 
 /// A puzzle of numbered tiles (装甲悪鬼村正's 立方陣): the player clicks a

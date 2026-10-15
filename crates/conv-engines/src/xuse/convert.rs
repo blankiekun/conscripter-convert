@@ -3033,7 +3033,8 @@ pub fn lower_script(
         if ins.op == OP_FLASH {
             let c = ins.arg as u32;
             let colour = (c & 0xff) << 16 | (c & 0xff00) | (c >> 16 & 0xff);
-            ops.push(Op::Flash { colour, opacity: FLASH_OPACITY, ms: FLASH_MS });
+            // At sort key 0xffffffff: over the text window too.
+            ops.push(Op::ScreenFlash { colour, opacity: FLASH_OPACITY, ms: FLASH_MS });
             continue;
         }
         if let Some(quake) = cd.quake(ins) {
