@@ -21,3 +21,40 @@
 8115befc	vt_skip_dialog	vtable of the SceneJumpDialog class
 81161628	gxp_wave_vert	vertex GXP of EffectStart 40
 8115f304	gxp_wave_frag	fragment GXP of EffectStart 40: rows moved along the diagonal by 1.5% of the width x sin(...)
+81048978	eyecatch_shutters_init	EyeCatch :Image 0,N object init: loads CG ID N + 457 (at least 458) and halves it into two sprites
+81040714	effect57_ctor	EffectStart 57 (画面キャプチャースプライト) object: a frozen screen copy; vtable 0x8115c024
+81040940	effect57_set_params	EffectStart 57 :Param: centre from (480,272) to (x*0.75, y*0.7556), scale from 1 to p2, progress 2/p3 a step, ease type p4 (0-3), power p5
+81040a96	effect57_update	steps the progress by 2/frames and eases the centre and scale (ease_value)
+8103cc18	ease_value	from, to, t, power, type: 0 straight, 1 (t^2)^p, 2 1-((1-t)^2)^p, 3 in and out
+81163218	music_bgm_table2	int32 BGM.AWB IDs, 8, after the 67: played only when the room's list mode (+0x18) is 1, which nothing sets on the Vita (dead code)
+8106592a	music_room_init	music room: list mode +0x18 = 0, cursor +0x20, scroll +0x1c, playing +0x34; keeps the volume (0x81166d60) at +0x40
+81066198	music_room_update	music room per frame: the 67-song or the 8-song list (+0x18); +0x2c repeat, +0x2d play on to the next song
+81065f02	music_list_input	67-song list: up/down move the cursor (no lock check: every song plays), left/right the volume 0-100, circle plays or stops
+81065df4	music_list2_input	the 8-song list's cursor (music_bgm_table2)
+810655a4	music_room_draw	music room sprites: the volume knob at 590 + 15 + volume x 203/100
+810664ca	music_room_close	puts back the volume kept at init (changes in the room are temporary)
+814e89dc	global_flags	int32 per adv.txt GlobalFlag, by index (0 asuka_ed, 1 miyako_ed, 2 ai_ed, 3 naru_ed, 4-7 one..four_clear, 8 youji_hint, 9 SCRIPT_NAME, 10 all_clear, 11-14 Pre_asuka/miyako/misaki/karuo, 15 hiyoko_ed, 16 kobato_ed, 17 misaki_ed)
+814e8bf0	global_flags_saved	the system data's copy of the global flags (set by global_flag_set)
+81027636	global_flag_set	system data, index, value: global_flags_saved[index] = value (index < 30)
+8100b750	flag_find	a flag record by name: the scene flags (+0x4490), then the global ones (+0x44a0); 0x6c a record, value at +0x68
+8101204c	adv_load	reads adv.txt: Scene/StartScene%d (name at +0x13b4, 0x6c apart), Flag, GlobalFlag, SpriteList, CharacterList, Window
+81014356	game_start_scene	starts the game at adv.txt's StartScene N (0-9)
+8105e69c	title_story_gate	+0xc6c8 = none of global flags 0-5 (明日香's, 京's, 亜衣's, 鳴's ending, part 1 or 2 cleared) is set: probably START without the story menu
+810844cc	title_state_enter	title screen states: 0 press start, 1 title menu, 2 gallery list, 3, 4, 5 story menu, 6-8 sub-screens
+81084396	press_start_init	"Press START button" (258x30 from title_bg y 869) at (769, 281)
+81083fd8	title_menu_init	title buttons 173x36 from title_bg (normal x 0, lit x 168; rows from y 545: QUICK LOAD, LOAD, START, GALLERY) at (786, 258 + 41.25 row)
+81083c0c	gallery_menu_init	GALLERY's list on the title: ALBUM, MOVIE, MUSIC (title_bg y 725, 761, 797) at (786, 258 / 299.25 / 340.5)
+81083086	story_menu_init	story menu: 242x60 cells from title_bg x 353 (lit 595): 始めから y 545 at y 225, 〜Prelude〜 header y 605 at 305, 美咲 665 at 365, 明日香 725 at 395, 京 785 at 425, 狩男 845 (？？？？？ 905 until part 1, 2 or 3 is cleared: +0x48) at 455; x 788 (1280-wide space)
+81082ea8	story_menu_draw	lights the cursor's item; the Prelude header lights while the cursor is on an after-story
+81084c26	story_menu_input	cursor 0-3 (0-4 once a part is cleared); item k > 0 starts StartScene k (state 0xe + k)
+81065414	all_endings_check	with the seven heroine endings' flags set, calls 0x81027618 with 9 (likely a trophy)
+81066564	endings_menu_init	a 7-item menu, each item enabled by one ending's flag (明日香, 京, 日和子, 鳴, 亜衣, 小鳩, 美咲)
+81070e70	config_sound_input	CONFIG's sound page: rows Voice (0x81166d68), BGM (d60), SE (d64), system (d70), BGM lowered for voices (d6c, on while 0-100), character voices (d74...); its defaults: 85, 55, 55, 55, 55 on, all on
+8107145c	config_draw_options	CONFIG's lit options from the settings (0x81166d4c message speed: 0 一括, <11 早い, <56 普通, else 遅い; default 55 普通) and window opacity 0x8119327f (default 70)
+81166d60	cfg_bgm_volume	BGM volume 0-100 (default 55); the music room changes it while open
+81166d64	cfg_se_volume	SE volume (default 55)
+81166d68	cfg_voice_volume	voice volume (default 85)
+81166d6c	cfg_bgm_duck	BGM level while a voice plays, +-1000 for off (default 55, on)
+81166d70	cfg_system_volume	system sound volume (default 55)
+81166d4c	cfg_message_speed	message speed (default 55: 普通)
+8119327f	cfg_window_opacity	window opacity 0-100 (default 70)

@@ -39,6 +39,14 @@ pub enum TransitionStyle {
     /// turning a quarter turn, seen straight on: the new face comes in
     /// moving in direction `dx`, `dy` (one of them ±1), both squeezed.
     Cube { dx: i8, dy: i8 },
+    /// A cross-fade with the rows waving sideways (`direction` 0 or 2; 1
+    /// or 3 the columns up and down; 2 and 3 the other way), each shifted
+    /// by up to `amplitude`/1000 of the screen, `waves`/10 waves down it,
+    /// the most halfway.
+    Wave { direction: u8, amplitude: u32, waves: u32 },
+    /// A cross-fade with the pictures blurred sideways by up to `radius`
+    /// pixels either side halfway; `new_only`: only the new picture.
+    Blur { radius: u32, new_only: bool },
 }
 
 /// What moves in a [`TransitionStyle::Slide`].
@@ -244,6 +252,13 @@ pub enum ScreenEffect {
     /// 1 + f × `zoom`/1000 around the centre at f × `opacity` (0-256),
     /// f = sin(π × elapsed / `time_ms`). `colour` is 0xRRGGBB.
     Pulse { time_ms: u32, interval_ms: u32, zoom: (i32, i32), opacity: i32, colour: u32, tint_opacity: i32, tint: u8 },
+    /// A copy of the picture frozen when it starts, over the live picture:
+    /// over `zoom_ms` its scale goes from 1 to `zoom`/1000 and its centre
+    /// from the screen's centre to `centre` (pixels), eased by `ease` (0
+    /// straight, 1 in, 2 out, 3 in and out, with `power`/1000); it fades
+    /// in over `fade_ms`, then stays until the slot is cleared. With
+    /// `zoom` 1000 a freeze frame.
+    Zoom { interval_ms: u32, zoom: i32, centre: (i32, i32), zoom_ms: u32, fade_ms: u32, ease: u8, power: i32 },
 }
 
 /// In [`Op::Text`] text: wait for a click here and go on typing on the
@@ -456,6 +471,21 @@ pub enum Op {
     SpriteInFront { layer: u32, front: bool },
     /// The [`ChapterHistory`] starts over, empty.
     ChapterHistoryClear,
+    /// Move a layer's sprite by itself along `keys` (ms from now, x, y
+    /// offset from its place in pixels), straight from key to key, while
+    /// the game goes on (text and click waits too): `looped` starts again
+    /// after the last key, otherwise the sprite ends back at its place. No
+    /// keys: stop the motion. A character trembling while it talks, a
+    /// background shaking.
+    SpriteMotion { layer: u32, keys: Vec<(u32, i32, i32)>, looped: bool },
+    /// Jump to `label` if `switch` (a setting, [`Switch`]) is `on`.
+    IfSwitch { switch: Switch, on: bool, label: String },
+    /// The next timed [`Op::SpriteMove`] or [`Op::SpriteZoom`] eases (the
+    /// MAGES engine's curves): with t the progress 0-1 and p =
+    /// `exponent`, `ease` 1 goes as t^p, 2 as 1 - (1-t)^p, 3 as (2t)^p / 2
+    /// for the first half and 1 - (2(1-t))^p / 2 for the second; 0 is
+    /// straight.
+    MoveEase { ease: u8, exponent: u32 },
 }
 
 /// A puzzle of numbered tiles (装甲悪鬼村正's 立方陣): the player clicks a
@@ -676,6 +706,9 @@ pub struct SaveMenu {
     pub line_height: i32,
     /// The selected slot's thumbnail at full size (absolute position).
     pub preview: Rect,
+    /// Room for a row's text lines in pixels, past which they are cut
+    /// (0: 40 characters).
+    pub text_width: u32,
     /// A screen filter over the scene while the menu is open in game: the
     /// `screenfilter` slot (one the game leaves free then), then kind,
     /// blend, strength and the three parameters. It is off while a save is
@@ -1116,6 +1149,65 @@ pub struct SettingsMenu {
     pub skip_unread_label: Option<String>,
     /// On/off options on their own page (all on by default).
     pub switches: Vec<SettingSwitch>,
+    /// Draw the screen from pictures instead (see [`PagedSettings`]);
+    /// the fields above still give the settings' defaults and what they
+    /// apply.
+    pub pictures: Option<Box<PagedSettings>>,
+    /// Levels (0-10) to start from, and to go back to with the defaults
+    /// button, where they differ from the shared ones (music and sound
+    /// effects 8, voices 10, text speed 7, auto speed 5, window 0).
+    pub defaults: Vec<(Setting, u32)>,
+    /// Switches that start off (and go back off with the defaults button).
+    pub switches_off: Vec<Switch>,
+}
+
+/// A settings screen made of a game's own pictures: pages switched with
+/// `prev`/`next`, each a background with its rows' words drawn in and a
+/// control per row. Every [`Placed`] button has two cells: normal, under
+/// the pointer.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PagedSettings {
+    pub pages: Vec<SettingsPage>,
+    pub prev: Placed,
+    pub next: Placed,
+    pub close: Placed,
+    /// Puts every setting back to its default.
+    pub defaults: Placed,
+    /// Back to the title and quit, shown from the game only.
+    pub title: Placed,
+    pub quit: Placed,
+}
+
+/// One page of [`PagedSettings`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SettingsPage {
+    /// Full screen, the rows' labels drawn in.
+    pub base: Placed,
+    pub rows: Vec<RowControl>,
+}
+
+/// A row's control on a [`SettingsPage`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RowControl {
+    /// A level 0-10: `bars` (11 pictures, levels 0 to 10) at `bar`'s place,
+    /// with buttons lowering and raising it by one.
+    Slider { value: SettingValue, bar: Placed, bars: Vec<String>, minus: Placed, plus: Placed },
+    /// Options side by side: (the value it sets, its button). The current
+    /// one is drawn with its second cell.
+    Choice { value: SettingValue, options: Vec<(i32, Placed)> },
+}
+
+/// What a [`RowControl`] sets.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SettingValue {
+    /// A level 0-10.
+    Level(Setting),
+    /// 1 on, 0 off.
+    Switch(Switch),
+    /// Skip goes on through text not read before: 1 yes.
+    SkipUnread,
+    /// The voices of all these characters: 1 on, 0 off.
+    Voices(Vec<u32>),
 }
 
 /// One on/off option of [`SettingsMenu::switches`].
@@ -1160,6 +1252,13 @@ pub enum Switch {
     /// Ask before going back to a chapter of the chapter history
     /// ([`ChapterHistory`]).
     ConfirmChapter,
+    /// A scene already read offers to be skipped (the MAGES scene jump
+    /// dialog); off: it just plays.
+    SceneSkipDialog,
+    /// Skip mode stops at a choice; off: it goes on after it.
+    StopSkipAtChoice,
+    /// The music keeps its volume while a voice plays; off: it is lowered.
+    BgmFullForVoice,
 }
 
 /// A voiced line's clip and whose voice it is (for the per-character

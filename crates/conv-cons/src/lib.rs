@@ -16,9 +16,11 @@ use conv_core::ir::{
 mod button_screen;
 mod chapters;
 mod command_menu;
+mod ease;
 mod extras;
 pub mod lint;
 mod menu;
+mod motion;
 mod movies;
 mod music;
 pub mod nsa;
@@ -27,6 +29,7 @@ mod picture_settings;
 mod puzzle;
 mod replay;
 mod save_grid;
+mod settings_pages;
 mod line_log;
 mod zoom;
 pub mod webp;
@@ -282,8 +285,10 @@ pub fn emit(script: &Script) -> String {
     let has_settings = script.settings.is_some() || script.picture_settings.is_some();
     let speed = if has_settings { menu::TEXT_MS } else { "20" };
     let voice_switches = script.settings.as_ref().is_some_and(|s| !s.voices.is_empty()) || script.picture_settings.as_ref().is_some_and(|s| s.voice_window.is_some());
+    let duck = uses_switch(script, Switch::BgmFullForVoice);
+    let keep_skip = uses_switch(script, Switch::StopSkipAtChoice);
     if script.settings.is_some() {
-        menu::settings_init(&mut out);
+        menu::settings_init(&mut out, script.settings.as_ref().unwrap());
     }
     if let Some(s) = &script.picture_settings {
         picture_settings::init(&mut out, s);
@@ -320,6 +325,10 @@ pub fn emit(script: &Script) -> String {
     let mut needs_bit_helpers = false;
     let mut needs_move = false;
     let mut needs_zoom = false;
+    // The next move's or zoom's curve ([`Op::MoveEase`]), and the eased
+    // subroutines used (zoom, ease, exponent).
+    let mut move_ease: Option<(u8, u32)> = None;
+    let mut eased = std::collections::BTreeSet::new();
     let mut needs_click_wait = false;
     let mut plate_visible = false;
     let mut link_pages = 0;
@@ -445,11 +454,22 @@ pub fn emit(script: &Script) -> String {
                 writeln!(out, "print 1\nif %7 < {ms} wait 10:goto *conv_turn{turns}").unwrap();
                 writeln!(out, "csp2 {s}\nprint 1").unwrap();
             }
+            Op::MoveEase { ease, exponent } => move_ease = Some((*ease, *exponent)).filter(|&(e, _)| (1..=3).contains(&e)),
             Op::SpriteMove { layer, x, y, ms } => {
                 let slot = SPRITE_BASE + layer;
+                let ease = move_ease.take();
                 if *ms > 0 && transition.is_none() {
-                    writeln!(out, "mov %1,{slot}:mov %2,{x}:mov %3,{y}:mov %4,{ms}:gosub *{MOVE}").unwrap();
-                    needs_move = true;
+                    let routine = match ease {
+                        Some((e, n)) => {
+                            eased.insert((false, e, n));
+                            ease::label(false, e, n)
+                        }
+                        None => {
+                            needs_move = true;
+                            MOVE.to_string()
+                        }
+                    };
+                    writeln!(out, "mov %1,{slot}:mov %2,{x}:mov %3,{y}:mov %4,{ms}:gosub *{routine}").unwrap();
                 } else {
                     writeln!(out, "getspsize {slot},%1,%2:amsp {slot},{x}-%1/2,{y}-%2/2").unwrap();
                     if transition.is_none() {
@@ -457,8 +477,19 @@ pub fn emit(script: &Script) -> String {
                     }
                 }
             }
+            Op::IfSwitch { switch, on, label: target } => {
+                writeln!(out, "if {} == {} goto *{}", menu::switch_off(*switch), u8::from(!*on), label(target)).unwrap();
+            }
+            Op::SpriteMotion { layer, keys, looped } => motion::emit(&mut out, *layer, keys, *looped),
             Op::SpriteZoom { layer, x, y, from, to, ms } => {
-                needs_zoom |= zoom::emit(&mut out, *layer, *x, *y, *from, *to, *ms, transition.is_some());
+                let ease = move_ease.take();
+                let routine = ease.map(|(e, n)| ease::label(true, e, n));
+                if zoom::emit(&mut out, *layer, *x, *y, *from, *to, *ms, transition.is_some(), routine.as_deref()) {
+                    match ease {
+                        Some((e, n)) => _ = eased.insert((true, e, n)),
+                        None => needs_zoom = true,
+                    }
+                }
             }
             Op::ScreenFilter { slot, filter, fade_ms } => {
                 match filter {
@@ -573,6 +604,10 @@ pub fn emit(script: &Script) -> String {
                         )
                         .unwrap();
                     }
+                    Some(ScreenEffect::Zoom { interval_ms, zoom, centre, zoom_ms, fade_ms, ease, power }) => {
+                        let time = zoom_ms.max(fade_ms).max(&1);
+                        writeln!(out, "screenzoom {slot},{time},{interval_ms},{zoom},{},{},{zoom_ms},{fade_ms},{ease},{power}", centre.0, centre.1).unwrap();
+                    }
                     Some(ScreenEffect::Pulse { time_ms, interval_ms, zoom, opacity, colour, tint_opacity, tint }) => {
                         writeln!(
                             out,
@@ -606,6 +641,12 @@ pub fn emit(script: &Script) -> String {
                 }
             }
             Op::Text { speaker, text, voice, links, ruby, styles, hang, continues } => {
+                // Ducking: the music lowered while a line is voiced.
+                if duck {
+                    let off = menu::switch_off(Switch::BgmFullForVoice);
+                    let to = if voice.is_some() { "50,200" } else { "100,400" };
+                    writeln!(out, "if {off} == 1 bgmvolfade {to}").unwrap();
+                }
                 if let Some(v) = voice {
                     if voice_switches {
                         write!(out, "if %{} == 0 ", menu::VOICE_OFF_BASE + v.character).unwrap();
@@ -946,6 +987,11 @@ pub fn emit(script: &Script) -> String {
                     // For going back here (the page before it, as saves are).
                     writeln!(out, "savegame {}", menu::BACK_SLOT).unwrap();
                 }
+                // Skip stops at a choice; the next text turns it on again
+                // when the setting says so.
+                if keep_skip {
+                    writeln!(out, "if {} == 1 isskip {}", menu::switch_off(Switch::StopSkipAtChoice), menu::KEEP_SKIP).unwrap();
+                }
                 let items: Vec<String> = options.iter().map(|(t, l)| format!("\"{}\",*{}", text_safe(t), label(l))).collect();
                 writeln!(out, "select {}", items.join(",")).unwrap();
             }
@@ -976,6 +1022,9 @@ pub fn emit(script: &Script) -> String {
     }
     if needs_zoom {
         out.push_str(&zoom::routine());
+    }
+    for (zoom, e, n) in eased {
+        out.push_str(&ease::routine(zoom, e, n));
     }
     if root_returns > 0 {
         // Reached from a link page once its scene returned and the page
@@ -1041,7 +1090,7 @@ pub fn emit(script: &Script) -> String {
     if let Some(l) = &script.line_log {
         line_log::emit(&mut out, l);
     } else if let Some(b) = &script.backlog {
-        menu::backlog(&mut out, b, has_ruby);
+        menu::backlog(&mut out, b, has_ruby, keep_skip);
     }
     if let Some(d) = &script.confirm {
         menu::confirm(&mut out, d);
@@ -1307,6 +1356,11 @@ goto *{MOVE}_loop
     )
 }
 
+/// The settings screen has switch `s` (in its list or on a picture page).
+fn uses_switch(script: &Script, s: Switch) -> bool {
+    script.settings.as_ref().is_some_and(|m| menu::has_switch(m, s))
+}
+
 /// Command-line options CONscripter reads from `ons_args` in the game
 /// directory. Without `--enc:sjis` it reads the script as GBK.
 pub const ENGINE_ARGS: &str = "--enc:sjis\n";
@@ -1364,6 +1418,8 @@ fn transition_steps(fade_ms: u32, mask: Option<&str>, style: TransitionStyle) ->
         }
         (None, TransitionStyle::Melt { stretch_percent }) => one(Effect::Dll(format!("cons_melt.dll/{stretch_percent}"))),
         (None, TransitionStyle::Cube { dx, dy }) => one(Effect::Dll(format!("cons_cube.dll/{dx},{dy}"))),
+        (None, TransitionStyle::Wave { direction, amplitude, waves }) => one(Effect::Dll(format!("cons_wave.dll/{direction},{amplitude},{waves}"))),
+        (None, TransitionStyle::Blur { radius, new_only }) => one(Effect::Dll(format!("cons_blur.dll/{radius},{}", u8::from(new_only)))),
         (_, TransitionStyle::ThroughWhite) => {
             let half = (fade_ms / 2).max(1);
             vec![(half, Effect::Fade), ((fade_ms - half).max(1), Effect::Fade)]

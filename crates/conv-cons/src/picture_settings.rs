@@ -28,7 +28,7 @@ use crate::menu::{self, CONFIRM, IN_GAME, TEXT_MS, TMP};
 use crate::{escape, path, var_name, BUTTON_VAR, MAX_SPRITE};
 
 // Globals (`globalon` keeps %200 and up): 2920-2949, after the switches'
-// second range (2910-2914), below the scene replay's flags (3000).
+// second range (2910-2919; the third is 2950 up), below the scene replay's flags (3000).
 /// 1 once the values have their defaults.
 const SET: &str = "%2920";
 /// The `gamespeed` percent the story runs at.
