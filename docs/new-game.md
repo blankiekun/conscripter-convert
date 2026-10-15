@@ -130,7 +130,7 @@ converted, every ending reachable.
 
 ## 3. Lowering to the IR
 
-- The reader produces the engine-neutral IR (`crates/conv-core/src/ir.rs`).
+- The reader produces the engine-neutral IR (`crates/conv-core/src/ir/`).
   Only `crates/conv-cons` knows NScripter. If the IR can't express
   something, add an IR op or a style variant with a doc comment that says
   what the picture does, not how the source engine does it.

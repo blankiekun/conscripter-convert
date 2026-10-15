@@ -85,7 +85,7 @@ each in its own worktree), and their work meets in shared code.
 
   | File | How to edit it |
   |---|---|
-  | `crates/conv-core/src/ir.rs` | Add new types and `Op` variants at the end of their block, with a doc comment; don't reorder or reformat existing ones |
+  | `crates/conv-core/src/ir/` (`mod.rs`: the ops and `Script`; `screens.rs`: the shared screens; `picture.rs`: the picture-drawn ones) | Add new types and `Op` variants at the end of their block, with a doc comment; don't reorder or reformat existing ones |
   | `crates/conv-cons/src/lib.rs` | Put a new feature's emitter in its own module (`puzzle.rs`, `menu.rs`, `replay.rs`) and add one `match` arm here. Sprite and variable ranges are the constants at the top: claim a new range there, with a comment, and check it against the ranges other modules document |
   | `crates/conv-cons/src/menu.rs` | Shared by every game's menus: change it only through what a game passes in its IR (`SaveMenu`, `ButtonBar`, …), not with game-specific branches |
   | `crates/conv-cons/src/switches.rs` | A new settings switch is one entry in `def` (its index and what applying it does), with the next free index in your engine's block (the table at the top: shared 20-99, xuse 100-199, mages 200-299, nitroplus 300-399, a new engine the next hundred); nothing in `menu.rs` |
@@ -117,7 +117,7 @@ each in its own worktree), and their work meets in shared code.
 
 | Path | Contents |
 |---|---|
-| `crates/conv-core/src/ir.rs` | Engine-neutral IR |
+| `crates/conv-core/src/ir/` | Engine-neutral IR; `alloc.rs`: the variables conv-cons keeps |
 | `crates/conv-engines/src/<engine>/` | Source readers (`xuse/`, `nitroplus/`); a game's own rules in a module there (`nitroplus/convert/muramasa.rs`) |
 | `crates/conv-cons/` | IR → `0.txt` (`lib.rs`), menus, extras, NSA writer |
 | `crates/conv-cli/` | The `conscripter-convert` command |
