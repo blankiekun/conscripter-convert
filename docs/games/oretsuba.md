@@ -380,6 +380,21 @@ equal), then auto-play tours the title's menus. The checker found:
 - **Not converted, found on the way (now converted):** the `:Color`
   tints, greyscale, sepia and negatives (above).
 
+**Web build.** The game as loose files (the page fetches each file as
+it needs it; one 1.9 GB `arc.nsa` would be fetched whole), the web
+engine (`cd engine/script && EMSDK_HOME=<emsdk> bash ./cross_web.sh`) and
+an index:
+
+    conscripter-convert mages convert <game> -o out/oretsuba-web --font <ipag.ttf> --loose
+    python3 -I engine/src/onsyuri_web/conscripter_index.py -i out/oretsuba-web \
+        -o out/oretsuba-web/onsyuri_index.json --title oretsuba --lazyload
+    cp engine/build_web/conscripter.{html,js,wasm} engine/build_web/favicon.ico out/oretsuba-web/
+    python3 -m http.server 8000 -d out/oretsuba-web   # then open /conscripter.html
+
+2.2 GB, 27,472 files (index first, then the engine's files, so they
+aren't listed). `mages convert` has no `--webp` yet (`convert-game`
+has).
+
 **Steered route runs (2026-10-15).** `research/oretsuba/routes.py` plays
 the route map's eight paths in the engine one after another in one save
 folder (the global clears carry over), each with the debug trace and
