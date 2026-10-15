@@ -21,6 +21,7 @@ mod menu;
 mod movies;
 mod music;
 pub mod nsa;
+mod picture_screen;
 mod puzzle;
 mod replay;
 mod zoom;
@@ -171,6 +172,7 @@ pub fn emit(script: &Script) -> String {
     let mut turns = 0;
     let mut puzzles = 0;
     let mut button_screens = 0;
+    let mut picture_screens = 0;
     let has_vertical = script.window.iter().chain(script.ops.iter().filter_map(|op| match op {
         Op::SetWindow(w) => Some(w),
         Op::Choice { style: Some(s), .. } => Some(&s.window),
@@ -929,6 +931,10 @@ pub fn emit(script: &Script) -> String {
                 button_screen::emit(&mut out, s, button_screens, &effect(s.fade_ms), script.button_bar.is_some());
                 button_screens += 1;
             }
+            Op::PictureScreen(s) => {
+                picture_screen::emit(&mut out, s, picture_screens, &effect(s.fade_ms), script.button_bar.is_some(), border);
+                picture_screens += 1;
+            }
         }
     }
     writeln!(out, "end").unwrap();
@@ -1361,6 +1367,7 @@ fn fade_effects(script: &Script) -> BTreeMap<(u32, Effect), u32> {
             Op::ScreenFade { ms, .. } => vec![(*ms, Effect::Fade)],
             Op::TilePuzzle(p) => vec![(p.fade_ms, Effect::Fade)],
             Op::ButtonScreen(s) => vec![(s.fade_ms, Effect::Fade)],
+            Op::PictureScreen(s) => vec![(s.fade_ms, Effect::Fade)],
             Op::BeginTransition { fade_ms, mask, style, .. } => transition_steps(*fade_ms, mask.as_deref(), *style),
             _ => Vec::new(),
         })

@@ -1,13 +1,15 @@
 //! 装甲悪鬼村正's own additions to the NSS compiler ([`MURAMASA`]): the
 //! `sys_hmode.nss` functions that rank the heroines and decide who dies
 //! (their loops and computed names are written as NScripter comparisons),
-//! and the 立方陣 minigame, ported ([`magiccube`]); the system screens,
-//! built from the game's own pictures ([`screens`]).
+//! and the 立方陣 minigame, ported ([`magiccube`]); the favour screen,
+//! ported ([`favour`]); the system screens, built from the game's own
+//! pictures ([`screens`]).
 
 use conv_core::ir::{ArithOp, Op, Operand};
 
 use super::{negate, Compiler, Game, Value};
 
+mod favour;
 pub mod magiccube;
 pub mod screens;
 
@@ -18,7 +20,7 @@ fn call(c: &mut Compiler<'_, '_>, name: &str) -> bool {
     if let Some(r) = RANKINGS.iter().find(|r| r.0 == name) {
         return c.ranking(r);
     }
-    (name == "SatugaiSystem" && c.satugai()) || (name == "SetHex" && c.set_hex())
+    (name == "SatugaiSystem" && c.satugai()) || (name == "SetHex" && c.set_hex()) || (name == "judgment_of_count" && c.favour_screen())
 }
 
 fn scene(c: &mut Compiler<'_, '_>, file: &str, scene: &str) -> bool {
