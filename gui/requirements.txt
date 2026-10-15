@@ -1,0 +1,4 @@
+# The app itself needs only the standard library (tkinter); tkinterdnd2
+# adds drag and drop. PyInstaller makes the single-file executable.
+tkinterdnd2==0.6.4
+pyinstaller==6.22.3
