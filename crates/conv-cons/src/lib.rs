@@ -19,6 +19,7 @@ mod choice_plates;
 mod command_menu;
 mod ease;
 mod extras;
+mod hold_movie;
 pub mod lint;
 mod menu;
 mod motion;
@@ -1305,6 +1306,18 @@ mod tests {
             assert!(text.contains(part), "missing {part:?} in\n{text}");
         }
         assert!(!text.contains("select "));
+    }
+
+    #[test]
+    fn a_held_movie_draws_its_prompt_and_plays_its_sound_on_an_effect_channel() {
+        use conv_core::ir::{HoldPrompt, HoldSound};
+        let prompt = Some(HoldPrompt { image: "system/push.png".into(), x: 690, y: 20, cells: 10, frame_ms: 100 });
+        let sound = Some(HoldSound { file: "sound/se/fire.ogg".into(), fade_ms: 500 });
+        let text = emit(&script(vec![Op::HoldMovie { file: "movie/a.mp4".into(), prompt, sound }]));
+        let part = "lsp 6,\":a/10,100,0;system\\push.png\",690,20\nmpeghold \"movie\\a.mp4\",6,1,\"sound\\se\\fire.ogg\",500\ncsp 6\n";
+        assert!(text.contains(part), "missing {part:?} in\n{text}");
+        let text = emit(&script(vec![Op::HoldMovie { file: "movie/a.mp4".into(), prompt: None, sound: None }]));
+        assert!(text.contains("mpeghold \"movie\\a.mp4\"\n"));
     }
 
     #[test]

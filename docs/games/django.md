@@ -296,7 +296,7 @@ with the original (it wants all eleven endings' flags under wine).
 | Area | Status |
 |---|---|
 | NPA archives (key), images, sounds | ✅ Every file decodes |
-| Movies (MPEG-1) | 🟡 Found in `<game>/movie` (the default) and drawn as Muramasa's compiler draws them (strips of frames at 15 a second); two long ones get fewer frames so that their JPEG strip stays within 65,535 px (`mv_ブラックホーク`, 70 s: 163 frames, 2.3 a second) |
+| Movies (MPEG-1) | 🟡 Found in `<game>/movie` (the default) and drawn as Muramasa's compiler draws them (strips of frames at 15 a second); two long ones get fewer frames so that their JPEG strip stays within 65,535 px (`mv_ブラックホーク`, 70 s: 163 frames, 2.3 a second); the 400-vs-3 battle's six play while the button is held (`mpeghold`) |
 | Script parsing | ✅ All 249 files; 56 places that don't parse, none in the story |
 | Story control flow (56 chapters, 10 choices, bad ends) | ✅ Compiled whole (`compile_story`); in the engine the good path plays to the end (6,496 pages) and each wrong answer ends the story with its own bad end, then the game goes back to the title (`research/nitroplus/django_routes.sh`, which stops each run there, 2026-10-15) |
 | Text | 🟡 In the boxes' places (box00: 39 columns at 50,472, white on the black bar; five rows, as many as end inside the 130 px box); 3,424 voiced lines; not compared with the original yet |
@@ -316,16 +316,34 @@ with the original (it wants all eleven endings' flags under wine).
 2. The text window and name plates (`box00`-`box05`, face windows
    `frame03`-`frame05`) measured against the original under wine.
 3. The rest of the "not converted" list, by what shows most: the
-   400-vs-3 battle (dja050: four movies that play while the button is
-   held, the user's choice, with the rolling 0-400 counter, the
-   muzzle flashes and the "hold" prompt; none is drawn yet), the
-   looping shakes (`ShakeVLoop*`, 9), the strobe, dja001's Black Hawk
-   pan, then additive flashes, a movie's rotation, sepia.
+   400-vs-3 battle's counter between the movies (`CountInit`,
+   `CountFadeIn`/`CountFadeOut`, `CounterPlay`: three digits rolling
+   from `cg/sys/count/count.png` in a 194×52 window at 296,10, 29
+   processes; the movies have their own counter drawn in) and its
+   muzzle flashes (`GunFire`/`Fire`, 11: a white screen added on,
+   flashing), the looping shakes (`ShakeVLoop*`, 9), the strobe,
+   dja001's Black Hawk pan, then additive flashes, a movie's rotation,
+   sepia.
 4. The 60 moves and zooms that also fade or change picture (still
    cross-fades), and `Rotate` over time (343, drawn at once).
 5. Extras: the doors' animation and the menu's own music (left out).
 
 ## History
+
+- **The 400-vs-3 battle's movies (2026-10-15).** dja050's six `VS400`
+  calls play a movie while the player holds the button down (a
+  full-screen choice: `MouseClick` resumes the movie, the release pauses
+  it), the "hold" prompt (`PushShow`, ten pictures at 690,20, 100 ms
+  each) going round over it, its gunfire sound with it: paused and
+  resumed with the movie, or (the fourth argument 0) started again
+  looped at each press and faded out over 500 ms when let go. The
+  user chose to keep the holding. CONscripter's new `mpeghold` does it
+  (Linux/macOS and the web build; the mouse, a touch, Enter or Space),
+  from `Op::HoldMovie` (`django/battle.rs`, through the game's `call`
+  hook, which now gets the call's arguments). Checked in the engine
+  under Xvfb and in headless Chromium: the movie stands on its first
+  frame until pressed, goes on only while held; the movies draw their
+  own 0-400 counter.
 
 - **Music processes (2026-10-15).** Four `CreateProcess` functions only
   play music on a timer: dja050's and dja056's themes (an intro, its loop
