@@ -1255,9 +1255,10 @@ fn switch_index(s: Switch) -> u32 {
         Switch::ConfirmQuit => 6,
         Switch::ConfirmBackToChoice => 7,
         Switch::VoiceKeepsPlaying => 8,
-        Switch::SceneSkipDialog => 9,
-        Switch::StopSkipAtChoice => 10,
-        Switch::BgmFullForVoice => 11,
+        // 9-11 are the xuse branch's BgmOn, SeOn, VoiceOn.
+        Switch::SceneSkipDialog => 12,
+        Switch::StopSkipAtChoice => 13,
+        Switch::BgmFullForVoice => 14,
     }
 }
 
