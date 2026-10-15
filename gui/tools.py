@@ -72,7 +72,7 @@ FFMPEG_ENCODERS = ("libx264", "aac", "libvorbis")
 def ffmpeg_missing_encoders(ffmpeg: Path) -> list[str]:
     """The encoders the converter uses that this ffmpeg lacks."""
     try:
-        out = subprocess.run([str(ffmpeg), "-hide_banner", "-encoders"], capture_output=True, text=True,
+        out = subprocess.run([str(ffmpeg), "-hide_banner", "-encoders"], capture_output=True, encoding="utf-8", errors="replace",
                              timeout=20, **_no_window()).stdout
     except (OSError, subprocess.SubprocessError):
         return list(FFMPEG_ENCODERS)

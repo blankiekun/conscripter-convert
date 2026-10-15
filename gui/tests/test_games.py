@@ -143,7 +143,7 @@ class Commands(unittest.TestCase):
         for g in games.GAMES:
             args = g.command(Path("G"), Path("O"), Path("F.ttf"))
             sub = args[:2] if args[0] == "mages" else args[:1]
-            out = subprocess.run([str(conv), *sub, "--help"], capture_output=True, text=True).stdout
+            out = subprocess.run([str(conv), *sub, "--help"], capture_output=True, encoding="utf-8", errors="replace").stdout
             for flag in (a for a in args if a.startswith("-")):
                 self.assertIn(flag, out, f"{g.key}: {flag}")
 

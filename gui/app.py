@@ -415,7 +415,7 @@ def self_test(report: str) -> int:
     state: dict = {"converter": str(tools.find_converter() or ""), "dnd": TkinterDnD is not None,
                    "fonts": {g.font: str(tools.find_font(g.font) or "") for g in games.GAMES}}
     if state["converter"]:
-        r = subprocess.run([state["converter"], "--help"], capture_output=True, text=True)
+        r = subprocess.run([state["converter"], "--help"], capture_output=True, encoding="utf-8", errors="replace")
         state["converter_runs"] = r.returncode == 0 and "convert-game" in r.stdout
     Path(report).write_text(json.dumps(state, indent=2), encoding="utf-8")
     ok = state.get("converter_runs") and all(state["fonts"].values()) and state["dnd"]
