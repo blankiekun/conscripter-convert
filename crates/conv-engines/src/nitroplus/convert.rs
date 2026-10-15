@@ -2899,10 +2899,9 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 self.ops.push(Op::SetWindow(window.clone()));
             }
             self.window = Some(window);
-            let voice = page.voice.as_ref().and_then(|(_, src)| {
-                let file = self.assets.sound(src)?;
-                Some(file)
-            });
+            // 続・殺戮のジャンゴ's src leaves out the voice folder
+            // (`dja002/0100010ri`; system.ini: `path = voice/`).
+            let voice = page.voice.as_ref().and_then(|(_, src)| self.assets.sound(src).or_else(|| self.assets.sound(&format!("voice/{src}"))));
             let speaker = page.voice.as_ref().map(|(n, _)| n.clone()).filter(|n| !n.is_empty());
             let voice = voice.map(|file| {
                 let class = speaker.clone().unwrap_or_default();
