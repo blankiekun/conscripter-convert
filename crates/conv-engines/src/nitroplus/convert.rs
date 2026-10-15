@@ -233,6 +233,7 @@ pub fn compile_scene(files: &BTreeMap<String, NssFile>, file: &str, scene: &str,
 pub fn compile_story(files: &BTreeMap<String, NssFile>, file: &str, scene: &str, game: &'static Game, assets: &mut dyn Assets) -> Result<Compiled, String> {
     let (file, _) = files.get_key_value(file).ok_or_else(|| format!("no script {file}"))?;
     let mut c = Compiler::new(files, file, game, assets);
+    c.whole_story = true;
     c.flags = story_flags(files, game);
     for (k, &v) in &c.flags {
         c.vars.insert(k.clone(), Value::Runtime(v));
@@ -417,6 +418,11 @@ pub fn compile_run(files: &BTreeMap<String, NssFile>, start: &str, max_files: us
     }
     c.ops.push(Op::Label(RUN_END.to_string()));
     Ok((Compiled { ops: c.ops, window: c.first_window, notes: c.notes, flags: c.flags, voice_classes: c.voice_classes }, played))
+}
+
+/// Whether a block's last statement is `return`.
+fn ends_in_return(stmts: &[Stmt]) -> bool {
+    stmts.last().is_some_and(|s| matches!(s.kind, StmtKind::Return))
 }
 
 fn negate(c: conv_core::ir::Compare) -> conv_core::ir::Compare {
@@ -860,6 +866,11 @@ struct Compiler<'a, 'b> {
     /// exists (続・殺戮のジャンゴ's `TypeBegin`): the block shows its
     /// pages as soon as it runs.
     pending_enter: Option<String>,
+    /// `LoadText(unit, box, w, h, letter, line)` (続・殺戮のジャンゴ): the
+    /// layout of every text in that box, as [`TextObject::layout`].
+    box_layouts: HashMap<String, (i64, i64, i64, i64, i64)>,
+    /// Compiling a whole story in one stream ([`compile_story`]).
+    whole_story: bool,
     voice_classes: Vec<String>,
     ops: Vec<Op>,
     notes: BTreeMap<String, usize>,
@@ -1196,8 +1207,10 @@ impl<'a, 'b> Compiler<'a, 'b> {
             // names of scenes or files they set differently (the code after
             // a choice may copy `$GameName` into a story flag). Where that
             // code leaves them alone, each branch still goes on with its own
-            // value (`first` holds the runtime ones).
-            if own {
+            // value (`first` holds the runtime ones). In a whole story
+            // ([`compile_story`]) a fork inside another too: its choices
+            // are inside the runtime ifs of the deaths before them.
+            if own || self.whole_story {
                 for (k, &v) in &self.flags {
                     if differ(k) {
                         self.vars.insert(k.clone(), Value::Runtime(v));
@@ -1293,6 +1306,20 @@ impl<'a, 'b> Compiler<'a, 'b> {
     /// `if` on a story flag only the running game knows: both branches are
     /// compiled, behind a runtime test.
     fn runtime_if(&mut self, cond: &'a Expr, then: &'a [Stmt], otherwise: Option<&'a [Stmt]>) {
+        self.runtime_if_then(cond, then, otherwise, &[]);
+    }
+
+    /// [`Compiler::runtime_if`] followed by `rest`, which runs at the end of
+    /// each branch that doesn't end in `return`.
+    fn runtime_if_then(&mut self, cond: &'a Expr, then: &'a [Stmt], otherwise: Option<&'a [Stmt]>, rest: &[&'a [Stmt]]) {
+        let with_rest = |branch: &'a [Stmt]| {
+            let mut parts = vec![branch];
+            if !ends_in_return(branch) {
+                parts.extend_from_slice(rest);
+            }
+            parts
+        };
+        let (then_parts, else_parts) = (with_rest(then), with_rest(otherwise.unwrap_or(&[])));
         self.sync(0);
         let own = self.begin_fork();
         let n = self.choices;
@@ -1301,15 +1328,20 @@ impl<'a, 'b> Compiler<'a, 'b> {
         self.jump_if(cond, false, &else_label);
         let base = self.snapshot();
         let mut leaves = self.branch(&base, |c| {
-            c.exec_block(then);
+            c.exec_seq(&then_parts);
         });
         self.ops.push(Op::Jump(end_label.clone()));
         self.ops.push(Op::Label(else_label));
-        leaves.extend(self.branch(&base, |c| {
-            if let Some(o) = otherwise {
-                c.exec_block(o);
-            }
-        }));
+        let else_leaves = self.branch(&base, |c| {
+            c.exec_seq(&else_parts);
+        });
+        // A branch that returned left the scene: the code after the if
+        // goes on from the other one (its pictures, its variables).
+        match (ends_in_return(then), otherwise.is_some_and(ends_in_return)) {
+            (true, false) => leaves = else_leaves,
+            (false, true) => {}
+            _ => leaves.extend(else_leaves),
+        }
         self.ops.push(Op::Label(end_label));
         self.finish_fork(leaves, own, false);
     }
@@ -1499,6 +1531,8 @@ impl<'a, 'b> Compiler<'a, 'b> {
             window_visible: false,
             texts_shown: 0,
             pending_enter: None,
+            box_layouts: HashMap::new(),
+            whole_story: false,
             voice_classes: Vec::new(),
             ops: Vec::new(),
             notes: BTreeMap::new(),
@@ -1561,16 +1595,37 @@ impl<'a, 'b> Compiler<'a, 'b> {
     }
 
     fn exec_block(&mut self, stmts: &'a [Stmt]) -> Flow {
-        for s in stmts {
-            let flow = self.exec(s);
-            // A statement of a scene (not of a helper) has finished
-            // setting up the sounds it started.
-            if self.in_function == 0 {
-                self.flush_sounds();
-            }
-            match flow {
-                Flow::Normal => {}
-                flow => return flow,
+        self.exec_seq(&[stmts])
+    }
+
+    /// Runs `parts` one after the other. A runtime `if` with a branch that
+    /// ends in `return` (`if($死亡01 == 1){ …; return; }`) runs what follows
+    /// it only in its other branch: the player who died doesn't go on.
+    fn exec_seq(&mut self, parts: &[&'a [Stmt]]) -> Flow {
+        for (pi, part) in parts.iter().enumerate() {
+            for (i, s) in part.iter().enumerate() {
+                if let StmtKind::If { cond, then, otherwise } = &s.kind
+                    && (ends_in_return(then) || otherwise.as_deref().is_some_and(ends_in_return))
+                    && self.is_runtime(cond)
+                {
+                    let mut rest = vec![&part[i + 1..]];
+                    rest.extend_from_slice(&parts[pi + 1..]);
+                    self.runtime_if_then(cond, then, otherwise.as_deref(), &rest);
+                    if self.in_function == 0 {
+                        self.flush_sounds();
+                    }
+                    return Flow::Normal;
+                }
+                let flow = self.exec(s);
+                // A statement of a scene (not of a helper) has finished
+                // setting up the sounds it started.
+                if self.in_function == 0 {
+                    self.flush_sounds();
+                }
+                match flow {
+                    Flow::Normal => {}
+                    flow => return flow,
+                }
             }
         }
         Flow::Normal
@@ -1839,6 +1894,17 @@ impl<'a, 'b> Compiler<'a, 'b> {
 
     /// The object a name argument means: `$var` names the variable holding
     /// it, `@x` goes through the alias table.
+    /// A string argument, or the value of the variable it names
+    /// (`CreateSound("x", SE, "$場所指定")`, 続・殺戮のジャンゴ's
+    /// `CreateSE`).
+    fn named_string(&self, v: &Value) -> String {
+        let s = v.string();
+        match self.vars.get(&s) {
+            Some(v) if s.starts_with(['$', '#']) => v.string(),
+            _ => s,
+        }
+    }
+
     fn object_name(&self, v: &Value) -> String {
         let mut s = v.string();
         for _ in 0..4 {
@@ -1976,6 +2042,9 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 let name = self.object_name(&arg(0));
                 let (w, h) = (arg(4).int().max(1), arg(5).int().max(1));
                 let Some(rgb) = color(&arg(6)) else {
+                    if std::env::var_os("NSS_TRACE").is_some() {
+                        eprintln!("unknown colour {:?}", arg(6));
+                    }
                     self.note("CreateColor with an unknown colour");
                     return Value::Null;
                 };
@@ -1996,7 +2065,12 @@ impl<'a, 'b> Compiler<'a, 'b> {
             }
             "CreateWindow" | "CreateName" => {
                 let name = self.object_name(&arg(0));
-                self.create(name, Kind::Other, arg(1).int(), 0, 0);
+                let o = self.create(name, Kind::Other, arg(1).int(), 0, 0);
+                // (name, priority, x, y, w, h, ?): a text in the window
+                // starts at its corner (続・殺戮のジャンゴ's boxes).
+                if a.len() >= 6 {
+                    (o.x, o.y) = (arg(2).int(), arg(3).int());
+                }
             }
             "CreateMovie" => {
                 let name = self.object_name(&arg(0));
@@ -2031,7 +2105,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
             "CreateSound" => {
                 let name = self.object_name(&arg(0));
                 let bgm = arg(1).string().eq_ignore_ascii_case("bgm");
-                let s = SoundObject { path: arg(2).string(), bgm, volume: 1000, looped: false, starting: false, fade_ms: 0, playing: None, disused: false };
+                let s = SoundObject { path: self.named_string(&arg(2)), bgm, volume: 1000, looped: false, starting: false, fade_ms: 0, playing: None, disused: false };
                 self.create(name, Kind::Sound(s), 0, 0, 0);
             }
             "Fade" => {
@@ -2178,6 +2252,10 @@ impl<'a, 'b> Compiler<'a, 'b> {
             "ImageHorizon" => return Value::Int(self.objects.get(&self.object_name(&arg(0))).map_or(0, |o| o.w)),
             "ImageVertical" => return Value::Int(self.objects.get(&self.object_name(&arg(0))).map_or(0, |o| o.h)),
             "SetFont" => self.font_size = arg(1).int().max(1),
+            "LoadText" if a.len() == 6 => {
+                let layout = (arg(2).int(), arg(3).int(), arg(4).int(), arg(5).int(), self.font_size);
+                self.box_layouts.insert(self.object_name(&arg(1)), layout);
+            }
             "LoadText" => {
                 let name = self.object_name(&arg(2));
                 let font = self.font_size;
@@ -2571,6 +2649,9 @@ impl<'a, 'b> Compiler<'a, 'b> {
             }
             let (path, bgm, looped, fade_ms) = (s.path.clone(), s.bgm, s.looped, s.fade_ms);
             let Some(file) = self.assets.sound(&path) else {
+                if std::env::var_os("NSS_TRACE").is_some() {
+                    eprintln!("missing sound {path}");
+                }
                 self.note("sound missing from the archives");
                 continue;
             };
@@ -2614,9 +2695,10 @@ impl<'a, 'b> Compiler<'a, 'b> {
             let prev = prev.trim_start_matches('@').to_string();
             self.objects.remove(&prev);
         }
-        let text = TextObject { block: t, layout: None, rotation: 0 };
-        let priority = self.objects.get(&window).map_or(20001, |o| o.priority);
-        self.create(name.clone(), Kind::Text(text), priority, 0, 0);
+        let text = TextObject { block: t, layout: self.box_layouts.get(&window).copied(), rotation: 0 };
+        let (priority, x, y) = self.objects.get(&window).map_or((20001, 0, 0), |o| (o.priority, o.x, o.y));
+        let o = self.create(name.clone(), Kind::Text(text), priority, 0, 0);
+        (o.x, o.y) = (x, y);
         self.vars.insert("$SYSTEM_present_preprocess".into(), Value::Str(format!("@{window}")));
         self.vars.insert("$SYSTEM_present_text".into(), Value::Str(format!("@{name}")));
         if let Some(pending) = self.pending_enter.take() {

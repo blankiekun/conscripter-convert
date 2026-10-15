@@ -1,0 +1,162 @@
+# 続・殺戮のジャンゴ -地獄の賞金首- (Nitroplus NSS)
+
+Zoku Satsuriku no Django: Jigoku no Shōkinkubi (Nitroplus, 2008), the
+fourth game. It uses the same NPA archives and NSS script language as
+装甲悪鬼村正 (`docs/games/muramasa.md`, the reference for the engine),
+in an older version (`NitroplusSystem2.0`), so it reuses
+`crates/conv-engines/src/nitroplus/`, with its own rules in
+`nitroplus/convert/django.rs`. The general process is in
+`docs/new-game.md`, general lessons in `PLAN.md` §13.
+
+- **Status:** started 2026-10-15 (see "Status" below). Branch `django`.
+- **Game files:** `<game>` is the install folder holding `Django.exe`,
+  the `*.npa` archives and `movie/`, **with the 1.01 update applied**
+  (`DjangoUpdate101`: its `Django.exe`, `nss.npa` and `cg2.npa` replace
+  or join the installed ones). Version 1.00's scripts differ in about 60
+  files. To keep the install untouched, make a folder of symlinks to the
+  install's files with the update's three files linked over them.
+
+## Scope (to confirm with the user)
+
+The user wasn't asked yet (step 0.1 of `docs/new-game.md`: the work
+started while they were away). Assumed until they answer, as for
+Muramasa: story first, the web build as the main platform, extras
+(CG gallery, scene replay, music room) and movies later.
+
+## Build
+
+Script only (a few seconds; for anything about logic):
+
+```sh
+target/release/conscripter-convert convert-nss <game> -o out/django-dry --dry-run
+```
+
+Without `--file`, `convert-nss` compiles Django's whole story
+(`Game::story`: `dja000_開始スクリプト.nss`, scene `SelectStoryMode`).
+The full build adds `--font <a Japanese TTF, e.g. ipag.ttf> --title
+続・殺戮のジャンゴ` and drops `--dry-run`.
+
+**Checking the routes.** After a full build into `out/django-cons`:
+
+```sh
+research/nitroplus/django_routes.sh out/django-cons <conscripter> out/django-routes
+```
+
+writes a `--choices` file per path (`django_paths.py`: the good answers,
+or the good answers up to choice N and then the deadly one), plays the
+eleven paths in parallel and prints each run's pages, choices and the
+bad-end pictures it showed: the good path none, `badNN` only its own.
+
+## Files and formats
+
+| File | Size | Contents |
+|---|---|---|
+| `Django.exe` | 3.1 MB (1.6 MB for 1.01) | The engine, `NitroplusSystem2.0` |
+| `nss.npa` | 756 KB | 249 `.nss` scripts (1.01; plus SourceSafe's `vssver2.scc`), Shift-JIS, CRLF |
+| `system.npa` | 1.4 KB | `system.ini`: 800×600, font ＭＳ Ｐ ゴシック 18 px (white, black outline), ruby 45 %, BGM 700 / SE 900 / voice 1000, click icons (`cg/sys/icon/line/Tumbleweed-%03d.png#20`, `page/Bullet-%03d.png#20`), voice names |
+| `cg.npa` | 465 MB | 1,817 files: 1,233 PNG, 543 JPEG, 40 BMP, one WAV (`sys/config/test.wav`). Folders: `sys` 588, `bu` 471 (standing pictures), `bg` 271, `ev` 141, `thum` 130, `st` 120, `kw` 94 (face windows) |
+| `cg2.npa` | 1.6 MB | 1.01 only: 119 music-room pictures (`sys/extra/sound/kyoku/`) |
+| `sound.npa` | 178 MB | 628 Ogg Vorbis: BGM (`bgm/djNN.ogg`) and sound effects |
+| `voice.npa` | 217 MB | 3,516 Ogg Vorbis |
+| `movie/` | 140 MB | 35 MPEG-1 program streams without extension (800×600 or smaller, 29.97 fps, MP2 audio): 17 `mpg_*` (the opening, battle scenes), 18 `mv_*` (muzzle flashes, smoke, blood: effects played over the scene) |
+
+Every image and every sound decodes (checked 2026-10-15 with PIL and
+ffprobe over the whole corpus); no empty or 1×1 files.
+
+**Screen size 800×600.** Text is horizontal.
+
+**NPA**: the same format and key scheme as Muramasa's (`npa.rs`), with
+another 256-byte substitution table, which `Django.exe` doesn't hold as
+plain bytes. `npa::DJANGO_TABLE` was recovered by known plaintext from
+the fixed bytes of the Ogg headers of `sound.npa` and `voice.npa`
+(`python3 -I research/nitroplus/npa_table.py <game>/sound.npa
+<game>/voice.npa`): every slot filled, no contradiction. The CLI picks it
+for `Django.exe`. Tools: `conscripter-convert npa list|extract
+<game>/Django.exe <archive>`.
+
+## Script language: what differs from Muramasa
+
+Checked with `conscripter-convert nss check <dir>` and `nss refs <dir>`
+on the extracted scripts.
+
+- **`cut name { … }`** blocks, called with **`call_cut name;`** (in the
+  same file): parsed as a scene and a `call_scene`. Every story file is
+  `chapter main { InitChildChapter(…); call_cut main_stage; }` plus its
+  cuts.
+- **`wait 1000;`** without parentheses (once, the ending): `Wait(1000)`.
+- **Pages joined by a commented-out block**: `{/*</PRE> … <PRE
+  box00>[text011]*/}` inside a text block (the writers merged pages);
+  the parser skips `{/* … */}` when it looks for `</PRE>`.
+- **`TypeBegin("@box00", "@text005")` comes before** the text block it
+  shows (`Request("@text005", Enter)`), where Muramasa's `TypeBegin…()`
+  comes after. The compiler keeps the Enter and shows the block named
+  `[text005]` when it runs.
+- **Helper functions** are in `function.nss` (included by `boot.nss`),
+  `function_select.nss` (the choices) and `function_badend.nss`, which
+  only the chapter files include: function lookup also searches the
+  current file's own `#include`s.
+- `function.nss` has a `cut layer_number` that is never called: the
+  developers' notes of the layer numbers (frames 10000-10001, text boxes
+  `box00`-`box05` at 10300-10350, face windows `frame03`-`frame05`,
+  backgrounds 10/20, standing pictures 1100-1500, choices 10400/10410).
+- What still doesn't parse (56 places): the system screens
+  (`sys_backlog`, `sys_load`, `sys_save`: `if(…)){`, `%=`), the notes
+  above, a stray `#base_path`. None is in the story.
+
+## Story structure and walkthrough
+
+`boot.nss` shows the logos and the title (`TitleSelect`); a new game
+calls `dja000_開始スクリプト.nss`, whose `SelectStoryMode` calls
+`main_root`: the 56 chapter files `dja001`…`dja056` in order (each a
+`chapter main` calling its scene files, `dja001_フランコ馬車を襲う_01_…`).
+There are no routes: ten two-way choices, each with one answer that
+kills the player (a bad end: the `…be_…` file, then `ShowBadEnd`), the
+other going on. The dead player's ending sets `#ClearNN`; finishing the
+story sets `#ClearG`. Source: the scripts (`function_select.nss`,
+`SetChoice02`, and the `$死亡NN` flags); no public walkthrough checked
+yet.
+
+| Chapter | Choice | Bad end (flag) | Goes on |
+|---|---|---|---|
+| dja004 | 手を引いてくれと頼む / 手を引かせる | 手を引いてくれと頼む (死亡01) | 手を引かせる |
+| dja011 | 殺す / 殺さない | 殺さない (死亡05) | 殺す |
+| dja011 | 信用する / 信用しない | 信用する (死亡02) | 信用しない |
+| dja025 | ともかく撃つ / 慎重に狙って撃つ | ともかく撃つ (死亡06) | 慎重に狙って撃つ |
+| dja027 | その場を退く / まだ退かない | まだ退かない (死亡03) | その場を退く |
+| dja033 | 応戦する / 弾を詰め替える | 応戦する (死亡04) | 弾を詰め替える |
+| dja041 | ７．７ｍｍ / ４５口径 | ４５口径 (死亡08) | ７．７ｍｍ |
+| dja047 | 鎖を解く / まず銃を取り上げる | 鎖を解く (死亡07) | まず銃を取り上げる |
+| dja049 | やるしかない / 付き合いきれない | 付き合いきれない (死亡09) | やるしかない |
+| dja053 | その通り。あいつらは馬鹿だ / いいや馬鹿じゃない | その通り。あいつらは馬鹿だ (死亡10) | いいや馬鹿じゃない |
+
+## Progression variables
+
+| Variable | Meaning | Set | Read | Kept in |
+|---|---|---|---|---|
+| `$死亡01`-`$死亡10` | The player chose the deadly answer | the choice's file | the chapter file and `main_root` (end the game) | save |
+| `#Clear01`-`#Clear10` | That bad end was seen | `main_root` | title, extras (to check) | system |
+| `#ClearG` | The story was finished | `main_root` | title (`TitleCongratulations`), extras (to check) | system |
+| `$ClearL` | The game just ended (back to the title) | `main_root` | title | save |
+
+## Status
+
+| Area | Status |
+|---|---|
+| NPA archives (key), images, sounds | ✅ Every file decodes |
+| Movies (MPEG-1) | ❌ Not yet (scope to confirm) |
+| Script parsing | ✅ All 249 files; 56 places that don't parse, none in the story |
+| Story control flow (56 chapters, 10 choices, bad ends) | ✅ Compiled whole (`compile_story`); in the engine the good path plays to the end (6,496 pages) and each wrong answer ends the game with its own bad end (`research/nitroplus/django_routes.sh`, 2026-10-15) |
+| Text | 🟡 Pages come out in the boxes' places (box00: 39 columns at 50,472); look, name plates, voices not checked |
+| Pictures, sound in scripts | 🟡 What Muramasa's compiler does; every sound is found |
+| System screens | ❌ Not started |
+| Extras | ❌ Not started (scope to confirm) |
+
+### Next
+
+1. Triage the trace checker's list (`cons_trace_check.py` on the
+   routes' traces) and look at pages (`--shot-pages`).
+2. The text window and name plates (`box00`-`box05`, face windows
+   `frame03`-`frame05`) measured against the original under wine.
+3. The ranked "not converted" list: `MoveCamera`, `CreateTexture` from
+   the screen, `CreateColor` colours, movies.
+4. Ask the user the scope questions (above).
