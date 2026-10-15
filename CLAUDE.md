@@ -163,7 +163,13 @@ on each later turn; several agents run at once.
 
 - **Read narrowly.** `grep -n` first, then read only the lines you need
   (`sed -n a,bp`, Read with offset/limit). Don't dump whole big files
-  (generated `0.txt`, CG lists, disassembly, traces).
+  (generated `0.txt`, CG lists, disassembly, traces). For the docs and
+  scripts read most often, use the helpers in `research/tools/`
+  (run with `python3 -I`):
+  `mdsec.py <file.md>` lists the headings, `mdsec.py <file.md> Status`
+  prints that section only (game docs, `PLAN.md`, this file);
+  `label.py 0.txt <label> [lines]` prints one label's block with line
+  numbers, `label.py 0.txt -l <text>` finds labels.
 - **Trim command output.** Pipe builds and long runs through
   `tail -n 30` or `grep -E 'error|warning|FAIL'`; write traces and logs
   to a file and query them (`cons_trace_check.py`, `grep`, `jq`).
@@ -172,8 +178,11 @@ on each later turn; several agents run at once.
 - **Numbers before pictures.** Compare frames with
   `compare -metric AE -fuzz 2% a.png b.png null:` (pixel count) or
   `-metric RMSE`, or crop to the region in question; view an image only
-  when the numbers can't tell what is wrong, and then a crop, not the
-  whole screen.
+  when the numbers can't tell what is wrong. Screenshots are the biggest
+  cost in past sessions: never Read a full-size PNG, look through
+  `research/tools/view.py a.png [b.png] [--crop WxH+X+Y] [--scale 50]
+  [-o out.png]`, which crops, halves and puts the shots side by side
+  in one small image (original and ours in one read).
 - **Logic checks use the dry run** (`--dry-run`, script only, seconds);
   the full build re-renders every asset.
 - **Film the original once per screen** and keep the shots in
