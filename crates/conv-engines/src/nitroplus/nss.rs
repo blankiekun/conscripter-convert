@@ -1008,7 +1008,7 @@ impl<'a> Parser<'a> {
 // ---------------------------------------------------------------------------
 // Text blocks
 
-fn parse_text(body: &str, first_line: u32, errors: &mut Vec<ParseError>) -> Result<Vec<Inline>> {
+pub(crate) fn parse_text(body: &str, first_line: u32, errors: &mut Vec<ParseError>) -> Result<Vec<Inline>> {
     let mut items = Vec::new();
     let mut line = first_line;
     let mut run = String::new();

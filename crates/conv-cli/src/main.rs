@@ -110,6 +110,10 @@ enum Command {
         /// Keep assets as loose files instead of packing them into .nsa
         #[arg(long)]
         loose: bool,
+        /// The English release's folder (Full Metal Daemon Muramasa, its
+        /// *.npk): its text replaces the Japanese
+        #[arg(long)]
+        english: Option<PathBuf>,
         /// Compile and write 0.txt only, no assets
         #[arg(long)]
         dry_run: bool,
@@ -297,11 +301,11 @@ fn main() -> Result<()> {
         Command::ConvertScript { game, script, output, font, title, webp, audio } => {
             convert_script(&game, script, &output, font.as_deref(), &title, webp.get(), audio.format()?)
         }
-        Command::ConvertNss { game, file, scene, chain, movies, output, font, title, loose, dry_run, webp, audio } => {
+        Command::ConvertNss { game, file, scene, chain, movies, output, font, title, loose, english, dry_run, webp, audio } => {
             // 続・殺戮のジャンゴ's movie/ is in the game folder; 装甲悪鬼村正's
             // ムービー beside it.
             let movies = movies.unwrap_or_else(|| if game.join("movie").is_dir() { game.join("movie") } else { game.join("../ムービー") });
-            convert_nss(&game, file.as_deref(), scene.as_deref(), chain, &movies, &output, font.as_deref(), &title, loose, dry_run, webp.get(), audio.format()?)
+            convert_nss(&game, file.as_deref(), scene.as_deref(), chain, &movies, &output, font.as_deref(), &title, loose, english.as_deref(), dry_run, webp.get(), audio.format()?)
         }
         Command::Lint { dir } => {
             let report = build::lint_dir(&dir, true)?;
@@ -840,6 +844,7 @@ fn convert_nss(
     font: Option<&Path>,
     title: &str,
     loose: bool,
+    english: Option<&Path>,
     dry_run: bool,
     webp: Option<Option<u8>>,
     audio: AudioFormat,
@@ -866,6 +871,16 @@ fn convert_nss(
         let parsed = nss::parse(&nss::decode(&scripts.data(e)?)).with_context(|| format!("parsing {}", e.name))?;
         let name = e.name.rsplit('\\').next().unwrap_or(&e.name).to_string();
         files.insert(name, parsed);
+    }
+    if let Some(dir) = english {
+        let path = dir.join("script.npk");
+        let file = File::open(&path).with_context(|| format!("opening {}", path.display()))?;
+        let npk = conv_engines::nitroplus::npk::Npk::open(file).with_context(|| format!("parsing {}", path.display()))?;
+        let report = conv_engines::nitroplus::english::English::load(&npk)?.apply(&mut files);
+        println!("English: {} stretches of text replaced, {} left in Japanese", report.replaced, report.missed.len());
+        for (file, jp) in report.missed.iter().take(5) {
+            println!("  {file}: {}", jp.chars().take(40).collect::<String>());
+        }
     }
     let (cg, sound, voice) = (npas.next().unwrap(), npas.next().unwrap(), npas.next().unwrap());
     let mut assets = NpaAssets::new(cg, sound, voice, output);
