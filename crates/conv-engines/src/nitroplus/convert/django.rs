@@ -8,6 +8,7 @@ use conv_core::ir::{ChoicePlates, ChoiceStyle, TextWindow};
 use super::{Compiler, Game, Value};
 
 mod battle;
+mod counter;
 pub mod extras;
 pub mod screens;
 
@@ -31,9 +32,26 @@ pub const DJANGO: Game = Game {
     ..Game::PLAIN
 };
 
-/// The functions compiled as the game's own: the battle's movies.
+/// The functions compiled as the game's own: the battle's movies and
+/// its counter.
 fn call(c: &mut Compiler<'_, '_>, name: &str, args: &[Value]) -> bool {
-    name == "VS400" && c.vs400(args)
+    match name {
+        "VS400" => c.vs400(args),
+        "CountInit" => {
+            c.count_init();
+            true
+        }
+        "CounterPlay" => {
+            c.counter_play(args);
+            true
+        }
+        "CreateProcess" => args.get(4).is_some_and(|f| c.count_process(&f.string())),
+        "WaitAction" if args.first().is_some_and(|o| o.string().trim_start_matches('@') == "カウント１") => {
+            c.count_wait();
+            true
+        }
+        _ => false,
+    }
 }
 
 /// The story driver: its `SelectStoryMode` (what `main` runs unless

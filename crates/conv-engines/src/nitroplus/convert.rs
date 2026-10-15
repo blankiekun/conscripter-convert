@@ -262,6 +262,11 @@ pub trait Assets {
     /// existing one is kept (change the name to draw it again); a dry run
     /// draws nothing. Its output path.
     fn frames_movie(&mut self, name: &str, fps: u32, frames: u32, draw: &mut dyn FnMut(u32, &mut image::RgbImage)) -> Option<String>;
+    /// A strip of `frames` pictures of `w`×`h` side by side,
+    /// `system/strip/<name>.png`, each drawn by `draw` (frame number, a
+    /// clear picture). An existing one is kept (change the name to draw it
+    /// again); a dry run draws nothing. Its output path.
+    fn frames_strip(&mut self, name: &str, w: u32, h: u32, frames: u32, draw: &mut dyn FnMut(u32, &mut image::RgbaImage)) -> Option<String>;
     /// A sound the scripts name (`sound/se/x`), starting after `delay_ms`
     /// of silence: its output path.
     fn delayed_sound(&mut self, path: &str, delay_ms: u32) -> Option<String>;
@@ -849,6 +854,9 @@ enum Kind<'a> {
     /// `CreateProcess` of a function that only plays music on a timer
     /// ([`Compiler::start_process`]).
     Process { file: &'a str, function: &'a Function },
+    /// Pictures drawn by a game's own code ([`Assets::frames_strip`]),
+    /// shown once in turn while the script goes on, the last one staying.
+    Strip(StripObject),
     /// `CreateCamera`: what its children show. Its place is the point the
     /// screen looks at (they are drawn that much the other way); its zoom
     /// `z` and a child's priority `p` (its depth) magnify the child
@@ -876,6 +884,21 @@ struct MovieObject {
     /// waits for it still count (it waits for `RemainTime` after starting
     /// it).
     credit: u32,
+}
+
+/// A [`Kind::Strip`]: `cells` pictures of `w`×`h` side by side in
+/// `image`, `frame_ms` each, drawn zoomed `zoom` percent about the centre
+/// of their place (the object's place, `w`×`h`). Placed again (on another
+/// layer), it shows `last`, its last picture, at once.
+#[derive(Debug, Clone)]
+struct StripObject {
+    image: String,
+    cells: u32,
+    frame_ms: u32,
+    w: i64,
+    h: i64,
+    zoom: (i32, i32),
+    last: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -2905,6 +2928,9 @@ mod tests {
         }
         fn frames_movie(&mut self, name: &str, _fps: u32, _frames: u32, _draw: &mut dyn FnMut(u32, &mut image::RgbImage)) -> Option<String> {
             Some(format!("movie/{name}.mp4"))
+        }
+        fn frames_strip(&mut self, name: &str, _w: u32, _h: u32, _frames: u32, _draw: &mut dyn FnMut(u32, &mut image::RgbaImage)) -> Option<String> {
+            Some(format!("system/strip/{name}.png"))
         }
         fn delayed_sound(&mut self, path: &str, delay_ms: u32) -> Option<String> {
             Some(format!("{path}+{delay_ms}.ogg"))

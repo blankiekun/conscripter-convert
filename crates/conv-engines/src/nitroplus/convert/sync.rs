@@ -83,6 +83,16 @@ impl Compiler<'_, '_> {
             let shown = Shown { layer: 0, image, x, y, w: cw as i64, h: ch as i64, opacity: o.opacity, cells: Some((cells, looped, zoom, frame_ms)), source: String::new(), zoom: (1000, 1000), engine: Engine::default() };
             want.push((n, shown, (o.priority, o.seq), (1000, 1000), (o.w, o.h), 0, (false, false)));
         }
+        for (n, o) in &self.objects {
+            if let Kind::Strip(s) = &o.kind
+                && o.opacity > 0
+                && !o.hideable
+            {
+                let cells = Some((s.cells, false, s.zoom, s.frame_ms));
+                let shown = Shown { layer: 0, image: s.image.clone(), x: o.x, y: o.y, w: s.w, h: s.h, opacity: o.opacity, cells, source: String::new(), zoom: (1000, 1000), engine: Engine::default() };
+                want.push((n.clone(), shown, (o.priority, o.seq), (1000, 1000), (s.w, s.h), 0, (false, false)));
+            }
+        }
         // Zoomed pictures: scaled copies, centred where the original was.
         let mut want: Vec<(String, Shown, (i64, u64))> = want
             .into_iter()
@@ -206,6 +216,11 @@ impl Compiler<'_, '_> {
                     }
                     let sprite = SpritePlacement { image: now.image.clone(), x: now.x as i32, y: now.y as i32 };
                     match now.cells {
+                        // A strip placed again: its last picture.
+                        Some((_, _, zoom, frame_ms)) if let Some(Object { kind: Kind::Strip(s), .. }) = self.objects.get(&name).filter(|_| old.is_some_and(|o| o.image == now.image)) => {
+                            let sprite = SpritePlacement { image: s.last.clone(), ..sprite };
+                            animated.push(Op::AnimatedSprite { layer, sprite, cells: 1, frame_ms, looped: false, zoom });
+                        }
                         Some((cells, looped, zoom, frame_ms)) => {
                             animated.push(Op::AnimatedSprite { layer, sprite, cells, frame_ms, looped, zoom });
                         }

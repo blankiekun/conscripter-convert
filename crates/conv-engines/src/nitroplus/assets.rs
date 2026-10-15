@@ -491,6 +491,22 @@ impl Assets for NpaAssets<'_> {
         Some(rel)
     }
 
+    fn frames_strip(&mut self, name: &str, w: u32, h: u32, frames: u32, draw: &mut dyn FnMut(u32, &mut image::RgbaImage)) -> Option<String> {
+        let rel = format!("system/strip/{name}.png");
+        if self.out.dry_run || self.out.root.join(&rel).exists() {
+            return Some(rel);
+        }
+        let mut out = image::RgbaImage::new(w * frames, h);
+        let mut frame = image::RgbaImage::new(w, h);
+        for i in 0..frames {
+            frame.pixels_mut().for_each(|p| *p = image::Rgba([0; 4]));
+            draw(i, &mut frame);
+            image::imageops::replace(&mut out, &frame, (i * w) as i64, 0);
+        }
+        self.out.write_png(&rel, &out);
+        Some(rel)
+    }
+
     fn delayed_sound(&mut self, path: &str, delay_ms: u32) -> Option<String> {
         let src = self.sound(path)?;
         let rel = format!("{}_after{delay_ms}.ogg", src.trim_end_matches(".ogg"));

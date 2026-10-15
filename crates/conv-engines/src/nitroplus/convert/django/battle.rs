@@ -7,7 +7,7 @@
 //! `sound/se/<sound>` plays with it: `keep` 1 pauses and resumes it with
 //! the movie (`SetStream` to the movie's time); 0 starts it again, looped,
 //! at each press, and fades it out over 500 ms at each release and at the
-//! end.
+//! end. The counter (under the movie) shows `count` at once.
 
 use conv_core::ir::{HoldPrompt, HoldSound, Op};
 
@@ -30,7 +30,7 @@ const PROMPT: [&str; 10] = [
 impl Compiler<'_, '_> {
     /// `VS400(…)`: an [`Op::HoldMovie`].
     pub(in super::super) fn vs400(&mut self, args: &[Value]) -> bool {
-        let [movie, sound, _count, keep] = args else { return false };
+        let [movie, sound, count, keep] = args else { return false };
         let Some(file) = self.assets.movie_file(&format!("movie/{}", movie.string()), false) else {
             self.note("VS400 of a missing movie");
             return true;
@@ -38,6 +38,8 @@ impl Compiler<'_, '_> {
         let prompt = self.assets.strip(&PROMPT).map(|(image, _, _)| HoldPrompt { image, x: 690, y: 20, cells: PROMPT.len() as u32, frame_ms: 100 });
         let fade_ms = if keep.int() == 0 { 500 } else { 0 };
         let sound = self.assets.sound(&format!("sound/se/{}", sound.string())).map(|file| HoldSound { file, fade_ms });
+        // The counter, under the movie, shows its count at once.
+        self.counter_play(&[count.clone(), Value::Int(0), Value::Int(0), Value::Int(0)]);
         self.sync(0);
         self.ops.push(Op::HoldMovie { file, prompt, sound });
         true

@@ -296,7 +296,7 @@ with the original (it wants all eleven endings' flags under wine).
 | Area | Status |
 |---|---|
 | NPA archives (key), images, sounds | ✅ Every file decodes |
-| Movies (MPEG-1) | 🟡 Found in `<game>/movie` (the default) and drawn as Muramasa's compiler draws them (strips of frames at 15 a second); two long ones get fewer frames so that their JPEG strip stays within 65,535 px (`mv_ブラックホーク`, 70 s: 163 frames, 2.3 a second); the 400-vs-3 battle's six play while the button is held (`mpeghold`) |
+| Movies (MPEG-1) | 🟡 Found in `<game>/movie` (the default) and drawn as Muramasa's compiler draws them (strips of frames at 15 a second); two long ones get fewer frames so that their JPEG strip stays within 65,535 px (`mv_ブラックホーク`, 70 s: 163 frames, 2.3 a second); the 400-vs-3 battle's six play while the button is held (`mpeghold`), its counter between them rolls as the original's |
 | Script parsing | ✅ All 249 files; 56 places that don't parse, none in the story |
 | Story control flow (56 chapters, 10 choices, bad ends) | ✅ Compiled whole (`compile_story`); in the engine the good path plays to the end (6,496 pages) and each wrong answer ends the story with its own bad end, then the game goes back to the title (`research/nitroplus/django_routes.sh`, which stops each run there, 2026-10-15) |
 | Text | 🟡 In the boxes' places (box00: 39 columns at 50,472, white on the black bar; five rows, as many as end inside the 130 px box); 3,424 voiced lines; not compared with the original yet |
@@ -316,11 +316,7 @@ with the original (it wants all eleven endings' flags under wine).
 2. The text window and name plates (`box00`-`box05`, face windows
    `frame03`-`frame05`) measured against the original under wine.
 3. The rest of the "not converted" list, by what shows most: the
-   400-vs-3 battle's counter between the movies (`CountInit`,
-   `CountFadeIn`/`CountFadeOut`, `CounterPlay`: three digits rolling
-   from `cg/sys/count/count.png` in a 194×52 window at 296,10, 29
-   processes; the movies have their own counter drawn in) and its
-   muzzle flashes (`GunFire`/`Fire`, 11: a white screen added on,
+   400-vs-3 battle's muzzle flashes (`GunFire`/`Fire`, 11: a white screen added on,
    flashing), the looping shakes (`ShakeVLoop*`, 9), the strobe,
    dja001's Black Hawk pan, then additive flashes, a movie's rotation,
    sepia.
@@ -329,6 +325,27 @@ with the original (it wants all eleven endings' flags under wine).
 5. Extras: the doors' animation and the menu's own music (left out).
 
 ## History
+
+- **The 400-vs-3 counter (2026-10-15).** `function_count.nss`'s counter
+  (three digits from `cg/sys/count/count.png`, 9 at the top, in a
+  194×52 window at 296,10, over the top black bar) is drawn by the
+  converter (`django/counter.rs`, through the game's `call` hook):
+  each `CounterPlay(next, time, shake, attack)` becomes one strip of
+  frames (33 ms) of the window, shown once while the script goes on
+  and stopping on the new count (the NSS compiler's new `Kind::Strip`,
+  an animated sprite; placed again on another layer it shows its last
+  frame): the places that change roll down a digit a step, the shakes
+  (`shake` 1-4) jitter the digits, and from the 380th man the digits
+  fade out over 2 s as the original's do. `CountFadeIn` (three blurred
+  zeros flying in from 610 and 146 as they shrink from five times their
+  size, a flash over the places) and `CountFadeOut` (at 400: the 4 and
+  the last 0 flying apart as they grow and fade) are strips over the
+  top of the screen, drawn at half size and zoomed 200%. A
+  `CounterPlay`, and the script's `WaitAction("カウント１")`, wait for
+  the last one's end, counting the waits and fades since (a page in
+  between ends it). Under wine (fade-in's zooms made instant) the
+  counter after `CounterPlay(7, 0, 3, 1000)` reads 007, and ours
+  matches it pixel for pixel.
 
 - **The 400-vs-3 battle's movies (2026-10-15).** dja050's six `VS400`
   calls play a movie while the player holds the button down (a
