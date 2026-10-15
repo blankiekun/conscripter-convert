@@ -283,7 +283,7 @@ yet.
 | Text | 🟡 In the boxes' places (box00: 39 columns at 50,472, white on the black bar); 3,424 voiced lines; not compared with the original yet |
 | Pictures, sound in scripts | 🟡 Black bars, face windows in their frames, standing pictures, backgrounds; what Muramasa's compiler does for effects (moves and zooms as cross-fades); every sound is found |
 | Choices | ✅ Plates as picture buttons, text placed as the original's (compared under wine) |
-| System screens | 🟡 From the game's pictures (`django/screens.rs`): title, right-click menu, save/load (3×20 slots), yes/no questions, text log, settings (bullet rows as `SliderSteps`), the click-wait bullet; compared under wine: right-click menu, save, log, settings (text speed starts at level 5 as the original's; the two SAVE-DATA question rows drawn as they stand, ON chosen; the display options and version panel left out on purpose) |
+| System screens | 🟡 From the game's pictures (`django/screens.rs`): title, right-click menu, save/load (3×20 slots), yes/no questions, text log, settings (bullet rows as `SliderSteps`), the click-wait bullet after the last character (`getcursorpos` in the bar's wait routine); compared under wine: right-click menu, save, log, settings (text speed starts at level 5 as the original's; the two SAVE-DATA question rows drawn as they stand, ON chosen; the display options and version panel left out on purpose) |
 | Extras | 🟡 Menu, CG library, sound library, recollection, each compared with the original; left out: the doors' animation, the rifle over a category |
 | Saves | 🟡 `--roundtrip-every 100` over the first 1,500 pages: no save/load mismatch; saves from the screens not tried by hand |
 | Web build | 🟡 Plays in a browser (title, story pages); saves, sound and touch not checked yet |
@@ -310,4 +310,4 @@ yet.
    (drawn as cross-fades), shared with Muramasa's compiler.
 7. Extras: the doors' animation and the menu's own music (left out).
 8. The title's congratulations (`TitleCongratulations`, sets
-   `#ClearAll`) and the click-wait bullet after the text.
+   `#ClearAll`); the log's #AAAA88 text outline.
