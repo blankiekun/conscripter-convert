@@ -26,6 +26,7 @@ mod music;
 pub mod nsa;
 mod picture_screen;
 mod picture_extras;
+mod picture_gallery;
 mod picture_settings;
 mod puzzle;
 mod replay;
@@ -114,7 +115,8 @@ const BUTTON_VAR: &str = "%9";
 // The settings switches' flags: %3640-%3647, %2910-%2919, %2950-%2951 and
 // %4116-%5095 ([`switches`]). %2960, the title's openings
 // ([`TITLE_SHOWN`]). %5200 up: an NSS game's `#` flags past %969 (the
-// nitroplus compiler's `GLOBAL_OVERFLOW`).
+// nitroplus compiler's `GLOBAL_OVERFLOW`). %130-%139, the picture extras'
+// gallery ([`picture_gallery`]; only at the title).
 /// NScripter variables: locals from %10, globals from %200. `globalon`
 /// makes %200 and up persist across games.
 const LOCAL_VAR_BASE: u32 = 10;
@@ -1142,7 +1144,7 @@ pub fn emit(script: &Script) -> String {
         extras::extras(&mut out, m, &effect(t.fade_ms), script.settings.is_some());
     }
     if let (Some(e), Some(_)) = (&script.picture_extras, &script.title_screen) {
-        picture_extras::emit(&mut out, e, border);
+        picture_extras::emit(&mut out, e, border, script.width, script.height);
     }
     out
 }

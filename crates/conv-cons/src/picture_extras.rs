@@ -24,8 +24,12 @@ const BACKGROUND: u32 = MAX_SPRITE;
 const ITEM: u32 = MENU_SPRITES.start; // + item
 
 /// Whether `mode` has a screen in this script.
-fn has_mode(_e: &PictureExtras, mode: ExtrasMode) -> bool {
-    mode == ExtrasMode::Back
+fn has_mode(e: &PictureExtras, mode: ExtrasMode) -> bool {
+    match mode {
+        ExtrasMode::Back => true,
+        ExtrasMode::Gallery => e.gallery.is_some(),
+        _ => false,
+    }
 }
 
 /// Label of a mode's screen.
@@ -36,7 +40,7 @@ fn mode_label(mode: ExtrasMode) -> String {
     }
 }
 
-pub(crate) fn emit(out: &mut String, e: &PictureExtras, border: u32) {
+pub(crate) fn emit(out: &mut String, e: &PictureExtras, border: u32, width: u32, height: u32) {
     assert!(e.items.len() <= MENU_SPRITES.len(), "more extras buttons than menu sprites");
     let fade = if e.fade_ms > 0 { format!("print 10,{}", e.fade_ms) } else { "print 1".to_string() };
     writeln!(out, "*{EXTRAS}").unwrap();
@@ -84,4 +88,7 @@ pub(crate) fn emit(out: &mut String, e: &PictureExtras, border: u32) {
     writeln!(out, "mov {TITLE_SHOWN},2").unwrap();
     writeln!(out, "csp -1").unwrap();
     writeln!(out, "goto *{TITLE_BACK}").unwrap();
+    if let Some(g) = &e.gallery {
+        crate::picture_gallery::emit(out, g, border, width, height);
+    }
 }

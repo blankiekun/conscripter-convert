@@ -1816,6 +1816,7 @@ pub struct PictureExtras {
     /// Played on going back to the title.
     pub back_se: Option<String>,
     pub fade_ms: u32,
+    pub gallery: Option<PictureGallery>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1842,4 +1843,67 @@ pub enum ExtrasMode {
     Turntable,
     /// Back to the title.
     Back,
+}
+
+/// The CG gallery of [`PictureExtras`]: categories, each pages of slots
+/// over its own picture; a slot shows the thumbnail of its first CG seen
+/// (at `partial_alpha` while some are unseen, `blank` while none is) and
+/// opens the viewer on its CGs. Slots run down the columns from `first`,
+/// `row_step` apart, the next column `column_step` away. The pointer's
+/// slot gets `cursor` over it. Previous and next page go round; `exit`
+/// or a right-click goes back to the extras' menu. Buttons are strips of
+/// three cells: at rest, under the pointer, pressed; a category's shows
+/// its third cell while it is open.
+///
+/// The viewer shows a slot's CGs in turn, each cross-faded in over
+/// `view_fade_ms` (`unseen` for one not seen, with black between two
+/// unseen); a picture larger than the screen starts at one end and a click
+/// scrolls it to the other at `scroll_ms_per_px` (a click pauses and goes
+/// on, a right-click jumps to the end). A click past the last, or a
+/// right-click, closes it over `close_ms`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PictureGallery {
+    pub background: String,
+    pub categories: Vec<GalleryCategory>,
+    pub previous: Placed,
+    pub next: Placed,
+    pub exit: Placed,
+    pub first: (i32, i32),
+    pub row_step: i32,
+    pub column_step: i32,
+    pub rows: u32,
+    pub columns: u32,
+    pub blank: String,
+    pub cursor: String,
+    pub partial_alpha: u8,
+    pub unseen: String,
+    /// From the menu, and between pages and categories.
+    pub open_ms: u32,
+    pub page_ms: u32,
+    pub view_fade_ms: u32,
+    pub close_ms: u32,
+    pub scroll_ms_per_px: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GalleryCategory {
+    pub button: Placed,
+    pub slots: Vec<PictureSlot>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PictureSlot {
+    pub cgs: Vec<SlotCg>,
+    /// A picture larger than the screen starts at its far end (bottom or
+    /// right) and scrolls back to the top left.
+    pub reversed: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SlotCg {
+    /// Non-zero once the CG has been seen.
+    pub seen: Var,
+    /// The full picture and its size.
+    pub picture: Placed,
+    pub thumbnail: String,
 }
