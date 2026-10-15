@@ -66,7 +66,10 @@ pub(crate) fn emit(out: &mut String, g: &SaveGrid, confirm: Option<&ConfirmDialo
         out.push_str(&line);
         out.push('\n');
     };
-    let place = |i: u32| (g.first.0 + g.column_step * (i / g.rows) as i32, g.first.1 + g.row_step * (i % g.rows) as i32);
+    let place = |i: u32| {
+        let (column, row) = if g.across { (i % g.columns, i / g.columns) } else { (i / g.rows, i % g.rows) };
+        (g.first.0 + g.column_step * column as i32, g.first.1 + g.row_step * row as i32)
+    };
     let button = |slot: u32, p: &Placed| format!("lsp {slot},\":a/4,0,3;{}\",{},{}", path(&p.image), p.x, p.y);
     let fade = if g.fade_ms > 0 { format!("print 10,{}", g.fade_ms) } else { "print 1".into() };
     // Asks; no: back to waiting.
@@ -329,6 +332,7 @@ mod tests {
             line: text(898, 45, 3, true),
             saved: Some(placed("saved", 462, 88)),
             fade_ms: 300,
+            across: false,
         }
     }
 

@@ -1496,6 +1496,9 @@ pub struct SaveGrid {
     /// Shown over a dimmed screen after saving, until a click.
     pub saved: Option<Placed>,
     pub fade_ms: u32,
+    /// Slots run along the rows instead, left to right then down:
+    /// `column_step` apart in a row, the next row `row_step` below.
+    pub across: bool,
 }
 
 /// A text of [`SaveGrid`]: its box's top left (for vertical text, its top
