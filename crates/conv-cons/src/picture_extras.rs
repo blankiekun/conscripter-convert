@@ -23,11 +23,18 @@ pub(crate) const TITLE_BACK: &str = crate::extras::TITLE_BACK;
 const BACKGROUND: u32 = MAX_SPRITE;
 const ITEM: u32 = MENU_SPRITES.start; // + item
 
+/// A picture for `lsp`: a JPEG as it is, another (a PNG) with its alpha.
+pub(crate) fn pic(p: &str) -> String {
+    let mode = if p.to_ascii_lowercase().ends_with(".jpg") { ":c;" } else { ":a;" };
+    format!("{mode}{}", path(p))
+}
+
 /// Whether `mode` has a screen in this script.
 fn has_mode(e: &PictureExtras, mode: ExtrasMode) -> bool {
     match mode {
         ExtrasMode::Back => true,
         ExtrasMode::Gallery => e.gallery.is_some(),
+        ExtrasMode::Sound => e.sound.is_some(),
         _ => false,
     }
 }
@@ -44,9 +51,12 @@ pub(crate) fn emit(out: &mut String, e: &PictureExtras, border: u32, width: u32,
     assert!(e.items.len() <= MENU_SPRITES.len(), "more extras buttons than menu sprites");
     let fade = if e.fade_ms > 0 { format!("print 10,{}", e.fade_ms) } else { "print 1".to_string() };
     writeln!(out, "*{EXTRAS}").unwrap();
+    if let Some(r) = &e.sound {
+        writeln!(out, "{}", crate::picture_sound::on_open(r)).unwrap();
+    }
     writeln!(out, "*{DRAW}").unwrap();
     writeln!(out, "csp -1").unwrap();
-    writeln!(out, "lsp {BACKGROUND},\":c;{}\",0,0", path(&e.background)).unwrap();
+    writeln!(out, "lsp {BACKGROUND},\"{}\",0,0", pic(&e.background)).unwrap();
     for (i, item) in e.items.iter().enumerate() {
         let b = &item.button;
         let slot = ITEM + i as u32;
@@ -85,10 +95,16 @@ pub(crate) fn emit(out: &mut String, e: &PictureExtras, border: u32, width: u32,
     if let Some(se) = &e.back_se {
         writeln!(out, "dwave {},\"{}\"", SE_CHANNELS.start(), path(se)).unwrap();
     }
+    if let Some(r) = &e.sound {
+        writeln!(out, "{}", crate::picture_sound::back_to_title(r)).unwrap();
+    }
     writeln!(out, "mov {TITLE_SHOWN},2").unwrap();
     writeln!(out, "csp -1").unwrap();
     writeln!(out, "goto *{TITLE_BACK}").unwrap();
     if let Some(g) = &e.gallery {
         crate::picture_gallery::emit(out, g, border, width, height);
+    }
+    if let Some(r) = &e.sound {
+        crate::picture_sound::emit(out, r, border, width, height);
     }
 }

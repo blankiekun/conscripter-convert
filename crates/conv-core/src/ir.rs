@@ -1825,6 +1825,7 @@ pub struct PictureExtras {
     pub back_se: Option<String>,
     pub fade_ms: u32,
     pub gallery: Option<PictureGallery>,
+    pub sound: Option<SoundRoom>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1920,6 +1921,57 @@ pub struct SlotCg {
     /// shown at its x, y.
     pub picture: Placed,
     pub thumbnail: String,
+}
+
+/// The music and movie room of [`PictureExtras`]: a button per track and
+/// per movie over its own picture. A track plays looping (the one playing
+/// clicked again stops) and stays the extras' music, kept across games:
+/// the extras play it when they open, and the title starts its own music
+/// again if it differs. `marker` (an animation's cells, looping) shows
+/// beside the track playing, `marker_dx` left of its button. A movie
+/// fades the music down and the screen to black over `movie_fade_ms`,
+/// plays (a click stops it), then the music comes back over that time and
+/// the black fades out over `movie_back_ms`. `exit` or a right-click goes
+/// back to the extras' menu.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SoundRoom {
+    pub background: String,
+    /// Three cells: at rest, under the pointer, pressed.
+    pub exit: Placed,
+    pub tracks: Vec<RoomTrack>,
+    pub movies: Vec<RoomVideo>,
+    /// The track playing at first: the title's music.
+    pub title_track: usize,
+    pub marker: Placed,
+    pub marker_cells: u32,
+    pub marker_ms: u32,
+    pub marker_dx: i32,
+    pub open_ms: u32,
+    pub stop_fade_ms: u32,
+    pub movie_fade_ms: u32,
+    pub movie_back_ms: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RoomTrack {
+    /// Two cells: at rest, under the pointer.
+    pub button: Placed,
+    pub file: String,
+    /// Locked while this variable is 0: `locked` drawn instead (nothing
+    /// when `None`), not clickable.
+    pub unlocked_by: Option<Var>,
+    pub locked: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RoomVideo {
+    pub thumbnail: Placed,
+    /// Over the thumbnail: two cells, nothing and the pointer's cursor.
+    pub cursor: String,
+    pub file: String,
+    /// Locked while 0: `locked` drawn instead, not clickable.
+    pub unlocked_by: Option<Var>,
+    pub locked: String,
 }
 
 /// A key of [`Op::SpriteMotion2`], `ms` from the motion's start: the offset

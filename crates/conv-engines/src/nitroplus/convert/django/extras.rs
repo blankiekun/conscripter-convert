@@ -56,6 +56,7 @@ pub fn extras(a: &mut dyn Assets, story: &Story) -> Option<PictureExtras> {
         back_se: None,
         fade_ms: 500,
         gallery: gallery(a, story),
+        sound: None,
     })
 }
 
