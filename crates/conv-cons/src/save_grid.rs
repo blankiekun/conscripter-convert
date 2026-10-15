@@ -230,7 +230,9 @@ pub(crate) fn emit(out: &mut String, g: &SaveGrid, confirm: Option<&ConfirmDialo
 
     // The page: its picture, thumbnails and each slot's hidden details.
     w("*conv_sg_draw".into());
-    w(format!("for {TMP} = {} to {MAX_SPRITE}:csp {TMP}:next", DETAILS));
+    // The whole game range: the scene's sprites (saved by pushscreen)
+    // would be drawn over the page.
+    w(format!("for {TMP} = {} to {MAX_SPRITE}:csp {TMP}:next", crate::ANIMATION_SPRITE));
     for (p, (save, load)) in g.save_pages.iter().zip(&g.load_pages).enumerate() {
         w(format!("if {PAGE} == {} && {MODE} == 1 lsp {BACKGROUND},\":c;{}\",0,0", p + 1, path(save)));
         w(format!("if {PAGE} == {} && {MODE} == 2 lsp {BACKGROUND},\":c;{}\",0,0", p + 1, path(load)));
