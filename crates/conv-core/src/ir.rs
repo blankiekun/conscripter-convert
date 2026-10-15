@@ -574,6 +574,28 @@ pub struct ChoiceStyle {
     pub window: TextWindow,
     pub on_color: u32,
     pub off_color: u32,
+    /// The options as picture buttons instead ([`ChoicePlates`]); then
+    /// the window and colours are unused.
+    pub plates: Option<ChoicePlates>,
+}
+
+/// Choice options as picture buttons (続・殺戮のジャンゴ's wooden plates):
+/// a plate per option, `step` below the one before from (`x`, `y`), its
+/// text centred about `text_x`, `text_dy` below the plate's top, in
+/// `font_size` px `colour` (#RRGGBB) text. The plates and texts fade in
+/// and out over `fade_ms`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ChoicePlates {
+    /// Two cells: at rest, under the pointer.
+    pub image: String,
+    pub x: i32,
+    pub y: i32,
+    pub step: i32,
+    pub text_x: i32,
+    pub text_dy: i32,
+    pub font_size: u32,
+    pub colour: String,
+    pub fade_ms: u32,
 }
 
 /// An ADV-style text box (text at the bottom over the scene).

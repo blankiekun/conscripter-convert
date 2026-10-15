@@ -15,6 +15,7 @@ use conv_core::ir::{
 
 mod button_screen;
 mod chapters;
+mod choice_plates;
 mod command_menu;
 mod ease;
 mod extras;
@@ -208,6 +209,7 @@ pub fn emit(script: &Script) -> String {
     let mut turns = 0;
     let mut puzzles = 0;
     let mut button_screens = 0;
+    let mut plate_choices = 0;
     let mut picture_screens = 0;
     let has_vertical = script.window.iter().chain(script.ops.iter().filter_map(|op| match op {
         Op::SetWindow(w) => Some(w),
@@ -1033,7 +1035,8 @@ pub fn emit(script: &Script) -> String {
             Op::SceneEnd if has_replay => writeln!(out, "if {} == 1 goto *{}", replay::REPLAYING, replay::END).unwrap(),
             Op::SceneEnd => writeln!(out, "; scene end").unwrap(),
             Op::Choice { options, style } => {
-                if let Some(s) = style {
+                let plates = style.as_ref().and_then(|s| s.plates.as_ref());
+                if let Some(s) = style.as_ref().filter(|_| plates.is_none()) {
                     writeln!(out, "selectcolor \"#{:06X}\",\"#{:06X}\"", s.on_color, s.off_color).unwrap();
                     writeln!(out, "{}", setwindow(&s.window, speed, has_ruby, has_vertical, false, script.wait_icon.as_ref())).unwrap();
                     writeln!(out, "csp {NAME_PLATE_SPRITE}:csp {NAME_TEXT_SPRITE}").unwrap();
@@ -1045,8 +1048,13 @@ pub fn emit(script: &Script) -> String {
                     // For going back here (the page before it, as saves are).
                     writeln!(out, "savegame {}", menu::BACK_SLOT).unwrap();
                 }
-                let items: Vec<String> = options.iter().map(|(t, l)| format!("\"{}\",*{}", text_safe(t), label(l))).collect();
-                writeln!(out, "select {}", items.join(",")).unwrap();
+                if let Some(p) = plates {
+                    choice_plates::emit(&mut out, options, p, plate_choices, script.button_bar.is_some());
+                    plate_choices += 1;
+                } else {
+                    let items: Vec<String> = options.iter().map(|(t, l)| format!("\"{}\",*{}", text_safe(t), label(l))).collect();
+                    writeln!(out, "select {}", items.join(",")).unwrap();
+                }
             }
             Op::TilePuzzle(p) => {
                 puzzle::emit(&mut out, p, puzzles, SPRITE_BASE, &effect, (script.width, script.height), border);
@@ -1880,6 +1888,24 @@ mod tests {
     }
 
     #[test]
+    fn a_choice_of_plates_is_picture_buttons_with_centred_text() {
+        let window = TextWindow { wait_icon_at: None, image: "system/w.png".into(), x: 0, y: 0, text_x: 0, text_y: 0, columns: 10, rows: 2, font_size: 22, line_gap: 0, vertical: false, name_plate: None };
+        let plates = conv_core::ir::ChoicePlates { image: "system/plate.png".into(), x: 138, y: 244, step: 68, text_x: 388, text_dy: 18, font_size: 22, colour: "#FFFFFF".into(), fade_ms: 300 };
+        let options = vec![("はい".to_string(), "a".to_string()), ("OK".to_string(), "b".to_string())];
+        let style = Some(ChoiceStyle { window, on_color: 0, off_color: 0, plates: Some(plates) });
+        let text = emit(&script(vec![Op::Choice { options, style }]));
+        for part in [
+            "lsp 52,\":a/2,0,3;system\\plate.png\",138,244\nstrsp 51,\"はい\",366,262,3,1,22,22,0,0,0,1,\"#FFFFFF\",\"#FFFFFF\"\n",
+            "strsp 53,\"OK\",377,330,",
+            "print 10,300\n*conv_cplate0_wait\nbtndef clear\nspbtn 52,1\nspbtn 54,2\nbtnwait %9\n",
+            "if %9 == 2 goto *b\n",
+        ] {
+            assert!(text.contains(part), "missing {part:?} in\n{text}");
+        }
+        assert!(!text.contains("select "));
+    }
+
+    #[test]
     fn clickable_links_call_their_target() {
         let mut s = script(vec![
             Op::Background { image: "bg/room.png".into(), fade_ms: 0 },
@@ -1987,7 +2013,7 @@ goto *conv_link1
     #[test]
     fn styled_choice_has_its_own_window_and_colours() {
         let plates = TextWindow { vertical: true, name_plate: None, x: 462, y: 68, text_x: 477, text_y: 108, columns: 18, rows: 2, font_size: 20, line_gap: 80, ..window() };
-        let style = Some(ChoiceStyle { window: plates, on_color: 0xA00000, off_color: 0 });
+        let style = Some(ChoiceStyle { window: plates, on_color: 0xA00000, off_color: 0, plates: None });
         let options = vec![("はい".into(), "a".into()), ("いいえ".into(), "b".into())];
         let text = emit(&script(vec![Op::Choice { options, style }]));
         // No shadow; no ruby here, so text_x as given.

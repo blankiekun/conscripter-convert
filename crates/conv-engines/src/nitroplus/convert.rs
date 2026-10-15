@@ -1238,7 +1238,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
             vertical: true,
             name_plate: None,
         };
-        Some(ChoiceStyle { window, on_color: 0xA00000, off_color: 0x000000 })
+        Some(ChoiceStyle { window, on_color: 0xA00000, off_color: 0x000000, plates: None })
     }
 
     /// Starts a fork; true if it's the outermost one (nested forks share
