@@ -4,6 +4,9 @@
     python3 -I npa.py Muramasa.exe nss.npa OUT ['GLOB']  # extract (GLOB uses '\\')
     python3 -I npa.py Muramasa.exe nss.npa --pack DIR NEW.npa  # repack, files in DIR replaced
 
+In place of the exe, a 256-byte file is taken as the table itself (Django's,
+which its exe doesn't hold as plain bytes: `npa::DJANGO_TABLE`).
+
 Header: "NPA" u32 version, u32 key1, u32 key2, u8 compressed, u8 encrypted,
 u32 total, u32 folders, u32 files, u32, u32, u32 index size; data starts at
 0x29 + index size. Entry: u32 name length, name, u8 type (1 dir, 2 file),
@@ -88,7 +91,7 @@ def pack(inv, src, h, index, srcdir, dst):
 
 def main():
     exe = open(sys.argv[1], 'rb').read()
-    table = exe[TABLE_OFFSET:TABLE_OFFSET + 256]
+    table = exe if len(exe) == 256 else exe[TABLE_OFFSET:TABLE_OFFSET + 256]
     inv = bytes(table.index(i) for i in range(256))
     f = open(sys.argv[2], 'rb')
     h = header(f.read(0x29))

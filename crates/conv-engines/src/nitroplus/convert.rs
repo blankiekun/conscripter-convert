@@ -131,6 +131,11 @@ pub struct Game {
     /// between files"; a scene's fade to black `黒幕` is never deleted
     /// otherwise). Inferred from the scripts, not checked in the exe.
     chapter_objects: bool,
+    /// Horizontal text starts this far below its box's top (the line's
+    /// ruby space above it): 続・殺戮のジャンゴ's first row of ＭＳ Ｐ
+    /// ゴシック is drawn from y 480 in `box00` at 472 (under wine). 0 for
+    /// 装甲悪鬼村正, whose text is vertical.
+    text_drop: i64,
     /// How a choice of `n` options looks.
     choice_style: for<'a, 'b> fn(&mut Compiler<'a, 'b>, i64) -> Option<ChoiceStyle>,
 }
@@ -152,6 +157,7 @@ impl Game {
         loaded_textures: false,
         zoom_vertex: false,
         chapter_objects: false,
+        text_drop: 0,
         choice_style: |c, n| c.vertical_choice_style(n),
     };
 
@@ -3011,7 +3017,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
         let columns = (w / (font + letter).max(1)).max(1) as u32;
         let rows = (h / line.max(1)).max(1) as u32;
         let vertical = t.rotation.rem_euclid(360) == 90;
-        let (text_x, text_y) = if vertical { (x - rows as i64 * line, y) } else { (x, y) };
+        let (text_x, text_y) = if vertical { (x - rows as i64 * line, y) } else { (x, y + self.game.text_drop) };
         // The window's pictures (box, face window, name plate), bottom
         // first, drawn into one window image.
         let mut parts: Vec<(i64, u64, (String, i64, i64, i64))> = self

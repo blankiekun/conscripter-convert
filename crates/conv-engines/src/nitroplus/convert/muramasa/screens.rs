@@ -452,7 +452,7 @@ fn title(a: &mut dyn Assets, story: &Story) -> Option<TitleScreen> {
         let cells: Vec<&str> = if action == TitleAction::Unavailable { vec![&s1] } else { vec![&s1, &s2, &s3] };
         let (image, _, _) = a.strip(&cells)?;
         let click_se = click.and_then(|c| se(a, c));
-        buttons.push(TitleButton { image, x, y: 150, action, click_se });
+        buttons.push(TitleButton { image, x, y: 150, action, click_se, shown_by: None });
     }
     Some(TitleScreen {
         background,

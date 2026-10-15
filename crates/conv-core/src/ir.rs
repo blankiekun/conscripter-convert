@@ -496,6 +496,11 @@ pub enum Op {
     /// zoomed about the centre of its place. A movie played as frames
     /// while the script goes on.
     AnimatedSprite { layer: u32, sprite: SpritePlacement, cells: u32, frame_ms: u32, looped: bool, zoom: (i32, i32) },
+    /// [`Op::SpriteMotion`] with a zoom, an angle and an opacity in each
+    /// key ([`MotionKey`]), and what happens after the last key
+    /// ([`MotionEnd`]). A character jumping toward the viewer, spinning,
+    /// or walking off and fading out (俺たちに翼はない's CharacterAction).
+    SpriteMotion2 { layer: u32, keys: Vec<MotionKey>, end: MotionEnd },
 }
 
 /// A puzzle of numbered tiles (装甲悪鬼村正's 立方陣): the player clicks a
@@ -682,6 +687,9 @@ pub struct TitleButton {
     pub action: TitleAction,
     /// Played when the button is clicked.
     pub click_se: Option<String>,
+    /// Drawn and clickable only while this variable isn't 0 (a game's
+    /// flag: 続・殺戮のジャンゴ's EXTRA once the story is finished).
+    pub shown_by: Option<Var>,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -1884,6 +1892,11 @@ pub struct PictureGallery {
     pub view_fade_ms: u32,
     pub close_ms: u32,
     pub scroll_ms_per_px: u32,
+    /// Slots run along the rows instead (`column_step` apart, the next row
+    /// `row_step` below): 続・殺戮のジャンゴ's five across.
+    pub across: bool,
+    /// Previous and next show only in a category of more than one page.
+    pub arrows_when_paged: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1904,7 +1917,8 @@ pub struct PictureSlot {
 pub struct SlotCg {
     /// Non-zero once the CG has been seen.
     pub seen: Var,
-    /// The full picture and its size.
+    /// The full picture and its size; one no larger than the screen is
+    /// shown at its x, y.
     pub picture: Placed,
     pub thumbnail: String,
 }
@@ -1958,4 +1972,31 @@ pub struct RoomVideo {
     /// Locked while 0: `locked` drawn instead, not clickable.
     pub unlocked_by: Option<Var>,
     pub locked: String,
+}
+
+/// A key of [`Op::SpriteMotion2`], `ms` from the motion's start: the offset
+/// from the sprite's place (pixels), its zoom (percent, 100 = its size) and
+/// angle (degrees, counterclockwise) about the centre of its place, and its
+/// opacity (0-256 of its own); straight from key to key.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MotionKey {
+    pub ms: u32,
+    pub x: i32,
+    pub y: i32,
+    pub zoom: u32,
+    pub angle: i32,
+    pub opacity: u32,
+}
+
+/// After the last key of an [`Op::SpriteMotion2`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MotionEnd {
+    /// The sprite is back at its place, size and opacity.
+    Back,
+    /// The motion starts again.
+    Loop,
+    /// The sprite stays at the last key's place, zoom and opacity (its
+    /// angle goes back to 0). A later motion on it (also stopping one)
+    /// first takes a motion still running to its end.
+    Keep,
 }

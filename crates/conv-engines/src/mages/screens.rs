@@ -9,17 +9,19 @@ use super::assets::ArchiveAssets;
 /// `title_bg.png` (960×965): the title picture in the top 544 rows; the
 /// menu labels below, 173 wide, normal from x 0 and highlighted from x
 /// 168, one row every 36 pixels from y 545 (QUICK LOAD, LOAD, START,
-/// GALLERY, CONFIG). The eboot (0x81083fd8) draws row N at (786, 258 +
-/// 41.25 N): we have no quick save, so its place stays empty.
+/// GALLERY, CONFIG). The eboot (0x81083fd8) draws row N centred at (786,
+/// 258 + 41.25 N) (its pictures are placed by their centres: "Press START
+/// button", 258 wide, at x 769): we have no quick save, so its place stays
+/// empty.
 pub(super) const TITLE_ROW_Y: u32 = 545;
 pub(super) const TITLE_ROW_H: u32 = 36;
 pub(super) const TITLE_CELL_W: u32 = 173;
 pub(super) const TITLE_LIT_X: u32 = 168;
-/// Where the title's buttons go: x, and the y of row N.
-pub(super) const TITLE_X: i32 = 786;
+/// Where the title's buttons go: the left edge, and the top of row N.
+pub(super) const TITLE_X: i32 = 786 - TITLE_CELL_W as i32 / 2;
 
 pub(super) fn title_y(row: u32) -> i32 {
-    (258.0 + 41.25 * row as f32).round() as i32
+    (258.0 + 41.25 * row as f32 - TITLE_ROW_H as f32 / 2.0).round() as i32
 }
 
 /// The title screen: START, LOAD, and GALLERY opening the extras (with
