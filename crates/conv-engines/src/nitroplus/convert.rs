@@ -148,6 +148,12 @@ pub struct Game {
     family: bool,
     /// How a choice of `n` options looks.
     choice_style: for<'a, 'b> fn(&mut Compiler<'a, 'b>, i64) -> Option<ChoiceStyle>,
+    /// Functions (of the boot script or its library) the title runs when
+    /// it comes up, played in turn at the end of [`compile_story`]'s story,
+    /// before it goes back to the title (続・殺戮のジャンゴ's `InitBGM`,
+    /// `TitleCongratulations`: the latter reads the flags the ending just
+    /// set).
+    story_end: &'static [&'static str],
 }
 
 impl Game {
@@ -171,6 +177,7 @@ impl Game {
         text_drop: 0,
         family: false,
         choice_style: |c, n| c.vertical_choice_style(n),
+        story_end: &[],
     };
 
     /// Fills `script`'s system screens.
@@ -324,7 +331,30 @@ pub fn compile_story(files: &BTreeMap<String, NssFile>, file: &str, scene: &str,
     c.ops.push(Op::Jump(RUN_END.to_string()));
     let base = c.next_dynamic;
     c.subroutines(&initial, base);
+    // The story ends back at the title, as the boot script's loop does.
     c.ops.push(Op::Label(RUN_END.to_string()));
+    if !game.story_end.is_empty() {
+        c.restore(initial.clone());
+        for (k, &v) in &c.flags {
+            c.vars.insert(k.clone(), Value::Runtime(v));
+        }
+    }
+    for name in game.story_end {
+        let in_boot = files.get_key_value(game.boot).and_then(|(boot, nss)| {
+            nss.items.iter().find_map(|item| match item {
+                Item::Function(f) if f.name == *name => Some((boot.as_str(), f)),
+                _ => None,
+            })
+        });
+        match in_boot.or_else(|| c.function(name)) {
+            Some((file, f)) => {
+                c.call_function(file, f, Vec::new());
+            }
+            None => c.note(format!("story_end: no function {name}")),
+        }
+    }
+    c.sync(0);
+    c.ops.push(Op::ReturnToTitle);
     Ok(Compiled { ops: c.ops, window: c.first_window, notes: c.notes, flags: c.flags, voice_classes: c.voice_classes })
 }
 

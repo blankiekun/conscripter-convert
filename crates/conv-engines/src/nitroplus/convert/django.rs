@@ -24,6 +24,7 @@ pub const DJANGO: Game = Game {
     flags: extras::flags,
     subroutines: &extras::SCENES,
     choice_style,
+    story_end: &["InitBGM", "TitleCongratulations"],
     menus: screens::menus,
     ..Game::PLAIN
 };

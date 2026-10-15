@@ -1,6 +1,7 @@
 #!/bin/sh
 # 続・殺戮のジャンゴ: plays the good path and the ten bad ends in the engine,
 # in parallel, and prints each trace's summary.
+# Each run stops where the story ends (it then goes back to the title).
 # Usage: django_routes.sh <game-cons> <engine> <out dir>
 set -u
 game=$(realpath "$1"); engine=$(realpath "$2"); out=$(realpath -m "$3")
@@ -12,7 +13,7 @@ for p in good bad01 bad02 bad03 bad04 bad05 bad06 bad07 bad08 bad09 bad10; do
     rm -rf "$out/$p-saves"
     SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy timeout -k 5 1200 "$engine" --root . \
         --save-dir "$out/$p-saves" --trace "$out/$p.jsonl" --auto-play 0 \
-        --choices "$out/$p.txt" > "$out/$p.log" 2>&1 &
+        --choices "$out/$p.txt" --until conv_run_end > "$out/$p.log" 2>&1 &
 done
 wait
 for p in good bad01 bad02 bad03 bad04 bad05 bad06 bad07 bad08 bad09 bad10; do

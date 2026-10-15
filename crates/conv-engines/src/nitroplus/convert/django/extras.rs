@@ -21,7 +21,11 @@ pub const CLEARED_ALL: &str = "#ClearAll";
 
 /// The flags the title and the extras read.
 pub fn flags(_: &BTreeMap<String, NssFile>) -> Vec<String> {
-    vec![CLEARED.to_string(), CLEARED_ALL.to_string()]
+    // TitleCongratulations ([`super::DJANGO`]'s `story_end`) reads every
+    // ending's flag and $ClearL, set as an ending is reached.
+    let mut out = vec![CLEARED.to_string(), CLEARED_ALL.to_string(), "$ClearL".to_string()];
+    out.extend((1..=10).map(|n| format!("#Clear{n:02}")));
+    out
 }
 
 /// The menu (`extra_menu.nss`): the saloon (`extramenu背景`) with its

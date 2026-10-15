@@ -60,8 +60,9 @@ research/nitroplus/django_routes.sh out/django-cons <conscripter> out/django-rou
 
 writes a `--choices` file per path (`django_paths.py`: the good answers,
 or the good answers up to choice N and then the deadly one), plays the
-eleven paths in parallel and prints each run's pages, choices and the
-bad-end pictures it showed: the good path none, `badNN` only its own.
+eleven paths in parallel up to the story's end (`--until conv_run_end`)
+and prints each run's pages, choices and the bad-end pictures it
+showed: the good path none, `badNN` only its own.
 
 ## Files and formats
 
@@ -272,6 +273,15 @@ yet.
 | `#Clear01`-`#Clear10` | That bad end was seen | `main_root` | title, extras (to check) | system |
 | `#ClearG` | The story was finished | `main_root` | title (`TitleCongratulations`), extras (to check) | system |
 | `$ClearL` | The game just ended (back to the title) | `main_root` | title | save |
+| `#ClearAll` | The congratulations were shown | `TitleCongratulations` | title | system |
+
+The story's end (`conv_run_end`) runs the boot script's `InitBGM` and
+`TitleCongratulations` (`Game::story_end`; it plays once every ending
+has been seen, and only right after one, as `$ClearL` is set there) and
+goes back to the title, as `main_root`'s loop does; the original runs
+the check as the title comes up. The congratulations' pans are drawn as
+cuts, as other moves are; not compared with the original (it wants all
+eleven endings' flags under wine).
 
 ## Status
 
@@ -280,7 +290,7 @@ yet.
 | NPA archives (key), images, sounds | ✅ Every file decodes |
 | Movies (MPEG-1) | 🟡 Found in `<game>/movie` (the default) and drawn as Muramasa's compiler draws them (strips of frames at 15 a second); two long ones get fewer frames so that their JPEG strip stays within 65,535 px (`mv_ブラックホーク`, 70 s: 163 frames, 2.3 a second) |
 | Script parsing | ✅ All 249 files; 56 places that don't parse, none in the story |
-| Story control flow (56 chapters, 10 choices, bad ends) | ✅ Compiled whole (`compile_story`); in the engine the good path plays to the end (6,496 pages) and each wrong answer ends the game with its own bad end (`research/nitroplus/django_routes.sh`, 2026-10-15) |
+| Story control flow (56 chapters, 10 choices, bad ends) | ✅ Compiled whole (`compile_story`); in the engine the good path plays to the end (6,496 pages) and each wrong answer ends the story with its own bad end, then the game goes back to the title (`research/nitroplus/django_routes.sh`, which stops each run there, 2026-10-15) |
 | Text | 🟡 In the boxes' places (box00: 39 columns at 50,472, white on the black bar); 3,424 voiced lines; not compared with the original yet |
 | Pictures, sound in scripts | 🟡 Black bars, face windows in their frames, standing pictures, backgrounds; what Muramasa's compiler does for effects (moves and zooms as cross-fades); every sound is found |
 | Choices | ✅ Plates as picture buttons, text placed as the original's (compared under wine) |
@@ -310,5 +320,5 @@ yet.
 6. Camera moves (`MoveCamera`, 365 calls) and moves and zooms over time
    (drawn as cross-fades), shared with Muramasa's compiler.
 7. Extras: the doors' animation and the menu's own music (left out).
-8. The title's congratulations (`TitleCongratulations`, sets
-   `#ClearAll`).
+8. The congratulations' pans (`Move` over time in
+   `TitleCongratulations`) are cuts; compare with the original.
