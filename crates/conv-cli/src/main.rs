@@ -47,6 +47,9 @@ enum Command {
         /// jumps. Stopgap until conditions are decoded.
         #[arg(long)]
         linear: bool,
+        /// Compile and write 0.txt only, no assets
+        #[arg(long)]
+        dry_run: bool,
         #[command(flatten)]
         webp: build::WebpArgs,
         #[command(flatten)]
@@ -282,8 +285,8 @@ enum XarcCommand {
 
 fn main() -> Result<()> {
     match Cli::parse().command {
-        Command::ConvertGame { game, output, font, title, loose, linear, webp, audio } => {
-            convert_game(&game, &output, font.as_deref(), &title, loose, linear, webp.get(), audio.format()?)
+        Command::ConvertGame { game, output, font, title, loose, linear, dry_run, webp, audio } => {
+            convert_game(&game, &output, font.as_deref(), &title, loose, linear, dry_run, webp.get(), audio.format()?)
         }
         Command::ConvertScript { game, script, output, font, title, webp, audio } => {
             convert_script(&game, script, &output, font.as_deref(), &title, webp.get(), audio.format()?)
@@ -367,6 +370,7 @@ fn convert_game(
     title: &str,
     loose: bool,
     linear: bool,
+    dry_run: bool,
     webp: Option<Option<u8>>,
     audio: AudioFormat,
 ) -> Result<()> {
@@ -384,7 +388,7 @@ fn convert_game(
     if ids.is_empty() {
         bail!("no NNNN.cd scripts in {}", dir.display());
     }
-    build::check_output(output, &ASSET_DIRS, !loose)?;
+    build::check_output(output, &ASSET_DIRS, !loose && !dry_run)?;
 
     let maps: Vec<(String, Mmap)> = ids
         .iter()
@@ -417,6 +421,7 @@ fn convert_game(
         needs.se.len()
     );
     let mut assets = AssetBank::new(game, output);
+    assets.dry_run = dry_run;
     assets.prefetch(&needs).context("extracting assets")?;
     let window = assets.text_window().context("building the text window")?;
 
@@ -456,6 +461,11 @@ fn convert_game(
         version: Some(version::line()),
         ..Default::default()
     };
+    if dry_run {
+        // The script only: no assets, so nothing to convert, pack or find.
+        let lost = build::write_game(output, &ir, &conv_cons::emit(&ir), None, None)?;
+        return build::summary(output, &ir, lost, font.is_some(), Default::default(), Some(false));
+    }
     let source = image_format(output, conv_cons::emit(&ir), webp)?;
     build::reencode_audio(output, &AUDIO_DIRS, audio)?;
     let lost = build::write_game(output, &ir, &source, font, None)?;

@@ -118,6 +118,7 @@ takes these options, except `--linear` (`convert-game` only):
 |---|---|
 | `--loose` | Write assets as loose files instead of packing them into `.nsa` archives |
 | `--linear` | Play the story scripts in file order with no jumps (debugging aid) |
+| `--dry-run` | Compile and write `0.txt` only, no assets (seconds instead of minutes; the same `0.txt` as a full build) |
 | `--webp` | Store images as near-lossless WebP, about half the size of PNG. CONscripter's web build reads it; native builds need an SDL_image with libwebp. Pictures wider or taller than WebP allows (16,383 pixels: 最果てのイマ's `fx` strips) stay PNG |
 | `--webp-quality N` | With `--webp`: lossy WebP at quality N (0-100, as `cwebp -q`; transparency stays lossless). 80 makes the pictures about a quarter of the near-lossless size and is hard to tell apart |
 | `--audio-codec opus` | Voices and sound effects as Ogg Opus, re-encoded with ffmpeg (libopus): 最果てのイマ's 542 MB of them become 217 MB. Music stays Vorbis. Needs CONscripter 0.21.0 or later (it decodes Opus itself) |
