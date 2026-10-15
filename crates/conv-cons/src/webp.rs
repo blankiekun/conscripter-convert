@@ -50,6 +50,8 @@ pub fn encode(png: &[u8], quality: Option<u8>) -> Result<Vec<u8>, EncodeError> {
             config.lossless = 0;
             config.quality = f32::from(q.min(100));
             config.alpha_quality = 100;
+            // Sharper colour edges at 4:2:0 (PLAN.md §13).
+            config.use_sharp_yuv = 1;
         }
         None => {
             config.lossless = 1;

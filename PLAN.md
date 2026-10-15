@@ -569,7 +569,11 @@ The steps that apply them are in `docs/new-game.md`.
 - **Judge lossy image quality on the worst region,** not the average:
   crop the worst block of the difference image and compare it enlarged.
   Lossy WebP's 4:2:0 subsampling blurred small coloured detail at every
-  quality level; near-lossless was fine at half the PNG size.
+  quality level; near-lossless was fine at half the PNG size. So lossy
+  is only an option (`--webp-quality`, with sharp YUV): at 80, 最果てのイマ's
+  script 13 pictures take 14.0 MB (near-lossless 59.7, PNG 126.4), with a
+  worst 16 px block error of 18.8 (near-lossless 10.1; sharp YUV took it
+  from 21.3); small flowers in a background soften.
 
 **Process.**
 - **Never delete an output folder without listing it first.** Users put
