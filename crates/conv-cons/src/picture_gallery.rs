@@ -18,6 +18,7 @@
 use conv_core::ir::{PictureGallery, Placed};
 
 use crate::menu::TMP;
+use crate::picture_extras::pic;
 use crate::{path, var_name, BUTTON_VAR, MAX_SPRITE, MENU_SPRITES};
 
 /// Entered from the extras' menu, which [`MENU`] draws again.
@@ -65,7 +66,10 @@ pub(crate) fn emit(out: &mut String, g: &PictureGallery, border: u32, width: u32
     assert!(per_page <= MAX_SLOTS && g.categories.len() as u32 <= MAX_CATEGORIES, "a picture gallery larger than its sprites");
     let pages: Vec<usize> = g.categories.iter().map(|c| c.slots.len().div_ceil(per_page as usize).max(1)).collect();
     let max_pages = pages.iter().copied().max().unwrap_or(1);
-    let place = |i: u32| (g.first.0 + g.column_step * (i / g.rows) as i32, g.first.1 + g.row_step * (i % g.rows) as i32);
+    let place = |i: u32| {
+        let (column, row) = if g.across { (i % g.columns, i / g.columns) } else { (i / g.rows, i % g.rows) };
+        (g.first.0 + g.column_step * column as i32, g.first.1 + g.row_step * row as i32)
+    };
     let mut w = |line: String| {
         out.push_str(&line);
         out.push('\n');
@@ -81,7 +85,7 @@ pub(crate) fn emit(out: &mut String, g: &PictureGallery, border: u32, width: u32
     w(format!("mov {CATEGORY},0:mov {PAGE},0:mov {FADE},{}", g.open_ms));
     w(format!("*{DRAW}"));
     w("csp -1".into());
-    w(format!("lsp {BACKGROUND},\":c;{}\",0,0", path(&g.background)));
+    w(format!("lsp {BACKGROUND},\"{}\",0,0", pic(&g.background)));
     for (c, category) in g.categories.iter().enumerate() {
         let slot = CATEGORY_BUTTON + c as u32;
         w(button(slot, &category.button));
@@ -89,9 +93,14 @@ pub(crate) fn emit(out: &mut String, g: &PictureGallery, border: u32, width: u32
         w(format!("if {CATEGORY} == {c} cell {slot},2"));
         w(format!("if {CATEGORY} != {c} spbtn {slot},{}", BTN_CATEGORY + c as u32));
     }
+    // Only in a category of more pages, if so asked.
+    let paged: Vec<String> = pages.iter().enumerate().filter(|(_, n)| **n > 1).map(|(c, _)| format!("if {CATEGORY} == {c} ")).collect();
     for (slot, b, n) in [(PREVIOUS, &g.previous, BTN_PREVIOUS), (NEXT, &g.next, BTN_NEXT), (EXIT, &g.exit, BTN_EXIT)] {
-        w(button(slot, b));
-        w(format!("spbtn {slot},{n},2"));
+        let only = if g.arrows_when_paged && slot != EXIT { paged.clone() } else { vec![String::new()] };
+        for only in only {
+            w(format!("{only}{}", button(slot, b)));
+            w(format!("{only}spbtn {slot},{n},2"));
+        }
     }
     let counts = &pages;
     let targets: Vec<String> = (0..g.categories.len())
@@ -133,9 +142,9 @@ pub(crate) fn emit(out: &mut String, g: &PictureGallery, border: u32, width: u32
                 for cg in &slot.cgs {
                     w(format!("if {} != 0 inc {TMP}", var_name(cg.seen, border)));
                 }
-                w(format!("lsp {},\":c;{}\",{x},{y}", THUMB + i as u32, path(&g.blank)));
+                w(format!("lsp {},\"{}\",{x},{y}", THUMB + i as u32, pic(&g.blank)));
                 for cg in slot.cgs.iter().rev() {
-                    w(format!("if {} != 0 lsp {},\":c;{}\",{x},{y}", var_name(cg.seen, border), THUMB + i as u32, path(&cg.thumbnail)));
+                    w(format!("if {} != 0 lsp {},\"{}\",{x},{y}", var_name(cg.seen, border), THUMB + i as u32, pic(&cg.thumbnail)));
                 }
                 w(format!("if {TMP} > 0 && {TMP} < {n} amsp {},{x},{y},{}", THUMB + i as u32, g.partial_alpha));
                 w(format!("if {TMP} > 0 lsp {},\":a/2,0,3;{}\",{x},{y}:spbtn {},{}", CURSOR + i as u32, path(&g.cursor), CURSOR + i as u32, i + 1));
@@ -160,9 +169,16 @@ pub(crate) fn emit(out: &mut String, g: &PictureGallery, border: u32, width: u32
                 let (over_x, over_y) = ((p.w - width as i32).max(0), (p.h - height as i32).max(0));
                 // The far end (bottom or right) and the top left.
                 let far = (-over_x, -over_y);
-                let (start, end) = if slot.reversed { (far, (0, 0)) } else { ((0, 0), far) };
+                let (mut start, mut end) = if slot.reversed { (far, (0, 0)) } else { ((0, 0), far) };
+                // Along an axis that doesn't scroll, the picture's own place.
+                if over_x == 0 {
+                    (start.0, end.0) = (p.x, p.x);
+                }
+                if over_y == 0 {
+                    (start.1, end.1) = (p.y, p.y);
+                }
                 w(format!("if {seen} == 0 goto *{label}_{k}u"));
-                w(format!("lsp {VIEW},\":c;{}\",{},{}:print 10,{}", path(&p.image), start.0, start.1, g.view_fade_ms));
+                w(format!("lsp {VIEW},\"{}\",{},{}:print 10,{}", pic(&p.image), start.0, start.1, g.view_fade_ms));
                 w(format!("mov {PREVIOUS_UNSEEN},0:gosub *{CLICK}"));
                 w(format!("if {BUTTON_VAR} == -1 goto *{CLOSE}"));
                 if over_x > 0 || over_y > 0 {
@@ -174,7 +190,7 @@ pub(crate) fn emit(out: &mut String, g: &PictureGallery, border: u32, width: u32
                 w(format!("goto *{label}_{k}n"));
                 w(format!("*{label}_{k}u"));
                 w(format!("if {PREVIOUS_UNSEEN} == 1 csp {VIEW}:print 10,150"));
-                w(format!("lsp {VIEW},\":c;{}\",0,0:print 10,{}", path(&g.unseen), g.view_fade_ms));
+                w(format!("lsp {VIEW},\"{}\",0,0:print 10,{}", pic(&g.unseen), g.view_fade_ms));
                 w(format!("mov {PREVIOUS_UNSEEN},1:gosub *{CLICK}"));
                 w(format!("if {BUTTON_VAR} == -1 goto *{CLOSE}"));
                 w(format!("*{label}_{k}n"));

@@ -4,7 +4,7 @@
 
 use std::collections::BTreeMap;
 
-use conv_core::ir::{ExtrasMode, GalleryCategory, PictureExtras, PictureExtrasItem, PictureGallery, PictureSlot, Placed, SlotCg};
+use conv_core::ir::{ExtrasMode, GalleryCategory, PictureExtras, PictureExtrasItem, PictureGallery, PictureSlot, Placed, RoomTrack, RoomVideo, SlotCg, SoundRoom};
 
 use super::super::{Assets, Story};
 use crate::nitroplus::nss::{Expr, Item, NssFile, StmtKind};
@@ -48,6 +48,7 @@ pub fn extras(a: &mut dyn Assets, story: &Story) -> Option<PictureExtras> {
         back_se: se(a, "se戦闘_攻撃_剣戟弾く01"),
         fade_ms: 500,
         gallery: gallery(a, story),
+        sound: sound(a, story),
     })
 }
 
@@ -105,9 +106,101 @@ fn gallery_slots(files: &BTreeMap<String, NssFile>) -> Vec<(String, String, Vec<
         .collect()
 }
 
-/// The flags the extras read: each CG's `#<name>`.
+/// The sound room's entries (`extra_sound.nss`, `Sound`), in the order of
+/// the `#Sound` array: name (`@mbgm01`, `mvOP`), category (BGM, SONG, MV),
+/// picture, the flag that opens it (`open`: always).
+fn sound_entries(files: &BTreeMap<String, NssFile>) -> Vec<(String, String, String, String)> {
+    let calls = arrays(files, "extra_sound.nss", "Sound");
+    let Some((_, _, order)) = calls.iter().find(|(a, k, _)| a == "#Sound" && k.is_none()) else { return Vec::new() };
+    let entries: BTreeMap<&str, &Vec<String>> = calls.iter().filter(|(a, _, _)| a == "#Sound").filter_map(|(_, k, v)| Some((k.as_deref()?, v))).collect();
+    order
+        .iter()
+        .filter_map(|key| {
+            let v = entries.get(key.as_str())?;
+            (v.len() >= 3).then(|| (key.clone(), v[0].clone(), v[1].clone(), v[2].clone()))
+        })
+        .collect()
+}
+
+/// The flags the extras read: each CG's `#<name>`, the songs' and
+/// movies' (`#msong01`, `#mvOP02`).
 pub fn flags(files: &BTreeMap<String, NssFile>) -> Vec<String> {
-    gallery_slots(files).into_iter().flat_map(|(_, _, cgs)| cgs).map(|n| format!("#{n}")).collect()
+    let mut out: Vec<String> = gallery_slots(files).into_iter().flat_map(|(_, _, cgs)| cgs).map(|n| format!("#{n}")).collect();
+    out.extend(sound_entries(files).into_iter().filter(|e| e.3 != "open").map(|e| format!("#{}", e.3)));
+    out
+}
+
+/// The sound room (`extra_sound.nss`, `Media`): 背景画像 with a button per
+/// entry, in the script's order and places (BGM down columns at x 380,
+/// 651, 787 from y 84, 24 apart; the songs at x 651 from y 396; the movies'
+/// thumbnails at x 102 from y 84, 150 apart). A locked song shows its
+/// `000` picture, a locked movie 空白アイコン. The playing track has the
+/// ten-picture A-icon turning 26 px left of it (its speed is a guess: the
+/// original's process draws a picture a frame, and wine films too slowly
+/// to tell). Choosing the playing track fades it out over 2 s
+/// (`SoundFade`); a movie fades the music and the screen to black over 1 s,
+/// then back, the black over 300 ms.
+fn sound(a: &mut dyn Assets, story: &Story) -> Option<SoundRoom> {
+    const DIR: &str = "cg/sys/extra/sound";
+    let entries = sound_entries(story.files);
+    let (mut x, mut y) = (380, 84);
+    let mut tracks = Vec::new();
+    let mut movies = Vec::new();
+    let mut title_track = 0;
+    for (k, (name, category, picture, flag)) in entries.iter().enumerate() {
+        let unlocked_by = if flag == "open" { None } else { Some(*story.flags.get(&format!("#{flag}"))?) };
+        if category == "MV" {
+            let (image, w, h) = a.image(&format!("cg/sys/extra/thum/dx/{picture}.jpg"))?;
+            let file = a.movie_file(&format!("dx/{name}.ngs"), true)?;
+            movies.push(RoomVideo {
+                thumbnail: Placed { image, x, y, w: w as i32, h: h as i32 },
+                cursor: a.strip(&["", &format!("{DIR}/選択カーソル.png")])?.0,
+                file,
+                unlocked_by,
+                locked: a.image(&format!("{DIR}/空白アイコン.png"))?.0,
+            });
+        } else {
+            let state = |n: u32| format!("{DIR}/{picture}-{n:03}.png");
+            let (image, w, h) = a.strip(&[&state(1), &state(2)])?;
+            let locked = if category == "SONG" { a.image(&state(0)).map(|i| i.0) } else { None };
+            let file = a.sound(&format!("sound/bgm/{}", name.trim_start_matches('@')))?;
+            if name == "@mbgm04" {
+                title_track = tracks.len();
+            }
+            tracks.push(RoomTrack { button: Placed { image, x, y, w: w as i32, h: h as i32 }, file, unlocked_by, locked });
+        }
+        // The next entry's place (`Media`).
+        match k + 2 {
+            n if n <= 18 => y += 24,
+            19 => (x, y) = (651, 84),
+            n if n <= 28 => y += 24,
+            29 => (x, y) = (787, 84),
+            n if n <= 37 => y += 24,
+            38 => (x, y) = (651, 396),
+            n if n <= 42 => y += 24,
+            43 => (x, y) = (102, 84),
+            _ => y += 150,
+        }
+    }
+    let icons: Vec<String> = (1..=10).map(|n| format!("{DIR}/anime/A-icon-{n:03}.png")).collect();
+    let (image, w, h) = a.strip(&icons.iter().map(String::as_str).collect::<Vec<_>>())?;
+    let state = |n: u32| format!("{DIR}/退出-{n:03}.png");
+    let (exit, ew, eh) = a.strip(&[&state(1), &state(2), &state(3)])?;
+    Some(SoundRoom {
+        background: a.image(&format!("{DIR}/背景画像.png"))?.0,
+        exit: Placed { image: exit, x: 0, y: 438, w: ew as i32, h: eh as i32 },
+        tracks,
+        movies,
+        title_track,
+        marker: Placed { image, x: 0, y: 0, w: w as i32, h: h as i32 },
+        marker_cells: 10,
+        marker_ms: 33,
+        marker_dx: 26,
+        open_ms: 500,
+        stop_fade_ms: 2000,
+        movie_fade_ms: 1000,
+        movie_back_ms: 300,
+    })
 }
 
 /// The CG gallery (`extra_gallery.nss`): 背景画像 with the categories'
@@ -166,5 +259,7 @@ fn gallery(a: &mut dyn Assets, story: &Story) -> Option<PictureGallery> {
         view_fade_ms: 500,
         close_ms: 300,
         scroll_ms_per_px: 12,
+        across: false,
+        arrows_when_paged: false,
     })
 }

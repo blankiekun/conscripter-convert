@@ -104,6 +104,9 @@ pub struct Game {
     /// Chapters compiled once more as subroutines (label, `nss/file.nss`)
     /// for the system screens to call, such as a screen the menu opens.
     subroutines: &'static [(&'static str, &'static str)],
+    /// Story files compiled once more as subroutines with variables set, for
+    /// a replay of a scene (装甲悪鬼村正's 回想映写機).
+    replays: fn(&BTreeMap<String, NssFile>) -> Vec<Replay>,
     /// The screen's width and height.
     pub screen: (i64, i64),
     /// The boot script: the files it `#include`s are the helper library.
@@ -150,6 +153,7 @@ impl Game {
         files: &[],
         menus: |_, _, _| {},
         subroutines: &[],
+        replays: |_| Vec::new(),
         screen: (SCREEN_W, SCREEN_H),
         boot: BOOT,
         story: None,
@@ -265,6 +269,15 @@ pub struct Story<'a> {
     /// The game's scripts (the system screens' own, `sys_*` and `extra_*`,
     /// hold their lists).
     pub files: &'a BTreeMap<String, NssFile>,
+}
+
+/// A story file played on its own from a gosub to `label`, its
+/// `X.nss_MAIN` scene with `set` variables at convert time (`$PLACE_reco`
+/// = 1) and `$GameName` its name ([`Game::replays`]).
+pub struct Replay {
+    pub label: String,
+    pub file: String,
+    pub set: Vec<(String, i64)>,
 }
 
 /// Compiles scene `scene` of `file` (`ma01_001.nss`, `ma01_001.nss`).
@@ -1024,10 +1037,19 @@ impl<'a, 'b> Compiler<'a, 'b> {
     fn subroutines(&mut self, initial: &State<'a>, dynamic_base: u16) {
         let local = |index| conv_core::ir::Var { global: false, index };
         let kept: Vec<u16> = (FORK_VARS.start..FORK_VARS.end).chain([LEAF_VAR]).collect();
-        for &(label, target) in self.game.subroutines {
+        let mut list: Vec<(String, String, Vec<(String, Value)>)> = self.game.subroutines.iter().map(|&(l, t)| (l.to_string(), t.to_string(), Vec::new())).collect();
+        for r in (self.game.replays)(self.files) {
+            let mut set: Vec<(String, Value)> = r.set.into_iter().map(|(k, n)| (k, Value::Int(n))).collect();
+            set.push(("$GameName".to_string(), Value::Str(r.file.clone())));
+            list.push((r.label, format!("nss/{}->{}_MAIN", r.file, r.file), set));
+        }
+        for (label, target, set) in list {
             self.restore(initial.clone());
             for (k, &v) in &self.flags {
                 self.vars.insert(k.clone(), Value::Runtime(v));
+            }
+            for (k, v) in set {
+                self.vars.insert(k, v);
             }
             self.dynamic.clear();
             self.dynamic_values.clear();
@@ -1035,11 +1057,11 @@ impl<'a, 'b> Compiler<'a, 'b> {
             self.steps = 0;
             self.forks_in_file = 0;
             self.leaves_in_file = 0;
-            self.ops.push(Op::Label(label.to_string()));
+            self.ops.push(Op::Label(label));
             for (i, &v) in kept.iter().enumerate() {
                 self.ops.push(Op::Arith { var: local(dynamic_base + i as u16), op: ArithOp::Set, value: Operand::Var(local(v)) });
             }
-            self.call_scene(target, true);
+            self.call_scene(&target, true);
             self.sync(0);
             for (i, &v) in kept.iter().enumerate() {
                 self.ops.push(Op::Arith { var: local(v), op: ArithOp::Set, value: Operand::Var(local(dynamic_base + i as u16)) });
@@ -3543,6 +3565,28 @@ scene {name}_Y
         // $f is 0: each file calls its own _Y scene, b.nss's last.
         assert_eq!(run_ir(&c.ops).get(&flags["$g"]), Some(&4));
         assert!(!c.notes.contains_key("call_scene to a runtime value with no known names"), "{:?}", c.notes);
+    }
+
+    #[test]
+    fn a_replay_compiles_a_file_again_with_its_variables_set() {
+        const GAME: Game = Game {
+            replays: |_| vec![Replay { label: "conv_r".into(), file: "r.nss".into(), set: vec![("$PLACE_reco".into(), 1)] }],
+            ..Game::PLAIN
+        };
+        let mut files = BTreeMap::new();
+        files.insert(BOOT.to_string(), nss::parse("#include \"nss/function.nss\"\n").unwrap());
+        files.insert("function.nss".to_string(), nss::parse("function F(){}").unwrap());
+        files.insert("a.nss".into(), nss::parse("scene a.nss_MAIN\n{\n\tif($f){$g = 1;}\n\t$GameCircle = 0;\n}").unwrap());
+        files.insert("r.nss".into(), nss::parse("scene r.nss_MAIN\n{\n\tif($PLACE_reco){$f = 7;}else{$f = 3;}\n\t$GameCircle = 0;\n}").unwrap());
+        let (c, _) = compile_run(&files, "a.nss", 10, &GAME, &mut Fake).unwrap();
+        let f = story_flags(&files, &GAME)["$f"];
+        let at = c.ops.iter().position(|op| *op == Op::Label("conv_r".into())).expect("the replay's label");
+        let sets: Vec<_> = c.ops[at..].iter().filter_map(|op| match op {
+            Op::Arith { var, op: ArithOp::Set, value: Operand::Const(n) } if *var == f => Some(*n),
+            _ => None,
+        }).collect();
+        assert_eq!(sets.first(), Some(&7), "{:?}", &c.ops[at..]);
+        assert!(matches!(c.ops[at..].iter().find(|op| matches!(op, Op::Return)), Some(_)));
     }
 
     #[test]
