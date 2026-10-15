@@ -727,8 +727,9 @@ Next, in order:
       `exit_without_asking`, `TitleAction::Continue`; CONscripter's
       `selectvoice` now works outside the define section, 325c9e1).
       Beside the original (normal, hover, pressed): mean difference
-      0.1-3.5 levels, from the original's fire. Left: the fire's flicker
-      and the opening (step 7); 特別付加目録 waits for the extras (step 8).
+      0.1-3.5 levels, from the original's fire. The fire's glow is done
+      (step 7); left: the opening (step 7); 特別付加目録 waits for the
+      extras (step 8).
    3. Done: the right-click menu (a new `CommandMenu`, in
       `conv-cons/src/command_menu.rs`) and the quick bar (`ButtonBar`
       with a `base` over the buttons, a `BarSlide` and the pressed cell),
@@ -914,9 +915,23 @@ Next, in order:
       original at the first page (その他男声 and その他女声 heard): mean
       difference 0.57 levels, every pixel within 40 but the version line.
       Left: the wheel over a slider.
-   7. Motion and movies: the title's fire flicker and its opening (the
-      title screen's own entrance), the menu cascade, the dialog unroll
-      (150 ms sideways), the quick bar sliding while text types (to do);
+   7. Motion and movies: the title's fire flicker (done) and its opening
+      (the title screen's own entrance), the menu cascade, the dialog
+      unroll (150 ms sideways), the quick bar sliding while text types (to
+      do);
+      - The fire: `TitleSet` puts `ef046_炎a.jpg` (1920×1200) over the
+        title at (0,0), zoomed 2× about its centre, drawn in overlay
+        (`OverlayRender`, darkening this dark picture), and `CreateTPO1`'s
+        process fades it from 0 to 300 over 600 ms, holds until 1100 ms,
+        back to 0 by 1700 ms, holds until 2200 ms, for ever. Ours: the
+        converter draws the title with the fire overlaid at 300
+        (`Assets::overlaid`) and CONscripter's new `spalpha` (0ae2e87)
+        fades that picture in and out over the title with the same keys
+        (`TitleScreen::glow`). Beside the original under wine: the left
+        edge's red swings by about 10 levels in both (50-60 there,
+        45-55 ours; wine's picture is 5 levels lighter throughout). Where
+        the zoomed fire sits can't be told from shots (it is a soft
+        picture and moves the screen by 3 levels at most).
       and the movies (added by the user, 2026-10-15; done 2026-10-15).
       They are MPEG-1 program streams (`.ngs`, 1024×576, MP2 sound) in
       the disc's `ムービー/` folder, beside `<game>`, not in the archives

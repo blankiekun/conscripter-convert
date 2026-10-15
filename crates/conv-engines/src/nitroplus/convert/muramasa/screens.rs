@@ -8,7 +8,7 @@
 
 use conv_core::ir::{
     BarAction, BarButton, BarSlide, ButtonBar, CommandItem, CommandMenu, ConfirmDialog, GridText, LineLog, PairOption, PicturePair, PictureSettings, PictureSlider, PictureText, Placed, Rect, SaveGrid,
-    Script, SliderSetting, Switch, TitleAction, TitleButton, TitleScreen, VoiceEntry, VoiceLayout, VoiceWindow, WaitIcon,
+    Script, SliderSetting, Switch, TitleAction, TitleButton, TitleGlow, TitleScreen, VoiceEntry, VoiceLayout, VoiceWindow, WaitIcon,
 };
 
 use super::super::{Assets, Story};
@@ -409,6 +409,13 @@ fn title(a: &mut dyn Assets) -> Option<TitleScreen> {
         parts.push((a.image(&format!("{DIR}/{name}.png"))?.0, x, y, 1000));
     }
     let (background, _, _) = a.composite(&parts)?;
+    // The fire (ef046_炎a, 2x, OverlayRender) glows from nothing to 300
+    // over 600 ms, holds, and back, each 1100 ms (CreateTPO1 in
+    // 0_boot.nss's TitleSet).
+    let glow = a.overlaid(&background, "cg/ef/ef046_炎a.jpg", 2000, 300).map(|image| TitleGlow {
+        image,
+        keys: vec![(0, 0), (600, 256), (1100, 256), (1700, 0), (2200, 0)],
+    });
     let se = |a: &mut dyn Assets, name: &str| a.sound(&format!("sound/se/{name}"));
     let mut buttons = Vec::new();
     for (name, x, action, click) in [
@@ -437,6 +444,7 @@ fn title(a: &mut dyn Assets) -> Option<TitleScreen> {
         start_bgm_fade_ms: 3000,
         start_wait_ms: 2000,
         exit_without_asking: true,
+        glow,
     })
 }
 

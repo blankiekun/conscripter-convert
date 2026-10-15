@@ -175,6 +175,11 @@ pub trait Assets {
     /// smaller than the movie: the picture, the number of cells and a
     /// cell's size.
     fn movie_frames(&mut self, path: &str, at: Option<u32>, alpha: bool, dark: bool) -> Option<(String, u32, u32, u32)>;
+    /// The output picture `base` (filling the screen) with the picture the
+    /// scripts name `top` drawn over it in overlay (`OverlayRender`), at
+    /// (0,0) zoomed `zoom` per mille about its centre, at `opacity`
+    /// (0-1000): the full-screen picture's path.
+    fn overlaid(&mut self, base: &str, top: &str, zoom: i64, opacity: i64) -> Option<String>;
 }
 
 /// A movie's size and length, and whether its sound can be heard.
@@ -2985,6 +2990,9 @@ mod tests {
         }
         fn movie_file(&mut self, path: &str, sound: bool) -> Option<String> {
             Some(format!("movie/{path}{}", if sound { "" } else { "-mute" }))
+        }
+        fn overlaid(&mut self, base: &str, top: &str, zoom: i64, opacity: i64) -> Option<String> {
+            Some(format!("{base}+{top}@{zoom}x{opacity}"))
         }
         fn movie_frames(&mut self, path: &str, at: Option<u32>, alpha: bool, dark: bool) -> Option<(String, u32, u32, u32)> {
             let (w, h) = if alpha { (200, 108) } else { (1024, 576) };
