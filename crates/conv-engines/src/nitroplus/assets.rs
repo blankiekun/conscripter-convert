@@ -20,6 +20,8 @@ const MAX_SCALED: i64 = 4096;
 
 /// Top-level output folders the assets go to.
 pub const OUTPUT_DIRS: [&str; 4] = ["cg", "sound", "voice", "system"];
+/// The output folders with pictures (`--webp` converts them).
+pub const PICTURE_DIRS: [&str; 2] = ["cg", "system"];
 
 pub struct NpaAssets<'a> {
     cg: Npa<'a>,
