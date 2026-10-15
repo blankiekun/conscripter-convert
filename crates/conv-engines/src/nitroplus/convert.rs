@@ -208,6 +208,7 @@ pub fn compile_scene(files: &BTreeMap<String, NssFile>, file: &str, scene: &str,
 pub fn compile_story(files: &BTreeMap<String, NssFile>, file: &str, scene: &str, game: &'static Game, assets: &mut dyn Assets) -> Result<Compiled, String> {
     let (file, _) = files.get_key_value(file).ok_or_else(|| format!("no script {file}"))?;
     let mut c = Compiler::new(files, file, game, assets);
+    c.whole_story = true;
     c.flags = story_flags(files, game);
     for (k, &v) in &c.flags {
         c.vars.insert(k.clone(), Value::Runtime(v));
@@ -392,6 +393,11 @@ pub fn compile_run(files: &BTreeMap<String, NssFile>, start: &str, max_files: us
     }
     c.ops.push(Op::Label(RUN_END.to_string()));
     Ok((Compiled { ops: c.ops, window: c.first_window, notes: c.notes, flags: c.flags, voice_classes: c.voice_classes }, played))
+}
+
+/// Whether a block's last statement is `return`.
+fn ends_in_return(stmts: &[Stmt]) -> bool {
+    stmts.last().is_some_and(|s| matches!(s.kind, StmtKind::Return))
 }
 
 fn negate(c: conv_core::ir::Compare) -> conv_core::ir::Compare {
@@ -798,6 +804,8 @@ struct Compiler<'a, 'b> {
     /// `LoadText(unit, box, w, h, letter, line)` (続・殺戮のジャンゴ): the
     /// layout of every text in that box, as [`TextObject::layout`].
     box_layouts: HashMap<String, (i64, i64, i64, i64, i64)>,
+    /// Compiling a whole story in one stream ([`compile_story`]).
+    whole_story: bool,
     voice_classes: Vec<String>,
     ops: Vec<Op>,
     notes: BTreeMap<String, usize>,
@@ -1134,8 +1142,10 @@ impl<'a, 'b> Compiler<'a, 'b> {
             // names of scenes or files they set differently (the code after
             // a choice may copy `$GameName` into a story flag). Where that
             // code leaves them alone, each branch still goes on with its own
-            // value (`first` holds the runtime ones).
-            if own {
+            // value (`first` holds the runtime ones). In a whole story
+            // ([`compile_story`]) a fork inside another too: its choices
+            // are inside the runtime ifs of the deaths before them.
+            if own || self.whole_story {
                 for (k, &v) in &self.flags {
                     if differ(k) {
                         self.vars.insert(k.clone(), Value::Runtime(v));
@@ -1231,6 +1241,20 @@ impl<'a, 'b> Compiler<'a, 'b> {
     /// `if` on a story flag only the running game knows: both branches are
     /// compiled, behind a runtime test.
     fn runtime_if(&mut self, cond: &'a Expr, then: &'a [Stmt], otherwise: Option<&'a [Stmt]>) {
+        self.runtime_if_then(cond, then, otherwise, &[]);
+    }
+
+    /// [`Compiler::runtime_if`] followed by `rest`, which runs at the end of
+    /// each branch that doesn't end in `return`.
+    fn runtime_if_then(&mut self, cond: &'a Expr, then: &'a [Stmt], otherwise: Option<&'a [Stmt]>, rest: &[&'a [Stmt]]) {
+        let with_rest = |branch: &'a [Stmt]| {
+            let mut parts = vec![branch];
+            if !ends_in_return(branch) {
+                parts.extend_from_slice(rest);
+            }
+            parts
+        };
+        let (then_parts, else_parts) = (with_rest(then), with_rest(otherwise.unwrap_or(&[])));
         self.sync(0);
         let own = self.begin_fork();
         let n = self.choices;
@@ -1239,15 +1263,20 @@ impl<'a, 'b> Compiler<'a, 'b> {
         self.jump_if(cond, false, &else_label);
         let base = self.snapshot();
         let mut leaves = self.branch(&base, |c| {
-            c.exec_block(then);
+            c.exec_seq(&then_parts);
         });
         self.ops.push(Op::Jump(end_label.clone()));
         self.ops.push(Op::Label(else_label));
-        leaves.extend(self.branch(&base, |c| {
-            if let Some(o) = otherwise {
-                c.exec_block(o);
-            }
-        }));
+        let else_leaves = self.branch(&base, |c| {
+            c.exec_seq(&else_parts);
+        });
+        // A branch that returned left the scene: the code after the if
+        // goes on from the other one (its pictures, its variables).
+        match (ends_in_return(then), otherwise.is_some_and(ends_in_return)) {
+            (true, false) => leaves = else_leaves,
+            (false, true) => {}
+            _ => leaves.extend(else_leaves),
+        }
         self.ops.push(Op::Label(end_label));
         self.finish_fork(leaves, own, false);
     }
@@ -1438,6 +1467,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
             texts_shown: 0,
             pending_enter: None,
             box_layouts: HashMap::new(),
+            whole_story: false,
             voice_classes: Vec::new(),
             ops: Vec::new(),
             notes: BTreeMap::new(),
@@ -1500,16 +1530,36 @@ impl<'a, 'b> Compiler<'a, 'b> {
     }
 
     fn exec_block(&mut self, stmts: &'a [Stmt]) -> Flow {
-        for s in stmts {
-            let flow = self.exec(s);
-            // A statement of a scene (not of a helper) has finished
-            // setting up the sounds it started.
-            if self.in_function == 0 {
-                self.flush_sounds();
-            }
-            match flow {
-                Flow::Normal => {}
-                flow => return flow,
+        self.exec_seq(&[stmts])
+    }
+
+    /// Runs `parts` one after the other. A runtime `if` with a branch that
+    /// ends in `return` (`if($死亡01 == 1){ …; return; }`) runs what follows
+    /// it only in its other branch: the player who died doesn't go on.
+    fn exec_seq(&mut self, parts: &[&'a [Stmt]]) -> Flow {
+        for (pi, part) in parts.iter().enumerate() {
+            for (i, s) in part.iter().enumerate() {
+                if let StmtKind::If { cond, then, otherwise } = &s.kind {
+                    if (ends_in_return(then) || otherwise.as_deref().is_some_and(ends_in_return)) && self.is_runtime(cond) {
+                        let mut rest = vec![&part[i + 1..]];
+                        rest.extend_from_slice(&parts[pi + 1..]);
+                        self.runtime_if_then(cond, then, otherwise.as_deref(), &rest);
+                        if self.in_function == 0 {
+                            self.flush_sounds();
+                        }
+                        return Flow::Normal;
+                    }
+                }
+                let flow = self.exec(s);
+                // A statement of a scene (not of a helper) has finished
+                // setting up the sounds it started.
+                if self.in_function == 0 {
+                    self.flush_sounds();
+                }
+                match flow {
+                    Flow::Normal => {}
+                    flow => return flow,
+                }
             }
         }
         Flow::Normal
