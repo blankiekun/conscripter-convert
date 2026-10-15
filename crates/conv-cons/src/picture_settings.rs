@@ -352,7 +352,8 @@ pub(crate) fn emit(out: &mut String, s: &PictureSettings, border: u32) {
                     w(format!("mov {},1-{v}", menu::switch_off(q)));
                 }
             }
-            PairOption::MovieStop => w(format!("moviestop {v}")),
+            // Off, a movie is skippable as the script says (the title's openings).
+            PairOption::MovieStop => w(format!("mov {TMP},{v}*2-1:moviestop {TMP}")),
             PairOption::StopAtChoice => w(format!("mov {TMP},1-{v}:selectkeep {TMP}")),
             PairOption::SkipUnread => w(format!("if {v} == 1 kidokumode 0\nif {v} == 0 kidokumode 1")),
             PairOption::VoicePlaysOn => w(format!("mov {TMP},1-{v}:clickvoicestop {TMP}")),
