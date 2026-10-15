@@ -169,7 +169,11 @@ on each later turn; several agents run at once.
   `mdsec.py <file.md>` lists the headings, `mdsec.py <file.md> Status`
   prints that section only (game docs, `PLAN.md`, this file);
   `label.py 0.txt <label> [lines]` prints one label's block with line
-  numbers, `label.py 0.txt -l <text>` finds labels.
+  numbers, `label.py 0.txt -l <text>` finds labels. Source code is the
+  biggest text cost: `code.py <file.rs|.cpp>` lists its items with line
+  numbers, `code.py <file> <name> [lines]` prints one fn, type, impl or
+  C++ `Class::name` with its doc comments; use it instead of paging
+  through a file with `sed`.
 - **Trim command output.** Pipe builds and long runs through
   `tail -n 30` or `grep -E 'error|warning|FAIL'`; write traces and logs
   to a file and query them (`cons_trace_check.py`, `grep`, `jq`).
