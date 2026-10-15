@@ -591,9 +591,13 @@ Next, in order:
         (the buttons used to blink off and on as the movie ended);
         open: the scene cuts (`Op::SceneMovie`) load their last frame
         after the movie, so the scene before it flashes and fades back.
-        The rule also reports a movie started with the text window
-        shown, which the movie covers (CONscripter da2d851); the
-        prologue's cuts have it hidden.
+        CONscripter 3f368bc (after 0.24.0) draws the text window over
+        an `mpegplay` movie and plays a movie file given to `lsp` in the
+        sprite's place (`spmoviewait n,1` waits for it): next, the cuts
+        under the text (drawn as stills, row "Movies" above) can play
+        as sprite movies. A skipped movie stops the `dwave` sounds
+        started with it (CONscripter 265942e): the title openings'
+        clash no longer plays over the title.
       - 動画 切 is `moviestop -1` (the script's flag, as
         `MoviePlay(f, #SYSTEM_break_play_movie)`): the title's openings
         are always skippable, `mvOP`/`mvOP02` only with 動画 入
