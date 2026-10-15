@@ -333,3 +333,11 @@ with the original (it wants all eleven endings' flags under wine).
   ones aren't drawn while an opaque full-screen picture covers them (the
   checker's "crowd" findings are scenes with five or six characters at
   once, and stay).
+- **Bad end 10's picture (2026-10-15).** Each death is
+  `if($死亡NN == 1) { return; }` in the chapter right after its choice,
+  then the caller's `if($死亡NN == 1) { call_chapter …be.nss; }`. The
+  caller's branch started from the state the *other* answer left (its
+  pictures hung under `窓`), so in path 10 the good path's 荒野
+  background stayed over the bad end's title. The branch that returned
+  now hands its own state (with the chapter's objects deleted) to the
+  caller's `if` on the same test.

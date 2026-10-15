@@ -1061,6 +1061,13 @@ struct Compiler<'a, 'b> {
     /// that sets the next file differently) and the variable that tells
     /// them apart, and the state the code after the fork started from.
     pending_fork: Option<(conv_core::ir::Var, Vec<Leaf<'a>>, State<'a>)>,
+    /// The last runtime `if` whose branch returned from the chapter
+    /// (`if($死亡10 == 1) { return; }` after a choice): its test, the
+    /// state the run left with, and what the chapter's end did to it (its
+    /// sounds stopped). An `if` on the same test right after the chapter
+    /// (the caller's `if($死亡10 == 1) { call_chapter …be.nss; }`) starts
+    /// that branch from it, not from the other branch's end.
+    returned: Option<(&'a Expr, State<'a>, Vec<Op>)>,
     /// The fork being compiled (its branches share one variable).
     fork_var: Option<conv_core::ir::Var>,
     /// Forks in the current file (picks the next of [`FORK_VARS`]).
@@ -1507,6 +1514,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
             parts
         };
         let (then_parts, else_parts) = (with_rest(then), with_rest(otherwise.unwrap_or(&[])));
+        let returned = self.returned.take().filter(|r| r.0 == cond);
         self.sync(0);
         let own = self.begin_fork();
         let n = self.choices;
@@ -1514,7 +1522,12 @@ impl<'a, 'b> Compiler<'a, 'b> {
         let (else_label, end_label) = (format!("if{n}_else"), format!("if{n}_end"));
         self.jump_if(cond, false, &else_label);
         let base = self.snapshot();
-        let mut leaves = self.branch(&base, |c| {
+        let (then_base, stops) = match returned {
+            Some((_, state, stops)) => (state, stops),
+            None => (base.clone(), Vec::new()),
+        };
+        let mut leaves = self.branch(&then_base, |c| {
+            c.ops.extend(stops);
             c.exec_seq(&then_parts);
         });
         self.ops.push(Op::Jump(end_label.clone()));
@@ -1525,7 +1538,12 @@ impl<'a, 'b> Compiler<'a, 'b> {
         // A branch that returned left the scene: the code after the if
         // goes on from the other one (its pictures, its variables).
         match (ends_in_return(then), otherwise.is_some_and(ends_in_return)) {
-            (true, false) => leaves = else_leaves,
+            (true, false) => {
+                if let [leaf] = &leaves[..] {
+                    self.returned = Some((cond, leaf.state.clone(), Vec::new()));
+                }
+                leaves = else_leaves;
+            }
             (false, true) => {}
             _ => leaves.extend(else_leaves),
         }
@@ -1729,6 +1747,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
             steps: 0,
             choices: 0,
             pending_fork: None,
+            returned: None,
             fork_var: None,
             forks_in_file: 0,
             leaves_in_file: 0,
@@ -1952,6 +1971,9 @@ impl<'a, 'b> Compiler<'a, 'b> {
         }
         let saved = std::mem::replace(&mut self.file, file);
         let mark = self.seq;
+        if chapter {
+            self.returned = None;
+        }
         self.depth += 1;
         self.frames.push(HashMap::new());
         self.exec_block(body);
@@ -1960,6 +1982,17 @@ impl<'a, 'b> Compiler<'a, 'b> {
         self.file = saved;
         if chapter && self.game.chapter_objects {
             self.delete_chapter_objects(mark);
+            // The way that returned early leaves the chapter too.
+            if let Some((cond, state, mut stops)) = self.returned.take() {
+                let (now, at) = (self.snapshot(), self.ops.len());
+                let pending = (self.pending_ms, self.pending_mask.take());
+                self.restore(state);
+                self.delete_chapter_objects(mark);
+                stops.extend(self.ops.drain(at..));
+                self.returned = Some((cond, self.snapshot(), stops));
+                self.restore(now);
+                (self.pending_ms, self.pending_mask) = pending;
+            }
         }
     }
 
@@ -3728,6 +3761,49 @@ scene a.nss
         assert_eq!(old.len(), 2, "{:?}", c.ops);
         let removals = c.ops.iter().filter(|op| matches!(op, Op::Sprites { changes, .. } if changes.iter().any(|c| c.sprite.is_none()))).count();
         assert_eq!(removals, 2, "{:?}", c.ops);
+    }
+
+    #[test]
+    fn a_branch_that_left_the_chapter_early_goes_on_from_where_it_left() {
+        let mut files = BTreeMap::new();
+        files.insert(BOOT.to_string(), nss::parse("#include \"nss/function.nss\"\n").unwrap());
+        files.insert("function.nss".to_string(), nss::parse(LIBRARY).unwrap());
+        // As 続・殺戮のジャンゴ's deaths: the chapter returns right after the
+        // deadly answer, the caller then plays the bad end.
+        let a = r#"scene a.nss
+{
+	call_chapter nss/b.nss;
+	if($x == 1)
+	{
+		CreateTexture("bad", 200, 0, 0, "cg/bad.png");
+		Fade("bad", 0, 1000, null, true);
+		Wait(100);
+		return;
+	}
+}"#;
+        let b = r#"chapter main
+{
+	CreateTexture("one", 100, 0, 0, "cg/one.png");
+	Fade("one", 0, 1000, null, true);
+	select { case @選択肢１ { $x = 1; } case @選択肢２ { $x = 0; } }
+	if($x == 1)
+	{
+		return;
+	}
+	CreateTexture("two", 300, 0, 0, "cg/two.jpg");
+	Fade("two", 0, 1000, null, true);
+	Wait(100);
+}"#;
+        files.insert("a.nss".into(), nss::parse(a).unwrap());
+        files.insert("b.nss".into(), nss::parse(b).unwrap());
+        let c = compile_story(&files, "a.nss", "a.nss", &Game::PLAIN, &mut Fake).unwrap();
+        // The bad end is drawn over "one", not under the other answer's
+        // "two", which it never saw.
+        let bad = c.ops.iter().position(|op| matches!(op, Op::Sprites { changes, .. } if changes.iter().any(|c| c.sprite.as_ref().is_some_and(|s| s.image == "cg/bad.png"))));
+        assert!(bad.is_some(), "{:?}", c.ops);
+        let two_shown = c.ops[..bad.unwrap()].iter().rposition(|op| matches!(op, Op::Sprites { changes, .. } if changes.iter().any(|c| c.sprite.as_ref().is_some_and(|s| s.image == "cg/two.jpg"))));
+        let label = c.ops[..bad.unwrap()].iter().rposition(|op| matches!(op, Op::Label(_)));
+        assert!(two_shown < label, "{:?}", c.ops);
     }
 
     #[test]
