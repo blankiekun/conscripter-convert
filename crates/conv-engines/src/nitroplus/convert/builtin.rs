@@ -173,6 +173,9 @@ impl Compiler<'_, '_> {
                 }
                 self.timed(arg(1).int(), &arg(5), &targets);
             }
+            "Delete" if arg(0).string() == "*" && self.game.chapter_objects && self.chapter_mark.is_some() => {
+                self.delete_chapter_objects(self.chapter_mark.unwrap());
+            }
             "Delete" => {
                 for t in self.matching(&arg(0)) {
                     // (A child may have gone with its parent.)
@@ -294,6 +297,20 @@ impl Compiler<'_, '_> {
                     t.layout = Some((arg(3).int(), arg(4).int(), arg(5).int(), arg(6).int(), font));
                 }
             }
+            "Wait" if self.process_clock.is_some() => self.process_wait(arg(0).int().max(0) as u32),
+            "WaitPlay" if self.process_clock.is_some() => {
+                // Until the sound's end.
+                for t in self.matching(&arg(0)) {
+                    let path = match &self.objects[&t].kind {
+                        Kind::Sound(s) => s.path.clone(),
+                        _ => continue,
+                    };
+                    match self.assets.sound_ms(&path) {
+                        Some(ms) => self.process_wait(ms),
+                        None => self.note("WaitPlay in a process for a sound of unknown length"),
+                    }
+                }
+            }
             "Wait" => {
                 // The actions still running are shown over the wait, at
                 // most.
@@ -381,7 +398,10 @@ impl Compiler<'_, '_> {
                 }
             }
             "SetVertex" | "SetFrequency" | "SetPan" | "WaitText" | "LockVideo" | "Reset" | "SetShortcut" => {}
-            "CreateProcess" => self.note(format!("CreateProcess {}", arg(4).string())),
+            "CreateProcess" => {
+                let name = self.object_name(&arg(0));
+                self.create_process(name, &arg(4).string());
+            }
             other if BUILTINS.contains(&other) => self.note(format!("built-in {other}")),
             // No built-in and no NSS function has this name: the exe skips
             // the call (`Waitkey(500)`, `SL_Rightdown(…)`).

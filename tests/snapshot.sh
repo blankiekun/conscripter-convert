@@ -14,7 +14,10 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 games_dir=${CONS_GAMES:-$HOME/.config/conscripter-convert/games}
-font=gui/fonts/ipag.ttf
+# gui/fonts/ is git-ignored (gui/fetch_fonts.py): a fresh worktree has none.
+font=${CONS_FONT:-gui/fonts/ipag.ttf}
+[ -f "$font" ] || font=/usr/share/fonts/OTF/ipag.ttf
+[ -f "$font" ] || { echo "no ipag.ttf: run gui/fetch_fonts.py or set CONS_FONT" >&2; exit 2; }
 bin=target/release/conscripter-convert
 update=0
 if [ "${1:-}" = --update ]; then update=1; shift; fi
