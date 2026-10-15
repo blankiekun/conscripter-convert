@@ -409,7 +409,7 @@ folder): 明日香 (S01_16A, page 25,742), 京 (S01_18A, 25,852), 美咲
 (M09_01), 日和子 (S02_16A), 亜衣 (S03C_20A), the bad end (S04_06L), 鳴
 (S03_22A) and 小鳩 (S04_28B) all reach their endings. 小鳩's run first
 stopped for good in S04_12B: a CONscripter bug (fixed in 6837994,
-`engine/ADDITIONS.md`): a `bgmfadeout 16:bgmstop` while `bgmfadein
+`engine/COMMANDS.md`): a `bgmfadeout 16:bgmstop` while `bgmfadein
 1000` was still fading the music in left it playing, and the next `bgm`
 waited forever. `cons_trace_check.py` on each finds no new bug: SEs
 played on two channels at once (as the source does: S04_07B's two

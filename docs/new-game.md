@@ -303,7 +303,7 @@ When existing NScripter commands can't do it:
    script, with no command to turn it on. Effects are `cons_*.dll` effect-99 plugins; screen
    effects use the `screenfilter`/`screenshake` slot machinery. It must
    build for the web (emscripten) and keep its state in saves.
-2. Document it in `engine/ADDITIONS.md` and in `PLAN.md` §4.2.
+2. List it in `PLAN.md` §4.2.
 3. Commit and push the engine first, then commit the submodule pointer
    together with the converter change that uses it.
 4. Release when a batch is ready: bump the version in the 7 files that

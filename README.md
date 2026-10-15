@@ -170,8 +170,8 @@ When a game needs something the engine can't do:
 1. Add it to `engine/src/cons/` as a new command or behaviour. Nothing
    is opt-in: a new behaviour, like a bug fix, applies to every script.
    It must work in the web build too.
-2. Document it in [`engine/ADDITIONS.md`](engine/ADDITIONS.md) and in
-   [`PLAN.md`](PLAN.md) §4.2.
+2. List it in [`PLAN.md`](PLAN.md) §4.2 (every script command is in
+   [`engine/COMMANDS.md`](engine/COMMANDS.md)).
 3. Commit and push it in the engine repository, then commit the new
    submodule commit here together with the converter change that uses it.
 

@@ -119,8 +119,7 @@ original), add the feature to CONscripter instead of approximating it:
    to every script, with no command or flag to turn it on, as bug fixes
    do; a new command takes effect where a script uses it. Check that it
    doesn't change the other games' builds for the worse.
-3. Document it in the engine's `ADDITIONS.md`
-   and here in §4.2, with the game feature that needed it.
+3. List it here in §4.2, with the game feature that needed it.
 4. Commit and push in the engine repo, then commit the updated submodule
    pointer here together with the converter change that uses it.
 
@@ -143,7 +142,7 @@ make -C engine/build -j"$(nproc)"     # → engine/build/conscripter
 ### 4.2 CONscripter additions
 
 Engine features added for converted games (details in the engine's
-`ADDITIONS.md`):
+`COMMANDS.md`):
 
 | Command | Game feature that needed it |
 |---|---|
