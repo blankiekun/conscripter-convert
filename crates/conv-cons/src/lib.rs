@@ -408,6 +408,16 @@ pub fn emit(script: &Script) -> String {
     let mut page_rows = 0;
     // The backlog tag of the page being written: its first speaker and voice.
     let mut page_tag: Option<String> = None;
+    // Layers an animation zooms: spzoom stays through lsp, so a picture
+    // loaded there later is drawn at 100 again.
+    let zoomed_layers: std::collections::HashSet<u32> = script
+        .ops
+        .iter()
+        .filter_map(|op| match op {
+            Op::AnimatedSprite { layer, zoom, .. } if *zoom != (100, 100) => Some(*layer),
+            _ => None,
+        })
+        .collect();
     for (i, op) in script.ops.iter().enumerate() {
         if let Op::Text { .. } = op {
             for line in transition.take().unwrap_or_default() {
@@ -461,6 +471,9 @@ pub fn emit(script: &Script) -> String {
                                 writeln!(out, "spfilter {slot},0").unwrap();
                             }
                             writeln!(out, "{}", lsp(slot, sp)).unwrap();
+                            if zoomed_layers.contains(&c.layer) {
+                                writeln!(out, "spzoom {slot},100,100").unwrap();
+                            }
                         }
                         None => writeln!(out, "csp {slot}").unwrap(),
                     }
@@ -1048,7 +1061,7 @@ pub fn emit(script: &Script) -> String {
                 let tag = format!("{mode}/{cells},{frame_ms},{}", u8::from(!*looped));
                 writeln!(out, "spfilter {slot},0").unwrap();
                 writeln!(out, "lsp {slot},\":{tag};{}\",{},{}", path(&sprite.image), sprite.x, sprite.y).unwrap();
-                if *zoom != (100, 100) {
+                if *zoom != (100, 100) || zoomed_layers.contains(layer) {
                     writeln!(out, "spzoom {slot},{},{}", zoom.0, zoom.1).unwrap();
                 }
                 if transition.is_none() {
@@ -2120,6 +2133,21 @@ goto *conv_link1
         let text = emit(&script(vec![Op::ReturnToRoot, Op::Wait { ms: 1 }]));
         assert!(text.contains("if %118 > 0 mov %119,1:return\n*conv_root1\ndelay 1\n"), "{text}");
         assert!(text.contains("*conv_unwind\nif %118 > 0 return\nmov %105,%119:mov %119,0\nif %105 == 1 goto *conv_root1\n"), "{text}");
+    }
+
+    #[test]
+    fn a_picture_after_a_zoomed_animation_is_drawn_unzoomed() {
+        let movie = SpritePlacement { image: "system/movie/smoke.png".into(), x: 1, y: 2 };
+        let picture = SpritePlacement { image: "sprite/a.png".into(), x: 1, y: 2 };
+        let s = script(vec![
+            Op::AnimatedSprite { layer: 5, sprite: movie, cells: 4, frame_ms: 66, looped: true, zoom: (400, 400) },
+            Op::Sprites { changes: vec![SpriteChange { layer: 5, sprite: Some(picture.clone()), keep_filters: false }], fade_ms: 0 },
+            Op::Sprites { changes: vec![SpriteChange { layer: 6, sprite: Some(picture), keep_filters: false }], fade_ms: 0 },
+        ]);
+        let text = emit(&s);
+        assert!(text.contains("spzoom 67,400,400\n"), "{text}");
+        assert!(text.contains("lsp 67,\":a;sprite\\a.png\",1,2\nspzoom 67,100,100\n"), "{text}");
+        assert!(!text.contains("spzoom 68"), "{text}");
     }
 
     #[test]
