@@ -174,6 +174,8 @@ on each later turn; several agents run at once.
 - **Trim command output.** Pipe builds and long runs through
   `tail -n 30` or `grep -E 'error|warning|FAIL'`; write traces and logs
   to a file and query them (`cons_trace_check.py`, `grep`, `jq`).
+  Show the checker few findings per kind (`--max 5`) and, after a fix,
+  only what changed (`--diff before.jsonl after.jsonl`).
 - **Numbers before pictures.** Compare frames with
   `compare -metric AE -fuzz 2% a.png b.png null:` (pixel count) or
   `-metric RMSE`, or crop to the region in question; view an image only
@@ -191,26 +193,17 @@ on each later turn; several agents run at once.
   memory carry the state into a fresh session.
 - No `/loop`, scheduled wakeups or polling unless the user asks; wait
   for background runs to notify.
-- Subagents only when the user asks; then give a search or a mechanical
-  job a cheaper model (`model: "haiku"` or `"sonnet"`) and ask for a
-  short report, not file dumps.
+- **Delegate small jobs to cheaper subagents** when you judge it fits
+  (no need to ask): `model: "haiku"` for searches, greps across the
+  tree, reading a long file for one fact, summarising a log or trace;
+  `model: "sonnet"` for mechanical edits, doc updates, build-test-commit
+  loops and route runs. Keep design, engine work, reverse engineering
+  and hard debugging yourself. Give the subagent the exact task and
+  the files, and ask for a short report, not file dumps.
 
 ## Releasing CONscripter
 
-Bump the version in `asset/icon1.rc`, `src/onsyuri/version.h`,
-`src/onsyuri_android/app/build.gradle` (also `versionCode` + 1),
-`src/onsyuri_android/app/res/values/strings.xml`,
-`src/onsyuri_libretro/conscripter_libretro.info`,
-`src/onsyuri_libretro/libretro.cpp` and `src/onsyuri_web/conscripter.html`
-(CRLF: edit it byte-safely). Leave `ONS_JH_VERSION` alone. Commit
-"Version X.Y.0", tag `vX.Y.0`, push `master` and the tag. Five workflows
-run on tags (Linux, Windows, macOS, web, Android); the release should
-have 9 assets. If `build_web.yml`, `cross_web.sh` or `_fetch.sh`
-changed, let the `master` run finish first (tags read its caches).
-Then write the release notes, a changelog from `git log vOLD..vNEW`
-grouped by what changed for a game or a player:
-`gh release edit vX.Y.0 --notes-file notes.md` (the workflows keep the
-notes since 0.19.0; 0.17.0 and 0.18.0 have none).
+Steps in `docs/releasing.md`; read it only when releasing.
 
 ## Gotchas
 

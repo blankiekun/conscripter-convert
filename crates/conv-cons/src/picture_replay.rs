@@ -17,6 +17,11 @@ const DRAW: &str = "conv_prp_draw";
 const WAIT: &str = "conv_prp_wait";
 /// 1 while a scene plays from the replay (a local, cleared at the title).
 pub(crate) const REPLAYING: &str = "%150";
+/// Set by back to the title during a replay: after the `reset`, the
+/// title goes on to [`END`] (a global, it outlasts the reset).
+pub(crate) const BACK_TO_LIST: &str = "%2962";
+/// After a scene: the fades, then the list.
+const END: &str = "conv_prp_end";
 // Sprites in the game's range (lower numbers drawn on top).
 const BACKGROUND: u32 = MAX_SPRITE;
 const THUMB: u32 = 900; // + scene
@@ -24,6 +29,11 @@ const CURSOR: u32 = 860; // + scene
 const MAX_SCENES: usize = 40;
 const EXIT: u32 = MENU_SPRITES.start;
 const BTN_EXIT: usize = 201;
+
+/// The title's first line: back to the list after a `reset` from a replay.
+pub(crate) fn after_reset() -> String {
+    format!("if {BACK_TO_LIST} == 1 mov {BACK_TO_LIST},0:goto *{END}")
+}
 
 /// `music`: the lines that play the extras' music again (none without a
 /// sound room).
@@ -53,16 +63,17 @@ pub(crate) fn emit(out: &mut String, r: &PictureReplay, border: u32, music: Opti
         w(format!("*conv_prp_s{i}"));
         w(format!("bgmvolfade 0,{}:wait {}", r.start_ms, r.start_ms));
         w(format!("csp -1:bgmstop:bgmvolfade 100:mov {REPLAYING},1"));
-        w(format!("gosub *{}", s.label));
-        w(format!("mov {REPLAYING},0"));
-        w(format!("bgmvolfade 0,{}:wait {}", r.end_ms, r.end_ms));
-        w("csp -1:csp2 -1:bgmstop:stopallsound:bgmvolfade 100:textclear:erasetextwindow 1:bg black,1".into());
-        if let Some(m) = music {
-            w(m.to_string());
-        }
-        w(format!("gosub *{DRAW}:print 10,{}", r.open_ms));
-        w(format!("goto *{WAIT}"));
+        w(format!("gosub *{}:goto *{END}", s.label));
     }
+    w(format!("*{END}"));
+    w(format!("mov {REPLAYING},0"));
+    w(format!("bgmvolfade 0,{}:wait {}", r.end_ms, r.end_ms));
+    w("csp -1:csp2 -1:bgmstop:stopallsound:bgmvolfade 100:textclear:erasetextwindow 1:bg black,1".into());
+    if let Some(m) = music {
+        w(m.to_string());
+    }
+    w(format!("gosub *{DRAW}:print 10,{}", r.open_ms));
+    w(format!("goto *{WAIT}"));
     w(format!("*{DRAW}"));
     w("csp -1".into());
     w(format!("lsp {BACKGROUND},\"{}\",0,0", pic(&r.background)));

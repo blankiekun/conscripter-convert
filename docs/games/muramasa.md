@@ -728,65 +728,14 @@ Next, in order:
       movies of the armour with name plates and specs, `#av_`/`#aw_`). The
       title's ライナー画像 button (after 悪鬼編) is another extra, not yet
       looked at. Plan, in order, each beside the original:
-      1. Done: the menu (a new `PictureExtras`, `conv-cons/src/
-         picture_extras.rs`; Muramasa's values in `convert/muramasa/
-         extras.rs`): MENU背景画像 and five buttons with their hover and
-         pressed pictures; 画像, 回想 and 音楽 at 200/1000 and not clickable
-         until `#ClearG` (set at any route's end roll); the hover sound
-         (鎧_装着01), 装着06 on opening a mode, 剣戟弾く01 on leaving by
-         退出 or a right-click; 500 ms cross-fades from and back to the
-         title, whose music goes on (`TitleAction::Extras`; back from the
-         extras the title skips `bgm`). The `#` flags past %969 now go on
-         at %5200 (the gallery's would have run into the voice switches).
-      2. Done: the gallery (a new `PictureGallery`, `conv-cons/src/
-         picture_gallery.rs`; the slots read from `extra_gallery.nss`'s
-         `Cg`, its 805 `#<cg>` flags declared by `flags()`): the three
-         categories (the open one pressed), 前頁/次頁 going round, 20 slots a
-         page down four columns from the right, 空白アイコン, the first CG
-         seen's thumbnail at half while some are unseen, 選択カーソル under
-         the pointer; the viewer fades each CG in over 500 ms (未見 for an
-         unseen one, black between two unseen), a picture larger than the
-         screen scrolls 12 ms a pixel on a click (a click pauses, the next
-         goes on, a right-click jumps to the end; `Vr`/`Hr` from the far
-         end), a click past the last or a right-click closes it over 300 ms.
-         Beside the original (2D, first page): mean difference 2.7 levels
-         over the grid. Found on the way: with `usewheel` a timed `btnwait`
-         returns -5, not -2, when the time runs out.
-      3. Done: the sound room (a new `SoundRoom`, `conv-cons/src/
-         picture_sound.rs`; the entries read from `extra_sound.nss`'s
-         `Sound`): 37 BGM, five songs (`000` picture until `#msong0N`), three
-         movies (空白アイコン until `#mvOP02`) at the script's places; a
-         track plays looping and stays the extras' music across games
-         (global %2961: the title's at first, opened with the extras, the
-         title's music back on leaving if it differs), the playing one
-         clicked again fades out over 2 s; the ten-picture A-icon turns
-         26 px left of the track playing (33 ms a picture: a guess, wine
-         films the original's process too slowly); a movie fades the music
-         and the screen to black over 1 s, plays (the settings' 動画 option
-         decides whether a click stops it), the music comes back over 1 s
-         and the black fades over 300 ms. Beside the original (the title's
-         track playing): mean difference 1.3 levels, the icon's picture
-         aside. Found on the way: `:c;` draws a PNG's transparent pixels;
-         the extras draw PNGs with `:a;` and JPEGs with `:c;`
-         (`picture_extras::pic`); and a duplicate label (`conv_ps_draw`,
-         the settings') sent the room to the settings' drawing.
-      4. Done: the recollection (a new `PictureReplay`, `conv-cons/src/
-         picture_replay.rs`; the scenes read from `extra_recollection.nss`'s
-         `Reco`): the ten scenes in the gallery's grid, 空白アイコン until the
-         scene's file has been read (`#ma01_020`, set at the file's end), its
-         CG's thumbnail after. Each scene is its file's `_MAIN` compiled once
-         more as a subroutine with `$PLACE_reco` true (a new `Game::replays`),
-         which takes the files' own replay branches. A click fades the music
-         out over 1 s; at the end the music fades over 2 s, everything (the
-         text window too) is cleared, and the list fades back in with the
-         extras' music. Played through `ma01_020` and back, then out to the
-         title. Left: during a replay the original locks save, load and
-         選択肢に戻る and its menu's タイトルへ goes back to the list (ours
-         still offers them), and the 500 ms fade of `RecoIn` from the held
-         list to the scene (ours cuts).
+      1-4. Done: the menu, the gallery, the sound room and the
+         recollection ("History", below).
       5. The 3D viewer.
       6. Back to the title: the white flash and the
          return opening's tail (`TitleOpening::after_extras`).
+      Left from 1-4: the replay cuts to its scene where the original
+      fades the held list out over 500 ms (`RecoIn`); the sound room's
+      turning icon runs at 33 ms a picture, a guess.
 
    The user's decisions (2026-10-14): the pressed state (`003`) becomes
    an engine feature that is on for every script; the settings CONscripter
@@ -1158,3 +1107,64 @@ page each punctuation mark or symbol shows on (`--shot-pages`):
    original at the first page (その他男声 and その他女声 heard): mean
    difference 0.57 levels, every pixel within 40 but the version line.
    Left: the wheel over a slider.
+
+**Extras, step 8 (2026-10-15):**
+
+1. Done: the menu (a new `PictureExtras`, `conv-cons/src/
+   picture_extras.rs`; Muramasa's values in `convert/muramasa/
+   extras.rs`): MENU背景画像 and five buttons with their hover and
+   pressed pictures; 画像, 回想 and 音楽 at 200/1000 and not clickable
+   until `#ClearG` (set at any route's end roll); the hover sound
+   (鎧_装着01), 装着06 on opening a mode, 剣戟弾く01 on leaving by
+   退出 or a right-click; 500 ms cross-fades from and back to the
+   title, whose music goes on (`TitleAction::Extras`; back from the
+   extras the title skips `bgm`). The `#` flags past %969 now go on
+   at %5200 (the gallery's would have run into the voice switches).
+2. Done: the gallery (a new `PictureGallery`, `conv-cons/src/
+   picture_gallery.rs`; the slots read from `extra_gallery.nss`'s
+   `Cg`, its 805 `#<cg>` flags declared by `flags()`): the three
+   categories (the open one pressed), 前頁/次頁 going round, 20 slots a
+   page down four columns from the right, 空白アイコン, the first CG
+   seen's thumbnail at half while some are unseen, 選択カーソル under
+   the pointer; the viewer fades each CG in over 500 ms (未見 for an
+   unseen one, black between two unseen), a picture larger than the
+   screen scrolls 12 ms a pixel on a click (a click pauses, the next
+   goes on, a right-click jumps to the end; `Vr`/`Hr` from the far
+   end), a click past the last or a right-click closes it over 300 ms.
+   Beside the original (2D, first page): mean difference 2.7 levels
+   over the grid. Found on the way: with `usewheel` a timed `btnwait`
+   returns -5, not -2, when the time runs out.
+3. Done: the sound room (a new `SoundRoom`, `conv-cons/src/
+   picture_sound.rs`; the entries read from `extra_sound.nss`'s
+   `Sound`): 37 BGM, five songs (`000` picture until `#msong0N`), three
+   movies (空白アイコン until `#mvOP02`) at the script's places; a
+   track plays looping and stays the extras' music across games
+   (global %2961: the title's at first, opened with the extras, the
+   title's music back on leaving if it differs), the playing one
+   clicked again fades out over 2 s; the ten-picture A-icon turns
+   26 px left of the track playing (33 ms a picture: a guess, wine
+   films the original's process too slowly); a movie fades the music
+   and the screen to black over 1 s, plays (the settings' 動画 option
+   decides whether a click stops it), the music comes back over 1 s
+   and the black fades over 300 ms. Beside the original (the title's
+   track playing): mean difference 1.3 levels, the icon's picture
+   aside. Found on the way: `:c;` draws a PNG's transparent pixels;
+   the extras draw PNGs with `:a;` and JPEGs with `:c;`
+   (`picture_extras::pic`); and a duplicate label (`conv_ps_draw`,
+   the settings') sent the room to the settings' drawing.
+4. Done: the recollection (a new `PictureReplay`, `conv-cons/src/
+   picture_replay.rs`; the scenes read from `extra_recollection.nss`'s
+   `Reco`): the ten scenes in the gallery's grid, 空白アイコン until the
+   scene's file has been read (`#ma01_020`, set at the file's end), its
+   CG's thumbnail after. Each scene is its file's `_MAIN` compiled once
+   more as a subroutine with `$PLACE_reco` true (a new `Game::replays`),
+   which takes the files' own replay branches. A click fades the music
+   out over 1 s; at the end the music fades over 2 s, everything (the
+   text window too) is cleared, and the list fades back in with the
+   extras' music. Played through `ma01_020` and back, then out to the
+   title. During a replay, as in the original, save, load, しおり
+   (quick save and load) and 選択肢に戻る are greyed in the menu and the
+   quick bar (`BarScreens::picture_replay`, `menu::NO_SAVE`), and
+   タイトルに戻る (asked, then `reset`) comes back to the list (global
+   %2962, read first thing by the title). Left: the 500 ms fade of
+   `RecoIn` from the held list to the scene (ours cuts).

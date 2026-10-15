@@ -120,7 +120,8 @@ const BUTTON_VAR: &str = "%9";
 // nitroplus compiler's `GLOBAL_OVERFLOW`). %130-%139, the picture extras'
 // gallery ([`picture_gallery`]; only at the title). %2961, the picture
 // extras' music ([`picture_sound`]). %150, a scene replay of the picture
-// extras is playing ([`picture_replay`]).
+// extras is playing, %2962, back to its list after a reset, %151, saving
+// locked meanwhile ([`picture_replay`], [`menu::NO_SAVE`]).
 /// NScripter variables: locals from %10, globals from %200. `globalon`
 /// makes %200 and up persist across games.
 const LOCAL_VAR_BASE: u32 = 10;
@@ -202,6 +203,7 @@ pub fn emit(script: &Script) -> String {
     };
     // The replay is reached from the title's extras.
     let has_replay = script.title_screen.is_some() && script.extras.as_ref().is_some_and(|e| e.replay.is_some());
+    let picture_replay = script.title_screen.is_some() && script.picture_extras.as_ref().is_some_and(|e| e.replay.is_some());
     let mut root_resumes = 0;
     let mut turns = 0;
     let mut puzzles = 0;
@@ -343,7 +345,7 @@ pub fn emit(script: &Script) -> String {
     let save_menu = script.save_menu.is_some() || script.save_grid.is_some();
     let effect = |ms: u32| if ms == 0 { "1".to_string() } else { effects[&(ms, Effect::Fade)].clone() };
     if let Some(t) = &script.title_screen {
-        title_screen(&mut out, t, &effect(t.fade_ms), save_menu, has_settings, script.confirm.as_ref(), script.extras.is_some(), border);
+        title_screen(&mut out, t, &effect(t.fade_ms), save_menu, has_settings, script.confirm.as_ref(), script.extras.is_some(), border, picture_replay);
     }
     let back_to_choice = script.button_bar.as_ref().is_some_and(|b| menu::has_back_to_choice(b, script.command_menu.as_ref()));
     if back_to_choice {
@@ -1112,6 +1114,7 @@ pub fn emit(script: &Script) -> String {
             settings: has_settings,
             backlog: script.backlog.is_some() || script.line_log.is_some(),
             replay: has_replay,
+            picture_replay,
             command_menu: script.command_menu.as_ref(),
             confirm: script.confirm.as_ref(),
             width: script.width,
@@ -1125,7 +1128,7 @@ pub fn emit(script: &Script) -> String {
         };
         menu::button_bar(&mut out, b, screens);
         if let Some(m) = &script.command_menu {
-            command_menu::emit(&mut out, m, b);
+            command_menu::emit(&mut out, m, b, picture_replay);
         }
         if let Some(h) = b.top.as_ref().and_then(|t| t.chapter_history.as_ref()) {
             chapters::emit(&mut out, h);
@@ -1158,7 +1161,12 @@ pub fn emit(script: &Script) -> String {
 /// Start clears them and falls through to the script that follows. Load
 /// opens the save menu's load screen if there is one, else ONScripter's.
 #[allow(clippy::too_many_arguments)]
-fn title_screen(out: &mut String, t: &TitleScreen, fade: &str, save_menu: bool, settings: bool, confirm: Option<&ConfirmDialog>, extras: bool, border: u32) {
+/// `replay_back`: a picture extras' replay may `reset` back to its list
+/// ([`picture_replay::BACK_TO_LIST`]).
+fn title_screen(out: &mut String, t: &TitleScreen, fade: &str, save_menu: bool, settings: bool, confirm: Option<&ConfirmDialog>, extras: bool, border: u32, replay_back: bool) {
+    if replay_back {
+        writeln!(out, "{}", picture_replay::after_reset()).unwrap();
+    }
     let buttons: Vec<_> = t.buttons.iter().zip(MENU_SPRITES).collect();
     // %105 = 1 while there is a quick save (for Continue).
     let quick = buttons.iter().any(|(b, _)| b.action == TitleAction::Continue);
