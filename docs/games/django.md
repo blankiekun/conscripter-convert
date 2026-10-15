@@ -213,8 +213,17 @@ What it showed (2026-10-15):
   ones scroll up from their bottom. Beside the original under wine
   (2026-10-15): the page and the viewer match pixel for pixel, but for
   the rifle animation over a category under the pointer (left out).
-- **Recollection, sound library**: not converted yet (drawn, not
-  clickable).
+- **Sound library** (`extra_sound.nss`, Muramasa's `SoundRoom`): 35
+  songs (1.01's `cg2.npa` titles), the one playing in white with the
+  running horse; pixel for pixel the original's but for the horse's
+  frame. Ours keeps the title's music in the extras where the original
+  starts `dj_INS12`, and a click on the song playing stops it.
+- **Recollection** (`extra_recollection.nss`, `PictureReplay`): eleven
+  scenes, all open; each `extra_N_*.nss` chapter is compiled once more as
+  a subroutine (`Game::subroutines`) and played from the list. The list
+  is pixel for pixel the original's; a replay plays to its end and comes
+  back to the list. Save and load are refused during a replay (the
+  shared replay code, as in the original).
 
 ## Story structure and walkthrough
 
@@ -263,7 +272,7 @@ yet.
 | Pictures, sound in scripts | 🟡 Black bars, face windows in their frames, standing pictures, backgrounds; what Muramasa's compiler does for effects (moves and zooms as cross-fades); every sound is found |
 | Choices | 🟡 Django's plates; text place and hover colour guessed |
 | System screens | 🟡 From the game's pictures (`django/screens.rs`): title, right-click menu, save/load (3×20 slots), yes/no questions, text log, settings (bullet rows as `SliderSteps`), the click-wait bullet; not compared with the original (it wants its disc under wine) |
-| Extras | 🟡 Menu and CG library (compared with the original); recollection and sound library not yet |
+| Extras | 🟡 Menu, CG library, sound library, recollection, each compared with the original; left out: the doors' animation, the rifle over a category |
 | Saves | 🟡 `--roundtrip-every 100` over the first 1,500 pages: no save/load mismatch; saves from the screens not tried by hand |
 | Web build | 🟡 Plays in a browser (title, story pages); saves, sound and touch not checked yet |
 
@@ -288,8 +297,6 @@ yet.
    above the bottom bar.
 6. Camera moves (`MoveCamera`, 365 calls) and moves and zooms over time
    (drawn as cross-fades), shared with Muramasa's compiler.
-7. Extras: the recollection (`extra_recollection.nss`, ten scenes from
-   `extra_N_*.nss`) and the sound library (`extra_sound.nss`), on
-   Muramasa's IR where it fits (`SoundRoom`).
+7. Extras: the doors' animation and the menu's own music (left out).
 8. The title's congratulations (`TitleCongratulations`, sets
    `#ClearAll`) and the click-wait bullet after the text.

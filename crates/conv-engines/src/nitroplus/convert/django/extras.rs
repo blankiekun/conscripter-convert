@@ -7,7 +7,7 @@
 
 use std::collections::BTreeMap;
 
-use conv_core::ir::{ExtrasMode, GalleryCategory, PictureExtras, PictureExtrasItem, PictureGallery, PictureSlot, Placed, RoomTrack, SlotCg, SoundRoom};
+use conv_core::ir::{ExtrasMode, GalleryCategory, PictureExtras, PictureExtrasItem, PictureGallery, PictureReplay, PictureSlot, Placed, ReplayEntry, RoomTrack, SlotCg, SoundRoom};
 
 use super::super::{Assets, Story};
 use crate::nitroplus::nss::{AssignOp, BinaryOp, Expr, Item, NssFile, Stmt, StmtKind, Var};
@@ -58,7 +58,7 @@ pub fn extras(a: &mut dyn Assets, story: &Story) -> Option<PictureExtras> {
         fade_ms: 500,
         gallery: gallery(a, story),
         sound: sound(a),
-        replay: None,
+        replay: replay(a, story),
     })
 }
 
@@ -321,5 +321,71 @@ fn sound(a: &mut dyn Assets) -> Option<SoundRoom> {
         stop_fade_ms: 1000,
         movie_fade_ms: 0,
         movie_back_ms: 0,
+    })
+}
+
+/// The recollection's scenes (`extra_recollection.nss`): each an
+/// `extra_N_*.nss` chapter calling the story's scene files, compiled once
+/// more as a subroutine ([`Game::subroutines`](super::super::Game)), and
+/// its thumbnail (`rec_init`).
+pub const SCENES: [(&str, &str); 11] = [
+    ("conv_rec1", "nss/extra_1_dja003_フランコのベッド.nss"),
+    ("conv_rec2", "nss/extra_1_dja012_配当.nss"),
+    ("conv_rec3", "nss/extra_1_dja029_襲撃準備.nss"),
+    ("conv_rec4", "nss/extra_1_dja042_イライザ拷問.nss"),
+    ("conv_rec5", "nss/extra_1_dja043_エル・ドミンゴへ.nss"),
+    ("conv_rec6", "nss/extra_2_dja018_１００人斬り.nss"),
+    ("conv_rec7", "nss/extra_2_dja020_総仕上げ.nss"),
+    ("conv_rec8", "nss/extra_3_dja005_共同戦線.nss"),
+    ("conv_rec9", "nss/extra_3_dja047_リリィ、名無し捕まる.nss"),
+    ("conv_rec10", "nss/extra_4_dja001_フランコ馬車を襲う.nss"),
+    ("conv_rec11", "nss/extra_5_dja033_エスパルテロ市街戦.nss"),
+];
+
+const THUMBNAILS: [&str; 11] = [
+    "ev_dja003_イライザ後背位",
+    "ev_dja012_イライザオナニー",
+    "ev_dja029_イライザ騎乗位３Ｐ_d",
+    "ev_dja042_イライザ触手Ａ_a",
+    "ev_dja042_イライザ触手Ｂ",
+    "ev_dja018_名無し押し倒され_b",
+    "ev_dja020_名無し逆レイプ",
+    "ev_dja005_リリィ泡風呂_a",
+    "ev_dja047_リリィ強姦騎乗位",
+    "ev_dja001_宇宙淑女Ａ正常位_a",
+    "ev_dja033_ブルネット女強姦",
+];
+
+/// The recollection library (`extra_recollection.nss`): エクストラレコレ背景
+/// with eleven thumbnails five across from (130,80), 110 and 86 apart, as
+/// the CG library's; EXIT at (702,536). Every scene is open. A click fades
+/// the music out and the screen to black over 500 ms and plays the scene
+/// (save and load locked in the original); after it the list comes back
+/// from black over 500 ms with the extras' music.
+fn replay(a: &mut dyn Assets, story: &Story) -> Option<PictureReplay> {
+    const DIR: &str = "cg/sys/extra/recollection";
+    let cleared = *story.flags.get(CLEARED)?;
+    let mut scenes = Vec::new();
+    for ((label, _), thumbnail) in SCENES.iter().zip(THUMBNAILS) {
+        let thumbnail = a.image(&format!("cg/thum/{thumbnail}.jpg"))?.0;
+        scenes.push(ReplayEntry { thumbnail, unlocked_by: cleared, label: label.to_string() });
+    }
+    let (exit, w, h) = a.strip(&[&format!("{DIR}/EXIT001.png"), &format!("{DIR}/EXIT002.png"), &format!("{DIR}/EXIT003.png")])?;
+    let clear = a.transparent();
+    let (cursor, _, _) = a.composite(&[(clear.clone(), 0, 0, 1000), (clear, 199, 74, 1000)])?;
+    Some(PictureReplay {
+        background: a.image(&format!("{DIR}/エクストラレコレ背景.jpg"))?.0,
+        exit: Placed { image: exit, x: 702, y: 536, w: w as i32, h: h as i32 },
+        first: (130, 80),
+        row_step: 86,
+        column_step: 110,
+        rows: 3,
+        blank: a.image("cg/sys/extra/cg/未見画像アイコン.png")?.0,
+        cursor,
+        scenes,
+        open_ms: 500,
+        start_ms: 500,
+        end_ms: 500,
+        across: Some(5),
     })
 }

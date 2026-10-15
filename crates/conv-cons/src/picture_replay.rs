@@ -39,7 +39,13 @@ pub(crate) fn after_reset() -> String {
 /// sound room).
 pub(crate) fn emit(out: &mut String, r: &PictureReplay, border: u32, music: Option<&str>) {
     assert!(r.scenes.len() <= MAX_SCENES, "a replay with more scenes than its sprites");
-    let place = |i: u32| (r.first.0 + r.column_step * (i / r.rows) as i32, r.first.1 + r.row_step * (i % r.rows) as i32);
+    let place = |i: u32| {
+        let (column, row) = match r.across {
+            Some(n) => (i % n, i / n),
+            None => (i / r.rows, i % r.rows),
+        };
+        (r.first.0 + r.column_step * column as i32, r.first.1 + r.row_step * row as i32)
+    };
     let mut w = |line: String| {
         out.push_str(&line);
         out.push('\n');
