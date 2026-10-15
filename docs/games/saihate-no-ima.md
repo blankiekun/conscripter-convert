@@ -224,13 +224,13 @@ N of the scene replay (`%3000+N`); `0x94` ends a replayed scene.
 | `0x80` | 1 | **solved** (handler `0x413cd0`; fields +0x1a8/+0x1ac, 100 for a new object; key-frame motions set them with flag 0x80) | an object's scale: u8 layer, u32 depth, i32 x, y percent. 0013.cd: character 12 at 80 % after 0x82 made it translucent. Converted as a pre-scaled copy of the bust-up centred on the same point, then the opacity again |
 | `0x69` | 32 | **solved** (handler `0x473940`, wait callback `0x473810`; checked under wine with a patched `0002.cd`) | no record: a click wait showing the picture alone (text window and bars hidden, the wait icon in the corner), passed by skip mode. Converted like 0x68 with `skippable` |
 | `0x86`, `0x87`, `0x7f` | 19, 9, 12 | **solved** (handlers `0x413540`/`0x413350`, `0x413820`, `0x413bb0`; objects found as in `0x82`) | `0x86` adds a module to an object (u8 layer, u32 depth, u32 slot, u32 kind; kind `0x80000001` removes the slot's module) — always a key-frame motion (`CModule_Animation_KeyFrameMotion`, setup `0x416fe0`): the kind is its flags, which fields each key frame has after its u32 ms (0x10 u8; 0x20/0x40/0x80 i32, i32, u8 with 0x40 the position; 0x100 i32 rotation, u8; 0x200 u16 opacity, u8), then a u16 key frame count; the first frame is replaced by the object's state; each u8 is the field's interpolation (`0x4176f0`: 0 kept, 1 a jump halfway, 2 linear, 3 a curve). `0x87` waits for it (u8 layer, u32 depth, u32 slot, u8 `0xff`); `0x7f` puts the object's centre at i32 x, y. The game slides bust-ups (9: start, wait, remove, `0x7f` to the end point; all inside an armed transition, so the original fades and slides at once) and fades the overlay out once (`0x200`, `0002.cd` #14). Converted as `Op::SpriteMove`: `*conv_move` (`getsppos`/`getspsize`, `amsp` steps on the timer); the transition is shown first, then the slide. The rotation (field +0x1b0, tenths of a degree mod 3600, clockwise; `0x81` sets it: u8 layer, u32 depth, i32 angle) of -900 in `0043.cd` #440 is drawn by `Op::SpriteTurn` (lsp2/amsp2, the sprite ends off screen). Key-frame group 0x80 is the scale (+0x1a8/+0x1ac) |
-| `0x8c` | 240 | **solved** (handler `0x4153c0`, `AdvObjectScript_Env.cpp`, objects `environment-<slot>`): u32 slot (0 = clear all), u32 layer \| depth << 8 (the word goes to `0x4109a0` as the object's sort key, see `0x4126c0`; the game uses depth 1000), u32 kind (0 = clear the slot), then the kind's module data (setup table `0x5013bc`; module class from the creator table `0x501434` + RTTI): 1 Animation-Simple on `HD/env.arc` image 50,000,000 + n (light rays, unused), 2 Animation-RandomNoise (88 uses), 3 Filter-LensFlare (unused), 4 Animation-Replace (25), 5 Animation-Vibrate (12). Layouts and maths in `cd.rs` (`Noise`, `Ripple`, `Shake`) | static: an animated sprite (4 generated frames, `system/noise.png`) at the end opacity, sprite 60, kept across `csp -1` like `0x55`; the opacity rise isn't converted. Ripple (draw `0x41a2d0`, per pixel `0x43d9d0`: each pixel from amp × sin(2π(grey/256 + phase/1000)) pixels away along the angle, map `mask%04u.png`, blended at the opacity) → `screenripple`; shaking (draw `0x41ac70`: the picture blitted onto itself at a sine or 7-point-path offset) → `screenshake` |
+| `0x8c` | 240 | **solved** (handler `0x4153c0`, `AdvObjectScript_Env.cpp`, objects `environment-<slot>`): u32 slot (0 = clear all), u32 layer \| depth << 8 (the word goes to `0x4109a0` as the object's sort key, see `0x4126c0`; the game uses depth 1000), u32 kind (0 = clear the slot), then the kind's module data (setup table `0x5013bc`; module class from the creator table `0x501434` + RTTI): 1 Animation-Simple on `HD/env.arc` image 50,000,000 + n (light rays, unused), 2 Animation-RandomNoise (88 uses), 3 Filter-LensFlare (unused), 4 Animation-Replace (25), 5 Animation-Vibrate (12). Layouts and maths in `cd.rs` (`Noise`, `Ripple`, `Shake`) | static: an animated sprite (4 generated frames, `system/noise.png`) at the end opacity, sprite 60, kept across `csp -1` like `0x55`; its rise from opacity 0 over `time_ms` (up to 2 s) is CONscripter's `spfade` (`Op::NoiseFadeIn`). Ripple (draw `0x41a2d0`, per pixel `0x43d9d0`: each pixel from amp × sin(2π(grey/256 + phase/1000)) pixels away along the angle, map `mask%04u.png`, blended at the opacity) → `screenripple`; shaking (draw `0x41ac70`: the picture blitted onto itself at a sine or 7-point-path offset) → `screenshake` |
 | `0x6d` | 198 | **solved** (handler `0x442000`, object `0x441ee0` at sort key `0x06000000`, the bottom of the text window's band): u32 speed, u32 x and y range in pixels (mostly 80, 20, 20). The picture moves along 0x8c's 7-point path, `speed` points a second; after 4 points both ranges shrink by max(speed / 4, 50) px/s until 0. The script waits; a click ends it. Skipped while skipping or with effects off | a quake, often right after a sound effect. Converted to `screenshake 4,…` (mode 1, ranges shrinking from the start over the same total time) + `delay` + `screenshake 4` |
-| `0x6e` | 88 | **solved** (handler `0x441550`, object `0x4413d0` at sort key `0xffffffff`, over everything): `arg` = COLORREF filled over the screen with blend 1 (Add) at opacity 128 for 100 ms; the script waits, a click ends it. White for lightning and shocks, red (`0x0000ff`) for blows | a flash. Converted to `lsp2add` of a full-screen colour rectangle (`>800,600,#rrggbb`, alpha 127) for a 100 ms `delay`. Difference: sprite2 is under the text window, the original flash also covers it |
+| `0x6e` | 88 | **solved** (handler `0x441550`, object `0x4413d0` at sort key `0xffffffff`, over everything): `arg` = COLORREF filled over the screen with blend 1 (Add) at opacity 128 for 100 ms; the script waits, a click ends it. White for lightning and shocks, red (`0x0000ff`) for blows | a flash. Converted to CONscripter's `screenflash 128,"#rrggbb"` (`Op::ScreenFlash`; the colour added over everything, the text window included, as the original's sort key puts it) for a 100 ms `delay` |
 | `0x6f` | 87 | **solved** (handler `0x441a00`, `Surprise.cpp`, object at sort key `0x06000000`): u32 time (1-32767 ms), u32 preset 0-8 from the table at `0x500b68` (zoom x/y 16.16 = 10/15/20 %, opacity 100/150/200, tint colour/opacity/blend: none for 0-2, light red `0x8080ff` Multi for 3-5, white blend 6 for 6-8). Takes a snapshot of the picture, tints it, and lays it over the picture scaled by 1 + f × zoom about the centre at f × opacity, f = sin(π t) over the time; the script waits | a "surprise" pulse. Converted to CONscripter's `screenpulse 3,…` (zoom 100/150/200 ‰; Multi → `tint` 1, blend 6 assumed to lay the white over the copy → `tint` 2) + `delay` + `screenpulse 3`. Not checked against the original |
 | `0x57` | 542 | **solved** (handler `0x473530` → sound request `0x47aab0`, channel 0) | play BGM: `arg` = track (1-based, `bm0000.bin` slot `arg - 1`), `sub` = fade-in ms (capped at 30 s) |
 | `0x58` | 579 | **solved** (channel 0, stop flag) | stop BGM: `arg` 0 = all, `sub` = fade-out ms |
-| `0x5a` | 2,633 | **solved** (`op_5a` `0x4736f0` → `sound_request` `0x47aab0`, channel 1) | play SE: packed 9-byte record `u32 fade-in ms, u8 loop, u32 sound` (1-based across `k0000.bin` + `k0001.bin`); a non-looping SE isn't played in skip mode. The fade-in (41 uses, 50-3000 ms, mostly loops) is CONscripter's `dwavefadein` (`Op::SeFadeIn`; added after the audit) |
+| `0x5a` | 2,633 | **solved** (`op_5a` `0x4736f0` → `sound_request` `0x47aab0`, channel 1) | play SE: packed 9-byte record `u32 fade-in ms, u8 loop, u32 sound` (1-based across `k0000.bin` + `k0001.bin`); a non-looping SE isn't played in skip mode (converted: `Op::SeNotSkipped`, `isskip` before the `dwave`). The fade-in (41 uses, 50-3000 ms, mostly loops) is CONscripter's `dwavefadein` (`Op::SeFadeIn`; added after the audit) |
 | `0x5b` | 890 | **solved** (`op_5b` `0x4737a0`, channel 1, stop flag) | stop SE: `arg` = sound or 0 for all, `sub` = fade ms: `dwavefadeout ch,ms` (`Op::SeFadeOut`), which fades and stops while the script goes on |
 | `0x76` | 3,670 | **solved** (`op_76` `0x449df0`): `sub` picks the `Trans_*` class through a jump table (0-3 Wave, 4 Dot4x4, 5-8 SoftEdgeWipe, 9 CrossFade, 10-17 Slide in, 18-25 Slide out, 26 Dissolve, 27 Mosaic, 28-31 BoxRolling, 32-35 RollFlip, 36 SmoothCrossFade, 37-40 Zoom, 41-44 Scroll, 45-47 MeltDown, 48 TvPowerSwitch); the record is u32 ms, u32 flags (bit 0 hides the windows, bits 0-1 remove the bust-ups; always 0), u32 layer byte \| depth << 8 (the transition's sort key: what it covers). Skipped when skipping or with effects off | screen transition. Not converted: the 3 `0x76` and 9 `0x77` records with a layer other than the default `0x271000` (over everything), which only cover the objects below them |
 
@@ -243,7 +243,7 @@ the rows above and the converter:
 |---|---|
 | Consistent | `0x00`, `0x01`-`0x0e` (all 14 as the converter maps them), `0x10`, `0x11`, `0x15`-`0x1b`, `0x22`, `0x23`, `0x36`-`0x38`, `0x3b`, `0x40`, `0x41`, `0x43`, `0x44`, `0x46`-`0x4a`, `0x4c`-`0x50`, `0x52`, `0x53`, `0x55`, `0x56`, `0x57`-`0x59`, `0x67`-`0x69`, `0x6d`-`0x71`, `0x7a`-`0x7d`, `0x7f`-`0x84`, `0x86`-`0x88`, `0x8a`-`0x8d`, `0x8f`-`0x91`, `0x93`, `0x94`, `0x96`, `0x97`, `0x99`, `0x9d` |
 | Fixed | `0x72`/`0x74` fades (were waits); `0x39` clears the static (seen in the original); `0x8e` records with every entry's mode bit 1 show at once; `0x54` removes the overlay, puts `frame01`-`03` up for `sub` 1-3 and starts no fade; `0x66` with a zero high half can't be clicked through; `0x5a`/`0x5b` sound effects fade in and out (new CONscripter commands `dwavefadein`, `dwavefadeout`) |
-| Not converted (rows above) | 12 transitions that cover only part of the picture (`0x76`/`0x77` layer); a non-looping SE is still played in skip mode |
+| Not converted (rows above) | 12 transitions that cover only part of the picture (`0x76`/`0x77` layer) |
 
 Two doc mistakes corrected on the way: `0x8e`'s last 32 bytes are an
 (always empty) module name, not junk; `0x76`'s third u32 is a sort key,
@@ -580,13 +580,105 @@ exe (`research/tools/ghidra/ghidra_export.sh`, names in
      with half-width spaces): the converter now counts each line's rows as
      the engine lays them out (`line_rows`) before joining a message onto
      the page (`conv_link34_1`).
-   Left, for whoever comes next: `s7_l22`'s blog post is one message of
-   23 lines whose header wraps to 24 rows (it would need a message split
-   across pages, links and styles included); `s157_l1:262733` ran past
-   the window in the exploration (reached from link scene `conv_link23`
-   through `s167_l1`) but not when started there; the rest of the
-   findings are the known kinds (sounds started twice, bust-ups at one
-   place, looping ambience, the 37600 px `fx` strips).
+   Left, for whoever comes next: the rest of the findings are the known
+   kinds (sounds started twice, bust-ups at one place, looping ambience,
+   the 37600 px `fx` strips).
+6. **Done: messages taller than the window** (the user's list after the
+   exploration, 2026-10-14). `s7_l22`'s blog message is 24 lines whose
+   two headers wrap: `line_rows` counted the converter's text, before the
+   script writer makes `/ ( ) !` and the other special characters
+   full-width (`escape_text`), so a header like
+   「ほっとした  投稿者:ToolSmith004/どらいばあ(米) …」 looked like one row.
+   It now counts them as written, and a message taller than the
+   full-screen window goes on as many pages as it needs (`split_rows`):
+   at line ends, before the last post separator (`━`) when one is in the
+   second half of the page, with links and styles cut in two at the split
+   (a reading across it is dropped; none is). Voice, name and hanging
+   indent stay with the first page. A trace from `--goto s7_l22` has no
+   page past the window.
+7. **Done: scenes entered by a jump got the previous file's window.**
+   `s157_l1:262733` ran past the message box when reached from link scene
+   `conv_link23`. A script file starts with two label markers (`sN_l0`,
+   then `sN_l1`), and `falls_into` took the empty `sN_l0` for code
+   falling into `sN_l1`, so `sN_l1` never took the window its callers
+   agree on and kept the one the file before it ended with. In s12 and
+   s157-s169 (the COMPLETE scenes) that was a full-screen window: the
+   names were written into the text (【シャーリー】「…」) and the pages
+   laid out for 40 columns, in the message box. Now markers right before
+   a label are passed over, and the start of a file falls into nothing
+   (only `s4_l0` is ever jumped to). The rows a message takes also count
+   what the script writer adds: a full-width space before a line that
+   starts with ASCII, and the hanging indent (`indent`) on wrapped rows
+   (`line_cells`, `hang_cells`; the chat log in `conv_link35_1`), and a
+   message taller than any window, not only a full-screen one, goes on
+   two pages. Explorations of the same route (`--seed 1`, 68,619 pages)
+   had 5 pages past the window before these fixes, 1 before the indent
+   fix (`conv_link35_1:48911`) and none after it; the other findings
+   didn't change. Starting at `--goto conv_link35_1`
+   still shows pages past the window: the full-screen window is set just
+   before that label, so a start there is in the message box (not a
+   problem in play).
+8. **Done: sound effects in skip mode.** `sound_request` leaves a
+   sound effect that doesn't loop out while skipping; the converter now
+   marks those (`Op::SeNotSkipped`) and the script writes `isskip %105`
+   and `if %105 != 1` before their `dwave` (and fade-in).
+9. **Done: the auto wait per page and per character.** The original
+   waits a time per page plus a time per character (`0x476f50`; the
+   settings' 改頁待ち時間 文章単位, 0-5 s, and 文字単位, 0-100 ms;
+   defaults 2.5 s and 20 ms, `0x46d000`). CONscripter's `automode_time`
+   takes a second number for the time per character (added for this), and
+   the settings' one オート速度 row sets both (`Setting::AutoWait`): at
+   level v, (10 - v) × 500 ms plus (10 - v) × 4 ms a character, so the
+   default level 5 is the original's default. Two rows, as in the
+   original, don't fit: the settings screen's sprites are all used.
+10. **Done: a save inside a link scene keeps the levels around it.**
+   The original keeps its scene stack in a save (`CLocalSceneStack`);
+   the port kept only the level saved, so after a load the levels above
+   couldn't be gone back to. A save from the menu now also copies the
+   levels' slots (900 + level, those between `%190` and `%151`) to save
+   slots 1000 + 10 × slot + level with CONscripter's new `copysavegame`
+   (`*conv_scene_keep`), deleting a slot's old ones; a load
+   (`*conv_scene_loaded`, the slot in `%2904`) copies them back and keeps
+   the floor and the deepest level as saved; deleting a save deletes
+   them. Checked with `smoke.py` from `conv_link2`: enter the link, save
+   to slot 1, load it, "back" goes to the root page, "forward" is there.
+11. **Done: 「次の音声まで停止しない」.** The original's voice page has
+   it, on by default (field 0x72, `0x51ed59` = 1 in `0x46d000`): a voice
+   plays on after a click until the next voice, as the port always did.
+   It is now a switch on the settings' third page (renamed その他 from
+   マウス・確認), `Switch::VoiceKeepsPlaying`; off, the click that reads
+   on stops the voice (`dwavestop 0` in `*conv_wait_end`). Its flag is
+   `%2910`: the switches' flags from `%3640` end where the scene
+   replay's start (`%3650`), so switches after the eighth (Muramasa's
+   `ConfirmBackToChoice`, `%3647`) start at `%2910`.
+12. **Done: flashes cover the text window.** `0x6e`'s object sorts over
+   everything (key `0xffffffff`); the port's flash was an `lsp2add`,
+   which the engine draws under the text window. CONscripter's new
+   `screenflash opacity,colour` adds the colour at the very end of a
+   redraw, over the window, the bars and the buttons
+   (`Op::ScreenFlash`; `Op::Flash` stays as it was for the other games).
+   Whether the original's flash also covers its button bar (a window of
+   its own, `CSystemTray`) wasn't checked.
+13. **Done: the static rises in.** `0x8c`'s Animation-RandomNoise goes
+   from opacity 0 to its end opacity over `time_ms` (37 of the 88 uses
+   take 1-2 s) while the script goes on; the port showed it at its end
+   opacity at once. CONscripter's new `spfade num,ms` fades a sprite in
+   by itself, and the static's `lsp 60` is followed by `spfade 60,ms`
+   (`Op::NoiseFadeIn`). Inside a transition the transition's snapshot
+   catches the static at the start of its rise, and the rest of the rise
+   follows the transition.
+14. **Done: a guided run through all twelve loops.** The explorer's runs
+   stop finding new ground because the heroine routes need their links
+   clicked in a set order. `research/xuse/route.py <build>/0.txt` writes
+   a `--choices` file (the heroine links of 最初の日 found by their text:
+   none in loops 1, 6 and 7, あずさ, さやか, ふえこ, ようこ in 2-5 and
+   8-11); `cons_explore.py <build> --route route.txt --runs 1 --stop-known
+   0` then plays the whole game (70,186 pages, to the title after the
+   epilogue). Its findings are the known kinds, nothing new. It reaches
+   1,415 labels, as the plain exploration did: of the 1,766 left, all
+   but a few dozen are the extras (the CG viewer's 425, the scene
+   replay's 440) and the scene replay's own scripts (0014-0018, 0020,
+   `09_回想*`), which only the extras menu enters.
 
 
 Converted and playable from start to end: text, voices, sprites with
@@ -628,10 +720,10 @@ engine's debug trace (`cons_explore.py`, 62,185 pages, 1,220 labels;
   (`%151`). A switch between levels (`%2900` = 1) carries the floor over
   instead. The original keeps the whole stack in its saves (the exe has
   `SaveControl\LocalSaveStack.cpp` and `CLocalSceneStack`), so a load
-  there can still go back: a known difference, limited to a save made
-  inside a link scene. Matching it needs a copy of slots 900+ for each
-  save slot, which NScripter commands can't make (an engine command that
-  copies a save file would).
+  there can still go back. So does the port since 2026-10-14 (Status,
+  item 10): a save from the menu keeps the levels' slots beside it and a
+  load puts them back, with `%190` as saved; only a save made by an
+  older build loads as described above.
 - **Pictures "too large for the web build" (not a problem).** The
   `fx\fx0*.png` animation strips (from `HD/fx.arc`, sprite 59: the
   frames side by side in playing order) are up to 37600×600 (`fx0102b`,
@@ -681,10 +773,10 @@ to the game. Nothing in it was asked for.
 
 **Settings screen.** The original's settings dialog has six pages; these
 parts are not converted:
-- text: auto-mode wait per page and per character,
-  stopping skip/auto on a choice or click, font, antialiasing, decoration;
-- voice: "次の音声まで停止しない" (keep a voice playing into the next
-  line), auto-play of voices in the CG viewer;
+- text: the auto waits per page and per character as two settings (one
+  row sets both), stopping skip/auto on a choice or click, font,
+  antialiasing, decoration;
+- voice: auto-play of voices in the CG viewer;
 - sound: per-channel mute switches, the system voice;
 - mouse: wheel sensitivity (the wheel switches and the confirmation
   switches are done);
@@ -726,8 +818,7 @@ ones done:
   (the original eases it). BoxRolling is a push where the original
   squeezes the pictures like cube faces; MeltDown's stretch for subs
   46/47 is scaled from the exe, not filmed. Quakes, flashes and pulses
-  were never compared with the original (our flashes are under the text
-  window; the original's cover it).
+  were never compared with the original.
 - Full-screen text styles 1-7: metrics are estimates; calibrate from
   screenshots of the original (style 5, route 10, is the most used).
 - Unchecked assumptions: negative mask softness inverts the mask; text

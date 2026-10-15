@@ -439,6 +439,16 @@ pub enum Op {
     /// Fade a sound effect (`None`: every one) out over `ms`, then stop it,
     /// going on at once; [`Op::SeStop`] stops it at once.
     SeFadeOut { file: Option<String>, ms: u32 },
+    /// The next [`Op::SePlay`] (and an [`Op::SeFadeIn`] before it) isn't
+    /// played while the player skips (a sound the original leaves out in
+    /// skip mode).
+    SeNotSkipped,
+    /// Like [`Op::Flash`], but over everything on the screen: the text
+    /// window, the bars and the menus' buttons too.
+    ScreenFlash { colour: u32, opacity: u32, ms: u32 },
+    /// The next [`Op::Noise`]'s static rises from nothing to its opacity
+    /// over `ms`, while the script goes on.
+    NoiseFadeIn { ms: u32 },
     /// Move a layer's sprite by itself along `keys` (ms from now, x, y
     /// offset from its place in pixels), straight from key to key, while
     /// the game goes on (text and click waits too): `looped` starts again
@@ -674,11 +684,38 @@ pub struct PageButton {
 }
 
 /// Buttons shown during the game's click waits: the way into the menus.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ButtonBar {
     pub buttons: Vec<BarButton>,
     /// Bars along the top edge.
     pub top: Option<TopBars>,
+    /// A picture over the buttons, moving with them (a slide-in bar): the
+    /// buttons show through where it is see-through.
+    pub base: Option<Placed>,
+    /// The bar waits off screen and slides in when the pointer comes near
+    /// (see [`BarSlide`]); `None`: always shown where placed.
+    pub slide: Option<BarSlide>,
+    /// Button strips have a fourth cell, shown while the mouse button is
+    /// held on them.
+    pub pressed: bool,
+    /// Played by [`BarAction::QuickSave`] once it has saved.
+    pub quick_save_se: Option<String>,
+    /// [`BarAction::QuickLoad`] and [`BarAction::BackToChoice`] fade to
+    /// black over this long before they load.
+    pub load_fade_ms: u32,
+}
+
+/// How a [`ButtonBar`] along the right edge slides in and out: it waits
+/// `hidden_dx` pixels right of its place (off screen), slides in over
+/// `ms` (easing out, cubic) when the pointer goes right of `edge_x`
+/// during a click wait, and back out when it goes back left. While it is
+/// out a click that misses its buttons doesn't advance the text; while
+/// the text window is hidden it stays out of the way.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BarSlide {
+    pub hidden_dx: i32,
+    pub edge_x: i32,
+    pub ms: u32,
 }
 
 /// The current chapter and the current link ("blog") scene, along the top.
@@ -755,6 +792,28 @@ pub enum BarAction {
     HideWindow,
     /// Shown but not clickable (the menu it opens isn't converted yet).
     Unavailable,
+    /// Save to the quick slot without asking (the title's
+    /// [`TitleAction::Continue`] loads it).
+    QuickSave,
+    /// Load the quick save without asking; disabled while there is none.
+    QuickLoad,
+    /// Back to the title (asks [`Switch::ConfirmTitle`]).
+    Title,
+    /// Quit the game (asks [`Switch::ConfirmQuit`]).
+    Quit,
+    /// Switch between a window and full screen.
+    Fullscreen,
+    /// Close the [`CommandMenu`] it is in.
+    Close,
+    /// Skip to the next choice or unread text without showing the pages.
+    FastSkip,
+    /// Load the game saved right before the last choice (asks
+    /// [`Switch::ConfirmBackToChoice`]); disabled while there is none.
+    BackToChoice,
+    /// Run the script's subroutine at the item's label
+    /// ([`CommandItem::label`]), the text window hidden; the background,
+    /// the game's sprites and the music are put back after.
+    Call,
 }
 
 /// The extras the title's option button opens: a menu of modes over its
@@ -1030,6 +1089,11 @@ pub enum Switch {
     /// Ask before going back to the title.
     ConfirmTitle,
     ConfirmQuit,
+    /// Ask before going back to the last choice ([`BarAction::BackToChoice`]).
+    ConfirmBackToChoice,
+    /// A voice goes on playing after the click that reads on, until the
+    /// next voice (off: the click stops it).
+    VoiceKeepsPlaying,
 }
 
 /// A voiced line's clip and whose voice it is (for the per-character
@@ -1063,6 +1127,11 @@ pub enum Setting {
     AutoSpeed,
     /// The text window's transparency (0 = as drawn, 10 = nearly gone).
     WindowTransparency,
+    /// Auto mode's speed, as levels like [`Setting::AutoSpeed`] (the same
+    /// level), for a game whose auto wait is a time per page plus a time
+    /// per character: at level v it waits (10 - v) × `page_step` ms plus
+    /// (10 - v) × `char_step` ms for each character of the page.
+    AutoWait { page_step: u32, char_step: u32 },
 }
 
 /// The text history: past pages stacked from the bottom of `area` up,
@@ -1159,4 +1228,42 @@ pub struct Script {
     /// engine's version), shown small on the settings screen. `None` = not
     /// shown.
     pub version: Option<String>,
+    /// `None` = right-click at a click wait does what the button bar does.
+    pub command_menu: Option<CommandMenu>,
+}
+
+/// A menu of commands opened over the game at a click wait, by a
+/// right-click or its key: a column of picture buttons over a full-screen
+/// backdrop. Needs a [`ButtonBar`] (it runs the bar's actions).
+///
+/// Opening, the backdrop fades in over `fade_ms`, then the items appear
+/// one by one from the top, `step_ms` apart; closing, they go one by one
+/// from the bottom, then the backdrop fades out. It closes on a
+/// right-click, its key, [`BarAction::Close`], or after an action that
+/// goes on with the game (auto, skip, fast skip, hide the window);
+/// screens it opens come back to it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CommandMenu {
+    pub backdrop: Placed,
+    pub items: Vec<CommandItem>,
+    pub fade_ms: u32,
+    pub step_ms: u32,
+    /// Upper-case letter that opens and closes it at a click wait.
+    pub key: Option<char>,
+    /// Items have a fourth cell, shown while the mouse button is held on
+    /// them.
+    pub pressed: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CommandItem {
+    /// Three cells side by side: normal, under the pointer, disabled (a
+    /// fourth, pressed, with [`CommandMenu::pressed`]).
+    pub button: Placed,
+    pub action: BarAction,
+    /// Upper-case letter that runs the action at a click wait, the menu
+    /// open or not.
+    pub key: Option<char>,
+    /// The subroutine [`BarAction::Call`] runs.
+    pub label: Option<String>,
 }

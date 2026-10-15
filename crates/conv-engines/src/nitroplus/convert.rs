@@ -91,11 +91,14 @@ pub struct Game {
     /// The game's system screens (title, menus, dialogs), built from its
     /// own pictures into the script.
     menus: fn(&mut dyn Assets, &mut Script),
+    /// Chapters compiled once more as subroutines (label, `nss/file.nss`)
+    /// for the system screens to call, such as a screen the menu opens.
+    subroutines: &'static [(&'static str, &'static str)],
 }
 
 impl Game {
     /// A game with nothing of its own: NSS as it is.
-    pub const PLAIN: Game = Game { call: |_, _| false, scene: |_, _, _| false, flags: Vec::new, files: &[], menus: |_, _| {} };
+    pub const PLAIN: Game = Game { call: |_, _| false, scene: |_, _, _| false, flags: Vec::new, files: &[], menus: |_, _| {}, subroutines: &[] };
 
     /// Fills `script`'s system screens.
     pub fn menus(&self, assets: &mut dyn Assets, script: &mut Script) {
@@ -154,8 +157,14 @@ pub fn compile_scene(files: &BTreeMap<String, NssFile>, file: &str, scene: &str,
     let (file, _) = files.get_key_value(file).ok_or_else(|| format!("no script {file}"))?;
     let mut c = Compiler::new(files, file, game, assets);
     let body = c.scene(file, scene).ok_or_else(|| format!("no scene {scene} in {file}"))?;
+    let initial = c.snapshot();
     c.run_top(body);
     c.sync(0);
+    let end = "conv_scene_end";
+    c.ops.push(Op::Jump(end.to_string()));
+    let base = c.next_dynamic.max(FLAG_LOCAL_BASE);
+    c.subroutines(&initial, base);
+    c.ops.push(Op::Label(end.to_string()));
     Ok(Compiled { ops: c.ops, window: c.first_window, notes: c.notes, flags: c.flags })
 }
 
@@ -175,6 +184,8 @@ pub fn compile_run(files: &BTreeMap<String, NssFile>, start: &str, max_files: us
     c.vars.insert("$GameName".into(), Value::Str(start.to_string()));
     c.vars.insert("$GameStart".into(), Value::Int(1));
     c.vars.insert("$GameCircle".into(), Value::Int(1));
+    let initial = c.snapshot();
+    let mut max_dynamic = dynamic_base;
     let mut queue = std::collections::VecDeque::from([(start.to_string(), c.snapshot())]);
     let mut done = std::collections::HashSet::new();
     let mut not_compiled = std::collections::BTreeSet::new();
@@ -263,6 +274,7 @@ pub fn compile_run(files: &BTreeMap<String, NssFile>, start: &str, max_files: us
         }
         c.call_scene(&format!("nss/{name}->{name}_MAIN"), false);
         c.sync(0);
+        max_dynamic = max_dynamic.max(c.next_dynamic);
         played.push(name.clone());
         // Branch states: the end of the file, with the variables each
         // branch of a choice set differently.
@@ -306,6 +318,8 @@ pub fn compile_run(files: &BTreeMap<String, NssFile>, start: &str, max_files: us
             c.ops.push(Op::Jump(RUN_END.to_string()));
         }
     }
+    c.ops.push(Op::Jump(RUN_END.to_string()));
+    c.subroutines(&initial, max_dynamic);
     for (label, var, _, seen) in &dispatches {
         c.ops.push(Op::Label(label.clone()));
         for n in seen {
@@ -322,6 +336,30 @@ pub fn compile_run(files: &BTreeMap<String, NssFile>, start: &str, max_files: us
     }
     c.ops.push(Op::Label(RUN_END.to_string()));
     Ok((Compiled { ops: c.ops, window: c.first_window, notes: c.notes, flags: c.flags }, played))
+}
+
+/// A `select` body with `if (… $SYSTEM_l_button_down …) { break; }`.
+fn breaks_on_click(stmts: &[Stmt]) -> bool {
+    fn mentions(e: &crate::nitroplus::nss::Expr, name: &str) -> bool {
+        use crate::nitroplus::nss::Expr;
+        match e {
+            Expr::Var(v) => v.to_string() == name,
+            Expr::Index { base, index } => mentions(base, name) || mentions(index, name),
+            Expr::Call { args, .. } => args.iter().any(|a| mentions(a, name)),
+            Expr::Unary { expr, .. } => mentions(expr, name),
+            Expr::Binary { left, right, .. } => mentions(left, name) || mentions(right, name),
+            _ => false,
+        }
+    }
+    stmts.iter().any(|s| match &s.kind {
+        StmtKind::If { cond, then, otherwise } => {
+            (mentions(cond, "$SYSTEM_l_button_down") && then.iter().any(|t| t.kind == StmtKind::Break))
+                || breaks_on_click(then)
+                || otherwise.as_deref().is_some_and(breaks_on_click)
+        }
+        StmtKind::Block(b) => breaks_on_click(b),
+        _ => false,
+    })
 }
 
 fn negate(c: conv_core::ir::Compare) -> conv_core::ir::Compare {
@@ -800,6 +838,38 @@ fn reconcile_shown(merged: &mut BTreeMap<String, Shown>, leaves: &[Leaf<'_>]) {
 }
 
 impl<'a, 'b> Compiler<'a, 'b> {
+    /// The game's subroutines ([`Game`]), each from `initial` (an empty
+    /// screen) with the story flags as they are at run time; only reached
+    /// by a gosub. They run in the middle of a file, so their helper
+    /// variables come after every file's (`dynamic_base`), and the fork
+    /// variables the file may still need are kept aside and put back.
+    fn subroutines(&mut self, initial: &State<'a>, dynamic_base: u16) {
+        let local = |index| conv_core::ir::Var { global: false, index };
+        let kept: Vec<u16> = (FORK_VARS.start..FORK_VARS.end).chain([LEAF_VAR]).collect();
+        for &(label, target) in self.game.subroutines {
+            self.restore(initial.clone());
+            for (k, &v) in &self.flags {
+                self.vars.insert(k.clone(), Value::Runtime(v));
+            }
+            self.dynamic.clear();
+            self.dynamic_values.clear();
+            self.next_dynamic = dynamic_base + kept.len() as u16;
+            self.steps = 0;
+            self.forks_in_file = 0;
+            self.leaves_in_file = 0;
+            self.ops.push(Op::Label(label.to_string()));
+            for (i, &v) in kept.iter().enumerate() {
+                self.ops.push(Op::Arith { var: local(dynamic_base + i as u16), op: ArithOp::Set, value: Operand::Var(local(v)) });
+            }
+            self.call_scene(target, true);
+            self.sync(0);
+            for (i, &v) in kept.iter().enumerate() {
+                self.ops.push(Op::Arith { var: local(v), op: ArithOp::Set, value: Operand::Var(local(dynamic_base + i as u16)) });
+            }
+            self.ops.push(Op::Return);
+        }
+    }
+
     fn snapshot(&self) -> State<'a> {
         State {
             vars: self.vars.clone(),
@@ -896,7 +966,14 @@ impl<'a, 'b> Compiler<'a, 'b> {
             return;
         }
         if cases.is_empty() {
-            self.note("select without cases");
+            // An input loop: one that ends on a click (the favour screen's)
+            // is a click wait; the rest are left out.
+            if breaks_on_click(body) {
+                self.sync(0);
+                self.ops.push(Op::ClickWait { skippable: true });
+            } else {
+                self.note("select without cases");
+            }
             return;
         }
         self.sync(0);

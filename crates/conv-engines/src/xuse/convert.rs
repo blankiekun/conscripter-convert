@@ -1252,7 +1252,7 @@ impl AssetBank {
             };
             buttons.push(BarButton { image, active, action });
         }
-        Ok(ButtonBar { buttons, top: Some(self.top_bars()?) })
+        Ok(ButtonBar { buttons, top: Some(self.top_bars()?), ..Default::default() })
     }
 
     /// The images of a GAF4 container in `HD/{arc}`, decoded.
@@ -1309,7 +1309,9 @@ impl AssetBank {
                 row("効果音", Setting::SeVolume),
                 row("音声", Setting::VoiceVolume),
                 row("文字速度", Setting::TextSpeed),
-                row("オート速度", Setting::AutoSpeed),
+                // Level 5 is the original's default auto wait (0x46d000):
+                // 2.5 s a page plus 20 ms a character (0x476f50).
+                row("オート速度", Setting::AutoWait { page_step: 500, char_step: 4 }),
                 row("ウィンドウ透過", Setting::WindowTransparency),
             ],
             // Labels and levels share a text line: level_x - label_x is
@@ -1324,7 +1326,7 @@ impl AssetBank {
             title_label: "タイトルに戻る".into(),
             quit_label: "ゲームを終了".into(),
             exits_y: 540,
-            tab_labels: vec!["音量・速度".into(), "音声".into(), "マウス・確認".into()],
+            tab_labels: vec!["音量・速度".into(), "音声".into(), "その他".into()],
             tabs_x: 300,
             tabs_y: 34,
             voices: VOICE_TOGGLES
@@ -1343,6 +1345,8 @@ impl AssetBank {
                 ("セーブデータの削除確認", Switch::ConfirmDelete),
                 ("タイトルに戻る確認", Switch::ConfirmTitle),
                 ("ゲーム終了確認", Switch::ConfirmQuit),
+                // The 音声 page's; on by default (0x51ed59, 0x46d000).
+                ("次の音声まで停止しない", Switch::VoiceKeepsPlaying),
             ]
             .into_iter()
             .map(|(label, switch)| SettingSwitch { label: label.into(), switch })
@@ -2025,13 +2029,19 @@ fn set_window(ops: &mut Vec<Op>, assets: &mut AssetBank, p: WindowPreset) -> Res
 }
 
 /// Whether the instruction before the label placed at `index` (after its
-/// marker, see [`lower_script`]) can go on into it.
+/// marker, see [`lower_script`]) can go on into it. Other labels' markers
+/// right before it are passed over: when they start the script, nothing
+/// falls into it (a script's first labels, `sN_l0`, are entered only by
+/// jumps, and only `s4_l0` is ever jumped to).
 fn falls_into(cd: &CdScript, index: usize) -> bool {
-    let Some(before) = index.checked_sub(2).and_then(|i| cd.code.get(i)) else { return false };
-    match before.op {
-        OP_GOTO | OP_GOTO_2 => own_label_at(cd, before.arg).is_some_and(|i| i == index - 2),
-        OP_GOTO_SUB | OP_RETURN | OP_LINK_RETURN | OP_RETURN_TO_ROOT | OP_RETURN_TO_TITLE => false,
-        _ => true,
+    let mut at = index;
+    loop {
+        let Some(before) = at.checked_sub(2).and_then(|i| cd.code.get(i)) else { return false };
+        match before.op {
+            OP_GOTO | OP_GOTO_2 if own_label_at(cd, before.arg).is_some_and(|i| i == at - 2) => at -= 1,
+            OP_GOTO | OP_GOTO_2 | OP_GOTO_SUB | OP_RETURN | OP_LINK_RETURN | OP_RETURN_TO_ROOT | OP_RETURN_TO_TITLE => return false,
+            _ => return true,
+        }
     }
 }
 
@@ -2204,13 +2214,14 @@ fn lower_environment(
         }
     }
     let set = match (m.noise, m.ripple, m.shake) {
-        // The game always uses alpha blending (0) and greyscale (mode 1).
-        // Assumption: the rise in opacity over time_ms (up to 2 s) is
-        // left out; most of the static is set inside a transition, which
-        // fades it in.
+        // The game always uses alpha blending (0) and greyscale (mode 1),
+        // and its opacity always rises from 0, over up to 2 s.
         (Some(n), ..) if n.blend == 0 && n.mode & 1 == 1 => {
             let image = assets.noise()?;
             let frame_ms = n.interval_ms.max(1);
+            if n.time_ms > 0 && n.begin_opacity < n.end_opacity {
+                ops.push(Op::NoiseFadeIn { ms: n.time_ms });
+            }
             ops.push(Op::Noise(Some(Noise { image, frames: NOISE_FRAMES, frame_ms, opacity: u32::from(n.end_opacity.min(256)) })));
             true
         }
@@ -2488,11 +2499,11 @@ pub fn lower_script(
     let mut pending = MessageRecords::default();
     // A transition armed by 0x76 and not yet waited on (file order).
     let mut transition_armed = false;
-    // Full-screen text mode (file order): rows of the window, the index of
-    // the last text op and the lines on its page, and whether a "p" tag
-    // followed it.
-    // Rows and columns of the full-screen text window, if one is up.
-    let mut full_screen_rows: Option<(usize, usize)> = None;
+    // The text window (file order): its rows and columns and whether it is
+    // full-screen (where messages join onto a page while they fit); the
+    // index of the last text op and the rows on its page, and whether a
+    // "p" tag followed it.
+    let mut window_size: Option<(usize, usize, bool)> = None;
     // The last window preset set (file order).
     let mut window_preset: Option<WindowPreset> = None;
     let mut last_text: Option<(usize, usize)> = None;
@@ -2538,12 +2549,7 @@ pub fn lower_script(
             if let Some(p) = entered.filter(|p| window_preset != Some(*p)) {
                 set_window(&mut ops, assets, p)?;
                 window_preset = Some(p);
-                full_screen_rows = if p.full_screen {
-                            let w = assets.text_window_style(p)?;
-                            Some((w.rows as usize, w.columns as usize))
-                        } else {
-                            None
-                        };
+                window_size = Some(window_size_of(assets, p)?);
                 last_text = None;
             }
         }
@@ -2629,6 +2635,10 @@ pub fn lower_script(
         }
         if matches!(ins.op, OP_YIELD | OP_YIELD_2 | OP_ENTRY_NAME) {
             continue;
+        }
+        // sound_request leaves out a sound that doesn't loop while skipping.
+        if let Some(Ok(Sound::SePlay { looped: false, .. })) = cd.sound(ins) {
+            ops.push(Op::SeNotSkipped);
         }
         // op_5a passes the record's first u32 to the sound request as its
         // fade-in (0 while skipping).
@@ -3024,7 +3034,8 @@ pub fn lower_script(
         if ins.op == OP_FLASH {
             let c = ins.arg as u32;
             let colour = (c & 0xff) << 16 | (c & 0xff00) | (c >> 16 & 0xff);
-            ops.push(Op::Flash { colour, opacity: FLASH_OPACITY, ms: FLASH_MS });
+            // At sort key 0xffffffff: over the text window too.
+            ops.push(Op::ScreenFlash { colour, opacity: FLASH_OPACITY, ms: FLASH_MS });
             continue;
         }
         if let Some(quake) = cd.quake(ins) {
@@ -3093,19 +3104,35 @@ pub fn lower_script(
                 }
                 Ok(Some(Op::Text { speaker, text, voice, links, ruby, mut styles, hang, .. })) => {
                     whole_text_style(&mut styles, &text, default_style);
-                    let lines = full_screen_rows.map_or(0, |(_, columns)| text.split('\n').map(|l| line_rows(l, columns)).sum());
-                    if let (Some((rows, _)), Some((i, used))) = (full_screen_rows, last_text) {
-                        let joins = !page_break && used + lines <= rows;
-                        if joins && let Some(Op::Text { continues, .. }) = ops.get_mut(i) {
-                            *continues = true;
+                    let rows_of = |text: &str, indent: usize| {
+                        window_size.map_or(0, |(_, columns, _)| text.split('\n').map(|l| line_rows(l, columns, indent)).sum::<usize>())
+                    };
+                    let indent = hang_cells(&text, hang);
+                    // A message taller than the window goes on as many pages
+                    // as it needs (the original's proportional font fits
+                    // more on a row).
+                    let parts = match window_size {
+                        Some((rows, columns, _)) if rows_of(&text, indent) > rows => split_rows(&text, &links, &ruby, &styles, rows, columns, indent),
+                        _ => vec![PagePart { text, links, ruby, styles }],
+                    };
+                    let (mut speaker, mut voice, mut hang) = (speaker, voice, hang);
+                    let full_screen_rows = window_size.filter(|w| w.2).map(|(rows, columns, _)| (rows, columns));
+                    for part in parts {
+                        let lines = rows_of(&part.text, if hang.is_some() { indent } else { 0 });
+                        if let (Some((rows, _)), Some((i, used))) = (full_screen_rows, last_text) {
+                            let joins = !page_break && used + lines <= rows;
+                            if joins && let Some(Op::Text { continues, .. }) = ops.get_mut(i) {
+                                *continues = true;
+                            }
+                            let used = if joins { used + lines } else { lines };
+                            last_text = Some((ops.len(), used));
+                        } else if full_screen_rows.is_some() {
+                            last_text = Some((ops.len(), lines));
                         }
-                        let used = if joins { used + lines } else { lines };
-                        last_text = Some((ops.len(), used));
-                    } else if full_screen_rows.is_some() {
-                        last_text = Some((ops.len(), lines));
+                        page_break = false;
+                        let PagePart { text, links, ruby, styles } = part;
+                        ops.push(Op::Text { speaker: speaker.take(), text, voice: voice.take(), links, ruby, styles, hang: hang.take(), continues: false });
                     }
-                    page_break = false;
-                    ops.push(Op::Text { speaker, text, voice, links, ruby, styles, hang, continues: false });
                 }
                 Ok(Some(Op::Gosub(target))) => {
                     let preset = presets.window.get(&target).copied();
@@ -3115,12 +3142,7 @@ pub fn lower_script(
                     let sub = presets.sub_window.get(&target).copied().filter(|p| window_preset != Some(*p));
                     ops.push(Op::Gosub(target));
                     if let Some(p) = preset.or(sub) {
-                        full_screen_rows = if p.full_screen {
-                            let w = assets.text_window_style(p)?;
-                            Some((w.rows as usize, w.columns as usize))
-                        } else {
-                            None
-                        };
+                        window_size = Some(window_size_of(assets, p)?);
                         last_text = None;
                         window_preset = Some(p);
                         set_window(&mut ops, assets, p)?;
@@ -3535,23 +3557,104 @@ fn lower_instr(
     Ok(None)
 }
 
-/// The rows a text line takes in a window `columns` cells wide: the engine
-/// draws a full-width character in a cell and a run of half-width ones two
-/// to a cell (a run of n takes n / 2 rounded up), and wraps at the edge.
-/// Half-width spaces count: the game's blog headers, which fit its
-/// proportional font, take two rows here.
-fn line_rows(line: &str, columns: usize) -> usize {
-    let (mut cells, mut half) = (0usize, 0usize);
+/// The cells a text line takes: the engine draws a full-width character
+/// in a cell and a run of half-width ones two to a cell (a run of n takes
+/// n / 2 rounded up). Half-width spaces count: the game's blog headers,
+/// which fit its proportional font, take two rows here. Counted as the
+/// script writer writes the line: the characters it makes full-width
+/// (`escape_text` in `conv-cons`) count as such, and a line that starts
+/// with ASCII gets a full-width space before it.
+fn line_cells(line: &str) -> usize {
+    const ESCAPED: &str = "@\\/#%$`!_\";*()<>[]?";
+    let (mut cells, mut half) = (usize::from(line.starts_with(|c: char| c.is_ascii())), 0usize);
     for c in line.chars() {
-        if c.is_ascii() || ('\u{ff61}'..='\u{ff9f}').contains(&c) {
+        if (c.is_ascii() && !ESCAPED.contains(c)) || ('\u{ff61}'..='\u{ff9f}').contains(&c) {
             half += 1;
         } else {
             cells += half.div_ceil(2) + 1;
             half = 0;
         }
     }
-    cells += half.div_ceil(2);
-    cells.div_ceil(columns.max(1)).max(1)
+    cells + half.div_ceil(2)
+}
+
+/// The rows a text line takes in a window `columns` cells wide, where
+/// the engine wraps at the edge and starts each wrapped row `indent`
+/// cells in (`indent`, a message's hanging indent).
+fn line_rows(line: &str, columns: usize, indent: usize) -> usize {
+    let (cells, columns) = (line_cells(line), columns.max(1));
+    if cells <= columns {
+        return 1;
+    }
+    1 + (cells - columns).div_ceil(columns.saturating_sub(indent).max(1))
+}
+
+/// The cells of a message's hanging indent: its first `hang` characters.
+fn hang_cells(text: &str, hang: Option<usize>) -> usize {
+    hang.map_or(0, |n| line_cells(&text.split('\n').next().unwrap_or_default().chars().take(n).collect::<String>()))
+}
+
+/// The rows and columns of a window preset, and whether it is full-screen.
+fn window_size_of(assets: &mut AssetBank, p: WindowPreset) -> Result<(usize, usize, bool), ConvertError> {
+    let w = assets.text_window_style(p)?;
+    Ok((w.rows as usize, w.columns as usize, p.full_screen))
+}
+
+/// One page of a message split by [`split_rows`]: its text and the links,
+/// readings and styles that fall in it, moved to its own character range.
+struct PagePart {
+    text: String,
+    links: Vec<TextLink>,
+    ruby: Vec<Ruby>,
+    styles: Vec<TextStyle>,
+}
+
+/// Splits a message taller than a full-screen window (`rows` by `columns`)
+/// into pages at line ends. A page that would end past a separator line
+/// (`━`, the blog's posts) ends before the last one instead, so a post
+/// isn't cut in the middle when it can be helped. Links and styles that
+/// cross a split are cut in two; a reading that crosses it is dropped.
+fn split_rows(text: &str, links: &[TextLink], ruby: &[Ruby], styles: &[TextStyle], rows: usize, columns: usize, indent: usize) -> Vec<PagePart> {
+    let lines: Vec<&str> = text.split('\n').collect();
+    // Line ranges [first, end) of each page.
+    let mut pages = Vec::new();
+    let mut first = 0;
+    while first < lines.len() {
+        let (mut end, mut used) = (first, 0);
+        while end < lines.len() && (end == first || used + line_rows(lines[end], columns, indent) <= rows) {
+            used += line_rows(lines[end], columns, indent);
+            end += 1;
+        }
+        if end < lines.len()
+            && let Some(sep) = (first + 1..end).rev().find(|&i| lines[i].starts_with('━'))
+            && sep > first + (end - first) / 2
+        {
+            end = sep;
+        }
+        pages.push((first, end));
+        first = end;
+    }
+    // Character offset of each line's start.
+    let mut starts = vec![0];
+    for l in &lines {
+        starts.push(starts.last().unwrap() + l.chars().count() + 1);
+    }
+    let clip = |s: usize, len: usize, a: usize, b: usize| {
+        let (from, to) = (s.max(a), (s + len).min(b));
+        (from < to).then(|| (from - a, to - from))
+    };
+    pages
+        .into_iter()
+        .map(|(first, end)| {
+            let (a, b) = (starts[first], starts[end] - 1);
+            PagePart {
+                text: lines[first..end].join("\n"),
+                links: links.iter().filter_map(|l| clip(l.start, l.len, a, b).map(|(start, len)| TextLink { start, len, ..l.clone() })).collect(),
+                ruby: ruby.iter().filter(|r| r.start >= a && r.start + r.len <= b).map(|r| Ruby { start: r.start - a, ..r.clone() }).collect(),
+                styles: styles.iter().filter_map(|s| clip(s.start, s.len, a, b).map(|(start, len)| TextStyle { start, len, ..*s })).collect(),
+            }
+        })
+        .collect()
 }
 
 /// 0x54's `sub` 1-3 also puts background picture `sub + 5` (`frame01`-
@@ -3857,6 +3960,21 @@ mod tests {
     }
 
     #[test]
+    fn script_starts_are_not_fallen_into() {
+        let ins = |op, sub, arg| Instr { op, sub, arg, source_pos: 0 };
+        // Labels 0 and 1 start the script; 2 and 3 follow a gosub.
+        let labels: Vec<crate::xuse::cd::Label> =
+            [0, 1, 3, 4].iter().enumerate().map(|(l, &i)| crate::xuse::cd::Label { script: 7, label: l as u32, code_offset: i * 12 }).collect();
+        let code = [ins(OP_GOTO, 0, 0), ins(OP_GOTO, 0, 1), ins(OP_GOSUB, 1, 0), ins(OP_GOTO, 0, 2), ins(OP_GOTO, 0, 3), ins(OP_RETURN, 0, 0)];
+        let bytes = crate::xuse::cd::tests::build("w.rio", &labels, &code, &[]);
+        let cd = CdScript::parse(&bytes).unwrap();
+        assert!(!falls_into(&cd, 1));
+        assert!(!falls_into(&cd, 2));
+        assert!(falls_into(&cd, 4));
+        assert!(falls_into(&cd, 5));
+    }
+
+    #[test]
     fn chapter_titles() {
         assert_eq!(chapter_title("chapterさやか]?空白の机"), Some("空白の机"));
         assert_eq!(chapter_title("chapterさやか]１?ビジョン"), Some("ビジョン"));
@@ -3919,12 +4037,40 @@ mod tests {
 
     #[test]
     fn rows_count_half_width_runs_two_to_a_cell() {
-        assert_eq!(line_rows("　", 40), 1);
-        assert_eq!(line_rows(&"━".repeat(40), 40), 1);
+        assert_eq!(line_rows("　", 40, 0), 1);
+        assert_eq!(line_rows(&"━".repeat(40), 40, 0), 1);
         // 26 full-width characters and 31 half-width ones (16 cells).
-        assert_eq!(line_rows("ほっとした  投稿者:ToolSmith004 ／どらいばあ（米）  投稿日: 滅亡元年／06／28 22:32 ", 40), 2);
-        assert_eq!(line_rows("ab", 1), 1);
-        assert_eq!(line_rows("abc", 1), 2);
+        assert_eq!(line_rows("ほっとした  投稿者:ToolSmith004 ／どらいばあ（米）  投稿日: 滅亡元年／06／28 22:32 ", 40, 0), 2);
+        assert_eq!(line_rows("あab", 2, 0), 1);
+        assert_eq!(line_rows("あabc", 2, 0), 2);
+        // As the converter has it, before '/' and '(' become full-width.
+        assert_eq!(line_rows("ほっとした  投稿者:ToolSmith004/どらいばあ(米)  投稿日:滅亡元年/06/28 22:32", 40, 0), 2);
+        assert_eq!(line_rows("あa/", 2, 0), 2);
+        // Wrapped rows start at the hanging indent: 8 cells in rows of 4,
+        // then 2 after an indent of 2.
+        assert_eq!(line_rows("あいうえおかきく", 4, 0), 2);
+        assert_eq!(line_rows("あいうえおかきく", 4, 2), 3);
+        assert_eq!(hang_cells("ab　あい\nx", Some(3)), 3);
+        // 最果てのイマ's chat log (conv_link35_1): written 「　NIN-NIN 　…」.
+        assert_eq!(line_cells("NIN-NIN　数としては、してるけど……その、実際には生存している人とかがいるかなと"), 41);
+    }
+
+    #[test]
+    fn tall_messages_split_at_posts() {
+        // 2 rows of 4 columns: "ab" "━━" "cdef" on the first page would be
+        // 3 rows; the page ends before the separator instead of after it.
+        let text = "ab\nxy\n━━\ncdefgh";
+        let link = TextLink { start: 1, len: 7, target: Some("t".into()), scene: None };
+        let ruby = [Ruby { start: 0, len: 2, text: "r".into() }, Ruby { start: 4, len: 3, text: "s".into() }];
+        let style = TextStyle { start: 9, len: 4, colour: Some(1), size_percent: None };
+        let parts = split_rows(text, std::slice::from_ref(&link), &ruby, &[style], 3, 4, 0);
+        let texts: Vec<&str> = parts.iter().map(|p| p.text.as_str()).collect();
+        assert_eq!(texts, ["ab\nxy", "━━\ncdefgh"]);
+        assert_eq!((parts[0].links[0].start, parts[0].links[0].len), (1, 4));
+        assert_eq!((parts[1].links[0].start, parts[1].links[0].len), (0, 2));
+        assert_eq!(parts[0].ruby.len(), 1);
+        assert!(parts[1].ruby.is_empty());
+        assert_eq!((parts[1].styles[0].start, parts[1].styles[0].len), (3, 4));
     }
 
     #[test]

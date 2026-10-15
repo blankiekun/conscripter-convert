@@ -23,7 +23,7 @@
 //!   buttons and labels `lsp` sprites over them. The text window, name
 //!   plate and link words are hidden while the menu is open.
 
-use conv_core::ir::{BarAction, Backlog, ButtonBar, ConfirmDialog, Placed, SaveMenu, Setting, SettingsMenu, Switch, TextSpot, TopBars, VoiceToggle};
+use conv_core::ir::{BarAction, Backlog, ButtonBar, CommandMenu, ConfirmDialog, Placed, SaveMenu, Setting, SettingsMenu, Switch, TextSpot, TopBars, VoiceToggle};
 
 use crate::{escape, path, BAR_SPRITES, BUTTON_VAR, DIALOG_SPRITES, LINK_SPRITES, MENU_SPRITES, NAME_PLATE_SPRITE, NAME_TEXT_SPRITE};
 
@@ -65,8 +65,11 @@ const MAX_VOICES: usize = 15;
 const SETTING_SWITCH: u32 = M + 6; // + switch
 const MAX_SWITCHES: usize = 15;
 const BTN_SWITCH: u32 = 70; // + 1 + switch
-/// Global "off" flags of the switches (0, the default, is on).
+/// Global "off" flags of the switches (0, the default, is on): the first
+/// eight from SWITCH_OFF_BASE, the others from SWITCH_OFF_BASE_2 (the
+/// scene replay's flags start at 3650).
 const SWITCH_OFF_BASE: u32 = 3640;
+const SWITCH_OFF_BASE_2: u32 = 2910;
 /// The confirmation being asked (a [`Switch`] + 1; 0 = always ask).
 const CONFIRM_KIND: &str = "%125";
 const BTN_MINUS: u32 = 10;
@@ -106,7 +109,27 @@ pub(crate) const CONFIRM: &str = "%109";
 const CONFIRM_TEXT: &str = "$106";
 /// Bar buttons return numbers above this.
 pub(crate) const BAR_BUTTON_BASE: i32 = 1000;
-const BAR_CLEAR: &str = "conv_bar_clear";
+pub(crate) const BAR_CLEAR: &str = "conv_bar_clear";
+/// Sets [`NO_QUICK_SAVE`] and [`NO_BACK_SAVE`].
+pub(crate) const BAR_STATE: &str = "conv_bar_state";
+pub(crate) const NO_QUICK_SAVE: &str = "%141";
+pub(crate) const NO_BACK_SAVE: &str = "%142";
+/// A sliding bar ([`BarSlide`]): 1 while it is out; its x offset now; the
+/// slide's progress (1000 to 0); the pointer's y.
+pub(crate) const BAR_OUT: &str = "%143";
+const BAR_OFFSET: &str = "%144";
+const SLIDE_K: &str = "%145";
+const MOUSE_Y: &str = "%146";
+pub(crate) const BAR_SLIDE_IN: &str = "conv_bar_slide_in";
+pub(crate) const BAR_SLIDE_OUT: &str = "conv_bar_slide_out";
+/// The sliding bar's hotspot (a `btn`, see [`button_bar`]).
+const BTN_EDGE: i32 = BAR_BUTTON_BASE + 300;
+/// The game saved before the last choice ([`BarAction::BackToChoice`]);
+/// a global that is 1 while it is being loaded (see [`LOADED`]).
+pub(crate) const BACK_SLOT: u32 = 891;
+const BACK_LOADING: &str = "%2904";
+/// The `loadgosub` routine when the game can go back to a choice.
+pub(crate) const LOADED: &str = "conv_loaded";
 /// Puts the bars away (the next click wait draws them again).
 pub(crate) const BAR_HIDE: &str = "conv_bar_hide_all";
 /// The link scene level (0 = the root); the deepest level that can be
@@ -133,6 +156,15 @@ const SCENE_CARRY_FLOOR: &str = "%2902";
 const SCENE_CARRY: u32 = 2900;
 /// 1 while the list is open (global: it stays open).
 const SCENE_LIST_OPEN: &str = "%2903";
+/// The save menu's slot being loaded (global: it outlasts the load).
+const SCENE_LOAD_SLOT: &str = "%2904";
+/// 1 once [`SCENE_LOADED`] has put a save's levels back.
+const SCENE_RESTORED: &str = "%2905";
+/// A save from the save menu keeps the levels' slots with it, level k of
+/// slot n in save slot SCENE_KEPT + 10 × n + k (levels 0-7: link scenes
+/// nest at most 7 deep), so a load can still go back and forward.
+const SCENE_KEPT: u32 = 1000;
+const SCENE_LEVELS: u32 = 8;
 /// The `loadgosub` routine.
 pub(crate) const SCENE_LOADED: &str = "conv_scene_loaded";
 /// List rows: title sprites at SCENE_ROW_SPRITE + 2 × row, their buttons
@@ -212,7 +244,9 @@ const BTN_DELETE: u32 = 200;
 const BTN_ACTION: u32 = 201;
 const BTN_CLOSE: u32 = 202;
 
-pub(crate) fn save_menu(out: &mut String, m: &SaveMenu, confirm: Option<&ConfirmDialog>) {
+/// `scene_stack`: the game has link scene levels ([`scene_stack`]), whose
+/// slots a save keeps.
+pub(crate) fn save_menu(out: &mut String, m: &SaveMenu, confirm: Option<&ConfirmDialog>, scene_stack: bool) {
     let rows = (m.rows as usize).min(MAX_ROWS);
     let pages = &m.pages[..m.pages.len().min(MAX_PAGES)];
     let mut w = |line: String| {
@@ -364,6 +398,9 @@ pub(crate) fn save_menu(out: &mut String, m: &SaveMenu, confirm: Option<&Confirm
     w(format!("add {LABEL},\"|\""));
     w(format!("add {LABEL},{CHAPTER}"));
     w(format!("savegame2 {SELECTED},{LABEL}"));
+    if scene_stack {
+        w("gosub *conv_scene_keep".into());
+    }
     w(format!("mov {NEWEST},{SELECTED}"));
     w("goto *conv_sl_page".into());
 
@@ -373,6 +410,9 @@ pub(crate) fn save_menu(out: &mut String, m: &SaveMenu, confirm: Option<&Confirm
         w(ask(&c.load, Switch::ConfirmLoad));
     }
     w("gosub *conv_sl_clear".into());
+    if scene_stack {
+        w(format!("mov {SCENE_LOAD_SLOT},{SELECTED}"));
+    }
     w(format!("loadgame {SELECTED}"));
     // Still here: the load failed.
     w("goto *conv_sl".into());
@@ -384,6 +424,9 @@ pub(crate) fn save_menu(out: &mut String, m: &SaveMenu, confirm: Option<&Confirm
     w(format!("mov {SLOT},{SELECTED}"));
     w("gosub *conv_sl_file".into());
     w(format!("delsavegame {SELECTED},{FILE}"));
+    if scene_stack {
+        w("gosub *conv_scene_drop".into());
+    }
     w(format!("if {SELECTED} == {NEWEST} mov {NEWEST},0"));
     w("goto *conv_sl_page".into());
 
@@ -433,21 +476,84 @@ pub(crate) fn save_menu(out: &mut String, m: &SaveMenu, confirm: Option<&Confirm
     w("return".into());
 }
 
+/// What the bar's actions can open, and the screen's size.
+#[derive(Clone, Copy, Default)]
+pub(crate) struct BarScreens<'a> {
+    pub save_menu: bool,
+    pub settings: bool,
+    pub backlog: bool,
+    /// There is a scene replay, during which save and load are left out.
+    pub replay: bool,
+    pub command_menu: Option<&'a CommandMenu>,
+    pub confirm: Option<&'a ConfirmDialog>,
+    pub width: u32,
+    pub height: u32,
+    /// The settings have [`Switch::VoiceKeepsPlaying`].
+    pub voice_stops: bool,
+}
+
+/// The routine that runs a bar action (`gosub` it).
+pub(crate) fn bar_label(a: BarAction) -> &'static str {
+    match a {
+        BarAction::Auto => "conv_bar_auto",
+        BarAction::Skip => "conv_bar_skip",
+        BarAction::Log => "conv_bar_log",
+        BarAction::Save => "conv_bar_save",
+        BarAction::Load => "conv_bar_load",
+        BarAction::Settings => "conv_bar_settings",
+        BarAction::HideWindow | BarAction::Unavailable => "conv_bar_hide",
+        BarAction::QuickSave => "conv_bar_qsave",
+        BarAction::QuickLoad => "conv_bar_qload",
+        BarAction::Title => "conv_bar_title",
+        BarAction::Quit => "conv_bar_quit",
+        BarAction::Fullscreen => "conv_bar_full",
+        BarAction::FastSkip => "conv_bar_fskip",
+        BarAction::BackToChoice => "conv_bar_back",
+        // The command menu's own.
+        BarAction::Close | BarAction::Call => "",
+    }
+}
+
+/// Actions after which the click wait goes on to the next page.
+pub(crate) fn goes_on(a: BarAction) -> bool {
+    matches!(a, BarAction::Auto | BarAction::Skip | BarAction::FastSkip)
+}
+
+/// The variable that is 1 while `a` can't be run (no quick save, no save
+/// before a choice), set by [`BAR_STATE`]; `None`: always available.
+pub(crate) fn disabled_while(a: BarAction) -> Option<&'static str> {
+    match a {
+        BarAction::QuickLoad => Some(NO_QUICK_SAVE),
+        BarAction::BackToChoice => Some(NO_BACK_SAVE),
+        _ => None,
+    }
+}
+
+/// The value CONscripter's `getkey` makes `btnwait` return for a letter.
+pub(crate) fn key_code(c: char) -> i32 {
+    -1000 - c.to_ascii_uppercase() as i32
+}
+
 /// The click-wait routine (`textgosub`): shows the bars the pointer has
 /// revealed, waits, runs the clicked button's action, and ends the wait
 /// with `texec`. Link pages call [`BAR_DRAW`], [`BAR_HOVER`] and
 /// [`BAR_ACTION`] around their own `btnwait`.
 ///
 /// Bar buttons return [`BAR_BUTTON_BASE`] + 1 + index; a right-click (-1)
-/// hides the text window. `textbtnwait` returns at once in skip mode and
-/// after the delay in auto mode; a click turns auto mode off.
+/// hides the text window, or opens the [`CommandMenu`] when there is one
+/// (as does its key; the items' keys run their actions). `textbtnwait`
+/// returns at once in skip mode and after the delay in auto mode; a
+/// click turns auto mode off.
 ///
-/// The bars are always up during a click wait (the original hides them
-/// until the pointer comes near an edge).
-/// `replay`: there is a scene replay, during which save and load are
-/// left out.
-pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, save_menu: bool, settings: bool, backlog: bool, replay: bool) {
+/// Bars without a [`BarSlide`] are always up during a click wait. A bar
+/// with one is drawn off screen; an invisible hotspot (`btn`) beyond its
+/// edge, with `getmouseover`, ends the wait when the pointer comes onto
+/// it, and the bar slides in; the hotspot then covers the rest of the
+/// screen, and the bar slides out when the pointer goes back.
+pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, s: BarScreens) {
     let mut slots = BAR_SPRITES;
+    // The base is drawn over the buttons (a lower number).
+    let base_slot = if bar.base.is_some() { slots.next().unwrap() } else { 0 };
     let buttons: Vec<_> = bar.buttons.iter().zip(slots.by_ref()).collect();
     let (chapter_text, scene_text) = (slots.next().unwrap(), slots.next().unwrap());
     // Back, forward, exit, list.
@@ -456,34 +562,63 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, save_menu: bool, set
         out.push_str(&line);
         out.push('\n');
     };
-    let lsp = |slot: u32, p: &Placed, cells: &str| format!("lsp {slot},\":a{cells};{}\",{},{}", path(&p.image), p.x, p.y);
+    let slide = bar.slide;
+    // A sliding bar's x is offset by BAR_OFFSET.
+    let x = |p: &Placed| if slide.is_some() { format!("{}+{BAR_OFFSET}", p.x) } else { p.x.to_string() };
+    let lsp = |slot: u32, p: &Placed, cells: &str| format!("lsp {slot},\":a{cells};{}\",{},{}", path(&p.image), x(p), p.y);
+    let cells = if bar.pressed { "/4,0,3" } else { "/3,0,3" };
+    let press = if bar.pressed { ",3" } else { "" };
     let number = |i: usize| BAR_BUTTON_BASE + 1 + i as i32;
-    let label = |a: BarAction| match a {
-        BarAction::Auto => "conv_bar_auto",
-        BarAction::Skip => "conv_bar_skip",
-        BarAction::Log => "conv_bar_log",
-        BarAction::Save => "conv_bar_save",
-        BarAction::Load => "conv_bar_load",
-        BarAction::Settings => "conv_bar_settings",
-        BarAction::HideWindow | BarAction::Unavailable => "conv_bar_hide",
-    };
+    let menu = s.command_menu;
+    let menu_items = menu.map_or(&[][..], |m| &m.items[..]);
+    let keys = menu.is_some_and(|m| m.key.is_some() || m.items.iter().any(|i| i.key.is_some()));
 
     w(format!("*{WAIT}"));
+    if menu.is_some() {
+        w(format!("mov {},0", crate::command_menu::GO_ON));
+    }
     w(format!("gosub *{BAR_DRAW}"));
+    if let Some(sl) = slide {
+        // The pointer may have crossed the edge since the bar was drawn. Off
+        // the screen (no pointer: auto-play reports the far corner) is away.
+        w(format!("getmousepos {TMP},{MOUSE_Y}"));
+        w(format!("if {TMP} >= {} || {MOUSE_Y} >= {} mov {TMP},0", s.width, s.height));
+        w(format!("if {BAR_OUT} == 0 && {TMP} > {} gosub *{BAR_SLIDE_IN}:goto *{WAIT}", sl.edge_x));
+        w(format!("if {BAR_OUT} == 1 && {TMP} <= {} gosub *{BAR_SLIDE_OUT}:goto *{WAIT}", sl.edge_x));
+        w(format!("getmouseover {BTN_EDGE},{BTN_EDGE}"));
+    }
+    if keys {
+        w("getkey".into());
+    }
     w(format!("textbtnwait {BUTTON_VAR}"));
+    if slide.is_some() {
+        w(format!("if {BUTTON_VAR} == {BTN_EDGE} goto *{WAIT}"));
+    }
     // Wheel down (-3) reads on, like a click; wheel up (-2) opens the log.
     w(format!("if {BUTTON_VAR} == -3 && {} == 0 goto *conv_wait_end", switch_off(Switch::WheelReadsOn)));
     w(format!("if {BUTTON_VAR} == -3 goto *{WAIT}"));
+    if slide.is_some() {
+        // While the bar is out a click (not auto mode's time) does nothing.
+        w(format!("isskip {MODE_STATE}"));
+        w(format!("if {BUTTON_VAR} == 0 && {BAR_OUT} == 1 && {MODE_STATE} == 0 goto *{WAIT}"));
+    }
     w(format!("if {BUTTON_VAR} >= 0 && {BUTTON_VAR} <= {BAR_BUTTON_BASE} goto *conv_wait_end"));
     w(format!("gosub *{BAR_ACTION}"));
+    if menu.is_some() {
+        w(format!("if {} == 1 goto *conv_wait_end", crate::command_menu::GO_ON));
+    }
     // Auto and skip go on to the next page; the rest come back here.
     for (i, (b, _)) in buttons.iter().enumerate() {
-        if matches!(b.action, BarAction::Auto | BarAction::Skip) {
+        if goes_on(b.action) {
             w(format!("if {BUTTON_VAR} == {} goto *conv_wait_end", number(i)));
         }
     }
     w(format!("goto *{WAIT}"));
     w("*conv_wait_end".into());
+    if s.voice_stops {
+        // Voices play on channel 0.
+        w(format!("if {} == 1 dwavestop 0", switch_off(Switch::VoiceKeepsPlaying)));
+    }
     w("texec".into());
     w("return".into());
 
@@ -500,27 +635,56 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, save_menu: bool, set
     w(TOP_SPRITES2.map(|n| format!("csp2 {n}")).collect::<Vec<_>>().join(":"));
     w("return".into());
 
+    let all_actions: Vec<BarAction> = bar.buttons.iter().map(|b| b.action).chain(menu_items.iter().map(|i| i.action)).collect();
+    let state = all_actions.iter().any(|&a| disabled_while(a).is_some());
+    if state {
+        w(format!("*{BAR_STATE}"));
+        w(format!("savefileexist {TMP},{QUICK_SLOT}:mov {NO_QUICK_SAVE},1-{TMP}"));
+        w(format!("savefileexist {TMP},{BACK_SLOT}:mov {NO_BACK_SAVE},1-{TMP}"));
+        w("return".into());
+    }
+
     // Draws the bars and registers their buttons; link words are
     // registered after this.
     w(format!("*{BAR_DRAW}"));
     w("btndef clear".into());
     w(format!("gosub *{BAR_CLEAR}"));
     w(format!("isskip {MODE_STATE}"));
+    if let Some(sl) = slide {
+        w(format!("mov {BAR_OFFSET},{}:if {BAR_OUT} == 1 mov {BAR_OFFSET},0", sl.hidden_dx));
+    }
+    if state {
+        w(format!("gosub *{BAR_STATE}"));
+    }
+    // Only a bar that is out has buttons.
+    let only_out = if slide.is_some() { format!("if {BAR_OUT} == 1 ") } else { String::new() };
     for (i, (b, slot)) in buttons.iter().enumerate() {
         if b.action == BarAction::Unavailable {
             w(lsp(*slot, &b.image, ""));
             continue;
         }
-        if replay && matches!(b.action, BarAction::Save | BarAction::Load) {
-            w(format!("if {} == 0 {}:spbtn {slot},{}", crate::replay::REPLAYING, lsp(*slot, &b.image, "/3,0,3"), number(i)));
+        if s.replay && matches!(b.action, BarAction::Save | BarAction::Load) {
+            w(format!("if {} == 0 {}:spbtn {slot},{}", crate::replay::REPLAYING, lsp(*slot, &b.image, cells), number(i)));
             continue;
         }
-        w(lsp(*slot, &b.image, "/3,0,3"));
+        w(lsp(*slot, &b.image, cells));
         if let Some(active) = &b.active {
             let state = if b.action == BarAction::Auto { 2 } else { 1 };
-            w(format!("if {MODE_STATE} == {state} {}", lsp(*slot, active, "/3,0,3")));
+            w(format!("if {MODE_STATE} == {state} {}", lsp(*slot, active, cells)));
         }
-        w(format!("spbtn {slot},{}", number(i)));
+        match disabled_while(b.action) {
+            Some(off) => w(format!("if {off} == 1 cell {slot},2\n{only_out}if {off} == 0 spbtn {slot},{}{press}", number(i))),
+            None => w(format!("{only_out}spbtn {slot},{}{press}", number(i))),
+        }
+    }
+    if let Some(base) = &bar.base {
+        w(lsp(base_slot, base, ""));
+    }
+    if let Some(sl) = slide {
+        // The hotspot: past the edge while the bar is in, the rest while out.
+        let (edge, width, height) = (sl.edge_x + 1, s.width as i32, s.height as i32);
+        w(format!("if {BAR_OUT} == 0 btn {BTN_EDGE},{edge},0,{},{height},0,0", width - edge));
+        w(format!("if {BAR_OUT} == 1 btn {BTN_EDGE},0,0,{edge},{height},0,0"));
     }
     if let Some(top) = &bar.top {
         scene_bar_draw(&mut w, top, chapter_text, scene_text, scene_buttons);
@@ -528,8 +692,52 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, save_menu: bool, set
     w("print 1".into());
     w("return".into());
 
+    if let Some(sl) = slide {
+        // Eases out (cubic): the offset left is dx·(1 - t)³.
+        let (dx, ms) = (sl.hidden_dx, sl.ms.max(1));
+        w(format!("*{BAR_SLIDE_IN}"));
+        w(format!("mov {BAR_OUT},1:goto *conv_bar_slide"));
+        w(format!("*{BAR_SLIDE_OUT}"));
+        w(format!("mov {BAR_OUT},0"));
+        w("*conv_bar_slide".into());
+        w("btndef clear".into());
+        w("resettimer".into());
+        w("*conv_bar_slide_loop".into());
+        w(format!("gettimer {TMP}:if {TMP} > {ms} mov {TMP},{ms}"));
+        w(format!("mov {SLIDE_K},({ms}-{TMP})*1000/{ms}"));
+        w(format!("mov {BAR_OFFSET},{dx}*{SLIDE_K}*{SLIDE_K}/1000*{SLIDE_K}/1000000"));
+        w(format!("if {BAR_OUT} == 0 mov {BAR_OFFSET},{dx}-{BAR_OFFSET}"));
+        for (b, slot) in &buttons {
+            w(format!("amsp {slot},{},{}", x(&b.image), b.image.y));
+        }
+        if let Some(base) = &bar.base {
+            w(format!("amsp {base_slot},{},{}", x(base), base.y));
+        }
+        w("print 1".into());
+        w(format!("if {TMP} < {ms} wait 1:goto *conv_bar_slide_loop"));
+        w("return".into());
+    }
+
     w(format!("*{BAR_ACTION}"));
-    w(format!("if {BUTTON_VAR} == -1 goto *conv_bar_hide"));
+    let right_click = if menu.is_some() { crate::command_menu::MENU } else { "conv_bar_hide" };
+    w(format!("if {BUTTON_VAR} == -1 goto *{right_click}"));
+    if let Some(k) = menu.and_then(|m| m.key) {
+        w(format!("if {BUTTON_VAR} == {} goto *{right_click}", key_code(k)));
+    }
+    for (i, item) in menu_items.iter().enumerate() {
+        let Some(k) = item.key else { continue };
+        let go = if goes_on(item.action) { format!("mov {},1:", crate::command_menu::GO_ON) } else { String::new() };
+        let call;
+        let target = match item.action {
+            BarAction::Call if item.label.is_some() => {
+                call = crate::command_menu::call_label(i);
+                call.as_str()
+            }
+            BarAction::Call | BarAction::Close => continue,
+            a => bar_label(a),
+        };
+        w(format!("if {BUTTON_VAR} == {} {go}goto *{target}", key_code(k)));
+    }
     w(format!("if {BUTTON_VAR} == -2 goto *conv_bar_log"));
     if bar.top.is_some() {
         let last = BTN_SCENE_ROW + SCENE_ROWS as i32;
@@ -537,37 +745,93 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, save_menu: bool, set
     }
     for (i, (b, _)) in buttons.iter().enumerate() {
         if b.action != BarAction::Unavailable {
-            w(format!("if {BUTTON_VAR} == {} goto *{}", number(i), label(b.action)));
+            w(format!("if {BUTTON_VAR} == {} goto *{}", number(i), bar_label(b.action)));
         }
     }
     w("return".into());
-    let mut actions: Vec<BarAction> = bar.buttons.iter().map(|b| b.action).collect();
+    let mut actions = all_actions;
     actions.push(BarAction::HideWindow);
     actions.push(BarAction::Log);
-    actions.sort_by_key(|a| label(*a));
-    actions.dedup_by_key(|a| label(*a));
+    actions.retain(|&a| !bar_label(a).is_empty());
+    actions.sort_by_key(|a| bar_label(*a));
+    actions.dedup_by_key(|a| bar_label(*a));
     // The save menu covers the screen: put the bars away first.
-    let menu = |entry: &str| format!("gosub *{BAR_CLEAR}\nmov {IN_GAME},1\ngosub *{entry}");
+    let menu_entry = |entry: &str| format!("gosub *{BAR_CLEAR}\nmov {IN_GAME},1\ngosub *{entry}");
+    // Fades to black (the dialog's top sprite) before a load.
+    let black = format!("gosub *{BAR_CLEAR}\nlsp {},\":c;>{},{},#000000\",0,0\nprint 10,{}", DIALOG_SPRITES.start, s.width, s.height, bar.load_fade_ms.max(1));
     for a in actions {
-        w(format!("*{}", label(a)));
+        w(format!("*{}", bar_label(a)));
         match a {
             BarAction::Auto => w("systemcall automode".into()),
-            BarAction::Skip => w("systemcall skip".into()),
-            BarAction::Log if backlog => w(menu(BACKLOG)),
+            BarAction::Skip | BarAction::FastSkip => w("systemcall skip".into()),
+            BarAction::Log if s.backlog => w(menu_entry(BACKLOG)),
             BarAction::Log => w("systemcall lookback".into()),
-            BarAction::Settings if settings => w(menu(SETTINGS)),
+            BarAction::Settings if s.settings => w(menu_entry(SETTINGS)),
             BarAction::Settings => w("return".into()),
-            BarAction::Save if save_menu => w(menu(SAVE)),
-            BarAction::Load if save_menu => w(menu(LOAD)),
+            BarAction::Save if s.save_menu => w(menu_entry(SAVE)),
+            BarAction::Load if s.save_menu => w(menu_entry(LOAD)),
             BarAction::Save => w("systemcall save".into()),
             BarAction::Load => w("systemcall load".into()),
-            BarAction::HideWindow | BarAction::Unavailable => w("systemcall windowerase".into()),
+            BarAction::HideWindow | BarAction::Unavailable => {
+                if slide.is_some() {
+                    w(format!("if {BAR_OUT} == 1 gosub *{BAR_SLIDE_OUT}"));
+                }
+                w("systemcall windowerase".into())
+            }
+            BarAction::QuickSave => {
+                w(format!("savegame {QUICK_SLOT}"));
+                if let Some(se) = &bar.quick_save_se {
+                    w(format!("dwave {},\"{}\"", crate::SE_CHANNELS.start(), path(se)));
+                }
+            }
+            BarAction::QuickLoad => {
+                w(format!("savefileexist {TMP},{QUICK_SLOT}:if {TMP} == 0 return"));
+                w(black.clone());
+                w(format!("loadgame {QUICK_SLOT}"));
+            }
+            BarAction::BackToChoice => {
+                w(format!("savefileexist {TMP},{BACK_SLOT}:if {TMP} == 0 return"));
+                if let Some(c) = s.confirm {
+                    w(confirm_call(&c.load, Switch::ConfirmBackToChoice));
+                    w(format!("if {CONFIRM} == 0 return"));
+                }
+                w(black.clone());
+                w(format!("mov {BACK_LOADING},1"));
+                w(format!("loadgame {BACK_SLOT}"));
+            }
+            BarAction::Title | BarAction::Quit => {
+                let (kind, then) = if a == BarAction::Title { (Switch::ConfirmTitle, "reset") } else { (Switch::ConfirmQuit, "end") };
+                if let Some(c) = s.confirm {
+                    w(confirm_call(if a == BarAction::Title { &c.title } else { &c.quit }, kind));
+                    w(format!("if {CONFIRM} == 0 return"));
+                }
+                w(then.into());
+            }
+            BarAction::Fullscreen => w(format!("isfull {TMP}\nif {TMP} == 1 menu_window:return\nmenu_full")),
+            BarAction::Close | BarAction::Call => unreachable!(),
+        }
+        w("return".into());
+    }
+    if has_back_to_choice(bar, menu) {
+        // Every load but the one going back to the choice drops that save
+        // (it belongs to the game left), as a new game does.
+        w(format!("*{LOADED}"));
+        w(format!("if {BACK_LOADING} == 1 mov {BACK_LOADING},0:goto *conv_loaded_keep"));
+        w(format!("delsavegame {BACK_SLOT}"));
+        w("*conv_loaded_keep".into());
+        if bar.top.is_some() {
+            w(format!("goto *{SCENE_LOADED}"));
         }
         w("return".into());
     }
     if bar.top.is_some() {
         scene_stack(&mut w);
     }
+}
+
+/// The bar or the command menu can go back to the last choice.
+pub(crate) fn has_back_to_choice(bar: &ButtonBar, menu: Option<&CommandMenu>) -> bool {
+    bar.buttons.iter().any(|b| b.action == BarAction::BackToChoice) || menu.is_some_and(|m| m.items.iter().any(|i| i.action == BarAction::BackToChoice))
 }
 
 /// Sprites of the scene list's rows.
@@ -658,8 +922,11 @@ fn scene_bar_draw(w: &mut impl FnMut(String), top: &TopBars, chapter_text: u32, 
 /// bookkeeping (see [`SCENE_DEPTH`]). The deepest level and the titles are
 /// locals and go back with a load, so they are carried over in globals.
 ///
-/// A load from the save menu keeps the level saved but drops the levels
-/// below it, and the levels above it can no longer be gone back to.
+/// A save from the save menu keeps the slots of the levels that can be
+/// gone to (`conv_scene_keep`, with CONscripter's `copysavegame`), and a
+/// load puts them back, as the original keeps its scene stack in a save.
+/// A save without them (made by an older build) loads at the level saved,
+/// whose levels below are dropped and above can't be gone back to.
 fn scene_stack(w: &mut impl FnMut(String)) {
     let titles = || (1..=SCENE_ROWS).map(|k| (SCENE_TITLES + k, SCENE_CARRY + k));
     w("*conv_scene_action".into());
@@ -685,8 +952,34 @@ fn scene_stack(w: &mut impl FnMut(String)) {
     w(format!("mov {SCENE_LIST_OPEN},1"));
     w("return".into());
 
+    // SELECTED: the save slot.
+    let kept = |slot: &str| format!("{SCENE_KEPT}+{slot}*10+{SLOT}");
+    w("*conv_scene_keep".into());
+    w(format!("for {SLOT}=0 to {}", SCENE_LEVELS - 1));
+    w(format!("delsavegame {}", kept(SELECTED)));
+    w(format!(
+        "if {SLOT} >= {SCENE_FLOOR} && {SLOT} <= {SCENE_MAX_DEPTH} && {SLOT} != {SCENE_DEPTH} copysavegame {SCENE_SLOT}+{SLOT},{}",
+        kept(SELECTED)
+    ));
+    w("next".into());
+    w("return".into());
+    w("*conv_scene_drop".into());
+    w(format!("for {SLOT}=0 to {}", SCENE_LEVELS - 1));
+    w(format!("delsavegame {}", kept(SELECTED)));
+    w("next".into());
+    w("return".into());
+
     w(format!("*{SCENE_LOADED}"));
-    w(format!("if {SCENE_LOADING} == 0 mov {SCENE_MAX_DEPTH},{SCENE_DEPTH}:mov {SCENE_FLOOR},{SCENE_DEPTH}:return"));
+    w(format!("if {SCENE_LOADING} == 1 goto *conv_scene_switched"));
+    // A load from the save menu: its levels back, if it kept them.
+    w(format!("mov {SCENE_RESTORED},0"));
+    w(format!("for {SLOT}=0 to {}", SCENE_LEVELS - 1));
+    w(format!("savefileexist {HAS_DATA},{}", kept(SCENE_LOAD_SLOT)));
+    w(format!("if {HAS_DATA} == 1 copysavegame {},{SCENE_SLOT}+{SLOT}:mov {SCENE_RESTORED},1", kept(SCENE_LOAD_SLOT)));
+    w("next".into());
+    w(format!("if {SCENE_RESTORED} == 0 mov {SCENE_MAX_DEPTH},{SCENE_DEPTH}:mov {SCENE_FLOOR},{SCENE_DEPTH}"));
+    w("return".into());
+    w("*conv_scene_switched".into());
     w(format!("mov {SCENE_LOADING},0:mov {SCENE_MAX_DEPTH},{SCENE_CARRY_MAX}:mov {SCENE_FLOOR},{SCENE_CARRY_FLOOR}"));
     w(titles().map(|(local, carry)| format!("mov ${local},${carry}")).collect::<Vec<_>>().join(":"));
     w("return".into());
@@ -910,7 +1203,14 @@ pub(crate) fn settings_menu(
         w(format!("mov {TMP},{}*10:{cmd} {TMP}", setting_var(setting)));
     }
     w(format!("mov {TEXT_MS},(10-{})*{TEXT_MS_STEP}:textspeed {TEXT_MS}", setting_var(Setting::TextSpeed)));
-    w(format!("mov {TMP},(10-{})*400+600:automode_time {TMP}", setting_var(Setting::AutoSpeed)));
+    let auto = setting_var(Setting::AutoSpeed);
+    match rows.iter().find_map(|r| match r.setting {
+        Setting::AutoWait { page_step, char_step } => Some((page_step, char_step)),
+        _ => None,
+    }) {
+        Some((page, char)) => w(format!("automode_time (10-{auto})*{page},(10-{auto})*{char}")),
+        None => w(format!("mov {TMP},(10-{auto})*400+600:automode_time {TMP}")),
+    }
     if rows.iter().any(|r| r.setting == Setting::WindowTransparency) {
         w(format!("mov {TMP},255-{}*25:windowtrans {TMP}", setting_var(Setting::WindowTransparency)));
     }
@@ -935,12 +1235,17 @@ fn switch_index(s: Switch) -> u32 {
         Switch::ConfirmDelete => 4,
         Switch::ConfirmTitle => 5,
         Switch::ConfirmQuit => 6,
+        Switch::ConfirmBackToChoice => 7,
+        Switch::VoiceKeepsPlaying => 8,
     }
 }
 
 /// The global that is 1 while `s` is switched off.
 pub(crate) fn switch_off(s: Switch) -> String {
-    format!("%{}", SWITCH_OFF_BASE + switch_index(s))
+    match switch_index(s) {
+        i @ 0..=7 => format!("%{}", SWITCH_OFF_BASE + i),
+        i => format!("%{}", SWITCH_OFF_BASE_2 + i - 8),
+    }
 }
 
 /// The yes/no dialog (see [`ConfirmDialog`]) over whatever is on screen:
@@ -1035,7 +1340,7 @@ fn setting_var(s: Setting) -> &'static str {
         Setting::SeVolume => "%903",
         Setting::VoiceVolume => "%904",
         Setting::TextSpeed => "%905",
-        Setting::AutoSpeed => "%906",
+        Setting::AutoSpeed | Setting::AutoWait { .. } => "%906",
         // Added later: 0 (the default for older saves) is the plain window.
         Setting::WindowTransparency => "%910",
     }
@@ -1209,7 +1514,7 @@ pub(crate) mod tests {
         };
         let d = dialog();
         let mut out = String::new();
-        save_menu(&mut out, &m, Some(&d));
+        save_menu(&mut out, &m, Some(&d), false);
         for line in [
             "if %100 == 1 getscreenshot 400,300\n",
             // lsp2 takes the centre.
@@ -1354,6 +1659,41 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn sliding_bar_waits_off_screen_and_comes_in_at_the_edge() {
+        use conv_core::ir::{BarButton, BarSlide};
+        let bar = ButtonBar {
+            buttons: vec![
+                BarButton { image: placed("qsave", 104, 130), active: None, action: BarAction::QuickSave },
+                BarButton { image: placed("qload", 104, 106), active: None, action: BarAction::QuickLoad },
+            ],
+            base: Some(placed("base", 32, 524)),
+            slide: Some(BarSlide { hidden_dx: 32, edge_x: 968, ms: 200 }),
+            pressed: true,
+            quick_save_se: Some("sound/se/bookmark.ogg".into()),
+            load_fade_ms: 300,
+            ..Default::default()
+        };
+        let mut out = String::new();
+        button_bar(&mut out, &bar, BarScreens { width: 1024, height: 576, ..Default::default() });
+        for line in [
+            "getmousepos %105,%146\nif %105 >= 1024 || %146 >= 576 mov %105,0\n",
+            "if %143 == 0 && %105 > 968 gosub *conv_bar_slide_in:goto *conv_wait\n",
+            "getmouseover 1300,1300\ntextbtnwait %9\nif %9 == 1300 goto *conv_wait\n",
+            "if %9 == 0 && %143 == 1 && %108 == 0 goto *conv_wait\n",
+            // The base over the buttons; buttons only while the bar is out.
+            "lsp 35,\":a/4,0,3;system\\qsave.png\",10+%144,20\nif %143 == 1 spbtn 35,1001,3\n",
+            "if %141 == 1 cell 36,2\nif %143 == 1 if %141 == 0 spbtn 36,1002,3\n",
+            "lsp 34,\":a;system\\base.png\",10+%144,20\n",
+            "if %143 == 0 btn 1300,969,0,55,576,0,0\nif %143 == 1 btn 1300,0,0,969,576,0,0\n",
+            "mov %144,32*%145*%145/1000*%145/1000000\nif %143 == 0 mov %144,32-%144\n",
+            "*conv_bar_qsave\nsavegame 890\ndwave 1,\"sound\\se\\bookmark.ogg\"\nreturn\n",
+            "*conv_bar_qload\nsavefileexist %105,890:if %105 == 0 return\ngosub *conv_bar_clear\nlsp 0,\":c;>1024,576,#000000\",0,0\nprint 10,300\nloadgame 890\n",
+        ] {
+            assert!(out.contains(line), "missing:\n{line}\nin:\n{out}");
+        }
+    }
+
+    #[test]
     fn button_bar_routine() {
         use conv_core::ir::BarButton;
         let bar = ButtonBar {
@@ -1363,9 +1703,10 @@ pub(crate) mod tests {
                 BarButton { image: placed("setting", 56, 19), active: None, action: BarAction::Unavailable },
             ],
             top: None,
+            ..Default::default()
         };
         let mut out = String::new();
-        button_bar(&mut out, &bar, true, false, false, false);
+        button_bar(&mut out, &bar, BarScreens { save_menu: true, ..Default::default() });
         for line in [
             "*conv_wait\ngosub *conv_bar_draw\ntextbtnwait %9\nif %9 == -3 && %3640 == 0 goto *conv_wait_end\nif %9 == -3 goto *conv_wait\n",
             "if %9 >= 0 && %9 <= 1000 goto *conv_wait_end\n",
@@ -1382,6 +1723,15 @@ pub(crate) mod tests {
             assert!(out.contains(line), "missing {line:?} in\n{out}");
         }
         assert!(!out.contains("conv_scene"), "scene routines without top bars:\n{out}");
+    }
+
+    #[test]
+    fn voices_stop_on_a_click_when_switched_off() {
+        let bar = ButtonBar { buttons: Vec::new(), top: None, ..Default::default() };
+        let mut out = String::new();
+        button_bar(&mut out, &bar, BarScreens { save_menu: true, voice_stops: true, ..Default::default() });
+        assert!(out.contains("*conv_wait_end\nif %2910 == 1 dwavestop 0\ntexec\n"), "{out}");
+        assert_eq!(switch_off(Switch::ConfirmQuit), "%3646");
     }
 
     #[test]
@@ -1408,9 +1758,9 @@ pub(crate) mod tests {
             row_color: "#A0A0A0".into(),
             current_row_color: "#FFFFFF".into(),
         };
-        let bar = ButtonBar { buttons: vec![], top: Some(top) };
+        let bar = ButtonBar { buttons: vec![], top: Some(top), ..Default::default() };
         let mut out = String::new();
-        button_bar(&mut out, &bar, true, false, false, false);
+        button_bar(&mut out, &bar, BarScreens { save_menu: true, ..Default::default() });
         for line in [
             // The rows clear with the bars.
             "csp 22:csp 23:csp 24:",
@@ -1428,9 +1778,49 @@ pub(crate) mod tests {
             // Going to a level: save this one, carry the history over, load.
             "if %9 > 1110 mov %192,%9-1110\nif %192 < %190 return\nif %192 > %151 return\nif %192 == %150 return\nsavegame 900+%150\nmov %2900,1:mov %2901,%151:mov %2902,%190\nmov $2901,$161:",
             "loadgame 900+%192\nmov %2900,0\nreturn\n",
-            "*conv_scene_loaded\nif %2900 == 0 mov %151,%150:mov %190,%150:return\n",
+            // A save keeps its levels' slots; a load puts them back.
+            "*conv_scene_keep\nfor %103=0 to 7\ndelsavegame 1000+%102*10+%103\nif %103 >= %190 && %103 <= %151 && %103 != %150 copysavegame 900+%103,1000+%102*10+%103\nnext\nreturn\n",
+            "*conv_scene_loaded\nif %2900 == 1 goto *conv_scene_switched\nmov %2905,0\nfor %103=0 to 7\nsavefileexist %104,1000+%2904*10+%103\nif %104 == 1 copysavegame 1000+%2904*10+%103,900+%103:mov %2905,1\nnext\nif %2905 == 0 mov %151,%150:mov %190,%150\nreturn\n*conv_scene_switched\n",
         ] {
             assert!(out.contains(line), "missing {line:?} in\n{out}");
         }
+    }
+
+    #[test]
+    fn auto_wait_per_page_and_character() {
+        use conv_core::ir::SettingRow;
+        let mut m = SettingsMenu {
+            base: placed("base", 800, 600),
+            base_opacity: 210,
+            header: placed("header", 100, 30),
+            close: placed("close", 60, 20),
+            rows: vec![SettingRow { label: "オート".into(), setting: Setting::AutoSpeed }],
+            label_x: 140,
+            minus_x: 340,
+            level_x: 380,
+            plus_x: 680,
+            y: 140,
+            pitch: 70,
+            font_size: 22,
+            title_label: "title".into(),
+            quit_label: "quit".into(),
+            exits_y: 540,
+            tab_labels: Vec::new(),
+            tabs_x: 300,
+            tabs_y: 34,
+            voices: Vec::new(),
+            voice_column_x: 440,
+            voice_pitch: 50,
+            skip_unread_label: None,
+            switches: Vec::new(),
+        };
+        let mut out = String::new();
+        settings_menu(&mut out, &m, None, None, None);
+        assert!(out.contains("mov %105,(10-%906)*400+600:automode_time %105\n"), "{out}");
+        m.rows[0].setting = Setting::AutoWait { page_step: 500, char_step: 4 };
+        let mut out = String::new();
+        settings_menu(&mut out, &m, None, None, None);
+        assert!(out.contains("automode_time (10-%906)*500,(10-%906)*4\n"), "{out}");
+        assert!(out.contains("itoa2 $101,%906\n"), "{out}");
     }
 }

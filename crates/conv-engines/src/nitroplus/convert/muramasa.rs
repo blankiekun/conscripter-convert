@@ -12,7 +12,7 @@ pub mod magiccube;
 pub mod screens;
 
 /// The game's hooks; the CLI uses them for a game with `Muramasa.exe`.
-pub const MURAMASA: Game = Game { call, scene, flags, files: &[magiccube::FILE], menus: screens::menus };
+pub const MURAMASA: Game = Game { call, scene, flags, files: &[magiccube::FILE], menus: screens::menus, subroutines: &[(screens::FAVOUR, "nss/sys_hmode.nss")] };
 
 fn call(c: &mut Compiler<'_, '_>, name: &str) -> bool {
     if let Some(r) = RANKINGS.iter().find(|r| r.0 == name) {

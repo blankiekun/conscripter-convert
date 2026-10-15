@@ -14,6 +14,7 @@ use conv_core::ir::{
 };
 
 mod button_screen;
+mod command_menu;
 mod extras;
 pub mod lint;
 mod menu;
@@ -92,7 +93,8 @@ const ANIMATION_IMAGE: &str = "$117";
 const ANIMATION_SAVED: u32 = 13;
 /// Scratch variable receiving the clicked button (also used by nstrace).
 const BUTTON_VAR: &str = "%9";
-// Ranges claimed by modules: %190-%289 and $200-$229, the tile puzzle's
+// Ranges claimed by modules: %140-%149, the command menu and the sliding
+// bar ([`command_menu`], [`menu::button_bar`]); %190-%289 and $200-$229, the tile puzzle's
 // state ([`puzzle`]; locals when the global border is 800).
 /// NScripter variables: locals from %10, globals from %200. `globalon`
 /// makes %200 and up persist across games.
@@ -221,7 +223,9 @@ pub fn emit(script: &Script) -> String {
     if let Some(bar) = &script.button_bar {
         // Every click wait runs the bar routine instead of waiting itself.
         writeln!(out, "textgosub *{}", menu::WAIT).unwrap();
-        if bar.top.is_some() {
+        if menu::has_back_to_choice(bar, script.command_menu.as_ref()) {
+            writeln!(out, "loadgosub *{}", menu::LOADED).unwrap();
+        } else if bar.top.is_some() {
             writeln!(out, "loadgosub *{}", menu::SCENE_LOADED).unwrap();
         }
     }
@@ -280,7 +284,16 @@ pub fn emit(script: &Script) -> String {
     if let Some(t) = &script.title_screen {
         title_screen(&mut out, t, &effect(t.fade_ms), script.save_menu.is_some(), script.settings.is_some(), script.confirm.as_ref(), script.extras.is_some());
     }
+    let back_to_choice = script.button_bar.as_ref().is_some_and(|b| menu::has_back_to_choice(b, script.command_menu.as_ref()));
+    if back_to_choice {
+        // A new game has no choice to go back to.
+        writeln!(out, "delsavegame {}", menu::BACK_SLOT).unwrap();
+    }
     let mut se = SeChannels::default();
+    // The next sound effect isn't played while skipping (Op::SeNotSkipped).
+    let mut se_not_skipped = false;
+    // The next static's fade in (Op::NoiseFadeIn).
+    let mut noise_fade_in = None;
     let mut needs_bit_helpers = false;
     let mut needs_move = false;
     let mut needs_zoom = false;
@@ -469,6 +482,8 @@ pub fn emit(script: &Script) -> String {
                     writeln!(out, "print 1").unwrap();
                 }
             }
+            // CONscripter's spfade.
+            Op::NoiseFadeIn { ms } => noise_fade_in = Some(*ms),
             Op::Noise(noise) => {
                 writeln!(out, "csp {NOISE_SPRITE}").unwrap();
                 match noise {
@@ -477,6 +492,9 @@ pub fn emit(script: &Script) -> String {
                         let image = format!(":c/{},{},0;{}", n.frames, n.frame_ms, path(&n.image));
                         writeln!(out, "mov {NOISE_ALPHA},{alpha}:mov {NOISE_IMAGE},\"{image}\"").unwrap();
                         writeln!(out, "lsp {NOISE_SPRITE},{NOISE_IMAGE},0,0,{NOISE_ALPHA}").unwrap();
+                        if let Some(ms) = noise_fade_in.take() {
+                            writeln!(out, "spfade {NOISE_SPRITE},{ms}").unwrap();
+                        }
                     }
                     None => writeln!(out, "mov {NOISE_ALPHA},0").unwrap(),
                 }
@@ -815,6 +833,10 @@ pub fn emit(script: &Script) -> String {
                 writeln!(out, "lsp2add {FLASH_SPRITE2},\":c;>{w},{h},#{colour:06x}\",{},{},100,100,0,{alpha}", w / 2, h / 2).unwrap();
                 writeln!(out, "print 1\ndelay {ms}\ncsp2 {FLASH_SPRITE2}\nprint 1").unwrap();
             }
+            // CONscripter's screenflash adds the colour over everything.
+            Op::ScreenFlash { colour, opacity, ms } => {
+                writeln!(out, "screenflash {},\"#{colour:06x}\"\nprint 1\ndelay {ms}\nscreenflash 0\nprint 1", opacity.min(&256)).unwrap();
+            }
             Op::ScreenFade { colour, ms } => {
                 // An opaque sprite2 faded in: over the picture, under the
                 // text window and the bars.
@@ -825,7 +847,13 @@ pub fn emit(script: &Script) -> String {
             Op::SePlay { file, looped } => {
                 let ch = se.start(file);
                 let cmd = if *looped { "dwaveloop" } else { "dwave" };
-                writeln!(out, "{cmd} {ch},\"{}\"", path(file)).unwrap();
+                let when = if std::mem::take(&mut se_not_skipped) { format!("if {} != 1 ", menu::TMP) } else { String::new() };
+                writeln!(out, "{when}{cmd} {ch},\"{}\"", path(file)).unwrap();
+            }
+            // isskip: 1 while skipping (2 in auto mode).
+            Op::SeNotSkipped => {
+                writeln!(out, "isskip {}", menu::TMP).unwrap();
+                se_not_skipped = true;
             }
             Op::SeStop { file: Some(file) } => {
                 if let Some(ch) = se.stop(file) {
@@ -838,7 +866,10 @@ pub fn emit(script: &Script) -> String {
                 }
             }
             // CONscripter's channel fades (PLAN.md §4.2).
-            Op::SeFadeIn { ms } => writeln!(out, "dwavefadein {ms}").unwrap(),
+            Op::SeFadeIn { ms } => {
+                let when = if se_not_skipped { format!("if {} != 1 ", menu::TMP) } else { String::new() };
+                writeln!(out, "{when}dwavefadein {ms}").unwrap();
+            }
             Op::SeFadeOut { file, ms } => {
                 let channels = match file {
                     Some(file) => se.stop(file).into_iter().collect(),
@@ -881,6 +912,10 @@ pub fn emit(script: &Script) -> String {
                     plate_visible = false;
                     page_rows = 0;
                     window = Some(s.window.clone());
+                }
+                if back_to_choice {
+                    // For going back here (the page before it, as saves are).
+                    writeln!(out, "savegame {}", menu::BACK_SLOT).unwrap();
                 }
                 let items: Vec<String> = options.iter().map(|(t, l)| format!("\"{}\",*{}", text_safe(t), label(l))).collect();
                 writeln!(out, "select {}", items.join(",")).unwrap();
@@ -933,10 +968,24 @@ pub fn emit(script: &Script) -> String {
         writeln!(out, "return").unwrap();
     }
     if let Some(m) = &script.save_menu {
-        menu::save_menu(&mut out, m, script.confirm.as_ref());
+        menu::save_menu(&mut out, m, script.confirm.as_ref(), script.button_bar.as_ref().is_some_and(|b| b.top.is_some()));
     }
     if let Some(b) = &script.button_bar {
-        menu::button_bar(&mut out, b, script.save_menu.is_some(), script.settings.is_some(), script.backlog.is_some(), has_replay);
+        let screens = menu::BarScreens {
+            save_menu: script.save_menu.is_some(),
+            settings: script.settings.is_some(),
+            backlog: script.backlog.is_some(),
+            replay: has_replay,
+            command_menu: script.command_menu.as_ref(),
+            confirm: script.confirm.as_ref(),
+            width: script.width,
+            height: script.height,
+            voice_stops: script.settings.as_ref().is_some_and(|m| m.switches.iter().any(|s| s.switch == Switch::VoiceKeepsPlaying)),
+        };
+        menu::button_bar(&mut out, b, screens);
+        if let Some(m) = &script.command_menu {
+            command_menu::emit(&mut out, m, b);
+        }
     }
     if let Some(m) = &script.settings {
         let replay = script.extras.as_ref().and_then(|e| e.replay.as_ref()).filter(|_| has_replay);
@@ -1003,7 +1052,7 @@ fn title_screen(out: &mut String, t: &TitleScreen, fade: &str, save_menu: bool, 
     for (n, (b, _)) in clickable.iter().enumerate() {
         let then = match b.action {
             TitleAction::Start => format!("goto *{TITLE_START}"),
-            TitleAction::Continue => format!("csp -1:load {}", menu::QUICK_SLOT),
+            TitleAction::Continue => format!("csp -1:loadgame {}", menu::QUICK_SLOT),
             TitleAction::Load if save_menu => {
                 format!("csp -1:mov {},0:gosub *{}:goto *{TITLE_DRAW}", menu::IN_GAME, menu::LOAD)
             }
@@ -1525,7 +1574,7 @@ mod tests {
     use conv_core::ir::{Animation, ButtonScreen, ChoiceStyle, Noise, Placed, SourceLoc, SpriteChange, SpriteFilter, SpritePlacement, Voice, FILTER_BLEND_COPY, FILTER_BLEND_MULTIPLY, FILTER_BRIGHTNESS, FILTER_COLOUR};
 
     fn script(ops: Vec<Op>) -> Script {
-        Script { title: "Test".into(), width: 800, height: 600, global_border: None, window: None, title_screen: None, save_menu: None, button_bar: None, settings: None, backlog: None, confirm: None, extras: None, ops, version: None }
+        Script { title: "Test".into(), width: 800, height: 600, global_border: None, window: None, title_screen: None, save_menu: None, button_bar: None, settings: None, backlog: None, confirm: None, extras: None, ops, version: None, command_menu: None }
     }
 
     fn link(start: usize, len: usize, target: Option<&str>) -> TextLink {
@@ -1819,7 +1868,7 @@ effect 7,99,1000,\"cons_zoom.dll/3,220,5\"
         for part in [
             "*conv_title_draw\nbgm \"sound\\bgm\\title.ogg\"\nsavefileexist %105,890\nlsp 6,\":a/3,0,3;system\\quick.png\",822,150\nif %105 == 0 lsp 6,\":a/3,0,3;system\\quick.png\",822,150,128\n",
             "*conv_title\nselectvoice \"\",\"sound\\se\\over.ogg\",\"\"\nsavefileexist %105,890\nif %105 == 1 spbtn 6,1,2\nspbtn 7,2,2\nspbtn 8,3,2\nbtnwait %9\nselectvoice \"\",\"\",\"\"\n",
-            "if %9 == 1 dwave 1,\"sound\\se\\a.ogg\":csp -1:load 890\n",
+            "if %9 == 1 dwave 1,\"sound\\se\\a.ogg\":csp -1:loadgame 890\n",
             // No question before quitting.
             "if %9 == 3 end\n",
             "*conv_title_start\ncsp -1\nbgmfadeout 3000:bgmstop:bgmfadeout 0\nbg black,",
@@ -2420,7 +2469,7 @@ end
     fn noise_outlasts_the_background() {
         let noise = Noise { image: "system/noise.png".into(), frames: 4, frame_ms: 100, opacity: 120 };
         let s = script(vec![
-            Op::Noise(Some(noise)),
+            Op::Noise(Some(noise.clone())),
             Op::Background { image: "bg/room.png".into(), fade_ms: 0 },
             Op::Noise(None),
         ]);
@@ -2433,6 +2482,8 @@ end
             ),
             "{out}"
         );
+        let out = emit(&script(vec![Op::NoiseFadeIn { ms: 2000 }, Op::Noise(Some(noise))]));
+        assert!(out.contains("lsp 60,$116,0,0,%116\nspfade 60,2000\nprint 1\n"), "{out}");
     }
 
     #[test]
@@ -2480,6 +2531,12 @@ end
     }
 
     #[test]
+    fn screen_flashes() {
+        let out = emit(&script(vec![Op::ScreenFlash { colour: 0xff0000, opacity: 128, ms: 100 }]));
+        assert!(out.contains("screenflash 128,\"#ff0000\"\nprint 1\ndelay 100\nscreenflash 0\nprint 1\n"), "{out}");
+    }
+
+    #[test]
     fn flashes() {
         let out = emit(&script(vec![Op::Flash { colour: 0xff0000, opacity: 128, ms: 100 }]));
         assert!(
@@ -2496,6 +2553,20 @@ end
             Op::SeFadeOut { file: Some("se/rain.ogg".into()), ms: 1500 },
         ]));
         assert!(out.contains("dwavefadein 2000\ndwaveloop 1,\"se\\rain.ogg\"\ndwavefadeout 1,1500\n"), "{out}");
+    }
+
+    #[test]
+    fn some_sounds_are_left_out_while_skipping() {
+        let out = emit(&script(vec![
+            Op::SeNotSkipped,
+            Op::SeFadeIn { ms: 300 },
+            Op::SePlay { file: "se/door.ogg".into(), looped: false },
+            Op::SePlay { file: "se/rain.ogg".into(), looped: true },
+        ]));
+        assert!(
+            out.contains("isskip %105\nif %105 != 1 dwavefadein 300\nif %105 != 1 dwave 1,\"se\\door.ogg\"\ndwaveloop 2,\"se\\rain.ogg\"\n"),
+            "{out}"
+        );
     }
 
     #[test]
