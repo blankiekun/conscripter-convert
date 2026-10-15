@@ -292,7 +292,8 @@ pub enum PairOption {
     /// The yes/no questions are asked (off: every [`ConfirmDialog`] question
     /// answers yes).
     Confirm,
-    /// A click stops a movie (`moviestop`).
+    /// A click stops any movie (`moviestop 1`; off, `moviestop -1`: as
+    /// the script's flag says).
     MovieStop,
     /// Auto mode and skip stop at a choice (off: `selectkeep 1`).
     StopAtChoice,
