@@ -2214,13 +2214,14 @@ fn lower_environment(
         }
     }
     let set = match (m.noise, m.ripple, m.shake) {
-        // The game always uses alpha blending (0) and greyscale (mode 1).
-        // Assumption: the rise in opacity over time_ms (up to 2 s) is
-        // left out; most of the static is set inside a transition, which
-        // fades it in.
+        // The game always uses alpha blending (0) and greyscale (mode 1),
+        // and its opacity always rises from 0, over up to 2 s.
         (Some(n), ..) if n.blend == 0 && n.mode & 1 == 1 => {
             let image = assets.noise()?;
             let frame_ms = n.interval_ms.max(1);
+            if n.time_ms > 0 && n.begin_opacity < n.end_opacity {
+                ops.push(Op::NoiseFadeIn { ms: n.time_ms });
+            }
             ops.push(Op::Noise(Some(Noise { image, frames: NOISE_FRAMES, frame_ms, opacity: u32::from(n.end_opacity.min(256)) })));
             true
         }

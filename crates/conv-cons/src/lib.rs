@@ -282,6 +282,8 @@ pub fn emit(script: &Script) -> String {
     let mut se = SeChannels::default();
     // The next sound effect isn't played while skipping (Op::SeNotSkipped).
     let mut se_not_skipped = false;
+    // The next static's fade in (Op::NoiseFadeIn).
+    let mut noise_fade_in = None;
     let mut needs_bit_helpers = false;
     let mut needs_move = false;
     let mut needs_zoom = false;
@@ -469,6 +471,8 @@ pub fn emit(script: &Script) -> String {
                     writeln!(out, "print 1").unwrap();
                 }
             }
+            // CONscripter's spfade.
+            Op::NoiseFadeIn { ms } => noise_fade_in = Some(*ms),
             Op::Noise(noise) => {
                 writeln!(out, "csp {NOISE_SPRITE}").unwrap();
                 match noise {
@@ -477,6 +481,9 @@ pub fn emit(script: &Script) -> String {
                         let image = format!(":c/{},{},0;{}", n.frames, n.frame_ms, path(&n.image));
                         writeln!(out, "mov {NOISE_ALPHA},{alpha}:mov {NOISE_IMAGE},\"{image}\"").unwrap();
                         writeln!(out, "lsp {NOISE_SPRITE},{NOISE_IMAGE},0,0,{NOISE_ALPHA}").unwrap();
+                        if let Some(ms) = noise_fade_in.take() {
+                            writeln!(out, "spfade {NOISE_SPRITE},{ms}").unwrap();
+                        }
                     }
                     None => writeln!(out, "mov {NOISE_ALPHA},0").unwrap(),
                 }
@@ -2430,7 +2437,7 @@ end
     fn noise_outlasts_the_background() {
         let noise = Noise { image: "system/noise.png".into(), frames: 4, frame_ms: 100, opacity: 120 };
         let s = script(vec![
-            Op::Noise(Some(noise)),
+            Op::Noise(Some(noise.clone())),
             Op::Background { image: "bg/room.png".into(), fade_ms: 0 },
             Op::Noise(None),
         ]);
@@ -2443,6 +2450,8 @@ end
             ),
             "{out}"
         );
+        let out = emit(&script(vec![Op::NoiseFadeIn { ms: 2000 }, Op::Noise(Some(noise))]));
+        assert!(out.contains("lsp 60,$116,0,0,%116\nspfade 60,2000\nprint 1\n"), "{out}");
     }
 
     #[test]
