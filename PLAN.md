@@ -617,7 +617,8 @@ The steps that apply them are in `docs/new-game.md`.
   text (CONscripter exits silently). Run the whole game, at least as a
   dry run, after every feature.
 - **Engine facts worth knowing early:** `:a` on a JPEG uses its right
-  half as the mask; loose files with Japanese names aren't found (pack
+  half as the mask; loose files with Japanese names were found only
+  once CONscripter looked for their UTF-8 names (4d94b92; before, pack
   them); `;$Sw,h` sets any screen size, `,valueN` raises the global
   border so more locals are saved per slot; `print 10,ms` works without
   an `effect` definition; `%%n` and `$%n` (the variable whose number is

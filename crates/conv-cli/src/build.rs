@@ -252,7 +252,7 @@ pub fn lint_dir(dir: &Path, files: bool) -> Result<conv_cons::lint::Report> {
                 let name = if name.is_empty() { file } else { format!("{name}\\{file}") };
                 if path.is_dir() {
                     walk(&path, &name, have);
-                } else if name.is_ascii() {
+                } else {
                     have.insert(name);
                 }
             }
