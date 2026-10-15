@@ -1604,16 +1604,17 @@ impl<'a, 'b> Compiler<'a, 'b> {
     fn exec_seq(&mut self, parts: &[&'a [Stmt]]) -> Flow {
         for (pi, part) in parts.iter().enumerate() {
             for (i, s) in part.iter().enumerate() {
-                if let StmtKind::If { cond, then, otherwise } = &s.kind {
-                    if (ends_in_return(then) || otherwise.as_deref().is_some_and(ends_in_return)) && self.is_runtime(cond) {
-                        let mut rest = vec![&part[i + 1..]];
-                        rest.extend_from_slice(&parts[pi + 1..]);
-                        self.runtime_if_then(cond, then, otherwise.as_deref(), &rest);
-                        if self.in_function == 0 {
-                            self.flush_sounds();
-                        }
-                        return Flow::Normal;
+                if let StmtKind::If { cond, then, otherwise } = &s.kind
+                    && (ends_in_return(then) || otherwise.as_deref().is_some_and(ends_in_return))
+                    && self.is_runtime(cond)
+                {
+                    let mut rest = vec![&part[i + 1..]];
+                    rest.extend_from_slice(&parts[pi + 1..]);
+                    self.runtime_if_then(cond, then, otherwise.as_deref(), &rest);
+                    if self.in_function == 0 {
+                        self.flush_sounds();
                     }
+                    return Flow::Normal;
                 }
                 let flow = self.exec(s);
                 // A statement of a scene (not of a helper) has finished

@@ -36,6 +36,17 @@ Without `--file`, `convert-nss` compiles Django's whole story
 The full build adds `--font <a Japanese TTF, e.g. ipag.ttf> --title
 続・殺戮のジャンゴ` and drops `--dry-run`.
 
+**Checking the routes.** After a full build into `out/django-cons`:
+
+```sh
+research/nitroplus/django_routes.sh out/django-cons <conscripter> out/django-routes
+```
+
+writes a `--choices` file per path (`django_paths.py`: the good answers,
+or the good answers up to choice N and then the deadly one), plays the
+eleven paths in parallel and prints each run's pages, choices and the
+bad-end pictures it showed: the good path none, `badNN` only its own.
+
 ## Files and formats
 
 | File | Size | Contents |
@@ -134,19 +145,18 @@ yet.
 | NPA archives (key), images, sounds | ✅ Every file decodes |
 | Movies (MPEG-1) | ❌ Not yet (scope to confirm) |
 | Script parsing | ✅ All 249 files; 56 places that don't parse, none in the story |
-| Story control flow (56 chapters, 10 choices, bad ends) | 🟡 Compiles end to end (dry run: 6,555 pages); not yet played in the engine |
-| Text | 🟡 Pages come out; window, fonts, name plates, voices not checked |
-| Pictures, sound in scripts | 🟡 What Muramasa's compiler does; 1,167 sounds not found (to look at) |
+| Story control flow (56 chapters, 10 choices, bad ends) | ✅ Compiled whole (`compile_story`); in the engine the good path plays to the end (6,496 pages) and each wrong answer ends the game with its own bad end (`research/nitroplus/django_routes.sh`, 2026-10-15) |
+| Text | 🟡 Pages come out in the boxes' places (box00: 39 columns at 50,472); look, name plates, voices not checked |
+| Pictures, sound in scripts | 🟡 What Muramasa's compiler does; every sound is found |
 | System screens | ❌ Not started |
 | Extras | ❌ Not started (scope to confirm) |
 
 ### Next
 
-1. A full build and a trace run in the engine; triage the checker's list.
-2. The 1,167 sounds "missing from the archives" (names or folders that
-   differ from Muramasa's).
-3. The text window and name plates (`box00`-`box05`, face windows
+1. Triage the trace checker's list (`cons_trace_check.py` on the
+   routes' traces) and look at pages (`--shot-pages`).
+2. The text window and name plates (`box00`-`box05`, face windows
    `frame03`-`frame05`) measured against the original under wine.
-4. The ranked "not converted" list: `MoveCamera`, `CreateTexture` from
+3. The ranked "not converted" list: `MoveCamera`, `CreateTexture` from
    the screen, `CreateColor` colours, movies.
-5. Ask the user the scope questions (above).
+4. Ask the user the scope questions (above).
