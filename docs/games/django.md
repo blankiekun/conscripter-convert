@@ -103,6 +103,35 @@ on the extracted scripts.
   (`sys_backlog`, `sys_load`, `sys_save`: `if(…)){`, `%=`), the notes
   above, a stray `#base_path`. None is in the story.
 
+## How the compiler is set for Django
+
+`nitroplus/convert/django.rs` (`DJANGO`) sets what differs from Muramasa:
+
+- 800×600, the boot script `boot.nss` (its includes are the helper
+  library), the whole story compiled from `SelectStoryMode`.
+- **Children are placed from their parent**: `@frame03/顔窓31` at 25,25
+  in `frame03` at 25,80 is at 50,105 (the comment in `SetWindowKwL` says
+  so).
+- **`CreateTexture` from a `LoadImage` picture** draws it: the face
+  windows' wanted-poster frame (`cg/sys/windowframe.png`).
+- **A chapter file's own objects are deleted when it ends**, except those
+  hung under an object made before it. *Inferred, not checked in the exe
+  or under wine*: `function.nss` makes `窓` and `音` windows "to hang
+  pictures and sounds on between files", and the fade to black `黒幕`
+  at the end of `dja001_…_01` is never deleted otherwise.
+- **Choices** (`choice_style`): `SetChoice02`'s 530×68 plates one under
+  the other from (138,244), white 22 px text. Where the text sits on the
+  plate (40 px in, centred vertically) and the hover colour (the
+  original swaps the plate's picture) are ours until measured.
+
+General NSS fixes made for Django that every game gets: hex numbers
+(`0x000000`), a string naming a variable as `CreateSound`'s path
+(`"$場所指定"`), a voice `src` without its `voice/` folder, `CreateWindow`'s
+place and the six-argument `LoadText` (a box's text layout), a runtime
+`if` whose branch ends in `return`. CONscripter: a new page erases the
+last one's text where the window picture doesn't reach (Django draws its
+text on the scene, with no window picture).
+
 ## Story structure and walkthrough
 
 `boot.nss` shows the logos and the title (`TitleSelect`); a new game
@@ -146,17 +175,22 @@ yet.
 | Movies (MPEG-1) | ❌ Not yet (scope to confirm) |
 | Script parsing | ✅ All 249 files; 56 places that don't parse, none in the story |
 | Story control flow (56 chapters, 10 choices, bad ends) | ✅ Compiled whole (`compile_story`); in the engine the good path plays to the end (6,496 pages) and each wrong answer ends the game with its own bad end (`research/nitroplus/django_routes.sh`, 2026-10-15) |
-| Text | 🟡 Pages come out in the boxes' places (box00: 39 columns at 50,472); look, name plates, voices not checked |
-| Pictures, sound in scripts | 🟡 What Muramasa's compiler does; every sound is found |
+| Text | 🟡 In the boxes' places (box00: 39 columns at 50,472, white on the black bar); 3,424 voiced lines; not compared with the original yet |
+| Pictures, sound in scripts | 🟡 Black bars, face windows in their frames, standing pictures, backgrounds; what Muramasa's compiler does for effects (moves and zooms as cross-fades); every sound is found |
+| Choices | 🟡 Django's plates; text place and hover colour guessed |
 | System screens | ❌ Not started |
 | Extras | ❌ Not started (scope to confirm) |
 
 ### Next
 
-1. Triage the trace checker's list (`cons_trace_check.py` on the
-   routes' traces) and look at pages (`--shot-pages`).
-2. The text window and name plates (`box00`-`box05`, face windows
+1. Run the original under wine (a recipe like Muramasa's) to check the
+   text's place, the choices and the chapter-end rule above.
+2. The rest of the trace checker's list (`cons_trace_check.py` on
+   `out/django-routes/good.jsonl`): one page runs past the window; sounds
+   started twice; pictures left up across 150 pages.
+3. The text window and name plates (`box00`-`box05`, face windows
    `frame03`-`frame05`) measured against the original under wine.
-3. The ranked "not converted" list: `MoveCamera`, `CreateTexture` from
+4. The ranked "not converted" list: `MoveCamera`, `CreateTexture` from
    the screen, `CreateColor` colours, movies.
-4. Ask the user the scope questions (above).
+5. System screens: title, save/load, settings, backlog.
+6. Ask the user the scope questions (above).
