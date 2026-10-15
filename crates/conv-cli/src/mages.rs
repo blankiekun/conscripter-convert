@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result, bail};
 use clap::Subcommand;
 use conv_engines::mages::cpk::Archive;
+use conv_engines::media;
 use conv_engines::mages::tasks::{self, Block, Scene};
 
 use crate::{build, map, safe_relative_path};
@@ -250,8 +251,6 @@ fn convert(game: &Path, output: &Path, scenes: &[String], font: Option<&Path>, t
 
 /// Converts the queued sounds to Ogg Vorbis with ffmpeg, in parallel.
 fn audio(jobs: &BTreeMap<String, conv_engines::mages::assets::AudioJob>) -> Result<()> {
-    use std::io::Write;
-    use std::process::{Command, Stdio};
     use std::sync::atomic::{AtomicUsize, Ordering};
     let jobs: Vec<_> = jobs.values().filter(|j| !j.output.exists()).collect();
     let next = AtomicUsize::new(0);
@@ -261,26 +260,12 @@ fn audio(jobs: &BTreeMap<String, conv_engines::mages::assets::AudioJob>) -> Resu
         for _ in 0..threads {
             s.spawn(|| {
                 while let Some(job) = jobs.get(next.fetch_add(1, Ordering::Relaxed)) {
-                    if let Some(dir) = job.output.parent() {
-                        let _ = fs::create_dir_all(dir);
-                    }
-                    let mut cmd = Command::new("ffmpeg");
-                    cmd.args(["-v", "error", "-y", "-i", "pipe:0", "-c:a", "libvorbis", "-q:a", "4"]);
+                    let mut args = vec!["-i".to_string(), "pipe:0".into(), "-c:a".into(), "libvorbis".into(), "-q:a".into(), "4".into()];
                     if let Some((start, end)) = job.looped {
-                        cmd.args(["-metadata", &format!("LOOPSTART={start}"), "-metadata", &format!("LOOPEND={end}")]);
+                        args.extend(["-metadata".into(), format!("LOOPSTART={start}"), "-metadata".into(), format!("LOOPEND={end}")]);
                     }
-                    cmd.arg(&job.output).stdin(Stdio::piped()).stdout(Stdio::null()).stderr(Stdio::piped());
-                    let ok = cmd.spawn().ok().and_then(|mut child| {
-                        let mut stdin = child.stdin.take()?;
-                        // ffmpeg may stop reading early; its exit status tells.
-                        let _ = stdin.write_all(job.source);
-                        drop(stdin);
-                        child.wait_with_output().ok()
-                    });
-                    match ok {
-                        Some(o) if o.status.success() => {}
-                        Some(o) => failed.lock().unwrap().push(format!("{}: {}", job.output.display(), String::from_utf8_lossy(&o.stderr).trim())),
-                        None => failed.lock().unwrap().push(format!("{}: could not run ffmpeg", job.output.display())),
+                    if let Err(e) = media::ffmpeg(&job.output, args, |stdin| stdin.write_all(job.source)) {
+                        failed.lock().unwrap().push(format!("{}: {e}", job.output.display()));
                     }
                 }
             });
@@ -297,7 +282,6 @@ fn audio(jobs: &BTreeMap<String, conv_engines::mages::assets::AudioJob>) -> Resu
 /// Converts the USM movies to H.264 + AAC MP4 with ffmpeg (loose files:
 /// CONscripter plays movies from the folder, not from archives).
 fn movies(jobs: &BTreeMap<String, PathBuf>, output: &Path) -> Result<()> {
-    use std::process::Command;
     for (rel, usm) in jobs {
         let dest = output.join(rel);
         if dest.exists() {
@@ -313,20 +297,15 @@ fn movies(jobs: &BTreeMap<String, PathBuf>, output: &Path) -> Result<()> {
         let (v, a) = (dir.join("demux.m2v"), dir.join("demux.adx"));
         fs::write(&v, video)?;
         fs::write(&a, audio)?;
-        let status = Command::new("ffmpeg")
-            .args(["-v", "error", "-y", "-f", "mpegvideo", "-i"])
-            .arg(&v)
-            .args(["-f", "adx", "-i"])
-            .arg(&a)
-            .args(["-map", "0:v", "-map", "1:a", "-c:v", "libx264", "-crf", "20", "-preset", "medium", "-pix_fmt", "yuv420p"])
-            .args(["-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart"])
-            .arg(&dest)
-            .status();
+        let mut args: Vec<std::ffi::OsString> = vec!["-f".into(), "mpegvideo".into(), "-i".into(), v.clone().into(), "-f".into(), "adx".into(), "-i".into(), a.clone().into()];
+        args.extend(["-map", "0:v", "-map", "1:a"].map(Into::into));
+        args.extend(media::mp4_options(20, "medium").into_iter().map(Into::into));
+        let result = media::ffmpeg(&dest, args, |_| Ok(()));
         let _ = fs::remove_file(&v);
         let _ = fs::remove_file(&a);
-        match status {
-            Ok(s) if s.success() => println!("  movie {rel}"),
-            _ => println!("  movie error: ffmpeg failed on {}", usm.display()),
+        match result {
+            Ok(()) => println!("  movie {rel}"),
+            Err(e) => println!("  movie error: {}: {e}", usm.display()),
         }
     }
     Ok(())

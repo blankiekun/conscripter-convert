@@ -23,6 +23,7 @@ use crate::xuse::cd::{
     PRESET_KIND_NEGATIVE, PRESET_KIND_SMOOTH, PRESET_KIND_HUE_SATURATION, PRESET_KIND_BRIGHTNESS_INVERT, PRESET_KIND_REPLACE,
     ModuleData,
 };
+use crate::media;
 use crate::xuse::gaf::{Gaf, GafError};
 use crate::xuse::gallery;
 use crate::xuse::music;
@@ -1772,38 +1773,21 @@ impl AssetBank {
         let dest = self.out.join(&name);
         if !dest.exists() {
             let pictures = self.gaf_rgba("gd.arc", roll.file, STAFF_ROLL)?;
-            let io = |source| ConvertError::Io { path: dest.clone(), source };
-            fs::create_dir_all(dest.parent().unwrap()).map_err(io)?;
-            let part = dest.with_extension("part.mp4");
-            let ffmpeg = |detail: String| ConvertError::Ffmpeg { path: PathBuf::from(roll.file), detail };
             let size = format!("{}x{}", staffroll::WIDTH, staffroll::HEIGHT);
             let seconds = format!("{:.3}", f64::from(roll.total_ms) / 1000.0);
-            let mut child = std::process::Command::new("ffmpeg")
-                .args(["-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", &size, "-r"])
-                .arg(STAFF_ROLL_FPS.to_string())
-                .args(["-i", "-", "-i"])
-                .arg(&song)
-                .args(["-map", "0:v", "-map", "1:a", "-t", &seconds])
-                .args(["-c:v", "libx264", "-preset", "slow", "-crf", "20", "-pix_fmt", "yuv420p"])
-                .args(["-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart"])
-                .arg(&part)
-                .stdin(std::process::Stdio::piped())
-                .spawn()
-                .map_err(|e| ffmpeg(e.to_string()))?;
-            let mut stdin = child.stdin.take().unwrap();
+            let mut args: Vec<std::ffi::OsString> = ["-f", "rawvideo", "-pix_fmt", "rgb24", "-s", &size, "-r", &STAFF_ROLL_FPS.to_string(), "-i", "-", "-i"].map(Into::into).to_vec();
+            args.push(song.into());
+            args.extend(["-map", "0:v", "-map", "1:a", "-t", &seconds].map(Into::into));
+            args.extend(media::mp4_options(20, "slow").into_iter().map(Into::into));
             let mut frame = image::RgbImage::new(staffroll::WIDTH, staffroll::HEIGHT);
             let frames = u64::from(roll.total_ms) * u64::from(STAFF_ROLL_FPS) / 1000;
-            let written = (0..frames).try_for_each(|i| {
-                staffroll::render(roll, &pictures, i as f64 * 1000.0 / f64::from(STAFF_ROLL_FPS), &mut frame);
-                io::Write::write_all(&mut stdin, frame.as_raw())
-            });
-            drop(stdin);
-            let status = child.wait().map_err(|e| ffmpeg(e.to_string()))?;
-            if let Err(e) = written.map_err(|e| ffmpeg(e.to_string())).and(if status.success() { Ok(()) } else { Err(ffmpeg(status.to_string())) }) {
-                let _ = fs::remove_file(&part);
-                return Err(e);
-            }
-            fs::rename(&part, &dest).map_err(io)?;
+            media::ffmpeg(&dest, args, |stdin| {
+                (0..frames).try_for_each(|i| {
+                    staffroll::render(roll, &pictures, i as f64 * 1000.0 / f64::from(STAFF_ROLL_FPS), &mut frame);
+                    stdin.write_all(frame.as_raw())
+                })
+            })
+            .map_err(|detail| ConvertError::Ffmpeg { path: PathBuf::from(roll.file), detail })?;
         }
         self.written.insert(key, name.clone());
         Ok(name)
@@ -1821,25 +1805,9 @@ impl AssetBank {
         let name = format!("movie/mv{number:04}.mp4");
         let dest = self.out.join(&name);
         if !dest.exists() {
-            let io = |source| ConvertError::Io { path: dest.clone(), source };
-            fs::create_dir_all(dest.parent().unwrap()).map_err(io)?;
-            // Encode under another name so an interrupted run leaves no
-            // half-written movie behind.
-            let part = dest.with_extension("part.mp4");
-            let ffmpeg = |detail: String| ConvertError::Ffmpeg { path: src.clone(), detail };
-            let status = std::process::Command::new("ffmpeg")
-                .args(["-v", "error", "-y", "-i"])
-                .arg(&src)
-                .args(["-c:v", "libx264", "-preset", "slow", "-crf", "22", "-pix_fmt", "yuv420p"])
-                .args(["-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart"])
-                .arg(&part)
-                .status()
-                .map_err(|e| ffmpeg(e.to_string()))?;
-            if !status.success() {
-                let _ = fs::remove_file(&part);
-                return Err(ffmpeg(status.to_string()));
-            }
-            fs::rename(&part, &dest).map_err(io)?;
+            let mut args: Vec<std::ffi::OsString> = vec!["-i".into(), src.clone().into()];
+            args.extend(media::mp4_options(22, "slow").into_iter().map(Into::into));
+            media::ffmpeg(&dest, args, |_| Ok(())).map_err(|detail| ConvertError::Ffmpeg { path: src.clone(), detail })?;
         }
         self.written.insert(key, name.clone());
         Ok(name)
