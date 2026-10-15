@@ -221,8 +221,9 @@ What it showed (2026-10-15):
 - **Recollection** (`extra_recollection.nss`, `PictureReplay`): eleven
   scenes, all open; each `extra_N_*.nss` chapter is compiled once more as
   a subroutine (`Game::subroutines`) and played from the list. The list
-  is pixel for pixel the original's. Save and load aren't locked during
-  a replay yet (the original locks them).
+  is pixel for pixel the original's; a replay plays to its end and comes
+  back to the list. Save and load are refused during a replay (the
+  shared replay code, as in the original).
 
 ## Story structure and walkthrough
 
@@ -271,7 +272,7 @@ yet.
 | Pictures, sound in scripts | 🟡 Black bars, face windows in their frames, standing pictures, backgrounds; what Muramasa's compiler does for effects (moves and zooms as cross-fades); every sound is found |
 | Choices | 🟡 Django's plates; text place and hover colour guessed |
 | System screens | 🟡 From the game's pictures (`django/screens.rs`): title, right-click menu, save/load (3×20 slots), yes/no questions, text log, settings (bullet rows as `SliderSteps`), the click-wait bullet; not compared with the original (it wants its disc under wine) |
-| Extras | 🟡 Menu, CG library, sound library, recollection, each compared with the original; left out: the doors' animation, the rifle over a category, save/load locked in a replay |
+| Extras | 🟡 Menu, CG library, sound library, recollection, each compared with the original; left out: the doors' animation, the rifle over a category |
 | Saves | 🟡 `--roundtrip-every 100` over the first 1,500 pages: no save/load mismatch; saves from the screens not tried by hand |
 | Web build | 🟡 Plays in a browser (title, story pages); saves, sound and touch not checked yet |
 
@@ -296,7 +297,6 @@ yet.
    above the bottom bar.
 6. Camera moves (`MoveCamera`, 365 calls) and moves and zooms over time
    (drawn as cross-fades), shared with Muramasa's compiler.
-7. Extras: lock save and load during a replay (Muramasa's agent is
-   adding it for its command menu); play a replay to its end and back.
+7. Extras: the doors' animation and the menu's own music (left out).
 8. The title's congratulations (`TitleCongratulations`, sets
    `#ClearAll`) and the click-wait bullet after the text.
