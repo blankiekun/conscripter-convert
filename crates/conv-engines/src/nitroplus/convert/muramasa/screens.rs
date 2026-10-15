@@ -76,7 +76,7 @@ fn settings(a: &mut dyn Assets, story: &Story) -> Option<PictureSettings> {
         (SliderSetting::TextSpeed { ms: 100 }, 754, 207),
         (SliderSetting::GameSpeed { levels: [50, 75, 100, 150, 200, 300, 400, 550, 800, 1200, 1600, 3200] }, 862, 750),
     ] {
-        sliders.push(PictureSlider { setting, knob: knob(a, x)?, knob_y: (67, 206), track: Rect { x, y: 67, w: 24, h: 147 }, default });
+        sliders.push(PictureSlider { setting, knob: knob(a, x)?, knob_y: (67, 206), track: Rect { x, y: 67, w: 24, h: 147 }, default, steps: None });
     }
     let mut pairs = Vec::new();
     for (option, x, default_on, on, off) in [

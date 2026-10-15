@@ -1705,6 +1705,21 @@ pub struct PictureSlider {
     pub track: Rect,
     /// The position (0-1000) a first start and the reset give it.
     pub default: u32,
+    /// Drawn as a row of buttons instead of the knob (`knob`, `knob_y`
+    /// and `track` unused): see [`SliderSteps`].
+    pub steps: Option<SliderSteps>,
+}
+
+/// A [`PictureSlider`] set by clicking one of a row of buttons (続・殺戮の
+/// ジャンゴ's ten bullets). Each button has three cells (at rest, under
+/// the pointer, chosen) and the position it gives. With `filled`, every
+/// button up to the chosen one shows its chosen cell (a gauge); otherwise
+/// only the chosen one (presets). The default must be one of the
+/// positions.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SliderSteps {
+    pub buttons: Vec<(Placed, u32)>,
+    pub filled: bool,
 }
 
 /// What a [`PictureSlider`] sets, at position p (0 at the top, 1000 at the

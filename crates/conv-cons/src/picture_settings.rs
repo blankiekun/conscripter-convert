@@ -22,7 +22,7 @@
 //! `dwave` reads, [`menu::VOICE_OFF_BASE`]); a `btn` over its box toggles
 //! them all.
 
-use conv_core::ir::{PairOption, PictureSettings, Placed, SliderSetting, Switch, Var, VoiceWindow};
+use conv_core::ir::{PairOption, PictureSettings, PictureSlider, Placed, SliderSetting, Switch, Var, VoiceWindow};
 
 use crate::menu::{self, CONFIRM, IN_GAME, TEXT_MS, TMP};
 use crate::{escape, path, var_name, BUTTON_VAR, MAX_SPRITE};
@@ -66,6 +66,11 @@ const MAX_VOICE_ENTRIES: usize = 60;
 const CHOSEN: u32 = 720; // + 2 × pair (+ 1 off)
 const PAIR: u32 = 750; // + 2 × pair (+ 1 off)
 const TRACK: u32 = 780; // + slider
+// A stepped slider's buttons and their chosen cells: + 10 × slider + step
+// (the chosen cells over the buttons).
+const STEP_CHOSEN: u32 = 380;
+const STEP: u32 = 460;
+const MAX_STEPS: usize = 10;
 const TEXT: u32 = 790; // + text
 const FIXED: u32 = 800; // + picture
 const MAX_FIXED: usize = 100;
@@ -77,6 +82,7 @@ const BTN_VOICES: i32 = 4;
 const BTN_VOICE_ENTRY: i32 = 100; // + entry
 const BTN_TRACK: i32 = 10; // + slider
 const BTN_PAIR: i32 = 30; // + 2 × pair (+ 1 off)
+const BTN_STEP: i32 = 200; // + 10 × slider + step
 
 /// The questions [`PairOption::Confirm`] turns off.
 const QUESTIONS: [Switch; 7] =
@@ -84,6 +90,11 @@ const QUESTIONS: [Switch; 7] =
 
 fn slider_var(i: usize) -> String {
     format!("%{}", SLIDER_BASE + i as u32)
+}
+
+/// A stepped slider's steps, if it is one.
+fn steps(l: &PictureSlider) -> Option<&conv_core::ir::SliderSteps> {
+    l.steps.as_ref()
 }
 
 fn pair_var(i: usize) -> String {
@@ -106,6 +117,10 @@ pub(crate) fn skips_unread(s: &PictureSettings) -> bool {
 
 pub(crate) fn emit(out: &mut String, s: &PictureSettings, border: u32) {
     assert!(s.sliders.len() <= MAX_SLIDERS && s.pairs.len() <= MAX_PAIRS && s.fixed.len() <= MAX_FIXED, "too many settings controls");
+    assert!(s.sliders.iter().filter_map(steps).all(|st| st.buttons.len() <= MAX_STEPS), "too many steps");
+    let step_slot = |base: u32, i: usize, k: usize| base + (MAX_STEPS * i + k) as u32;
+    // The sliders with a knob (the others are rows of buttons).
+    let knobbed: Vec<(usize, &PictureSlider)> = s.sliders.iter().enumerate().filter(|(_, l)| l.steps.is_none()).collect();
     let mut w = |line: String| {
         out.push_str(&line);
         out.push('\n');
@@ -139,20 +154,30 @@ pub(crate) fn emit(out: &mut String, s: &PictureSettings, border: u32) {
         w(strip(PAIR + 2 * i as u32, 3, &p.on));
         w(strip(PAIR + 2 * i as u32 + 1, 3, &p.off));
     }
-    for (i, l) in s.sliders.iter().enumerate() {
+    for &(i, l) in &knobbed {
         let t = &l.track;
         w(format!("lsp {},\":c;>{},{},#000000\",{},{},0", TRACK + i as u32, t.w, t.h, t.x, t.y));
         w(strip(KNOB + i as u32, 2, &l.knob));
+    }
+    for (i, st) in s.sliders.iter().enumerate().filter_map(|(i, l)| Some((i, steps(l)?))) {
+        for (k, (p, _)) in st.buttons.iter().enumerate() {
+            w(strip(step_slot(STEP, i, k), 3, p));
+        }
     }
     w("gosub *conv_ps_draw".into());
     w(fade.clone());
 
     w("*conv_ps_wait".into());
     w("btndef clear".into());
-    let knobs_at_rest: String = (0..s.sliders.len()).map(|i| format!("P{},0", KNOB + i as u32)).collect();
+    let knobs_at_rest: String = knobbed.iter().map(|&(i, _)| format!("P{},0", KNOB + i as u32)).collect();
     w(format!("exbtn_d \"{knobs_at_rest}\""));
-    for i in 0..s.sliders.len() {
+    for &(i, _) in &knobbed {
         w(format!("exbtn {},{},\"{knobs_at_rest}P{},1\"", TRACK + i as u32, BTN_TRACK + i as i32, KNOB + i as u32));
+    }
+    for (i, st) in s.sliders.iter().enumerate().filter_map(|(i, l)| Some((i, steps(l)?))) {
+        for k in 0..st.buttons.len() {
+            w(format!("spbtn {},{}", step_slot(STEP, i, k), BTN_STEP + (MAX_STEPS * i + k) as i32));
+        }
     }
     for &(slot, n, _) in &buttons {
         w(format!("spbtn {slot},{n},2"));
@@ -171,13 +196,18 @@ pub(crate) fn emit(out: &mut String, s: &PictureSettings, border: u32) {
     // A release, or a move with the button held: nothing.
     w(format!("isdown {TMP}"));
     w(format!("if {TMP} == 0 goto *conv_ps_wait"));
-    if !s.sliders.is_empty() {
+    if !knobbed.is_empty() {
         w(format!(
             "if {BUTTON_VAR} >= {BTN_TRACK} && {BUTTON_VAR} < {} mov {DRAGGED},{BUTTON_VAR}-{BTN_TRACK}:goto *conv_ps_drag",
             BTN_TRACK + s.sliders.len() as i32
         ));
     }
     w("gosub *conv_ps_release".into());
+    for (i, st) in s.sliders.iter().enumerate().filter_map(|(i, l)| Some((i, steps(l)?))) {
+        for (k, (_, position)) in st.buttons.iter().enumerate() {
+            w(format!("if {BUTTON_VAR} == {} mov {},{position}:goto *conv_ps_changed", BTN_STEP + (MAX_STEPS * i + k) as i32, slider_var(i)));
+        }
+    }
     w(format!("if {BUTTON_VAR} == {BTN_CLOSE} goto *conv_ps_close"));
     if s.reset.is_some() {
         w(format!("if {BUTTON_VAR} == {BTN_RESET} goto *conv_ps_reset"));
@@ -213,12 +243,12 @@ pub(crate) fn emit(out: &mut String, s: &PictureSettings, border: u32) {
     }
 
     // Dragging a knob: its middle follows the pointer.
-    if !s.sliders.is_empty() {
+    if !knobbed.is_empty() {
         w("*conv_ps_drag".into());
         w(format!("isdown {TMP}"));
         w(format!("if {TMP} == 0 goto *conv_ps_wait"));
         w(format!("getmousepos {MOUSE_X},{MOUSE_Y}"));
-        for (i, l) in s.sliders.iter().enumerate() {
+        for &(i, l) in &knobbed {
             let (k0, k1) = l.knob_y;
             let v = slider_var(i);
             w(format!("if {DRAGGED} == {i} mov {TMP},({MOUSE_Y}-{}-{k0})*1000/{}", l.knob.h / 2, (k1 - k0).max(1)));
@@ -235,7 +265,12 @@ pub(crate) fn emit(out: &mut String, s: &PictureSettings, border: u32) {
     w("*conv_ps_close".into());
     w("btndown 0:btndef clear:exbtn_d \"\"".into());
     let mut controls: Vec<u32> = buttons.iter().map(|b| b.0).collect();
-    controls.extend((0..s.sliders.len() as u32).map(|i| KNOB + i));
+    controls.extend(knobbed.iter().map(|&(i, _)| KNOB + i as u32));
+    for (i, st) in s.sliders.iter().enumerate().filter_map(|(i, l)| Some((i, steps(l)?))) {
+        for k in 0..st.buttons.len() {
+            controls.extend([step_slot(STEP, i, k), step_slot(STEP_CHOSEN, i, k)]);
+        }
+    }
     if !controls.is_empty() {
         w(controls.iter().map(|n| format!("csp {n}")).collect::<Vec<_>>().join(":"));
     }
@@ -254,10 +289,22 @@ pub(crate) fn emit(out: &mut String, s: &PictureSettings, border: u32) {
         w(format!("if {v} == 1 csp {off}:{}:cell {on},2", strip(on, 3, &p.on)));
         w(format!("if {v} == 0 csp {on}:{}:cell {off},2", strip(off, 3, &p.off)));
     }
-    for (i, l) in s.sliders.iter().enumerate() {
+    for &(i, l) in &knobbed {
         let (k0, k1) = l.knob_y;
         w(format!("mov {TMP},{}*{}/1000+{k0}", slider_var(i), k1 - k0));
         w(format!("amsp {},{},{TMP}", KNOB + i as u32, l.knob.x));
+    }
+    // A stepped slider: the step its value is (TMP), then the chosen cells.
+    for (i, st) in s.sliders.iter().enumerate().filter_map(|(i, l)| Some((i, steps(l)?))) {
+        w(format!("mov {TMP},-1"));
+        for (k, (_, position)) in st.buttons.iter().enumerate() {
+            w(format!("if {} == {position} mov {TMP},{k}", slider_var(i)));
+        }
+        for (k, (p, _)) in st.buttons.iter().enumerate() {
+            let slot = step_slot(STEP_CHOSEN, i, k);
+            let shown = if st.filled { format!("{TMP} >= {k}") } else { format!("{TMP} == {k}") };
+            w(format!("csp {slot}:if {shown} {}:cell {slot},2", strip(slot, 3, p)));
+        }
     }
     w("return".into());
 
@@ -417,13 +464,14 @@ mod tests {
             voice_test: Some(placed("test", 287, 197)),
             test_voice: Some("voice/test.ogg".into()),
             sliders: vec![
-                PictureSlider { setting: SliderSetting::VoiceVolume, knob: placed("knob", 358, 67), knob_y: (67, 206), track: Rect { x: 358, y: 67, w: 24, h: 147 }, default: 207 },
+                PictureSlider { setting: SliderSetting::VoiceVolume, knob: placed("knob", 358, 67), knob_y: (67, 206), track: Rect { x: 358, y: 67, w: 24, h: 147 }, default: 207, steps: None },
                 PictureSlider {
                     setting: SliderSetting::GameSpeed { levels: [50, 75, 100, 150, 200, 300, 400, 550, 800, 1200, 1600, 3200] },
                     knob: placed("knob", 862, 67),
                     knob_y: (67, 206),
                     track: Rect { x: 862, y: 67, w: 24, h: 147 },
                     default: 750,
+                    steps: None,
                 },
             ],
             pairs: vec![
@@ -445,6 +493,34 @@ mod tests {
                 fade_ms: 300,
             }),
         }
+    }
+
+    #[test]
+    fn stepped_slider() {
+        let mut s = settings();
+        let buttons = (0..3).map(|k| (placed("bullet", 306 + 12 * k, 212), 900 - 100 * k as u32)).collect();
+        s.sliders.push(PictureSlider {
+            setting: SliderSetting::BgmVolume,
+            knob: placed("none", 0, 0),
+            knob_y: (0, 0),
+            track: Rect { x: 0, y: 0, w: 0, h: 0 },
+            default: 800,
+            steps: Some(conv_core::ir::SliderSteps { buttons, filled: true }),
+        });
+        let mut out = String::new();
+        emit(&mut out, &s, 800);
+        for line in [
+            "lsp 480,\":a/3,0,3;system\\bullet.png\",306,212\n",
+            "spbtn 482,222\n",
+            "if %9 == 221 mov %2924,800:goto *conv_ps_changed\n",
+            "if %2924 == 700 mov %105,2\n",
+            "csp 401:if %105 >= 1 lsp 401,\":a/3,0,3;system\\bullet.png\",318,212:cell 401,2\n",
+            "mov %2924,800\n",
+        ] {
+            assert!(out.contains(line), "missing {line:?} in\n{out}");
+        }
+        // No knob or track for it.
+        assert!(!out.contains("exbtn 782"));
     }
 
     #[test]
