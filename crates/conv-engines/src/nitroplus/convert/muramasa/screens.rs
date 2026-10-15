@@ -6,7 +6,9 @@
 //! the pointer, `003` pressed, `000` disabled (where there is one); they
 //! are joined into strips of normal, hover, disabled, pressed.
 
-use conv_core::ir::{BarAction, BarButton, BarSlide, ButtonBar, CommandItem, CommandMenu, ConfirmDialog, Placed, Script, Switch, TitleAction, TitleButton, TitleScreen};
+use conv_core::ir::{
+    BarAction, BarButton, BarSlide, ButtonBar, CommandItem, CommandMenu, ConfirmDialog, GridText, Placed, Rect, SaveGrid, Script, Switch, TitleAction, TitleButton, TitleScreen,
+};
 
 use super::super::Assets;
 
@@ -23,6 +25,81 @@ pub fn menus(a: &mut dyn Assets, script: &mut Script) {
     script.title_screen = title(a);
     script.button_bar = quick_bar(a);
     script.command_menu = command_menu(a);
+    script.save_grid = save_grid(a);
+}
+
+/// The save and load screens (`sys_save.nss`, `sys_load.nss`): five pages
+/// of twenty slots, each page's picture with its numbers (数字01-20背景,
+/// …), the thumbnails (160×90) in four columns from the right (600,34),
+/// 100 down and 190 left, under their frames. The slot under the pointer
+/// gets the hover frame (at -3,-3) and shows its details: the date
+/// (821,516) and play time (68,528) across, the chapter and the last line
+/// down in columns from the right edges x 955 and 924, a larger
+/// thumbnail in the box at (810,416). 前頁 (790,34), 次頁 (790,130), 削除
+/// (790,226, 削除ボタン-003 over it in delete mode), 退出 (810,322). After
+/// a save, 記録しました over black at 800/1000 until a click (`SaveDialog`
+/// 987-1015). It fades in and out over 300 ms (`SaveFade` 620).
+fn save_grid(a: &mut dyn Assets) -> Option<SaveGrid> {
+    const DIR: &str = "cg/sys/save";
+    let mut pages = [Vec::new(), Vec::new()];
+    for range in ["01-20", "21-40", "41-60", "61-80", "80-100"] {
+        for (mode, list) in ["save", "load"].iter().zip(pages.iter_mut()) {
+            list.push(a.image(&format!("{DIR}/数字{range}背景{mode}.png"))?.0);
+        }
+    }
+    let [save_pages, load_pages] = pages;
+    let picture = |a: &mut dyn Assets, name: &str, x: i32, y: i32| {
+        let (image, w, h) = a.image(&format!("{DIR}/{name}.png"))?;
+        Some(Placed { image, x, y, w: w as i32, h: h as i32 })
+    };
+    // Normal, hover, disabled (normal), pressed; 削除 has no pressed
+    // picture (its -003 is the delete mode's).
+    let button = |a: &mut dyn Assets, name: &str, x: i32, y: i32, pressed: u32| {
+        let state = |n: u32| format!("{DIR}/{name}ボタン-{n:03}.png");
+        let (s1, s2, s3) = (state(1), state(2), state(pressed));
+        let (image, w, h) = a.strip(&[&s1, &s2, &s1, &s3])?;
+        Some(Placed { image, x, y, w: w as i32, h: h as i32 })
+    };
+    let text = |x: i32, y: i32, font_size: u32, lines: u32, chars: u32, char_gap: i32, colour: &str, vertical: bool| GridText {
+        x,
+        y,
+        font_size,
+        lines,
+        chars,
+        line_gap: 0,
+        char_gap,
+        colour: colour.into(),
+        vertical,
+    };
+    let saved = a.image("cg/sys/dialog/記録しました.png").map(|(image, w, h)| Placed { image, x: (SCREEN_W - w as i32) / 2, y: 88, w: w as i32, h: h as i32 });
+    Some(SaveGrid {
+        save_pages,
+        load_pages,
+        frames: picture(a, "サムネールワク", 0, 0),
+        first: (600, 34),
+        row_step: 100,
+        column_step: -190,
+        rows: 5,
+        columns: 4,
+        thumb_w: 160,
+        thumb_h: 90,
+        hover: picture(a, "選択中サムネールワク", 0, 0)?,
+        hover_offset: (-3, -3),
+        new_mark: picture(a, "新マーク", 0, 0)?,
+        new_offset: (164, 64),
+        previous: button(a, "前頁", 790, 34, 3)?,
+        next: button(a, "次頁", 790, 130, 3)?,
+        delete: button(a, "削除", 790, 226, 2)?,
+        delete_on: picture(a, "削除ボタン-003", 790, 226)?,
+        close: button(a, "退出", 810, 322, 3)?,
+        preview: Rect { x: 810, y: 416, w: 192, h: 108 },
+        date: text(821, 516, 18, 1, 20, 0, "#000000", false),
+        play_time: text(68, 528, 18, 1, 12, 0, "#ffffff", false),
+        chapter: text(929, 41, 20, 1, 24, 0, "#000000", true),
+        line: text(898, 45, 18, 3, 20, -1, "#000000", true),
+        saved,
+        fade_ms: 300,
+    })
 }
 
 /// The right-click menu (`sys_menu.nss`): sixteen rows (220×20) at x 636

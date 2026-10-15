@@ -24,6 +24,7 @@ pub mod nsa;
 mod picture_screen;
 mod puzzle;
 mod replay;
+mod save_grid;
 mod zoom;
 pub mod webp;
 
@@ -93,8 +94,9 @@ const ANIMATION_IMAGE: &str = "$117";
 const ANIMATION_SAVED: u32 = 13;
 /// Scratch variable receiving the clicked button (also used by nstrace).
 const BUTTON_VAR: &str = "%9";
-// Ranges claimed by modules: %140-%149, the command menu and the sliding
-// bar ([`command_menu`], [`menu::button_bar`]); %190-%289 and $200-$229, the tile puzzle's
+// Ranges claimed by modules: %140-%146, the command menu and the sliding
+// bar ([`command_menu`], [`menu::button_bar`]); %147, %149 and $110-$113,
+// the save grid ([`save_grid`]); %190-%289 and $200-$229, the tile puzzle's
 // state ([`puzzle`]; locals when the global border is 800).
 /// NScripter variables: locals from %10, globals from %200. `globalon`
 /// makes %200 and up persist across games.
@@ -281,14 +283,19 @@ pub fn emit(script: &Script) -> String {
         writeln!(out, "erasetextwindow 0").unwrap();
     }
 
+    let save_menu = script.save_menu.is_some() || script.save_grid.is_some();
     let effect = |ms: u32| if ms == 0 { "1".to_string() } else { effects[&(ms, Effect::Fade)].clone() };
     if let Some(t) = &script.title_screen {
-        title_screen(&mut out, t, &effect(t.fade_ms), script.save_menu.is_some(), script.settings.is_some(), script.confirm.as_ref(), script.extras.is_some());
+        title_screen(&mut out, t, &effect(t.fade_ms), save_menu, script.settings.is_some(), script.confirm.as_ref(), script.extras.is_some());
     }
     let back_to_choice = script.button_bar.as_ref().is_some_and(|b| menu::has_back_to_choice(b, script.command_menu.as_ref()));
     if back_to_choice {
         // A new game has no choice to go back to.
         writeln!(out, "delsavegame {}", menu::BACK_SLOT).unwrap();
+    }
+    if script.save_grid.is_some() {
+        // A new game's play time.
+        writeln!(out, "{}", save_grid::NEW_GAME).unwrap();
     }
     let mut se = SeChannels::default();
     // The next sound effect isn't played while skipping (Op::SeNotSkipped).
@@ -967,12 +974,15 @@ pub fn emit(script: &Script) -> String {
         writeln!(out, "click").unwrap();
         writeln!(out, "return").unwrap();
     }
-    if let Some(m) = &script.save_menu {
-        menu::save_menu(&mut out, m, script.confirm.as_ref(), script.button_bar.as_ref().is_some_and(|b| b.top.is_some()));
+    let scene_stack = script.button_bar.as_ref().is_some_and(|b| b.top.is_some());
+    if let Some(g) = &script.save_grid {
+        save_grid::emit(&mut out, g, script.confirm.as_ref(), script.width, script.height, scene_stack);
+    } else if let Some(m) = &script.save_menu {
+        menu::save_menu(&mut out, m, script.confirm.as_ref(), scene_stack);
     }
     if let Some(b) = &script.button_bar {
         let screens = menu::BarScreens {
-            save_menu: script.save_menu.is_some(),
+            save_menu,
             settings: script.settings.is_some(),
             backlog: script.backlog.is_some(),
             replay: has_replay,
@@ -1575,7 +1585,7 @@ mod tests {
     use conv_core::ir::{Animation, ButtonScreen, ChoiceStyle, Noise, Placed, SourceLoc, SpriteChange, SpriteFilter, SpritePlacement, Voice, FILTER_BLEND_COPY, FILTER_BLEND_MULTIPLY, FILTER_BRIGHTNESS, FILTER_COLOUR};
 
     fn script(ops: Vec<Op>) -> Script {
-        Script { title: "Test".into(), width: 800, height: 600, global_border: None, window: None, title_screen: None, save_menu: None, button_bar: None, settings: None, backlog: None, confirm: None, extras: None, ops, version: None, command_menu: None }
+        Script { title: "Test".into(), width: 800, height: 600, global_border: None, window: None, title_screen: None, save_menu: None, button_bar: None, settings: None, backlog: None, confirm: None, extras: None, ops, version: None, command_menu: None, save_grid: None }
     }
 
     fn link(start: usize, len: usize, target: Option<&str>) -> TextLink {
