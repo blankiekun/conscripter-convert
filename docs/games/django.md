@@ -184,6 +184,9 @@ use a no-CD 1.01 exe the user owns, copied into the scratch game folder
 - **It only advances while it gets input**: under wine every timed
   fade, move and page stalls until the next window message. Nudge the
   pointer a pixel and back about 30 times a second while it runs.
+- **Timed zooms hang it** (`Zoom`, `MoveZoom`, camera moves that
+  zoom): a patched boot with CHAPTER and SKIP (below) makes them take no
+  time in the scene SKIP names, so their end states can be compared.
 - Clicks: `xdotool mousemove X Y`, then `mousedown 1; sleep 0.15;
   mouseup 1` (a bare `click` is often lost).
 - **Patched boots**: `research/nitroplus/django_patch.py <table> <game>/nss.npa
@@ -292,7 +295,7 @@ eleven endings' flags under wine).
 | Script parsing | ✅ All 249 files; 56 places that don't parse, none in the story |
 | Story control flow (56 chapters, 10 choices, bad ends) | ✅ Compiled whole (`compile_story`); in the engine the good path plays to the end (6,496 pages) and each wrong answer ends the story with its own bad end, then the game goes back to the title (`research/nitroplus/django_routes.sh`, which stops each run there, 2026-10-15) |
 | Text | 🟡 In the boxes' places (box00: 39 columns at 50,472, white on the black bar); 3,424 voiced lines; not compared with the original yet |
-| Pictures, sound in scripts | 🟡 Black bars, face windows in their frames, standing pictures, backgrounds; pictures turned over (`Rotate` by 180°, 315 calls: characters facing the other way) drawn mirrored (dja004's choice now as the original's); cameras (`CreateCamera`, `MoveCamera`, 365 calls): a camera's children drawn at their place less the camera's, magnified by its zoom about the screen's centre, its moves over time as cross-fades (not compared with the original yet); what Muramasa's compiler does for effects (moves and zooms as cross-fades); every sound is found |
+| Pictures, sound in scripts | 🟡 Black bars, face windows in their frames, standing pictures, backgrounds; pictures turned over (`Rotate` by 180°, 315 calls: characters facing the other way) drawn mirrored (dja004's choice now as the original's); cameras (`CreateCamera`, `MoveCamera`, 365 calls): a camera's child of priority p drawn about the screen's centre at (its place − the camera's) × z / (1000 − p), as large, z the camera's zoom (priority is depth: measured under wine with boxes at four priorities and six camera settings, and dja001's carriage scene then matched the original's frames); its moves over time as cross-fades; what Muramasa's compiler does for effects (moves and zooms as cross-fades); every sound is found |
 | Choices | ✅ Plates as picture buttons, text placed as the original's (compared under wine) |
 | System screens | 🟡 From the game's pictures (`django/screens.rs`): title, right-click menu, save/load (3×20 slots), yes/no questions, text log, settings (bullet rows as `SliderSteps`), the click-wait bullet after the last character (`getcursorpos` in the bar's wait routine); compared under wine: right-click menu, save, log, settings (text speed starts at level 5 as the original's; the two SAVE-DATA question rows drawn as they stand, ON chosen; the display options and version panel left out on purpose) |
 | Extras | 🟡 Menu, CG library, sound library, recollection, each compared with the original; left out: the doors' animation, the rifle over a category |
@@ -308,17 +311,13 @@ eleven endings' flags under wine).
    fixed-width font; the original's proportional ＭＳ Ｐ ゴシック fits it);
    sounds started twice; pictures left up across 150 pages (old
    backgrounds hung under `窓` until their chapter ends, covered by the
-   newer ones); image memory peaks at 131 MB (a long movie's strip).
+   newer ones); image memory peaks at 101 MB.
 3. The text window and name plates (`box00`-`box05`, face windows
    `frame03`-`frame05`) measured against the original under wine.
 4. The ranked "not converted" list: `CreateTexture` from the screen,
    `CreateColor` colours, movies.
-5. Cameras under wine: a camera scene with a zoom (`MoveCamera` to
-   1500) beside the original, to confirm the zoom's direction; standing
-   pictures placed through the camera helpers (`CmrSetBu…`) and the
-   bottom bar.
-6. Moves, zooms and camera moves over time (drawn as cross-fades) as
+5. Moves, zooms and camera moves over time (drawn as cross-fades) as
    real motion, shared with Muramasa's compiler.
-7. Extras: the doors' animation and the menu's own music (left out).
-8. The congratulations' pans (`Move` over time in
+6. Extras: the doors' animation and the menu's own music (left out).
+7. The congratulations' pans (`Move` over time in
    `TitleCongratulations`) are cuts; compare with the original.
