@@ -14,7 +14,6 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 games_dir=${CONS_GAMES:-$HOME/.config/conscripter-convert/games}
-font=gui/fonts/ipag.ttf
 bin=target/release/conscripter-convert
 update=0
 if [ "${1:-}" = --update ]; then update=1; shift; fi
@@ -40,15 +39,16 @@ for id in "${ids[@]}"; do
         muramasa) args=(convert-nss "$game" --file ma00_000.nss --chain 2000) ;;
         muramasa-en) args=(convert-nss "$game" --file ma00_000.nss --chain 2000 --english "$english") ;;
         django) args=(convert-nss "$game") ;;
-        # Without a font MAGES writes no menus.
-        oretsuba) args=(mages convert "$game" --font "$font") ;;
+        oretsuba) args=(mages convert "$game") ;;
         *) echo "$id: unknown game"; exit 2 ;;
     esac
     if ! "$bin" "${args[@]}" -o "$out" --dry-run > "$out.log" 2>&1; then
         echo "$id: dry run failed, see $out.log"; changed=1; continue
     fi
-    # The version line (build date, commit) changes with every build.
-    now="$(LC_ALL=C sed -E 's/build [0-9]{4}-[0-9]{2}-[0-9]{2}, converter [0-9a-f]+(-dirty)?, CONscripter [^"]*/build VERSION/' "$out/0.txt" | sha256sum | cut -d' ' -f1) $(wc -l < "$out/0.txt")"
+    # The version line (build date, commit) changes with every build, and
+    # so does the width of its strsp (a -dirty tree's line is longer).
+    now="$(LC_ALL=C sed -E -e 's/"build [0-9]{4}-[0-9]{2}-[0-9]{2}, converter [^"]*",([0-9]+,[0-9]+),[0-9]+,/"build VERSION",\1,W,/' \
+        -e 's/build [0-9]{4}-[0-9]{2}-[0-9]{2}, converter [0-9a-f]+(-dirty)?, CONscripter [^"]*/build VERSION/' "$out/0.txt" | sha256sum | cut -d' ' -f1) $(wc -l < "$out/0.txt")"
     snap=tests/snapshots/$id.txt
     if [ $update = 1 ]; then
         echo "$now" > "$snap"; echo "$id: written"

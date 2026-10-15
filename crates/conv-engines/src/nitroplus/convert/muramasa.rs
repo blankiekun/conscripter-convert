@@ -25,7 +25,7 @@ pub const MURAMASA: Game = Game { call, scene, flags, files: &[magiccube::FILE],
 /// `text0`: 280×150, font 20, `rowSpace` 1 (`function_textbox.nut`).
 pub const MURAMASA_EN: Game = Game { horizontal_box: Some((280, 150, 21)), ..MURAMASA };
 
-fn call(c: &mut Compiler<'_, '_>, name: &str) -> bool {
+fn call(c: &mut Compiler<'_, '_>, name: &str, _: &[Value]) -> bool {
     if let Some(r) = RANKINGS.iter().find(|r| r.0 == name) {
         return c.ranking(r);
     }

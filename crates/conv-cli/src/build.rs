@@ -1,6 +1,7 @@
 //! What every build does once its IR is compiled, whatever the engine:
 //! write the game's files, pack the assets, report.
 
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -17,7 +18,8 @@ use crate::version;
 pub struct BuildArgs {
     #[arg(short, long)]
     pub output: PathBuf,
-    /// Font to copy into the output as default.ttf (CONscripter needs one)
+    /// Font to copy into the output as default.ttf (CONscripter needs one;
+    /// default: the bundled IPA Gothic)
     #[arg(long)]
     pub font: Option<PathBuf>,
     /// Keep assets as loose files instead of packing them into .nsa
@@ -39,7 +41,8 @@ pub struct BuildArgs {
 pub fn run(args: BuildArgs, title: &str, output_dirs: &[&str], compile: impl FnOnce(&Opts) -> Result<Built>) -> Result<()> {
     let BuildArgs { output, font, loose, dry_run, webp, audio } = args;
     check_output(&output, output_dirs, !loose && !dry_run)?;
-    let opts = Opts { output: &output, title, font: font.as_deref(), dry_run, audio: audio.format()? };
+    let font = read_font(font.as_deref())?;
+    let opts = Opts { output: &output, title, font: &font, dry_run, audio: audio.format()? };
     let Built { mut ir, notes, picture_dirs, audio_dirs, package } = compile(&opts)?;
     ir.version = Some(version::line());
     // A dry run writes the script but no assets (no WebP, no sound).
@@ -47,11 +50,11 @@ pub fn run(args: BuildArgs, title: &str, output_dirs: &[&str], compile: impl FnO
     if !dry_run {
         reencode_audio(&output, audio_dirs, opts.audio)?;
     }
-    let lost = write_game(&output, &ir, &source, font.as_deref().filter(|_| !dry_run), package.as_deref())?;
+    let lost = write_game(&output, &ir, &source, (!dry_run).then_some(&*font), package.as_deref())?;
     if !dry_run && !loose {
         pack(&output, output_dirs)?;
     }
-    summary(&output, &ir, lost, font.is_some(), notes, Some(!dry_run))
+    summary(&output, &ir, lost, notes, Some(!dry_run))
 }
 
 /// `--audio-codec` and `--audio-quality`, for every convert command.
@@ -167,12 +170,25 @@ pub fn check_output(output: &Path, dirs: &[&str], packs: bool) -> Result<()> {
     Ok(())
 }
 
+/// IPA Gothic (IPAfont 003.03; its license in `fonts/`), the font when no
+/// `--font` is given: the games bring none we can use (the Vita draws with
+/// the console's own font, the PC games with Windows').
+pub const DEFAULT_FONT: &[u8] = include_bytes!("../fonts/ipag.ttf");
+
+/// The `--font` file's bytes, else [`DEFAULT_FONT`].
+pub fn read_font(path: Option<&Path>) -> Result<Cow<'static, [u8]>> {
+    Ok(match path {
+        Some(p) => fs::read(p).with_context(|| format!("reading {}", p.display()))?.into(),
+        None => DEFAULT_FONT.into(),
+    })
+}
+
 /// Writes the game into `output`: `0.txt` from `source` (the emitted
 /// script), `version.txt` (with `package`, the source's own version, when
 /// known), `ons_args` and, when given, the font as `default.ttf`. Returns
 /// the number of characters Shift-JIS can't show. Fails when a game
 /// variable is one conv-cons keeps for itself ([`conv_cons::clashes`]).
-pub fn write_game(output: &Path, ir: &Script, source: &str, font: Option<&Path>, package: Option<&str>) -> Result<usize> {
+pub fn write_game(output: &Path, ir: &Script, source: &str, font: Option<&[u8]>, package: Option<&str>) -> Result<usize> {
     let clashes = conv_cons::clashes(ir);
     if !clashes.is_empty() {
         anyhow::bail!("the game's variables overlap conv-cons' (conv_core::alloc):\n{}", clashes.join("\n"));
@@ -184,7 +200,7 @@ pub fn write_game(output: &Path, ir: &Script, source: &str, font: Option<&Path>,
     }
     fs::write(output.join("ons_args"), conv_cons::ENGINE_ARGS)?;
     if let Some(font) = font {
-        fs::copy(font, output.join("default.ttf")).with_context(|| format!("copying {}", font.display()))?;
+        fs::write(output.join("default.ttf"), font)?;
     }
     Ok(lost)
 }
@@ -194,8 +210,8 @@ pub fn write_game(output: &Path, ir: &Script, source: &str, font: Option<&Path>,
 /// (`Some(files)`; `files`: also look for the files the script names).
 /// A build of part of a game skips the lint (`None`): its jumps out of
 /// the part have no labels.
-pub fn summary(output: &Path, ir: &Script, lost: usize, has_font: bool, notes: BTreeMap<String, usize>, lint: Option<bool>) -> Result<()> {
-    report(ir, lost, has_font);
+pub fn summary(output: &Path, ir: &Script, lost: usize, notes: BTreeMap<String, usize>, lint: Option<bool>) -> Result<()> {
+    report(ir, lost);
     let mut notes: Vec<_> = notes.into_iter().collect();
     notes.sort_by_key(|n| std::cmp::Reverse(n.1));
     if !notes.is_empty() {
@@ -246,7 +262,7 @@ pub fn pack(output: &Path, dirs: &[&str]) -> Result<()> {
     Ok(())
 }
 
-fn report(ir: &Script, lost: usize, has_font: bool) {
+fn report(ir: &Script, lost: usize) {
     let mut unsupported = std::collections::BTreeMap::<String, usize>::new();
     let mut converted = 0;
     for op in &ir.ops {
@@ -269,9 +285,6 @@ fn report(ir: &Script, lost: usize, has_font: bool) {
     }
     if lost > 0 {
         println!("  characters not representable in Shift-JIS: {lost}");
-    }
-    if !has_font {
-        println!("  note: no --font given; CONscripter needs default.ttf in the game directory");
     }
 }
 

@@ -513,6 +513,38 @@ pub enum Op {
     /// the volume the sound starts at. In a script that has any, a sound
     /// started without one starts at 100.
     SoundVolume { file: Option<String>, percent: u32, ms: u32 },
+    /// Plays `file` as the music `after_ms` from now (0: at once) while
+    /// the script goes on, `looped` or once; a music op before then
+    /// cancels it. Music a script starts on a timer: a loop a set time
+    /// after its intro, a song some seconds after a line (続・殺戮のジャンゴ's
+    /// processes).
+    BgmLater { file: String, after_ms: u32, looped: bool },
+    /// Plays the movie `file` only while the player holds the button (or
+    /// a touch, Enter or Space) down, stopping on its frame when let go,
+    /// with `prompt` animated over it; `sound` plays with it: paused and
+    /// resumed with the movie when `fade_ms` is 0, else started again
+    /// (looped) at each press and faded out over `fade_ms` when let go.
+    /// The music goes on. 続・殺戮のジャンゴ's 400-vs-3 battle, where the
+    /// player holds the trigger.
+    HoldMovie { file: String, prompt: Option<HoldPrompt>, sound: Option<HoldSound> },
+}
+
+/// [`Op::HoldMovie`]'s prompt: `image` is `cells` pictures side by side,
+/// each shown `frame_ms` in turn, drawn at (`x`, `y`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HoldPrompt {
+    pub image: String,
+    pub x: i32,
+    pub y: i32,
+    pub cells: u32,
+    pub frame_ms: u32,
+}
+
+/// [`Op::HoldMovie`]'s sound.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HoldSound {
+    pub file: String,
+    pub fade_ms: u32,
 }
 
 /// A puzzle of numbered tiles (装甲悪鬼村正's 立方陣): the player clicks a

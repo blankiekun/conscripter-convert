@@ -143,10 +143,15 @@ on the extracted scripts.
   window stayed up for whole chapters (two extra characters at
   dja004's first choice; image memory peaked at 131 MB, now 109).
 - **A chapter file's own objects are deleted when it ends**, except those
-  hung under an object made before it. *Inferred, not checked in the exe
-  or under wine*: `function.nss` makes `窓` and `音` windows "to hang
-  pictures and sounds on between files", and the fade to black `黒幕`
-  at the end of `dja001_…_01` is never deleted otherwise.
+  hung under an object made before it. From the scripts: `function.nss`
+  makes `窓` and `音` windows "to hang pictures and sounds on between
+  files", and `dja001_…_01` ends under its fade to black `黒幕`
+  (priority 20, never deleted) while `dja001_…_02` draws its first
+  background at priority 10 and fades in with another object (`@黒板`):
+  had `黒幕` stayed, the whole file would be black. Under wine a box made
+  at top level in `_01` stays up to the file's last line; the step to
+  `_02` wasn't filmed (the original stalls at random under wine; probe
+  in `research/nitroplus/local/chapend_probe.py`, git-ignored).
 - **System screens** (`django/screens.rs`): what is ours rather than
   the original's is written in each function's comment (where the log's
   text sits, the hover colour of the choices, the save screen's
@@ -291,7 +296,7 @@ with the original (it wants all eleven endings' flags under wine).
 | Area | Status |
 |---|---|
 | NPA archives (key), images, sounds | ✅ Every file decodes |
-| Movies (MPEG-1) | 🟡 Found in `<game>/movie` (the default) and drawn as Muramasa's compiler draws them (strips of frames at 15 a second); two long ones get fewer frames so that their JPEG strip stays within 65,535 px (`mv_ブラックホーク`, 70 s: 163 frames, 2.3 a second) |
+| Movies (MPEG-1) | 🟡 Found in `<game>/movie` (the default) and drawn as Muramasa's compiler draws them (strips of frames at 15 a second); two long ones get fewer frames so that their JPEG strip stays within 65,535 px (`mv_ブラックホーク`, 70 s: 163 frames, 2.3 a second); the 400-vs-3 battle's six play while the button is held (`mpeghold`) |
 | Script parsing | ✅ All 249 files; 56 places that don't parse, none in the story |
 | Story control flow (56 chapters, 10 choices, bad ends) | ✅ Compiled whole (`compile_story`); in the engine the good path plays to the end (6,496 pages) and each wrong answer ends the story with its own bad end, then the game goes back to the title (`research/nitroplus/django_routes.sh`, which stops each run there, 2026-10-15) |
 | Text | 🟡 In the boxes' places (box00: 39 columns at 50,472, white on the black bar; five rows, as many as end inside the 130 px box); 3,424 voiced lines; not compared with the original yet |
@@ -304,21 +309,58 @@ with the original (it wants all eleven endings' flags under wine).
 
 ### Next
 
-1. Under wine (recipe above): the chapter-end rule above.
-2. The trace checker's remaining findings: image memory peaks at
+1. The trace checker's remaining findings: image memory peaks at
    101 MB (the two long movies' strips, 75 MB each); "sounds on two
    channels at once" are the script's own (the same shot or horse on
    two sound objects, started 500 ms apart) and stay.
-3. The text window and name plates (`box00`-`box05`, face windows
+2. The text window and name plates (`box00`-`box05`, face windows
    `frame03`-`frame05`) measured against the original under wine.
-4. The ranked "not converted" list: `CreateTexture` from the screen,
-   `CreateColor` colours, movies.
-5. The 60 moves and zooms that also fade or change picture (still
+3. The rest of the "not converted" list, by what shows most: the
+   400-vs-3 battle's counter between the movies (`CountInit`,
+   `CountFadeIn`/`CountFadeOut`, `CounterPlay`: three digits rolling
+   from `cg/sys/count/count.png` in a 194×52 window at 296,10, 29
+   processes; the movies have their own counter drawn in) and its
+   muzzle flashes (`GunFire`/`Fire`, 11: a white screen added on,
+   flashing), the looping shakes (`ShakeVLoop*`, 9), the strobe,
+   dja001's Black Hawk pan, then additive flashes, a movie's rotation,
+   sepia.
+4. The 60 moves and zooms that also fade or change picture (still
    cross-fades), and `Rotate` over time (343, drawn at once).
-6. Extras: the doors' animation and the menu's own music (left out).
+5. Extras: the doors' animation and the menu's own music (left out).
 
 ## History
 
+- **The 400-vs-3 battle's movies (2026-10-15).** dja050's six `VS400`
+  calls play a movie while the player holds the button down (a
+  full-screen choice: `MouseClick` resumes the movie, the release pauses
+  it), the "hold" prompt (`PushShow`, ten pictures at 690,20, 100 ms
+  each) going round over it, its gunfire sound with it: paused and
+  resumed with the movie, or (the fourth argument 0) started again
+  looped at each press and faded out over 500 ms when let go. The
+  user chose to keep the holding. CONscripter's new `mpeghold` does it
+  (Linux/macOS and the web build; the mouse, a touch, Enter or Space),
+  from `Op::HoldMovie` (`django/battle.rs`, through the game's `call`
+  hook, which now gets the call's arguments). Checked in the engine
+  under Xvfb and in headless Chromium: the movie stands on its first
+  frame until pressed, goes on only while held; the movies draw their
+  own 0-400 counter.
+
+- **Music processes (2026-10-15).** Four `CreateProcess` functions only
+  play music on a timer: dja050's and dja056's themes (an intro, its loop
+  7,720 and 10,700 ms later), dja056_08's insert song five seconds after
+  a line, dja003's jingle in two parts. A process whose function calls
+  only `SoundPlay`, `MusicStart`, `Wait`, `WaitPlay` and `CreateBGM` is
+  run when `Request(…, Start)` starts it, its waits counted on a clock
+  (`WaitPlay` by the Ogg's length), and each music becomes `bgmonce` or
+  `bgm` at once or CONscripter's `bgmlater ms` after
+  (`nitroplus/convert/process.rs`). The other processes are still noted.
+- **Music after dja009 (2026-10-15).** dja009 ends with `Delete("*")`,
+  which deleted every object, the music objects (`dj01`…, made once by
+  `InitBGM` before the first chapter) with them: 30 of the 50 chapters
+  with music played none. The script waits for that music right after
+  the `Delete("*")` (`WaitPlay("@dj*")`), so in the original it deletes
+  only the chapter's own objects, as a chapter's end does
+  (`Game::chapter_objects`).
 - **Motion (2026-10-15).** `Move`, `Zoom` and `MoveCamera` over time were
   drawn as cross-fades from the old place to the new; the congratulations'
   pans came out as cuts. Now a picture that only moves or zooms is moved

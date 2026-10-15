@@ -20,8 +20,8 @@ pub struct Opts<'a> {
     /// Window caption.
     pub title: &'a str,
     /// The font the game's menus may draw labels with (also copied into
-    /// the output by the CLI).
-    pub font: Option<&'a Path>,
+    /// the output by the CLI): the `--font`, else the bundled IPA Gothic.
+    pub font: &'a [u8],
     /// Compile and write the script only, no assets.
     pub dry_run: bool,
     /// For voices and sound effects an engine converts itself.

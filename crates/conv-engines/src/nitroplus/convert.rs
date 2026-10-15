@@ -86,6 +86,7 @@ mod muramasa;
 pub use muramasa::{MURAMASA, MURAMASA_EN};
 mod django;
 pub use django::DJANGO;
+mod process;
 
 /// What one game adds to the compiler, in its own module under `convert/`
 /// ([`MURAMASA`]): library functions it compiles itself (written as
@@ -93,8 +94,9 @@ pub use django::DJANGO;
 /// a port (a minigame), and the story flags its own code sets and tests.
 /// The CLI picks the game when it builds.
 pub struct Game {
-    /// A call of a function: true if the game compiled it.
-    call: for<'a, 'b> fn(&mut Compiler<'a, 'b>, &str) -> bool,
+    /// A call of a function with its arguments: true if the game
+    /// compiled it.
+    call: for<'a, 'b> fn(&mut Compiler<'a, 'b>, &str, &[Value]) -> bool,
     /// A call of scene (file, scene): true if the game replaced it.
     scene: for<'a, 'b> fn(&mut Compiler<'a, 'b>, &str, &str) -> bool,
     /// Story flags the game adds (it may read them from the scripts).
@@ -136,6 +138,10 @@ pub struct Game {
     /// `窓` and `音` windows are made for pictures and sounds to "hang on
     /// between files"; a scene's fade to black `黒幕` is never deleted
     /// otherwise). Inferred from the scripts, not checked in the exe.
+    /// `Delete("*")` in a chapter deletes the same objects: dja009 waits
+    /// for its music (`WaitPlay("@dj*")`) right after one, and its music
+    /// objects, made once before the first chapter, play in the later
+    /// chapters.
     chapter_objects: bool,
     /// Horizontal text starts this far below its box's top (the line's
     /// ruby space above it): 続・殺戮のジャンゴ's first row of ＭＳ Ｐ
@@ -167,7 +173,7 @@ impl Game {
     /// A game with nothing of its own: NSS as it is.
     /// Its screen and boot script are 装甲悪鬼村正's.
     pub const PLAIN: Game = Game {
-        call: |_, _| false,
+        call: |_, _, _| false,
         scene: |_, _, _| false,
         flags: |_| Vec::new(),
         files: &[],
@@ -259,6 +265,8 @@ pub trait Assets {
     /// A sound the scripts name (`sound/se/x`), starting after `delay_ms`
     /// of silence: its output path.
     fn delayed_sound(&mut self, path: &str, delay_ms: u32) -> Option<String>;
+    /// A sound's length (`sound/bgm/x`), in a dry run too.
+    fn sound_ms(&mut self, path: &str) -> Option<u32>;
 }
 
 /// A movie's size and length, and whether its sound can be heard.
@@ -835,6 +843,9 @@ enum Kind<'a> {
     Movie(MovieObject),
     /// Names, windows and other objects that draw nothing themselves.
     Other,
+    /// `CreateProcess` of a function that only plays music on a timer
+    /// ([`Compiler::start_process`]).
+    Process { file: &'a str, function: &'a Function },
     /// `CreateCamera`: what its children show. Its place is the point the
     /// screen looks at (they are drawn that much the other way); its zoom
     /// `z` and a child's priority `p` (its depth) magnify the child
@@ -1048,6 +1059,11 @@ struct Compiler<'a, 'b> {
     /// exists (続・殺戮のジャンゴ's `TypeBegin`): the block shows its
     /// pages as soon as it runs.
     pending_enter: Option<String>,
+    /// While a music process runs ([`Compiler::start_process`]): its time
+    /// so far, ms.
+    process_clock: Option<u32>,
+    /// [`Compiler::seq`] when the chapter being run began.
+    chapter_mark: Option<u64>,
     /// `LoadText(unit, box, w, h, letter, line)` (続・殺戮のジャンゴ): the
     /// layout of every text in that box, as [`TextObject::layout`].
     box_layouts: HashMap<String, (i64, i64, i64, i64, i64)>,
@@ -1744,6 +1760,8 @@ impl<'a, 'b> Compiler<'a, 'b> {
             window_visible: false,
             texts_shown: 0,
             pending_enter: None,
+            process_clock: None,
+            chapter_mark: None,
             box_layouts: HashMap::new(),
             whole_story: false,
             loaded_images: HashMap::new(),
@@ -1979,8 +1997,10 @@ impl<'a, 'b> Compiler<'a, 'b> {
         }
         let saved = std::mem::replace(&mut self.file, file);
         let mark = self.seq;
+        let saved_mark = self.chapter_mark;
         if chapter {
             self.returned = None;
+            self.chapter_mark = Some(mark);
         }
         self.depth += 1;
         self.frames.push(HashMap::new());
@@ -1988,6 +2008,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
         self.frames.pop();
         self.depth -= 1;
         self.file = saved;
+        self.chapter_mark = saved_mark;
         if chapter && self.game.chapter_objects {
             self.delete_chapter_objects(mark);
             // The way that returned early leaves the chapter too.
@@ -2070,7 +2091,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
             }
             Expr::Call { name, args } => {
                 let args: Vec<Value> = args.iter().map(|a| self.eval(a)).collect();
-                if (self.game.call)(self, name) {
+                if (self.game.call)(self, name, &args) {
                     return Value::Null;
                 }
                 match self.function(name) {
@@ -2363,6 +2384,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 _ => {}
             },
             "enter" => self.show_text(name),
+            "start" if matches!(o.kind, Kind::Process { .. }) => self.start_process(name),
             "smoothing" | "passive" | "erase" => {}
             other => self.note(format!("Request {other}")),
         }
@@ -2504,13 +2526,18 @@ impl<'a, 'b> Compiler<'a, 'b> {
                         other.playing = None;
                     }
                 }
-                if !looped {
-                    self.note("BGM without loop played looping");
+                if let Some(after_ms) = self.process_clock {
+                    // Started by a music process, on its clock.
+                    self.ops.push(Op::BgmLater { file: file.clone(), after_ms, looped });
+                } else {
+                    if !looped {
+                        self.note("BGM without loop played looping");
+                    }
+                    if percent(volume) < 100 {
+                        self.ops.push(Op::SoundVolume { file: None, percent: percent(volume), ms: 0 });
+                    }
+                    self.ops.push(Op::BgmPlay { file: file.clone(), fade_in_ms: fade_ms });
                 }
-                if percent(volume) < 100 {
-                    self.ops.push(Op::SoundVolume { file: None, percent: percent(volume), ms: 0 });
-                }
-                self.ops.push(Op::BgmPlay { file: file.clone(), fade_in_ms: fade_ms });
             } else {
                 if fade_ms > 0 {
                     self.ops.push(Op::SeFadeIn { ms: fade_ms });
@@ -2879,6 +2906,9 @@ mod tests {
         fn delayed_sound(&mut self, path: &str, delay_ms: u32) -> Option<String> {
             Some(format!("{path}+{delay_ms}.ogg"))
         }
+        fn sound_ms(&mut self, _path: &str) -> Option<u32> {
+            Some(4000)
+        }
         fn overlaid(&mut self, base: &str, top: &str, zoom: i64, opacity: i64) -> Option<String> {
             Some(format!("{base}+{top}@{zoom}x{opacity}"))
         }
@@ -3196,6 +3226,74 @@ scene a.nss
         let two_shown = c.ops[..bad.unwrap()].iter().rposition(|op| matches!(op, Op::Sprites { changes, .. } if changes.iter().any(|c| c.sprite.as_ref().is_some_and(|s| s.image == "cg/two.jpg"))));
         let label = c.ops[..bad.unwrap()].iter().rposition(|op| matches!(op, Op::Label(_)));
         assert!(two_shown < label, "{:?}", c.ops);
+    }
+
+    #[test]
+    fn a_music_process_plays_its_sounds_on_its_clock() {
+        // 続・殺戮のジャンゴ's Play_DJ24x and PlayOWA: an intro, then its loop
+        // a set time later; a jingle's second part when the first ends.
+        let story = r#"
+scene a.nss
+{
+	CreateSound("intro", BGM, "sound/bgm/intro");
+	CreateSound("loop", BGM, "sound/bgm/loop");
+	CreateProcess("P", 0, 0, 0, "Music");
+	Request("P", Start);
+	Wait(100);
+}
+function Music()
+{
+	begin:
+	SoundPlay("intro", 0, 1000, false);
+	WaitPlay("intro", null);
+	Wait(500);
+	SoundPlay("loop", 0, 1000, true);
+}
+function SoundPlay("ナット名", 秒数, ボリウム, ループ設定)
+{
+	Request("ナット名", Play);
+	SetLoop("ナット名", ループ設定);
+	SetVolume("ナット名", 秒数, ボリウム, null);
+}
+"#;
+        let c = compile(story, LIBRARY);
+        let later: Vec<_> = c.ops.iter().filter_map(|op| match op {
+            Op::BgmLater { file, after_ms, looped } => Some((file.as_str(), *after_ms, *looped)),
+            _ => None,
+        }).collect();
+        // (Fake's sounds last 4 s.)
+        assert_eq!(later, [("sound/bgm/intro.ogg", 0, false), ("sound/bgm/loop.ogg", 4500, true)], "{:?}", c.ops);
+        assert!(!c.notes.keys().any(|n| n.starts_with("CreateProcess")));
+    }
+
+    #[test]
+    fn delete_all_in_a_chapter_keeps_what_was_made_before_it() {
+        static GAME: Game = Game { chapter_objects: true, ..Game::PLAIN };
+        let mut files = BTreeMap::new();
+        files.insert(BOOT.to_string(), nss::parse("#include \"nss/function.nss\"\n").unwrap());
+        files.insert("function.nss".to_string(), nss::parse(LIBRARY).unwrap());
+        let a = r#"scene a.nss
+{
+	CreateSound("bgm1", BGM, "sound/bgm/one");
+	call_chapter nss/b.nss;
+	Request("bgm1", Play);
+	SetLoop("bgm1", true);
+	Wait(100);
+}"#;
+        let b = r#"chapter main
+{
+	CreateTexture("pic", 100, 0, 0, "cg/one.png");
+	Fade("pic", 0, 1000, null, true);
+	Wait(100);
+	Delete("*");
+	Wait(100);
+}"#;
+        files.insert("a.nss".into(), nss::parse(a).unwrap());
+        files.insert("b.nss".into(), nss::parse(b).unwrap());
+        let c = compile_story(&files, "a.nss", "a.nss", &GAME, &mut Fake).unwrap();
+        assert!(c.ops.iter().any(|op| matches!(op, Op::BgmPlay { file, .. } if file == "sound/bgm/one.ogg")), "{:?}", c.ops);
+        let removed = c.ops.iter().any(|op| matches!(op, Op::Sprites { changes, .. } if changes.iter().any(|c| c.sprite.is_none())));
+        assert!(removed, "{:?}", c.ops);
     }
 
     #[test]

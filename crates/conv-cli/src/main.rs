@@ -53,7 +53,8 @@ enum Command {
         script: u32,
         #[arg(short, long)]
         output: PathBuf,
-        /// Font to copy into the output as default.ttf (CONscripter needs one)
+        /// Font to copy into the output as default.ttf (CONscripter needs one;
+        /// default: the bundled IPA Gothic)
         #[arg(long)]
         font: Option<PathBuf>,
         /// Window caption
@@ -170,7 +171,7 @@ fn main() -> Result<()> {
             };
             for g in &games {
                 let options = if g.options.is_empty() { String::new() } else { format!(" {}", g.options.join(" ")) };
-                println!("{} ({}, {}): conscripter-convert {} <game> -o <output> --font <ttf>{options}", g.name, g.id, g.engine, g.command.join(" "));
+                println!("{} ({}, {}): conscripter-convert {} <game> -o <output> [--font <ttf>]{options}", g.name, g.id, g.engine, g.command.join(" "));
             }
             if games.is_empty() {
                 bail!("no game found");
@@ -238,9 +239,9 @@ fn convert_script(game: &Path, script: u32, output: &Path, font: Option<&Path>, 
 
     let source = build::webp_tree(output, PICTURE_DIRS, webp, conv_cons::emit(&ir))?;
     build::reencode_audio(output, AUDIO_DIRS, audio)?;
-    let lost = build::write_game(output, &ir, &source, font, None)?;
+    let lost = build::write_game(output, &ir, &source, Some(&build::read_font(font)?), None)?;
     println!("{file} ({}) -> {}", cd.name, output.join("0.txt").display());
-    build::summary(output, &ir, lost, font.is_some(), Default::default(), None)
+    build::summary(output, &ir, lost, Default::default(), None)
 }
 
 

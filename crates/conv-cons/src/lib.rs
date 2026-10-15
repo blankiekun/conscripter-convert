@@ -19,6 +19,7 @@ mod choice_plates;
 mod command_menu;
 mod ease;
 mod extras;
+mod hold_movie;
 pub mod lint;
 mod menu;
 mod motion;
@@ -555,7 +556,7 @@ fn title_screen(out: &mut String, t: &TitleScreen, fade: &str, save_menu: bool, 
     if picture_extras {
         writeln!(out, "*{TITLE_SPRITES}").unwrap();
     }
-    title_sprites(out, t, &buttons, quick, None, border);
+    title_sprites(out, t, &buttons, quick, None, true, border);
     writeln!(out, "print {fade}").unwrap();
     writeln!(out, "*{TITLE_MENU}").unwrap();
     if let Some(se) = &t.hover_se {
@@ -617,8 +618,13 @@ fn title_screen(out: &mut String, t: &TitleScreen, fade: &str, save_menu: bool, 
         if let Some(se) = &o.sound {
             writeln!(out, "dwave {},\"{}\"", SE_CHANNELS.start(), path(se)).unwrap();
         }
+        // The title is loaded before the movie, so the screen redrawn as
+        // it ends already has its buttons; the glow starts moving then.
+        title_sprites(out, t, &buttons, quick, o.glow_keys.as_deref(), false, border);
         writeln!(out, "mpegplay \"{}\",1,1", path(&o.movie)).unwrap();
-        title_sprites(out, t, &buttons, quick, o.glow_keys.as_deref(), border);
+        if let Some(g) = &t.glow {
+            writeln!(out, "spalpha {},1,{}", MENU_SPRITES.end - 1, glow_keys(o.glow_keys.as_deref().unwrap_or(&g.keys))).unwrap();
+        }
         writeln!(out, "print 1").unwrap();
         writeln!(out, "goto *{TITLE_MENU}").unwrap();
     }
@@ -683,14 +689,25 @@ fn title_openings(out: &mut String, openings: &[conv_core::ir::TitleOpening], bo
     }
 }
 
-/// The title's glow (with `glow_keys` in place of its own) and buttons.
-fn title_sprites(out: &mut String, t: &TitleScreen, buttons: &[(&conv_core::ir::TitleButton, u32)], quick: bool, glow_keys: Option<&[(u32, u32)]>, border: u32) {
+fn glow_keys(keys: &[(u32, u32)]) -> String {
+    keys.iter().map(|(t, a)| format!("{t},{a}")).collect::<Vec<_>>().join(",")
+}
+
+/// The title's glow (with `keys` in place of its own; held at its first
+/// alpha unless `moving`) and buttons.
+#[allow(clippy::too_many_arguments)]
+fn title_sprites(out: &mut String, t: &TitleScreen, buttons: &[(&conv_core::ir::TitleButton, u32)], quick: bool, keys: Option<&[(u32, u32)]>, moving: bool, border: u32) {
     let cells = if t.pressed { 3 } else { 2 };
     if let Some(g) = &t.glow {
         // Behind the buttons, which take the first menu sprites.
         let slot = MENU_SPRITES.end - 1;
-        let keys: Vec<String> = glow_keys.unwrap_or(&g.keys).iter().map(|(t, a)| format!("{t},{a}")).collect();
-        writeln!(out, "lsp {slot},\":c;{}\",0,0:spalpha {slot},1,{}", path(&g.image), keys.join(",")).unwrap();
+        let keys = keys.unwrap_or(&g.keys);
+        if moving {
+            writeln!(out, "lsp {slot},\":c;{}\",0,0:spalpha {slot},1,{}", path(&g.image), glow_keys(keys)).unwrap();
+        } else {
+            let alpha = keys.first().map_or(255, |&(_, a)| a.min(255));
+            writeln!(out, "lsp {slot},\":c;{}\",0,0,{alpha}", path(&g.image)).unwrap();
+        }
     }
     if quick {
         writeln!(out, "savefileexist {},{}", menu::TMP, menu::QUICK_SLOT).unwrap();
@@ -1292,6 +1309,18 @@ mod tests {
     }
 
     #[test]
+    fn a_held_movie_draws_its_prompt_and_plays_its_sound_on_an_effect_channel() {
+        use conv_core::ir::{HoldPrompt, HoldSound};
+        let prompt = Some(HoldPrompt { image: "system/push.png".into(), x: 690, y: 20, cells: 10, frame_ms: 100 });
+        let sound = Some(HoldSound { file: "sound/se/fire.ogg".into(), fade_ms: 500 });
+        let text = emit(&script(vec![Op::HoldMovie { file: "movie/a.mp4".into(), prompt, sound }]));
+        let part = "lsp 6,\":a/10,100,0;system\\push.png\",690,20\nmpeghold \"movie\\a.mp4\",6,1,\"sound\\se\\fire.ogg\",500\ncsp 6\n";
+        assert!(text.contains(part), "missing {part:?} in\n{text}");
+        let text = emit(&script(vec![Op::HoldMovie { file: "movie/a.mp4".into(), prompt: None, sound: None }]));
+        assert!(text.contains("mpeghold \"movie\\a.mp4\"\n"));
+    }
+
+    #[test]
     fn clickable_links_call_their_target() {
         let mut s = script(vec![
             Op::Background { image: "bg/room.png".into(), fade_ms: 0 },
@@ -1602,7 +1631,8 @@ effect 7,99,1000,\"cons_zoom.dll/3,220,5\"
         for part in [
             "mov %2960,0\ngame\n",
             "if %2960 == 0 mov %2960,1:goto *conv_title_opening0\nmov %2960,1\n*conv_title_draw\n",
-            "*conv_title_opening0\nbgm \"sound\\bgm\\title.ogg\"\ndwave 1,\"sound\\se\\op.ogg\"\nmpegplay \"movie\\op.mp4\",1,1\nlsp 33,\":c;system\\fire.jpg\",0,0:spalpha 33,1,0,256,100,256,700,0\n",
+            "*conv_title_opening0\nbgm \"sound\\bgm\\title.ogg\"\ndwave 1,\"sound\\se\\op.ogg\"\nlsp 33,\":c;system\\fire.jpg\",0,0,255\n",
+            "mpegplay \"movie\\op.mp4\",1,1\nspalpha 33,1,0,256,100,256,700,0\nprint 1\n",
         ] {
             assert!(text.contains(part), "missing {part:?} in\n{text}");
         }

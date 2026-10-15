@@ -583,7 +583,25 @@ Next, in order:
       engine to move the bar);
       - How each was done: "History", below.
       - The trace's auto-play skips movies (CONscripter) but reports
-        missing ones; the prologue (`--chain 2`) has three cuts.
+        missing ones; the prologue (`--chain 2`) has three cuts. The
+        checker's `movie` rule (CONscripter ca3904b) still sees what a
+        movie leaves: the engine redraws the screen from before the
+        movie as it ends, so sprites loaded after `mpegplay` show a
+        moment late. The title's openings now load the title first
+        (the buttons used to blink off and on as the movie ended);
+        open: the scene cuts (`Op::SceneMovie`) load their last frame
+        after the movie, so the scene before it flashes and fades back.
+        CONscripter 3f368bc (after 0.24.0) draws the text window over
+        an `mpegplay` movie and plays a movie file given to `lsp` in the
+        sprite's place (`spmoviewait n,1` waits for it): next, the cuts
+        under the text (drawn as stills, row "Movies" above) can play
+        as sprite movies. A skipped movie stops the `dwave` sounds
+        started with it (CONscripter 265942e): the title openings'
+        clash no longer plays over the title.
+      - 動画 切 is `moviestop -1` (the script's flag, as
+        `MoviePlay(f, #SYSTEM_break_play_movie)`): the title's openings
+        are always skippable, `mvOP`/`mvOP02` only with 動画 入
+        (default 切, as the original).
       - The original under wine draws no movie (`CreateMovie` leaves the
         scene as it was, `md04_045`'s first page matches its bare
         background): wine decodes MPEG-1 through 32-bit GStreamer

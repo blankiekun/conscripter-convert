@@ -598,6 +598,14 @@ impl<'a> Emitter<'a> {
             writeln!(out, "bgmfadein {fade_in_ms}").unwrap();
             writeln!(out, "bgm \"{}\"", path(file)).unwrap();
         }
+        Op::BgmLater { file, after_ms: 0, looped } => {
+            writeln!(out, "bgmfadein 0").unwrap();
+            writeln!(out, "{} \"{}\"", if *looped { "bgm" } else { "bgmonce" }, path(file)).unwrap();
+        }
+        Op::BgmLater { file, after_ms, looped } => {
+            writeln!(out, "bgmlater {after_ms},\"{}\"{}", path(file), if *looped { "" } else { ",0" }).unwrap();
+        }
+        Op::HoldMovie { file, prompt, sound } => hold_movie::hold_movie(out, se, file, prompt.as_ref(), sound.as_ref()),
         Op::BgmStop { fade_out_ms } => {
             writeln!(out, "bgmfadeout {fade_out_ms}").unwrap();
             writeln!(out, "bgmstop").unwrap();

@@ -83,13 +83,13 @@ recommended settings, fonts included. How to run and build it:
 [`gui/README.md`](gui/README.md). By hand:
 
 ```sh
-conscripter-convert convert-game /path/to/game -o out/mygame \
-  --font /path/to/japanese-font.ttf --title "My Game"
+conscripter-convert convert-game /path/to/game -o out/mygame --title "My Game"
 ```
 
 The game path is the installation directory. The engine needs a font that
-covers Japanese; `--font` copies it into the output as `default.ttf`. Use a
-fixed-width font (e.g. IPA Gothic, `ipag.ttf`): the engine puts each
+covers Japanese: the converter writes IPA Gothic (bundled, under its
+license in `crates/conv-cli/fonts/`) into the output as `default.ttf`, or
+the font `--font` names. Use a fixed-width font (e.g. IPA Gothic, `ipag.ttf`): the engine puts each
 character in a full-width cell, so a proportional font such as IPA P
 Gothic leaves gaps after narrow kana.
 
