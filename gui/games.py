@@ -63,7 +63,7 @@ def _audio_quality_check(v: str, values: dict) -> Optional[str]:
 AUDIO = (
     Option("audio_codec", "Voices and sound effects", "--audio-codec", "choice", "vorbis",
            "vorbis: the game's own sounds, as they are. opus: re-encoded with ffmpeg, about half the size "
-           "(the voices are most of a game's sound); needs a CONscripter newer than 0.20. Music stays Vorbis.",
+           "(the voices are most of a game's sound); needs CONscripter 0.21.0 or later. Music stays Vorbis.",
            choices=("vorbis", "opus")),
     Option("audio_quality", "Their quality", "--audio-quality", "number", "",
            "Opus: kbit/s per channel, 6-256 (empty: 32, about Vorbis's quality at half the size). "
