@@ -143,10 +143,15 @@ on the extracted scripts.
   window stayed up for whole chapters (two extra characters at
   dja004's first choice; image memory peaked at 131 MB, now 109).
 - **A chapter file's own objects are deleted when it ends**, except those
-  hung under an object made before it. *Inferred, not checked in the exe
-  or under wine*: `function.nss` makes `窓` and `音` windows "to hang
-  pictures and sounds on between files", and the fade to black `黒幕`
-  at the end of `dja001_…_01` is never deleted otherwise.
+  hung under an object made before it. From the scripts: `function.nss`
+  makes `窓` and `音` windows "to hang pictures and sounds on between
+  files", and `dja001_…_01` ends under its fade to black `黒幕`
+  (priority 20, never deleted) while `dja001_…_02` draws its first
+  background at priority 10 and fades in with another object (`@黒板`):
+  had `黒幕` stayed, the whole file would be black. Under wine a box made
+  at top level in `_01` stays up to the file's last line; the step to
+  `_02` wasn't filmed (the original stalls at random under wine; probe
+  in `research/nitroplus/local/chapend_probe.py`, git-ignored).
 - **System screens** (`django/screens.rs`): what is ours rather than
   the original's is written in each function's comment (where the log's
   text sits, the hover colour of the choices, the save screen's
@@ -304,18 +309,17 @@ with the original (it wants all eleven endings' flags under wine).
 
 ### Next
 
-1. Under wine (recipe above): the chapter-end rule above.
-2. The trace checker's remaining findings: image memory peaks at
+1. The trace checker's remaining findings: image memory peaks at
    101 MB (the two long movies' strips, 75 MB each); "sounds on two
    channels at once" are the script's own (the same shot or horse on
    two sound objects, started 500 ms apart) and stay.
-3. The text window and name plates (`box00`-`box05`, face windows
+2. The text window and name plates (`box00`-`box05`, face windows
    `frame03`-`frame05`) measured against the original under wine.
-4. The ranked "not converted" list: `CreateTexture` from the screen,
+3. The ranked "not converted" list: `CreateTexture` from the screen,
    `CreateColor` colours, movies.
-5. The 60 moves and zooms that also fade or change picture (still
+4. The 60 moves and zooms that also fade or change picture (still
    cross-fades), and `Rotate` over time (343, drawn at once).
-6. Extras: the doors' animation and the menu's own music (left out).
+5. Extras: the doors' animation and the menu's own music (left out).
 
 ## History
 
