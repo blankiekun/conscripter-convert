@@ -1166,21 +1166,24 @@ impl Lowering<'_> {
         self.out.ops.push(Op::Choice { options, style: None });
     }
 
-    /// START's story menu (the original's labels in `title_bg.png`): once
-    /// any ending was seen, the after-stories (adv.txt's start scenes 1-4)
-    /// are offered beside the main story. Each opens with its heroine's
-    /// ending (かるお's with the true ending); the original's rule is in
-    /// the eboot, so this one is ours.
+    /// START's story menu (the original's labels in `title_bg.png`), as
+    /// the eboot has it (0x8105e69c, 0x81083086, 0x81084c26): START opens
+    /// it once any of the first six global flags is set (明日香's, 京's,
+    /// 亜衣's or 鳴's ending, part 1 or 2 cleared), otherwise it starts the
+    /// story. 美咲's, 明日香's and 京's after-stories (adv.txt's start
+    /// scenes 1-3) are then open; 狩男's (4) once part 1, 2 or 3 is
+    /// cleared (the Vita shows ？？？？？ until then).
     fn story_menu(&mut self) {
-        const STORIES: [(&str, &str, &str); 4] = [
-            ("ある日の林田美咲", "P03_01A", "misaki_ed"),
-            ("ある日の渡来明日香", "P01_01A", "asuka_ed"),
-            ("ある日の山科京", "P02_01A", "miyako_ed"),
-            ("ある日の軽部狩男", "P04_01A", "kobato_ed"),
+        const SHOWN: [&str; 6] = ["asuka_ed", "miyako_ed", "ai_ed", "naru_ed", "one_clear", "two_clear"];
+        const STORIES: [(&str, &str, &[&str]); 4] = [
+            ("ある日の林田美咲", "P03_01A", &[]),
+            ("ある日の渡来明日香", "P01_01A", &[]),
+            ("ある日の山科京", "P02_01A", &[]),
+            ("ある日の軽部狩男", "P04_01A", &["one_clear", "two_clear", "three_clear"]),
         ];
         let menu = "mg_story_menu".to_string();
         let start = scene_label(&self.game.start);
-        for (_, _, flag) in STORIES {
+        for flag in SHOWN {
             if let Some(var) = self.game.flag(flag, true) {
                 self.out.ops.push(Op::If { var, cmp: Compare::Ne, value: Operand::Const(0), label: menu.clone() });
             }
@@ -1189,16 +1192,22 @@ impl Lowering<'_> {
         self.out.ops.push(Op::Label(menu.clone()));
         let mut options = vec![("俺たちに翼はない　始めから".to_string(), start)];
         let mut gates = Vec::new();
-        for (title, scene, flag) in STORIES {
+        for (title, scene, flags) in STORIES {
+            if flags.is_empty() {
+                options.push((title.to_string(), scene_label(scene)));
+                continue;
+            }
             let gate = format!("mg_story_{}", scene.to_ascii_lowercase());
             options.push((title.to_string(), gate.clone()));
-            gates.push((gate, scene, flag));
+            gates.push((gate, scene, flags));
         }
         self.out.ops.push(Op::Choice { options, style: None });
-        for (gate, scene, flag) in gates {
+        for (gate, scene, flags) in gates {
             self.out.ops.push(Op::Label(gate));
-            if let Some(var) = self.game.flag(flag, true) {
-                self.out.ops.push(Op::If { var, cmp: Compare::Ne, value: Operand::Const(0), label: scene_label(scene) });
+            for flag in flags {
+                if let Some(var) = self.game.flag(flag, true) {
+                    self.out.ops.push(Op::If { var, cmp: Compare::Ne, value: Operand::Const(0), label: scene_label(scene) });
+                }
             }
             let text = "　このお話は、まだ読むことができません。".to_string();
             self.out.ops.push(Op::Text { speaker: None, text, voice: None, links: vec![], ruby: vec![], styles: vec![], hang: None, continues: false });
