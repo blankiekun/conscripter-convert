@@ -18,6 +18,7 @@ import os
 import platform
 import re
 import shutil
+import ssl
 import struct
 import subprocess
 import sys
@@ -67,10 +68,27 @@ def build_version(output: Path) -> Optional[str]:
     return m.group(1) if m else None
 
 
+def tls_context() -> ssl.SSLContext:
+    """The system's certificates plus certifi's: a bundled Python's
+    OpenSSL looks for them where the machine that built it keeps them
+    (Ubuntu's /usr/lib/ssl), which other Linux systems don't have, and
+    python.org's Python on macOS has none of its own."""
+    context = ssl.create_default_context()
+    try:
+        import certifi
+        context.load_verify_locations(certifi.where())
+    except (ImportError, OSError):
+        pass
+    return context
+
+
+def _open(request, timeout: int):
+    return urllib.request.urlopen(request, timeout=timeout, context=tls_context())
+
+
 def latest_version() -> str:
     import json
-    with urllib.request.urlopen(urllib.request.Request(API, headers={"Accept": "application/vnd.github+json"}),
-                                timeout=30) as r:
+    with _open(urllib.request.Request(API, headers={"Accept": "application/vnd.github+json"}), 30) as r:
         return json.load(r)["tag_name"].lstrip("v")
 
 
@@ -95,7 +113,7 @@ def download(version: str, suffix: str, log: Callable[[str], None]) -> Path:
     log(f"Downloading {url}")
     path.parent.mkdir(parents=True, exist_ok=True)
     part = path.with_name(name + ".part")
-    with urllib.request.urlopen(url, timeout=60) as r, open(part, "wb") as f:
+    with _open(url, 60) as r, open(part, "wb") as f:
         shutil.copyfileobj(r, f)
     part.replace(path)
     return path
