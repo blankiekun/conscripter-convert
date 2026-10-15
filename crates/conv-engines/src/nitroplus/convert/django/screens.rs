@@ -4,7 +4,7 @@
 //! under wine).
 
 use conv_core::ir::{
-    BarAction, ButtonBar, CommandItem, CommandMenu, ConfirmDialog, GridText, Placed, Rect, SaveGrid, Script, Switch, TitleAction, TitleButton, TitleScreen,
+    BarAction, ButtonBar, CommandItem, CommandMenu, ConfirmDialog, GridText, LineLog, Placed, Rect, SaveGrid, Script, Switch, TitleAction, TitleButton, TitleScreen,
 };
 
 use super::super::{Assets, Story};
@@ -17,6 +17,46 @@ pub fn menus(a: &mut dyn Assets, script: &mut Script, _story: &Story) {
     script.command_menu = command_menu(a);
     script.save_grid = save_grid(a);
     script.confirm = confirm(a);
+    script.line_log = line_log(a);
+}
+
+/// The text log (`sys_backlog.nss`): the parchment scroll
+/// (`バックログ背景.jpg`); one row back (708,228) and on (724,284), EXIT
+/// (690,530), the knob on the rail at x 646 from y 90 to 490
+/// (`CreateScrollbar`). Black 20 px text (`SetFont`). Where the engine's
+/// `CreateBacklog` puts the text isn't in the scripts: on the parchment
+/// from (90,92), 16 rows 26 px apart, 25 characters wide, the voice icon
+/// (`スピーカー`) left of a voiced row: ours. Left out: the page buttons
+/// (698,138 and 724,362) and the rolls turning as it scrolls.
+fn line_log(a: &mut dyn Assets) -> Option<LineLog> {
+    const DIR: &str = "cg/sys/backlog";
+    let strip = |a: &mut dyn Assets, names: &[&str], x: i32, y: i32| {
+        let parts: Vec<String> = names.iter().map(|n| format!("{DIR}/{n}.png")).collect();
+        let (image, w, h) = a.strip(&parts.iter().map(String::as_str).collect::<Vec<_>>())?;
+        Some(Placed { image, x, y, w: w as i32, h: h as i32 })
+    };
+    let button = |a: &mut dyn Assets, name: &str, x: i32, y: i32| {
+        let (n1, n2, n3) = (format!("{name}-01"), format!("{name}-02"), format!("{name}-03"));
+        strip(a, &[&n1, &n2, &n1, &n3], x, y)
+    };
+    let (background, w, h) = a.image(&format!("{DIR}/バックログ背景.jpg"))?;
+    Some(LineLog {
+        background: Placed { image: background, x: 0, y: 0, w: w as i32, h: h as i32 },
+        up: button(a, "バックログrew002", 708, 228)?,
+        down: button(a, "バックログff003", 724, 284)?,
+        close: strip(a, &["backlog-exit-001", "backlog-exit-002", "backlog-exit-001", "backlog-exit-003"], 690, 530)?,
+        knob: strip(a, &["スクロール001", "スクロール002"], 635, 90)?,
+        knob_y: (90, 460),
+        voice_icon: strip(a, &["スピーカー001", "スピーカー002", "スピーカー003"], 60, 0)?,
+        text_x: 90,
+        text_y: 92,
+        row_step: 26,
+        rows: 16,
+        columns: 25,
+        font_size: 20,
+        colour: "#000000".into(),
+        fade_ms: 300,
+    })
 }
 
 /// The yes/no questions (`sys_close.nss` and the others): a full-screen
