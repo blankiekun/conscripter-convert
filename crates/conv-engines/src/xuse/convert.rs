@@ -2283,13 +2283,23 @@ fn lower_quake(q: &Quake, ops: &mut Vec<Op>) {
         return;
     }
     let shrink = (q.speed / 4).max(50); // pixels a second
-    let time_ms = 4000 / q.speed + x.max(y) as u32 * 1000 / shrink;
-    let speed = (i64::from(q.speed) * 65536 / 1000).min(i64::from(i32::MAX)) as i32;
-    let effect = ScreenEffect::Shake { time_ms, interval_ms: 10, path: true, speed: (speed, 0), range: [(x, y), (0, 0)] };
-    ops.push(Op::ScreenEffect { slot: QUAKE_SLOT, effect: Some(effect) });
-    ops.push(Op::Wait { ms: time_ms });
+    // Filmed under wine (speed 80): the picture jumps to the next point
+    // every frame (30 a second), at the full range for the first points,
+    // then the range shrinks: two shakes, the second shrinking to 0.
+    let points = q.speed.min(QUAKE_POINTS_PER_S);
+    let hold_ms = 4000 / points;
+    let shrink_ms = x.max(y) as u32 * 1000 / shrink;
+    let speed = (i64::from(points) * 65536 / 1000) as i32;
+    for (time_ms, to) in [(hold_ms, (x, y)), (shrink_ms, (0, 0))] {
+        let effect = ScreenEffect::Shake { time_ms, interval_ms: 10, path: true, speed: (speed, 0), range: [(x, y), to] };
+        ops.push(Op::ScreenEffect { slot: QUAKE_SLOT, effect: Some(effect) });
+        ops.push(Op::Wait { ms: time_ms });
+    }
     ops.push(Op::ScreenEffect { slot: QUAKE_SLOT, effect: None });
 }
+
+/// A quake's points a second at most: one a frame at the original's 30.
+const QUAKE_POINTS_PER_S: u32 = 30;
 
 /// The `screenpulse` slot for opcode 0x6f's pulses.
 const PULSE_SLOT: u32 = 3;
@@ -4192,13 +4202,16 @@ mod tests {
     fn quakes_shake_and_wait() {
         let mut ops = Vec::new();
         lower_quake(&Quake { speed: 80, range: (10, 20) }, &mut ops);
-        // 4 points at 80 a second, then 20 px at 50 px a second.
-        let shake = ScreenEffect::Shake { time_ms: 450, interval_ms: 10, path: true, speed: (5242, 0), range: [(10, 20), (0, 0)] };
+        // 4 points at 30 a second at the full range, then shrinking 20 px
+        // at 50 px a second.
+        let shake = |time_ms, to| ScreenEffect::Shake { time_ms, interval_ms: 10, path: true, speed: (1966, 0), range: [(10, 20), to] };
         assert_eq!(
             ops,
             [
-                Op::ScreenEffect { slot: QUAKE_SLOT, effect: Some(shake) },
-                Op::Wait { ms: 450 },
+                Op::ScreenEffect { slot: QUAKE_SLOT, effect: Some(shake(133, (10, 20))) },
+                Op::Wait { ms: 133 },
+                Op::ScreenEffect { slot: QUAKE_SLOT, effect: Some(shake(400, (0, 0))) },
+                Op::Wait { ms: 400 },
                 Op::ScreenEffect { slot: QUAKE_SLOT, effect: None },
             ]
         );
