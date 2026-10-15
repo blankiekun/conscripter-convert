@@ -221,5 +221,32 @@ class Cancel(unittest.TestCase):
             self.fail("the child process survived")
 
 
+
+class ChildEnv(unittest.TestCase):
+    """A bundle's library path must not reach the programs it starts (a
+    system ffmpeg failed to load with the bundle's fontconfig)."""
+
+    def setUp(self):
+        self.saved = dict(os.environ)
+        sys.frozen = True
+
+    def tearDown(self):
+        os.environ.clear()
+        os.environ.update(self.saved)
+        del sys.frozen
+
+    def test_drops_the_bundles_path(self):
+        os.environ["LD_LIBRARY_PATH"] = "/tmp/_MEI123"
+        os.environ.pop("LD_LIBRARY_PATH_ORIG", None)
+        self.assertNotIn("LD_LIBRARY_PATH", tools.child_env())
+
+    def test_restores_the_users_path(self):
+        os.environ["LD_LIBRARY_PATH"] = "/tmp/_MEI123:/opt/lib"
+        os.environ["LD_LIBRARY_PATH_ORIG"] = "/opt/lib"
+        env = tools.child_env()
+        self.assertEqual(env["LD_LIBRARY_PATH"], "/opt/lib")
+        self.assertNotIn("LD_LIBRARY_PATH_ORIG", env)
+
+
 if __name__ == "__main__":
     unittest.main()

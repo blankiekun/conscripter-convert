@@ -73,11 +73,36 @@ def ffmpeg_missing_encoders(ffmpeg: Path) -> list[str]:
     """The encoders the converter uses that this ffmpeg lacks."""
     try:
         out = subprocess.run([str(ffmpeg), "-hide_banner", "-encoders"], capture_output=True, encoding="utf-8", errors="replace",
-                             timeout=20, **_no_window()).stdout
+                             timeout=20, env=child_env(), **_no_window()).stdout
     except (OSError, subprocess.SubprocessError):
         return list(FFMPEG_ENCODERS)
     names = {line.split()[1] for line in out.splitlines() if len(line.split()) > 1}
     return [e for e in FFMPEG_ENCODERS if e not in names]
+
+
+def child_env() -> dict:
+    """The environment for the programs the app starts (the converter,
+    ffmpeg). A one-file bundle on Linux points the loader at its own
+    libraries (LD_LIBRARY_PATH): a system ffmpeg started with them can fail
+    to load (an older fontconfig) and seem to have no encoders. The
+    bootloader keeps the user's value in LD_LIBRARY_PATH_ORIG."""
+    env = dict(os.environ)
+    if getattr(sys, "frozen", False):
+        for var in ("LD_LIBRARY_PATH", "DYLD_LIBRARY_PATH"):
+            orig = env.pop(var + "_ORIG", None)
+            if orig is not None:
+                env[var] = orig
+            else:
+                env.pop(var, None)
+    return env
+
+
+def unbundle_dll_directory() -> None:
+    """On Windows a bundle adds its folder to the DLL search path
+    (SetDllDirectory), which the programs it starts inherit: undo it."""
+    if os.name == "nt" and getattr(sys, "frozen", False):
+        import ctypes
+        ctypes.windll.kernel32.SetDllDirectoryW(None)
 
 
 def _no_window() -> dict:
@@ -90,7 +115,7 @@ class Build:
 
     def __init__(self, converter: Path, args: list[str], on_line: Callable[[str], None],
                  on_exit: Callable[[int], None], ffmpeg_dir: Optional[Path] = None):
-        env = dict(os.environ)
+        env = child_env()
         if ffmpeg_dir:  # the converter runs "ffmpeg" from PATH
             env["PATH"] = str(ffmpeg_dir) + os.pathsep + env.get("PATH", "")
         kwargs: dict = {}

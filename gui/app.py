@@ -386,9 +386,9 @@ def open_folder(path: Path) -> None:
     if os.name == "nt":
         os.startfile(path)  # type: ignore[attr-defined]
     elif sys.platform == "darwin":
-        subprocess.Popen(["open", str(path)])
+        subprocess.Popen(["open", str(path)], env=tools.child_env())
     else:
-        subprocess.Popen(["xdg-open", str(path)])
+        subprocess.Popen(["xdg-open", str(path)], env=tools.child_env())
 
 
 def cli_detect(folder: str) -> int:
@@ -415,14 +415,18 @@ def self_test(report: str) -> int:
     state: dict = {"converter": str(tools.find_converter() or ""), "dnd": TkinterDnD is not None,
                    "fonts": {g.font: str(tools.find_font(g.font) or "") for g in games.GAMES}}
     if state["converter"]:
-        r = subprocess.run([state["converter"], "--help"], capture_output=True, encoding="utf-8", errors="replace")
+        r = subprocess.run([state["converter"], "--help"], capture_output=True, encoding="utf-8", errors="replace", env=tools.child_env())
         state["converter_runs"] = r.returncode == 0 and "convert-game" in r.stdout
+    ffmpeg = tools.find_ffmpeg()
+    if ffmpeg:  # not on every CI runner; a bundle must not hide its encoders
+        state["ffmpeg_missing"] = tools.ffmpeg_missing_encoders(ffmpeg)
     Path(report).write_text(json.dumps(state, indent=2), encoding="utf-8")
-    ok = state.get("converter_runs") and all(state["fonts"].values()) and state["dnd"]
+    ok = state.get("converter_runs") and all(state["fonts"].values()) and state["dnd"] and not state.get("ffmpeg_missing")
     return 0 if ok else 1
 
 
 def main() -> int:
+    tools.unbundle_dll_directory()
     if len(sys.argv) == 3 and sys.argv[1] == "--detect":
         return cli_detect(sys.argv[2])
     if len(sys.argv) == 3 and sys.argv[1] == "--self-test":
