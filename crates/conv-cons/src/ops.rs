@@ -692,8 +692,7 @@ impl<'a> Emitter<'a> {
         }
         Op::AnimatedSprite { layer, sprite, cells, frame_ms, looped, zoom } => {
             let slot = SPRITE_BASE + layer;
-            let lower = sprite.image.to_ascii_lowercase();
-            let mode = if lower.ends_with(".jpg") || lower.ends_with(".jpeg") { 'c' } else { 'a' };
+            let mode = sprite_mode(&sprite.image);
             // Loop mode 0 repeats the cells, 1 stops on the last.
             let tag = format!("{mode}/{cells},{frame_ms},{}", u8::from(!*looped));
             writeln!(out, "spfilter {slot},0").unwrap();

@@ -25,7 +25,7 @@ const ITEM: u32 = MENU_SPRITES.start; // + item
 
 /// A picture for `lsp`: a JPEG as it is, another (a PNG) with its alpha.
 pub(crate) fn pic(p: &str) -> String {
-    let mode = if p.to_ascii_lowercase().ends_with(".jpg") { ":c;" } else { ":a;" };
+    let mode = format!(":{};", crate::sprite_mode(p));
     format!("{mode}{}", path(p))
 }
 

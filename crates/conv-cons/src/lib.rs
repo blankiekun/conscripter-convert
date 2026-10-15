@@ -745,12 +745,17 @@ fn setwindow_only(w: &TextWindow, speed: &str, ruby: bool, any_vertical: bool, s
     )
 }
 
-/// `lsp` for a sprite; ":a;" = use the PNG's alpha channel. A picture
-/// without one (JPEG) needs ":c;" (opaque): with ":a;" NScripter takes
-/// its right half for the mask.
+/// A sprite's transparency mode: 'a' (the PNG's alpha channel), or 'c'
+/// (opaque) for a picture without one (JPEG): with 'a' NScripter takes its
+/// right half for the mask.
+pub(crate) fn sprite_mode(image: &str) -> char {
+    let lower = image.to_ascii_lowercase();
+    if lower.ends_with(".jpg") || lower.ends_with(".jpeg") { 'c' } else { 'a' }
+}
+
+/// `lsp` for a sprite ([`sprite_mode`]).
 fn lsp(slot: u32, s: &SpritePlacement) -> String {
-    let lower = s.image.to_ascii_lowercase();
-    let mode = if lower.ends_with(".jpg") || lower.ends_with(".jpeg") { 'c' } else { 'a' };
+    let mode = sprite_mode(&s.image);
     format!("lsp {slot},\":{mode};{}\",{},{}", path(&s.image), s.x, s.y)
 }
 

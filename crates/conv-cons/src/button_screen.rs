@@ -28,7 +28,7 @@ pub(crate) fn emit(out: &mut String, s: &ButtonScreen, n: usize, fade: &str, bar
         w(format!("gosub *{}", menu::BAR_HIDE));
     }
     for (i, p) in s.pictures.iter().enumerate() {
-        let mode = if p.image.to_ascii_lowercase().ends_with(".jpg") { 'c' } else { 'a' };
+        let mode = crate::sprite_mode(&p.image);
         w(format!("lsp {},\":{mode};{}\",{},{}", picture_slot(i), path(&p.image), p.x, p.y));
     }
     for (i, (b, _)) in s.buttons.iter().enumerate() {

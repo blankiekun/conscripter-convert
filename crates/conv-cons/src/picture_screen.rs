@@ -27,7 +27,7 @@ pub(crate) fn emit(out: &mut String, s: &PictureScreen, n: usize, fade: &str, ba
     }
     for p in &s.pictures {
         let image = &p.picture.image;
-        let mode = if image.to_ascii_lowercase().ends_with(".jpg") { 'c' } else { 'a' };
+        let mode = crate::sprite_mode(image);
         let lsp = format!("lsp {},\":{mode};{}\",{},{}", slot(p.layer), path(image), p.picture.x, p.picture.y);
         match p.when {
             Some((var, cmp, value)) => w(format!("if {} {} {value} {lsp}", var_name(var, border), cmp.operator())),

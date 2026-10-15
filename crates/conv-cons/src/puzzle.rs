@@ -96,7 +96,7 @@ pub(crate) fn emit(out: &mut String, p: &TilePuzzle, n: usize, base: u32, effect
     }
     for (i, b) in p.backdrop.iter().enumerate() {
         let slot = sp(BACKDROP) + (p.backdrop.len() - 1 - i) as u32;
-        let mode = if b.image.to_ascii_lowercase().ends_with(".jpg") { 'c' } else { 'a' };
+        let mode = crate::sprite_mode(&b.image);
         w(format!("lsp {slot},\":{mode};{}\",{},{}", path(&b.image), b.x, b.y));
     }
     w(button(sp(ANSWER), &p.answer));
