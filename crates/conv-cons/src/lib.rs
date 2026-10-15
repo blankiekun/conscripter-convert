@@ -367,7 +367,7 @@ pub fn emit(script: &Script) -> String {
         // A new game's play time.
         writeln!(out, "{}", save_grid::NEW_GAME).unwrap();
     }
-    let mut se = SeChannels::default();
+    let mut se = SeChannels { volumes: script.ops.iter().any(|op| matches!(op, Op::SoundVolume { .. })), ..Default::default() };
     // The next sound effect isn't played while skipping (Op::SeNotSkipped).
     let mut se_not_skipped = false;
     // The next static's fade in (Op::NoiseFadeIn).
@@ -403,7 +403,7 @@ pub fn emit(script: &Script) -> String {
     let mut page_rows = 0;
     // The backlog tag of the page being written: its first speaker and voice.
     let mut page_tag: Option<String> = None;
-    for op in &script.ops {
+    for (i, op) in script.ops.iter().enumerate() {
         if let Op::Text { .. } = op {
             for line in transition.take().unwrap_or_default() {
                 writeln!(out, "{line}").unwrap();
@@ -931,6 +931,9 @@ pub fn emit(script: &Script) -> String {
                 }
             }
             Op::BgmPlay { file, fade_in_ms } => {
+                if se.volumes && !std::mem::take(&mut se.preset) {
+                    writeln!(out, "bgmvolfade 100").unwrap();
+                }
                 writeln!(out, "bgmfadein {fade_in_ms}").unwrap();
                 writeln!(out, "bgm \"{}\"", path(file)).unwrap();
             }
@@ -960,6 +963,9 @@ pub fn emit(script: &Script) -> String {
             }
             Op::SePlay { file, looped } => {
                 let ch = se.start(file);
+                if se.volumes && !std::mem::take(&mut se.preset) {
+                    writeln!(out, "chvolfade {ch},100").unwrap();
+                }
                 let cmd = if *looped { "dwaveloop" } else { "dwave" };
                 let when = if std::mem::take(&mut se_not_skipped) { format!("if {} != 1 ", menu::TMP) } else { String::new() };
                 writeln!(out, "{when}{cmd} {ch},\"{}\"", path(file)).unwrap();
@@ -991,6 +997,27 @@ pub fn emit(script: &Script) -> String {
                 };
                 for ch in channels {
                     writeln!(out, "dwavefadeout {ch},{ms}").unwrap();
+                }
+            }
+            Op::SoundVolume { file, percent, ms } => {
+                // Right before the sound starts: for the channel it will
+                // play on (CONscripter keeps a channel's volume for its next
+                // sounds).
+                let next = script.ops.get(i + 1);
+                se.preset = match (file, next) {
+                    (None, Some(Op::BgmPlay { .. })) => true,
+                    (Some(f), Some(Op::SePlay { file: g, .. })) => f == g,
+                    _ => false,
+                };
+                let ms = if *ms > 0 { format!(",{ms}") } else { String::new() };
+                match file {
+                    None => writeln!(out, "bgmvolfade {percent}{ms}").unwrap(),
+                    Some(f) => {
+                        let ch = if se.preset { Some(se.peek()) } else { se.playing.get(f).copied() };
+                        if let Some(ch) = ch {
+                            writeln!(out, "chvolfade {ch},{percent}{ms}").unwrap();
+                        }
+                    }
                 }
             }
             Op::ClickWait { skippable } => {
@@ -1834,12 +1861,22 @@ fn sprite_text(text: &str) -> String {
 struct SeChannels {
     playing: HashMap<String, u32>,
     next: u32,
+    /// The script sets volumes ([`Op::SoundVolume`]): every sound starts
+    /// with one (`chvolfade`, `bgmvolfade`).
+    volumes: bool,
+    /// The op before the sound starting set its volume.
+    preset: bool,
 }
 
 impl SeChannels {
-    fn start(&mut self, file: &str) -> u32 {
+    /// The channel the next [`SeChannels::start`] takes.
+    fn peek(&self) -> u32 {
         let span = SE_CHANNELS.end() - SE_CHANNELS.start() + 1;
-        let ch = SE_CHANNELS.start() + self.next % span;
+        SE_CHANNELS.start() + self.next % span
+    }
+
+    fn start(&mut self, file: &str) -> u32 {
+        let ch = self.peek();
         self.next += 1;
         self.playing.retain(|_, c| *c != ch);
         self.playing.insert(file.to_string(), ch);

@@ -561,29 +561,13 @@ out/conscripter-mura`). The route runs and `--at` starts are in
 `research/nitroplus/engrun.py`.
 
 Next, in order:
-1. **Sound volume** (half done). The converter ignores `SetVolume`
-   (1,406 changes of a playing sound in the build's list; starting
-   volumes too) unless it goes to 0, so sounds faded to 1 keep playing
-   at full volume, and loops faded that way never stop (the checker's
-   `loop` rule). The engine side is in CONscripter (2712225):
-   `chvolfade ch,vol[,ms]` and `bgmvolfade vol[,ms]`, a script volume
-   in percent of the setting, faded while the script goes on, kept
-   with the channel for its next sounds (set it before `dwave`) and in
-   saves. Left: an IR `Op::SoundVolume { file, percent, ms }`, its
-   emitter in `conv-cons` (the channel the next `SePlay` takes when it
-   comes right before it; a script that has any gives every sound a
-   volume), and in `nitroplus/convert.rs` `set_volume` and
-   `flush_sounds` (the ramp from the volume at `Play`) with the exe's
-   curve (`research/nitroplus/builtins.md`, `SetVolume`): percent =
-   100·(volume/1000)^1.661, so 1 is silent and 500 is 32 %. A fade to
-   0 over time could use `dwavefadeout` (CONscripter 922b73f).
-2. Check against the original: the figure in `ma01_002` (おれ→ ○□卍□○
+1. Check against the original: the figure in `ma01_002` (おれ→ ○□卍□○
    ←？ with ／＼ strokes) only lines up written horizontally, and comes
    apart in its vertical box.
-3. A replay of route 9 with `--shot-pages` (engine 0.19.0) stopped
+2. A replay of route 9 with `--shot-pages` (engine 0.19.0) stopped
    drawing at `f_md01_002:158856` (`print 10,500`, page 18,573) with
    the process spinning; the same run passed before. Not reproduced.
-4. **System screens** (step 7), under way. The original was filmed
+3. **System screens** (step 7), under way. The original was filmed
    under wine from patched boots (title, right-click menu, quick bar,
    save/load, confirmations, settings and its voice window, backlog,
    click-wait icon; transitions also slowed ×10); shots and videos are
@@ -640,11 +624,11 @@ Next, in order:
    voice, auto/skip stop at a choice, movie skip, game speed) are added
    to the engine the same way (since then no engine addition is opt-in); 選択肢に戻る is implemented
    (a save to a reserved slot before each choice).
-5. The largest leftovers below: `CreateProcess` (via Lua), non-blocking
+4. The largest leftovers below: `CreateProcess` (via Lua), non-blocking
    `Move`/`Zoom`, `AddRender` (needs a per-sprite blend mode).
-6. Step 11.5: `#` flags (globals from %800) across quit and relaunch,
+5. Step 11.5: `#` flags (globals from %800) across quit and relaunch,
    and in the web build.
-7. Optional: the 18 files with no `else` (below).
+6. Optional: the 18 files with no `else` (below).
 
 **Leftovers** (counts from the dry run's notes):
 - `CreateProcess` (510 calls; the battle HUD `CP_*` in
@@ -1196,3 +1180,18 @@ a `<video>` element, MPEG-1 being unplayable there).
 - Engine fixes found on the way (f8d4cf4): `spzoom` on an animated
   sprite showed only its first cell, and a screen update partly off
   the screen was dropped.
+
+**Sound volume (2026-10-15):** every `SetVolume` is converted (it was
+ignored unless it went to 0, so sounds faded to 1 kept playing at full
+volume). The NSS volume becomes a percent of the player's setting by the
+exe's curve, 100·(volume/1000)^1.661 (`percent` in `nitroplus/convert.rs`;
+500 is 32 %, 1 is 0 %: silent but still playing, as in the original). A
+sound starts at its volume (`Op::SoundVolume` right before `SePlay` or
+`BgmPlay`, emitted as `chvolfade`/`bgmvolfade` for the channel it will
+take; in a script that sets any, every other sound starts at 100), a
+sound effect's fade-in is `SeFadeIn` (`dwavefadein`), a change while it
+plays is a `SoundVolume` ramp, and reaching 0 stops it: `SeFadeOut`
+(`dwavefadeout`) for a sound effect, `BgmStop` with its fade for the
+music. The engine ramps linearly in percent, the original linearly in
+its volume number (a fade sounds a little different midway). A
+240-second auto-play gave the same trace-check findings as before.

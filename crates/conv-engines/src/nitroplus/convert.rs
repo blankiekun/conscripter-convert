@@ -29,7 +29,8 @@
 //!   `{code}` runs before the page it starts (seen under wine).
 //! - **Sound.** `Request(snd, Play)` with the `SetVolume`/`SetLoop` calls
 //!   after it (the `SoundPlay`/`MusicStart`/`OnSE` helpers) starts BGM or a
-//!   sound effect; `SetVolume(…, 0)` on a playing sound stops it.
+//!   sound effect at that volume; `SetVolume` on a playing sound changes
+//!   its volume, and reaching 0 stops it.
 //!
 //! Conditions are evaluated with the values known at convert time (a fresh
 //! game: unset variables are empty), which holds for linear scenes. What
@@ -2824,11 +2825,17 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 s.volume = volume;
                 s.fade_ms = ms;
             } else if s.playing.is_some() && volume == 0 {
+                // Reaching 0 stops it.
                 let file = s.playing.take().unwrap();
-                self.ops.push(if s.bgm { Op::BgmStop { fade_out_ms: ms } } else { Op::SeStop { file: Some(file) } });
-            } else if s.playing.is_some() {
+                self.ops.push(match (s.bgm, ms) {
+                    (true, _) => Op::BgmStop { fade_out_ms: ms },
+                    (false, 0) => Op::SeStop { file: Some(file) },
+                    (false, ms) => Op::SeFadeOut { file: Some(file), ms },
+                });
+            } else if let Some(file) = &s.playing {
                 s.volume = volume;
-                self.note("volume change of a playing sound");
+                let file = (!s.bgm).then(|| file.clone());
+                self.ops.push(Op::SoundVolume { file, percent: percent(volume), ms });
             } else {
                 s.volume = volume;
             }
@@ -2845,7 +2852,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
             if s.volume <= 0 && s.fade_ms == 0 {
                 continue;
             }
-            let (path, bgm, looped, fade_ms) = (s.path.clone(), s.bgm, s.looped, s.fade_ms);
+            let (path, bgm, looped, fade_ms, volume) = (s.path.clone(), s.bgm, s.looped, s.fade_ms, s.volume);
             let Some(file) = self.assets.sound(&path) else {
                 if std::env::var_os("NSS_TRACE").is_some() {
                     eprintln!("missing sound {path}");
@@ -2865,8 +2872,17 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 if !looped {
                     self.note("BGM without loop played looping");
                 }
+                if percent(volume) < 100 {
+                    self.ops.push(Op::SoundVolume { file: None, percent: percent(volume), ms: 0 });
+                }
                 self.ops.push(Op::BgmPlay { file: file.clone(), fade_in_ms: fade_ms });
             } else {
+                if fade_ms > 0 {
+                    self.ops.push(Op::SeFadeIn { ms: fade_ms });
+                }
+                if percent(volume) < 100 {
+                    self.ops.push(Op::SoundVolume { file: Some(file.clone()), percent: percent(volume), ms: 0 });
+                }
                 self.ops.push(Op::SePlay { file: file.clone(), looped });
             }
             if let Some(Object { kind: Kind::Sound(s), .. }) = self.objects.get_mut(&name) {
@@ -3158,6 +3174,13 @@ fn add(l: &Value, r: &Value) -> Value {
     }
 }
 
+/// An NSS volume (0-1000) as a percent of the player's setting: the exe
+/// sends 3322·log10(volume/1000) hundredths of a dB, an amplitude of
+/// (volume/1000)^1.661 (`research/nitroplus/builtins.md`, `SetVolume`).
+fn percent(volume: i64) -> u32 {
+    (100.0 * (volume.clamp(0, 1000) as f64 / 1000.0).powf(1.661)).round() as u32
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -3418,6 +3441,46 @@ scene a.nss
         let c = compile(story, LIBRARY);
         let plays = c.ops.iter().filter(|op| matches!(op, Op::SePlay { .. })).count();
         assert_eq!(plays, 1);
+    }
+
+    #[test]
+    fn sound_volumes_follow_the_exe_curve() {
+        let story = r#"
+scene a.nss
+{
+	CreateSound("SE01", SE, "sound/se/rain_L");
+	SoundPlay("SE01", 1000, 500, true);
+	Wait(100);
+	SetVolume("SE01", 2000, 1, null);
+	Wait(100);
+	SetVolume("SE01", 500, 0, null);
+	Wait(100);
+}
+"#;
+        // function.nss's own.
+        let library = r#"
+function SoundPlay($ナット名,秒数,ボリウム,ループ設定)
+{
+	SetVolume($ナット名, 0, 1, null);
+	Request($ナット名, Play);
+	SetVolume($ナット名, 秒数, ボリウム, null);
+	SetLoop($ナット名, ループ設定);
+	Request($ナット名, Disused);
+}
+"#;
+        let c = compile(story, library);
+        let file = Some("sound/se/rain_L.ogg".to_string());
+        let sound: Vec<_> = c.ops.iter().filter(|op| matches!(op, Op::SeFadeIn { .. } | Op::SoundVolume { .. } | Op::SePlay { .. } | Op::SeFadeOut { .. })).collect();
+        assert_eq!(
+            sound,
+            [
+                &Op::SeFadeIn { ms: 1000 },
+                &Op::SoundVolume { file: file.clone(), percent: 32, ms: 0 },
+                &Op::SePlay { file: "sound/se/rain_L.ogg".into(), looped: true },
+                &Op::SoundVolume { file: file.clone(), percent: 0, ms: 2000 },
+                &Op::SeFadeOut { file, ms: 500 },
+            ]
+        );
     }
 
     #[test]

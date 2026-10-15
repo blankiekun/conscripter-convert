@@ -501,6 +501,13 @@ pub enum Op {
     /// ([`MotionEnd`]). A character jumping toward the viewer, spinning,
     /// or walking off and fading out (俺たちに翼はない's CharacterAction).
     SpriteMotion2 { layer: u32, keys: Vec<MotionKey>, end: MotionEnd },
+    /// Set the volume of the sound effect `file` (as [`Op::SePlay`] names
+    /// it), or of the music (`None`), to `percent` of the player's setting,
+    /// over `ms` (0 = at once) while the script goes on; at 0 it keeps
+    /// playing. Right before the sound's `SePlay` or [`Op::BgmPlay`], it is
+    /// the volume the sound starts at. In a script that has any, a sound
+    /// started without one starts at 100.
+    SoundVolume { file: Option<String>, percent: u32, ms: u32 },
 }
 
 /// A puzzle of numbered tiles (装甲悪鬼村正's 立方陣): the player clicks a
