@@ -90,7 +90,7 @@ pub struct Game {
     files: &'static [&'static str],
     /// The game's system screens (title, menus, dialogs), built from its
     /// own pictures into the script.
-    menus: fn(&mut dyn Assets, &mut Script),
+    menus: fn(&mut dyn Assets, &mut Script, &Story),
     /// Chapters compiled once more as subroutines (label, `nss/file.nss`)
     /// for the system screens to call, such as a screen the menu opens.
     subroutines: &'static [(&'static str, &'static str)],
@@ -98,11 +98,11 @@ pub struct Game {
 
 impl Game {
     /// A game with nothing of its own: NSS as it is.
-    pub const PLAIN: Game = Game { call: |_, _| false, scene: |_, _, _| false, flags: Vec::new, files: &[], menus: |_, _| {}, subroutines: &[] };
+    pub const PLAIN: Game = Game { call: |_, _| false, scene: |_, _, _| false, flags: Vec::new, files: &[], menus: |_, _, _| {}, subroutines: &[] };
 
     /// Fills `script`'s system screens.
-    pub fn menus(&self, assets: &mut dyn Assets, script: &mut Script) {
-        (self.menus)(assets, script)
+    pub fn menus(&self, assets: &mut dyn Assets, script: &mut Script, story: &Story) {
+        (self.menus)(assets, script, story)
     }
 }
 
@@ -151,6 +151,15 @@ pub struct Compiled {
     pub notes: BTreeMap<String, usize>,
     /// The story flags and their variables.
     pub flags: HashMap<String, conv_core::ir::Var>,
+    /// The voice classes, in the order of their character numbers
+    /// ([`Voice::character`]).
+    pub voice_classes: Vec<String>,
+}
+
+/// What the system screens may need from the compiled story.
+pub struct Story<'a> {
+    pub flags: &'a HashMap<String, conv_core::ir::Var>,
+    pub voice_classes: &'a [String],
 }
 
 /// Compiles scene `scene` of `file` (`ma01_001.nss`, `ma01_001.nss`).
@@ -166,7 +175,7 @@ pub fn compile_scene(files: &BTreeMap<String, NssFile>, file: &str, scene: &str,
     let base = c.next_dynamic.max(FLAG_LOCAL_BASE);
     c.subroutines(&initial, base);
     c.ops.push(Op::Label(end.to_string()));
-    Ok(Compiled { ops: c.ops, window: c.first_window, notes: c.notes, flags: c.flags })
+    Ok(Compiled { ops: c.ops, window: c.first_window, notes: c.notes, flags: c.flags, voice_classes: c.voice_classes })
 }
 
 /// Plays story files from `start` (`ma01_001.nss`), as the story
@@ -336,7 +345,7 @@ pub fn compile_run(files: &BTreeMap<String, NssFile>, start: &str, max_files: us
         c.ops.push(Op::Label(file_label(&name)));
     }
     c.ops.push(Op::Label(RUN_END.to_string()));
-    Ok((Compiled { ops: c.ops, window: c.first_window, notes: c.notes, flags: c.flags }, played))
+    Ok((Compiled { ops: c.ops, window: c.first_window, notes: c.notes, flags: c.flags, voice_classes: c.voice_classes }, played))
 }
 
 fn negate(c: conv_core::ir::Compare) -> conv_core::ir::Compare {

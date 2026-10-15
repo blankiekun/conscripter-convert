@@ -281,7 +281,7 @@ pub fn emit(script: &Script) -> String {
     // The text speed is a setting when there is a settings menu.
     let has_settings = script.settings.is_some() || script.picture_settings.is_some();
     let speed = if has_settings { menu::TEXT_MS } else { "20" };
-    let voice_switches = script.settings.as_ref().is_some_and(|s| !s.voices.is_empty());
+    let voice_switches = script.settings.as_ref().is_some_and(|s| !s.voices.is_empty()) || script.picture_settings.as_ref().is_some_and(|s| s.voice_window.is_some());
     if script.settings.is_some() {
         menu::settings_init(&mut out);
     }
@@ -1033,7 +1033,7 @@ pub fn emit(script: &Script) -> String {
         }
     }
     if let Some(s) = &script.picture_settings {
-        picture_settings::emit(&mut out, s);
+        picture_settings::emit(&mut out, s, border);
     } else if let Some(m) = &script.settings {
         let replay = script.extras.as_ref().and_then(|e| e.replay.as_ref()).filter(|_| has_replay);
         menu::settings_menu(&mut out, m, script.confirm.as_ref(), replay.map(|r| (r.leave_label.as_str(), r.leave_question.as_str())), script.version.as_deref().map(|v| (v, script.height)));
