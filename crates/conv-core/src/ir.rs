@@ -547,6 +547,9 @@ pub struct TextWindow {
     /// (`text_x`, `text_y`) is the top-left of the leftmost one.
     pub vertical: bool,
     pub name_plate: Option<NamePlate>,
+    /// Where the click-wait icon ([`Script::wait_icon`]) shows, on the
+    /// screen; `None`: after the text, where the engine puts it.
+    pub wait_icon_at: Option<(i32, i32)>,
 }
 
 /// A separate box showing the speaker's name.
@@ -1298,6 +1301,9 @@ pub struct Script {
     /// The text history scrolled a row at a time, in place of
     /// [`Script::backlog`].
     pub line_log: Option<LineLog>,
+    /// The icon shown at the button bar's click waits (at each window's
+    /// [`TextWindow::wait_icon_at`]); `None` = none.
+    pub wait_icon: Option<WaitIcon>,
 }
 
 /// The save and load screens as pages of thumbnails over a picture per
@@ -1433,4 +1439,15 @@ pub struct LineLog {
     pub font_size: u32,
     pub colour: String,
     pub fade_ms: u32,
+}
+
+/// An animated click-wait icon ([`Script::wait_icon`]): `frames` pictures
+/// of `w`×`h` side by side in `image`, each shown `frame_ms`, looped.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WaitIcon {
+    pub image: String,
+    pub frames: u32,
+    pub frame_ms: u32,
+    pub w: u32,
+    pub h: u32,
 }

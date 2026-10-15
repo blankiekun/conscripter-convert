@@ -650,6 +650,10 @@ The steps that apply them are in `docs/new-game.md`.
   `btndown` off: a screen that wants presses sets `btndown 1` after each
   `btndef clear`, and in that mode `btnwait` also returns on the release
   and on moves with the button held (tell them apart with `isdown`).
+- **`lsp2` sprites are no place for things over the text window**: with
+  `windowback` they are drawn under it, and ONScripter doesn't step
+  their animation. An animated icon over the window is an `lsp` sprite
+  numbered at or below `humanz`.
 
 ### 13.1c Lessons from 俺たちに翼はない (PS Vita, 2026-10-13)
 

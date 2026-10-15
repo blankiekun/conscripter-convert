@@ -816,7 +816,7 @@ impl AssetBank {
             None
         };
         let text_x = x + (w as i32 - columns as i32 * (font_size as i32 + 1)) / 2;
-        Ok(TextWindow { image, x, y, text_x, text_y: y + 20, columns, rows, font_size, line_gap, vertical: false, name_plate })
+        Ok(TextWindow { image, x, y, text_x, text_y: y + 20, columns, rows, font_size, line_gap, vertical: false, name_plate, wait_icon_at: None })
     }
 
     /// The four PNG layers (message base, frame, name base, frame) of a
@@ -1597,6 +1597,7 @@ impl AssetBank {
         self.layered(&plate, &images[2], &images[3])?;
         // Positions measured on screenshots of the original game.
         Ok(TextWindow {
+            wait_icon_at: None,
             image: window,
             x: 47,
             y: 452,
