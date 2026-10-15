@@ -1351,6 +1351,7 @@ fn transition_steps(fade_ms: u32, mask: Option<&str>, style: TransitionStyle) ->
             one(Effect::Dll(format!("cons_flip.dll/{},{}", u8::from(!horizontal), u8::from(!grow))))
         }
         (None, TransitionStyle::Melt { stretch_percent }) => one(Effect::Dll(format!("cons_melt.dll/{stretch_percent}"))),
+        (None, TransitionStyle::Cube { dx, dy }) => one(Effect::Dll(format!("cons_cube.dll/{dx},{dy}"))),
         (_, TransitionStyle::ThroughWhite) => {
             let half = (fade_ms / 2).max(1);
             vec![(half, Effect::Fade), ((fade_ms - half).max(1), Effect::Fade)]
