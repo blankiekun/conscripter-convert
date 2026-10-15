@@ -21,7 +21,11 @@ It has no NPA archives and no NSS scripts.
   CONscripter draws it proportionally in the release's
   `droidserif-muramasa.ttf` (pass it as `--font`) and wraps at spaces;
   checked headless on the first pages (`ma00_000`). The port's ㉑-㉗
-  (spaces of set widths around italics) become spaces.
+  (spaces of set widths around italics) become spaces. A page whose
+  English outgrows the box goes on on a new page after a click
+  (CONscripter, for every script). The full build plays to the end
+  with the trace (25,430 pages, none past the window); its other
+  findings are the Japanese build's.
 - **Decided (the user, 2026-10-15):** the text font is the release's own
   `droidserif-muramasa.ttf` (font.npk); the menus follow the English
   port's redesigned screens, not the Japanese PC ones; filming the
@@ -39,10 +43,8 @@ It has no NPA archives and no NSS scripts.
   by the Japanese text (below), and takes the English pictures where
   they differ (the redesigned menus in `cg/sys`, pictures with words).
 - **Next:**
-  1. A full build with `--font droidserif-muramasa.ttf`, played on
-     with the trace.
-  2. The 278 stretches left in Japanese.
-  3. The English pictures: the text window and the redesigned menus in
+  1. The 278 stretches left in Japanese.
+  2. The English pictures: the text window and the redesigned menus in
      `cg/sys` (1876 pictures), filmed against the English original
      under wine; `<I>`, `<center>`, the other box sizes.
 
@@ -115,3 +117,10 @@ plus `patch/*.npk` mounted after them (opener 0x401960).
   compiler now forgets the window at each file's start, and its first
   page sets its own (`compile_run`); `conscripter-convert lint` on the
   dry run lists no window problems.
+- **Text past the box (fixed 2026-10-15):** each Japanese page holds
+  several paragraphs, and 1,143 pages of English ran past the 280×150
+  box. The user chose a CONscripter change over page breaks in the
+  converter: text that would be drawn past the window's last line waits
+  for a click and goes on on a new page (`pastPage`; the built-in wait,
+  since `textgosub`'s return goes on after the line's next click wait
+  and would drop the rest of the line).
