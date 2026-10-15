@@ -1585,7 +1585,7 @@ mod tests {
     use conv_core::ir::{Animation, ButtonScreen, ChoiceStyle, Noise, Placed, SourceLoc, SpriteChange, SpriteFilter, SpritePlacement, Voice, FILTER_BLEND_COPY, FILTER_BLEND_MULTIPLY, FILTER_BRIGHTNESS, FILTER_COLOUR};
 
     fn script(ops: Vec<Op>) -> Script {
-        Script { title: "Test".into(), width: 800, height: 600, global_border: None, window: None, title_screen: None, save_menu: None, button_bar: None, settings: None, backlog: None, confirm: None, extras: None, ops, version: None, command_menu: None, save_grid: None }
+        Script { title: "Test".into(), width: 800, height: 600, ops, ..Default::default() }
     }
 
     fn link(start: usize, len: usize, target: Option<&str>) -> TextLink {
