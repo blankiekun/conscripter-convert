@@ -8,6 +8,7 @@
 //! was built with libwebp. Stock ONScripter builds usually can't, so PNG
 //! stays the default.
 
+use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -92,7 +93,90 @@ pub fn convert_dirs(dirs: &[PathBuf], quality: Option<u8>) -> Result<Converted, 
             }
         }
     }
-    let next = AtomicUsize::new(0);
+    convert_files(&files, quality)
+}
+
+/// The largest width or height a WebP picture can have.
+pub const MAX_SIDE: u32 = 16383;
+
+/// What [`convert_tree`] did.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct Tree {
+    pub totals: Converted,
+    /// The pictures converted, relative to the root, as [`key`] writes them.
+    pub names: HashSet<String>,
+    /// Pictures left as PNG: wider or taller than WebP allows.
+    pub too_large: usize,
+}
+
+/// Replaces every `.png` file under `root/dirs` (subfolders included) with
+/// a `.webp` file of the same stem, as [`convert_dirs`]. Pictures larger
+/// than [`MAX_SIDE`] (long animation strips) stay PNG; [`retarget_names`]
+/// changes the script's names of the others only.
+pub fn convert_tree(root: &Path, dirs: &[&str], quality: Option<u8>) -> Result<Tree, WebpError> {
+    fn walk(dir: &Path, files: &mut Vec<PathBuf>, too_large: &mut usize) -> Result<(), WebpError> {
+        let Ok(entries) = fs::read_dir(dir) else { return Ok(()) };
+        for e in entries {
+            let path = e.map_err(|source| WebpError::Io { path: dir.to_path_buf(), source })?.path();
+            if path.is_dir() {
+                walk(&path, files, too_large)?;
+            } else if path.extension().is_some_and(|x| x == "png") {
+                match png_size(&path) {
+                    Some((w, h)) if w <= MAX_SIDE && h <= MAX_SIDE => files.push(path),
+                    _ => *too_large += 1,
+                }
+            }
+        }
+        Ok(())
+    }
+    let mut tree = Tree::default();
+    let mut files = Vec::new();
+    for d in dirs {
+        walk(&root.join(d), &mut files, &mut tree.too_large)?;
+    }
+    tree.totals = convert_files(&files, quality)?;
+    tree.names = files.iter().filter_map(|f| f.strip_prefix(root).ok()).map(|rel| key(&rel.to_string_lossy())).collect();
+    Ok(tree)
+}
+
+/// Width and height from a PNG file's header; None if it isn't a PNG.
+fn png_size(path: &Path) -> Option<(u32, u32)> {
+    use std::io::Read;
+    let mut head = [0u8; 24];
+    fs::File::open(path).ok()?.read_exact(&mut head).ok()?;
+    let be32 = |i: usize| u32::from_be_bytes([head[i], head[i + 1], head[i + 2], head[i + 3]]);
+    head.starts_with(b"\x89PNG").then(|| (be32(16), be32(20)))
+}
+
+/// A picture name as [`Tree::names`] holds it: `/` between folders,
+/// lowercase (the script writes `\`; the archives ignore case).
+pub fn key(name: &str) -> String {
+    name.replace('\\', "/").to_lowercase()
+}
+
+/// The script with the names of the pictures in `names` (see
+/// [`convert_tree`]) changed from `.png` to `.webp`. Every picture name
+/// the emitter writes ends a string literal, and starts it or follows the
+/// `;` of a sprite's options (`bg "cg\a.png"`, `lsp 1,":a;cg\b.png",…`);
+/// names of pictures that weren't converted stay as they are.
+pub fn retarget_names(script: &str, names: &HashSet<String>) -> String {
+    let mut out = String::with_capacity(script.len());
+    let mut done = 0;
+    for (at, _) in script.match_indices(".png\"") {
+        let start = script[..at].rfind(['"', ';']).map_or(0, |i| i + 1);
+        if names.contains(&key(&script[start..at + 4])) {
+            out.push_str(&script[done..at]);
+            out.push_str(".webp");
+            done = at + 4;
+        }
+    }
+    out.push_str(&script[done..]);
+    out
+}
+
+/// Converts `files`, using all CPU cores.
+fn convert_files(files: &[PathBuf], quality: Option<u8>) -> Result<Converted, WebpError> {
+    let next =AtomicUsize::new(0);
     let totals = Mutex::new(Converted::default());
     let threads = std::thread::available_parallelism().map_or(4, |n| n.get());
     std::thread::scope(|s| {
@@ -187,5 +271,36 @@ mod tests {
     fn retargets_image_names_only() {
         let script = "bg \"bg\\a.png\",1\nlsp 1,\":a/3,0,3;system\\b.png\",0,0\nbgm \"bgm\\c.ogg\"\n";
         assert_eq!(retarget(script), "bg \"bg\\a.webp\",1\nlsp 1,\":a/3,0,3;system\\b.webp\",0,0\nbgm \"bgm\\c.ogg\"\n");
+    }
+
+    #[test]
+    fn converts_subfolders_and_retargets_only_converted_names() {
+        let root = std::env::temp_dir().join(format!("conv-webp-tree-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        let write = |rel: &str, w: u32, h: u32| {
+            let path = root.join(rel);
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(path, png(&image::RgbaImage::from_pixel(w, h, image::Rgba([1, 2, 3, 255])))).unwrap();
+        };
+        write("cg/sys/アイコン/001.png", 4, 4);
+        write("cg/Top.png", 4, 4);
+        write("system/strip/wide.png", MAX_SIDE + 1, 1);
+        fs::create_dir_all(root.join("sound")).unwrap();
+        fs::write(root.join("sound/a.ogg"), b"OggS").unwrap();
+
+        let tree = convert_tree(&root, &["cg", "system", "sound"], None).unwrap();
+        assert_eq!(tree.totals.files, 2);
+        assert_eq!(tree.too_large, 1);
+        assert!(root.join("cg/sys/アイコン/001.webp").exists() && !root.join("cg/sys/アイコン/001.png").exists());
+        assert!(root.join("cg/Top.webp").exists());
+        assert!(root.join("system/strip/wide.png").exists());
+        assert!(root.join("sound/a.ogg").exists());
+
+        let script = "lsp 1,\":a/32,100,0;cg\\sys\\アイコン\\001.png\",0,0\nbg \"cg\\top.png\",1\nlsp 2,\":a;system\\strip\\wide.png\",0,0\nlsp 3,\":a;cg\\gone.png\",0,0\nmov $1,\"cg\\Top.png\"\n";
+        assert_eq!(
+            retarget_names(script, &tree.names),
+            "lsp 1,\":a/32,100,0;cg\\sys\\アイコン\\001.webp\",0,0\nbg \"cg\\top.webp\",1\nlsp 2,\":a;system\\strip\\wide.png\",0,0\nlsp 3,\":a;cg\\gone.png\",0,0\nmov $1,\"cg\\Top.webp\"\n"
+        );
+        fs::remove_dir_all(&root).unwrap();
     }
 }

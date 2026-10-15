@@ -87,7 +87,9 @@ converted, every ending reachable.
   saves never lose. Movies: ffmpeg to H.264 + AAC MP4, played with
   `mpegplay`.
 - Images stay PNG by default; `--webp` (near-lossless) is opt-in for
-  the web build (`convert-game` has it; the other engines don't yet).
+  the web build. A new engine's convert command takes it with
+  `#[command(flatten)] webp: build::WebpArgs` and calls
+  `build::webp_tree` with its picture folders before writing `0.txt`.
 
 ## 2. Scripts: decode, then measure
 

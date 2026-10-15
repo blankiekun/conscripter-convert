@@ -144,9 +144,20 @@ class Commands(unittest.TestCase):
                          ["--webp", "--webp-quality", "80"])
         self.assertNotIn("--webp-quality", self.args("saihate-no-ima", {"webp_quality": "80"}))  # needs --webp
         self.assertEqual(self.args("muramasa", {"chain": "", "dry_run": True})[-3:],
-                         ["--file", "ma00_000.nss", "--dry-run"])
+                         ["--dry-run", "--file", "ma00_000.nss"])
         self.assertEqual(self.args("oretsuba", {"scenes": "S01_01A,S01_02A", "title": ""})[-2:],
                          ["--scenes", "S01_01A,S01_02A"])
+        for key in ("muramasa", "oretsuba"):
+            args = self.args(key, {"webp": True, "webp_quality": "80"})
+            self.assertEqual(args[args.index("--webp"):args.index("--webp") + 3], ["--webp", "--webp-quality", "80"])
+        self.assertEqual(self.args("saihate-no-ima", {"dry_run": True})[-1], "--dry-run")
+
+    def test_same_options_everywhere(self):
+        """Every game has the shared options first, in the same order."""
+        common = ["title", "webp", "webp_quality", "audio_codec", "audio_quality", "loose", "dry_run"]
+        extras = {"saihate-no-ima": [], "muramasa": ["file", "chain"], "oretsuba": ["scenes"]}
+        for g in games.GAMES:
+            self.assertEqual([o.key for o in g.options], common + extras[g.key], g.key)
 
     def test_audio(self):
         for key in ("saihate-no-ima", "muramasa", "oretsuba"):

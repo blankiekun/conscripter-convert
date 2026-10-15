@@ -296,6 +296,10 @@ with its ADX loop as `LOOPSTART`/`LOOPEND`):
     conscripter-convert mages convert <game> -o out/oretsuba-cons \
         --font <ipag.ttf> [--scenes S01_01A,S01_02A]
 
+`--webp` (and `--webp-quality N`) stores the pictures as WebP, for the
+web build (S01_01A's 57 pictures: 3.9 MB as PNG, 1.7 MB near-lossless);
+`--dry-run` writes `0.txt` only. The other options are in the README.
+
 `mages check` parses all 463 scenes (65,485 messages) and finds every
 texture, voice, SE and BGM ID they use in the archives.
 
