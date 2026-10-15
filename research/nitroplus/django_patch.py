@@ -9,7 +9,9 @@ windowed.
 With CHAPTER (a prefix such as `dja023`), START plays from that chapter
 file: `main_root`'s earlier `call_chapter`s are commented out. With SKIP
 too (a name in the chapter file, `cut` or `scene`), the chapter file's own
-calls before that one are commented out as well. A CHAPTER starting
+calls before that one are commented out as well, and in the scene file
+SKIP names, timed zooms and camera moves take no time (they hang under
+wine). A CHAPTER starting
 with `extra_` (`extra_sound`) is instead opened by the title's EXTRA, in
 place of the extras' menu (whose doors' zoom stalls under wine).
 """
@@ -81,6 +83,14 @@ def main():
                 t = open(p, 'rb').read().decode('cp932')
                 a = re.search(r'chapter main\s*\{', t).end()
                 t = comment_before(t, a, len(t), skip, 'call_')
+                open(p, 'wb').write(t.encode('cp932'))
+                # Timed zooms hang under wine: in the scene SKIP names they
+                # (and camera moves, which zoom) take no time.
+                scene = next(n for n in names if n.startswith(chapter) and skip in n)
+                npa(table, src, d, scene)
+                p = os.path.join(d, scene)
+                t = open(p, 'rb').read().decode('cp932')
+                t = re.sub(r'\b((?:Move)?Zoom|MoveCamera\w*)\((\s*"[^"]*"\s*),\s*\d+', r'\1(\2,0', t)
                 open(p, 'wb').write(t.encode('cp932'))
         npa(table, src, '--pack', d, out)
 

@@ -828,8 +828,11 @@ enum Kind<'a> {
     /// Names, windows and other objects that draw nothing themselves.
     Other,
     /// `CreateCamera`: what its children show. Its place is the point the
-    /// screen looks at (they are drawn that much the other way) and its
-    /// zoom magnifies them about the screen's centre.
+    /// screen looks at (they are drawn that much the other way); its zoom
+    /// `z` and a child's priority `p` (its depth) magnify the child
+    /// `z / (1000 - p)` times about the screen's centre; one of priority
+    /// 1000 or more isn't drawn. Measured under wine (続・殺戮のジャンゴ,
+    /// boxes at four priorities and six camera settings).
     Camera,
 }
 
@@ -2727,18 +2730,23 @@ impl<'a, 'b> Compiler<'a, 'b> {
         (x, y)
     }
 
-    /// The zoom (per mille) of the cameras `name` is seen through.
-    fn camera_zoom(&self, name: &str) -> i64 {
+    /// How much (per mille) the cameras `name` is seen through magnify an
+    /// object of `priority` ([`Kind::Camera`]); `None`: at or before the
+    /// camera, not drawn.
+    fn camera_zoom(&self, name: &str, priority: i64) -> Option<i64> {
         let mut zoom = 1000;
         let mut end = 0;
         while let Some(i) = name[end..].find('/') {
             end += i;
             if let Some(p) = self.objects.get(&name[..end]).filter(|p| matches!(p.kind, Kind::Camera)) {
-                zoom = zoom * p.zoom.0 / 1000;
+                if priority >= 1000 {
+                    return None;
+                }
+                zoom = zoom * p.zoom.0 / (1000 - priority);
             }
             end += 1;
         }
-        zoom
+        Some(zoom)
     }
 
     /// The screen is frozen while an opaque `Plain` cover is up.
@@ -2780,7 +2788,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
                     let (mut x, mut y, mut zoom) = (o.x + px, o.y + py, o.zoom);
                     // A camera's zoom: the picture's centre moved away from
                     // the screen's, the picture scaled as much.
-                    let k = self.camera_zoom(n);
+                    let k = self.camera_zoom(n, o.priority)?;
                     if k != 1000 {
                         let (cx, cy) = (x + o.w / 2, y + o.h / 2);
                         let (sx, sy) = (self.game.screen.0 / 2, self.game.screen.1 / 2);
