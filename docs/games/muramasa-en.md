@@ -31,12 +31,6 @@ It has no NPA archives and no NSS scripts.
   `cg/sys`); the text box sizes for the other boxes (`text1` 238,436
   701×150 at the bottom, `text2` 130,60 724×576 full screen) aren't
   used yet, every rotated box takes `text0`'s size.
-- **Bug (shared with the Japanese build):** 23 pages after a vertical
-  choice are drawn in the choice's window (`setwindow3 557,108,…,18`), at
-  chapter labels reached by `goto` (`*f_mb02_008`): the compiler's window
-  tracking follows file order, not the jumps. The Japanese text just
-  lands in the wrong place; the English build exits there (half-width
-  text in a vertical window; the dry run's lint lists them).
 - **Plan (from the scripts, 2026-10-15):** the port's scenario scripts
   (`nut/*.nut`) are a line-by-line transcription of the Japanese NSS
   (same sprite names, coordinates, files with `.png` for `.jpg`; screen
@@ -45,8 +39,8 @@ It has no NPA archives and no NSS scripts.
   by the Japanese text (below), and takes the English pictures where
   they differ (the redesigned menus in `cg/sys`, pictures with words).
 - **Next:**
-  1. The 23 pages in the choice window (above), then a full build with
-     `--font droidserif-muramasa.ttf`, played on with the trace.
+  1. A full build with `--font droidserif-muramasa.ttf`, played on
+     with the trace.
   2. The 278 stretches left in Japanese.
   3. The English pictures: the text window and the redesigned menus in
      `cg/sys` (1876 pictures), filmed against the English original
@@ -110,3 +104,14 @@ plus `patch/*.npk` mounted after them (opener 0x401960).
 - Join: 38,465 of 38,798 NSS segments (99.1 %) equal a Print's text once
   `//` lines, tags and whitespace are removed. The misses are the 《…》
   incantation blocks in ma00_000 and similar, still to look at.
+
+## History
+
+- **Pages in a choice's window (fixed 2026-10-15, shared with the
+  Japanese build):** 23 pages after a vertical choice were drawn in the
+  choice's window (`setwindow3 557,108,…,18`) at file labels reached by
+  `goto` (`*f_mb02_008`): each file is compiled once, from the first
+  path that reaches it, so the window tracking followed that path. The
+  compiler now forgets the window at each file's start, and its first
+  page sets its own (`compile_run`); `conscripter-convert lint` on the
+  dry run lists no window problems.

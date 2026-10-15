@@ -474,6 +474,9 @@ pub fn compile_run(files: &BTreeMap<String, NssFile>, start: &str, max_files: us
         c.next_dynamic = dynamic_base;
         c.vars.remove(GAME_NAME_SET);
         c.forks_in_file = 0;
+        // Other paths jump to the file's label with another window up
+        // (a vertical choice's): its first page sets its own.
+        c.window = None;
         c.leaves_in_file = 0;
         c.steps = 0;
         c.ops.push(Op::Label(file_label(&name)));
