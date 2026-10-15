@@ -130,6 +130,9 @@ on the extracted scripts.
   so).
 - **`CreateTexture` from a `LoadImage` picture** draws it: the face
   windows' wanted-poster frame (`cg/sys/windowframe.png`).
+- **A `Zoom` keeps the `SetVertex` point in place**: `SetBu` sets a
+  standing picture's to its bottom centre, so a picture zoomed to 700
+  still stands on the bottom of the screen.
 - **A chapter file's own objects are deleted when it ends**, except those
   hung under an object made before it. *Inferred, not checked in the exe
   or under wine*: `function.nss` makes `窓` and `音` windows "to hang
@@ -213,9 +216,9 @@ yet.
    `frame03`-`frame05`) measured against the original under wine.
 4. The ranked "not converted" list: `MoveCamera`, `CreateTexture` from
    the screen, `CreateColor` colours, movies.
-5. The two long movies (see the table). Standing pictures end in a
-   straight edge at y 390 (above the bottom bar at 470): check against
-   the original.
+5. The two long movies (see the table). Standing pictures placed
+   through the camera helpers (`CmrSetBu…`, `MoveCamera`) still end
+   above the bottom bar.
 6. Camera moves (`MoveCamera`, 365 calls) and moves and zooms over time
    (drawn as cross-fades), shared with Muramasa's compiler.
 7. Ask the user the scope questions (above).
