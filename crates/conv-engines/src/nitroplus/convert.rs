@@ -2042,6 +2042,9 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 let name = self.object_name(&arg(0));
                 let (w, h) = (arg(4).int().max(1), arg(5).int().max(1));
                 let Some(rgb) = color(&arg(6)) else {
+                    if std::env::var_os("NSS_TRACE").is_some() {
+                        eprintln!("unknown colour {:?}", arg(6));
+                    }
                     self.note("CreateColor with an unknown colour");
                     return Value::Null;
                 };

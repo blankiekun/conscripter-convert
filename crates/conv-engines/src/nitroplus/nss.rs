@@ -462,6 +462,9 @@ fn lex(src: &str, first_line: u32) -> Result<Vec<Token>> {
                     Ok(v) => Tok::Int(v),
                     Err(_) => return err(line, format!("number out of range: {word}")),
                 }
+            } else if let Some(v) = word.strip_prefix("0x").and_then(|h| i64::from_str_radix(h, 16).ok()) {
+                // `CreateColor(…, 0x000000)` (続・殺戮のジャンゴ)
+                Tok::Int(v)
             } else if b[i].is_ascii_digit() && word.parse::<f64>().is_ok() {
                 Tok::Float(word.parse().unwrap())
             } else {
@@ -1194,6 +1197,13 @@ mod tests {
             vec![Param::Str("ナット名".into()), Param::Word("描画時間".into()), Param::Var(Var::Local("x".into()))]
         );
         assert_eq!(func.body[0].line, 11);
+    }
+
+    #[test]
+    fn hex_numbers() {
+        let s = body("CreateColor(\"a\", 1, 0, 0, 8, 6, 0xFF0000);");
+        let StmtKind::Expr(Expr::Call { args, .. }) = &s[0].kind else { panic!() };
+        assert_eq!(args[6], Expr::Int(0xFF0000));
     }
 
     #[test]
