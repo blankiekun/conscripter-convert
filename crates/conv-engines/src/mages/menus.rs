@@ -469,5 +469,6 @@ pub fn confirm_dialog(assets: &mut ArchiveAssets, labels: &Labels) -> Option<Con
         backdrop: None,
         pressed: false,
         fade_ms: 0,
+        unroll: None,
     })
 }

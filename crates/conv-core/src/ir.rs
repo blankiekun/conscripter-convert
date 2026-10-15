@@ -1390,6 +1390,18 @@ pub struct ConfirmDialog {
     pub pressed: bool,
     /// The dialog fades in over this long (0 = at once).
     pub fade_ms: u32,
+    /// With `pictures`: the question and its buttons also unroll sideways.
+    pub unroll: Option<Unroll>,
+}
+
+/// [`ConfirmDialog::unroll`]: the question and its buttons stretch
+/// sideways out of the vertical line at `x` as they fade in (over the
+/// dialog's `fade_ms`, eased out), and back into it as they go, fading out
+/// over `close_ms`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Unroll {
+    pub x: i32,
+    pub close_ms: u32,
 }
 
 /// A screen of its own drawn over the scene, the text window hidden:

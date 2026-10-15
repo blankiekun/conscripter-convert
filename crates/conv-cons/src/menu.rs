@@ -1443,7 +1443,15 @@ pub(crate) fn confirm(out: &mut String, d: &ConfirmDialog) {
         let y = p.y + (p.h - label_size as i32) / 2;
         w(format!("strsp {label_slot},\"{}\",{x},{y},10,1,{label_size},{label_size},0,0,0,1", escape(label)));
     }
-    if d.fade_ms > 0 {
+    // The question and buttons unrolling: the sprites at each step (slot,
+    // left x, y, one cell's width), the backdrop's opacity.
+    let unroll = d.unroll.filter(|_| pictures && d.fade_ms > 0).zip(d.pictures.first()).map(|(u, (_, p))| {
+        let sprites = [(base_slot, p.x, p.y, p.w), (yes_slot, d.yes.x, d.yes.y, d.yes.w / cells), (no_slot, d.no.x, d.no.y, d.no.w / cells)];
+        (u, sprites, d.backdrop.as_ref().map(|(b, o)| (b.x, b.y, *o)))
+    });
+    if let Some((u, sprites, backdrop)) = &unroll {
+        unroll_steps(&mut w, u.x, sprites, *backdrop, d.fade_ms, d.fade_ms, true);
+    } else if d.fade_ms > 0 {
         w(format!("print 10,{}", d.fade_ms));
     }
     w("*conv_confirm_wait".into());
@@ -1454,9 +1462,45 @@ pub(crate) fn confirm(out: &mut String, d: &ConfirmDialog) {
     w(format!("mov {CONFIRM},0"));
     w(format!("if {BUTTON_VAR} == 1 mov {CONFIRM},1"));
     w(format!("if {BUTTON_VAR} != 1 && {BUTTON_VAR} != 2 && {BUTTON_VAR} != -1 goto *conv_confirm_wait"));
+    if let Some((u, sprites, backdrop)) = &unroll {
+        unroll_steps(&mut w, u.x, sprites, *backdrop, d.fade_ms, u.close_ms, false);
+    }
     w(DIALOG_SPRITES.map(|n| format!("csp {n}")).collect::<Vec<_>>().join(":"));
-    w(if d.fade_ms > 0 { format!("print 10,{}", d.fade_ms) } else { "print 1".into() });
+    w(if d.fade_ms > 0 && unroll.is_none() { format!("print 10,{}", d.fade_ms) } else { "print 1".into() });
     w("return".into());
+}
+
+/// The unroll's frames (`ConfirmDialog::unroll`), about every 16 ms: the sprites (slot, x, y, width)
+/// stretched sideways about the line `x` (eased out over `zoom_ms`) and
+/// faded (linearly over `fade_ms`), in from nothing (`opening`) or out to
+/// it. The backdrop (x, y, opacity) fades with them.
+fn unroll_steps(w: &mut impl FnMut(String), x: i32, sprites: &[(u32, i32, i32, i32)], backdrop: Option<(i32, i32, u8)>, zoom_ms: u32, fade_ms: u32, opening: bool) {
+    let total = zoom_ms.max(fade_ms);
+    let steps = (total / 16).max(1);
+    w("resettimer".into());
+    for k in 0..=steps {
+        let t = (total * k / steps) as f64;
+        let p = (t / zoom_ms.max(1) as f64).min(1.0);
+        let eased = 1.0 - (1.0 - p) * (1.0 - p);
+        let f = (t / fade_ms.max(1) as f64).min(1.0);
+        let (s, a) = if opening { (eased, f) } else { (1.0 - eased, 1.0 - f) };
+        let mut line = Vec::new();
+        for &(slot, sx, sy, sw) in sprites {
+            // The sprite's centre moves toward the line as it narrows.
+            let centre = x as f64 + (sx as f64 + sw as f64 / 2.0 - x as f64) * s;
+            let left = (centre - sw as f64 / 2.0).round() as i32;
+            line.push(format!("amsp {slot},{left},{sy},{}", (255.0 * a).round() as u32));
+            line.push(format!("spzoom {slot},{},100", ((s * 100.0).round() as u32).max(1)));
+        }
+        if let Some((bx, by, o)) = backdrop {
+            line.push(format!("amsp {DIALOG_BASE},{bx},{by},{}", (o as f64 * a).round() as u32));
+        }
+        if k > 0 {
+            line.push(format!("waittimer {}", total * k / steps));
+        }
+        line.push("print 1".into());
+        w(line.join(":"));
+    }
 }
 
 /// First run: default levels; every run: apply them (before `setwindow`,
@@ -1718,6 +1762,7 @@ pub(crate) mod tests {
             backdrop: None,
             pressed: false,
             fade_ms: 0,
+            unroll: None,
         }
     }
 
@@ -1758,6 +1803,29 @@ pub(crate) mod tests {
             assert!(out.contains(line), "missing {line:?} in\n{out}");
         }
         assert!(!out.contains("はい"));
+    }
+
+    #[test]
+    fn confirm_unrolls() {
+        let mut d = dialog();
+        d.pictures = vec![(Switch::ConfirmQuit, placed("quit_question", 100, 400))];
+        d.backdrop = Some((placed("black", 800, 600), 204));
+        d.fade_ms = 150;
+        d.unroll = Some(conv_core::ir::Unroll { x: 60, close_ms: 200 });
+        let mut out = String::new();
+        confirm(&mut out, &d);
+        for line in [
+            // From a line at x 60, unseen, the backdrop with it…
+            "resettimer\namsp 4,10,20,0:spzoom 4,1,100:",
+            "amsp 5,10,20,0:print 1\n",
+            // …to whole after 150 ms; closing takes 200.
+            "spzoom 4,100,100:",
+            "amsp 5,10,20,204:waittimer 150:print 1\n*conv_confirm_wait\n",
+            "amsp 5,10,20,0:waittimer 200:print 1\ncsp 0:",
+        ] {
+            assert!(out.contains(line), "missing {line:?} in\n{out}");
+        }
+        assert!(!out.contains("print 10,150"));
     }
 
     #[test]

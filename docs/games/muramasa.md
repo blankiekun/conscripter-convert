@@ -713,8 +713,8 @@ Next, in order:
       `convert/muramasa/screens.rs`), with the pressed state from
       CONscripter's `spbtn num,no,pressed_cell` (625c598). Beside the
       original (quit question, normal, both hovers, 拒否 pressed): the
-      same pixels, offset 0,0. Left for later: the 150 ms sideways
-      unroll (a fade for now), the 記録をしました notice (with the save
+      same pixels, offset 0,0. The 150 ms sideways unroll is done (step
+      7). Left for later: the 記録をしました notice (with the save
       screen), 選択肢まで戻りますか and 設定を初期状態に戻す (with their
       screens).
    2. Done (static): the title at rest, the background, logo and
@@ -915,9 +915,21 @@ Next, in order:
       original at the first page (その他男声 and その他女声 heard): mean
       difference 0.57 levels, every pixel within 40 but the version line.
       Left: the wheel over a slider.
-   7. Motion and movies: the title's fire flicker and its openings
-      (done), the menu cascade, the dialog unroll (150 ms sideways), the
-      quick bar sliding while text types (to do);
+   7. Motion and movies: the title's fire flicker and its openings, the
+      dialog unroll (done), the menu cascade, the quick bar sliding while
+      text types (to do);
+      - The yes/no questions (`sys_close.nss` and the others alike): the
+        question and its buttons are zoomed sideways from nothing to
+        whole in 150 ms (`Dxl1`) about the middle while they and the black
+        fade in; closing, back to nothing in 150 ms while all fade out in
+        200 ms (filmed ×10 slowed: the text is squeezed, not uncovered).
+        Ours (`ConfirmDialog::unroll`, `Unroll { x: 512, close_ms: 200 }`):
+        a frame about every 16 ms, timed by `waittimer`, each sprite
+        `amsp`'d toward the line x 512 and `spzoom`'d sideways with its
+        alpha, and the backdrop faded. The original's buttons turn about
+        their own vertices (515 and 499), ours about 512: at most 13 px
+        apart, for 150 ms. Filmed at 60 fps: five frames in, three out,
+        as the original.
       - The openings (`TitleFade`): at launch (`!$Logo`, 11.2 s) 善悪相殺
         drifts in, 村正鎮座 zooms out of the dark, two bursts of blood
         sprays (multiplied, swinging in about a corner), drops and red

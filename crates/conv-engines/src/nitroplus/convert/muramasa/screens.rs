@@ -8,7 +8,7 @@
 
 use conv_core::ir::{
     BarAction, BarButton, BarSlide, ButtonBar, CommandItem, CommandMenu, ConfirmDialog, GridText, LineLog, PairOption, PicturePair, PictureSettings, PictureSlider, PictureText, Placed, Rect, SaveGrid,
-    Script, SliderSetting, Switch, TitleAction, TitleButton, TitleGlow, TitleOpening, TitleScreen, VoiceEntry, VoiceLayout, VoiceWindow, WaitIcon,
+    Script, SliderSetting, Switch, TitleAction, TitleButton, TitleGlow, TitleOpening, Unroll, TitleScreen, VoiceEntry, VoiceLayout, VoiceWindow, WaitIcon,
 };
 
 use super::super::{Assets, Story};
@@ -516,5 +516,9 @@ fn confirm(a: &mut dyn Assets) -> Option<ConfirmDialog> {
         backdrop: Some((Placed { image: black, x: 0, y: 0, w: SCREEN_W, h: SCREEN_H }, 204)),
         pressed: true,
         fade_ms: 150,
+        // Zoom x 0 to 1000 in 150 ms (Dxl1) about the question's centre
+        // line (the buttons' vertices lie within 13 px of it); closing,
+        // back in 150 ms while fading out in 200 ms (sys_close.nss).
+        unroll: Some(Unroll { x: 512, close_ms: 200 }),
     })
 }
