@@ -201,6 +201,17 @@ pub trait Assets {
     /// (0,0) zoomed `zoom` per mille about its centre, at `opacity`
     /// (0-1000): the full-screen picture's path.
     fn overlaid(&mut self, base: &str, top: &str, zoom: i64, opacity: i64) -> Option<String>;
+    /// A picture decoded: one the scripts name (`cg/…`) or one in the
+    /// output (`system/…`). `None` in a dry run.
+    fn rgba(&mut self, path: &str) -> Option<image::RgbaImage>;
+    /// A silent movie, `movie/<name>.mp4`, of `frames` screen-sized
+    /// pictures at `fps`, each drawn by `draw` (frame number, picture). An
+    /// existing one is kept (change the name to draw it again); a dry run
+    /// draws nothing. Its output path.
+    fn frames_movie(&mut self, name: &str, fps: u32, frames: u32, draw: &mut dyn FnMut(u32, &mut image::RgbImage)) -> Option<String>;
+    /// A sound the scripts name (`sound/se/x`), starting after `delay_ms`
+    /// of silence: its output path.
+    fn delayed_sound(&mut self, path: &str, delay_ms: u32) -> Option<String>;
 }
 
 /// A movie's size and length, and whether its sound can be heard.
@@ -3063,6 +3074,15 @@ mod tests {
         }
         fn movie_file(&mut self, path: &str, sound: bool) -> Option<String> {
             Some(format!("movie/{path}{}", if sound { "" } else { "-mute" }))
+        }
+        fn rgba(&mut self, _path: &str) -> Option<image::RgbaImage> {
+            None
+        }
+        fn frames_movie(&mut self, name: &str, _fps: u32, _frames: u32, _draw: &mut dyn FnMut(u32, &mut image::RgbImage)) -> Option<String> {
+            Some(format!("movie/{name}.mp4"))
+        }
+        fn delayed_sound(&mut self, path: &str, delay_ms: u32) -> Option<String> {
+            Some(format!("{path}+{delay_ms}.ogg"))
         }
         fn overlaid(&mut self, base: &str, top: &str, zoom: i64, opacity: i64) -> Option<String> {
             Some(format!("{base}+{top}@{zoom}x{opacity}"))

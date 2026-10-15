@@ -1,0 +1,438 @@
+//! The title's openings (`0_boot.nss`, `TitleFade`), drawn frame by frame
+//! into silent movies: the pictures are blended in ways CONscripter's
+//! sprites can't (added, multiplied, overlaid), zoomed, turned and
+//! shaken at once. Each movie ends on the title as it rests, buttons
+//! included, so the title's sprites take over without a change.
+//!
+//! Times are ms from the title music's start; opacities are per mille,
+//! zooms per mille, as in the script.
+
+use image::{RgbImage, RgbaImage};
+
+use super::super::{Assets, SCREEN_H, SCREEN_W};
+
+const FPS: u32 = 30;
+const DIR: &str = "cg/sys/title";
+
+/// How a picture is drawn over what is under it (NSS `Request`).
+#[derive(Clone, Copy, PartialEq)]
+enum Blend {
+    Normal,
+    /// `AddRender`
+    Add,
+    /// `MulRender`
+    Mul,
+    /// `OverlayRender`
+    Overlay,
+}
+
+/// NSS tempos (`research/nitroplus/builtins.md`).
+#[derive(Clone, Copy)]
+enum Ease {
+    Linear,
+    /// `Axl1`-`Axl3`: ease-in, quadratic to quartic.
+    In(i32),
+    /// `Dxl1`-`Dxl3`: ease-out.
+    Out(i32),
+}
+
+impl Ease {
+    fn at(self, p: f64) -> f64 {
+        match self {
+            Ease::Linear => p,
+            Ease::In(n) => p.powi(n + 1),
+            Ease::Out(n) => 1.0 - (1.0 - p).powi(n + 1),
+        }
+    }
+}
+
+const AXL1: Ease = Ease::In(1);
+const DXL3: Ease = Ease::Out(3);
+
+/// A value changed by timed actions (`Fade`, `Zoom`, …): each goes from
+/// wherever the value is when it starts.
+#[derive(Clone)]
+struct Track {
+    start: f64,
+    steps: Vec<(f64, f64, f64, Ease)>,
+}
+
+impl Track {
+    fn new(start: f64) -> Self {
+        Track { start, steps: Vec::new() }
+    }
+
+    /// From `at` ms, to `to` over `ms` (0: at once).
+    fn to(mut self, at: f64, ms: f64, to: f64, ease: Ease) -> Self {
+        self.steps.push((at, ms, to, ease));
+        self.steps.sort_by(|a, b| a.0.total_cmp(&b.0));
+        self
+    }
+
+    fn at(&self, t: f64) -> f64 {
+        Self::value(self.start, &self.steps, t)
+    }
+
+    fn value(start: f64, steps: &[(f64, f64, f64, Ease)], t: f64) -> f64 {
+        let mut v = start;
+        for (i, &(at, ms, to, ease)) in steps.iter().enumerate() {
+            if t < at {
+                break;
+            }
+            let from = Self::value(start, &steps[..i], at);
+            let p = if ms <= 0.0 { 1.0 } else { ((t - at) / ms).min(1.0) };
+            v = from + (to - from) * ease.at(p);
+        }
+        v
+    }
+}
+
+/// A picture in premultiplied alpha, 0-1.
+struct Pic {
+    w: usize,
+    h: usize,
+    px: Vec<[f32; 4]>,
+}
+
+impl Pic {
+    fn new(img: &RgbaImage) -> Self {
+        let px = img
+            .pixels()
+            .map(|p| {
+                let a = p.0[3] as f32 / 255.0;
+                [p.0[0] as f32 / 255.0 * a, p.0[1] as f32 / 255.0 * a, p.0[2] as f32 / 255.0 * a, a]
+            })
+            .collect();
+        Pic { w: img.width() as usize, h: img.height() as usize, px }
+    }
+
+    fn colour(rgb: [u8; 3], w: usize, h: usize) -> Self {
+        let c = rgb.map(|v| v as f32 / 255.0);
+        Pic { w, h, px: vec![[c[0], c[1], c[2], 1.0]; w * h] }
+    }
+
+    /// Bilinear, transparent outside.
+    fn sample(&self, x: f64, y: f64) -> [f32; 4] {
+        let (x, y) = (x - 0.5, y - 0.5);
+        let (x0, y0) = (x.floor(), y.floor());
+        let (fx, fy) = ((x - x0) as f32, (y - y0) as f32);
+        let (x0, y0) = (x0 as i64, y0 as i64);
+        let get = |x: i64, y: i64| {
+            if x < 0 || y < 0 || x >= self.w as i64 || y >= self.h as i64 {
+                [0.0; 4]
+            } else {
+                self.px[y as usize * self.w + x as usize]
+            }
+        };
+        let (a, b, c, d) = (get(x0, y0), get(x0 + 1, y0), get(x0, y0 + 1), get(x0 + 1, y0 + 1));
+        let mut out = [0.0; 4];
+        for i in 0..4 {
+            let top = a[i] + (b[i] - a[i]) * fx;
+            let bottom = c[i] + (d[i] - c[i]) * fx;
+            out[i] = top + (bottom - top) * fy;
+        }
+        out
+    }
+}
+
+/// A random path through 36 points within `range` px, as `MoveFRP1`'s
+/// `BezierMove` (twelve cubic curves from and back to the place, over
+/// `ms`, again and again). The points come from a fixed seed.
+struct Jitter {
+    points: Vec<(f64, f64)>,
+    ms: f64,
+}
+
+impl Jitter {
+    fn new(seed: u32, range: i32, ms: f64) -> Self {
+        let mut s = seed;
+        let mut rnd = || {
+            s = s.wrapping_mul(1103515245).wrapping_add(12345);
+            let v = ((s >> 16) % range as u32) as f64;
+            if s & 0x8000 != 0 { -v } else { v }
+        };
+        let mut points = vec![(0.0, 0.0)];
+        for _ in 0..35 {
+            points.push((rnd(), rnd()));
+        }
+        points.push((0.0, 0.0));
+        Jitter { points, ms }
+    }
+
+    fn at(&self, t: f64) -> (f64, f64) {
+        let curves = (self.points.len() - 1) / 3;
+        let u = (t.rem_euclid(self.ms) / self.ms) * curves as f64;
+        let k = (u as usize).min(curves - 1);
+        let p = u - k as f64;
+        let [a, b, c, d] = [0, 1, 2, 3].map(|i| self.points[k * 3 + i]);
+        let q = 1.0 - p;
+        let f = |a: f64, b: f64, c: f64, d: f64| q * q * q * a + 3.0 * q * q * p * b + 3.0 * q * p * p * c + p * p * p * d;
+        (f(a.0, b.0, c.0, d.0), f(a.1, b.1, c.1, d.1))
+    }
+}
+
+struct Layer {
+    pic: Pic,
+    /// From this time on, this picture instead (`SetBlur`).
+    then: Option<(f64, Pic)>,
+    x: f64,
+    y: f64,
+    blend: Blend,
+    opacity: Track,
+    zoom: Track,
+    /// Degrees, clockwise.
+    turn: Track,
+    /// Where it turns and zooms about, in the picture (`SetVertex`; its
+    /// centre by default).
+    pivot: (f64, f64),
+    /// `Move`s, from (x, y).
+    dx: Track,
+    dy: Track,
+    jitter: Option<Jitter>,
+}
+
+impl Layer {
+    fn new(pic: Pic, x: f64, y: f64, blend: Blend) -> Self {
+        let pivot = (pic.w as f64 / 2.0, pic.h as f64 / 2.0);
+        Layer { pic, then: None, x, y, blend, opacity: Track::new(0.0), zoom: Track::new(1000.0), turn: Track::new(0.0), pivot, dx: Track::new(0.0), dy: Track::new(0.0), jitter: None }
+    }
+
+    fn draw(&self, t: f64, out: &mut [[f32; 3]]) {
+        let o = (self.opacity.at(t) / 1000.0).clamp(0.0, 1.0) as f32;
+        if o <= 0.001 {
+            return;
+        }
+        let pic = match &self.then {
+            Some((at, p)) if t >= *at => p,
+            _ => &self.pic,
+        };
+        let z = self.zoom.at(t) / 1000.0;
+        let (sin, cos) = self.turn.at(t).to_radians().sin_cos();
+        let (jx, jy) = self.jitter.as_ref().map_or((0.0, 0.0), |j| j.at(t));
+        let (cx, cy) = (self.x + self.pivot.0 + self.dx.at(t) + jx, self.y + self.pivot.1 + self.dy.at(t) + jy);
+        for sy in 0..SCREEN_H as usize {
+            for sx in 0..SCREEN_W as usize {
+                // The picture's point under this pixel: back through the
+                // turn and the zoom about the pivot.
+                let (dx, dy) = ((sx as f64 + 0.5 - cx) / z, (sy as f64 + 0.5 - cy) / z);
+                let (lx, ly) = (dx * cos + dy * sin + self.pivot.0, -dx * sin + dy * cos + self.pivot.1);
+                let s = pic.sample(lx, ly);
+                if s[3] <= 0.0 {
+                    continue;
+                }
+                let d = &mut out[sy * SCREEN_W as usize + sx];
+                let a = s[3] * o;
+                for c in 0..3 {
+                    d[c] = match self.blend {
+                        Blend::Normal => d[c] * (1.0 - a) + s[c] * o,
+                        Blend::Add => (d[c] + s[c] * o).min(1.0),
+                        Blend::Mul => d[c] * (1.0 - a) + d[c] * s[c] * o,
+                        Blend::Overlay => {
+                            let (b, f) = (d[c], s[c] / s[3]);
+                            let v = if b < 0.5 { 2.0 * b * f } else { 1.0 - 2.0 * (1.0 - b) * (1.0 - f) };
+                            b * (1.0 - a) + v * a
+                        }
+                    };
+                }
+            }
+        }
+    }
+}
+
+/// Renders `layers` (bottom first) for `ms` into a movie.
+fn render(a: &mut dyn Assets, name: &str, ms: f64, layers: &[Layer]) -> Option<String> {
+    // The last picture held a moment: players may stop a few frames short.
+    let frames = (ms * FPS as f64 / 1000.0).ceil() as u32 + 1 + FPS / 5;
+    let mut buf = vec![[0.0f32; 3]; (SCREEN_W * SCREEN_H) as usize];
+    a.frames_movie(name, FPS, frames, &mut |i, frame: &mut RgbImage| {
+        let t = (i as f64 * 1000.0 / FPS as f64).min(ms);
+        buf.iter_mut().for_each(|p| *p = [0.0; 3]);
+        for l in layers {
+            l.draw(t, &mut buf);
+        }
+        for (p, c) in frame.pixels_mut().zip(&buf) {
+            p.0 = c.map(|v| (v.clamp(0.0, 1.0) * 255.0).round() as u8);
+        }
+    })
+}
+
+/// A picture the scripts name, as a layer at (x, y).
+fn layer(a: &mut dyn Assets, path: &str, x: f64, y: f64, blend: Blend) -> Option<Layer> {
+    Some(Layer::new(Pic::new(&a.rgba(path)?), x, y, blend))
+}
+
+fn blurred(a: &mut dyn Assets, path: &str, sigma: f32) -> Option<Pic> {
+    Some(Pic::new(&image::imageops::blur(&a.rgba(path)?, sigma)))
+}
+
+/// The title's buttons as they rest (`しおりから` at half, as with no quick
+/// save), shown from `at`.
+fn buttons(a: &mut dyn Assets, at: f64) -> Option<Vec<Layer>> {
+    let mut out = Vec::new();
+    for (name, x, opacity) in [("しおりから", 822.0, 500.0), ("最初から", 762.0, 1000.0), ("電光記録", 702.0, 1000.0), ("設定画面", 282.0, 1000.0), ("特別付加", 222.0, 1000.0), ("終了する", 162.0, 1000.0)] {
+        let mut l = layer(a, &format!("{DIR}/{name}-001.png"), x, 150.0, Blend::Normal)?;
+        l.opacity = Track::new(0.0).to(at, 0.0, opacity, Ease::Linear);
+        out.push(l);
+    }
+    Some(out)
+}
+
+/// Blur of `SetBlur(…, true, 2, …)`: two passes of 1.5 px.
+const BLUR: f32 = 3.0;
+
+/// The first title after the game starts (`TitleFade`, `!$Logo`): 善悪相殺
+/// drifts in, 村正鎮座 zooms out of the dark, two bursts of blood and red,
+/// a white flash, the title. Ends at 11.2 s, as the white has faded. The
+/// picture is 村正鎮座, the one of a game with no route cleared (the
+/// original picks by the routes cleared).
+pub fn at_launch(a: &mut dyn Assets) -> Option<String> {
+    let fuji = format!("{DIR}/偽富士背景画像.png");
+    let logo = format!("{DIR}/ロゴ画像.png");
+    let muramasa = "cg/ev/ev501_村正鎮座.jpg";
+    let end = 11200.0;
+    let mut layers = Vec::new();
+
+    let mut bg = layer(a, &fuji, 0.0, 0.0, Blend::Normal)?;
+    bg.zoom = Track::new(2000.0).to(4000.0, 7000.0, 1000.0, AXL1).to(10200.0, 0.0, 1000.0, Ease::Linear);
+    bg.opacity = Track::new(0.0)
+        .to(7000.0, 500.0, 300.0, Ease::Linear)
+        .to(8000.0, 500.0, 100.0, Ease::Linear)
+        .to(8500.0, 500.0, 600.0, Ease::Linear)
+        .to(10200.0, 0.0, 1000.0, Ease::Linear);
+    layers.push(bg);
+
+    let mut copyright = layer(a, &format!("{DIR}/コピーライト.png"), 50.0, 540.0, Blend::Normal)?;
+    copyright.opacity = Track::new(0.0).to(10200.0, 0.0, 1000.0, Ease::Linear);
+    layers.push(copyright);
+
+    // ef046 over the title, 2x (the MiddleWave it comes in with is drawn
+    // as a fade).
+    let mut fire = layer(a, "cg/ef/ef046_炎a.jpg", 0.0, 0.0, Blend::Overlay)?;
+    fire.zoom = Track::new(2000.0);
+    fire.opacity = Track::new(0.0).to(7000.0, 3000.0, 700.0, Ease::Linear).to(10200.0, 0.0, 300.0, Ease::Linear);
+    layers.push(fire);
+
+    let mut m = layer(a, muramasa, 0.0, 0.0, Blend::Add)?;
+    m.zoom = Track::new(1000.0).to(4000.0, 7000.0, 1500.0, AXL1);
+    m.opacity = Track::new(0.0).to(5000.0, 3000.0, 800.0, Ease::Linear).to(10200.0, 0.0, 0.0, Ease::Linear);
+    layers.push(m);
+
+    // SetShade(MEDIUM): drawn soft.
+    let mut m0 = Layer::new(blurred(a, muramasa, BLUR)?, 0.0, 0.0, Blend::Add);
+    m0.zoom = Track::new(1000.0).to(4000.0, 7000.0, 1500.0, AXL1);
+    m0.opacity = Track::new(0.0).to(4000.0, 3000.0, 800.0, Ease::Linear).to(5000.0, 3000.0, 0.0, Ease::Linear);
+    layers.push(m0);
+
+    let mut m2 = layer(a, muramasa, 0.0, 0.0, Blend::Add)?;
+    m2.zoom = Track::new(1100.0).to(4000.0, 7000.0, 1600.0, AXL1);
+    m2.opacity = Track::new(0.0)
+        .to(7000.0, 200.0, 500.0, Ease::Linear)
+        .to(8000.0, 500.0, 0.0, Ease::Linear)
+        .to(8500.0, 200.0, 500.0, Ease::Linear)
+        .to(9500.0, 500.0, 0.0, Ease::Linear);
+    m2.jitter = Some(Jitter::new(1, 15, 10000.0));
+    layers.push(m2);
+
+    let mut bg2 = layer(a, &fuji, 0.0, 0.0, Blend::Add)?;
+    bg2.then = Some((10200.0, blurred(a, &fuji, BLUR)?));
+    bg2.zoom = Track::new(2000.0).to(4000.0, 7000.0, 1500.0, AXL1).to(10200.0, 0.0, 1000.0, Ease::Linear).to(10200.0, 1000.0, 1200.0, Ease::Linear);
+    bg2.opacity = Track::new(0.0)
+        .to(7000.0, 500.0, 500.0, Ease::Linear)
+        .to(8000.0, 500.0, 0.0, Ease::Linear)
+        .to(8500.0, 500.0, 800.0, Ease::Linear)
+        .to(9500.0, 500.0, 0.0, Ease::Linear)
+        .to(10200.0, 0.0, 1000.0, Ease::Linear)
+        .to(10200.0, 1000.0, 0.0, Ease::Linear);
+    bg2.jitter = Some(Jitter::new(2, 15, 10000.0));
+    layers.push(bg2);
+
+    for (file, at) in [("ef004_汎用血雫", 7000.0), ("ef005_汎用血雫", 8500.0)] {
+        let mut drops = layer(a, &format!("cg/ef/{file}.jpg"), 0.0, 0.0, Blend::Add)?;
+        drops.opacity = Track::new(0.0).to(at, 300.0, 500.0, Ease::Linear).to(at + 1000.0, 700.0, 0.0, Ease::Linear);
+        layers.push(drops);
+    }
+
+    let mut logo1 = layer(a, &logo, 346.0, 40.0, Blend::Normal)?;
+    logo1.zoom = Track::new(800.0).to(10200.0, 0.0, 1000.0, Ease::Linear);
+    logo1.opacity = Track::new(0.0).to(10200.0, 0.0, 1000.0, Ease::Linear);
+    layers.push(logo1);
+
+    let mut logo2 = layer(a, &logo, 346.0, 40.0, Blend::Normal)?;
+    logo2.then = Some((10200.0, blurred(a, &logo, BLUR)?));
+    logo2.zoom = Track::new(800.0).to(10200.0, 0.0, 1000.0, Ease::Linear).to(10200.0, 1000.0, 1200.0, Ease::Linear);
+    logo2.opacity = Track::new(0.0).to(10200.0, 0.0, 1000.0, Ease::Linear).to(10200.0, 1000.0, 0.0, Ease::Linear);
+    layers.push(logo2);
+
+    // The sprays of blood swing in about a corner (SetVertex), from a
+    // quarter turn away, doubling in size, multiplied over the scene.
+    for (file, corner, turn, at) in [("ef006_汎用血しぶき_ex", 1024.0, -90.0, 7000.0), ("ef007_汎用血しぶき_ex", 0.0, 90.0, 8500.0)] {
+        let mut spray = layer(a, &format!("cg/ef/resize/{file}.png"), 0.0, 0.0, Blend::Mul)?;
+        spray.pivot = (corner, 0.0);
+        spray.turn = Track::new(turn).to(at, 500.0, 0.0, DXL3);
+        spray.zoom = Track::new(1000.0).to(at, 2000.0, 2000.0, DXL3);
+        spray.opacity = Track::new(0.0).to(at, 100.0, 500.0, Ease::Linear).to(at + 500.0, 1000.0, 0.0, Ease::Linear);
+        layers.push(spray);
+    }
+
+    // 善悪相殺 drifts 100 px left as it comes and goes.
+    let mut words = layer(a, "cg/sys/telop/tp_魔王編挿入01.png", 492.0, 157.0, Blend::Normal)?;
+    words.opacity = Track::new(0.0).to(2000.0, 1000.0, 1000.0, Ease::Linear).to(4000.0, 2000.0, 0.0, Ease::Linear);
+    words.dx = Track::new(0.0).to(2000.0, 4000.0, -100.0, Ease::Linear);
+    layers.push(words);
+
+    // Priority 150: the white (added) and the red.
+    let mut white = Layer::new(Pic::colour([255, 255, 255], SCREEN_W as usize, SCREEN_H as usize), 0.0, 0.0, Blend::Add);
+    white.opacity = Track::new(0.0).to(10000.0, 200.0, 1000.0, AXL1).to(10200.0, 1000.0, 0.0, Ease::Linear);
+    layers.push(white);
+    let mut red = Layer::new(Pic::colour([255, 0, 0], SCREEN_W as usize, SCREEN_H as usize), 0.0, 0.0, Blend::Add);
+    red.opacity = Track::new(0.0)
+        .to(7000.0, 1000.0, 200.0, Ease::Linear)
+        .to(8000.0, 1500.0, 0.0, Ease::Linear)
+        .to(8500.0, 1000.0, 200.0, Ease::Linear)
+        .to(9500.0, 1500.0, 0.0, Ease::Linear);
+    layers.push(red);
+
+    layers.extend(buttons(a, 10200.0)?);
+    render(a, "title_launch2", end, &layers)
+}
+
+/// Coming back to the title (`TitleFade`, `$Logo`): the logo grows out of
+/// the dark over 2 s, the background drops in from above, a white flash,
+/// the title with a blurred glow of the background and logo spreading
+/// away. Ends at 3 s, as the white has faded.
+pub fn on_return(a: &mut dyn Assets) -> Option<String> {
+    let fuji = format!("{DIR}/偽富士背景画像.png");
+    let logo = format!("{DIR}/ロゴ画像.png");
+    let mut layers = Vec::new();
+
+    let mut bg = layer(a, &fuji, 0.0, 0.0, Blend::Normal)?;
+    bg.dy = Track::new(-576.0).to(1600.0, 400.0, 0.0, Ease::Linear);
+    bg.opacity = Track::new(0.0).to(1600.0, 400.0, 1000.0, Ease::Linear);
+    layers.push(bg);
+
+    let mut copyright = layer(a, &format!("{DIR}/コピーライト.png"), 50.0, 540.0, Blend::Normal)?;
+    copyright.opacity = Track::new(0.0).to(2000.0, 0.0, 1000.0, Ease::Linear);
+    layers.push(copyright);
+
+    let mut bg2 = Layer::new(blurred(a, &fuji, BLUR)?, 0.0, 0.0, Blend::Add);
+    bg2.zoom = Track::new(1000.0).to(2000.0, 1000.0, 1200.0, Ease::Linear);
+    bg2.opacity = Track::new(0.0).to(2000.0, 0.0, 1000.0, Ease::Linear).to(2000.0, 1000.0, 0.0, Ease::Linear);
+    layers.push(bg2);
+
+    let mut logo1 = layer(a, &logo, 346.0, 40.0, Blend::Normal)?;
+    logo1.zoom = Track::new(800.0).to(0.0, 2000.0, 1000.0, Ease::Linear);
+    logo1.opacity = Track::new(0.0).to(0.0, 2000.0, 1000.0, Ease::Linear);
+    layers.push(logo1);
+
+    let mut logo2 = Layer::new(blurred(a, &logo, BLUR)?, 346.0, 40.0, Blend::Normal);
+    logo2.zoom = Track::new(1000.0).to(2000.0, 1000.0, 1200.0, Ease::Linear);
+    logo2.opacity = Track::new(0.0).to(2000.0, 0.0, 1000.0, Ease::Linear).to(2000.0, 1000.0, 0.0, Ease::Linear);
+    layers.push(logo2);
+
+    let mut white = Layer::new(Pic::colour([255, 255, 255], SCREEN_W as usize, SCREEN_H as usize), 0.0, 0.0, Blend::Add);
+    white.opacity = Track::new(0.0).to(1800.0, 200.0, 1000.0, AXL1).to(2000.0, 1000.0, 0.0, Ease::Linear);
+    layers.push(white);
+
+    layers.extend(buttons(a, 2000.0)?);
+    render(a, "title_return2", 3000.0, &layers)
+}

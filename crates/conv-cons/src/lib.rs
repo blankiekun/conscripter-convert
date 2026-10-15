@@ -111,7 +111,8 @@ const BUTTON_VAR: &str = "%9";
 // $107-$108, the backlog ([`menu::backlog`] or [`line_log`], never both);
 // %183-%184, the click-wait icon's place ([`WAIT_ICON_AT`]).
 // The settings switches' flags: %3640-%3647, %2910-%2919, %2950-%2951 and
-// %4116-%5095 ([`switches`]).
+// %4116-%5095 ([`switches`]). %2960, the title's openings
+// ([`TITLE_SHOWN`]).
 /// NScripter variables: locals from %10, globals from %200. `globalon`
 /// makes %200 and up persist across games.
 const LOCAL_VAR_BASE: u32 = 10;
@@ -125,6 +126,9 @@ const CLICK_WAIT: &str = "conv_click_wait";
 const TITLE_DRAW: &str = "conv_title_draw";
 const TITLE_MENU: &str = "conv_title";
 const TITLE_START: &str = "conv_title_start";
+/// A global, 0 until the title has been shown in this run (the define
+/// section clears it; `reset` keeps it): which opening plays.
+const TITLE_SHOWN: &str = "%2960";
 /// Colours of clickable words (measured on the original): not yet
 /// visited, visited, each also under the mouse pointer.
 const LINK_COLOR: &str = "#FEE092";
@@ -285,6 +289,9 @@ pub fn emit(script: &Script) -> String {
     // skipping read text only.
     if script.settings.as_ref().is_some_and(|s| s.skip_unread_label.is_some()) || script.picture_settings.as_ref().is_some_and(picture_settings::skips_unread) {
         writeln!(out, "kidokuskip").unwrap();
+    }
+    if script.title_screen.as_ref().is_some_and(|t| !t.openings.is_empty()) {
+        writeln!(out, "mov {TITLE_SHOWN},0").unwrap();
     }
     writeln!(out, "game").unwrap();
     writeln!(out, "*start").unwrap();
@@ -1131,7 +1138,6 @@ pub fn emit(script: &Script) -> String {
 /// opens the save menu's load screen if there is one, else ONScripter's.
 fn title_screen(out: &mut String, t: &TitleScreen, fade: &str, save_menu: bool, settings: bool, confirm: Option<&ConfirmDialog>, extras: bool) {
     let buttons: Vec<_> = t.buttons.iter().zip(MENU_SPRITES).collect();
-    let cells = if t.pressed { 3 } else { 2 };
     // %105 = 1 while there is a quick save (for Continue).
     let quick = buttons.iter().any(|(b, _)| b.action == TitleAction::Continue);
     let quick_exists = format!("savefileexist {},{}", menu::TMP, menu::QUICK_SLOT);
@@ -1140,26 +1146,18 @@ fn title_screen(out: &mut String, t: &TitleScreen, fade: &str, save_menu: bool, 
     }
     // Effect 0 = update the buffer only; the print shows it all.
     writeln!(out, "bg \"{}\",0", path(&t.background)).unwrap();
-    writeln!(out, "*{TITLE_DRAW}").unwrap();
-    if let Some(g) = &t.glow {
-        // Behind the buttons, which take the first menu sprites.
-        let slot = MENU_SPRITES.end - 1;
-        let keys: Vec<String> = g.keys.iter().map(|(t, a)| format!("{t},{a}")).collect();
-        writeln!(out, "lsp {slot},\":c;{}\",0,0:spalpha {slot},1,{}", path(&g.image), keys.join(",")).unwrap();
+    for (i, o) in t.openings.iter().enumerate() {
+        let shown = if o.at_launch { 0 } else { 1 };
+        writeln!(out, "if {TITLE_SHOWN} == {shown} mov {TITLE_SHOWN},1:goto *conv_title_opening{i}").unwrap();
     }
+    if !t.openings.is_empty() {
+        writeln!(out, "mov {TITLE_SHOWN},1").unwrap();
+    }
+    writeln!(out, "*{TITLE_DRAW}").unwrap();
     if let Some(bgm) = &t.bgm {
         writeln!(out, "bgm \"{}\"", path(bgm)).unwrap();
     }
-    if quick {
-        writeln!(out, "{quick_exists}").unwrap();
-    }
-    for (b, slot) in &buttons {
-        let image = if b.action == TitleAction::Unavailable { format!(":a;{}", path(&b.image)) } else { format!(":a/{cells},0,3;{}", path(&b.image)) };
-        writeln!(out, "lsp {slot},\"{image}\",{},{}", b.x, b.y).unwrap();
-        if b.action == TitleAction::Continue {
-            writeln!(out, "if {} == 0 lsp {slot},\"{image}\",{},{},128", menu::TMP, b.x, b.y).unwrap();
-        }
-    }
+    title_sprites(out, t, &buttons, quick, None);
     writeln!(out, "print {fade}").unwrap();
     writeln!(out, "*{TITLE_MENU}").unwrap();
     if let Some(se) = &t.hover_se {
@@ -1200,6 +1198,21 @@ fn title_screen(out: &mut String, t: &TitleScreen, fade: &str, save_menu: bool, 
         writeln!(out, "if {BUTTON_VAR} == {} {se}{then}", n + 1).unwrap();
     }
     writeln!(out, "goto *{TITLE_MENU}").unwrap();
+    // An opening: the music, then the movie (the music going on), which
+    // ends on the title as the sprites show it.
+    for (i, o) in t.openings.iter().enumerate() {
+        writeln!(out, "*conv_title_opening{i}").unwrap();
+        if let Some(bgm) = &t.bgm {
+            writeln!(out, "bgm \"{}\"", path(bgm)).unwrap();
+        }
+        if let Some(se) = &o.sound {
+            writeln!(out, "dwave {},\"{}\"", SE_CHANNELS.start(), path(se)).unwrap();
+        }
+        writeln!(out, "mpegplay \"{}\",1,1", path(&o.movie)).unwrap();
+        title_sprites(out, t, &buttons, quick, o.glow_keys.as_deref());
+        writeln!(out, "print 1").unwrap();
+        writeln!(out, "goto *{TITLE_MENU}").unwrap();
+    }
     if let Some(c) = confirm.filter(|_| !t.exit_without_asking) {
         writeln!(out, "*conv_title_exit").unwrap();
         writeln!(out, "{}", menu::confirm_call(&c.quit, Switch::ConfirmQuit)).unwrap();
@@ -1214,6 +1227,27 @@ fn title_screen(out: &mut String, t: &TitleScreen, fade: &str, save_menu: bool, 
     writeln!(out, "bg black,{fade}").unwrap();
     if t.start_wait_ms > 0 {
         writeln!(out, "wait {}", t.start_wait_ms).unwrap();
+    }
+}
+
+/// The title's glow (with `glow_keys` in place of its own) and buttons.
+fn title_sprites(out: &mut String, t: &TitleScreen, buttons: &[(&conv_core::ir::TitleButton, u32)], quick: bool, glow_keys: Option<&[(u32, u32)]>) {
+    let cells = if t.pressed { 3 } else { 2 };
+    if let Some(g) = &t.glow {
+        // Behind the buttons, which take the first menu sprites.
+        let slot = MENU_SPRITES.end - 1;
+        let keys: Vec<String> = glow_keys.unwrap_or(&g.keys).iter().map(|(t, a)| format!("{t},{a}")).collect();
+        writeln!(out, "lsp {slot},\":c;{}\",0,0:spalpha {slot},1,{}", path(&g.image), keys.join(",")).unwrap();
+    }
+    if quick {
+        writeln!(out, "savefileexist {},{}", menu::TMP, menu::QUICK_SLOT).unwrap();
+    }
+    for (b, slot) in buttons {
+        let image = if b.action == TitleAction::Unavailable { format!(":a;{}", path(&b.image)) } else { format!(":a/{cells},0,3;{}", path(&b.image)) };
+        writeln!(out, "lsp {slot},\"{image}\",{},{}", b.x, b.y).unwrap();
+        if b.action == TitleAction::Continue {
+            writeln!(out, "if {} == 0 lsp {slot},\"{image}\",{},{},128", menu::TMP, b.x, b.y).unwrap();
+        }
     }
 }
 
@@ -2014,11 +2048,17 @@ effect 7,99,1000,\"cons_zoom.dll/3,220,5\"
             start_wait_ms: 2000,
             exit_without_asking: true,
             glow: Some(conv_core::ir::TitleGlow { image: "system/fire.jpg".into(), keys: vec![(0, 0), (600, 256), (1200, 0)] }),
+            openings: vec![conv_core::ir::TitleOpening {
+                movie: "movie/op.mp4".into(),
+                at_launch: true,
+                sound: Some("sound/se/op.ogg".into()),
+                glow_keys: Some(vec![(0, 256), (100, 256), (700, 0)]),
+            }],
         });
         let text = emit(&s);
         for part in [
             // The glow behind the buttons, redrawn with them.
-            "*conv_title_draw\nlsp 33,\":c;system\\fire.jpg\",0,0:spalpha 33,1,0,0,600,256,1200,0\nbgm \"sound\\bgm\\title.ogg\"\nsavefileexist %105,890\nlsp 6,\":a/3,0,3;system\\quick.png\",822,150\nif %105 == 0 lsp 6,\":a/3,0,3;system\\quick.png\",822,150,128\n",
+            "*conv_title_draw\nbgm \"sound\\bgm\\title.ogg\"\nlsp 33,\":c;system\\fire.jpg\",0,0:spalpha 33,1,0,0,600,256,1200,0\nsavefileexist %105,890\nlsp 6,\":a/3,0,3;system\\quick.png\",822,150\nif %105 == 0 lsp 6,\":a/3,0,3;system\\quick.png\",822,150,128\n",
             "*conv_title\nselectvoice \"\",\"sound\\se\\over.ogg\",\"\"\nsavefileexist %105,890\nif %105 == 1 spbtn 6,1,2\nspbtn 7,2,2\nspbtn 8,3,2\nbtnwait %9\nselectvoice \"\",\"\",\"\"\n",
             "if %9 == 1 dwave 1,\"sound\\se\\a.ogg\":csp -1:loadgame 890\n",
             // No question before quitting.
@@ -2029,6 +2069,15 @@ effect 7,99,1000,\"cons_zoom.dll/3,220,5\"
             assert!(text.contains(part), "missing {part:?} in\n{text}");
         }
         assert!(!text.contains("conv_title_exit"));
+        // The opening plays once a run: cleared by the define section,
+        // then the music, its sound, the movie and the title at once.
+        for part in [
+            "mov %2960,0\ngame\n",
+            "if %2960 == 0 mov %2960,1:goto *conv_title_opening0\nmov %2960,1\n*conv_title_draw\n",
+            "*conv_title_opening0\nbgm \"sound\\bgm\\title.ogg\"\ndwave 1,\"sound\\se\\op.ogg\"\nmpegplay \"movie\\op.mp4\",1,1\nlsp 33,\":c;system\\fire.jpg\",0,0:spalpha 33,1,0,256,100,256,700,0\n",
+        ] {
+            assert!(text.contains(part), "missing {part:?} in\n{text}");
+        }
     }
 
     #[test]

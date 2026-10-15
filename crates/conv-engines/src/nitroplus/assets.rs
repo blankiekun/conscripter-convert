@@ -400,6 +400,55 @@ impl Assets for NpaAssets<'_> {
         Some(rel)
     }
 
+    fn rgba(&mut self, path: &str) -> Option<image::RgbaImage> {
+        if self.out.dry_run {
+            return None;
+        }
+        let rel = if path.starts_with("cg/") { self.image(path)?.0 } else { path.to_string() };
+        Some(image::open(self.out.root.join(rel)).ok()?.into_rgba8())
+    }
+
+    fn frames_movie(&mut self, name: &str, fps: u32, frames: u32, draw: &mut dyn FnMut(u32, &mut image::RgbImage)) -> Option<String> {
+        let rel = format!("movie/{name}.mp4");
+        let dest = self.out.root.join(&rel);
+        if self.out.dry_run || dest.exists() {
+            return Some(rel);
+        }
+        let (w, h) = (SCREEN_W as u32, SCREEN_H as u32);
+        let size = format!("{w}x{h}");
+        let mut args: Vec<std::ffi::OsString> = ["-f", "rawvideo", "-pix_fmt", "rgb24", "-s", &size, "-r", &fps.to_string(), "-i", "-"].map(Into::into).to_vec();
+        args.extend(crate::media::mp4_options(20, "slow").into_iter().map(Into::into));
+        args.push("-an".into());
+        let mut frame = image::RgbImage::new(w, h);
+        let result = crate::media::ffmpeg(&dest, args, |stdin| {
+            (0..frames).try_for_each(|i| {
+                draw(i, &mut frame);
+                stdin.write_all(frame.as_raw())
+            })
+        });
+        if let Err(e) = result {
+            self.out.errors.push(format!("{rel}: {e}"));
+            return None;
+        }
+        Some(rel)
+    }
+
+    fn delayed_sound(&mut self, path: &str, delay_ms: u32) -> Option<String> {
+        let src = self.sound(path)?;
+        let rel = format!("{}_after{delay_ms}.ogg", src.trim_end_matches(".ogg"));
+        let dest = self.out.root.join(&rel);
+        if self.out.dry_run || dest.exists() {
+            return Some(rel);
+        }
+        let delay = format!("adelay={delay_ms}:all=1");
+        let args: Vec<std::ffi::OsString> = vec!["-i".into(), self.out.root.join(&src).into(), "-af".into(), delay.into(), "-c:a".into(), "libvorbis".into(), "-q:a".into(), "5".into()];
+        if let Err(e) = crate::media::ffmpeg(&dest, args, |_| Ok(())) {
+            self.out.errors.push(format!("{rel}: {e}"));
+            return None;
+        }
+        Some(rel)
+    }
+
     fn transparent(&mut self) -> String {
         let rel = "system/transparent.png".to_string();
         if !self.out.root.join(&rel).exists() {
