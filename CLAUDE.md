@@ -193,9 +193,13 @@ on each later turn; several agents run at once.
   memory carry the state into a fresh session.
 - No `/loop`, scheduled wakeups or polling unless the user asks; wait
   for background runs to notify.
-- Subagents only when the user asks; then give a search or a mechanical
-  job a cheaper model (`model: "haiku"` or `"sonnet"`) and ask for a
-  short report, not file dumps.
+- **Delegate small jobs to cheaper subagents** when you judge it fits
+  (no need to ask): `model: "haiku"` for searches, greps across the
+  tree, reading a long file for one fact, summarising a log or trace;
+  `model: "sonnet"` for mechanical edits, doc updates, build-test-commit
+  loops and route runs. Keep design, engine work, reverse engineering
+  and hard debugging yourself. Give the subagent the exact task and
+  the files, and ask for a short report, not file dumps.
 
 ## Releasing CONscripter
 
