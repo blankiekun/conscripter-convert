@@ -79,12 +79,13 @@ enum Command {
     /// Convert one Nitroplus story scene (装甲悪鬼村正) into a CONscripter
     /// game directory: 0.txt plus the assets it uses
     ConvertNss {
-        /// Game data directory (Muramasa.exe and the *.npa archives)
+        /// Game data directory (Muramasa.exe or Django.exe and the *.npa archives)
         game: PathBuf,
         /// Script file and scene; the scene defaults to the file's name
-        /// (its content scene)
+        /// (its content scene). Without it, the game's whole story
+        /// (続・殺戮のジャンゴ; 装甲悪鬼村正 needs --file and --chain)
         #[arg(long)]
-        file: String,
+        file: Option<String>,
         #[arg(long)]
         scene: Option<String>,
         /// Play this many story files in a row from --file, following
@@ -162,13 +163,13 @@ enum Command {
 enum NpaCommand {
     /// List the files: size and name
     List {
-        /// The game's exe (Muramasa.exe), which holds the decryption table
+        /// The game's exe (Muramasa.exe, Django.exe), which picks the decryption table
         exe: PathBuf,
         archive: PathBuf,
     },
     /// Extract files, decrypted and unpacked
     Extract {
-        /// The game's exe (Muramasa.exe), which holds the decryption table
+        /// The game's exe (Muramasa.exe, Django.exe), which picks the decryption table
         exe: PathBuf,
         archive: PathBuf,
         #[arg(short, long)]
@@ -297,7 +298,7 @@ fn main() -> Result<()> {
         }
         Command::ConvertNss { game, file, scene, chain, movies, output, font, title, loose, dry_run, webp, audio } => {
             let movies = movies.unwrap_or_else(|| game.join("../ムービー"));
-            convert_nss(&game, &file, scene.as_deref(), chain, &movies, &output, font.as_deref(), &title, loose, dry_run, webp.get(), audio.format()?)
+            convert_nss(&game, file.as_deref(), scene.as_deref(), chain, &movies, &output, font.as_deref(), &title, loose, dry_run, webp.get(), audio.format()?)
         }
         Command::Lint { dir } => {
             let report = build::lint_dir(&dir, true)?;
@@ -828,7 +829,7 @@ fn hex(bytes: &[u8]) -> String {
 #[allow(clippy::too_many_arguments)]
 fn convert_nss(
     game: &Path,
-    file: &str,
+    file: Option<&str>,
     scene: Option<&str>,
     chain: Option<usize>,
     movies: &Path,
@@ -842,7 +843,8 @@ fn convert_nss(
 ) -> Result<()> {
     use conv_engines::nitroplus::assets::{NpaAssets, OUTPUT_DIRS, PICTURE_DIRS};
     use conv_engines::nitroplus::{convert, nss};
-    let exe = game.join("Muramasa.exe");
+    // The first Nitroplus exe found names the game.
+    let exe = ["Muramasa.exe", "Django.exe"].iter().map(|n| game.join(n)).find(|p| p.exists()).unwrap_or_else(|| game.join("Muramasa.exe"));
     build::check_output(output, &OUTPUT_DIRS, !loose && !dry_run)?;
     // Read entry by entry, not mapped: the mapped pages of cg.npa and
     // voice.npa (3 GB) would count as the converter's memory.
@@ -856,7 +858,8 @@ fn convert_nss(
     let mut npas = npas.into_iter();
     let scripts = npas.next().unwrap();
     let mut files = std::collections::BTreeMap::new();
-    for e in &scripts.entries {
+    // 続・殺戮のジャンゴ 1.01's nss.npa also holds SourceSafe's vssver2.scc.
+    for e in scripts.entries.iter().filter(|e| e.name.to_lowercase().ends_with(".nss")) {
         let parsed = nss::parse(&nss::decode(&scripts.data(e)?)).with_context(|| format!("parsing {}", e.name))?;
         let name = e.name.rsplit('\\').next().unwrap_or(&e.name).to_string();
         files.insert(name, parsed);
@@ -869,11 +872,20 @@ fn convert_nss(
     } else {
         println!("no movie folder at {}: the movies are left out", movies.display());
     }
-    let scene = scene.unwrap_or(file);
-    // The game's own additions to the compiler, by its exe (the only
-    // Nitroplus game so far).
-    let game = if exe.file_name().is_some_and(|n| n == "Muramasa.exe") { &convert::MURAMASA } else { &convert::Game::PLAIN };
+    // The game's own additions to the compiler, by its exe.
+    let game = match exe.file_name().and_then(|n| n.to_str()) {
+        Some("Muramasa.exe") => &convert::MURAMASA,
+        Some("Django.exe") => &convert::DJANGO,
+        _ => &convert::Game::PLAIN,
+    };
+    assets.screen = game.screen;
+    let (file, scene) = match (file, game.story) {
+        (Some(file), _) => (file, scene.unwrap_or(file)),
+        (None, Some((file, story))) => (file, scene.unwrap_or(story)),
+        (None, None) => anyhow::bail!("this game needs --file"),
+    };
     let compiled = match chain {
+        _ if game.story.is_some_and(|s| s.0 == file) => convert::compile_story(&files, file, scene, game, &mut assets).map_err(anyhow::Error::msg)?,
         Some(n) => {
             let (compiled, played) = convert::compile_run(&files, file, n, game, &mut assets).map_err(anyhow::Error::msg)?;
             println!("{} files: {}", played.len(), played.join(" "));
@@ -894,8 +906,8 @@ fn convert_nss(
     let story = convert::Story { flags: &compiled.flags, voice_classes: &compiled.voice_classes };
     let mut ir = Script {
         title: title.to_string(),
-        width: convert::SCREEN_W as u32,
-        height: convert::SCREEN_H as u32,
+        width: game.screen.0 as u32,
+        height: game.screen.1 as u32,
         global_border: Some(convert::GLOBAL_BORDER),
         window: compiled.window,
         ops: compiled.ops,
@@ -919,7 +931,8 @@ fn convert_nss(
 }
 
 fn npa_key(exe: &Path) -> Result<conv_engines::nitroplus::npa::Key> {
-    Ok(conv_engines::nitroplus::npa::Key::from_exe(&fs::read(exe).with_context(|| format!("reading {}", exe.display()))?)?)
+    let name = exe.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    Ok(conv_engines::nitroplus::npa::Key::for_exe(&name, &fs::read(exe).with_context(|| format!("reading {}", exe.display()))?)?)
 }
 
 fn open_npa<'a>(exe: &Path, path: &Path, bytes: &'a [u8]) -> Result<conv_engines::nitroplus::npa::Npa<'a>> {

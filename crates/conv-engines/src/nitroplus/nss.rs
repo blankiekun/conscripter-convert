@@ -6,6 +6,8 @@
 //! ```text
 //! chapter main { … }              entry point when the file is started
 //! scene ma01_001.nss_MAIN { … }   called with call_scene (names may hold '.')
+//! cut main_stage { … }            続・殺戮のジャンゴ: a scene, called with
+//!                                 call_cut main_stage;
 //! function FadeM("ナット名", 描画時間, $x) { … }
 //! ```
 //!
@@ -502,12 +504,23 @@ fn block_comment_len(s: &str) -> Option<usize> {
     None
 }
 
-/// Byte index of the `</PRE>` closing the `<PRE` at the start of `s`.
+/// Byte index of the `</PRE>` closing the `<PRE` at the start of `s`,
+/// skipping comments that open inline code: 続・殺戮のジャンゴ joins pages
+/// by commenting out the code between them, `{/*</PRE> … <PRE
+/// box00>[text011]*/}`. (Only `{/*`: inline code may hold `"窓/*"`.)
 fn matching_pre_end(s: &str) -> Option<usize> {
     let mut depth = 0;
     let mut i = 0;
-    while let Some(n) = s[i..].find("PRE") {
+    while let Some(n) = s[i..].find(['P', '{']) {
         let at = i + n;
+        if s[at..].starts_with("{/*") {
+            i = at + s[at..].find("*/").map_or(s.len() - at, |e| e + 2);
+            continue;
+        }
+        if !s[at..].starts_with("PRE") {
+            i = at + 1;
+            continue;
+        }
         if s[..at].ends_with("</") {
             depth -= 1;
             if depth == 0 {
@@ -619,7 +632,8 @@ impl<'a> Parser<'a> {
                 self.eat(";");
                 Ok(Item::Include(s.clone()))
             }
-            Some(Tok::Word(w)) if w == "chapter" || w == "scene" => {
+            // `cut` (続・殺戮のジャンゴ) is a scene called with `call_cut`.
+            Some(Tok::Word(w)) if w == "chapter" || w == "scene" || w == "cut" => {
                 let chapter = w == "chapter";
                 self.pos += 1;
                 let name = self.word()?;
@@ -767,8 +781,8 @@ impl<'a> Parser<'a> {
                     let label = self.raw_until(&["{"])?;
                     StmtKind::Case { label, body: self.block()? }
                 }
-                "call_scene" | "call_chapter" => {
-                    let scene = w == "call_scene";
+                "call_scene" | "call_chapter" | "call_cut" => {
+                    let scene = w != "call_chapter";
                     self.pos += 1;
                     let target = self.target()?;
                     self.end_stmt()?;
@@ -783,6 +797,14 @@ impl<'a> Parser<'a> {
                 _ if matches!(self.peek_at(1), Some(Tok::Punct(":"))) => {
                     self.pos += 2;
                     StmtKind::Label(w.clone())
+                }
+                // `wait 1000;`, without parentheses (続・殺戮のジャンゴ's
+                // ending): `Wait(1000)`
+                "wait" if matches!(self.peek_at(1), Some(Tok::Int(_))) => {
+                    self.pos += 1;
+                    let e = self.expr()?;
+                    self.end_stmt()?;
+                    StmtKind::Expr(Expr::Call { name: "Wait".into(), args: vec![e] })
                 }
                 _ => {
                     let e = self.expr()?;
@@ -1082,18 +1104,23 @@ fn flush(run: &mut String, items: &mut Vec<Inline>) {
 }
 
 /// Byte index of the `}` closing the `{` at the start of `s`, skipping
-/// strings and `//` comments.
+/// strings and `//` and `/* */` comments.
 fn matching_brace(s: &str) -> Option<usize> {
     let mut depth = 0;
     let mut in_str = false;
     let mut in_comment = false;
+    let mut block_end = 0;
     for (i, c) in s.char_indices() {
+        if i < block_end {
+            continue;
+        }
         if in_comment {
             in_comment = c != '\n';
             continue;
         }
         match c {
             '/' if !in_str && s[i..].starts_with("//") => in_comment = true,
+            '/' if !in_str && s[i..].starts_with("/*") => block_end = i + s[i..].find("*/").map_or(s.len() - i, |e| e + 2),
             '"' => in_str = !in_str,
             '{' if !in_str => depth += 1,
             '}' if !in_str => {
@@ -1167,6 +1194,25 @@ mod tests {
             vec![Param::Str("ナット名".into()), Param::Word("描画時間".into()), Param::Var(Var::Local("x".into()))]
         );
         assert_eq!(func.body[0].line, 11);
+    }
+
+    #[test]
+    fn cuts_and_bare_wait() {
+        let f = parse("chapter main\n{\n\tcall_cut main_stage;\n}\ncut main_stage\n{\n\twait 1000;\n}\n").unwrap();
+        assert!(f.errors.is_empty());
+        let Item::Chapter(main) = &f.items[0] else { panic!() };
+        assert_eq!(main.body[0].kind, StmtKind::CallScene(Target::Name("main_stage".into())));
+        let Item::Scene(cut) = &f.items[1] else { panic!() };
+        assert_eq!(cut.name, "main_stage");
+        assert_eq!(cut.body[0].kind, StmtKind::Expr(Expr::Call { name: "Wait".into(), args: vec![Expr::Int(1000)] }));
+    }
+
+    #[test]
+    fn pages_joined_by_a_commented_out_block() {
+        let s = body("<PRE box00>\n[text005]\na\n{/*</PRE>\n\tTypeEnd();\n<PRE box00>\n[text011]*/}\nb\n</PRE>\nWait(1);");
+        assert_eq!(s.len(), 2);
+        assert!(matches!(&s[0].kind, StmtKind::Text(_)));
+        assert!(matches!(&s[1].kind, StmtKind::Expr(Expr::Call { name, .. }) if name == "Wait"));
     }
 
     #[test]

@@ -36,11 +36,13 @@ pub struct NpaAssets<'a> {
     pub movie_dir: Option<PathBuf>,
     /// Where the files go; a dry run reads only image sizes.
     pub out: Output,
+    /// The screen's size, which big zooms are cut to.
+    pub screen: (i64, i64),
 }
 
 impl<'a> NpaAssets<'a> {
     pub fn new(cg: Npa<'a>, sound: Npa<'a>, voice: Npa<'a>, output: &Path) -> Self {
-        NpaAssets { cg, sound, voice, images: HashMap::new(), sounds: HashMap::new(), movies: HashMap::new(), movie_dir: None, out: Output::new(output) }
+        NpaAssets { cg, sound, voice, images: HashMap::new(), sounds: HashMap::new(), movies: HashMap::new(), movie_dir: None, out: Output::new(output), screen: (SCREEN_W, SCREEN_H) }
     }
 
     /// The movie file a script path names, and its name in the output:
@@ -214,8 +216,8 @@ impl Assets for NpaAssets<'_> {
         // part on the screen: the whole would take gigabytes to make and be
         // too large for the engine to load.
         let clip = if w.max(h) > MAX_SCALED {
-            let (x0, x1) = ((-x).clamp(0, w), (SCREEN_W - x).clamp(0, w));
-            let (y0, y1) = ((-y).clamp(0, h), (SCREEN_H - y).clamp(0, h));
+            let (x0, x1) = ((-x).clamp(0, w), (self.screen.0 - x).clamp(0, w));
+            let (y0, y1) = ((-y).clamp(0, h), (self.screen.1 - y).clamp(0, h));
             if x0 >= x1 || y0 >= y1 {
                 return Some((self.transparent(), 0, 0, 1, 1));
             }

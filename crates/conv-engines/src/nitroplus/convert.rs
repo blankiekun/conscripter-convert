@@ -41,6 +41,7 @@ use conv_core::ir::{ArithOp, ChoiceStyle, CLICK_WAIT_MARK, Op, Operand, ScreenEf
 
 use super::nss::{AssignOp, BinaryOp, Expr, Function, Inline, Item, NssFile, Param, Stmt, StmtKind, Target, Text, UnaryOp};
 
+/// 装甲悪鬼村正's screen ([`Game::screen`]).
 pub const SCREEN_W: i64 = 1024;
 /// The longest cross-fade non-blocking actions get where the script doesn't
 /// wait for them (a text page, a blocking action): the original goes on
@@ -48,7 +49,8 @@ pub const SCREEN_W: i64 = 1024;
 /// battle).
 const UNWAITED_MS: u32 = 1000;
 pub const SCREEN_H: i64 = 576;
-/// The story driver; the helper library is what it `#include`s.
+/// 装甲悪鬼村正's story driver ([`Game::boot`]); the helper library is what
+/// it `#include`s.
 const BOOT: &str = "0_boot_開始スクリプト.nss";
 /// Highest IR sprite layer used.
 const MAX_LAYER: u32 = 900;
@@ -73,6 +75,8 @@ const RUN_END: &str = "conv_run_end";
 const GAME_NAME_SET: &str = "$GameName (set)";
 mod muramasa;
 pub use muramasa::MURAMASA;
+mod django;
+pub use django::DJANGO;
 
 /// What one game adds to the compiler, in its own module under `convert/`
 /// ([`MURAMASA`]): library functions it compiles itself (written as
@@ -94,11 +98,30 @@ pub struct Game {
     /// Chapters compiled once more as subroutines (label, `nss/file.nss`)
     /// for the system screens to call, such as a screen the menu opens.
     subroutines: &'static [(&'static str, &'static str)],
+    /// The screen's width and height.
+    pub screen: (i64, i64),
+    /// The boot script: the files it `#include`s are the helper library.
+    boot: &'static str,
+    /// The scene (file, scene) that plays the whole story by calling the
+    /// chapter files ([`compile_story`]), for a game without
+    /// 装甲悪鬼村正's `$GameName` chain.
+    pub story: Option<(&'static str, &'static str)>,
 }
 
 impl Game {
     /// A game with nothing of its own: NSS as it is.
-    pub const PLAIN: Game = Game { call: |_, _| false, scene: |_, _, _| false, flags: Vec::new, files: &[], menus: |_, _, _| {}, subroutines: &[] };
+    /// Its screen and boot script are 装甲悪鬼村正's.
+    pub const PLAIN: Game = Game {
+        call: |_, _| false,
+        scene: |_, _, _| false,
+        flags: Vec::new,
+        files: &[],
+        menus: |_, _, _| {},
+        subroutines: &[],
+        screen: (SCREEN_W, SCREEN_H),
+        boot: BOOT,
+        story: None,
+    };
 
     /// Fills `script`'s system screens.
     pub fn menus(&self, assets: &mut dyn Assets, script: &mut Script, story: &Story) {
@@ -200,6 +223,29 @@ pub fn compile_scene(files: &BTreeMap<String, NssFile>, file: &str, scene: &str,
     let base = c.next_dynamic.max(FLAG_LOCAL_BASE);
     c.subroutines(&initial, base);
     c.ops.push(Op::Label(end.to_string()));
+    Ok(Compiled { ops: c.ops, window: c.first_window, notes: c.notes, flags: c.flags, voice_classes: c.voice_classes })
+}
+
+/// Compiles a whole story that one scene drives by calling the chapter
+/// files in turn (続・殺戮のジャンゴ's `dja000_開始スクリプト.nss`,
+/// `main`): [`compile_scene`] with the story flags kept at run time, so a
+/// choice's flag decides what follows it when the game is played.
+pub fn compile_story(files: &BTreeMap<String, NssFile>, file: &str, scene: &str, game: &'static Game, assets: &mut dyn Assets) -> Result<Compiled, String> {
+    let (file, _) = files.get_key_value(file).ok_or_else(|| format!("no script {file}"))?;
+    let mut c = Compiler::new(files, file, game, assets);
+    c.flags = story_flags(files, game);
+    for (k, &v) in &c.flags {
+        c.vars.insert(k.clone(), Value::Runtime(v));
+    }
+    c.next_dynamic = c.flags.values().filter(|v| !v.global).map(|v| v.index + 1).max().unwrap_or(FLAG_LOCAL_BASE);
+    let body = c.scene(file, scene).ok_or_else(|| format!("no scene {scene} in {file}"))?;
+    let initial = c.snapshot();
+    c.run_top(body);
+    c.sync(0);
+    c.ops.push(Op::Jump(RUN_END.to_string()));
+    let base = c.next_dynamic;
+    c.subroutines(&initial, base);
+    c.ops.push(Op::Label(RUN_END.to_string()));
     Ok(Compiled { ops: c.ops, window: c.first_window, notes: c.notes, flags: c.flags, voice_classes: c.voice_classes })
 }
 
@@ -471,7 +517,7 @@ pub fn story_flags(files: &BTreeMap<String, NssFile>, game: &Game) -> HashMap<St
             }
         }
     }
-    let library: Vec<&str> = library(files);
+    let library: Vec<&str> = library(files, game);
     let (mut set, mut tested) = (BTreeSet::new(), BTreeSet::new());
     for (name, file) in files {
         let story = !library.contains(&name.as_str()) && !["0_", "sys_", "extra_", "function"].iter().any(|p| name.starts_with(p));
@@ -512,7 +558,7 @@ fn file_label(name: &str) -> String {
 }
 
 /// Files the story driver includes, directly or not, in include order.
-pub fn library(files: &BTreeMap<String, NssFile>) -> Vec<&str> {
+pub fn library<'a>(files: &'a BTreeMap<String, NssFile>, game: &Game) -> Vec<&'a str> {
     fn visit<'a>(files: &'a BTreeMap<String, NssFile>, name: &str, out: &mut Vec<&'a str>) {
         let Some((key, file)) = files.get_key_value(name) else { return };
         if out.contains(&key.as_str()) {
@@ -527,8 +573,8 @@ pub fn library(files: &BTreeMap<String, NssFile>) -> Vec<&str> {
         }
     }
     let mut out = Vec::new();
-    visit(files, BOOT, &mut out);
-    out.retain(|&f| f != BOOT);
+    visit(files, game.boot, &mut out);
+    out.retain(|&f| f != game.boot);
     out
 }
 
@@ -697,8 +743,8 @@ enum MovieState {
 impl MovieObject {
     /// Fills the screen and plays once, with nothing to blend: it can play
     /// as a movie.
-    fn full_screen(&self) -> bool {
-        !self.looped && !self.alpha && self.info.w as i64 >= SCREEN_W && self.info.h as i64 >= SCREEN_H
+    fn full_screen(&self, (w, h): (i64, i64)) -> bool {
+        !self.looped && !self.alpha && self.info.w as i64 >= w && self.info.h as i64 >= h
     }
 }
 
@@ -810,6 +856,10 @@ struct Compiler<'a, 'b> {
     first_window: Option<TextWindow>,
     window_visible: bool,
     texts_shown: usize,
+    /// `Request("@text131", Enter)` before the text block `[text131]`
+    /// exists (続・殺戮のジャンゴ's `TypeBegin`): the block shows its
+    /// pages as soon as it runs.
+    pending_enter: Option<String>,
     voice_classes: Vec<String>,
     ops: Vec<Op>,
     notes: BTreeMap<String, usize>,
@@ -1064,8 +1114,8 @@ impl<'a, 'b> Compiler<'a, 'b> {
         const MARGIN: i64 = 40;
         let (plate, w, h) = self.assets.image("cg/sys/select/select001.png")?;
         let (w, h) = (w as i64, h as i64);
-        let first = PITCH * (n - 2) + 50 + SCREEN_W / 2;
-        let y = (SCREEN_H - h) / 2;
+        let first = PITCH * (n - 2) + 50 + self.game.screen.0 / 2;
+        let y = (self.game.screen.1 - h) / 2;
         let parts: Vec<_> = (0..n).map(|i| (plate.clone(), first - PITCH * i, y, 1000)).collect();
         let (image, wx, wy) = self.assets.composite(&parts)?;
         let window = TextWindow {
@@ -1429,7 +1479,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
         let vars = HashMap::from([("#SYSTEM_voice_enable_another".to_string(), Value::Int(1))]);
         Compiler {
             files,
-            library: library(files),
+            library: library(files, game),
             game,
             assets,
             vars,
@@ -1448,6 +1498,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
             first_window: None,
             window_visible: false,
             texts_shown: 0,
+            pending_enter: None,
             voice_classes: Vec::new(),
             ops: Vec::new(),
             notes: BTreeMap::new(),
@@ -1480,8 +1531,10 @@ impl<'a, 'b> Compiler<'a, 'b> {
         })
     }
 
-    /// Current file first, then the library; later definitions win. Names
-    /// are case-sensitive, as in the exe (`call_nss_function`).
+    /// Current file first, then the library, then what the current file
+    /// `#include`s besides (続・殺戮のジャンゴ's chapters include
+    /// `function_select.nss`, its boot script doesn't); later definitions
+    /// win. Names are case-sensitive, as in the exe (`call_nss_function`).
     fn function(&self, name: &str) -> Option<(&'a str, &'a Function)> {
         let find = |file: &'a str| {
             self.files.get(file)?.items.iter().rev().find_map(|item| match item {
@@ -1489,7 +1542,12 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 _ => None,
             })
         };
-        std::iter::once(self.file).chain(self.library.iter().rev().copied()).find_map(find)
+        let files = self.files;
+        let includes = files.get(self.file).into_iter().flat_map(|f| f.items.iter().rev()).filter_map(move |item| match item {
+            Item::Include(path) => files.get_key_value(path.rsplit('/').next().unwrap_or(path)).map(|(k, _)| k.as_str()),
+            _ => None,
+        });
+        std::iter::once(self.file).chain(self.library.iter().rev().copied()).chain(includes).find_map(find)
     }
 
     /// Statements of the scene itself: sounds started by a statement are
@@ -1836,7 +1894,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
     fn play_movie(&mut self, name: &str) {
         let Some(Object { kind: Kind::Movie(m), opacity, .. }) = self.objects.get(name) else { return };
         let MovieState::Playing { at } = m.state else { return };
-        if !m.full_screen() {
+        if !m.full_screen(self.game.screen) {
             return;
         }
         let (path, opacity, left) = (m.path.clone(), *opacity, m.info.ms.saturating_sub(at));
@@ -1858,6 +1916,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
     /// it (what is left is returned), a movie on screen that it mostly
     /// waits for plays as a movie, and the others go on by that much.
     fn movie_wait(&mut self, mut ms: u32) -> u32 {
+        let screen = self.game.screen;
         for o in self.objects.values_mut() {
             if let Kind::Movie(m) = &mut o.kind {
                 let used = m.credit.min(ms);
@@ -1872,7 +1931,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
             .objects
             .iter()
             .filter(|(_, o)| {
-                matches!(&o.kind, Kind::Movie(m) if m.full_screen() && o.opacity > 0
+                matches!(&o.kind, Kind::Movie(m) if m.full_screen(screen) && o.opacity > 0
                     && matches!(m.state, MovieState::Playing { at } if ms * 2 >= m.info.ms.saturating_sub(at)))
             })
             .map(|(n, _)| n.clone())
@@ -1897,6 +1956,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
     }
 
     fn builtin(&mut self, name: &str, a: &[Value]) -> Value {
+        let (screen_w, screen_h) = self.game.screen;
         let arg = |i: usize| a.get(i).cloned().unwrap_or(Value::Null);
         match name {
             "CreateTexture" => {
@@ -1909,8 +1969,8 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 };
                 let (w, h) = (w as i64, h as i64);
                 let o = self.create(name, Kind::Image { image }, arg(1).int(), w, h);
-                o.x = arg(2).position(0, w, SCREEN_W);
-                o.y = arg(3).position(0, h, SCREEN_H);
+                o.x = arg(2).position(0, w, screen_w);
+                o.y = arg(3).position(0, h, screen_h);
             }
             "CreateColor" => {
                 let name = self.object_name(&arg(0));
@@ -1921,8 +1981,8 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 };
                 let image = self.assets.color(rgb, w as u32, h as u32);
                 let o = self.create(name, Kind::Image { image }, arg(1).int(), w, h);
-                o.x = arg(2).position(0, w, SCREEN_W);
-                o.y = arg(3).position(0, h, SCREEN_H);
+                o.x = arg(2).position(0, w, screen_w);
+                o.y = arg(3).position(0, h, screen_h);
             }
             "CreateEffect" => {
                 let name = self.object_name(&arg(0));
@@ -1932,7 +1992,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
                     self.note(format!("CreateEffect {}", arg(6).string()));
                     Kind::Other
                 };
-                self.create(name, kind, arg(1).int(), SCREEN_W, SCREEN_H);
+                self.create(name, kind, arg(1).int(), screen_w, screen_h);
             }
             "CreateWindow" | "CreateName" => {
                 let name = self.object_name(&arg(0));
@@ -1950,8 +2010,8 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 let (w, h) = (info.w as i64, if alpha { info.h as i64 / 2 } else { info.h as i64 });
                 let m = MovieObject { path, looped: arg(4).truthy(), alpha, dark: false, info, state: MovieState::Playing { at: 0 }, credit: 0 };
                 let o = self.create(name, Kind::Movie(m), arg(1).int(), w, h);
-                o.x = arg(2).position(0, w, SCREEN_W);
-                o.y = arg(3).position(0, h, SCREEN_H);
+                o.x = arg(2).position(0, w, screen_w);
+                o.y = arg(3).position(0, h, screen_h);
             }
             "MoviePlay" => {
                 // Full screen, the script waiting. A movie with sound stops
@@ -2001,7 +2061,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 if ms > 0 && blocking && targets.len() == 1 && self.shown.contains_key(&targets[0]) {
                     self.sync(0);
                     let o = self.objects.get_mut(&targets[0]).unwrap();
-                    let (x, y) = (arg(2).position(o.x, o.w, SCREEN_W), arg(3).position(o.y, o.h, SCREEN_H));
+                    let (x, y) = (arg(2).position(o.x, o.w, screen_w), arg(3).position(o.y, o.h, screen_h));
                     let (dx, dy) = (x - o.x, y - o.y);
                     (o.x, o.y) = (x, y);
                     if let Some(sh) = self.shown.get_mut(&targets[0]) {
@@ -2014,8 +2074,8 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 }
                 for t in &targets {
                     let o = self.objects.get_mut(t).unwrap();
-                    o.x = arg(2).position(o.x, o.w, SCREEN_W);
-                    o.y = arg(3).position(o.y, o.h, SCREEN_H);
+                    o.x = arg(2).position(o.x, o.w, screen_w);
+                    o.y = arg(3).position(o.y, o.h, screen_h);
                 }
                 if arg(1).int() > 0 && targets.iter().any(|t| self.shown.contains_key(t)) {
                     self.note("Move over time drawn as a cross-fade");
@@ -2031,7 +2091,11 @@ impl<'a, 'b> Compiler<'a, 'b> {
             }
             "Request" => {
                 let action = arg(1).string().to_ascii_lowercase();
-                for t in self.matching(&arg(0)) {
+                let targets = self.matching(&arg(0));
+                if targets.is_empty() && action == "enter" {
+                    self.pending_enter = Some(arg(0).string().trim_start_matches('@').to_string());
+                }
+                for t in targets {
                     self.request(&t, &action);
                 }
             }
@@ -2088,7 +2152,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 // (obj, time, x, y, …, wait). A full-screen picture (or all
                 // of them): the whole picture shakes.
                 let targets = self.matching(&arg(0));
-                if !targets.iter().any(|t| self.objects[t].w >= SCREEN_W && self.objects[t].h >= SCREEN_H) {
+                if !targets.iter().any(|t| self.objects[t].w >= screen_w && self.objects[t].h >= screen_h) {
                     self.note("Shake of a picture smaller than the screen");
                     self.timed(arg(1).int(), a.last().unwrap_or(&Value::Null), &targets);
                     return Value::Null;
@@ -2555,6 +2619,13 @@ impl<'a, 'b> Compiler<'a, 'b> {
         self.create(name.clone(), Kind::Text(text), priority, 0, 0);
         self.vars.insert("$SYSTEM_present_preprocess".into(), Value::Str(format!("@{window}")));
         self.vars.insert("$SYSTEM_present_text".into(), Value::Str(format!("@{name}")));
+        if let Some(pending) = self.pending_enter.take() {
+            if name.rsplit('/').next() == Some(pending.as_str()) {
+                self.show_text(&name);
+            } else {
+                self.note("Request Enter for another text than the next");
+            }
+        }
     }
 
     /// Splits a text block into pages: a blank line ends a page, `<k>`
