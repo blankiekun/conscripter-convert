@@ -559,8 +559,6 @@ The steps that apply them are in `docs/new-game.md`.
   version bump and a tag, and CI builds every platform.
 
 **Target engine facts (ONScripter / CONscripter).**
-- **ONScripter ignores SIGTERM while stuck in a script loop.** Always run
-  it under `timeout -k 5 …`.
 - **Sprite numbers set the stacking order, and saves record them.**
   Lower `lsp` numbers draw on top, so dialogs need the lowest slots.
   Renumber menus and bars freely, but keep the game's own sprites at
@@ -568,9 +566,6 @@ The steps that apply them are in `docs/new-game.md`.
 - **The font must be fixed-width.** ONScripter draws every character in
   a full-width cell, so a proportional font leaves gaps after narrow
   glyphs. Use IPA Gothic (`ipag.ttf`).
-- **Read tracking is by script byte offset.** `kidoku.dat` marks
-  positions in `0.txt`; after a rebuild it marks the wrong text. Delete
-  it.
 - **The target's image decoder limits the asset formats.** Check a new
   format with one test file in every target build (the web build
   especially) before changing the converter. WebP needed CONscripter's
@@ -578,24 +573,8 @@ The steps that apply them are in `docs/new-game.md`.
 - **Judge lossy image quality on the worst region,** not the average:
   crop the worst block of the difference image and compare it enlarged.
   Lossy WebP's 4:2:0 subsampling blurred small coloured detail at every
-  quality level; near-lossless was fine at half the PNG size. So lossy
-  is only an option (`--webp-quality`, with sharp YUV): at 80, 最果てのイマ's
-  script 13 pictures take 14.0 MB (near-lossless 59.7, PNG 126.4), with a
-  worst 16 px block error of 18.8 (near-lossless 10.1; sharp YUV took it
-  from 21.3); small flowers in a background soften.
-
-**Process.**
-- **Never delete an output folder without listing it first.** Users put
-  their own files there (an `onscripter` binary was lost once).
-- **Keep the game's state in its document** (`docs/games/<game>.md`,
-  "Status": what converts and what's next). Context resets happen
-  mid-task, and re-deriving state is expensive. It is committed and
-  public, so it holds no local paths.
-- **State notes go stale.** When an item is done, grep `PLAN.md` and
-  the game's document for it.
-- **Parallel agents need separate branches and worktrees** (`xuse`,
-  `nitroplus`), branches based on `origin/main`, and staging by path
-  name: the other agent's uncommitted files share the tree.
+  quality; near-lossless was fine at half the PNG size, so lossy is only
+  an option (`--webp-quality`).
 
 ### 13.1b Lessons from 装甲悪鬼村正 (Nitroplus NSS, 2026-10-13)
 
@@ -633,11 +612,6 @@ The steps that apply them are in `docs/new-game.md`.
   one is live (Muramasa keeps old helper versions inside `/* */`).
 - **Merging fork states:** a variable set again after the fork must keep
   that later value. Small synthetic file sets in unit tests caught this.
-- **Long waits:** the shell tool kills a foreground command after 10
-  minutes (exit 137, looks like OOM). Run long jobs in the background and
-  wait for the notification.
-- **Let the user watch:** a progress page (artifact) with screenshots,
-  republished at milestones, lets the user follow from their phone.
 - **Measure memory before blaming it on mapped files:** the kernel's OOM
   line gives anon-rss. The full build's 7 GB was heap (60x zooms scaled
   whole, 8 GB bitmaps), not the mapped archives; cutting big zooms to the
@@ -654,9 +628,6 @@ The steps that apply them are in `docs/new-game.md`.
 - **CONscripter's errors go to `stderr.txt`** in the game folder
   (`USE_FILELOG`), not to the terminal: an exit that looks silent has
   its message there.
-- **Name the engine binary per agent** (a symlink): another agent's
-  `pkill -x conscripter` stops every run on the machine.
-
 - **`setwindow` flushes the backlog** (NScripter's rule): a converter
   that sets the window again for each text block keeps no history. The
   converter emits `setwindow3`, which doesn't. And `btndef` turns
@@ -691,56 +662,20 @@ The steps that apply them are in `docs/new-game.md`.
 
 ### 13.2 Ways to speed up conversion
 
-Tooling worth building, in rough order of payoff. For 最果てのイマ the
-Python scripts in `research/xuse/` did the job; build each one into the
-converter when a second game needs the same thing:
+Done, use them: the engine's debug trace with `--auto-play`, `--goto`
+`--vars`, `--shot-pages` (replaces a static tracer and the smoke-test
+recipe; `engine/DEBUG.md`); `--dry-run` for logic (seconds, script only);
+`conscripter-convert lint`; `convert-script` for one scene; `nss route`
+for a route map.
 
-1. **A static tracer in the converter** (`conscripter-convert trace`, a Rust port of
-   `research/xuse/nstrace.py`). It runs the emitted `0.txt` without
-   ONScripter, counts displayed pages, prints the script-to-script path,
-   and flags hot loops. A 100,000-page trace of the Python version takes 0.5 s,
-   compared with minutes per real ONScripter run. Add a "click link N"
-   option so each route can be walked.
-2. **A smoke-test command** that automates the manual recipe: copy `0.txt`,
-   symlink the archives, insert `autoclick`, add a displayed-page counter
-   and screenshots at chosen pages, and run headless under `timeout -k 5`.
-   Today this is done by hand on every check.
-3. **Faster rebuilds** matter less than expected. A full `convert-game`
-   takes a few minutes, mostly writing the 1.2 GB `arc.nsa`. A `--script-only`
-   mode would still help when iterating on lowering in a tight loop.
-4. **Tests that check the whole corpus** for decoding (every message parses,
-   every jump target exists, every referenced asset is in the archive), so
-   regressions show up in `cargo test` rather than in a run of the game.
-5. **A route map**: a graph of scripts, links and conditional jumps from
-   the trace. It shows the game's structure at a glance and lets us
-   compare scene order with the real game.
-6. **Asking for game knowledge up front:** route structure, the choice
-   mechanic, known endings. The AI agents (§8) should get this as context
-   before they start inferring opcodes.
-7. **Single-scene builds** (`convert-script`) for visual work, so one
-   scene is checked without the whole game.
-
-From 装甲悪鬼村正:
-
-8. **Dry runs for logic, real builds for looks.** `convert-nss --dry-run`
-   compiles the whole game in about 16 s; a full build takes about 8
-   minutes, nearly all of it extracting and packing 2.4 GB of assets.
-   Make builds incremental: keep extracted assets between runs and
+Still worth building, in rough order of payoff:
+1. **Incremental full builds**: keep extracted assets between runs and
    repack only what changed, or stream archive entries straight into the
-   .nsa without loose files. Extract in parallel threads.
-9. **Start a build at a label** (`--start f_ma02_003`, or the jump patch
-   used by hand today) so a scene deep in the game is checked without
-   clicking through everything before it.
-10. **A lint pass over the emitted `0.txt`**: missing labels, effect
-    count, half-width characters in vertical text, files missing from the
-    archives. Both whole-game crashes would have shown up here first.
-    Done: `conscripter-convert lint <dir>` (`conv_cons::lint`), also run
-    at the end of `convert-nss`. Its first run found a third crash case:
-    a half-width `･` in vertical ruby.
-11. **Frontier report in the CLI**: compare the files a run reaches with
-    the route map's successors and print the condition that blocks each
-    (done by a scratch Python script today). It points straight at the
-    next thing to support.
-12. **Faster headless runs**: an engine option to auto-advance (skip mode
-    or `autoclick`) and to save a screenshot every N pages, instead of
-    xdotool clicks and ImageMagick `import` (about 2.7 s a click).
+   `.nsa`; extract in parallel. A full build is minutes, nearly all of it
+   assets.
+2. **Corpus tests in `cargo test`**: every message parses, every jump
+   target exists, every referenced asset is in the archive.
+3. **A frontier report**: compare the files a run reaches with the route
+   map's successors and print the condition that blocks each.
+4. **Game knowledge up front**: route structure, the choice mechanic,
+   known endings, given to an agent before it infers opcodes.
