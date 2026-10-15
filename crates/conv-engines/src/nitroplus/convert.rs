@@ -214,6 +214,9 @@ pub trait Assets {
     fn scaled(&mut self, image: &str, zx: i64, zy: i64, at: (i64, i64, i64, i64)) -> Option<(String, i64, i64, u32, u32)>;
     /// An output image blurred with a Gaussian of `sigma`/10 px.
     fn blurred(&mut self, image: &str, sigma: u32) -> Option<String>;
+    /// An output image mirrored left to right (`x`) and/or upside down
+    /// (`y`).
+    fn mirrored(&mut self, image: &str, x: bool, y: bool) -> Option<String>;
     /// Images the scripts name, as cells side by side in one picture (a
     /// button's states): its path and size (all cells). Each cell is as
     /// large as the largest part, the part at its top left; a part `""` is
@@ -885,6 +888,18 @@ struct Object<'a> {
     /// `SetVertex`: the point (from the top left) a zoom keeps in place,
     /// with [`Game::zoom_vertex`]; `None` = the centre.
     vertex: Option<(i64, i64)>,
+    /// `Rotate`: degrees about the x, y and z axes. A picture turned past
+    /// 90° about y shows mirrored left to right, about x upside down;
+    /// other turns aren't drawn.
+    turn: (i64, i64, i64),
+}
+
+impl Object<'_> {
+    /// Mirrored (left to right, upside down) as its turn shows it.
+    fn mirror(&self) -> (bool, bool) {
+        let back = |deg: i64| (91..270).contains(&deg.rem_euclid(360));
+        (back(self.turn.1), back(self.turn.0))
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -2107,7 +2122,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
 
     fn create(&mut self, name: String, kind: Kind<'a>, priority: i64, w: i64, h: i64) -> &mut Object<'a> {
         self.seq += 1;
-        let o = Object { kind, priority, x: 0, y: 0, w, h, opacity: 1000, locked: false, hideable: false, seq: self.seq, zoom: (1000, 1000), blur: 0, vertex: None };
+        let o = Object { kind, priority, x: 0, y: 0, w, h, opacity: 1000, locked: false, hideable: false, seq: self.seq, zoom: (1000, 1000), blur: 0, vertex: None, turn: (0, 0, 0) };
         self.objects.insert(name.clone(), o);
         self.objects.get_mut(&name).unwrap()
     }
@@ -2365,12 +2380,27 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 }
             }
             "Rotate" => {
-                for t in self.matching(&arg(0)) {
-                    match &mut self.objects.get_mut(&t).unwrap().kind {
-                        Kind::Text(text) => text.rotation = arg(4).position(text.rotation, 0, 0),
-                        _ if arg(4).int() != 0 => self.note("Rotate"),
+                // (obj, time, x, y, z degrees, tempo, wait).
+                let targets = self.matching(&arg(0));
+                let mut flipped = Vec::new();
+                for t in &targets {
+                    let o = self.objects.get_mut(t).unwrap();
+                    let (before, mirror) = (o.turn, o.mirror());
+                    o.turn = (arg(2).position(o.turn.0, 0, 0), arg(3).position(o.turn.1, 0, 0), arg(4).position(o.turn.2, 0, 0));
+                    let turn = o.turn;
+                    if o.mirror() != mirror && !matches!(o.kind, Kind::Text(_)) {
+                        flipped.push(t.clone());
+                    }
+                    match &mut o.kind {
+                        Kind::Text(text) => text.rotation = turn.2,
+                        _ if turn.2.rem_euclid(360) != 0 => self.note("Rotate about z"),
+                        _ if arg(1).int() > 0 && turn != before => self.note("Rotate over time drawn at once"),
                         _ => {}
                     }
+                }
+                // Only a picture that turns over shows a change.
+                if flipped.iter().any(|t| self.shown.contains_key(t)) {
+                    self.timed(arg(1).int(), &arg(6), &flipped);
                 }
             }
             "Zoom" => {
@@ -2694,7 +2724,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
                         py += (vy - o.h / 2) * (1000 - o.zoom.1) / 1000;
                     }
                     let shown = Shown { layer: 0, image: image.clone(), x: o.x + px, y: o.y + py, w: o.w, h: o.h, opacity: o.opacity, cells: None };
-                    Some((n.clone(), shown, (o.priority, o.seq), o.zoom, (o.w, o.h), o.blur))
+                    Some((n.clone(), shown, (o.priority, o.seq), o.zoom, (o.w, o.h), o.blur, o.mirror()))
                 }
                 _ => None,
             })
@@ -2728,12 +2758,17 @@ impl<'a, 'b> Compiler<'a, 'b> {
             let full = (m.info.ms * MOVIE_FPS).div_ceil(1000).max(1);
             let frame_ms = if at.is_none() && cells < full { m.info.ms / cells.max(1) } else { 1000 / MOVIE_FPS };
             let shown = Shown { layer: 0, image, x, y, w: cw as i64, h: ch as i64, opacity: o.opacity, cells: Some((cells, looped, zoom, frame_ms)) };
-            want.push((n, shown, (o.priority, o.seq), (1000, 1000), (o.w, o.h), 0));
+            want.push((n, shown, (o.priority, o.seq), (1000, 1000), (o.w, o.h), 0, (false, false)));
         }
         // Zoomed pictures: scaled copies, centred where the original was.
         let mut want: Vec<(String, Shown, (i64, u64))> = want
             .into_iter()
-            .map(|(n, mut shown, key, zoom, (w, h), blur)| {
+            .map(|(n, mut shown, key, zoom, (w, h), blur, (mx, my))| {
+                if (mx || my)
+                    && let Some(image) = self.assets.mirrored(&shown.image, mx, my)
+                {
+                    shown.image = image;
+                }
                 if zoom != (1000, 1000)
                     && let Some((image, x, y, sw, sh)) = self.assets.scaled(&shown.image, zoom.0, zoom.1, (shown.x, shown.y, w, h))
                 {
@@ -3244,6 +3279,9 @@ mod tests {
         fn blurred(&mut self, image: &str, sigma: u32) -> Option<String> {
             Some(format!("{image}~{sigma}"))
         }
+        fn mirrored(&mut self, image: &str, x: bool, y: bool) -> Option<String> {
+            Some(format!("{image}~{}{}", if x { "x" } else { "" }, if y { "y" } else { "" }))
+        }
         fn strip(&mut self, parts: &[&str]) -> Option<(String, u32, u32)> {
             Some((parts.join("|"), 100 * parts.len() as u32, 100))
         }
@@ -3452,6 +3490,29 @@ scene a.nss
             _ => None,
         }).max();
         assert!(longest.is_some_and(|ms| ms < 15000), "{:?}", c.ops);
+    }
+
+    #[test]
+    fn a_picture_turned_about_y_shows_mirrored() {
+        let story = r#"
+scene a.nss
+{
+	CreateTexture("st", 100, 0, 0, "cg/st/a.png");
+	Rotate("st", 0, @0, @180, @0, null, true);
+	Fade("st", 0, 1000, null, true);
+	Wait(100);
+	Rotate("st", 0, @0, @180, @0, null, true);
+	Wait(100);
+}
+"#;
+        let c = compile(story, LIBRARY);
+        let images: Vec<&str> = c.ops.iter().flat_map(|op| match op {
+            Op::Sprites { changes, .. } => changes.iter().filter_map(|c| c.sprite.as_ref().map(|s| s.image.as_str())).collect(),
+            _ => Vec::new(),
+        }).collect();
+        // Turned once: mirrored; twice: back as it was.
+        assert_eq!(images.first(), Some(&"cg/st/a.png~x"), "{:?}", c.ops);
+        assert_eq!(images.last(), Some(&"cg/st/a.png"), "{:?}", c.ops);
     }
 
     #[test]
