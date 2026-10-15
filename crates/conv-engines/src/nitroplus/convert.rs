@@ -827,6 +827,10 @@ enum Kind<'a> {
     Movie(MovieObject),
     /// Names, windows and other objects that draw nothing themselves.
     Other,
+    /// `CreateCamera`: what its children show. Its place is the point the
+    /// screen looks at (they are drawn that much the other way) and its
+    /// zoom magnifies them about the screen's centre.
+    Camera,
 }
 
 /// `CreateMovie`: a movie in the scene. One the script waits for that
@@ -2264,6 +2268,36 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 };
                 self.create(name, kind, arg(1).int(), screen_w, screen_h);
             }
+            // (name, x, y, zoom per mille). With Game::relative_children
+            // only (装甲悪鬼村正's cameras aren't checked).
+            "CreateCamera" if self.game.relative_children => {
+                let name = self.object_name(&arg(0));
+                let o = self.create(name, Kind::Camera, 0, 0, 0);
+                (o.x, o.y) = (arg(1).int(), arg(2).int());
+                let z = arg(3).int().max(1);
+                o.zoom = (z, z);
+            }
+            "MoveCamera" => {
+                // (name, time, x, y, zoom, tempo, wait): its children move
+                // with it.
+                let targets = self.matching(&arg(0));
+                let mut children = Vec::new();
+                for t in &targets {
+                    let Some(o) = self.objects.get_mut(t).filter(|o| matches!(o.kind, Kind::Camera)) else { continue };
+                    (o.x, o.y) = (arg(2).position(o.x, 0, 0), arg(3).position(o.y, 0, 0));
+                    let z = arg(4).position(o.zoom.0, 0, 0).max(1);
+                    o.zoom = (z, z);
+                    let prefix = format!("{t}/");
+                    children.extend(self.objects.keys().filter(|k| k.starts_with(&prefix)).cloned());
+                }
+                if children.is_empty() {
+                    return Value::Null;
+                }
+                if arg(1).int() > 0 && children.iter().any(|t| self.shown.contains_key(t)) {
+                    self.note("MoveCamera over time drawn as a cross-fade");
+                }
+                self.timed(arg(1).int(), &arg(6), &children);
+            }
             "CreateWindow" | "CreateName" => {
                 let name = self.object_name(&arg(0));
                 let o = self.create(name, Kind::Other, arg(1).int(), 0, 0);
@@ -2682,12 +2716,29 @@ impl<'a, 'b> Compiler<'a, 'b> {
         let mut end = 0;
         while let Some(i) = name[end..].find('/') {
             end += i;
-            if let Some(p) = self.objects.get(&name[..end]) {
-                (x, y) = (x + p.x, y + p.y);
+            match self.objects.get(&name[..end]) {
+                // Seen through a camera: the other way.
+                Some(p) if matches!(p.kind, Kind::Camera) => (x, y) = (x - p.x, y - p.y),
+                Some(p) => (x, y) = (x + p.x, y + p.y),
+                None => {}
             }
             end += 1;
         }
         (x, y)
+    }
+
+    /// The zoom (per mille) of the cameras `name` is seen through.
+    fn camera_zoom(&self, name: &str) -> i64 {
+        let mut zoom = 1000;
+        let mut end = 0;
+        while let Some(i) = name[end..].find('/') {
+            end += i;
+            if let Some(p) = self.objects.get(&name[..end]).filter(|p| matches!(p.kind, Kind::Camera)) {
+                zoom = zoom * p.zoom.0 / 1000;
+            }
+            end += 1;
+        }
+        zoom
     }
 
     /// The screen is frozen while an opaque `Plain` cover is up.
@@ -2726,8 +2777,19 @@ impl<'a, 'b> Compiler<'a, 'b> {
                         px += (vx - o.w / 2) * (1000 - o.zoom.0) / 1000;
                         py += (vy - o.h / 2) * (1000 - o.zoom.1) / 1000;
                     }
-                    let shown = Shown { layer: 0, image: image.clone(), x: o.x + px, y: o.y + py, w: o.w, h: o.h, opacity: o.opacity, cells: None };
-                    Some((n.clone(), shown, (o.priority, o.seq), o.zoom, (o.w, o.h), o.blur, o.mirror()))
+                    let (mut x, mut y, mut zoom) = (o.x + px, o.y + py, o.zoom);
+                    // A camera's zoom: the picture's centre moved away from
+                    // the screen's, the picture scaled as much.
+                    let k = self.camera_zoom(n);
+                    if k != 1000 {
+                        let (cx, cy) = (x + o.w / 2, y + o.h / 2);
+                        let (sx, sy) = (self.game.screen.0 / 2, self.game.screen.1 / 2);
+                        x = sx + (cx - sx) * k / 1000 - o.w / 2;
+                        y = sy + (cy - sy) * k / 1000 - o.h / 2;
+                        zoom = (zoom.0 * k / 1000, zoom.1 * k / 1000);
+                    }
+                    let shown = Shown { layer: 0, image: image.clone(), x, y, w: o.w, h: o.h, opacity: o.opacity, cells: None };
+                    Some((n.clone(), shown, (o.priority, o.seq), zoom, (o.w, o.h), o.blur, o.mirror()))
                 }
                 _ => None,
             })

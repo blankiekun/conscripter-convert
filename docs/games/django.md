@@ -292,7 +292,7 @@ eleven endings' flags under wine).
 | Script parsing | ✅ All 249 files; 56 places that don't parse, none in the story |
 | Story control flow (56 chapters, 10 choices, bad ends) | ✅ Compiled whole (`compile_story`); in the engine the good path plays to the end (6,496 pages) and each wrong answer ends the story with its own bad end, then the game goes back to the title (`research/nitroplus/django_routes.sh`, which stops each run there, 2026-10-15) |
 | Text | 🟡 In the boxes' places (box00: 39 columns at 50,472, white on the black bar); 3,424 voiced lines; not compared with the original yet |
-| Pictures, sound in scripts | 🟡 Black bars, face windows in their frames, standing pictures, backgrounds; pictures turned over (`Rotate` by 180°, 315 calls: characters facing the other way) drawn mirrored (dja004's choice now as the original's); what Muramasa's compiler does for effects (moves and zooms as cross-fades); every sound is found |
+| Pictures, sound in scripts | 🟡 Black bars, face windows in their frames, standing pictures, backgrounds; pictures turned over (`Rotate` by 180°, 315 calls: characters facing the other way) drawn mirrored (dja004's choice now as the original's); cameras (`CreateCamera`, `MoveCamera`, 365 calls): a camera's children drawn at their place less the camera's, magnified by its zoom about the screen's centre, its moves over time as cross-fades (not compared with the original yet); what Muramasa's compiler does for effects (moves and zooms as cross-fades); every sound is found |
 | Choices | ✅ Plates as picture buttons, text placed as the original's (compared under wine) |
 | System screens | 🟡 From the game's pictures (`django/screens.rs`): title, right-click menu, save/load (3×20 slots), yes/no questions, text log, settings (bullet rows as `SliderSteps`), the click-wait bullet after the last character (`getcursorpos` in the bar's wait routine); compared under wine: right-click menu, save, log, settings (text speed starts at level 5 as the original's; the two SAVE-DATA question rows drawn as they stand, ON chosen; the display options and version panel left out on purpose) |
 | Extras | 🟡 Menu, CG library, sound library, recollection, each compared with the original; left out: the doors' animation, the rifle over a category |
@@ -311,13 +311,14 @@ eleven endings' flags under wine).
    newer ones); image memory peaks at 131 MB (a long movie's strip).
 3. The text window and name plates (`box00`-`box05`, face windows
    `frame03`-`frame05`) measured against the original under wine.
-4. The ranked "not converted" list: `MoveCamera`, `CreateTexture` from
-   the screen, `CreateColor` colours, movies.
-5. Standing pictures placed
-   through the camera helpers (`CmrSetBu…`, `MoveCamera`) still end
-   above the bottom bar.
-6. Camera moves (`MoveCamera`, 365 calls) and moves and zooms over time
-   (drawn as cross-fades), shared with Muramasa's compiler.
+4. The ranked "not converted" list: `CreateTexture` from the screen,
+   `CreateColor` colours, movies.
+5. Cameras under wine: a camera scene with a zoom (`MoveCamera` to
+   1500) beside the original, to confirm the zoom's direction; standing
+   pictures placed through the camera helpers (`CmrSetBu…`) and the
+   bottom bar.
+6. Moves, zooms and camera moves over time (drawn as cross-fades) as
+   real motion, shared with Muramasa's compiler.
 7. Extras: the doors' animation and the menu's own music (left out).
 8. The congratulations' pans (`Move` over time in
    `TitleCongratulations`) are cuts; compare with the original.
