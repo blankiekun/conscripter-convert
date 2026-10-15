@@ -203,6 +203,7 @@ yet.
 | Choices | 🟡 Django's plates; text place and hover colour guessed |
 | System screens | 🟡 From the game's pictures (`django/screens.rs`): title, right-click menu, save/load (3×20 slots), yes/no questions, text log, settings (bullet rows as `SliderSteps`), the click-wait bullet; not compared with the original (it wants its disc under wine) |
 | Extras | ❌ Not started (scope to confirm) |
+| Saves | 🟡 `--roundtrip-every 100` over the first 1,500 pages: no save/load mismatch; saves from the screens not tried by hand |
 | Web build | 🟡 Plays in a browser (title, story pages); saves, sound and touch not checked yet |
 
 ### Next
