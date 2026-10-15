@@ -316,6 +316,20 @@ pub fn emit(script: &Script) -> String {
         // flickers); the script hides it explicitly with textoff.
         writeln!(out, "erasetextwindow 0").unwrap();
     }
+    // An icon with no place of its own in any window: drawn after the text
+    // by the engine, at line and page waits alike.
+    if let Some(i) = &script.wait_icon {
+        let windows = script.window.iter().chain(script.ops.iter().filter_map(|op| match op {
+            Op::SetWindow(w) => Some(w),
+            _ => None,
+        }));
+        if windows.clone().next().is_some() && windows.into_iter().all(|w| w.wait_icon_at.is_none()) {
+            let ms: Vec<String> = i.frame_ms.iter().map(u32::to_string).collect();
+            for n in 0..2 {
+                writeln!(out, "setcursor {n},\":a/{},<{}>,0;{}\",0,0", ms.len(), ms.join(","), path(&i.image)).unwrap();
+            }
+        }
+    }
 
     let save_menu = script.save_menu.is_some() || script.save_grid.is_some();
     let effect = |ms: u32| if ms == 0 { "1".to_string() } else { effects[&(ms, Effect::Fade)].clone() };

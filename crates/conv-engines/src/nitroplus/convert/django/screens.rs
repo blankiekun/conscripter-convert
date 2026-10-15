@@ -4,7 +4,7 @@
 //! under wine).
 
 use conv_core::ir::{
-    BarAction, ButtonBar, CommandItem, CommandMenu, ConfirmDialog, GridText, LineLog, Placed, Rect, SaveGrid, Script, Switch, TitleAction, TitleButton, TitleScreen,
+    BarAction, ButtonBar, CommandItem, CommandMenu, ConfirmDialog, GridText, LineLog, Placed, Rect, SaveGrid, Script, Switch, TitleAction, TitleButton, TitleScreen, WaitIcon,
 };
 
 use super::super::{Assets, Story};
@@ -18,6 +18,17 @@ pub fn menus(a: &mut dyn Assets, script: &mut Script, _story: &Story) {
     script.save_grid = save_grid(a);
     script.confirm = confirm(a);
     script.line_log = line_log(a);
+    script.wait_icon = wait_icon(a);
+}
+
+/// The click-wait icon (system.ini `icon_page`: `Bullet-%03d.png#20`; the
+/// archive has 18 pictures of 18×18), looped after the text. The line icon
+/// (`Tumbleweed`, `icon_line`) isn't used: CONscripter has one icon. The
+/// frame time isn't in the files: 50 ms, ours.
+fn wait_icon(a: &mut dyn Assets) -> Option<WaitIcon> {
+    let parts: Vec<String> = (1..=18).map(|n| format!("cg/sys/icon/page/bullet-{n:03}.png")).collect();
+    let (image, w, h) = a.strip(&parts.iter().map(String::as_str).collect::<Vec<_>>())?;
+    Some(WaitIcon { image, frame_ms: vec![50; 18], w: w / 18, h })
 }
 
 /// The text log (`sys_backlog.nss`): the parchment scroll
