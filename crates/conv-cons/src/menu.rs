@@ -41,9 +41,6 @@ pub(crate) const BACKLOG: &str = "conv_backlog";
 pub(crate) const PRETEXT: &str = "conv_pretext";
 /// Settings levels are %902-%906 (globals); %909 = 1 once they are set.
 pub(crate) const SETTINGS_SET: &str = "%909";
-/// 1: skip was on at a choice and goes on at the next text
-/// ([`Switch::StopSkipAtChoice`] off).
-pub(crate) const KEEP_SKIP: &str = "%131";
 /// 1: skip goes on through unread text (`kidokumode 0`).
 pub(crate) const SKIP_UNREAD: &str = "%908";
 /// Milliseconds per character, for `setwindow`.
@@ -505,8 +502,6 @@ pub(crate) struct BarScreens<'a> {
     pub confirm: Option<&'a ConfirmDialog>,
     pub width: u32,
     pub height: u32,
-    /// The settings have [`Switch::VoiceKeepsPlaying`].
-    pub voice_stops: bool,
     /// The click-wait icon and the variables holding its top-left corner.
     pub wait_icon: Option<(&'a WaitIcon, [&'static str; 2])>,
     /// The variable holding the story's `gamespeed` percent: the click wait
@@ -662,10 +657,6 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, s: BarScreens) {
     w("*conv_wait_end".into());
     if let Some(slot) = icon_slot {
         w(format!("csp {slot}"));
-    }
-    if s.voice_stops {
-        // Voices play on channel 0.
-        w(format!("if {} == 1 dwavestop 0", switch_off(Switch::VoiceKeepsPlaying)));
     }
     if let Some(v) = s.game_speed {
         w(format!("gamespeed {v}"));
@@ -1560,7 +1551,7 @@ pub(crate) fn setting_var(s: Setting) -> &'static str {
 /// (pretextgosub makes the text wait for `saveon`).
 /// `ruby`: `rubyon` is set, so `strsp` draws text with a line pitch a line
 /// gap lower (the ruby goes above it); the log is drawn that much higher.
-pub(crate) fn backlog(out: &mut String, b: &Backlog, ruby: bool, keep_skip: bool) {
+pub(crate) fn backlog(out: &mut String, b: &Backlog, ruby: bool) {
     let mut w = |line: String| {
         out.push_str(&line);
         out.push('\n');
@@ -1573,9 +1564,6 @@ pub(crate) fn backlog(out: &mut String, b: &Backlog, ruby: bool, keep_skip: bool
     let gap = b.line_height - size as i32;
     let lift = if ruby { format!("-{gap}") } else { String::new() };
     w(format!("*{PRETEXT}"));
-    if keep_skip {
-        w(format!("if {KEEP_SKIP} == 1 mov {KEEP_SKIP},0:systemcall skip"));
-    }
     w("saveon".into());
     w("return".into());
     w(format!("*{BACKLOG}"));
@@ -2002,11 +1990,16 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn voices_stop_on_a_click_when_switched_off() {
+    fn voices_stop_on_a_click_by_the_engine() {
+        // The engine stops the voice (clickvoicestop); the click wait doesn't.
         let bar = ButtonBar { buttons: Vec::new(), top: None, ..Default::default() };
         let mut out = String::new();
-        button_bar(&mut out, &bar, BarScreens { save_menu: true, voice_stops: true, ..Default::default() });
-        assert!(out.contains("*conv_wait_end\nif %2910 == 1 dwavestop 0\ntexec\n"), "{out}");
+        button_bar(&mut out, &bar, BarScreens { save_menu: true, ..Default::default() });
+        assert!(out.contains("*conv_wait_end\ntexec\n"), "{out}");
+        assert_eq!(
+            crate::switches::apply(Switch::VoiceKeepsPlaying),
+            crate::switches::Apply::Commands { on: "clickvoicestop 0", off: "clickvoicestop 1" }
+        );
         assert_eq!(switch_off(Switch::ConfirmQuit), "%3646");
     }
 

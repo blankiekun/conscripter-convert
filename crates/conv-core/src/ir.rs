@@ -1308,7 +1308,7 @@ pub enum Switch {
     /// A scene already read offers to be skipped (the MAGES scene jump
     /// dialog); off: it just plays.
     SceneSkipDialog,
-    /// Skip mode stops at a choice; off: it goes on after it.
+    /// Skip and auto mode stop at a choice; off: they go on after it.
     StopSkipAtChoice,
     /// The music keeps its volume while a voice plays; off: it is lowered.
     BgmFullForVoice,

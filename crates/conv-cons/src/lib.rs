@@ -300,7 +300,6 @@ pub fn emit(script: &Script) -> String {
     let speed = if has_settings { menu::TEXT_MS } else { "20" };
     let voice_switches = script.settings.as_ref().is_some_and(|s| !s.voices.is_empty()) || script.picture_settings.as_ref().is_some_and(|s| s.voice_window.is_some());
     let duck = uses_switch(script, Switch::BgmFullForVoice);
-    let keep_skip = uses_switch(script, Switch::StopSkipAtChoice);
     if script.settings.is_some() {
         menu::settings_init(&mut out, script.settings.as_ref().unwrap());
     }
@@ -1033,11 +1032,6 @@ pub fn emit(script: &Script) -> String {
                     // For going back here (the page before it, as saves are).
                     writeln!(out, "savegame {}", menu::BACK_SLOT).unwrap();
                 }
-                // Skip stops at a choice; the next text turns it on again
-                // when the setting says so.
-                if keep_skip {
-                    writeln!(out, "if {} == 1 isskip {}", menu::switch_off(Switch::StopSkipAtChoice), menu::KEEP_SKIP).unwrap();
-                }
                 let items: Vec<String> = options.iter().map(|(t, l)| format!("\"{}\",*{}", text_safe(t), label(l))).collect();
                 writeln!(out, "select {}", items.join(",")).unwrap();
             }
@@ -1111,7 +1105,6 @@ pub fn emit(script: &Script) -> String {
             confirm: script.confirm.as_ref(),
             width: script.width,
             height: script.height,
-            voice_stops: script.settings.as_ref().is_some_and(|m| m.switches.iter().any(|s| s.switch == Switch::VoiceKeepsPlaying)),
             wait_icon: script.wait_icon.as_ref().map(|i| (i, WAIT_ICON_AT)),
             game_speed: script
                 .picture_settings
@@ -1136,7 +1129,7 @@ pub fn emit(script: &Script) -> String {
     if let Some(l) = &script.line_log {
         line_log::emit(&mut out, l);
     } else if let Some(b) = &script.backlog {
-        menu::backlog(&mut out, b, has_ruby, keep_skip);
+        menu::backlog(&mut out, b, has_ruby);
     }
     if let Some(d) = &script.confirm {
         menu::confirm(&mut out, d);

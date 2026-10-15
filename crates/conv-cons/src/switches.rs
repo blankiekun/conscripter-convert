@@ -47,7 +47,7 @@ pub(crate) fn def(s: Switch) -> (u32, Apply) {
         Switch::ConfirmTitle => (5, Read),
         Switch::ConfirmQuit => (6, Read),
         Switch::ConfirmBackToChoice => (7, Read),
-        Switch::VoiceKeepsPlaying => (8, Read),
+        Switch::VoiceKeepsPlaying => (8, Commands { on: "clickvoicestop 0", off: "clickvoicestop 1" }),
         Switch::BgmOn => (9, Mutes(Setting::BgmVolume)),
         Switch::SeOn => (10, Mutes(Setting::SeVolume)),
         Switch::VoiceOn => (11, Mutes(Setting::VoiceVolume)),
@@ -57,7 +57,7 @@ pub(crate) fn def(s: Switch) -> (u32, Apply) {
         Switch::TextShadow => (15, Commands { on: "textshadow 1", off: "textshadow 0" }),
         Switch::ConfirmChapter => (16, Read),
         Switch::SceneSkipDialog => (17, Read),
-        Switch::StopSkipAtChoice => (18, Read),
+        Switch::StopSkipAtChoice => (18, Commands { on: "selectkeep 0", off: "selectkeep 1" }),
         Switch::BgmFullForVoice => (19, Read),
         // 20-99: every game's.
         // 100-199: xuse's.
