@@ -61,6 +61,7 @@ fn confirm(a: &mut dyn Assets) -> Option<ConfirmDialog> {
         backdrop: None,
         pressed: true,
         fade_ms: 200,
+        unroll: None,
     })
 }
 
