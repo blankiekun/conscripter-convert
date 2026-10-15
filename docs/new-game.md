@@ -43,7 +43,10 @@ converted, every ending reachable.
      `docs/games/saihate-no-ima.md` and `docs/games/muramasa.md` are the
      models. It is public: no local paths (write `<install>` or
      `<game>`), only commands anyone with the game can run. Keep the
-     "Status" current in the same commits as the work. There are no
+     "Status" current in the same commits as the work, and keep it to
+     the open state: when an item is done, move its write-up to a
+     **"History"** section after "Status" (the document's last two
+     sections), so a session reads only what is open. There are no
      git-ignored handoff files; where the user keeps the game goes in
      your memory.
    - A branch per game (`xuse`, `nitroplus`), based on `origin/main`. A
@@ -55,6 +58,10 @@ converted, every ending reachable.
    - Optional: a phone-visible progress page (an artifact whose shared
      database gets one log entry per commit). The user liked following
      the work that way.
+   - Keep each session to one item: do it, commit, push, update
+     "Status", stop. A fresh session starts from "Status" and memory,
+     which is cheaper than a long one (`CLAUDE.md`, "Keeping usage
+     down").
 5. **Plan in this order:** assets → script decoding → control flow →
    text and voices → pictures and sound in scripts → system screens →
    extras → matching effects to the original. Each phase ends with
