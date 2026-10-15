@@ -159,8 +159,8 @@ pub(crate) fn emit(out: &mut String, m: &SettingsMenu, p: &PictureSettings, conf
     w(format!("if {BUTTON_VAR} == -1 || {BUTTON_VAR} == {BTN_CLOSE} goto *conv_settings_close"));
     w(format!("if {BUTTON_VAR} == {BTN_TITLE} goto *conv_settings_title"));
     w(format!("if {BUTTON_VAR} == {BTN_QUIT} goto *conv_settings_quit"));
-    w(format!("if {BUTTON_VAR} == {BTN_PREV} mov {SETTINGS_PAGE},({SETTINGS_PAGE}+{})%{pages}:goto *conv_settings_draw", pages - 1));
-    w(format!("if {BUTTON_VAR} == {BTN_NEXT} mov {SETTINGS_PAGE},({SETTINGS_PAGE}+1)%{pages}:goto *conv_settings_draw"));
+    w(format!("if {BUTTON_VAR} == {BTN_PREV} mov {SETTINGS_PAGE},({SETTINGS_PAGE}+{}) mod {pages}:goto *conv_settings_draw", pages - 1));
+    w(format!("if {BUTTON_VAR} == {BTN_NEXT} mov {SETTINGS_PAGE},({SETTINGS_PAGE}+1) mod {pages}:goto *conv_settings_draw"));
     // Every setting back to its default: the levels' and those of the
     // values on the pages.
     let mut defaults = vec![settings_defaults(m)];

@@ -76,6 +76,9 @@ pub fn lint(script: &str, has_file: &dyn Fn(&str) -> bool) -> Report {
             {
                 report.add("effect number past 255", i, cmd);
             }
+            if cmd.contains(")%") {
+                report.add("'%' after ')' (a variable, not modulo: that is 'mod'; the rest shows as text)", i, cmd);
+            }
         }
         for label in label_refs(&code) {
             if !labels.contains(&label.to_ascii_lowercase()) {
@@ -184,6 +187,7 @@ effect 300,10,100
 goto *missing
 select \"a\",*start,\"b\",*gone
 mov %1,%2*%3
+mov %1,(%1+1)%3:goto *start
 lsp 1,\":a;cg\\a.png\",0,0
 lsp 2,\":c;cg\\b.jpg\",0,0
 add $1,\".bmp\"
@@ -199,6 +203,7 @@ tateyoko 0:setwindow 1,1,1,1,1,1,1,0,1,0,1,#000000
         assert_eq!(
             kinds,
             [
+                ("'%' after ')' (a variable, not modulo: that is 'mod'; the rest shows as text)", 1),
                 ("'?' in text (read as an array: the engine exits)", 2),
                 ("effect number past 255", 1),
                 ("file not in the archives or the game directory", 1),
