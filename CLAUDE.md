@@ -129,6 +129,11 @@ each in its own worktree), and their work meets in shared code.
 ## Build and test
 
 - `cargo test`, `cargo clippy --all-targets`; `cargo build --release`.
+- `tests/snapshot.sh`: dry-runs every game present on the machine (links
+  in `$CONS_GAMES`, see the script) and says which games' `0.txt`
+  changed. Run it after any change to shared code; a change to another
+  game's script must be deliberate and said in the commit
+  (`--update` then rewrites `tests/snapshots/`).
 - Full build: `target/release/conscripter-convert convert-game <install
   dir> -o out/<game>-cons --font <a Japanese TTF, e.g. ipag.ttf> --title
   "<title>"`. Each game's exact command is in its document.
