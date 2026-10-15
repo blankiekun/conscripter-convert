@@ -728,6 +728,8 @@ struct Compiler<'a, 'b> {
     pending_by: HashMap<String, u32>,
     /// A `DrawTransition` mask for the next sync.
     pending_mask: Option<String>,
+    /// The pictures the running screen shake shakes: it stops when they go.
+    shaken: Vec<String>,
     font_size: i64,
     window: Option<TextWindow>,
     first_window: Option<TextWindow>,
@@ -1364,6 +1366,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
             pending_ms: 0,
             pending_by: HashMap::new(),
             pending_mask: None,
+            shaken: Vec::new(),
             font_size: 20,
             window: None,
             first_window: None,
@@ -1917,15 +1920,22 @@ impl<'a, 'b> Compiler<'a, 'b> {
                     self.timed(arg(1).int(), a.last().unwrap_or(&Value::Null), &targets);
                     return Value::Null;
                 }
+                // It lasts `ms` (or until the picture is deleted: shakes of
+                // 36 minutes end that way); 0 ms or 0 pixels stops it.
                 let ms = arg(1).int().max(0) as u32;
                 let (x, y) = (arg(2).int().abs() as i32, arg(3).int().abs() as i32);
                 self.sync(0);
                 if ms > 0 && (x > 0 || y > 0) {
-                    let shake = ScreenEffect::Shake { time_ms: ms, interval_ms: 16, path: false, speed: (1300, 1700), range: [(x, y), (x, y)] };
+                    let shake =
+                        ScreenEffect::Shake { time_ms: ms, interval_ms: 16, path: false, speed: (1300, 1700), range: [(x, y), (x, y)], end_ms: ms };
                     self.ops.push(Op::ScreenEffect { slot: 1, effect: Some(shake) });
+                    self.shaken = targets;
                     if !matches!(a.last(), Some(Value::Null | Value::Int(0))) {
                         self.ops.push(Op::Wait { ms });
                     }
+                } else if !self.shaken.is_empty() {
+                    self.shaken.clear();
+                    self.ops.push(Op::ScreenEffect { slot: 1, effect: None });
                 }
             }
             "ImageHorizon" => return Value::Int(self.objects.get(&self.object_name(&arg(0))).map_or(0, |o| o.w)),
@@ -2069,6 +2079,10 @@ impl<'a, 'b> Compiler<'a, 'b> {
         let mask = self.pending_mask.take();
         self.flush_sounds();
         self.check_window();
+        if !self.shaken.is_empty() && !self.shaken.iter().any(|t| self.objects.get(t).is_some_and(|o| o.opacity > 0)) {
+            self.shaken.clear();
+            self.ops.push(Op::ScreenEffect { slot: 1, effect: None });
+        }
         if self.frozen() {
             if ms > 0 {
                 self.ops.push(Op::Wait { ms });

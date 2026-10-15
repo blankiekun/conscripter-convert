@@ -535,14 +535,15 @@ pub fn emit(script: &Script) -> String {
             Op::ScreenEffect { slot, effect } => {
                 match effect {
                     None => writeln!(out, "screenshake {slot}").unwrap(),
-                    Some(ScreenEffect::Shake { time_ms, interval_ms, path, speed, range }) => {
+                    Some(ScreenEffect::Shake { time_ms, interval_ms, path, speed, range, end_ms }) => {
                         let [(x0, y0), (x1, y1)] = range;
                         writeln!(
                             out,
-                            "screenshake {slot},{time_ms},{interval_ms},{},{},{},{x0},{y0},{x1},{y1}",
+                            "screenshake {slot},{time_ms},{interval_ms},{},{},{},{x0},{y0},{x1},{y1}{}",
                             u8::from(*path),
                             speed.0,
-                            speed.1
+                            speed.1,
+                            if *end_ms > 0 { format!(",{end_ms}") } else { String::new() }
                         )
                         .unwrap();
                     }
@@ -2514,7 +2515,7 @@ end
 
     #[test]
     fn screen_effects() {
-        let shake = ScreenEffect::Shake { time_ms: 1000, interval_ms: 100, path: false, speed: (800, 800), range: [(0, 0), (30, 30)] };
+        let shake = ScreenEffect::Shake { time_ms: 1000, interval_ms: 100, path: false, speed: (800, 800), range: [(0, 0), (30, 30)], end_ms: 0 };
         let ripple = ScreenEffect::Ripple {
             map: "system/mask1001.png".into(),
             time_ms: 3000,

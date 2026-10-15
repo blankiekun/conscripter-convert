@@ -639,6 +639,20 @@ page each punctuation mark or symbol shows on (`--shot-pages`):
   `SL_rightdown`; the original does neither. Names are exact now, and
   the build's list counts the skipped calls (`skipped: no function`,
   13 names, 179 calls, `Boxframe` 153 of them).
+- The screen kept shaking through the whole prologue, from the first
+  `Shake` (`ma00_000`, 1 s) on: `screenshake` keeps its last size until
+  its slot is cleared, and the converter never cleared it. An NSS
+  `Shake` lasts its time, or until its picture is deleted (shakes of
+  500 s or 36 minutes end that way), and 0 ms or 0 px stops it. The
+  converter now gives each shake its time as `screenshake`'s new `end`
+  (CONscripter 81d0b80) and clears the slot when the shaken picture
+  goes or a stopping `Shake` comes. The checker missed it: its
+  `overlay` rule looked for an effect left on after `bg` changed, and
+  this game draws everything as sprites over `bg black`. It now also
+  reports a shake with no end left on for 30 pages (`--shake`), and
+  the trace counts the waits auto-play skips toward a shake's end. On
+  the prologue (419 pages) the old build gives two `overlay` findings,
+  the new one none.
 
 Testing notes: other agents stop engines with `pkill -x conscripter`;
 run ours through a symlink with another name (`--engine
