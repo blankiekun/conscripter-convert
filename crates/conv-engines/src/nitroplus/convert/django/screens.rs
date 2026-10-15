@@ -281,10 +281,11 @@ fn save_grid(a: &mut dyn Assets) -> Option<SaveGrid> {
 }
 
 /// The right-click menu (`sys_menu.nss`): twelve rows (236×24) at x 282
-/// from y 113 on the pull-down base (282,93); a row's normal picture is
-/// `00-` (drawn under the half see-through base, so it shows faintly),
-/// under the pointer `001` (over it), pressed `002`. No fades in the
-/// script. The keys are the ones printed on the rows (A, R, B, S, L, F,
+/// from y 113 on the pull-down base (282,93), which has the rows' dark
+/// labels; a row at rest shows the base alone (the script's `00-` lies
+/// under it, all but hidden, under wine), under the pointer `001` (red,
+/// over it), pressed `002`. The base comes and goes with a 600 ms wipe
+/// down (`DrawTransition`, `downr_0_0.png`), drawn as a fade. The keys are the ones printed on the rows (A, R, B, S, L, F,
 /// C, T; SPACE, CTRL and ESC are the engine's own).
 fn command_menu(a: &mut dyn Assets) -> Option<CommandMenu> {
     const DIR: &str = "cg/sys/menu";
@@ -307,12 +308,12 @@ fn command_menu(a: &mut dyn Assets) -> Option<CommandMenu> {
     .enumerate()
     {
         let state = |s: &str| format!("{DIR}/{name}{s}.png");
-        let (s0, s1, s2) = (state("00-"), state("001"), state("002"));
-        let (image, w, h) = a.strip(&[&s0, &s1, &s0, &s2])?;
+        let (s1, s2) = (state("001"), state("002"));
+        let (image, w, h) = a.strip(&["", &s1, "", &s2])?;
         items.push(CommandItem { button: Placed { image, x: 282, y: 113 + 24 * n as i32, w: w as i32, h: h as i32 }, action, key, label: None });
     }
     let (image, w, h) = a.image(&format!("{DIR}/プルダウン台座.png"))?;
-    Some(CommandMenu { backdrop: Placed { image, x: 282, y: 93, w: w as i32, h: h as i32 }, items, fade_ms: 0, step_ms: 0, key: None, pressed: true })
+    Some(CommandMenu { backdrop: Placed { image, x: 282, y: 93, w: w as i32, h: h as i32 }, items, fade_ms: 600, step_ms: 0, key: None, pressed: true })
 }
 
 /// The title (`boot.nss`, `TitleSet` and `TitleSelect`): the background
