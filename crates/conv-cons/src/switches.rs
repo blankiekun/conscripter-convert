@@ -1,19 +1,11 @@
 //! The settings' on/off switches ([`Switch`]): each one's index, which
 //! gives its global "off" flag, and what putting it into effect does.
-//! A new switch is one entry in [`def`], in the block of the game that
-//! adds it, and nothing in the settings screens' code.
-//!
-//! Index blocks (claim the next free number in yours; a new game takes
-//! the next hundred and says so here):
-//!
-//! | Indexes | Who |
-//! |---|---|
-//! | 0-19 | given before the blocks (shared 0-8; xuse 9-11, 13-16; 装甲悪鬼村正 12; 俺たちに翼はない 17-19) |
-//! | 20-99 | switches every game may use |
-//! | 100-199 | xuse (最果てのイマ) |
-//! | 200-299 | mages (俺たちに翼はない) |
-//! | 300-399 | nitroplus (装甲悪鬼村正) |
-//! | 400-999 | new games, 100 each |
+//! A new switch is one entry in [`def`] with the next free index (every
+//! game may use any switch: they are the IR's), and nothing in the
+//! settings screens' code. Two branches that take the same index fail
+//! `each_switch_has_its_own_index_and_flag` once merged: renumber the
+//! newer one (its setting is kept in a global flag by index, so a played
+//! build's choice of it resets).
 //!
 //! The flags (1 = off; 0, the default, is on): indexes 0-7 at %3640,
 //! 8-17 at %2910, 18-19 at %2950, 20 up at %4096 + index (the script
@@ -59,10 +51,6 @@ pub(crate) fn def(s: Switch) -> (u32, Apply) {
         Switch::SceneSkipDialog => (17, Read),
         Switch::StopSkipAtChoice => (18, Commands { on: "selectkeep 0", off: "selectkeep 1" }),
         Switch::BgmFullForVoice => (19, Read),
-        // 20-99: every game's.
-        // 100-199: xuse's.
-        // 200-299: mages's.
-        // 300-399: nitroplus's.
     }
 }
 
