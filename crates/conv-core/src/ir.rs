@@ -1143,6 +1143,30 @@ pub struct MusicRoom {
     pub songs: Vec<MusicSong>,
     /// The room's own background picture; `None` keeps the extras menu's.
     pub background: Option<String>,
+    /// Buttons for the songs before and after, play/stop and the volume.
+    pub player: Option<MusicPlayer>,
+}
+
+/// A [`MusicRoom`]'s player bar. Two cells each (at rest, under the
+/// pointer): `previous` and `next` play the song before or after the one
+/// playing (none past the ends, nothing while none plays), `play` stops
+/// the song playing or plays the last one again (the first at first),
+/// shown as `playing` while a song plays. The room has its own music
+/// volume, 0-100, from the settings' (100 without settings) and put back
+/// when the room is left: `lower` and `raise` change it by 10, a click on
+/// `bar` sets it by where the click is along it; `knob` shows it, its
+/// left edge at `knob.x` + volume × `knob_travel` / 100.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MusicPlayer {
+    pub previous: Placed,
+    pub play: Placed,
+    pub playing: String,
+    pub next: Placed,
+    pub lower: Placed,
+    pub raise: Placed,
+    pub bar: Rect,
+    pub knob: Placed,
+    pub knob_travel: i32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

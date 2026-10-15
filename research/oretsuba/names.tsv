@@ -58,3 +58,4 @@
 81166d70	cfg_system_volume	system sound volume (default 55)
 81166d4c	cfg_message_speed	message speed (default 55: 普通)
 8119327f	cfg_window_opacity	window opacity 0-100 (default 70)
+8106551c	music_room_new	music room constructor: mode +0x30 = 0, then play-on +0x2d = mode odd (0), repeat +0x2c = 1; nothing else writes them on the Vita

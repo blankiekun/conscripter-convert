@@ -1045,6 +1045,7 @@ impl AssetBank {
             exit: self.place("music_exit", &column_cells(&get(common, 15)?, 4, &[0, 1]), None, 624, 470)?,
             songs,
             background: None,
+            player: None,
         })
     }
 

@@ -17,8 +17,8 @@
 use image::{Rgba, RgbaImage, imageops};
 
 use conv_core::ir::{
-    CgGallery, CgViewer, ExtrasAction, ExtrasItem, ExtrasMenu, GallerySlot, GalleryTab, MovieRoom, MusicRoom, MusicSong, Placed,
-    RoomMovie,
+    CgGallery, CgViewer, ExtrasAction, ExtrasItem, ExtrasMenu, GallerySlot, GalleryTab, MovieRoom, MusicPlayer, MusicRoom, MusicSong, Placed,
+    Rect, RoomMovie,
 };
 
 use super::assets::ArchiveAssets;
@@ -45,15 +45,30 @@ const TRACKS: [u32; 67] = [
 const TITLE_Y: u32 = 574;
 const TITLE_H: u32 = 30;
 const TITLES_LEFT: usize = 35;
-/// Ours: the list panel stretched over the screen, three columns of 23
-/// titles at 3/5 size in it.
+/// Ours: the list panel stretched over the screen under the player bar,
+/// three columns of 23 titles at 3/5 size in it.
 const PANEL: (u32, u32, u32, u32) = (78, 238, 804, 238);
-const PANEL_TO: (u32, u32, u32, u32) = (24, 80, 912, 420);
+const PANEL_TO: (u32, u32, u32, u32) = (24, 96, 912, 408);
 const MUSIC_ROWS: usize = 23;
 const MUSIC_X: i32 = 44;
 const MUSIC_DX: i32 = 292;
-const MUSIC_Y: i32 = 90;
+const MUSIC_Y: i32 = 104;
 const MUSIC_DY: i32 = 17;
+/// The player bar (the eboot's music_room_init and _draw, which place
+/// sprites by their centres): ◁◁ ▷ ▷▷ lit (24×24 cells at y 545 of
+/// `mu_bg.png`, x 295, 319, 343) centred at x 453, 490, 524, y 77; the
+/// volume knob (a snowflake, 30×30 at 264, 545) centred at x 605 +
+/// volume × 203 / 100, y 74. ◀ ▶ and the bar between them are the
+/// background's.
+const PLAYER_CELLS: [(u32, i32); 3] = [(295, 453), (319, 490), (343, 524)];
+const PLAYER_Y: i32 = 77;
+const KNOB: (u32, u32, u32) = (264, 545, 30);
+const KNOB_ZERO: i32 = 605;
+const KNOB_TRAVEL: i32 = 203;
+const KNOB_Y: i32 = 74;
+const LOWER: (u32, u32, u32, u32) = (576, 64, 18, 20);
+const RAISE: (u32, u32, u32, u32) = (822, 64, 18, 20);
+const BAR: (i32, i32, i32, i32) = (596, 62, 226, 24);
 
 fn place(assets: &mut ArchiveAssets, name: &str, img: &RgbaImage, x: i32, y: i32) -> Placed {
     let image = assets.put_system_png(name, img);
@@ -137,11 +152,11 @@ fn tinted(img: &RgbaImage, colour: [u8; 3]) -> RgbaImage {
 fn music(assets: &mut ArchiveAssets, labels: &Labels) -> Option<MusicRoom> {
     let atlas = assets.system_image("mu_bg.png")?;
     // The background with its list panel over the other panels; the
-    // player's bar and the Vita's button hints covered with the album's
-    // snow (same frame, no bar, its own hints further right); MUSIC stays.
+    // Vita's button hints covered with the album's snow (same frame, its
+    // own hints further right); MUSIC and the player bar stay.
     let album = assets.system_image("gm_bg.png")?;
     let mut room = imageops::crop_imm(&atlas, 0, 0, SCREEN_W as u32, SCREEN_H as u32).to_image();
-    for (x, y, w, h, to_x) in [(370, 34, 530, 66, 370), (610, 480, 170, 60, 610), (610, 480, 190, 60, 770)] {
+    for (x, y, w, h, to_x) in [(610, 480, 170, 60, 610), (580, 480, 190, 60, 770)] {
         imageops::replace(&mut room, &imageops::crop_imm(&album, x, y, w, h).to_image(), to_x, y as i64);
     }
     let panel = stretched(&imageops::crop_imm(&atlas, PANEL.0, PANEL.1, PANEL.2, PANEL.3).to_image(), PANEL_TO.2, PANEL_TO.3);
@@ -166,8 +181,41 @@ fn music(assets: &mut ArchiveAssets, labels: &Labels) -> Option<MusicRoom> {
         imageops::crop_imm(&exit_img, 0, 0, exit_img.width() / 3, exit_img.height()).to_image(),
         imageops::crop_imm(&exit_img, exit_img.width() / 3, 0, exit_img.width() / 3, exit_img.height()).to_image(),
     ]);
+    let player = Some(player(assets, &atlas, &room));
     let background = Some(assets.put_system_png("music_bg", &room));
-    Some(MusicRoom { header: place(assets, "music_header", &header, 24, 24), exit: place(assets, "music_exit", &exit, 860, 506), songs, background })
+    Some(MusicRoom {
+        header: place(assets, "music_header", &header, 24, 24),
+        exit: place(assets, "music_exit", &exit, 860, 506),
+        songs,
+        background,
+        player,
+    })
+}
+
+/// The player bar's buttons over `room` (see [`PLAYER_CELLS`]).
+fn player(assets: &mut ArchiveAssets, atlas: &RgbaImage, room: &RgbaImage) -> MusicPlayer {
+    let mut buttons = PLAYER_CELLS.iter().enumerate().map(|(i, &(cx, x))| {
+        let lit = imageops::crop_imm(atlas, cx, 545, 24, 24).to_image();
+        let none = RgbaImage::new(24, 24);
+        let (x, y) = (x - 12, PLAYER_Y - 12);
+        let button = place(assets, &format!("music_player{i}"), &cells(&[none, lit.clone()]), x, y);
+        (button, lit)
+    });
+    let (previous, _) = buttons.next().unwrap();
+    let (play, lit) = buttons.next().unwrap();
+    let (next, _) = buttons.next().unwrap();
+    let playing = assets.put_system_png("music_player_on", &cells(&[lit.clone(), lit]));
+    let arrow = |assets: &mut ArchiveAssets, name: &str, (x, y, w, h): (u32, u32, u32, u32)| {
+        let img = imageops::crop_imm(room, x, y, w, h).to_image();
+        place(assets, name, &cells(&[img.clone(), tinted(&img, [230, 120, 20])]), x as i32, y as i32)
+    };
+    let lower = arrow(assets, "music_lower", LOWER);
+    let raise = arrow(assets, "music_raise", RAISE);
+    let knob = imageops::crop_imm(atlas, KNOB.0, KNOB.1, KNOB.2, KNOB.2).to_image();
+    let half = KNOB.2 as i32 / 2;
+    let knob = place(assets, "music_knob", &knob, KNOB_ZERO - half, KNOB_Y - half);
+    let bar = Rect { x: BAR.0, y: BAR.1, w: BAR.2, h: BAR.3 };
+    MusicPlayer { previous, play, playing, next, lower, raise, bar, knob, knob_travel: KNOB_TRAVEL }
 }
 
 /// The movie room in the order the eboot's room plays them (OP00-OP03.usm
