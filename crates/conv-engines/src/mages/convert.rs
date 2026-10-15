@@ -23,7 +23,7 @@ use std::collections::{BTreeMap, HashMap};
 
 use conv_core::ir::{
     Animation, ArithOp, ButtonScreen, Compare, FILTER_BLEND_COPY, FILTER_BLEND_MULTIPLY, FILTER_BLUR, FILTER_COLOUR, FILTER_GREYSCALE, FILTER_MONOTONE, FILTER_NEGATIVE, Noise, Op, Operand, ScreenEffect, SlideLayer, SourceLoc, SpriteChange, SpriteFilter,
-    Placed, SpritePlacement, Switch, TextWindow, TransitionStyle, Var, Voice,
+    MotionEnd, MotionKey, Placed, SpritePlacement, Switch, TextWindow, TransitionStyle, Var, Voice,
 };
 
 use super::tasks::{Block, Scene, Val, parse};
@@ -131,14 +131,87 @@ pub struct Character {
     pub sprites: HashMap<[i64; 4], u32>,
 }
 
-/// A character action (`chract`): keyframes (frame, x, y offsets in
-/// script units) and whether it repeats until `CharacterActionEnd`.
+/// A character action (`chract`): keyframes and whether it repeats until
+/// `CharacterActionEnd`. The eboot (0x81008008) reads each field of a
+/// frame (`:X`, `:Y`, `:Roll`, `:Scale`, `:Alpha`, `:Priority`) as a track
+/// of its own, keyed where the field is given; the keys here are the
+/// tracks sampled at every frame any of them has a key on (straight
+/// between keys; a key's easing, given once, is left out, and so is
+/// `:Priority`).
 #[derive(Debug, Clone, Default)]
 pub struct Action {
-    pub keys: Vec<(i64, i64, i64)>,
+    pub keys: Vec<ActionKey>,
     pub looped: bool,
     /// Its length in frames (`:Frame`): a loop starts again after it.
     pub frames: i64,
+    /// `:EndSet 1` (read only when it doesn't loop): the character stays
+    /// as the last key leaves it (moved off, faded out).
+    pub end_set: bool,
+}
+
+/// A frame of an [`Action`]: the offset in script units, the scale, the
+/// roll (radians) and the alpha (0-255).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ActionKey {
+    pub frame: i64,
+    pub x: f64,
+    pub y: f64,
+    pub scale: f64,
+    pub roll: f64,
+    pub alpha: f64,
+}
+
+impl ActionKey {
+    /// Only an offset: what `spmotion` can do.
+    fn plain(&self) -> bool {
+        self.scale == 1.0 && self.roll == 0.0 && self.alpha >= 255.0
+    }
+}
+
+/// The value of a track (frame, value; sorted) at `frame`: straight
+/// between its keys, held before the first and after the last.
+fn track_at(track: &[(i64, f64)], frame: i64, default: f64) -> f64 {
+    let (Some(first), Some(last)) = (track.first(), track.last()) else { return default };
+    if frame <= first.0 {
+        return first.1;
+    }
+    if frame >= last.0 {
+        return last.1;
+    }
+    let i = track.iter().rposition(|k| k.0 <= frame).unwrap_or(0);
+    let (a, b) = (track[i], track[i + 1]);
+    a.1 + (b.1 - a.1) * (frame - a.0) as f64 / (b.0 - a.0) as f64
+}
+
+impl Action {
+    fn parse(a: &Block) -> Action {
+        let names = ["X", "Y", "Scale", "Roll", "Alpha"];
+        let mut tracks: Vec<Vec<(i64, f64)>> = vec![Vec::new(); names.len()];
+        let mut frames: Vec<i64> = Vec::new();
+        for f in &a.children {
+            let Some(frame) = f.name.strip_prefix("Frame").and_then(|n| n.parse().ok()) else { continue };
+            for (track, name) in tracks.iter_mut().zip(names) {
+                if let Some(v) = f.float(name) {
+                    track.push((frame, v));
+                    frames.push(frame);
+                }
+            }
+        }
+        for track in &mut tracks {
+            track.sort_by_key(|k| k.0);
+        }
+        frames.sort_unstable();
+        frames.dedup();
+        let keys = frames
+            .into_iter()
+            .map(|frame| {
+                let v = |i: usize, default| track_at(&tracks[i], frame, default);
+                ActionKey { frame, x: v(0, 0.0), y: v(1, 0.0), scale: v(2, 1.0), roll: v(3, 0.0), alpha: v(4, 255.0) }
+            })
+            .collect();
+        let looped = a.int("Loop").unwrap_or(0) == 1;
+        Action { keys, looped, frames: a.int("Frame").unwrap_or(0), end_set: !looped && a.int("EndSet").unwrap_or(0) == 1 }
+    }
 }
 
 /// The game: every scene plus the tables in adv.txt and chrNNN.txt.
@@ -185,17 +258,7 @@ impl Game {
                 for b in blocks.iter().filter(|b| b.name == "Action") {
                     for a in &b.children {
                         let Some(n) = a.name.strip_prefix("Action").and_then(|n| n.parse().ok()) else { continue };
-                        let mut keys: Vec<(i64, i64, i64)> = a
-                            .children
-                            .iter()
-                            .filter_map(|f| {
-                                let frame = f.name.strip_prefix("Frame")?.parse().ok()?;
-                                Some((frame, f.int("X").unwrap_or(0), f.int("Y").unwrap_or(0)))
-                            })
-                            .collect();
-                        keys.sort_unstable();
-                        let frames = a.int("Frame").unwrap_or(0);
-                        g.actions.insert(n, Action { keys, looped: a.int("Loop").unwrap_or(0) != 0, frames });
+                        g.actions.insert(n, Action::parse(a));
                     }
                 }
             } else if file == "CGMODE" {
@@ -325,6 +388,8 @@ struct Shown {
 #[derive(Debug, Clone, Copy)]
 struct Motion {
     looped: bool,
+    /// It leaves the character at its last key ([`MotionEnd::Keep`]).
+    keep: bool,
     ms: u32,
     since_message: usize,
 }
@@ -467,6 +532,18 @@ impl Lowering<'_> {
         if opened {
             self.out.ops.push(Op::EndTransition);
             self.staging = false;
+        }
+    }
+
+    /// Takes a motion that leaves `key`'s character at its last key to its
+    /// end (the engine does when another motion command reaches the
+    /// sprite), before the character is moved or shown anew.
+    fn settle(&mut self, key: &str) {
+        let Some(s) = self.shown.get_mut(key) else { return };
+        if s.motion.is_some_and(|m| m.keep) {
+            s.motion = None;
+            let layer = s.layer;
+            self.out.ops.push(Op::SpriteMotion { layer, keys: vec![], looped: false });
         }
     }
 
@@ -676,6 +753,7 @@ impl Lowering<'_> {
                         continue;
                     };
                     let key = format!("c{}", number.first().copied().unwrap_or(-1));
+                    self.settle(&key);
                     let x = sx(c.int_at("Position", 0).unwrap_or(640));
                     // y 0 is the usual height: a picture taller than the
                     // screen (the standing characters, cut at the waist)
@@ -712,6 +790,7 @@ impl Lowering<'_> {
                 let time = ms(t.int("Time").unwrap_or(0));
                 for c in t.children.iter().filter(|c| c.name.starts_with("Chara")) {
                     let key = format!("c{}", c.int("Number").unwrap_or(-1));
+                    self.settle(&key);
                     let Some(s) = self.shown.get(&key).cloned() else { continue };
                     let x = c.int_at("Position", 0).map_or(s.x, sx);
                     // y is from the character's usual height.
@@ -844,22 +923,58 @@ impl Lowering<'_> {
                     else {
                         continue;
                     };
-                    // Offsets from its place, keyframe to keyframe; a loop
-                    // goes back to its first key at the action's length.
-                    let mut keys: Vec<(u32, i32, i32)> = a.keys.iter().map(|&(f, x, y)| (ms(f), sx(x), sy(y))).collect();
+                    // Keyframe to keyframe from its place; a loop goes back
+                    // to its first key at the action's length.
+                    let mut keys: Vec<MotionKey> = a
+                        .keys
+                        .iter()
+                        .map(|k| MotionKey {
+                            ms: ms(k.frame),
+                            x: sx(k.x.round() as i64),
+                            y: sy(k.y.round() as i64),
+                            zoom: (k.scale * 100.0).round().max(0.0) as u32,
+                            // Radians, clockwise on the screen (our guess).
+                            angle: (-k.roll.to_degrees()).round() as i32,
+                            opacity: (k.alpha.clamp(0.0, 255.0) * 256.0 / 255.0).round() as u32,
+                        })
+                        .collect();
                     if a.looped
-                        && let Some(&(_, x, y)) = keys.first()
-                        && a.frames > a.keys.last().map_or(0, |k| k.0)
+                        && let Some(&first) = keys.first()
+                        && a.frames > a.keys.last().map_or(0, |k| k.frame)
                     {
-                        keys.push((ms(a.frames), x, y));
+                        keys.push(MotionKey { ms: ms(a.frames), ..first });
                     }
-                    let length = keys.last().map_or(0, |k| k.0);
+                    let length = keys.last().map_or(0, |k| k.ms);
                     if keys.is_empty() || length == 0 {
                         continue;
                     }
-                    self.out.ops.push(Op::SpriteMotion { layer: s.layer, keys, looped: a.looped });
-                    let motion = Motion { looped: a.looped, ms: length, since_message: self.messages };
-                    self.shown.insert(key, Shown { motion: Some(motion), ..s });
+                    // `:EndSet` leaves the character where the last key
+                    // has it; spmotion's motions end back at the place.
+                    let last = *keys.last().unwrap();
+                    let keep = a.end_set && (last.x, last.y, last.zoom, last.opacity) != (0, 0, 100, 256);
+                    self.settle(&key);
+                    if !keep && a.keys.iter().all(ActionKey::plain) {
+                        let keys = keys.iter().map(|k| (k.ms, k.x, k.y)).collect();
+                        self.out.ops.push(Op::SpriteMotion { layer: s.layer, keys, looped: a.looped });
+                    } else {
+                        let end = if a.looped {
+                            MotionEnd::Loop
+                        } else if keep {
+                            MotionEnd::Keep
+                        } else {
+                            MotionEnd::Back
+                        };
+                        self.out.ops.push(Op::SpriteMotion2 { layer: s.layer, keys, end });
+                    }
+                    let motion = Motion { looped: a.looped, keep, ms: length, since_message: self.messages };
+                    let mut s = Shown { motion: Some(motion), ..s };
+                    if keep {
+                        s.x += last.x;
+                        s.y += last.y;
+                        s.zoom = s.zoom * last.zoom / 100;
+                        s.look.hidden |= last.opacity == 0;
+                    }
+                    self.shown.insert(key, s);
                     if t.int("EndWait").unwrap_or(0) != 0 && !a.looped {
                         self.out.ops.push(Op::Wait { ms: length });
                     }
@@ -1391,4 +1506,25 @@ pub fn compile(game: &Game, scenes: &[String], assets: &mut dyn Assets) -> Compi
         }
     }
     l.out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn action_tracks_are_sampled_at_every_key() {
+        // Y is keyed at frames 0 and 20 only, Roll at 10, Alpha at 20.
+        let src = "[Action]\n{\n\t[Action7]\n\t{\n\t\t:Frame\t30\n\t\t:Loop\t0\n\t\t:EndSet\t1\n\
+            \t\t[Frame0]\n\t\t{\n\t\t\t:X\t0\n\t\t\t:Y\t0\n\t\t}\n\
+            \t\t[Frame10]\n\t\t{\n\t\t\t:X\t100\n\t\t\t:Roll\t0.5,2,1\n\t\t}\n\
+            \t\t[Frame20]\n\t\t{\n\t\t\t:X\t200\n\t\t\t:Y\t-40\n\t\t\t:Alpha\t0\n\t\t}\n\t}\n}\n";
+        let blocks = parse(src).unwrap();
+        let a = Action::parse(&blocks[0].children[0]);
+        assert!(a.end_set && !a.looped);
+        let k: Vec<_> = a.keys.iter().map(|k| (k.frame, k.x, k.y, k.roll, k.alpha)).collect();
+        // A track holds its first key before it and its last after it.
+        assert_eq!(k, vec![(0, 0.0, 0.0, 0.5, 0.0), (10, 100.0, -20.0, 0.5, 0.0), (20, 200.0, -40.0, 0.5, 0.0)]);
+        assert!(!a.keys[0].plain());
+    }
 }

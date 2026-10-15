@@ -496,6 +496,11 @@ pub enum Op {
     /// zoomed about the centre of its place. A movie played as frames
     /// while the script goes on.
     AnimatedSprite { layer: u32, sprite: SpritePlacement, cells: u32, frame_ms: u32, looped: bool, zoom: (i32, i32) },
+    /// [`Op::SpriteMotion`] with a zoom, an angle and an opacity in each
+    /// key ([`MotionKey`]), and what happens after the last key
+    /// ([`MotionEnd`]). A character jumping toward the viewer, spinning,
+    /// or walking off and fading out (俺たちに翼はない's CharacterAction).
+    SpriteMotion2 { layer: u32, keys: Vec<MotionKey>, end: MotionEnd },
 }
 
 /// A puzzle of numbered tiles (装甲悪鬼村正's 立方陣): the player clicks a
@@ -1915,4 +1920,31 @@ pub struct SlotCg {
     /// shown at its x, y.
     pub picture: Placed,
     pub thumbnail: String,
+}
+
+/// A key of [`Op::SpriteMotion2`], `ms` from the motion's start: the offset
+/// from the sprite's place (pixels), its zoom (percent, 100 = its size) and
+/// angle (degrees, counterclockwise) about the centre of its place, and its
+/// opacity (0-256 of its own); straight from key to key.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MotionKey {
+    pub ms: u32,
+    pub x: i32,
+    pub y: i32,
+    pub zoom: u32,
+    pub angle: i32,
+    pub opacity: u32,
+}
+
+/// After the last key of an [`Op::SpriteMotion2`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MotionEnd {
+    /// The sprite is back at its place, size and opacity.
+    Back,
+    /// The motion starts again.
+    Loop,
+    /// The sprite stays at the last key's place, zoom and opacity (its
+    /// angle goes back to 0). A later motion on it (also stopping one)
+    /// first takes a motion still running to its end.
+    Keep,
 }

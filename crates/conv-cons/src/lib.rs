@@ -514,6 +514,7 @@ pub fn emit(script: &Script) -> String {
                 writeln!(out, "if {} == {} goto *{}", menu::switch_off(*switch), u8::from(!*on), label(target)).unwrap();
             }
             Op::SpriteMotion { layer, keys, looped } => motion::emit(&mut out, *layer, keys, *looped),
+            Op::SpriteMotion2 { layer, keys, end } => motion::emit2(&mut out, *layer, keys, *end),
             Op::SpriteZoom { layer, x, y, from, to, ms } => {
                 let ease = move_ease.take();
                 let routine = ease.map(|(e, n)| ease::label(true, e, n));
