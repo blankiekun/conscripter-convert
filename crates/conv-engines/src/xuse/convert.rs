@@ -1455,6 +1455,7 @@ impl AssetBank {
             backdrop: None,
             pressed: false,
             fade_ms: 0,
+            unroll: None,
         })
     }
 
