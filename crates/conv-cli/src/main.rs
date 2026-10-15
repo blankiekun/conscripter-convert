@@ -82,9 +82,10 @@ enum Command {
         /// Game data directory (Muramasa.exe or Django.exe and the *.npa archives)
         game: PathBuf,
         /// Script file and scene; the scene defaults to the file's name
-        /// (its content scene)
+        /// (its content scene). Without it, the game's whole story
+        /// (続・殺戮のジャンゴ; 装甲悪鬼村正 needs --file and --chain)
         #[arg(long)]
-        file: String,
+        file: Option<String>,
         #[arg(long)]
         scene: Option<String>,
         /// Play this many story files in a row from --file, following
@@ -292,7 +293,7 @@ fn main() -> Result<()> {
             convert_script(&game, script, &output, font.as_deref(), &title, webp.get(), audio.format()?)
         }
         Command::ConvertNss { game, file, scene, chain, output, font, title, loose, dry_run, webp, audio } => {
-            convert_nss(&game, &file, scene.as_deref(), chain, &output, font.as_deref(), &title, loose, dry_run, webp.get(), audio.format()?)
+            convert_nss(&game, file.as_deref(), scene.as_deref(), chain, &output, font.as_deref(), &title, loose, dry_run, webp.get(), audio.format()?)
         }
         Command::Lint { dir } => {
             let report = build::lint_dir(&dir, true)?;
@@ -823,7 +824,7 @@ fn hex(bytes: &[u8]) -> String {
 #[allow(clippy::too_many_arguments)]
 fn convert_nss(
     game: &Path,
-    file: &str,
+    file: Option<&str>,
     scene: Option<&str>,
     chain: Option<usize>,
     output: &Path,
@@ -860,7 +861,6 @@ fn convert_nss(
     let (cg, sound, voice) = (npas.next().unwrap(), npas.next().unwrap(), npas.next().unwrap());
     let mut assets = NpaAssets::new(cg, sound, voice, output);
     assets.out.dry_run = dry_run;
-    let scene = scene.unwrap_or(file);
     // The game's own additions to the compiler, by its exe.
     let game = match exe.file_name().and_then(|n| n.to_str()) {
         Some("Muramasa.exe") => &convert::MURAMASA,
@@ -868,7 +868,13 @@ fn convert_nss(
         _ => &convert::Game::PLAIN,
     };
     assets.screen = game.screen;
+    let (file, scene) = match (file, game.story) {
+        (Some(file), _) => (file, scene.unwrap_or(file)),
+        (None, Some((file, story))) => (file, scene.unwrap_or(story)),
+        (None, None) => anyhow::bail!("this game needs --file"),
+    };
     let compiled = match chain {
+        _ if game.story.is_some_and(|s| s.0 == file) => convert::compile_story(&files, file, scene, game, &mut assets).map_err(anyhow::Error::msg)?,
         Some(n) => {
             let (compiled, played) = convert::compile_run(&files, file, n, game, &mut assets).map_err(anyhow::Error::msg)?;
             println!("{} files: {}", played.len(), played.join(" "));

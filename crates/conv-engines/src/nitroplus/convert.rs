@@ -102,6 +102,10 @@ pub struct Game {
     pub screen: (i64, i64),
     /// The boot script: the files it `#include`s are the helper library.
     boot: &'static str,
+    /// The scene (file, scene) that plays the whole story by calling the
+    /// chapter files ([`compile_story`]), for a game without
+    /// 装甲悪鬼村正's `$GameName` chain.
+    pub story: Option<(&'static str, &'static str)>,
 }
 
 impl Game {
@@ -116,6 +120,7 @@ impl Game {
         subroutines: &[],
         screen: (SCREEN_W, SCREEN_H),
         boot: BOOT,
+        story: None,
     };
 
     /// Fills `script`'s system screens.
@@ -193,6 +198,29 @@ pub fn compile_scene(files: &BTreeMap<String, NssFile>, file: &str, scene: &str,
     let base = c.next_dynamic.max(FLAG_LOCAL_BASE);
     c.subroutines(&initial, base);
     c.ops.push(Op::Label(end.to_string()));
+    Ok(Compiled { ops: c.ops, window: c.first_window, notes: c.notes, flags: c.flags, voice_classes: c.voice_classes })
+}
+
+/// Compiles a whole story that one scene drives by calling the chapter
+/// files in turn (続・殺戮のジャンゴ's `dja000_開始スクリプト.nss`,
+/// `main`): [`compile_scene`] with the story flags kept at run time, so a
+/// choice's flag decides what follows it when the game is played.
+pub fn compile_story(files: &BTreeMap<String, NssFile>, file: &str, scene: &str, game: &'static Game, assets: &mut dyn Assets) -> Result<Compiled, String> {
+    let (file, _) = files.get_key_value(file).ok_or_else(|| format!("no script {file}"))?;
+    let mut c = Compiler::new(files, file, game, assets);
+    c.flags = story_flags(files, game);
+    for (k, &v) in &c.flags {
+        c.vars.insert(k.clone(), Value::Runtime(v));
+    }
+    c.next_dynamic = c.flags.values().filter(|v| !v.global).map(|v| v.index + 1).max().unwrap_or(FLAG_LOCAL_BASE);
+    let body = c.scene(file, scene).ok_or_else(|| format!("no scene {scene} in {file}"))?;
+    let initial = c.snapshot();
+    c.run_top(body);
+    c.sync(0);
+    c.ops.push(Op::Jump(RUN_END.to_string()));
+    let base = c.next_dynamic;
+    c.subroutines(&initial, base);
+    c.ops.push(Op::Label(RUN_END.to_string()));
     Ok(Compiled { ops: c.ops, window: c.first_window, notes: c.notes, flags: c.flags, voice_classes: c.voice_classes })
 }
 
@@ -763,6 +791,10 @@ struct Compiler<'a, 'b> {
     first_window: Option<TextWindow>,
     window_visible: bool,
     texts_shown: usize,
+    /// `Request("@text131", Enter)` before the text block `[text131]`
+    /// exists (続・殺戮のジャンゴ's `TypeBegin`): the block shows its
+    /// pages as soon as it runs.
+    pending_enter: Option<String>,
     voice_classes: Vec<String>,
     ops: Vec<Op>,
     notes: BTreeMap<String, usize>,
@@ -1401,6 +1433,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
             first_window: None,
             window_visible: false,
             texts_shown: 0,
+            pending_enter: None,
             voice_classes: Vec::new(),
             ops: Vec::new(),
             notes: BTreeMap::new(),
@@ -1433,8 +1466,10 @@ impl<'a, 'b> Compiler<'a, 'b> {
         })
     }
 
-    /// Current file first, then the library; later definitions win. Names
-    /// are case-sensitive, as in the exe (`call_nss_function`).
+    /// Current file first, then the library, then what the current file
+    /// `#include`s besides (続・殺戮のジャンゴ's chapters include
+    /// `function_select.nss`, its boot script doesn't); later definitions
+    /// win. Names are case-sensitive, as in the exe (`call_nss_function`).
     fn function(&self, name: &str) -> Option<(&'a str, &'a Function)> {
         let find = |file: &'a str| {
             self.files.get(file)?.items.iter().rev().find_map(|item| match item {
@@ -1442,7 +1477,12 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 _ => None,
             })
         };
-        std::iter::once(self.file).chain(self.library.iter().rev().copied()).find_map(find)
+        let files = self.files;
+        let includes = files.get(self.file).into_iter().flat_map(|f| f.items.iter().rev()).filter_map(move |item| match item {
+            Item::Include(path) => files.get_key_value(path.rsplit('/').next().unwrap_or(path)).map(|(k, _)| k.as_str()),
+            _ => None,
+        });
+        std::iter::once(self.file).chain(self.library.iter().rev().copied()).chain(includes).find_map(find)
     }
 
     /// Statements of the scene itself: sounds started by a statement are
@@ -1888,7 +1928,11 @@ impl<'a, 'b> Compiler<'a, 'b> {
             }
             "Request" => {
                 let action = arg(1).string().to_ascii_lowercase();
-                for t in self.matching(&arg(0)) {
+                let targets = self.matching(&arg(0));
+                if targets.is_empty() && action == "enter" {
+                    self.pending_enter = Some(arg(0).string().trim_start_matches('@').to_string());
+                }
+                for t in targets {
                     self.request(&t, &action);
                 }
             }
@@ -2314,6 +2358,13 @@ impl<'a, 'b> Compiler<'a, 'b> {
         self.create(name.clone(), Kind::Text(text), priority, 0, 0);
         self.vars.insert("$SYSTEM_present_preprocess".into(), Value::Str(format!("@{window}")));
         self.vars.insert("$SYSTEM_present_text".into(), Value::Str(format!("@{name}")));
+        if let Some(pending) = self.pending_enter.take() {
+            if name.rsplit('/').next() == Some(pending.as_str()) {
+                self.show_text(&name);
+            } else {
+                self.note("Request Enter for another text than the next");
+            }
+        }
     }
 
     /// Splits a text block into pages: a blank line ends a page, `<k>`
