@@ -1336,6 +1336,7 @@ impl AssetBank {
             voice_column_x: 440,
             voice_pitch: 50,
             skip_unread_label: Some("未読テキストもスキップする".into()),
+            pictures: None,
             // The original's マウス and 確認メッセージ pages (labels as there).
             switches: [
                 ("マウスホイールでテキストを進める", Switch::WheelReadsOn),

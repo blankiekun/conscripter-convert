@@ -392,6 +392,7 @@ pub fn settings_menu(assets: &mut ArchiveAssets, labels: &Labels) -> Option<Sett
         voice_column_x: 440,
         voice_pitch: 50,
         skip_unread_label: Some("未読テキストもスキップする".into()),
+        pictures: None,
         switches: [
             ("マウスホイールでテキストを進める", Switch::WheelReadsOn),
             ("マウスホイールで履歴を閉じる", Switch::WheelClosesLog),

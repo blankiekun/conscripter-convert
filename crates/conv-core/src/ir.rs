@@ -456,6 +456,8 @@ pub enum Op {
     /// keys: stop the motion. A character trembling while it talks, a
     /// background shaking.
     SpriteMotion { layer: u32, keys: Vec<(u32, i32, i32)>, looped: bool },
+    /// Jump to `label` if `switch` (a setting, [`Switch`]) is `on`.
+    IfSwitch { switch: Switch, on: bool, label: String },
 }
 
 /// A puzzle of numbered tiles (装甲悪鬼村正's 立方陣): the player clicks a
@@ -1066,6 +1068,59 @@ pub struct SettingsMenu {
     pub skip_unread_label: Option<String>,
     /// On/off options on their own page (all on by default).
     pub switches: Vec<SettingSwitch>,
+    /// Draw the screen from pictures instead (see [`PictureSettings`]);
+    /// the fields above still give the settings' defaults and what they
+    /// apply.
+    pub pictures: Option<Box<PictureSettings>>,
+}
+
+/// A settings screen made of a game's own pictures: pages switched with
+/// `prev`/`next`, each a background with its rows' words drawn in and a
+/// control per row. Every [`Placed`] button has two cells: normal, under
+/// the pointer.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PictureSettings {
+    pub pages: Vec<SettingsPage>,
+    pub prev: Placed,
+    pub next: Placed,
+    pub close: Placed,
+    /// Puts every setting back to its default.
+    pub defaults: Placed,
+    /// Back to the title and quit, shown from the game only.
+    pub title: Placed,
+    pub quit: Placed,
+}
+
+/// One page of [`PictureSettings`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SettingsPage {
+    /// Full screen, the rows' labels drawn in.
+    pub base: Placed,
+    pub rows: Vec<RowControl>,
+}
+
+/// A row's control on a [`SettingsPage`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RowControl {
+    /// A level 0-10: `bars` (11 pictures, levels 0 to 10) at `bar`'s place,
+    /// with buttons lowering and raising it by one.
+    Slider { value: SettingValue, bar: Placed, bars: Vec<String>, minus: Placed, plus: Placed },
+    /// Options side by side: (the value it sets, its button). The current
+    /// one is drawn with its second cell.
+    Choice { value: SettingValue, options: Vec<(i32, Placed)> },
+}
+
+/// What a [`RowControl`] sets.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SettingValue {
+    /// A level 0-10.
+    Level(Setting),
+    /// 1 on, 0 off.
+    Switch(Switch),
+    /// Skip goes on through text not read before: 1 yes.
+    SkipUnread,
+    /// The voices of all these characters: 1 on, 0 off.
+    Voices(Vec<u32>),
 }
 
 /// One on/off option of [`SettingsMenu::switches`].
@@ -1094,6 +1149,13 @@ pub enum Switch {
     /// A voice goes on playing after the click that reads on, until the
     /// next voice (off: the click stops it).
     VoiceKeepsPlaying,
+    /// A scene already read offers to be skipped (the MAGES scene jump
+    /// dialog); off: it just plays.
+    SceneSkipDialog,
+    /// Skip mode stops at a choice; off: it goes on after it.
+    StopSkipAtChoice,
+    /// The music keeps its volume while a voice plays; off: it is lowered.
+    BgmFullForVoice,
 }
 
 /// A voiced line's clip and whose voice it is (for the per-character

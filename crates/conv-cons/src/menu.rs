@@ -35,14 +35,17 @@ pub(crate) const BAR_DRAW: &str = "conv_bar_draw";
 /// Runs the bar button in %9 (or -1, a right-click).
 pub(crate) const BAR_ACTION: &str = "conv_bar_action";
 pub(crate) const SETTINGS: &str = "conv_settings";
-const SETTINGS_APPLY: &str = "conv_settings_apply";
+pub(crate) const SETTINGS_APPLY: &str = "conv_settings_apply";
 pub(crate) const BACKLOG: &str = "conv_backlog";
 /// The `pretextgosub` routine (see [`backlog`]).
 pub(crate) const PRETEXT: &str = "conv_pretext";
 /// Settings levels are %902-%906 (globals); %909 = 1 once they are set.
-const SETTINGS_SET: &str = "%909";
+pub(crate) const SETTINGS_SET: &str = "%909";
+/// 1: skip was on at a choice and goes on at the next text
+/// ([`Switch::StopSkipAtChoice`] off).
+pub(crate) const KEEP_SKIP: &str = "%131";
 /// 1: skip goes on through unread text (`kidokumode 0`).
-const SKIP_UNREAD: &str = "%908";
+pub(crate) const SKIP_UNREAD: &str = "%908";
 /// Milliseconds per character, for `setwindow`.
 pub(crate) const TEXT_MS: &str = "%907";
 const TEXT_MS_STEP: u32 = 6;
@@ -100,7 +103,7 @@ const LOG_NAME_SPRITE: u32 = M + 10;
 const LOG_NAME_COLOR: &str = "#D8C088";
 const BTN_LOG_VOICE: u32 = 210; // + k
 /// The settings page shown: 0 levels, 1 voices.
-const SETTINGS_PAGE: &str = "%176";
+pub(crate) const SETTINGS_PAGE: &str = "%176";
 /// Voice character c is muted when the global %(VOICE_OFF_BASE + c) is 1.
 pub(crate) const VOICE_OFF_BASE: u32 = 970;
 /// Asks the question in [`CONFIRM_TEXT`]; [`CONFIRM`] = 1 for yes.
@@ -237,7 +240,7 @@ const MARKER: u32 = 7;
 const SELECTION: u32 = 8;
 const HEADER: u32 = 9;
 const FRAME: u32 = 10;
-const BASE: u32 = 11;
+pub(crate) const BASE: u32 = 11;
 // Button numbers returned by btnwait: rows 1.., pages 101..
 const BTN_PAGE: u32 = 100;
 const BTN_DELETE: u32 = 200;
@@ -1000,6 +1003,11 @@ pub(crate) fn settings_menu(
     leave: Option<(&str, &str)>,
     version: Option<(&str, u32)>,
 ) {
+    if let Some(p) = &m.pictures {
+        crate::picture_settings::emit(out, m, p, confirm, leave);
+        settings_apply(out, m);
+        return;
+    }
     let rows = &m.rows[..m.rows.len().min(MAX_SETTING_ROWS)];
     let voices = &m.voices[..m.voices.len().min(MAX_VOICES)];
     let switches = &m.switches[..m.switches.len().min(MAX_SWITCHES)];
@@ -1197,7 +1205,17 @@ pub(crate) fn settings_menu(
     w(MENU_SPRITES.map(|n| format!("csp {n}")).collect::<Vec<_>>().join(":"));
     w("print 1".into());
     w("return".into());
+    settings_apply(out, m);
+}
 
+/// The routine putting the settings into effect (volumes, speeds, window,
+/// skip).
+fn settings_apply(out: &mut String, m: &SettingsMenu) {
+    let rows = &m.rows[..m.rows.len().min(MAX_SETTING_ROWS)];
+    let mut w = |line: String| {
+        out.push_str(&line);
+        out.push('\n');
+    };
     w(format!("*{SETTINGS_APPLY}"));
     for (setting, cmd) in [(Setting::BgmVolume, "bgmvol"), (Setting::SeVolume, "sevol"), (Setting::VoiceVolume, "voicevol")] {
         w(format!("mov {TMP},{}*10:{cmd} {TMP}", setting_var(setting)));
@@ -1237,6 +1255,9 @@ fn switch_index(s: Switch) -> u32 {
         Switch::ConfirmQuit => 6,
         Switch::ConfirmBackToChoice => 7,
         Switch::VoiceKeepsPlaying => 8,
+        Switch::SceneSkipDialog => 9,
+        Switch::StopSkipAtChoice => 10,
+        Switch::BgmFullForVoice => 11,
     }
 }
 
@@ -1334,7 +1355,21 @@ pub(crate) fn settings_init(out: &mut String) {
     ));
 }
 
-fn setting_var(s: Setting) -> &'static str {
+/// The levels' defaults (as [`settings_init`] sets them), as commands.
+pub(crate) fn settings_defaults(_m: &SettingsMenu) -> String {
+    let v = setting_var;
+    format!(
+        "mov {},8:mov {},8:mov {},10:mov {},7:mov {},5:mov {},0",
+        v(Setting::BgmVolume),
+        v(Setting::SeVolume),
+        v(Setting::VoiceVolume),
+        v(Setting::TextSpeed),
+        v(Setting::AutoSpeed),
+        v(Setting::WindowTransparency)
+    )
+}
+
+pub(crate) fn setting_var(s: Setting) -> &'static str {
     match s {
         Setting::BgmVolume => "%902",
         Setting::SeVolume => "%903",
@@ -1360,7 +1395,7 @@ fn setting_var(s: Setting) -> &'static str {
 /// (pretextgosub makes the text wait for `saveon`).
 /// `ruby`: `rubyon` is set, so `strsp` draws text with a line pitch a line
 /// gap lower (the ruby goes above it); the log is drawn that much higher.
-pub(crate) fn backlog(out: &mut String, b: &Backlog, ruby: bool) {
+pub(crate) fn backlog(out: &mut String, b: &Backlog, ruby: bool, keep_skip: bool) {
     let mut w = |line: String| {
         out.push_str(&line);
         out.push('\n');
@@ -1373,6 +1408,9 @@ pub(crate) fn backlog(out: &mut String, b: &Backlog, ruby: bool) {
     let gap = b.line_height - size as i32;
     let lift = if ruby { format!("-{gap}") } else { String::new() };
     w(format!("*{PRETEXT}"));
+    if keep_skip {
+        w(format!("if {KEEP_SKIP} == 1 mov {KEEP_SKIP},0:systemcall skip"));
+    }
     w("saveon".into());
     w("return".into());
     w(format!("*{BACKLOG}"));
@@ -1464,12 +1502,12 @@ pub(crate) fn backlog(out: &mut String, b: &Backlog, ruby: bool) {
 
 /// Sprites hidden while a full-screen menu is open: the bars, the name
 /// plate and the link words.
-fn hidden_while_open() -> Vec<u32> {
+pub(crate) fn hidden_while_open() -> Vec<u32> {
     BAR_SPRITES.chain([NAME_TEXT_SPRITE, NAME_PLATE_SPRITE]).chain(LINK_SPRITES).collect()
 }
 
 /// `lsp2` places the image by its centre.
-fn lsp2(slot: u32, p: &Placed, opacity: Option<u8>) -> String {
+pub(crate) fn lsp2(slot: u32, p: &Placed, opacity: Option<u8>) -> String {
     let (w, h) = (p.w, p.h);
     let opacity = opacity.map_or(String::new(), |o| format!(",{o}"));
     format!("lsp2 {slot},\":a;{}\",{},{},100,100,0{opacity}", path(&p.image), p.x + w / 2, p.y + h / 2)
@@ -1626,6 +1664,7 @@ pub(crate) mod tests {
             voice_column_x: 440,
             voice_pitch: 50,
             skip_unread_label: Some("未読".into()),
+            pictures: None,
             switches: vec![conv_core::ir::SettingSwitch { label: "セーブ確認".into(), switch: Switch::ConfirmSave }],
         };
         let mut out = String::new();
@@ -1812,6 +1851,7 @@ pub(crate) mod tests {
             voice_column_x: 440,
             voice_pitch: 50,
             skip_unread_label: None,
+            pictures: None,
             switches: Vec::new(),
         };
         let mut out = String::new();

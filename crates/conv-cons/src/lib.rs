@@ -19,6 +19,7 @@ mod extras;
 pub mod lint;
 mod menu;
 mod motion;
+mod picture_settings;
 mod movies;
 mod music;
 pub mod nsa;
@@ -267,6 +268,8 @@ pub fn emit(script: &Script) -> String {
     // The text speed is a setting when there is a settings menu.
     let speed = if script.settings.is_some() { menu::TEXT_MS } else { "20" };
     let voice_switches = script.settings.as_ref().is_some_and(|s| !s.voices.is_empty());
+    let duck = uses_switch(script, Switch::BgmFullForVoice);
+    let keep_skip = uses_switch(script, Switch::StopSkipAtChoice);
     if script.settings.is_some() {
         menu::settings_init(&mut out);
     }
@@ -434,6 +437,9 @@ pub fn emit(script: &Script) -> String {
                     }
                 }
             }
+            Op::IfSwitch { switch, on, label: target } => {
+                writeln!(out, "if {} == {} goto *{}", menu::switch_off(*switch), u8::from(!*on), label(target)).unwrap();
+            }
             Op::SpriteMotion { layer, keys, looped } => motion::emit(&mut out, *layer, keys, *looped),
             Op::SpriteZoom { layer, x, y, from, to, ms } => {
                 needs_zoom |= zoom::emit(&mut out, *layer, *x, *y, *from, *to, *ms, transition.is_some());
@@ -584,6 +590,12 @@ pub fn emit(script: &Script) -> String {
                 }
             }
             Op::Text { speaker, text, voice, links, ruby, styles, hang, continues } => {
+                // Ducking: the music lowered while a line is voiced.
+                if duck {
+                    let off = menu::switch_off(Switch::BgmFullForVoice);
+                    let to = if voice.is_some() { "50,200" } else { "100,400" };
+                    writeln!(out, "if {off} == 1 bgmvolfade {to}").unwrap();
+                }
                 if let Some(v) = voice {
                     if voice_switches {
                         write!(out, "if %{} == 0 ", menu::VOICE_OFF_BASE + v.character).unwrap();
@@ -917,6 +929,11 @@ pub fn emit(script: &Script) -> String {
                     // For going back here (the page before it, as saves are).
                     writeln!(out, "savegame {}", menu::BACK_SLOT).unwrap();
                 }
+                // Skip stops at a choice; the next text turns it on again
+                // when the setting says so.
+                if keep_skip {
+                    writeln!(out, "if {} == 1 isskip {}", menu::switch_off(Switch::StopSkipAtChoice), menu::KEEP_SKIP).unwrap();
+                }
                 let items: Vec<String> = options.iter().map(|(t, l)| format!("\"{}\",*{}", text_safe(t), label(l))).collect();
                 writeln!(out, "select {}", items.join(",")).unwrap();
             }
@@ -992,7 +1009,7 @@ pub fn emit(script: &Script) -> String {
         menu::settings_menu(&mut out, m, script.confirm.as_ref(), replay.map(|r| (r.leave_label.as_str(), r.leave_question.as_str())), script.version.as_deref().map(|v| (v, script.height)));
     }
     if let Some(b) = &script.backlog {
-        menu::backlog(&mut out, b, has_ruby);
+        menu::backlog(&mut out, b, has_ruby, keep_skip);
     }
     if let Some(d) = &script.confirm {
         menu::confirm(&mut out, d);
@@ -1245,6 +1262,17 @@ wait 10
 goto *{MOVE}_loop
 "
     )
+}
+
+/// The settings screen has switch `s` (in its list or on a picture page).
+fn uses_switch(script: &Script, s: Switch) -> bool {
+    let Some(m) = &script.settings else { return false };
+    m.switches.iter().any(|x| x.switch == s)
+        || m.pictures.as_ref().is_some_and(|p| {
+            p.pages.iter().flat_map(|page| &page.rows).any(|c| match c {
+                conv_core::ir::RowControl::Choice { value, .. } | conv_core::ir::RowControl::Slider { value, .. } => *value == conv_core::ir::SettingValue::Switch(s),
+            })
+        })
 }
 
 /// Command-line options CONscripter reads from `ons_args` in the game
