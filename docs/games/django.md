@@ -210,8 +210,12 @@ yet.
 1. Run the original under wine (a recipe like Muramasa's) to check the
    text's place, the choices and the chapter-end rule above.
 2. The rest of the trace checker's list (`cons_trace_check.py` on
-   `out/django-routes/good.jsonl`): one page runs past the window; sounds
-   started twice; pictures left up across 150 pages.
+   `out/django-routes/good.jsonl`): one page runs past the window
+   (dja023_02 `[text029]`: a 21-character line in box02, 20 columns of a
+   fixed-width font; the original's proportional ＭＳ Ｐ ゴシック fits it);
+   sounds started twice; pictures left up across 150 pages (old
+   backgrounds hung under `窓` until their chapter ends, covered by the
+   newer ones); image memory peaks at 131 MB (a long movie's strip).
 3. The text window and name plates (`box00`-`box05`, face windows
    `frame03`-`frame05`) measured against the original under wine.
 4. The ranked "not converted" list: `MoveCamera`, `CreateTexture` from
