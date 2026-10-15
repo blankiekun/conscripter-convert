@@ -30,7 +30,25 @@ attached for each of them too (`conscripter-convert_<version>_<platform>`).
    The bar follows how much the build has written against how much it
    usually writes (packing the archives briefly needs twice the finished
    size), so it moves unevenly; it fills when the converter ends.
-5. Play the result with [CONscripter](https://github.com/blankiekun/CONscripter/releases).
+5. Play it: after the build the app puts CONscripter into the game folder
+   (below), so starting it there plays the game.
+
+**CONscripter in the game folder**: after a build (not a dry run) the app
+downloads the [CONscripter release](https://github.com/blankiekun/CONscripter/releases)
+the build was made for (the version in its `version.txt`) for this
+computer, keeps it in a cache folder (`%LOCALAPPDATA%`, `~/Library/Caches`
+or `~/.cache`, under `conscripter-convert`), and puts it beside `0.txt`
+named after the game's title, with the game's own icon (from the
+original's `.exe`, or the Vita's `sce_sys/icon0.png`):
+
+| System | What it writes |
+|---|---|
+| Windows | `<title>.exe`, its icon replaced |
+| Linux | `<title>`, and `<title>.desktop` with `icon.png` (a program file has no icon; the launcher also starts it in the game folder, by absolute paths, so it needs a new build if the folder moves) |
+| macOS (Apple silicon; Intel Macs have no CONscripter build) | `<title>.app`, which starts CONscripter in the folder the `.app` is in |
+
+Without a connection the build still finishes, and the status says where
+to download CONscripter.
 
 | Game | Recognised by | Settings | Needs |
 |---|---|---|---|

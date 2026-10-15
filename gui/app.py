@@ -15,6 +15,7 @@ import json
 import os
 import queue
 import shutil
+import struct
 import subprocess
 import sys
 import threading
@@ -26,6 +27,7 @@ from tkinter.scrolledtext import ScrolledText
 from typing import Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import engine  # noqa: E402
 import games  # noqa: E402
 import tools  # noqa: E402
 
@@ -55,6 +57,7 @@ class App:
         self.font_chosen = False  # by the user, not the game's default
         self.ffmpeg_dir: Optional[Path] = None
         self.build: Optional[tools.Build] = None
+        self.installing = False  # putting CONscripter into the finished build
         self.events: queue.Queue = queue.Queue()
         self.started = 0.0
         self.written = 0  # bytes this build has written so far (the most seen)
@@ -308,7 +311,7 @@ class App:
     # --- state ----------------------------------------------------------
 
     def _busy(self) -> bool:
-        return bool(self.build and self.build.running())
+        return bool(self.build and self.build.running()) or self.installing
 
     def _ffmpeg_state(self) -> tuple[bool, str]:
         if not (self.detection and self.detection.game.needs_ffmpeg_with(self._values())):
@@ -488,11 +491,13 @@ class App:
                         self.progress.config(value=min(99.0, 100 * self.written / self.expected))
                 elif kind == "detected":
                     self._detected(*value)
+                elif kind == "installed":
+                    self._installed(value)
                 else:
                     self._exited(value)
         except queue.Empty:
             pass
-        if self._busy():
+        if self._busy() and not self.installing:
             m, s = divmod(int(time.monotonic() - self.started), 60)
             text = f"Building {self.detection.game.name}… {m}:{s:02d}"
             if self.expected:
@@ -505,10 +510,43 @@ class App:
         out = self.out_var.get()
         if self.build and self.build.cancelled:
             self._finish("Cancelled. The output folder is incomplete.", ok=False)
+        elif code == 0 and self._values().get("dry_run"):
+            self._finish(f"Done. The script is in {out}.", ok=True)
         elif code == 0:
-            self._finish(f"Done. The game is in {out}. Play it with CONscripter ({ENGINE_URL}).", ok=True)
+            self._install_engine(Path(out))
         else:
             self._finish(f"Failed (exit code {code}). The log below says why.", ok=False)
+
+    def _install_engine(self, out: Path) -> None:
+        """CONscripter for this computer into the build, named after the
+        game and with its icon (engine.py), in a thread: it downloads."""
+        d = self.detection
+        title = str(self._values().get("title") or "").strip() or d.game.name
+        self.installing = True
+        self.status.config(text="Built. Getting CONscripter for this computer…", fg="black")
+        self._log("")
+        self._refresh()
+
+        def log(line: str) -> None:
+            self.events.put(("line", line))
+
+        def run() -> None:
+            try:
+                icon = d.game.icon(d.root) if d.game.icon else None
+                result = engine.install(out, title, icon, log)
+            except Exception as e:  # noqa: BLE001 - shown to the user
+                result = e
+            self.events.put(("installed", result))
+        threading.Thread(target=run, daemon=True).start()
+
+    def _installed(self, result) -> None:
+        self.installing = False
+        out = self.out_var.get()
+        if isinstance(result, Exception):
+            self._finish(f"Done. The game is in {out}, but CONscripter could not be added ({result}): "
+                         f"download it from {ENGINE_URL}.", ok=True)
+        else:
+            self._finish(f"Done. The game is in {out}: start {result.name} to play.", ok=True)
 
     def _finish(self, text: str, ok: bool) -> None:
         self.progress.stop()
@@ -592,10 +630,21 @@ def cli_detect(folder: str) -> int:
     return 0
 
 
+# A 1×1 32-bit icon picture (BITMAPINFOHEADER, one pixel, its mask row).
+_ONE_PIXEL = (struct.pack("<IiiHHIIiiII", 40, 1, 2, 1, 32, 0, 8, 0, 0, 0, 0)
+              + b"\x00\x00\xff\xff" + b"\x00\x00\x00\x00")
+
+
 def self_test(report: str) -> int:
     """For CI: is the converter bundled and does it run, are the fonts there."""
     state: dict = {"converter": str(tools.find_converter() or ""), "dnd": TkinterDnD is not None,
-                   "fonts": {g.font: str(tools.find_font(g.font) or "") for g in games.GAMES}}
+                   "fonts": {g.font: str(tools.find_font(g.font) or "") for g in games.GAMES},
+                   "engine_asset": engine.platform_suffix()}
+    try:  # the icons need Pillow in the bundle
+        engine.png_to_ico(engine.ico_to_png(engine._ico([(1, 1, 0, 0, 1, 32)], [_ONE_PIXEL])))
+        state["pillow"] = True
+    except Exception as e:  # noqa: BLE001 - reported
+        state["pillow"] = str(e)
     if state["converter"]:
         r = subprocess.run([state["converter"], "--help"], capture_output=True, encoding="utf-8", errors="replace", env=tools.child_env())
         state["converter_runs"] = r.returncode == 0 and "convert-game" in r.stdout
@@ -603,7 +652,8 @@ def self_test(report: str) -> int:
     if ffmpeg:  # not on every CI runner; a bundle must not hide its encoders
         state["ffmpeg_missing"] = tools.ffmpeg_missing_encoders(ffmpeg)
     Path(report).write_text(json.dumps(state, indent=2), encoding="utf-8")
-    ok = state.get("converter_runs") and all(state["fonts"].values()) and state["dnd"] and not state.get("ffmpeg_missing")
+    ok = (state.get("converter_runs") and all(state["fonts"].values()) and state["dnd"]
+          and not state.get("ffmpeg_missing") and state["pillow"] is True)
     return 0 if ok else 1
 
 

@@ -17,6 +17,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Optional
 
+import engine
+
 
 @dataclass(frozen=True)
 class Option:
@@ -92,6 +94,7 @@ class Game:
     doc: str  # the game's document in the repository
     check: Optional[Callable[[Path], tuple[list[str], list[str]]]] = None  # -> (problems, warnings)
     options: tuple[Option, ...] = ()  # the advanced settings; their defaults are the recommended ones
+    icon: Optional[Callable[[Path], Optional[bytes]]] = None  # (game) -> its icon, an .ico or PNG file's bytes
 
     def defaults(self) -> dict[str, object]:
         return {o.key: o.default for o in self.options}
@@ -145,6 +148,13 @@ class Detection:
     root: Path  # the folder the converter is given
     problems: list[str] = field(default_factory=list)  # the build can't start
     warnings: list[str] = field(default_factory=list)  # it can, but tell the user
+
+
+def _read(path: Path) -> Optional[bytes]:
+    try:
+        return path.read_bytes()
+    except OSError:
+        return None
 
 
 def _has(root: Path, marker: str) -> bool:
@@ -232,6 +242,7 @@ GAMES: tuple[Game, ...] = (
         size_gb=1.5,
         doc="docs/games/saihate-no-ima.md",
         check=_saiima_check,
+        icon=lambda root: engine.exe_icon(root / "Farthest2015.exe"),
         options=(
             _title("Saihate no Ima COMPLETE"),
             Option("webp", "WebP pictures (half the size, or less with a quality)", "--webp",
@@ -256,6 +267,7 @@ GAMES: tuple[Game, ...] = (
         needs_ffmpeg=False,
         size_gb=3.7,
         doc="docs/games/muramasa.md",
+        icon=lambda root: engine.exe_icon(root / "Muramasa.exe"),
         options=(
             _title("装甲悪鬼村正"),
             Option("file", "Start at the script", "--file", "text", "ma00_000.nss",
@@ -280,6 +292,7 @@ GAMES: tuple[Game, ...] = (
         size_gb=2.3,
         doc="docs/games/oretsuba.md",
         check=_oretsuba_check,
+        icon=lambda root: _read(root / "sce_sys" / "icon0.png"),
         options=(
             _title("俺たちに翼はない"),
             Option("scenes", "Only these scenes", "--scenes", "text", "",
