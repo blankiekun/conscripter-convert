@@ -78,6 +78,9 @@ pub struct SaveGrid {
     pub quick_page: bool,
     /// Put before the play time.
     pub play_time_prefix: String,
+    /// The play time as hours and minutes, two digits each (up to 99:59),
+    /// instead of hours (three digits), minutes and seconds.
+    pub play_time_hm: bool,
 }
 
 /// A text of [`SaveGrid`]: its box's top left (for vertical text, its top
@@ -640,4 +643,7 @@ pub struct SlotPopup {
     pub lock: Placed,
     pub unlock: Placed,
     pub locked: Placed,
+    /// A click on an empty slot saves at once in the game (asking nothing)
+    /// and does nothing outside it, instead of opening the window.
+    pub empty_saves: bool,
 }
