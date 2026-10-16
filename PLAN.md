@@ -198,6 +198,8 @@ Engine features added for converted games (details in the engine's
 | `bitand` / `bitor` / `bitxor %t,%a,%b` (bitwise AND, OR, XOR of two values into `%t`) | 最果てのイマ's three bitwise ops (`Op::Arith` `BitAnd`/`BitOr`). Replaced the `conv_bitand`/`conv_bitor` subroutines, which looped over the bits with div/mod in scratch variables %1-%8. |
 | Proportional text (in a proportional font, half-width characters on a horizontal line take their own width plus half the character spacing, one at a time, and lines break at spaces; a monospaced font keeps the grid) and a `!` that starts no tag drawn as text | Full Metal Daemon Muramasa's English text in the release's Droid Serif, one paragraph a line for the engine to wrap (`"Hey! You!"` lost its `!`). CONscripter after 0.23.0 |
 | Text past the window goes on on a new page (a character that would be drawn past the window's last line waits for a click, built in, not through `textgosub`, then starts a new page) | Full Metal Daemon Muramasa (English): the Japanese pages hold several paragraphs, which in English outgrow the port's 280×150 box (1,143 pages ran past it) |
+| `cons_rule.dll/file,cells` (effect 99: a transition played from a strip of grey masks, white = new picture, mixed between cells) and the trace's `--shot-effects` (each effect filmed at chosen percents of its time, also under `--auto-play`) | Any engine's wipes, dissolves and soft-edged rules as data baked from its exe (see `docs/new-game.md` §10) instead of a plugin each; transitions that move pixels stay plugins (`cons_slide`, `cons_wave`, ...). CONscripter PR #3 |
+| Lua state in save files (the script's data globals) and `cons_process(name, "fn", ...)` (a coroutine resumed once a frame, saved by name and restarted from the top on load) | Logic read from an exe (rankings, unlock checks, minigames) written in Lua instead of NScripter arithmetic; 装甲悪鬼村正's CreateProcess (510 calls, parallel processes run each frame) is the first planned user. CONscripter PR #4 |
 
 Planned, from limits hit by converted games (each one is worked around
 in the script today), roughly in order of payoff:
@@ -699,8 +701,9 @@ The steps that apply them are in `docs/new-game.md`.
 ### 13.2 Ways to speed up conversion
 
 Done, use them: the engine's debug trace with `--auto-play`, `--goto`
-`--vars`, `--shot-pages` (replaces a static tracer and the smoke-test
-recipe; `engine/DEBUG.md`); `--dry-run` for logic (seconds, script only);
+`--vars`, `--shot-pages`, `--shot-effects` (replaces a static tracer, the
+smoke-test recipe and filming our side's effects on Xvfb;
+`engine/DEBUG.md`); `--dry-run` for logic (seconds, script only);
 `conscripter-convert lint`; `convert-script` for one scene; `nss route`
 for a route map.
 
@@ -715,3 +718,10 @@ Still worth building, in rough order of payoff:
    map's successors and print the condition that blocks each.
 4. **Game knowledge up front**: route structure, the choice mechanic,
    known endings, given to an agent before it infers opcodes.
+5. **Run exe kernels at convert time**: call a transition's or an
+   easing's function from the user's own exe in an x86 emulator (for
+   example the `unicorn` crate) and keep its output as data: mask frames
+   for `cons_rule.dll`, curve tables for `spcurve`. The original's exact
+   pixels without porting its code, and nothing from the exe goes into
+   the engine or the repo. Works for self-contained functions; one that
+   reaches into the exe's objects or renderer still needs reading.
