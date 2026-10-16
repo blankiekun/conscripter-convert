@@ -447,9 +447,12 @@ that the eboot reads and the converter doesn't (typos such as
 1. SpriteMove `:Curve` (12, ±3 or 0.5): an arc on the move (in its own
    PR; how the eboot draws it is in "History", 2026-10-16).
 2. SpriteBG and SpriteBS with `:FadeWait 0` (890 uses) still wait for
-   their fade: they replace the whole picture, which `spfade` can't
-   cross-fade under the text. A character changing with a motion, zoom
-   or look waits too.
+   their fade: they replace the whole picture, which a sprite's fade
+   (`spmotion`) can't cross-fade under the text. A character changing with a motion, zoom
+   or look waits too. Fades are `spmotion` motions (loop 0 in, loop 3
+   out); a CharacterAction hop started while its character fades in
+   takes the fade into its keys (11 in the snapshot), since a sprite has
+   one motion.
 
 **Arguments not read (2026-10-16).** The converter marks every
 argument it reads (`tasks.rs`, `Block::read`); after each scene, each
