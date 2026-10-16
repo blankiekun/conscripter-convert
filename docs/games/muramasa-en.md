@@ -23,8 +23,16 @@ It has no NPA archives and no NSS scripts.
   port for the NSS's 500 (`mov %4,250` in `0.txt`, the one line that
   changes). `Move`'s time and wait now come from the port
   (`english::placing`); a null tempo stays the NSS's.
-- Next: the telops' `CreateTextureEX`/`SP` priority (argument 1, 214
-  calls) against the port's. Later: the port's
+- Telop priority (stacked on the `Move` PR): of the 214 telop
+  `CreateTextureEX`/`SP` calls, 212 pair with the port's; 208 have the
+  same priority, md05_037vs's `エフェクト１`/`３`/`４`/`５` are 16000 in
+  the port for the NSS's 2000. `english::placing` now takes argument 1
+  too: those telops go to sprite 482 for 902, still in front of the
+  black and the CG under them.
+- The local full build of 2026-10-15 is stale: it lacks the telop
+  pictures (`cg/sys/telop/…`) that a fresh build packs (checked with a
+  one-scene build of ma04_021). Rebuild before comparing pictures.
+- Next: the port's
   English captions from its `LANG_NAME` branches (15 scenes).
 - Decided: a click on an empty slot at the title doesn't save (the
   original saves the title screen there): a deliberate difference.
@@ -238,10 +246,8 @@ It has no NPA archives and no NSS scripts.
      `sys_key.nut`'s keys.
   5. The port's calls taken in part (the build's `English: … port
      <function> argument <i> ignored` lines; "The port's calls,
-     argument by argument"), most noticeable first: the telops'
-     `CreateTextureEX`/`SP` (214) keep the NSS's priority (argument 1):
-     the same values if the port copied them, not compared (their
-     `Move`s take the port's time and wait, above).
+     argument by argument"), most noticeable first (the telops' calls are now read
+     whole: `Move` and `CreateTextureEX`/`SP`, above).
 
 ## Archives (NPK3)
 
