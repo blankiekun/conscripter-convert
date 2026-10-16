@@ -60,6 +60,133 @@ Muramasa.exe reads the `.nss` text directly. Names below are from
   values `AvailableFile`, `BacklogLine`, `BacklogRow`, `MilliTime`,
   `MountSavedata`, `SoundAmplitude`, `Strlen`.
 
+## In the scripts: coverage
+
+What the converter does with every script file and every name the
+scripts use (`docs/new-game.md` §2, "Covering the scripts too"; 2026-10-15).
+Sources: `nss route`, `nss refs`, `nss builtins` over the 913 files of
+`nss.npa`, and the whole-game dry run's notes (`convert-nss … --dry-run`,
+the command in the game document). Counts in the "notes" column are
+compiled occurrences: a helper's body counts once per call. The gaps
+are in `docs/games/muramasa.md`, Status.
+
+**Files** (`nss.npa` 913, `system.npa` 2):
+
+| Files | Status |
+|---|---|
+| 883 story files (`ma`, `mb`, `mc`, `md`, `mz`) | compiled; `nss route`: all reachable, 9 forks with no `else` (Status) |
+| `0_boot_開始スクリプト.nss`, `function*.nss` (8) | compiled as the library, each function where the story calls it; `function_magiccube.nss` ported (`muramasa/magiccube.rs`); `function_select.nss`'s choice plates by `vertical_choice_style`; `function_quick.nss` → `screens.rs` `quick_bar`; process bodies not run (`CreateProcess`, below) |
+| `0_boot.nss` | replaced: title and openings (`screens.rs` `title`, `muramasa/opening.rs`); its 13 `SetShortcut` letters → `command_menu` |
+| `sys_menu` | `command_menu` |
+| `sys_save`, `sys_load` | `save_grid` |
+| `sys_config` | `settings` (its defaults, `ConfigFormat`, read for the sliders) |
+| `sys_backlog` | `line_log` |
+| `sys_close`, `sys_reset` | `confirm` |
+| `sys_backselect` | 選択肢に戻る (`BarAction::BackToChoice`) |
+| `sys_auto`, `sys_skip`, `sys_screen`, `sys_quicksave`, `sys_quickload` | menu actions and letters A, N, F, Q, P (`command_menu`); `sys_skip` is 超速スキップ, drawn as a plain skip (Status) |
+| `sys_hmode` | compiled (its ranking functions, `muramasa.rs`); the favour screen ported (`FAVOUR`) |
+| `extra_menu`, `extra_gallery`, `extra_sound`, `extra_recollection`, `extra_dimension` | `muramasa/extras.rs` |
+| `sys_edit.nss` | not used: debug editor, its shortcut D is commented out in `0_boot.nss` |
+| `prutestselect.nss` | not used: a choice-screen test nothing calls |
+| `system.ini` | read for data by hand (keys below) |
+| `vssver2.scc` | not used: Visual SourceSafe leftover |
+
+**Functions the scripts define** (1,736 definitions): 585 called from
+the story or the library (compiled inline), 273 only run as a
+`CreateProcess` body (not converted), 143 called only from the system
+and extra scripts (replaced with them), 18 only named by `Conquest` (a
+read-mark, not a call), 717 never called by a literal name (dead code:
+`function_cockpit.nss` alone has dozens of unused `CP*` helpers). The
+16 names nothing defines are skipped, as by the exe ("In the exe").
+
+**Built-ins** (114 names; `story`/`lib`/`sys` = static calls in the story
+files / the library / the system and extra scripts; converter as of the
+dry run):
+
+| Built-in | story / lib / sys | Converter |
+|---|---|---|
+| `Fade`, `Move`, `Delete`, `Zoom`, `Wait`, `SetVolume`, `ModuleFileName`, `SetAlias`, `WaitKey`, `Random`, `SetBlur`, `Reset`, `WaitAction`, `SetVertex`, `Conquest`, `CreateWindow`, `WaitPlay`, `CreateColor`, `RemainTime`, `Draw`, `ImageHorizon`/`Vertical`, `SetFont`, `WaitText`, `LockVideo`, `CreateSound`, `CreateName`, `SetLoop`, `Integer`, `Strstr`, `LoadText`, `WaitFade`, `WaitZoom`, `PassageTime`, `DurationTime`, `SetPan` | most story | converted (non-blocking `Move`/`Zoom` as cross-fades, Status) |
+| `Request` | 1,643 / 1,748 / 469 | actions below |
+| `DrawTransition`, `Shake`, `Rotate`, `CreateTexture`, `CreateEffect`, `CreateMovie`, `MoviePlay` | story | converted except the noted cases (`Shake` of a small picture 145, `CreateTexture` from an object or the screen 1,812, `CreateEffect` Rain/Sepia/Monochrome/KitanoBlue/NegaPosi/Lens/Drop 82, 3 transition masks missing) |
+| `CreateProcess`, `BezierMove`, `SetFrequency`, `SetShade`, `SetTone`, `MoveCamera`, `CreateCamera` | 287 / 193 / 30 … | not converted (Status) |
+| `SetBacklog` | 83 / 6 / 0 | not converted: 1,958 noted; the hand-made backlog lines (pictures, ASCII art) are missing from our log |
+| `CreateText` | 53 / 104 / 40 | story: not converted (Status); sys: replaced |
+| `LoadImage` | 30 / 16 / 101 | not converted for Muramasa (`Game::loaded_textures` is off; 487 noted): the sources of `CreateTexture` from an object |
+| `DrawEffect` | 79 / 0 / 2 | not converted (waves `SuperWave`, `LowWave`, …; 76 noted) |
+| `CreateStencil`, `CreateMask`, `SetSurface`, `CreateSurface` | 59 / 2 / 0 …; 30 / 1 / 1; 6 / 4 / 0; 0 / 3 / 0 | not converted (57, 28, 58, 52 noted) |
+| `SetLoopPoint` | 0 / 3 / 0 | not converted: the BGM helpers' loop points (33 noted) |
+| `String`, `VariableValue`, `Array`, `AssocArray`, `Count` | 2 / 52 / 64 …; mostly lib and sys | converted when the value is known at convert time; else noted (1,658, 1,584, 689, 165): `SetRoll`'s ending tables (Status), `sys_hmode` |
+| `CreateChoice`, `SetNextFocus`, `CursorPosition`, `MoveCursor`, `Position`, `Save` | 0 story | lib and sys only: replaced by our choices and screens (`function_select.nss`'s body gives the 153 notes each); `Position` in the battle HUD (`function_cockpit.nss`) goes with `CreateProcess` |
+| `ExistSave`, `DeleteSaveFile`, `Load`, `Time`, `ReadFile`, `WriteFile`, `ScrollbarValue`, `CreateScrollbar`, `SetScrollbar`, `SetScrollSpeed`, `SetShortcut`, `LoadColor`, `ClearScore`, `System`, `ClearBacklog`, `CreateBacklog`, `EnableBacklog`, `Message`, `Platform`, `SetStream`, `Exit`, `Escape`, `DateTime`, `EnableDirect3DHAL` | sys only | replaced by our screens and the engine's own save, log and settings |
+| `DialogChangeState`, `DialogChangeState2`, `DialogCautionSignIn`, `DialogConfigStorage`, `XBOX360_LockVideo`, `XBOX360_IsSignin`, `SceneFadeBG` | sys only | not built-ins: skipped by the exe too |
+| `CreateCube`, `SetFov`, `TextureRoll00H` | lib, 1 each | in process bodies only |
+
+**`Request` actions** (static count; converter):
+
+| Action | Uses | Converter |
+|---|---|---|
+| `Smoothing`, `Passive`, `Erase` | 1,055, 31, 120 | ignored |
+| `Disused`, `Lock`/`UnLock`, `Hideable`, `Play`, `Enter`, `Start` (process) | 606, 244/137, 108, 122, 116, 527 | converted |
+| `Stop`, `Pause` | 431, 2 | sounds and movies; on other objects noted (16, 2) |
+| `AddRender`, `MulRender`, `SubRender`, `OverlayRender`, `NormalRender` | 80, 46, 20, 9, 1 | blend modes: noted (2,555, 420, 60, 111, 1); `SubRender`/`AddRender` on a movie converted |
+| `NoLog`, `PushText` | 64, 42 | not converted: the ASCII-art pages (Status) |
+| `NoIcon` | 4 | dropped without a note (`@text…` objects the converter doesn't keep): the page's click icon still shows |
+| `CompulsorySuspend`, `EntrustSuspend` | 7, 1 | only in `SetRoll`'s and `ProcessRoll01`'s BGM handling (the staff roll, Status) |
+| `Clickable`, `UnClickable`, `Prev`, `Next`, `Increment`, `Decrement` | 18, 33, 1 each | system and extra scripts only: replaced |
+| `Smooting` | 2 | a typo: matched exactly by the exe, so it does nothing; noted, harmless |
+
+A `Request` on an object the converter has no record of returns without
+a note (`request` in `convert.rs`), so the notes undercount: `NoIcon` and
+the story `PushText`/`NoLog` on dropped `CreateText` objects show up
+only in this table.
+
+**Text tags** (static; the exe's set is under "Text" below): `<voice>`
+35,105, `<PRE>` 29,634, `<RUBY>` 13,849, `<k>`/`<K>` 444 converted;
+`<BR>` 16 (10 story files, 7 in `ma04_016vs`) converted as a line
+break, though the exe's tag list has no `BR` (check under wine whether
+it prints or breaks); `<FONT>` 27 in 9 files dropped (Status);
+`<VALUE>` 3 (`mc02_031`), converted when known at convert time; `<I>` 1
+(`ma04_017`, closed by `</FONT></I>`) converted; `<SPAN value=11>` 2,
+`sys_config`'s version page only (replaced).
+
+**`$SYSTEM_` variables** (117 names): the converter keeps them out of
+the story's state; read, they have their start value (false, 0). The
+story reads `$SYSTEM_skip`, `#SYSTEM_skip_express`,
+`#SYSTEM_skip_absolute` (the 超速スキップ `SkipOut` test, 774 files; never
+true here, so the scene always plays), `$SYSTEM_present_process` (882
+files, the text box name), `$SYSTEM_text_auto` and the
+`mousewheel`/`keydown` flags (131 files, the choice loops, replaced by
+our choices), `$SYSTEM_effect_rain_*` (17 files) and
+`effect_drop_*`/`effect_lens_*` (2 each: parameters of the
+`CreateEffect` Rain, Drop and Lens kinds, not converted),
+`#SYSTEM_play_speed` (1, the game-speed setting: engine) and
+`#SYSTEM_break_play_movie` (3, the 動画 setting: converted). The other
+~100 are read only in the system scripts (window, keys, locks, Xbox
+360): replaced.
+
+**`system.ini`** keys: `[スクリプト]` `start`/`close`/`menu` → the files
+above; `[ウィンドウ] title` → `--title`; `[フォント]` face ＭＳ ゴシック
+(a TTF given with `--font`; the scripts' `SetFont` sets the text
+boxes' size and colours); `[テキスト] bad_end` (line-end kinsoku:
+opening brackets and digits) and `ruby_rate 50` not passed on
+(CONscripter's defaults); `[サウンド]` volumes 600/800/800 superseded by
+`sys_config`'s `ConfigFormat`; `[アイコン] icon_line`/`icon_page` →
+`wait_icon`, `icon_auto` (自動送りアイコン, 15 frames) not used: auto
+mode shows the normal icon; `[バックログ]` script and `icon_voice` →
+`line_log`, `word_in_row 26` superseded by its layout; `[ボイス]
+all_name` → the voice switches (`VOICES`; Status: grouped by `name`,
+the exe by `class`); `[プロダクト]`, `[セーブ]`: nothing to do.
+
+**Names the exe matches** (static; converter): `SetTone` Monochrome
+98, Sepia 38, NegaPosi 5, KitanoBlue 1 and `SetShade` levels: not
+converted (Status). `CreateEffect` Rain 37, Plain 33, Sepia 17,
+Monochrome 16, KitanoBlue 4, NegaPosi 4, Lens 2, Drop 1: only Plain
+converted. `DrawEffect` SuperWave 21, LowWave 25, HighWave 11,
+MiddleWave 10, HardSplit 5, Ripple 4, SoftSplit, Split: not converted;
+13 of them are written with a trailing space (`"LowWave "`), which an
+exact match would reject (unverified). Tempo names: Status ("Tempo is
+never read").
+
 ## Conventions shared by most built-ins
 
 **Objects ("nut", ナット) are named by strings.** A creator
@@ -196,6 +323,14 @@ others: show), `Hideable` (hidden along with the text window when the
 player hides it with right-click), `AddRender`/`SubRender`/`MulRender`
 (blend mode), `PushText` (show the whole text at once), `Pause`/`Resume`,
 `Passive` (`PrintBG`'s cover; probably "ignores input", **unverified**).
+From their use, **unverified**: `NoLog` (64, text kept out of the
+backlog, with `PushText` on the ASCII-art pages), `NoIcon` (4, a text
+box without the click icon), `Clickable`/`UnClickable` (18/33, a
+`CreateChoice` button on or off), `CompulsorySuspend`/`EntrustSuspend`
+(7/1, BGM in the staff roll: stopped at once / left to finish),
+`Prev`/`Next`/`Increment`/`Decrement` (1 each, `sys_backlog`'s
+scrolling), `OverlayRender`/`NormalRender` (9/1, more blend modes).
+`Smooting` (2) is a typo the exe's exact match ignores.
 
 **Pages (seen under wine, 2026-10-13, `ma00_000` text0010–text0050):**
 a blank line inside a `<PRE>` block ends a page. Each paragraph types

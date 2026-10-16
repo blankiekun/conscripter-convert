@@ -653,6 +653,37 @@ Next, in order:
    - Tempo (easing) is never read.
    - A 4-argument `Fade` probably doesn't wait in the exe (49 calls
      wait in ours); check under wine first.
+5. Gaps from the script coverage (2026-10-15; every file, built-in,
+   `Request` action, text tag, `$SYSTEM_` variable and `system.ini` key
+   with its status in `research/nitroplus/builtins.md`, "In the
+   scripts: coverage"). Every file has a status (no gaps there); new
+   gaps, most noticeable first:
+   - 超速スキップ (`sys_skip`, N) skips like スキップ: the story's
+     `SkipOut` test (`$SYSTEM_skip && #SYSTEM_skip_express && $AllRead`,
+     774 files) is compiled as false, so a read scene is never jumped
+     over.
+   - `SetBacklog` (83 story calls) is dropped: the lines the scripts add
+     to the backlog by hand are missing from ours.
+   - `CreateEffect` Rain (37, with `$SYSTEM_effect_rain_*` in 17 files),
+     Drop and Lens; the tone kinds (Sepia, Monochrome, KitanoBlue,
+     NegaPosi: 41, besides `SetTone`) are noted and drawn plain.
+   - `DrawEffect` waves (79), `CreateStencil` (59), `CreateMask` (31),
+     `SetSurface`/`CreateSurface`, `LoadImage` as a texture source
+     (Muramasa leaves `loaded_textures` off).
+   - BGM loop points (`SetLoopPoint` in the BGM helpers, 33 compiled
+     calls) are ignored.
+   - `Request(…, NoIcon)` (4) is dropped without a note: a `Request` on
+     an object the converter doesn't keep returns silently, so the dry
+     run's notes undercount those.
+   - `system.ini`: the auto-mode icon (`icon_auto`, 15 frames) and the
+     line-end kinsoku (`bad_end`) aren't used.
+   - Check under wine: `<BR>` (16 uses) isn't in the exe's tag list but
+     is a line break in ours; 13 `DrawEffect` names have a trailing
+     space (`"LowWave "`) the exe may not match.
+   - Small: 47 sounds missing from the archives, 3 transition masks
+     missing, 2 statements that don't parse, 2 voices outside a text
+     block, 3 BGMs without loop played looping (the notes give counts
+     only, not where).
 
 **Leftovers** (counts from the dry run's notes):
 - `CreateProcess` (510 calls; the battle HUD `CP_*` in
