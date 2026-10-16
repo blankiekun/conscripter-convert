@@ -588,10 +588,8 @@ Next, in order:
         checker's `movie` rule (CONscripter ca3904b) still sees what a
         movie leaves: the engine redraws the screen from before the
         movie as it ends, so sprites loaded after `mpegplay` show a
-        moment late. The title's openings now load the title first
-        (the buttons used to blink off and on as the movie ended);
-        open: the scene cuts (`Op::SceneMovie`) load their last frame
-        after the movie, so the scene before it flashes and fades back.
+        moment late. The title's openings and the scene cuts load what
+        follows before the movie ("History").
         CONscripter 3f368bc (after 0.24.0) draws the text window over
         an `mpegplay` movie and plays a movie file given to `lsp` in the
         sprite's place (`spmoviewait n,1` waits for it): next, the cuts
@@ -1329,6 +1327,12 @@ a `<video>` element, MPEG-1 being unplayable there).
     from `RemainTime`) plays as a movie with the music going on
     (`Op::SceneMovie`; its own sound left out, the script plays the
     `se特殊_mv用_*` effect beside it), then shows its last frame. The
+    last frame is loaded before `mpegplay` (opaque, though
+    `MovieSEStart2` fades the cut in only after its `WaitAction`) and
+    shown with `print 1` right after it: the engine redraws the screen
+    as the movie ends, and with the frame loaded after it the scene
+    before the cut flashed and faded back (2026-10-16; the trace
+    checker's `movie` rule no longer fires on the prologue's cut). The
     time played counts toward the script's following waits for it.
     This is `MovieSESet` + `MovieSEStart` (28 calls) and the single
     cuts with `WaitAction` (5) or `RemainTime` (2).
