@@ -146,6 +146,16 @@ impl<'a> Emitter<'a> {
                 writeln!(out, "print 1").unwrap();
             }
         }
+        Op::SpriteFlashing { layer, keys, times } => {
+            // spalpha's loop: 0 once, n (2 or more) n times.
+            let slot = SPRITE_BASE + layer;
+            let keys: Vec<String> = keys.iter().map(|(t, a)| format!("{t},{}", a.min(&256))).collect();
+            let times = if *times > 1 { *times } else { 0 };
+            writeln!(out, "spblend {slot},1:spalpha {slot},{times},{}", keys.join(",")).unwrap();
+            if transition.is_none() {
+                writeln!(out, "print 1").unwrap();
+            }
+        }
         Op::SpriteTurn { layer, image, from, to, degrees, ms } => {
             // Only lsp2 sprites turn: a copy stands in while it runs.
             // ONScripter's rot turns counter-clockwise.
