@@ -452,6 +452,8 @@ struct Lowering<'a> {
     /// The task has `:FadeWait 0`: its pictures fade without the script
     /// waiting.
     fading: bool,
+    /// The task's `:Rule` mask (sprite fades), if any.
+    rule: Option<String>,
     /// A transition is open (staged changes wait for InOut).
     staging: bool,
     choices: usize,
@@ -514,9 +516,9 @@ impl Lowering<'_> {
     /// fades in inside a transition, so that it does so filtered.
     #[allow(clippy::too_many_arguments)]
     fn show_at(&mut self, key: &str, tex: i64, image: (String, u32, u32), cx: i32, cy: i32, priority: i64, fade_ms: u32, replaces: &[String], look: Look) {
-        let opened = look != Look::default() && !self.staging;
+        let opened = (look != Look::default() || self.rule.is_some()) && fade_ms > 0 && !self.staging;
         if opened {
-            self.out.ops.push(Op::BeginTransition { effect: "Sprite".into(), fade_ms, mask: None, style: TransitionStyle::Fade });
+            self.out.ops.push(Op::BeginTransition { effect: "Sprite".into(), fade_ms, mask: self.rule.clone(), style: TransitionStyle::Fade });
             self.staging = true;
         }
         let mut changes: Vec<SpriteChange> = replaces
@@ -619,6 +621,10 @@ impl Lowering<'_> {
             .map(|old| SpriteChange { layer: old.layer, sprite: None, keep_filters: false })
             .collect();
         if changes.is_empty() {
+        } else if let Some(mask) = self.rule.clone().filter(|_| !self.staging && fade_ms > 0) {
+            self.out.ops.push(Op::BeginTransition { effect: "Sprite".into(), fade_ms, mask: Some(mask), style: TransitionStyle::Fade });
+            self.out.ops.push(Op::Sprites { changes, fade_ms: 0 });
+            self.out.ops.push(Op::EndTransition);
         } else if self.fading && !self.staging && fade_ms > 0 {
             self.out.ops.push(Op::SpritesFading { changes, fade_ms });
         } else {
@@ -637,7 +643,8 @@ impl Lowering<'_> {
             Some(t) => {
                 let time = ms(t.int("Time").unwrap_or(30));
                 match t.task_type() {
-                    Some("InOut") => (time, t.int("Type").and_then(|n| self.assets.rule(n as u32)), TransitionStyle::Fade),
+                    // `:Type N` is RULE<N-1>, 0 a plain fade (table 0x81162e38).
+                    Some("InOut") => (time, t.int("Type").filter(|&n| n > 0).and_then(|n| self.assets.rule(n as u32 - 1)), TransitionStyle::Fade),
                     _ => (time, None, act_style(t)),
                 }
             }
@@ -705,6 +712,12 @@ impl Lowering<'_> {
         // once); SpriteBG and SpriteBS, which replace the whole picture,
         // still wait.
         self.fading = t.int("FadeWait") == Some(0) && matches!(ty, "CharacterOpen" | "CharacterDelete" | "Sprite" | "SpriteDelete" | "SpriteDeleteBG");
+        // `:Rule N` (sprite fades; 0 a plain fade) is ETC.cpk's file N - 1,
+        // RULE<N-1> (the eboot's table 0x811635fc, file ID + 200000).
+        self.rule = match t.int("Rule") {
+            Some(n) if n > 0 && ty.starts_with("Sprite") => self.assets.rule(n as u32 - 1),
+            _ => None,
+        };
         // A character's fade (task_charopen_new, task_chardelete_new): over
         // `:Fade` frames, 18 without one, at once for `:Fade 0` (or
         // CharacterDelete's `:FadeOut 0`).
@@ -1543,7 +1556,7 @@ fn act_style(t: &Block) -> TransitionStyle {
 /// Compiles `scenes` (all of them if empty), each at its label, after a
 /// jump to the game's first scene.
 pub fn compile(game: &Game, scenes: &[String], assets: &mut dyn Assets) -> Compiled {
-    let mut l = Lowering { game, assets, out: Compiled::default(), shown: BTreeMap::new(), next_slot: HashMap::new(), fading: false, staging: false, choices: 0, cover: None, eye_catch: false, shutters: None, inherited: false, opening: false, messages: 0 };
+    let mut l = Lowering { game, assets, out: Compiled::default(), shown: BTreeMap::new(), next_slot: HashMap::new(), fading: false, rule: None, staging: false, choices: 0, cover: None, eye_catch: false, shutters: None, inherited: false, opening: false, messages: 0 };
     let names: Vec<&String> = if scenes.is_empty() { game.scenes.keys().collect() } else { scenes.iter().collect() };
     let first = names.first().map(|s| s.as_str()).unwrap_or(&game.start);
     let first = if scenes.is_empty() { game.start.as_str() } else { first };
