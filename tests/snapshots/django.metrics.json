@@ -6,7 +6,7 @@
 "totals": {"calls": 57098, "full": 45699, "gaps": 11399},
 "kinds": {
 "WaitAction": {"calls": 5932, "gaps": 5839, "reasons": [["WaitAction argument 1 ignored", 5839], ["move or zoom over time with a fade or a new picture drawn as a cross-fade", 21]]},
-"SetFrequency": {"calls": 1283, "gaps": 1283, "reasons": [["SetFrequency argument 0 ignored", 1283], ["SetFrequency argument 1 ignored", 1283], ["SetFrequency argument 3 ignored", 1283]]},
+"SetFrequency": {"calls": 1283, "gaps": 1283, "reasons": [["SetFrequency argument 3 ignored", 1283], ["SetFrequency on music", 30]]},
 "Move": {"calls": 3601, "gaps": 1076, "reasons": [["Move argument 4 ignored", 1069], ["move or zoom over time with a fade or a new picture drawn as a cross-fade", 11]]},
 "CreateWindow": {"calls": 975, "gaps": 975, "reasons": [["CreateWindow argument 6 ignored", 975]]},
 "LoadText": {"calls": 740, "gaps": 740, "reasons": [["LoadText argument 0 ignored", 740]]},
