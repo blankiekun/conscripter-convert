@@ -261,9 +261,18 @@ addresses in `research/typemoon/names.tsv` are those of the 1.0.2
   **Not settled**: how big a picture is drawn. In record units a
   background (1288 × 732) is two screens; in texels (2576 × 1456,
   most bare backgrounds exactly 2560 × 1440, 16:9, with a 427 × 240
-  copy) it is one screen at W/2560 a texel. The texture's
-  size reaches the draw only through `FUN_001dfa6c`/`FUN_001dfa88`
-  (the pivot, normalised), which aren't read yet.
+  copy) it is one screen at W/2560 a texel. Read further, still not
+  settled: `FUN_001dfa6c`/`FUN_001dfa88` return a texture's
+  registered width and height, set by `FUN_001df790` when it loads;
+  for pictures (`FUN_001a3180`) the BRTI width and height ÷ 1, or ÷ 2/3
+  when bit 0 of its 8th argument is clear. The quad draw
+  (`FUN_001b0920` → `FUN_0019fe00`) hands that size, the scale
+  (zoom · W/320, H/180) and the pivot (centre·1920/640 ÷ (6 × width),
+  likewise for y; default 0.5) to the shaders as constants, so the
+  pixel size is worked out in a vertex shader (`shader/`, NVN
+  binaries, not read). On those numbers a centred expression's pivot
+  comes to 1/8 or 1/12, not ½: a factor is missing that the C doesn't
+  give.
 - **Picture layers**: 40 (0–39), staged by the commands below and shown
   by `_FADS`. Arguments are expressions (`FUN_00102d3c`); `FUN_00102b24`
   splits at most 20 of them.
@@ -571,9 +580,10 @@ Nothing yet.
    bfsar's stream details (see "The exe").
 3. How big a picture is on screen (see "The stage"): the record
    units (640 × 362 to the screen) against the texture (2560 × 1440,
-   16:9) for a background. One screenshot of a known background from
-   the original (a Switch capture) settles it; no Switch emulator is
-   on the machine.
+   16:9) for a background. The decompile was followed to the shader
+   constants without settling it (see "The stage"); one screenshot of
+   a known background from the original (a Switch capture, asked of
+   the user) settles it. No Switch emulator is on the machine.
 4. Still open in the exe: `_FADS` type 1, `_STCH`'s arguments
    12–17, `_STZ4`'s last two, and the motion keyframes' other fields.
 
