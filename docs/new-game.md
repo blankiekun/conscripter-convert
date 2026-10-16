@@ -179,6 +179,10 @@ rather than by browsing:
    argument known to change nothing goes in a short table with the value
    it covers and why: Nitroplus's `UNREAD_HARMLESS`). The dry run's notes
    then list the partial rows by themselves.
+   Give each row where it will go: data for an engine piece (`spmotion`
+   keys, an `spcurve` table, `cons_rule.dll` masks), Lua (logic,
+   processes), or a new engine command (§10). Only the last needs an
+   engine PR.
 6. **Write the results back.** Commit `names.tsv` with comments, fold the
    decoded semantics into the engine's built-ins reference
    (`research/nitroplus/builtins.md` for Nitroplus), and put the gaps
@@ -385,15 +389,41 @@ anything is reached (step 11.6).
   `docs/games/muramasa.md` for a game that needs DirectSound.
 - Then read the effect's kernel in the exe for the exact curve, and fit
   the filmed frames to it. Example: MeltDown, edge = h·((p − d)/(1 − d))².
-- Check our side the same way: run CONscripter on its own Xvfb display
+  Keep what you read as data where the engine can take it (§10): an
+  easing as an `spcurve` table, an in-place transition as `cons_rule.dll`
+  masks.
+- Check our side with the trace: `--shot-effects 25,50,75` films every
+  effect at those points of its own time, under `--auto-play` too, as
+  `<shot-dir>/fx<pg>-<n>-<pct>.png` (with `--shot-pages` only on those
+  pages); compare them with the original's frames at the same fractions.
+  Watching it run is the old way: CONscripter on its own Xvfb display
   with `WAYLAND_DISPLAY= SDL_VIDEODRIVER=x11 SDL_RENDER_DRIVER=software`
   (the default renderer grabs black; without `WAYLAND_DISPLAY=` the
-  window opens on the user's desktop) and grab frames mid-effect with
+  window opens on the user's desktop), frames grabbed with
   `import -window root`.
 
 ## 10. Engine additions
 
-When existing NScripter commands can't do it:
+Before adding a command, see whether the engine's general pieces take
+the feature as data; most of an exe's presentation code is one of these:
+- **Sprite animation** (moves, zooms, turns, fades, flashes, glows over
+  time): `spmotion` keys (offset, zoom x/y, angle, alpha) with a curve
+  per key; the exe's own easing goes in an `spcurve` table as read (or as
+  computed by running its function, PLAN.md §13.2). `spblend` adds or
+  multiplies.
+- **Transitions that mix the two pictures in place** (wipes, dissolves,
+  blinds, soft rules): `cons_rule.dll` with a strip of mask frames, made
+  by running the original's kernel on a black old and a white new
+  picture. Transitions that move pixels still get a plugin.
+- **Logic** (rankings, unlock checks, counters, minigame rules) and
+  **parallel processes** (an engine's per-frame threads): Lua, already in
+  every build. `luasub name` makes `NSCOM_name` a command; the script's
+  Lua globals are saved; `cons_process(name, "fn", ...)` resumes a
+  coroutine once a frame. A process restarts from the top after a load,
+  so keep its progress in globals. Port decompiled C almost line by line.
+  The converter doesn't write a `system.lua` yet: the first game that
+  needs one adds that to conv-cons, for every game.
+A new command is for what none of these can do. Then:
 1. Add it in `engine/src/cons/` (`ONScripter_cons.cpp` preferred).
    It isn't opt-in: a new behaviour, like a bug fix, applies to every
    script, with no command to turn it on. Effects are `cons_*.dll` effect-99 plugins; screen
