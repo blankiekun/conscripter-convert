@@ -25,6 +25,7 @@ impl Compiler<'_, '_> {
     /// shows in the dry run's list.
     pub(super) fn builtin(&mut self, name: &str, a: &[Value]) -> Value {
         let read = Cell::new(0u64);
+        self.forget_ended_sounds();
         let value = self.builtin_reading(name, a, &read);
         for (i, v) in a.iter().enumerate().take(64) {
             let harmless = UNREAD_HARMLESS.iter().any(|&(b, k, value, _)| b == name && k == i && value.is_none_or(|x| if x == "null" { matches!(v, Value::Null) } else { v.string() == x }));
@@ -173,7 +174,7 @@ impl Compiler<'_, '_> {
             "CreateSound" => {
                 let name = self.object_name(&arg(0));
                 let bgm = arg(1).string().eq_ignore_ascii_case("bgm");
-                let s = SoundObject { path: self.named_string(&arg(2)), bgm, volume: 1000, looped: false, starting: false, fade_ms: 0, playing: None, disused: false, loop_ms: None, played_ms: 0 };
+                let s = SoundObject { path: self.named_string(&arg(2)), bgm, volume: 1000, looped: false, starting: false, fade_ms: 0, playing: None, disused: false, loop_ms: None, started_at: 0, len_ms: None };
                 self.create(name, Kind::Sound(s), 0, 0, 0);
             }
             "Fade" => {
@@ -430,9 +431,10 @@ impl Compiler<'_, '_> {
                             wait = wait.max(limit.unwrap_or(0));
                             continue;
                         }
-                        let (path, played) = (s.path.clone(), if s.starting { 0 } else { s.played_ms });
-                        match self.assets.sound_ms(&path) {
-                            Some(ms) => wait = wait.max(limit.map_or(ms, |l| l.min(ms)).saturating_sub(played)),
+                        // A starting sound's length is read when it starts.
+                        let left = if s.starting { self.assets.sound_ms(&s.path.clone()) } else { self.sound_left(&t) };
+                        match left {
+                            Some(ms) => wait = wait.max(limit.map_or(ms, |l| l.min(ms))),
                             None => self.note("WaitPlay on a sound of unknown length"),
                         }
                         continue;
@@ -443,10 +445,12 @@ impl Compiler<'_, '_> {
                     }
                 }
                 if wait > 0 {
-                    self.sync(0);
-                    let wait = self.movie_wait(wait);
-                    if wait > 0 {
-                        self.ops.push(Op::Wait { ms: wait });
+                    // As `Wait`: the actions still running are shown over it.
+                    let ms = self.movie_wait(wait);
+                    let shown = std::mem::take(&mut self.pending_ms).min(ms);
+                    self.sync(shown);
+                    if ms > shown {
+                        self.ops.push(Op::Wait { ms: ms - shown });
                     }
                 }
             }

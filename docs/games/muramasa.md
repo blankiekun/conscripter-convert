@@ -549,6 +549,13 @@ Used to check what the engine does (`docs/new-game.md` step 9).
   companion): `Op::RuntimeChoice`, `$3632` up, choice-only flags at
   %783-%798. Their line-log entries (`『…』`, `【…】`) are picked at
   run time too (`Op::RuntimeBacklogLine`, `$3638`).
+- Changed by the Django agent (shared NSS code): `WaitPlay` on a sound
+  waits for its rest (#70, merged), and a disused one-shot (`OnSE`,
+  `MusicStart`) stays until its end (#76), so `WaitPlay`,
+  `Fade` and `SetVolume` on `SE*`/`OnSE*` still reach it: about 130 new
+  `delay`s (ma01_003's door: 2,528 ms), 366 fade-outs and 29 other
+  `chvolfade`s; `RemainTime` on a just-started SE now gives its length
+  (ma01_025's `WaitKey($残時間)`, the shakes timed by it).
 - Known limits: a window that moves (`絵演窓上`, `窓右`, about 56 `Move`s)
   has its clip jump to the end place when the move starts. Sprite movies
   (scene cuts, the turntables) don't play in CONscripter for Windows,
