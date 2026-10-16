@@ -275,6 +275,7 @@ is noted) and why:
 | `0x3b` | `sub`, `+0` | 11, 13; "debug entry", "release entry" | the entry name and its length: only `0x3c` reads it, and no script uses `0x3c` (`op_3b` `0x478650`) |
 | `0x43` | `arg` | 0, 1 | neither waits for the window's fade-out: `op_43` (`0x4772a0`) goes on in the same frame for 0, the next for 1; ours goes on at once (History, item 32) |
 | `0x52`, `0x53` | `sub` | 0 | text window 0, the only one (`FUN_00476a80`: `sub` picks the window) |
+| `0x52`, `0x53` | `arg` | any | the click wait's read-flag number (`FUN_00476a80` keeps it at the window's +0x10, the wait `0x476750` marks it read): CONscripter's kidoku keys the wait by its place in `0.txt` (History, item 34) |
 | `0x6d` | `-12` | zeros | `op_6d` (`0x442000`) reads only the record's first 12 bytes (speed, x and y range; y goes to `quake_object` in EAX, which Ghidra drops) |
 | `0x76` | `+4` | 0 | the flags (`op_76` `0x449df0`: hide the windows, remove the bust-ups): neither |
 | `0x77` | `-8` | flags 0, sort keys 0x271000, 0x3e800, 0x6403, 3, 0 | the 9 records below the top band change only what they cover (History, item 15) |
@@ -303,7 +304,6 @@ run's):
 | every opcode the corpus uses, except as below | every operand | converted |
 | `0x40`, `0x41` | `sub` bit 0: the first line is the speaker's name (not in full-screen windows: the exe drops it there) | converted (History, item 27) |
 | `0x40` | the extra block after the debug menu's one message (`0001.cd` #1): 1 note | dropped (unreachable) |
-| `0x52`, `0x53` | `arg` (odd numbers, 421 and 221 distinct values): 1,117 and 501 notes | dropped: the click wait's read-flag number (item 34) |
 | `0x44` | u16 flags at +6 (3 in 32, 1 in 5): 37 notes | dropped: meaning unknown |
 | `0x46` | u32 style at +6 (0x8007 in 205, 0x8012 in 9): 214 notes | dropped: the 9 style-18 links look like the others |
 | `0x46` | u32 at +14 (0 in all 214), kept by `op_46` (`0x477460`) in the link: 214 notes | dropped: meaning unknown |
@@ -631,11 +631,10 @@ a copy of the save works.
 - Open: speaker names from `sub` bit 0, PR #102 (History, item 27):
   4,867 notes of 20 kinds left; 80,285 of 84,713 calls fully converted
   (was 49,328).
-- Next session: `0x52`/`0x53` `arg` (item 34, read in the exe),
-  `0x90` +2 (item 35: `op_90` `0x434960` stores it at the new
+- Merged: `0x43` `arg` as harmless (#111, History, item 32).
+- Open: `0x52`/`0x53` `arg` as harmless, PR #114 (History, item 34).
+- Next session: `0x90` +2 (item 35: `op_90` `0x434960` stores it at the new
   module's +0xc, meaning not found yet).
-- Open: `0x43` `arg` as harmless, PR #111 (History, item 32): 3,850
-  notes left.
 - Merged: the exe map's fixes and missed callbacks (#46).
 - Open: `0x59` as a real cross-fade, converter #25 with engine #18 (asked
   for a web-build measurement of the old track's decode first);
@@ -699,13 +698,6 @@ after History's 26, most noticeable first (notes = instructions):
     in 5, 0 in 4, 2000 in 3, 500 once): the same for the static, ripples and shakes.
 33. **Ruby flags** (`0x44` u16 at +6, 37 notes: 3 in 32, 1 in 5):
     meaning unknown.
-34. **`0x52`/`0x53` `arg`** (1,117 + 501 notes): the click wait's
-    read-flag number, the tag's source line (odd: between the messages'
-    even lines). `FUN_00476a80` keeps it at the window's +0x10, and the
-    wait (`0x476750`) marks (file, it) read with `set_read_flag`
-    (`0x4bb450`), as `show_message` does with a message's line.
-    CONscripter's kidoku keys the same wait by its place in `0.txt`:
-    next session, likely a harmless-table row ("any").
 35. **`0x90` module field** (u32 at +4, 651 notes): 1 except 2 and 0
     once each.
 36. **`0x88` module field** (u32 at +8, 45 notes: 0 in 41, 1000 twice,
@@ -1232,3 +1224,12 @@ sound effects on `dwave` channels.
    goes on at once for both; one frame isn't worth converting, so the
    values 0 and 1 are a row of the harmless table ("Operand coverage").
    The 578 notes are gone; `0.txt` is unchanged.
+34. **Done: the click waits' `arg`** (2026-10-16). `0x52`/`0x53`'s
+   `arg` (odd numbers, 421 and 221 distinct values: the tag's source
+   line, between the messages' even lines) is the wait's read-flag
+   number: `FUN_00476a80` keeps it at the window's +0x10 and the wait
+   (`0x476750`) marks (file, it) read with `set_read_flag`
+   (`0x4bb450`), as `show_message` does with a message's line.
+   CONscripter's kidoku keys the same wait by its place in `0.txt`, so
+   any value is a row of the harmless table ("Operand coverage"). The
+   1,618 notes are gone; `0.txt` is unchanged.

@@ -3274,6 +3274,9 @@ const UNNEEDED_OPERANDS: &[(u16, &str, &str, &str)] = &[
     // op_52 0x476cb0, op_53 0x476cd0 (both FUN_00476a80): sub picks the text window.
     (0x52, "sub", "0", "text window 0, the only one"),
     (0x53, "sub", "0", "text window 0, the only one"),
+    // arg: the wait's read-flag number (kept at the window's +0x10; the wait 0x476750 marks it read with set_read_flag 0x4bb450).
+    (0x52, "arg", "*", "any: the click wait's read-flag number; CONscripter's kidoku keys the wait by its place in 0.txt"),
+    (0x53, "arg", "*", "any: the click wait's read-flag number; CONscripter's kidoku keys the wait by its place in 0.txt"),
     (0x6d, "-12", "zeros", "op_6d 0x442000 reads only speed, x and y range (y in EAX to quake_object)"),
     (0x76, "+4", "00000000", "flags 0 (op_76 0x449df0: bit 0 hides the windows, bits 0-1 remove the bust-ups): neither, as ours"),
     (
