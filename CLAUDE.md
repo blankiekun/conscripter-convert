@@ -93,6 +93,10 @@ shared code. A team lead hands out the items and reviews the PRs.
   then build and run `cargo test`. Rebase onto `origin/main` again before
   pushing a change to a hot spot (below). Conflicts are small when they
   are fresh. Never switch branches in another agent's worktree.
+- **No `git stash`**: the stash list is shared by every worktree, so a
+  `pop` can apply another agent's stash into your tree. To set work
+  aside, commit it on a scratch branch or save a patch
+  (`git diff > <scratchpad>/x.patch`).
 - **Hot spots**: files every game's work changes. Before editing one,
   check what main changed in it (`git log -p HEAD..origin/main -- <file>`).
   Keep each edit small and in its own place:
