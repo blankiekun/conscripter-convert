@@ -120,7 +120,8 @@ Found so far:
 - EyeCatch: the task is number 0x6f; `:Image` type 0 makes the object
   at vtable 0x8115c59c (two half-screen sprites, y −136 → 136 and
   680 → 408 as the progress goes 0 → ½, back after), type 1 the one
-  at 0x8115c5bc (the chapter card, 0x81048c68; alpha 0 → 100 → 0).
+  at 0x8115c5bc (the chapter card: set up at 0x81048c68, alpha
+  0 → 100 → 0 at 0x81048ef2).
   Both are drawn from SystemData by ID, not by name.
 - SceneJumpDialog: task 0x84 (handler 0x810265b4: Yes goes to
   `:JumpNextTag`, No to `:NextTag`, an unread scene or the setting off

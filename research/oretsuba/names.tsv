@@ -10,7 +10,8 @@
 81041812	inout_act_create	InOut_Act: switch on :Type + 10, one object per type (0,4,5,7,8 two quads; 1,2,3,6 a vertex and a fragment GXP)
 810427b2	effect40_ctor	EffectStart 40 (wave over the monologue background): draws through vertex GXP 0x81161628 and fragment GXP 0x8115f304
 81048b8a	eyecatch_shutters_update	EyeCatch :Image 0 object (vtable 0x8115c59c): two half-screen sprites close as the progress goes 0 to 1/2, open after
-81048c68	eyecatch_card_update	EyeCatch :Image 1 object (vtable 0x8115c5bc): the chapter card, alpha 0 to 100 to 0
+81048c68	eyecatch_card_init	EyeCatch :Image 1 object (vtable 0x8115c5bc, slot 4 like eyecatch_shutters_init): sets up the chapter card
+81048ef2	eyecatch_card_update	EyeCatch :Image 1 object (vtable slot 6 like eyecatch_shutters_update): the chapter card, alpha 0 to 100 to 0 as the progress goes 0 to 1/2 to 1
 8103e7d6	skipdialog_layout	SceneJumpDialog class (vtable 0x8115befc): lays out SystemData 62 + :BG 0
 8103e248	skipdialog_set_cells	the dialog atlas cells (rectangles centred at a point): screen, question, date, emblem, faces, Yes/No
 8103ebf2	skipdialog_draw_text	draws two strings in white, lines 27 apart: one at (81, 99), the summary at (300, 319)
@@ -63,8 +64,8 @@
 # through a pointer (`&LAB_…_1` in decomp/, Thumb), made functions. Most are
 # CRI middleware and SDK callbacks (thread entries, atexit destructors).
 81035aa4	cb_81035aa4	thread entry passed by 0x8103663a to three thread/job starters
-8112b474	cb_8112b474	static destructor (__cxa_atexit from 0x8104c64e)
-8112c498	cb_8112c498	static destructor (__cxa_atexit from 0x8105071a)
+8112b474	cb_8112b474	static destructor (__aeabi_atexit from 0x8104c64e)
+8112c498	cb_8112c498	static destructor (__aeabi_atexit from 0x8105071a)
 8109128e	cb_8109128e
 81091298	cb_81091298
 8109e170	cb_8109e170
@@ -107,7 +108,7 @@
 81131b34	free	SceLibc 0x5B9BB802
 81131c24	printf	SceLibc 0x9A004680 (debug messages)
 81131cc4	rand	SceLibc 0xC0883865 (result x 1/2^31)
-81131d74	__cxa_atexit	SceLibc 0xEDC939E1 (object, destructor, &__dso_handle)
+81131d74	__aeabi_atexit	SceLibc 0xEDC939E1 (object, destructor, &__dso_handle; the ARM EABI wrapper of __cxa_atexit)
 81131c34	strncpy	SceLibc 0x9F87712D (dst, src, size - 1)
 81131e14	operator_new	SceLibstdcxx 0xF99ED5AC (size)
 81131de4	operator_delete	SceLibstdcxx 0x72293931
