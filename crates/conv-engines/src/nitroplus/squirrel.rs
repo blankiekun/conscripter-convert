@@ -181,6 +181,20 @@ impl Function {
         self.functions.iter().for_each(|f| f.calls_int_str(name, out));
     }
 
+    /// Every string loaded right before a `name(…)` call is prepared, in
+    /// this function and the ones inside it: ma01_026's
+    /// `text = "…"; SetText("type_text01", text)`.
+    pub fn strs_before_call(&self, name: &str, out: &mut Vec<String>) {
+        for w in self.code.windows(2) {
+            if w[0].op == LOAD && w[1].op == PREPCALLK && self.str(w[1].arg1) == Some(name)
+                && let Some(s) = self.str(w[0].arg1)
+            {
+                out.push(s.to_string());
+            }
+        }
+        self.functions.iter().for_each(|f| f.strs_before_call(name, out));
+    }
+
     /// Every `table[int] <- "string"` in this function: the English text
     /// files' `TransText[key] <- english`.
     pub fn table_rows(&self, table: &str) -> Vec<(i32, String)> {

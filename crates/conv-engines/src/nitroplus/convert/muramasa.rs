@@ -21,9 +21,68 @@ pub mod screens;
 pub const MURAMASA: Game = Game { call, scene, flags, files: &[magiccube::FILE], menus: screens::menus, subroutines: &[(screens::FAVOUR, "nss/sys_hmode.nss")], replays: extras::replays, ..Game::PLAIN };
 
 /// Full Metal Daemon Muramasa (the English release's text in the Japanese
-/// scripts): its port writes the vertical text boxes horizontally,
-/// `text0`: 280×150, font 20, `rowSpace` 1 (`function_textbox.nut`).
-pub const MURAMASA_EN: Game = Game { horizontal_box: Some((280, 150, 21)), ..MURAMASA };
+/// scripts): its port writes the vertical text boxes horizontally, 280
+/// wide, font 20, `rowSpace` 1 (`function_textbox.nut`), down to the
+/// click icon at 500: 14 lines; every box in its own window picture
+/// ([`EN_BOXES`]), with the text where [`EN_TEXT`] puts it.
+pub const MURAMASA_EN: Game = Game { call: call_en, horizontal_box: Some((280, 300, 21)), box_text: &EN_TEXT, ..MURAMASA };
+
+/// The port's text places (`BoxInfo` in `val.nut`): box, text x, y and
+/// width; the ones with a face window first, as both may be shown.
+const EN_TEXT: [(&str, i64, i64, i64); 12] = [
+    ("boxCT", 375, 190, 280),
+    ("boxCC", 375, 190, 280),
+    ("boxRT", 630, 190, 280),
+    ("boxRR", 630, 190, 280),
+    ("boxLT", 118, 190, 280),
+    ("boxLL", 118, 190, 280),
+    ("boxTH", 238, 426, 701),
+    ("boxH", 94, 426, 845),
+    ("boxCTH", 360, 225, 420),
+    ("boxCH", 280, 225, 501),
+    ("boxTNoh", 351, 225, 434),
+    ("boxNoh", 280, 225, 492),
+];
+
+/// The port's boxes (`CreateAllTextBox` in `function_textbox.nut`): name,
+/// x, y, picture in `cg/sys/adv/en/`. The vertical ones are 305×475 at y
+/// 51; the horizontal ones 880×158, at the Japanese y (`None`, moved by
+/// the `Move` after them as there).
+const EN_BOXES: [(&str, i64, Option<i64>, &str); 10] = [
+    ("boxCC", 360, Some(51), "TextWindow"),
+    ("boxCT", 360, Some(51), "TextWindow_Fw"),
+    ("boxRR", 616, Some(51), "TextWindow"),
+    ("boxRT", 616, Some(51), "TextWindow_Fw"),
+    ("boxLL", 103, Some(51), "TextWindow"),
+    ("boxLT", 103, Some(51), "TextWindow_Fw"),
+    ("boxH", 72, None, "THTextWindow"),
+    ("boxTH", 72, None, "THTextWindow_Fw"),
+    ("boxCH", 264, None, "THTextWindow"),
+    ("boxCTH", 224, None, "THTextWindow_Fw"),
+];
+
+/// [`call`], with the port's boxes for `function.nss`'s: each made at the
+/// port's place, and the vertical ones not moved by the `Move` after them.
+fn call_en(c: &mut Compiler<'_, '_>, name: &str, args: &[Value]) -> bool {
+    let en_box = match args.first() {
+        Some(Value::Str(s)) => EN_BOXES.iter().find(|b| b.0 == s),
+        _ => None,
+    };
+    match (name, en_box) {
+        ("CreateTexture", Some(&(_, x, y, picture))) if args.len() == 5 => {
+            let mut args = args.to_vec();
+            args[2] = Value::Int(x);
+            if let Some(y) = y {
+                args[3] = Value::Int(y);
+            }
+            args[4] = Value::Str(format!("cg/sys/adv/en/{picture}.png"));
+            c.builtin("CreateTexture", &args);
+            true
+        }
+        ("Move", Some((_, _, Some(_), _))) => true,
+        _ => call(c, name, args),
+    }
+}
 
 fn call(c: &mut Compiler<'_, '_>, name: &str, _: &[Value]) -> bool {
     if let Some(r) = RANKINGS.iter().find(|r| r.0 == name) {

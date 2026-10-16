@@ -167,6 +167,10 @@ pub struct Game {
     /// left of the vertical text: Full Metal Daemon Muramasa's English
     /// port, whose `text0` is 280×150 (`function_textbox.nut`).
     horizontal_box: Option<(i64, i64, i64)>,
+    /// Where the text starts and how wide it is while the named window
+    /// picture is shown: the first of these shown (Full Metal Daemon
+    /// Muramasa's English port, `BoxInfo` in `val.nut`).
+    box_text: &'static [(&'static str, i64, i64, i64)],
 }
 
 impl Game {
@@ -192,6 +196,7 @@ impl Game {
         choice_style: |c, n| c.vertical_choice_style(n),
         story_end: &[],
         horizontal_box: None,
+        box_text: &[],
     };
 
     /// Fills `script`'s system screens.
@@ -2806,7 +2811,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
         // Across: as many lines as end inside the box (box02: 130 px at a
         // 27 px pitch holds five 18 px lines, the last ending at 126).
         let rows = if vertical { h / line.max(1) } else { (h - font) / line.max(1) + 1 }.max(1) as u32;
-        let (text_x, text_y) = if vertical { (x - rows as i64 * line, y) } else { (x, y + self.game.text_drop) };
+        let (mut text_x, mut text_y) = if vertical { (x - rows as i64 * line, y) } else { (x, y + self.game.text_drop) };
         let (mut columns, mut rows, mut line, mut vertical) = (columns, rows, line, vertical);
         if let (true, Some((w, h, pitch))) = (vertical, self.game.horizontal_box) {
             (columns, rows, line, vertical) = ((w / font.max(1)).max(1) as u32, ((h - font) / pitch.max(1) + 1).max(1) as u32, pitch, false);
@@ -2826,6 +2831,10 @@ impl<'a, 'b> Compiler<'a, 'b> {
             .collect();
         parts.sort_by_key(|p| (p.0, p.1));
         let parts: Vec<_> = parts.into_iter().map(|p| p.2).collect();
+        let shown = |name: &str| self.objects.get(name).is_some_and(|o| o.hideable && o.opacity > 0);
+        if let Some(&(_, x, y, w)) = self.game.box_text.iter().find(|b| shown(b.0)) {
+            (text_x, text_y, columns) = (x, y, (w / font.max(1)).max(1) as u32);
+        }
         let (image, wx, wy) = match self.assets.composite(&parts) {
             Some(c) => c,
             None => (self.assets.transparent(), 0, 0),
@@ -3010,6 +3019,61 @@ function TypeBegin()
 	Fade("@box", 150, 0, null, true);
 }
 "#;
+
+    #[test]
+    fn the_english_port_writes_vertical_boxes_across_in_its_own_window() {
+        let story = r#"
+scene a.nss
+{
+	CreateTexture("boxCC", 20000, Center, 40, "cg/sys/adv/TextWindow.png");
+	SetAlias("boxCC", "boxCC");
+	Request("boxCC", Hideable);
+	Move("boxCC", 0, @+2, @0, null, true);
+	Fade("boxCC", 0, 1000, null, true);
+<PRE @box0>
+[text0010]
+　一行目
+</PRE>
+	SetText();
+	TypeBegin();
+}
+"#;
+        let mut files = BTreeMap::new();
+        files.insert(BOOT.to_string(), nss::parse("#include \"nss/function.nss\"\n").unwrap());
+        files.insert("function.nss".to_string(), nss::parse(LIBRARY).unwrap());
+        files.insert("a.nss".to_string(), nss::parse(story).unwrap());
+        let w = compile_scene(&files, "a.nss", "a.nss", &MURAMASA_EN, &mut Fake).unwrap().window.unwrap();
+        assert!(!w.vertical);
+        assert_eq!(w.image, "cg/sys/adv/en/textwindow.png@1000");
+        assert_eq!((w.x, w.y, w.text_x, w.text_y, w.columns, w.rows), (360, 51, 375, 190, 14, 14));
+    }
+
+    #[test]
+    fn the_english_port_puts_horizontal_text_where_its_box_info_says() {
+        let story = r#"
+scene a.nss
+{
+	CreateTexture("boxTH", 20000, 224, InBottom, "cg/sys/adv/THTextWindow_Fw.png");
+	Request("boxTH", Hideable);
+	Move("boxTH", 0, @0, @+4, null, true);
+	Fade("boxTH", 0, 1000, null, true);
+<PRE @box0>
+[text0010]
+　一行目
+</PRE>
+	SetText();
+	TypeBegin();
+}
+"#;
+        let mut files = BTreeMap::new();
+        files.insert(BOOT.to_string(), nss::parse("#include \"nss/function.nss\"\n").unwrap());
+        files.insert("function.nss".to_string(), nss::parse(LIBRARY).unwrap());
+        files.insert("a.nss".to_string(), nss::parse(story).unwrap());
+        let w = compile_scene(&files, "a.nss", "a.nss", &MURAMASA_EN, &mut Fake).unwrap().window.unwrap();
+        assert!(!w.vertical);
+        assert_eq!(w.image, "cg/sys/adv/en/thtextwindow_fw.png@1000");
+        assert_eq!((w.text_x, w.text_y), (238, 426));
+    }
 
     #[test]
     fn helpers_are_inlined_and_fades_become_transitions() {

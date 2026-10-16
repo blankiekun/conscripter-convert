@@ -62,12 +62,20 @@ pub fn build(game: &Path, run: &Run, opts: &Opts) -> Result<Built> {
         let name = e.name.rsplit('\\').next().unwrap_or(&e.name).to_string();
         files.insert(name, parsed);
     }
-    if let Some(dir) = run.english {
-        let path = dir.join("script.npk");
+    let open_npk = |dir: &Path, name: &str| -> Result<npk::Npk> {
+        let path = dir.join(name);
         let file = File::open(&path).with_context(|| format!("opening {}", path.display()))?;
-        let npk = npk::Npk::open(file).with_context(|| format!("parsing {}", path.display()))?;
-        let report = english::English::load(&npk)?.apply(&mut files);
-        println!("English: {} stretches of text replaced, {} left in Japanese", report.replaced, report.missed.len());
+        npk::Npk::open(file).with_context(|| format!("parsing {}", path.display()))
+    };
+    if let Some(dir) = run.english {
+        let report = english::English::load(&open_npk(dir, "script.npk")?)?.apply(&mut files);
+        println!(
+            "English: {} stretches of text replaced, {} aligned by position, {} left out by the translation, {} left in Japanese",
+            report.replaced,
+            report.aligned,
+            report.dropped.len(),
+            report.missed.len()
+        );
         for (file, jp) in report.missed.iter().take(5) {
             println!("  {file}: {}", jp.chars().take(40).collect::<String>());
         }
@@ -77,6 +85,9 @@ pub fn build(game: &Path, run: &Run, opts: &Opts) -> Result<Built> {
     // 続・殺戮のジャンゴ 1.01's own pictures.
     if game.join("cg2.npa").exists() {
         assets.cg2 = Some(open("cg2.npa")?);
+    }
+    if let Some(dir) = run.english {
+        assets.cg_en = Some(open_npk(dir, "cg.npk")?);
     }
     let movies: PathBuf = match run.movies {
         Some(m) => m.to_path_buf(),
