@@ -291,7 +291,7 @@ playthroughs (`%410`-`%439`).
 - Merged: the chapter card's names (#48). Open: motions and fades as
   engine motions (#13, #18, waiting on engine #2 → #7 → #14).
 - The user picks the next fixes from "Arguments not read" below.
-  Proposed order: `:Scale`, CharacterOpen's `:Color`, the shakes
+  Proposed order: CharacterOpen's `:Color`, the shakes
   (`:Fade 0` at full size, `:Loop 1`), `SpriteDeleteBG` always fading.
 - After engine #2 / converter #6: SpriteMove `:Curve` with the new
   per-key curves.
@@ -326,7 +326,7 @@ message (109 characters with the name; there is no paging).
 | Feature | State |
 |---|---|
 | Messages, speaker names (from the scripts' `:Name N // name` comments), voices | converted |
-| Backgrounds and sprites (`SpriteBG`, `Sprite`, `SpriteBS`, deletes), by priority | partial (`:Scale` dropped: "Arguments not read", below): `SpriteBG` and `SpriteBS` replace every picture (a background, a black cover, a white flash, an event CG, in one fade), the characters too unless `:SpriteDelete 0` (the scripts never delete the characters a location change leaves, and after 37 of the 0s they delete them themselves); a scene's first picture also removes whatever the scene before left (the eboot loads each scene's textures anew). `Sprite` adds one, and `SpriteDelete`/`SpriteDeleteBG` remove the picture of their `:SpriteNumber` (a texture). Our reading of the scripts; positions not yet checked against the original |
+| Backgrounds and sprites (`SpriteBG`, `Sprite`, `SpriteBS`, deletes), by priority | converted (`:Scale` zooms the picture about its centre, which `:Position` places, with `spzoom`, as SpriteMove's: below): `SpriteBG` and `SpriteBS` replace every picture (a background, a black cover, a white flash, an event CG, in one fade), the characters too unless `:SpriteDelete 0` (the scripts never delete the characters a location change leaves, and after 37 of the 0s they delete them themselves); a scene's first picture also removes whatever the scene before left (the eboot loads each scene's textures anew). `Sprite` adds one, and `SpriteDelete`/`SpriteDeleteBG` remove the picture of their `:SpriteNumber` (a texture). Our reading of the scripts; positions not yet checked against the original |
 | Characters (`CharacterOpen`, `…BS`, `CharacterDelete`, `CharacterMove`) and `SpritePriority`/`CharacterPriority` | partial (CharacterOpen's own `:Color`, CharacterMove's `[CharaN]` `:Priority`, `[CharaN]` `:FadeOut 0`, CharacterMove `:Wait 0` dropped: below). At y 0 a character stands on the screen's bottom edge (1209 of the 1333 pictures, 630 pixels tall, are cut off along their bottom row); the eboot scales `OffsetY` (-68 for everyone standing) by 544/720, but centred that leaves them 8 pixels above the edge, so where it anchors them is still to be found. Shorter pictures (the 960×540 cut-ins) are centred plus `OffsetY`. CharacterMove's y counts from that height. `CharacterDelete` without a list (`:SpriteMax 0`, 962 of 1414) removes every character; `CharacterOpenBS` removes the characters it doesn't name (the scripts re-open or delete-all them afterwards, and only twice delete one by name). S04_16B's `:Number <ST_ASU02H>>` (a placeholder the script's tool never filled in) is resolved by the picture's name through the character tables (Asuka 0,0,2,8,0) |
 | `:Color` tints (dusk 255,236,220 on 3,892 pictures, night 220,222,255 on 2,105), `:Grayscale` (479), with `:Gamma` the sepia flashbacks (188), `:Floor`/`:Ceil` film negatives (42), `:Color` alpha 0 | converted as sprite filters: a tint multiplies (`spfilter` colour, multiply), sepia is a monotone with each channel of the grey raised to 1/gamma as an offset at mid-grey (+75, +28, −47), and a picture with filters fades in inside a transition, filtered. Alpha 0 shows a character see-through; a CharacterMove that changes the alpha cross-fades to the new place and opacity over its `:Time` |
 | `InOut` transitions with the RULE masks | converted |
@@ -501,12 +501,11 @@ Not covered yet: only scene tasks are checked; `chract`'s actions (the
 eboot reads a `:Priority` and an easing per key there) and the `.txt`
 tables (`adv.txt`, `chr*.txt`, `CGMODE`) are not.
 
-The full dry run gives 5,873 notes of 104 kinds; by how much they show,
+The full dry run gives 5,824 notes of 101 kinds; by how much they show,
 with their uses:
 
 | Task | Argument | Uses | State: what is lost |
 |---|---|---|---|
-| SpriteBG, SpriteBS, Sprite | `:Scale` | 15, 33, 1 | dropped: close-ups of a background (×1.5-10) shown whole |
 | CharacterOpen | the task's own `:Color` | 17 | dropped: 13 open see-through (alpha 0) and are shown solid |
 | EffectQuake, SpriteQuake | `:Fade 0` | 1,053, 85 | dropped: the eboot shakes at full size for `:Time` and stops; ours dies down |
 | CharacterMove, SpriteMove | `:Wait 0` | 668, 198 | dropped: moves the eboot runs under the text, ours wait for |
@@ -555,6 +554,20 @@ Next, in order:
 
 Finished work, moved out of "Status" so a session reads only the open
 state.
+
+**SpriteBG, SpriteBS, Sprite `:Scale` (2026-10-16).** 49 uses (15, 33,
+1): close-ups, ×1.5-10, mostly zoomed out by a SpriteMove after.
+scene_load (0x8102840a, cases 9, 10 and SpriteBS's) stores `:Scale` at
+the task's +0xa0, which task_run puts in the sprite's scale (+0x48);
+the quad (0x8103d53c) scales the picture's corners about its `:Center`
+point (the centre for these), which `:Position` places. So the picture
+centre goes to `:Position` and the picture is zoomed about it, as
+SpriteMove's `:Scale` already was. Now shown that way with `spzoom` in
+the same print (a 0 ms transition when it doesn't fade), and the
+SpriteMove after it zooms from there. S02_09C's HIY01 (967×725, ×4,
+centred at 1800,1800) now shows the star hair ornament the lines are
+about. Before, the picture was unzoomed with its centre off the screen,
+so the screen was black.
 
 **The character keys (2026-10-16).** CharacterMove, CharacterDelete and
 CharacterAction look a character up by its whole key (number, pose,
