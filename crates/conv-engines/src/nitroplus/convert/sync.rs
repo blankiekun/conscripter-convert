@@ -59,7 +59,7 @@ impl Compiler<'_, '_> {
                         y = sy + (cy - sy) * k / 1000 - o.h / 2;
                         zoom = (zoom.0 * k / 1000, zoom.1 * k / 1000);
                     }
-                    let shown = Shown { layer: 0, image: image.clone(), x, y, w: o.w, h: o.h, opacity, cells: None, source: String::new(), zoom: (1000, 1000), angle: o.angle(), clip: None, engine: Engine::default(), flash: 0 };
+                    let shown = Shown { layer: 0, image: image.clone(), x, y, w: o.w, h: o.h, opacity, cells: None, source: String::new(), zoom: (1000, 1000), angle: o.angle(), clip: None, engine: Engine::default(), flash: 0, blend: o.blend };
                     Some((n.clone(), shown, (o.priority, o.seq), zoom, (o.w, o.h), o.mirror()))
                 }
                 _ => None,
@@ -97,7 +97,7 @@ impl Compiler<'_, '_> {
             // One cell: a movie file loops with no time a cell (`:c/1,0,0;`).
             let looped = at.is_none() && m.looped;
             let frame_ms = if at.is_none() { 0 } else { 1000 / MOVIE_FPS };
-            let shown = Shown { layer: 0, image, x, y, w: cw as i64, h: ch as i64, opacity: o.opacity, cells: Some((1, looped, zoom, frame_ms)), source: String::new(), zoom: (1000, 1000), angle: 0, clip: None, engine: Engine::default(), flash: 0 };
+            let shown = Shown { layer: 0, image, x, y, w: cw as i64, h: ch as i64, opacity: o.opacity, cells: Some((1, looped, zoom, frame_ms)), source: String::new(), zoom: (1000, 1000), angle: 0, clip: None, engine: Engine::default(), flash: 0, blend: o.blend };
             want.push((n, shown, (o.priority, o.seq), (1000, 1000), (o.w, o.h), (false, false)));
         }
         for (n, o) in &self.objects {
@@ -106,7 +106,7 @@ impl Compiler<'_, '_> {
                 && !o.hideable
             {
                 let cells = Some((s.cells, false, s.zoom, s.frame_ms));
-                let shown = Shown { layer: 0, image: s.image.clone(), x: o.x, y: o.y, w: s.w, h: s.h, opacity: o.opacity, cells, source: String::new(), zoom: (1000, 1000), angle: 0, clip: None, engine: Engine::default(), flash: 0 };
+                let shown = Shown { layer: 0, image: s.image.clone(), x: o.x, y: o.y, w: s.w, h: s.h, opacity: o.opacity, cells, source: String::new(), zoom: (1000, 1000), angle: 0, clip: None, engine: Engine::default(), flash: 0, blend: o.blend };
                 want.push((n.clone(), shown, (o.priority, o.seq), (1000, 1000), (s.w, s.h), (false, false)));
             }
         }
@@ -115,7 +115,7 @@ impl Compiler<'_, '_> {
                 && o.opacity > 0
                 && !o.hideable
             {
-                let shown = Shown { layer: 0, image: f.image.clone(), x: o.x, y: o.y, w: o.w, h: o.h, opacity: 1000, cells: None, source: String::new(), zoom: (1000, 1000), angle: 0, clip: None, engine: Engine::default(), flash: o.seq };
+                let shown = Shown { layer: 0, image: f.image.clone(), x: o.x, y: o.y, w: o.w, h: o.h, opacity: 1000, cells: None, source: String::new(), zoom: (1000, 1000), angle: 0, clip: None, engine: Engine::default(), flash: o.seq, blend: BLEND_NORMAL };
                 want.push((n.clone(), shown, (o.priority, o.seq), (1000, 1000), (o.w, o.h), (false, false)));
             }
         }
@@ -229,21 +229,21 @@ impl Compiler<'_, '_> {
         // Layers whose movie (zoomed with spzoom) goes: removed even when a
         // picture takes the layer, which would keep the zoom.
         // So do flashes' layers (which would keep their blend and keys).
-        let mut unzoom: Vec<u32> = changes.iter().filter(|c| self.shown.values().any(|s| s.layer == c.layer && (s.cells.is_some() || s.flash != 0))).map(|c| c.layer).collect();
+        let mut unzoom: Vec<u32> = changes.iter().filter(|c| self.shown.values().any(|s| s.layer == c.layer && (s.cells.is_some() || s.flash != 0 || s.blend != BLEND_NORMAL))).map(|c| c.layer).collect();
         let mut new_shown = Vec::new();
         for ((name, now, _), layer) in want.into_iter().zip(&layers) {
             let Some(layer) = *layer else { continue };
             let mut now = Shown { layer, ..now };
             match self.shown.get(&name) {
                 Some(old) if *old == Shown { engine: old.engine, ..now.clone() } => continue,
-                Some(old) if old.layer == now.layer && old.image == now.image && old.x == now.x && old.y == now.y && old.cells == now.cells && old.flash == now.flash && old.angle == now.angle && old.clip == now.clip => {
+                Some(old) if old.layer == now.layer && old.image == now.image && old.x == now.x && old.y == now.y && old.cells == now.cells && old.flash == now.flash && old.blend == now.blend && old.angle == now.angle && old.clip == now.clip => {
                     now.engine = old.engine;
                     opacity.push(Op::SpriteOpacity { layer: Some(layer), opacity: (now.opacity * 256 / 1000) as u32 });
                 }
                 old => {
-                    if let Some(old) = old.filter(|o| o.layer != layer || o.engine.zoomed || (o.cells.is_some() && now.cells.is_none()) || o.flash != 0) {
+                    if let Some(old) = old.filter(|o| o.layer != layer || o.engine.zoomed || (o.cells.is_some() && now.cells.is_none()) || o.flash != 0 || o.blend != BLEND_NORMAL) {
                         changes.push(SpriteChange { layer: old.layer, sprite: None, keep_filters: false });
-                        if old.cells.is_some() || old.engine.zoomed || old.flash != 0 {
+                        if old.cells.is_some() || old.engine.zoomed || old.flash != 0 || old.blend != BLEND_NORMAL {
                             unzoom.push(old.layer);
                         }
                     }
@@ -281,6 +281,10 @@ impl Compiler<'_, '_> {
                     }
                     if now.opacity < 1000 {
                         opacity.push(Op::SpriteOpacity { layer: Some(layer), opacity: (now.opacity * 256 / 1000) as u32 });
+                    }
+                    // spblend stays through lsp: cleared with the layer.
+                    if now.blend != BLEND_NORMAL {
+                        opacity.push(Op::SpriteBlend { layer, mode: now.blend });
                     }
                     // spclip stays through lsp too.
                     if let Some((x, y, w, h)) = now.clip {

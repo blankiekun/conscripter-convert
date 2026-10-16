@@ -183,6 +183,16 @@ pub const FILTER_BLEND_MULTIPLY: i32 = 1;
 pub const FILTER_BLEND_ADD: i32 = 2;
 pub const FILTER_BLEND_SCREEN: i32 = 3;
 
+/// How a sprite is drawn onto what is under it ([`Op::SpriteBlend`]; the
+/// numbers of CONscripter's `spblend`).
+pub const BLEND_NORMAL: u8 = 0;
+/// Its colours added on (light).
+pub const BLEND_ADD: u8 = 1;
+/// What is under it multiplied by its colours (white leaves it).
+pub const BLEND_MULTIPLY: u8 = 2;
+/// Its colours subtracted.
+pub const BLEND_SUBTRACT: u8 = 3;
+
 /// A colour filter on a sprite layer. The fields are operands because a
 /// game can keep filter presets in variables.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -612,6 +622,12 @@ pub enum Op {
     /// `SePlay` (with at most an [`Op::SoundVolume`] between), the pan it
     /// starts at; a sound started without one is centred.
     SoundPan { file: String, pan: i32, ms: u32 },
+    /// Draws a layer's sprite onto what is under it by `mode` (one of the
+    /// `BLEND_*`), times its opacity, until the layer is cleared
+    /// (CONscripter's `spblend`, which stays through a new picture). NSS
+    /// `Request` `AddRender`/`MulRender`/`SubRender`. Inside a transition,
+    /// as [`Op::Sprites`].
+    SpriteBlend { layer: u32, mode: u8 },
 }
 
 /// [`Op::HoldMovie`]'s prompt: `image` is `cells` pictures side by side,
