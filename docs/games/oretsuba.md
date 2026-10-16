@@ -291,7 +291,6 @@ playthroughs (`%410`-`%439`).
 - Merged: the chapter card's names (#48). Open: motions and fades as
   engine motions (#13, #18, waiting on engine #2 → #7 → #14).
 - The user picks the next fixes from "Arguments not read" below.
-  Proposed order: `SpriteDeleteBG` always fading.
 - After engine #2 / converter #6: SpriteMove `:Curve` with the new
   per-key curves.
 - Looks against the Vita stay blocked (needs Vita screenshots).
@@ -492,7 +491,7 @@ Traced in the eboot (2026-10-16; scene_load 0x8102840a reads a task,
 - `:Time` without a fade: Sprite takes `:Time` over `:FadeIn` (scene_load
   case 9), but every Sprite with `:FadeIn 0` has `:Time 0`; SpriteBG and
   SpriteDelete use it only with their fade flag, as ours. SpriteDeleteBG
-  reads no `:FadeOut` at all and always fades over `:Time` (finding).
+  reads no `:FadeOut` at all and always fades over `:Time` (converted).
 - EffectStart `:EffectNumber` argument 1: handed to the effect object's
   method +0x24 (effect_create 0x8103f75a), which stores it at +0x18 as a
   variant code (0x8112a860; read e.g. by 0x81040f76); effect 57 never
@@ -503,7 +502,7 @@ Not covered yet: only scene tasks are checked; `chract`'s actions (the
 eboot reads a `:Priority` and an easing per key there) and the `.txt`
 tables (`adv.txt`, `chr*.txt`, `CGMODE`) are not.
 
-The full dry run gives 4,553 notes of 97 kinds; by how much they show,
+The full dry run gives 4,549 notes of 96 kinds; by how much they show,
 with their uses:
 
 | Task | Argument | Uses | State: what is lost |
@@ -527,7 +526,6 @@ with their uses:
 | CharacterOpen | `[CharaN]` `:FadeWait` | 6 | dropped |
 | CharacterActionEnd | `:Copy`; `:Number` (read before `:Character`) | 5; 1 | dropped: it stops the character without the copy |
 | EffectEnd | `:Delete` | 7 | dropped |
-| SpriteDeleteBG | `:Time` with `:FadeOut 0` | 4 | dropped: the eboot fades it out anyway |
 | others | | 1-3 each | CharacterAction `:EndWait` on a loop; repeated keys (Message `:Name`, SpriteBG `:Priority`); FlagOperation `:CGFlag` (a CG never marked seen); CharacterOpenBS `:Fade 30`; EffectQuakeEnd `:Fade 1`; EffectQuake `:Texture` |
 
 Script errors, which the eboot can't read either: five tasks whose
@@ -553,6 +551,17 @@ Next, in order:
 
 Finished work, moved out of "Status" so a session reads only the open
 state.
+
+**SpriteDeleteBG always fades (2026-10-16).** scene_load case 0x26
+(0x8102840a) reads `:Texture`, `:Group`, `:ReleaseTexture`, `:Rule`,
+`:Time` and `:FadeWait`, never `:FadeOut`; 0x8100da30 case 0x26 deletes
+the picture at once when `:Time` is below 1 and otherwise fades it over
+`:Time` with its rule (`:Time` 30 of its frames by default, from
+0x81129ccc). Ours followed `:FadeOut`, so 4 deletes vanished at once:
+one with `:FadeOut 0` (S03_02A, under the text: `spfade`) and three
+without a `:FadeOut` (S03_06G1, S03_06G2, S03_07A1: `print` with
+the rule, 500 ms). Checked with a debug trace of S03_07A1: `csp 181`
+then `print 5` (rule039, 500 ms) at line 248.
 
 **The shakes' `:Fade 0` and `:Loop 1` (2026-10-16).** scene_load case
 99 (0x8102840a; the record's defaults from 0x8112a26c: `:Fade` 0,

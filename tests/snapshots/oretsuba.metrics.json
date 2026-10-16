@@ -1,9 +1,9 @@
 {
 "game": "oretsuba",
 "engine": "mages",
-"commit": "bc0b34f",
+"commit": "678951f",
 "commit_date": "2026-10-16",
-"totals": {"calls": 120323, "full": 117908, "gaps": 2415},
+"totals": {"calls": 120323, "full": 117912, "gaps": 2411},
 "kinds": {
 "CharacterMove": {"calls": 836, "gaps": 671, "reasons": [["CharacterMove :Wait ignored", 668], ["CharacterMove [Chara] :Priority ignored", 5], ["CharacterMove :SpriteMax 1 below its [CharaN] blocks", 4], ["CharacterMove [Chara] :Color ignored", 1], ["CharacterMove [Chara] :Position ignored", 1], ["1 more", 1]]},
 "SceneJumpDialogEnd": {"calls": 531, "gaps": 531, "reasons": [["SceneJumpDialogEnd :Fade ignored", 531]]},
@@ -26,7 +26,6 @@
 "MovieStop": {"calls": 7, "gaps": 7, "reasons": [["MovieStop :EndWait ignored", 7]]},
 "CharacterAction": {"calls": 2310, "gaps": 6, "reasons": [["CharacterAction :EndWait ignored", 3], ["CharacterAction :SpriteMax 1 below its [CharaN] blocks", 2], ["CharacterAction [Chara] :Priority ignored", 1]]},
 "CharacterActionEnd": {"calls": 2212, "gaps": 6, "reasons": [["CharacterActionEnd :Copy ignored", 5], ["CharacterActionEnd :Number ignored", 1]]},
-"SpriteDeleteBG": {"calls": 277, "gaps": 4, "reasons": [["SpriteDeleteBG :Time ignored", 4]]},
 "Message": {"calls": 65485, "gaps": 3, "reasons": [["Message :Name ignored", 2], ["Message :Color ignored", 1]]},
 "SpriteBS": {"calls": 1410, "gaps": 2, "reasons": [["SpriteBS :Priority ignored", 1], ["SpriteBS :Time ignored", 1]]},
 "EffectQuakeEnd": {"calls": 918, "gaps": 1, "reasons": [["EffectQuakeEnd :Fade ignored", 1]]},
@@ -46,6 +45,7 @@
 "Flash": {"calls": 461, "gaps": 0, "reasons": []},
 "SceneJumpDialog": {"calls": 447, "gaps": 0, "reasons": []},
 "TimeWait": {"calls": 405, "gaps": 0, "reasons": []},
+"SpriteDeleteBG": {"calls": 277, "gaps": 0, "reasons": []},
 "SpriteMoveEnd": {"calls": 171, "gaps": 0, "reasons": []},
 "Jump_Tag": {"calls": 104, "gaps": 0, "reasons": []},
 "SpriteDelete": {"calls": 72, "gaps": 0, "reasons": []},
