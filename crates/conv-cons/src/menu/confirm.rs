@@ -63,13 +63,13 @@ pub(crate) fn confirm(out: &mut String, d: &ConfirmDialog) {
         w(format!("strsp {label_slot},\"{}\",{x},{y},10,1,{label_size},{label_size},0,0,0,1", escape(label)));
     }
     // The question and buttons unrolling: the sprites at each step (slot,
-    // left x, y, one cell's width), the backdrop's opacity.
+    // left x, top y, one cell's width, height), the backdrop's opacity.
     let unroll = d.unroll.filter(|_| pictures && d.fade_ms > 0).zip(d.pictures.first()).map(|(u, (_, p))| {
-        let sprites = [(base_slot, p.x, p.y, p.w), (yes_slot, d.yes.x, d.yes.y, d.yes.w / cells), (no_slot, d.no.x, d.no.y, d.no.w / cells)];
+        let sprites = [(base_slot, p.x, p.y, p.w, p.h), (yes_slot, d.yes.x, d.yes.y, d.yes.w / cells, d.yes.h), (no_slot, d.no.x, d.no.y, d.no.w / cells, d.no.h)];
         (u, sprites, d.backdrop.as_ref().map(|(b, o)| (b.x, b.y, *o)))
     });
     if let Some((u, sprites, backdrop)) = &unroll {
-        unroll_steps(&mut w, u.x, sprites, *backdrop, d.fade_ms, d.fade_ms, true);
+        unroll_steps(&mut w, u, sprites, *backdrop, d.fade_ms, d.fade_ms, true);
     } else if d.fade_ms > 0 {
         w(format!("print 10,{}", d.fade_ms));
     }
@@ -82,18 +82,19 @@ pub(crate) fn confirm(out: &mut String, d: &ConfirmDialog) {
     w(format!("if {BUTTON_VAR} == 1 mov {CONFIRM},1"));
     w(format!("if {BUTTON_VAR} != 1 && {BUTTON_VAR} != 2 && {BUTTON_VAR} != -1 goto *conv_confirm_wait"));
     if let Some((u, sprites, backdrop)) = &unroll {
-        unroll_steps(&mut w, u.x, sprites, *backdrop, d.fade_ms, u.close_ms, false);
+        unroll_steps(&mut w, u, sprites, *backdrop, d.fade_ms, u.close_ms, false);
     }
     w(DIALOG_SPRITES.map(|n| format!("csp {n}")).collect::<Vec<_>>().join(":"));
     w(if d.fade_ms > 0 && unroll.is_none() { format!("print 10,{}", d.fade_ms) } else { "print 1".into() });
     w("return".into());
 }
 
-/// The unroll's frames (`ConfirmDialog::unroll`), about every 16 ms: the sprites (slot, x, y, width)
-/// stretched sideways about the line `x` (eased out over `zoom_ms`) and
+/// The unroll's frames (`ConfirmDialog::unroll`), about every 16 ms: the sprites (slot, x, y, width,
+/// height) stretched sideways about the line `u.x`, or up and down about
+/// `u.y` (eased out over `zoom_ms`), and
 /// faded (linearly over `fade_ms`), in from nothing (`opening`) or out to
 /// it. The backdrop (x, y, opacity) fades with them.
-pub(super) fn unroll_steps(w: &mut impl FnMut(String), x: i32, sprites: &[(u32, i32, i32, i32)], backdrop: Option<(i32, i32, u8)>, zoom_ms: u32, fade_ms: u32, opening: bool) {
+pub(super) fn unroll_steps(w: &mut impl FnMut(String), u: &conv_core::ir::Unroll, sprites: &[(u32, i32, i32, i32, i32)], backdrop: Option<(i32, i32, u8)>, zoom_ms: u32, fade_ms: u32, opening: bool) {
     let total = zoom_ms.max(fade_ms);
     let steps = (total / 16).max(1);
     w("resettimer".into());
@@ -104,12 +105,19 @@ pub(super) fn unroll_steps(w: &mut impl FnMut(String), x: i32, sprites: &[(u32, 
         let f = (t / fade_ms.max(1) as f64).min(1.0);
         let (s, a) = if opening { (eased, f) } else { (1.0 - eased, 1.0 - f) };
         let mut line = Vec::new();
-        for &(slot, sx, sy, sw) in sprites {
-            // The sprite's centre moves toward the line as it narrows.
-            let centre = x as f64 + (sx as f64 + sw as f64 / 2.0 - x as f64) * s;
-            let left = (centre - sw as f64 / 2.0).round() as i32;
-            line.push(format!("amsp {slot},{left},{sy},{}", (255.0 * a).round() as u32));
-            line.push(format!("spzoom {slot},{},100", ((s * 100.0).round() as u32).max(1)));
+        // The sprite's centre moves toward the line as it narrows.
+        let toward = |line: i32, from: i32, size: i32| {
+            let centre = line as f64 + (from as f64 + size as f64 / 2.0 - line as f64) * s;
+            (centre - size as f64 / 2.0).round() as i32
+        };
+        let zoom = ((s * 100.0).round() as u32).max(1);
+        for &(slot, sx, sy, sw, sh) in sprites {
+            let (left, top, zoom) = match u.y {
+                Some(y) => (sx, toward(y, sy, sh), format!("100,{zoom}")),
+                None => (toward(u.x, sx, sw), sy, format!("{zoom},100")),
+            };
+            line.push(format!("amsp {slot},{left},{top},{}", (255.0 * a).round() as u32));
+            line.push(format!("spzoom {slot},{zoom}"));
         }
         if let Some((bx, by, o)) = backdrop {
             line.push(format!("amsp {DIALOG_BASE},{bx},{by},{}", (o as f64 * a).round() as u32));

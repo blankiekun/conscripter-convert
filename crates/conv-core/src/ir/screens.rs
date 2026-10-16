@@ -883,6 +883,9 @@ pub struct ConfirmDialog {
 pub struct Unroll {
     pub x: i32,
     pub close_ms: u32,
+    /// The question and buttons stretch up and down out of the horizontal
+    /// line at this y instead (`x` is then unused).
+    pub y: Option<i32>,
 }
 
 /// A screen of its own drawn over the scene, the text window hidden:

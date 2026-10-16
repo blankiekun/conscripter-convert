@@ -26,14 +26,14 @@ pub fn menus(a: &mut dyn Assets, script: &mut Script, story: &Story) {
     menus_in(a, script, story, false)
 }
 
-/// [`menus`] with the English port's title ([`opening::EN`]) and command
-/// menu ([`command_menu_en`]).
+/// [`menus`] with the English port's title ([`opening::EN`]), command
+/// menu ([`command_menu_en`]) and questions ([`confirm_en`]).
 pub fn menus_en(a: &mut dyn Assets, script: &mut Script, story: &Story) {
     menus_in(a, script, story, true)
 }
 
 fn menus_in(a: &mut dyn Assets, script: &mut Script, story: &Story, en: bool) {
-    script.confirm = confirm(a);
+    script.confirm = if en { confirm_en(a) } else { confirm(a) };
     script.title_screen = title(a, story, if en { &opening::EN } else { &opening::JP });
     script.button_bar = quick_bar(a);
     script.command_menu = if en { command_menu_en(a) } else { command_menu(a) };
@@ -624,6 +624,55 @@ fn confirm(a: &mut dyn Assets) -> Option<ConfirmDialog> {
         // Zoom x 0 to 1000 in 150 ms (Dxl1) about the question's centre
         // line (the buttons' vertices lie within 13 px of it); closing,
         // back in 150 ms while fading out in 200 ms (sys_close.nss).
-        unroll: Some(Unroll { x: 512, close_ms: 200 }),
+        unroll: Some(Unroll { x: 512, close_ms: 200, y: None }),
+    })
+}
+
+/// The English port's yes/no questions (`sys_dialog.nut`,
+/// `CreateDialogImage_YesNo`): the question's picture (400×150) in the
+/// middle of the screen over black at 800/1000, Yes and No at 108,100 and
+/// 230,100 from its corner, linked to it; it turns open about its middle
+/// line from edge-on (`Rotate` x -90 to 0) over 150 ms as the buttons and
+/// backdrop fade in, and shut (to 90) as they go.
+fn confirm_en(a: &mut dyn Assets) -> Option<ConfirmDialog> {
+    const DIR: &str = "en/cg/sys/dialog";
+    let mut pictures = Vec::new();
+    for (kind, name) in [
+        (Switch::ConfirmQuit, "終了しますか"),
+        (Switch::ConfirmTitle, "タイトル画面へ"),
+        (Switch::ConfirmSave, "この記憶を上書き"),
+        (Switch::ConfirmLoad, "記憶呼び出し"),
+        (Switch::ConfirmDelete, "セーブ削除"),
+        (Switch::ConfirmBackToChoice, "選択肢まで"),
+        (Switch::ConfirmReset, "初期設定"),
+    ] {
+        pictures.push((kind, centred(a, &format!("{DIR}/{name}.png"))?));
+    }
+    let base = pictures[0].1.clone();
+    let button = |a: &mut dyn Assets, name: &str, dx: i32| {
+        let state = |n: u32| format!("{DIR}/{name}-{n:03}.png");
+        let (normal, hover, pressed) = (state(1), state(2), state(3));
+        let (image, w, h) = a.strip(&[&normal, &hover, &normal, &pressed])?;
+        Some(Placed { image, x: base.x + dx, y: base.y + 100, w: w as i32, h: h as i32 })
+    };
+    let black = a.color(0, SCREEN_W as u32, SCREEN_H as u32);
+    Some(ConfirmDialog {
+        yes: button(a, "yes", 108)?,
+        no: button(a, "no", 230)?,
+        unroll: Some(Unroll { x: 0, close_ms: 150, y: Some(base.y + base.h / 2) }),
+        base,
+        yes_label: String::new(),
+        no_label: String::new(),
+        text_y: 0,
+        font_size: 20,
+        overwrite: String::new(),
+        load: String::new(),
+        delete: String::new(),
+        title: String::new(),
+        quit: String::new(),
+        pictures,
+        backdrop: Some((Placed { image: black, x: 0, y: 0, w: SCREEN_W, h: SCREEN_H }, 204)),
+        pressed: true,
+        fade_ms: 150,
     })
 }

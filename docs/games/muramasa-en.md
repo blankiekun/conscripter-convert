@@ -53,6 +53,14 @@ It has no NPA archives and no NSS scripts.
   together over 300 ms (the rows' wipe `メニューエフェクト` drawn as a
   fade); the keys printed on the rows (S quick save, L quick load, D the
   save screen, …). Checked headless, not yet against the original.
+- **Questions:** the port's (`sys_dialog.nut`, `confirm_en`): the
+  question's picture from the English `cg.npk` (`en/cg/sys/dialog/`,
+  400×150) centred over black at 800/1000, Yes and No 108,100 and
+  230,100 from its corner; it turns open about its middle line over
+  150 ms (`Rotate` x -90 → 0, drawn as a vertical stretch:
+  `Unroll::y`) and shut as it goes. Checked headless. Not done: the
+  port's quick-load question (`クイックロード`) and its messages
+  (`クイックセーブ完了`, `記憶をしました`, …).
 - **Decided (the user, 2026-10-15):** the text font is the release's own
   `droidserif-muramasa.ttf` (font.npk); the menus follow the English
   port's redesigned screens, not the Japanese PC ones; filming the
@@ -74,9 +82,9 @@ It has no NPA archives and no NSS scripts.
 - **Next:**
   1. The English pictures: the redesigned menus in `cg/sys`. The port's
      system scripts (`media/script/system/sys_*.nut`) give each picture's
-     English place after a `LANG_NAME == "en"` test. Done: the title
-     and the command menu (below). Left: same names, other pictures and
-     places: the line log, the dialogs (`dialog/`, all renamed); new
+     English place after a `LANG_NAME == "en"` test. Done: the title,
+     the command menu and the questions (above). Left: same names, other
+     pictures and places: the line log; new
      screens: save/load (`save/`), settings (`config/`), the click icon
      (one `adv/改行改頁アイコン.png` sheet). Then film them against the
      English original under wine (also the lines per box).

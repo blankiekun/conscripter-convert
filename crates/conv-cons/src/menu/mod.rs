@@ -409,7 +409,7 @@ pub(crate) mod tests {
         d.pictures = vec![(Switch::ConfirmQuit, placed("quit_question", 100, 400))];
         d.backdrop = Some((placed("black", 800, 600), 204));
         d.fade_ms = 150;
-        d.unroll = Some(conv_core::ir::Unroll { x: 60, close_ms: 200 });
+        d.unroll = Some(conv_core::ir::Unroll { x: 60, close_ms: 200, y: None });
         let mut out = String::new();
         confirm(&mut out, &d);
         for line in [
@@ -424,6 +424,11 @@ pub(crate) mod tests {
             assert!(out.contains(line), "missing {line:?} in\n{out}");
         }
         assert!(!out.contains("print 10,150"));
+        // Up and down about y 30 (the picture's 20-420 narrowed onto it).
+        d.unroll = Some(conv_core::ir::Unroll { x: 60, close_ms: 200, y: Some(30) });
+        let mut out = String::new();
+        confirm(&mut out, &d);
+        assert!(out.contains("resettimer\namsp 4,10,-170,0:spzoom 4,100,1:"), "{out}");
     }
 
     #[test]
