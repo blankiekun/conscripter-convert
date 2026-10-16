@@ -273,6 +273,31 @@ addresses in `research/typemoon/names.tsv` are those of the 1.0.2
   binaries, not read). On those numbers a centred expression's pivot
   comes to 1/8 or 1/12, not ½: a factor is missing that the C doesn't
   give.
+  **The shaders don't hold it.** The `shader/*.bnsh` files are pixel
+  shaders only (Maxwell code at 0x1080, readable with envytools'
+  `envydis -m gm107`; CUDA 13's `nvdisasm` no longer takes Maxwell).
+  The vertex shaders are in the exe (two BNSH at file offsets 0xAC3000
+  and 0xAD8000 of the ELF), and they carry their NV assembly as text
+  (`strings` shows `!!NVvp5.0`): position = buffer 0 (projection) ×
+  buffer 1 (model) × the vertex. The quad's corners are ±size/2
+  around the pivot, built on the CPU (`FUN_001ba89c`), so the missing
+  factor is in the registered size, which is CPU-side too.
+  - **Record reading.** With a normalised pivot (default ½),
+    `BLACK` (640 × 362, texture 1920 × 1080) and a centred background
+    (record 1288 × 732, texture 2576 × 1456) both come out at ½ only
+    if the registered width is proportional to the record's: 320 for
+    `BLACK`, 644 for the background. That is texture ÷ 6 and ÷ 4, a
+    ratio of 1.5, which is the loader's ÷ 1 against ÷ 2/3. On this
+    reading a picture is drawn at its record size, 640 × 362 to the
+    screen, × zoom: a background is two screens wide at zoom 1000
+    (the scripts' usual zoom; `_STZ4` also uses 500 to 2000).
+  - **Texel reading.** The gallery's CGs (`allpaccg`, `IMG3001.JPG`
+    …) are 2560 × 1440 and fill the gallery screen, and the bare
+    backgrounds are 2560 × 1440 with a 16:9 thumbnail, which says one
+    screen at W/2560 a texel.
+  - **What would settle it.** Find the story picture that shows the
+    same art as a gallery CG (for example by comparing small
+    thumbnails), then compare their framing.
 - **Picture layers**: 40 (0–39), staged by the commands below and shown
   by `_FADS`. Arguments are expressions (`FUN_00102d3c`); `FUN_00102b24`
   splits at most 20 of them.
@@ -580,10 +605,11 @@ Nothing yet.
    bfsar's stream details (see "The exe").
 3. How big a picture is on screen (see "The stage"): the record
    units (640 × 362 to the screen) against the texture (2560 × 1440,
-   16:9) for a background. The decompile was followed to the shader
-   constants without settling it (see "The stage"); one screenshot of
-   a known background from the original (a Switch capture, asked of
-   the user) settles it. No Switch emulator is on the machine.
+   16:9) for a background. The decompile and the shaders are read
+   (see "The stage"): the record reading fits the pivots, the gallery
+   CGs fit the texel reading. Next: match a gallery CG to its story
+   picture and compare the framing. No Switch emulator is on the
+   machine, and the user can't take a capture.
 4. Still open in the exe: `_FADS` type 1, `_STCH`'s arguments
    12–17, `_STZ4`'s last two, and the motion keyframes' other fields.
 
