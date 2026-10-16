@@ -8,7 +8,7 @@
 "LockVideo": {"calls": 50726, "gaps": 50726, "reasons": [["LockVideo argument 0 ignored", 50726]]},
 "WaitText": {"calls": 23689, "gaps": 23689, "reasons": [["WaitText argument 0 ignored", 23689], ["WaitText argument 1 ignored", 23689]]},
 "LoadText": {"calls": 15184, "gaps": 15184, "reasons": [["LoadText argument 0 ignored", 15184], ["LoadText argument 1 ignored", 15184]]},
-"SetFrequency": {"calls": 8778, "gaps": 8778, "reasons": [["SetFrequency argument 0 ignored", 8778], ["SetFrequency argument 1 ignored", 8778], ["SetFrequency argument 3 ignored", 8778], ["SetFrequency", 1176]]},
+"SetFrequency": {"calls": 8778, "gaps": 8778, "reasons": [["SetFrequency argument 3 ignored", 8778], ["SetFrequency on music", 1486]]},
 "Random": {"calls": 7368, "gaps": 7368, "reasons": [["Random argument 0 ignored", 7368]]},
 "Fade": {"calls": 302599, "gaps": 3932, "reasons": [["Fade argument 3 ignored", 3869], ["move or zoom over time with a fade or a new picture drawn as a cross-fade", 53], ["timed action that waits only part of its time", 16], ["Fade argument 5 ignored", 1]]},
 "WaitAction": {"calls": 4769, "gaps": 3437, "reasons": [["WaitAction argument 1 ignored", 3437], ["move or zoom over time with a fade or a new picture drawn as a cross-fade", 5]]},

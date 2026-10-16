@@ -1191,6 +1191,10 @@ struct SoundObject {
     len_ms: Option<u32>,
     /// `SetPan`: -1000 (left) .. 1000 (right), for its next `Play` too.
     pan: i64,
+    /// `SetFrequency` before it started: its rate (per mille) and ramp ms.
+    rate: Option<(u32, u32)>,
+    /// The rate it plays at (per mille; 1000 its own).
+    freq: u32,
 }
 
 /// `old` moved and zoomed into `now` over `ms` by the engine: the same
@@ -2956,6 +2960,24 @@ impl<'a, 'b> Compiler<'a, 'b> {
 
     // -- sound --------------------------------------------------------------
 
+    /// `SetFrequency`: a sound effect's speed and pitch (per mille) over
+    /// `ms`; one that hasn't started yet starts with it. (Its tempo curve,
+    /// the 4th argument, is drawn straight.)
+    fn set_frequency(&mut self, target: &Value, ms: i64, rate: i64) {
+        let (ms, rate) = (ms.max(0) as u32, rate.clamp(100, 4000) as u32);
+        for t in self.matching(target) {
+            let Some(Object { kind: Kind::Sound(s), .. }) = self.objects.get_mut(&t) else { continue };
+            if s.bgm {
+                self.note("SetFrequency on music");
+            } else if s.starting {
+                s.rate = Some((rate, ms));
+            } else if let Some(file) = s.playing.clone().filter(|_| s.freq != rate) {
+                s.freq = rate;
+                self.ops.push(Op::SoundRate { file, rate, ms });
+            }
+        }
+    }
+
     fn set_volume(&mut self, target: &Value, ms: i64, volume: i64) {
         let ms = ms.max(0) as u32;
         for t in self.matching(target) {
@@ -3055,6 +3077,13 @@ impl<'a, 'b> Compiler<'a, 'b> {
                     self.ops.push(Op::SoundVolume { file: Some(file.clone()), percent: percent(volume), ms: 0 });
                 }
                 self.ops.push(Op::SePlay { file: file.clone(), looped });
+                if let Some(Object { kind: Kind::Sound(s), .. }) = self.objects.get_mut(&name) {
+                    s.freq = 1000;
+                    if let Some((rate, ms)) = s.rate.take().filter(|&(rate, _)| rate != 1000) {
+                        s.freq = rate;
+                        self.ops.push(Op::SoundRate { file: file.clone(), rate, ms });
+                    }
+                }
             }
             let len_ms = if looped { None } else { self.assets.sound_ms(&path) };
             let started_at = self.sound_clock();
@@ -4443,6 +4472,26 @@ scene a.nss
         let c = compile(story, LIBRARY);
         let plays = c.ops.iter().filter(|op| matches!(op, Op::SePlay { .. })).count();
         assert_eq!(plays, 1);
+    }
+
+    #[test]
+    fn set_frequency_bends_a_sound() {
+        let story = r#"
+scene a.nss
+{
+	CreateSound("SE10", SE, "sound/se/rain_L");
+	Request("SE10", Play);
+	SetFrequency("SE10", 1000, 1100, null);
+	Wait(100);
+	SetFrequency("SE10", 0, 1000, null);
+	Wait(100);
+}
+"#;
+        let c = compile(story, LIBRARY);
+        let rates: Vec<_> = c.ops.iter().filter_map(|op| match op { Op::SoundRate { rate, ms, .. } => Some((*rate, *ms)), _ => None }).collect();
+        assert_eq!(rates, [(1100, 1000), (1000, 0)], "{:?}", c.ops);
+        let play = c.ops.iter().position(|op| matches!(op, Op::SePlay { .. })).unwrap();
+        assert!(matches!(c.ops[play + 1], Op::SoundRate { rate: 1100, .. }), "{:?}", c.ops);
     }
 
     #[test]
