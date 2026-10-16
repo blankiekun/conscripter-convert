@@ -347,7 +347,8 @@ with the original (it wants all eleven endings' flags under wine).
 
 - Merged: windows clip their children (#45), the song's lyrics in
   dja026 (#47), unread-argument notes ranked in Next (#51), the song
-  lines type out (#55). Open: `WaitPlay` on a sound waits (#70, was #58).
+  lines type out (#55), `WaitPlay` on a sound waits (#70). Open:
+  disused one-shot sounds kept until their end (#76).
 - Open from the face windows (#37): a sliding frame's face jumps to its
   end place; dja003_02's blood movie is drawn mirrored by us, unmirrored
   under wine (which plays no movie there).
@@ -357,6 +358,9 @@ with the original (it wants all eleven endings' flags under wine).
   `AddRender`/`SubRender` flashes.
 - The unread-argument notes (#30) are sorted into Next, item 7: easing
   first.
+- `RemainTime` on a sound returns its whole length, not the rest
+  (`sound_left` has it); right after the start, where most calls are,
+  the two agree.
 
 | Area | Status |
 |---|---|
@@ -446,8 +450,31 @@ with the original (it wants all eleven endings' flags under wine).
        no children yet: nothing moves); `CreateEffect` 2-5 (1, the
        `Sepia` effect, not converted itself: item 3).
 
+8. Sounds kept until their end (shared NSS code, `convert/sounds.rs`):
+   1. **`SetVolume` to 0 may stop a sound** in the exe:
+      `FUN_00457dd0` stops it (`FUN_00458420`) when its volume is set
+      to 0 at once; whether a fade over time stops it at its end is
+      unsettled (the fade runs in a thread the decompile doesn't show).
+      If it does, 12 of Muramasa's new `delay`s (`WaitPlay` right after
+      a `SetVolume`/`Fade` to 0 on `SE*`, as in `ClearFadeAll`) are too
+      long, and an at-once 0 should forget the sound too.
+   2. **Time across runtime branches**: the sound clock adds up the ops
+      of both branches of a runtime `if`/`else`, so a sound started
+      before one may be taken as ended too soon. Fine as is.
+
 ## History
 
+- **Disused one-shot sounds stay until their end (2026-10-16, shared
+  NSS code).** `Request(…, Disused)` on a one-shot forgot it at its
+  start; the exe (`FUN_00436040`) deletes a disused object only once its
+  sound has stopped, and `Request(…, Play)` on one still playing does
+  nothing (`FUN_00457d20`). Now it is kept until its build-time end (the
+  ops' time since its start: waits, fades, an hour per page), so
+  `WaitPlay`, `Fade` and `SetVolume` on it still act. `WaitPlay`'s limit
+  counts from the call, and the actions still running are shown over the
+  wait, as `Wait`. Django: dja041's `delay 3906` after a page is gone
+  (the sound played during it); the 4,345 ms wait before dj11 shows its
+  2,500 ms fade over the wait (`print 17` + `delay 1845`).
 - **`WaitPlay` on a sound waits (2026-10-16, shared NSS code).** The
   exe's `builtin_WaitPlay` (`0040b8a0`) waits until the sound stops, or
   at most its second argument in ms (`null`, `true` or none: no limit).
