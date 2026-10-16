@@ -177,6 +177,12 @@ impl<'a> Emitter<'a> {
                 writeln!(out, "print 1").unwrap();
             }
         }
+        Op::SpriteOverText { layer } => {
+            writeln!(out, "spovertext {}", SPRITE_BASE + layer).unwrap();
+            if transition.is_none() {
+                writeln!(out, "print 1").unwrap();
+            }
+        }
         Op::SpriteAngle { layer, degrees } => {
             writeln!(out, "sprot {},{degrees}", SPRITE_BASE + layer).unwrap();
             if transition.is_none() {

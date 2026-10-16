@@ -112,10 +112,11 @@ It has no NPA archives and no NSS scripts.
 - **Subtitles:** the port's subtitles for voices played as sound
   effects (`ShowVOICESEText`, 31 voices in 10 scenes, History) are
   centred lines in the release's font, at the top (y 13) or the bottom
-  (y 480) as the port puts them, until the voice ends. They are
-  sprites, so under the text window (the port draws them over it): a
-  bottom line under a horizontal box would be hidden; not seen in the
-  scenes checked. Checked headless on md02_038 and mb02_002. Not yet compared with
+  (y 480) as the port puts them, until the voice ends. Drawn over the
+  text window as the port does (`Op::SpriteOverText`, CONscripter's
+  `spovertext`, engine PR #21): 37 calls in the build; most lines are
+  at the top (y 8-9), above the boxes, so it shows where a bottom line
+  meets a box. Checked headless on md02_038 and mb02_002. Not yet compared with
   the original. They change on 250 ms steps; a click that cuts the voice
   short leaves the line up until the voice would have ended.
 - **Telops:** the English `cg.npk`'s `cg/sys/telop/` pictures (chapter
