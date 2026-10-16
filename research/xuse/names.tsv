@@ -219,13 +219,13 @@
 0040f730	cb_0040f730	pointer stored by FUN_0040f6a0 +0x14
 0040f750	cb_0040f750	pointer stored by FUN_0040f6a0 +0x34
 004154b0	cb_004154b0	pointer stored by op_8d +0x14
-0041e470	cb_0041e470	pointer stored by FUN_00445310, FUN_00448ad0 +0x3c, FUN_00453c20 +0x96
+0041e470	cb_0041e470	pointer stored by FUN_00445310, FUN_00448ad0 [0x3c], FUN_00453c20 [0x96]
 0041fb00	cb_0041fb00	pointer stored by FUN_0041f4b0 +0x78
 004204a0	cb_004204a0	pointer stored by FUN_004204e0 +0x34
 00420590	cb_00420590	pointer stored by FUN_004205d0 +0x34
-00423f90	cb_00423f90	pointer stored by FUN_004291f0 +2, FUN_00441b80 +2, FUN_004468a0 +2 (+1 more)
-00424030	cb_00424030	pointer stored by FUN_004291f0 +3, FUN_004468a0 +3, FUN_00446d30 +3
-004240e0	cb_004240e0	pointer stored by FUN_004291f0 +4, FUN_00441b80, FUN_004468a0 (+1 more)
+00423f90	cb_00423f90	pointer stored by FUN_004291f0 [2], FUN_00441b80 [2], FUN_004468a0 [2] (+1 more)
+00424030	cb_00424030	pointer stored by FUN_004291f0 [3], FUN_004468a0 [3], FUN_00446d30 [3]
+004240e0	cb_004240e0	pointer stored by FUN_004291f0 [4], FUN_00441b80, FUN_004468a0 (+1 more)
 00434720	cb_00434720	pointer stored by op_8e +0x14
 00434780	cb_00434780	pointer stored by op_8e +0x14
 00441320	cb_00441320	pointer stored by FUN_004413d0 +0x34
@@ -251,7 +251,7 @@
 004475a0	cb_004475a0	pointer stored by FUN_00447660 +0x14
 004480b0	cb_004480b0	pointer stored by FUN_004481e0 +0x18
 004484b0	cb_004484b0	pointer stored by FUN_00448580 +0xf0
-00448940	cb_00448940	pointer stored by FUN_00448960 +6
+00448940	cb_00448940	pointer stored by FUN_00448960 [6]
 00448f70	cb_00448f70	pointer stored by FUN_00448fd0 +0x18
 00449160	cb_00449160	pointer stored by FUN_00449800 +0x38
 00449220	cb_00449220	pointer stored by FUN_00449800 +0x38
@@ -373,11 +373,11 @@
 0045dd00	cb_0045dd00	pointer stored by FUN_0045dd50 +0x14
 00469030	cb_00469030	pointer stored by FUN_004682a0 +0x34
 00469070	cb_00469070	pointer stored by FUN_004682a0 +0x34
-004690b0	cb_004690b0	pointer stored by FUN_00469100 +5
+004690b0	cb_004690b0	pointer stored by FUN_00469100 [5]
 0046a850	cb_0046a850	pointer stored by FUN_004f1660 DAT_00565470
 0046bc30	cb_0046bc30	pointer stored by FUN_00469850 +0x34
 0046bc50	cb_0046bc50	pointer stored by FUN_00469850 +0x34
-0046be90	cb_0046be90	pointer stored by FUN_0046bee0 +5, FUN_0046c030 +5
+0046be90	cb_0046be90	pointer stored by FUN_0046bee0 [5], FUN_0046c030 [5]
 0046d990	cb_0046d990	pointer stored by FUN_0046d590 +0x14
 00472ba0	cb_00472ba0	pointer stored by op_62 +0x14, op_63 +0x14, op_64 +0x14 (+1 more)
 00473ad0	cb_00473ad0	pointer stored by op_6a +0x14
@@ -406,24 +406,24 @@
 00497d50	cb_00497d50	pointer stored by FUN_00496270 +0x34
 00497d90	cb_00497d90	pointer stored by FUN_00496270 +0x50
 00497de0	cb_00497de0	pointer stored by FUN_00496270 +0x54
-004982e0	cb_004982e0	pointer stored by FUN_00498370 +0x1f
+004982e0	cb_004982e0	pointer stored by FUN_00498370 [0x1f]
 0049b330	cb_0049b330	pointer stored by FUN_004f3620 DAT_00565de0
 0049b7b0	cb_0049b7b0	pointer stored by FUN_0049ab50 +0x14
 0049b800	cb_0049b800	pointer stored by FUN_0049ab50 +0x34
 0049b840	cb_0049b840	pointer stored by FUN_0049ab50 +0x54
 0049f040	cb_0049f040	pointer stored by FUN_0049f060 +0x34
 0049f530	cb_0049f530	pointer stored by FUN_0049f590 +0x14
-004a0220	cb_004a0220	pointer stored by FUN_0049f930 +0x1c
+004a0220	cb_004a0220	pointer stored by FUN_0049f930 [0x1c]
 004a0230	cb_004a0230	pointer stored by FUN_0041f4b0 +0x84, FUN_004a0280 +0x70, FUN_004a0430 +0x70 (+2 more)
 004a05b0	cb_004a05b0	pointer stored by FUN_004a0280 +0x70
 004a0be0	cb_004a0be0	pointer stored by FUN_00485f10 +0x1fc
 004a1a90	cb_004a1a90	pointer stored by FUN_004a0de0 +0x50
 004a1b10	cb_004a1b10	pointer stored by FUN_004a0de0 +0x54
 004a1b40	cb_004a1b40	pointer stored by FUN_004a0de0 +0x14
-004a4670	cb_004a4670	pointer stored by FUN_004a3680 +0x6d
-004a4d40	cb_004a4d40	pointer stored by FUN_004a4f70 +5
-004a4da0	cb_004a4da0	pointer stored by FUN_004a4f70 +0xd
-004a4db0	cb_004a4db0	pointer stored by FUN_004a4f70 +0x14
+004a4670	cb_004a4670	pointer stored by FUN_004a3680 [0x6d]
+004a4d40	cb_004a4d40	pointer stored by FUN_004a4f70 [5]
+004a4da0	cb_004a4da0	pointer stored by FUN_004a4f70 [0xd]
+004a4db0	cb_004a4db0	pointer stored by FUN_004a4f70 [0x14]; a jmp thunk to FUN_004a4dc0 (the export skips thunks)
 004a4e30	cb_004a4e30	pointer stored by FUN_004a4ea0 +0x14
 004a4e60	cb_004a4e60	pointer stored by FUN_004a4ea0 +0x34
 004a6c70	cb_004a6c70	pointer stored by FUN_004a6d60 +0x14
@@ -432,27 +432,27 @@
 004a6d30	cb_004a6d30	pointer stored by FUN_004a6d60 +0x50
 004a7400	cb_004a7400	pointer stored by FUN_004a7460 +0x14
 004b55b0	cb_004b55b0	pointer stored by FUN_004b5920, FUN_004b5b40, FUN_004b5f60
-004b5620	cb_004b5620	pointer stored by FUN_004b57c0 +2
+004b5620	cb_004b5620	pointer stored by FUN_004b57c0 [2]
 004b76f0	cb_004b76f0	pointer stored by FUN_0040c780
 004b8210	cb_004b8210	pointer stored by FUN_00404110 DAT_0051f818
 004b8360	cb_004b8360	pointer stored by FUN_00404110 DAT_0051f818
 004bd690	cb_004bd690	pointer stored by FUN_004bd660 +0x10
-004c0bc0	cb_004c0bc0	pointer stored by FUN_004c10f0 +1
-004c0fc0	cb_004c0fc0	pointer stored by FUN_004b57c0 +5
+004c0bc0	cb_004c0bc0	pointer stored by FUN_004c10f0 [1]
+004c0fc0	cb_004c0fc0	pointer stored by FUN_004b57c0 [5]
 004c10c0	cb_004c10c0	pointer stored by FUN_004c10f0
-004c12e0	cb_004c12e0	pointer stored by FUN_004c1450 +2
-004c1340	cb_004c1340	pointer stored by FUN_004c1450 +1
-004c1380	cb_004c1380	pointer stored by FUN_004c1450 +3
-004c1430	cb_004c1430	pointer stored by FUN_004c1450 +4
-004c3130	cb_004c3130	pointer stored by FUN_004c31e0 +1
-004c46f0	cb_004c46f0	pointer stored by FUN_004c4ad0 +7
-004c4830	cb_004c4830	pointer stored by FUN_004c4ad0 +8
-004c4a90	cb_004c4a90	pointer stored by FUN_004c4ad0 +10
+004c12e0	cb_004c12e0	pointer stored by FUN_004c1450 [2]
+004c1340	cb_004c1340	pointer stored by FUN_004c1450 [1]
+004c1380	cb_004c1380	pointer stored by FUN_004c1450 [3]
+004c1430	cb_004c1430	pointer stored by FUN_004c1450 [4]
+004c3130	cb_004c3130	pointer stored by FUN_004c31e0 [1]
+004c46f0	cb_004c46f0	pointer stored by FUN_004c4ad0 [7]
+004c4830	cb_004c4830	pointer stored by FUN_004c4ad0 [8]
+004c4a90	cb_004c4a90	pointer stored by FUN_004c4ad0 [10]
 004c67a0	cb_004c67a0	pointer stored by FUN_004c6820
 004c6950	cb_004c6950	pointer stored by FUN_004c77e0
-004c6c40	cb_004c6c40	pointer stored by FUN_004c77e0 +1
-004c7790	cb_004c7790	pointer stored by FUN_004c77e0 +2
-004c7df0	cb_004c7df0	pointer stored by FUN_004c95f0 +2
+004c6c40	cb_004c6c40	pointer stored by FUN_004c77e0 [1]
+004c7790	cb_004c7790	pointer stored by FUN_004c77e0 [2]
+004c7df0	cb_004c7df0	pointer stored by FUN_004c95f0 [2]
 004c83e0	cb_004c83e0	pointer stored by FUN_004c9050
 004ca7f0	cb_004ca7f0	pointer stored by FUN_004cad90
 004cafd0	cb_004cafd0	pointer stored by FUN_004cb0d0
@@ -461,27 +461,27 @@
 004cb270	cb_004cb270	pointer stored by FUN_004cb430
 004cb360	cb_004cb360	pointer stored by FUN_004cb430
 004cb3c0	cb_004cb3c0	pointer stored by FUN_004cb430
-004cbba0	cb_004cbba0	pointer stored by FUN_004cbe80 +1
-004cbc20	cb_004cbc20	pointer stored by FUN_004cbe80 +1
-004cbc90	cb_004cbc90	pointer stored by FUN_004cbe80 +1
-004cbcc0	cb_004cbcc0	pointer stored by FUN_004cbe80 +1
+004cbba0	cb_004cbba0	pointer stored by FUN_004cbe80 [1]
+004cbc20	cb_004cbc20	pointer stored by FUN_004cbe80 [1]
+004cbc90	cb_004cbc90	pointer stored by FUN_004cbe80 [1]
+004cbcc0	cb_004cbcc0	pointer stored by FUN_004cbe80 [1]
 004cc200	cb_004cc200	pointer stored by FUN_004cc690
-004cc220	cb_004cc220	pointer stored by FUN_004cc690 +1
-004cc2e0	cb_004cc2e0	pointer stored by FUN_004cc690 +1
+004cc220	cb_004cc220	pointer stored by FUN_004cc690 [1]
+004cc2e0	cb_004cc2e0	pointer stored by FUN_004cc690 [1]
 004cc710	cb_004cc710	pointer stored by FUN_004cd850
 004cd4b0	cb_004cd4b0	pointer stored by FUN_004cd850
 004cd810	cb_004cd810	pointer stored by FUN_004cd850
-004cd980	cb_004cd980	pointer stored by FUN_004cd990 +3
+004cd980	cb_004cd980	pointer stored by FUN_004cd990 [3]
 004ce100	cb_004ce100	pointer stored by FUN_004ce520
 004ce210	cb_004ce210	pointer stored by FUN_004ce520
-004ce620	cb_004ce620	pointer stored by FUN_004ce640 +3
+004ce620	cb_004ce620	pointer stored by FUN_004ce640 [3]
 004d20e0	cb_004d20e0	pointer stored by FUN_004d2360
 004d2290	cb_004d2290	pointer stored by FUN_004d2360
 004d3450	cb_004d3450	pointer stored by FUN_004d3a30
-004d3de0	cb_004d3de0	pointer stored by FUN_004d41d0 +1
-004d4060	cb_004d4060	pointer stored by FUN_004d41d0 +1
-004d40c0	cb_004d40c0	pointer stored by FUN_004d41d0 +1
-004d4140	cb_004d4140	pointer stored by FUN_004d41d0 +1
+004d3de0	cb_004d3de0	pointer stored by FUN_004d41d0 [1]
+004d4060	cb_004d4060	pointer stored by FUN_004d41d0 [1]
+004d40c0	cb_004d40c0	pointer stored by FUN_004d41d0 [1]
+004d4140	cb_004d4140	pointer stored by FUN_004d41d0 [1]
 004d4742	cb_004d4742	pointer stored by FUN_0047f8f0, FUN_0047fa50
 004dfc10	cb_004dfc10	pointer stored by FUN_004d2360
 004e0830	cb_004e0830	pointer stored by FUN_004d2360
@@ -529,3 +529,58 @@
 0044f6b0	cb_0044f6b0	pointer stored by cb_0044f6e0 +0x18
 00450970	cb_00450970	pointer stored by cb_004509b0 +0x14
 004077b0	cb_004077b0	pointer stored by cb_00407d40 +0x14
+# Callbacks the `= &LAB_` pass missed: pointers cast to code or passed as an argument
+# (eh_vector iterator constructors/destructors, qsort, thread start, task callbacks).
+00407cc0	cb_00407cc0	pointer passed or stored by FUN_00408130
+00408e30	cb_00408e30	pointer passed or stored by FUN_00408ed0
+00435a10	cb_00435a10	pointer passed or stored by FUN_004051f0
+0044a4a0	cb_0044a4a0	pointer passed or stored by FUN_0044a3c0, FUN_0044f8b0, FUN_00455370 (+3 more)
+00453050	cb_00453050	pointer passed or stored by FUN_004529c0, FUN_00453060
+00454b60	cb_00454b60	pointer passed or stored by FUN_0044a3c0, FUN_0044f8b0, FUN_00455370 (+3 more)
+0045b720	cb_0045b720	pointer passed or stored by cb_004567c0
+0045e1c0	cb_0045e1c0	pointer passed or stored by FUN_0045e1f0
+0046dde0	cb_0046dde0	pointer passed or stored by load_svar
+004737e0	cb_004737e0	pointer passed or stored by FUN_00473810
+00476750	cb_00476750	pointer passed or stored by FUN_00476780, op_51, op_52
+004a3210	cb_004a3210	pointer passed or stored by FUN_004794b0, FUN_0049e910, FUN_004a5c30
+004aebf0	cb_004aebf0	pointer passed or stored by FUN_004ae6b0
+004af9d0	cb_004af9d0	pointer passed or stored by FUN_004b0c90
+004afd10	cb_004afd10	pointer passed or stored by FUN_004b0790, FUN_004b0c90, FUN_004b1040
+004b6530	cb_004b6530	pointer passed or stored by FUN_004b65f0
+004b6580	cb_004b6580	pointer passed or stored by FUN_004b65f0
+004b7770	cb_004b7770	pointer passed or stored by FUN_004b78b0
+004b77c0	cb_004b77c0	pointer passed or stored by FUN_004b78b0
+004b7810	cb_004b7810	pointer passed or stored by FUN_004b6800, FUN_004b6930, FUN_004b7190 (+1 more)
+004b7840	cb_004b7840	pointer passed or stored by FUN_004b7a20
+004bd000	cb_004bd000	pointer passed or stored by FUN_004051f0, FUN_004bcb60, FUN_004bce60 (+1 more)
+00407c20	cb_00407c20	pointer passed or stored by cb_00407cc0
+00408d50	cb_00408d50	pointer passed or stored by cb_00408e30
+004431b0	cb_004431b0	pointer passed or stored by cb_00443230
+00478300	cb_00478300	pointer passed or stored by cb_00407c20
+004d5520	cb_004d5520	pointer passed or stored by cb_004ca7f0
+004d5990	cb_004d5990	pointer passed or stored by cb_004ca7f0
+004d5d50	cb_004d5d50	pointer passed or stored by cb_004ca7f0
+004d71f0	cb_004d71f0	pointer passed or stored by cb_004ca7f0
+004d72a0	cb_004d72a0	pointer passed or stored by cb_004ca7f0
+004d72e0	cb_004d72e0	pointer passed or stored by cb_004ca7f0
+004d76d0	cb_004d76d0	pointer passed or stored by cb_004ca7f0
+004d7b80	cb_004d7b80	pointer passed or stored by cb_004ca7f0
+004d8180	cb_004d8180	pointer passed or stored by cb_004ca7f0
+004d86c0	cb_004d86c0	pointer passed or stored by cb_004ca7f0
+004d8de0	cb_004d8de0	pointer passed or stored by cb_004ca7f0
+004d9490	cb_004d9490	pointer passed or stored by cb_004ca7f0
+004d9b70	cb_004d9b70	pointer passed or stored by cb_004ca7f0
+004da310	cb_004da310	pointer passed or stored by cb_004ca7f0
+004da940	cb_004da940	pointer passed or stored by cb_004ca7f0
+004dae90	cb_004dae90	pointer passed or stored by cb_004ca7f0
+004db520	cb_004db520	pointer passed or stored by cb_004ca7f0
+004dbaa0	cb_004dbaa0	pointer passed or stored by cb_004ca7f0
+004dc450	cb_004dc450	pointer passed or stored by cb_004ca7f0
+004dc4b0	cb_004dc4b0	pointer passed or stored by cb_004ca7f0
+004dca20	cb_004dca20	pointer passed or stored by cb_004ca7f0
+004dcf20	cb_004dcf20	pointer passed or stored by cb_004ca7f0
+004dd5c0	cb_004dd5c0	pointer passed or stored by cb_004ca7f0
+004ddc70	cb_004ddc70	pointer passed or stored by cb_004ca7f0
+004de840	cb_004de840	pointer passed or stored by cb_004ca7f0
+004de8b0	cb_004de8b0	pointer passed or stored by cb_004ca7f0
+004dec90	cb_004dec90	pointer passed or stored by cb_004ca7f0
