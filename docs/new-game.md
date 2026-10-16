@@ -141,10 +141,14 @@ rather than by browsing:
    the per-object callbacks (`local_4 = &LAB_…`) behind `Fade`,
    `Request`, `SetShade`, `CreateEffect` and others: 76 labels, so the
    decompiled output never showed what those built-ins do. Collect the
-   label addresses (`grep -ho '= &LAB_[0-9a-f]*' decomp/*.c`), append
-   them to the names file as `cb_<addr>` and re-run the export:
-   `ApplyNames` disassembles each address and creates the function. Do
-   this as a standing step. Some hits are junk: SEH handlers (around
+   label addresses (`grep -ho '&LAB_[0-9a-f]*' decomp/*.c`: not only
+   `= &LAB_`, since casts `(code *)&LAB_` and arguments are callbacks
+   too), append them to the names file as `cb_<addr>` and re-run the
+   export: `ApplyNames` disassembles each address and creates the
+   function. Repeat until no new address turns up (the new functions
+   hold pointers of their own). Do this as a standing step. Skip
+   `puStack_`/`pcStack_` frame stores and `return &LAB_<odd>` (mid
+   instruction). Some hits are junk: SEH handlers (around
    `004f8xxx` in Muramasa) and very large pixel blitters; don't read
    400 KB of blitter by mistake.
 3. **Name the CRT helpers early.** Muramasa's `FUN_004d3be0` is
