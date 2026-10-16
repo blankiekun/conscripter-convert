@@ -201,7 +201,7 @@ impl English {
             scene_fn.calls_int_strs("SetChoice", &mut sets);
             let scene_choices: HashMap<String, String> = sets
                 .into_iter()
-                .flat_map(|(id, jp)| jp.into_iter().enumerate().map(move |(n, jp)| (format!("{id}_{}", n + 1), jp)))
+                .flat_map(|(id, jp)| jp.into_iter().enumerate().filter_map(move |(n, jp)| Some((format!("{id}_{}", n + 1), jp?))))
                 .filter_map(|(k, jp)| Some((jp, options.get(&k)?.clone())))
                 .collect();
             choices.insert(scene.to_lowercase(), scene_choices);

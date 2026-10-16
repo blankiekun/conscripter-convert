@@ -300,6 +300,27 @@ impl Function {
         self.functions.iter().for_each(|f| f.slot_strs(key, out));
     }
 
+    /// The arguments loaded by `code`, in order: a string literal
+    /// (`LOAD`, `DLOAD` two) or `None` for a slot read (`GETK`; `Route.x`
+    /// is two, one argument).
+    fn arg_strs(&self, code: &[Instr]) -> Vec<Option<String>> {
+        let mut out = Vec::new();
+        let mut in_route = false;
+        for ins in code {
+            match ins.op {
+                LOAD => out.push(self.str(ins.arg1).map(str::to_string)),
+                DLOAD => out.extend([ins.arg1, i32::from(ins.arg3)].map(|l| self.str(l).map(str::to_string))),
+                GETK if in_route => in_route = false,
+                GETK => {
+                    in_route = self.str(ins.arg1) == Some("Route");
+                    out.push(None);
+                }
+                _ => {}
+            }
+        }
+        out
+    }
+
     /// The string literals loaded by `LOAD`/`DLOAD` in `code`, in order.
     fn loaded_strs(&self, code: &[Instr]) -> Vec<String> {
         let mut out = Vec::new();
@@ -315,13 +336,15 @@ impl Function {
     }
 
     /// Every `name(int, "string", "string", …)` call in this function and
-    /// the ones inside it: the scenes' `SetChoice(id, japanese…)`.
-    pub fn calls_int_strs(&self, name: &str, out: &mut Vec<(i32, Vec<String>)>) {
+    /// the ones inside it: the scenes' `SetChoice(id, japanese…)`. An
+    /// argument that isn't a string (`Route.md05_hazure`, a constant) is
+    /// `None`, so each string keeps its place.
+    pub fn calls_int_strs(&self, name: &str, out: &mut Vec<(i32, Vec<Option<String>>)>) {
         for (i, w) in self.code.windows(2).enumerate() {
             if w[0].op == PREPCALLK && self.str(w[0].arg1) == Some(name) && w[1].op == LOADINT {
                 let args = &self.code[i + 2..];
                 let end = args.iter().position(|ins| ins.op == CALL).unwrap_or(args.len());
-                out.push((w[1].arg1, self.loaded_strs(&args[..end])));
+                out.push((w[1].arg1, self.arg_strs(&args[..end])));
             }
         }
         self.functions.iter().for_each(|f| f.calls_int_strs(name, out));
@@ -384,5 +407,26 @@ impl Function {
             }
         }
         out
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn choice_options_keep_their_places_past_a_variable() {
+        // SetChoice(20, "見る", "話す", Route.md05_hazure, "移動する")
+        let lit = |s: &str| Literal::Str(s.into());
+        let ins = |op, arg1, arg3| Instr { op, arg1, arg3 };
+        let f = Function {
+            literals: ["SetChoice", "見る", "話す", "Route", "md05_hazure", "移動する"].map(lit).into(),
+            code: vec![ins(PREPCALLK, 0, 0), ins(LOADINT, 20, 0), ins(DLOAD, 1, 2), ins(GETK, 3, 0), ins(GETK, 4, 0), ins(LOAD, 5, 0), ins(CALL, 0, 0)],
+            functions: Vec::new(),
+        };
+        let mut out = Vec::new();
+        f.calls_int_strs("SetChoice", &mut out);
+        let s = |s: &str| Some(s.to_string());
+        assert_eq!(out, [(20, vec![s("見る"), s("話す"), None, s("移動する")])]);
     }
 }
