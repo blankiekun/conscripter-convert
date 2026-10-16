@@ -481,8 +481,10 @@ the batch, non-interactive cases.
 ## 13. Lessons learned and ways to speed up conversion
 
 General lessons, collected while converting games. Each one is stated
-for any engine, with the case that taught it as an example (most come
-from 最果てのイマ, Xuse; its details are in `docs/games/saihate-no-ima.md`).
+for any engine, with the case that taught it as an example (untagged
+ones come from 最果てのイマ, Xuse; its details are in
+`docs/games/saihate-no-ima.md`), grouped by topic: add a new lesson to
+its topic, not under a heading for its game.
 The steps that apply them are in `docs/new-game.md`.
 
 ### 13.1 Lessons learned
@@ -499,6 +501,9 @@ The steps that apply them are in `docs/new-game.md`.
   can each cost a session. The user decides.
 - **A 100 % save unlocks the extras at once.** Download one instead of
   playing or reverse-engineering the unlock bits.
+- **A route map straight from the scripts** (俺たちに翼はない) (every NextScene, condition
+  and choice per scene, one line each) is the walkthrough when no
+  public one exists, and the route check follows it.
 
 **Reading the exe.**
 - **Rank opcodes by use count** and convert from the top: a handful of
@@ -529,6 +534,24 @@ The steps that apply them are in `docs/new-game.md`.
 - **Object lifetimes depend on mode bits.** Check across the corpus which
   modes keep an object (and what is attached to it) and which recreate
   it, before tracking state.
+- **Map an exe from the corpus, not from its functions.** (村正) A coverage
+  table (each built-in, system variable, text tag and action: corpus use
+  count, what the exe does, what the converter does) turns "map the
+  whole exe" into a bounded list of differences actually used; code
+  reached only through function pointers has to be turned into functions
+  before the decompiled output shows what a built-in does
+  (`docs/new-game.md` §2, "Mapping the whole exe").
+- **A built-in "converted" can still drop an argument** (村正, 2026-10-16):
+  NSS `CreateWindow` was listed as converted because its children were
+  placed, but its size, which clips them, was never read; the user saw
+  the cockpit's tapes run the whole screen. Coverage is per argument and
+  behaviour, and the built-in dispatch notes every argument it doesn't
+  read (`docs/new-game.md` step 5).
+- **Read the scripts' comments.** (俺たちに翼はない) Ports often keep the original's names
+  in comments next to the numbers that replaced them (`:Texture 0 //
+  BG_BLACK`, `:Voice 22562 // TAK1004`). Checking every commented number
+  against the archives proved the ID scheme in one pass, and the
+  comments gave the speaker-name table without the executable.
 
 **Checking decoded data.**
 - **Check the whole corpus, not one sample:** every message parses,
@@ -553,6 +576,21 @@ The steps that apply them are in `docs/new-game.md`.
   including the wrong-order clicks the walkthrough warns about. Static
   reading and spot runs missed a link that stayed clickable after a
   jump skipped its record (`docs/new-game.md` step 11).
+- **Whole-corpus runs find what single scenes don't.** (村正) Two engine-killing
+  bugs only showed on the full game: more than 254 transition effects
+  (`effect` numbers stop at 255) and a half-width character in vertical
+  text (CONscripter exits silently). Run the whole game, at least as a
+  dry run, after every feature.
+- **Check duplicate definitions for comment blocks** before deciding which
+  one is live (Muramasa keeps old helper versions inside `/* */`).
+- **Skip runs per ending find what logic checks can't** (村正, 2026-10-14): a
+  `?` in text (NScripter reads an array and exits), a 270 s cross-fade,
+  heap corruption after 500 files. Patch the choices into the script
+  (one `if` per line: a false `if` skips the rest of its line) or write
+  them as a `--replay` file, play headless with `--auto-play` and a
+  trace (no Xvfb, no held Ctrl; a crash leaves a `crash` record), and
+  start deep in a route from the tracer's variables (`--goto` and
+  `--vars`, or a patched start) to reproduce in seconds.
 
 **Matching the original.**
 - **Film the original instead of guessing.** Run it under wine (silent,
@@ -573,6 +611,9 @@ The steps that apply them are in `docs/new-game.md`.
   became a short `cons_*.dll` effect-99 plugin, checkable on Xvfb
   mid-effect. Release them in batches: a CONscripter release is a
   version bump and a tag, and CI builds every platform.
+- **Atlases without their layout table:** (俺たちに翼はない) measure the parts from the
+  picture's alpha (`research/oretsuba/atlas.py`) and say in the game's
+  document that the placement is ours.
 
 **Target engine facts (ONScripter / CONscripter).**
 - **Sprite numbers set the stacking order, and saves record them.**
@@ -596,9 +637,42 @@ The steps that apply them are in `docs/new-game.md`.
   by how many arguments it has. Each engine opens a call on the shared
   `Metrics`, and every note made while it is open is that call's gap
   (`tests/snapshots/<game>.metrics.json`).
+- **Engine facts worth knowing early:** (村正) `:a` on a JPEG uses its right
+  half as the mask; loose files with Japanese names were found only
+  once CONscripter looked for their UTF-8 names (4d94b92; before, pack
+  them); `;$Sw,h` sets any screen size, `,valueN` raises the global
+  border so more locals are saved per slot; `print 10,ms` works without
+  an `effect` definition; `%%n` and `$%n` (the variable whose number is
+  in `%n`) work as values and as targets.
+- **Button loops:** (村正) `btnwait` forgets its buttons once it returns, so
+  every way back into the loop defines them again. Sprite buttons are hit
+  by rectangle unless `transbtn` is on (then by alpha; `btndef` turns it
+  off); with it, a "transparent" button keeps a little alpha (8/1000) to
+  stay clickable.
+- **CONscripter's errors go to `stderr.txt`** (村正) in the game folder
+  (`USE_FILELOG`), not to the terminal: an exit that looks silent has
+  its message there.
+- **`setwindow` flushes the backlog** (村正) (NScripter's rule): a converter
+  that sets the window again for each text block keeps no history. The
+  converter emits `setwindow3`, which doesn't. And `btndef` turns
+  `btndown` off: a screen that wants presses sets `btndown 1` after each
+  `btndef clear`, and in that mode `btnwait` also returns on the release
+  and on moves with the button held (tell them apart with `isdown`).
+- **`lsp2` sprites are no place for things over the text window** (村正): with
+  `windowback` they are drawn under it, and ONScripter doesn't step
+  their animation. An animated icon over the window is an `lsp` sprite
+  numbered at or below `humanz`.
+- **Mind the output stage's variables:** (俺たちに翼はない) pick the game's flag ranges
+  against the `%N` that conv-cons already writes (`grep -o '%[0-9]*'`),
+  locals below the global border and globals clear of the menus'.
 
-### 13.1b Lessons from 装甲悪鬼村正 (Nitroplus NSS, 2026-10-13)
+**Getting the files.**
+- **Console packages decrypt offline.** A Vita package plus its license
+  (`work.bin`) unpacks with pkg2zip; the PFS layer with Vita3K's fork of
+  psvpfsparser, which has the F00D step built in (the web service the
+  original tool needs is gone). Build both from source.
 
+**Compiling from source scripts** (Nitroplus NSS: 装甲悪鬼村正).
 - **With source scripts, compile by running them at convert time.** Story
   scenes are straight runs of helper calls. Inlining the helpers, tracking
   objects and variables, and emitting what the player sees at each wait
@@ -612,89 +686,15 @@ The steps that apply them are in `docs/new-game.md`.
 - **Pure-logic library code that loops over flags** (the route ranking)
   can't be traced. Port it as a small intrinsic and test it with an IR
   interpreter against a hand-worked example.
-- **Whole-corpus runs find what single scenes don't.** Two engine-killing
-  bugs only showed on the full game: more than 254 transition effects
-  (`effect` numbers stop at 255) and a half-width character in vertical
-  text (CONscripter exits silently). Run the whole game, at least as a
-  dry run, after every feature.
-- **Engine facts worth knowing early:** `:a` on a JPEG uses its right
-  half as the mask; loose files with Japanese names were found only
-  once CONscripter looked for their UTF-8 names (4d94b92; before, pack
-  them); `;$Sw,h` sets any screen size, `,valueN` raises the global
-  border so more locals are saved per slot; `print 10,ms` works without
-  an `effect` definition; `%%n` and `$%n` (the variable whose number is
-  in `%n`) work as values and as targets.
-- **Button loops:** `btnwait` forgets its buttons once it returns, so
-  every way back into the loop defines them again. Sprite buttons are hit
-  by rectangle unless `transbtn` is on (then by alpha; `btndef` turns it
-  off); with it, a "transparent" button keeps a little alpha (8/1000) to
-  stay clickable.
-- **Check duplicate definitions for comment blocks** before deciding which
-  one is live (Muramasa keeps old helper versions inside `/* */`).
 - **Merging fork states:** a variable set again after the fork must keep
   that later value. Small synthetic file sets in unit tests caught this.
-- **Measure memory before blaming it on mapped files:** the kernel's OOM
+
+**Builds.**
+- **Measure memory before blaming it on mapped files:** (村正) the kernel's OOM
   line gives anon-rss. The full build's 7 GB was heap (60x zooms scaled
   whole, 8 GB bitmaps), not the mapped archives; cutting big zooms to the
   screen brought it to 1.2 GB. Run builds under `systemd-run --user
   --scope -p MemoryMax=…` so a regression can't take the desktop down.
-- **Skip runs per ending find what logic checks can't** (2026-10-14): a
-  `?` in text (NScripter reads an array and exits), a 270 s cross-fade,
-  heap corruption after 500 files. Patch the choices into the script
-  (one `if` per line: a false `if` skips the rest of its line) or write
-  them as a `--replay` file, play headless with `--auto-play` and a
-  trace (no Xvfb, no held Ctrl; a crash leaves a `crash` record), and
-  start deep in a route from the tracer's variables (`--goto` and
-  `--vars`, or a patched start) to reproduce in seconds.
-- **CONscripter's errors go to `stderr.txt`** in the game folder
-  (`USE_FILELOG`), not to the terminal: an exit that looks silent has
-  its message there.
-- **`setwindow` flushes the backlog** (NScripter's rule): a converter
-  that sets the window again for each text block keeps no history. The
-  converter emits `setwindow3`, which doesn't. And `btndef` turns
-  `btndown` off: a screen that wants presses sets `btndown 1` after each
-  `btndef clear`, and in that mode `btnwait` also returns on the release
-  and on moves with the button held (tell them apart with `isdown`).
-- **`lsp2` sprites are no place for things over the text window**: with
-  `windowback` they are drawn under it, and ONScripter doesn't step
-  their animation. An animated icon over the window is an `lsp` sprite
-  numbered at or below `humanz`.
-
-- **Map an exe from the corpus, not from its functions.** A coverage
-  table (each built-in, system variable, text tag and action: corpus use
-  count, what the exe does, what the converter does) turns "map the
-  whole exe" into a bounded list of differences actually used; code
-  reached only through function pointers has to be turned into functions
-  before the decompiled output shows what a built-in does
-  (`docs/new-game.md` §2, "Mapping the whole exe").
-
-- **A built-in "converted" can still drop an argument** (2026-10-16):
-  NSS `CreateWindow` was listed as converted because its children were
-  placed, but its size, which clips them, was never read; the user saw
-  the cockpit's tapes run the whole screen. Coverage is per argument and
-  behaviour, and the built-in dispatch notes every argument it doesn't
-  read (`docs/new-game.md` step 5).
-
-### 13.1c Lessons from 俺たちに翼はない (PS Vita, 2026-10-13)
-
-- **Console packages decrypt offline.** A Vita package plus its license
-  (`work.bin`) unpacks with pkg2zip; the PFS layer with Vita3K's fork of
-  psvpfsparser, which has the F00D step built in (the web service the
-  original tool needs is gone). Build both from source.
-- **Read the scripts' comments.** Ports often keep the original's names
-  in comments next to the numbers that replaced them (`:Texture 0 //
-  BG_BLACK`, `:Voice 22562 // TAK1004`). Checking every commented number
-  against the archives proved the ID scheme in one pass, and the
-  comments gave the speaker-name table without the executable.
-- **A route map straight from the scripts** (every NextScene, condition
-  and choice per scene, one line each) is the walkthrough when no
-  public one exists, and the route check follows it.
-- **Atlases without their layout table:** measure the parts from the
-  picture's alpha (`research/oretsuba/atlas.py`) and say in the game's
-  document that the placement is ours.
-- **Mind the output stage's variables:** pick the game's flag ranges
-  against the `%N` that conv-cons already writes (`grep -o '%[0-9]*'`),
-  locals below the global border and globals clear of the menus'.
 
 ### 13.2 Ways to speed up conversion
 
