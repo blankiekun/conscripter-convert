@@ -3235,35 +3235,72 @@ const POOL_RECORDS: [u16; 44] = [
     0x70, 0x76, 0x77, 0x7a, 0x7b, 0x7c, 0x7d, 0x7f, 0x80, 0x81, 0x82, 0x83, 0x84, 0x86, 0x87, 0x88, 0x8a, 0x8b, 0x8c, 0x8d, 0x8e, 0x90,
 ];
 
+/// Opcodes given `sub` 0xffff in every use, which their handler (`op_XX`
+/// in `research/xuse/names.tsv`) never reads (no read of the
+/// instruction's +2, there or in its callees two deep): the compiler's
+/// filler for an operand the opcode has no use for. 0xffff there is not
+/// given; any other value is noted.
+const NO_SUB: &[u16] = &[
+    0x00, 0x10, 0x23, 0x36, 0x37, 0x38, 0x39, 0x43, 0x44, 0x46, 0x47, 0x48, 0x49, 0x4a, 0x4c, 0x4d, 0x4e, 0x4f, 0x50, 0x55, 0x56, 0x59,
+    0x5a, 0x66, 0x67, 0x68, 0x69, 0x6d, 0x6e, 0x6f, 0x70, 0x71, 0x72, 0x74, 0x77, 0x7a, 0x7b, 0x7c, 0x7d, 0x7f, 0x80, 0x82, 0x83, 0x84,
+    0x86, 0x87, 0x88, 0x8a, 0x8b, 0x8c, 0x8d, 0x8f, 0x90, 0x91, 0x93, 0x94, 0x96, 0x97, 0x9d,
+];
+
+/// The same for `arg` -1 (no read of the instruction's +4).
+const NO_ARG: &[u16] = &[0x00, 0x15, 0x22, 0x23, 0x39, 0x47, 0x48, 0x67, 0x69, 0x71, 0x8f, 0x94, 0x96, 0x99];
+
 /// Operands the converter doesn't read because they don't matter:
-/// (opcode, operand as [`CdScript::ignored`] names it, why).
+/// (opcode, operand as [`CdScript::ignored`] names it, the values covered,
+/// why). Values: `sub`/`arg` in decimal, record bytes in hex; `|`
+/// separates values, `?` is any one digit, a trailing `*` any rest, `zeros`
+/// any run of zero bytes. Another value is noted.
 const UNNEEDED_OPERANDS: &[(u16, &str, &str, &str)] = &[
-    (0x41, "sub", "*", "0x13 in every voiced message: bit 0 (has a voice) is the opcode itself"),
-    (0x40, "+8", "*", "the source script's line number (`cd messages` prints it)"),
-    (0x41, "+8", "*", "the source script's line number (`cd messages` prints it)"),
-    (0x40, "-8", "*", "u32 4, u32 0 after the text of every story message"),
-    (0x41, "-8", "*", "u32 4, u32 0 after the text of every message"),
-    (0x36, "-4", "*", "the label-table index of the chapter's |chpe label, where its 0x37 sits"),
-    (0x37, "+0", "*", "its own label number: the label table places it"),
-    (0x38, "+0", "*", "its own label number: the label table places it"),
-    (0x3b, "sub", "*", "the entry name's length: only 0x3c reads the name, and no script uses it"),
-    (0x3b, "+0", "*", "the entry name (debug or release entry): only 0x3c reads it, and no script uses it"),
-    (0x77, "-8", "*", "flags (always 0) and sort key: the 9 records with a key below the top band change only what it covers (History, item 15)"),
-    (0x7a, "+1", "*", "the full-screen animation's depth: 1000 in every record (one object, sprite 59)"),
-    (0x7a, "-1", "*", "the full-screen animation is visible (0xff) in every record"),
-    (0x7b, "-4", "*", "the full-screen animation's depth: 1000 in every record"),
-    (0x8a, "-9", "*", "depth 1000, slot 1, 0xff in every record: there is one full-screen animation"),
-    (0x8b, "+1", "*", "the full-screen animation's depth: 1000 in every record"),
-    (0x83, "-1", "*", "the blend, 6 (dissolve) in the one use, which the converter draws as one"),
-    (0x86, "+5", "*", "the module slot: 1 in every use (one motion per object)"),
-    (0x87, "+0", "*", "waits for the motion its object's 0x86 just started: the converter's slides run to their end at 0x86"),
-    (0x8d, "-1", "*", "0xff, as in every 0x87 and 0x8a wait record"),
-    (0x8e, "+12", "*", "the module name: empty in every entry (byte 0 is 0), leftover memory after it"),
-    (0x8e, "+56", "*", "the module name: empty in every entry (byte 0 is 0), leftover memory after it"),
-    (0x8e, "+100", "*", "the module name: empty in every entry (byte 0 is 0), leftover memory after it"),
-    (0x8e, "+144", "*", "the module name: empty in every entry (byte 0 is 0), leftover memory after it"),
-    (0x8e, "+188", "*", "the module name: empty in every entry (byte 0 is 0), leftover memory after it"),
-    (0x8e, "-32", "*", "the module name: empty in every entry (byte 0 is 0), leftover memory after it"),
+    // Message records (op_40_41 0x4771c0).
+    (0x41, "sub", "19", "0x13: every voiced message has a speaker name (bit 0)"),
+    (0x40, "+8", "*", "any: the source script's line number (`cd messages` prints it)"),
+    (0x41, "+8", "*", "any: the source script's line number (`cd messages` prints it)"),
+    (0x40, "-8", "0400000000000000", "u32 4, u32 0 after the text of every story message"),
+    (0x41, "-8", "0400000000000000", "u32 4, u32 0 after the text of every message"),
+    // Chapter labels (op_36 0x475460, op_37 0x475780, op_38 0x475970).
+    (0x36, "-4", "*", "any: the label-table index of the chapter's |chpe label, where its 0x37 sits"),
+    (0x37, "+0", "*", "any: its own label number: the label table places it"),
+    (0x38, "+0", "*", "any: its own label number: the label table places it"),
+    // op_3b 0x478650: only 0x3c reads the entry name, and no script uses 0x3c.
+    (0x3b, "sub", "11|13", "the entry name's length"),
+    (0x3b, "+0", "646562756720656e747279|72656c6561736520656e747279", "the entry name, \"debug entry\" or \"release entry\""),
+    // op_52 0x476cb0, op_53 0x476cd0 (both FUN_00476a80): sub picks the text window.
+    (0x52, "sub", "0", "text window 0, the only one"),
+    (0x53, "sub", "0", "text window 0, the only one"),
+    (0x6d, "-12", "zeros", "op_6d 0x442000 never reads past the first 12 bytes"),
+    (0x76, "+4", "00000000", "flags 0 (op_76 0x449df0: bit 0 hides the windows, bits 0-1 remove the bust-ups): neither, as ours"),
+    (
+        0x77,
+        "-8",
+        "0000000000102700|0000000000e80300|0000000003000000|0000000003640000|0000000000000000",
+        "flags 0 and the sort key (op_77 0x444090): the 9 records with a key below the top band change only what it covers (History, item 15)",
+    ),
+    // The full-screen animation, one object (sprite 59): op_7a 0x414590, op_7b 0x414820, op_8a 0x416200, op_8b 0x416310.
+    (0x7a, "+1", "e8030000030a000000", "its depth, 1000"),
+    (0x7a, "-1", "ff", "visible"),
+    (0x7b, "-4", "e8030000", "its depth, 1000"),
+    (0x8a, "-9", "e803000001000000ff", "depth 1000, slot 1, 0xff"),
+    (0x8b, "+1", "e80300000100000000000000", "its depth, 1000"),
+    (0x83, "-1", "06", "the blend, dissolve (op_83 0x414050), which the converter draws as one"),
+    (0x84, "-1", "00", "op_84 0x414180 never reads the record's last byte"),
+    // Key-frame motions: op_86 0x413540, setup 0x416fe0; op_87 0x413820; op_8d 0x4155c0.
+    (0x86, "+5", "01000000", "the module slot, 1: one motion per object"),
+    (0x86, "+15", "zeros", "the first key frame, which the setup replaces by the object's state"),
+    (0x87, "+0", "02????????01000000ff", "layer 2, any depth, slot 1: waits for the motion its object's 0x86 just started, which ours runs to its end at 0x86"),
+    (0x8d, "-1", "ff", "0xff, as in every 0x87 and 0x8a wait record"),
+    // op_88 0x415b50 clears a slot-0 module without its blend and opacity.
+    (0x88, "-4", "00000000", "a cleared slot's blend and opacity"),
+    // op_8e 0x4347b0: the module name, empty (byte 0 is 0), leftover memory after it.
+    (0x8e, "+12", "00*", "an empty module name"),
+    (0x8e, "+56", "00*", "an empty module name"),
+    (0x8e, "+100", "00*", "an empty module name"),
+    (0x8e, "+144", "00*", "an empty module name"),
+    (0x8e, "+188", "00*", "an empty module name"),
+    (0x8e, "-32", "00*", "an empty module name"),
 ];
 
 /// The operands given but never read ([`CdScript::ignored`]) and not in
@@ -3272,21 +3309,26 @@ pub fn ignored_operands(cd: &CdScript) -> Vec<(usize, String)> {
     cd.ignored(&POOL_RECORDS)
         .into_iter()
         .filter(|u| {
-            if std::env::var_os("XUSE_DUMP").is_some() {
-                eprintln!("DUMP\t{:#04x}\t{}\t{}", u.op, u.which, u.value);
-            }
-            !UNNEEDED_OPERANDS.iter().any(|&(o, w, v, _)| o == u.op && w == u.which && value_matches(v, &u.value))
+            let filler = match u.which.as_str() {
+                "sub" => NO_SUB.contains(&u.op) && u.value == "65535",
+                "arg" => NO_ARG.contains(&u.op) && u.value == "-1",
+                _ => false,
+            };
+            !filler && !UNNEEDED_OPERANDS.iter().any(|&(o, w, v, _)| o == u.op && w == u.which && value_matches(v, &u.value))
         })
         .map(|u| (u.index, format!("{:#04x} operand {} ignored", u.op, u.which)))
         .collect()
 }
 
-/// `pattern` is values separated by `|`; one ending in `*` matches any
-/// value that starts with the rest (a lone `*`: any value).
+/// Whether `value` is one of `pattern`'s ([`UNNEEDED_OPERANDS`]).
 fn value_matches(pattern: &str, value: &str) -> bool {
-    pattern.split('|').any(|p| match p.strip_suffix('*') {
-        Some(prefix) => value.starts_with(prefix),
-        None => value == p,
+    pattern.split('|').any(|p| match p {
+        "zeros" => !value.is_empty() && value.bytes().all(|b| b == b'0'),
+        _ => {
+            let (p, rest) = p.strip_suffix('*').map_or((p, false), |p| (p, true));
+            (value.len() == p.len() || rest && value.len() > p.len())
+                && p.bytes().zip(value.bytes()).all(|(p, v)| p == b'?' || p == v)
+        }
     })
 }
 
@@ -3525,6 +3567,14 @@ mod tests {
         assert_eq!(preset_filters(0), Some(vec![]));
         assert_eq!(preset_filters(3).unwrap().len(), 3);
         assert_eq!(preset_filters(4), None);
+    }
+
+    #[test]
+    fn unneeded_values() {
+        assert!(value_matches("11|13", "13") && !value_matches("11|13", "1"));
+        assert!(value_matches("02??01", "02ab01") && !value_matches("02??01", "02ab0100"));
+        assert!(value_matches("00*", "006f6e") && !value_matches("00*", "01"));
+        assert!(value_matches("zeros", "0000") && !value_matches("zeros", "0010") && !value_matches("zeros", ""));
     }
 
     #[test]

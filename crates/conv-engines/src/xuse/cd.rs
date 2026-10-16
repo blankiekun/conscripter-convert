@@ -1227,14 +1227,26 @@ pub(crate) mod tests {
         let bytes = build("ops.rio", &[], &code, &pool);
         let cd = CdScript::parse(&bytes).unwrap();
         let records = [OP_APPLY_PRESET, OP_SE_PLAY];
-        assert_eq!(cd.ignored(&records).len(), 5, "nothing read yet: a run per record, BGM sub and arg, 0x52 arg");
+        let which = |u: Vec<Unread>| u.into_iter().map(|u| (u.op, u.which, u.value)).collect::<Vec<_>>();
+        let s = |v: &str| v.to_string();
+        // Nothing read yet: every sub, the non-record args, a run per record.
+        assert_eq!(cd.ignored(&records).len(), 8);
         cd.apply_preset(&cd.code[0]).unwrap().unwrap();
         cd.sound(&cd.code[1]).unwrap().unwrap();
         cd.sound(&cd.code[2]).unwrap().unwrap();
-        // The module field (bytes 2-7) and 0x52's arg; sub 0xffff isn't given.
-        assert_eq!(cd.ignored(&records), [(OP_APPLY_PRESET, "+2".to_string()), (0x52, "arg".to_string())]);
+        // The module field (bytes 2-7) and the subs and arg nobody read, 0xffff included.
+        assert_eq!(
+            which(cd.ignored(&records)),
+            [
+                (OP_APPLY_PRESET, s("sub"), s("65535")),
+                (OP_APPLY_PRESET, s("+2"), s("000001000000")),
+                (OP_SE_PLAY, s("sub"), s("65535")),
+                (0x52, s("sub"), s("65535")),
+                (0x52, s("arg"), s("9")),
+            ]
+        );
         // A record list that leaves the 0x90 record out finds the SE record out of place.
-        assert!(cd.ignored(&[OP_SE_PLAY]).contains(&(OP_SE_PLAY, "record out of place".to_string())));
+        assert!(which(cd.ignored(&[OP_SE_PLAY])).contains(&(OP_SE_PLAY, s("record out of place"), s(""))));
     }
 
     #[test]
