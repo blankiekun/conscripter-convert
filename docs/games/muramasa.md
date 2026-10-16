@@ -524,16 +524,15 @@ Used to check what the engine does (`docs/new-game.md` step 9).
 
 ### Queue (2026-10-16)
 
-- Checking (agent): Django's #37 keeps a trailing `*` from reaching the
-  children of an object it matches (`Game::family`); turned on here it
-  changes about 33,000 lines. Find out from the exe or under wine which
-  is right for Muramasa; a PR only if Muramasa has the bug.
+- Done: the trailing `*` check (exe and wine, #39). A wildcard doesn't
+  reach a window's, name's or camera's children, `Delete` still does
+  (#41); a picture's children are placed from its corner (#43).
 - After engine #2 and #10: `AddRender`/`MulRender`/`SubRender` with
   `spblend` 1/2/3 through an IR field Django reuses (a shared PR first if
   the IR changes).
 - After engine #4: `CreateProcess` as `cons_process` coroutines; send a
   plan of PRs before coding.
-- Then the unread-argument gaps (item 5 below), most noticeable first;
+- Then the unread-argument gaps (item 6 below), most noticeable first;
   among them `SetVertex` on anything but `CreateText` pictures (17,995)
   and `CreateText`'s box height (30).
 - Known limits: a window that moves (`絵演窓上`, `窓右`, about 56 `Move`s)
