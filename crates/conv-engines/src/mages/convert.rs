@@ -460,6 +460,8 @@ struct Lowering<'a> {
     fading: bool,
     /// The task's `:Rule` mask (sprite fades), if any.
     rule: Option<String>,
+    /// The task's `:Scale` (SpriteBG, SpriteBS, Sprite), in percent.
+    scale: u32,
     /// A transition is open (staged changes wait for InOut).
     staging: bool,
     choices: usize,
@@ -522,7 +524,8 @@ impl Lowering<'_> {
     /// fades in inside a transition, so that it does so filtered.
     #[allow(clippy::too_many_arguments)]
     fn show_at(&mut self, key: &str, tex: i64, image: (String, u32, u32), cx: i32, cy: i32, priority: i64, fade_ms: u32, replaces: &[String], look: Look) {
-        let opened = (look != Look::default() || self.rule.is_some()) && fade_ms > 0 && !self.staging;
+        // A zoomed picture is shown zoomed in the same print.
+        let opened = (look != Look::default() || self.rule.is_some() || self.scale != 100) && (fade_ms > 0 || self.scale != 100) && !self.staging;
         if opened {
             self.out.ops.push(Op::BeginTransition { effect: "Sprite".into(), fade_ms, mask: self.rule.clone(), style: TransitionStyle::Fade });
             self.staging = true;
@@ -564,10 +567,11 @@ impl Lowering<'_> {
         }
         self.apply_look(layer, &look);
         // A new picture on the layer would keep the old one's zoom.
-        if self.shown.get(key).is_some_and(|old| old.layer == layer && old.zoom != 100) {
-            self.out.ops.push(Op::SpriteZoom { layer, x: cx, y: cy, from: 100, to: 100, ms: 0 });
+        let zoom = self.scale;
+        if zoom != 100 || self.shown.get(key).is_some_and(|old| old.layer == layer && old.zoom != 100) {
+            self.out.ops.push(Op::SpriteZoom { layer, x: cx, y: cy, from: zoom, to: zoom, ms: 0 });
         }
-        self.shown.insert(key.to_string(), Shown { layer, tex, x: cx, y: cy, image: path, w, h, base_y: cy, look, zoom: 100, motion: None });
+        self.shown.insert(key.to_string(), Shown { layer, tex, x: cx, y: cy, image: path, w, h, base_y: cy, look, zoom, motion: None });
         if opened {
             self.out.ops.push(Op::EndTransition);
             self.staging = false;
@@ -720,6 +724,13 @@ impl Lowering<'_> {
         self.fading = t.int("FadeWait") == Some(0) && matches!(ty, "CharacterOpen" | "CharacterDelete" | "Sprite" | "SpriteDelete" | "SpriteDeleteBG");
         // `:Rule N` (sprite fades; 0 a plain fade) is ETC.cpk's file N - 1,
         // RULE<N-1> (the eboot's table 0x811635fc, file ID + 200000).
+        // `:Scale` (scene_load cases 9, 10 and SpriteBS's, task +0xa0, the
+        // sprite's scale +0x48) zooms the picture about its centre, which
+        // `:Position` places, as SpriteMove's does.
+        self.scale = match ty {
+            "SpriteBG" | "SpriteBS" | "Sprite" => t.float("Scale").map_or(100, |f| (f * 100.0).round().max(1.0) as u32),
+            _ => 100,
+        };
         self.rule = match t.int("Rule") {
             Some(n) if n > 0 && ty.starts_with("Sprite") => self.assets.rule(n as u32 - 1),
             _ => None,
@@ -1589,7 +1600,7 @@ fn act_style(t: &Block) -> TransitionStyle {
 /// Compiles `scenes` (all of them if empty), each at its label, after a
 /// jump to the game's first scene.
 pub fn compile(game: &Game, scenes: &[String], assets: &mut dyn Assets) -> Compiled {
-    let mut l = Lowering { game, assets, out: Compiled::default(), shown: BTreeMap::new(), next_slot: HashMap::new(), fading: false, rule: None, staging: false, choices: 0, cover: None, eye_catch: false, shutters: None, inherited: false, opening: false, messages: 0 };
+    let mut l = Lowering { game, assets, out: Compiled::default(), shown: BTreeMap::new(), next_slot: HashMap::new(), fading: false, rule: None, scale: 100, staging: false, choices: 0, cover: None, eye_catch: false, shutters: None, inherited: false, opening: false, messages: 0 };
     let names: Vec<&String> = if scenes.is_empty() { game.scenes.keys().collect() } else { scenes.iter().collect() };
     let first = names.first().map(|s| s.as_str()).unwrap_or(&game.start);
     let first = if scenes.is_empty() { game.start.as_str() } else { first };
