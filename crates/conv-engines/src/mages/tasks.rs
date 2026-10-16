@@ -22,6 +22,8 @@
 //! them; a string left open ends at the end of its line. A key may repeat inside a block and keys are matched without
 //! regard to case (the scripts have `:Fadein` beside `:FadeIn`).
 
+use std::cell::RefCell;
+
 /// A property value.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Val {
@@ -64,29 +66,67 @@ pub struct Block {
     pub children: Vec<Block>,
     /// 1-based line of the `[name]`.
     pub line: usize,
+    /// Which values the converter read: bit i of entry p is value i of
+    /// `props[p]` (`unread` lists the rest).
+    pub read: RefCell<Vec<u64>>,
 }
 
 impl Block {
-    /// The values of the first property `key` (case-insensitive).
+    fn find(&self, key: &str) -> Option<(usize, &[Val])> {
+        self.props.iter().position(|(k, _)| k.eq_ignore_ascii_case(key)).map(|p| (p, self.props[p].1.as_slice()))
+    }
+
+    fn mark(&self, p: usize, bits: u64) {
+        let mut read = self.read.borrow_mut();
+        read.resize(self.props.len(), 0);
+        read[p] |= bits;
+    }
+
+    /// The values of the first property `key` (case-insensitive), all
+    /// counted as read.
     pub fn get(&self, key: &str) -> Option<&[Val]> {
-        self.props.iter().find(|(k, _)| k.eq_ignore_ascii_case(key)).map(|(_, v)| v.as_slice())
+        let (p, v) = self.find(key)?;
+        self.mark(p, !0);
+        Some(v)
+    }
+
+    /// The `i`th value of `key`.
+    pub fn at(&self, key: &str, i: usize) -> Option<&Val> {
+        let (p, v) = self.find(key)?;
+        self.mark(p, 1 << i.min(63));
+        v.get(i)
     }
 
     pub fn int(&self, key: &str) -> Option<i64> {
-        self.get(key)?.first()?.int()
+        self.at(key, 0)?.int()
     }
 
     /// The `i`th value of `key` as an integer.
     pub fn int_at(&self, key: &str, i: usize) -> Option<i64> {
-        self.get(key)?.get(i)?.int()
+        self.at(key, i)?.int()
     }
 
     pub fn float(&self, key: &str) -> Option<f64> {
-        self.get(key)?.first()?.float()
+        self.at(key, 0)?.float()
     }
 
     pub fn str(&self, key: &str) -> Option<&str> {
-        self.get(key)?.first()?.str()
+        self.at(key, 0)?.str()
+    }
+
+    /// The values nobody read: (key, None, its values) when the property
+    /// was never looked at (a repeated key's later copies never are),
+    /// else (key, Some(i), [value i]) for each value left.
+    pub fn unread(&self) -> Vec<(&str, Option<usize>, &[Val])> {
+        let read = self.read.borrow();
+        let mut out = Vec::new();
+        for (p, (k, vals)) in self.props.iter().enumerate() {
+            match read.get(p).copied().unwrap_or(0) {
+                0 => out.push((k.as_str(), None, vals.as_slice())),
+                bits => out.extend((0..vals.len()).filter(|&i| bits & (1 << i.min(63)) == 0).map(|i| (k.as_str(), Some(i), &vals[i..=i]))),
+            }
+        }
+        out
     }
 
     /// The first child named `name` (case-insensitive).
@@ -299,5 +339,10 @@ mod tests {
         assert_eq!(chara.int_at("Number", 2), Some(1));
         assert_eq!(chara.float("Scale"), Some(0.5));
         assert_eq!(c.get("Action").unwrap(), &[Val::Str("=".into()), Val::Int(1)]);
+        // c's Tasktype was never asked for; of Chara0's Number only value 2.
+        let keys = |b: &Block| b.unread().into_iter().map(|(k, i, _)| (k.to_string(), i)).collect::<Vec<_>>();
+        assert_eq!(keys(c), vec![("Tasktype".into(), None)]);
+        assert_eq!(keys(chara), [0, 1, 3, 4].map(|i| ("Number".to_string(), Some(i))));
+        assert!(m.unread().is_empty());
     }
 }
