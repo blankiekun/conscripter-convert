@@ -68,7 +68,7 @@ The other convert options (`--loose`, `--audio-codec`,
 | Area | Status |
 |---|---|
 | NPA archives, images (PNG, JPEG), BGM, sound effects, voices | ✅ Decoded (whole-corpus check not done) |
-| Movies (`.ngs`, MPEG-1) | ✅ `MoviePlay` and the battle cuts the script waits for play as movies (H.264 MP4, the cuts without stopping the music); the smoke loop `mvk100` plays as a sprite movie (`lsp` of an MP4, its opacity as the right half); the other `CreateMovie`s (cuts under the text, paused cuts) are drawn as their frame (2026-10-15, see step 7 of "Next") |
+| Movies (`.ngs`, MPEG-1) | ✅ `MoviePlay` and the battle cuts the script waits for play as movies (H.264 MP4, the cuts without stopping the music); the other `CreateMovie`s (the smoke loop `mvk100`, the cuts under the text) play as sprite movies (`lsp` of an MP4; an alpha movie's opacity as the right half); a paused cut is its frame (2026-10-16, see "History") |
 | Script parsing | ✅ All 913 files; 17 places that don't parse are all typos or dead code |
 | Story control flow (files, scenes, functions, `if`/`while`, choices, story flags, route ranking, heroine deaths) | ✅ Compiled; all 883 story files reached from `ma00_000` |
 | Text: vertical windows, face windows and name plates, ruby, `<k>` waits, voices | ✅ Converted; vertical columns where the original's are (checked under wine), turned marks (《「―) centred, English keeps its spaces |
@@ -592,9 +592,8 @@ Next, in order:
         follows before the movie ("History").
         CONscripter 3f368bc (after 0.24.0) draws the text window over
         an `mpegplay` movie and plays a movie file given to `lsp` in the
-        sprite's place (`spmoviewait n,1` waits for it): next, the cuts
-        under the text (drawn as stills, row "Movies" above) can play
-        as sprite movies. A skipped movie stops the `dwave` sounds
+        sprite's place (`spmoviewait n,1` waits for it): the cuts under
+        the text play that way ("History"). A skipped movie stops the `dwave` sounds
         started with it (CONscripter 265942e): the title openings'
         clash no longer plays over the title.
       - 動画 切 is `moviestop -1` (the script's flag, as
@@ -1336,12 +1335,15 @@ a `<video>` element, MPEG-1 being unplayable there).
     time played counts toward the script's following waits for it.
     This is `MovieSESet` + `MovieSEStart` (28 calls) and the single
     cuts with `WaitAction` (5) or `RemainTime` (2).
-  - Any other is drawn as its frames (`Op::AnimatedSprite`, an
-    `lsp` animation at 15 frames a second, half size and zoomed back
-    with `spzoom`): `mvk100` (23 uses, a 9 s loop of smoke, top half
+  - Any other plays as a sprite movie (since 55a8b78: `lsp` of an
+    MP4, one cell, looped or stopping on its last frame, zoomed with
+    `spzoom`; it was a strip of frames at 15 a second): `mvk100` (23 uses, a 9 s loop of smoke, top half
     colour and bottom half opacity, zoomed 3×5 and more; `SubRender`
     draws it black, `AddRender` as it is), and `mv剣戟_チャキーンチャキキーン`
-    looping under the text (`mb02_023vs`). Paused (`Request(…, Pause)`
+    looping under the text (`mb02_023vs`), a 300 ms cut in `mb03_019`; checked headless (2026-10-16): the `lsp` of
+    `mb02_023vs`'s cut plays (two screenshots 300 ms apart differ), but
+    auto-play doesn't play it (its trace shots of those pages are
+    black), so the trace can't show these. Paused (`Request(…, Pause)`
     after 100-300 ms, `md01_006`, `mb03_019`) it is that one frame.
   - Left as they are: a `Zoom` over time of the smoke jumps to its
     end (as other zooms over time, a cross-fade), `Rotate` (the
