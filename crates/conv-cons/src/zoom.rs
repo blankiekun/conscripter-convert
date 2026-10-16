@@ -12,7 +12,7 @@ use crate::SPRITE_BASE;
 pub(crate) fn emit(out: &mut String, layer: u32, x: i32, y: i32, from: u32, to: u32, ms: u32, in_transition: bool, curve: u32) {
     let slot = SPRITE_BASE + layer;
     if ms > 0 && !in_transition {
-        crate::motion::move_to(out, slot, x, y, ms, Some((from, to)), curve);
+        crate::motion::move_to(out, slot, x, y, ms, Some((from, to)), curve, None);
         return;
     }
     writeln!(out, "getspsize {slot},%1,%2:amsp {slot},{x}-%1/2,{y}-%2/2:spzoom {slot},{to}").unwrap();

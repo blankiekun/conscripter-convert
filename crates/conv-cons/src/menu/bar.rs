@@ -279,7 +279,7 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, s: BarScreens) {
         // The hotspot above the bar ends the wait when the pointer leaves.
         w(format!("if {BAR_UNPINNED} == 1 btn {BTN_EDGE},0,0,{},{y},0,0", s.width));
         // Coming down to a hidden bar, it fades in.
-        let fades: Vec<String> = buttons.iter().map(|(_, slot)| *slot).chain(bar.base.as_ref().map(|_| base_slot)).map(|n| format!("spfade {n},{fade_ms}")).collect();
+        let fades: Vec<String> = buttons.iter().map(|(_, slot)| *slot).chain(bar.base.as_ref().map(|_| base_slot)).map(|n| crate::motion::fade_in(n, fade_ms)).collect();
         if fade_ms > 0 && !fades.is_empty() {
             w(format!("if {BAR_UNPINNED} == 1 && {BAR_SHOWN} == 0 {}", fades.join(":")));
         }

@@ -389,6 +389,7 @@ pub fn emit(script: &Script) -> String {
     let se_not_skipped = false;
     // The next static's fade in (Op::NoiseFadeIn).
     let noise_fade_in = None;
+    let fading = BTreeMap::new();
     // The next move's or zoom's curve ([`Op::MoveEase`]), and the eased
     // subroutines used (zoom, ease, exponent).
     let move_ease: Option<(u8, u32)> = None;
@@ -426,7 +427,7 @@ pub fn emit(script: &Script) -> String {
             _ => None,
         })
         .collect();
-    let mut e = ops::Emitter { script, out, effects, has_ruby, has_overlay, has_noise, has_chapters, has_animation, root_returns, has_replay, has_vertical, border, voice_switches, duck, back_to_choice, speed, link_depth, clear_fade, restore_overlay, link_targets, zoomed_layers, root_resumes, puzzles, button_screens, plate_choices, picture_screens, se, se_not_skipped, noise_fade_in, move_ease, eased, needs_click_wait, plate_visible, link_pages, transition, window, page_rows, page_tag };
+    let mut e = ops::Emitter { script, out, effects, has_ruby, has_overlay, has_noise, has_chapters, has_animation, root_returns, has_replay, has_vertical, border, voice_switches, duck, back_to_choice, speed, link_depth, clear_fade, restore_overlay, link_targets, zoomed_layers, root_resumes, puzzles, button_screens, plate_choices, picture_screens, se, se_not_skipped, noise_fade_in, move_ease, eased, needs_click_wait, plate_visible, link_pages, transition, window, page_rows, page_tag, fading };
     for (i, op) in script.ops.iter().enumerate() {
         e.op(i, op);
     }
@@ -1651,17 +1652,21 @@ goto *conv_link1
     #[test]
     fn sprites_fading_fade_by_themselves() {
         let picture = SpritePlacement { image: "sprite/a.png".into(), x: 1, y: 2 };
-        let s = script(vec![Op::SpritesFading {
+        let fade = Op::SpritesFading {
             changes: vec![SpriteChange { layer: 6, sprite: None, keep_filters: false }, SpriteChange { layer: 5, sprite: Some(picture), keep_filters: false }],
             fade_ms: 300,
-        }]);
-        let text = emit(&s);
-        assert!(text.contains("spfade 68,-300
+        };
+        let hop = Op::SpriteMotion { layer: 5, keys: vec![(0, 0, 0), (150, 0, 37), (600, 0, 0)], looped: false };
+        let text = emit(&script(vec![fade.clone(), hop.clone(), Op::Wait { ms: 100 }, hop]));
+        assert!(text.contains("spmotion 68,3,0,0,0,100,100,0,256,0,300,0,0,100,100,0,0,0
 spfilter 67,0
 lsp 67,\":a;sprite\\a.png\",1,2
-spfade 67,300
+spmotion 67,0,0,0,0,100,100,0,0,0,300,0,0,100,100,0,256,0
 print 1
 "), "{text}");
+        // the hop started with the fade takes it into its keys; one after a wait doesn't
+        assert!(text.contains("spmotion 67,0,0,0,0,100,100,0,0,0,150,0,37,100,100,0,128,0,300,0,25,100,100,0,256,0,600,0,0,100,100,0,256,0\n"), "{text}");
+        assert!(text.contains("spmotion 67,0,0,0,0,100,100,0,256,0,150,0,37,100,100,0,256,0,600,0,0,100,100,0,256,0\n"), "{text}");
     }
 
     #[test]
@@ -2499,7 +2504,7 @@ end
             "{out}"
         );
         let out = emit(&script(vec![Op::NoiseFadeIn { ms: 2000 }, Op::Noise(Some(noise))]));
-        assert!(out.contains("lsp 60,$116,0,0,%116\nspfade 60,2000\nprint 1\n"), "{out}");
+        assert!(out.contains("lsp 60,$116,0,0,%116\nspmotion 60,0,0,0,0,100,100,0,0,0,2000,0,0,100,100,0,256,0\nprint 1\n"), "{out}");
     }
 
     #[test]
