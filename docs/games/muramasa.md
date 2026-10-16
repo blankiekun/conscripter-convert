@@ -657,8 +657,6 @@ Next, in order:
      `SkipOut` test (`$SYSTEM_skip && #SYSTEM_skip_express && $AllRead`,
      774 files) is compiled as false, so a read scene is never jumped
      over.
-   - `SetBacklog` (83 story calls) is dropped: the lines the scripts add
-     to the backlog by hand are missing from ours.
    - `CreateEffect` Rain (37, with `$SYSTEM_effect_rain_*` in 17 files),
      Drop and Lens; the tone kinds (Sepia, Monochrome, KitanoBlue,
      NegaPosi: 41, besides `SetTone`) are noted and drawn plain.
@@ -718,6 +716,15 @@ Next, in order:
 
 Finished work, moved out of "Status" so a session reads only the open
 state.
+
+**`SetBacklog` (2026-10-15, script coverage):** the lines the scripts
+put in the backlog by hand (83 story calls: lines shown as pictures, the
+ASCII art, the crowd's 殺した！/悪鬼！ with each voice; and the choices'
+`function_select` entries, the option taken between blank rows) are
+`Op::BacklogLine`, CONscripter's `logadd "text"[,"voice"]` (after
+0.25.3, `1ddd722`): a page added to the history before the page being
+written, its voice played from the backlog's voice button. 1,958 in the
+whole game; 続・殺戮のジャンゴ's 75 too.
 
 **Staff roll (2026-10-15, exe review):** each ending (`TheEND`) now
 plays its roll. The compiler evaluates `Array`/`AssocArray`/`Count`

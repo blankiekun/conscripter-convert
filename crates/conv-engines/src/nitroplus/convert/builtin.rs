@@ -414,6 +414,14 @@ impl Compiler<'_, '_> {
                 }
             }
             "SetVertex" | "SetFrequency" | "SetPan" | "WaitText" | "LockVideo" | "Reset" | "SetShortcut" => {}
+            "SetBacklog" => {
+                // (text, voice or "null", speaker)
+                let text = arg(0).string();
+                let voice = Some(arg(1).string()).filter(|v| !v.is_empty() && v != "null").and_then(|v| self.assets.sound(&v));
+                if !text.is_empty() {
+                    self.ops.push(Op::BacklogLine { text, voice });
+                }
+            }
             "CreateProcess" => {
                 let name = self.object_name(&arg(0));
                 self.create_process(name, &arg(4).string());

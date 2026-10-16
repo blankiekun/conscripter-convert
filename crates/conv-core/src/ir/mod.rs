@@ -550,6 +550,10 @@ pub enum Op {
     /// sets `$SYSTEM_text_auto` false or `$SYSTEM_menu_lock`, before the
     /// ending roll).
     StopAutoSkip,
+    /// Adds `text` to the text history as a page of its own, without
+    /// showing it; `voice` (a sound file) is played from the history.
+    /// Lines the story shows as pictures (装甲悪鬼村正's SetBacklog).
+    BacklogLine { text: String, voice: Option<String> },
 }
 
 /// [`Op::HoldMovie`]'s prompt: `image` is `cells` pictures side by side,

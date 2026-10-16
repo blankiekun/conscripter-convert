@@ -157,6 +157,10 @@ impl<'a> Emitter<'a> {
             }
         }
         Op::StopAutoSkip => writeln!(out, "skipoff:autooff").unwrap(),
+        Op::BacklogLine { text, voice } => match voice {
+            Some(v) => writeln!(out, "logadd \"{}\",\"{}\"", escape(text), path(v)).unwrap(),
+            None => writeln!(out, "logadd \"{}\"", escape(text)).unwrap(),
+        },
         Op::SpriteAngle { layer, degrees } => {
             writeln!(out, "sprot {},{degrees}", SPRITE_BASE + layer).unwrap();
             if transition.is_none() {
