@@ -237,9 +237,11 @@ use a no-CD 1.01 exe the user owns, copied into the scratch game folder
 - **It only advances while it gets input**: under wine every timed
   fade, move and page stalls until the next window message. Nudge the
   pointer a pixel and back about 30 times a second while it runs.
-- **Timed zooms hang it** (`Zoom`, `MoveZoom`, camera moves that
-  zoom): a patched boot with CHAPTER and SKIP (below) makes them take no
-  time in the scene SKIP names, so their end states can be compared.
+- **Timed actions hang it, at random** (zooms always; moves, fades and
+  turns now and then; `WaitPlay`, the null sound device never ending):
+  a patched boot with CHAPTER and SKIP (below) makes them take no time
+  from the scene SKIP names on and leaves out `WaitPlay`, so end states
+  can be compared. Start again when a run stalls.
 - Clicks: `xdotool mousemove X Y`, then `mousedown 1; sleep 0.15;
   mouseup 1` (a bare `click` is often lost).
 - **Patched boots**: `research/nitroplus/django_patch.py <table> <game>/nss.npa
@@ -347,7 +349,7 @@ with the original (it wants all eleven endings' flags under wine).
 | Movies (MPEG-1) | 🟡 Found in `<game>/movie` (the default); the ones the script waits for play full screen (`mpegplay`), the others (smoke, the Black Hawk, cuts under the text) as sprite movies (H.264 MP4 given to `lsp`, the alpha ones with their opacity as the right half, CONscripter after 0.24.0), a paused or finished one as its frame; the 400-vs-3 battle's six play while the button is held (`mpeghold`), its counter between them rolls as the original's |
 | Script parsing | ✅ All 249 files; 56 places that don't parse, none in the story |
 | Story control flow (56 chapters, 10 choices, bad ends) | ✅ Compiled whole (`compile_story`); in the engine the good path plays to the end (6,496 pages) and each wrong answer ends the story with its own bad end, then the game goes back to the title (`research/nitroplus/django_routes.sh`, which stops each run there, 2026-10-15) |
-| Text | 🟡 In the boxes' places (box00: 39 columns at 50,472, white on the black bar; five rows, as many as end inside the 130 px box); 3,424 voiced lines; not compared with the original yet |
+| Text | 🟡 In the boxes' places (box00: 39 columns at 50,472, white on the black bar; five rows, as many as end inside the 130 px box); 3,424 voiced lines; `box00`, `box01` (x 250) and `box02` (x 390) start within 1 px of the original's under wine (`box03`-`box05` are never used) |
 | Pictures, sound in scripts | 🟡 Black bars, face windows in their frames, standing pictures, backgrounds; pictures turned over (`Rotate` by 180°, 315 calls: characters facing the other way) drawn mirrored (dja004's choice now as the original's); cameras (`CreateCamera`, `MoveCamera`, 365 calls): a camera's child of priority p drawn about the screen's centre at (its place − the camera's) × z / (1000 − p), as large, z the camera's zoom (priority is depth: measured under wine with boxes at four priorities and six camera settings, and dja001's carriage scene then matched the original's frames); moves, zooms and camera moves over time (1,765) as real motion: the engine moves the picture (`spmotion2`, keeping its last place) while the script goes on, also through the cross-fade of what else changes; 60 that also fade or change picture are still cross-fades; a picture under an opaque full-screen one isn't drawn (old backgrounds the script leaves up under `窓`); the 400-vs-3 battle's muzzle flashes (`GunFire`) as a white sprite added on (`spblend`), flashing its number of times while the text goes on (`spalpha` keys), and its strobe the same way until deleted; the looping shakes (`ShakeVLoop*`) as the background's looped `spmotion`; every sound is found |
 | Choices | ✅ Plates as picture buttons, text placed as the original's (compared under wine) |
 | System screens | 🟡 From the game's pictures (`django/screens.rs`): title, right-click menu, save/load (3×20 slots), yes/no questions, text log, settings (bullet rows as `SliderSteps`), the click-wait bullet after the last character (`getcursorpos` in the bar's wait routine); compared under wine: right-click menu, save, log, settings (text speed starts at level 5 as the original's; the two SAVE-DATA question rows drawn as they stand, ON chosen; the display options and version panel left out on purpose) |
@@ -360,13 +362,11 @@ with the original (it wants all eleven endings' flags under wine).
 1. The trace checker's remaining findings: "sounds on two channels at
    once" are the script's own (the same shot or horse on two sound
    objects, started 500 ms apart) and stay.
-2. The text window and face windows: `box00` and the right face
-   window (`frame04`) match the shots already taken (dja001_02: the
-   text within 1 px, the frame within 200 pixels); `box01` (x 250) and
-   `box02` (x 390), placed by the same rule, and the left and centre
-   face windows (`frame03`, `frame05`; dja003_02 shows all three) are
-   still to compare (no wine run: stopped 2026-10-15). `box03`-`box05`
-   are never used.
+2. Face windows: a face doesn't slide with its frame when the frame
+   moves over time (`WindowMoveM`, dja003_02: the frame moves by the
+   engine, the face is drawn at its end place at once). dja003_02's
+   blood (`CreateMv` turned by `Rotate` y 180) is drawn mirrored; under
+   wine it shows unmirrored (wine plays no movie: check what it draws).
 3. The rest of the "not converted" list, by what shows most:
    dja001's Black Hawk pan, then additive flashes, a movie's rotation,
    sepia.
@@ -378,6 +378,28 @@ with the original (it wants all eleven endings' flags under wine).
    item 3's).
 
 ## History
+
+- **Text windows and face windows compared under wine (2026-10-16).**
+  dja001_02 (earlier) and dja003_02: the three boxes' text starts within
+  1 px of the original's; the three face windows (`frame03`-`frame05`,
+  with the script's `WindowMove` nudges) within 410 pixels of the
+  picture. What the comparison fixed: every face was one object
+  (`"@frame03" + "/" + "$顔ナット名"` named `frame03/$顔ナット名`, so a
+  new face replaced the last one and `ReplaceFace` deleted the new one):
+  `Game::string_vars` is now on for Django; `SetAlias`'s second argument
+  naming a variable (`"$顔ナット名"`) is its value, so `Delete("@顔窓41")`
+  and `Rotate("@顔窓41", …, @180, …)` (a face looking the other way) find
+  the face; a face is drawn with its frame's opacity (hidden while the
+  frame is), and a picture turned edge-on (90° or 270° about x or y, as
+  `WindowRotate`/`WindowCloseR` leave a frame) isn't drawn, nor are its
+  children; a trailing `*` doesn't reach into the children of an object
+  it matches (`Fade("@frame0*", …)` leaves the faces as they are), with
+  `Game::family`. Under wine the original stalls at random in timed
+  moves, fades, turns and in `WaitPlay` (silent sound never ends): the
+  patched boot now makes them instant from the SKIP scene on and leaves
+  out `WaitPlay`; `research/nitroplus/local/wine/pages_run.sh`
+  (git-ignored) clicks through, shooting each page, and starts again
+  when 8 clicks change nothing.
 
 - **The ending roll's credits (2026-10-16).** `SetRoll` (dja056_09,
   `staff_roll`) fades the screen to red (#c80000) over 2 s and starts
