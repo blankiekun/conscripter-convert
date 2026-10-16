@@ -84,6 +84,10 @@ pub fn build(game: &Path, run: &Run, opts: &Opts) -> Result<Built> {
         for (file, call) in report.telops_unpaired.iter().take(5) {
             println!("  {file}: {call}");
         }
+        println!("English: {} subtitled voices, {} with no place", report.subtitles, report.subtitles_missed.len());
+        for (file, sound) in report.subtitles_missed.iter().take(5) {
+            println!("  {file}: {sound}");
+        }
         for (file, jp) in report.options_missed.iter().take(5) {
             println!("  {file}: {jp}");
         }
@@ -96,6 +100,8 @@ pub fn build(game: &Path, run: &Run, opts: &Opts) -> Result<Built> {
     }
     if let Some(dir) = run.english {
         assets.cg_en = Some(open_npk(dir, "cg.npk")?);
+        let fonts = open_npk(dir, "font.npk")?;
+        assets.font_en = fonts.find("media/font/droidserif-muramasa.ttf").and_then(|e| fonts.data(e).ok());
     }
     let movies = match run.movies {
         Some(m) => Some(m.to_path_buf()).filter(|m| m.is_dir()),

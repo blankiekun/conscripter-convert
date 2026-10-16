@@ -300,8 +300,12 @@ pub trait Assets {
     /// A sound the scripts name (`sound/se/x`), starting after `delay_ms`
     /// of silence: its output path.
     fn delayed_sound(&mut self, path: &str, delay_ms: u32) -> Option<String>;
-    /// A sound's length (`sound/bgm/x`), in a dry run too.
+    /// A sound's length (`sound/bgm/x`, `voice/ma04/x`), in a dry run too.
     fn sound_ms(&mut self, path: &str) -> Option<u32>;
+    /// The English release's text font (`font.npk`), when it is given.
+    fn english_font(&mut self) -> Option<Vec<u8>> {
+        None
+    }
     /// A copy of the sound that loops from `start_ms` to `end_ms`
     /// (`SetLoopPoint`; `LOOPSTART`/`LOOPEND` tags): its output path.
     fn looped_sound(&mut self, path: &str, _start_ms: u32, _end_ms: u32) -> Option<String> {
