@@ -65,7 +65,8 @@ The RomFS, 21 GB, 16,729 files:
 | `shader/*.bnsh`, `exfont_nx01.bffnt` | Switch shaders and font, not needed |
 
 How the formats nest, checked over every entry of both RomFS copies
-(`conscripter-convert typemoon check <game>`, 1.5 min each; also
+(`conscripter-convert typemoon check <game>`, 8 min each with every
+picture decoded; also
 `typemoon list|extract <archive>`):
 
 - **MRG** (`.hed`/`.mrg`/`.nam`): the `.hed` gives each entry's place
@@ -80,10 +81,16 @@ How the formats nest, checked over every entry of both RomFS copies
   chunk one byte short; the reader accepts that when it still fills
   the unpacked size.
 - **NXGX/NXCX** (`.NXGZ`/`.NXZ`): a 16-byte header (magic, sizes),
-  then gzip (NXGX) or deflate (NXCX). An `allui` picture inflates to
-  **BNTX**, Nintendo's texture container: swizzled (Tegra block-linear)
-  and probably BCn-compressed, so pictures need a deswizzle and a BC
-  decoder.
+  then gzip (NXGX) or deflate (NXCX). Every picture inflates to
+  **BNTX**, Nintendo's texture container (`typemoon/bntx.rs` has the
+  header fields): one or more `BRTI` textures, each one 2D layer and
+  one mip, Tegra block-linear swizzled (GOBs of 64 bytes × 8 rows,
+  stacked `2^n` high, `n` in the header). Formats: BC7 sRGB (`0x2006`)
+  for nearly all, BC4 (`0x1D01`, one channel) for the 98 `RULE_*`
+  transition masks, R8G8B8A8 sRGB (`0x0B06`) for a few UI parts.
+  `typemoon extract --png <archive>` writes `<entry>/<texture>.png`.
+  Sprites are atlases (`ARU_A_18_00_N01_10_10`: 886×4160, the body on
+  top), to cut up later from the script's or the exe's numbers.
 
 ### Existing tools (survey, 2026-10-16)
 
@@ -105,9 +112,8 @@ out (the exe `main` is an NSO, to load in Ghidra).
 Not covered by anything found: Nintendo Opus to Ogg Opus (simple:
 repack the frames into Ogg pages, as vgmstream reads them),
 FWAV extraction from `knife1.bfsar` (vgmstream and Switch Toolbox read
-it; a Rust reader is small), BNTX deswizzle and BC decoding (Rust
-crates exist: `tegra_swizzle` and a BCn decoder; adding them is its own
-commit).
+it; a Rust reader is small). BNTX: our deswizzle (a few lines) and
+the `bcdec_rs` crate for BC blocks.
 
 ## Script language
 
@@ -136,22 +142,32 @@ Nothing yet.
 | Engine identified | ✅ (TYPE-MOON, `mrgd00`/MZP) |
 | Survey of existing tools | ✅ (see "Existing tools") |
 | Archives (`hed`/`mrg`/`nam`, MZP, MZX, NXGX/NXCX) | ✅ every entry of both RomFS copies |
-| Pictures (BNTX) | ❌ |
+| Pictures (BNTX) | ✅ every texture of both RomFS copies decodes |
 | `knife1.bfsar` sound | ❌ |
 | Scripts | ❌ |
 | Everything after (text, pictures, screens, extras) | ❌ |
 
 ### Next
 
-1. Pictures: BNTX deswizzle and BC decode, every picture decoding.
-2. Sound: Nintendo Opus to Ogg Opus; FWAV out of `knife1.bfsar`.
-3. Decode `allscr.mrg` (MZX, split into commands), join the text from
+1. Sound: Nintendo Opus to Ogg Opus; FWAV out of `knife1.bfsar`.
+2. Decode `allscr.mrg` (MZX, split into commands), join the text from
    `script_text.mrg`, rank the commands by use.
    Both languages: the base RomFS and the patched one, and how the
    patch's `allscr.mrg` differs (its extra entries).
-4. Write the walkthrough.
+3. Write the walkthrough.
+4. Pictures for the build: cut the sprite atlases (body and faces in
+   one texture) by the numbers the script or the exe gives.
 
 ## History
+
+- 2026-10-16: pictures (`typemoon/bntx.rs`, `typemoon extract --png`):
+  BNTX parse, Tegra block-linear deswizzle, BC1/BC2/BC3/BC4/BC7 blocks
+  through the `bcdec_rs` crate. `typemoon check` decodes every texture;
+  each one's swizzled size matches the `BRTI` header's. Base (Japanese):
+  29,561 textures (29,451 BC7, 98 BC4, 12 RGBA8); patched (English):
+  29,571 (29,463 BC7, 98 BC4, 10 RGBA8). Looked at a background, a
+  sprite atlas, UI parts, the RGBA8 parts and transition masks: right
+  way up, colours right.
 
 - 2026-10-16: the archive reader (`crates/conv-engines/src/typemoon/`:
   `mrg`, `mzp`, `mzx`, `nxx`) and `conscripter-convert typemoon

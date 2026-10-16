@@ -20,18 +20,19 @@ pub fn parse(data: &[u8]) -> Result<Vec<&[u8]>, FormatError> {
         .map(|i| {
             let at = 8 + 8 * i;
             let start = usize::from(r.u16(at)?) * 0x800 + usize::from(r.u16(at + 2)?);
-            Ok(r.slice(base + start, size(r.u16(at + 4)?, r.u16(at + 6)?))?)
+            let size = size(r.u16(at + 4)?, r.u16(at + 6)?).ok_or_else(|| FormatError::Bad(format!("MZP entry {i}: size beyond its sectors")))?;
+            Ok(r.slice(base + start, size)?)
         })
         .collect()
 }
 
 /// The size whose low 16 bits are `low`, within the last of `sectors`.
-fn size(sectors: u16, low: u16) -> usize {
+fn size(sectors: u16, low: u16) -> Option<usize> {
     let upper = usize::from(sectors) * 0x800;
     let size = (upper & !0xFFFF) | usize::from(low);
     // mangetsu and deepLuna stop at the first line, which is 64 KiB too
     // big when rounding up to the sector crossed a 64 KiB boundary.
-    if size > upper { size - 0x10000 } else { size }
+    if size > upper { size.checked_sub(0x10000) } else { Some(size) }
 }
 
 #[cfg(test)]
@@ -41,8 +42,9 @@ mod tests {
     #[test]
     fn sizes() {
         for n in [0usize, 1, 0x800, 0xFFFF, 0x10000, 0x10001, 0x1F000, 0x1FFF1, 0x2_3456] {
-            assert_eq!(size(n.div_ceil(0x800) as u16, n as u16), n, "{n:#x}");
+            assert_eq!(size(n.div_ceil(0x800) as u16, n as u16), Some(n), "{n:#x}");
         }
+        assert_eq!(size(0, 5), None); // corrupt: bytes but no sectors
     }
 
     #[test]

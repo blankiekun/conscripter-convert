@@ -8,6 +8,7 @@ license.workspace = true
 ab_glyph.workspace = true
 aes.workspace = true
 anyhow.workspace = true
+bcdec_rs.workspace = true
 encoding_rs.workspace = true
 flate2.workspace = true
 image.workspace = true
