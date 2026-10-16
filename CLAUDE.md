@@ -11,6 +11,7 @@ build.
 | 俺たちに翼はない, PS Vita (starting) | not identified yet | `oretsuba/`, `../conscripter-convert-oretsuba` | `docs/games/oretsuba.md` |
 | 続・殺戮のジャンゴ (starting) | Nitroplus NSS (older) | `django/`, `../conscripter-convert-django` | `docs/games/django.md` |
 | Full Metal Daemon Muramasa, English (starting) | Nitroplus Diesel (NPK3, Squirrel) | `muramasa-en/`, `../conscripter-convert-muramasa-en` | `docs/games/muramasa-en.md` |
+| 月姫 -A piece of blue glass moon-, Switch (starting) | TYPE-MOON (mrgd00/MZP archives, as in the 魔法使いの夜 remake) | `tsukihime/`, `../conscripter-convert-tsukihime` | `docs/games/tsukihime.md` |
 
 **Starting a new game? Read `docs/new-game.md` first** (and
 `docs/new-engine.md` for a new engine).
