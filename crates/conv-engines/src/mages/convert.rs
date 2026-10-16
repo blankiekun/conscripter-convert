@@ -1365,6 +1365,7 @@ impl Lowering<'_> {
                                 angle_step: 0,
                                 phase_step: (60_000 / p1) as i32,
                                 multiply: false,
+                                phase: 0,
                             }
                         });
                         self.out.ops.push(Op::ScreenEffect { slot: 3, effect });

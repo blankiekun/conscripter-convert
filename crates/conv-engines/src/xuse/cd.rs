@@ -312,6 +312,8 @@ pub struct FilterReplace {
     pub map: u32,
     pub direction: i32,
     pub distance: i32,
+    /// Where the sine starts, in 1/100 turn.
+    pub begin_angle: i32,
 }
 
 /// Opcode 0x70: one slot of the filter on the whole screen, made of the
@@ -352,6 +354,7 @@ fn module_data(r: &PoolReader, kind: u32, o: usize) -> Result<ModuleData, Trunca
             map: r.u32(o)?,
             direction: i(1)?,
             distance: i(2)?,
+            begin_angle: i(3)?,
         }),
         PRESET_KIND_ZIGZAG => ModuleData::Zigzag(FilterZigzag {
             centre_x: i(0)?,

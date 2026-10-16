@@ -377,7 +377,7 @@ impl<'a> Emitter<'a> {
                     )
                     .unwrap();
                 }
-                Some(ScreenEffect::Ripple { map, time_ms, interval_ms, opacity, amplitude, angle, angle_step, phase_step, multiply }) => {
+                Some(ScreenEffect::Ripple { map, time_ms, interval_ms, opacity, amplitude, angle, angle_step, phase_step, multiply, phase }) => {
                     writeln!(
                         out,
                         "screenripple {slot},\"{}\",{time_ms},{interval_ms},{},{},{},{},{angle},{angle_step},{phase_step}{}",
@@ -386,7 +386,11 @@ impl<'a> Emitter<'a> {
                         opacity.1,
                         amplitude.0,
                         amplitude.1,
-                        if *multiply { ",1" } else { "" }
+                        match (*multiply, *phase) {
+                            (false, 0) => String::new(),
+                            (m, 0) => format!(",{}", u8::from(m)),
+                            (m, p) => format!(",{},{p}", u8::from(m)),
+                        }
                     )
                     .unwrap();
                 }

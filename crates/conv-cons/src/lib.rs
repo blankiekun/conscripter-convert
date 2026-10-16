@@ -2574,6 +2574,7 @@ end
             angle_step: 20,
             phase_step: 30,
             multiply: false,
+            phase: 10,
         };
         let s = script(vec![
             Op::ScreenEffect { slot: 1, effect: Some(shake) },
@@ -2597,7 +2598,7 @@ end
         assert!(
             out.contains(
                 "screenshake 1,1000,100,0,800,800,0,0,30,30\nprint 1\n\
-                 screenripple 2,\"system\\mask1001.png\",3000,100,100,150,5,10,3150,20,30\nprint 1\n\
+                 screenripple 2,\"system\\mask1001.png\",3000,100,100,150,5,10,3150,20,30,0,10\nprint 1\n\
                  screenshake 1\nprint 1\nscreenshake 0\nprint 1\n\
                  screenpulse 3,500,10,150,150,150,16744576,256,1\nprint 1\n"
             ),
