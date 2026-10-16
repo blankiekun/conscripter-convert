@@ -77,7 +77,17 @@ impl Compiler<'_, '_> {
     /// `arg` reads (and marks read: [`Compiler::builtin`]) an argument.
     pub(super) fn create_text(&mut self, arg: &dyn Fn(usize) -> Value) {
         let name = self.object_name(&arg(0));
-        let text = arg(6).string();
+        let mut text = arg(6).string();
+        // 続・殺戮のジャンゴ's song (dja026): `<I>荒.野.開.く</I>`, drawn under
+        // wine as the letters alone, upright, centred on the screen without
+        // its `Move(…, @15, …)` and 13 px lower than drawn here.
+        // shortcut: measured offset for these 13 lines only; find the rule
+        // (the text object's margins) if another game's markup needs it.
+        let mut nudge = (0, 0);
+        if let Some(inner) = text.strip_prefix("<I>").and_then(|t| t.strip_suffix("</I>")) {
+            text = inner.replace('.', "");
+            nudge = (-15, 13);
+        }
         // Left out whole (no note per argument): the choices' buttons are
         // the engine's own choice; markup is noted.
         if self.file == "function_select.nss" || text.contains('<') {
@@ -109,8 +119,8 @@ impl Compiler<'_, '_> {
             v => v.position(0, h, sh),
         };
         let o = self.create(name, Kind::Image { image }, arg(1).int(), w, h);
-        o.x = arg(2).position(0, w, sw);
-        o.y = y;
+        o.x = arg(2).position(0, w, sw) + nudge.0;
+        o.y = y + nudge.1;
     }
 }
 
