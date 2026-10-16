@@ -345,8 +345,10 @@ with the original (it wants all eleven endings' flags under wine).
 
 ### Queue (2026-10-16)
 
-- Next: dja026's song lines type out as the original's (they appear
-  whole since #47).
+- Merged: windows clip their children (#45), the song's lyrics in
+  dja026 (#47), unread-argument notes ranked in Next (#51). Open: the
+  song lines type out as the original's (#55, approved); `WaitPlay` on
+  a sound outside a process doesn't wait (being fixed).
 - Open from the face windows (#37): a sliding frame's face jumps to its
   end place; dja003_02's blood movie is drawn mirrored by us, unmirrored
   under wine (which plays no movie there).

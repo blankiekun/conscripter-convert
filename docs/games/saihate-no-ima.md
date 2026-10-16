@@ -543,15 +543,18 @@ a copy of the save works.
 
 ### Queue (2026-10-16)
 
-Not started (the user asked for it; no other work is queued): command
-coverage per operand. On a `xuse/arg-coverage` branch, the Xuse compiler
-records which operands of each opcode it reads; every operand given and
-not read, whatever its value (0 included), is a dry-run note
-"<opcode> operand <i> ignored", except a short table of harmless ones,
-each naming the value it covers and why. The opcode audit becomes rows
-per operand (converted / partial / dropped). The findings go into this
-Status, most noticeable first; none are fixed in that PR, and 0.txt
-mustn't change. Same shape as nitroplus (#30) and mages (#24, #32).
+- Open: command coverage per operand, PR #28 (another session). Sent
+  back on 2026-10-16: it skips unread operands of 0 and all-zero pool
+  runs, and its exception table doesn't name the value each entry
+  covers. The rule (the user's, as for nitroplus #30 and mages #24):
+  every operand given and not read, whatever its value (0 included), is
+  a dry-run note, except a short table of harmless ones, each naming
+  the value it covers and why. 0.txt doesn't change.
+- Merged: the exe map's fixes and missed callbacks (#46).
+- Open: `0x59` as a real cross-fade, converter #25 with engine #18 (asked
+  for a web-build measurement of the old track's decode first);
+  `bitand` for the three bitwise ops, converter #12 (engine #11
+  merged; waits for converter #9 to move the pointer first).
 
 Declared finished on 2026-10-14, then reopened the same day: the 0.19
 debug trace and the decompiled exe (`research/tools/ghidra/ghidra_export.sh`,

@@ -9,23 +9,21 @@ It has no NPA archives and no NSS scripts.
 
 ### Queue (2026-10-16)
 
-- Open, stacked (squash in this order, each rebased `--onto` after the one
-  before merges): #20 text box, #21 settings, #26 save/load, #29 title,
-  #35 subtitles over the window (`spovertext`, engine #21 merged). #23
-  (line log) waits for engine #17 (`logrows` width: check every other
-  game with a proportional font; guard a NULL font).
-- Then, each a small PR: story `CreateText` skipped in the English arm
-  (later: the English captions from the port's `LANG_NAME` branches, 15
-  scenes); volumes on the port's curve (now the Japanese build's: music
-  800 plays at 68 %).
-- Open: #53, the choices whose options are variables (mc02_031innsyoku's
-  `$選択肢名前1`-`5`, md05_004's `$md05_hazure` …) take the English the
-  port puts in them (History, "Choices from variables").
-- Follow-up: `subtitles.rs` imports `mages::menus::Labels`; move what's
-  shared somewhere neutral.
+- Merged this round: text box (#20), settings (#21), line log (#23,
+  engine #17), save/load (#26), title (#29), subtitles over the window
+  (#35, engine #21), `Labels` moved out of mages (#38), story
+  `CreateText` left out with a note (#42), volume curve already the
+  port's (#44), choices from variables take the port's English (#53).
+- Open: #54, choice options keep their places past a variable
+  (approved). Being fixed: options set in branches at run time are
+  fixed at build time in both builds (mc02_031innsyoku lists all five
+  items; md05_004 never offers "Leave your companion").
+- Next: telop `Move` timing (252) against the port's. Later: the port's
+  English captions from its `LANG_NAME` branches (15 scenes).
 - Decided: a click on an empty slot at the title doesn't save (the
   original saves the title screen there): a deliberate difference.
-  Continue loads the quick save, else the newest save.
+  Continue loads the quick save, else the newest save. Japanese story
+  captions stay skipped; no closer volume fit.
 
 - **Works:** reading every archive (`npk.rs`; `research/nitroplus/npk.py`,
   below); the English text in the converter: `convert-nss <game> --file
