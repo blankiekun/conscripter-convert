@@ -1,6 +1,9 @@
 """Lists the upper-case words a decompiled function compares one
 character at a time (Muramasa.exe inlines strcmp against NSS built-in
-names and constants): `<address> <word> ...` per function. Upper-case
+names and constants): `<address> <word> ...` per function. Django.exe
+compares in either case (`== 'F' || == 'f'`): such pairs are folded to
+the capital (its text-tag parser 00463700 then reads FONT, INCOLOR=, ...,
+RUBY, VOICE, NAME=, CLASS=, MODE=, SRC=). Upper-case
 words only (argument constants such as LOCAL, GLOBAL); the built-in
 names themselves are decoded by dispatch.py and evalnames.py.
 
@@ -19,6 +22,7 @@ for f in sorted(os.listdir(d)):
         else:
             v = int(m.group(2), 16)
             chars.append(chr(v) if 0x20 < v < 0x7f else '|')
-    words = [w for w in ''.join(chars).split('|') if len(w) >= 4 and re.fullmatch(r'[A-Z_0-9]+', w)]
+    s = re.sub(r'([A-Z])([a-z])', lambda m: m.group(1) if m.group(2) == m.group(1).lower() else m.group(0), ''.join(chars))
+    words = [w for w in s.split('|') if len(w) >= 4 and re.fullmatch(r'[A-Z_0-9=<>/ "\',]+', w) and re.search(r'[A-Z]{3}', w)]
     if words:
         print(f[:8], ' '.join(words))

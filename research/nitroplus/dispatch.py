@@ -12,11 +12,14 @@ src = open(sys.argv[1], encoding='utf-8', errors='replace').read()
 # The export's "// calls:" header names each callee's address.
 addr = {n: a for a, n in re.findall(r"([0-9a-f]{8}) (\w+)", src.split('\n', 3)[2])}
 V = r"(0x[0-9a-f]+|\d+|'.')"
+# The statement pointer is pbVar6 in Muramasa.exe, pcVar5 in Django.exe
+# (00404320), whose Draw handler takes no argument.
+P = r"(?:pbVar6|pcVar5)"
 tok = re.compile(
-    rf"pbVar6\[(?P<i>0x[0-9a-f]+|\d+)\]\s*(?P<op>[=!])=\s*(?P<v>{V})"
-    rf"|(?:bVar1|\*pbVar6)\s*(?P<fop>[=!])=\s*(?P<fv>{V})"
-    r"|bVar\d = pbVar6\[(?P<ei>0x[0-9a-f]+|\d+)\]"
-    r"|(?:=\s*|\n\s*)(?P<call>\w+)\((?:[^;()]|\([^()]*\))*(?:pbVar6|in_EAX)\);\s*\*unaff_EDI")
+    rf"{P}\[(?P<i>0x[0-9a-f]+|\d+)\]\s*(?P<op>[=!])=\s*(?P<v>{V})"
+    rf"|(?:bVar1|cVar1|\*{P})\s*(?P<fop>[=!])=\s*(?P<fv>{V})"
+    rf"|[bc]Var\d = {P}\[(?P<ei>0x[0-9a-f]+|\d+)\]"
+    rf"|(?:=\s*|\n\s*)(?P<call>\w+)\((?:(?:[^;()]|\([^()]*\))*(?:{P}|in_EAX))?\);\s*\*(?:unaff_EDI|param_1)")
 
 
 def num(s):
