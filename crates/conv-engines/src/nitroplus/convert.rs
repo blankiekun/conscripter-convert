@@ -1178,6 +1178,9 @@ struct SoundObject {
     disused: bool,
     /// `SetLoopPoint`: looped, it loops from the first to the second ms.
     loop_ms: Option<(u32, u32)>,
+    /// How long it has played, as far as the script's `Wait`s tell
+    /// (`WaitPlay` waits for the rest).
+    played_ms: u32,
 }
 
 /// `old` moved and zoomed into `now` over `ms` by the engine: the same
@@ -2664,7 +2667,8 @@ impl<'a, 'b> Compiler<'a, 'b> {
 
     /// A wait of `ms`: the time movies already played as movies take off
     /// it (what is left is returned), a movie on screen that it mostly
-    /// waits for plays as a movie, and the others go on by that much.
+    /// waits for plays as a movie, and the others and the sounds go on by
+    /// that much.
     fn movie_wait(&mut self, mut ms: u32) -> u32 {
         let screen = self.game.screen;
         for o in self.objects.values_mut() {
@@ -2700,6 +2704,9 @@ impl<'a, 'b> Compiler<'a, 'b> {
             {
                 let at = at + ms;
                 m.state = MovieState::Playing { at: if m.looped { at % m.info.ms.max(1) } else { at.min(m.info.ms) } };
+            }
+            if let Kind::Sound(s) = &mut o.kind {
+                s.played_ms = s.played_ms.saturating_add(ms);
             }
         }
         ms
@@ -3002,6 +3009,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
                     self.objects.remove(&name);
                 } else {
                     s.playing = Some(file);
+                    s.played_ms = 0;
                 }
             }
         }
@@ -3821,6 +3829,27 @@ scene a.nss
             _ => None,
         });
         assert_eq!(gone, Some(true), "{:?}", c.ops);
+    }
+
+    #[test]
+    fn wait_play_waits_for_the_rest_of_a_sound_or_its_limit() {
+        // The fake sounds last 4000 ms; 1000 have passed at each WaitPlay.
+        let story = r#"
+scene a.nss
+{
+	CreateSound("se", SE, "sound/se/a");
+	Request("se", Play);
+	Wait(1000);
+	WaitPlay("se", null);
+	CreateSound("se2", SE, "sound/se/b");
+	Request("se2", Play);
+	Wait(1000);
+	WaitPlay("se2", 2500);
+}
+"#;
+        let c = compile(story, LIBRARY);
+        let waits: Vec<u32> = c.ops.iter().filter_map(|op| match op { Op::Wait { ms } => Some(*ms), _ => None }).collect();
+        assert_eq!(waits, [1000, 3000, 1000, 1500], "{:?}", c.ops);
     }
 
     #[test]

@@ -1,9 +1,9 @@
 {
 "game": "muramasa",
 "engine": "nitroplus",
-"commit": "2c3b1ee",
+"commit": "678951f",
 "commit_date": "2026-10-16",
-"totals": {"calls": 1159783, "full": 1003644, "gaps": 156139},
+"totals": {"calls": 1159783, "full": 1006121, "gaps": 153662},
 "kinds": {
 "LockVideo": {"calls": 50726, "gaps": 50726, "reasons": [["LockVideo argument 0 ignored", 50726]]},
 "WaitText": {"calls": 23689, "gaps": 23689, "reasons": [["WaitText argument 0 ignored", 23689], ["WaitText argument 1 ignored", 23689]]},
@@ -19,7 +19,6 @@
 "DrawTransition": {"calls": 2622, "gaps": 2622, "reasons": [["DrawTransition argument 2 ignored", 2622], ["DrawTransition argument 4 ignored", 2622], ["DrawTransition argument 5 ignored", 132], ["SetBlur trail behind a moving picture not drawn", 38], ["move or zoom over time with a fade or a new picture drawn as a cross-fade", 16], ["3 more", 4]]},
 "Conquest": {"calls": 2478, "gaps": 2478, "reasons": [["Conquest argument 0 ignored", 2478], ["Conquest argument 1 ignored", 2478], ["Conquest argument 2 ignored", 2478]]},
 "CreateEffect": {"calls": 2477, "gaps": 2477, "reasons": [["CreateEffect argument 2 ignored", 2477], ["CreateEffect argument 3 ignored", 2477], ["CreateEffect argument 4 ignored", 2477], ["CreateEffect argument 5 ignored", 2477], ["CreateEffect Rain", 37], ["6 more", 45]]},
-"WaitPlay": {"calls": 2477, "gaps": 2477, "reasons": [["WaitPlay argument 1 ignored", 2477]]},
 "Zoom": {"calls": 6616, "gaps": 2227, "reasons": [["Zoom argument 4 ignored", 2210], ["SetBlur trail behind a moving picture not drawn", 67], ["move or zoom over time with a fade or a new picture drawn as a cross-fade", 32], ["timed action that waits only part of its time", 16]]},
 "SetBacklog": {"calls": 2192, "gaps": 2192, "reasons": [["SetBacklog argument 2 ignored", 2192]]},
 "CreateTexture": {"calls": 61264, "gaps": 2010, "reasons": [["CreateTexture from an object or the screen", 2010]]},
@@ -76,6 +75,7 @@
 "CreateColor": {"calls": 6305, "gaps": 0, "reasons": []},
 "ImageVertical": {"calls": 5474, "gaps": 0, "reasons": []},
 "ImageHorizon": {"calls": 3829, "gaps": 0, "reasons": []},
+"WaitPlay": {"calls": 2477, "gaps": 0, "reasons": []},
 "PassageTime": {"calls": 2108, "gaps": 0, "reasons": []},
 "ModuleFileName": {"calls": 1141, "gaps": 0, "reasons": []},
 "CreateName": {"calls": 579, "gaps": 0, "reasons": []},

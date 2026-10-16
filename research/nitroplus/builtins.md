@@ -521,7 +521,7 @@ Lua fallback.
 | `SetLoopPoint(snd, start ms, end ms)` | 3 | Loop region. |
 | `SetFrequency(snd, time, rate, tempo)` | 182 | Playback speed, 1000 = normal. |
 | `SetPan(snd, time, pan, tempo)` | 2 | Pan. |
-| `WaitPlay(snd, timeout)` | 150 | Waits until it stops. |
+| `WaitPlay(snd, timeout)` | 150 | Waits until it stops, at most `timeout` ms (`null`/`true`: no limit; exe `0040b8a0`). Converter: `delay` of the sound's length less the `Wait`s since its start, capped by the limit; a disused one-shot is forgotten at its start, so a later `WaitPlay` on it doesn't wait (Muramasa's `ClearFadeAll`, `OnSE*`) |
 | `PassageTime(snd)` / `RemainTime(snd)` / `DurationTime(snd)` | 2 / 123 / 4 | ms played / left / total. |
 
 Helpers: `MusicStart(obj, time, vol, pan, rate, tempo, loop)` (3,824) and
