@@ -797,6 +797,7 @@ impl<'a> Emitter<'a> {
                 Op::RuntimeChoice { options, texts, style } => (options, &texts[..], style),
                 _ => unreachable!(),
             };
+            assert!(texts.len() <= crate::RUNTIME_OPTIONS, "a choice with more than {} options set at run time", crate::RUNTIME_OPTIONS);
             let plates = style.as_ref().and_then(|s| s.plates.as_ref());
             if let Some(s) = style.as_ref().filter(|_| plates.is_none()) {
                 writeln!(out, "selectcolor \"#{:06X}\",\"#{:06X}\"", s.on_color, s.off_color).unwrap();

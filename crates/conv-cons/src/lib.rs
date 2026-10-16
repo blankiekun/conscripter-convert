@@ -172,6 +172,9 @@ const PROGRESS_BASE: u32 = 3600;
 /// Option n of an [`Op::RuntimeChoice`] whose text is known only at run
 /// time: its text in `$` n + this, its x on a plate in `%` n + this.
 const RUNTIME_OPTION_BASE: u32 = 3632;
+/// How many options of a choice can be runtime ones (alloc.rs reserves
+/// 3632-3637; NSS choices have six at most, `SetChoice06`).
+const RUNTIME_OPTIONS: usize = 6;
 /// Link scenes nest at most this deep: inside the deepest, link words
 /// aren't buttons. The original has no limit, but link scenes that link to
 /// each other (the encyclopedia) would nest without end, and each level
