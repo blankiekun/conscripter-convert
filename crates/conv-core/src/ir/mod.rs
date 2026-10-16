@@ -542,6 +542,10 @@ pub enum Op {
     /// angle adds to it). 装甲悪鬼村正's battle HUD: the roll bar and the
     /// sky tilted as the craft rolls.
     SpriteAngle { layer: u32, degrees: i32 },
+    /// Auto mode and skip stop, as a click would (Nitroplus: the script
+    /// sets `$SYSTEM_text_auto` false or `$SYSTEM_menu_lock`, before the
+    /// ending roll).
+    StopAutoSkip,
 }
 
 /// [`Op::HoldMovie`]'s prompt: `image` is `cells` pictures side by side,

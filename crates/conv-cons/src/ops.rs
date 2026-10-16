@@ -156,6 +156,7 @@ impl<'a> Emitter<'a> {
                 writeln!(out, "print 1").unwrap();
             }
         }
+        Op::StopAutoSkip => writeln!(out, "skipoff:autooff").unwrap(),
         Op::SpriteAngle { layer, degrees } => {
             writeln!(out, "sprot {},{degrees}", SPRITE_BASE + layer).unwrap();
             if transition.is_none() {
