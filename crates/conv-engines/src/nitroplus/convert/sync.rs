@@ -271,6 +271,9 @@ impl Compiler<'_, '_> {
                         f.started = true;
                         animated.push(Op::SpriteFlashing { layer, keys, times });
                     }
+                    if let Some(Object { kind: Kind::Strip(_), over_text: true, .. }) = self.objects.get(&name) {
+                        animated.push(Op::SpriteOverText { layer });
+                    }
                     if let Some(Object { shake: Some((_, keys)), .. }) = self.objects.get(&name) {
                         animated.push(Op::SpriteMotion { layer, keys: keys.clone(), looped: true });
                     }

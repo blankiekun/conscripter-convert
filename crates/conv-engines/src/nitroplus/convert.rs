@@ -1018,6 +1018,10 @@ struct Object<'a> {
     /// `CreateWindow`'s size (w, h): its children are drawn only inside
     /// it, at its place.
     clip: Option<(i64, i64)>,
+    /// A [`Kind::Strip`] drawn over the text window ([`Op::SpriteOverText`]),
+    /// as the English port draws its subtitles. Only strips: a layer a
+    /// strip leaves is cleared, which ends it.
+    over_text: bool,
 }
 
 /// [`Object::shake`]: the process, the keys.
@@ -2419,7 +2423,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
 
     fn create(&mut self, name: String, kind: Kind<'a>, priority: i64, w: i64, h: i64) -> &mut Object<'a> {
         self.seq += 1;
-        let o = Object { kind, priority, x: 0, y: 0, w, h, opacity: 1000, locked: false, hideable: false, seq: self.seq, zoom: (1000, 1000), blur: 0, vertex: None, turn: (0, 0, 0), shake: None, clip: None };
+        let o = Object { kind, priority, x: 0, y: 0, w, h, opacity: 1000, locked: false, hideable: false, seq: self.seq, zoom: (1000, 1000), blur: 0, vertex: None, turn: (0, 0, 0), shake: None, clip: None, over_text: false };
         self.objects.insert(name.clone(), o);
         self.objects.get_mut(&name).unwrap()
     }

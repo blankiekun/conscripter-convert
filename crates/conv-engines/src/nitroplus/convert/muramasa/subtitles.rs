@@ -69,6 +69,7 @@ impl Compiler<'_, '_> {
         let object = if add.truthy() { "serif0+" } else { "serif0" };
         self.delete(object);
         let o = self.create(object.into(), Kind::Strip(strip), PRIORITY, w as i64, h as i64);
+        o.over_text = true;
         o.x = (super::super::SCREEN_W - w as i64) / 2;
         o.y = y.int() + i64::from(if add.truthy() { PITCH } else { 0 }) - i64::from(PAD);
     }
