@@ -649,8 +649,10 @@ Next, in order:
    noticeable first:
    - Tempo (easing) of `Fade`, `Move`, `Zoom`, `Rotate`, `SetVolume`,
      `DrawTransition` (`Axl`/`Dxl`…; a `null` tempo is taken as linear).
-   - `SetFont`'s face, colours, weight and shadow (story `CreateText`
-     reads them: PR #17).
+   - Story `CreateText`: the box's height (argument 5, 30 calls) isn't
+     read; a sideways text turned by `Rotate` sits about 17 px lower than
+     the original's under wine (cause unknown; "History", "Story
+     `CreateText`").
    - `DrawTransition`'s start opacity and softness; `Shake`'s `n` and
      tempo; `SetBlur`'s strength.
    - `Random` and `Conquest` return 0 whatever their arguments.
