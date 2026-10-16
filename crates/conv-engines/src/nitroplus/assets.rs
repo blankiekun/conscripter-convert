@@ -27,8 +27,10 @@ pub const PICTURE_DIRS: [&str; 4] = ["cg", "cg2", "en", "system"];
 
 /// Pictures with words that the English `cg.npk` has under the Japanese
 /// names, taken from it first when it is given: the name plates and the
-/// quick bar (the same places in `boot.nut`'s `QuickMenu`).
-const ENGLISH_FIRST: &[&str] = &["cg/fw/nw", "cg/sys/quick/"];
+/// quick bar (the same places in `boot.nut`'s `QuickMenu`), the telops
+/// (chapter titles, captions; placed as the port does by
+/// `english::place_telops`).
+const ENGLISH_FIRST: &[&str] = &["cg/fw/nw", "cg/sys/quick/", "cg/sys/telop/"];
 
 pub struct NpaAssets<'a> {
     cg: Npa<'a>,

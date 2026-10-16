@@ -80,6 +80,10 @@ pub fn build(game: &Path, run: &Run, opts: &Opts) -> Result<Built> {
             println!("  {file}: {}", jp.chars().take(40).collect::<String>());
         }
         println!("English: {} choice options replaced, {} left in Japanese", report.options, report.options_missed.len());
+        println!("English: {} calls on telops at the port's places, {} kinds left at the Japanese", report.telops_placed, report.telops_unpaired.len());
+        for (file, call) in report.telops_unpaired.iter().take(5) {
+            println!("  {file}: {call}");
+        }
         for (file, jp) in report.options_missed.iter().take(5) {
             println!("  {file}: {jp}");
         }
