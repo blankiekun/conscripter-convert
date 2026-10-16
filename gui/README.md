@@ -16,8 +16,10 @@ attached for each of them too (`conscripter-convert_<version>_<platform>`).
 ## Using it
 
 1. Drop the game folder on the window, or click it to choose the folder.
-   The folder above the game data works too (the app looks two levels
-   down). The box says "Detecting the game…" while it looks, then which
+   The folder above the game data works too (the app looks three levels
+   down), and so does one inside it (two levels up); file names match in
+   any case. Muramasa and Django warn when their movie folder (`movie`,
+   `movies` or `ムービー`, in the game folder or beside it) is missing. The box says "Detecting the game…" while it looks, then which
    game it found and where; with several, choose one under **Game**.
 2. Check the output folder. The default is a new folder beside the game
    folder. The app asks before using a folder that isn't empty, because

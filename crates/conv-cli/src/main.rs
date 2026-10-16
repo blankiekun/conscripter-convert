@@ -224,7 +224,7 @@ fn main() -> Result<()> {
 
 fn convert_script(game: &Path, script: u32, output: &Path, font: Option<&Path>, title: &str, webp: Option<Option<u8>>, audio: AudioFormat) -> Result<()> {
     let file = format!("{script:04}.cd");
-    let path = game.join("HD").join("CDFiles").join(&file);
+    let path = conv_engines::find(game, &format!("HD/CDFiles/{file}"));
     let bytes = map(&path)?;
     let cd = parse_cd(&path, &bytes)?;
     fs::create_dir_all(output)?;

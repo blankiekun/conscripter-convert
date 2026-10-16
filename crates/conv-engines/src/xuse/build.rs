@@ -28,7 +28,7 @@ pub const SCREEN: (u32, u32) = (800, 600);
 /// file order, skipping the engine-setup ones (names starting with '!'),
 /// with no jumps and no menus.
 pub fn build(game: &Path, linear: bool, opts: &Opts) -> Result<Built> {
-    let dir = game.join("HD").join("CDFiles");
+    let dir = crate::find(game, "HD/CDFiles");
     let mut ids: Vec<u32> = fs::read_dir(&dir)
         .with_context(|| format!("reading {}", dir.display()))?
         .filter_map(|e| e.ok())
@@ -128,5 +128,5 @@ pub fn read_symbols(path: &Path) -> Result<SymbolTable> {
 
 /// Label names (chapter titles, link scene titles) from `HD/CDFiles/0.cd`.
 pub fn label_names(game: &Path) -> Result<LabelNames> {
-    Ok(LabelNames::new(&read_symbols(&game.join("HD").join("CDFiles").join("0.cd"))?))
+    Ok(LabelNames::new(&read_symbols(&crate::find(game, "HD/CDFiles/0.cd"))?))
 }

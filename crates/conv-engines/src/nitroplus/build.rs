@@ -44,13 +44,13 @@ pub struct Run<'a> {
 /// Compiles `run` from `game` (the folder with the exe and the `*.npa`
 /// archives).
 pub fn build(game: &Path, run: &Run, opts: &Opts) -> Result<Built> {
-    let exe_name = GAMES.iter().map(|(exe, _)| *exe).find(|exe| game.join(exe).exists()).unwrap_or(GAMES[0].0);
-    let exe = game.join(exe_name);
+    let exe_name = GAMES.iter().map(|(exe, _)| *exe).find(|exe| crate::find(game, exe).exists()).unwrap_or(GAMES[0].0);
+    let exe = crate::find(game, exe_name);
     // Read entry by entry, not mapped: the mapped pages of cg.npa and
     // voice.npa (3 GB) would count as the converter's memory.
     let key = npa_key(&exe)?;
     let open = |name: &str| -> Result<Npa> {
-        let path = game.join(name);
+        let path = crate::find(game, name);
         let file = File::open(&path).with_context(|| format!("opening {}", path.display()))?;
         Npa::open(file, key.clone()).with_context(|| format!("parsing {}", path.display()))
     };
@@ -63,7 +63,7 @@ pub fn build(game: &Path, run: &Run, opts: &Opts) -> Result<Built> {
         files.insert(name, parsed);
     }
     let open_npk = |dir: &Path, name: &str| -> Result<npk::Npk> {
-        let path = dir.join(name);
+        let path = crate::find(dir, name);
         let file = File::open(&path).with_context(|| format!("opening {}", path.display()))?;
         npk::Npk::open(file).with_context(|| format!("parsing {}", path.display()))
     };
@@ -83,7 +83,7 @@ pub fn build(game: &Path, run: &Run, opts: &Opts) -> Result<Built> {
     let mut assets = NpaAssets::new(open("cg.npa")?, open("sound.npa")?, open("voice.npa")?, opts.output);
     assets.out.dry_run = opts.dry_run;
     // 続・殺戮のジャンゴ 1.01's own pictures.
-    if game.join("cg2.npa").exists() {
+    if crate::find(game, "cg2.npa").exists() {
         assets.cg2 = Some(open("cg2.npa")?);
     }
     if let Some(dir) = run.english {

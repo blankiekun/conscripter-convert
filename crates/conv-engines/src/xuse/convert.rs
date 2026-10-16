@@ -577,7 +577,7 @@ impl AssetBank {
     pub fn voice(&mut self, id: u32) -> Result<String, ConvertError> {
         let number = id as usize;
         let clip = (number.checked_sub(1).ok_or(ConvertError::MissingAsset { kind: "voice", number })?) % 100_000;
-        let path = self.game.join("CD").join(format!("bv{:04}.xsa", clip >> 8));
+        let path = crate::find(&self.game, &format!("CD/bv{:04}.xsa", clip >> 8));
         self.sound_at(path, clip & 0xff, "voice", format!("v{id}.ogg"), "voice", number)
     }
 
@@ -588,7 +588,7 @@ impl AssetBank {
     /// mean over the grey levels 64-191, where nothing is clamped.
     pub fn palette_offsets(&mut self, number: u32) -> Result<[i32; 3], ConvertError> {
         let missing = || ConvertError::MissingAsset { kind: "palette", number: number as usize };
-        let path = self.game.join("HD").join("pal.arc");
+        let path = crate::find(&self.game, "HD/pal.arc");
         let bytes = fs::read(&path).map_err(|source| ConvertError::Io { path: path.clone(), source })?;
         let arc = Xarc::parse(&bytes).map_err(|source| ConvertError::Xarc { path: path.clone(), source })?;
         let file = format!("pal{number:04}.pal");
@@ -611,7 +611,7 @@ impl AssetBank {
         if let Some(p) = self.written.get(&(kind, number)) {
             return Ok(p.clone());
         }
-        let path = self.game.join("HD").join("mask.arc");
+        let path = crate::find(&self.game, "HD/mask.arc");
         let bytes = fs::read(&path).map_err(|source| ConvertError::Io { path: path.clone(), source })?;
         let arc = Xarc::parse(&bytes).map_err(|source| ConvertError::Xarc { path: path.clone(), source })?;
         let file = format!("mask{number:04}.png");
@@ -745,7 +745,7 @@ impl AssetBank {
         if let Some(a) = self.animations.get(name) {
             return Ok(a.clone());
         }
-        let path = self.game.join("HD").join("fx.arc");
+        let path = crate::find(&self.game, "HD/fx.arc");
         if self.fx_arc.is_none() {
             self.fx_arc = Some(fs::read(&path).map_err(|source| ConvertError::Io { path: path.clone(), source })?);
         }
@@ -854,7 +854,7 @@ impl AssetBank {
 
     /// The PNGs of GAF4 container `file` inside the XARC archive `HD/{arc}`.
     fn gaf_images(&self, arc: &str, file: &str, kind: &'static str) -> Result<Vec<Vec<u8>>, ConvertError> {
-        let path = self.game.join("HD").join(arc);
+        let path = crate::find(&self.game, &format!("HD/{arc}"));
         let bytes = fs::read(&path).map_err(|source| ConvertError::Io { path: path.clone(), source })?;
         let arc = Xarc::parse(&bytes).map_err(|source| ConvertError::Xarc { path: path.clone(), source })?;
         let entry = arc.entries.iter().find(|e| e.name == file).ok_or(ConvertError::MissingAsset { kind, number: 0 })?;
@@ -947,7 +947,7 @@ impl AssetBank {
             by_archive.entry(i / per_archive).or_default().push(i);
         }
         for (archive, wanted) in by_archive {
-            let path = self.game.join("HD").join(format!("{prefix}{archive:04}.004"));
+            let path = crate::find(&self.game, &format!("HD/{prefix}{archive:04}.004"));
             if !path.exists() {
                 continue;
             }
@@ -993,7 +993,7 @@ impl AssetBank {
         if let Some(done) = self.images.get(&(kind, number)) {
             return Ok(done.clone());
         }
-        let path = self.game.join("HD").join(format!("{prefix}{:04}.004", index / per_archive));
+        let path = crate::find(&self.game, &format!("HD/{prefix}{:04}.004", index / per_archive));
         if !path.exists() {
             return Err(ConvertError::MissingAsset { kind, number });
         }
@@ -1013,7 +1013,7 @@ impl AssetBank {
         kind: &'static str,
         number: usize,
     ) -> Result<String, ConvertError> {
-        let path = self.game.join("HD").join(bank);
+        let path = crate::find(&self.game, &format!("HD/{bank}"));
         self.sound_at(path, slot, dir, file_name, kind, number)
     }
 
@@ -1102,7 +1102,7 @@ impl AssetBank {
         if let Some(p) = self.written.get(&key) {
             return Ok(p.clone());
         }
-        let src = self.game.join("HD").join(format!("mv{number:04}.bin"));
+        let src = crate::find(&self.game, &format!("HD/mv{number:04}.bin"));
         if !src.exists() {
             return Err(ConvertError::MissingAsset { kind: MOVIE, number: key.1 });
         }

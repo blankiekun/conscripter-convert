@@ -60,8 +60,8 @@ pub fn detect(dir: &Path) -> Vec<&'static GameInfo> {
     GAMES
         .iter()
         .filter(|g| g.markers.iter().all(|m| match m.strip_suffix('/') {
-            Some(folder) => dir.join(folder).is_dir(),
-            None => dir.join(m).is_file(),
+            Some(folder) => crate::find(dir, folder).is_dir(),
+            None => crate::find(dir, m).is_file(),
         }))
         .collect()
 }

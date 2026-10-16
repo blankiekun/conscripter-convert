@@ -43,6 +43,7 @@ def make_saiima(root: Path, scripts: int = 174) -> None:
 def make_muramasa(root: Path) -> None:
     for f in ("Muramasa.exe", "nss.npa", "cg.npa", "sound.npa", "voice.npa", "system.npa"):
         touch(root, f)
+    touch(root, "movie/mvOP.ngs")
 
 
 def make_oretsuba(root: Path, title_id: str = "PCSG00299", magic: bytes = b"CPK ") -> None:
@@ -87,8 +88,29 @@ class Detect(unittest.TestCase):
         self.assertEqual(self.keys(self.dir), [("muramasa", self.dir / "FMDM_game" / "ゲームデータ")])
 
     def test_too_deep(self):
-        make_muramasa(self.dir / "a" / "b" / "c")
+        make_muramasa(self.dir / "a" / "b" / "c" / "d")
         self.assertEqual(self.keys(self.dir), [])
+
+    def test_folder_inside(self):
+        make_saiima(self.dir)
+        self.assertEqual(self.keys(self.dir / "HD" / "CDFiles"), [("saihate-no-ima", self.dir)])
+
+    def test_any_case(self):
+        make_muramasa(self.dir)
+        (self.dir / "Muramasa.exe").rename(self.dir / "MURAMASA.EXE")
+        (self.dir / "nss.npa").rename(self.dir / "NSS.NPA")
+        self.assertEqual(self.keys(self.dir), [("muramasa", self.dir)])
+
+    def test_movies(self):
+        game = self.dir / "ゲームデータ"
+        make_muramasa(game)
+        (game / "movie" / "mvOP.ngs").unlink()
+        (game / "movie").rmdir()
+        (d,) = games.detect(game)
+        self.assertIn("movie", d.warnings[0])
+        (self.dir / "ムービー").mkdir()  # the disc's, beside the game
+        (d,) = games.detect(game)
+        self.assertEqual(d.warnings, [])
 
     def test_several(self):
         make_saiima(self.dir / "saiima")

@@ -99,7 +99,7 @@ fn walk<'a>(b: &'a Block, f: &mut impl FnMut(&'a Block)) {
 fn check(game: &Path) -> Result<()> {
     let scripts = scripts(game)?;
     let ids = |name: &str| -> Result<Vec<u32>> {
-        let path = game.join("media").join(name);
+        let path = conv_engines::find(game, &format!("media/{name}"));
         let bytes = map(&path)?;
         Ok(open(&path, &bytes)?.entries.iter().map(|e| e.id).collect())
     };

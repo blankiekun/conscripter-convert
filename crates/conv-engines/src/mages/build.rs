@@ -23,7 +23,7 @@ pub fn open(path: &Path, bytes: &[u8]) -> Result<Archive> {
 
 /// The scripts of SCRIPT.cpk by name, decoded.
 pub fn scripts(game: &Path) -> Result<BTreeMap<String, String>> {
-    let path = game.join("media").join("SCRIPT.cpk");
+    let path = crate::find(game, "media/SCRIPT.cpk");
     let bytes = fs::read(&path).with_context(|| format!("reading {}", path.display()))?;
     let a = open(&path, &bytes)?;
     a.entries.iter().map(|e| Ok((e.name.clone(), tasks::decode(a.read(&bytes, e)?)))).collect()
@@ -37,18 +37,18 @@ pub fn build(game: &Path, scenes: &[String], opts: &Opts) -> Result<Built> {
     let (output, font, title, dry_run, audio_format) = (opts.output, opts.font, opts.title, opts.dry_run, opts.audio);
     let g = Game::load(&scripts(game)?).map_err(anyhow::Error::msg)?;
     let names = ["CG.cpk", "CHR.cpk", "ETC.cpk", "SystemData.cpk", "VOICE.AWB", "SE.AWB", "BGM.AWB"];
-    let maps: Vec<_> = names.iter().map(|n| map(&game.join("media").join(n))).collect::<Result<_>>()?;
+    let maps: Vec<_> = names.iter().map(|n| map(&crate::find(game, &format!("media/{n}")))).collect::<Result<_>>()?;
     let mut banks = Vec::new();
     for (n, m) in names.iter().zip(&maps) {
         banks.push(Bank::new(m).with_context(|| format!("reading {n}"))?);
     }
     let mut b = banks.into_iter();
     let mut next = || b.next().unwrap();
-    let system_se = map(&game.join("media").join("SystemSE.AWB")).ok();
+    let system_se = map(&crate::find(game, "media/SystemSE.AWB")).ok();
     let mut assets = ArchiveAssets::new(next(), next(), next(), next(), next(), next(), next(), output);
     assets.system_se = system_se.as_ref().and_then(|m| Bank::new(m).ok());
     assets.out.dry_run = dry_run;
-    assets.movie_dir = game.join("media").join("data");
+    assets.movie_dir = crate::find(game, "media/data");
     // The menus' labels and the skip dialog's summaries are drawn with the font.
     assets.font = Some(font);
     let compiled = convert::compile(&g, scenes, &mut assets);
@@ -177,7 +177,7 @@ fn movies(jobs: &BTreeMap<String, PathBuf>, output: &Path) -> Result<()> {
 /// The Vita package's ID and version from `sce_sys/param.sfo`
 /// (`PCSG00299 01.00`).
 fn package(game: &Path) -> Option<String> {
-    let sfo = fs::read(game.join("sce_sys").join("param.sfo")).ok()?;
+    let sfo = fs::read(crate::find(game, "sce_sys/param.sfo")).ok()?;
     let u16_at = |o: usize| Some(u16::from_le_bytes(sfo.get(o..o + 2)?.try_into().ok()?) as usize);
     let u32_at = |o: usize| Some(u32::from_le_bytes(sfo.get(o..o + 4)?.try_into().ok()?) as usize);
     if sfo.get(..4)? != b"\0PSF" {

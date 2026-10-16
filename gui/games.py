@@ -5,8 +5,9 @@ One `Game` entry per game. To add a game: write its `markers` (files and
 folders that must all exist under the game folder), an optional `check`
 for problems the markers can't see, and `command` from the game's
 document in docs/games/. `detect()` tries every entry on the folder the
-user dropped and on the folders up to two levels inside it, so dropping
-the folder above the game data also works.
+user dropped, on the folders up to three levels inside it and on the two
+above it, so dropping the folder above the game data, or one inside it,
+also works. Files match in any case, as on Windows.
 """
 
 from __future__ import annotations
@@ -123,6 +124,7 @@ class Game:
     check: Optional[Callable[[Path], tuple[list[str], list[str]]]] = None  # -> (problems, warnings)
     options: tuple[Option, ...] = ()  # the advanced settings; their defaults are the recommended ones
     icon: Optional[Callable[[Path], Optional[bytes]]] = None  # (game) -> its icon, an .ico or PNG file's bytes
+    movies: bool = False  # its movies are in a folder of their own (movie/, ムービー/), in or beside the game
 
     def defaults(self) -> dict[str, object]:
         return {o.key: o.default for o in self.options}
@@ -185,9 +187,39 @@ def _read(path: Path) -> Optional[bytes]:
         return None
 
 
+def _find(root: Path, rel: str) -> Path:
+    """`root`/`rel` with each part matched in any case (the converter's
+    `find`); a part found in no case is kept as written."""
+    at = root
+    for part in filter(None, rel.split("/")):
+        if not (at / part).exists():
+            try:
+                part = next((e.name for e in os.scandir(at) if e.name.lower() == part.lower()), part)
+            except OSError:
+                pass
+        at = at / part
+    return at
+
+
 def _has(root: Path, marker: str) -> bool:
-    p = root / marker.rstrip("/")
+    p = _find(root, marker.rstrip("/"))
     return p.is_dir() if marker.endswith("/") else p.is_file()
+
+
+MOVIE_FOLDERS = ("movie", "movies", "ムービー")
+
+
+def find_movies(root: Path) -> Optional[Path]:
+    """The movie folder in the game folder or beside it, as the converter
+    looks for it (nitroplus/build.rs, `find_movies`)."""
+    for d in (root, root.parent):
+        try:
+            for e in sorted(os.scandir(d), key=lambda e: e.name):
+                if e.name.lower() in MOVIE_FOLDERS and e.is_dir():
+                    return Path(e.path)
+        except OSError:
+            pass
+    return None
 
 
 # --- 最果てのイマ COMPLETE (Xuse) ---------------------------------------
@@ -198,7 +230,7 @@ def _saiima_command(game: Path, output: Path, font: Path) -> list[str]:
 
 
 def _saiima_check(root: Path) -> tuple[list[str], list[str]]:
-    cds = list((root / "HD" / "CDFiles").glob("*.cd"))
+    cds = [p for p in _find(root, "HD/CDFiles").iterdir() if p.suffix.lower() == ".cd"]
     if len(cds) < 100:
         return [f"HD/CDFiles has {len(cds)} scripts (.cd), the full game has 172: is the install complete?"], []
     return [], []
@@ -220,7 +252,7 @@ def _django_command(game: Path, output: Path, font: Path) -> list[str]:
 
 
 def _django_check(root: Path) -> tuple[list[str], list[str]]:
-    if not (root / "cg2.npa").exists():
+    if not _find(root, "cg2.npa").exists():
         return [], ["cg2.npa is missing: the build expects the game updated to 1.01 "
                     "(its Django.exe, nss.npa and cg2.npa over the install)"]
     return [], []
@@ -258,12 +290,12 @@ def _oretsuba_command(game: Path, output: Path, font: Path) -> list[str]:
 def _oretsuba_check(root: Path) -> tuple[list[str], list[str]]:
     problems: list[str] = []
     warnings: list[str] = []
-    with open(root / "media" / "SCRIPT.cpk", "rb") as f:
+    with open(_find(root, "media/SCRIPT.cpk"), "rb") as f:
         if f.read(4) != b"CPK ":
             problems.append("media/SCRIPT.cpk is still encrypted: give the decrypted game folder "
                             "(docs/games/oretsuba.md, 'Decrypting the package').")
     try:
-        title_id = read_sfo(root / "sce_sys" / "param.sfo").get("TITLE_ID")
+        title_id = read_sfo(_find(root, "sce_sys/param.sfo")).get("TITLE_ID")
     except (OSError, ValueError, struct.error):
         title_id = None
     if title_id != ORETSUBA_TITLE_ID:
@@ -284,7 +316,7 @@ GAMES: tuple[Game, ...] = (
         size_gb=1.5,
         doc="docs/games/saihate-no-ima.md",
         check=_saiima_check,
-        icon=lambda root: engine.exe_icon(root / "Farthest2015.exe"),
+        icon=lambda root: engine.exe_icon(_find(root, "Farthest2015.exe")),
         options=_common("Saihate no Ima COMPLETE"),
     ),
     Game(
@@ -298,7 +330,8 @@ GAMES: tuple[Game, ...] = (
         needs_ffmpeg=False,
         size_gb=3.7,
         doc="docs/games/muramasa.md",
-        icon=lambda root: engine.exe_icon(root / "Muramasa.exe"),
+        icon=lambda root: engine.exe_icon(_find(root, "Muramasa.exe")),
+        movies=True,
         options=(
             *_common("装甲悪鬼村正"),
             Option("file", "Start file", "--file", "text", "ma00_000.nss",
@@ -320,7 +353,8 @@ GAMES: tuple[Game, ...] = (
         size_gb=1.3,
         doc="docs/games/django.md",
         check=_django_check,
-        icon=lambda root: engine.exe_icon(root / "Django.exe"),
+        icon=lambda root: engine.exe_icon(_find(root, "Django.exe")),
+        movies=True,
         options=_common("続・殺戮のジャンゴ"),
     ),
     Game(
@@ -335,7 +369,7 @@ GAMES: tuple[Game, ...] = (
         size_gb=2.3,
         doc="docs/games/oretsuba.md",
         check=_oretsuba_check,
-        icon=lambda root: _read(root / "sce_sys" / "icon0.png"),
+        icon=lambda root: _read(_find(root, "sce_sys/icon0.png")),
         options=(
             *_common("俺たちに翼はない"),
             Option("scenes", "Only these scenes", "--scenes", "text", "",
@@ -346,7 +380,7 @@ GAMES: tuple[Game, ...] = (
 )
 
 
-def _candidates(folder: Path, depth: int = 2):
+def _candidates(folder: Path, depth: int = 3):
     yield folder
     if depth == 0:
         return
@@ -358,10 +392,9 @@ def _candidates(folder: Path, depth: int = 2):
         yield from _candidates(child, depth - 1)
 
 
-def detect(folder: Path | str) -> list[Detection]:
-    """Every supported game found in `folder` or up to two levels inside it."""
+def _detect_in(roots) -> list[Detection]:
     found: list[Detection] = []
-    for root in _candidates(Path(folder)):
+    for root in roots:
         for game in GAMES:
             if all(_has(root, m) for m in game.markers):
                 d = Detection(game, root)
@@ -370,7 +403,19 @@ def detect(folder: Path | str) -> list[Detection]:
                         d.problems, d.warnings = game.check(root)
                     except OSError as e:
                         d.problems = [f"Can't read the game files: {e}"]
+                if game.movies and not find_movies(root):
+                    d.warnings.append("No movie folder (movie, movies or ムービー) in the game folder or beside it: "
+                                      "the movies are left out.")
                 found.append(d)
+    return found
+
+
+def detect(folder: Path | str) -> list[Detection]:
+    """Every supported game found in `folder` or up to three levels inside
+    it; failing that, in the two folders above it (one inside the game
+    was dropped, such as HD/ or ムービー/)."""
+    folder = Path(folder)
+    found = _detect_in(_candidates(folder)) or _detect_in(list(folder.absolute().parents)[:2])
     found.sort(key=lambda d: bool(d.problems))  # buildable ones first
     return found
 
