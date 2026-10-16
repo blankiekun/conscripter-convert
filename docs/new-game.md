@@ -167,6 +167,14 @@ rather than by browsing:
    bounded list. A blanket walk through 2,400 functions is the expensive
    path; libraries such as libpng, zlib and libjpeg can be recognised
    from their strings and skipped.
+   Coverage is per argument and behaviour, not per built-in: a row is
+   "converted" only when every argument and behaviour of it is, and
+   otherwise "partial", with what is left. Every engine's built-in
+   dispatch notes each argument a call passes and the converter doesn't
+   read (`<Builtin> argument <i> ignored`, whatever its value; an
+   argument known to change nothing goes in a short table with the value
+   it covers and why: Nitroplus's `UNREAD_HARMLESS`). The dry run's notes
+   then list the partial rows by themselves.
 6. **Write the results back.** Commit `names.tsv` with comments, fold the
    decoded semantics into the engine's built-ins reference
    (`research/nitroplus/builtins.md` for Nitroplus), and put the gaps

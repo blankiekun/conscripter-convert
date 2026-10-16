@@ -645,7 +645,25 @@ Next, in order:
    - Tempo (easing) is never read.
    - A 4-argument `Fade` probably doesn't wait in the exe (49 calls
      wait in ours); check under wine first.
-5. Gaps from the script coverage (2026-10-15; every file, built-in,
+5. Gaps from the unread-argument notes (2026-10-16; each built-in's
+   arguments the converter doesn't read, with counts, in
+   `research/nitroplus/builtins.md`, "Arguments not read"), most
+   noticeable first:
+   - `CreateWindow`'s size: the clip of its children (the cockpit's
+     tapes; PR #27).
+   - Tempo (easing) of `Fade`, `Move`, `Zoom`, `Rotate`, `SetVolume`,
+     `DrawTransition` (`Axl`/`Dxl`…; a `null` tempo is taken as linear).
+   - `SetFont`'s face, colours, weight and shadow (story `CreateText`
+     reads them: PR #17).
+   - `DrawTransition`'s start opacity and softness; `Shake`'s `n` and
+     tempo; `SetBlur`'s strength.
+   - `Random` and `Conquest` return 0 whatever their arguments.
+   - `CreateEffect`'s place and size; `SetBacklog`'s speaker;
+     `MoveCamera`'s arguments.
+   - `LockVideo`, `WaitText`, `SetPan`, `SetFrequency` (but 1000),
+     `SetVertex` (Muramasa), the time limit (?) of `WaitAction` and the
+     other waits: dropped; meaning to check in the exe.
+6. Gaps from the script coverage (2026-10-15; every file, built-in,
    `Request` action, text tag, `$SYSTEM_` variable and `system.ini` key
    with its status in `research/nitroplus/builtins.md`, "In the
    scripts: coverage"). Every file has a status (no gaps there); new

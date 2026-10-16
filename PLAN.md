@@ -660,6 +660,13 @@ The steps that apply them are in `docs/new-game.md`.
   before the decompiled output shows what a built-in does
   (`docs/new-game.md` §2, "Mapping the whole exe").
 
+- **A built-in "converted" can still drop an argument** (2026-10-16):
+  NSS `CreateWindow` was listed as converted because its children were
+  placed, but its size, which clips them, was never read; the user saw
+  the cockpit's tapes run the whole screen. Coverage is per argument and
+  behaviour, and the built-in dispatch notes every argument it doesn't
+  read (`docs/new-game.md` step 5).
+
 ### 13.1c Lessons from 俺たちに翼はない (PS Vita, 2026-10-13)
 
 - **Console packages decrypt offline.** A Vita package plus its license

@@ -177,7 +177,9 @@ dry run):
 
 | Built-in | story / lib / sys | Converter |
 |---|---|---|
-| `Fade`, `Move`, `Delete`, `Zoom`, `Wait`, `SetVolume`, `ModuleFileName`, `SetAlias`, `WaitKey`, `Random`, `SetBlur`, `Reset`, `WaitAction`, `SetVertex`, `Conquest`, `CreateWindow`, `WaitPlay`, `CreateColor`, `RemainTime`, `Draw`, `ImageHorizon`/`Vertical`, `SetFont`, `WaitText`, `LockVideo`, `CreateSound`, `CreateName`, `SetLoop`, `Integer`, `Strstr`, `LoadText`, `WaitFade`, `WaitZoom`, `PassageTime`, `DurationTime`, `SetPan` | most story | converted (non-blocking `Move`/`Zoom` as cross-fades, Status) |
+| `Delete`, `Wait`, `ModuleFileName`, `SetAlias`, `WaitKey`, `CreateColor`, `RemainTime`, `Draw`, `ImageHorizon`/`Vertical`, `CreateSound`, `CreateName`, `SetLoop`, `Integer`, `Strstr`, `PassageTime`, `DurationTime` | most story | converted: every argument read |
+| `Fade`, `Move`, `Zoom`, `Rotate`, `SetVolume`, `DrawTransition`, `Shake`, `SetBlur`, `Random`, `Conquest`, `SetFont`, `LoadText`, `WaitAction`, `WaitPlay`, `WaitFade`, `WaitZoom`, `CreateWindow`, `CreateEffect`, `CreateMovie`, `MoviePlay`, `SetBacklog` | most story | **partial**: arguments not read, below (non-blocking `Move`/`Zoom` as cross-fades, Status) |
+| `SetVertex`, `LockVideo`, `WaitText`, `SetPan`, `SetFrequency`, `Reset` | most story | dropped (`SetVertex` read only with `Game::zoom_vertex`, 続・殺戮のジャンゴ; `SetFrequency` noted when not 1000) |
 | `Request` | 1,643 / 1,748 / 469 | actions below |
 | `DrawTransition`, `Shake`, `Rotate`, `CreateTexture`, `CreateEffect`, `CreateMovie`, `MoviePlay` | story | converted except the noted cases (`Shake` of a small picture 145, `CreateTexture` from an object or the screen 1,812, `CreateEffect` Rain/Sepia/Monochrome/KitanoBlue/NegaPosi/Lens/Drop 82, 3 transition masks missing) |
 | `CreateProcess`, `BezierMove`, `SetFrequency`, `SetShade`, `SetTone`, `MoveCamera`, `CreateCamera` | 287 / 193 / 30 … | not converted (Status) |
@@ -192,6 +194,44 @@ dry run):
 | `ExistSave`, `DeleteSaveFile`, `Load`, `Time`, `ReadFile`, `WriteFile`, `ScrollbarValue`, `CreateScrollbar`, `SetScrollbar`, `SetScrollSpeed`, `SetShortcut`, `LoadColor`, `ClearScore`, `System`, `ClearBacklog`, `CreateBacklog`, `EnableBacklog`, `Message`, `Platform`, `SetStream`, `Exit`, `Escape`, `DateTime`, `EnableDirect3DHAL` | sys only | replaced by our screens and the engine's own save, log and settings |
 | `DialogChangeState`, `DialogChangeState2`, `DialogCautionSignIn`, `DialogConfigStorage`, `XBOX360_LockVideo`, `XBOX360_IsSignin`, `SceneFadeBG` | sys only | not built-ins: skipped by the exe too |
 | `CreateCube`, `SetFov`, `TextureRoll00H` | lib, 1 each | in process bodies only |
+
+**Arguments not read** (2026-10-16). `Compiler::builtin` notes every
+argument a call passes and the converter doesn't read
+(`<Builtin> argument <i> ignored`), whatever its value: an argument
+not read means our own behaviour applies, so its value may differ from
+what we do. Arguments known to change nothing are in `UNREAD_HARMLESS`
+(`convert/builtin.rs`), each with the value it covers and why (a `null`
+tempo is linear, as ours; a process's priority and place). Notes from the
+whole-game dry run (`ma00_000.nss --chain 2000`), and 続・殺戮のジャンゴ's
+(`convert-nss <game> --dry-run`), compiled occurrences:
+
+| Built-in | Argument (meaning) | Muramasa | Django |
+|---|---|---|---|
+| `LockVideo` | 0 (on/off) | 50,696 | 0 |
+| `WaitText` | 0, 1 | 23,689 | 0 |
+| `SetVertex` | 0-2 (the point; dropped without `zoom_vertex`) | 17,999 | 0 |
+| `SetFont` | 0 face (`@`: sideways), 2 colour, 3 shadow colour, 4 weight, 5 shadow | 16,687 | 195 |
+| `LoadText` | 0, 1 of the 7-argument form, 0 of the 6 | 15,184 | 740 |
+| `SetFrequency` | 0, 1, 3 (2 is checked) | 8,724 | 1,283 |
+| `Random` | 0 (the range: we return 0) | 7,368 | 0 |
+| `SetPan` | 0-3 | 6,494 | 1,283 |
+| `Fade` | 3 tempo (not `null`); 5 (a sixth argument, 1) | 3,863 | 77 |
+| `Move` | 4 tempo | 3,420 | 1,069 |
+| `WaitAction`, `WaitPlay`, `WaitFade`, `WaitZoom`, `WaitMove` | 1 (a time limit?) | 3,371, 2,477, 4, 3, 0 | 5,852, 51, 1, 0, 2 |
+| `DrawTransition` | 2 from, 4 softness; 5 tempo | 2,622; 132 | 0 |
+| `Conquest` | 0-2 (we return 0) | 2,478 | 0 |
+| `CreateEffect` | 2-5 (place and size) | 2,474 | 1 |
+| `Zoom` | 4 tempo | 2,210 | 309 |
+| `SetBacklog` | 2 (the speaker) | 1,958 | 75 |
+| `Shake` | 6 `n`, 7 tempo; 8 wait; 2-5 (a picture smaller than the screen) | 1,486; 62; 144 | 58; 3; 3 |
+| `SetBlur` | 4 strength; 2 passes (when off) | 983; 14 | 0 |
+| `CreateWindow` | 4, 5 (the size: the clip, PR #27), 6 | 639 | 975 |
+| `Rotate` | 5 tempo | 488 | 264 |
+| `MoveCamera` | 1-6 | 105 | 373 |
+| `CreateMovie` | 2-5 (a missing movie) | 61 | 0 |
+| `SetVolume` | 3 tempo; 4 | 23; 1 | 0 |
+| `MoviePlay` | 1 (a missing movie) | 3 | 0 |
+| `Delete` | 1, 2 | 2 | 0 |
 
 **`Request` actions** (static count; converter):
 

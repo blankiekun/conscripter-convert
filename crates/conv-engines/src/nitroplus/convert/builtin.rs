@@ -1,11 +1,47 @@
 //! NSS's built-in functions, as the compiler runs them ([`Compiler::builtin`]).
 
+use std::cell::Cell;
+
 use super::*;
 
+/// Arguments the compiler doesn't read that change nothing it draws or
+/// plays: (built-in, index, the value covered (`"null"`: NSS's null) or
+/// `None` for any), why.
+const UNREAD_HARMLESS: &[(&str, usize, Option<&str>, &str)] = &[
+    ("Fade", 3, Some("null"), "no tempo: linear, as ours"),
+    ("Move", 4, Some("null"), "no tempo: linear, as ours"),
+    ("Zoom", 4, Some("null"), "no tempo: linear, as ours"),
+    ("Rotate", 5, Some("null"), "no tempo: linear, as ours"),
+    ("SetVolume", 3, Some("null"), "no tempo: linear, as ours"),
+    ("DrawTransition", 5, Some("null"), "no tempo: linear, as ours"),
+    ("CreateProcess", 1, None, "a process draws nothing: its priority is unused"),
+    ("CreateProcess", 2, None, "a process draws nothing: its place is unused"),
+    ("CreateProcess", 3, None, "a process draws nothing: its place is unused"),
+];
+
 impl Compiler<'_, '_> {
+    /// A built-in call; every argument passed and not read gets a note
+    /// (`<Builtin> argument <i> ignored`), so a call converted only in part
+    /// shows in the dry run's list.
     pub(super) fn builtin(&mut self, name: &str, a: &[Value]) -> Value {
+        let read = Cell::new(0u64);
+        let value = self.builtin_reading(name, a, &read);
+        for (i, v) in a.iter().enumerate().take(64) {
+            let harmless = UNREAD_HARMLESS.iter().any(|&(b, k, value, _)| b == name && k == i && value.is_none_or(|x| if x == "null" { matches!(v, Value::Null) } else { v.string() == x }));
+            if read.get() & (1 << i) == 0 && !harmless {
+                self.note(format!("{name} argument {i} ignored"));
+            }
+        }
+        value
+    }
+
+    fn builtin_reading(&mut self, name: &str, a: &[Value], read: &Cell<u64>) -> Value {
         let (screen_w, screen_h) = self.game.screen;
-        let arg = |i: usize| a.get(i).cloned().unwrap_or(Value::Null);
+        let arg = |i: usize| {
+            read.set(read.get() | 1u64.checked_shl(i as u32).unwrap_or(0));
+            a.get(i).cloned().unwrap_or(Value::Null)
+        };
+        let last = || a.len().checked_sub(1).map_or(Value::Null, arg);
         match name {
             "LoadImage" if self.game.loaded_textures => {
                 // (name, path): a picture other objects are made from
@@ -23,7 +59,8 @@ impl Compiler<'_, '_> {
                 let src = self.deref(&arg(4));
                 let Some((image, w, h)) = self.texture_source(&src) else {
                     self.note(format!("CreateTexture from {}", if src.contains('/') { "a missing file" } else { "an object or the screen" }));
-                    self.create(name, Kind::Other, arg(1).int(), 0, 0);
+                    let o = self.create(name, Kind::Other, arg(1).int(), 0, 0);
+                    (o.x, o.y) = (arg(2).position(0, 0, screen_w), arg(3).position(0, 0, screen_h));
                     return Value::Null;
                 };
                 let (w, h) = (w as i64, h as i64);
@@ -131,31 +168,32 @@ impl Compiler<'_, '_> {
             "Fade" => {
                 // Four arguments: no tempo.
                 let wait = if a.len() == 4 { arg(3) } else { arg(4) };
+                let (ms, to) = (arg(1).int(), arg(2));
                 let targets = self.matching(&arg(0));
                 let mut window_only = !targets.is_empty();
                 for t in &targets {
                     let o = self.objects.get_mut(t).unwrap();
-                    o.opacity = arg(2).position(o.opacity, 0, 0).clamp(0, 1000);
+                    o.opacity = to.position(o.opacity, 0, 0).clamp(0, 1000);
                     window_only &= o.hideable;
                 }
                 // The text window's own fades aren't waited for: the window
                 // just shows or hides.
                 if !window_only {
-                    self.timed(arg(1).int(), &wait, &targets);
+                    self.timed(ms, &wait, &targets);
                 } else if !matches!(wait, Value::Null | Value::Int(0)) {
                     self.check_window();
                 }
             }
             "Move" => {
                 let targets = self.matching(&arg(0));
-                let ms = arg(1).int();
+                let (ms, to_x, to_y) = (arg(1).int(), arg(2), arg(3));
                 let blocking = !matches!(arg(5), Value::Null | Value::Int(0));
                 // One picture on screen moving while the script waits: a real
                 // motion (after showing what changed before it).
                 if ms > 0 && blocking && targets.len() == 1 && self.shown.contains_key(&targets[0]) {
                     self.sync(0);
                     let o = self.objects.get_mut(&targets[0]).unwrap();
-                    let (x, y) = (arg(2).position(o.x, o.w, screen_w), arg(3).position(o.y, o.h, screen_h));
+                    let (x, y) = (to_x.position(o.x, o.w, screen_w), to_y.position(o.y, o.h, screen_h));
                     let (dx, dy) = (x - o.x, y - o.y);
                     (o.x, o.y) = (x, y);
                     if let Some(sh) = self.shown.get_mut(&targets[0]) {
@@ -168,10 +206,10 @@ impl Compiler<'_, '_> {
                 }
                 for t in &targets {
                     let o = self.objects.get_mut(t).unwrap();
-                    o.x = arg(2).position(o.x, o.w, screen_w);
-                    o.y = arg(3).position(o.y, o.h, screen_h);
+                    o.x = to_x.position(o.x, o.w, screen_w);
+                    o.y = to_y.position(o.y, o.h, screen_h);
                 }
-                self.timed(arg(1).int(), &arg(5), &targets);
+                self.timed(ms, &arg(5), &targets);
             }
             "Delete" if arg(0).string() == "*" && self.game.chapter_objects && self.chapter_mark.is_some() => {
                 self.delete_chapter_objects(self.chapter_mark.unwrap());
@@ -202,12 +240,13 @@ impl Compiler<'_, '_> {
             }
             "Rotate" => {
                 // (obj, time, x, y, z degrees, tempo, wait).
+                let (ms, turn_x, turn_y, turn_z, wait) = (arg(1).int(), arg(2), arg(3), arg(4), arg(6));
                 let targets = self.matching(&arg(0));
                 let mut flipped = Vec::new();
                 for t in &targets {
                     let o = self.objects.get_mut(t).unwrap();
                     let (before, mirror) = (o.turn, o.mirror());
-                    o.turn = (arg(2).position(o.turn.0, 0, 0), arg(3).position(o.turn.1, 0, 0), arg(4).position(o.turn.2, 0, 0));
+                    o.turn = (turn_x.position(o.turn.0, 0, 0), turn_y.position(o.turn.1, 0, 0), turn_z.position(o.turn.2, 0, 0));
                     let (turn, mirrored) = (o.turn, o.mirror() != (false, false));
                     let tilted = turn.2 != before.2 && matches!(o.kind, Kind::Image { .. });
                     let text = matches!(o.kind, Kind::Text(_));
@@ -221,20 +260,21 @@ impl Compiler<'_, '_> {
                         Kind::Movie(_) if mirrored => self.note("Rotate of a movie"),
                         _ => {}
                     }
-                    if arg(1).int() > 0 && (turn.0, turn.1) != (before.0, before.1) && !text {
+                    if ms > 0 && (turn.0, turn.1) != (before.0, before.1) && !text {
                         self.note("Rotate over time drawn at once");
                     }
                 }
                 // Only a picture that turns over or about z shows a change.
                 if flipped.iter().any(|t| self.shown.contains_key(t)) {
-                    self.timed(arg(1).int(), &arg(6), &flipped);
+                    self.timed(ms, &wait, &flipped);
                 }
             }
             "Zoom" => {
+                let (zx, zy) = (arg(2), arg(3));
                 let targets = self.matching(&arg(0));
                 for t in &targets {
                     let o = self.objects.get_mut(t).unwrap();
-                    o.zoom = (arg(2).position(o.zoom.0, 0, 0).max(1), arg(3).position(o.zoom.1, 0, 0).max(1));
+                    o.zoom = (zx.position(o.zoom.0, 0, 0).max(1), zy.position(o.zoom.1, 0, 0).max(1));
                 }
                 self.timed(arg(1).int(), &arg(5), &targets);
             }
@@ -251,9 +291,10 @@ impl Compiler<'_, '_> {
             "DrawTransition" => {
                 // (obj, time, from, to, softness, tempo, mask, wait): a fade
                 // to `to` shaped by the mask.
+                let to = arg(3).int().clamp(0, 1000);
                 let targets = self.matching(&arg(0));
                 for t in &targets {
-                    self.objects.get_mut(t).unwrap().opacity = arg(3).int().clamp(0, 1000);
+                    self.objects.get_mut(t).unwrap().opacity = to;
                 }
                 match self.assets.image(&self.deref(&arg(6))) {
                     Some((mask, _, _)) => self.pending_mask = Some(mask),
@@ -267,7 +308,7 @@ impl Compiler<'_, '_> {
                 let targets = self.matching(&arg(0));
                 if !targets.iter().any(|t| self.objects[t].w >= screen_w && self.objects[t].h >= screen_h) {
                     self.note("Shake of a picture smaller than the screen");
-                    self.timed(arg(1).int(), a.last().unwrap_or(&Value::Null), &targets);
+                    self.timed(arg(1).int(), &last(), &targets);
                     return Value::Null;
                 }
                 // It lasts `ms` (or until the picture is deleted: shakes of
@@ -283,7 +324,7 @@ impl Compiler<'_, '_> {
                         ScreenEffect::Shake { time_ms: ms, interval_ms: 16, path: false, speed: (1300, 1700), range: [(x, y), end], end_ms: ms };
                     self.ops.push(Op::ScreenEffect { slot: 1, effect: Some(shake) });
                     self.shaken = targets;
-                    if !matches!(a.last(), Some(Value::Null | Value::Int(0))) {
+                    if !matches!(last(), Value::Null | Value::Int(0)) {
                         self.ops.push(Op::Wait { ms });
                     }
                 } else if !self.shaken.is_empty() {
@@ -377,9 +418,10 @@ impl Compiler<'_, '_> {
                 }
             }
             "SetLoop" => {
+                let looped = arg(1).truthy();
                 for t in self.matching(&arg(0)) {
                     if let Kind::Sound(s) = &mut self.objects.get_mut(&t).unwrap().kind {
-                        s.looped = arg(1).truthy();
+                        s.looped = looped;
                     }
                 }
             }
@@ -422,9 +464,10 @@ impl Compiler<'_, '_> {
                     Value::Str(w) if w.eq_ignore_ascii_case("center") || w.eq_ignore_ascii_case("middle") => size / 2,
                     v => v.int(),
                 };
+                let (vx, vy) = (arg(1), arg(2));
                 for t in self.matching(&arg(0)) {
                     let o = self.objects.get_mut(&t).unwrap();
-                    o.vertex = Some((place(&arg(1), o.w, "left", "right"), place(&arg(2), o.h, "top", "bottom")));
+                    o.vertex = Some((place(&vx, o.w, "left", "right"), place(&vy, o.h, "top", "bottom")));
                 }
             }
             "SetVertex" | "SetFrequency" | "SetPan" | "WaitText" | "LockVideo" | "Reset" | "SetShortcut" => {}
@@ -440,10 +483,17 @@ impl Compiler<'_, '_> {
                 let name = self.object_name(&arg(0));
                 self.create_process(name, &arg(4).string());
             }
-            other if BUILTINS.contains(&other) => self.note(format!("built-in {other}")),
+            // Noted whole: no note per argument.
+            other if BUILTINS.contains(&other) => {
+                read.set(u64::MAX);
+                self.note(format!("built-in {other}"));
+            }
             // No built-in and no NSS function has this name: the exe skips
             // the call (`Waitkey(500)`, `SL_Rightdown(…)`).
-            other => self.note(format!("skipped: no function {other}")),
+            other => {
+                read.set(u64::MAX);
+                self.note(format!("skipped: no function {other}"));
+            }
         }
         Value::Null
     }
