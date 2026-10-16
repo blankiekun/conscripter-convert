@@ -449,6 +449,9 @@ struct Lowering<'a> {
     /// Pictures by key: `c<number>` for characters, `t<texture>`, `bg`.
     shown: BTreeMap<String, Shown>,
     next_slot: HashMap<u32, u32>,
+    /// The task has `:FadeWait 0`: its pictures fade without the script
+    /// waiting.
+    fading: bool,
     /// A transition is open (staged changes wait for InOut).
     staging: bool,
     choices: usize,
@@ -488,10 +491,16 @@ impl Lowering<'_> {
         {
             return s.layer;
         }
+        // The next slot of the priority's, skipping those in use.
         let n = self.next_slot.entry(base).or_insert(PRIORITY_STEP - 2);
-        let layer = base + *n;
-        *n = if *n == 0 { PRIORITY_STEP - 2 } else { *n - 1 };
-        layer
+        for _ in 0..PRIORITY_STEP - 1 {
+            let layer = base + *n;
+            *n = if *n == 0 { PRIORITY_STEP - 2 } else { *n - 1 };
+            if !self.shown.values().any(|s| s.layer == layer) {
+                return layer;
+            }
+        }
+        base + *n
     }
 
     /// Shows `image` centred at script position (x, y) on `key`'s layer,
@@ -516,6 +525,17 @@ impl Lowering<'_> {
             .filter_map(|k| self.shown.remove(k))
             .map(|old| SpriteChange { layer: old.layer, sprite: None, keep_filters: false })
             .collect();
+        // `:FadeWait 0`: the picture fades while the script goes on (the
+        // eboot's Message task doesn't wait for it). A picture changing
+        // goes to another layer, the old one fading out as it fades in;
+        // one with a motion, zoom or look keeps its layer and waits.
+        let fading = self.fading
+            && !self.staging
+            && fade_ms > 0
+            && self.shown.get(key).is_none_or(|o| o.motion.is_none() && o.zoom == 100 && o.look == Look::default());
+        if fading && let Some(old) = self.shown.remove(key) {
+            changes.push(SpriteChange { layer: old.layer, sprite: None, keep_filters: false });
+        }
         let layer = self.layer(key, priority);
         let (path, w, h) = image;
         let (w, h) = (w as i32, h as i32);
@@ -529,7 +549,11 @@ impl Lowering<'_> {
             sprite: Some(SpritePlacement { image: path.clone(), x: cx - w / 2, y: cy - h / 2 }),
             keep_filters: false,
         });
-        self.out.ops.push(Op::Sprites { changes, fade_ms: if self.staging { 0 } else { fade_ms } });
+        if fading {
+            self.out.ops.push(Op::SpritesFading { changes, fade_ms });
+        } else {
+            self.out.ops.push(Op::Sprites { changes, fade_ms: if self.staging { 0 } else { fade_ms } });
+        }
         self.apply_look(layer, &look);
         // A new picture on the layer would keep the old one's zoom.
         if self.shown.get(key).is_some_and(|old| old.layer == layer && old.zoom != 100) {
@@ -594,7 +618,10 @@ impl Lowering<'_> {
             .filter_map(|k| self.shown.remove(k))
             .map(|old| SpriteChange { layer: old.layer, sprite: None, keep_filters: false })
             .collect();
-        if !changes.is_empty() {
+        if changes.is_empty() {
+        } else if self.fading && !self.staging && fade_ms > 0 {
+            self.out.ops.push(Op::SpritesFading { changes, fade_ms });
+        } else {
             self.out.ops.push(Op::Sprites { changes, fade_ms: if self.staging { 0 } else { fade_ms } });
         }
     }
@@ -674,6 +701,10 @@ impl Lowering<'_> {
         let t = &tasks[i];
         let Some(ty) = t.task_type() else { return };
         let fade = |t: &Block| if t.int("FadeIn").unwrap_or(1) == 0 { 0 } else { ms(t.int("Time").unwrap_or(15)) };
+        // `:FadeWait 0` (task_run 0x81021070 goes to the next task at
+        // once); SpriteBG and SpriteBS, which replace the whole picture,
+        // still wait.
+        self.fading = t.int("FadeWait") == Some(0) && matches!(ty, "CharacterOpen" | "CharacterDelete" | "Sprite" | "SpriteDelete" | "SpriteDeleteBG");
         // A character's fade (task_charopen_new, task_chardelete_new): over
         // `:Fade` frames, 18 without one, at once for `:Fade 0` (or
         // CharacterDelete's `:FadeOut 0`).
@@ -1512,7 +1543,7 @@ fn act_style(t: &Block) -> TransitionStyle {
 /// Compiles `scenes` (all of them if empty), each at its label, after a
 /// jump to the game's first scene.
 pub fn compile(game: &Game, scenes: &[String], assets: &mut dyn Assets) -> Compiled {
-    let mut l = Lowering { game, assets, out: Compiled::default(), shown: BTreeMap::new(), next_slot: HashMap::new(), staging: false, choices: 0, cover: None, eye_catch: false, shutters: None, inherited: false, opening: false, messages: 0 };
+    let mut l = Lowering { game, assets, out: Compiled::default(), shown: BTreeMap::new(), next_slot: HashMap::new(), fading: false, staging: false, choices: 0, cover: None, eye_catch: false, shutters: None, inherited: false, opening: false, messages: 0 };
     let names: Vec<&String> = if scenes.is_empty() { game.scenes.keys().collect() } else { scenes.iter().collect() };
     let first = names.first().map(|s| s.as_str()).unwrap_or(&game.start);
     let first = if scenes.is_empty() { game.start.as_str() } else { first };

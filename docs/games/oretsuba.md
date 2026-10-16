@@ -434,27 +434,22 @@ against the keys the 463 scenes use and those the converter reads.
 converted. The messages hold no markup but `\n`. Keys the scenes use
 that the eboot reads and the converter doesn't (typos such as
 `:Prioriry`, `:TIme`, `:fFade` are ignored by both):
-1. **`:FadeWait` (CharacterOpen 16,932, SpriteBG 2,838, CharacterDelete
-   1,294, Sprite 841, SpriteDeleteBG 277, SpriteDelete 72; 0 in 16,428
-   of them).** 0 lets the script go on while the picture fades; ours
-   always waits (`print`). Whether the next message waits for the fade
-   anyway is still to be read in `task_run`.
-2. **`:Rule` on sprite fades (SpriteBG 1,223, SpriteDeleteBG 149,
+1. **`:Rule` on sprite fades (SpriteBG 1,223, SpriteDeleteBG 149,
    Sprite 24, SpriteDelete 15, SpriteBS 2; 1,378 non-zero, mostly 41,
    66, 49, 42).** Ours are plain fades. The scripts' comment says
    `0=Simple 1=RULE000`, so N is probably `RULE<N-1>` (111 is the
    highest, RULE110 the last file); InOut's `:Type` is used as
    `RULE<Type>` today.
-3. **Message `:FontScale` (435: 1.8, 2, 1.4, 2.2, 0.8, 1.6; record
+2. **Message `:FontScale` (435: 1.8, 2, 1.4, 2.2, 0.8, 1.6; record
    +0x8fc)**: larger or smaller text for shouts and whispers; ours draws
    every message at one size.
-4. **`:Chara%d/Copy` (CharacterOpen 25, CharacterMove 11, CharacterAction
+3. **`:Chara%d/Copy` (CharacterOpen 25, CharacterMove 11, CharacterAction
    7, CharacterDelete 5, CharacterOpenBS 3; values 1-3).** The eboot adds
    Copy × 1000 to the character number, so one character (the 960×540
    cut-ins, character 300) can show twice (S03_02A shows two at once);
    ours keys characters by number (`c300`), so the second replaces the
    first.
-5. Small: SpriteMove `:Curve` (12, an arc of ±3 or 0.5 on the move),
+4. Small: SpriteMove `:Curve` (12, an arc of ±3 or 0.5 on the move),
    CharacterOpen `:Chara%d/Center` (4, `0,1`: the anchor), EffectEnd
    `:Delete 1` (7), Window `:WindowNumber` (1,506 × -1, 2 × 0).
 
@@ -479,6 +474,23 @@ state.
   now fades over `:Fade` frames, 18 (300 ms) without one, instead of
   200 ms for all (CharacterDelete's per-character `:Chara%d/Fade` is not
   read: one fade per task).
+- **`:FadeWait 0`** (16,428 uses: the picture fades while the script
+  goes on). In `task_run` (0x81021070) CharacterOpen and CharacterDelete
+  go to the next task at once when their record's FadeWait (+0x10) is 0,
+  else wait for every fade (0x811274c4); the Message task (types 0 and
+  2) waits only for its text objects, never for the pictures, so the
+  text starts while the characters fade. Ours: CharacterOpen,
+  CharacterDelete, Sprite, SpriteDelete and SpriteDeleteBG with
+  `:FadeWait 0` are IR `Op::SpritesFading`, which conv-cons writes with
+  CONscripter's `spfade` (in, and `spfade num,-ms` out, which then
+  removes the sprite; engine 535e460), then `print 1`. A character
+  changing (12,276 of the 14,146: an expression) goes to another slot of
+  its priority, the new picture fading in as the old one fades out (the
+  two linear, so the picture thins by a quarter halfway; the eboot's own
+  mix not checked); slots in use are now skipped when one is chosen. A
+  character with a motion, zoom or look, and SpriteBG/SpriteBS (which
+  replace the whole picture: 890 uses), still wait. In `--auto-play`
+  spfade is at once (engine 08a782a), so traces show the end of a fade.
 
 **Found by the debug trace (2026-10-14).** Whole routes play to their
 end without a script error (18,974 pages and 16 choices; with today's
