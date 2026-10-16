@@ -494,12 +494,14 @@ fn telop_calls(calls: Vec<(String, Vec<squirrel::Arg>)>) -> Vec<(String, Vec<squ
 }
 
 /// The arguments of `call` that place a picture: x, y and the picture of
-/// `CreateTexture…(name, priority, x, y, picture)`, x and y of
-/// `Move(name, time, x, y, …)`.
+/// `CreateTexture…(name, priority, x, y, picture)`; all of `Move(name,
+/// time, x, y, tempo, wait)` (the port times one telop move otherwise:
+/// ma04_021's 250 ms for the NSS's 500; its tempos and waits are the
+/// NSS's, a null tempo kept as the NSS has it).
 fn placing(call: &str) -> &'static [usize] {
     match call {
         _ if call.starts_with("CreateTexture") => &[2, 3, 4],
-        "Move" => &[2, 3],
+        "Move" => &[1, 2, 3, 4, 5],
         _ => &[],
     }
 }
@@ -562,6 +564,7 @@ fn place_telops(file_name: &str, file: &mut NssFile, port: &[(String, Vec<squirr
                 Arg::Word(w) => nss::Expr::Word(w.clone()),
                 Arg::Relative(v) => nss::Expr::Unary { op: nss::UnaryOp::Relative, expr: Box::new(nss::Expr::Int(i64::from(*v))) },
                 Arg::Str(p) if p.to_lowercase().contains("/telop/") => nss::Expr::Str(p.clone()),
+                Arg::Bool(b) => nss::Expr::Word(b.to_string()),
                 _ => continue,
             };
         }
@@ -799,8 +802,9 @@ mod tests {
         note_unread(&mut unread, "Fade", &[Arg::Str("t".into()), Arg::Int(500)], true);
         let reasons = unread.reasons();
         let notes: Vec<_> = reasons.iter().map(|(k, &n)| (k.as_str(), n)).collect();
-        assert_eq!(unread.totals(), (2, 2));
-        assert_eq!(notes, [("Move argument 1 ignored", 1), ("Move argument 4 ignored", 1), ("Move argument 5 ignored", 1), ("SetChoice argument 4 ignored", 1)]);
+        assert_eq!(unread.totals(), (2, 1));
+        // A telop's Move is read whole (english::placing).
+        assert_eq!(notes, [("SetChoice argument 4 ignored", 1)]);
     }
 
     #[test]
@@ -809,7 +813,7 @@ mod tests {
         let s = |v: &str| Str(v.to_string());
         let port = telop_calls(vec![
             ("CreateTextureEX".into(), vec![s("t"), Int(100), Word("Center".into()), Word("Middle".into()), s("cg/sys/Telop/outline/a.png")]),
-            ("Move".into(), vec![s("t"), Int(0), Relative(0), Relative(-25)]),
+            ("Move".into(), vec![s("t"), Int(250), Relative(0), Relative(-25), squirrel::Arg::Other, squirrel::Arg::Bool(false)]),
             ("Move".into(), vec![s("bg"), Int(0), Int(5), Int(5)]),
         ]);
         assert_eq!(port.len(), 2, "only the telop sprite's calls");
@@ -823,7 +827,8 @@ mod tests {
         assert_eq!(args[4], nss::Expr::Str("cg/sys/Telop/outline/a.png".into()));
         let StmtKind::Expr(nss::Expr::Call { args, .. }) = &b.body[1].kind else { panic!() };
         assert_eq!(args[3], nss::Expr::Unary { op: nss::UnaryOp::Relative, expr: Box::new(nss::Expr::Int(-25)) });
-        assert_eq!(args[5], nss::Expr::Word("true".into()));
+        // The port's time and wait; its null tempo left as the NSS's.
+        assert_eq!((&args[1], &args[4], &args[5]), (&nss::Expr::Int(250), &nss::Expr::Word("null".into()), &nss::Expr::Word("false".into())));
         assert_eq!((report.telops_placed, report.telops_unpaired.len()), (2, 0));
     }
 
