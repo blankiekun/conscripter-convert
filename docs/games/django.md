@@ -441,14 +441,7 @@ with the original (it wants all eleven endings' flags under wine).
        `Sepia` effect, not converted itself: item 3).
 
 8. Sounds kept until their end (shared NSS code, `convert/sounds.rs`):
-   1. **`SetVolume` to 0 may stop a sound** in the exe:
-      `FUN_00457dd0` stops it (`FUN_00458420`) when its volume is set
-      to 0 at once; whether a fade over time stops it at its end is
-      unsettled (the fade runs in a thread the decompile doesn't show).
-      If it does, 12 of Muramasa's new `delay`s (`WaitPlay` right after
-      a `SetVolume`/`Fade` to 0 on `SE*`, as in `ClearFadeAll`) are too
-      long, and an at-once 0 should forget the sound too.
-   2. **Time across runtime branches**: the sound clock adds up the ops
+   1. **Time across runtime branches**: the sound clock adds up the ops
       of both branches of a runtime `if`/`else`, so a sound started
       before one may be taken as ended too soon. Fine as is.
 
@@ -467,6 +460,21 @@ with the original (it wants all eleven endings' flags under wine).
   sound to another sound, and uses channels 11-49 when all of 1-9 loop.
   Checked headless (`--goto if40_else`): the 15 loops start on their
   channels, no missing file.
+
+- **A fade to 0 stops the sound at its end (2026-10-16, shared NSS
+  code).** The exe's `SetVolume` (`FUN_00457dd0`) runs a fade over time
+  in a thread (`0x459980`, not a Ghidra function: `objdump -D` of the
+  unpacked exe) that sets the target volume at the end and, at 0 on a
+  playing sound (state bit `0x10`), stops it (`FUN_00458420`), as an
+  at-once 0 does. Ours already stopped it with the fade
+  (`chvolfade ch,0,ms,1`, `bgmfadeout`), but forgot it at once, so a
+  `WaitPlay` right after went on at once; now it waits for the rest of
+  the fade (or the sound's end if sooner), and a disused sound faded
+  out is forgotten then. A locked sound is never forgotten (装甲悪鬼村正's
+  `CreateBGM` music, which its `MusicStart` marks disused, had been
+  forgotten after a one-shot play). Dry run: Django 8 new `delay`s,
+  Muramasa 67 (mostly 350-500 ms) and 3 music fade-outs that its lost
+  objects had missed.
 
 - **Render modes (2026-10-16, shared NSS code, engine #34).**
   `Request(obj, AddRender|SubRender|NormalRender)` on a picture is drawn

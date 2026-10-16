@@ -173,7 +173,7 @@ impl Compiler<'_, '_> {
             "CreateSound" => {
                 let name = self.object_name(&arg(0));
                 let bgm = arg(1).string().eq_ignore_ascii_case("bgm");
-                let s = SoundObject { path: self.named_string(&arg(2)), bgm, volume: 1000, looped: false, starting: false, fade_ms: 0, playing: None, disused: false, loop_ms: None, started_at: 0, len_ms: None, pan: 0, rate: None, freq: 1000 };
+                let s = SoundObject { path: self.named_string(&arg(2)), bgm, volume: 1000, looped: false, starting: false, fade_ms: 0, playing: None, disused: false, loop_ms: None, started_at: 0, len_ms: None, pan: 0, rate: None, freq: 1000, stops_at: None };
                 self.create(name, Kind::Sound(s), 0, 0, 0);
             }
             "Fade" => {
@@ -446,6 +446,10 @@ impl Compiler<'_, '_> {
                 for t in self.matching(&arg(0)) {
                     if let Kind::Sound(s) = &self.objects[&t].kind {
                         if s.playing.is_none() && !s.starting {
+                            // Fading out to 0: until the fade's end.
+                            if let Some(left) = self.fade_left(&t) {
+                                wait = wait.max(limit.map_or(left, |l| l.min(left)));
+                            }
                             continue;
                         }
                         if s.looped {

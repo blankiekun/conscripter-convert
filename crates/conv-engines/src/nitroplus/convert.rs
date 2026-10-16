@@ -1195,6 +1195,9 @@ struct SoundObject {
     rate: Option<(u32, u32)>,
     /// The rate it plays at (per mille; 1000 its own).
     freq: u32,
+    /// Faded to 0 by `SetVolume`: when it stops ([`Compiler::sound_clock`]),
+    /// as the exe's fade thread (`0x459980`) stops it at the fade's end.
+    stops_at: Option<u64>,
 }
 
 /// An NSS tempo as [`Op::MoveEase`]'s (ease, exponent), the exe's
@@ -3015,14 +3018,16 @@ impl<'a, 'b> Compiler<'a, 'b> {
 
     fn set_volume(&mut self, target: &Value, ms: i64, volume: i64) {
         let ms = ms.max(0) as u32;
+        let now = self.sound_clock();
         for t in self.matching(target) {
             let Some(Object { kind: Kind::Sound(s), .. }) = self.objects.get_mut(&t) else { continue };
             if s.starting {
                 s.volume = volume;
                 s.fade_ms = ms;
             } else if s.playing.is_some() && volume == 0 {
-                // Reaching 0 stops it.
+                // Reaching 0 stops it (`WaitPlay` waits for the fade).
                 let file = s.playing.take().unwrap();
+                s.stops_at = Some(now + u64::from(ms));
                 self.ops.push(match (s.bgm, ms) {
                     (true, _) => Op::BgmStop { fade_out_ms: ms },
                     (false, 0) => Op::SeStop { file: Some(file) },
@@ -3123,7 +3128,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
             let len_ms = if looped { None } else { self.assets.sound_ms(&path) };
             let started_at = self.sound_clock();
             if let Some(Object { kind: Kind::Sound(s), .. }) = self.objects.get_mut(&name) {
-                (s.playing, s.len_ms, s.started_at) = (Some(file), len_ms, started_at);
+                (s.playing, s.len_ms, s.started_at, s.stops_at) = (Some(file), len_ms, started_at, None);
             }
         }
     }
@@ -4494,6 +4499,34 @@ function Roll()
         assert!(c.ops.iter().any(|op| matches!(op, Op::BgmPlay { file, .. } if file == "sound/bgm/one.ogg")), "{:?}", c.ops);
         let removed = c.ops.iter().any(|op| matches!(op, Op::Sprites { changes, .. } if changes.iter().any(|c| c.sprite.is_none())));
         assert!(removed, "{:?}", c.ops);
+    }
+
+    #[test]
+    fn wait_play_waits_for_a_fade_to_0() {
+        // A loop faded out over 1500 ms stops at the fade's end; a one-shot
+        // (4000 ms) ends first.
+        let story = r#"
+scene a.nss
+{
+	CreateSound("m", BGM, "sound/se/loop_L");
+	Request("m", Play);
+	SetLoop("m", true);
+	Wait(100);
+	SetVolume("m", 1500, 0, null);
+	WaitPlay("m", null);
+	CreateSound("se", SE, "sound/se/a");
+	Request("se", Play);
+	Request("se", Disused);
+	Wait(3000);
+	SetVolume("se", 2000, 0, null);
+	WaitPlay("se", null);
+	Wait(1000);
+	WaitPlay("se", null);
+}
+"#;
+        let c = compile(story, LIBRARY);
+        let waits: Vec<u32> = c.ops.iter().filter_map(|op| match op { Op::Wait { ms } => Some(*ms), _ => None }).collect();
+        assert_eq!(waits, [100, 1500, 3000, 1000, 1000], "{:?}", c.ops);
     }
 
     #[test]

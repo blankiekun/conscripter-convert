@@ -45,17 +45,31 @@ impl Compiler<'_, '_> {
         Some(len.saturating_sub(now.saturating_sub(s.started_at).min(u64::from(u32::MAX)) as u32))
     }
 
-    /// Disused one-shots that have ended are forgotten.
+    /// The ms left of sound `name`'s fade to 0 (`SetVolume`), or of the
+    /// one-shot itself if it ends first; `None` if it isn't fading out.
+    pub(super) fn fade_left(&mut self, name: &str) -> Option<u32> {
+        let now = self.sound_clock();
+        let Some(Kind::Sound(s)) = self.objects.get(name).map(|o| &o.kind) else { return None };
+        let mut end = s.stops_at?;
+        if let (false, Some(len)) = (s.looped, s.len_ms) {
+            end = end.min(s.started_at + u64::from(len));
+        }
+        Some(end.saturating_sub(now).min(u64::from(u32::MAX)) as u32)
+    }
+
+    /// Disused one-shots that have ended, and disused sounds faded out to
+    /// 0, are forgotten, unless locked (`CreateBGM`'s music, which
+    /// 装甲悪鬼村正's `MusicStart` marks disused, is played again).
     pub(super) fn forget_ended_sounds(&mut self) {
         let ended: Vec<String> = self
             .objects
             .iter()
-            .filter(|(_, o)| matches!(&o.kind, Kind::Sound(s) if s.disused && !s.looped && !s.starting))
+            .filter(|(_, o)| !o.locked && matches!(&o.kind, Kind::Sound(s) if s.disused && !s.starting))
             .map(|(n, _)| n.clone())
             .collect();
         for name in ended {
             // An unknown end (no length, or started looped) keeps it.
-            if self.sound_left(&name) == Some(0) {
+            if self.sound_left(&name) == Some(0) || self.fade_left(&name) == Some(0) {
                 self.objects.remove(&name);
             }
         }

@@ -571,7 +571,10 @@ Used to check what the engine does (`docs/new-game.md` step 9).
   `Fade` and `SetVolume` on `SE*`/`OnSE*` still reach it: about 130 new
   `delay`s (ma01_003's door: 2,528 ms), 366 fade-outs and 29 other
   `chvolfade`s; `RemainTime` on a just-started SE now gives its length
-  (ma01_025's `WaitKey($残時間)`, the shakes timed by it).
+  (ma01_025's `WaitKey($残時間)`, the shakes timed by it). A `WaitPlay`
+  after a `SetVolume` to 0 over time waits for the fade, as the exe's
+  fade thread stops the sound at its end (67 new `delay`s; Django's
+  History, "A fade to 0").
 - Known limits: a window that moves (`絵演窓上`, `窓右`, about 56 `Move`s)
   has its clip jump to the end place when the move starts. Sprite movies
   (scene cuts, the turntables) don't play in CONscripter for Windows,
