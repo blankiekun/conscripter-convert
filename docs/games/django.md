@@ -371,12 +371,13 @@ with the original (it wants all eleven endings' flags under wine).
 5. Extras: the doors' animation and the menu's own music (left out).
 6. From the exe's coverage table ("The exe"): the choice's shot (a
    bullet hole at the pointer, the chosen plate tipping over: every
-   choice); `AddRender`/`SubRender`/`NormalRender` as blend modes;
-   check that skip and auto mode stop at a choice (the scripts set
-   `$SYSTEM_skip`/`$SYSTEM_text_auto` false there; ours only at
-   convert time) and that the ending roll has no right-click menu
-   (`$SYSTEM_menu_lock`); `SetShade HEAVY` and the sepia effect (one
-   each).
+   choice); `AddRender`/`SubRender`/`NormalRender` as blend modes
+   (item 3's additive flashes); auto mode stopping at a choice (the
+   scripts set `$SYSTEM_skip`/`$SYSTEM_text_auto` false there: skip
+   already stops, as the choice's `btnwait` ends it, but auto mode
+   goes on after the choice); check that the ending roll has no
+   right-click menu (`$SYSTEM_menu_lock`); `SetShade HEAVY` (one use;
+   sepia is item 3's).
 
 ## History
 
