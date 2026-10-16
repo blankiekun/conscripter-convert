@@ -25,6 +25,10 @@ pub const OUTPUT_DIRS: [&str; 6] = ["cg", "cg2", "en", "sound", "voice", "system
 /// The output folders with pictures (`--webp` converts them).
 pub const PICTURE_DIRS: [&str; 4] = ["cg", "cg2", "en", "system"];
 
+/// Pictures with words that the English `cg.npk` has under the Japanese
+/// names, taken from it first when it is given: the name plates.
+const ENGLISH_FIRST: &[&str] = &["cg/fw/nw"];
+
 pub struct NpaAssets<'a> {
     cg: Npa<'a>,
     sound: Npa<'a>,
@@ -75,6 +79,11 @@ impl<'a> NpaAssets<'a> {
     /// `out` (relative to the output). Returns the data.
     fn extract(&mut self, path: &str, out: &str) -> Option<Vec<u8>> {
         let path = normalize(path);
+        if self.cg_en.is_some() && ENGLISH_FIRST.iter().any(|p| path.starts_with(p)) {
+            if let Some(data) = self.extract_english(&path, out) {
+                return Some(data);
+            }
+        }
         let (archive, rest) = path.split_once('/')?;
         let npa = match archive {
             "cg" => &self.cg,

@@ -59,6 +59,10 @@ It has no NPA archives and no NSS scripts.
   options).
 - **Line log:** the port's (`sys_backlog.nut`, History). Checked
   headless, not yet against the original.
+- **Name plates:** the English `cg.npk`'s `cg/fw/nw*.png` (the names
+  in English, same names and size as the Japanese) are taken before
+  `cg.npa`'s (`ENGLISH_FIRST` in `nitroplus/assets.rs`). Checked on a
+  one-scene build (`--file ma01_001.nss --chain 1 --loose`).
 - **Click icon:** at the port's places (History); not yet seen in the
   original.
 - **Questions:** the port's (`sys_dialog.nut`, `confirm_en`): the
