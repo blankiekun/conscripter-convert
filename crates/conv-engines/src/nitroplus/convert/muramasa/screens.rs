@@ -23,19 +23,20 @@ const SCREEN_H: i32 = 576;
 
 /// Fills the script's system screens.
 pub fn menus(a: &mut dyn Assets, script: &mut Script, story: &Story) {
-    menus_in(a, script, story, &opening::JP)
+    menus_in(a, script, story, false)
 }
 
-/// [`menus`] with the English port's title ([`opening::EN`]).
+/// [`menus`] with the English port's title ([`opening::EN`]) and command
+/// menu ([`command_menu_en`]).
 pub fn menus_en(a: &mut dyn Assets, script: &mut Script, story: &Story) {
-    menus_in(a, script, story, &opening::EN)
+    menus_in(a, script, story, true)
 }
 
-fn menus_in(a: &mut dyn Assets, script: &mut Script, story: &Story, look: &TitleLook) {
+fn menus_in(a: &mut dyn Assets, script: &mut Script, story: &Story, en: bool) {
     script.confirm = confirm(a);
-    script.title_screen = title(a, story, look);
+    script.title_screen = title(a, story, if en { &opening::EN } else { &opening::JP });
     script.button_bar = quick_bar(a);
-    script.command_menu = command_menu(a);
+    script.command_menu = if en { command_menu_en(a) } else { command_menu(a) };
     script.save_grid = save_grid(a);
     script.line_log = line_log(a);
     script.wait_icon = wait_icon(a);
@@ -337,9 +338,7 @@ fn save_grid(a: &mut dyn Assets) -> Option<SaveGrid> {
 /// 27-55, `SetShortcut`), which work at any click wait; M opens and closes
 /// the menu. 好感度記録 runs the favour screen ([`FAVOUR`]).
 fn command_menu(a: &mut dyn Assets) -> Option<CommandMenu> {
-    const DIR: &str = "cg/sys/menu";
-    let mut items = Vec::new();
-    for (n, (name, action, key)) in [
+    let rows = [
         ("キャンセル", BarAction::Close, None),
         ("好感度記録", BarAction::Call, Some('H')),
         ("メッセージ消す", BarAction::HideWindow, None),
@@ -356,21 +355,60 @@ fn command_menu(a: &mut dyn Assets) -> Option<CommandMenu> {
         ("設定画面", BarAction::Settings, Some('C')),
         ("タイトルに戻る", BarAction::Title, Some('T')),
         ("ゲーム終了", BarAction::Quit, None),
-    ]
-    .into_iter()
-    .enumerate()
-    {
-        // No pressed picture: filmed, the menu keeps the hover one while
-        // the mouse button is held.
-        let state = |n: u32| format!("{DIR}/{n:03}-{name}.png");
-        let (s1, s2, s0) = (state(1), state(2), state(0));
-        let (image, w, h) = a.strip(&[&s1, &s2, &s0])?;
-        let button = Placed { image, x: 636, y: 89 + 20 * n as i32, w: w as i32, h: h as i32 };
+    ];
+    // No pressed picture: filmed, the menu keeps the hover one while the
+    // mouse button is held.
+    let items = menu_items(a, "cg/sys/menu", (636, 89), &rows, &[1, 2, 0])?;
+    let backdrop = picture(a, "cg/sys/menu/メニュー黒バック.png", 0, 0)?;
+    Some(CommandMenu { backdrop, items, fade_ms: 100, step_ms: 10, key: Some('M'), pressed: false })
+}
+
+/// The English port's right-click menu (`sys_menu.nut`, from its own
+/// `cg.npk`): fourteen rows (220×20) at x 637 from y 90, with no 選択肢に
+/// 戻る; セーブ opens the save screen, クイッセーブ and クイックロード take
+/// 栞を差す's and 栞を開く's places (no ロード). Backdrop and rows fade in
+/// together over 300 ms (the rows through メニューエフェクト, a wipe left
+/// out here; both fade out together too). Its shortcuts (`IsKeyDown` in `main`): S quick save, L
+/// quick load, D the save screen; the rest as in the Japanese.
+fn command_menu_en(a: &mut dyn Assets) -> Option<CommandMenu> {
+    let rows = [
+        ("キャンセル", BarAction::Close, None),
+        ("好感度記録", BarAction::Call, Some('H')),
+        ("メッセージ消す", BarAction::HideWindow, None),
+        ("自動メッセージ", BarAction::Auto, Some('A')),
+        ("スキップ", BarAction::Skip, None),
+        ("超速スキップ", BarAction::FastSkip, Some('N')),
+        ("ログ表示", BarAction::Log, Some('B')),
+        ("セーブ", BarAction::Save, Some('D')),
+        ("クイッセーブ", BarAction::QuickSave, Some('S')),
+        ("クイックロード", BarAction::QuickLoad, Some('L')),
+        ("フルスクリーン", BarAction::Fullscreen, Some('F')),
+        ("設定画面", BarAction::Settings, Some('C')),
+        ("タイトルに戻る", BarAction::Title, Some('T')),
+        ("ゲーム終了", BarAction::Quit, None),
+    ];
+    let items = menu_items(a, "en/cg/sys/menu", (637, 90), &rows, &[1, 2, 0, 3])?;
+    let backdrop = picture(a, "en/cg/sys/menu/メニュー黒バック.png", 0, 0)?;
+    Some(CommandMenu { backdrop, items, fade_ms: 300, step_ms: 0, key: Some('M'), pressed: true })
+}
+
+/// The menu's rows, 20 apart from `at`, each a strip of its `states`
+/// pictures (`001-<name>.png`, …).
+fn menu_items(a: &mut dyn Assets, dir: &str, at: (i32, i32), rows: &[(&str, BarAction, Option<char>)], states: &[u32]) -> Option<Vec<CommandItem>> {
+    let mut items = Vec::new();
+    for (n, &(name, action, key)) in rows.iter().enumerate() {
+        let parts: Vec<String> = states.iter().map(|s| format!("{dir}/{s:03}-{name}.png")).collect();
+        let (image, w, h) = a.strip(&parts.iter().map(String::as_str).collect::<Vec<_>>())?;
+        let button = Placed { image, x: at.0, y: at.1 + 20 * n as i32, w: w as i32, h: h as i32 };
         let label = (action == BarAction::Call).then(|| FAVOUR.to_string());
         items.push(CommandItem { button, action, key, label });
     }
-    let (image, w, h) = a.image(&format!("{DIR}/メニュー黒バック.png"))?;
-    Some(CommandMenu { backdrop: Placed { image, x: 0, y: 0, w: w as i32, h: h as i32 }, items, fade_ms: 100, step_ms: 10, key: Some('M'), pressed: false })
+    Some(items)
+}
+
+fn picture(a: &mut dyn Assets, path: &str, x: i32, y: i32) -> Option<Placed> {
+    let (image, w, h) = a.image(path)?;
+    Some(Placed { image, x, y, w: w as i32, h: h as i32 })
 }
 
 /// The quick bar (`function_quick.nss`): a base (992,26) and four buttons

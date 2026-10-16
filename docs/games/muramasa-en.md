@@ -46,6 +46,13 @@ It has no NPA archives and no NSS scripts.
   Continue 280, Load 402, Extra 524, Config 646, Quit 768), the notes
   button leading to `secret.muramasa.jastusa.com`; the openings drawn
   with them (`opening::EN`). Not yet compared with the original.
+- **Command menu:** the port's (`sys_menu.nut`, `command_menu_en`):
+  fourteen rows from the English `cg.npk` at x 637 from y 90, no 選択肢に
+  戻る, クイッセーブ/クイックロード in place of 栞を差す/栞を開く (no
+  ロード: セーブ opens the save screen); rows and backdrop fade in and out
+  together over 300 ms (the rows' wipe `メニューエフェクト` drawn as a
+  fade); the keys printed on the rows (S quick save, L quick load, D the
+  save screen, …). Checked headless, not yet against the original.
 - **Decided (the user, 2026-10-15):** the text font is the release's own
   `droidserif-muramasa.ttf` (font.npk); the menus follow the English
   port's redesigned screens, not the Japanese PC ones; filming the
@@ -68,9 +75,8 @@ It has no NPA archives and no NSS scripts.
   1. The English pictures: the redesigned menus in `cg/sys`. The port's
      system scripts (`media/script/system/sys_*.nut`) give each picture's
      English place after a `LANG_NAME == "en"` test. Done: the title
-     (below). Left: same names, other pictures and places: the command
-     menu (`menu/`: 栞を差す/栞を開く became クイッセーブ/クイックロード,
-     no ロード), the line log, the dialogs (`dialog/`, all renamed); new
+     and the command menu (below). Left: same names, other pictures and
+     places: the line log, the dialogs (`dialog/`, all renamed); new
      screens: save/load (`save/`), settings (`config/`), the click icon
      (one `adv/改行改頁アイコン.png` sheet). Then film them against the
      English original under wine (also the lines per box).
