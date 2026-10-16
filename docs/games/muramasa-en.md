@@ -18,7 +18,7 @@ It has no NPA archives and no NSS scripts.
   (later: the English captions from the port's `LANG_NAME` branches, 15
   scenes); volumes on the port's curve (now the Japanese build's: music
   800 plays at 68 %).
-- Open: the choices whose options are variables (mc02_031innsyoku's
+- Open: #53, the choices whose options are variables (mc02_031innsyoku's
   `$選択肢名前1`-`5`, md05_004's `$md05_hazure` …) take the English the
   port puts in them (History, "Choices from variables").
 - Follow-up: `subtitles.rs` imports `mages::menus::Labels`; move what's
