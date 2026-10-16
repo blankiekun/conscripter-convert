@@ -1,9 +1,9 @@
 {
 "game": "muramasa-en",
 "engine": "nitroplus",
-"commit": "5c03d43",
+"commit": "6165d5c",
 "commit_date": "2026-10-16",
-"totals": {"calls": 1199510, "full": 1042539, "gaps": 156971},
+"totals": {"calls": 1199510, "full": 1042791, "gaps": 156719},
 "kinds": {
 "LockVideo": {"calls": 50726, "gaps": 50726, "reasons": [["LockVideo argument 0 ignored", 50726]]},
 "WaitText": {"calls": 23689, "gaps": 23689, "reasons": [["WaitText argument 0 ignored", 23689], ["WaitText argument 1 ignored", 23689]]},
@@ -33,7 +33,6 @@
 "CreateText": {"calls": 474, "gaps": 474, "reasons": [["CreateText left out: the Japanese caption (English build)", 474]]},
 "CreateChoice": {"calls": 444, "gaps": 444, "reasons": [["built-in CreateChoice", 444]]},
 "BezierMove": {"calls": 335, "gaps": 335, "reasons": [["built-in BezierMove", 335]]},
-"port Move": {"calls": 252, "gaps": 252, "reasons": [["Move argument 1 ignored", 252], ["Move argument 4 ignored", 252], ["Move argument 5 ignored", 252]]},
 "SetTone": {"calls": 228, "gaps": 228, "reasons": [["built-in SetTone", 228]]},
 "Boxframe": {"calls": 168, "gaps": 168, "reasons": [["skipped: no function Boxframe", 168]]},
 "CursorPosition": {"calls": 168, "gaps": 168, "reasons": [["built-in CursorPosition", 168]]},
@@ -84,6 +83,7 @@
 "PassageTime": {"calls": 2108, "gaps": 0, "reasons": []},
 "ModuleFileName": {"calls": 1141, "gaps": 0, "reasons": []},
 "CreateName": {"calls": 579, "gaps": 0, "reasons": []},
+"port Move": {"calls": 252, "gaps": 0, "reasons": []},
 "Draw": {"calls": 169, "gaps": 0, "reasons": []},
 "port SetChoice": {"calls": 166, "gaps": 0, "reasons": []},
 "RemainTime": {"calls": 160, "gaps": 0, "reasons": []},

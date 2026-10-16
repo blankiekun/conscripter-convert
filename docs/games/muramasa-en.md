@@ -19,7 +19,15 @@ It has no NPA archives and no NSS scripts.
   run time (shared NSS, branch `nitroplus/choice-runtime-options`,
   History "Choice options at run time"). The backlog line of such an
   option (`『…』`, `【…】`) is empty.
-- Next: telop `Move` timing (252) against the port's. Later: the port's
+- Telop `Move` timing (branch `muramasa-en/telop-timing`, no PR yet):
+  of the 252 telop `Move`s paired with the port's, 251 have the same
+  time, tempo and wait (155 null tempo, 96 `Dxl1`; waits equal). The
+  only difference: ma04_021, 250 ms in the port for the NSS's 500
+  (`mov %4,250` in `0.txt`, the one line that changes). The branch
+  takes `Move`'s time and wait from the port (`english::placing`); a
+  null tempo stays the NSS's. Left: the telops' `CreateTextureEX`/`SP`
+  priority (argument 1, 214 calls) not yet compared.
+- Next (after the telop branch): Later: the port's
   English captions from its `LANG_NAME` branches (15 scenes).
 - Decided: a click on an empty slot at the title doesn't save (the
   original saves the title screen there): a deliberate difference.
