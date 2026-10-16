@@ -16,6 +16,7 @@ mod favour;
 pub mod magiccube;
 mod opening;
 pub mod screens;
+mod subtitles;
 
 /// The game's hooks; the CLI uses them for a game with `Muramasa.exe`.
 pub const MURAMASA: Game = Game { call, scene, flags, files: &[magiccube::FILE], menus: screens::menus, subroutines: &[(screens::FAVOUR, "nss/sys_hmode.nss")], replays: extras::replays, string_vars: true, ..Game::PLAIN };
@@ -146,6 +147,10 @@ fn call_en(c: &mut Compiler<'_, '_>, name: &str, args: &[Value]) -> bool {
             let mut args = args.to_vec();
             (args[2], args[3]) = (Value::Int(x), Value::Int(y));
             c.builtin("Move", &args);
+            true
+        }
+        ("ShowVOICESEText", _) => {
+            c.voice_subtitle(args);
             true
         }
         _ => call(c, name, args),

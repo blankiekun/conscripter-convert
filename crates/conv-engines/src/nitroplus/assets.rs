@@ -42,6 +42,9 @@ pub struct NpaAssets<'a> {
     /// The English release's `cg.npk` (`--english`): the pictures only it
     /// has (`cg/sys/adv/en/…`), taken when `cg.npa` lacks them.
     pub cg_en: Option<Npk>,
+    /// The English release's `droidserif-muramasa.ttf` (`font.npk`): its
+    /// subtitles are drawn in it.
+    pub font_en: Option<Vec<u8>>,
     images: HashMap<String, Option<(String, u32, u32)>>,
     sounds: HashMap<String, Option<String>>,
     movies: HashMap<String, Option<MovieInfo>>,
@@ -56,7 +59,7 @@ pub struct NpaAssets<'a> {
 
 impl<'a> NpaAssets<'a> {
     pub fn new(cg: Npa<'a>, sound: Npa<'a>, voice: Npa<'a>, output: &Path) -> Self {
-        NpaAssets { cg, sound, voice, cg2: None, cg_en: None, images: HashMap::new(), sounds: HashMap::new(), movies: HashMap::new(), movie_dir: None, out: Output::new(output), screen: (SCREEN_W, SCREEN_H) }
+        NpaAssets { cg, sound, voice, cg2: None, cg_en: None, font_en: None, images: HashMap::new(), sounds: HashMap::new(), movies: HashMap::new(), movie_dir: None, out: Output::new(output), screen: (SCREEN_W, SCREEN_H) }
     }
 
     /// The movie file a script path names, and its name in the output:
@@ -628,9 +631,17 @@ impl Assets for NpaAssets<'_> {
     fn sound_ms(&mut self, path: &str) -> Option<u32> {
         let key = normalize(path);
         let file = if key.ends_with(".ogg") { key } else { format!("{key}.ogg") };
-        let npa = &self.sound;
-        let data = npa.data(npa.find(file.strip_prefix("sound/")?)?).ok()?;
+        let (npa, rest) = match file.split_once('/')? {
+            ("sound", rest) => (&self.sound, rest),
+            ("voice", rest) => (&self.voice, rest),
+            _ => return None,
+        };
+        let data = npa.data(npa.find(rest)?).ok()?;
         ogg_ms(&data)
+    }
+
+    fn english_font(&mut self) -> Option<Vec<u8>> {
+        self.font_en.clone()
     }
 
     fn transparent(&mut self) -> String {

@@ -313,6 +313,34 @@ impl Function {
         self.functions.iter().for_each(|f| f.calls_int_strs(name, out));
     }
 
+    /// Every `table["key"] <- …` in this function: the key and the string
+    /// and integer literals loaded for its value, in order, up to the next
+    /// `GETK` (the lang files' `TransVoice["ma04/0230130a13"] <- "text"`
+    /// or `<- [{time = 0, text = "…", x = 0, y = 13, add = false}, …]`).
+    pub fn table_literal_rows(&self, table: &str) -> Vec<(String, Vec<Literal>)> {
+        let mut out = Vec::new();
+        for (i, ins) in self.code.iter().enumerate() {
+            if ins.op != GETK || self.str(ins.arg1) != Some(table) {
+                continue;
+            }
+            let rest = &self.code[i + 1..];
+            let end = rest.iter().position(|ins| ins.op == GETK).unwrap_or(rest.len());
+            let mut lits = Vec::new();
+            for ins in &rest[..end] {
+                match ins.op {
+                    LOAD => lits.push(self.literals.get(ins.arg1 as usize).cloned().unwrap_or(Literal::Other)),
+                    DLOAD => [ins.arg1, i32::from(ins.arg3)].iter().for_each(|&l| lits.push(self.literals.get(l as usize).cloned().unwrap_or(Literal::Other))),
+                    LOADINT => lits.push(Literal::Int(ins.arg1)),
+                    _ => {}
+                }
+            }
+            if let Some(Literal::Str(key)) = lits.first().cloned() {
+                out.push((key, lits.split_off(1)));
+            }
+        }
+        out
+    }
+
     /// Every `table["key"] <- "string"` in this function: the English
     /// text files' `TransChoice["10_1"] <- english`.
     pub fn table_str_rows(&self, table: &str) -> Vec<(String, String)> {

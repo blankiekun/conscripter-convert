@@ -97,6 +97,13 @@ It has no NPA archives and no NSS scripts.
   in English, same names and size as the Japanese) are taken before
   `cg.npa`'s (`ENGLISH_FIRST` in `nitroplus/assets.rs`). Checked on a
   one-scene build (`--file ma01_001.nss --chain 1 --loose`).
+- **Subtitles:** the port's subtitles for voices played as sound
+  effects (`ShowVOICESEText`, 31 voices in 10 scenes, History) are
+  centred lines in the release's font, at the top (y 13) or the bottom
+  (y 480) as the port puts them, over the text window, until the voice
+  ends. Checked headless on md02_038 and mb02_002. Not yet compared with
+  the original. They change on 250 ms steps; a click that cuts the voice
+  short leaves the line up until the voice would have ended.
 - **Telops:** the English `cg.npk`'s `cg/sys/telop/` pictures (chapter
   titles, prefaces, 銀星号の唄 captions, names) are taken before
   `cg.npa`'s, at the port's places (`english::place_telops`, History).
@@ -155,11 +162,10 @@ It has no NPA archives and no NSS scripts.
      sounds, not typed letter by letter as the port does.
   3. Gaps from the exe map ("The exe", coverage table): `<FW>` (25,
      the face window changing mid-page) is still dropped; `<SMALL>`'s
-     size (75 %) is a guess; the port's centred subtitles (`ShowVOICESEText`, 32 calls in 10
-     scenes); its larger-type text boxes (`SetTextEXC_Large` …, 16
+     size (75 %) is a guess; its larger-type text boxes (`SetTextEXC_Large` …, 16
      calls in 8 scenes).
   4. Gaps from the scripts' coverage ("The scripts' coverage"):
-     `TransLog` (125), `TransVoice` (24) and
+     `TransLog` (125) and
      `_system.nut`'s line-log strings not read; 15 scenes with English
      written into the scenario (`LANG_NAME` branches: captions, dates,
      ma01_026's document, mc02_031's menus) show the NSS's Japanese;
@@ -294,7 +300,7 @@ something the NSS doesn't:
 | Feature | Corpus | The port | Converter |
 |---|---|---|---|
 | Scenario calls (`nut/*.nut`) | 635 names | Squirrel functions in `function/*.nut`; 430 carry the NSS's names, most of the other 205 wrap NSS constructs (`Print`/`PreStart`/`PreEnd` a `<PRE>` block, `SceneInit`, `CallSceneN2`, `RegisterCGvar`, `GetCheckReadFile`) | from the NSS |
-| `ShowVOICESEText`/`ClearVOICESEText` | 32/18 calls, 10 scenes (ma04_016vs, ma04_023, ma05_012, mb02_002, mb02_018, mb02_027, mc04_001, md01_018, md02_038, md06_036) | English only: a centred line of text (`serif0`, faded in and out), by its name for voices played as sound effects | **not converted** |
+| `ShowVOICESEText`/`ClearVOICESEText` | 32/18 calls, 10 scenes (ma04_016vs, ma04_023, ma05_012, mb02_002, mb02_018, mb02_027, mc04_001, md01_018, md02_038, md06_036) | English only: a centred line of text (`serif0`), by its name for voices played as sound effects | converted (Status, "Subtitles") |
 | `SetTextEXC_Large/Huge/Big/Middle`, `TypeBegin…_Large/Huge/Big/Middle` | 16 calls, 8 scenes (mc03_010, md01_024, md01_030, md02_021, md03_008, md03_013, md04_061, md06_021) | English only: text boxes in larger type | **not converted** (the NSS's own box) |
 | `<WAITVOICE=n>` | 95 | `WaitVoice("voice0", n)` mid-text | CONscripter's `!vn` (waits for the voice) |
 | `</voice>` | 68 | ends a voice's range | dropped |
@@ -331,7 +337,7 @@ compiles is the Japanese game's (its coverage belongs in
 | Files | Status |
 |---|---|
 | `nut/*.nut` (884) | replaced by the NSS, line for line: 882 have an NSS file of the same name; `0_boot_start` is `0_boot.nss`; `md05_025cube` (the cube puzzle as a scene, touch input) is `function_magiccube.nss` (`magiccube.rs`). The NSS's `sys_*`, `extra_*`, `function_*` have no `nut/` file (the port moved them to `system/`, `function/`) |
-| `lang/en/*.nut` (884) | read for data: `TransText` only (`english.rs`). **Not read:** `TransChoice` 403 rows in 130 files (every choice's English: the build's 153 `select`s stay Japanese), `TransLog` 125 rows in 24 files (the line log's text for lines shown other than as text), `TransVoice` 24 rows in 3 files (the `ShowVOICESEText` subtitles) |
+| `lang/en/*.nut` (884) | read for data: `TransText` only (`english.rs`). **Not read:** `TransChoice` 403 rows in 130 files (every choice's English: the build's 153 `select`s stay Japanese), `TransLog` 125 rows in 24 files (the line log's text for lines shown other than as text). `TransVoice` (the `ShowVOICESEText` subtitles) is read |
 | `lang/en/_system.nut` | **not read:** the line log's `SKIP_MESSAGE` (`——- SKIPPED ——-`) and choice lines (`SEL_10` … `SEL_40`: `- %s`, `[%s]`) |
 | `function/*.nut` (18) | replaced by the NSS's `function*.nss`, except: `function_textbox.nut` (text tags, `CreateAllTextBox`) and `val.nut` (`BoxInfo`, `FwInfo`) read by hand into `EN_TEXT` and the box sizes (`muramasa.rs`); `val_cg.nut` (CG registration) from the NSS (`extras.rs`) |
 | `system/boot.nut`, `sys_titlelogo.nut` | replaced: `opening::EN` (`opening.rs`) |
@@ -369,7 +375,7 @@ carry the NSS's names (from the NSS); the other 205, by kind:
 | `*_begin` (82: `FlyMoving_begin` 48, `TurboBlur_begin` 24, …; 70 defined in their scene) | 276 | the NSS's `CreateProcess` functions started | from the NSS |
 | `tointeger`, `tostring`, `find`, `append`, `slice`, `Import` | 54 | Squirrel's own | — |
 | `CreateParticle` (27 scenes: mb01_006 …, md06_004) | 39 | particles from `particle.npk` (`雨_強`, `雪_前`, `火の粉01後`) where the NSS has `CreateEffect(…, "Rain")` | **not converted** (as in the Japanese build: a `CreateEffect Rain` note) |
-| `ShowVOICESEText`/`ClearVOICESEText` | 32/18 | see "The exe" | **not converted** |
+| `ShowVOICESEText`/`ClearVOICESEText` | 32/18 | see "The exe" | converted (Status, "Subtitles") |
 | `SetTextEXC_Large/Huge/Big/Middle`, `TypeBegin…_Large/…` | 16 | see "The exe" | **not converted** |
 | `SetTextEXC_ma01_009`, `SetFwRR`/`SetFwLL` (ma01_009), `TypeBeginTimeCIY` (mc01_003, the box `C_Yoko`), `DeleteFwAll` (ma01_002) | 5 | English-only boxes and faces for one scene each | **not converted** (the NSS's own box) |
 | `CreateTextArea` (ma01_009, ma01_026, mb04_015vs), `FadeCharacter` (ma01_026) | 10 | the NSS's `CreateText` in English (`《Even so―》`); ma01_026's document typed letter by letter | **Japanese text** (the NSS's string); ma01_026 shown whole |
@@ -400,6 +406,21 @@ md04_015, md04_026vs, md04_030 (dates and times: `November 30, 1940`,
 | `setting.ini` keys | files table | there |
 
 ## History
+
+- **Subtitles (2026-10-16):** the port calls `ShowVOICESEText(sound
+  [, add])` (`function.nut`) after starting a voice whose
+  `TransVoice[file]` (the scene's lang file) holds a line, or a list of
+  `{time, text, x, y, add}`; it writes the line in `serif0`
+  (`function_textbox.nut`: the screen's width at y 480, priority 20005,
+  the `字幕` style: Droid Serif Muramasa 20, white, dark edge) and clears
+  it as the voice ends (the list's process, or `ClearVOICESEText` after
+  waiting for the voice). `english.rs` puts `ShowVOICESEText(sound, add,
+  y, file, ms, text, …)` after the matching `MusicStart`/`SoundPlay` in
+  the NSS; `muramasa/subtitles.rs` draws the lines (`font.npk`'s font,
+  `mages::menus::Labels`) into a strip of 250 ms cells up to the voice's
+  length, the last one empty, shown as an animated sprite (`serif0`, or
+  `serif0+` a line under it for `add`). ma04_023's first Wolf line has
+  an empty text: no subtitle, as in the port.
 
 - **Telops at the port's places (2026-10-16):** 47 of the English
   telops have the Japanese names but other sizes (chapter titles 528×368

@@ -34,6 +34,26 @@ pub struct English {
     /// Scene name → the scene's calls on its telop sprites (the ones made
     /// with a `cg/sys/telop/` picture), in order ([`place_telops`]).
     telops: HashMap<String, Vec<(String, Vec<squirrel::Arg>)>>,
+    /// Scene name → its subtitled voices ([`subtitles`]).
+    subtitles: HashMap<String, Vec<Subtitle>>,
+}
+
+/// A voice the port subtitles (`ShowVOICESEText(sound)` after starting it,
+/// its lines from the lang file's `TransVoice[file]`): put into the NSS
+/// after the `n`-th `call(sound, …)` as
+/// `ShowVOICESEText(sound, add, y, file, ms, text, ms, text, …)`.
+#[derive(Debug, Clone, PartialEq)]
+struct Subtitle {
+    call: String,
+    sound: String,
+    n: usize,
+    /// A line under the one shown (`ShowVOICESEText(sound, true)`).
+    add: bool,
+    y: i32,
+    /// The voice (`ma04/0230130a13`).
+    file: String,
+    /// (ms into the voice, text)
+    lines: Vec<(i32, String)>,
 }
 
 #[derive(Debug, Default)]
@@ -50,6 +70,10 @@ pub struct Report {
     pub options: usize,
     /// (file, option) of the choice options left in Japanese.
     pub options_missed: Vec<(String, String)>,
+    /// Subtitled voices given their `ShowVOICESEText`.
+    pub subtitles: usize,
+    /// (file, sound) of the subtitles with no place found.
+    pub subtitles_missed: Vec<(String, String)>,
     /// Calls on telop sprites given the port's places.
     pub telops_placed: usize,
     /// (file, call, sprite and its number) that the port makes a
@@ -84,6 +108,7 @@ impl English {
         let mut scenes = HashMap::new();
         let mut choices = HashMap::new();
         let mut telops = HashMap::new();
+        let mut subtitles = HashMap::new();
         for e in &scripts.entries {
             let Some(scene) = e.name.strip_prefix("media/script/nut/").and_then(|n| n.strip_suffix(".nut")) else { continue };
             let Some(lang) = scripts.find(&format!("media/script/lang/en/{scene}.nut")) else { continue };
@@ -101,6 +126,7 @@ impl English {
             choices.insert(scene.to_lowercase(), scene_choices);
             let mut calls = Vec::new();
             scene_fn.calls(&mut calls);
+            subtitles.insert(scene.to_lowercase(), scene_subtitles(&calls, &lang.table_literal_rows("TransVoice")));
             telops.insert(scene.to_lowercase(), telop_calls(calls));
             let mut prints = Vec::new();
             scene_fn.calls_int_str("Print", &mut prints);
@@ -119,7 +145,7 @@ impl English {
                 .collect();
             scenes.insert(scene.to_lowercase(), rows);
         }
-        Ok(English { scenes, choices, telops })
+        Ok(English { scenes, choices, telops, subtitles })
     }
 
     /// Puts the English into every text block of `files` (by file name,
@@ -137,6 +163,22 @@ impl English {
                     }
                     None => report.options_missed.push((name.clone(), jp.clone())),
                 });
+            }
+            for sub in self.subtitles.get(scene).into_iter().flatten() {
+                let mut args = vec![nss::Expr::Str(sub.sound.clone()), nss::Expr::Int(i64::from(sub.add)), nss::Expr::Int(i64::from(sub.y)), nss::Expr::Str(sub.file.clone())];
+                for (ms, text) in &sub.lines {
+                    args.extend([nss::Expr::Int(i64::from(*ms)), nss::Expr::Str(text.clone())]);
+                }
+                let mut seen = 0;
+                let found = insert_call(file, &mut |c, a| {
+                    let hit = c == sub.call && matches!(a.first(), Some(nss::Expr::Str(s)) if *s == sub.sound);
+                    seen += usize::from(hit);
+                    hit && seen == sub.n + 1
+                }, nss::Expr::Call { name: "ShowVOICESEText".into(), args }, true);
+                match found {
+                    true => report.subtitles += 1,
+                    false => report.subtitles_missed.push((name.clone(), sub.sound.clone())),
+                }
             }
             if let Some(port) = self.telops.get(scene) {
                 place_telops(name, file, port, &mut report);
@@ -267,6 +309,56 @@ fn each_run(file: &mut NssFile, f: &mut dyn FnMut(Vec<Inline>, u32) -> Vec<Inlin
     }
 }
 
+/// The port's subtitled voices in a scene: each `ShowVOICESEText(sound
+/// [, add])` in `calls`, after the sound's start (`MusicStart`, `SoundPlay`)
+/// and its file (`CreateVOICE…`, a `rows` key: the lang file's
+/// `TransVoice`). A row is a text, or a list of tables (`time`, `text`,
+/// `x`, `y`, `add`); a text shows at y 480 (`serif0`'s place,
+/// `function_textbox.nut`). Texts lose their `<center>` tags (every
+/// subtitle is centred); a voice whose texts are all empty has none.
+fn scene_subtitles(calls: &[(String, Vec<squirrel::Arg>)], rows: &[(String, Vec<squirrel::Literal>)]) -> Vec<Subtitle> {
+    use squirrel::{Arg, Literal};
+    let mut out = Vec::new();
+    for (i, (call, args)) in calls.iter().enumerate() {
+        let Some(Arg::Str(sound)) = args.first().filter(|_| call == "ShowVOICESEText") else { continue };
+        let is_sound = |a: &[Arg]| a.first() == Some(&Arg::Str(sound.clone()));
+        let Some(start) = calls[..i].iter().rposition(|(c, a)| (c == "MusicStart" || c == "SoundPlay") && is_sound(a)) else { continue };
+        let file = calls[..i].iter().rev().filter(|(c, a)| c.starts_with("CreateVOICE") && is_sound(a)).find_map(|(_, a)| {
+            a.iter().find_map(|f| match f {
+                Arg::Str(f) => rows.iter().find(|(k, _)| k == f),
+                _ => None,
+            })
+        });
+        let Some((file, row)) = file else { continue };
+        let (mut y, mut lines) = (480, Vec::new());
+        match row.as_slice() {
+            [Literal::Str(text)] => lines.push((0, text.clone())),
+            row => {
+                // `add = false` loads no literal: read field by field.
+                let mut ms = 0;
+                for pair in row.windows(2) {
+                    match pair {
+                        [Literal::Str(k), Literal::Int(v)] if k == "time" => ms = *v,
+                        [Literal::Str(k), Literal::Int(v)] if k == "y" => y = *v,
+                        [Literal::Str(k), Literal::Str(text)] if k == "text" => lines.push((ms, text.clone())),
+                        _ => {}
+                    }
+                }
+            }
+        }
+        for (_, text) in &mut lines {
+            *text = text.replace("<center>", "").replace("</center>", "").trim().to_string();
+        }
+        if lines.iter().all(|(_, t)| t.is_empty()) {
+            continue;
+        }
+        let (c, _) = &calls[start];
+        let n = calls[..start].iter().filter(|(c2, a)| c2 == c && is_sound(a)).count();
+        out.push(Subtitle { call: c.clone(), sound: sound.clone(), n, add: args.get(1) == Some(&Arg::Bool(true)), y, file: file.clone(), lines });
+    }
+    out
+}
+
 /// The calls of `calls` on telop sprites: the ones a `Create…` call
 /// makes with a `cg/sys/telop/` picture.
 fn telop_calls(calls: Vec<(String, Vec<squirrel::Arg>)>) -> Vec<(String, Vec<squirrel::Arg>)> {
@@ -378,32 +470,33 @@ fn place_telops(file_name: &str, file: &mut NssFile, port: &[(String, Vec<squirr
             args: vec![nss::Expr::Str(sprite.clone()), nss::Expr::Int(i64::from(*time)), nss::Expr::Word(wait.to_string())],
         };
         let mut seen = 0;
-        let found = insert_before(file, &mut |c, a| {
+        let found = insert_call(file, &mut |c, a| {
             let hit = c == next && matches!(a.first(), Some(nss::Expr::Str(s)) if s == at);
             seen += usize::from(hit);
             hit && seen == nth + 1
-        }, fade);
+        }, fade, false);
         if found {
             report.telops_placed += 1;
         }
     }
 }
 
-/// Puts `call` as a statement before the first call statement of `file`
-/// that `at` takes. Returns whether it found one.
-fn insert_before(file: &mut NssFile, at: &mut dyn FnMut(&str, &[nss::Expr]) -> bool, call: nss::Expr) -> bool {
-    fn stmts(list: &mut Vec<Stmt>, at: &mut dyn FnMut(&str, &[nss::Expr]) -> bool, call: &mut Option<nss::Expr>) {
+/// Puts `call` as a statement before (or `after`) the first call
+/// statement of `file` that `at` takes. Returns whether it found one.
+fn insert_call(file: &mut NssFile, at: &mut dyn FnMut(&str, &[nss::Expr]) -> bool, call: nss::Expr, after: bool) -> bool {
+    fn stmts(list: &mut Vec<Stmt>, at: &mut dyn FnMut(&str, &[nss::Expr]) -> bool, call: &mut Option<nss::Expr>, after: bool) {
         let mut i = 0;
         while i < list.len() && call.is_some() {
             match &mut list[i].kind {
                 StmtKind::If { then, otherwise, .. } => {
-                    stmts(then, at, call);
-                    otherwise.iter_mut().for_each(|o| stmts(o, at, call));
+                    stmts(then, at, call, after);
+                    otherwise.iter_mut().for_each(|o| stmts(o, at, call, after));
                 }
-                StmtKind::While { body, .. } | StmtKind::Select(body) | StmtKind::Case { body, .. } | StmtKind::Block(body) => stmts(body, at, call),
+                StmtKind::While { body, .. } | StmtKind::Select(body) | StmtKind::Case { body, .. } | StmtKind::Block(body) => stmts(body, at, call, after),
+                StmtKind::Text(t) => t.items.iter_mut().for_each(|i| if let Inline::Code(body) = i { stmts(body, at, call, after) }),
                 StmtKind::Expr(nss::Expr::Call { name, args }) if at(name, args) => {
                     let line = list[i].line;
-                    list.insert(i, Stmt { line, kind: StmtKind::Expr(call.take().expect("checked")) });
+                    list.insert(i + usize::from(after), Stmt { line, kind: StmtKind::Expr(call.take().expect("checked")) });
                     return;
                 }
                 _ => {}
@@ -414,8 +507,8 @@ fn insert_before(file: &mut NssFile, at: &mut dyn FnMut(&str, &[nss::Expr]) -> b
     let mut call = Some(call);
     for item in &mut file.items {
         match item {
-            Item::Chapter(b) | Item::Scene(b) => stmts(&mut b.body, at, &mut call),
-            Item::Function(fun) => stmts(&mut fun.body, at, &mut call),
+            Item::Chapter(b) | Item::Scene(b) => stmts(&mut b.body, at, &mut call, after),
+            Item::Function(fun) => stmts(&mut fun.body, at, &mut call, after),
             Item::Include(_) => {}
         }
     }
@@ -504,7 +597,7 @@ mod tests {
     #[test]
     fn replaces_stretches_between_code() {
         let rows = vec![(key("「……"), "\"...\"".to_string()), (key("ああ」"), "\"Ah.\"".to_string())];
-        let english = English { scenes: HashMap::from([("a".to_string(), rows)]), choices: HashMap::new(), telops: HashMap::new() };
+        let english = English { scenes: HashMap::from([("a".to_string(), rows)]), choices: HashMap::new(), telops: HashMap::new(), subtitles: HashMap::new() };
         let src = "chapter main\n{\n<PRE @box0>\n[text0010]\n「……{WaitKey(1100);}ああ」\n</PRE>\n}\n";
         let mut files = BTreeMap::from([("a.nss".to_string(), nss::parse(src).unwrap())]);
         let report = english.apply(&mut files);
@@ -519,7 +612,7 @@ mod tests {
     #[test]
     fn choice_options_take_their_english() {
         let options = HashMap::from([("お任せします".to_string(), "As you wish.".to_string())]);
-        let english = English { scenes: HashMap::new(), choices: HashMap::from([("a".to_string(), options)]), telops: HashMap::new() };
+        let english = English { scenes: HashMap::new(), choices: HashMap::from([("a".to_string(), options)]), telops: HashMap::new(), subtitles: HashMap::new() };
         let src = "chapter main\n{\n\tSetChoice02(\"お任せします\",\"お断りします\");\n}\n";
         let mut files = BTreeMap::from([("a.nss".to_string(), nss::parse(src).unwrap())]);
         let report = english.apply(&mut files);
@@ -539,7 +632,7 @@ mod tests {
             ("Move".into(), vec![s("bg"), Int(0), Int(5), Int(5)]),
         ]);
         assert_eq!(port.len(), 2, "only the telop sprite's calls");
-        let english = English { scenes: HashMap::new(), choices: HashMap::new(), telops: HashMap::from([("a".to_string(), port)]) };
+        let english = English { scenes: HashMap::new(), choices: HashMap::new(), telops: HashMap::from([("a".to_string(), port)]), subtitles: HashMap::new() };
         let src = "chapter main\n{\n\tCreateTextureEX(\"t\", 100, 300, Middle, \"cg/sys/Telop/a.png\");\n\tMove(\"t\", 0, @0, @-40, null, true);\n}\n";
         let mut files = BTreeMap::from([("a.nss".to_string(), nss::parse(src).unwrap())]);
         let report = english.apply(&mut files);
@@ -551,6 +644,37 @@ mod tests {
         assert_eq!(args[3], nss::Expr::Unary { op: nss::UnaryOp::Relative, expr: Box::new(nss::Expr::Int(-25)) });
         assert_eq!(args[5], nss::Expr::Word("true".into()));
         assert_eq!((report.telops_placed, report.telops_unpaired.len()), (2, 0));
+    }
+
+    #[test]
+    fn subtitles_follow_their_voices_start() {
+        use squirrel::{Arg, Literal};
+        let s = |v: &str| Arg::Str(v.to_string());
+        let calls = vec![
+            ("CreateVOICE".into(), vec![s("v"), s("ma04/1")]),
+            ("MusicStart".into(), vec![s("v"), Arg::Int(0)]),
+            ("ShowVOICESEText".into(), vec![s("v")]),
+            ("CreateVOICE".into(), vec![s("v"), s("ma04/2")]),
+            ("MusicStart".into(), vec![s("v"), Arg::Int(0)]),
+            ("ShowVOICESEText".into(), vec![s("v"), Arg::Bool(true)]),
+        ];
+        let l = |v: &str| Literal::Str(v.to_string());
+        let rows = vec![
+            ("ma04/1".to_string(), vec![l("<center>Hi!</center>")]),
+            ("ma04/2".to_string(), vec![l("time"), Literal::Int(500), l("text"), l("A"), l("x"), Literal::Int(0), l("y"), Literal::Int(13), l("add"), l("time"), Literal::Int(900), l("text"), l("B")]),
+        ];
+        let subs = scene_subtitles(&calls, &rows);
+        assert_eq!(subs.len(), 2);
+        assert_eq!((subs[0].n, subs[0].y, subs[0].lines.clone()), (0, 480, vec![(0, "Hi!".to_string())]));
+        assert_eq!((subs[1].n, subs[1].add, subs[1].y), (1, true, 13));
+        assert_eq!(subs[1].lines, vec![(500, "A".to_string()), (900, "B".to_string())]);
+        let english = English { scenes: HashMap::new(), choices: HashMap::new(), telops: HashMap::new(), subtitles: HashMap::from([("a".to_string(), subs)]) };
+        let src = "chapter main\n{\n\tMusicStart(\"v\",0);\n\tMusicStart(\"v\",0);\n}\n";
+        let mut files = BTreeMap::from([("a.nss".to_string(), nss::parse(src).unwrap())]);
+        assert_eq!(english.apply(&mut files).subtitles, 2);
+        let Item::Chapter(b) = &files["a.nss"].items[0] else { panic!() };
+        let names: Vec<_> = b.body.iter().map(|s| match &s.kind { StmtKind::Expr(nss::Expr::Call { name, .. }) => name.as_str(), _ => "" }).collect();
+        assert_eq!(names, ["MusicStart", "ShowVOICESEText", "MusicStart", "ShowVOICESEText"]);
     }
 
     #[test]
