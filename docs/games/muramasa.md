@@ -635,6 +635,28 @@ Next, in order:
 2. The largest leftovers below: `CreateProcess` (via Lua), non-blocking
    `Move`/`Zoom`, `AddRender` (needs a per-sprite blend mode).
 3. Optional: the 18 files with no `else` (below).
+4. Gaps from the exe review (2026-10-15; the exe's side is in
+   `research/nitroplus/builtins.md`, the functions in
+   `research/nitroplus/names.tsv`), most noticeable first:
+   - Endings have no staff roll: `SetRoll` takes the roll's process
+     name from `$EndName[$ENDNumber][0]`, a two-level `Array` table the
+     compiler doesn't evaluate, so each ending plays 4 s of the theme
+     over black and fades it out (no roll, no click wait).
+     `#ClearRoll%02d` likewise (`String`, `VariableValue`).
+   - Voice switches 村正, その他男声, その他女声, 首領姉 and コヒカリ
+     mute nothing (about 6,300 lines): the setting goes by the
+     `<voice>` tag's `class`, the compiler grouped by `name`.
+   - `Shake` keeps its first strength; the exe eases it to args 4–5
+     (nearly always 0).
+   - Text markup dropped: `<FONT incolor size>` (15 tags in 11 story
+     files), `<VALUE name=$…>` (3 lines in `mc02_031` print a gap), the
+     ASCII-art pages (`Request(…, PushText)` + `NoLog`: shown at once,
+     not in the backlog), `<voice mode="off">` (3, meaning unknown).
+   - Story `CreateText` (about 30 calls in 18 files: 殺 害, 〝我は力〟,
+     the screamed lines, the date caption 一一月三〇日) is dropped.
+   - Tempo (easing) is never read.
+   - A 4-argument `Fade` probably doesn't wait in the exe (49 calls
+     wait in ours); check under wine first.
 
 **Leftovers** (counts from the dry run's notes):
 - `CreateProcess` (510 calls; the battle HUD `CP_*` in
