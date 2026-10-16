@@ -182,8 +182,8 @@ impl<'a> Emitter<'a> {
                 writeln!(out, "print 1").unwrap();
             }
         }
-        Op::SpriteAngle { layer, degrees } => {
-            writeln!(out, "sprot {},{degrees}", SPRITE_BASE + layer).unwrap();
+        Op::SpriteAngle { layer, degrees, zoom } => {
+            writeln!(out, "spzoom {},{},{},{degrees}", SPRITE_BASE + layer, zoom.0, zoom.1).unwrap();
             if transition.is_none() {
                 writeln!(out, "print 1").unwrap();
             }

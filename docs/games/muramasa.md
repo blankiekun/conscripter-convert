@@ -761,8 +761,8 @@ Next, in order:
   only fits top-layer effects (the engine draws all `lsp2` sprites above
   `lsp` ones); an additive background needs a per-sprite blend mode in
   CONscripter.
-- `Rotate` about z of a picture is CONscripter's `sprot` (still) or a
-  `spmotion2` angle (over time); left: about z of other objects (70),
+- `Rotate` about z of a picture is CONscripter's `spzoom` angle (still) or an
+  `spmotion` angle (over time); left: about z of other objects (70),
   about x or y over time (14, drawn at once). `SetFrequency` (1,170), `MoveCamera`, `SetTone`,
   `SetShade`, `BezierMove`, `CreateTexture` from an object or the screen
   (1,864).

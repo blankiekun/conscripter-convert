@@ -287,9 +287,10 @@ impl Compiler<'_, '_> {
                         opacity.push(Op::SpriteClip { layer, rect: (x as i32, y as i32, w as i32, h as i32) });
                         now.engine.zoomed = true;
                     }
-                    // sprot stays through lsp: cleared with the layer later.
+                    // spzoom's angle stays through lsp: cleared with the layer later.
                     if now.angle != 0 {
-                        opacity.push(Op::SpriteAngle { layer, degrees: now.angle as i32 });
+                        let zoom = now.cells.map_or((100, 100), |c| c.2);
+                        opacity.push(Op::SpriteAngle { layer, degrees: now.angle as i32, zoom });
                         now.engine.zoomed = true;
                     }
                 }
