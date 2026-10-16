@@ -711,6 +711,13 @@ Next, in order:
 Finished work, moved out of "Status" so a session reads only the open
 state.
 
+**Auto-play stuck in `mc04_041vs` (2026-10-15, reported by the user):**
+the trace's auto-play ended as stuck (20000 waits) in a blocking sprite
+move (`conv_move`: `gettimer` and `wait 10` steps): it shortened the
+waits but `gettimer` ran in real time. CONscripter `38e45a0`: a wait
+auto-play shortens advances the timer by the time skipped; the scene now
+plays to its end under auto-play.
+
 **Loop points (2026-10-15, script coverage):** `SetLoopPoint(snd, start,
 end)` (ms; `CreateBGMEX`'s `msong04_arrange`, `CreateSEEX`'s four
 battle loops) plays, when looped, a copy of the file tagged
