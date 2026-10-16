@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 use clap::Subcommand;
-use conv_engines::typemoon::{self, bfsar, bntx, fwav, mrg, mzp, nxopus};
+use conv_engines::typemoon::{self, bfsar, bntx, fwav, mrg, mzp, nxopus, script};
 
 use crate::{map, safe_relative_path};
 
@@ -42,6 +42,15 @@ pub enum TypemoonCommand {
         #[arg(short, long)]
         output: PathBuf,
     },
+    /// Read every script of a RomFS folder (`allscr.mrg`) with its text
+    /// (`script_text.mrg`): rank the commands by use, check the text and
+    /// sound references, and with `-o` write each script as
+    /// `<name>.txt`, one command a line, its text after it
+    Script {
+        dir: PathBuf,
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+    },
 }
 
 pub fn run(command: TypemoonCommand) -> Result<()> {
@@ -53,6 +62,7 @@ pub fn run(command: TypemoonCommand) -> Result<()> {
         TypemoonCommand::Extract { archive, output, prefix, png } => extract(&archive, &output, &prefix.to_lowercase(), png),
         TypemoonCommand::Check { dir } => check(&dir),
         TypemoonCommand::Sounds { dir, output } => sounds(&dir, &output),
+        TypemoonCommand::Script { dir, output } => scripts(&dir, output.as_deref()),
     }
 }
 
@@ -230,5 +240,98 @@ fn sounds(dir: &Path, output: &Path) -> Result<()> {
         println!("  {e}");
     }
     anyhow::ensure!(failed.is_empty(), "{} sounds failed", failed.len());
+    Ok(())
+}
+
+fn scripts(dir: &Path, output: Option<&Path>) -> Result<()> {
+    let allscr = map(&dir.join("allscr.mrg"))?;
+    let entries = mzp::parse(&allscr).context("reading allscr.mrg")?;
+    let names: Vec<String> = mrg::names(entries.first().context("allscr.mrg is empty")?).into_iter().filter(|n| !n.is_empty()).collect();
+    let script_text = map(&dir.join("script_text.mrg"))?;
+    let pairs = mzp::parse(&script_text).context("reading script_text.mrg")?;
+    anyhow::ensure!(pairs.len() >= 2, "script_text.mrg has {} entries", pairs.len());
+    let lines = script::text(pairs[0], pairs[1]).context("script_text.mrg")?;
+    if let Some(out) = output {
+        fs::create_dir_all(out)?;
+    }
+    // Sound names the scripts can use: wave sounds without `WSD_`, any case; stream files.
+    let bfsar = map(&dir.join("knife1.bfsar"))?;
+    let waves: std::collections::HashSet<String> = bfsar::wave_sounds(&bfsar)?.iter().map(|w| w.name.trim_start_matches("WSD_").to_uppercase()).collect();
+    let streams: std::collections::HashSet<String> = fs::read_dir(dir.join("stream"))?
+        .map(|e| Ok(e?.path().file_stem().unwrap().to_string_lossy().into_owned()))
+        .collect::<Result<_>>()?;
+
+    // opcode: uses, scripts, first use
+    let mut ops = BTreeMap::<String, (usize, usize, String)>::new();
+    let (mut odd, mut total, mut used_lines, mut bad_refs) = (Vec::new(), 0, vec![false; lines.len()], 0);
+    let mut sounds = BTreeMap::<String, (usize, usize)>::new(); // opcode: (named, found)
+    for (i, name) in names.iter().enumerate() {
+        let data = typemoon::unpack(entries.get(i + 3).with_context(|| format!("no entry for script {name}"))?).with_context(|| format!("script {name}"))?;
+        let text = std::str::from_utf8(&data).with_context(|| format!("script {name}"))?;
+        let mut dump = String::new();
+        let mut seen = std::collections::HashSet::new();
+        for c in script::parse(text) {
+            total += 1;
+            let c = match c {
+                Ok(c) => c,
+                Err(raw) => {
+                    odd.push(format!("{name}: {raw}"));
+                    dump.push_str(&format!("{raw}  # malformed\n"));
+                    continue;
+                }
+            };
+            let op = c.opcode().to_string();
+            let e = ops.entry(op.clone()).or_insert_with(|| (0, 0, format!("{}({})", c.name, c.args.join(","))));
+            e.0 += 1;
+            if seen.insert(op.clone()) {
+                e.1 += 1;
+            }
+            let found = match (op.as_str(), c.args.as_slice()) {
+                ("_SEPL", [_, _, se, ..]) => Some(waves.contains(&se.to_uppercase())),
+                ("_VPLY" | "_VPL2", [voice, ..]) => Some(streams.contains(*voice)),
+                _ => None,
+            };
+            if let Some(found) = found {
+                let s = sounds.entry(op.clone()).or_default();
+                (s.0, s.1) = (s.0 + 1, s.1 + usize::from(found));
+            }
+            dump.push_str(&format!("{}({})", c.name, c.args.join(",")));
+            for r in c.text_refs() {
+                match lines.get(r) {
+                    Some(line) => {
+                        used_lines[r] = true;
+                        dump.push_str(&format!("  « {} »", line.replace("\r\n", "⏎").replace('\n', "⏎")));
+                    }
+                    None => bad_refs += 1,
+                }
+            }
+            dump.push('\n');
+        }
+        if let Some(out) = output {
+            let file = out.join(safe_relative_path(&format!("{name}.txt")).with_context(|| format!("unsafe name {name:?}"))?);
+            fs::write(&file, dump).with_context(|| format!("writing {}", file.display()))?;
+        }
+    }
+    println!(
+        "{} scripts, {total} commands, {} opcodes, {} malformed; {} text lines, {} used, {bad_refs} references past the end",
+        names.len(),
+        ops.len(),
+        odd.len(),
+        lines.len(),
+        used_lines.iter().filter(|&&u| u).count()
+    );
+    for o in odd.iter().take(5) {
+        println!("  malformed: {o}");
+    }
+    for (op, (named, found)) in &sounds {
+        println!("{op}: {named} uses, {found} name a sound in the archive or stream/");
+    }
+    let mut ranked: Vec<_> = ops.into_iter().collect();
+    ranked.sort_by(|a, b| b.1.0.cmp(&a.1.0).then(a.0.cmp(&b.0)));
+    println!("| Command | Uses | Scripts | First use |\n|---|---|---|---|");
+    for (op, (uses, in_scripts, example)) in ranked {
+        let example: String = example.chars().take(60).collect();
+        println!("| `{op}` | {uses} | {in_scripts} | `{example}` |");
+    }
     Ok(())
 }
