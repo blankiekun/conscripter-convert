@@ -6,8 +6,11 @@
 //! `RotetoLoop1`; 続・殺戮のジャンゴ's `ShakeVLoop` (a background jolting up
 //! and down as a carriage rides).
 //!
-//! When the process starts, what comes before the loop runs as an action
-//! process's does (its waits hold only the process). Then the loop's body
+//! When the process starts (`Request(…, Start)`), what comes before the
+//! loop runs as an action process's does (its waits hold only the
+//! process; with [`super::Game::relative_children`], the pictures it makes
+//! are placed from the process, which the script may have moved before
+//! starting it). Then the loop's body
 //! is played on paper, twice: the second pass, which starts where the
 //! first ended, is the one looped (`RotetoLoop`'s first turn from where
 //! the picture was is drawn at once). Each picture the body changes gets
@@ -30,17 +33,17 @@ const SHAKE_CALLS: &[&str] = &["Shake", "Wait"];
 /// `spmotion` takes 32 keys.
 pub(super) const MAX_KEYS: usize = 32;
 
-/// The statements before the loop and the loop's body, when `f` ends in
-/// `while(…) { … }` of the calls in `calls` (and labels).
-fn split<'a>(f: &'a Function, calls: &[&str]) -> Option<(&'a [Stmt], &'a [Stmt])> {
+/// The statements before the loop, its condition and its body, when `f`
+/// ends in `while(…) { … }` of the calls in `calls` (and labels).
+fn split<'a>(f: &'a Function, calls: &[&str]) -> Option<(&'a [Stmt], &'a Expr, &'a [Stmt])> {
     let at = f.body.iter().rposition(|s| !matches!(s.kind, StmtKind::Label(_)))?;
-    let StmtKind::While { body, .. } = &f.body[at].kind else { return None };
+    let StmtKind::While { cond, body } = &f.body[at].kind else { return None };
     let only = body.iter().all(|s| match &s.kind {
         StmtKind::Label(_) => true,
         StmtKind::Expr(Expr::Call { name, .. }) => calls.contains(&name.as_str()),
         _ => false,
     });
-    (only && body.iter().any(|s| matches!(s.kind, StmtKind::Expr(_)))).then_some((&f.body[..at], &body[..]))
+    (only && body.iter().any(|s| matches!(s.kind, StmtKind::Expr(_)))).then_some((&f.body[..at], cond, &body[..]))
 }
 
 /// Whether `f` is a loop process this module converts.
@@ -152,16 +155,23 @@ impl<'a> Compiler<'a, '_> {
         self.frames.push(HashMap::new());
         self.in_function += 1;
         let before: HashSet<String> = self.objects.keys().cloned().collect();
-        if let Some((prelude, body)) = split(f, SHAKE_CALLS) {
+        // A loop that runs while a flag is set: until the script clears it,
+        // which is drawn as the process going on until it is deleted (the
+        // scripts fade its pictures out then).
+        if let Some((prelude, cond, body)) = split(f, SHAKE_CALLS) {
             self.exec_block(prelude);
             let made = self.adopt(name, &before);
-            self.shake_loop(name, body, &made);
-        } else if let Some((prelude, body)) = split(f, LOOP_CALLS) {
+            if self.eval(cond).truthy() {
+                self.shake_loop(name, body, &made);
+            }
+        } else if let Some((prelude, cond, body)) = split(f, LOOP_CALLS) {
             self.action_process = Some(name.to_string());
             self.exec_block(prelude);
             self.action_process = None;
             let made = self.adopt(name, &before);
-            self.action_loop(name, &f.name, body, &made);
+            if self.eval(cond).truthy() {
+                self.action_loop(name, &f.name, body, &made);
+            }
         }
         self.in_function -= 1;
         self.frames.pop();
@@ -206,18 +216,23 @@ impl<'a> Compiler<'a, '_> {
         // (ms, from, to) a segment, 0 px for a wait.
         let mut target = None;
         let mut parts = Vec::new();
-        for s in body {
-            let StmtKind::Expr(Expr::Call { name: call, args }) = &s.kind else { continue };
+        let calls: Vec<(&String, &Vec<Expr>)> = body.iter().filter_map(|s| if let StmtKind::Expr(Expr::Call { name, args }) = &s.kind { Some((name, args)) } else { None }).collect();
+        for (i, &(call, args)) in calls.iter().enumerate() {
             let v: Vec<Value> = args.iter().map(|a| self.eval(a)).collect();
-            let int = |i: usize| v.get(i).map_or(0, |a| a.int());
+            let int = |i: usize| v.get(i).map_or(0, |a| a.int().abs() as i32);
             match call.as_str() {
                 "Shake" => {
+                    // One that doesn't wait, followed by another: that one
+                    // takes over at once (FrameShakeProcess).
+                    if matches!(v.get(8), Some(Value::Null | Value::Int(0))) && calls.get(i + 1).is_some_and(|c| c.0 == "Shake") {
+                        continue;
+                    }
                     if target.is_none() {
                         target = self.targets(&v[0], made).into_iter().next().or_else(|| Some(self.object_name(&v[0])));
                     }
-                    parts.push((int(1).max(0) as u32, (0, int(3).abs() as i32), (0, int(5).abs() as i32)));
+                    parts.push((int(1) as u32, (int(2), int(3)), (int(4), int(5))));
                 }
-                _ => parts.push((int(0).max(0) as u32, (0, 0), (0, 0))),
+                _ => parts.push((int(0) as u32, (0, 0), (0, 0))),
             }
         }
         let Some(target) = target else { return };
@@ -345,11 +360,9 @@ impl<'a> Compiler<'a, '_> {
         }
     }
 
-    /// `Delete` of a loop process: its pictures stop. (The deletion itself
-    /// goes on as usual.)
-    pub(super) fn stop_loops(&mut self, arg: &Value) {
-        let owners = self.matching(arg);
-        let stopped: Vec<String> = self.objects.iter().filter(|(_, o)| o.shake.as_ref().is_some_and(|(p, _)| owners.contains(p))).map(|(k, _)| k.clone()).collect();
+    /// Loop process `owner` deleted: its pictures stop.
+    pub(super) fn stop_loops(&mut self, owner: &str) {
+        let stopped: Vec<String> = self.objects.iter().filter(|(_, o)| o.shake.as_ref().is_some_and(|(p, _)| p == owner)).map(|(k, _)| k.clone()).collect();
         for k in stopped {
             self.objects.get_mut(&k).unwrap().shake = None;
             if let Some(s) = self.shown.get(&k) {
