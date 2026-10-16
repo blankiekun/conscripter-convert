@@ -532,7 +532,7 @@ Used to check what the engine does (`docs/new-game.md` step 9).
   the IR changes).
 - After engine #4: `CreateProcess` as `cons_process` coroutines; send a
   plan of PRs before coding.
-- Then the unread-argument gaps (item 6 below), most noticeable first;
+- Then the unread-argument gaps (item 5 below), most noticeable first;
   among them `SetVertex` on anything but `CreateText` pictures (17,995)
   and `CreateText`'s box height (30).
 - Known limits: a window that moves (`絵演窓上`, `窓右`, about 56 `Move`s)
@@ -665,10 +665,7 @@ Next, in order:
    - Tempo (easing) is never read.
    - A 4-argument `Fade` probably doesn't wait in the exe (49 calls
      wait in ours); check under wine first.
-5. A picture's children are placed from its corner in the original
-   (`research/nitroplus/builtins.md`, "Conventions"), at their own place
-   in ours.
-6. Gaps from the unread-argument notes (2026-10-16; each built-in's
+5. Gaps from the unread-argument notes (2026-10-16; each built-in's
    arguments the converter doesn't read, with counts, in
    `research/nitroplus/builtins.md`, "Arguments not read"), most
    noticeable first:
@@ -686,7 +683,7 @@ Next, in order:
    - `LockVideo`, `WaitText`, `SetPan`, `SetFrequency` (but 1000),
      `SetVertex` (Muramasa), the time limit (?) of `WaitAction` and the
      other waits: dropped; meaning to check in the exe.
-7. Gaps from the script coverage (2026-10-15; every file, built-in,
+6. Gaps from the script coverage (2026-10-15; every file, built-in,
    `Request` action, text tag, `$SYSTEM_` variable and `system.ini` key
    with its status in `research/nitroplus/builtins.md`, "In the
    scripts: coverage"). Every file has a status (no gaps there); new
@@ -748,6 +745,14 @@ Next, in order:
 
 Finished work, moved out of "Status" so a session reads only the open
 state.
+
+**A picture's children (2026-10-16, wine):** a child of a picture is placed
+from its parent's corner (a `CreateColor` child at (100, 150) of a parent
+at (50, 100) drew at (150, 250)); a window's or a name's child at its own
+place. `Compiler::parent_offset` now adds a picture parent's place for
+every game (with `Game::relative_children`, 続・殺戮のジャンゴ, a container's
+too, as before). The whole-game script doesn't change: the story's
+pictures with children (if any) sit at (0, 0) or their children are in windows and names (`絵窓`, `遠３`).
 
 **Wildcards and children (2026-10-16, exe and wine):** a trailing `*` that
 matches a window, a name or a camera doesn't reach its children; one
