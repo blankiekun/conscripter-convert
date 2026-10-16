@@ -174,6 +174,40 @@ rather than by browsing:
    (`research/nitroplus/builtins.md` for Nitroplus), and put the gaps
    found in the game document's Status.
 
+### Covering the scripts too
+
+The exe is half of what a game does; the rest is in its own scripts and
+data files: the helper libraries the story calls (`function*.nss`), the
+system screens (`sys_*.nss`), boot scripts, ini files (`System.ini`)
+and, for a port, its own system scripts (the English Muramasa's
+`sys_*.nut`). Full coverage means every one of them has an answer, in
+the same coverage table as the exe's rows:
+
+1. **List every script and data file** in the archives and give each
+   one a status: compiled by the run (story files, helpers they call),
+   replaced by a screen of ours (name the function: `sys_config.nss` →
+   `screens.rs` `settings`), read for data (ini files, tables), or not
+   used (say why: debug, unreachable). A file with no status is a gap.
+   For NSS, `nss route` lists the unreachable story files.
+2. **List every name the scripts call**, built-in or defined in a
+   script, with its corpus count (`nss refs` for the names nothing
+   defines, `nss builtins` for how they are called), and add what the
+   converter does with it. The dry run's "not converted or approximated"
+   notes give the gaps in the code the run reaches (`built-in X`,
+   `skipped: no function X`, `Request …`), but only there: code the run
+   never reaches (the system scripts, the functions only they call)
+   needs its row from the static count instead.
+3. **The same for the scripts' other vocabularies:** system variables
+   (`$SYSTEM_…`), text tags (`<I>`, `<center>`, `<CLICK>`), `Request`
+   actions, ini keys, and any string the scripts pass that the exe
+   matches (names of effects, actions, sounds).
+4. **Plan from the rows that differ**, as for the exe: a feature the
+   corpus uses that the converter drops or approximates. Rows replaced
+   by our own screens are checked against the original's screens
+   (step 7), not line by line.
+5. **Write it back** like the exe's results: the table's gaps in the game
+   document's Status, the semantics in the engine's built-ins reference.
+
 ## 3. Lowering to the IR
 
 - The reader produces the engine-neutral IR (`crates/conv-core/src/ir/`).
