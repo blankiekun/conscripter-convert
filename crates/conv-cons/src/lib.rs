@@ -1558,6 +1558,22 @@ goto *conv_link1
     }
 
     #[test]
+    fn sprites_fading_fade_by_themselves() {
+        let picture = SpritePlacement { image: "sprite/a.png".into(), x: 1, y: 2 };
+        let s = script(vec![Op::SpritesFading {
+            changes: vec![SpriteChange { layer: 6, sprite: None, keep_filters: false }, SpriteChange { layer: 5, sprite: Some(picture), keep_filters: false }],
+            fade_ms: 300,
+        }]);
+        let text = emit(&s);
+        assert!(text.contains("spfade 68,-300
+spfilter 67,0
+lsp 67,\":a;sprite\\a.png\",1,2
+spfade 67,300
+print 1
+"), "{text}");
+    }
+
+    #[test]
     fn a_picture_after_a_zoomed_animation_is_drawn_unzoomed() {
         let movie = SpritePlacement { image: "system/movie/smoke.png".into(), x: 1, y: 2 };
         let picture = SpritePlacement { image: "sprite/a.png".into(), x: 1, y: 2 };

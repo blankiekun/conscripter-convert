@@ -79,6 +79,10 @@ pub fn build(game: &Path, run: &Run, opts: &Opts) -> Result<Built> {
         for (file, jp) in report.missed.iter().take(5) {
             println!("  {file}: {}", jp.chars().take(40).collect::<String>());
         }
+        println!("English: {} choice options replaced, {} left in Japanese", report.options, report.options_missed.len());
+        for (file, jp) in report.options_missed.iter().take(5) {
+            println!("  {file}: {jp}");
+        }
     }
     let mut assets = NpaAssets::new(open("cg.npa")?, open("sound.npa")?, open("voice.npa")?, opts.output);
     assets.out.dry_run = opts.dry_run;
