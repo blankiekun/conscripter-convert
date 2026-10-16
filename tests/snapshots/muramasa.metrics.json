@@ -85,5 +85,5 @@
 "SetLoopPoint": {"calls": 63, "gaps": 0, "reasons": []},
 "RecoIn": {"calls": 10, "gaps": 0, "reasons": []}
 },
-"outside_calls": [["branches of a runtime if end with different helper variables", 73616], ["paths merge with different $テキストデータバックログ１", 4586], ["paths merge with different $LOCAL_last_text2", 4578], ["paths merge with different $DEBUG_cgbglist", 4569], ["paths merge with different $filename", 4561], ["3298 more", 625111]]
+"outside_calls": [["branches of a runtime if end with different helper variables", 73616], ["paths merge with different $テキストデータバックログ１", 4601], ["paths merge with different $LOCAL_last_text2", 4578], ["paths merge with different $DEBUG_cgbglist", 4569], ["paths merge with different $filename", 4561], ["3298 more", 625111]]
 }

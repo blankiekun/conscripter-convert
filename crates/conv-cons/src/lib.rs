@@ -175,6 +175,8 @@ const RUNTIME_OPTION_BASE: u32 = 3632;
 /// How many options of a choice can be runtime ones (alloc.rs reserves
 /// 3632-3637; NSS choices have six at most, `SetChoice06`).
 const RUNTIME_OPTIONS: usize = 6;
+/// An [`Op::RuntimeBacklogLine`]'s text.
+const RUNTIME_LOG: u32 = 3638;
 /// Link scenes nest at most this deep: inside the deepest, link words
 /// aren't buttons. The original has no limit, but link scenes that link to
 /// each other (the encyclopedia) would nest without end, and each level
@@ -1470,6 +1472,8 @@ mod tests {
         for part in ["if %15 == 2 mov $3633,\"Leave\":mov %3633,361", "strsp 53,$3633,%3633,330,6,"] {
             assert!(text.contains(part), "missing {part:?} in\n{text}");
         }
+        let text = emit(&script(vec![Op::RuntimeBacklogLine { text: "【】".into(), runtime: conv_core::ir::RuntimeText { var, texts: vec![(2, "【Leave】".into())] } }]));
+        assert!(text.contains("mov $3638,\"【】\"\nif %15 == 2 mov $3638,\"【Leave】\"\nlogadd $3638\n"), "{text}");
     }
 
     #[test]
