@@ -2752,6 +2752,11 @@ impl<'a, 'b> Compiler<'a, 'b> {
                             }
                         }
                         ("pre", _) => {}
+                        // A variable's value, when it is known here.
+                        ("value", false) => match tag.attr("name").and_then(|n| self.vars.get(n)).cloned() {
+                            Some(v @ (Value::Str(_) | Value::Int(_))) => line.push_str(&v.string()),
+                            _ => self.note("text tag <value> of a variable known only when the game runs"),
+                        },
                         (other, _) => self.note(format!("text tag <{other}>")),
                     }
                 }

@@ -643,7 +643,9 @@ Next, in order:
      compiler doesn't evaluate, so each ending plays 4 s of the theme
      over black and fades it out (no roll, no click wait).
      `#ClearRoll%02d` likewise (`String`, `VariableValue`).
-   - Text markup dropped: `<VALUE name=$…>` (3 lines in `mc02_031` print a gap), the
+   - Text markup dropped: `<VALUE name=$mc02_時間>` (the airship clock in
+     `mc02_031time` prints a gap: a string chosen by the runtime
+     `$mc02_TimeCount`, and the IR has no runtime strings), the
      ASCII-art pages (`Request(…, PushText)` + `NoLog`: shown at once,
      not in the backlog), `<voice mode="off">` (3, meaning unknown).
    - Story `CreateText` (about 30 calls in 18 files: 殺 害, 〝我は力〟,
@@ -684,6 +686,11 @@ Next, in order:
 
 Finished work, moved out of "Status" so a session reads only the open
 state.
+
+**`<VALUE>` in text (2026-10-15, exe review):** `<VALUE name=$var>`
+prints the variable; it is now filled in where the value is known when
+converting (the airship kitchen's `$材料名前`, `$料理名前`; `Random` is 0
+then, so the ingredient is always 豚肉).
 
 **`<FONT>` in story text (2026-10-15, exe review):** `incolor` (the red
 違う。 in `mb03_006`, the yellow puzzle rules in `md05_025`) and `size`
