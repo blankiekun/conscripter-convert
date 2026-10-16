@@ -5,10 +5,12 @@
 
 pub mod bfsar;
 pub mod bntx;
+pub mod exe;
 pub mod fwav;
 pub mod mrg;
 pub mod mzp;
 pub mod mzx;
+pub mod nso;
 pub mod nxopus;
 pub mod nxx;
 pub mod script;

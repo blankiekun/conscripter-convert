@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 use clap::Subcommand;
-use conv_engines::typemoon::{self, bfsar, bntx, fwav, mrg, mzp, nxopus, script};
+use conv_engines::typemoon::{self, bfsar, bntx, exe, fwav, mrg, mzp, nxopus, script};
 
 use crate::{map, safe_relative_path};
 
@@ -51,6 +51,14 @@ pub enum TypemoonCommand {
         #[arg(short, long)]
         output: Option<PathBuf>,
     },
+    /// Read the exe's tables (1.0.2's ExeFS `main`): pictures, motions,
+    /// scene numbers; with `--romfs`, check each picture's size against
+    /// its texture in `allpac`
+    Exe {
+        main: PathBuf,
+        #[arg(long)]
+        romfs: Option<PathBuf>,
+    },
 }
 
 pub fn run(command: TypemoonCommand) -> Result<()> {
@@ -63,6 +71,7 @@ pub fn run(command: TypemoonCommand) -> Result<()> {
         TypemoonCommand::Check { dir } => check(&dir),
         TypemoonCommand::Sounds { dir, output } => sounds(&dir, &output),
         TypemoonCommand::Script { dir, output } => scripts(&dir, output.as_deref()),
+        TypemoonCommand::Exe { main, romfs } => exe_tables(&main, romfs.as_deref()),
     }
 }
 
@@ -194,6 +203,65 @@ fn check(dir: &Path) -> Result<()> {
     Ok(())
 }
 
+
+fn exe_tables(main: &Path, romfs: Option<&Path>) -> Result<()> {
+    let exe = exe::Exe::parse(&map(main)?).with_context(|| format!("reading {}", main.display()))?;
+    let pictures = exe.pictures()?;
+    let motions = exe.motions()?;
+    let keys: usize = motions.iter().map(|m| m.keys.len()).sum();
+    println!(
+        "{} pictures ({} expressions), {} motions ({keys} keys), {} scene numbers",
+        pictures.len(),
+        pictures.iter().filter(|p| p.expression).count(),
+        motions.len(),
+        exe.scenes()?.len()
+    );
+    let Some(romfs) = romfs else { return Ok(()) };
+    let by_name: BTreeMap<String, &exe::Picture> = pictures.iter().map(|p| (p.name.to_uppercase(), p)).collect();
+    // Texture sizes per picture: a name can have two entries (a third-size copy and the full one).
+    let mut sizes = BTreeMap::<&str, Vec<(f32, f32)>>::new();
+    each(&romfs.join("allpac.mrg"), |i, name, data, _| {
+        let Some((key, _)) = name.strip_suffix(".NXGZ").and_then(|n| by_name.get_key_value(&n.to_uppercase())) else { return Ok(()) };
+        let unpacked = typemoon::unpack(data).with_context(|| format!("entry {i} ({name})"))?;
+        let t = bntx::parse(&unpacked).with_context(|| format!("entry {i} ({name})"))?;
+        sizes.entry(key.as_str()).or_default().push((t[0].width as f32, t[0].height as f32));
+        Ok(())
+    })?;
+    // The full texture is 2× art for a 1280 × 724 stage: half its width, 724/1440 of its height
+    // (to half a stage pixel: tall sprites' heights are 0.2 short). Bare names' sizes are a few
+    // pixels off (about three times their third-size copy's).
+    let height = |p: &exe::Picture, h: f32, slack: f32| (p.height - h * 724.0 / 1440.0).abs() <= slack;
+    let (mut exact, mut near, mut off, mut missing, mut two) = (0, 0, Vec::new(), Vec::new(), 0);
+    for (name, p) in &by_name {
+        let Some(s) = sizes.get(name.as_str()) else {
+            missing.push(name.as_str());
+            continue;
+        };
+        two += usize::from(s.len() > 1);
+        if s.iter().any(|&(w, h)| height(p, h, 0.5) && (p.width - w / 2.0).abs() <= 0.5) {
+            exact += 1;
+        } else if s.iter().any(|&(w, h)| height(p, h, 3.0) && (p.width - w / 2.0).abs() <= 3.0) {
+            near += 1;
+        } else {
+            off.push((p.expression, format!("{}: {} x {} for {s:?}", p.name, p.width, p.height)));
+        }
+    }
+    println!(
+        "{} pictures have a texture ({two} two): {exact} sizes within half a pixel, {near} within 3 px, {} neither ({} of them expressions); {} have no allpac entry",
+        sizes.len(),
+        off.len(),
+        off.iter().filter(|o| o.0).count(),
+        missing.len()
+    );
+    // A few of each kind.
+    for (_, line) in off.iter().filter(|o| o.0).take(5).chain(off.iter().filter(|o| !o.0).take(5)) {
+        println!("  {line}");
+    }
+    if !missing.is_empty() {
+        println!("  no entry: {}", missing[..missing.len().min(10)].join(", "));
+    }
+    Ok(())
+}
 
 fn sounds(dir: &Path, output: &Path) -> Result<()> {
     let mut failed = Vec::new();
