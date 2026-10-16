@@ -619,7 +619,7 @@ pub(crate) mod tests {
             "textbtnwait %9\nif %9 == 1300 goto *conv_wait\n",
             "getmousepos %105,%146\nif %2908 == 1 && %146 < 573 btn 1300,0,573,800,27,0,0:mov %148,0:print 1:return\n",
             "if %2908 == 1 lsp 34,\":a/3,0,3;system\\lock_on.png\",10,20\n",
-            "if %2908 == 1 btn 1300,0,0,800,573,0,0\nif %2908 == 1 && %148 == 0 spfade 34,100\nmov %148,1\n",
+            "if %2908 == 1 btn 1300,0,0,800,573,0,0\nif %2908 == 1 && %148 == 0 spmotion 34,0,0,0,0,100,100,0,0,0,100,0,0,100,100,0,256,0\nmov %148,1\n",
             "*conv_bar_lock\nmov %2908,1-%2908\nreturn\n",
         ] {
             assert!(out.contains(line), "missing {line:?} in\n{out}");

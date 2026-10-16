@@ -35,6 +35,9 @@ pub(crate) struct Emitter<'a> {
     pub se: SeChannels,
     pub se_not_skipped: bool,
     pub noise_fade_in: Option<u32>,
+    /// Sprites (slot → ms) whose fade in started with no time passed since:
+    /// a motion of theirs takes the fade into its keys.
+    pub fading: BTreeMap<u32, u32>,
     pub needs_bit_helpers: bool,
     pub move_ease: Option<(u8, u32)>,
     /// The eased curves used, (ease, exponent): `spcurve` tables at `*start`.
@@ -51,7 +54,10 @@ pub(crate) struct Emitter<'a> {
 impl<'a> Emitter<'a> {
     /// Writes op `i` of the script.
     pub(crate) fn op(&mut self, i: usize, op: &'a Op) {
-        let &mut Emitter { has_ruby, has_overlay, has_noise, has_chapters, has_animation, root_returns, has_replay, has_vertical, border, voice_switches, duck, back_to_choice, speed, link_depth, script, ref clear_fade, ref restore_overlay, ref effects, ref link_targets, ref zoomed_layers, ref mut out, ref mut root_resumes, ref mut puzzles, ref mut button_screens, ref mut plate_choices, ref mut picture_screens, ref mut se, ref mut se_not_skipped, ref mut noise_fade_in, ref mut needs_bit_helpers, ref mut move_ease, ref mut eased, ref mut needs_click_wait, ref mut plate_visible, ref mut link_pages, ref mut transition, ref mut window, ref mut page_rows, ref mut page_tag } = self;
+        if !matches!(op, Op::Sprites { .. } | Op::SpritesFading { .. } | Op::SpriteMotion { .. } | Op::SpriteMotion2 { .. } | Op::SpriteMove { .. } | Op::MoveEase { .. }) {
+            self.fading.clear();
+        }
+        let &mut Emitter { has_ruby, has_overlay, has_noise, has_chapters, has_animation, root_returns, has_replay, has_vertical, border, voice_switches, duck, back_to_choice, speed, link_depth, script, ref clear_fade, ref restore_overlay, ref effects, ref link_targets, ref zoomed_layers, ref mut out, ref mut root_resumes, ref mut puzzles, ref mut button_screens, ref mut plate_choices, ref mut picture_screens, ref mut se, ref mut se_not_skipped, ref mut noise_fade_in, ref mut needs_bit_helpers, ref mut move_ease, ref mut eased, ref mut needs_click_wait, ref mut plate_visible, ref mut link_pages, ref mut transition, ref mut window, ref mut page_rows, ref mut page_tag, fading: ref mut fading_slots } = self;
         let effect = |ms: u32| if ms == 0 { "1".to_string() } else { effects[&(ms, Effect::Fade)].clone() };
         let visited = |target: &str| LINK_VISITED_BASE + link_targets.iter().position(|&t| t == target).unwrap() as u32;
     if let Op::Text { .. } = op {
@@ -97,7 +103,7 @@ impl<'a> Emitter<'a> {
             *plate_visible = false;
         }
         Op::Sprites { changes, fade_ms } | Op::SpritesFading { changes, fade_ms } => {
-            // SpritesFading: CONscripter's spfade, in and (negative) out.
+            // SpritesFading: an spmotion fade, in (loop 0) and out (loop 3).
             let fading = matches!(op, Op::SpritesFading { .. }) && transition.is_none() && *fade_ms > 0;
             for c in changes {
                 let slot = SPRITE_BASE + c.layer;
@@ -112,15 +118,25 @@ impl<'a> Emitter<'a> {
                             writeln!(out, "spzoom {slot},100,100").unwrap();
                         }
                         if fading {
-                            writeln!(out, "spfade {slot},{fade_ms}").unwrap();
+                            writeln!(out, "{}", motion::fade_in(slot, *fade_ms)).unwrap();
+                            fading_slots.insert(slot, *fade_ms);
                         }
                     }
-                    None if fading => writeln!(out, "spfade {slot},-{fade_ms}").unwrap(),
-                    None => writeln!(out, "csp {slot}").unwrap(),
+                    None if fading => {
+                        writeln!(out, "{}", motion::fade_out(slot, *fade_ms)).unwrap();
+                        fading_slots.remove(&slot);
+                    }
+                    None => {
+                        writeln!(out, "csp {slot}").unwrap();
+                        fading_slots.remove(&slot);
+                    }
                 }
             }
             if transition.is_none() {
                 writeln!(out, "print {}", if fading { "1".to_string() } else { effect(*fade_ms) }).unwrap();
+                if !fading && *fade_ms > 0 {
+                    fading_slots.clear(); // the effect takes time
+                }
             }
         }
         Op::SpriteFilters { layer, filters } => {
@@ -182,7 +198,7 @@ impl<'a> Emitter<'a> {
             let slot = SPRITE_BASE + layer;
             let ease = move_ease.take();
             if *ms > 0 && transition.is_none() {
-                motion::move_to(out, slot, *x, *y, *ms, None, curve(ease, eased));
+                motion::move_to(out, slot, *x, *y, *ms, None, curve(ease, eased), fading_slots.remove(&slot));
             } else {
                 writeln!(out, "getspsize {slot},%1,%2:amsp {slot},{x}-%1/2,{y}-%2/2").unwrap();
                 if transition.is_none() {
@@ -201,8 +217,8 @@ impl<'a> Emitter<'a> {
         Op::IfSwitch { switch, on, label: target } => {
             writeln!(out, "if {} == {} goto *{}", menu::switch_off(*switch), u8::from(!*on), label(target)).unwrap();
         }
-        Op::SpriteMotion { layer, keys, looped } => motion::emit(out, *layer, keys, *looped),
-        Op::SpriteMotion2 { layer, keys, end } => motion::emit2(out, *layer, keys, *end),
+        Op::SpriteMotion { layer, keys, looped } => motion::emit(out, *layer, keys, *looped, fading_slots.remove(&(SPRITE_BASE + layer))),
+        Op::SpriteMotion2 { layer, keys, end } => motion::emit2(out, *layer, keys, *end, fading_slots.remove(&(SPRITE_BASE + layer))),
         Op::SpriteZoom { layer, x, y, from, to, ms } => {
             let ease = move_ease.take();
             let curve = if *ms > 0 { curve(ease, eased) } else { 0 };
@@ -252,7 +268,7 @@ impl<'a> Emitter<'a> {
                 writeln!(out, "print 1").unwrap();
             }
         }
-        // CONscripter's spfade.
+        // An spmotion fade.
         Op::NoiseFadeIn { ms } => *noise_fade_in = Some(*ms),
         // CONscripter's spz: drawn right over the overlay's sprite.
         Op::SpriteInFront { layer, front: true } => writeln!(out, "spz {},{OVERLAY_SPRITE}", SPRITE_BASE + layer).unwrap(),
@@ -266,7 +282,7 @@ impl<'a> Emitter<'a> {
                     writeln!(out, "mov {NOISE_ALPHA},{alpha}:mov {NOISE_IMAGE},\"{image}\"").unwrap();
                     writeln!(out, "lsp {NOISE_SPRITE},{NOISE_IMAGE},0,0,{NOISE_ALPHA}").unwrap();
                     if let Some(ms) = noise_fade_in.take() {
-                        writeln!(out, "spfade {NOISE_SPRITE},{ms}").unwrap();
+                        writeln!(out, "{}", motion::fade_in(NOISE_SPRITE, ms)).unwrap();
                     }
                 }
                 None => writeln!(out, "mov {NOISE_ALPHA},0").unwrap(),
