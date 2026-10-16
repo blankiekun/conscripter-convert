@@ -1277,8 +1277,11 @@ page each punctuation mark or symbol shows on (`--shot-pages`):
    the right, NO until the entry's `#av_` flag is set (九〇式指揮官騎
    and 九四式指揮官騎 open from the start, 九〇式 chosen first). The
    chosen plate is drawn pressed, its movie (`ムービー/3d/ex_NNN.ngs`,
-   400×400, about 5 s) loops at 80,28 as frames at 15 a second (whole
-   size: only movies wider than half the screen are halved), its large
+   400×400, about 5 s) loops at 80,28, played by the engine as a sprite
+   (`lsp …,":c/1,0,0;movie\3d_ex_NNN_mute.mp4"`, since 2026-10-16 at the
+   user's choice; it was frames at 15 a second, 98 MB of JPEG strips in
+   the archives, now 20 MB of loose H.264; CONscripter for Windows has no
+   sprite movies, so there it shows no movie), its large
    name plate at 480,28 and its details at 60,436, the （開放） ones
    once `#aw_` is set. 前頁/次頁 turn the page round, 退出 or a
    right-click goes back to the menu; 500 ms in, 300 ms between pages
