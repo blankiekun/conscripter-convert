@@ -39,12 +39,46 @@ except ImportError:  # no drag and drop; the folder button still works
 APP_TITLE = "CONscripter-convert"
 ENGINE_URL = "https://github.com/blankiekun/CONscripter/releases"
 
+# The palette: a cool grey ground, white fields, one indigo (藍) accent
+# kept for the drop zone and the Build button.
+BG, SURFACE, LINE = "#EDF0F4", "#FFFFFF", "#C5CDD8"
+INK, MUTED = "#1C2230", "#5A6372"
+AI, AI_DARK, AI_SOFT = "#284B7A", "#1C385E", "#E1E8F2"
+OK, WARN, ERR = "#2B6A44", "#975000", "#B3261E"
+
+
+def _style(root: tk.Tk) -> None:
+    root.configure(bg=BG)
+    s = ttk.Style(root)
+    s.theme_use("clam")  # the one built-in theme that takes these colours on every platform
+    s.configure(".", background=BG, foreground=INK, fieldbackground=SURFACE, bordercolor=LINE,
+                lightcolor=SURFACE, darkcolor=LINE, troughcolor=SURFACE, focuscolor=AI,
+                selectbackground=AI, selectforeground=SURFACE, insertcolor=INK)
+    s.map(".", foreground=[("disabled", "#9AA2AE")])
+    s.configure("TButton", padding=(12, 4), background=SURFACE)
+    s.map("TButton", background=[("disabled", BG), ("pressed", AI_SOFT), ("active", AI_SOFT)],
+          bordercolor=[("focus", AI)])
+    s.configure("Accent.TButton", background=AI, foreground=SURFACE, bordercolor=AI, lightcolor=AI,
+                darkcolor=AI, padding=(22, 5))
+    s.map("Accent.TButton", background=[("disabled", LINE), ("pressed", AI_DARK), ("active", AI_DARK)],
+          foreground=[("disabled", SURFACE)], lightcolor=[("disabled", LINE)], darkcolor=[("disabled", LINE)],
+          bordercolor=[("disabled", LINE)])
+    s.configure("Toggle.TButton", background=BG, bordercolor=BG, lightcolor=BG, darkcolor=BG, padding=(0, 2))
+    s.map("Toggle.TButton", background=[("active", BG)], foreground=[("active", AI)], bordercolor=[("focus", LINE)])
+    s.map("TCombobox", fieldbackground=[("readonly", SURFACE)], selectbackground=[("readonly", SURFACE)],
+          selectforeground=[("readonly", INK)])
+    s.configure("TProgressbar", background=AI, lightcolor=AI, darkcolor=AI, bordercolor=LINE, thickness=10)
+    s.configure("Muted.TLabel", foreground=MUTED)
+    s.configure("TCheckbutton", indicatorbackground=SURFACE)
+    s.map("TCheckbutton", background=[("active", BG)], indicatorbackground=[("selected", AI)])
+
 
 class App:
     def __init__(self) -> None:
         self.root = TkinterDnD.Tk() if TkinterDnD else tk.Tk()
         self.root.title(APP_TITLE)
         self.root.minsize(640, 560)
+        _style(self.root)
         self.converter = tools.find_converter()
         self.detections: list[games.Detection] = []
         self.detection: Optional[games.Detection] = None
@@ -78,9 +112,10 @@ class App:
         r.minsize(860, 680)
         r.geometry("960x720")
 
-        self.drop = tk.Label(r, text="", relief="groove", bd=2, height=3, cursor="hand2",
-                             font=("TkDefaultFont", 12))
-        self.drop.grid(row=0, column=0, sticky="ew", padx=12, pady=(12, 4))
+        self.drop = tk.Label(r, text="", relief="flat", bd=0, height=3, cursor="hand2", pady=14,
+                             font=("TkDefaultFont", 12), bg=AI_SOFT, highlightthickness=1,
+                             highlightbackground=AI, highlightcolor=AI)
+        self.drop.grid(row=0, column=0, sticky="ew", padx=12, pady=(12, 8))
         self.drop.bind("<Button-1>", lambda e: self._choose_game())
         if TkinterDnD:
             self.drop.drop_target_register(DND_FILES)
@@ -96,7 +131,7 @@ class App:
         self.game_box = ttk.Combobox(info, textvariable=self.game_var, state="readonly")
         self.game_box.bind("<<ComboboxSelected>>", lambda e: self._pick(self.game_box.current()))
         self.game_box.grid(row=0, column=1, columnspan=2, sticky="ew", pady=2)
-        self.notes = ttk.Label(info, text="", foreground="#b05000", wraplength=580, justify="left")
+        self.notes = ttk.Label(info, text="", foreground=WARN, wraplength=580, justify="left")
         self.notes.grid(row=1, column=1, columnspan=2, sticky="w")
 
         ttk.Label(info, text="Output:").grid(row=2, column=0, sticky="w")
@@ -116,8 +151,9 @@ class App:
         self.ffmpeg_button = ttk.Button(info, text="Locate…", command=self._choose_ffmpeg)
         self.ffmpeg_button.grid(row=4, column=2, padx=(6, 0))
 
-        self.adv_button = ttk.Button(info, text="▸ Advanced options", command=self._toggle_advanced)
-        self.adv_button.grid(row=5, column=0, columnspan=2, sticky="w", pady=(6, 0))
+        self.adv_button = ttk.Button(info, text="▸ Advanced options", command=self._toggle_advanced,
+                                     style="Toggle.TButton", cursor="hand2")
+        self.adv_button.grid(row=5, column=0, columnspan=2, sticky="w", pady=(8, 0))
         self.adv = ttk.Frame(info, padding=(16, 4, 0, 0))
         self.adv.columnconfigure(1, weight=1)
         self.adv.grid(row=6, column=0, columnspan=3, sticky="ew")
@@ -126,7 +162,7 @@ class App:
         bar = ttk.Frame(r)
         bar.grid(row=2, column=0, sticky="ew", **pad)
         bar.columnconfigure(3, weight=1)
-        self.start_button = ttk.Button(bar, text="Build", command=self._start)
+        self.start_button = ttk.Button(bar, text="Build", command=self._start, style="Accent.TButton")
         self.start_button.grid(row=0, column=0)
         self.cancel_button = ttk.Button(bar, text="Cancel", command=self._cancel)
         self.cancel_button.grid(row=0, column=1, padx=6)
@@ -135,13 +171,16 @@ class App:
         self.progress = ttk.Progressbar(bar, mode="determinate", value=0)
         self.progress.grid(row=0, column=3, sticky="ew", padx=(12, 0))
 
-        self.status = tk.Label(r, text="", anchor="w", justify="left", font=("TkDefaultFont", 11, "bold"))
+        self.status = tk.Label(r, text="", anchor="w", justify="left", font=("TkDefaultFont", 11, "bold"),
+                               bg=BG, fg=INK)
         self.status.grid(row=3, column=0, sticky="ew", **pad)
         # Long paths wrap instead of widening the window.
         r.bind("<Configure>", lambda e: e.widget is r and self._wrap(e.width))
         self.game_box.config(width=40)
 
-        self.log = ScrolledText(r, height=10, state="disabled", wrap="word", font=("TkFixedFont", 9))
+        self.log = ScrolledText(r, height=10, state="disabled", wrap="word", font=("TkFixedFont", 9),
+                                bg=SURFACE, fg=INK, relief="flat", bd=0, padx=8, pady=6,
+                                highlightthickness=1, highlightbackground=LINE, highlightcolor=LINE)
         self.log.grid(row=4, column=0, sticky="nsew", padx=12, pady=(4, 12))
         r.rowconfigure(4, weight=1)
 
@@ -163,7 +202,7 @@ class App:
     def _choose_game(self) -> None:
         if self._busy() or self.detecting:
             return
-        d = filedialog.askdirectory(title="The game folder")
+        d = filedialog.askdirectory(title="Choose the game folder")
         if d:
             self._load(Path(d))
 
@@ -244,7 +283,7 @@ class App:
         self.option_widgets = []
         game = self.detection.game if self.detection else None
         if not game:
-            ttk.Label(self.adv, text="Choose a game folder first.", foreground="#606060").grid(row=0, column=0, sticky="w")
+            ttk.Label(self.adv, text="Choose a game folder first.", style="Muted.TLabel").grid(row=0, column=0, sticky="w")
             return
         if game.key not in self.option_vars:
             made: dict[str, tk.Variable] = {}
@@ -302,11 +341,11 @@ class App:
         row += side
         foot = ttk.Frame(self.adv)
         foot.grid(row=row, column=0, columnspan=5, sticky="ew", pady=(6, 2))
-        reset = ttk.Button(foot, text="Recommended settings", command=self._reset_options)
+        reset = ttk.Button(foot, text="Reset to recommended", command=self._reset_options)
         reset.pack(side="left")
         self.option_widgets.append(reset)
-        ttk.Label(foot, text="Point at an option to see what it does.", foreground="#707070").pack(side="left", padx=12)
-        self.command_label = ttk.Label(self.adv, text="", foreground="#404040", wraplength=560, justify="left",
+        ttk.Label(foot, text="Hover over an option to see what it does.", style="Muted.TLabel").pack(side="left", padx=12)
+        self.command_label = ttk.Label(self.adv, text="", foreground=MUTED, wraplength=560, justify="left",
                                        font=("TkFixedFont", 9))
         self.command_label.wraps = True
         self.command_label.grid(row=row + 1, column=0, columnspan=5, sticky="w")
@@ -324,7 +363,7 @@ class App:
                 self.option_vars[self.detection.game.key][k].set(v)
 
     def _choose_output(self) -> None:
-        d = filedialog.askdirectory(title="Where to put the converted game")
+        d = filedialog.askdirectory(title="Choose where to put the converted game")
         if d:
             out = Path(d)
             # A non-empty folder gets the game in a new folder inside it.
@@ -333,14 +372,14 @@ class App:
             self.out_var.set(str(out))
 
     def _choose_font(self) -> None:
-        f = filedialog.askopenfilename(title="A Japanese font",
+        f = filedialog.askopenfilename(title="Choose a Japanese font",
                                        filetypes=[("Fonts", "*.ttf *.otf *.ttc"), ("All files", "*")])
         if f:
             self.font, self.font_chosen = Path(f), True
             self._refresh()
 
     def _choose_ffmpeg(self) -> None:
-        f = filedialog.askopenfilename(title="ffmpeg" + tools.EXE)
+        f = filedialog.askopenfilename(title="Locate ffmpeg" + tools.EXE)
         if f:
             self.ffmpeg_dir = Path(f).parent
             self._refresh()
@@ -352,10 +391,10 @@ class App:
 
     def _ffmpeg_state(self) -> tuple[bool, str]:
         if not (self.detection and self.detection.game.needs_ffmpeg_with(self._values())):
-            return True, "not needed for this game"
+            return True, "Not needed for this game."
         ff = tools.find_ffmpeg(self.ffmpeg_dir)
         if not ff:
-            return False, ("NOT FOUND. This game needs ffmpeg (with libx264): install it and put it on PATH, "
+            return False, ("Not found. This game needs ffmpeg with libx264: install it and add it to PATH, "
                            "or click Locate….")
         encoders = tools.FFMPEG_ENCODERS + (("libopus",) if self._values().get("audio_codec") == "opus" else ())
         missing = getattr(self, "_ffmpeg_checked", {}).get((ff, encoders))
@@ -363,7 +402,7 @@ class App:
             missing = tools.ffmpeg_missing_encoders(ff, encoders)
             self._ffmpeg_checked = {(ff, encoders): missing}
         if missing:
-            return False, f"{ff} lacks the encoders {', '.join(missing)}: install a full ffmpeg build."
+            return False, f"{ff} is missing {', '.join(missing)}: install a full ffmpeg build."
         return True, str(ff)
 
     def _refresh(self) -> None:
@@ -371,23 +410,23 @@ class App:
             return
         busy = self._busy()
         d = self.detection
-        how = "drop the game folder here, or click to choose it" if TkinterDnD else "click to choose the game folder"
+        how = "Drop a game folder here, or click to choose one" if TkinterDnD else "Click to choose a game folder"
         if self.detecting:
-            self.drop.config(text=f"Detecting the game…\n{self.folder}", fg="#404040")
+            self.drop.config(text=f"Looking for a game in\n{self.folder}…", fg=MUTED)
         elif d:
-            self.drop.config(text=f"Detected: {d.game.name}  ({d.game.engine})\n{d.root}\n"
-                                  f"(another game: {how})", fg="#006000" if not d.problems else "#b05000")
+            self.drop.config(text=f"{d.game.name}  ({d.game.engine})\n{d.root}\n"
+                                  f"{how.replace('a game', 'another game')}", fg=AI if not d.problems else WARN)
         elif self.folder:
-            self.drop.config(text=f"No supported game found in\n{self.folder}\n({how})", fg="#c00000")
+            self.drop.config(text=f"No supported game found in\n{self.folder}\n{how}", fg=ERR)
         else:
-            self.drop.config(text=how[0].upper() + how[1:], fg="black")
+            self.drop.config(text=how, fg=AI)
         notes = []
         ready = True
         if not self.converter:
-            notes.append("conscripter-convert was not found (next to this app or on PATH).")
+            notes.append("Can't find conscripter-convert next to this app or on PATH.")
             ready = False
         if d:
-            notes += [f"✗ {p}" for p in d.problems] + [f"! {w}" for w in d.warnings]
+            notes += [f"✗ {p}" for p in d.problems] + [f"⚠ {w}" for w in d.warnings]
             ready &= not d.problems
             option_problems = d.game.option_problems(self._values())
             notes += [f"✗ {p}" for p in option_problems]
@@ -404,13 +443,13 @@ class App:
             ready = False
         self.notes.config(text="\n".join(notes))
         if not busy and not self.status.cget("text").startswith(("✓", "✗")):
-            self.status.config(fg="black", text=(
-                f"Ready: {d.game.name} with {self._settings_name()}; "
+            self.status.config(fg=INK, text=(
+                f"Ready to build {d.game.name} with {self._settings_name()}: "
                 f"{self._size_text()}." if d and ready else ""))
-        self.font_label.config(text=font_name(self.font) if self.font else "none found: choose a Japanese TTF (IPA Gothic)")
+        self.font_label.config(text=font_name(self.font) if self.font else "None found. Choose a Japanese TrueType font, such as IPA Gothic.")
         ready &= self.font is not None
         ok, text = self._ffmpeg_state() if d else (True, "")
-        self.ffmpeg_label.config(text=text, foreground="black" if ok else "#c00000")
+        self.ffmpeg_label.config(text=text, foreground=INK if ok else ERR)
         ready &= ok
         self.start_button.config(state="normal" if ready and not busy else "disabled")
         self.cancel_button.config(state="normal" if busy else "disabled")
@@ -437,8 +476,8 @@ class App:
 
     def _settings_name(self) -> str:
         if self.detection and self._values() != self.detection.game.defaults():
-            return "your settings (Advanced options)"
-        return f"its recommended settings ({self.detection.game.doc})"
+            return "your advanced options"
+        return "the recommended settings"
 
     def _peak_gb(self) -> float:
         """The most disk the build uses: packing writes the archives while
@@ -452,11 +491,11 @@ class App:
     def _size_text(self) -> str:
         v = self._values()
         if v.get("dry_run"):
-            return "writes the script only"
+            return "the script only, no pictures or sounds"
         size = self.detection.game.size_gb * _webp_factor(v)
         if v.get("loose"):
-            return f"writes about {size:.1f} GB"
-        return f"about {size:.1f} GB when done, {self._peak_gb():.1f} GB free needed while it packs"
+            return f"about {size:.1f} GB"
+        return f"about {size:.1f} GB when done, with {self._peak_gb():.1f} GB free needed while it packs"
 
     # --- building -------------------------------------------------------
 
@@ -464,7 +503,7 @@ class App:
         if out.exists() and any(out.iterdir()):
             if games.is_previous_build(out):
                 if not messagebox.askyesno(APP_TITLE, (
-                        f"{out} holds an earlier build.\n\nBuild over it? Its files are replaced; "
+                        f"{out} holds an earlier build.\n\nBuild over it? Its files are replaced, and "
                         "saves made with the earlier build may not load in the new one."), default="no"):
                     return False
             elif not messagebox.askyesno(APP_TITLE, (
@@ -513,7 +552,7 @@ class App:
         else:
             self.progress.config(mode="indeterminate")
             self.progress.start(12)
-        self.status.config(text=f"Building {d.game.name}… (this takes several minutes)", fg="black")
+        self.status.config(text=f"Building {d.game.name}… This takes several minutes.", fg=INK)
         self._refresh()
 
     def _watch_output(self, build: tools.Build, out: Path, since: float) -> None:
@@ -563,7 +602,7 @@ class App:
         elif code == 0:
             self._install_engine(Path(out))
         else:
-            self._finish(f"Failed (exit code {code}). The log below says why.", ok=False)
+            self._finish(f"The build failed (exit code {code}). The log below says why.", ok=False)
 
     def _install_engine(self, out: Path) -> None:
         """CONscripter for this computer into the build, named after the
@@ -571,7 +610,7 @@ class App:
         d = self.detection
         title = str(self._values().get("title") or "").strip() or d.game.name
         self.installing = True
-        self.status.config(text="Built. Getting CONscripter for this computer…", fg="black")
+        self.status.config(text="Built. Downloading CONscripter for this computer…", fg=INK)
         self._log("")
         self._refresh()
 
@@ -591,15 +630,15 @@ class App:
         self.installing = False
         out = self.out_var.get()
         if isinstance(result, Exception):
-            self._finish(f"Done. The game is in {out}, but CONscripter could not be added ({result}): "
-                         f"download it from {ENGINE_URL}.", ok=True)
+            self._finish(f"Done. The game is in {out}, but CONscripter could not be added ({result}). "
+                         f"Download it from {ENGINE_URL}.", ok=True)
         else:
-            self._finish(f"Done. The game is in {out}: start {result.name} to play.", ok=True)
+            self._finish(f"Done. The game is in {out}. Start {result.name} to play.", ok=True)
 
     def _finish(self, text: str, ok: bool) -> None:
         self.progress.stop()
         self.progress.config(mode="determinate", value=100 if ok else 0)
-        self.status.config(text=("✓ " if ok else "✗ ") + text, fg="#007000" if ok else "#c00000")
+        self.status.config(text=("✓ " if ok else "✗ ") + text, fg=OK if ok else ERR)
         self._log("")
         self._log(text)
         self._refresh()
@@ -655,8 +694,8 @@ class Tooltip:
         self.tip = tk.Toplevel(self.widget)
         self.tip.wm_overrideredirect(True)
         self.tip.wm_geometry(f"+{x}+{y}")
-        tk.Label(self.tip, text=self.text, justify="left", wraplength=380, background="#ffffe8",
-                 foreground="black", relief="solid", bd=1, padx=6, pady=4).pack()
+        tk.Label(self.tip, text=self.text, justify="left", wraplength=380, background=SURFACE,
+                 foreground=INK, relief="solid", bd=1, padx=8, pady=6).pack()
 
     def _hide(self, _event=None) -> None:
         if self.pending:

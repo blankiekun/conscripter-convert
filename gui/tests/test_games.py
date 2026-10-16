@@ -169,7 +169,7 @@ class Commands(unittest.TestCase):
         self.assertFalse(g.needs_ffmpeg_with({}))
         self.assertTrue(g.needs_ffmpeg_with({"audio_codec": "opus"}))
         self.assertTrue(g.needs_ffmpeg_with({"audio_quality": "2"}))
-        self.assertEqual(g.option_problems({"audio_codec": "opus", "audio_quality": "3"})[0][:13], "Their quality")
+        self.assertEqual(g.option_problems({"audio_codec": "opus", "audio_quality": "3"})[0][:8], "Quality:")
         self.assertEqual(g.option_problems({"audio_codec": "vorbis", "audio_quality": "-1"}), [])
         self.assertEqual(len(g.option_problems({"audio_codec": "vorbis", "audio_quality": "12"})), 1)
         self.assertEqual(len(g.option_problems({"audio_quality": "x"})), 1)

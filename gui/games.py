@@ -47,7 +47,7 @@ class Option:
 
 
 def _title(default: str) -> Option:
-    return Option("title", "Window title", "--title", "text", default, "The game window's caption.", wide=True)
+    return Option("title", "Window title", "--title", "text", default, "The title on the game's window.", wide=True)
 
 
 def _is_number(v: str) -> bool:
@@ -69,19 +69,18 @@ def _audio_quality_steps(values: dict) -> tuple[tuple[str, str], ...]:
     if values.get("audio_codec") == "opus":
         return tuple(("", "32 kbit/s (default)") if k == 32 else (str(k), f"{k} kbit/s")
                      for k in (6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256))
-    return (("", "the game's own"), *((str(q), str(q)) for q in range(-1, 11)))
+    return (("", "original"), *((str(q), str(q)) for q in range(-1, 11)))
 
 
 # Every convert command takes these (crates/conv-cli/src/build.rs, AudioArgs).
 AUDIO = (
     Option("audio_codec", "Voices and sound effects", "--audio-codec", "choice", "vorbis",
-           "vorbis: the game's own sounds, as they are. opus: re-encoded with ffmpeg, about half the size "
-           "(the voices are most of a game's sound); needs CONscripter 0.21.0 or later. Music stays Vorbis.",
+           "vorbis keeps the game's sounds as they are. opus re-encodes them with ffmpeg at about half the size "
+           "(voices are most of a game's sound) and needs CONscripter 0.21.0 or later. Music stays Vorbis.",
            choices=("vorbis", "opus")),
-    Option("audio_quality", "Their quality", "--audio-quality", "number", "",
-           "Opus: kbit/s per channel, 6-256 (empty: 32, about Vorbis's quality at half the size). "
-           "Vorbis: -1 to 10 (ffmpeg's -q:a), re-encoding the game's sounds. "
-           "Empty with Vorbis: the game's own sounds.",
+    Option("audio_quality", "Quality", "--audio-quality", "number", "",
+           "Opus: kbit/s per channel, 6-256. The default, 32, sounds about as good as Vorbis at half the size. "
+           "Vorbis: -1 to 10 (ffmpeg's -q:a) re-encodes the sounds; \"original\" keeps the game's own.",
            check=_audio_quality_check, steps=_audio_quality_steps),
 )
 
@@ -93,11 +92,11 @@ DRY_RUN = Option("dry_run", "Script only (dry run)", "--dry-run",
 # Every convert command takes these too (build.rs, WebpArgs).
 WEBP = (
     Option("webp", "WebP pictures", "--webp",
-           help="Store pictures as WebP instead of PNG: about half the size, or less with a quality. "
-                "Plays in the web build of CONscripter, and in a desktop build only if its SDL_image reads WebP."),
+           help="Store pictures as WebP instead of PNG: about half the size, and smaller still with a WebP quality. "
+                "Works in CONscripter's web build, and on the desktop only if its SDL_image reads WebP."),
     Option("webp_quality", "WebP quality", "--webp-quality", "int", "",
-           "0-100, as in image editors: lossy WebP at that quality, far smaller (80: about a quarter "
-           "of near-lossless, and hard to tell apart). Empty: near-lossless.",
+           "0-100, as in image editors. Lossy and far smaller: at 80, about a quarter the size of "
+           "near-lossless and hard to tell apart. Unset, pictures are near-lossless.",
            needs="webp", low=0, high=100,
            steps=lambda _: (*((str(q), str(q)) for q in range(0, 101, 5)), ("", "near-lossless"))),
 )
@@ -302,11 +301,11 @@ GAMES: tuple[Game, ...] = (
         icon=lambda root: engine.exe_icon(root / "Muramasa.exe"),
         options=(
             *_common("装甲悪鬼村正"),
-            Option("file", "Start at the script", "--file", "text", "ma00_000.nss",
+            Option("file", "Start file", "--file", "text", "ma00_000.nss",
                    "The story file the build starts at. A new game starts at ma00_000.nss.", required=True),
             Option("chain", "Story files to follow", "--chain", "int", "2000",
                    "How many story files to follow from the start file; 2000 is the whole story. "
-                   "Empty: the start file's scene only."),
+                   "Leave it empty for the start file's scene only."),
         ),
     ),
     Game(
@@ -341,7 +340,7 @@ GAMES: tuple[Game, ...] = (
             *_common("俺たちに翼はない"),
             Option("scenes", "Only these scenes", "--scenes", "text", "",
                    "Scene names such as S01_01A, separated by commas, played in that order. "
-                   "Empty: every scene, with the menus and extras.", wide=True),
+                   "Leave it empty for every scene, with the menus and extras.", wide=True),
         ),
     ),
 )
