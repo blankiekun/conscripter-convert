@@ -1,0 +1,1813 @@
+# muramasa_en.exe (Full Metal Daemon Muramasa, JAST USA 2021, Nitroplus Diesel):
+# functions identified so far, applied by research/tools/ghidra/ghidra_export.sh --names.
+# Columns (tab-separated): address, name, comment. Not Muramasa.exe: see names.tsv for that.
+# sq<Class>_<method> / sqfn_<name>: the natives registered with Squirrel, found from the
+# registration calls (push "name"; push handler, or mov handler,%edx); sqreg_*: the registrars;
+# cb_*: code reached only through a pointer; sqlib_*: the Squirrel library, named in bulk.
+# Details: docs/games/muramasa-en.md ("The exe").
+004018f0	cb_004018f0	reached only through a function pointer
+00401950	sqSpriteMask_isCaptureEnabled	native SQSpriteMask.isCaptureEnabled, registered with Squirrel (also SQDes.isDroppedFile, SQPointLight.getEnable)
+00401960	app_main	startup: reads system.npk's system.dat (SCREEN_WIDTH, WINDOW_NAME, SOUND_TYPE, CODE_PAGE, SAVE_PATH, VERSION, Font), opens script/cg/dx/font/sound/voice/particle.npk and patch/*.npk, starts Squirrel
+004036d0	std_deallocate	CRT: std::_Deallocate (aligned blocks of 4 KB and more)
+00403cc0	sqModel_enablePhysics	native SQModel.enablePhysics, registered with Squirrel (also SQDes.printLogError, SQDes.printLogWarning, SQDes.setLatestDroppedFileName, SQModel.physicsKinematic, SQModelCharacter.enablePhysics, SQModelCharacter.physicsKinematic) +15
+00404420	sqDes_clearLog	native SQDes.clearLog, registered with Squirrel
+004045a0	cb_004045a0	reached only through a function pointer
+004045c0	std_string_assign	CRT: std::string assign ("string too long")
+004047c0	std_string_assign_range	CRT: std::string assign from a position ("invalid string position")
+004048f0	std_string_tidy	CRT: std::string _Tidy (destructor)
+004154c0	sqModel_getMorphNum	native SQModel.getMorphNum, registered with Squirrel (also SQModelCharacter.getMorphNum)
+00415580	sqScene_setShadowMapCenterBone	native SQScene.setShadowMapCenterBone, registered with Squirrel (also SQScene.setDOFParameter, SQScene.setHDRParameter, SQScene.setProjectionShadowCenterBone, SQScene.setSoftFocusParameter)
+004155e0	sqScene_setShadowMapCenterPosition	native SQScene.setShadowMapCenterPosition, registered with Squirrel (also SQScene.setProjectionShadowOffsetRotate, SQScene.setRadialBlurParameter, SQScene.setToneMappingParameter, SQScene.transformFromScreenToWorld, SQScene.transformFromWorldToScreen)
+004171b0	cb_004171b0	reached only through a function pointer
+00417240	sqobjectptr_release	SQObjectPtr destructor: releases a ref-counted object (type flag 0x8000000)
+0045e602	cb_0045e602	reached only through a function pointer
+0045e61b	cb_0045e61b	reached only through a function pointer
+00465260	sqfn_Import	native Import, registered with Squirrel
+00465300	sqfn_PreCompile	native PreCompile, registered with Squirrel
+00465460	sqfn_IncludeFile	native IncludeFile, registered with Squirrel
+00465500	sqfn_Suspend	native Suspend, registered with Squirrel
+00465540	sqfn_RandomI	native RandomI, registered with Squirrel
+00465560	sqfn_RandomF	native RandomF, registered with Squirrel
+00465590	sqfn_ResetNGCode	native ResetNGCode, registered with Squirrel
+004655a0	sqfn_AddNGCode_HeadOfLine	native AddNGCode_HeadOfLine, registered with Squirrel
+00465750	sqfn_AddNGCode_EndOfLine	native AddNGCode_EndOfLine, registered with Squirrel
+00465900	sqfn_GetScreenWidth	native GetScreenWidth, registered with Squirrel
+00465910	sqfn_GetScreenHeight	native GetScreenHeight, registered with Squirrel
+00465920	sqfn_GetSavePathRoot	native GetSavePathRoot, registered with Squirrel
+00465940	sqfn_GetTempPathRoot	native GetTempPathRoot, registered with Squirrel
+00465960	sqfn_SetSavePathRoot	native SetSavePathRoot, registered with Squirrel
+00465970	sqfn_SystemCall	native SystemCall, registered with Squirrel
+004659e0	sqfn_CountTextLength	native CountTextLength, registered with Squirrel
+00465f00	sqfn_TokenizeText	native TokenizeText, registered with Squirrel
+00466390	sqfn_ConvertToUTF16	native ConvertToUTF16, registered with Squirrel
+00466a70	sqfn_FileCopy	native FileCopy, registered with Squirrel
+00466aa0	sqfn_FileDelete	native FileDelete, registered with Squirrel
+00466ac0	sqfn_FileMove	native FileMove, registered with Squirrel
+00466c60	sqfn_CreateReferenceTable	native CreateReferenceTable, registered with Squirrel
+00466cd0	sqfn_ClearReferenceTable	native ClearReferenceTable, registered with Squirrel
+0046cd30	sqfn_SerializeRootTable	native SerializeRootTable, registered with Squirrel
+0046d100	sqfn_DeserializeRootTable	native DeserializeRootTable, registered with Squirrel
+0046d840	sqfn_IsFileExist	native IsFileExist, registered with Squirrel
+0046d890	sqreg_globals	registers the global native functions (Import, RandomI, TokenizeText, FileDelete, ...): handler in edx, name pushed
+00471670	sqplus_get_int	SqPlus Get(int) from the stack: integer, or float truncated; throws "sq_get*() failed (type error)"
+00474ff0	cb_00474ff0	reached only through a function pointer
+00485180	sqDes_getRunStates	native SQDes.getRunStates, registered with Squirrel
+004a7f60	CTextEnglish_layout	Diesel::CTextEnglish vfunction33: lays out horizontal English text; markup tokens RUBY /RUBY SMALL /SMALL CENTER /CENTER (from text_tokenize_markup); breaks at spaces, CR/LF; skips # { } (the other tags are parsed in Squirrel, function_textbox.nut)
+004aa450	CTextVertical_layout	Diesel::CTextVertical vfunction33: vertical layout; RUBY, CENTER
+004ae1e0	CText_layout	Diesel::CText vfunction33: base layout; RUBY, CENTER
+004ba4b0	sqApp_loadParticle	native SQApp.loadParticle, registered with Squirrel (also SQApp.unloadParticle)
+004c0760	sqAction1D_getTimeScale	native SQAction1D.getTimeScale, registered with Squirrel
+004c0770	sqScene_getSoftFocusBlendPower	native SQScene.getSoftFocusBlendPower, registered with Squirrel (also SQNull3D.getRotateTimer)
+004c1090	sqSprite3D_getVolume	native SQSprite3D.getVolume, registered with Squirrel (also SQPointLight.getFarAttenuation, SQPointLight.getNearAttenuation)
+004c3440	text_tokenize_markup	splits a text into plain runs and <TAG ...> tokens; builds <RUBY text='...'>...</RUBY>
+004c75e0	sqreg_SQFile	registers class SQFile and its methods with Squirrel (SqPlus SQClassDef): reg_template(handler, "name", ...)
+004c79a0	sqFile_open	native SQFile.open, registered with Squirrel
+004c7a60	sqFile_isOpened	native SQFile.isOpened, registered with Squirrel
+004c7a90	sqFile_setStringCodePage	native SQFile.setStringCodePage, registered with Squirrel
+004c7aa0	sqFile_readString	native SQFile.readString, registered with Squirrel
+004c8000	sqFile_readInteger	native SQFile.readInteger, registered with Squirrel
+004c8090	sqFile_readFloat	native SQFile.readFloat, registered with Squirrel
+004c8120	sqFile_writeString	native SQFile.writeString, registered with Squirrel
+004c82e0	sqFile_writeInteger	native SQFile.writeInteger, registered with Squirrel (also SQFile.writeFloat)
+004c8330	sqFile_getFileSize	native SQFile.getFileSize, registered with Squirrel
+004c8360	sqFile_seekStart	native SQFile.seekStart, registered with Squirrel
+004c8390	sqFile_seekEnd	native SQFile.seekEnd, registered with Squirrel
+004c83c0	sqFile_seek	native SQFile.seek, registered with Squirrel
+004c83f0	sqFile_getFilePosition	native SQFile.getFilePosition, registered with Squirrel
+004c8620	sqreg_SQFile_ctor_004c8620	registers SQFile's constructor
+004c8700	sqFile_constructor	native SQFile.constructor, registered with Squirrel
+004cd590	sqreg_SQApp	registers class SQApp and its methods with Squirrel (SqPlus SQClassDef): reg_template(handler, "name", ...)
+004cdef0	sqApp_getFrameSpeed	native SQApp.getFrameSpeed, registered with Squirrel
+004cdf00	sqApp_getMilliTime	native SQApp.getMilliTime, registered with Squirrel
+004cdf10	sqApp_getSystemTime	native SQApp.getSystemTime, registered with Squirrel
+004cdf20	sqApp_getCursorPosition	native SQApp.getCursorPosition, registered with Squirrel
+004cdfc0	sqApp_setCursorPosition	native SQApp.setCursorPosition, registered with Squirrel
+004cdff0	sqApp_isKeyDown	native SQApp.isKeyDown, registered with Squirrel
+004ce010	sqApp_isKeyUp	native SQApp.isKeyUp, registered with Squirrel
+004ce020	sqApp_getKeyState	native SQApp.getKeyState, registered with Squirrel
+004ce060	sqApp_getMouseButtonStateL	native SQApp.getMouseButtonStateL, registered with Squirrel
+004ce090	sqApp_getMouseButtonStateR	native SQApp.getMouseButtonStateR, registered with Squirrel
+004ce0c0	sqApp_getMouseWheelState	native SQApp.getMouseWheelState, registered with Squirrel
+004ce0f0	sqApp_getMouseMove	native SQApp.getMouseMove, registered with Squirrel
+004ce200	sqApp_getTouchContactNum	native SQApp.getTouchContactNum, registered with Squirrel
+004ce230	sqApp_getTouchState	native SQApp.getTouchState, registered with Squirrel
+004ce270	sqApp_isTouchMoving	native SQApp.isTouchMoving, registered with Squirrel
+004ce2b0	sqApp_getTouchMove	native SQApp.getTouchMove, registered with Squirrel
+004ce3b0	sqApp_getTouchPosition	native SQApp.getTouchPosition, registered with Squirrel
+004ce4b0	sqApp_getTouchVelocity	native SQApp.getTouchVelocity, registered with Squirrel
+004ce590	sqApp_getTouchTime	native SQApp.getTouchTime, registered with Squirrel
+004ce5d0	sqApp_clearTouchInput	native SQApp.clearTouchInput, registered with Squirrel
+004ce600	sqApp_clearMouseInput	native SQApp.clearMouseInput, registered with Squirrel
+004ce630	sqApp_isButtonDown	native SQApp.isButtonDown, registered with Squirrel
+004ce670	sqApp_getGamepadButtonState	native SQApp.getGamepadButtonState, registered with Squirrel
+004ce6b0	sqApp_getGamepadTriggerValue	native SQApp.getGamepadTriggerValue, registered with Squirrel
+004ce6f0	sqApp_getGamepadThumbValue	native SQApp.getGamepadThumbValue, registered with Squirrel
+004ce7d0	sqApp_setGamepadVibration	native SQApp.setGamepadVibration, registered with Squirrel
+004ce840	sqApp_loadTexture	native SQApp.loadTexture, registered with Squirrel
+004ce8e0	sqApp_loadTextTexture	native SQApp.loadTextTexture, registered with Squirrel
+004cf910	sqApp_unloadTexture	native SQApp.unloadTexture, registered with Squirrel
+004cf9e0	sqApp_loadFont	native SQApp.loadFont, registered with Squirrel
+004cfb00	sqApp_loadSystemFont	native SQApp.loadSystemFont, registered with Squirrel
+004cff90	sqApp_clearFontCache	native SQApp.clearFontCache, registered with Squirrel
+004d0040	sqApp_unloadFont	native SQApp.unloadFont, registered with Squirrel
+004d0110	sqApp_showCursor	native SQApp.showCursor, registered with Squirrel
+004d0150	sqApp_setCursor	native SQApp.setCursor, registered with Squirrel
+004d0170	sqApp_getCursor	native SQApp.getCursor, registered with Squirrel
+004d0180	sqApp_fadeoutScreen	native SQApp.fadeoutScreen, registered with Squirrel
+004d01b0	sqApp_fadeoutColor	native SQApp.fadeoutColor, registered with Squirrel
+004d0210	sqApp_getParticleNameList	native SQApp.getParticleNameList, registered with Squirrel
+004d0320	sqApp_getParticleFileList	native SQApp.getParticleFileList, registered with Squirrel
+004d03d0	sqApp_getParticleParameter	native SQApp.getParticleParameter, registered with Squirrel
+004d0470	sqApp_callTask	native SQApp.callTask, registered with Squirrel
+004d0510	sqApp_setWindowTitle	native SQApp.setWindowTitle, registered with Squirrel
+004d0530	sqApp_mountFile	native SQApp.mountFile, registered with Squirrel
+004d06b0	sqApp_unmountFile	native SQApp.unmountFile, registered with Squirrel
+004d0760	sqApp_isMounted	native SQApp.isMounted, registered with Squirrel
+004d0810	sqApp_injectSoundFile	native SQApp.injectSoundFile, registered with Squirrel
+004d08b0	sqApp_ejectSoundFile	native SQApp.ejectSoundFile, registered with Squirrel
+004d0950	sqApp_setFullScreen	native SQApp.setFullScreen, registered with Squirrel
+004d0980	sqApp_isFullScreen	native SQApp.isFullScreen, registered with Squirrel
+004d0990	sqApp_setFrameRate	native SQApp.setFrameRate, registered with Squirrel
+004d09b0	sqApp_setMaxFrameTime	native SQApp.setMaxFrameTime, registered with Squirrel
+004d09f0	sqApp_getFrameRate	native SQApp.getFrameRate, registered with Squirrel
+004d0a00	sqApp_createDirectory	native SQApp.createDirectory, registered with Squirrel
+004d0a20	sqApp_getFileTime	native SQApp.getFileTime, registered with Squirrel
+004d0af0	sqApp_getPlatformName	native SQApp.getPlatformName, registered with Squirrel
+004d0b10	sqApp_getProductName	native SQApp.getProductName, registered with Squirrel
+004d0b30	sqApp_createPhysicsWorld	native SQApp.createPhysicsWorld, registered with Squirrel
+004d0b50	sqApp_deletePhysicsWorld	native SQApp.deletePhysicsWorld, registered with Squirrel
+004d0b60	sqApp_exit	native SQApp.exit, registered with Squirrel
+004d0ba0	sqApp_showMessageBox	native SQApp.showMessageBox, registered with Squirrel
+004d0bc0	sqApp_defineSoundGroup	native SQApp.defineSoundGroup, registered with Squirrel
+004d0c60	sqApp_setSoundTypeVolume	native SQApp.setSoundTypeVolume, registered with Squirrel
+004d0d10	sqApp_setSoundGroupVolume	native SQApp.setSoundGroupVolume, registered with Squirrel
+004d0df0	sqApp_setCloseCallback	native SQApp.setCloseCallback, registered with Squirrel
+004d0ef0	sqApp_saveSystemConfig	native SQApp.saveSystemConfig, registered with Squirrel
+004d0f00	sqApp_loadSystemConfig	native SQApp.loadSystemConfig, registered with Squirrel
+004d0f10	sqApp_applySystemConfig	native SQApp.applySystemConfig, registered with Squirrel
+004d0f30	sqApp_applyPresetConfig	native SQApp.applyPresetConfig, registered with Squirrel
+004d0f60	sqApp_isExistUserSetting	native SQApp.isExistUserSetting, registered with Squirrel
+004d0f70	sqApp_setConfig_ScreenSize	native SQApp.setConfig_ScreenSize, registered with Squirrel
+004d0f90	sqApp_setConfig_FullScreen	native SQApp.setConfig_FullScreen, registered with Squirrel
+004d0fb0	sqApp_getConfig_FullScreen	native SQApp.getConfig_FullScreen, registered with Squirrel
+004d0fc0	sqApp_setConfig_FixedAspect	native SQApp.setConfig_FixedAspect, registered with Squirrel
+004d0fe0	sqApp_getConfig_ScreenSize	native SQApp.getConfig_ScreenSize, registered with Squirrel
+004d1060	sqApp_setConfig_FrameRate	native SQApp.setConfig_FrameRate, registered with Squirrel
+004d1080	sqApp_getConfig_FrameRate	native SQApp.getConfig_FrameRate, registered with Squirrel
+004d1090	sqApp_getConfig_FixedAspect	native SQApp.getConfig_FixedAspect, registered with Squirrel
+004d10a0	sqApp_setConfig_AntiAliasType	native SQApp.setConfig_AntiAliasType, registered with Squirrel
+004d10c0	sqApp_getConfig_AntiAliasType	native SQApp.getConfig_AntiAliasType, registered with Squirrel
+004d10d0	sqApp_setConfig_SceneDegreeSizeRatio	native SQApp.setConfig_SceneDegreeSizeRatio, registered with Squirrel
+004d10f0	sqApp_getConfig_SceneDegreeSizeRatio	native SQApp.getConfig_SceneDegreeSizeRatio, registered with Squirrel
+004d1100	sqApp_setConfig_UseSoftFocus	native SQApp.setConfig_UseSoftFocus, registered with Squirrel
+004d1120	sqApp_getConfig_UseSoftFocus	native SQApp.getConfig_UseSoftFocus, registered with Squirrel
+004d1130	sqApp_setConfig_UseHDR	native SQApp.setConfig_UseHDR, registered with Squirrel
+004d1150	sqApp_getConfig_UseHDR	native SQApp.getConfig_UseHDR, registered with Squirrel
+004d1160	sqApp_setConfig_UseDOF	native SQApp.setConfig_UseDOF, registered with Squirrel
+004d1180	sqApp_getConfig_UseDOF	native SQApp.getConfig_UseDOF, registered with Squirrel
+004d1190	sqApp_setConfig_UseToneMapping	native SQApp.setConfig_UseToneMapping, registered with Squirrel
+004d11b0	sqApp_getConfig_UseToneMapping	native SQApp.getConfig_UseToneMapping, registered with Squirrel
+004d11c0	sqApp_setConfig_ShadowQuality	native SQApp.setConfig_ShadowQuality, registered with Squirrel
+004d11e0	sqApp_getConfig_ShadowQuality	native SQApp.getConfig_ShadowQuality, registered with Squirrel
+004d11f0	sqApp_getConfig_UseShadow	native SQApp.getConfig_UseShadow, registered with Squirrel
+004d1200	sqApp_setConfig_UseShadow	native SQApp.setConfig_UseShadow, registered with Squirrel
+004d1220	sqApp_getConfig_UseSelfShadow	native SQApp.getConfig_UseSelfShadow, registered with Squirrel
+004d1240	sqApp_setConfig_UseSelfShadow	native SQApp.setConfig_UseSelfShadow, registered with Squirrel
+004d1260	sqApp_setConfig_PointLightNum	native SQApp.setConfig_PointLightNum, registered with Squirrel
+004d1290	sqApp_getConfig_PointLightNum	native SQApp.getConfig_PointLightNum, registered with Squirrel
+004d1540	sqreg_SQApp_ctor_004d1540	registers SQApp's constructor
+004d1620	sqApp_constructor	native SQApp.constructor, registered with Squirrel
+004d4430	sqreg_SQModel	registers class SQModel and its methods with Squirrel (SqPlus SQClassDef): reg_template(handler, "name", ...)
+004d4db0	sqModel_link	native SQModel.link, registered with Squirrel (also SQParticle.link)
+004d4e70	sqModel_loadModel	native SQModel.loadModel, registered with Squirrel
+004d4fc0	sqModel_loadEmotion	native SQModel.loadEmotion, registered with Squirrel
+004d5070	sqModel_loadMotion	native SQModel.loadMotion, registered with Squirrel
+004d5110	sqModel_loadMesh	native SQModel.loadMesh, registered with Squirrel
+004d5250	sqModel_setMeshVisible	native SQModel.setMeshVisible, registered with Squirrel
+004d5330	sqModel_setMeshDrawToEnd	native SQModel.setMeshDrawToEnd, registered with Squirrel
+004d5410	sqModel_eraseMesh	native SQModel.eraseMesh, registered with Squirrel
+004d54b0	sqModel_loadMorph	native SQModel.loadMorph, registered with Squirrel
+004d55b0	sqModel_loadMorphList	native SQModel.loadMorphList, registered with Squirrel
+004d5650	sqModel_eraseMorph	native SQModel.eraseMorph, registered with Squirrel
+004d5750	sqModel_clearMorph	native SQModel.clearMorph, registered with Squirrel
+004d57f0	sqModel_loadMaterial	native SQModel.loadMaterial, registered with Squirrel
+004d59d0	sqModel_setMaterialTable	native SQModel.setMaterialTable, registered with Squirrel
+004d6910	sqModel_remake	native SQModel.remake, registered with Squirrel (also SQModelCharacter.remake)
+004d6920	sqModel_setMaterialVisible	native SQModel.setMaterialVisible, registered with Squirrel
+004d6a90	sqModel_getMaterialVisible	native SQModel.getMaterialVisible, registered with Squirrel
+004d6c00	sqModel_setMaterialTexture	native SQModel.setMaterialTexture, registered with Squirrel
+004d6de0	sqModel_setMaterialSampler	native SQModel.setMaterialSampler, registered with Squirrel
+004d6f60	sqModel_setMaterialDiffuseColor	native SQModel.setMaterialDiffuseColor, registered with Squirrel
+004d7100	sqModel_clearMaterial	native SQModel.clearMaterial, registered with Squirrel (also SQModelCharacter.clearMaterial)
+004d7110	sqModel_setMotionSpeed	native SQModel.setMotionSpeed, registered with Squirrel
+004d71d0	sqModel_setMotionLoop	native SQModel.setMotionLoop, registered with Squirrel
+004d7270	sqModel_setMotion	native SQModel.setMotion, registered with Squirrel (also SQModelCharacter.setMotion)
+004d7290	sqModel_addMotion	native SQModel.addMotion, registered with Squirrel (also SQModelCharacter.addMotion)
+004d72b0	sqModel_setLayerMotion	native SQModel.setLayerMotion, registered with Squirrel
+004d7350	sqModel_addLayerMotion	native SQModel.addLayerMotion, registered with Squirrel
+004d73f0	sqModel_changeLayerActiveMotionFrameTime	native SQModel.changeLayerActiveMotionFrameTime, registered with Squirrel
+004d7410	sqModel_setLayerActiveMotionIndex	native SQModel.setLayerActiveMotionIndex, registered with Squirrel (also SQModelCharacter.setLayerActiveMotionIndex)
+004d7430	sqModel_setLayerActiveMotionTimer	native SQModel.setLayerActiveMotionTimer, registered with Squirrel
+004d7450	sqModel_setStopAllMotion	native SQModel.setStopAllMotion, registered with Squirrel (also SQModelCharacter.setStopAllMotion)
+004d7470	sqModel_waitMotion	native SQModel.waitMotion, registered with Squirrel (also SQModelCharacter.waitMotion)
+004d7480	sqModel_switchMotion	native SQModel.switchMotion, registered with Squirrel (also SQModelCharacter.switchMotion)
+004d74a0	sqModel_resetPose	native SQModel.resetPose, registered with Squirrel (also SQModelCharacter.resetPose)
+004d74b0	sqModel_eraseMotion	native SQModel.eraseMotion, registered with Squirrel
+004d7550	sqModel_move	native SQModel.move, registered with Squirrel (also SQModelCharacter.move)
+004d7590	sqModel_scale	native SQModel.scale, registered with Squirrel
+004d7660	sqModel_rotate	native SQModel.rotate, registered with Squirrel
+004d7730	sqModel_shake	native SQModel.shake, registered with Squirrel
+004d7820	sqModel_randomShake	native SQModel.randomShake, registered with Squirrel
+004d7910	sqModel_resetSpline	native SQModel.resetSpline, registered with Squirrel (also SQModelCharacter.resetSpline)
+004d7920	sqModel_setSpline	native SQModel.setSpline, registered with Squirrel (also SQModelCharacter.setSpline)
+004d79c0	sqModel_beginSpline	native SQModel.beginSpline, registered with Squirrel (also SQModelCharacter.beginSpline)
+004d79d0	sqModel_setTimeScale	native SQModel.setTimeScale, registered with Squirrel
+004d7a00	sqModel_setMorph	native SQModel.setMorph, registered with Squirrel
+004d7b90	sqModel_setMorphWeight	native SQModel.setMorphWeight, registered with Squirrel
+004d7c50	sqModel_setAnimationColorUV	native SQModel.setAnimationColorUV, registered with Squirrel
+004d7d70	sqModel_setAnimationBumpUV	native SQModel.setAnimationBumpUV, registered with Squirrel
+004d7e90	sqModel_setDiffuseColor	native SQModel.setDiffuseColor, registered with Squirrel (also SQModelCharacter.setDiffuseColor)
+004d7ed0	sqModel_getMove	native SQModel.getMove, registered with Squirrel (also SQModelCharacter.getMove)
+004d7f10	sqModel_getScale	native SQModel.getScale, registered with Squirrel (also SQModelCharacter.getScale)
+004d7f50	sqModel_getRotate	native SQModel.getRotate, registered with Squirrel (also SQModelCharacter.getRotate)
+004d7f90	sqModel_getMorphWeight	native SQModel.getMorphWeight, registered with Squirrel
+004d8060	sqModel_isMoving	native SQModel.isMoving, registered with Squirrel (also SQModelCharacter.isMoving)
+004d8070	sqModel_isScaling	native SQModel.isScaling, registered with Squirrel (also SQModelCharacter.isScaling, SQPointLight.isMoving)
+004d8080	sqModel_isRotating	native SQModel.isRotating, registered with Squirrel (also SQModelCharacter.isRotating)
+004d8090	sqModel_isMotionOver	native SQModel.isMotionOver, registered with Squirrel (also SQModelCharacter.isMotionOver)
+004d80b0	sqModel_isRemainMotion	native SQModel.isRemainMotion, registered with Squirrel (also SQModelCharacter.isRemainMotion)
+004d80d0	sqModel_checkHitCollisionLine	native SQModel.checkHitCollisionLine, registered with Squirrel (also SQModelCharacter.checkHitCollisionLine)
+004d8140	sqModel_checkSortHitCollisionLine	native SQModel.checkSortHitCollisionLine, registered with Squirrel (also SQModelCharacter.checkSortHitCollisionLine)
+004d8180	sqModel_getModelName	native SQModel.getModelName, registered with Squirrel
+004d8260	sqModel_getMeshNum	native SQModel.getMeshNum, registered with Squirrel
+004d8300	sqModel_getMeshName	native SQModel.getMeshName, registered with Squirrel
+004d8400	sqModel_getMeshVisible	native SQModel.getMeshVisible, registered with Squirrel
+004d84b0	sqModel_getMaterialNum	native SQModel.getMaterialNum, registered with Squirrel
+004d8620	sqModel_getMaterialName	native SQModel.getMaterialName, registered with Squirrel
+004d8810	sqModel_getMorphName	native SQModel.getMorphName, registered with Squirrel
+004d8880	sqModel_getActiveMorphName	native SQModel.getActiveMorphName, registered with Squirrel
+004d88c0	sqModel_getMotionMaxFrameTimeByName	native SQModel.getMotionMaxFrameTimeByName, registered with Squirrel
+004d8960	sqModel_getOriginalMotionSpeedByName	native SQModel.getOriginalMotionSpeedByName, registered with Squirrel
+004d8a00	sqModel_getLayerActiveMotionFrameTime	native SQModel.getLayerActiveMotionFrameTime, registered with Squirrel (also SQModelCharacter.getLayerActiveMotionFrameTime)
+004d8a20	sqModel_getLayerActiveMotionIndex	native SQModel.getLayerActiveMotionIndex, registered with Squirrel (also SQModelCharacter.getLayerActiveMotionIndex)
+004d8a40	sqModel_getLayerActiveMotionTimer	native SQModel.getLayerActiveMotionTimer, registered with Squirrel (also SQModelCharacter.getLayerActiveMotionTimer)
+004d8a60	sqModel_exportPhysicsSetting	native SQModel.exportPhysicsSetting, registered with Squirrel (also SQModelCharacter.exportPhysicsSetting)
+004d8a90	sqModel_importPhysicsSetting	native SQModel.importPhysicsSetting, registered with Squirrel
+004d8af0	sqModel_erasePhysicsObject	native SQModel.erasePhysicsObject, registered with Squirrel (also SQModelCharacter.erasePhysicsObject)
+004d8b30	sqModel_resetPhysics	native SQModel.resetPhysics, registered with Squirrel (also SQModelCharacter.resetPhysics)
+004d8b70	sqModel_getMoveTimer	native SQModel.getMoveTimer, registered with Squirrel
+004d8b90	sqModel_getScaleTimer	native SQModel.getScaleTimer, registered with Squirrel
+004d8bb0	sqModel_getRotateTimer	native SQModel.getRotateTimer, registered with Squirrel
+004d8bd0	sqModel_getSplineTimer	native SQModel.getSplineTimer, registered with Squirrel
+004d8bf0	sqModel_getMorphTimer	native SQModel.getMorphTimer, registered with Squirrel
+004d8c20	sqModel_getShakeTimer	native SQModel.getShakeTimer, registered with Squirrel
+004d8c60	sqModel_setMoveTimer	native SQModel.setMoveTimer, registered with Squirrel
+004d8ce0	sqModel_setScaleTimer	native SQModel.setScaleTimer, registered with Squirrel
+004d8d60	sqModel_setRotateTimer	native SQModel.setRotateTimer, registered with Squirrel
+004d8de0	sqModel_setSplineTimer	native SQModel.setSplineTimer, registered with Squirrel (also SQModelCharacter.setSplineTimer)
+004d8e00	sqModel_setMorphTimer	native SQModel.setMorphTimer, registered with Squirrel (also SQModelCharacter.setMorphTimer)
+004d8e20	sqModel_setShakeTimer	native SQModel.setShakeTimer, registered with Squirrel (also SQModelCharacter.setShakeTimer)
+004d9390	sqreg_SQModel_ctor_004d9390	registers SQModel's constructor
+004d9470	sqModel_constructor	native SQModel.constructor, registered with Squirrel
+004ddad0	sqModel_deserialize	native SQModel.deserialize, registered with Squirrel (also SQCamera.deserialize, SQModelCharacter.deserialize, SQParticle.deserialize, SQSprite.deserialize, SQSpriteMask.deserialize, SQSpriteRenderTarget.deserialize) +1
+004ddad8	sqModel_setErase	native SQModel.setErase, registered with Squirrel (also SQDisplacementMap.setErase, SQJoint.setErase, SQLine.setErase, SQModelCharacter.setErase, SQParticle.setErase, SQPointLight.setErase) +7
+004ddae0	sqModel_setPriority	native SQModel.setPriority, registered with Squirrel (also SQDisplacementMap.setPriority, SQJoint.setPriority, SQLine.setPriority, SQModelCharacter.setPriority, SQParticle.setPriority, SQPointLight.setPriority) +7
+004ddae8	sqModel_getErase	native SQModel.getErase, registered with Squirrel (also SQDisplacementMap.getErase, SQJoint.getErase, SQLine.getErase, SQModelCharacter.getErase, SQParticle.getErase, SQPointLight.getErase) +7
+004ddaf0	sqModel_getPriority	native SQModel.getPriority, registered with Squirrel (also SQDisplacementMap.getPriority, SQJoint.getPriority, SQLine.getPriority, SQModelCharacter.getPriority, SQParticle.getPriority, SQPointLight.getPriority) +7
+004ddaf8	sqModel_serialize	native SQModel.serialize, registered with Squirrel (also SQCamera.serialize, SQModelCharacter.serialize, SQParticle.serialize, SQSprite.serialize, SQSpriteMask.serialize, SQSpriteRenderTarget.serialize) +1
+004ddb90	sqreg_SQModelCharacter	registers class SQModelCharacter and its methods with Squirrel (SqPlus SQClassDef): reg_template(handler, "name", ...)
+004de790	sqModelCharacter_loadModel	native SQModelCharacter.loadModel, registered with Squirrel
+004de7b0	sqModelCharacter_loadEmotion	native SQModelCharacter.loadEmotion, registered with Squirrel
+004de7d0	sqModelCharacter_loadMotion	native SQModelCharacter.loadMotion, registered with Squirrel
+004de7f0	sqModelCharacter_loadMesh	native SQModelCharacter.loadMesh, registered with Squirrel
+004de810	sqModelCharacter_setMeshVisible	native SQModelCharacter.setMeshVisible, registered with Squirrel
+004de830	sqModelCharacter_setMeshDrawToEnd	native SQModelCharacter.setMeshDrawToEnd, registered with Squirrel
+004de840	sqModelCharacter_eraseMesh	native SQModelCharacter.eraseMesh, registered with Squirrel
+004de860	sqModelCharacter_loadMorph	native SQModelCharacter.loadMorph, registered with Squirrel
+004de870	sqModelCharacter_loadMorphList	native SQModelCharacter.loadMorphList, registered with Squirrel
+004de890	sqModelCharacter_eraseMorph	native SQModelCharacter.eraseMorph, registered with Squirrel
+004de8a0	sqModelCharacter_clearMorph	native SQModelCharacter.clearMorph, registered with Squirrel
+004de8c0	sqModelCharacter_loadMaterial	native SQModelCharacter.loadMaterial, registered with Squirrel
+004de8d0	sqModelCharacter_setMaterialVisible	native SQModelCharacter.setMaterialVisible, registered with Squirrel
+004de8e0	sqModelCharacter_getMaterialVisible	native SQModelCharacter.getMaterialVisible, registered with Squirrel
+004de900	sqModelCharacter_setMaterialDiffuseColor	native SQModelCharacter.setMaterialDiffuseColor, registered with Squirrel
+004de940	sqModelCharacter_loadLipTimeline	native SQModelCharacter.loadLipTimeline, registered with Squirrel
+004deab0	sqModelCharacter_setMotionSpeed	native SQModelCharacter.setMotionSpeed, registered with Squirrel
+004deac0	sqModelCharacter_setMotionLoop	native SQModelCharacter.setMotionLoop, registered with Squirrel
+004dead0	sqModelCharacter_setLayerMotion	native SQModelCharacter.setLayerMotion, registered with Squirrel
+004deae0	sqModelCharacter_addLayerMotion	native SQModelCharacter.addLayerMotion, registered with Squirrel
+004deb00	sqModelCharacter_changeLayerActiveMotionFrameTime	native SQModelCharacter.changeLayerActiveMotionFrameTime, registered with Squirrel
+004deb30	sqModelCharacter_setLayerActiveMotionTimer	native SQModelCharacter.setLayerActiveMotionTimer, registered with Squirrel
+004deb60	sqModelCharacter_eraseMotion	native SQModelCharacter.eraseMotion, registered with Squirrel
+004deb80	sqModelCharacter_scale	native SQModelCharacter.scale, registered with Squirrel
+004debc0	sqModelCharacter_rotate	native SQModelCharacter.rotate, registered with Squirrel
+004dec00	sqModelCharacter_shake	native SQModelCharacter.shake, registered with Squirrel
+004dec20	sqModelCharacter_randomShake	native SQModelCharacter.randomShake, registered with Squirrel
+004dec40	sqModelCharacter_setTimeScale	native SQModelCharacter.setTimeScale, registered with Squirrel
+004dec90	sqModelCharacter_setAnimationColorUV	native SQModelCharacter.setAnimationColorUV, registered with Squirrel
+004decc0	sqModelCharacter_setAnimationBumpUV	native SQModelCharacter.setAnimationBumpUV, registered with Squirrel
+004decf0	sqModelCharacter_setChangeFaceSpeed	native SQModelCharacter.setChangeFaceSpeed, registered with Squirrel
+004ded90	sqModelCharacter_initFace	native SQModelCharacter.initFace, registered with Squirrel
+004dee90	sqModelCharacter_makeFace	native SQModelCharacter.makeFace, registered with Squirrel
+004df0e0	sqModelCharacter_setFace	native SQModelCharacter.setFace, registered with Squirrel
+004df180	sqModelCharacter_addFace	native SQModelCharacter.addFace, registered with Squirrel
+004df220	sqModelCharacter_focusFace	native SQModelCharacter.focusFace, registered with Squirrel
+004df250	sqModelCharacter_addFocusFace	native SQModelCharacter.addFocusFace, registered with Squirrel
+004df280	sqModelCharacter_focusEye	native SQModelCharacter.focusEye, registered with Squirrel
+004df2b0	sqModelCharacter_addFocusEye	native SQModelCharacter.addFocusEye, registered with Squirrel
+004df2e0	sqModelCharacter_faceLookAt	native SQModelCharacter.faceLookAt, registered with Squirrel
+004df320	sqModelCharacter_setFrameName_EyeL	native SQModelCharacter.setFrameName_EyeL, registered with Squirrel
+004df3c0	sqModelCharacter_setFrameName_EyeR	native SQModelCharacter.setFrameName_EyeR, registered with Squirrel
+004df460	sqModelCharacter_setFrameName_Head	native SQModelCharacter.setFrameName_Head, registered with Squirrel
+004df500	sqModelCharacter_setFrameName_SpineRoot	native SQModelCharacter.setFrameName_SpineRoot, registered with Squirrel
+004df5a0	sqModelCharacter_faceEffect	native SQModelCharacter.faceEffect, registered with Squirrel
+004df650	sqModelCharacter_addFaceEffect	native SQModelCharacter.addFaceEffect, registered with Squirrel
+004df700	sqModelCharacter_setMouseWeight	native SQModelCharacter.setMouseWeight, registered with Squirrel
+004df720	sqModelCharacter_setVoice	native SQModelCharacter.setVoice, registered with Squirrel
+004df810	sqModelCharacter_importPhysicsSetting	native SQModelCharacter.importPhysicsSetting, registered with Squirrel
+004df870	sqModelCharacter_getMorphWeight	native SQModelCharacter.getMorphWeight, registered with Squirrel
+004df890	sqModelCharacter_getModelName	native SQModelCharacter.getModelName, registered with Squirrel
+004df8c0	sqModelCharacter_getMeshNum	native SQModelCharacter.getMeshNum, registered with Squirrel
+004df8d0	sqModelCharacter_getMeshVisible	native SQModelCharacter.getMeshVisible, registered with Squirrel
+004df8e0	sqModelCharacter_getMeshName	native SQModelCharacter.getMeshName, registered with Squirrel
+004df910	sqModelCharacter_getMaterialNum	native SQModelCharacter.getMaterialNum, registered with Squirrel
+004df920	sqModelCharacter_getMaterialName	native SQModelCharacter.getMaterialName, registered with Squirrel
+004df950	sqModelCharacter_getMorphName	native SQModelCharacter.getMorphName, registered with Squirrel
+004df970	sqModelCharacter_getActiveMorphName	native SQModelCharacter.getActiveMorphName, registered with Squirrel
+004df990	sqModelCharacter_getMotionMaxFrameTimeByName	native SQModelCharacter.getMotionMaxFrameTimeByName, registered with Squirrel
+004df9b0	sqModelCharacter_getOriginalMotionSpeedByName	native SQModelCharacter.getOriginalMotionSpeedByName, registered with Squirrel
+004df9d0	sqModelCharacter_getMoveTimer	native SQModelCharacter.getMoveTimer, registered with Squirrel
+004dfa00	sqModelCharacter_getScaleTimer	native SQModelCharacter.getScaleTimer, registered with Squirrel
+004dfa30	sqModelCharacter_getRotateTimer	native SQModelCharacter.getRotateTimer, registered with Squirrel
+004dfa60	sqModelCharacter_getSplineTimer	native SQModelCharacter.getSplineTimer, registered with Squirrel
+004dfa90	sqModelCharacter_getMorphTimer	native SQModelCharacter.getMorphTimer, registered with Squirrel
+004dfad0	sqModelCharacter_getShakeTimer	native SQModelCharacter.getShakeTimer, registered with Squirrel
+004dfb20	sqModelCharacter_getFocusEyeTimer	native SQModelCharacter.getFocusEyeTimer, registered with Squirrel
+004dfb30	sqModelCharacter_getFocusFaceTimer	native SQModelCharacter.getFocusFaceTimer, registered with Squirrel
+004dfb40	sqModelCharacter_setMoveTimer	native SQModelCharacter.setMoveTimer, registered with Squirrel
+004dfbb0	sqModelCharacter_setScaleTimer	native SQModelCharacter.setScaleTimer, registered with Squirrel
+004dfc20	sqModelCharacter_setRotateTimer	native SQModelCharacter.setRotateTimer, registered with Squirrel
+004dfc90	sqModelCharacter_setFocusEyeTimer	native SQModelCharacter.setFocusEyeTimer, registered with Squirrel
+004dfcb0	sqModelCharacter_setFocusFaceTimer	native SQModelCharacter.setFocusFaceTimer, registered with Squirrel
+004dffd0	sqreg_SQModelCharacter_ctor_004dffd0	registers SQModelCharacter's constructor
+004e00b0	sqModelCharacter_constructor	native SQModelCharacter.constructor, registered with Squirrel
+004e3570	sqreg_SQSprite3D	registers class SQSprite3D and its methods with Squirrel (SqPlus SQClassDef): reg_template(handler, "name", ...)
+004e4af0	sqSprite3D_create	native SQSprite3D.create, registered with Squirrel
+004e4cc0	sqSprite3D_createMovie	native SQSprite3D.createMovie, registered with Squirrel
+004e4f70	sqSprite3D_setBlendMode	native SQSprite3D.setBlendMode, registered with Squirrel
+004e5030	sqSprite3D_setColor	native SQSprite3D.setColor, registered with Squirrel
+004e50d0	sqSprite3D_getColor	native SQSprite3D.getColor, registered with Squirrel
+004e5110	sqSprite3D_move	native SQSprite3D.move, registered with Squirrel
+004e51b0	sqSprite3D_scale	native SQSprite3D.scale, registered with Squirrel
+004e5250	sqSprite3D_rotate	native SQSprite3D.rotate, registered with Squirrel
+004e52f0	sqSprite3D_fade	native SQSprite3D.fade, registered with Squirrel
+004e5330	sqSprite3D_resetSpline	native SQSprite3D.resetSpline, registered with Squirrel
+004e53b0	sqSprite3D_setSpline	native SQSprite3D.setSpline, registered with Squirrel
+004e5450	sqSprite3D_beginSpline	native SQSprite3D.beginSpline, registered with Squirrel
+004e5480	sqSprite3D_setTimeScale	native SQSprite3D.setTimeScale, registered with Squirrel
+004e54e0	sqSprite3D_play	native SQSprite3D.play, registered with Squirrel
+004e5510	sqSprite3D_stop	native SQSprite3D.stop, registered with Squirrel
+004e5520	sqSprite3D_pause	native SQSprite3D.pause, registered with Squirrel
+004e5530	sqSprite3D_onResume	native SQSprite3D.onResume, registered with Squirrel
+004e5540	sqSprite3D_setVolume	native SQSprite3D.setVolume, registered with Squirrel
+004e5580	sqSprite3D_setLoop	native SQSprite3D.setLoop, registered with Squirrel
+004e55b0	sqSprite3D_seek	native SQSprite3D.seek, registered with Squirrel
+004e55d0	sqSprite3D_setCenter	native SQSprite3D.setCenter, registered with Squirrel
+004e5620	sqSprite3D_setPivot	native SQSprite3D.setPivot, registered with Squirrel
+004e5670	sqSprite3D_getSize	native SQSprite3D.getSize, registered with Squirrel
+004e56b0	sqSprite3D_getFade	native SQSprite3D.getFade, registered with Squirrel
+004e56c0	sqSprite3D_getMove	native SQSprite3D.getMove, registered with Squirrel
+004e5700	sqSprite3D_getScale	native SQSprite3D.getScale, registered with Squirrel
+004e5740	sqSprite3D_getRotate	native SQSprite3D.getRotate, registered with Squirrel
+004e5780	sqSprite3D_getDurationTime	native SQSprite3D.getDurationTime, registered with Squirrel (also SQSprite3D.getTotalTime)
+004e57a0	sqSprite3D_getRemainTime	native SQSprite3D.getRemainTime, registered with Squirrel
+004e57d0	sqSprite3D_isFading	native SQSprite3D.isFading, registered with Squirrel
+004e57e0	sqSprite3D_isMoving	native SQSprite3D.isMoving, registered with Squirrel
+004e57f0	sqSprite3D_isScaling	native SQSprite3D.isScaling, registered with Squirrel
+004e5800	sqSprite3D_isRotating	native SQSprite3D.isRotating, registered with Squirrel
+004e5810	sqSprite3D_isPlaying	native SQSprite3D.isPlaying, registered with Squirrel
+004e5830	sqSprite3D_isPaused	native SQSprite3D.isPaused, registered with Squirrel
+004e5850	sqSprite3D_addSoundGroup	native SQSprite3D.addSoundGroup, registered with Squirrel
+004e5920	sqSprite3D_setVolumeControlFadeTime	native SQSprite3D.setVolumeControlFadeTime, registered with Squirrel
+004e5960	sqSprite3D_getFadeTimer	native SQSprite3D.getFadeTimer, registered with Squirrel
+004e5970	sqSprite3D_getScaleTimer	native SQSprite3D.getScaleTimer, registered with Squirrel
+004e5980	sqSprite3D_getRotateTimer	native SQSprite3D.getRotateTimer, registered with Squirrel
+004e5990	sqSprite3D_getMoveTimer	native SQSprite3D.getMoveTimer, registered with Squirrel
+004e59a0	sqSprite3D_getColorTimer	native SQSprite3D.getColorTimer, registered with Squirrel
+004e59b0	sqSprite3D_getSplineTimer	native SQSprite3D.getSplineTimer, registered with Squirrel
+004e59c0	sqSprite3D_getVolumeTimer	native SQSprite3D.getVolumeTimer, registered with Squirrel
+004e59d0	sqSprite3D_setFadeTimer	native SQSprite3D.setFadeTimer, registered with Squirrel
+004e5a80	sqSprite3D_setScaleTimer	native SQSprite3D.setScaleTimer, registered with Squirrel
+004e5af0	sqSprite3D_setRotateTimer	native SQSprite3D.setRotateTimer, registered with Squirrel
+004e5b60	sqSprite3D_setMoveTimer	native SQSprite3D.setMoveTimer, registered with Squirrel
+004e5bd0	sqSprite3D_setColorTimer	native SQSprite3D.setColorTimer, registered with Squirrel
+004e5c40	sqSprite3D_setSplineTimer	native SQSprite3D.setSplineTimer, registered with Squirrel
+004e5ce0	sqSprite3D_setVolumeTimer	native SQSprite3D.setVolumeTimer, registered with Squirrel
+004e5f00	sqreg_SQSprite3D_ctor_004e5f00	registers SQSprite3D's constructor
+004e5fe0	sqSprite3D_constructor	native SQSprite3D.constructor, registered with Squirrel
+004e9230	sqreg_SQSprite	registers class SQSprite and its methods with Squirrel (SqPlus SQClassDef): reg_template(handler, "name", ...)
+004ea690	sqSprite_link	native SQSprite.link, registered with Squirrel (also SQSpriteMask.link, SQSpriteRenderTarget.link, SQText.link)
+004ea820	sqSprite_create	native SQSprite.create, registered with Squirrel
+004ea970	sqSprite_createSubresource	native SQSprite.createSubresource, registered with Squirrel
+004eaac0	sqSprite_createColor	native SQSprite.createColor, registered with Squirrel
+004eabc0	sqSprite_createScreen	native SQSprite.createScreen, registered with Squirrel
+004eadb0	sqSprite_createScene	native SQSprite.createScene, registered with Squirrel
+004eafa0	sqSprite_createMovie	native SQSprite.createMovie, registered with Squirrel
+004eb0f0	sqSprite_fade	native SQSprite.fade, registered with Squirrel
+004eb140	sqSprite_move	native SQSprite.move, registered with Squirrel
+004eb170	sqSprite_move3D	native SQSprite.move3D, registered with Squirrel
+004eb1a0	sqSprite_moveVertex	native SQSprite.moveVertex, registered with Squirrel
+004eb1d0	sqSprite_scale	native SQSprite.scale, registered with Squirrel
+004eb270	sqSprite_rotate	native SQSprite.rotate, registered with Squirrel
+004eb320	sqSprite_transition	native SQSprite.transition, registered with Squirrel
+004eb3f0	sqSprite_shake	native SQSprite.shake, registered with Squirrel
+004eb420	sqSprite_randomShake	native SQSprite.randomShake, registered with Squirrel
+004eb450	sqSprite_scroll	native SQSprite.scroll, registered with Squirrel
+004eb4e0	sqSprite_setBlendMode	native SQSprite.setBlendMode, registered with Squirrel
+004eb530	sqSprite_setColor	native SQSprite.setColor, registered with Squirrel
+004eb570	sqSprite_setColorBalance	native SQSprite.setColorBalance, registered with Squirrel
+004eb620	sqSprite_setColorHue	native SQSprite.setColorHue, registered with Squirrel (also SQSpriteMask.setColorHue, SQSpriteRenderTarget.setColorHue)
+004eb680	sqSprite_setColorSaturation	native SQSprite.setColorSaturation, registered with Squirrel (also SQSpriteMask.setColorSaturation, SQSpriteRenderTarget.setColorSaturation)
+004eb6e0	sqSprite_setColorBrightness	native SQSprite.setColorBrightness, registered with Squirrel (also SQSpriteMask.setColorBrightness, SQSpriteRenderTarget.setColorBrightness)
+004eb740	sqSprite_setColorGlow	native SQSprite.setColorGlow, registered with Squirrel (also SQSpriteMask.setColorGlow, SQSpriteRenderTarget.setColorGlow)
+004eb7a0	sqSprite_setTimeScale	native SQSprite.setTimeScale, registered with Squirrel (also SQSpriteMask.setTimeScale, SQSpriteRenderTarget.setTimeScale)
+004eb7d0	sqSprite_setActionCompatibleMode	native SQSprite.setActionCompatibleMode, registered with Squirrel (also SQSpriteMask.setActionCompatibleMode, SQSpriteRenderTarget.setActionCompatibleMode)
+004eb800	sqSprite_getColor	native SQSprite.getColor, registered with Squirrel (also SQSpriteMask.getColor, SQSpriteRenderTarget.getColor)
+004eb9b0	sqSprite_getColorBalance	native SQSprite.getColorBalance, registered with Squirrel
+004eba10	sqSprite_getColorHue	native SQSprite.getColorHue, registered with Squirrel
+004eba30	sqSprite_getColorSaturation	native SQSprite.getColorSaturation, registered with Squirrel
+004eba50	sqSprite_getColorBrightness	native SQSprite.getColorBrightness, registered with Squirrel
+004eba70	sqSprite_getColorGlow	native SQSprite.getColorGlow, registered with Squirrel
+004eba90	sqSprite_setNegaposiPower	native SQSprite.setNegaposiPower, registered with Squirrel (also SQSpriteMask.setNegaposiPower, SQSpriteRenderTarget.setNegaposiPower)
+004ebaf0	sqSprite_setMonochromePower	native SQSprite.setMonochromePower, registered with Squirrel (also SQSpriteMask.setMonochromePower, SQSpriteRenderTarget.setMonochromePower)
+004ebba0	sqSprite_setSepiaPower	native SQSprite.setSepiaPower, registered with Squirrel (also SQSpriteMask.setSepiaPower, SQSpriteRenderTarget.setSepiaPower)
+004ebc00	sqSprite_setShadingParameter	native SQSprite.setShadingParameter, registered with Squirrel (also SQSpriteMask.setShadingParameter)
+004ebc30	sqSprite_setShadingPower	native SQSprite.setShadingPower, registered with Squirrel (also SQSpriteMask.setShadingPower, SQSpriteRenderTarget.setShadingPower)
+004ebc60	sqSprite_setColorLevel	native SQSprite.setColorLevel, registered with Squirrel (also SQSpriteMask.setColorLevel, SQSpriteRenderTarget.setColorLevel)
+004ebc90	sqSprite_getNegaposiPower	native SQSprite.getNegaposiPower, registered with Squirrel
+004ebcb0	sqSprite_getMonochromePower	native SQSprite.getMonochromePower, registered with Squirrel
+004ebcd0	sqSprite_getMonochromeCb	native SQSprite.getMonochromeCb, registered with Squirrel
+004ebcf0	sqSprite_getMonochromeCr	native SQSprite.getMonochromeCr, registered with Squirrel
+004ebd10	sqSprite_getSepiaPower	native SQSprite.getSepiaPower, registered with Squirrel
+004ebd30	sqSprite_getShadingPower	native SQSprite.getShadingPower, registered with Squirrel
+004ebd50	sqSprite_getShadingLevel	native SQSprite.getShadingLevel, registered with Squirrel (also SQSpriteMask.getShadingLevel, SQSpriteRenderTarget.getShadingLevel)
+004ebd60	sqSprite_getShadingDensity	native SQSprite.getShadingDensity, registered with Squirrel (also SQSpriteMask.getShadingDensity, SQSpriteRenderTarget.getShadingDensity)
+004ebd70	sqSprite_getColorLevelMin	native SQSprite.getColorLevelMin, registered with Squirrel (also SQSpriteMask.getColorLevelMin, SQSpriteRenderTarget.getColorLevelMin)
+004ebda0	sqSprite_getColorLevelMax	native SQSprite.getColorLevelMax, registered with Squirrel (also SQSpriteMask.getColorLevelMax, SQSpriteRenderTarget.getColorLevelMax)
+004ebdd0	sqSprite_getColorLevelPower	native SQSprite.getColorLevelPower, registered with Squirrel (also SQSpriteMask.getColorLevelPower, SQSpriteRenderTarget.getColorLevelPower)
+004ebe00	sqSprite_getSize	native SQSprite.getSize, registered with Squirrel (also SQSpriteMask.getSize)
+004ebea0	sqSprite_getFade	native SQSprite.getFade, registered with Squirrel (also SQSpriteMask.getFade)
+004ebeb0	sqSprite_getMove	native SQSprite.getMove, registered with Squirrel (also SQSpriteMask.getMove)
+004ebef0	sqSprite_getVertexMove	native SQSprite.getVertexMove, registered with Squirrel (also SQSpriteMask.getVertexMove, SQSpriteRenderTarget.getVertexMove)
+004ebf40	sqSprite_getScale	native SQSprite.getScale, registered with Squirrel (also SQSpriteMask.getScale)
+004ebf80	sqSprite_getRotate	native SQSprite.getRotate, registered with Squirrel (also SQSpriteMask.getRotate)
+004ebfc0	sqSprite_getScroll	native SQSprite.getScroll, registered with Squirrel (also SQSpriteMask.getScroll)
+004ec000	sqSprite_getVolume	native SQSprite.getVolume, registered with Squirrel (also SQSpriteMask.getVolume)
+004ec010	sqSprite_setMask	native SQSprite.setMask, registered with Squirrel
+004ec110	sqSprite_setSurface	native SQSprite.setSurface, registered with Squirrel
+004ec210	sqSprite_setDisplacementMap	native SQSprite.setDisplacementMap, registered with Squirrel
+004ec300	sqSprite_setDither	native SQSprite.setDither, registered with Squirrel (also SQSpriteMask.setDither, SQSpriteRenderTarget.setDither)
+004ec3b0	sqSprite_setCamera	native SQSprite.setCamera, registered with Squirrel
+004ec480	sqSprite_setCapture	native SQSprite.setCapture, registered with Squirrel
+004ec4f0	sqSprite_setCenter	native SQSprite.setCenter, registered with Squirrel (also SQSpriteMask.setCenter)
+004ec550	sqSprite_setPivot	native SQSprite.setPivot, registered with Squirrel (also SQSpriteMask.setPivot)
+004ec5c0	sqSprite_play	native SQSprite.play, registered with Squirrel
+004ec620	sqSprite_stop	native SQSprite.stop, registered with Squirrel
+004ec680	sqSprite_pause	native SQSprite.pause, registered with Squirrel
+004ec6e0	sqSprite_onResume	native SQSprite.onResume, registered with Squirrel
+004ec740	sqSprite_setVolume	native SQSprite.setVolume, registered with Squirrel (also SQSpriteMask.setVolume)
+004ec7a0	sqSprite_setLoop	native SQSprite.setLoop, registered with Squirrel (also SQSpriteMask.setLoop)
+004ec7e0	sqSprite_seek	native SQSprite.seek, registered with Squirrel (also SQSpriteMask.seek)
+004ec810	sqSprite_resetBezier	native SQSprite.resetBezier, registered with Squirrel (also SQSpriteMask.resetBezier)
+004ec850	sqSprite_setBezier	native SQSprite.setBezier, registered with Squirrel (also SQSpriteMask.setBezier)
+004ec8d0	sqSprite_beginBezier	native SQSprite.beginBezier, registered with Squirrel (also SQSpriteMask.beginBezier)
+004ec910	sqSprite_resetSpline	native SQSprite.resetSpline, registered with Squirrel (also SQSpriteMask.resetSpline)
+004ec920	sqSprite_setSpline	native SQSprite.setSpline, registered with Squirrel (also SQSpriteMask.setSpline)
+004ec9c0	sqSprite_beginSpline	native SQSprite.beginSpline, registered with Squirrel (also SQSpriteMask.beginSpline)
+004ec9d0	sqSprite_setBlur	native SQSprite.setBlur, registered with Squirrel (also SQSpriteMask.setBlur, SQSpriteRenderTarget.setBlur)
+004eca00	sqSprite_setBlurMode	native SQSprite.setBlurMode, registered with Squirrel (also SQSpriteMask.setBlurMode, SQSpriteRenderTarget.setBlurMode)
+004eca20	sqSprite_setTextureFiltering	native SQSprite.setTextureFiltering, registered with Squirrel (also SQSpriteMask.setTextureFiltering)
+004eca40	sqSprite_setClickable	native SQSprite.setClickable, registered with Squirrel
+004eca70	sqSprite_setChangeCursor	native SQSprite.setChangeCursor, registered with Squirrel
+004eca90	sqSprite_getDurationTime	native SQSprite.getDurationTime, registered with Squirrel (also SQSprite.getTotalTime, SQSpriteMask.getDurationTime, SQSpriteMask.getTotalTime)
+004ecac0	sqSprite_getRemainTime	native SQSprite.getRemainTime, registered with Squirrel (also SQSpriteMask.getRemainTime)
+004ecb20	sqSprite_isFading	native SQSprite.isFading, registered with Squirrel (also SQSpriteMask.isFading)
+004ecb30	sqSprite_isMoving	native SQSprite.isMoving, registered with Squirrel (also SQSpriteMask.isMoving)
+004ecb60	sqSprite_isScaling	native SQSprite.isScaling, registered with Squirrel (also SQSpriteMask.isScaling, SQText.isFading)
+004ecb70	sqSprite_isRotating	native SQSprite.isRotating, registered with Squirrel (also SQSpriteMask.isRotating)
+004ecb80	sqSprite_isTransitioning	native SQSprite.isTransitioning, registered with Squirrel (also SQSpriteMask.isTransitioning)
+004ecb90	sqSprite_isShaking	native SQSprite.isShaking, registered with Squirrel (also SQSpriteMask.isShaking)
+004ecbb0	sqSprite_isPlaying	native SQSprite.isPlaying, registered with Squirrel (also SQSpriteMask.isPlaying)
+004ecbd0	sqSprite_isPaused	native SQSprite.isPaused, registered with Squirrel
+004ecc10	sqSprite_isOver	native SQSprite.isOver, registered with Squirrel
+004ecc20	sqSprite_isCaptureEnabled	native SQSprite.isCaptureEnabled, registered with Squirrel (also SQSpriteRenderTarget.isCaptureEnabled)
+004ecc30	sqSprite_getTransitionFilename	native SQSprite.getTransitionFilename, registered with Squirrel (also SQSpriteMask.getTransitionFilename, SQSpriteRenderTarget.getTransitionFilename)
+004ecc50	sqSprite_setRadialBlur	native SQSprite.setRadialBlur, registered with Squirrel (also SQSpriteMask.setRadialBlur, SQSpriteRenderTarget.setRadialBlur)
+004ecc90	sqSprite_getRadialBlurPower	native SQSprite.getRadialBlurPower, registered with Squirrel (also SQSpriteMask.getRadialBlurPower, SQSpriteRenderTarget.getRadialBlurPower)
+004ecca0	sqSprite_getRadialBlurCenter	native SQSprite.getRadialBlurCenter, registered with Squirrel (also SQSpriteMask.getRadialBlurCenter, SQSpriteRenderTarget.getRadialBlurCenter)
+004eccf0	sqSprite_setDirectionalBlur	native SQSprite.setDirectionalBlur, registered with Squirrel (also SQSpriteMask.setDirectionalBlur, SQSpriteRenderTarget.setDirectionalBlur)
+004ecd30	sqSprite_getDirectionalBlurPower	native SQSprite.getDirectionalBlurPower, registered with Squirrel (also SQSpriteMask.getDirectionalBlurPower, SQSpriteRenderTarget.getDirectionalBlurPower)
+004ecd40	sqSprite_getDirectionalBlurDirection	native SQSprite.getDirectionalBlurDirection, registered with Squirrel (also SQSpriteMask.getDirectionalBlurDirection, SQSpriteRenderTarget.getDirectionalBlurDirection)
+004ecd90	sqSprite_setRipple	native SQSprite.setRipple, registered with Squirrel (also SQSpriteMask.setRipple, SQSpriteRenderTarget.setRipple)
+004ecdd0	sqSprite_getRippleCenter	native SQSprite.getRippleCenter, registered with Squirrel (also SQSpriteMask.getRippleCenter, SQSpriteRenderTarget.getRippleCenter)
+004ece20	sqSprite_getRipplePower	native SQSprite.getRipplePower, registered with Squirrel (also SQSpriteRenderTarget.getRipplePower)
+004ece30	sqSprite_getRippleFrequency	native SQSprite.getRippleFrequency, registered with Squirrel (also SQSpriteRenderTarget.getRippleFrequency)
+004ece40	sqSprite_getRippleSpeed	native SQSprite.getRippleSpeed, registered with Squirrel (also SQSpriteRenderTarget.getRippleSpeed)
+004ece50	sqSprite_getRipplePhase	native SQSprite.getRipplePhase, registered with Squirrel (also SQSpriteMask.getRipplePhase, SQSpriteRenderTarget.getRipplePhase)
+004ece60	sqSprite_setRipplePhase	native SQSprite.setRipplePhase, registered with Squirrel (also SQSpriteMask.setRipplePhase, SQSpriteRenderTarget.setRipplePhase)
+004ece90	sqSprite_setRaster	native SQSprite.setRaster, registered with Squirrel (also SQSpriteMask.setRaster, SQSpriteRenderTarget.setRaster)
+004eced0	sqSprite_getRasterRotate	native SQSprite.getRasterRotate, registered with Squirrel (also SQSpriteMask.getRasterRotate, SQSpriteRenderTarget.getRasterRotate)
+004ecee0	sqSprite_getRasterPower	native SQSprite.getRasterPower, registered with Squirrel (also SQSpriteMask.getRasterPower, SQSpriteRenderTarget.getRasterPower)
+004ecef0	sqSprite_getRasterFrequency	native SQSprite.getRasterFrequency, registered with Squirrel (also SQSpriteMask.getRasterFrequency, SQSpriteRenderTarget.getRasterFrequency)
+004ecf00	sqSprite_getRasterSpeed	native SQSprite.getRasterSpeed, registered with Squirrel (also SQSpriteMask.getRasterSpeed, SQSpriteRenderTarget.getRasterSpeed)
+004ecf10	sqSprite_getRasterPhase	native SQSprite.getRasterPhase, registered with Squirrel (also SQSpriteMask.getRasterPhase, SQSpriteRenderTarget.getRasterPhase)
+004ecf20	sqSprite_setRasterPhase	native SQSprite.setRasterPhase, registered with Squirrel (also SQSpriteMask.setRasterPhase, SQSpriteRenderTarget.setRasterPhase)
+004ecf50	sqSprite_setLens	native SQSprite.setLens, registered with Squirrel (also SQSpriteMask.setLens, SQSpriteRenderTarget.setLens)
+004ecfa0	sqSprite_getLensCenter	native SQSprite.getLensCenter, registered with Squirrel (also SQSpriteMask.getLensCenter, SQSpriteRenderTarget.getLensCenter)
+004ecff0	sqSprite_getLensPower	native SQSprite.getLensPower, registered with Squirrel (also SQSpriteMask.getLensPower, SQSpriteRenderTarget.getLensPower)
+004ed000	sqSprite_getLensRadius	native SQSprite.getLensRadius, registered with Squirrel (also SQSpriteMask.getLensRadius, SQSpriteRenderTarget.getLensRadius)
+004ed010	sqSprite_splitFace	native SQSprite.splitFace, registered with Squirrel (also SQSpriteMask.splitFace, SQSpriteRenderTarget.splitFace)
+004ed040	sqSprite_clearSplitAction	native SQSprite.clearSplitAction, registered with Squirrel (also SQSpriteMask.clearSplitAction, SQSpriteRenderTarget.clearSplitAction)
+004ed080	sqSprite_pushSplitAction	native SQSprite.pushSplitAction, registered with Squirrel (also SQSpriteMask.pushSplitAction, SQSpriteRenderTarget.pushSplitAction)
+004ed420	sqSprite_beginSplitAction	native SQSprite.beginSplitAction, registered with Squirrel (also SQSpriteMask.beginSplitAction, SQSpriteRenderTarget.beginSplitAction)
+004ed450	sqSprite_setPageAction	native SQSprite.setPageAction, registered with Squirrel (also SQSpriteMask.setPageAction, SQSpriteRenderTarget.setPageAction)
+004ed4f0	sqSprite_setPageDirection	native SQSprite.setPageDirection, registered with Squirrel (also SQSpriteMask.setPageDirection, SQSpriteRenderTarget.setPageDirection)
+004ed540	sqSprite_setPageRadius	native SQSprite.setPageRadius, registered with Squirrel (also SQSpriteMask.setPageRadius, SQSpriteRenderTarget.setPageRadius)
+004ed590	sqSprite_setPageBackColor	native SQSprite.setPageBackColor, registered with Squirrel (also SQSpriteMask.setPageBackColor, SQSpriteRenderTarget.setPageBackColor)
+004ed630	sqSprite_setPageBackAlpha	native SQSprite.setPageBackAlpha, registered with Squirrel (also SQSpriteMask.setPageBackAlpha, SQSpriteRenderTarget.setPageBackAlpha)
+004ed680	sqSprite_beginPageAction	native SQSprite.beginPageAction, registered with Squirrel (also SQSpriteMask.beginPageAction, SQSpriteRenderTarget.beginPageAction)
+004ed6b0	sqSprite_getPageDirection	native SQSprite.getPageDirection, registered with Squirrel (also SQSpriteMask.getPageDirection, SQSpriteRenderTarget.getPageDirection)
+004ed6c0	sqSprite_getPageMove	native SQSprite.getPageMove, registered with Squirrel (also SQSpriteMask.getPageMove, SQSpriteRenderTarget.getPageMove)
+004ed6d0	sqSprite_getPageRadius	native SQSprite.getPageRadius, registered with Squirrel (also SQSpriteMask.getPageRadius, SQSpriteRenderTarget.getPageRadius)
+004ed6e0	sqSprite_getPageBackColor	native SQSprite.getPageBackColor, registered with Squirrel (also SQSpriteMask.getPageBackColor, SQSpriteRenderTarget.getPageBackColor)
+004ed730	sqSprite_getPageBackAlpha	native SQSprite.getPageBackAlpha, registered with Squirrel (also SQSpriteMask.getPageBackAlpha, SQSpriteRenderTarget.getPageBackAlpha)
+004ed740	sqSprite_setUVOffset	native SQSprite.setUVOffset, registered with Squirrel (also SQSpriteMask.setUVOffset, SQSpriteRenderTarget.setUVOffset)
+004ed790	sqSprite_getUVOffset	native SQSprite.getUVOffset, registered with Squirrel (also SQSpriteMask.getUVOffset, SQSpriteRenderTarget.getUVOffset)
+004ed7d0	sqSprite_addSoundGroup	native SQSprite.addSoundGroup, registered with Squirrel (also SQSpriteMask.addSoundGroup)
+004ed830	sqSprite_setVolumeControlFadeTime	native SQSprite.setVolumeControlFadeTime, registered with Squirrel (also SQSpriteMask.setVolumeControlFadeTime)
+004ed880	sqSprite_isDeletedTexture	native SQSprite.isDeletedTexture, registered with Squirrel (also SQSpriteMask.isDeletedTexture, SQSpriteRenderTarget.isDeletedTexture)
+004edfc0	sqSprite_saveImage	native SQSprite.saveImage, registered with Squirrel (also SQSpriteRenderTarget.saveImage)
+004edfe0	sqSprite_getFadeTimer	native SQSprite.getFadeTimer, registered with Squirrel (also SQSpriteMask.getFadeTimer, SQSpriteRenderTarget.getFadeTimer)
+004ee000	sqSprite_getMoveTimer	native SQSprite.getMoveTimer, registered with Squirrel (also SQSpriteMask.getMoveTimer, SQSpriteRenderTarget.getMoveTimer)
+004ee020	sqSprite_getMoveVertexTimer	native SQSprite.getMoveVertexTimer, registered with Squirrel (also SQSpriteMask.getMoveVertexTimer, SQSpriteRenderTarget.getMoveVertexTimer)
+004ee050	sqSprite_getScaleTimer	native SQSprite.getScaleTimer, registered with Squirrel (also SQSpriteMask.getScaleTimer, SQSpriteRenderTarget.getScaleTimer)
+004ee070	sqSprite_getRotateTimer	native SQSprite.getRotateTimer, registered with Squirrel (also SQSpriteMask.getRotateTimer, SQSpriteRenderTarget.getRotateTimer)
+004ee090	sqSprite_getTransitionTimer	native SQSprite.getTransitionTimer, registered with Squirrel (also SQSpriteMask.getTransitionTimer, SQSpriteRenderTarget.getTransitionTimer)
+004ee0b0	sqSprite_getShakeTimer	native SQSprite.getShakeTimer, registered with Squirrel (also SQSpriteMask.getShakeTimer, SQSpriteRenderTarget.getShakeTimer)
+004ee0f0	sqSprite_getScrollTimer	native SQSprite.getScrollTimer, registered with Squirrel (also SQSpriteRenderTarget.getScrollTimer)
+004ee110	sqSprite_getColorTimer	native SQSprite.getColorTimer, registered with Squirrel (also SQSpriteRenderTarget.getColorTimer)
+004ee170	sqSprite_getColorBalanceTimer	native SQSprite.getColorBalanceTimer, registered with Squirrel (also SQSpriteRenderTarget.getColorBalanceTimer)
+004ee190	sqSprite_getColorHueTimer	native SQSprite.getColorHueTimer, registered with Squirrel (also SQSpriteMask.getColorHueTimer, SQSpriteRenderTarget.getColorHueTimer)
+004ee1b0	sqSprite_getColorSaturationTimer	native SQSprite.getColorSaturationTimer, registered with Squirrel (also SQSpriteMask.getColorSaturationTimer, SQSpriteRenderTarget.getColorSaturationTimer)
+004ee1d0	sqSprite_getColorBrightnessTimer	native SQSprite.getColorBrightnessTimer, registered with Squirrel (also SQSpriteMask.getColorBrightnessTimer, SQSpriteRenderTarget.getColorBrightnessTimer)
+004ee1f0	sqSprite_getColorGlowTimer	native SQSprite.getColorGlowTimer, registered with Squirrel (also SQSpriteMask.getColorGlowTimer, SQSpriteRenderTarget.getColorGlowTimer)
+004ee210	sqSprite_getNegaposiPowerTimer	native SQSprite.getNegaposiPowerTimer, registered with Squirrel (also SQSpriteMask.getNegaposiPowerTimer, SQSpriteRenderTarget.getNegaposiPowerTimer)
+004ee230	sqSprite_getMonochromePowerTimer	native SQSprite.getMonochromePowerTimer, registered with Squirrel (also SQSpriteMask.getMonochromePowerTimer, SQSpriteRenderTarget.getMonochromePowerTimer)
+004ee250	sqSprite_getSepiaPowerTimer	native SQSprite.getSepiaPowerTimer, registered with Squirrel (also SQSpriteMask.getSepiaPowerTimer, SQSpriteRenderTarget.getSepiaPowerTimer)
+004ee270	sqSprite_getShadingPowerTimer	native SQSprite.getShadingPowerTimer, registered with Squirrel (also SQSpriteMask.getShadingPowerTimer, SQSpriteRenderTarget.getShadingPowerTimer)
+004ee290	sqSprite_getRadialBlurTimer	native SQSprite.getRadialBlurTimer, registered with Squirrel (also SQSpriteMask.getRadialBlurTimer, SQSpriteRenderTarget.getRadialBlurTimer)
+004ee2d0	sqSprite_getDirectionalBlurTimer	native SQSprite.getDirectionalBlurTimer, registered with Squirrel (also SQSpriteMask.getDirectionalBlurTimer, SQSpriteRenderTarget.getDirectionalBlurTimer)
+004ee310	sqSprite_getSplineTimer	native SQSprite.getSplineTimer, registered with Squirrel (also SQSpriteMask.getSplineTimer, SQSpriteRenderTarget.getSplineTimer)
+004ee330	sqSprite_getVolumeTimer	native SQSprite.getVolumeTimer, registered with Squirrel
+004ee350	sqSprite_getBezierTimer	native SQSprite.getBezierTimer, registered with Squirrel (also SQSpriteMask.getBezierTimer, SQSpriteRenderTarget.getBezierTimer)
+004ee370	sqSprite_getColorLevelTimer	native SQSprite.getColorLevelTimer, registered with Squirrel (also SQSpriteMask.getColorLevelTimer, SQSpriteRenderTarget.getColorLevelTimer)
+004ee390	sqSprite_getRippleTimer	native SQSprite.getRippleTimer, registered with Squirrel (also SQSpriteMask.getRippleTimer, SQSpriteRenderTarget.getRippleTimer)
+004ee3b0	sqSprite_getRasterTimer	native SQSprite.getRasterTimer, registered with Squirrel (also SQSpriteMask.getRasterTimer, SQSpriteRenderTarget.getRasterTimer)
+004ee3d0	sqSprite_getLensTimer	native SQSprite.getLensTimer, registered with Squirrel (also SQSpriteMask.getLensTimer, SQSpriteRenderTarget.getLensTimer)
+004ee3f0	sqSprite_getSplitActionTimer	native SQSprite.getSplitActionTimer, registered with Squirrel (also SQSpriteMask.getSplitActionTimer, SQSpriteRenderTarget.getSplitActionTimer)
+004ee410	sqSprite_getPageDirectionTimer	native SQSprite.getPageDirectionTimer, registered with Squirrel (also SQSpriteMask.getPageDirectionTimer, SQSpriteRenderTarget.getPageDirectionTimer)
+004ee430	sqSprite_getPageRadiusTimer	native SQSprite.getPageRadiusTimer, registered with Squirrel (also SQSpriteMask.getPageRadiusTimer, SQSpriteRenderTarget.getPageRadiusTimer)
+004ee450	sqSprite_getPageBackColorTimer	native SQSprite.getPageBackColorTimer, registered with Squirrel (also SQSpriteMask.getPageBackColorTimer, SQSpriteRenderTarget.getPageBackColorTimer)
+004ee470	sqSprite_getPageBackAlphaTimer	native SQSprite.getPageBackAlphaTimer, registered with Squirrel (also SQSpriteMask.getPageBackAlphaTimer, SQSpriteRenderTarget.getPageBackAlphaTimer)
+004ee490	sqSprite_getPageActionTimer	native SQSprite.getPageActionTimer, registered with Squirrel (also SQSpriteMask.getPageActionTimer, SQSpriteRenderTarget.getPageActionTimer)
+004ee4b0	sqSprite_setFadeTimer	native SQSprite.setFadeTimer, registered with Squirrel (also SQSpriteMask.setFadeTimer)
+004ee4d0	sqSprite_setMoveTimer	native SQSprite.setMoveTimer, registered with Squirrel (also SQSpriteMask.setMoveTimer)
+004ee550	sqSprite_setMoveVertexTimer	native SQSprite.setMoveVertexTimer, registered with Squirrel (also SQSpriteMask.setMoveVertexTimer)
+004ee5e0	sqSprite_setScaleTimer	native SQSprite.setScaleTimer, registered with Squirrel (also SQSpriteMask.setScaleTimer)
+004ee660	sqSprite_setRotateTimer	native SQSprite.setRotateTimer, registered with Squirrel (also SQSpriteMask.setRotateTimer)
+004ee6e0	sqSprite_setTransitionTimer	native SQSprite.setTransitionTimer, registered with Squirrel (also SQSpriteMask.setTransitionTimer)
+004ee700	sqSprite_setShakeTimer	native SQSprite.setShakeTimer, registered with Squirrel (also SQSpriteMask.setShakeTimer)
+004ee770	sqSprite_setScrollTimer	native SQSprite.setScrollTimer, registered with Squirrel (also SQSpriteMask.setScrollTimer)
+004ee7f0	sqSprite_setSplineTimer	native SQSprite.setSplineTimer, registered with Squirrel (also SQSpriteMask.setSplineTimer, SQSpriteRenderTarget.setSplineTimer)
+004ee810	sqSprite_setBezierTimer	native SQSprite.setBezierTimer, registered with Squirrel (also SQSpriteMask.setBezierTimer, SQSpriteRenderTarget.setBezierTimer)
+004ee830	sqSprite_setColorLevelTimer	native SQSprite.setColorLevelTimer, registered with Squirrel (also SQSpriteMask.setColorLevelTimer, SQSpriteRenderTarget.setColorLevelTimer)
+004ee8b0	sqSprite_setNegaposiPowerTimer	native SQSprite.setNegaposiPowerTimer, registered with Squirrel (also SQSpriteMask.setNegaposiPowerTimer)
+004ee8d0	sqSprite_setMonochromePowerTimer	native SQSprite.setMonochromePowerTimer, registered with Squirrel (also SQSpriteMask.setMonochromePowerTimer)
+004ee950	sqSprite_setSepiaPowerTimer	native SQSprite.setSepiaPowerTimer, registered with Squirrel (also SQSpriteMask.setSepiaPowerTimer)
+004ee970	sqSprite_setShadingPowerTimer	native SQSprite.setShadingPowerTimer, registered with Squirrel (also SQSpriteMask.setShadingPowerTimer)
+004ee990	sqSprite_setRadialBlurTimer	native SQSprite.setRadialBlurTimer, registered with Squirrel (also SQSpriteMask.setRadialBlurTimer, SQSpriteRenderTarget.setRadialBlurTimer)
+004ee9b0	sqSprite_setDirectionalBlurTimer	native SQSprite.setDirectionalBlurTimer, registered with Squirrel (also SQSpriteMask.setDirectionalBlurTimer, SQSpriteRenderTarget.setDirectionalBlurTimer)
+004ee9d0	sqSprite_setVolumeTimer	native SQSprite.setVolumeTimer, registered with Squirrel
+004ee9f0	sqSprite_setColorTimer	native SQSprite.setColorTimer, registered with Squirrel (also SQSpriteMask.setColorTimer, SQSpriteRenderTarget.setColorTimer)
+004eea10	sqSprite_setColorBalanceTimer	native SQSprite.setColorBalanceTimer, registered with Squirrel (also SQSpriteMask.setColorBalanceTimer, SQSpriteRenderTarget.setColorBalanceTimer)
+004eea90	sqSprite_setColorHueTimer	native SQSprite.setColorHueTimer, registered with Squirrel (also SQSpriteMask.setColorHueTimer, SQSpriteRenderTarget.setColorHueTimer)
+004eeab0	sqSprite_setColorSaturationTimer	native SQSprite.setColorSaturationTimer, registered with Squirrel (also SQSpriteMask.setColorSaturationTimer, SQSpriteRenderTarget.setColorSaturationTimer)
+004eead0	sqSprite_setColorBrightnessTimer	native SQSprite.setColorBrightnessTimer, registered with Squirrel (also SQSpriteMask.setColorBrightnessTimer, SQSpriteRenderTarget.setColorBrightnessTimer)
+004eeaf0	sqSprite_setColorGlowTimer	native SQSprite.setColorGlowTimer, registered with Squirrel (also SQSpriteMask.setColorGlowTimer, SQSpriteRenderTarget.setColorGlowTimer)
+004eeb10	sqSprite_setRippleTimer	native SQSprite.setRippleTimer, registered with Squirrel (also SQSpriteMask.setRippleTimer, SQSpriteRenderTarget.setRippleTimer)
+004eeb30	sqSprite_setRasterTimer	native SQSprite.setRasterTimer, registered with Squirrel (also SQSpriteMask.setRasterTimer, SQSpriteRenderTarget.setRasterTimer)
+004eeb50	sqSprite_setLensTimer	native SQSprite.setLensTimer, registered with Squirrel (also SQSpriteMask.setLensTimer, SQSpriteRenderTarget.setLensTimer)
+004eeb70	sqSprite_setSplitActionTimer	native SQSprite.setSplitActionTimer, registered with Squirrel (also SQSpriteMask.setSplitActionTimer, SQSpriteRenderTarget.setSplitActionTimer)
+004eeb90	sqSprite_setPageDirectionTimer	native SQSprite.setPageDirectionTimer, registered with Squirrel (also SQSpriteMask.setPageDirectionTimer, SQSpriteRenderTarget.setPageDirectionTimer)
+004eebb0	sqSprite_setPageRadiusTimer	native SQSprite.setPageRadiusTimer, registered with Squirrel (also SQSpriteMask.setPageRadiusTimer, SQSpriteRenderTarget.setPageRadiusTimer)
+004eebd0	sqSprite_setPageBackColorTimer	native SQSprite.setPageBackColorTimer, registered with Squirrel (also SQSpriteMask.setPageBackColorTimer, SQSpriteRenderTarget.setPageBackColorTimer)
+004eec50	sqSprite_setPageBackAlphaTimer	native SQSprite.setPageBackAlphaTimer, registered with Squirrel (also SQSpriteMask.setPageBackAlphaTimer, SQSpriteRenderTarget.setPageBackAlphaTimer)
+004eec70	sqSprite_setPageActionTimer	native SQSprite.setPageActionTimer, registered with Squirrel (also SQSpriteMask.setPageActionTimer, SQSpriteRenderTarget.setPageActionTimer)
+004eee10	sqreg_SQSprite_ctor_004eee10	registers SQSprite's constructor
+004eeef0	sqSprite_constructor	native SQSprite.constructor, registered with Squirrel
+004f2990	sqreg_SQSpriteMask	registers class SQSpriteMask and its methods with Squirrel (SqPlus SQClassDef): reg_template(handler, "name", ...)
+004f3b10	sqSpriteMask_create	native SQSpriteMask.create, registered with Squirrel
+004f3c60	sqSpriteMask_createColor	native SQSpriteMask.createColor, registered with Squirrel
+004f3d60	sqSpriteMask_createMovie	native SQSpriteMask.createMovie, registered with Squirrel
+004f3eb0	sqSpriteMask_fade	native SQSpriteMask.fade, registered with Squirrel (also SQSpriteRenderTarget.fade)
+004f3f00	sqSpriteMask_move	native SQSpriteMask.move, registered with Squirrel (also SQSpriteRenderTarget.move)
+004f3f30	sqSpriteMask_move3D	native SQSpriteMask.move3D, registered with Squirrel (also SQSpriteRenderTarget.move3D)
+004f3f60	sqSpriteMask_moveVertex	native SQSpriteMask.moveVertex, registered with Squirrel (also SQSpriteRenderTarget.moveVertex)
+004f3f90	sqSpriteMask_scale	native SQSpriteMask.scale, registered with Squirrel (also SQSpriteRenderTarget.scale)
+004f4030	sqSpriteMask_rotate	native SQSpriteMask.rotate, registered with Squirrel (also SQSpriteRenderTarget.rotate)
+004f40d0	sqSpriteMask_transition	native SQSpriteMask.transition, registered with Squirrel (also SQSpriteRenderTarget.transition)
+004f4190	sqSpriteMask_shake	native SQSpriteMask.shake, registered with Squirrel (also SQSpriteRenderTarget.shake)
+004f41c0	sqSpriteMask_randomShake	native SQSpriteMask.randomShake, registered with Squirrel (also SQSpriteRenderTarget.randomShake)
+004f41f0	sqSpriteMask_scroll	native SQSpriteMask.scroll, registered with Squirrel (also SQSpriteRenderTarget.scroll)
+004f4280	sqSpriteMask_setBlendMode	native SQSpriteMask.setBlendMode, registered with Squirrel (also SQSpriteRenderTarget.setBlendMode)
+004f42d0	sqSpriteMask_setColor	native SQSpriteMask.setColor, registered with Squirrel (also SQSpriteRenderTarget.setColor)
+004f4300	sqSpriteMask_setColorBalance	native SQSpriteMask.setColorBalance, registered with Squirrel (also SQSpriteRenderTarget.setColorBalance)
+004f43a0	sqSpriteMask_getColorBalance	native SQSpriteMask.getColorBalance, registered with Squirrel (also SQSpriteRenderTarget.getColorBalance)
+004f43f0	sqSpriteMask_getColorHue	native SQSpriteMask.getColorHue, registered with Squirrel
+004f4410	sqSpriteMask_getColorSaturation	native SQSpriteMask.getColorSaturation, registered with Squirrel
+004f4430	sqSpriteMask_getColorBrightness	native SQSpriteMask.getColorBrightness, registered with Squirrel
+004f4450	sqSpriteMask_getColorGlow	native SQSpriteMask.getColorGlow, registered with Squirrel
+004f4470	sqSpriteMask_getNegaposiPower	native SQSpriteMask.getNegaposiPower, registered with Squirrel (also SQSpriteRenderTarget.getNegaposiPower)
+004f4490	sqSpriteMask_getMonochromePower	native SQSpriteMask.getMonochromePower, registered with Squirrel (also SQSpriteRenderTarget.getMonochromePower)
+004f44b0	sqSpriteMask_getMonochromeCb	native SQSpriteMask.getMonochromeCb, registered with Squirrel (also SQSpriteRenderTarget.getMonochromeCb)
+004f44d0	sqSpriteMask_getMonochromeCr	native SQSpriteMask.getMonochromeCr, registered with Squirrel (also SQSpriteRenderTarget.getMonochromeCr)
+004f44f0	sqSpriteMask_getSepiaPower	native SQSpriteMask.getSepiaPower, registered with Squirrel (also SQSpriteRenderTarget.getSepiaPower)
+004f4510	sqSpriteMask_getShadingPower	native SQSpriteMask.getShadingPower, registered with Squirrel (also SQSpriteRenderTarget.getShadingPower)
+004f4530	sqSpriteMask_setMask	native SQSpriteMask.setMask, registered with Squirrel
+004f4690	sqSpriteMask_setSurface	native SQSpriteMask.setSurface, registered with Squirrel
+004f47b0	sqSpriteMask_setDisplacementMap	native SQSpriteMask.setDisplacementMap, registered with Squirrel
+004f48b0	sqSpriteMask_setCamera	native SQSpriteMask.setCamera, registered with Squirrel
+004f49a0	sqSpriteMask_play	native SQSpriteMask.play, registered with Squirrel
+004f49c0	sqSpriteMask_stop	native SQSpriteMask.stop, registered with Squirrel
+004f49e0	sqSpriteMask_pause	native SQSpriteMask.pause, registered with Squirrel
+004f4a00	sqSpriteMask_onResume	native SQSpriteMask.onResume, registered with Squirrel
+004f4a20	sqSpriteMask_setDiffuseOnly	native SQSpriteMask.setDiffuseOnly, registered with Squirrel
+004f4a40	sqSpriteMask_setInverseAlpha	native SQSpriteMask.setInverseAlpha, registered with Squirrel
+004f4a60	sqSpriteMask_isPaused	native SQSpriteMask.isPaused, registered with Squirrel
+004f4a90	sqSpriteMask_getRipplePower	native SQSpriteMask.getRipplePower, registered with Squirrel
+004f4ab0	sqSpriteMask_getRippleFrequency	native SQSpriteMask.getRippleFrequency, registered with Squirrel
+004f4ad0	sqSpriteMask_getRippleSpeed	native SQSpriteMask.getRippleSpeed, registered with Squirrel
+004f4af0	sqSpriteMask_saveImage	native SQSpriteMask.saveImage, registered with Squirrel
+004f4ea0	sqSpriteMask_getScrollTimer	native SQSpriteMask.getScrollTimer, registered with Squirrel
+004f4eb0	sqSpriteMask_getColorTimer	native SQSpriteMask.getColorTimer, registered with Squirrel
+004f4f00	sqSpriteMask_getColorBalanceTimer	native SQSpriteMask.getColorBalanceTimer, registered with Squirrel
+004f50b0	sqreg_SQSpriteMask_ctor_004f50b0	registers SQSpriteMask's constructor
+004f5190	sqSpriteMask_constructor	native SQSpriteMask.constructor, registered with Squirrel
+004f7be0	sqreg_SQSpriteRenderTarget	registers class SQSpriteRenderTarget and its methods with Squirrel (SqPlus SQClassDef): reg_template(handler, "name", ...)
+004f9000	sqSpriteRenderTarget_create	native SQSpriteRenderTarget.create, registered with Squirrel
+004f9160	sqSpriteRenderTarget_getColorHue	native SQSpriteRenderTarget.getColorHue, registered with Squirrel
+004f9170	sqSpriteRenderTarget_getColorSaturation	native SQSpriteRenderTarget.getColorSaturation, registered with Squirrel
+004f9180	sqSpriteRenderTarget_getColorBrightness	native SQSpriteRenderTarget.getColorBrightness, registered with Squirrel
+004f9190	sqSpriteRenderTarget_getColorGlow	native SQSpriteRenderTarget.getColorGlow, registered with Squirrel
+004f91a0	sqSpriteRenderTarget_setShadingParameter	native SQSpriteRenderTarget.setShadingParameter, registered with Squirrel
+004f91d0	sqSpriteRenderTarget_getSize	native SQSpriteRenderTarget.getSize, registered with Squirrel
+004f92c0	sqSpriteRenderTarget_getFade	native SQSpriteRenderTarget.getFade, registered with Squirrel
+004f92d0	sqSpriteRenderTarget_getMove	native SQSpriteRenderTarget.getMove, registered with Squirrel
+004f9310	sqSpriteRenderTarget_getScale	native SQSpriteRenderTarget.getScale, registered with Squirrel
+004f9350	sqSpriteRenderTarget_getRotate	native SQSpriteRenderTarget.getRotate, registered with Squirrel
+004f9390	sqSpriteRenderTarget_getScroll	native SQSpriteRenderTarget.getScroll, registered with Squirrel
+004f93d0	sqSpriteRenderTarget_setMask	native SQSpriteRenderTarget.setMask, registered with Squirrel
+004f94d0	sqSpriteRenderTarget_setSurface	native SQSpriteRenderTarget.setSurface, registered with Squirrel
+004f9600	sqSpriteRenderTarget_setDisplacementMap	native SQSpriteRenderTarget.setDisplacementMap, registered with Squirrel
+004f96f0	sqSpriteRenderTarget_setCamera	native SQSpriteRenderTarget.setCamera, registered with Squirrel
+004f97e0	sqSpriteRenderTarget_setCenter	native SQSpriteRenderTarget.setCenter, registered with Squirrel
+004f9870	sqSpriteRenderTarget_setPivot	native SQSpriteRenderTarget.setPivot, registered with Squirrel
+004f9900	sqSpriteRenderTarget_resetBezier	native SQSpriteRenderTarget.resetBezier, registered with Squirrel
+004f9940	sqSpriteRenderTarget_setBezier	native SQSpriteRenderTarget.setBezier, registered with Squirrel
+004f99d0	sqSpriteRenderTarget_beginBezier	native SQSpriteRenderTarget.beginBezier, registered with Squirrel
+004f9a10	sqSpriteRenderTarget_resetSpline	native SQSpriteRenderTarget.resetSpline, registered with Squirrel
+004f9a20	sqSpriteRenderTarget_setSpline	native SQSpriteRenderTarget.setSpline, registered with Squirrel
+004f9ad0	sqSpriteRenderTarget_beginSpline	native SQSpriteRenderTarget.beginSpline, registered with Squirrel
+004f9af0	sqSpriteRenderTarget_setTextureFiltering	native SQSpriteRenderTarget.setTextureFiltering, registered with Squirrel
+004f9b20	sqSpriteRenderTarget_setCapture	native SQSpriteRenderTarget.setCapture, registered with Squirrel
+004f9ba0	sqSpriteRenderTarget_setCopyTarget	native SQSpriteRenderTarget.setCopyTarget, registered with Squirrel
+004f9cb0	sqSpriteRenderTarget_setCaptureTarget	native SQSpriteRenderTarget.setCaptureTarget, registered with Squirrel
+004f9db0	sqSpriteRenderTarget_setDelayRendering	native SQSpriteRenderTarget.setDelayRendering, registered with Squirrel
+004f9dd0	sqSpriteRenderTarget_isDelayedRendering	native SQSpriteRenderTarget.isDelayedRendering, registered with Squirrel
+004f9de0	sqSpriteRenderTarget_isFading	native SQSpriteRenderTarget.isFading, registered with Squirrel
+004f9df0	sqSpriteRenderTarget_isMoving	native SQSpriteRenderTarget.isMoving, registered with Squirrel
+004f9e20	sqSpriteRenderTarget_isScaling	native SQSpriteRenderTarget.isScaling, registered with Squirrel
+004f9e30	sqSpriteRenderTarget_isRotating	native SQSpriteRenderTarget.isRotating, registered with Squirrel
+004f9e40	sqSpriteRenderTarget_isTransitioning	native SQSpriteRenderTarget.isTransitioning, registered with Squirrel
+004f9e50	sqSpriteRenderTarget_isShaking	native SQSpriteRenderTarget.isShaking, registered with Squirrel
+004f9e70	sqSpriteRenderTarget_isPaused	native SQSpriteRenderTarget.isPaused, registered with Squirrel
+004f9e80	sqSpriteRenderTarget_clear	native SQSpriteRenderTarget.clear, registered with Squirrel
+004f9e90	sqSpriteRenderTarget_play	native SQSpriteRenderTarget.play, registered with Squirrel
+004f9ed0	sqSpriteRenderTarget_stop	native SQSpriteRenderTarget.stop, registered with Squirrel
+004f9f00	sqSpriteRenderTarget_pause	native SQSpriteRenderTarget.pause, registered with Squirrel
+004f9f30	sqSpriteRenderTarget_onResume	native SQSpriteRenderTarget.onResume, registered with Squirrel
+004fa690	sqSpriteRenderTarget_createCustomEffect	native SQSpriteRenderTarget.createCustomEffect, registered with Squirrel
+004fa970	sqSpriteRenderTarget_setFadeTimer	native SQSpriteRenderTarget.setFadeTimer, registered with Squirrel
+004faa20	sqSpriteRenderTarget_setMoveTimer	native SQSpriteRenderTarget.setMoveTimer, registered with Squirrel
+004faa90	sqSpriteRenderTarget_setMoveVertexTimer	native SQSpriteRenderTarget.setMoveVertexTimer, registered with Squirrel
+004fab20	sqSpriteRenderTarget_setScaleTimer	native SQSpriteRenderTarget.setScaleTimer, registered with Squirrel
+004fab90	sqSpriteRenderTarget_setRotateTimer	native SQSpriteRenderTarget.setRotateTimer, registered with Squirrel
+004fac00	sqSpriteRenderTarget_setTransitionTimer	native SQSpriteRenderTarget.setTransitionTimer, registered with Squirrel
+004fac20	sqSpriteRenderTarget_setShakeTimer	native SQSpriteRenderTarget.setShakeTimer, registered with Squirrel
+004fac80	sqSpriteRenderTarget_setScrollTimer	native SQSpriteRenderTarget.setScrollTimer, registered with Squirrel
+004facf0	sqSpriteRenderTarget_setNegaposiPowerTimer	native SQSpriteRenderTarget.setNegaposiPowerTimer, registered with Squirrel
+004fada0	sqSpriteRenderTarget_setMonochromePowerTimer	native SQSpriteRenderTarget.setMonochromePowerTimer, registered with Squirrel
+004fae10	sqSpriteRenderTarget_setSepiaPowerTimer	native SQSpriteRenderTarget.setSepiaPowerTimer, registered with Squirrel
+004faec0	sqSpriteRenderTarget_setShadingPowerTimer	native SQSpriteRenderTarget.setShadingPowerTimer, registered with Squirrel
+004fb0f0	sqreg_SQSpriteRenderTarget_ctor_004fb0f0	registers SQSpriteRenderTarget's constructor
+004fb1d0	sqSpriteRenderTarget_constructor	native SQSpriteRenderTarget.constructor, registered with Squirrel
+004fdb40	sqreg_SQText	registers class SQText and its methods with Squirrel (SqPlus SQClassDef): reg_template(handler, "name", ...)
+004fe610	sqText_initialize	native SQText.initialize, registered with Squirrel
+004fe780	sqText_create	native SQText.create, registered with Squirrel
+004fe820	sqText_addPositionFixRule	native SQText.addPositionFixRule, registered with Squirrel
+004fe990	sqText_print	native SQText.print, registered with Squirrel
+004fea30	sqText_clear	native SQText.clear, registered with Squirrel
+004fea40	sqText_setField	native SQText.setField, registered with Squirrel
+004fea60	sqText_getFieldSize	native SQText.getFieldSize, registered with Squirrel
+004feae0	sqText_setPitchSpace	native SQText.setPitchSpace, registered with Squirrel
+004feaf0	sqText_setRowSpace	native SQText.setRowSpace, registered with Squirrel
+004feb10	sqText_setRubyOffset	native SQText.setRubyOffset, registered with Squirrel
+004feb30	sqText_setRubyMarginRate	native SQText.setRubyMarginRate, registered with Squirrel
+004feb50	sqText_setFont	native SQText.setFont, registered with Squirrel
+004febf0	sqText_setRubyFont	native SQText.setRubyFont, registered with Squirrel
+004fec90	sqText_setShadow	native SQText.setShadow, registered with Squirrel
+004fecc0	sqText_setShadowShadingParameter	native SQText.setShadowShadingParameter, registered with Squirrel
+004fed00	sqText_beginType	native SQText.beginType, registered with Squirrel
+004fed20	sqText_resetType	native SQText.resetType, registered with Squirrel
+004feda0	sqText_pushAll	native SQText.pushAll, registered with Squirrel
+004fedb0	sqText_fade	native SQText.fade, registered with Squirrel
+004fee00	sqText_move	native SQText.move, registered with Squirrel
+004feea0	sqText_scale	native SQText.scale, registered with Squirrel
+004fef40	sqText_rotate	native SQText.rotate, registered with Squirrel
+004fefe0	sqText_transition	native SQText.transition, registered with Squirrel
+004ff0a0	sqText_setTimeScale	native SQText.setTimeScale, registered with Squirrel
+004ff0c0	sqText_fadeCharacter	native SQText.fadeCharacter, registered with Squirrel
+004ff0e0	sqText_moveCharacter	native SQText.moveCharacter, registered with Squirrel
+004ff110	sqText_scaleCharacter	native SQText.scaleCharacter, registered with Squirrel
+004ff140	sqText_rotateCharacter	native SQText.rotateCharacter, registered with Squirrel
+004ff170	sqText_shakeCharacter	native SQText.shakeCharacter, registered with Squirrel
+004ff1b0	sqText_randomShakeCharacter	native SQText.randomShakeCharacter, registered with Squirrel
+004ff210	sqText_fadeRuby	native SQText.fadeRuby, registered with Squirrel
+004ff230	sqText_moveRuby	native SQText.moveRuby, registered with Squirrel
+004ff260	sqText_scaleRuby	native SQText.scaleRuby, registered with Squirrel
+004ff290	sqText_rotateRuby	native SQText.rotateRuby, registered with Squirrel
+004ff2c0	sqText_shakeRuby	native SQText.shakeRuby, registered with Squirrel
+004ff300	sqText_randomShakeRuby	native SQText.randomShakeRuby, registered with Squirrel
+004ff360	sqText_shake	native SQText.shake, registered with Squirrel
+004ff390	sqText_randomShake	native SQText.randomShake, registered with Squirrel
+004ff3c0	sqText_resetBezier	native SQText.resetBezier, registered with Squirrel
+004ff400	sqText_setBezier	native SQText.setBezier, registered with Squirrel
+004ff480	sqText_beginBezier	native SQText.beginBezier, registered with Squirrel
+004ff4c0	sqText_resetSpline	native SQText.resetSpline, registered with Squirrel
+004ff4d0	sqText_setSpline	native SQText.setSpline, registered with Squirrel
+004ff570	sqText_beginSpline	native SQText.beginSpline, registered with Squirrel
+004ff580	sqText_setMask	native SQText.setMask, registered with Squirrel
+004ff6a0	sqText_setSurface	native SQText.setSurface, registered with Squirrel
+004ff7c0	sqText_setDisplacementMap	native SQText.setDisplacementMap, registered with Squirrel
+004ff8d0	sqText_setDither	native SQText.setDither, registered with Squirrel
+004ff980	sqText_setTextureFiltering	native SQText.setTextureFiltering, registered with Squirrel
+004ff9b0	sqText_setCenter	native SQText.setCenter, registered with Squirrel
+004ff9e0	sqText_setPivot	native SQText.setPivot, registered with Squirrel
+004ffa10	sqText_setBlendMode	native SQText.setBlendMode, registered with Squirrel
+004ffa20	sqText_setCharacterColor	native SQText.setCharacterColor, registered with Squirrel
+004ffa60	sqText_setRubyColor	native SQText.setRubyColor, registered with Squirrel
+004ffaa0	sqText_setFontColor	native SQText.setFontColor, registered with Squirrel
+004ffad0	sqText_setShadowColor	native SQText.setShadowColor, registered with Squirrel
+004ffb00	sqText_getFontColor	native SQText.getFontColor, registered with Squirrel
+004ffb50	sqText_getShadowColor	native SQText.getShadowColor, registered with Squirrel
+004ffba0	sqText_setBlur	native SQText.setBlur, registered with Squirrel
+004ffbd0	sqText_setBlurMode	native SQText.setBlurMode, registered with Squirrel
+004ffc00	sqText_setTypingSpeed	native SQText.setTypingSpeed, registered with Squirrel
+004ffc20	sqText_setMinTypingTime	native SQText.setMinTypingTime, registered with Squirrel
+004ffc50	sqText_setMaxTypingTime	native SQText.setMaxTypingTime, registered with Squirrel
+004ffc80	sqText_setTypingThreshold	native SQText.setTypingThreshold, registered with Squirrel
+004ffd10	sqText_getCharacterRect	native SQText.getCharacterRect, registered with Squirrel
+004ffd60	sqText_getCharacterBaseAlpha	native SQText.getCharacterBaseAlpha, registered with Squirrel
+004ffdc0	sqText_setCharacterBaseAlpha	native SQText.setCharacterBaseAlpha, registered with Squirrel
+004ffe10	sqText_getRubyRect	native SQText.getRubyRect, registered with Squirrel
+004ffe60	sqText_getRubyBaseAlpha	native SQText.getRubyBaseAlpha, registered with Squirrel
+004ffec0	sqText_setRubyBaseAlpha	native SQText.setRubyBaseAlpha, registered with Squirrel
+004fff10	sqText_getSize	native SQText.getSize, registered with Squirrel
+004fff60	sqText_getFade	native SQText.getFade, registered with Squirrel
+004fff70	sqText_getMove	native SQText.getMove, registered with Squirrel
+004fffb0	sqText_getScale	native SQText.getScale, registered with Squirrel
+004ffff0	sqText_getRotate	native SQText.getRotate, registered with Squirrel
+00500030	sqText_getTypingAlphaRange	native SQText.getTypingAlphaRange, registered with Squirrel
+00500050	sqText_isMoving	native SQText.isMoving, registered with Squirrel
+00500080	sqText_isScaling	native SQText.isScaling, registered with Squirrel
+00500090	sqText_isRotating	native SQText.isRotating, registered with Squirrel
+005000a0	sqText_isShaking	native SQText.isShaking, registered with Squirrel
+005000c0	sqText_isTyping	native SQText.isTyping, registered with Squirrel
+005000f0	sqText_getBeginType	native SQText.getBeginType, registered with Squirrel
+00500100	sqText_getFieldType	native SQText.getFieldType, registered with Squirrel
+00500110	sqText_getTransitionFilename	native SQText.getTransitionFilename, registered with Squirrel
+00500130	sqText_getTotalTime	native SQText.getTotalTime, registered with Squirrel (also SQText.getDurationTime)
+00500140	sqText_getRemainTime	native SQText.getRemainTime, registered with Squirrel
+00500160	sqText_getTypingSpeed	native SQText.getTypingSpeed, registered with Squirrel
+00500170	sqText_getMinTypingTime	native SQText.getMinTypingTime, registered with Squirrel
+00500190	sqText_getMaxTypingTime	native SQText.getMaxTypingTime, registered with Squirrel
+005001b0	sqText_getFadeTimer	native SQText.getFadeTimer, registered with Squirrel
+005001c0	sqText_getMoveTimer	native SQText.getMoveTimer, registered with Squirrel
+005001d0	sqText_getScaleTimer	native SQText.getScaleTimer, registered with Squirrel
+005001e0	sqText_getRotateTimer	native SQText.getRotateTimer, registered with Squirrel
+005001f0	sqText_getTransitionTimer	native SQText.getTransitionTimer, registered with Squirrel
+00500200	sqText_getShakeTimer	native SQText.getShakeTimer, registered with Squirrel
+00500230	sqText_getColorTimer	native SQText.getColorTimer, registered with Squirrel
+00500280	sqText_getTypingTimer	native SQText.getTypingTimer, registered with Squirrel
+00500290	sqText_getSplineTimer	native SQText.getSplineTimer, registered with Squirrel
+005002a0	sqText_getBezierTimer	native SQText.getBezierTimer, registered with Squirrel
+005002b0	sqText_setFadeTimer	native SQText.setFadeTimer, registered with Squirrel
+00500360	sqText_setMoveTimer	native SQText.setMoveTimer, registered with Squirrel
+005003d0	sqText_setScaleTimer	native SQText.setScaleTimer, registered with Squirrel
+00500440	sqText_setRotateTimer	native SQText.setRotateTimer, registered with Squirrel
+005004b0	sqText_setTransitionTimer	native SQText.setTransitionTimer, registered with Squirrel
+00500560	sqText_setShakeTimer	native SQText.setShakeTimer, registered with Squirrel
+005005c0	sqText_setColorTimer	native SQText.setColorTimer, registered with Squirrel
+005005e0	sqText_setTypingTimer	native SQText.setTypingTimer, registered with Squirrel
+00500600	sqText_setSplineTimer	native SQText.setSplineTimer, registered with Squirrel
+00500620	sqText_setBezierTimer	native SQText.setBezierTimer, registered with Squirrel
+005009a0	sqreg_SQText_ctor_005009a0	registers SQText's constructor
+00500a80	sqText_constructor	native SQText.constructor, registered with Squirrel
+00503740	sqreg_SQSound	registers class SQSound and its methods with Squirrel (SqPlus SQClassDef): reg_template(handler, "name", ...)
+00503b70	sqSound_create	native SQSound.create, registered with Squirrel
+00503d30	sqSound_load	native SQSound.load, registered with Squirrel
+00503ef0	sqSound_play	native SQSound.play, registered with Squirrel (also SQSound3D.play)
+00503f00	sqSound_stop	native SQSound.stop, registered with Squirrel (also SQSound3D.stop)
+00503f10	sqSound_pause	native SQSound.pause, registered with Squirrel (also SQSound3D.pause)
+00503f20	sqSound_onResume	native SQSound.onResume, registered with Squirrel (also SQSound3D.onResume)
+00503f30	sqSound_setVolume	native SQSound.setVolume, registered with Squirrel (also SQSound3D.setVolume)
+00503f60	sqSound_setPan	native SQSound.setPan, registered with Squirrel (also SQSound3D.setPan)
+00503f90	sqSound_setFrequency	native SQSound.setFrequency, registered with Squirrel (also SQSound3D.setFrequency)
+00503fc0	sqSound_setLoop	native SQSound.setLoop, registered with Squirrel (also SQSound3D.setLoop)
+00503fd0	sqSound_setType	native SQSound.setType, registered with Squirrel (also SQSound3D.setType)
+00503fe0	sqSound_seek	native SQSound.seek, registered with Squirrel (also SQSound3D.seek)
+00504000	sqSound_getVolume	native SQSound.getVolume, registered with Squirrel (also SQSound3D.getVolume)
+00504010	sqSound_getPan	native SQSound.getPan, registered with Squirrel (also SQSound3D.getPan)
+00504020	sqSound_getFrequency	native SQSound.getFrequency, registered with Squirrel (also SQSound3D.getFrequency)
+00504030	sqSound_getPulse	native SQSound.getPulse, registered with Squirrel (also SQSound3D.getPulse)
+00504040	sqSound_getAmplitude	native SQSound.getAmplitude, registered with Squirrel
+00504050	sqSound_getDurationTime	native SQSound.getDurationTime, registered with Squirrel (also SQSound.getTotalTime, SQSound3D.getDurationTime, SQSound3D.getTotalTime)
+00504060	sqSound_getRemainTime	native SQSound.getRemainTime, registered with Squirrel (also SQSound3D.getRemainTime)
+00504090	sqSound_isPlaying	native SQSound.isPlaying, registered with Squirrel (also SQSound3D.isPlaying)
+005040a0	sqSound_isPaused	native SQSound.isPaused, registered with Squirrel (also SQSound3D.isPaused)
+005040b0	sqSound_setEcho	native SQSound.setEcho, registered with Squirrel (also SQSound3D.setEcho)
+00504100	sqSound_setPresetReverb	native SQSound.setPresetReverb, registered with Squirrel (also SQSound3D.setPresetReverb)
+00504120	sqSound_addSoundGroup	native SQSound.addSoundGroup, registered with Squirrel
+005041d0	sqSound_setVolumeControlFadeTime	native SQSound.setVolumeControlFadeTime, registered with Squirrel
+005041f0	sqSound_setTimeScale	native SQSound.setTimeScale, registered with Squirrel
+00504210	sqSound_setVolumeTimer	native SQSound.setVolumeTimer, registered with Squirrel
+00504230	sqSound_setPanTimer	native SQSound.setPanTimer, registered with Squirrel
+00504250	sqSound_setFrequencyTimer	native SQSound.setFrequencyTimer, registered with Squirrel
+00504270	sqSound_getVolumeTimer	native SQSound.getVolumeTimer, registered with Squirrel
+00504290	sqSound_getPanTimer	native SQSound.getPanTimer, registered with Squirrel
+005042b0	sqSound_getFrequencyTimer	native SQSound.getFrequencyTimer, registered with Squirrel
+005044b0	sqreg_SQSound_ctor_005044b0	registers SQSound's constructor
+00504590	sqSound_constructor	native SQSound.constructor, registered with Squirrel
+00505650	sqreg_SQSound3D	registers class SQSound3D and its methods with Squirrel (SqPlus SQClassDef): reg_template(handler, "name", ...)
+00505a10	sqSound3D_create	native SQSound3D.create, registered with Squirrel
+00505b50	sqSound3D_load	native SQSound3D.load, registered with Squirrel
+00505c90	sqSound3D_move3D	native SQSound3D.move3D, registered with Squirrel
+00505cd0	sqSound3D_getMove3D	native SQSound3D.getMove3D, registered with Squirrel
+00505d30	sqSound3D_isMoving	native SQSound3D.isMoving, registered with Squirrel
+00505ec0	sqreg_SQSound3D_ctor_00505ec0	registers SQSound3D's constructor
+00505fa0	sqSound3D_constructor	native SQSound3D.constructor, registered with Squirrel
+00506d80	sqreg_SQSoundDevice_ctor_00506d80	registers SQSoundDevice's constructor
+00507010	sqSoundDevice_moveListener	native SQSoundDevice.moveListener, registered with Squirrel
+005070c0	sqSoundDevice_rotateListener	native SQSoundDevice.rotateListener, registered with Squirrel
+005072f0	sqreg_SQSoundDevice_ctor_005072f0	registers SQSoundDevice's constructor
+005073d0	sqSoundDevice_constructor	native SQSoundDevice.constructor, registered with Squirrel
+00507ab0	sqreg_SQCamera	registers class SQCamera and its methods with Squirrel (SqPlus SQClassDef): reg_template(handler, "name", ...)
+00508ae0	sqCamera_create	native SQCamera.create, registered with Squirrel
+00508b60	sqCamera_createOrtho	native SQCamera.createOrtho, registered with Squirrel
+00508bd0	sqCamera_lookAt	native SQCamera.lookAt, registered with Squirrel
+00508c20	sqCamera_move3D	native SQCamera.move3D, registered with Squirrel
+00508d70	sqCamera_rotate	native SQCamera.rotate, registered with Squirrel
+00508e80	sqCamera_setTimeScale	native SQCamera.setTimeScale, registered with Squirrel
+00508ee0	sqCamera_getMove	native SQCamera.getMove, registered with Squirrel
+00508f20	sqCamera_getRotate	native SQCamera.getRotate, registered with Squirrel
+00508f60	sqCamera_getFov	native SQCamera.getFov, registered with Squirrel
+00508f70	sqCamera_isMoving	native SQCamera.isMoving, registered with Squirrel
+00508fa0	sqCamera_isRotating	native SQCamera.isRotating, registered with Squirrel
+00508fc0	sqCamera_setSceneCamera	native SQCamera.setSceneCamera, registered with Squirrel
+00509010	sqCamera_moveDelta	native SQCamera.moveDelta, registered with Squirrel
+00509080	sqCamera_shake	native SQCamera.shake, registered with Squirrel
+005091c0	sqCamera_randomShake	native SQCamera.randomShake, registered with Squirrel
+00509310	sqCamera_resetBezier	native SQCamera.resetBezier, registered with Squirrel
+00509360	sqCamera_setBezier3D	native SQCamera.setBezier3D, registered with Squirrel
+005093e0	sqCamera_beginBezier	native SQCamera.beginBezier, registered with Squirrel
+00509420	sqCamera_resetTimeline	native SQCamera.resetTimeline, registered with Squirrel
+00509520	sqCamera_setTimeline	native SQCamera.setTimeline, registered with Squirrel
+00509760	sqCamera_beginTimeline	native SQCamera.beginTimeline, registered with Squirrel
+005098d0	sqCamera_setFixedLookAt	native SQCamera.setFixedLookAt, registered with Squirrel
+00509990	sqCamera_isFixedLookAt	native SQCamera.isFixedLookAt, registered with Squirrel
+005099a0	sqCamera_getLookAt	native SQCamera.getLookAt, registered with Squirrel
+005099e0	sqCamera_calcScreenSize	native SQCamera.calcScreenSize, registered with Squirrel
+00509a90	sqCamera_getMoveTimer	native SQCamera.getMoveTimer, registered with Squirrel
+00509aa0	sqCamera_getRotateTimer	native SQCamera.getRotateTimer, registered with Squirrel
+00509ab0	sqCamera_getTimelineTimer	native SQCamera.getTimelineTimer, registered with Squirrel
+00509ac0	sqCamera_getBezierTimer	native SQCamera.getBezierTimer, registered with Squirrel
+00509ad0	sqCamera_getShakeTimer	native SQCamera.getShakeTimer, registered with Squirrel
+00509af0	sqCamera_setMoveTimer	native SQCamera.setMoveTimer, registered with Squirrel
+00509b60	sqCamera_setRotateTimer	native SQCamera.setRotateTimer, registered with Squirrel
+00509bd0	sqCamera_setTimelineTimer	native SQCamera.setTimelineTimer, registered with Squirrel
+00509d90	sqCamera_setBezierTimer	native SQCamera.setBezierTimer, registered with Squirrel
+00509eb0	sqCamera_setShakeTimer	native SQCamera.setShakeTimer, registered with Squirrel
+0050af20	sqreg_SQCamera_ctor_0050af20	registers SQCamera's constructor
+0050b000	sqCamera_constructor	native SQCamera.constructor, registered with Squirrel
+0050d8b0	sqreg_SQProcess	registers class SQProcess and its methods with Squirrel (SqPlus SQClassDef): reg_template(handler, "name", ...)
+0050db00	sqProcess_create	native SQProcess.create, registered with Squirrel
+0050dcd0	sqreg_SQProcess_ctor_0050dcd0	registers SQProcess's constructor
+0050ddb0	sqProcess_constructor	native SQProcess.constructor, registered with Squirrel
+0050e4e0	sqreg_SQDisplacementMap	registers class SQDisplacementMap and its methods with Squirrel (SqPlus SQClassDef): reg_template(handler, "name", ...)
+0050e630	sqDisplacementMap_create	native SQDisplacementMap.create, registered with Squirrel
+0050e740	sqDisplacementMap_setSurface	native SQDisplacementMap.setSurface, registered with Squirrel
+0050e860	sqDisplacementMap_getSize	native SQDisplacementMap.getSize, registered with Squirrel
+0050ea70	sqreg_SQDisplacementMap_ctor_0050ea70	registers SQDisplacementMap's constructor
+0050eb50	sqDisplacementMap_constructor	native SQDisplacementMap.constructor, registered with Squirrel
+0050f660	sqreg_SQShadeMask	registers class SQShadeMask and its methods with Squirrel (SqPlus SQClassDef): reg_template(handler, "name", ...)
+0050f810	sqShadeMask_create	native SQShadeMask.create, registered with Squirrel
+0050f920	sqShadeMask_setShadingParameter	native SQShadeMask.setShadingParameter, registered with Squirrel
+0050f950	sqShadeMask_setShadingPower	native SQShadeMask.setShadingPower, registered with Squirrel
+0050f980	sqShadeMask_getShadingPower	native SQShadeMask.getShadingPower, registered with Squirrel
+0050f990	sqShadeMask_getShadingLevel	native SQShadeMask.getShadingLevel, registered with Squirrel
+0050f9a0	sqShadeMask_getShadingDensity	native SQShadeMask.getShadingDensity, registered with Squirrel
+0050f9b0	sqShadeMask_getShadingPowerTimer	native SQShadeMask.getShadingPowerTimer, registered with Squirrel
+0050f9c0	sqShadeMask_setShadingPowerTimer	native SQShadeMask.setShadingPowerTimer, registered with Squirrel
+0050fa70	sqShadeMask_setTimeScale	native SQShadeMask.setTimeScale, registered with Squirrel
+0050fc10	sqreg_SQShadeMask_ctor_0050fc10	registers SQShadeMask's constructor
+0050fcf0	sqShadeMask_constructor	native SQShadeMask.constructor, registered with Squirrel
+00513850	sqreg_SQParticle	registers class SQParticle and its methods with Squirrel (SqPlus SQClassDef): reg_template(handler, "name", ...)
+00514280	sqParticle_linkEmitter	native SQParticle.linkEmitter, registered with Squirrel
+00514700	sqParticle_create	native SQParticle.create, registered with Squirrel
+00514880	sqParticle_createFromTable	native SQParticle.createFromTable, registered with Squirrel
+005149f0	sqParticle_begin	native SQParticle.begin, registered with Squirrel
+00514a20	sqParticle_end	native SQParticle.end, registered with Squirrel
+00514a30	sqParticle_reset	native SQParticle.reset, registered with Squirrel
+00514a50	sqParticle_fade	native SQParticle.fade, registered with Squirrel
+00514a80	sqParticle_move	native SQParticle.move, registered with Squirrel
+00514b10	sqParticle_scale	native SQParticle.scale, registered with Squirrel
+00514ba0	sqParticle_rotate	native SQParticle.rotate, registered with Squirrel
+00514c30	sqParticle_resetSpline	native SQParticle.resetSpline, registered with Squirrel
+00514cb0	sqParticle_setSpline	native SQParticle.setSpline, registered with Squirrel
+00514d50	sqParticle_beginSpline	native SQParticle.beginSpline, registered with Squirrel
+00514dd0	sqParticle_setFrequency	native SQParticle.setFrequency, registered with Squirrel
+00514e00	sqParticle_setColor	native SQParticle.setColor, registered with Squirrel
+00514e90	sqParticle_setTimeScale	native SQParticle.setTimeScale, registered with Squirrel
+00514ef0	sqParticle_setSurface	native SQParticle.setSurface, registered with Squirrel
+00514fc0	sqParticle_setCamera	native SQParticle.setCamera, registered with Squirrel
+00515090	sqParticle_setDither	native SQParticle.setDither, registered with Squirrel
+00515130	sqParticle_seek	native SQParticle.seek, registered with Squirrel
+00515150	sqParticle_getFade	native SQParticle.getFade, registered with Squirrel
+00515160	sqParticle_getMove	native SQParticle.getMove, registered with Squirrel
+005151a0	sqParticle_getScale	native SQParticle.getScale, registered with Squirrel
+005151e0	sqParticle_getRotate	native SQParticle.getRotate, registered with Squirrel
+00515220	sqParticle_getFrequency	native SQParticle.getFrequency, registered with Squirrel
+00515230	sqParticle_getColor	native SQParticle.getColor, registered with Squirrel
+00515270	sqParticle_isFading	native SQParticle.isFading, registered with Squirrel
+00515280	sqParticle_isMoving	native SQParticle.isMoving, registered with Squirrel
+00515290	sqParticle_isScaling	native SQParticle.isScaling, registered with Squirrel
+005152a0	sqParticle_isRotating	native SQParticle.isRotating, registered with Squirrel
+005152b0	sqParticle_isActivle	native SQParticle.isActivle, registered with Squirrel
+005152e0	sqParticle_getFadeTimer	native SQParticle.getFadeTimer, registered with Squirrel
+005152f0	sqParticle_getMoveTimer	native SQParticle.getMoveTimer, registered with Squirrel
+00515300	sqParticle_getScaleTimer	native SQParticle.getScaleTimer, registered with Squirrel
+00515310	sqParticle_getRotateTimer	native SQParticle.getRotateTimer, registered with Squirrel
+00515320	sqParticle_getSplineTimer	native SQParticle.getSplineTimer, registered with Squirrel (also SQParticle.getFrequencyTimer)
+00515330	sqParticle_getColorTimer	native SQParticle.getColorTimer, registered with Squirrel
+00515340	sqParticle_setFadeTimer	native SQParticle.setFadeTimer, registered with Squirrel
+005153c0	sqParticle_setMoveTimer	native SQParticle.setMoveTimer, registered with Squirrel
+00515410	sqParticle_setScaleTimer	native SQParticle.setScaleTimer, registered with Squirrel
+00515460	sqParticle_setRotateTimer	native SQParticle.setRotateTimer, registered with Squirrel
+005154b0	sqParticle_setSplineTimer	native SQParticle.setSplineTimer, registered with Squirrel
+00515530	sqParticle_setFrequencyTimer	native SQParticle.setFrequencyTimer, registered with Squirrel
+005155b0	sqParticle_setColorTimer	native SQParticle.setColorTimer, registered with Squirrel
+00515600	sqParticle_getParameterTable	native SQParticle.getParameterTable, registered with Squirrel
+005156c0	sqParticle_setParameterTable	native SQParticle.setParameterTable, registered with Squirrel
+00515c40	sqreg_SQParticle_ctor_00515c40	registers SQParticle's constructor
+00515d20	sqParticle_constructor	native SQParticle.constructor, registered with Squirrel
+00517470	sqreg_SQDes	registers class SQDes and its methods with Squirrel (SqPlus SQClassDef): reg_template(handler, "name", ...)
+00517680	sqDes_reset	native SQDes.reset, registered with Squirrel
+005176a0	sqDes_setRunFileName	native SQDes.setRunFileName, registered with Squirrel
+005176f0	sqDes_drawDebugString	native SQDes.drawDebugString, registered with Squirrel
+00517760	sqDes_getDetectFps	native SQDes.getDetectFps, registered with Squirrel
+005178f0	sqreg_SQDes_ctor_005178f0	registers SQDes's constructor
+005179d0	sqDes_constructor	native SQDes.constructor, registered with Squirrel
+00518c70	sqreg_SQScene	registers class SQScene and its methods with Squirrel (SqPlus SQClassDef): reg_template(handler, "name", ...)
+0051a8f0	sqScene_setEnable	native SQScene.setEnable, registered with Squirrel
+0051a900	sqScene_setTimeScale	native SQScene.setTimeScale, registered with Squirrel
+0051a9a0	sqScene_setEffectTimeScale	native SQScene.setEffectTimeScale, registered with Squirrel
+0051aa20	sqScene_setLightTimeScale	native SQScene.setLightTimeScale, registered with Squirrel
+0051aa50	sqScene_setLightPosition	native SQScene.setLightPosition, registered with Squirrel
+0051ac40	sqScene_setLightLookAt	native SQScene.setLightLookAt, registered with Squirrel
+0051ace0	sqScene_setShadowMapOffsetRotate	native SQScene.setShadowMapOffsetRotate, registered with Squirrel
+0051ad20	sqScene_setHDRBloomEnable	native SQScene.setHDRBloomEnable, registered with Squirrel
+0051ad40	sqScene_setHDRBrightPassLowLimit	native SQScene.setHDRBrightPassLowLimit, registered with Squirrel
+0051ad80	sqScene_setHDRBrightPower	native SQScene.setHDRBrightPower, registered with Squirrel
+0051adc0	sqScene_setHDRBloom	native SQScene.setHDRBloom, registered with Squirrel
+0051ae00	sqScene_getHDRBrightPassLowLimit	native SQScene.getHDRBrightPassLowLimit, registered with Squirrel
+0051ae10	sqScene_getHDRBrightPower	native SQScene.getHDRBrightPower, registered with Squirrel
+0051ae20	sqScene_getHDRBloom	native SQScene.getHDRBloom, registered with Squirrel
+0051ae30	sqScene_getHDRBrightPassLowLimitTimer	native SQScene.getHDRBrightPassLowLimitTimer, registered with Squirrel
+0051ae40	sqScene_getHDRBrightPowerTimer	native SQScene.getHDRBrightPowerTimer, registered with Squirrel
+0051ae50	sqScene_getHDRBloomTimer	native SQScene.getHDRBloomTimer, registered with Squirrel
+0051ae60	sqScene_setHDRBrightPassLowLimitTimer	native SQScene.setHDRBrightPassLowLimitTimer, registered with Squirrel
+0051af10	sqScene_setHDRBrightPowerTimer	native SQScene.setHDRBrightPowerTimer, registered with Squirrel
+0051afc0	sqScene_setHDRBloomTimer	native SQScene.setHDRBloomTimer, registered with Squirrel
+0051b070	sqScene_setDOFEnable	native SQScene.setDOFEnable, registered with Squirrel
+0051b090	sqScene_setDOFMiddle	native SQScene.setDOFMiddle, registered with Squirrel
+0051b0e0	sqScene_setDOFFar	native SQScene.setDOFFar, registered with Squirrel
+0051b130	sqScene_getDOFMiddle	native SQScene.getDOFMiddle, registered with Squirrel
+0051b140	sqScene_getDOFFar	native SQScene.getDOFFar, registered with Squirrel
+0051b150	sqScene_getDOFMiddleTimer	native SQScene.getDOFMiddleTimer, registered with Squirrel
+0051b160	sqScene_getDOFFarTimer	native SQScene.getDOFFarTimer, registered with Squirrel
+0051b170	sqScene_setDOFMiddleTimer	native SQScene.setDOFMiddleTimer, registered with Squirrel
+0051b220	sqScene_setDOFFarTimer	native SQScene.setDOFFarTimer, registered with Squirrel
+0051b2d0	sqScene_setToneMappingEnable	native SQScene.setToneMappingEnable, registered with Squirrel
+0051b2f0	sqScene_setToneMappingBias	native SQScene.setToneMappingBias, registered with Squirrel
+0051b330	sqScene_setToneMappingDarkClamp	native SQScene.setToneMappingDarkClamp, registered with Squirrel
+0051b370	sqScene_setToneMappingLightClamp	native SQScene.setToneMappingLightClamp, registered with Squirrel
+0051b3b0	sqScene_getToneMappingBias	native SQScene.getToneMappingBias, registered with Squirrel
+0051b3c0	sqScene_getToneMappingDarkClamp	native SQScene.getToneMappingDarkClamp, registered with Squirrel
+0051b3d0	sqScene_getToneMappingLightClamp	native SQScene.getToneMappingLightClamp, registered with Squirrel
+0051b3e0	sqScene_getToneMappingBiasTimer	native SQScene.getToneMappingBiasTimer, registered with Squirrel
+0051b3f0	sqScene_getToneMappingDarkClampTimer	native SQScene.getToneMappingDarkClampTimer, registered with Squirrel
+0051b400	sqScene_getToneMappingLightClampTimer	native SQScene.getToneMappingLightClampTimer, registered with Squirrel
+0051b410	sqScene_setToneMappingBiasTimer	native SQScene.setToneMappingBiasTimer, registered with Squirrel
+0051b4c0	sqScene_setToneMappingDarkClampTimer	native SQScene.setToneMappingDarkClampTimer, registered with Squirrel
+0051b570	sqScene_setToneMappingLightClampTimer	native SQScene.setToneMappingLightClampTimer, registered with Squirrel
+0051b620	sqScene_setSoftFocusEnable	native SQScene.setSoftFocusEnable, registered with Squirrel
+0051b640	sqScene_setSoftFocusBlurPower	native SQScene.setSoftFocusBlurPower, registered with Squirrel
+0051b680	sqScene_setSoftFocusBlendPower	native SQScene.setSoftFocusBlendPower, registered with Squirrel
+0051b6c0	sqScene_getSoftFocusBlurPower	native SQScene.getSoftFocusBlurPower, registered with Squirrel (also SQAction1D.getPower)
+0051b6d0	sqScene_getSoftFocusBlurPowerTimer	native SQScene.getSoftFocusBlurPowerTimer, registered with Squirrel
+0051b6e0	sqScene_getSoftFocusBlendPowerTimer	native SQScene.getSoftFocusBlendPowerTimer, registered with Squirrel
+0051b6f0	sqScene_setSoftFocusBlurPowerTimer	native SQScene.setSoftFocusBlurPowerTimer, registered with Squirrel
+0051b7a0	sqScene_setSoftFocusBlendPowerTimer	native SQScene.setSoftFocusBlendPowerTimer, registered with Squirrel
+0051b850	sqScene_rotateLight	native SQScene.rotateLight, registered with Squirrel
+0051b8e0	sqScene_moveLightLookAt	native SQScene.moveLightLookAt, registered with Squirrel
+0051b970	sqScene_setLightColor	native SQScene.setLightColor, registered with Squirrel
+0051ba00	sqScene_getRotateLight	native SQScene.getRotateLight, registered with Squirrel
+0051ba40	sqScene_getMoveLightLookAt	native SQScene.getMoveLightLookAt, registered with Squirrel
+0051ba80	sqScene_getLightColor	native SQScene.getLightColor, registered with Squirrel
+0051bac0	sqScene_getRotateLightTimer	native SQScene.getRotateLightTimer, registered with Squirrel
+0051bad0	sqScene_getMoveLightLookAtTimer	native SQScene.getMoveLightLookAtTimer, registered with Squirrel
+0051bae0	sqScene_getLightColorTimer	native SQScene.getLightColorTimer, registered with Squirrel
+0051baf0	sqScene_setRotateLightTimer	native SQScene.setRotateLightTimer, registered with Squirrel
+0051bb40	sqScene_setMoveLightLookAtTimer	native SQScene.setMoveLightLookAtTimer, registered with Squirrel
+0051bb90	sqScene_setLightColorTimer	native SQScene.setLightColorTimer, registered with Squirrel
+0051bbe0	sqScene_setFogEnable	native SQScene.setFogEnable, registered with Squirrel
+0051bc00	sqScene_moveFogNear	native SQScene.moveFogNear, registered with Squirrel
+0051bc40	sqScene_moveFogFar	native SQScene.moveFogFar, registered with Squirrel
+0051bc80	sqScene_setFogColor	native SQScene.setFogColor, registered with Squirrel
+0051bd20	sqScene_setFogParameter	native SQScene.setFogParameter, registered with Squirrel
+0051be40	sqScene_getFogNear	native SQScene.getFogNear, registered with Squirrel
+0051be50	sqScene_getFogFar	native SQScene.getFogFar, registered with Squirrel
+0051be60	sqScene_getFogColor	native SQScene.getFogColor, registered with Squirrel
+0051bea0	sqScene_getFogNearTimer	native SQScene.getFogNearTimer, registered with Squirrel
+0051beb0	sqScene_getFogFarTimer	native SQScene.getFogFarTimer, registered with Squirrel
+0051bec0	sqScene_getFogColorTimer	native SQScene.getFogColorTimer, registered with Squirrel
+0051bed0	sqScene_setFogNearTimer	native SQScene.setFogNearTimer, registered with Squirrel
+0051bf70	sqScene_setFogFarTimer	native SQScene.setFogFarTimer, registered with Squirrel
+0051c010	sqScene_setFogColorTimer	native SQScene.setFogColorTimer, registered with Squirrel
+0051c080	sqScene_setRadialBlur	native SQScene.setRadialBlur, registered with Squirrel
+0051c0e0	sqScene_getRadialBlurPower	native SQScene.getRadialBlurPower, registered with Squirrel
+0051c0f0	sqScene_getRadialBlurCenter	native SQScene.getRadialBlurCenter, registered with Squirrel
+0051c130	sqScene_getRadialBlurPowerTimer	native SQScene.getRadialBlurPowerTimer, registered with Squirrel
+0051c140	sqScene_setRadialBlurPowerTimer	native SQScene.setRadialBlurPowerTimer, registered with Squirrel
+0051c360	sqreg_SQScene_ctor_0051c360	registers SQScene's constructor
+0051c440	sqScene_constructor	native SQScene.constructor, registered with Squirrel
+0051d850	sqreg_SQBone	registers class SQBone and its methods with Squirrel (SqPlus SQClassDef): reg_template(handler, "name", ...)
+0051db90	sqBone_create	native SQBone.create, registered with Squirrel
+0051dc90	sqBone_getPosition	native SQBone.getPosition, registered with Squirrel
+0051dd50	sqBone_getRotate	native SQBone.getRotate, registered with Squirrel
+0051df60	sqBone_attachRigidBody	native SQBone.attachRigidBody, registered with Squirrel
+0051e000	sqBone_getUp	native SQBone.getUp, registered with Squirrel
+0051e0f0	sqBone_getRight	native SQBone.getRight, registered with Squirrel
+0051e1e0	sqBone_getFront	native SQBone.getFront, registered with Squirrel
+0051e3e0	sqBone_getChildNum	native SQBone.getChildNum, registered with Squirrel
+0051e400	sqBone_getChildName	native SQBone.getChildName, registered with Squirrel
+0051e5e0	sqreg_SQBone_ctor_0051e5e0	registers SQBone's constructor
+0051e6c0	sqBone_constructor	native SQBone.constructor, registered with Squirrel
+0051f5e0	cb_0051f5e0	reached only through a function pointer
+00520cd0	sqreg_SQRigidBody	registers class SQRigidBody and its methods with Squirrel (SqPlus SQClassDef): reg_template(handler, "name", ...)
+00521180	sqRigidBody_create	native SQRigidBody.create, registered with Squirrel
+005212b0	sqRigidBody_createPlane	native SQRigidBody.createPlane, registered with Squirrel
+00521560	sqRigidBody_createSphere	native SQRigidBody.createSphere, registered with Squirrel
+00521720	sqRigidBody_createBox	native SQRigidBody.createBox, registered with Squirrel
+005219d0	sqRigidBody_createCylinder	native SQRigidBody.createCylinder, registered with Squirrel
+00521ba0	sqRigidBody_createCapsule	native SQRigidBody.createCapsule, registered with Squirrel
+00521d70	sqRigidBody_move	native SQRigidBody.move, registered with Squirrel
+00521e00	sqRigidBody_rotate	native SQRigidBody.rotate, registered with Squirrel
+00521e90	sqRigidBody_getMove	native SQRigidBody.getMove, registered with Squirrel
+00521f50	sqRigidBody_getRotate	native SQRigidBody.getRotate, registered with Squirrel
+00522010	sqRigidBody_getPosition	native SQRigidBody.getPosition, registered with Squirrel
+005220d0	sqRigidBody_isMoving	native SQRigidBody.isMoving, registered with Squirrel
+005220f0	sqRigidBody_isRotating	native SQRigidBody.isRotating, registered with Squirrel
+00522100	sqRigidBody_setEnableDynamics	native SQRigidBody.setEnableDynamics, registered with Squirrel
+00522130	sqRigidBody_setEnableCollision	native SQRigidBody.setEnableCollision, registered with Squirrel
+00522160	sqRigidBody_setEnableGravity	native SQRigidBody.setEnableGravity, registered with Squirrel
+00522190	sqRigidBody_setEnableControler	native SQRigidBody.setEnableControler, registered with Squirrel
+005221c0	sqRigidBody_attachWithBallJoint	native SQRigidBody.attachWithBallJoint, registered with Squirrel
+005223a0	sqRigidBody_attachWith6DOFJoint	native SQRigidBody.attachWith6DOFJoint, registered with Squirrel
+00522670	sqRigidBody_releaseJoint	native SQRigidBody.releaseJoint, registered with Squirrel
+005226a0	sqRigidBody_reset	native SQRigidBody.reset, registered with Squirrel
+005226c0	sqRigidBody_setFrictionalCoefficient	native SQRigidBody.setFrictionalCoefficient, registered with Squirrel
+005226f0	sqRigidBody_getFrictionalCoefficient	native SQRigidBody.getFrictionalCoefficient, registered with Squirrel
+00522730	sqRigidBody_setRestitutionCoefficient	native SQRigidBody.setRestitutionCoefficient, registered with Squirrel
+00522760	sqRigidBody_getRestitutionCoefficient	native SQRigidBody.getRestitutionCoefficient, registered with Squirrel
+005227a0	sqRigidBody_setLinearDamping	native SQRigidBody.setLinearDamping, registered with Squirrel
+005227d0	sqRigidBody_setAngularDamping	native SQRigidBody.setAngularDamping, registered with Squirrel
+00522800	sqRigidBody_setLinearFactor	native SQRigidBody.setLinearFactor, registered with Squirrel
+00522890	sqRigidBody_setAngularFactor	native SQRigidBody.setAngularFactor, registered with Squirrel
+00522920	sqRigidBody_addForce	native SQRigidBody.addForce, registered with Squirrel (also SQRigidBody.addTorque)
+00522a70	sqRigidBody_setLinearVelocity	native SQRigidBody.setLinearVelocity, registered with Squirrel
+00522c00	sqRigidBody_setAngularVelocity	native SQRigidBody.setAngularVelocity, registered with Squirrel
+00522d90	sqRigidBody_getLinearVelocity	native SQRigidBody.getLinearVelocity, registered with Squirrel
+00522e50	sqRigidBody_getAngularVelocity	native SQRigidBody.getAngularVelocity, registered with Squirrel
+00523090	sqreg_SQRigidBody_ctor_00523090	registers SQRigidBody's constructor
+00523170	sqRigidBody_constructor	native SQRigidBody.constructor, registered with Squirrel
+00524e40	sqreg_SQJoint	registers class SQJoint and its methods with Squirrel (SqPlus SQClassDef): reg_template(handler, "name", ...)
+00525170	sqJoint_create	native SQJoint.create, registered with Squirrel
+00525240	sqJoint_setAngularUpperLimit	native SQJoint.setAngularUpperLimit, registered with Squirrel
+00525290	sqJoint_setAngularLowerLimit	native SQJoint.setAngularLowerLimit, registered with Squirrel
+005252e0	sqJoint_setAngularEnableSpring	native SQJoint.setAngularEnableSpring, registered with Squirrel
+00525340	sqJoint_setAngularSpringStiffness	native SQJoint.setAngularSpringStiffness, registered with Squirrel
+00525390	sqJoint_setAngularSpringDamping	native SQJoint.setAngularSpringDamping, registered with Squirrel
+005253e0	sqJoint_setLinearUpperLimit	native SQJoint.setLinearUpperLimit, registered with Squirrel
+00525430	sqJoint_setLinearLowerLimit	native SQJoint.setLinearLowerLimit, registered with Squirrel
+00525480	sqJoint_setLinearEnableSpring	native SQJoint.setLinearEnableSpring, registered with Squirrel
+005254d0	sqJoint_setLinearSpringStiffness	native SQJoint.setLinearSpringStiffness, registered with Squirrel
+00525530	sqJoint_setLinearSpringDamping	native SQJoint.setLinearSpringDamping, registered with Squirrel
+00525590	sqJoint_setERP	native SQJoint.setERP, registered with Squirrel
+005255c0	sqJoint_getERP	native SQJoint.getERP, registered with Squirrel
+00525600	sqJoint_setCFM	native SQJoint.setCFM, registered with Squirrel
+00525630	sqJoint_getCFM	native SQJoint.getCFM, registered with Squirrel
+00525670	sqJoint_setBreakingImpulseThreshold	native SQJoint.setBreakingImpulseThreshold, registered with Squirrel
+005256a0	sqJoint_getBreakingImpulseThreshold	native SQJoint.getBreakingImpulseThreshold, registered with Squirrel
+00525860	sqreg_SQJoint_ctor_00525860	registers SQJoint's constructor
+00525940	sqJoint_constructor	native SQJoint.constructor, registered with Squirrel
+00526590	sqreg_SQPointLight	registers class SQPointLight and its methods with Squirrel (SqPlus SQClassDef): reg_template(handler, "name", ...)
+00526b40	sqPointLight_create	native SQPointLight.create, registered with Squirrel
+00526c30	sqPointLight_move	native SQPointLight.move, registered with Squirrel
+00526cd0	sqPointLight_rotate	native SQPointLight.rotate, registered with Squirrel
+00526d70	sqPointLight_setColor	native SQPointLight.setColor, registered with Squirrel
+00526e10	sqPointLight_setPower	native SQPointLight.setPower, registered with Squirrel
+00526e60	sqPointLight_setTimeScale	native SQPointLight.setTimeScale, registered with Squirrel
+00526ec0	sqPointLight_setSize	native SQPointLight.setSize, registered with Squirrel
+00526f00	sqPointLight_setRange	native SQPointLight.setRange, registered with Squirrel
+00526f40	sqPointLight_resetSpline	native SQPointLight.resetSpline, registered with Squirrel
+00526f50	sqPointLight_setSpline	native SQPointLight.setSpline, registered with Squirrel
+00526ff0	sqPointLight_beginSpline	native SQPointLight.beginSpline, registered with Squirrel
+00527000	sqPointLight_setLookAt	native SQPointLight.setLookAt, registered with Squirrel
+00527050	sqPointLight_getMove	native SQPointLight.getMove, registered with Squirrel
+005270a0	sqPointLight_getColor	native SQPointLight.getColor, registered with Squirrel
+005270f0	sqPointLight_isRotating	native SQPointLight.isRotating, registered with Squirrel
+00527100	sqPointLight_getSize	native SQPointLight.getSize, registered with Squirrel
+00527110	sqPointLight_getPower	native SQPointLight.getPower, registered with Squirrel
+00527120	sqPointLight_getRange	native SQPointLight.getRange, registered with Squirrel
+00527130	sqPointLight_getLookAt	native SQPointLight.getLookAt, registered with Squirrel
+005271c0	sqPointLight_getRotate	native SQPointLight.getRotate, registered with Squirrel
+00527210	sqPointLight_getMoveTimer	native SQPointLight.getMoveTimer, registered with Squirrel
+00527220	sqPointLight_getRotateTimer	native SQPointLight.getRotateTimer, registered with Squirrel
+00527230	sqPointLight_getColorTimer	native SQPointLight.getColorTimer, registered with Squirrel
+00527240	sqPointLight_getPowerTimer	native SQPointLight.getPowerTimer, registered with Squirrel
+00527250	sqPointLight_getSizeTimer	native SQPointLight.getSizeTimer, registered with Squirrel
+00527260	sqPointLight_getRangeTimer	native SQPointLight.getRangeTimer, registered with Squirrel
+00527270	sqPointLight_getSplineTimer	native SQPointLight.getSplineTimer, registered with Squirrel
+00527280	sqPointLight_setMoveTimer	native SQPointLight.setMoveTimer, registered with Squirrel
+005272f0	sqPointLight_setRotateTimer	native SQPointLight.setRotateTimer, registered with Squirrel
+00527360	sqPointLight_setColorTimer	native SQPointLight.setColorTimer, registered with Squirrel
+005273d0	sqPointLight_setPowerTimer	native SQPointLight.setPowerTimer, registered with Squirrel
+005273f0	sqPointLight_setSizeTimer	native SQPointLight.setSizeTimer, registered with Squirrel
+00527410	sqPointLight_setRangeTimer	native SQPointLight.setRangeTimer, registered with Squirrel
+00527430	sqPointLight_setSplineTimer	native SQPointLight.setSplineTimer, registered with Squirrel
+005275d0	sqreg_SQPointLight_ctor_005275d0	registers SQPointLight's constructor
+005276b0	sqPointLight_constructor	native SQPointLight.constructor, registered with Squirrel
+005287a0	sqreg_SQNull3D	registers class SQNull3D and its methods with Squirrel (SqPlus SQClassDef): reg_template(handler, "name", ...)
+00528ee0	sqNull3D_create	native SQNull3D.create, registered with Squirrel
+00528ef0	sqNull3D_link	native SQNull3D.link, registered with Squirrel
+00528fa0	sqNull3D_move	native SQNull3D.move, registered with Squirrel
+00529030	sqNull3D_rotate	native SQNull3D.rotate, registered with Squirrel
+005290c0	sqNull3D_resetSpline	native SQNull3D.resetSpline, registered with Squirrel
+00529140	sqNull3D_setSpline	native SQNull3D.setSpline, registered with Squirrel
+005291e0	sqNull3D_beginSpline	native SQNull3D.beginSpline, registered with Squirrel
+00529250	sqNull3D_setTimeScale	native SQNull3D.setTimeScale, registered with Squirrel
+00529290	sqNull3D_getMove	native SQNull3D.getMove, registered with Squirrel
+005292d0	sqNull3D_getRotate	native SQNull3D.getRotate, registered with Squirrel
+00529310	sqNull3D_isMoving	native SQNull3D.isMoving, registered with Squirrel
+00529340	sqNull3D_isRotating	native SQNull3D.isRotating, registered with Squirrel
+00529350	sqNull3D_resetBezier	native SQNull3D.resetBezier, registered with Squirrel
+005293a0	sqNull3D_setBezier3D	native SQNull3D.setBezier3D, registered with Squirrel
+00529420	sqNull3D_beginBezier	native SQNull3D.beginBezier, registered with Squirrel
+00529460	sqNull3D_getMoveTimer	native SQNull3D.getMoveTimer, registered with Squirrel (also SQAction1D.getTimer)
+00529470	sqNull3D_getSplineTimer	native SQNull3D.getSplineTimer, registered with Squirrel
+00529480	sqNull3D_getBezierTimer	native SQNull3D.getBezierTimer, registered with Squirrel
+00529490	sqNull3D_setMoveTimer	native SQNull3D.setMoveTimer, registered with Squirrel
+005294f0	sqNull3D_setRotateTimer	native SQNull3D.setRotateTimer, registered with Squirrel
+00529550	sqNull3D_setSplineTimer	native SQNull3D.setSplineTimer, registered with Squirrel
+005295e0	sqNull3D_setBezierTimer	native SQNull3D.setBezierTimer, registered with Squirrel
+00529870	sqreg_SQNull3D_ctor_00529870	registers SQNull3D's constructor
+00529950	sqNull3D_constructor	native SQNull3D.constructor, registered with Squirrel
+0052a9c0	sqreg_SQAction1D	registers class SQAction1D and its methods with Squirrel (SqPlus SQClassDef): reg_template(handler, "name", ...)
+0052ac60	sqAction1D_setAction	native SQAction1D.setAction, registered with Squirrel
+0052ad30	sqAction1D_finish	native SQAction1D.finish, registered with Squirrel
+0052ad70	sqAction1D_resetNow	native SQAction1D.resetNow, registered with Squirrel
+0052adc0	sqAction1D_resetTimer	native SQAction1D.resetTimer, registered with Squirrel
+0052add0	sqAction1D_setTimer	native SQAction1D.setTimer, registered with Squirrel
+0052ae50	sqAction1D_setActionTime	native SQAction1D.setActionTime, registered with Squirrel
+0052aec0	sqAction1D_getActionTime	native SQAction1D.getActionTime, registered with Squirrel
+0052aed0	sqAction1D_setSrc	native SQAction1D.setSrc, registered with Squirrel
+0052af30	sqAction1D_setDst	native SQAction1D.setDst, registered with Squirrel
+0052af90	sqAction1D_setNow	native SQAction1D.setNow, registered with Squirrel
+0052afc0	sqAction1D_getSrc	native SQAction1D.getSrc, registered with Squirrel
+0052aff0	sqAction1D_getDst	native SQAction1D.getDst, registered with Squirrel
+0052b020	sqAction1D_getNow	native SQAction1D.getNow, registered with Squirrel
+0052b050	sqAction1D_getNowNoPower	native SQAction1D.getNowNoPower, registered with Squirrel
+0052b080	sqAction1D_getRate	native SQAction1D.getRate, registered with Squirrel
+0052b090	sqAction1D_isActive	native SQAction1D.isActive, registered with Squirrel
+0052b0b0	sqAction1D_setActive	native SQAction1D.setActive, registered with Squirrel
+0052b0c0	sqAction1D_setPower	native SQAction1D.setPower, registered with Squirrel
+0052b140	sqAction1D_setTempo	native SQAction1D.setTempo, registered with Squirrel
+0052b1a0	sqAction1D_setTimeScale	native SQAction1D.setTimeScale, registered with Squirrel
+0052b1c0	sqAction1D_getTempo	native SQAction1D.getTempo, registered with Squirrel
+0052b400	sqreg_SQAction1D_ctor_0052b400	registers SQAction1D's constructor
+0052b4e0	sqAction1D_constructor	native SQAction1D.constructor, registered with Squirrel
+0052c300	sqreg_SQLine	registers class SQLine and its methods with Squirrel (SqPlus SQClassDef): reg_template(handler, "name", ...)
+0052c670	sqLine_create	native SQLine.create, registered with Squirrel
+0052c740	sqLine_link	native SQLine.link, registered with Squirrel
+0052c820	sqLine_fade	native SQLine.fade, registered with Squirrel
+0052c850	sqLine_move	native SQLine.move, registered with Squirrel
+0052c890	sqLine_move3D	native SQLine.move3D, registered with Squirrel
+0052c8e0	sqLine_setBlendMode	native SQLine.setBlendMode, registered with Squirrel
+0052c900	sqLine_setColor	native SQLine.setColor, registered with Squirrel
+0052c950	sqLine_setTimeScale	native SQLine.setTimeScale, registered with Squirrel
+0052c980	sqLine_setSurface	native SQLine.setSurface, registered with Squirrel
+0052ca80	sqLine_setCamera	native SQLine.setCamera, registered with Squirrel
+0052cb80	sqLine_getColor	native SQLine.getColor, registered with Squirrel
+0052cbe0	sqLine_getFade	native SQLine.getFade, registered with Squirrel
+0052cc00	sqLine_getMove	native SQLine.getMove, registered with Squirrel
+0052cc50	sqLine_isFading	native SQLine.isFading, registered with Squirrel
+0052cc70	sqLine_isMoving	native SQLine.isMoving, registered with Squirrel
+0052cc90	sqLine_getFadeTimer	native SQLine.getFadeTimer, registered with Squirrel
+0052ccb0	sqLine_getMoveTimer	native SQLine.getMoveTimer, registered with Squirrel
+0052ccd0	sqLine_getColorTimer	native SQLine.getColorTimer, registered with Squirrel
+0052ccf0	sqLine_setFadeTimer	native SQLine.setFadeTimer, registered with Squirrel
+0052cd20	sqLine_setMoveTimer	native SQLine.setMoveTimer, registered with Squirrel
+0052cd50	sqLine_setColorTimer	native SQLine.setColorTimer, registered with Squirrel
+0052cf00	sqreg_SQLine_ctor_0052cf00	registers SQLine's constructor
+0052cfe0	sqLine_constructor	native SQLine.constructor, registered with Squirrel
+0052e1e0	sqfn_SQMATH_V3_Add	native SQMATH_V3_Add, registered with Squirrel
+0052e2e0	sqfn_SQMATH_V3_Sub	native SQMATH_V3_Sub, registered with Squirrel
+0052e3e0	sqfn_SQMATH_V3_Dot	native SQMATH_V3_Dot, registered with Squirrel
+0052e4b0	sqfn_SQMATH_V3_Cross	native SQMATH_V3_Cross, registered with Squirrel
+0052e5c0	sqfn_SQMATH_V3_MulS	native SQMATH_V3_MulS, registered with Squirrel
+0052e690	sqfn_SQMATH_V3_DivS	native SQMATH_V3_DivS, registered with Squirrel
+0052e760	sqfn_SQMATH_V3_Norm	native SQMATH_V3_Norm, registered with Squirrel
+0052e820	sqfn_SQMATH_V3_LenSq	native SQMATH_V3_LenSq, registered with Squirrel
+0052e8b0	sqfn_SQMATH_V3_Len	native SQMATH_V3_Len, registered with Squirrel
+0052e940	sqfn_SQMATH_V3_RotZXY	native SQMATH_V3_RotZXY, registered with Squirrel
+0052ea40	sqfn_SQMATH_V3_RotAxis	native SQMATH_V3_RotAxis, registered with Squirrel
+0052eb50	sqfn_SQMATH_V3_RotQ	native SQMATH_V3_RotQ, registered with Squirrel
+0052ec50	sqfn_SQMATH_Q_Add	native SQMATH_Q_Add, registered with Squirrel
+0052ed30	sqfn_SQMATH_Q_Sub	native SQMATH_Q_Sub, registered with Squirrel
+0052ee10	sqfn_SQMATH_Q_Mul	native SQMATH_Q_Mul, registered with Squirrel
+0052eef0	sqfn_SQMATH_Q_Dot	native SQMATH_Q_Dot, registered with Squirrel
+0052ef90	sqfn_SQMATH_Q_Norm	native SQMATH_Q_Norm, registered with Squirrel
+0052f040	sqfn_SQMATH_Q_LenSq	native SQMATH_Q_LenSq, registered with Squirrel
+0052f0b0	sqfn_SQMATH_Q_Len	native SQMATH_Q_Len, registered with Squirrel
+0052f120	sqfn_SQMATH_Q_Conj	native SQMATH_Q_Conj, registered with Squirrel
+0052f1d0	sqfn_SQMATH_Q_RotXYZ	native SQMATH_Q_RotXYZ, registered with Squirrel
+0052f270	sqfn_SQMATH_Q_RotAxis	native SQMATH_Q_RotAxis, registered with Squirrel
+0052f360	sqreg_math	registers the SQMATH_* vector/quaternion globals
+0054cf40	npk_open	opens an NPK3 archive (CreateFileA, checks "NPK3" version 1), decrypts its index with AES-256-CBC (aesdec inline) under the key the caller passes (eight dword immediates at 0x401c28; research/nitroplus/npk.py)
+0054e0a0	npk_read_segment_a	reads and AES-256-CBC-decrypts an NPK3 segment (aesdec inline), then zstd (Mware.dll ZSTD_decompress) when packed < size
+0054e470	npk_read_segment_b	as npk_read_segment_a, second path (called by app_main and 00553e50)
+00554620	aes256_expand_key	AES-256 key schedule (aeskeygenassist)
+00554910	aes256_decrypt_key	AES-256 decryption key schedule: aes256_expand_key then aesimc on the round keys
+00555e90	sqlib_00555e90	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00556000	sqlib_00556000	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00556090	sqlib_00556090	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+005561b0	sqlib_005561b0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+005563d0	sqlib_005563d0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+005565c0	sqlib_005565c0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00557b80	sqlib_00557b80	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+005582a0	sqlib_005582a0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00558350	sqlib_00558350	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+005583b0	sqlib_005583b0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00558890	sqlib_00558890	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00558900	sqlib_00558900	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00558950	sqlib_00558950	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+005589e0	sqlib_005589e0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00558b00	sqlib_00558b00	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00558c30	sqlib_00558c30	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00558cb0	sqlib_00558cb0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00558e40	sqlib_00558e40	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00558ee0	sqlib_00558ee0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00559060	sqlib_00559060	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+005590f0	sqlib_005590f0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00559150	sqlib_00559150	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+005591b0	sqlib_005591b0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+005591c0	sqlib_005591c0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00559230	sqlib_00559230	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00559410	sqlib_00559410	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00559510	sqlib_00559510	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00559590	sqlib_00559590	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+005596d0	sqlib_005596d0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+005597e0	sqlib_005597e0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+005598c0	sqlib_005598c0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00559af0	sqlib_00559af0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00559c20	sqlib_00559c20	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00559ce0	sqlib_00559ce0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00559dd0	sqlib_00559dd0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00559eb0	sqlib_00559eb0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00559f90	sqlib_00559f90	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00559fe0	sqlib_00559fe0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055a1b0	sqlib_0055a1b0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055a250	sqlib_0055a250	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055a340	sqlib_0055a340	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055a4e0	sqlib_0055a4e0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055a560	sqlib_0055a560	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055a600	sqlib_0055a600	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055a6b0	sqlib_0055a6b0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055a770	sqlib_0055a770	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055a890	sqlib_0055a890	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055a9e0	sqlib_0055a9e0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055aab0	sqlib_0055aab0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055ab90	sqlib_0055ab90	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055ac30	sqlib_0055ac30	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055ad40	sqlib_0055ad40	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055ae40	sqlib_0055ae40	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055aee0	sqlib_0055aee0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055af80	sqlib_0055af80	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055b0c0	sqlib_0055b0c0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055b110	sq_pushstring	Squirrel API: pushes a string, or null when it is NULL (string in a register, len -1)
+0055b200	sqlib_0055b200	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055b290	sqlib_0055b290	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055b320	sqlib_0055b320	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055b3c0	sqlib_0055b3c0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055b450	sq_newuserdata	Squirrel API: returns the userdata block; SqPlus stores the member function pointer in it
+0055b510	sqlib_0055b510	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055b5c0	sqlib_0055b5c0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055b690	sqlib_0055b690	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055b7c0	sqlib_0055b7c0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055b830	sqlib_0055b830	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055b8c0	sqlib_0055b8c0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055ba70	sq_newclosure	Squirrel API: new SQNativeClosure (function in a register), nfreevars as argument
+0055bbe0	sqlib_0055bbe0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055bca0	sqlib_0055bca0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055bd80	sqlib_0055bd80	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055c000	sqlib_0055c000	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055c0a0	sqlib_0055c0a0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055c0f0	sqlib_0055c0f0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055c140	sqlib_0055c140	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055c1e0	sqlib_0055c1e0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055c280	sqlib_0055c280	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055c2e0	sqlib_0055c2e0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055c310	sqlib_0055c310	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055c3f0	sqlib_0055c3f0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055c450	sqlib_0055c450	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055c4b0	sqlib_0055c4b0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055c520	sqlib_0055c520	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055c570	sqlib_0055c570	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055c5f0	sqlib_0055c5f0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055c660	sq_newslot	Squirrel 2.2.4 API ("null is not a valid key"); registrations call it with bstatic 0
+0055c710	sqlib_0055c710	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055c830	sqlib_0055c830	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055c970	sqlib_0055c970	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055ca60	sqlib_0055ca60	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055cb70	sqlib_0055cb70	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055cbc0	sqlib_0055cbc0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055cc90	sq_getstackobj	Squirrel API
+0055cce0	sqlib_0055cce0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055cef0	sq_pushobject	Squirrel API: pushes an HSQOBJECT (type, value)
+0055cf90	sqlib_0055cf90	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055d020	sqlib_0055d020	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055d0f0	sqlib_0055d0f0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055d2a0	sqlib_0055d2a0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055d330	sqlib_0055d330	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055d400	sqlib_0055d400	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055d580	sqlib_0055d580	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055d730	sqlib_0055d730	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055d800	sqlib_0055d800	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055d8d0	sqlib_0055d8d0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055da20	sqlib_0055da20	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055daf0	sqlib_0055daf0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055dc40	sqlib_0055dc40	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055dc70	sqlib_0055dc70	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055dce0	sqlib_0055dce0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055dd40	sqlib_0055dd40	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055dde0	sqlib_0055dde0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055ded0	sqlib_0055ded0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055df70	sqlib_0055df70	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055e040	sqlib_0055e040	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055e400	sqlib_0055e400	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055e480	sqlib_0055e480	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055e550	sqlib_0055e550	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055e760	sqlib_0055e760	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055e810	sqlib_0055e810	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055e950	sqlib_0055e950	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055ea30	sqlib_0055ea30	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055edd0	sqlib_0055edd0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055eee0	sqlib_0055eee0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055ef80	sqlib_0055ef80	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055f0b0	sqlib_0055f0b0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055f170	sqlib_0055f170	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055f260	sqlib_0055f260	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055f300	sqlib_0055f300	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055f3e0	sqlib_0055f3e0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055f560	sqlib_0055f560	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055f5f0	sqlib_0055f5f0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055f6e0	sqlib_0055f6e0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055f740	sqlib_0055f740	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055f9e0	sqlib_0055f9e0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055fa60	sqlib_0055fa60	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055fd90	sqlib_0055fd90	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055fe40	sqlib_0055fe40	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055fec0	sqlib_0055fec0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055ff00	sqlib_0055ff00	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055ff40	sqlib_0055ff40	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055ff80	sqlib_0055ff80	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0055ffe0	sqlib_0055ffe0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+005600d0	sqlib_005600d0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+005602a0	sqlib_005602a0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00560340	sqlib_00560340	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+005604a0	sqlib_005604a0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+005609d0	sqlib_005609d0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00561100	sqlib_00561100	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00561d10	sqlib_00561d10	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00561e70	sqlib_00561e70	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00561ee0	sqlib_00561ee0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+005620b0	sqlib_005620b0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00562140	sqlib_00562140	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00562210	sqlib_00562210	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+005622b0	sqlib_005622b0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00562300	sqlib_00562300	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+005623f0	sqlib_005623f0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00562b20	sqlib_00562b20	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00562c90	sqlib_00562c90	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00562d40	sqlib_00562d40	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00562e30	sqlib_00562e30	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+005630a0	sqlib_005630a0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00563180	sqlib_00563180	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+005633d0	sqlib_005633d0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00563540	sqlib_00563540	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00563620	sqlib_00563620	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00563820	sqlib_00563820	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00563b90	sqlib_00563b90	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00563d60	sqlib_00563d60	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00563e50	sqlib_00563e50	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00563fa0	sqlib_00563fa0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00564030	sqlib_00564030	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+005642d0	sqlib_005642d0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+005643d0	sqlib_005643d0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00564670	sqlib_00564670	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00564720	sqlib_00564720	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+005649b0	sqlib_005649b0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00564c20	sqlib_00564c20	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+005671d0	sqlib_005671d0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+005672c0	sqlib_005672c0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+005673f0	sqlib_005673f0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00567620	sqlib_00567620	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00567aa0	sqlib_00567aa0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00567ba0	sqlib_00567ba0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00567f80	sqlib_00567f80	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+005682b0	sqlib_005682b0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00568510	sqlib_00568510	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+005687b0	sqlib_005687b0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+005689b0	sqlib_005689b0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00568b30	sqlib_00568b30	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00568bf0	sqlib_00568bf0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00568ca0	sqlib_00568ca0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00568cf0	sqlib_00568cf0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00568d60	sqlib_00568d60	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00568db0	sqlib_00568db0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00568e40	sqlib_00568e40	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00568ee0	sqlib_00568ee0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00568f60	sqlib_00568f60	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00568fc0	sqlib_00568fc0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00569020	sqlib_00569020	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00569090	sqlib_00569090	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00569100	sqlib_00569100	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00569110	sqlib_00569110	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00569120	sqlib_00569120	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00569150	sqlib_00569150	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00569530	sqlib_00569530	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00569580	sqlib_00569580	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+005696f0	sqlib_005696f0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00569760	sqlib_00569760	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00569880	sqlib_00569880	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00569910	sqlib_00569910	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00569950	sqlib_00569950	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00569ae0	sqlib_00569ae0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00569bb0	sqlib_00569bb0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00569ff0	sqlib_00569ff0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056a0d0	sqlib_0056a0d0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056a2f0	sqlib_0056a2f0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056a4f0	sqlib_0056a4f0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056a510	sqlib_0056a510	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056a530	sqlib_0056a530	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056a540	sqlib_0056a540	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056a620	sqlib_0056a620	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056a640	sqlib_0056a640	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056a6e0	sqlib_0056a6e0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056a6f0	sqlib_0056a6f0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056a710	sqlib_0056a710	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056a720	sqlib_0056a720	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056a740	sqlib_0056a740	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056a750	sqlib_0056a750	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056a770	sqlib_0056a770	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056a7f0	sqlib_0056a7f0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056a850	sqlib_0056a850	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056a970	sqlib_0056a970	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056aa90	sqlib_0056aa90	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056ace0	sqlib_0056ace0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056b030	sqlib_0056b030	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056b090	sqlib_0056b090	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056b270	sqlib_0056b270	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056b3a0	sqlib_0056b3a0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056b4b0	sqlib_0056b4b0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056b5c0	sqlib_0056b5c0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056b6d0	sqlib_0056b6d0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056b7b0	sqlib_0056b7b0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056b890	sqlib_0056b890	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056ba20	sqlib_0056ba20	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056ba40	sqlib_0056ba40	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056ba50	sqlib_0056ba50	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056ba70	sqlib_0056ba70	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056c210	sqlib_0056c210	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056c350	sqlib_0056c350	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056c560	sqlib_0056c560	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056c740	sqlib_0056c740	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056c7d0	sqlib_0056c7d0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056c7f0	sqlib_0056c7f0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056c810	sqlib_0056c810	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056c830	sqlib_0056c830	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056c850	sqlib_0056c850	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056c870	sqlib_0056c870	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056c8b0	sqlib_0056c8b0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056c9d0	sqlib_0056c9d0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056c9e0	sqlib_0056c9e0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056ca20	sqlib_0056ca20	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056ca90	sqlib_0056ca90	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056cc20	sqlib_0056cc20	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056cc40	sqlib_0056cc40	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056cd00	sqlib_0056cd00	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056d0b0	sqlib_0056d0b0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056d120	sqlib_0056d120	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056d6e0	sqlib_0056d6e0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056d790	sqlib_0056d790	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056d840	sqlib_0056d840	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056d990	sqlib_0056d990	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056d9e0	sqlib_0056d9e0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056dcd0	sqlib_0056dcd0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056dd90	sqlib_0056dd90	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056dec0	sqlib_0056dec0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056e040	sqlib_0056e040	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056e070	sqlib_0056e070	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056e0c0	sqlib_0056e0c0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056e0f0	sqlib_0056e0f0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056e260	sqlib_0056e260	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056e2c0	sqlib_0056e2c0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056e320	sqlib_0056e320	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056e350	sqlib_0056e350	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056e8c0	sqlib_0056e8c0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056f110	sqlib_0056f110	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056f1c0	sqlib_0056f1c0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056f240	sqlib_0056f240	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056f350	sqlib_0056f350	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056f730	sqlib_0056f730	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056f940	sqlib_0056f940	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056fb00	sqlib_0056fb00	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056fcf0	sqlib_0056fcf0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0056fed0	sqlib_0056fed0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00570240	sqlib_00570240	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+005705a0	sqlib_005705a0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00570850	sqlib_00570850	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00570af0	sqlib_00570af0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00570b80	sqlib_00570b80	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00570d90	sqlib_00570d90	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00570fc0	sqlib_00570fc0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00571190	sqlib_00571190	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00571250	sqlib_00571250	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+005713f0	sqlib_005713f0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+005714c0	sqlib_005714c0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00571540	sqlib_00571540	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00571660	sqlib_00571660	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00571ab0	sqlib_00571ab0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00571b00	sqlib_00571b00	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00571b50	sqlib_00571b50	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00571c30	sqlib_00571c30	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00571cc0	sqlib_00571cc0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00571cf0	sqlib_00571cf0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00571d20	sqlib_00571d20	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00571e00	sqlib_00571e00	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00572120	sqlib_00572120	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00572270	sqlib_00572270	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00572330	sqlib_00572330	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+005723e0	sqlib_005723e0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+005724a0	sqlib_005724a0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+005725b0	sqlib_005725b0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00572680	sqlib_00572680	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+005726b0	sqlib_005726b0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00572760	sqlib_00572760	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+005727b0	sqlib_005727b0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+005727f0	sqlib_005727f0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00572b50	sqlib_00572b50	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00572c00	sqlib_00572c00	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00572ed0	sqlib_00572ed0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00572fb0	sqlib_00572fb0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+005730a0	sqlib_005730a0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00573500	sqlib_00573500	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+005735d0	sqlib_005735d0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00573600	sqlib_00573600	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+005737d0	sqlib_005737d0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+005738a0	sqlib_005738a0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00573940	sqlib_00573940	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00573a00	sqlib_00573a00	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00573a50	sqlib_00573a50	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00574f30	sqlib_00574f30	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00574f70	sqlib_00574f70	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+005750b0	sqlib_005750b0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00575190	sqlib_00575190	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00576010	sqlib_00576010	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+005760e0	sqlib_005760e0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00576740	sqlib_00576740	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+005767a0	sqlib_005767a0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00576ce0	sqlib_00576ce0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00576ec0	sqlib_00576ec0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00576ff0	sqlib_00576ff0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00577130	sqlib_00577130	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+005771e0	sqlib_005771e0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+005772a0	sqlib_005772a0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00577350	sqlib_00577350	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00577480	sqlib_00577480	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00577550	sqlib_00577550	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00577640	sqlib_00577640	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00577660	sqlib_00577660	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+005777b0	sqlib_005777b0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00577800	sqlib_00577800	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+005778b0	sqlib_005778b0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00577960	sqlib_00577960	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00577a00	sqlib_00577a00	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00577a80	sqlib_00577a80	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00577af0	sqlib_00577af0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00577b60	sqlib_00577b60	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00577db0	sqlib_00577db0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00577e10	sqlib_00577e10	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00577e80	sqlib_00577e80	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00577eb0	sqlib_00577eb0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00577f40	sqlib_00577f40	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00577fa0	sqlib_00577fa0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00578030	sqlib_00578030	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+005783d0	sqlib_005783d0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00578470	sqlib_00578470	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+005784d0	sqlib_005784d0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00578550	sqlib_00578550	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00578600	sqlib_00578600	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00578660	sqlib_00578660	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+005786c0	sqlib_005786c0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00578720	sqlib_00578720	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00578780	sqlib_00578780	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+005787e0	sqlib_005787e0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00578840	sqlib_00578840	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+005788a0	sqlib_005788a0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00578900	sqlib_00578900	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00578960	sqlib_00578960	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+005789c0	sqlib_005789c0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00578a70	sqlib_00578a70	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00578b00	sqlib_00578b00	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00578b80	sqlib_00578b80	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00578c00	sqlib_00578c00	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00578c60	sqlib_00578c60	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00578db0	sqlib_00578db0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00578f40	sqlib_00578f40	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+005792e0	sqlib_005792e0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00579340	sqlib_00579340	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00579430	sqlib_00579430	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+005794a0	sqlib_005794a0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00579580	sqlib_00579580	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+005797a0	sqlib_005797a0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+005797f0	sqlib_005797f0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00579930	sqlib_00579930	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00579a10	sqlib_00579a10	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00579b00	sqlib_00579b00	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00579cc0	sqlib_00579cc0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00579d60	sqlib_00579d60	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00579e40	sqlib_00579e40	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00579e60	sqlib_00579e60	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+00579f90	sqlib_00579f90	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057a0b0	sqlib_0057a0b0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057a310	sqlib_0057a310	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057a400	sqlib_0057a400	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057a670	sqlib_0057a670	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057a7b0	sqlib_0057a7b0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057a850	sqlib_0057a850	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057a8f0	sqlib_0057a8f0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057a9b0	sqlib_0057a9b0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057aa70	sqlib_0057aa70	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057acb0	sqlib_0057acb0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057af40	sqlib_0057af40	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057afc0	sqlib_0057afc0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057aff0	sqlib_0057aff0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057b120	sqlib_0057b120	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057b2a0	sqlib_0057b2a0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057b4b0	sqlib_0057b4b0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057b530	sqlib_0057b530	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057b8c0	sqlib_0057b8c0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057b9d0	sqlib_0057b9d0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057bbb0	sqlib_0057bbb0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057bc20	sqlib_0057bc20	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057c020	sqlib_0057c020	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057c1a0	sqlib_0057c1a0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057c240	sqlib_0057c240	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057c260	sqlib_0057c260	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057c2a0	sqlib_0057c2a0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057c340	sqlib_0057c340	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057c470	sqlib_0057c470	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057c4a0	sqlib_0057c4a0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057c530	sqlib_0057c530	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057c5a0	sqlib_0057c5a0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057c850	sqlib_0057c850	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057ca20	sqlib_0057ca20	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057cb30	sqlib_0057cb30	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057cb90	sqlib_0057cb90	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057cc00	sqlib_0057cc00	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057cd00	sqlib_0057cd00	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057cdf0	sqlib_0057cdf0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057ce50	sqlib_0057ce50	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057cf00	sqlib_0057cf00	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057cff0	sqlib_0057cff0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057d0d0	sqlib_0057d0d0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057d1a0	sqlib_0057d1a0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057d220	sqlib_0057d220	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057d2f0	sqlib_0057d2f0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057d370	sqlib_0057d370	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057d3f0	sqlib_0057d3f0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057d4f0	sqlib_0057d4f0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057d550	sqlib_0057d550	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057d5c0	sqlib_0057d5c0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057d630	sqlib_0057d630	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057d6c0	sqlib_0057d6c0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057d810	sqlib_0057d810	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057d850	sqlib_0057d850	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057d940	sqlib_0057d940	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057d9f0	sqlib_0057d9f0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057da80	sqlib_0057da80	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057dad0	sqlib_0057dad0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057db30	sqlib_0057db30	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057db50	sqlib_0057db50	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057db80	sqlib_0057db80	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057dbc0	sqlib_0057dbc0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057dc00	sqlib_0057dc00	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057dc20	sqlib_0057dc20	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057dca0	sqlib_0057dca0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057dd20	sqlib_0057dd20	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057def0	sqlib_0057def0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057e170	sqlib_0057e170	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057e3b0	sqlib_0057e3b0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057e5c0	sqlib_0057e5c0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057e630	sqlib_0057e630	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057e6a0	sqlib_0057e6a0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057e710	sqlib_0057e710	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057e780	sqlib_0057e780	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057e8d0	sqlib_0057e8d0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057ea80	sqlib_0057ea80	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057ec80	sqlib_0057ec80	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057ee70	sqlib_0057ee70	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057f070	sqlib_0057f070	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057f270	sqlib_0057f270	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057f2a0	sqlib_0057f2a0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057f340	sqlib_0057f340	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057f370	sqlib_0057f370	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057f3b0	sqlib_0057f3b0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057f3e0	sqlib_0057f3e0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057f400	sqlib_0057f400	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057f570	sqlib_0057f570	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057f600	sqlib_0057f600	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057f680	sqlib_0057f680	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057f720	sqlib_0057f720	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057f7f0	sqlib_0057f7f0	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057fa20	sqlib_0057fa20	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057fd80	sqlib_0057fd80	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057fe10	sqlib_0057fe10	Squirrel 2.2.4 VM/compiler, sqstdlib or SqPlus (by address range)
+0057ff8a	throw_length_error	CRT: std::_Xlength_error
+00580004	operator_delete	CRT: free
+0058004a	operator_new_	CRT: operator new
+00583600	cb_00583600	reached only through a function pointer
+005836f0	cb_005836f0	reached only through a function pointer
+00583a02	invalid_parameter_noinfo	CRT: _invalid_parameter_noinfo
+00589071	malloc_	CRT: _malloc_base
+0058e89d	cb_0058e89d	reached only through a function pointer
+0059c667	cb_0059c667	reached only through a function pointer
+005a1aba	realloc_	CRT: _realloc_base
+005a774a	cb_005a774a	reached only through a function pointer
+005a7788	cb_005a7788	reached only through a function pointer
+005a78d3	cb_005a78d3	reached only through a function pointer
+005a790a	cb_005a790a	reached only through a function pointer
+005b3908	cb_005b3908	reached only through a function pointer
+005b8c77	cb_005b8c77	reached only through a function pointer
