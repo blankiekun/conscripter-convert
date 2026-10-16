@@ -554,6 +554,9 @@ Used to check what the engine does (`docs/new-game.md` step 9).
   (scene cuts, the turntables) don't play in CONscripter for Windows,
   which only opens a movie in an outside player: an engine item for every
   game, not started.
+- Open: `SetBlur` draws nothing on a still picture (no Gaussian
+  stand-in, no wait). Next: the moving trail, engine `sptrail` and a
+  converter PR on top.
 - Decided: the hover sound's 0.125 s of silence is in the original file
   and stays. The trace checker's `movie` rule will skip movies that start
   from black (an engine-tools change, once the engine queue drains).
@@ -701,7 +704,7 @@ Next, in order:
      17 px lower than the original's under wine (cause unknown; "History",
      "Story `CreateText`").
    - `DrawTransition`'s start opacity and softness; `Shake`'s `n` and
-     tempo; `SetBlur`'s strength.
+     tempo; `SetBlur`'s `lag` and `wait` (no trail drawn yet).
    - `Random` and `Conquest` return 0 whatever their arguments.
    - `CreateEffect`'s place and size; `SetBacklog`'s speaker;
      `MoveCamera`'s arguments.
@@ -755,7 +758,11 @@ Next, in order:
 - 18 files whose `if`/`else if` chain on earlier flags has no `else`:
   by the story's logic one branch always matches; the fall-through ends
   the run.
-- `SetBlur` strength is a guess (1.5 px per pass), unverified.
+- `SetBlur` is not a blur but a trail of copies behind a moving
+  picture ("History", "`SetBlur`"). Nothing is drawn for it: a still
+  picture's copies don't show in the original either; a moving one's
+  trail (595 calls, noted "SetBlur trail behind a moving picture not
+  drawn") waits for an engine `sptrail num,passes,alpha,lag`.
 - Engine: an exit with status 255 in vertical text was put down to a
   half-width character under `tateyoko 1`, but CONscripter draws those
   (rotated) and nothing in drawChar exits. It was most likely a script
@@ -767,6 +774,19 @@ Next, in order:
   held (seen once in a small test script; not looked into).
 
 ## History
+
+### `SetBlur`
+
+The exe's `SetBlur(obj, on, passes, alpha, lag, wait)` (`FUN_00460230`,
+`FUN_00460530`, `FUN_00456810`) draws `passes` (1-128) copies under the
+picture at its opacity × `alpha`/1000 (1-1000); when a move, zoom or
+turn starts they are put on the picture, and copy i shows where the
+picture was i × `lag` ms before. A picture that doesn't move shows no
+difference (AE 0 under wine). The converter drew a Gaussian blur of
+1.5 px per pass and waited `alpha` ms as if it were a time; both went
+(1,049 blurred pictures and about 240 waits fewer in `0.txt`). Copies as
+extra converter sprites were tried and dropped: the layers are packed
+(849-878 scene re-layerings against 592, or 6,374 copies left out).
 
 Finished work, moved out of "Status" so a session reads only the open
 state.
