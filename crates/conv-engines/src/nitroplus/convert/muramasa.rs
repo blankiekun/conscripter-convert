@@ -102,6 +102,26 @@ const EN_BOXES: [(&str, i64, Option<i64>, &str); 10] = [
     ("boxCTH", 224, None, "THTextWindow_Fw"),
 ];
 
+/// Where the port puts a face (`Fw…`) or name plate (`Nw…`) picture of
+/// `function_stand.nss`'s `FwC`, `NwC`, … (`$FwCName` = `FwC01` …): in
+/// its window's frame (`FwInfo` in `val.nut`, the English table), not at
+/// the Japanese place (C 451,4; H 228,450) the NSS `Move`s it to.
+fn en_face(name: &str) -> Option<(i64, i64)> {
+    let kind = name.strip_prefix("Fw").map(|k| (k, true)).or(name.strip_prefix("Nw").map(|k| (k, false)))?;
+    let (box_kind, face) = (kind.0.trim_end_matches(|c: char| c.is_ascii_digit()), kind.1);
+    if box_kind.len() == kind.0.len() {
+        return None;
+    }
+    Some(match (box_kind, face) {
+        ("C", _) => (452, 55),
+        ("R", _) => (708, 55),
+        ("L", _) => (195, 55),
+        ("H", true) => (87, 439),
+        ("H", false) => (89, 439),
+        _ => return None,
+    })
+}
+
 /// [`call`], with the port's boxes for `function.nss`'s: each made at the
 /// port's place, and the vertical ones not moved by the `Move` after them.
 fn call_en(c: &mut Compiler<'_, '_>, name: &str, args: &[Value]) -> bool {
@@ -121,6 +141,13 @@ fn call_en(c: &mut Compiler<'_, '_>, name: &str, args: &[Value]) -> bool {
             true
         }
         ("Move", Some((_, _, Some(_), _))) => true,
+        ("Move", None) if args.len() >= 4 && en_face(&args[0].string()).is_some() => {
+            let (x, y) = en_face(&args[0].string()).unwrap_or_default();
+            let mut args = args.to_vec();
+            (args[2], args[3]) = (Value::Int(x), Value::Int(y));
+            c.builtin("Move", &args);
+            true
+        }
         _ => call(c, name, args),
     }
 }

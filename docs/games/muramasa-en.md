@@ -75,11 +75,9 @@ It has no NPA archives and no NSS scripts.
   English original under wine is allowed.
 - **Not yet:** the lines
   per box (14 vertical, 5 at a 28 px pitch horizontal, the Japanese
-  pitch) are read from the boxes, not yet seen in the original; in
-  `boxTH` the face stays at the Japanese place (x ~230, under the
-  text's third line), not in the empty frame the port's
-  `THTextWindow_Fw.png` has at its left (x ~80-210; `FwInfo` in
-  `val.nut` says H `fw_pos` 228,450: to check in the original).
+  pitch) are read from the boxes, not yet seen in the original; the
+  faces of `FwB`, `FwCH` keep the Japanese place (the port's `FwInfo`
+  has none for them).
 - **Plan (from the scripts, 2026-10-15):** the port's scenario scripts
   (`nut/*.nut`) are a line-by-line transcription of the Japanese NSS
   (same sprite names, coordinates, files with `.png` for `.jpg`; screen
@@ -357,6 +355,15 @@ md04_015, md04_026vs, md04_030 (dates and times: `November 30, 1940`,
 | `setting.ini` keys | files table | there |
 
 ## History
+
+- **Faces in their frames (2026-10-15, reported by the user):** the
+  face and name plate pictures (`FwC`/`NwC`, `FwR`, `FwL`, `FwH`/`NwH`
+  of `function_stand.nss`) sat at the Japanese places (C 451,4 above
+  the box; H 228,450 over the text) instead of in the frames the port's
+  `TextWindow_Fw`/`THTextWindow_Fw` pictures have: the English table of
+  `FwInfo` in `val.nut` puts them at C 452,55; R 708,55; L 195,55;
+  H 87,439 (name plate 89,439). `en_face` in `muramasa.rs` moves them
+  there in every scene with a face. Checked headless (ma01_003).
 
 - **Voices (2026-10-15, reported by the user):** no line of the English
   build had its voice (2 `dwave 0` against the Japanese build's 36,055):
