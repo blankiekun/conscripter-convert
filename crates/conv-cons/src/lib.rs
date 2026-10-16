@@ -9,7 +9,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::fmt::Write;
 
 use conv_core::ir::{
-    ArithOp, ConfirmDialog, Op, ScreenEffect, SliderSetting, WaitIcon, Switch, Operand, Script, Ruby, SlideLayer, TextStyle, SpritePlacement, TextLink, TextWindow, TitleAction, TitleScreen,
+    ArithOp, ConfirmDialog, Op, ScreenEffect, SliderSetting, Switch, Operand, Script, Ruby, SlideLayer, TextStyle, SpritePlacement, TextLink, TextWindow, TitleAction, TitleScreen,
     TransitionStyle, Var, ZoomStyle,
 };
 
@@ -339,7 +339,7 @@ pub fn emit(script: &Script) -> String {
     // setwindow redraws the screen, so it must come after `game` (ONScripter
     // crashes if it runs in the define section).
     if let Some(w) = &script.window {
-        writeln!(out, "{}", setwindow(w, speed, has_ruby, has_vertical, true, script.wait_icon.as_ref())).unwrap();
+        writeln!(out, "{}", setwindow(w, speed, has_ruby, has_vertical, true, script)).unwrap();
         // Keep the window up while sprites change and pages are printed
         // (by default every print hides it until the next text, which
         // flickers); the script hides it explicitly with textoff.
@@ -734,17 +734,21 @@ fn title_sprites(out: &mut String, t: &TitleScreen, buttons: &[(&conv_core::ir::
 /// then holds the ruby, as in the original.
 /// `any_vertical`: some window is vertical, so a horizontal one must switch
 /// back.
-fn setwindow(w: &TextWindow, speed: &str, ruby: bool, any_vertical: bool, shadow: bool, icon: Option<&WaitIcon>) -> String {
-    let mut line = setwindow_only(w, speed, ruby, any_vertical, shadow);
+/// A [`Script::single_byte_text`] window sets its letters by the font
+/// alone: no spacing (CONscripter adds half of it to each half-width
+/// letter of a proportional font).
+fn setwindow(w: &TextWindow, speed: &str, ruby: bool, any_vertical: bool, shadow: bool, script: &Script) -> String {
+    let mut line = setwindow_only(w, speed, ruby, any_vertical, shadow, u32::from(!script.single_byte_text));
     // Where the bar's wait routine shows the click-wait icon.
-    if let (Some(_), Some((x, y))) = (icon, w.wait_icon_at) {
+    if let (Some(_), Some((x, y))) = (&script.wait_icon, w.wait_icon_at) {
         line.push_str(&format!("\nmov {},{x}:mov {},{y}", WAIT_ICON_AT[0], WAIT_ICON_AT[1]));
     }
     line
 }
 
 /// [`setwindow`]'s window, without the icon.
-fn setwindow_only(w: &TextWindow, speed: &str, ruby: bool, any_vertical: bool, shadow: bool) -> String {
+/// `spacing`: between the letters of a horizontal window.
+fn setwindow_only(w: &TextWindow, speed: &str, ruby: bool, any_vertical: bool, shadow: bool, spacing: u32) -> String {
     let shadow = shadow as u8;
     if w.vertical {
         // tateyoko first: it clears the page using the old window's size.
@@ -757,7 +761,7 @@ fn setwindow_only(w: &TextWindow, speed: &str, ruby: bool, any_vertical: bool, s
     }
     let text_y = if ruby { w.text_y - w.line_gap as i32 } else { w.text_y };
     format!(
-        "{}setwindow3 {},{text_y},{},{},{},{},1,{},{speed},0,{shadow},\":a;{}\",{},{}",
+        "{}setwindow3 {},{text_y},{},{},{},{},{spacing},{},{speed},0,{shadow},\":a;{}\",{},{}",
         if any_vertical { "tateyoko 0:" } else { "" },
         w.text_x, w.columns, w.rows, w.font_size, w.font_size, w.line_gap, path(&w.image), w.x, w.y
     )

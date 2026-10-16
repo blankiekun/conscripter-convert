@@ -17,7 +17,7 @@ It has no NPA archives and no NSS scripts.
   left them out, none stay in Japanese (History, below). With
   `--english` the text is written as it is, one paragraph a line after a
   backquote (`Script::single_byte_text`), and the vertical text boxes
-  become horizontal boxes, 280 wide, line pitch 21, 14 lines, in the
+  become horizontal boxes, 280 wide, line pitch 25, 12 lines, in the
   port's own window pictures: `function.nss`'s `boxCC` … `boxLT` are made
   as the port's `CreateAllTextBox` makes them (`cg/sys/adv/en/
   TextWindow(_Fw).png`, 305×475 at x 360, 616, 103, y 51; the NSS's
@@ -137,9 +137,12 @@ It has no NPA archives and no NSS scripts.
   `droidserif-muramasa.ttf` (font.npk); the menus follow the English
   port's redesigned screens, not the Japanese PC ones; filming the
   English original under wine is allowed.
-- **Not yet:** the lines
-  per box (14 vertical, 5 at a 28 px pitch horizontal, the Japanese
-  pitch) are read from the boxes, not yet seen in the original; the
+- **Text box** (compared with the original under wine, History): the
+  first pages of `ma00_000` match it pixel for pixel in the text area
+  (line pitch 25, the text 2 px under `BoxInfo`'s y, no letter
+  spacing). The boxes across (H, CH, Noh) take the same pitch (6 lines
+  in their 150 px field), not yet seen in the original.
+- **Not yet:** the
   faces of `FwB`, `FwCH` keep the Japanese place (the port's `FwInfo`
   has none for them).
 - **Plan (from the scripts, 2026-10-15):** the port's scenario scripts
@@ -466,6 +469,18 @@ and the build prints one line per argument passed and not read
   `serif0+` a line under it for `add`). ma04_023's first Wolf line has
   an empty text: no subtitle, as in the port.
 
+- **Text box against the original (2026-10-16):** filmed under wine
+  (the launcher's Start Game, windowed 1024×576; first start, the
+  prologue's pages): the port's lines are 25 px apart (`rowSpace` 1 in
+  every `SetTextBoxVal` under the font's height of 24, not the 21 the
+  build had), start 2 px lower than CONscripter's from the same y, and
+  are set by the font alone (the build's `setwindow3` spacing 1 added
+  half a pixel to each letter in CONscripter's proportional text, 5 %
+  wider lines). Now: `horizontal_box` pitch 25 (12 lines), also for the
+  `Game::box_text` boxes across; `text_drop` 2; spacing 0 for
+  `Script::single_byte_text` windows. Page 5 (five lines) and page 1
+  then match the original with no pixel differing in the text area
+  (`compare -fuzz 10%`).
 - **Telops at the port's places (2026-10-16):** 47 of the English
   telops have the Japanese names but other sizes (chapter titles 528×368
   lying, not 34×576 standing; 銀星号の唄 800 wide, not 460; prefaces a

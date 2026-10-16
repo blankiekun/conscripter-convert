@@ -23,10 +23,11 @@ pub const MURAMASA: Game = Game { call, scene, flags, files: &[magiccube::FILE],
 
 /// Full Metal Daemon Muramasa (the English release's text in the Japanese
 /// scripts): its port writes the vertical text boxes horizontally, 280
-/// wide, font 20, `rowSpace` 1 (`function_textbox.nut`), down to the
-/// click icon at 500: 14 lines; every box in its own window picture
+/// wide, font 20, `rowSpace` 1 under the font's height of 24
+/// (`function_textbox.nut`; a 25 px pitch in the original), down to the
+/// click icon at 500: 12 lines; every box in its own window picture
 /// ([`EN_BOXES`]), with the text where [`EN_TEXT`] puts it.
-pub const MURAMASA_EN: Game = Game { call: call_en, menus: screens::menus_en, horizontal_box: Some((280, 300, 21)), box_text: &EN_TEXT, choice_style: choice_style_en, ..MURAMASA };
+pub const MURAMASA_EN: Game = Game { call: call_en, menus: screens::menus_en, horizontal_box: Some((280, 300, 25)), box_text: &EN_TEXT, choice_style: choice_style_en, text_drop: 2, ..MURAMASA };
 
 /// The port's choices (`SetChoice` in `function_select.nut`, its
 /// `LANG_NAME == "en"` branch): 440×50 plates (`cg/sys/select/en/
