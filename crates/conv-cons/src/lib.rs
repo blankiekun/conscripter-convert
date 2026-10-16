@@ -20,6 +20,7 @@ mod command_menu;
 mod ease;
 mod extras;
 mod hold_movie;
+mod roll;
 pub mod lint;
 mod menu;
 mod motion;

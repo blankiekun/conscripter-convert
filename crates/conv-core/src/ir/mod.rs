@@ -577,6 +577,18 @@ pub enum Op {
     /// changing goes to another layer. Inside a transition, as
     /// [`Op::Sprites`]. 俺たちに翼はない's `:FadeWait 0`.
     SpritesFading { changes: Vec<SpriteChange>, fade_ms: u32 },
+    /// The picture on `layer` rolls `dy` px (up when negative) in a
+    /// straight line over the rest of the music playing now and `after_ms`
+    /// more: the music is `song` (the file, `song_ms` long; how far
+    /// through it is is read when the roll starts, and it starts from the
+    /// beginning, once, when no music plays yet), and `next` plays once
+    /// when it ends. The roll runs at the normal speed, whatever the
+    /// player's speed setting (the next click wait sets it again). Then
+    /// the script waits for a click; `skippable`: a click during the roll
+    /// is that click.
+    /// 続・殺戮のジャンゴ's ending credits (ProcessRoll), timed to the
+    /// insert song left and the closing song.
+    MusicRoll { layer: u32, dy: i32, song: String, song_ms: u32, next: Option<String>, after_ms: u32, skippable: bool },
 }
 
 /// [`Op::HoldMovie`]'s prompt: `image` is `cells` pictures side by side,

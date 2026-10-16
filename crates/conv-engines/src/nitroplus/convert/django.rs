@@ -10,6 +10,7 @@ use super::{Compiler, Game, Value};
 mod battle;
 mod counter;
 mod loops;
+mod roll;
 pub mod extras;
 pub mod screens;
 
@@ -34,8 +35,12 @@ pub const DJANGO: Game = Game {
 };
 
 /// The functions compiled as the game's own: the battle's movies, its
-/// counter and its muzzle flashes, the looping shakes and the strobe.
+/// counter and its muzzle flashes, the looping shakes, the strobe and
+/// the ending's credits.
 fn call(c: &mut Compiler<'_, '_>, name: &str, args: &[Value]) -> bool {
+    if c.roll(name, args) {
+        return true;
+    }
     match name {
         "VS400" => c.vs400(args),
         "GunFire" => c.gun_fire(args),
