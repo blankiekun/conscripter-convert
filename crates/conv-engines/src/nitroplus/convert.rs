@@ -3983,7 +3983,7 @@ scene a.nss
     }
 
     #[test]
-    fn render_requests_are_sprite_blends_cleared_with_the_layer() {
+    fn render_requests_are_sprite_blends() {
         let story = r#"
 scene a.nss
 {
@@ -4002,11 +4002,10 @@ scene a.nss
             Op::SpriteBlend { mode, .. } => Some(*mode),
             _ => None,
         }).collect();
-        assert_eq!(modes, [BLEND_ADD, BLEND_MULTIPLY], "{:?}", c.ops);
-        // Back to normal: the layer is cleared (spblend stays through lsp) and drawn again.
-        let i = c.ops.iter().rposition(|op| matches!(op, Op::SpriteBlend { .. })).unwrap();
-        let cleared = c.ops[i..].iter().any(|op| matches!(op, Op::Sprites { changes, .. } if changes.iter().any(|c| c.sprite.is_none())));
-        assert!(cleared, "{:?}", c.ops);
+        assert_eq!(modes, [BLEND_ADD, BLEND_MULTIPLY, BLEND_NORMAL], "{:?}", c.ops);
+        // A blend on a shown picture doesn't draw it again.
+        let placed = c.ops.iter().filter(|op| matches!(op, Op::Sprites { changes, .. } if changes.iter().any(|c| c.sprite.as_ref().is_some_and(|s| s.image.contains("ffffff"))))).count();
+        assert_eq!(placed, 1, "{:?}", c.ops);
     }
 
     #[test]

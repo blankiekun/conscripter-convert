@@ -205,7 +205,7 @@ Where they differ:
 | Feature | Uses | The exe | The converter | Dry-run note |
 |---|---|---|---|---|
 | The choice's shot (`function_select.nss`: `CreateMask` ×3, `CursorPosition`, `Rotate` −90° over 800 ms about the bottom, a shot sound) | every choice (10) | a bullet hole where the pointer clicked, the chosen plate tips over | the same (`spcut`, `spzoom` steps; CONscripter after 0.24.0); not compared under wine | `CreateMask` 30, `CursorPosition` 20 |
-| `Request` `AddRender` / `SubRender` / `NormalRender` | 15 / 1 / 3 | blend mode additive / subtractive / normal (`request_render`) | a movie's `AddRender` drawn as it is; the others not done | `addrender` 11, `normalrender` 4 |
+| `Request` `AddRender` / `SubRender` / `NormalRender` | 15 / 1 / 3 | blend mode additive / subtractive / normal (`request_render`) | `spblend` 1 (added on), `NormalRender` 0; the `SubRender` movie darkened (History, "Render modes") | `addrender` 11, `normalrender` 4 |
 | `Request` `Smoothing` / `UnSmoothing` | 20 / 3 | texture filtering on / off | nothing | `unsmoothing` 3 |
 | `$SYSTEM_skip`, `$SYSTEM_text_auto` = false at each choice | 25 / 31 | skip and auto mode stop before the choice | `skipoff:autooff` where `$SYSTEM_text_auto` goes false; the choice's `btnwait` also ends both (CONscripter after 0.24.0) | none |
 | `$SYSTEM_menu_lock` = 1 (the title, the ending roll) | 8 | no right-click menu, skip off, the text window shown | `skipoff:autooff`; the roll's wait is a `click`, which takes no right-click | none |
@@ -354,8 +354,8 @@ with the original (it wants all eleven endings' flags under wine).
   under wine (which plays no movie there).
 - After engine #2 / converter #6: the 60 moves and zooms that also fade
   or change picture as one `spmotion` with alpha; `Rotate` over time (343).
-- After engine #2 and #10 and Muramasa's shared blend IR field:
-  `AddRender`/`SubRender` flashes.
+- `spgrab` (engine #32, merged) could draw the moves that fade (the 60
+  above) as a copy fading out over the moved picture: not used yet.
 - The unread-argument notes (#30) are sorted into Next, item 7: easing
   first.
 - `RemainTime` on a sound returns its whole length, not the rest
@@ -392,8 +392,7 @@ with the original (it wants all eleven endings' flags under wine).
 4. The 60 moves and zooms that also fade or change picture (still
    cross-fades), and `Rotate` over time (343, drawn at once).
 5. Extras: the doors' animation and the menu's own music (left out).
-6. From the exe's coverage table ("The exe"): `AddRender`/`SubRender`/`NormalRender` as blend modes
-   (item 3's additive flashes); `SetShade HEAVY` (one use; sepia is
+6. From the exe's coverage table ("The exe"): `SetShade HEAVY` (one use; sepia is
    item 3's).
 7. The unread-argument notes (`<Builtin> argument <i> ignored`;
    dry run 2026-10-16: 33 kinds, 18,947 notes, fewer than #30's 39 and
@@ -460,6 +459,11 @@ with the original (it wants all eleven endings' flags under wine).
 
 ## History
 
+- **Render modes (2026-10-16, shared NSS code, engine #34).**
+  `Request(obj, AddRender|SubRender|NormalRender)` on a picture is drawn
+  with `spblend` (Muramasa's History, "Render modes"): 15 `AddRender`
+  uses in the dry run, the movies' `AddRender` now added on; the one
+  `SubRender` is a movie, which keeps its darkened re-encode.
 - **`SetPan` pans a sound (2026-10-16, shared NSS code, engine #35).**
   The exe's `builtin_SetPan` (`0040d140`) is shaped like `SetVolume`: a
   pan over time. CONscripter's new `chpan ch,pan[,ms]` pans a `dwave`

@@ -236,12 +236,15 @@ impl Compiler<'_, '_> {
             let mut now = Shown { layer, ..now };
             match self.shown.get(&name) {
                 Some(old) if *old == Shown { engine: old.engine, ..now.clone() } => continue,
-                Some(old) if old.layer == now.layer && old.image == now.image && old.x == now.x && old.y == now.y && old.cells == now.cells && old.flash == now.flash && old.blend == now.blend && old.angle == now.angle && old.clip == now.clip => {
+                Some(old) if old.layer == now.layer && old.image == now.image && old.x == now.x && old.y == now.y && old.cells == now.cells && old.flash == now.flash && old.angle == now.angle && old.clip == now.clip => {
                     now.engine = old.engine;
+                    if old.blend != now.blend {
+                        opacity.push(Op::SpriteBlend { layer, mode: now.blend });
+                    }
                     opacity.push(Op::SpriteOpacity { layer: Some(layer), opacity: (now.opacity * 256 / 1000) as u32 });
                 }
                 old => {
-                    if let Some(old) = old.filter(|o| o.layer != layer || o.engine.zoomed || (o.cells.is_some() && now.cells.is_none()) || o.flash != 0 || o.blend != BLEND_NORMAL) {
+                    if let Some(old) = old.filter(|o| o.layer != layer || o.engine.zoomed || (o.cells.is_some() && now.cells.is_none()) || o.flash != 0) {
                         changes.push(SpriteChange { layer: old.layer, sprite: None, keep_filters: false });
                         if old.cells.is_some() || old.engine.zoomed || old.flash != 0 || old.blend != BLEND_NORMAL {
                             unzoom.push(old.layer);
