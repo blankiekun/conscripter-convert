@@ -345,11 +345,9 @@ with the original (it wants all eleven endings' flags under wine).
 
 ### Queue (2026-10-16)
 
-- In progress (agent), each its own PR: whether `CreateWindow` should
-  clip Django's children (#27 leaves it off under
-  `Game::relative_children`; check the windows' places and whether a
-  sliding window needs its clip to move), and the song `CreateText` with
-  markup in `dja026` (#17 leaves it out).
+- Open PR: windows clip their children (django/window-clip).
+- In progress (agent): the song `CreateText` with markup in `dja026`
+  (#17 leaves it out).
 - Open from the face windows (#37): a sliding frame's face jumps to its
   end place; dja003_02's blood movie is drawn mirrored by us, unmirrored
   under wine (which plays no movie there).
@@ -395,6 +393,21 @@ with the original (it wants all eleven endings' flags under wine).
    item 3's).
 
 ## History
+
+- **Windows clip their children (2026-10-16).** `CreateWindow` draws its
+  children only inside it (`spclip`, from 装甲悪鬼村正's cockpit, #27),
+  now for Django too, the window's place counted from its parents'
+  (`窓/中窓` at 0,70 in `窓`). Under wine (dja002_02) a standing
+  picture in `中窓` (`CreateMiddleWin`, the 800×400 band between the
+  black bars) stops at y 70: the top bar stays black (mean 0 in the
+  original and ours, 0.07 before). Pictures in a window still off the
+  screen (`CreateWinBG` at x −800, before it slides in) aren't drawn. A
+  window seen through a camera (`カメラ/移動窓`) doesn't clip (it would
+  need the camera's zoom and depth). A sliding window's clip is its end
+  place: the converter draws a window's slide as its children appearing
+  at their end places (a cross-fade) or moving under a fixed clip, so
+  the clip needn't move; where the original's moving window would hide
+  a moving child's edge, the old picture sliding out covers it.
 
 - **Text windows and face windows compared under wine (2026-10-16).**
   dja001_02 (earlier) and dja003_02: the three boxes' text starts within
