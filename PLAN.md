@@ -590,6 +590,11 @@ The steps that apply them are in `docs/new-game.md`.
   Lossy WebP's 4:2:0 subsampling blurred small coloured detail at every
   quality; near-lossless was fine at half the PNG size, so lossy is only
   an option (`--webp-quality`).
+- **Measure completion per source call, not per note.** One call with
+  three unread arguments is one gap; a note list alone ranks a command
+  by how many arguments it has. Each engine opens a call on the shared
+  `Metrics`, and every note made while it is open is that call's gap
+  (`tests/snapshots/<game>.metrics.json`).
 
 ### 13.1b Lessons from 装甲悪鬼村正 (Nitroplus NSS, 2026-10-13)
 

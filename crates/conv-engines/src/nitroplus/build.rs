@@ -67,6 +67,7 @@ pub fn build(game: &Path, run: &Run, opts: &Opts) -> Result<Built> {
         let file = File::open(&path).with_context(|| format!("opening {}", path.display()))?;
         npk::Npk::open(file).with_context(|| format!("parsing {}", path.display()))
     };
+    let mut port = crate::metrics::Metrics::default();
     if let Some(dir) = run.english {
         let report = english::English::load(&open_npk(dir, "script.npk")?)?.apply(&mut files);
         println!(
@@ -92,9 +93,10 @@ pub fn build(game: &Path, run: &Run, opts: &Opts) -> Result<Built> {
             println!("  {file}: {jp}");
         }
         // The port's calls converted only in part (as the dry run's notes).
-        for (note, n) in &report.unread {
+        for (note, n) in &report.unread.reasons() {
             println!("English: {n:>6}  port {note}");
         }
+        port = report.unread;
     }
     let mut assets = NpaAssets::new(open("cg.npa")?, open("sound.npa")?, open("voice.npa")?, opts.output);
     assets.out.dry_run = opts.dry_run;
@@ -157,7 +159,9 @@ pub fn build(game: &Path, run: &Run, opts: &Opts) -> Result<Built> {
     };
     g.menus(&mut assets, &mut ir, &story);
     println!("{file} -> {scene} -> {}", opts.output.join("0.txt").display());
-    Ok(Built { ir, notes: compiled.notes, picture_dirs: &PICTURE_DIRS, audio_dirs: AUDIO_DIRS, package: None })
+    let mut metrics = compiled.metrics;
+    metrics.merge(port);
+    Ok(Built { ir, notes: compiled.notes, metrics, engine: "nitroplus", picture_dirs: &PICTURE_DIRS, audio_dirs: AUDIO_DIRS, package: None })
 }
 
 /// The archives' key, from the game's exe.

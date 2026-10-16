@@ -14,6 +14,8 @@ fn main() {
     let commit = git(&["rev-parse", "--short", "HEAD"]).unwrap_or_else(|| "unknown".into());
     let dirty = git(&["status", "--porcelain", "--untracked-files=no"]).is_some_and(|s| !s.is_empty());
     println!("cargo:rustc-env=CONV_COMMIT={commit}{}", if dirty { "-dirty" } else { "" });
+    let date = git(&["log", "-1", "--format=%cs", "HEAD"]).unwrap_or_else(|| "unknown".into());
+    println!("cargo:rustc-env=CONV_COMMIT_DATE={date}");
 
     let header = "../../engine/src/cons/version.h";
     let engine = std::fs::read_to_string(header)

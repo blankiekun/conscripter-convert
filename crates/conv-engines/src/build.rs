@@ -33,6 +33,10 @@ pub struct Built {
     pub ir: Script,
     /// What the compiler left out or approximated, with counts.
     pub notes: BTreeMap<String, usize>,
+    /// The source's calls, converted fully or with gaps (`metrics.json`).
+    pub metrics: crate::metrics::Metrics,
+    /// The engine's name in `metrics.json` (`xuse`, `nitroplus`, `mages`).
+    pub engine: &'static str,
     /// Folders of the output whose PNG pictures `--webp` converts.
     pub picture_dirs: &'static [&'static str],
     /// Folders of the output whose sounds `--audio-codec` re-encodes

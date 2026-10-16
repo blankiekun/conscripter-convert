@@ -81,8 +81,21 @@ pub fn build(game: &Path, linear: bool, opts: &Opts) -> Result<Built> {
     let presets = presets(&scripts).context("reading the preset subroutines")?;
     let names = label_names(game)?;
     let mut ops = Vec::new();
+    let mut metrics = crate::metrics::Metrics::default();
     for (file, cd) in &scripts {
-        ops.extend(lower_script(cd, file, flow, &mut assets, &presets, &names).with_context(|| format!("converting {file}"))?);
+        let lowered = lower_script(cd, file, flow, &mut assets, &presets, &names).with_context(|| format!("converting {file}"))?;
+        // Each instruction is a call; its gaps are the unsupported ops it
+        // lowered to (their record bytes left out of the reason).
+        let mut gaps: std::collections::HashMap<usize, Vec<String>> = Default::default();
+        for op in &lowered {
+            if let conv_core::ir::Op::Unsupported { what, at } = op {
+                gaps.entry(at.index).or_default().push(what.split(" [").next().unwrap_or(what).to_string());
+            }
+        }
+        for (index, ins) in cd.code.iter().enumerate() {
+            metrics.call(&format!("opcode {:#04x}", ins.op), gaps.remove(&index).unwrap_or_default());
+        }
+        ops.extend(lowered);
     }
     // The linear build plays the story straight through, without a menu.
     let (title_screen, save_menu, button_bar, settings, backlog, confirm, extras) = if linear {
@@ -113,7 +126,7 @@ pub fn build(game: &Path, linear: bool, opts: &Opts) -> Result<Built> {
         ops,
         ..Default::default()
     };
-    Ok(Built { ir, notes: Default::default(), picture_dirs: PICTURE_DIRS, audio_dirs: AUDIO_DIRS, package: None })
+    Ok(Built { ir, notes: Default::default(), metrics, engine: "xuse", picture_dirs: PICTURE_DIRS, audio_dirs: AUDIO_DIRS, package: None })
 }
 
 pub fn parse_cd<'a>(path: &Path, bytes: &'a [u8]) -> Result<CdScript<'a>> {

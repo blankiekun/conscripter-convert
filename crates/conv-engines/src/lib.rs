@@ -4,6 +4,7 @@ pub mod build;
 pub mod labels;
 pub mod mages;
 pub mod media;
+pub mod metrics;
 pub mod nitroplus;
 pub mod ogg;
 pub mod output;
