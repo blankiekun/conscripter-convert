@@ -1197,6 +1197,26 @@ struct SoundObject {
     freq: u32,
 }
 
+/// An NSS tempo as [`Op::MoveEase`]'s (ease, exponent), the exe's
+/// curves (`apply_tempo`, `research/nitroplus/builtins.md`): `Axl1`-`3`
+/// t^2-t^4, `Dxl1`-`3` 1-(1-t)^2-^4, the sine ones as eases 4-7; any
+/// other (`null` too) straight: `None`.
+fn tempo(v: &Value) -> Option<(u8, u32)> {
+    match v.string().as_str() {
+        "Axl1" => Some((1, 2)),
+        "Axl2" => Some((1, 3)),
+        "Axl3" => Some((1, 4)),
+        "Dxl1" => Some((2, 2)),
+        "Dxl2" => Some((2, 3)),
+        "Dxl3" => Some((2, 4)),
+        "AxlAuto" => Some((4, 1)),
+        "DxlAuto" => Some((5, 1)),
+        "AxlDxl" => Some((6, 1)),
+        "DxlAxl" => Some((7, 1)),
+        _ => None,
+    }
+}
+
 /// `old` moved and zoomed into `now` over `ms` by the engine: the same
 /// picture at the same opacity, zoomed alike both ways.
 fn motion(old: &Shown, now: &Shown, ms: u32) -> Option<Op> {
@@ -1292,6 +1312,9 @@ struct Compiler<'a, 'b> {
     pending_ms: u32,
     /// The same per object, for a `WaitAction` on one of them.
     pending_by: HashMap<String, u32>,
+    /// The tempo of a pending `Move` or `Zoom` per object, as
+    /// [`Op::MoveEase`] (see [`tempo`]).
+    pending_tempo: HashMap<String, (u8, u32)>,
     /// A `DrawTransition` mask for the next sync.
     pending_mask: Option<String>,
     /// The pictures the running screen shake shakes: it stops when they go.
@@ -2082,6 +2105,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
             shown: BTreeMap::new(),
             pending_ms: 0,
             pending_by: HashMap::new(),
+            pending_tempo: HashMap::new(),
             pending_mask: None,
             shaken: Vec::new(),
             font_size: 20,
@@ -2820,6 +2844,17 @@ impl<'a, 'b> Compiler<'a, 'b> {
     }
 
     // -- timing and drawing -------------------------------------------------
+
+    /// A `Move`'s or `Zoom`'s tempo for its targets' motion at the next
+    /// sync (the last one given wins).
+    fn set_tempo(&mut self, tempo: Option<(u8, u32)>, targets: &[String]) {
+        for t in targets {
+            match tempo {
+                Some(e) => _ = self.pending_tempo.insert(t.clone(), e),
+                None => _ = self.pending_tempo.remove(t),
+            }
+        }
+    }
 
     /// An action of `ms` with the `wait` argument of the timed built-ins:
     /// true blocks for the action, false lets the script go on.
@@ -4056,9 +4091,9 @@ scene a.nss
 	CreateColor("white", 200, 0, 0, 1024, 576, "White");
 	Fade("white", 0, 1000, null, true);
 	Wait(100);
-	Move("bg", 1500, @0, @-150, null, false);
+	Move("bg", 1500, @0, @-150, Dxl1, false);
 	Fade("white", 300, 0, null, true);
-	Zoom("bg", 1000, 2000, 2000, null, true);
+	Zoom("bg", 1000, 2000, 2000, DxlAxl, true);
 	Wait(100);
 }
 "#;
@@ -4073,6 +4108,12 @@ scene a.nss
         let pan = c.ops.iter().position(|op| matches!(op, Op::SpriteMotion2 { .. })).unwrap();
         assert!(matches!(c.ops[pan + 1], Op::BeginTransition { fade_ms: 300, .. }), "{:?}", c.ops);
         assert!(c.ops.iter().any(|op| matches!(op, Op::Wait { ms: 1000 })), "{:?}", c.ops);
+        // Each along its tempo's curve.
+        let eases: Vec<_> = c.ops.windows(2).filter_map(|w| match w {
+            [Op::MoveEase { ease, exponent }, Op::SpriteMotion2 { .. }] => Some((*ease, *exponent)),
+            _ => None,
+        }).collect();
+        assert_eq!(eases, [(2, 2), (7, 1)], "{:?}", c.ops);
     }
 
     #[test]

@@ -705,23 +705,20 @@ Next, in order:
      `$mc02_TimeCount`, and the IR has no runtime strings), the
      ASCII-art pages (`Request(…, PushText)` + `NoLog`: shown at once,
      not in the backlog), `<voice mode="off">` (3, meaning unknown).
-   - Tempo (easing) is never read.
+   - Tempo (easing) of `Fade`, `Rotate`, `SetVolume`,
+     `DrawTransition`, `Shake` is never read (`Move` and `Zoom`'s is:
+     "History", "Tempo of `Move` and `Zoom`").
    - A 4-argument `Fade` probably doesn't wait in the exe (49 calls
      wait in ours); check under wine first.
 5. Gaps from the unread-argument notes (2026-10-16; each built-in's
    arguments the converter doesn't read, with counts, in
    `research/nitroplus/builtins.md`, "Arguments not read"), most
    noticeable first:
-   - Tempo (easing) of `Fade`, `Move`, `Zoom`, `Rotate`, `SetVolume`,
-     `DrawTransition` (`Axl`/`Dxl`…; a `null` tempo is taken as linear).
-     After engine #2 / converter #13: tempo as spmotion curves; DxlAxl's
-     acos and the cosine/sine ones as spcurve tables. The exe's curves
-     (`apply_tempo`, `00449f40`; t the progress 0-1): Axl1/2/3 t², t³,
-     t⁴; Dxl1/2/3 1-(1-t)², 1-(1-t)³, 1-(1-t)⁴; AxlAuto 1-cos(πt/2);
-     DxlAuto sin(πt/2); AxlDxl ½-½cos(πt); DxlAxl acos(1-2t)/π; any
-     other name (`null` too) linear. In the story most eased calls don't
-     wait (Move: 631 Dxl1, 576 Dxl2, 362 DxlAuto, 190 AxlDxl; Zoom: 618
-     Dxl2, 385 Dxl1).
+   - Tempo (easing) of `Fade`, `Rotate`, `SetVolume`, `DrawTransition`
+     (`Move` and `Zoom` done: "History", "Tempo of `Move` and `Zoom`"):
+     fades and turns over time aren't engine motions yet, and a sound's
+     volume has no curve. A move with a fade folded into its keys still
+     goes straight.
    - Story `CreateText`: a sideways text turned by `Rotate` sits about
      17 px lower than the original's under wine (cause unknown; "History",
      "Story `CreateText`").
@@ -791,6 +788,24 @@ Next, in order:
   held (seen once in a small test script; not looked into).
 
 ## History
+
+### Tempo of `Move` and `Zoom` (2026-10-16)
+
+The tempo argument of `Move` and `Zoom` is read (`tempo` in
+`nitroplus/convert.rs`): the exe's curves (`apply_tempo`, `00449f40`;
+t the progress 0-1) Axl1/2/3 t², t³, t⁴ and Dxl1/2/3 1-(1-t)², ³, ⁴
+are `Op::MoveEase` 1 and 2 with exponents 2-4 (the MAGES ones, `spcurve`
+11-13 and 31-33); AxlAuto 1-cos(πt/2), DxlAuto sin(πt/2), AxlDxl
+½-½cos(πt) and DxlAxl acos(1-2t)/π are new eases 4-7 (`spcurve` 70-73,
+33 steps, `conv-cons/src/ease.rs`); any other name (`null` too) is
+straight. The curve goes on the `spmotion` key of the move or zoom: a
+single blocking move (`SpriteMove`) and the engine motions made at a
+sync (`SpriteMotion2`, the non-waiting calls, most of the story's:
+Move 631 Dxl1, 576 Dxl2, 362 DxlAuto, 190 AxlDxl; Zoom 618 Dxl2, 385
+Dxl1). A move and a zoom of one picture with different tempos before
+one sync take the last one's. In the dry run: 615 motion keys on 70-73,
+the "argument 4 ignored" notes of `Move` (3,420) and `Zoom` (2,213)
+gone. Not compared with the original under wine.
 
 ### Render modes (2026-10-16)
 

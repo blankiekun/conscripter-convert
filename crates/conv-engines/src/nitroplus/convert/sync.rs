@@ -9,6 +9,7 @@ impl Compiler<'_, '_> {
         let blocking = ms;
         let ms = ms.max(std::mem::take(&mut self.pending_ms).min(UNWAITED_MS));
         let timed = std::mem::take(&mut self.pending_by);
+        let tempo = std::mem::take(&mut self.pending_tempo);
         let mut shake_once = std::mem::take(&mut self.shake_once);
         let mask = self.pending_mask.take();
         self.flush_sounds();
@@ -211,6 +212,9 @@ impl Compiler<'_, '_> {
                     let engine = Engine { zoomed: old.engine.zoomed || old.zoom != now.zoom || old.angle != now.angle, moved: true };
                     if let Some(t) = self.objects.get(name).and_then(|o| o.trail) {
                         self.ops.push(Op::SpriteTrail { layer, passes: t.passes, alpha: t.alpha, lag: t.lag });
+                    }
+                    if let Some(&(ease, exponent)) = tempo.get(name) {
+                        self.ops.push(Op::MoveEase { ease, exponent });
                     }
                     self.ops.push(op);
                     self.shown.insert(name.clone(), Shown { engine, ..now });

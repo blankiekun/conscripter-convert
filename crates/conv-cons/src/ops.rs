@@ -219,7 +219,7 @@ impl<'a> Emitter<'a> {
             writeln!(out, "spmotion {slot},0,0,0,0,100,100,0,256,0,{ms},{},{},100,100,{},256,0:spmotionwait {slot}", x1 - x0, y1 - y0, -degrees).unwrap();
             writeln!(out, "csp {slot}\nprint 1").unwrap();
         }
-        Op::MoveEase { ease, exponent } => *move_ease = Some((*ease, *exponent)).filter(|&(e, _)| (1..=3).contains(&e)),
+        Op::MoveEase { ease, exponent } => *move_ease = Some((*ease, *exponent)).filter(|&(e, _)| (1..=7).contains(&e)),
         Op::SpriteMove { layer, x, y, ms } => {
             let slot = SPRITE_BASE + layer;
             let ease = move_ease.take();
@@ -244,7 +244,12 @@ impl<'a> Emitter<'a> {
             writeln!(out, "if {} == {} goto *{}", menu::switch_off(*switch), u8::from(!*on), label(target)).unwrap();
         }
         Op::SpriteMotion { layer, keys, looped } => motion::emit(out, *layer, keys, *looped, fading_slots.remove(&(SPRITE_BASE + layer))),
-        Op::SpriteMotion2 { layer, keys, end } => motion::emit2(out, *layer, keys, *end, fading_slots.remove(&(SPRITE_BASE + layer))),
+        Op::SpriteMotion2 { layer, keys, end } => {
+            let (ease, fade) = (move_ease.take(), fading_slots.remove(&(SPRITE_BASE + layer)));
+            // shortcut: a fade folded into the keys splits them, so the motion goes straight; ease each part when a game needs it.
+            let curve = if fade.is_none() { curve(ease, eased) } else { 0 };
+            motion::emit2(out, *layer, keys, *end, fade, curve);
+        }
         Op::SpriteZoom { layer, x, y, from, to, ms } => {
             let ease = move_ease.take();
             let curve = if *ms > 0 { curve(ease, eased) } else { 0 };
@@ -891,7 +896,7 @@ impl<'a> Emitter<'a> {
 /// one, noted in `eased` for its table at `*start`.
 fn curve(ease: Option<(u8, u32)>, eased: &mut std::collections::BTreeSet<(u8, u32)>) -> u32 {
     match ease {
-        Some((e, n)) if n > 1 => {
+        Some((e, n)) if n > 1 || e > 3 => {
             eased.insert((e, n));
             ease::curve_id(e, n)
         }

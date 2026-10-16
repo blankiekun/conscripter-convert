@@ -9,8 +9,6 @@ use super::*;
 /// `None` for any), why.
 const UNREAD_HARMLESS: &[(&str, usize, Option<&str>, &str)] = &[
     ("Fade", 3, Some("null"), "no tempo: linear, as ours"),
-    ("Move", 4, Some("null"), "no tempo: linear, as ours"),
-    ("Zoom", 4, Some("null"), "no tempo: linear, as ours"),
     ("Rotate", 5, Some("null"), "no tempo: linear, as ours"),
     ("SetVolume", 3, Some("null"), "no tempo: linear, as ours"),
     ("SetPan", 3, Some("null"), "no tempo: linear, as ours"),
@@ -199,7 +197,7 @@ impl Compiler<'_, '_> {
             }
             "Move" => {
                 let targets = self.matching(&arg(0));
-                let (ms, to_x, to_y) = (arg(1).int(), arg(2), arg(3));
+                let (ms, to_x, to_y, tempo) = (arg(1).int(), arg(2), arg(3), tempo(&arg(4)));
                 // (In a process its wait holds only the process: `timed`.)
                 let blocking = !matches!(arg(5), Value::Null | Value::Int(0)) && self.action_process.is_none();
                 // One picture on screen moving while the script waits: a real
@@ -219,6 +217,9 @@ impl Compiler<'_, '_> {
                         if let Some(t) = trail {
                             self.ops.push(Op::SpriteTrail { layer: sh.layer, passes: t.passes, alpha: t.alpha, lag: t.lag });
                         }
+                        if let Some((ease, exponent)) = tempo {
+                            self.ops.push(Op::MoveEase { ease, exponent });
+                        }
                         self.ops.push(Op::SpriteMove { layer: sh.layer, x: cx, y: cy, ms: ms as u32 });
                     }
                     return Value::Null;
@@ -228,6 +229,7 @@ impl Compiler<'_, '_> {
                     o.x = to_x.position(o.x, o.w, screen_w);
                     o.y = to_y.position(o.y, o.h, screen_h);
                 }
+                self.set_tempo(tempo, &targets);
                 self.timed(ms, &arg(5), &targets);
             }
             "Delete" if arg(0).string() == "*" && self.game.chapter_objects && self.chapter_mark.is_some() => {
@@ -305,6 +307,7 @@ impl Compiler<'_, '_> {
                     let o = self.objects.get_mut(t).unwrap();
                     o.zoom = (zx.position(o.zoom.0, 0, 0).max(1), zy.position(o.zoom.1, 0, 0).max(1));
                 }
+                self.set_tempo(tempo(&arg(4)), &targets);
                 self.timed(arg(1).int(), &arg(5), &targets);
             }
             "SetBlur" => {
