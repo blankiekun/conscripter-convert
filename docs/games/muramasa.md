@@ -74,7 +74,7 @@ The other convert options (`--loose`, `--audio-codec`,
 | Text: vertical windows, face windows and name plates, ruby, `<k>` waits, voices | ✅ Converted; vertical columns where the original's are (checked under wine), turned marks (《「―) centred, English keeps its spaces |
 | Backgrounds, sprites, fades, mask wipes, zoom, shake, blur, BGM, sound effects | ✅ Converted (timed actions drawn as cross-fades, see "Leftovers"); volume changes on a playing sound ❌ not yet (only a fade to 0 is), see "Next" |
 | Choices | ✅ Drawn like the original's `SetChoiceBase` plates |
-| Parallel processes (`CreateProcess`: battle HUD, fire flicker, …) | ❌ Not converted; planned through Lua |
+| Parallel processes (`CreateProcess`: battle HUD, fire flicker, …) | 🟡 Endless loops of timed actions (`FlyMoving*`, `TurboBlur*`, `RotetoLoop*`, the clouds, `ma_03_SBProcess`, …) as looping `spmotion`; the rest planned through Lua |
 | Additive / multiply / subtractive blends (`Request` `AddRender`/`MulRender`/`SubRender`) | ✅ `spblend` 1/2/3 (History, "Render modes") |
 | `Rotate`, `SetFrequency`, camera moves | ❌ Not converted |
 | 立方陣 minigame (`function_magiccube.nss`) | ✅ Ported (see "The 立方陣" below) |
@@ -538,8 +538,17 @@ Used to check what the engine does (`docs/new-game.md` step 9).
 - `spgrab` (engine #32, merged; a copy of the screen or a sprite into a
   sprite) could stand for `CreateTexture`'s render-to-texture: not used
   yet.
-- After engine #4: `CreateProcess` as `cons_process` coroutines; send a
-  plan of PRs before coding.
+- `CreateProcess` (plan approved 2026-10-16), in this order: **A** the
+  endless loops of timed actions as looping `spmotion` (`convert/loops.rs`,
+  shared NSS code; done, see Leftovers); **B** conv-cons writes a
+  `system.lua` from the IR (a shared refactor, its own PR first); **C**
+  the other processes translated from NSS to Lua (`cons_process`,
+  CONscripter #30): the cockpit `CP_*`, `ComicProcess`, the `Random`
+  shakes, `EndSong`, and the one-shots, their progress in globals.
+  Still left by A: `fire01`-`03`, `Lastfire`, `MASAMUNESHINOGI`,
+  `Shoushiken`, `TanukiLastfire`, `power` (36 starts in the dry run)
+  need 43 keys, `spmotion` takes 32 (CONscripter #40 raises it to 64; then
+  `loops::MAX_KEYS` follows); `ma00_FireMoveAutoProcess` zooms unlike in x and y.
 - Then the unread-argument gaps (item 5 below), most noticeable first;
   among them, `CreateText`'s box height is read (#52) and `SetVertex`
   for every picture (#61, "History", "`SetVertex`"). Tempo waits for
@@ -753,8 +762,12 @@ Next, in order:
 **Leftovers** (counts from the dry run's notes):
 - `CreateProcess` (510 calls; the battle HUD `CP_*` in
   `function_cockpit.nss`, fire flicker, comic panels): parallel NSS
-  processes. Planned as Lua coroutines through CONscripter's `USE_LUA`
-  bridge (`NSCALL_animation` per frame). A process that only runs
+  processes. One that ends in an endless loop of `Fade`/`Move`/`Zoom`/
+  `Rotate`/`BezierMove`/`Wait` (or `Shake`/`Wait`) loops its pictures'
+  motion in the engine from its `Start` (`convert/loops.rs`: the loop
+  played twice on paper, the second pass keyed; 2,581 looped motions,
+  the dry run's `CreateProcess` notes 4,205 → 2,459). The rest are
+  planned in Lua (Status). A process that only runs
   `Rotate`/`Move`/`Fade`/`Zoom` (the roll bar's `CP_RollBar`,
   `CP_RollBar_NoBG`) runs at its start without blocking, and a
   `WaitAction` on it waits for it; the roll bar's endless wobble
