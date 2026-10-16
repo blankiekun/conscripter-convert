@@ -199,7 +199,7 @@ addresses in `research/typemoon/names.tsv` are those of the 1.0.2
   `ARU_A_18_00_N00_02_02`…. A name's picture is `<name>.NXGZ` in
   `allpac`. Beside each name, a 0x48-byte record at 0x56F830 (all
   else 0, 0x20–0x27 0xFF):
-  - f32 width at 0x2C and height at 0x30, in record units (640 × 362
+  - f32 width at 0x2C and height at 0x30, in record units (1280 × 724
     is the screen, see "The stage"): half the texture's width and
     724/1440 of its height (IMG0024_01_01: texture 2576 × 1456, record 1288 × 732.04).
     6,141 names have a second, third-size copy in `allpac` too
@@ -251,53 +251,40 @@ addresses in `research/typemoon/names.tsv` are those of the 1.0.2
   way, from 1920 × 1080 pixels to 480 × 272. A child layer's place is
   its parent's plus the parent's zoom times (its own x − the parent's
   centre·0.375, y − centre·0.5) (`FUN_001892b0`, `FUN_00189420`),
-  so the record units are 640 × 362.67 to the screen, and the draw
-  turns a centre into 1920 × 1080 pixels as ·1920/640 and ·1080/362
-  (`BLACK`, 640 × 362, is the whole screen). The scale passed to the
+  and the draw turns a centre into 1920 × 1080 pixels as ·1920/640
+  and ·1080/362: both work in 640 × 362 units, half the record stage
+  below (not understood; the plain colours' records are 640 × 362).
+  The scale passed to the
   draw is the zoom (`_STZ4` ‰ × `_STCH` argument 4 ‰) · W/320 and
   H/180. A child's offsets are scaled by its record's u16 at 0x46
   (`FUN_0012dfd0`: 0 → ×1, 1 → ×½, 2 → ×¼, 3 → ×⅛), the sprites'
   shot letter (`_A_`, `_L_`, `_M_`, `_S_`).
-  **Not settled**: how big a picture is drawn. In record units a
-  background (1288 × 732) is two screens; in texels (2576 × 1456,
-  most bare backgrounds exactly 2560 × 1440, 16:9, with a 427 × 240
-  copy) it is one screen at W/2560 a texel. Read further, still not
-  settled: `FUN_001dfa6c`/`FUN_001dfa88` return a texture's
-  registered width and height, set by `FUN_001df790` when it loads;
-  for pictures (`FUN_001a3180`) the BRTI width and height ÷ 1, or ÷ 2/3
-  when bit 0 of its 8th argument is clear. The quad draw
-  (`FUN_001b0920` → `FUN_0019fe00`) hands that size, the scale
-  (zoom · W/320, H/180) and the pivot (centre·1920/640 ÷ (6 × width),
-  likewise for y; default 0.5) to the shaders as constants, so the
-  pixel size is worked out in a vertex shader (`shader/`, NVN
-  binaries, not read). On those numbers a centred expression's pivot
-  comes to 1/8 or 1/12, not ½: a factor is missing that the C doesn't
-  give.
-  **The shaders don't hold it.** The `shader/*.bnsh` files are pixel
-  shaders only (Maxwell code at 0x1080, readable with envytools'
-  `envydis -m gm107`; CUDA 13's `nvdisasm` no longer takes Maxwell).
-  The vertex shaders are in the exe (two BNSH at file offsets 0xAC3000
-  and 0xAD8000 of the ELF), and they carry their NV assembly as text
-  (`strings` shows `!!NVvp5.0`): position = buffer 0 (projection) ×
-  buffer 1 (model) × the vertex. The quad's corners are ±size/2
-  around the pivot, built on the CPU (`FUN_001ba89c`), so the missing
-  factor is in the registered size, which is CPU-side too.
-  - **Record reading.** With a normalised pivot (default ½),
-    `BLACK` (640 × 362, texture 1920 × 1080) and a centred background
-    (record 1288 × 732, texture 2576 × 1456) both come out at ½ only
-    if the registered width is proportional to the record's: 320 for
-    `BLACK`, 644 for the background. That is texture ÷ 6 and ÷ 4, a
-    ratio of 1.5, which is the loader's ÷ 1 against ÷ 2/3. On this
-    reading a picture is drawn at its record size, 640 × 362 to the
-    screen, × zoom: a background is two screens wide at zoom 1000
-    (the scripts' usual zoom; `_STZ4` also uses 500 to 2000).
-  - **Texel reading.** The gallery's CGs (`allpaccg`, `IMG3001.JPG`
-    …) are 2560 × 1440 and fill the gallery screen, and the bare
-    backgrounds are 2560 × 1440 with a 16:9 thumbnail, which says one
-    screen at W/2560 a texel.
-  - **What would settle it.** Find the story picture that shows the
-    same art as a gallery CG (for example by comparing small
-    thumbnails), then compare their framing.
+  **How big a picture is drawn: its record size on a 1280 × 724
+  stage, the screen** (settled 2026-10-16 by the gallery). A
+  background's whole texture fills the screen at zoom 1000: its
+  record is 1280 × 724 (bare backgrounds' full art is a 2560 × 1440
+  JPG in `allpac`, `IMG0020.JPG` beside its 427 × 240 `IMG0020.NXGZ`),
+  and its centre (640, 362) lands on script (240, 136) × 8/3. Evidence:
+  `research/typemoon/cg_framing.py` compares the gallery's CGs
+  (`allpaccg`, 2560 × 1440, shown on the whole gallery screen) with
+  the story pictures' thumbnails, whole and middle half. Of 235
+  16:9 CGs, 147 match a story picture whole (correlation ≥ 0.95,
+  most 0.997: IMG3005 is IMG0020, IMG3001 is IMG0005), none its
+  middle half, 88 nothing. At full size IMG3005 against IMG0020.JPG:
+  RMSE 0.085 whole, 0.33 for the middle half. So a texel is
+  W/2560 of the screen for 2× art, and on screen x, y and sizes are
+  script × 8/3 and record units on 1280 × 724. The plain colours
+  (`BLACK` …, records 640 × 362, textures 1920 × 1080) are drawn to
+  fill the screen; the converter can treat them as full-screen
+  fills. The decompile alone didn't give it: `FUN_001dfa6c`/`88`
+  return a texture's registered size (`FUN_001df790`; for pictures
+  `FUN_001a3180`: the BRTI size ÷ 1 or ÷ 2/3); the quad (±size/2
+  about a normalised pivot, `FUN_001ba89c`) and the scale
+  (zoom · W/320) go to the vertex shaders as constants; those
+  shaders (two BNSH in the exe at ELF file offsets 0xAC3000 and
+  0xAD8000, with their NV assembly as text, `!!NVvp5.0`) only do
+  projection × model × vertex. `shader/*.bnsh` are pixel shaders
+  (Maxwell, readable with envytools' `envydis -m gm107`).
 - **Picture layers**: 40 (0–39), staged by the commands below and shown
   by `_FADS`. Arguments are expressions (`FUN_00102d3c`); `FUN_00102b24`
   splits at most 20 of them.
@@ -586,8 +573,10 @@ Nothing yet.
 
 ### Next
 
-1. Pictures for the build: decode each `_STCH` picture's full texture
-   and place it by its record's centre (see "The exe", the picture
+1. Pictures for the build: decode each `_STCH` picture's full art (the
+   `.JPG` entry for a bare background, the larger `.NXGZ` otherwise),
+   draw it at its record size on the 1280 × 724 stage and place it by
+   its record's centre at script x, y × 8/3 (see "The exe", the picture
    table); every expression is already a whole picture, so nothing
    needs cutting. **Decided (the user, 2026-10-16):** the build writes a
    media folder of re-encoded files, not the BC7 textures: WebP
@@ -603,17 +592,15 @@ Nothing yet.
 2. Sound for the build: the looping wave sounds' loop points
    (SDL_mixer loops a WAV whole), and the music's loop points from the
    bfsar's stream details (see "The exe").
-3. How big a picture is on screen (see "The stage"): the record
-   units (640 × 362 to the screen) against the texture (2560 × 1440,
-   16:9) for a background. The decompile and the shaders are read
-   (see "The stage"): the record reading fits the pivots, the gallery
-   CGs fit the texel reading. Next: match a gallery CG to its story
-   picture and compare the framing. No Switch emulator is on the
-   machine, and the user can't take a capture.
-4. Still open in the exe: `_FADS` type 1, `_STCH`'s arguments
+3. Still open in the exe: `_FADS` type 1, `_STCH`'s arguments
    12–17, `_STZ4`'s last two, and the motion keyframes' other fields.
 
 ## History
+
+- 2026-10-16: how big a picture is drawn, settled by matching the
+  gallery's CGs to the story pictures (`cg_framing.py`): a record
+  is on a 1280 × 724 stage, the screen; a background's whole texture
+  fills it. The shaders were read on the way (they don't hold it).
 
 - 2026-10-16: the stage: script coordinates are 480 × 272 for the
   screen (the draw's vertex math), record units 640 × 362; a bare
