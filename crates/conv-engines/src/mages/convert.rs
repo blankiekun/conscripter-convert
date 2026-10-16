@@ -814,7 +814,16 @@ impl Lowering<'_> {
             }
             "SpriteDelete" | "SpriteDeleteBG" => {
                 let tex = t.int("SpriteNumber").or_else(|| t.int("Texture")).unwrap_or(-1);
-                let f = if t.int("FadeOut").unwrap_or(0) == 0 { 0 } else { ms(t.int("Time").unwrap_or(15)) };
+                // SpriteDeleteBG reads no `:FadeOut` (scene_load case 0x26):
+                // it fades over `:Time` (default 60 of ours, 0x81129ccc)
+                // whenever that is above 0 (0x8100da30 case 0x26).
+                let f = if ty == "SpriteDeleteBG" {
+                    ms(t.int("Time").unwrap_or(60))
+                } else if t.int("FadeOut").unwrap_or(0) == 0 {
+                    0
+                } else {
+                    ms(t.int("Time").unwrap_or(15))
+                };
                 self.hide(&format!("t{tex}"), f);
             }
             "CharacterOpen" | "CharacterOpenBS" => {
@@ -1713,6 +1722,7 @@ const NOT_NEEDED: &[(&str, &str)] = &[
     ("SpriteBG :Time", "used only with :FadeIn 1, as ours (scene_load case 10's FadeIn flag, +0x95, goes with it in task_run)"),
     ("SpriteDelete :Time", "read only with :FadeOut 1, as ours (scene_load case 0x25)"),
     ("SpriteDeleteBG :Time = 0", "at once, as ours"),
+    ("SpriteDeleteBG :FadeOut", "not read by scene_load case 0x26: it fades whenever :Time > 0, as ours"),
     ("SpriteDeleteBG :FadeIn", "not read by scene_load case 0x26"),
     ("SpriteDeleteBG :Position", "the same"),
     ("SpriteDeleteBG :ReleaseTexture", "texture memory"),
