@@ -15,9 +15,10 @@ It has no NPA archives and no NSS scripts.
   `CreateText` left out with a note (#42), volume curve already the
   port's (#44), choices from variables take the port's English (#53).
 - Open: #54, choice options keep their places past a variable
-  (approved). Being fixed: options set in branches at run time are
-  fixed at build time in both builds (mc02_031innsyoku lists all five
-  items; md05_004 never offers "Leave your companion").
+  (approved). Open: choice options set in runtime branches picked at
+  run time (shared NSS, branch `nitroplus/choice-runtime-options`,
+  History "Choice options at run time"). The backlog line of such an
+  option (`『…』`, `【…】`) is empty.
 - Next: telop `Move` timing (252) against the port's. Later: the port's
   English captions from its `LANG_NAME` branches (15 scenes).
 - Decided: a click on an empty slot at the title doesn't save (the
@@ -232,12 +233,7 @@ It has no NPA archives and no NSS scripts.
      `sys_key.nut`'s keys.
   5. The port's calls taken in part (the build's `English: … port
      <function> argument <i> ignored` lines; "The port's calls,
-     argument by argument"), most noticeable first: a choice's
-     options are fixed at build time, so options set in runtime
-     branches show one value (md05_004's `$md05_hazure`: always "Ask for
-     help", never "Leave your companion"; mc02_031innsyoku lists all
-     five items whatever the player holds; the Japanese build likewise,
-     `convert.rs`'s `$テキストデータN`); the telops' `Move`s (252) keep the NSS's
+     argument by argument"), most noticeable first: the telops' `Move`s (252) keep the NSS's
      time, tempo and wait (arguments 1, 4, 5), and their
      `CreateTextureEX`/`SP` (214) the NSS's priority (argument 1):
      the same values if the port copied them, not compared.
@@ -493,6 +489,21 @@ and the build prints one line per argument passed and not read
 | `setting.ini` keys | files table | there |
 
 ## History
+
+- **Choice options at run time (2026-10-16, shared NSS code):** a
+  choice's options set in runtime branches were taken at build time, so
+  every player saw one set: mc02_031innsyoku listed all five items
+  whatever they held, and md05_004 never offered "Leave your
+  companion". Now the variables a choice reads (its options' texts and
+  the conditions that pick how many options it has, `choice_flags` in
+  `convert.rs`) stay at run time after nested runtime ifs too, and the
+  choice takes such an option's text from a string variable set from the
+  flag (`Op::RuntimeChoice`, `$3632` up; on the port's plates the x that
+  centres it in `%3632` up). Checked headless: mc02_031innsyoku with all
+  four items lists five options and with the pestle and the cooking wine
+  only lists three, each going to its own file (`--vars`, `--choose`);
+  md05_004hazure01 offers 頼む / "Ask for help" without a companion and
+  別れる / "Leave your companion" with one.
 
 - **Choices from variables (2026-10-16):** 9 of the port's `SetChoice`
   calls name variables, not text: mc02_031innsyoku's menu of things to
