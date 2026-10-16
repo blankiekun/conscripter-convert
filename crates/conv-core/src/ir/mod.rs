@@ -534,8 +534,9 @@ pub enum Op {
     /// Draws a layer's sprite added onto what is under it (a light), its
     /// opacity (0-256) following `keys` (ms from now, opacity; straight
     /// from key to key) `times` times while the script goes on, then
-    /// staying at the last key's. 続・殺戮のジャンゴ's muzzle flashes: a
-    /// white screen added on, flashing.
+    /// staying at the last key's (0: until the layer is cleared).
+    /// 続・殺戮のジャンゴ's muzzle flashes and strobe: white added on,
+    /// flashing.
     SpriteFlashing { layer: u32, keys: Vec<(u32, u32)>, times: u32 },
     /// Draws a layer's sprite turned `degrees` counterclockwise about the
     /// centre of its place, from now until the layer is cleared (a motion's

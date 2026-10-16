@@ -253,6 +253,9 @@ impl Compiler<'_, '_> {
                         f.started = true;
                         animated.push(Op::SpriteFlashing { layer, keys, times });
                     }
+                    if let Some(Object { shake: Some((_, keys)), .. }) = self.objects.get(&name) {
+                        animated.push(Op::SpriteMotion { layer, keys: keys.clone(), looped: true });
+                    }
                     if now.opacity < 1000 {
                         opacity.push(Op::SpriteOpacity { layer: Some(layer), opacity: (now.opacity * 256 / 1000) as u32 });
                     }

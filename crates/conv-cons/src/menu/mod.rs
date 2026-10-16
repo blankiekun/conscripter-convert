@@ -573,7 +573,7 @@ pub(crate) mod tests {
         let mut out = String::new();
         button_bar(&mut out, &bar, BarScreens { save_menu: true, ..Default::default() });
         for line in [
-            "*conv_wait\ngosub *conv_bar_draw\ntextbtnwait %9\nif %9 == -3 && %3640 == 0 goto *conv_wait_end\nif %9 == -3 goto *conv_wait\n",
+            "*conv_wait\nerasetextwindow 0\ngosub *conv_bar_draw\ntextbtnwait %9\nif %9 == -3 && %3640 == 0 goto *conv_wait_end\nif %9 == -3 goto *conv_wait\n",
             "if %9 >= 0 && %9 <= 1000 goto *conv_wait_end\n",
             "if %9 == 1001 goto *conv_wait_end\ngoto *conv_wait\n",
             "*conv_wait_end\ntexec\nreturn\n",
