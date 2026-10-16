@@ -5,3 +5,18 @@
 00177790	script_command	Runs one script command: switch on its first letter, then the next three packed as an int (0x504c59 = "PLY" for _MPLY)
 001649e0	cmd_MPLY	_MPLY(n,...): reads the backquote options, plays music n through FUN_0019c470 (fade-in from option 001), sets heard-music flag bit n+0xC80 for n < 0x418
 00154040	script_arg_short	Parses the current argument as a short (guess)
+001006f0	music_sound_id	Music number n to the sound library's item ID: table of 132 u32 at 0x433F90 (0, then 0x01000000+n-1)
+0019c470	music_play	Plays music n (sound n-1 of knife1.bfsar) with volume and start offset
+00102b24	script_split_args	Splits a command's arguments: up to 20 (start, end) pairs
+00102c38	script_has_arg	True if argument i is present and not empty
+00102d3c	script_arg_eval	Evaluates argument i as an expression
+00155d30	picture_lookup	Finds a picture name in the table of 23,000 names at 0x6E02A4 (records of 0x48 bytes at 0x56F830)
+00160840	cmd_STCH	_STCH: set a picture on a layer (args in docs/games/tsukihime.md, "The exe")
+00162140	cmd_STCC	_STCC(n): clear layer n (none: 0; negative: all 40)
+00162a40	cmd_STCP	_STCP(layer, p): set the layer's priority
+00162d20	cmd_STZ4	_STZ4(layer, x0, y0, x1, y1, ms, e, f): zoom in per mille over ms
+00199620	cmd_STMA	_STMA(layer, m, mode, p): start motion m from the exe's tables
+00199ff0	motion_key_field	Field f of motion keyframe k (0x40-byte records at 0x75CE18, 71,905)
+00160610	cmd_FADS	_FADS(type, ms, rule, mode): show the staged layers (0 fade, 2 rule mask)
+0014b4c0	set_rule_mask	Loads rule mask n: the n+1-th entry after mask_top.mzp
+00138ea0	cmd_WNTY	_WNTY(n): text window type
