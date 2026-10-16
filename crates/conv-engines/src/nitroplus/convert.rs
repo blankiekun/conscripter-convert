@@ -2709,7 +2709,8 @@ impl<'a, 'b> Compiler<'a, 'b> {
                     other = true;
                     match (tag.name.to_ascii_lowercase().as_str(), tag.close) {
                         ("voice", false) => {
-                            let name = tag.attr("name").unwrap_or("").to_string();
+                            // The voice settings go by class (村正's voices are 村正さん).
+                            let name = tag.attr("class").filter(|c| !c.is_empty()).or(tag.attr("name")).unwrap_or("").to_string();
                             let src = tag.attr("src").unwrap_or("").to_string();
                             page.voice = Some((name, src));
                         }

@@ -643,9 +643,6 @@ Next, in order:
      compiler doesn't evaluate, so each ending plays 4 s of the theme
      over black and fades it out (no roll, no click wait).
      `#ClearRoll%02d` likewise (`String`, `VariableValue`).
-   - Voice switches 村正, その他男声, その他女声, 首領姉 and コヒカリ
-     mute nothing (about 6,300 lines): the setting goes by the
-     `<voice>` tag's `class`, the compiler grouped by `name`.
    - `Shake` keeps its first strength; the exe eases it to args 4–5
      (nearly always 0).
    - Text markup dropped: `<FONT incolor size>` (15 tags in 11 story
@@ -690,6 +687,12 @@ Next, in order:
 
 Finished work, moved out of "Status" so a session reads only the open
 state.
+
+**Voice switches by class (2026-10-15, exe review):** the switches 村正,
+その他男声, その他女声, 首領姉 and コヒカリ muted nothing (about 6,300
+lines): the game's setting goes by the `<voice>` tag's `class` (村正's
+voices are `村正さん`), the compiler grouped them by `name`. It now
+takes `class`, or `name` when there is none.
 
 **`#` flags off the menus' globals (2026-10-15, from the code audit,
 `docs/audit-2026-10.md` §5):** the first 170 `#` flags ran %800-%969,
