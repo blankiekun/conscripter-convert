@@ -152,9 +152,9 @@ are gosub/return (engine stack depth 20).
 line number, segment count`, then that many XOR-`0x53` strings:
 pre-wrapped display lines, often with the speaker name first, no inline
 markup. A second block follows (`u32 4, u32 0` in every message). Bit 0
-of `sub` means "has voice"; the display code (`0x475f40`) checks the
-voice through `0x4679d0` and drops the flag if the check fails. All
-46,578 messages (15,620 voiced) decode.
+of `sub` means "the first line is the speaker's name"; the display code
+(`0x475f40`) drops it in text modes that can't show names (`0x4679d0`
+checks the mode; item 27). All 46,578 messages (15,620 voiced) decode.
 
 **Voices:** clip index = (id − 1) % 100000; `id / 100000` is the
 character (3 あずさ … 13 ジーン, 0 minor women, 1 minor men). The rule
@@ -237,15 +237,96 @@ N of the scene replay (`%3000+N`); `0x94` ends a replayed scene.
 | `0x5b` | 890 | **solved** (`op_5b` `0x4737a0`, channel 1, stop flag) | stop SE: `arg` = sound or 0 for all, `sub` = fade ms: `dwavefadeout ch,ms` (`Op::SeFadeOut`), which fades and stops while the script goes on |
 | `0x76` | 3,670 | **solved** (`op_76` `0x449df0`): `sub` picks the `Trans_*` class through a jump table (0-3 Wave, 4 Dot4x4, 5-8 SoftEdgeWipe, 9 CrossFade, 10-17 Slide in, 18-25 Slide out, 26 Dissolve, 27 Mosaic, 28-31 BoxRolling, 32-35 RollFlip, 36 SmoothCrossFade, 37-40 Zoom, 41-44 Scroll, 45-47 MeltDown, 48 TvPowerSwitch); the record is u32 ms, u32 flags (bit 0 hides the windows, bits 0-1 remove the bust-ups; always 0), u32 layer byte \| depth << 8 (the transition's sort key: what it covers). Skipped when skipping or with effects off | screen transition. The 3 `0x76` and 9 `0x77` records with another key cover only the objects sorting below it (History, item 15): in 11 of them that is everything they change, and in `0011.cd` #193 a filter cleared inside a 0.5 s cross-fade goes at once, before it (History, item 20) |
 
-**Opcode audit (2026-10-14).** Every opcode the converter handles was
-read again in the decompiled exe (`ghidra_export.sh`; every handler of
-the dispatch table is named `op_XX` in `names.tsv`) and compared with
-the rows above and the converter:
+**Opcode audit (2026-10-14; per operand since 2026-10-16).** Every
+opcode the converter handles was read again in the decompiled exe
+(`ghidra_export.sh`; every handler of the dispatch table is named
+`op_XX` in `names.tsv`) and compared with the rows above and the
+converter. Fixed then: `0x76` keyed under a layer-0 filter change (the
+change shows at once, `0011.cd` #193); `0x72`/`0x74` fades (were
+waits); `0x39` clears the static; `0x8e` records with every entry's
+mode bit 1 show at once; `0x54` removes the overlay, puts
+`frame01`-`03` up for `sub` 1-3 and starts no fade; `0x66` with a zero
+high half can't be clicked through; `0x5a`/`0x5b` sound effects fade in
+and out.
 
-| Verdict | Opcodes |
-|---|---|
-| Consistent | `0x00`, `0x01`-`0x0e` (all 14 as the converter maps them), `0x10`, `0x11`, `0x15`-`0x1b`, `0x22`, `0x23`, `0x36`-`0x38`, `0x3b`, `0x40`, `0x41`, `0x43`, `0x44`, `0x46`-`0x4a`, `0x4c`-`0x50`, `0x52`, `0x53`, `0x55`, `0x56`, `0x57`-`0x59`, `0x67`-`0x69`, `0x6d`-`0x71`, `0x7a`-`0x7d`, `0x7f`-`0x84`, `0x86`-`0x88`, `0x8a`-`0x8d`, `0x8f`-`0x91`, `0x93`, `0x94`, `0x96`, `0x97`, `0x99`, `0x9d` |
-| Fixed | `0x76` keyed under a layer-0 filter change: the change shows at once (`0011.cd` #193); `0x72`/`0x74` fades (were waits); `0x39` clears the static (seen in the original); `0x8e` records with every entry's mode bit 1 show at once; `0x54` removes the overlay, puts `frame01`-`03` up for `sub` 1-3 and starts no fade; `0x66` with a zero high half can't be clicked through; `0x5a`/`0x5b` sound effects fade in and out (new CONscripter commands `dwavefadein`, `dwavefadeout`) |
+**Operand coverage.** The converter reads every operand through
+`CdScript::sub`, `CdScript::arg` and the pool readers in `cd.rs`, which
+note what was read. The operand records of the opcodes in
+`POOL_RECORDS` (`convert.rs`) lie end to end in instruction order and
+fill the pool, so each record's length is known. After lowering, the
+dry run counts each operand that was given and never read, whatever
+its value (0 included), as "`<opcode>` operand `<which>` ignored":
+`which` is `sub`, `arg`, `+n` (unread record bytes from byte n) or `-n`
+(an unread run ending the record, n bytes before its end: the tail of a
+record of varying length). Each such call is a gap in `metrics.json`.
+Not noted: `sub` 0xffff on the opcodes in `NO_SUB` and `arg` -1 on
+those in `NO_ARG` (`convert.rs`), the compiler's filler: every use of
+those opcodes has it, and their handlers (`op_XX`) never read the
+instruction's +2 or +4. The harmless operands are in
+`UNNEEDED_OPERANDS`, each with the values it covers (a different value
+is noted) and why:
+
+| Opcode | Operand | Values | Why |
+|---|---|---|---|
+| `0x41` | `sub` | 0x13 | every voiced message has a speaker name (bit 0) |
+| `0x40`, `0x41` | `+8` | any | the source line number (`cd messages` prints it) |
+| `0x40`, `0x41` | `-8` | u32 4, u32 0 | after the text of every message |
+| `0x36` | `-4` | any | the label index of the chapter's `\|chpe` label |
+| `0x37`, `0x38` | `+0` | any | its own label number: the label table places it |
+| `0x3b` | `sub`, `+0` | 11, 13; "debug entry", "release entry" | the entry name and its length: only `0x3c` reads it, and no script uses `0x3c` (`op_3b` `0x478650`) |
+| `0x52`, `0x53` | `sub` | 0 | text window 0, the only one (`FUN_00476a80`: `sub` picks the window) |
+| `0x6d` | `-12` | zeros | `op_6d` (`0x442000`) reads only the record's first 8 bytes |
+| `0x76` | `+4` | 0 | the flags (`op_76` `0x449df0`: hide the windows, remove the bust-ups): neither |
+| `0x77` | `-8` | flags 0, sort keys 0x271000, 0x3e800, 0x6403, 3, 0 | the 9 records below the top band change only what they cover (History, item 15) |
+| `0x7a`, `0x7b`, `0x8a`, `0x8b` | `+1`, `-1`, `-4`, `-9`, `+1` | depth 1000 (slot 1, visible) | the one full-screen animation (sprite 59) |
+| `0x83` | `-1` | 6 | the blend, dissolve, which the converter draws |
+| `0x84` | `-1` | 0 | `op_84` (`0x414180`) never reads the last byte |
+| `0x86` | `+5` | 1 | the module slot: one motion per object |
+| `0x86` | `+15` | zeros | the first key frame, which the setup (`0x416fe0`) replaces by the object's state |
+| `0x87` | `+0` | layer 2, any depth, slot 1, 0xff | waits for the motion its object's `0x86` started; ours runs it to its end at `0x86` |
+| `0x8d` | `-1` | 0xff | as in every `0x87` and `0x8a` wait record |
+| `0x88` | `-4` | 0 | a cleared slot's blend and opacity, which `op_88` (`0x415b50`) doesn't use |
+| `0x8e` | the six module names | byte 0 is 0 | an empty module name (leftover memory after it) |
+
+A parsed
+field the converter never used counts as not read: `cd.rs` doesn't
+parse those (ruby flags, edge colours, Filter-Replace's begin angle,
+Zigzag's begin angle and reduction, `0x70`'s depth); link styles and
+message line numbers are read only for `cd messages`, outside the
+tracking.
+
+Per operand or behaviour (counts: instructions; "notes" are the dry
+run's):
+
+| Opcode | Operand or behaviour | State |
+|---|---|---|
+| every opcode the corpus uses, except as below | every operand | converted |
+| `0x40` | `sub` (0x12 in 19,234, 0x13 in 11,724; bit 0 = has a speaker name): 30,958 notes | partial: names are guessed from the text, wrong in 3 messages (item 27) |
+| `0x40` | the extra block after the debug menu's one message (`0001.cd` #1): 1 note | dropped (unreachable) |
+| `0x43` | `arg`: 0 (48) waits for the window's fade-out, 1 (530) doesn't: 578 notes | dropped: both become the same `Op::HideTextWindow` |
+| `0x44` | u16 flags at +6 (3 in 32, 1 in 5): 37 notes | dropped: meaning unknown |
+| `0x46` | u32 style at +6 (0x8007 in 205, 0x8012 in 9): 214 notes | dropped: the 9 style-18 links look like the others |
+| `0x46` | u32 at +14 (0 in all 214), kept by `op_46` (`0x477460`) in the link: 214 notes | dropped: meaning unknown |
+| `0x49` | u32 edge colour at +12 (0xff000000 "keep" in 564, 0x808080 in 1): 565 notes | dropped |
+| `0x4a` | u32 edge colour: 2 notes | dropped |
+| `0x52`, `0x53` | `arg` (odd numbers, 421 and 221 distinct values): 1,117 and 501 notes | dropped: meaning unknown |
+| `0x56` | u32 depth at +2 (0 and 2000): 2 notes | dropped |
+| `0x59` | the old track fading out under the new one | partial: it stops at once (one BGM channel) |
+| `0x6f` | the pulse | converted, not checked against the original |
+| `0x70` | the depth in the second u32 (0 in 254, 1000 in 188, 2000 in 5, 1100 in 4, …): 457 notes | dropped (`screenfilter` has no depth) |
+| `0x70` | the last u32, Filter-Replace's begin angle (1/100 turn; 1 in 16, 0 in 204): 220 notes | dropped: the still ripple starts at phase 0 |
+| `0x70` | Zigzag's begin angle and reduction: 1 note; its Multi blend | dropped; partial (drawn as alpha) |
+| `0x76` | MeltDown's stretch for `sub` 46/47 | converted (scaled from the exe), not compared with the film |
+| `0x7a` | the blog bust-up objects' band and depth (u8 4, u32 2000 at +5): 6 notes | dropped: drawn as the character layer's sprite |
+| `0x7a` | u16, u16 at +14 (0, 0 in the 6 blog records), passed to `FUN_0040f060`: 6 notes | dropped: meaning unknown |
+| `0x82` | layer 1 depth 1 (one use, after `0x56`) | dropped |
+| `0x86` | one byte at the end of one record: 1 note | dropped, not looked into |
+| `0x86` | two zero bytes after the key frames of the 9 slides: 9 notes | dropped, not looked into |
+| `0x88` | the u32 module field at +8 (0 in 41, 1000 in 2, 2000, 2): 45 notes | dropped |
+| `0x8c` | the sort key in the second u32 (depth 1000 in 227, 1100 in 5, 0 in 4, 2000 in 3, 500 once): 240 notes | dropped: the static is always sprite 60, ripples and shakes move the whole screen |
+| `0x8f` | removes the bust-ups only | partial: `csp -1` also removes the fade cover (no script shows the difference) |
+| `0x90` | the u32 module field at +4 (1 in 649, 2 and 0 once): 651 notes | dropped |
+| `0x30`, `0x62` | everything | dropped (the unreachable debug menu) |
 
 Two doc mistakes corrected on the way: `0x8e`'s last 32 bytes are an
 (always empty) module name, not junk; `0x76`'s third u32 is a sort key,
@@ -543,13 +624,12 @@ a copy of the save works.
 
 ### Queue (2026-10-16)
 
-- Open: command coverage per operand, PR #28 (another session). Sent
-  back on 2026-10-16: it skips unread operands of 0 and all-zero pool
-  runs, and its exception table doesn't name the value each entry
-  covers. The rule (the user's, as for nitroplus #30 and mages #24):
-  every operand given and not read, whatever its value (0 included), is
-  a dry-run note, except a short table of harmless ones, each naming
-  the value it covers and why. 0.txt doesn't change.
+- Open: command coverage per operand, PR #85 (supersedes #28): every
+  operand given and not read, whatever its value (0 included), is a
+  dry-run note and a gap in `metrics.json`, except the filler (`NO_SUB`,
+  `NO_ARG`) and the harmless table ("Operand coverage"), each row with
+  the values it covers. 35,825 notes of 21 kinds; 49,328 of 84,713 calls
+  fully converted (was a false 84,711). 0.txt doesn't change.
 - Merged: the exe map's fixes and missed callbacks (#46).
 - Open: `0x59` as a real cross-fade, converter #25 with engine #18 (asked
   for a web-build measurement of the old track's decode first);
@@ -560,7 +640,8 @@ Declared finished on 2026-10-14, then reopened the same day: the 0.19
 debug trace and the decompiled exe (`research/tools/ghidra/ghidra_export.sh`,
 names in `research/xuse/names.tsv`) showed opcodes read wrong from
 `objdump`. All 26 items of that list are done, and so is everything the
-debug trace found ("History", below). Nothing is open.
+debug trace found ("History", below). Open: items 27-45 below, from
+the operand notes.
 
 Converted and playable from start to end: text, voices, sprites with
 colour filters, backgrounds, BGM with loop points, sound effects, movies,
@@ -594,6 +675,62 @@ behaviour, the shortcut menu and gamepad.
   are done; the system voices (WSS, title image 13) are dropped (the
   user's decision; the item stays greyed out). No title BGM (the
   original's title code plays none, as far as was checked).
+
+**Items from the operand notes (2026-10-16).** The dry run counts the
+operands the converter is given and never reads ("Operand coverage"
+under "Script bytecode"); the user made every note an item. Numbered
+after History's 26, most noticeable first (notes = instructions):
+
+27. **Speaker names from `sub` bit 0** (`0x40` `sub`, 30,958 notes).
+    The bit is the name flag, not a voice flag: when the text mode
+    can't show names, `show_message` (`0x475f40`) clears it and logs
+    "現在のテキストモードではネームの表示はできません。ネームを強制解除します。"
+    (`0x4679d0`, named `voice_exists`, checks the text mode). Every
+    0x40 message has id 0, so none has a voice. The converter guesses
+    names instead (a 1-8 character first line before a 「『（ line);
+    the guess agrees with the bit on all 46,578 messages but 3, where it
+    takes a line for a name: `0010.cd` #5832 (象牙の単眼鏡。) and #5839
+    (小皿。), the encyclopedia's item lines, and `0078.cd` #22 (a blank
+    line before 『凶器に関する疑問』). Use the bit; not checked: whether
+    named messages occur in the full-screen modes, where the exe drops
+    the name.
+28. **Link style 18** (`0x46` u32 at +6, 214 notes): 9 links have style
+    0x8012 instead of 0x8007 and look like the others.
+29. **Edge colours** (`0x49` u32 at +12, 565 notes; `0x4a`, 2): one
+    grey (`0x808080`) outline and the two `0x4a` ones are not drawn (564
+    are "keep").
+30. **Screen filter depth** (`0x70`'s second u32, 457 notes: 0 in 254,
+    1000 in 188, 2000 in 5, 1100 in 4, …): where the filter sorts against the
+    bust-ups and overlays; `screenfilter` has no depth.
+31. **Effect depth** (`0x8c`'s second u32, 240 notes: 1000 in 227, 1100
+    in 5, 0 in 4, 2000 in 3, 500 once): the same for the static, ripples and shakes.
+32. **Window hide without waiting** (`0x43` `arg`, 578 notes: 1 in 530,
+    0 in 48): with 1 the original doesn't wait for the window's
+    fade-out; ours treats 0 and 1 alike.
+33. **Ruby flags** (`0x44` u16 at +6, 37 notes: 3 in 32, 1 in 5):
+    meaning unknown.
+34. **`0x52`/`0x53` `arg`** (1,117 + 501 notes, odd numbers, 421 and
+    221 distinct values): meaning unknown.
+35. **`0x90` module field** (u32 at +4, 651 notes): 1 except 2 and 0
+    once each.
+36. **`0x88` module field** (u32 at +8, 45 notes: 0 in 41, 1000 twice,
+    2000, 2).
+37. **Blog bust-up band and depth** (`0x7a` u8 4, u32 2000 at +5, 6
+    notes): drawn as the character layer's sprite.
+38. **Filter-Replace's begin angle** (`0x70`'s last u32, 220 notes: 1
+    in 16, 0 in 204): the still ripple starts at phase 0.
+39. **Zigzag's begin angle and reduction** (`0x70`, 1 note).
+40. **`0x56` fill depth** (u32 at +2, 2 notes: 0 and 2000).
+41. **One `0x86` byte** at the end of one record (1 note), not looked
+    into.
+42. **The debug menu's message block** (`0001.cd` #1, 1 note): in the
+    debug menu, which the user didn't want.
+43. **`0x46`'s last u32** (+14, 0 in all 214 links, 214 notes): `op_46`
+    (`0x477460`) keeps it in the link; meaning unknown.
+44. **`0x7a` u16, u16 at +14** (0, 0 in the 6 blog records, 6 notes):
+    passed to `FUN_0040f060`; meaning unknown.
+45. **`0x86`'s last two bytes** (0 after the key frames of the 9 slides,
+    9 notes): not looked into.
 
 **Script opcodes:** all converted (the converter reports 2 unsupported
 instructions, both in the unreachable debug menu). Notes on the last
@@ -633,8 +770,8 @@ save and load in play only (mode 0), none in a scene replay (1). Mode 2,
 an ExtraMode script with save and load, is unreachable in this release
 (its script field is only ever set to -1). Coverage: all 82 opcodes the corpus uses
 (`cd opstats`, 84,713 instructions) are converted and agree with their
-handlers (audit table above); the dry run reports only `0x30`/`0x62`
-(debug menu). Lip sync (`VoiceSyncParts`, `lq.arc`) and animation parts
+handlers (audit table above); the dry run reports `0x30`/`0x62`
+(debug menu) as unsupported, plus the operand notes above. Lip sync (`VoiceSyncParts`, `lq.arc`) and animation parts
 are in the exe but unused here (no `lq.arc`; `0x8e`'s module names are
 empty). Gaps found, where the exe and the converter differ:
 - `0x49`'s edge colour (1 of 565 records, `0x808080`) and `0x4a`'s (2)

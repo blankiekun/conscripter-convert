@@ -1,6 +1,7 @@
 //! 最果てのイマ's whole build: every script in `HD/CDFiles`, the assets
 //! they use, the menus.
 
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
 
@@ -9,7 +10,7 @@ use conv_core::ir::Script;
 use memmap2::Mmap;
 
 use super::cd::CdScript;
-use super::convert::{AssetBank, Flow, LabelNames, Needs, lower_script, presets};
+use super::convert::{AssetBank, Flow, LabelNames, Needs, ignored_operands, lower_script, presets};
 use super::symbols::{self, SymbolTable};
 use crate::build::{Built, Opts, map};
 
@@ -82,11 +83,16 @@ pub fn build(game: &Path, linear: bool, opts: &Opts) -> Result<Built> {
     let names = label_names(game)?;
     let mut ops = Vec::new();
     let mut metrics = crate::metrics::Metrics::default();
+    let mut notes = BTreeMap::new();
     for (file, cd) in &scripts {
         let lowered = lower_script(cd, file, flow, &mut assets, &presets, &names).with_context(|| format!("converting {file}"))?;
         // Each instruction is a call; its gaps are the unsupported ops it
         // lowered to (their record bytes left out of the reason).
         let mut gaps: std::collections::HashMap<usize, Vec<String>> = Default::default();
+        for (index, note) in ignored_operands(cd) {
+            *notes.entry(note.clone()).or_default() += 1;
+            gaps.entry(index).or_default().push(note);
+        }
         for op in &lowered {
             if let conv_core::ir::Op::Unsupported { what, at } = op {
                 gaps.entry(at.index).or_default().push(what.split(" [").next().unwrap_or(what).to_string());
@@ -126,7 +132,7 @@ pub fn build(game: &Path, linear: bool, opts: &Opts) -> Result<Built> {
         ops,
         ..Default::default()
     };
-    Ok(Built { ir, notes: Default::default(), metrics, engine: "xuse", picture_dirs: PICTURE_DIRS, audio_dirs: AUDIO_DIRS, package: None })
+    Ok(Built { ir, notes, metrics, engine: "xuse", picture_dirs: PICTURE_DIRS, audio_dirs: AUDIO_DIRS, package: None })
 }
 
 pub fn parse_cd<'a>(path: &Path, bytes: &'a [u8]) -> Result<CdScript<'a>> {
