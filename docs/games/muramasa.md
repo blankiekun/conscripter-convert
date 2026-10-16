@@ -543,6 +543,12 @@ Used to check what the engine does (`docs/new-game.md` step 9).
   among them, `CreateText`'s box height is read (#52) and `SetVertex`
   for every picture (#61, "History", "`SetVertex`"). Tempo waits for
   engine #2 and converter #13 (the curves are in item 5).
+- Changed by the Muramasa EN agent (#60, shared NSS code): choice
+  options set in runtime branches are picked at run time
+  (mc02_031innsyoku lists the items held; md05_004 offers 別れる with a
+  companion): `Op::RuntimeChoice`, `$3632` up, choice-only flags at
+  %783-%798. Their line-log entry (`『…』`, `【…】`) is empty until a
+  follow-up PR.
 - Known limits: a window that moves (`絵演窓上`, `窓右`, about 56 `Move`s)
   has its clip jump to the end place when the move starts. Sprite movies
   (scene cuts, the turntables) don't play in CONscripter for Windows,

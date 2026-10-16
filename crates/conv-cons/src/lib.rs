@@ -169,6 +169,12 @@ const LINK_VISITED_BASE: u32 = 2000;
 const SCENE_UNLOCKED_BASE: u32 = 3000;
 /// Global flags: progress flag n ([`Op::Progress`]) is set.
 const PROGRESS_BASE: u32 = 3600;
+/// Option n of an [`Op::RuntimeChoice`] whose text is known only at run
+/// time: its text in `$` n + this, its x on a plate in `%` n + this.
+const RUNTIME_OPTION_BASE: u32 = 3632;
+/// How many options of a choice can be runtime ones (alloc.rs reserves
+/// 3632-3637; NSS choices have six at most, `SetChoice06`).
+const RUNTIME_OPTIONS: usize = 6;
 /// Link scenes nest at most this deep: inside the deepest, link words
 /// aren't buttons. The original has no limit, but link scenes that link to
 /// each other (the encyclopedia) would nest without end, and each level
@@ -225,7 +231,7 @@ pub fn emit(script: &Script) -> String {
     let picture_screens = 0;
     let has_vertical = script.window.iter().chain(script.ops.iter().filter_map(|op| match op {
         Op::SetWindow(w) => Some(w),
-        Op::Choice { style: Some(s), .. } => Some(&s.window),
+        Op::Choice { style: Some(s), .. } | Op::RuntimeChoice { style: Some(s), .. } => Some(&s.window),
         _ => None,
     }))
     .any(|w| w.vertical);
@@ -1445,6 +1451,25 @@ mod tests {
             assert!(text.contains(part), "missing {part:?} in\n{text}");
         }
         assert!(!text.contains("select "));
+    }
+
+    #[test]
+    fn a_runtime_choice_sets_its_option_texts_from_a_variable() {
+        let var = Var { global: false, index: 5 };
+        let rt = conv_core::ir::RuntimeText { var, texts: vec![(1, "頼む".into()), (2, "Leave".into())] };
+        let options = vec![("見る".to_string(), "a".to_string()), ("頼む".to_string(), "b".to_string())];
+        let text = emit(&script(vec![Op::RuntimeChoice { options: options.clone(), texts: vec![None, Some(rt.clone())], style: None }]));
+        for part in ["mov $3633,\"頼む\"", "if %15 == 2 mov $3633,\"　Leave\"", "select \"見る\",*a,$3633,*b"] {
+            assert!(text.contains(part), "missing {part:?} in\n{text}");
+        }
+        // On plates: the text and its centred x, set together.
+        let window = TextWindow { wait_icon_at: None, image: "system/w.png".into(), x: 0, y: 0, text_x: 0, text_y: 0, columns: 10, rows: 2, font_size: 22, line_gap: 0, vertical: false, name_plate: None };
+        let plates = conv_core::ir::ChoicePlates { image: "system/plate.png".into(), x: 138, y: 244, step: 68, text_x: 388, text_dy: 18, font_size: 22, colour: "#FFFFFF".into(), fade_ms: 300, shot: None };
+        let style = Some(ChoiceStyle { window, on_color: 0, off_color: 0, plates: Some(plates) });
+        let text = emit(&script(vec![Op::RuntimeChoice { options, texts: vec![None, Some(rt)], style }]));
+        for part in ["if %15 == 2 mov $3633,\"Leave\":mov %3633,361", "strsp 53,$3633,%3633,330,6,"] {
+            assert!(text.contains(part), "missing {part:?} in\n{text}");
+        }
     }
 
     #[test]

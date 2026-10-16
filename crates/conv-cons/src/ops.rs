@@ -791,7 +791,13 @@ impl<'a> Emitter<'a> {
         Op::CgSeen { number } => writeln!(out, "mov %{},1", CG_SEEN_BASE + number).unwrap(),
         Op::SceneEnd if has_replay => writeln!(out, "if {} == 1 goto *{}", replay::REPLAYING, replay::END).unwrap(),
         Op::SceneEnd => writeln!(out, "; scene end").unwrap(),
-        Op::Choice { options, style } => {
+        op @ (Op::Choice { .. } | Op::RuntimeChoice { .. }) => {
+            let (options, texts, style) = match op {
+                Op::Choice { options, style } => (options, &[][..], style),
+                Op::RuntimeChoice { options, texts, style } => (options, &texts[..], style),
+                _ => unreachable!(),
+            };
+            assert!(texts.len() <= crate::RUNTIME_OPTIONS, "a choice with more than {} options set at run time", crate::RUNTIME_OPTIONS);
             let plates = style.as_ref().and_then(|s| s.plates.as_ref());
             if let Some(s) = style.as_ref().filter(|_| plates.is_none()) {
                 writeln!(out, "selectcolor \"#{:06X}\",\"#{:06X}\"", s.on_color, s.off_color).unwrap();
@@ -806,10 +812,23 @@ impl<'a> Emitter<'a> {
                 writeln!(out, "savegame {}", menu::BACK_SLOT).unwrap();
             }
             if let Some(p) = plates {
-                choice_plates::emit(out, options, p, *plate_choices, script.button_bar.is_some());
+                choice_plates::emit(out, options, texts, p, *plate_choices, script.button_bar.is_some(), border);
                 *plate_choices += 1;
             } else {
-                let items: Vec<String> = options.iter().map(|(t, l)| format!("\"{}\",*{}", text_safe(t), label(l))).collect();
+                let mut items = Vec::new();
+                for (i, (t, l)) in options.iter().enumerate() {
+                    match texts.get(i).and_then(Option::as_ref) {
+                        Some(rt) => {
+                            let s = format!("${}", crate::RUNTIME_OPTION_BASE + i as u32);
+                            writeln!(out, "mov {s},\"{}\"", text_safe(t)).unwrap();
+                            for (value, text) in &rt.texts {
+                                writeln!(out, "if {} == {value} mov {s},\"{}\"", var_name(rt.var, border), text_safe(text)).unwrap();
+                            }
+                            items.push(format!("{s},*{}", label(l)));
+                        }
+                        None => items.push(format!("\"{}\",*{}", text_safe(t), label(l))),
+                    }
+                }
                 writeln!(out, "select {}", items.join(",")).unwrap();
             }
         }
