@@ -340,6 +340,13 @@ anything is reached (step 11.6).
 
 ## 9. Matching the original
 
+- **Read before you film.** Most questions about what the original does
+  are answered faster from its code than from frames: the script
+  commands' arguments, the decompiled function behind them (curves,
+  times, alpha, coordinates), the format. Check our side with numbers
+  first (the dry run's `0.txt`, a trace, `compare -metric`). Run the
+  original under wine only for what that leaves open, and reuse shots
+  in `research/<engine>/local/shots/` before filming new ones.
 - **Reach the moment by patching, not by clicking.** To see a page,
   effect or menu in the original, in this order of preference:
   1. **Patch the game's scripts** in a copy: skip the logos and title,

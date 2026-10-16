@@ -82,6 +82,13 @@ not in the repo.
   every game), never the user's desktop. Reach a moment by patching
   scripts or saves before clicking through (`docs/new-game.md` step 9).
   Stop wine and Xvfb when done.
+- Wine is the last resort (the user, 2026-10-16: it takes long and costs
+  many tokens). Work out what the original does from its code first:
+  the scripts, the decompile (`research/tools/ghidra`), the formats.
+  Then check ours with numbers (the dry run's `0.txt`, the keys and
+  times it emits, trace records, `compare -metric`). Start wine only
+  when that leaves a real doubt that a frame can settle, say so in your
+  report, and film the fewest frames that answer it.
 
 ## Working beside other agents
 
@@ -208,7 +215,9 @@ on each later turn; several agents run at once.
   and Read it again.
 - **Logic checks use the dry run** (`--dry-run`, script only, seconds);
   the full build re-renders every asset.
-- **Film the original once per screen** and keep the shots in
+- **Code before wine**: the decompile and the dry run answer most
+  questions (Rules, "Wine is the last resort"). When you do film the
+  original, film it once per screen and keep the shots in
   `research/<engine>/local/shots/` (git-ignored) with a name that says
   what they show; reuse them before starting wine again.
 - **Batch** independent commands into one call; keep replies short, no
