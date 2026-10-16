@@ -60,7 +60,7 @@ impl Compiler<'_, '_> {
                         y = sy + (cy - sy) * k / 1000 - o.h / 2;
                         zoom = (zoom.0 * k / 1000, zoom.1 * k / 1000);
                     }
-                    let shown = Shown { layer: 0, image: image.clone(), x, y, w: o.w, h: o.h, opacity, cells: None, source: String::new(), zoom: (1000, 1000), angle: o.angle(), clip: None, engine: Engine::default(), flash: 0, blend: o.blend };
+                    let shown = Shown { layer: 0, image: image.clone(), x, y, w: o.w, h: o.h, opacity, cells: None, source: String::new(), zoom: (1000, 1000), angle: o.angle(), clip: None, engine: Engine::default(), flash: 0, blend: o.blend, tint: None };
                     Some((n.clone(), shown, (o.priority, o.seq), zoom, (o.w, o.h), o.mirror()))
                 }
                 _ => None,
@@ -98,7 +98,7 @@ impl Compiler<'_, '_> {
             // One cell: a movie file loops with no time a cell (`:c/1,0,0;`).
             let looped = at.is_none() && m.looped;
             let frame_ms = if at.is_none() { 0 } else { 1000 / MOVIE_FPS };
-            let shown = Shown { layer: 0, image, x, y, w: cw as i64, h: ch as i64, opacity: o.opacity, cells: Some((1, looped, zoom, frame_ms)), source: String::new(), zoom: (1000, 1000), angle: 0, clip: None, engine: Engine::default(), flash: 0, blend: o.blend };
+            let shown = Shown { layer: 0, image, x, y, w: cw as i64, h: ch as i64, opacity: o.opacity, cells: Some((1, looped, zoom, frame_ms)), source: String::new(), zoom: (1000, 1000), angle: 0, clip: None, engine: Engine::default(), flash: 0, blend: o.blend, tint: None };
             // (Turned over as a picture is: the frame, or the movie file.)
             want.push((n, shown, (o.priority, o.seq), (1000, 1000), (o.w, o.h), o.mirror()));
         }
@@ -108,7 +108,7 @@ impl Compiler<'_, '_> {
                 && !o.hideable
             {
                 let cells = Some((s.cells, false, s.zoom, s.frame_ms));
-                let shown = Shown { layer: 0, image: s.image.clone(), x: o.x, y: o.y, w: s.w, h: s.h, opacity: o.opacity, cells, source: String::new(), zoom: (1000, 1000), angle: 0, clip: None, engine: Engine::default(), flash: 0, blend: o.blend };
+                let shown = Shown { layer: 0, image: s.image.clone(), x: o.x, y: o.y, w: s.w, h: s.h, opacity: o.opacity, cells, source: String::new(), zoom: (1000, 1000), angle: 0, clip: None, engine: Engine::default(), flash: 0, blend: o.blend, tint: None };
                 want.push((n.clone(), shown, (o.priority, o.seq), (1000, 1000), (s.w, s.h), (false, false)));
             }
         }
@@ -117,7 +117,7 @@ impl Compiler<'_, '_> {
                 && o.opacity > 0
                 && !o.hideable
             {
-                let shown = Shown { layer: 0, image: f.image.clone(), x: o.x, y: o.y, w: o.w, h: o.h, opacity: 1000, cells: None, source: String::new(), zoom: (1000, 1000), angle: 0, clip: None, engine: Engine::default(), flash: o.seq, blend: BLEND_NORMAL };
+                let shown = Shown { layer: 0, image: f.image.clone(), x: o.x, y: o.y, w: o.w, h: o.h, opacity: 1000, cells: None, source: String::new(), zoom: (1000, 1000), angle: 0, clip: None, engine: Engine::default(), flash: o.seq, blend: BLEND_NORMAL, tint: None };
                 want.push((n.clone(), shown, (o.priority, o.seq), (1000, 1000), (o.w, o.h), (false, false)));
             }
         }
@@ -146,6 +146,21 @@ impl Compiler<'_, '_> {
                 (n, shown, key)
             })
             .collect();
+        // The topmost tint shown: the pictures below it drawn through it.
+        let tint = self
+            .objects
+            .values()
+            .filter(|o| o.opacity > 0 && !o.hideable)
+            .filter_map(|o| match &o.kind {
+                Kind::Tint(fs) => Some(((o.priority, o.seq), fs.iter().map(|f| SpriteFilter { strength: Operand::Const((o.opacity.min(1000) * 256 / 1000) as i32), ..*f }).collect::<Vec<_>>())),
+                _ => None,
+            })
+            .max_by_key(|t| t.0);
+        if let Some((above, f)) = tint {
+            for w in want.iter_mut().filter(|w| w.2 < above) {
+                w.1.tint = Some(f.clone());
+            }
+        }
         want.sort_by_key(|w| std::cmp::Reverse(w.2));
         // Pictures under an opaque one that fills the screen (an old
         // background left up under a new one) aren't drawn.
@@ -205,7 +220,8 @@ impl Compiler<'_, '_> {
         for ((name, now, _), layer) in want.iter().zip(&layers) {
             let (Some(layer), Some(old), Some(&t)) = (*layer, self.shown.get(name), timed.get(name)) else { continue };
             let now = Shown { layer, ..now.clone() };
-            if t == 0 || *old == (Shown { engine: old.engine, ..now.clone() }) {
+            // (Only tinted anew: spfilter below, no motion.)
+            if t == 0 || *old == (Shown { engine: old.engine, tint: old.tint.clone(), ..now.clone() }) {
                 continue;
             }
             match motion(old, &now, t) {
@@ -227,6 +243,10 @@ impl Compiler<'_, '_> {
                         self.ops.push(Op::MoveEase { ease, exponent });
                     }
                     self.ops.push(op);
+                    // (Tinted anew as it moves: spfilter keeps the motion.)
+                    if old.tint != now.tint {
+                        opacity.push(Op::SpriteFilters { layer, filters: now.tint.clone().unwrap_or_default() });
+                    }
                     self.shown.insert(name.clone(), Shown { engine, ..now });
                     moving.push(name.clone());
                 }
@@ -253,6 +273,9 @@ impl Compiler<'_, '_> {
                 Some(old) if *old == Shown { engine: old.engine, ..now.clone() } => continue,
                 Some(old) if old.layer == now.layer && old.image == now.image && old.x == now.x && old.y == now.y && old.cells == now.cells && old.flash == now.flash && old.angle == now.angle && old.clip == now.clip => {
                     now.engine = old.engine;
+                    if old.tint != now.tint {
+                        opacity.push(Op::SpriteFilters { layer, filters: now.tint.clone().unwrap_or_default() });
+                    }
                     if old.blend != now.blend {
                         opacity.push(Op::SpriteBlend { layer, mode: now.blend });
                     }
@@ -303,6 +326,9 @@ impl Compiler<'_, '_> {
                     // spblend stays through lsp: cleared with the layer.
                     if now.blend != BLEND_NORMAL {
                         opacity.push(Op::SpriteBlend { layer, mode: now.blend });
+                    }
+                    if let Some(f) = &now.tint {
+                        opacity.push(Op::SpriteFilters { layer, filters: f.clone() });
                     }
                     // spclip stays through lsp too.
                     if let Some((x, y, w, h)) = now.clip {

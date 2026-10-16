@@ -353,7 +353,7 @@ with the original (it wants all eleven endings' flags under wine).
   or change picture as one `spmotion` with alpha; `Rotate` over time (343).
 - `spgrab` (engine #32, merged) could draw the moves that fade (the 60
   above) as a copy fading out over the moved picture: not used yet.
-- The unread-argument notes (#30) are sorted into Next, item 6: easing
+- The unread-argument notes (#30) are sorted into Next, item 5: easing
   first.
 - `RemainTime` on a sound returns its whole length, not the rest
   (`sound_left` has it); right after the start, where most calls are,
@@ -366,7 +366,7 @@ with the original (it wants all eleven endings' flags under wine).
 | Script parsing | ✅ All 249 files; 56 places that don't parse, none in the story |
 | Story control flow (56 chapters, 10 choices, bad ends) | ✅ Compiled whole (`compile_story`); in the engine the good path plays to the end (6,496 pages) and each wrong answer ends the story with its own bad end, then the game goes back to the title (`research/nitroplus/django_routes.sh`, which stops each run there, 2026-10-15) |
 | Text | 🟡 In the boxes' places (box00: 39 columns at 50,472, white on the black bar; five rows, as many as end inside the 130 px box); 3,424 voiced lines; `box00`, `box01` (x 250) and `box02` (x 390) start within 1 px of the original's under wine (`box03`-`box05` are never used) |
-| Pictures, sound in scripts | 🟡 Black bars, face windows in their frames, standing pictures, backgrounds; pictures turned over (`Rotate` by 180°, 315 calls: characters facing the other way; 12 movies) drawn mirrored (dja004's choice now as the original's); children of a picture moved over time (a face in its frame) move with it; cameras (`CreateCamera`, `MoveCamera`, 365 calls): a camera's child of priority p drawn about the screen's centre at (its place − the camera's) × z / (1000 − p), as large, z the camera's zoom (priority is depth: measured under wine with boxes at four priorities and six camera settings, and dja001's carriage scene then matched the original's frames); moves, zooms and camera moves over time (1,765) as real motion: the engine moves the picture (`spmotion2`, keeping its last place) while the script goes on, also through the cross-fade of what else changes; 60 that also fade or change picture are still cross-fades; a picture under an opaque full-screen one isn't drawn (old backgrounds the script leaves up under `窓`); the 400-vs-3 battle's muzzle flashes (`GunFire`) as a white sprite added on (`spblend`), flashing its number of times while the text goes on (`spalpha` keys), and its strobe the same way until deleted; the looping shakes (`ShakeVLoop*`) as the background's looped `spmotion`, and dja001's opening slideshow (`MoveBlackHawk`: the pictures fading and sliding in turn) as looped motions (`convert/loops.rs`, shared with 装甲悪鬼村正); every sound is found |
+| Pictures, sound in scripts | 🟡 Black bars, face windows in their frames, standing pictures, backgrounds; pictures turned over (`Rotate` by 180°, 315 calls: characters facing the other way; 12 movies) drawn mirrored (dja004's choice now as the original's); children of a picture moved over time (a face in its frame) move with it; `CreateEffect` Sepia (dja038_03) tints the pictures below it (`spfilter`); cameras (`CreateCamera`, `MoveCamera`, 365 calls): a camera's child of priority p drawn about the screen's centre at (its place − the camera's) × z / (1000 − p), as large, z the camera's zoom (priority is depth: measured under wine with boxes at four priorities and six camera settings, and dja001's carriage scene then matched the original's frames); moves, zooms and camera moves over time (1,765) as real motion: the engine moves the picture (`spmotion2`, keeping its last place) while the script goes on, also through the cross-fade of what else changes; 60 that also fade or change picture are still cross-fades; a picture under an opaque full-screen one isn't drawn (old backgrounds the script leaves up under `窓`); the 400-vs-3 battle's muzzle flashes (`GunFire`) as a white sprite added on (`spblend`), flashing its number of times while the text goes on (`spalpha` keys), and its strobe the same way until deleted; the looping shakes (`ShakeVLoop*`) as the background's looped `spmotion`, and dja001's opening slideshow (`MoveBlackHawk`: the pictures fading and sliding in turn) as looped motions (`convert/loops.rs`, shared with 装甲悪鬼村正); every sound is found |
 | Choices | ✅ Plates as picture buttons, text placed as the original's (compared under wine) |
 | System screens | 🟡 From the game's pictures (`django/screens.rs`): title, right-click menu, save/load (3×20 slots), yes/no questions, text log, settings (bullet rows as `SliderSteps`), the click-wait bullet after the last character (`getcursorpos` in the bar's wait routine); compared under wine: right-click menu, save, log, settings (text speed starts at level 5 as the original's; the two SAVE-DATA question rows drawn as they stand, ON chosen; the display options and version panel left out on purpose) |
 | Extras | 🟡 Menu, CG library, sound library, recollection, each compared with the original; left out: the doors' animation, the rifle over a category |
@@ -378,14 +378,11 @@ with the original (it wants all eleven endings' flags under wine).
 1. The trace checker's remaining findings: "sounds on two channels at
    once" are the script's own (the same shot or horse on two sound
    objects, started 500 ms apart) and stay.
-2. The rest of the "not converted" list, by what shows most:
-   dja001's Black Hawk pan, then additive flashes, sepia.
-3. The 60 moves and zooms that also fade or change picture (still
+2. The 60 moves and zooms that also fade or change picture (still
    cross-fades), and `Rotate` over time (343, drawn at once).
-4. Extras: the doors' animation and the menu's own music (left out).
-5. From the exe's coverage table ("The exe"): `SetShade HEAVY` (one use; sepia is
-   item 2's).
-6. The unread-argument notes (`<Builtin> argument <i> ignored`;
+3. Extras: the doors' animation and the menu's own music (left out).
+4. From the exe's coverage table ("The exe"): `SetShade HEAVY` (one use).
+5. The unread-argument notes (`<Builtin> argument <i> ignored`;
    dry run 2026-10-16: 33 kinds, 18,947 notes, fewer than #30's 39 and
    21,859 since later PRs read more), most visible first; counts are
    compiled occurrences, what the original does is from the scripts and
@@ -397,8 +394,8 @@ with the original (it wants all eleven endings' flags under wine).
       shake would settle it.
    4. **`Fade` 3, tempo** (77 non-`null`, mostly `DxlAuto`/`AxlDxl`): an
       eased fade; ours linear. Hard to see.
-   5. **`Rotate` 5, tempo** (264): moot until `Rotate` over time (item 3)
-      is converted, then as item 6.1.
+   5. **`Rotate` 5, tempo** (264): moot until `Rotate` over time (item 2)
+      is converted, then as item 5.1.
    6. **`CreateWindow` 6** (975): `true` on every story window (the
       boxes, `中窓`, `移動窓`), `false` on the full-screen `窓`, the 0×0
       `音`, the system `WND` and the battle's `カウンタ窓`. Not the clip:
@@ -421,14 +418,30 @@ with the original (it wants all eleven endings' flags under wine).
        `CreateText` 5 (13, `Auto` height: dja026's song lines and the
        ending's two texts); `MoveCamera` 1 and 6 (15 each, a camera with
        no children yet: nothing moves); `CreateEffect` 2-5 (1, the
-       `Sepia` effect, not converted itself: item 2).
+       `Sepia` effect, drawn over the whole screen).
 
-7. Sounds kept until their end (shared NSS code, `convert/sounds.rs`):
+6. Sounds kept until their end (shared NSS code, `convert/sounds.rs`):
    1. **Time across runtime branches**: the sound clock adds up the ops
       of both branches of a runtime `if`/`else`, so a sound started
       before one may be taken as ended too soon. Fine as is.
 
 ## History
+
+- **Sepia, and the rest of the "not converted" list (2026-10-16,
+  shared NSS code).** The list's first two entries were already done:
+  dja001's Black Hawk pan (`MoveBlackHawk`) is a looped motion since
+  #105, the additive flashes `spblend` since #99. Its last, dja038_03's
+  `CreateEffect("効果2K", 2000, …, "Sepia")`, is now `Kind::Tint`: while
+  the effect shows, every picture below its priority gets `spfilter`
+  greyscale and then a multiply by cream (255,235,195), its strength the
+  effect's opacity; the black bars (10000) above it stay black.
+  `Monochrome` (greyscale) and `NegaPosi` (negative) the same way
+  (装甲悪鬼村正's 13 and 4; `KitanoBlue`, Rain, Drop, Lens still noted).
+  The exe's sepia code (`parse_effect_name` → 0x425a10) is encrypted on
+  disk, so the tone is ours: black stays black, grey 132 becomes
+  (132,121,100) (headless test script). A change of tint alone is an
+  `spfilter` on the layer (the engine filters the loaded picture again),
+  no new `lsp`; a moving picture keeps its motion.
 
 - **A face slides with its frame; a movie turned over plays mirrored
   (2026-10-16).** `WindowMoveM` moves only the frame (`frame04` in

@@ -38,7 +38,7 @@
 
 use std::collections::{BTreeMap, HashMap};
 
-use conv_core::ir::{ArithOp, BLEND_ADD, BLEND_MULTIPLY, BLEND_NORMAL, BLEND_SUBTRACT, ChoiceStyle, CLICK_WAIT_MARK, MotionEnd, MotionKey, Op, Operand, ScreenEffect, Ruby, Script, TextStyle, SpriteChange, SpritePlacement, TextWindow, TransitionStyle, Voice};
+use conv_core::ir::{ArithOp, SpriteFilter, BLEND_ADD, BLEND_MULTIPLY, BLEND_NORMAL, BLEND_SUBTRACT, ChoiceStyle, CLICK_WAIT_MARK, MotionEnd, MotionKey, Op, Operand, ScreenEffect, Ruby, Script, TextStyle, SpriteChange, SpritePlacement, TextWindow, TransitionStyle, Voice};
 
 use super::nss::{AssignOp, BinaryOp, Expr, Function, Inline, Item, NssFile, Param, Stmt, StmtKind, Target, Text, UnaryOp};
 
@@ -980,6 +980,9 @@ enum Kind<'a> {
     Image { image: String },
     /// `CreateEffect("Plain")`: the screen frozen as it was.
     Cover,
+    /// `CreateEffect("Sepia")` and the like: the pictures below its
+    /// priority drawn through the filters (strength: its opacity).
+    Tint(Vec<SpriteFilter>),
     Text(TextObject<'a>),
     Sound(SoundObject),
     Movie(MovieObject),
@@ -1277,6 +1280,8 @@ struct Shown {
     flash: u64,
     /// How it is drawn on what is under it ([`Op::SpriteBlend`]).
     blend: u8,
+    /// Drawn through a [`Kind::Tint`] above it ([`Op::SpriteFilters`]).
+    tint: Option<Vec<SpriteFilter>>,
 }
 
 /// What the engine's motions did to a [`Shown`] picture.
@@ -3886,6 +3891,29 @@ scene a.nss
         // The movie's 2 s count as waited: 500 ms are left.
         assert!(c.ops.iter().any(|op| matches!(op, Op::Wait { ms: 500 })), "{:?}", c.ops);
         assert!(!c.ops.iter().any(|op| matches!(op, Op::Wait { ms } if *ms > 500)), "{:?}", c.ops);
+    }
+
+    #[test]
+    fn a_sepia_effect_tints_the_pictures_below_it() {
+        // dja038_03: `CreateEffect(…, "Sepia")` at 2000, faded in at once.
+        let story = r#"
+scene a.nss
+{
+	CreateTexture("bg", 100, 0, 0, "cg/bg/a.png");
+	CreateTexture("bar", 10000, 0, 0, "cg/bg/b.png");
+	Wait(100);
+	CreateEffect("効果", 2000, 0, 0, 800, 600, "Sepia");
+	Fade("効果", 0, 1000, null, true);
+	Wait(100);
+}
+"#;
+        let c = compile(story, LIBRARY);
+        let tinted: Vec<u32> = c.ops.iter().filter_map(|op| match op {
+            Op::SpriteFilters { layer, filters } if filters.iter().any(|f| f.kind == Operand::Const(conv_core::ir::FILTER_GREYSCALE)) => Some(*layer),
+            _ => None,
+        }).collect();
+        assert_eq!(tinted.len(), 1, "{:?}", c.ops);
+        assert!(!c.notes.keys().any(|n| n.starts_with("CreateEffect Sepia")), "{:?}", c.notes);
     }
 
     #[test]

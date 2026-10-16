@@ -85,11 +85,21 @@ impl Compiler<'_, '_> {
             }
             "CreateEffect" => {
                 let name = self.object_name(&arg(0));
-                let kind = if arg(6).string().eq_ignore_ascii_case("plain") {
-                    Kind::Cover
-                } else {
-                    self.note(format!("CreateEffect {}", arg(6).string()));
-                    Kind::Other
+                use conv_core::ir::{FILTER_BLEND_COPY, FILTER_BLEND_MULTIPLY, FILTER_COLOUR, FILTER_GREYSCALE, FILTER_NEGATIVE};
+                let filter = |kind, blend, params: [i32; 3]| SpriteFilter { kind: Operand::Const(kind), blend: Operand::Const(blend), strength: Operand::Const(256), params: params.map(Operand::Const) };
+                let grey = filter(FILTER_GREYSCALE, FILTER_BLEND_COPY, [0; 3]);
+                let kind = match arg(6).string().to_ascii_lowercase().as_str() {
+                    "plain" => Kind::Cover,
+                    // shortcut: the exe's sepia code is encrypted on disk, so this
+                    // tone (grey times cream, black kept) is ours; set it from a
+                    // frame of the original if it looks off.
+                    "sepia" => Kind::Tint(vec![grey, filter(FILTER_COLOUR, FILTER_BLEND_MULTIPLY, [255, 235, 195])]),
+                    "monochrome" => Kind::Tint(vec![grey]),
+                    "negaposi" => Kind::Tint(vec![filter(FILTER_NEGATIVE, FILTER_BLEND_COPY, [0; 3])]),
+                    _ => {
+                        self.note(format!("CreateEffect {}", arg(6).string()));
+                        Kind::Other
+                    }
                 };
                 self.create(name, kind, arg(1).int(), screen_w, screen_h);
             }
