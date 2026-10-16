@@ -27,6 +27,27 @@ pub(crate) fn alpha_loop(times: u32) -> i64 {
     }
 }
 
+/// Moves sprite `slot`'s centre to (`x`, `y`) over `ms`, zooming it from
+/// `zoom.0` to `zoom.1` percent (spzoom) when given, along `curve` (0
+/// straight, or an `spcurve` id), with one `spmotion` that keeps its last
+/// key, and waits for it: the engine steps it every frame. A looping
+/// motion the sprite had ends. Uses %1-%4.
+pub(crate) fn move_to(out: &mut String, slot: u32, x: i32, y: i32, ms: u32, zoom: Option<(u32, u32)>, curve: u32) {
+    let (from, to) = match zoom {
+        Some((from, to)) if from > 0 => {
+            write!(out, "spzoom {slot},{from}:").unwrap();
+            (100, to * 100 / from)
+        }
+        Some((_, to)) => {
+            write!(out, "spzoom {slot},{to}:").unwrap();
+            (100, 100)
+        }
+        None => (100, 100),
+    };
+    writeln!(out, "getspsize {slot},%1,%2:getsppos {slot},%3,%4").unwrap();
+    writeln!(out, "spmotion {slot},2,0,0,0,{from},{from},0,256,0,{ms},{x}-%1/2-%3,{y}-%2/2-%4,{to},{to},0,256,{curve}:spmotionwait {slot}").unwrap();
+}
+
 /// Writes a motion of layer `layer` (no keys: stops it).
 pub(crate) fn emit(out: &mut String, layer: u32, keys: &[(u32, i32, i32)], looped: bool) {
     let slot = SPRITE_BASE + layer;
@@ -68,6 +89,17 @@ mod tests {
         let mut out = String::new();
         emit2(&mut out, 5, &[key(0, 0, 100, 0, 256), key(500, 300, 150, -45, 0)], MotionEnd::Keep);
         assert_eq!(out, "spmotion 67,2,0,0,0,100,100,0,256,0,500,300,0,150,150,-45,0,0\n");
+    }
+
+    #[test]
+    fn moves_and_zooms_with_one_motion() {
+        let mut out = String::new();
+        move_to(&mut out, 67, 400, 300, 500, None, 0);
+        assert_eq!(out, "getspsize 67,%1,%2:getsppos 67,%3,%4\nspmotion 67,2,0,0,0,100,100,0,256,0,500,400-%1/2-%3,300-%2/2-%4,100,100,0,256,0:spmotionwait 67\n");
+        let mut out = String::new();
+        move_to(&mut out, 67, 400, 300, 500, Some((200, 100)), 51);
+        assert!(out.starts_with("spzoom 67,200:getspsize"), "{out}");
+        assert!(out.contains(",500,400-%1/2-%3,300-%2/2-%4,50,50,0,256,51:"), "{out}");
     }
 
     #[test]
