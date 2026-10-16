@@ -54,9 +54,6 @@ converted, every ending reachable.
      short-lived branch and pull request per task item, made from
      `origin/main`; keep game-specific code out of the shared files
      (`CLAUDE.md`, "Rules" and "Working beside other agents").
-   - Optional: a phone-visible progress page (an artifact whose shared
-     database gets one log entry per commit). The user liked following
-     the work that way.
    - Keep each session to one item: do it, update "Status", open the
      PR, stop. A fresh session starts from "Status" and memory,
      which is cheaper than a long one (`CLAUDE.md`, "Keeping usage
@@ -238,11 +235,11 @@ the same coverage table as the exe's rows:
   the menus.
 - **Claim them against what conv-cons already uses.** The menus write
   variables of their own (`grep -o '%[0-9]*' 0.txt`, and the constants
-  at the top of `menu.rs` and `lib.rs`): pick the game's flags clear of
+  in `menu/mod.rs` and at the top of `lib.rs`): pick the game's flags clear of
   them, locals below the global border, globals clear of the menus'.
-  A new settings switch takes the next free number in `switch_index`
-  and is added to the test that no two share one: branches adding
-  switches at the same time both took 9-11 once. Never move a number
+  A new settings switch takes the next free index in `def` in
+  `switches.rs`, which a test keeps unique: branches adding switches at
+  the same time both took 9-11 once. Never move a number
   once a build is out (step 11.9).
 
 ## 4. Control flow: prove it before looking at pictures
@@ -304,7 +301,7 @@ Title, save/load (with thumbnails and delete), settings, backlog, the
 button bar, confirmations. Which buttons the original shows or
 enables at each point (no save yet, no choice yet, nothing unlocked)
 is checked in step 11.6. Build them as in-script menus from the
-original's own parts (`menu.rs` explains the ONScripter mechanics). Where
+original's own parts (`menu/mod.rs` explains the ONScripter mechanics). Where
 the original uses a Windows dialog, design one from game parts and say
 so.
 
