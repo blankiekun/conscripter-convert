@@ -1,7 +1,7 @@
 {
 "game": "django",
 "engine": "nitroplus",
-"commit": "79549f95",
+"commit": "11c8bedf",
 "commit_date": "2026-10-16",
 "totals": {"calls": 57053, "full": 47359, "gaps": 9694},
 "kinds": {
@@ -31,7 +31,7 @@
 "WaitFade": {"calls": 7, "gaps": 1, "reasons": [["WaitFade argument 1 ignored", 1]]},
 "ClearBacklog": {"calls": 1, "gaps": 1, "reasons": [["built-in ClearBacklog", 1]]},
 "ClearScore": {"calls": 1, "gaps": 1, "reasons": [["built-in ClearScore", 1]]},
-"CreateEffect": {"calls": 1, "gaps": 1, "reasons": [["CreateEffect Sepia", 1], ["CreateEffect argument 2 ignored", 1], ["CreateEffect argument 3 ignored", 1], ["CreateEffect argument 4 ignored", 1], ["CreateEffect argument 5 ignored", 1]]},
+"CreateEffect": {"calls": 1, "gaps": 1, "reasons": [["CreateEffect argument 2 ignored", 1], ["CreateEffect argument 3 ignored", 1], ["CreateEffect argument 4 ignored", 1], ["CreateEffect argument 5 ignored", 1]]},
 "SetShade": {"calls": 1, "gaps": 1, "reasons": [["built-in SetShade", 1]]},
 "Time": {"calls": 1, "gaps": 1, "reasons": [["built-in Time", 1]]},
 "SetAlias": {"calls": 4152, "gaps": 0, "reasons": []},
