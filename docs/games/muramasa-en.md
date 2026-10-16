@@ -59,6 +59,8 @@ It has no NPA archives and no NSS scripts.
   options).
 - **Line log:** the port's (`sys_backlog.nut`, History). Checked
   headless, not yet against the original.
+- **Click icon:** at the port's places (History); not yet seen in the
+  original.
 - **Questions:** the port's (`sys_dialog.nut`, `confirm_en`): the
   question's picture from the English `cg.npk` (`en/cg/sys/dialog/`,
   400×150) centred over black at 800/1000, Yes and No 108,100 and
@@ -89,10 +91,9 @@ It has no NPA archives and no NSS scripts.
   1. The English pictures: the redesigned menus in `cg/sys`. The port's
      system scripts (`media/script/system/sys_*.nut`) give each picture's
      English place after a `LANG_NAME == "en"` test. Done: the title,
-     the command menu, the questions, the choices and the line log
-     (above). Left: new
-     screens: save/load (`save/`), settings (`config/`), the click icon
-     (one `adv/改行改頁アイコン.png` sheet). Then film them against the
+     the command menu, the questions, the choices, the line log and
+     the click icon (above). Left: new
+     screens: save/load (`save/`), settings (`config/`). Then film them against the
      English original under wine (also the lines per box).
   2. 22 rows of English are placed nowhere (lines the NSS orders or
      splits otherwise, route variants such as mc01's "Ichijo is
@@ -344,6 +345,13 @@ md04_015, md04_026vs, md04_030 (dates and times: `November 30, 1940`,
 | `setting.ini` keys | files table | there |
 
 ## History
+
+- **Click icon (2026-10-15):** the port's `cg/sys/adv/改行改頁アイコン.png`
+  is the Japanese 32 frames in one sheet (pixel for pixel), so only its
+  place changes: `BoxInfo`'s English `icon_pos` (C 640,500; R 896,500;
+  L 383,500; H 924,554; CH 776,580; Noh 776,329; the Japanese table
+  follows it in `val.nut`), kept with each box in `EN_TEXT`
+  (`Game::box_text`). Windows outside `EN_TEXT` keep the Japanese place.
 
 - **Line log (2026-10-15):** `sys_backlog.nut` has no English branch:
   the port takes its own pictures of the same names (`cg/sys/backlog/`

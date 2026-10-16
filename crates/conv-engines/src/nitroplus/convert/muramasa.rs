@@ -68,20 +68,21 @@ fn choice_style_en(c: &mut Compiler<'_, '_>, n: i64) -> Option<ChoiceStyle> {
 }
 
 /// The port's text places (`BoxInfo` in `val.nut`): box, text x, y and
-/// width; the ones with a face window first, as both may be shown.
-const EN_TEXT: [(&str, i64, i64, i64); 12] = [
-    ("boxCT", 375, 190, 280),
-    ("boxCC", 375, 190, 280),
-    ("boxRT", 630, 190, 280),
-    ("boxRR", 630, 190, 280),
-    ("boxLT", 118, 190, 280),
-    ("boxLL", 118, 190, 280),
-    ("boxTH", 238, 426, 701),
-    ("boxH", 94, 426, 845),
-    ("boxCTH", 360, 225, 420),
-    ("boxCH", 280, 225, 501),
-    ("boxTNoh", 351, 225, 434),
-    ("boxNoh", 280, 225, 492),
+/// width, the click-wait icon's place (`icon_pos`, the English table);
+/// the ones with a face window first, as both may be shown.
+const EN_TEXT: [(&str, i64, i64, i64, (i32, i32)); 12] = [
+    ("boxCT", 375, 190, 280, (640, 500)),
+    ("boxCC", 375, 190, 280, (640, 500)),
+    ("boxRT", 630, 190, 280, (896, 500)),
+    ("boxRR", 630, 190, 280, (896, 500)),
+    ("boxLT", 118, 190, 280, (383, 500)),
+    ("boxLL", 118, 190, 280, (383, 500)),
+    ("boxTH", 238, 426, 701, (924, 554)),
+    ("boxH", 94, 426, 845, (924, 554)),
+    ("boxCTH", 360, 225, 420, (776, 580)),
+    ("boxCH", 280, 225, 501, (776, 580)),
+    ("boxTNoh", 351, 225, 434, (776, 329)),
+    ("boxNoh", 280, 225, 492, (776, 329)),
 ];
 
 /// The port's boxes (`CreateAllTextBox` in `function_textbox.nut`): name,
