@@ -732,6 +732,13 @@ impl Lowering<'_> {
             None if t.int(off) == Some(0) => 0,
             None => ms(18),
         };
+        // The eboot reads the first `:SpriteMax` of Chara0-Chara9.
+        if ty.starts_with("Character")
+            && let Some(max) = t.int("SpriteMax")
+            && (max as usize) < t.children.iter().filter(|c| c.name.starts_with("Chara")).count()
+        {
+            self.note(format!("{ty} :SpriteMax {max} below its [CharaN] blocks"));
+        }
         match ty {
             "Message" => {
                 let text = t.str("Message").unwrap_or("").to_string();
@@ -805,7 +812,7 @@ impl Lowering<'_> {
                         .children
                         .iter()
                         .filter(|c| c.name.starts_with("Chara"))
-                        .filter_map(|c| Some(chara_key(c, c.get("Number")?.first()?.int()?)))
+                        .filter_map(|c| Some(chara_key(c, c.int("Number")?)))
                         .collect();
                     let mut gone: Vec<String> = self.shown.keys().filter(|k| k.starts_with('c') && !named.contains(k)).cloned().collect();
                     gone.sort();
@@ -839,7 +846,7 @@ impl Lowering<'_> {
                     // picture's centre raised by cy × half its height.
                     // shortcut: cx is not read (always 0); a non-zero cx
                     // needs a base_x for CharacterMove too.
-                    let base_y = match c.get("Center").and_then(|v| v.get(1)?.float()) {
+                    let base_y = match c.at("Center", 1).and_then(Val::float) {
                         Some(cy) => -(cy * h as f64 / 2.0).round() as i32,
                         None if h as i32 > SCREEN_H => SCREEN_H - h as i32 / 2,
                         None => sy(360 + offset),
@@ -1143,7 +1150,7 @@ impl Lowering<'_> {
                 let time = ms(t.int("Time").unwrap_or(0));
                 // `:Scale` zooms the picture about its centre (a camera
                 // zoom); without it the zoom stays.
-                let zoom = t.get("Scale").and_then(|v| v.first()?.float()).map_or(s.zoom, |f| (f * 100.0).round() as u32);
+                let zoom = t.float("Scale").map_or(s.zoom, |f| (f * 100.0).round() as u32);
                 self.ease(t);
                 // A zoomed picture moves with spzoom too, which redraws
                 // where its zoomed picture was.
@@ -1251,7 +1258,7 @@ impl Lowering<'_> {
                     // and out over EffectEnd's :Fade.
                     57 => {
                         if start {
-                            let p = |k: usize, d: f64| t.get("Param").and_then(|v| v.get(k)).and_then(Val::float).unwrap_or(d);
+                            let p = |k: usize, d: f64| t.at("Param", k).and_then(Val::float).unwrap_or(d);
                             let power = p(5, 1.0);
                             let effect = ScreenEffect::Zoom {
                                 interval_ms: 16,
@@ -1568,7 +1575,7 @@ fn act_style(t: &Block) -> TransitionStyle {
         Some(2) => TransitionStyle::Mosaic,
         Some(3) => TransitionStyle::Flip { horizontal: direction < 2, grow: true },
         Some(1) => {
-            let param = |i: usize| -> f64 { t.get("Param").and_then(|v| v.get(i)?.float()).unwrap_or(0.0) };
+            let param = |i: usize| -> f64 { t.at("Param", i).and_then(Val::float).unwrap_or(0.0) };
             TransitionStyle::Wave { direction: direction as u8, amplitude: (param(1) * 100.0).round() as u32, waves: (param(2) * 10.0).round() as u32 }
         }
         Some(6) => TransitionStyle::Blur {
@@ -1605,6 +1612,9 @@ pub fn compile(game: &Game, scenes: &[String], assets: &mut dyn Assets) -> Compi
         for i in 0..scene.tasks.len() {
             l.task(name, &scene.tasks, i);
         }
+        for t in &scene.tasks {
+            ignored(t.task_type().unwrap_or("?"), "", t, &mut l.out.notes);
+        }
         if l.staging {
             l.out.ops.push(Op::EndTransition);
             l.staging = false;
@@ -1617,9 +1627,94 @@ pub fn compile(game: &Game, scenes: &[String], assets: &mut dyn Assets) -> Compi
     l.out
 }
 
+/// Arguments known not to matter: the start of their note, with
+/// " = <values>" when only that value is what we do, and why.
+const NOT_NEEDED: &[(&str, &str)] = &[
+    ("FadeIn :Color", "always the colour of the FadeOut before it (579 of 579)"),
+    ("CharacterDelete :FadeOut", "with a :Fade always 1 (fade), which :Fade times"),
+    // Our reading, not traced in the eboot's character tasks.
+    ("CharacterAction [Chara] :Number argument", "the character is the one shown under its number (argument 0)"),
+    ("CharacterMove [Chara] :Number argument", "the same"),
+    ("CharacterDelete [Chara] :Number argument", "the same"),
+    ("CharacterActionEnd :Character argument", "the same"),
+    ("CharacterDelete [Chara] :FadeOut = 1", "fade, as the task does"),
+    ("CharacterMove :Wait = 1", "wait, as every move of ours does"),
+    ("SpriteMove :Wait = 1", "the same"),
+    ("SePlay :Wait = 0", "don't wait, as ours don't"),
+    ("SeStop :Wait = 0", "the same"),
+    ("SePlay :Div = 1", "a 1-frame fade-in: none, as ours"),
+    ("EffectQuakeEnd :EndWait = 0", "stop at once, as ours does"),
+    ("CharacterOpenBS :Fade = 0", "at once, as ours opens"),
+    ("MoviePlay :Loop = 0", "play once, as ours"),
+    ("CharacterMove [Chara] :Position argument 2 = 0", "straight (with power 0), as our cross-fading moves are"),
+    ("CharacterMove [Chara] :Position argument 3 = 0", "the same"),
+    ("CharacterOpen [Chara] :Center argument 0 = 0", "the centre across, where we place it"),
+    ("SpriteMoveEnd :Sprite", "every SpriteMove is waited on, so none is left running"),
+    ("MoviePlay :EndWait = 1", "wait for the end, as our movies always do"),
+    ("Achievement :ID", "trophies: nothing to show"),
+    // Blocks and keys the eboot never asks for (cfg_find of
+    // "TaskList/Task%d/Chara%d/<key>").
+    ("CharacterOpen []", "a [CharaN] block without its name"),
+    ("CharacterAction [Char]", "a misspelt [CharaN] block"),
+    ("SpriteBG :Priorit", "a typo"),
+    ("CharacterOpen [Chara] :Prioriry", "a typo"),
+    ("CharacterDelete :fFade", "a typo"),
+];
+
+/// Notes each argument of `b` (and its sub-blocks) the converter never
+/// read: "<Task> :<Key> ignored", or "… argument <i> ignored" for one
+/// value of several.
+fn ignored(task: &str, at: &str, b: &Block, notes: &mut BTreeMap<String, usize>) {
+    for (key, i, vals) in b.unread() {
+        let value = vals.iter().map(|v| v.float().map_or_else(|| v.str().unwrap_or("").to_string(), |f| f.to_string())).collect::<Vec<_>>().join(",");
+        let what = match i {
+            Some(i) => format!("{task}{at} :{key} argument {i} ignored"),
+            None => format!("{task}{at} :{key} ignored"),
+        };
+        let covered = |row: &str| match row.split_once(" = ") {
+            Some((start, v)) => what.starts_with(&format!("{start} ")) && v == value,
+            None => what.starts_with(&format!("{row} ")),
+        };
+        if !NOT_NEEDED.iter().any(|(row, _)| covered(row)) {
+            *notes.entry(what).or_default() += 1;
+        }
+    }
+    for c in &b.children {
+        ignored(task, &format!(" [{}]", c.name.trim_end_matches(|c: char| c.is_ascii_digit())), c, notes);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn arguments_not_read_are_noted() {
+        let src = "[Task1]\n{\n:Tasktype \"SpriteMove\"\n:Position 320,360,2,1\n:Curve 3\n:Wait 0\n:Roll 0\n[Chara0]\n{\n:Number 8,0,1,2,0\n}\n}\n";
+        let blocks = parse(src).unwrap();
+        let t = &blocks[0];
+        t.task_type();
+        t.int_at("Position", 0);
+        t.int_at("Position", 1);
+        t.at("Position", 3);
+        let mut notes = BTreeMap::new();
+        ignored("SpriteMove", "", t, &mut notes);
+        // `:Wait 0` is noted (only `= 1` is covered); Chara0's Number is never read.
+        let want = [
+            "SpriteMove :Curve ignored",
+            "SpriteMove :Position argument 2 ignored",
+            "SpriteMove :Roll ignored",
+            "SpriteMove :Wait ignored",
+            "SpriteMove [Chara] :Number ignored",
+        ];
+        assert_eq!(notes.keys().map(String::as_str).collect::<Vec<_>>(), want);
+        // `SpriteMove :Wait = 1` is covered.
+        let blocks = parse("[Task2]\n{\n:Tasktype \"SpriteMove\"\n:Wait 1\n}\n").unwrap();
+        blocks[0].task_type();
+        let mut notes = BTreeMap::new();
+        ignored("SpriteMove", "", &blocks[0], &mut notes);
+        assert!(notes.is_empty());
+    }
 
     #[test]
     fn action_tracks_are_sampled_at_every_key() {
