@@ -40,7 +40,7 @@ fn menus_in(a: &mut dyn Assets, script: &mut Script, story: &Story, en: bool) {
     script.save_grid = if en { save_grid_en(a) } else { save_grid(a) };
     script.line_log = line_log(a, en);
     script.wait_icon = wait_icon(a);
-    script.picture_settings = settings(a, story);
+    script.picture_settings = if en { settings_en(a) } else { settings(a, story) };
     script.picture_extras = super::extras::extras(a, story);
 }
 
@@ -122,6 +122,113 @@ fn settings(a: &mut dyn Assets, story: &Story) -> Option<PictureSettings> {
         fade_ms: 300,
         pair_fade_ms: 100,
         voice_window: voice_window(a, story),
+    })
+}
+
+/// The English port's settings screen (`sys_config.nut`, its own design):
+/// `ConfigBG` with the controls at the places `main` gives them. Check
+/// boxes (`ConfigCreateToggle1`, 52×52 `ConfigButton-box…`): skip movies
+/// (91,74), wait for the voice in auto mode (377,396); the mutes
+/// (`Toggle3`, round, 769 × 57/130/203); the ON/OFF pairs (`Toggle2`, 37×37
+/// `ConfigButton-small-…`, ON at x 394, OFF 35 right): skip unread (y 179),
+/// skip the voice on a click (239), stop auto and skip at a choice (299).
+/// Gauges (`ConfigCreateGage`): a 141×34 track, the knob (7×13) 19 down
+/// and running 134 across, `ConfigSlider-Full` lit from 4 left and 7 down
+/// to the knob: auto speed (133,405), text speed (133,483), music,
+/// effects and voices (588 × 65/138/211). Restore (377,74), the voice
+/// test (851,203), Close (854,555). What we can't set is drawn as a first
+/// start leaves it: auto save at choices (on), read text's colour (on),
+/// a click stopping auto mode (on), syncing text to voices (off), the
+/// effects test, full screen (off), 1024×576, the display's aspect. Not
+/// yet compared with the original; the character voices window
+/// (`OpenCVSetting`) and the text sample are not done.
+fn settings_en(a: &mut dyn Assets) -> Option<PictureSettings> {
+    const DIR: &str = "en/cg/sys/config";
+    let picture = |a: &mut dyn Assets, name: &str, x: i32, y: i32| {
+        let (image, w, h) = a.image(&format!("{DIR}/{name}.png"))?;
+        Some(Placed { image, x, y, w: w as i32, h: h as i32 })
+    };
+    let strip = |a: &mut dyn Assets, names: &[&str], x: i32, y: i32| {
+        let names: Vec<String> = names.iter().map(|n| if n.is_empty() { String::new() } else { format!("{DIR}/{n}.png") }).collect();
+        let refs: Vec<&str> = names.iter().map(String::as_str).collect();
+        let (image, w, h) = a.strip(&refs)?;
+        Some(Placed { image, x, y, w: w as i32 / names.len() as i32, h: h as i32 })
+    };
+    let box_on = ["ConfigButton-boxONcheck", "ConfigButton-boxONcheckOver", "ConfigButton-boxON"];
+    let box_off = ["ConfigButton-box", "ConfigButton-boxMouseOver", "ConfigButton-boxMousePress"];
+    let mut pairs = Vec::new();
+    for (option, x, y, default_on) in [(PairOption::MovieStop, 91, 74, false), (PairOption::AutoWaitsForVoice, 377, 396, true)] {
+        pairs.push(PicturePair { option, on: strip(a, &box_on, x, y)?, off: strip(a, &box_off, x, y)?, default_on });
+    }
+    // The mutes: checked is muted (the pair's off).
+    for (option, y) in [(PairOption::Bgm, 57), (PairOption::Se, 130), (PairOption::Voice, 203)] {
+        let heard = strip(a, &["ConfigButton-round", "ConfigButton-roundMouseOver", "ConfigButton-roundMousePress"], 769, y)?;
+        let muted = strip(a, &["ConfigButton-roundONcheck", "ConfigButton-roundONcheckMouseOver", "ConfigButton-roundON"], 769, y)?;
+        pairs.push(PicturePair { option, on: heard, off: muted, default_on: true });
+    }
+    // ON and OFF: (the option's on side's column, …).
+    let small = |a: &mut dyn Assets, side: &str, x: i32, y: i32| strip(a, &["ConfigButton-small-no", &format!("ConfigButton-small-{side}"), &format!("ConfigButton-small-{side}check")], x, y);
+    for (option, y, on_is_on, default_on) in [(PairOption::SkipUnread, 179, true, false), (PairOption::VoicePlaysOn, 239, false, true), (PairOption::StopAtChoice, 299, true, true)] {
+        let (on_x, off_x) = if on_is_on { (394, 429) } else { (429, 394) };
+        let (on_side, off_side) = if on_is_on { ("on", "off") } else { ("off", "on") };
+        pairs.push(PicturePair { option, on: small(a, on_side, on_x, y)?, off: small(a, off_side, off_x, y)?, default_on });
+    }
+    let knob = strip(a, &["ConfigSlider-off", "ConfigSlider-on"], 0, 0)?;
+    let full = picture(a, "ConfigSlider-Full", 0, 0)?;
+    let mask = a.color(0, full.w as u32, full.h as u32);
+    let mut sliders = Vec::new();
+    for (setting, x, y, default) in [
+        (SliderSetting::AutoWait { ms: 200 }, 133, 405, 507),
+        (SliderSetting::TextSpeed { ms: 100 }, 133, 483, 207),
+        (SliderSetting::BgmVolume, 588, 65, 407),
+        (SliderSetting::SeVolume, 588, 138, 207),
+        (SliderSetting::VoiceVolume, 588, 211, 207),
+    ] {
+        sliders.push(PictureSlider {
+            setting,
+            knob: Placed { x, y: y + 19, ..knob.clone() },
+            knob_y: (x, x + 134),
+            track: Rect { x, y, w: 141, h: 34 },
+            default,
+            steps: None,
+            horizontal: true,
+            fill: Some((Placed { x: x - 4, y: y + 7, ..full.clone() }, mask.clone())),
+        });
+    }
+    let mut fixed = Vec::new();
+    for (name, x, y) in [
+        ("ConfigButton-boxONcheck", 229, 74),
+        ("ConfigButton-small-oncheck", 394, 209),
+        ("ConfigButton-small-no", 429, 209),
+        ("ConfigButton-small-oncheck", 394, 269),
+        ("ConfigButton-small-no", 429, 269),
+        ("ConfigButton-box", 377, 472),
+        ("ConfigButton-round", 851, 130),
+        ("ConfigButton-box", 570, 423),
+        ("ConfigButton-small-no", 742, 353),
+        ("ConfigButton-small-no", 818, 353),
+        ("ConfigButton-small-check", 894, 353),
+        ("ConfigButton-small-no", 742, 392),
+        ("ConfigButton-small-no", 818, 392),
+        ("ConfigButton-small-no", 894, 392),
+        ("ConfigButton-boxONcheck", 713, 472),
+        ("ConfigButton-box", 838, 472),
+    ] {
+        fixed.push(picture(a, name, x, y)?);
+    }
+    Some(PictureSettings {
+        background: picture(a, "ConfigBG", 0, 0)?,
+        fixed,
+        close: strip(a, &["CloseButton-box", "CloseButton-boxMouseOver", "CloseButton-boxMousePress"], 854, 555)?,
+        reset: strip(a, &box_off, 377, 74),
+        voice_test: strip(a, &["ConfigButton-round", "ConfigButton-roundMouseOver", "ConfigButton-roundMousePress"], 851, 203),
+        test_voice: a.sound("voice/ma01/0250430b56"),
+        sliders,
+        pairs,
+        texts: Vec::new(),
+        fade_ms: 300,
+        pair_fade_ms: 0,
+        voice_window: None,
     })
 }
 

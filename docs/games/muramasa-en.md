@@ -78,6 +78,21 @@ It has no NPA archives and no NSS scripts.
   details show under the pointer (the port: on the clicked slot); the
   Q.Save page shows our one quick save (the port keeps 20, oldest
   overwritten).
+- **Settings:** the port's (`sys_config.nut`, `settings_en`):
+  `ConfigBG` with its check boxes (skip movies, wait for the voice in
+  auto mode, the three mutes), ON/OFF pairs (skip unread, skip the voice
+  on a click, stop auto and skip at a choice), five lying gauges lit up
+  to the knob (auto speed, text speed, music, effects, voices), Restore,
+  the voice test and Close, at the places `main` gives them (shared:
+  `PictureSlider::horizontal`/`fill`, check boxes as a pair at one
+  place). What CONscripter can't set is drawn as a first start leaves it
+  (auto save at choices, read text's colour, a click stopping auto,
+  syncing text to voices, the effects test, the display options).
+  Checked headless (`--shot-at` on `*conv_ps_wait`) against the manual's
+  screenshot (page 9: the same states and places). Not yet compared with
+  the running original (dragging, the gauges' values); not done: the
+  character voices window (`OpenCVSetting`: 4 columns, x 118 + 204·i,
+  y 69 + 32·row, the English `cg/sys/config/cv/` names), the text sample.
 - **Name plates:** the English `cg.npk`'s `cg/fw/nw*.png` (the names
   in English, same names and size as the Japanese) are taken before
   `cg.npa`'s (`ENGLISH_FIRST` in `nitroplus/assets.rs`). Checked on a
@@ -123,8 +138,7 @@ It has no NPA archives and no NSS scripts.
      system scripts (`media/script/system/sys_*.nut`) give each picture's
      English place after a `LANG_NAME == "en"` test. Done: the title,
      the command menu, the questions, the choices, the line log and
-     the click icon, the save/load screen (above). Left: the settings
-     (`config/`).
+     the click icon, the save/load and settings screens (above).
      Then film them against the
      English original under wine (also the lines per box).
   2. 22 rows of English are placed nowhere (lines the NSS orders or
