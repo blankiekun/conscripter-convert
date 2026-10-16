@@ -60,7 +60,7 @@ Identify the engine from the install (`docs/new-game.md` §0.3). Then:
   beside 装甲悪鬼村正 (`crates/conv-engines/src/nitroplus/convert/django/`).
 - **A new engine**: you write a reader in
   `crates/conv-engines/src/<engine>/` that turns the game into the IR
-  (`crates/conv-core/src/ir.rs`, top type `Script`), and one subcommand
+  (`crates/conv-core/src/ir/mod.rs`, top type `Script`), and one subcommand
   for it in `crates/conv-cli/src/main.rs`. Only `crates/conv-cons`
   knows about NScripter: you shouldn't need to write `0.txt` yourself.
   Throwaway reverse-engineering scripts go in `research/<engine>/` (see
@@ -97,10 +97,10 @@ and in their own place:
 
 | File | How to change it |
 |---|---|
-| `crates/conv-core/src/ir.rs` | Add new types and `Op` variants at the end of their block, with a doc comment; don't reorder existing ones |
-| `crates/conv-cons/src/lib.rs` | A new feature's emitter goes in its own module, with one `match` arm here. Sprite and variable ranges are the constants at the top: claim yours there |
-| `crates/conv-cons/src/menu.rs` | Shared by every game's menus: change it through what your game passes in the IR, not with game-specific branches |
-| `crates/conv-cons/src/switches.rs` | Settings switches: indices 20-99 are shared, each engine has its own hundred; a new engine takes the next free one |
+| `crates/conv-core/src/ir/` (`mod.rs`, `screens.rs`, `picture.rs`) | Add new types and `Op` variants at the end of their block, with a doc comment; don't reorder existing ones |
+| `crates/conv-cons/src/lib.rs`, `ops.rs` | A new feature's emitter goes in its own module, with one `match` arm in `ops.rs`. Sprite ranges are the constants at the top of `lib.rs`; a new variable range goes into `crates/conv-core/src/alloc.rs` |
+| `crates/conv-cons/src/menu/` | Shared by every game's menus: change it through what your game passes in the IR, not with game-specific branches |
+| `crates/conv-cons/src/switches.rs` | A new settings switch is one entry in `def` with the next free index (every game may use any switch) |
 
 A game's own rules never go in shared files.
 
