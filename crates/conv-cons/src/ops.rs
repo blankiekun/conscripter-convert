@@ -98,7 +98,9 @@ impl<'a> Emitter<'a> {
             writeln!(out, "bg \"{}\",{e}", path(image)).unwrap();
             *plate_visible = false;
         }
-        Op::Sprites { changes, fade_ms } => {
+        Op::Sprites { changes, fade_ms } | Op::SpritesFading { changes, fade_ms } => {
+            // SpritesFading: CONscripter's spfade, in and (negative) out.
+            let fading = matches!(op, Op::SpritesFading { .. }) && transition.is_none() && *fade_ms > 0;
             for c in changes {
                 let slot = SPRITE_BASE + c.layer;
                 match &c.sprite {
@@ -111,12 +113,16 @@ impl<'a> Emitter<'a> {
                         if zoomed_layers.contains(&c.layer) {
                             writeln!(out, "spzoom {slot},100,100").unwrap();
                         }
+                        if fading {
+                            writeln!(out, "spfade {slot},{fade_ms}").unwrap();
+                        }
                     }
+                    None if fading => writeln!(out, "spfade {slot},-{fade_ms}").unwrap(),
                     None => writeln!(out, "csp {slot}").unwrap(),
                 }
             }
             if transition.is_none() {
-                writeln!(out, "print {}", effect(*fade_ms)).unwrap();
+                writeln!(out, "print {}", if fading { "1".to_string() } else { effect(*fade_ms) }).unwrap();
             }
         }
         Op::SpriteFilters { layer, filters } => {
@@ -156,6 +162,7 @@ impl<'a> Emitter<'a> {
                 writeln!(out, "print 1").unwrap();
             }
         }
+        Op::StopAutoSkip => writeln!(out, "skipoff:autooff").unwrap(),
         Op::SpriteAngle { layer, degrees } => {
             writeln!(out, "sprot {},{degrees}", SPRITE_BASE + layer).unwrap();
             if transition.is_none() {
@@ -197,6 +204,10 @@ impl<'a> Emitter<'a> {
                     writeln!(out, "print 1").unwrap();
                 }
             }
+        }
+        // isskip: 1 while skipping (2 in auto mode).
+        Op::IfSkipping { label: target } => {
+            writeln!(out, "isskip {0}\nif {0} == 1 goto *{1}", menu::TMP, label(target)).unwrap();
         }
         Op::IfSwitch { switch, on, label: target } => {
             writeln!(out, "if {} == {} goto *{}", menu::switch_off(*switch), u8::from(!*on), label(target)).unwrap();

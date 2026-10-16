@@ -542,6 +542,20 @@ pub enum Op {
     /// angle adds to it). 装甲悪鬼村正's battle HUD: the roll bar and the
     /// sky tilted as the craft rolls.
     SpriteAngle { layer: u32, degrees: i32 },
+    /// Jumps to `label` while the player skips (not in auto mode): past
+    /// what the original leaves out then. 最果てのイマ's quakes, flashes,
+    /// pulses and script fades.
+    IfSkipping { label: String },
+    /// Auto mode and skip stop, as a click would (Nitroplus: the script
+    /// sets `$SYSTEM_text_auto` false or `$SYSTEM_menu_lock`, before the
+    /// ending roll).
+    StopAutoSkip,
+    /// [`Op::Sprites`] whose pictures fade in and out over `fade_ms` by
+    /// themselves while the script goes on (the text, click waits). A new
+    /// picture on a layer that had one replaces it at once, so a picture
+    /// changing goes to another layer. Inside a transition, as
+    /// [`Op::Sprites`]. 俺たちに翼はない's `:FadeWait 0`.
+    SpritesFading { changes: Vec<SpriteChange>, fade_ms: u32 },
 }
 
 /// [`Op::HoldMovie`]'s prompt: `image` is `cells` pictures side by side,
