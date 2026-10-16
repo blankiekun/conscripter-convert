@@ -90,6 +90,8 @@
 //! `group * 10000 + n`; how they map to `.xsa` slots is not known yet (neither
 //! sorted order nor order of appearance matches the clip lengths).
 
+use std::cell::RefCell;
+
 use md5::{Digest, Md5};
 use thiserror::Error;
 
@@ -297,8 +299,6 @@ pub struct FilterZigzag {
     pub direction: i32,
     pub distance: i32,
     pub frequency: i32,
-    pub begin_angle: i32,
-    pub reduction: i32,
 }
 
 /// Filter-Replace: the picture displaced through a map as by
@@ -312,7 +312,6 @@ pub struct FilterReplace {
     pub map: u32,
     pub direction: i32,
     pub distance: i32,
-    pub begin_angle: i32,
 }
 
 /// Opcode 0x70: one slot of the filter on the whole screen, made of the
@@ -331,7 +330,6 @@ pub struct FilterReplace {
 pub struct ScreenModule {
     pub slot: u32,
     pub layer: u8,
-    pub depth: u32,
     pub kind: u32,
     pub blend: u16,
     pub opacity: u16,
@@ -339,7 +337,7 @@ pub struct ScreenModule {
 }
 
 /// Reads a module's kind data at `o` (after its blend and opacity).
-fn module_data(r: &Reader, kind: u32, o: usize) -> Result<ModuleData, Truncated> {
+fn module_data(r: &PoolReader, kind: u32, o: usize) -> Result<ModuleData, Truncated> {
     let i = |k: usize| r.u32(o + 4 * k).map(|n| n as i32);
     Ok(match kind {
         PRESET_KIND_COLOUR => ModuleData::Colour(r.slice(o, 3)?.try_into().unwrap()),
@@ -354,7 +352,6 @@ fn module_data(r: &Reader, kind: u32, o: usize) -> Result<ModuleData, Truncated>
             map: r.u32(o)?,
             direction: i(1)?,
             distance: i(2)?,
-            begin_angle: i(3)?,
         }),
         PRESET_KIND_ZIGZAG => ModuleData::Zigzag(FilterZigzag {
             centre_x: i(0)?,
@@ -362,8 +359,6 @@ fn module_data(r: &Reader, kind: u32, o: usize) -> Result<ModuleData, Truncated>
             direction: i(2)?,
             distance: i(3)?,
             frequency: i(4)?,
-            begin_angle: i(5)?,
-            reduction: i(6)?,
         }),
         _ => ModuleData::None,
     })
@@ -512,7 +507,6 @@ pub struct Ruby {
     pub line: u16,
     pub column: u16,
     pub length: u16,
-    pub flags: u16,
     pub text: String,
 }
 
@@ -530,7 +524,6 @@ pub struct TextStyle {
     pub length: u16,
     pub size: u16,
     pub colour: u32,
-    pub edge: u32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -540,7 +533,6 @@ pub struct Link {
     pub length: u16,
     pub style: u32,
     pub target: u32,
-    pub reserved: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -567,6 +559,18 @@ pub struct Instr {
     pub source_pos: u32,
 }
 
+/// An operand given and never read ([`CdScript::ignored`]).
+#[derive(Debug, Clone, PartialEq)]
+pub struct Unread {
+    /// The instruction's index in `code`.
+    pub index: usize,
+    pub op: u16,
+    /// `sub`, `arg`, `+n` or `-n` (pool record bytes), or "record out of place".
+    pub which: String,
+    /// `sub` and `arg` in decimal; record bytes in hex.
+    pub value: String,
+}
+
 #[derive(Debug)]
 pub struct CdScript<'a> {
     pub head: [u8; HEAD_LEN],
@@ -580,6 +584,29 @@ pub struct CdScript<'a> {
     pub pool: &'a [u8],
     pub stored_md5: [u8; 16],
     hashed: &'a [u8],
+    /// What the converter has read, for [`CdScript::ignored`]: each pool
+    /// byte, and each instruction's `sub` (bit 0) and `arg` (bit 1).
+    read_pool: RefCell<Vec<bool>>,
+    read_fields: RefCell<Vec<u8>>,
+}
+
+/// [`Reader`] over a script's pool that notes each byte it reads.
+struct PoolReader<'s, 'a>(&'s CdScript<'a>);
+
+impl<'a> PoolReader<'_, 'a> {
+    fn slice(&self, offset: usize, len: usize) -> Result<&'a [u8], Truncated> {
+        let bytes = Reader(self.0.pool).slice(offset, len)?;
+        self.0.read_pool.borrow_mut()[offset..offset + len].fill(true);
+        Ok(bytes)
+    }
+
+    fn u16(&self, offset: usize) -> Result<u16, Truncated> {
+        Ok(u16::from_le_bytes(self.slice(offset, 2)?.try_into().unwrap()))
+    }
+
+    fn u32(&self, offset: usize) -> Result<u32, Truncated> {
+        Ok(u32::from_le_bytes(self.slice(offset, 4)?.try_into().unwrap()))
+    }
 }
 
 impl<'a> CdScript<'a> {
@@ -629,7 +656,7 @@ impl<'a> CdScript<'a> {
                 Ok(Label { script: r.u32(o)?, label: r.u32(o + 4)?, code_offset: r.u32(o + 8)? })
             })
             .collect::<Result<_, Truncated>>()?;
-        let code = (0..code_size / ENTRY_LEN)
+        let code: Vec<Instr> = (0..code_size / ENTRY_LEN)
             .map(|i| {
                 let o = code_start + i * ENTRY_LEN;
                 Ok(Instr {
@@ -641,17 +668,102 @@ impl<'a> CdScript<'a> {
             })
             .collect::<Result<_, Truncated>>()?;
 
+        let pool = r.slice(pool_start, pool_size)?;
         Ok(Self {
+            read_pool: RefCell::new(vec![false; pool.len()]),
+            read_fields: RefCell::new(vec![0; code.len()]),
             head,
             name: name.into_owned(),
             script_id,
             reserved,
             labels,
             code,
-            pool: r.slice(pool_start, pool_size)?,
+            pool,
             stored_md5: r.slice(footer_start, FOOTER_LEN)?.try_into().unwrap(),
             hashed: &bytes[..footer_start],
         })
+    }
+
+    /// `ins.sub`, noted as read.
+    pub fn sub(&self, ins: &Instr) -> u16 {
+        self.mark_field(ins, 1);
+        ins.sub
+    }
+
+    /// `ins.arg`, noted as read.
+    pub fn arg(&self, ins: &Instr) -> i32 {
+        self.mark_field(ins, 2);
+        ins.arg
+    }
+
+    fn mark_field(&self, ins: &Instr, bit: u8) {
+        // `ins` is one of `self.code`; ones built elsewhere (tests) aren't tracked.
+        let i = (ins as *const Instr as usize).wrapping_sub(self.code.as_ptr() as usize) / size_of::<Instr>();
+        if self.code.get(i).is_some_and(|c| std::ptr::eq(c, ins)) {
+            self.read_fields.borrow_mut()[i] |= bit;
+        }
+    }
+
+    /// Pool bytes `offset..offset + len`, noted as read.
+    pub fn bytes(&self, offset: usize, len: usize) -> Option<&'a [u8]> {
+        self.reader().slice(offset, len).ok()
+    }
+
+    fn reader(&self) -> PoolReader<'_, 'a> {
+        PoolReader(self)
+    }
+
+    /// The operands given but never read through [`Self::sub`],
+    /// [`Self::arg`] or the pool readers, whatever their value: one
+    /// [`Unread`] per instruction and operand. `which` is `sub`, `arg`, or
+    /// `+n` for a run of unread pool record bytes from byte `n` (`-n`: a
+    /// run that ends the record, from `n` bytes before its end).
+    /// `records` are the opcodes whose `arg` is a pool record; the records
+    /// lie end to end in instruction order (a gap or overlap is returned as
+    /// `which` = "record out of place", and the pool isn't checked further).
+    pub fn ignored(&self, records: &[u16]) -> Vec<Unread> {
+        let fields = self.read_fields.borrow();
+        let read = self.read_pool.borrow();
+        let mut out = Vec::new();
+        let starts: Vec<usize> = (0..self.code.len()).filter(|&i| records.contains(&self.code[i].op)).collect();
+        let mut tiled = true;
+        let mut pos = 0;
+        for (i, ins) in self.code.iter().enumerate() {
+            let mut push = |which: String, value: String| out.push(Unread { index: i, op: ins.op, which, value });
+            if fields[i] & 1 == 0 {
+                push("sub".to_string(), ins.sub.to_string());
+            }
+            if !records.contains(&ins.op) {
+                if fields[i] & 2 == 0 {
+                    push("arg".to_string(), ins.arg.to_string());
+                }
+                continue;
+            }
+            let start = ins.arg as u32 as usize;
+            let next = starts.get(starts.partition_point(|&s| s <= i)).map_or(self.pool.len(), |&s| self.code[s].arg as u32 as usize);
+            if !tiled || start != pos || next < start || next > self.pool.len() {
+                if tiled {
+                    push("record out of place".to_string(), String::new());
+                }
+                tiled = false;
+                continue;
+            }
+            pos = next;
+            let mut n = start;
+            while n < next {
+                let run = read[n..next].iter().position(|&r| r != read[n]).map_or(next, |k| n + k);
+                if !read[n] {
+                    // A run at the end of a record of varying length is named from its end.
+                    let which = if run == next && n > start { format!("-{}", next - n) } else { format!("+{}", n - start) };
+                    push(which, self.pool[n..run].iter().map(|b| format!("{b:02x}")).collect());
+                }
+                n = run;
+            }
+        }
+        if tiled && pos != self.pool.len() {
+            out.push(Unread { index: self.code.len(), op: 0, which: "record out of place".to_string(), value: String::new() });
+        }
+        out
     }
 
     pub fn md5_ok(&self) -> bool {
@@ -661,7 +773,7 @@ impl<'a> CdScript<'a> {
     /// Reads a length-prefixed pool string at `offset`, or `None` if the
     /// bytes there don't form a valid Shift-JIS string.
     pub fn pool_string(&self, offset: usize) -> Option<String> {
-        let r = Reader(self.pool);
+        let r = self.reader();
         let len = r.u32(offset).ok()? as usize;
         let raw: Vec<u8> = r.slice(offset + 4, len).ok()?.iter().map(|b| b ^ STRING_KEY).collect();
         encoding_rs::SHIFT_JIS
@@ -678,10 +790,11 @@ impl<'a> CdScript<'a> {
     fn parse_message(&self, ins: &Instr) -> Result<Message, CdError> {
         let offset = ins.arg as u32 as usize;
         let bad = |reason| CdError::BadOperand { offset, reason };
-        let r = Reader(self.pool);
+        let r = self.reader();
         let id = r.u32(offset)?;
         let size = r.u32(offset + 4)? as usize;
-        let line = r.u32(offset + 8)?;
+        // For `cd messages`: the converter doesn't use it.
+        let line = Reader(self.pool).u32(offset + 8)?;
         let count = r.u32(offset + 12)? as usize;
         let end = (offset + 8).checked_add(size).ok_or(bad("size overflows"))?;
         let mut pos = offset + 16;
@@ -705,15 +818,15 @@ impl<'a> CdScript<'a> {
     /// other opcodes.
     pub fn link(&self, ins: &Instr) -> Option<Result<Link, CdError>> {
         (ins.op == OP_LINK).then(|| {
-            let r = Reader(self.pool);
+            let r = self.reader();
             let o = ins.arg as u32 as usize;
             Ok(Link {
                 row: r.u16(o)?,
                 column: r.u16(o + 2)?,
                 length: r.u16(o + 4)?,
-                style: r.u32(o + 6)?,
+                // For `cd messages`: the converter doesn't use it.
+                style: Reader(self.pool).u32(o + 6)?,
                 target: r.u32(o + 10)?,
-                reserved: r.u32(o + 14)?,
             })
         })
     }
@@ -722,13 +835,12 @@ impl<'a> CdScript<'a> {
     /// other opcodes.
     pub fn ruby(&self, ins: &Instr) -> Option<Result<Ruby, CdError>> {
         (ins.op == OP_RUBY).then(|| {
-            let r = Reader(self.pool);
+            let r = self.reader();
             let o = ins.arg as u32 as usize;
             Ok(Ruby {
                 line: r.u16(o)?,
                 column: r.u16(o + 2)?,
                 length: r.u16(o + 4)?,
-                flags: r.u16(o + 6)?,
                 text: self
                     .pool_string(o + 12)
                     .ok_or(CdError::BadOperand { offset: o, reason: "ruby is not valid Shift-JIS" })?,
@@ -740,7 +852,7 @@ impl<'a> CdScript<'a> {
     /// for other opcodes.
     pub fn text_style(&self, ins: &Instr) -> Option<Result<TextStyle, CdError>> {
         (ins.op == OP_TEXT_STYLE).then(|| {
-            let r = Reader(self.pool);
+            let r = self.reader();
             let o = ins.arg as u32 as usize;
             Ok(TextStyle {
                 line: r.u16(o)?,
@@ -748,20 +860,19 @@ impl<'a> CdScript<'a> {
                 length: r.u16(o + 4)?,
                 size: r.u16(o + 6)?,
                 colour: r.u32(o + 8)?,
-                edge: r.u32(o + 12)?,
             })
         })
     }
 
     /// Decodes a sound instruction, or returns `None` for other opcodes.
     pub fn sound(&self, ins: &Instr) -> Option<Result<Sound, CdError>> {
-        let number = ins.arg.max(0) as u32;
+        let number = || self.arg(ins).max(0) as u32;
         Some(Ok(match ins.op {
-            OP_BGM_PLAY => Sound::BgmPlay { track: number, fade_in_ms: ins.sub.min(30000) },
-            OP_BGM_STOP => Sound::BgmStop { track: number, fade_out_ms: ins.sub.min(30000) },
-            OP_SE_STOP => Sound::SeStop { sound: number, fade_out_ms: ins.sub },
+            OP_BGM_PLAY => Sound::BgmPlay { track: number(), fade_in_ms: self.sub(ins).min(30000) },
+            OP_BGM_STOP => Sound::BgmStop { track: number(), fade_out_ms: self.sub(ins).min(30000) },
+            OP_SE_STOP => Sound::SeStop { sound: number(), fade_out_ms: self.sub(ins) },
             OP_BGM_CROSSFADE => {
-                let r = Reader(self.pool);
+                let r = self.reader();
                 let o = ins.arg as u32 as usize;
                 let read = || -> Result<Sound, CdError> {
                     Ok(Sound::BgmCrossfade {
@@ -773,7 +884,7 @@ impl<'a> CdScript<'a> {
                 return Some(read());
             }
             OP_SE_PLAY => {
-                let r = Reader(self.pool);
+                let r = self.reader();
                 let o = ins.arg as u32 as usize;
                 let read = || -> Result<Sound, CdError> {
                     Ok(Sound::SePlay {
@@ -792,12 +903,12 @@ impl<'a> CdScript<'a> {
     /// for other opcodes.
     pub fn sprites(&self, ins: &Instr) -> Option<Result<Vec<SpriteEntry>, CdError>> {
         (ins.op == OP_SPRITES).then(|| {
-            let r = Reader(self.pool);
+            let r = self.reader();
             let base = ins.arg as u32 as usize;
-            (0..ins.sub as usize)
+            (0..self.sub(ins) as usize)
                 .map(|i| {
                     let o = base + i * SPRITE_ENTRY_LEN;
-                    r.slice(o, SPRITE_ENTRY_LEN)?;
+                    Reader(self.pool).slice(o, SPRITE_ENTRY_LEN)?;
                     Ok(SpriteEntry {
                         mode: r.u16(o)?,
                         character: r.u16(o + 2)?,
@@ -815,7 +926,7 @@ impl<'a> CdScript<'a> {
     /// other opcodes.
     pub fn preset_module(&self, ins: &Instr) -> Option<Result<PresetModule, CdError>> {
         (ins.op == OP_PRESET_MODULE).then(|| {
-            let r = Reader(self.pool);
+            let r = self.reader();
             let o = ins.arg as u32 as usize;
             // preset, slot, u32 ?, kind, u16 blend, u16 opacity, kind data.
             let (preset, slot, kind) = (r.u32(o)?, r.u32(o + 4)?, r.u32(o + 12)?);
@@ -828,20 +939,20 @@ impl<'a> CdScript<'a> {
     /// Decodes opcode 0x70, or returns `None` for other opcodes.
     pub fn screen_module(&self, ins: &Instr) -> Option<Result<ScreenModule, CdError>> {
         (ins.op == OP_SCREEN_MODULE).then(|| {
-            let r = Reader(self.pool);
+            let r = self.reader();
             let o = ins.arg as u32 as usize;
-            let (slot, timing, kind) = (r.u32(o)?, r.u32(o + 4)?, r.u32(o + 8)?);
+            let (slot, timing, kind) = (r.u32(o)?, r.slice(o + 4, 1)?[0], r.u32(o + 8)?);
             let set = slot != 0 && kind != 0;
             let (blend, opacity) = if set { (r.u16(o + 12)?, r.u16(o + 14)?) } else { (0, 0) };
             let data = if set { module_data(&r, kind, o + 16)? } else { ModuleData::None };
-            Ok(ScreenModule { slot, layer: timing as u8, depth: timing >> 8, kind, blend, opacity, data })
+            Ok(ScreenModule { slot, layer: timing, kind, blend, opacity, data })
         })
     }
 
     /// Decodes opcode 0x8c, or returns `None` for other opcodes.
     pub fn environment(&self, ins: &Instr) -> Option<Result<EnvModule, CdError>> {
         (ins.op == OP_ENVIRONMENT).then(|| {
-            let r = Reader(self.pool);
+            let r = self.reader();
             let o = ins.arg as u32 as usize;
             let (slot, kind) = (r.u32(o)?, r.u32(o + 8)?);
             let noise = if slot != 0 && kind == ENV_KIND_NOISE {
@@ -894,7 +1005,7 @@ impl<'a> CdScript<'a> {
     /// Decodes opcode 0x6d, or returns `None` for other opcodes.
     pub fn quake(&self, ins: &Instr) -> Option<Result<Quake, CdError>> {
         (ins.op == OP_QUAKE).then(|| {
-            let r = Reader(self.pool);
+            let r = self.reader();
             let o = ins.arg as u32 as usize;
             Ok(Quake { speed: r.u32(o)?, range: (r.u32(o + 4)?, r.u32(o + 8)?) })
         })
@@ -903,7 +1014,7 @@ impl<'a> CdScript<'a> {
     /// Decodes opcode 0x6f, or returns `None` for other opcodes.
     pub fn surprise(&self, ins: &Instr) -> Option<Result<Surprise, CdError>> {
         (ins.op == OP_SURPRISE).then(|| {
-            let r = Reader(self.pool);
+            let r = self.reader();
             let o = ins.arg as u32 as usize;
             let preset = r.u32(o + 4)? as usize;
             Ok(Surprise {
@@ -916,7 +1027,7 @@ impl<'a> CdScript<'a> {
     /// Decodes opcode 0x90, or returns `None` for other opcodes.
     pub fn apply_preset(&self, ins: &Instr) -> Option<Result<ApplyPreset, CdError>> {
         (ins.op == OP_APPLY_PRESET).then(|| {
-            let r = Reader(self.pool);
+            let r = self.reader();
             let o = ins.arg as u32 as usize;
             Ok(ApplyPreset { character: r.u16(o)?, preset: r.u32(o + 8)? })
         })
@@ -1060,7 +1171,7 @@ pub(crate) mod tests {
         let bytes = build("l.rio", &[], &code, &pool);
         let cd = CdScript::parse(&bytes).unwrap();
         let link = cd.link(&cd.code[0]).unwrap().unwrap();
-        assert_eq!(link, Link { row: 2, column: 8, length: 4, style: 0x8007, target: 6, reserved: 0 });
+        assert_eq!(link, Link { row: 2, column: 8, length: 4, style: 0x8007, target: 6 });
         assert!(cd.message(&cd.code[0]).is_none());
 
         let code = [Instr { op: OP_LINK, sub: 0xffff, arg: 10, source_pos: 0 }];
@@ -1099,6 +1210,31 @@ pub(crate) mod tests {
                 None,
             ]
         );
+    }
+
+    #[test]
+    fn notes_ignored_operands() {
+        // An 0x90 record (u16 character, u16 0, u32 module field, u32
+        // preset), then an SE record.
+        let mut pool = vec![3, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0];
+        pool.extend_from_slice(&[0, 0, 0, 0, 1, 7, 0, 0, 0]);
+        let code = [
+            Instr { op: OP_APPLY_PRESET, sub: 0xffff, arg: 0, source_pos: 0 },
+            Instr { op: OP_SE_PLAY, sub: 0xffff, arg: 12, source_pos: 1 },
+            Instr { op: OP_BGM_PLAY, sub: 500, arg: 2, source_pos: 2 },
+            Instr { op: 0x52, sub: 0xffff, arg: 9, source_pos: 3 },
+        ];
+        let bytes = build("ops.rio", &[], &code, &pool);
+        let cd = CdScript::parse(&bytes).unwrap();
+        let records = [OP_APPLY_PRESET, OP_SE_PLAY];
+        assert_eq!(cd.ignored(&records).len(), 5, "nothing read yet: a run per record, BGM sub and arg, 0x52 arg");
+        cd.apply_preset(&cd.code[0]).unwrap().unwrap();
+        cd.sound(&cd.code[1]).unwrap().unwrap();
+        cd.sound(&cd.code[2]).unwrap().unwrap();
+        // The module field (bytes 2-7) and 0x52's arg; sub 0xffff isn't given.
+        assert_eq!(cd.ignored(&records), [(OP_APPLY_PRESET, "+2".to_string()), (0x52, "arg".to_string())]);
+        // A record list that leaves the 0x90 record out finds the SE record out of place.
+        assert!(cd.ignored(&[OP_SE_PLAY]).contains(&(OP_SE_PLAY, "record out of place".to_string())));
     }
 
     #[test]
