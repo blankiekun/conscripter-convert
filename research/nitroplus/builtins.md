@@ -185,7 +185,7 @@ dry run):
 | `CreateProcess`, `BezierMove`, `SetFrequency`, `SetShade`, `SetTone`, `MoveCamera`, `CreateCamera` | 287 / 193 / 30 … | not converted (Status) |
 | `SetBacklog` | 83 / 6 / 0 | not converted: 1,958 noted; the hand-made backlog lines (pictures, ASCII art) are missing from our log |
 | `CreateWindow` | story | partial: its children are drawn only inside it (`spclip`), not with `Game::relative_children` (続・殺戮のジャンゴ, whose moved windows aren't checked); argument 6 (true/false) not read |
-| `CreateText` | 53 / 104 / 40 | story: drawn as pictures in the last `SetFont`'s style (`convert/text_object.rs`), but argument 5, the box's height (30 notes); choices and markup left out; sys: replaced |
+| `CreateText` | 53 / 104 / 40 | story: drawn as pictures in the last `SetFont`'s style (`convert/text_object.rs`), clipped at the box's height (argument 5) as the exe's surface of the box's size; choices and markup left out; sys: replaced |
 | `SetFont` | most story | converted: its style is `CreateText`'s (the story's text window keeps ours) |
 | `LoadImage` | 30 / 16 / 101 | not converted for Muramasa (`Game::loaded_textures` is off; 487 noted): the sources of `CreateTexture` from an object |
 | `DrawEffect` | 79 / 0 / 2 | not converted (waves `SuperWave`, `LowWave`, …; 76 noted) |
@@ -212,7 +212,6 @@ whole-game dry run (`ma00_000.nss --chain 2000`), and 続・殺戮のジャン�
 | `LockVideo` | 0 (on/off) | 50,696 | 0 |
 | `WaitText` | 0, 1 | 23,689 | 0 |
 | `SetVertex` | 1-2 (the point; kept only for `CreateText`'s pictures without `zoom_vertex`) | 17,995 | 0 |
-| `CreateText` | 5 (the box's height) | 30 | 0 |
 | `LoadText` | 0, 1 of the 7-argument form, 0 of the 6 | 15,184 | 740 |
 | `SetFrequency` | 0, 1, 3 (2 is checked) | 8,724 | 1,283 |
 | `Random` | 0 (the range: we return 0) | 7,368 | 0 |

@@ -102,13 +102,23 @@ impl Compiler<'_, '_> {
             Value::Int(w) if w > 0 => Some(w as u32),
             _ => None,
         };
-        let Some(img) = draw(self.assets.font(), &text, &style, wrap) else {
+        let Some(mut img) = draw(self.assets.font(), &text, &style, wrap) else {
             self.note("CreateText without a font");
             return;
         };
+        // The exe draws into a surface of the box's size (`auto`: the text's):
+        // what passes the box's height isn't shown.
+        let clip = match arg(5) {
+            Value::Int(h) if h > 0 && (h as u32) < img.height() => Some(h as u32),
+            _ => None,
+        };
+        if let Some(h) = clip {
+            img = imageops::crop_imm(&img, 0, 0, img.width(), h).to_image();
+        }
         let (w, h) = img.dimensions();
         let mut hash = std::collections::hash_map::DefaultHasher::new();
         (&text, &style, wrap).hash(&mut hash);
+        clip.inspect(|h| h.hash(&mut hash));
         let file = format!("{PREFIX}{:016x}", hash.finish());
         let Some(image) = self.assets.frames_strip(&file, w, h, 1, &mut |_, out| out.copy_from_slice(&img)) else { return };
         let (sw, sh) = self.game.screen;
