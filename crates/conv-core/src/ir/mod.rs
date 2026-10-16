@@ -554,6 +554,10 @@ pub enum Op {
     /// showing it; `voice` (a sound file) is played from the history.
     /// Lines the story shows as pictures (装甲悪鬼村正's SetBacklog).
     BacklogLine { text: String, voice: Option<String> },
+    /// Jumps to `label` while 超速スキップ is on: the skip that
+    /// `BarAction::FastSkip` started still runs (装甲悪鬼村正's
+    /// `SkipOut`, which jumps over a scene read before).
+    IfFastSkip { label: String },
 }
 
 /// [`Op::HoldMovie`]'s prompt: `image` is `cells` pictures side by side,

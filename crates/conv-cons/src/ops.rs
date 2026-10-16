@@ -207,6 +207,10 @@ impl<'a> Emitter<'a> {
         Op::IfSkipping { label: target } => {
             writeln!(out, "isskip {0}\nif {0} == 1 goto *{1}", menu::TMP, label(target)).unwrap();
         }
+        Op::IfFastSkip { label: target } => {
+            let fast = menu::FAST_SKIP;
+            writeln!(out, "isskip {0}\nif {0} != 1 mov {fast},0\nif {fast} == 1 goto *{1}", menu::TMP, label(target)).unwrap();
+        }
         Op::IfSwitch { switch, on, label: target } => {
             writeln!(out, "if {} == {} goto *{}", menu::switch_off(*switch), u8::from(!*on), label(target)).unwrap();
         }

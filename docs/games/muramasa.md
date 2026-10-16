@@ -653,10 +653,6 @@ Next, in order:
    with its status in `research/nitroplus/builtins.md`, "In the
    scripts: coverage"). Every file has a status (no gaps there); new
    gaps, most noticeable first:
-   - 超速スキップ (`sys_skip`, N) skips like スキップ: the story's
-     `SkipOut` test (`$SYSTEM_skip && #SYSTEM_skip_express && $AllRead`,
-     774 files) is compiled as false, so a read scene is never jumped
-     over.
    - `CreateEffect` Rain (37, with `$SYSTEM_effect_rain_*` in 17 files),
      Drop and Lens; the tone kinds (Sepia, Monochrome, KitanoBlue,
      NegaPosi: 41, besides `SetTone`) are noted and drawn plain.
@@ -716,6 +712,21 @@ Next, in order:
 
 Finished work, moved out of "Status" so a session reads only the open
 state.
+
+**超速スキップ (2026-10-15, script coverage):** each file's `SkipOut`
+test (`$SYSTEM_skip && #SYSTEM_skip_express && $AllRead`, 835 tests) is
+a runtime test: the file's read flag (`#conv_read:<file>`, a global set
+once the scene has run or been jumped over) and `Op::IfFastSkip` (the
+bar's 超速スキップ button sets `%2905` and starts skip; スキップ clears it,
+and a test that finds skip off clears it). Read and on, the scene is
+jumped over as in the original (`SkipOut`: everything faded out, the
+flags after the scene set). Approximations: "read" is "played through
+once", not the exe's every line read; `#SYSTEM_skip_absolute` (skip
+unread too) isn't offered; skip started with the `s` key or Ctrl right
+after a 超速 skip stopped counts as 超速 until the next scene's test.
+Not yet tried in a real skip run. Also fixed with it: `PassageTime` of
+a sound is its length (`mc01_017vs`'s loop waiting for its song ran
+10,000 rounds since `RemainTime` gave the length).
 
 **`SetBacklog` (2026-10-15, script coverage):** the lines the scripts
 put in the backlog by hand (83 story calls: lines shown as pictures, the

@@ -121,6 +121,9 @@ fn flags(files: &BTreeMap<String, NssFile>) -> Vec<String> {
     out.push(screens::CHAPTER_ONE_CLEARED.to_string());
     // Each ending's roll seen (TheEND: `VariableValue(#, "ClearRoll%02d")`).
     out.extend((0..6).map(|n| format!("#ClearRoll{n:02}")));
+    // The scenes 超速スキップ jumps over once read (SkipOut).
+    let main_scene = |name: &str, f: &NssFile| f.items.iter().any(|i| matches!(i, crate::nitroplus::nss::Item::Scene(b) if b.name == format!("{name}_MAIN")));
+    out.extend(files.iter().filter(|(name, f)| main_scene(name, f)).map(|(name, _)| super::read_flag(name)));
     out.push(extras::CLEARED.to_string());
     out.extend(extras::flags(files));
     // The routes cleared and the title's marks for them (TitleSet).

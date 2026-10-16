@@ -88,6 +88,8 @@ mod django;
 pub use django::DJANGO;
 mod process;
 mod array;
+mod fast_skip;
+pub(super) use fast_skip::read_flag;
 
 /// What one game adds to the compiler, in its own module under `convert/`
 /// ([`MURAMASA`]): library functions it compiles itself (written as
@@ -1136,6 +1138,9 @@ struct Compiler<'a, 'b> {
     /// The action process running ([`Compiler::start_process`]): its
     /// actions don't block, and their time counts as its own.
     action_process: Option<String>,
+    /// The next runtime `if` is the `SkipOut` test of the scene with this
+    /// read flag ([`Compiler::fast_skip_test`]).
+    fast_skip_read: Option<conv_core::ir::Var>,
     /// [`Compiler::seq`] when the chapter being run began.
     chapter_mark: Option<u64>,
     /// `LoadText(unit, box, w, h, letter, line)` (続・殺戮のジャンゴ): the
@@ -1618,7 +1623,10 @@ impl<'a, 'b> Compiler<'a, 'b> {
         let n = self.choices;
         self.choices += 1;
         let (else_label, end_label) = (format!("if{n}_else"), format!("if{n}_end"));
-        self.jump_if(cond, false, &else_label);
+        match self.fast_skip_read.take() {
+            Some(read) => self.jump_unless_fast_skip(read, &else_label),
+            None => self.jump_if(cond, false, &else_label),
+        }
         let base = self.snapshot();
         let (then_base, stops) = match returned {
             Some((_, state, stops)) => (state, stops),
@@ -1840,6 +1848,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
             pending_enter: None,
             process_clock: None,
             action_process: None,
+            fast_skip_read: None,
             chapter_mark: None,
             box_layouts: HashMap::new(),
             whole_story: false,
@@ -2005,6 +2014,11 @@ impl<'a, 'b> Compiler<'a, 'b> {
                     self.ops.push(Op::Chapter { title: t.trim_matches(' ').to_string() });
                 }
                 self.vars.insert(key, new);
+            }
+            StmtKind::If { cond, then, otherwise } if let Some(read) = self.fast_skip_test(cond) => {
+                self.fast_skip_read = Some(read);
+                self.runtime_if(cond, then, otherwise.as_deref());
+                self.ops.push(Op::Arith { var: read, op: ArithOp::Set, value: Operand::Const(1) });
             }
             StmtKind::If { cond, then, otherwise } if self.is_runtime(cond) => {
                 self.runtime_if(cond, then, otherwise.as_deref());

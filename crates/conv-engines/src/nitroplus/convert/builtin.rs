@@ -375,14 +375,19 @@ impl Compiler<'_, '_> {
                 }
             }
             "SetFrequency" if arg(2).int() != 1000 => self.note("SetFrequency"),
-            "RemainTime" | "DurationTime" => {
-                // A sound: its length (it has only just started).
+            // A sound: its length (it has only just started); played
+            // through for PassageTime, whose busy loops (mc01_017vs waits
+            // for its song's end) can't be waited out here.
+            "RemainTime" | "DurationTime" | "PassageTime" => {
                 let sound = self.matching(&arg(0)).iter().find_map(|t| match &self.objects[t].kind {
                     Kind::Sound(s) => Some(s.path.clone()),
                     _ => None,
                 });
                 if let Some(ms) = sound.and_then(|p| self.assets.sound_ms(&p)) {
                     return Value::Int(ms as i64);
+                }
+                if name == "PassageTime" {
+                    return Value::Int(0);
                 }
                 let movie = self.matching(&arg(0)).iter().find_map(|t| match &self.objects[t].kind {
                     Kind::Movie(m) => Some(m.clone()),
@@ -394,7 +399,7 @@ impl Compiler<'_, '_> {
                     (_, MovieState::Played) => 0,
                 }) as i64);
             }
-            "PassageTime" | "Conquest" | "Random" => return Value::Int(0),
+            "Conquest" | "Random" => return Value::Int(0),
             "ModuleFileName" => return Value::Str(self.file.to_string()),
             "Strstr" => return Value::Int(i64::from(arg(0).string().contains(&arg(1).string()))),
             "Integer" => return Value::Int(arg(0).int()),

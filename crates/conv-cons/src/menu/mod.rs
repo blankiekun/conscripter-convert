@@ -141,6 +141,9 @@ pub(crate) const BAR_SLIDE_OUT: &str = "conv_bar_slide_out";
 const BTN_EDGE: i32 = BAR_BUTTON_BASE + 300;
 /// 1 while the bars are unpinned ([`BarAction::Lock`]; global).
 const BAR_UNPINNED: &str = "%2908";
+/// 1 while the skip [`BarAction::FastSkip`] started runs (global; cleared
+/// when a test finds skip off, [`Op::IfFastSkip`]).
+pub(crate) const FAST_SKIP: &str = "%2905";
 /// 1 while the unpinned bar is shown: it fades in only when it was hidden.
 const BAR_SHOWN: &str = "%148";
 /// The game saved before the last choice ([`BarAction::BackToChoice`]);

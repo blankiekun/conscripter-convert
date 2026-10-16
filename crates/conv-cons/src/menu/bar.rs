@@ -364,6 +364,7 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, s: BarScreens) {
     actions.retain(|&a| !bar_label(a).is_empty());
     actions.sort_by_key(|a| bar_label(*a));
     actions.dedup_by_key(|a| bar_label(*a));
+    let fast_skip = actions.contains(&BarAction::FastSkip);
     // The save menu covers the screen: put the bars away first.
     let menu_entry = |entry: &str| format!("gosub *{BAR_CLEAR}\nmov {IN_GAME},1\ngosub *{entry}");
     // Fades to black (the dialog's top sprite) before a load.
@@ -372,7 +373,9 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, s: BarScreens) {
         w(format!("*{}", bar_label(a)));
         match a {
             BarAction::Auto => w("systemcall automode".into()),
-            BarAction::Skip | BarAction::FastSkip => w("systemcall skip".into()),
+            BarAction::Skip if fast_skip => w(format!("mov {FAST_SKIP},0:systemcall skip")),
+            BarAction::Skip => w("systemcall skip".into()),
+            BarAction::FastSkip => w(format!("mov {FAST_SKIP},1:systemcall skip")),
             BarAction::Log if s.backlog => w(menu_entry(BACKLOG)),
             BarAction::Log => w("systemcall lookback".into()),
             BarAction::Settings if s.settings => w(menu_entry(SETTINGS)),
