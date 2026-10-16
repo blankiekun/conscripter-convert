@@ -396,6 +396,21 @@ with the original (it wants all eleven endings' flags under wine).
 
 ## History
 
+- **Windows clip their children (2026-10-16).** `CreateWindow` draws its
+  children only inside it (`spclip`, from 装甲悪鬼村正's cockpit, #27),
+  now for Django too, the window's place counted from its parents'
+  (`窓/中窓` at 0,70 in `窓`). Under wine (dja002_02) a standing
+  picture in `中窓` (`CreateMiddleWin`, the 800×400 band between the
+  black bars) stops at y 70: the top bar stays black (mean 0 in the
+  original and ours, 0.07 before). Pictures in a window still off the
+  screen (`CreateWinBG` at x −800, before it slides in) aren't drawn. A
+  window seen through a camera (`カメラ/移動窓`) doesn't clip (it would
+  need the camera's zoom and depth). A sliding window's clip is its end
+  place: the converter draws a window's slide as its children appearing
+  at their end places (a cross-fade) or moving under a fixed clip, so
+  the clip needn't move; where the original's moving window would hide
+  a moving child's edge, the old picture sliding out covers it.
+
 - **Text windows and face windows compared under wine (2026-10-16).**
   dja001_02 (earlier) and dja003_02: the three boxes' text starts within
   1 px of the original's; the three face windows (`frame03`-`frame05`,

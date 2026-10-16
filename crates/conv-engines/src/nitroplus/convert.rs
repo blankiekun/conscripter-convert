@@ -2673,15 +2673,18 @@ impl<'a, 'b> Compiler<'a, 'b> {
     /// The rectangle of the windows `name` is in (`CreateWindow`), their
     /// overlap when there are several; `None` when it is in none.
     fn window_clip(&self, name: &str) -> Option<(i64, i64, i64, i64)> {
-        // shortcut: not with Game::relative_children (続・殺戮のジャンゴ): its
-        // windows' places (named ones, moved ones such as 移動窓) aren't
-        // checked, and children outside them would vanish.
-        if self.game.relative_children {
-            return None;
-        }
         let mut clip: Option<(i64, i64, i64, i64)> = None;
         for (i, _) in name.match_indices('/') {
             let Some((x, y, (w, h))) = self.objects.get(&name[..i]).and_then(|o| Some((o.x, o.y, o.clip?))) else { continue };
+            // shortcut: a window seen through a camera (`カメラ/移動窓`)
+            // doesn't clip; it would need the camera's zoom and depth.
+            if name[..i].match_indices('/').any(|(j, _)| self.objects.get(&name[..j]).is_some_and(|o| matches!(o.kind, Kind::Camera))) {
+                continue;
+            }
+            // With Game::relative_children a window's place counts from its
+            // parents' (続・殺戮のジャンゴ's `窓/移動窓`).
+            let (px, py) = self.parent_offset(&name[..i]);
+            let (x, y) = (x + px, y + py);
             clip = Some(match clip {
                 None => (x, y, w, h),
                 Some((cx, cy, cw, ch)) => {
@@ -3915,6 +3918,34 @@ scene a.nss
         }).collect();
         clips.sort();
         assert_eq!(clips, [(260, 138, 100, 300), (300, 138, 60, 62)], "{:?}", c.ops);
+    }
+
+    #[test]
+    fn a_window_in_a_window_clips_from_its_parents_place() {
+        // 続・殺戮のジャンゴ's 中窓 (`CreateMiddleWin`): the band between the
+        // black bars, inside `窓`; a standing picture's hat stops at y 70
+        // (dja002_02 under wine).
+        let story = r#"
+scene a.nss
+{
+	CreateWindow("窓", 9990, 0, 0, 800, 600, false);
+	CreateWindow("@窓/中窓", 10190, 0, 70, 800, 400, true);
+	CreateTexture("@窓/中窓/立絵", 10160, 100, -40, "cg/st/a.png");
+	Fade("@窓/中窓/立絵", 0, 1000, null, true);
+	Wait(100);
+}
+"#;
+        static GAME: Game = Game { family: true, relative_children: true, ..Game::PLAIN };
+        let mut files = BTreeMap::new();
+        files.insert(BOOT.to_string(), nss::parse("#include \"nss/function.nss\"\n").unwrap());
+        files.insert("function.nss".to_string(), nss::parse(LIBRARY).unwrap());
+        files.insert("a.nss".to_string(), nss::parse(story).unwrap());
+        let c = compile_scene(&files, "a.nss", "a.nss", &GAME, &mut Fake).unwrap();
+        let clips: Vec<_> = c.ops.iter().filter_map(|op| match op {
+            Op::SpriteClip { rect, .. } => Some(*rect),
+            _ => None,
+        }).collect();
+        assert_eq!(clips, [(0, 70, 800, 400)], "{:?}", c.ops);
     }
 
     #[test]
