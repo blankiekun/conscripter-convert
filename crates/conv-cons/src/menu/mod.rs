@@ -416,22 +416,26 @@ pub(crate) mod tests {
         let mut out = String::new();
         confirm(&mut out, &d);
         for line in [
-            // From a line at x 60, unseen, the backdrop with it…
-            "resettimer\namsp 4,10,20,0:spzoom 4,1,100:",
-            "amsp 5,10,20,0:print 1\n",
-            // …to whole after 150 ms; closing takes 200.
-            "spzoom 4,100,100:",
-            "amsp 5,10,20,204:waittimer 150:print 1\n*conv_confirm_wait\n",
-            "amsp 5,10,20,0:waittimer 200:print 1\ncsp 0:",
+            // From a line at x 60 (the picture's centre already), unseen, the backdrop with it,
+            // a key a frame…
+            "amsp 4,10,20,255:spzoom 4,100:spmotion 4,0,0,0,0,1,100,0,0,0,16,0,0,20,100,0,27,0,",
+            // …the yes button's centre (242 + its half width) moving onto the line…
+            "spmotion 0,0,0,-253,0,1,100,0,0,0,",
+            // …to whole after 150 ms; closing takes 200, then the sprites go.
+            ",150,0,0,100,100,0,256,0\n",
+            "amsp 5,10,20,204:spmotion 5,0,0,0,0,100,100,0,0,0,",
+            "print 1:spmotionwait 4:spmotionwait 0:spmotionwait 1:spmotionwait 5\n*conv_confirm_wait\n",
+            "spmotion 4,3,0,0,0,100,100,0,256,0,",
+            ",200,0,0,100,100,0,0,0\nprint 1:spmotionwait 4:spmotionwait 0:spmotionwait 1:spmotionwait 5\ncsp 0:",
         ] {
             assert!(out.contains(line), "missing {line:?} in\n{out}");
         }
-        assert!(!out.contains("print 10,150"));
-        // Up and down about y 30 (the picture's 20-420 narrowed onto it).
+        assert!(!out.contains("print 10,150") && !out.contains("waittimer"));
+        // Up and down about y 30 (the picture's 20-420 narrowed onto it: its centre 220 moved -190).
         d.unroll = Some(conv_core::ir::Unroll { x: 60, close_ms: 200, y: Some(30) });
         let mut out = String::new();
         confirm(&mut out, &d);
-        assert!(out.contains("resettimer\namsp 4,10,-170,0:spzoom 4,100,1:"), "{out}");
+        assert!(out.contains("spmotion 4,0,0,0,-190,100,1,0,0,0,"), "{out}");
     }
 
     #[test]

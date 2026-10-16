@@ -64,26 +64,28 @@ pub(crate) fn emit(out: &mut String, m: &CommandMenu, bar: &ButtonBar, picture_r
     }
     w(backdrop.clone());
     let fade = if m.fade_ms > 0 { format!("print 10,{}", m.fade_ms) } else { "print 1".into() };
-    // The items one by one, from the top; with no step, faded in with the
-    // backdrop.
+    // The items one by one, from the top, each appearing step_ms after
+    // the one before (an spmotion that jumps to its alpha then); with no
+    // step, faded in with the backdrop.
     let together = m.step_ms == 0;
     if !together {
         w(fade.clone());
-        w("resettimer".into());
     }
     let disabled = cells();
-    for i in 0..m.items.len() {
+    let n = m.items.len();
+    for i in 0..n {
         w(item(i));
         if let Some(off) = disabled_while(m.items[i].action, picture_replay) {
             w(format!("if {off} == 1 cell {},2", slot(i)));
         }
-        if !together {
-            w("print 1".into());
-            w(format!("waittimer {}", (i as u32 + 1) * m.step_ms));
+        if !together && i > 0 {
+            w(format!("spmotion {},0,0,0,0,100,100,0,0,0,{},0,0,100,100,0,256,4", slot(i), i as u32 * m.step_ms));
         }
     }
     if together {
         w(fade.clone());
+    } else if n > 0 {
+        w(format!("print 1:spmotionwait {}:wait {}", slot(n - 1), m.step_ms));
     }
 
     w(format!("*{WAIT}"));
@@ -165,16 +167,15 @@ pub(crate) fn emit(out: &mut String, m: &CommandMenu, bar: &ButtonBar, picture_r
     for line in &disabled {
         w(line.clone());
     }
-    if !together {
-        w("resettimer".into());
-    }
-    let n = m.items.len();
+    // From the bottom, each going step_ms after the one below (loop 3).
     for k in 0..n {
-        w(format!("csp {}", slot(n - 1 - k)));
-        if !together {
-            w("print 1".into());
-            w(format!("waittimer {}", (k as u32 + 1) * m.step_ms));
+        match together {
+            true => w(format!("csp {}", slot(n - 1 - k))),
+            false => w(format!("spmotion {},3,0,0,0,100,100,0,256,0,{},0,0,100,100,0,256,0", slot(n - 1 - k), k as u32 * m.step_ms)),
         }
+    }
+    if !together && n > 0 {
+        w(format!("print 1:spmotionwait {}:wait {}", slot(0), m.step_ms));
     }
     w(format!("csp {BACKDROP}"));
     w(fade);
@@ -214,17 +215,19 @@ mod tests {
         let mut out = String::new();
         emit(&mut out, &menu(), &bar, false);
         for line in [
-            "*conv_cmd_menu\ngosub *conv_bar_clear\nmov %143,0\ngosub *conv_bar_state\nlsp 33,\":a;system\\back.png\",0,0\nprint 10,100\nresettimer\n",
-            "lsp 6,\":a/4,0,3;system\\cancel.png\",636,89\nprint 1\nwaittimer 10\n",
-            "lsp 8,\":a/4,0,3;system\\piece.png\",636,129\nif %141 == 1 cell 8,2\nprint 1\nwaittimer 30\n",
+            "*conv_cmd_menu\ngosub *conv_bar_clear\nmov %143,0\ngosub *conv_bar_state\nlsp 33,\":a;system\\back.png\",0,0\nprint 10,100\nlsp 6,\":a/4,0,3;system\\cancel.png\",636,89\nlsp 7,",
+            // each item 10 ms after the one above, by itself
+            "lsp 8,\":a/4,0,3;system\\piece.png\",636,129\nif %141 == 1 cell 8,2\nspmotion 8,0,0,0,0,100,100,0,0,0,20,0,0,100,100,0,256,4\n",
+            ",40,0,0,100,100,0,256,4\nprint 1:spmotionwait 10:wait 10\n",
             "if %141 == 0 cell 8,0:if %141 == 0 spbtn 8,3,3\n",
             "getkey\nbtnwait %9\nif %9 == -1 goto *conv_cmd_close\nif %9 == -1077 goto *conv_cmd_close\nif %9 == -1065 mov %9,2\n",
             "*conv_cmd_item0\ngosub *conv_cmd_close:return\n",
             "*conv_cmd_item1\ngosub *conv_cmd_close:mov %140,1:goto *conv_bar_auto\n",
             "*conv_cmd_item3\ngosub *conv_cmd_hide:gosub *conv_bar_save:gosub *conv_cmd_show:goto *conv_cmd_wait\n",
             "*conv_cmd_item4\ngosub *conv_bar_title:goto *conv_cmd_wait\n",
-            "csp 10\nprint 1\nwaittimer 10\ncsp 9\nprint 1\nwaittimer 20\n",
-            "csp 6\nprint 1\nwaittimer 50\ncsp 33\nprint 10,100\nreturn\n",
+            // closing from the bottom, 10 ms apart
+            "spmotion 10,3,0,0,0,100,100,0,256,0,0,0,0,100,100,0,256,0\nspmotion 9,3,0,0,0,100,100,0,256,0,10,0,0,100,100,0,256,0\n",
+            "spmotion 6,3,0,0,0,100,100,0,256,0,40,0,0,100,100,0,256,0\nprint 1:spmotionwait 6:wait 10\ncsp 33\nprint 10,100\nreturn\n",
         ] {
             assert!(out.contains(line), "missing:\n{line}\nin:\n{out}");
         }
