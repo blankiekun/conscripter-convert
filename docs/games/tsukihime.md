@@ -199,18 +199,26 @@ addresses in `research/typemoon/names.tsv` are those of the 1.0.2
   `ARU_A_18_00_N00_02_02`…. A name's picture is `<name>.NXGZ` in
   `allpac`. Beside each name, a 0x48-byte record at 0x56F830 (all
   else 0, 0x20–0x27 0xFF):
-  - f32 width at 0x2C and height at 0x30, on a 1280 × 724 stage: the
-    texture is 2× art, the record half its width and 724/1440 of its
-    height (IMG0024_01_01: texture 2576 × 1456, record 1288 × 732.04).
+  - f32 width at 0x2C and height at 0x30, in record units (640 × 362
+    is the screen, see "The stage"): half the texture's width and
+    724/1440 of its height (IMG0024_01_01: texture 2576 × 1456, record 1288 × 732.04).
     6,141 names have a second, third-size copy in `allpac` too
     (IMG0006: 427 × 240 beside 2560 × 1440). `typemoon exe --romfs`
     (70 s): every expression (7,286, names ending `_a_b`) and 12,083
     pictures in all fit their full texture to half a stage pixel
     (tall sprites' heights are 0.2 short); 1,304 more to 3 px; 1,326,
     all bare sprite poses (`ARU_L_90_00_N00`: 590 × 878.5 for a
-    1181 × 1711 texture), are further off: a bare pose's record isn't
-    its own texture's size (the plain colours: 640 × 362 for
-    1920 × 1080).
+    1181 × 1711 texture), are further off, and so are the plain
+    colours (640 × 362 for 1920 × 1080).
+  - **A bare pose's record** is its expressions' box less the
+    expression textures' padding: for 3,091 of the 3,092 bare names
+    with expressions, some expression's record is the bare one grown by
+    the same border on both sides (4 units a side for 2,111, 8 for 320,
+    16 for 152, 12 for 108, some 4 across and 8 down), so both put the
+    same point of the art at x, y. The odd one is `IMG1481` (3733 × 2514
+    against 1879 × 1261). When `_STCH` swaps the expression on a
+    layer, it moves the layer's centre by the difference of the two
+    records' centres (`FUN_00160840`, the copy-from-layer branch).
   - f32 centre at 0x34 and 0x38, mostly half the size: `_STCH` puts
     it at its x, y (`FUN_00155d30` looks the name up).
   - byte 0x41: 3 for the plain colours, else 0 (bit 0: `_STCH` draws
@@ -233,12 +241,36 @@ addresses in `research/typemoon/names.tsv` are those of the 1.0.2
   `JUMP00`–`JUMPQA` 8001–8017), read by the `_JUMP` case of
   `script_command`. The label is a place inside that script; the same
   label names recur in many scripts.
+- **The stage** (the draw list `FUN_001884f0`, the draw
+  `FUN_00189ad0`): script coordinates are 480 × 272 for the whole
+  screen, whatever its resolution. `_STCH` keeps x·640/1280 and
+  y·480/720 (a 240 × 181.33 layer space); the draw turns it back,
+  x_screen = W·x_layer/240 and y_screen = H·y_layer/181.33, so
+  x_screen = W·x/480, y_screen = H·y/272 (a full-screen background
+  sits at 240, 136, the middle). Screen shake is converted the same
+  way, from 1920 × 1080 pixels to 480 × 272. A child layer's place is
+  its parent's plus the parent's zoom times (its own x − the parent's
+  centre·0.375, y − centre·0.5) (`FUN_001892b0`, `FUN_00189420`),
+  so the record units are 640 × 362.67 to the screen, and the draw
+  turns a centre into 1920 × 1080 pixels as ·1920/640 and ·1080/362
+  (`BLACK`, 640 × 362, is the whole screen). The scale passed to the
+  draw is the zoom (`_STZ4` ‰ × `_STCH` argument 4 ‰) · W/320 and
+  H/180. A child's offsets are scaled by its record's u16 at 0x46
+  (`FUN_0012dfd0`: 0 → ×1, 1 → ×½, 2 → ×¼, 3 → ×⅛), the sprites'
+  shot letter (`_A_`, `_L_`, `_M_`, `_S_`).
+  **Not settled**: how big a picture is drawn. In record units a
+  background (1288 × 732) is two screens; in texels (2576 × 1456,
+  most bare backgrounds exactly 2560 × 1440, 16:9, with a 427 × 240
+  copy) it is one screen at W/2560 a texel. The texture's
+  size reaches the draw only through `FUN_001dfa6c`/`FUN_001dfa88`
+  (the pivot, normalised), which aren't read yet.
 - **Picture layers**: 40 (0–39), staged by the commands below and shown
   by `_FADS`. Arguments are expressions (`FUN_00102d3c`); `FUN_00102b24`
   splits at most 20 of them.
   - `_STCH` (`FUN_00160840`): 0 layer; 1 picture (empty: clear the
     layer); 2 x and 3 y (kept as x·640/1280 and y·480/720); 4 → the
-    layer's 0x324 (default 1000); 5 alpha 0–255 (default 255); 6
+    layer's 0x324, a zoom in ‰ (default 1000) multiplied with
+    `_STZ4`'s at the draw; 5 alpha 0–255 (default 255); 6
     priority (draw order; default layer × 10, as `_STCP`); 7 and 8
     (`CC`) not read; 9 and 10 the expression: when either is set,
     `_a_b` (two digits each) is added to the name, and both default to
@@ -532,18 +564,26 @@ Nothing yet.
    (gzipped BC7; 159.7 MB unpacked), PNG 81.4 MB, WebP quality 85 at
    full size 7.2 MB (11 % of the archive's), at half size (the
    1280-wide stage) 2.6 MB (4 %). For all of `allpac` (16 GB): about
-   1.8 GB at full size, 0.7 GB at stage size. Which size to keep is
-   still to be decided.
+   1.8 GB at full size, 0.7 GB at stage size. **Decided (the user,
+   2026-10-16): full size** (about 1.8 GB).
 2. Sound for the build: the looping wave sounds' loop points
    (SDL_mixer loops a WAV whole), and the music's loop points from the
    bfsar's stream details (see "The exe").
-3. What `_STCH`'s x, y mean on the stage (backgrounds sit at 240, 136;
-   the handler keeps x·640/1280 and y·480/720) and what a bare pose's
-   record is.
-4. Still open in the exe: `_FADS` type 1, `_STCH`'s arguments 4 and
+3. How big a picture is on screen (see "The stage"): the record
+   units (640 × 362 to the screen) against the texture (2560 × 1440,
+   16:9) for a background. One screenshot of a known background from
+   the original (a Switch capture) settles it; no Switch emulator is
+   on the machine.
+4. Still open in the exe: `_FADS` type 1, `_STCH`'s arguments
    12–17, `_STZ4`'s last two, and the motion keyframes' other fields.
 
 ## History
+
+- 2026-10-16: the stage: script coordinates are 480 × 272 for the
+  screen (the draw's vertex math), record units 640 × 362; a bare
+  pose's record is its expressions' less their padding. How big a
+  picture is drawn is left open (see "The stage"). The user picked
+  full-size WebP for the media folder.
 
 - 2026-10-16: the exe's tables read in Rust (`typemoon/nso.rs`,
   `exe.rs`, `typemoon exe`): 14,713 pictures, 24,192 motions (71,903
