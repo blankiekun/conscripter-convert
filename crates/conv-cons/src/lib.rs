@@ -40,6 +40,8 @@ mod save_grid;
 mod settings_pages;
 mod switches;
 mod line_log;
+mod lua;
+pub use lua::system_lua;
 mod zoom;
 pub mod webp;
 mod vars;
@@ -264,6 +266,11 @@ pub fn emit(script: &Script) -> String {
     // loose files still work either way).
     writeln!(out, "nsa").unwrap();
     writeln!(out, "globalon").unwrap();
+    if lua::uses_processes(script) {
+        for c in lua::COMMANDS {
+            writeln!(out, "luasub {c}").unwrap();
+        }
+    }
     if script.window.is_some() {
         writeln!(out, "windowback").unwrap();
         writeln!(out, "humanz {}", LINK_SPRITES.end()).unwrap();

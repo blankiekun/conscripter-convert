@@ -542,7 +542,10 @@ Used to check what the engine does (`docs/new-game.md` step 9).
 - `CreateProcess` (plan approved 2026-10-16), in this order: **A** the
   endless loops of timed actions as looping `spmotion` (`convert/loops.rs`,
   shared NSS code; done, see Leftovers); **B** conv-cons writes a
-  `system.lua` from the IR (a shared refactor, its own PR first); **C**
+  `system.lua` from the IR (done: `Script::lua` holds the functions,
+  `Op::StartProcess`/`StopProcess` become `cons_start "name","fn",args`
+  and `cons_stop "name"`, `luasub` commands `conv-cons/src/lua.rs`
+  defines over `cons_process`); **C**
   the other processes translated from NSS to Lua (`cons_process`,
   CONscripter #30): the cockpit `CP_*`, `ComicProcess`, the `Random`
   shakes, `EndSong`, and the one-shots, their progress in globals.
