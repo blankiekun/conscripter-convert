@@ -18,6 +18,9 @@ It has no NPA archives and no NSS scripts.
   (later: the English captions from the port's `LANG_NAME` branches, 15
   scenes); volumes on the port's curve (now the Japanese build's: music
   800 plays at 68 %).
+- Open: the choices whose options are variables (mc02_031innsyoku's
+  `$選択肢名前1`-`5`, md05_004's `$md05_hazure` …) take the English the
+  port puts in them (History, "Choices from variables").
 - Follow-up: `subtitles.rs` imports `mages::menus::Labels`; move what's
   shared somewhere neutral.
 - Decided: a click on an empty slot at the title doesn't save (the
@@ -231,11 +234,7 @@ It has no NPA archives and no NSS scripts.
      `sys_key.nut`'s keys.
   5. The port's calls taken in part (the build's `English: … port
      <function> argument <i> ignored` lines; "The port's calls,
-     argument by argument"), most noticeable first: 10 `SetChoice`
-     menus give options by name, not text (`Route.選択肢名前1` …,
-     `Route.md05_hazure` …, the route list `魔王編` …: ids 10, 20,
-     60-90): their English isn't taken from the port (whether they show
-     English is unknown); the telops' `Move`s (252) keep the NSS's
+     argument by argument"), most noticeable first: the telops' `Move`s (252) keep the NSS's
      time, tempo and wait (arguments 1, 4, 5), and their
      `CreateTextureEX`/`SP` (214) the NSS's priority (argument 1):
      the same values if the port copied them, not compared.
@@ -469,7 +468,8 @@ and the build prints one line per argument passed and not read
 | | 1 add | converted (a line under the one shown) |
 | `SetChoice(id, option, …)` | 0 id | converted (`TransChoice["<id>_<n>"]`) |
 | | options as strings | converted (Japanese → English) |
-| | options as names (`Route.…`, constants) | **dropped** (ids 10, 20, 60-90; Status, Next 5) |
+| | options as variables (`Route.<name>`) | converted (the values the port puts in them, History) |
+| | options as constants (ma05_021vs's debug menu) | harmless: names the port never defines (`UNREAD_HARMLESS`) |
 | `Print(number, text)` | 0, 1 | converted (`TransText[number]`, the Japanese to align) |
 | `CreateTexture…(name, priority, x, y, picture)` on a telop | 0 name | converted (pairs the sprite) |
 | | 1 priority | **partial**: the NSS's |
@@ -490,6 +490,22 @@ and the build prints one line per argument passed and not read
 | `setting.ini` keys | files table | there |
 
 ## History
+
+- **Choices from variables (2026-10-16):** 9 of the port's `SetChoice`
+  calls name variables, not text: mc02_031innsyoku's menu of things to
+  hand over (ids 60-90, `Route.選択肢名前1`-`5`) and md05_004's third
+  option in four scenes (id 20, `Route.md05_hazure` …, 頼む/別れる). The
+  port writes the English straight into the variables (`Route.選択肢名前1
+  <- "The pestle"`), so `english.rs` reads each such variable's values
+  (`Function::slot_strs`) and gives the NSS's values for it the port's in
+  order of first appearance (the port merged some branches: md05's three
+  assignments are two there), in the assignments and in the
+  comparisons that pick the branch (`if($選択肢名前1=="擂粉木を渡す")`):
+  27 values. The tenth, ma05_021vs's debug menu (`$GameDebugSelect`),
+  names constants the port never defines and stays Japanese. Checked
+  headless on a one-scene build (`--file mc02_031innsyoku.nss --chain 1
+  --loose`, `--goto if17_end`): `select "　The pestle",…,"　Nothing"`,
+  the branches unchanged.
 
 - **`<FW>` (2026-10-16):** the port's `TAG_FW` calls `SwitchFw(img)`
   (`function_textbox.nut`): with `img=''` and a box with a face window

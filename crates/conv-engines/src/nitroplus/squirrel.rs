@@ -286,6 +286,20 @@ impl Function {
         self.functions.iter().for_each(|f| f.calls(out));
     }
 
+    /// Every string put in a slot named `key` (`Route.選択肢名前1 <-
+    /// "The pestle"`: `DLOAD key value`, then `NEWSLOT`), in this function
+    /// and the ones inside it, in order.
+    pub fn slot_strs(&self, key: &str, out: &mut Vec<String>) {
+        for w in self.code.windows(2) {
+            if w[0].op == DLOAD && w[1].op == NEWSLOT && self.str(w[0].arg1) == Some(key)
+                && let Some(s) = self.str(i32::from(w[0].arg3))
+            {
+                out.push(s.to_string());
+            }
+        }
+        self.functions.iter().for_each(|f| f.slot_strs(key, out));
+    }
+
     /// The string literals loaded by `LOAD`/`DLOAD` in `code`, in order.
     fn loaded_strs(&self, code: &[Instr]) -> Vec<String> {
         let mut out = Vec::new();
