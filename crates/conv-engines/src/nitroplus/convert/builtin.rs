@@ -215,18 +215,11 @@ impl Compiler<'_, '_> {
                         sh.x += dx;
                         sh.y += dy;
                         let (cx, cy) = ((sh.x + sh.w / 2) as i32, (sh.y + sh.h / 2) as i32);
-                        match trail {
-                            // The engine's trail follows only its motions.
-                            Some(t) => {
-                                let key = |ms, x, y| MotionKey { ms, x, y, zoom: 100, angle: 0, opacity: 256 };
-                                let keys = vec![key(0, 0, 0), key(ms as u32, dx as i32, dy as i32)];
-                                let layer = sh.layer;
-                                self.ops.push(Op::SpriteTrail { layer, passes: t.passes, alpha: t.alpha, lag: t.lag });
-                                self.ops.push(Op::SpriteMotion2 { layer, keys, end: MotionEnd::Keep });
-                                self.ops.push(Op::Pause { ms: ms as u32 });
-                            }
-                            None => self.ops.push(Op::SpriteMove { layer: sh.layer, x: cx, y: cy, ms: ms as u32 }),
+                        // (An spmotion: the engine's trail follows it.)
+                        if let Some(t) = trail {
+                            self.ops.push(Op::SpriteTrail { layer: sh.layer, passes: t.passes, alpha: t.alpha, lag: t.lag });
                         }
+                        self.ops.push(Op::SpriteMove { layer: sh.layer, x: cx, y: cy, ms: ms as u32 });
                     }
                     return Value::Null;
                 }

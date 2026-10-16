@@ -768,9 +768,6 @@ Next, in order:
 - 18 files whose `if`/`else if` chain on earlier flags has no `else`:
   by the story's logic one branch always matches; the fall-through ends
   the run.
-- `SetBlur`'s trail ("History", "`SetBlur`") follows only the
-  engine's motions: a blocking `Move` of a trailed picture is an
-  `spmotion2` (linear, like `conv_move`) and a `wait`.
 - Engine: an exit with status 255 in vertical text was put down to a
   half-width character under `tateyoko 1`, but CONscripter draws those
   (rotated) and nothing in drawChar exits. It was most likely a script
@@ -814,11 +811,10 @@ difference (AE 0 under wine). The converter drew a Gaussian blur of
 extra converter sprites were tried and dropped: the layers are packed
 (849-878 scene re-layerings against 592, or 6,374 copies left out).
 Instead CONscripter's `sptrail layer,passes,alpha,lag` draws the copies
-under the sprite, following its `spmotion2` keys `lag` × i ms late; the
-converter emits it before each motion of a trailed picture (594 in the
-story; `sptrail layer` ends it when `SetBlur` is turned off on screen,
-28), and a trailed picture's blocking `Move` becomes an `spmotion2`
-and a `wait` (135).
+under the sprite, following its `spmotion` keys `lag` × i ms late; the
+converter emits it before each motion of a trailed picture, a blocking
+`Move` included (an `spmotion` too since #101): 594 in the story;
+`sptrail layer` ends it when `SetBlur` is turned off on screen (28).
 
 Finished work, moved out of "Status" so a session reads only the open
 state.
