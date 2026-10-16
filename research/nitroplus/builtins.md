@@ -179,7 +179,7 @@ dry run):
 |---|---|---|
 | `Delete`, `Wait`, `ModuleFileName`, `SetAlias`, `WaitKey`, `CreateColor`, `RemainTime`, `Draw`, `ImageHorizon`/`Vertical`, `CreateSound`, `CreateName`, `SetLoop`, `Integer`, `Strstr`, `PassageTime`, `DurationTime` | most story | converted: every argument read |
 | `Fade`, `Move`, `Zoom`, `Rotate`, `SetVolume`, `DrawTransition`, `Shake`, `SetBlur`, `Random`, `Conquest`, `LoadText`, `WaitAction`, `WaitPlay`, `WaitFade`, `WaitZoom`, `CreateWindow`, `CreateEffect`, `CreateMovie`, `MoviePlay`, `SetBacklog` | most story | **partial**: arguments not read, below (non-blocking `Move`/`Zoom` as cross-fades, Status) |
-| `SetVertex`, `LockVideo`, `WaitText`, `SetPan`, `SetFrequency`, `Reset` | most story | dropped (`SetVertex` read only with `Game::zoom_vertex`, 続・殺戮のジャンゴ; `SetFrequency` noted when not 1000) |
+| `SetVertex`, `LockVideo`, `WaitText`, `SetPan`, `SetFrequency`, `Reset` | most story | dropped (`SetVertex`: read, the point a `Zoom` or `Rotate` keeps in place; `SetFrequency` noted when not 1000) |
 | `Request` | 1,643 / 1,748 / 469 | actions below |
 | `DrawTransition`, `Shake`, `Rotate`, `CreateTexture`, `CreateEffect`, `CreateMovie`, `MoviePlay` | story | converted except the noted cases (`Shake` of a small picture 145, `CreateTexture` from an object or the screen 1,812, `CreateEffect` Rain/Sepia/Monochrome/KitanoBlue/NegaPosi/Lens/Drop 82, 3 transition masks missing) |
 | `CreateProcess`, `BezierMove`, `SetFrequency`, `SetShade`, `SetTone`, `MoveCamera`, `CreateCamera` | 287 / 193 / 30 … | not converted (Status) |
@@ -211,7 +211,6 @@ whole-game dry run (`ma00_000.nss --chain 2000`), and 続・殺戮のジャン�
 |---|---|---|---|
 | `LockVideo` | 0 (on/off) | 50,696 | 0 |
 | `WaitText` | 0, 1 | 23,689 | 0 |
-| `SetVertex` | 1-2 (the point; kept only for `CreateText`'s pictures without `zoom_vertex`) | 17,995 | 0 |
 | `LoadText` | 0, 1 of the 7-argument form, 0 of the 6 | 15,184 | 740 |
 | `SetFrequency` | 0, 1, 3 (2 is checked) | 8,724 | 1,283 |
 | `Random` | 0 (the range: we return 0) | 7,368 | 0 |

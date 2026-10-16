@@ -22,7 +22,6 @@ pub const DJANGO: Game = Game {
     call,
     relative_children: true,
     loaded_textures: true,
-    zoom_vertex: true,
     chapter_objects: true,
     text_drop: 7,
     family: true,

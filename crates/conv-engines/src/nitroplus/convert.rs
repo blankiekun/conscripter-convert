@@ -137,10 +137,6 @@ pub struct Game {
     /// face-window frames). Off for 装甲悪鬼村正, whose choice plates come
     /// from `SetChoiceBase` and would be drawn twice.
     loaded_textures: bool,
-    /// A `Zoom` keeps the object's `SetVertex` point in place (続・殺戮の
-    /// ジャンゴ's standing pictures zoom about their bottom centre). Off
-    /// for 装甲悪鬼村正: not checked against it.
-    zoom_vertex: bool,
     /// The objects a chapter file made are deleted when it ends, except
     /// those hung under an object made before it (続・殺戮のジャンゴ: its
     /// `窓` and `音` windows are made for pictures and sounds to "hang on
@@ -208,7 +204,6 @@ impl Game {
         story: None,
         relative_children: false,
         loaded_textures: false,
-        zoom_vertex: false,
         chapter_objects: false,
         text_drop: 0,
         family: false,
@@ -1002,8 +997,8 @@ struct Object<'a> {
     zoom: (i64, i64),
     /// `SetBlur`: Gaussian sigma in tenths of a pixel (0 = none).
     blur: u32,
-    /// `SetVertex`: the point (from the top left) a zoom keeps in place,
-    /// with [`Game::zoom_vertex`]; `None` = the centre.
+    /// `SetVertex`: the point (from the top left) a zoom or a turn keeps
+    /// in place; `None` = the centre.
     vertex: Option<(i64, i64)>,
     /// `Rotate`: degrees about the x, y and z axes. A picture turned past
     /// 90° about y shows mirrored left to right, about x upside down; edge-on
