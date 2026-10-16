@@ -17,8 +17,8 @@ It has no NPA archives and no NSS scripts.
 - Open: #54, choice options keep their places past a variable
   (approved). Open: choice options set in runtime branches picked at
   run time (shared NSS, branch `nitroplus/choice-runtime-options`,
-  History "Choice options at run time"). The backlog line of such an
-  option (`『…』`, `【…】`) is empty.
+  History "Choice options at run time"); their line-log entries
+  (`『…』`, `【…】`) picked at run time too (follow-up PR).
 - Next: telop `Move` timing (252) against the port's. Later: the port's
   English captions from its `LANG_NAME` branches (15 scenes).
 - Decided: a click on an empty slot at the title doesn't save (the

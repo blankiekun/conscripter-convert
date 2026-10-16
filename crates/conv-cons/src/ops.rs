@@ -171,6 +171,14 @@ impl<'a> Emitter<'a> {
             Some(v) => writeln!(out, "logadd \"{}\",\"{}\"", escape(text), path(v)).unwrap(),
             None => writeln!(out, "logadd \"{}\"", escape(text)).unwrap(),
         },
+        Op::RuntimeBacklogLine { text, runtime } => {
+            let s = format!("${}", crate::RUNTIME_LOG);
+            writeln!(out, "mov {s},\"{}\"", escape(text)).unwrap();
+            for (value, t) in &runtime.texts {
+                writeln!(out, "if {} == {value} mov {s},\"{}\"", var_name(runtime.var, border), escape(t)).unwrap();
+            }
+            writeln!(out, "logadd {s}").unwrap();
+        }
         Op::SpriteClip { layer, rect: (x, y, w, h) } => {
             writeln!(out, "spclip {},{x},{y},{w},{h}", SPRITE_BASE + layer).unwrap();
             if transition.is_none() {

@@ -1859,6 +1859,21 @@ impl<'a, 'b> Compiler<'a, 'b> {
         self.finish_fork(leaves, own, false);
     }
 
+    /// [`add`], where a string takes a choice's runtime text as a mark
+    /// ([`RUNTIME_MARK`]) instead of nothing.
+    fn add_texts(&self, l: &Value, r: &Value) -> Value {
+        if !matches!((l, r), (Value::Str(_), _) | (_, Value::Str(_))) {
+            return add(l, r);
+        }
+        let part = |v: &Value| match v {
+            &Value::Runtime(var) if self.choice_reads.iter().any(|k| self.flags.get(k) == Some(&var)) => {
+                format!("{}{}{}{}", RUNTIME_MARK.0, if var.global { "g" } else { "" }, var.index, RUNTIME_MARK.1)
+            }
+            v => v.string(),
+        };
+        Value::Str(part(l) + &part(r))
+    }
+
     /// Whether `e` reads a story flag whose value isn't known now.
     fn is_runtime(&mut self, e: &'a Expr) -> bool {
         match e {
@@ -2181,7 +2196,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 let old = self.vars.get(&key).cloned().unwrap_or(Value::Null);
                 let new = match op {
                     AssignOp::Set => value.clone(),
-                    AssignOp::Add => add(&old, &value),
+                    AssignOp::Add => self.add_texts(&old, &value),
                     AssignOp::Sub => Value::Int(old.int() - value.int()),
                     AssignOp::Mul => Value::Int(old.int() * value.int()),
                     AssignOp::Div => Value::Int(old.int().checked_div(value.int()).unwrap_or(0)),
@@ -2447,7 +2462,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
                     BinaryOp::Gt => b(l.int() > r.int()),
                     BinaryOp::Le => b(l.int() <= r.int()),
                     BinaryOp::Ge => b(l.int() >= r.int()),
-                    BinaryOp::Add => add(&l, &r),
+                    BinaryOp::Add => self.add_texts(&l, &r),
                     BinaryOp::Sub => Value::Int(l.int() - r.int()),
                     BinaryOp::Mul => Value::Int(l.int() * r.int()),
                     BinaryOp::Div => Value::Int(l.int().checked_div(r.int()).unwrap_or(0)),
@@ -3381,6 +3396,36 @@ fn full_width(s: &str) -> String {
             _ => c,
         })
         .collect()
+}
+
+/// Marks a choice's runtime text inside a string (`"『" + $テキストデータ１ +
+/// "』"`): private-use characters around the flag's index, read back by
+/// `SetBacklog` ([`runtime_text`]).
+const RUNTIME_MARK: (char, char) = ('\u{E000}', '\u{E001}');
+
+/// `text`'s first runtime mark: its flag, the text before and after it
+/// (other marks dropped).
+fn runtime_text(text: &str) -> Option<(conv_core::ir::Var, String, String)> {
+    let (before, rest) = text.split_once(RUNTIME_MARK.0)?;
+    let (index, after) = rest.split_once(RUNTIME_MARK.1)?;
+    let strip = |s: &str| {
+        let mut out = String::new();
+        let mut inside = false;
+        for c in s.chars() {
+            match c {
+                c if c == RUNTIME_MARK.0 => inside = true,
+                c if c == RUNTIME_MARK.1 => inside = false,
+                c if !inside => out.push(c),
+                _ => {}
+            }
+        }
+        out
+    };
+    let (global, index) = match index.strip_prefix('g') {
+        Some(i) => (true, i),
+        None => (false, index),
+    };
+    Some((conv_core::ir::Var { global, index: index.parse().ok()? }, strip(before), strip(after)))
 }
 
 fn add(l: &Value, r: &Value) -> Value {
@@ -4392,6 +4437,9 @@ scene a.nss
         let t = texts[1].as_ref().unwrap();
         assert_eq!(t.var, ask);
         assert_eq!(t.texts.iter().map(|(_, s)| s.as_str()).collect::<Vec<_>>(), ["頼む", "別れる"]);
+        // Its line in the log too (`SetBacklog("【" + $ask + "】")`).
+        let mark = format!("【{}{}{}】x{}9{}", RUNTIME_MARK.0, ask.index, RUNTIME_MARK.1, RUNTIME_MARK.0, RUNTIME_MARK.1);
+        assert_eq!(runtime_text(&mark), Some((ask, "【".to_string(), "】x".to_string())));
     }
 
     #[test]

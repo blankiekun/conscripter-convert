@@ -602,6 +602,10 @@ pub enum Op {
     /// (the option's own text when no value matches). NSS choices whose
     /// options a runtime if sets (装甲悪鬼村正's mc02_031innsyoku).
     RuntimeChoice { options: Vec<(String, String)>, texts: Vec<Option<RuntimeText>>, style: Option<ChoiceStyle> },
+    /// [`Op::BacklogLine`] (no voice) whose text is picked at run time by
+    /// `runtime` (`text` when no value matches): the log line of an
+    /// [`Op::RuntimeChoice`]'s option.
+    RuntimeBacklogLine { text: String, runtime: RuntimeText },
 }
 
 /// [`Op::HoldMovie`]'s prompt: `image` is `cells` pictures side by side,

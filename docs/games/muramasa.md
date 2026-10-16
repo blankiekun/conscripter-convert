@@ -547,8 +547,8 @@ Used to check what the engine does (`docs/new-game.md` step 9).
   options set in runtime branches are picked at run time
   (mc02_031innsyoku lists the items held; md05_004 offers 別れる with a
   companion): `Op::RuntimeChoice`, `$3632` up, choice-only flags at
-  %783-%798. Their line-log entry (`『…』`, `【…】`) is empty until a
-  follow-up PR.
+  %783-%798. Their line-log entries (`『…』`, `【…】`) are picked at
+  run time too (`Op::RuntimeBacklogLine`, `$3638`).
 - Known limits: a window that moves (`絵演窓上`, `窓右`, about 56 `Move`s)
   has its clip jump to the end place when the move starts. Sprite movies
   (scene cuts, the turntables) don't play in CONscripter for Windows,
