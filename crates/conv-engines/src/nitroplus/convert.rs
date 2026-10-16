@@ -1088,9 +1088,9 @@ struct Object<'a> {
     /// draws `passes` (1-128) copies under the picture at its opacity ×
     /// `alpha`/1000 (1-1000), copy i showing where the picture was i ×
     /// `lag` ms before on a move, zoom or turn. A still picture's copies
-    /// lie under it and don't show, so nothing is drawn; a moving one's
-    /// trail isn't drawn either (noted).
-    trail: bool,
+    /// lie under it and don't show: drawn by the engine
+    /// ([`Op::SpriteTrail`]) behind its motions.
+    trail: Option<Trail>,
     /// `SetVertex`: the point (from the top left) a zoom or a turn keeps
     /// in place; `None` = the centre.
     vertex: Option<(i64, i64)>,
@@ -1207,6 +1207,14 @@ fn motion(old: &Shown, now: &Shown, ms: u32) -> Option<Op> {
     let key = |ms, x, y, zoom, angle| MotionKey { ms, x, y, zoom, angle, opacity: 256 };
     let keys = vec![key(0, 0, 0, 100, 0), key(ms, (x1 - x0) as i32, (y1 - y0) as i32, zoom, (now.angle - old.angle) as i32)];
     Some(Op::SpriteMotion2 { layer: old.layer, keys, end: MotionEnd::Keep })
+}
+
+/// `SetBlur`'s copies ([`Object::trail`]).
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct Trail {
+    passes: u32,
+    alpha: u32,
+    lag: u32,
 }
 
 /// A sprite layer as the output currently shows it.
@@ -2618,7 +2626,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
 
     fn create(&mut self, name: String, kind: Kind<'a>, priority: i64, w: i64, h: i64) -> &mut Object<'a> {
         self.seq += 1;
-        let o = Object { kind, priority, x: 0, y: 0, w, h, opacity: 1000, locked: false, hideable: false, seq: self.seq, zoom: (1000, 1000), trail: false, vertex: None, turn: (0, 0, 0), shake: None, clip: None, over_text: false, container: false, erased: false };
+        let o = Object { kind, priority, x: 0, y: 0, w, h, opacity: 1000, locked: false, hideable: false, seq: self.seq, zoom: (1000, 1000), trail: None, vertex: None, turn: (0, 0, 0), shake: None, clip: None, over_text: false, container: false, erased: false };
         self.objects.insert(name.clone(), o);
         self.objects.get_mut(&name).unwrap()
     }
@@ -4002,7 +4010,7 @@ scene a.nss
     }
 
     #[test]
-    fn set_blur_draws_nothing_on_a_still_picture_and_notes_a_moving_one() {
+    fn set_blur_draws_nothing_on_a_still_picture_and_a_trail_behind_a_moving_one() {
         let story = r#"
 scene a.nss
 {
@@ -4018,7 +4026,8 @@ scene a.nss
         // The picture itself, no other copy of it.
         let drawn = c.ops.iter().filter(|op| matches!(op, Op::Sprites { changes, .. } if changes.iter().any(|c| c.sprite.is_some()))).collect::<Vec<_>>();
         assert!(matches!(drawn[..], [Op::Sprites { changes, .. }] if changes[0].sprite.as_ref().unwrap().image == "cg/st/a.png"), "{:?}", c.ops);
-        assert!(c.notes.contains_key("SetBlur trail behind a moving picture not drawn"), "{:?}", c.notes);
+        let trails: Vec<_> = c.ops.iter().filter(|op| matches!(op, Op::SpriteTrail { .. })).collect();
+        assert!(matches!(trails[..], [Op::SpriteTrail { passes: 2, alpha: 500, lag: 50, .. }]), "{:?}", c.ops);
     }
 
     #[test]

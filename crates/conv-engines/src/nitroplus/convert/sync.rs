@@ -209,12 +209,12 @@ impl Compiler<'_, '_> {
             match motion(old, &now, t) {
                 Some(op) => {
                     let engine = Engine { zoomed: old.engine.zoomed || old.zoom != now.zoom || old.angle != now.angle, moved: true };
+                    if let Some(t) = self.objects.get(name).and_then(|o| o.trail) {
+                        self.ops.push(Op::SpriteTrail { layer, passes: t.passes, alpha: t.alpha, lag: t.lag });
+                    }
                     self.ops.push(op);
                     self.shown.insert(name.clone(), Shown { engine, ..now });
                     moving.push(name.clone());
-                    if self.objects.get(name).is_some_and(|o| o.trail) {
-                        self.note("SetBlur trail behind a moving picture not drawn");
-                    }
                 }
                 None if (old.x, old.y, old.w, old.h) != (now.x, now.y, now.w, now.h) => {
                     self.note("move or zoom over time with a fade or a new picture drawn as a cross-fade");

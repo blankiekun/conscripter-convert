@@ -612,6 +612,12 @@ pub enum Op {
     /// `SePlay` (with at most an [`Op::SoundVolume`] between), the pan it
     /// starts at; a sound started without one is centred.
     SoundPan { file: String, pan: i32, ms: u32 },
+    /// A layer's sprite draws `passes` copies of itself under it at
+    /// `alpha` per mille of its alpha, copy i where its motions
+    /// ([`Op::SpriteMotion2`]) had it `lag` × i ms before; `passes` 0 ends
+    /// it. Cleared with the layer (CONscripter's `sptrail`). NSS's
+    /// `SetBlur`: 装甲悪鬼村正's dashes.
+    SpriteTrail { layer: u32, passes: u32, alpha: u32, lag: u32 },
 }
 
 /// [`Op::HoldMovie`]'s prompt: `image` is `cells` pictures side by side,
