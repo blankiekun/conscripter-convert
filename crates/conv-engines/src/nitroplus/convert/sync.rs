@@ -209,6 +209,15 @@ impl Compiler<'_, '_> {
                 continue;
             }
             match motion(old, &now, t) {
+                // The move a loop starts after: its lead-in, from where the
+                // picture was to its new place (where it is put now).
+                Some(Op::SpriteMotion2 { keys: mk, .. }) if mk[1].zoom == 100 && mk[1].angle == 0 && self.lead_ins.contains_key(name) && let Some(Object { shake: Some((_, keys)), .. }) = self.objects.get(name) => {
+                    let lead = self.lead_ins.remove(name).unwrap();
+                    self.ops.push(super::loops::lead_in_loop(layer, (-mk[1].x, -mk[1].y, t), lead, keys.clone()));
+                    self.ops.push(Op::SpriteMove { layer, x: (now.x + now.w / 2) as i32, y: (now.y + now.h / 2) as i32, ms: 0 });
+                    self.shown.insert(name.clone(), Shown { engine: Engine { moved: true, ..old.engine }, ..now });
+                    moving.push(name.clone());
+                }
                 Some(op) => {
                     let engine = Engine { zoomed: old.engine.zoomed || old.zoom != now.zoom || old.angle != now.angle, moved: true };
                     if let Some(t) = self.objects.get(name).and_then(|o| o.trail) {
@@ -227,7 +236,8 @@ impl Compiler<'_, '_> {
                 None => {}
             }
         }
-        let rest = timed.iter().filter(|(n, _)| !moving.contains(n)).map(|(_, &t)| t).max().unwrap_or(0);
+        // (A process's own time holds only the process.)
+        let rest = timed.iter().filter(|(n, _)| !moving.contains(n) && !matches!(self.objects.get(*n), Some(Object { kind: Kind::Process { .. }, .. }))).map(|(_, &t)| t).max().unwrap_or(0);
         let ms = if moving.is_empty() { ms } else { blocking.max(rest.min(UNWAITED_MS)) };
         let mut placed = Vec::new();
         let mut animated = Vec::new();
@@ -313,6 +323,12 @@ impl Compiler<'_, '_> {
         changes.retain(|c| unzoom.contains(&c.layer) || !placed.iter().any(|p| p.layer == c.layer));
         changes.extend(placed);
         self.shown.extend(new_shown);
+        // Loops started during a change that isn't a move: after their lead.
+        for (name, lead) in std::mem::take(&mut self.lead_ins) {
+            if let (Some(s), Some(Object { shake: Some((_, keys)), .. })) = (self.shown.get(&name), self.objects.get(&name)) {
+                animated.push(super::loops::lead_in_loop(s.layer, (0, 0, 0), lead, keys.clone()));
+            }
+        }
         if changes.is_empty() && animated.is_empty() && opacity.is_empty() {
             if ms > 0 {
                 self.ops.push(Op::Wait { ms });

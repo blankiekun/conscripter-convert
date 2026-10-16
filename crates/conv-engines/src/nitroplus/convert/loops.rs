@@ -33,22 +33,60 @@ const SHAKE_CALLS: &[&str] = &["Shake", "Wait"];
 /// `spmotion` takes 64 keys (engine #44).
 pub(super) const MAX_KEYS: usize = 64;
 
-/// The statements before the loop, its condition and its body, when `f`
-/// ends in `while(…) { … }` of the calls in `calls` (and labels).
-fn split<'a>(f: &'a Function, calls: &[&str]) -> Option<(&'a [Stmt], &'a Expr, &'a [Stmt])> {
-    let at = f.body.iter().rposition(|s| !matches!(s.kind, StmtKind::Label(_)))?;
-    let StmtKind::While { cond, body } = &f.body[at].kind else { return None };
+/// The statements before the loop, its condition and its body, when
+/// `stmts` end in `while(…) { … }` of the calls in `calls` (and labels).
+fn split<'a>(stmts: &'a [Stmt], calls: &[&str]) -> Option<(&'a [Stmt], &'a Expr, &'a [Stmt])> {
+    let at = stmts.iter().rposition(|s| !matches!(s.kind, StmtKind::Label(_)))?;
+    let StmtKind::While { cond, body } = &stmts[at].kind else { return None };
     let only = body.iter().all(|s| match &s.kind {
         StmtKind::Label(_) => true,
         StmtKind::Expr(Expr::Call { name, .. }) => calls.contains(&name.as_str()),
         _ => false,
     });
-    (only && body.iter().any(|s| matches!(s.kind, StmtKind::Expr(_)))).then_some((&f.body[..at], cond, &body[..]))
+    (only && body.iter().any(|s| matches!(s.kind, StmtKind::Expr(_)))).then_some((&stmts[..at], cond, &body[..]))
+}
+
+/// The statements before an `if` that `stmts` end in, its condition and
+/// its branches (`CP_SpeedAuto`: no wobble while the meter is at 0 or
+/// 1000; `ComicProcess`: one effect per sign).
+#[allow(clippy::type_complexity)]
+fn split_if(stmts: &[Stmt]) -> Option<(&[Stmt], &Expr, &[Stmt], &[Stmt])> {
+    let at = stmts.iter().rposition(|s| !matches!(s.kind, StmtKind::Label(_)))?;
+    let StmtKind::If { cond, then, otherwise } = &stmts[at].kind else { return None };
+    Some((&stmts[..at], cond, then, otherwise.as_deref().unwrap_or_default()))
+}
+
+/// What a branch that doesn't loop may do: run actions at the process's
+/// start ([`Compiler::start_process`]'s action processes) and set names.
+fn one_shot(stmts: &[Stmt]) -> bool {
+    stmts.iter().all(|s| match &s.kind {
+        StmtKind::Label(_) | StmtKind::Assign { .. } => true,
+        StmtKind::Expr(Expr::Call { name, .. }) => ONE_SHOT_CALLS.contains(&name.as_str()),
+        _ => false,
+    })
+}
+
+/// What a branch that doesn't loop may call.
+const ONE_SHOT_CALLS: &[&str] = &["Fade", "Move", "Zoom", "Rotate", "Shake"];
+
+/// Whether `stmts` end in a loop this module converts, or in an `if`
+/// whose branches do so or run once, at least one looping.
+fn ends_in_loop(stmts: &[Stmt]) -> bool {
+    fn looped(stmts: &[Stmt]) -> bool {
+        split(stmts, LOOP_CALLS).is_some() || split(stmts, SHAKE_CALLS).is_some()
+    }
+    fn fits(stmts: &[Stmt]) -> bool {
+        looped(stmts) || one_shot(stmts) || split_if(stmts).is_some_and(|(_, _, t, o)| fits(t) && fits(o))
+    }
+    fn loops(stmts: &[Stmt]) -> bool {
+        looped(stmts) || split_if(stmts).is_some_and(|(_, _, t, o)| loops(t) || loops(o))
+    }
+    fits(stmts) && loops(stmts)
 }
 
 /// Whether `f` is a loop process this module converts.
 pub(super) fn is_loop(f: &Function) -> bool {
-    split(f, LOOP_CALLS).is_some() || split(f, SHAKE_CALLS).is_some()
+    ends_in_loop(&f.body)
 }
 
 /// One property of a picture over a pass: its value at the start and the
@@ -155,27 +193,46 @@ impl<'a> Compiler<'a, '_> {
         self.frames.push(HashMap::new());
         self.in_function += 1;
         let before: HashSet<String> = self.objects.keys().cloned().collect();
-        // A loop that runs while a flag is set: until the script clears it,
-        // which is drawn as the process going on until it is deleted (the
-        // scripts fade its pictures out then).
-        if let Some((prelude, cond, body)) = split(f, SHAKE_CALLS) {
-            self.exec_block(prelude);
-            let made = self.adopt(name, &before);
-            if self.eval(cond).truthy() {
-                self.shake_loop(name, body, &made);
-            }
-        } else if let Some((prelude, cond, body)) = split(f, LOOP_CALLS) {
-            self.action_process = Some(name.to_string());
-            self.exec_block(prelude);
-            self.action_process = None;
-            let made = self.adopt(name, &before);
-            if self.eval(cond).truthy() {
-                self.action_loop(name, &f.name, body, &made);
-            }
-        }
+        self.process_lead = 0;
+        self.run_loop(name, &f.name, &f.body, &before);
         self.in_function -= 1;
         self.frames.pop();
         self.file = saved;
+    }
+
+    /// Runs `stmts`, which [`ends_in_loop`]: the statements before the
+    /// loop, then the loop; an `if` is decided as the process starts.
+    fn run_loop(&mut self, name: &str, function: &str, stmts: &'a [Stmt], before: &HashSet<String>) {
+        // A loop that runs while a flag is set: until the script clears it,
+        // which is drawn as the process going on until it is deleted (the
+        // scripts fade its pictures out then).
+        if let Some((prelude, cond, body)) = split(stmts, SHAKE_CALLS) {
+            self.exec_block(prelude);
+            let made = self.adopt(name, before);
+            if self.eval(cond).truthy() {
+                self.shake_loop(name, body, &made);
+            }
+        } else if let Some((prelude, cond, body)) = split(stmts, LOOP_CALLS) {
+            self.action_process = Some(name.to_string());
+            self.exec_block(prelude);
+            self.action_process = None;
+            let made = self.adopt(name, before);
+            if self.eval(cond).truthy() {
+                self.action_loop(name, function, body, &made);
+            }
+        } else if let Some((prelude, cond, then, otherwise)) = split_if(stmts) {
+            self.action_process = Some(name.to_string());
+            self.exec_block(prelude);
+            self.action_process = None;
+            let branch = if self.eval(cond).truthy() { then } else { otherwise };
+            if ends_in_loop(branch) {
+                self.run_loop(name, function, branch, before);
+            } else {
+                self.action_process = Some(name.to_string());
+                self.exec_block(branch);
+                self.action_process = None;
+            }
+        }
     }
 
     /// With [`super::Game::family`], the pictures a process made are its
@@ -350,14 +407,20 @@ impl<'a> Compiler<'a, '_> {
         clock
     }
 
-    /// Picture `target` loops `keys` while process `name` runs.
+    /// Picture `target` loops `keys` while process `name` runs, after the
+    /// process's waits ([`Compiler::process_lead`]).
     fn set_loop(&mut self, name: &str, target: &str, keys: Vec<MotionKey>) {
         let Some(o) = self.objects.get_mut(target) else { return };
         o.shake = Some((name.to_string(), keys.clone()));
-        // Already shown: it starts now.
-        if let Some(s) = self.shown.get(target) {
-            self.ops.push(Op::SpriteMotion2 { layer: s.layer, keys, end: conv_core::ir::MotionEnd::Loop });
+        let Some(s) = self.shown.get(target) else { return };
+        // Moving now: the next sync makes the move the lead-in.
+        let moving = self.pending_by.get(target).copied().unwrap_or(0);
+        if moving > 0 {
+            self.lead_ins.insert(target.to_string(), self.process_lead.max(moving));
+            return;
         }
+        // Already shown: it starts now, or after the lead.
+        self.ops.push(lead_in_loop(s.layer, (0, 0, 0), self.process_lead, keys));
     }
 
     /// Loop process `owner` deleted: its pictures stop.
@@ -370,6 +433,25 @@ impl<'a> Compiler<'a, '_> {
             }
         }
     }
+}
+
+/// A loop of `keys` on `layer` after a lead-in of `lead` ms, in which the
+/// picture comes from (x, y) away (its offsets from its place) back to its
+/// place over `ms` (`spmotion` loop 4). Without a lead-in, or past
+/// [`MAX_KEYS`], the plain loop.
+pub(super) fn lead_in_loop(layer: u32, (x, y, ms): (i32, i32, u32), lead: u32, keys: Vec<MotionKey>) -> Op {
+    use conv_core::ir::MotionEnd;
+    let lead = lead.max(ms);
+    let Some(&first) = keys.first().filter(|_| lead > 0 && keys.len() + 2 <= MAX_KEYS) else {
+        return Op::SpriteMotion2 { layer, keys, end: MotionEnd::Loop };
+    };
+    let mut all = vec![MotionKey { ms: 0, x: first.x + x, y: first.y + y, ..first }];
+    if ms > 0 && ms < lead {
+        all.push(MotionKey { ms, ..first });
+    }
+    let from = all.len();
+    all.extend(keys.into_iter().map(|k| MotionKey { ms: k.ms + lead, ..k }));
+    Op::SpriteMotion2 { layer, keys: all, end: MotionEnd::LoopFrom(from) }
 }
 
 /// `BezierMove` along `pts` (anchors, and between them any number of

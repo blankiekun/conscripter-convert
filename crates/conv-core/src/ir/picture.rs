@@ -542,6 +542,9 @@ pub enum MotionEnd {
     /// angle goes back to 0). A later motion on it (also stopping one)
     /// first takes a motion still running to its end.
     Keep,
+    /// After the first pass the motion starts again from key `k` (a
+    /// lead-in, then a loop; the last key should match key `k`).
+    LoopFrom(usize),
 }
 
 /// The scene replay of [`PictureExtras`]: a slot per scene over its own
