@@ -170,6 +170,9 @@ pub struct LineLog {
     pub fade_ms: u32,
     /// A 1 px outline of this colour (`#RRGGBB`) around the text's letters.
     pub outline: Option<String>,
+    /// Rows this many pixels wide instead of `columns` cells (proportional
+    /// text in a field of its own width).
+    pub row_width: Option<u32>,
 }
 
 /// An animated click-wait icon ([`Script::wait_icon`]): pictures of `w`×`h`

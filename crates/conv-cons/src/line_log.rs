@@ -54,7 +54,10 @@ const BTN_CLOSE: u32 = 3;
 const BTN_KNOB: u32 = 4;
 const BTN_VOICE: u32 = 10; // + row
 
-pub(crate) fn emit(out: &mut String, l: &LineLog) {
+/// `single_byte`: [`conv_core::ir::Script::single_byte_text`]; each row
+/// is drawn after a backquote, which keeps its leading spaces (a
+/// paragraph's indent).
+pub(crate) fn emit(out: &mut String, l: &LineLog, single_byte: bool) {
     assert!(l.rows <= MAX_ROWS, "a line log shows more rows than its sprites");
     let mut w = |line: String| {
         out.push_str(&line);
@@ -70,7 +73,7 @@ pub(crate) fn emit(out: &mut String, l: &LineLog) {
     w(format!("pushscreen {},{MAX_SPRITE}", crate::ANIMATION_SPRITE));
     // pushscreen keeps the scene's sprites up: the screen covers them.
     w(format!("for {TMP} = {} to {MAX_SPRITE}:csp {TMP}:next", crate::ANIMATION_SPRITE));
-    w(format!("logrows {ROWS},{}", l.columns));
+    w(format!("logrows {ROWS},{}{}", l.columns, l.row_width.map_or(String::new(), |w| format!(",{w}"))));
     w(format!("mov {MAX_TOP},{ROWS}-{}:if {MAX_TOP} < 0 mov {MAX_TOP},0", l.rows));
     w(format!("mov {TOP},{MAX_TOP}"));
     w(format!("lsp {BACKGROUND},\":c;{}\",{},{}", path(&l.background.image), l.background.x, l.background.y));
@@ -175,7 +178,8 @@ pub(crate) fn emit(out: &mut String, l: &LineLog) {
         None => (String::new(), 0, ""),
     };
     w(format!(
-        "if {TEXT} != \"\" mov {SPRITE},{ROW_TEXT}+{K}:{outline_on}strsp {SPRITE},{TEXT},{},{Y},{},1,{s},{s},0,0,0,{shadow},\"{}\"{outline_off}",
+        "if {TEXT} != \"\" mov {SPRITE},{ROW_TEXT}+{K}:{outline_on}strsp {SPRITE},{}{TEXT},{},{Y},{},1,{s},{s},0,0,0,{shadow},\"{}\"{outline_off}",
+        if single_byte { "\"`\"+" } else { "" },
         l.text_x,
         // A row is cut at the columns, but strsp wraps a full-width
         // character one column early: a full row would lose its last.
@@ -221,9 +225,10 @@ mod tests {
             colour: "#000000".into(),
             fade_ms: 300,
             outline: None,
+            row_width: None,
         };
         let mut out = String::new();
-        emit(&mut out, &l);
+        emit(&mut out, &l, false);
         for line in [
             "*conv_backlog\n",
             "logrows %171,26\n",
@@ -238,5 +243,9 @@ mod tests {
         ] {
             assert!(out.contains(line), "missing {line:?} in\n{out}");
         }
+        let mut out = String::new();
+        emit(&mut out, &LineLog { row_width: Some(570), ..l }, true);
+        assert!(out.contains("strsp %175,\"`\"+$107,140,%173,"), "{out}");
+        assert!(out.contains("logrows %171,26,570\n"), "{out}");
     }
 }
