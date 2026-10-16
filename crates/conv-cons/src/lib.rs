@@ -393,6 +393,7 @@ pub fn emit(script: &Script) -> String {
     // The next move's or zoom's curve ([`Op::MoveEase`]), and the eased
     // subroutines used (zoom, ease, exponent).
     let move_ease: Option<(u8, u32)> = None;
+    let move_nowait = false;
     let eased = std::collections::BTreeSet::new();
     let needs_click_wait = false;
     let plate_visible = false;
@@ -427,7 +428,7 @@ pub fn emit(script: &Script) -> String {
             _ => None,
         })
         .collect();
-    let mut e = ops::Emitter { script, out, effects, has_ruby, has_overlay, has_noise, has_chapters, has_animation, root_returns, has_replay, has_vertical, border, voice_switches, duck, back_to_choice, speed, link_depth, clear_fade, restore_overlay, link_targets, zoomed_layers, root_resumes, puzzles, button_screens, plate_choices, picture_screens, se, se_not_skipped, noise_fade_in, move_ease, eased, needs_click_wait, plate_visible, link_pages, transition, window, page_rows, page_tag, fading };
+    let mut e = ops::Emitter { script, out, effects, has_ruby, has_overlay, has_noise, has_chapters, has_animation, root_returns, has_replay, has_vertical, border, voice_switches, duck, back_to_choice, speed, link_depth, clear_fade, restore_overlay, link_targets, zoomed_layers, root_resumes, puzzles, button_screens, plate_choices, picture_screens, se, se_not_skipped, noise_fade_in, move_ease, move_nowait, eased, needs_click_wait, plate_visible, link_pages, transition, window, page_rows, page_tag, fading };
     for (i, op) in script.ops.iter().enumerate() {
         e.op(i, op);
     }
@@ -2335,6 +2336,11 @@ end
         let text = emit(&script(vec![Op::MoveEase { ease: 2, exponent: 3 }, Op::SpriteMove { layer: 5, x: 550, y: 300, ms: 300 }]));
         assert!(text.contains("\n*start\nspcurve 32,0,"), "{text}");
         assert!(text.contains(",256,32:spmotionwait 67\n"), "{text}");
+        // One not waited for, then waited for later; the next one waits.
+        let move_to = |x| Op::SpriteMove { layer: 5, x, y: 300, ms: 300 };
+        let text = emit(&script(vec![Op::MoveNoWait, move_to(550), Op::MotionWait { layer: 5 }, move_to(600)]));
+        assert!(text.contains("550-%1/2-%3,300-%2/2-%4,100,100,0,256,0\nspmotionwait 67\n"), "{text}");
+        assert!(text.contains("600-%1/2-%3,300-%2/2-%4,100,100,0,256,0:spmotionwait 67\n"), "{text}");
     }
 
     /// Runs the helper's algorithm (as emitted) in Rust to check the maths.

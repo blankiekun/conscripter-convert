@@ -395,8 +395,8 @@ struct Shown {
     look: Look,
     /// Its zoom (SpriteMove `:Scale`), in percent.
     zoom: u32,
-    /// A motion (CharacterAction) runs: looping, or once for this many ms
-    /// from the message count given.
+    /// A motion (CharacterAction, or a `:Wait 0` move) runs: looping, or
+    /// once for this many ms from the message count given.
     motion: Option<Motion>,
 }
 
@@ -407,6 +407,8 @@ struct Motion {
     keep: bool,
     ms: u32,
     since_message: usize,
+    /// A CharacterAction (not a move), which CharacterActionEnd ends.
+    action: bool,
 }
 
 /// How a picture is drawn: its colour filters (`:Color` tint,
@@ -919,10 +921,18 @@ impl Lowering<'_> {
                         self.out.ops.push(Op::SpriteOpacity { layer: Some(s.layer), opacity: if look.hidden { 0 } else { 256 } });
                         self.out.ops.push(Op::EndTransition);
                     } else {
+                        let motion = self.no_wait(t, time);
                         self.ease(c);
                         self.out.ops.push(Op::SpriteMove { layer: s.layer, x, y, ms: time });
+                        self.shown.insert(key, Shown { x, y, look, motion, ..s });
+                        continue;
                     }
                     self.shown.insert(key, Shown { x, y, look, ..s });
+                }
+                // `:Wait 1` waits for every character's move (task_run
+                // case 0x1e), also those earlier `:Wait 0` ones started.
+                if t.int("Wait") != Some(0) {
+                    self.wait_motions(|k, s| k.starts_with('c') && s.motion.is_some_and(|m| !m.action));
                 }
             }
             "InOut" | "InOut_Act" => {
@@ -1081,7 +1091,7 @@ impl Lowering<'_> {
                         };
                         self.out.ops.push(Op::SpriteMotion2 { layer: s.layer, keys, end });
                     }
-                    let motion = Motion { looped: a.looped, keep, ms: length, since_message: self.messages };
+                    let motion = Motion { looped: a.looped, keep, ms: length, since_message: self.messages, action: true };
                     let mut s = Shown { motion: Some(motion), ..s };
                     if keep {
                         s.x += last.x;
@@ -1099,7 +1109,7 @@ impl Lowering<'_> {
                 // Ends the characters' actions (`:Character`, or every
                 // one); `:EndWait 1` waits for an action still running.
                 let only = t.int("Character").map(|n| format!("c{n}"));
-                let mut keys: Vec<String> = self.shown.iter().filter(|(k, v)| v.motion.is_some() && only.as_ref().is_none_or(|o| o == *k)).map(|(k, _)| k.clone()).collect();
+                let mut keys: Vec<String> = self.shown.iter().filter(|(k, v)| v.motion.is_some_and(|m| m.action) && only.as_ref().is_none_or(|o| o == *k)).map(|(k, _)| k.clone()).collect();
                 keys.sort();
                 let wait = t.int("EndWait").unwrap_or(0) != 0;
                 for key in keys {
@@ -1188,15 +1198,18 @@ impl Lowering<'_> {
             "EffectQuakeEnd" => self.out.ops.push(Op::ScreenEffect { slot: 1, effect: None }),
             "SpriteMove" => {
                 let tex = t.int("SpriteNumber").or_else(|| t.int("Texture")).unwrap_or(-1);
-                let Some((key, s)) = self.shown.iter().find(|(_, s)| s.tex == tex).map(|(k, s)| (k.clone(), s.clone())) else {
+                let Some(key) = self.shown.iter().find(|(_, s)| s.tex == tex).map(|(k, _)| k.clone()) else {
                     return;
                 };
+                self.settle(&key);
+                let s = self.shown[&key].clone();
                 let x = t.int_at("Position", 0).map_or(s.x, sx);
                 let y = t.int_at("Position", 1).map_or(s.y, sy);
                 let time = ms(t.int("Time").unwrap_or(0));
                 // `:Scale` zooms the picture about its centre (a camera
                 // zoom); without it the zoom stays.
                 let zoom = t.float("Scale").map_or(s.zoom, |f| (f * 100.0).round() as u32);
+                let motion = self.no_wait(t, time);
                 self.ease(t);
                 // A zoomed picture moves with spzoom too, which redraws
                 // where its zoomed picture was.
@@ -1205,7 +1218,7 @@ impl Lowering<'_> {
                 } else {
                     self.out.ops.push(Op::SpriteMove { layer: s.layer, x, y, ms: time });
                 }
-                self.shown.insert(key, Shown { x, y, zoom, ..s });
+                self.shown.insert(key, Shown { x, y, zoom, motion, ..s });
             }
             // `:Image 0,N`: CG.cpk's ECnn (27 is the title logo) over
             // everything, on the cover's layer, coming in through the
@@ -1382,7 +1395,15 @@ impl Lowering<'_> {
                 }
             }
             // CharacterStop stops a looping action, which isn't played.
-            "BacklogMessage" | "SceneJumpDialogEnd" | "MovieStop" | "CharacterStop" | "CharacterWait" | "SpriteMoveEnd" => {}
+            // Wait for the characters' moves and actions (task_run case
+            // 0x23), or a picture's moves (`:Sprite`, -1 or none: every
+            // one; case 0x29).
+            "CharacterWait" => self.wait_motions(|k, _| k.starts_with('c')),
+            "SpriteMoveEnd" => {
+                let tex = t.int("Sprite").or_else(|| t.int("SpriteNumber")).or_else(|| t.int("Texture")).unwrap_or(-1);
+                self.wait_motions(|k, s| !k.starts_with('c') && (tex < 0 || s.tex == tex));
+            }
+            "BacklogMessage" | "SceneJumpDialogEnd" | "MovieStop" | "CharacterStop" => {}
             _ => self.unsupported(scene, i, ty.to_string()),
         }
     }
@@ -1496,6 +1517,27 @@ impl Lowering<'_> {
     /// A move's curve: `:Position x,y,type,power` eases with the eboot's
     /// ease_value (0x8103cc18; 0 straight, 1 in, 2 out, 3 in and out),
     /// which raises t² to the power.
+    /// `:Wait 0` (1 by default, scene_load cases 0x1e, 0x27): a timed
+    /// move runs under the text, ending where it puts the picture; the
+    /// motion to settle or wait for.
+    fn no_wait(&mut self, t: &Block, time: u32) -> Option<Motion> {
+        if t.int("Wait") != Some(0) || time == 0 || self.staging {
+            return None;
+        }
+        self.out.ops.push(Op::MoveNoWait);
+        Some(Motion { looped: false, keep: true, ms: time, since_message: self.messages, action: false })
+    }
+
+    /// Waits for the motions that end of the pictures `which` picks.
+    fn wait_motions(&mut self, which: impl Fn(&str, &Shown) -> bool) {
+        for (k, s) in self.shown.iter_mut() {
+            if which(k, s) && s.motion.is_some_and(|m| !m.looped) {
+                s.motion = None;
+                self.out.ops.push(Op::MotionWait { layer: s.layer });
+            }
+        }
+    }
+
     fn ease(&mut self, t: &Block) {
         let v = t.get("Position").unwrap_or(&[]);
         let ease = v.get(2).and_then(Val::float).unwrap_or(0.0) as u8;
@@ -1692,8 +1734,6 @@ const NOT_NEEDED: &[(&str, &str)] = &[
     ("CharacterDelete :FadeOut", "with a :Fade always 1 (fade), which :Fade times"),
     ("CharacterActionEnd :Character argument", "scene_load (0x8102840a) case 0x21 reads only its first value"),
     ("CharacterDelete [Chara] :FadeOut = 1", "fade, as the task does"),
-    ("CharacterMove :Wait = 1", "wait, as every move of ours does"),
-    ("SpriteMove :Wait = 1", "the same"),
     ("SePlay :Wait = 0", "don't wait, as ours don't"),
     ("SeStop :Wait = 0", "the same"),
     ("SePlay :Div = 1", "a 1-frame fade-in: none, as ours"),
@@ -1726,7 +1766,6 @@ const NOT_NEEDED: &[(&str, &str)] = &[
     ("SpriteDeleteBG :FadeIn", "not read by scene_load case 0x26"),
     ("SpriteDeleteBG :Position", "the same"),
     ("SpriteDeleteBG :ReleaseTexture", "texture memory"),
-    ("SpriteMoveEnd :Sprite", "every SpriteMove is waited on, so none is left running"),
     ("MoviePlay :EndWait = 1", "wait for the end, as our movies always do"),
     // The whole key is read only from :NumberDirect (never used); from
     // :Number the key stays -1 and the task takes whatever picture is
@@ -1784,7 +1823,7 @@ mod tests {
         t.at("Position", 3);
         let mut notes = BTreeMap::new();
         ignored("SpriteMove", "", t, &mut notes);
-        // `:Wait 0` is noted (only `= 1` is covered); Chara0's Number is never read.
+        // `:Wait 0`, not read here, is noted; Chara0's Number is never read.
         let want = [
             "SpriteMove :Curve ignored",
             "SpriteMove :Position argument 2 ignored",
@@ -1793,11 +1832,11 @@ mod tests {
             "SpriteMove [Chara] :Number ignored",
         ];
         assert_eq!(notes.keys().map(String::as_str).collect::<Vec<_>>(), want);
-        // `SpriteMove :Wait = 1` is covered.
-        let blocks = parse("[Task2]\n{\n:Tasktype \"SpriteMove\"\n:Wait 1\n}\n").unwrap();
+        // `SePlay :Wait = 0` is covered.
+        let blocks = parse("[Task2]\n{\n:Tasktype \"SePlay\"\n:Wait 0\n}\n").unwrap();
         blocks[0].task_type();
         let mut notes = BTreeMap::new();
-        ignored("SpriteMove", "", &blocks[0], &mut notes);
+        ignored("SePlay", "", &blocks[0], &mut notes);
         assert!(notes.is_empty());
     }
 
