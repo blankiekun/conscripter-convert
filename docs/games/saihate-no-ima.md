@@ -152,9 +152,9 @@ are gosub/return (engine stack depth 20).
 line number, segment count`, then that many XOR-`0x53` strings:
 pre-wrapped display lines, often with the speaker name first, no inline
 markup. A second block follows (`u32 4, u32 0` in every message). Bit 0
-of `sub` means "has voice"; the display code (`0x475f40`) checks the
-voice through `0x4679d0` and drops the flag if the check fails. All
-46,578 messages (15,620 voiced) decode.
+of `sub` means "the first line is the speaker's name"; the display code
+(`0x475f40`) drops it in text modes that can't show names (`0x4679d0`
+checks the mode; item 27). All 46,578 messages (15,620 voiced) decode.
 
 **Voices:** clip index = (id − 1) % 100000; `id / 100000` is the
 character (3 あずさ … 13 ジーン, 0 minor women, 1 minor men). The rule
@@ -274,7 +274,7 @@ run's):
 | Opcode | Operand or behaviour | State |
 |---|---|---|
 | every opcode the corpus uses, except as below | every operand | converted |
-| `0x40` | `sub` (0x12 in 19,234, 0x13 in 11,724; bit 0 = has a voice, which the exe drops when its voice check `0x4679d0` fails): 30,958 notes | dropped: plain messages are never voiced; whether any of the 11,724 would find a voice is not checked |
+| `0x40` | `sub` (0x12 in 19,234, 0x13 in 11,724; bit 0 = has a speaker name): 30,958 notes | partial: names are guessed from the text, wrong in 3 messages (item 27) |
 | `0x40` | the extra block after the debug menu's one message (`0001.cd` #1): 1 note | dropped (unreachable) |
 | `0x43` | `arg`: 0 waits for the window's fade-out, 1 (530) doesn't: 530 notes | dropped: both become the same `Op::HideTextWindow` |
 | `0x44` | u16 flags at +6 (3 in 32, 1 in 5): 37 notes | dropped: meaning unknown |
@@ -611,8 +611,8 @@ Declared finished on 2026-10-14, then reopened the same day: the 0.19
 debug trace and the decompiled exe (`research/tools/ghidra/ghidra_export.sh`,
 names in `research/xuse/names.tsv`) showed opcodes read wrong from
 `objdump`. All 26 items of that list are done, and so is everything the
-debug trace found ("History", below). Open: the operand notes below,
-for the user to pick from.
+debug trace found ("History", below). Open: items 27-42 below, from
+the operand notes.
 
 Converted and playable from start to end: text, voices, sprites with
 colour filters, backgrounds, BGM with loop points, sound effects, movies,
@@ -647,31 +647,54 @@ behaviour, the shortcut menu and gamepad.
   user's decision; the item stays greyed out). No title BGM (the
   original's title code plays none, as far as was checked).
 
-**Operand notes (2026-10-16).** The dry run now counts the operands
-the converter is given and never reads ("Operand coverage" under
-"Script bytecode"); none is fixed yet, the user picks which become
-items. Most noticeable first (notes = instructions):
-1. `0x46` link style: 9 links have style 0x8012 instead of 0x8007 and
-   look like the others (214 notes, 205 of them the usual style).
-2. `0x49`/`0x4a` edge colours: one grey (`0x808080`) outline and the
-   two `0x4a` ones are not drawn (565 + 2 notes; 564 are "keep").
-3. `0x40` `sub` bit 0 ("has a voice") on 11,724 plain messages
-   (30,958 notes): the exe drops it when its voice check fails; not
-   checked whether any of them would find a voice clip.
-4. `0x70` filter depth (203 notes: 1000 in 188, 2000 in 5, 1100 in 4)
-   and `0x8c` effect depth (236 notes: 1000 in 227, 1100 in 5, 2000 in
-   3): where the filter or static sorts against the bust-ups and
-   overlays; the few that aren't 1000 may cover more or less than ours.
-5. `0x43` `arg` 1 (530 notes): the window hides without waiting for its
-   fade-out; ours does the same for 0 and 1.
-6. `0x44` ruby flags (37 notes: 3 in 32, 1 in 5), `0x52`/`0x53` `arg`
-   (1,117 + 501 notes, odd numbers): meaning unknown.
-7. Module fields: `0x90` (650 notes; 2 and 0 once each, 1 otherwise),
-   `0x88` (4 notes).
-8. `0x7a` blog bust-up band and depth (6 notes), Filter-Replace's begin
-   angle (16 notes, the still ripple starts at phase 0), Zigzag's begin
-   angle and reduction (1), `0x56` depth (1), one `0x86` byte (1), and
-   the debug menu's message block (1, unreachable).
+**Items from the operand notes (2026-10-16).** The dry run counts the
+operands the converter is given and never reads ("Operand coverage"
+under "Script bytecode"); the user made every note an item. Numbered
+after History's 26, most noticeable first (notes = instructions):
+
+27. **Speaker names from `sub` bit 0** (`0x40` `sub`, 30,958 notes).
+    The bit is the name flag, not a voice flag: when the text mode
+    can't show names, `show_message` (`0x475f40`) clears it and logs
+    "現在のテキストモードではネームの表示はできません。ネームを強制解除します。"
+    (`0x4679d0`, named `voice_exists`, checks the text mode). Every
+    0x40 message has id 0, so none has a voice. The converter guesses
+    names instead (a 1-8 character first line before a 「『（ line);
+    the guess agrees with the bit on all 46,578 messages but 3, where it
+    takes a line for a name: `0010.cd` #5832 (象牙の単眼鏡。) and #5839
+    (小皿。), the encyclopedia's item lines, and `0078.cd` #22 (a blank
+    line before 『凶器に関する疑問』). Use the bit; not checked: whether
+    named messages occur in the full-screen modes, where the exe drops
+    the name.
+28. **Link style 18** (`0x46` u32 at +6, 214 notes): 9 links have style
+    0x8012 instead of 0x8007 and look like the others.
+29. **Edge colours** (`0x49` u32 at +12, 565 notes; `0x4a`, 2): one
+    grey (`0x808080`) outline and the two `0x4a` ones are not drawn (564
+    are "keep").
+30. **Screen filter depth** (`0x70`'s second u32, 203 notes: 1000 in
+    188, 2000 in 5, 1100 in 4): where the filter sorts against the
+    bust-ups and overlays; `screenfilter` has no depth.
+31. **Effect depth** (`0x8c`'s second u32, 236 notes: 1000 in 227, 1100
+    in 5, 2000 in 3): the same for the static, ripples and shakes.
+32. **Window hide without waiting** (`0x43` `arg` 1, 530 notes): the
+    original doesn't wait for the window's fade-out; ours treats 0 and
+    1 alike.
+33. **Ruby flags** (`0x44` u16 at +6, 37 notes: 3 in 32, 1 in 5):
+    meaning unknown.
+34. **`0x52`/`0x53` `arg`** (1,117 + 501 notes, odd numbers, 421 and
+    221 distinct values): meaning unknown.
+35. **`0x90` module field** (u32 at +4, 650 notes): 1 except 2 and 0
+    once each.
+36. **`0x88` module field** (u32 at +8, 4 notes: 1000 twice, 2000, 2).
+37. **Blog bust-up band and depth** (`0x7a` u8 4, u32 2000 at +5, 6
+    notes): drawn as the character layer's sprite.
+38. **Filter-Replace's begin angle** (`0x70`, 16 notes): the still
+    ripple starts at phase 0.
+39. **Zigzag's begin angle and reduction** (`0x70`, 1 note).
+40. **`0x56` fill depth** (u32 at +2, 1 note).
+41. **One `0x86` byte** at the end of one record (1 note), not looked
+    into.
+42. **The debug menu's message block** (`0001.cd` #1, 1 note): in the
+    debug menu, which the user didn't want.
 
 **Script opcodes:** all converted (the converter reports 2 unsupported
 instructions, both in the unreachable debug menu). Notes on the last
