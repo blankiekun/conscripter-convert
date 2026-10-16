@@ -1323,6 +1323,17 @@ mod tests {
     }
 
     #[test]
+    fn a_flashing_sprite_is_added_on_with_its_keys_repeated() {
+        let keys = vec![(0, 76), (17, 76), (97, 0), (114, 0)];
+        let text = emit(&script(vec![Op::SpriteFlashing { layer: 3, keys: keys.clone(), times: 60 }]));
+        let slot = SPRITE_BASE + 3;
+        assert!(text.contains(&format!("spblend {slot},1:spalpha {slot},60,0,76,17,76,97,0,114,0\nprint 1\n")), "{text}");
+        // Once: spalpha's loop 0 (1 would repeat it for ever).
+        let text = emit(&script(vec![Op::SpriteFlashing { layer: 3, keys, times: 1 }]));
+        assert!(text.contains(&format!("spalpha {slot},0,0,76,")), "{text}");
+    }
+
+    #[test]
     fn clickable_links_call_their_target() {
         let mut s = script(vec![
             Op::Background { image: "bg/room.png".into(), fade_ms: 0 },

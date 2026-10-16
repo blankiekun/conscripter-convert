@@ -527,6 +527,12 @@ pub enum Op {
     /// The music goes on. 続・殺戮のジャンゴ's 400-vs-3 battle, where the
     /// player holds the trigger.
     HoldMovie { file: String, prompt: Option<HoldPrompt>, sound: Option<HoldSound> },
+    /// Draws a layer's sprite added onto what is under it (a light), its
+    /// opacity (0-256) following `keys` (ms from now, opacity; straight
+    /// from key to key) `times` times while the script goes on, then
+    /// staying at the last key's. 続・殺戮のジャンゴ's muzzle flashes: a
+    /// white screen added on, flashing.
+    SpriteFlashing { layer: u32, keys: Vec<(u32, u32)>, times: u32 },
 }
 
 /// [`Op::HoldMovie`]'s prompt: `image` is `cells` pictures side by side,

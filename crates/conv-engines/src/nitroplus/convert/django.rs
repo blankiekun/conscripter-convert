@@ -32,11 +32,12 @@ pub const DJANGO: Game = Game {
     ..Game::PLAIN
 };
 
-/// The functions compiled as the game's own: the battle's movies and
-/// its counter.
+/// The functions compiled as the game's own: the battle's movies, its
+/// counter and its muzzle flashes.
 fn call(c: &mut Compiler<'_, '_>, name: &str, args: &[Value]) -> bool {
     match name {
         "VS400" => c.vs400(args),
+        "GunFire" => c.gun_fire(args),
         "CountInit" => {
             c.count_init();
             true

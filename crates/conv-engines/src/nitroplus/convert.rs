@@ -870,6 +870,21 @@ enum Kind<'a> {
     /// 1000 or more isn't drawn. Measured under wine (続・殺戮のジャンゴ,
     /// boxes at four priorities and six camera settings).
     Camera,
+    /// A colour added onto the screen, flashing while the script goes on
+    /// (its own code, as 続・殺戮のジャンゴ's `GunFire`).
+    Flash(FlashObject),
+}
+
+/// A [`Kind::Flash`]: `image` (a colour) added on at opacity (0-256)
+/// following `keys` (ms from its start, opacity) `times` times, then
+/// staying at the last key's ([`Op::SpriteFlashing`]). `started` once
+/// placed.
+#[derive(Debug, Clone)]
+struct FlashObject {
+    image: String,
+    keys: Vec<(u32, u32)>,
+    times: u32,
+    started: bool,
 }
 
 /// `CreateMovie`: a movie in the scene. One the script waits for that
@@ -1040,6 +1055,9 @@ struct Shown {
     source: String,
     zoom: (i64, i64),
     engine: Engine,
+    /// A [`Kind::Flash`]'s `seq` (0 for any other picture): a new flash
+    /// starts again.
+    flash: u64,
 }
 
 /// What the engine's motions did to a [`Shown`] picture.

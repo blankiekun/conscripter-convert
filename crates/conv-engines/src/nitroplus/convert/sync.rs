@@ -46,7 +46,7 @@ impl Compiler<'_, '_> {
                         y = sy + (cy - sy) * k / 1000 - o.h / 2;
                         zoom = (zoom.0 * k / 1000, zoom.1 * k / 1000);
                     }
-                    let shown = Shown { layer: 0, image: image.clone(), x, y, w: o.w, h: o.h, opacity: o.opacity, cells: None, source: String::new(), zoom: (1000, 1000), engine: Engine::default() };
+                    let shown = Shown { layer: 0, image: image.clone(), x, y, w: o.w, h: o.h, opacity: o.opacity, cells: None, source: String::new(), zoom: (1000, 1000), engine: Engine::default(), flash: 0 };
                     Some((n.clone(), shown, (o.priority, o.seq), zoom, (o.w, o.h), o.blur, o.mirror()))
                 }
                 _ => None,
@@ -84,7 +84,7 @@ impl Compiler<'_, '_> {
             // One cell: a movie file loops with no time a cell (`:c/1,0,0;`).
             let looped = at.is_none() && m.looped;
             let frame_ms = if at.is_none() { 0 } else { 1000 / MOVIE_FPS };
-            let shown = Shown { layer: 0, image, x, y, w: cw as i64, h: ch as i64, opacity: o.opacity, cells: Some((1, looped, zoom, frame_ms)), source: String::new(), zoom: (1000, 1000), engine: Engine::default() };
+            let shown = Shown { layer: 0, image, x, y, w: cw as i64, h: ch as i64, opacity: o.opacity, cells: Some((1, looped, zoom, frame_ms)), source: String::new(), zoom: (1000, 1000), engine: Engine::default(), flash: 0 };
             want.push((n, shown, (o.priority, o.seq), (1000, 1000), (o.w, o.h), 0, (false, false)));
         }
         for (n, o) in &self.objects {
@@ -93,8 +93,17 @@ impl Compiler<'_, '_> {
                 && !o.hideable
             {
                 let cells = Some((s.cells, false, s.zoom, s.frame_ms));
-                let shown = Shown { layer: 0, image: s.image.clone(), x: o.x, y: o.y, w: s.w, h: s.h, opacity: o.opacity, cells, source: String::new(), zoom: (1000, 1000), engine: Engine::default() };
+                let shown = Shown { layer: 0, image: s.image.clone(), x: o.x, y: o.y, w: s.w, h: s.h, opacity: o.opacity, cells, source: String::new(), zoom: (1000, 1000), engine: Engine::default(), flash: 0 };
                 want.push((n.clone(), shown, (o.priority, o.seq), (1000, 1000), (s.w, s.h), 0, (false, false)));
+            }
+        }
+        for (n, o) in &self.objects {
+            if let Kind::Flash(f) = &o.kind
+                && o.opacity > 0
+                && !o.hideable
+            {
+                let shown = Shown { layer: 0, image: f.image.clone(), x: o.x, y: o.y, w: o.w, h: o.h, opacity: 1000, cells: None, source: String::new(), zoom: (1000, 1000), engine: Engine::default(), flash: o.seq };
+                want.push((n.clone(), shown, (o.priority, o.seq), (1000, 1000), (o.w, o.h), 0, (false, false)));
             }
         }
         // Zoomed pictures: scaled copies, centred where the original was.
@@ -130,6 +139,7 @@ impl Compiler<'_, '_> {
             let still = !self.shown.get(n).is_some_and(|o| o.engine.moved) && !timed.contains_key(n);
             still
                 && s.cells.is_none()
+                && s.flash == 0
                 && s.opacity >= 1000
                 && s.image.to_ascii_lowercase().ends_with(".jpg")
                 && s.x <= 0
@@ -200,21 +210,22 @@ impl Compiler<'_, '_> {
         let mut animated = Vec::new();
         // Layers whose movie (zoomed with spzoom) goes: removed even when a
         // picture takes the layer, which would keep the zoom.
-        let mut unzoom: Vec<u32> = changes.iter().filter(|c| self.shown.values().any(|s| s.layer == c.layer && s.cells.is_some())).map(|c| c.layer).collect();
+        // So do flashes' layers (which would keep their blend and keys).
+        let mut unzoom: Vec<u32> = changes.iter().filter(|c| self.shown.values().any(|s| s.layer == c.layer && (s.cells.is_some() || s.flash != 0))).map(|c| c.layer).collect();
         let mut new_shown = Vec::new();
         for ((name, now, _), layer) in want.into_iter().zip(&layers) {
             let Some(layer) = *layer else { continue };
             let mut now = Shown { layer, ..now };
             match self.shown.get(&name) {
                 Some(old) if *old == Shown { engine: old.engine, ..now.clone() } => continue,
-                Some(old) if old.layer == now.layer && old.image == now.image && old.x == now.x && old.y == now.y && old.cells == now.cells => {
+                Some(old) if old.layer == now.layer && old.image == now.image && old.x == now.x && old.y == now.y && old.cells == now.cells && old.flash == now.flash => {
                     now.engine = old.engine;
                     opacity.push(Op::SpriteOpacity { layer: Some(layer), opacity: (now.opacity * 256 / 1000) as u32 });
                 }
                 old => {
-                    if let Some(old) = old.filter(|o| o.layer != layer || o.engine.zoomed || (o.cells.is_some() && now.cells.is_none())) {
+                    if let Some(old) = old.filter(|o| o.layer != layer || o.engine.zoomed || (o.cells.is_some() && now.cells.is_none()) || o.flash != 0) {
                         changes.push(SpriteChange { layer: old.layer, sprite: None, keep_filters: false });
-                        if old.cells.is_some() || old.engine.zoomed {
+                        if old.cells.is_some() || old.engine.zoomed || old.flash != 0 {
                             unzoom.push(old.layer);
                         }
                     }
@@ -229,6 +240,17 @@ impl Compiler<'_, '_> {
                             animated.push(Op::AnimatedSprite { layer, sprite, cells, frame_ms, looped, zoom });
                         }
                         None => placed.push(SpriteChange { layer, sprite: Some(sprite), keep_filters: false }),
+                    }
+                    // A flash starts the first time it is placed; placed
+                    // again (on another layer, or after something hid it)
+                    // it stays at its end (how far it got isn't known).
+                    if let Some(Object { kind: Kind::Flash(f), .. }) = self.objects.get_mut(&name) {
+                        let (keys, times) = match f.started {
+                            true => (f.keys.last().map(|&(_, a)| vec![(0, a)]).unwrap_or_default(), 1),
+                            false => (f.keys.clone(), f.times),
+                        };
+                        f.started = true;
+                        animated.push(Op::SpriteFlashing { layer, keys, times });
                     }
                     if now.opacity < 1000 {
                         opacity.push(Op::SpriteOpacity { layer: Some(layer), opacity: (now.opacity * 256 / 1000) as u32 });
