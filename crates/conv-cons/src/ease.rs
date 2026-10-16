@@ -15,7 +15,7 @@ pub(crate) fn curve_id(ease: u8, exponent: u32) -> u32 {
 }
 
 /// The eased share (0-1) of the time gone `t` (0-1).
-fn eased(ease: u8, exponent: u32, t: f64) -> f64 {
+pub(crate) fn eased(ease: u8, exponent: u32, t: f64) -> f64 {
     let n = exponent.clamp(1, 20) as i32;
     let pi = std::f64::consts::PI;
     match ease {

@@ -41,6 +41,8 @@ pub(crate) struct Emitter<'a> {
     pub move_ease: Option<(u8, u32)>,
     /// The next timed move isn't waited for ([`Op::MoveNoWait`]).
     pub move_nowait: bool,
+    /// The next timed move's bow ([`Op::MoveArc`]), 0 for none.
+    pub move_arc: i32,
     /// The eased curves used, (ease, exponent): `spcurve` tables at `*start`.
     pub eased: std::collections::BTreeSet<(u8, u32)>,
     pub needs_click_wait: bool,
@@ -55,10 +57,10 @@ pub(crate) struct Emitter<'a> {
 impl<'a> Emitter<'a> {
     /// Writes op `i` of the script.
     pub(crate) fn op(&mut self, i: usize, op: &'a Op) {
-        if !matches!(op, Op::Sprites { .. } | Op::SpritesFading { .. } | Op::SpriteMotion { .. } | Op::SpriteMotion2 { .. } | Op::SpriteMove { .. } | Op::MoveEase { .. } | Op::MoveNoWait) {
+        if !matches!(op, Op::Sprites { .. } | Op::SpritesFading { .. } | Op::SpriteMotion { .. } | Op::SpriteMotion2 { .. } | Op::SpriteMove { .. } | Op::MoveEase { .. } | Op::MoveNoWait | Op::MoveArc { .. }) {
             self.fading.clear();
         }
-        let &mut Emitter { has_ruby, has_overlay, has_noise, has_chapters, has_animation, root_returns, has_replay, has_vertical, border, voice_switches, duck, back_to_choice, speed, link_depth, script, ref clear_fade, ref restore_overlay, ref effects, ref link_targets, ref zoomed_layers, ref mut out, ref mut root_resumes, ref mut puzzles, ref mut button_screens, ref mut plate_choices, ref mut picture_screens, ref mut se, ref mut se_not_skipped, ref mut noise_fade_in, ref mut move_ease, ref mut move_nowait, ref mut eased, ref mut needs_click_wait, ref mut plate_visible, ref mut link_pages, ref mut transition, ref mut window, ref mut page_rows, ref mut page_tag, fading: ref mut fading_slots } = self;
+        let &mut Emitter { has_ruby, has_overlay, has_noise, has_chapters, has_animation, root_returns, has_replay, has_vertical, border, voice_switches, duck, back_to_choice, speed, link_depth, script, ref clear_fade, ref restore_overlay, ref effects, ref link_targets, ref zoomed_layers, ref mut out, ref mut root_resumes, ref mut puzzles, ref mut button_screens, ref mut plate_choices, ref mut picture_screens, ref mut se, ref mut se_not_skipped, ref mut noise_fade_in, ref mut move_ease, ref mut move_nowait, ref mut move_arc, ref mut eased, ref mut needs_click_wait, ref mut plate_visible, ref mut link_pages, ref mut transition, ref mut window, ref mut page_rows, ref mut page_tag, fading: ref mut fading_slots } = self;
         let effect = |ms: u32| if ms == 0 { "1".to_string() } else { effects[&(ms, Effect::Fade)].clone() };
         let visited = |target: &str| LINK_VISITED_BASE + link_targets.iter().position(|&t| t == target).unwrap() as u32;
     if let Op::Text { .. } = op {
@@ -227,13 +229,17 @@ impl<'a> Emitter<'a> {
             writeln!(out, "cons_start {},{}{args}", lua::quoted(name), lua::quoted(function)).unwrap();
         }
         Op::StopProcess { name } => writeln!(out, "cons_stop {}", lua::quoted(name)).unwrap(),
+        Op::MoveArc { bow } => *move_arc = *bow,
         Op::MotionWait { layer } => writeln!(out, "spmotionwait {}", SPRITE_BASE + layer).unwrap(),
         Op::MoveEase { ease, exponent } => *move_ease = Some((*ease, *exponent)).filter(|&(e, _)| (1..=7).contains(&e)),
         Op::SpriteMove { layer, x, y, ms } => {
             let slot = SPRITE_BASE + layer;
             let ease = move_ease.take();
             let wait = !std::mem::take(move_nowait);
-            if *ms > 0 && transition.is_none() {
+            let bow = std::mem::take(move_arc);
+            if *ms > 0 && transition.is_none() && bow != 0 {
+                motion::arc_to(out, slot, *x, *y, *ms, None, ease, bow, fading_slots.remove(&slot), wait);
+            } else if *ms > 0 && transition.is_none() {
                 motion::move_to(out, slot, *x, *y, *ms, None, curve(ease, eased), fading_slots.remove(&slot), wait);
             } else {
                 writeln!(out, "getspsize {slot},%1,%2:amsp {slot},{x}-%1/2,{y}-%2/2").unwrap();
@@ -262,9 +268,14 @@ impl<'a> Emitter<'a> {
         }
         Op::SpriteZoom { layer, x, y, from, to, ms } => {
             let ease = move_ease.take();
-            let curve = if *ms > 0 { curve(ease, eased) } else { 0 };
             let wait = !std::mem::take(move_nowait);
-            zoom::emit(out, *layer, *x, *y, *from, *to, *ms, transition.is_some(), curve, wait);
+            let bow = std::mem::take(move_arc);
+            if *ms > 0 && transition.is_none() && bow != 0 {
+                motion::arc_to(out, SPRITE_BASE + layer, *x, *y, *ms, Some((*from, *to)), ease, bow, None, wait);
+            } else {
+                let curve = if *ms > 0 { curve(ease, eased) } else { 0 };
+                zoom::emit(out, *layer, *x, *y, *from, *to, *ms, transition.is_some(), curve, wait);
+            }
         }
         Op::ScreenFilter { slot, filter, fade_ms } => {
             match filter {
