@@ -55,6 +55,12 @@ const PRIORITY_STEP: u32 = 20;
 const COVER_LAYER: u32 = 0;
 
 /// Frames (60 fps) to milliseconds.
+/// A character's key: `c<number>`, the eboot's number + `:Copy` × 1000
+/// (a second picture of one character, as the cut-ins in S03_02A).
+fn chara_key(c: &Block, number: i64) -> String {
+    format!("c{}", number + c.int("Copy").unwrap_or(0) * 1000)
+}
+
 fn ms(frames: i64) -> u32 {
     (frames.max(0) * 1000 / 60) as u32
 }
@@ -799,8 +805,7 @@ impl Lowering<'_> {
                         .children
                         .iter()
                         .filter(|c| c.name.starts_with("Chara"))
-                        .filter_map(|c| c.get("Number")?.first()?.int())
-                        .map(|n| format!("c{n}"))
+                        .filter_map(|c| Some(chara_key(c, c.get("Number")?.first()?.int()?)))
                         .collect();
                     let mut gone: Vec<String> = self.shown.keys().filter(|k| k.starts_with('c') && !named.contains(k)).cloned().collect();
                     gone.sort();
@@ -817,7 +822,7 @@ impl Lowering<'_> {
                         self.note(format!("{ty}: unknown character picture {number:?}"));
                         continue;
                     };
-                    let key = format!("c{}", number.first().copied().unwrap_or(-1));
+                    let key = chara_key(c, number.first().copied().unwrap_or(-1));
                     self.settle(&key);
                     let x = sx(c.int_at("Position", 0).unwrap_or(640));
                     // y 0 is the usual height: a picture taller than the
@@ -838,7 +843,7 @@ impl Lowering<'_> {
             }
             "CharacterDelete" => {
                 let listed: Vec<String> =
-                    t.children.iter().filter(|c| c.name.starts_with("Chara")).map(|c| format!("c{}", c.int("Number").unwrap_or(-1))).collect();
+                    t.children.iter().filter(|c| c.name.starts_with("Chara")).map(|c| chara_key(c, c.int("Number").unwrap_or(-1))).collect();
                 // Without a list (`:SpriteMax 0`, 962 of 1414 uses) every
                 // character leaves.
                 let keys = if listed.is_empty() {
@@ -853,7 +858,7 @@ impl Lowering<'_> {
             "CharacterMove" => {
                 let time = ms(t.int("Time").unwrap_or(0));
                 for c in t.children.iter().filter(|c| c.name.starts_with("Chara")) {
-                    let key = format!("c{}", c.int("Number").unwrap_or(-1));
+                    let key = chara_key(c, c.int("Number").unwrap_or(-1));
                     self.settle(&key);
                     let Some(s) = self.shown.get(&key).cloned() else { continue };
                     let x = c.int_at("Position", 0).map_or(s.x, sx);
@@ -982,7 +987,7 @@ impl Lowering<'_> {
             "MessageSwitch_Tag" => self.choice(scene, t),
             "CharacterAction" => {
                 for c in t.children.iter().filter(|c| c.name.starts_with("Chara")) {
-                    let key = format!("c{}", c.int("Number").unwrap_or(-1));
+                    let key = chara_key(c, c.int("Number").unwrap_or(-1));
                     let (Some(s), Some(a)) = (self.shown.get(&key).cloned(), c.int("Action").and_then(|n| self.game.actions.get(&n)))
                     else {
                         continue;

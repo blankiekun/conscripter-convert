@@ -434,18 +434,16 @@ against the keys the 463 scenes use and those the converter reads.
 converted. The messages hold no markup but `\n`. Keys the scenes use
 that the eboot reads and the converter doesn't (typos such as
 `:Prioriry`, `:TIme`, `:fFade` are ignored by both):
-1. **`:Chara%d/Copy` (CharacterOpen 25, CharacterMove 11, CharacterAction
-   7, CharacterDelete 5, CharacterOpenBS 3; values 1-3).** The eboot adds
-   Copy × 1000 to the character number, so one character (the 960×540
-   cut-ins, character 300) can show twice (S03_02A shows two at once);
-   ours keys characters by number (`c300`), so the second replaces the
-   first.
-2. Small: SpriteMove `:Curve` (12, an arc of ±3 or 0.5 on the move),
+1. Small: SpriteMove `:Curve` (12, an arc of ±3 or 0.5 on the move),
    CharacterOpen `:Chara%d/Center` (4, `0,1`: the anchor), EffectEnd
    `:Delete 1` (7), Window `:WindowNumber` (1,506 × -1, 2 × 0).
+2. SpriteBG and SpriteBS with `:FadeWait 0` (890 uses) still wait for
+   their fade: they replace the whole picture, which `spfade` can't
+   cross-fade under the text. A character changing with a motion, zoom
+   or look waits too.
 
 Next, in order:
-1. The coverage gaps above, in order.
+1. The small coverage gaps above.
 2. Looks against the original: text window size and place, character
    heights (where the eboot anchors them), the eye catch's speed, the
    wave transition's size. Needs screenshots of the Vita game.
@@ -496,6 +494,11 @@ state.
   `!z<percent>` text style (150 for the scripts' `1.5 // font 32`).
   Line breaks at the large sizes are CONscripter's own; not compared
   with the Vita.
+- **`:Chara%d/Copy`** (51 uses): the eboot adds Copy × 1000 to the
+  character number; ours keys the character the same way (`c1300`,
+  `c2300`), in CharacterOpen(BS), CharacterDelete, CharacterMove and
+  CharacterAction, so S03_02A's two cut-ins (character 300, Copy 1 and
+  2) show side by side.
 
 **Found by the debug trace (2026-10-14).** Whole routes play to their
 end without a script error (18,974 pages and 16 choices; with today's
