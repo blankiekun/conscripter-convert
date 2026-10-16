@@ -87,6 +87,22 @@
 00435f90	fade_update	opacity = elapsed * 256 / ms; the colour keeps being drawn after the end
 00478830	op_93	script opcode 0x93: unlocks a scene of the scene replay
 004789a0	op_94	script opcode 0x94: end of a replayable scene
+# CRT and helpers (MSVCR90 is linked dynamically; only these are static).
+004e7cf0	_ftol2_sse	x87 ST0 -> int64 (SSE2 path when 0x5667a0 is set); Ghidra loses the float maths around its calls
+004e7726	operator_new_thunk	jumps to MSVCR90 operator new
+004e7f01	_except_handler4	SEH handler: except_handler4_common with the security cookie
+004aa300	debug_log	OutputDebugStringA("<file>(<line>) : " + format); the file/line pair is in ESI
+004a7be0	crc16_ccitt	CRC-16 polynomial 0x1021 over EAX bytes
+# Settings and skip state read by the effect handlers.
+0051ed14	setting_effects	bit 0: 画面エフェクトを使用 (settings +0x68). Off: no transition fade (0x76, 0x77, 0x8e), no quake (0x6d), pulse (0x6f) or script fade (0x72/0x74)
+0051f82c	skip_state_a	nonzero while skipping: every effect handler also checks it
+0051f82e	skip_state_b	set by 0x8e when skipping or Ctrl is held; every effect handler checks it
+0052056c	input_state	bit 0x10000 (Ctrl held?) skips the 0x6e flash and 0x8e's cross-fade
+# Screen effects behind 0x6d-0x6f.
+00441ee0	quake_object	0x6d: the moving-picture object, sort key 0x06000000
+004413d0	flash_object	0x6e: colour added over the screen at opacity 128 for 100 ms, sort key 0xffffffff
+00441730	surprise_create	0x6f (Surprise.cpp): snapshot, tint, zoomed overlay
+00441960	surprise_start	0x6f: creates the pulse only with effects on and not skipping, then waits
 # Opcode handlers not described yet (the audit fills in their comments):
 00473de0	op_01	script opcode 0x01 (dispatch table 0x4fb270)
 00473e10	op_02	script opcode 0x02 (dispatch table 0x4fb270)
@@ -188,3 +204,328 @@
 00478b70	op_9a	script opcode 0x9a (dispatch table 0x4fb270)
 00473320	op_9b	script opcode 0x9b (dispatch table 0x4fb270)
 004734a0	op_9c	script opcode 0x9c (dispatch table 0x4fb270)
+# Callbacks reached only through a function pointer (`= &LAB_` in the export,
+# SEH frames left out): created as functions by ApplyNames. Comment: who stores it, at which field.
+00407760	cb_00407760	pointer stored by FUN_00408860 +0x18
+00407e50	cb_00407e50	pointer stored by FUN_00407f50 +0x14
+00407e90	cb_00407e90	pointer stored by FUN_00408950 +0x14
+00407ed0	cb_00407ed0	pointer stored by FUN_004089c0 +0x14
+00407f10	cb_00407f10	pointer stored by FUN_00408a30 +0x14
+004080b0	cb_004080b0	pointer stored by FUN_004088e0 +0x14
+00408ec0	cb_00408ec0	pointer stored by FUN_00408ed0 +0x3c
+0040a8b0	cb_0040a8b0	pointer stored by FUN_00408d00 +0x3c, FUN_004094b0 +0x3c, FUN_004094b0 +0x54 (+26 more)
+0040aac0	cb_0040aac0	pointer stored by FUN_00407f50 +0x14, FUN_00408130 +0x14, FUN_00408860 +0x14 (+21 more)
+0040ac70	cb_0040ac70	pointer stored by FUN_00407150
+0040f730	cb_0040f730	pointer stored by FUN_0040f6a0 +0x14
+0040f750	cb_0040f750	pointer stored by FUN_0040f6a0 +0x34
+004154b0	cb_004154b0	pointer stored by op_8d +0x14
+0041e470	cb_0041e470	pointer stored by FUN_00445310, FUN_00448ad0 +0x3c, FUN_00453c20 +0x96
+0041fb00	cb_0041fb00	pointer stored by FUN_0041f4b0 +0x78
+004204a0	cb_004204a0	pointer stored by FUN_004204e0 +0x34
+00420590	cb_00420590	pointer stored by FUN_004205d0 +0x34
+00423f90	cb_00423f90	pointer stored by FUN_004291f0 +2, FUN_00441b80 +2, FUN_004468a0 +2 (+1 more)
+00424030	cb_00424030	pointer stored by FUN_004291f0 +3, FUN_004468a0 +3, FUN_00446d30 +3
+004240e0	cb_004240e0	pointer stored by FUN_004291f0 +4, FUN_00441b80, FUN_004468a0 (+1 more)
+00434720	cb_00434720	pointer stored by op_8e +0x14
+00434780	cb_00434780	pointer stored by op_8e +0x14
+00441320	cb_00441320	pointer stored by FUN_004413d0 +0x34
+00441360	cb_00441360	pointer stored by FUN_004413d0 +0x14
+004414c0	cb_004414c0	pointer stored by op_6e +0x14
+004418b0	cb_004418b0	pointer stored by FUN_00441960 +0x14
+00441e50	cb_00441e50	pointer stored by FUN_00441ee0 +0x14
+00441ec0	cb_00441ec0	pointer stored by FUN_00441ee0 +0x34
+004420a0	cb_004420a0	pointer stored by op_6d +0x14
+00442b40	cb_00442b40	pointer stored by FUN_00442c70 +0x38
+00442b80	cb_00442b80	pointer stored by FUN_00442c70 +0x18
+00442de0	cb_00442de0	pointer stored by FUN_00442f30 +0x38
+00442e20	cb_00442e20	pointer stored by FUN_00442f30 +0x18
+00443230	cb_00443230	pointer stored by FUN_00443460 +0x38
+00443a50	cb_00443a50	pointer stored by FUN_00443cf0 +0x38
+00443b50	cb_00443b50	pointer stored by FUN_00443cf0 +0x18
+00445d20	cb_00445d20	pointer stored by FUN_00445e50 +0x38
+00446010	cb_00446010	pointer stored by FUN_00446160 +0x38
+00446140	cb_00446140	pointer stored by FUN_00446160 +0x18
+00446b90	cb_00446b90	pointer stored by FUN_00446be0 +0x18
+00447270	cb_00447270	pointer stored by FUN_00447760 +0x38
+00447330	cb_00447330	pointer stored by FUN_00447440 +0x14
+004475a0	cb_004475a0	pointer stored by FUN_00447660 +0x14
+004480b0	cb_004480b0	pointer stored by FUN_004481e0 +0x18
+004484b0	cb_004484b0	pointer stored by FUN_00448580 +0xf0
+00448940	cb_00448940	pointer stored by FUN_00448960 +6
+00448f70	cb_00448f70	pointer stored by FUN_00448fd0 +0x18
+00449160	cb_00449160	pointer stored by FUN_00449800 +0x38
+00449220	cb_00449220	pointer stored by FUN_00449800 +0x38
+00449270	cb_00449270	pointer stored by FUN_00449800 +0x38
+00449780	cb_00449780	pointer stored by FUN_00449800 +0x18
+004497a0	cb_004497a0	pointer stored by FUN_00449800 +0x18
+004497e0	cb_004497e0	pointer stored by FUN_00449800 +0x18
+00449c10	cb_00449c10	pointer stored by FUN_00420730 +0x14
+00449c40	cb_00449c40	pointer stored by FUN_004508d0 +0x14, FUN_0046da80 +0x14, FUN_0046ec30 +0x14 (+5 more)
+00449d40	cb_00449d40	pointer stored by op_71 +0x14
+0044a1f0	cb_0044a1f0	pointer stored by script_fade +0x14
+0044aa70	cb_0044aa70	pointer stored by FUN_004ef970 DAT_00561940
+0044ab70	cb_0044ab70	pointer stored by FUN_004ef970 DAT_00561958
+0044aba0	cb_0044aba0	pointer stored by FUN_004ef970 DAT_00561960
+0044ac90	cb_0044ac90	pointer stored by FUN_004ef970 DAT_00561970
+0044af80	cb_0044af80	pointer stored by FUN_004ef970 DAT_00561980
+0044aff0	cb_0044aff0	pointer stored by FUN_004ef970 DAT_00561988
+0044b0b0	cb_0044b0b0	pointer stored by FUN_004ef970 DAT_00561990
+0044b0e0	cb_0044b0e0	pointer stored by FUN_004ef970 DAT_00561998
+0044b110	cb_0044b110	pointer stored by FUN_004ef970 DAT_005619a0
+0044b140	cb_0044b140	pointer stored by FUN_004ef970 DAT_005619a8
+0044b260	cb_0044b260	pointer stored by FUN_004ef970 DAT_005619b8
+0044b2f0	cb_0044b2f0	pointer stored by FUN_0044a600 +0x34
+0044b320	cb_0044b320	pointer stored by FUN_0044a600 +0x1ec8
+0044b400	cb_0044b400	pointer stored by FUN_0044b490 +0x14
+0044be50	cb_0044be50	pointer stored by FUN_004efb10 DAT_005619c8
+0044c290	cb_0044c290	pointer stored by FUN_004efb10 DAT_00561a10
+0044c3d0	cb_0044c3d0	pointer stored by FUN_004efb10 DAT_00561a58
+0044c460	cb_0044c460	pointer stored by FUN_004efb10 DAT_00561a18
+0044c760	cb_0044c760	pointer stored by FUN_004efb10 DAT_00561a20
+0044c830	cb_0044c830	pointer stored by FUN_004efb10 DAT_00561a28
+0044c8e0	cb_0044c8e0	pointer stored by FUN_004efb10 DAT_00561a38
+0044ca30	cb_0044ca30	pointer stored by FUN_0044a600 +0x34, FUN_0044b7f0 +0x34, FUN_0044faf0 +0x34 (+1 more)
+0044ca40	cb_0044ca40	pointer stored by FUN_0044b950 +0x6f0
+0044cb80	cb_0044cb80	pointer stored by FUN_0044cbd0 +0x14
+0044df10	cb_0044df10	pointer stored by FUN_004efd60 DAT_00561ac8
+0044e250	cb_0044e250	pointer stored by FUN_004efd60 DAT_00561af8
+0044e2a0	cb_0044e2a0	pointer stored by FUN_004efd60 DAT_00561b00
+0044e3b0	cb_0044e3b0	pointer stored by FUN_004efd60 DAT_00561b20
+0044e6b0	cb_0044e6b0	pointer stored by FUN_004efd60 DAT_00561b18
+0044e700	cb_0044e700	pointer stored by FUN_004efd60 DAT_00561b30
+0044e7b0	cb_0044e7b0	pointer stored by FUN_004efd60 DAT_00561b38
+0044e870	cb_0044e870	pointer stored by FUN_0044e8c0 +0x14
+0044f5f0	cb_0044f5f0	pointer stored by FUN_0044f150 +0x14
+0044f770	cb_0044f770	pointer stored by FUN_0044f7b0 +0x14
+0044fe30	cb_0044fe30	pointer stored by FUN_004eff70 DAT_00561b78
+0044ffd0	cb_0044ffd0	pointer stored by FUN_004eff70 DAT_00561b90
+00450220	cb_00450220	pointer stored by FUN_004eff70 DAT_00561ba0
+004502e0	cb_004502e0	pointer stored by FUN_004eff70 DAT_00561ba8
+00450310	cb_00450310	pointer stored by FUN_004eff70 DAT_00561bb0
+00450460	cb_00450460	pointer stored by FUN_004eff70 DAT_00561bc8
+00450690	cb_00450690	pointer stored by FUN_00450720 +0x14
+00450a40	cb_00450a40	pointer stored by FUN_00450a70 +0x14
+00451500	cb_00451500	pointer stored by FUN_004f0140 DAT_00561c28
+004518e0	cb_004518e0	pointer stored by FUN_004f0140 DAT_00561c70
+00451be0	cb_00451be0	pointer stored by FUN_004f0140 DAT_00561c80
+00451ca0	cb_00451ca0	pointer stored by FUN_004f0140 DAT_00561c88
+00451d60	cb_00451d60	pointer stored by FUN_004f0140 DAT_00561c98
+00451d90	cb_00451d90	pointer stored by FUN_004f0140 DAT_00561ca0
+00451ee0	cb_00451ee0	pointer stored by FUN_004f0140 DAT_00561cb0
+00451f60	cb_00451f60	pointer stored by FUN_004f0140 DAT_00561cb8
+004520c0	cb_004520c0	pointer stored by FUN_004f0140 DAT_00561cc8
+004520f0	cb_004520f0	pointer stored by FUN_004f0140 DAT_00561cd0
+00452250	cb_00452250	pointer stored by FUN_004f0140 DAT_00561ce8
+00452280	cb_00452280	pointer stored by FUN_004f0140 DAT_00561cf0
+004522b0	cb_004522b0	pointer stored by FUN_00450f90 +0x6f0
+00452430	cb_00452430	pointer stored by FUN_004524c0 +0x14
+004536d0	cb_004536d0	pointer stored by FUN_00453660 +0x2ec
+00453910	cb_00453910	pointer stored by FUN_004529c0 +0x34
+00453950	cb_00453950	pointer stored by FUN_004529c0 +0x34
+004549b0	cb_004549b0	pointer stored by FUN_00453e20 +0x34
+00454a10	cb_00454a10	pointer stored by staff_roll_task +0x14
+004550e0	cb_004550e0	pointer stored by FUN_00454c40 +0xe8
+00455ee0	cb_00455ee0	pointer stored by FUN_00455e90 +0x1be4
+00456230	cb_00456230	pointer stored by FUN_004561a0 +0x1be4
+00459e00	cb_00459e00	pointer stored by FUN_004f0a70 DAT_00561ef8
+00459fa0	cb_00459fa0	pointer stored by FUN_004f0a70 DAT_00561f08
+0045a070	cb_0045a070	pointer stored by FUN_004f0a70 DAT_00561f10
+0045a140	cb_0045a140	pointer stored by FUN_004f0a70 DAT_00561f18
+0045a1a0	cb_0045a1a0	pointer stored by FUN_004f0a70 DAT_00561f20
+0045a290	cb_0045a290	pointer stored by FUN_004f0a70 DAT_00561f30
+0045a4b0	cb_0045a4b0	pointer stored by FUN_004f0a70 DAT_00561f40
+0045a530	cb_0045a530	pointer stored by FUN_004f0a70 DAT_00561f48
+0045a660	cb_0045a660	pointer stored by FUN_004f0a70 DAT_00561f50
+0045a6b0	cb_0045a6b0	pointer stored by FUN_004f0a70 DAT_00561f58
+0045a6c0	cb_0045a6c0	pointer stored by FUN_004f0a70 DAT_00561f60
+0045a920	cb_0045a920	pointer stored by FUN_004f0a70 DAT_00561f70
+0045a9a0	cb_0045a9a0	pointer stored by FUN_004f0a70 DAT_00561f78
+0045ab60	cb_0045ab60	pointer stored by FUN_004f0a70 DAT_00561f88
+0045ab90	cb_0045ab90	pointer stored by FUN_004f0a70 DAT_00561f90
+0045ac60	cb_0045ac60	pointer stored by FUN_004f0a70 DAT_00561fa0
+0045acd0	cb_0045acd0	pointer stored by FUN_004f0a70 DAT_00561fa8
+0045ad00	cb_0045ad00	pointer stored by FUN_004f0a70 DAT_00561fb0
+0045ad90	cb_0045ad90	pointer stored by FUN_004f0a70 DAT_00561fb8
+0045ae00	cb_0045ae00	pointer stored by FUN_004f0a70 DAT_00561fc0
+0045aed0	cb_0045aed0	pointer stored by FUN_004f0a70 DAT_00561fc8
+0045b1b0	cb_0045b1b0	pointer stored by FUN_004f0a70 DAT_00561fe0
+0045b260	cb_0045b260	pointer stored by FUN_004f0a70 DAT_00561fe8
+0045b310	cb_0045b310	pointer stored by FUN_004f0a70 DAT_00561ff0
+0045b320	cb_0045b320	pointer stored by FUN_00459320 +0x34
+0045b360	cb_0045b360	pointer stored by FUN_00459320 +0x34
+0045b5d0	cb_0045b5d0	pointer stored by FUN_0045b690 +0x14
+0045c7f0	cb_0045c7f0	pointer stored by FUN_004f0e30 DAT_00562060
+0045cf90	cb_0045cf90	pointer stored by FUN_004f0e30 DAT_00562078
+0045d010	cb_0045d010	pointer stored by FUN_004f0e30 DAT_00562080
+0045d160	cb_0045d160	pointer stored by FUN_004f0e30 DAT_00562098
+0045d1e0	cb_0045d1e0	pointer stored by FUN_004f0e30 DAT_005620a0
+0045d210	cb_0045d210	pointer stored by FUN_004f0e30 DAT_005620a8
+0045d240	cb_0045d240	pointer stored by FUN_004f0e30 DAT_005620b0
+0045d2f0	cb_0045d2f0	pointer stored by FUN_004f0e30 DAT_005620b8
+0045d6f0	cb_0045d6f0	pointer stored by FUN_004f0e30 DAT_005620c8
+0045d7b0	cb_0045d7b0	pointer stored by FUN_004f0e30 DAT_005620d0
+0045d8d0	cb_0045d8d0	pointer stored by FUN_004f0e30 DAT_005620d8
+0045d920	cb_0045d920	pointer stored by FUN_004f0e30 DAT_005620e0
+0045d970	cb_0045d970	pointer stored by FUN_004f0e30 DAT_005620e8
+0045da30	cb_0045da30	pointer stored by FUN_004f0e30 DAT_005620f0
+0045db60	cb_0045db60	pointer stored by FUN_0045bc00 +0x34
+0045dba0	cb_0045dba0	pointer stored by FUN_0045bc00 +0x34
+0045dd00	cb_0045dd00	pointer stored by FUN_0045dd50 +0x14
+00469030	cb_00469030	pointer stored by FUN_004682a0 +0x34
+00469070	cb_00469070	pointer stored by FUN_004682a0 +0x34
+004690b0	cb_004690b0	pointer stored by FUN_00469100 +5
+0046a850	cb_0046a850	pointer stored by FUN_004f1660 DAT_00565470
+0046bc30	cb_0046bc30	pointer stored by FUN_00469850 +0x34
+0046bc50	cb_0046bc50	pointer stored by FUN_00469850 +0x34
+0046be90	cb_0046be90	pointer stored by FUN_0046bee0 +5, FUN_0046c030 +5
+0046d990	cb_0046d990	pointer stored by FUN_0046d590 +0x14
+00472ba0	cb_00472ba0	pointer stored by op_62 +0x14, op_63 +0x14, op_64 +0x14 (+1 more)
+00473ad0	cb_00473ad0	pointer stored by op_6a +0x14
+00476510	cb_00476510	pointer stored by FUN_00476550 +0x14
+00476cf0	cb_00476cf0	pointer stored by show_message +0x18
+00477680	cb_00477680	pointer stored by op_47 +0x14
+00478370	cb_00478370	pointer stored by op_68 +0x14
+00478920	cb_00478920	pointer stored by op_92 +0x14
+0047a1e0	cb_0047a1e0	pointer stored by FUN_004f1fe0 DAT_005656b0
+0047a320	cb_0047a320	pointer stored by FUN_004f1fe0 DAT_005656c0
+0047a350	cb_0047a350	pointer stored by FUN_004f1fe0 DAT_005656c8
+0047a560	cb_0047a560	pointer stored by FUN_004f1fe0 DAT_005656e0
+0047a570	cb_0047a570	pointer stored by FUN_004f1fe0 DAT_005656e8
+0047a900	cb_0047a900	pointer stored by FUN_004796d0 +0x14
+0047a940	cb_0047a940	pointer stored by FUN_004796d0 +0x34
+0047e860	cb_0047e860	pointer stored by FUN_0047e7e0 +0x14
+0047f450	cb_0047f450	pointer stored by FUN_0047fa50
+0047f5e0	cb_0047f5e0	pointer stored by FUN_0047fa50
+0047f8b0	cb_0047f8b0	pointer stored by FUN_0047fa50
+00481190	cb_00481190	pointer stored by FUN_004811e0 +0x14
+00486cd0	cb_00486cd0	pointer stored by FUN_00485e80 +0x14, FUN_00485f10 +0x14, FUN_00486100 +0x14
+00486d00	cb_00486d00	pointer stored by FUN_00485f10 +0x34
+00497850	cb_00497850	pointer stored by FUN_004f3410 DAT_00565d20
+00497cd0	cb_00497cd0	pointer stored by FUN_00496270 +0x14
+00497d10	cb_00497d10	pointer stored by FUN_00496270 +0x34
+00497d50	cb_00497d50	pointer stored by FUN_00496270 +0x34
+00497d90	cb_00497d90	pointer stored by FUN_00496270 +0x50
+00497de0	cb_00497de0	pointer stored by FUN_00496270 +0x54
+004982e0	cb_004982e0	pointer stored by FUN_00498370 +0x1f
+0049b330	cb_0049b330	pointer stored by FUN_004f3620 DAT_00565de0
+0049b7b0	cb_0049b7b0	pointer stored by FUN_0049ab50 +0x14
+0049b800	cb_0049b800	pointer stored by FUN_0049ab50 +0x34
+0049b840	cb_0049b840	pointer stored by FUN_0049ab50 +0x54
+0049f040	cb_0049f040	pointer stored by FUN_0049f060 +0x34
+0049f530	cb_0049f530	pointer stored by FUN_0049f590 +0x14
+004a0220	cb_004a0220	pointer stored by FUN_0049f930 +0x1c
+004a0230	cb_004a0230	pointer stored by FUN_0041f4b0 +0x84, FUN_004a0280 +0x70, FUN_004a0430 +0x70 (+2 more)
+004a05b0	cb_004a05b0	pointer stored by FUN_004a0280 +0x70
+004a0be0	cb_004a0be0	pointer stored by FUN_00485f10 +0x1fc
+004a1a90	cb_004a1a90	pointer stored by FUN_004a0de0 +0x50
+004a1b10	cb_004a1b10	pointer stored by FUN_004a0de0 +0x54
+004a1b40	cb_004a1b40	pointer stored by FUN_004a0de0 +0x14
+004a4670	cb_004a4670	pointer stored by FUN_004a3680 +0x6d
+004a4d40	cb_004a4d40	pointer stored by FUN_004a4f70 +5
+004a4da0	cb_004a4da0	pointer stored by FUN_004a4f70 +0xd
+004a4db0	cb_004a4db0	pointer stored by FUN_004a4f70 +0x14
+004a4e30	cb_004a4e30	pointer stored by FUN_004a4ea0 +0x14
+004a4e60	cb_004a4e60	pointer stored by FUN_004a4ea0 +0x34
+004a6c70	cb_004a6c70	pointer stored by FUN_004a6d60 +0x14
+004a6cf0	cb_004a6cf0	pointer stored by FUN_004a6d60 +0x34
+004a6d10	cb_004a6d10	pointer stored by FUN_004a6d60 +0x34
+004a6d30	cb_004a6d30	pointer stored by FUN_004a6d60 +0x50
+004a7400	cb_004a7400	pointer stored by FUN_004a7460 +0x14
+004b55b0	cb_004b55b0	pointer stored by FUN_004b5920, FUN_004b5b40, FUN_004b5f60
+004b5620	cb_004b5620	pointer stored by FUN_004b57c0 +2
+004b76f0	cb_004b76f0	pointer stored by FUN_0040c780
+004b8210	cb_004b8210	pointer stored by FUN_00404110 DAT_0051f818
+004b8360	cb_004b8360	pointer stored by FUN_00404110 DAT_0051f818
+004bd690	cb_004bd690	pointer stored by FUN_004bd660 +0x10
+004c0bc0	cb_004c0bc0	pointer stored by FUN_004c10f0 +1
+004c0fc0	cb_004c0fc0	pointer stored by FUN_004b57c0 +5
+004c10c0	cb_004c10c0	pointer stored by FUN_004c10f0
+004c12e0	cb_004c12e0	pointer stored by FUN_004c1450 +2
+004c1340	cb_004c1340	pointer stored by FUN_004c1450 +1
+004c1380	cb_004c1380	pointer stored by FUN_004c1450 +3
+004c1430	cb_004c1430	pointer stored by FUN_004c1450 +4
+004c3130	cb_004c3130	pointer stored by FUN_004c31e0 +1
+004c46f0	cb_004c46f0	pointer stored by FUN_004c4ad0 +7
+004c4830	cb_004c4830	pointer stored by FUN_004c4ad0 +8
+004c4a90	cb_004c4a90	pointer stored by FUN_004c4ad0 +10
+004c67a0	cb_004c67a0	pointer stored by FUN_004c6820
+004c6950	cb_004c6950	pointer stored by FUN_004c77e0
+004c6c40	cb_004c6c40	pointer stored by FUN_004c77e0 +1
+004c7790	cb_004c7790	pointer stored by FUN_004c77e0 +2
+004c7df0	cb_004c7df0	pointer stored by FUN_004c95f0 +2
+004c83e0	cb_004c83e0	pointer stored by FUN_004c9050
+004ca7f0	cb_004ca7f0	pointer stored by FUN_004cad90
+004cafd0	cb_004cafd0	pointer stored by FUN_004cb0d0
+004cb170	cb_004cb170	pointer stored by FUN_004cb430
+004cb260	cb_004cb260	pointer stored by FUN_004cb430
+004cb270	cb_004cb270	pointer stored by FUN_004cb430
+004cb360	cb_004cb360	pointer stored by FUN_004cb430
+004cb3c0	cb_004cb3c0	pointer stored by FUN_004cb430
+004cbba0	cb_004cbba0	pointer stored by FUN_004cbe80 +1
+004cbc20	cb_004cbc20	pointer stored by FUN_004cbe80 +1
+004cbc90	cb_004cbc90	pointer stored by FUN_004cbe80 +1
+004cbcc0	cb_004cbcc0	pointer stored by FUN_004cbe80 +1
+004cc200	cb_004cc200	pointer stored by FUN_004cc690
+004cc220	cb_004cc220	pointer stored by FUN_004cc690 +1
+004cc2e0	cb_004cc2e0	pointer stored by FUN_004cc690 +1
+004cc710	cb_004cc710	pointer stored by FUN_004cd850
+004cd4b0	cb_004cd4b0	pointer stored by FUN_004cd850
+004cd810	cb_004cd810	pointer stored by FUN_004cd850
+004cd980	cb_004cd980	pointer stored by FUN_004cd990 +3
+004ce100	cb_004ce100	pointer stored by FUN_004ce520
+004ce210	cb_004ce210	pointer stored by FUN_004ce520
+004ce620	cb_004ce620	pointer stored by FUN_004ce640 +3
+004d20e0	cb_004d20e0	pointer stored by FUN_004d2360
+004d2290	cb_004d2290	pointer stored by FUN_004d2360
+004d3450	cb_004d3450	pointer stored by FUN_004d3a30
+004d3de0	cb_004d3de0	pointer stored by FUN_004d41d0 +1
+004d4060	cb_004d4060	pointer stored by FUN_004d41d0 +1
+004d40c0	cb_004d40c0	pointer stored by FUN_004d41d0 +1
+004d4140	cb_004d4140	pointer stored by FUN_004d41d0 +1
+004d4742	cb_004d4742	pointer stored by FUN_0047f8f0, FUN_0047fa50
+004dfc10	cb_004dfc10	pointer stored by FUN_004d2360
+004e0830	cb_004e0830	pointer stored by FUN_004d2360
+004e1000	cb_004e1000	pointer stored by FUN_004d2360
+004e1560	cb_004e1560	pointer stored by FUN_004d2360
+004e1a50	cb_004e1a50	pointer stored by FUN_004d2360
+004e2050	cb_004e2050	pointer stored by FUN_004d2360
+004e2600	cb_004e2600	pointer stored by FUN_004d2360
+004e2be0	cb_004e2be0	pointer stored by FUN_004d2360
+004e5260	cb_004e5260	pointer stored by FUN_004d2360
+004e57a0	cb_004e57a0	pointer stored by FUN_004d2360
+004e5c20	cb_004e5c20	pointer stored by FUN_004d2360
+004e6c30	cb_004e6c30	pointer stored by FUN_004d2360
+004e70c0	cb_004e70c0	pointer stored by FUN_004d2360
+00407730	cb_00407730	pointer stored by cb_00407760 +0x14
+00407e20	cb_00407e20	pointer stored by cb_00407e50 +0x14
+00408070	cb_00408070	pointer stored by cb_004080b0 +0x14
+00441da0	cb_00441da0	pointer stored by cb_00441e50 +0x14
+00447500	cb_00447500	pointer stored by cb_004475a0 +0x14
+0044b3b0	cb_0044b3b0	pointer stored by cb_0044b400 +0x14
+0044cb30	cb_0044cb30	pointer stored by cb_0044cb80 +0x14
+0044f720	cb_0044f720	pointer stored by cb_0044f770 +0x18
+004505e0	cb_004505e0	pointer stored by cb_00450690 +0x14
+00450a10	cb_00450a10	pointer stored by cb_00450a40 +0x18
+00452370	cb_00452370	pointer stored by cb_00452430 +0x14
+0045b470	cb_0045b470	pointer stored by cb_0045b5d0
+0045b5a0	cb_0045b5a0	pointer stored by cb_0045b5d0 DAT_0051e9f4
+0045dcb0	cb_0045dcb0	pointer stored by cb_0045dd00 +0x14
+0046be70	cb_0046be70	pointer stored by cb_004690b0 +0x18, cb_0046be90 +0x18
+0046d970	cb_0046d970	pointer stored by cb_0044e870 +0x14, cb_0046d990 +0x18, cb_00481190 +0x18 (+2 more)
+004c65c0	cb_004c65c0	pointer stored by cb_004c67a0
+004c6630	cb_004c6630	pointer stored by cb_004c67a0
+004c6770	cb_004c6770	pointer stored by cb_004c67a0
+004c7160	cb_004c7160	pointer stored by cb_004c7790 +0xc
+004cae00	cb_004cae00	pointer stored by cb_004cafd0
+00407d90	cb_00407d90	pointer stored by cb_00407e20 +0x18
+00408040	cb_00408040	pointer stored by cb_00408070 +0x14
+0044f6e0	cb_0044f6e0	pointer stored by cb_0044f720 +0x14
+004509b0	cb_004509b0	pointer stored by cb_00450a10 +0x14
+004567c0	cb_004567c0	pointer stored by cb_0044b3b0 +0x14, cb_0044cb30 +0x14, cb_004505e0 +0x14 (+2 more)
+0045b450	cb_0045b450	pointer stored by cb_0045b470 +0x14
+0046ed60	cb_0046ed60	pointer stored by cb_0045b470 +0x18
+00407d40	cb_00407d40	pointer stored by cb_00407d90 +0x14
+00408000	cb_00408000	pointer stored by cb_00408040 +0x18
+0044f6b0	cb_0044f6b0	pointer stored by cb_0044f6e0 +0x18
+00450970	cb_00450970	pointer stored by cb_004509b0 +0x14
+004077b0	cb_004077b0	pointer stored by cb_00407d40 +0x14
