@@ -92,6 +92,7 @@ pub use muramasa::{MURAMASA, MURAMASA_EN};
 mod django;
 pub use django::DJANGO;
 mod process;
+mod loops;
 mod array;
 mod fast_skip;
 mod text_object;
@@ -1103,9 +1104,9 @@ struct Object<'a> {
     /// ([`Compiler::drawn_opacity`]). About z (clockwise, as `Rotate(text,
     /// 90)` turns a line top to bottom) the engine turns it ([`Op::SpriteAngle`]).
     turn: (i64, i64, i64),
-    /// A shake the engine loops while it is shown, as `spmotion` keys (ms,
-    /// x, y), and the process running it (続・殺戮のジャンゴ's
-    /// `ShakeVLoop`).
+    /// A motion the engine loops while it is shown, and the loop process
+    /// running it ([`loops`]: 続・殺戮のジャンゴ's `ShakeVLoop`, 装甲悪鬼村正's
+    /// `FlyMoving`).
     shake: Option<ShakeLoop>,
     /// `CreateWindow`'s size (w, h): its children are drawn only inside
     /// it, at its place.
@@ -1124,7 +1125,7 @@ struct Object<'a> {
 }
 
 /// [`Object::shake`]: the process, the keys.
-type ShakeLoop = (String, Vec<(u32, i32, i32)>);
+type ShakeLoop = (String, Vec<MotionKey>);
 
 impl Object<'_> {
     /// Mirrored (left to right, upside down) as its turn shows it.

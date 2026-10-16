@@ -277,7 +277,7 @@ impl Compiler<'_, '_> {
                         animated.push(Op::SpriteOverText { layer });
                     }
                     if let Some(Object { shake: Some((_, keys)), .. }) = self.objects.get(&name) {
-                        animated.push(Op::SpriteMotion { layer, keys: keys.clone(), looped: true });
+                        animated.push(Op::SpriteMotion2 { layer, keys: keys.clone(), end: conv_core::ir::MotionEnd::Loop });
                     }
                     if let Some(keys) = shake_once.remove(&name) {
                         animated.push(Op::SpriteMotion { layer, keys, looped: false });
