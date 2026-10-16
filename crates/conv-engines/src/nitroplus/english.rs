@@ -32,6 +32,11 @@ pub struct English {
 #[derive(Debug, Default)]
 pub struct Report {
     pub replaced: usize,
+    /// Stretches whose Japanese the port split or edited, given the rows
+    /// between their neighbours' ([`align`]).
+    pub aligned: usize,
+    /// (file, Japanese key) of the stretches the translation left out.
+    pub dropped: Vec<(String, String)>,
     /// (file, Japanese key) of the stretches left in Japanese.
     pub missed: Vec<(String, String)>,
 }
@@ -65,11 +70,21 @@ impl English {
             let Some(scene) = e.name.strip_prefix("media/script/nut/").and_then(|n| n.strip_suffix(".nut")) else { continue };
             let Some(lang) = scripts.find(&format!("media/script/lang/en/{scene}.nut")) else { continue };
             let english: HashMap<i32, String> = load(lang)?.table_rows("TransText").into_iter().collect();
+            let scene_fn = load(e)?;
             let mut prints = Vec::new();
-            load(e)?.calls_int_str("Print", &mut prints);
+            scene_fn.calls_int_str("Print", &mut prints);
+            // Prints with no English show nothing in the port, which types
+            // its own lines instead (ma01_026's document: `SetText`): the
+            // first of them takes those lines.
+            let mut typed = Vec::new();
+            scene_fn.strs_before_call("SetText", &mut typed);
+            let mut typed = Some(typed.join("\n"));
             let rows = prints
                 .into_iter()
-                .filter_map(|(k, jp)| Some((key(&jp), english.get(&k)?.replace("\r\n", "\n"))))
+                .map(|(k, jp)| {
+                    let en = english.get(&k).map(|en| en.replace("\r\n", "\n"));
+                    (key(&jp), en.unwrap_or_else(|| typed.take().unwrap_or_default()))
+                })
                 .collect();
             scenes.insert(scene.to_lowercase(), rows);
         }
@@ -82,109 +97,164 @@ impl English {
         let mut report = Report::default();
         for (name, file) in files.iter_mut() {
             let Some(rows) = name.to_lowercase().strip_suffix(".nss").and_then(|s| self.scenes.get(s)) else { continue };
-            let mut scene = Scene { rows, next: 0, file: name, report: &mut report };
-            for item in &mut file.items {
-                match item {
-                    Item::Chapter(b) | Item::Scene(b) => scene.stmts(&mut b.body),
-                    Item::Function(f) => scene.stmts(&mut f.body),
-                    Item::Include(_) => {}
+            let mut keys = Vec::new();
+            each_run(file, &mut |run, _| {
+                let jp = run_key(&run);
+                if !jp.is_empty() {
+                    keys.push(jp);
                 }
-            }
+                run
+            });
+            let mut picks = align(rows, &keys).into_iter().zip(keys);
+            each_run(file, &mut |run, line| {
+                if run_key(&run).is_empty() {
+                    return run;
+                }
+                let (pick, jp) = picks.next().expect("the same stretches on both walks");
+                let english: String = match &pick {
+                    Pick::Row(i) => rows[*i].1.clone(),
+                    Pick::Gap(gap) => gap.iter().map(|&i| rows[i].1.as_str()).collect(),
+                };
+                match replace(run, &english, line) {
+                    Ok(run) => {
+                        match pick {
+                            Pick::Row(_) => report.replaced += 1,
+                            Pick::Gap(gap) if gap.is_empty() => report.dropped.push((name.clone(), jp)),
+                            Pick::Gap(_) => report.aligned += 1,
+                        }
+                        run
+                    }
+                    Err(run) => {
+                        report.missed.push((name.clone(), jp));
+                        run
+                    }
+                }
+            });
         }
         report
     }
 }
 
-struct Scene<'a> {
-    rows: &'a [(String, String)],
-    /// The row after the last one used: equal Japanese lines take their
-    /// English in order.
-    next: usize,
-    file: &'a str,
-    report: &'a mut Report,
+/// What a stretch of Japanese takes.
+#[derive(Debug, PartialEq)]
+enum Pick {
+    /// The row with the same Japanese.
+    Row(usize),
+    /// No row has its Japanese: these rows' English, joined (none: the
+    /// stretch is dropped).
+    Gap(Vec<usize>),
 }
 
-impl Scene<'_> {
-    fn stmts(&mut self, stmts: &mut [Stmt]) {
-        for s in stmts {
+/// Pairs each stretch (`keys`, in order) with the rows. Equal Japanese
+/// takes its row, the next one after the last used. Where the port split
+/// or edited the Japanese, the stretches between two matches share the
+/// rows left unused between them: the first stretch takes them all, the
+/// others none. With no rows left the translation folded the line into a
+/// neighbour's (`ma01_003`: the narration after Konatsu's line is in her
+/// row), and the stretch is dropped.
+fn align(rows: &[(String, String)], keys: &[String]) -> Vec<Pick> {
+    let n = rows.len();
+    let mut next = 0;
+    let found: Vec<Option<usize>> = keys
+        .iter()
+        .map(|jp| {
+            let i = (next..n).chain(0..next).find(|&i| rows[i].0 == *jp)?;
+            next = i + 1;
+            Some(i)
+        })
+        .collect();
+    let mut used = vec![false; n];
+    found.iter().flatten().for_each(|&i| used[i] = true);
+    let mut prev = None;
+    found
+        .iter()
+        .enumerate()
+        .map(|(k, f)| {
+            if let Some(i) = *f {
+                prev = Some(i);
+                return Pick::Row(i);
+            }
+            if k > 0 && found[k - 1].is_none() {
+                return Pick::Gap(Vec::new());
+            }
+            let start = prev.map_or(0, |p| p + 1);
+            let end = found[k..].iter().flatten().next().copied().unwrap_or(n);
+            Pick::Gap((start..end.max(start)).filter(|&i| !used[i]).collect())
+        })
+        .collect()
+}
+
+/// Calls `f` on each stretch of text between inline code, in order, with
+/// its block's line, and puts back the items it returns.
+fn each_run(file: &mut NssFile, f: &mut dyn FnMut(Vec<Inline>, u32) -> Vec<Inline>) {
+    fn stmts(list: &mut [Stmt], f: &mut dyn FnMut(Vec<Inline>, u32) -> Vec<Inline>) {
+        for s in list {
             match &mut s.kind {
                 StmtKind::If { then, otherwise, .. } => {
-                    self.stmts(then);
-                    otherwise.iter_mut().for_each(|o| self.stmts(o));
+                    stmts(then, f);
+                    otherwise.iter_mut().for_each(|o| stmts(o, f));
                 }
-                StmtKind::While { body, .. } | StmtKind::Select(body) | StmtKind::Case { body, .. } | StmtKind::Block(body) => self.stmts(body),
+                StmtKind::While { body, .. } | StmtKind::Select(body) | StmtKind::Case { body, .. } | StmtKind::Block(body) => stmts(body, f),
                 StmtKind::Text(t) => {
-                    let items = std::mem::take(&mut t.items);
-                    t.items = self.text(items, s.line);
+                    let mut out = Vec::with_capacity(t.items.len());
+                    let mut run = Vec::new();
+                    for item in std::mem::take(&mut t.items).into_iter().chain([Inline::Code(Vec::new())]) {
+                        if matches!(item, Inline::Code(_)) {
+                            out.extend(f(std::mem::take(&mut run), s.line));
+                            out.push(item);
+                        } else {
+                            run.push(item);
+                        }
+                    }
+                    out.pop();
+                    t.items = out;
                 }
                 _ => {}
             }
         }
     }
-
-    fn find(&mut self, jp: &str) -> Option<&str> {
-        let n = self.rows.len();
-        let i = (self.next..n).chain(0..self.next).find(|&i| self.rows[i].0 == jp)?;
-        self.next = i + 1;
-        Some(&self.rows[i].1)
-    }
-
-    /// The block's items with each stretch between code replaced.
-    fn text(&mut self, items: Vec<Inline>, line: u32) -> Vec<Inline> {
-        let mut out = Vec::with_capacity(items.len());
-        let mut run = Vec::new();
-        for item in items.into_iter().chain([Inline::Code(Vec::new())]) {
-            if matches!(item, Inline::Code(_)) {
-                self.run(std::mem::take(&mut run), line, &mut out);
-                out.push(item);
-            } else {
-                run.push(item);
-            }
+    for item in &mut file.items {
+        match item {
+            Item::Chapter(b) | Item::Scene(b) => stmts(&mut b.body, f),
+            Item::Function(fun) => stmts(&mut fun.body, f),
+            Item::Include(_) => {}
         }
-        out.pop();
-        out
     }
+}
 
-    fn run(&mut self, run: Vec<Inline>, line: u32, out: &mut Vec<Inline>) {
-        let jp: String = run
-            .iter()
-            .filter_map(|i| match i {
-                Inline::Str(s) => Some(s.as_str()),
-                Inline::Newline => Some("\n"),
-                _ => None,
-            })
-            .collect::<String>()
-            .replace("<?>", "");
-        let jp = key(&jp);
-        if jp.is_empty() {
-            out.extend(run);
-            return;
-        }
-        let Some(english) = self.find(&jp).map(str::to_string) else {
-            self.report.missed.push((self.file.to_string(), jp));
-            out.extend(run);
-            return;
-        };
-        // ㉑-㉗ are the port's spaces of set widths (its font draws them
-        // blank), around italics; Shift-JIS has none of them.
-        let english: String = english.chars().map(|c| if ('\u{3251}'..='\u{3257}').contains(&c) { ' ' } else { c }).collect();
-        let Ok(parsed) = nss::parse_text(&english, line, &mut Vec::new()) else {
-            self.report.missed.push((self.file.to_string(), jp));
-            out.extend(run);
-            return;
-        };
-        // Keep the markers and newlines around the stretch; the English
-        // takes the middle.
-        let lead = run.iter().take_while(|i| matches!(i, Inline::Newline | Inline::Marker(_))).count();
-        let tail = run[lead..].iter().rev().take_while(|i| matches!(i, Inline::Newline)).count();
-        let mut run = run;
-        let tail_items = run.split_off(run.len() - tail);
-        run.truncate(lead);
-        out.extend(run);
-        out.extend(parsed);
-        out.extend(tail_items);
-        self.report.replaced += 1;
-    }
+/// A stretch's Japanese in the form [`key`] compares.
+fn run_key(run: &[Inline]) -> String {
+    let jp: String = run
+        .iter()
+        .filter_map(|i| match i {
+            Inline::Str(s) => Some(s.as_str()),
+            Inline::Newline => Some("\n"),
+            _ => None,
+        })
+        .collect();
+    key(&jp.replace("<?>", ""))
+}
+
+/// The stretch with `english` in place of its text, or the stretch as it
+/// was if the English doesn't parse.
+fn replace(mut run: Vec<Inline>, english: &str, line: u32) -> Result<Vec<Inline>, Vec<Inline>> {
+    // ㉑-㉗ are the port's spaces of set widths (its font draws them
+    // blank), around italics; Shift-JIS has none of them.
+    let english: String = english.chars().map(|c| if ('\u{3251}'..='\u{3257}').contains(&c) { ' ' } else { c }).collect();
+    // `<?>` at the end: the text goes on after the code that follows
+    // (ma01_026's typewriter), so the code runs before the page.
+    let joined = run.iter().rev().find_map(|i| if let Inline::Str(s) = i { Some(s.trim_end().ends_with("<?>")) } else { None });
+    let english = if joined == Some(true) { english + "<?>" } else { english };
+    let Ok(parsed) = nss::parse_text(&english, line, &mut Vec::new()) else { return Err(run) };
+    // Keep the markers and newlines around the stretch; the English
+    // takes the middle.
+    let lead = run.iter().take_while(|i| matches!(i, Inline::Newline | Inline::Marker(_))).count();
+    let tail = run[lead..].iter().rev().take_while(|i| matches!(i, Inline::Newline)).count();
+    let tail_items = run.split_off(run.len() - tail);
+    run.truncate(lead);
+    run.extend(parsed);
+    run.extend(tail_items);
+    Ok(run)
 }
 
 #[cfg(test)]
@@ -200,17 +270,26 @@ mod tests {
     #[test]
     fn replaces_stretches_between_code() {
         let rows = vec![(key("「……"), "\"...\"".to_string()), (key("ああ」"), "\"Ah.\"".to_string())];
-        let mut report = Report::default();
-        let mut scene = Scene { rows: &rows, next: 0, file: "a.nss", report: &mut report };
+        let english = English { scenes: HashMap::from([("a".to_string(), rows)]) };
         let src = "chapter main\n{\n<PRE @box0>\n[text0010]\n「……{WaitKey(1100);}ああ」\n</PRE>\n}\n";
-        let mut file = nss::parse(src).unwrap();
-        let Item::Chapter(b) = &mut file.items[0] else { panic!() };
-        let stmts = &mut b.body;
-        scene.stmts(stmts);
-        let StmtKind::Text(t) = &stmts[0].kind else { panic!("{:?}", stmts[0]) };
+        let mut files = BTreeMap::from([("a.nss".to_string(), nss::parse(src).unwrap())]);
+        let report = english.apply(&mut files);
+        let Item::Chapter(b) = &files["a.nss"].items[0] else { panic!() };
+        let StmtKind::Text(t) = &b.body[0].kind else { panic!("{:?}", b.body[0]) };
         let strs: Vec<_> = t.items.iter().filter_map(|i| if let Inline::Str(s) = i { Some(s.as_str()) } else { None }).collect();
         assert_eq!(strs, ["\"...\"", "\"Ah.\""]);
         assert!(matches!(t.items[0], Inline::Marker(_)));
         assert_eq!(report.replaced, 2);
+    }
+
+    #[test]
+    fn aligns_the_stretches_between_matches() {
+        let rows: Vec<_> = ["a", "bc", "d", "e", "f", "g"].iter().map(|s| (s.to_string(), s.to_uppercase())).collect();
+        let keys: Vec<_> = ["a", "b", "c", "d", "x", "e", "g", "y"].iter().map(|s| s.to_string()).collect();
+        use Pick::*;
+        assert_eq!(
+            align(&rows, &keys),
+            [Row(0), Gap(vec![1]), Gap(vec![]), Row(2), Gap(vec![]), Row(3), Row(5), Gap(vec![])]
+        );
     }
 }

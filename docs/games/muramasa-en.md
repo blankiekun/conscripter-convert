@@ -11,8 +11,10 @@ It has no NPA archives and no NSS scripts.
   below); the English text in the converter: `convert-nss <game> --file
   ma00_000.nss --chain 2000 --english <english game> …` reads the
   English release's `script.npk` and puts its text into the Japanese
-  NSS (`english.rs`): 38,919 stretches of text replaced, 278 left in
-  Japanese (mostly the 《…》 incantations; not looked at yet). With
+  NSS (`english.rs`): 38,967 stretches of text take their row's
+  English, 43 more the rows between their neighbours' (the port split
+  or edited the Japanese there), 187 are left out as the translation
+  left them out, none stay in Japanese (History, below). With
   `--english` the text is written as it is, one paragraph a line after a
   backquote (`Script::single_byte_text`), and the vertical text boxes
   become horizontal 280×150 boxes from the vertical text's top left,
@@ -43,10 +45,14 @@ It has no NPA archives and no NSS scripts.
   by the Japanese text (below), and takes the English pictures where
   they differ (the redesigned menus in `cg/sys`, pictures with words).
 - **Next:**
-  1. The 278 stretches left in Japanese.
-  2. The English pictures: the text window and the redesigned menus in
+  1. The English pictures: the text window and the redesigned menus in
      `cg/sys` (1876 pictures), filmed against the English original
      under wine; `<I>`, `<center>`, the other box sizes.
+  2. 22 rows of English are placed nowhere (lines the NSS orders or
+     splits otherwise, route variants such as mc01's "Ichijo is
+     nowhere to be seen" / "My comrades …", ma01_003's `<CLICK>`
+     rows); ma01_026's document is shown whole after its typing
+     sounds, not typed letter by letter as the port does.
 
 ## Archives (NPK3)
 
@@ -104,10 +110,23 @@ plus `patch/*.npk` mounted after them (opener 0x401960).
   the English, with `<voice …>` tags, `<center>`, `<I>`, `<K>`, `<br>`,
   `<RUBY text='…'>`.
 - Join: 38,465 of 38,798 NSS segments (99.1 %) equal a Print's text once
-  `//` lines, tags and whitespace are removed. The misses are the 《…》
-  incantation blocks in ma00_000 and similar, still to look at.
+  `//` lines, tags and whitespace are removed; the rest are paired by
+  position (History: "Text with no equal Japanese").
 
 ## History
+
+- **Text with no equal Japanese (2026-10-15):** 278 stretches of the
+  NSS had no Print with the same Japanese. The translation folded some
+  lines into a neighbour's row (ma01_003: Konatsu's line and the
+  narration after it are one row, and the narration's Print is gone),
+  the port's Japanese is edited or cut elsewhere (この/その, a block
+  split at other `{…}` code), and ma01_026's typed document is the
+  port's own `SetText` lines, its Japanese Prints having no English.
+  `align` (`english.rs`) now pairs the stretches between two matched
+  rows with the rows left unused between them: the first takes their
+  English, the others none, and with none left the stretch is dropped.
+  Prints with no English take the scene's `SetText` lines (the first)
+  or nothing, so ma01_026's 48 one-letter stretches take the document.
 
 - **Pages in a choice's window (fixed 2026-10-15, shared with the
   Japanese build):** 23 pages after a vertical choice were drawn in the

@@ -67,7 +67,13 @@ pub fn build(game: &Path, run: &Run, opts: &Opts) -> Result<Built> {
         let file = File::open(&path).with_context(|| format!("opening {}", path.display()))?;
         let npk = npk::Npk::open(file).with_context(|| format!("parsing {}", path.display()))?;
         let report = english::English::load(&npk)?.apply(&mut files);
-        println!("English: {} stretches of text replaced, {} left in Japanese", report.replaced, report.missed.len());
+        println!(
+            "English: {} stretches of text replaced, {} aligned by position, {} left out by the translation, {} left in Japanese",
+            report.replaced,
+            report.aligned,
+            report.dropped.len(),
+            report.missed.len()
+        );
         for (file, jp) in report.missed.iter().take(5) {
             println!("  {file}: {}", jp.chars().take(40).collect::<String>());
         }
