@@ -3586,6 +3586,25 @@ function SoundPlay("ナット名", 秒数, ボリウム, ループ設定)
     }
 
     #[test]
+    fn an_argument_a_built_in_does_not_read_is_noted() {
+        // Fade's tempo (Axl1) isn't read; a process's place is harmless.
+        let story = r#"
+scene a.nss
+{
+	CreateTexture("a", 100, 0, 0, "cg/bg/a.jpg");
+	Fade("a", 300, 1000, Axl1, true);
+	CreateProcess("P", 100, 5, 5, "Nothing");
+}
+function Nothing()
+{
+}
+"#;
+        let c = compile(story, LIBRARY);
+        assert!(c.notes.contains_key("Fade argument 3 ignored"), "{:?}", c.notes);
+        assert!(!c.notes.keys().any(|n| n.starts_with("Fade argument 0") || n.starts_with("CreateProcess argument")), "{:?}", c.notes);
+    }
+
+    #[test]
     fn a_process_turning_pictures_turns_them_over_time_by_the_engine() {
         // 装甲悪鬼村正's CP_RollBarMove: the sky turns one way and the roll
         // bar the other, clockwise in NSS (the bar, on top, comes first);
