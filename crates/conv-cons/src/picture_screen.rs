@@ -5,7 +5,7 @@
 
 use conv_core::ir::PictureScreen;
 
-use crate::{menu, path, var_name, BUTTON_VAR, MENU_SPRITES};
+use crate::{menu, menu_slot, menu_z, path, var_name, BUTTON_VAR, MENU_SLOTS};
 
 /// Writes the screen. `n` keeps its labels apart from other screens';
 /// `fade` is the effect of its fades; `bar`: the script has a button bar
@@ -14,9 +14,9 @@ pub(crate) fn emit(out: &mut String, s: &PictureScreen, n: usize, fade: &str, ba
     let mut layers: Vec<u32> = s.pictures.iter().map(|p| p.layer).collect();
     layers.sort_unstable();
     layers.dedup();
-    assert!(layers.len() <= MENU_SPRITES.len(), "a picture screen has more layers than the menus' sprites");
+    assert!(layers.len() <= MENU_SLOTS, "a picture screen has more layers than the menus' sprites");
     // Lower numbers are drawn on top: the highest layer first.
-    let slot = |layer: u32| MENU_SPRITES.start + (layers.len() - 1 - layers.iter().position(|&l| l == layer).unwrap()) as u32;
+    let slot = |layer: u32| menu_slot(layers.len() - 1 - layers.iter().position(|&l| l == layer).unwrap());
     let mut w = |s: String| {
         out.push_str(&s);
         out.push('\n');
@@ -28,7 +28,7 @@ pub(crate) fn emit(out: &mut String, s: &PictureScreen, n: usize, fade: &str, ba
     for p in &s.pictures {
         let image = &p.picture.image;
         let mode = crate::sprite_mode(image);
-        let lsp = format!("lsp {},\":{mode};{}\",{},{}", slot(p.layer), path(image), p.picture.x, p.picture.y);
+        let lsp = format!("lsp {0},\":{mode};{1}\",{2},{3}{4}", slot(p.layer), path(image), p.picture.x, p.picture.y, menu_z(slot(p.layer)));
         match p.when {
             Some((var, cmp, value)) => w(format!("if {} {} {value} {lsp}", var_name(var, border), cmp.operator())),
             None => w(lsp),

@@ -522,7 +522,7 @@ and of `0.txt`, `docs/new-game.md` step 11.4).
 - **Control flow without the engine:** `python3 -I
   research/xuse/nstrace.py 0.txt 50000000 --pages N [--click K]`;
   routes on both sides: `research/xuse/routesim.py`.
-- **Sprite numbers:** 0-5 yes/no dialog, 6-33 menus, 34-48 bars, 49
+- **Sprite numbers:** 0-5 yes/no dialog, 6-33 menus (more at 980-998, drawn there with `spz`), 34-48 bars, 49
   name text, 50 plate, 51-58 link words (`humanz 58`), 59 full-screen
   animation, 60 static, 61 overlay, 62+ characters; `lsp2` 0-11 save
   menu, 12-23 top bars, 24 flash, 25 a turning bust-up, 26 a fade to a

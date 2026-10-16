@@ -36,6 +36,12 @@ pub const RESERVED: &[(RangeInclusive<u32>, &str)] = &[
     (4096..=5095, "settings switches 20 up"),
 ];
 
+/// NScripter sprites 980-998: more of the menus' slots, drawn over the
+/// game with `spz`. A game's sprites (conv-cons' sprite 62 + IR layer) and
+/// the menus' full screens (900-979, 999) stay off them; no game used them
+/// when they were taken (2026-10), so old saves hold nothing there.
+pub const MENU_MORE_SPRITES: std::ops::Range<u32> = 980..999;
+
 /// The tile puzzle's state, kept only in a script that has one (a Xuse
 /// game's globals are there).
 pub const PUZZLE: RangeInclusive<u32> = 190..=289;

@@ -4,22 +4,21 @@
 //! button bar's routines.
 //!
 //! The backdrop and the items are `lsp` sprites in the menus' range, over
-//! the text window: the items from its first slot down, the backdrop in
-//! its last. Screens that cover the game (save, load, log, settings, a
+//! the text window: the items from its first slot down, the backdrop under
+//! them. Screens that cover the game (save, load, log, settings, a
 //! [`BarAction::Call`]) take the menu away while they are open and put it
 //! back after; the yes/no questions are drawn over it.
 
 use conv_core::ir::{BarAction, ButtonBar, CommandMenu};
 
 use crate::menu::{bar_label, disabled_while, goes_on, key_code, BAR_CLEAR, BAR_OUT, BAR_STATE};
-use crate::{path, BUTTON_VAR, MENU_SPRITES};
+use crate::{menu_slot, menu_z, path, BUTTON_VAR, MENU_SLOTS, MENU_SPRITES};
 
 /// Opens the menu; `goto` it from the bar's action routine (it returns to
 /// the click wait).
 pub(crate) const MENU: &str = "conv_cmd_menu";
 /// 1 when the menu closed with an action that goes on to the next page.
 pub(crate) const GO_ON: &str = "%140";
-const BACKDROP: u32 = MENU_SPRITES.end - 1;
 const CLOSE: &str = "conv_cmd_close";
 const WAIT: &str = "conv_cmd_wait";
 /// Takes the menu away (at once) and puts it back.
@@ -33,17 +32,19 @@ pub(crate) fn call_label(i: usize) -> String {
 
 /// `picture_replay`: see [`crate::menu::BarScreens::picture_replay`].
 pub(crate) fn emit(out: &mut String, m: &CommandMenu, bar: &ButtonBar, picture_replay: bool) {
-    assert!(m.items.len() < MENU_SPRITES.len(), "too many command menu items");
+    assert!(m.items.len() < MENU_SLOTS, "too many command menu items");
     let mut w = |line: String| {
         out.push_str(&line);
         out.push('\n');
     };
-    let slot = |i: usize| MENU_SPRITES.start + i as u32;
+    let slot = menu_slot;
+    // Under the items: 33, or under the slots past it.
+    let bd = slot(m.items.len().max(MENU_SPRITES.len() - 1));
     let state = m.items.iter().any(|i| disabled_while(i.action, picture_replay).is_some());
-    let backdrop = format!("lsp {BACKDROP},\":a;{}\",{},{}", path(&m.backdrop.image), m.backdrop.x, m.backdrop.y);
+    let backdrop = format!("lsp {bd},\":a;{}\",{},{}{}", path(&m.backdrop.image), m.backdrop.x, m.backdrop.y, menu_z(bd));
     let item = |i: usize| {
         let b = &m.items[i].button;
-        format!("lsp {},\":a/{},0,3;{}\",{},{}", slot(i), if m.pressed { 4 } else { 3 }, path(&b.image), b.x, b.y)
+        format!("lsp {},\":a/{},0,3;{}\",{},{}{}", slot(i), if m.pressed { 4 } else { 3 }, path(&b.image), b.x, b.y, menu_z(slot(i)))
     };
     // The disabled items' cell.
     let cells = || -> Vec<String> {
@@ -145,7 +146,7 @@ pub(crate) fn emit(out: &mut String, m: &CommandMenu, bar: &ButtonBar, picture_r
     }
 
     w(format!("*{HIDE}"));
-    w(format!("btndef clear:csp {BACKDROP}"));
+    w(format!("btndef clear:csp {bd}"));
     w((0..m.items.len()).map(|i| format!("csp {}", slot(i))).collect::<Vec<_>>().join(":"));
     w("print 1".into());
     w("return".into());
@@ -177,7 +178,7 @@ pub(crate) fn emit(out: &mut String, m: &CommandMenu, bar: &ButtonBar, picture_r
     if !together && n > 0 {
         w(format!("print 1:spmotionwait {}:wait {}", slot(0), m.step_ms));
     }
-    w(format!("csp {BACKDROP}"));
+    w(format!("csp {bd}"));
     w(fade);
     w("return".into());
 }
