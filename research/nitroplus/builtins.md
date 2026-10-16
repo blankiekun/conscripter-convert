@@ -179,13 +179,14 @@ dry run):
 |---|---|---|
 | `Delete`, `Wait`, `ModuleFileName`, `SetAlias`, `WaitKey`, `CreateColor`, `RemainTime`, `Draw`, `ImageHorizon`/`Vertical`, `CreateSound`, `CreateName`, `SetLoop`, `Integer`, `Strstr`, `PassageTime`, `DurationTime` | most story | converted: every argument read |
 | `Fade`, `Move`, `Zoom`, `Rotate`, `SetVolume`, `DrawTransition`, `Shake`, `SetBlur`, `Random`, `Conquest`, `LoadText`, `WaitAction`, `WaitPlay`, `WaitFade`, `WaitZoom`, `CreateWindow`, `CreateEffect`, `CreateMovie`, `MoviePlay`, `SetBacklog` | most story | **partial**: arguments not read, below (non-blocking `Move`/`Zoom` as cross-fades, Status) |
-| `SetVertex`, `LockVideo`, `WaitText`, `SetPan`, `SetFrequency`, `Reset` | most story | dropped (`SetVertex`: read, the point a `Zoom` or `Rotate` keeps in place; `SetFrequency` noted when not 1000) |
+| `LockVideo`, `WaitText`, `SetPan`, `SetFrequency`, `Reset` | most story | dropped (`SetFrequency` noted when not 1000) |
 | `Request` | 1,643 / 1,748 / 469 | actions below |
 | `DrawTransition`, `Shake`, `Rotate`, `CreateTexture`, `CreateEffect`, `CreateMovie`, `MoviePlay` | story | converted except the noted cases (`Shake` of a small picture 145, `CreateTexture` from an object or the screen 1,812, `CreateEffect` Rain/Sepia/Monochrome/KitanoBlue/NegaPosi/Lens/Drop 82, 3 transition masks missing) |
 | `CreateProcess`, `BezierMove`, `SetFrequency`, `SetShade`, `SetTone`, `MoveCamera`, `CreateCamera` | 287 / 193 / 30 … | not converted (Status) |
 | `SetBacklog` | 83 / 6 / 0 | not converted: 1,958 noted; the hand-made backlog lines (pictures, ASCII art) are missing from our log |
 | `CreateWindow` | story | partial: its children are drawn only inside it (`spclip`), not with `Game::relative_children` (続・殺戮のジャンゴ, whose moved windows aren't checked); argument 6 (true/false) not read |
 | `CreateText` | 53 / 104 / 40 | story: drawn as pictures in the last `SetFont`'s style (`convert/text_object.rs`), clipped at the box's height (argument 5) as the exe's surface of the box's size; choices and markup left out; sys: replaced |
+| `SetVertex` | most story | converted: the point a `Zoom` or `Rotate` keeps in place |
 | `SetFont` | most story | converted: its style is `CreateText`'s (the story's text window keeps ours) |
 | `LoadImage` | 30 / 16 / 101 | not converted for Muramasa (`Game::loaded_textures` is off; 487 noted): the sources of `CreateTexture` from an object |
 | `DrawEffect` | 79 / 0 / 2 | not converted (waves `SuperWave`, `LowWave`, …; 76 noted) |
