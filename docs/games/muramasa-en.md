@@ -59,6 +59,25 @@ It has no NPA archives and no NSS scripts.
   options).
 - **Line log:** the port's (`sys_backlog.nut`, History). Checked
   headless, not yet against the original.
+- **Save/load:** the port's one screen for both (`sys_saveload.nut`,
+  `save_grid_en`): the page pictures `ナンバリング001`-`004` with
+  `Slots BG`, 15 slots 5×3 under `Slots-Grid`, `未選択時` in the empty
+  ones, tabs 1-15 … 46-60 and Q.Save at the top (the current one in its
+  pressed picture), Exit at 0,0; a click on a slot opens `menu_window`
+  over it with Save, Load, Delete and Lock/Unlock (Save off on a locked
+  slot, at the title and on the Q.Save page; Load and Lock off on an empty
+  slot; Delete off on an empty or locked one); a lock is a global per
+  slot (`%1011`-`%1110`) and shows `locked.png`; after saving,
+  `記憶をしました` until a click. Shared `SaveGrid` fields (`tabs`,
+  `popup`, `empty`, `quick_page`, `play_time_prefix`). Checked headless
+  (`--choose` on `*conv_sg_wait`, `--shot-at`) and against the manual's
+  screenshot (page 6 of `Manual.pdf`: same layout and popup). Not yet
+  compared with the running original: the popup buttons' place in the
+  window (the script's 213,22 … taken as from the window's corner at
+  213,21), the play time's form (ours `PLAY TIME 000:00:06`); the
+  details show under the pointer (the port: on the clicked slot); the
+  Q.Save page shows our one quick save (the port keeps 20, oldest
+  overwritten).
 - **Name plates:** the English `cg.npk`'s `cg/fw/nw*.png` (the names
   in English, same names and size as the Japanese) are taken before
   `cg.npa`'s (`ENGLISH_FIRST` in `nitroplus/assets.rs`). Checked on a
@@ -99,21 +118,9 @@ It has no NPA archives and no NSS scripts.
      system scripts (`media/script/system/sys_*.nut`) give each picture's
      English place after a `LANG_NAME == "en"` test. Done: the title,
      the command menu, the questions, the choices, the line log and
-     the click icon (above). Left: new
-     screens: save/load (`save/`), settings (`config/`).
-     Save/load (`sys_saveload.nut`, no `LANG_NAME` branch: the port's
-     own design) is one screen for both: 15 slots a page across 5×3
-     from (42,101), 195 and 128 apart (`Slots BG.png` at 43,99,
-     `Slots-Grid.png` at 42,101, 158×90 thumbnails, `MouseOverBoard`
-     under the pointer, `new.png` at +126), the page's picture
-     `ナンバリング001`-`004`, tabs hanging from the top at x 157, 299,
-     441, 583 (`pages1-15` … `46-60`) and 725 (`QSave`, the quick
-     saves), Exit at (0,0); a slot's click opens a small window
-     (`menu_window.png`) with Save, Load, Delete and Lock/Unlock
-     (`SaveCOME1`-`4` at 213,22 / 295,21 / 295,68 / 213,68); the play
-     time at (25,550) in 15 px white, the last line at (339,511), 340×100,
-     18 px black. Our `SaveGrid` has no tabs, popup or locks: it needs
-     IR additions (shared `save_grid.rs`); film the original first. Then film them against the
+     the click icon, the save/load screen (above). Left: the settings
+     (`config/`).
+     Then film them against the
      English original under wine (also the lines per box).
   2. 22 rows of English are placed nowhere (lines the NSS orders or
      splits otherwise, route variants such as mc01's "Ichijo is
@@ -130,6 +137,10 @@ It has no NPA archives and no NSS scripts.
      `_system.nut`'s line-log strings not read; 15 scenes with English
      written into the scenario (`LANG_NAME` branches: captions, dates,
      ma01_026's document, mc02_031's menus) show the NSS's Japanese;
+     45 of the 63 `cg/sys/telop/` pictures the English `cg.npk` has under
+     the Japanese names (chapter titles, 銀星号の唄 captions, prefaces)
+     are other sizes (lying instead of standing), so they need the
+     port's places, not just the swap the name plates got;
      four one-scene English boxes (ma01_009, mc01_003, ma01_002); the
      port's particles (rain, snow, sparks, 27 scenes) not drawn, as in
      the Japanese build. To check: `sys_backselect.nut` and

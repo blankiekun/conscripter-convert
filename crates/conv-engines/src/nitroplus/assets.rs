@@ -80,10 +80,8 @@ impl<'a> NpaAssets<'a> {
     /// `out` (relative to the output). Returns the data.
     fn extract(&mut self, path: &str, out: &str) -> Option<Vec<u8>> {
         let path = normalize(path);
-        if self.cg_en.is_some() && ENGLISH_FIRST.iter().any(|p| path.starts_with(p)) {
-            if let Some(data) = self.extract_english(&path, out) {
-                return Some(data);
-            }
+        if self.cg_en.is_some() && ENGLISH_FIRST.iter().any(|p| path.starts_with(p)) && let Some(data) = self.extract_english(&path, out) {
+            return Some(data);
         }
         let (archive, rest) = path.split_once('/')?;
         let npa = match archive {

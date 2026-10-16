@@ -7,7 +7,7 @@
 //! are joined into strips of normal, hover, disabled, pressed.
 
 use conv_core::ir::{
-    BarAction, BarButton, BarSlide, ButtonBar, CommandItem, CommandMenu, ConfirmDialog, GridText, LineLog, PairOption, PicturePair, PictureSettings, PictureSlider, PictureText, Placed, Rect, SaveGrid,
+    BarAction, BarButton, BarSlide, ButtonBar, CommandItem, CommandMenu, ConfirmDialog, GridText, LineLog, PairOption, PicturePair, PictureSettings, PictureSlider, PictureText, Placed, Rect, SaveGrid, SlotPopup,
     Script, SliderSetting, Switch, TitleAction, TitleButton, TitleGlow, TitleOpening, TitleScreen, Unroll, Var, VoiceEntry, VoiceLayout, VoiceWindow, WaitIcon,
 };
 
@@ -37,7 +37,7 @@ fn menus_in(a: &mut dyn Assets, script: &mut Script, story: &Story, en: bool) {
     script.title_screen = title(a, story, if en { &opening::EN } else { &opening::JP });
     script.button_bar = quick_bar(a);
     script.command_menu = if en { command_menu_en(a) } else { command_menu(a) };
-    script.save_grid = save_grid(a);
+    script.save_grid = if en { save_grid_en(a) } else { save_grid(a) };
     script.line_log = line_log(a, en);
     script.wait_icon = wait_icon(a);
     script.picture_settings = settings(a, story);
@@ -372,6 +372,107 @@ fn command_menu(a: &mut dyn Assets) -> Option<CommandMenu> {
     let items = menu_items(a, "cg/sys/menu", (636, 89), &rows, &[1, 2, 0])?;
     let backdrop = picture(a, "cg/sys/menu/メニュー黒バック.png", 0, 0)?;
     Some(CommandMenu { backdrop, items, fade_ms: 100, step_ms: 10, key: Some('M'), pressed: false })
+}
+
+/// The English port's save and load screen (`sys_saveload.nut`, its own
+/// design, one screen for both): the page's picture (`ナンバリング001`-`004`,
+/// the slots' numbers; the quick page takes 001) with `Slots BG` at 43,99
+/// under the thumbnails (158×90, 5×3 from 42,101, 195 and 128 apart),
+/// `Slots-Grid` (42,101) over them; `未選択時` in an empty slot;
+/// `MouseOverBoard` at -3,-3 under the pointer; `new.png` at +126,+68 on
+/// the newest. Tabs hang from the top at x 157, 299, 441, 583 and 725 (the
+/// quick saves), the current one in its pressed picture; Exit at 0,0. A
+/// click on a slot opens `menu_window.png` over it with Save, Load, Delete
+/// and Lock/Unlock (`SaveCOME1`-`4` at 213,22 / 295,21 / 295,68 / 213,68,
+/// taken as from the window's corner at 213,21); `locked.png` at -2,-2 on
+/// a locked slot. The play time ("PLAY TIME …", 18 px white) at 25,550,
+/// the last line at 339,511 (15 px black, 340×100, 18 apart). Pages
+/// cross-fade over 300 ms. The port shows a slot's details once it is
+/// clicked; here under the pointer.
+fn save_grid_en(a: &mut dyn Assets) -> Option<SaveGrid> {
+    const DIR: &str = "en/cg/sys/save";
+    let slots_bg = a.image(&format!("{DIR}/Slots BG.png"))?.0;
+    let mut pages = Vec::new();
+    for n in [1, 2, 3, 4, 1] {
+        let number = a.image(&format!("{DIR}/ナンバリング{n:03}.png"))?.0;
+        pages.push(a.composite(&[(number, 0, 0, 1000), (slots_bg.clone(), 43, 99, 1000)])?.0);
+    }
+    let picture = |a: &mut dyn Assets, name: &str, x: i32, y: i32| {
+        let (image, w, h) = a.image(&format!("{DIR}/{name}.png"))?;
+        Some(Placed { image, x, y, w: w as i32, h: h as i32 })
+    };
+    // At rest, under the pointer, disabled (or current), pressed.
+    let button = |a: &mut dyn Assets, names: [&str; 4], x: i32, y: i32| {
+        let names = names.map(|n| format!("{DIR}/{n}.png"));
+        let (image, w, h) = a.strip(&names.each_ref().map(|n| n.as_str()))?;
+        Some(Placed { image, x, y, w: w as i32, h: h as i32 })
+    };
+    let menu = |a: &mut dyn Assets, name: &str, x: i32, y: i32| {
+        let [normal, over, no, click] = ["normal", "RO", "no", "click"].map(|s| format!("menu_{name}_{s}"));
+        button(a, [&normal, &over, &no, &click], x, y)
+    };
+    let mut tabs = Vec::new();
+    for (x, normal, other) in [(157, "1-15", "1-15"), (299, "16-30", "16-30"), (441, "31-45", "31-45"), (583, "46-60", "45-60"), (725, "_quick", "_quick")] {
+        let name = |range: &str, state: &str| format!("pages{range}_button_number_{state}");
+        let (n, o, c) = (name(normal, "normal"), name(other, "mouseover"), name(other, "click"));
+        tabs.push(button(a, [&n, &o, &c, &c], x, 0)?);
+    }
+    let none = |a: &mut dyn Assets| Placed { image: a.transparent(), x: -100, y: -100, w: 1, h: 1 };
+    let text = |x: i32, y: i32, font_size: u32, lines: u32, chars: u32, line_gap: u32, colour: &str| GridText {
+        x,
+        y,
+        font_size,
+        lines,
+        chars,
+        line_gap,
+        char_gap: 0,
+        colour: colour.into(),
+        vertical: false,
+    };
+    let saved = centred(a, "en/cg/sys/dialog/記憶をしました.png");
+    Some(SaveGrid {
+        save_pages: pages.clone(),
+        load_pages: pages,
+        frames: picture(a, "Slots-Grid", 42, 101),
+        first: (42, 101),
+        row_step: 128,
+        column_step: 195,
+        rows: 3,
+        columns: 5,
+        thumb_w: 158,
+        thumb_h: 90,
+        hover: picture(a, "MouseOverBoard", 0, 0)?,
+        hover_offset: (-3, -3),
+        new_mark: picture(a, "new", 0, 0)?,
+        new_offset: (126, 68),
+        previous: none(a),
+        next: none(a),
+        delete: none(a),
+        delete_on: none(a),
+        close: button(a, ["EXITボタン_bt_exit_off", "EXITボタン_bt_exit_over", "EXITボタン_bt_exit_off", "EXITボタン_bt_exit_on"], 0, 0)?,
+        // The port has no larger picture, date or chapter.
+        preview: Rect { x: -2000, y: -2000, w: 158, h: 90 },
+        date: text(-2000, -2000, 18, 0, 0, 0, "#000000"),
+        play_time: text(25, 550, 18, 1, 24, 0, "#ffffff"),
+        chapter: text(-2000, -2000, 18, 0, 0, 0, "#000000"),
+        line: text(339, 511, 15, 5, 22, 3, "#000000"),
+        saved,
+        fade_ms: 300,
+        across: true,
+        tabs,
+        popup: Some(SlotPopup {
+            window: picture(a, "menu_window", 0, 0)?,
+            save: menu(a, "save", 0, 1)?,
+            load: menu(a, "load", 82, 0)?,
+            delete: menu(a, "delete", 82, 47)?,
+            lock: menu(a, "lock", 0, 47)?,
+            unlock: menu(a, "unlock", 0, 47)?,
+            locked: picture(a, "locked", -2, -2)?,
+        }),
+        empty: picture(a, "未選択時", 0, 0),
+        quick_page: true,
+        play_time_prefix: "PLAY TIME ".into(),
+    })
 }
 
 /// The English port's right-click menu (`sys_menu.nut`, from its own
