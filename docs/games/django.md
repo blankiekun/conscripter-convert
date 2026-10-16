@@ -399,14 +399,6 @@ with the original (it wants all eleven endings' flags under wine).
    21,859 since later PRs read more), most visible first; counts are
    compiled occurrences, what the original does is from the scripts and
    `research/nitroplus/builtins.md`:
-   1. **Easing** (tempo): `Move` 4 (1,069), `MoveCamera` 5 (373),
-      `Zoom` 4 (309). Every non-`null` tempo (`Dxl2` 202, `Dxl3` 105,
-      `Dxl1` 72, `AxlDxl` 37, `DxlAuto` 36 of the scripts' `Move`s;
-      `MoveCamera`'s `AxlDxl` 92, `Dxl1` 63, `DxlAuto` 57, `Dxl2` 53,
-      `Dxl3` 38, `null` 84, the `null` ones counted too) eases the motion by the
-      exe's curves (`apply_tempo`); ours is linear. Converter-only: a
-      `spmotion2` takes up to 32 keys, so a curve fits as 8-16 linear
-      pieces.
    3. **`Shake` 6 `n` and 7 tempo** (58 each): `n` (200-1000; above
       1000 the call does nothing) sets the jolt's rhythm and the tempo
       its decay; ours shakes every 16 ms, dying linearly. `n`'s meaning
@@ -446,6 +438,12 @@ with the original (it wants all eleven endings' flags under wine).
       before one may be taken as ended too soon. Fine as is.
 
 ## History
+
+- **Easing (2026-10-16, shared NSS code).** `Move`'s and `Zoom`'s
+  tempo (argument 4) ease their motions by the exe's curves since #112
+  (`Axl`/`Dxl` 1-3 as powers, the four sine tempos as `spcurve` 70-73);
+  `MoveCamera`'s (argument 5) the same for its children's motions. The
+  tempo notes left are the 15 `MoveCamera`s not drawn over time.
 
 - **dja055's chorus (2026-10-16).** dja055_02's song is 15 voice parts
   (`CreateUnit`: `voice/劇中歌パーツ/…`) and the harmonica (`dj02c`),
