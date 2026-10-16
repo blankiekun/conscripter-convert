@@ -333,7 +333,7 @@ message (109 characters with the name; there is no paging).
 | FadeOut/FadeIn, TimeWait, BGM, SE, Window hide | partial (SE fades and waits, the window's `:Time` dropped: below) |
 | Tags, jumps, flag switches and operations, choices with points, NextScene | converted (BacklogMessage, the chosen answer in the log, dropped: below), not yet checked against a walkthrough |
 | SceneJumpDialog (skip a scene already read) | partial (SceneJumpDialogEnd's `:Fade` dropped: below): a global "read" flag per scene (`%1200` + the scene's index in name order). A read scene shows the eboot's dialog (layout below): SystemData's `ss_bg1`…`ss_bg5` by `:BG` 0 (the protagonist), このシーンをスキップしますか？, the date (`:BG` 2), the emblem (`:BG` 1), the `:CharaIcon` faces, the summary (`:Text`) drawn with the `--font`, and Yes (skip) / No buttons that glow under the pointer. The line the eboot also writes at (81, 99) is left empty (its text isn't in the task; perhaps the chapter's name). The original asks only when its setting is on, and so does ours (シーンスキップ機能 in the settings). |
-| Flash; EffectQuake/End (a screen shake for `:Time` (60 frames if none), dying down with `:Fade 1`, at full size with `:Fade 0`, the default; `:Loop 1` or a negative `:Time` until EffectQuakeEnd; `:Time 0` otherwise stops it); SpriteQuake (one picture, a background, shaken by `:Param` 0, 1 for `:Time`, dying down with `:Fade 1`; all zeros stop it; `:Time 0` with a size, once in S04_07A after a `// wt` comment, waits for the shake before it, which the message in between outlasts: nothing); SpriteMove (`:Wait 0`, 198 uses, runs under the text until a SpriteMoveEnd of that picture or every one, 171 uses: cases 0x27, 0x29) | partial (the shakes' `:Param` 2-5 other than 1; SpriteMove `:Roll`: below); `:Curve` (12 uses) bows the move as the eboot does (0x8103cf20: "Small coverage gaps" in "History"), one `spmotion` key a frame (IR `MoveArc`); `:Scale` (90 uses) zooms the picture about its centre with CONscripter's `spzoom` (after 0.19.1), which keeps it in its place among the sprites; the zoom stays for the moves after it. The two values after `:Position` are the eboot's easing (ease_value, 0x8103cc18: type 1 in, 2 out, 3 in and out, raising t² to the power): converted for moves and zooms (IR `MoveEase`; conv-cons's eased loops in integer arithmetic, the power × 2 a whole exponent), 65 of them; the rest are straight |
+| Flash; EffectQuake/End (a screen shake for `:Time` (60 frames if none), dying down with `:Fade 1`, at full size with `:Fade 0`, the default; `:Loop 1` or a negative `:Time` until EffectQuakeEnd; `:Time 0` otherwise stops it); SpriteQuake (one picture, a background, shaken by `:Param` 0, 1 for `:Time`, dying down with `:Fade 1`; all zeros stop it; `:Time 0` with a size, once in S04_07A after a `// wt` comment, waits for the shake before it, which the message in between outlasts: nothing); SpriteMove (`:Wait 0`, 198 uses, runs under the text until a SpriteMoveEnd of that picture or every one, 171 uses: cases 0x27, 0x29) | partial (the shakes' `:Param` 2-5 other than 1; SpriteMove `:Roll`: below); `:Curve` (12 uses) bows the move as the eboot does (0x8103cf20: "Small coverage gaps" in "History"), one `spmotion` key a frame (IR `MoveArc`); `:Scale` (90 uses) zooms the picture about its centre with CONscripter's `spzoom` (after 0.19.1), which keeps it in its place among the sprites; the zoom stays for the moves after it. The two values after `:Position` are the eboot's easing (ease_value, 0x8103cc18: type 1 in, 2 out, 3 in and out, raising t² to the power): converted for moves and zooms (IR `MoveEase`, the power × 2 a whole exponent), 65 of them; the rest are straight. Only the place is eased: the zoom goes straight with the time (0x81086a0c), so an eased move that zooms (37) is one `spmotion` key a frame, as `:Curve`'s (IR `MoveArc` with bow 0) |
 | CharacterAction (`chract`'s 661 keyframed moves: bows, shakes, bobbing; 72 uses loop until CharacterActionEnd) and CharacterActionEnd | converted with CONscripter's `spmotion` (after 0.19.1): offsets from the character's place, straight between keyframes, run by the engine while the text goes on; a loop goes back to its first key at the action's `:Frame` length. `:EndWait 1` waits for it (64 uses; 1,902 don't wait). CharacterActionEnd stops a loop, or with `:EndWait 1` waits for an action started since the last message. SpriteQuake is a one-shot `spmotion` on its picture too. The eboot (0x81008008) reads each field of a frame (`:X`, `:Y`, `:Roll`, `:Scale`, `:Alpha`, `:Priority`) as a track of its own, keyed where it is given, each key with an easing; we sample the tracks at every key frame, straight between keys (one action eases a key; `:Priority` is not used). Actions with `:Scale` (zoom about the centre, 60 uses), `:Roll` (radians; turned clockwise on the screen, our guess; 5 uses) or `:Alpha` (60 uses) are CONscripter's `spmotion2`. `:EndSet 1` (read only when the action doesn't loop) leaves the character where the last key has it: 475 uses end with the character moved, faded out or zoomed (Asuka stepping aside and fading out in M02_04, Kinako rising into view in S02_09D1), made with `spmotion2`'s loop mode 2; a move, a new picture or another action on the character first ends it there (so skipping lands right) |
 | EyeCatch `:Image 0,N` (CG.cpk ID N + 457, at least 458, as the eboot's 0x81048978 loads it: `EC01`-`EC19` for 1-19, but the archive has no `EC20` or `EC30`, so 20 is `EC21` (京's after-story) and 27, the common one, `EC28`, the framed title logo) | partial (`:Image 0,-1`'s colour panels and their `:Color`, `:Fade` dropped) as in the eboot (0x81048b8a): the picture's top and bottom halves (960×272) close from above and below like shutters (500 ms, our guess) and open again at EyeCatchEnd over `:Fade`, showing the FadeOut's colour (or the scene) behind; made as 10-frame animations (`system/shutters_N_in/out.png`). `:Image 0,-1` (two panels of a colour in the eboot, 7 uses) shows nothing |
 | EyeCatch `:Image 1,card,place,date` (114 uses: the chapter cards) | converted like `:Image 0`, as one screen made from SystemData: the card `ec1_bg`…`ec6_bg` (ID 67 + card: 0-3 the four protagonists' chapters, 4-5 Karura's, 6 奈落の底) with the place (ID 74 + place: `ec_bgNN`, its times of day as A/B/C) in its frame and the date (0 = 11月21日, -1 none) cut from the calendar under the card. The original fades the three in and out and pans the place 40 pixels while it fades in; drawn where the pan ends |
@@ -537,16 +537,12 @@ skip; S03_06E2's task with two `:Tasktype`s (SpriteBG, then Sprite: we
 take the first).
 
 Next, in order:
-1. Moves' zooms go straight with the time in the eboot (0x81086a0c
-   steps +0x38, +0x48 by the raw frame count; only the place is
-   eased), but conv-cons eases them with the place (`motion::move_to`'s
-   one curve); `:Curve` moves already zoom straight.
-2. Looks against the original: text window size and place, character
+1. Looks against the original: text window size and place, character
    heights (where the eboot anchors them: its quad puts the picture's
    `:Center` point, by default 0,-1, the top edge's middle, at the
    position; where `OffsetY` comes in is not traced), the eye catch's speed, the
    wave transition's size. Needs screenshots of the Vita game.
-3. The "Arguments not read" table, from its top. Open in the eboot:
+2. The "Arguments not read" table, from its top. Open in the eboot:
    SpriteQuake's `:Param` layout, the shake's pattern table (whether
    `:Param` 0, 1 are pixels, as ours takes them), EffectStart's variant
    code.
@@ -555,6 +551,13 @@ Next, in order:
 
 Finished work, moved out of "Status" so a session reads only the open
 state.
+
+**Zooms straight in time (2026-10-16).** 0x81086a0c steps a move's
+zoom (+0x38, +0x48) by the raw frame count and hands only the place to
+0x8103cf20's easing; we eased both with one `spmotion` curve. The 37
+eased SpriteMoves that zoom are now keyed every frame, the place eased,
+the zoom straight (`MoveArc { bow: 0 }`, pushed by the mages converter
+only, so the other games' scripts are unchanged).
 
 **Moves under the text (2026-10-16).** scene_load reads CharacterMove's
 and SpriteMove's `:Wait` (1 by default: 0x811297f4 sets +0x588); with 0,

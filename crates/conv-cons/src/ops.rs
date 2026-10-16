@@ -42,7 +42,7 @@ pub(crate) struct Emitter<'a> {
     /// The next timed move isn't waited for ([`Op::MoveNoWait`]).
     pub move_nowait: bool,
     /// The next timed move's bow ([`Op::MoveArc`]), 0 for none.
-    pub move_arc: i32,
+    pub move_arc: Option<i32>,
     /// The eased curves used, (ease, exponent): `spcurve` tables at `*start`.
     pub eased: std::collections::BTreeSet<(u8, u32)>,
     pub needs_click_wait: bool,
@@ -229,15 +229,15 @@ impl<'a> Emitter<'a> {
             writeln!(out, "cons_start {},{}{args}", lua::quoted(name), lua::quoted(function)).unwrap();
         }
         Op::StopProcess { name } => writeln!(out, "cons_stop {}", lua::quoted(name)).unwrap(),
-        Op::MoveArc { bow } => *move_arc = *bow,
+        Op::MoveArc { bow } => *move_arc = Some(*bow),
         Op::MotionWait { layer } => writeln!(out, "spmotionwait {}", SPRITE_BASE + layer).unwrap(),
         Op::MoveEase { ease, exponent } => *move_ease = Some((*ease, *exponent)).filter(|&(e, _)| (1..=7).contains(&e)),
         Op::SpriteMove { layer, x, y, ms } => {
             let slot = SPRITE_BASE + layer;
             let ease = move_ease.take();
             let wait = !std::mem::take(move_nowait);
-            let bow = std::mem::take(move_arc);
-            if *ms > 0 && transition.is_none() && bow != 0 {
+            let arc = move_arc.take();
+            if let Some(bow) = arc.filter(|_| *ms > 0 && transition.is_none()) {
                 motion::arc_to(out, slot, *x, *y, *ms, None, ease, bow, fading_slots.remove(&slot), wait);
             } else if *ms > 0 && transition.is_none() {
                 motion::move_to(out, slot, *x, *y, *ms, None, curve(ease, eased), fading_slots.remove(&slot), wait);
@@ -269,8 +269,8 @@ impl<'a> Emitter<'a> {
         Op::SpriteZoom { layer, x, y, from, to, ms } => {
             let ease = move_ease.take();
             let wait = !std::mem::take(move_nowait);
-            let bow = std::mem::take(move_arc);
-            if *ms > 0 && transition.is_none() && bow != 0 {
+            let arc = move_arc.take();
+            if let Some(bow) = arc.filter(|_| *ms > 0 && transition.is_none()) {
                 motion::arc_to(out, SPRITE_BASE + layer, *x, *y, *ms, Some((*from, *to)), ease, bow, None, wait);
             } else {
                 let curve = if *ms > 0 { curve(ease, eased) } else { 0 };
