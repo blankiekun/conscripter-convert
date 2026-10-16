@@ -14,12 +14,17 @@ It has no NPA archives and no NSS scripts.
   (#35, engine #21), `Labels` moved out of mages (#38), story
   `CreateText` left out with a note (#42), volume curve already the
   port's (#44), choices from variables take the port's English (#53).
-- Open: #54, choice options keep their places past a variable
-  (approved). Open: choice options set in runtime branches picked at
-  run time (shared NSS, branch `nitroplus/choice-runtime-options`,
-  History "Choice options at run time"); their line-log entries
-  (`『…』`, `【…】`) picked at run time too (follow-up PR).
-- Next: telop `Move` timing (252) against the port's. Later: the port's
+- Merged since: #54 (choice options keep their places past a
+  variable), #60 and #66 (shared NSS: choice options set in runtime
+  branches, and their line-log entries, picked at run time).
+- Telop `Move` timing (this PR): of the 252 telop `Move`s paired with
+  the port's, 251 have the same time, tempo and wait (155 null tempo,
+  96 `Dxl1`; waits equal). The only difference: ma04_021, 250 ms in the
+  port for the NSS's 500 (`mov %4,250` in `0.txt`, the one line that
+  changes). `Move`'s time and wait now come from the port
+  (`english::placing`); a null tempo stays the NSS's.
+- Next: the telops' `CreateTextureEX`/`SP` priority (argument 1, 214
+  calls) against the port's. Later: the port's
   English captions from its `LANG_NAME` branches (15 scenes).
 - Decided: a click on an empty slot at the title doesn't save (the
   original saves the title screen there): a deliberate difference.
@@ -233,10 +238,10 @@ It has no NPA archives and no NSS scripts.
      `sys_key.nut`'s keys.
   5. The port's calls taken in part (the build's `English: … port
      <function> argument <i> ignored` lines; "The port's calls,
-     argument by argument"), most noticeable first: the telops' `Move`s (252) keep the NSS's
-     time, tempo and wait (arguments 1, 4, 5), and their
-     `CreateTextureEX`/`SP` (214) the NSS's priority (argument 1):
-     the same values if the port copied them, not compared.
+     argument by argument"), most noticeable first: the telops'
+     `CreateTextureEX`/`SP` (214) keep the NSS's priority (argument 1):
+     the same values if the port copied them, not compared (their
+     `Move`s take the port's time and wait, above).
 
 ## Archives (NPK3)
 
