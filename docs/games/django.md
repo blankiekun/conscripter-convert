@@ -345,11 +345,9 @@ with the original (it wants all eleven endings' flags under wine).
 
 ### Queue (2026-10-16)
 
-- In progress (agent), each its own PR: whether `CreateWindow` should
-  clip Django's children (#27 leaves it off under
-  `Game::relative_children`; check the windows' places and whether a
-  sliding window needs its clip to move), and the song `CreateText` with
-  markup in `dja026` (#17 leaves it out).
+- Open PR: windows clip their children (django/window-clip).
+- In progress (agent): the song `CreateText` with markup in `dja026`
+  (#17 leaves it out).
 - Open from the face windows (#37): a sliding frame's face jumps to its
   end place; dja003_02's blood movie is drawn mirrored by us, unmirrored
   under wine (which plays no movie there).
