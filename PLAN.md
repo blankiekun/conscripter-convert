@@ -291,6 +291,12 @@ leftovers. Start one from step 0.4 of `docs/new-game.md`.
 
 ## 7. Project layout
 
+The layout as planned at the start. What was built is four crates
+(`conv-core`, `conv-engines`, `conv-cons`, `conv-cli`; see `CLAUDE.md`,
+"Layout"); `conv-assets`, `conv-walker`, `conv-ai`, `conv-mcp`, the
+profiles and the `ai`, `walk` and `mcp` commands don't exist
+(2026-10-16).
+
 Cargo workspace:
 
 ```
@@ -328,6 +334,10 @@ conscripter-convert mcp                               # serve tools over MCP (st
 ```
 
 ## 8. AI agent layer
+
+Not built (2026-10-16). The games are converted by Claude Code agents
+working in the repo, one per game, under the rules in `CLAUDE.md`; the
+design below is kept as the plan for a built-in agent layer.
 
 ### 8.1 Principles
 
@@ -555,11 +565,13 @@ The steps that apply them are in `docs/new-game.md`.
   jump skipped its record (`docs/new-game.md` step 11).
 
 **Matching the original.**
-- **Film the original instead of guessing.** Run it under wine (silent,
-  its own Xvfb display, a script copy patched to slow an effect down,
-  shots at fixed fractions), then read the effect's kernel in the exe for
-  the exact curve and fit the frames to it. Static reading had got
-  transitions wrong.
+- **Read the effect's code, then film only what it leaves open.** The
+  exe's kernel gives the exact curve; static reading of the scripts
+  alone had got transitions wrong. Wine is the last resort (the user,
+  2026-10-16: it takes long and costs many tokens): when a real doubt
+  is left, run it silent on its own Xvfb display with a script copy
+  patched to slow the effect down, take the fewest shots at fixed
+  fractions and fit them to the curve (`CLAUDE.md`, "Rules").
 - **Use reference screenshots of the original** for layout: measuring
   pixels settles the text box and name plate in one pass.
 - **A wine prefix shares the user's home by default.** Its Documents,

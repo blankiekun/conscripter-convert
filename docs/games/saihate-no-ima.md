@@ -1028,7 +1028,7 @@ engine's debug trace (`cons_explore.py`, 62,185 pages, 1,220 labels;
   from the save menu sets `%190` to `%150`, while in play `%190` stays 0.
   `%190` is not one of the game's variables (they are `%200` and up, see
   "Progression variables") but the converter's blog-bar floor
-  (`SCENE_FLOOR` in `crates/conv-cons/src/menu.rs`): back, exit and the
+  (`SCENE_FLOOR` in `crates/conv-cons/src/menu/mod.rs`): back, exit and the
   level list only reach levels at or below it. Each level's page lives in
   save slot 900 + level, which belongs to the current playthrough, so
   after a load the levels above the loaded one can't be gone back to (they
