@@ -1210,10 +1210,12 @@ impl Lowering<'_> {
                 // zoom); without it the zoom stays.
                 let zoom = t.float("Scale").map_or(s.zoom, |f| (f * 100.0).round() as u32);
                 let motion = self.no_wait(t, time);
-                self.ease(t);
+                let eased = self.ease(t);
                 // `:Curve c` bows the move by c/2 of its length at halfway
-                // (0x8103cf20).
-                if let Some(bow) = t.float("Curve").map(|c| (c * 1000.0).round() as i32).filter(|&b| b != 0 && time > 0) {
+                // (0x8103cf20); the zoom goes straight with the time
+                // (0x81086a0c), only the place is eased.
+                let bow = t.float("Curve").map_or(0, |c| (c * 1000.0).round() as i32);
+                if time > 0 && (bow != 0 || (eased && zoom != s.zoom)) {
                     self.out.ops.push(Op::MoveArc { bow });
                 }
                 // A zoomed picture moves with spzoom too, which redraws
@@ -1543,14 +1545,17 @@ impl Lowering<'_> {
         }
     }
 
-    fn ease(&mut self, t: &Block) {
+    /// Pushes `:Position`'s easing (values 2, 3); true when it eases.
+    fn ease(&mut self, t: &Block) -> bool {
         let v = t.get("Position").unwrap_or(&[]);
         let ease = v.get(2).and_then(Val::float).unwrap_or(0.0) as u8;
         if (1..=3).contains(&ease) {
             let power = v.get(3).and_then(Val::float).filter(|p| *p > 0.0).unwrap_or(1.0);
             let exponent = ((power * 2.0).round() as u32).max(1);
             self.out.ops.push(Op::MoveEase { ease, exponent });
+            return true;
         }
+        false
     }
 
     /// `"+", 1` → (Add, 1).

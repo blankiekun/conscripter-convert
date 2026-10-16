@@ -119,7 +119,7 @@ pub(crate) fn arc_to(out: &mut String, slot: u32, x: i32, y: i32, ms: u32, zoom:
     let (a0, a1) = fade.map_or((256, 256), |f| (0, faded(ms, f)));
     writeln!(out, "getspsize {slot},%1,%2:getsppos {slot},%3,%4:mov %3,{x}-%1/2-%3:mov %4,{y}-%2/2-%4").unwrap();
     // %v times c/1024, signed.
-    let term = |v: u32, c: i64| format!("{}%{v}*{}/1024", if c < 0 { "-" } else { "+" }, c.abs());
+    let term = |v: u32, c: i64| if c == 0 { String::new() } else { format!("{}%{v}*{}/1024", if c < 0 { "-" } else { "+" }, c.abs()) };
     let n = (ms * 60 / 1000).clamp(2, 63);
     let mut keys = vec![format!("0,0,0,{from},{from},0,{a0},0")];
     for i in 1..=n {
@@ -136,7 +136,8 @@ pub(crate) fn arc_to(out: &mut String, slot: u32, x: i32, y: i32, ms: u32, zoom:
         let z = (i64::from(from) + (i64::from(to) - i64::from(from)) * i64::from(i) / i64::from(n)) as u32;
         let alpha = (i64::from(a0) + (i64::from(a1) - i64::from(a0)) * i64::from(i) / i64::from(n)) as u32;
         let (kx, ky) = (format!("{}{}", term(3, a), term(4, b)), format!("{}{}", term(4, a), term(3, -b)));
-        keys.push(format!("{ms_i},{},{},{z},{z},0,{alpha},0", kx.trim_start_matches('+'), ky.trim_start_matches('+')));
+        let k = |s: &str| if s.is_empty() { "0".to_string() } else { s.trim_start_matches('+').to_string() };
+        keys.push(format!("{ms_i},{},{},{z},{z},0,{alpha},0", k(&kx), k(&ky)));
     }
     write!(out, "spmotion {slot},2,{}", keys.join(",")).unwrap();
     if wait {
@@ -219,8 +220,12 @@ mod tests {
         // 12 frames; halfway the bow is 3/2 of the move across: (dy, -dx) × 1536
         assert!(out.contains(",100,%3*512/1024+%4*1536/1024,%4*512/1024-%3*1536/1024,175,175,0,256,0,"), "{out}");
         // ends on the straight line's end, zoomed
-        assert!(out.ends_with(",200,%3*1024/1024+%4*0/1024,%4*1024/1024+%3*0/1024,250,250,0,256,0:spmotionwait 67\n"), "{out}");
+        assert!(out.ends_with(",200,%3*1024/1024,%4*1024/1024,250,250,0,256,0:spmotionwait 67\n"), "{out}");
         assert_eq!(out.matches(",0,256,0").count(), 13);
+        // bow 0: eased place, straight zoom
+        let mut out = String::new();
+        arc_to(&mut out, 67, 400, 300, 200, Some((100, 200)), Some((1, 2)), 0, None, true);
+        assert!(out.contains(",100,%3*256/1024,%4*256/1024,150,150,0,256,0,"), "{out}");
     }
 
     #[test]

@@ -401,7 +401,7 @@ pub fn emit(script: &Script) -> String {
     // subroutines used (zoom, ease, exponent).
     let move_ease: Option<(u8, u32)> = None;
     let move_nowait = false;
-    let move_arc = 0;
+    let move_arc = None;
     let eased = std::collections::BTreeSet::new();
     let needs_click_wait = false;
     let plate_visible = false;

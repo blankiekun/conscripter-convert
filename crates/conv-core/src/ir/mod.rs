@@ -664,8 +664,9 @@ pub enum Op {
     /// its straight line: with t the (eased) progress and d the move, the
     /// centre is at t·d + h·(dy, −dx)/|d|, h = `bow`/1000 · sin(πt) · |d|/2
     /// (so a positive bow swings to the left of the direction on the
-    /// screen); the zoom goes straight with the time. 俺たちに翼はない's
-    /// SpriteMove `:Curve`.
+    /// screen); the zoom goes straight with the time (with `bow` 0 that
+    /// alone: an eased move whose zoom isn't eased). 俺たちに翼はない's
+    /// SpriteMove `:Curve` and zooms.
     MoveArc { bow: i32 },
 }
 
