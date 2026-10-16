@@ -70,7 +70,8 @@ fn choice_style_en(c: &mut Compiler<'_, '_>, n: i64) -> Option<ChoiceStyle> {
 
 /// The port's text places (`BoxInfo` in `val.nut`): box, text x, y and
 /// width, the click-wait icon's place (`icon_pos`, the English table);
-/// the ones with a face window first, as both may be shown.
+/// in pairs: the box with a face window first, as both may be shown,
+/// then the same box without one (drawn for it after `<FW img=''>`).
 const EN_TEXT: [BoxText; 12] = [
     ("boxCT", 375, 190, 280, (640, 500)),
     ("boxCC", 375, 190, 280, (640, 500)),
