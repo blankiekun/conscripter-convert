@@ -533,8 +533,8 @@ Used to check what the engine does (`docs/new-game.md` step 9).
 - After engine #4: `CreateProcess` as `cons_process` coroutines; send a
   plan of PRs before coding.
 - Then the unread-argument gaps (item 5 below), most noticeable first;
-  among them `SetVertex` on anything but `CreateText` pictures (17,995)
-  and `CreateText`'s box height (30).
+  among them `SetVertex` on anything but `CreateText` pictures (17,995).
+  `CreateText`'s box height is read (#PR).
 - Known limits: a window that moves (`絵演窓上`, `窓右`, about 56 `Move`s)
   has its clip jump to the end place when the move starts. Sprite movies
   (scene cuts, the turntables) don't play in CONscripter for Windows,
@@ -671,10 +671,9 @@ Next, in order:
    noticeable first:
    - Tempo (easing) of `Fade`, `Move`, `Zoom`, `Rotate`, `SetVolume`,
      `DrawTransition` (`Axl`/`Dxl`…; a `null` tempo is taken as linear).
-   - Story `CreateText`: the box's height (argument 5, 30 calls) isn't
-     read; a sideways text turned by `Rotate` sits about 17 px lower than
-     the original's under wine (cause unknown; "History", "Story
-     `CreateText`").
+   - Story `CreateText`: a sideways text turned by `Rotate` sits about
+     17 px lower than the original's under wine (cause unknown; "History",
+     "Story `CreateText`").
    - `DrawTransition`'s start opacity and softness; `Shake`'s `n` and
      tempo; `SetBlur`'s strength.
    - `Random` and `Conquest` return 0 whatever their arguments.
@@ -811,7 +810,10 @@ about it (`ma01_009`, `mb04_015vs`). Checked under wine from a patched
 `research/nitroplus/local/shots/ctext*/`): same places within about
 15 px; the original's letters are heavier and narrower, but wine
 substitutes ＭＳ 明朝 (see "Running the original under wine"), so
-sizes can't be compared. Not drawn: the choices' texts
+sizes can't be compared. The box's height (argument 5) clips the
+picture: the exe draws into a surface of the box's size (`builtin_CreateText`
+makes it from w and h, or from the text's size for `auto`); no story text
+reaches its box's height (500), so nothing changes in Muramasa. Not drawn: the choices' texts
 (`function_select.nss`, the engine's choice draws them), texts with
 markup (none in Muramasa; 続・殺戮のジャンゴ's song in `dja026`), and the
 English build's (the port's own captions aren't known yet).
