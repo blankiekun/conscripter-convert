@@ -57,6 +57,8 @@ It has no NPA archives and no NSS scripts.
   5 or 6 options (8 selects) are the plates in the window with the
   texts at their left (conv-cons has sprites for 4 picture-button
   options).
+- **Line log:** the port's (`sys_backlog.nut`, History). Checked
+  headless, not yet against the original.
 - **Questions:** the port's (`sys_dialog.nut`, `confirm_en`): the
   question's picture from the English `cg.npk` (`en/cg/sys/dialog/`,
   400×150) centred over black at 800/1000, Yes and No 108,100 and
@@ -87,8 +89,8 @@ It has no NPA archives and no NSS scripts.
   1. The English pictures: the redesigned menus in `cg/sys`. The port's
      system scripts (`media/script/system/sys_*.nut`) give each picture's
      English place after a `LANG_NAME == "en"` test. Done: the title,
-     the command menu and the questions (above). Left: same names, other
-     pictures and places: the line log; new
+     the command menu, the questions, the choices and the line log
+     (above). Left: new
      screens: save/load (`save/`), settings (`config/`), the click icon
      (one `adv/改行改頁アイコン.png` sheet). Then film them against the
      English original under wine (also the lines per box).
@@ -342,6 +344,15 @@ md04_015, md04_026vs, md04_030 (dates and times: `November 30, 1940`,
 | `setting.ini` keys | files table | there |
 
 ## History
+
+- **Line log (2026-10-15):** `sys_backlog.nut` has no English branch:
+  the port takes its own pictures of the same names (`cg/sys/backlog/`
+  from the English `cg.npk`, `en/cg/sys/backlog` in the converter) at
+  the Japanese places but 退出 at (906,443), and the rows from x 150,
+  570 wide (`TextBox.backlogFieldRect`), Droid Serif 20, 10 px apart
+  (`backlogRowSpace`): 28 full-width columns (`line_log(a, en)` in
+  `screens.rs`). CONscripter's `logrows` now cuts a row of English at
+  the space before the word that doesn't fit (for every script).
 
 - **Choices in English (2026-10-15):** `english.rs` reads each scene's
   `SetChoice(id, japanese…)` and its lang file's `TransChoice["<id>_<n>"]`
