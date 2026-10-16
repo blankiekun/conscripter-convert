@@ -207,8 +207,8 @@ Where they differ:
 | The choice's shot (`function_select.nss`: `CreateMask` ×3, `CursorPosition`, `Rotate` −90° over 800 ms about the bottom, a shot sound) | every choice (10) | a bullet hole where the pointer clicked, the chosen plate tips over | the plates go at once | `CreateMask` 30, `CursorPosition` 20 |
 | `Request` `AddRender` / `SubRender` / `NormalRender` | 15 / 1 / 3 | blend mode additive / subtractive / normal (`request_render`) | a movie's `AddRender` drawn as it is; the others not done | `addrender` 11, `normalrender` 4 |
 | `Request` `Smoothing` / `UnSmoothing` | 20 / 3 | texture filtering on / off | nothing | `unsmoothing` 3 |
-| `$SYSTEM_skip`, `$SYSTEM_text_auto` = false at each choice | 25 / 31 | skip and auto mode stop before the choice | convert-time only (no `$SYSTEM_` reaches the build) | none |
-| `$SYSTEM_menu_lock` = 1 (the title, the ending roll) | 8 | no right-click menu, skip off, the text window shown | convert-time only | none |
+| `$SYSTEM_skip`, `$SYSTEM_text_auto` = false at each choice | 25 / 31 | skip and auto mode stop before the choice | `skipoff:autooff` where `$SYSTEM_text_auto` goes false; the choice's `btnwait` also ends both (CONscripter after 0.24.0) | none |
+| `$SYSTEM_menu_lock` = 1 (the title, the ending roll) | 8 | no right-click menu, skip off, the text window shown | `skipoff:autooff`; the roll's wait is a `click`, which takes no right-click | none |
 | `SetShade(…, HEAVY)` | 1 (dja048) | a blur preset | not done | `SetShade` 1 |
 | `CreateEffect(…, "Sepia")` | 1 (dja038) | sepia over the screen | not done | `CreateEffect Sepia` 1 |
 
@@ -372,14 +372,25 @@ with the original (it wants all eleven endings' flags under wine).
 6. From the exe's coverage table ("The exe"): the choice's shot (a
    bullet hole at the pointer, the chosen plate tipping over: every
    choice); `AddRender`/`SubRender`/`NormalRender` as blend modes
-   (item 3's additive flashes); auto mode stopping at a choice (the
-   scripts set `$SYSTEM_skip`/`$SYSTEM_text_auto` false there: skip
-   already stops, as the choice's `btnwait` ends it, but auto mode
-   goes on after the choice); check that the ending roll has no
-   right-click menu (`$SYSTEM_menu_lock`); `SetShade HEAVY` (one use;
-   sepia is item 3's).
+   (item 3's additive flashes); `SetShade HEAVY` (one use; sepia is
+   item 3's).
+7. The ending roll's credits: `ProcessRoll` (dja056_09) scrolls
+   `cg/sys/good/EDROLL.jpg` over the song; the build shows only the
+   red screen and waits for a click.
 
 ## History
+
+- **Auto mode stops at a choice (2026-10-15).** The scripts set
+  `$SYSTEM_skip`/`$SYSTEM_text_auto` false before each choice
+  (`function_select.nss`; put back afterwards only with the setting
+  `#keep_auto_and_skip`, off by default) and set `$SYSTEM_menu_lock`
+  and `$SYSTEM_text_auto` before the ending roll. CONscripter's
+  `btnwait` now ends auto mode as it ended skip, and the converter
+  emits `skipoff:autooff` (new command `autooff`) where the script
+  sets `$SYSTEM_text_auto` false or `$SYSTEM_menu_lock` true
+  (`Op::StopAutoSkip`; Muramasa's choices and locks get it too). The
+  roll's click wait is a `click`, which ignores the right button: no
+  menu there, as in the original.
 
 - **Muzzle flashes (2026-10-15).** `GunFire(times, ms, opacity)`
   (`function_count.nss`, 11 calls in dja050) starts the process `Fire`:

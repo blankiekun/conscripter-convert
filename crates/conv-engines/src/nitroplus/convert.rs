@@ -1989,6 +1989,12 @@ impl<'a, 'b> Compiler<'a, 'b> {
                     }
                     None => new,
                 };
+                // The player's auto mode and skip are engine state: stopped
+                // where the script stops them (the ending roll).
+                let stops = (key == "$SYSTEM_text_auto" && new.int() == 0) || (key == "$SYSTEM_menu_lock" && new.int() != 0);
+                if stops && self.ops.last() != Some(&Op::StopAutoSkip) {
+                    self.ops.push(Op::StopAutoSkip);
+                }
                 if key == "$GameName" {
                     self.vars.insert(GAME_NAME_SET.into(), Value::Int(1));
                 }
