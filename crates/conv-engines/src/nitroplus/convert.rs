@@ -1357,7 +1357,7 @@ struct Compiler<'a, 'b> {
     /// Pictures whose loop starts after the move they are in ([`loops`]),
     /// and the lead-in's time: the next sync makes the move the loop's
     /// lead-in, so that neither motion replaces the other.
-    lead_ins: HashMap<String, u32>,
+    lead_ins: BTreeMap<String, u32>,
     /// Processes run in line ([`Compiler::inline_process`]): their waits
     /// hold the script.
     inline_processes: Vec<String>,
@@ -2140,7 +2140,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
             shake_once: HashMap::new(),
             action_process: None,
             process_lead: 0,
-            lead_ins: HashMap::new(),
+            lead_ins: BTreeMap::new(),
             inline_processes: Vec::new(),
             fast_skip_read: None,
             chapter_mark: None,
