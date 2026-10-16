@@ -162,8 +162,7 @@ It has no NPA archives and no NSS scripts.
      nowhere to be seen" / "My comrades …", ma01_003's `<CLICK>`
      rows); ma01_026's document is shown whole after its typing
      sounds, not typed letter by letter as the port does.
-  3. Gaps from the exe map ("The exe", coverage table): `<FW>` (25,
-     the face window changing mid-page) is still dropped; `<SMALL>`'s
+  3. Gaps from the exe map ("The exe", coverage table): `<SMALL>`'s
      size (75 %) is a guess; its larger-type text boxes (`SetTextEXC_Large` …, 16
      calls in 8 scenes).
   4. Gaps from the scripts' coverage ("The scripts' coverage"):
@@ -306,7 +305,7 @@ something the NSS doesn't:
 | `SetTextEXC_Large/Huge/Big/Middle`, `TypeBegin…_Large/Huge/Big/Middle` | 16 calls, 8 scenes (mc03_010, md01_024, md01_030, md02_021, md03_008, md03_013, md04_061, md06_021) | English only: text boxes in larger type | **not converted** (the NSS's own box) |
 | `<WAITVOICE=n>` | 95 | `WaitVoice("voice0", n)` mid-text | CONscripter's `!vn` (waits for the voice) |
 | `</voice>` | 68 | ends a voice's range | dropped |
-| `<FW>` | 25 | `SwitchFw`: the face window changes mid-page | **dropped** |
+| `<FW>` | 25 | `SwitchFw`: the face window changes mid-page (24 `img=''`: the face goes and the text goes on in the box without one; md05_033's one picture brings the face back) | a new page in the box without a face (`EN_TEXT`'s pairs) until the next code; a picture: the face the NSS has set |
 | `<WAIT=n>` | 16 | `WaitKey(n)` mid-text | `!dn` |
 | `<RED2>` 14, `<RED>` 8, `<YELLOW>` 6 | 28 | the range's colour (`SetCharacterColor`) | `#RRGGBB` |
 | `<SMALL>` | 8 | native: smaller glyphs (`CTextEnglish_layout`) | `!z075` (size a guess) |
@@ -408,6 +407,18 @@ md04_015, md04_026vs, md04_030 (dates and times: `November 30, 1940`,
 | `setting.ini` keys | files table | there |
 
 ## History
+
+- **`<FW>` (2026-10-16):** the port's `TAG_FW` calls `SwitchFw(img)`
+  (`function_textbox.nut`): with `img=''` and a box with a face window
+  (CT, TH, …) it deletes the faces (`DeleteFw`), fades `box*` and
+  `text*` out over 150 ms and goes on in the same box without a face
+  (CC, H, …, `BoxInfo`'s text place). The translation adds it before
+  narration it wrote into a speaker's stretch (ma01_014: "......", then
+  "She glances over her shoulder."). The converter ends the page there
+  and draws the next pages in the box without a face, the `Fw…`/`Nw…`
+  pictures left out, until the next code (where the NSS sets the next
+  face). Checked headless on ma01_014 (one-scene build, `--shot-pages`
+  on the three pages: Ichijo's face, the plain box, Yuuhi's face).
 
 - **Subtitles (2026-10-16):** the port calls `ShowVOICESEText(sound
   [, add])` (`function.nut`) after starting a voice whose

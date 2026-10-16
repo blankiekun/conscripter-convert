@@ -182,7 +182,9 @@ pub struct Game {
     /// Where the text starts and how wide it is while the named window
     /// picture is shown: the first of these shown (Full Metal Daemon
     /// Muramasa's English port, `BoxInfo` in `val.nut`): picture, text x,
-    /// y, width, and the click-wait icon's x, y (`icon_pos`).
+    /// y, width, and the click-wait icon's x, y (`icon_pos`). In pairs
+    /// (a box with a face window, then the box without one) when the
+    /// game's text has `<FW img=''>`.
     box_text: &'static [BoxText],
 }
 
@@ -1044,6 +1046,9 @@ struct Page<'a> {
     /// Ended by a `<k>` with code after it: the next page goes on below
     /// without clearing.
     continues: bool,
+    /// After the English port's `<FW img=''>` (`SwitchFw`): shown in the
+    /// window's box without a face, the face and name plate gone.
+    face_off: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -2776,6 +2781,8 @@ impl<'a, 'b> Compiler<'a, 'b> {
         let mut ruby: Option<(usize, String)> = None;
         // The line ended in `<?>`: the next text line goes on in it.
         let mut joined = false;
+        // An `<FW img=''>` holds until the next code (which sets the face).
+        let mut face_off = false;
         let page_len = |page: &Page<'a>, line: &str| {
             let n = page.text.chars().count();
             n + usize::from(n > 0) + line.chars().count()
@@ -2799,6 +2806,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 // the same line (a typewriter writing one character at a
                 // time, `ma01_026`).
                 Inline::Str(s) => {
+                    page.face_off |= face_off;
                     joined = s.trim_end().ends_with("<?>");
                     line.push_str(&s.replace("<?>", ""));
                 }
@@ -2818,6 +2826,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
                         self.note("code inside a page runs before it");
                     }
                     page.code.extend(stmts.iter());
+                    face_off = false;
                     other = true;
                 }
                 Inline::Tag(tag) => {
@@ -2866,6 +2875,22 @@ impl<'a, 'b> Compiler<'a, 'b> {
                             }
                         }
                         ("pre", _) => {}
+                        // The English port's face window switched mid-page
+                        // (`SwitchFw`): `img=''` takes the face away, and the
+                        // text goes on in a new page in the box without one;
+                        // a picture brings the face back.
+                        // shortcut: the picture is taken to be the face the NSS
+                        // has set (md05_033, the one use); read it if another
+                        // translation uses another.
+                        ("fw", false) => {
+                            if !line.is_empty() {
+                                end_line(&mut page, &mut line);
+                            }
+                            if !page.text.is_empty() {
+                                pages.push(std::mem::take(&mut page));
+                            }
+                            face_off = tag.attr("img").is_none_or(str::is_empty);
+                        }
                         // A variable's value, when it is known here.
                         ("value", false) => match tag.attr("name").and_then(|n| self.vars.get(n)).cloned() {
                             Some(v @ (Value::Str(_) | Value::Int(_))) => line.push_str(&v.string()),
@@ -2944,7 +2969,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
             }
             self.sync(0);
             // Code before the page may have changed the face window.
-            let window = self.text_window(&t, x, y);
+            let window = self.text_window(&t, x, y, page.face_off);
             if self.texts_shown == 0 {
                 self.first_window = Some(window.clone());
             } else if self.window.as_ref() != Some(&window) {
@@ -2995,8 +3020,10 @@ impl<'a, 'b> Compiler<'a, 'b> {
 
     /// The text window for a text object at (x, y): its `LoadText` box,
     /// turned vertical by a 90° `Rotate`, over the `Hideable` picture
-    /// that is visible behind it.
-    fn text_window(&mut self, t: &TextObject<'a>, x: i64, y: i64) -> TextWindow {
+    /// that is visible behind it. `face_off`: the faces (`Fw…`) and name
+    /// plates (`Nw…`) left out, and a box with a face window drawn as its
+    /// pair without one ([`Game::box_text`]).
+    fn text_window(&mut self, t: &TextObject<'a>, x: i64, y: i64, face_off: bool) -> TextWindow {
         let (w, h, letter, line, font) = t.layout.unwrap_or((550, 150, 0, 29, self.font_size));
         let columns = (w / (font + letter).max(1)).max(1) as u32;
         let vertical = t.rotation.rem_euclid(360) == 90;
@@ -3012,18 +3039,32 @@ impl<'a, 'b> Compiler<'a, 'b> {
         // first, drawn into one window image.
         // (priority, creation order, (picture, x, y, opacity))
         type Part = (i64, u64, (String, i64, i64, i64));
+        // With `face_off`, each box with a face and the box drawn for it.
+        let plain_for: Vec<(&str, &str)> = if face_off { self.game.box_text.chunks(2).filter_map(|p| Some((p.first()?.0, p.get(1)?.0))).collect() } else { Vec::new() };
+        let is_face = |name: &str| face_off && ["Fw", "Nw", "Face_", "@backFw"].iter().any(|p| name.starts_with(p));
         let mut parts: Vec<Part> = self
             .objects
-            .values()
-            .filter(|o| o.hideable && o.opacity > 0)
-            .filter_map(|o| match &o.kind {
-                Kind::Image { image } => Some((o.priority, o.seq, (image.clone(), o.x, o.y, o.opacity))),
-                _ => None,
+            .iter()
+            .filter(|(name, o)| o.hideable && o.opacity > 0 && !is_face(name))
+            .filter_map(|(name, o)| {
+                let o2 = match plain_for.iter().find(|p| p.0 == name.as_str()) {
+                    Some(p) => self.objects.get(p.1)?,
+                    None => o,
+                };
+                match &o2.kind {
+                    Kind::Image { image } => Some((o.priority, o.seq, (image.clone(), o2.x, o2.y, o.opacity))),
+                    _ => None,
+                }
             })
             .collect();
         parts.sort_by_key(|p| (p.0, p.1));
         let parts: Vec<_> = parts.into_iter().map(|p| p.2).collect();
-        let shown = |name: &str| self.objects.get(name).is_some_and(|o| o.hideable && o.opacity > 0);
+        let up = |name: &str| self.objects.get(name).is_some_and(|o| o.hideable && o.opacity > 0);
+        let shown = |name: &str| match plain_for.iter().find(|p| p.0 == name || p.1 == name) {
+            Some(p) if p.0 == name => false,
+            Some(p) => up(name) || up(p.0),
+            None => up(name),
+        };
         let mut box_icon = None;
         if let Some(&(_, x, y, w, icon)) = self.game.box_text.iter().find(|b| shown(b.0)) {
             (text_x, text_y, columns, box_icon) = (x, y, (w / font.max(1)).max(1) as u32, Some(icon));
@@ -3266,6 +3307,46 @@ scene a.nss
         assert!(!w.vertical);
         assert_eq!(w.image, "cg/sys/adv/en/thtextwindow_fw.png@1000");
         assert_eq!((w.text_x, w.text_y), (238, 426));
+    }
+
+    #[test]
+    fn the_english_ports_fw_tag_takes_the_face_away_until_the_next_code() {
+        let story = r#"
+scene a.nss
+{
+	CreateTexture("boxCT", 20000, Center, 40, "cg/sys/adv/TextWindow_Fw.png");
+	Request("boxCT", Hideable);
+	Fade("boxCT", 0, 1000, null, true);
+	CreateTexture("boxCC", 20000, Center, 40, "cg/sys/adv/TextWindow.png");
+	Request("boxCC", Hideable);
+	Fade("boxCC", 0, 0, null, true);
+	CreateTexture("FwC01", 20001, 451, 4, "cg/fw/face.png");
+	Request("FwC01", Hideable);
+	Fade("FwC01", 0, 1000, null, true);
+<PRE @box0>
+[text0010]
+"......"
+<FW img=''>
+  She glances over her shoulder.
+
+  She turns away.
+
+{	Wait(1);}
+"Thanks!"
+</PRE>
+	SetText();
+	TypeBegin();
+}
+"#;
+        let mut files = BTreeMap::new();
+        files.insert(BOOT.to_string(), nss::parse("#include \"nss/function.nss\"\n").unwrap());
+        files.insert("function.nss".to_string(), nss::parse(LIBRARY).unwrap());
+        files.insert("a.nss".to_string(), nss::parse(story).unwrap());
+        let c = compile_scene(&files, "a.nss", "a.nss", &MURAMASA_EN, &mut Fake).unwrap();
+        let face = c.window.unwrap().image;
+        assert_ne!(face, "cg/sys/adv/en/textwindow.png@1000");
+        let windows: Vec<_> = c.ops.iter().filter_map(|op| if let Op::SetWindow(w) = op { Some(w.image.as_str()) } else { None }).collect();
+        assert_eq!(windows, ["cg/sys/adv/en/textwindow.png@1000", face.as_str()]);
     }
 
     #[test]
