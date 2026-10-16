@@ -206,9 +206,7 @@ impl Compiler<'_, '_> {
                 // motion (after showing what changed before it).
                 if ms > 0 && blocking && targets.len() == 1 && self.shown.contains_key(&targets[0]) {
                     self.sync(0);
-                    if self.objects[&targets[0]].trail {
-                        self.note("SetBlur trail behind a moving picture not drawn");
-                    }
+                    let trail = self.objects[&targets[0]].trail;
                     let o = self.objects.get_mut(&targets[0]).unwrap();
                     let (x, y) = (to_x.position(o.x, o.w, screen_w), to_y.position(o.y, o.h, screen_h));
                     let (dx, dy) = (x - o.x, y - o.y);
@@ -217,7 +215,18 @@ impl Compiler<'_, '_> {
                         sh.x += dx;
                         sh.y += dy;
                         let (cx, cy) = ((sh.x + sh.w / 2) as i32, (sh.y + sh.h / 2) as i32);
-                        self.ops.push(Op::SpriteMove { layer: sh.layer, x: cx, y: cy, ms: ms as u32 });
+                        match trail {
+                            // The engine's trail follows only its motions.
+                            Some(t) => {
+                                let key = |ms, x, y| MotionKey { ms, x, y, zoom: 100, angle: 0, opacity: 256 };
+                                let keys = vec![key(0, 0, 0), key(ms as u32, dx as i32, dy as i32)];
+                                let layer = sh.layer;
+                                self.ops.push(Op::SpriteTrail { layer, passes: t.passes, alpha: t.alpha, lag: t.lag });
+                                self.ops.push(Op::SpriteMotion2 { layer, keys, end: MotionEnd::Keep });
+                                self.ops.push(Op::Pause { ms: ms as u32 });
+                            }
+                            None => self.ops.push(Op::SpriteMove { layer: sh.layer, x: cx, y: cy, ms: ms as u32 }),
+                        }
                     }
                     return Value::Null;
                 }
@@ -307,8 +316,17 @@ impl Compiler<'_, '_> {
             }
             "SetBlur" => {
                 // (obj, on, passes, alpha, lag, wait): see `Object::trail`.
-                let trail = arg(1).truthy() && (1..=128).contains(&arg(2).int()) && (1..=1000).contains(&arg(3).int());
+                let (passes, alpha) = (arg(2).int(), arg(3).int());
+                let trail = (arg(1).truthy() && (1..=128).contains(&passes) && (1..=1000).contains(&alpha))
+                    .then(|| Trail { passes: passes as u32, alpha: alpha as u32, lag: arg(4).int().max(0) as u32 });
                 for t in self.matching(&arg(0)) {
+                    let o = self.objects.get_mut(&t).unwrap();
+                    // (A trail on screen ends; a new one is set at its next motion.)
+                    if o.trail.is_some() && trail.is_none()
+                        && let Some(sh) = self.shown.get(&t)
+                    {
+                        self.ops.push(Op::SpriteTrail { layer: sh.layer, passes: 0, alpha: 0, lag: 0 });
+                    }
                     self.objects.get_mut(&t).unwrap().trail = trail;
                 }
             }
