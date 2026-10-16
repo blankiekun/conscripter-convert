@@ -369,7 +369,7 @@ with the original (it wants all eleven endings' flags under wine).
 | Script parsing | ✅ All 249 files; 56 places that don't parse, none in the story |
 | Story control flow (56 chapters, 10 choices, bad ends) | ✅ Compiled whole (`compile_story`); in the engine the good path plays to the end (6,496 pages) and each wrong answer ends the story with its own bad end, then the game goes back to the title (`research/nitroplus/django_routes.sh`, which stops each run there, 2026-10-15) |
 | Text | 🟡 In the boxes' places (box00: 39 columns at 50,472, white on the black bar; five rows, as many as end inside the 130 px box); 3,424 voiced lines; `box00`, `box01` (x 250) and `box02` (x 390) start within 1 px of the original's under wine (`box03`-`box05` are never used) |
-| Pictures, sound in scripts | 🟡 Black bars, face windows in their frames, standing pictures, backgrounds; pictures turned over (`Rotate` by 180°, 315 calls: characters facing the other way) drawn mirrored (dja004's choice now as the original's); cameras (`CreateCamera`, `MoveCamera`, 365 calls): a camera's child of priority p drawn about the screen's centre at (its place − the camera's) × z / (1000 − p), as large, z the camera's zoom (priority is depth: measured under wine with boxes at four priorities and six camera settings, and dja001's carriage scene then matched the original's frames); moves, zooms and camera moves over time (1,765) as real motion: the engine moves the picture (`spmotion2`, keeping its last place) while the script goes on, also through the cross-fade of what else changes; 60 that also fade or change picture are still cross-fades; a picture under an opaque full-screen one isn't drawn (old backgrounds the script leaves up under `窓`); the 400-vs-3 battle's muzzle flashes (`GunFire`) as a white sprite added on (`spblend`), flashing its number of times while the text goes on (`spalpha` keys), and its strobe the same way until deleted; the looping shakes (`ShakeVLoop*`) as the background's looped `spmotion`; every sound is found |
+| Pictures, sound in scripts | 🟡 Black bars, face windows in their frames, standing pictures, backgrounds; pictures turned over (`Rotate` by 180°, 315 calls: characters facing the other way) drawn mirrored (dja004's choice now as the original's); cameras (`CreateCamera`, `MoveCamera`, 365 calls): a camera's child of priority p drawn about the screen's centre at (its place − the camera's) × z / (1000 − p), as large, z the camera's zoom (priority is depth: measured under wine with boxes at four priorities and six camera settings, and dja001's carriage scene then matched the original's frames); moves, zooms and camera moves over time (1,765) as real motion: the engine moves the picture (`spmotion2`, keeping its last place) while the script goes on, also through the cross-fade of what else changes; 60 that also fade or change picture are still cross-fades; a picture under an opaque full-screen one isn't drawn (old backgrounds the script leaves up under `窓`); the 400-vs-3 battle's muzzle flashes (`GunFire`) as a white sprite added on (`spblend`), flashing its number of times while the text goes on (`spalpha` keys), and its strobe the same way until deleted; the looping shakes (`ShakeVLoop*`) as the background's looped `spmotion`, and dja001's opening slideshow (`MoveBlackHawk`: the pictures fading and sliding in turn) as looped motions (`convert/loops.rs`, shared with 装甲悪鬼村正); every sound is found |
 | Choices | ✅ Plates as picture buttons, text placed as the original's (compared under wine) |
 | System screens | 🟡 From the game's pictures (`django/screens.rs`): title, right-click menu, save/load (3×20 slots), yes/no questions, text log, settings (bullet rows as `SliderSteps`), the click-wait bullet after the last character (`getcursorpos` in the bar's wait routine); compared under wine: right-click menu, save, log, settings (text speed starts at level 5 as the original's; the two SAVE-DATA question rows drawn as they stand, ON chosen; the display options and version panel left out on purpose) |
 | Extras | 🟡 Menu, CG library, sound library, recollection, each compared with the original; left out: the doors' animation, the rifle over a category |
@@ -602,7 +602,7 @@ with the original (it wants all eleven endings' flags under wine).
   process first makes its background (as its child: `Move` and
   `Delete` of the process move and delete it; before, these
   backgrounds weren't drawn at all), then loops `Shake(bg, ms, 0, y, 0,
-  y_end, …)` and `Wait`s. `django/loops.rs` runs the part before the
+  y_end, …)` and `Wait`s. `convert/loops.rs` (now shared NSS code) runs the part before the
   `while` and gives the background a looped `spmotion` through the
   same times: ±y every 100 ms (longer when 32 keys don't reach), y
   going to y_end (`Object::shake`, emitted where `sync` places it;
@@ -613,7 +613,10 @@ with the original (it wants all eleven endings' flags under wine).
   ms, a frame at 0, for ever (`Op::SpriteFlashing` times 0: `spalpha`
   loop 1), named as the process so its `Delete` removes it. Neither
   compared under wine; the shake is a turn every 100 ms, not the
-  exe's frame-by-frame jitter.
+  exe's frame-by-frame jitter. Since 2026-10-16 a loop process runs at
+  its `Request(…, Start)`, not at `CreateProcess`: dja050_02 slides the
+  empty process in first, and its background now appears where that
+  put it when the shake starts, instead of sliding in.
 
 - **The choice's shot (2026-10-15).** `ChoiceA02`/`ChoiceB02`
   (`function_select.nss`): the shot sound, the bullet hole
