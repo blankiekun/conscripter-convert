@@ -93,7 +93,20 @@ It has no NPA archives and no NSS scripts.
      English place after a `LANG_NAME == "en"` test. Done: the title,
      the command menu, the questions, the choices, the line log and
      the click icon (above). Left: new
-     screens: save/load (`save/`), settings (`config/`). Then film them against the
+     screens: save/load (`save/`), settings (`config/`).
+     Save/load (`sys_saveload.nut`, no `LANG_NAME` branch: the port's
+     own design) is one screen for both: 15 slots a page across 5×3
+     from (42,101), 195 and 128 apart (`Slots BG.png` at 43,99,
+     `Slots-Grid.png` at 42,101, 158×90 thumbnails, `MouseOverBoard`
+     under the pointer, `new.png` at +126), the page's picture
+     `ナンバリング001`-`004`, tabs hanging from the top at x 157, 299,
+     441, 583 (`pages1-15` … `46-60`) and 725 (`QSave`, the quick
+     saves), Exit at (0,0); a slot's click opens a small window
+     (`menu_window.png`) with Save, Load, Delete and Lock/Unlock
+     (`SaveCOME1`-`4` at 213,22 / 295,21 / 295,68 / 213,68); the play
+     time at (25,550) in 15 px white, the last line at (339,511), 340×100,
+     18 px black. Our `SaveGrid` has no tabs, popup or locks: it needs
+     IR additions (shared `save_grid.rs`); film the original first. Then film them against the
      English original under wine (also the lines per box).
   2. 22 rows of English are placed nowhere (lines the NSS orders or
      splits otherwise, route variants such as mc01's "Ichijo is
