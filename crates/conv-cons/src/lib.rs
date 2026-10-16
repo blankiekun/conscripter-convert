@@ -84,8 +84,6 @@ const SPRITE_BASE: u32 = 62;
 /// The lsp2 slot of a flash ([`Op::Flash`]), under the menus' and the top
 /// bars' (0-23).
 const FLASH_SPRITE2: u32 = 24;
-/// The lsp2 slot a turning sprite ([`Op::SpriteTurn`]) is drawn in.
-const TURN_SPRITE2: u32 = 25;
 /// The lsp2 slot of a fade to a colour ([`Op::ScreenFade`]), under the
 /// flash's.
 const FADE_SPRITE2: u32 = 26;
@@ -226,7 +224,6 @@ pub fn emit(script: &Script) -> String {
     let has_replay = script.title_screen.is_some() && script.extras.as_ref().is_some_and(|e| e.replay.is_some());
     let picture_replay = script.title_screen.is_some() && script.picture_extras.as_ref().is_some_and(|e| e.replay.is_some());
     let root_resumes = 0;
-    let turns = 0;
     let puzzles = 0;
     let button_screens = 0;
     let plate_choices = 0;
@@ -392,8 +389,6 @@ pub fn emit(script: &Script) -> String {
     let se_not_skipped = false;
     // The next static's fade in (Op::NoiseFadeIn).
     let noise_fade_in = None;
-    let needs_move = false;
-    let needs_zoom = false;
     // The next move's or zoom's curve ([`Op::MoveEase`]), and the eased
     // subroutines used (zoom, ease, exponent).
     let move_ease: Option<(u8, u32)> = None;
@@ -431,21 +426,18 @@ pub fn emit(script: &Script) -> String {
             _ => None,
         })
         .collect();
-    let mut e = ops::Emitter { script, out, effects, has_ruby, has_overlay, has_noise, has_chapters, has_animation, root_returns, has_replay, has_vertical, border, voice_switches, duck, back_to_choice, speed, link_depth, clear_fade, restore_overlay, link_targets, zoomed_layers, root_resumes, turns, puzzles, button_screens, plate_choices, picture_screens, se, se_not_skipped, noise_fade_in, needs_move, needs_zoom, move_ease, eased, needs_click_wait, plate_visible, link_pages, transition, window, page_rows, page_tag };
+    let mut e = ops::Emitter { script, out, effects, has_ruby, has_overlay, has_noise, has_chapters, has_animation, root_returns, has_replay, has_vertical, border, voice_switches, duck, back_to_choice, speed, link_depth, clear_fade, restore_overlay, link_targets, zoomed_layers, root_resumes, puzzles, button_screens, plate_choices, picture_screens, se, se_not_skipped, noise_fade_in, move_ease, eased, needs_click_wait, plate_visible, link_pages, transition, window, page_rows, page_tag };
     for (i, op) in script.ops.iter().enumerate() {
         e.op(i, op);
     }
-    let ops::Emitter { mut out, effects, needs_move, needs_zoom, eased, needs_click_wait, .. } = e;
+    let ops::Emitter { mut out, effects, eased, needs_click_wait, .. } = e;
     let effect = |ms: u32| if ms == 0 { "1".to_string() } else { effects[&(ms, Effect::Fade)].clone() };
     writeln!(out, "end").unwrap();
-    if needs_move {
-        out.push_str(&move_routine());
-    }
-    if needs_zoom {
-        out.push_str(&zoom::routine());
-    }
-    for (zoom, e, n) in eased {
-        out.push_str(&ease::routine(zoom, e, n));
+    if !eased.is_empty() {
+        // The eased moves' curves, defined as the game starts (saves keep them).
+        let defs: String = eased.iter().map(|&(e, n)| ease::curve_def(e, n) + "\n").collect();
+        let at = out.find("\n*start\n").map(|i| i + "\n*start\n".len()).expect("*start");
+        out.insert_str(at, &defs);
     }
     if root_returns > 0 {
         // Reached from a link page once its scene returned and the page
@@ -901,29 +893,6 @@ fn is_single_byte(c: char) -> bool {
 
 fn starts_ascii(line: &str) -> bool {
     line.starts_with(|c: char| c.is_ascii())
-}
-
-const MOVE: &str = "conv_move";
-
-/// Subroutine moving sprite %1 so that its centre reaches (%2, %3) in a
-/// straight line over %4 ms ([`Op::SpriteMove`]), drawn about every 10 ms
-/// and timed by the timer, so a slow frame doesn't make it longer. Uses
-/// the scratch variables %1-%7.
-fn move_routine() -> String {
-    format!(
-        "*{MOVE}
-getspsize %1,%5,%6:div %5,2:div %6,2:sub %2,%5:sub %3,%6
-getsppos %1,%5,%6
-resettimer
-*{MOVE}_loop
-gettimer %7
-if %7 >= %4 amsp %1,%2,%3:print 1:return
-amsp %1,%5+(%2-%5)*%7/%4,%6+(%3-%6)*%7/%4
-print 1
-wait 10
-goto *{MOVE}_loop
-"
-    )
 }
 
 /// The settings screen has switch `s` (in its list or on a picture page).
@@ -1644,12 +1613,11 @@ goto *conv_link1
     }
 
     #[test]
-    fn sprite_turns_run_on_an_lsp2_copy() {
+    fn sprite_turns_are_engine_motions() {
         let turn = Op::SpriteTurn { layer: 7, image: "sprite/a.png".into(), from: (200, 400), to: (200, 900), degrees: -90, ms: 800 };
         let text = emit(&script(vec![turn]));
-        let expected = "csp 69\nlsp2 25,\":a;sprite\\a.png\",200,400,100,100,0\nprint 1\nresettimer\n*conv_turn1\ngettimer %7\n\
-            if %7 > 800 mov %7,800\namsp2 25,200+(0)*%7/800,400+(500)*%7/800,100,100,90*%7/800,255\nprint 1\n\
-            if %7 < 800 wait 10:goto *conv_turn1\ncsp2 25\nprint 1\n";
+        let expected = "lsp 69,\":a;sprite\\a.png\",0,0:getspsize 69,%1,%2:amsp 69,200-%1/2,400-%2/2\n\
+            spmotion 69,0,0,0,0,100,100,0,256,0,800,0,500,100,100,90,256,0:spmotionwait 69\ncsp 69\nprint 1\n";
         assert!(text.contains(expected), "{text}");
     }
 
@@ -2334,11 +2302,14 @@ end
     }
 
     #[test]
-    fn sprite_motion_uses_the_move_routine() {
+    fn sprite_moves_are_engine_motions() {
         let text = emit(&script(vec![Op::SpriteMove { layer: 5, x: 550, y: 300, ms: 300 }]));
-        assert!(text.contains("mov %1,67:mov %2,550:mov %3,300:mov %4,300:gosub *conv_move\n"));
-        assert!(text.contains("*conv_move\n") && text.contains("*conv_move_loop\n"));
-        assert!(!emit(&script(vec![])).contains("conv_move"));
+        assert!(text.contains(",300,550-%1/2-%3,300-%2/2-%4,100,100,0,256,0:spmotionwait 67\n"), "{text}");
+        assert!(!text.contains("spcurve"));
+        // An eased one: its curve's table at *start, the motion along it.
+        let text = emit(&script(vec![Op::MoveEase { ease: 2, exponent: 3 }, Op::SpriteMove { layer: 5, x: 550, y: 300, ms: 300 }]));
+        assert!(text.contains("\n*start\nspcurve 32,0,"), "{text}");
+        assert!(text.contains(",256,32:spmotionwait 67\n"), "{text}");
     }
 
     /// Runs the helper's algorithm (as emitted) in Rust to check the maths.

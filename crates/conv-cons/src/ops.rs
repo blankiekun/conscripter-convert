@@ -28,7 +28,6 @@ pub(crate) struct Emitter<'a> {
     pub link_targets: Vec<&'a str>,
     pub zoomed_layers: std::collections::HashSet<u32>,
     pub root_resumes: usize,
-    pub turns: usize,
     pub puzzles: usize,
     pub button_screens: usize,
     pub plate_choices: usize,
@@ -36,10 +35,9 @@ pub(crate) struct Emitter<'a> {
     pub se: SeChannels,
     pub se_not_skipped: bool,
     pub noise_fade_in: Option<u32>,
-    pub needs_move: bool,
-    pub needs_zoom: bool,
     pub move_ease: Option<(u8, u32)>,
-    pub eased: std::collections::BTreeSet<(bool, u8, u32)>,
+    /// The eased curves used, (ease, exponent): `spcurve` tables at `*start`.
+    pub eased: std::collections::BTreeSet<(u8, u32)>,
     pub needs_click_wait: bool,
     pub plate_visible: bool,
     pub link_pages: usize,
@@ -52,7 +50,7 @@ pub(crate) struct Emitter<'a> {
 impl<'a> Emitter<'a> {
     /// Writes op `i` of the script.
     pub(crate) fn op(&mut self, i: usize, op: &'a Op) {
-        let &mut Emitter { has_ruby, has_overlay, has_noise, has_chapters, has_animation, root_returns, has_replay, has_vertical, border, voice_switches, duck, back_to_choice, speed, link_depth, script, ref clear_fade, ref restore_overlay, ref effects, ref link_targets, ref zoomed_layers, ref mut out, ref mut root_resumes, ref mut turns, ref mut puzzles, ref mut button_screens, ref mut plate_choices, ref mut picture_screens, ref mut se, ref mut se_not_skipped, ref mut noise_fade_in, ref mut needs_move, ref mut needs_zoom, ref mut move_ease, ref mut eased, ref mut needs_click_wait, ref mut plate_visible, ref mut link_pages, ref mut transition, ref mut window, ref mut page_rows, ref mut page_tag } = self;
+        let &mut Emitter { has_ruby, has_overlay, has_noise, has_chapters, has_animation, root_returns, has_replay, has_vertical, border, voice_switches, duck, back_to_choice, speed, link_depth, script, ref clear_fade, ref restore_overlay, ref effects, ref link_targets, ref zoomed_layers, ref mut out, ref mut root_resumes, ref mut puzzles, ref mut button_screens, ref mut plate_choices, ref mut picture_screens, ref mut se, ref mut se_not_skipped, ref mut noise_fade_in, ref mut move_ease, ref mut eased, ref mut needs_click_wait, ref mut plate_visible, ref mut link_pages, ref mut transition, ref mut window, ref mut page_rows, ref mut page_tag } = self;
         let effect = |ms: u32| if ms == 0 { "1".to_string() } else { effects[&(ms, Effect::Fade)].clone() };
         let visited = |target: &str| LINK_VISITED_BASE + link_targets.iter().position(|&t| t == target).unwrap() as u32;
     if let Op::Text { .. } = op {
@@ -195,34 +193,20 @@ impl<'a> Emitter<'a> {
             }
         }
         Op::SpriteTurn { layer, image, from, to, degrees, ms } => {
-            // Only lsp2 sprites turn: a copy stands in while it runs.
-            // ONScripter's rot turns counter-clockwise.
-            *turns += 1;
-            let (s, ms) = (TURN_SPRITE2, (*ms).max(1));
+            // The layer's sprite moves and turns by itself (spmotion's
+            // angle turns counter-clockwise), then the layer is cleared.
+            let (slot, ms) = (SPRITE_BASE + layer, (*ms).max(1));
             let ((x0, y0), (x1, y1)) = (*from, *to);
-            writeln!(out, "csp {}", SPRITE_BASE + layer).unwrap();
-            writeln!(out, "lsp2 {s},\":a;{}\",{x0},{y0},100,100,0", path(image)).unwrap();
-            writeln!(out, "print 1\nresettimer\n*conv_turn{turns}\ngettimer %7\nif %7 > {ms} mov %7,{ms}").unwrap();
-            writeln!(out, "amsp2 {s},{x0}+({})*%7/{ms},{y0}+({})*%7/{ms},100,100,{}*%7/{ms},255", x1 - x0, y1 - y0, -degrees).unwrap();
-            writeln!(out, "print 1\nif %7 < {ms} wait 10:goto *conv_turn{turns}").unwrap();
-            writeln!(out, "csp2 {s}\nprint 1").unwrap();
+            writeln!(out, "lsp {slot},\":a;{}\",0,0:getspsize {slot},%1,%2:amsp {slot},{x0}-%1/2,{y0}-%2/2", path(image)).unwrap();
+            writeln!(out, "spmotion {slot},0,0,0,0,100,100,0,256,0,{ms},{},{},100,100,{},256,0:spmotionwait {slot}", x1 - x0, y1 - y0, -degrees).unwrap();
+            writeln!(out, "csp {slot}\nprint 1").unwrap();
         }
         Op::MoveEase { ease, exponent } => *move_ease = Some((*ease, *exponent)).filter(|&(e, _)| (1..=3).contains(&e)),
         Op::SpriteMove { layer, x, y, ms } => {
             let slot = SPRITE_BASE + layer;
             let ease = move_ease.take();
             if *ms > 0 && transition.is_none() {
-                let routine = match ease {
-                    Some((e, n)) => {
-                        eased.insert((false, e, n));
-                        ease::label(false, e, n)
-                    }
-                    None => {
-                        *needs_move = true;
-                        MOVE.to_string()
-                    }
-                };
-                writeln!(out, "mov %1,{slot}:mov %2,{x}:mov %3,{y}:mov %4,{ms}:gosub *{routine}").unwrap();
+                motion::move_to(out, slot, *x, *y, *ms, None, curve(ease, eased));
             } else {
                 writeln!(out, "getspsize {slot},%1,%2:amsp {slot},{x}-%1/2,{y}-%2/2").unwrap();
                 if transition.is_none() {
@@ -245,13 +229,8 @@ impl<'a> Emitter<'a> {
         Op::SpriteMotion2 { layer, keys, end } => motion::emit2(out, *layer, keys, *end),
         Op::SpriteZoom { layer, x, y, from, to, ms } => {
             let ease = move_ease.take();
-            let routine = ease.map(|(e, n)| ease::label(true, e, n));
-            if zoom::emit(out, *layer, *x, *y, *from, *to, *ms, transition.is_some(), routine.as_deref()) {
-                match ease {
-                    Some((e, n)) => _ = eased.insert((true, e, n)),
-                    None => *needs_zoom = true,
-                }
-            }
+            let curve = if *ms > 0 { curve(ease, eased) } else { 0 };
+            zoom::emit(out, *layer, *x, *y, *from, *to, *ms, transition.is_some(), curve);
         }
         Op::ScreenFilter { slot, filter, fade_ms } => {
             match filter {
@@ -875,5 +854,17 @@ impl<'a> Emitter<'a> {
             *picture_screens += 1;
         }
     }
+    }
+}
+
+/// A move's or zoom's curve: 0 straight, or the `spcurve` id of an eased
+/// one, noted in `eased` for its table at `*start`.
+fn curve(ease: Option<(u8, u32)>, eased: &mut std::collections::BTreeSet<(u8, u32)>) -> u32 {
+    match ease {
+        Some((e, n)) if n > 1 => {
+            eased.insert((e, n));
+            ease::curve_id(e, n)
+        }
+        _ => 0,
     }
 }
