@@ -169,8 +169,9 @@ pub struct Game {
     horizontal_box: Option<(i64, i64, i64)>,
     /// Where the text starts and how wide it is while the named window
     /// picture is shown: the first of these shown (Full Metal Daemon
-    /// Muramasa's English port, `BoxInfo` in `val.nut`).
-    box_text: &'static [(&'static str, i64, i64, i64)],
+    /// Muramasa's English port, `BoxInfo` in `val.nut`): picture, text x,
+    /// y, width, and the click-wait icon's x, y (`icon_pos`).
+    box_text: &'static [(&'static str, i64, i64, i64, (i32, i32))],
 }
 
 impl Game {
@@ -2902,8 +2903,9 @@ impl<'a, 'b> Compiler<'a, 'b> {
         parts.sort_by_key(|p| (p.0, p.1));
         let parts: Vec<_> = parts.into_iter().map(|p| p.2).collect();
         let shown = |name: &str| self.objects.get(name).is_some_and(|o| o.hideable && o.opacity > 0);
-        if let Some(&(_, x, y, w)) = self.game.box_text.iter().find(|b| shown(b.0)) {
-            (text_x, text_y, columns) = (x, y, (w / font.max(1)).max(1) as u32);
+        let mut box_icon = None;
+        if let Some(&(_, x, y, w, icon)) = self.game.box_text.iter().find(|b| shown(b.0)) {
+            (text_x, text_y, columns, box_icon) = (x, y, (w / font.max(1)).max(1) as u32, Some(icon));
         }
         let (image, wx, wy) = match self.assets.composite(&parts) {
             Some(c) => c,
@@ -2914,7 +2916,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
             Some(Value::Int(v)) => Some(*v as i32),
             _ => None,
         };
-        let wait_icon_at = icon("$SYSTEM_position_x_text_icon").zip(icon("$SYSTEM_position_y_text_icon"));
+        let wait_icon_at = box_icon.or_else(|| icon("$SYSTEM_position_x_text_icon").zip(icon("$SYSTEM_position_y_text_icon")));
         TextWindow {
             wait_icon_at,
             image,

@@ -5,7 +5,7 @@
 //! ported ([`favour`]); the system screens, built from the game's own
 //! pictures ([`screens`]).
 
-use conv_core::ir::{ArithOp, Op, Operand, TransitionStyle};
+use conv_core::ir::{ArithOp, ChoicePlates, ChoiceStyle, Op, Operand, TextWindow, TransitionStyle};
 
 use std::collections::BTreeMap;
 
@@ -25,23 +25,64 @@ pub const MURAMASA: Game = Game { call, scene, flags, files: &[magiccube::FILE],
 /// wide, font 20, `rowSpace` 1 (`function_textbox.nut`), down to the
 /// click icon at 500: 14 lines; every box in its own window picture
 /// ([`EN_BOXES`]), with the text where [`EN_TEXT`] puts it.
-pub const MURAMASA_EN: Game = Game { call: call_en, menus: screens::menus_en, horizontal_box: Some((280, 300, 21)), box_text: &EN_TEXT, ..MURAMASA };
+pub const MURAMASA_EN: Game = Game { call: call_en, menus: screens::menus_en, horizontal_box: Some((280, 300, 21)), box_text: &EN_TEXT, choice_style: choice_style_en, ..MURAMASA };
+
+/// The port's choices (`SetChoice` in `function_select.nut`, its
+/// `LANG_NAME == "en"` branch): 440×50 plates (`cg/sys/select/en/
+/// select001.png`, `select002.png` under the pointer) centred on the
+/// screen, 100 px apart, the group centred vertically; each option
+/// centred on the screen 13 px below its plate's top, in black.
+/// shortcut: conv-cons has sprites for 4 picture-button options; the 8
+/// selects of 5 or 6 are the plates in the window, their texts at the
+/// plates' left and red under the pointer, until it has more.
+fn choice_style_en(c: &mut Compiler<'_, '_>, n: i64) -> Option<ChoiceStyle> {
+    const PITCH: i64 = 100;
+    const FONT: i64 = 20;
+    const FREE: &str = "cg/sys/select/en/select001.png";
+    let (plate, w, h) = c.assets.image(FREE)?;
+    let (w, h) = (w as i64, h as i64);
+    let (sw, sh) = c.game.screen;
+    let (x, y) = ((sw - w) / 2, (sh - (n - 1) * PITCH - h) / 2);
+    let parts: Vec<_> = (0..n).map(|i| (plate.clone(), x, y + PITCH * i, 1000)).collect();
+    let (image, wx, wy) = c.assets.composite(&parts)?;
+    let window = TextWindow {
+        wait_icon_at: None,
+        image,
+        x: wx as i32,
+        y: wy as i32,
+        text_x: (x + 30) as i32,
+        text_y: (y + 13) as i32,
+        columns: (w / FONT) as u32,
+        rows: n as u32,
+        font_size: FONT as u32,
+        line_gap: (PITCH - FONT) as u32,
+        vertical: false,
+        name_plate: None,
+    };
+    if n > 4 {
+        return Some(ChoiceStyle { window, on_color: 0xA00000, off_color: 0, plates: None });
+    }
+    let (image, _, _) = c.assets.strip(&[FREE, "cg/sys/select/en/select002.png"])?;
+    let plates = ChoicePlates { image, x: x as i32, y: y as i32, step: PITCH as i32, text_x: (sw / 2) as i32, text_dy: 13, font_size: FONT as u32, colour: "#000000".into(), fade_ms: 300, shot: None };
+    Some(ChoiceStyle { window, on_color: 0, off_color: 0, plates: Some(plates) })
+}
 
 /// The port's text places (`BoxInfo` in `val.nut`): box, text x, y and
-/// width; the ones with a face window first, as both may be shown.
-const EN_TEXT: [(&str, i64, i64, i64); 12] = [
-    ("boxCT", 375, 190, 280),
-    ("boxCC", 375, 190, 280),
-    ("boxRT", 630, 190, 280),
-    ("boxRR", 630, 190, 280),
-    ("boxLT", 118, 190, 280),
-    ("boxLL", 118, 190, 280),
-    ("boxTH", 238, 426, 701),
-    ("boxH", 94, 426, 845),
-    ("boxCTH", 360, 225, 420),
-    ("boxCH", 280, 225, 501),
-    ("boxTNoh", 351, 225, 434),
-    ("boxNoh", 280, 225, 492),
+/// width, the click-wait icon's place (`icon_pos`, the English table);
+/// the ones with a face window first, as both may be shown.
+const EN_TEXT: [(&str, i64, i64, i64, (i32, i32)); 12] = [
+    ("boxCT", 375, 190, 280, (640, 500)),
+    ("boxCC", 375, 190, 280, (640, 500)),
+    ("boxRT", 630, 190, 280, (896, 500)),
+    ("boxRR", 630, 190, 280, (896, 500)),
+    ("boxLT", 118, 190, 280, (383, 500)),
+    ("boxLL", 118, 190, 280, (383, 500)),
+    ("boxTH", 238, 426, 701, (924, 554)),
+    ("boxH", 94, 426, 845, (924, 554)),
+    ("boxCTH", 360, 225, 420, (776, 580)),
+    ("boxCH", 280, 225, 501, (776, 580)),
+    ("boxTNoh", 351, 225, 434, (776, 329)),
+    ("boxNoh", 280, 225, 492, (776, 329)),
 ];
 
 /// The port's boxes (`CreateAllTextBox` in `function_textbox.nut`): name,

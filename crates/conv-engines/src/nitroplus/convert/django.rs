@@ -3,7 +3,7 @@
 //! `boot.nss`, whose `#include`s are the helper library, and the story
 //! driver compiled whole.
 
-use conv_core::ir::{ChoicePlates, ChoiceStyle, TextWindow};
+use conv_core::ir::{ChoicePlates, ChoiceShot, ChoiceStyle, TextWindow};
 
 use super::{Compiler, Game, Value};
 
@@ -93,6 +93,10 @@ fn choice_style(c: &mut Compiler<'_, '_>, n: i64) -> Option<ChoiceStyle> {
         name_plate: None,
     };
     let (image, _, _) = c.assets.strip(&["cg/sys/select/select001.png", "cg/sys/select/select002.png"])?;
-    let plates = ChoicePlates { image, x: X as i32, y: Y as i32, step: h as i32, text_x: TEXT_X, text_dy: TEXT_DY, font_size: FONT as u32, colour: "#FFFFFF".into(), fade_ms: 300 };
+    // ChoiceA02/ChoiceB02: the hole's top left 47, 41 above and left of the pointer.
+    let hole = c.assets.image("cg/sys/select/dankon.png").map(|i| i.0);
+    let sound = c.assets.sound("sound/se/SE_戦闘_銃器_発砲_マカロニ1");
+    let shot = hole.zip(sound).map(|(hole, sound)| ChoiceShot { hole, hole_dx: -47, hole_dy: -41, sound });
+    let plates = ChoicePlates { image, x: X as i32, y: Y as i32, step: h as i32, text_x: TEXT_X, text_dy: TEXT_DY, font_size: FONT as u32, colour: "#FFFFFF".into(), fade_ms: 300, shot };
     Some(ChoiceStyle { window, on_color: 0xFFD070, off_color: 0xFFFFFF, plates: Some(plates) })
 }

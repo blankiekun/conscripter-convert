@@ -1336,7 +1336,7 @@ mod tests {
     #[test]
     fn a_choice_of_plates_is_picture_buttons_with_centred_text() {
         let window = TextWindow { wait_icon_at: None, image: "system/w.png".into(), x: 0, y: 0, text_x: 0, text_y: 0, columns: 10, rows: 2, font_size: 22, line_gap: 0, vertical: false, name_plate: None };
-        let plates = conv_core::ir::ChoicePlates { image: "system/plate.png".into(), x: 138, y: 244, step: 68, text_x: 388, text_dy: 18, font_size: 22, colour: "#FFFFFF".into(), fade_ms: 300 };
+        let plates = conv_core::ir::ChoicePlates { image: "system/plate.png".into(), x: 138, y: 244, step: 68, text_x: 388, text_dy: 18, font_size: 22, colour: "#FFFFFF".into(), fade_ms: 300, shot: None };
         let options = vec![("はい".to_string(), "a".to_string()), ("OK".to_string(), "b".to_string())];
         let style = Some(ChoiceStyle { window, on_color: 0, off_color: 0, plates: Some(plates) });
         let text = emit(&script(vec![Op::Choice { options, style }]));
@@ -1349,6 +1349,24 @@ mod tests {
             assert!(text.contains(part), "missing {part:?} in\n{text}");
         }
         assert!(!text.contains("select "));
+    }
+
+    #[test]
+    fn a_shot_plate_gets_its_hole_and_tips_over_about_its_bottom() {
+        let window = TextWindow { wait_icon_at: None, image: "system/w.png".into(), x: 0, y: 0, text_x: 0, text_y: 0, columns: 10, rows: 2, font_size: 22, line_gap: 0, vertical: false, name_plate: None };
+        let shot = Some(conv_core::ir::ChoiceShot { hole: "system/hole.png".into(), hole_dx: -47, hole_dy: -41, sound: "se/shot.ogg".into() });
+        let plates = conv_core::ir::ChoicePlates { image: "system/plate.png".into(), x: 138, y: 244, step: 68, text_x: 388, text_dy: 18, font_size: 22, colour: "#FFFFFF".into(), fade_ms: 300, shot };
+        let options = vec![("はい".to_string(), "a".to_string()), ("OK".to_string(), "b".to_string())];
+        let style = Some(ChoiceStyle { window, on_color: 0, off_color: 0, plates: Some(plates) });
+        let text = emit(&script(vec![Op::Choice { options, style }]));
+        for part in [
+            "getmousepos %0,%1:add %0,-47:add %1,-41\ndwave 10,\"se\\shot.ogg\"\nif %9 == 1 goto *conv_cplate0_s1\n",
+            "*conv_cplate0_s2\ncell 54,1:spcut 54,\"system\\hole.png\",%0,%1:spcut 53,\"system\\hole.png\",%0,%1:print 1\ndelay 300\ncsp 51:csp 52:print 10,300\n",
+            // The last step: a quarter high, its bottom still at 380.
+            "spzoom 54,100,27:spzoom 53,100,27:amsp 54,138,337,64:amsp 53,377,358,64:print 1:delay 50\ncsp 53:csp 54:print 1\ngoto *b\n",
+        ] {
+            assert!(text.contains(part), "missing {part:?} in\n{text}");
+        }
     }
 
     #[test]

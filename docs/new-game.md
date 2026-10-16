@@ -715,10 +715,12 @@ line, and run:
 python3 -I research/tools/test_saves.py out/<game>-cons <slots.txt> -o <game>-test-saves.zip
 ```
 
-For each line the engine starts at the label (`--goto`), auto-plays to
-the first click wait and saves there (`--checkpoint-every 1
---checkpoint-slot <slot> --max-pages 2`), with a picture of that page
-(`--shot-pages 1`). A checkpoint is a bare save, without what our save
+For each line the engine starts at the label (`--goto`) and saves there
+before any of the scene runs (`--checkpoint-start --checkpoint-slot
+<slot>`), so loading the save plays the whole scene, its opening
+effects too; it then plays to the first page for the thumbnail's
+picture (`--shot-pages 1`, or `--shot-after 3000` when a run gets stuck
+before it). A checkpoint is a bare save, without what our save
 menu adds when the player saves, so the script adds both: a 160×90
 `savethumbN.bmp` (the menu's thumbnail) and the slot's text, which
 `savegame2` appends to the file as `"<date>|<play time>|<text>"*` (cp932)

@@ -204,7 +204,7 @@ Where they differ:
 
 | Feature | Uses | The exe | The converter | Dry-run note |
 |---|---|---|---|---|
-| The choice's shot (`function_select.nss`: `CreateMask` ×3, `CursorPosition`, `Rotate` −90° over 800 ms about the bottom, a shot sound) | every choice (10) | a bullet hole where the pointer clicked, the chosen plate tips over | the plates go at once | `CreateMask` 30, `CursorPosition` 20 |
+| The choice's shot (`function_select.nss`: `CreateMask` ×3, `CursorPosition`, `Rotate` −90° over 800 ms about the bottom, a shot sound) | every choice (10) | a bullet hole where the pointer clicked, the chosen plate tips over | the same (`spcut`, `spzoom` steps; CONscripter after 0.24.0); not compared under wine | `CreateMask` 30, `CursorPosition` 20 |
 | `Request` `AddRender` / `SubRender` / `NormalRender` | 15 / 1 / 3 | blend mode additive / subtractive / normal (`request_render`) | a movie's `AddRender` drawn as it is; the others not done | `addrender` 11, `normalrender` 4 |
 | `Request` `Smoothing` / `UnSmoothing` | 20 / 3 | texture filtering on / off | nothing | `unsmoothing` 3 |
 | `$SYSTEM_skip`, `$SYSTEM_text_auto` = false at each choice | 25 / 31 | skip and auto mode stop before the choice | `skipoff:autooff` where `$SYSTEM_text_auto` goes false; the choice's `btnwait` also ends both (CONscripter after 0.24.0) | none |
@@ -360,8 +360,13 @@ with the original (it wants all eleven endings' flags under wine).
 1. The trace checker's remaining findings: "sounds on two channels at
    once" are the script's own (the same shot or horse on two sound
    objects, started 500 ms apart) and stay.
-2. The text window and name plates (`box00`-`box05`, face windows
-   `frame03`-`frame05`) measured against the original under wine.
+2. The text window and face windows: `box00` and the right face
+   window (`frame04`) match the shots already taken (dja001_02: the
+   text within 1 px, the frame within 200 pixels); `box01` (x 250) and
+   `box02` (x 390), placed by the same rule, and the left and centre
+   face windows (`frame03`, `frame05`; dja003_02 shows all three) are
+   still to compare (no wine run: stopped 2026-10-15). `box03`-`box05`
+   are never used.
 3. The rest of the "not converted" list, by what shows most: the
    looping shakes (`ShakeVLoop*`, 9), the strobe,
    dja001's Black Hawk pan, then additive flashes, a movie's rotation,
@@ -369,9 +374,7 @@ with the original (it wants all eleven endings' flags under wine).
 4. The 60 moves and zooms that also fade or change picture (still
    cross-fades), and `Rotate` over time (343, drawn at once).
 5. Extras: the doors' animation and the menu's own music (left out).
-6. From the exe's coverage table ("The exe"): the choice's shot (a
-   bullet hole at the pointer, the chosen plate tipping over: every
-   choice); `AddRender`/`SubRender`/`NormalRender` as blend modes
+6. From the exe's coverage table ("The exe"): `AddRender`/`SubRender`/`NormalRender` as blend modes
    (item 3's additive flashes); `SetShade HEAVY` (one use; sepia is
    item 3's).
 7. The ending roll's credits: `ProcessRoll` (dja056_09) scrolls
@@ -379,6 +382,20 @@ with the original (it wants all eleven endings' flags under wine).
    red screen and waits for a click.
 
 ## History
+
+- **The choice's shot (2026-10-15).** `ChoiceA02`/`ChoiceB02`
+  (`function_select.nss`): the shot sound, the bullet hole
+  (`dankon.png`, a mask under the chosen plate: black is see-through)
+  with its top left 47, 41 above and left of the pointer, 300 ms later
+  the other plate fades out (300 ms), and 500 ms after that the
+  chosen plate and its text turn −90° about the x axis (their bottom)
+  in 800 ms, `Axl2` (cubic ease-in), while fading out over 1000 ms.
+  `ChoicePlates::shot` (`ChoiceShot`): `getmousepos`, the new engine
+  command `spcut` cuts the hole into the plate's and the text's
+  pictures (still under the pointer cell), then 15 steps of `spzoom`
+  (height cos θ, no perspective) and `amsp` keep their bottom at the
+  plate's. A choice made with the keyboard puts the hole where the
+  pointer is, as the original does. Not compared under wine.
 
 - **Auto mode stops at a choice (2026-10-15).** The scripts set
   `$SYSTEM_skip`/`$SYSTEM_text_auto` false before each choice

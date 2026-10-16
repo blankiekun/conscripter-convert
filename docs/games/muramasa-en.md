@@ -53,6 +53,14 @@ It has no NPA archives and no NSS scripts.
   together over 300 ms (the rows' wipe `メニューエフェクト` drawn as a
   fade); the keys printed on the rows (S quick save, L quick load, D the
   save screen, …). Checked headless, not yet against the original.
+- **Choices:** in English on the port's plates (History). Choices of
+  5 or 6 options (8 selects) are the plates in the window with the
+  texts at their left (conv-cons has sprites for 4 picture-button
+  options).
+- **Line log:** the port's (`sys_backlog.nut`, History). Checked
+  headless, not yet against the original.
+- **Click icon:** at the port's places (History); not yet seen in the
+  original.
 - **Questions:** the port's (`sys_dialog.nut`, `confirm_en`): the
   question's picture from the English `cg.npk` (`en/cg/sys/dialog/`,
   400×150) centred over black at 800/1000, Yes and No 108,100 and
@@ -83,10 +91,9 @@ It has no NPA archives and no NSS scripts.
   1. The English pictures: the redesigned menus in `cg/sys`. The port's
      system scripts (`media/script/system/sys_*.nut`) give each picture's
      English place after a `LANG_NAME == "en"` test. Done: the title,
-     the command menu and the questions (above). Left: same names, other
-     pictures and places: the line log; new
-     screens: save/load (`save/`), settings (`config/`), the click icon
-     (one `adv/改行改頁アイコン.png` sheet). Then film them against the
+     the command menu, the questions, the choices, the line log and
+     the click icon (above). Left: new
+     screens: save/load (`save/`), settings (`config/`). Then film them against the
      English original under wine (also the lines per box).
   2. 22 rows of English are placed nowhere (lines the NSS orders or
      splits otherwise, route variants such as mc01's "Ichijo is
@@ -99,6 +106,15 @@ It has no NPA archives and no NSS scripts.
      port's centred subtitles (`ShowVOICESEText`, 32 calls in 10
      scenes); its larger-type text boxes (`SetTextEXC_Large` …, 16
      calls in 8 scenes).
+  4. Gaps from the scripts' coverage ("The scripts' coverage"):
+     `TransLog` (125), `TransVoice` (24) and
+     `_system.nut`'s line-log strings not read; 15 scenes with English
+     written into the scenario (`LANG_NAME` branches: captions, dates,
+     ma01_026's document, mc02_031's menus) show the NSS's Japanese;
+     four one-scene English boxes (ma01_009, mc01_003, ma01_002); the
+     port's particles (rain, snow, sparks, 27 scenes) not drawn, as in
+     the Japanese build. To check: `sys_backselect.nut` and
+     `sys_key.nut`'s keys.
 
 ## Archives (NPK3)
 
@@ -240,7 +256,122 @@ something the NSS doesn't:
 The full dry run's notes that the Japanese build lacks are the text tags
 above and 75 more "code inside a page runs before it" (232 against 157).
 
+## The scripts' coverage
+
+The port's own scripts, counted statically (`docs/new-game.md` §2,
+"Covering the scripts too"); the converter compiles none of them, so
+each file's status says what stands in for it. The NSS that the build
+compiles is the Japanese game's (its coverage belongs in
+`docs/games/muramasa.md`).
+
+    R=<script>/media/script           # script.npk extracted with npk.py
+    python3 -I research/nitroplus/nut_refs.py $R tables
+    python3 -I research/nitroplus/nut_refs.py $R calls                    # every called name
+    { conscripter-convert nss builtins <nss> | grep -oE '^[A-Za-z_0-9]+:' | tr -d :
+      grep -ohE '^\s*function\s+[A-Za-z_0-9]+' <nss>/*.nss | awk '{print $2}'; } > nss-names.txt
+    python3 -I research/nitroplus/nut_refs.py $R calls --nss nss-names.txt   # port-only names
+
+**Files** (script.npk 1884, system.npk, the other archives):
+
+| Files | Status |
+|---|---|
+| `nut/*.nut` (884) | replaced by the NSS, line for line: 882 have an NSS file of the same name; `0_boot_start` is `0_boot.nss`; `md05_025cube` (the cube puzzle as a scene, touch input) is `function_magiccube.nss` (`magiccube.rs`). The NSS's `sys_*`, `extra_*`, `function_*` have no `nut/` file (the port moved them to `system/`, `function/`) |
+| `lang/en/*.nut` (884) | read for data: `TransText` only (`english.rs`). **Not read:** `TransChoice` 403 rows in 130 files (every choice's English: the build's 153 `select`s stay Japanese), `TransLog` 125 rows in 24 files (the line log's text for lines shown other than as text), `TransVoice` 24 rows in 3 files (the `ShowVOICESEText` subtitles) |
+| `lang/en/_system.nut` | **not read:** the line log's `SKIP_MESSAGE` (`——- SKIPPED ——-`) and choice lines (`SEL_10` … `SEL_40`: `- %s`, `[%s]`) |
+| `function/*.nut` (18) | replaced by the NSS's `function*.nss`, except: `function_textbox.nut` (text tags, `CreateAllTextBox`) and `val.nut` (`BoxInfo`, `FwInfo`) read by hand into `EN_TEXT` and the box sizes (`muramasa.rs`); `val_cg.nut` (CG registration) from the NSS (`extras.rs`) |
+| `system/boot.nut`, `sys_titlelogo.nut` | replaced: `opening::EN` (`opening.rs`) |
+| `system/sys_menu.nut` | replaced: `command_menu_en` (`screens.rs`) |
+| `system/sys_dialog.nut`, `sys_dialog_yes_no.nut`, `sys_close.nut`, `sys_totitle.nut` | replaced: `confirm_en` (`screens.rs`) |
+| `system/sys_dialog_message.nut` | **not done:** the save screen's messages (`クイックセーブ完了`, …) |
+| `system/sys_quicksave.nut`, `sys_quickload.nut` | CONscripter's quick save; **not done:** the quick-load question |
+| `system/sys_saveload.nut`, `sys_writeload.nut`, `sys_after_load.nut`, `sys_load_error.nut` | replaced: `save_grid` (Japanese pictures; the English `save/` left) and CONscripter's saves |
+| `system/sys_backlog.nut` | replaced: `line_log` (Japanese pictures; the English `backlog/` left) |
+| `system/sys_config.nut` | replaced: `settings` (Japanese pictures; the English `config/` left) |
+| `system/sys_extra*.nut` (6: main, cg, media, rec, turugi) | replaced: `extras` (`extras.rs`, Japanese layout); the English `extra/` left |
+| `system/sys_backselect.nut` | **to check:** the port's back-to-choice question (`選択肢まで`), opened by a key in `sys_key.nut`; the English command menu has no row for it |
+| `system/sys_hmode.nut` | from the NSS (`sys_hmode.nss`), opened by a key in `sys_key.nut` |
+| `system/sys_key.nut` | CONscripter's keys; **to check** against its 36 `KEY_CODE_*` (the command menu's keys are done) |
+| `system/sys_skip.nut`, `sys_cursor.nut`, `sys_function.nut`, `sys_val.nut`, `sys_val_product.nut` | engine state (skip, cursor, voice and skip toggles, globals): CONscripter's |
+| `system/sys_tips.nut`, `sys_tips_val.nut` | not used: a glossary screen no script opens, its `cg/sys/glossary/` pictures aren't in cg.npk |
+| `system/sys_dialog_windowsize.nut` | not used: no script opens it (window size: the PC window) |
+| `system/zdbg_showval.nut` | not used: debug, no script opens it |
+| `framework/` (59), `custom/` (4), `main.nut` | not used: the Diesel framework wrapping the natives ("The exe") and loading the rest; the converter has its own lowering of the NSS built-ins |
+| `system.npk` `setting.ini` | read for data: `SCREEN_WIDTH`/`HEIGHT` 1024×576 (the NSS's too), `WINDOW_NAME` (`--title`), `[Font]` (`--font`); not used: `DOCKING`, `SOUND_TYPE`, `CODE_PAGE`, `VERSION`, `SAVE_PATH` (CONscripter's saves) |
+| `system.npk` `shader/` (350 `.cso`, 4 `.bat`, a log) | not used: DirectX shaders (blend modes, post effects) |
+| `cg.npk` | read: the English pictures where the converter asks for them (`NpaAssets::cg_en`) |
+| `font.npk` | read: the text font (`--font`) |
+| `particle.npk` (7 particles) | not used: the port's rain, snow and sparks (below) |
+| `sound.npk`, `voice.npk`, `dx.npk` | not used: the Japanese build's sound, voices and movies stand in (same files) |
+
+**Names the scenario calls** (`nut/`, 635 names, 221,476 calls): 430
+carry the NSS's names (from the NSS); the other 205, by kind:
+
+| Names | Calls | The port | Converter |
+|---|---|---|---|
+| `Print`, `PreStart`, `PreEnd`, `WaitKeyN2`, `SetOwnerN2`, `CallSceneN2`, `SceneInit`/`End`, `MainInit`/`End`, `GetCheckReadFile`, `RegisterCGvar`, `SetChoice`/`WaitChoice`, … (`function_n2`, `function`, `function_textbox`, `function_select`: 42 names, the English-only rows below among them) | 81,397 | the NSS's `<PRE>` blocks, scenes, read marks, CG flags and choices rewritten as functions | from the NSS |
+| `St`, `FadeSt`, `DeleteSt`, `DeleteAllSt`, `FadeAllSt`, `Bg`, `InitBg`, … (`function_stand`, `function_bg`: 9) | 5,343 | the NSS's sprite helpers (`CreateTextureSP` …) | from the NSS |
+| `framework/command` (53: `Scale` 4,346, `Transition` 1,317, `SetParameter` 314, `SetShadingPower` 162, `SetRasterScroll` 132, `SetBlendMode` 80, `SetMonochromePower` 78, `SetPriority` 73, `CreateSprite` 40, `CreateParticle` 39, …) | 7,126 | the natives' wrappers standing for NSS built-ins (`Zoom`, `DrawTransition`, `SetShade`, `CreateEffect`, …) | from the NSS |
+| `*_begin` (82: `FlyMoving_begin` 48, `TurboBlur_begin` 24, …; 70 defined in their scene) | 276 | the NSS's `CreateProcess` functions started | from the NSS |
+| `tointeger`, `tostring`, `find`, `append`, `slice`, `Import` | 54 | Squirrel's own | — |
+| `CreateParticle` (27 scenes: mb01_006 …, md06_004) | 39 | particles from `particle.npk` (`雨_強`, `雪_前`, `火の粉01後`) where the NSS has `CreateEffect(…, "Rain")` | **not converted** (as in the Japanese build: a `CreateEffect Rain` note) |
+| `ShowVOICESEText`/`ClearVOICESEText` | 32/18 | see "The exe" | **not converted** |
+| `SetTextEXC_Large/Huge/Big/Middle`, `TypeBegin…_Large/…` | 16 | see "The exe" | **not converted** |
+| `SetTextEXC_ma01_009`, `SetFwRR`/`SetFwLL` (ma01_009), `TypeBeginTimeCIY` (mc01_003, the box `C_Yoko`), `DeleteFwAll` (ma01_002) | 5 | English-only boxes and faces for one scene each | **not converted** (the NSS's own box) |
+| `CreateTextArea` (ma01_009, ma01_026, mb04_015vs), `FadeCharacter` (ma01_026) | 10 | the NSS's `CreateText` in English (`《Even so―》`); ma01_026's document typed letter by letter | **Japanese text** (the NSS's string); ma01_026 shown whole |
+| `SetRippleN2` | 4 | the NSS's `DrawEffect(…, "Ripple")` | from the NSS |
+| `VCOpen`, `ToggleSkip`, `QuickMenuCreate`, `StartBoot`, `InitStatus`, … (system, boot and framework: 13) | 122 | voice unlocks (`SYSTEM_CV_OPEN`), skip, boot | from the NSS / CONscripter |
+
+The system scripts' own calls: 252 names that only `system/*.nut` calls
+(1,068 calls), all inside the replaced screens above.
+
+**Scenes with English written into the scenario** (`LANG_NAME == "en"`
+branches, 15 scenes), all **Japanese in the build** (the NSS's strings
+or pictures): ma01_009, ma01_026 (the document), mb03_006, mb03_022
+(`CEASE YOUR MINDLESS YAPPING, CUR!!!!!`), mb04_015vs (`CreateTextArea`
+lines), mc02_031daidokoroa/aa (the menus: `horse meat`, `Lamb pilaf`,
+…), md02_009 and md02_038 (`I AM POWER`), md04_002, md04_006,
+md04_015, md04_026vs, md04_030 (dates and times: `November 30, 1940`,
+`2:47 AM`), md04_048vs.
+
+**Other vocabularies:**
+
+| Vocabulary | Corpus | Converter |
+|---|---|---|
+| `SYSTEM_*` constants (24: BGV and voice fades, `SYSTEM_CV_*` voice unlocks, `SYSTEM_STATE*`) | 2-8 uses each | the NSS's `$SYSTEM_…` stand in (from the NSS) |
+| `Request` actions | same names as the NSS's (`Smoothing`, `Start`, `Stop`, `Disused`, `Lock`, `UnLock`, `Clear`, …) | from the NSS |
+| Text tags | "The exe" (coverage table) | there |
+| `BLEND_MODE_*` (6), `TEXT_TYPING_TYPE_*` (`JPN`, `NOT_JPN`, `VERTICAL`) | framework constants the exe matches | the NSS's blend arguments; horizontal text in English |
+| `KEY_CODE_*` (36) | `sys_key.nut` | the command menu's keys; the rest **to check** |
+| `setting.ini` keys | files table | there |
+
 ## History
+
+- **Click icon (2026-10-15):** the port's `cg/sys/adv/改行改頁アイコン.png`
+  is the Japanese 32 frames in one sheet (pixel for pixel), so only its
+  place changes: `BoxInfo`'s English `icon_pos` (C 640,500; R 896,500;
+  L 383,500; H 924,554; CH 776,580; Noh 776,329; the Japanese table
+  follows it in `val.nut`), kept with each box in `EN_TEXT`
+  (`Game::box_text`). Windows outside `EN_TEXT` keep the Japanese place.
+
+- **Line log (2026-10-15):** `sys_backlog.nut` has no English branch:
+  the port takes its own pictures of the same names (`cg/sys/backlog/`
+  from the English `cg.npk`, `en/cg/sys/backlog` in the converter) at
+  the Japanese places but 退出 at (906,443), and the rows from x 150,
+  570 wide (`TextBox.backlogFieldRect`), Droid Serif 20, 10 px apart
+  (`backlogRowSpace`): 28 full-width columns (`line_log(a, en)` in
+  `screens.rs`). CONscripter's `logrows` now cuts a row of English at
+  the space before the word that doesn't fit (for every script).
+
+- **Choices in English (2026-10-15):** `english.rs` reads each scene's
+  `SetChoice(id, japanese…)` and its lang file's `TransChoice["<id>_<n>"]`
+  (n from 1, `function_select.nut`) and puts the English into the NSS's
+  `SetChoice02` … `SetChoice06` by the option's Japanese: all 403
+  options. They are drawn as the port's `LANG_NAME == "en"` branch
+  draws them (`choice_style_en` in `muramasa.rs`): 440×50 plates
+  (`cg/sys/select/en/select001.png`, `002` under the pointer) centred,
+  100 px apart, the group centred on the screen, the text centred 13 px
+  below a plate's top in black. Checked headless (ma02_003's choice);
+  not yet against the original.
 
 - **Italics and centred rows (2026-10-15):** the English has 2,618
   `<I>` … `</I>` and 566 `<center>` rows (most not closed: the row's end

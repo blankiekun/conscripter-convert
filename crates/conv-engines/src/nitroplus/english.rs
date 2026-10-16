@@ -27,6 +27,10 @@ pub enum EnglishError {
 /// Scene name (`ma01_019`) → its Prints in order: (Japanese key, English).
 pub struct English {
     scenes: HashMap<String, Vec<(String, String)>>,
+    /// Scene name → its choices' options: Japanese → English. The scenes'
+    /// `SetChoice(id, japanese…)` and the lang file's
+    /// `TransChoice["<id>_<n>"]` (n from 1).
+    choices: HashMap<String, HashMap<String, String>>,
 }
 
 #[derive(Debug, Default)]
@@ -39,6 +43,10 @@ pub struct Report {
     pub dropped: Vec<(String, String)>,
     /// (file, Japanese key) of the stretches left in Japanese.
     pub missed: Vec<(String, String)>,
+    /// Choice options given their English.
+    pub options: usize,
+    /// (file, option) of the choice options left in Japanese.
+    pub options_missed: Vec<(String, String)>,
 }
 
 /// The form both sides are compared in: no `//` lines, tags, `<?>` or
@@ -66,11 +74,22 @@ impl English {
             squirrel::load(&scripts.data(e)?).map_err(|err| EnglishError::Script(e.name.clone(), err))
         };
         let mut scenes = HashMap::new();
+        let mut choices = HashMap::new();
         for e in &scripts.entries {
             let Some(scene) = e.name.strip_prefix("media/script/nut/").and_then(|n| n.strip_suffix(".nut")) else { continue };
             let Some(lang) = scripts.find(&format!("media/script/lang/en/{scene}.nut")) else { continue };
-            let english: HashMap<i32, String> = load(lang)?.table_rows("TransText").into_iter().collect();
+            let lang = load(lang)?;
+            let english: HashMap<i32, String> = lang.table_rows("TransText").into_iter().collect();
+            let options: HashMap<String, String> = lang.table_str_rows("TransChoice").into_iter().collect();
             let scene_fn = load(e)?;
+            let mut sets = Vec::new();
+            scene_fn.calls_int_strs("SetChoice", &mut sets);
+            let scene_choices: HashMap<String, String> = sets
+                .into_iter()
+                .flat_map(|(id, jp)| jp.into_iter().enumerate().map(move |(n, jp)| (format!("{id}_{}", n + 1), jp)))
+                .filter_map(|(k, jp)| Some((jp, options.get(&k)?.clone())))
+                .collect();
+            choices.insert(scene.to_lowercase(), scene_choices);
             let mut prints = Vec::new();
             scene_fn.calls_int_str("Print", &mut prints);
             // Prints with no English show nothing in the port, which types
@@ -88,7 +107,7 @@ impl English {
                 .collect();
             scenes.insert(scene.to_lowercase(), rows);
         }
-        Ok(English { scenes })
+        Ok(English { scenes, choices })
     }
 
     /// Puts the English into every text block of `files` (by file name,
@@ -96,7 +115,18 @@ impl English {
     pub fn apply(&self, files: &mut BTreeMap<String, NssFile>) -> Report {
         let mut report = Report::default();
         for (name, file) in files.iter_mut() {
-            let Some(rows) = name.to_lowercase().strip_suffix(".nss").and_then(|s| self.scenes.get(s)) else { continue };
+            let scene = name.to_lowercase();
+            let scene = scene.strip_suffix(".nss").unwrap_or(&scene);
+            if let Some(options) = self.choices.get(scene) {
+                each_choice_option(file, &mut |jp| match options.get(jp.as_str()) {
+                    Some(en) => {
+                        *jp = en.clone();
+                        report.options += 1;
+                    }
+                    None => report.options_missed.push((name.clone(), jp.clone())),
+                });
+            }
+            let Some(rows) = self.scenes.get(scene) else { continue };
             let mut keys = Vec::new();
             each_run(file, &mut |run, _| {
                 let jp = run_key(&run);
@@ -222,6 +252,33 @@ fn each_run(file: &mut NssFile, f: &mut dyn FnMut(Vec<Inline>, u32) -> Vec<Inlin
     }
 }
 
+/// Calls `f` on each string argument of the scenes' `SetChoice02` …
+/// `SetChoice06` (function_select.nss): the choices' options.
+fn each_choice_option(file: &mut NssFile, f: &mut dyn FnMut(&mut String)) {
+    fn stmts(list: &mut [Stmt], f: &mut dyn FnMut(&mut String)) {
+        for s in list {
+            match &mut s.kind {
+                StmtKind::If { then, otherwise, .. } => {
+                    stmts(then, f);
+                    otherwise.iter_mut().for_each(|o| stmts(o, f));
+                }
+                StmtKind::While { body, .. } | StmtKind::Select(body) | StmtKind::Case { body, .. } | StmtKind::Block(body) => stmts(body, f),
+                StmtKind::Expr(nss::Expr::Call { name, args }) if name.starts_with("SetChoice0") => {
+                    args.iter_mut().for_each(|a| if let nss::Expr::Str(s) = a { f(s) });
+                }
+                _ => {}
+            }
+        }
+    }
+    for item in &mut file.items {
+        match item {
+            Item::Chapter(b) | Item::Scene(b) => stmts(&mut b.body, f),
+            Item::Function(fun) => stmts(&mut fun.body, f),
+            Item::Include(_) => {}
+        }
+    }
+}
+
 /// A stretch's Japanese in the form [`key`] compares.
 fn run_key(run: &[Inline]) -> String {
     let jp: String = run
@@ -270,7 +327,7 @@ mod tests {
     #[test]
     fn replaces_stretches_between_code() {
         let rows = vec![(key("「……"), "\"...\"".to_string()), (key("ああ」"), "\"Ah.\"".to_string())];
-        let english = English { scenes: HashMap::from([("a".to_string(), rows)]) };
+        let english = English { scenes: HashMap::from([("a".to_string(), rows)]), choices: HashMap::new() };
         let src = "chapter main\n{\n<PRE @box0>\n[text0010]\n「……{WaitKey(1100);}ああ」\n</PRE>\n}\n";
         let mut files = BTreeMap::from([("a.nss".to_string(), nss::parse(src).unwrap())]);
         let report = english.apply(&mut files);
@@ -280,6 +337,19 @@ mod tests {
         assert_eq!(strs, ["\"...\"", "\"Ah.\""]);
         assert!(matches!(t.items[0], Inline::Marker(_)));
         assert_eq!(report.replaced, 2);
+    }
+
+    #[test]
+    fn choice_options_take_their_english() {
+        let options = HashMap::from([("お任せします".to_string(), "As you wish.".to_string())]);
+        let english = English { scenes: HashMap::new(), choices: HashMap::from([("a".to_string(), options)]) };
+        let src = "chapter main\n{\n\tSetChoice02(\"お任せします\",\"お断りします\");\n}\n";
+        let mut files = BTreeMap::from([("a.nss".to_string(), nss::parse(src).unwrap())]);
+        let report = english.apply(&mut files);
+        let Item::Chapter(b) = &files["a.nss"].items[0] else { panic!() };
+        let StmtKind::Expr(nss::Expr::Call { args, .. }) = &b.body[0].kind else { panic!("{:?}", b.body[0]) };
+        assert_eq!(args[0], nss::Expr::Str("As you wish.".into()));
+        assert_eq!((report.options, report.options_missed.len()), (1, 1));
     }
 
     #[test]
