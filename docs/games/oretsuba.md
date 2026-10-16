@@ -455,6 +455,16 @@ Finished work, moved out of "Status" so a session reads only the open
 state.
 
 **Small coverage gaps (2026-10-16).** Read in the eboot:
+- **SpriteMove `:Curve c`** (12 uses: blood splashes `bld*` zoomed ×2-2.5
+  over 12 frames with ±3, S04_07B's `ef09` with 0.5; not converted yet,
+  Status): stored at the task's +0x38, handed to the sprite's move
+  (+0x148, 0x8100da30 → 0x810867c2) and applied each frame by
+  0x8103cf20: with t the eased progress (the same ease_value types) and
+  d = (dx, dy) the move, the position is start + t·d + h·(dy, −dx)/|d|,
+  h = c · sin(πt) · |d|/2 (`_Sin(a, 0)`, `_Sin(a, 1)` of d's angle in
+  whole degrees). So c > 0 bows to the left of the direction on the
+  screen (a move up swings left), up to c/2 × the distance at
+  halfway; the zoom stays straight in raw t.
 - **CharacterOpen `:Chara%d/Center cx,cy`** (4 uses, all `0,1`, at y 720
   or 840): copied to the character (+0x1e0, +0x1e4; default 0,-1 from
   `task_charopen_new` and 0x8100322a) and used by the draw (0x8103d53c)
