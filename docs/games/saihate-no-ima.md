@@ -541,6 +541,18 @@ a copy of the save works.
 
 ## Status: reopened (2026-10-14): fixes from the debug trace, then an opcode audit
 
+### Queue (2026-10-16)
+
+Not started (the user asked for it; no other work is queued): command
+coverage per operand. On a `xuse/arg-coverage` branch, the Xuse compiler
+records which operands of each opcode it reads; every operand given and
+not read, whatever its value (0 included), is a dry-run note
+"<opcode> operand <i> ignored", except a short table of harmless ones,
+each naming the value it covers and why. The opcode audit becomes rows
+per operand (converted / partial / dropped). The findings go into this
+Status, most noticeable first; none are fixed in that PR, and 0.txt
+mustn't change. Same shape as nitroplus (#30) and mages (#24, #32).
+
 Declared finished on 2026-10-14, then reopened the same day: the 0.19
 debug trace and the decompiled exe (`research/tools/ghidra/ghidra_export.sh`,
 names in `research/xuse/names.tsv`) showed opcodes read wrong from

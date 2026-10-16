@@ -522,6 +522,29 @@ Used to check what the engine does (`docs/new-game.md` step 9).
 
 ## Status: in progress (2026-10-14)
 
+### Queue (2026-10-16)
+
+- Checking (agent): Django's #37 keeps a trailing `*` from reaching the
+  children of an object it matches (`Game::family`); turned on here it
+  changes about 33,000 lines. Find out from the exe or under wine which
+  is right for Muramasa; a PR only if Muramasa has the bug.
+- After engine #2 and #10: `AddRender`/`MulRender`/`SubRender` with
+  `spblend` 1/2/3 through an IR field Django reuses (a shared PR first if
+  the IR changes).
+- After engine #4: `CreateProcess` as `cons_process` coroutines; send a
+  plan of PRs before coding.
+- Then the unread-argument gaps (item 5 below), most noticeable first;
+  among them `SetVertex` on anything but `CreateText` pictures (17,995)
+  and `CreateText`'s box height (30).
+- Known limits: a window that moves (`絵演窓上`, `窓右`, about 56 `Move`s)
+  has its clip jump to the end place when the move starts. Sprite movies
+  (scene cuts, the turntables) don't play in CONscripter for Windows,
+  which only opens a movie in an outside player: an engine item for every
+  game, not started.
+- Decided: the hover sound's 0.125 s of silence is in the original file
+  and stays. The trace checker's `movie` rule will skip movies that start
+  from black (an engine-tools change, once the engine queue drains).
+
 The whole story compiles, the 立方陣 included, and every ending of the
 chart is reached in the converted control flow. **Route runs**
 (2026-10-14, see "Testing"), the full build played in CONscripter

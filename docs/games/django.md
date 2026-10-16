@@ -343,6 +343,23 @@ with the original (it wants all eleven endings' flags under wine).
 
 ## Status
 
+### Queue (2026-10-16)
+
+- In progress (agent), each its own PR: whether `CreateWindow` should
+  clip Django's children (#27 leaves it off under
+  `Game::relative_children`; check the windows' places and whether a
+  sliding window needs its clip to move), and the song `CreateText` with
+  markup in `dja026` (#17 leaves it out).
+- Open from the face windows (#37): a sliding frame's face jumps to its
+  end place; dja003_02's blood movie is drawn mirrored by us, unmirrored
+  under wine (which plays no movie there).
+- After engine #2 / converter #6: the 60 moves and zooms that also fade
+  or change picture as one `spmotion` with alpha; `Rotate` over time (343).
+- After engine #2 and #10 and Muramasa's shared blend IR field:
+  `AddRender`/`SubRender` flashes.
+- The unread-argument notes (#30; 39 kinds, 21,859 notes) aren't sorted
+  into Next yet.
+
 | Area | Status |
 |---|---|
 | NPA archives (key), images, sounds | ✅ Every file decodes |
