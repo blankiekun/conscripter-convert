@@ -1,9 +1,9 @@
 {
 "game": "muramasa",
 "engine": "nitroplus",
-"commit": "db91166f",
+"commit": "d6bdd0d7",
 "commit_date": "2026-10-16",
-"totals": {"calls": 1160806, "full": 1018378, "gaps": 142428},
+"totals": {"calls": 1160806, "full": 1018414, "gaps": 142392},
 "kinds": {
 "LockVideo": {"calls": 50726, "gaps": 50726, "reasons": [["LockVideo argument 0 ignored", 50726]]},
 "WaitText": {"calls": 23689, "gaps": 23689, "reasons": [["WaitText argument 0 ignored", 23689], ["WaitText argument 1 ignored", 23689]]},
@@ -27,7 +27,7 @@
 "Rotate": {"calls": 16921, "gaps": 552, "reasons": [["Rotate argument 5 ignored", 488], ["Rotate about z", 69], ["Rotate over time drawn at once", 14]]},
 "LoadImage": {"calls": 532, "gaps": 532, "reasons": [["built-in LoadImage", 532]]},
 "Position": {"calls": 506, "gaps": 506, "reasons": [["built-in Position", 506]]},
-"Request": {"calls": 239975, "gaps": 486, "reasons": [["Request stop", 198], ["Request overlayrender", 111], ["code inside a page runs before it", 89], ["Request compulsorysuspend", 18], ["Request pushtext", 15], ["15 more", 56]]},
+"Request": {"calls": 239975, "gaps": 450, "reasons": [["Request stop", 198], ["Request overlayrender", 111], ["code inside a page runs before it", 89], ["Request compulsorysuspend", 18], ["Request pushtext", 15], ["7 more", 20]]},
 "CreateChoice": {"calls": 444, "gaps": 444, "reasons": [["built-in CreateChoice", 444]]},
 "BezierMove": {"calls": 335, "gaps": 335, "reasons": [["built-in BezierMove", 335]]},
 "SetTone": {"calls": 228, "gaps": 228, "reasons": [["built-in SetTone", 228]]},

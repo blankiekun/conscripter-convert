@@ -30,8 +30,8 @@ use super::{Compiler, Expr, Function, Stmt, StmtKind, Value, shake::shake_keys};
 const LOOP_CALLS: &[&str] = &["Fade", "Move", "Zoom", "Rotate", "BezierMove", "Wait"];
 /// A shake loop's body (ShakeVLoop: `Shake` and `Wait` only).
 const SHAKE_CALLS: &[&str] = &["Shake", "Wait"];
-/// `spmotion` takes 32 keys.
-pub(super) const MAX_KEYS: usize = 32;
+/// `spmotion` takes 64 keys (engine #44).
+pub(super) const MAX_KEYS: usize = 64;
 
 /// The statements before the loop, its condition and its body, when `f`
 /// ends in `while(…) { … }` of the calls in `calls` (and labels).

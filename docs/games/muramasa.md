@@ -546,10 +546,8 @@ Used to check what the engine does (`docs/new-game.md` step 9).
   the other processes translated from NSS to Lua (`cons_process`,
   CONscripter #30): the cockpit `CP_*`, `ComicProcess`, the `Random`
   shakes, `EndSong`, and the one-shots, their progress in globals.
-  Still left by A: `fire01`-`03`, `Lastfire`, `MASAMUNESHINOGI`,
-  `Shoushiken`, `TanukiLastfire`, `power` (36 starts in the dry run)
-  need 43 keys, `spmotion` takes 32 (CONscripter #40 raises it to 64; then
-  `loops::MAX_KEYS` follows); `ma00_FireMoveAutoProcess` zooms unlike in x and y.
+  Still left by A: `ma00_FireMoveAutoProcess` zooms unlike in x and y
+  (the fire functions' 43 keys fit since CONscripter #44: 64 keys).
 - Then the unread-argument gaps (item 5 below), most noticeable first;
   among them, `CreateText`'s box height is read (#52) and `SetVertex`
   for every picture (#61, "History", "`SetVertex`"). Tempo waits for
