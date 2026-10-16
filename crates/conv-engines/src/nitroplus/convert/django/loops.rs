@@ -7,19 +7,14 @@
 //! deleting the process moves or deletes them), then loops `Shake(picture,
 //! ms, 0, y, 0, y_end, …)` and `Wait`s; the engine loops the picture's
 //! motion (`spmotion`) through the same times, the picture at ±y every
-//! [`STEP_MS`], y going to y_end. A move of the picture over time
+//! step (`shake::shake_keys`), y going to y_end. A move of the picture over time
 //! (`spmotion2`) replaces it.
 
 use std::collections::{HashMap, HashSet};
 
 use conv_core::ir::Op;
 
-use super::super::{Compiler, Expr, FlashObject, Kind, StmtKind, Value};
-
-/// How often a shaken picture turns.
-const STEP_MS: u32 = 100;
-/// `spmotion` takes 32 keys.
-const MAX_KEYS: u32 = 32;
+use super::super::{Compiler, Expr, FlashObject, Kind, StmtKind, Value, shake::shake_keys};
 
 impl Compiler<'_, '_> {
     /// `CreateProcess(name, priority, x, y, function)` of a looping one.
@@ -72,7 +67,7 @@ impl Compiler<'_, '_> {
         for v in self.aliases.values_mut() {
             *v = renamed(v);
         }
-        // The loop: (ms, y from, y to) a segment, 0 px for a wait.
+        // The loop: (ms, from, to) a segment, 0 px for a wait.
         let mut target = None;
         let mut parts = Vec::new();
         for s in body {
@@ -82,9 +77,9 @@ impl Compiler<'_, '_> {
             match call.as_str() {
                 "Shake" => {
                     target.get_or_insert_with(|| renamed(&self.object_name(&v[0])));
-                    parts.push((int(1).max(0) as u32, int(3).abs() as i32, int(5).abs() as i32));
+                    parts.push((int(1).max(0) as u32, (0, int(3).abs() as i32), (0, int(5).abs() as i32)));
                 }
-                "Wait" => parts.push((int(0).max(0) as u32, 0, 0)),
+                "Wait" => parts.push((int(0).max(0) as u32, (0, 0), (0, 0))),
                 _ => {}
             }
         }
@@ -112,54 +107,5 @@ impl Compiler<'_, '_> {
                 self.ops.push(Op::SpriteMotion { layer: s.layer, keys: Vec::new(), looped: false });
             }
         }
-    }
-}
-
-/// `spmotion` keys for shake `parts` (ms, y from, y to; 0 px a wait),
-/// looped: up and down every step (longer when the keys would run out).
-fn shake_keys(parts: &[(u32, i32, i32)]) -> Vec<(u32, i32, i32)> {
-    let waits = parts.iter().filter(|p| p.1 == 0 && p.2 == 0).count() as u32;
-    let shaking: u32 = parts.iter().filter(|p| p.1 != 0 || p.2 != 0).map(|p| p.0).sum();
-    let step = STEP_MS.max(shaking.div_ceil(MAX_KEYS - 2 - waits).div_ceil(10) * 10);
-    let (mut keys, mut t, mut sign) = (vec![(0, 0, 0)], 0, 1);
-    for &(ms, from, to) in parts {
-        if from == 0 && to == 0 {
-            t += ms;
-            keys.push((t, 0, 0));
-            continue;
-        }
-        let n = (ms / step).max(1);
-        for i in 1..=n {
-            let y = from + (to - from) * i as i32 / n as i32;
-            keys.push((t + ms * i / n, 0, sign * y));
-            sign = -sign;
-        }
-        t += ms;
-    }
-    if keys.last().is_some_and(|k| k.2 != 0) {
-        keys.push((t + step, 0, 0));
-    }
-    keys.dedup_by(|b, a| a.2 == 0 && b.2 == 0 && b.0 == a.0);
-    keys
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn a_shake_loop_goes_up_and_down_in_at_most_32_keys() {
-        // ShakeVLoop01 (dja016): shakes, a 700 ms wait, shakes, 1500 ms.
-        let parts = [(1000, 3, 1), (500, 2, 0), (700, 0, 0), (1000, 3, 1), (500, 2, 0), (1500, 0, 0)];
-        let keys = shake_keys(&parts);
-        assert!(keys.len() <= MAX_KEYS as usize, "{keys:?}");
-        assert_eq!(keys[0], (0, 0, 0));
-        assert_eq!(keys.last().unwrap().0, 5200);
-        assert!(keys.iter().any(|k| k.2 > 0) && keys.iter().any(|k| k.2 < 0));
-        assert!(keys.windows(2).all(|w| w[0].0 < w[1].0), "{keys:?}");
-        // ShakeVLoop: 3 s of shaking, every 100 ms.
-        let keys = shake_keys(&[(1000, 3, 1), (500, 2, 0), (1000, 3, 1), (500, 2, 0)]);
-        assert_eq!(keys[1], (100, 0, 3));
-        assert!(keys.len() <= MAX_KEYS as usize, "{keys:?}");
     }
 }

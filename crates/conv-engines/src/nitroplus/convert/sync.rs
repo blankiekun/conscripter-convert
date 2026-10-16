@@ -9,6 +9,7 @@ impl Compiler<'_, '_> {
         let blocking = ms;
         let ms = ms.max(std::mem::take(&mut self.pending_ms).min(UNWAITED_MS));
         let timed = std::mem::take(&mut self.pending_by);
+        let mut shake_once = std::mem::take(&mut self.shake_once);
         let mask = self.pending_mask.take();
         self.flush_sounds();
         self.check_window();
@@ -274,6 +275,9 @@ impl Compiler<'_, '_> {
                     }
                     if let Some(Object { shake: Some((_, keys)), .. }) = self.objects.get(&name) {
                         animated.push(Op::SpriteMotion { layer, keys: keys.clone(), looped: true });
+                    }
+                    if let Some(keys) = shake_once.remove(&name) {
+                        animated.push(Op::SpriteMotion { layer, keys, looped: false });
                     }
                     if now.opacity < 1000 {
                         opacity.push(Op::SpriteOpacity { layer: Some(layer), opacity: (now.opacity * 256 / 1000) as u32 });

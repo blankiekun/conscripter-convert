@@ -408,25 +408,20 @@ with the original (it wants all eleven endings' flags under wine).
       exe's curves (`apply_tempo`); ours is linear. Converter-only: a
       `spmotion2` takes up to 32 keys, so a curve fits as 8-16 linear
       pieces.
-   2. **`Shake` of a picture smaller than the screen**, arguments 2-5
-      and 8 (3 each): `dja012_06`'s 30 s tremble of `イベント絵70` and
-      `dja029_02`'s two jolts of `イベント絵21`. The original shakes the
-      picture alone; ours doesn't shake (only the whole screen shakes,
-      `quake`). Could be a looped `spmotion` like `ShakeVLoop*`.
-   3. **`SetPan` 2, the pan** (1,283, of which 15 aren't centre):
+   2. **`SetPan` 2, the pan** (1,283, of which 15 aren't centre):
       `MusicStart`'s `再生方向` is ±1000 (hard left or right) for 8 + 7
       calls in `dja001_03` (a sound) and `dja055_02` (the mob voices of
       the chorus); everything plays centre in ours.
-   4. **`Shake` 6 `n` and 7 tempo** (58 each): `n` (200-1000; above
+   3. **`Shake` 6 `n` and 7 tempo** (58 each): `n` (200-1000; above
       1000 the call does nothing) sets the jolt's rhythm and the tempo
       its decay; ours shakes every 16 ms, dying linearly. `n`'s meaning
       is lost in the exe's x87 code: one wine shot of a 200 and a 1000
       shake would settle it.
-   5. **`Fade` 3, tempo** (77 non-`null`, mostly `DxlAuto`/`AxlDxl`): an
+   4. **`Fade` 3, tempo** (77 non-`null`, mostly `DxlAuto`/`AxlDxl`): an
       eased fade; ours linear. Hard to see.
-   6. **`Rotate` 5, tempo** (264): moot until `Rotate` over time (item 4)
+   5. **`Rotate` 5, tempo** (264): moot until `Rotate` over time (item 4)
       is converted, then as item 7.1.
-   7. **`CreateWindow` 6** (975): `true` on every story window (the
+   6. **`CreateWindow` 6** (975): `true` on every story window (the
       boxes, `中窓`, `移動窓`), `false` on the full-screen `窓`, the 0×0
       `音`, the system `WND` and the battle's `カウンタ窓`. Not the clip:
       `カウンタ窓` must clip its digit strip to 52 px. Its digits sit at
@@ -434,11 +429,11 @@ with the original (it wants all eleven endings' flags under wine).
       `false` may mean children placed from the screen rather than the
       window's corner. Nothing shows: `窓` is at 0,0 and the counter is
       `django/counter.rs`'s own.
-   8. **`SetBacklog` 2, the speaker** (75; 73 `null`): two calls in
+   7. **`SetBacklog` 2, the speaker** (75; 73 `null`): two calls in
       `dja035_01` name ジュリアン and イライザ; what the original's log
       does with it (a name line, or the voice switches by character) is
       unchecked.
-   9. **No change** (the original passes values that do what ours
+   8. **No change** (the original passes values that do what ours
        does; candidates for `UNREAD_HARMLESS`): `WaitAction` 1 (5,852),
        `WaitFade` 1 (1), `WaitMove` 1 (2), all `null` (no limit);
        `SetFrequency` 0, 1, 3 (1,283 each: `MusicStart`'s object, 0 ms,
@@ -464,6 +459,17 @@ with the original (it wants all eleven endings' flags under wine).
 
 ## History
 
+- **A small picture shakes alone (2026-10-16, shared NSS code).** The
+  exe's `shake_frame` moves the shaken object's own place by ±(x, y),
+  flipping each step, the size going from args 2-3 to 4-5. Ours shook
+  only full-screen pictures (`quake`); a smaller one now gets a one-shot
+  `spmotion` (`convert/shake.rs`, the keys `ShakeVLoop` uses, now with
+  x), started when the next sync shows the picture if it isn't shown
+  yet. Django: dja033's three sideways jolts of ガス (`立絵40`, 20-30 px
+  over 1 s). The 30 s tremble in dja012_06 and dja029_02's jolts shake
+  pictures zoomed past the screen, already a `quake`. A `Move` started
+  at once on the same picture still replaces its shake (one `spmotion`
+  per sprite).
 - **Disused one-shot sounds stay until their end (2026-10-16, shared
   NSS code).** `Request(…, Disused)` on a one-shot forgot it at its
   start; the exe (`FUN_00436040`) deletes a disused object only once its

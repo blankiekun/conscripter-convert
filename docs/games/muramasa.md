@@ -549,6 +549,10 @@ Used to check what the engine does (`docs/new-game.md` step 9).
   companion): `Op::RuntimeChoice`, `$3632` up, choice-only flags at
   %783-%798. Their line-log entries (`『…』`, `【…】`) are picked at
   run time too (`Op::RuntimeBacklogLine`, `$3638`).
+- Changed by the Django agent (shared NSS code): `Shake` of a picture
+  smaller than the screen moves the picture alone (a one-shot
+  `spmotion`, as the exe's `shake_frame`): 83 of the 144 calls; the rest
+  are on pictures deleted or moved (`spmotion2`) at once, or never shown.
 - Changed by the Django agent (shared NSS code): `WaitPlay` on a sound
   waits for its rest (#70, merged), and a disused one-shot (`OnSE`,
   `MusicStart`) stays until its end (#76), so `WaitPlay`,
