@@ -292,7 +292,7 @@ pub enum SliderSetting {
     /// Auto mode waits `ms` per character of the page at the bottom.
     AutoWait { ms: u32 },
     /// The game's speed: level 12 - p × 12 / 1000 (1-12), each level a
-    /// `gamespeed` percent (`levels[level - 1]`).
+    /// `consset "gamespeed"` percent (`levels[level - 1]`).
     GameSpeed { levels: [u32; 12] },
 }
 
@@ -315,18 +315,18 @@ pub enum PairOption {
     /// The yes/no questions are asked (off: every [`ConfirmDialog`] question
     /// answers yes).
     Confirm,
-    /// A click stops any movie (`moviestop 1`; off, `moviestop -1`: as
+    /// A click stops any movie (`consset "moviestop",1`; off, -1: as
     /// the script's flag says).
     MovieStop,
-    /// Auto mode and skip stop at a choice (off: `selectkeep 1`).
+    /// Auto mode and skip stop at a choice (off: `consset "selectkeep",1`).
     StopAtChoice,
     /// Skip goes on through text not read before.
     SkipUnread,
-    /// The voice plays on after a click (off: `clickvoicestop 1`).
+    /// The voice plays on after a click (off: `consset "clickvoicestop",1`).
     VoicePlaysOn,
-    /// Auto mode waits for the voice (off: `autovoicewait 0`).
+    /// Auto mode waits for the voice (off: `consset "autovoicewait",0`).
     AutoWaitsForVoice,
-    /// The music, the sound effects, the voices are heard (`soundmute`).
+    /// The music, the sound effects, the voices are heard (`consset "mutebgm"` and the like).
     Bgm,
     Se,
     Voice,

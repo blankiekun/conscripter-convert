@@ -635,7 +635,7 @@ pub(crate) mod tests {
         assert!(out.contains("*conv_wait_end\ntexec\n"), "{out}");
         assert_eq!(
             crate::switches::apply(Switch::VoiceKeepsPlaying),
-            crate::switches::Apply::Commands { on: "clickvoicestop 0", off: "clickvoicestop 1" }
+            crate::switches::Apply::Commands { on: "consset \"clickvoicestop\",0", off: "consset \"clickvoicestop\",1" }
         );
         assert_eq!(switch_off(Switch::ConfirmQuit), "%3646");
     }

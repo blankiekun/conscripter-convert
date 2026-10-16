@@ -31,7 +31,7 @@ use crate::{escape, path, var_name, BUTTON_VAR, MAX_SPRITE};
 // second range (2910-2919; the third is 2950 up), below the scene replay's flags (3000).
 /// 1 once the values have their defaults.
 const SET: &str = "%2920";
-/// The `gamespeed` percent the story runs at.
+/// The `gamespeed` setting's percent the story runs at.
 pub(crate) const GAME_SPEED: &str = "%2921";
 /// Slider i's position.
 const SLIDER_BASE: u32 = 2922;
@@ -121,7 +121,7 @@ pub(crate) fn init(out: &mut String, s: &PictureSettings) {
     out.push_str(&format!("if {SET} == 0 gosub *{DEFAULTS}\ngosub *{APPLY}\n"));
     // `reset` comes back here: the title runs at the normal speed.
     if s.sliders.iter().any(|l| matches!(l.setting, SliderSetting::GameSpeed { .. })) {
-        out.push_str("gamespeed 100\n");
+        out.push_str("consset \"gamespeed\",100\n");
     }
 }
 
@@ -391,11 +391,11 @@ pub(crate) fn emit(out: &mut String, s: &PictureSettings, border: u32) {
                 }
             }
             // Off, a movie is skippable as the script says (the title's openings).
-            PairOption::MovieStop => w(format!("mov {TMP},{v}*2-1:moviestop {TMP}")),
-            PairOption::StopAtChoice => w(format!("mov {TMP},1-{v}:selectkeep {TMP}")),
+            PairOption::MovieStop => w(format!("mov {TMP},{v}*2-1:consset \"moviestop\",{TMP}")),
+            PairOption::StopAtChoice => w(format!("mov {TMP},1-{v}:consset \"selectkeep\",{TMP}")),
             PairOption::SkipUnread => w(format!("if {v} == 1 kidokumode 0\nif {v} == 0 kidokumode 1")),
-            PairOption::VoicePlaysOn => w(format!("mov {TMP},1-{v}:clickvoicestop {TMP}")),
-            PairOption::AutoWaitsForVoice => w(format!("autovoicewait {v}")),
+            PairOption::VoicePlaysOn => w(format!("mov {TMP},1-{v}:consset \"clickvoicestop\",{TMP}")),
+            PairOption::AutoWaitsForVoice => w(format!("consset \"autovoicewait\",{v}")),
             PairOption::Bgm => mute[0] = Some(v),
             PairOption::Se => mute[1] = Some(v),
             PairOption::Voice => mute[2] = Some(v),
@@ -408,7 +408,7 @@ pub(crate) fn emit(out: &mut String, s: &PictureSettings, border: u32) {
                 None => w(format!("mov {var},0")),
             }
         }
-        w(format!("soundmute {},{},{}", MUTE[0], MUTE[1], MUTE[2]));
+        w(format!("consset \"mutebgm\",{}:consset \"mutese\",{}:consset \"mutevoice\",{}", MUTE[0], MUTE[1], MUTE[2]));
     }
     w("return".into());
 }
@@ -588,7 +588,7 @@ mod tests {
             "if %105 == 3 mov %2921,100\n",
             "mov %3642,1-%2930\n",
             "mov %2914,1-%2930\n",
-            "mov %171,0\nmov %172,0\nmov %173,1-%2931\nsoundmute %171,%172,%173\n",
+            "mov %171,0\nmov %172,0\nmov %173,1-%2931\nconsset \"mutebgm\",%171:consset \"mutese\",%172:consset \"mutevoice\",%173\n",
             // The voice window: layout 0 when its flag is set.
             "if %9 == 4 goto *conv_ps_voices\n",
             "mov %174,1\nif %850 == 1 mov %174,0\n",
