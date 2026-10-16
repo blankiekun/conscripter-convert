@@ -206,12 +206,12 @@
 004734a0	op_9c	script opcode 0x9c (dispatch table 0x4fb270)
 # Callbacks reached only through a function pointer (`= &LAB_` in the export,
 # SEH frames left out): created as functions by ApplyNames. Comment: who stores it, at which field.
-00407760	cb_00407760	pointer stored by FUN_00408860 +0x18
+00407760	hide_window_wait	waits for a click or key, then toggle_ui_windows 1; pointer stored by FUN_00408860 +0x18
 00407e50	cb_00407e50	pointer stored by FUN_00407f50 +0x14
-00407e90	cb_00407e90	pointer stored by FUN_00408950 +0x14
-00407ed0	cb_00407ed0	pointer stored by FUN_004089c0 +0x14
+00407e90	load_screen_start	opens SaveMode in load mode; pointer stored by FUN_00408950 +0x14
+00407ed0	chapter_history_start	opens SaveDataHistoryLoad (ChapterHistory.004); pointer stored by FUN_004089c0 +0x14
 00407f10	cb_00407f10	pointer stored by FUN_00408a30 +0x14
-004080b0	cb_004080b0	pointer stored by FUN_004088e0 +0x14
+004080b0	save_screen_start	takes the thumbnail (0x46be10), opens SaveMode in save mode; pointer stored by FUN_004088e0 +0x14
 00408ec0	cb_00408ec0	pointer stored by FUN_00408ed0 +0x3c
 0040a8b0	cb_0040a8b0	pointer stored by FUN_00408d00 +0x3c, FUN_004094b0 +0x3c, FUN_004094b0 +0x54 (+26 more)
 0040aac0	cb_0040aac0	pointer stored by FUN_00407f50 +0x14, FUN_00408130 +0x14, FUN_00408860 +0x14 (+21 more)
@@ -496,9 +496,9 @@
 004e5c20	cb_004e5c20	pointer stored by FUN_004d2360
 004e6c30	cb_004e6c30	pointer stored by FUN_004d2360
 004e70c0	cb_004e70c0	pointer stored by FUN_004d2360
-00407730	cb_00407730	pointer stored by cb_00407760 +0x14
+00407730	cb_00407730	pointer stored by hide_window_wait +0x14
 00407e20	cb_00407e20	pointer stored by cb_00407e50 +0x14
-00408070	cb_00408070	pointer stored by cb_004080b0 +0x14
+00408070	cb_00408070	pointer stored by save_screen_start +0x14
 00441da0	cb_00441da0	pointer stored by cb_00441e50 +0x14
 00447500	cb_00447500	pointer stored by cb_004475a0 +0x14
 0044b3b0	cb_0044b3b0	pointer stored by cb_0044b400 +0x14
@@ -537,26 +537,26 @@
 0044a4a0	cb_0044a4a0	pointer passed or stored by FUN_0044a3c0, FUN_0044f8b0, FUN_00455370 (+3 more)
 00453050	cb_00453050	pointer passed or stored by FUN_004529c0, FUN_00453060
 00454b60	cb_00454b60	pointer passed or stored by FUN_0044a3c0, FUN_0044f8b0, FUN_00455370 (+3 more)
-0045b720	cb_0045b720	pointer passed or stored by cb_004567c0
-0045e1c0	cb_0045e1c0	pointer passed or stored by FUN_0045e1f0
-0046dde0	cb_0046dde0	pointer passed or stored by load_svar
-004737e0	cb_004737e0	pointer passed or stored by FUN_00473810
-00476750	cb_00476750	pointer passed or stored by FUN_00476780, op_51, op_52
+0045b720	title_task_2	title_task with 0x51f864 = 2; pointer passed or stored by cb_004567c0
+0045e1c0	browse_folder_callback	SHBrowseForFolder BFFCALLBACK (SendMessage); pointer passed or stored by FUN_0045e1f0
+0046dde0	svar_compare	qsort compare of load_svar's 0x44-byte entries; pointer passed or stored by load_svar
+004737e0	resume_wait_icon	resume stub: the task goes back to wait_icon_task; pointer passed or stored by FUN_00473810
+00476750	resume_text_wait	resume stub: the task goes back to text_wait_task; pointer passed or stored by FUN_00476780, op_51, op_52
 004a3210	cb_004a3210	pointer passed or stored by FUN_004794b0, FUN_0049e910, FUN_004a5c30
-004aebf0	cb_004aebf0	pointer passed or stored by FUN_004ae6b0
+004aebf0	thread_start	_beginthreadex entry of FUN_004ae6b0; pointer passed or stored by FUN_004ae6b0
 004af9d0	cb_004af9d0	pointer passed or stored by FUN_004b0c90
 004afd10	cb_004afd10	pointer passed or stored by FUN_004b0790, FUN_004b0c90, FUN_004b1040
-004b6530	cb_004b6530	pointer passed or stored by FUN_004b65f0
-004b6580	cb_004b6580	pointer passed or stored by FUN_004b65f0
-004b7770	cb_004b7770	pointer passed or stored by FUN_004b78b0
-004b77c0	cb_004b77c0	pointer passed or stored by FUN_004b78b0
-004b7810	cb_004b7810	pointer passed or stored by FUN_004b6800, FUN_004b6930, FUN_004b7190 (+1 more)
-004b7840	cb_004b7840	pointer passed or stored by FUN_004b7a20
+004b6530	png_load_error	libpng error callback (CPngLoader); pointer passed or stored by FUN_004b65f0
+004b6580	png_load_warning	libpng warning callback (CPngLoader); pointer passed or stored by FUN_004b65f0
+004b7770	png_write_error	libpng error callback (CPngWriter); pointer passed or stored by FUN_004b78b0
+004b77c0	png_write_warning	libpng warning callback (CPngWriter); pointer passed or stored by FUN_004b78b0
+004b7810	png_io_data	libpng read/write data callback (png_get_io_ptr); pointer passed or stored by FUN_004b6800, FUN_004b6930, FUN_004b7190 (+1 more)
+004b7840	png_io_flush	libpng flush callback (FlushFileBuffers); pointer passed or stored by FUN_004b7a20
 004bd000	cb_004bd000	pointer passed or stored by FUN_004051f0, FUN_004bcb60, FUN_004bce60 (+1 more)
 00407c20	cb_00407c20	pointer passed or stored by cb_00407cc0
 00408d50	cb_00408d50	pointer passed or stored by cb_00408e30
 004431b0	cb_004431b0	pointer passed or stored by cb_00443230
-00478300	cb_00478300	pointer passed or stored by cb_00407c20
+00478300	to_title_clear_skip	the task goes to title_task; clears skip_state_a and 0x51f82d; pointer passed or stored by cb_00407c20
 004d5520	cb_004d5520	pointer passed or stored by cb_004ca7f0
 004d5990	cb_004d5990	pointer passed or stored by cb_004ca7f0
 004d5d50	cb_004d5d50	pointer passed or stored by cb_004ca7f0
@@ -584,3 +584,20 @@
 004de840	cb_004de840	pointer passed or stored by cb_004ca7f0
 004de8b0	cb_004de8b0	pointer passed or stored by cb_004ca7f0
 004dec90	cb_004dec90	pointer passed or stored by cb_004ca7f0
+# The system screens a wait can open, and the replay modes (2026-10-16).
+00477d90	story_input_poll	input handler of every wait (Story.cpp): link clicks, hide window, and the save (0x4088e0), load (0x408950) and chapter-history (0x4089c0) screens, each gated by menu_allowed_mask; arg 4 is the resume stub the task returns through
+00408860	hide_window_until_input	hides the UI windows (toggle_ui_windows 0) and waits in hide_window_wait; arg 1 is the resume stub
+00407690	toggle_ui_windows	0 hides the UI window objects (table at 0x51c090), 1 shows them again
+004088e0	open_save_screen	Menu.cpp: arg 1 = resume stub; the task goes to save_screen_start
+00408950	open_load_screen	Menu.cpp: arg 1 = resume stub; the task goes to load_screen_start
+004089c0	open_chapter_history	Menu.cpp: arg 1 = resume stub; the task goes to chapter_history_start
+0045eb60	create_thumbnail	SaveControl\CreateTumb.cpp: the save slot picture
+0046bf80	save_mode_open	SaveMode.cpp, save
+0046c0d0	load_mode_open	SaveMode.cpp, load
+004691a0	chapter_history_open	SaveDataHistoryLoad.cpp
+00467390	menu_allowed_mask	by replay_mode: 0 -> 0xf, 1 -> 0, 2 -> 3; story_input_poll reads bit 0 = save, bit 1 = load
+0051ec70	replay_mode	0 story, 1 scene replay (start_scene_replay), 2 ExtraMode script (start_extra_script)
+0046f050	start_scene_replay	task from Reminiscences (cb_00452370): replay_mode 1, no save or load
+0046f240	start_extra_script	task from ExtraMode (cb_004505e0): replay_mode 2, save and load allowed. Unreachable in this release: cb_004505e0 starts it only when ExtraMode +0xa28 != -1, and the exe only ever stores -1 there (0x44f93a, 0x44fde3)
+00473810	wait_icon_task	WindowWaitIcon.cpp: a wait with the click icon, polls story_input_poll
+00476780	text_wait_task	ScriptText.cpp: the page wait after a text, polls story_input_poll

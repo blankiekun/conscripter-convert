@@ -617,11 +617,18 @@ ones done:
 
 **Whole-exe map (2026-10-15, `docs/new-game.md` §2 "Mapping the whole
 exe").** The pointer-only callbacks (323 `cb_<addr>` in `names.tsv`,
-five rounds until none was left; 3,759 → 4,081 functions), the static
+five rounds until none was left; 3,759 → 4,081 functions; 2026-10-16:
+53 more that are passed as arguments or cast, 4,134), the static
 CRT helpers and the settings/skip flags are named. The exe's own
 `..\Src\…\*.cpp` strings in `strings.tsv` map its modules; the
 `..\Library\…` ones are its in-house framework (gaf004, DX), no
-third-party libraries. Coverage: all 82 opcodes the corpus uses
+statically linked third-party libraries (libpng comes from a DLL).
+Every wait (text page, `0x68`, the wait icon) polls `story_input_poll`
+(`0x477d90`), which opens hide-window, save, load and the chapter
+history; `menu_allowed_mask` by `replay_mode` (`0x51ec70`) allows
+save and load in play only (mode 0), none in a scene replay (1). Mode 2,
+an ExtraMode script with save and load, is unreachable in this release
+(its script field is only ever set to -1). Coverage: all 82 opcodes the corpus uses
 (`cd opstats`, 84,713 instructions) are converted and agree with their
 handlers (audit table above); the dry run reports only `0x30`/`0x62`
 (debug menu). Lip sync (`VoiceSyncParts`, `lq.arc`) and animation parts
