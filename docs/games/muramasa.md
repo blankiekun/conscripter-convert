@@ -51,8 +51,9 @@ The other convert options (`--loose`, `--audio-codec`,
   prologue, and the file that unlocks 魔王編). Starting anywhere else
   skips the unlock.
 - `--file X.nss` without `--chain` compiles one scene.
-- Movies are read from the disc's `ムービー/` folder, by default the one
-  beside `<game>` (as on the disc); `--movies <dir>` names another. They
+- Movies are read from the disc's `ムービー/` folder: by default a
+  `ムービー/`, `movie/` or `movies/` (any case) in `<game>` or beside it
+  (as on the disc); `--movies <dir>` names another. They
   are not in the archives. The first build encodes them to `movie/`
   (loose files, H.264; a few minutes, kept by later builds into the same
   output); without the folder the build leaves them out and says so.

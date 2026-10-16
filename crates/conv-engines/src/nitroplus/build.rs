@@ -89,15 +89,13 @@ pub fn build(game: &Path, run: &Run, opts: &Opts) -> Result<Built> {
     if let Some(dir) = run.english {
         assets.cg_en = Some(open_npk(dir, "cg.npk")?);
     }
-    let movies: PathBuf = match run.movies {
-        Some(m) => m.to_path_buf(),
-        None if game.join("movie").is_dir() => game.join("movie"),
-        None => game.join("../ムービー"),
+    let movies = match run.movies {
+        Some(m) => Some(m.to_path_buf()).filter(|m| m.is_dir()),
+        None => find_movies(game),
     };
-    if movies.is_dir() {
-        assets.movie_dir = Some(movies);
-    } else {
-        println!("no movie folder at {}: the movies are left out", movies.display());
+    match movies {
+        Some(m) => assets.movie_dir = Some(m),
+        None => println!("no movie folder (movie, movies or ムービー, in {} or beside it): the movies are left out", game.display()),
     }
     // The game's own additions to the compiler, by its exe.
     let g = GAMES.iter().find(|(exe, _)| *exe == exe_name).map_or(&Game::PLAIN, |(_, g)| *g);
@@ -147,4 +145,15 @@ pub fn build(game: &Path, run: &Run, opts: &Opts) -> Result<Built> {
 pub fn npa_key(exe: &Path) -> Result<Key> {
     let name = exe.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
     Ok(Key::for_exe(&name, &fs::read(exe).with_context(|| format!("reading {}", exe.display()))?)?)
+}
+
+/// The movie folder: `movie`, `movies` or `ムービー` (any case) in the
+/// game folder or beside it (the disc's `ムービー/` next to `ゲームデータ/`).
+fn find_movies(game: &Path) -> Option<PathBuf> {
+    [game, &game.join("..")].into_iter().find_map(|dir| {
+        fs::read_dir(dir).ok()?.flatten().map(|e| e.path()).find(|p| {
+            let name = p.file_name().map(|n| n.to_string_lossy().to_lowercase()).unwrap_or_default();
+            matches!(name.as_str(), "movie" | "movies" | "ムービー") && p.is_dir()
+        })
+    })
 }
