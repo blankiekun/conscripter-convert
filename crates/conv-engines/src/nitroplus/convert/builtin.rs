@@ -122,11 +122,20 @@ impl Compiler<'_, '_> {
             }
             "CreateWindow" | "CreateName" => {
                 let name = self.object_name(&arg(0));
+                let relative = self.game.relative_children;
                 let o = self.create(name, Kind::Other, arg(1).int(), 0, 0);
                 // (name, priority, x, y, w, h, ?): a text in the window
-                // starts at its corner (続・殺戮のジャンゴ's boxes).
+                // starts at its corner (続・殺戮のジャンゴ's boxes); its
+                // children are drawn only inside it.
                 if a.len() >= 6 {
-                    (o.x, o.y) = (arg(2).int(), arg(3).int());
+                    let (w, h) = (arg(4).int(), arg(5).int());
+                    // shortcut: with Game::relative_children (続・殺戮のジャンゴ) a
+                    // named place (OutRight) stays 0, as its children were checked.
+                    (o.x, o.y) = match relative {
+                        true => (arg(2).int(), arg(3).int()),
+                        false => (arg(2).position(0, w, screen_w), arg(3).position(0, h, screen_h)),
+                    };
+                    o.clip = (w > 0 && h > 0).then_some((w, h));
                 }
             }
             "CreateMovie" => {

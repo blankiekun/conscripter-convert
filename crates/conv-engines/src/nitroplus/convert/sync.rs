@@ -46,7 +46,7 @@ impl Compiler<'_, '_> {
                         y = sy + (cy - sy) * k / 1000 - o.h / 2;
                         zoom = (zoom.0 * k / 1000, zoom.1 * k / 1000);
                     }
-                    let shown = Shown { layer: 0, image: image.clone(), x, y, w: o.w, h: o.h, opacity: o.opacity, cells: None, source: String::new(), zoom: (1000, 1000), angle: o.angle(), engine: Engine::default(), flash: 0 };
+                    let shown = Shown { layer: 0, image: image.clone(), x, y, w: o.w, h: o.h, opacity: o.opacity, cells: None, source: String::new(), zoom: (1000, 1000), angle: o.angle(), clip: None, engine: Engine::default(), flash: 0 };
                     Some((n.clone(), shown, (o.priority, o.seq), zoom, (o.w, o.h), o.blur, o.mirror()))
                 }
                 _ => None,
@@ -84,7 +84,7 @@ impl Compiler<'_, '_> {
             // One cell: a movie file loops with no time a cell (`:c/1,0,0;`).
             let looped = at.is_none() && m.looped;
             let frame_ms = if at.is_none() { 0 } else { 1000 / MOVIE_FPS };
-            let shown = Shown { layer: 0, image, x, y, w: cw as i64, h: ch as i64, opacity: o.opacity, cells: Some((1, looped, zoom, frame_ms)), source: String::new(), zoom: (1000, 1000), angle: 0, engine: Engine::default(), flash: 0 };
+            let shown = Shown { layer: 0, image, x, y, w: cw as i64, h: ch as i64, opacity: o.opacity, cells: Some((1, looped, zoom, frame_ms)), source: String::new(), zoom: (1000, 1000), angle: 0, clip: None, engine: Engine::default(), flash: 0 };
             want.push((n, shown, (o.priority, o.seq), (1000, 1000), (o.w, o.h), 0, (false, false)));
         }
         for (n, o) in &self.objects {
@@ -93,7 +93,7 @@ impl Compiler<'_, '_> {
                 && !o.hideable
             {
                 let cells = Some((s.cells, false, s.zoom, s.frame_ms));
-                let shown = Shown { layer: 0, image: s.image.clone(), x: o.x, y: o.y, w: s.w, h: s.h, opacity: o.opacity, cells, source: String::new(), zoom: (1000, 1000), angle: 0, engine: Engine::default(), flash: 0 };
+                let shown = Shown { layer: 0, image: s.image.clone(), x: o.x, y: o.y, w: s.w, h: s.h, opacity: o.opacity, cells, source: String::new(), zoom: (1000, 1000), angle: 0, clip: None, engine: Engine::default(), flash: 0 };
                 want.push((n.clone(), shown, (o.priority, o.seq), (1000, 1000), (s.w, s.h), 0, (false, false)));
             }
         }
@@ -102,7 +102,7 @@ impl Compiler<'_, '_> {
                 && o.opacity > 0
                 && !o.hideable
             {
-                let shown = Shown { layer: 0, image: f.image.clone(), x: o.x, y: o.y, w: o.w, h: o.h, opacity: 1000, cells: None, source: String::new(), zoom: (1000, 1000), angle: 0, engine: Engine::default(), flash: o.seq };
+                let shown = Shown { layer: 0, image: f.image.clone(), x: o.x, y: o.y, w: o.w, h: o.h, opacity: 1000, cells: None, source: String::new(), zoom: (1000, 1000), angle: 0, clip: None, engine: Engine::default(), flash: o.seq };
                 want.push((n.clone(), shown, (o.priority, o.seq), (1000, 1000), (o.w, o.h), 0, (false, false)));
             }
         }
@@ -128,6 +128,11 @@ impl Compiler<'_, '_> {
                 {
                     shown.image = image;
                 }
+                shown.clip = self.window_clip(&n);
+                // Windows that don't overlap show nothing.
+                if shown.clip.is_some_and(|c| c.2 == 0 || c.3 == 0) {
+                    shown.opacity = 0;
+                }
                 (n, shown, key)
             })
             .collect();
@@ -141,6 +146,7 @@ impl Compiler<'_, '_> {
                 && s.cells.is_none()
                 && s.flash == 0
                 && s.angle == 0
+                && s.clip.is_none()
                 && s.opacity >= 1000
                 && s.image.to_ascii_lowercase().ends_with(".jpg")
                 && s.x <= 0
@@ -219,7 +225,7 @@ impl Compiler<'_, '_> {
             let mut now = Shown { layer, ..now };
             match self.shown.get(&name) {
                 Some(old) if *old == Shown { engine: old.engine, ..now.clone() } => continue,
-                Some(old) if old.layer == now.layer && old.image == now.image && old.x == now.x && old.y == now.y && old.cells == now.cells && old.flash == now.flash && old.angle == now.angle => {
+                Some(old) if old.layer == now.layer && old.image == now.image && old.x == now.x && old.y == now.y && old.cells == now.cells && old.flash == now.flash && old.angle == now.angle && old.clip == now.clip => {
                     now.engine = old.engine;
                     opacity.push(Op::SpriteOpacity { layer: Some(layer), opacity: (now.opacity * 256 / 1000) as u32 });
                 }
@@ -258,6 +264,11 @@ impl Compiler<'_, '_> {
                     }
                     if now.opacity < 1000 {
                         opacity.push(Op::SpriteOpacity { layer: Some(layer), opacity: (now.opacity * 256 / 1000) as u32 });
+                    }
+                    // spclip stays through lsp too.
+                    if let Some((x, y, w, h)) = now.clip {
+                        opacity.push(Op::SpriteClip { layer, rect: (x as i32, y as i32, w as i32, h as i32) });
+                        now.engine.zoomed = true;
                     }
                     // sprot stays through lsp: cleared with the layer later.
                     if now.angle != 0 {
