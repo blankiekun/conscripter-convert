@@ -566,17 +566,13 @@ fn title_screen(out: &mut String, t: &TitleScreen, fade: &str, save_menu: bool, 
     if quick {
         writeln!(out, "{quick_exists}").unwrap();
     }
+    if t.hide_without_saves {
+        writeln!(out, "{}", saves_check()).unwrap();
+    }
     let press = if t.pressed { ",2" } else { "" };
     let clickable: Vec<_> = buttons.iter().filter(|(b, _)| b.action != TitleAction::Unavailable).collect();
     for (n, (b, slot)) in clickable.iter().enumerate() {
-        let mut conds = Vec::new();
-        if b.action == TitleAction::Continue {
-            conds.push(format!("{} == 1", menu::TMP));
-        }
-        if let Some(v) = b.shown_by {
-            conds.push(format!("{} != 0", var_name(v, border)));
-        }
-        let only = if conds.is_empty() { String::new() } else { format!("if {} ", conds.join(" && ")) };
+        let only = title_button_shown(t, b, border);
         writeln!(out, "{only}spbtn {slot},{}{press}", n + 1).unwrap();
     }
     writeln!(out, "btnwait {BUTTON_VAR}").unwrap();
@@ -586,6 +582,7 @@ fn title_screen(out: &mut String, t: &TitleScreen, fade: &str, save_menu: bool, 
     for (n, (b, _)) in clickable.iter().enumerate() {
         let then = match b.action {
             TitleAction::Start => format!("goto *{TITLE_START}"),
+            TitleAction::Continue if t.hide_without_saves => format!("csp -1:loadgame {}", menu::HAS_DATA),
             TitleAction::Continue => format!("csp -1:loadgame {}", menu::QUICK_SLOT),
             TitleAction::Load if save_menu => {
                 format!("csp -1:mov {},0:gosub *{}:goto *{TITLE_DRAW}", menu::IN_GAME, menu::LOAD)
@@ -710,17 +707,54 @@ fn title_sprites(out: &mut String, t: &TitleScreen, buttons: &[(&conv_core::ir::
             writeln!(out, "lsp {slot},\":c;{}\",0,0,{alpha}", path(&g.image)).unwrap();
         }
     }
+    if t.hide_without_saves {
+        writeln!(out, "{}", saves_check()).unwrap();
+    }
     if quick {
         writeln!(out, "savefileexist {},{}", menu::TMP, menu::QUICK_SLOT).unwrap();
     }
     for (b, slot) in buttons {
         let image = if b.action == TitleAction::Unavailable { format!(":a;{}", path(&b.image)) } else { format!(":a/{cells},0,3;{}", path(&b.image)) };
-        let only = b.shown_by.map_or(String::new(), |v| format!("if {} != 0 ", var_name(v, border)));
-        writeln!(out, "{only}lsp {slot},\"{image}\",{},{}", b.x, b.y).unwrap();
-        if b.action == TitleAction::Continue {
+        if b.action == TitleAction::Continue && !t.hide_without_saves {
+            let only = b.shown_by.map_or(String::new(), |v| format!("if {} != 0 ", var_name(v, border)));
+            writeln!(out, "{only}lsp {slot},\"{image}\",{},{}", b.x, b.y).unwrap();
             writeln!(out, "if {} == 0 lsp {slot},\"{image}\",{},{},128", menu::TMP, b.x, b.y).unwrap();
+            continue;
         }
+        let only = title_button_shown(t, b, border);
+        writeln!(out, "{only}lsp {slot},\"{image}\",{},{}", b.x, b.y).unwrap();
     }
+}
+
+/// [`TitleScreen::hide_without_saves`]: the save Continue loads into
+/// [`menu::HAS_DATA`], 0 when there is none (the user's slots are 1-100).
+fn saves_check() -> String {
+    let (has, tmp, slot) = (menu::HAS_DATA, menu::TMP, menu::SLOT);
+    format!(
+        "mov {has},0\nfor {slot} = 1 to 100\nif {has} == 0 savefileexist {tmp},{slot}:if {tmp} == 1 mov {has},{slot}\nnext\n\
+         if {n} > 0 savefileexist {tmp},{n}:if {tmp} == 1 mov {has},{n}\n\
+         savefileexist {tmp},{q}:if {tmp} == 1 mov {has},{q}",
+        n = menu::NEWEST,
+        q = menu::QUICK_SLOT
+    )
+}
+
+/// The `if …` before a title button's `lsp` and `spbtn` (empty: always).
+fn title_button_shown(t: &TitleScreen, b: &conv_core::ir::TitleButton, border: u32) -> String {
+    let mut conds = Vec::new();
+    match b.action {
+        TitleAction::Continue | TitleAction::Load if t.hide_without_saves => conds.push(format!("{} > 0", menu::HAS_DATA)),
+        TitleAction::Continue => conds.push(format!("{} == 1", menu::TMP)),
+        // NScripter's `if` has no brackets: either flag, alone.
+        TitleAction::Extras if !t.extras_shown_by.is_empty() => {
+            return format!("if {} ", t.extras_shown_by.iter().map(|v| format!("{} != 0", var_name(*v, border))).collect::<Vec<_>>().join(" || "));
+        }
+        _ => {}
+    }
+    if let Some(v) = b.shown_by {
+        conds.push(format!("{} != 0", var_name(v, border)));
+    }
+    if conds.is_empty() { String::new() } else { format!("if {} ", conds.join(" && ")) }
 }
 
 /// `setwindow3` for a window (`setwindow` without flushing the text
@@ -1733,6 +1767,33 @@ effect 7,99,1000,\"cons_zoom.dll/3,220,5\"
     }
 
     #[test]
+    fn title_buttons_hidden_without_saves_and_routes() {
+        use conv_core::ir::{TitleButton, Var};
+        let mut s = script(vec![]);
+        let button = |action| TitleButton { image: "system/b.png".into(), x: 0, y: 0, action, click_se: None, shown_by: None };
+        s.title_screen = Some(TitleScreen {
+            background: "system/title.png".into(),
+            buttons: vec![button(TitleAction::Continue), button(TitleAction::Start), button(TitleAction::Load), button(TitleAction::Extras)],
+            hide_without_saves: true,
+            extras_shown_by: vec![Var { global: true, index: 1001 }, Var { global: true, index: 1002 }],
+            ..Default::default()
+        });
+        let text = emit(&s);
+        for part in [
+            // The save Continue loads: any slot, the newest, the quick save.
+            "mov %104,0\nfor %103 = 1 to 100\nif %104 == 0 savefileexist %105,%103:if %105 == 1 mov %104,%103\nnext\nif %901 > 0 savefileexist %105,%901:if %105 == 1 mov %104,%901\nsavefileexist %105,890:if %105 == 1 mov %104,890\n",
+            "if %104 > 0 lsp 6,",
+            "if %104 > 0 lsp 8,",
+            "if %1201 != 0 || %1202 != 0 lsp 9,",
+            "if %104 > 0 spbtn 6,1\nspbtn 7,2\nif %104 > 0 spbtn 8,3\nif %1201 != 0 || %1202 != 0 spbtn 9,4\n",
+            "if %9 == 1 csp -1:loadgame %104\n",
+        ] {
+            assert!(text.contains(part), "missing {part:?} in\n{text}");
+        }
+        assert!(!text.contains(",128\n"), "{text}");
+    }
+
+    #[test]
     fn title_screen_sounds_pressed_cell_and_continue() {
         use conv_core::ir::TitleButton;
         let mut s = script(vec![Op::Text { speaker: None, text: "あ".into(), voice: None, links: vec![], ruby: vec![], styles: vec![], hang: None, continues: false }]);
@@ -1760,6 +1821,7 @@ effect 7,99,1000,\"cons_zoom.dll/3,220,5\"
                 glow_keys: Some(vec![(0, 256), (100, 256), (700, 0)]),
                 ..Default::default()
             }],
+            ..Default::default()
         });
         let text = emit(&s);
         for part in [

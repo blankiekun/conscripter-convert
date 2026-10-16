@@ -758,6 +758,8 @@ fn title(a: &mut dyn Assets, story: &Story, look: &TitleLook) -> Option<TitleScr
         exit_without_asking: true,
         glow,
         openings,
+        hide_without_saves: look.hides,
+        extras_shown_by: if look.hides { ["#英雄編終了", "#復讐編終了"].iter().filter_map(|f| story.flags.get(*f).copied()).collect() } else { Vec::new() },
     })
 }
 
