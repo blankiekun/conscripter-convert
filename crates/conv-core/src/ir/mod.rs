@@ -639,6 +639,9 @@ pub enum Op {
     /// from its rate now while the script goes on. 装甲悪鬼村正's
     /// `SetFrequency`: pitch bends on battle sounds.
     SoundRate { file: String, rate: u32, ms: u32 },
+    /// Plays `file` as the music, fading in over `ms` while the music
+    /// playing fades out over the same time. 最果てのイマ's 0x59.
+    BgmCrossfade { file: String, ms: u32 },
 }
 
 /// [`Op::HoldMovie`]'s prompt: `image` is `cells` pictures side by side,
