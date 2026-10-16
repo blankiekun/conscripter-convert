@@ -334,6 +334,11 @@ fn save_grid(a: &mut dyn Assets) -> Option<SaveGrid> {
         saved,
         fade_ms: 300,
         across: false,
+        tabs: Vec::new(),
+        popup: None,
+        empty: None,
+        quick_page: false,
+        play_time_prefix: String::new(),
     })
 }
 

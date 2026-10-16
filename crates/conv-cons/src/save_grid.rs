@@ -21,7 +21,7 @@
 use conv_core::ir::{ConfirmDialog, GridText, Placed, SaveGrid, Switch};
 
 use crate::menu::{
-    self, switch_index, CONFIRM, CONFIRM_KIND, CONFIRM_ROUTINE, CONFIRM_TEXT, DATE, FILE, FIRST, HAS_DATA, IN_GAME, LABEL, MODE, NEWEST, PAGE, SCENE_LOAD_SLOT, SELECTED, SLOT, STR_TMP,
+    self, switch_index, CONFIRM, QUICK_SLOT, CONFIRM_KIND, CONFIRM_ROUTINE, CONFIRM_TEXT, DATE, FILE, FIRST, HAS_DATA, IN_GAME, LABEL, MODE, NEWEST, PAGE, SCENE_LOAD_SLOT, SELECTED, SLOT, STR_TMP,
     THUMB_IMAGE, TMP,
 };
 use crate::{escape, path, BUTTON_VAR, DIALOG_SPRITES, MAX_SPRITE, MENU_SPRITES};
@@ -56,12 +56,42 @@ const BTN_PREVIOUS: u32 = 101;
 const BTN_NEXT: u32 = 102;
 const BTN_DELETE: u32 = 103;
 const BTN_CLOSE: u32 = 104;
+// The popup ([`SaveGrid::popup`]): its buttons over its window.
+const POPUP_BUTTONS: [u32; 4] = [M + 5, M + 6, M + 7, M + 8]; // save, load, delete, lock
+const POPUP_WINDOW: u32 = M + 9;
+const BTN_POPUP: [u32; 4] = [105, 106, 107, 108];
+/// Tab t's sprite and button.
+const TABS: u32 = M + 10;
+const BTN_TAB: u32 = 110;
+const MAX_TABS: usize = 10;
+/// Locked marks: + slot.
+const LOCKED_MARKS: u32 = 880;
+/// The slot the popup is open on (1 up), 0 while it is shut.
+const POPUP_AT: &str = "%164";
+/// 1 while that slot is locked.
+const LOCKED: &str = "%165";
+/// The popup's top left (its slot's).
+const POPUP_XY: [&str; 2] = ["%166", "%167"];
+/// Slot n's lock is the global %(LOCK_BASE + n), n 1-100 (the user's
+/// slots only).
+const LOCK_BASE: u32 = 1010;
 
 /// `confirm`: the script's yes/no dialog (none: act without asking).
 pub(crate) fn emit(out: &mut String, g: &SaveGrid, confirm: Option<&ConfirmDialog>, width: u32, height: u32, scene_stack: bool) {
     let slots = g.rows * g.columns;
     assert!(slots <= MAX_SLOTS, "a save grid has more slots a page than its sprites");
     let pages = g.save_pages.len().min(g.load_pages.len()).max(1);
+    assert!(g.tabs.len() <= MAX_TABS, "a save grid has more tabs than its sprites");
+    assert!(g.popup.is_none() || pages as u32 * slots <= 100, "save grid locks past their range");
+    // The quick page, if any.
+    let quick = if g.quick_page { format!("{PAGE} == {pages}") } else { "0".into() };
+    // Popup buttons off: save, load, delete, lock.
+    let off = [
+        format!("{LOCKED} == 1 || {IN_GAME} == 0 || {quick}"),
+        format!("{HAS_DATA} == 0"),
+        format!("{HAS_DATA} == 0 || {LOCKED} == 1"),
+        format!("{HAS_DATA} == 0 || {quick}"),
+    ];
     let mut w = |line: String| {
         out.push_str(&line);
         out.push('\n');
@@ -97,9 +127,14 @@ pub(crate) fn emit(out: &mut String, g: &SaveGrid, confirm: Option<&ConfirmDialo
     // The thumbnail: the scene as it is before the menu covers it, without
     // the text window.
     w(format!("if {IN_GAME} == 1 textoff"));
-    w(format!("if {MODE} == 1 getscreenshot {},{}", g.thumb_w, g.thumb_h));
+    // With the popup the screen saves whichever way it was opened.
+    let saving = if g.popup.is_some() { format!("{IN_GAME} == 1") } else { format!("{MODE} == 1") };
+    w(format!("if {saving} getscreenshot {},{}", g.thumb_w, g.thumb_h));
     w(format!("pushscreen {},{MAX_SPRITE}", crate::ANIMATION_SPRITE));
     w(format!("mov {DELETING},0"));
+    if g.popup.is_some() {
+        w(format!("mov {POPUP_AT},0"));
+    }
     w(format!("if {PAGE} < 1 || {PAGE} > {pages} mov {PAGE},1"));
     w("gosub *conv_sg_draw".into());
     w(button(PREVIOUS, &g.previous));
@@ -116,7 +151,18 @@ pub(crate) fn emit(out: &mut String, g: &SaveGrid, confirm: Option<&ConfirmDialo
         let (x, y) = place(i);
         let shown: String = (0..5).map(|k| format!("P{}", DETAILS + 5 * i + k)).collect();
         let (hx, hy) = (x + g.hover_offset.0, y + g.hover_offset.1);
-        w(format!("exbtn {},{},\"{all_details}P{HOVER}M{HOVER},{hx},{hy}{shown}\"", HITS + i, i + 1));
+        // Not under the popup's own buttons.
+        let unless = if g.popup.is_some() { format!("if {POPUP_AT} != {} ", i + 1) } else { String::new() };
+        w(format!("{unless}exbtn {},{},\"{all_details}P{HOVER}M{HOVER},{hx},{hy}{shown}\"", HITS + i, i + 1));
+    }
+    for t in 0..g.tabs.len() as u32 {
+        w(format!("if {PAGE} != {} spbtn {},{}", t + 1, TABS + t, BTN_TAB + t));
+    }
+    if g.popup.is_some() {
+        w(format!("if {POPUP_AT} > 0 gosub *conv_sg_popup_state"));
+        for ((off, slot), n) in off.iter().zip(POPUP_BUTTONS).zip(BTN_POPUP) {
+            w(format!("if {POPUP_AT} > 0 notif {off} spbtn {slot},{n}"));
+        }
     }
     for (slot, n) in [(PREVIOUS, BTN_PREVIOUS), (NEXT, BTN_NEXT), (DELETE, BTN_DELETE), (CLOSE, BTN_CLOSE)] {
         w(format!("spbtn {slot},{n},3"));
@@ -124,6 +170,17 @@ pub(crate) fn emit(out: &mut String, g: &SaveGrid, confirm: Option<&ConfirmDialo
     w("getkey".into());
     w(format!("btnwait {BUTTON_VAR}"));
     // A right-click, or the screen's key (S saving, L loading), leaves.
+    if g.popup.is_some() {
+        w(format!("if {BUTTON_VAR} == -1 && {POPUP_AT} > 0 gosub *conv_sg_popup_close:print 1:goto *conv_sg_wait"));
+        w(format!("if {BUTTON_VAR} >= {} && {BUTTON_VAR} <= {} goto *conv_sg_popup_click", BTN_POPUP[0], BTN_POPUP[3]));
+    }
+    if !g.tabs.is_empty() {
+        w(format!(
+            "if {BUTTON_VAR} >= {BTN_TAB} && {BUTTON_VAR} < {} mov {PAGE},{BUTTON_VAR}-{}:gosub *conv_sg_draw:{fade}:goto *conv_sg_wait",
+            BTN_TAB + g.tabs.len() as u32,
+            BTN_TAB - 1
+        ));
+    }
     w(format!("if {BUTTON_VAR} == -1 || {BUTTON_VAR} == {BTN_CLOSE} goto *conv_sg_close"));
     w(format!("if {MODE} == 1 && {BUTTON_VAR} == {} goto *conv_sg_close", menu::key_code('S')));
     w(format!("if {MODE} == 2 && {BUTTON_VAR} == {} goto *conv_sg_close", menu::key_code('L')));
@@ -143,6 +200,43 @@ pub(crate) fn emit(out: &mut String, g: &SaveGrid, confirm: Option<&ConfirmDialo
     w("*conv_sg_slot".into());
     w(format!("mov {SLOT},{FIRST}+{BUTTON_VAR}-1"));
     w("gosub *conv_sg_data".into());
+    if let Some(p) = &g.popup {
+        // Open (or move) the popup onto the slot.
+        w(format!("mov {POPUP_AT},{BUTTON_VAR}"));
+        w("gosub *conv_sg_popup_state".into());
+        let i = format!("({POPUP_AT}-1)");
+        let (column, row) = if g.across { (format!("{i} mod {}", g.columns), format!("{i}/{}", g.columns)) } else { (format!("{i}/{}", g.rows), format!("{i} mod {}", g.rows)) };
+        w(format!("mov {},{}+{}*({column})", POPUP_XY[0], g.first.0, g.column_step));
+        w(format!("mov {},{}+{}*({row})", POPUP_XY[1], g.first.1, g.row_step));
+        let at = |q: &Placed| format!("{}+{},{}+{}", POPUP_XY[0], q.x, POPUP_XY[1], q.y);
+        w(format!("lsp {POPUP_WINDOW},\":a;{}\",{}", path(&p.window.image), at(&p.window)));
+        for ((b, slot), off) in [&p.save, &p.load, &p.delete].into_iter().zip(POPUP_BUTTONS).zip(&off) {
+            w(format!("lsp {slot},\":a/4,0,3;{}\",{}:if {off} cell {slot},2", path(&b.image), at(b)));
+        }
+        let lock = POPUP_BUTTONS[3];
+        w(format!("if {LOCKED} == 0 lsp {lock},\":a/4,0,3;{}\",{}", path(&p.lock.image), at(&p.lock)));
+        w(format!("if {LOCKED} == 1 lsp {lock},\":a/4,0,3;{}\",{}", path(&p.unlock.image), at(&p.unlock)));
+        w(format!("if {} cell {lock},2", off[3]));
+        w("print 10,150:goto *conv_sg_wait".into());
+
+        // SLOT, HAS_DATA and LOCKED of the popup's slot.
+        w("*conv_sg_popup_state".into());
+        w(format!("mov {SLOT},{FIRST}+{POPUP_AT}-1:gosub *conv_sg_data"));
+        w(format!("mov {LOCKED},0:if {SLOT} < {QUICK_SLOT} mov {TMP},{LOCK_BASE}+{SLOT}:mov {LOCKED},%%{}", &TMP[1..]));
+        w("return".into());
+        w("*conv_sg_popup_close".into());
+        w(format!("mov {POPUP_AT},0:csp {POPUP_WINDOW}:{}", POPUP_BUTTONS.map(|n| format!("csp {n}")).join(":")));
+        w("return".into());
+
+        w("*conv_sg_popup_click".into());
+        w("gosub *conv_sg_popup_state:gosub *conv_sg_popup_close:print 1".into());
+        w(format!("if {BUTTON_VAR} == {} goto *conv_sg_load", BTN_POPUP[1]));
+        w(format!("if {BUTTON_VAR} == {} goto *conv_sg_delete", BTN_POPUP[2]));
+        w(format!("if {BUTTON_VAR} == {} mov {TMP},{LOCK_BASE}+{SLOT}:mov %%{t},1-%%{t}:gosub *conv_sg_draw:print 10,150:goto *conv_sg_wait", BTN_POPUP[3], t = &TMP[1..]));
+        w(format!("if {HAS_DATA} == 0 goto *conv_sg_save"));
+        w(ask(Switch::ConfirmSave));
+        w("goto *conv_sg_save".into());
+    }
     w(format!("if {DELETING} == 1 goto *conv_sg_delete"));
     w(format!("if {MODE} == 2 goto *conv_sg_load"));
     w(format!("if {HAS_DATA} == 0 goto *conv_sg_save"));
@@ -220,7 +314,12 @@ pub(crate) fn emit(out: &mut String, g: &SaveGrid, confirm: Option<&ConfirmDialo
 
     w("*conv_sg_close".into());
     w("exbtn_d \"\":btndef clear".into());
-    w([PREVIOUS, NEXT, DELETE_ON, DELETE, CLOSE].map(|n| format!("csp {n}")).join(":"));
+    let popup_sprites: &[u32] = if g.popup.is_some() { &[POPUP_WINDOW, POPUP_BUTTONS[0], POPUP_BUTTONS[1], POPUP_BUTTONS[2], POPUP_BUTTONS[3]] } else { &[] };
+    let shown = [PREVIOUS, NEXT, DELETE_ON, DELETE, CLOSE].into_iter().chain(popup_sprites.iter().copied()).chain(TABS..TABS + g.tabs.len() as u32);
+    w(shown.map(|n| format!("csp {n}")).collect::<Vec<_>>().join(":"));
+    if g.popup.is_some() {
+        w(format!("mov {POPUP_AT},0"));
+    }
     w("popscreen".into());
     // The scene first, then the window: texton drops the pending screen
     // updates but the window's.
@@ -242,6 +341,16 @@ pub(crate) fn emit(out: &mut String, g: &SaveGrid, confirm: Option<&ConfirmDialo
     }
     w(format!("lsp {HOVER},\":a;{}\",0,0:vsp {HOVER},0", path(&g.hover.image)));
     w(format!("mov {FIRST},{PAGE}*{slots}-{}", slots - 1));
+    if g.quick_page {
+        w(format!("if {quick} mov {FIRST},{QUICK_SLOT}"));
+    }
+    if g.popup.is_some() {
+        w(format!("mov {POPUP_AT},0:csp {POPUP_WINDOW}:{}", POPUP_BUTTONS.map(|n| format!("csp {n}")).join(":")));
+    }
+    for (t, tab) in g.tabs.iter().enumerate() {
+        let n = TABS + t as u32;
+        w(format!("lsp {n},\":a/4,0,3;{}\",{},{}:if {PAGE} == {} cell {n},2", path(&tab.image), tab.x, tab.y, t + 1));
+    }
     let (pw, ph) = (g.preview.w, g.preview.h);
     let zoom = pw * 100 / g.thumb_w as i32;
     // The preview sprite is zoomed about its centre.
@@ -252,6 +361,20 @@ pub(crate) fn emit(out: &mut String, g: &SaveGrid, confirm: Option<&ConfirmDialo
         w(format!("mov {SLOT},{FIRST}+{i}:gosub *conv_sg_data"));
         w(format!("lsp {},\":c;>{},{},#000000\",{x},{y},0", HITS + i, g.thumb_w, g.thumb_h));
         w(format!("if {HAS_DATA} == 1 lsp {},{THUMB_IMAGE},{x},{y}", THUMBS + i));
+        if let Some(e) = &g.empty {
+            w(format!("if {HAS_DATA} == 0 lsp {},\":a;{}\",{},{}", THUMBS + i, path(&e.image), x + e.x, y + e.y));
+        }
+        if let Some(p) = &g.popup {
+            let l = &p.locked;
+            w(format!(
+                "if {HAS_DATA} == 1 && {SLOT} < {QUICK_SLOT} mov {TMP},{LOCK_BASE}+{SLOT}:if %%{} == 1 lsp {},\":a;{}\",{},{}",
+                &TMP[1..],
+                LOCKED_MARKS + i,
+                path(&l.image),
+                x + l.x,
+                y + l.y
+            ));
+        }
         w(format!("if {HAS_DATA} == 1 lsp {},{THUMB_IMAGE},{px},{py}:spzoom {},{zoom}:vsp {},0", d + 4, d + 4, d + 4));
         for (k, (t, text)) in [&g.date, &g.play_time, &g.chapter, &g.line].iter().zip(TEXTS).enumerate() {
             w(format!("{}:vsp {},0", grid_text(d + k as u32, t, text), d + k as u32));
@@ -266,9 +389,16 @@ pub(crate) fn emit(out: &mut String, g: &SaveGrid, confirm: Option<&ConfirmDialo
     w("*conv_sg_data".into());
     w("gosub *conv_sl_file".into());
     w(format!("savefileexist {HAS_DATA},{SLOT}"));
+    if g.quick_page {
+        // The quick page's other slots stay empty.
+        w(format!("if {SLOT} > {QUICK_SLOT} && {SLOT} < {} mov {HAS_DATA},0", QUICK_SLOT + slots));
+    }
     w(format!("if {HAS_DATA} == 0 mov {},\"\":mov {},\"\":mov {},\"\":mov {},\"　データ無し\":return", TEXTS[0], TEXTS[1], TEXTS[2], TEXTS[3]));
     w(format!("getsavestr {LABEL},{SLOT}"));
     w(format!("split {LABEL},\"|\",{}", TEXTS.join(",")));
+    if !g.play_time_prefix.is_empty() {
+        w(format!("mov {STR_TMP},\"{}\":add {STR_TMP},{t}:mov {t},{STR_TMP}", escape(&g.play_time_prefix), t = TEXTS[1]));
+    }
     w("return".into());
     // The thumbnail's file name (as the save menu names it).
     w("*conv_sl_file".into());
@@ -296,7 +426,7 @@ fn grid_text(slot: u32, t: &GridText, text: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use conv_core::ir::Rect;
+    use conv_core::ir::{Rect, SlotPopup};
 
     fn placed(name: &str, x: i32, y: i32) -> Placed {
         Placed { image: format!("sys/{name}.png"), x, y, w: 60, h: 80 }
@@ -335,6 +465,11 @@ mod tests {
             saved: Some(placed("saved", 462, 88)),
             fade_ms: 300,
             across: false,
+            tabs: Vec::new(),
+            popup: None,
+            empty: None,
+            quick_page: false,
+            play_time_prefix: String::new(),
         }
     }
 
@@ -363,5 +498,36 @@ mod tests {
         assert!(out.contains("savegame2 %103,$100\nmov %102,%103:gosub *conv_scene_keep\n"), "{out}");
         assert!(out.contains("mov %2906,%103\nloadgame %103\n"), "{out}");
         assert!(out.contains("delsavegame %103,$103\nmov %102,%103:gosub *conv_scene_drop\n"), "{out}");
+    }
+
+    #[test]
+    fn popup_tabs_locks_and_quick_page() {
+        let mut g = grid();
+        g.tabs = vec![placed("tab1", 157, 0), placed("tab2", 299, 0)];
+        g.quick_page = true;
+        g.empty = Some(placed("empty", 0, 0));
+        g.play_time_prefix = "PLAY TIME ".into();
+        g.popup = Some(SlotPopup {
+            window: placed("window", 0, 0),
+            save: placed("save", 0, 1),
+            load: placed("load", 82, 0),
+            delete: placed("delete", 82, 47),
+            lock: placed("lock", 0, 47),
+            unlock: placed("unlock", 0, 47),
+            locked: placed("locked", -2, -2),
+        });
+        let mut out = String::new();
+        emit(&mut out, &g, None, 1024, 576, false);
+        // The current page's tab is no button; the other one picks its page.
+        assert!(out.contains("if %900 != 2 spbtn 17,111\n"), "{out}");
+        assert!(out.contains("lsp 17,\":a/4,0,3;sys\\tab2.png\",299,0:if %900 == 2 cell 17,2\n"), "{out}");
+        // The second page is the quick page: the quick save first.
+        assert!(out.contains("if %900 == 2 mov %106,890\n"), "{out}");
+        // Save is off on a locked slot, outside the game and on the quick page.
+        assert!(out.contains("if %164 > 0 notif %165 == 1 || %101 == 0 || %900 == 2 spbtn 11,105\n"), "{out}");
+        // The lock is a global per slot, toggled by its button.
+        assert!(out.contains("mov %165,0:if %103 < 890 mov %105,1010+%103:mov %165,%%105\n"), "{out}");
+        assert!(out.contains("if %9 == 108 mov %105,1010+%103:mov %%105,1-%%105:"), "{out}");
+        assert!(out.contains("mov $104,\"PLAY TIME \":add $104,$111:mov $111,$104\n"), "{out}");
     }
 }

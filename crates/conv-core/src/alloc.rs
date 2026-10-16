@@ -5,7 +5,7 @@
 //! one of these ranges.
 //!
 //! Free for games: %10-%20 and %29-%99 (locals), %196-%899 (%290 up in a
-//! script with a tile puzzle, [`PUZZLE`]), %1011-%1999,
+//! script with a tile puzzle, [`PUZZLE`]), %1111-%1999,
 //! %5096 up (to the script's 8,192). Engines today: Xuse %10-%12 and its
 //! presets from %40, globals %200 up; Nitroplus fork variables %50-%80,
 //! story locals from %300, `#` globals %800-%899 then %5200 up; MAGES
@@ -23,6 +23,7 @@ pub const RESERVED: &[(RangeInclusive<u32>, &str)] = &[
     (21..=28, "the animation's state per link-scene level (ANIMATION_SAVED + depth)"),
     (100..=195, "menus and screens: scratch, backlog, bars, replays, galleries, overlay and static per link level, scene stack"),
     (900..=1010, "the classic menus' globals: save page, volumes, text speed, settings; deleted slots %910 + slot; voice switches %970 + character"),
+    (1011..=1110, "save grid locks: %1010 + slot (1-100)"),
     (2000..=2199, "link targets visited"),
     (2200..=2775, "CGs seen (9 × 64)"),
     (2800..=2899, "movies seen"),

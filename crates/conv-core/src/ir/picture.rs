@@ -64,6 +64,20 @@ pub struct SaveGrid {
     /// Slots run along the rows instead, left to right then down:
     /// `column_step` apart in a row, the next row `row_step` below.
     pub across: bool,
+    /// Tabs that pick a page each (strips: at rest, under the pointer,
+    /// current, pressed); the current page's tab shows its third cell and
+    /// is not a button. Empty: previous and next only.
+    pub tabs: Vec<Placed>,
+    /// A click on a slot opens this window by it instead of acting at
+    /// once: one screen for saving and loading.
+    pub popup: Option<SlotPopup>,
+    /// In a slot with no save, `x`,`y` from its top left.
+    pub empty: Option<Placed>,
+    /// The last page shows the quick save in its first slot (the rest
+    /// empty), loadable but not saved over or locked.
+    pub quick_page: bool,
+    /// Put before the play time.
+    pub play_time_prefix: String,
 }
 
 /// A text of [`SaveGrid`]: its box's top left (for vertical text, its top
@@ -599,4 +613,22 @@ pub struct TurntableEntry {
     pub cells: u32,
     pub frame_ms: u32,
     pub zoom: u32,
+}
+
+/// [`SaveGrid::popup`]: a window and its buttons, each `x`,`y` from the
+/// clicked slot's top left. Buttons are strips: at rest, under the
+/// pointer, disabled, pressed. Save is disabled on a locked slot and
+/// outside the game, Load and Lock on an empty slot, Delete on an empty or
+/// locked one. Lock (`unlock` while the slot is locked) toggles the lock,
+/// a global per slot, shown by `locked` over the slot. A right-click
+/// closes it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SlotPopup {
+    pub window: Placed,
+    pub save: Placed,
+    pub load: Placed,
+    pub delete: Placed,
+    pub lock: Placed,
+    pub unlock: Placed,
+    pub locked: Placed,
 }
