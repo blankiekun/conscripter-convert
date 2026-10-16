@@ -628,7 +628,7 @@ a copy of the save works.
   dry-run note and a gap in `metrics.json`, except the filler (`NO_SUB`,
   `NO_ARG`) and the harmless table ("Operand coverage"), each row with
   the values it covers. Merged.
-- Open: speaker names from `sub` bit 0, PR #NEW (History, item 27):
+- Open: speaker names from `sub` bit 0, PR #102 (History, item 27):
   4,867 notes of 20 kinds left; 80,285 of 84,713 calls fully converted
   (was 49,328).
 - Next session: `0x52`/`0x53` `arg` (item 34, read in the exe),
