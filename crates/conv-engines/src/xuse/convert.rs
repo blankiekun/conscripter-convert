@@ -3238,7 +3238,7 @@ const POOL_RECORDS: [u16; 44] = [
 /// Operands the converter doesn't read because they don't matter:
 /// (opcode, operand as [`CdScript::ignored`] names it, why).
 const UNNEEDED_OPERANDS: &[(u16, &str, &str)] = &[
-    (0x41, "sub", "0x13 in every voiced message: bit 0 (has a voice) is the opcode itself"),
+    (0x41, "sub", "0x13 in every voiced message: every one has a speaker name (bit 0)"),
     (0x40, "+8", "the source script's line number (`cd messages` prints it)"),
     (0x41, "+8", "the source script's line number (`cd messages` prints it)"),
     (0x40, "-8", "u32 4, u32 0 after the text of every story message"),
