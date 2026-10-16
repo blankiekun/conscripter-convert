@@ -58,10 +58,10 @@ The RomFS, 21 GB, 16,729 files:
 | `parts.{hed,mrg}` | not yet looked at |
 | `allscr.mrg` (9 MB) | Scripts: an MZP (magic `mrgd00`, no `.hed`) of 552 entries. Entry 0: 550 script names, 32 bytes each (`START_SCRIPT`, `00_00`, `01_00_ARC01_1`, …, `JUMPQA`); entries 1 and 2 unknown; 3 onwards: one MZX0-compressed script per name |
 | `script_text.mrg` (5 MB) | The text: an MZP of 10 entries, in pairs (big-endian u32 offset table, UTF-8 strings). The first pair is the Japanese text (3.4 MB); the other four pairs are small, not yet looked at |
-| `stream/*.opus` (16,601) | Voices (`A00_01_00_0000_0.opus`) and songs; Nintendo's Opus framing (header word `0x80000001`), not Ogg: ffmpeg can't read them as they are |
+| `stream/*.opus` (16,601) | Voices (`A00_01_00_0000_0.opus`) and songs, 30.1 hours; Nintendo's Opus framing (`typemoon/nxopus.rs`): 48 kHz, 16,468 mono, 133 stereo, pre-skip 120, no sample count or loop points in the file. `typemoon sounds` repacks them into Ogg Opus (no re-encode). The same files in both RomFS copies |
 | `movie/*.mp4` (46) | H.264 1920×1080 + AAC 48 kHz: ffmpeg reads them |
 | `ja*/` | Fonts (TT_TsukuMin-D, TT_TsukuGo-D, FOT-SeuratPro-M) |
-| `knife1.bfsar` (386 MB) | Nintendo sound archive: 1,298 embedded FWAV, no FSTM (sound effects, maybe BGM) |
+| `knife1.bfsar` (386 MB) | Nintendo sound archive (`typemoon/bfsar.rs`, `fwav.rs`): 1,297 wave sounds (`WSD_moon_se02093`, `WSD_woh_*`, `WSD_fate_*`, …; 1,300 in the patched copy, which adds `WSD_mix_se032`–`034`), all DSP ADPCM 48 kHz, 195 looping (107 from inside the wave); and 16,596 stream sounds `STRM_*`, whose files are the `stream/*.opus` above (their names are in the archive's file table). `typemoon sounds` writes each wave sound as `se/<name>.wav` |
 | `shader/*.bnsh`, `exfont_nx01.bffnt` | Switch shaders and font, not needed |
 
 How the formats nest, checked over every entry of both RomFS copies
@@ -109,10 +109,8 @@ the inflated NXGZ textures as BNTX in Switch Toolbox. Nobody documents
 the script semantics beyond mangetsu's guesses: that is ours to work
 out (the exe `main` is an NSO, to load in Ghidra).
 
-Not covered by anything found: Nintendo Opus to Ogg Opus (simple:
-repack the frames into Ogg pages, as vgmstream reads them),
-FWAV extraction from `knife1.bfsar` (vgmstream and Switch Toolbox read
-it; a Rust reader is small). BNTX: our deswizzle (a few lines) and
+Not covered by anything found, and ours now: Nintendo Opus to Ogg
+Opus, the BFSAR chain to each wave sound's FWAV, DSP ADPCM. BNTX: our deswizzle (a few lines) and
 the `bcdec_rs` crate for BC blocks.
 
 ## Script language
@@ -143,22 +141,36 @@ Nothing yet.
 | Survey of existing tools | ✅ (see "Existing tools") |
 | Archives (`hed`/`mrg`/`nam`, MZP, MZX, NXGX/NXCX) | ✅ every entry of both RomFS copies |
 | Pictures (BNTX) | ✅ every texture of both RomFS copies decodes |
-| `knife1.bfsar` sound | ❌ |
+| Sound (`stream/*.opus`, `knife1.bfsar`) | ✅ every sound of both RomFS copies converts |
 | Scripts | ❌ |
 | Everything after (text, pictures, screens, extras) | ❌ |
 
 ### Next
 
-1. Sound: Nintendo Opus to Ogg Opus; FWAV out of `knife1.bfsar`.
-2. Decode `allscr.mrg` (MZX, split into commands), join the text from
+1. Decode `allscr.mrg` (MZX, split into commands), join the text from
    `script_text.mrg`, rank the commands by use.
    Both languages: the base RomFS and the patched one, and how the
    patch's `allscr.mrg` differs (its extra entries).
-3. Write the walkthrough.
-4. Pictures for the build: cut the sprite atlases (body and faces in
+2. Write the walkthrough.
+3. Pictures for the build: cut the sprite atlases (body and faces in
    one texture) by the numbers the script or the exe gives.
+4. Sound for the build: how the scripts name sounds (the `WSD_`/`STRM_`
+   names or the file names), the looping wave sounds' loop points
+   (SDL_mixer loops a WAV whole), and where music loops (not in the
+   Opus files: the bfsar's stream info or the exe).
 
 ## History
+
+- 2026-10-16: sound (`typemoon/nxopus.rs`, `bfsar.rs`, `fwav.rs`;
+  `conscripter-convert typemoon sounds <romfs> -o <dir>`, 9 s). Both
+  RomFS copies: 16,601 streams to Ogg Opus (identical in both), 1,297
+  (Japanese) and 1,300 (English) wave sounds to WAV. Checked: ffmpeg
+  decodes every Ogg with no error; for 910 of them (every 150th voice
+  and every music file) the decoded length equals the granule count
+  less the pre-skip. DSP ADPCM: the 107 (108) waves that loop from
+  inside store the decoder state at the loop start, and our samples
+  before it match it on every channel (a change in the rounding makes
+  106 of them fail).
 
 - 2026-10-16: pictures (`typemoon/bntx.rs`, `typemoon extract --png`):
   BNTX parse, Tegra block-linear deswizzle, BC1/BC2/BC3/BC4/BC7 blocks

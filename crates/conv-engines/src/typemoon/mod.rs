@@ -3,10 +3,13 @@
 //! compression. Formats as read by mangetsu (MIT) and deepLuna (BSD-2),
 //! checked over the whole game (`docs/games/tsukihime.md`).
 
+pub mod bfsar;
 pub mod bntx;
+pub mod fwav;
 pub mod mrg;
 pub mod mzp;
 pub mod mzx;
+pub mod nxopus;
 pub mod nxx;
 
 use std::borrow::Cow;

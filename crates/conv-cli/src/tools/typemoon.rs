@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 use clap::Subcommand;
-use conv_engines::typemoon::{self, bntx, mrg, mzp};
+use conv_engines::typemoon::{self, bfsar, bntx, fwav, mrg, mzp, nxopus};
 
 use crate::{map, safe_relative_path};
 
@@ -34,6 +34,14 @@ pub enum TypemoonCommand {
     /// entries of MZPs inside), decode every picture, and count what is
     /// inside and what fails
     Check { dir: PathBuf },
+    /// Convert a RomFS folder's sound: `stream/*.opus` (Nintendo Opus) to
+    /// `<output>/stream/*.ogg`, and every wave sound of `knife1.bfsar` to
+    /// `<output>/se/<name>.wav`; counts them and fails on any error
+    Sounds {
+        dir: PathBuf,
+        #[arg(short, long)]
+        output: PathBuf,
+    },
 }
 
 pub fn run(command: TypemoonCommand) -> Result<()> {
@@ -44,6 +52,7 @@ pub fn run(command: TypemoonCommand) -> Result<()> {
         }),
         TypemoonCommand::Extract { archive, output, prefix, png } => extract(&archive, &output, &prefix.to_lowercase(), png),
         TypemoonCommand::Check { dir } => check(&dir),
+        TypemoonCommand::Sounds { dir, output } => sounds(&dir, &output),
     }
 }
 
@@ -175,3 +184,51 @@ fn check(dir: &Path) -> Result<()> {
     Ok(())
 }
 
+
+fn sounds(dir: &Path, output: &Path) -> Result<()> {
+    let mut failed = Vec::new();
+    let out = output.join("stream");
+    fs::create_dir_all(&out)?;
+    let mut streams: Vec<PathBuf> = fs::read_dir(dir.join("stream"))?.map(|e| e.map(|e| e.path())).collect::<Result<_, _>>()?;
+    streams.sort();
+    let (mut count, mut seconds) = (0, 0.0);
+    for path in &streams {
+        let name = path.file_name().unwrap().to_string_lossy();
+        match nxopus::to_ogg(&map(path)?) {
+            Ok((ogg, samples)) => {
+                fs::write(out.join(path.with_extension("ogg").file_name().unwrap()), ogg)?;
+                (count, seconds) = (count + 1, seconds + samples as f64 / 48000.0);
+            }
+            Err(e) => failed.push(format!("{name}: {e}")),
+        }
+    }
+    println!("stream: {count} of {} to Ogg Opus, {:.1} hours", streams.len(), seconds / 3600.0);
+
+    let out = output.join("se");
+    fs::create_dir_all(&out)?;
+    let bfsar = map(&dir.join("knife1.bfsar"))?;
+    let waves = bfsar::wave_sounds(&bfsar).context("reading knife1.bfsar")?;
+    let mut kinds = BTreeMap::<String, usize>::new();
+    for w in &waves {
+        match fwav::decode(w.fwav) {
+            Ok(wave) => {
+                let looped = match wave.looped {
+                    None => "",
+                    Some((0, _)) => ", loops from the start",
+                    Some(_) => ", loops from inside",
+                };
+                *kinds.entry(format!("{} ch {} Hz{looped}", wave.channels, wave.rate)).or_default() += 1;
+                let file = out.join(safe_relative_path(&format!("{}.wav", w.name)).with_context(|| format!("unsafe name {:?}", w.name))?);
+                fs::write(file, fwav::to_wav(&wave))?;
+            }
+            Err(e) => failed.push(format!("{}: {e}", w.name)),
+        }
+    }
+    let kinds: Vec<String> = kinds.iter().map(|(k, n)| format!("{n} {k}")).collect();
+    println!("knife1.bfsar: {} wave sounds ({})", waves.len(), kinds.join("; "));
+    for e in failed.iter().take(5) {
+        println!("  {e}");
+    }
+    anyhow::ensure!(failed.is_empty(), "{} sounds failed", failed.len());
+    Ok(())
+}
