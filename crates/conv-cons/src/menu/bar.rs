@@ -129,7 +129,7 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, s: BarScreens) {
     // save, a trace) skips *start, and the print below would hide the window.
     w("erasetextwindow 0".into());
     if s.game_speed.is_some() {
-        w("gamespeed 100".into());
+        w("consset \"gamespeed\",100".into());
     }
     if menu.is_some() {
         w(format!("mov {},0", crate::command_menu::GO_ON));
@@ -190,7 +190,7 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, s: BarScreens) {
         w(format!("csp {slot}"));
     }
     if let Some(v) = s.game_speed {
-        w(format!("gamespeed {v}"));
+        w(format!("consset \"gamespeed\",{v}"));
     }
     w("texec".into());
     w("return".into());

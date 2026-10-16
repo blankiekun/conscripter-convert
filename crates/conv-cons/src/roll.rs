@@ -16,7 +16,7 @@ pub(crate) fn emit(out: &mut String, i: usize, op: &Op, script: &Script) {
     let Op::MusicRoll { layer, dy, song, song_ms, next, after_ms, skippable } = op else { return };
     let (slot, name) = (SPRITE_BASE + layer, format!("conv_roll{i}"));
     // (gettimer counts at the gamespeed.)
-    writeln!(out, "gamespeed 100").unwrap();
+    writeln!(out, "consset \"gamespeed\",100").unwrap();
     // Not started yet (no music, or a `bgmlater` still to come, which the
     // next one replaces): from its start now.
     writeln!(out, "getbgmpos %1:if %1 <= 0 bgmonce \"{}\":mov %1,0", path(song)).unwrap();
