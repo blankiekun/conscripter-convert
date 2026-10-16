@@ -74,7 +74,7 @@ pub(crate) fn emit(out: &mut String, r: &PictureReplay, border: u32, music: Opti
         w(format!("screenzoom {slot}"));
     }
     w(format!("bgmvolfade 0,{}:wait {}", r.end_ms, r.end_ms));
-    w("csp -1:csp2 -1:bgmstop:stopallsound:bgmvolfade 100:textclear:erasetextwindow 1:bg black,1".into());
+    w("csp -1:csp2 -1:bgmstop:stopallsound:bgmvolfade 100:textclear:textoff:bg black,1".into());
     if let Some(m) = music {
         w(m.to_string());
     }

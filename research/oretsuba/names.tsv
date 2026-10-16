@@ -59,3 +59,67 @@
 81166d4c	cfg_message_speed	message speed (default 55: 普通)
 8119327f	cfg_window_opacity	window opacity 0-100 (default 70)
 8106551c	music_room_new	music room constructor: mode +0x30 = 0, then play-on +0x2d = mode odd (0), repeat +0x2c = 1; nothing else writes them on the Vita
+# Pass 2 (docs/new-game.md §2, "Mapping the whole exe"): code reached only
+# through a pointer (`&LAB_…_1` in decomp/, Thumb), made functions. Most are
+# CRI middleware and SDK callbacks (thread entries, atexit destructors).
+81035aa4	cb_81035aa4	thread entry passed by 0x8103663a to three thread/job starters
+8112b474	cb_8112b474	static destructor (__cxa_atexit from 0x8104c64e)
+8112c498	cb_8112c498	static destructor (__cxa_atexit from 0x8105071a)
+8109128e	cb_8109128e
+81091298	cb_81091298
+8109e170	cb_8109e170
+8109e298	cb_8109e298
+810b4ff8	cb_810b4ff8
+810b857c	cb_810b857c
+810d66a2	cb_810d66a2
+810d66ce	cb_810d66ce
+810d707c	cb_810d707c
+810d7084	cb_810d7084
+810d708c	cb_810d708c
+810dc09e	cb_810dc09e
+810e3c6a	cb_810e3c6a
+810f14e8	cb_810f14e8
+810f49ec	cb_810f49ec
+810f7224	cb_810f7224
+810f96a0	cb_810f96a0	callback given with "...DLG" by 0x810f90f8 (a common dialog)
+810f97c0	cb_810f97c0
+810fa008	cb_810fa008
+81110e72	cb_81110e72
+81110e7a	cb_81110e7a
+81113382	cb_81113382
+8109e3c2	cb_8109e3c2	second round: pointers stored by cb_8109e170/cb_8109e298
+8109e3d0	cb_8109e3d0	second round: pointers stored by cb_8109e170/cb_8109e298
+8109e3de	cb_8109e3de	second round: pointers stored by cb_8109e170/cb_8109e298
+8109e3f4	cb_8109e3f4	second round: pointers stored by cb_8109e170/cb_8109e298
+8109e402	cb_8109e402	second round: pointers stored by cb_8109e170/cb_8109e298
+8109e40e	cb_8109e40e	second round: pointers stored by cb_8109e170/cb_8109e298
+# Pass 3: libc / libstdc++ / kernel import stubs, named from how they are
+# called (VitaLoaderRedux leaves SceLibc NIDs unnamed).
+81131424	__stack_chk_fail	SceLibKernel 0x37691BF8, at the end of nearly every function
+81131b44	memset	SceLibc 0x6DC1F0D8
+81131b54	memcpy	SceLibc 0x7205BFDB (dst, src, n)
+81131bc4	strcpy	SceLibc 0x85B924B7
+81131a64	strcat	SceLibc 0x1434FA46 (appends "/media/List1.png" to the root strcpy'd before)
+81131b64	sprintf	SceLibc 0x7449B359 (builds the "TaskList/Task%d/..." keys)
+81131a74	strcmp	SceLibc 0x1B58FA3B (task type names: exact, case-sensitive)
+81131bd4	strlen	SceLibc 0x8AECC873
+81131b84	malloc	SceLibc 0x775A0CB2
+81131b34	free	SceLibc 0x5B9BB802
+81131c24	printf	SceLibc 0x9A004680 (debug messages)
+81131cc4	rand	SceLibc 0xC0883865 (result x 1/2^31)
+81131d74	__cxa_atexit	SceLibc 0xEDC939E1 (object, destructor, &__dso_handle)
+81131c34	strncpy	SceLibc 0x9F87712D (dst, src, size - 1)
+81131e14	operator_new	SceLibstdcxx 0xF99ED5AC (size)
+81131de4	operator_delete	SceLibstdcxx 0x72293931
+81131dd4	std_Xlength_error	SceLibstdcxx 0x2F6A7265 ("vector<T> too long")
+# Script reader helpers (the scripts are a tree of [Block] { :Key values }).
+8108cabe	cfg_find	document, "A/B/C" key path (split at '/'), start node, max depth: the node, or 0 when the key is absent
+8108c8a8	cfg_number	node, index: the key's index-th value as a float (0 when missing)
+# Task records made by scene_load (0x8102840a), one class per task type.
+8112963c	task_charopen_new	CharacterOpen (0x1b) / CharacterOpenBS (0x80) record: 10 characters; fade step +0x14 = 1/9 per update by default (= :Fade 18); :Fade F sets 1/(F x 30/60); :Chara%d/Copy c adds c x 1000 to the character number (two pictures of one character)
+81129758	task_chardelete_new	CharacterDelete (0x1c) record: FadeWait +0x10 = 1 by default; each character's fade step 1/9 per update (= :Fade 18) unless :Fade/:FadeOut
+# CRI middleware (recognised by its "E1006…" error strings; not mapped further)
+8108ef70	cri_error	CRI error reporter (error code to message table 0x81149b34)
+8108f27a	cri_warning	CRI message callback (two hooks at 0x811638ec/0x811638f0)
+8110c81c	cri_cs_enter	CRI critical section enter (E10062221)
+8110c86a	cri_cs_leave	CRI critical section leave (E10062223)

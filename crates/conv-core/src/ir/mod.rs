@@ -537,6 +537,11 @@ pub enum Op {
     /// staying at the last key's. 続・殺戮のジャンゴ's muzzle flashes: a
     /// white screen added on, flashing.
     SpriteFlashing { layer: u32, keys: Vec<(u32, u32)>, times: u32 },
+    /// Draws a layer's sprite turned `degrees` counterclockwise about the
+    /// centre of its place, from now until the layer is cleared (a motion's
+    /// angle adds to it). 装甲悪鬼村正's battle HUD: the roll bar and the
+    /// sky tilted as the craft rolls.
+    SpriteAngle { layer: u32, degrees: i32 },
 }
 
 /// [`Op::HoldMovie`]'s prompt: `image` is `cells` pictures side by side,

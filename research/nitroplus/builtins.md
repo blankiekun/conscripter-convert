@@ -60,6 +60,205 @@ Muramasa.exe reads the `.nss` text directly. Names below are from
   values `AvailableFile`, `BacklogLine`, `BacklogRow`, `MilliTime`,
   `MountSavedata`, `SoundAmplitude`, `Strlen`.
 
+### Django.exe (続・殺戮のジャンゴ, NitroplusSystem2.0)
+
+The older engine (2008), mapped from its 1.01 exe: names in
+`research/nitroplus/django-names.tsv`. The 1.01 update's `Django.exe`
+is packed (all sections encrypted, Ghidra finds no function); the
+addresses are those of the unpacked 1.01 exe (the no-CD one used under
+wine, `docs/games/django.md`). What differs from Muramasa.exe:
+
+- **Statements**: `dispatch_builtin` (`00404320`) compares 75 names the
+  same way (case-sensitive, then `(`, space, tab, full-width space or
+  line break; `dispatch.py` decodes it). Muramasa's that Django lacks:
+  `CreateCube`, `CreateDifferenceTexture`, `CreateStencil`,
+  `CreateSurface`, `Escape`, `LoadFile`, `UnloadFile`, `MoveCube`,
+  `MoveCursor`, `Position`, `SetFov`, `SetLoopPoint`, `SetScrollSpeed`,
+  `SetShortcut`, `SetSurface`, `WaitText`. Every built-in Django's
+  scripts call is in the table or the evaluator.
+- **Values**: `eval_primary` (`0042b150`) knows 15: `Random`,
+  `RemainTime`, `DurationTime`, `PassageTime`, `ImageHorizon`,
+  `ImageVertical`, `EnableBacklog`, `ExistSave`, `ReadFile`,
+  `BacklogRow`, `BacklogLine`, `ScrollbarValue`, `Time`, `Integer`,
+  `EnableDirect3DHAL`. No `String`, `Count`, `Array`, `Conquest`,
+  `MilliTime`, `Strlen`.
+- **Constants** (`NULL`, `TRUE`, `FALSE`, `AUTO`, the font weights,
+  `LOCAL`/`GLOBAL`) are compared letter by letter in either case
+  (`== 'N' || == 'n'`), not by the sum of their characters.
+- **`$SYSTEM_` variables**: `set_system_variable` (`0045dac0`) takes
+  the name after its 8-character prefix (`$SYSTEM_` or `#SYSTEM_`
+  alike) and compares it exactly with 35 names, one switch case each:
+  `play_speed` (the text speed level, 1-12, default 3), `sound_bgm`,
+  `sound_se`, `sound_voice`, `sound_volume_bgm`/`se`/`voice` (0-1000),
+  `window_full`, `menu_lock` (turns skip off and shows the text window),
+  `backlog_lock` (nothing), `text_auto`, `text_speed`, `text_erase`
+  (hides the window), `spt_name` (nothing), `skip`, `keep_skip`,
+  `skip_absolute`, `voice_enable_list`, `voice_enable_another`,
+  `product_code` (must be `ZokuSatsurikunoJyango` or the game quits),
+  `text_interval`, `current_path`, `auto_wait_per_character`,
+  `auto_text_break_voice`, `click_break_voice`, `save_last_select`,
+  `last_text` (fed character by character to the text log),
+  `show_cursor` (falls through into `break_play_movie`: setting it
+  sets both), `break_play_movie`, `low_thread_priority` (thread
+  priority only), `text_erase_lock` (shows the window), `skip_lock`
+  (turns skip off), `video_aspect_fixed`, `save_lock`, `load_lock`.
+  The others the scripts set (`menu_enable`, `menu_save_enable`,
+  `menu_load_enable`, `menu_config_enable`, `menu_close_enable`,
+  `backlog_enable`, `backselect_lock`) are plain variables, read by
+  name where they matter: the right-click menu (`0045f5a0`) and the
+  input handler (`004503b0`). `backselect_enable` is read nowhere.
+- **Stack strings** come out of Ghidra as `builtin_strncpy(local_40,
+  "$SYSTEM_",8)` plus array stores; `stackstrings.py` joins both.
+- **`Request`** actions are compared exactly (case-sensitive) by a chain:
+  the object's own parser first, then `request_render`, then
+  `request_lock`. Process: `Open`, `Start`, `Pause`, `Resume`. Sound and
+  movie: `Play`, `Pause`, `Stop`, `Resume`, `CompulsorySuspend`,
+  `EntrustSuspend`. Scrollbar: `Increment`, `Decrement`, `Next`,
+  `Prev`. Every object: `Erase`, `Enter` (starts showing; a text types
+  out), `Smoothing`/`UnSmoothing` (texture filtering on/off),
+  `NormalRender`/`AddRender`/`SubRender` (blend mode normal, additive,
+  subtractive), then `Disused`, `Lock`, `UnLock`. **No `NoLog`,
+  `PushText`, `NoIcon`, `Hideable` or `Passive`**: the scripts' 18
+  `NoLog`/`PushText`/`NoIcon` requests do nothing in Django.
+- **Text tags** (`parse_text_tag`, `00463700`), names in either case:
+  `FONT` (`INCOLOR=`, `OUTCOLOR=`, `FACE=`, `SIZE=`), `I`, `U`, `S`,
+  `K`, `CENTER`, `MIDDLE`, `PRE`, `WAIT`, `INTERVAL`, `RUBY` (`text=`),
+  `VOICE` (`NAME=`, `CLASS=`, `MODE=`, `SRC=`). No `BR` (used once, in
+  `$SYSTEM_last_text`) and no `continuation` (only in `//` comments). An
+  unknown tag matches no branch and is read up to its `>`
+  (**unverified**).
+- `_ftol2` is `004b4dcc`; `CreateEffect` kinds are parsed in
+  `00422110` (`NegaPosi`, `Monochrome`, `Sepia`, `KitanoBlue`, `Drop`,
+  `FloatBubble`, `Rain`, `LookupRain`, `Mosaic`, the waves, the splits,
+  `TurnOver`, `Ripple`).
+
+## In the scripts: coverage
+
+What the converter does with every script file and every name the
+scripts use (`docs/new-game.md` §2, "Covering the scripts too"; 2026-10-15).
+Sources: `nss route`, `nss refs`, `nss builtins` over the 913 files of
+`nss.npa`, and the whole-game dry run's notes (`convert-nss … --dry-run`,
+the command in the game document). Counts in the "notes" column are
+compiled occurrences: a helper's body counts once per call. The gaps
+are in `docs/games/muramasa.md`, Status.
+
+**Files** (`nss.npa` 913, `system.npa` 2):
+
+| Files | Status |
+|---|---|
+| 883 story files (`ma`, `mb`, `mc`, `md`, `mz`) | compiled; `nss route`: all reachable, 9 forks with no `else` (Status) |
+| `0_boot_開始スクリプト.nss`, `function*.nss` (8) | compiled as the library, each function where the story calls it; `function_magiccube.nss` ported (`muramasa/magiccube.rs`); `function_select.nss`'s choice plates by `vertical_choice_style`; `function_quick.nss` → `screens.rs` `quick_bar`; process bodies not run (`CreateProcess`, below) |
+| `0_boot.nss` | replaced: title and openings (`screens.rs` `title`, `muramasa/opening.rs`); its 13 `SetShortcut` letters → `command_menu` |
+| `sys_menu` | `command_menu` |
+| `sys_save`, `sys_load` | `save_grid` |
+| `sys_config` | `settings` (its defaults, `ConfigFormat`, read for the sliders) |
+| `sys_backlog` | `line_log` |
+| `sys_close`, `sys_reset` | `confirm` |
+| `sys_backselect` | 選択肢に戻る (`BarAction::BackToChoice`) |
+| `sys_auto`, `sys_skip`, `sys_screen`, `sys_quicksave`, `sys_quickload` | menu actions and letters A, N, F, Q, P (`command_menu`); `sys_skip` is 超速スキップ, drawn as a plain skip (Status) |
+| `sys_hmode` | compiled (its ranking functions, `muramasa.rs`); the favour screen ported (`FAVOUR`) |
+| `extra_menu`, `extra_gallery`, `extra_sound`, `extra_recollection`, `extra_dimension` | `muramasa/extras.rs` |
+| `sys_edit.nss` | not used: debug editor, its shortcut D is commented out in `0_boot.nss` |
+| `prutestselect.nss` | not used: a choice-screen test nothing calls |
+| `system.ini` | read for data by hand (keys below) |
+| `vssver2.scc` | not used: Visual SourceSafe leftover |
+
+**Functions the scripts define** (1,736 definitions): 585 called from
+the story or the library (compiled inline), 273 only run as a
+`CreateProcess` body (not converted), 143 called only from the system
+and extra scripts (replaced with them), 18 only named by `Conquest` (a
+read-mark, not a call), 717 never called by a literal name (dead code:
+`function_cockpit.nss` alone has dozens of unused `CP*` helpers). The
+16 names nothing defines are skipped, as by the exe ("In the exe").
+
+**Built-ins** (114 names; `story`/`lib`/`sys` = static calls in the story
+files / the library / the system and extra scripts; converter as of the
+dry run):
+
+| Built-in | story / lib / sys | Converter |
+|---|---|---|
+| `Fade`, `Move`, `Delete`, `Zoom`, `Wait`, `SetVolume`, `ModuleFileName`, `SetAlias`, `WaitKey`, `Random`, `SetBlur`, `Reset`, `WaitAction`, `SetVertex`, `Conquest`, `CreateWindow`, `WaitPlay`, `CreateColor`, `RemainTime`, `Draw`, `ImageHorizon`/`Vertical`, `SetFont`, `WaitText`, `LockVideo`, `CreateSound`, `CreateName`, `SetLoop`, `Integer`, `Strstr`, `LoadText`, `WaitFade`, `WaitZoom`, `PassageTime`, `DurationTime`, `SetPan` | most story | converted (non-blocking `Move`/`Zoom` as cross-fades, Status) |
+| `Request` | 1,643 / 1,748 / 469 | actions below |
+| `DrawTransition`, `Shake`, `Rotate`, `CreateTexture`, `CreateEffect`, `CreateMovie`, `MoviePlay` | story | converted except the noted cases (`Shake` of a small picture 145, `CreateTexture` from an object or the screen 1,812, `CreateEffect` Rain/Sepia/Monochrome/KitanoBlue/NegaPosi/Lens/Drop 82, 3 transition masks missing) |
+| `CreateProcess`, `BezierMove`, `SetFrequency`, `SetShade`, `SetTone`, `MoveCamera`, `CreateCamera` | 287 / 193 / 30 … | not converted (Status) |
+| `SetBacklog` | 83 / 6 / 0 | not converted: 1,958 noted; the hand-made backlog lines (pictures, ASCII art) are missing from our log |
+| `CreateText` | 53 / 104 / 40 | story: not converted (Status); sys: replaced |
+| `LoadImage` | 30 / 16 / 101 | not converted for Muramasa (`Game::loaded_textures` is off; 487 noted): the sources of `CreateTexture` from an object |
+| `DrawEffect` | 79 / 0 / 2 | not converted (waves `SuperWave`, `LowWave`, …; 76 noted) |
+| `CreateStencil`, `CreateMask`, `SetSurface`, `CreateSurface` | 59 / 2 / 0 …; 30 / 1 / 1; 6 / 4 / 0; 0 / 3 / 0 | not converted (57, 28, 58, 52 noted) |
+| `SetLoopPoint` | 0 / 3 / 0 | not converted: the BGM helpers' loop points (33 noted) |
+| `String`, `VariableValue`, `Array`, `AssocArray`, `Count` | 2 / 52 / 64 …; mostly lib and sys | converted when the value is known at convert time; else noted (1,658, 1,584, 689, 165): `SetRoll`'s ending tables (Status), `sys_hmode` |
+| `CreateChoice`, `SetNextFocus`, `CursorPosition`, `MoveCursor`, `Position`, `Save` | 0 story | lib and sys only: replaced by our choices and screens (`function_select.nss`'s body gives the 153 notes each); `Position` in the battle HUD (`function_cockpit.nss`) goes with `CreateProcess` |
+| `ExistSave`, `DeleteSaveFile`, `Load`, `Time`, `ReadFile`, `WriteFile`, `ScrollbarValue`, `CreateScrollbar`, `SetScrollbar`, `SetScrollSpeed`, `SetShortcut`, `LoadColor`, `ClearScore`, `System`, `ClearBacklog`, `CreateBacklog`, `EnableBacklog`, `Message`, `Platform`, `SetStream`, `Exit`, `Escape`, `DateTime`, `EnableDirect3DHAL` | sys only | replaced by our screens and the engine's own save, log and settings |
+| `DialogChangeState`, `DialogChangeState2`, `DialogCautionSignIn`, `DialogConfigStorage`, `XBOX360_LockVideo`, `XBOX360_IsSignin`, `SceneFadeBG` | sys only | not built-ins: skipped by the exe too |
+| `CreateCube`, `SetFov`, `TextureRoll00H` | lib, 1 each | in process bodies only |
+
+**`Request` actions** (static count; converter):
+
+| Action | Uses | Converter |
+|---|---|---|
+| `Smoothing`, `Passive`, `Erase` | 1,055, 31, 120 | ignored |
+| `Disused`, `Lock`/`UnLock`, `Hideable`, `Play`, `Enter`, `Start` (process) | 606, 244/137, 108, 122, 116, 527 | converted |
+| `Stop`, `Pause` | 431, 2 | sounds and movies; on other objects noted (16, 2) |
+| `AddRender`, `MulRender`, `SubRender`, `OverlayRender`, `NormalRender` | 80, 46, 20, 9, 1 | blend modes: noted (2,555, 420, 60, 111, 1); `SubRender`/`AddRender` on a movie converted |
+| `NoLog`, `PushText` | 64, 42 | not converted: the ASCII-art pages (Status) |
+| `NoIcon` | 4 | dropped without a note (`@text…` objects the converter doesn't keep): the page's click icon still shows |
+| `CompulsorySuspend`, `EntrustSuspend` | 7, 1 | only in `SetRoll`'s and `ProcessRoll01`'s BGM handling (the staff roll, Status) |
+| `Clickable`, `UnClickable`, `Prev`, `Next`, `Increment`, `Decrement` | 18, 33, 1 each | system and extra scripts only: replaced |
+| `Smooting` | 2 | a typo: matched exactly by the exe, so it does nothing; noted, harmless |
+
+A `Request` on an object the converter has no record of returns without
+a note (`request` in `convert.rs`), so the notes undercount: `NoIcon` and
+the story `PushText`/`NoLog` on dropped `CreateText` objects show up
+only in this table.
+
+**Text tags** (static; the exe's set is under "Text" below): `<voice>`
+35,105, `<PRE>` 29,634, `<RUBY>` 13,849, `<k>`/`<K>` 444 converted;
+`<BR>` 16 (10 story files, 7 in `ma04_016vs`) converted as a line
+break, though the exe's tag list has no `BR` (check under wine whether
+it prints or breaks); `<FONT>` 27 in 9 files dropped (Status);
+`<VALUE>` 3 (`mc02_031`), converted when known at convert time; `<I>` 1
+(`ma04_017`, closed by `</FONT></I>`) converted; `<SPAN value=11>` 2,
+`sys_config`'s version page only (replaced).
+
+**`$SYSTEM_` variables** (117 names): the converter keeps them out of
+the story's state; read, they have their start value (false, 0). The
+story reads `$SYSTEM_skip`, `#SYSTEM_skip_express`,
+`#SYSTEM_skip_absolute` (the 超速スキップ `SkipOut` test, 774 files; never
+true here, so the scene always plays), `$SYSTEM_present_process` (882
+files, the text box name), `$SYSTEM_text_auto` and the
+`mousewheel`/`keydown` flags (131 files, the choice loops, replaced by
+our choices), `$SYSTEM_effect_rain_*` (17 files) and
+`effect_drop_*`/`effect_lens_*` (2 each: parameters of the
+`CreateEffect` Rain, Drop and Lens kinds, not converted),
+`#SYSTEM_play_speed` (1, the game-speed setting: engine) and
+`#SYSTEM_break_play_movie` (3, the 動画 setting: converted). The other
+~100 are read only in the system scripts (window, keys, locks, Xbox
+360): replaced.
+
+**`system.ini`** keys: `[スクリプト]` `start`/`close`/`menu` → the files
+above; `[ウィンドウ] title` → `--title`; `[フォント]` face ＭＳ ゴシック
+(a TTF given with `--font`; the scripts' `SetFont` sets the text
+boxes' size and colours); `[テキスト] bad_end` (line-end kinsoku:
+opening brackets and digits) and `ruby_rate 50` not passed on
+(CONscripter's defaults); `[サウンド]` volumes 600/800/800 superseded by
+`sys_config`'s `ConfigFormat`; `[アイコン] icon_line`/`icon_page` →
+`wait_icon`, `icon_auto` (自動送りアイコン, 15 frames) not used: auto
+mode shows the normal icon; `[バックログ]` script and `icon_voice` →
+`line_log`, `word_in_row 26` superseded by its layout; `[ボイス]
+all_name` → the voice switches (`VOICES`; Status: grouped by `name`,
+the exe by `class`); `[プロダクト]`, `[セーブ]`: nothing to do.
+
+**Names the exe matches** (static; converter): `SetTone` Monochrome
+98, Sepia 38, NegaPosi 5, KitanoBlue 1 and `SetShade` levels: not
+converted (Status). `CreateEffect` Rain 37, Plain 33, Sepia 17,
+Monochrome 16, KitanoBlue 4, NegaPosi 4, Lens 2, Drop 1: only Plain
+converted. `DrawEffect` SuperWave 21, LowWave 25, HighWave 11,
+MiddleWave 10, HardSplit 5, Ripple 4, SoftSplit, Split: not converted;
+13 of them are written with a trailing space (`"LowWave "`), which an
+exact match would reject (unverified). Tempo names: Status ("Tempo is
+never read").
+
 ## Conventions shared by most built-ins
 
 **Objects ("nut", ナット) are named by strings.** A creator
@@ -113,6 +312,13 @@ Volume 0–1000. Frequency 1000 = normal speed. Angles in degrees. Priority
 | `Dxl1` / `Dxl2` / `Dxl3` | ease-out, quadratic / cubic / quartic |
 | `AxlAuto` / `DxlAuto` | sine ease-in / ease-out |
 | `AxlDxl` / `DxlAxl` | sine ease-in-out / out-in |
+
+**exe** (`apply_tempo`, `00449f40`): `Axl1/2/3` = t², t³, t⁴; `Dxl1/2/3` =
+1−(1−t)², ³, ⁴; `AxlAuto` = 1−cos(πt/2); `DxlAuto` = sin(πt/2); `AxlDxl` =
+½−½cos(πt); `DxlAxl` = acos(1−2t)/π; anything else linear. Constants such
+as tempos and shade levels are matched by the **sum of their bytes**,
+case-sensitively (`NULL` = 315 = `off`); a wrong-case spelling falls to
+the default. `Request` actions are compared letter by letter.
 
 **Wait**, the last argument of every timed call: `true` (or `1`) blocks
 for the call's duration, `false`/`null` returns at once and the action
@@ -176,7 +382,7 @@ the face window, `Time…` = auto-advance variants.
 | `Request(obj, action)` | 3,644 | See the list after this table. |
 | `WaitText(text, timeout)` | 75 | Waits until the text has finished typing **and** the player has clicked (auto mode/skip advance on their own). `null` = no timeout. `TypeBeginCI` also calls it once before `Enter`, presumably a no-op. |
 | `<voice name= class= src=>` (tag in the block) | 35,116 | Plays `src` (+ `.ogg`, from `voice.npa`) when typing reaches the tag; `name` is the speaker shown in the backlog, `class` the per-character voice volume/mute setting (`#ConfigCV_…`). |
-| `<RUBY text="…">…</RUBY>`, `<BR>`, `<FONT …>`, `<k>` (tags) | 6,929 RUBY | Ruby, line break, font change, `<k>` = click wait without clearing the page (seen under wine). |
+| `<RUBY text="…">…</RUBY>`, `<BR>`, `<FONT …>`, `<k>` (tags) | 6,929 RUBY | Ruby, line break, font change, `<k>` = click wait without clearing the page (seen under wine). **exe** (`parse_text_tags`, `00485760`), the full set: `FONT` (`incolor`, `outcolor`, `face`, `size`), `I`, `U`, `S` (strike), `K`, `CENTER`, `MIDDLE`, `PRE`, `SPAN value=`, `WAIT time=` (pause at that character), `INTERVAL` (speed), `RUBY text=`, `VALUE name=` (prints a variable), `VOICE name class src mode` (`mode` defaults to on; `off` unverified). `BR` isn't in it. |
 | `{ code }` inside the block | | Runs when typing reaches it (sound effects between lines in `ma01_001` text0040). |
 
 `Request` actions (31 constants; by use):
@@ -189,6 +395,14 @@ others: show), `Hideable` (hidden along with the text window when the
 player hides it with right-click), `AddRender`/`SubRender`/`MulRender`
 (blend mode), `PushText` (show the whole text at once), `Pause`/`Resume`,
 `Passive` (`PrintBG`'s cover; probably "ignores input", **unverified**).
+From their use, **unverified**: `NoLog` (64, text kept out of the
+backlog, with `PushText` on the ASCII-art pages), `NoIcon` (4, a text
+box without the click icon), `Clickable`/`UnClickable` (18/33, a
+`CreateChoice` button on or off), `CompulsorySuspend`/`EntrustSuspend`
+(7/1, BGM in the staff roll: stopped at once / left to finish),
+`Prev`/`Next`/`Increment`/`Decrement` (1 each, `sys_backlog`'s
+scrolling), `OverlayRender`/`NormalRender` (9/1, more blend modes).
+`Smooting` (2) is a typo the exe's exact match ignores.
 
 **Pages (seen under wine, 2026-10-13, `ma00_000` text0010–text0050):**
 a blank line inside a `<PRE>` block ends a page. Each paragraph types
@@ -217,7 +431,7 @@ text (`erasetextwindow`-style `print`).
 | `CreateTexture(obj, priority, x, y, source)` | 1,077 | Image object from a file (`cg/…`), from another texture/`LoadImage` object, or `SCREEN` (a screenshot, for save thumbnails and transitions). Starts opaque. Helpers: `CreateTextureSP` (+ alias, 3,383), `CreateTextureEX` (2,539: creates at opacity 0 and positions by `Center`/`InRight`/`InBottom`/number itself, because backgrounds larger than the screen are centred), `PrintBG`. |
 | `CreateColor(obj, priority, x, y, w, h, colour)` | 149 | Solid rectangle. `CreateColorSP` (2,242) = full screen + alias: the black/white covers for fades and flashes. |
 | `CreateEffect(obj, priority, x, y, w, h, effect)` | 114 | Full-screen filter over what's below: `"Plain"` (33: copy of the screen, i.e. a frozen frame), `"Rain"`, `"Sepia"`, `"Monochrome"`, `"NegaPosi"`, `"KitanoBlue"`. `PrintBG(name, prio)` (1,180) freezes the screen in a `Plain` effect, deletes everything else (`Delete("*")`, locked objects survive), and `FadeDelete` then fades the frozen frame out: a crossfade into the new scene. |
-| `Fade(obj, time, opacity, tempo, wait)` | 11,975 | Fades to `opacity`. 117 calls have 4 arguments (no tempo); NitroSharp also accepts tempo and wait swapped. Helpers: `FadeDelete(obj, time, wait)` (3,584) = fade to 0, then `UnLock` + `Disused`. |
+| `Fade(obj, time, opacity, tempo, wait)` | 11,975 | Fades to `opacity`. 117 calls have 4 arguments (no tempo); NitroSharp also accepts tempo and wait swapped. **exe**: the arguments are read by position, so a 4th is the tempo and the wait is missing, which reads as "don't wait" (unverified under wine). Helpers: `FadeDelete(obj, time, wait)` (3,584) = fade to 0, then `UnLock` + `Disused`. |
 | `Delete(obj)` | 4,982 | Deletes objects (wildcards; skips locked ones). Deleting a process stops it. |
 | `Zoom(obj, time, x‰, y‰, tempo, wait)` | 4,679 | Scale about the vertex. |
 | `ImageHorizon(obj)` / `ImageVertical(obj)` | 85 / 80 | Width / height in px. `CreateTextureEX` uses them; the converter can read image sizes at convert time. |
@@ -269,7 +483,7 @@ on a channel picked per object name, looping SE (`MusicStart(…, true)`) →
 
 | Built-in | Uses | Meaning | CONscripter |
 |---|---|---|---|
-| `Shake(obj, time, x amp, y amp, x2, y2, opacity?, tempo, wait)` | 1,343 | Shakes for `time` ms. Args 5–7 mostly 0/0/1000 (**unverified**) | `quake`/`quakex/y` when `obj` is the whole screen; else Lua |
+| `Shake(obj, time, x0, y0, x1, y1, n, tempo, wait)` | 1,343 | **exe** (`queue_shake` `004462d0`, `shake_frame` `004578e0`): the amplitude goes from (x0, y0) to (x1, y1) over `time` along `tempo`, the offset flipping sign each step; nearly every call ends at 0, a jolt that eases out. `n` above 1000 makes the call do nothing; its meaning and the step interval are lost in x87 code | `quake`/`quakex/y` when `obj` is the whole screen; else Lua |
 | `SetBlur(obj, on, passes, time?, strength, wait)` | 914 | Gaussian blur; nearly always `true, 1–3, 500, 30–100, false` | engine addition (blur) or skip |
 | `Array(…)` / `AssocArray(…)` / `Count(a)` | 719 / 27 / 57 | Array literal, keyed array, length | converter: NScripter arrays (`dim`) or compile-time tables |
 | `CreateProcess(obj, prio, x, y, "Func")` | 493 | Runs NSS function `Func` as a parallel thread; `Request(obj, Start/Stop)`, `Delete(obj)` stops it | Lua coroutine (`docs/games/muramasa.md`, "Approach") |
@@ -277,7 +491,7 @@ on a channel picked per object name, looping SE (`MusicStart(…, true)`) →
 | `SetNextFocus(a, b, dir)` | 283 | Menu keyboard navigation: from `a`, key `dir` goes to `b` | own menus |
 | `CreateWindow(obj, prio, x, y, w, h, clip?)` | 249 | Container object (children `obj/…`) clipped to the rect | sprite group / `lsp` positions relative |
 | `CursorPosition($x, $y)` / `MoveCursor(x, y)` | 167 / 62 | Read / warp the mouse | `getmousepos` / menus |
-| `SetShade(obj, level)` | 162 | Blur preset `LIGHT`…`EXTRAHEAVY` | as `SetBlur` |
+| `SetShade(obj, level)` | 162 | Blur preset; **exe** (`shade_level`, `00465b10`): `EXTRALIGHT` 1, `LIGHT` 2, `MEDIUM` 4, `SEMIHEAVY` 8, `HEAVY` 16, `EXTRAHEAVY` 24, `NOMORE` 32 (also any unknown name), `NULL` removes it; the unit is undecoded | as `SetBlur` |
 | `SetTone(obj, tone)` | 143 | `Monochrome` (98), `Sepia` (38), `NegaPosi`, `KitanoBlue` | `lsp` with `:c`-style effect or pre-rendered image |
 | `LoadImage(obj, file)` | 136 | Image without display, as a source for `CreateTexture` | |
 | `MoveCamera` / `CreateCamera` / `SetFov` / `CreateCube` | 128 / 40 / 1 / 1 | 3D camera over textures (battle scenes) | Lua or pre-render |

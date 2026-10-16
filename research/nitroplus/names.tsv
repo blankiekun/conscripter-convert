@@ -108,3 +108,79 @@
 0047cd70	set_system_variable	assigns a $SYSTEM_ variable: compares the name with 62 setting names built on the stack (sound_volume_bgm, ...)
 004f6c10	_CIlog10	MSVC CRT log10 on ST0 (fldlg2/fyl2x)
 00534830	npa_name_table	256-byte substitution table for NPA names and data (file offset 0x134830; research/nitroplus/npa.py)
+
+# Decoded 2026-10-15 (exe review; details in research/nitroplus/builtins.md).
+004d3be0	_ftol2	CRT float to int; Ghidra drops the x87 maths around it
+004d4c40	acos	CRT acos
+00413740	eval_arg	evaluates the next built-in argument; the result comes back in EAX, which Ghidra hides
+00449f40	apply_tempo	easing: Axl1/2/3 t^2,t^3,t^4; Dxl1/2/3 1-(1-t)^2,^3,^4; AxlAuto 1-cos(pi t/2); DxlAuto sin(pi t/2); AxlDxl 1/2-1/2cos(pi t); DxlAxl acos(1-2t)/pi; else linear
+004462d0	queue_shake	Shake per object: amplitude goes from args 2-3 to args 4-5 over the time, along the tempo
+0044fba0	shake_object	starts the shake on one object
+004578e0	shake_frame	per-frame shake step, offset flips sign each step
+00465b10	shade_level	SetShade names: EXTRALIGHT 1, LIGHT 2, MEDIUM 4, SEMIHEAVY 8, HEAVY 16, EXTRAHEAVY 24, NOMORE 32 (and unknown names); NULL removes
+00447f40	blur_strength	SetBlur strength (not decoded)
+00415c80	pick_blitter	picks blit_* by render mode
+00485760	parse_text_tags	text markup: FONT incolor outcolor face size, I, U, S, K, CENTER, MIDDLE, PRE, SPAN value, WAIT time, INTERVAL, RUBY text, VALUE name, VOICE name class src mode
+
+# Per-object callbacks, reached only through a function pointer (docs/new-game.md
+# §2, "Mapping the whole exe"); listing them makes ApplyNames create the functions.
+# The SEH stubs at 004f8xxx are left out.
+00401cb0	cb_00401cb0	per-object callback queued by FUN_00401360
+00401f90	cb_00401f90	per-object callback queued by FUN_00401360
+004205e0	blit_004205e0	per-object callback queued by FUN_00415c80; a pixel blitter picked per render mode (Normal 0x101, Add 2, Sub 3, Overlay 4, …): very large, settles AddRender/MulRender
+00422ec0	blit_00422ec0	per-object callback queued by FUN_00415c80; a pixel blitter picked per render mode (Normal 0x101, Add 2, Sub 3, Overlay 4, …): very large, settles AddRender/MulRender
+00426ee0	blit_00426ee0	per-object callback queued by FUN_00415c80; a pixel blitter picked per render mode (Normal 0x101, Add 2, Sub 3, Overlay 4, …): very large, settles AddRender/MulRender
+00431230	cb_00431230	per-object callback queued by FUN_00430a70
+00432820	cb_00432820	per-object callback queued by FUN_00432210
+00433000	cb_00433000	per-object callback queued by FUN_004328c0
+00434170	cb_00434170	per-object callback queued by FUN_004338f0
+004341b0	cb_004341b0	per-object callback queued by FUN_004338f0
+0043f4d0	cb_0043f4d0	per-object callback queued by FUN_0043f170
+0043f570	cb_0043f570	per-object callback queued by FUN_0043f170
+0043f790	cb_0043f790	per-object callback queued by FUN_0043f170
+0043f7d0	cb_0043f7d0	per-object callback queued by FUN_0043f170
+0043f880	cb_0043f880	per-object callback queued by FUN_0043f170
+0043f920	cb_0043f920	per-object callback queued by FUN_0043f170
+0043f990	cb_0043f990	per-object callback queued by FUN_0043f170
+0043fa00	cb_0043fa00	per-object callback queued by FUN_0043f3a0
+0043fa40	cb_0043fa40	per-object callback queued by FUN_0043f3a0
+0043fb30	cb_0043fb30	per-object callback queued by FUN_00401360
+0043fb40	cb_0043fb40	per-object callback queued by FUN_0043f3a0
+0043fb90	cb_0043fb90	per-object callback queued by FUN_0043f3a0
+0043fbb0	cb_0043fbb0	per-object callback queued by FUN_0043f3a0
+004409f0	cb_004409f0	per-object callback queued by FUN_004338f0
+0044f020	cb_Fade_0044f020	per-object callback queued by FUN_00445ac0 (Fade)
+004505d0	cb_SetPan_004505d0	per-object callback queued by FUN_00446c60 (SetPan)
+00450610	cb_SetFrequency_00450610	per-object callback queued by FUN_00446da0 (SetFrequency)
+00450650	cb_SetLoop_00450650	per-object callback queued by FUN_00446ee0 (SetLoop)
+00450700	cb_SetLoopPoint_00450700	per-object callback queued by FUN_00447010 (SetLoopPoint)
+00451c40	cb_00451c40	per-object callback queued by FUN_004487f0
+00451c60	cb_SetScrollbar_00451c60	per-object callback queued by FUN_00447ca0 (SetScrollbar)
+00451d20	cb_SetScrollSpeed_00451d20	per-object callback queued by FUN_00447e00 (SetScrollSpeed)
+00451d50	cb_CreateChoice_00451d50	per-object callback queued by FUN_00447280 (CreateChoice)
+00451d80	cb_CreateChoice_00451d80	per-object callback queued by FUN_00447390 (CreateChoice)
+00451da0	cb_CreateChoice_00451da0	per-object callback queued by FUN_004474a0 (CreateChoice)
+00451dc0	cb_SetAlias_00451dc0	per-object callback queued by FUN_004475b0 (SetAlias)
+00451f30	cb_SetShade_00451f30	per-object callback queued by FUN_004478c0 (SetShade)
+004523c0	cb_SetSurface_004523c0	per-object callback queued by FUN_004481f0 (SetSurface)
+00452400	cb_Request_00452400	per-object callback queued by FUN_00446870 (Request)
+00452430	cb_CreateEffect_00452430	per-object callback queued by FUN_00443ce0 (CreateEffect)
+00452470	cb_00452470	per-object callback queued by FUN_004488a0
+00452490	cb_00452490	per-object callback queued by FUN_00448dd0
+00452b20	cb_00452b20	per-object callback queued by FUN_00450c80
+00452b90	cb_SetStream_00452b90	per-object callback queued by FUN_00448370 (SetStream)
+00454bd0	cb_CreateStencil_00454bd0	per-object callback queued by builtin_CreateStencil (CreateStencil)
+00454c00	cb_00454c00	per-object callback queued by FUN_004584a0
+00454c20	cb_00454c20	per-object callback queued by FUN_0044b850
+00454c40	cb_00454c40	per-object callback queued by FUN_00449de0
+004568f0	cb_CreateText_004568f0	per-object callback queued by FUN_004432b0 (CreateText)
+00456900	cb_CreateBacklog_00456900	per-object callback queued by FUN_00444d50 (CreateBacklog)
+00456930	cb_CreateStencil_00456930	per-object callback queued by builtin_CreateStencil (CreateStencil)
+00456a10	cb_CreateBacklog_00456a10	per-object callback queued by FUN_00444d50 (CreateBacklog)
+00467140	cb_00467140	per-object callback queued by FUN_00466d60
+00468020	cb_WaitKey_00468020	per-object callback queued by builtin_WaitKey (WaitKey)
+004680f0	cb_WaitKey_004680f0	per-object callback queued by FUN_00467f00 (WaitKey)
+004681c0	cb_WaitKey_004681c0	per-object callback queued by FUN_00467f00 (WaitKey)
+004699b0	cb_004699b0	per-object callback queued by FUN_00469190
+0046aad0	cb_0046aad0	per-object callback queued by FUN_0046a880
+00491f20	cb_00491f20	per-object callback queued by FUN_00466d60
