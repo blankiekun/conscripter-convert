@@ -21,9 +21,13 @@ It has no NPA archives and no NSS scripts.
   port's own window pictures: `function.nss`'s `boxCC` … `boxLT` are made
   as the port's `CreateAllTextBox` makes them (`cg/sys/adv/en/
   TextWindow(_Fw).png`, 305×475 at x 360, 616, 103, y 51; the NSS's
-  `Move`s after them are dropped), and the text starts 15,139 from the
-  picture's top left (the port's `BoxInfo` in `val.nut`: 375,190,
-  630,190, 118,190; `MURAMASA_EN`). Pictures `cg.npa` lacks are taken
+  `Move`s after them are dropped); the horizontal `boxH`/`boxTH`
+  (x 72) and `boxCH`/`boxCTH` (x 264/224) take the port's
+  `en/THTextWindow(_Fw).png` (880×158) at the Japanese y. The text
+  starts where the port's `BoxInfo` in `val.nut` puts it, as wide as
+  its field: C 375,190, R 630,190, L 118,190 (280 wide); H 94,426 (845),
+  238,426 with a face (701); CH 280,225 (501) / 360,225 (420); Noh
+  280,225 (492) / 351,225 (434) (`EN_TEXT` in `muramasa.rs`). Pictures `cg.npa` lacks are taken
   from the English `cg.npk` (lossless WebP, written as PNG;
   `NpaAssets::cg_en`).
   CONscripter draws it proportionally in the release's
@@ -38,12 +42,13 @@ It has no NPA archives and no NSS scripts.
   `droidserif-muramasa.ttf` (font.npk); the menus follow the English
   port's redesigned screens, not the Japanese PC ones; filming the
   English original under wine is allowed.
-- **Not yet:** `<I>` italics and `<center>` are dropped; the
-  horizontal boxes keep the Japanese pictures and places (the port:
-  `boxH`/`boxTH` `en/THTextWindow(_Fw).png` 880×158 at x 72, text at
-  94,426 845 wide, or 238,426 701 wide with a face; `boxCH`/`boxNoh`
-  text at 280,225 501 wide); the 14 lines are read from the box (text
-  from y 190, click icon at 500), not yet seen in the original.
+- **Not yet:** `<I>` italics and `<center>` are dropped; the lines
+  per box (14 vertical, 5 at a 28 px pitch horizontal, the Japanese
+  pitch) are read from the boxes, not yet seen in the original; in
+  `boxTH` the face stays at the Japanese place (x ~230, under the
+  text's third line), not in the empty frame the port's
+  `THTextWindow_Fw.png` has at its left (x ~80-210; `FwInfo` in
+  `val.nut` says H `fw_pos` 228,450: to check in the original).
 - **Plan (from the scripts, 2026-10-15):** the port's scenario scripts
   (`nut/*.nut`) are a line-by-line transcription of the Japanese NSS
   (same sprite names, coordinates, files with `.png` for `.jpg`; screen
@@ -52,9 +57,9 @@ It has no NPA archives and no NSS scripts.
   by the Japanese text (below), and takes the English pictures where
   they differ (the redesigned menus in `cg/sys`, pictures with words).
 - **Next:**
-  1. The English pictures: the horizontal boxes (above) and the
-     redesigned menus in `cg/sys`, filmed against the English original
-     under wine (also to check the lines per box); `<I>`, `<center>`.
+  1. The English pictures: the redesigned menus in `cg/sys`, filmed
+     against the English original under wine (also to check the lines
+     per box); `<I>`, `<center>`.
   2. 22 rows of English are placed nowhere (lines the NSS orders or
      splits otherwise, route variants such as mc01's "Ichijo is
      nowhere to be seen" / "My comrades …", ma01_003's `<CLICK>`
