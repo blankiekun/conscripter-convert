@@ -1134,7 +1134,7 @@ impl Object<'_> {
         (back(self.turn.1), back(self.turn.0))
     }
 
-    /// Its turn about z, counterclockwise (sprot's way).
+    /// Its turn about z, counterclockwise (spzoom's angle).
     fn angle(&self) -> i64 {
         -self.turn.2
     }

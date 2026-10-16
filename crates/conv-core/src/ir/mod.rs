@@ -563,8 +563,9 @@ pub enum Op {
     /// Draws a layer's sprite turned `degrees` counterclockwise about the
     /// centre of its place, from now until the layer is cleared (a motion's
     /// angle adds to it). 装甲悪鬼村正's battle HUD: the roll bar and the
-    /// sky tilted as the craft rolls.
-    SpriteAngle { layer: u32, degrees: i32 },
+    /// sky tilted as the craft rolls. `zoom`: its zoom percent (x, y),
+    /// set with the angle.
+    SpriteAngle { layer: u32, degrees: i32, zoom: (i32, i32) },
     /// Jumps to `label` while the player skips (not in auto mode): past
     /// what the original leaves out then. 最果てのイマ's quakes, flashes,
     /// pulses and script fades.
