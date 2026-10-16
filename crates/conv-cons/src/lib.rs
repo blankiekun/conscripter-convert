@@ -1319,28 +1319,54 @@ struct SeChannels {
     /// sound on them), and whether one is for the sound starting next.
     panned: HashSet<u32>,
     pan_preset: bool,
+    /// Channels playing a looped sound, which another sound doesn't take.
+    looping: HashSet<u32>,
 }
 
+/// Channels for looped sounds when every one of [`SE_CHANNELS`] has one
+/// (続・殺戮のジャンゴ's chorus: 16 parts at once); 10 is the choices' shot.
+const SE_OVERFLOW: std::ops::RangeInclusive<u32> = 11..=49;
+
 impl SeChannels {
-    /// The channel the next [`SeChannels::start`] takes.
+    /// The channel the next [`SeChannels::start`] takes: the next of
+    /// [`SE_CHANNELS`] in turn without a looped sound, or else an
+    /// overflow one.
     fn peek(&self) -> u32 {
         let span = SE_CHANNELS.end() - SE_CHANNELS.start() + 1;
-        SE_CHANNELS.start() + self.next % span
+        (0..span)
+            .map(|i| SE_CHANNELS.start() + (self.next + i) % span)
+            .chain(SE_OVERFLOW)
+            .find(|c| !self.looping.contains(c))
+            .unwrap_or(SE_CHANNELS.start() + self.next % span)
     }
 
-    fn start(&mut self, file: &str) -> u32 {
+    fn start(&mut self, file: &str, looped: bool) -> u32 {
         let ch = self.peek();
-        self.next += 1;
+        if SE_CHANNELS.contains(&ch) {
+            self.next = ch - SE_CHANNELS.start() + 1;
+        }
         self.playing.retain(|_, c| *c != ch);
-        self.playing.insert(file.to_string(), ch);
+        // (The same file again: its old channel is let go.)
+        if let Some(old) = self.playing.insert(file.to_string(), ch) {
+            self.looping.remove(&old);
+        }
+        self.looping.remove(&ch);
+        if looped {
+            self.looping.insert(ch);
+        }
         ch
     }
 
     fn stop(&mut self, file: &str) -> Option<u32> {
-        self.playing.remove(file)
+        let ch = self.playing.remove(file);
+        if let Some(c) = ch {
+            self.looping.remove(&c);
+        }
+        ch
     }
 
     fn stop_all(&mut self) -> Vec<u32> {
+        self.looping.clear();
         let mut chans: Vec<u32> = self.playing.drain().map(|(_, c)| c).collect();
         chans.sort_unstable();
         chans
@@ -2421,11 +2447,24 @@ end
     #[test]
     fn se_channels_rotate_and_stop() {
         let mut ch = SeChannels::default();
-        assert_eq!(ch.start("a"), 1);
-        assert_eq!(ch.start("b"), 2);
+        assert_eq!(ch.start("a", false), 1);
+        assert_eq!(ch.start("b", false), 2);
         assert_eq!(ch.stop("a"), Some(1));
         assert_eq!(ch.stop("a"), None);
         assert_eq!(ch.stop_all(), vec![2]);
+    }
+
+    #[test]
+    fn se_channels_keep_loops() {
+        let mut ch = SeChannels::default();
+        // Nine loops fill 1-9; the next sounds go past them.
+        let loops: Vec<u32> = (0..9).map(|i| ch.start(&format!("l{i}"), true)).collect();
+        assert_eq!(loops, (1..=9).collect::<Vec<_>>());
+        assert_eq!(ch.start("x", false), 11);
+        assert_eq!((ch.start("y", true), ch.start("v", false)), (11, 12));
+        // A stopped loop frees its channel; one-shots take turns as before.
+        assert_eq!(ch.stop("l2"), Some(3));
+        assert_eq!((ch.start("z", false), ch.start("w", false)), (3, 3));
     }
 
     #[test]

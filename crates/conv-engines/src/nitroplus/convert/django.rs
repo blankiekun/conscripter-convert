@@ -37,7 +37,7 @@ pub const DJANGO: Game = Game {
 
 /// The functions compiled as the game's own: the battle's movies, its
 /// counter and its muzzle flashes, the looping shakes, the strobe, the
-/// song typed out in dja026 and the ending's credits.
+/// song typed out in dja026, dja055's chorus and the ending's credits.
 fn call(c: &mut Compiler<'_, '_>, name: &str, args: &[Value]) -> bool {
     if c.roll(name, args) {
         return true;
@@ -64,6 +64,16 @@ fn call(c: &mut Compiler<'_, '_>, name: &str, args: &[Value]) -> bool {
             true
         }
         "WaitAction" => c.song_wait(args),
+        // dja055_02's chorus: 15 voice parts started together, each panned
+        // and faded in and out on its own. The script makes them music
+        // (`CreateSound(…, BGM, …)`), of which ours plays one at a time:
+        // here they are looping sounds, layered.
+        "CreateUnit" if args.len() == 2 => {
+            let path = Value::Str(format!("voice/{}", args[1].string()));
+            c.builtin("CreateSound", &[args[0].clone(), Value::Str("SE".into()), path]);
+            c.builtin("SetVolume", &[args[0].clone(), Value::Int(0), Value::Int(0), Value::Null]);
+            true
+        }
         _ => false,
     }
 }
