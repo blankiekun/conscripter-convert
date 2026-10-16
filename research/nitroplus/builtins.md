@@ -186,6 +186,13 @@ Volume 0–1000. Frequency 1000 = normal speed. Angles in degrees. Priority
 | `AxlAuto` / `DxlAuto` | sine ease-in / ease-out |
 | `AxlDxl` / `DxlAxl` | sine ease-in-out / out-in |
 
+**exe** (`apply_tempo`, `00449f40`): `Axl1/2/3` = t², t³, t⁴; `Dxl1/2/3` =
+1−(1−t)², ³, ⁴; `AxlAuto` = 1−cos(πt/2); `DxlAuto` = sin(πt/2); `AxlDxl` =
+½−½cos(πt); `DxlAxl` = acos(1−2t)/π; anything else linear. Constants such
+as tempos and shade levels are matched by the **sum of their bytes**,
+case-sensitively (`NULL` = 315 = `off`); a wrong-case spelling falls to
+the default. `Request` actions are compared letter by letter.
+
 **Wait**, the last argument of every timed call: `true` (or `1`) blocks
 for the call's duration, `false`/`null` returns at once and the action
 keeps running. Any other number blocks that many ms (`Fade(x, 2000, 0,
@@ -248,7 +255,7 @@ the face window, `Time…` = auto-advance variants.
 | `Request(obj, action)` | 3,644 | See the list after this table. |
 | `WaitText(text, timeout)` | 75 | Waits until the text has finished typing **and** the player has clicked (auto mode/skip advance on their own). `null` = no timeout. `TypeBeginCI` also calls it once before `Enter`, presumably a no-op. |
 | `<voice name= class= src=>` (tag in the block) | 35,116 | Plays `src` (+ `.ogg`, from `voice.npa`) when typing reaches the tag; `name` is the speaker shown in the backlog, `class` the per-character voice volume/mute setting (`#ConfigCV_…`). |
-| `<RUBY text="…">…</RUBY>`, `<BR>`, `<FONT …>`, `<k>` (tags) | 6,929 RUBY | Ruby, line break, font change, `<k>` = click wait without clearing the page (seen under wine). |
+| `<RUBY text="…">…</RUBY>`, `<BR>`, `<FONT …>`, `<k>` (tags) | 6,929 RUBY | Ruby, line break, font change, `<k>` = click wait without clearing the page (seen under wine). **exe** (`parse_text_tags`, `00485760`), the full set: `FONT` (`incolor`, `outcolor`, `face`, `size`), `I`, `U`, `S` (strike), `K`, `CENTER`, `MIDDLE`, `PRE`, `SPAN value=`, `WAIT time=` (pause at that character), `INTERVAL` (speed), `RUBY text=`, `VALUE name=` (prints a variable), `VOICE name class src mode` (`mode` defaults to on; `off` unverified). `BR` isn't in it. |
 | `{ code }` inside the block | | Runs when typing reaches it (sound effects between lines in `ma01_001` text0040). |
 
 `Request` actions (31 constants; by use):
@@ -289,7 +296,7 @@ text (`erasetextwindow`-style `print`).
 | `CreateTexture(obj, priority, x, y, source)` | 1,077 | Image object from a file (`cg/…`), from another texture/`LoadImage` object, or `SCREEN` (a screenshot, for save thumbnails and transitions). Starts opaque. Helpers: `CreateTextureSP` (+ alias, 3,383), `CreateTextureEX` (2,539: creates at opacity 0 and positions by `Center`/`InRight`/`InBottom`/number itself, because backgrounds larger than the screen are centred), `PrintBG`. |
 | `CreateColor(obj, priority, x, y, w, h, colour)` | 149 | Solid rectangle. `CreateColorSP` (2,242) = full screen + alias: the black/white covers for fades and flashes. |
 | `CreateEffect(obj, priority, x, y, w, h, effect)` | 114 | Full-screen filter over what's below: `"Plain"` (33: copy of the screen, i.e. a frozen frame), `"Rain"`, `"Sepia"`, `"Monochrome"`, `"NegaPosi"`, `"KitanoBlue"`. `PrintBG(name, prio)` (1,180) freezes the screen in a `Plain` effect, deletes everything else (`Delete("*")`, locked objects survive), and `FadeDelete` then fades the frozen frame out: a crossfade into the new scene. |
-| `Fade(obj, time, opacity, tempo, wait)` | 11,975 | Fades to `opacity`. 117 calls have 4 arguments (no tempo); NitroSharp also accepts tempo and wait swapped. Helpers: `FadeDelete(obj, time, wait)` (3,584) = fade to 0, then `UnLock` + `Disused`. |
+| `Fade(obj, time, opacity, tempo, wait)` | 11,975 | Fades to `opacity`. 117 calls have 4 arguments (no tempo); NitroSharp also accepts tempo and wait swapped. **exe**: the arguments are read by position, so a 4th is the tempo and the wait is missing, which reads as "don't wait" (unverified under wine). Helpers: `FadeDelete(obj, time, wait)` (3,584) = fade to 0, then `UnLock` + `Disused`. |
 | `Delete(obj)` | 4,982 | Deletes objects (wildcards; skips locked ones). Deleting a process stops it. |
 | `Zoom(obj, time, x‰, y‰, tempo, wait)` | 4,679 | Scale about the vertex. |
 | `ImageHorizon(obj)` / `ImageVertical(obj)` | 85 / 80 | Width / height in px. `CreateTextureEX` uses them; the converter can read image sizes at convert time. |
@@ -341,7 +348,7 @@ on a channel picked per object name, looping SE (`MusicStart(…, true)`) →
 
 | Built-in | Uses | Meaning | CONscripter |
 |---|---|---|---|
-| `Shake(obj, time, x amp, y amp, x2, y2, opacity?, tempo, wait)` | 1,343 | Shakes for `time` ms. Args 5–7 mostly 0/0/1000 (**unverified**) | `quake`/`quakex/y` when `obj` is the whole screen; else Lua |
+| `Shake(obj, time, x0, y0, x1, y1, n, tempo, wait)` | 1,343 | **exe** (`queue_shake` `004462d0`, `shake_frame` `004578e0`): the amplitude goes from (x0, y0) to (x1, y1) over `time` along `tempo`, the offset flipping sign each step; nearly every call ends at 0, a jolt that eases out. `n` above 1000 makes the call do nothing; its meaning and the step interval are lost in x87 code | `quake`/`quakex/y` when `obj` is the whole screen; else Lua |
 | `SetBlur(obj, on, passes, time?, strength, wait)` | 914 | Gaussian blur; nearly always `true, 1–3, 500, 30–100, false` | engine addition (blur) or skip |
 | `Array(…)` / `AssocArray(…)` / `Count(a)` | 719 / 27 / 57 | Array literal, keyed array, length | converter: NScripter arrays (`dim`) or compile-time tables |
 | `CreateProcess(obj, prio, x, y, "Func")` | 493 | Runs NSS function `Func` as a parallel thread; `Request(obj, Start/Stop)`, `Delete(obj)` stops it | Lua coroutine (`docs/games/muramasa.md`, "Approach") |
@@ -349,7 +356,7 @@ on a channel picked per object name, looping SE (`MusicStart(…, true)`) →
 | `SetNextFocus(a, b, dir)` | 283 | Menu keyboard navigation: from `a`, key `dir` goes to `b` | own menus |
 | `CreateWindow(obj, prio, x, y, w, h, clip?)` | 249 | Container object (children `obj/…`) clipped to the rect | sprite group / `lsp` positions relative |
 | `CursorPosition($x, $y)` / `MoveCursor(x, y)` | 167 / 62 | Read / warp the mouse | `getmousepos` / menus |
-| `SetShade(obj, level)` | 162 | Blur preset `LIGHT`…`EXTRAHEAVY` | as `SetBlur` |
+| `SetShade(obj, level)` | 162 | Blur preset; **exe** (`shade_level`, `00465b10`): `EXTRALIGHT` 1, `LIGHT` 2, `MEDIUM` 4, `SEMIHEAVY` 8, `HEAVY` 16, `EXTRAHEAVY` 24, `NOMORE` 32 (also any unknown name), `NULL` removes it; the unit is undecoded | as `SetBlur` |
 | `SetTone(obj, tone)` | 143 | `Monochrome` (98), `Sepia` (38), `NegaPosi`, `KitanoBlue` | `lsp` with `:c`-style effect or pre-rendered image |
 | `LoadImage(obj, file)` | 136 | Image without display, as a source for `CreateTexture` | |
 | `MoveCamera` / `CreateCamera` / `SetFov` / `CreateCube` | 128 / 40 / 1 / 1 | 3D camera over textures (battle scenes) | Lua or pre-render |

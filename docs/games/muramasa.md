@@ -635,19 +635,43 @@ Next, in order:
 2. The largest leftovers below: `CreateProcess` (via Lua), non-blocking
    `Move`/`Zoom`, `AddRender` (needs a per-sprite blend mode).
 3. Optional: the 18 files with no `else` (below).
+4. Gaps from the exe review (2026-10-15; the exe's side is in
+   `research/nitroplus/builtins.md`, the functions in
+   `research/nitroplus/names.tsv`), most noticeable first:
+   - Endings have no staff roll: `SetRoll` takes the roll's process
+     name from `$EndName[$ENDNumber][0]`, a two-level `Array` table the
+     compiler doesn't evaluate, so each ending plays 4 s of the theme
+     over black and fades it out (no roll, no click wait).
+     `#ClearRoll%02d` likewise (`String`, `VariableValue`).
+   - Text markup dropped: `<VALUE name=$mc02_時間>` (the airship clock in
+     `mc02_031time` prints a gap: a string chosen by the runtime
+     `$mc02_TimeCount`, and the IR has no runtime strings), the
+     ASCII-art pages (`Request(…, PushText)` + `NoLog`: shown at once,
+     not in the backlog), `<voice mode="off">` (3, meaning unknown).
+   - Story `CreateText` (about 30 calls in 18 files: 殺 害, 〝我は力〟,
+     the screamed lines, the date caption 一一月三〇日) is dropped.
+   - Tempo (easing) is never read.
+   - A 4-argument `Fade` probably doesn't wait in the exe (49 calls
+     wait in ours); check under wine first.
 
 **Leftovers** (counts from the dry run's notes):
 - `CreateProcess` (510 calls; the battle HUD `CP_*` in
   `function_cockpit.nss`, fire flicker, comic panels): parallel NSS
   processes. Planned as Lua coroutines through CONscripter's `USE_LUA`
-  bridge (`NSCALL_animation` per frame).
+  bridge (`NSCALL_animation` per frame). A process that only runs
+  `Rotate`/`Move`/`Fade`/`Zoom` (the roll bar's `CP_RollBar`,
+  `CP_RollBar_NoBG`) runs at its start without blocking, and a
+  `WaitAction` on it waits for it; the roll bar's endless wobble
+  `CP_RollBar_Auto` (59) is still left.
 - Non-blocking `Move`/`Zoom` over time (about 1,200 each), drawn as
   cross-fades.
 - `AddRender` (2,536) and `MulRender` (418): drawn normally. `lsp2add`
   only fits top-layer effects (the engine draws all `lsp2` sprites above
   `lsp` ones); an additive background needs a per-sprite blend mode in
   CONscripter.
-- `Rotate` (620), `SetFrequency` (1,170), `MoveCamera`, `SetTone`,
+- `Rotate` about z of a picture is CONscripter's `sprot` (still) or a
+  `spmotion2` angle (over time); left: about z of other objects (70),
+  about x or y over time (14, drawn at once). `SetFrequency` (1,170), `MoveCamera`, `SetTone`,
   `SetShade`, `BezierMove`, `CreateTexture` from an object or the screen
   (1,864).
 - 18 files whose `if`/`else if` chain on earlier flags has no `else`:
@@ -668,6 +692,28 @@ Next, in order:
 
 Finished work, moved out of "Status" so a session reads only the open
 state.
+
+**`<VALUE>` in text (2026-10-15, exe review):** `<VALUE name=$var>`
+prints the variable; it is now filled in where the value is known when
+converting (the airship kitchen's `$材料名前`, `$料理名前`; `Random` is 0
+then, so the ingredient is always 豚肉).
+
+**`<FONT>` in story text (2026-10-15, exe review):** `incolor` (the red
+違う。 in `mb03_006`, the yellow puzzle rules in `md05_025`) and `size`
+(the shouted lines, 24-50 against the window's 20) were dropped; they
+become text styles (colour, `!z` percent).
+
+**Shakes die down (2026-10-15, exe review):** `Shake(obj, time, x0, y0,
+x1, y1, …)` goes from (x0, y0) to (x1, y1) over its time (the exe's
+`shake_frame`); nearly every call ends at 0, a jolt that eases out. The
+converter kept the first strength throughout; it now passes both to
+`screenshake` (linear: the tempo isn't read).
+
+**Voice switches by class (2026-10-15, exe review):** the switches 村正,
+その他男声, その他女声, 首領姉 and コヒカリ muted nothing (about 6,300
+lines): the game's setting goes by the `<voice>` tag's `class` (村正's
+voices are `村正さん`), the compiler grouped them by `name`. It now
+takes `class`, or `name` when there is none.
 
 **`#` flags off the menus' globals (2026-10-15, from the code audit,
 `docs/audit-2026-10.md` §5):** the first 170 `#` flags ran %800-%969,
