@@ -394,14 +394,19 @@ with the original (it wants all eleven endings' flags under wine).
   (its `WaitAction` and `SetRoll`'s `WaitKey` are the op's): the engine
   reads how far the song is through its pass (`getbgmpos`, a new
   CONscripter command), starts the closing song at its end (`bgmlater
-  …,0`), and a loop moves the picture (`amsp`, by `gettimer`, at
-  `gamespeed 100`: `SetRoll` sets the play speed to its normal for
-  the roll) until that time + 3:31 + 6 s, then waits for a click (a
-  click on the later times is that click). A roll reached before the
+  …,0`), and a loop moves the picture (`amsp` at `gamespeed 100`:
+  `SetRoll` sets the play speed to its normal for the roll; the first
+  time in 50 ms steps, each until its time by `waittimer`, later by
+  `gettimer` with a timed `btnwait` for the click) until that time +
+  3:31 + 6 s, then waits for a click (a click on the later times is
+  that click). A roll reached before the
   insert song started (skipping through the last page within 5 s)
-  starts it from the beginning. Checked headless (`--goto if46_end
+  starts it from the beginning (`getbgmpos` is then minus the time
+  until the `bgmlater` song starts). Checked headless (`--goto if46_end
   --real-time`, `%811=0`, `%2921=100`): the picture rolls from y 300
-  to −8465 over the 379 s the run computes; the run reaches the roll
+  to −8465 over the 379 s the run computes; without `--real-time` the
+  auto-play goes through it in 19 s and on to the title, and with
+  `%811=1` its click ends the roll at once; the run reaches the roll
   before the song's `bgmlater` fires, so the song started from its
   beginning there. The roll's speed against the original is unchecked
   (no wine run, stopped 2026-10-15). The original's picture keeps
