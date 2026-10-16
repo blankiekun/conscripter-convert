@@ -258,6 +258,12 @@ pub struct PictureSlider {
     /// Drawn as a row of buttons instead of the knob (`knob`, `knob_y`
     /// and `track` unused): see [`SliderSteps`].
     pub steps: Option<SliderSteps>,
+    /// Lying: `knob_y` is the knob's x range, position 0 at its right end
+    /// (what is at the top standing), the knob at `knob.y`.
+    pub horizontal: bool,
+    /// Lying: a bar shown from its left end to the knob's middle, and a
+    /// black picture at least as big as it (cutting the rest away).
+    pub fill: Option<(Placed, String)>,
 }
 
 /// A [`PictureSlider`] set by clicking one of a row of buttons (続・殺戮の
@@ -292,7 +298,9 @@ pub enum SliderSetting {
 
 /// Two pictures for one on/off option of [`PictureSettings`]: three cells
 /// each (at rest, under the pointer, chosen); the chosen side shows its
-/// third cell.
+/// third cell. Both at one place make a check box: only the current
+/// side's picture shows (cells: at rest, under the pointer, pressed), and
+/// a click on it switches to the other.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PicturePair {
     pub option: PairOption,

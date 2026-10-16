@@ -74,6 +74,8 @@ const MAX_STEPS: usize = 10;
 const TEXT: u32 = 790; // + text
 const FIXED: u32 = 800; // + picture
 const MAX_FIXED: usize = 100;
+/// A lying slider's bar: + slider (under the knobs and the pictures).
+const FILL: u32 = 900;
 // Buttons.
 const BTN_CLOSE: i32 = 1;
 const BTN_RESET: i32 = 2;
@@ -95,6 +97,11 @@ const QUESTIONS: [Switch; 8] = [
     Switch::ConfirmReset,
     Switch::ConfirmQuickLoad,
 ];
+
+/// A pair at one place is a check box.
+fn check_box(p: &conv_core::ir::PicturePair) -> bool {
+    (p.on.x, p.on.y) == (p.off.x, p.off.y)
+}
 
 fn slider_var(i: usize) -> String {
     format!("%{}", SLIDER_BASE + i as u32)
@@ -190,9 +197,11 @@ pub(crate) fn emit(out: &mut String, s: &PictureSettings, border: u32) {
     for &(slot, n, _) in &buttons {
         w(format!("spbtn {slot},{n},2"));
     }
-    for i in 0..s.pairs.len() {
+    for (i, p) in s.pairs.iter().enumerate() {
         for side in 0..2 {
-            w(format!("spbtn {},{}", PAIR + 2 * i as u32 + side, BTN_PAIR + 2 * i as i32 + side as i32));
+            // A check box: only the side shown.
+            let shown = if check_box(p) { format!("if {} == {} ", pair_var(i), 1 - side) } else { String::new() };
+            w(format!("{shown}spbtn {},{}", PAIR + 2 * i as u32 + side, BTN_PAIR + 2 * i as i32 + side as i32));
         }
     }
     // After btndef, which turns it off: a press on a track starts a drag.
@@ -226,10 +235,12 @@ pub(crate) fn emit(out: &mut String, s: &PictureSettings, border: u32) {
     if let Some(v) = &s.test_voice {
         w(format!("if {BUTTON_VAR} == {BTN_VOICE_TEST} dwave 0,\"{}\"", path(v)));
     }
-    for i in 0..s.pairs.len() {
+    for (i, p) in s.pairs.iter().enumerate() {
         let (n, v) = (BTN_PAIR + 2 * i as i32, pair_var(i));
-        w(format!("if {BUTTON_VAR} == {n} && {v} == 0 mov {v},1:goto *conv_ps_changed"));
-        w(format!("if {BUTTON_VAR} == {} && {v} == 1 mov {v},0:goto *conv_ps_changed", n + 1));
+        // A check box's side switches to the other.
+        let (on, off) = if check_box(p) { (n + 1, n) } else { (n, n + 1) };
+        w(format!("if {BUTTON_VAR} == {on} && {v} == 0 mov {v},1:goto *conv_ps_changed"));
+        w(format!("if {BUTTON_VAR} == {off} && {v} == 1 mov {v},0:goto *conv_ps_changed"));
     }
     w("goto *conv_ps_wait".into());
     w("*conv_ps_changed".into());
@@ -259,7 +270,11 @@ pub(crate) fn emit(out: &mut String, s: &PictureSettings, border: u32) {
         for &(i, l) in &knobbed {
             let (k0, k1) = l.knob_y;
             let v = slider_var(i);
-            w(format!("if {DRAGGED} == {i} mov {TMP},({MOUSE_Y}-{}-{k0})*1000/{}", l.knob.h / 2, (k1 - k0).max(1)));
+            if l.horizontal {
+                w(format!("if {DRAGGED} == {i} mov {TMP},({k1}-{MOUSE_X}+{})*1000/{}", l.knob.w / 2, (k1 - k0).max(1)));
+            } else {
+                w(format!("if {DRAGGED} == {i} mov {TMP},({MOUSE_Y}-{}-{k0})*1000/{}", l.knob.h / 2, (k1 - k0).max(1)));
+            }
             w(format!("if {DRAGGED} == {i} && {TMP} < 0 mov {TMP},0"));
             w(format!("if {DRAGGED} == {i} && {TMP} > 1000 mov {TMP},1000"));
             w(format!("if {DRAGGED} == {i} && {TMP} != {v} mov {v},{TMP}:gosub *{APPLY}:gosub *conv_ps_draw"));
@@ -274,6 +289,7 @@ pub(crate) fn emit(out: &mut String, s: &PictureSettings, border: u32) {
     w("btndown 0:btndef clear:exbtn_d \"\"".into());
     let mut controls: Vec<u32> = buttons.iter().map(|b| b.0).collect();
     controls.extend(knobbed.iter().map(|&(i, _)| KNOB + i as u32));
+    controls.extend(knobbed.iter().filter(|(_, l)| l.fill.is_some()).map(|&(i, _)| FILL + i as u32));
     for (i, st) in s.sliders.iter().enumerate().filter_map(|(i, l)| Some((i, steps(l)?))) {
         for k in 0..st.buttons.len() {
             controls.extend([step_slot(STEP, i, k), step_slot(STEP_CHOSEN, i, k)]);
@@ -294,13 +310,27 @@ pub(crate) fn emit(out: &mut String, s: &PictureSettings, border: u32) {
     for (i, p) in s.pairs.iter().enumerate() {
         let (on, off) = (CHOSEN + 2 * i as u32, CHOSEN + 2 * i as u32 + 1);
         let v = pair_var(i);
+        if check_box(p) {
+            let (on, off) = (PAIR + 2 * i as u32, PAIR + 2 * i as u32 + 1);
+            w(format!("vsp {on},{v}:mov {TMP},1-{v}:vsp {off},{TMP}"));
+            continue;
+        }
         w(format!("if {v} == 1 csp {off}:{}:cell {on},2", strip(on, 3, &p.on)));
         w(format!("if {v} == 0 csp {on}:{}:cell {off},2", strip(off, 3, &p.off)));
     }
     for &(i, l) in &knobbed {
         let (k0, k1) = l.knob_y;
-        w(format!("mov {TMP},{}*{}/1000+{k0}", slider_var(i), k1 - k0));
-        w(format!("amsp {},{},{TMP}", KNOB + i as u32, l.knob.x));
+        if l.horizontal {
+            w(format!("mov {TMP},{k1}-{}*{}/1000", slider_var(i), k1 - k0));
+            w(format!("amsp {},{TMP},{}", KNOB + i as u32, l.knob.y));
+        } else {
+            w(format!("mov {TMP},{}*{}/1000+{k0}", slider_var(i), k1 - k0));
+            w(format!("amsp {},{},{TMP}", KNOB + i as u32, l.knob.x));
+        }
+        if let Some((f, mask)) = &l.fill {
+            let n = FILL + i as u32;
+            w(format!("lsp {n},\":a;{}\",{},{}:spcut {n},\"{}\",{TMP}+{},{}", path(&f.image), f.x, f.y, path(mask), l.knob.w / 2, f.y));
+        }
     }
     // A stepped slider: the step its value is (TMP), then the chosen cells.
     for (i, st) in s.sliders.iter().enumerate().filter_map(|(i, l)| Some((i, steps(l)?))) {
@@ -473,7 +503,7 @@ mod tests {
             voice_test: Some(placed("test", 287, 197)),
             test_voice: Some("voice/test.ogg".into()),
             sliders: vec![
-                PictureSlider { setting: SliderSetting::VoiceVolume, knob: placed("knob", 358, 67), knob_y: (67, 206), track: Rect { x: 358, y: 67, w: 24, h: 147 }, default: 207, steps: None },
+                PictureSlider { setting: SliderSetting::VoiceVolume, knob: placed("knob", 358, 67), knob_y: (67, 206), track: Rect { x: 358, y: 67, w: 24, h: 147 }, default: 207, steps: None, horizontal: false, fill: None },
                 PictureSlider {
                     setting: SliderSetting::GameSpeed { levels: [50, 75, 100, 150, 200, 300, 400, 550, 800, 1200, 1600, 3200] },
                     knob: placed("knob", 862, 67),
@@ -481,6 +511,8 @@ mod tests {
                     track: Rect { x: 862, y: 67, w: 24, h: 147 },
                     default: 750,
                     steps: None,
+                    horizontal: false,
+                    fill: None,
                 },
             ],
             pairs: vec![
@@ -515,6 +547,8 @@ mod tests {
             track: Rect { x: 0, y: 0, w: 0, h: 0 },
             default: 800,
             steps: Some(conv_core::ir::SliderSteps { buttons, filled: true }),
+            horizontal: false,
+            fill: None,
         });
         let mut out = String::new();
         emit(&mut out, &s, 800);
@@ -564,6 +598,35 @@ mod tests {
             "if %174 == 1 lsp 540,\":a;system\\check.png\",214,376\n",
         ] {
             assert!(out.contains(line), "missing {line:?} in\n{out}");
+        }
+    }
+
+    #[test]
+    fn lying_slider_with_its_bar_and_a_check_box() {
+        let mut s = settings();
+        s.sliders.push(PictureSlider {
+            setting: SliderSetting::BgmVolume,
+            knob: placed("knob", 588, 84),
+            knob_y: (588, 722),
+            track: Rect { x: 588, y: 65, w: 141, h: 34 },
+            default: 407,
+            steps: None,
+            horizontal: true,
+            fill: Some((placed("full", 584, 72), "system/black.png".into())),
+        });
+        s.pairs.push(PicturePair { option: PairOption::Bgm, on: placed("heard", 769, 57), off: placed("muted", 769, 57), default_on: true });
+        let mut out = String::new();
+        emit(&mut out, &s, 200);
+        for line in [
+            // Position 0 at the right end; the bar cut from the knob's middle.
+            "mov %105,722-%2924*134/1000\namsp 702,%105,84\nlsp 902,\":a;system\\full.png\",584,72:spcut 902,\"system\\black.png\",%105+12,72\n",
+            "if %170 == 2 mov %105,(722-%177+12)*1000/134\n",
+            // The check box: only its current side, which switches to the other.
+            "vsp 754,%2932:mov %105,1-%2932:vsp 755,%105\n",
+            "if %2932 == 1 spbtn 754,34\nif %2932 == 0 spbtn 755,35\n",
+            "if %9 == 35 && %2932 == 0 mov %2932,1:goto *conv_ps_changed\nif %9 == 34 && %2932 == 1 mov %2932,0:goto *conv_ps_changed\n",
+        ] {
+            assert!(out.contains(line), "missing:\n{line}\nin:\n{out}");
         }
     }
 }

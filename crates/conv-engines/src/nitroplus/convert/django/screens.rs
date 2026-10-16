@@ -74,6 +74,8 @@ fn settings(a: &mut dyn Assets) -> Option<PictureSettings> {
         track: Rect { x: 0, y: 0, w: 0, h: 0 },
         default,
         steps: Some(SliderSteps { buttons, filled }),
+        horizontal: false,
+        fill: None,
     };
     let bullets = |a: &mut dyn Assets, y: i32, position: &dyn Fn(u32) -> u32| -> Option<Vec<(Placed, u32)>> {
         (1..=10).map(|k| Some((button(a, "bar-弾", 306 + 12 * (k as i32 - 1), y)?, position(k)))).collect()
