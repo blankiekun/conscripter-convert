@@ -3930,6 +3930,28 @@ scene a.nss
     }
 
     #[test]
+    fn a_song_line_types_out_from_its_enter() {
+        // 続・殺戮のジャンゴ's hooks (django/song.rs): 0, 1, 2 letters, 125 ms each.
+        let story = r#"
+scene a.nss
+{
+	CreateText("songtxt01", 10301, center, 0, auto, auto, "<I>荒.野</I>");
+	Request("songtxt01", Erase);
+	Request("songtxt01", Enter);
+	WaitAction("songtxt01", null);
+}
+"#;
+        static GAME: Game = Game { call: DJANGO.call, ..Game::PLAIN };
+        let mut files = BTreeMap::new();
+        files.insert(BOOT.to_string(), nss::parse("#include \"nss/function.nss\"\n").unwrap());
+        files.insert("function.nss".to_string(), nss::parse(LIBRARY).unwrap());
+        files.insert("a.nss".to_string(), nss::parse(story).unwrap());
+        let c = compile_scene(&files, "a.nss", "a.nss", &GAME, &mut Fake).unwrap();
+        let at = c.ops.iter().position(|op| matches!(op, Op::AnimatedSprite { cells: 3, frame_ms: 125, looped: false, .. }));
+        assert!(at.is_some_and(|i| c.ops[i + 1..].iter().any(|op| matches!(op, Op::Wait { ms: 250 }))), "{:?}", c.ops);
+    }
+
+    #[test]
     fn a_window_clips_its_children_to_the_overlap_of_its_windows() {
         // 装甲悪鬼村正's cockpit: the speed tape in CPWS (CockpitSetSpeed).
         let story = r#"

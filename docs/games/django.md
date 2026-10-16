@@ -347,8 +347,8 @@ with the original (it wants all eleven endings' flags under wine).
 
 - Merged: windows clip their children (#45), the song's lyrics in
   dja026 (#47), unread-argument notes ranked in Next (#51). Open: the
-  song lines type out as the original's (#55, approved); `WaitPlay` on
-  a sound outside a process doesn't wait (being fixed).
+  song lines type out as the original's (#55); `WaitPlay` on a sound
+  waits (#58).
 - Open from the face windows (#37): a sliding frame's face jumps to its
   end place; dja003_02's blood movie is drawn mirrored by us, unmirrored
   under wine (which plays no movie there).
@@ -454,6 +454,20 @@ with the original (it wants all eleven endings' flags under wine).
 
 ## History
 
+- **The song types out (2026-10-16).** In the exe's `CreateText`
+  layout (`layout_create_text`) a `.` adds a 100 ms pause before the
+  next letter (`,` adds 500), timed in game time (play speed NORMAL =
+  1×). Under wine (`nss-d26` boot, 45 shots a second of the lyric band)
+  the first two lines came a letter every 125 ms, the full-width space
+  included: 9 steps in 1,170 ms, then 10 in 1,213 ms. The first letter
+  comes about one step after `Enter`. `django/song.rs`, through the
+  game's `call` hook: `CreateText` keeps a `<I>` line's letters,
+  `Request(…, Enter)` turns the line into a strip of its first 0, 1, …
+  letters (`lsp ":a/N,125,1;…_typed.png"`, shown at once), and its
+  `WaitAction` waits until the last letter (`delay`). Checked headless
+  (`--goto if16_else`, `--shot-after` every 50 ms): one more letter
+  every 125 ms from the `lsp`. Ours keeps 125 ms whatever the text
+  speed setting.
 - **The song in dja026 (2026-10-16).** `ShowWords` makes 13
   `CreateText("songtxtNN", 10301, center, 0 or 27, auto, auto,
   "<I>荒.野.開.く…</I>")`, takes them away (`Request(…, Erase)`), moves

@@ -11,6 +11,7 @@ mod battle;
 mod counter;
 mod loops;
 mod roll;
+mod song;
 pub mod extras;
 pub mod screens;
 
@@ -36,8 +37,8 @@ pub const DJANGO: Game = Game {
 };
 
 /// The functions compiled as the game's own: the battle's movies, its
-/// counter and its muzzle flashes, the looping shakes, the strobe and
-/// the ending's credits.
+/// counter and its muzzle flashes, the looping shakes, the strobe, the
+/// song typed out in dja026 and the ending's credits.
 fn call(c: &mut Compiler<'_, '_>, name: &str, args: &[Value]) -> bool {
     if c.roll(name, args) {
         return true;
@@ -54,6 +55,11 @@ fn call(c: &mut Compiler<'_, '_>, name: &str, args: &[Value]) -> bool {
             true
         }
         "CreateProcess" => args.get(4).is_some_and(|f| c.count_process(&f.string())) || c.loop_process(args),
+        "CreateText" => {
+            c.song_line(args);
+            false
+        }
+        "Request" => c.song_enter(args),
         "Delete" => {
             c.stop_shakes(args);
             false
@@ -62,6 +68,7 @@ fn call(c: &mut Compiler<'_, '_>, name: &str, args: &[Value]) -> bool {
             c.count_wait();
             true
         }
+        "WaitAction" => c.song_wait(args),
         _ => false,
     }
 }
