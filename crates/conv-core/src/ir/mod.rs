@@ -606,6 +606,12 @@ pub enum Op {
     /// `runtime` (`text` when no value matches): the log line of an
     /// [`Op::RuntimeChoice`]'s option.
     RuntimeBacklogLine { text: String, runtime: RuntimeText },
+    /// Pan the sound effect `file` (as [`Op::SePlay`] names it): `pan`
+    /// -1000 (left only) .. 0 (centre) .. 1000 (right only), over `ms`
+    /// (0 = at once) while the script goes on. Before the sound's
+    /// `SePlay` (with at most an [`Op::SoundVolume`] between), the pan it
+    /// starts at; a sound started without one is centred.
+    SoundPan { file: String, pan: i32, ms: u32 },
 }
 
 /// [`Op::HoldMovie`]'s prompt: `image` is `cells` pictures side by side,

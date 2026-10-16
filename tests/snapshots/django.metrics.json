@@ -1,13 +1,12 @@
 {
 "game": "django",
 "engine": "nitroplus",
-"commit": "0cfb028",
+"commit": "c98366f",
 "commit_date": "2026-10-16",
-"totals": {"calls": 57092, "full": 44399, "gaps": 12693},
+"totals": {"calls": 57092, "full": 45668, "gaps": 11424},
 "kinds": {
 "WaitAction": {"calls": 5932, "gaps": 5839, "reasons": [["WaitAction argument 1 ignored", 5839], ["move or zoom over time with a fade or a new picture drawn as a cross-fade", 21]]},
 "SetFrequency": {"calls": 1283, "gaps": 1283, "reasons": [["SetFrequency argument 0 ignored", 1283], ["SetFrequency argument 1 ignored", 1283], ["SetFrequency argument 3 ignored", 1283]]},
-"SetPan": {"calls": 1283, "gaps": 1283, "reasons": [["SetPan argument 0 ignored", 1283], ["SetPan argument 1 ignored", 1283], ["SetPan argument 2 ignored", 1283], ["SetPan argument 3 ignored", 1283]]},
 "Move": {"calls": 3601, "gaps": 1076, "reasons": [["Move argument 4 ignored", 1069], ["move or zoom over time with a fade or a new picture drawn as a cross-fade", 11]]},
 "CreateWindow": {"calls": 975, "gaps": 975, "reasons": [["CreateWindow argument 6 ignored", 975]]},
 "LoadText": {"calls": 740, "gaps": 740, "reasons": [["LoadText argument 0 ignored", 740]]},
@@ -24,6 +23,7 @@
 "CreateMask": {"calls": 30, "gaps": 30, "reasons": [["built-in CreateMask", 30]]},
 "CreateChoice": {"calls": 20, "gaps": 20, "reasons": [["built-in CreateChoice", 20]]},
 "CursorPosition": {"calls": 20, "gaps": 20, "reasons": [["built-in CursorPosition", 20]]},
+"SetPan": {"calls": 1283, "gaps": 14, "reasons": [["SetPan on the music", 14]]},
 "WaitPlay": {"calls": 55, "gaps": 11, "reasons": [["BGM without loop played looping", 10], ["WaitPlay argument 1 ignored", 1]]},
 "LoadColor": {"calls": 10, "gaps": 10, "reasons": [["built-in LoadColor", 10]]},
 "Save": {"calls": 10, "gaps": 10, "reasons": [["built-in Save", 10]]},

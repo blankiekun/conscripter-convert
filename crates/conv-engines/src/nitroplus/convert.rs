@@ -1185,6 +1185,8 @@ struct SoundObject {
     /// forgotten after it).
     started_at: u64,
     len_ms: Option<u32>,
+    /// `SetPan`: -1000 (left) .. 1000 (right), for its next `Play` too.
+    pan: i64,
 }
 
 /// `old` moved and zoomed into `now` over `ms` by the engine: the same
@@ -2960,6 +2962,26 @@ impl<'a, 'b> Compiler<'a, 'b> {
         }
     }
 
+    /// `SetPan(target, ms, pan, tempo)`: a sound playing pans over `ms`;
+    /// one starting (or stopped) starts at it. The music isn't panned.
+    fn set_pan(&mut self, target: &Value, ms: i64, pan: i64) {
+        let (ms, pan) = (ms.max(0) as u32, pan.clamp(-1000, 1000));
+        for t in self.matching(target) {
+            let Some(Object { kind: Kind::Sound(s), .. }) = self.objects.get_mut(&t) else { continue };
+            if std::mem::replace(&mut s.pan, pan) == pan {
+                continue;
+            }
+            if s.bgm {
+                if pan != 0 {
+                    self.note("SetPan on the music");
+                }
+            } else if let (false, Some(file)) = (s.starting, &s.playing) {
+                let file = file.clone();
+                self.ops.push(Op::SoundPan { file, pan: pan as i32, ms });
+            }
+        }
+    }
+
     /// Starts the sounds whose `Play` came since the last flush.
     fn flush_sounds(&mut self) {
         let starting: Vec<String> =
@@ -2970,7 +2992,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
             if s.volume <= 0 && s.fade_ms == 0 {
                 continue;
             }
-            let (path, bgm, looped, fade_ms, volume, loop_ms) = (s.path.clone(), s.bgm, s.looped, s.fade_ms, s.volume, s.loop_ms);
+            let (path, bgm, looped, fade_ms, volume, loop_ms, pan) = (s.path.clone(), s.bgm, s.looped, s.fade_ms, s.volume, s.loop_ms, s.pan);
             let file = match loop_ms {
                 Some((start, end)) if looped => self.assets.looped_sound(&path, start, end),
                 _ => self.assets.sound(&path),
@@ -3006,6 +3028,9 @@ impl<'a, 'b> Compiler<'a, 'b> {
             } else {
                 if fade_ms > 0 {
                     self.ops.push(Op::SeFadeIn { ms: fade_ms });
+                }
+                if pan != 0 {
+                    self.ops.push(Op::SoundPan { file: file.clone(), pan: pan as i32, ms: 0 });
                 }
                 if percent(volume) < 100 {
                     self.ops.push(Op::SoundVolume { file: Some(file.clone()), percent: percent(volume), ms: 0 });
@@ -3834,6 +3859,34 @@ scene a.nss
             _ => None,
         });
         assert_eq!(gone, Some(true), "{:?}", c.ops);
+    }
+
+    #[test]
+    fn set_pan_pans_a_sound_from_its_start_or_over_time() {
+        let story = r#"
+scene a.nss
+{
+	CreateSound("se", SE, "sound/se/a");
+	MusicStart("se", 0, 1000, -1000, 1000, null, false);
+	Wait(100);
+	SetPan("se", 500, 1000, null);
+}
+"#;
+        // As the games' MusicStart: its 4th argument is the pan.
+        let music_start = r#"
+function MusicStart("ナット名",秒数,ボリウム,再生方向,再生スピード,テンポ,ループ設定)
+{
+	Request("ナット名", "Play");
+	SetPan("ナット名", 0, 再生方向, NULL);
+	SetLoop("ナット名", ループ設定);
+	SetVolume("ナット名", 秒数, ボリウム, テンポ);
+}
+"#;
+        let c = compile(story, &format!("{LIBRARY}{music_start}"));
+        let pans: Vec<(i32, u32)> = c.ops.iter().filter_map(|op| match op { Op::SoundPan { pan, ms, .. } => Some((*pan, *ms)), _ => None }).collect();
+        assert_eq!(pans, [(-1000, 0), (1000, 500)], "{:?}", c.ops);
+        let first = c.ops.iter().position(|op| matches!(op, Op::SoundPan { .. })).unwrap();
+        assert!(matches!(c.ops[first + 1], Op::SePlay { .. }), "{:?}", c.ops);
     }
 
     #[test]

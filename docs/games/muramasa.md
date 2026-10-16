@@ -549,6 +549,9 @@ Used to check what the engine does (`docs/new-game.md` step 9).
   companion): `Op::RuntimeChoice`, `$3632` up, choice-only flags at
   %783-%798. Their line-log entries (`『…』`, `【…】`) are picked at
   run time too (`Op::RuntimeBacklogLine`, `$3638`).
+- Changed by the Django agent (shared NSS code): `SetPan` is converted
+  (`chpan`, engine #35); Muramasa pans nothing off centre, so its
+  script is the same and its 6,494 `SetPan` calls count as converted.
 - Changed by the Django agent (shared NSS code): `Shake` of a picture
   smaller than the screen moves the picture alone (a one-shot
   `spmotion`, as the exe's `shake_frame`): 83 of the 144 calls; the rest
@@ -719,7 +722,7 @@ Next, in order:
    - `Random` and `Conquest` return 0 whatever their arguments.
    - `CreateEffect`'s place and size; `SetBacklog`'s speaker;
      `MoveCamera`'s arguments.
-   - `LockVideo`, `WaitText`, `SetPan`, `SetFrequency` (but 1000),
+   - `LockVideo`, `WaitText`, `SetFrequency` (but 1000),
      the time limit (?) of `WaitAction` and the
      other waits: dropped; meaning to check in the exe.
 6. Gaps from the script coverage (2026-10-15; every file, built-in,

@@ -5,7 +5,7 @@
 //! "unverified" below follow the NScripter documentation but haven't been
 //! checked in a running engine yet (see PLAN.md, Phase 0).
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fmt::Write;
 
 use conv_core::ir::{
@@ -1344,6 +1344,10 @@ struct SeChannels {
     volumes: bool,
     /// The op before the sound starting set its volume.
     preset: bool,
+    /// Channels a [`Op::SoundPan`] panned (centred again by the next
+    /// sound on them), and whether one is for the sound starting next.
+    panned: HashSet<u32>,
+    pan_preset: bool,
 }
 
 impl SeChannels {
@@ -2580,6 +2584,24 @@ end
             Op::SeFadeOut { file: Some("se/rain.ogg".into()), ms: 1500 },
         ]));
         assert!(out.contains("dwavefadein 2000\ndwaveloop 1,\"se\\rain.ogg\"\nchvolfade 1,0,1500,1\n"), "{out}");
+    }
+
+    #[test]
+    fn sound_effects_pan() {
+        let shot = || "se/shot.ogg".to_string();
+        let mut ops = vec![
+            Op::SoundPan { file: shot(), pan: -1000, ms: 0 },
+            Op::SoundVolume { file: Some(shot()), percent: 50, ms: 0 },
+            Op::SePlay { file: shot(), looped: false },
+            Op::SoundPan { file: shot(), pan: 1000, ms: 1500 },
+        ];
+        // Round the channels to the panned one again: centred.
+        let span = SE_CHANNELS.end() - SE_CHANNELS.start() + 1;
+        ops.extend((0..span).map(|i| Op::SePlay { file: format!("se/{i}.ogg"), looped: false }));
+        let out = emit(&script(ops));
+        assert!(out.contains("chpan 1,-1000\nchvolfade 1,50\ndwave 1,\"se\\shot.ogg\"\nchpan 1,1000,1500\n"), "{out}");
+        assert_eq!(out.matches("chpan 1,0\n").count(), 1, "{out}");
+        assert_eq!(out.matches("chpan").count(), 3, "{out}");
     }
 
     #[test]
