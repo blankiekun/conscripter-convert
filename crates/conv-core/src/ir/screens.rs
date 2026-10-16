@@ -68,6 +68,14 @@ pub struct TitleScreen {
     /// (at the first title of a run, or on coming back to it) plays before
     /// the buttons show. None fits: the title fades in.
     pub openings: Vec<TitleOpening>,
+    /// Continue and Load are drawn only while there is a save (in any
+    /// slot, or the quick save); Continue loads the quick save, else the
+    /// save screen's newest, else the first save found (the English
+    /// Muramasa port's, which loads its newest).
+    pub hide_without_saves: bool,
+    /// Extras is drawn only while one of these isn't 0 (a game's flags:
+    /// either route cleared). Empty: as its [`TitleButton::shown_by`].
+    pub extras_shown_by: Vec<Var>,
 }
 
 /// [`TitleScreen::openings`]: a silent movie of the title coming up, ending

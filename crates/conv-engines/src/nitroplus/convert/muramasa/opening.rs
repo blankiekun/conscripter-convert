@@ -23,6 +23,10 @@ pub struct TitleLook {
     pub buttons: [(&'static str, f64, f64); 6],
     /// Where ライナー画像 leads.
     pub notes: &'static str,
+    /// しおりから and 電光記録 only while there is a save, 特別付加 once
+    /// 英雄編 or 復讐編 is over (the English port's `sys_titlelogo.nut`;
+    /// `0_boot.nss` shows them all).
+    pub hides: bool,
 }
 
 /// `0_boot.nss`: the buttons upright in two groups of three at y 150.
@@ -31,6 +35,7 @@ pub const JP: TitleLook = TitleLook {
     logo: (346.0, 40.0),
     buttons: [("しおりから", 822.0, 150.0), ("最初から", 762.0, 150.0), ("電光記録", 702.0, 150.0), ("設定画面", 282.0, 150.0), ("特別付加", 222.0, 150.0), ("終了する", 162.0, 150.0)],
     notes: "http://www.nitroplus.co.jp/secret/muramasamune",
+    hides: false,
 };
 
 /// The English port's (`sys_titlelogo.nut`, its `LANG_NAME == "en"`
@@ -41,6 +46,7 @@ pub const EN: TitleLook = TitleLook {
     logo: (0.0, -40.0),
     buttons: [("しおりから", 280.0, 467.0), ("最初から", 158.0, 467.0), ("電光記録", 402.0, 467.0), ("設定画面", 646.0, 467.0), ("特別付加", 524.0, 467.0), ("終了する", 768.0, 467.0)],
     notes: "http://secret.muramasa.jastusa.com/",
+    hides: true,
 };
 
 /// How a picture is drawn over what is under it (NSS `Request`).

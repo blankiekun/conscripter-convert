@@ -45,7 +45,12 @@ It has no NPA archives and no NSS scripts.
   full screen 40 px up, the six buttons in a row at y 467 (Start 158,
   Continue 280, Load 402, Extra 524, Config 646, Quit 768), the notes
   button leading to `secret.muramasa.jastusa.com`; the openings drawn
-  with them (`opening::EN`). Not yet compared with the original.
+  with them (`opening::EN`). As in the original under wine (and its
+  script): Continue and Load only while there is a save, Extra once
+  英雄編 or 復讐編 is over (`TitleScreen::hide_without_saves`,
+  `extras_shown_by`); the button row matches it pixel for pixel at a
+  first start and with a save. Continue loads the quick save, else the
+  save screen's newest (the port: its newest save of either kind).
 - **Command menu:** the port's (`sys_menu.nut`, `command_menu_en`):
   fourteen rows from the English `cg.npk` at x 637 from y 90, no 選択肢に
   戻る, クイッセーブ/クイックロード in place of 栞を差す/栞を開く (no
