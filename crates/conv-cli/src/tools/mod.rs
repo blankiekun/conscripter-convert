@@ -2,4 +2,5 @@
 //! per engine.
 
 pub mod nitroplus;
+pub mod typemoon;
 pub mod xuse;

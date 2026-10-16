@@ -9,7 +9,10 @@ the 魔法使いの夜 remake.
 The user owns the Switch release and dumped it themselves (NSP plus
 their console's `prod.keys`). The user asked for (2026-10-16): the
 whole game **with every extra**, on **every platform** (web, Linux,
-Windows, macOS). Nothing has been dropped yet.
+Windows, macOS), readable in **both Japanese and English**: the
+Japanese from the release, the English from the Tsukihimates fan
+patch (`tsukihimates_patch_2023.09.05.5c86a2e06.nsp`, which the user
+downloaded). Nothing has been dropped yet.
 
 ## Build
 
@@ -24,6 +27,21 @@ hactool -k prod.keys --exefsdir=exefs --romfsdir=<game> nsp/<the Program NCA>
 hactool 1.4 stops at a key line whose value isn't a multiple of 32 hex
 digits (some newer `mariko_*` entries); give it a copy without them
 (`awk -F' *= *' 'NF==2 && length($2)%32==0' prod.keys`).
+
+The fan patch is an update NSP (title `01001DC01486A800`, version
+131072) whose RomFS is a BKTR patch over the base game's, so it is
+applied with the base Program NCA; the result is a full second RomFS
+(`<game-en>`, 21 GB):
+
+```sh
+hactool -k prod.keys -t pfs0 --pfs0dir=patch <the patch .nsp>
+hactool -k prod.keys --basenca=nsp/<the base Program NCA> \
+  --romfsdir=<game-en> patch/<the patch's Program NCA>
+```
+
+It changes every archive but `allpachd`/`allpacml`/`allpachdml`:
+`allscr.mrg` grows from 9 to 19 MB (553 entries), `allpac` gains 10
+entries.
 
 The Program NCA is the 22 GB one (the others: Meta, Control,
 Manual). The ExeFS holds `main` (3.3 MB NSO) and `subsdk0`/`subsdk1`.
@@ -46,7 +64,9 @@ The RomFS, 21 GB, 16,729 files:
 | `knife1.bfsar` (386 MB) | Nintendo sound archive: 1,298 embedded FWAV, no FSTM (sound effects, maybe BGM) |
 | `shader/*.bnsh`, `exfont_nx01.bffnt` | Switch shaders and font, not needed |
 
-How the formats nest, checked on our files (2026-10-16):
+How the formats nest, checked over every entry of both RomFS copies
+(`conscripter-convert typemoon check <game>`, 1.5 min each; also
+`typemoon list|extract <archive>`):
 
 - **MRG** (`.hed`/`.mrg`/`.nam`): the `.hed` gives each entry's place
   in the `.mrg`, the `.nam` its name.
@@ -54,7 +74,11 @@ How the formats nest, checked on our files (2026-10-16):
   `u16 sector, u16 byte, u16 size_sectors, u16 size_low`, sector 0x800;
   size = `(size_sectors*0x800 & ~0xFFFF) | size_low`; data starts after
   the table).
-- **MZX0**: an LZ-like compression (the scripts).
+- **MZX0**: an LZ-like compression on 16-bit words (the scripts;
+  `typemoon/mzx.rs` has the commands). The fan patch's scripts were
+  written by mangetsu's compressor, which leaves an odd last literal
+  chunk one byte short; the reader accepts that when it still fills
+  the unpacked size.
 - **NXGX/NXCX** (`.NXGZ`/`.NXZ`): a 16-byte header (magic, sizes),
   then gzip (NXGX) or deflate (NXCX). An `allui` picture inflates to
   **BNTX**, Nintendo's texture container: swizzled (Tegra block-linear)
@@ -111,24 +135,33 @@ Nothing yet.
 | Getting the files out of the NSP | ✅ |
 | Engine identified | ✅ (TYPE-MOON, `mrgd00`/MZP) |
 | Survey of existing tools | ✅ (see "Existing tools") |
-| Archives (`hed`/`mrg`/`nam`, MZP, NXGX/NXZ pictures) | ❌ |
+| Archives (`hed`/`mrg`/`nam`, MZP, MZX, NXGX/NXCX) | ✅ every entry of both RomFS copies |
+| Pictures (BNTX) | ❌ |
 | `knife1.bfsar` sound | ❌ |
 | Scripts | ❌ |
 | Everything after (text, pictures, screens, extras) | ❌ |
 
 ### Next
 
-1. The archive reader (`crates/conv-engines/src/typemoon/`): MRG, MZP,
-   MZX, NXGX/NXCX, with `list`/`extract`, checked over every entry
-   (mangetsu as the reference).
-2. Pictures: BNTX deswizzle and BC decode, every picture decoding.
-3. Sound: Nintendo Opus to Ogg Opus; FWAV out of `knife1.bfsar`.
-4. Decode `allscr.mrg` (MZX, split into commands), join the text from
+1. Pictures: BNTX deswizzle and BC decode, every picture decoding.
+2. Sound: Nintendo Opus to Ogg Opus; FWAV out of `knife1.bfsar`.
+3. Decode `allscr.mrg` (MZX, split into commands), join the text from
    `script_text.mrg`, rank the commands by use.
-5. Write the walkthrough.
+   Both languages: the base RomFS and the patched one, and how the
+   patch's `allscr.mrg` differs (its extra entries).
+4. Write the walkthrough.
 
 ## History
 
+- 2026-10-16: the archive reader (`crates/conv-engines/src/typemoon/`:
+  `mrg`, `mzp`, `mzx`, `nxx`) and `conscripter-convert typemoon
+  list|extract|check`. Every entry of both RomFS copies reads and
+  unpacks, and each wrapped entry's size matches the `.hed`. Inside:
+  29,475 `allpac` entries (28,185 BNTX, 1,279 JPEG, 5 PNG, 6 MZP),
+  `allpaccg` 919 BNTX + 600 JPEG, `allpachd` 14,705 unknown (`bin`),
+  `allui` 26 BNTX. MZP sizes: mangetsu's and deepLuna's formula is
+  64 KiB too big when rounding to the sector crosses a 64 KiB boundary;
+  ours isn't.
 - 2026-10-16: tool survey (mangetsu, deepLuna, PS-HuneX_Tools);
   the nesting of MZP, MZX and NXGX→BNTX checked on our files.
 - 2026-10-16: NSP unpacked, engine identified, this document started.

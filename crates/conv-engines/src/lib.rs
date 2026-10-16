@@ -10,6 +10,7 @@ pub mod ogg;
 pub mod output;
 pub mod read;
 pub mod registry;
+pub mod typemoon;
 pub mod xuse;
 
 /// `dir`/`rel` (`/`-separated) with each part matched in any case, as
