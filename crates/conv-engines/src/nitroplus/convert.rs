@@ -3738,6 +3738,28 @@ scene a.nss
     }
 
     #[test]
+    fn set_blur_copies_follow_the_move_later_at_their_alpha() {
+        let story = r#"
+scene a.nss
+{
+	CreateTexture("st", 100, 0, 0, "cg/st/a.png");
+	Wait(100);
+	SetBlur("st", true, 2, 500, 50, false);
+	Move("st", 1000, @-100, @0, null, false);
+	Wait(100);
+}
+"#;
+        let c = compile(story, LIBRARY);
+        let motions: Vec<_> = c.ops.iter().filter_map(|op| match op {
+            Op::SpriteMotion2 { keys, .. } => Some(keys.iter().map(|k| (k.ms, k.x)).collect::<Vec<_>>()),
+            _ => None,
+        }).collect();
+        // The picture, then copy 1 50 ms and copy 2 100 ms later.
+        assert_eq!(motions, [vec![(0, 0), (1000, -100)], vec![(0, 0), (50, 0), (1050, -100)], vec![(0, 0), (100, 0), (1100, -100)]], "{:?}", c.ops);
+        assert_eq!(c.ops.iter().filter(|op| matches!(op, Op::SpriteOpacity { opacity: 128, .. })).count(), 2, "{:?}", c.ops);
+    }
+
+    #[test]
     fn a_picture_under_an_opaque_full_screen_one_isnt_drawn() {
         let story = r#"
 scene a.nss
