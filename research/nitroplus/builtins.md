@@ -184,6 +184,7 @@ dry run):
 | `DrawTransition`, `Shake`, `Rotate`, `CreateTexture`, `CreateEffect`, `CreateMovie`, `MoviePlay` | story | converted except the noted cases (`Shake` of a small picture 145, `CreateTexture` from an object or the screen 1,812, `CreateEffect` Rain/Sepia/Monochrome/KitanoBlue/NegaPosi/Lens/Drop 82, 3 transition masks missing) |
 | `CreateProcess`, `BezierMove`, `SetFrequency`, `SetShade`, `SetTone`, `MoveCamera`, `CreateCamera` | 287 / 193 / 30 … | not converted (Status) |
 | `SetBacklog` | 83 / 6 / 0 | not converted: 1,958 noted; the hand-made backlog lines (pictures, ASCII art) are missing from our log |
+| `CreateWindow` | story | partial: its children are drawn only inside it (`spclip`), not with `Game::relative_children` (続・殺戮のジャンゴ, whose moved windows aren't checked); argument 6 (true/false) not read |
 | `CreateText` | 53 / 104 / 40 | story: not converted (Status); sys: replaced |
 | `LoadImage` | 30 / 16 / 101 | not converted for Muramasa (`Game::loaded_textures` is off; 487 noted): the sources of `CreateTexture` from an object |
 | `DrawEffect` | 79 / 0 / 2 | not converted (waves `SuperWave`, `LowWave`, …; 76 noted) |
@@ -225,7 +226,7 @@ whole-game dry run (`ma00_000.nss --chain 2000`), and 続・殺戮のジャン�
 | `SetBacklog` | 2 (the speaker) | 1,958 | 75 |
 | `Shake` | 6 `n`, 7 tempo; 8 wait; 2-5 (a picture smaller than the screen) | 1,486; 62; 144 | 58; 3; 3 |
 | `SetBlur` | 4 strength; 2 passes (when off) | 983; 14 | 0 |
-| `CreateWindow` | 4, 5 (the size: the clip, PR #27), 6 | 639 | 975 |
+| `CreateWindow` | 6 (true/false, meaning unknown) | 639 | 975 |
 | `Rotate` | 5 tempo | 488 | 264 |
 | `MoveCamera` | 1-6 | 105 | 373 |
 | `CreateMovie` | 2-5 (a missing movie) | 61 | 0 |

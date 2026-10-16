@@ -589,6 +589,10 @@ pub enum Op {
     /// 続・殺戮のジャンゴ's ending credits (ProcessRoll), timed to the
     /// insert song left and the closing song.
     MusicRoll { layer: u32, dy: i32, song: String, song_ms: u32, next: Option<String>, after_ms: u32, skippable: bool },
+    /// Draws a layer's sprite only inside the screen's rectangle (x, y, w,
+    /// h), wherever it moves, until the layer is cleared (`spclip`). NSS's
+    /// `CreateWindow` children: 装甲悪鬼村正's cockpit tapes.
+    SpriteClip { layer: u32, rect: (i32, i32, i32, i32) },
 }
 
 /// [`Op::HoldMovie`]'s prompt: `image` is `cells` pictures side by side,

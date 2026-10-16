@@ -171,6 +171,12 @@ impl<'a> Emitter<'a> {
             Some(v) => writeln!(out, "logadd \"{}\",\"{}\"", escape(text), path(v)).unwrap(),
             None => writeln!(out, "logadd \"{}\"", escape(text)).unwrap(),
         },
+        Op::SpriteClip { layer, rect: (x, y, w, h) } => {
+            writeln!(out, "spclip {},{x},{y},{w},{h}", SPRITE_BASE + layer).unwrap();
+            if transition.is_none() {
+                writeln!(out, "print 1").unwrap();
+            }
+        }
         Op::SpriteAngle { layer, degrees } => {
             writeln!(out, "sprot {},{degrees}", SPRITE_BASE + layer).unwrap();
             if transition.is_none() {

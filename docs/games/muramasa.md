@@ -649,8 +649,6 @@ Next, in order:
    arguments the converter doesn't read, with counts, in
    `research/nitroplus/builtins.md`, "Arguments not read"), most
    noticeable first:
-   - `CreateWindow`'s size: the clip of its children (the cockpit's
-     tapes; PR #27).
    - Tempo (easing) of `Fade`, `Move`, `Zoom`, `Rotate`, `SetVolume`,
      `DrawTransition` (`Axl`/`Dxl`…; a `null` tempo is taken as linear).
    - `SetFont`'s face, colours, weight and shadow (story `CreateText`
@@ -734,6 +732,26 @@ the original plays that silence too, and it stays. The delay was the
 mixer: CONscripter opened it with a 4096-sample buffer (93 ms at
 44.1 kHz, so 140 ms late on average). CONscripter `f33a0c0` uses 1024
 (23 ms), 2048 in the web build, which mixes on the main thread.
+
+**Window clip (2026-10-16, reported by the user):** the cockpit's speed and
+altitude tapes ran the whole screen height: `CreateWindow(name, prio, x,
+y, w, h, ?)` (`CPWS`/`CPWH` at 260,138 and 665,138, 100×300, in
+`CockpitSetSpeed`/`CockpitSetHigh`) shows its children only inside its
+rectangle, and only the window's place was kept. Now every picture in a
+window (or in several, their overlap) is drawn with CONscripter's
+`spclip` (`Op::SpriteClip`) at the window's place, which a `Move` of the
+window moves; a named place (`Center`, `OutRight`) is read as for a
+picture. Checked headless in `ma01_022vs` beside the user's shot: the
+tapes show between y 138 and 438 only. Not with
+`Game::relative_children` (続・殺戮のジャンゴ: its windows that move in from
+`OutRight` aren't checked, so its script is unchanged). The cockpit's
+windows don't move (`FrameShake` shakes `@CP_Frame` only); story windows
+that do (`絵演窓上`, `窓右`, `絵窓上`/`下`: about 56 `Move`s, 14 over
+200-1000 ms) move the clip at once to the end place when the move
+starts, not over its time. Pictures under a clipped full-screen picture
+(the halves of a split screen) are no longer left out as covered: 50
+more `print 1` in the whole game's script, none from `spclip` itself
+(it is always given with its `lsp`, inside the transition).
 
 **Auto-play stuck in `mc04_041vs` (2026-10-15, reported by the user):**
 the trace's auto-play ended as stuck (20000 waits) in a blocking sprite

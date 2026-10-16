@@ -1006,6 +1006,9 @@ struct Object<'a> {
     /// x, y), and the process running it (続・殺戮のジャンゴ's
     /// `ShakeVLoop`).
     shake: Option<ShakeLoop>,
+    /// `CreateWindow`'s size (w, h): its children are drawn only inside
+    /// it, at its place.
+    clip: Option<(i64, i64)>,
 }
 
 /// [`Object::shake`]: the process, the keys.
@@ -1111,6 +1114,8 @@ struct Shown {
     zoom: (i64, i64),
     /// Turned (degrees counterclockwise) by the engine ([`Op::SpriteAngle`]).
     angle: i64,
+    /// Drawn only inside its windows' rectangle ([`Op::SpriteClip`]).
+    clip: Option<(i64, i64, i64, i64)>,
     engine: Engine,
     /// A [`Kind::Flash`]'s `seq` (0 for any other picture): a new flash
     /// starts again.
@@ -2385,7 +2390,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
 
     fn create(&mut self, name: String, kind: Kind<'a>, priority: i64, w: i64, h: i64) -> &mut Object<'a> {
         self.seq += 1;
-        let o = Object { kind, priority, x: 0, y: 0, w, h, opacity: 1000, locked: false, hideable: false, seq: self.seq, zoom: (1000, 1000), blur: 0, vertex: None, turn: (0, 0, 0), shake: None };
+        let o = Object { kind, priority, x: 0, y: 0, w, h, opacity: 1000, locked: false, hideable: false, seq: self.seq, zoom: (1000, 1000), blur: 0, vertex: None, turn: (0, 0, 0), shake: None, clip: None };
         self.objects.insert(name.clone(), o);
         self.objects.get_mut(&name).unwrap()
     }
@@ -2599,6 +2604,29 @@ impl<'a, 'b> Compiler<'a, 'b> {
     /// Where a child object's place counts from: the sum of the places of
     /// the objects its name runs through (`@frame03/顔窓31` at 25,25 in
     /// `frame03` at 25,80 is at 50,105).
+    /// The rectangle of the windows `name` is in (`CreateWindow`), their
+    /// overlap when there are several; `None` when it is in none.
+    fn window_clip(&self, name: &str) -> Option<(i64, i64, i64, i64)> {
+        // shortcut: not with Game::relative_children (続・殺戮のジャンゴ): its
+        // windows' places (named ones, moved ones such as 移動窓) aren't
+        // checked, and children outside them would vanish.
+        if self.game.relative_children {
+            return None;
+        }
+        let mut clip: Option<(i64, i64, i64, i64)> = None;
+        for (i, _) in name.match_indices('/') {
+            let Some((x, y, (w, h))) = self.objects.get(&name[..i]).and_then(|o| Some((o.x, o.y, o.clip?))) else { continue };
+            clip = Some(match clip {
+                None => (x, y, w, h),
+                Some((cx, cy, cw, ch)) => {
+                    let (l, t) = (cx.max(x), cy.max(y));
+                    (l, t, ((cx + cw).min(x + w) - l).max(0), ((cy + ch).min(y + h) - t).max(0))
+                }
+            });
+        }
+        clip
+    }
+
     fn parent_offset(&self, name: &str) -> (i64, i64) {
         let (mut x, mut y) = (0, 0);
         if !self.game.relative_children {
@@ -3683,6 +3711,30 @@ function Nothing()
         let c = compile(story, LIBRARY);
         assert!(c.notes.contains_key("Fade argument 3 ignored"), "{:?}", c.notes);
         assert!(!c.notes.keys().any(|n| n.starts_with("Fade argument 0") || n.starts_with("CreateProcess argument")), "{:?}", c.notes);
+    }
+
+    #[test]
+    fn a_window_clips_its_children_to_the_overlap_of_its_windows() {
+        // 装甲悪鬼村正's cockpit: the speed tape in CPWS (CockpitSetSpeed).
+        let story = r#"
+scene a.nss
+{
+	CreateWindow("CPWS", 15000, 260, 138, 100, 300, false);
+	CreateWindow("CPWS/in", 15000, 300, 100, 100, 100, false);
+	CreateTexture("CPWS/CPSpeed", 15000, 262, -220, "cg/st/a.png");
+	CreateTexture("CPWS/in/b", 15000, 262, -220, "cg/st/a.png");
+	CreateTexture("free", 15000, 0, 0, "cg/st/a.png");
+	Fade("*", 0, 1000, null, true);
+	Wait(100);
+}
+"#;
+        let c = compile(story, LIBRARY);
+        let mut clips: Vec<_> = c.ops.iter().filter_map(|op| match op {
+            Op::SpriteClip { rect, .. } => Some(*rect),
+            _ => None,
+        }).collect();
+        clips.sort();
+        assert_eq!(clips, [(260, 138, 100, 300), (300, 138, 60, 62)], "{:?}", c.ops);
     }
 
     #[test]
