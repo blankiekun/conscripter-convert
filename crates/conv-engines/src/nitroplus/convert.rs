@@ -338,6 +338,8 @@ pub struct Compiled {
     pub window: Option<TextWindow>,
     /// What was left out or approximated, with counts.
     pub notes: BTreeMap<String, usize>,
+    /// The built-in calls, converted fully or with gaps.
+    pub metrics: crate::metrics::Metrics,
     /// The story flags and their variables.
     pub flags: HashMap<String, conv_core::ir::Var>,
     /// The voice classes, in the order of their character numbers
@@ -376,7 +378,7 @@ pub fn compile_scene(files: &BTreeMap<String, NssFile>, file: &str, scene: &str,
     let base = c.next_dynamic.max(FLAG_LOCAL_BASE);
     c.subroutines(&initial, base);
     c.ops.push(Op::Label(end.to_string()));
-    Ok(Compiled { ops: c.ops, window: c.first_window, notes: c.notes, flags: c.flags, voice_classes: c.voice_classes })
+    Ok(Compiled { ops: c.ops, window: c.first_window, notes: c.notes, metrics: c.metrics, flags: c.flags, voice_classes: c.voice_classes })
 }
 
 /// Compiles a whole story that one scene drives by calling the chapter
@@ -423,7 +425,7 @@ pub fn compile_story(files: &BTreeMap<String, NssFile>, file: &str, scene: &str,
     }
     c.sync(0);
     c.ops.push(Op::ReturnToTitle);
-    Ok(Compiled { ops: c.ops, window: c.first_window, notes: c.notes, flags: c.flags, voice_classes: c.voice_classes })
+    Ok(Compiled { ops: c.ops, window: c.first_window, notes: c.notes, metrics: c.metrics, flags: c.flags, voice_classes: c.voice_classes })
 }
 
 /// Plays story files from `start` (`ma01_001.nss`), as the story
@@ -596,7 +598,7 @@ pub fn compile_run(files: &BTreeMap<String, NssFile>, start: &str, max_files: us
         c.ops.push(Op::Label(file_label(&name)));
     }
     c.ops.push(Op::Label(RUN_END.to_string()));
-    Ok((Compiled { ops: c.ops, window: c.first_window, notes: c.notes, flags: c.flags, voice_classes: c.voice_classes }, played))
+    Ok((Compiled { ops: c.ops, window: c.first_window, notes: c.notes, metrics: c.metrics, flags: c.flags, voice_classes: c.voice_classes }, played))
 }
 
 /// Whether a block's last statement is `return`.
@@ -1209,6 +1211,7 @@ struct Compiler<'a, 'b> {
     voice_classes: Vec<String>,
     ops: Vec<Op>,
     notes: BTreeMap<String, usize>,
+    metrics: crate::metrics::Metrics,
     depth: usize,
     /// Helper functions being run.
     in_function: usize,
@@ -1913,6 +1916,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
             voice_classes: Vec::new(),
             ops: Vec::new(),
             notes: BTreeMap::new(),
+            metrics: Default::default(),
             depth: 0,
             in_function: 0,
             steps: 0,
@@ -1931,7 +1935,9 @@ impl<'a, 'b> Compiler<'a, 'b> {
     }
 
     fn note(&mut self, what: impl Into<String>) {
-        *self.notes.entry(what.into()).or_default() += 1;
+        let what = what.into();
+        self.metrics.note(&what);
+        *self.notes.entry(what).or_default() += 1;
     }
 
     // -- program structure --------------------------------------------------
@@ -2251,13 +2257,24 @@ impl<'a, 'b> Compiler<'a, 'b> {
                     return v;
                 }
                 let args: Vec<Value> = args.iter().map(|a| self.eval(a)).collect();
-                if (self.game.call)(self, name, &args) {
-                    return Value::Null;
+                // A call of anything but the scripts' own functions is one
+                // source command call (`metrics.json`).
+                let command = self.function(name).is_none();
+                if command {
+                    self.metrics.begin(name);
                 }
-                match self.function(name) {
-                    Some((file, f)) => self.call_function(file, f, args),
-                    None => self.builtin(name, &args),
+                let value = if (self.game.call)(self, name, &args) {
+                    Value::Null
+                } else {
+                    match self.function(name) {
+                        Some((file, f)) => self.call_function(file, f, args),
+                        None => self.builtin(name, &args),
+                    }
+                };
+                if command {
+                    self.metrics.end();
                 }
+                value
             }
             Expr::Unary { op, expr } => {
                 let v = self.eval(expr);

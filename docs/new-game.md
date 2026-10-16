@@ -565,7 +565,12 @@ natively, at every milestone:
   for any engine), and this playbook if the process changed.
 - **Add the game to `crates/conv-engines/src/registry.rs`** (id, name,
   engine, marker files, command; `conscripter-convert games` lists it)
-  and to `tests/snapshot.sh`.
+  and to `tests/snapshot.sh`. Its `--update` also keeps
+  `tests/snapshots/<game>.metrics.json`, the dry run's completion counts
+  (each source call converted fully or with a gap, per command kind),
+  which the convert-metrics page on blankiekun.github.io shows: the
+  engine opens and closes each call on `conv_engines::metrics::Metrics`
+  so its notes land on it.
 - **Add the game to the GUI**: its entry in `gui/games.py` (the same
   markers as the registry, which a test checks; the marker
   files that recognise it, the command and font from the game's

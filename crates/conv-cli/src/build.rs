@@ -43,7 +43,7 @@ pub fn run(args: BuildArgs, title: &str, output_dirs: &[&str], compile: impl FnO
     check_output(&output, output_dirs, !loose && !dry_run)?;
     let font = read_font(font.as_deref())?;
     let opts = Opts { output: &output, title, font: &font, dry_run, audio: audio.format()? };
-    let Built { mut ir, notes, picture_dirs, audio_dirs, package } = compile(&opts)?;
+    let Built { mut ir, notes, metrics, engine, picture_dirs, audio_dirs, package } = compile(&opts)?;
     ir.version = Some(version::line());
     // A dry run writes the script but no assets (no WebP, no sound).
     let source = webp_tree(&output, picture_dirs, webp.get().filter(|_| !dry_run), conv_cons::emit(&ir))?;
@@ -53,6 +53,15 @@ pub fn run(args: BuildArgs, title: &str, output_dirs: &[&str], compile: impl FnO
     let lost = write_game(&output, &ir, &source, (!dry_run).then_some(&*font), package.as_deref())?;
     if !dry_run && !loose {
         pack(&output, output_dirs)?;
+    }
+    // The completion counts (tests/snapshot.sh keeps them): dry runs only,
+    // so they stay out of a game's folder.
+    if dry_run {
+        let game = output.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+        let json = metrics.json(&game, engine, env!("CONV_COMMIT"), env!("CONV_COMMIT_DATE"));
+        fs::write(output.join("metrics.json"), json)?;
+        let (calls, gaps) = metrics.totals();
+        println!("  source calls: {calls}, fully converted {}, with gaps {gaps} (metrics.json)", calls - gaps);
     }
     summary(&output, &ir, lost, notes, Some(!dry_run))
 }

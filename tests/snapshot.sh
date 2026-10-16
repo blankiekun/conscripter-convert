@@ -11,6 +11,13 @@
 # release; needs muramasa too), django, oretsuba. A game without its
 # link is skipped. --update writes the snapshots of the games run.
 # Exit status 1 when a snapshot differs.
+#
+# Each game's completion counts (the dry run's metrics.json: source
+# calls fully converted or with gaps) are kept as <game>.metrics.json
+# the same way, compared without their commit lines; --update rewrites
+# one only when its counts changed, naming the commit on origin/main
+# they were measured on top of (the merge base: a branch's own commits
+# are gone once it is squash-merged).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 games_dir=${CONS_GAMES:-$HOME/.config/conscripter-convert/games}
@@ -21,6 +28,9 @@ ids=("$@")
 [ ${#ids[@]} -gt 0 ] || ids=(saihate-no-ima muramasa muramasa-en django oretsuba)
 
 cargo build --release -q
+base=$(git merge-base HEAD origin/main 2>/dev/null || git rev-parse HEAD)
+base_line="\"commit\": \"$(git rev-parse --short "$base")\","
+base_date="\"commit_date\": \"$(git log -1 --format=%cs "$base")\","
 mkdir -p tests/snapshots
 changed=0
 for id in "${ids[@]}"; do
@@ -58,6 +68,16 @@ for id in "${ids[@]}"; do
         echo "$id: same"
     else
         echo "$id: CHANGED (was $(cat "$snap"), now $now; script in $out/0.txt)"; changed=1
+    fi
+    msnap=tests/snapshots/$id.metrics.json
+    counts() { grep -v '^"commit' "$1" 2>/dev/null; }
+    totals() { sed -n 's/^"totals": \(.*\),$/\1/p' "$1"; }
+    if [ "$(counts "$msnap")" = "$(counts "$out/metrics.json")" ]; then
+        echo "$id: metrics same"
+    elif [ $update = 1 ]; then
+        sed -e "s/^\"commit\": .*/$base_line/" -e "s/^\"commit_date\": .*/$base_date/" "$out/metrics.json" > "$msnap"; echo "$id: metrics written ($(totals "$msnap"))"
+    else
+        echo "$id: metrics CHANGED (now $(totals "$out/metrics.json"); diff $msnap $out/metrics.json)"; changed=1
     fi
 done
 exit $changed

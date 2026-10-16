@@ -93,7 +93,7 @@ pub fn build(game: &Path, scenes: &[String], opts: &Opts) -> Result<Built> {
         movies(&assets.movies, output)?;
     }
     println!("{} scenes -> {}", if scenes.is_empty() { g.scenes.len() } else { scenes.len() }, output.join("0.txt").display());
-    Ok(Built { ir, notes: compiled.notes, picture_dirs: &PICTURE_DIRS, audio_dirs: &[], package: package(game) })
+    Ok(Built { ir, notes: compiled.notes, metrics: compiled.metrics, engine: "mages", picture_dirs: &PICTURE_DIRS, audio_dirs: &[], package: package(game) })
 }
 
 /// Converts the queued sounds with ffmpeg, in parallel: music to Ogg

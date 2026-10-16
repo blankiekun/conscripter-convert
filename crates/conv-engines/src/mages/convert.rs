@@ -374,6 +374,8 @@ pub struct Compiled {
     pub ops: Vec<Op>,
     /// Task types not converted (or approximated), with counts.
     pub notes: BTreeMap<String, usize>,
+    /// The tasks, converted fully or with gaps.
+    pub metrics: crate::metrics::Metrics,
 }
 
 /// A picture on screen, for moving and removing it.
@@ -485,7 +487,9 @@ struct Lowering<'a> {
 
 impl Lowering<'_> {
     fn note(&mut self, what: impl Into<String>) {
-        *self.out.notes.entry(what.into()).or_default() += 1;
+        let what = what.into();
+        self.out.metrics.note(&what);
+        *self.out.notes.entry(what).or_default() += 1;
     }
 
     fn unsupported(&mut self, scene: &str, index: usize, what: String) {
@@ -1620,11 +1624,22 @@ pub fn compile(game: &Game, scenes: &[String], assets: &mut dyn Assets) -> Compi
         l.opening = true;
         // A scene whose first fade is a FadeIn starts under the cover.
         l.cover = scene.tasks.iter().find(|t| matches!(t.task_type(), Some("FadeIn" | "FadeOut"))).filter(|t| t.task_type() == Some("FadeIn")).map(colour);
+        // Each task is a call; its unread arguments are known only once
+        // every task has run (a later one may read an earlier one's).
+        let mut calls = Vec::with_capacity(scene.tasks.len());
         for i in 0..scene.tasks.len() {
+            l.out.metrics.begin(scene.tasks[i].task_type().unwrap_or("?"));
             l.task(name, &scene.tasks, i);
+            calls.extend(l.out.metrics.pop());
         }
-        for t in &scene.tasks {
-            ignored(t.task_type().unwrap_or("?"), "", t, &mut l.out.notes);
+        for (t, (kind, mut reasons)) in scene.tasks.iter().zip(calls) {
+            let mut unread = BTreeMap::new();
+            ignored(t.task_type().unwrap_or("?"), "", t, &mut unread);
+            for (what, n) in unread {
+                reasons.push(what.clone());
+                *l.out.notes.entry(what).or_default() += n;
+            }
+            l.out.metrics.call(&kind, reasons);
         }
         if l.staging {
             l.out.ops.push(Op::EndTransition);
