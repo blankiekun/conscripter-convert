@@ -99,7 +99,8 @@ impl Compiler<'_, '_> {
             let looped = at.is_none() && m.looped;
             let frame_ms = if at.is_none() { 0 } else { 1000 / MOVIE_FPS };
             let shown = Shown { layer: 0, image, x, y, w: cw as i64, h: ch as i64, opacity: o.opacity, cells: Some((1, looped, zoom, frame_ms)), source: String::new(), zoom: (1000, 1000), angle: 0, clip: None, engine: Engine::default(), flash: 0, blend: o.blend };
-            want.push((n, shown, (o.priority, o.seq), (1000, 1000), (o.w, o.h), (false, false)));
+            // (Turned over as a picture is: the frame, or the movie file.)
+            want.push((n, shown, (o.priority, o.seq), (1000, 1000), (o.w, o.h), o.mirror()));
         }
         for (n, o) in &self.objects {
             if let Kind::Strip(s) = &o.kind

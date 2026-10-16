@@ -83,6 +83,30 @@ impl<'a> NpaAssets<'a> {
         src.is_file().then_some((src, out))
     }
 
+    /// An output movie turned over (a movie object `Rotate`d by 180°: the
+    /// exe turns a movie's quad as a picture's), next to the movies; an
+    /// `_alpha` one's colour and opacity halves each in place.
+    fn mirrored_movie(&mut self, movie: &str, stem: &str, x: bool, y: bool, flip: &str) -> Option<String> {
+        let rel = format!("movie/{stem}_{flip}.mp4");
+        let dest = self.out.root.join(&rel);
+        if self.out.dry_run || dest.exists() {
+            return Some(rel);
+        }
+        let turn = [x.then_some("hflip"), y.then_some("vflip")].into_iter().flatten().collect::<Vec<_>>().join(",");
+        let graph = if stem.ends_with("_alpha") {
+            format!("[0:v]split[a][b];[a]crop=iw/2:ih:0:0,{turn}[c];[b]crop=iw/2:ih:iw/2:0,{turn}[d];[c][d]hstack[v]")
+        } else {
+            format!("[0:v]{turn}[v]")
+        };
+        let mut args: Vec<std::ffi::OsString> = vec!["-i".into(), self.out.root.join(movie).into(), "-filter_complex".into(), graph.into(), "-map".into(), "[v]".into(), "-map".into(), "0:a?".into()];
+        args.extend(crate::media::mp4_options(22, "slow").into_iter().map(Into::into));
+        if let Err(e) = crate::media::ffmpeg(&dest, args, |_| Ok(())) {
+            self.out.errors.push(format!("{movie}: {e}"));
+            return None;
+        }
+        Some(rel)
+    }
+
     /// Copies `entry` of the archive that `path`'s first folder names to
     /// `out` (relative to the output). Returns the data.
     fn extract(&mut self, path: &str, out: &str) -> Option<Vec<u8>> {
@@ -316,6 +340,9 @@ impl Assets for NpaAssets<'_> {
         let path = Path::new(image);
         let stem = path.file_stem()?.to_string_lossy().into_owned();
         let ext = path.extension().map(|e| e.to_string_lossy().to_ascii_lowercase()).unwrap_or_default();
+        if ext == "mp4" {
+            return self.mirrored_movie(image, &stem, x, y, &flip);
+        }
         let r = (|| {
             let dir = path.parent().map(|p| p.to_string_lossy().into_owned()).unwrap_or_default();
             let rel = format!("system/mirror/{}/{stem}_{flip}.{ext}", dir.replace('/', "_"));
@@ -447,6 +474,8 @@ impl Assets for NpaAssets<'_> {
             })
         };
         self.images.insert(key, r.map(|n| (rel.clone(), n, h)));
+        // Its size, for a frame mirrored (a dry run has no file).
+        self.images.insert(normalize(&rel), r.map(|n| (rel.clone(), w * n, h)));
         r.map(|n| (rel, n, w, h))
     }
 
