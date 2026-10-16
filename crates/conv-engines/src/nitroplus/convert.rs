@@ -256,8 +256,6 @@ pub trait Assets {
     /// the box `at` (x, y, w, h) it fills unscaled: the picture to draw
     /// (perhaps only its part on the screen), its top-left and size.
     fn scaled(&mut self, image: &str, zx: i64, zy: i64, at: (i64, i64, i64, i64)) -> Option<(String, i64, i64, u32, u32)>;
-    /// An output image blurred with a Gaussian of `sigma`/10 px.
-    fn blurred(&mut self, image: &str, sigma: u32) -> Option<String>;
     /// An output image mirrored left to right (`x`) and/or upside down
     /// (`y`).
     fn mirrored(&mut self, image: &str, x: bool, y: bool) -> Option<String>;
@@ -1083,8 +1081,14 @@ struct Object<'a> {
     seq: u64,
     /// `Zoom`, per mille (x, y), about the centre.
     zoom: (i64, i64),
-    /// `SetBlur`: Gaussian sigma in tenths of a pixel (0 = none).
-    blur: u32,
+    /// `SetBlur(obj, true, passes, alpha, lag, wait)`: not a blur but a
+    /// trail. The exe (`FUN_00460230`, `FUN_00460530`, `FUN_00456810`)
+    /// draws `passes` (1-128) copies under the picture at its opacity ×
+    /// `alpha`/1000 (1-1000), copy i showing where the picture was i ×
+    /// `lag` ms before on a move, zoom or turn. A still picture's copies
+    /// lie under it and don't show, so nothing is drawn; a moving one's
+    /// trail isn't drawn either (noted).
+    trail: bool,
     /// `SetVertex`: the point (from the top left) a zoom or a turn keeps
     /// in place; `None` = the centre.
     vertex: Option<(i64, i64)>,
@@ -1210,7 +1214,7 @@ struct Shown {
     /// Movie frames ([`Op::AnimatedSprite`]): cells, looped, zoom percent,
     /// ms a cell.
     cells: Option<(u32, bool, (i32, i32), u32)>,
-    /// The picture before its zoom (mirrored, blurred), and the zoom (per
+    /// The picture before its zoom (mirrored), and the zoom (per
     /// mille): a picture that only moves or zooms over time is moved by
     /// the engine ([`Op::SpriteMotion2`]).
     source: String,
@@ -2596,7 +2600,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
 
     fn create(&mut self, name: String, kind: Kind<'a>, priority: i64, w: i64, h: i64) -> &mut Object<'a> {
         self.seq += 1;
-        let o = Object { kind, priority, x: 0, y: 0, w, h, opacity: 1000, locked: false, hideable: false, seq: self.seq, zoom: (1000, 1000), blur: 0, vertex: None, turn: (0, 0, 0), shake: None, clip: None, over_text: false, container: false, erased: false };
+        let o = Object { kind, priority, x: 0, y: 0, w, h, opacity: 1000, locked: false, hideable: false, seq: self.seq, zoom: (1000, 1000), trail: false, vertex: None, turn: (0, 0, 0), shake: None, clip: None, over_text: false, container: false, erased: false };
         self.objects.insert(name.clone(), o);
         self.objects.get_mut(&name).unwrap()
     }
@@ -3472,9 +3476,6 @@ mod tests {
             let (w, h) = (1024 * zx / 1000, 576 * zy / 1000);
             Some((format!("{image}@{zx}x{zy}"), at.0 + (at.2 - w) / 2, at.1 + (at.3 - h) / 2, w as u32, h as u32))
         }
-        fn blurred(&mut self, image: &str, sigma: u32) -> Option<String> {
-            Some(format!("{image}~{sigma}"))
-        }
         fn mirrored(&mut self, image: &str, x: bool, y: bool) -> Option<String> {
             Some(format!("{image}~{}{}", if x { "x" } else { "" }, if y { "y" } else { "" }))
         }
@@ -3903,6 +3904,26 @@ scene a.nss
         let pan = c.ops.iter().position(|op| matches!(op, Op::SpriteMotion2 { .. })).unwrap();
         assert!(matches!(c.ops[pan + 1], Op::BeginTransition { fade_ms: 300, .. }), "{:?}", c.ops);
         assert!(c.ops.iter().any(|op| matches!(op, Op::Wait { ms: 1000 })), "{:?}", c.ops);
+    }
+
+    #[test]
+    fn set_blur_draws_nothing_on_a_still_picture_and_notes_a_moving_one() {
+        let story = r#"
+scene a.nss
+{
+	CreateTexture("st", 100, 0, 0, "cg/st/a.png");
+	SetBlur("st", true, 2, 500, 50, false);
+	Fade("st", 0, 1000, null, true);
+	Wait(100);
+	Move("st", 1000, @-100, @0, null, false);
+	Wait(100);
+}
+"#;
+        let c = compile(story, LIBRARY);
+        // The picture itself, no other copy of it.
+        let drawn = c.ops.iter().filter(|op| matches!(op, Op::Sprites { changes, .. } if changes.iter().any(|c| c.sprite.is_some()))).collect::<Vec<_>>();
+        assert!(matches!(drawn[..], [Op::Sprites { changes, .. }] if changes[0].sprite.as_ref().unwrap().image == "cg/st/a.png"), "{:?}", c.ops);
+        assert!(c.notes.contains_key("SetBlur trail behind a moving picture not drawn"), "{:?}", c.notes);
     }
 
     #[test]

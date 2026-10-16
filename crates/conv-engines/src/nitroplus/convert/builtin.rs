@@ -204,6 +204,9 @@ impl Compiler<'_, '_> {
                 // motion (after showing what changed before it).
                 if ms > 0 && blocking && targets.len() == 1 && self.shown.contains_key(&targets[0]) {
                     self.sync(0);
+                    if self.objects[&targets[0]].trail {
+                        self.note("SetBlur trail behind a moving picture not drawn");
+                    }
                     let o = self.objects.get_mut(&targets[0]).unwrap();
                     let (x, y) = (to_x.position(o.x, o.w, screen_w), to_y.position(o.y, o.h, screen_h));
                     let (dx, dy) = (x - o.x, y - o.y);
@@ -301,14 +304,11 @@ impl Compiler<'_, '_> {
                 self.timed(arg(1).int(), &arg(5), &targets);
             }
             "SetBlur" => {
-                // (obj, on, passes 1-3, ?, strength, wait). Unverified:
-                // drawn as a Gaussian of 1.5 px per pass.
-                let sigma = if arg(1).truthy() { (arg(2).int().clamp(1, 5) * 15) as u32 } else { 0 };
-                let targets = self.matching(&arg(0));
-                for t in &targets {
-                    self.objects.get_mut(t).unwrap().blur = sigma;
+                // (obj, on, passes, alpha, lag, wait): see `Object::trail`.
+                let trail = arg(1).truthy() && (1..=128).contains(&arg(2).int()) && (1..=1000).contains(&arg(3).int());
+                for t in self.matching(&arg(0)) {
+                    self.objects.get_mut(&t).unwrap().trail = trail;
                 }
-                self.timed(arg(3).int(), &arg(5), &targets);
             }
             "DrawTransition" => {
                 // (obj, time, from, to, softness, tempo, mask, wait): a fade

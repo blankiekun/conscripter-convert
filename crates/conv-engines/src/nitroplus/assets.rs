@@ -304,40 +304,6 @@ impl Assets for NpaAssets<'_> {
         r.map(|(rel, w, h)| (rel, x + cx, y + cy, w, h))
     }
 
-    fn blurred(&mut self, image: &str, sigma: u32) -> Option<String> {
-        if image == "system/transparent.png" {
-            return Some(image.to_string());
-        }
-        let key = format!("{image}~{sigma}");
-        if let Some(r) = self.images.get(&key) {
-            return r.as_ref().map(|r| r.0.clone());
-        }
-        let path = Path::new(image);
-        let stem = path.file_stem()?.to_string_lossy().into_owned();
-        let jpeg = path.extension().is_some_and(|e| e.eq_ignore_ascii_case("jpg") || e.eq_ignore_ascii_case("jpeg"));
-        let r = (|| {
-            let dir = path.parent().map(|p| p.to_string_lossy().into_owned()).unwrap_or_default();
-            let rel = format!("system/blur/{}/{stem}_{sigma}.{}", dir.replace('/', "_"), if jpeg { "jpg" } else { "png" });
-            if self.out.dry_run {
-                let (w, h) = self.size(image)?;
-                return Some((rel, w, h));
-            }
-            let img = image::open(self.out.root.join(image)).ok()?;
-            let blurred = img.blur(sigma as f32 / 10.0);
-            let mut data = Vec::new();
-            let mut cursor = std::io::Cursor::new(&mut data);
-            if jpeg {
-                blurred.into_rgb8().write_with_encoder(image::codecs::jpeg::JpegEncoder::new_with_quality(&mut cursor, 90)).ok()?;
-            } else {
-                blurred.into_rgba8().write_to(&mut cursor, image::ImageFormat::Png).ok()?;
-            }
-            self.out.write(&rel, &data);
-            Some((rel, img.width(), img.height()))
-        })();
-        self.images.insert(key, r.clone());
-        r.map(|r| r.0)
-    }
-
     fn mirrored(&mut self, image: &str, x: bool, y: bool) -> Option<String> {
         if image == "system/transparent.png" || image.starts_with("system/color_") {
             return Some(image.to_string());

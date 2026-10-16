@@ -59,7 +59,7 @@ impl Compiler<'_, '_> {
                         zoom = (zoom.0 * k / 1000, zoom.1 * k / 1000);
                     }
                     let shown = Shown { layer: 0, image: image.clone(), x, y, w: o.w, h: o.h, opacity, cells: None, source: String::new(), zoom: (1000, 1000), angle: o.angle(), clip: None, engine: Engine::default(), flash: 0 };
-                    Some((n.clone(), shown, (o.priority, o.seq), zoom, (o.w, o.h), o.blur, o.mirror()))
+                    Some((n.clone(), shown, (o.priority, o.seq), zoom, (o.w, o.h), o.mirror()))
                 }
                 _ => None,
             })
@@ -97,7 +97,7 @@ impl Compiler<'_, '_> {
             let looped = at.is_none() && m.looped;
             let frame_ms = if at.is_none() { 0 } else { 1000 / MOVIE_FPS };
             let shown = Shown { layer: 0, image, x, y, w: cw as i64, h: ch as i64, opacity: o.opacity, cells: Some((1, looped, zoom, frame_ms)), source: String::new(), zoom: (1000, 1000), angle: 0, clip: None, engine: Engine::default(), flash: 0 };
-            want.push((n, shown, (o.priority, o.seq), (1000, 1000), (o.w, o.h), 0, (false, false)));
+            want.push((n, shown, (o.priority, o.seq), (1000, 1000), (o.w, o.h), (false, false)));
         }
         for (n, o) in &self.objects {
             if let Kind::Strip(s) = &o.kind
@@ -106,7 +106,7 @@ impl Compiler<'_, '_> {
             {
                 let cells = Some((s.cells, false, s.zoom, s.frame_ms));
                 let shown = Shown { layer: 0, image: s.image.clone(), x: o.x, y: o.y, w: s.w, h: s.h, opacity: o.opacity, cells, source: String::new(), zoom: (1000, 1000), angle: 0, clip: None, engine: Engine::default(), flash: 0 };
-                want.push((n.clone(), shown, (o.priority, o.seq), (1000, 1000), (s.w, s.h), 0, (false, false)));
+                want.push((n.clone(), shown, (o.priority, o.seq), (1000, 1000), (s.w, s.h), (false, false)));
             }
         }
         for (n, o) in &self.objects {
@@ -115,29 +115,24 @@ impl Compiler<'_, '_> {
                 && !o.hideable
             {
                 let shown = Shown { layer: 0, image: f.image.clone(), x: o.x, y: o.y, w: o.w, h: o.h, opacity: 1000, cells: None, source: String::new(), zoom: (1000, 1000), angle: 0, clip: None, engine: Engine::default(), flash: o.seq };
-                want.push((n.clone(), shown, (o.priority, o.seq), (1000, 1000), (o.w, o.h), 0, (false, false)));
+                want.push((n.clone(), shown, (o.priority, o.seq), (1000, 1000), (o.w, o.h), (false, false)));
             }
         }
         // Zoomed pictures: scaled copies, centred where the original was.
         let mut want: Vec<(String, Shown, (i64, u64))> = want
             .into_iter()
-            .map(|(n, mut shown, key, zoom, (w, h), blur, (mx, my))| {
+            .map(|(n, mut shown, key, zoom, (w, h), (mx, my))| {
                 if (mx || my)
                     && let Some(image) = self.assets.mirrored(&shown.image, mx, my)
                 {
                     shown.image = image;
                 }
-                (shown.source, shown.zoom) = (format!("{}#{blur}", shown.image), zoom);
+                (shown.source, shown.zoom) = (shown.image.clone(), zoom);
                 if zoom != (1000, 1000)
                     && let Some((image, x, y, sw, sh)) = self.assets.scaled(&shown.image, zoom.0, zoom.1, (shown.x, shown.y, w, h))
                 {
                     (shown.x, shown.y) = (x, y);
                     (shown.w, shown.h) = (sw as i64, sh as i64);
-                    shown.image = image;
-                }
-                if blur > 0
-                    && let Some(image) = self.assets.blurred(&shown.image, blur)
-                {
                     shown.image = image;
                 }
                 shown.clip = self.window_clip(&n);
@@ -216,6 +211,9 @@ impl Compiler<'_, '_> {
                     self.ops.push(op);
                     self.shown.insert(name.clone(), Shown { engine, ..now });
                     moving.push(name.clone());
+                    if self.objects.get(name).is_some_and(|o| o.trail) {
+                        self.note("SetBlur trail behind a moving picture not drawn");
+                    }
                 }
                 None if (old.x, old.y, old.w, old.h) != (now.x, now.y, now.w, now.h) => {
                     self.note("move or zoom over time with a fade or a new picture drawn as a cross-fade");
