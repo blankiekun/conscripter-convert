@@ -408,10 +408,11 @@ with the original (it wants all eleven endings' flags under wine).
       exe's curves (`apply_tempo`); ours is linear. Converter-only: a
       `spmotion2` takes up to 32 keys, so a curve fits as 8-16 linear
       pieces.
-   2. **`SetPan` 2, the pan** (1,283, of which 15 aren't centre):
-      `MusicStart`'s `再生方向` is ±1000 (hard left or right) for 8 + 7
-      calls in `dja001_03` (a sound) and `dja055_02` (the mob voices of
-      the chorus); everything plays centre in ours.
+   2. **The chorus' panned parts** (dja055_02): 14 `MusicStart`s pan
+      voice parts hard left or right, but they are BGM objects
+      (`CreateUnit`: `CreateSound(…, BGM, …)`) and ours plays one BGM
+      at a time, so the pan is noted ("SetPan on the music") and
+      unheard. Layering BGM parts is its own item.
    3. **`Shake` 6 `n` and 7 tempo** (58 each): `n` (200-1000; above
       1000 the call does nothing) sets the jolt's rhythm and the tempo
       its decay; ours shakes every 16 ms, dying linearly. `n`'s meaning
@@ -438,7 +439,7 @@ with the original (it wants all eleven endings' flags under wine).
        `WaitFade` 1 (1), `WaitMove` 1 (2), all `null` (no limit);
        `SetFrequency` 0, 1, 3 (1,283 each: `MusicStart`'s object, 0 ms,
        `NULL`; the speed, argument 2, is 1000 everywhere and checked);
-       `SetPan` 0, 1, 3 (1,283 each, the same); `LoadText` 0 (740, the
+       `LoadText` 0 (740, the
        script unit's name; the text is compiled where it stands);
        `CreateText` 5 (13, `Auto` height: dja026's song lines and the
        ending's two texts); `MoveCamera` 1 and 6 (15 each, a camera with
@@ -459,6 +460,15 @@ with the original (it wants all eleven endings' flags under wine).
 
 ## History
 
+- **`SetPan` pans a sound (2026-10-16, shared NSS code, engine #35).**
+  The exe's `builtin_SetPan` (`0040d140`) is shaped like `SetVolume`: a
+  pan over time. CONscripter's new `chpan ch,pan[,ms]` pans a `dwave`
+  channel (ramped in its track effect, saved, not the music); the
+  converter emits it before the `dwave` of a sound that starts panned
+  (`MusicStart`'s 4th argument) or over time on one playing, and
+  centres a panned channel again for its next sound. Django: dja001_03's
+  footsteps run in from the left (`chpan 4,-1000`); the title's four
+  gunshots are `boot.nss`'s, not converted.
 - **A small picture shakes alone (2026-10-16, shared NSS code).** The
   exe's `shake_frame` moves the shaken object's own place by ±(x, y),
   flipping each step, the size going from args 2-3 to 4-5. Ours shook

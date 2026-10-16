@@ -13,6 +13,7 @@ const UNREAD_HARMLESS: &[(&str, usize, Option<&str>, &str)] = &[
     ("Zoom", 4, Some("null"), "no tempo: linear, as ours"),
     ("Rotate", 5, Some("null"), "no tempo: linear, as ours"),
     ("SetVolume", 3, Some("null"), "no tempo: linear, as ours"),
+    ("SetPan", 3, Some("null"), "no tempo: linear, as ours"),
     ("DrawTransition", 5, Some("null"), "no tempo: linear, as ours"),
     ("CreateProcess", 1, None, "a process draws nothing: its priority is unused"),
     ("CreateProcess", 2, None, "a process draws nothing: its place is unused"),
@@ -174,7 +175,7 @@ impl Compiler<'_, '_> {
             "CreateSound" => {
                 let name = self.object_name(&arg(0));
                 let bgm = arg(1).string().eq_ignore_ascii_case("bgm");
-                let s = SoundObject { path: self.named_string(&arg(2)), bgm, volume: 1000, looped: false, starting: false, fade_ms: 0, playing: None, disused: false, loop_ms: None, started_at: 0, len_ms: None };
+                let s = SoundObject { path: self.named_string(&arg(2)), bgm, volume: 1000, looped: false, starting: false, fade_ms: 0, playing: None, disused: false, loop_ms: None, started_at: 0, len_ms: None, pan: 0 };
                 self.create(name, Kind::Sound(s), 0, 0, 0);
             }
             "Fade" => {
@@ -480,6 +481,7 @@ impl Compiler<'_, '_> {
                 self.sync(ms);
             }
             "SetVolume" => self.set_volume(&arg(0), arg(1).int(), arg(2).int()),
+            "SetPan" => self.set_pan(&arg(0), arg(1).int(), arg(2).int()),
             "SetLoopPoint" => {
                 let points = (arg(1).int().max(0) as u32, arg(2).int().max(0) as u32);
                 for t in self.matching(&arg(0)) {
@@ -543,7 +545,7 @@ impl Compiler<'_, '_> {
                     o.vertex = Some((place(&vx, o.w, "left", "right"), place(&vy, o.h, "top", "bottom")));
                 }
             }
-            "SetFrequency" | "SetPan" | "WaitText" | "LockVideo" | "Reset" | "SetShortcut" => {}
+            "SetFrequency" | "WaitText" | "LockVideo" | "Reset" | "SetShortcut" => {}
             "SetBacklog" => {
                 // (text, voice or "null", speaker)
                 let text = arg(0).string();

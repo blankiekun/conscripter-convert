@@ -687,6 +687,11 @@ impl<'a> Emitter<'a> {
             if se.volumes && !std::mem::take(&mut se.preset) {
                 writeln!(out, "chvolfade {ch},100").unwrap();
             }
+            // A channel panned before plays this sound centred, unless
+            // panned for it.
+            if !std::mem::take(&mut se.pan_preset) && se.panned.remove(&ch) {
+                writeln!(out, "chpan {ch},0").unwrap();
+            }
             let cmd = if *looped { "dwaveloop" } else { "dwave" };
             let when = if std::mem::take(se_not_skipped) { format!("if {} != 1 ", menu::TMP) } else { String::new() };
             writeln!(out, "{when}{cmd} {ch},\"{}\"", path(file)).unwrap();
@@ -739,6 +744,22 @@ impl<'a> Emitter<'a> {
                         writeln!(out, "chvolfade {ch},{percent}{ms}").unwrap();
                     }
                 }
+            }
+        }
+        // CONscripter's chpan (PLAN.md §4.2), right before the sound
+        // starts for the channel it will play on, as SoundVolume.
+        Op::SoundPan { file, pan, ms } => {
+            let starts = |op: Option<&Op>| matches!(op, Some(Op::SePlay { file: g, .. }) if g == file);
+            let next = match script.ops.get(i + 1) {
+                Some(Op::SoundVolume { .. }) => script.ops.get(i + 2),
+                next => next,
+            };
+            se.pan_preset = starts(next);
+            let ch = if se.pan_preset { Some(se.peek()) } else { se.playing.get(file).copied() };
+            if let Some(ch) = ch {
+                let ms = if *ms > 0 { format!(",{ms}") } else { String::new() };
+                writeln!(out, "chpan {ch},{pan}{ms}").unwrap();
+                se.panned.insert(ch);
             }
         }
         Op::ClickWait { skippable } => {

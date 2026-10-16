@@ -179,7 +179,7 @@ dry run):
 |---|---|---|
 | `Delete`, `Wait`, `ModuleFileName`, `SetAlias`, `WaitKey`, `CreateColor`, `RemainTime`, `Draw`, `ImageHorizon`/`Vertical`, `CreateSound`, `CreateName`, `SetLoop`, `Integer`, `Strstr`, `PassageTime`, `DurationTime` | most story | converted: every argument read |
 | `Fade`, `Move`, `Zoom`, `Rotate`, `SetVolume`, `DrawTransition`, `Shake`, `SetBlur`, `Random`, `Conquest`, `LoadText`, `WaitAction`, `WaitPlay`, `WaitFade`, `WaitZoom`, `CreateWindow`, `CreateEffect`, `CreateMovie`, `MoviePlay`, `SetBacklog` | most story | **partial**: arguments not read, below (non-blocking `Move`/`Zoom` as cross-fades, Status) |
-| `LockVideo`, `WaitText`, `SetPan`, `SetFrequency`, `Reset` | most story | dropped (`SetFrequency` noted when not 1000) |
+| `LockVideo`, `WaitText`, `SetFrequency`, `Reset` | most story | dropped (`SetFrequency` noted when not 1000) |
 | `Request` | 1,643 / 1,748 / 469 | actions below |
 | `DrawTransition`, `Shake`, `Rotate`, `CreateTexture`, `CreateEffect`, `CreateMovie`, `MoviePlay` | story | converted except the noted cases (`Shake` of a small picture 145, `CreateTexture` from an object or the screen 1,812, `CreateEffect` Rain/Sepia/Monochrome/KitanoBlue/NegaPosi/Lens/Drop 82, 3 transition masks missing) |
 | `CreateProcess`, `BezierMove`, `SetFrequency`, `SetShade`, `SetTone`, `MoveCamera`, `CreateCamera` | 287 / 193 / 30 … | not converted (Status) |
@@ -215,7 +215,6 @@ whole-game dry run (`ma00_000.nss --chain 2000`), and 続・殺戮のジャン�
 | `LoadText` | 0, 1 of the 7-argument form, 0 of the 6 | 15,184 | 740 |
 | `SetFrequency` | 0, 1, 3 (2 is checked) | 8,724 | 1,283 |
 | `Random` | 0 (the range: we return 0) | 7,368 | 0 |
-| `SetPan` | 0-3 | 6,494 | 1,283 |
 | `Fade` | 3 tempo (not `null`); 5 (a sixth argument, 1) | 3,863 | 77 |
 | `Move` | 4 tempo | 3,420 | 1,069 |
 | `WaitAction`, `WaitPlay`, `WaitFade`, `WaitZoom`, `WaitMove` | 1 (a time limit?) | 3,371, 2,477, 4, 3, 0 | 5,852, 51, 1, 0, 2 |
@@ -520,7 +519,7 @@ Lua fallback.
 | `SetLoop(snd, bool)` | 19 | Loop on/off. |
 | `SetLoopPoint(snd, start ms, end ms)` | 3 | Loop region. |
 | `SetFrequency(snd, time, rate, tempo)` | 182 | Playback speed, 1000 = normal. |
-| `SetPan(snd, time, pan, tempo)` | 2 | Pan. |
+| `SetPan(snd, time, pan, tempo)` | 2 | Pans (exe `0040d140`, as `SetVolume`: an action over time). Converter: `chpan ch,pan[,ms]` on a sound effect (before its `dwave` when it starts with it); a music pan is noted (dja055's chorus parts are BGM objects, one plays) |
 | `WaitPlay(snd, timeout)` | 150 | Waits until it stops, at most `timeout` ms (`null`/`true`: no limit; exe `0040b8a0`). Converter: `delay` of the rest of the sound (its length less the time of the ops since its start: waits, fades, an hour for each page, click or choice), at most the limit. A disused one-shot stays until its end, as in the exe (`FUN_00436040` deletes a disused object only once its sound has stopped), so `WaitPlay`/`Fade`/`SetVolume` on `OnSE*` still find it |
 | `PassageTime(snd)` / `RemainTime(snd)` / `DurationTime(snd)` | 2 / 123 / 4 | ms played / left / total. |
 
