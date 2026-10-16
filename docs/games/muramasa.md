@@ -75,7 +75,8 @@ The other convert options (`--loose`, `--audio-codec`,
 | Backgrounds, sprites, fades, mask wipes, zoom, shake, blur, BGM, sound effects | ✅ Converted (timed actions drawn as cross-fades, see "Leftovers"); volume changes on a playing sound ❌ not yet (only a fade to 0 is), see "Next" |
 | Choices | ✅ Drawn like the original's `SetChoiceBase` plates |
 | Parallel processes (`CreateProcess`: battle HUD, fire flicker, …) | ❌ Not converted; planned through Lua |
-| Additive / multiply blends, `Rotate`, `SetFrequency`, camera moves | ❌ Not converted |
+| Additive / multiply blends, `Rotate`, camera moves | ❌ Not converted |
+| `SetFrequency` (pitch bends) | ✅ `chfreq` (tempo curve drawn straight) |
 | 立方陣 minigame (`function_magiccube.nss`) | ✅ Ported (see "The 立方陣" below) |
 | System screens (title, save/load, settings, backlog) | ✅ Title, right-click menu, quick bar, confirmations, save/load, backlog, settings, favour screen, click-wait icon (each checked beside the original); 🟡 the title's fire flicker and openings left ("Next" item 4, step 7) |
 | Extras | ✅ The menu, CG gallery, sound room, recollection, 3D viewer, the way back to the title and the title's ライナー画像 link ("History", extras 1-7) |
@@ -686,7 +687,7 @@ Next, in order:
   CONscripter.
 - `Rotate` about z of a picture is CONscripter's `sprot` (still) or a
   `spmotion2` angle (over time); left: about z of other objects (70),
-  about x or y over time (14, drawn at once). `SetFrequency` (1,170), `MoveCamera`, `SetTone`,
+  about x or y over time (14, drawn at once). `MoveCamera`, `SetTone`,
   `SetShade`, `BezierMove`, `CreateTexture` from an object or the screen
   (1,864).
 - 18 files whose `if`/`else if` chain on earlier flags has no `else`:

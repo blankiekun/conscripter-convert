@@ -125,7 +125,7 @@ impl Compiler<'_, '_> {
             "CreateSound" => {
                 let name = self.object_name(&arg(0));
                 let bgm = arg(1).string().eq_ignore_ascii_case("bgm");
-                let s = SoundObject { path: self.named_string(&arg(2)), bgm, volume: 1000, looped: false, starting: false, fade_ms: 0, playing: None, disused: false, loop_ms: None };
+                let s = SoundObject { path: self.named_string(&arg(2)), bgm, volume: 1000, looped: false, starting: false, fade_ms: 0, playing: None, disused: false, loop_ms: None, rate: None, freq: 1000 };
                 self.create(name, Kind::Sound(s), 0, 0, 0);
             }
             "Fade" => {
@@ -383,7 +383,7 @@ impl Compiler<'_, '_> {
                     }
                 }
             }
-            "SetFrequency" if arg(2).int() != 1000 => self.note("SetFrequency"),
+            "SetFrequency" => self.set_frequency(&arg(0), arg(1).int(), arg(2).int()),
             // A sound: its length (it has only just started); played
             // through for PassageTime, whose busy loops (mc01_017vs waits
             // for its song's end) can't be waited out here.
@@ -427,7 +427,7 @@ impl Compiler<'_, '_> {
                     o.vertex = Some((place(&arg(1), o.w, "left", "right"), place(&arg(2), o.h, "top", "bottom")));
                 }
             }
-            "SetVertex" | "SetFrequency" | "SetPan" | "WaitText" | "LockVideo" | "Reset" | "SetShortcut" => {}
+            "SetVertex" | "SetPan" | "WaitText" | "LockVideo" | "Reset" | "SetShortcut" => {}
             "SetBacklog" => {
                 // (text, voice or "null", speaker)
                 let text = arg(0).string();

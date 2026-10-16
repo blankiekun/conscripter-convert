@@ -730,6 +730,12 @@ impl<'a> Emitter<'a> {
                 }
             }
         }
+        Op::SoundRate { file, rate, ms } => {
+            if let Some(ch) = se.playing.get(file) {
+                let ms = if *ms > 0 { format!(",{ms}") } else { String::new() };
+                writeln!(out, "chfreq {ch},{rate}{ms}").unwrap();
+            }
+        }
         Op::ClickWait { skippable } => {
             *needs_click_wait = true;
             writeln!(out, "mov {BUTTON_VAR},{}:gosub *{CLICK_WAIT}", u8::from(*skippable)).unwrap();

@@ -589,6 +589,11 @@ pub enum Op {
     /// 続・殺戮のジャンゴ's ending credits (ProcessRoll), timed to the
     /// insert song left and the closing song.
     MusicRoll { layer: u32, dy: i32, song: String, song_ms: u32, next: Option<String>, after_ms: u32, skippable: bool },
+    /// Plays the sound effect `file` (playing now, or right after its
+    /// `SePlay`) at `rate`/1000 of its speed and pitch, reached over `ms`
+    /// from its rate now while the script goes on. 装甲悪鬼村正's
+    /// `SetFrequency`: pitch bends on battle sounds.
+    SoundRate { file: String, rate: u32, ms: u32 },
 }
 
 /// [`Op::HoldMovie`]'s prompt: `image` is `cells` pictures side by side,
