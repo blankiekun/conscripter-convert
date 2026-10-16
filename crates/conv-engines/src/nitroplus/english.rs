@@ -31,6 +31,10 @@ pub struct English {
     /// `SetChoice(id, japanese…)` and the lang file's
     /// `TransChoice["<id>_<n>"]` (n from 1).
     choices: HashMap<String, HashMap<String, String>>,
+    /// Scene name → the variables its choices take options from
+    /// (`SetChoice(60, Route.選択肢名前1, …)`) → the English the port puts
+    /// in them, in order: the NSS's `$選択肢名前1 = "…"` take them in turn.
+    choice_vars: HashMap<String, HashMap<String, Vec<String>>>,
     /// Scene name → the scene's calls on its telop sprites (the ones made
     /// with a `cg/sys/telop/` picture), in order ([`place_telops`]).
     telops: HashMap<String, Vec<(String, Vec<squirrel::Arg>)>>,
@@ -43,7 +47,15 @@ pub struct English {
 /// Arguments of the port's calls the converter takes that it doesn't read
 /// and that change nothing: (function, argument, the value covered, or
 /// `None` for any, why). A value is written as [`arg_text`] gives it.
-const UNREAD_HARMLESS: &[(&str, usize, Option<&str>, &str)] = &[];
+const UNREAD_HARMLESS: &[(&str, usize, Option<&str>, &str)] = &[
+    // ma05_021vs's debug menu (`$GameDebugSelect`): names the port never defines.
+    ("SetChoice", 1, Some("魔王編"), "debug menu"),
+    ("SetChoice", 2, Some("英雄編・香奈枝生存"), "debug menu"),
+    ("SetChoice", 3, Some("英雄編・香奈枝死亡"), "debug menu"),
+    ("SetChoice", 4, Some("復讐編・一条生存"), "debug menu"),
+    ("SetChoice", 5, Some("復讐編・一条死亡"), "debug menu"),
+    ("SetChoice", 6, Some("バッドエンド"), "debug menu"),
+];
 
 /// An argument as [`UNREAD_HARMLESS`] names it: a number, a string or a
 /// constant as written, `true`/`false`, `@n`, `other` (null, a variable).
@@ -66,8 +78,8 @@ fn port_reads(call: &str, args: &[squirrel::Arg], telop: bool) -> Option<Vec<usi
     Some(match call {
         // (sound, add)
         "ShowVOICESEText" => vec![0, 1],
-        // (id, option, option, …): the strings
-        "SetChoice" => (0..args.len()).filter(|&i| i == 0 || matches!(args[i], Arg::Str(_))).collect(),
+        // (id, option, option, …): the strings and the `Route.<name>` variables
+        "SetChoice" => (0..args.len()).filter(|&i| i == 0 || matches!(args[i], Arg::Str(_)) || route_var(args, i).is_some()).collect(),
         // (number, text)
         "Print" => vec![0, 1],
         _ if telop && !placing(call).is_empty() => {
@@ -88,6 +100,17 @@ fn note_unread(unread: &mut BTreeMap<String, usize>, call: &str, args: &[squirre
         if !read.contains(&i) && !harmless {
             *unread.entry(format!("{call} argument {i} ignored")).or_default() += 1;
         }
+    }
+}
+
+/// The variable `args[i]` or `args[i..=i + 1]` names: `Route.<name>` is
+/// `Word("Route"), Word(name)`.
+fn route_var(args: &[squirrel::Arg], i: usize) -> Option<&str> {
+    use squirrel::Arg;
+    match (i.checked_sub(1).map(|j| &args[j]), &args[i], args.get(i + 1)) {
+        (_, Arg::Word(r), Some(Arg::Word(name))) if r == "Route" => Some(name),
+        (Some(Arg::Word(r)), Arg::Word(name), _) if r == "Route" => Some(name),
+        _ => None,
     }
 }
 
@@ -163,6 +186,7 @@ impl English {
         };
         let mut scenes = HashMap::new();
         let mut choices = HashMap::new();
+        let mut choice_vars = HashMap::new();
         let mut telops = HashMap::new();
         let mut subtitles = HashMap::new();
         let mut unread = BTreeMap::new();
@@ -184,9 +208,20 @@ impl English {
             let mut calls = Vec::new();
             scene_fn.calls(&mut calls);
             subtitles.insert(scene.to_lowercase(), scene_subtitles(&calls, &lang.table_literal_rows("TransVoice")));
+            let mut vars: HashMap<String, Vec<String>> = HashMap::new();
             for (call, args) in &calls {
                 note_unread(&mut unread, call, args, false);
+                if call == "SetChoice" {
+                    for name in (1..args.len()).filter_map(|i| route_var(args, i)) {
+                        vars.entry(name.to_string()).or_insert_with(|| {
+                            let mut en = Vec::new();
+                            scene_fn.slot_strs(name, &mut en);
+                            en
+                        });
+                    }
+                }
             }
+            choice_vars.insert(scene.to_lowercase(), vars);
             let scene_telops = telop_calls(calls);
             for (call, args) in &scene_telops {
                 note_unread(&mut unread, call, args, true);
@@ -209,7 +244,7 @@ impl English {
                 .collect();
             scenes.insert(scene.to_lowercase(), rows);
         }
-        Ok(English { scenes, choices, telops, subtitles, unread })
+        Ok(English { scenes, choices, choice_vars, telops, subtitles, unread })
     }
 
     /// Puts the English into every text block of `files` (by file name,
@@ -227,6 +262,22 @@ impl English {
                     }
                     None => report.options_missed.push((name.clone(), jp.clone())),
                 });
+            }
+            for (var, en) in self.choice_vars.get(scene).into_iter().flatten() {
+                // The port is a line-by-line transcription, its branches at
+                // times merged: the n-th value the NSS gives the variable is
+                // the port's n-th.
+                let mut jp: Vec<String> = Vec::new();
+                each_choice_var(file, var, &mut |s, assigned| if assigned && !jp.contains(s) { jp.push(s.clone()) });
+                let mut en_values: Vec<&String> = Vec::new();
+                en.iter().for_each(|e| if !en_values.contains(&e) { en_values.push(e) });
+                if jp.len() == en_values.len() {
+                    report.options += jp.len();
+                    let map: HashMap<String, String> = jp.into_iter().zip(en_values.into_iter().cloned()).collect();
+                    each_choice_var(file, var, &mut |s, _| if let Some(en) = map.get(s.as_str()) { s.clone_from(en) });
+                } else {
+                    report.options_missed.extend(jp.into_iter().map(|jp| (name.clone(), jp)));
+                }
             }
             for sub in self.subtitles.get(scene).into_iter().flatten() {
                 let mut args = vec![nss::Expr::Str(sub.sound.clone()), nss::Expr::Int(i64::from(sub.add)), nss::Expr::Int(i64::from(sub.y)), nss::Expr::Str(sub.file.clone())];
@@ -581,15 +632,44 @@ fn insert_call(file: &mut NssFile, at: &mut dyn FnMut(&str, &[nss::Expr]) -> boo
 
 /// Calls `f` on each call statement of `file`: its name and arguments.
 fn each_call(file: &mut NssFile, f: &mut dyn FnMut(&str, &mut [nss::Expr])) {
-    fn stmts(list: &mut [Stmt], f: &mut dyn FnMut(&str, &mut [nss::Expr])) {
+    each_stmt(file, &mut |s| if let StmtKind::Expr(nss::Expr::Call { name, args }) = s { f(name, args) });
+}
+
+/// Calls `f` on the string of each `$var = "…";` in `file` (`true`) and
+/// each `$var == "…"` or `!=` in a condition (`false`), in order.
+fn each_choice_var(file: &mut NssFile, var: &str, f: &mut dyn FnMut(&mut String, bool)) {
+    fn compared(e: &mut nss::Expr, var: &str, f: &mut dyn FnMut(&mut String, bool)) {
+        use nss::{BinaryOp, Expr};
+        if let Expr::Binary { op, left, right } = e {
+            if matches!(op, BinaryOp::Eq | BinaryOp::Ne) {
+                match (&mut **left, &mut **right) {
+                    (Expr::Var(nss::Var::Local(v)), Expr::Str(s)) | (Expr::Str(s), Expr::Var(nss::Var::Local(v))) if v == var => f(s, false),
+                    _ => {}
+                }
+            }
+            compared(left, var, f);
+            compared(right, var, f);
+        }
+    }
+    each_stmt(file, &mut |s| match s {
+        StmtKind::Assign { target: nss::Var::Local(v), index, op: nss::AssignOp::Set, value: Some(nss::Expr::Str(s)) } if v == var && index.is_empty() => f(s, true),
+        StmtKind::If { cond, .. } | StmtKind::While { cond, .. } => compared(cond, var, f),
+        _ => {}
+    });
+}
+
+/// Calls `f` on each statement of `file`, a compound one before the ones
+/// inside it.
+fn each_stmt(file: &mut NssFile, f: &mut dyn FnMut(&mut StmtKind)) {
+    fn stmts(list: &mut [Stmt], f: &mut dyn FnMut(&mut StmtKind)) {
         for s in list {
+            f(&mut s.kind);
             match &mut s.kind {
                 StmtKind::If { then, otherwise, .. } => {
                     stmts(then, f);
                     otherwise.iter_mut().for_each(|o| stmts(o, f));
                 }
                 StmtKind::While { body, .. } | StmtKind::Select(body) | StmtKind::Case { body, .. } | StmtKind::Block(body) => stmts(body, f),
-                StmtKind::Expr(nss::Expr::Call { name, args }) => f(name, args),
                 _ => {}
             }
         }
@@ -661,7 +741,7 @@ mod tests {
     #[test]
     fn replaces_stretches_between_code() {
         let rows = vec![(key("「……"), "\"...\"".to_string()), (key("ああ」"), "\"Ah.\"".to_string())];
-        let english = English { scenes: HashMap::from([("a".to_string(), rows)]), choices: HashMap::new(), telops: HashMap::new(), subtitles: HashMap::new(), unread: BTreeMap::new() };
+        let english = English { scenes: HashMap::from([("a".to_string(), rows)]), choices: HashMap::new(), choice_vars: HashMap::new(), telops: HashMap::new(), subtitles: HashMap::new(), unread: BTreeMap::new() };
         let src = "chapter main\n{\n<PRE @box0>\n[text0010]\n「……{WaitKey(1100);}ああ」\n</PRE>\n}\n";
         let mut files = BTreeMap::from([("a.nss".to_string(), nss::parse(src).unwrap())]);
         let report = english.apply(&mut files);
@@ -676,7 +756,7 @@ mod tests {
     #[test]
     fn choice_options_take_their_english() {
         let options = HashMap::from([("お任せします".to_string(), "As you wish.".to_string())]);
-        let english = English { scenes: HashMap::new(), choices: HashMap::from([("a".to_string(), options)]), telops: HashMap::new(), subtitles: HashMap::new(), unread: BTreeMap::new() };
+        let english = English { scenes: HashMap::new(), choices: HashMap::from([("a".to_string(), options)]), choice_vars: HashMap::new(), telops: HashMap::new(), subtitles: HashMap::new(), unread: BTreeMap::new() };
         let src = "chapter main\n{\n\tSetChoice02(\"お任せします\",\"お断りします\");\n}\n";
         let mut files = BTreeMap::from([("a.nss".to_string(), nss::parse(src).unwrap())]);
         let report = english.apply(&mut files);
@@ -687,6 +767,24 @@ mod tests {
     }
 
     #[test]
+    fn choice_variables_take_the_ports_values_in_order() {
+        // The port merged the NSS's first two branches.
+        let vars = HashMap::from([("n".to_string(), vec!["Ask".to_string(), "Leave".to_string()])]);
+        let english = English { scenes: HashMap::new(), choices: HashMap::new(), choice_vars: HashMap::from([("a".to_string(), HashMap::from([("n".to_string(), vars["n"].clone())]))]), telops: HashMap::new(), subtitles: HashMap::new(), unread: BTreeMap::new() };
+        let src = "chapter main\n{\n\tif($x==1){$n = \"頼む\";}else if($x==2){$n = \"頼む\";}else{$n = \"別れる\";}\n\tif($n==\"別れる\"){$m = \"頼む\";}\n}\n";
+        let mut files = BTreeMap::from([("a.nss".to_string(), nss::parse(src).unwrap())]);
+        let report = english.apply(&mut files);
+        assert_eq!((report.options, report.options_missed.len()), (2, 0));
+        let mut seen = Vec::new();
+        each_stmt(files.get_mut("a.nss").unwrap(), &mut |s| match s {
+            StmtKind::Assign { target, value: Some(nss::Expr::Str(v)), .. } => seen.push(format!("{target}={v}")),
+            StmtKind::If { cond: nss::Expr::Binary { right, .. }, .. } => seen.push(format!("{right:?}")),
+            _ => {}
+        });
+        assert_eq!(seen, ["Int(1)", "$n=Ask", "Int(2)", "$n=Ask", "$n=Leave", "Str(\"Leave\")", "$m=頼む"]);
+    }
+
+    #[test]
     fn unread_arguments_of_the_ports_calls_are_counted() {
         use squirrel::Arg;
         let mut unread = BTreeMap::new();
@@ -694,10 +792,10 @@ mod tests {
         note_unread(&mut unread, "Move", &mv, true);
         // Not a telop: the NSS's own Move, nothing taken from the port's.
         note_unread(&mut unread, "Move", &mv, false);
-        note_unread(&mut unread, "SetChoice", &[Arg::Int(60), Arg::Str("見る".into()), Arg::Word("Route".into())], false);
+        note_unread(&mut unread, "SetChoice", &[Arg::Int(60), Arg::Str("見る".into()), Arg::Word("Route".into()), Arg::Word("n".into()), Arg::Word("魔".into())], false);
         note_unread(&mut unread, "Fade", &[Arg::Str("t".into()), Arg::Int(500)], true);
         let notes: Vec<_> = unread.iter().map(|(k, &n)| (k.as_str(), n)).collect();
-        assert_eq!(notes, [("Move argument 1 ignored", 1), ("Move argument 4 ignored", 1), ("Move argument 5 ignored", 1), ("SetChoice argument 2 ignored", 1)]);
+        assert_eq!(notes, [("Move argument 1 ignored", 1), ("Move argument 4 ignored", 1), ("Move argument 5 ignored", 1), ("SetChoice argument 4 ignored", 1)]);
     }
 
     #[test]
@@ -710,7 +808,7 @@ mod tests {
             ("Move".into(), vec![s("bg"), Int(0), Int(5), Int(5)]),
         ]);
         assert_eq!(port.len(), 2, "only the telop sprite's calls");
-        let english = English { scenes: HashMap::new(), choices: HashMap::new(), telops: HashMap::from([("a".to_string(), port)]), subtitles: HashMap::new(), unread: BTreeMap::new() };
+        let english = English { scenes: HashMap::new(), choices: HashMap::new(), choice_vars: HashMap::new(), telops: HashMap::from([("a".to_string(), port)]), subtitles: HashMap::new(), unread: BTreeMap::new() };
         let src = "chapter main\n{\n\tCreateTextureEX(\"t\", 100, 300, Middle, \"cg/sys/Telop/a.png\");\n\tMove(\"t\", 0, @0, @-40, null, true);\n}\n";
         let mut files = BTreeMap::from([("a.nss".to_string(), nss::parse(src).unwrap())]);
         let report = english.apply(&mut files);
@@ -746,7 +844,7 @@ mod tests {
         assert_eq!((subs[0].n, subs[0].y, subs[0].lines.clone()), (0, 480, vec![(0, "Hi!".to_string())]));
         assert_eq!((subs[1].n, subs[1].add, subs[1].y), (1, true, 13));
         assert_eq!(subs[1].lines, vec![(500, "A".to_string()), (900, "B".to_string())]);
-        let english = English { scenes: HashMap::new(), choices: HashMap::new(), telops: HashMap::new(), subtitles: HashMap::from([("a".to_string(), subs)]), unread: BTreeMap::new() };
+        let english = English { scenes: HashMap::new(), choices: HashMap::new(), choice_vars: HashMap::new(), telops: HashMap::new(), subtitles: HashMap::from([("a".to_string(), subs)]), unread: BTreeMap::new() };
         let src = "chapter main\n{\n\tMusicStart(\"v\",0);\n\tMusicStart(\"v\",0);\n}\n";
         let mut files = BTreeMap::from([("a.nss".to_string(), nss::parse(src).unwrap())]);
         assert_eq!(english.apply(&mut files).subtitles, 2);
