@@ -234,7 +234,12 @@ It has no NPA archives and no NSS scripts.
      `sys_key.nut`'s keys.
   5. The port's calls taken in part (the build's `English: … port
      <function> argument <i> ignored` lines; "The port's calls,
-     argument by argument"), most noticeable first: the telops' `Move`s (252) keep the NSS's
+     argument by argument"), most noticeable first: a choice's
+     options are fixed at build time, so options set in runtime
+     branches show one value (md05_004's `$md05_hazure`: always "Ask for
+     help", never "Leave your companion"; mc02_031innsyoku lists all
+     five items whatever the player holds; the Japanese build likewise,
+     `convert.rs`'s `$テキストデータN`); the telops' `Move`s (252) keep the NSS's
      time, tempo and wait (arguments 1, 4, 5), and their
      `CreateTextureEX`/`SP` (214) the NSS's priority (argument 1):
      the same values if the port copied them, not compared.
