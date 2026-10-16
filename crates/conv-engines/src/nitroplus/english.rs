@@ -493,14 +493,15 @@ fn telop_calls(calls: Vec<(String, Vec<squirrel::Arg>)>) -> Vec<(String, Vec<squ
     calls.into_iter().filter(|(_, a)| matches!(a.first(), Some(Arg::Str(s)) if names.contains(s))).collect()
 }
 
-/// The arguments of `call` that place a picture: x, y and the picture of
-/// `CreateTexture…(name, priority, x, y, picture)`; all of `Move(name,
+/// The arguments of `call` that place a picture: all of
+/// `CreateTexture…(name, priority, x, y, picture)` (the port puts
+/// md05_037vs's effect sprites at 16000 for the NSS's 2000); all of `Move(name,
 /// time, x, y, tempo, wait)` (the port times one telop move otherwise:
 /// ma04_021's 250 ms for the NSS's 500; its tempos and waits are the
 /// NSS's, a null tempo kept as the NSS has it).
 fn placing(call: &str) -> &'static [usize] {
     match call {
-        _ if call.starts_with("CreateTexture") => &[2, 3, 4],
+        _ if call.starts_with("CreateTexture") => &[1, 2, 3, 4],
         "Move" => &[1, 2, 3, 4, 5],
         _ => &[],
     }
@@ -812,7 +813,7 @@ mod tests {
         use squirrel::Arg::{Int, Relative, Str, Word};
         let s = |v: &str| Str(v.to_string());
         let port = telop_calls(vec![
-            ("CreateTextureEX".into(), vec![s("t"), Int(100), Word("Center".into()), Word("Middle".into()), s("cg/sys/Telop/outline/a.png")]),
+            ("CreateTextureEX".into(), vec![s("t"), Int(16000), Word("Center".into()), Word("Middle".into()), s("cg/sys/Telop/outline/a.png")]),
             ("Move".into(), vec![s("t"), Int(250), Relative(0), Relative(-25), squirrel::Arg::Other, squirrel::Arg::Bool(false)]),
             ("Move".into(), vec![s("bg"), Int(0), Int(5), Int(5)]),
         ]);
@@ -823,6 +824,7 @@ mod tests {
         let report = english.apply(&mut files);
         let Item::Chapter(b) = &files["a.nss"].items[0] else { panic!() };
         let StmtKind::Expr(nss::Expr::Call { args, .. }) = &b.body[0].kind else { panic!() };
+        assert_eq!(args[1], nss::Expr::Int(16000), "the port's priority");
         assert_eq!(args[2], nss::Expr::Word("Center".into()));
         assert_eq!(args[4], nss::Expr::Str("cg/sys/Telop/outline/a.png".into()));
         let StmtKind::Expr(nss::Expr::Call { args, .. }) = &b.body[1].kind else { panic!() };
