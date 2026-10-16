@@ -322,7 +322,7 @@ message (109 characters with the name; there is no paging).
 | FadeOut/FadeIn, TimeWait, BGM, SE, Window hide | partial (SE fades and waits, the window's `:Time` dropped: below) |
 | Tags, jumps, flag switches and operations, choices with points, NextScene | converted (BacklogMessage, the chosen answer in the log, dropped: below), not yet checked against a walkthrough |
 | SceneJumpDialog (skip a scene already read) | partial (SceneJumpDialogEnd's `:Fade` dropped: below): a global "read" flag per scene (`%1200` + the scene's index in name order). A read scene shows the eboot's dialog (layout below): SystemData's `ss_bg1`…`ss_bg5` by `:BG` 0 (the protagonist), このシーンをスキップしますか？, the date (`:BG` 2), the emblem (`:BG` 1), the `:CharaIcon` faces, the summary (`:Text`) drawn with the `--font`, and Yes (skip) / No buttons that glow under the pointer. The line the eboot also writes at (81, 99) is left empty (its text isn't in the task; perhaps the chapter's name). The original asks only when its setting is on, and so does ours (シーンスキップ機能 in the settings). |
-| Flash; EffectQuake/End (a screen shake dying down over `:Time`); SpriteQuake (one picture, a background, shaken by `:Param` 0, 1 dying down over `:Time`; all zeros stop it; `:Time 0` with a size, once in S04_07A after a `// wt` comment, waits for the shake before it, which the message in between outlasts: nothing); SpriteMove (always waited on) | partial (EffectQuake `:Param` 2-5, `:Loop`, `:Fade`; EffectQuakeEnd `:EndWait`; SpriteMove `:Roll`, `:Curve`, `:Wait 0`: below); `:Scale` (90 uses) zooms the picture about its centre with CONscripter's `spzoom` (after 0.19.1), which keeps it in its place among the sprites; the zoom stays for the moves after it. The two values after `:Position` are the eboot's easing (ease_value, 0x8103cc18: type 1 in, 2 out, 3 in and out, raising t² to the power): converted for moves and zooms (IR `MoveEase`; conv-cons's eased loops in integer arithmetic, the power × 2 a whole exponent), 65 of them; the rest are straight |
+| Flash; EffectQuake/End (a screen shake dying down over `:Time`); SpriteQuake (one picture, a background, shaken by `:Param` 0, 1 dying down over `:Time`; all zeros stop it; `:Time 0` with a size, once in S04_07A after a `// wt` comment, waits for the shake before it, which the message in between outlasts: nothing); SpriteMove (always waited on) | partial (the shakes' `:Fade 0` (full size, then stop), `:Loop`, `:Param` 2-5 other than 1; SpriteMove `:Roll`, `:Curve`, `:Wait 0`: below); `:Scale` (90 uses) zooms the picture about its centre with CONscripter's `spzoom` (after 0.19.1), which keeps it in its place among the sprites; the zoom stays for the moves after it. The two values after `:Position` are the eboot's easing (ease_value, 0x8103cc18: type 1 in, 2 out, 3 in and out, raising t² to the power): converted for moves and zooms (IR `MoveEase`; conv-cons's eased loops in integer arithmetic, the power × 2 a whole exponent), 65 of them; the rest are straight |
 | CharacterAction (`chract`'s 661 keyframed moves: bows, shakes, bobbing; 72 uses loop until CharacterActionEnd) and CharacterActionEnd | converted with CONscripter's `spmotion` (after 0.19.1): offsets from the character's place, straight between keyframes, run by the engine while the text goes on; a loop goes back to its first key at the action's `:Frame` length. `:EndWait 1` waits for it (64 uses; 1,902 don't wait). CharacterActionEnd stops a loop, or with `:EndWait 1` waits for an action started since the last message. SpriteQuake is a one-shot `spmotion` on its picture too. The eboot (0x81008008) reads each field of a frame (`:X`, `:Y`, `:Roll`, `:Scale`, `:Alpha`, `:Priority`) as a track of its own, keyed where it is given, each key with an easing; we sample the tracks at every key frame, straight between keys (one action eases a key; `:Priority` is not used). Actions with `:Scale` (zoom about the centre, 60 uses), `:Roll` (radians; turned clockwise on the screen, our guess; 5 uses) or `:Alpha` (60 uses) are CONscripter's `spmotion2`. `:EndSet 1` (read only when the action doesn't loop) leaves the character where the last key has it: 475 uses end with the character moved, faded out or zoomed (Asuka stepping aside and fading out in M02_04, Kinako rising into view in S02_09D1), made with `spmotion2`'s loop mode 2; a move, a new picture or another action on the character first ends it there (so skipping lands right) |
 | EyeCatch `:Image 0,N` (CG.cpk ID N + 457, at least 458, as the eboot's 0x81048978 loads it: `EC01`-`EC19` for 1-19, but the archive has no `EC20` or `EC30`, so 20 is `EC21` (京's after-story) and 27, the common one, `EC28`, the framed title logo) | partial (`:Image 0,-1`'s colour panels and their `:Color`, `:Fade` dropped) as in the eboot (0x81048b8a): the picture's top and bottom halves (960×272) close from above and below like shutters (500 ms, our guess) and open again at EyeCatchEnd over `:Fade`, showing the FadeOut's colour (or the scene) behind; made as 10-frame animations (`system/shutters_N_in/out.png`). `:Image 0,-1` (two panels of a colour in the eboot, 7 uses) shows nothing |
 | EyeCatch `:Image 1,card,place,date` (114 uses: the chapter cards) | converted like `:Image 0`, as one screen made from SystemData: the card `ec1_bg`…`ec6_bg` (ID 67 + card: 0-3 the four protagonists' chapters, 4-5 Karura's, 6 奈落の底) with the place (ID 74 + place: `ec_bgNN`, its times of day as A/B/C) in its frame and the date (0 = 11月21日, -1 none) cut from the calendar under the card. The original fades the three in and out and pans the place 40 pixels while it fades in; drawn where the pan ends |
@@ -456,50 +456,78 @@ doesn't read either). A `:SpriteMax` below the task's `[CharaN]` blocks
 is noted too: the eboot (scene_load 0x8102840a) reads that many of
 Chara0-Chara9.
 
-Unverified (our reading, not traced in the eboot; to confirm in Ghidra):
-four `NOT_NEEDED` rows take the values after a character's number
-(`[CharaN] :Number` arguments 1-4 in CharacterAction, CharacterMove and
-CharacterDelete, and CharacterActionEnd's `:Character` 1-4) as not
-mattering, the character being the one shown under its number. The eboot
-stores all five (scene_load); what the tasks then match on is not traced.
+Traced in the eboot (2026-10-16; scene_load 0x8102840a reads a task,
+0x8100da30 starts it, task_run 0x81021070 runs it), each now a
+`NOT_NEEDED` row with its address where ours matches:
+- Shakes (EffectQuake, SpriteQuake): the shake (0x81008a3c) is a
+  pattern table × `:Param` 0, 1 percent, plus a swing of `:Param` 2, 3
+  pixels making `:Param` 4, 5 half-waves over `:Time`, eased. `:Fade 1`
+  shrinks it to nothing over `:Time` (ours); `:Fade 0` keeps it at full
+  size and stops it at the end (finding below). `:Loop 1` or a negative
+  `:Time` repeats it until EffectQuakeEnd, ignoring `:Fade` and `:Wait`.
+  `:Window 1` (the default; the scripts always write 0) also shakes the
+  text window; ours shakes only the picture, as with 0. The 1,1,1,1 of
+  `:Param` 2-5 is a 1-pixel swing: nothing to see. EffectQuakeEnd's
+  `:EndWait` is never used (scene_load clears the flag it has just
+  set); its `:Fade` > 0 lets the shake run out over that many frames, 0
+  stops it (ours).
+- FadeOut/FadeIn `:Type`: the transition's rule (0x81049292), 0 none: a
+  plain fade, as ours.
+- MessageSwitch_Tag `:Frame`: which look of the choice box (0x810160e2
+  moves its cell down `:Frame` rows); 0 the first, ours.
+- `:Time` without a fade: Sprite takes `:Time` over `:FadeIn` (scene_load
+  case 9), but every Sprite with `:FadeIn 0` has `:Time 0`; SpriteBG and
+  SpriteDelete use it only with their fade flag, as ours. SpriteDeleteBG
+  reads no `:FadeOut` at all and always fades over `:Time` (finding).
+- EffectStart `:EffectNumber` argument 1: handed to the effect object's
+  method +0x24 (effect_create 0x8103f75a), which stores it at +0x18 as a
+  variant code (0x8112a860; read e.g. by 0x81040f76); effect 57 never
+  reads it. 0 in every use; whether 0 is each class's plain form is not
+  traced, so it stays noted.
+- The character keys (`[CharaN] :Number` arguments 1-4): not harmless.
+  CharacterAction (0x81120254), CharacterMove (0x8100da30 case 0x1e) and
+  CharacterDelete (task_run case 0x1c, 0x81006648) look the character up
+  by its whole key (number, pose, clothes, face, size) when argument 1
+  is not -1, and do nothing when the picture shown isn't that one; ours
+  takes whatever is shown under the number. How often they differ is
+  not measured. CharacterActionEnd reads only `:Character`'s first value
+  (or `:Number`'s, before it), so its row stays.
 
 Not covered yet: only scene tasks are checked; `chract`'s actions (the
 eboot reads a `:Priority` and an easing per key there) and the `.txt`
 tables (`adv.txt`, `chr*.txt`, `CGMODE`) are not.
 
-The full dry run gives 16,353 notes of 116 kinds; by how much they show,
+The full dry run gives 20,885 notes of 116 kinds; by how much they show,
 with their uses:
 
 | Task | Argument | Uses | State: what is lost |
 |---|---|---|---|
 | SpriteBG, SpriteBS, Sprite | `:Scale` | 15, 33, 1 | dropped: close-ups of a background (×1.5-10) shown whole |
 | CharacterOpen | the task's own `:Color` | 17 | dropped: 13 open see-through (alpha 0) and are shown solid |
+| EffectQuake, SpriteQuake | `:Fade 0` | 1,053, 85 | dropped: the eboot shakes at full size for `:Time` and stops; ours dies down |
 | CharacterMove, SpriteMove | `:Wait 0` | 668, 198 | dropped: moves the eboot runs under the text, ours wait for |
+| CharacterAction, …Move, …Delete | `[CharaN]` `:Number` arguments 1-4 | 2,391, 880, 482 | dropped: the eboot acts only on the picture named; ours on any under the number (differences not measured) |
 | CharacterDelete | `[CharaN]` `:FadeOut 0` | 85 | dropped: those characters fade over 18 frames instead of leaving at once |
 | SpriteMove | `:Roll`, `:Curve` | 12, 12 | dropped: turns, arcs |
 | SpriteMove, SpriteQuake | every argument (`:Scale` too) | 8, 16 | dropped: the picture they name isn't up by our tracking (one we removed too early?) |
-| EffectQuake, SpriteQuake | `:Param` 2-5 (mostly 1,1,1,1) | 1,076, 71 | dropped: meaning not traced |
-| EffectQuake, EffectQuakeEnd, SpriteQuake | `:Fade` (0 nearly always), `:Window 0` | 1,073, 918, 87; 1,071, 918 | dropped: meaning not traced |
-| EffectQuake | `:Loop` (30 of them 1), `:Texture` | 131, 3 | dropped |
-| EffectQuakeEnd | `:EndWait 1` | 860 | dropped: the end doesn't wait for the shake to settle |
-| FadeOut, FadeIn | `:Type 0` | 585, 579 | dropped: meaning not traced (always 0) |
-| Sprite, SpriteBG, SpriteDeleteBG, SpriteDelete | `:Time` without a fade (`:FadeIn`/`:FadeOut 0`) | 770, 428, 51, 11 | dropped: whether the eboot still waits it out is not traced |
+| EffectQuake | `:Loop` (30 of them 1) | 131 | dropped: those shakes repeat until EffectQuakeEnd; ours stop after `:Time` |
+| EffectQuake, SpriteQuake | `:Param` 2-5 other than 1 (SpriteQuake's layout not traced) | 12-19, 71 | dropped: a swing of that size |
 | SceneJumpDialogEnd | `:Fade` | 531 | dropped: the fade back from the skip dialog |
 | SeStop, SePlay | `:Div` (fade-out, fade-in frames); `:Wait 1` | 281, 32; 4, 32 | dropped: SEs cut off and started at once, never waited for |
-| EffectStart | `:Priority`; `:EffectNumber` 1 (always 0); `:Param` past those an effect reads (mostly 0s; 52's 1, 54's 1-2) | 208; 208; up to 202 | dropped: where the effect sits among the pictures; the particles' motion |
+| EffectStart | `:Priority`; `:EffectNumber` 1 (always 0, above); `:Param` past those an effect reads (mostly 0s; 52's 1, 54's 1-2) | 208; 208; up to 202 | dropped: where the effect sits among the pictures; the particles' motion |
 | InOut_Act | `:Param` 1 (2, 3 once) | 72 | dropped for the `:Type`s that read only `:Param` 0 (which ones not yet checked) |
 | BacklogMessage | `:Message` | 56 | dropped: the chosen answer isn't in the backlog |
 | SpriteQuake | `:Wait` on a stop or with `:Time 0` | 54 | dropped |
-| MessageSwitch_Tag | `:Frame 0` | 25 | dropped: meaning not traced |
 | Window | `:Time` | 20 | dropped: the window hides at once |
 | CharacterOpen, …Move, …Delete, …Action | `:SpriteMax` below its `[CharaN]` blocks | 8, 4, 4, 2 | dropped: we show (move, delete) the characters past it, the eboot doesn't |
 | SpriteBG | `:SpriteDelete` (with the pictures an earlier scene left) | 8 | dropped |
 | EyeCatch, EyeCatchEnd, MovieStop, MoviePlay | `:Color`, `:Fade`, `:EndWait` | 7 each | dropped with `:Image 0,-1`'s panels and the movies under the script (`:EndWait 0`) |
 | CharacterMove, CharacterAction | `[CharaN]` `:Priority` | 7, 1 | dropped |
 | CharacterOpen | `[CharaN]` `:FadeWait` | 6 | dropped |
-| CharacterActionEnd | `:Copy` | 5 | dropped: it stops the character without the copy |
+| CharacterActionEnd | `:Copy`; `:Number` (read before `:Character`) | 5; 1 | dropped: it stops the character without the copy |
 | EffectEnd | `:Delete` | 7 | dropped |
-| others | | 1-4 each | SpriteDeleteBG `:Position`/`:FadeIn`/`:ReleaseTexture`; CharacterAction `:EndWait` on a loop; repeated keys (Message `:Name`, SpriteBG `:Priority`); FlagOperation `:CGFlag` (a CG never marked seen); CharacterOpenBS `:Fade 30`, `:Color` |
+| SpriteDeleteBG | `:Time` with `:FadeOut 0` | 4 | dropped: the eboot fades it out anyway |
+| others | | 1-3 each | CharacterAction `:EndWait` on a loop; repeated keys (Message `:Name`, SpriteBG `:Priority`); FlagOperation `:CGFlag` (a CG never marked seen); CharacterOpenBS `:Fade 30`, `:Color`; EffectQuakeEnd `:Fade 1`; EffectQuake `:Texture` |
 
 Script errors, which the eboot can't read either: five tasks whose
 `[TaskN]` header is missing or misplaced (S01_04L, S03_03J2, S03C_03C
@@ -515,7 +543,10 @@ Next, in order:
    `:Center` point, by default 0,-1, the top edge's middle, at the
    position; where `OffsetY` comes in is not traced), the eye catch's speed, the
    wave transition's size. Needs screenshots of the Vita game.
-3. The "Arguments not read" table, from its top.
+3. The "Arguments not read" table, from its top. Open in the eboot:
+   SpriteQuake's `:Param` layout, the shake's pattern table (whether
+   `:Param` 0, 1 are pixels, as ours takes them), EffectStart's variant
+   code.
 
 ## History
 
