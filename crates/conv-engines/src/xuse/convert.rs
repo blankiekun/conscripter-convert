@@ -2803,7 +2803,7 @@ fn rgb_of(c: u32) -> u32 {
 fn whole_text_style(styles: &mut Vec<TextStyle>, text: &str, (colour, size_percent): (Option<u32>, Option<u16>)) {
     let len = text.chars().count();
     if len > 0 && (colour.is_some() || size_percent.is_some()) {
-        styles.insert(0, TextStyle { start: 0, len, colour, size_percent });
+        styles.insert(0, TextStyle { start: 0, len, colour, size_percent, ..Default::default() });
     }
 }
 
@@ -2826,7 +2826,7 @@ fn text_style(body: &[String], s: &StyleRecord) -> Option<TextStyle> {
     if len == 0 || (colour.is_none() && size.is_none()) {
         return None;
     }
-    Some(TextStyle { start: before + col, len, colour, size_percent: size })
+    Some(TextStyle { start: before + col, len, colour, size_percent: size, ..Default::default() })
 }
 
 fn lower_instr(
@@ -3501,7 +3501,7 @@ mod tests {
         let text = "ab\nxy\n━━\ncdefgh";
         let link = TextLink { start: 1, len: 7, target: Some("t".into()), scene: None };
         let ruby = [Ruby { start: 0, len: 2, text: "r".into() }, Ruby { start: 4, len: 3, text: "s".into() }];
-        let style = TextStyle { start: 9, len: 4, colour: Some(1), size_percent: None };
+        let style = TextStyle { start: 9, len: 4, colour: Some(1), ..Default::default() };
         let parts = split_rows(text, std::slice::from_ref(&link), &ruby, &[style], 3, 4, 0);
         let texts: Vec<&str> = parts.iter().map(|p| p.text.as_str()).collect();
         assert_eq!(texts, ["ab\nxy", "━━\ncdefgh"]);
@@ -3531,13 +3531,13 @@ mod tests {
         // 30000 runs to the end of the message; sizes below 0x1000 are percent.
         assert_eq!(
             text_style(&body, &style(2, 1, 30000, 94, STYLE_COLOUR_KEEP)),
-            Some(TextStyle { start: 5, len: 6, colour: None, size_percent: Some(94) })
+            Some(TextStyle { start: 5, len: 6, size_percent: Some(94), ..Default::default() })
         );
         assert_eq!(text_style(&body, &style(1, 2, 30000, 94, STYLE_COLOUR_KEEP)).map(|s| (s.start, s.len)), Some((1, 10)));
         // COLORREF 0x00BBGGRR; 0xf000 keeps the size.
         assert_eq!(
             text_style(&body, &style(1, 2, 2, STYLE_SIZE_KEEP, 0x00d3_55ba)),
-            Some(TextStyle { start: 1, len: 2, colour: Some(0xba55d3), size_percent: None })
+            Some(TextStyle { start: 1, len: 2, colour: Some(0xba55d3), ..Default::default() })
         );
         assert_eq!(
             text_style(&body, &style(1, 1, 1, 0x1006, STYLE_COLOUR_KEEP)).and_then(|s| s.size_percent),

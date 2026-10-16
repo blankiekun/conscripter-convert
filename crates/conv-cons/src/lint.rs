@@ -102,7 +102,7 @@ fn is_text(line: &str) -> bool {
 }
 
 /// The first half-width character in a text line, past the tags the
-/// backend writes (`#rrggbb`, `!zNNN`, `!sN`, `!wN`, `!dN`, ruby `(…/…)`)
+/// backend writes (`#rrggbb`, `!zNNN`, `!i1`, `!c`, `!sN`, `!wN`, `!dN`, ruby `(…/…)`)
 /// and the page and click waits.
 fn half_width_in_text(line: &str) -> Option<char> {
     let mut chars = line.trim_end_matches(['\\', '@']).chars().peekable();
@@ -111,7 +111,7 @@ fn half_width_in_text(line: &str) -> Option<char> {
             '#' => {
                 chars.by_ref().take(6).for_each(drop);
             }
-            '!' if chars.peek().is_some_and(|c| matches!(c, 's' | 'w' | 'd' | 'z')) => {
+            '!' if chars.peek().is_some_and(|c| matches!(c, 's' | 'w' | 'd' | 'z' | 'i' | 'c')) => {
                 chars.next();
                 while chars.peek().is_some_and(|c| c.is_ascii_digit()) {
                     chars.next();

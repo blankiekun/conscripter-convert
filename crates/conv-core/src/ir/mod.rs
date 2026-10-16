@@ -293,8 +293,8 @@ pub struct Ruby {
     pub text: String,
 }
 
-/// Size and colour for characters of a text page.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Size, colour and slant for characters of a text page.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct TextStyle {
     /// Character range in the page text.
     pub start: usize,
@@ -303,6 +303,10 @@ pub struct TextStyle {
     pub colour: Option<u32>,
     /// Percent of the window's font size; `None` keeps the size.
     pub size_percent: Option<u16>,
+    /// Italic (CONscripter's `!i1` … `!i0`).
+    pub italic: bool,
+    /// The lines this range starts are centred in the window (`!c`).
+    pub centred: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

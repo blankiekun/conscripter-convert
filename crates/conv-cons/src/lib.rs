@@ -829,7 +829,13 @@ fn align_single_bytes(line: &str) -> String {
             out.push(c);
             match c {
                 '#' => out.extend(chars.by_ref().take(6)),
-                '!' => out.extend(chars.by_ref().take(4)), // !zNNN
+                // !zNNN, !i1, !c
+                '!' => {
+                    out.extend(chars.next());
+                    while let Some(d) = chars.next_if(char::is_ascii_digit) {
+                        out.push(d);
+                    }
+                }
                 _ => {}
             }
         } else {
@@ -1083,6 +1089,7 @@ fn with_markup(text: &str, links: &[TextLink], ruby: &[Ruby], styles: &[TextStyl
         .collect();
     readings.sort_by_key(|r| r.start);
 
+    let marks = slant_tags(&chars, styles);
     let mut out = String::new();
     let mut readings = readings.into_iter().peekable();
     let mut current = TEXT_COLOR;
@@ -1100,9 +1107,12 @@ fn with_markup(text: &str, links: &[TextLink], ruby: &[Ruby], styles: &[TextStyl
         while readings.peek().is_some_and(|r| r.start < i) {
             readings.next(); // overlaps the previous one
         }
+        out.push_str(&marks[i]);
         if let Some(r) = readings.next_if(|r| r.start == i) {
             let base: String = chars[i..i + r.len].iter().collect();
             write!(out, "({}/{})", escape_text(&base), escape_text(&r.text)).unwrap();
+            // shortcut: a slant change inside ruby moves after it; fine while no game slants ruby.
+            out.extend(marks[i + 1..i + r.len].iter().map(String::as_str));
             i += r.len;
         } else {
             out.push_str(&escape_text(&chars[i].to_string()));
@@ -1119,7 +1129,30 @@ fn with_markup(text: &str, links: &[TextLink], ruby: &[Ruby], styles: &[TextStyl
             out.push_str(TEXT_COLOR);
         }
     }
+    out.push_str(&marks[chars.len()]);
     out
+}
+
+/// CONscripter's tags for the styles' slant and centring, to go before
+/// each character (and after the last): `!c` where a centred range starts
+/// a line, `!i1` and `!i0` around italics, closed at each line's end as
+/// tags last past the page.
+fn slant_tags(chars: &[char], styles: &[TextStyle]) -> Vec<String> {
+    let covered = |i: usize, f: fn(&TextStyle) -> bool| styles.iter().any(|s| f(s) && s.start <= i && i < s.start + s.len);
+    let mut marks = vec![String::new(); chars.len() + 1];
+    let mut italic = false;
+    for (i, mark) in marks.iter_mut().enumerate() {
+        let line_end = chars.get(i).is_none_or(|&c| c == '\n');
+        if !line_end && (i == 0 || chars[i - 1] == '\n') && covered(i, |s| s.centred) {
+            mark.push_str("!c");
+        }
+        let want = !line_end && covered(i, |s| s.italic);
+        if want != italic {
+            italic = want;
+            mark.push_str(if want { "!i1" } else { "!i0" });
+        }
+    }
+    marks
 }
 
 fn operand(o: Operand, border: u32) -> String {
@@ -1195,18 +1228,26 @@ fn escape(text: &str) -> String {
 }
 
 /// Text for a single-byte line (after a backquote), where only the click
-/// waits and the backquote itself are special: those turn full-width,
-/// everything else stays as written.
-fn single_byte_text(text: &str) -> String {
-    text.chars()
-        .map(|c| match c {
+/// waits, the backquote itself and CONscripter's `!i` and `!c` are
+/// special: those turn full-width, everything else stays as written. The
+/// styles' slant and centring become those tags.
+fn single_byte_text(text: &str, styles: &[TextStyle]) -> String {
+    let chars: Vec<char> = text.chars().collect();
+    let marks = slant_tags(&chars, styles);
+    let mut out = String::new();
+    for (i, &c) in chars.iter().enumerate() {
+        out.push_str(&marks[i]);
+        out.push(match c {
             '@' => '＠',
             '\\' => '＼',
             '`' => '｀',
             '\r' => ' ',
+            '!' if matches!(chars.get(i + 1), Some('i' | 'c')) => '！',
             c => c,
-        })
-        .collect()
+        });
+    }
+    out.push_str(&marks[chars.len()]);
+    out
 }
 
 /// [`escape`]s text that `strsp` (or another sprite text) will draw.
@@ -2153,7 +2194,10 @@ end
     fn text_is_made_safe() {
         assert_eq!(text_safe("Ghost: 50% @home"), "　Ghost: 50％ ＠home");
         assert_eq!(text_safe("「a/b」"), "「a／b」");
-        assert_eq!(single_byte_text("\"Hey! 50% (a/b) #1 @me\\`\""), "\"Hey! 50% (a/b) #1 ＠me＼｀\"");
+        assert_eq!(single_byte_text("\"Hey! 50% (a/b) #1 @me\\`\"", &[]), "\"Hey! 50% (a/b) #1 ＠me＼｀\"");
+        let slant = |start, len, centred: bool| TextStyle { start, len, italic: !centred, centred, ..Default::default() };
+        assert_eq!(single_byte_text("Oh!it\nab cd", &[slant(4, 4, false), slant(6, 5, true)]), "Oh！i!i1t!i0\n!c!i1ab!i0 cd");
+        assert_eq!(single_byte_text("x\nab", &[slant(2, 2, true)]), "x\n!cab");
         // 最果てのイマ, *conv_link19: the '?' stopped the engine (array).
         assert_eq!(text_safe("嘘ー！?  投稿者: x"), "嘘ー！？  投稿者: x");
         // Every ASCII character the engine's text parser reads specially:
@@ -2412,7 +2456,7 @@ end
 
     #[test]
     fn style_colours() {
-        let st = |start, len, colour| TextStyle { start, len, colour, size_percent: None };
+        let st = |start, len, colour| TextStyle { start, len, colour, ..Default::default() };
         // Each line returns to the text colour; links win over styles.
         assert_eq!(
             with_markup("あいう\nえお", &[], &[], &[st(1, 4, Some(0xffff00))]),
@@ -2423,12 +2467,13 @@ end
             "#00FF00あい#FEE092う#0000FFえ#FFFFFF"
         );
         assert_eq!(with_markup("あい", &[], &[], &[st(0, 2, None)]), "あい");
-        let sized = |start, len, p| TextStyle { start, len, colour: None, size_percent: Some(p) };
+        let sized = |start, len, p| TextStyle { start, len, size_percent: Some(p), ..Default::default() };
         assert_eq!(
             with_markup("あい\nう", &[], &[], &[sized(0, 4, 150), TextStyle { colour: Some(0xffff00), ..sized(3, 1, 75) }]),
             "!z150あい!z100\n#FFFF00!z075う!z100#FFFFFF"
         );
         assert_eq!(align_single_bytes("Ghost!z100の"), "Ghost !z100の");
+        assert_eq!(align_single_bytes("ab!i1cd!i0の!c"), "ab!i1cd!i0の!c");
     }
 
     #[test]
