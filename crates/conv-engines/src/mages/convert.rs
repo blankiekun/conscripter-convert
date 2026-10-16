@@ -23,7 +23,7 @@ use std::collections::{BTreeMap, HashMap};
 
 use conv_core::ir::{
     Animation, ArithOp, ButtonScreen, Compare, FILTER_BLEND_COPY, FILTER_BLEND_MULTIPLY, FILTER_BLUR, FILTER_COLOUR, FILTER_GREYSCALE, FILTER_MONOTONE, FILTER_NEGATIVE, Noise, Op, Operand, ScreenEffect, SlideLayer, SourceLoc, SpriteChange, SpriteFilter,
-    MotionEnd, MotionKey, Placed, SpritePlacement, Switch, TextWindow, TransitionStyle, Var, Voice,
+    MotionEnd, MotionKey, Placed, SpritePlacement, Switch, TextStyle, TextWindow, TransitionStyle, Var, Voice,
 };
 
 use super::tasks::{Block, Scene, Val, parse};
@@ -55,6 +55,12 @@ const PRIORITY_STEP: u32 = 20;
 const COVER_LAYER: u32 = 0;
 
 /// Frames (60 fps) to milliseconds.
+/// A character's key: `c<number>`, the eboot's number + `:Copy` × 1000
+/// (a second picture of one character, as the cut-ins in S03_02A).
+fn chara_key(c: &Block, number: i64) -> String {
+    format!("c{}", number + c.int("Copy").unwrap_or(0) * 1000)
+}
+
 fn ms(frames: i64) -> u32 {
     (frames.max(0) * 1000 / 60) as u32
 }
@@ -452,6 +458,8 @@ struct Lowering<'a> {
     /// The task has `:FadeWait 0`: its pictures fade without the script
     /// waiting.
     fading: bool,
+    /// The task's `:Rule` mask (sprite fades), if any.
+    rule: Option<String>,
     /// A transition is open (staged changes wait for InOut).
     staging: bool,
     choices: usize,
@@ -514,9 +522,9 @@ impl Lowering<'_> {
     /// fades in inside a transition, so that it does so filtered.
     #[allow(clippy::too_many_arguments)]
     fn show_at(&mut self, key: &str, tex: i64, image: (String, u32, u32), cx: i32, cy: i32, priority: i64, fade_ms: u32, replaces: &[String], look: Look) {
-        let opened = look != Look::default() && !self.staging;
+        let opened = (look != Look::default() || self.rule.is_some()) && fade_ms > 0 && !self.staging;
         if opened {
-            self.out.ops.push(Op::BeginTransition { effect: "Sprite".into(), fade_ms, mask: None, style: TransitionStyle::Fade });
+            self.out.ops.push(Op::BeginTransition { effect: "Sprite".into(), fade_ms, mask: self.rule.clone(), style: TransitionStyle::Fade });
             self.staging = true;
         }
         let mut changes: Vec<SpriteChange> = replaces
@@ -619,6 +627,10 @@ impl Lowering<'_> {
             .map(|old| SpriteChange { layer: old.layer, sprite: None, keep_filters: false })
             .collect();
         if changes.is_empty() {
+        } else if let Some(mask) = self.rule.clone().filter(|_| !self.staging && fade_ms > 0) {
+            self.out.ops.push(Op::BeginTransition { effect: "Sprite".into(), fade_ms, mask: Some(mask), style: TransitionStyle::Fade });
+            self.out.ops.push(Op::Sprites { changes, fade_ms: 0 });
+            self.out.ops.push(Op::EndTransition);
         } else if self.fading && !self.staging && fade_ms > 0 {
             self.out.ops.push(Op::SpritesFading { changes, fade_ms });
         } else {
@@ -637,7 +649,8 @@ impl Lowering<'_> {
             Some(t) => {
                 let time = ms(t.int("Time").unwrap_or(30));
                 match t.task_type() {
-                    Some("InOut") => (time, t.int("Type").and_then(|n| self.assets.rule(n as u32)), TransitionStyle::Fade),
+                    // `:Type N` is RULE<N-1>, 0 a plain fade (table 0x81162e38).
+                    Some("InOut") => (time, t.int("Type").filter(|&n| n > 0).and_then(|n| self.assets.rule(n as u32 - 1)), TransitionStyle::Fade),
                     _ => (time, None, act_style(t)),
                 }
             }
@@ -705,6 +718,12 @@ impl Lowering<'_> {
         // once); SpriteBG and SpriteBS, which replace the whole picture,
         // still wait.
         self.fading = t.int("FadeWait") == Some(0) && matches!(ty, "CharacterOpen" | "CharacterDelete" | "Sprite" | "SpriteDelete" | "SpriteDeleteBG");
+        // `:Rule N` (sprite fades; 0 a plain fade) is ETC.cpk's file N - 1,
+        // RULE<N-1> (the eboot's table 0x811635fc, file ID + 200000).
+        self.rule = match t.int("Rule") {
+            Some(n) if n > 0 && ty.starts_with("Sprite") => self.assets.rule(n as u32 - 1),
+            _ => None,
+        };
         // A character's fade (task_charopen_new, task_chardelete_new): over
         // `:Fade` frames, 18 without one, at once for `:Fade 0` (or
         // CharacterDelete's `:FadeOut 0`).
@@ -729,7 +748,13 @@ impl Lowering<'_> {
                 }
                 self.opening = false;
                 self.messages += 1;
-                self.out.ops.push(Op::Text { speaker, text, voice, links: vec![], ruby: vec![], styles: vec![], hang: None, continues: false });
+                // `:FontScale` (record +0x8fc) sizes the whole message:
+                // shouts and whispers.
+                let styles = match t.float("FontScale").map(|f| (f * 100.0).round() as u16) {
+                    Some(p) if p != 100 && p > 0 => vec![TextStyle { start: 0, len: text.chars().count(), size_percent: Some(p), ..Default::default() }],
+                    _ => vec![],
+                };
+                self.out.ops.push(Op::Text { speaker, text, voice, links: vec![], ruby: vec![], styles, hang: None, continues: false });
             }
             "SpriteBG" | "Sprite" | "SpriteBS" => {
                 let Some(tex) = t.int("Texture") else { return };
@@ -780,8 +805,7 @@ impl Lowering<'_> {
                         .children
                         .iter()
                         .filter(|c| c.name.starts_with("Chara"))
-                        .filter_map(|c| c.get("Number")?.first()?.int())
-                        .map(|n| format!("c{n}"))
+                        .filter_map(|c| Some(chara_key(c, c.get("Number")?.first()?.int()?)))
                         .collect();
                     let mut gone: Vec<String> = self.shown.keys().filter(|k| k.starts_with('c') && !named.contains(k)).cloned().collect();
                     gone.sort();
@@ -798,7 +822,7 @@ impl Lowering<'_> {
                         self.note(format!("{ty}: unknown character picture {number:?}"));
                         continue;
                     };
-                    let key = format!("c{}", number.first().copied().unwrap_or(-1));
+                    let key = chara_key(c, number.first().copied().unwrap_or(-1));
                     self.settle(&key);
                     let x = sx(c.int_at("Position", 0).unwrap_or(640));
                     // y 0 is the usual height: a picture taller than the
@@ -819,7 +843,7 @@ impl Lowering<'_> {
             }
             "CharacterDelete" => {
                 let listed: Vec<String> =
-                    t.children.iter().filter(|c| c.name.starts_with("Chara")).map(|c| format!("c{}", c.int("Number").unwrap_or(-1))).collect();
+                    t.children.iter().filter(|c| c.name.starts_with("Chara")).map(|c| chara_key(c, c.int("Number").unwrap_or(-1))).collect();
                 // Without a list (`:SpriteMax 0`, 962 of 1414 uses) every
                 // character leaves.
                 let keys = if listed.is_empty() {
@@ -834,7 +858,7 @@ impl Lowering<'_> {
             "CharacterMove" => {
                 let time = ms(t.int("Time").unwrap_or(0));
                 for c in t.children.iter().filter(|c| c.name.starts_with("Chara")) {
-                    let key = format!("c{}", c.int("Number").unwrap_or(-1));
+                    let key = chara_key(c, c.int("Number").unwrap_or(-1));
                     self.settle(&key);
                     let Some(s) = self.shown.get(&key).cloned() else { continue };
                     let x = c.int_at("Position", 0).map_or(s.x, sx);
@@ -963,7 +987,7 @@ impl Lowering<'_> {
             "MessageSwitch_Tag" => self.choice(scene, t),
             "CharacterAction" => {
                 for c in t.children.iter().filter(|c| c.name.starts_with("Chara")) {
-                    let key = format!("c{}", c.int("Number").unwrap_or(-1));
+                    let key = chara_key(c, c.int("Number").unwrap_or(-1));
                     let (Some(s), Some(a)) = (self.shown.get(&key).cloned(), c.int("Action").and_then(|n| self.game.actions.get(&n)))
                     else {
                         continue;
@@ -1543,7 +1567,7 @@ fn act_style(t: &Block) -> TransitionStyle {
 /// Compiles `scenes` (all of them if empty), each at its label, after a
 /// jump to the game's first scene.
 pub fn compile(game: &Game, scenes: &[String], assets: &mut dyn Assets) -> Compiled {
-    let mut l = Lowering { game, assets, out: Compiled::default(), shown: BTreeMap::new(), next_slot: HashMap::new(), fading: false, staging: false, choices: 0, cover: None, eye_catch: false, shutters: None, inherited: false, opening: false, messages: 0 };
+    let mut l = Lowering { game, assets, out: Compiled::default(), shown: BTreeMap::new(), next_slot: HashMap::new(), fading: false, rule: None, staging: false, choices: 0, cover: None, eye_catch: false, shutters: None, inherited: false, opening: false, messages: 0 };
     let names: Vec<&String> = if scenes.is_empty() { game.scenes.keys().collect() } else { scenes.iter().collect() };
     let first = names.first().map(|s| s.as_str()).unwrap_or(&game.start);
     let first = if scenes.is_empty() { game.start.as_str() } else { first };

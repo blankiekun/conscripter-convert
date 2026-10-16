@@ -434,27 +434,16 @@ against the keys the 463 scenes use and those the converter reads.
 converted. The messages hold no markup but `\n`. Keys the scenes use
 that the eboot reads and the converter doesn't (typos such as
 `:Prioriry`, `:TIme`, `:fFade` are ignored by both):
-1. **`:Rule` on sprite fades (SpriteBG 1,223, SpriteDeleteBG 149,
-   Sprite 24, SpriteDelete 15, SpriteBS 2; 1,378 non-zero, mostly 41,
-   66, 49, 42).** Ours are plain fades. The scripts' comment says
-   `0=Simple 1=RULE000`, so N is probably `RULE<N-1>` (111 is the
-   highest, RULE110 the last file); InOut's `:Type` is used as
-   `RULE<Type>` today.
-2. **Message `:FontScale` (435: 1.8, 2, 1.4, 2.2, 0.8, 1.6; record
-   +0x8fc)**: larger or smaller text for shouts and whispers; ours draws
-   every message at one size.
-3. **`:Chara%d/Copy` (CharacterOpen 25, CharacterMove 11, CharacterAction
-   7, CharacterDelete 5, CharacterOpenBS 3; values 1-3).** The eboot adds
-   Copy × 1000 to the character number, so one character (the 960×540
-   cut-ins, character 300) can show twice (S03_02A shows two at once);
-   ours keys characters by number (`c300`), so the second replaces the
-   first.
-4. Small: SpriteMove `:Curve` (12, an arc of ±3 or 0.5 on the move),
+1. Small: SpriteMove `:Curve` (12, an arc of ±3 or 0.5 on the move),
    CharacterOpen `:Chara%d/Center` (4, `0,1`: the anchor), EffectEnd
    `:Delete 1` (7), Window `:WindowNumber` (1,506 × -1, 2 × 0).
+2. SpriteBG and SpriteBS with `:FadeWait 0` (890 uses) still wait for
+   their fade: they replace the whole picture, which `spfade` can't
+   cross-fade under the text. A character changing with a motion, zoom
+   or look waits too.
 
 Next, in order:
-1. The coverage gaps above, in order.
+1. The small coverage gaps above.
 2. Looks against the original: text window size and place, character
    heights (where the eboot anchors them), the eye catch's speed, the
    wave transition's size. Needs screenshots of the Vita game.
@@ -491,6 +480,25 @@ state.
   character with a motion, zoom or look, and SpriteBG/SpriteBS (which
   replace the whole picture: 890 uses), still wait. In `--auto-play`
   spfade is at once (engine 08a782a), so traces show the end of a fade.
+- **`:Rule` masks.** A sprite record's `:Rule` N (scene_load: SpriteBG
+  +0x18) picks texture 200000 + table[N] (0x811635fc: 0, 0, 1, 2, …,
+  110), ETC.cpk's file N - 1, whose TOC ID k is `RULE<k>`: `RULE<N-1>`,
+  0 a plain fade. InOut's `:Type` goes through the same table
+  (0x81162e38, in 0x81049292), so it is `RULE<Type-1>` too: ours used
+  `RULE<Type>`, and `:Type 0` (422 uses), a plain fade, used `RULE000`.
+  Fixed; SpriteBG, Sprite, SpriteDelete and SpriteDeleteBG with a
+  `:Rule` now fade through it (a transition, waited on even with
+  `:FadeWait 0`).
+- **Message `:FontScale`** (435 uses; scene_load keeps it at +0x8fc
+  of the message record): the whole message at that scale, as a
+  `!z<percent>` text style (150 for the scripts' `1.5 // font 32`).
+  Line breaks at the large sizes are CONscripter's own; not compared
+  with the Vita.
+- **`:Chara%d/Copy`** (51 uses): the eboot adds Copy × 1000 to the
+  character number; ours keys the character the same way (`c1300`,
+  `c2300`), in CharacterOpen(BS), CharacterDelete, CharacterMove and
+  CharacterAction, so S03_02A's two cut-ins (character 300, Copy 1 and
+  2) show side by side.
 
 **Found by the debug trace (2026-10-14).** Whole routes play to their
 end without a script error (18,974 pages and 16 choices; with today's
