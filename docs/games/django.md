@@ -376,11 +376,41 @@ with the original (it wants all eleven endings' flags under wine).
 6. From the exe's coverage table ("The exe"): `AddRender`/`SubRender`/`NormalRender` as blend modes
    (item 3's additive flashes); `SetShade HEAVY` (one use; sepia is
    item 3's).
-7. The ending roll's credits: `ProcessRoll` (dja056_09) scrolls
-   `cg/sys/good/EDROLL.jpg` over the song; the build shows only the
-   red screen and waits for a click.
 
 ## History
+
+- **The ending roll's credits (2026-10-16).** `SetRoll` (dja056_09,
+  `staff_roll`) fades the screen to red (#c80000) over 2 s and starts
+  the process `ProcessRoll`: it stops the insert song (`dj_INS01`,
+  started 5 s into dja056_08's last line, looping) looping, makes
+  `cg/sys/good/EDROLL.jpg` (800×9000) at y 300 and moves it up by
+  its height + 65 − 300 (to y −8465) over the song's time left
+  (`RemainTime`) + the closing song's length (`dj_INS11`, 3:31) + 6 s;
+  the closing song plays when the insert song ends. The first time
+  through (`#ClearG` 0) `SetRoll` waits for the process, then for a
+  click; later a click ends the roll at once. After the click the music
+  fades out over 6 s and the picture over 4 s. `django/roll.rs`
+  compiles it as one `Op::MusicRoll` at the process's `Request(Start)`
+  (its `WaitAction` and `SetRoll`'s `WaitKey` are the op's): the engine
+  reads how far the song is through its pass (`getbgmpos`, a new
+  CONscripter command), starts the closing song at its end (`bgmlater
+  …,0`), and a loop moves the picture (`amsp` at `gamespeed 100`:
+  `SetRoll` sets the play speed to its normal for the roll; the first
+  time in 50 ms steps, each until its time by `waittimer`, later by
+  `gettimer` with a timed `btnwait` for the click) until that time +
+  3:31 + 6 s, then waits for a click (a click on the later times is
+  that click). A roll reached before the
+  insert song started (skipping through the last page within 5 s)
+  starts it from the beginning (`getbgmpos` is then minus the time
+  until the `bgmlater` song starts). Checked headless (`--goto if46_end
+  --real-time`, `%811=0`, `%2921=100`): the picture rolls from y 300
+  to −8465 over the 379 s the run computes; without `--real-time` the
+  auto-play goes through it in 19 s and on to the title, and with
+  `%811=1` its click ends the roll at once; the run reaches the roll
+  before the song's `bgmlater` fires, so the song started from its
+  beginning there. The roll's speed against the original is unchecked
+  (no wine run, stopped 2026-10-15). The original's picture keeps
+  moving through the fade-outs after a click; ours stops where it is.
 
 - **Looping shakes and the strobe (2026-10-15).** `ShakeVLoop`,
   `ShakeVLoop01`-`05` (9 processes, dja001, dja016, dja050): the
