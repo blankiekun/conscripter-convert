@@ -643,8 +643,7 @@ Next, in order:
      compiler doesn't evaluate, so each ending plays 4 s of the theme
      over black and fades it out (no roll, no click wait).
      `#ClearRoll%02d` likewise (`String`, `VariableValue`).
-   - Text markup dropped: `<FONT incolor size>` (15 tags in 11 story
-     files), `<VALUE name=$…>` (3 lines in `mc02_031` print a gap), the
+   - Text markup dropped: `<VALUE name=$…>` (3 lines in `mc02_031` print a gap), the
      ASCII-art pages (`Request(…, PushText)` + `NoLog`: shown at once,
      not in the backlog), `<voice mode="off">` (3, meaning unknown).
    - Story `CreateText` (about 30 calls in 18 files: 殺 害, 〝我は力〟,
@@ -685,6 +684,11 @@ Next, in order:
 
 Finished work, moved out of "Status" so a session reads only the open
 state.
+
+**`<FONT>` in story text (2026-10-15, exe review):** `incolor` (the red
+違う。 in `mb03_006`, the yellow puzzle rules in `md05_025`) and `size`
+(the shouted lines, 24-50 against the window's 20) were dropped; they
+become text styles (colour, `!z` percent).
 
 **Shakes die down (2026-10-15, exe review):** `Shake(obj, time, x0, y0,
 x1, y1, …)` goes from (x0, y0) to (x1, y1) over its time (the exe's

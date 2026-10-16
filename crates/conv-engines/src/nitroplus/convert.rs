@@ -850,6 +850,7 @@ fn color(v: &Value) -> Option<u32> {
             "red" => 0xFF0000,
             "green" => 0x00FF00,
             "blue" => 0x0000FF,
+            "yellow" => 0xFFFF00,
             other => u32::from_str_radix(other.trim_start_matches('#'), 16).ok()?,
         }),
         _ => None,
@@ -2736,7 +2737,21 @@ impl<'a, 'b> Compiler<'a, 'b> {
                         ("br", _) => end_line(&mut page, &mut line),
                         // A click wait where it stands, mid-line or not.
                         ("k", _) => line.push(CLICK_WAIT_MARK),
-                        ("pre", _) | ("font", _) => {}
+                        // Red and larger words in the story (incolor, size).
+                        ("font", false) => {
+                            let start = page_len(&page, &line);
+                            let colour = tag.attr("incolor").and_then(|c| color(&Value::Str(c.to_string())));
+                            let size = tag.attr("size").and_then(|s| s.parse::<i64>().ok());
+                            let size_percent = size.map(|s| (s * 100 / self.font_size.max(1)) as u16);
+                            page.styles.push(TextStyle { start, len: usize::MAX - start, colour, size_percent, ..Default::default() });
+                        }
+                        ("font", true) => {
+                            let end = page_len(&page, &line);
+                            if let Some(s) = page.styles.iter_mut().rev().find(|s| !s.italic && !s.centred && s.start + s.len == usize::MAX) {
+                                s.len = end - s.start;
+                            }
+                        }
+                        ("pre", _) => {}
                         (other, _) => self.note(format!("text tag <{other}>")),
                     }
                 }
