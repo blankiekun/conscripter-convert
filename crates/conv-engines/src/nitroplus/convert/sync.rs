@@ -59,7 +59,7 @@ impl Compiler<'_, '_> {
                         zoom = (zoom.0 * k / 1000, zoom.1 * k / 1000);
                     }
                     let shown = Shown { layer: 0, image: image.clone(), x, y, w: o.w, h: o.h, opacity, cells: None, source: String::new(), zoom: (1000, 1000), angle: o.angle(), clip: None, engine: Engine::default(), flash: 0 };
-                    Some((n.clone(), shown, (o.priority, o.seq), zoom, (o.w, o.h), o.blur, o.mirror()))
+                    Some((n.clone(), shown, (o.priority, o.seq), zoom, (o.w, o.h), 0, o.mirror()))
                 }
                 _ => None,
             })
@@ -73,6 +73,21 @@ impl Compiler<'_, '_> {
             })
             .collect();
         let mut want = want;
+        // `SetBlur`'s copies, each right under its picture (copy i the
+        // i-th below it), at the picture's opacity × the trail's alpha.
+        let copies: Vec<_> = want
+            .iter()
+            .filter_map(|w| Some((w, self.objects.get(&w.0)?.trail?)))
+            .flat_map(|(w, t)| {
+                (1..=t.passes).map(move |i| {
+                    let mut c = w.clone();
+                    (c.0, c.1.opacity, c.5) = (trail_copy(&w.0, i), w.1.opacity * t.alpha / 1000, i);
+                    c
+                })
+            })
+            .filter(|c| c.1.opacity > 0)
+            .collect();
+        want.extend(copies);
         for (n, m, o) in movies {
             // Playing: the movie itself, played by the engine as a
             // picture; else the frame showing.
@@ -119,15 +134,16 @@ impl Compiler<'_, '_> {
             }
         }
         // Zoomed pictures: scaled copies, centred where the original was.
-        let mut want: Vec<(String, Shown, (i64, u64))> = want
+        // (The key's third part puts a trail's copies under their picture.)
+        let mut want: Vec<(String, Shown, (i64, u64, u32))> = want
             .into_iter()
-            .map(|(n, mut shown, key, zoom, (w, h), blur, (mx, my))| {
+            .map(|(n, mut shown, (priority, seq), zoom, (w, h), copy, (mx, my))| {
                 if (mx || my)
                     && let Some(image) = self.assets.mirrored(&shown.image, mx, my)
                 {
                     shown.image = image;
                 }
-                (shown.source, shown.zoom) = (format!("{}#{blur}", shown.image), zoom);
+                (shown.source, shown.zoom) = (shown.image.clone(), zoom);
                 if zoom != (1000, 1000)
                     && let Some((image, x, y, sw, sh)) = self.assets.scaled(&shown.image, zoom.0, zoom.1, (shown.x, shown.y, w, h))
                 {
@@ -135,12 +151,9 @@ impl Compiler<'_, '_> {
                     (shown.w, shown.h) = (sw as i64, sh as i64);
                     shown.image = image;
                 }
-                if blur > 0
-                    && let Some(image) = self.assets.blurred(&shown.image, blur)
-                {
-                    shown.image = image;
-                }
-                shown.clip = self.window_clip(&n);
+                let key = (priority, seq, u32::MAX - copy);
+                // A copy is clipped as its picture.
+                shown.clip = self.window_clip(n.split('\0').next().unwrap_or(&n));
                 // Windows that don't overlap show nothing.
                 if shown.clip.is_some_and(|c| c.2 == 0 || c.3 == 0) {
                     shown.opacity = 0;
@@ -154,7 +167,10 @@ impl Compiler<'_, '_> {
         let (sw, sh) = self.game.screen;
         let cover = want.iter().position(|(n, s, _)| {
             let still = !self.shown.get(n).is_some_and(|o| o.engine.moved) && !timed.contains_key(n);
+            // (A picture with a trail keeps its copies ready to follow it.)
+            let trailed = n.contains('\0') || self.objects.get(n).is_some_and(|o| o.trail.is_some());
             still
+                && !trailed
                 && s.cells.is_none()
                 && s.flash == 0
                 && s.angle == 0
@@ -204,23 +220,53 @@ impl Compiler<'_, '_> {
         // while the script goes on (and during the cross-fade of the other
         // changes), which waits only for the blocking action's time.
         let mut moving = Vec::new();
+        let mut trailing = Vec::new();
         for ((name, now, _), layer) in want.iter().zip(&layers) {
             let (Some(layer), Some(old), Some(&t)) = (*layer, self.shown.get(name), timed.get(name)) else { continue };
             let now = Shown { layer, ..now.clone() };
             if t == 0 || *old == (Shown { engine: old.engine, ..now.clone() }) {
                 continue;
             }
+            let before = old.clone();
             match motion(old, &now, t) {
                 Some(op) => {
                     let engine = Engine { zoomed: old.engine.zoomed || old.zoom != now.zoom || old.angle != now.angle, moved: true };
                     self.ops.push(op);
                     self.shown.insert(name.clone(), Shown { engine, ..now });
                     moving.push(name.clone());
+                    if let Some(trail) = self.objects.get(name).and_then(|o| o.trail) {
+                        trailing.extend((1..=trail.passes).map(|i| (trail_copy(name, i), i * trail.lag, t, before.clone(), trail.alpha)));
+                    }
                 }
                 None if (old.x, old.y, old.w, old.h) != (now.x, now.y, now.w, now.h) => {
                     self.note("move or zoom over time with a fade or a new picture drawn as a cross-fade");
                 }
                 None => {}
+            }
+        }
+        // Each copy runs its picture's motion, `lag` ms later per copy.
+        for (copy, delay, t, picture, alpha) in trailing {
+            let Some(i) = want.iter().position(|w| w.0 == copy) else { continue };
+            let Some(layer) = layers[i] else { continue };
+            let now = Shown { layer, ..want[i].1.clone() };
+            // A copy new with the motion starts on its picture.
+            let old = match self.shown.get(&copy) {
+                Some(old) => old.clone(),
+                None => {
+                    let old = Shown { layer, opacity: picture.opacity * alpha / 1000, engine: Engine::default(), ..picture };
+                    let sprite = SpritePlacement { image: old.image.clone(), x: old.x as i32, y: old.y as i32 };
+                    self.ops.push(Op::Sprites { changes: vec![SpriteChange { layer, sprite: Some(sprite), keep_filters: false }], fade_ms: 0 });
+                    self.ops.push(Op::SpriteOpacity { layer: Some(layer), opacity: (old.opacity * 256 / 1000) as u32 });
+                    if old.angle != 0 {
+                        self.ops.push(Op::SpriteAngle { layer, degrees: old.angle as i32 });
+                    }
+                    old
+                }
+            };
+            if let Some(op) = motion(&old, &now, t) {
+                let engine = Engine { zoomed: old.engine.zoomed || old.zoom != now.zoom || old.angle != now.angle, moved: true };
+                self.ops.push(delayed(op, delay));
+                self.shown.insert(copy, Shown { engine, ..now });
             }
         }
         let rest = timed.iter().filter(|(n, _)| !moving.contains(n)).map(|(_, &t)| t).max().unwrap_or(0);
@@ -312,5 +358,18 @@ impl Compiler<'_, '_> {
         self.ops.extend(animated);
         self.ops.extend(opacity);
         self.ops.push(Op::EndTransition);
+    }
+}
+
+/// A [`Op::SpriteMotion2`] started `by` ms later: held at its first key
+/// until then.
+pub(super) fn delayed(op: Op, by: u32) -> Op {
+    match op {
+        Op::SpriteMotion2 { layer, mut keys, end } if by > 0 && !keys.is_empty() => {
+            keys.iter_mut().for_each(|k| k.ms += by);
+            keys.insert(0, MotionKey { ms: 0, ..keys[0] });
+            Op::SpriteMotion2 { layer, keys, end }
+        }
+        op => op,
     }
 }

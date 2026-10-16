@@ -208,6 +208,18 @@ impl Compiler<'_, '_> {
                     let (x, y) = (to_x.position(o.x, o.w, screen_w), to_y.position(o.y, o.h, screen_h));
                     let (dx, dy) = (x - o.x, y - o.y);
                     (o.x, o.y) = (x, y);
+                    // Its trail's copies run the move by the engine, later
+                    // by `lag` each, while this one blocks.
+                    if let Some(trail) = o.trail {
+                        for i in 1..=trail.passes {
+                            if let Some(c) = self.shown.get_mut(&trail_copy(&targets[0], i)) {
+                                (c.x, c.y, c.engine.moved) = (c.x + dx, c.y + dy, true);
+                                let key = |ms, x, y| MotionKey { ms, x, y, zoom: 100, angle: 0, opacity: 256 };
+                                let keys = vec![key(0, 0, 0), key(ms as u32, dx as i32, dy as i32)];
+                                self.ops.push(sync::delayed(Op::SpriteMotion2 { layer: c.layer, keys, end: MotionEnd::Keep }, i * trail.lag));
+                            }
+                        }
+                    }
                     if let Some(sh) = self.shown.get_mut(&targets[0]) {
                         sh.x += dx;
                         sh.y += dy;
@@ -301,14 +313,15 @@ impl Compiler<'_, '_> {
                 self.timed(arg(1).int(), &arg(5), &targets);
             }
             "SetBlur" => {
-                // (obj, on, passes 1-3, ?, strength, wait). Unverified:
-                // drawn as a Gaussian of 1.5 px per pass.
-                let sigma = if arg(1).truthy() { (arg(2).int().clamp(1, 5) * 15) as u32 } else { 0 };
+                // (obj, on, passes, alpha, lag, wait): a [`Trail`]. The exe
+                // takes 1-128 copies and an alpha of 1-1000, else none.
+                let (passes, alpha) = (arg(2).int(), arg(3).int());
+                let trail = (arg(1).truthy() && (1..=128).contains(&passes) && (1..=1000).contains(&alpha))
+                    .then(|| Trail { passes: passes as u32, alpha, lag: arg(4).int().max(0) as u32 });
                 let targets = self.matching(&arg(0));
                 for t in &targets {
-                    self.objects.get_mut(t).unwrap().blur = sigma;
+                    self.objects.get_mut(t).unwrap().trail = trail;
                 }
-                self.timed(arg(3).int(), &arg(5), &targets);
             }
             "DrawTransition" => {
                 // (obj, time, from, to, softness, tempo, mask, wait): a fade

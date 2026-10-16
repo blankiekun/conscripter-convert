@@ -251,8 +251,6 @@ pub trait Assets {
     /// the box `at` (x, y, w, h) it fills unscaled: the picture to draw
     /// (perhaps only its part on the screen), its top-left and size.
     fn scaled(&mut self, image: &str, zx: i64, zy: i64, at: (i64, i64, i64, i64)) -> Option<(String, i64, i64, u32, u32)>;
-    /// An output image blurred with a Gaussian of `sigma`/10 px.
-    fn blurred(&mut self, image: &str, sigma: u32) -> Option<String>;
     /// An output image mirrored left to right (`x`) and/or upside down
     /// (`y`).
     fn mirrored(&mut self, image: &str, x: bool, y: bool) -> Option<String>;
@@ -997,8 +995,8 @@ struct Object<'a> {
     seq: u64,
     /// `Zoom`, per mille (x, y), about the centre.
     zoom: (i64, i64),
-    /// `SetBlur`: Gaussian sigma in tenths of a pixel (0 = none).
-    blur: u32,
+    /// `SetBlur`: copies trailing the picture's motion.
+    trail: Option<Trail>,
     /// `SetVertex`: the point (from the top left) a zoom or a turn keeps
     /// in place; `None` = the centre.
     vertex: Option<(i64, i64)>,
@@ -1069,6 +1067,23 @@ struct Page<'a> {
     /// After the English port's `<FW img=''>` (`SwitchFw`): shown in the
     /// window's box without a face, the face and name plate gone.
     face_off: bool,
+}
+
+/// `SetBlur(obj, true, passes, alpha, lag, wait)`: the exe (`FUN_00460230`,
+/// `FUN_00460530`, `FUN_00456810`) draws `passes` copies under the picture,
+/// each at its opacity × `alpha`/1000; when a move, zoom or turn starts they
+/// are put on the picture, and copy i shows where the picture was i × `lag`
+/// ms before on that motion. A still picture's copies lie under it.
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct Trail {
+    passes: u32,
+    alpha: i64,
+    lag: u32,
+}
+
+/// The name of copy `i` (from 1) of `name`'s [`Trail`] in `Compiler::shown`.
+fn trail_copy(name: &str, i: u32) -> String {
+    format!("{name}\u{0}trail{i}")
 }
 
 #[derive(Debug, Clone)]
@@ -2446,7 +2461,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
 
     fn create(&mut self, name: String, kind: Kind<'a>, priority: i64, w: i64, h: i64) -> &mut Object<'a> {
         self.seq += 1;
-        let o = Object { kind, priority, x: 0, y: 0, w, h, opacity: 1000, locked: false, hideable: false, seq: self.seq, zoom: (1000, 1000), blur: 0, vertex: None, turn: (0, 0, 0), shake: None, clip: None, over_text: false, container: false, erased: false };
+        let o = Object { kind, priority, x: 0, y: 0, w, h, opacity: 1000, locked: false, hideable: false, seq: self.seq, zoom: (1000, 1000), trail: None, vertex: None, turn: (0, 0, 0), shake: None, clip: None, over_text: false, container: false, erased: false };
         self.objects.insert(name.clone(), o);
         self.objects.get_mut(&name).unwrap()
     }
@@ -3291,9 +3306,6 @@ mod tests {
         fn scaled(&mut self, image: &str, zx: i64, zy: i64, at: (i64, i64, i64, i64)) -> Option<(String, i64, i64, u32, u32)> {
             let (w, h) = (1024 * zx / 1000, 576 * zy / 1000);
             Some((format!("{image}@{zx}x{zy}"), at.0 + (at.2 - w) / 2, at.1 + (at.3 - h) / 2, w as u32, h as u32))
-        }
-        fn blurred(&mut self, image: &str, sigma: u32) -> Option<String> {
-            Some(format!("{image}~{sigma}"))
         }
         fn mirrored(&mut self, image: &str, x: bool, y: bool) -> Option<String> {
             Some(format!("{image}~{}{}", if x { "x" } else { "" }, if y { "y" } else { "" }))
