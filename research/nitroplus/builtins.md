@@ -315,6 +315,25 @@ under a name that already exists replaces it.
 - A trailing `*` is a prefix wildcard: `"絵背景*"` matches every object
   whose name starts with `絵背景`, `"@*"` every alias, `"*"` every object.
   Muramasa uses it constantly (`Delete("*")`, `SetVolume("@mbgm*", …)`).
+  **Children** (Muramasa.exe, 2026-10-16): a wildcard is matched against
+  the objects of one level; for each match the call goes on to all its
+  children (`FUN_0044d2a0` calls itself with `"*"` on the object's child
+  list, `+0x12d8`) only when the object's flag at `+0x9d4` is set. The
+  object setup (`FUN_0044c8c0`) sets it to 1; `CreateWindow`,
+  `CreateName`, `CreateChoice`, `CreateMask` and `CreateCamera` set it to
+  0. So a wildcard that matches a picture reaches its children, one that
+  matches a window or a name doesn't. Checked under wine from a patched
+  `md04_006` (shots in `research/nitroplus/local/shots/star*/`):
+  `Fade("@試験親A*", 0, 300)` on a `CreateColor` faded its child too;
+  `Fade("@試験窓A*", …)` (a `CreateWindow`) and `Fade("@試験名A*", …)` (a
+  `CreateName`) left their children at full opacity. 続・殺戮のジャンゴ's exe
+  differs: there a wildcard reaches no child, pictures' included
+  (`Game::family`, compared under wine). Our converter matches every
+  name by its prefix, children included: wrong for windows' and names'
+  children (Status). Also seen in the same test: a picture's child is
+  placed from its parent's corner (a `CreateColor` child at (100, 150) of
+  a parent at (50, 100) drew at (150, 250)), a window's child at its own
+  place; Muramasa's build places every child at its own place.
 - A string argument may name a variable: `"$SYSTEM_present_text"` means the
   object whose name is in that variable.
 - `Request(obj, Lock)` protects an object from `Delete` (including

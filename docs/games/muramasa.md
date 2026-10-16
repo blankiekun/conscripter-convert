@@ -643,7 +643,17 @@ Next, in order:
    - Tempo (easing) is never read.
    - A 4-argument `Fade` probably doesn't wait in the exe (49 calls
      wait in ours); check under wine first.
-5. Gaps from the unread-argument notes (2026-10-16; each built-in's
+5. Wildcards and children (2026-10-16, exe and wine:
+   `research/nitroplus/builtins.md`, "Conventions"): a trailing `*` that
+   matches a window or a name (`遠３`, the standing pictures' parent)
+   doesn't reach its children in the original; ours does (by name
+   prefix). Making ours follow the exe (`muramasa/star-containers`, a
+   container flag on `CreateWindow`/`CreateName` objects, their children
+   deleted with them) changes 6,544 lines of the script (standing
+   pictures under a locked `遠３` outlive `Delete("*")`, for example), and
+   those scenes aren't checked yet. Also: a picture's children are placed
+   from its corner in the original, at their own place in ours.
+6. Gaps from the unread-argument notes (2026-10-16; each built-in's
    arguments the converter doesn't read, with counts, in
    `research/nitroplus/builtins.md`, "Arguments not read"), most
    noticeable first:
@@ -661,7 +671,7 @@ Next, in order:
    - `LockVideo`, `WaitText`, `SetPan`, `SetFrequency` (but 1000),
      `SetVertex` (Muramasa), the time limit (?) of `WaitAction` and the
      other waits: dropped; meaning to check in the exe.
-6. Gaps from the script coverage (2026-10-15; every file, built-in,
+7. Gaps from the script coverage (2026-10-15; every file, built-in,
    `Request` action, text tag, `$SYSTEM_` variable and `system.ini` key
    with its status in `research/nitroplus/builtins.md`, "In the
    scripts: coverage"). Every file has a status (no gaps there); new
