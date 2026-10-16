@@ -242,7 +242,7 @@ impl Compiler<'_, '_> {
                 }
             }
             "SetAlias" => {
-                let (obj, alias) = (self.object_name(&arg(0)), arg(1).string());
+                let (obj, alias) = (self.object_name(&arg(0)), self.var_string(&arg(1)));
                 if obj != alias {
                     self.aliases.insert(alias, obj);
                 }
@@ -259,7 +259,8 @@ impl Compiler<'_, '_> {
                     let (turn, mirrored) = (o.turn, o.mirror() != (false, false));
                     let tilted = turn.2 != before.2 && matches!(o.kind, Kind::Image { .. });
                     let text = matches!(o.kind, Kind::Text(_));
-                    if (o.mirror() != mirror || tilted) && !text {
+                    let edge = |t: (i64, i64, i64)| t.0.rem_euclid(180) == 90 || t.1.rem_euclid(180) == 90;
+                    if (o.mirror() != mirror || tilted || edge(turn) != edge(before)) && !text {
                         flipped.push(t.clone());
                     }
                     match &mut o.kind {

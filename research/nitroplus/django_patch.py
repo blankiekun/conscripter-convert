@@ -10,8 +10,8 @@ With CHAPTER (a prefix such as `dja023`), START plays from that chapter
 file: `main_root`'s earlier `call_chapter`s are commented out. With SKIP
 too (a name in the chapter file, `cut` or `scene`), the chapter file's own
 calls before that one are commented out as well, and in the scene file
-SKIP names, timed zooms and camera moves take no time (they hang under
-wine). A CHAPTER starting
+SKIP names and those after it, timed zooms, moves, turns and fades take no
+time and waits for sounds are left out (they hang under wine). A CHAPTER starting
 with `extra_` (`extra_sound`) is instead opened by the title's EXTRA, in
 place of the extras' menu (whose doors' zoom stalls under wine).
 """
@@ -84,14 +84,18 @@ def main():
                 a = re.search(r'chapter main\s*\{', t).end()
                 t = comment_before(t, a, len(t), skip, 'call_')
                 open(p, 'wb').write(t.encode('cp932'))
-                # Timed zooms hang under wine: in the scene SKIP names they
-                # (and camera moves, which zoom) take no time.
-                scene = next(n for n in names if n.startswith(chapter) and skip in n)
-                npa(table, src, d, scene)
-                p = os.path.join(d, scene)
-                t = open(p, 'rb').read().decode('cp932')
-                t = re.sub(r'\b((?:Move)?Zoom|MoveCamera\w*)\((\s*"[^"]*"\s*),\s*\d+', r'\1(\2,0', t)
-                open(p, 'wb').write(t.encode('cp932'))
+                # Timed zooms, moves, turns and fades hang under wine at
+                # random: from the scene SKIP names on, they take no time.
+                scenes = sorted(n for n in names if n.startswith(chapter) and n.count('_') > 1)
+                at = next(i for i, n in enumerate(scenes) if skip in n)
+                for scene in scenes[at:]:
+                    npa(table, src, d, scene)
+                    p = os.path.join(d, scene)
+                    t = open(p, 'rb').read().decode('cp932')
+                    t = re.sub(r'\b(\w*Zoom|\w*Move\w*|\w*Rotate\w*|\w*Fade\w*)\(((?:\s*"[^"]*"\s*,){1,2})\s*\d+', r'\1(\2 0', t)
+                    # Waits for sounds (silent under the null device) too.
+                    t = re.sub(r'^(\s*)(WaitPlay\()', r'\1//\2', t, flags=re.M)
+                    open(p, 'wb').write(t.encode('cp932'))
         npa(table, src, '--pack', d, out)
 
 

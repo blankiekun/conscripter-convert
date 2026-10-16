@@ -163,9 +163,9 @@ pub struct Game {
     /// changes 621 places of its script.
     family: bool,
     /// A variable's name in quotes added to a string means its value
-    /// (装甲悪鬼村正's `CreateSEEX`: `"sound/se/" + "$音楽データ"`). Off for
-    /// 続・殺戮のジャンゴ until checked: its face windows'
-    /// `"@窓/" + "$窓ナット名"` would name other objects.
+    /// (装甲悪鬼村正's `CreateSEEX`: `"sound/se/" + "$音楽データ"`;
+    /// 続・殺戮のジャンゴ's face windows, `"@frame03" + "/" + "$顔ナット名"`,
+    /// one object per face as under wine).
     string_vars: bool,
     /// How a choice of `n` options looks.
     choice_style: for<'a, 'b> fn(&mut Compiler<'a, 'b>, i64) -> Option<ChoiceStyle>,
@@ -1003,8 +1003,9 @@ struct Object<'a> {
     /// with [`Game::zoom_vertex`]; `None` = the centre.
     vertex: Option<(i64, i64)>,
     /// `Rotate`: degrees about the x, y and z axes. A picture turned past
-    /// 90° about y shows mirrored left to right, about x upside down; other
-    /// turns about them aren't drawn. About z (clockwise, as `Rotate(text,
+    /// 90° about y shows mirrored left to right, about x upside down; edge-on
+    /// (90°, 270°) it isn't drawn, nor are its children
+    /// ([`Compiler::drawn_opacity`]). About z (clockwise, as `Rotate(text,
     /// 90)` turns a line top to bottom) the engine turns it ([`Op::SpriteAngle`]).
     turn: (i64, i64, i64),
     /// A shake the engine loops while it is shown, as `spmotion` keys (ms,
@@ -2343,13 +2344,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
     }
 
     fn object_name(&self, v: &Value) -> String {
-        let mut s = v.string();
-        for _ in 0..4 {
-            match self.vars.get(&s) {
-                Some(v) if s.starts_with(['$', '#']) => s = v.string(),
-                _ => break,
-            }
-        }
+        let mut s = self.var_string(v);
         while let Some(rest) = s.strip_prefix('@') {
             s = match self.aliases.get(rest) {
                 Some(o) => o.clone(),
@@ -2360,6 +2355,18 @@ impl<'a, 'b> Compiler<'a, 'b> {
                     _ => rest.to_string(),
                 },
             };
+        }
+        s
+    }
+
+    /// A string argument, or the value of the variable it names (`"$顔ナット名"`).
+    fn var_string(&self, v: &Value) -> String {
+        let mut s = v.string();
+        for _ in 0..4 {
+            match self.vars.get(&s) {
+                Some(v) if s.starts_with(['$', '#']) => s = v.string(),
+                _ => break,
+            }
         }
         s
     }
@@ -2385,7 +2392,18 @@ impl<'a, 'b> Compiler<'a, 'b> {
         }
         match name.strip_suffix('*') {
             Some(prefix) => {
-                let mut found: std::collections::BTreeSet<String> = self.objects.keys().filter(|k| k.starts_with(prefix)).cloned().collect();
+                // With `family`, not into the children of an object it
+                // matches: 続・殺戮のジャンゴ's `Fade("@frame0*")` leaves the
+                // faces in `frame03/顔窓31` as they are (under wine).
+                let in_matched = |k: &str| {
+                    k[prefix.len()..].find('/').is_some_and(|i| self.objects.contains_key(&k[..prefix.len() + i]))
+                };
+                let mut found: std::collections::BTreeSet<String> = self
+                    .objects
+                    .keys()
+                    .filter(|k| k.starts_with(prefix) && !(self.game.family && in_matched(k)))
+                    .cloned()
+                    .collect();
                 if !prefix.is_empty() {
                     found.extend(self.aliases.iter().filter(|(a, o)| a.starts_with(prefix) && self.objects.contains_key(*o)).map(|(_, o)| o.clone()));
                 }
@@ -2607,6 +2625,29 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 self.sync(ms);
             }
         }
+    }
+
+    /// An object's opacity as drawn: 0 while it is turned edge-on, and a
+    /// child's times its parents', which also hide it when edge-on (a face
+    /// in `frame03` hides and turns away with the frame, under wine).
+    fn drawn_opacity(&self, name: &str, own: i64) -> i64 {
+        let edge_on = |o: &Object| o.turn.0.rem_euclid(180) == 90 || o.turn.1.rem_euclid(180) == 90;
+        if self.objects.get(name).is_some_and(edge_on) {
+            return 0;
+        }
+        if !self.game.relative_children {
+            return own;
+        }
+        let mut end = 0;
+        let mut opacity = own;
+        while let Some(i) = name[end..].find('/') {
+            end += i;
+            if let Some(p) = self.objects.get(&name[..end]) {
+                opacity = if edge_on(p) { 0 } else { opacity * p.opacity / 1000 };
+            }
+            end += 1;
+        }
+        opacity
     }
 
     /// Where a child object's place counts from: the sum of the places of
@@ -3510,6 +3551,50 @@ scene a.nss
         // The centre of the 1024-wide picture at x 696.
         let moved = c.ops.iter().any(|op| matches!(op, Op::SpriteMove { x: 1208, ms: 600, .. }));
         assert!(moved, "{:?}", c.ops);
+    }
+
+    #[test]
+    fn a_face_window_follows_its_frame() {
+        // 続・殺戮のジャンゴ's face windows, as compared under wine: the
+        // face named through a variable alias, a `*` that doesn't reach
+        // it, hidden with its frame and turned edge-on with it.
+        let story = r#"
+function SetWindowKwL("$顔元ナット名", $nlayer, "$ファイル名")
+{
+	$顔ナット名 = "$顔元ナット名" + $nlayer;
+	$顔窓ナット名 = "@frame03" + "/" + "$顔ナット名";
+	CreateTexture("$顔窓ナット名", 101, 25, 25, "$ファイル名");
+	SetAlias("$顔窓ナット名", "$顔ナット名");
+}
+scene a.nss
+{
+	CreateTexture("frame03", 100, 25, 80, "cg/st/a.png");
+	SetWindowKwL("顔窓3", 1, "cg/st/b.png");
+	Fade("@frame0*", 0, 0, null, true);
+	Wait(100);
+	Fade("@frame03", 0, 1000, null, true);
+	Rotate("@顔窓31", 0, @0, @180, @0, null, true);
+	Wait(100);
+	Rotate("@frame03", 0, @90, @0, @0, null, true);
+	Wait(100);
+}
+"#;
+        static GAME: Game = Game { family: true, relative_children: true, ..Game::PLAIN };
+        let mut files = BTreeMap::new();
+        files.insert(BOOT.to_string(), nss::parse("#include \"nss/function.nss\"\n").unwrap());
+        files.insert("function.nss".to_string(), nss::parse(LIBRARY).unwrap());
+        files.insert("a.nss".to_string(), nss::parse(story).unwrap());
+        let c = compile_scene(&files, "a.nss", "a.nss", &GAME, &mut Fake).unwrap();
+        let shown: Vec<Vec<&str>> = c.ops.iter().filter_map(|op| match op {
+            Op::Sprites { changes, .. } => Some(changes.iter().filter_map(|c| c.sprite.as_ref().map(|s| s.image.as_str())).collect()),
+            _ => None,
+        }).collect();
+        assert!(shown.iter().any(|s| s.contains(&"cg/st/b.png~x")), "{shown:?} {:?}", c.ops);
+        let gone = c.ops.iter().rev().find_map(|op| match op {
+            Op::Sprites { changes, .. } if !changes.is_empty() => Some(changes.iter().all(|c| c.sprite.is_none())),
+            _ => None,
+        });
+        assert_eq!(gone, Some(true), "{:?}", c.ops);
     }
 
     #[test]

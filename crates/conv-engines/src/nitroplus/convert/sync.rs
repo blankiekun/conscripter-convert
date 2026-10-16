@@ -28,6 +28,10 @@ impl Compiler<'_, '_> {
             .iter()
             .filter_map(|(n, o)| match &o.kind {
                 Kind::Image { image } if o.opacity > 0 && !o.hideable => {
+                    let opacity = self.drawn_opacity(n, o.opacity);
+                    if opacity == 0 {
+                        return None;
+                    }
                     let (mut px, mut py) = self.parent_offset(n);
                     // A zoom about the vertex: the picture scaled about its
                     // centre, moved so that the vertex stays in place.
@@ -54,7 +58,7 @@ impl Compiler<'_, '_> {
                         y = sy + (cy - sy) * k / 1000 - o.h / 2;
                         zoom = (zoom.0 * k / 1000, zoom.1 * k / 1000);
                     }
-                    let shown = Shown { layer: 0, image: image.clone(), x, y, w: o.w, h: o.h, opacity: o.opacity, cells: None, source: String::new(), zoom: (1000, 1000), angle: o.angle(), clip: None, engine: Engine::default(), flash: 0 };
+                    let shown = Shown { layer: 0, image: image.clone(), x, y, w: o.w, h: o.h, opacity, cells: None, source: String::new(), zoom: (1000, 1000), angle: o.angle(), clip: None, engine: Engine::default(), flash: 0 };
                     Some((n.clone(), shown, (o.priority, o.seq), zoom, (o.w, o.h), o.blur, o.mirror()))
                 }
                 _ => None,
