@@ -82,7 +82,7 @@ The RomFS, 21 GB, 16,729 files:
 | `parts.{hed,mrg}` | not yet looked at |
 | `allscr.mrg` (9 MB) | Scripts: an MZP (magic `mrgd00`, no `.hed`) of 552 entries. Entry 0: 550 script names, 32 bytes each (`START_SCRIPT`, `00_00`, `01_00_ARC01_1`, …, `JUMPQA`); entries 1 and 2 unknown; 3 onwards: one MZX0-compressed script per name |
 | `script_text.mrg` (5 MB) | The text: an MZP of 10 entries, in pairs (big-endian u32 offset table, UTF-8 strings). The first pair is the Japanese text (3.4 MB); the other four pairs are small, not yet looked at |
-| `stream/*.opus` (16,601) | Voices (`A00_01_00_0000_0.opus`) and songs, 30.1 hours; Nintendo's Opus framing (`typemoon/nxopus.rs`): 48 kHz, 16,468 mono, 133 stereo, pre-skip 120, no sample count or loop points in the file. `typemoon sounds` repacks them into Ogg Opus (no re-encode). The same files in both RomFS copies |
+| `stream/*.opus` (16,601) | Voices (`A00_01_00_0000_0.opus`) and songs, 30.1 hours; Nintendo's Opus framing (`typemoon/nxopus.rs`): 48 kHz, 16,468 mono, 133 stereo, pre-skip 120, no sample count or loop points in the file (the music's loops are in `knife1.bfsar`). `typemoon sounds` repacks them into Ogg Opus (no re-encode). The same files in both RomFS copies |
 | `movie/*.mp4` (46) | H.264 1920×1080 + AAC 48 kHz: ffmpeg reads them |
 | `ja*/` | Fonts (TT_TsukuMin-D, TT_TsukuGo-D, FOT-SeuratPro-M) |
 | `knife1.bfsar` (386 MB) | Nintendo sound archive (`typemoon/bfsar.rs`, `fwav.rs`): 1,297 wave sounds (`WSD_moon_se02093`, `WSD_woh_*`, `WSD_fate_*`, …; 1,300 in the patched copy, which adds `WSD_mix_se032`–`034`), all DSP ADPCM 48 kHz, 195 looping (107 from inside the wave); and 16,596 stream sounds `STRM_*`, whose files are the `stream/*.opus` above (their names are in the archive's file table). `typemoon sounds` writes each wave sound as `se/<name>.wav` |
@@ -113,8 +113,11 @@ picture decoded; also
   for nearly all, BC4 (`0x1D01`, one channel) for the 98 `RULE_*`
   transition masks, R8G8B8A8 sRGB (`0x0B06`) for a few UI parts.
   `typemoon extract --png <archive>` writes `<entry>/<texture>.png`.
-  Sprites are atlases (`ARU_A_18_00_N01_10_10`: 886×4160, the body on
-  top), to cut up later from the script's or the exe's numbers.
+  Sprites are not atlases: every expression is a whole picture
+  (`ARU_A_18_00_N01_10_10`: 886×4160, the full figure with its face),
+  named `<pose>_<a>_<b>` from `_STCH`'s arguments 9 and 10 (see "The
+  exe"). The bare `<pose>` (`ARU_A_18_00_N00`, 143×688) is a small
+  copy of the figure.
 
 ### Existing tools (survey, 2026-10-16)
 
@@ -163,11 +166,74 @@ addresses in `research/typemoon/names.tsv` are those of the 1.0.2
   (`` `001:4000`` is option 1 with value 4000; option 1 sets the
   fade-in, as 1666.67 / value). It plays music `n` through
   `FUN_0019c470`, and for `n < 0x418` sets a heard-music flag bit
-  `n + 0xC80`. The archive's first 79 sounds are
-  `STRM_MOON01_BGM01`…`67` (each with its `stream/*.opus`), so `n` is
-  most likely the sound archive's sound index. `FUN_0019c470` (into
-  the Nintendo sound library) is still to be confirmed. The bfsar's
-  stream entries carry no loop frames.
+  `n + 0xC80`. Options: 1 fade-in, 11 a second fade time, 17 volume
+  (default 100), 49 a flag passed on (default 1), 69 a start offset
+  (in samples, to the sound library). An option's number is its three
+  digits read as decimal. `n < 0` stops the music.
+- **Music number → sound**: `FUN_0019c470` calls `FUN_001006f0(n)`,
+  which reads a table of 132 u32 at 0x433F90: entry 0 is 0, entry `n`
+  is `0x01000000 + n − 1`, the sound library's item ID of sound
+  `n − 1` (item type 1 in the top byte). So `_MPLY(n)` plays the
+  bfsar's sound `n − 1`: sounds 0–130 are the 131 music streams
+  (`STRM_MOON01_BGM01` … `STRM_REONA_SEIMEISEN_APFARR_20191223`), and
+  the scripts use `n` from 2 to 123.
+- **Music loops** are in `knife1.bfsar`, not the exe: each stream
+  sound's details (INFO, reference kind 0x2201) hold at +0x1C a
+  reference (kind 0x2210) to 12 bytes: u8 stream type (3 = Opus),
+  u8 loop flag, u8, u8, u32 loop start, u32 loop end, in samples at
+  48 kHz. All 131 music streams have the loop flag set; 26 loop from
+  0; every loop end is within the decoded length (49 within a second
+  of it, the others leave a tail that never plays). Nothing in the
+  start call (`FUN_001ee200`) overrides them.
+- **The picture table** is in the exe: 23,000 names of 32 bytes at
+  0x6E02A4 (`BLACK`, `BLUE`, …, `WHITE`, `YELLOW`, `IMG0000`…, the
+  sprites `ARU_A_18_00_N00_02_02`…), and beside each one a 0x48-byte
+  record at 0x56F830: f32 width at 0x2C, height at 0x30, centre (half
+  of them) at 0x34 and 0x38, about half the texture's pixels; byte
+  0x42 is 1 for an expression (`_a_b`), 2 for a bare pose. `_STCH`
+  looks a picture up here (`FUN_00155d30`) and puts its origin at the
+  centre.
+- **The motion table** is in the exe too: `_STMA(layer, m)` starts
+  motion `m` (1–24,192). u32 at 0x4B1940 + 4(m−1): its first keyframe;
+  u32 at 0x499F40 + 4(m−1): its length in ms. Keyframes are 0x40
+  bytes at 0x75CE18 (71,905 of them): u32 time in ms, then s16 fields
+  (0x04 easing, 0x08 x, 0x0A y, 0x0C alpha, 0x18/0x1A zoom ‰, …),
+  −32767 for "unchanged". Motion 228: zoom 584‰ → 566‰ and y 130 →
+  136 over 5 s; motion 14682: alpha 0 → 255 over 20 s.
+- **Picture layers**: 40 (0–39), staged by the commands below and shown
+  by `_FADS`. Arguments are expressions (`FUN_00102d3c`); `FUN_00102b24`
+  splits at most 20 of them.
+  - `_STCH` (`FUN_00160840`): 0 layer; 1 picture (empty: clear the
+    layer); 2 x and 3 y (kept as x·640/1280 and y·480/720); 4 → the
+    layer's 0x324 (default 1000); 5 alpha 0–255 (default 255); 6
+    priority (draw order; default layer × 10, as `_STCP`); 7 and 8
+    (`CC`) not read; 9 and 10 the expression: when either is set,
+    `_a_b` (two digits each) is added to the name, and both default to
+    the numbers of the picture already on the layer; 11 a parent layer
+    (−1 none) whose clip and settings it copies; 12–15 four shorts
+    (a clip rectangle?), 16 and 17 two more; 18 a layer to copy every
+    setting from; 19 rotation in 1/100°.
+  - `_STCC(n)` (`FUN_00162140`) clears layer `n` (no argument: 0,
+    negative: all 40).
+  - `_STCP(layer, p)` (`FUN_00162a40`) sets the layer's priority.
+  - `_STZ4(layer, x0, y0, x1, y1, ms, e, f)` (`FUN_00162d20`): zoom in
+    ‰ from (x0, y0) (default: the current zoom) to (x1, y1) over `ms`
+    (turned into frames, ·60/1000); `e` goes to `FUN_00132030` (easing?)
+    and `f` is a per-layer byte.
+  - `_STMA(layer, m, mode, p)` (`FUN_00199620`): motion `m` (above;
+    0 stops it), `p` a start parameter; `mode` 1 (or −1/2, depending
+    on a setting) sets a flag (0x89E, meaning not known yet).
+  - `_FADS(type, ms, rule, mode)` (inline in `script_command`, then
+    `FUN_00160610`): shows the staged layers. Type 0 cross-fades over
+    `ms` (12,240 uses); type 2 wipes through rule mask `rule` (947),
+    the `rule`-th entry after `MASK_TOP.MZP` in `allpachd` (that is
+    `RULE_<rule>`; `FUN_0014b4c0`); type 1 (20,842, always `ms` 0)
+    keeps a running mask and returns at once. `mode` as in `_STMA`.
+- `_WNTY(n)` (`FUN_00138ea0`) picks the text window's type: 0 (42,820
+  uses) or 1 (15,756); the text drawer (`FUN_001391a0`) offsets a
+  line by 5.5 for type 1 and 3.5 otherwise (what that changes on
+  screen is not worked out).
+- `_WTTM(ms, …)` waits `ms`, turned into frames as ms·3/50.
 
 ## Script language
 
@@ -203,11 +269,10 @@ command a line with its text after it (under a second).
   Japanese, 14,444 of 14,451 uses match one; the other 7 name
   `MIX_SE007`–`012`, which no copy has. In English, 14,512 of 14,543
   match; the 31 misses are `MIX_SE007`–`038`. Music: `_MPLY(52, …)`
-  takes a number (104 distinct), not a name. The table from numbers to
-  `stream/MOON01_BGM*.opus` is not in the scripts or `BGML_TOP.MZP`:
-  the exe is next. Arguments after a backquote (`` `001:4000``,
-  `` `017:50``) look like options, number:value (time in ms, volume).
-  Loop points are not in the scripts.
+  takes a number (104 distinct), not a name: the bfsar's sound
+  `n − 1` (see "The exe"). Arguments after a backquote (`` `001:4000``,
+  `` `017:50``) are options, number:value (time in ms, volume). Loop
+  points are in the bfsar ("The exe", music loops).
 
 Japanese: 549 scripts, 1,079,001 commands, 93 command names. English
 (the patched copy): 549 scripts, 1,082,931 commands, 96 names.
@@ -215,21 +280,21 @@ Japanese: 549 scripts, 1,079,001 commands, 93 command names. English
 | Command | Uses | Scripts | First use (Japanese) | What it looks like |
 |---|---|---|---|---|
 | `_WKST` | 486528 | 534 | `_WKST(F823,eq,0)` | set a variable (`F`, `G`, `C` + number; `eq` = assign) |
-| `_STCC` | 62606 | 519 | `_STCC(0)` |  |
-| `_WNTY` | 58596 | 521 | `_WNTY(0)` |  |
-| `_STCH` | 54334 | 521 | `_STCH(1,WHITE,240,136,1000,255,2,,CC)` | set a picture on a layer (layer, picture, x, y, …) |
-| `_STCP` | 53915 | 510 | `_STCP(1,1)` |  |
+| `_STCC` | 62606 | 519 | `_STCC(0)` | clear a picture layer |
+| `_WNTY` | 58596 | 521 | `_WNTY(0)` | text window type (0 or 1) |
+| `_STCH` | 54334 | 521 | `_STCH(1,WHITE,240,136,1000,255,2,,CC)` | set a picture on a layer (layer, picture, x, y, …; "The exe") |
+| `_STCP` | 53915 | 510 | `_STCP(1,1)` | layer priority |
 | `_WKAD` | 45688 | 516 | `_WKAD(F823,1)` | add to a variable |
 | `_ZM` | 42600 | 516 | `_ZM01602($000107)` | show text line `$n` (the `_Z?` commands carry a 5-hex-digit id) |
-| `_FADS` | 34452 | 521 | `_FADS(1,0,0)` | fade / transition? |
-| `_STZ4` | 32305 | 512 | `_STZ4(4,984,984,984,984,0,0,0)` |  |
-| `_STMA` | 24309 | 485 | `_STMA(3,1)` |  |
+| `_FADS` | 34452 | 521 | `_FADS(1,0,0)` | show the staged layers (type, ms, rule) |
+| `_STZ4` | 32305 | 512 | `_STZ4(4,984,984,984,984,0,0,0)` | zoom a layer (‰, from, to, ms) |
+| `_STMA` | 24309 | 485 | `_STMA(3,1)` | start a motion from the exe's table |
 | `_STRT` | 21829 | 516 | `_STRT(0,0,0,0,0)` |  |
 | `_PGST` | 17202 | 519 | `_PGST(-1)` | page start? |
 | `_VPLY` | 16690 | 483 | `_VPLY(D10_00_00_0000_0,03fb5)` | play voice `stream/<name>.opus` |
 | `_STBR` | 14988 | 460 | `_STBR(4,23)` |  |
 | `_SEPL` | 14451 | 480 | `_SEPL(0,1,MOON_SE03001,,`001:4000,,`017:50)` | play sound effect (channel, loop, `WSD_` name less its prefix, options) |
-| `_WTTM` | 14424 | 508 | `_WTTM(1,1)` | wait (ms, ?) |
+| `_WTTM` | 14424 | 508 | `_WTTM(1,1)` | wait (ms) |
 | `_STEC` | 12877 | 437 | `_STEC(12,48)` |  |
 | `_CLO3` | 11627 | 504 | `_CLO3()` |  |
 | `_SNX4` | 8787 | 435 | `_SNX4(4,11,11)` |  |
@@ -305,26 +370,30 @@ Nothing yet.
 | Archives (`hed`/`mrg`/`nam`, MZP, MZX, NXGX/NXCX) | ✅ every entry of both RomFS copies |
 | Pictures (BNTX) | ✅ every texture of both RomFS copies decodes |
 | Sound (`stream/*.opus`, `knife1.bfsar`) | ✅ every sound of both RomFS copies converts |
-| Exe (`main`) in Ghidra | ✅ decompiles; dispatcher and `_MPLY` named |
-| Scripts | 🔶 read: every command of both languages splits (one malformed in the original) and its text and voices join; meanings not worked out yet |
+| Exe (`main`) in Ghidra | ✅ decompiles; dispatcher, the top commands' handlers, the music, picture and motion tables named |
+| Scripts | 🔶 read: every command of both languages splits (one malformed in the original) and its text and voices join; the top commands' arguments read from the exe, the rest not yet |
 | Everything after (text, pictures, screens, extras) | ❌ |
 
 ### Next
 
-1. In the exe (see "The exe"): confirm that `_MPLY`'s number is the
-   bfsar sound index (follow `FUN_0019c470`), find where music loops
-   (or whether it loops whole), and work out the top commands'
-   arguments (the picture layer commands
-   `_STCH`/`_STCP`/`_STCC`/`_STZ4`/`_STMA`, `_FADS`, `_WNTY`) and the
-   sprite atlas cuts from their handlers under `script_command`.
-2. Write the walkthrough.
-3. Pictures for the build: cut the sprite atlases (body and faces in
-   one texture) by the numbers the script or the exe gives.
-4. Sound for the build: the looping wave sounds' loop points
-   (SDL_mixer loops a WAV whole), and where music loops (not in the
-   Opus files or the scripts: the bfsar's stream info or the exe).
+1. Write the walkthrough.
+2. Pictures for the build: read the exe's picture table (names,
+   sizes, centres) and motion table (see "The exe"); every expression
+   is already a whole picture, so nothing needs cutting.
+3. Sound for the build: the looping wave sounds' loop points
+   (SDL_mixer loops a WAV whole), and the music's loop points from the
+   bfsar's stream details (see "The exe").
+4. Still open in the exe: `_FADS` type 1, `_STCH`'s arguments 4 and
+   12–17, `_STZ4`'s last two, and the motion keyframes' other fields.
 
 ## History
+
+- 2026-10-16: the exe's commands. `_MPLY(n)` plays the bfsar's sound
+  `n − 1` (a table in the exe); the music loops are in the bfsar's
+  stream details; the picture and motion tables are in the exe; the
+  arguments of `_STCH`, `_STCC`, `_STCP`, `_STZ4`, `_STMA`, `_FADS`,
+  `_WNTY` and `_WTTM` read from their handlers; sprites turned out to
+  be whole pictures, one per expression, not atlases. See "The exe".
 
 - 2026-10-16: the exe decompiles (`nso2elf.py`,
   `CodePointerFunctions.java`, `research/typemoon/names.tsv`); the
