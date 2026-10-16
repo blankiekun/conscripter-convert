@@ -1211,6 +1211,11 @@ impl Lowering<'_> {
                 let zoom = t.float("Scale").map_or(s.zoom, |f| (f * 100.0).round() as u32);
                 let motion = self.no_wait(t, time);
                 self.ease(t);
+                // `:Curve c` bows the move by c/2 of its length at halfway
+                // (0x8103cf20).
+                if let Some(bow) = t.float("Curve").map(|c| (c * 1000.0).round() as i32).filter(|&b| b != 0 && time > 0) {
+                    self.out.ops.push(Op::MoveArc { bow });
+                }
                 // A zoomed picture moves with spzoom too, which redraws
                 // where its zoomed picture was.
                 if zoom != s.zoom || zoom != 100 {

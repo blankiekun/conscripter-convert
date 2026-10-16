@@ -401,6 +401,7 @@ pub fn emit(script: &Script) -> String {
     // subroutines used (zoom, ease, exponent).
     let move_ease: Option<(u8, u32)> = None;
     let move_nowait = false;
+    let move_arc = 0;
     let eased = std::collections::BTreeSet::new();
     let needs_click_wait = false;
     let plate_visible = false;
@@ -435,7 +436,7 @@ pub fn emit(script: &Script) -> String {
             _ => None,
         })
         .collect();
-    let mut e = ops::Emitter { script, out, effects, has_ruby, has_overlay, has_noise, has_chapters, has_animation, root_returns, has_replay, has_vertical, border, voice_switches, duck, back_to_choice, speed, link_depth, clear_fade, restore_overlay, link_targets, zoomed_layers, root_resumes, puzzles, button_screens, plate_choices, picture_screens, se, se_not_skipped, noise_fade_in, move_ease, move_nowait, eased, needs_click_wait, plate_visible, link_pages, transition, window, page_rows, page_tag, fading };
+    let mut e = ops::Emitter { script, out, effects, has_ruby, has_overlay, has_noise, has_chapters, has_animation, root_returns, has_replay, has_vertical, border, voice_switches, duck, back_to_choice, speed, link_depth, clear_fade, restore_overlay, link_targets, zoomed_layers, root_resumes, puzzles, button_screens, plate_choices, picture_screens, se, se_not_skipped, noise_fade_in, move_ease, move_nowait, move_arc, eased, needs_click_wait, plate_visible, link_pages, transition, window, page_rows, page_tag, fading };
     for (i, op) in script.ops.iter().enumerate() {
         e.op(i, op);
     }

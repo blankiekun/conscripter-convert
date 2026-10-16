@@ -660,6 +660,13 @@ pub enum Op {
     StartProcess { name: String, function: String, args: Vec<Operand> },
     /// Stops the process `name` (nothing when it isn't running).
     StopProcess { name: String },
+    /// The next timed [`Op::SpriteMove`] or [`Op::SpriteZoom`] bows off
+    /// its straight line: with t the (eased) progress and d the move, the
+    /// centre is at t·d + h·(dy, −dx)/|d|, h = `bow`/1000 · sin(πt) · |d|/2
+    /// (so a positive bow swings to the left of the direction on the
+    /// screen); the zoom goes straight with the time. 俺たちに翼はない's
+    /// SpriteMove `:Curve`.
+    MoveArc { bow: i32 },
 }
 
 /// [`Op::HoldMovie`]'s prompt: `image` is `cells` pictures side by side,

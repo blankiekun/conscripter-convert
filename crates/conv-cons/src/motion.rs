@@ -82,7 +82,21 @@ pub(crate) fn alpha_loop(times: u32) -> i64 {
 /// goes into its alpha. Uses %1-%4.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn move_to(out: &mut String, slot: u32, x: i32, y: i32, ms: u32, zoom: Option<(u32, u32)>, curve: u32, fade: Option<u32>, wait: bool) {
-    let (from, to) = match zoom {
+    let (from, to) = start_zoom(out, slot, zoom);
+    // shortcut: a fade goes in at the two keys only (the place is an expression), so it lasts as long as the move; add a key between when a game's fades must keep their own length.
+    let (a0, a1) = fade.map_or((256, 256), |f| (0, faded(ms, f)));
+    writeln!(out, "getspsize {slot},%1,%2:getsppos {slot},%3,%4").unwrap();
+    write!(out, "spmotion {slot},2,0,0,0,{from},{from},0,{a0},0,{ms},{x}-%1/2-%3,{y}-%2/2-%4,{to},{to},0,{a1},{curve}").unwrap();
+    if wait {
+        write!(out, ":spmotionwait {slot}").unwrap();
+    }
+    writeln!(out).unwrap();
+}
+
+/// Sets the zoom a move starts from (spzoom); the motion's zoom keys
+/// (percent of it) at its start and end.
+fn start_zoom(out: &mut String, slot: u32, zoom: Option<(u32, u32)>) -> (u32, u32) {
+    match zoom {
         Some((from, to)) if from > 0 => {
             write!(out, "spzoom {slot},{from}:").unwrap();
             (100, to * 100 / from)
@@ -92,11 +106,39 @@ pub(crate) fn move_to(out: &mut String, slot: u32, x: i32, y: i32, ms: u32, zoom
             (100, 100)
         }
         None => (100, 100),
-    };
-    // shortcut: a fade goes in at the two keys only (the place is an expression), so it lasts as long as the move; add a key between when a game's fades must keep their own length.
+    }
+}
+
+/// As [`move_to`], along an arc ([`conv_core::ir::Op::MoveArc`]) that
+/// bows by `bow`/1000: a key every frame (60 a second), the place eased
+/// by `ease` ([`crate::ease::eased`]), the zoom and the fade straight
+/// with the time. The move (the offset to its end) goes in %3, %4.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn arc_to(out: &mut String, slot: u32, x: i32, y: i32, ms: u32, zoom: Option<(u32, u32)>, ease: Option<(u8, u32)>, bow: i32, fade: Option<u32>, wait: bool) {
+    let (from, to) = start_zoom(out, slot, zoom);
     let (a0, a1) = fade.map_or((256, 256), |f| (0, faded(ms, f)));
-    writeln!(out, "getspsize {slot},%1,%2:getsppos {slot},%3,%4").unwrap();
-    write!(out, "spmotion {slot},2,0,0,0,{from},{from},0,{a0},0,{ms},{x}-%1/2-%3,{y}-%2/2-%4,{to},{to},0,{a1},{curve}").unwrap();
+    writeln!(out, "getspsize {slot},%1,%2:getsppos {slot},%3,%4:mov %3,{x}-%1/2-%3:mov %4,{y}-%2/2-%4").unwrap();
+    // %v times c/1024, signed.
+    let term = |v: u32, c: i64| format!("{}%{v}*{}/1024", if c < 0 { "-" } else { "+" }, c.abs());
+    let n = (ms * 60 / 1000).clamp(2, 63);
+    let mut keys = vec![format!("0,0,0,{from},{from},0,{a0},0")];
+    for i in 1..=n {
+        let u = f64::from(i) / f64::from(n);
+        let t = match ease {
+            Some((e, p)) if e > 0 => crate::ease::eased(e, p, u),
+            _ => u,
+        };
+        // The bow across the move, of its length: perpendicular (dy, -dx).
+        // (The screen's 3/4 × 544/720 scaling bends it by under 1 %.)
+        let h = f64::from(bow) / 1000.0 * (std::f64::consts::PI * t).sin() / 2.0;
+        let (a, b) = ((t * 1024.0).round() as i64, (h * 1024.0).round() as i64);
+        let ms_i = ms * i / n;
+        let z = (i64::from(from) + (i64::from(to) - i64::from(from)) * i64::from(i) / i64::from(n)) as u32;
+        let alpha = (i64::from(a0) + (i64::from(a1) - i64::from(a0)) * i64::from(i) / i64::from(n)) as u32;
+        let (kx, ky) = (format!("{}{}", term(3, a), term(4, b)), format!("{}{}", term(4, a), term(3, -b)));
+        keys.push(format!("{ms_i},{},{},{z},{z},0,{alpha},0", kx.trim_start_matches('+'), ky.trim_start_matches('+')));
+    }
+    write!(out, "spmotion {slot},2,{}", keys.join(",")).unwrap();
     if wait {
         write!(out, ":spmotionwait {slot}").unwrap();
     }
@@ -167,6 +209,18 @@ mod tests {
         move_to(&mut out, 67, 400, 300, 500, Some((200, 100)), 51, None, true);
         assert!(out.starts_with("spzoom 67,200:getspsize"), "{out}");
         assert!(out.contains(",500,400-%1/2-%3,300-%2/2-%4,50,50,0,256,51:"), "{out}");
+    }
+
+    #[test]
+    fn arcs_bow_across_the_move() {
+        let mut out = String::new();
+        arc_to(&mut out, 67, 400, 300, 200, Some((100, 250)), None, 3000, None, true);
+        assert!(out.starts_with("spzoom 67,100:getspsize 67,%1,%2:getsppos 67,%3,%4:mov %3,400-%1/2-%3:mov %4,300-%2/2-%4\nspmotion 67,2,0,0,0,100,100,0,256,0,"), "{out}");
+        // 12 frames; halfway the bow is 3/2 of the move across: (dy, -dx) × 1536
+        assert!(out.contains(",100,%3*512/1024+%4*1536/1024,%4*512/1024-%3*1536/1024,175,175,0,256,0,"), "{out}");
+        // ends on the straight line's end, zoomed
+        assert!(out.ends_with(",200,%3*1024/1024+%4*0/1024,%4*1024/1024+%3*0/1024,250,250,0,256,0:spmotionwait 67\n"), "{out}");
+        assert_eq!(out.matches(",0,256,0").count(), 13);
     }
 
     #[test]
