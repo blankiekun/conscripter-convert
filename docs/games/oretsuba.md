@@ -434,16 +434,13 @@ against the keys the 463 scenes use and those the converter reads.
 converted. The messages hold no markup but `\n`. Keys the scenes use
 that the eboot reads and the converter doesn't (typos such as
 `:Prioriry`, `:TIme`, `:fFade` are ignored by both):
-1. **Message `:FontScale` (435: 1.8, 2, 1.4, 2.2, 0.8, 1.6; record
-   +0x8fc)**: larger or smaller text for shouts and whispers; ours draws
-   every message at one size.
-2. **`:Chara%d/Copy` (CharacterOpen 25, CharacterMove 11, CharacterAction
+1. **`:Chara%d/Copy` (CharacterOpen 25, CharacterMove 11, CharacterAction
    7, CharacterDelete 5, CharacterOpenBS 3; values 1-3).** The eboot adds
    Copy × 1000 to the character number, so one character (the 960×540
    cut-ins, character 300) can show twice (S03_02A shows two at once);
    ours keys characters by number (`c300`), so the second replaces the
    first.
-3. Small: SpriteMove `:Curve` (12, an arc of ±3 or 0.5 on the move),
+2. Small: SpriteMove `:Curve` (12, an arc of ±3 or 0.5 on the move),
    CharacterOpen `:Chara%d/Center` (4, `0,1`: the anchor), EffectEnd
    `:Delete 1` (7), Window `:WindowNumber` (1,506 × -1, 2 × 0).
 
@@ -494,6 +491,11 @@ state.
   Fixed; SpriteBG, Sprite, SpriteDelete and SpriteDeleteBG with a
   `:Rule` now fade through it (a transition, waited on even with
   `:FadeWait 0`).
+- **Message `:FontScale`** (435 uses; scene_load keeps it at +0x8fc
+  of the message record): the whole message at that scale, as a
+  `!z<percent>` text style (150 for the scripts' `1.5 // font 32`).
+  Line breaks at the large sizes are CONscripter's own; not compared
+  with the Vita.
 
 **Found by the debug trace (2026-10-14).** Whole routes play to their
 end without a script error (18,974 pages and 16 choices; with today's

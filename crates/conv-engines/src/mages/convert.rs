@@ -23,7 +23,7 @@ use std::collections::{BTreeMap, HashMap};
 
 use conv_core::ir::{
     Animation, ArithOp, ButtonScreen, Compare, FILTER_BLEND_COPY, FILTER_BLEND_MULTIPLY, FILTER_BLUR, FILTER_COLOUR, FILTER_GREYSCALE, FILTER_MONOTONE, FILTER_NEGATIVE, Noise, Op, Operand, ScreenEffect, SlideLayer, SourceLoc, SpriteChange, SpriteFilter,
-    MotionEnd, MotionKey, Placed, SpritePlacement, Switch, TextWindow, TransitionStyle, Var, Voice,
+    MotionEnd, MotionKey, Placed, SpritePlacement, Switch, TextStyle, TextWindow, TransitionStyle, Var, Voice,
 };
 
 use super::tasks::{Block, Scene, Val, parse};
@@ -742,7 +742,13 @@ impl Lowering<'_> {
                 }
                 self.opening = false;
                 self.messages += 1;
-                self.out.ops.push(Op::Text { speaker, text, voice, links: vec![], ruby: vec![], styles: vec![], hang: None, continues: false });
+                // `:FontScale` (record +0x8fc) sizes the whole message:
+                // shouts and whispers.
+                let styles = match t.float("FontScale").map(|f| (f * 100.0).round() as u16) {
+                    Some(p) if p != 100 && p > 0 => vec![TextStyle { start: 0, len: text.chars().count(), size_percent: Some(p), ..Default::default() }],
+                    _ => vec![],
+                };
+                self.out.ops.push(Op::Text { speaker, text, voice, links: vec![], ruby: vec![], styles, hang: None, continues: false });
             }
             "SpriteBG" | "Sprite" | "SpriteBS" => {
                 let Some(tex) = t.int("Texture") else { return };
