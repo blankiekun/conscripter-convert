@@ -434,24 +434,56 @@ against the keys the 463 scenes use and those the converter reads.
 converted. The messages hold no markup but `\n`. Keys the scenes use
 that the eboot reads and the converter doesn't (typos such as
 `:Prioriry`, `:TIme`, `:fFade` are ignored by both):
-1. Small: SpriteMove `:Curve` (12, an arc of ±3 or 0.5 on the move),
-   CharacterOpen `:Chara%d/Center` (4, `0,1`: the anchor), EffectEnd
-   `:Delete 1` (7), Window `:WindowNumber` (1,506 × -1, 2 × 0).
+1. SpriteMove `:Curve` (12, ±3 or 0.5): an arc on the move (in its own
+   PR; how the eboot draws it is in "History", 2026-10-16).
 2. SpriteBG and SpriteBS with `:FadeWait 0` (890 uses) still wait for
    their fade: they replace the whole picture, which `spfade` can't
    cross-fade under the text. A character changing with a motion, zoom
    or look waits too.
 
 Next, in order:
-1. The small coverage gaps above.
+1. SpriteMove `:Curve` (above).
 2. Looks against the original: text window size and place, character
-   heights (where the eboot anchors them), the eye catch's speed, the
+   heights (where the eboot anchors them: its quad puts the picture's
+   `:Center` point, by default 0,-1, the top edge's middle, at the
+   position; where `OffsetY` comes in is not traced), the eye catch's speed, the
    wave transition's size. Needs screenshots of the Vita game.
 
 ## History
 
 Finished work, moved out of "Status" so a session reads only the open
 state.
+
+**Small coverage gaps (2026-10-16).** Read in the eboot:
+- **SpriteMove `:Curve c`** (12 uses: blood splashes `bld*` zoomed ×2-2.5
+  over 12 frames with ±3, S04_07B's `ef09` with 0.5; not converted yet,
+  Status): stored at the task's +0x38, handed to the sprite's move
+  (+0x148, 0x8100da30 → 0x810867c2) and applied each frame by
+  0x8103cf20: with t the eased progress (the same ease_value types) and
+  d = (dx, dy) the move, the position is start + t·d + h·(dy, −dx)/|d|,
+  h = c · sin(πt) · |d|/2 (`_Sin(a, 0)`, `_Sin(a, 1)` of d's angle in
+  whole degrees). So c > 0 bows to the left of the direction on the
+  screen (a move up swings left), up to c/2 × the distance at
+  halfway; the zoom stays straight in raw t.
+- **CharacterOpen `:Chara%d/Center cx,cy`** (4 uses, all `0,1`, at y 720
+  or 840): copied to the character (+0x1e0, +0x1e4; default 0,-1 from
+  `task_charopen_new` and 0x8100322a) and used by the draw (0x8103d53c)
+  as the point of the quad at the position: x from −w/2·(1+cx) to
+  w/2·(1−cx), y likewise with cy, so 0,1 puts the bottom edge's middle
+  there. Converted: with `:Center` the y counts from the picture's
+  centre raised by cy × half its height (S04_17B's 京, S03_24's and
+  S04_05A's cut-ins now stand on the bottom edge; they were drawn below
+  the screen); cx is not read (always 0).
+- **EffectEnd `:Delete 1`** (7, on effects 54 and 51): the EffectEnd task
+  (0x8102119a, case 0x3f) waits for the fade-out with or without it, and
+  then `:Delete` only frees the effect's slot (0x8103f59c). Nothing to
+  convert.
+- **Window `:WindowNumber`**: -1 (1,506 uses) is the constructor's
+  default (0x8112a19c), the text window itself, with `:Time` its fade.
+  n ≥ 0 (S01_17A, S01_19A) only sets the shown flag of extra text box n
+  (0x81120abc, the boxes' text drawn by 0x8100c002), which the next
+  message sets again; the window is left alone. Converted as nothing
+  (S01_19A's `:Visible 0` no longer hides the window).
 
 **Coverage gaps closed (2026-10-15).** From the list in Status:
 - **CharacterOpen/CharacterDelete fades.** The records

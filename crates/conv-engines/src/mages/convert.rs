@@ -832,7 +832,18 @@ impl Lowering<'_> {
                     // OffsetY, -68 for everyone standing, to the screen,
                     // but centred that leaves them 8 pixels above the
                     // edge; where it anchors them is not found yet.)
-                    let base_y = if h as i32 > SCREEN_H { SCREEN_H - h as i32 / 2 } else { sy(360 + offset) };
+                    // `:Center cx,cy` (4 uses, all 0,1, with y 720 or 840)
+                    // is the point of the picture that `:Position` places,
+                    // -1 to 1 from its top edge to its bottom one (the
+                    // eboot's quad, 0x8103d53c): there y counts from the
+                    // picture's centre raised by cy × half its height.
+                    // shortcut: cx is not read (always 0); a non-zero cx
+                    // needs a base_x for CharacterMove too.
+                    let base_y = match c.get("Center").and_then(|v| v.get(1)?.float()) {
+                        Some(cy) => -(cy * h as f64 / 2.0).round() as i32,
+                        None if h as i32 > SCREEN_H => SCREEN_H - h as i32 / 2,
+                        None => sy(360 + offset),
+                    };
                     let y = base_y + sy(c.int_at("Position", 1).unwrap_or(0));
                     let prio = c.int("Priority").unwrap_or(9);
                     self.show_at(&key, -1, (path, w, h), x, y, prio, if ty == "CharacterOpen" { char_fade(t, "Fade") } else { 0 }, &[], Look::of(c));
@@ -911,7 +922,11 @@ impl Lowering<'_> {
             }
             "TimeWait" => self.out.ops.push(Op::Wait { ms: ms(t.int("Time").unwrap_or(0)) }),
             "Window" => {
-                if t.int("Visible") == Some(0) {
+                // `:WindowNumber` n ≥ 0 (2 uses) only sets the shown flag
+                // of the eboot's extra text box n (0x81120abc), which the
+                // next message sets again: the text window stays. -1 (the
+                // default, 1,506 uses) is the window itself.
+                if t.int("Visible") == Some(0) && t.int("WindowNumber").unwrap_or(-1) < 0 {
                     self.out.ops.push(Op::HideTextWindow);
                 }
             }
