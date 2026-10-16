@@ -774,8 +774,8 @@ Next, in order:
   `CP_RollBar_Auto` (59) is still left.
 - Non-blocking `Move`/`Zoom` over time (about 1,200 each), drawn as
   cross-fades.
-- `Rotate` about z of a picture is CONscripter's `sprot` (still) or a
-  `spmotion2` angle (over time); left: about z of other objects (70),
+- `Rotate` about z of a picture is CONscripter's `spzoom` angle (still) or an
+  `spmotion` angle (over time); left: about z of other objects (70),
   about x or y over time (14, drawn at once). `MoveCamera`, `SetTone`,
   `SetShade`, `BezierMove`, `CreateTexture` from an object or the screen
   (1,864).
