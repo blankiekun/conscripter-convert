@@ -337,7 +337,7 @@ under a name that already exists replaces it.
   children, and deleting a container deletes its children. Also seen in the same test: a picture's child is
   placed from its parent's corner (a `CreateColor` child at (100, 150) of
   a parent at (50, 100) drew at (150, 250)), a window's child at its own
-  place; Muramasa's build places every child at its own place.
+  place; the converter does the same (`Compiler::parent_offset`).
 - A string argument may name a variable: `"$SYSTEM_present_text"` means the
   object whose name is in that variable.
 - `Request(obj, Lock)` protects an object from `Delete` (including

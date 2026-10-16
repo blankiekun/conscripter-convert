@@ -2695,13 +2695,13 @@ impl<'a, 'b> Compiler<'a, 'b> {
 
     fn parent_offset(&self, name: &str) -> (i64, i64) {
         let (mut x, mut y) = (0, 0);
-        if !self.game.relative_children {
-            return (x, y);
-        }
         let mut end = 0;
         while let Some(i) = name[end..].find('/') {
             end += i;
             match self.objects.get(&name[..end]) {
+                // A window's or a name's child is at its own place
+                // (装甲悪鬼村正 under wine), but with Game::relative_children.
+                Some(p) if p.container && !self.game.relative_children => {}
                 // Seen through a camera: the other way.
                 Some(p) if matches!(p.kind, Kind::Camera) => (x, y) = (x - p.x, y - p.y),
                 Some(p) => (x, y) = (x + p.x, y + p.y),
@@ -3827,6 +3827,29 @@ function Nothing()
         let c = compile(story, LIBRARY);
         assert!(c.notes.contains_key("Fade argument 3 ignored"), "{:?}", c.notes);
         assert!(!c.notes.keys().any(|n| n.starts_with("Fade argument 0") || n.starts_with("CreateProcess argument")), "{:?}", c.notes);
+    }
+
+    #[test]
+    fn a_pictures_child_is_placed_from_its_corner_a_windows_at_its_own_place() {
+        // 装甲悪鬼村正.exe under wine: a CreateColor child at (100, 150) of a
+        // parent at (50, 100) drew at (150, 250); a window's child at its own.
+        let story = r#"
+scene a.nss
+{
+	CreateTexture("P", 100, 50, 100, "cg/st/p.png");
+	CreateTexture("P/b", 100, 100, 150, "cg/st/pb.png");
+	CreateWindow("W", 100, 300, 100, 200, 200, false);
+	CreateTexture("W/a", 100, 350, 150, "cg/st/wa.png");
+	Wait(100);
+}
+"#;
+        let c = compile(story, LIBRARY);
+        let placed: Vec<(String, i32, i32)> = c.ops.iter().filter_map(|op| match op {
+            Op::Sprites { changes, .. } => Some(changes.iter().filter_map(|ch| ch.sprite.as_ref().map(|s| (s.image.clone(), s.x, s.y))).collect::<Vec<_>>()),
+            _ => None,
+        }).flatten().collect();
+        assert!(placed.contains(&("cg/st/pb.png".into(), 150, 250)), "{placed:?}");
+        assert!(placed.contains(&("cg/st/wa.png".into(), 350, 150)), "{placed:?}");
     }
 
     #[test]
