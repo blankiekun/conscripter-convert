@@ -288,7 +288,7 @@ playthroughs (`%410`-`%439`).
 
 ### Queue (2026-10-16)
 
-- Open: the chapter card's names (#48, approved); motions and fades as
+- Merged: the chapter card's names (#48). Open: motions and fades as
   engine motions (#13, #18, waiting on engine #2 → #7 → #14).
 - The user picks the next fixes from "Arguments not read" below.
   Proposed order: the character keys (the eboot acts only on the exact
