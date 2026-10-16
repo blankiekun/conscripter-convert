@@ -74,7 +74,7 @@ The other convert options (`--loose`, `--audio-codec`,
 | Text: vertical windows, face windows and name plates, ruby, `<k>` waits, voices | ✅ Converted; vertical columns where the original's are (checked under wine), turned marks (《「―) centred, English keeps its spaces |
 | Backgrounds, sprites, fades, mask wipes, zoom, shake, blur, BGM, sound effects | ✅ Converted (timed actions drawn as cross-fades, see "Leftovers"); volume changes on a playing sound ❌ not yet (only a fade to 0 is), see "Next" |
 | Choices | ✅ Drawn like the original's `SetChoiceBase` plates |
-| Parallel processes (`CreateProcess`: battle HUD, fire flicker, …) | 🟡 Endless loops of timed actions (`FlyMoving*`, `TurboBlur*`, `RotetoLoop*`, the clouds, `ma_03_SBProcess`, …) as looping `spmotion`; the rest planned through Lua |
+| Parallel processes (`CreateProcess`: battle HUD, fire flicker, …) | 🟡 Endless loops of timed actions (`FlyMoving*`, `TurboBlur*`, `RotetoLoop*`, the clouds, `ma_03_SBProcess`, …) as looping `spmotion`, also behind an `if` and after a lead-in (the cockpit meters); the one-shots next (Status) |
 | Additive / multiply / subtractive blends (`Request` `AddRender`/`MulRender`/`SubRender`) | ✅ `spblend` 1/2/3 (History, "Render modes") |
 | `Rotate`, camera moves | ❌ Not converted |
 | `SetFrequency` (pitch bends) | ✅ `chfreq` (tempo curve drawn straight) |
@@ -539,18 +539,21 @@ Used to check what the engine does (`docs/new-game.md` step 9).
 - `spgrab` (engine #32, merged; a copy of the screen or a sprite into a
   sprite) could stand for `CreateTexture`'s render-to-texture: not used
   yet.
-- `CreateProcess` (plan approved 2026-10-16), in this order: **A** the
-  endless loops of timed actions as looping `spmotion` (`convert/loops.rs`,
-  shared NSS code; done, see Leftovers); **B** conv-cons writes a
-  `system.lua` from the IR (done: `Script::lua` holds the functions,
-  `Op::StartProcess`/`StopProcess` become `cons_start "name","fn",args`
-  and `cons_stop "name"`, `luasub` commands `conv-cons/src/lua.rs`
-  defines over `cons_process`); **C**
-  the other processes translated from NSS to Lua (`cons_process`,
-  CONscripter #30): the cockpit `CP_*`, `ComicProcess`, the `Random`
-  shakes, `EndSong`, and the one-shots, their progress in globals.
-  Still left by A: `ma00_FireMoveAutoProcess` zooms unlike in x and y
-  (the fire functions' 43 keys fit since CONscripter #44: 64 keys).
+- `CreateProcess` (plan changed 2026-10-16, the user: played on paper at
+  convert time, not Lua; the compiler draws the screen at its syncs, so a
+  process running in Lua would have no sprite of its own to change). Done:
+  **A** endless loops, **B** `system.lua` from the IR, **C1** loops
+  behind an `if` with a lead-in (History, "Processes"). Next:
+  **C2** the one-shots played once on paper, their waits as key times
+  (`MotionEnd::Keep` motions; today an action process runs all its
+  actions at its start and ignores its `Wait`s): the counters
+  `MyTr_*`/`MyLife_*` (about 1,300 notes), `CP_LockOn*` (208),
+  `CP_IHPMove`/`CP_EHPMove` (130), `ComicProcess`'s other signs (83),
+  `MFlashProcess`; **C3** Lua (`Op::StartProcess`, `Script::lua`) only
+  for what needs the run: `Random` (`MFlashProcess`'s pause, the
+  shakes). `EndSong` (12) is music only (`process.rs`'s music
+  processes). Still left by A: `ma00_FireMoveAutoProcess` zooms unlike
+  in x and y.
 - Then the unread-argument gaps (item 5 below), most noticeable first;
   among them, `CreateText`'s box height is read (#52) and `SetVertex`
   for every picture (#61, "History", "`SetVertex`"). Tempo waits for
@@ -700,7 +703,7 @@ Next, in order:
    back with `consget`; keys in the engine's `COMMANDS.md`). Checked
    headless (2026-10-16): `consset "mutebgm"`/`"mutese"`/`"gamespeed"`
    then `consget` returned the values set, and the reset to 0/100 read back.
-2. The largest leftovers below: `CreateProcess` (via Lua), non-blocking
+2. The largest leftovers below: `CreateProcess` (C2, C3 above), non-blocking
    `Move`/`Zoom`.
 3. Optional: the 18 files with no `else` (below).
 4. Gaps from the exe review (2026-10-15; the exe's side is in
@@ -767,8 +770,8 @@ Next, in order:
   `Rotate`/`BezierMove`/`Wait` (or `Shake`/`Wait`) loops its pictures'
   motion in the engine from its `Start` (`convert/loops.rs`: the loop
   played twice on paper, the second pass keyed; 2,581 looped motions,
-  the dry run's `CreateProcess` notes 4,205 → 2,459). The rest are
-  planned in Lua (Status). A process that only runs
+  the dry run's `CreateProcess` notes 4,205 → 2,459, then 1,756 with
+  C1). The rest: Status. A process that only runs
   `Rotate`/`Move`/`Fade`/`Zoom` (the roll bar's `CP_RollBar`,
   `CP_RollBar_NoBG`) runs at its start without blocking, and a
   `WaitAction` on it waits for it; the roll bar's endless wobble
@@ -794,6 +797,28 @@ Next, in order:
   held (seen once in a small test script; not looked into).
 
 ## History
+
+### Processes: loops behind an `if`, after a lead-in (2026-10-16)
+
+The cockpit meters' `CP_SpeedAuto`, `CP_HighAuto` and `CP_AltAuto`
+(703 dry-run notes) test the meter's value, wait in the process for the
+move `CP_*Move` started (`WaitAction`), may step once more, then wobble
+for ever. `loops.rs` decides an `if` the function ends in when the
+process starts (`split_if`, `ends_in_loop`: each branch loops or runs
+once). Waits in a loop process (`Wait`, `WaitAction`, a blocking
+action) hold only the process: they add up to `process_lead` instead of
+holding the script (a process run in line, the end roll, still holds
+it), and a process's own time no longer lengthens the script's wait at a
+sync. The loop then starts after that lead, in one motion with the move
+it waits for (`spmotion` loop 4, CONscripter #48, `MotionEnd::LoopFrom`):
+the next sync turns a picture's pending move into the lead-in, places
+the picture at its new place and keys it from where it was
+(`lead_in_loop`), so neither motion replaces the other. Dry run: 579
+lead-in loops, 792 fewer `delay`s; a cockpit run from `*if46_else`
+(trace, master engine): of the lead-in loops 114 are replaced by the next
+meter change's, 109 removed with the scene, 63 stopped, 8 replaced by
+another motion. The test is
+`a_loop_after_a_move_has_the_move_as_its_lead_in`.
 
 ### Tempo of `Move` and `Zoom` (2026-10-16)
 

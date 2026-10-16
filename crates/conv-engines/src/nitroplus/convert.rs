@@ -1345,6 +1345,17 @@ struct Compiler<'a, 'b> {
     /// The action process running ([`Compiler::start_process`]): its
     /// actions don't block, and their time counts as its own.
     action_process: Option<String>,
+    /// How long the loop process starting has waited before its loop
+    /// ([`loops`]): its waits hold only the process, so its loop starts
+    /// this much later (a lead-in) while the script goes on.
+    process_lead: u32,
+    /// Pictures whose loop starts after the move they are in ([`loops`]),
+    /// and the lead-in's time: the next sync makes the move the loop's
+    /// lead-in, so that neither motion replaces the other.
+    lead_ins: HashMap<String, u32>,
+    /// Processes run in line ([`Compiler::inline_process`]): their waits
+    /// hold the script.
+    inline_processes: Vec<String>,
     /// The next runtime `if` is the `SkipOut` test of the scene with this
     /// read flag ([`Compiler::fast_skip_test`]).
     fast_skip_read: Option<conv_core::ir::Var>,
@@ -2123,6 +2134,9 @@ impl<'a, 'b> Compiler<'a, 'b> {
             clock_scanned: 0,
             shake_once: HashMap::new(),
             action_process: None,
+            process_lead: 0,
+            lead_ins: HashMap::new(),
+            inline_processes: Vec::new(),
             fast_skip_read: None,
             chapter_mark: None,
             box_layouts: HashMap::new(),
@@ -2870,6 +2884,9 @@ impl<'a, 'b> Compiler<'a, 'b> {
         let ms = ms.max(0) as u32;
         let wait = match self.action_process.clone() {
             Some(p) => {
+                if !matches!(wait, Value::Null | Value::Int(0)) {
+                    self.process_lead += ms;
+                }
                 let e = self.pending_by.entry(p).or_default();
                 *e = (*e).max(ms);
                 &Value::Null
@@ -4476,6 +4493,59 @@ scene a.nss
             _ => None,
         }).collect();
         assert_eq!(clips, [(0, 70, 800, 400)], "{:?}", c.ops);
+    }
+
+    #[test]
+    fn a_loop_after_a_move_has_the_move_as_its_lead_in() {
+        // 装甲悪鬼村正's CP_HighChange: CP_HighMove slides the meter to its
+        // value, CP_HighAuto waits for that in the process (not the
+        // script), steps once more and wobbles; at 0 it doesn't.
+        let story = r#"
+scene a.nss
+{
+	CreateTexture("meter", 100, 0, 0, "cg/st/a.png");
+	Fade("meter", 0, 1000, null, true);
+	Wait(100);
+	$Count = 5;
+	CreateProcess("M", 15000, 0, 0, "MeterMove");
+	CreateProcess("A", 15000, 0, 0, "MeterAuto");
+	Request("M", Start);
+	Request("A", Start);
+	Wait(100);
+}
+function MeterMove()
+{
+	Move("@meter", 2000, @0, @400, null, false);
+}
+function MeterAuto()
+{
+	begin:
+	if($Count==0){
+	}else{
+		WaitAction("@meter", null);
+		Move("@meter", 500, @0, @+3, null, true);
+		while(1){
+			Move("@meter", 1000, @0, @-6, null, true);
+			Move("@meter", 1000, @0, @+6, null, true);
+		}
+	}
+}
+"#;
+        let c = compile(story, LIBRARY);
+        let at = c.ops.iter().position(|op| matches!(op, Op::SpriteMotion2 { end: MotionEnd::LoopFrom(_), .. })).unwrap_or_else(|| panic!("{:?}", c.ops));
+        let Op::SpriteMotion2 { keys, end: MotionEnd::LoopFrom(k), .. } = &c.ops[at] else { unreachable!() };
+        // From 403 px up (where it was) to its place over the move, still
+        // until the process's 2500 ms, then the loop.
+        assert_eq!((keys[0].ms, keys[0].y, keys[1].ms, keys[1].y, *k, keys[*k].ms), (0, -403, 2000, 0, 2, 2500), "{keys:?}");
+        assert_eq!(keys.last().map(|k| (k.ms, k.y)), Some((4500, 0)), "{keys:?}");
+        assert!(matches!(c.ops[at + 1], Op::SpriteMove { ms: 0, .. }), "{:?}", c.ops);
+        // The script waits only its own 100 ms, twice.
+        let waited: u32 = c.ops.iter().map(|op| match op {
+            Op::Wait { ms } | Op::BeginTransition { fade_ms: ms, .. } => *ms,
+            _ => 0,
+        }).sum();
+        assert_eq!(waited, 200, "{:?}", c.ops);
+        assert!(!c.notes.keys().any(|n| n.starts_with("CreateProcess")), "{:?}", c.notes);
     }
 
     #[test]

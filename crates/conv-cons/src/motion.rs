@@ -163,13 +163,14 @@ pub(crate) fn emit(out: &mut String, layer: u32, keys: &[(u32, i32, i32)], loope
 pub(crate) fn emit2(out: &mut String, layer: u32, keys: &[MotionKey], end: MotionEnd, fade: Option<u32>, curve: u32) {
     let slot = SPRITE_BASE + layer;
     let mode = match end {
-        MotionEnd::Back => 0,
-        MotionEnd::Loop => 1,
-        MotionEnd::Keep => 2,
+        MotionEnd::Back => "0".to_string(),
+        MotionEnd::Loop => "1".to_string(),
+        MotionEnd::Keep => "2".to_string(),
+        MotionEnd::LoopFrom(k) => format!("4,{k}"),
     };
     let mut keys = keys.to_vec();
     // shortcut: a looping motion would repeat the fade, so the sprite shows at once; fold it into a first pass when a game needs it.
-    if let Some(fade) = fade.filter(|_| end != MotionEnd::Loop) {
+    if let Some(fade) = fade.filter(|_| !matches!(end, MotionEnd::Loop | MotionEnd::LoopFrom(_))) {
         fold_fade(&mut keys, fade);
     }
     let keys: Vec<String> = keys.iter().map(|k| key(k.ms, k.x, k.y, k.zoom, k.angle, k.opacity)).collect();
@@ -254,5 +255,14 @@ mod tests {
     fn alpha_keys_and_loops() {
         assert_eq!(alpha_keys(&[(0, 76), (97, 300)]), "0,0,0,100,100,0,76,0,97,0,0,100,100,0,256,0");
         assert_eq!((alpha_loop(0), alpha_loop(1), alpha_loop(60)), (1, 2, -60));
+    }
+
+    #[test]
+    fn a_loop_after_a_lead_in_names_its_first_key() {
+        let k = |ms, y| MotionKey { ms, x: 0, y, zoom: 100, angle: 0, opacity: 256 };
+        let mut out = String::new();
+        emit2(&mut out, 5, &[k(0, -40), k(500, 0), k(1500, 6), k(2500, 0)], MotionEnd::LoopFrom(1), Some(300), 0);
+        // (A fade isn't folded into a loop.)
+        assert_eq!(out, format!("spmotion {},4,1,0,0,-40,100,100,0,256,0,500,0,0,100,100,0,256,0,1500,0,6,100,100,0,256,0,2500,0,0,100,100,0,256,0\n", SPRITE_BASE + 5));
     }
 }

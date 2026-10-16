@@ -423,6 +423,15 @@ impl Compiler<'_, '_> {
                     }
                 }
             }
+            // In a process: it waits, not the script ([`Compiler::process_lead`]).
+            "Wait" if self.waits_alone() => self.process_lead += arg(0).int().max(0) as u32,
+            "WaitAction" | "WaitFade" | "WaitMove" | "WaitZoom" if self.waits_alone() => {
+                let ms = match arg(0) {
+                    Value::Null => self.pending_ms,
+                    a => self.matching(&a).iter().filter_map(|t| self.pending_by.get(t)).copied().max().unwrap_or(0),
+                };
+                self.process_lead = self.process_lead.max(ms);
+            }
             "Wait" => {
                 // The actions still running are shown over the wait, at
                 // most.

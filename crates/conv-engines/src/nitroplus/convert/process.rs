@@ -40,8 +40,15 @@ impl Compiler<'_, '_> {
     pub(super) fn inline_process(&mut self, args: &[Value]) -> bool {
         let Some((file, function)) = args.get(4).and_then(|f| self.function(&f.string())) else { return false };
         let name = self.object_name(&args[0]);
+        self.inline_processes.push(name.clone());
         self.create(name, Kind::Process { file, function }, 0, 0, 0);
         true
+    }
+
+    /// An action process runs, whose waits hold only itself (not one run
+    /// in line): they add to [`Compiler::process_lead`].
+    pub(super) fn waits_alone(&self) -> bool {
+        self.action_process.as_ref().is_some_and(|p| !self.inline_processes.contains(p))
     }
 
     /// Runs a music process's function at once, its waits adding to
