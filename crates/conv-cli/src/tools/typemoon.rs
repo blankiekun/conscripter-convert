@@ -1,5 +1,6 @@
 //! `conscripter-convert typemoon …`: TYPE-MOON's archives (月姫 -A piece
-//! of blue glass moon-, Switch): MRG (`.hed`/`.mrg`/`.nam`) and MZP.
+//! of blue glass moon-, Switch): MRG (`.hed`/`.mrg`/`.nam`) and MZP
+//! archives, and the BNTX pictures in them.
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -7,7 +8,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 use clap::Subcommand;
-use conv_engines::typemoon::{self, mrg, mzp};
+use conv_engines::typemoon::{self, bntx, mrg, mzp};
 
 use crate::{map, safe_relative_path};
 
@@ -25,9 +26,13 @@ pub enum TypemoonCommand {
         /// Only names starting with this (case-insensitive)
         #[arg(long, default_value = "")]
         prefix: String,
+        /// Pictures as PNG instead of .bntx: `<entry>/<texture>.png`
+        #[arg(long)]
+        png: bool,
     },
     /// Read every archive in a RomFS folder, unpack every entry (and the
-    /// entries of MZPs inside), and count what is inside and what fails
+    /// entries of MZPs inside), decode every picture, and count what is
+    /// inside and what fails
     Check { dir: PathBuf },
 }
 
@@ -37,7 +42,7 @@ pub fn run(command: TypemoonCommand) -> Result<()> {
             println!("{i:>6} {:>10}  {name}", data.len());
             Ok(())
         }),
-        TypemoonCommand::Extract { archive, output, prefix } => extract(&archive, &output, &prefix.to_lowercase()),
+        TypemoonCommand::Extract { archive, output, prefix, png } => extract(&archive, &output, &prefix.to_lowercase(), png),
         TypemoonCommand::Check { dir } => check(&dir),
     }
 }
@@ -64,7 +69,7 @@ fn each(path: &Path, mut f: impl FnMut(usize, &str, &[u8], Option<u16>) -> Resul
     Ok(())
 }
 
-fn extract(archive: &Path, output: &Path, prefix: &str) -> Result<()> {
+fn extract(archive: &Path, output: &Path, prefix: &str, png: bool) -> Result<()> {
     let mut count = 0;
     each(archive, |i, name, data, _| {
         if !name.to_lowercase().starts_with(prefix) {
@@ -74,6 +79,17 @@ fn extract(archive: &Path, output: &Path, prefix: &str) -> Result<()> {
         let mut path = output.join(safe_relative_path(name).with_context(|| format!("unsafe name {name:?}"))?);
         if matches!(unpacked, std::borrow::Cow::Owned(_)) || path.extension().is_none() {
             path.set_extension(typemoon::extension(&unpacked));
+        }
+        if png && unpacked.starts_with(b"BNTX") {
+            path.set_extension("");
+            fs::create_dir_all(&path)?;
+            for t in bntx::parse(&unpacked).with_context(|| format!("entry {i} ({name})"))? {
+                // Names hold dots ("(x1.5)"): add the extension, don't replace one.
+                let file = path.join(safe_relative_path(&format!("{}.png", t.name)).with_context(|| format!("unsafe name {:?}", t.name))?);
+                bntx::decode(&t)?.save(&file).with_context(|| format!("writing {}", file.display()))?;
+            }
+            count += 1;
+            return Ok(());
         }
         if let Some(dir) = path.parent() {
             fs::create_dir_all(dir)?;
@@ -92,7 +108,19 @@ fn check(dir: &Path) -> Result<()> {
         .collect::<Result<_, _>>()?;
     archives.retain(|p| p.extension().is_some_and(|x| x == "mrg"));
     archives.sort();
-    let mut failed = 0;
+    let (mut failed, mut formats) = (0, BTreeMap::<u32, usize>::new());
+    // Every picture decodes; counts textures by format.
+    let mut pictures = |data: &[u8], label: String, errors: &mut Vec<String>| match bntx::parse(data) {
+        Ok(textures) => {
+            for t in textures {
+                *formats.entry(t.format).or_default() += 1;
+                if let Err(e) = bntx::decode(&t) {
+                    errors.push(format!("{label} / {}: {e}", t.name));
+                }
+            }
+        }
+        Err(e) => errors.push(format!("{label}: {e}")),
+    };
     for path in &archives {
         let mut kinds = BTreeMap::<String, usize>::new();
         let (mut entries, mut errors, mut sizes_off) = (0, Vec::new(), 0);
@@ -111,12 +139,20 @@ fn check(dir: &Path) -> Result<()> {
             }
             let kind = typemoon::extension(&unpacked);
             *kinds.entry(kind.to_string()).or_default() += 1;
+            if kind == "bntx" {
+                pictures(&unpacked, format!("{i} {name}"), &mut errors);
+            }
             if kind == "mzp" {
                 match mzp::parse(&unpacked) {
                     Ok(inner) => {
                         for (j, d) in inner.iter().enumerate() {
                             match typemoon::unpack(d) {
-                                Ok(u) => *kinds.entry(format!("{} in mzp", typemoon::extension(&u))).or_default() += 1,
+                                Ok(u) => {
+                                    *kinds.entry(format!("{} in mzp", typemoon::extension(&u))).or_default() += 1;
+                                    if u.starts_with(b"BNTX") {
+                                        pictures(&u, format!("{i} {name} / {j}"), &mut errors);
+                                    }
+                                }
                                 Err(e) => errors.push(format!("{i} {name} / {j}: {e}")),
                             }
                         }
@@ -133,6 +169,8 @@ fn check(dir: &Path) -> Result<()> {
         }
         failed += errors.len();
     }
+    let formats: Vec<String> = formats.iter().map(|(f, n)| format!("{n} {f:#06x}")).collect();
+    println!("pictures by BNTX format: {}", formats.join(", "));
     anyhow::ensure!(failed == 0, "{failed} entries failed");
     Ok(())
 }

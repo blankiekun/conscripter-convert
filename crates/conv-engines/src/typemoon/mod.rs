@@ -3,6 +3,7 @@
 //! compression. Formats as read by mangetsu (MIT) and deepLuna (BSD-2),
 //! checked over the whole game (`docs/games/tsukihime.md`).
 
+pub mod bntx;
 pub mod mrg;
 pub mod mzp;
 pub mod mzx;
