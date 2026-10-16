@@ -193,8 +193,9 @@ pub fn read_font(path: Option<&Path>) -> Result<Cow<'static, [u8]>> {
 }
 
 /// Writes the game into `output`: `0.txt` from `source` (the emitted
-/// script), `version.txt` (with `package`, the source's own version, when
-/// known), `ons_args` and, when given, the font as `default.ttf`. Returns
+/// script), `system.lua` when the script has Lua, `version.txt` (with
+/// `package`, the source's own version, when known), `ons_args` and, when
+/// given, the font as `default.ttf`. Returns
 /// the number of characters Shift-JIS can't show. Fails when a game
 /// variable is one conv-cons keeps for itself ([`conv_cons::clashes`]).
 pub fn write_game(output: &Path, ir: &Script, source: &str, font: Option<&[u8]>, package: Option<&str>) -> Result<usize> {
@@ -204,6 +205,9 @@ pub fn write_game(output: &Path, ir: &Script, source: &str, font: Option<&[u8]>,
     }
     let (encoded, lost) = conv_cons::encode(source);
     fs::write(output.join("0.txt"), encoded)?;
+    if let Some(lua) = conv_cons::system_lua(ir) {
+        fs::write(output.join("system.lua"), conv_cons::encode(&lua).0)?;
+    }
     if let Some(v) = &ir.version {
         version::write(output, &ir.title, v, package)?;
     }

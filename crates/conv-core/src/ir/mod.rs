@@ -653,6 +653,13 @@ pub enum Op {
     /// Waits until the motion on `layer` ends (at once when none runs);
     /// a looping one is not waited for.
     MotionWait { layer: u32 },
+    /// Starts the Lua function `function` of [`Script::lua`] as a process
+    /// named `name`, run once a frame while the script goes on, with
+    /// `args` (CONscripter's `cons_process`); a running `name` restarts.
+    /// 装甲悪鬼村正's `CreateProcess`.
+    StartProcess { name: String, function: String, args: Vec<Operand> },
+    /// Stops the process `name` (nothing when it isn't running).
+    StopProcess { name: String },
 }
 
 /// [`Op::HoldMovie`]'s prompt: `image` is `cells` pictures side by side,
@@ -846,4 +853,8 @@ pub struct Script {
     /// is, ASCII punctuation and spaces kept, for a proportional font; not
     /// turned full-width, no links, ruby or styles.
     pub single_byte_text: bool,
+    /// Lua source (global functions, the processes [`Op::StartProcess`]
+    /// runs), written into `system.lua` after conv-cons' own lines. A
+    /// global holding data is saved with each save (CONscripter).
+    pub lua: String,
 }

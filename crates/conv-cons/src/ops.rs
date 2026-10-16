@@ -222,6 +222,11 @@ impl<'a> Emitter<'a> {
             writeln!(out, "csp {slot}\nprint 1").unwrap();
         }
         Op::MoveNoWait => *move_nowait = true,
+        Op::StartProcess { name, function, args } => {
+            let args: String = args.iter().map(|a| format!(",{}", operand(*a, border))).collect();
+            writeln!(out, "cons_start {},{}{args}", lua::quoted(name), lua::quoted(function)).unwrap();
+        }
+        Op::StopProcess { name } => writeln!(out, "cons_stop {}", lua::quoted(name)).unwrap(),
         Op::MotionWait { layer } => writeln!(out, "spmotionwait {}", SPRITE_BASE + layer).unwrap(),
         Op::MoveEase { ease, exponent } => *move_ease = Some((*ease, *exponent)).filter(|&(e, _)| (1..=7).contains(&e)),
         Op::SpriteMove { layer, x, y, ms } => {
