@@ -345,7 +345,8 @@ with the original (it wants all eleven endings' flags under wine).
 
 ### Queue (2026-10-16)
 
-- Open PR: the song's lines in dja026 (#47).
+- Next: dja026's song lines type out as the original's (they appear
+  whole since #47).
 - Open from the face windows (#37): a sliding frame's face jumps to its
   end place; dja003_02's blood movie is drawn mirrored by us, unmirrored
   under wine (which plays no movie there).
@@ -353,8 +354,8 @@ with the original (it wants all eleven endings' flags under wine).
   or change picture as one `spmotion` with alpha; `Rotate` over time (343).
 - After engine #2 and #10 and Muramasa's shared blend IR field:
   `AddRender`/`SubRender` flashes.
-- The unread-argument notes (#30; 39 kinds, 21,859 notes) aren't sorted
-  into Next yet.
+- The unread-argument notes (#30) are sorted into Next, item 7: easing
+  first.
 
 | Area | Status |
 |---|---|
@@ -389,6 +390,65 @@ with the original (it wants all eleven endings' flags under wine).
 6. From the exe's coverage table ("The exe"): `AddRender`/`SubRender`/`NormalRender` as blend modes
    (item 3's additive flashes); `SetShade HEAVY` (one use; sepia is
    item 3's).
+7. The unread-argument notes (`<Builtin> argument <i> ignored`;
+   dry run 2026-10-16: 33 kinds, 18,947 notes, fewer than #30's 39 and
+   21,859 since later PRs read more), most visible first; counts are
+   compiled occurrences, what the original does is from the scripts and
+   `research/nitroplus/builtins.md`:
+   1. **Easing** (tempo): `Move` 4 (1,069), `MoveCamera` 5 (373),
+      `Zoom` 4 (309). Every non-`null` tempo (`Dxl2` 202, `Dxl3` 105,
+      `Dxl1` 72, `AxlDxl` 37, `DxlAuto` 36 of the scripts' `Move`s;
+      `MoveCamera`'s `AxlDxl` 92, `Dxl1` 63, `DxlAuto` 57, `Dxl2` 53,
+      `Dxl3` 38, `null` 84, the `null` ones counted too) eases the motion by the
+      exe's curves (`apply_tempo`); ours is linear. Converter-only: a
+      `spmotion2` takes up to 32 keys, so a curve fits as 8-16 linear
+      pieces.
+   2. **`Shake` of a picture smaller than the screen**, arguments 2-5
+      and 8 (3 each): `dja012_06`'s 30 s tremble of `イベント絵70` and
+      `dja029_02`'s two jolts of `イベント絵21`. The original shakes the
+      picture alone; ours doesn't shake (only the whole screen shakes,
+      `quake`). Could be a looped `spmotion` like `ShakeVLoop*`.
+   3. **`SetPan` 2, the pan** (1,283, of which 15 aren't centre):
+      `MusicStart`'s `再生方向` is ±1000 (hard left or right) for 8 + 7
+      calls in `dja001_03` (a sound) and `dja055_02` (the mob voices of
+      the chorus); everything plays centre in ours.
+   4. **`Shake` 6 `n` and 7 tempo** (58 each): `n` (200-1000; above
+      1000 the call does nothing) sets the jolt's rhythm and the tempo
+      its decay; ours shakes every 16 ms, dying linearly. `n`'s meaning
+      is lost in the exe's x87 code: one wine shot of a 200 and a 1000
+      shake would settle it.
+   5. **`WaitPlay` 1, a time limit** (51; 48 `null`, 3 numbers): the
+      original waits for the sound at most 500 ms (`dja003_02`,
+      `dja046_01`) or 2,500 ms (`function_badend`). Found while sorting:
+      outside a process our `WaitPlay` waits only for movies, so on a
+      sound (`サウンド１`, `血しぶき`, …) it doesn't wait at all.
+   6. **`Fade` 3, tempo** (77 non-`null`, mostly `DxlAuto`/`AxlDxl`): an
+      eased fade; ours linear. Hard to see.
+   7. **`Rotate` 5, tempo** (264): moot until `Rotate` over time (item 4)
+      is converted, then as item 7.1.
+   8. **`CreateWindow` 6** (975): `true` on every story window (the
+      boxes, `中窓`, `移動窓`), `false` on the full-screen `窓`, the 0×0
+      `音`, the system `WND` and the battle's `カウンタ窓`. Not the clip:
+      `カウンタ窓` must clip its digit strip to 52 px. Its digits sit at
+      x 346-410, inside the window only counted from the screen, so
+      `false` may mean children placed from the screen rather than the
+      window's corner. Nothing shows: `窓` is at 0,0 and the counter is
+      `django/counter.rs`'s own.
+   9. **`SetBacklog` 2, the speaker** (75; 73 `null`): two calls in
+      `dja035_01` name ジュリアン and イライザ; what the original's log
+      does with it (a name line, or the voice switches by character) is
+      unchecked.
+   10. **No change** (the original passes values that do what ours
+       does; candidates for `UNREAD_HARMLESS`): `WaitAction` 1 (5,852),
+       `WaitFade` 1 (1), `WaitMove` 1 (2), all `null` (no limit);
+       `SetFrequency` 0, 1, 3 (1,283 each: `MusicStart`'s object, 0 ms,
+       `NULL`; the speed, argument 2, is 1000 everywhere and checked);
+       `SetPan` 0, 1, 3 (1,283 each, the same); `LoadText` 0 (740, the
+       script unit's name; the text is compiled where it stands);
+       `CreateText` 5 (13, `Auto` height: dja026's song lines and the
+       ending's two texts); `MoveCamera` 1 and 6 (15 each, a camera with
+       no children yet: nothing moves); `CreateEffect` 2-5 (1, the
+       `Sepia` effect, not converted itself: item 3).
 
 ## History
 
