@@ -764,10 +764,12 @@ fn setwindow_only(w: &TextWindow, speed: &str, ruby: bool, any_vertical: bool, s
 
 /// A sprite's transparency mode: 'a' (the PNG's alpha channel), or 'c'
 /// (opaque) for a picture without one (JPEG): with 'a' NScripter takes its
-/// right half for the mask.
+/// right half for the mask. A movie (`.mp4`, played as a picture) is
+/// opaque, unless named `*_alpha.mp4`: its right half is the mask.
 pub(crate) fn sprite_mode(image: &str) -> char {
     let lower = image.to_ascii_lowercase();
-    if lower.ends_with(".jpg") || lower.ends_with(".jpeg") { 'c' } else { 'a' }
+    let opaque = [".jpg", ".jpeg", ".mp4"].iter().any(|e| lower.ends_with(e)) && !lower.ends_with("_alpha.mp4");
+    if opaque { 'c' } else { 'a' }
 }
 
 /// `lsp` for a sprite ([`sprite_mode`]).

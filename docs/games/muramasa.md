@@ -67,7 +67,7 @@ The other convert options (`--loose`, `--audio-codec`,
 | Area | Status |
 |---|---|
 | NPA archives, images (PNG, JPEG), BGM, sound effects, voices | ✅ Decoded (whole-corpus check not done) |
-| Movies (`.ngs`, MPEG-1) | ✅ `MoviePlay` and the battle cuts the script waits for play as movies (H.264 MP4, the cuts without stopping the music); the other `CreateMovie`s (the smoke loop `mvk100`, cuts under the text, paused cuts) are drawn as their frames (2026-10-15, see step 7 of "Next") |
+| Movies (`.ngs`, MPEG-1) | ✅ `MoviePlay` and the battle cuts the script waits for play as movies (H.264 MP4, the cuts without stopping the music); the smoke loop `mvk100` plays as a sprite movie (`lsp` of an MP4, its opacity as the right half); the other `CreateMovie`s (cuts under the text, paused cuts) are drawn as their frame (2026-10-15, see step 7 of "Next") |
 | Script parsing | ✅ All 913 files; 17 places that don't parse are all typos or dead code |
 | Story control flow (files, scenes, functions, `if`/`while`, choices, story flags, route ranking, heroine deaths) | ✅ Compiled; all 883 story files reached from `ma00_000` |
 | Text: vertical windows, face windows and name plates, ruby, `<k>` waits, voices | ✅ Converted; vertical columns where the original's are (checked under wine), turned marks (《「―) centred, English keeps its spaces |

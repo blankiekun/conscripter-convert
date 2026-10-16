@@ -249,6 +249,12 @@ pub trait Assets {
     /// smaller than the movie: the picture, the number of cells and a
     /// cell's size.
     fn movie_frames(&mut self, path: &str, at: Option<u32>, alpha: bool, dark: bool) -> Option<(String, u32, u32, u32)>;
+    /// A movie the engine plays as a picture (`lsp` of a movie file),
+    /// silent: its output path and the size it is drawn at. `alpha`: the
+    /// movie's top half is the colour, its bottom half the opacity, made
+    /// into the right half that `:a` takes (named `*_alpha.mp4`); `dark`:
+    /// the colour is drawn black (`SubRender`).
+    fn movie_sprite(&mut self, path: &str, alpha: bool, dark: bool) -> Option<(String, u32, u32)>;
     /// The output picture `base` (filling the screen) with the picture the
     /// scripts name `top` drawn over it in overlay (`OverlayRender`), at
     /// (0,0) zoomed `zoom` per mille about its centre, at `opacity`
@@ -2946,6 +2952,10 @@ mod tests {
             let cells = if at.is_some() { 1 } else { 30 };
             Some((format!("{path}@{at:?}{}", if dark { "d" } else { "" }), cells, w, h))
         }
+        fn movie_sprite(&mut self, path: &str, alpha: bool, dark: bool) -> Option<(String, u32, u32)> {
+            let (w, h) = if alpha { (400, 216) } else { (1024, 576) };
+            Some((format!("{path}{}{}.mp4", if dark { "_dark" } else { "" }, if alpha { "_alpha" } else { "" }), w, h))
+        }
     }
 
     fn compile(story: &str, library: &str) -> Compiled {
@@ -3068,7 +3078,7 @@ scene a.nss
     }
 
     #[test]
-    fn a_smoke_loop_plays_as_frames_zoomed_and_a_paused_cut_as_one_frame() {
+    fn a_smoke_loop_plays_as_a_movie_zoomed_and_a_paused_cut_as_one_frame() {
         let story = r#"
 scene a.nss
 {
@@ -3081,8 +3091,8 @@ scene a.nss
 }
 "#;
         let c = compile(story, LIBRARY);
-        // 400x216 shown from 200x108 cells: 2x, then the zoom.
-        let smoke = c.ops.iter().any(|op| matches!(op, Op::AnimatedSprite { cells: 30, looped: true, zoom: (600, 1000), .. }));
+        // The movie at its own size (400x216), zoomed 3x.
+        let smoke = c.ops.iter().any(|op| matches!(op, Op::AnimatedSprite { cells: 1, frame_ms: 0, looped: true, zoom: (300, 500), sprite, .. } if sprite.image.ends_with("_alpha.mp4")));
         let paused = c.ops.iter().any(|op| matches!(op, Op::AnimatedSprite { cells: 1, sprite, .. } if sprite.image.contains("Some(300)")));
         assert!(smoke && paused, "{:?}", c.ops);
         assert!(!c.ops.iter().any(|op| matches!(op, Op::SceneMovie { .. })), "{:?}", c.ops);
