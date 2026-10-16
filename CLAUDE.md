@@ -49,8 +49,9 @@ not in the repo.
   point the submodule at a commit on `master`: CI's `engine-on-master`
   check fails until you do.
 - The branch is yours alone: before pushing, `git rebase origin/main`
-  (never merge `main` into it) and `git push --force-with-lease`. The
-  repo's git config has `gh` as its credential helper; don't change the
+  (never merge `main` into it) and push with
+  `git -c credential.helper= -c credential.helper='!gh auth git-credential' push --force-with-lease`
+  (git has no credential helper; `gh` is logged in). Don't change the
   global git config.
 - The PR body says what changed and why, links the engine PR, and gives
   the `cargo test`/`clippy` and `tests/snapshot.sh` results (CI has no
