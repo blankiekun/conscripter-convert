@@ -50,17 +50,15 @@ converted, every ending reachable.
      sections), so a session reads only what is open. There are no
      git-ignored handoff files; where the user keeps the game goes in
      your memory.
-   - A branch per game (`xuse`, `nitroplus`), based on `origin/main`. A
-     second agent works in its own worktree
-     (`../conscripter-convert-<name>`). Merge `origin/main` into
-     it at the start of every session, keep game-specific code out of
-     the shared files, and merge back into `main` at good points
-     (`CLAUDE.md`, "Working beside other agents").
+   - A worktree per game (`../conscripter-convert-<name>`), with one
+     short-lived branch and pull request per task item, made from
+     `origin/main`; keep game-specific code out of the shared files
+     (`CLAUDE.md`, "Rules" and "Working beside other agents").
    - Optional: a phone-visible progress page (an artifact whose shared
      database gets one log entry per commit). The user liked following
      the work that way.
-   - Keep each session to one item: do it, commit, push, update
-     "Status", stop. A fresh session starts from "Status" and memory,
+   - Keep each session to one item: do it, update "Status", open the
+     PR, stop. A fresh session starts from "Status" and memory,
      which is cheaper than a long one (`CLAUDE.md`, "Keeping usage
      down").
 5. **Plan in this order:** assets → script decoding → control flow →
