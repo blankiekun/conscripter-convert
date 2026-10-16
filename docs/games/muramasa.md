@@ -541,7 +541,8 @@ Used to check what the engine does (`docs/new-game.md` step 9).
   plan of PRs before coding.
 - Then the unread-argument gaps (item 5 below), most noticeable first;
   among them, `CreateText`'s box height is read (#52) and `SetVertex`
-  for every picture (#61, "History", "`SetVertex`").
+  for every picture (#61, "History", "`SetVertex`"). Tempo waits for
+  engine #2 and converter #13 (the curves are in item 5).
 - Known limits: a window that moves (`絵演窓上`, `窓右`, about 56 `Move`s)
   has its clip jump to the end place when the move starts. Sprite movies
   (scene cuts, the turntables) don't play in CONscripter for Windows,
@@ -678,6 +679,14 @@ Next, in order:
    noticeable first:
    - Tempo (easing) of `Fade`, `Move`, `Zoom`, `Rotate`, `SetVolume`,
      `DrawTransition` (`Axl`/`Dxl`…; a `null` tempo is taken as linear).
+     After engine #2 / converter #13: tempo as spmotion curves; DxlAxl's
+     acos and the cosine/sine ones as spcurve tables. The exe's curves
+     (`apply_tempo`, `00449f40`; t the progress 0-1): Axl1/2/3 t², t³,
+     t⁴; Dxl1/2/3 1-(1-t)², 1-(1-t)³, 1-(1-t)⁴; AxlAuto 1-cos(πt/2);
+     DxlAuto sin(πt/2); AxlDxl ½-½cos(πt); DxlAxl acos(1-2t)/π; any
+     other name (`null` too) linear. In the story most eased calls don't
+     wait (Move: 631 Dxl1, 576 Dxl2, 362 DxlAuto, 190 AxlDxl; Zoom: 618
+     Dxl2, 385 Dxl1).
    - Story `CreateText`: a sideways text turned by `Rotate` sits about
      17 px lower than the original's under wine (cause unknown; "History",
      "Story `CreateText`").
