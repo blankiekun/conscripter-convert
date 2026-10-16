@@ -89,8 +89,12 @@ It has no NPA archives and no NSS scripts.
   (auto save at choices, read text's colour, a click stopping auto,
   syncing text to voices, the effects test, the display options).
   Checked headless (`--shot-at` on `*conv_ps_wait`) against the manual's
-  screenshot (page 9: the same states and places). Not yet compared with
-  the running original (dragging, the gauges' values); not done: the
+  screenshot (page 9: the same states and places), and against the
+  original under wine at a first start: the same, the gauges at a first
+  start's values (`sys_val.nut`: auto 60, text 550, music 800, effects
+  1000, voices 700; the knobs within 4 px); our volumes go through the
+  Japanese build's curve (music 800 plays at 68 %), the port's is not
+  read. Not compared: dragging. Not done: the
   character voices window (`OpenCVSetting`: 4 columns, x 118 + 204·i,
   y 69 + 32·row, the English `cg/sys/config/cv/` names), the text sample.
 - **Name plates:** the English `cg.npk`'s `cg/fw/nw*.png` (the names
