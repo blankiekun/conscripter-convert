@@ -659,8 +659,6 @@ Next, in order:
    - `DrawEffect` waves (79), `CreateStencil` (59), `CreateMask` (31),
      `SetSurface`/`CreateSurface`, `LoadImage` as a texture source
      (Muramasa leaves `loaded_textures` off).
-   - BGM loop points (`SetLoopPoint` in the BGM helpers, 33 compiled
-     calls) are ignored.
    - `Request(…, NoIcon)` (4) is dropped without a note: a `Request` on
      an object the converter doesn't keep returns silently, so the dry
      run's notes undercount those.
@@ -712,6 +710,20 @@ Next, in order:
 
 Finished work, moved out of "Status" so a session reads only the open
 state.
+
+**Loop points (2026-10-15, script coverage):** `SetLoopPoint(snd, start,
+end)` (ms; `CreateBGMEX`'s `msong04_arrange`, `CreateSEEX`'s four
+battle loops) plays, when looped, a copy of the file tagged
+`LOOPSTART`/`LOOPEND` (`<name>_loop<start>-<end>.ogg`). SDL_mixer loops
+`bgm` by those tags; for `dwaveloop` CONscripter now loops inside the
+sound itself (`dc48c0e`, also from a WAV `smpl` loop, so Opus builds
+keep it), checked by recording the output (`SDL_AUDIODRIVER=disk`): the
+intro once, then the loop. `CreateSEEX`'s sounds were all missing:
+`"sound/se/" + "$音楽データ"` names the variable in quotes, now its
+value (`Game::string_vars`, Muramasa only); 22 sounds back. Left: a
+loop isn't kept through `dwaveload`/`dwaveplay` or a load; 25 sounds
+named by variables never set (`$SE矢飛翔_ma04_014vs`, …) are still
+missing.
 
 **超速スキップ (2026-10-15, script coverage):** each file's `SkipOut`
 test (`$SYSTEM_skip && #SYSTEM_skip_express && $AllRead`, 835 tests) is

@@ -597,6 +597,24 @@ impl Assets for NpaAssets<'_> {
         Some(rel)
     }
 
+    fn looped_sound(&mut self, path: &str, start_ms: u32, end_ms: u32) -> Option<String> {
+        let src = self.sound(path)?;
+        let rel = format!("{}_loop{start_ms}-{end_ms}.ogg", src.trim_end_matches(".ogg"));
+        if self.out.dry_run || self.out.root.join(&rel).exists() {
+            return Some(rel);
+        }
+        let data = std::fs::read(self.out.root.join(&src)).ok()?;
+        let rate = ogg_rate(&data)? as u64;
+        match crate::ogg::set_loop(&data, start_ms as u64 * rate / 1000, Some(end_ms as u64 * rate / 1000)) {
+            Ok(tagged) => self.out.write(&rel, &tagged),
+            Err(e) => {
+                self.out.errors.push(format!("{rel}: {e}"));
+                return None;
+            }
+        }
+        Some(rel)
+    }
+
     fn sound_ms(&mut self, path: &str) -> Option<u32> {
         let key = normalize(path);
         let file = if key.ends_with(".ogg") { key } else { format!("{key}.ogg") };
@@ -617,11 +635,16 @@ impl Assets for NpaAssets<'_> {
 /// An Ogg Vorbis file's length: its last page's granule position (the
 /// samples so far) over the sample rate of its identification header.
 fn ogg_ms(data: &[u8]) -> Option<u32> {
-    let id = data.windows(7).position(|w| w == b"\x01vorbis")?;
-    let rate = u32::from_le_bytes(data.get(id + 12..id + 16)?.try_into().ok()?);
+    let rate = ogg_rate(data)?;
     let last = data.windows(4).rposition(|w| w == b"OggS")?;
     let samples = u64::from_le_bytes(data.get(last + 6..last + 14)?.try_into().ok()?);
     (rate > 0).then(|| (samples * 1000 / rate as u64) as u32)
+}
+
+/// An Ogg Vorbis file's sample rate, from its identification header.
+fn ogg_rate(data: &[u8]) -> Option<u32> {
+    let id = data.windows(7).position(|w| w == b"\x01vorbis")?;
+    Some(u32::from_le_bytes(data.get(id + 12..id + 16)?.try_into().ok()?))
 }
 
 /// A movie's size, length and whether its sound is above -60 dB (some

@@ -157,6 +157,11 @@ pub struct Game {
     /// deleted window stayed up). Off for 装甲悪鬼村正 until checked: it
     /// changes 621 places of its script.
     family: bool,
+    /// A variable's name in quotes added to a string means its value
+    /// (装甲悪鬼村正's `CreateSEEX`: `"sound/se/" + "$音楽データ"`). Off for
+    /// 続・殺戮のジャンゴ until checked: its face windows'
+    /// `"@窓/" + "$窓ナット名"` would name other objects.
+    string_vars: bool,
     /// How a choice of `n` options looks.
     choice_style: for<'a, 'b> fn(&mut Compiler<'a, 'b>, i64) -> Option<ChoiceStyle>,
     /// Functions (of the boot script or its library) the title runs when
@@ -197,6 +202,7 @@ impl Game {
         chapter_objects: false,
         text_drop: 0,
         family: false,
+        string_vars: false,
         choice_style: |c, n| c.vertical_choice_style(n),
         story_end: &[],
         horizontal_box: None,
@@ -292,6 +298,11 @@ pub trait Assets {
     fn delayed_sound(&mut self, path: &str, delay_ms: u32) -> Option<String>;
     /// A sound's length (`sound/bgm/x`), in a dry run too.
     fn sound_ms(&mut self, path: &str) -> Option<u32>;
+    /// A copy of the sound that loops from `start_ms` to `end_ms`
+    /// (`SetLoopPoint`; `LOOPSTART`/`LOOPEND` tags): its output path.
+    fn looped_sound(&mut self, path: &str, _start_ms: u32, _end_ms: u32) -> Option<String> {
+        self.sound(path)
+    }
 }
 
 /// A movie's size and length, and whether its sound can be heard.
@@ -1035,6 +1046,8 @@ struct SoundObject {
     /// `Request(snd, Disused)`: forgotten once it has started (a one-shot
     /// ends by itself).
     disused: bool,
+    /// `SetLoopPoint`: looped, it loops from the first to the second ms.
+    loop_ms: Option<(u32, u32)>,
 }
 
 /// `old` moved and zoomed into `now` over `ms` by the engine: the same
@@ -2211,6 +2224,17 @@ impl<'a, 'b> Compiler<'a, 'b> {
                     UnaryOp::Relative => Value::Rel(v.int()),
                 }
             }
+            // A variable's name in quotes added to a string means its value
+            // (CreateSEEX: `"sound/se/" + "$音楽データ"`).
+            // (Unless a parameter of that name binds the string.)
+            Expr::Binary { op: BinaryOp::Add, left, right } if [left, right].iter().any(|e| matches!(&***e, Expr::Str(s) if self.names_variable(s))) => {
+                let value = |c: &mut Self, e: &'a Expr| match e {
+                    Expr::Str(s) if c.names_variable(s) => c.vars[s].clone(),
+                    e => c.eval(e),
+                };
+                let (l, r) = (value(self, left), value(self, right));
+                add(&l, &r)
+            }
             Expr::Binary { op, left, right } => {
                 let l = self.eval(left);
                 match op {
@@ -2237,6 +2261,12 @@ impl<'a, 'b> Compiler<'a, 'b> {
             }
             Expr::Point { .. } | Expr::Path(_) => Value::Null,
         }
+    }
+
+    /// Whether the string literal `s` names a variable that has a value
+    /// (and no parameter binds the string).
+    fn names_variable(&self, s: &str) -> bool {
+        s.starts_with(['$', '#']) && self.vars.contains_key(s) && self.bound(&format!("s:{s}")).is_none() && self.game.string_vars
     }
 
     fn index_key(&mut self, e: &'a Expr) -> String {
@@ -2622,8 +2652,12 @@ impl<'a, 'b> Compiler<'a, 'b> {
             if s.volume <= 0 && s.fade_ms == 0 {
                 continue;
             }
-            let (path, bgm, looped, fade_ms, volume) = (s.path.clone(), s.bgm, s.looped, s.fade_ms, s.volume);
-            let Some(file) = self.assets.sound(&path) else {
+            let (path, bgm, looped, fade_ms, volume, loop_ms) = (s.path.clone(), s.bgm, s.looped, s.fade_ms, s.volume, s.loop_ms);
+            let file = match loop_ms {
+                Some((start, end)) if looped => self.assets.looped_sound(&path, start, end),
+                _ => self.assets.sound(&path),
+            };
+            let Some(file) = file else {
                 if std::env::var_os("NSS_TRACE").is_some() {
                     eprintln!("missing sound {path}");
                 }

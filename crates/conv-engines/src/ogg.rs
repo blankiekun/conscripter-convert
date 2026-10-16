@@ -138,6 +138,12 @@ fn with_loop(comment: &[u8], start: u64, end: u64) -> Result<Vec<u8>, OggError> 
 /// The Ogg Vorbis file tagged to loop from sample frame `frame` to its end
 /// (the last page's granule position).
 pub fn set_loop_start(data: &[u8], frame: u64) -> Result<Vec<u8>, OggError> {
+    set_loop(data, frame, None)
+}
+
+/// The Ogg Vorbis file tagged to loop from sample frame `start` to `end`
+/// (`None`: its end).
+pub fn set_loop(data: &[u8], start: u64, end: Option<u64>) -> Result<Vec<u8>, OggError> {
     // Collect the three header packets.
     let mut packets: Vec<Vec<u8>> = vec![Vec::new()];
     let mut at = 0;
@@ -177,9 +183,9 @@ pub fn set_loop_start(data: &[u8], frame: u64) -> Result<Vec<u8>, OggError> {
         audio.push(page);
     }
     let granule = |p: &Page| u64::from_le_bytes(p.raw[6..14].try_into().unwrap());
-    let end = audio.last().map_or(0, granule);
+    let end = end.unwrap_or_else(|| audio.last().map_or(0, granule));
 
-    let comment = with_loop(&packets[1], frame, end)?;
+    let comment = with_loop(&packets[1], start, end)?;
     let mut out = first.raw.to_vec();
     let mut sequence = 1;
     paginate(&mut out, serial, &mut sequence, &[comment, packets[2].clone()]);
@@ -238,6 +244,8 @@ mod tests {
         let out = set_loop_start(&stream(&["TITLE=a", "LOOPSTART=5", "LoopLength=9"]), 323233).unwrap();
         let expected = stream(&["TITLE=a", "LOOPSTART=323233", "LOOPEND=2000"]);
         assert_eq!(out, expected);
+        let out = set_loop(&stream(&["TITLE=a"]), 10, Some(1500)).unwrap();
+        assert_eq!(out, stream(&["TITLE=a", "LOOPSTART=10", "LOOPEND=1500"]));
         for (i, p) in pages(&out).iter().enumerate() {
             let seq = u32::from_le_bytes(p.raw[18..22].try_into().unwrap());
             assert_eq!(seq as usize, i);
