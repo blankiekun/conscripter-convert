@@ -106,12 +106,13 @@ pub(crate) fn emit(out: &mut String, layer: u32, keys: &[(u32, i32, i32)], loope
         return;
     }
     let keys: Vec<MotionKey> = keys.iter().map(|&(ms, x, y)| MotionKey { ms, x, y, zoom: 100, angle: 0, opacity: 256 }).collect();
-    emit2(out, layer, &keys, if looped { MotionEnd::Loop } else { MotionEnd::Back }, fade);
+    emit2(out, layer, &keys, if looped { MotionEnd::Loop } else { MotionEnd::Back }, fade, 0);
 }
 
 /// Writes an [`conv_core::ir::Op::SpriteMotion2`] with `spmotion`. A fade
-/// in over `fade` ms started with it goes into its keys.
-pub(crate) fn emit2(out: &mut String, layer: u32, keys: &[MotionKey], end: MotionEnd, fade: Option<u32>) {
+/// in over `fade` ms started with it goes into its keys; each key is
+/// reached along `curve` (0 straight, or an `spcurve` id).
+pub(crate) fn emit2(out: &mut String, layer: u32, keys: &[MotionKey], end: MotionEnd, fade: Option<u32>, curve: u32) {
     let slot = SPRITE_BASE + layer;
     let mode = match end {
         MotionEnd::Back => 0,
@@ -124,6 +125,8 @@ pub(crate) fn emit2(out: &mut String, layer: u32, keys: &[MotionKey], end: Motio
         fold_fade(&mut keys, fade);
     }
     let keys: Vec<String> = keys.iter().map(|k| key(k.ms, k.x, k.y, k.zoom, k.angle, k.opacity)).collect();
+    // (The first key's curve is unused: the motion starts there.)
+    let keys: Vec<String> = keys.into_iter().map(|k| if curve == 0 { k } else { format!("{},{curve}", k.strip_suffix(",0").unwrap()) }).collect();
     writeln!(out, "spmotion {slot},{mode},{}", keys.join(",")).unwrap();
 }
 
@@ -143,8 +146,11 @@ mod tests {
     fn writes_zoom_angle_and_opacity_keys() {
         let key = |ms, x, zoom, angle, opacity| MotionKey { ms, x, y: 0, zoom, angle, opacity };
         let mut out = String::new();
-        emit2(&mut out, 5, &[key(0, 0, 100, 0, 256), key(500, 300, 150, -45, 0)], MotionEnd::Keep, None);
+        emit2(&mut out, 5, &[key(0, 0, 100, 0, 256), key(500, 300, 150, -45, 0)], MotionEnd::Keep, None, 0);
         assert_eq!(out, "spmotion 67,2,0,0,0,100,100,0,256,0,500,300,0,150,150,-45,0,0\n");
+        let mut out = String::new();
+        emit2(&mut out, 5, &[key(0, 0, 100, 0, 256), key(500, 300, 100, 0, 256)], MotionEnd::Keep, None, 72);
+        assert_eq!(out, "spmotion 67,2,0,0,0,100,100,0,256,72,500,300,0,100,100,0,256,72\n");
     }
 
     #[test]
@@ -169,7 +175,7 @@ mod tests {
         // a key's own alpha is kept times the fade's; a fade past the last key holds it
         let key = |ms, x, opacity| MotionKey { ms, x, y: 0, zoom: 100, angle: 0, opacity };
         let mut out = String::new();
-        emit2(&mut out, 5, &[key(0, 0, 256), key(100, 50, 128)], MotionEnd::Keep, Some(200));
+        emit2(&mut out, 5, &[key(0, 0, 256), key(100, 50, 128)], MotionEnd::Keep, Some(200), 0);
         assert_eq!(out, "spmotion 67,2,0,0,0,100,100,0,0,0,100,50,0,100,100,0,64,0,200,50,0,100,100,0,128,0\n");
         // a loop isn't folded
         let mut out = String::new();

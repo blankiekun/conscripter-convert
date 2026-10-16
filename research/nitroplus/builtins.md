@@ -204,7 +204,7 @@ argument a call passes and the converter doesn't read
 not read means our own behaviour applies, so its value may differ from
 what we do. Arguments known to change nothing are in `UNREAD_HARMLESS`
 (`convert/builtin.rs`), each with the value it covers and why (a `null`
-tempo is linear, as ours; a process's priority and place). Notes from the
+tempo is linear, as ours; `Move` and `Zoom` read theirs; a process's priority and place). Notes from the
 whole-game dry run (`ma00_000.nss --chain 2000`), and 続・殺戮のジャンゴ's
 (`convert-nss <game> --dry-run`), compiled occurrences:
 
@@ -216,12 +216,10 @@ whole-game dry run (`ma00_000.nss --chain 2000`), and 続・殺戮のジャン�
 | `SetFrequency` | 0, 1, 3 (2 is checked) | 8,724 | 1,283 |
 | `Random` | 0 (the range: we return 0) | 7,368 | 0 |
 | `Fade` | 3 tempo (not `null`); 5 (a sixth argument, 1) | 3,863 | 77 |
-| `Move` | 4 tempo | 3,420 | 1,069 |
 | `WaitAction`, `WaitPlay`, `WaitFade`, `WaitZoom`, `WaitMove` | 1 (a time limit?) | 3,371, 2,477, 4, 3, 0 | 5,852, 51, 1, 0, 2 |
 | `DrawTransition` | 2 from, 4 softness; 5 tempo | 2,622; 132 | 0 |
 | `Conquest` | 0-2 (we return 0) | 2,478 | 0 |
 | `CreateEffect` | 2-5 (place and size) | 2,474 | 1 |
-| `Zoom` | 4 tempo | 2,210 | 309 |
 | `SetBacklog` | 2 (the speaker) | 1,958 | 75 |
 | `Shake` | 6 `n`, 7 tempo; 8 wait; 2-5 (a picture smaller than the screen) | 1,486; 62; 144 | 58; 3; 3 |
 | `SetBlur` | 4 strength; 2 passes (when off) | 983; 14 | 0 |
