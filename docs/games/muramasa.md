@@ -643,8 +643,6 @@ Next, in order:
      compiler doesn't evaluate, so each ending plays 4 s of the theme
      over black and fades it out (no roll, no click wait).
      `#ClearRoll%02d` likewise (`String`, `VariableValue`).
-   - `Shake` keeps its first strength; the exe eases it to args 4–5
-     (nearly always 0).
    - Text markup dropped: `<FONT incolor size>` (15 tags in 11 story
      files), `<VALUE name=$…>` (3 lines in `mc02_031` print a gap), the
      ASCII-art pages (`Request(…, PushText)` + `NoLog`: shown at once,
@@ -687,6 +685,12 @@ Next, in order:
 
 Finished work, moved out of "Status" so a session reads only the open
 state.
+
+**Shakes die down (2026-10-15, exe review):** `Shake(obj, time, x0, y0,
+x1, y1, …)` goes from (x0, y0) to (x1, y1) over its time (the exe's
+`shake_frame`); nearly every call ends at 0, a jolt that eases out. The
+converter kept the first strength throughout; it now passes both to
+`screenshake` (linear: the tempo isn't read).
 
 **Voice switches by class (2026-10-15, exe review):** the switches 村正,
 その他男声, その他女声, 首領姉 and コヒカリ muted nothing (about 6,300

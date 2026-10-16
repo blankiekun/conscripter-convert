@@ -257,7 +257,7 @@ impl Compiler<'_, '_> {
                 self.timed(arg(1).int(), &arg(7), &targets);
             }
             "Shake" => {
-                // (obj, time, x, y, …, wait). A full-screen picture (or all
+                // (obj, time, x0, y0, x1, y1, n, tempo, wait). A full-screen picture (or all
                 // of them): the whole picture shakes.
                 let targets = self.matching(&arg(0));
                 if !targets.iter().any(|t| self.objects[t].w >= screen_w && self.objects[t].h >= screen_h) {
@@ -266,13 +266,16 @@ impl Compiler<'_, '_> {
                     return Value::Null;
                 }
                 // It lasts `ms` (or until the picture is deleted: shakes of
-                // 36 minutes end that way); 0 ms or 0 pixels stops it.
+                // 36 minutes end that way); 0 ms or 0 pixels stops it. The
+                // strength goes from (x, y) to args 4-5 (the exe's
+                // shake_frame), nearly always 0: a jolt that dies down.
                 let ms = arg(1).int().max(0) as u32;
                 let (x, y) = (arg(2).int().abs() as i32, arg(3).int().abs() as i32);
+                let end = (arg(4).int().abs() as i32, arg(5).int().abs() as i32);
                 self.sync(0);
                 if ms > 0 && (x > 0 || y > 0) {
                     let shake =
-                        ScreenEffect::Shake { time_ms: ms, interval_ms: 16, path: false, speed: (1300, 1700), range: [(x, y), (x, y)], end_ms: ms };
+                        ScreenEffect::Shake { time_ms: ms, interval_ms: 16, path: false, speed: (1300, 1700), range: [(x, y), end], end_ms: ms };
                     self.ops.push(Op::ScreenEffect { slot: 1, effect: Some(shake) });
                     self.shaken = targets;
                     if !matches!(a.last(), Some(Value::Null | Value::Int(0))) {
