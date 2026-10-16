@@ -328,9 +328,13 @@ under a name that already exists replaces it.
   `Fade("@試験窓A*", …)` (a `CreateWindow`) and `Fade("@試験名A*", …)` (a
   `CreateName`) left their children at full opacity. 続・殺戮のジャンゴ's exe
   differs: there a wildcard reaches no child, pictures' included
-  (`Game::family`, compared under wine). Our converter matches every
-  name by its prefix, children included: wrong for windows' and names'
-  children (Status). Also seen in the same test: a picture's child is
+  (`Game::family`, compared under wine). The converter follows
+  Muramasa's rule (`Object::container`, set by `CreateWindow`,
+  `CreateName`, `CreateCamera`; `Game::family` keeps Django's).
+  `Delete` is the exception: under wine `Delete("*")` takes the
+  standing pictures in the locked name `遠３` (`遠３/StL01`) with it, so a
+  wildcard `Delete` that matches a container also deletes its unlocked
+  children, and deleting a container deletes its children. Also seen in the same test: a picture's child is
   placed from its parent's corner (a `CreateColor` child at (100, 150) of
   a parent at (50, 100) drew at (150, 250)), a window's child at its own
   place; Muramasa's build places every child at its own place.

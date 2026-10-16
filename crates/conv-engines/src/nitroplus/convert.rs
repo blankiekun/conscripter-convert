@@ -1022,6 +1022,10 @@ struct Object<'a> {
     /// as the English port draws its subtitles. Only strips: a layer a
     /// strip leaves is cleared, which ends it.
     over_text: bool,
+    /// Made by `CreateWindow`, `CreateName` or `CreateCamera`: a wildcard
+    /// that matches it doesn't reach its children (the exe's object flag
+    /// at +0x9d4, 0 for these, 1 for pictures; [`Compiler::matching`]).
+    container: bool,
 }
 
 /// [`Object::shake`]: the process, the keys.
@@ -2399,16 +2403,20 @@ impl<'a, 'b> Compiler<'a, 'b> {
         }
         match name.strip_suffix('*') {
             Some(prefix) => {
-                // With `family`, not into the children of an object it
-                // matches: 続・殺戮のジャンゴ's `Fade("@frame0*")` leaves the
-                // faces in `frame03/顔窓31` as they are (under wine).
+                // Not into the children of a container it matches (装甲悪鬼村正
+                // under wine: `Fade("@窓*")` leaves a window's or a name's
+                // children as they are, `Fade("@絵*")` fades a picture's
+                // too); with `family`, of any object: 続・殺戮のジャンゴ's
+                // `Fade("@frame0*")` leaves the faces in `frame03/顔窓31`.
                 let in_matched = |k: &str| {
-                    k[prefix.len()..].find('/').is_some_and(|i| self.objects.contains_key(&k[..prefix.len() + i]))
+                    k[prefix.len()..]
+                        .find('/')
+                        .is_some_and(|i| self.objects.get(&k[..prefix.len() + i]).is_some_and(|o| self.game.family || o.container))
                 };
                 let mut found: std::collections::BTreeSet<String> = self
                     .objects
                     .keys()
-                    .filter(|k| k.starts_with(prefix) && !(self.game.family && in_matched(k)))
+                    .filter(|k| k.starts_with(prefix) && !in_matched(k))
                     .cloned()
                     .collect();
                 if !prefix.is_empty() {
@@ -2423,14 +2431,16 @@ impl<'a, 'b> Compiler<'a, 'b> {
 
     fn create(&mut self, name: String, kind: Kind<'a>, priority: i64, w: i64, h: i64) -> &mut Object<'a> {
         self.seq += 1;
-        let o = Object { kind, priority, x: 0, y: 0, w, h, opacity: 1000, locked: false, hideable: false, seq: self.seq, zoom: (1000, 1000), blur: 0, vertex: None, turn: (0, 0, 0), shake: None, clip: None, over_text: false };
+        let o = Object { kind, priority, x: 0, y: 0, w, h, opacity: 1000, locked: false, hideable: false, seq: self.seq, zoom: (1000, 1000), blur: 0, vertex: None, turn: (0, 0, 0), shake: None, clip: None, over_text: false, container: false };
         self.objects.insert(name.clone(), o);
         self.objects.get_mut(&name).unwrap()
     }
 
     fn delete(&mut self, name: &str) {
-        // Its children go with it.
-        let children: Vec<String> = self.objects.keys().filter(|_| self.game.family).filter(|k| k.len() > name.len() && k.starts_with(name) && k.as_bytes()[name.len()] == b'/').cloned().collect();
+        // Its children go with it (a container's always: a wildcard that
+        // matches it doesn't reach them).
+        let with_children = self.game.family || self.objects.get(name).is_some_and(|o| o.container);
+        let children: Vec<String> = self.objects.keys().filter(|_| with_children).filter(|k| k.len() > name.len() && k.starts_with(name) && k.as_bytes()[name.len()] == b'/').cloned().collect();
         for c in children {
             self.delete(&c);
         }
@@ -3817,6 +3827,47 @@ function Nothing()
         let c = compile(story, LIBRARY);
         assert!(c.notes.contains_key("Fade argument 3 ignored"), "{:?}", c.notes);
         assert!(!c.notes.keys().any(|n| n.starts_with("Fade argument 0") || n.starts_with("CreateProcess argument")), "{:?}", c.notes);
+    }
+
+    #[test]
+    fn a_wildcard_reaches_a_pictures_children_but_not_a_windows() {
+        // 装甲悪鬼村正.exe under wine: Fade("@P*") fades P's child too,
+        // Fade("@W*") leaves a window's child; Delete of a window takes its
+        // children with it.
+        let story = r#"
+scene a.nss
+{
+	CreateWindow("W", 100, 0, 0, 1024, 576, false);
+	SetAlias("W", "W");
+	CreateTexture("W/a", 100, 0, 0, "cg/st/wa.png");
+	CreateTexture("P", 100, 0, 0, "cg/st/p.png");
+	SetAlias("P", "P");
+	CreateTexture("P/b", 100, 0, 0, "cg/st/pb.png");
+	Wait(100);
+	Fade("@W*", 0, 0, null, true);
+	Fade("@P*", 0, 0, null, true);
+	Wait(100);
+	CreateWindow("V", 100, 0, 0, 1024, 576, false);
+	CreateTexture("V/c", 100, 0, 0, "cg/st/vc.png");
+	Wait(100);
+	Delete("V");
+	Wait(100);
+}
+"#;
+        let c = compile(story, LIBRARY);
+        let mut shown: BTreeMap<u32, String> = BTreeMap::new();
+        for op in &c.ops {
+            if let Op::Sprites { changes, .. } = op {
+                for ch in changes {
+                    match &ch.sprite {
+                        Some(s) => shown.insert(ch.layer, s.image.clone()),
+                        None => shown.remove(&ch.layer),
+                    };
+                }
+            }
+        }
+        let images: Vec<&str> = shown.values().map(String::as_str).collect();
+        assert_eq!(images, ["cg/st/wa.png"], "{:?}", c.ops);
     }
 
     #[test]

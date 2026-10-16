@@ -666,16 +666,9 @@ Next, in order:
    - Tempo (easing) is never read.
    - A 4-argument `Fade` probably doesn't wait in the exe (49 calls
      wait in ours); check under wine first.
-5. Wildcards and children (2026-10-16, exe and wine:
-   `research/nitroplus/builtins.md`, "Conventions"): a trailing `*` that
-   matches a window or a name (`遠３`, the standing pictures' parent)
-   doesn't reach its children in the original; ours does (by name
-   prefix). Making ours follow the exe (`muramasa/star-containers`, a
-   container flag on `CreateWindow`/`CreateName` objects, their children
-   deleted with them) changes 6,544 lines of the script (standing
-   pictures under a locked `遠３` outlive `Delete("*")`, for example), and
-   those scenes aren't checked yet. Also: a picture's children are placed
-   from its corner in the original, at their own place in ours.
+5. A picture's children are placed from its corner in the original
+   (`research/nitroplus/builtins.md`, "Conventions"), at their own place
+   in ours.
 6. Gaps from the unread-argument notes (2026-10-16; each built-in's
    arguments the converter doesn't read, with counts, in
    `research/nitroplus/builtins.md`, "Arguments not read"), most
@@ -756,6 +749,18 @@ Next, in order:
 
 Finished work, moved out of "Status" so a session reads only the open
 state.
+
+**Wildcards and children (2026-10-16, exe and wine):** a trailing `*` that
+matches a window, a name or a camera doesn't reach its children; one
+that matches a picture does (the exe's flag at `+0x9d4`; under wine
+`Fade("@窓*")` left a window's child, `Fade("@絵*")` faded a picture's).
+`Delete` still takes a matched container's children, a locked one's too
+(under wine `Delete("*")` removed the standing pictures in the locked
+`遠３`), and deleting a window deletes what is in it (`md01_006`'s
+`Delete("絵窓")` used to leave its standing picture and background).
+About 5,800 lines of the script change, mostly in battle scenes
+(`ma04_016vs` 144 hunks, `md05_024vs` 64, `md01_029vs` 46): children of
+windows that a wildcard `Fade`/`Move` used to show or hide.
 
 **Title button sounds late (2026-10-16, reported by the user):** the
 hover sound (`$TitleOverSE`, `se戦闘_動作_刀構え02.ogg`, our
