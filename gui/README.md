@@ -128,4 +128,4 @@ Add a `Game` entry to `GAMES` in `games.py`: its marker files, an optional
 the game's document, its `options` (each a converter flag; their defaults
 are the recommended settings), its font, whether it needs ffmpeg and the
 finished build's size (the progress bar and the free-space check use it). Add a fake layout and the expected command to
-`tests/test_games.py`.
+`gui/tests/test_games.py`.
