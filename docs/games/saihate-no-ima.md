@@ -154,7 +154,7 @@ pre-wrapped display lines, often with the speaker name first, no inline
 markup. A second block follows (`u32 4, u32 0` in every message). Bit 0
 of `sub` means "the first line is the speaker's name"; the display code
 (`0x475f40`) drops it in text modes that can't show names (`0x4679d0`
-checks the mode; item 27). All 46,578 messages (15,620 voiced) decode.
+checks the mode; History, item 27). All 46,578 messages (15,620 voiced) decode.
 
 **Voices:** clip index = (id − 1) % 100000; `id / 100000` is the
 character (3 あずさ … 13 ジーン, 0 minor women, 1 minor men). The rule
@@ -268,7 +268,6 @@ is noted) and why:
 
 | Opcode | Operand | Values | Why |
 |---|---|---|---|
-| `0x41` | `sub` | 0x13 | every voiced message has a speaker name (bit 0) |
 | `0x40`, `0x41` | `+8` | any | the source line number (`cd messages` prints it) |
 | `0x40`, `0x41` | `-8` | u32 4, u32 0 | after the text of every message |
 | `0x36` | `-4` | any | the label index of the chapter's `\|chpe` label |
@@ -301,15 +300,15 @@ run's):
 | Opcode | Operand or behaviour | State |
 |---|---|---|
 | every opcode the corpus uses, except as below | every operand | converted |
-| `0x40` | `sub` (0x12 in 19,234, 0x13 in 11,724; bit 0 = has a speaker name): 30,958 notes | partial: names are guessed from the text, wrong in 3 messages (item 27) |
+| `0x40`, `0x41` | `sub` bit 0: the first line is the speaker's name (not in full-screen windows: the exe drops it there) | converted (History, item 27) |
 | `0x40` | the extra block after the debug menu's one message (`0001.cd` #1): 1 note | dropped (unreachable) |
-| `0x43` | `arg`: 0 (48) waits for the window's fade-out, 1 (530) doesn't: 578 notes | dropped: both become the same `Op::HideTextWindow` |
+| `0x52`, `0x53` | `arg` (odd numbers, 421 and 221 distinct values): 1,117 and 501 notes | dropped: the click wait's read-flag number (item 34) |
+| `0x43` | `arg`: 0 (48) goes on in the same frame, 1 (530) on the next; neither waits for the fade-out: 578 notes | dropped: both become the same `Op::HideTextWindow` |
 | `0x44` | u16 flags at +6 (3 in 32, 1 in 5): 37 notes | dropped: meaning unknown |
 | `0x46` | u32 style at +6 (0x8007 in 205, 0x8012 in 9): 214 notes | dropped: the 9 style-18 links look like the others |
 | `0x46` | u32 at +14 (0 in all 214), kept by `op_46` (`0x477460`) in the link: 214 notes | dropped: meaning unknown |
 | `0x49` | u32 edge colour at +12 (0xff000000 "keep" in 564, 0x808080 in 1): 565 notes | dropped |
 | `0x4a` | u32 edge colour: 2 notes | dropped |
-| `0x52`, `0x53` | `arg` (odd numbers, 421 and 221 distinct values): 1,117 and 501 notes | dropped: meaning unknown |
 | `0x56` | u32 depth at +2 (0 and 2000): 2 notes | dropped |
 | `0x59` | the old track fading out under the new one | partial: it stops at once (one BGM channel) |
 | `0x6f` | the pulse | converted, not checked against the original |
@@ -628,8 +627,14 @@ a copy of the save works.
   operand given and not read, whatever its value (0 included), is a
   dry-run note and a gap in `metrics.json`, except the filler (`NO_SUB`,
   `NO_ARG`) and the harmless table ("Operand coverage"), each row with
-  the values it covers. 35,825 notes of 21 kinds; 49,328 of 84,713 calls
-  fully converted (was a false 84,711). 0.txt doesn't change.
+  the values it covers. Merged.
+- Open: speaker names from `sub` bit 0, PR #102 (History, item 27):
+  4,867 notes of 20 kinds left; 80,285 of 84,713 calls fully converted
+  (was 49,328).
+- Next session: `0x52`/`0x53` `arg` (item 34, read in the exe),
+  `0x90` +2 (item 35: `op_90` `0x434960` stores it at the new
+  module's +0xc, meaning not found yet), `0x43` `arg` (item 32, read
+  in the exe: neither value waits).
 - Merged: the exe map's fixes and missed callbacks (#46).
 - Open: `0x59` as a real cross-fade, converter #25 with engine #18 (asked
   for a web-build measurement of the old track's decode first);
@@ -640,7 +645,7 @@ Declared finished on 2026-10-14, then reopened the same day: the 0.19
 debug trace and the decompiled exe (`research/tools/ghidra/ghidra_export.sh`,
 names in `research/xuse/names.tsv`) showed opcodes read wrong from
 `objdump`. All 26 items of that list are done, and so is everything the
-debug trace found ("History", below). Open: items 27-45 below, from
+debug trace found ("History", below). Open: items 28-45 below, from
 the operand notes.
 
 Converted and playable from start to end: text, voices, sprites with
@@ -681,19 +686,6 @@ operands the converter is given and never reads ("Operand coverage"
 under "Script bytecode"); the user made every note an item. Numbered
 after History's 26, most noticeable first (notes = instructions):
 
-27. **Speaker names from `sub` bit 0** (`0x40` `sub`, 30,958 notes).
-    The bit is the name flag, not a voice flag: when the text mode
-    can't show names, `show_message` (`0x475f40`) clears it and logs
-    "現在のテキストモードではネームの表示はできません。ネームを強制解除します。"
-    (`0x4679d0`, named `voice_exists`, checks the text mode). Every
-    0x40 message has id 0, so none has a voice. The converter guesses
-    names instead (a 1-8 character first line before a 「『（ line);
-    the guess agrees with the bit on all 46,578 messages but 3, where it
-    takes a line for a name: `0010.cd` #5832 (象牙の単眼鏡。) and #5839
-    (小皿。), the encyclopedia's item lines, and `0078.cd` #22 (a blank
-    line before 『凶器に関する疑問』). Use the bit; not checked: whether
-    named messages occur in the full-screen modes, where the exe drops
-    the name.
 28. **Link style 18** (`0x46` u32 at +6, 214 notes): 9 links have style
     0x8012 instead of 0x8007 and look like the others.
 29. **Edge colours** (`0x49` u32 at +12, 565 notes; `0x4a`, 2): one
@@ -704,13 +696,20 @@ after History's 26, most noticeable first (notes = instructions):
     bust-ups and overlays; `screenfilter` has no depth.
 31. **Effect depth** (`0x8c`'s second u32, 240 notes: 1000 in 227, 1100
     in 5, 0 in 4, 2000 in 3, 500 once): the same for the static, ripples and shakes.
-32. **Window hide without waiting** (`0x43` `arg`, 578 notes: 1 in 530,
-    0 in 48): with 1 the original doesn't wait for the window's
-    fade-out; ours treats 0 and 1 alike.
+32. **Window hide's `arg`** (`0x43`, 578 notes: 1 in 530, 0 in 48).
+    Neither waits for the window's fade-out: `op_43` (`0x4772a0`)
+    starts the hide and returns 2 (go on in the same frame) for 0, 0
+    (go on next frame) for anything else. Ours goes on at once for both;
+    the one-frame difference is not converted.
 33. **Ruby flags** (`0x44` u16 at +6, 37 notes: 3 in 32, 1 in 5):
     meaning unknown.
-34. **`0x52`/`0x53` `arg`** (1,117 + 501 notes, odd numbers, 421 and
-    221 distinct values): meaning unknown.
+34. **`0x52`/`0x53` `arg`** (1,117 + 501 notes): the click wait's
+    read-flag number, the tag's source line (odd: between the messages'
+    even lines). `FUN_00476a80` keeps it at the window's +0x10, and the
+    wait (`0x476750`) marks (file, it) read with `set_read_flag`
+    (`0x4bb450`), as `show_message` does with a message's line.
+    CONscripter's kidoku keys the same wait by its place in `0.txt`:
+    next session, likely a harmless-table row ("any").
 35. **`0x90` module field** (u32 at +4, 651 notes): 1 except 2 and 0
     once each.
 36. **`0x88` module field** (u32 at +8, 45 notes: 0 in 41, 1000 twice,
@@ -1219,3 +1218,16 @@ Fixed in CONscripter by the same work: half-width katakana in Shift_JIS
 text (「影（ｼｬﾄﾞｳshadow ）」 in `s7_l8` drew as a blank and lost the next
 character), and saves losing the speaker name (`strsp` 49) and looping
 sound effects on `dwave` channels.
+
+27. **Done: speaker names from `sub` bit 0** (2026-10-16). `0x40` and
+   `0x41`'s `sub` bit 0 says the first line is the speaker's name; the
+   converter used to guess it (a 1-8 character first line before a
+   「『（ line), which took three lines for names: `0010.cd` #5832
+   (象牙の単眼鏡。) and #5839 (小皿。), the encyclopedia's item lines,
+   and `0078.cd` #22 (a blank line before 『凶器に関する疑問』). It now
+   reads the bit. In a text mode that can't show names (`0x4c` mode 1,
+   the full-screen windows: `text_mode_allows_name` `0x4679d0`, mode 0
+   yes, 1 no, 2 by bit 6), `show_message` (`0x475f40`) clears the bit
+   and the name is a line of text; the converter does the same, though
+   no named message falls in a full-screen window (the 0.txt diff is the
+   three messages only). Every `0x40` message has id 0: none is voiced.
