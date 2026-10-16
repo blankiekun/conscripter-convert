@@ -125,6 +125,9 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, s: BarScreens) {
     let keys = menu.is_some_and(|m| m.key.is_some() || m.items.iter().any(|i| i.key.is_some()));
 
     w(format!("*{WAIT}"));
+    // *start's erasetextwindow 0 again: a run started with --goto (a test
+    // save, a trace) skips *start, and the print below would hide the window.
+    w("erasetextwindow 0".into());
     if s.game_speed.is_some() {
         w("gamespeed 100".into());
     }
