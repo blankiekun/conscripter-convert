@@ -1470,22 +1470,26 @@ fn lower_screen_module(
         return Ok(());
     }
     let displacement = match m.data {
-        ModuleData::Replace(r) => Some((assets.mask(r.map as usize, false)?, r.distance, r.direction)),
+        // The begin angle (1/100 turn): the exe's sine index (1024 a turn)
+        // starts at (begin << 16) / 100 >> 6 (0x41d390), in 1/1000 turn.
+        ModuleData::Replace(r) => {
+            let index = ((i64::from(r.begin_angle) << 16) / 100) >> 6;
+            let phase = ((index * 1000 + 512) / 1024) as i32;
+            Some((assets.mask(r.map as usize, false)?, r.distance, r.direction, phase))
+        }
         // The zigzag's rings as a map (grey = the kernel's table index / 4);
         // its Multi blend multiplies the picture by the shifted copy
         // (screenripple's blend 1). The phase and the reduction are left
         // out.
-        ModuleData::Zigzag(z) => Some((assets.zigzag_map(z.centre_x, z.centre_y, z.frequency)?, z.distance, z.direction)),
+        ModuleData::Zigzag(z) => Some((assets.zigzag_map(z.centre_x, z.centre_y, z.frequency)?, z.distance, z.direction, 0)),
         _ => None,
     };
-    if let Some((map, distance, direction)) = displacement {
+    if let Some((map, distance, direction, phase)) = displacement {
         let multi_zigzag = matches!(m.data, ModuleData::Zigzag(_)) && m.blend == PRESET_BLEND_MULTI;
         if !matches!(m.blend, PRESET_BLEND_ALPHA | PRESET_BLEND_COPY) && !multi_zigzag {
             ops.push(Op::Unsupported { what: format!("opcode 0x70 kind {} blend {}", m.kind, m.blend), at: at() });
             return Ok(());
         }
-        // Assumption: begin_angle (1/100 turn; always 1 in the game) is
-        // left out: screenripple starts at phase 0.
         let opacity = i32::from(m.opacity.min(256));
         let effect = ScreenEffect::Ripple {
             map,
@@ -1497,6 +1501,7 @@ fn lower_screen_module(
             angle_step: 0,
             phase_step: 0,
             multiply: multi_zigzag,
+            phase,
         };
         if !replaces.contains(&m.slot) {
             ops.push(Op::ScreenFilter { slot: m.slot, filter: None, fade_ms: 0 });
@@ -1584,6 +1589,7 @@ fn lower_environment(
                 angle_step: r.angle_step,
                 phase_step: r.phase_step,
                 multiply: false,
+                phase: 0,
             };
             ops.push(Op::ScreenEffect { slot: m.slot, effect: Some(effect) });
             true
@@ -3309,6 +3315,8 @@ const UNNEEDED_OPERANDS: &[(u16, &str, &str, &str)] = &[
     (0x8d, "-1", "ff", "0xff, as in every 0x87 and 0x8a wait record"),
     // op_88 0x415b50 clears a slot-0 module without its blend and opacity.
     (0x88, "-4", "00000000", "a cleared slot's blend and opacity"),
+    // op_70 0x415a30 likewise clears a kind-0 or slot-0 filter without them.
+    (0x70, "-4", "00000000", "a cleared slot's blend and opacity"),
     // op_88 sets the module's +0xc, the key FUN_0040e2a0 keeps a preset's modules in (ascending, a tie after the earlier ones).
     (
         0x88,

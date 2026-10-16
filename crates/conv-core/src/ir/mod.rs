@@ -249,7 +249,7 @@ pub enum ScreenEffect {
     /// rippled picture lies over the plain one at `opacity` (0-256), or with
     /// `multiply` the plain one is multiplied by it at that opacity. Each
     /// step turns the angle by `angle_step` and moves the phase by
-    /// `phase_step`.
+    /// `phase_step`, from `phase` (1/1000 turn).
     Ripple {
         map: String,
         time_ms: u32,
@@ -260,6 +260,7 @@ pub enum ScreenEffect {
         angle_step: i32,
         phase_step: i32,
         multiply: bool,
+        phase: i32,
     },
     /// A copy of the picture taken when it starts, tinted (`tint` 0 none,
     /// 1 multiplied by `colour`, 2 `colour` laid over it, at
