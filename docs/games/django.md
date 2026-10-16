@@ -369,7 +369,7 @@ with the original (it wants all eleven endings' flags under wine).
 | Script parsing | ✅ All 249 files; 56 places that don't parse, none in the story |
 | Story control flow (56 chapters, 10 choices, bad ends) | ✅ Compiled whole (`compile_story`); in the engine the good path plays to the end (6,496 pages) and each wrong answer ends the story with its own bad end, then the game goes back to the title (`research/nitroplus/django_routes.sh`, which stops each run there, 2026-10-15) |
 | Text | 🟡 In the boxes' places (box00: 39 columns at 50,472, white on the black bar; five rows, as many as end inside the 130 px box); 3,424 voiced lines; `box00`, `box01` (x 250) and `box02` (x 390) start within 1 px of the original's under wine (`box03`-`box05` are never used) |
-| Pictures, sound in scripts | 🟡 Black bars, face windows in their frames, standing pictures, backgrounds; pictures turned over (`Rotate` by 180°, 315 calls: characters facing the other way) drawn mirrored (dja004's choice now as the original's); cameras (`CreateCamera`, `MoveCamera`, 365 calls): a camera's child of priority p drawn about the screen's centre at (its place − the camera's) × z / (1000 − p), as large, z the camera's zoom (priority is depth: measured under wine with boxes at four priorities and six camera settings, and dja001's carriage scene then matched the original's frames); moves, zooms and camera moves over time (1,765) as real motion: the engine moves the picture (`spmotion2`, keeping its last place) while the script goes on, also through the cross-fade of what else changes; 60 that also fade or change picture are still cross-fades; a picture under an opaque full-screen one isn't drawn (old backgrounds the script leaves up under `窓`); the 400-vs-3 battle's muzzle flashes (`GunFire`) as a white sprite added on (`spblend`), flashing its number of times while the text goes on (`spalpha` keys), and its strobe the same way until deleted; the looping shakes (`ShakeVLoop*`) as the background's looped `spmotion`, and dja001's opening slideshow (`MoveBlackHawk`: the pictures fading and sliding in turn) as looped motions (`convert/loops.rs`, shared with 装甲悪鬼村正); every sound is found |
+| Pictures, sound in scripts | 🟡 Black bars, face windows in their frames, standing pictures, backgrounds; pictures turned over (`Rotate` by 180°, 315 calls: characters facing the other way) drawn mirrored (dja004's choice now as the original's); cameras (`CreateCamera`, `MoveCamera`, 365 calls): a camera's child of priority p drawn about the screen's centre at (its place − the camera's) × z / (1000 − p), as large, z the camera's zoom (priority is depth: measured under wine with boxes at four priorities and six camera settings, and dja001's carriage scene then matched the original's frames); moves, zooms and camera moves over time (1,765) as real motion: the engine moves the picture (`spmotion2`, keeping its last place) along its tempo's curve (`spcurve` tables of the exe's `apply_tempo`) while the script goes on, also through the cross-fade of what else changes; 60 that also fade or change picture are still cross-fades; a picture under an opaque full-screen one isn't drawn (old backgrounds the script leaves up under `窓`); the 400-vs-3 battle's muzzle flashes (`GunFire`) as a white sprite added on (`spblend`), flashing its number of times while the text goes on (`spalpha` keys), and its strobe the same way until deleted; the looping shakes (`ShakeVLoop*`) as the background's looped `spmotion`, and dja001's opening slideshow (`MoveBlackHawk`: the pictures fading and sliding in turn) as looped motions (`convert/loops.rs`, shared with 装甲悪鬼村正); every sound is found |
 | Choices | ✅ Plates as picture buttons, text placed as the original's (compared under wine) |
 | System screens | 🟡 From the game's pictures (`django/screens.rs`): title, right-click menu, save/load (3×20 slots), yes/no questions, text log, settings (bullet rows as `SliderSteps`), the click-wait bullet after the last character (`getcursorpos` in the bar's wait routine); compared under wine: right-click menu, save, log, settings (text speed starts at level 5 as the original's; the two SAVE-DATA question rows drawn as they stand, ON chosen; the display options and version panel left out on purpose) |
 | Extras | 🟡 Menu, CG library, sound library, recollection, each compared with the original; left out: the doors' animation, the rifle over a category |
@@ -399,29 +399,21 @@ with the original (it wants all eleven endings' flags under wine).
    21,859 since later PRs read more), most visible first; counts are
    compiled occurrences, what the original does is from the scripts and
    `research/nitroplus/builtins.md`:
-   1. **Easing** (tempo): `Move` 4 (1,069), `MoveCamera` 5 (373),
-      `Zoom` 4 (309). Every non-`null` tempo (`Dxl2` 202, `Dxl3` 105,
-      `Dxl1` 72, `AxlDxl` 37, `DxlAuto` 36 of the scripts' `Move`s;
-      `MoveCamera`'s `AxlDxl` 92, `Dxl1` 63, `DxlAuto` 57, `Dxl2` 53,
-      `Dxl3` 38, `null` 84, the `null` ones counted too) eases the motion by the
-      exe's curves (`apply_tempo`); ours is linear. Converter-only: a
-      `spmotion2` takes up to 32 keys, so a curve fits as 8-16 linear
-      pieces.
-   2. **The chorus' panned parts** (dja055_02): 14 `MusicStart`s pan
+   1. **The chorus' panned parts** (dja055_02): 14 `MusicStart`s pan
       voice parts hard left or right, but they are BGM objects
       (`CreateUnit`: `CreateSound(…, BGM, …)`) and ours plays one BGM
       at a time, so the pan is noted ("SetPan on the music") and
       unheard. Layering BGM parts is its own item.
-   3. **`Shake` 6 `n` and 7 tempo** (58 each): `n` (200-1000; above
+   2. **`Shake` 6 `n` and 7 tempo** (58 each): `n` (200-1000; above
       1000 the call does nothing) sets the jolt's rhythm and the tempo
       its decay; ours shakes every 16 ms, dying linearly. `n`'s meaning
       is lost in the exe's x87 code: one wine shot of a 200 and a 1000
       shake would settle it.
-   4. **`Fade` 3, tempo** (77 non-`null`, mostly `DxlAuto`/`AxlDxl`): an
+   3. **`Fade` 3, tempo** (77 non-`null`, mostly `DxlAuto`/`AxlDxl`): an
       eased fade; ours linear. Hard to see.
-   5. **`Rotate` 5, tempo** (264): moot until `Rotate` over time (item 4)
-      is converted, then as item 7.1.
-   6. **`CreateWindow` 6** (975): `true` on every story window (the
+   4. **`Rotate` 5, tempo** (264): moot until `Rotate` over time (item 4)
+      is converted, then eased as `Move`.
+   5. **`CreateWindow` 6** (975): `true` on every story window (the
       boxes, `中窓`, `移動窓`), `false` on the full-screen `窓`, the 0×0
       `音`, the system `WND` and the battle's `カウンタ窓`. Not the clip:
       `カウンタ窓` must clip its digit strip to 52 px. Its digits sit at
@@ -429,11 +421,11 @@ with the original (it wants all eleven endings' flags under wine).
       `false` may mean children placed from the screen rather than the
       window's corner. Nothing shows: `窓` is at 0,0 and the counter is
       `django/counter.rs`'s own.
-   7. **`SetBacklog` 2, the speaker** (75; 73 `null`): two calls in
+   6. **`SetBacklog` 2, the speaker** (75; 73 `null`): two calls in
       `dja035_01` name ジュリアン and イライザ; what the original's log
       does with it (a name line, or the voice switches by character) is
       unchecked.
-   8. **No change** (the original passes values that do what ours
+   7. **No change** (the original passes values that do what ours
        does; candidates for `UNREAD_HARMLESS`): `WaitAction` 1 (5,852),
        `WaitFade` 1 (1), `WaitMove` 1 (2), all `null` (no limit);
        `SetFrequency` 0, 1, 3 (1,283 each: `MusicStart`'s object, 0 ms,
@@ -458,6 +450,14 @@ with the original (it wants all eleven endings' flags under wine).
       before one may be taken as ended too soon. Fine as is.
 
 ## History
+
+- **Eased moves (2026-10-16, shared NSS code).** The tempo of `Move`
+  (argument 4), `Zoom` (4) and `MoveCamera` (5) eases the motion by the
+  exe's curves (`apply_tempo`, `research/nitroplus/builtins.md`): `Axl`
+  and `Dxl` 1-3 as `Op::MoveEase`'s powers, the sine ones (`AxlAuto`,
+  `DxlAuto`, `AxlDxl`, `DxlAxl`) as its new eases 4-7, `spcurve` 70-73;
+  `null` stays straight. Dry run: the 1,736 tempo notes are gone; 1,690
+  motions eased (`spcurve` 11-13, 31-33, 71, 72).
 
 - **Render modes (2026-10-16, shared NSS code, engine #34).**
   `Request(obj, AddRender|SubRender|NormalRender)` on a picture is drawn

@@ -714,8 +714,9 @@ Next, in order:
    arguments the converter doesn't read, with counts, in
    `research/nitroplus/builtins.md`, "Arguments not read"), most
    noticeable first:
-   - Tempo (easing) of `Fade`, `Move`, `Zoom`, `Rotate`, `SetVolume`,
-     `DrawTransition` (`Axl`/`Dxl`…; a `null` tempo is taken as linear).
+   - Tempo (easing) of `Fade`, `Rotate`, `SetVolume`, `DrawTransition`
+     (`Axl`/`Dxl`…; a `null` tempo is taken as linear). `Move`, `Zoom`
+     and `MoveCamera` motions are eased (Django's History, "Eased moves").
      After engine #2 / converter #13: tempo as spmotion curves; DxlAxl's
      acos and the cosine/sine ones as spcurve tables. The exe's curves
      (`apply_tempo`, `00449f40`; t the progress 0-1): Axl1/2/3 t², t³,

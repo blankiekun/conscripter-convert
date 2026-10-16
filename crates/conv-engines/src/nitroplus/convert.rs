@@ -1197,6 +1197,25 @@ struct SoundObject {
     freq: u32,
 }
 
+/// A timed call's tempo as [`Op::MoveEase`]'s (ease, exponent): the exe's
+/// curves (`apply_tempo`, `research/nitroplus/builtins.md`); `None` linear.
+fn tempo(v: &Value) -> Option<(u8, u32)> {
+    // shortcut: the exe matches the name by its bytes' sum; the scripts spell them all as here.
+    Some(match v.string().as_str() {
+        "Axl1" => (1, 2),
+        "Axl2" => (1, 3),
+        "Axl3" => (1, 4),
+        "Dxl1" => (2, 2),
+        "Dxl2" => (2, 3),
+        "Dxl3" => (2, 4),
+        "AxlAuto" => (4, 1),
+        "DxlAuto" => (5, 1),
+        "AxlDxl" => (6, 1),
+        "DxlAxl" => (7, 1),
+        _ => return None,
+    })
+}
+
 /// `old` moved and zoomed into `now` over `ms` by the engine: the same
 /// picture at the same opacity, zoomed alike both ways.
 fn motion(old: &Shown, now: &Shown, ms: u32) -> Option<Op> {
@@ -1292,6 +1311,9 @@ struct Compiler<'a, 'b> {
     pending_ms: u32,
     /// The same per object, for a `WaitAction` on one of them.
     pending_by: HashMap<String, u32>,
+    /// The eased objects among them: [`tempo`]'s curve of their last
+    /// `Move`, `Zoom` or camera move.
+    pending_tempo: HashMap<String, (u8, u32)>,
     /// A `DrawTransition` mask for the next sync.
     pending_mask: Option<String>,
     /// The pictures the running screen shake shakes: it stops when they go.
@@ -2082,6 +2104,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
             shown: BTreeMap::new(),
             pending_ms: 0,
             pending_by: HashMap::new(),
+            pending_tempo: HashMap::new(),
             pending_mask: None,
             shaken: Vec::new(),
             font_size: 20,

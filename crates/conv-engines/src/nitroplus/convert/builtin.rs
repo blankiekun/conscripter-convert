@@ -9,8 +9,6 @@ use super::*;
 /// `None` for any), why.
 const UNREAD_HARMLESS: &[(&str, usize, Option<&str>, &str)] = &[
     ("Fade", 3, Some("null"), "no tempo: linear, as ours"),
-    ("Move", 4, Some("null"), "no tempo: linear, as ours"),
-    ("Zoom", 4, Some("null"), "no tempo: linear, as ours"),
     ("Rotate", 5, Some("null"), "no tempo: linear, as ours"),
     ("SetVolume", 3, Some("null"), "no tempo: linear, as ours"),
     ("SetPan", 3, Some("null"), "no tempo: linear, as ours"),
@@ -21,6 +19,17 @@ const UNREAD_HARMLESS: &[(&str, usize, Option<&str>, &str)] = &[
 ];
 
 impl Compiler<'_, '_> {
+    /// Notes the tempo of a timed `Move`, `Zoom` or camera move of
+    /// `targets` for the motions of the next sync.
+    fn set_tempo(&mut self, v: &Value, targets: &[String]) {
+        for t in targets {
+            match tempo(v) {
+                Some(e) => self.pending_tempo.insert(t.clone(), e),
+                None => self.pending_tempo.remove(t),
+            };
+        }
+    }
+
     /// A built-in call; every argument passed and not read gets a note
     /// (`<Builtin> argument <i> ignored`), so a call converted only in part
     /// shows in the dry run's list.
@@ -121,6 +130,7 @@ impl Compiler<'_, '_> {
                 if children.is_empty() {
                     return Value::Null;
                 }
+                self.set_tempo(&arg(5), &children);
                 self.timed(arg(1).int(), &arg(6), &children);
             }
             "CreateWindow" | "CreateName" => {
@@ -219,6 +229,9 @@ impl Compiler<'_, '_> {
                         if let Some(t) = trail {
                             self.ops.push(Op::SpriteTrail { layer: sh.layer, passes: t.passes, alpha: t.alpha, lag: t.lag });
                         }
+                        if let Some((ease, exponent)) = tempo(&arg(4)) {
+                            self.ops.push(Op::MoveEase { ease, exponent });
+                        }
                         self.ops.push(Op::SpriteMove { layer: sh.layer, x: cx, y: cy, ms: ms as u32 });
                     }
                     return Value::Null;
@@ -228,6 +241,7 @@ impl Compiler<'_, '_> {
                     o.x = to_x.position(o.x, o.w, screen_w);
                     o.y = to_y.position(o.y, o.h, screen_h);
                 }
+                self.set_tempo(&arg(4), &targets);
                 self.timed(ms, &arg(5), &targets);
             }
             "Delete" if arg(0).string() == "*" && self.game.chapter_objects && self.chapter_mark.is_some() => {
@@ -305,6 +319,7 @@ impl Compiler<'_, '_> {
                     let o = self.objects.get_mut(t).unwrap();
                     o.zoom = (zx.position(o.zoom.0, 0, 0).max(1), zy.position(o.zoom.1, 0, 0).max(1));
                 }
+                self.set_tempo(&arg(4), &targets);
                 self.timed(arg(1).int(), &arg(5), &targets);
             }
             "SetBlur" => {

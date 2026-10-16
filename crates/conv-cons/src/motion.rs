@@ -10,7 +10,12 @@ use crate::SPRITE_BASE;
 /// One `spmotion` key: ms, offset, zoom (x and y), angle, alpha 0-256,
 /// reached in a straight line (curve 0).
 fn key(ms: u32, x: i32, y: i32, zoom: u32, angle: i32, alpha: u32) -> String {
-    format!("{ms},{x},{y},{zoom},{zoom},{angle},{},0", alpha.min(256))
+    curved_key(ms, x, y, zoom, angle, alpha, 0)
+}
+
+/// A key reached along `curve` (0 straight, or an `spcurve` id).
+fn curved_key(ms: u32, x: i32, y: i32, zoom: u32, angle: i32, alpha: u32, curve: u32) -> String {
+    format!("{ms},{x},{y},{zoom},{zoom},{angle},{},{curve}", alpha.min(256))
 }
 
 /// A fade in over `ms` from alpha 0 to the sprite's own (a loop 0 motion).
@@ -106,12 +111,14 @@ pub(crate) fn emit(out: &mut String, layer: u32, keys: &[(u32, i32, i32)], loope
         return;
     }
     let keys: Vec<MotionKey> = keys.iter().map(|&(ms, x, y)| MotionKey { ms, x, y, zoom: 100, angle: 0, opacity: 256 }).collect();
-    emit2(out, layer, &keys, if looped { MotionEnd::Loop } else { MotionEnd::Back }, fade);
+    emit2(out, layer, &keys, if looped { MotionEnd::Loop } else { MotionEnd::Back }, fade, 0);
 }
 
 /// Writes an [`conv_core::ir::Op::SpriteMotion2`] with `spmotion`. A fade
 /// in over `fade` ms started with it goes into its keys.
-pub(crate) fn emit2(out: &mut String, layer: u32, keys: &[MotionKey], end: MotionEnd, fade: Option<u32>) {
+/// Every key past the first is reached along `curve` (0 straight, or an
+/// `spcurve` id).
+pub(crate) fn emit2(out: &mut String, layer: u32, keys: &[MotionKey], end: MotionEnd, fade: Option<u32>, curve: u32) {
     let slot = SPRITE_BASE + layer;
     let mode = match end {
         MotionEnd::Back => 0,
@@ -123,7 +130,8 @@ pub(crate) fn emit2(out: &mut String, layer: u32, keys: &[MotionKey], end: Motio
     if let Some(fade) = fade.filter(|_| end != MotionEnd::Loop) {
         fold_fade(&mut keys, fade);
     }
-    let keys: Vec<String> = keys.iter().map(|k| key(k.ms, k.x, k.y, k.zoom, k.angle, k.opacity)).collect();
+    // shortcut: a key the fade adds splits an eased curve in two; fine while eased motions (NSS moves) don't fade.
+    let keys: Vec<String> = keys.iter().enumerate().map(|(i, k)| curved_key(k.ms, k.x, k.y, k.zoom, k.angle, k.opacity, if i > 0 { curve } else { 0 })).collect();
     writeln!(out, "spmotion {slot},{mode},{}", keys.join(",")).unwrap();
 }
 
@@ -143,8 +151,11 @@ mod tests {
     fn writes_zoom_angle_and_opacity_keys() {
         let key = |ms, x, zoom, angle, opacity| MotionKey { ms, x, y: 0, zoom, angle, opacity };
         let mut out = String::new();
-        emit2(&mut out, 5, &[key(0, 0, 100, 0, 256), key(500, 300, 150, -45, 0)], MotionEnd::Keep, None);
+        emit2(&mut out, 5, &[key(0, 0, 100, 0, 256), key(500, 300, 150, -45, 0)], MotionEnd::Keep, None, 0);
         assert_eq!(out, "spmotion 67,2,0,0,0,100,100,0,256,0,500,300,0,150,150,-45,0,0\n");
+        out.clear();
+        emit2(&mut out, 5, &[key(0, 0, 100, 0, 256), key(500, 300, 100, 0, 256)], MotionEnd::Keep, None, 71);
+        assert_eq!(out, "spmotion 67,2,0,0,0,100,100,0,256,0,500,300,0,100,100,0,256,71\n");
     }
 
     #[test]
@@ -169,7 +180,7 @@ mod tests {
         // a key's own alpha is kept times the fade's; a fade past the last key holds it
         let key = |ms, x, opacity| MotionKey { ms, x, y: 0, zoom: 100, angle: 0, opacity };
         let mut out = String::new();
-        emit2(&mut out, 5, &[key(0, 0, 256), key(100, 50, 128)], MotionEnd::Keep, Some(200));
+        emit2(&mut out, 5, &[key(0, 0, 256), key(100, 50, 128)], MotionEnd::Keep, Some(200), 0);
         assert_eq!(out, "spmotion 67,2,0,0,0,100,100,0,0,0,100,50,0,100,100,0,64,0,200,50,0,100,100,0,128,0\n");
         // a loop isn't folded
         let mut out = String::new();

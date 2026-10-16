@@ -4,17 +4,25 @@
 
 use std::fmt::Write;
 
-/// The `spcurve` id (10-69) of curve `ease` (1-3) with `exponent` (see
-/// [`Op::MoveEase`](conv_core::ir::Op::MoveEase)); exponents past 20 are
-/// drawn as 20.
+/// The `spcurve` id of curve `ease` with `exponent` (see
+/// [`Op::MoveEase`](conv_core::ir::Op::MoveEase)): 10-69 for 1-3
+/// (exponents past 20 drawn as 20), 70-73 for 4-7.
 pub(crate) fn curve_id(ease: u8, exponent: u32) -> u32 {
-    10 + u32::from(ease.clamp(1, 3) - 1) * 20 + exponent.clamp(1, 20) - 1
+    match ease {
+        4..=7 => 66 + u32::from(ease),
+        _ => 10 + u32::from(ease.clamp(1, 3) - 1) * 20 + exponent.clamp(1, 20) - 1,
+    }
 }
 
 /// The eased share (0-1) of the time gone `t` (0-1).
 fn eased(ease: u8, exponent: u32, t: f64) -> f64 {
+    use std::f64::consts::PI;
     let n = exponent.clamp(1, 20) as i32;
     match ease {
+        4 => 1.0 - (PI * t / 2.0).cos(),
+        5 => (PI * t / 2.0).sin(),
+        6 => 0.5 - 0.5 * (PI * t).cos(),
+        7 => (1.0 - 2.0 * t).acos() / PI,
         1 => t.powi(n),
         2 => 1.0 - (1.0 - t).powi(n),
         _ if t < 0.5 => (2.0 * t).powi(n) / 2.0,
@@ -60,6 +68,8 @@ mod tests {
         assert!(d.starts_with("spcurve 11,0,1,4,9,16,"), "{d}");
         assert!(d.ends_with(",1024"));
         assert_eq!(d.split(',').count(), 34);
-        assert_eq!((curve_id(1, 1), curve_id(3, 2), curve_id(3, 99)), (10, 51, 69));
+        assert_eq!((curve_id(1, 1), curve_id(3, 2), curve_id(3, 99), curve_id(4, 1), curve_id(7, 1)), (10, 51, 69, 70, 73));
+        let d = curve_def(7, 1);
+        assert!(d.starts_with("spcurve 73,0,") && d.contains(",512,") && d.ends_with(",1024"), "{d}");
     }
 }
