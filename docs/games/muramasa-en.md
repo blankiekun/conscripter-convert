@@ -33,7 +33,9 @@ It has no NPA archives and no NSS scripts.
   CONscripter draws it proportionally in the release's
   `droidserif-muramasa.ttf` (pass it as `--font`) and wraps at spaces;
   checked headless on the first pages (`ma00_000`). The port's ㉑-㉗
-  (spaces of set widths around italics) become spaces. A page whose
+  (spaces of set widths around italics) become spaces. `<I>` is drawn
+  in italics and a `<center>` row centred in the box (CONscripter's
+  `!i1` … `!i0` and `!c`, History). A page whose
   English outgrows the box goes on on a new page after a click
   (CONscripter, for every script). The full build plays to the end
   with the trace (25,430 pages, none past the window); its other
@@ -42,7 +44,7 @@ It has no NPA archives and no NSS scripts.
   `droidserif-muramasa.ttf` (font.npk); the menus follow the English
   port's redesigned screens, not the Japanese PC ones; filming the
   English original under wine is allowed.
-- **Not yet:** `<I>` italics and `<center>` are dropped; the lines
+- **Not yet:** the lines
   per box (14 vertical, 5 at a 28 px pitch horizontal, the Japanese
   pitch) are read from the boxes, not yet seen in the original; in
   `boxTH` the face stays at the Japanese place (x ~230, under the
@@ -59,7 +61,7 @@ It has no NPA archives and no NSS scripts.
 - **Next:**
   1. The English pictures: the redesigned menus in `cg/sys`, filmed
      against the English original under wine (also to check the lines
-     per box); `<I>`, `<center>`.
+     per box).
   2. 22 rows of English are placed nowhere (lines the NSS orders or
      splits otherwise, route variants such as mc01's "Ichijo is
      nowhere to be seen" / "My comrades …", ma01_003's `<CLICK>`
@@ -126,6 +128,16 @@ plus `patch/*.npk` mounted after them (opener 0x401960).
   position (History: "Text with no equal Japanese").
 
 ## History
+
+- **Italics and centred rows (2026-10-15):** the English has 2,618
+  `<I>` … `</I>` and 566 `<center>` rows (most not closed: the row's end
+  closes them). CONscripter gained `!i1` … `!i0` (the font opened in
+  SDL_ttf's italic style, kept apart from the upright one) and `!c` (the
+  rest of the line centred in the room left on the window's line), both
+  also read in backquote text, where the other tags are text; the IR's
+  `TextStyle` has `italic` and `centred`, which conv-cons writes as those
+  tags. The Japanese NSS's two `<I>` (`「鋼の人形は…」`) are italic too.
+  The backlog shows the text upright and not centred.
 
 - **Text with no equal Japanese (2026-10-15):** 278 stretches of the
   NSS had no Print with the same Japanese. The translation folded some

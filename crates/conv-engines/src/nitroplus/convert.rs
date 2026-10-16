@@ -38,7 +38,7 @@
 
 use std::collections::{BTreeMap, HashMap};
 
-use conv_core::ir::{ArithOp, ChoiceStyle, CLICK_WAIT_MARK, MotionEnd, MotionKey, Op, Operand, ScreenEffect, Ruby, Script, SpriteChange, SpritePlacement, TextWindow, TransitionStyle, Voice};
+use conv_core::ir::{ArithOp, ChoiceStyle, CLICK_WAIT_MARK, MotionEnd, MotionKey, Op, Operand, ScreenEffect, Ruby, Script, TextStyle, SpriteChange, SpritePlacement, TextWindow, TransitionStyle, Voice};
 
 use super::nss::{AssignOp, BinaryOp, Expr, Function, Inline, Item, NssFile, Param, Stmt, StmtKind, Target, Text, UnaryOp};
 
@@ -979,6 +979,9 @@ struct TextObject<'a> {
 struct Page<'a> {
     text: String,
     ruby: Vec<Ruby>,
+    /// `<I>` and `<center>` (the English port's); an `<I>` not closed yet
+    /// runs to the page's end.
+    styles: Vec<TextStyle>,
     /// Speaker name and voice file (`<voice name= src=>`).
     voice: Option<(String, String)>,
     /// Inline code to run before the page.
@@ -2644,6 +2647,11 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 page.text.push('\n');
             }
             page.text.push_str(&std::mem::take(line));
+            // A `<center>` the line doesn't close ends with it.
+            let n = page.text.chars().count();
+            for s in page.styles.iter_mut().filter(|s| s.centred && s.start + s.len == usize::MAX) {
+                s.len = n - s.start;
+            }
         };
         for item in &t.items {
             match item {
@@ -2687,6 +2695,18 @@ impl<'a, 'b> Compiler<'a, 'b> {
                             if let Some((start, text)) = ruby.take() {
                                 let len = page_len(&page, &line) - start;
                                 page.ruby.push(Ruby { start, len, text });
+                            }
+                        }
+                        ("i", false) | ("center", false) => {
+                            let centred = tag.name.eq_ignore_ascii_case("center");
+                            let start = page_len(&page, &line);
+                            page.styles.push(TextStyle { start, len: usize::MAX - start, italic: !centred, centred, ..Default::default() });
+                        }
+                        ("i", true) | ("center", true) => {
+                            let centred = tag.name.eq_ignore_ascii_case("center");
+                            let end = page_len(&page, &line);
+                            if let Some(s) = page.styles.iter_mut().rev().find(|s| s.centred == centred && s.start + s.len == usize::MAX) {
+                                s.len = end - s.start;
                             }
                         }
                         ("br", _) => end_line(&mut page, &mut line),
@@ -2774,7 +2794,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 voice,
                 links: Vec::new(),
                 ruby,
-                styles: Vec::new(),
+                styles: page.styles.clone(),
                 hang: None,
                 continues: page.continues,
             });
