@@ -12,6 +12,7 @@ use conv_core::ir::{
 };
 
 use super::super::{Assets, Story};
+use super::opening::{self, TitleLook};
 
 /// The favour screen (`sys_hmode.nss`), compiled as a subroutine for the
 /// menu's 好感度記録.
@@ -22,8 +23,17 @@ const SCREEN_H: i32 = 576;
 
 /// Fills the script's system screens.
 pub fn menus(a: &mut dyn Assets, script: &mut Script, story: &Story) {
+    menus_in(a, script, story, &opening::JP)
+}
+
+/// [`menus`] with the English port's title ([`opening::EN`]).
+pub fn menus_en(a: &mut dyn Assets, script: &mut Script, story: &Story) {
+    menus_in(a, script, story, &opening::EN)
+}
+
+fn menus_in(a: &mut dyn Assets, script: &mut Script, story: &Story, look: &TitleLook) {
     script.confirm = confirm(a);
-    script.title_screen = title(a, story);
+    script.title_screen = title(a, story, look);
     script.button_bar = quick_bar(a);
     script.command_menu = command_menu(a);
     script.save_grid = save_grid(a);
@@ -405,13 +415,14 @@ fn quick_bar(a: &mut dyn Assets) -> Option<ButtonBar> {
 /// with no question (`sys_close.nss` 45-51). Left out: the fire that
 /// flickers over the background (0 to 300/1000 and back, 600 ms each way,
 /// 1100 ms holds), the opening, and the first start's intro.
-fn title(a: &mut dyn Assets, story: &Story) -> Option<TitleScreen> {
-    const DIR: &str = "cg/sys/title";
+/// `look` places the pictures: the Japanese or the English port's.
+fn title(a: &mut dyn Assets, story: &Story, look: &TitleLook) -> Option<TitleScreen> {
+    let dir = look.dir;
     let mut parts = Vec::new();
-    for (name, x, y) in [("偽富士背景画像", 0, 0), ("ロゴ画像", 346, 40), ("コピーライト", 50, 540)] {
-        parts.push((a.image(&format!("{DIR}/{name}.png"))?.0, x, y, 1000));
+    for (name, x, y) in [("偽富士背景画像", 0, 0), ("ロゴ画像", look.logo.0 as i64, look.logo.1 as i64), ("コピーライト", 50, 540)] {
+        parts.push((a.image(&format!("{dir}/{name}.png"))?.0, x, y, 1000));
     }
-    let (background, _, _) = a.composite(&parts)?;
+    let background = a.screen(&parts)?;
     // The fire (ef046_炎a, 2x, OverlayRender) glows from nothing to 300
     // over 600 ms, holds, and back, each 1100 ms (CreateTPO1 in
     // 0_boot.nss's TitleSet).
@@ -423,19 +434,19 @@ fn title(a: &mut dyn Assets, story: &Story) -> Option<TitleScreen> {
     for (picture, when, sets, random) in launch_pictures(story) {
         if !movies.contains_key(picture) {
             let name = format!("title_launch2_{}", &picture[6..11]);
-            let m = super::opening::at_launch(a, picture, &name);
+            let m = super::opening::at_launch(a, look, picture, &name);
             movies.insert(picture, m);
         }
         let Some(movie) = movies[picture].clone() else { continue };
         let glow_keys = Some(vec![(0, 256), (100, 256), (700, 0), (1200, 0), (1800, 256), (2200, 256)]);
         openings.push(TitleOpening { movie, at_launch: true, sound: launch_sound.clone(), glow_keys, when, sets, random, ..Default::default() });
     }
-    if let Some(movie) = super::opening::on_return(a) {
+    if let Some(movie) = super::opening::on_return(a, look) {
         let sound = a.delayed_sound("sound/se/se特殊_雰囲気_鎧登場演02", 1800);
         openings.push(TitleOpening { movie, sound, ..Default::default() });
     }
     // The music goes on; the sword's clash with the white.
-    if let Some(movie) = super::opening::after_extras(a) {
+    if let Some(movie) = super::opening::after_extras(a, look) {
         let sound = a.sound("sound/se/se戦闘_攻撃_刀衝突01");
         openings.push(TitleOpening { movie, sound, after_extras: true, ..Default::default() });
     }
@@ -445,27 +456,28 @@ fn title(a: &mut dyn Assets, story: &Story) -> Option<TitleScreen> {
     });
     let se = |a: &mut dyn Assets, name: &str| a.sound(&format!("sound/se/{name}"));
     let mut buttons = Vec::new();
-    for (name, x, action, click) in [
-        ("しおりから", 822, TitleAction::Continue, Some("se特殊_鎧_装着03")),
-        ("最初から", 762, TitleAction::Start, Some("se特殊_鎧_装着03")),
-        ("電光記録", 702, TitleAction::Load, Some("se戦闘_動作_刀構え01")),
-        ("設定画面", 282, TitleAction::Settings, Some("se戦闘_動作_刀構え01")),
-        ("特別付加", 222, TitleAction::Extras, Some("se特殊_鎧_装着04")),
-        ("終了する", 162, TitleAction::Exit, None),
-    ] {
-        let state = |n: u32| format!("{DIR}/{name}-{n:03}.png");
+    let actions = [
+        (TitleAction::Continue, Some("se特殊_鎧_装着03")),
+        (TitleAction::Start, Some("se特殊_鎧_装着03")),
+        (TitleAction::Load, Some("se戦闘_動作_刀構え01")),
+        (TitleAction::Settings, Some("se戦闘_動作_刀構え01")),
+        (TitleAction::Extras, Some("se特殊_鎧_装着04")),
+        (TitleAction::Exit, None),
+    ];
+    for (&(name, x, y), (action, click)) in look.buttons.iter().zip(actions) {
+        let state = |n: u32| format!("{dir}/{name}-{n:03}.png");
         let (s1, s2, s3) = (state(1), state(2), state(3));
         let cells: Vec<&str> = if action == TitleAction::Unavailable { vec![&s1] } else { vec![&s1, &s2, &s3] };
         let (image, _, _) = a.strip(&cells)?;
         let click_se = click.and_then(|c| se(a, c));
-        buttons.push(TitleButton { image, x, y: 150, action, click_se, shown_by: None });
+        buttons.push(TitleButton { image, x: x as i32, y: y as i32, action, click_se, shown_by: None });
     }
     // ライナー画像 (`0_boot.nss`), once 悪鬼編 is over: the staff comments
     // on Nitroplus's site (`System("OPEN:...")`).
     if let Some(&cleared) = story.flags.get("#悪鬼編終了") {
-        let state = |n: u32| format!("{DIR}/ライナー画像-{n:03}.png");
+        let state = |n: u32| format!("{dir}/ライナー画像-{n:03}.png");
         let (image, _, _) = a.strip(&[&state(1), &state(2), &state(3)])?;
-        let action = TitleAction::Link("http://www.nitroplus.co.jp/secret/muramasamune");
+        let action = TitleAction::Link(look.notes);
         buttons.push(TitleButton { image, x: 60, y: 524, action, click_se: se(a, "se戦闘_動作_刀構え01"), shown_by: Some(cleared) });
     }
     Some(TitleScreen {

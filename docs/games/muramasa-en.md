@@ -40,6 +40,12 @@ It has no NPA archives and no NSS scripts.
   (CONscripter, for every script). The full build plays to the end
   with the trace (25,430 pages, none past the window); its other
   findings are the Japanese build's.
+- **Title:** the port's (`sys_titlelogo.nut`): its pictures from the
+  English `cg.npk` (`en/cg/sys/title/…` in the converter), the logo a
+  full screen 40 px up, the six buttons in a row at y 467 (Start 158,
+  Continue 280, Load 402, Extra 524, Config 646, Quit 768), the notes
+  button leading to `secret.muramasa.jastusa.com`; the openings drawn
+  with them (`opening::EN`). Not yet compared with the original.
 - **Decided (the user, 2026-10-15):** the text font is the release's own
   `droidserif-muramasa.ttf` (font.npk); the menus follow the English
   port's redesigned screens, not the Japanese PC ones; filming the
@@ -59,9 +65,15 @@ It has no NPA archives and no NSS scripts.
   by the Japanese text (below), and takes the English pictures where
   they differ (the redesigned menus in `cg/sys`, pictures with words).
 - **Next:**
-  1. The English pictures: the redesigned menus in `cg/sys`, filmed
-     against the English original under wine (also to check the lines
-     per box).
+  1. The English pictures: the redesigned menus in `cg/sys`. The port's
+     system scripts (`media/script/system/sys_*.nut`) give each picture's
+     English place after a `LANG_NAME == "en"` test. Done: the title
+     (below). Left: same names, other pictures and places: the command
+     menu (`menu/`: 栞を差す/栞を開く became クイッセーブ/クイックロード,
+     no ロード), the line log, the dialogs (`dialog/`, all renamed); new
+     screens: save/load (`save/`), settings (`config/`), the click icon
+     (one `adv/改行改頁アイコン.png` sheet). Then film them against the
+     English original under wine (also the lines per box).
   2. 22 rows of English are placed nowhere (lines the NSS orders or
      splits otherwise, route variants such as mc01's "Ichijo is
      nowhere to be seen" / "My comrades …", ma01_003's `<CLICK>`

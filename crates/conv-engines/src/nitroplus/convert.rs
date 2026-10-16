@@ -225,6 +225,11 @@ pub trait Assets {
     /// Output images (path, top-left x, y, opacity 0-1000) drawn in order
     /// into one picture over their bounding box: its path and top-left.
     fn composite(&mut self, parts: &[(String, i64, i64, i64)]) -> Option<(String, i64, i64)>;
+    /// [`composite`](Self::composite) cut to the screen (parts that reach
+    /// past it, such as the English title's logo 40 px up).
+    fn screen(&mut self, parts: &[(String, i64, i64, i64)]) -> Option<String> {
+        self.composite(parts).map(|c| c.0)
+    }
     /// A fully transparent picture.
     fn transparent(&mut self) -> String;
     /// An output image scaled to `zx`, `zy` per mille about the centre of

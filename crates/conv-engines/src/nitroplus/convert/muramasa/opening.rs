@@ -12,7 +12,36 @@ use image::{RgbImage, RgbaImage};
 use super::super::{Assets, SCREEN_H, SCREEN_W};
 
 const FPS: u32 = 30;
-const DIR: &str = "cg/sys/title";
+
+/// Where the title's pictures are and where they go: the Japanese
+/// release's ([`JP`]) or the English port's ([`EN`]).
+pub struct TitleLook {
+    /// Its pictures: `en/…` takes them from the English `cg.npk`.
+    pub dir: &'static str,
+    pub logo: (f64, f64),
+    /// しおりから, 最初から, 電光記録, 設定画面, 特別付加, 終了する.
+    pub buttons: [(&'static str, f64, f64); 6],
+    /// Where ライナー画像 leads.
+    pub notes: &'static str,
+}
+
+/// `0_boot.nss`: the buttons upright in two groups of three at y 150.
+pub const JP: TitleLook = TitleLook {
+    dir: "cg/sys/title",
+    logo: (346.0, 40.0),
+    buttons: [("しおりから", 822.0, 150.0), ("最初から", 762.0, 150.0), ("電光記録", 702.0, 150.0), ("設定画面", 282.0, 150.0), ("特別付加", 222.0, 150.0), ("終了する", 162.0, 150.0)],
+    notes: "http://www.nitroplus.co.jp/secret/muramasamune",
+};
+
+/// The English port's (`sys_titlelogo.nut`, its `LANG_NAME == "en"`
+/// places): the logo a full screen 40 px up, the buttons in a row at
+/// y 467, from the English `cg.npk` ([`super::super::Assets`] `en/…`).
+pub const EN: TitleLook = TitleLook {
+    dir: "en/cg/sys/title",
+    logo: (0.0, -40.0),
+    buttons: [("しおりから", 280.0, 467.0), ("最初から", 158.0, 467.0), ("電光記録", 402.0, 467.0), ("設定画面", 646.0, 467.0), ("特別付加", 524.0, 467.0), ("終了する", 768.0, 467.0)],
+    notes: "http://secret.muramasa.jastusa.com/",
+};
 
 /// How a picture is drawn over what is under it (NSS `Request`).
 #[derive(Clone, Copy, PartialEq)]
@@ -268,10 +297,11 @@ fn blurred(a: &mut dyn Assets, path: &str, sigma: f32) -> Option<Pic> {
 
 /// The title's buttons as they rest (`しおりから` at half, as with no quick
 /// save), shown from `at`.
-fn buttons(a: &mut dyn Assets, at: f64) -> Option<Vec<Layer>> {
+fn buttons(a: &mut dyn Assets, look: &TitleLook, at: f64) -> Option<Vec<Layer>> {
     let mut out = Vec::new();
-    for (name, x, opacity) in [("しおりから", 822.0, 500.0), ("最初から", 762.0, 1000.0), ("電光記録", 702.0, 1000.0), ("設定画面", 282.0, 1000.0), ("特別付加", 222.0, 1000.0), ("終了する", 162.0, 1000.0)] {
-        let mut l = layer(a, &format!("{DIR}/{name}-001.png"), x, 150.0, Blend::Normal)?;
+    for (i, &(name, x, y)) in look.buttons.iter().enumerate() {
+        let opacity = if i == 0 { 500.0 } else { 1000.0 };
+        let mut l = layer(a, &format!("{}/{name}-001.png", look.dir), x, y, Blend::Normal)?;
         l.opacity = Track::new(0.0).to(at, 0.0, opacity, Ease::Linear);
         out.push(l);
     }
@@ -285,9 +315,9 @@ const BLUR: f32 = 3.0;
 /// drifts in, `picture` (the title picks it by the routes cleared) zooms
 /// out of the dark, two bursts of blood and red, a white flash, the title.
 /// Ends at 11.2 s, as the white has faded. `name`: the movie's.
-pub fn at_launch(a: &mut dyn Assets, picture: &str, name: &str) -> Option<String> {
-    let fuji = format!("{DIR}/偽富士背景画像.png");
-    let logo = format!("{DIR}/ロゴ画像.png");
+pub fn at_launch(a: &mut dyn Assets, look: &TitleLook, picture: &str, name: &str) -> Option<String> {
+    let fuji = format!("{}/偽富士背景画像.png", look.dir);
+    let logo = format!("{}/ロゴ画像.png", look.dir);
     let muramasa = picture;
     let end = 11200.0;
     let mut layers = Vec::new();
@@ -301,7 +331,7 @@ pub fn at_launch(a: &mut dyn Assets, picture: &str, name: &str) -> Option<String
         .to(10200.0, 0.0, 1000.0, Ease::Linear);
     layers.push(bg);
 
-    let mut copyright = layer(a, &format!("{DIR}/コピーライト.png"), 50.0, 540.0, Blend::Normal)?;
+    let mut copyright = layer(a, &format!("{}/コピーライト.png", look.dir), 50.0, 540.0, Blend::Normal)?;
     copyright.opacity = Track::new(0.0).to(10200.0, 0.0, 1000.0, Ease::Linear);
     layers.push(copyright);
 
@@ -352,12 +382,12 @@ pub fn at_launch(a: &mut dyn Assets, picture: &str, name: &str) -> Option<String
         layers.push(drops);
     }
 
-    let mut logo1 = layer(a, &logo, 346.0, 40.0, Blend::Normal)?;
+    let mut logo1 = layer(a, &logo, look.logo.0, look.logo.1, Blend::Normal)?;
     logo1.zoom = Track::new(800.0).to(10200.0, 0.0, 1000.0, Ease::Linear);
     logo1.opacity = Track::new(0.0).to(10200.0, 0.0, 1000.0, Ease::Linear);
     layers.push(logo1);
 
-    let mut logo2 = layer(a, &logo, 346.0, 40.0, Blend::Normal)?;
+    let mut logo2 = layer(a, &logo, look.logo.0, look.logo.1, Blend::Normal)?;
     logo2.then = Some((10200.0, blurred(a, &logo, BLUR)?));
     logo2.zoom = Track::new(800.0).to(10200.0, 0.0, 1000.0, Ease::Linear).to(10200.0, 1000.0, 1200.0, Ease::Linear);
     logo2.opacity = Track::new(0.0).to(10200.0, 0.0, 1000.0, Ease::Linear).to(10200.0, 1000.0, 0.0, Ease::Linear);
@@ -392,7 +422,7 @@ pub fn at_launch(a: &mut dyn Assets, picture: &str, name: &str) -> Option<String
         .to(9500.0, 1500.0, 0.0, Ease::Linear);
     layers.push(red);
 
-    layers.extend(buttons(a, 10200.0)?);
+    layers.extend(buttons(a, look, 10200.0)?);
     render(a, name, 0.0, end, &layers)
 }
 
@@ -400,21 +430,21 @@ pub fn at_launch(a: &mut dyn Assets, picture: &str, name: &str) -> Option<String
 /// the dark over 2 s, the background drops in from above, a white flash,
 /// the title with a blurred glow of the background and logo spreading
 /// away. Ends at 3 s, as the white has faded.
-pub fn on_return(a: &mut dyn Assets) -> Option<String> {
-    let layers = return_layers(a)?;
+pub fn on_return(a: &mut dyn Assets, look: &TitleLook) -> Option<String> {
+    let layers = return_layers(a, look)?;
     render(a, "title_return2", 0.0, 3000.0, &layers)
 }
 
 /// Back from the extras (`TitleFade`, `$エキストラタイトル`): the white at
 /// once, then [`on_return`]'s last second.
-pub fn after_extras(a: &mut dyn Assets) -> Option<String> {
-    let layers = return_layers(a)?;
+pub fn after_extras(a: &mut dyn Assets, look: &TitleLook) -> Option<String> {
+    let layers = return_layers(a, look)?;
     render(a, "title_extras2", 2000.0, 3000.0, &layers)
 }
 
-fn return_layers(a: &mut dyn Assets) -> Option<Vec<Layer>> {
-    let fuji = format!("{DIR}/偽富士背景画像.png");
-    let logo = format!("{DIR}/ロゴ画像.png");
+fn return_layers(a: &mut dyn Assets, look: &TitleLook) -> Option<Vec<Layer>> {
+    let fuji = format!("{}/偽富士背景画像.png", look.dir);
+    let logo = format!("{}/ロゴ画像.png", look.dir);
     let mut layers = Vec::new();
 
     let mut bg = layer(a, &fuji, 0.0, 0.0, Blend::Normal)?;
@@ -422,7 +452,7 @@ fn return_layers(a: &mut dyn Assets) -> Option<Vec<Layer>> {
     bg.opacity = Track::new(0.0).to(1600.0, 400.0, 1000.0, Ease::Linear);
     layers.push(bg);
 
-    let mut copyright = layer(a, &format!("{DIR}/コピーライト.png"), 50.0, 540.0, Blend::Normal)?;
+    let mut copyright = layer(a, &format!("{}/コピーライト.png", look.dir), 50.0, 540.0, Blend::Normal)?;
     copyright.opacity = Track::new(0.0).to(2000.0, 0.0, 1000.0, Ease::Linear);
     layers.push(copyright);
 
@@ -431,12 +461,12 @@ fn return_layers(a: &mut dyn Assets) -> Option<Vec<Layer>> {
     bg2.opacity = Track::new(0.0).to(2000.0, 0.0, 1000.0, Ease::Linear).to(2000.0, 1000.0, 0.0, Ease::Linear);
     layers.push(bg2);
 
-    let mut logo1 = layer(a, &logo, 346.0, 40.0, Blend::Normal)?;
+    let mut logo1 = layer(a, &logo, look.logo.0, look.logo.1, Blend::Normal)?;
     logo1.zoom = Track::new(800.0).to(0.0, 2000.0, 1000.0, Ease::Linear);
     logo1.opacity = Track::new(0.0).to(0.0, 2000.0, 1000.0, Ease::Linear);
     layers.push(logo1);
 
-    let mut logo2 = Layer::new(blurred(a, &logo, BLUR)?, 346.0, 40.0, Blend::Normal);
+    let mut logo2 = Layer::new(blurred(a, &logo, BLUR)?, look.logo.0, look.logo.1, Blend::Normal);
     logo2.zoom = Track::new(1000.0).to(2000.0, 1000.0, 1200.0, Ease::Linear);
     logo2.opacity = Track::new(0.0).to(2000.0, 0.0, 1000.0, Ease::Linear).to(2000.0, 1000.0, 0.0, Ease::Linear);
     layers.push(logo2);
@@ -445,6 +475,6 @@ fn return_layers(a: &mut dyn Assets) -> Option<Vec<Layer>> {
     white.opacity = Track::new(0.0).to(1800.0, 200.0, 1000.0, AXL1).to(2000.0, 1000.0, 0.0, Ease::Linear);
     layers.push(white);
 
-    layers.extend(buttons(a, 2000.0)?);
+    layers.extend(buttons(a, look, 2000.0)?);
     Some(layers)
 }

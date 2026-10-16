@@ -21,9 +21,9 @@ use crate::output::{Output, image_size};
 const MAX_SCALED: i64 = 4096;
 
 /// Top-level output folders the assets go to.
-pub const OUTPUT_DIRS: [&str; 5] = ["cg", "cg2", "sound", "voice", "system"];
+pub const OUTPUT_DIRS: [&str; 6] = ["cg", "cg2", "en", "sound", "voice", "system"];
 /// The output folders with pictures (`--webp` converts them).
-pub const PICTURE_DIRS: [&str; 3] = ["cg", "cg2", "system"];
+pub const PICTURE_DIRS: [&str; 4] = ["cg", "cg2", "en", "system"];
 
 pub struct NpaAssets<'a> {
     cg: Npa<'a>,
@@ -81,6 +81,9 @@ impl<'a> NpaAssets<'a> {
             "cg2" => self.cg2.as_ref()?,
             "sound" => &self.sound,
             "voice" => &self.voice,
+            // The English release's own pictures where the Japanese have
+            // the same name (`en/cg/sys/title/…`).
+            "en" => return self.extract_english(rest, out),
             _ => return None,
         };
         let Some(entry) = npa.find(rest) else { return self.extract_english(&path, out) };
@@ -238,6 +241,22 @@ impl Assets for NpaAssets<'_> {
         }
         self.out.write_png(&rel, &out);
         Some((rel, x0, y0))
+    }
+
+    fn screen(&mut self, parts: &[(String, i64, i64, i64)]) -> Option<String> {
+        let (rel, x0, y0) = self.composite(parts)?;
+        if (x0, y0) == (0, 0) {
+            return Some(rel);
+        }
+        let cut = rel.replace(".png", "_screen.png");
+        if self.out.dry_run || self.out.root.join(&cut).exists() {
+            return Some(cut);
+        }
+        let img = image::open(self.out.root.join(&rel)).ok()?.into_rgba8();
+        let mut out = image::RgbaImage::new(SCREEN_W as u32, SCREEN_H as u32);
+        image::imageops::overlay(&mut out, &img, x0, y0);
+        self.out.write_png(&cut, &out);
+        Some(cut)
     }
 
     fn scaled(&mut self, image: &str, zx: i64, zy: i64, at: (i64, i64, i64, i64)) -> Option<(String, i64, i64, u32, u32)> {
@@ -517,7 +536,7 @@ impl Assets for NpaAssets<'_> {
         if self.out.dry_run {
             return None;
         }
-        let rel = if path.starts_with("cg/") { self.image(path)?.0 } else { path.to_string() };
+        let rel = if path.starts_with("cg/") || path.starts_with("en/") { self.image(path)?.0 } else { path.to_string() };
         Some(image::open(self.out.root.join(rel)).ok()?.into_rgba8())
     }
 

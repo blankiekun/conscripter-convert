@@ -25,7 +25,7 @@ pub const MURAMASA: Game = Game { call, scene, flags, files: &[magiccube::FILE],
 /// wide, font 20, `rowSpace` 1 (`function_textbox.nut`), down to the
 /// click icon at 500: 14 lines; every box in its own window picture
 /// ([`EN_BOXES`]), with the text where [`EN_TEXT`] puts it.
-pub const MURAMASA_EN: Game = Game { call: call_en, horizontal_box: Some((280, 300, 21)), box_text: &EN_TEXT, ..MURAMASA };
+pub const MURAMASA_EN: Game = Game { call: call_en, menus: screens::menus_en, horizontal_box: Some((280, 300, 21)), box_text: &EN_TEXT, ..MURAMASA };
 
 /// The port's text places (`BoxInfo` in `val.nut`): box, text x, y and
 /// width; the ones with a face window first, as both may be shown.
