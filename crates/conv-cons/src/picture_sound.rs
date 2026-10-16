@@ -5,7 +5,7 @@
 //! title's (playing at first), -1 none, n track n - 1. [`PLAY`] starts it;
 //! the extras' menu calls it when it opens, and going back to the title
 //! plays the title's music again where it differs ([`back_to_title`]). A
-//! track stopped fades with `bgmvolfade` and plays on silent, so every
+//! track stopped fades with `chvolfade -1` and plays on silent, so every
 //! track started puts the volume back first.
 //!
 //! The screen is drawn again after every click (`btnwait` drops its
@@ -48,7 +48,7 @@ pub(crate) fn on_open(_r: &SoundRoom) -> String {
 /// Lines that play the title's music again, going back to it, where the
 /// extras' music differs.
 pub(crate) fn back_to_title(r: &SoundRoom) -> String {
-    format!("if {MUSIC} != 0 bgmvolfade 100:bgm \"{}\"", path(&r.tracks[r.title_track].file))
+    format!("if {MUSIC} != 0 chvolfade -1,100:bgm \"{}\"", path(&r.tracks[r.title_track].file))
 }
 
 pub(crate) fn emit(out: &mut String, r: &SoundRoom, border: u32, width: u32, height: u32) {
@@ -78,15 +78,15 @@ pub(crate) fn emit(out: &mut String, r: &SoundRoom, border: u32, width: u32, hei
     // A track: plays, or stops if it is the one playing.
     for (i, t) in r.tracks.iter().enumerate() {
         w(format!("*conv_psnd_t{i}"));
-        w(format!("if {MUSIC} == {} mov {MUSIC},-1:bgmvolfade 0,{}:goto *{LOOP}", number(i), r.stop_fade_ms));
-        w(format!("mov {MUSIC},{}:bgmvolfade 100:bgm \"{}\"", number(i), path(&t.file)));
+        w(format!("if {MUSIC} == {} mov {MUSIC},-1:chvolfade -1,0,{}:goto *{LOOP}", number(i), r.stop_fade_ms));
+        w(format!("mov {MUSIC},{}:chvolfade -1,100:bgm \"{}\"", number(i), path(&t.file)));
         w(format!("goto *{LOOP}"));
     }
     for (j, m) in r.movies.iter().enumerate() {
         w(format!("*conv_psnd_v{j}"));
-        w(format!("bgmvolfade 0,{}:lsp {BLACK},\">{width},{height},#000000\",0,0:print 10,{}", r.movie_fade_ms, r.movie_fade_ms));
+        w(format!("chvolfade -1,0,{}:lsp {BLACK},\">{width},{height},#000000\",0,0:print 10,{}", r.movie_fade_ms, r.movie_fade_ms));
         w(format!("mpegplay \"{}\",1", path(&m.file)));
-        w(format!("bgmvolfade 0:gosub *{PLAY}:bgmvolfade 100,{}", r.movie_fade_ms));
+        w(format!("chvolfade -1,0:gosub *{PLAY}:chvolfade -1,100,{}", r.movie_fade_ms));
         w(format!("gosub *{DRAW}:lsp {BLACK},\">{width},{height},#000000\",0,0:print 1"));
         w(format!("csp {BLACK}:print 10,{}", r.movie_back_ms));
         w(format!("goto *{WAIT}"));
