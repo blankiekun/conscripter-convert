@@ -258,7 +258,7 @@ impl<'a> Emitter<'a> {
         Op::HideTextWindow => writeln!(out, "textoff").unwrap(),
         Op::InstantText(on) => writeln!(out, "textspeed {}", if *on { "0" } else { speed }).unwrap(),
         Op::SetWindow(w) => {
-            writeln!(out, "{}", setwindow(w, speed, has_ruby, has_vertical, true, script.wait_icon.as_ref())).unwrap();
+            writeln!(out, "{}", setwindow(w, speed, has_ruby, has_vertical, true, script)).unwrap();
             writeln!(out, "csp {NAME_PLATE_SPRITE}:csp {NAME_TEXT_SPRITE}").unwrap();
             *plate_visible = false;
             *page_rows = 0;
@@ -623,7 +623,7 @@ impl<'a> Emitter<'a> {
                 }
                 if let Some(w) = window {
                     // The scene may have switched the text window.
-                    writeln!(out, "{}", setwindow(w, speed, has_ruby, has_vertical, true, script.wait_icon.as_ref())).unwrap();
+                    writeln!(out, "{}", setwindow(w, speed, has_ruby, has_vertical, true, script)).unwrap();
                 }
                 if root_returns > 0 {
                     writeln!(out, "if {ROOT_RESUME} != 0 goto *{UNWIND}").unwrap();
@@ -789,7 +789,7 @@ impl<'a> Emitter<'a> {
             let plates = style.as_ref().and_then(|s| s.plates.as_ref());
             if let Some(s) = style.as_ref().filter(|_| plates.is_none()) {
                 writeln!(out, "selectcolor \"#{:06X}\",\"#{:06X}\"", s.on_color, s.off_color).unwrap();
-                writeln!(out, "{}", setwindow(&s.window, speed, has_ruby, has_vertical, false, script.wait_icon.as_ref())).unwrap();
+                writeln!(out, "{}", setwindow(&s.window, speed, has_ruby, has_vertical, false, script)).unwrap();
                 writeln!(out, "csp {NAME_PLATE_SPRITE}:csp {NAME_TEXT_SPRITE}").unwrap();
                 *plate_visible = false;
                 *page_rows = 0;

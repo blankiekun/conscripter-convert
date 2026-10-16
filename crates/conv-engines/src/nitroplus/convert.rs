@@ -154,7 +154,9 @@ pub struct Game {
     /// Horizontal text starts this far below its box's top (the line's
     /// ruby space above it): 続・殺戮のジャンゴ's first row of ＭＳ Ｐ
     /// ゴシック is drawn from y 480 in `box00` at 472 (under wine). 0 for
-    /// 装甲悪鬼村正, whose text is vertical.
+    /// 装甲悪鬼村正, whose text is vertical; 2 for its English port, whose
+    /// lines start 2 px lower than CONscripter's from the same place
+    /// ([`Game::box_text`] too; measured in the original).
     text_drop: i64,
     /// Children follow their parents: `@移動窓/立絵40` names a child of
     /// the object `移動窓` is an alias of (`窓/移動窓`), and deleting an
@@ -178,7 +180,8 @@ pub struct Game {
     /// A vertical (90° `Rotate`d) text box is written horizontally in a
     /// box of this width and height, with this line pitch, from the top
     /// left of the vertical text: Full Metal Daemon Muramasa's English
-    /// port, whose `text0` is 280×150 (`function_textbox.nut`).
+    /// port, whose `text0` is 280×150 (`function_textbox.nut`). The pitch
+    /// is also that of the [`Game::box_text`] boxes that were across.
     horizontal_box: Option<(i64, i64, i64)>,
     /// Where the text starts and how wide it is while the named window
     /// picture is shown: the first of these shown (Full Metal Daemon
@@ -3144,7 +3147,12 @@ impl<'a, 'b> Compiler<'a, 'b> {
         };
         let mut box_icon = None;
         if let Some(&(_, x, y, w, icon)) = self.game.box_text.iter().find(|b| shown(b.0)) {
-            (text_x, text_y, columns, box_icon) = (x, y, (w / font.max(1)).max(1) as u32, Some(icon));
+            (text_x, text_y, columns, box_icon) = (x, y + self.game.text_drop, (w / font.max(1)).max(1) as u32, Some(icon));
+            // The port's boxes across have its pitch too (`rowSpace` 1 under
+            // the font's height, in every `SetTextBoxVal`).
+            if let (false, Some((_, _, pitch))) = (t.rotation.rem_euclid(360) == 90, self.game.horizontal_box) {
+                (rows, line) = (((h - font) / pitch.max(1) + 1).max(1) as u32, pitch);
+            }
         }
         let (image, wx, wy) = match self.assets.composite(&parts) {
             Some(c) => c,
@@ -3356,7 +3364,8 @@ scene a.nss
         let w = compile_scene(&files, "a.nss", "a.nss", &MURAMASA_EN, &mut Fake).unwrap().window.unwrap();
         assert!(!w.vertical);
         assert_eq!(w.image, "cg/sys/adv/en/textwindow.png@1000");
-        assert_eq!((w.x, w.y, w.text_x, w.text_y, w.columns, w.rows), (360, 51, 375, 190, 14, 14));
+        assert_eq!((w.x, w.y, w.text_x, w.text_y, w.columns, w.rows), (360, 51, 375, 192, 14, 12));
+        assert_eq!(w.line_gap, 5);
     }
 
     #[test]
@@ -3383,7 +3392,7 @@ scene a.nss
         let w = compile_scene(&files, "a.nss", "a.nss", &MURAMASA_EN, &mut Fake).unwrap().window.unwrap();
         assert!(!w.vertical);
         assert_eq!(w.image, "cg/sys/adv/en/thtextwindow_fw.png@1000");
-        assert_eq!((w.text_x, w.text_y), (238, 426));
+        assert_eq!((w.text_x, w.text_y), (238, 428));
     }
 
     #[test]
