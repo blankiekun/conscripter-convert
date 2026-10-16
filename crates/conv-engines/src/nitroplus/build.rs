@@ -91,6 +91,10 @@ pub fn build(game: &Path, run: &Run, opts: &Opts) -> Result<Built> {
         for (file, jp) in report.options_missed.iter().take(5) {
             println!("  {file}: {jp}");
         }
+        // The port's calls converted only in part (as the dry run's notes).
+        for (note, n) in &report.unread {
+            println!("English: {n:>6}  port {note}");
+        }
     }
     let mut assets = NpaAssets::new(open("cg.npa")?, open("sound.npa")?, open("voice.npa")?, opts.output);
     assets.out.dry_run = opts.dry_run;

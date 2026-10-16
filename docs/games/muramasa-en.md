@@ -177,6 +177,16 @@ It has no NPA archives and no NSS scripts.
      port's particles (rain, snow, sparks, 27 scenes) not drawn, as in
      the Japanese build. To check: `sys_backselect.nut` and
      `sys_key.nut`'s keys.
+  5. The port's calls taken in part (the build's `English: … port
+     <function> argument <i> ignored` lines; "The port's calls,
+     argument by argument"), most noticeable first: 10 `SetChoice`
+     menus give options by name, not text (`Route.選択肢名前1` …,
+     `Route.md05_hazure` …, the route list `魔王編` …: ids 10, 20,
+     60-90): their English isn't taken from the port (whether they show
+     English is unknown); the telops' `Move`s (252) keep the NSS's
+     time, tempo and wait (arguments 1, 4, 5), and their
+     `CreateTextureEX`/`SP` (214) the NSS's priority (argument 1):
+     the same values if the port copied them, not compared.
 
 ## Archives (NPK3)
 
@@ -394,6 +404,27 @@ lines), mc02_031daidokoroa/aa (the menus: `horse meat`, `Lamb pilaf`,
 …), md02_009 and md02_038 (`I AM POWER`), md04_002, md04_006,
 md04_015, md04_026vs, md04_030 (dates and times: `November 30, 1940`,
 `2:47 AM`), md04_048vs.
+
+**The port's calls, argument by argument.** The converter takes a few
+of the port's calls' effects from the port itself (the others come from
+the NSS); `english.rs` (`port_reads`) records which arguments it reads
+and the build prints one line per argument passed and not read
+(`UNREAD_HARMLESS` would list the harmless ones; none yet).
+
+| Call | Argument | Converter |
+|---|---|---|
+| `ShowVOICESEText(sound, add)` | 0 sound | converted (finds the voice it follows) |
+| | 1 add | converted (a line under the one shown) |
+| `SetChoice(id, option, …)` | 0 id | converted (`TransChoice["<id>_<n>"]`) |
+| | options as strings | converted (Japanese → English) |
+| | options as names (`Route.…`, constants) | **dropped** (ids 10, 20, 60-90; Status, Next 5) |
+| `Print(number, text)` | 0, 1 | converted (`TransText[number]`, the Japanese to align) |
+| `CreateTexture…(name, priority, x, y, picture)` on a telop | 0 name | converted (pairs the sprite) |
+| | 1 priority | **partial**: the NSS's |
+| | 2 x, 3 y, 4 picture | converted (the port's places, its telop picture) |
+| `Move(name, time, x, y, tempo, wait)` on a telop | 0 name | converted |
+| | 1 time, 4 tempo, 5 wait | **partial**: the NSS's |
+| | 2 x, 3 y | converted |
 
 **Other vocabularies:**
 
