@@ -553,8 +553,8 @@ a copy of the save works.
 - Merged: the exe map's fixes and missed callbacks (#46).
 - Open: `0x59` as a real cross-fade, converter #25 with engine #18 (asked
   for a web-build measurement of the old track's decode first);
-  `bitand` for the three bitwise ops, converter #12 (engine #11
-  merged; waits for converter #9 to move the pointer first).
+  `bitand` for the three bitwise ops, converter #74 (takes over #12;
+  engine #11 in main's pointer since #72).
 
 Declared finished on 2026-10-14, then reopened the same day: the 0.19
 debug trace and the decompiled exe (`research/tools/ghidra/ghidra_export.sh`,
