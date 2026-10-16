@@ -1,5 +1,5 @@
 //! Compiled Squirrel 3 scripts of Muramasa's English release
-//! (`script.npk`), read for their text only.
+//! (`script.npk`), read for their text and the telops' places.
 //!
 //! A file is `"SCRP"`, u32 header size (0x10), two u32; then a Squirrel 3
 //! closure stream: u16 0xFAFA, `"RIQS"`, u32 sizeof(SQChar) (1; the stock
@@ -23,11 +23,39 @@ const CALL: u8 = 6;
 const PREPCALLK: u8 = 8;
 const GETK: u8 = 9;
 const NEWSLOT: u8 = 11;
+// Read by `Function::calls` only.
+const LINE: u8 = 0;
+const LOADFLOAT: u8 = 3;
+const TAILCALL: u8 = 5;
+const PREPCALL: u8 = 7;
+const MOVE: u8 = 10;
+/// `ADD a b c op`: the arithmetic op, its operator's character in arg3.
+const ARITH: u8 = 17;
+/// `null` and the booleans (`nut.py`'s `DIV` and `BITW`).
+const LOADNULL: u8 = 20;
+const LOADBOOL: u8 = 22;
+const NEG: u8 = 45;
+/// `@x` (relative to the current value).
+const RELATIVE: u8 = 61;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Literal {
     Str(String),
     Int(i32),
+    Other,
+}
+
+/// A call's argument as [`Function::calls`] reads it.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Arg {
+    Int(i32),
+    Str(String),
+    /// A constant read by name: `Center`, `Middle`
+    Word(String),
+    /// `@n`
+    Relative(i32),
+    Bool(bool),
+    /// Anything else: `null`, variables, results
     Other,
 }
 
@@ -197,6 +225,65 @@ impl Function {
             }
         }
         self.functions.iter().for_each(|f| f.strs_before_call(name, out));
+    }
+
+    /// Every call to a function named by a literal (`PREPCALLK`), in this
+    /// function and the ones inside it, with its arguments in the order
+    /// they are loaded. A call whose arguments are built by code this
+    /// doesn't follow (table literals, jumps) has none.
+    pub fn calls(&self, out: &mut Vec<(String, Vec<Arg>)>) {
+        // (name, arguments, followed)
+        let mut open: Vec<(String, Vec<Arg>, bool)> = Vec::new();
+        for ins in &self.code {
+            let lit = |i: i32| self.str(i).map(str::to_string);
+            if ins.op == PREPCALLK || ins.op == PREPCALL {
+                let name = if ins.op == PREPCALLK { lit(ins.arg1) } else { None };
+                open.push((name.unwrap_or_default(), Vec::new(), true));
+                continue;
+            }
+            let Some((_, args, ok)) = open.last_mut() else { continue };
+            match ins.op {
+                LINE => {}
+                LOAD => args.push(lit(ins.arg1).map_or(Arg::Other, Arg::Str)),
+                LOADINT => args.push(Arg::Int(ins.arg1)),
+                DLOAD => args.extend([ins.arg1, i32::from(ins.arg3)].map(|l| lit(l).map_or(Arg::Other, Arg::Str))),
+                GETK => args.push(lit(ins.arg1).map_or(Arg::Other, Arg::Word)),
+                LOADBOOL => args.push(Arg::Bool(ins.arg1 != 0)),
+                LOADFLOAT | MOVE | LOADNULL => args.push(Arg::Other),
+                NEG => match args.last_mut() {
+                    Some(Arg::Int(n)) => *n = -*n,
+                    _ => *ok = false,
+                },
+                RELATIVE => match args.last_mut() {
+                    Some(a @ Arg::Int(_)) => {
+                        let Arg::Int(n) = *a else { unreachable!() };
+                        *a = Arg::Relative(n);
+                    }
+                    _ => *ok = false,
+                },
+                ARITH => {
+                    let (b, a) = (args.pop(), args.pop());
+                    args.push(match (a, b) {
+                        (Some(Arg::Int(a)), Some(Arg::Int(b))) => match ins.arg3 {
+                            b'+' => Arg::Int(a + b),
+                            b'-' => Arg::Int(a - b),
+                            b'*' => Arg::Int(a * b),
+                            _ => Arg::Other,
+                        },
+                        _ => Arg::Other,
+                    });
+                }
+                CALL | TAILCALL => {
+                    let (name, args, ok) = open.pop().expect("an open call");
+                    out.push((name, if ok { args } else { Vec::new() }));
+                    if let Some((_, args, _)) = open.last_mut() {
+                        args.push(Arg::Other);
+                    }
+                }
+                _ => *ok = false,
+            }
+        }
+        self.functions.iter().for_each(|f| f.calls(out));
     }
 
     /// The string literals loaded by `LOAD`/`DLOAD` in `code`, in order.

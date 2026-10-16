@@ -31,6 +31,9 @@ pub struct English {
     /// `SetChoice(id, japanese…)` and the lang file's
     /// `TransChoice["<id>_<n>"]` (n from 1).
     choices: HashMap<String, HashMap<String, String>>,
+    /// Scene name → the scene's calls on its telop sprites (the ones made
+    /// with a `cg/sys/telop/` picture), in order ([`place_telops`]).
+    telops: HashMap<String, Vec<(String, Vec<squirrel::Arg>)>>,
 }
 
 #[derive(Debug, Default)]
@@ -47,6 +50,11 @@ pub struct Report {
     pub options: usize,
     /// (file, option) of the choice options left in Japanese.
     pub options_missed: Vec<(String, String)>,
+    /// Calls on telop sprites given the port's places.
+    pub telops_placed: usize,
+    /// (file, call, sprite and its number) that the port makes a
+    /// different number of times: left at the Japanese places.
+    pub telops_unpaired: Vec<(String, String)>,
 }
 
 /// The form both sides are compared in: no `//` lines, tags, `<?>` or
@@ -75,6 +83,7 @@ impl English {
         };
         let mut scenes = HashMap::new();
         let mut choices = HashMap::new();
+        let mut telops = HashMap::new();
         for e in &scripts.entries {
             let Some(scene) = e.name.strip_prefix("media/script/nut/").and_then(|n| n.strip_suffix(".nut")) else { continue };
             let Some(lang) = scripts.find(&format!("media/script/lang/en/{scene}.nut")) else { continue };
@@ -90,6 +99,9 @@ impl English {
                 .filter_map(|(k, jp)| Some((jp, options.get(&k)?.clone())))
                 .collect();
             choices.insert(scene.to_lowercase(), scene_choices);
+            let mut calls = Vec::new();
+            scene_fn.calls(&mut calls);
+            telops.insert(scene.to_lowercase(), telop_calls(calls));
             let mut prints = Vec::new();
             scene_fn.calls_int_str("Print", &mut prints);
             // Prints with no English show nothing in the port, which types
@@ -107,7 +119,7 @@ impl English {
                 .collect();
             scenes.insert(scene.to_lowercase(), rows);
         }
-        Ok(English { scenes, choices })
+        Ok(English { scenes, choices, telops })
     }
 
     /// Puts the English into every text block of `files` (by file name,
@@ -125,6 +137,9 @@ impl English {
                     }
                     None => report.options_missed.push((name.clone(), jp.clone())),
                 });
+            }
+            if let Some(port) = self.telops.get(scene) {
+                place_telops(name, file, port, &mut report);
             }
             let Some(rows) = self.scenes.get(scene) else { continue };
             let mut keys = Vec::new();
@@ -252,10 +267,164 @@ fn each_run(file: &mut NssFile, f: &mut dyn FnMut(Vec<Inline>, u32) -> Vec<Inlin
     }
 }
 
-/// Calls `f` on each string argument of the scenes' `SetChoice02` …
-/// `SetChoice06` (function_select.nss): the choices' options.
-fn each_choice_option(file: &mut NssFile, f: &mut dyn FnMut(&mut String)) {
-    fn stmts(list: &mut [Stmt], f: &mut dyn FnMut(&mut String)) {
+/// The calls of `calls` on telop sprites: the ones a `Create…` call
+/// makes with a `cg/sys/telop/` picture.
+fn telop_calls(calls: Vec<(String, Vec<squirrel::Arg>)>) -> Vec<(String, Vec<squirrel::Arg>)> {
+    use squirrel::Arg;
+    let telop = |a: &Arg| matches!(a, Arg::Str(p) if p.to_lowercase().contains("/telop/"));
+    let names: std::collections::HashSet<String> = calls
+        .iter()
+        .filter(|(f, a)| f.starts_with("Create") && a.iter().any(telop))
+        .filter_map(|(_, a)| match a.first() {
+            Some(Arg::Str(s)) => Some(s.clone()),
+            _ => None,
+        })
+        .collect();
+    calls.into_iter().filter(|(_, a)| matches!(a.first(), Some(Arg::Str(s)) if names.contains(s))).collect()
+}
+
+/// The arguments of `call` that place a picture: x, y and the picture of
+/// `CreateTexture…(name, priority, x, y, picture)`, x and y of
+/// `Move(name, time, x, y, …)`.
+fn placing(call: &str) -> &'static [usize] {
+    match call {
+        _ if call.starts_with("CreateTexture") => &[2, 3, 4],
+        "Move" => &[2, 3],
+        _ => &[],
+    }
+}
+
+/// Moves the telops of `file` to the port's places (`port`: the scene's
+/// calls on its telop sprites). The English telops (`cg/sys/telop/`) are
+/// mostly other sizes than the Japanese (chapter titles lying, not
+/// standing; captions wider), and the port's scenes place them anew.
+/// The k-th call of a kind on a sprite takes the port's k-th one's
+/// places, when both make that call as often (otherwise a picture the
+/// port makes once on the sprite takes its place); the picture only when the
+/// port's is a telop (the port names its other pictures `.png` for
+/// `.jpg`).
+fn place_telops(file_name: &str, file: &mut NssFile, port: &[(String, Vec<squirrel::Arg>)], report: &mut Report) {
+    use squirrel::Arg;
+    let mut theirs: HashMap<(&str, &str), Vec<&[Arg]>> = HashMap::new();
+    for (call, args) in port {
+        if let Some(Arg::Str(sprite)) = args.first() && !placing(call).is_empty() {
+            theirs.entry((sprite.as_str(), call.as_str())).or_default().push(args);
+        }
+    }
+    let key = |call: &str, args: &[nss::Expr]| match args.first() {
+        Some(nss::Expr::Str(sprite)) if !placing(call).is_empty() => Some((sprite.clone(), call.to_string())),
+        _ => None,
+    };
+    let mut ours: HashMap<(String, String), usize> = HashMap::new();
+    each_call(file, &mut |call, args| {
+        if let Some(k) = key(call, args) {
+            *ours.entry(k).or_default() += 1;
+        }
+    });
+    let mut seen: HashMap<(String, String), usize> = HashMap::new();
+    each_call(file, &mut |call, args| {
+        let Some(k) = key(call, args) else { return };
+        let Some(list) = theirs.get(&(k.0.as_str(), k.1.as_str())) else { return };
+        let n = seen.entry(k.clone()).or_default();
+        *n += 1;
+        let port = if list.len() == ours[&k] {
+            list[*n - 1]
+        } else {
+            // The port rewrote this part: a picture it makes once on the
+            // sprite still takes its place.
+            let ours = match args.get(4) {
+                Some(nss::Expr::Str(p)) if call.starts_with("CreateTexture") => p.to_lowercase(),
+                _ => String::new(),
+            };
+            let same: Vec<_> = list.iter().filter(|a| matches!(a.get(4), Some(Arg::Str(p)) if p.to_lowercase() == ours)).collect();
+            match same[..] {
+                [port] => port,
+                _ => {
+                    report.telops_unpaired.push((file_name.to_string(), format!("{} {} #{n}", k.1, k.0)));
+                    return;
+                }
+            }
+        };
+        for &i in placing(call) {
+            let (Some(ours), Some(theirs)) = (args.get_mut(i), port.get(i)) else { continue };
+            *ours = match theirs {
+                Arg::Int(v) => nss::Expr::Int(i64::from(*v)),
+                Arg::Word(w) => nss::Expr::Word(w.clone()),
+                Arg::Relative(v) => nss::Expr::Unary { op: nss::UnaryOp::Relative, expr: Box::new(nss::Expr::Int(i64::from(*v))) },
+                Arg::Str(p) if p.to_lowercase().contains("/telop/") => nss::Expr::Str(p.clone()),
+                _ => continue,
+            };
+        }
+        report.telops_placed += 1;
+    });
+    // A fade out the port adds on a telop sprite (ma01_026 clears its
+    // preface before the chapter title comes up where it was) goes before
+    // the port's next placing call.
+    let mut faded = std::collections::HashSet::new();
+    each_call(file, &mut |call, args| {
+        if call == "FadeDelete" && let Some(nss::Expr::Str(sprite)) = args.first() {
+            faded.insert(sprite.clone());
+        }
+    });
+    for (i, (call, args)) in port.iter().enumerate() {
+        let (Some(Arg::Str(sprite)), Some(Arg::Int(time)), Some(Arg::Bool(wait))) = (args.first(), args.get(1), args.get(3)) else { continue };
+        if call != "FadeDelete" || faded.contains(sprite) {
+            continue;
+        }
+        let Some((next, Some(Arg::Str(at)))) = port[i + 1..].iter().find(|(c, a)| !placing(c).is_empty() && matches!(a.first(), Some(Arg::Str(_)))).map(|(c, a)| (c, a.first())) else { continue };
+        let nth = port[..i].iter().filter(|(c, a)| c == next && a.first() == Some(&Arg::Str(at.clone()))).count();
+        let fade = nss::Expr::Call {
+            name: call.clone(),
+            args: vec![nss::Expr::Str(sprite.clone()), nss::Expr::Int(i64::from(*time)), nss::Expr::Word(wait.to_string())],
+        };
+        let mut seen = 0;
+        let found = insert_before(file, &mut |c, a| {
+            let hit = c == next && matches!(a.first(), Some(nss::Expr::Str(s)) if s == at);
+            seen += usize::from(hit);
+            hit && seen == nth + 1
+        }, fade);
+        if found {
+            report.telops_placed += 1;
+        }
+    }
+}
+
+/// Puts `call` as a statement before the first call statement of `file`
+/// that `at` takes. Returns whether it found one.
+fn insert_before(file: &mut NssFile, at: &mut dyn FnMut(&str, &[nss::Expr]) -> bool, call: nss::Expr) -> bool {
+    fn stmts(list: &mut Vec<Stmt>, at: &mut dyn FnMut(&str, &[nss::Expr]) -> bool, call: &mut Option<nss::Expr>) {
+        let mut i = 0;
+        while i < list.len() && call.is_some() {
+            match &mut list[i].kind {
+                StmtKind::If { then, otherwise, .. } => {
+                    stmts(then, at, call);
+                    otherwise.iter_mut().for_each(|o| stmts(o, at, call));
+                }
+                StmtKind::While { body, .. } | StmtKind::Select(body) | StmtKind::Case { body, .. } | StmtKind::Block(body) => stmts(body, at, call),
+                StmtKind::Expr(nss::Expr::Call { name, args }) if at(name, args) => {
+                    let line = list[i].line;
+                    list.insert(i, Stmt { line, kind: StmtKind::Expr(call.take().expect("checked")) });
+                    return;
+                }
+                _ => {}
+            }
+            i += 1;
+        }
+    }
+    let mut call = Some(call);
+    for item in &mut file.items {
+        match item {
+            Item::Chapter(b) | Item::Scene(b) => stmts(&mut b.body, at, &mut call),
+            Item::Function(fun) => stmts(&mut fun.body, at, &mut call),
+            Item::Include(_) => {}
+        }
+    }
+    call.is_none()
+}
+
+/// Calls `f` on each call statement of `file`: its name and arguments.
+fn each_call(file: &mut NssFile, f: &mut dyn FnMut(&str, &mut [nss::Expr])) {
+    fn stmts(list: &mut [Stmt], f: &mut dyn FnMut(&str, &mut [nss::Expr])) {
         for s in list {
             match &mut s.kind {
                 StmtKind::If { then, otherwise, .. } => {
@@ -263,9 +432,7 @@ fn each_choice_option(file: &mut NssFile, f: &mut dyn FnMut(&mut String)) {
                     otherwise.iter_mut().for_each(|o| stmts(o, f));
                 }
                 StmtKind::While { body, .. } | StmtKind::Select(body) | StmtKind::Case { body, .. } | StmtKind::Block(body) => stmts(body, f),
-                StmtKind::Expr(nss::Expr::Call { name, args }) if name.starts_with("SetChoice0") => {
-                    args.iter_mut().for_each(|a| if let nss::Expr::Str(s) = a { f(s) });
-                }
+                StmtKind::Expr(nss::Expr::Call { name, args }) => f(name, args),
                 _ => {}
             }
         }
@@ -277,6 +444,16 @@ fn each_choice_option(file: &mut NssFile, f: &mut dyn FnMut(&mut String)) {
             Item::Include(_) => {}
         }
     }
+}
+
+/// Calls `f` on each string argument of the scenes' `SetChoice02` …
+/// `SetChoice06` (function_select.nss): the choices' options.
+fn each_choice_option(file: &mut NssFile, f: &mut dyn FnMut(&mut String)) {
+    each_call(file, &mut |name, args| {
+        if name.starts_with("SetChoice0") {
+            args.iter_mut().for_each(|a| if let nss::Expr::Str(s) = a { f(s) });
+        }
+    });
 }
 
 /// A stretch's Japanese in the form [`key`] compares.
@@ -327,7 +504,7 @@ mod tests {
     #[test]
     fn replaces_stretches_between_code() {
         let rows = vec![(key("「……"), "\"...\"".to_string()), (key("ああ」"), "\"Ah.\"".to_string())];
-        let english = English { scenes: HashMap::from([("a".to_string(), rows)]), choices: HashMap::new() };
+        let english = English { scenes: HashMap::from([("a".to_string(), rows)]), choices: HashMap::new(), telops: HashMap::new() };
         let src = "chapter main\n{\n<PRE @box0>\n[text0010]\n「……{WaitKey(1100);}ああ」\n</PRE>\n}\n";
         let mut files = BTreeMap::from([("a.nss".to_string(), nss::parse(src).unwrap())]);
         let report = english.apply(&mut files);
@@ -342,7 +519,7 @@ mod tests {
     #[test]
     fn choice_options_take_their_english() {
         let options = HashMap::from([("お任せします".to_string(), "As you wish.".to_string())]);
-        let english = English { scenes: HashMap::new(), choices: HashMap::from([("a".to_string(), options)]) };
+        let english = English { scenes: HashMap::new(), choices: HashMap::from([("a".to_string(), options)]), telops: HashMap::new() };
         let src = "chapter main\n{\n\tSetChoice02(\"お任せします\",\"お断りします\");\n}\n";
         let mut files = BTreeMap::from([("a.nss".to_string(), nss::parse(src).unwrap())]);
         let report = english.apply(&mut files);
@@ -350,6 +527,30 @@ mod tests {
         let StmtKind::Expr(nss::Expr::Call { args, .. }) = &b.body[0].kind else { panic!("{:?}", b.body[0]) };
         assert_eq!(args[0], nss::Expr::Str("As you wish.".into()));
         assert_eq!((report.options, report.options_missed.len()), (1, 1));
+    }
+
+    #[test]
+    fn telops_take_the_ports_places() {
+        use squirrel::Arg::{Int, Relative, Str, Word};
+        let s = |v: &str| Str(v.to_string());
+        let port = telop_calls(vec![
+            ("CreateTextureEX".into(), vec![s("t"), Int(100), Word("Center".into()), Word("Middle".into()), s("cg/sys/Telop/outline/a.png")]),
+            ("Move".into(), vec![s("t"), Int(0), Relative(0), Relative(-25)]),
+            ("Move".into(), vec![s("bg"), Int(0), Int(5), Int(5)]),
+        ]);
+        assert_eq!(port.len(), 2, "only the telop sprite's calls");
+        let english = English { scenes: HashMap::new(), choices: HashMap::new(), telops: HashMap::from([("a".to_string(), port)]) };
+        let src = "chapter main\n{\n\tCreateTextureEX(\"t\", 100, 300, Middle, \"cg/sys/Telop/a.png\");\n\tMove(\"t\", 0, @0, @-40, null, true);\n}\n";
+        let mut files = BTreeMap::from([("a.nss".to_string(), nss::parse(src).unwrap())]);
+        let report = english.apply(&mut files);
+        let Item::Chapter(b) = &files["a.nss"].items[0] else { panic!() };
+        let StmtKind::Expr(nss::Expr::Call { args, .. }) = &b.body[0].kind else { panic!() };
+        assert_eq!(args[2], nss::Expr::Word("Center".into()));
+        assert_eq!(args[4], nss::Expr::Str("cg/sys/Telop/outline/a.png".into()));
+        let StmtKind::Expr(nss::Expr::Call { args, .. }) = &b.body[1].kind else { panic!() };
+        assert_eq!(args[3], nss::Expr::Unary { op: nss::UnaryOp::Relative, expr: Box::new(nss::Expr::Int(-25)) });
+        assert_eq!(args[5], nss::Expr::Word("true".into()));
+        assert_eq!((report.telops_placed, report.telops_unpaired.len()), (2, 0));
     }
 
     #[test]

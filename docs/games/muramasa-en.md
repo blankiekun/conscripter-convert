@@ -97,6 +97,13 @@ It has no NPA archives and no NSS scripts.
   in English, same names and size as the Japanese) are taken before
   `cg.npa`'s (`ENGLISH_FIRST` in `nitroplus/assets.rs`). Checked on a
   one-scene build (`--file ma01_001.nss --chain 1 --loose`).
+- **Telops:** the English `cg.npk`'s `cg/sys/telop/` pictures (chapter
+  titles, prefaces, 銀星号の唄 captions, names) are taken before
+  `cg.npa`'s, at the port's places (`english::place_telops`, History).
+  The build prints the calls it left at the Japanese places (7: md05_037vs's
+  rewritten effect sprites, mc01_026's `絵文字殺覆` #5). Checked headless
+  on ma01_026 (preface, then the title centred). Not yet compared with
+  the original.
 - **Quick bar** (the fly-out on the right): the English `cg.npk`'s
   `cg/sys/quick/` (Q.SAVE, Q.LOAD, SKIP, HIDE TEXT on its base; the
   buttons transparent pictures with their highlights), at the Japanese
@@ -156,10 +163,9 @@ It has no NPA archives and no NSS scripts.
      `_system.nut`'s line-log strings not read; 15 scenes with English
      written into the scenario (`LANG_NAME` branches: captions, dates,
      ma01_026's document, mc02_031's menus) show the NSS's Japanese;
-     45 of the 63 `cg/sys/telop/` pictures the English `cg.npk` has under
-     the Japanese names (chapter titles, 銀星号の唄 captions, prefaces)
-     are other sizes (lying instead of standing), so they need the
-     port's places, not just the swap the name plates got;
+     the telops the port rewrote (md05_037vs's 魔剣対決 and 魔王編挿入
+     pictures, mc01_026's last 殺意 word: see "Telops") stay at the
+     Japanese places;
      four one-scene English boxes (ma01_009, mc01_003, ma01_002); the
      port's particles (rain, snow, sparks, 27 scenes) not drawn, as in
      the Japanese build. To check: `sys_backselect.nut` and
@@ -394,6 +400,21 @@ md04_015, md04_026vs, md04_030 (dates and times: `November 30, 1940`,
 | `setting.ini` keys | files table | there |
 
 ## History
+
+- **Telops at the port's places (2026-10-16):** 47 of the English
+  telops have the Japanese names but other sizes (chapter titles 528×368
+  lying, not 34×576 standing; 銀星号の唄 800 wide, not 460; prefaces a
+  full screen at 70 %), and the port's scenes place them anew (centred
+  titles, the song's lines 40 px apart from the middle, `outline/`
+  versions of the captions). The converter reads each scene's calls
+  (`squirrel::Function::calls`: literal arguments, `@n`, `-n`) and gives
+  the k-th `CreateTexture…` (x, y, a telop picture) or `Move` (x, y) on
+  a telop sprite the port's k-th one's arguments, when both make it as
+  often (otherwise a picture the port makes once on the sprite takes its
+  place); a `FadeDelete` the port adds on a telop sprite goes before its
+  next placing call (ma01_026 clears its preface before the title).
+  `cg/sys/telop/` joined `ENGLISH_FIRST`. 465 calls placed, 7 left
+  (Status).
 
 - **Faces in their frames (2026-10-15, reported by the user):** the
   face and name plate pictures (`FwC`/`NwC`, `FwR`, `FwL`, `FwH`/`NwH`
