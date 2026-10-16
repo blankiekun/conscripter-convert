@@ -911,8 +911,9 @@ fn uses_switch(script: &Script, s: Switch) -> bool {
 }
 
 /// Command-line options CONscripter reads from `ons_args` in the game
-/// directory. Without `--enc:sjis` it reads the script as GBK.
-pub const ENGINE_ARGS: &str = "--enc:sjis\n";
+/// directory. Without `--enc:sjis` it reads the script as GBK;
+/// `--no-text-overlay`: the web player draws no text overlay.
+pub const ENGINE_ARGS: &str = "--enc:sjis\n--no-text-overlay\n";
 
 /// Encodes NScripter source as Shift-JIS. Characters Shift-JIS can't
 /// represent become `?`; their count is returned.

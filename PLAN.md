@@ -243,6 +243,9 @@ details, record layouts and handler addresses are in the game's document):
   to keep the text in place. ONScripter reads the markup bytes singly, so
   single-byte padding must treat them like colour tags. Readings wider
   than their base push the rest of the line right.
+- **No web text overlay:** `ons_args` carries `--no-text-overlay`
+  (engine #49), so the web player gets no text, choice or backlog hooks
+  and draws no selectable text over the picture.
 
 ## 5. Asset pipeline
 
