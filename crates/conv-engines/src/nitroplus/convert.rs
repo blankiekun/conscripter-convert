@@ -259,8 +259,8 @@ pub trait Assets {
     /// the box `at` (x, y, w, h) it fills unscaled: the picture to draw
     /// (perhaps only its part on the screen), its top-left and size.
     fn scaled(&mut self, image: &str, zx: i64, zy: i64, at: (i64, i64, i64, i64)) -> Option<(String, i64, i64, u32, u32)>;
-    /// An output image mirrored left to right (`x`) and/or upside down
-    /// (`y`).
+    /// An output image (or `.mp4` movie) mirrored left to right (`x`)
+    /// and/or upside down (`y`).
     fn mirrored(&mut self, image: &str, x: bool, y: bool) -> Option<String>;
     /// Images the scripts name, as cells side by side in one picture (a
     /// button's states): its path and size (all cells). Each cell is as
@@ -2695,8 +2695,13 @@ impl<'a, 'b> Compiler<'a, 'b> {
         if !m.full_screen(self.game.screen) {
             return;
         }
-        let (path, opacity, left) = (m.path.clone(), *opacity, m.info.ms.saturating_sub(at));
-        let Some(file) = self.assets.movie_file(&path, false) else { return };
+        let (path, opacity, left, (mx, my)) = (m.path.clone(), *opacity, m.info.ms.saturating_sub(at), self.objects[name].mirror());
+        let Some(mut file) = self.assets.movie_file(&path, false) else { return };
+        if (mx || my)
+            && let Some(turned) = self.assets.mirrored(&file, mx, my)
+        {
+            file = turned;
+        }
         // Hidden while the screen catches up, then the last frame shows.
         self.objects.get_mut(name).unwrap().opacity = 0;
         self.sync(0);
@@ -3867,6 +3872,23 @@ scene a.nss
     }
 
     #[test]
+    fn a_movie_turned_over_plays_mirrored() {
+        // dja003_02's blood: the exe turns a movie's quad as a picture's.
+        let story = r#"
+scene a.nss
+{
+	CreateMovie("cut", 100, 0, 0, false, false, "dx/mv剣戟.ngs");
+	Rotate("cut", 0, @0, @180, @0, null, true);
+	WaitAction("cut", null);
+}
+"#;
+        let c = compile(story, LIBRARY);
+        assert!(c.ops.iter().any(|op| matches!(op, Op::SceneMovie { file, .. } if file == "movie/dx/mv剣戟.ngs-mute~x")), "{:?}", c.ops);
+        let last = |op: &Op| matches!(op, Op::AnimatedSprite { sprite, .. } if sprite.image.contains("Some(1934)~x"));
+        assert!(c.ops.iter().any(last), "{:?}", c.ops);
+    }
+
+    #[test]
     fn a_smoke_loop_plays_as_a_movie_zoomed_and_a_paused_cut_as_one_frame() {
         let story = r#"
 scene a.nss
@@ -3947,6 +3969,30 @@ scene a.nss
             _ => None,
         });
         assert_eq!(gone, Some(true), "{:?}", c.ops);
+    }
+
+    #[test]
+    fn a_face_slides_with_its_frame() {
+        // `WindowMoveM` moves only the frame (dja003_02): its face, placed
+        // from it, moves by the engine with it, not at once to its end.
+        let story = r#"
+scene a.nss
+{
+	CreateTexture("frame03", 100, 25, 80, "cg/st/a.png");
+	CreateTexture("frame03/顔窓31", 101, 25, 25, "cg/st/b.png");
+	Wait(100);
+	Move("frame03", 200, @-400, @0, null, false);
+	Wait(300);
+}
+"#;
+        static GAME: Game = Game { family: true, relative_children: true, ..Game::PLAIN };
+        let mut files = BTreeMap::new();
+        files.insert(BOOT.to_string(), nss::parse("#include \"nss/function.nss\"\n").unwrap());
+        files.insert("function.nss".to_string(), nss::parse(LIBRARY).unwrap());
+        files.insert("a.nss".to_string(), nss::parse(story).unwrap());
+        let c = compile_scene(&files, "a.nss", "a.nss", &GAME, &mut Fake).unwrap();
+        let motions = c.ops.iter().filter(|op| matches!(op, Op::SpriteMotion2 { .. })).count();
+        assert_eq!(motions, 2, "{:?}", c.ops);
     }
 
     #[test]

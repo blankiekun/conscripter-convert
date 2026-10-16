@@ -203,7 +203,9 @@ impl Compiler<'_, '_> {
                 let blocking = !matches!(arg(5), Value::Null | Value::Int(0)) && self.action_process.is_none();
                 // One picture on screen moving while the script waits: a real
                 // motion (after showing what changed before it).
-                if ms > 0 && blocking && targets.len() == 1 && self.shown.contains_key(&targets[0]) {
+                // (A picture with children shown goes the general way below.)
+                let alone = |t: &String| !self.game.relative_children || !self.shown.keys().any(|k| k.starts_with(&format!("{t}/")));
+                if ms > 0 && blocking && targets.len() == 1 && self.shown.contains_key(&targets[0]) && alone(&targets[0]) {
                     self.sync(0);
                     let trail = self.objects[&targets[0]].trail;
                     let o = self.objects.get_mut(&targets[0]).unwrap();
@@ -230,8 +232,17 @@ impl Compiler<'_, '_> {
                     o.x = to_x.position(o.x, o.w, screen_w);
                     o.y = to_y.position(o.y, o.h, screen_h);
                 }
-                self.set_tempo(tempo, &targets);
-                self.timed(ms, &arg(5), &targets);
+                // Children placed from their parent slide with it (a face in
+                // its frame: `WindowMoveM` moves only the frame).
+                let mut moved = targets.clone();
+                if self.game.relative_children {
+                    for t in &targets {
+                        let inside = format!("{t}/");
+                        moved.extend(self.objects.keys().filter(|k| k.starts_with(&inside) && !targets.contains(k)).cloned());
+                    }
+                }
+                self.set_tempo(tempo, &moved);
+                self.timed(ms, &arg(5), &moved);
             }
             "Delete" if arg(0).string() == "*" && self.game.chapter_objects && self.chapter_mark.is_some() => {
                 self.delete_chapter_objects(self.chapter_mark.unwrap());
@@ -278,7 +289,7 @@ impl Compiler<'_, '_> {
                     let o = self.objects.get_mut(t).unwrap();
                     let (before, mirror) = (o.turn, o.mirror());
                     o.turn = (turn_x.position(o.turn.0, 0, 0), turn_y.position(o.turn.1, 0, 0), turn_z.position(o.turn.2, 0, 0));
-                    let (turn, mirrored) = (o.turn, o.mirror() != (false, false));
+                    let turn = o.turn;
                     let tilted = turn.2 != before.2 && matches!(o.kind, Kind::Image { .. });
                     let text = matches!(o.kind, Kind::Text(_));
                     let edge = |t: (i64, i64, i64)| t.0.rem_euclid(180) == 90 || t.1.rem_euclid(180) == 90;
@@ -289,7 +300,6 @@ impl Compiler<'_, '_> {
                         Kind::Text(text) => text.rotation = turn.2,
                         Kind::Image { .. } => {}
                         _ if turn.2.rem_euclid(360) != 0 => self.note("Rotate about z"),
-                        Kind::Movie(_) if mirrored => self.note("Rotate of a movie"),
                         _ => {}
                     }
                     if ms > 0 && (turn.0, turn.1) != (before.0, before.1) && !text {
