@@ -145,8 +145,11 @@ fn call_en(c: &mut Compiler<'_, '_>, name: &str, args: &[Value]) -> bool {
         }
         ("Move", Some((_, _, Some(_), _))) => true,
         // Story `CreateText` would draw the Japanese captions: left out
-        // until the port's own are known.
-        ("CreateText", _) => true,
+        // until the port's own (its `LANG_NAME` branches) are taken.
+        ("CreateText", _) => {
+            c.note("CreateText left out: the Japanese caption (English build)");
+            true
+        }
         ("Move", None) if args.len() >= 4 && en_face(&args[0].string()).is_some() => {
             let (x, y) = en_face(&args[0].string()).unwrap_or_default();
             let mut args = args.to_vec();

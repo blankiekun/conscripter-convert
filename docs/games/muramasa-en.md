@@ -103,10 +103,10 @@ It has no NPA archives and no NSS scripts.
   saved slot (its buttons' places), `Save Complete` and the details under
   the pointer match. As there, a click on an empty slot saves at once in
   the game (no popup; `SlotPopup::empty_saves`) and the play time is
-  hours and minutes (`PLAY TIME 00:16`, `SaveGrid::play_time_hm`). Left
-  as it is: at the title a click on an empty slot does nothing (the port
-  saves the title screen there, though its popup's Save is off at the
-  title); the Q.Save page shows our one quick save (the port keeps 20,
+  hours and minutes (`PLAY TIME 00:16`, `SaveGrid::play_time_hm`). A
+  deliberate difference (decided 2026-10-16): at the title a click on an
+  empty slot does nothing (the port saves the title screen there, though
+  its popup's Save is off at the title). Left as it is: the Q.Save page shows our one quick save (the port keeps 20,
   oldest overwritten).
 - **Settings:** the port's (`sys_config.nut`, `settings_en`):
   `ConfigBG` with its check boxes (skip movies, wait for the voice in
@@ -172,6 +172,12 @@ It has no NPA archives and no NSS scripts.
   `droidserif-muramasa.ttf` (font.npk); the menus follow the English
   port's redesigned screens, not the Japanese PC ones; filming the
   English original under wine is allowed.
+- **Decided (2026-10-16, the lead for the user):** story `CreateText`
+  (the Japanese build draws it since #17: captions, dates, 殺 害,
+  〝我は力〟) is left out in the English build, which would show the
+  Japanese (423 calls; the dry run's `CreateText left out` note); the
+  title's empty-slot save is not copied (Save/load, above); Continue
+  loads the quick save, else the newest.
 - **Text box** (compared with the original under wine, History): the
   first pages of `ma00_000` match it pixel for pixel in the text area
   (line pitch 25, the text 2 px under `BoxInfo`'s y, no letter
@@ -207,7 +213,10 @@ It has no NPA archives and no NSS scripts.
      `TransLog` (125) and
      `_system.nut`'s line-log strings not read; 15 scenes with English
      written into the scenario (`LANG_NAME` branches: captions, dates,
-     ma01_026's document, mc02_031's menus) show the NSS's Japanese;
+     ma01_026's document, mc02_031's menus) show the NSS's Japanese,
+     or, for story `CreateText`, nothing (Decided, above): later, draw
+     the port's English captions from those branches in the release's
+     font;
      the telops the port rewrote (md05_037vs's 魔剣対決 and 魔王編挿入
      pictures, mc01_026's last 殺意 word: see "Telops") stay at the
      Japanese places;
