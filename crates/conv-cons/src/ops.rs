@@ -390,7 +390,7 @@ impl<'a> Emitter<'a> {
             if duck {
                 let off = menu::switch_off(Switch::BgmFullForVoice);
                 let to = if voice.is_some() { "50,200" } else { "100,400" };
-                writeln!(out, "if {off} == 1 bgmvolfade {to}").unwrap();
+                writeln!(out, "if {off} == 1 chvolfade -1,{to}").unwrap();
             }
             if let Some(v) = voice {
                 if voice_switches {
@@ -633,7 +633,7 @@ impl<'a> Emitter<'a> {
         }
         Op::BgmPlay { file, fade_in_ms } => {
             if se.volumes && !std::mem::take(&mut se.preset) {
-                writeln!(out, "bgmvolfade 100").unwrap();
+                writeln!(out, "chvolfade -1,100").unwrap();
             }
             writeln!(out, "bgmfadein {fade_in_ms}").unwrap();
             writeln!(out, "bgm \"{}\"", path(file)).unwrap();
@@ -706,7 +706,7 @@ impl<'a> Emitter<'a> {
                 None => se.stop_all(),
             };
             for ch in channels {
-                writeln!(out, "dwavefadeout {ch},{ms}").unwrap();
+                writeln!(out, "chvolfade {ch},0,{ms},1").unwrap();
             }
         }
         Op::SoundVolume { file, percent, ms } => {
@@ -721,7 +721,7 @@ impl<'a> Emitter<'a> {
             };
             let ms = if *ms > 0 { format!(",{ms}") } else { String::new() };
             match file {
-                None => writeln!(out, "bgmvolfade {percent}{ms}").unwrap(),
+                None => writeln!(out, "chvolfade -1,{percent}{ms}").unwrap(),
                 Some(f) => {
                     let ch = if se.preset { Some(se.peek()) } else { se.playing.get(f).copied() };
                     if let Some(ch) = ch {

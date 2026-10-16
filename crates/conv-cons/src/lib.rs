@@ -1320,7 +1320,7 @@ struct SeChannels {
     playing: HashMap<String, u32>,
     next: u32,
     /// The script sets volumes ([`Op::SoundVolume`]): every sound starts
-    /// with one (`chvolfade`, `bgmvolfade`).
+    /// with one (`chvolfade`, music -1).
     volumes: bool,
     /// The op before the sound starting set its volume.
     preset: bool,
@@ -2513,7 +2513,7 @@ end
             Op::SePlay { file: "se/rain.ogg".into(), looped: true },
             Op::SeFadeOut { file: Some("se/rain.ogg".into()), ms: 1500 },
         ]));
-        assert!(out.contains("dwavefadein 2000\ndwaveloop 1,\"se\\rain.ogg\"\ndwavefadeout 1,1500\n"), "{out}");
+        assert!(out.contains("dwavefadein 2000\ndwaveloop 1,\"se\\rain.ogg\"\nchvolfade 1,0,1500,1\n"), "{out}");
     }
 
     #[test]
