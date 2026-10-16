@@ -3300,6 +3300,13 @@ const UNNEEDED_OPERANDS: &[(u16, &str, &str, &str)] = &[
     (0x8d, "-1", "ff", "0xff, as in every 0x87 and 0x8a wait record"),
     // op_88 0x415b50 clears a slot-0 module without its blend and opacity.
     (0x88, "-4", "00000000", "a cleared slot's blend and opacity"),
+    // op_88 sets the module's +0xc, the key FUN_0040e2a0 keeps a preset's modules in (ascending, a tie after the earlier ones).
+    (
+        0x88,
+        "+8",
+        "00000000|02000000|e8030000|d0070000",
+        "the module's place in its preset (0 in 41; 2, 1000 twice, 2000 in slot 2 or a lone slot 1): the modules set together are in slot order, as ours draws them",
+    ),
     // op_90 0x434960 sets the new preset module's +0xc, the key FUN_0040e2a0 sorts the object's modules by (list at +0x68).
     (
         0x90,
