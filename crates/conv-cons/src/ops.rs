@@ -638,6 +638,12 @@ impl<'a> Emitter<'a> {
             writeln!(out, "bgmfadein {fade_in_ms}").unwrap();
             writeln!(out, "bgm \"{}\"", path(file)).unwrap();
         }
+        Op::BgmCrossfade { file, ms } => {
+            if se.volumes && !std::mem::take(&mut se.preset) {
+                writeln!(out, "bgmvolfade 100").unwrap();
+            }
+            writeln!(out, "bgm \"{}\",{ms}", path(file)).unwrap();
+        }
         Op::BgmLater { file, after_ms: 0, looped } => {
             writeln!(out, "bgmfadein 0").unwrap();
             writeln!(out, "{} \"{}\"", if *looped { "bgm" } else { "bgmonce" }, path(file)).unwrap();
@@ -715,7 +721,7 @@ impl<'a> Emitter<'a> {
             // sounds).
             let next = script.ops.get(i + 1);
             se.preset = match (file, next) {
-                (None, Some(Op::BgmPlay { .. })) => true,
+                (None, Some(Op::BgmPlay { .. } | Op::BgmCrossfade { .. })) => true,
                 (Some(f), Some(Op::SePlay { file: g, .. })) => f == g,
                 _ => false,
             };

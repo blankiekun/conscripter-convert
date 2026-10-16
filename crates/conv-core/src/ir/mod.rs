@@ -589,6 +589,9 @@ pub enum Op {
     /// 続・殺戮のジャンゴ's ending credits (ProcessRoll), timed to the
     /// insert song left and the closing song.
     MusicRoll { layer: u32, dy: i32, song: String, song_ms: u32, next: Option<String>, after_ms: u32, skippable: bool },
+    /// Plays `file` as the music, fading in over `ms` while the music
+    /// playing fades out over the same time. 最果てのイマ's 0x59.
+    BgmCrossfade { file: String, ms: u32 },
 }
 
 /// [`Op::HoldMovie`]'s prompt: `image` is `cells` pictures side by side,

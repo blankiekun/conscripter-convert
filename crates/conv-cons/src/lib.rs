@@ -1616,6 +1616,12 @@ goto *conv_link1
     }
 
     #[test]
+    fn bgm_crossfades_over_the_music_playing() {
+        let text = emit(&script(vec![Op::BgmPlay { file: "bgm/a.ogg".into(), fade_in_ms: 0 }, Op::BgmCrossfade { file: "bgm/b.ogg".into(), ms: 3000 }]));
+        assert!(text.contains("bgm \"bgm\\b.ogg\",3000\n"), "{text}");
+    }
+
+    #[test]
     fn sprites_fading_fade_by_themselves() {
         let picture = SpritePlacement { image: "sprite/a.png".into(), x: 1, y: 2 };
         let s = script(vec![Op::SpritesFading {

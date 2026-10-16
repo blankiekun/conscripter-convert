@@ -2890,7 +2890,7 @@ fn lower_instr(
             Sound::BgmStop { fade_out_ms, .. } => Op::BgmStop { fade_out_ms: fade_out_ms.into() },
             // NScripter plays one BGM: the old track stops at once and the
             // new one fades in over the crossfade's time.
-            Sound::BgmCrossfade { to, fade_ms, .. } => Op::BgmPlay { file: assets.bgm(to as usize)?, fade_in_ms: fade_ms },
+            Sound::BgmCrossfade { to, fade_ms, .. } => Op::BgmCrossfade { file: assets.bgm(to as usize)?, ms: fade_ms },
             Sound::SePlay { sound, looped, .. } => Op::SePlay { file: assets.se(sound as usize)?, looped },
             // op_5b passes the fade to the sound request (0x47aab0).
             Sound::SeStop { sound, fade_out_ms } => {
