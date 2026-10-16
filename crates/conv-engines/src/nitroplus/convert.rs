@@ -90,6 +90,7 @@ mod process;
 mod array;
 mod fast_skip;
 mod text_object;
+mod sounds;
 pub(super) use fast_skip::read_flag;
 
 /// A window picture's text place ([`Game::box_text`]): picture, text x, y,
@@ -1086,9 +1087,11 @@ struct SoundObject {
     disused: bool,
     /// `SetLoopPoint`: looped, it loops from the first to the second ms.
     loop_ms: Option<(u32, u32)>,
-    /// How long it has played, as far as the script's `Wait`s tell
-    /// (`WaitPlay` waits for the rest).
-    played_ms: u32,
+    /// When it started ([`Compiler::sound_clock`]) and its length, a
+    /// one-shot's (`WaitPlay` waits for the rest; disused, it is
+    /// forgotten after it).
+    started_at: u64,
+    len_ms: Option<u32>,
 }
 
 /// `old` moved and zoomed into `now` over `ms` by the engine: the same
@@ -1194,6 +1197,9 @@ struct Compiler<'a, 'b> {
     /// While a music process runs ([`Compiler::start_process`]): its time
     /// so far, ms.
     process_clock: Option<u32>,
+    /// [`Compiler::sound_clock`]: the time of the ops up to `clock_scanned`.
+    clock_ms: u64,
+    clock_scanned: usize,
     /// The action process running ([`Compiler::start_process`]): its
     /// actions don't block, and their time counts as its own.
     action_process: Option<String>,
@@ -1907,6 +1913,8 @@ impl<'a, 'b> Compiler<'a, 'b> {
             texts_shown: 0,
             pending_enter: None,
             process_clock: None,
+            clock_ms: 0,
+            clock_scanned: 0,
             action_process: None,
             fast_skip_read: None,
             chapter_mark: None,
@@ -2496,8 +2504,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
 
     /// A wait of `ms`: the time movies already played as movies take off
     /// it (what is left is returned), a movie on screen that it mostly
-    /// waits for plays as a movie, and the others and the sounds go on by
-    /// that much.
+    /// waits for plays as a movie, and the others go on by that much.
     fn movie_wait(&mut self, mut ms: u32) -> u32 {
         let screen = self.game.screen;
         for o in self.objects.values_mut() {
@@ -2533,9 +2540,6 @@ impl<'a, 'b> Compiler<'a, 'b> {
             {
                 let at = at + ms;
                 m.state = MovieState::Playing { at: if m.looped { at % m.info.ms.max(1) } else { at.min(m.info.ms) } };
-            }
-            if let Kind::Sound(s) = &mut o.kind {
-                s.played_ms = s.played_ms.saturating_add(ms);
             }
         }
         ms
@@ -2590,20 +2594,19 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 // `Play` on a loop that is still playing goes on with it
                 // (`md04_048vs` calls MusicStart again on its loop to change
                 // the volume and speed); it isn't started a second time.
+                // Nor is a disused one-shot still playing (kept only for
+                // `WaitPlay`; `MusicStart("SE01*")` in ma04_013vs).
                 if let Kind::Sound(s) = &mut o.kind
-                    && !(s.looped && s.playing.is_some())
+                    && !(s.playing.is_some() && (s.looped || s.disused))
                 {
                     s.starting = true;
                     s.fade_ms = 0;
                 }
             }
             "disused" => match &mut o.kind {
-                // Looping sounds play on until stopped; one-shots end by
-                // themselves.
-                Kind::Sound(s) if s.looped || s.starting => s.disused = true,
-                Kind::Sound(_) => {
-                    self.objects.remove(name);
-                }
+                // Looping sounds play on until stopped; one-shots until
+                // their end (`forget_ended_sounds`).
+                Kind::Sound(s) => s.disused = true,
                 _ if !o.locked => self.delete(name),
                 _ => {}
             },
@@ -2833,13 +2836,10 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 }
                 self.ops.push(Op::SePlay { file: file.clone(), looped });
             }
+            let len_ms = if looped { None } else { self.assets.sound_ms(&path) };
+            let started_at = self.sound_clock();
             if let Some(Object { kind: Kind::Sound(s), .. }) = self.objects.get_mut(&name) {
-                if s.disused && !s.looped {
-                    self.objects.remove(&name);
-                } else {
-                    s.playing = Some(file);
-                    s.played_ms = 0;
-                }
+                (s.playing, s.len_ms, s.started_at) = (Some(file), len_ms, started_at);
             }
         }
     }
@@ -3635,7 +3635,8 @@ scene a.nss
 
     #[test]
     fn wait_play_waits_for_the_rest_of_a_sound_or_its_limit() {
-        // The fake sounds last 4000 ms; 1000 have passed at each WaitPlay.
+        // The fake sounds last 4000 ms; 1000 have passed at each WaitPlay,
+        // whose limit counts from the WaitPlay.
         let story = r#"
 scene a.nss
 {
@@ -3651,7 +3652,7 @@ scene a.nss
 "#;
         let c = compile(story, LIBRARY);
         let waits: Vec<u32> = c.ops.iter().filter_map(|op| match op { Op::Wait { ms } => Some(*ms), _ => None }).collect();
-        assert_eq!(waits, [1000, 3000, 1000, 1500], "{:?}", c.ops);
+        assert_eq!(waits, [1000, 3000, 1000, 2500], "{:?}", c.ops);
     }
 
     #[test]
