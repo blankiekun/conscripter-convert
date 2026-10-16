@@ -14,6 +14,30 @@ followed in parallel from 2026-10-13, each in its own branch: about 70
 commits each in their first two days, by which time the whole story
 converted, every ending reachable.
 
+## Checklist
+
+One line per step; the step's section has the how. Read a section when
+you reach it, not the whole file up front
+(`python3 -I research/tools/mdsec.py docs/new-game.md "9. Matching"`).
+
+| Step | Do | Done when |
+|---|---|---|
+| 0 | Ask the user the scope; learn the game as a player; identify the engine; start `docs/games/<id>.md` from the template | Scope, walkthrough source and engine are in the document |
+| 1 | Archive reader and format decoders, `<format> list\|extract` | The whole corpus verifies and decodes; degenerate assets counted |
+| 2 | Decode the scripts; rank opcodes by use; Ghidra export with `names.tsv`; coverage table | Every script parses, every jump target exists |
+| 3 | Lower to the IR; flags in `conv_core::alloc`'s free ranges | `--dry-run` writes a `0.txt`; what is left out is a ranked list |
+| 3a | Registry entry, `tests/snapshot.sh` case and baseline (`docs/new-engine.md` 6) | `tests/snapshot.sh` covers the game |
+| 4 | Dry run + `lint` + debug trace after every feature | Trace check clean; every ending reachable |
+| 5 | Text box, name plate, voices, ruby; the longest message fits | Every voiced line plays |
+| 6 | Pictures, sound, transitions with real durations | Sprite references match asset names |
+| 7 | System screens from the IR's screens | Every screen opens, closes by mouse, keyboard and touch |
+| 8 | Extras from a 100 % save | Locked and unlocked states both right |
+| 9 | Match the original: code first, wine last | Differences measured (`compare -metric`), shots kept in `local/shots/` |
+| 10 | Engine additions, engine PR first | Listed in `PLAN.md` §4.2; submodule on CONscripter `master` |
+| 11 | Route, progression, unlocks, settings, input, saves across rebuilds | The document says "progression verified: yes, date, how" |
+| 12 | Web build, loose files | Played in a browser; size and file count in the document |
+| 13 | Finish: README, `PLAN.md` §6 and §13, GUI entry | The user agrees it's done |
+
 ## 0. Before writing any code
 
 1. **Ask the user** what they want from this game: the whole thing with
@@ -368,8 +392,8 @@ anything is reached (step 11.6).
   saves can fail (Muramasa's new game went straight back to the title). Wine has no MS fonts, so a
   substitute font draws the text: compare where text starts, not the
   step between characters.
-- **Film the original under wine** for anything not obvious: transitions,
-  effects, menus. Set up a scratch `WINEPREFIX` whose Documents, Desktop
+- **Filming the original under wine**, when the code leaves a real
+  doubt (transitions, effects, menus). Set up a scratch `WINEPREFIX` whose Documents, Desktop
   and other user folders are **real folders, not symlinks to the user's
   home** (games save there), use a symlink farm so patched scripts never
   touch the install, no audio, an Xvfb display of its own (never the
@@ -400,13 +424,10 @@ When existing NScripter commands can't do it:
    effects use the `screenfilter`/`screenshake` slot machinery. It must
    build for the web (emscripten) and keep its state in saves.
 2. List it in `PLAN.md` §4.2.
-3. Commit and push the engine first, then commit the submodule pointer
-   together with the converter change that uses it.
-4. Release when a batch is ready: bump the version in the 7 files that
-   carry it (see `CLAUDE.md`), tag `vX.Y.0`, push the tag, and check that
-   all 5 build workflows pass and the release has its 9 assets. Then
-   write the release notes (a changelog grouped by what changed for a
-   game or a player; `CLAUDE.md` has the command).
+3. Open the engine PR first (`CLAUDE.md`, "Rules"); point the
+   submodule at your branch's commit while you work, and at a commit on
+   CONscripter `master` once the engine PR is merged.
+4. Release when a batch is ready: `docs/releasing.md`.
 
 ## 11. Route and progression check
 
@@ -563,9 +584,9 @@ natively, at every milestone:
 - Update the game's document (status, leftovers), `README.md`'s support
   table, `PLAN.md` §6 (the list of games) and §13 (new lessons, stated
   for any engine), and this playbook if the process changed.
-- **Add the game to `crates/conv-engines/src/registry.rs`** (id, name,
+- **The game is in `crates/conv-engines/src/registry.rs`** (id, name,
   engine, marker files, command; `conscripter-convert games` lists it)
-  and to `tests/snapshot.sh`. Its `--update` also keeps
+  and in `tests/snapshot.sh` from its first dry run (checklist 3a). Its `--update` also keeps
   `tests/snapshots/<game>.metrics.json`, the dry run's completion counts
   (each source call converted fully or with a gap, per command kind),
   which the convert-metrics page on blankiekun.github.io shows: the
