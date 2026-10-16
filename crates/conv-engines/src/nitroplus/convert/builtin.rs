@@ -98,6 +98,7 @@ impl Compiler<'_, '_> {
             "CreateCamera" if self.game.relative_children => {
                 let name = self.object_name(&arg(0));
                 let o = self.create(name, Kind::Camera, 0, 0, 0);
+                o.container = true;
                 (o.x, o.y) = (arg(1).int(), arg(2).int());
                 let z = arg(3).int().max(1);
                 o.zoom = (z, z);
@@ -124,6 +125,7 @@ impl Compiler<'_, '_> {
                 let name = self.object_name(&arg(0));
                 let relative = self.game.relative_children;
                 let o = self.create(name, Kind::Other, arg(1).int(), 0, 0);
+                o.container = true;
                 // (name, priority, x, y, w, h, ?): a text in the window
                 // starts at its corner (続・殺戮のジャンゴ's boxes); its
                 // children are drawn only inside it.
@@ -196,7 +198,8 @@ impl Compiler<'_, '_> {
             "Move" => {
                 let targets = self.matching(&arg(0));
                 let (ms, to_x, to_y) = (arg(1).int(), arg(2), arg(3));
-                let blocking = !matches!(arg(5), Value::Null | Value::Int(0));
+                // (In a process its wait holds only the process: `timed`.)
+                let blocking = !matches!(arg(5), Value::Null | Value::Int(0)) && self.action_process.is_none();
                 // One picture on screen moving while the script waits: a real
                 // motion (after showing what changed before it).
                 if ms > 0 && blocking && targets.len() == 1 && self.shown.contains_key(&targets[0]) {
@@ -224,7 +227,16 @@ impl Compiler<'_, '_> {
                 self.delete_chapter_objects(self.chapter_mark.unwrap());
             }
             "Delete" => {
-                for t in self.matching(&arg(0)) {
+                // A wildcard that matches a container (a locked one too:
+                // `遠３`) still deletes its children (under wine the standing
+                // pictures in `遠３/StL01` go with `Delete("*")`).
+                let mut targets = self.matching(&arg(0));
+                let containers: Vec<String> = targets.iter().filter(|t| self.objects[*t].container).cloned().collect();
+                for c in containers {
+                    let inside = format!("{c}/");
+                    targets.extend(self.objects.keys().filter(|k| k.starts_with(&inside)).cloned());
+                }
+                for t in targets {
                     // (A child may have gone with its parent.)
                     if self.objects.get(&t).is_some_and(|o| !o.locked) {
                         self.delete(&t);
