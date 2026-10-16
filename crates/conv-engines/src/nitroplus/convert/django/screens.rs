@@ -187,6 +187,7 @@ fn line_log(a: &mut dyn Assets) -> Option<LineLog> {
         colour: "#000000".into(),
         fade_ms: 300,
         outline: Some("#AAAA88".into()),
+        row_width: None,
     })
 }
 

@@ -506,7 +506,7 @@ pub fn emit(script: &Script) -> String {
         menu::settings_menu(&mut out, m, script.confirm.as_ref(), replay.map(|r| (r.leave_label.as_str(), r.leave_question.as_str())), script.version.as_deref().map(|v| (v, script.height)));
     }
     if let Some(l) = &script.line_log {
-        line_log::emit(&mut out, l);
+        line_log::emit(&mut out, l, script.single_byte_text);
     } else if let Some(b) = &script.backlog {
         menu::backlog(&mut out, b, has_ruby);
     }

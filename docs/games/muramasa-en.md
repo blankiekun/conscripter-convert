@@ -62,8 +62,13 @@ It has no NPA archives and no NSS scripts.
   5 or 6 options (8 selects) are the plates in the window with the
   texts at their left (conv-cons has sprites for 4 picture-button
   options).
-- **Line log:** the port's (`sys_backlog.nut`, History). Checked
-  headless, not yet against the original.
+- **Line log:** the port's (`sys_backlog.nut`, History). Compared with
+  the original under wine (the prologue's first five pages): the rows
+  break, start and stand where the port's do, to the pixel: rows 570 px
+  wide measured letter by letter (CONscripter's `logrows %n,28,570`,
+  engine PR #17), 34 px apart from y 22, 14 rows, a paragraph's
+  indent kept (each row `strsp`'d after a backquote). Not compared: the
+  voice icon's place, scrolling.
 - **Save/load:** the port's one screen for both (`sys_saveload.nut`,
   `save_grid_en`): the page pictures `ナンバリング001`-`004` with
   `Slots BG`, 15 slots 5×3 under `Slots-Grid`, `未選択時` in the empty

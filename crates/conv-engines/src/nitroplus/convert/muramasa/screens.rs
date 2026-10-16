@@ -342,7 +342,10 @@ fn wait_icon(a: &mut dyn Assets) -> Option<WaitIcon> {
 /// `en`: the English port's (`sys_backlog.nut`): its own pictures of the
 /// same names, 退出 at (906,443), the rows from x 150, 570 wide in the
 /// text's font at 20 (`TextBox.backlogFieldRect`, `FONT_LIST`
-/// `バックログ` in `function_textbox.nut`): 28 full-width columns.
+/// `バックログ` in `function_textbox.nut`): rows 570 px wide; the
+/// field from y 10, 480 high, `backlogRowSpace` 10: 34 px apart (the
+/// font's height 24 + 10), 14 rows, the first drawn from y 22 (where the
+/// original's are, measured under wine).
 fn line_log(a: &mut dyn Assets, en: bool) -> Option<LineLog> {
     let dir = if en { "en/cg/sys/backlog" } else { "cg/sys/backlog" };
     let ((close_x, close_y), text_x, columns) = if en { ((906, 443), 150, 28) } else { ((927, 438), 140, 26) };
@@ -361,14 +364,15 @@ fn line_log(a: &mut dyn Assets, en: bool) -> Option<LineLog> {
         knob_y: (50, 461),
         voice_icon: strip(a, &["001-スピーカ", "002-スピーカ", "003-スピーカ"], 102, 0)?,
         text_x,
-        text_y: 49,
-        row_step: 30,
-        rows: 16,
+        text_y: if en { 22 } else { 49 },
+        row_step: if en { 34 } else { 30 },
+        rows: if en { 14 } else { 16 },
         columns,
         font_size: 20,
         colour: "#000000".into(),
         fade_ms: 300,
         outline: None,
+        row_width: en.then_some(570),
     })
 }
 
