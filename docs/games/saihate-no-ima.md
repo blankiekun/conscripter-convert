@@ -212,7 +212,7 @@ N of the scene replay (`%3000+N`); `0x94` ends a replayed scene.
 | `0x70` | 457 | **solved** (handler `0x415a30`, objects `filter-<slot>`): u32 slot (0 = clear all), u32 layer \| depth << 8 (layer byte through the table at `0x503e68`: 0/2 → 0x10, 1 → 0, 3 → 0x20, 4 → 0x30; depth = the sort depth within that band, mostly 1000, above the bust-ups; no fade of its own), u32 kind (0 = clear the slot), u16 blend, u16 opacity, then 0x88's kind data; monotone (6) is a u32 palette, `pal%04u.pal` in `HD/pal.arc` (RIFF PAL, 256 entries for the grey levels) | filter on the whole screen, from 0x88's modules. Converted to `screenfilter` + `print 1` (or the surrounding transition); Smooth (1, u8 x, y range), HueSatura (3, i16 hue, saturation) and BrightnessInvert (9) as `screenfilter` kinds 6-8; Filter-Replace (13: u32 map, i32 direction, distance, begin angle in 1/100 turn) as a still `screenripple` in slot 4 + n. Kinds from the (type, creator) pairs at `0x501428`. Zigzag (12, one use: i32 centre x, y, direction, distance, frequency, begin angle, reduction; kernel `0x43f0b0`: each pixel from distance × sin(2π·i/1024) along the direction, i = d × frequency/100 for the distance d from the centre) as a still `screenripple` over a generated ring map; its Multi blend is drawn as alpha (the darkening is missing) |
 | `0x59` | 47 | **solved** (handler `0x473610`) | BGM crossfade: u32 fade ms (capped at 30000), u16 track to stop (0 = all but the new one), u16 track to play; the new track starts fading in, then the old fades out, at once. Converted to CONscripter's `bgm "file",ms`: the old track fades out as the new fades in |
 | `0x82` | 38 | **solved** (handler `0x413f10`) | set an object's opacity (field +0x1b2, 0-256): u8 layer, u32 depth, u16 opacity; the object is found by key = depth (layers 0, 1), depth + 10 (layer 2: character `depth`'s bust-up, as 0x90 finds it), + 110, + 120 (3, 4). Converted for bust-ups (34) and the 0x55 overlay (layer 1 depth 2, 3) as `msp n,0,0,-255:msp n,0,0,alpha`; a new picture is opaque again. Not converted: layer 1 depth 1 (one use after `0x56`) |
-| `0x84`, `0x7d`, `0x7c` (+ `0x7a`/`0x7b` on layer 2) | 10, 5, 6 (6, 8) | **solved** (handlers `0x414180`, `0x413940`, `0x414460`; objects found as in `0x82`) | `0x84` loads a picture into an object: u8 layer, u32 depth, u8 kind, u32 number, u8 ?; image id kind × 10,000,000 + number - 1 (kind 2 = bust-ups, numbered as in `0x8e`). `0x7d`: u8 layer, u32 depth, u8 horizontal, u8 vertical anchor (0-2: left/top, centre, right/bottom; a new object's is 0). `0x7c`: u8 layer, u32 depth, u8 visible. The blog scenes make a hidden layer 2 object with `0x7a` (depth = a character, band 4 above the bust-ups, at (650, 320) or (250, 375)), load a bust-up, centre it and show it; 0135.cd steps a 0-100 % meter (`bu99_*`) a picture a second. `0x7b` on layer 2 removes it, or a bust-up `0x8e` made (0011-0013.cd). Converted as the character layer's sprite (`Op::Sprites`) |
+| `0x84`, `0x7d`, `0x7c` (+ `0x7a`/`0x7b` on layer 2) | 10, 5, 6 (6, 8) | **solved** (handlers `0x414180`, `0x413940`, `0x414460`; objects found as in `0x82`) | `0x84` loads a picture into an object: u8 layer, u32 depth, u8 kind, u32 number, u8 ?; image id kind × 10,000,000 + number - 1 (kind 2 = bust-ups, numbered as in `0x8e`). `0x7d`: u8 layer, u32 depth, u8 horizontal, u8 vertical anchor (0-2: left/top, centre, right/bottom; a new object's is 0). `0x7c`: u8 layer, u32 depth, u8 visible. The blog scenes make a hidden layer 2 object with `0x7a` (depth = a character, band 4 above the bust-ups, at (650, 320) or (250, 375)), load a bust-up, centre it and show it; 0135.cd steps a 0-100 % meter (`bu99_*`) a picture a second. `0x7b` on layer 2 removes it, or a bust-up `0x8e` made (0011-0013.cd). Converted as the character layer's sprite (`Op::Sprites`), drawn over the text window (`Op::SpriteOverText`, `spovertext`): `0x7a`'s group 4 is the top sort band (History, item 37) |
 | `0x99` | 8 | **solved** (handler `0x478b00`) | sets progress bit `sub` of the global word `0x51eb3c` (saved with the system data, `0x45f801`): bits 0-3 at the start (0000.cd, 0003.cd), 4-7 at the end of each heroine's route (0009-0013.cd). Read by the extras: the title (bit 3, `0x45cce9`), getters for bits 1, 2, and the voice mode (`VoiceMode.cpp`, bit 4 + route via `0x4fbc00`). Converted as global flags `%3600 + bit` for the extras to come |
 | `0x9d` | 6 | **solved** (handler `0x478b30`) | marks CG `arg` (1-based, as in `0x54`) as seen without showing it: bit arg - 1 of the global set `0x51ea18`, read by `CGMode.cpp` (`0x44cd56`, `0x44d4af`); `0x55`'s "mark as seen" byte sets the same set (`0x42236b`). Used right after a `0x54` of a related CG (467 → 523). Converted as global flags `%2200 + n` (n up to 576; above the link flags, below the 4096 variables) for a CG gallery |
 | `0x56`, `0x83`, `0x67` | 3, 1, 2 | **solved** (handlers `0x4224a0` → `0x412fe0` kind 1, `0x414050`, `0x473d20`) | `0x56` fills a background slot with a colour: u8 slot (0 removes slots 1-10), u8 layer, u32 depth, u32 COLORREF; a screen-sized object with fill module 7 (`0x55` is the same with kind 0, a picture). Slot 1 = the background, 2 = the overlay. `0x83` sets an object's blend (u8 layer, u32 depth, u8 0-6: Alpha, Add, Multi, Screen, SignedAdd, Copy, dissolve). `0x67` yields one frame. Uses: black background at boot; the shared impact routine `s2_l2` (9 calls) puts white on the overlay, sets dissolve and fades it out over 1 s (`0x86` opacity motion); 0006.cd fills the background red at opacity 64 (`0x82`). Converted with generated `system/fill_rrggbb.png`: `bg` / the overlay; the fade-out as a 1 s cross-fade removal that the following 1 s wait no longer adds to; the red at 64/256 as `fill_3f0000` (over black) |
@@ -288,6 +288,7 @@ is noted) and why:
 | `0x8d` | `-1` | 0xff | as in every `0x87` and `0x8a` wait record |
 | `0x88` | `-4` | 0 | a cleared slot's blend and opacity, which `op_88` (`0x415b50`) doesn't use |
 | `0x88` | `+8` | u32 0, 2, 1000, 2000 | the module's place in its preset, where the modules set together are in slot order (History, item 36) |
+| `0x7a` | `+6` | 2000 | a blog bust-up's depth in the top band, over everything else there (History, item 37) |
 | `0x90` | `+2` | u32 1, 0, 2 | the preset module's place among the bust-up's modules, where it is alone (History, item 35) |
 | `0x8e` | the six module names | byte 0 is 0 | an empty module name (leftover memory after it) |
 
@@ -318,7 +319,6 @@ run's):
 | `0x70` | the last u32, Filter-Replace's begin angle (1/100 turn; 1 in 16, 0 in 204): 220 notes | dropped: the still ripple starts at phase 0 |
 | `0x70` | Zigzag's begin angle and reduction: 1 note; its Multi blend | dropped; partial (drawn as alpha) |
 | `0x76` | MeltDown's stretch for `sub` 46/47 | converted (scaled from the exe), not compared with the film |
-| `0x7a` | the blog bust-up objects' band and depth (u8 4, u32 2000 at +5): 6 notes | dropped: drawn as the character layer's sprite |
 | `0x7a` | u16, u16 at +14 (0, 0 in the 6 blog records), passed to `FUN_0040f060`: 6 notes | dropped: meaning unknown |
 | `0x82` | layer 1 depth 1 (one use, after `0x56`) | dropped |
 | `0x86` | one byte at the end of one record: 1 note | dropped, not looked into |
@@ -633,7 +633,7 @@ a copy of the save works.
   (was 49,328).
 - Merged: `0x43` and `0x52`/`0x53` `arg` as harmless (#111, #114; History, items 32, 34).
 - Open: `0x90` +2 as harmless, PR #119 (History, item 35).
-- Open: `0x88` +8 as harmless, PR #126 (History, item 36).
+- Open: the blog bust-ups over the text window, PR #130 (History, item 37).
 - Merged: the exe map's fixes and missed callbacks (#46).
 - Open: `0x59` as a real cross-fade, converter #25 with engine #18 (asked
   for a web-build measurement of the old track's decode first);
@@ -697,8 +697,6 @@ after History's 26, most noticeable first (notes = instructions):
     in 5, 0 in 4, 2000 in 3, 500 once): the same for the static, ripples and shakes.
 33. **Ruby flags** (`0x44` u16 at +6, 37 notes: 3 in 32, 1 in 5):
     meaning unknown.
-37. **Blog bust-up band and depth** (`0x7a` u8 4, u32 2000 at +5, 6
-    notes): drawn as the character layer's sprite.
 38. **Filter-Replace's begin angle** (`0x70`'s last u32, 220 notes: 1
     in 16, 0 in 204): the still ripple starts at phase 0.
 39. **Zigzag's begin angle and reduction** (`0x70`, 1 note).
@@ -1253,3 +1251,21 @@ sound effects on `dwave` channels.
    `0012.cd` #1487). So the converter's slot order is the exe's draw
    order, and the field is a row of the harmless table. The 45 notes
    are gone; `0.txt` is unchanged.
+37. **Done: the blog bust-ups over the text window** (2026-10-16). The
+   six blog scenes (`0087`, `0117`, `0125`, `0130`, `0135`, `0145.cd`)
+   make their picture with a layer-2 `0x7a` whose group byte (+5) is 4
+   and depth (+6) 2000. `op_7a` (`0x414590`) turns the group into the
+   object's band through the table at `0x503e68` (4 → 0x30), and
+   `FUN_004126c0` makes 0x30 the top band `0xfe000000`, over the text
+   window (`0x06000000`). Ours drew the picture as the character layer's
+   sprite, under the window: the full-screen blog window's grey and
+   border lay over the bust-up. Now the `0x7a` adds `spovertext` on that
+   layer (`Op::SpriteOverText`), so the picture is drawn over the window
+   and its text, as in the exe; the depth, 2000, is the only one in the
+   top band there, so it is a row of the harmless table. `0.txt` gains
+   one `spovertext` per scene (and a `print 1` in `0135.cd`, where no
+   transition is armed). Checked with `--goto s87_l1 --shot-pages 6`:
+   the bust-up is over the window, the bottom bar's buttons over it.
+   Not checked: whether the original's top bars are under the picture
+   too (ours: the hair covers the level bar's background, not its
+   buttons).

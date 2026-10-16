@@ -235,11 +235,15 @@ const OP_OPACITY: u16 = 0x82;
 /// (found as in 0x82), u8 kind, u32 number (image id kind × 10,000,000 +
 /// number - 1, so kind 2 numbers bust-ups as 0x8e does), u8 ?. The game
 /// uses it on layer 2 objects that 0x7a made (6 uses: blog scenes, a
-/// hidden object at depth 2000 in band 4, above the bust-ups), then 0x7d
-/// and 0x7c; one scene (0135.cd) steps a meter through five pictures. 0x7b
-/// on layer 2 removes the object, also a bust-up 0x8e made (5 uses).
+/// hidden object at depth 2000 in group 4, the top band: over the text
+/// window), then 0x7d and 0x7c; one scene (0135.cd) steps a meter through
+/// five pictures. 0x7b on layer 2 removes the object, also a bust-up 0x8e
+/// made (5 uses).
 const OP_PICTURE: u16 = 0x84;
 const PICTURE_KIND_BUSTUP: u8 = 2;
+/// 0x7a's group byte for the top sort band, over the text window (the
+/// blog scenes' bust-ups).
+const PICTURE_GROUP_TOP: u8 = 4;
 /// Sets which point of an object its position names (handler 0x413940):
 /// u8 layer, u32 depth, u8 horizontal, u8 vertical, each 0-2 (left/top,
 /// centre, right/bottom; flags 0x504028/0x504034 in field +0x180, 0 for a
@@ -2167,6 +2171,10 @@ pub fn lower_script(
                             pictures.insert(layer, picture);
                             // The new object replaces the character's bust-up.
                             ops.push(Op::Sprites { changes: vec![SpriteChange { layer, sprite: None, keep_filters: false }], fade_ms: 0 });
+                            // Group 4 is the top band (op_7a 0x414590, table 0x503e68, key 0x4126c0): over the text window.
+                            if byte(5) == Some(PICTURE_GROUP_TOP) {
+                                ops.push(Op::SpriteOverText { layer });
+                            }
                         }
                         _ => ops.push(unsupported()),
                     }
@@ -3288,6 +3296,7 @@ const UNNEEDED_OPERANDS: &[(u16, &str, &str, &str)] = &[
     // The full-screen animation, one object (sprite 59): op_7a 0x414590, op_7b 0x414820, op_8a 0x416200, op_8b 0x416310.
     (0x7a, "+1", "e8030000030a000000", "its depth, 1000"),
     (0x7a, "-1", "ff", "visible"),
+    (0x7a, "+6", "d0070000", "a blog bust-up's depth in the top band, 2000: over everything else there"),
     (0x7b, "-4", "e8030000", "its depth, 1000"),
     (0x8a, "-9", "e803000001000000ff", "depth 1000, slot 1, 0xff"),
     (0x8b, "+1", "e80300000100000000000000", "its depth, 1000"),
