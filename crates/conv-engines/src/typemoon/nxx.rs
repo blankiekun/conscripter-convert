@@ -13,7 +13,7 @@ pub fn decompress(data: &[u8]) -> Result<Vec<u8>, FormatError> {
     let r = Reader(data);
     let size = r.u32(4)? as usize;
     let packed = r.slice(16, r.u32(8)? as usize)?;
-    let mut out = Vec::with_capacity(size);
+    let mut out = Vec::new(); // not the header's size: a corrupt one would reserve gigabytes
     let read = match &data[..4] {
         b"NXGX" => GzDecoder::new(packed).read_to_end(&mut out),
         b"NXCX" => ZlibDecoder::new(packed).read_to_end(&mut out),

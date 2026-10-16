@@ -17,7 +17,7 @@ pub fn decompress(data: &[u8]) -> Result<Vec<u8>, FormatError> {
     }
     let r = Reader(data);
     let size = r.u32(4)? as usize;
-    let mut out = Vec::with_capacity(size + 256);
+    let mut out = Vec::new(); // not the header's size: a corrupt one would reserve gigabytes
     let mut last = [0xFF; 2];
     let mut ring = [[0xFF; 2]; 64];
     let mut ring_at = 0;
