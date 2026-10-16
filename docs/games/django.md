@@ -407,11 +407,6 @@ with the original (it wants all eleven endings' flags under wine).
       exe's curves (`apply_tempo`); ours is linear. Converter-only: a
       `spmotion2` takes up to 32 keys, so a curve fits as 8-16 linear
       pieces.
-   2. **The chorus' panned parts** (dja055_02): 14 `MusicStart`s pan
-      voice parts hard left or right, but they are BGM objects
-      (`CreateUnit`: `CreateSound(…, BGM, …)`) and ours plays one BGM
-      at a time, so the pan is noted ("SetPan on the music") and
-      unheard. Layering BGM parts is its own item.
    3. **`Shake` 6 `n` and 7 tempo** (58 each): `n` (200-1000; above
       1000 the call does nothing) sets the jolt's rhythm and the tempo
       its decay; ours shakes every 16 ms, dying linearly. `n`'s meaning
@@ -458,6 +453,20 @@ with the original (it wants all eleven endings' flags under wine).
       before one may be taken as ended too soon. Fine as is.
 
 ## History
+
+- **dja055's chorus (2026-10-16).** dja055_02's song is 15 voice parts
+  (`CreateUnit`: `voice/劇中歌パーツ/…`) and the harmonica (`dj02c`),
+  all started at once and looping, the parts panned hard left or right
+  and faded in and out one by one as the text goes on. The script makes
+  the parts music objects, and ours plays one music at a time, so only
+  the harmonica was heard. `django.rs` compiles `CreateUnit` as a
+  sound-effect object: the parts play as looping `dwaveloop`s with their
+  `chpan` and `chvolfade`s (they follow the sound-effect volume
+  setting, not the music's). For them the shared channel allocator
+  (`conv-cons`, `SeChannels`) no longer gives a channel holding a looped
+  sound to another sound, and uses channels 11-49 when all of 1-9 loop.
+  Checked headless (`--goto if40_else`): the 15 loops start on their
+  channels, no missing file.
 
 - **Render modes (2026-10-16, shared NSS code, engine #34).**
   `Request(obj, AddRender|SubRender|NormalRender)` on a picture is drawn

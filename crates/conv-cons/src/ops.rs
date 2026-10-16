@@ -697,7 +697,7 @@ impl<'a> Emitter<'a> {
             writeln!(out, "print {}", effect(*ms)).unwrap();
         }
         Op::SePlay { file, looped } => {
-            let ch = se.start(file);
+            let ch = se.start(file, *looped);
             if se.volumes && !std::mem::take(&mut se.preset) {
                 writeln!(out, "chvolfade {ch},100").unwrap();
             }

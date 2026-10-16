@@ -19,7 +19,7 @@ pub(crate) fn hold_movie(out: &mut String, se: &mut SeChannels, file: &str, prom
         args.push_str(",-1");
     }
     if let Some(s) = sound {
-        let ch = se.start(&s.file);
+        let ch = se.start(&s.file, false);
         if se.volumes {
             writeln!(out, "chvolfade {ch},100").unwrap();
         }
