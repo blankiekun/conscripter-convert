@@ -129,6 +129,51 @@ converted, every ending reachable.
   check all targets across the corpus. A wrong guess still produces a
   script that runs.
 
+### Mapping the whole exe
+
+When the scripts use more than the top of the ranking, extend the same
+export and the same `names.tsv` in passes, from what the corpus uses
+rather than by browsing:
+
+1. **First pass:** the export as it stands. Name the dispatch table
+   (statement built-ins), the value evaluator and the settings-variable
+   setter first; every other function hangs off those.
+2. **Recover the code that isn't a function yet.** The export misses
+   code reached only through a function pointer. In Muramasa these were
+   the per-object callbacks (`local_4 = &LAB_…`) behind `Fade`,
+   `Request`, `SetShade`, `CreateEffect` and others: 76 labels, so the
+   decompiled output never showed what those built-ins do. Collect the
+   label addresses (`grep -ho '= &LAB_[0-9a-f]*' decomp/*.c`), append
+   them to the names file as `cb_<addr>` and re-run the export:
+   `ApplyNames` disassembles each address and creates the function. Do
+   this as a standing step. Some hits are junk: SEH handlers (around
+   `004f8xxx` in Muramasa) and very large pixel blitters; don't read
+   400 KB of blitter by mistake.
+3. **Name the CRT helpers early.** Muramasa's `FUN_004d3be0` is
+   `_ftol2`; Ghidra loses the x87 maths around it, so a computed value
+   can look like it comes from nowhere.
+4. **Find what the parser accepts.** Use `strings.tsv` plus the stack
+   strings (`research/nitroplus/stackstrings.py`): most names are built
+   on the stack and don't show up in `strings.tsv`. Look for
+   character-comparison chains (`== 'R'`, `== 'U'` …): that is how the
+   markup-tag parser was found. Note how constants are matched: Muramasa
+   compares some by the sum of their characters (`NULL` = 315 = off),
+   other places compare names exactly and case-sensitively (the
+   `Request` actions).
+5. **Plan from a coverage table, not from browsing.** For each built-in,
+   `$SYSTEM_` variable, text tag and `Request` action, record its use
+   count in the corpus, what the exe does (and where), what the
+   converter does, and whether the dry run's "not converted" notes list
+   it. Then work only on the rows where the exe and the converter differ
+   and the corpus uses the feature: "map the entire exe" becomes a
+   bounded list. A blanket walk through 2,400 functions is the expensive
+   path; libraries such as libpng, zlib and libjpeg can be recognised
+   from their strings and skipped.
+6. **Write the results back.** Commit `names.tsv` with comments, fold the
+   decoded semantics into the engine's built-ins reference
+   (`research/nitroplus/builtins.md` for Nitroplus), and put the gaps
+   found in the game document's Status.
+
 ## 3. Lowering to the IR
 
 - The reader produces the engine-neutral IR (`crates/conv-core/src/ir/`).

@@ -648,6 +648,14 @@ The steps that apply them are in `docs/new-game.md`.
   their animation. An animated icon over the window is an `lsp` sprite
   numbered at or below `humanz`.
 
+- **Map an exe from the corpus, not from its functions.** A coverage
+  table (each built-in, system variable, text tag and action: corpus use
+  count, what the exe does, what the converter does) turns "map the
+  whole exe" into a bounded list of differences actually used; code
+  reached only through function pointers has to be turned into functions
+  before the decompiled output shows what a built-in does
+  (`docs/new-game.md` §2, "Mapping the whole exe").
+
 ### 13.1c Lessons from 俺たちに翼はない (PS Vita, 2026-10-13)
 
 - **Console packages decrypt offline.** A Vita package plus its license
