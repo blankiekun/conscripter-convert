@@ -558,6 +558,12 @@ pub enum Op {
     /// `BarAction::FastSkip` started still runs (装甲悪鬼村正's
     /// `SkipOut`, which jumps over a scene read before).
     IfFastSkip { label: String },
+    /// [`Op::Sprites`] whose pictures fade in and out over `fade_ms` by
+    /// themselves while the script goes on (the text, click waits). A new
+    /// picture on a layer that had one replaces it at once, so a picture
+    /// changing goes to another layer. Inside a transition, as
+    /// [`Op::Sprites`]. 俺たちに翼はない's `:FadeWait 0`.
+    SpritesFading { changes: Vec<SpriteChange>, fade_ms: u32 },
 }
 
 /// [`Op::HoldMovie`]'s prompt: `image` is `cells` pictures side by side,
@@ -671,6 +677,22 @@ pub struct ChoicePlates {
     pub font_size: u32,
     pub colour: String,
     pub fade_ms: u32,
+    /// The chosen plate is shot instead of fading out.
+    pub shot: Option<ChoiceShot>,
+}
+
+/// [`ChoicePlates`]' shot (続・殺戮のジャンゴ's `ChoiceA02`): `sound`
+/// plays and `hole` (dark: see-through) is cut into the chosen plate and
+/// its text, its top left (`hole_dx`, `hole_dy`) from the pointer; 300 ms
+/// later the other options fade out over 300 ms, and 500 ms after that
+/// the chosen one tips over backwards about its bottom edge in 800 ms
+/// (cubic ease-in) as it fades out over 1000 ms.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ChoiceShot {
+    pub hole: String,
+    pub hole_dx: i32,
+    pub hole_dy: i32,
+    pub sound: String,
 }
 
 #[derive(Debug, Clone, Default)]

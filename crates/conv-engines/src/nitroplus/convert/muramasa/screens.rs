@@ -38,7 +38,7 @@ fn menus_in(a: &mut dyn Assets, script: &mut Script, story: &Story, en: bool) {
     script.button_bar = quick_bar(a);
     script.command_menu = if en { command_menu_en(a) } else { command_menu(a) };
     script.save_grid = save_grid(a);
-    script.line_log = line_log(a);
+    script.line_log = line_log(a, en);
     script.wait_icon = wait_icon(a);
     script.picture_settings = settings(a, story);
     script.picture_extras = super::extras::extras(a, story);
@@ -228,27 +228,33 @@ fn wait_icon(a: &mut dyn Assets) -> Option<WaitIcon> {
 /// x 102 on its first row. 逆 (898,168) and 進 (898,303) scroll a row,
 /// 退出 (927,438) closes; the scrollbar's knob runs from y 50 to 461 at
 /// x 860 (`CreateScrollbar`). It fades in and out over 300 ms.
-fn line_log(a: &mut dyn Assets) -> Option<LineLog> {
-    const DIR: &str = "cg/sys/backlog";
+///
+/// `en`: the English port's (`sys_backlog.nut`): its own pictures of the
+/// same names, 退出 at (906,443), the rows from x 150, 570 wide in the
+/// text's font at 20 (`TextBox.backlogFieldRect`, `FONT_LIST`
+/// `バックログ` in `function_textbox.nut`): 28 full-width columns.
+fn line_log(a: &mut dyn Assets, en: bool) -> Option<LineLog> {
+    let dir = if en { "en/cg/sys/backlog" } else { "cg/sys/backlog" };
+    let ((close_x, close_y), text_x, columns) = if en { ((906, 443), 150, 28) } else { ((927, 438), 140, 26) };
     let strip = |a: &mut dyn Assets, names: &[&str], x: i32, y: i32| {
-        let parts: Vec<String> = names.iter().map(|n| format!("{DIR}/{n}.png")).collect();
+        let parts: Vec<String> = names.iter().map(|n| format!("{dir}/{n}.png")).collect();
         let (image, w, h) = a.strip(&parts.iter().map(String::as_str).collect::<Vec<_>>())?;
         Some(Placed { image, x, y, w: w as i32, h: h as i32 })
     };
-    let (background, w, h) = a.image(&format!("{DIR}/バックログ背景.png"))?;
+    let (background, w, h) = a.image(&format!("{dir}/バックログ背景.png"))?;
     Some(LineLog {
         background: Placed { image: background, x: 0, y: 0, w: w as i32, h: h as i32 },
-        up: button(a, DIR, "逆", 898, 168, false)?,
-        down: button(a, DIR, "進", 898, 303, false)?,
-        close: button(a, DIR, "退出", 927, 438, false)?,
+        up: button(a, dir, "逆", 898, 168, false)?,
+        down: button(a, dir, "進", 898, 303, false)?,
+        close: button(a, dir, "退出", close_x, close_y, false)?,
         knob: strip(a, &["001-スクロール", "002-スクロール"], 860, 461)?,
         knob_y: (50, 461),
         voice_icon: strip(a, &["001-スピーカ", "002-スピーカ", "003-スピーカ"], 102, 0)?,
-        text_x: 140,
+        text_x,
         text_y: 49,
         row_step: 30,
         rows: 16,
-        columns: 26,
+        columns,
         font_size: 20,
         colour: "#000000".into(),
         fade_ms: 300,
