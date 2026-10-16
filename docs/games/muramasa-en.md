@@ -122,9 +122,14 @@ It has no NPA archives and no NSS scripts.
   screenshot (page 9: the same states and places), and against the
   original under wine at a first start: the same, the gauges at a first
   start's values (`sys_val.nut`: auto 60, text 550, music 800, effects
-  1000, voices 700; the knobs within 4 px); our volumes go through the
-  Japanese build's curve (music 800 plays at 68 %), the port's is not
-  read. Not compared: dragging. Not done: the
+  1000, voices 700; the knobs within 4 px). The volumes follow the
+  port's curve: its `Mware.dll` (`CSoundXAudio2Player`, the setter at
+  0x1006d830: `log10f`, ×33.22, ×0.05, `powf(10, …)`, then the voice's
+  `SetVolume`) plays a volume v (0-1) at 10^(33.22·log10 v / 20) =
+  v^1.661, each halving 10 dB down: the law conv-cons already
+  approximates for the Japanese exe ((p²/50 + p)/3 for p = 0-100:
+  within 0.4 points of it above half volume, at most 2.4 below; music
+  800 plays at 68 %, the port's 69 %). Not compared: dragging. Not done: the
   character voices window (`OpenCVSetting`: 4 columns, x 118 + 204·i,
   y 69 + 32·row, the English `cg/sys/config/cv/` names), the text sample.
 - **Name plates:** the English `cg.npk`'s `cg/fw/nw*.png` (the names
