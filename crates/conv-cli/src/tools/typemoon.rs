@@ -29,6 +29,10 @@ pub enum TypemoonCommand {
         /// Pictures as PNG instead of .bntx: `<entry>/<texture>.png`
         #[arg(long)]
         png: bool,
+        /// Only entries of at most this many bytes in the archive (e.g. a
+        /// picture's third-size copy, not the full one of the same name)
+        #[arg(long)]
+        max_bytes: Option<usize>,
     },
     /// Read every archive in a RomFS folder, unpack every entry (and the
     /// entries of MZPs inside), decode every picture, and count what is
@@ -67,7 +71,7 @@ pub fn run(command: TypemoonCommand) -> Result<()> {
             println!("{i:>6} {:>10}  {name}", data.len());
             Ok(())
         }),
-        TypemoonCommand::Extract { archive, output, prefix, png } => extract(&archive, &output, &prefix.to_lowercase(), png),
+        TypemoonCommand::Extract { archive, output, prefix, png, max_bytes } => extract(&archive, &output, &prefix.to_lowercase(), png, max_bytes),
         TypemoonCommand::Check { dir } => check(&dir),
         TypemoonCommand::Sounds { dir, output } => sounds(&dir, &output),
         TypemoonCommand::Script { dir, output } => scripts(&dir, output.as_deref()),
@@ -97,10 +101,10 @@ fn each(path: &Path, mut f: impl FnMut(usize, &str, &[u8], Option<u16>) -> Resul
     Ok(())
 }
 
-fn extract(archive: &Path, output: &Path, prefix: &str, png: bool) -> Result<()> {
+fn extract(archive: &Path, output: &Path, prefix: &str, png: bool, max_bytes: Option<usize>) -> Result<()> {
     let mut count = 0;
     each(archive, |i, name, data, _| {
-        if !name.to_lowercase().starts_with(prefix) {
+        if !name.to_lowercase().starts_with(prefix) || max_bytes.is_some_and(|m| data.len() > m) {
             return Ok(());
         }
         let unpacked = typemoon::unpack(data).with_context(|| format!("entry {i} ({name})"))?;
