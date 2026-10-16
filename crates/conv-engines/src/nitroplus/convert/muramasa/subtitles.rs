@@ -12,7 +12,7 @@ use ab_glyph::{Font, FontRef};
 use image::imageops;
 
 use super::super::{Compiler, Kind, StripObject, Value};
-use crate::mages::menus::Labels;
+use crate::labels::Labels;
 
 /// `serif0`'s priority: over the text window.
 const PRIORITY: i64 = 20005;
