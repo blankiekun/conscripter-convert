@@ -94,9 +94,14 @@ It has no NPA archives and no NSS scripts.
   400×150) centred over black at 800/1000, Yes and No 108,100 and
   230,100 from its corner; it turns open about its middle line over
   150 ms (`Rotate` x -90 → 0, drawn as a vertical stretch:
-  `Unroll::y`) and shut as it goes. Checked headless. Not done: the
-  port's quick-load question (`クイックロード`) and its messages
-  (`クイックセーブ完了`, `記憶をしました`, …).
+  `Unroll::y`) and shut as it goes. Checked headless. A quick load asks
+  `クイックロード` first (`sys_quickload.nut`); after a quick save
+  `クイックセーブ完了` shows over the dimmed screen until a click
+  (`sys_quicksave.nut`'s way that waits; its other closes by itself:
+  which one the game takes is not yet compared with the original);
+  after a save on the save screen, `記憶をしました`. Both checked
+  headless. Not done: `クイックセーブ中`, `読み込んでいます` (shown while
+  saving and loading; ours are instant), `削除しました`, `ロック通知`.
 - **Decided (the user, 2026-10-15):** the text font is the release's own
   `droidserif-muramasa.ttf` (font.npk); the menus follow the English
   port's redesigned screens, not the Japanese PC ones; filming the

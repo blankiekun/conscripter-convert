@@ -35,7 +35,7 @@ pub fn menus_en(a: &mut dyn Assets, script: &mut Script, story: &Story) {
 fn menus_in(a: &mut dyn Assets, script: &mut Script, story: &Story, en: bool) {
     script.confirm = if en { confirm_en(a) } else { confirm(a) };
     script.title_screen = title(a, story, if en { &opening::EN } else { &opening::JP });
-    script.button_bar = quick_bar(a);
+    script.button_bar = quick_bar(a, en);
     script.command_menu = if en { command_menu_en(a) } else { command_menu(a) };
     script.save_grid = if en { save_grid_en(a) } else { save_grid(a) };
     script.line_log = line_log(a, en);
@@ -528,8 +528,10 @@ fn picture(a: &mut dyn Assets, path: &str, x: i32, y: i32) -> Option<Placed> {
 /// sliding in over 200 ms (`Dxl2`, 272-286). Quick save plays しおり; quick
 /// load fades to black over 300 ms (208-210). The original runs it as a
 /// process, so it also slides while text is being drawn; here it moves
-/// at click waits only.
-fn quick_bar(a: &mut dyn Assets) -> Option<ButtonBar> {
+/// at click waits only. The English port says クイックセーブ完了 after a
+/// quick save until a click (`sys_quicksave.nut`, its second way; the
+/// other closes on its own); not yet compared with the original.
+fn quick_bar(a: &mut dyn Assets, en: bool) -> Option<ButtonBar> {
     const DIR: &str = "cg/sys/quick";
     let mut buttons = Vec::new();
     for (name, y, action) in [
@@ -553,7 +555,7 @@ fn quick_bar(a: &mut dyn Assets) -> Option<ButtonBar> {
         pressed: true,
         quick_save_se: a.sound("sound/se/SE_sys_しおり"),
         load_fade_ms: 300,
-        quick_saved: None,
+        quick_saved: if en { centred(a, "en/cg/sys/dialog/クイックセーブ完了.png") } else { None },
     })
 }
 
@@ -758,6 +760,7 @@ fn confirm_en(a: &mut dyn Assets) -> Option<ConfirmDialog> {
         (Switch::ConfirmDelete, "セーブ削除"),
         (Switch::ConfirmBackToChoice, "選択肢まで"),
         (Switch::ConfirmReset, "初期設定"),
+        (Switch::ConfirmQuickLoad, "クイックロード"),
     ] {
         pictures.push((kind, centred(a, &format!("{DIR}/{name}.png"))?));
     }
