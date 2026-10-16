@@ -945,10 +945,6 @@ impl Lowering<'_> {
             }
             "BgmStop" => self.out.ops.push(Op::BgmStop { fade_out_ms: ms(t.int("Div").unwrap_or(0)) }),
             "SePlay" => {
-                // `:Div` frames of fade-in (1, nearly always, is none).
-                if t.int("Div").unwrap_or(1) > 1 {
-                    self.note("SePlay :Div ignored");
-                }
                 if let Some(file) = t.int("SE").and_then(|id| self.assets.se(id as u32)) {
                     self.out.ops.push(Op::SePlay { file, looped: t.int("Loop").unwrap_or(0) != 0 });
                 }
@@ -1631,7 +1627,8 @@ pub fn compile(game: &Game, scenes: &[String], assets: &mut dyn Assets) -> Compi
     l.out
 }
 
-/// Arguments known not to matter: the start of their note, and why.
+/// Arguments known not to matter: the start of their note, with
+/// " = <values>" when only that value is what we do, and why.
 const NOT_NEEDED: &[(&str, &str)] = &[
     ("FadeIn :Color", "always the colour of the FadeOut before it (579 of 579)"),
     ("CharacterDelete :FadeOut", "with a :Fade always 1 (fade), which :Fade times"),
@@ -1640,11 +1637,20 @@ const NOT_NEEDED: &[(&str, &str)] = &[
     ("CharacterMove [Chara] :Number argument", "the same"),
     ("CharacterDelete [Chara] :Number argument", "the same"),
     ("CharacterActionEnd :Character argument", "the same"),
-    ("CharacterDelete [Chara] :FadeOut", "1 (fade), as the task does; the 0s are the default rule's blind spot"),
-    ("CharacterMove :Wait", "1 (wait), as every move of ours does (the 0s don't wait in the eboot)"),
-    ("SpriteMove :Wait", "the same"),
+    ("CharacterDelete [Chara] :FadeOut = 1", "fade, as the task does"),
+    ("CharacterMove :Wait = 1", "wait, as every move of ours does"),
+    ("SpriteMove :Wait = 1", "the same"),
+    ("SePlay :Wait = 0", "don't wait, as ours don't"),
+    ("SeStop :Wait = 0", "the same"),
+    ("SePlay :Div = 1", "a 1-frame fade-in: none, as ours"),
+    ("EffectQuakeEnd :EndWait = 0", "stop at once, as ours does"),
+    ("CharacterOpenBS :Fade = 0", "at once, as ours opens"),
+    ("MoviePlay :Loop = 0", "play once, as ours"),
+    ("CharacterMove [Chara] :Position argument 2 = 0", "straight (with power 0), as our cross-fading moves are"),
+    ("CharacterMove [Chara] :Position argument 3 = 0", "the same"),
+    ("CharacterOpen [Chara] :Center argument 0 = 0", "the centre across, where we place it"),
     ("SpriteMoveEnd :Sprite", "every SpriteMove is waited on, so none is left running"),
-    ("MoviePlay :EndWait", "1, wait for the end, as our movies always do"),
+    ("MoviePlay :EndWait = 1", "wait for the end, as our movies always do"),
     ("Achievement :ID", "trophies: nothing to show"),
     // Blocks and keys the eboot never asks for (cfg_find of
     // "TaskList/Task%d/Chara%d/<key>").
@@ -1657,18 +1663,19 @@ const NOT_NEEDED: &[(&str, &str)] = &[
 
 /// Notes each argument of `b` (and its sub-blocks) the converter never
 /// read: "<Task> :<Key> ignored", or "… argument <i> ignored" for one
-/// value of several. A 0 (or "") is taken as the default, which the
-/// eboot's cfg_number gives a key the script leaves out.
+/// value of several.
 fn ignored(task: &str, at: &str, b: &Block, notes: &mut BTreeMap<String, usize>) {
     for (key, i, vals) in b.unread() {
-        if vals.iter().all(|v| v.float() == Some(0.0) || v.str() == Some("")) {
-            continue;
-        }
+        let value = vals.iter().map(|v| v.float().map_or_else(|| v.str().unwrap_or("").to_string(), |f| f.to_string())).collect::<Vec<_>>().join(",");
         let what = match i {
             Some(i) => format!("{task}{at} :{key} argument {i} ignored"),
             None => format!("{task}{at} :{key} ignored"),
         };
-        if !NOT_NEEDED.iter().any(|(start, _)| what.starts_with(&format!("{start} "))) {
+        let covered = |row: &str| match row.split_once(" = ") {
+            Some((start, v)) => what.starts_with(&format!("{start} ")) && v == value,
+            None => what.starts_with(&format!("{row} ")),
+        };
+        if !NOT_NEEDED.iter().any(|(row, _)| covered(row)) {
             *notes.entry(what).or_default() += 1;
         }
     }
@@ -1692,9 +1699,21 @@ mod tests {
         t.at("Position", 3);
         let mut notes = BTreeMap::new();
         ignored("SpriteMove", "", t, &mut notes);
-        // 0s are the default; Chara0's Number is never read.
-        let want = ["SpriteMove :Curve ignored", "SpriteMove :Position argument 2 ignored", "SpriteMove [Chara] :Number ignored"];
+        // `:Wait 0` is noted (only `= 1` is covered); Chara0's Number is never read.
+        let want = [
+            "SpriteMove :Curve ignored",
+            "SpriteMove :Position argument 2 ignored",
+            "SpriteMove :Roll ignored",
+            "SpriteMove :Wait ignored",
+            "SpriteMove [Chara] :Number ignored",
+        ];
         assert_eq!(notes.keys().map(String::as_str).collect::<Vec<_>>(), want);
+        // `SpriteMove :Wait = 1` is covered.
+        let blocks = parse("[Task2]\n{\n:Tasktype \"SpriteMove\"\n:Wait 1\n}\n").unwrap();
+        blocks[0].task_type();
+        let mut notes = BTreeMap::new();
+        ignored("SpriteMove", "", &blocks[0], &mut notes);
+        assert!(notes.is_empty());
     }
 
     #[test]
