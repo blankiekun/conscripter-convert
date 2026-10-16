@@ -26,6 +26,7 @@ mod menu;
 mod motion;
 mod movies;
 mod music;
+mod notice;
 pub mod nsa;
 mod picture_screen;
 mod picture_extras;
@@ -399,6 +400,7 @@ pub fn emit(script: &Script) -> String {
 
     let save_menu = script.save_menu.is_some() || script.save_grid.is_some();
     let effect = |ms: u32| if ms == 0 { "1".to_string() } else { effects[&(ms, Effect::Fade)].clone() };
+    notice::emit(&mut out, script.width, script.height);
     if let Some(t) = &script.title_screen {
         title_screen(&mut out, t, &effect(t.fade_ms), save_menu, has_settings, script.confirm.as_ref(), script.extras.is_some(), border, picture_replay);
     }
@@ -1946,6 +1948,13 @@ effect 7,99,1000,\"cons_zoom.dll/3,220,5\"
         );
     }
 
+    /// The startup notice's lines, which the tests comparing a whole script leave out.
+    fn notice_of(s: &Script) -> String {
+        let mut out = String::new();
+        notice::emit(&mut out, s.width, s.height);
+        out
+    }
+
     #[test]
     fn title_screen_runs_before_the_script() {
         use conv_core::ir::TitleButton;
@@ -1962,7 +1971,7 @@ effect 7,99,1000,\"cons_zoom.dll/3,220,5\"
             ],
             ..Default::default()
         });
-        let out = emit(&s);
+        let out = emit(&s).replace(&notice_of(&s), "");
         let expected = "*start\nbg \"system\\title.png\",0\n*conv_title_draw\n\
             lsp 6,\":a/2,0,3;system\\start.png\",600,200\n\
             lsp 7,\":a;system\\option.png\",600,200\n\
@@ -2245,7 +2254,7 @@ effect 7,99,1000,\"cons_zoom.dll/3,220,5\"
             Op::Wait { ms: 500 },
             Op::Unsupported { what: "op 0x76".into(), at: SourceLoc { file: "0003.cd".into(), index: 7 } },
         ]);
-        let text = emit(&s);
+        let text = emit(&s).replace(&notice_of(&s), "");
         let expected = "\
 ;mode800,V8192
 *define

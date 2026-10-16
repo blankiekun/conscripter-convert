@@ -31,6 +31,7 @@ pub const RESERVED: &[(RangeInclusive<u32>, &str)] = &[
     (3000..=3599, "scene replay unlocks"),
     (3600..=3631, "progress flags"),
     (3632..=3638, "a runtime choice's option texts ($) and their x on a plate (%), option n at 3632 + n; $3638 a log line picked at run time"),
+    (3639..=3639, "the startup notice dismissed"),
     (3640..=3647, "settings switches 0-7"),
     (3650..=4095, "scene replays watched"),
     (4096..=5095, "settings switches 20 up"),
