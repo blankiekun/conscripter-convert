@@ -12,7 +12,7 @@ use std::fmt::Write;
 
 use conv_core::ir::{ExtrasMode, PictureExtras};
 
-use crate::{path, var_name, BUTTON_VAR, MAX_SPRITE, MENU_SPRITES, SE_CHANNELS, TITLE_SHOWN};
+use crate::{menu_slot, menu_z, path, var_name, BUTTON_VAR, MAX_SPRITE, MENU_SLOTS, SE_CHANNELS, TITLE_SHOWN};
 
 pub(crate) const EXTRAS: &str = "conv_pextras";
 const DRAW: &str = "conv_pextras_draw";
@@ -21,7 +21,6 @@ const BACK: &str = "conv_pextras_back";
 /// The title's label that draws it again (its picture, then its openings).
 pub(crate) const TITLE_BACK: &str = crate::extras::TITLE_BACK;
 const BACKGROUND: u32 = MAX_SPRITE;
-const ITEM: u32 = MENU_SPRITES.start; // + item
 
 /// A picture for `lsp`: a JPEG as it is, another (a PNG) with its alpha.
 pub(crate) fn pic(p: &str) -> String {
@@ -49,7 +48,7 @@ fn mode_label(mode: ExtrasMode) -> String {
 }
 
 pub(crate) fn emit(out: &mut String, e: &PictureExtras, border: u32, width: u32, height: u32) {
-    assert!(e.items.len() <= MENU_SPRITES.len(), "more extras buttons than menu sprites");
+    assert!(e.items.len() <= MENU_SLOTS, "more extras buttons than menu sprites");
     let fade = if e.fade_ms > 0 { format!("print 10,{}", e.fade_ms) } else { "print 1".to_string() };
     writeln!(out, "*{EXTRAS}").unwrap();
     if let Some(r) = &e.sound {
@@ -60,15 +59,15 @@ pub(crate) fn emit(out: &mut String, e: &PictureExtras, border: u32, width: u32,
     writeln!(out, "lsp {BACKGROUND},\"{}\",0,0", pic(&e.background)).unwrap();
     for (i, item) in e.items.iter().enumerate() {
         let b = &item.button;
-        let slot = ITEM + i as u32;
+        let (slot, z) = (menu_slot(i), menu_z(menu_slot(i)));
         let lsp = format!("lsp {slot},\":a/3,0,3;{}\",{},{}", path(&b.image), b.x, b.y);
         match item.unlocked_by {
             Some(v) => {
                 let v = var_name(v, border);
-                writeln!(out, "if {v} == 0 {lsp},{}", item.locked_alpha).unwrap();
-                writeln!(out, "if {v} != 0 {lsp}").unwrap();
+                writeln!(out, "if {v} == 0 {lsp},{}{z}", item.locked_alpha).unwrap();
+                writeln!(out, "if {v} != 0 {lsp}{z}").unwrap();
             }
-            None => writeln!(out, "{lsp}").unwrap(),
+            None => writeln!(out, "{lsp}{z}").unwrap(),
         }
     }
     writeln!(out, "{fade}").unwrap();
@@ -80,7 +79,7 @@ pub(crate) fn emit(out: &mut String, e: &PictureExtras, border: u32, width: u32,
     let clickable: Vec<_> = e.items.iter().enumerate().filter(|(_, item)| has_mode(e, item.mode)).collect();
     for (n, (i, item)) in clickable.iter().enumerate() {
         let only = item.unlocked_by.map_or(String::new(), |v| format!("if {} != 0 ", var_name(v, border)));
-        writeln!(out, "{only}spbtn {},{},2", ITEM + *i as u32, n + 1).unwrap();
+        writeln!(out, "{only}spbtn {},{},2", menu_slot(*i), n + 1).unwrap();
     }
     writeln!(out, "btnwait {BUTTON_VAR}").unwrap();
     if e.hover_se.is_some() {

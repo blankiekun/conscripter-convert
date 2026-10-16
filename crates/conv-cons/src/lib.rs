@@ -59,11 +59,31 @@ const DLL: u32 = 99;
 /// Sound effect channels we rotate through (0 is left for voices).
 const SE_CHANNELS: std::ops::RangeInclusive<u32> = 1..=9;
 /// Sprite slots 0-5 belong to the yes/no dialog, drawn over everything
-/// else (ONScripter draws lower numbers on top); 6-33 to the menus (title,
-/// save/load, settings, backlog, [`button_screen`]s); 34-49 to the bars
+/// else (ONScripter draws lower numbers on top); 6-33 (then
+/// [`MENU_MORE_SPRITES`]) to the menus (title, save/load, settings,
+/// backlog, [`button_screen`]s); 34-49 to the bars
 /// (buttons, hotspots, texts).
 const DIALOG_SPRITES: std::ops::Range<u32> = 0..6;
 const MENU_SPRITES: std::ops::Range<u32> = 6..34;
+/// More menu slots for the screens with many sprites ([`menu_slot`]):
+/// numbers no game takes ([`conv_core::alloc::MENU_MORE_SPRITES`]), drawn
+/// with `spz` under the menus' 6-33 and over the bars.
+const MENU_MORE_SPRITES: std::ops::Range<u32> = conv_core::alloc::MENU_MORE_SPRITES;
+/// How many slots [`menu_slot`] has.
+const MENU_SLOTS: usize = (MENU_SPRITES.end - MENU_SPRITES.start + MENU_MORE_SPRITES.end - MENU_MORE_SPRITES.start) as usize;
+/// The menus' slot `i` from the top: 6-33, then [`MENU_MORE_SPRITES`].
+/// Follow its `lsp` with [`menu_z`].
+fn menu_slot(i: usize) -> u32 {
+    assert!(i < MENU_SLOTS, "more than {MENU_SLOTS} menu sprites");
+    let i = i as u32;
+    let n = MENU_SPRITES.end - MENU_SPRITES.start;
+    if i < n { MENU_SPRITES.start + i } else { MENU_MORE_SPRITES.start + i - n }
+}
+/// What draws a [`menu_slot`] in its place, after each `lsp` (`csp`
+/// forgets it): nothing for 6-33.
+fn menu_z(slot: u32) -> String {
+    if MENU_MORE_SPRITES.contains(&slot) { format!(":spz {slot},{}", MENU_SPRITES.end) } else { String::new() }
+}
 /// The bars use 34-42.
 const BAR_SPRITES: std::ops::Range<u32> = 34..49;
 /// Sprite slots for the name text and its plate: the text over the plate,
@@ -1630,6 +1650,19 @@ goto *conv_link1
         assert!(text.contains("textoff\nlsp 9,\":a;system\\bg.png\",0,0\nlsp 8,\":a;system\\text.png\",300,319\nlsp 6,\":a/2,0,3;system\\yes.png\",385,230\nlsp 7,"), "{text}");
         assert!(text.contains("*conv_bscreen0\nbtndef clear\nspbtn 6,1\nspbtn 7,2\nbtnwait %9\nif %9 == 1 csp 6:csp 7:csp 8:csp 9:print 2:goto *scene_jump\nif %9 == 2 "), "{text}");
         assert!(text.contains("goto *scene_play\ngoto *conv_bscreen0\n"), "{text}");
+    }
+
+    #[test]
+    fn button_screen_past_28_sprites_takes_the_extra_slots() {
+        let placed = |x| Placed { image: "system/b.png".into(), x, y: 0, w: 10, h: 10 };
+        let buttons = (0..40).map(|i| (placed(i), "end".to_string())).collect();
+        let s = ButtonScreen { pictures: vec![placed(-1)], buttons, fade_ms: 0 };
+        let text = emit(&script(vec![Op::ButtonScreen(Box::new(s)), Op::Label("end".into())]));
+        // 6-33 as before, then 980 up drawn under 33 and over the bars.
+        assert!(text.contains("lsp 33,\":a/2,0,3;system\\b.png\",27,0\nlsp 980,\":a/2,0,3;system\\b.png\",28,0:spz 980,34\n"), "{text}");
+        assert!(text.contains("\nlsp 992,\":a;system\\b.png\",-1,0:spz 992,34\n"), "{text}");
+        assert!(text.contains("spbtn 991,40\nbtnwait"), "{text}");
+        assert_eq!(menu_slot(MENU_SLOTS - 1), 998);
     }
 
     #[test]

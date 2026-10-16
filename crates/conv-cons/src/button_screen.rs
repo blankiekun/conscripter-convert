@@ -5,17 +5,17 @@
 
 use conv_core::ir::{ButtonScreen, Placed};
 
-use crate::{label, menu, path, BUTTON_VAR, MENU_SPRITES};
+use crate::{label, menu, menu_slot, menu_z, path, BUTTON_VAR, MENU_SLOTS};
 
 /// Writes the screen. `n` keeps its labels apart from other screens';
 /// `fade` is the effect number of its fades; `bar`: the script has a
 /// button bar to hide.
 pub(crate) fn emit(out: &mut String, s: &ButtonScreen, n: usize, fade: &str, bar: bool) {
     let count = (s.pictures.len() + s.buttons.len()) as u32;
-    assert!(count <= MENU_SPRITES.len() as u32, "a button screen has more pictures and buttons than the menus' sprites");
+    assert!(count as usize <= MENU_SLOTS, "a button screen has more pictures and buttons than the menus' sprites");
     // Lower numbers are drawn on top: the buttons, then the pictures from
     // the top down.
-    let slot = |i: usize| MENU_SPRITES.start + i as u32;
+    let slot = menu_slot;
     let picture_slot = |i: usize| slot(s.buttons.len() + s.pictures.len() - 1 - i);
     let l = format!("conv_bscreen{n}");
     let mut w = |s: String| {
@@ -29,7 +29,8 @@ pub(crate) fn emit(out: &mut String, s: &ButtonScreen, n: usize, fade: &str, bar
     }
     for (i, p) in s.pictures.iter().enumerate() {
         let mode = crate::sprite_mode(&p.image);
-        w(format!("lsp {},\":{mode};{}\",{},{}", picture_slot(i), path(&p.image), p.x, p.y));
+        let slot = picture_slot(i);
+        w(format!("lsp {slot},\":{mode};{}\",{},{}{}", path(&p.image), p.x, p.y, menu_z(slot)));
     }
     for (i, (b, _)) in s.buttons.iter().enumerate() {
         w(button(slot(i), b));
@@ -51,5 +52,5 @@ pub(crate) fn emit(out: &mut String, s: &ButtonScreen, n: usize, fade: &str, bar
 }
 
 fn button(slot: u32, b: &Placed) -> String {
-    format!("lsp {slot},\":a/2,0,3;{}\",{},{}", path(&b.image), b.x, b.y)
+    format!("lsp {slot},\":a/2,0,3;{}\",{},{}{}", path(&b.image), b.x, b.y, menu_z(slot))
 }
