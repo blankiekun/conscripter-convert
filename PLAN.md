@@ -30,6 +30,7 @@ commands, the feature is added to CONscripter (§4.1).
   artifacts (profiles, opcode tables, mappings) that the pipeline then
   validates. Agents **only run when explicitly invoked** (`conscripter-convert ai …`);
   `convert`, `lint` etc. never call the API. The tool is fully usable offline.
+  (The built-in agent layer is not built, §8.)
 
 ## 2. Architecture
 
@@ -486,7 +487,8 @@ the batch, non-interactive cases.
   Until 2026-10-12 the target was ogapee's ONScripter with no engine
   patches; now features the original games need and ONScripter lacks are
   added to the engine (§4.1).
-- AI agents run only when explicitly invoked with `conscripter-convert ai …`.
+- AI agents run only when explicitly invoked with `conscripter-convert ai …`
+  (planned, not built: §8).
 
 ## 13. Lessons learned and ways to speed up conversion
 
