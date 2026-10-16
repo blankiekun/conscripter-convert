@@ -63,17 +63,27 @@ pub(crate) fn emit(out: &mut String, m: &CommandMenu, bar: &ButtonBar, picture_r
         w(format!("gosub *{BAR_STATE}"));
     }
     w(backdrop.clone());
-    w(if m.fade_ms > 0 { format!("print 10,{}", m.fade_ms) } else { "print 1".into() });
-    // The items one by one, from the top.
-    w("resettimer".into());
+    let fade = if m.fade_ms > 0 { format!("print 10,{}", m.fade_ms) } else { "print 1".into() };
+    // The items one by one, from the top; with no step, faded in with the
+    // backdrop.
+    let together = m.step_ms == 0;
+    if !together {
+        w(fade.clone());
+        w("resettimer".into());
+    }
     let disabled = cells();
     for i in 0..m.items.len() {
         w(item(i));
         if let Some(off) = disabled_while(m.items[i].action, picture_replay) {
             w(format!("if {off} == 1 cell {},2", slot(i)));
         }
-        w("print 1".into());
-        w(format!("waittimer {}", (i as u32 + 1) * m.step_ms));
+        if !together {
+            w("print 1".into());
+            w(format!("waittimer {}", (i as u32 + 1) * m.step_ms));
+        }
+    }
+    if together {
+        w(fade.clone());
     }
 
     w(format!("*{WAIT}"));
@@ -155,15 +165,19 @@ pub(crate) fn emit(out: &mut String, m: &CommandMenu, bar: &ButtonBar, picture_r
     for line in &disabled {
         w(line.clone());
     }
-    w("resettimer".into());
+    if !together {
+        w("resettimer".into());
+    }
     let n = m.items.len();
     for k in 0..n {
         w(format!("csp {}", slot(n - 1 - k)));
-        w("print 1".into());
-        w(format!("waittimer {}", (k as u32 + 1) * m.step_ms));
+        if !together {
+            w("print 1".into());
+            w(format!("waittimer {}", (k as u32 + 1) * m.step_ms));
+        }
     }
     w(format!("csp {BACKDROP}"));
-    w(if m.fade_ms > 0 { format!("print 10,{}", m.fade_ms) } else { "print 1".into() });
+    w(fade);
     w("return".into());
 }
 

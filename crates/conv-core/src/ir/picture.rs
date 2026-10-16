@@ -90,7 +90,8 @@ pub struct GridText {
 ///
 /// Opening, the backdrop fades in over `fade_ms`, then the items appear
 /// one by one from the top, `step_ms` apart; closing, they go one by one
-/// from the bottom, then the backdrop fades out. It closes on a
+/// from the bottom, then the backdrop fades out. With `step_ms` 0 the
+/// items fade in and out with the backdrop. It closes on a
 /// right-click, its key, [`BarAction::Close`], or after an action that
 /// goes on with the game (auto, skip, fast skip, hide the window);
 /// screens it opens come back to it.
