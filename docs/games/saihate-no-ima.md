@@ -287,6 +287,7 @@ is noted) and why:
 | `0x87` | `+0` | layer 2, any depth, slot 1, 0xff | waits for the motion its object's `0x86` started; ours runs it to its end at `0x86` |
 | `0x8d` | `-1` | 0xff | as in every `0x87` and `0x8a` wait record |
 | `0x88` | `-4` | 0 | a cleared slot's blend and opacity, which `op_88` (`0x415b50`) doesn't use |
+| `0x90` | `+2` | u32 1, 0, 2 | the preset module's place among the bust-up's modules, where it is alone (History, item 35) |
 | `0x8e` | the six module names | byte 0 is 0 | an empty module name (leftover memory after it) |
 
 A parsed
@@ -324,7 +325,6 @@ run's):
 | `0x88` | the u32 module field at +8 (0 in 41, 1000 in 2, 2000, 2): 45 notes | dropped |
 | `0x8c` | the sort key in the second u32 (depth 1000 in 227, 1100 in 5, 0 in 4, 2000 in 3, 500 once): 240 notes | dropped: the static is always sprite 60, ripples and shakes move the whole screen |
 | `0x8f` | removes the bust-ups only | partial: `csp -1` also removes the fade cover (no script shows the difference) |
-| `0x90` | the u32 module field at +4 (1 in 649, 2 and 0 once): 651 notes | dropped |
 | `0x30`, `0x62` | everything | dropped (the unreachable debug menu) |
 
 Two doc mistakes corrected on the way: `0x8e`'s last 32 bytes are an
@@ -631,10 +631,8 @@ a copy of the save works.
 - Open: speaker names from `sub` bit 0, PR #102 (History, item 27):
   4,867 notes of 20 kinds left; 80,285 of 84,713 calls fully converted
   (was 49,328).
-- Merged: `0x43` `arg` as harmless (#111, History, item 32).
-- Open: `0x52`/`0x53` `arg` as harmless, PR #114 (History, item 34).
-- Next session: `0x90` +2 (item 35: `op_90` `0x434960` stores it at the new
-  module's +0xc, meaning not found yet).
+- Merged: `0x43` and `0x52`/`0x53` `arg` as harmless (#111, #114; History, items 32, 34).
+- Open: `0x90` +2 as harmless, PR #119 (History, item 35).
 - Merged: the exe map's fixes and missed callbacks (#46).
 - Open: `0x59` as a real cross-fade, converter #25 with engine #18 (asked
   for a web-build measurement of the old track's decode first);
@@ -698,10 +696,9 @@ after History's 26, most noticeable first (notes = instructions):
     in 5, 0 in 4, 2000 in 3, 500 once): the same for the static, ripples and shakes.
 33. **Ruby flags** (`0x44` u16 at +6, 37 notes: 3 in 32, 1 in 5):
     meaning unknown.
-35. **`0x90` module field** (u32 at +4, 651 notes): 1 except 2 and 0
-    once each.
 36. **`0x88` module field** (u32 at +8, 45 notes: 0 in 41, 1000 twice,
-    2000, 2).
+    2000, 2): `op_88` (`0x415b50`) sets it at the module's +0xc, the
+    module order key of History, item 35.
 37. **Blog bust-up band and depth** (`0x7a` u8 4, u32 2000 at +5, 6
     notes): drawn as the character layer's sprite.
 38. **Filter-Replace's begin angle** (`0x70`'s last u32, 220 notes: 1
@@ -1233,3 +1230,14 @@ sound effects on `dwave` channels.
    CONscripter's kidoku keys the same wait by its place in `0.txt`, so
    any value is a row of the harmless table ("Operand coverage"). The
    1,618 notes are gone; `0.txt` is unchanged.
+35. **Done: `0x90`'s module field** (2026-10-16). The u32 at +4 (1 in
+   649, 0 in `0010.cd` #4379, 2 in `0011.cd` #5216) goes to the new
+   preset module's +0xc (`op_90` `0x434960`), the key `FUN_0040e2a0`
+   sorts an object's modules by (its list at +0x68, the order their
+   draw is chained in). The preset is the bust-up's only module there:
+   the module a bust-up gets from its `0x8e` entry (type 0x77, id 0x15,
+   `FUN_00434130`) needs a module name, and all of the corpus's are
+   empty; the 0x86 motions (slot 1) are in `0010.cd` #9151 on, on
+   another character, and none in `0011.cd`. So the three values draw
+   the same and are a row of the harmless table ("Operand coverage").
+   The 651 notes are gone; `0.txt` is unchanged.

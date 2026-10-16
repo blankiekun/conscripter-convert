@@ -3300,6 +3300,13 @@ const UNNEEDED_OPERANDS: &[(u16, &str, &str, &str)] = &[
     (0x8d, "-1", "ff", "0xff, as in every 0x87 and 0x8a wait record"),
     // op_88 0x415b50 clears a slot-0 module without its blend and opacity.
     (0x88, "-4", "00000000", "a cleared slot's blend and opacity"),
+    // op_90 0x434960 sets the new preset module's +0xc, the key FUN_0040e2a0 sorts the object's modules by (list at +0x68).
+    (
+        0x90,
+        "+2",
+        "000001000000|000000000000|000002000000",
+        "the preset module's place among the bust-up's modules (1; 0 and 2 once each): it is the only one there (0x8e's module names are empty, no 0x86 motion on that character)",
+    ),
     // op_8e 0x4347b0: the module name, empty (byte 0 is 0), leftover memory after it.
     (0x8e, "+12", "00*", "an empty module name"),
     (0x8e, "+56", "00*", "an empty module name"),
