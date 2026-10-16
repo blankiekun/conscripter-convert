@@ -358,6 +358,14 @@ md04_015, md04_026vs, md04_030 (dates and times: `November 30, 1940`,
 
 ## History
 
+- **Voices (2026-10-15, reported by the user):** no line of the English
+  build had its voice (2 `dwave 0` against the Japanese build's 36,055):
+  the English rows write their tags with single quotes (`<voice
+  name='雄飛' class='雄飛' src='voice/ma01/…'>`, also `<RUBY text='…'>`)
+  and the NSS parser read only double-quoted values, so `src` kept its
+  quotes and named no file. It takes either quote now: 35,902 voices
+  (the rest are rows the translation left out or merged).
+
 - **English text tags (2026-10-15):** `<WAIT=n>` becomes a timed wait,
   `<WAITVOICE=n>` a wait until the page's voice has played n ms
   (`TIMED_WAIT_MARK`/`VOICE_WAIT_MARK` in the IR; CONscripter's `!dn`

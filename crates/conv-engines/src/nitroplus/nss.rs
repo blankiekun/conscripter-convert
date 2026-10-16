@@ -1138,7 +1138,7 @@ fn matching_brace(s: &str) -> Option<usize> {
     None
 }
 
-/// `voice name="景明" src="…"`, `/RUBY`, `BR`.
+/// `voice name="景明" src="…"` (or single quotes), `/RUBY`, `BR`.
 fn parse_tag(s: &str, line: u32) -> Result<Tag> {
     let (close, s) = match s.strip_prefix('/') {
         Some(rest) => (true, rest),
@@ -1154,8 +1154,10 @@ fn parse_tag(s: &str, line: u32) -> Result<Tag> {
         rest = rest[key_end..].trim_start();
         let value = if let Some(r) = rest.strip_prefix('=') {
             let r = r.trim_start();
-            if let Some(r) = r.strip_prefix('"') {
-                let Some(q) = r.find('"') else { return err(line, format!("unterminated attribute in <{name}>")) };
+            // Double quotes in the NSS, single ones in the English port's text.
+            if let Some(quote) = r.chars().next().filter(|&c| c == '"' || c == '\'') {
+                let r = &r[1..];
+                let Some(q) = r.find(quote) else { return err(line, format!("unterminated attribute in <{name}>")) };
                 rest = r[q + 1..].trim_start();
                 r[..q].to_string()
             } else {
@@ -1309,6 +1311,12 @@ mod tests {
         let StmtKind::Text(t) = &s[0].kind else { panic!() };
         assert_eq!(t.items[0], Inline::Marker("text0081".into()));
         assert_eq!(t.items[1], Inline::Str("〝卵〟を植えられたのか!?".into()));
+    }
+
+    #[test]
+    fn tag_attributes_in_either_quotes() {
+        let t = parse_tag("voice name='雄飛' class=\"雄飛\" src='voice/ma01/0040010b56'", 1).unwrap();
+        assert_eq!((t.attr("name"), t.attr("class"), t.attr("src")), (Some("雄飛"), Some("雄飛"), Some("voice/ma01/0040010b56")));
     }
 
     #[test]
