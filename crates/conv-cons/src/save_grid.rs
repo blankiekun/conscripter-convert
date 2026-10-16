@@ -83,14 +83,20 @@ pub(crate) fn emit(out: &mut String, g: &SaveGrid, confirm: Option<&ConfirmDialo
     let pages = g.save_pages.len().min(g.load_pages.len()).max(1);
     assert!(g.tabs.len() <= MAX_TABS, "a save grid has more tabs than its sprites");
     assert!(g.popup.is_none() || pages as u32 * slots <= 100, "save grid locks past their range");
-    // The quick page, if any.
-    let quick = if g.quick_page { format!("{PAGE} == {pages}") } else { "0".into() };
-    // Popup buttons off: save, load, delete, lock.
+    // Popup buttons on, and off: save, load, delete, lock (`notif` gets
+    // `||` wrong, so both are spelled out).
+    let (quick_on, quick_off) = if g.quick_page { (format!(" && {PAGE} != {pages}"), format!(" || {PAGE} == {pages}")) } else { Default::default() };
+    let on = [
+        format!("{LOCKED} == 0 && {IN_GAME} == 1{quick_on}"),
+        format!("{HAS_DATA} == 1"),
+        format!("{HAS_DATA} == 1 && {LOCKED} == 0"),
+        format!("{HAS_DATA} == 1{quick_on}"),
+    ];
     let off = [
-        format!("{LOCKED} == 1 || {IN_GAME} == 0 || {quick}"),
+        format!("{LOCKED} == 1 || {IN_GAME} == 0{quick_off}"),
         format!("{HAS_DATA} == 0"),
         format!("{HAS_DATA} == 0 || {LOCKED} == 1"),
-        format!("{HAS_DATA} == 0 || {quick}"),
+        format!("{HAS_DATA} == 0{quick_off}"),
     ];
     let mut w = |line: String| {
         out.push_str(&line);
@@ -160,8 +166,8 @@ pub(crate) fn emit(out: &mut String, g: &SaveGrid, confirm: Option<&ConfirmDialo
     }
     if g.popup.is_some() {
         w(format!("if {POPUP_AT} > 0 gosub *conv_sg_popup_state"));
-        for ((off, slot), n) in off.iter().zip(POPUP_BUTTONS).zip(BTN_POPUP) {
-            w(format!("if {POPUP_AT} > 0 notif {off} spbtn {slot},{n}"));
+        for ((on, slot), n) in on.iter().zip(POPUP_BUTTONS).zip(BTN_POPUP) {
+            w(format!("if {POPUP_AT} > 0 && {on} spbtn {slot},{n}"));
         }
     }
     for (slot, n) in [(PREVIOUS, BTN_PREVIOUS), (NEXT, BTN_NEXT), (DELETE, BTN_DELETE), (CLOSE, BTN_CLOSE)] {
@@ -342,7 +348,7 @@ pub(crate) fn emit(out: &mut String, g: &SaveGrid, confirm: Option<&ConfirmDialo
     w(format!("lsp {HOVER},\":a;{}\",0,0:vsp {HOVER},0", path(&g.hover.image)));
     w(format!("mov {FIRST},{PAGE}*{slots}-{}", slots - 1));
     if g.quick_page {
-        w(format!("if {quick} mov {FIRST},{QUICK_SLOT}"));
+        w(format!("if {PAGE} == {pages} mov {FIRST},{QUICK_SLOT}"));
     }
     if g.popup.is_some() {
         w(format!("mov {POPUP_AT},0:csp {POPUP_WINDOW}:{}", POPUP_BUTTONS.map(|n| format!("csp {n}")).join(":")));
@@ -524,7 +530,7 @@ mod tests {
         // The second page is the quick page: the quick save first.
         assert!(out.contains("if %900 == 2 mov %106,890\n"), "{out}");
         // Save is off on a locked slot, outside the game and on the quick page.
-        assert!(out.contains("if %164 > 0 notif %165 == 1 || %101 == 0 || %900 == 2 spbtn 11,105\n"), "{out}");
+        assert!(out.contains("if %164 > 0 && %165 == 0 && %101 == 1 && %900 != 2 spbtn 11,105\n"), "{out}");
         // The lock is a global per slot, toggled by its button.
         assert!(out.contains("mov %165,0:if %103 < 890 mov %105,1010+%103:mov %165,%%105\n"), "{out}");
         assert!(out.contains("if %9 == 108 mov %105,1010+%103:mov %%105,1-%%105:"), "{out}");
