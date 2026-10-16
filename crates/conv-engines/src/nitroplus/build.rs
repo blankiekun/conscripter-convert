@@ -98,6 +98,7 @@ pub fn build(game: &Path, run: &Run, opts: &Opts) -> Result<Built> {
     }
     let mut assets = NpaAssets::new(open("cg.npa")?, open("sound.npa")?, open("voice.npa")?, opts.output);
     assets.out.dry_run = opts.dry_run;
+    assets.font = opts.font.to_vec();
     // 続・殺戮のジャンゴ 1.01's own pictures.
     if crate::find(game, "cg2.npa").exists() {
         assets.cg2 = Some(open("cg2.npa")?);

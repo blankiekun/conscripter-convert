@@ -34,6 +34,14 @@ impl Compiler<'_, '_> {
                     if let Some((vx, vy)) = o.vertex {
                         px += (vx - o.w / 2) * (1000 - o.zoom.0) / 1000;
                         py += (vy - o.h / 2) * (1000 - o.zoom.1) / 1000;
+                        // A turn about the vertex: the engine turns it about
+                        // its centre, so the centre goes where the turn takes it.
+                        if o.turn.2.rem_euclid(360) != 0 {
+                            let (dx, dy) = ((o.w / 2 - vx) as f64, (o.h / 2 - vy) as f64);
+                            let (sin, cos) = (o.turn.2 as f64).to_radians().sin_cos();
+                            px += (dx * cos - dy * sin - dx).round() as i64;
+                            py += (dx * sin + dy * cos - dy).round() as i64;
+                        }
                     }
                     let (mut x, mut y, mut zoom) = (o.x + px, o.y + py, o.zoom);
                     // A camera's zoom: the picture's centre moved away from
