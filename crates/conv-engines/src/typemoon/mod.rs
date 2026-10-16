@@ -11,6 +11,7 @@ pub mod mzp;
 pub mod mzx;
 pub mod nxopus;
 pub mod nxx;
+pub mod script;
 
 use std::borrow::Cow;
 
