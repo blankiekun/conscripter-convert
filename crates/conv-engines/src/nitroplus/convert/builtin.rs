@@ -173,7 +173,7 @@ impl Compiler<'_, '_> {
             "CreateSound" => {
                 let name = self.object_name(&arg(0));
                 let bgm = arg(1).string().eq_ignore_ascii_case("bgm");
-                let s = SoundObject { path: self.named_string(&arg(2)), bgm, volume: 1000, looped: false, starting: false, fade_ms: 0, playing: None, disused: false, loop_ms: None };
+                let s = SoundObject { path: self.named_string(&arg(2)), bgm, volume: 1000, looped: false, starting: false, fade_ms: 0, playing: None, disused: false, loop_ms: None, played_ms: 0 };
                 self.create(name, Kind::Sound(s), 0, 0, 0);
             }
             "Fade" => {
@@ -411,10 +411,42 @@ impl Compiler<'_, '_> {
             }
             "WaitPlay" => {
                 // Until the movie's end: what played as a movie has ended.
+                // Until a sound's end, or at most the limit in ms (the exe:
+                // `null`/`true` or none waits without one).
+                let limit = match arg(1) {
+                    Value::Int(ms) => Some(ms.max(0) as u32),
+                    _ => None,
+                };
+                let mut wait = 0;
                 for t in self.matching(&arg(0)) {
+                    if let Kind::Sound(s) = &self.objects[&t].kind {
+                        if s.playing.is_none() && !s.starting {
+                            continue;
+                        }
+                        if s.looped {
+                            if limit.is_none() {
+                                self.note("WaitPlay on a looping sound");
+                            }
+                            wait = wait.max(limit.unwrap_or(0));
+                            continue;
+                        }
+                        let (path, played) = (s.path.clone(), if s.starting { 0 } else { s.played_ms });
+                        match self.assets.sound_ms(&path) {
+                            Some(ms) => wait = wait.max(limit.map_or(ms, |l| l.min(ms)).saturating_sub(played)),
+                            None => self.note("WaitPlay on a sound of unknown length"),
+                        }
+                        continue;
+                    }
                     self.play_movie(&t);
                     if let Some(Object { kind: Kind::Movie(m), .. }) = self.objects.get_mut(&t) {
                         m.credit = 0;
+                    }
+                }
+                if wait > 0 {
+                    self.sync(0);
+                    let wait = self.movie_wait(wait);
+                    if wait > 0 {
+                        self.ops.push(Op::Wait { ms: wait });
                     }
                 }
             }
