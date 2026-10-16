@@ -11,13 +11,15 @@
 //! then u32 stack size, u8 generator, u8 varparams.
 //!
 //! The opcodes are renumbered against stock 3.1; the ones read here
-//! (`LOAD` 1, `LOADINT` 2, `PREPCALLK` 8, `GETK` 9, `NEWSLOT` 11) are
-//! not. `research/nitroplus/nut.py` disassembles a whole file.
+//! (`LOAD` 1, `LOADINT` 2, `DLOAD` 4, `CALL` 6, `PREPCALLK` 8, `GETK` 9,
+//! `NEWSLOT` 11) are not. `research/nitroplus/nut.py` disassembles a whole file.
 
 use crate::read::{Reader, Truncated};
 
 const LOAD: u8 = 1;
 const LOADINT: u8 = 2;
+const DLOAD: u8 = 4;
+const CALL: u8 = 6;
 const PREPCALLK: u8 = 8;
 const GETK: u8 = 9;
 const NEWSLOT: u8 = 11;
@@ -33,6 +35,7 @@ pub enum Literal {
 struct Instr {
     op: u8,
     arg1: i32,
+    arg3: u8,
 }
 
 #[derive(Debug, Default)]
@@ -129,9 +132,10 @@ impl Cursor<'_> {
         self.tag("TRAP")?;
         for _ in 0..nins {
             let arg1 = self.u32()? as i32;
-            let op = self.r.slice(self.pos, 1)?[0];
+            let b = self.r.slice(self.pos, 4)?;
+            let (op, arg3) = (b[0], b[3]);
             self.pos += 4;
-            f.code.push(Instr { op, arg1 });
+            f.code.push(Instr { op, arg1, arg3 });
         }
         self.tag("TRAP")?;
         for _ in 0..nfun {
@@ -193,6 +197,50 @@ impl Function {
             }
         }
         self.functions.iter().for_each(|f| f.strs_before_call(name, out));
+    }
+
+    /// The string literals loaded by `LOAD`/`DLOAD` in `code`, in order.
+    fn loaded_strs(&self, code: &[Instr]) -> Vec<String> {
+        let mut out = Vec::new();
+        for ins in code {
+            let lits: &[i32] = match ins.op {
+                LOAD => &[ins.arg1],
+                DLOAD => &[ins.arg1, i32::from(ins.arg3)],
+                _ => &[],
+            };
+            out.extend(lits.iter().filter_map(|&l| self.str(l)).map(str::to_string));
+        }
+        out
+    }
+
+    /// Every `name(int, "string", "string", …)` call in this function and
+    /// the ones inside it: the scenes' `SetChoice(id, japanese…)`.
+    pub fn calls_int_strs(&self, name: &str, out: &mut Vec<(i32, Vec<String>)>) {
+        for (i, w) in self.code.windows(2).enumerate() {
+            if w[0].op == PREPCALLK && self.str(w[0].arg1) == Some(name) && w[1].op == LOADINT {
+                let args = &self.code[i + 2..];
+                let end = args.iter().position(|ins| ins.op == CALL).unwrap_or(args.len());
+                out.push((w[1].arg1, self.loaded_strs(&args[..end])));
+            }
+        }
+        self.functions.iter().for_each(|f| f.calls_int_strs(name, out));
+    }
+
+    /// Every `table["key"] <- "string"` in this function: the English
+    /// text files' `TransChoice["10_1"] <- english`.
+    pub fn table_str_rows(&self, table: &str) -> Vec<(String, String)> {
+        let mut out = Vec::new();
+        for (i, ins) in self.code.iter().enumerate() {
+            if ins.op != GETK || self.str(ins.arg1) != Some(table) {
+                continue;
+            }
+            let rest = &self.code[i + 1..];
+            let Some(end) = rest.iter().take(3).position(|ins| ins.op == NEWSLOT) else { continue };
+            if let [k, v] = self.loaded_strs(&rest[..end]).as_slice() {
+                out.push((k.clone(), v.clone()));
+            }
+        }
+        out
     }
 
     /// Every `table[int] <- "string"` in this function: the English text

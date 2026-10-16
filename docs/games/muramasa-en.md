@@ -53,6 +53,10 @@ It has no NPA archives and no NSS scripts.
   together over 300 ms (the rows' wipe `メニューエフェクト` drawn as a
   fade); the keys printed on the rows (S quick save, L quick load, D the
   save screen, …). Checked headless, not yet against the original.
+- **Choices:** in English on the port's plates (History). Choices of
+  5 or 6 options (8 selects) are the plates in the window with the
+  texts at their left (conv-cons has sprites for 4 picture-button
+  options).
 - **Questions:** the port's (`sys_dialog.nut`, `confirm_en`): the
   question's picture from the English `cg.npk` (`en/cg/sys/dialog/`,
   400×150) centred over black at 800/1000, Yes and No 108,100 and
@@ -99,9 +103,8 @@ It has no NPA archives and no NSS scripts.
      port's centred subtitles (`ShowVOICESEText`, 32 calls in 10
      scenes); its larger-type text boxes (`SetTextEXC_Large` …, 16
      calls in 8 scenes).
-  4. Gaps from the scripts' coverage ("The scripts' coverage"): the
-     choices are in Japanese (`TransChoice`, 403 rows in 130 files, not
-     read: all 153 `select`s); `TransLog` (125), `TransVoice` (24) and
+  4. Gaps from the scripts' coverage ("The scripts' coverage"):
+     `TransLog` (125), `TransVoice` (24) and
      `_system.nut`'s line-log strings not read; 15 scenes with English
      written into the scenario (`LANG_NAME` branches: captions, dates,
      ma01_026's document, mc02_031's menus) show the NSS's Japanese;
@@ -339,6 +342,17 @@ md04_015, md04_026vs, md04_030 (dates and times: `November 30, 1940`,
 | `setting.ini` keys | files table | there |
 
 ## History
+
+- **Choices in English (2026-10-15):** `english.rs` reads each scene's
+  `SetChoice(id, japanese…)` and its lang file's `TransChoice["<id>_<n>"]`
+  (n from 1, `function_select.nut`) and puts the English into the NSS's
+  `SetChoice02` … `SetChoice06` by the option's Japanese: all 403
+  options. They are drawn as the port's `LANG_NAME == "en"` branch
+  draws them (`choice_style_en` in `muramasa.rs`): 440×50 plates
+  (`cg/sys/select/en/select001.png`, `002` under the pointer) centred,
+  100 px apart, the group centred on the screen, the text centred 13 px
+  below a plate's top in black. Checked headless (ma02_003's choice);
+  not yet against the original.
 
 - **Italics and centred rows (2026-10-15):** the English has 2,618
   `<I>` … `</I>` and 566 `<center>` rows (most not closed: the row's end
