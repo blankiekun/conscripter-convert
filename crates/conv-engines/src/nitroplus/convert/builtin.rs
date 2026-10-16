@@ -198,7 +198,8 @@ impl Compiler<'_, '_> {
             "Move" => {
                 let targets = self.matching(&arg(0));
                 let (ms, to_x, to_y) = (arg(1).int(), arg(2), arg(3));
-                let blocking = !matches!(arg(5), Value::Null | Value::Int(0));
+                // (In a process its wait holds only the process: `timed`.)
+                let blocking = !matches!(arg(5), Value::Null | Value::Int(0)) && self.action_process.is_none();
                 // One picture on screen moving while the script waits: a real
                 // motion (after showing what changed before it).
                 if ms > 0 && blocking && targets.len() == 1 && self.shown.contains_key(&targets[0]) {
