@@ -65,7 +65,7 @@ fn crc(data: &[u8]) -> u32 {
     crc
 }
 
-fn write_page(out: &mut Vec<u8>, header_type: u8, granule: u64, serial: u32, sequence: u32, segments: &[u8], body: &[u8]) {
+pub(crate) fn write_page(out: &mut Vec<u8>, header_type: u8, granule: u64, serial: u32, sequence: u32, segments: &[u8], body: &[u8]) {
     let start = out.len();
     out.extend_from_slice(b"OggS");
     out.push(0);
