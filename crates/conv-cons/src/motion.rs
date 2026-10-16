@@ -76,11 +76,12 @@ pub(crate) fn alpha_loop(times: u32) -> i64 {
 /// Moves sprite `slot`'s centre to (`x`, `y`) over `ms`, zooming it from
 /// `zoom.0` to `zoom.1` percent (spzoom) when given, along `curve` (0
 /// straight, or an `spcurve` id), with one `spmotion` that keeps its last
-/// key, and waits for it: the engine steps it every frame. A looping
+/// key, and waits for it unless `wait` is false: the engine steps it
+/// every frame. A looping
 /// motion the sprite had ends. A fade in over `fade` ms started with it
 /// goes into its alpha. Uses %1-%4.
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn move_to(out: &mut String, slot: u32, x: i32, y: i32, ms: u32, zoom: Option<(u32, u32)>, curve: u32, fade: Option<u32>) {
+pub(crate) fn move_to(out: &mut String, slot: u32, x: i32, y: i32, ms: u32, zoom: Option<(u32, u32)>, curve: u32, fade: Option<u32>, wait: bool) {
     let (from, to) = match zoom {
         Some((from, to)) if from > 0 => {
             write!(out, "spzoom {slot},{from}:").unwrap();
@@ -95,7 +96,11 @@ pub(crate) fn move_to(out: &mut String, slot: u32, x: i32, y: i32, ms: u32, zoom
     // shortcut: a fade goes in at the two keys only (the place is an expression), so it lasts as long as the move; add a key between when a game's fades must keep their own length.
     let (a0, a1) = fade.map_or((256, 256), |f| (0, faded(ms, f)));
     writeln!(out, "getspsize {slot},%1,%2:getsppos {slot},%3,%4").unwrap();
-    writeln!(out, "spmotion {slot},2,0,0,0,{from},{from},0,{a0},0,{ms},{x}-%1/2-%3,{y}-%2/2-%4,{to},{to},0,{a1},{curve}:spmotionwait {slot}").unwrap();
+    write!(out, "spmotion {slot},2,0,0,0,{from},{from},0,{a0},0,{ms},{x}-%1/2-%3,{y}-%2/2-%4,{to},{to},0,{a1},{curve}").unwrap();
+    if wait {
+        write!(out, ":spmotionwait {slot}").unwrap();
+    }
+    writeln!(out).unwrap();
 }
 
 /// Writes a motion of layer `layer` (no keys: stops it). A fade in over
@@ -156,10 +161,10 @@ mod tests {
     #[test]
     fn moves_and_zooms_with_one_motion() {
         let mut out = String::new();
-        move_to(&mut out, 67, 400, 300, 500, None, 0, None);
+        move_to(&mut out, 67, 400, 300, 500, None, 0, None, true);
         assert_eq!(out, "getspsize 67,%1,%2:getsppos 67,%3,%4\nspmotion 67,2,0,0,0,100,100,0,256,0,500,400-%1/2-%3,300-%2/2-%4,100,100,0,256,0:spmotionwait 67\n");
         let mut out = String::new();
-        move_to(&mut out, 67, 400, 300, 500, Some((200, 100)), 51, None);
+        move_to(&mut out, 67, 400, 300, 500, Some((200, 100)), 51, None, true);
         assert!(out.starts_with("spzoom 67,200:getspsize"), "{out}");
         assert!(out.contains(",500,400-%1/2-%3,300-%2/2-%4,50,50,0,256,51:"), "{out}");
     }
@@ -182,7 +187,7 @@ mod tests {
         emit(&mut out, 5, &[(0, 0, 0), (100, 0, 5)], true, Some(300));
         assert!(out.ends_with(",256,0\n") && out.contains(",0,256,0,100,"), "{out}");
         let mut out = String::new();
-        move_to(&mut out, 67, 400, 300, 600, None, 0, Some(300));
+        move_to(&mut out, 67, 400, 300, 600, None, 0, Some(300), true);
         assert!(out.contains(",100,100,0,0,0,600,400-%1/2-%3,300-%2/2-%4,100,100,0,256,0:"), "{out}");
     }
 

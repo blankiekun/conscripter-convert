@@ -645,6 +645,14 @@ pub enum Op {
     /// Plays `file` as the music, fading in over `ms` while the music
     /// playing fades out over the same time. 最果てのイマ's 0x59.
     BgmCrossfade { file: String, ms: u32 },
+    /// The next timed [`Op::SpriteMove`] or [`Op::SpriteZoom`] runs while
+    /// the script goes on (text and click waits too) instead of being
+    /// waited for; the sprite ends where the move puts it. 俺たちに翼はない's
+    /// `:Wait 0` moves.
+    MoveNoWait,
+    /// Waits until the motion on `layer` ends (at once when none runs);
+    /// a looping one is not waited for.
+    MotionWait { layer: u32 },
 }
 
 /// [`Op::HoldMovie`]'s prompt: `image` is `cells` pictures side by side,
