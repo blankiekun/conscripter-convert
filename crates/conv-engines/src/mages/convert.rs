@@ -1669,6 +1669,12 @@ const NOT_NEEDED: &[(&str, &str)] = &[
     ("SpriteDeleteBG :ReleaseTexture", "texture memory"),
     ("SpriteMoveEnd :Sprite", "every SpriteMove is waited on, so none is left running"),
     ("MoviePlay :EndWait = 1", "wait for the end, as our movies always do"),
+    // The whole key is read only from :NumberDirect (never used); from
+    // :Number the key stays -1 and the task takes whatever picture is
+    // shown under the number, as ours.
+    ("CharacterDelete [Chara] :Number argument", "scene_load case 0x1c reads only the character from :Number"),
+    ("CharacterMove [Chara] :Number argument", "the same (case 0x1e)"),
+    ("CharacterAction [Chara] :Number argument", "the same (case 0x20)"),
     ("Achievement :ID", "trophies: nothing to show"),
     // Blocks and keys the eboot never asks for (cfg_find of
     // "TaskList/Task%d/Chara%d/<key>").

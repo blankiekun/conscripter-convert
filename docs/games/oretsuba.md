@@ -291,8 +291,7 @@ playthroughs (`%410`-`%439`).
 - Merged: the chapter card's names (#48). Open: motions and fades as
   engine motions (#13, #18, waiting on engine #2 → #7 → #14).
 - The user picks the next fixes from "Arguments not read" below.
-  Proposed order: the character keys (the eboot acts only on the exact
-  picture named), `:Scale`, CharacterOpen's `:Color`, the shakes
+  Proposed order: `:Scale`, CharacterOpen's `:Color`, the shakes
   (`:Fade 0` at full size, `:Loop 1`), `SpriteDeleteBG` always fading.
 - After engine #2 / converter #6: SpriteMove `:Curve` with the new
   per-key curves.
@@ -497,20 +496,12 @@ Traced in the eboot (2026-10-16; scene_load 0x8102840a reads a task,
   variant code (0x8112a860; read e.g. by 0x81040f76); effect 57 never
   reads it. 0 in every use; whether 0 is each class's plain form is not
   traced, so it stays noted.
-- The character keys (`[CharaN] :Number` arguments 1-4): not harmless.
-  CharacterAction (0x81120254), CharacterMove (0x8100da30 case 0x1e) and
-  CharacterDelete (task_run case 0x1c, 0x81006648) look the character up
-  by its whole key (number, pose, clothes, face, size) when argument 1
-  is not -1, and do nothing when the picture shown isn't that one; ours
-  takes whatever is shown under the number. How often they differ is
-  not measured. CharacterActionEnd reads only `:Character`'s first value
-  (or `:Number`'s, before it), so its row stays.
 
 Not covered yet: only scene tasks are checked; `chract`'s actions (the
 eboot reads a `:Priority` and an easing per key there) and the `.txt`
 tables (`adv.txt`, `chr*.txt`, `CGMODE`) are not.
 
-The full dry run gives 20,885 notes of 116 kinds; by how much they show,
+The full dry run gives 5,873 notes of 104 kinds; by how much they show,
 with their uses:
 
 | Task | Argument | Uses | State: what is lost |
@@ -519,7 +510,6 @@ with their uses:
 | CharacterOpen | the task's own `:Color` | 17 | dropped: 13 open see-through (alpha 0) and are shown solid |
 | EffectQuake, SpriteQuake | `:Fade 0` | 1,053, 85 | dropped: the eboot shakes at full size for `:Time` and stops; ours dies down |
 | CharacterMove, SpriteMove | `:Wait 0` | 668, 198 | dropped: moves the eboot runs under the text, ours wait for |
-| CharacterAction, …Move, …Delete | `[CharaN]` `:Number` arguments 1-4 | 2,391, 880, 482 | dropped: the eboot acts only on the picture named; ours on any under the number (differences not measured) |
 | CharacterDelete | `[CharaN]` `:FadeOut 0` | 85 | dropped: those characters fade over 18 frames instead of leaving at once |
 | SpriteMove | `:Roll`, `:Curve` | 12, 12 | dropped: turns, arcs |
 | SpriteMove, SpriteQuake | every argument (`:Scale` too) | 8, 16 | dropped: the picture they name isn't up by our tracking (one we removed too early?) |
@@ -565,6 +555,20 @@ Next, in order:
 
 Finished work, moved out of "Status" so a session reads only the open
 state.
+
+**The character keys (2026-10-16).** CharacterMove, CharacterDelete and
+CharacterAction look a character up by its whole key (number, pose,
+dress, face, size: 0x8111ffb4, 0x81006648, 0x81120254) and do nothing
+when another picture is shown, but only when key argument 1 is not -1.
+scene_load (0x8102840a, cases 0x1c, 0x1e, 0x20) fills the key only from
+`:NumberDirect`; from `:Number` it reads the character alone and the
+key stays -1 (the record's constructor, 0x811297f4), so the task takes
+whatever is shown under the number, as ours does. The scripts never use
+`:NumberDirect` (all 22,904 are `:Number`), so `:Number` arguments 1-4
+of the three tasks (2,391, 880, 482 uses) are `NOT_NEEDED` rows; an
+earlier note here had them as not harmless. (Applying the whole-key
+rule anyway would have skipped 52 blocks, where the face or cut-in
+named isn't the one shown.)
 
 **Small coverage gaps (2026-10-16).** Read in the eboot:
 - **SpriteMove `:Curve c`** (12 uses: blood splashes `bld*` zoomed ×2-2.5
