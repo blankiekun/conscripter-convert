@@ -501,7 +501,7 @@ The steps that apply them are in `docs/new-game.md`.
   can each cost a session. The user decides.
 - **A 100 % save unlocks the extras at once.** Download one instead of
   playing or reverse-engineering the unlock bits.
-- **A route map straight from the scripts** (俺たちに翼はない) (every NextScene, condition
+- **A route map straight from the scripts** (俺たちに翼はない: every NextScene, condition
   and choice per scene, one line each) is the walkthrough when no
   public one exists, and the route check follows it.
 
@@ -652,7 +652,7 @@ The steps that apply them are in `docs/new-game.md`.
 - **CONscripter's errors go to `stderr.txt`** (村正) in the game folder
   (`USE_FILELOG`), not to the terminal: an exit that looks silent has
   its message there.
-- **`setwindow` flushes the backlog** (村正) (NScripter's rule): a converter
+- **`setwindow` flushes the backlog** (村正; NScripter's rule): a converter
   that sets the window again for each text block keeps no history. The
   converter emits `setwindow3`, which doesn't. And `btndef` turns
   `btndown` off: a screen that wants presses sets `btndown 1` after each
