@@ -603,6 +603,35 @@ ones done:
   `frame01`-`03` there itself; found in the audit); `0x8c`'s static is
   sprite 60, over it;
 
+**Whole-exe map (2026-10-15, `docs/new-game.md` §2 "Mapping the whole
+exe").** The pointer-only callbacks (323 `cb_<addr>` in `names.tsv`,
+five rounds until none was left; 3,759 → 4,081 functions), the static
+CRT helpers and the settings/skip flags are named. The exe's own
+`..\Src\…\*.cpp` strings in `strings.tsv` map its modules; the
+`..\Library\…` ones are its in-house framework (gaf004, DX), no
+third-party libraries. Coverage: all 82 opcodes the corpus uses
+(`cd opstats`, 84,713 instructions) are converted and agree with their
+handlers (audit table above); the dry run reports only `0x30`/`0x62`
+(debug menu). Lip sync (`VoiceSyncParts`, `lq.arc`) and animation parts
+are in the exe but unused here (no `lq.arc`; `0x8e`'s module names are
+empty). Gaps found, where the exe and the converter differ:
+- **Effects off** (画面エフェクトを使用, `setting_effects` `0x51ed14`
+  bit 0): the original then also drops the quakes (`0x6d`, 198 uses),
+  pulses (`0x6f`, 87; `surprise_start` `0x441960`) and script fades
+  (`0x72`/`0x74`, 228: `script_fade` draws no cover at all). Ours:
+  `effectoff` only cuts `print` effects, so quakes and pulses still play
+  and the fade cover appears at once and stays until the next
+  background (202 of the fades leave the text window up).
+- **Skip mode** (`skip_state_a`/`_b`, `0x51f82c`/`0x51f82e`): the
+  original draws none of `0x6d`, `0x6e` (flash, 88), `0x6f`, `0x72`,
+  `0x74` while skipping. Ours skips only their waits: the
+  `screenshake`/`screenflash`/`screenpulse` commands still run, and the
+  fade cover shows at once as above.
+- `0x49`'s edge colour (1 of 565 records, `0x808080`) and `0x4a`'s (2)
+  are not converted.
+- `0x59` BGM crossfade (47): the old track stops at once instead of
+  fading out over the new one (one BGM channel in NScripter).
+
 **Accuracy.**
 - Transitions: MeltDown's stretch for subs 46/47 is scaled from the exe
   (filmed for item 25, not yet compared).
