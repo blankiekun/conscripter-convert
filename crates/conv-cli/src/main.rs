@@ -145,6 +145,12 @@ enum Command {
         #[command(subcommand)]
         command: mages::MagesCommand,
     },
+    /// Low-level tools for TYPE-MOON's archives (月姫 -A piece of blue
+    /// glass moon-, Switch): MRG and MZP
+    Typemoon {
+        #[command(subcommand)]
+        command: tools::typemoon::TypemoonCommand,
+    },
 }
 
 fn main() -> Result<()> {
@@ -219,6 +225,7 @@ fn main() -> Result<()> {
             NssCommand::Builtins { dir, names, top } => nss_builtins(&dir, &names, top),
         },
         Command::Mages { command } => mages::run(command),
+        Command::Typemoon { command } => tools::typemoon::run(command),
     }
 }
 
