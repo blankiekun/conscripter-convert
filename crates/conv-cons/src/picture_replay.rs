@@ -64,8 +64,8 @@ pub(crate) fn emit(out: &mut String, r: &PictureReplay, border: u32, music: Opti
         if let Some((slot, (x, y))) = r.hold {
             w(format!("screenzoom {slot},1,1,1000,{x},{y},0,0,0,0:print 1"));
         }
-        w(format!("bgmvolfade 0,{}:wait {}", r.start_ms, r.start_ms));
-        w(format!("csp -1:bgmstop:bgmvolfade 100:mov {REPLAYING},1"));
+        w(format!("chvolfade -1,0,{}:wait {}", r.start_ms, r.start_ms));
+        w(format!("csp -1:bgmstop:chvolfade -1,100:mov {REPLAYING},1"));
         w(format!("gosub *{}:goto *{END}", s.label));
     }
     w(format!("*{END}"));
@@ -73,8 +73,8 @@ pub(crate) fn emit(out: &mut String, r: &PictureReplay, border: u32, music: Opti
     if let Some((slot, _)) = r.hold {
         w(format!("screenzoom {slot}"));
     }
-    w(format!("bgmvolfade 0,{}:wait {}", r.end_ms, r.end_ms));
-    w("csp -1:csp2 -1:bgmstop:stopallsound:bgmvolfade 100:textclear:textoff:bg black,1".into());
+    w(format!("chvolfade -1,0,{}:wait {}", r.end_ms, r.end_ms));
+    w("csp -1:csp2 -1:bgmstop:stopallsound:chvolfade -1,100:textclear:textoff:bg black,1".into());
     if let Some(m) = music {
         w(m.to_string());
     }
