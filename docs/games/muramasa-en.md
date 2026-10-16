@@ -7,6 +7,23 @@ It has no NPA archives and no NSS scripts.
 
 ## Status
 
+### Queue (2026-10-16)
+
+- Open, stacked (squash in this order, each rebased `--onto` after the one
+  before merges): #20 text box, #21 settings, #26 save/load, #29 title,
+  #35 subtitles over the window (`spovertext`, engine #21 merged). #23
+  (line log) waits for engine #17 (`logrows` width: check every other
+  game with a proportional font; guard a NULL font).
+- Then, each a small PR: story `CreateText` skipped in the English arm
+  (later: the English captions from the port's `LANG_NAME` branches, 15
+  scenes); volumes on the port's curve (now the Japanese build's: music
+  800 plays at 68 %).
+- Follow-up: `subtitles.rs` imports `mages::menus::Labels`; move what's
+  shared somewhere neutral.
+- Decided: a click on an empty slot at the title doesn't save (the
+  original saves the title screen there): a deliberate difference.
+  Continue loads the quick save, else the newest save.
+
 - **Works:** reading every archive (`npk.rs`; `research/nitroplus/npk.py`,
   below); the English text in the converter: `convert-nss <game> --file
   ma00_000.nss --chain 2000 --english <english game> …` reads the

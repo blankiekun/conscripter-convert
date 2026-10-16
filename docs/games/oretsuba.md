@@ -285,6 +285,16 @@ playthroughs (`%410`-`%439`).
 
 ## Status: the whole story plays (2026-10-15)
 
+### Queue (2026-10-16)
+
+- The user picks the next fixes from "Arguments not read" below.
+  Proposed order: the character keys (the eboot acts only on the exact
+  picture named), `:Scale`, CharacterOpen's `:Color`, the shakes
+  (`:Fade 0` at full size, `:Loop 1`), `SpriteDeleteBG` always fading.
+- After engine #2 / converter #6: SpriteMove `:Curve` with the new
+  per-key curves.
+- Looks against the Vita stay blocked (needs Vita screenshots).
+
 `crates/conv-engines/src/mages/` reads the archives (`cpk.rs`), the
 scripts (`tasks.rs`), lowers scenes to the IR (`convert.rs`) and writes
 the assets (`assets.rs`; sounds become Ogg Vorbis through ffmpeg, BGM
