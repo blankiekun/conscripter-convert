@@ -638,11 +638,6 @@ Next, in order:
 4. Gaps from the exe review (2026-10-15; the exe's side is in
    `research/nitroplus/builtins.md`, the functions in
    `research/nitroplus/names.tsv`), most noticeable first:
-   - Endings have no staff roll: `SetRoll` takes the roll's process
-     name from `$EndName[$ENDNumber][0]`, a two-level `Array` table the
-     compiler doesn't evaluate, so each ending plays 4 s of the theme
-     over black and fades it out (no roll, no click wait).
-     `#ClearRoll%02d` likewise (`String`, `VariableValue`).
    - Text markup dropped: `<VALUE name=$mc02_時間>` (the airship clock in
      `mc02_031time` prints a gap: a string chosen by the runtime
      `$mc02_TimeCount`, and the IR has no runtime strings), the
@@ -723,6 +718,21 @@ Next, in order:
 
 Finished work, moved out of "Status" so a session reads only the open
 state.
+
+**Staff roll (2026-10-15, exe review):** each ending (`TheEND`) now
+plays its roll. The compiler evaluates `Array`/`AssocArray`/`Count`
+(`$EndName[$ENDNumber][0]`: an element is the variable `v[i]`, a key
+given to `AssocArray` means its place), `String` (printf) and
+`VariableValue` (`#ClearRoll%02d`, a global flag: the first time the
+roll can't be skipped, as in the original), and `RemainTime`/
+`DurationTime` of a sound give its length. The roll's process
+(`ProcessRoll01`) runs in line when it starts (the script waits for it
+anyway): the staff pictures (`cg/sys/ed/staff01-02`, 4950 and 6650 px
+wide) move across the screen by the engine (`spmotion2`) over the song,
+悪鬼編's event thumbnails fade in turn in their frame, and the logo comes
+up at the end. Checked headless from `mb04_025vs` (the credits scroll
+across in step with the song). Left: the original's 5 s wait runs
+beside the roll, ours after it.
 
 **`<VALUE>` in text (2026-10-15, exe review):** `<VALUE name=$var>`
 prints the variable; it is now filled in where the value is known when

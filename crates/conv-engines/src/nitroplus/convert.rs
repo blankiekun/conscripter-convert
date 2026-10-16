@@ -87,6 +87,7 @@ pub use muramasa::{MURAMASA, MURAMASA_EN};
 mod django;
 pub use django::DJANGO;
 mod process;
+mod array;
 
 /// What one game adds to the compiler, in its own module under `convert/`
 /// ([`MURAMASA`]): library functions it compiles itself (written as
@@ -1685,6 +1686,10 @@ impl<'a, 'b> Compiler<'a, 'b> {
             }
             Expr::Unary { expr, .. } => self.is_runtime(expr),
             Expr::Binary { left, right, .. } => self.is_runtime(left) || self.is_runtime(right),
+            Expr::Call { name, args } if name == "VariableValue" && args.len() == 2 => {
+                let key = self.variable_value_key(args);
+                key.is_some_and(|k| matches!(self.vars.get(&k), Some(Value::Runtime(_))))
+            }
             _ => false,
         }
     }
@@ -1953,7 +1958,8 @@ impl<'a, 'b> Compiler<'a, 'b> {
             StmtKind::Assign { target, index, op, value } => {
                 let mut key = target.to_string();
                 for i in index {
-                    key = format!("{key}[{}]", self.eval(i).string());
+                    let i = self.eval(i);
+                    key = self.element_key(&key, &i);
                 }
                 // `$x = $x + k` on a story flag is `$x += k`.
                 let (op, value) = match (op, value, self.flags.contains_key(&key)) {
@@ -2164,6 +2170,9 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 self.vars.get(&key).cloned().unwrap_or(Value::Null)
             }
             Expr::Call { name, args } => {
+                if let Some(v) = self.variable_call(name, args) {
+                    return v;
+                }
                 let args: Vec<Value> = args.iter().map(|a| self.eval(a)).collect();
                 if (self.game.call)(self, name, &args) {
                     return Value::Null;
@@ -2214,7 +2223,8 @@ impl<'a, 'b> Compiler<'a, 'b> {
             Expr::Var(v) => v.to_string(),
             Expr::Index { base, index } => {
                 let base = self.index_key(base);
-                format!("{base}[{}]", self.eval(index).string())
+                let index = self.eval(index);
+                self.element_key(&base, &index)
             }
             other => other.to_string(),
         }

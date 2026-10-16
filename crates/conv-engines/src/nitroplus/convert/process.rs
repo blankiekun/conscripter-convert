@@ -34,6 +34,16 @@ impl Compiler<'_, '_> {
         }
     }
 
+    /// `CreateProcess` of a process the game runs in line when it starts,
+    /// its waits holding the script (装甲悪鬼村正's ending roll, which the
+    /// script waits for anyway).
+    pub(super) fn inline_process(&mut self, args: &[Value]) -> bool {
+        let Some((file, function)) = args.get(4).and_then(|f| self.function(&f.string())) else { return false };
+        let name = self.object_name(&args[0]);
+        self.create(name, Kind::Process { file, function }, 0, 0, 0);
+        true
+    }
+
     /// Runs a music process's function at once, its waits adding to
     /// [`Compiler::process_clock`] instead of waiting.
     pub(super) fn start_process(&mut self, name: &str) {

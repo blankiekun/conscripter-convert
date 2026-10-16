@@ -84,11 +84,13 @@ fn call_en(c: &mut Compiler<'_, '_>, name: &str, args: &[Value]) -> bool {
     }
 }
 
-fn call(c: &mut Compiler<'_, '_>, name: &str, _: &[Value]) -> bool {
+fn call(c: &mut Compiler<'_, '_>, name: &str, args: &[Value]) -> bool {
     if let Some(r) = RANKINGS.iter().find(|r| r.0 == name) {
         return c.ranking(r);
     }
-    (name == "RecoIn" && c.reco_in()) || (name == "SatugaiSystem" && c.satugai()) || (name == "SetHex" && c.set_hex()) || (name == "judgment_of_count" && c.favour_screen())
+    // The ending's roll (SetRoll).
+    (name == "CreateProcess" && args.get(4).is_some_and(|f| f.string().starts_with("ProcessRoll")) && c.inline_process(args))
+        || (name == "RecoIn" && c.reco_in()) || (name == "SatugaiSystem" && c.satugai()) || (name == "SetHex" && c.set_hex()) || (name == "judgment_of_count" && c.favour_screen())
 }
 
 fn scene(c: &mut Compiler<'_, '_>, file: &str, scene: &str) -> bool {
@@ -117,6 +119,8 @@ fn flags(files: &BTreeMap<String, NssFile>) -> Vec<String> {
     // Set by the story, read by the settings' voice window.
     out.extend(screens::VOICES.iter().map(|(name, _)| screens::heard_flag(name)));
     out.push(screens::CHAPTER_ONE_CLEARED.to_string());
+    // Each ending's roll seen (TheEND: `VariableValue(#, "ClearRoll%02d")`).
+    out.extend((0..6).map(|n| format!("#ClearRoll{n:02}")));
     out.push(extras::CLEARED.to_string());
     out.extend(extras::flags(files));
     // The routes cleared and the title's marks for them (TitleSet).

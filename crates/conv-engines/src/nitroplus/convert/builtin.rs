@@ -376,6 +376,14 @@ impl Compiler<'_, '_> {
             }
             "SetFrequency" if arg(2).int() != 1000 => self.note("SetFrequency"),
             "RemainTime" | "DurationTime" => {
+                // A sound: its length (it has only just started).
+                let sound = self.matching(&arg(0)).iter().find_map(|t| match &self.objects[t].kind {
+                    Kind::Sound(s) => Some(s.path.clone()),
+                    _ => None,
+                });
+                if let Some(ms) = sound.and_then(|p| self.assets.sound_ms(&p)) {
+                    return Value::Int(ms as i64);
+                }
                 let movie = self.matching(&arg(0)).iter().find_map(|t| match &self.objects[t].kind {
                     Kind::Movie(m) => Some(m.clone()),
                     _ => None,
