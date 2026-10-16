@@ -1629,6 +1629,20 @@ goto *conv_link1
     }
 
     #[test]
+    fn sound_rates_bend_the_sound_on_its_channel() {
+        let s = script(vec![
+            Op::SePlay { file: "se\\a.ogg".into(), looped: false },
+            Op::SoundRate { file: "se\\a.ogg".into(), rate: 1100, ms: 1000 },
+            Op::SoundRate { file: "se\\a.ogg".into(), rate: 1000, ms: 0 },
+            Op::SoundRate { file: "se\\b.ogg".into(), rate: 900, ms: 0 },
+        ]);
+        let text = emit(&s);
+        let ch = text.split("dwave ").nth(1).unwrap().split(',').next().unwrap();
+        assert!(text.contains(&format!("chfreq {ch},1100,1000\nchfreq {ch},1000\n")), "{text}");
+        assert!(!text.contains(",900"), "{text}");
+    }
+
+    #[test]
     fn sprites_fading_fade_by_themselves() {
         let picture = SpritePlacement { image: "sprite/a.png".into(), x: 1, y: 2 };
         let s = script(vec![Op::SpritesFading {

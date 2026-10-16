@@ -634,6 +634,11 @@ pub enum Op {
     /// it. Cleared with the layer (CONscripter's `sptrail`). NSS's
     /// `SetBlur`: 装甲悪鬼村正's dashes.
     SpriteTrail { layer: u32, passes: u32, alpha: u32, lag: u32 },
+    /// Plays the sound effect `file` (playing now, or right after its
+    /// `SePlay`) at `rate`/1000 of its speed and pitch, reached over `ms`
+    /// from its rate now while the script goes on. 装甲悪鬼村正's
+    /// `SetFrequency`: pitch bends on battle sounds.
+    SoundRate { file: String, rate: u32, ms: u32 },
 }
 
 /// [`Op::HoldMovie`]'s prompt: `image` is `cells` pictures side by side,
