@@ -1,0 +1,443 @@
+//! `CreateProcess` of a function that ends in an endless loop of timed
+//! actions (`while(1) { Fade(…); Move(…); Wait(…); }`): the engine loops
+//! the pictures' motion (`spmotion`) through the same times while the
+//! script goes on. 装甲悪鬼村正's `FlyMoving` (a picture bobbing along a
+//! Bézier path), `TurboBlur`, `fire01`-`03` (firelight flickering),
+//! `RotetoLoop1`; 続・殺戮のジャンゴ's `ShakeVLoop` (a background jolting up
+//! and down as a carriage rides).
+//!
+//! When the process starts, what comes before the loop runs as an action
+//! process's does (its waits hold only the process). Then the loop's body
+//! is played on paper, twice: the second pass, which starts where the
+//! first ended, is the one looped (`RotetoLoop`'s first turn from where
+//! the picture was is drawn at once). Each picture the body changes gets
+//! one motion: its keys at every time an action starts or ends (and along
+//! a Bézier path), as offsets from where it stood when the pass began, its
+//! zoom and angle from those it had then, and its opacity from the
+//! highest the pass reaches, at which it is placed. Deleting the process
+//! stops them.
+
+use std::collections::{HashMap, HashSet};
+
+use conv_core::ir::{MotionKey, Op};
+
+use super::{Compiler, Expr, Function, Stmt, StmtKind, Value, shake::shake_keys};
+
+/// What a looped body may call.
+const LOOP_CALLS: &[&str] = &["Fade", "Move", "Zoom", "Rotate", "BezierMove", "Wait"];
+/// A shake loop's body (ShakeVLoop: `Shake` and `Wait` only).
+const SHAKE_CALLS: &[&str] = &["Shake", "Wait"];
+/// `spmotion` takes 32 keys.
+pub(super) const MAX_KEYS: usize = 32;
+
+/// The statements before the loop and the loop's body, when `f` ends in
+/// `while(…) { … }` of the calls in `calls` (and labels).
+fn split<'a>(f: &'a Function, calls: &[&str]) -> Option<(&'a [Stmt], &'a [Stmt])> {
+    let at = f.body.iter().rposition(|s| !matches!(s.kind, StmtKind::Label(_)))?;
+    let StmtKind::While { body, .. } = &f.body[at].kind else { return None };
+    let only = body.iter().all(|s| match &s.kind {
+        StmtKind::Label(_) => true,
+        StmtKind::Expr(Expr::Call { name, .. }) => calls.contains(&name.as_str()),
+        _ => false,
+    });
+    (only && body.iter().any(|s| matches!(s.kind, StmtKind::Expr(_)))).then_some((&f.body[..at], &body[..]))
+}
+
+/// Whether `f` is a loop process this module converts.
+pub(super) fn is_loop(f: &Function) -> bool {
+    split(f, LOOP_CALLS).is_some() || split(f, SHAKE_CALLS).is_some()
+}
+
+/// One property of a picture over a pass: its value at the start and the
+/// actions on it (start ms, ms, to), in order.
+#[derive(Debug, Clone, Default)]
+struct Track {
+    start: f64,
+    actions: Vec<(u32, u32, f64)>,
+}
+
+impl Track {
+    fn at(&self, t: u32) -> f64 {
+        let mut v = self.start;
+        for &(s, ms, to) in &self.actions {
+            if t >= s + ms {
+                v = to;
+            } else if t > s {
+                v += (to - v) * f64::from(t - s) / f64::from(ms);
+            }
+        }
+        v
+    }
+
+    fn end(&self) -> f64 {
+        self.actions.last().map_or(self.start, |a| a.2)
+    }
+
+    /// The value now (at `t`), for an action starting then.
+    fn push(&mut self, t: u32, ms: u32, to: f64) {
+        self.actions.push((t, ms.max(1), to));
+    }
+}
+
+/// A picture over a pass: x, y, zoom x, zoom y (per mille), angle
+/// (counterclockwise), opacity (0-1000); and the extra key times a Bézier
+/// path adds.
+#[derive(Debug, Clone, Default)]
+struct Pass {
+    props: [Track; 6],
+    times: Vec<u32>,
+}
+
+impl Pass {
+    fn starting(v: [f64; 6]) -> Self {
+        Pass { props: v.map(|start| Track { start, actions: Vec::new() }), times: Vec::new() }
+    }
+
+    fn now(&self, i: usize) -> f64 {
+        self.props[i].end()
+    }
+
+    fn ends(&self) -> [f64; 6] {
+        [0, 1, 2, 3, 4, 5].map(|i| self.props[i].end())
+    }
+
+    fn values(&self, t: u32) -> [f64; 6] {
+        [0, 1, 2, 3, 4, 5].map(|i| self.props[i].at(t))
+    }
+
+    /// Keys over `len` ms: every time an action starts or ends.
+    fn keys(&self, len: u32) -> Option<Vec<MotionKey>> {
+        let mut times: Vec<u32> = self.props.iter().flat_map(|p| p.actions.iter().flat_map(|&(s, ms, _)| [s, s + ms])).chain(self.times.iter().copied()).chain([0, len]).filter(|&t| t <= len).collect();
+        times.sort_unstable();
+        times.dedup();
+        let base = self.values(0);
+        let top = times.iter().map(|&t| self.values(t)[5]).fold(0.0, f64::max);
+        if top <= 0.0 {
+            return None;
+        }
+        let key = |t: u32| {
+            let v = self.values(t);
+            MotionKey {
+                ms: t,
+                x: (v[0] - base[0]).round() as i32,
+                y: (v[1] - base[1]).round() as i32,
+                zoom: (v[2] * 100.0 / base[2].max(1.0)).round().max(1.0) as u32,
+                angle: (v[4] - base[4]).round() as i32,
+                opacity: (v[5] * 256.0 / top).round() as u32,
+            }
+        };
+        let mut keys: Vec<MotionKey> = times.into_iter().map(key).collect();
+        // A key between two like it adds nothing.
+        let same = |a: &MotionKey, b: &MotionKey| (a.x, a.y, a.zoom, a.angle, a.opacity) == (b.x, b.y, b.zoom, b.angle, b.opacity);
+        let mut i = 1;
+        while i + 1 < keys.len() {
+            if same(&keys[i - 1], &keys[i]) && same(&keys[i], &keys[i + 1]) {
+                keys.remove(i);
+            } else {
+                i += 1;
+            }
+        }
+        Some(keys)
+    }
+
+    fn top(&self, len: u32) -> f64 {
+        (0..=len).step_by(10).map(|t| self.values(t)[5]).fold(self.values(len)[5], f64::max)
+    }
+}
+
+impl<'a> Compiler<'a, '_> {
+    /// Starts loop process `name` (its function `f`, in `file`).
+    pub(super) fn start_loop(&mut self, name: &str, file: &'a str, f: &'a Function) {
+        let saved = std::mem::replace(&mut self.file, file);
+        self.frames.push(HashMap::new());
+        self.in_function += 1;
+        let before: HashSet<String> = self.objects.keys().cloned().collect();
+        if let Some((prelude, body)) = split(f, SHAKE_CALLS) {
+            self.exec_block(prelude);
+            let made = self.adopt(name, &before);
+            self.shake_loop(name, body, &made);
+        } else if let Some((prelude, body)) = split(f, LOOP_CALLS) {
+            self.action_process = Some(name.to_string());
+            self.exec_block(prelude);
+            self.action_process = None;
+            let made = self.adopt(name, &before);
+            self.action_loop(name, &f.name, body, &made);
+        }
+        self.in_function -= 1;
+        self.frames.pop();
+        self.file = saved;
+    }
+
+    /// With [`super::Game::family`], the pictures a process made are its
+    /// children: moving or deleting the process moves or deletes them.
+    /// The names the loop's body still knows them by, and their new ones.
+    fn adopt(&mut self, name: &str, before: &HashSet<String>) -> Vec<(String, String)> {
+        if !self.game.family {
+            return Vec::new();
+        }
+        let made: Vec<String> = self.objects.keys().filter(|k| !before.contains(*k) && !k.contains('/')).cloned().collect();
+        let renamed = |k: &str| match made.iter().find(|m| k == m.as_str() || k.starts_with(&format!("{m}/"))) {
+            Some(_) => format!("{name}/{k}"),
+            None => k.to_string(),
+        };
+        let moved: Vec<(String, String)> = self.objects.keys().map(|k| (k.clone(), renamed(k))).filter(|(k, r)| k != r).collect();
+        for (k, r) in &moved {
+            let o = self.objects.remove(k).unwrap();
+            self.objects.insert(r.clone(), o);
+        }
+        for v in self.aliases.values_mut() {
+            *v = renamed(v);
+        }
+        moved
+    }
+
+    /// The objects `arg` names in a loop's body, after [`Self::adopt`].
+    fn targets(&self, arg: &Value, made: &[(String, String)]) -> Vec<String> {
+        let name = self.object_name(arg);
+        match made.iter().find(|(k, _)| *k == name) {
+            Some((_, r)) => vec![r.clone()],
+            None => self.matching(arg),
+        }
+    }
+
+    /// A shake loop: `Shake(picture, ms, x, y, x_end, y_end, …)` and
+    /// `Wait`s ([`shake_keys`]).
+    fn shake_loop(&mut self, name: &str, body: &'a [Stmt], made: &[(String, String)]) {
+        // (ms, from, to) a segment, 0 px for a wait.
+        let mut target = None;
+        let mut parts = Vec::new();
+        for s in body {
+            let StmtKind::Expr(Expr::Call { name: call, args }) = &s.kind else { continue };
+            let v: Vec<Value> = args.iter().map(|a| self.eval(a)).collect();
+            let int = |i: usize| v.get(i).map_or(0, |a| a.int());
+            match call.as_str() {
+                "Shake" => {
+                    if target.is_none() {
+                        target = self.targets(&v[0], made).into_iter().next().or_else(|| Some(self.object_name(&v[0])));
+                    }
+                    parts.push((int(1).max(0) as u32, (0, int(3).abs() as i32), (0, int(5).abs() as i32)));
+                }
+                _ => parts.push((int(0).max(0) as u32, (0, 0), (0, 0))),
+            }
+        }
+        let Some(target) = target else { return };
+        let keys = shake_keys(&parts).into_iter().map(|(ms, x, y)| MotionKey { ms, x, y, zoom: 100, angle: 0, opacity: 256 }).collect();
+        self.set_loop(name, &target, keys);
+    }
+
+    /// A loop of `Fade`, `Move`, `Zoom`, `Rotate`, `BezierMove` and `Wait`.
+    fn action_loop(&mut self, name: &str, function: &str, body: &'a [Stmt], made: &[(String, String)]) {
+        let (sw, sh) = self.game.screen;
+        let mut first: HashMap<String, Pass> = HashMap::new();
+        let len = self.play(body, &mut first, (sw, sh), made);
+        if len == 0 {
+            self.note(format!("loop process without time: {function}"));
+            return;
+        }
+        // The second pass, from where the first left each picture.
+        let mut second: HashMap<String, Pass> = first.iter().map(|(k, p)| (k.clone(), Pass::starting(p.ends()))).collect();
+        self.play(body, &mut second, (sw, sh), made);
+        if second.iter().any(|(k, p)| p.ends() != first[k].ends()) {
+            self.note(format!("loop process that doesn't come back to where it started: {function}"));
+        }
+        let mut targets: Vec<(String, Pass)> = second.into_iter().collect();
+        targets.sort_by(|a, b| a.0.cmp(&b.0));
+        for (target, pass) in targets {
+            let v = pass.values(0);
+            let unlike = |t: u32| {
+                let n = pass.values(t);
+                (n[2] * v[3] - n[3] * v[2]).abs() > v[2].max(1.0) * v[3].max(1.0) / 100.0
+            };
+            if (0..=len).step_by(10).any(unlike) {
+                self.note(format!("loop process zooming unlike in x and y: {function}"));
+                continue;
+            }
+            let Some(keys) = pass.keys(len) else { continue };
+            if keys.len() > MAX_KEYS {
+                self.note(format!("loop process over {MAX_KEYS} keys: {function} ({})", keys.len()));
+                continue;
+            }
+            let top = pass.top(len);
+            if let Some(o) = self.objects.get_mut(&target) {
+                (o.x, o.y) = (v[0].round() as i64, v[1].round() as i64);
+                o.zoom = (v[2].round() as i64, v[3].round() as i64);
+                o.turn.2 = -(v[4].round() as i64);
+                o.opacity = top.round() as i64;
+            }
+            self.set_loop(name, &target, keys);
+        }
+    }
+
+    /// Plays `body` once on paper into `passes` (a picture's pass starts
+    /// where the object is, unless it is there already); its length.
+    fn play(&mut self, body: &'a [Stmt], passes: &mut HashMap<String, Pass>, (sw, sh): (i64, i64), made: &[(String, String)]) -> u32 {
+        let mut clock = 0u32;
+        for s in body {
+            let StmtKind::Expr(Expr::Call { name: call, args }) = &s.kind else { continue };
+            let v: Vec<Value> = args.iter().map(|a| self.eval(a)).collect();
+            let arg = |i: usize| v.get(i).cloned().unwrap_or(Value::Null);
+            if call == "Wait" {
+                clock += arg(0).int().max(0) as u32;
+                continue;
+            }
+            let ms = arg(1).int().max(0) as u32;
+            // The wait argument: Fade(obj, ms, to[, tempo], wait),
+            // BezierMove(obj, ms, path, tempo, wait), Move and Zoom (obj,
+            // ms, x, y, tempo, wait), Rotate(obj, ms, x, y, z, tempo, wait).
+            let wait = match call.as_str() {
+                "Fade" if v.len() == 4 => arg(3),
+                "Fade" | "BezierMove" => arg(4),
+                "Move" | "Zoom" => arg(5),
+                _ => arg(6),
+            };
+            for t in self.targets(&arg(0), made) {
+                let Some(o) = self.objects.get(&t) else { continue };
+                let (w, h) = (o.w, o.h);
+                let p = passes.entry(t).or_insert_with(|| Pass::starting([o.x as f64, o.y as f64, o.zoom.0 as f64, o.zoom.1 as f64, -o.turn.2 as f64, o.opacity as f64]));
+                let now = |i: usize| p.now(i).round() as i64;
+                match call.as_str() {
+                    "Fade" => {
+                        let to = arg(2).position(now(5), 0, 0).clamp(0, 1000);
+                        p.props[5].push(clock, ms, to as f64);
+                    }
+                    "Move" => {
+                        let (x, y) = (arg(2).position(now(0), w, sw), arg(3).position(now(1), h, sh));
+                        p.props[0].push(clock, ms, x as f64);
+                        p.props[1].push(clock, ms, y as f64);
+                    }
+                    "Zoom" => {
+                        let (zx, zy) = (arg(2).position(now(2), 0, 0).max(1), arg(3).position(now(3), 0, 0).max(1));
+                        p.props[2].push(clock, ms, zx as f64);
+                        p.props[3].push(clock, ms, zy as f64);
+                    }
+                    "Rotate" => {
+                        // About z, clockwise in NSS.
+                        let to = -arg(4).position(-now(4), 0, 0);
+                        p.props[4].push(clock, ms, to as f64);
+                    }
+                    _ => {
+                        let Some(Expr::Path(points)) = args.get(2) else { continue };
+                        let at = (p.now(0), p.now(1));
+                        let mut pts = Vec::new();
+                        for pt in points {
+                            let Expr::Point { control, x, y } = pt else { continue };
+                            let (x, y) = (self.eval(x), self.eval(y));
+                            pts.push((*control, x.position(at.0 as i64, w, sw) as f64, y.position(at.1 as i64, h, sh) as f64));
+                        }
+                        bezier(p, clock, ms, &pts);
+                    }
+                }
+            }
+            if !matches!(wait, Value::Null | Value::Int(0)) {
+                clock += ms;
+            }
+        }
+        clock
+    }
+
+    /// Picture `target` loops `keys` while process `name` runs.
+    fn set_loop(&mut self, name: &str, target: &str, keys: Vec<MotionKey>) {
+        let Some(o) = self.objects.get_mut(target) else { return };
+        o.shake = Some((name.to_string(), keys.clone()));
+        // Already shown: it starts now.
+        if let Some(s) = self.shown.get(target) {
+            self.ops.push(Op::SpriteMotion2 { layer: s.layer, keys, end: conv_core::ir::MotionEnd::Loop });
+        }
+    }
+
+    /// `Delete` of a loop process: its pictures stop. (The deletion itself
+    /// goes on as usual.)
+    pub(super) fn stop_loops(&mut self, arg: &Value) {
+        let owners = self.matching(arg);
+        let stopped: Vec<String> = self.objects.iter().filter(|(_, o)| o.shake.as_ref().is_some_and(|(p, _)| owners.contains(p))).map(|(k, _)| k.clone()).collect();
+        for k in stopped {
+            self.objects.get_mut(&k).unwrap().shake = None;
+            if let Some(s) = self.shown.get(&k) {
+                self.ops.push(Op::SpriteMotion { layer: s.layer, keys: Vec::new(), looped: false });
+            }
+        }
+    }
+}
+
+/// `BezierMove` along `pts` (anchors, and between them any number of
+/// control points: `true`) from `clock` over `ms`, into `p`'s x and y: the
+/// anchors and a point between each, in even time per curve.
+fn bezier(p: &mut Pass, clock: u32, ms: u32, pts: &[(bool, f64, f64)]) {
+    let mut curves: Vec<Vec<(f64, f64)>> = Vec::new();
+    for (i, &(control, x, y)) in pts.iter().enumerate() {
+        if i == 0 {
+            curves.push(vec![(x, y)]);
+            continue;
+        }
+        curves.last_mut().unwrap().push((x, y));
+        if !control && i + 1 < pts.len() {
+            curves.push(vec![(x, y)]);
+        }
+    }
+    curves.retain(|c| c.len() > 1);
+    if curves.is_empty() {
+        return;
+    }
+    // As many straight pieces per curve as its degree, while they fit.
+    let fit = ((MAX_KEYS - 2) / curves.len()).max(1);
+    let count = curves.len() as u32;
+    for (k, c) in curves.iter().enumerate() {
+        let pieces = (c.len() - 1).min(fit) as u32;
+        for i in 1..=pieces {
+            let at = |i: u32| clock + (ms as u64 * (k as u64 * u64::from(pieces) + u64::from(i)) / (u64::from(count) * u64::from(pieces))) as u32;
+            let (x, y) = casteljau(c, f64::from(i) / f64::from(pieces));
+            let (t0, t1) = (at(i - 1), at(i));
+            p.props[0].push(t0, t1 - t0, x);
+            p.props[1].push(t0, t1 - t0, y);
+            p.times.push(t1);
+        }
+    }
+}
+
+/// The point at `q` (0-1) of the Bézier curve through `pts`.
+fn casteljau(pts: &[(f64, f64)], q: f64) -> (f64, f64) {
+    let mut v = pts.to_vec();
+    while v.len() > 1 {
+        v = v.windows(2).map(|w| (w[0].0 + (w[1].0 - w[0].0) * q, w[0].1 + (w[1].1 - w[0].1) * q)).collect();
+    }
+    v[0]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_flicker_pass_keys_its_fades_from_the_highest() {
+        // fire01: 100 → 200 over 150 ms, → 150 over 200 ms.
+        let mut p = Pass::starting([0.0, 0.0, 1000.0, 1000.0, 0.0, 100.0]);
+        p.props[5].push(0, 150, 200.0);
+        p.props[5].push(150, 200, 150.0);
+        let keys = p.keys(350).unwrap();
+        assert_eq!(keys.iter().map(|k| (k.ms, k.opacity)).collect::<Vec<_>>(), [(0, 128), (150, 256), (350, 192)]);
+    }
+
+    #[test]
+    fn a_bezier_path_comes_back_to_its_start() {
+        let mut p = Pass::starting([10.0, 20.0, 1000.0, 1000.0, 0.0, 1000.0]);
+        let pt = |c, x, y| (c, x, y);
+        bezier(&mut p, 0, 1000, &[pt(false, 10.0, 20.0), pt(true, 15.0, 10.0), pt(true, 0.0, 30.0), pt(false, 0.0, 15.0), pt(true, 15.0, 10.0), pt(true, 0.0, 25.0), pt(false, 10.0, 20.0)]);
+        let keys = p.keys(1000).unwrap();
+        // Three pieces per cubic curve.
+        assert_eq!(keys.len(), 7, "{keys:?}");
+        assert_eq!((keys[3].ms, keys[3].x, keys[3].y), (500, -10, -5));
+        assert_eq!((keys[6].x, keys[6].y), (0, 0));
+    }
+
+    #[test]
+    fn a_curve_with_four_control_points_is_one_curve() {
+        // BGMoveAutoProcess: (@0,@0){@+50,@+10}{@-30,@+20}{@+30,@-20}{@-50,@-10}(@0,@0).
+        let mut p = Pass::starting([0.0, 0.0, 1000.0, 1000.0, 0.0, 1000.0]);
+        let pts = [(false, 0.0, 0.0), (true, 50.0, 10.0), (true, -30.0, 20.0), (true, 30.0, -20.0), (true, -50.0, -10.0), (false, 0.0, 0.0)];
+        bezier(&mut p, 0, 15000, &pts);
+        let keys = p.keys(15000).unwrap();
+        assert_eq!(keys.len(), 6, "{keys:?}");
+        assert_eq!((keys[1].ms, keys[1].x, keys[1].y), (3000, 16, 7));
+        assert_eq!((keys[5].x, keys[5].y), (0, 0));
+    }
+}

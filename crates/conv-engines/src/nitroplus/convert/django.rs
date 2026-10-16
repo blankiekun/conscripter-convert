@@ -9,7 +9,7 @@ use super::{Compiler, Game, Value};
 
 mod battle;
 mod counter;
-mod loops;
+mod strobe;
 mod roll;
 mod song;
 pub mod extras;
@@ -53,16 +53,12 @@ fn call(c: &mut Compiler<'_, '_>, name: &str, args: &[Value]) -> bool {
             c.counter_play(args);
             true
         }
-        "CreateProcess" => args.get(4).is_some_and(|f| c.count_process(&f.string())) || c.loop_process(args),
+        "CreateProcess" => args.get(4).is_some_and(|f| c.count_process(&f.string())) || c.strobe_process(args),
         "CreateText" => {
             c.song_line(args);
             false
         }
         "Request" => c.song_enter(args),
-        "Delete" => {
-            c.stop_shakes(args);
-            false
-        }
         "WaitAction" if args.first().is_some_and(|o| o.string().trim_start_matches('@') == "カウント１") => {
             c.count_wait();
             true

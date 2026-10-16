@@ -238,9 +238,11 @@ impl Compiler<'_, '_> {
                 self.timed(ms, &arg(5), &targets);
             }
             "Delete" if arg(0).string() == "*" && self.game.chapter_objects && self.chapter_mark.is_some() => {
+                self.stop_loops(&arg(0));
                 self.delete_chapter_objects(self.chapter_mark.unwrap());
             }
             "Delete" => {
+                self.stop_loops(&arg(0));
                 // A wildcard that matches a container (a locked one too:
                 // `遠３`) still deletes its children (under wine the standing
                 // pictures in `遠３/StL01` go with `Delete("*")`).
