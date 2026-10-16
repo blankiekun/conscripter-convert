@@ -36,7 +36,6 @@ pub(crate) struct Emitter<'a> {
     pub se: SeChannels,
     pub se_not_skipped: bool,
     pub noise_fade_in: Option<u32>,
-    pub needs_bit_helpers: bool,
     pub needs_move: bool,
     pub needs_zoom: bool,
     pub move_ease: Option<(u8, u32)>,
@@ -53,7 +52,7 @@ pub(crate) struct Emitter<'a> {
 impl<'a> Emitter<'a> {
     /// Writes op `i` of the script.
     pub(crate) fn op(&mut self, i: usize, op: &'a Op) {
-        let &mut Emitter { has_ruby, has_overlay, has_noise, has_chapters, has_animation, root_returns, has_replay, has_vertical, border, voice_switches, duck, back_to_choice, speed, link_depth, script, ref clear_fade, ref restore_overlay, ref effects, ref link_targets, ref zoomed_layers, ref mut out, ref mut root_resumes, ref mut turns, ref mut puzzles, ref mut button_screens, ref mut plate_choices, ref mut picture_screens, ref mut se, ref mut se_not_skipped, ref mut noise_fade_in, ref mut needs_bit_helpers, ref mut needs_move, ref mut needs_zoom, ref mut move_ease, ref mut eased, ref mut needs_click_wait, ref mut plate_visible, ref mut link_pages, ref mut transition, ref mut window, ref mut page_rows, ref mut page_tag } = self;
+        let &mut Emitter { has_ruby, has_overlay, has_noise, has_chapters, has_animation, root_returns, has_replay, has_vertical, border, voice_switches, duck, back_to_choice, speed, link_depth, script, ref clear_fade, ref restore_overlay, ref effects, ref link_targets, ref zoomed_layers, ref mut out, ref mut root_resumes, ref mut turns, ref mut puzzles, ref mut button_screens, ref mut plate_choices, ref mut picture_screens, ref mut se, ref mut se_not_skipped, ref mut noise_fade_in, ref mut needs_move, ref mut needs_zoom, ref mut move_ease, ref mut eased, ref mut needs_click_wait, ref mut plate_visible, ref mut link_pages, ref mut transition, ref mut window, ref mut page_rows, ref mut page_tag } = self;
         let effect = |ms: u32| if ms == 0 { "1".to_string() } else { effects[&(ms, Effect::Fade)].clone() };
         let visited = |target: &str| LINK_VISITED_BASE + link_targets.iter().position(|&t| t == target).unwrap() as u32;
     if let Op::Text { .. } = op {
@@ -75,11 +74,10 @@ impl<'a> Emitter<'a> {
                 ArithOp::Sub => "sub",
                 ArithOp::Mul => "mul",
                 ArithOp::Div => "div",
+                // CONscripter's bitand/bitor (NScripter has no bitwise operators).
                 ArithOp::BitAnd | ArithOp::BitOr => {
-                    // NScripter has no bitwise operators; call a helper.
-                    let routine = if *op == ArithOp::BitAnd { BITAND } else { BITOR };
-                    *needs_bit_helpers = true;
-                    writeln!(out, "mov %1,{target}:mov %2,{value}:gosub *{routine}:mov {target},%3").unwrap();
+                    let cmd = if *op == ArithOp::BitAnd { "bitand" } else { "bitor" };
+                    writeln!(out, "{cmd} {target},{target},{value}").unwrap();
                     return;
                 }
             };
