@@ -1112,11 +1112,13 @@ impl Lowering<'_> {
             }
             "SpriteQuake" => {
                 // Shakes one picture (a background) by `:Param` 0, 1
-                // (x, y), dying down over `:Time` frames; zeros stop it.
+                // (x, y) for `:Time` frames, dying down with `:Fade 1`, at
+                // full size with 0; zeros stop it.
                 let tex = t.int("SpriteNumber").or_else(|| t.int("Texture")).unwrap_or(-1);
                 let Some(s) = self.shown.get(&format!("t{tex}")).cloned() else { return };
                 let (ax, ay) = (sx(t.int_at("Param", 0).unwrap_or(0)), sy(t.int_at("Param", 1).unwrap_or(0)));
                 let time = ms(t.int("Time").unwrap_or(0));
+                let fades = t.int("Fade") == Some(1);
                 if ax == 0 && ay == 0 {
                     self.out.ops.push(Op::SpriteMotion { layer: s.layer, keys: vec![], looped: false });
                     return;
@@ -1127,21 +1129,41 @@ impl Lowering<'_> {
                 if time == 0 {
                     return;
                 }
-                self.out.ops.push(Op::SpriteMotion { layer: s.layer, keys: quake_keys(ax, ay, time), looped: false });
-                if t.int("Wait").unwrap_or(0) != 0 {
+                self.out.ops.push(Op::SpriteMotion { layer: s.layer, keys: quake_keys(ax, ay, time, fades), looped: false });
+                // 0x81129db8: `:Wait` 1 by default.
+                if t.int("Wait").unwrap_or(1) != 0 {
                     self.out.ops.push(Op::Wait { ms: time });
                 }
             }
             "EffectQuake" => {
                 let ax = sx(t.int_at("Param", 0).unwrap_or(30));
                 let ay = sy(t.int_at("Param", 1).unwrap_or(30));
-                let time = t.int("Time").unwrap_or(30);
-                // Shakes for :Time frames, dying down, then stops (0: until
-                // the end task).
-                let (end, end_ms) = if time > 0 { ((0, 0), ms(time)) } else { ((ax, ay), 0) };
+                // scene_load case 99 (0x8102840a; defaults from 0x8112a26c:
+                // `:Time` 60 of our frames, `:Fade` 0, `:Wait` 1): a negative
+                // `:Time` or `:Loop 1` shakes at full size until
+                // EffectQuakeEnd, `:Fade` and `:Wait` unread; else for
+                // `:Time` frames, dying down with `:Fade 1`, at full size
+                // with 0, then stops. `:Time 0` without a loop stops the
+                // shake (0x810089a4). A `:Loop` key, read after `:Time`,
+                // overrides the negative time's loop flag either way (case
+                // 99 sets +0x3a from it); no script has both.
+                let time = t.int("Time").unwrap_or(60);
+                let looped = t.int("Loop").map_or(time < 0, |l| l == 1);
+                let time = time.abs();
+                if time == 0 && !looped {
+                    self.out.ops.push(Op::ScreenEffect { slot: 1, effect: None });
+                    return;
+                }
+                let (end, end_ms) = if looped {
+                    ((ax, ay), 0)
+                } else if t.int("Fade") == Some(1) {
+                    ((0, 0), ms(time))
+                } else {
+                    ((ax, ay), ms(time))
+                };
                 let shake = ScreenEffect::Shake { time_ms: ms(time).max(1), interval_ms: 16, path: false, speed: (2200, 2900), range: [(ax, ay), end], end_ms };
                 self.out.ops.push(Op::ScreenEffect { slot: 1, effect: Some(shake) });
-                if t.int("Wait").unwrap_or(0) != 0 {
+                if !looped && t.int("Wait").unwrap_or(1) != 0 {
                     self.out.ops.push(Op::Wait { ms: ms(time) });
                 }
             }
@@ -1537,16 +1559,17 @@ impl Lowering<'_> {
     }
 }
 
-/// A shake dying down over `time` ms: offsets of up to (ax, ay) pixels,
-/// every 33 ms or more, alternating sides, ending at the picture's place.
-fn quake_keys(ax: i32, ay: i32, time: u32) -> Vec<(u32, i32, i32)> {
+/// A shake's keys over `time` ms: offsets of up to (ax, ay) pixels, every
+/// 33 ms or more, alternating sides, dying down when `fades`, ending at the
+/// picture's place.
+fn quake_keys(ax: i32, ay: i32, time: u32, fades: bool) -> Vec<(u32, i32, i32)> {
     // spmotion takes up to 32 keys.
     let step = (time / 31).max(33);
     let n = (time / step).max(1);
     let signs = [(1, 1), (-1, -1), (1, -1), (-1, 1)];
     let mut keys: Vec<(u32, i32, i32)> = (0..n)
         .map(|k| {
-            let left = (n - k) as i32;
+            let left = if fades { (n - k) as i32 } else { n as i32 };
             let (sx_, sy_) = signs[k as usize % 4];
             (k * step, sx_ * ax * left / n as i32, sy_ * ay * left / n as i32)
         })
@@ -1673,11 +1696,11 @@ const NOT_NEEDED: &[(&str, &str)] = &[
     ("CharacterOpen [Chara] :Center argument 0 = 0", "the centre across, where we place it"),
     // Traced in the eboot: scene_load (0x8102840a) reads the task,
     // 0x8100da30 starts it, task_run (0x81021070) runs it.
-    ("EffectQuake :Fade = 1", "dying down over :Time, as ours (0x81008a3c scales the shake by the frames left)"),
-    ("SpriteQuake :Fade = 1", "the same (0x81120894: mode 8)"),
     ("EffectQuake :Window = 0", "the text window stays still (0x8100da30 case 99 shakes it only with 1), as under our screenshake"),
     ("EffectQuakeEnd :Window = 0", "the window's shake isn't running: every EffectQuake has :Window 0"),
     ("EffectQuakeEnd :Fade = 0", "stops at once, as ours (task_run case 100)"),
+    ("EffectQuake :Fade", "read unless it loops (scene_load case 99) or is a 0-frame stop (0x810089a4), as ours"),
+    ("EffectQuake :Wait", "the same: a loop never waits, a stop has nothing to wait for"),
     ("EffectQuakeEnd :EndWait", "scene_load case 100 clears the flag right after setting it: it never waits"),
     ("EffectQuake :Param argument 2 = 1", "a 1-pixel swing (0x81008a3c: argument 2, 3 its size, 4, 5 its half-waves over :Time)"),
     ("EffectQuake :Param argument 3 = 1", "the same"),
