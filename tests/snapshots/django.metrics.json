@@ -1,9 +1,9 @@
 {
 "game": "django",
 "engine": "nitroplus",
-"commit": "7846831",
+"commit": "bc0b34f",
 "commit_date": "2026-10-16",
-"totals": {"calls": 57092, "full": 44359, "gaps": 12733},
+"totals": {"calls": 57092, "full": 44399, "gaps": 12693},
 "kinds": {
 "WaitAction": {"calls": 5932, "gaps": 5839, "reasons": [["WaitAction argument 1 ignored", 5839], ["move or zoom over time with a fade or a new picture drawn as a cross-fade", 21]]},
 "SetFrequency": {"calls": 1283, "gaps": 1283, "reasons": [["SetFrequency argument 0 ignored", 1283], ["SetFrequency argument 1 ignored", 1283], ["SetFrequency argument 3 ignored", 1283]]},
@@ -19,12 +19,12 @@
 "SetBacklog": {"calls": 75, "gaps": 75, "reasons": [["SetBacklog argument 2 ignored", 75]]},
 "LoadFont": {"calls": 67, "gaps": 67, "reasons": [["built-in LoadFont", 67]]},
 "Shake": {"calls": 58, "gaps": 58, "reasons": [["Shake argument 6 ignored", 58], ["Shake argument 7 ignored", 58], ["Shake argument 2 ignored", 3], ["Shake argument 3 ignored", 3], ["Shake argument 4 ignored", 3], ["3 more", 9]]},
-"WaitPlay": {"calls": 55, "gaps": 51, "reasons": [["WaitPlay argument 1 ignored", 51]]},
 "CreateTexture": {"calls": 2803, "gaps": 40, "reasons": [["CreateTexture from a missing file", 40]]},
 "Request": {"calls": 9046, "gaps": 30, "reasons": [["Request start", 12], ["Request addrender", 11], ["Request normalrender", 4], ["Request unsmoothing", 3]]},
 "CreateMask": {"calls": 30, "gaps": 30, "reasons": [["built-in CreateMask", 30]]},
 "CreateChoice": {"calls": 20, "gaps": 20, "reasons": [["built-in CreateChoice", 20]]},
 "CursorPosition": {"calls": 20, "gaps": 20, "reasons": [["built-in CursorPosition", 20]]},
+"WaitPlay": {"calls": 55, "gaps": 11, "reasons": [["BGM without loop played looping", 10], ["WaitPlay argument 1 ignored", 1]]},
 "LoadColor": {"calls": 10, "gaps": 10, "reasons": [["built-in LoadColor", 10]]},
 "Save": {"calls": 10, "gaps": 10, "reasons": [["built-in Save", 10]]},
 "WaitMove": {"calls": 33, "gaps": 2, "reasons": [["WaitMove argument 1 ignored", 2]]},
@@ -52,5 +52,5 @@
 "CreateText": {"calls": 33, "gaps": 0, "reasons": []},
 "MoviePlay": {"calls": 2, "gaps": 0, "reasons": []}
 },
-"outside_calls": [["code inside a page runs before it", 19], ["BGM without loop played looping", 16], ["branches of a runtime if end with different helper variables", 12], ["Request Enter for another text than the next", 1]]
+"outside_calls": [["code inside a page runs before it", 19], ["branches of a runtime if end with different helper variables", 12], ["BGM without loop played looping", 6], ["Request Enter for another text than the next", 1]]
 }

@@ -346,9 +346,8 @@ with the original (it wants all eleven endings' flags under wine).
 ### Queue (2026-10-16)
 
 - Merged: windows clip their children (#45), the song's lyrics in
-  dja026 (#47), unread-argument notes ranked in Next (#51). Open: the
-  song lines type out as the original's (#55); `WaitPlay` on a sound
-  waits (#58).
+  dja026 (#47), unread-argument notes ranked in Next (#51), the song
+  lines type out (#55). Open: `WaitPlay` on a sound waits (#70, was #58).
 - Open from the face windows (#37): a sliding frame's face jumps to its
   end place; dja003_02's blood movie is drawn mirrored by us, unmirrored
   under wine (which plays no movie there).
@@ -419,16 +418,11 @@ with the original (it wants all eleven endings' flags under wine).
       its decay; ours shakes every 16 ms, dying linearly. `n`'s meaning
       is lost in the exe's x87 code: one wine shot of a 200 and a 1000
       shake would settle it.
-   5. **`WaitPlay` 1, a time limit** (51; 48 `null`, 3 numbers): the
-      original waits for the sound at most 500 ms (`dja003_02`,
-      `dja046_01`) or 2,500 ms (`function_badend`). Found while sorting:
-      outside a process our `WaitPlay` waits only for movies, so on a
-      sound (`サウンド１`, `血しぶき`, …) it doesn't wait at all.
-   6. **`Fade` 3, tempo** (77 non-`null`, mostly `DxlAuto`/`AxlDxl`): an
+   5. **`Fade` 3, tempo** (77 non-`null`, mostly `DxlAuto`/`AxlDxl`): an
       eased fade; ours linear. Hard to see.
-   7. **`Rotate` 5, tempo** (264): moot until `Rotate` over time (item 4)
+   6. **`Rotate` 5, tempo** (264): moot until `Rotate` over time (item 4)
       is converted, then as item 7.1.
-   8. **`CreateWindow` 6** (975): `true` on every story window (the
+   7. **`CreateWindow` 6** (975): `true` on every story window (the
       boxes, `中窓`, `移動窓`), `false` on the full-screen `窓`, the 0×0
       `音`, the system `WND` and the battle's `カウンタ窓`. Not the clip:
       `カウンタ窓` must clip its digit strip to 52 px. Its digits sit at
@@ -436,11 +430,11 @@ with the original (it wants all eleven endings' flags under wine).
       `false` may mean children placed from the screen rather than the
       window's corner. Nothing shows: `窓` is at 0,0 and the counter is
       `django/counter.rs`'s own.
-   9. **`SetBacklog` 2, the speaker** (75; 73 `null`): two calls in
+   8. **`SetBacklog` 2, the speaker** (75; 73 `null`): two calls in
       `dja035_01` name ジュリアン and イライザ; what the original's log
       does with it (a name line, or the voice switches by character) is
       unchecked.
-   10. **No change** (the original passes values that do what ours
+   9. **No change** (the original passes values that do what ours
        does; candidates for `UNREAD_HARMLESS`): `WaitAction` 1 (5,852),
        `WaitFade` 1 (1), `WaitMove` 1 (2), all `null` (no limit);
        `SetFrequency` 0, 1, 3 (1,283 each: `MusicStart`'s object, 0 ms,
@@ -454,6 +448,14 @@ with the original (it wants all eleven endings' flags under wine).
 
 ## History
 
+- **`WaitPlay` on a sound waits (2026-10-16, shared NSS code).** The
+  exe's `builtin_WaitPlay` (`0040b8a0`) waits until the sound stops, or
+  at most its second argument in ms (`null`, `true` or none: no limit).
+  Ours waited only for movies; now it waits for the rest of the sound
+  (its length less the script's `Wait`s since it started), at most the
+  limit: `delay`. dja003_02 and dja046_01 wait 500 ms after the shot,
+  the ten bad ends' `サウンド４` 2,500 ms, and 8 more waits are for whole
+  sounds (`delay` 739-4,345 ms).
 - **The song types out (2026-10-16).** In the exe's `CreateText`
   layout (`layout_create_text`) a `.` adds a 100 ms pause before the
   next letter (`,` adds 500), timed in game time (play speed NORMAL =
