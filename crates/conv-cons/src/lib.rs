@@ -392,7 +392,6 @@ pub fn emit(script: &Script) -> String {
     let se_not_skipped = false;
     // The next static's fade in (Op::NoiseFadeIn).
     let noise_fade_in = None;
-    let needs_bit_helpers = false;
     let needs_move = false;
     let needs_zoom = false;
     // The next move's or zoom's curve ([`Op::MoveEase`]), and the eased
@@ -432,16 +431,13 @@ pub fn emit(script: &Script) -> String {
             _ => None,
         })
         .collect();
-    let mut e = ops::Emitter { script, out, effects, has_ruby, has_overlay, has_noise, has_chapters, has_animation, root_returns, has_replay, has_vertical, border, voice_switches, duck, back_to_choice, speed, link_depth, clear_fade, restore_overlay, link_targets, zoomed_layers, root_resumes, turns, puzzles, button_screens, plate_choices, picture_screens, se, se_not_skipped, noise_fade_in, needs_bit_helpers, needs_move, needs_zoom, move_ease, eased, needs_click_wait, plate_visible, link_pages, transition, window, page_rows, page_tag };
+    let mut e = ops::Emitter { script, out, effects, has_ruby, has_overlay, has_noise, has_chapters, has_animation, root_returns, has_replay, has_vertical, border, voice_switches, duck, back_to_choice, speed, link_depth, clear_fade, restore_overlay, link_targets, zoomed_layers, root_resumes, turns, puzzles, button_screens, plate_choices, picture_screens, se, se_not_skipped, noise_fade_in, needs_move, needs_zoom, move_ease, eased, needs_click_wait, plate_visible, link_pages, transition, window, page_rows, page_tag };
     for (i, op) in script.ops.iter().enumerate() {
         e.op(i, op);
     }
-    let ops::Emitter { mut out, effects, needs_bit_helpers, needs_move, needs_zoom, eased, needs_click_wait, .. } = e;
+    let ops::Emitter { mut out, effects, needs_move, needs_zoom, eased, needs_click_wait, .. } = e;
     let effect = |ms: u32| if ms == 0 { "1".to_string() } else { effects[&(ms, Effect::Fade)].clone() };
     writeln!(out, "end").unwrap();
-    if needs_bit_helpers {
-        out.push_str(&bit_helpers());
-    }
     if needs_move {
         out.push_str(&move_routine());
     }
@@ -905,28 +901,6 @@ fn is_single_byte(c: char) -> bool {
 
 fn starts_ascii(line: &str) -> bool {
     line.starts_with(|c: char| c.is_ascii())
-}
-
-const BITAND: &str = "conv_bitand";
-const BITOR: &str = "conv_bitor";
-
-/// Subroutines computing `%3 = %1 & %2` and `%3 = %1 | %2` one bit at a
-/// time with div/mod (NScripter has no bitwise operators). They use the
-/// scratch variables %1-%8, below the converted game's variables. Works for
-/// non-negative values, which is all the game uses (flags).
-fn bit_helpers() -> String {
-    let mut out = String::new();
-    for (name, keep) in [(BITAND, "if %7 == 2 add %3,%4"), (BITOR, "if %7 > 0 add %3,%4")] {
-        writeln!(out, "*{name}").unwrap();
-        writeln!(out, "mov %3,0:mov %4,1:mov %5,%1:mov %6,%2").unwrap();
-        writeln!(out, "*{name}_loop").unwrap();
-        writeln!(out, "if %5 == 0 && %6 == 0 return").unwrap();
-        writeln!(out, "mov %7,%5:mod %7,2:mov %8,%6:mod %8,2:add %7,%8").unwrap();
-        writeln!(out, "{keep}").unwrap();
-        writeln!(out, "div %5,2:div %6,2:mul %4,2").unwrap();
-        writeln!(out, "goto *{name}_loop").unwrap();
-    }
-    out
 }
 
 const MOVE: &str = "conv_move";
@@ -2348,14 +2322,11 @@ end
     }
 
     #[test]
-    fn bitwise_ops_use_helpers() {
+    fn bitwise_ops_use_engine_commands() {
         let g = Var { global: true, index: 9 };
         let h = Var { global: true, index: 12 };
         let text = emit(&script(vec![Op::Arith { var: g, op: ArithOp::BitAnd, value: Operand::Var(h) }]));
-        assert!(text.contains("mov %1,%209:mov %2,%212:gosub *conv_bitand:mov %209,%3\n"));
-        assert!(text.contains("*conv_bitand\n") && text.contains("*conv_bitor\n"));
-        // Helpers are only emitted when needed.
-        assert!(!emit(&script(vec![])).contains("conv_bitand"));
+        assert!(text.contains("bitand %209,%209,%212\n"), "{text}");
     }
 
     #[test]
