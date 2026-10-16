@@ -623,7 +623,7 @@ fn title_screen(out: &mut String, t: &TitleScreen, fade: &str, save_menu: bool, 
         title_sprites(out, t, &buttons, quick, o.glow_keys.as_deref(), false, border);
         writeln!(out, "mpegplay \"{}\",1,1", path(&o.movie)).unwrap();
         if let Some(g) = &t.glow {
-            writeln!(out, "spalpha {},1,{}", MENU_SPRITES.end - 1, glow_keys(o.glow_keys.as_deref().unwrap_or(&g.keys))).unwrap();
+            writeln!(out, "spmotion {},1,{}", MENU_SPRITES.end - 1, glow_keys(o.glow_keys.as_deref().unwrap_or(&g.keys))).unwrap();
         }
         writeln!(out, "print 1").unwrap();
         writeln!(out, "goto *{TITLE_MENU}").unwrap();
@@ -690,7 +690,7 @@ fn title_openings(out: &mut String, openings: &[conv_core::ir::TitleOpening], bo
 }
 
 fn glow_keys(keys: &[(u32, u32)]) -> String {
-    keys.iter().map(|(t, a)| format!("{t},{a}")).collect::<Vec<_>>().join(",")
+    motion::alpha_keys(keys)
 }
 
 /// The title's glow (with `keys` in place of its own; held at its first
@@ -703,7 +703,7 @@ fn title_sprites(out: &mut String, t: &TitleScreen, buttons: &[(&conv_core::ir::
         let slot = MENU_SPRITES.end - 1;
         let keys = keys.unwrap_or(&g.keys);
         if moving {
-            writeln!(out, "lsp {slot},\":c;{}\",0,0:spalpha {slot},1,{}", path(&g.image), glow_keys(keys)).unwrap();
+            writeln!(out, "lsp {slot},\":c;{}\",0,0:spmotion {slot},1,{}", path(&g.image), glow_keys(keys)).unwrap();
         } else {
             let alpha = keys.first().map_or(255, |&(_, a)| a.min(255));
             writeln!(out, "lsp {slot},\":c;{}\",0,0,{alpha}", path(&g.image)).unwrap();
@@ -1443,10 +1443,10 @@ mod tests {
         let keys = vec![(0, 76), (17, 76), (97, 0), (114, 0)];
         let text = emit(&script(vec![Op::SpriteFlashing { layer: 3, keys: keys.clone(), times: 60 }]));
         let slot = SPRITE_BASE + 3;
-        assert!(text.contains(&format!("spblend {slot},1:spalpha {slot},60,0,76,17,76,97,0,114,0\nprint 1\n")), "{text}");
-        // Once: spalpha's loop 0 (1 would repeat it for ever).
+        assert!(text.contains(&format!("spblend {slot},1:spmotion {slot},-60,0,0,0,100,100,0,76,0,17,0,0,100,100,0,76,0,97,0,0,100,100,0,0,0,114,0,0,100,100,0,0,0\nprint 1\n")), "{text}");
+        // Once: spmotion's loop 2, keeping the last key (1 would repeat it for ever).
         let text = emit(&script(vec![Op::SpriteFlashing { layer: 3, keys, times: 1 }]));
-        assert!(text.contains(&format!("spalpha {slot},0,0,76,")), "{text}");
+        assert!(text.contains(&format!("spmotion {slot},2,0,0,0,100,100,0,76,")), "{text}");
     }
 
     #[test]
@@ -1759,7 +1759,7 @@ effect 7,99,1000,\"cons_zoom.dll/3,220,5\"
         let text = emit(&s);
         for part in [
             // The glow behind the buttons, redrawn with them.
-            "*conv_title_draw\nbgm \"sound\\bgm\\title.ogg\"\nlsp 33,\":c;system\\fire.jpg\",0,0:spalpha 33,1,0,0,600,256,1200,0\nsavefileexist %105,890\nlsp 6,\":a/3,0,3;system\\quick.png\",822,150\nif %105 == 0 lsp 6,\":a/3,0,3;system\\quick.png\",822,150,128\n",
+            "*conv_title_draw\nbgm \"sound\\bgm\\title.ogg\"\nlsp 33,\":c;system\\fire.jpg\",0,0:spmotion 33,1,0,0,0,100,100,0,0,0,600,0,0,100,100,0,256,0,1200,0,0,100,100,0,0,0\nsavefileexist %105,890\nlsp 6,\":a/3,0,3;system\\quick.png\",822,150\nif %105 == 0 lsp 6,\":a/3,0,3;system\\quick.png\",822,150,128\n",
             "if %60 != 0 lsp 8,\":a/3,0,3;system\\exit.png\",162,150\n",
             "*conv_title\nselectvoice \"\",\"sound\\se\\over.ogg\",\"\"\nsavefileexist %105,890\nif %105 == 1 spbtn 6,1,2\nspbtn 7,2,2\nif %60 != 0 spbtn 8,3,2\nbtnwait %9\nselectvoice \"\",$118,\"\"\n",
             "if %9 == 1 dwave 1,\"sound\\se\\a.ogg\":csp -1:loadgame 890\n",
@@ -1777,7 +1777,7 @@ effect 7,99,1000,\"cons_zoom.dll/3,220,5\"
             "mov %2960,0\ngame\n",
             "if %2960 == 0 mov %2960,1:goto *conv_title_opening0\nmov %2960,1\n*conv_title_draw\n",
             "*conv_title_opening0\nbgm \"sound\\bgm\\title.ogg\"\ndwave 1,\"sound\\se\\op.ogg\"\nlsp 33,\":c;system\\fire.jpg\",0,0,255\n",
-            "mpegplay \"movie\\op.mp4\",1,1\nspalpha 33,1,0,256,100,256,700,0\nprint 1\n",
+            "mpegplay \"movie\\op.mp4\",1,1\nspmotion 33,1,0,0,0,100,100,0,256,0,100,0,0,100,100,0,256,0,700,0,0,100,100,0,0,0\nprint 1\n",
         ] {
             assert!(text.contains(part), "missing {part:?} in\n{text}");
         }
