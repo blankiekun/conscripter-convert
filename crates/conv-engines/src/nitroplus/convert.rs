@@ -978,7 +978,14 @@ struct Object<'a> {
     /// turns about them aren't drawn. About z (clockwise, as `Rotate(text,
     /// 90)` turns a line top to bottom) the engine turns it ([`Op::SpriteAngle`]).
     turn: (i64, i64, i64),
+    /// A shake the engine loops while it is shown, as `spmotion` keys (ms,
+    /// x, y), and the process running it (続・殺戮のジャンゴ's
+    /// `ShakeVLoop`).
+    shake: Option<ShakeLoop>,
 }
+
+/// [`Object::shake`]: the process, the keys.
+type ShakeLoop = (String, Vec<(u32, i32, i32)>);
 
 impl Object<'_> {
     /// Mirrored (left to right, upside down) as its turn shows it.
@@ -2311,7 +2318,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
 
     fn create(&mut self, name: String, kind: Kind<'a>, priority: i64, w: i64, h: i64) -> &mut Object<'a> {
         self.seq += 1;
-        let o = Object { kind, priority, x: 0, y: 0, w, h, opacity: 1000, locked: false, hideable: false, seq: self.seq, zoom: (1000, 1000), blur: 0, vertex: None, turn: (0, 0, 0) };
+        let o = Object { kind, priority, x: 0, y: 0, w, h, opacity: 1000, locked: false, hideable: false, seq: self.seq, zoom: (1000, 1000), blur: 0, vertex: None, turn: (0, 0, 0), shake: None };
         self.objects.insert(name.clone(), o);
         self.objects.get_mut(&name).unwrap()
     }

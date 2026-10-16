@@ -9,6 +9,7 @@ use super::{Compiler, Game, Value};
 
 mod battle;
 mod counter;
+mod loops;
 pub mod extras;
 pub mod screens;
 
@@ -33,7 +34,7 @@ pub const DJANGO: Game = Game {
 };
 
 /// The functions compiled as the game's own: the battle's movies, its
-/// counter and its muzzle flashes.
+/// counter and its muzzle flashes, the looping shakes and the strobe.
 fn call(c: &mut Compiler<'_, '_>, name: &str, args: &[Value]) -> bool {
     match name {
         "VS400" => c.vs400(args),
@@ -46,7 +47,11 @@ fn call(c: &mut Compiler<'_, '_>, name: &str, args: &[Value]) -> bool {
             c.counter_play(args);
             true
         }
-        "CreateProcess" => args.get(4).is_some_and(|f| c.count_process(&f.string())),
+        "CreateProcess" => args.get(4).is_some_and(|f| c.count_process(&f.string())) || c.loop_process(args),
+        "Delete" => {
+            c.stop_shakes(args);
+            false
+        }
         "WaitAction" if args.first().is_some_and(|o| o.string().trim_start_matches('@') == "カウント１") => {
             c.count_wait();
             true
