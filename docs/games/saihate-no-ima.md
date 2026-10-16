@@ -624,7 +624,7 @@ a copy of the save works.
 
 ### Queue (2026-10-16)
 
-- Open: command coverage per operand, PR #NEW (supersedes #28): every
+- Open: command coverage per operand, PR #85 (supersedes #28): every
   operand given and not read, whatever its value (0 included), is a
   dry-run note and a gap in `metrics.json`, except the filler (`NO_SUB`,
   `NO_ARG`) and the harmless table ("Operand coverage"), each row with
