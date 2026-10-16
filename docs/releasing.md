@@ -6,7 +6,9 @@ Bump the version in `asset/icon1.rc`, `src/cons/version.h`,
 `src/cons_libretro/conscripter_libretro.info`,
 `src/cons_libretro/libretro.cpp` and `src/cons_web/conscripter.html`
 (CRLF: edit it byte-safely). Leave `ONS_JH_VERSION` alone. Commit
-"Version X.Y.0", tag `vX.Y.0`, push `master` and the tag. Five workflows
+"Version X.Y.0" on a branch and merge it through a PR (`master` is
+protected); then tag the merged commit `vX.Y.0` on `master` and push the
+tag. Five workflows
 run on tags (Linux, Windows, macOS, web, Android); the release should
 have 9 assets. If `build_web.yml`, `cross_web.sh` or `_fetch.sh`
 changed, let the `master` run finish first (tags read its caches).

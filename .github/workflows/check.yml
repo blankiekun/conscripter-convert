@@ -2,8 +2,8 @@ name: check (cargo test, clippy)
 on:
   push:
     paths: ['crates/**', 'Cargo.toml', 'Cargo.lock', '.github/workflows/check.yml']
+  # every PR, so the required checks always report
   pull_request:
-    paths: ['crates/**', 'Cargo.toml', 'Cargo.lock', '.github/workflows/check.yml']
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -20,3 +20,16 @@ jobs:
     - run: cargo clippy --all-targets --locked -- -D warnings
     # Tests that need ffmpeg skip themselves without it.
     - run: cargo test --locked
+
+  # main may only point at engine commits that are on CONscripter's master
+  engine-on-master:
+    runs-on: ubuntu-22.04
+    steps:
+    - uses: actions/checkout@v4
+    - run: |
+        sha=$(git ls-tree HEAD engine | awk '{print $3}')
+        status=$(gh api "repos/blankiekun/CONscripter/compare/master...$sha" --jq .status)
+        echo "engine $sha is $status master"
+        [ "$status" = identical ] || [ "$status" = behind ]
+      env:
+        GH_TOKEN: ${{ github.token }}

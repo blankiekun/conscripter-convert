@@ -4,13 +4,13 @@ Converts visual novels the user owns into games for CONscripter (our
 ONScripter-Yuri fork, the `engine/` submodule), especially its web
 build.
 
-| Game | Engine | Branch / worktree | Game document |
+| Game | Engine | Branch prefix, worktree | Game document |
 |---|---|---|---|
-| 最果てのイマ COMPLETE (reopened: fixes, opcode audit) | Xuse | `xuse` | `docs/games/saihate-no-ima.md` |
-| 装甲悪鬼村正 (in progress) | Nitroplus NSS | `nitroplus`, `../conscripter-convert-nitroplus` | `docs/games/muramasa.md` |
-| 俺たちに翼はない, PS Vita (starting) | not identified yet | `oretsuba`, `../conscripter-convert-oretsuba` | `docs/games/oretsuba.md` |
-| 続・殺戮のジャンゴ (starting) | Nitroplus NSS (older) | `django`, `../conscripter-convert-django` | `docs/games/django.md` |
-| Full Metal Daemon Muramasa, English (starting) | Nitroplus Diesel (NPK3, Squirrel) | `muramasa-en`, `../conscripter-convert-muramasa-en` | `docs/games/muramasa-en.md` |
+| 最果てのイマ COMPLETE (reopened: fixes, opcode audit) | Xuse | `xuse/`, `../conscripter-convert-xuse` | `docs/games/saihate-no-ima.md` |
+| 装甲悪鬼村正 (in progress) | Nitroplus NSS | `nitroplus/`, `../conscripter-convert-nitroplus` | `docs/games/muramasa.md` |
+| 俺たちに翼はない, PS Vita (starting) | not identified yet | `oretsuba/`, `../conscripter-convert-oretsuba` | `docs/games/oretsuba.md` |
+| 続・殺戮のジャンゴ (starting) | Nitroplus NSS (older) | `django/`, `../conscripter-convert-django` | `docs/games/django.md` |
+| Full Metal Daemon Muramasa, English (starting) | Nitroplus Diesel (NPK3, Squirrel) | `muramasa-en/`, `../conscripter-convert-muramasa-en` | `docs/games/muramasa-en.md` |
 
 **Starting a new game? Read `docs/new-game.md` first** (and
 `docs/new-engine.md` for a new engine).
@@ -33,21 +33,33 @@ not in the repo.
 
 ## Rules (from the user)
 
-- One commit per task item, each pushed on its own. Engine first: commit
-  and push `engine/` (github.com/blankiekun/CONscripter, branch
-  `master`), then commit the submodule pointer together with the
-  converter change.
-- Fetch before every push: the user and other agents push to both
-  repos. Rebase only your own unpushed commits, onto the same branch's
-  remote (`git pull --rebase origin <branch>`); bring `main` into a game
-  branch by merging, never by rebasing (see "Working beside other
-  agents"). Push with
-  `git -c credential.helper= -c credential.helper='!gh auth git-credential' push`
+- Nobody pushes to `main` (here) or `master` (engine): both are
+  protected, and every change goes in through a pull request that the
+  team lead (or the user) reviews and merges. Don't merge your own PRs.
+- One PR per task item, on a short-lived branch `<game>/<topic>` made
+  from `origin/main` (`git fetch && git switch -c <game>/<topic>
+  origin/main`). Keep it to a few commits with short subjects (under 72
+  characters; detail goes in the body); the PR is squash-merged into one
+  commit, titled after the PR.
+- Engine changes: inside `engine/`, a branch `<game>/<topic>` from
+  `origin/master`, with its own PR to CONscripter `master`
+  (`gh pr create -R blankiekun/CONscripter --base master`). Point the
+  submodule at your branch's commit while you work. The engine PR is
+  merged first, with a merge commit (so its SHAs stay valid); then
+  point the submodule at a commit on `master`: CI's `engine-on-master`
+  check fails until you do.
+- The branch is yours alone: before pushing, `git rebase origin/main`
+  (never merge `main` into it) and push with
+  `git -c credential.helper= -c credential.helper='!gh auth git-credential' push --force-with-lease`
   (git has no credential helper; `gh` is logged in). Don't change the
   global git config.
-- Base game branches on `origin/main`, not local `main` (another agent
-  may commit there without pushing). Stage your own paths by name, never
-  `git add -A`: other agents leave uncommitted files in the tree.
+- The PR body says what changed and why, links the engine PR, and gives
+  the `cargo test`/`clippy` and `tests/snapshot.sh` results (CI has no
+  games: name every game whose `0.txt` changed and why) and how it was
+  checked in the game. Update the game document's "Status" in the same
+  PR.
+- Stage your own paths by name, never `git add -A`: other agents leave
+  uncommitted files in the tree.
 - No Co-Authored-By or Claude attribution lines in commits.
 - Use existing NScripter commands before adding to the engine.
   Engine additions are not opt-in (the user, 2026-10-14): a new
@@ -72,13 +84,15 @@ not in the repo.
 
 ## Working beside other agents
 
-Several agents work at once, one per game branch (`xuse`, `nitroplus`,
-each in its own worktree), and their work meets in shared code.
+Several agents work at once, one per game, each in its own worktree
+(`../conscripter-convert-<game>`, table above), and their work meets in
+shared code. A team lead hands out the items and reviews the PRs.
 
-- **Start every session by merging `origin/main` into your game branch**
-  (`git fetch && git merge origin/main && git submodule update engine`),
-  before any edit, then build and run `cargo test`. Merge it again before a commit that touches a hot
-  spot (below). Conflicts are small when they are fresh.
+- **Start every item from a fresh `origin/main`** (`git fetch && git
+  switch -c <game>/<topic> origin/main && git submodule update engine`),
+  then build and run `cargo test`. Rebase onto `origin/main` again before
+  pushing a change to a hot spot (below). Conflicts are small when they
+  are fresh. Never switch branches in another agent's worktree.
 - **Hot spots**: files every game's work changes. Before editing one,
   check what main changed in it (`git log -p HEAD..origin/main -- <file>`).
   Keep each edit small and in its own place:
@@ -90,28 +104,19 @@ each in its own worktree), and their work meets in shared code.
   | `crates/conv-cons/src/menu/` (one file per screen; the shared constants in `mod.rs`) | Shared by every game's menus: change it only through what a game passes in its IR (`SaveMenu`, `ButtonBar`, …), not with game-specific branches |
   | `crates/conv-cons/src/switches.rs` | A new settings switch is one entry in `def` (its index and what applying it does), with the next free index; nothing in `menu/` |
   | `crates/conv-cli/src/main.rs` | One subcommand per engine; keep the engine's own code in `crates/conv-engines/src/<engine>/` |
-  | `engine` (submodule pointer) | Two branches that bump it conflict, and a merge can't combine them: before bumping it, merge `origin/main` and rebase your engine commits onto CONscripter's `master`, so the pointer only moves forward. A merge that conflicts on it: `research/tools/merge-engine.sh` takes the newer of the two engine commits |
+  | `engine` (submodule pointer) | Merge the engine PR first, then point the submodule at a commit on CONscripter `master` that contains every engine commit `origin/main` points at (rebase onto `origin/main` first, so the pointer only moves forward) |
   | `PLAN.md`, `README.md`, `docs/new-game.md`, this file | Edit only your game's rows and paragraphs; general lessons go in `PLAN.md` §13 |
   | `Cargo.toml`, `Cargo.lock` | Add dependencies in their own commit; on a conflict, take both sides and let `cargo build` rewrite the lock file |
 
-- **Shared refactors go to main at once**: when you change the shape of
+- **Shared refactors go in first**: when you change the shape of
   shared code (a helper's signature, a function split or moved, an IR
-  type renamed, numbers renumbered), commit that change on its own,
-  merge `origin/main` into your branch and push the branch to `main`
-  right away, before building your feature on it. Other branches then
-  write against the new shape; a refactor left on a game branch for a
-  day collides with every change made to the old one meanwhile.
+  type renamed, numbers renumbered), open that change as its own PR and
+  ask for it to be merged before you build your feature on it. Other
+  branches then write against the new shape.
 - **Game-specific code stays out of shared files**: an engine's reader
   and compiler live in `crates/conv-engines/src/<engine>/`, and a single
   game's own rules go in a module of their own there (for example
   `nitroplus/convert/muramasa.rs`, chosen by the CLI when it builds).
-- **Merge your game branch into `main` at good points** (tests pass, the
-  game document's "Status" is up to date), so the other
-  agents start from it. After merging `origin/main` into the branch, the
-  push is a fast-forward: check with
-  `git merge-base --is-ancestor origin/main HEAD`, then
-  `git push origin <branch>:main`. Never switch branches in another
-  agent's worktree; the main checkout belongs to whoever works there.
 
 ## Layout
 
