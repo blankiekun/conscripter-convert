@@ -275,7 +275,7 @@ is noted) and why:
 | `0x37`, `0x38` | `+0` | any | its own label number: the label table places it |
 | `0x3b` | `sub`, `+0` | 11, 13; "debug entry", "release entry" | the entry name and its length: only `0x3c` reads it, and no script uses `0x3c` (`op_3b` `0x478650`) |
 | `0x52`, `0x53` | `sub` | 0 | text window 0, the only one (`FUN_00476a80`: `sub` picks the window) |
-| `0x6d` | `-12` | zeros | `op_6d` (`0x442000`) reads only the record's first 8 bytes |
+| `0x6d` | `-12` | zeros | `op_6d` (`0x442000`) reads only the record's first 12 bytes (speed, x and y range; y goes to `quake_object` in EAX, which Ghidra drops) |
 | `0x76` | `+4` | 0 | the flags (`op_76` `0x449df0`: hide the windows, remove the bust-ups): neither |
 | `0x77` | `-8` | flags 0, sort keys 0x271000, 0x3e800, 0x6403, 3, 0 | the 9 records below the top band change only what they cover (History, item 15) |
 | `0x7a`, `0x7b`, `0x8a`, `0x8b` | `+1`, `-1`, `-4`, `-9`, `+1` | depth 1000 (slot 1, visible) | the one full-screen animation (sprite 59) |

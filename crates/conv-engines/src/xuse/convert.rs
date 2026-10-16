@@ -3271,7 +3271,7 @@ const UNNEEDED_OPERANDS: &[(u16, &str, &str, &str)] = &[
     // op_52 0x476cb0, op_53 0x476cd0 (both FUN_00476a80): sub picks the text window.
     (0x52, "sub", "0", "text window 0, the only one"),
     (0x53, "sub", "0", "text window 0, the only one"),
-    (0x6d, "-12", "zeros", "op_6d 0x442000 never reads past the first 12 bytes"),
+    (0x6d, "-12", "zeros", "op_6d 0x442000 reads only speed, x and y range (y in EAX to quake_object)"),
     (0x76, "+4", "00000000", "flags 0 (op_76 0x449df0: bit 0 hides the windows, bits 0-1 remove the bust-ups): neither, as ours"),
     (
         0x77,
