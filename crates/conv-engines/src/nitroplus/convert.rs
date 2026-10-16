@@ -96,6 +96,7 @@ mod array;
 mod fast_skip;
 mod text_object;
 mod sounds;
+mod shake;
 pub(super) use fast_skip::read_flag;
 
 /// A window picture's text place ([`Game::box_text`]): picture, text x, y,
@@ -1292,6 +1293,9 @@ struct Compiler<'a, 'b> {
     /// [`Compiler::sound_clock`]: the time of the ops up to `clock_scanned`.
     clock_ms: u64,
     clock_scanned: usize,
+    /// `Shake`s of pictures not shown yet, as `spmotion` keys: started
+    /// when the next sync shows them, dropped otherwise.
+    shake_once: HashMap<String, Vec<(u32, i32, i32)>>,
     /// The action process running ([`Compiler::start_process`]): its
     /// actions don't block, and their time counts as its own.
     action_process: Option<String>,
@@ -2070,6 +2074,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
             process_clock: None,
             clock_ms: 0,
             clock_scanned: 0,
+            shake_once: HashMap::new(),
             action_process: None,
             fast_skip_read: None,
             chapter_mark: None,

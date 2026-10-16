@@ -330,7 +330,16 @@ impl Compiler<'_, '_> {
                 // of them): the whole picture shakes.
                 let targets = self.matching(&arg(0));
                 if !targets.iter().any(|t| self.objects[t].w >= screen_w && self.objects[t].h >= screen_h) {
-                    self.note("Shake of a picture smaller than the screen");
+                    // The picture alone: now if it is on the screen, else
+                    // when the next sync shows it.
+                    let size = |x: i64, y: i64| (x.abs() as i32, y.abs() as i32);
+                    let keys = shake::shake_keys(&[(arg(1).int().max(0) as u32, size(arg(2).int(), arg(3).int()), size(arg(4).int(), arg(5).int()))]);
+                    for t in &targets {
+                        match self.shown.get(t) {
+                            Some(s) => self.ops.push(Op::SpriteMotion { layer: s.layer, keys: keys.clone(), looped: false }),
+                            None => _ = self.shake_once.insert(t.clone(), keys.clone()),
+                        }
+                    }
                     self.timed(arg(1).int(), &last(), &targets);
                     return Value::Null;
                 }

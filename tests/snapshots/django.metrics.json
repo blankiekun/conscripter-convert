@@ -1,7 +1,7 @@
 {
 "game": "django",
 "engine": "nitroplus",
-"commit": "bc0b34f",
+"commit": "0cfb028",
 "commit_date": "2026-10-16",
 "totals": {"calls": 57092, "full": 44399, "gaps": 12693},
 "kinds": {
@@ -18,7 +18,7 @@
 "Fade": {"calls": 11894, "gaps": 77, "reasons": [["Fade argument 3 ignored", 77]]},
 "SetBacklog": {"calls": 75, "gaps": 75, "reasons": [["SetBacklog argument 2 ignored", 75]]},
 "LoadFont": {"calls": 67, "gaps": 67, "reasons": [["built-in LoadFont", 67]]},
-"Shake": {"calls": 58, "gaps": 58, "reasons": [["Shake argument 6 ignored", 58], ["Shake argument 7 ignored", 58], ["Shake argument 2 ignored", 3], ["Shake argument 3 ignored", 3], ["Shake argument 4 ignored", 3], ["3 more", 9]]},
+"Shake": {"calls": 58, "gaps": 58, "reasons": [["Shake argument 6 ignored", 58], ["Shake argument 7 ignored", 58], ["Shake argument 8 ignored", 3]]},
 "CreateTexture": {"calls": 2803, "gaps": 40, "reasons": [["CreateTexture from a missing file", 40]]},
 "Request": {"calls": 9046, "gaps": 30, "reasons": [["Request start", 12], ["Request addrender", 11], ["Request normalrender", 4], ["Request unsmoothing", 3]]},
 "CreateMask": {"calls": 30, "gaps": 30, "reasons": [["built-in CreateMask", 30]]},
