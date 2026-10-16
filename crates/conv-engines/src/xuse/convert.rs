@@ -3269,6 +3269,8 @@ const UNNEEDED_OPERANDS: &[(u16, &str, &str, &str)] = &[
     // op_3b 0x478650: only 0x3c reads the entry name, and no script uses 0x3c.
     (0x3b, "sub", "11|13", "the entry name's length"),
     (0x3b, "+0", "646562756720656e747279|72656c6561736520656e747279", "the entry name, \"debug entry\" or \"release entry\""),
+    // op_43 0x4772a0 starts the window's fade-out and returns 2 for arg 0 (go on in the same frame), 0 otherwise (next frame).
+    (0x43, "arg", "0|1", "neither waits for the fade-out: one frame apart, not converted (textoff goes on at once)"),
     // op_52 0x476cb0, op_53 0x476cd0 (both FUN_00476a80): sub picks the text window.
     (0x52, "sub", "0", "text window 0, the only one"),
     (0x53, "sub", "0", "text window 0, the only one"),
