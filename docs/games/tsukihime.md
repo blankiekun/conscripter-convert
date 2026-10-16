@@ -200,6 +200,13 @@ addresses in `research/typemoon/names.tsv` are those of the 1.0.2
   (0x04 easing, 0x08 x, 0x0A y, 0x0C alpha, 0x18/0x1A zoom ‰, …),
   −32767 for "unchanged". Motion 228: zoom 584‰ → 566‰ and y 130 →
   136 over 5 s; motion 14682: alpha 0 → 255 over 20 s.
+- **Scene numbers**: `_JUMP(n[,label])` goes to the script whose
+  scene number is `n`, not by name: 551 s16 at 0x450D58, one per
+  script in `allscr` order (`START_SCRIPT` 110, `00_00` 240,
+  `01_00_ARC01_1` 300, …, `QA_01`–`QA_25` 1000–1024, `QACALL` 3100,
+  `JUMP00`–`JUMPQA` 8001–8017), read by the `_JUMP` case of
+  `script_command`. The label is a place inside that script; the same
+  label names recur in many scripts.
 - **Picture layers**: 40 (0–39), staged by the commands below and shown
   by `_FADS`. Arguments are expressions (`FUN_00102d3c`); `FUN_00102b24`
   splits at most 20 of them.
@@ -304,19 +311,19 @@ Japanese: 549 scripts, 1,079,001 commands, 93 command names. English
 | `_SEFD` | 3401 | 412 | `_SEFD(1,,,`001:2000)` | sound effect fade |
 | `_FANX` | 2924 | 319 | `_FANX(1,0,0)` |  |
 | `_ZZ` | 2569 | 549 | `_ZZ00a01()` | label (its name the argument) |
-| `_JUMP` | 1766 | 544 | `_JUMP(240,START)` | jump (number, label) |
+| `_JUMP` | 1766 | 544 | `_JUMP(240,START)` | jump to scene number n ("The exe"), at the label |
 | `_SNX2` | 1654 | 249 | `_SNX2(35,27)` |  |
 | `_SEVL` | 1353 | 210 | `_SEVL(0,,,,`001:3000,,`017:30)` | sound effect volume |
 | `_ZY` | 1272 | 510 | `_ZY02100(LV00000)` | local label for `_IF__` (`LV…`) |
 | `_SQK2` | 1228 | 236 | `_SQK2(-1,1,4,0,600,0,0,0,0)` |  |
 | `_MSAD` | 1178 | 250 | `_MSAD($000120)` | add to the message log? |
-| `_IF__` | 1164 | 507 | `_IF__(F026,ne,0,LV00000)` | if (variable, `eq`/`ne`/…, value) jump to local label |
+| `_IF__` | 1164 | 507 | `_IF__(F026,ne,0,LV00000)` | if (variable, `eq`/`ne`/`lt`/`le`/`gt`/`ge`, value) holds, run on; else skip to the local label |
 | `_MPLY` | 1158 | 452 | `_MPLY(52,,`017:100)` | play music by number |
 | `_CLO4` | 957 | 294 | `_CLO4(1000)` |  |
 | `_SBAS` | 933 | 121 | `_SBAS(14,13)` |  |
 | `_SHOK` | 865 | 165 | `_SHOK(1,3,100,18)` |  |
 | `_SNX3` | 842 | 166 | `_SNX3(21,32)` |  |
-| `_SELR` | 823 | 100 | `_SELR(0,$042569)` | choice option (index, text line) |
+| `_SELR` | 823 | 100 | `_SELR(0,$042569)` | choice option (index, text line, 1 = shown greyed); `_GOTS` then jumps to the index-th label |
 | `_MVOL` | 780 | 220 | `_MVOL(,,`001:5000,,`017:80)` | music volume |
 | `_MFAD` | 724 | 364 | `_MFAD(,,`001:4000,,`011:0)` | music fade |
 | `_STPV` | 712 | 173 | `_STPV(6,459,178,)` |  |
@@ -349,12 +356,122 @@ script -o` on each copy, the dumps compared without their text):
 
 ### Walkthrough
 
-Not written yet: two routes (Arcueid, Ciel) and their endings; the
-source is still to be picked.
+Sources: the scripts of 1.0.2 (the English copy's control flow is the
+same), read with `research/typemoon/routes.py`, which prints every
+script's choices with the conditions on each option, its flag tests
+and where its jumps go; checked against NookGaming's walkthrough of
+the English release
+(<https://nookgaming.com/tsukihime-a-piece-of-blue-glass-moon-walkthrough-guide/>),
+whose choices and dead ends match the scripts'.
+
+```sh
+conscripter-convert typemoon script <game-102> -o <dump>
+conscripter-convert typemoon extract <game-102>/allscr.mrg -o <raw>
+python3 -I research/typemoon/routes.py <dump> <raw>/00000.bin <main-102.elf>
+```
+
+**Layout.** `START_SCRIPT` → `00_00` (the prologue), then one script
+group per day: `NN_00_ARCNN_*` (Arcueid's route, 「月姫」, days 1–14)
+and `NN_01_CIELNN_*` (Ciel's, 「夜の虹」, days 1–14, then
+`15_01A`/`15_01B`). Days 1–3 are common; the scenes jump between the
+two groups by choice, and scenes both routes pass through branch on
+`F058` (1 once Ciel's route is taken). 82 story choices. `JUMP00`–`JUMP15`, `ARCHIVE` and
+`JUMPQA` are the chapter select (they jump to the scene number in
+`G008`); `*_FLAG0`/`*_FLAG1` set `F069` and jump on, as entries for
+it.
+
+**The first play is Arcueid's route.** Ciel's route opens on day 3,
+and its option is greyed until Arcueid's ending is seen (`G003`):
+
+1. Ciel's points, day 1–2 (`F050` → `F075` → `F076` → `F077`, each
+   copied into the next and added to): day 1, 「ちょっとした疑問がわいて
+   しまった。」 or 「せっかくなのでじっくり観賞するしかなかった。」 (1);
+   lunch, 「廊下に出てから考えよう。」 (+1, only with the first);
+   after school, 「学校をぶらつく。」 (+1 when the first was taken;
+   sets `F054`); day 2 lunch, 「とりあえず、廊下に出て考えよう。」 (+1,
+   only with `F054`).
+2. Day 3 lunch (`03_00_ARC03_4`): with all four (`F077` ≥ 4) a third
+   option appears, 「茶道室に行ってみようか……？」, which sets `F057`.
+3. Day 3 night (`03_00_ARC03_5B`): 「……いや、俺の起こした現実だ。」
+   is greyed unless `F057` = 1 and `G003` = 1. Taking it goes to
+   `03_01_CIEL03_3_2`; day 4 (`04_01_CIEL04_1`) sets `F058`.
+
+Day 7's 「……二十七祖ってなんだ？」 (`07_00_ARC07_3_1`) is also greyed
+until `G003`.
+
+**Endings.**
+
+| Ending | Last scenes | Sets | Then |
+|---|---|---|---|
+| Arcueid (the only one of her route) | `13_00_ARC13_6` → `14_00_ARC14_1` | `G003` | lesson `QA_12` |
+| Ciel, normal | day 14 `14_01_CIEL14_1C`: 「……アルクェイドには従えない。」 → `14_01A_*` → `15_01A_CIEL15A_1` | `G004` | `QA_23` |
+| Ciel, extra | the same choice: 「……アルクェイドを、嫌いにはなれない。」 → `14_01B_*` → `15_01B_CIEL15B_1` | | `QA_24` |
+
+The extra ending's option is greyed unless `G004` = 1 and `F081` ≥ 5
+(the walkthrough: save at the start of day 14, see the normal ending,
+load). `F081` is the Arcueid points of Ciel's route (`F051` →
+`F078` → `F079` → `F080` → `F081`); there it gets +1 on day 4 for
+「ホテルに戻ろうと思う。」, +2 on day 8 for 「アルクェイドの方が、ほっと
+けない。」, +1 on day 9 always (`09_01_CIEL09_4_1`) and +1 on day 9
+for 「『それ以上進んだら嫌いになるからなっ！』」: 5 needs all of them.
+At `F081` ≥ 7 two lines of `14_01B_03_CIEL14B_5B` differ; whether
+that can be reached isn't checked. `QA_25` is reached only from the
+gallery's `JUMPQA` (the walkthrough: Gallery > Ending List, the icon at
+the bottom right).
+
+**Dead ends.** 21, each followed by a 「教えて！シエル先生」 lesson
+(`_JUMP(3100,QA_nn)` into `QACALL`). The walkthrough's dead end n is
+`QA_n` up to 11 and `QA_(n+1)` from 12.
+
+| Lesson | Day | Scene | Reached by |
+|---|---|---|---|
+| `QA_01` | 4 | `04_00_ARC04_6_1` | 「……酔狂はここまでだ。逃げよう。」, then 「屋敷に戻ろうと思う。」 |
+| `QA_02` | 4 | `04_00_ARC04_9_2` | 「……部屋で外の様子をうかがう。」 |
+| `QA_03` | 5 | `05_00_ARC05_3_1` | 「……今すぐヴローヴを捜すべきだ。」 with `F058` = 0 (Arcueid's route) |
+| `QA_04` | 5 | `05_00_ARC05_6_1` | 「下りていく。」 |
+| `QA_05` | 5 | `05_00_ARC05_9_1` | 「……投擲だ。」 |
+| `QA_06` | 5 | `05_00_ARC05_9_3` | 「……牽引だ。」 |
+| `QA_07` | 8 | `08_00_ARC08_7_2` | 「……嘘をついて誤魔化す。」 (`F060` = 0; 「……正直に話す。」 sets it) |
+| `QA_08` | 9 | `09_00_ARC09_3_2_1` | 「……槙久の書斎を調べてみる。」 |
+| `QA_09` | 9 | `10_00_ARC10LIVING` | 「アルクェイドに会いに行く。」 |
+| `QA_10` | 10 | `10_00_ARC10_7_3` | 「……学校に戻っているかも？」 |
+| `QA_11` | 10 | `10_00_ARC10_8_1` | 「ただ、欲しいだけなんだ。」 |
+| `QA_13` | 5 | `05_01_CIEL05_2_1` | 「―――このまま押し切る！」 |
+| `QA_14` | 5 | `05_01_CIEL05_2_2_1` | 「先輩に駆け寄る。」 |
+| `QA_15` | 10 | `10_01_CIEL10_5_2` | 「自分は足手まといだ。ここで待っていよう。」 |
+| `QA_16` | 11 | `11_01_CIEL11_2_2` | day 9's 「じゃあ、痛くて効かないものを。」 (`F061`) |
+| `QA_17` | 13 | `13_01_01_CIEL13_3_2` | 「後方に逃げる。」 |
+| `QA_18` | 13 | `13_01_01_CIEL13_4_1` | 「……眼鏡を外す。」; forced when 「……眼鏡は外さない。」 is greyed: `F069` = 1, set on day 12 when day 9's 「……因果応報だ。女を手本にして処理しよう。」 (`F063`) was taken |
+| `QA_19` | 13 | `13_01_02_CIEL13_5_1` | 「最短で、あの吸血鬼を殺す。」 |
+| `QA_20` | 13 | `13_01_02_CIEL13_6_1` | 「面倒だ。殺してしまえ。」 |
+| `QA_21` | 14 (extra) | `14_01B_02_CIEL14B_3_1` | 「諦めない。」 |
+| `QA_22` | 14 (extra) | `14_01B_03_CIEL14B_4_2` | 「もう一度上へ。何か見落としがある筈だ。」 |
+
+Options shown only under a condition, besides those above: day 2's
+「ファミレスに行ってみる。」 (`F056`, set by 「パンを買って教室で済ませよう。」)
+in place of 「寄り道をして帰る。」; day 10's questions to Ciel
+(`10_01_CIEL10_3_2`), each gone once asked (`F065`–`F068`).
 
 ## Progression variables
 
-Not mapped yet.
+The route gates (above); the many `G0nn |= 2` are gallery unlocks,
+not mapped yet. `G…` are presumably system data and `F…` save data
+(not checked).
+
+| Variable | Meaning | Set | Read |
+|---|---|---|---|
+| `G003` | Arcueid's ending seen | `14_00_ARC14_1` | day 3 Ciel option, day 7 option |
+| `G004` | Ciel's normal ending seen | `15_01A_CIEL15A_1` | day 14 extra option |
+| `F050`, `F075`–`F077` | Ciel's points, days 1–2 | see the walkthrough | `F077` ≥ 4 on day 3 |
+| `F054` | took day 1's 「学校をぶらつく。」 into `01_01_CIEL01_3_3` | there | day 2 lunch |
+| `F057` | went to the tea room on day 3 | `03_01_CIEL03_2_3` | day 3 night |
+| `F058` | on Ciel's route | `04_01_CIEL04_1`, `04_01_CIEL04_1C` | shared scenes |
+| `F051`, `F078`–`F081` | Arcueid points | see "Endings" | `F081` ≥ 5 on day 14 |
+| `F060` | told the truth on day 8 | `08_00_ARC08_5_1` | `08_00_ARC08_7` |
+| `F061` | chose 「痛くて効かないもの」 on day 9 | `09_01_CIEL09_1_2` | `11_01_CIEL11_1D` |
+| `F063` | chose 「因果応報」 on day 9 | `09_01_CIEL09_3_1` | `10_01_CIEL10_8`, `12_01_CIEL12_1`, day 13 |
+| `F069` | day 12–13 variant (from `F063`) | `12_01_CIEL12_1_A`/`_B`, the `*_FLAG*` entries | day 12–13 scenes, the glasses choice |
+| `G008` | scene number for the chapter select | `JUMP*`, `QACALL` | `JUMP*` |
 
 ## Testing
 
@@ -376,17 +493,22 @@ Nothing yet.
 
 ### Next
 
-1. Write the walkthrough.
-2. Pictures for the build: read the exe's picture table (names,
+1. Pictures for the build: read the exe's picture table (names,
    sizes, centres) and motion table (see "The exe"); every expression
    is already a whole picture, so nothing needs cutting.
-3. Sound for the build: the looping wave sounds' loop points
+2. Sound for the build: the looping wave sounds' loop points
    (SDL_mixer loops a WAV whole), and the music's loop points from the
    bfsar's stream details (see "The exe").
-4. Still open in the exe: `_FADS` type 1, `_STCH`'s arguments 4 and
+3. Still open in the exe: `_FADS` type 1, `_STCH`'s arguments 4 and
    12–17, `_STZ4`'s last two, and the motion keyframes' other fields.
 
 ## History
+
+- 2026-10-16: the walkthrough, from the scripts (`routes.py`) and
+  checked against a public one: the route gates (Ciel's points, the
+  Arcueid points, `G003`/`G004`), the three endings, the 21 dead ends
+  and their lessons. `_JUMP` goes by scene number, a table in the exe.
+  See "Walkthrough" and "Progression variables".
 
 - 2026-10-16: the exe's commands. `_MPLY(n)` plays the bfsar's sound
   `n − 1` (a table in the exe); the music loops are in the bfsar's
