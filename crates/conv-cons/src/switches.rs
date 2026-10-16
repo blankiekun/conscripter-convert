@@ -51,6 +51,7 @@ pub(crate) fn def(s: Switch) -> (u32, Apply) {
         Switch::SceneSkipDialog => (17, Read),
         Switch::StopSkipAtChoice => (18, Commands { on: "selectkeep 0", off: "selectkeep 1" }),
         Switch::BgmFullForVoice => (19, Read),
+        Switch::ConfirmQuickLoad => (20, Read),
     }
 }
 
@@ -98,12 +99,12 @@ mod tests {
         use Switch::*;
         let all = vec![
             WheelReadsOn, WheelClosesLog, ConfirmSave, ConfirmLoad, ConfirmDelete, ConfirmTitle, ConfirmQuit, ConfirmBackToChoice, VoiceKeepsPlaying, BgmOn, SeOn,
-            VoiceOn, ConfirmReset, Effects, SavePreview, TextShadow, ConfirmChapter, SceneSkipDialog, StopSkipAtChoice, BgmFullForVoice,
+            VoiceOn, ConfirmReset, Effects, SavePreview, TextShadow, ConfirmChapter, SceneSkipDialog, StopSkipAtChoice, BgmFullForVoice, ConfirmQuickLoad,
         ];
         for s in &all {
             match s {
                 WheelReadsOn | WheelClosesLog | ConfirmSave | ConfirmLoad | ConfirmDelete | ConfirmTitle | ConfirmQuit | ConfirmBackToChoice | VoiceKeepsPlaying | BgmOn | SeOn | VoiceOn
-                | ConfirmReset | Effects | SavePreview | TextShadow | ConfirmChapter | SceneSkipDialog | StopSkipAtChoice | BgmFullForVoice => {}
+                | ConfirmReset | Effects | SavePreview | TextShadow | ConfirmChapter | SceneSkipDialog | StopSkipAtChoice | BgmFullForVoice | ConfirmQuickLoad => {}
             }
         }
         all

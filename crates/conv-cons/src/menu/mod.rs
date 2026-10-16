@@ -534,6 +534,20 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn quick_save_notice_until_a_click() {
+        use conv_core::ir::BarButton;
+        let bar = ButtonBar {
+            buttons: vec![BarButton { image: placed("qsave", 104, 130), active: None, action: BarAction::QuickSave }],
+            quick_saved: Some(placed("saved", 312, 213)),
+            ..Default::default()
+        };
+        let mut out = String::new();
+        button_bar(&mut out, &bar, BarScreens { width: 1024, height: 576, ..Default::default() });
+        let line = "*conv_bar_qsave\nsavegame 890\nlsp 1,\":c;>1024,576,#000000\",0,0,204\nlsp 0,\":a;system\\saved.png\",10,20\nprint 1:click:csp 1:csp 0:print 1\nreturn\n";
+        assert!(out.contains(line), "missing:\n{line}\nin:\n{out}");
+    }
+
+    #[test]
     fn wait_icon_shows_at_the_bar_wait() {
         use conv_core::ir::BarButton;
         let bar = ButtonBar {

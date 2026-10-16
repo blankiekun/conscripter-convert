@@ -85,8 +85,16 @@ const BTN_PAIR: i32 = 30; // + 2 × pair (+ 1 off)
 const BTN_STEP: i32 = 200; // + 10 × slider + step
 
 /// The questions [`PairOption::Confirm`] turns off.
-const QUESTIONS: [Switch; 7] =
-    [Switch::ConfirmSave, Switch::ConfirmLoad, Switch::ConfirmDelete, Switch::ConfirmTitle, Switch::ConfirmQuit, Switch::ConfirmBackToChoice, Switch::ConfirmReset];
+const QUESTIONS: [Switch; 8] = [
+    Switch::ConfirmSave,
+    Switch::ConfirmLoad,
+    Switch::ConfirmDelete,
+    Switch::ConfirmTitle,
+    Switch::ConfirmQuit,
+    Switch::ConfirmBackToChoice,
+    Switch::ConfirmReset,
+    Switch::ConfirmQuickLoad,
+];
 
 fn slider_var(i: usize) -> String {
     format!("%{}", SLIDER_BASE + i as u32)

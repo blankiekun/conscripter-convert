@@ -553,6 +553,7 @@ fn quick_bar(a: &mut dyn Assets) -> Option<ButtonBar> {
         pressed: true,
         quick_save_se: a.sound("sound/se/SE_sys_しおり"),
         load_fade_ms: 300,
+        quick_saved: None,
     })
 }
 

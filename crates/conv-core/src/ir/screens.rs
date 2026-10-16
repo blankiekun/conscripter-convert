@@ -236,6 +236,8 @@ pub struct ButtonBar {
     /// [`BarAction::QuickLoad`] and [`BarAction::BackToChoice`] fade to
     /// black over this long before they load.
     pub load_fade_ms: u32,
+    /// Shown over the dimmed screen after a quick save, until a click.
+    pub quick_saved: Option<Placed>,
 }
 
 /// How a [`ButtonBar`] along the right edge slides in and out: it waits
@@ -779,6 +781,9 @@ pub enum Switch {
     StopSkipAtChoice,
     /// The music keeps its volume while a voice plays; off: it is lowered.
     BgmFullForVoice,
+    /// Ask before a quick load ([`BarAction::QuickLoad`]); asked only by a
+    /// [`ConfirmDialog`] with a picture for it.
+    ConfirmQuickLoad,
 }
 
 /// A voiced line's clip and whose voice it is (for the per-character

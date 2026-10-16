@@ -15,7 +15,7 @@ use super::super::{Assets, Story};
 pub fn menus(a: &mut dyn Assets, script: &mut Script, story: &Story) {
     script.title_screen = title(a);
     // The game has no button bar; the command menu runs a bar's actions.
-    script.button_bar = Some(ButtonBar { buttons: Vec::new(), top: None, base: None, slide: None, pressed: true, quick_save_se: None, load_fade_ms: 0 });
+    script.button_bar = Some(ButtonBar { buttons: Vec::new(), top: None, base: None, slide: None, pressed: true, quick_save_se: None, load_fade_ms: 0, quick_saved: None });
     script.command_menu = command_menu(a);
     script.save_grid = save_grid(a);
     script.confirm = confirm(a);

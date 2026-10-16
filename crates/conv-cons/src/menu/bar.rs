@@ -398,9 +398,19 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, s: BarScreens) {
                 if let Some(se) = &bar.quick_save_se {
                     w(format!("dwave {},\"{}\"", crate::SE_CHANNELS.start(), path(se)));
                 }
+                if let Some(n) = &bar.quick_saved {
+                    let (back, notice) = (DIALOG_SPRITES.start + 1, DIALOG_SPRITES.start);
+                    w(format!("lsp {back},\":c;>{},{},#000000\",0,0,204", s.width, s.height));
+                    w(format!("lsp {notice},\":a;{}\",{},{}", path(&n.image), n.x, n.y));
+                    w(format!("print 1:click:csp {back}:csp {notice}:print 1"));
+                }
             }
             BarAction::QuickLoad => {
                 w(format!("savefileexist {TMP},{QUICK_SLOT}:if {TMP} == 0 return"));
+                if s.confirm.is_some_and(|c| c.pictures.iter().any(|p| p.0 == Switch::ConfirmQuickLoad)) {
+                    w(confirm_call("", Switch::ConfirmQuickLoad));
+                    w(format!("if {CONFIRM} == 0 return"));
+                }
                 w(black.clone());
                 w(format!("loadgame {QUICK_SLOT}"));
             }
