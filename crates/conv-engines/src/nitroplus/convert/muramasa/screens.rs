@@ -139,9 +139,9 @@ fn settings(a: &mut dyn Assets, story: &Story) -> Option<PictureSettings> {
 /// test (851,203), Close (854,555). What we can't set is drawn as a first
 /// start leaves it: auto save at choices (on), read text's colour (on),
 /// a click stopping auto mode (on), syncing text to voices (off), the
-/// effects test, full screen (off), 1024×576, the display's aspect. Not
-/// yet compared with the original; the character voices window
-/// (`OpenCVSetting`) and the text sample are not done.
+/// effects test, full screen (off), 1024×576, the display's aspect.
+/// Compared with the original at a first start; the character voices
+/// window (`OpenCVSetting`) and the text sample are not done.
 fn settings_en(a: &mut dyn Assets) -> Option<PictureSettings> {
     const DIR: &str = "en/cg/sys/config";
     let picture = |a: &mut dyn Assets, name: &str, x: i32, y: i32| {
@@ -177,12 +177,15 @@ fn settings_en(a: &mut dyn Assets) -> Option<PictureSettings> {
     let full = picture(a, "ConfigSlider-Full", 0, 0)?;
     let mask = a.color(0, full.w as u32, full.h as u32);
     let mut sliders = Vec::new();
+    // A first start's (`sys_val.nut`): auto_wait_per_character 60 (of
+    // 100), text_speed 550, the volumes 800, 1000, 700 (of 1000); the
+    // knobs where the original draws them.
     for (setting, x, y, default) in [
-        (SliderSetting::AutoWait { ms: 200 }, 133, 405, 507),
-        (SliderSetting::TextSpeed { ms: 100 }, 133, 483, 207),
-        (SliderSetting::BgmVolume, 588, 65, 407),
-        (SliderSetting::SeVolume, 588, 138, 207),
-        (SliderSetting::VoiceVolume, 588, 211, 207),
+        (SliderSetting::AutoWait { ms: 200 }, 133, 405, 600),
+        (SliderSetting::TextSpeed { ms: 100 }, 133, 483, 550),
+        (SliderSetting::BgmVolume, 588, 65, 200),
+        (SliderSetting::SeVolume, 588, 138, 0),
+        (SliderSetting::VoiceVolume, 588, 211, 300),
     ] {
         sliders.push(PictureSlider {
             setting,
