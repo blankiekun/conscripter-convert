@@ -252,7 +252,7 @@ impl Compiler<'_, '_> {
             done += match op {
                 Op::Wait { ms } => *ms,
                 Op::BeginTransition { fade_ms, .. } => *fade_ms,
-                Op::Text { .. } | Op::ClickWait { .. } | Op::Choice { .. } | Op::HoldMovie { .. } | Op::Movie { .. } => ms,
+                Op::Text { .. } | Op::ClickWait { .. } | Op::Choice { .. } | Op::RuntimeChoice { .. } | Op::HoldMovie { .. } | Op::Movie { .. } => ms,
                 _ => 0,
             };
         }

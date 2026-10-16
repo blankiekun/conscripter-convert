@@ -7,15 +7,17 @@
 
 use std::fmt::Write;
 
-use conv_core::ir::ChoicePlates;
+use conv_core::ir::{ChoicePlates, RuntimeText};
 
-use crate::{escape, label, menu, path, BUTTON_VAR, LINK_SPRITES};
+use crate::{escape, label, menu, path, var_name, BUTTON_VAR, LINK_SPRITES, RUNTIME_OPTION_BASE};
 
 /// The sprites there are (two an option).
 const SPRITES: usize = (*LINK_SPRITES.end() - *LINK_SPRITES.start() + 1) as usize;
 
 /// Writes the choice; `n` keeps its labels apart from other choices'.
-pub(crate) fn emit(out: &mut String, options: &[(String, String)], p: &ChoicePlates, n: usize, bar: bool) {
+/// `texts[i]`, when given, picks option i's text at run time (centred by
+/// a variable set with it).
+pub(crate) fn emit(out: &mut String, options: &[(String, String)], texts: &[Option<RuntimeText>], p: &ChoicePlates, n: usize, bar: bool, border: u32) {
     assert!(2 * options.len() <= SPRITES, "more choice options than link sprites");
     let l = format!("conv_cplate{n}");
     // The text over its plate: lower numbers are drawn on top.
@@ -24,19 +26,31 @@ pub(crate) fn emit(out: &mut String, options: &[(String, String)], p: &ChoicePla
     let fade = if p.fade_ms > 0 { format!("print 10,{}", p.fade_ms) } else { "print 1".to_string() };
     writeln!(out, "textoff").unwrap();
     let mut text_at = Vec::new();
+    // Full-width characters take the font's size, the others half.
+    let width = |text: &str| -> i32 { text.chars().map(|c| if (c as u32) < 0x80 || ('｡'..='ﾟ').contains(&c) { p.font_size as i32 / 2 } else { p.font_size as i32 }).sum() };
     for (i, (text, _)) in options.iter().enumerate() {
         let y = p.y + p.step * i as i32;
         let text = escape(text);
-        // Full-width characters take the font's size, the others half.
-        let width: i32 = text.chars().map(|c| if (c as u32) < 0x80 || ('｡'..='ﾟ').contains(&c) { p.font_size as i32 / 2 } else { p.font_size as i32 }).sum();
-        let columns = text.chars().count() + 1;
-        text_at.push((p.text_x - width / 2, y + p.text_dy));
+        let (text, x, columns) = match texts.get(i).and_then(Option::as_ref) {
+            Some(rt) => {
+                let (s, x) = (format!("${}", RUNTIME_OPTION_BASE + i as u32), format!("%{}", RUNTIME_OPTION_BASE + i as u32));
+                writeln!(out, "mov {s},\"{text}\":mov {x},{}", p.text_x - width(&text) / 2).unwrap();
+                let mut columns = text.chars().count();
+                for (value, t) in &rt.texts {
+                    let t = escape(t);
+                    columns = columns.max(t.chars().count());
+                    writeln!(out, "if {} == {value} mov {s},\"{t}\":mov {x},{}", var_name(rt.var, border), p.text_x - width(&t) / 2).unwrap();
+                }
+                (s, x, columns + 1)
+            }
+            None => (format!("\"{text}\""), (p.text_x - width(&text) / 2).to_string(), text.chars().count() + 1),
+        };
+        text_at.push((x.clone(), y + p.text_dy));
         writeln!(out, "lsp {},\":a/2,0,3;{}\",{},{y}", plate_slot(i), path(&p.image), p.x).unwrap();
         writeln!(
             out,
-            "strsp {},\"{text}\",{},{},{columns},1,{size},{size},0,0,0,1,\"{c}\",\"{c}\"",
+            "strsp {},{text},{x},{},{columns},1,{size},{size},0,0,0,1,\"{c}\",\"{c}\"",
             text_slot(i),
-            p.text_x - width / 2,
             y + p.text_dy,
             size = p.font_size,
             c = p.colour
@@ -76,7 +90,7 @@ pub(crate) fn emit(out: &mut String, options: &[(String, String)], p: &ChoicePla
         writeln!(out, "if {BUTTON_VAR} == {} goto *{l}_s{}", i + 1, i + 1).unwrap();
     }
     for (i, (_, target)) in options.iter().enumerate() {
-        let (plate, text, (tx, ty)) = (plate_slot(i), text_slot(i), text_at[i]);
+        let (plate, text, (tx, ty)) = (plate_slot(i), text_slot(i), (&text_at[i].0, text_at[i].1));
         let py = p.y + p.step * i as i32;
         let hole = path(&shot.hole);
         writeln!(out, "*{l}_s{}", i + 1).unwrap();

@@ -65,6 +65,11 @@ const LEAF_VAR: u16 = 70;
 /// Story flags: locals from here (NScripter %300 up, past the variables
 /// the backend and its menus use), globals (`#`) from the global border.
 const FLAG_LOCAL_BASE: u16 = 290;
+/// Story flags read only by a choice ([`choice_flags`]): the last locals
+/// below the global border, past the helpers made runtime ones.
+const CHOICE_FLAGS: std::ops::Range<u16> = (GLOBAL_BORDER - 10 - 1 - 16) as u16..(GLOBAL_BORDER - 10 - 1) as u16;
+/// Codes of the strings first held by a choice's flags.
+const CHOICE_CODES: i32 = 1_000_000;
 /// The first global NScripter variable (locals below it are saved with each
 /// save slot, and the story flags need more than the default 200).
 pub const GLOBAL_BORDER: u32 = 800;
@@ -393,7 +398,7 @@ pub fn compile_story(files: &BTreeMap<String, NssFile>, file: &str, scene: &str,
     for (k, &v) in &c.flags {
         c.vars.insert(k.clone(), Value::Runtime(v));
     }
-    c.next_dynamic = c.flags.values().filter(|v| !v.global).map(|v| v.index + 1).max().unwrap_or(FLAG_LOCAL_BASE);
+    c.next_dynamic = c.flags.values().filter(|v| !v.global && v.index < CHOICE_FLAGS.start).map(|v| v.index + 1).max().unwrap_or(FLAG_LOCAL_BASE);
     let body = c.scene(file, scene).ok_or_else(|| format!("no scene {scene} in {file}"))?;
     let initial = c.snapshot();
     c.run_top(body);
@@ -440,7 +445,7 @@ pub fn compile_run(files: &BTreeMap<String, NssFile>, start: &str, max_files: us
     let (first, _) = files.get_key_value(start).ok_or_else(|| format!("no script {start}"))?;
     let mut c = Compiler::new(files, first, game, assets);
     c.flags = story_flags(files, game);
-    let dynamic_base = c.flags.values().filter(|v| !v.global).map(|v| v.index + 1).max().unwrap_or(FLAG_LOCAL_BASE);
+    let dynamic_base = c.flags.values().filter(|v| !v.global && v.index < CHOICE_FLAGS.start).map(|v| v.index + 1).max().unwrap_or(FLAG_LOCAL_BASE);
     c.vars.insert("$GameName".into(), Value::Str(start.to_string()));
     c.vars.insert("$GameStart".into(), Value::Int(1));
     c.vars.insert("$GameCircle".into(), Value::Int(1));
@@ -551,10 +556,17 @@ pub fn compile_run(files: &BTreeMap<String, NssFile>, start: &str, max_files: us
             let next = b.vars.get("$GameName").map(Value::string).unwrap_or_default();
             let target = if let Some(&Value::Runtime(var)) = b.vars.get("$GameName") {
                 // The next file is in a story flag: decided by the dispatch
-                // written at the end, over every file name the flag holds.
-                let label = format!("dispatch{}", dispatches.len());
-                dispatches.push((label.clone(), var, b, std::collections::BTreeSet::new()));
-                label
+                // written at the end, over every file name the flag holds
+                // (one a flag: a file is compiled from the first state that
+                // reaches it).
+                match dispatches.iter().find(|d| d.1 == var) {
+                    Some(d) => d.0.clone(),
+                    None => {
+                        let label = format!("dispatch{}", dispatches.len());
+                        dispatches.push((label.clone(), var, b, std::collections::BTreeSet::new()));
+                        label
+                    }
+                }
             } else if !b.vars.get("$GameCircle").is_some_and(Value::truthy) {
                 RUN_END.to_string()
             } else if (next == name && !b.vars.contains_key(GAME_NAME_SET)) || next.is_empty() {
@@ -599,6 +611,21 @@ pub fn compile_run(files: &BTreeMap<String, NssFile>, start: &str, max_files: us
     }
     c.ops.push(Op::Label(RUN_END.to_string()));
     Ok((Compiled { ops: c.ops, window: c.first_window, notes: c.notes, metrics: c.metrics, flags: c.flags, voice_classes: c.voice_classes }, played))
+}
+
+/// The flag a helper holds on the leaves that set it, when those that
+/// don't leave it unset (a choice's third text, set only where it has
+/// three options): the code after reads it only where it was set.
+fn one_runtime(k: &str, leaves: &[Leaf]) -> Option<conv_core::ir::Var> {
+    let mut var = None;
+    for l in leaves {
+        match l.state.vars.get(k) {
+            None | Some(Value::Null) => {}
+            Some(&Value::Runtime(v)) if var.is_none_or(|w| w == v) => var = Some(v),
+            _ => return None,
+        }
+    }
+    var
 }
 
 /// Whether a block's last statement is `return`.
@@ -737,7 +764,66 @@ pub fn story_flags(files: &BTreeMap<String, NssFile>, game: &Game) -> HashMap<St
         };
         flags.insert(name.clone(), var);
     }
+    // Set but read only by a choice: at the top of the locals, past the
+    // helpers that become runtime ones, so no other number moves.
+    let mut top = CHOICE_FLAGS.end;
+    for name in choice_flags(files).intersection(&set) {
+        if !flags.contains_key(name) && name.starts_with('$') && !name.starts_with("$SYSTEM") && top > CHOICE_FLAGS.start {
+            top -= 1;
+            flags.insert(name.clone(), conv_core::ir::Var { global: false, index: top });
+        }
+    }
     flags
+}
+
+/// The variables a choice reads: its options' texts (`SetChoice04("見る",
+/// "話す", $md05_hazure, "移動する")`) and the conditions that pick how many
+/// options it has (`if($選択肢カウント==1){SetChoice02(…);}`). Their values
+/// can differ between the branches of a runtime if, so they are kept at
+/// run time even where other helpers are not ([`Compiler::finish_fork`]).
+fn choice_flags(files: &BTreeMap<String, NssFile>) -> std::collections::BTreeSet<String> {
+    use std::collections::BTreeSet;
+    fn is_choice(s: &Stmt) -> bool {
+        matches!(&s.kind, StmtKind::Expr(Expr::Call { name, .. }) if name.starts_with("SetChoice"))
+    }
+    fn vars(e: &Expr, out: &mut BTreeSet<String>) {
+        match e {
+            Expr::Var(v) => {
+                out.insert(v.to_string());
+            }
+            Expr::Unary { expr, .. } => vars(expr, out),
+            Expr::Binary { left, right, .. } => {
+                vars(left, out);
+                vars(right, out);
+            }
+            _ => {}
+        }
+    }
+    fn walk(stmts: &[Stmt], out: &mut BTreeSet<String>) {
+        for s in stmts {
+            match &s.kind {
+                StmtKind::Expr(Expr::Call { args, .. }) if is_choice(s) => args.iter().for_each(|a| vars(a, out)),
+                StmtKind::If { cond, then, otherwise } => {
+                    if then.iter().chain(otherwise.iter().flatten()).any(is_choice) {
+                        vars(cond, out);
+                    }
+                    walk(then, out);
+                    walk(otherwise.as_deref().unwrap_or(&[]), out);
+                }
+                StmtKind::While { body, .. } | StmtKind::Select(body) | StmtKind::Block(body) | StmtKind::Case { body, .. } => walk(body, out),
+                _ => {}
+            }
+        }
+    }
+    let mut out = BTreeSet::new();
+    for file in files.values() {
+        for item in &file.items {
+            if let Item::Scene(b) | Item::Chapter(b) = item {
+                walk(&b.body, &mut out);
+            }
+        }
+    }
+    out
 }
 
 /// Label of a story file's start.
@@ -1238,6 +1324,11 @@ struct Compiler<'a, 'b> {
     leaves_in_file: i32,
     /// Story flags kept in NScripter variables (see [`story_flags`]).
     flags: HashMap<String, conv_core::ir::Var>,
+    /// The variables choices read ([`choice_flags`]).
+    choice_reads: std::collections::BTreeSet<String>,
+    /// The strings each story flag has been given, by code: a choice's
+    /// option texts known only at run time.
+    flag_texts: HashMap<conv_core::ir::Var, BTreeMap<i32, String>>,
     /// Codes of the strings story flags hold ("" = 0).
     codes: HashMap<String, i32>,
     /// Helper variables of the current file that became runtime ones at a
@@ -1443,18 +1534,34 @@ impl<'a, 'b> Compiler<'a, 'b> {
         let own = self.begin_fork();
         let n = self.choices;
         self.choices += 1;
-        // SetChoice02…06 keep the button texts in these parameters.
+        // SetChoice02…06 keep the button texts in these parameters; a
+        // story flag's ([`choice_flags`]) is picked at run time from the
+        // strings it has been given.
+        let mut runtime = Vec::new();
         let texts: Vec<String> = (1..=cases.len())
             .map(|i| {
                 let digit = char::from_u32('０' as u32 + i as u32).unwrap_or('?');
-                self.vars.get(&format!("$テキストデータ{digit}")).map(Value::string).filter(|t| !t.is_empty()).unwrap_or_else(|| format!("選択肢{i}"))
+                let v = self.vars.get(&format!("$テキストデータ{digit}"));
+                let known = match v {
+                    Some(&Value::Runtime(var)) => self.flag_texts.get(&var).filter(|t| !t.is_empty()).map(|t| (var, t)),
+                    _ => None,
+                };
+                runtime.push(known.map(|(var, t)| conv_core::ir::RuntimeText { var, texts: t.iter().map(|(&c, s)| (c, s.clone())).collect() }));
+                match known {
+                    Some((_, t)) => t.values().next().cloned().unwrap_or_default(),
+                    None => v.map(Value::string).filter(|t| !t.is_empty()).unwrap_or_else(|| format!("選択肢{i}")),
+                }
             })
             .collect();
         let labels: Vec<String> = (0..cases.len()).map(|i| format!("choice{n}_{i}")).collect();
         let after = format!("choice{n}_end");
         let style = (self.game.choice_style)(self, texts.len() as i64);
         let style_shown = style.is_some();
-        self.ops.push(Op::Choice { options: texts.into_iter().zip(labels.iter().cloned()).collect(), style });
+        let options = texts.into_iter().zip(labels.iter().cloned()).collect();
+        self.ops.push(match runtime.iter().any(Option::is_some) {
+            true => Op::RuntimeChoice { options, texts: runtime, style },
+            false => Op::Choice { options, style },
+        });
         if style_shown {
             // The next text sets its own window again.
             self.window = None;
@@ -1566,9 +1673,10 @@ impl<'a, 'b> Compiler<'a, 'b> {
             // value (`first` holds the runtime ones). In a whole story
             // ([`compile_story`]) a fork inside another too: its choices
             // are inside the runtime ifs of the deaths before them.
-            if own || self.whole_story {
+            // A choice's flags too: its options are drawn at run time.
+            {
                 for (k, &v) in &self.flags {
-                    if differ(k) {
+                    if differ(k) && (own || self.whole_story || (self.choice_reads.contains(k) && k.starts_with('$'))) {
                         self.vars.insert(k.clone(), Value::Runtime(v));
                     }
                 }
@@ -1576,6 +1684,11 @@ impl<'a, 'b> Compiler<'a, 'b> {
             let keys: std::collections::BTreeSet<String> = leaves.iter().flat_map(|l| l.state.vars.keys().cloned()).collect();
             let helpers: Vec<&String> = keys.iter().filter(|k| differ(k) && !self.flags.contains_key(*k) && !k.starts_with("$SYSTEM")).collect();
             for k in helpers {
+                if let Some(v) = one_runtime(k, &leaves) {
+                    self.vars.insert(k.clone(), Value::Runtime(v));
+                    first.vars.insert(k.clone(), Value::Runtime(v));
+                    continue;
+                }
                 let Some((var, codes)) = self.dynamic_names(k, &leaves) else { continue };
                 // Set here from the way the run came (inner forks aren't
                 // numbered for good yet, so not at the markers).
@@ -1602,6 +1715,9 @@ impl<'a, 'b> Compiler<'a, 'b> {
                     merged.vars.insert(k.clone(), Value::Runtime(v));
                 }
                 None if k.starts_with("$SYSTEM") => {}
+                None if one_runtime(k, &leaves).is_some() => {
+                    merged.vars.insert(k.clone(), Value::Runtime(one_runtime(k, &leaves).unwrap()));
+                }
                 // Different names (of a scene to call, say): kept at run time
                 // from here on, set at the end of each branch.
                 None => match self.dynamic_names(k, &leaves) {
@@ -1638,7 +1754,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
             _ => false,
         };
         let strings = leaves.iter().all(|l| scene(l.state.vars.get(k))) && leaves.iter().any(|l| matches!(l.state.vars.get(k), Some(Value::Str(_))));
-        if !strings || (known.is_none() && (self.next_dynamic as u32) >= GLOBAL_BORDER - 11) {
+        if !strings || (known.is_none() && self.next_dynamic >= CHOICE_FLAGS.start) {
             return None;
         }
         let var = known.unwrap_or_else(|| {
@@ -1770,12 +1886,29 @@ impl<'a, 'b> Compiler<'a, 'b> {
             Value::Str(s) => match s.trim().parse::<i32>() {
                 Ok(n) => n,
                 Err(_) => {
-                    let next = self.codes.len() as i32 + 1;
+                    let next = self.codes.values().filter(|&&c| c < CHOICE_CODES).count() as i32 + 1;
                     *self.codes.entry(s.clone()).or_insert(next)
                 }
             },
             Value::Runtime(_) => return None,
         })
+    }
+
+    /// A new string's code when a flag only a choice reads ([`CHOICE_FLAGS`])
+    /// is the first to hold it: numbered apart, so the other codes stay.
+    /// Its text is kept for the choice ([`Compiler::flag_texts`]).
+    fn choice_code(&mut self, var: conv_core::ir::Var, v: &Value) -> Option<i32> {
+        let Value::Str(s) = v else { return None };
+        if s.is_empty() || s.trim().parse::<i32>().is_ok() {
+            return None;
+        }
+        if !var.global && CHOICE_FLAGS.contains(&var.index) && !self.codes.contains_key(s) {
+            let next = CHOICE_CODES + self.codes.values().filter(|&&c| c >= CHOICE_CODES).count() as i32;
+            self.codes.insert(s.clone(), next);
+        }
+        let code = self.code(v)?;
+        self.flag_texts.entry(var).or_default().insert(code, s.clone());
+        Some(code)
     }
 
     /// Emits a jump to `label` taken when `e` is `want` (true or false).
@@ -1871,7 +2004,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
             (AssignOp::Set, _, Value::Runtime(other)) => {
                 self.ops.push(Op::Arith { var, op: ArithOp::Set, value: Operand::Var(*other) });
             }
-            _ => match self.code(new) {
+            _ => match self.choice_code(var, new).or_else(|| self.code(new)) {
                 Some(n) => self.ops.push(Op::Arith { var, op: ArithOp::Set, value: Operand::Const(n) }),
                 None => self.note("story flag set from a runtime expression"),
             },
@@ -1927,6 +2060,8 @@ impl<'a, 'b> Compiler<'a, 'b> {
             forks_in_file: 0,
             leaves_in_file: 0,
             flags: HashMap::new(),
+            choice_reads: choice_flags(files),
+            flag_texts: HashMap::new(),
             codes: HashMap::new(),
             dynamic: HashMap::new(),
             next_dynamic: 0,
@@ -4228,6 +4363,35 @@ scene a.nss
         assert!(c.ops.contains(&Op::Arith { var: flag, op: ArithOp::Set, value: Operand::Const(1) }));
         let c_start = c.ops.iter().position(|op| *op == Op::Label("f_c".into())).unwrap();
         assert!(matches!(&c.ops[c_start + 1], Op::If { var, cmp: conv_core::ir::Compare::Eq, value: Operand::Const(0), .. } if *var == flag), "{:?}", &c.ops[c_start..]);
+    }
+
+    #[test]
+    fn a_choice_option_set_in_a_nested_runtime_if_is_picked_at_run_time() {
+        let mut files = BTreeMap::new();
+        files.insert(BOOT.to_string(), nss::parse("#include \"nss/function.nss\"\n").unwrap());
+        files.insert("function.nss".to_string(), nss::parse("function SetChoice02($テキストデータ１,$テキストデータ２){}").unwrap());
+        // As md05_004hazure01: the option depends on a companion, inside
+        // another runtime if.
+        let a = r#"scene a.nss_MAIN
+{
+	select { case @選択肢１ { $day = 1; $friend = "x"; } case @選択肢２ { $day = 1; $friend = ""; } case @選択肢３ { $day = 2; } }
+	if($day == 1){
+		if($friend == ""){ $ask = "頼む"; } else { $ask = "別れる"; }
+	}
+	SetChoice02("見る", $ask);
+	select { case @選択肢１ { $GameName = "b.nss"; } case @選択肢２ { $GameName = "b.nss"; } }
+}"#;
+        files.insert("a.nss".into(), nss::parse(a).unwrap());
+        files.insert("b.nss".into(), nss::parse("scene b.nss_MAIN\n{\n\tif($day == 1 && $friend == 2){$x = 1;}\n\t$GameCircle = 0;\n}").unwrap());
+        let (c, _) = compile_run(&files, "a.nss", 10, &Game::PLAIN, &mut Fake).unwrap();
+        let ask = story_flags(&files, &Game::PLAIN)["$ask"];
+        assert!(CHOICE_FLAGS.contains(&ask.index), "{ask:?}");
+        let Some(Op::RuntimeChoice { options, texts, .. }) = c.ops.iter().find(|op| matches!(op, Op::RuntimeChoice { .. })) else { panic!("{:?}", c.ops) };
+        assert_eq!(options[0].0, "見る");
+        assert!(texts[0].is_none());
+        let t = texts[1].as_ref().unwrap();
+        assert_eq!(t.var, ask);
+        assert_eq!(t.texts.iter().map(|(_, s)| s.as_str()).collect::<Vec<_>>(), ["頼む", "別れる"]);
     }
 
     #[test]

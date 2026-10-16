@@ -597,6 +597,11 @@ pub enum Op {
     /// until the layer is cleared (CONscripter's `spovertext`): the English
     /// Muramasa port's subtitles. Inside a transition, as [`Op::Sprites`].
     SpriteOverText { layer: u32 },
+    /// An [`Op::Choice`] some of whose option texts are known only at run
+    /// time: `texts[i]`, when given, picks option i's text by a variable
+    /// (the option's own text when no value matches). NSS choices whose
+    /// options a runtime if sets (装甲悪鬼村正's mc02_031innsyoku).
+    RuntimeChoice { options: Vec<(String, String)>, texts: Vec<Option<RuntimeText>>, style: Option<ChoiceStyle> },
 }
 
 /// [`Op::HoldMovie`]'s prompt: `image` is `cells` pictures side by side,
@@ -726,6 +731,14 @@ pub struct ChoiceShot {
     pub hole_dx: i32,
     pub hole_dy: i32,
     pub sound: String,
+}
+
+/// A text chosen at run time ([`Op::RuntimeChoice`]): `texts` (value,
+/// text) by the value of `var`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RuntimeText {
+    pub var: Var,
+    pub texts: Vec<(i32, String)>,
 }
 
 #[derive(Debug, Clone, Default)]
