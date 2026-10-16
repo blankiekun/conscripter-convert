@@ -2410,14 +2410,30 @@ impl<'a, 'b> Compiler<'a, 'b> {
         // Hidden while the screen catches up, then the last frame shows.
         self.objects.get_mut(name).unwrap().opacity = 0;
         self.sync(0);
-        self.ops.push(Op::SceneMovie { file, skippable: true });
         let o = self.objects.get_mut(name).unwrap();
-        o.opacity = opacity;
+        // Played opaque, so its last frame is (MovieSEStart2 fades the
+        // cut in only after its WaitAction).
+        o.opacity = if opacity == 0 { 1000 } else { opacity };
         if let Kind::Movie(m) = &mut o.kind {
             m.state = MovieState::Played;
             m.credit = left;
         }
+        // The last frame is loaded before the movie and shown at once after
+        // it: the engine redraws the screen as the movie ends, which then
+        // already holds it (else the scene before flashes and fades back).
+        let start = self.ops.len();
         self.sync(0);
+        let movie = Op::SceneMovie { file, skippable: true };
+        match self.ops[start..].iter().position(|op| matches!(op, Op::BeginTransition { .. })) {
+            Some(i) if matches!(self.ops.last(), Some(Op::EndTransition)) => {
+                if let Op::BeginTransition { fade_ms, mask, .. } = &mut self.ops[start + i] {
+                    (*fade_ms, *mask) = (0, None);
+                }
+                let end = self.ops.len() - 1;
+                self.ops.insert(end, movie);
+            }
+            _ => self.ops.push(movie),
+        }
     }
 
     /// A wait of `ms`: the time movies already played as movies take off
@@ -3311,7 +3327,7 @@ scene a.nss
     }
 
     #[test]
-    fn a_cut_the_script_waits_for_plays_as_a_movie_then_shows_its_last_frame() {
+    fn a_cut_the_script_waits_for_plays_as_a_movie_over_its_last_frame() {
         // MovieSEStart: wait for the cut, then for RemainTime + 500.
         let story = r#"
 scene a.nss
@@ -3326,7 +3342,11 @@ scene a.nss
         let c = compile(story, LIBRARY);
         let movie = c.ops.iter().position(|op| matches!(op, Op::SceneMovie { file, .. } if file == "movie/dx/mv剣戟.ngs-mute"));
         let last = c.ops.iter().position(|op| matches!(op, Op::AnimatedSprite { cells: 1, sprite, .. } if sprite.image.contains("Some(1934)")));
-        assert!(movie.is_some() && last > movie, "{:?}", c.ops);
+        // Loaded before the movie, shown (print 1) right after it.
+        assert!(last.is_some() && movie > last, "{:?}", c.ops);
+        let movie = movie.unwrap();
+        assert!(matches!(c.ops[movie + 1], Op::EndTransition), "{:?}", c.ops);
+        assert!(c.ops[..movie].iter().rev().find_map(|op| match op { Op::BeginTransition { fade_ms, .. } => Some(*fade_ms == 0), _ => None }).unwrap(), "{:?}", c.ops);
         // The movie's 2 s count as waited: 500 ms are left.
         assert!(c.ops.iter().any(|op| matches!(op, Op::Wait { ms: 500 })), "{:?}", c.ops);
         assert!(!c.ops.iter().any(|op| matches!(op, Op::Wait { ms } if *ms > 500)), "{:?}", c.ops);
