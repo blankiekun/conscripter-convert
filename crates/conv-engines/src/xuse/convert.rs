@@ -2529,7 +2529,7 @@ pub fn lower_script(
             ops.extend(path.prefix);
             let Some(records) = path.records else { continue };
             let unsupported = || format!("opcode {:#04x} sub {:#x} arg {}", ins.op, cd.sub(ins), cd.arg(ins));
-            match lower_instr(cd, ins, &records, assets, names) {
+            match lower_instr(cd, ins, &records, assets, names, window_size.is_none_or(|w| !w.2)) {
                 Ok(Some(Op::Text { speaker, text, voice, mut links, ruby, mut styles, hang, continues })) if flow == Flow::Linear => {
                     whole_text_style(&mut styles, &text, default_style);
                     // No jumps in linear mode, so links are colour only.
@@ -2732,7 +2732,7 @@ fn unfold_records(
                     ends_in_message = false;
                     break;
                 } else if ins.op != OP_GOTO {
-                    match lower_instr(cd, ins, &MessageRecords::default(), assets, names)? {
+                    match lower_instr(cd, ins, &MessageRecords::default(), assets, names, true)? {
                         Some(Op::If { var, cmp, value, label }) => {
                             let label = target_of(&label, &carried, &mut entries).unwrap_or(label);
                             prefix.push(Op::If { var, cmp, value, label });
@@ -2849,14 +2849,16 @@ fn lower_instr(
     records: &MessageRecords,
     assets: &mut AssetBank,
     names: &LabelNames,
+    names_shown: bool,
 ) -> Result<Option<Op>, ConvertError> {
     if let Some(msg) = cd.message(ins) {
         let msg = msg?;
         let segs = &msg.segments;
-        // A short first segment followed by a quoted one is the speaker's name.
-        let has_speaker = segs.len() >= 2
-            && (1..=8).contains(&segs[0].chars().count())
-            && segs[1].starts_with(['「', '『', '（']);
+        // `sub` bit 0: the first segment is the speaker's name. In a text
+        // mode that can't show names (`names_shown` false: the full-screen
+        // windows, mode 1), show_message (0x475f40) clears the bit through
+        // text_mode_allows_name (0x4679d0) and the name is a line of text.
+        let has_speaker = cd.sub(ins) & 1 != 0 && names_shown && segs.len() >= 2;
         let (speaker, body) = if has_speaker { (Some(segs[0].clone()), &segs[1..]) } else { (None, &segs[..]) };
         let links = records
             .links
@@ -3256,7 +3258,6 @@ const NO_ARG: &[u16] = &[0x00, 0x15, 0x22, 0x23, 0x39, 0x47, 0x48, 0x67, 0x69, 0
 /// any run of zero bytes. Another value is noted.
 const UNNEEDED_OPERANDS: &[(u16, &str, &str, &str)] = &[
     // Message records (op_40_41 0x4771c0).
-    (0x41, "sub", "19", "0x13: every voiced message has a speaker name (bit 0)"),
     (0x40, "+8", "*", "any: the source script's line number (`cd messages` prints it)"),
     (0x41, "+8", "*", "any: the source script's line number (`cd messages` prints it)"),
     (0x40, "-8", "0400000000000000", "u32 4, u32 0 after the text of every story message"),
