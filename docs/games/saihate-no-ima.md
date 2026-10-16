@@ -615,13 +615,6 @@ handlers (audit table above); the dry run reports only `0x30`/`0x62`
 (debug menu). Lip sync (`VoiceSyncParts`, `lq.arc`) and animation parts
 are in the exe but unused here (no `lq.arc`; `0x8e`'s module names are
 empty). Gaps found, where the exe and the converter differ:
-- **Effects off** (画面エフェクトを使用, `setting_effects` `0x51ed14`
-  bit 0): the original then also drops the quakes (`0x6d`, 198 uses),
-  pulses (`0x6f`, 87; `surprise_start` `0x441960`) and script fades
-  (`0x72`/`0x74`, 228: `script_fade` draws no cover at all). Ours:
-  `effectoff` only cuts `print` effects, so quakes and pulses still play
-  and the fade cover appears at once and stays until the next
-  background (202 of the fades leave the text window up).
 - **Skip mode** (`skip_state_a`/`_b`, `0x51f82c`/`0x51f82e`): the
   original draws none of `0x6d`, `0x6e` (flash, 88), `0x6f`, `0x72`,
   `0x74` while skipping. Ours skips only their waits: the
@@ -646,6 +639,15 @@ empty). Gaps found, where the exe and the converter differ:
 
 Finished work, moved out of "Status" so a session reads only the open
 state. Items are referred to elsewhere as "History, item N".
+
+**Effects off (2026-10-15, a gap from the whole-exe map):** with
+画面エフェクトを使用 off (`setting_effects` `0x51ed14` bit 0) the
+original draws no quake (`0x6d`), pulse (`0x6f`, `surprise_start`
+`0x441960`) or script fade (`0x72`/`0x74`: `script_fade` draws no cover
+at all). Each of these now sits behind `if <effects off> goto *sN_fxI`
+(`Op::IfSwitch` on `Switch::Effects`), so none of them runs; before,
+`effectoff` only cut `print` effects and the fade cover appeared at once
+and stayed until the next background.
 
 **Variables (2026-10-15, from the code audit):** the animation's state
 per link-scene level moved from %13-%20 to %21-%28: the game's local
