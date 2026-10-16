@@ -8,7 +8,7 @@
 //! ms, 0, y, 0, y_end, …)` and `Wait`s; the engine loops the picture's
 //! motion (`spmotion`) through the same times, the picture at ±y every
 //! step (`shake::shake_keys`), y going to y_end. A move of the picture over time
-//! (`spmotion2`) replaces it.
+//! (`spmotion`) replaces it.
 
 use std::collections::{HashMap, HashSet};
 
