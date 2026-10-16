@@ -294,6 +294,9 @@ playthroughs (`%410`-`%439`).
 - After engine #2 / converter #6: SpriteMove `:Curve` with the new
   per-key curves.
 - Looks against the Vita stay blocked (needs Vita screenshots).
+- `spgrab` (engine #32, merged) could let SpriteBG/SpriteBS with
+  `:FadeWait 0` (890) cross-fade without waiting: grab the screen, change
+  the picture under the copy, fade the copy out. Not used yet.
 
 `crates/conv-engines/src/mages/` reads the archives (`cpk.rs`), the
 scripts (`tasks.rs`), lowers scenes to the IR (`convert.rs`) and writes

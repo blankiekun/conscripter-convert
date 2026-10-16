@@ -38,7 +38,7 @@
 
 use std::collections::{BTreeMap, HashMap};
 
-use conv_core::ir::{ArithOp, ChoiceStyle, CLICK_WAIT_MARK, MotionEnd, MotionKey, Op, Operand, ScreenEffect, Ruby, Script, TextStyle, SpriteChange, SpritePlacement, TextWindow, TransitionStyle, Voice};
+use conv_core::ir::{ArithOp, BLEND_ADD, BLEND_MULTIPLY, BLEND_NORMAL, BLEND_SUBTRACT, ChoiceStyle, CLICK_WAIT_MARK, MotionEnd, MotionKey, Op, Operand, ScreenEffect, Ruby, Script, TextStyle, SpriteChange, SpritePlacement, TextWindow, TransitionStyle, Voice};
 
 use super::nss::{AssignOp, BinaryOp, Expr, Function, Inline, Item, NssFile, Param, Stmt, StmtKind, Target, Text, UnaryOp};
 
@@ -1091,6 +1091,9 @@ struct Object<'a> {
     /// lie under it and don't show, so nothing is drawn; a moving one's
     /// trail isn't drawn either (noted).
     trail: bool,
+    /// `Request` `AddRender`/`MulRender`/`SubRender`: one of the IR's
+    /// `BLEND_*` ([`Op::SpriteBlend`]).
+    blend: u8,
     /// `SetVertex`: the point (from the top left) a zoom or a turn keeps
     /// in place; `None` = the centre.
     vertex: Option<(i64, i64)>,
@@ -1236,6 +1239,8 @@ struct Shown {
     /// A [`Kind::Flash`]'s `seq` (0 for any other picture): a new flash
     /// starts again.
     flash: u64,
+    /// How it is drawn on what is under it ([`Op::SpriteBlend`]).
+    blend: u8,
 }
 
 /// What the engine's motions did to a [`Shown`] picture.
@@ -2618,7 +2623,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
 
     fn create(&mut self, name: String, kind: Kind<'a>, priority: i64, w: i64, h: i64) -> &mut Object<'a> {
         self.seq += 1;
-        let o = Object { kind, priority, x: 0, y: 0, w, h, opacity: 1000, locked: false, hideable: false, seq: self.seq, zoom: (1000, 1000), trail: false, vertex: None, turn: (0, 0, 0), shake: None, clip: None, over_text: false, container: false, erased: false };
+        let o = Object { kind, priority, x: 0, y: 0, w, h, opacity: 1000, locked: false, hideable: false, seq: self.seq, zoom: (1000, 1000), trail: false, blend: BLEND_NORMAL, vertex: None, turn: (0, 0, 0), shake: None, clip: None, over_text: false, container: false, erased: false };
         self.objects.insert(name.clone(), o);
         self.objects.get_mut(&name).unwrap()
     }
@@ -2755,16 +2760,20 @@ impl<'a, 'b> Compiler<'a, 'b> {
                     }
                     return;
                 }
+                // Drawn as its colour in black over the scene (the
+                // movie's re-encode), not subtracted.
                 "subrender" => {
                     m.dark = true;
                     return;
                 }
-                // White smoke added: drawn over the scene as it is.
-                "addrender" => return,
                 _ => {}
             }
         }
         match action {
+            "normalrender" => o.blend = BLEND_NORMAL,
+            "addrender" => o.blend = BLEND_ADD,
+            "mulrender" => o.blend = BLEND_MULTIPLY,
+            "subrender" => o.blend = BLEND_SUBTRACT,
             "lock" => o.locked = true,
             "unlock" => o.locked = false,
             "hideable" => o.hideable = true,
@@ -3971,6 +3980,32 @@ scene a.nss
             assert!(shown, "{turn}: {:?}", c.ops);
             assert!(c.ops.iter().any(|op| matches!(op, Op::SpriteAngle { degrees: -180, .. })), "{turn}: {:?}", c.ops);
         }
+    }
+
+    #[test]
+    fn render_requests_are_sprite_blends() {
+        let story = r#"
+scene a.nss
+{
+	CreateTexture("bg", 100, 0, 0, "cg/bg/a.jpg");
+	CreateColor("light", 200, 0, 0, 1024, 576, "White");
+	Request("light", AddRender);
+	Wait(100);
+	Request("light", MulRender);
+	Wait(100);
+	Request("light", NormalRender);
+	Wait(100);
+}
+"#;
+        let c = compile(story, LIBRARY);
+        let modes: Vec<u8> = c.ops.iter().filter_map(|op| match op {
+            Op::SpriteBlend { mode, .. } => Some(*mode),
+            _ => None,
+        }).collect();
+        assert_eq!(modes, [BLEND_ADD, BLEND_MULTIPLY, BLEND_NORMAL], "{:?}", c.ops);
+        // A blend on a shown picture doesn't draw it again.
+        let placed = c.ops.iter().filter(|op| matches!(op, Op::Sprites { changes, .. } if changes.iter().any(|c| c.sprite.as_ref().is_some_and(|s| s.image.contains("ffffff"))))).count();
+        assert_eq!(placed, 1, "{:?}", c.ops);
     }
 
     #[test]

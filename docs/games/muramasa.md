@@ -75,7 +75,8 @@ The other convert options (`--loose`, `--audio-codec`,
 | Backgrounds, sprites, fades, mask wipes, zoom, shake, blur, BGM, sound effects | ✅ Converted (timed actions drawn as cross-fades, see "Leftovers"); volume changes on a playing sound ❌ not yet (only a fade to 0 is), see "Next" |
 | Choices | ✅ Drawn like the original's `SetChoiceBase` plates |
 | Parallel processes (`CreateProcess`: battle HUD, fire flicker, …) | ❌ Not converted; planned through Lua |
-| Additive / multiply blends, `Rotate`, `SetFrequency`, camera moves | ❌ Not converted |
+| Additive / multiply / subtractive blends (`Request` `AddRender`/`MulRender`/`SubRender`) | ✅ `spblend` 1/2/3 (History, "Render modes") |
+| `Rotate`, `SetFrequency`, camera moves | ❌ Not converted |
 | 立方陣 minigame (`function_magiccube.nss`) | ✅ Ported (see "The 立方陣" below) |
 | System screens (title, save/load, settings, backlog) | ✅ Title, right-click menu, quick bar, confirmations, save/load, backlog, settings, favour screen, click-wait icon (each checked beside the original); 🟡 the title's fire flicker and openings left ("Next" item 4, step 7) |
 | Extras | ✅ The menu, CG gallery, sound room, recollection, 3D viewer, the way back to the title and the title's ライナー画像 link ("History", extras 1-7) |
@@ -534,9 +535,9 @@ Used to check what the engine does (`docs/new-game.md` step 9).
 - Done: the trailing `*` check (exe and wine, #39). A wildcard doesn't
   reach a window's, name's or camera's children, `Delete` still does
   (#41); a picture's children are placed from its corner (#43).
-- After engine #2 and #10: `AddRender`/`MulRender`/`SubRender` with
-  `spblend` 1/2/3 through an IR field Django reuses (a shared PR first if
-  the IR changes).
+- `spgrab` (engine #32, merged; a copy of the screen or a sprite into a
+  sprite) could stand for `CreateTexture`'s render-to-texture: not used
+  yet.
 - After engine #4: `CreateProcess` as `cons_process` coroutines; send a
   plan of PRs before coding.
 - Then the unread-argument gaps (item 5 below), most noticeable first;
@@ -687,7 +688,7 @@ Next, in order:
    headless (2026-10-16): `consset "mutebgm"`/`"mutese"`/`"gamespeed"`
    then `consget` returned the values set, and the reset to 0/100 read back.
 2. The largest leftovers below: `CreateProcess` (via Lua), non-blocking
-   `Move`/`Zoom`, `AddRender` (needs a per-sprite blend mode).
+   `Move`/`Zoom`.
 3. Optional: the 18 files with no `else` (below).
 4. Gaps from the exe review (2026-10-15; the exe's side is in
    `research/nitroplus/builtins.md`, the functions in
@@ -760,10 +761,6 @@ Next, in order:
   `CP_RollBar_Auto` (59) is still left.
 - Non-blocking `Move`/`Zoom` over time (about 1,200 each), drawn as
   cross-fades.
-- `AddRender` (2,536) and `MulRender` (418): drawn normally. `lsp2add`
-  only fits top-layer effects (the engine draws all `lsp2` sprites above
-  `lsp` ones); an additive background needs a per-sprite blend mode in
-  CONscripter.
 - `Rotate` about z of a picture is CONscripter's `sprot` (still) or a
   `spmotion2` angle (over time); left: about z of other objects (70),
   about x or y over time (14, drawn at once). `SetFrequency` (1,170), `MoveCamera`, `SetTone`,
@@ -788,6 +785,24 @@ Next, in order:
   held (seen once in a small test script; not looked into).
 
 ## History
+
+### Render modes (2026-10-16)
+
+`Request(obj, AddRender|MulRender|SubRender|NormalRender)` sets the
+object's blend; a picture placed with one is drawn with CONscripter's
+`spblend` 1 (added on), 2 (multiplied into what is under it) or 3
+(subtracted), times its opacity, keeping its place among the sprites
+(IR `Op::SpriteBlend`, shared with 続・殺戮のジャンゴ). A blend set on a
+picture already shown changes it in place (`spblend` alone);
+`spblend` stays through `lsp`, so a layer a blended picture leaves is
+cleared before another picture takes it. Before, every blend was drawn
+normal (`lsp2add` only fits pictures over every other sprite).
+A movie with `AddRender` (white smoke) is now added on; `SubRender`
+movies keep their darkened re-encode (the colour drawn black). In the
+dry run: 2,736 `spblend …,1`, 329 `…,2`, 27 `…,3`, 80 `…,0`. Checked
+in the engine (CONscripter #34): over #808080, #404040 subtracted gives
+65, screen 192, the same zoomed or turned. Not compared with the
+original under wine.
 
 ### `SetBlur`
 

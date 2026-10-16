@@ -1,9 +1,9 @@
 {
 "game": "muramasa-en",
 "engine": "nitroplus",
-"commit": "c98366f",
+"commit": "dbe8c5b2",
 "commit_date": "2026-10-16",
-"totals": {"calls": 1199510, "full": 1051743, "gaps": 147767},
+"totals": {"calls": 1199510, "full": 1054762, "gaps": 144748},
 "kinds": {
 "LockVideo": {"calls": 50726, "gaps": 50726, "reasons": [["LockVideo argument 0 ignored", 50726]]},
 "WaitText": {"calls": 23689, "gaps": 23689, "reasons": [["WaitText argument 0 ignored", 23689], ["WaitText argument 1 ignored", 23689]]},
@@ -13,7 +13,6 @@
 "CreateProcess": {"calls": 5582, "gaps": 4205, "reasons": [["CreateProcess CP_SpeedAuto", 307], ["CreateProcess CP_HighAuto", 278], ["CreateProcess MyTr_CountProcess1P", 142], ["CreateProcess MyTr_CountProcess2P", 142], ["CreateProcess MyTr_CountProcess3P", 142], ["163 more", 3194]]},
 "Fade": {"calls": 302556, "gaps": 4040, "reasons": [["Fade argument 3 ignored", 3869], ["SetBlur trail behind a moving picture not drawn", 112], ["move or zoom over time with a fade or a new picture drawn as a cross-fade", 53], ["timed action that waits only part of its time", 16], ["Fade argument 5 ignored", 1]]},
 "Move": {"calls": 73566, "gaps": 3478, "reasons": [["Move argument 4 ignored", 3420], ["SetBlur trail behind a moving picture not drawn", 170], ["move or zoom over time with a fade or a new picture drawn as a cross-fade", 16], ["timed action that waits only part of its time", 8]]},
-"Request": {"calls": 239969, "gaps": 3420, "reasons": [["Request addrender", 2542], ["Request mulrender", 420], ["code inside a page runs before it", 156], ["Request overlayrender", 111], ["text tag <voice>", 67], ["10 more", 124]]},
 "WaitAction": {"calls": 4709, "gaps": 3377, "reasons": [["WaitAction argument 1 ignored", 3377], ["SetBlur trail behind a moving picture not drawn", 3], ["move or zoom over time with a fade or a new picture drawn as a cross-fade", 3]]},
 "DrawTransition": {"calls": 2622, "gaps": 2622, "reasons": [["DrawTransition argument 2 ignored", 2622], ["DrawTransition argument 4 ignored", 2622], ["DrawTransition argument 5 ignored", 132], ["SetBlur trail behind a moving picture not drawn", 38], ["move or zoom over time with a fade or a new picture drawn as a cross-fade", 16], ["3 more", 4]]},
 "Conquest": {"calls": 2478, "gaps": 2478, "reasons": [["Conquest argument 0 ignored", 2478], ["Conquest argument 1 ignored", 2478], ["Conquest argument 2 ignored", 2478]]},
@@ -30,6 +29,7 @@
 "Position": {"calls": 506, "gaps": 506, "reasons": [["built-in Position", 506]]},
 "CreateText": {"calls": 474, "gaps": 474, "reasons": [["CreateText left out: the Japanese caption (English build)", 474]]},
 "CreateChoice": {"calls": 444, "gaps": 444, "reasons": [["built-in CreateChoice", 444]]},
+"Request": {"calls": 239969, "gaps": 401, "reasons": [["code inside a page runs before it", 156], ["Request overlayrender", 111], ["text tag <voice>", 67], ["Request stop", 28], ["Request compulsorysuspend", 18], ["6 more", 21]]},
 "BezierMove": {"calls": 335, "gaps": 335, "reasons": [["built-in BezierMove", 335]]},
 "SetTone": {"calls": 228, "gaps": 228, "reasons": [["built-in SetTone", 228]]},
 "Boxframe": {"calls": 168, "gaps": 168, "reasons": [["skipped: no function Boxframe", 168]]},
