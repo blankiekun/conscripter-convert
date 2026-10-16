@@ -14,6 +14,7 @@ use std::process::Command;
 
 use super::convert::{Assets, MOVIE_FPS, MovieInfo, SCREEN_H, SCREEN_W};
 use super::npa::{Npa, normalize};
+use super::npk::Npk;
 use crate::output::{Output, image_size};
 
 /// A zoomed picture wider or taller than this is cut to the screen.
@@ -31,6 +32,9 @@ pub struct NpaAssets<'a> {
     /// `cg2.npa`, which 続・殺戮のジャンゴ's 1.01 update adds (its scripts'
     /// `cg2/…` pictures).
     pub cg2: Option<Npa<'a>>,
+    /// The English release's `cg.npk` (`--english`): the pictures only it
+    /// has (`cg/sys/adv/en/…`), taken when `cg.npa` lacks them.
+    pub cg_en: Option<Npk>,
     images: HashMap<String, Option<(String, u32, u32)>>,
     sounds: HashMap<String, Option<String>>,
     movies: HashMap<String, Option<MovieInfo>>,
@@ -45,7 +49,7 @@ pub struct NpaAssets<'a> {
 
 impl<'a> NpaAssets<'a> {
     pub fn new(cg: Npa<'a>, sound: Npa<'a>, voice: Npa<'a>, output: &Path) -> Self {
-        NpaAssets { cg, sound, voice, cg2: None, images: HashMap::new(), sounds: HashMap::new(), movies: HashMap::new(), movie_dir: None, out: Output::new(output), screen: (SCREEN_W, SCREEN_H) }
+        NpaAssets { cg, sound, voice, cg2: None, cg_en: None, images: HashMap::new(), sounds: HashMap::new(), movies: HashMap::new(), movie_dir: None, out: Output::new(output), screen: (SCREEN_W, SCREEN_H) }
     }
 
     /// The movie file a script path names, and its name in the output:
@@ -79,7 +83,7 @@ impl<'a> NpaAssets<'a> {
             "voice" => &self.voice,
             _ => return None,
         };
-        let entry = npa.find(rest)?;
+        let Some(entry) = npa.find(rest) else { return self.extract_english(&path, out) };
         if self.out.dry_run && archive != "cg" && archive != "cg2" {
             return Some(Vec::new());
         }
@@ -92,6 +96,29 @@ impl<'a> NpaAssets<'a> {
         };
         self.out.write(out, &data);
         Some(data)
+    }
+
+    /// `path` from the English release's `cg.npk`, whose `.png`s are
+    /// lossless WebP: written as PNG.
+    fn extract_english(&mut self, path: &str, out: &str) -> Option<Vec<u8>> {
+        let npk = self.cg_en.as_ref()?;
+        let entry = npk.find(&format!("media/{path}"))?;
+        let png = npk.data(entry).map_err(|e| e.to_string()).and_then(|webp| {
+            let img = image::load_from_memory_with_format(&webp, image::ImageFormat::WebP).map_err(|e| format!("{path}: {e}"))?;
+            let mut png = Vec::new();
+            img.write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png).map_err(|e| e.to_string())?;
+            Ok(png)
+        });
+        match png {
+            Ok(png) => {
+                self.out.write(out, &png);
+                Some(png)
+            }
+            Err(e) => {
+                self.out.errors.push(e);
+                None
+            }
+        }
     }
 
     /// Width and height of a picture in the output (one taken from the

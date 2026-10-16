@@ -167,6 +167,10 @@ pub struct Game {
     /// left of the vertical text: Full Metal Daemon Muramasa's English
     /// port, whose `text0` is 280×150 (`function_textbox.nut`).
     horizontal_box: Option<(i64, i64, i64)>,
+    /// Where that horizontal text starts: this far from the top left of
+    /// the window picture whose path starts with the string (the port's
+    /// `BoxInfo` in `val.nut`), if one is shown.
+    box_text: Option<(&'static str, i64, i64)>,
 }
 
 impl Game {
@@ -192,6 +196,7 @@ impl Game {
         choice_style: |c, n| c.vertical_choice_style(n),
         story_end: &[],
         horizontal_box: None,
+        box_text: None,
     };
 
     /// Fills `script`'s system screens.
@@ -2782,10 +2787,10 @@ impl<'a, 'b> Compiler<'a, 'b> {
         // Across: as many lines as end inside the box (box02: 130 px at a
         // 27 px pitch holds five 18 px lines, the last ending at 126).
         let rows = if vertical { h / line.max(1) } else { (h - font) / line.max(1) + 1 }.max(1) as u32;
-        let (text_x, text_y) = if vertical { (x - rows as i64 * line, y) } else { (x, y + self.game.text_drop) };
-        let (mut columns, mut rows, mut line, mut vertical) = (columns, rows, line, vertical);
+        let (mut text_x, mut text_y) = if vertical { (x - rows as i64 * line, y) } else { (x, y + self.game.text_drop) };
+        let (mut columns, mut rows, mut line, mut vertical, mut turned) = (columns, rows, line, vertical, false);
         if let (true, Some((w, h, pitch))) = (vertical, self.game.horizontal_box) {
-            (columns, rows, line, vertical) = ((w / font.max(1)).max(1) as u32, ((h - font) / pitch.max(1) + 1).max(1) as u32, pitch, false);
+            (columns, rows, line, vertical, turned) = ((w / font.max(1)).max(1) as u32, ((h - font) / pitch.max(1) + 1).max(1) as u32, pitch, false, true);
         }
         // The window's pictures (box, face window, name plate), bottom
         // first, drawn into one window image.
@@ -2802,6 +2807,11 @@ impl<'a, 'b> Compiler<'a, 'b> {
             .collect();
         parts.sort_by_key(|p| (p.0, p.1));
         let parts: Vec<_> = parts.into_iter().map(|p| p.2).collect();
+        if let (true, Some((prefix, dx, dy))) = (turned, self.game.box_text)
+            && let Some((_, px, py, _)) = parts.iter().find(|p| p.0.to_lowercase().starts_with(prefix))
+        {
+            (text_x, text_y) = (px + dx, py + dy);
+        }
         let (image, wx, wy) = match self.assets.composite(&parts) {
             Some(c) => c,
             None => (self.assets.transparent(), 0, 0),
@@ -2982,6 +2992,34 @@ function TypeBegin()
 	Fade("@box", 150, 0, null, true);
 }
 "#;
+
+    #[test]
+    fn the_english_port_writes_vertical_boxes_across_in_its_own_window() {
+        let story = r#"
+scene a.nss
+{
+	CreateTexture("boxCC", 20000, Center, 40, "cg/sys/adv/TextWindow.png");
+	SetAlias("boxCC", "boxCC");
+	Request("boxCC", Hideable);
+	Move("boxCC", 0, @+2, @0, null, true);
+	Fade("boxCC", 0, 1000, null, true);
+<PRE @box0>
+[text0010]
+　一行目
+</PRE>
+	SetText();
+	TypeBegin();
+}
+"#;
+        let mut files = BTreeMap::new();
+        files.insert(BOOT.to_string(), nss::parse("#include \"nss/function.nss\"\n").unwrap());
+        files.insert("function.nss".to_string(), nss::parse(LIBRARY).unwrap());
+        files.insert("a.nss".to_string(), nss::parse(story).unwrap());
+        let w = compile_scene(&files, "a.nss", "a.nss", &MURAMASA_EN, &mut Fake).unwrap().window.unwrap();
+        assert!(!w.vertical);
+        assert_eq!(w.image, "cg/sys/adv/en/textwindow.png@1000");
+        assert_eq!((w.x, w.y, w.text_x, w.text_y, w.columns, w.rows), (360, 51, 375, 190, 14, 14));
+    }
 
     #[test]
     fn helpers_are_inlined_and_fades_become_transitions() {

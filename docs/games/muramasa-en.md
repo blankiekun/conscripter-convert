@@ -17,9 +17,15 @@ It has no NPA archives and no NSS scripts.
   left them out, none stay in Japanese (History, below). With
   `--english` the text is written as it is, one paragraph a line after a
   backquote (`Script::single_byte_text`), and the vertical text boxes
-  become horizontal 280×150 boxes from the vertical text's top left,
-  line pitch 21 (`MURAMASA_EN`; the port's `text0` in
-  `function_textbox.nut`: `CreateTextArea(…, 575-150-11, 55+1, 280, 150)`).
+  become horizontal boxes, 280 wide, line pitch 21, 14 lines, in the
+  port's own window pictures: `function.nss`'s `boxCC` … `boxLT` are made
+  as the port's `CreateAllTextBox` makes them (`cg/sys/adv/en/
+  TextWindow(_Fw).png`, 305×475 at x 360, 616, 103, y 51; the NSS's
+  `Move`s after them are dropped), and the text starts 15,139 from the
+  picture's top left (the port's `BoxInfo` in `val.nut`: 375,190,
+  630,190, 118,190; `MURAMASA_EN`). Pictures `cg.npa` lacks are taken
+  from the English `cg.npk` (lossless WebP, written as PNG;
+  `NpaAssets::cg_en`).
   CONscripter draws it proportionally in the release's
   `droidserif-muramasa.ttf` (pass it as `--font`) and wraps at spaces;
   checked headless on the first pages (`ma00_000`). The port's ㉑-㉗
@@ -32,11 +38,12 @@ It has no NPA archives and no NSS scripts.
   `droidserif-muramasa.ttf` (font.npk); the menus follow the English
   port's redesigned screens, not the Japanese PC ones; filming the
   English original under wine is allowed.
-- **Not yet:** `<I>` italics and `<center>` are dropped; the boxes still
-  show the Japanese vertical window picture (the port's own is in
-  `cg/sys`); the text box sizes for the other boxes (`text1` 238,436
-  701×150 at the bottom, `text2` 130,60 724×576 full screen) aren't
-  used yet, every rotated box takes `text0`'s size.
+- **Not yet:** `<I>` italics and `<center>` are dropped; the
+  horizontal boxes keep the Japanese pictures and places (the port:
+  `boxH`/`boxTH` `en/THTextWindow(_Fw).png` 880×158 at x 72, text at
+  94,426 845 wide, or 238,426 701 wide with a face; `boxCH`/`boxNoh`
+  text at 280,225 501 wide); the 14 lines are read from the box (text
+  from y 190, click icon at 500), not yet seen in the original.
 - **Plan (from the scripts, 2026-10-15):** the port's scenario scripts
   (`nut/*.nut`) are a line-by-line transcription of the Japanese NSS
   (same sprite names, coordinates, files with `.png` for `.jpg`; screen
@@ -45,9 +52,9 @@ It has no NPA archives and no NSS scripts.
   by the Japanese text (below), and takes the English pictures where
   they differ (the redesigned menus in `cg/sys`, pictures with words).
 - **Next:**
-  1. The English pictures: the text window and the redesigned menus in
-     `cg/sys` (1876 pictures), filmed against the English original
-     under wine; `<I>`, `<center>`, the other box sizes.
+  1. The English pictures: the horizontal boxes (above) and the
+     redesigned menus in `cg/sys`, filmed against the English original
+     under wine (also to check the lines per box); `<I>`, `<center>`.
   2. 22 rows of English are placed nowhere (lines the NSS orders or
      splits otherwise, route variants such as mc01's "Ichijo is
      nowhere to be seen" / "My comrades …", ma01_003's `<CLICK>`

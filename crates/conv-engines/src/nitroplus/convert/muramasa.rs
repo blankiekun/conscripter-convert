@@ -21,9 +21,43 @@ pub mod screens;
 pub const MURAMASA: Game = Game { call, scene, flags, files: &[magiccube::FILE], menus: screens::menus, subroutines: &[(screens::FAVOUR, "nss/sys_hmode.nss")], replays: extras::replays, ..Game::PLAIN };
 
 /// Full Metal Daemon Muramasa (the English release's text in the Japanese
-/// scripts): its port writes the vertical text boxes horizontally,
-/// `text0`: 280×150, font 20, `rowSpace` 1 (`function_textbox.nut`).
-pub const MURAMASA_EN: Game = Game { horizontal_box: Some((280, 150, 21)), ..MURAMASA };
+/// scripts): its port writes the vertical text boxes horizontally, 280
+/// wide, font 20, `rowSpace` 1 (`function_textbox.nut`), in its own
+/// window pictures ([`EN_BOXES`]), 139 px below their top (`BoxInfo` in
+/// `val.nut`: C 375,190, R 630,190, L 118,190), down to the click icon at
+/// 500: 14 lines.
+pub const MURAMASA_EN: Game = Game { call: call_en, horizontal_box: Some((280, 300, 21)), box_text: Some(("cg/sys/adv/en/textwindow", 15, 139)), ..MURAMASA };
+
+/// The port's vertical boxes (`CreateAllTextBox` in
+/// `function_textbox.nut`): name, x, picture in `cg/sys/adv/en/`; all at
+/// y 51, 305×475.
+const EN_BOXES: [(&str, i64, &str); 6] = [
+    ("boxCC", 360, "TextWindow"),
+    ("boxCT", 360, "TextWindow_Fw"),
+    ("boxRR", 616, "TextWindow"),
+    ("boxRT", 616, "TextWindow_Fw"),
+    ("boxLL", 103, "TextWindow"),
+    ("boxLT", 103, "TextWindow_Fw"),
+];
+
+/// [`call`], with the port's boxes for `function.nss`'s: each made at the
+/// port's place, and not moved by the `Move` after it.
+fn call_en(c: &mut Compiler<'_, '_>, name: &str, args: &[Value]) -> bool {
+    let en_box = match args.first() {
+        Some(Value::Str(s)) => EN_BOXES.iter().find(|b| b.0 == s),
+        _ => None,
+    };
+    match (name, en_box) {
+        ("CreateTexture", Some(&(_, x, picture))) if args.len() == 5 => {
+            let mut args = args.to_vec();
+            args[2..].clone_from_slice(&[Value::Int(x), Value::Int(51), Value::Str(format!("cg/sys/adv/en/{picture}.png"))]);
+            c.builtin("CreateTexture", &args);
+            true
+        }
+        ("Move", Some(_)) => true,
+        _ => call(c, name, args),
+    }
+}
 
 fn call(c: &mut Compiler<'_, '_>, name: &str, _: &[Value]) -> bool {
     if let Some(r) = RANKINGS.iter().find(|r| r.0 == name) {
