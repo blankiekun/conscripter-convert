@@ -484,27 +484,18 @@ impl Compiler<'_, '_> {
             // Drawing and bookkeeping that changes nothing on screen.
             "SetVertex" => {
                 // (name, x: left | center | right | px, y: top | middle |
-                // bottom | px), from the object's top left. Without
-                // Game::zoom_vertex only `CreateText`'s pictures keep it.
-                let all = self.game.zoom_vertex;
+                // bottom | px), from the object's top left: the point a
+                // `Zoom` or `Rotate` keeps in place (builtin_SetVertex).
                 let place = |v: &Value, size: i64, near: &str, far: &str| match v {
                     Value::Str(w) if w.eq_ignore_ascii_case(near) => 0,
                     Value::Str(w) if w.eq_ignore_ascii_case(far) => size,
                     Value::Str(w) if w.eq_ignore_ascii_case("center") || w.eq_ignore_ascii_case("middle") => size / 2,
                     v => v.int(),
                 };
-                // Read only where it is kept: elsewhere it is noted as ignored.
-                let kept: Vec<String> = self
-                    .matching(&arg(0))
-                    .into_iter()
-                    .filter(|t| all || matches!(&self.objects[t].kind, Kind::Image { image } if text_object::is_text(image)))
-                    .collect();
-                if all || !kept.is_empty() {
-                    let (vx, vy) = (arg(1), arg(2));
-                    for t in kept {
-                        let o = self.objects.get_mut(&t).unwrap();
-                        o.vertex = Some((place(&vx, o.w, "left", "right"), place(&vy, o.h, "top", "bottom")));
-                    }
+                let (vx, vy) = (arg(1), arg(2));
+                for t in self.matching(&arg(0)) {
+                    let o = self.objects.get_mut(&t).unwrap();
+                    o.vertex = Some((place(&vx, o.w, "left", "right"), place(&vy, o.h, "top", "bottom")));
                 }
             }
             "SetFrequency" | "SetPan" | "WaitText" | "LockVideo" | "Reset" | "SetShortcut" => {}

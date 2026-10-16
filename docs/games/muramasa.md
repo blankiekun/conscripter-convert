@@ -540,8 +540,8 @@ Used to check what the engine does (`docs/new-game.md` step 9).
 - After engine #4: `CreateProcess` as `cons_process` coroutines; send a
   plan of PRs before coding.
 - Then the unread-argument gaps (item 5 below), most noticeable first;
-  among them `SetVertex` on anything but `CreateText` pictures (17,995).
-  `CreateText`'s box height is read (#52).
+  among them, `CreateText`'s box height is read (#52) and `SetVertex`
+  for every picture (#61, "History", "`SetVertex`").
 - Known limits: a window that moves (`絵演窓上`, `窓右`, about 56 `Move`s)
   has its clip jump to the end place when the move starts. Sprite movies
   (scene cuts, the turntables) don't play in CONscripter for Windows,
@@ -687,7 +687,7 @@ Next, in order:
    - `CreateEffect`'s place and size; `SetBacklog`'s speaker;
      `MoveCamera`'s arguments.
    - `LockVideo`, `WaitText`, `SetPan`, `SetFrequency` (but 1000),
-     `SetVertex` (Muramasa), the time limit (?) of `WaitAction` and the
+     the time limit (?) of `WaitAction` and the
      other waits: dropped; meaning to check in the exe.
 6. Gaps from the script coverage (2026-10-15; every file, built-in,
    `Request` action, text tag, `$SYSTEM_` variable and `system.ini` key
@@ -801,6 +801,26 @@ starts, not over its time. Pictures under a clipped full-screen picture
 more `print 1` in the whole game's script, none from `spclip` itself
 (it is always given with its `lsp`, inside the transition).
 
+**`SetVertex` (2026-10-16):** `builtin_SetVertex` (`0040ff40` →
+`FUN_00447780` → `FUN_00451e10`) sets the point (`left`/`center`/`right`
+or px, `top`/`middle`/`bottom` or px, from the picture's top left) that
+a `Zoom` or `Rotate` keeps in place; it doesn't move the picture. 続・殺
+戮のジャンゴ's rule (`Game::zoom_vertex`) is now every NSS game's, the flag
+gone. In Muramasa 1,226 places of `0.txt` change: 1,152 `lsp` places,
+36 `spmotion2`, 28 sprites shown, hidden or reordered, 10 `conv_move`
+end points. Checked under wine from a patched `md04_006`
+(`research/nitroplus/local/patch/vertex*`, shots in `research/nitroplus/
+local/shots/vertex/`): `ma03_016`'s background zoomed ×2 about its left
+middle (RMSE 7 % against the original, 24 % before), `mc01_023vs`'s
+mountain strip `bg202` (1536×6112) turned -90° about the screen's middle
+(0.1 % of pixels differ; turned about its own middle it was off screen),
+`ma01_022vs`'s sky zoomed ×2 across about its left edge (RMSE 0.9 %,
+2.6 % before), and its far-off 村正 (`SetVertex(…, 512, 288)` on a
+1400×1000 picture, zoomed to 1 %: now above the screen, as in the
+original; tried at 30 %, 41 pixels differ, 12,970 before). The full
+build grows by 310 KB (3,858 MB; the pre-scaled zooms' crops), its peak
+memory stays 1.39 GB.
+
 **Story `CreateText` (2026-10-16):** the 27 calls the story reaches (殺 害,
 〝我は力〟, the screamed lines of `mb03_022`, the date captions, the
 two 「暗闇星人……」) are drawn by the converter into a picture
@@ -810,9 +830,7 @@ objects. An `@` face is Windows' sideways font: the upright letters turned a
 quarter counterclockwise along a line the script turns with `Rotate(…,
 90)`; brackets, dashes and ASCII lie along the line. `HEAVY` thickens
 the letters; `RIGHTDOWN` is a shadow 2 px right and down on the screen
-after the turn; `inherit` for y is the screen's middle. A `SetVertex` on
-these pictures is kept (Muramasa ignores it elsewhere) and a turn goes
-about it (`ma01_009`, `mb04_015vs`). Checked under wine from a patched
+after the turn; `inherit` for y is the screen's middle. A turn goes about their `SetVertex` (`ma01_009`, `mb04_015vs`). Checked under wine from a patched
 `md04_006` (the captions, and the four kinds side by side, shots in
 `research/nitroplus/local/shots/ctext*/`): same places within about
 15 px; the original's letters are heavier and narrower, but wine
