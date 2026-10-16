@@ -243,7 +243,7 @@ pub(super) fn settings_apply(out: &mut String, m: &SettingsMenu) {
         w(format!("{cmd} {TMP}"));
     }
     if has_setting(m, Setting::SystemVolume) {
-        w(format!("mov {TMP},{}*10:sysevol {TMP}", setting_var(Setting::SystemVolume)));
+        w(format!("mov {TMP},{}*10:consset \"sysevol\",{TMP}", setting_var(Setting::SystemVolume)));
     }
     w(format!("mov {TEXT_MS},(10-{})*{TEXT_MS_STEP}:textspeed {TEXT_MS}", setting_var(Setting::TextSpeed)));
     let auto = setting_var(Setting::AutoSpeed);

@@ -665,6 +665,10 @@ Next, in order:
    voice, auto/skip stop at a choice, movie skip, game speed) are added
    to the engine the same way (since then no engine addition is opt-in); 選択肢に戻る is implemented
    (a save to a reserved slot before each choice).
+   Those settings are set with the engine's `consset "key",value` (read
+   back with `consget`; keys in the engine's `COMMANDS.md`). Checked
+   headless (2026-10-16): `consset "mutebgm"`/`"mutese"`/`"gamespeed"`
+   then `consget` returned the values set, and the reset to 0/100 read back.
 2. The largest leftovers below: `CreateProcess` (via Lua), non-blocking
    `Move`/`Zoom`, `AddRender` (needs a per-sprite blend mode).
 3. Optional: the 18 files with no `else` (below).
