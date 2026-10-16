@@ -640,8 +640,6 @@ Next, in order:
      `$mc02_TimeCount`, and the IR has no runtime strings), the
      ASCII-art pages (`Request(…, PushText)` + `NoLog`: shown at once,
      not in the backlog), `<voice mode="off">` (3, meaning unknown).
-   - Story `CreateText` (about 30 calls in 18 files: 殺 害, 〝我は力〟,
-     the screamed lines, the date caption 一一月三〇日) is dropped.
    - Tempo (easing) is never read.
    - A 4-argument `Fade` probably doesn't wait in the exe (49 calls
      wait in ours); check under wine first.
@@ -651,8 +649,10 @@ Next, in order:
    noticeable first:
    - Tempo (easing) of `Fade`, `Move`, `Zoom`, `Rotate`, `SetVolume`,
      `DrawTransition` (`Axl`/`Dxl`…; a `null` tempo is taken as linear).
-   - `SetFont`'s face, colours, weight and shadow (story `CreateText`
-     reads them: PR #17).
+   - Story `CreateText`: the box's height (argument 5, 30 calls) isn't
+     read; a sideways text turned by `Rotate` sits about 17 px lower than
+     the original's under wine (cause unknown; "History", "Story
+     `CreateText`").
    - `DrawTransition`'s start opacity and softness; `Shake`'s `n` and
      tempo; `SetBlur`'s strength.
    - `Random` and `Conquest` return 0 whatever their arguments.
@@ -752,6 +752,27 @@ starts, not over its time. Pictures under a clipped full-screen picture
 (the halves of a split screen) are no longer left out as covered: 50
 more `print 1` in the whole game's script, none from `spclip` itself
 (it is always given with its `lsp`, inside the transition).
+
+**Story `CreateText` (2026-10-16):** the 27 calls the story reaches (殺 害,
+〝我は力〟, the screamed lines of `mb03_022`, the date captions, the
+two 「暗闇星人……」) are drawn by the converter into a picture
+(`system/strip/text_<hash>.png`, `convert/text_object.rs`) in the
+last `SetFont`'s style with the `--font`, then they are ordinary picture
+objects. An `@` face is Windows' sideways font: the upright letters turned a
+quarter counterclockwise along a line the script turns with `Rotate(…,
+90)`; brackets, dashes and ASCII lie along the line. `HEAVY` thickens
+the letters; `RIGHTDOWN` is a shadow 2 px right and down on the screen
+after the turn; `inherit` for y is the screen's middle. A `SetVertex` on
+these pictures is kept (Muramasa ignores it elsewhere) and a turn goes
+about it (`ma01_009`, `mb04_015vs`). Checked under wine from a patched
+`md04_006` (the captions, and the four kinds side by side, shots in
+`research/nitroplus/local/shots/ctext*/`): same places within about
+15 px; the original's letters are heavier and narrower, but wine
+substitutes ＭＳ 明朝 (see "Running the original under wine"), so
+sizes can't be compared. Not drawn: the choices' texts
+(`function_select.nss`, the engine's choice draws them), texts with
+markup (none in Muramasa; 続・殺戮のジャンゴ's song in `dja026`), and the
+English build's (the port's own captions aren't known yet).
 
 **Auto-play stuck in `mc04_041vs` (2026-10-15, reported by the user):**
 the trace's auto-play ended as stuck (20000 waits) in a blocking sprite

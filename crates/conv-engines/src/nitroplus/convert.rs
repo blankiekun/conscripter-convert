@@ -89,6 +89,7 @@ pub use django::DJANGO;
 mod process;
 mod array;
 mod fast_skip;
+mod text_object;
 pub(super) use fast_skip::read_flag;
 
 /// A window picture's text place ([`Game::box_text`]): picture, text x, y,
@@ -307,6 +308,10 @@ pub trait Assets {
     /// The English release's text font (`font.npk`), when it is given.
     fn english_font(&mut self) -> Option<Vec<u8>> {
         None
+    }
+    /// The font the game is built with (`--font`), for `CreateText`.
+    fn font(&self) -> &[u8] {
+        &[]
     }
     /// A copy of the sound that loops from `start_ms` to `end_ms`
     /// (`SetLoopPoint`; `LOOPSTART`/`LOOPEND` tags): its output path.
@@ -1163,6 +1168,8 @@ struct Compiler<'a, 'b> {
     /// The pictures the running screen shake shakes: it stops when they go.
     shaken: Vec<String>,
     font_size: i64,
+    /// The last `SetFont`'s arguments, for `CreateText`.
+    font: Vec<Value>,
     window: Option<TextWindow>,
     first_window: Option<TextWindow>,
     window_visible: bool,
@@ -1880,6 +1887,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
             pending_mask: None,
             shaken: Vec::new(),
             font_size: 20,
+            font: Vec::new(),
             window: None,
             first_window: None,
             window_visible: false,

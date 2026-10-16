@@ -343,7 +343,12 @@ impl Compiler<'_, '_> {
             }
             "ImageHorizon" => return Value::Int(self.objects.get(&self.object_name(&arg(0))).map_or(0, |o| o.w)),
             "ImageVertical" => return Value::Int(self.objects.get(&self.object_name(&arg(0))).map_or(0, |o| o.h)),
-            "SetFont" => self.font_size = arg(1).int().max(1),
+            "SetFont" => {
+                self.font_size = arg(1).int().max(1);
+                // (face, size, colour, shadow colour, weight, shadow): kept for CreateText.
+                self.font = (0..a.len().min(6)).map(arg).collect();
+            }
+            "CreateText" => self.create_text(&arg),
             "LoadText" if a.len() == 6 => {
                 let layout = (arg(2).int(), arg(3).int(), arg(4).int(), arg(5).int(), self.font_size);
                 self.box_layouts.insert(self.object_name(&arg(1)), layout);
@@ -464,22 +469,32 @@ impl Compiler<'_, '_> {
             "Strstr" => return Value::Int(i64::from(arg(0).string().contains(&arg(1).string()))),
             "Integer" => return Value::Int(arg(0).int()),
             // Drawing and bookkeeping that changes nothing on screen.
-            "SetVertex" if self.game.zoom_vertex => {
+            "SetVertex" => {
                 // (name, x: left | center | right | px, y: top | middle |
-                // bottom | px), from the object's top left.
+                // bottom | px), from the object's top left. Without
+                // Game::zoom_vertex only `CreateText`'s pictures keep it.
+                let all = self.game.zoom_vertex;
                 let place = |v: &Value, size: i64, near: &str, far: &str| match v {
                     Value::Str(w) if w.eq_ignore_ascii_case(near) => 0,
                     Value::Str(w) if w.eq_ignore_ascii_case(far) => size,
                     Value::Str(w) if w.eq_ignore_ascii_case("center") || w.eq_ignore_ascii_case("middle") => size / 2,
                     v => v.int(),
                 };
-                let (vx, vy) = (arg(1), arg(2));
-                for t in self.matching(&arg(0)) {
-                    let o = self.objects.get_mut(&t).unwrap();
-                    o.vertex = Some((place(&vx, o.w, "left", "right"), place(&vy, o.h, "top", "bottom")));
+                // Read only where it is kept: elsewhere it is noted as ignored.
+                let kept: Vec<String> = self
+                    .matching(&arg(0))
+                    .into_iter()
+                    .filter(|t| all || matches!(&self.objects[t].kind, Kind::Image { image } if text_object::is_text(image)))
+                    .collect();
+                if all || !kept.is_empty() {
+                    let (vx, vy) = (arg(1), arg(2));
+                    for t in kept {
+                        let o = self.objects.get_mut(&t).unwrap();
+                        o.vertex = Some((place(&vx, o.w, "left", "right"), place(&vy, o.h, "top", "bottom")));
+                    }
                 }
             }
-            "SetVertex" | "SetFrequency" | "SetPan" | "WaitText" | "LockVideo" | "Reset" | "SetShortcut" => {}
+            "SetFrequency" | "SetPan" | "WaitText" | "LockVideo" | "Reset" | "SetShortcut" => {}
             "SetBacklog" => {
                 // (text, voice or "null", speaker)
                 let text = arg(0).string();

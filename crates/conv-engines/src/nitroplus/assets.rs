@@ -45,6 +45,8 @@ pub struct NpaAssets<'a> {
     /// The English release's `droidserif-muramasa.ttf` (`font.npk`): its
     /// subtitles are drawn in it.
     pub font_en: Option<Vec<u8>>,
+    /// The `--font`, for `CreateText`.
+    pub font: Vec<u8>,
     images: HashMap<String, Option<(String, u32, u32)>>,
     sounds: HashMap<String, Option<String>>,
     movies: HashMap<String, Option<MovieInfo>>,
@@ -59,7 +61,7 @@ pub struct NpaAssets<'a> {
 
 impl<'a> NpaAssets<'a> {
     pub fn new(cg: Npa<'a>, sound: Npa<'a>, voice: Npa<'a>, output: &Path) -> Self {
-        NpaAssets { cg, sound, voice, cg2: None, cg_en: None, font_en: None, images: HashMap::new(), sounds: HashMap::new(), movies: HashMap::new(), movie_dir: None, out: Output::new(output), screen: (SCREEN_W, SCREEN_H) }
+        NpaAssets { cg, sound, voice, cg2: None, cg_en: None, font_en: None, font: Vec::new(), images: HashMap::new(), sounds: HashMap::new(), movies: HashMap::new(), movie_dir: None, out: Output::new(output), screen: (SCREEN_W, SCREEN_H) }
     }
 
     /// The movie file a script path names, and its name in the output:
@@ -642,6 +644,10 @@ impl Assets for NpaAssets<'_> {
 
     fn english_font(&mut self) -> Option<Vec<u8>> {
         self.font_en.clone()
+    }
+
+    fn font(&self) -> &[u8] {
+        &self.font
     }
 
     fn transparent(&mut self) -> String {
