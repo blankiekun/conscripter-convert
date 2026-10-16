@@ -26,8 +26,9 @@ pub const OUTPUT_DIRS: [&str; 6] = ["cg", "cg2", "en", "sound", "voice", "system
 pub const PICTURE_DIRS: [&str; 4] = ["cg", "cg2", "en", "system"];
 
 /// Pictures with words that the English `cg.npk` has under the Japanese
-/// names, taken from it first when it is given: the name plates.
-const ENGLISH_FIRST: &[&str] = &["cg/fw/nw"];
+/// names, taken from it first when it is given: the name plates and the
+/// quick bar (the same places in `boot.nut`'s `QuickMenu`).
+const ENGLISH_FIRST: &[&str] = &["cg/fw/nw", "cg/sys/quick/"];
 
 pub struct NpaAssets<'a> {
     cg: Npa<'a>,

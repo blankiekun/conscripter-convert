@@ -63,6 +63,11 @@ It has no NPA archives and no NSS scripts.
   in English, same names and size as the Japanese) are taken before
   `cg.npa`'s (`ENGLISH_FIRST` in `nitroplus/assets.rs`). Checked on a
   one-scene build (`--file ma01_001.nss --chain 1 --loose`).
+- **Quick bar** (the fly-out on the right): the English `cg.npk`'s
+  `cg/sys/quick/` (Q.SAVE, Q.LOAD, SKIP, HIDE TEXT on its base; the
+  buttons transparent pictures with their highlights), at the Japanese
+  places, which `boot.nut`'s `QuickMenu` keeps (x 998; y 47, 180, 290,
+  390). Not yet compared with the original.
 - **Click icon:** at the port's places (History); not yet seen in the
   original.
 - **Questions:** the port's (`sys_dialog.nut`, `confirm_en`): the
