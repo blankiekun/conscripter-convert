@@ -185,21 +185,47 @@ addresses in `research/typemoon/names.tsv` are those of the 1.0.2
   0; every loop end is within the decoded length (49 within a second
   of it, the others leave a tail that never plays). Nothing in the
   start call (`FUN_001ee200`) overrides them.
-- **The picture table** is in the exe: 23,000 names of 32 bytes at
-  0x6E02A4 (`BLACK`, `BLUE`, …, `WHITE`, `YELLOW`, `IMG0000`…, the
-  sprites `ARU_A_18_00_N00_02_02`…), and beside each one a 0x48-byte
-  record at 0x56F830: f32 width at 0x2C, height at 0x30, centre (half
-  of them) at 0x34 and 0x38, about half the texture's pixels; byte
-  0x42 is 1 for an expression (`_a_b`), 2 for a bare pose. `_STCH`
-  looks a picture up here (`FUN_00155d30`) and puts its origin at the
-  centre.
-- **The motion table** is in the exe too: `_STMA(layer, m)` starts
-  motion `m` (1–24,192). u32 at 0x4B1940 + 4(m−1): its first keyframe;
-  u32 at 0x499F40 + 4(m−1): its length in ms. Keyframes are 0x40
-  bytes at 0x75CE18 (71,905 of them): u32 time in ms, then s16 fields
-  (0x04 easing, 0x08 x, 0x0A y, 0x0C alpha, 0x18/0x1A zoom ‰, …),
-  −32767 for "unchanged". Motion 228: zoom 584‰ → 566‰ and y 130 →
-  136 over 5 s; motion 14682: alpha 0 → 255 over 20 s.
+- **The tables are read** by `typemoon/exe.rs` from the NSO itself
+  (`typemoon/nso.rs`: the three segments, LZ4-unpacked, at their
+  memory offsets; addresses below are Ghidra's, image at 0x100000).
+  It checks for 1.0.2's layout (the base game's `main` is refused; the
+  fan patch's reads the same). `conscripter-convert typemoon exe
+  <exefs-102>/main [--romfs <game-102>]` prints the counts, and with
+  `--romfs` checks every picture's size against its texture (see
+  below).
+- **The picture table**: 14,713 names of 32 bytes at 0x6E02A4 (an
+  empty name ends it; the lookup's limit is 23,000): `BLACK`, `BLUE`,
+  …, `WHITE`, `YELLOW` (plain colours), `IMG0000`…, the sprites
+  `ARU_A_18_00_N00_02_02`…. A name's picture is `<name>.NXGZ` in
+  `allpac`. Beside each name, a 0x48-byte record at 0x56F830 (all
+  else 0, 0x20–0x27 0xFF):
+  - f32 width at 0x2C and height at 0x30, on a 1280 × 724 stage: the
+    texture is 2× art, the record half its width and 724/1440 of its
+    height (IMG0024_01_01: texture 2576 × 1456, record 1288 × 732.04).
+    6,141 names have a second, third-size copy in `allpac` too
+    (IMG0006: 427 × 240 beside 2560 × 1440). `typemoon exe --romfs`
+    (70 s): every expression (7,286, names ending `_a_b`) and 12,083
+    pictures in all fit their full texture to half a stage pixel
+    (tall sprites' heights are 0.2 short); 1,304 more to 3 px; 1,326,
+    all bare sprite poses (`ARU_L_90_00_N00`: 590 × 878.5 for a
+    1181 × 1711 texture), are further off: a bare pose's record isn't
+    its own texture's size (the plain colours: 640 × 362 for
+    1920 × 1080).
+  - f32 centre at 0x34 and 0x38, mostly half the size: `_STCH` puts
+    it at its x, y (`FUN_00155d30` looks the name up).
+  - byte 0x41: 3 for the plain colours, else 0 (bit 0: `_STCH` draws
+    it opaque); byte 0x43: 1 for an expression; u16 at 0x46 a
+    sprite's shot (`_A_` 0, `_L_` 1, `_M_` 2, `_S_` 3); u16 at 0x44
+    per pose, not known.
+- **The motion table**: `_STMA(layer, m)` starts motion `m`
+  (1–24,192). u32 at 0x4B1940 + 4(m−1): its first keyframe (motion m's
+  keys run to motion m+1's first; keys 0 and 1 are unused, 71,903
+  used); u32 at 0x499F40 + 4(m−1): its length in ms (not always the
+  last key's time: 12,693 differ). Keyframes are 0x40 bytes at
+  0x75CE18: u32 time in ms, then 30 s16 (0x04 easing, 0x08 x, 0x0A y,
+  0x0C alpha, 0x18/0x1A zoom ‰, …), −32767 for "unchanged". Motion
+  228: zoom 584‰ → 566‰ and y 130 → 136 over 5 s; motion 14682:
+  alpha 0 → 255 over 20 s.
 - **Scene numbers**: `_JUMP(n[,label])` goes to the script whose
   scene number is `n`, not by name: 551 s16 at 0x450D58, one per
   script in `allscr` order (`START_SCRIPT` 110, `00_00` 240,
@@ -488,21 +514,42 @@ Nothing yet.
 | Pictures (BNTX) | ✅ every texture of both RomFS copies decodes |
 | Sound (`stream/*.opus`, `knife1.bfsar`) | ✅ every sound of both RomFS copies converts |
 | Exe (`main`) in Ghidra | ✅ decompiles; dispatcher, the top commands' handlers, the music, picture and motion tables named |
+| Exe tables (pictures, motions, scene numbers) | ✅ read from the NSO (`typemoon exe`); picture sizes checked against the textures |
 | Scripts | 🔶 read: every command of both languages splits (one malformed in the original) and its text and voices join; the top commands' arguments read from the exe, the rest not yet |
 | Everything after (text, pictures, screens, extras) | ❌ |
 
 ### Next
 
-1. Pictures for the build: read the exe's picture table (names,
-   sizes, centres) and motion table (see "The exe"); every expression
-   is already a whole picture, so nothing needs cutting.
+1. Pictures for the build: decode each `_STCH` picture's full texture
+   and place it by its record's centre (see "The exe", the picture
+   table); every expression is already a whole picture, so nothing
+   needs cutting. **Decided (the user, 2026-10-16):** the build writes a
+   media folder of re-encoded files, not the BC7 textures: WebP
+   pictures, smaller movies (`movie/`, 1.7 GB), the Opus voices and
+   music copied as they are (`stream/`, 1.1 GB). Splitting sprites
+   into body and face crops is out unless the user asks. A sample of
+   101 `allpac` pictures (every 290th entry): 63.1 MB in the archive
+   (gzipped BC7; 159.7 MB unpacked), PNG 81.4 MB, WebP quality 85 at
+   full size 7.2 MB (11 % of the archive's), at half size (the
+   1280-wide stage) 2.6 MB (4 %). For all of `allpac` (16 GB): about
+   1.8 GB at full size, 0.7 GB at stage size. Which size to keep is
+   still to be decided.
 2. Sound for the build: the looping wave sounds' loop points
    (SDL_mixer loops a WAV whole), and the music's loop points from the
    bfsar's stream details (see "The exe").
-3. Still open in the exe: `_FADS` type 1, `_STCH`'s arguments 4 and
+3. What `_STCH`'s x, y mean on the stage (backgrounds sit at 240, 136;
+   the handler keeps x·640/1280 and y·480/720) and what a bare pose's
+   record is.
+4. Still open in the exe: `_FADS` type 1, `_STCH`'s arguments 4 and
    12–17, `_STZ4`'s last two, and the motion keyframes' other fields.
 
 ## History
+
+- 2026-10-16: the exe's tables read in Rust (`typemoon/nso.rs`,
+  `exe.rs`, `typemoon exe`): 14,713 pictures, 24,192 motions (71,903
+  keys), 551 scene numbers. Picture sizes checked against every
+  texture; the record's byte meanings corrected (0x43 the expression
+  flag, 0x46 the shot). A WebP sample for the build's media folder.
 
 - 2026-10-16: the walkthrough, from the scripts (`routes.py`) and
   checked against a public one: the route gates (Ciel's points, the
