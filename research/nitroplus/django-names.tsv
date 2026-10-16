@@ -1,0 +1,240 @@
+# Django.exe (続・殺戮のジャンゴ 1.01, NitroplusSystem2.0): functions and data
+# identified so far, applied by research/tools/ghidra/ghidra_export.sh --names.
+# Columns (tab-separated): address, name, comment. The 1.01 update's
+# Django.exe is packed (its sections encrypted); these addresses are those of
+# the unpacked 1.01 exe (the no-CD one used under wine, docs/games/django.md).
+# Muramasa's names.tsv addresses don't apply. Details:
+# research/nitroplus/builtins.md ("Django.exe").
+00404320	dispatch_builtin	runs one statement: compares its text, case-sensitively, with 75 built-in names followed by ( space tab full-width space or line break (research/nitroplus/dispatch.py), calls the handler; anything else goes to call_nss_function
+00406840	builtin_CreateName	statement built-in CreateName, called by dispatch_builtin
+00406910	builtin_CreateAnimation	statement built-in CreateAnimation, called by dispatch_builtin
+00406cd0	builtin_CreateProcess	statement built-in CreateProcess, called by dispatch_builtin
+00406ab0	builtin_CreateColor	statement built-in CreateColor, called by dispatch_builtin
+00407000	builtin_CreateEffect	statement built-in CreateEffect, called by dispatch_builtin
+00407780	builtin_CreateFrame	statement built-in CreateFrame, called by dispatch_builtin
+004071b0	builtin_CreateTexture	statement built-in CreateTexture, called by dispatch_builtin
+00407380	builtin_CreateClipTexture	statement built-in CreateClipTexture, called by dispatch_builtin
+00407ab0	builtin_CreateMask	statement built-in CreateMask, called by dispatch_builtin
+00407c80	builtin_CreateMovie	statement built-in CreateMovie, called by dispatch_builtin
+004089d0	builtin_CreateSound	statement built-in CreateSound, called by dispatch_builtin
+00407f90	builtin_CreateText	statement built-in CreateText, called by dispatch_builtin
+00408390	builtin_CreateWindow	statement built-in CreateWindow, called by dispatch_builtin
+00408540	builtin_CreateCamera	statement built-in CreateCamera, called by dispatch_builtin
+00408680	builtin_CreateChoice	statement built-in CreateChoice, called by dispatch_builtin
+00408b30	builtin_CreateBacklog	statement built-in CreateBacklog, called by dispatch_builtin
+00408c30	builtin_CreateScrollbar	statement built-in CreateScrollbar, called by dispatch_builtin
+00408e90	builtin_LoadImage	statement built-in LoadImage, called by dispatch_builtin
+00408fd0	builtin_LoadClipImage	statement built-in LoadClipImage, called by dispatch_builtin
+00409310	builtin_LoadColor	statement built-in LoadColor, called by dispatch_builtin
+004094d0	builtin_LoadFont	statement built-in LoadFont, called by dispatch_builtin
+00409fa0	builtin_LoadText	statement built-in LoadText, called by dispatch_builtin
+0040a570	builtin_LoadNPT	statement built-in LoadNPT, called by dispatch_builtin
+0040a7d0	builtin_Move	statement built-in Move, called by dispatch_builtin
+0040a8f0	builtin_BezierMove	statement built-in BezierMove, called by dispatch_builtin
+0040a5c0	builtin_Request	statement built-in Request, called by dispatch_builtin
+0040ab60	builtin_Rotate	statement built-in Rotate, called by dispatch_builtin
+0040ac80	builtin_Shake	statement built-in Shake, called by dispatch_builtin
+0040ae10	builtin_MoveCamera	statement built-in MoveCamera, called by dispatch_builtin
+0040a660	builtin_Delete	statement built-in Delete, called by dispatch_builtin
+0040cfe0	builtin_Disable	statement built-in Disable, called by dispatch_builtin
+0040a6e0	builtin_Fade	statement built-in Fade, called by dispatch_builtin
+0040c4d0	builtin_SetChip	statement built-in SetChip, called by dispatch_builtin
+0040c5c0	builtin_SetAlias	statement built-in SetAlias, called by dispatch_builtin
+0040c660	builtin_SetVertex	statement built-in SetVertex, called by dispatch_builtin
+0040c710	builtin_SetShade	statement built-in SetShade, called by dispatch_builtin
+0040c7b0	builtin_SetTone	statement built-in SetTone, called by dispatch_builtin
+0040c850	builtin_SetImage	statement built-in SetImage, called by dispatch_builtin
+0040c910	builtin_SetComposite	statement built-in SetComposite, called by dispatch_builtin
+0040cac0	builtin_SetBlur	statement built-in SetBlur, called by dispatch_builtin
+0040cc40	builtin_SetStream	statement built-in SetStream, called by dispatch_builtin
+0040cf10	builtin_SetNextFocus	statement built-in SetNextFocus, called by dispatch_builtin
+0040cce0	builtin_SetScrollbar	statement built-in SetScrollbar, called by dispatch_builtin
+0040cd90	builtin_SetBacklog	statement built-in SetBacklog, called by dispatch_builtin
+0040aa50	builtin_Zoom	statement built-in Zoom, called by dispatch_builtin
+0040ba10	builtin_Draw	statement built-in Draw, called by dispatch_builtin
+0040bb00	builtin_DrawEffect	statement built-in DrawEffect, called by dispatch_builtin
+0040bc20	builtin_DrawTransition	statement built-in DrawTransition, called by dispatch_builtin
+0040bd80	builtin_Wait	statement built-in Wait, called by dispatch_builtin
+0040c020	builtin_WaitKey	statement built-in WaitKey, called by dispatch_builtin
+0040af40	builtin_WaitMove	statement built-in WaitMove, called by dispatch_builtin
+0040b0d0	builtin_WaitFade	statement built-in WaitFade, called by dispatch_builtin
+0040b260	builtin_WaitZoom	statement built-in WaitZoom, called by dispatch_builtin
+0040b3f0	builtin_WaitRotate	statement built-in WaitRotate, called by dispatch_builtin
+0040b580	builtin_WaitShake	statement built-in WaitShake, called by dispatch_builtin
+0040b8a0	builtin_WaitPlay	statement built-in WaitPlay, called by dispatch_builtin
+0040b710	builtin_WaitAction	statement built-in WaitAction, called by dispatch_builtin
+0040d060	builtin_SetVolume	statement built-in SetVolume, called by dispatch_builtin
+0040d140	builtin_SetPan	statement built-in SetPan, called by dispatch_builtin
+0040d220	builtin_SetFrequency	statement built-in SetFrequency, called by dispatch_builtin
+0040d300	builtin_SetLoop	statement built-in SetLoop, called by dispatch_builtin
+0040d3a0	builtin_MoviePlay	statement built-in MoviePlay, called by dispatch_builtin
+0040d4f0	builtin_ClearScore	statement built-in ClearScore, called by dispatch_builtin
+0040d680	builtin_ClearBacklog	statement built-in ClearBacklog, called by dispatch_builtin
+0040d6c0	builtin_SetBaseTextInterval	statement built-in SetBaseTextInterval, called by dispatch_builtin
+0040d760	builtin_SetFont	statement built-in SetFont, called by dispatch_builtin
+0040deb0	builtin_Save	statement built-in Save, called by dispatch_builtin
+0040df80	builtin_Load	statement built-in Load, called by dispatch_builtin
+0040e050	builtin_DeleteSaveFile	statement built-in DeleteSaveFile, called by dispatch_builtin
+0040e100	builtin_CursorPosition	statement built-in CursorPosition, called by dispatch_builtin
+0040e1c0	builtin_DateTime	statement built-in DateTime, called by dispatch_builtin
+0040e360	builtin_WriteFile	statement built-in WriteFile, called by dispatch_builtin
+0040e480	builtin_Reset	statement built-in Reset, called by dispatch_builtin
+0040e4e0	builtin_Exit	statement built-in Exit, called by dispatch_builtin
+0040e530	builtin_System	statement built-in System, called by dispatch_builtin
+0040e8d0	call_nss_function	called by dispatch_builtin for a statement name that is no built-in (an NSS function call)
+0042b150	eval_primary	expression evaluator, values: the 15 value built-ins (Random, RemainTime, ... Integer, EnableDirect3DHAL; research/nitroplus/evalnames.py), true/false compared letter by letter in either case (TtRrUuEe)
+0045dac0	set_system_variable	assigns a $SYSTEM_/#SYSTEM_ variable: the name after its 8-character prefix compared exactly (case-sensitive) with a table of 35 names built on the stack (play_speed, sound_bgm, ... load_lock), one switch case each; names not in the table (menu_enable, menu_*_enable, backlog_enable, backselect_*) are plain variables read by name where they are used
+00448510	find_variable	looks up a script variable by its name ($ or # prefix); returns its record (number at +0x88 as a double, string at +0x90)
+004b4dcc	_ftol2	MSVC CRT: ST0 to a 64-bit integer (Ghidra loses the x87 value: the argument of a call to it is the last double computed)
+0043d1c0	request_lock	Request actions Disused, Lock, UnLock (compared exactly)
+0043d600	request_render	Request actions Erase, Enter, Smoothing, SubRender, UnSmoothing, NormalRender, AddRender (compared exactly)
+0043d9a0	request_process	Request actions Open, Start, Pause, Resume (a process; reached only through a pointer)
+0043db60	request_sound	Request actions Play, Pause, Stop, Resume, CompulsorySuspend, EntrustSuspend (sound or movie; reached only through a pointer)
+0043de60	request_scrollbar	Request actions Increment, Decrement, Next, Prev (reached only through a pointer)
+00432440	request_queue	Request: queues the action string for the objects the name matches (under the object mutex)
+00422110	parse_effect_name	CreateEffect kinds: NegaPosi, Monochrome, Sepia, KitanoBlue, Drop, FloatBubble, Rain, LookupRain, Mosaic, LowWave ... Ripple
+004604f0	check_product_code	compares product_code with ZokuSatsurikunoJyango; set_system_variable quits when it differs
+0045d550	set_play_speed	#SYSTEM_play_speed (set_system_variable case 0): the text speed level, clamped 1-12 (default 3, 0045cb30); the variable is written back
+0045d520	text_speed_seconds	the per-character time of the current play_speed level (a table of doubles at 00529408 + 8 * level), or a fixed one while skipping
+0045d630	set_skip	$SYSTEM_skip: skip mode on or off (set_system_variable case 14; turned off by menu_lock and skip_lock, and by MoviePlay)
+0045d6f0	set_text_auto	$SYSTEM_text_auto: auto mode from the variable (set_system_variable case 10)
+0045d7a0	set_text_erase	$SYSTEM_text_erase: hides (1) or shows (0) the text window (case 12; shown again by menu_lock and text_erase_lock; WaitKey shows it)
+0042f6a0	set_low_thread_priority	$SYSTEM_low_thread_priority (case 29): SetThreadPriority -1 or 0 on the game thread
+00451d10	last_text_put	appends one character to $SYSTEM_last_text (set_system_variable case 26 feeds the string through it; also SetBacklog and the text layout)
+0045cb30	reset_system_defaults	the settings' defaults (play_speed 3, skip off, ...)
+0045f5a0	build_right_click_menu	reads $SYSTEM_menu_enable, backlog_enable, menu_back_select, menu_load/save/config/close/reset_enable, save_lock, load_lock by name
+004503b0	system_input	keys and clicks outside the script: reads $SYSTEM_text_auto, menu_enable, menu_config_enable, load_lock, save_lock, backselect_lock by name
+00463700	parse_text_tag	the text markup after a <, names compared in either case: FONT (INCOLOR= OUTCOLOR= FACE= SIZE=), I, U, S, K, CENTER, MIDDLE, PRE, WAIT, INTERVAL, RUBY (text=), VOICE (NAME= CLASS= MODE= SRC=); no BR, no continuation
+004608f0	layout_create_text	lays out a CreateText string (calls parse_text_tag)
+00410030	parse_color_name	colour names CLEAR BLACK GRAY SILVER WHITE RED LIME BLUE YELLOW AQUA FUCHSIA MAROON GREEN NAVY OLIVE TEAL PURPLE
+0040fce0	parse_color	#RRGGBB, #RGB( or a colour name
+0045a180	nss_statement_keywords	call_chapter call_scene call_cut call shift_scene shift_cut break return wait while select case else debugmessage
+004b4112	_mbsinc	MSVC CRT: the next (multi-byte) character
+0043e030	request_erase	Request Erase: switches the object's per-frame callback to the erasing one
+0043e080	request_enter	Request Enter: stamps the start time (timeGetTime) and switches the callback to the showing one (a text object starts typing out)
+0043e650	request_smoothing	Request Smoothing: sets the texture's filtering flag (0x1000)
+0043e6a0	request_unsmoothing	Request UnSmoothing: clears it
+0043e6e0	request_normal_render	Request NormalRender: blend mode 0x101 (normal alpha)
+0043e710	request_add_render	Request AddRender: blend mode 2 (additive)
+0043e740	request_sub_render	Request SubRender: blend mode 3 (subtractive)
+00410c20	set_render_state	sets the Direct3D blend or filter state from an object's flags
+# Code reached only through a function pointer (= &LAB_...), made functions so
+# the export decompiles them; named once read.
+00401c30	cb_00401c30
+00401eb0	cb_00401eb0
+00401ec0	cb_00401ec0
+00401f60	cb_00401f60
+00410d00	cb_00410d00
+00410d30	cb_00410d30
+004163c0	cb_004163c0
+00418c60	cb_00418c60
+0041cba0	cb_0041cba0
+00423a50	cb_00423a50
+00424560	cb_00424560
+00424780	cb_00424780
+00424ed0	cb_00424ed0
+00425620	cb_00425620
+004277b0	cb_004277b0
+004277f0	cb_004277f0
+0042d230	cb_0042d230
+0042d4f0	cb_0042d4f0
+0042d530	cb_0042d530
+0042d570	cb_0042d570
+0042d590	cb_0042d590
+0042d5e0	cb_0042d5e0
+0042d680	cb_0042d680
+0042d6f0	cb_0042d6f0
+0042e120	cb_0042e120
+00435cb0	cb_00435cb0
+00438fb0	cb_00438fb0
+0043a700	cb_0043a700
+0043a740	cb_0043a740
+0043a780	cb_0043a780
+0043a7c0	cb_0043a7c0
+0043bce0	cb_0043bce0
+0043bd00	cb_0043bd00
+0043bdb0	cb_0043bdb0
+0043bde0	cb_0043bde0
+0043be00	cb_0043be00
+0043be20	cb_0043be20
+0043bfa0	cb_0043bfa0
+0043c420	cb_0043c420
+0043c440	cb_0043c440
+0043c480	cb_0043c480
+0043c4a0	cb_0043c4a0
+0043caf0	cb_0043caf0
+0043cb70	cb_0043cb70
+0043e7b0	cb_0043e7b0
+0043e7e0	cb_0043e7e0
+0043e800	cb_0043e800
+0043e9a0	cb_0043e9a0
+0043e9e0	cb_0043e9e0
+0043eaa0	cb_0043eaa0
+0043f880	cb_0043f880
+0043fd00	cb_0043fd00
+00447860	cb_00447860
+004478e0	cb_004478e0
+00447ae0	cb_00447ae0
+00447b60	cb_00447b60
+0044c240	cb_0044c240
+0044d090	cb_0044d090
+0044d130	cb_0044d130
+0044d1d0	cb_0044d1d0
+0044e710	cb_0044e710
+0044f860	cb_0044f860
+0044f890	cb_0044f890
+0044ff30	cb_0044ff30
+0044ffc0	cb_0044ffc0
+00450000	cb_00450000
+004502c0	cb_004502c0
+00453640	cb_00453640
+004595f0	cb_004595f0
+00459620	cb_00459620
+00468070	cb_00468070
+00469470	cb_00469470
+004694c0	cb_004694c0
+004694f0	cb_004694f0
+00469540	cb_00469540
+004763d0	cb_004763d0
+004767e0	cb_004767e0
+004768e0	cb_004768e0
+004769c0	cb_004769c0
+004769f0	cb_004769f0
+00476a30	cb_00476a30
+00476ae0	cb_00476ae0
+004771a0	cb_004771a0
+00477780	cb_00477780
+004778c0	cb_004778c0
+00477f20	cb_00477f20
+00478060	cb_00478060
+004782c0	cb_004782c0
+00478b00	cb_00478b00
+00478ca0	cb_00478ca0
+00479af0	cb_00479af0
+0047a1e0	cb_0047a1e0
+0047a610	cb_0047a610
+0047ade0	cb_0047ade0
+0047ba30	cb_0047ba30
+0047bbc0	cb_0047bbc0
+0047bcc0	cb_0047bcc0
+0047bcd0	cb_0047bcd0
+0047bde0	cb_0047bde0
+0047be40	cb_0047be40
+0047bec0	cb_0047bec0
+0047c510	cb_0047c510
+0047c540	cb_0047c540
+0047c990	cb_0047c990
+0047c9b0	cb_0047c9b0
+0047ca80	cb_0047ca80
+0047cec0	cb_0047cec0
+0047df70	cb_0047df70
+0047e0c0	cb_0047e0c0
+0047e6b0	cb_0047e6b0
+0047ed60	cb_0047ed60
+00485e00	cb_00485e00
+0043eab0	cb_0043eab0
+00478920	cb_00478920
+00478990	cb_00478990
+00478ad0	cb_00478ad0
+004794a0	cb_004794a0
+0047b870	cb_0047b870

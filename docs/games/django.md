@@ -170,6 +170,54 @@ place and the six-argument `LoadText` (a box's text layout), a runtime
 last one's text where the window picture doesn't reach (Django draws its
 text on the scene, with no window picture).
 
+## The exe
+
+The 1.01 update's `Django.exe` is packed (every section encrypted);
+Ghidra reads the unpacked 1.01 exe, the no-CD one used under wine:
+
+```sh
+research/tools/ghidra/ghidra_export.sh <unpacked 1.01 Django.exe> \
+    research/nitroplus/local/ghidra-django --names research/nitroplus/django-names.tsv
+```
+
+(about 2 minutes the first time). The names file holds the
+built-in table, the evaluator, the settings setter, the `Request` and
+text-tag parsers and the pointer-only callbacks; what they do, and how
+the engine differs from Muramasa's, is in `research/nitroplus/builtins.md`
+("Django.exe"). The decoders: `python3 -I research/nitroplus/dispatch.py
+<export>/decomp/00404320_*.c` (built-ins), `evalnames.py` on
+`0042b150_*.c` (values), `stackstrings.py <export>/decomp` (the
+`$SYSTEM_` names), `charchains.py <export>/decomp` (tags, `Request`
+actions, constants).
+
+**Coverage** (2026-10-15; counts from `nss builtins` and a grep of the
+scripts, notes from the dry run). Everything the scripts call is in the
+exe. Where the exe and the converter agree, in short: the 69 built-ins
+the scripts use but those below; the text tags `voice` (3,576), `PRE`,
+`RUBY` (245), `K` (19), `I` (14); `Request` `Start`, `Stop`, `Play`,
+`Pause`, `Resume`, `Enter`, `Erase`, `Lock`, `UnLock`; `NoLog`,
+`PushText`, `NoIcon` (18), which the exe doesn't know (they do nothing,
+as in ours); `$SYSTEM_low_thread_priority` (12, thread priority only),
+`#SYSTEM_play_speed` (13: the text speed, set to 3 on the title and the
+ending and put back); `continuation` (162, only in `//` comments).
+Where they differ:
+
+| Feature | Uses | The exe | The converter | Dry-run note |
+|---|---|---|---|---|
+| The choice's shot (`function_select.nss`: `CreateMask` ×3, `CursorPosition`, `Rotate` −90° over 800 ms about the bottom, a shot sound) | every choice (10) | a bullet hole where the pointer clicked, the chosen plate tips over | the plates go at once | `CreateMask` 30, `CursorPosition` 20 |
+| `Request` `AddRender` / `SubRender` / `NormalRender` | 15 / 1 / 3 | blend mode additive / subtractive / normal (`request_render`) | a movie's `AddRender` drawn as it is; the others not done | `addrender` 11, `normalrender` 4 |
+| `Request` `Smoothing` / `UnSmoothing` | 20 / 3 | texture filtering on / off | nothing | `unsmoothing` 3 |
+| `$SYSTEM_skip`, `$SYSTEM_text_auto` = false at each choice | 25 / 31 | skip and auto mode stop before the choice | convert-time only (no `$SYSTEM_` reaches the build) | none |
+| `$SYSTEM_menu_lock` = 1 (the title, the ending roll) | 8 | no right-click menu, skip off, the text window shown | convert-time only | none |
+| `SetShade(…, HEAVY)` | 1 (dja048) | a blur preset | not done | `SetShade` 1 |
+| `CreateEffect(…, "Sepia")` | 1 (dja038) | sepia over the screen | not done | `CreateEffect Sepia` 1 |
+
+The system screens' tags (`FONT`, `INTERVAL`, 28 and 7, in
+`sys_save`/`sys_load`/`sys_config`) and built-ins (`SetNextFocus`,
+`SetBacklog`, `LoadFont`, `LoadColor`, `Save`, …, the rest of the
+dry-run list) belong to screens the converter draws itself
+(`django/screens.rs`).
+
 ## Running the original under wine
 
 Used to compare screens and text placement (`docs/new-game.md` step 9).
@@ -321,6 +369,15 @@ with the original (it wants all eleven endings' flags under wine).
 4. The 60 moves and zooms that also fade or change picture (still
    cross-fades), and `Rotate` over time (343, drawn at once).
 5. Extras: the doors' animation and the menu's own music (left out).
+6. From the exe's coverage table ("The exe"): the choice's shot (a
+   bullet hole at the pointer, the chosen plate tipping over: every
+   choice); `AddRender`/`SubRender`/`NormalRender` as blend modes
+   (item 3's additive flashes); auto mode stopping at a choice (the
+   scripts set `$SYSTEM_skip`/`$SYSTEM_text_auto` false there: skip
+   already stops, as the choice's `btnwait` ends it, but auto mode
+   goes on after the choice); check that the ending roll has no
+   right-click menu (`$SYSTEM_menu_lock`); `SetShade HEAVY` (one use;
+   sepia is item 3's).
 
 ## History
 

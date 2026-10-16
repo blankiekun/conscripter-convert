@@ -60,6 +60,78 @@ Muramasa.exe reads the `.nss` text directly. Names below are from
   values `AvailableFile`, `BacklogLine`, `BacklogRow`, `MilliTime`,
   `MountSavedata`, `SoundAmplitude`, `Strlen`.
 
+### Django.exe (続・殺戮のジャンゴ, NitroplusSystem2.0)
+
+The older engine (2008), mapped from its 1.01 exe: names in
+`research/nitroplus/django-names.tsv`. The 1.01 update's `Django.exe`
+is packed (all sections encrypted, Ghidra finds no function); the
+addresses are those of the unpacked 1.01 exe (the no-CD one used under
+wine, `docs/games/django.md`). What differs from Muramasa.exe:
+
+- **Statements**: `dispatch_builtin` (`00404320`) compares 75 names the
+  same way (case-sensitive, then `(`, space, tab, full-width space or
+  line break; `dispatch.py` decodes it). Muramasa's that Django lacks:
+  `CreateCube`, `CreateDifferenceTexture`, `CreateStencil`,
+  `CreateSurface`, `Escape`, `LoadFile`, `UnloadFile`, `MoveCube`,
+  `MoveCursor`, `Position`, `SetFov`, `SetLoopPoint`, `SetScrollSpeed`,
+  `SetShortcut`, `SetSurface`, `WaitText`. Every built-in Django's
+  scripts call is in the table or the evaluator.
+- **Values**: `eval_primary` (`0042b150`) knows 15: `Random`,
+  `RemainTime`, `DurationTime`, `PassageTime`, `ImageHorizon`,
+  `ImageVertical`, `EnableBacklog`, `ExistSave`, `ReadFile`,
+  `BacklogRow`, `BacklogLine`, `ScrollbarValue`, `Time`, `Integer`,
+  `EnableDirect3DHAL`. No `String`, `Count`, `Array`, `Conquest`,
+  `MilliTime`, `Strlen`.
+- **Constants** (`NULL`, `TRUE`, `FALSE`, `AUTO`, the font weights,
+  `LOCAL`/`GLOBAL`) are compared letter by letter in either case
+  (`== 'N' || == 'n'`), not by the sum of their characters.
+- **`$SYSTEM_` variables**: `set_system_variable` (`0045dac0`) takes
+  the name after its 8-character prefix (`$SYSTEM_` or `#SYSTEM_`
+  alike) and compares it exactly with 35 names, one switch case each:
+  `play_speed` (the text speed level, 1-12, default 3), `sound_bgm`,
+  `sound_se`, `sound_voice`, `sound_volume_bgm`/`se`/`voice` (0-1000),
+  `window_full`, `menu_lock` (turns skip off and shows the text window),
+  `backlog_lock` (nothing), `text_auto`, `text_speed`, `text_erase`
+  (hides the window), `spt_name` (nothing), `skip`, `keep_skip`,
+  `skip_absolute`, `voice_enable_list`, `voice_enable_another`,
+  `product_code` (must be `ZokuSatsurikunoJyango` or the game quits),
+  `text_interval`, `current_path`, `auto_wait_per_character`,
+  `auto_text_break_voice`, `click_break_voice`, `save_last_select`,
+  `last_text` (fed character by character to the text log),
+  `show_cursor` (falls through into `break_play_movie`: setting it
+  sets both), `break_play_movie`, `low_thread_priority` (thread
+  priority only), `text_erase_lock` (shows the window), `skip_lock`
+  (turns skip off), `video_aspect_fixed`, `save_lock`, `load_lock`.
+  The others the scripts set (`menu_enable`, `menu_save_enable`,
+  `menu_load_enable`, `menu_config_enable`, `menu_close_enable`,
+  `backlog_enable`, `backselect_lock`) are plain variables, read by
+  name where they matter: the right-click menu (`0045f5a0`) and the
+  input handler (`004503b0`). `backselect_enable` is read nowhere.
+- **Stack strings** come out of Ghidra as `builtin_strncpy(local_40,
+  "$SYSTEM_",8)` plus array stores; `stackstrings.py` joins both.
+- **`Request`** actions are compared exactly (case-sensitive) by a chain:
+  the object's own parser first, then `request_render`, then
+  `request_lock`. Process: `Open`, `Start`, `Pause`, `Resume`. Sound and
+  movie: `Play`, `Pause`, `Stop`, `Resume`, `CompulsorySuspend`,
+  `EntrustSuspend`. Scrollbar: `Increment`, `Decrement`, `Next`,
+  `Prev`. Every object: `Erase`, `Enter` (starts showing; a text types
+  out), `Smoothing`/`UnSmoothing` (texture filtering on/off),
+  `NormalRender`/`AddRender`/`SubRender` (blend mode normal, additive,
+  subtractive), then `Disused`, `Lock`, `UnLock`. **No `NoLog`,
+  `PushText`, `NoIcon`, `Hideable` or `Passive`**: the scripts' 18
+  `NoLog`/`PushText`/`NoIcon` requests do nothing in Django.
+- **Text tags** (`parse_text_tag`, `00463700`), names in either case:
+  `FONT` (`INCOLOR=`, `OUTCOLOR=`, `FACE=`, `SIZE=`), `I`, `U`, `S`,
+  `K`, `CENTER`, `MIDDLE`, `PRE`, `WAIT`, `INTERVAL`, `RUBY` (`text=`),
+  `VOICE` (`NAME=`, `CLASS=`, `MODE=`, `SRC=`). No `BR` (used once, in
+  `$SYSTEM_last_text`) and no `continuation` (only in `//` comments). An
+  unknown tag matches no branch and is read up to its `>`
+  (**unverified**).
+- `_ftol2` is `004b4dcc`; `CreateEffect` kinds are parsed in
+  `00422110` (`NegaPosi`, `Monochrome`, `Sepia`, `KitanoBlue`, `Drop`,
+  `FloatBubble`, `Rain`, `LookupRain`, `Mosaic`, the waves, the splits,
+  `TurnOver`, `Ripple`).
+
 ## In the scripts: coverage
 
 What the converter does with every script file and every name the
