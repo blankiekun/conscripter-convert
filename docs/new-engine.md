@@ -29,7 +29,9 @@ own (`nitroplus/convert/muramasa.rs`).
    they landed.
 5. **Screens**: start from the IR's screens (`docs/new-game.md` step
    7); add a screen type only when none can draw the original's, and
-   make it general.
+   make it general. A built-in NScripter has no command for goes, in
+   this order, to data for the engine's general pieces, to Lua, and only
+   then to a new engine command (`docs/new-game.md` §10).
 6. **Registry, GUI, snapshot**: an entry in
    `crates/conv-engines/src/registry.rs`, the same in `gui/games.py`
    (a test compares them), a case in `tests/snapshot.sh` and its

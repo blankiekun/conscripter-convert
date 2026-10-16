@@ -421,6 +421,8 @@ the feature as data; most of an exe's presentation code is one of these:
   Lua globals are saved; `cons_process(name, "fn", ...)` resumes a
   coroutine once a frame. A process restarts from the top after a load,
   so keep its progress in globals. Port decompiled C almost line by line.
+  The converter doesn't write a `system.lua` yet: the first game that
+  needs one adds that to conv-cons, for every game.
 A new command is for what none of these can do. Then:
 1. Add it in `engine/src/cons/` (`ONScripter_cons.cpp` preferred).
    It isn't opt-in: a new behaviour, like a bug fix, applies to every
