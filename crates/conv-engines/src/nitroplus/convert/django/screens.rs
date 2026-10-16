@@ -302,6 +302,7 @@ fn save_grid(a: &mut dyn Assets) -> Option<SaveGrid> {
         empty: None,
         quick_page: false,
         play_time_prefix: String::new(),
+        play_time_hm: false,
     })
 }
 

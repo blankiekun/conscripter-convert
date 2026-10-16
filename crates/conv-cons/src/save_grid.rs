@@ -207,6 +207,10 @@ pub(crate) fn emit(out: &mut String, g: &SaveGrid, confirm: Option<&ConfirmDialo
     w(format!("mov {SLOT},{FIRST}+{BUTTON_VAR}-1"));
     w("gosub *conv_sg_data".into());
     if let Some(p) = &g.popup {
+        if p.empty_saves {
+            w(format!("if {HAS_DATA} == 0 && {IN_GAME} == 0 goto *conv_sg_wait"));
+            w(format!("if {HAS_DATA} == 0 && {SLOT} < {QUICK_SLOT} gosub *conv_sg_popup_close:goto *conv_sg_save"));
+        }
         // Open (or move) the popup onto the slot.
         w(format!("mov {POPUP_AT},{BUTTON_VAR}"));
         w("gosub *conv_sg_popup_state".into());
@@ -263,11 +267,20 @@ pub(crate) fn emit(out: &mut String, g: &SaveGrid, confirm: Option<&ConfirmDialo
     }
     w(format!("getplaytime {PLAY}"));
     w(format!("add {LABEL},\"|\""));
-    for (part, digits) in [(format!("{PLAY}/3600"), 3), (format!("{PLAY}/60 mod 60"), 2), (format!("{PLAY} mod 60"), 2)] {
-        if digits == 2 {
+    let parts = if g.play_time_hm {
+        vec![(format!("{PLAY}/3600"), 2), (format!("{PLAY}/60 mod 60"), 2)]
+    } else {
+        vec![(format!("{PLAY}/3600"), 3), (format!("{PLAY}/60 mod 60"), 2), (format!("{PLAY} mod 60"), 2)]
+    };
+    for (n, (part, digits)) in parts.into_iter().enumerate() {
+        if n > 0 {
             w(format!("add {LABEL},\":\""));
         }
         w(format!("mov {TMP},{part}"));
+        // Hours stop at 99 (the English Muramasa port's `GetDataInfoPlayTime`).
+        if g.play_time_hm && n == 0 {
+            w(format!("if {TMP} > 99 mov {TMP},99"));
+        }
         if digits == 3 {
             w(format!("if {TMP} < 100 add {LABEL},\"0\""));
         }
@@ -476,6 +489,7 @@ mod tests {
             empty: None,
             quick_page: false,
             play_time_prefix: String::new(),
+            play_time_hm: false,
         }
     }
 
@@ -521,7 +535,9 @@ mod tests {
             lock: placed("lock", 0, 47),
             unlock: placed("unlock", 0, 47),
             locked: placed("locked", -2, -2),
+            empty_saves: true,
         });
+        g.play_time_hm = true;
         let mut out = String::new();
         emit(&mut out, &g, None, 1024, 576, false);
         // The current page's tab is no button; the other one picks its page.
@@ -535,5 +551,10 @@ mod tests {
         assert!(out.contains("mov %165,0:if %103 < 890 mov %105,1010+%103:mov %165,%%105\n"), "{out}");
         assert!(out.contains("if %9 == 108 mov %105,1010+%103:mov %%105,1-%%105:"), "{out}");
         assert!(out.contains("mov $104,\"PLAY TIME \":add $104,$111:mov $111,$104\n"), "{out}");
+        // An empty slot saves at once in the game, does nothing at the title.
+        assert!(out.contains("if %104 == 0 && %101 == 0 goto *conv_sg_wait\nif %104 == 0 && %103 < 890 gosub *conv_sg_popup_close:goto *conv_sg_save\n"), "{out}");
+        // Hours and minutes, the hours up to 99.
+        assert!(out.contains("mov %105,%147/3600\nif %105 > 99 mov %105,99\n"), "{out}");
+        assert!(!out.contains("%147 mod 60"), "{out}");
     }
 }

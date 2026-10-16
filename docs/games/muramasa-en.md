@@ -71,13 +71,16 @@ It has no NPA archives and no NSS scripts.
   `記憶をしました` until a click. Shared `SaveGrid` fields (`tabs`,
   `popup`, `empty`, `quick_page`, `play_time_prefix`). Checked headless
   (`--choose` on `*conv_sg_wait`, `--shot-at`) and against the manual's
-  screenshot (page 6 of `Manual.pdf`: same layout and popup). Not yet
-  compared with the running original: the popup buttons' place in the
-  window (the script's 213,22 … taken as from the window's corner at
-  213,21), the play time's form (ours `PLAY TIME 000:00:06`); the
-  details show under the pointer (the port: on the clicked slot); the
-  Q.Save page shows our one quick save (the port keeps 20, oldest
-  overwritten).
+  screenshot (page 6 of `Manual.pdf`: same layout and popup), and
+  against the original under wine: the screen at rest, the popup on a
+  saved slot (its buttons' places), `Save Complete` and the details under
+  the pointer match. As there, a click on an empty slot saves at once in
+  the game (no popup; `SlotPopup::empty_saves`) and the play time is
+  hours and minutes (`PLAY TIME 00:16`, `SaveGrid::play_time_hm`). Left
+  as it is: at the title a click on an empty slot does nothing (the port
+  saves the title screen there, though its popup's Save is off at the
+  title); the Q.Save page shows our one quick save (the port keeps 20,
+  oldest overwritten).
 - **Settings:** the port's (`sys_config.nut`, `settings_en`):
   `ConfigBG` with its check boxes (skip movies, wait for the voice in
   auto mode, the three mutes), ON/OFF pairs (skip unread, skip the voice

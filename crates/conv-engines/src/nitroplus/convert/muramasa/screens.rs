@@ -449,6 +449,7 @@ fn save_grid(a: &mut dyn Assets) -> Option<SaveGrid> {
         empty: None,
         quick_page: false,
         play_time_prefix: String::new(),
+        play_time_hm: false,
     })
 }
 
@@ -578,10 +579,12 @@ fn save_grid_en(a: &mut dyn Assets) -> Option<SaveGrid> {
             lock: menu(a, "lock", 0, 47)?,
             unlock: menu(a, "unlock", 0, 47)?,
             locked: picture(a, "locked", -2, -2)?,
+            empty_saves: true,
         }),
         empty: picture(a, "未選択時", 0, 0),
         quick_page: true,
         play_time_prefix: "PLAY TIME ".into(),
+        play_time_hm: true,
     })
 }
 
