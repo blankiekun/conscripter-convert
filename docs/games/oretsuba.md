@@ -423,8 +423,52 @@ menu: all four reach their last scene (P03_01D, P01_01D, P02_01E,
 P04_02B) with nothing new in their traces (京's eye catch EC21, 540 px
 tall, is centred, 2 px from each edge).
 
+**Coverage against the eboot (2026-10-15).** The whole eboot mapped
+as in `docs/new-game.md` §2, "Mapping the whole exe": the 31 code
+addresses reached only by pointer made functions (`cb_<addr>`, two
+rounds, mostly CRI middleware), the import stubs named (`strcmp`,
+`sprintf`, …), then every key `scene_load` (0x8102840a) reads
+(`"TaskList/Task%d/<key>"`, read with `cfg_find`/`cfg_number`) set
+against the keys the 463 scenes use and those the converter reads.
+`task_type_number` knows 111 task types; the scenes use 52, all
+converted. The messages hold no markup but `\n`. Keys the scenes use
+that the eboot reads and the converter doesn't (typos such as
+`:Prioriry`, `:TIme`, `:fFade` are ignored by both):
+1. **`:Fade` of CharacterOpen (3,186 uses: 0 instant 2,646, 18 435)
+   and CharacterDelete (991: 18 649, 30 132, 0 184).** We fade every
+   character in and out over 200 ms. The eboot's records
+   (`task_charopen_new` 0x8112963c, `task_chardelete_new` 0x81129758)
+   default to a step of 1/9 per update, the same as `:Fade 18`
+   (`:Fade F` steps 1/(F × 30/60)): 300 ms if F counts 60 fps frames.
+2. **`:FadeWait` (CharacterOpen 16,932, SpriteBG 2,838, CharacterDelete
+   1,294, Sprite 841, SpriteDeleteBG 277, SpriteDelete 72; 0 in 16,428
+   of them).** 0 lets the script go on while the picture fades; ours
+   always waits (`print`). Whether the next message waits for the fade
+   anyway is still to be read in `task_run`.
+3. **`:Rule` on sprite fades (SpriteBG 1,223, SpriteDeleteBG 149,
+   Sprite 24, SpriteDelete 15, SpriteBS 2; 1,378 non-zero, mostly 41,
+   66, 49, 42).** Ours are plain fades. The scripts' comment says
+   `0=Simple 1=RULE000`, so N is probably `RULE<N-1>` (111 is the
+   highest, RULE110 the last file); InOut's `:Type` is used as
+   `RULE<Type>` today.
+4. **Message `:FontScale` (435: 1.8, 2, 1.4, 2.2, 0.8, 1.6; record
+   +0x8fc)**: larger or smaller text for shouts and whispers; ours draws
+   every message at one size.
+5. **`:Chara%d/Copy` (CharacterOpen 25, CharacterMove 11, CharacterAction
+   7, CharacterDelete 5, CharacterOpenBS 3; values 1-3).** The eboot adds
+   Copy × 1000 to the character number, so one character (the 960×540
+   cut-ins, character 300) can show twice (S03_02A shows two at once);
+   ours keys characters by number (`c300`), so the second replaces the
+   first.
+6. Small: SpriteMove `:Curve` (12, an arc of ±3 or 0.5 on the move),
+   CharacterOpen `:Chara%d/Center` (4, `0,1`: the anchor), EffectEnd
+   `:Delete 1` (7), Window `:WindowNumber` (1,506 × -1, 2 × 0).
+
 Next, in order:
-1. Looks against the original: text window size and place, character
+1. The coverage gaps above, 1 and 2 first (they touch most scenes):
+   read the fade and wait in `task_run` (0x81021070), then change the
+   converter.
+2. Looks against the original: text window size and place, character
    heights (where the eboot anchors them), the eye catch's speed, the
    wave transition's size. Needs screenshots of the Vita game.
 
