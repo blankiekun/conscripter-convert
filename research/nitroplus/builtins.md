@@ -226,7 +226,7 @@ whole-game dry run (`ma00_000.nss --chain 2000`), and 続・殺戮のジャン�
 | `SetBacklog` | 2 (the speaker) | 1,958 | 75 |
 | `Shake` | 6 `n`, 7 tempo; 8 wait; 2-5 (a picture smaller than the screen) | 1,486; 62; 144 | 58; 3; 3 |
 | `SetBlur` | 4 strength; 2 passes (when off) | 983; 14 | 0 |
-| `CreateWindow` | 4, 5 (the size: the clip, PR #27), 6 | 639 | 975 |
+| `CreateWindow` | 6 (true/false, meaning unknown) | 639 | 975 |
 | `Rotate` | 5 tempo | 488 | 264 |
 | `MoveCamera` | 1-6 | 105 | 373 |
 | `CreateMovie` | 2-5 (a missing movie) | 61 | 0 |
