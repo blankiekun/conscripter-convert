@@ -237,15 +237,66 @@ N of the scene replay (`%3000+N`); `0x94` ends a replayed scene.
 | `0x5b` | 890 | **solved** (`op_5b` `0x4737a0`, channel 1, stop flag) | stop SE: `arg` = sound or 0 for all, `sub` = fade ms: `dwavefadeout ch,ms` (`Op::SeFadeOut`), which fades and stops while the script goes on |
 | `0x76` | 3,670 | **solved** (`op_76` `0x449df0`): `sub` picks the `Trans_*` class through a jump table (0-3 Wave, 4 Dot4x4, 5-8 SoftEdgeWipe, 9 CrossFade, 10-17 Slide in, 18-25 Slide out, 26 Dissolve, 27 Mosaic, 28-31 BoxRolling, 32-35 RollFlip, 36 SmoothCrossFade, 37-40 Zoom, 41-44 Scroll, 45-47 MeltDown, 48 TvPowerSwitch); the record is u32 ms, u32 flags (bit 0 hides the windows, bits 0-1 remove the bust-ups; always 0), u32 layer byte \| depth << 8 (the transition's sort key: what it covers). Skipped when skipping or with effects off | screen transition. The 3 `0x76` and 9 `0x77` records with another key cover only the objects sorting below it (History, item 15): in 11 of them that is everything they change, and in `0011.cd` #193 a filter cleared inside a 0.5 s cross-fade goes at once, before it (History, item 20) |
 
-**Opcode audit (2026-10-14).** Every opcode the converter handles was
-read again in the decompiled exe (`ghidra_export.sh`; every handler of
-the dispatch table is named `op_XX` in `names.tsv`) and compared with
-the rows above and the converter:
+**Opcode audit (2026-10-14; per operand since 2026-10-16).** Every
+opcode the converter handles was read again in the decompiled exe
+(`ghidra_export.sh`; every handler of the dispatch table is named
+`op_XX` in `names.tsv`) and compared with the rows above and the
+converter. Fixed then: `0x76` keyed under a layer-0 filter change (the
+change shows at once, `0011.cd` #193); `0x72`/`0x74` fades (were
+waits); `0x39` clears the static; `0x8e` records with every entry's
+mode bit 1 show at once; `0x54` removes the overlay, puts
+`frame01`-`03` up for `sub` 1-3 and starts no fade; `0x66` with a zero
+high half can't be clicked through; `0x5a`/`0x5b` sound effects fade in
+and out.
 
-| Verdict | Opcodes |
-|---|---|
-| Consistent | `0x00`, `0x01`-`0x0e` (all 14 as the converter maps them), `0x10`, `0x11`, `0x15`-`0x1b`, `0x22`, `0x23`, `0x36`-`0x38`, `0x3b`, `0x40`, `0x41`, `0x43`, `0x44`, `0x46`-`0x4a`, `0x4c`-`0x50`, `0x52`, `0x53`, `0x55`, `0x56`, `0x57`-`0x59`, `0x67`-`0x69`, `0x6d`-`0x71`, `0x7a`-`0x7d`, `0x7f`-`0x84`, `0x86`-`0x88`, `0x8a`-`0x8d`, `0x8f`-`0x91`, `0x93`, `0x94`, `0x96`, `0x97`, `0x99`, `0x9d` |
-| Fixed | `0x76` keyed under a layer-0 filter change: the change shows at once (`0011.cd` #193); `0x72`/`0x74` fades (were waits); `0x39` clears the static (seen in the original); `0x8e` records with every entry's mode bit 1 show at once; `0x54` removes the overlay, puts `frame01`-`03` up for `sub` 1-3 and starts no fade; `0x66` with a zero high half can't be clicked through; `0x5a`/`0x5b` sound effects fade in and out (new CONscripter commands `dwavefadein`, `dwavefadeout`) |
+**Operand coverage.** The converter reads every operand through
+`CdScript::sub`, `CdScript::arg` and the pool readers in `cd.rs`, which
+note what was read. The operand records of the opcodes in
+`POOL_RECORDS` (`convert.rs`) lie end to end in instruction order and
+fill the pool, so each record's length is known. After lowering, the
+dry run counts each operand that was given (not 0; `sub` not 0xffff,
+`arg` not -1) and never read as "`<opcode>` operand `<which>`
+ignored": `which` is `sub`, `arg`, `+n` (unread record bytes from byte
+n, not all zero) or `-n` (an unread run ending the record, n bytes
+before its end: the tail of a record of varying length). Operands known
+not to matter are in `UNNEEDED_OPERANDS` (`convert.rs`), each with its
+reason (message line numbers, chapter label numbers, the empty `0x8e`
+module names, the full-screen animation's fixed depth, …). A parsed
+field the converter never used counts as not read: `cd.rs` doesn't
+parse those (ruby flags, edge colours, Filter-Replace's begin angle,
+Zigzag's begin angle and reduction, `0x70`'s depth); link styles and
+message line numbers are read only for `cd messages`, outside the
+tracking.
+
+Per operand or behaviour (counts: instructions; "notes" are the dry
+run's):
+
+| Opcode | Operand or behaviour | State |
+|---|---|---|
+| every opcode the corpus uses, except as below | every operand | converted |
+| `0x40` | `sub` (0x12 in 19,234, 0x13 in 11,724; bit 0 = has a voice, which the exe drops when its voice check `0x4679d0` fails): 30,958 notes | dropped: plain messages are never voiced; whether any of the 11,724 would find a voice is not checked |
+| `0x40` | the extra block after the debug menu's one message (`0001.cd` #1): 1 note | dropped (unreachable) |
+| `0x43` | `arg`: 0 waits for the window's fade-out, 1 (530) doesn't: 530 notes | dropped: both become the same `Op::HideTextWindow` |
+| `0x44` | u16 flags at +6 (3 in 32, 1 in 5): 37 notes | dropped: meaning unknown |
+| `0x46` | u32 style at +6 (0x8007 in 205, 0x8012 in 9): 214 notes | dropped: the 9 style-18 links look like the others |
+| `0x49` | u32 edge colour at +12 (0xff000000 "keep" in 564, 0x808080 in 1): 565 notes | dropped |
+| `0x4a` | u32 edge colour: 2 notes | dropped |
+| `0x52`, `0x53` | `arg` (odd numbers, 421 and 221 distinct values): 1,117 and 501 notes | dropped: meaning unknown |
+| `0x56` | u32 depth at +2: 1 note | dropped |
+| `0x59` | the old track fading out under the new one | partial: it stops at once (one BGM channel) |
+| `0x6f` | the pulse | converted, not checked against the original |
+| `0x70` | the depth in the second u32 (1000 in 188, 2000 in 5, 1100 in 4, …): 203 notes | dropped (`screenfilter` has no depth) |
+| `0x70` | Filter-Replace's begin angle (1/100 turn): 16 notes | dropped: the still ripple starts at phase 0 |
+| `0x70` | Zigzag's begin angle and reduction: 1 note; its Multi blend | dropped; partial (drawn as alpha) |
+| `0x76` | MeltDown's stretch for `sub` 46/47 | converted (scaled from the exe), not compared with the film |
+| `0x7a` | the blog bust-up objects' band and depth (u8 4, u32 2000 at +5): 6 notes | dropped: drawn as the character layer's sprite |
+| `0x82` | layer 1 depth 1 (one use, after `0x56`) | dropped |
+| `0x86` | one byte at the end of one record: 1 note | dropped, not looked into |
+| `0x88` | the u32 module field at +8 (1000 in 2, 2000, 2): 4 notes | dropped |
+| `0x8c` | the sort key in the second u32 (depth 1000 in 227, 1100 in 5, 2000 in 3): 236 notes | dropped: the static is always sprite 60, ripples and shakes move the whole screen |
+| `0x8f` | removes the bust-ups only | partial: `csp -1` also removes the fade cover (no script shows the difference) |
+| `0x90` | the u32 module field at +4 (1 in 649, 2 and 0 once): 650 notes | dropped |
+| `0x30`, `0x62` | everything | dropped (the unreachable debug menu) |
 
 Two doc mistakes corrected on the way: `0x8e`'s last 32 bytes are an
 (always empty) module name, not junk; `0x76`'s third u32 is a sort key,
@@ -545,7 +596,8 @@ Declared finished on 2026-10-14, then reopened the same day: the 0.19
 debug trace and the decompiled exe (`research/tools/ghidra/ghidra_export.sh`,
 names in `research/xuse/names.tsv`) showed opcodes read wrong from
 `objdump`. All 26 items of that list are done, and so is everything the
-debug trace found ("History", below). Nothing is open.
+debug trace found ("History", below). Open: the operand notes below,
+for the user to pick from.
 
 Converted and playable from start to end: text, voices, sprites with
 colour filters, backgrounds, BGM with loop points, sound effects, movies,
@@ -580,6 +632,32 @@ behaviour, the shortcut menu and gamepad.
   user's decision; the item stays greyed out). No title BGM (the
   original's title code plays none, as far as was checked).
 
+**Operand notes (2026-10-16).** The dry run now counts the operands
+the converter is given and never reads ("Operand coverage" under
+"Script bytecode"); none is fixed yet, the user picks which become
+items. Most noticeable first (notes = instructions):
+1. `0x46` link style: 9 links have style 0x8012 instead of 0x8007 and
+   look like the others (214 notes, 205 of them the usual style).
+2. `0x49`/`0x4a` edge colours: one grey (`0x808080`) outline and the
+   two `0x4a` ones are not drawn (565 + 2 notes; 564 are "keep").
+3. `0x40` `sub` bit 0 ("has a voice") on 11,724 plain messages
+   (30,958 notes): the exe drops it when its voice check fails; not
+   checked whether any of them would find a voice clip.
+4. `0x70` filter depth (203 notes: 1000 in 188, 2000 in 5, 1100 in 4)
+   and `0x8c` effect depth (236 notes: 1000 in 227, 1100 in 5, 2000 in
+   3): where the filter or static sorts against the bust-ups and
+   overlays; the few that aren't 1000 may cover more or less than ours.
+5. `0x43` `arg` 1 (530 notes): the window hides without waiting for its
+   fade-out; ours does the same for 0 and 1.
+6. `0x44` ruby flags (37 notes: 3 in 32, 1 in 5), `0x52`/`0x53` `arg`
+   (1,117 + 501 notes, odd numbers): meaning unknown.
+7. Module fields: `0x90` (650 notes; 2 and 0 once each, 1 otherwise),
+   `0x88` (4 notes).
+8. `0x7a` blog bust-up band and depth (6 notes), Filter-Replace's begin
+   angle (16 notes, the still ripple starts at phase 0), Zigzag's begin
+   angle and reduction (1), `0x56` depth (1), one `0x86` byte (1), and
+   the debug menu's message block (1, unreachable).
+
 **Script opcodes:** all converted (the converter reports 2 unsupported
 instructions, both in the unreachable debug menu). Notes on the last
 ones done:
@@ -611,8 +689,8 @@ CRT helpers and the settings/skip flags are named. The exe's own
 `..\Library\…` ones are its in-house framework (gaf004, DX), no
 third-party libraries. Coverage: all 82 opcodes the corpus uses
 (`cd opstats`, 84,713 instructions) are converted and agree with their
-handlers (audit table above); the dry run reports only `0x30`/`0x62`
-(debug menu). Lip sync (`VoiceSyncParts`, `lq.arc`) and animation parts
+handlers (audit table above); the dry run reports `0x30`/`0x62`
+(debug menu) as unsupported, plus the operand notes above. Lip sync (`VoiceSyncParts`, `lq.arc`) and animation parts
 are in the exe but unused here (no `lq.arc`; `0x8e`'s module names are
 empty). Gaps found, where the exe and the converter differ:
 - `0x49`'s edge colour (1 of 565 records, `0x808080`) and `0x4a`'s (2)

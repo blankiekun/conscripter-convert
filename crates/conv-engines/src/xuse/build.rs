@@ -1,6 +1,7 @@
 //! 最果てのイマ's whole build: every script in `HD/CDFiles`, the assets
 //! they use, the menus.
 
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
 
@@ -9,7 +10,7 @@ use conv_core::ir::Script;
 use memmap2::Mmap;
 
 use super::cd::CdScript;
-use super::convert::{AssetBank, Flow, LabelNames, Needs, lower_script, presets};
+use super::convert::{AssetBank, Flow, LabelNames, Needs, ignored_operands, lower_script, presets};
 use super::symbols::{self, SymbolTable};
 use crate::build::{Built, Opts, map};
 
@@ -84,6 +85,10 @@ pub fn build(game: &Path, linear: bool, opts: &Opts) -> Result<Built> {
     for (file, cd) in &scripts {
         ops.extend(lower_script(cd, file, flow, &mut assets, &presets, &names).with_context(|| format!("converting {file}"))?);
     }
+    let mut notes = BTreeMap::new();
+    for (_, cd) in &scripts {
+        ignored_operands(cd, &mut notes);
+    }
     // The linear build plays the story straight through, without a menu.
     let (title_screen, save_menu, button_bar, settings, backlog, confirm, extras) = if linear {
         (None, None, None, None, None, None, None)
@@ -113,7 +118,7 @@ pub fn build(game: &Path, linear: bool, opts: &Opts) -> Result<Built> {
         ops,
         ..Default::default()
     };
-    Ok(Built { ir, notes: Default::default(), picture_dirs: PICTURE_DIRS, audio_dirs: AUDIO_DIRS, package: None })
+    Ok(Built { ir, notes, picture_dirs: PICTURE_DIRS, audio_dirs: AUDIO_DIRS, package: None })
 }
 
 pub fn parse_cd<'a>(path: &Path, bytes: &'a [u8]) -> Result<CdScript<'a>> {

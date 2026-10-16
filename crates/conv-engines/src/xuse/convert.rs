@@ -460,14 +460,14 @@ impl Needs {
     /// lowering reports them.
     pub fn add_script(&mut self, cd: &CdScript) {
         for ins in &cd.code {
-            if ins.op == crate::xuse::cd::OP_BACKGROUND && ins.arg > 0 {
-                self.backgrounds.insert(ins.arg as usize);
-                if let Some(frame) = background_frame(ins.sub) {
+            if ins.op == crate::xuse::cd::OP_BACKGROUND && cd.arg(ins) > 0 {
+                self.backgrounds.insert(cd.arg(ins) as usize);
+                if let Some(frame) = background_frame(cd.sub(ins)) {
                     self.backgrounds.insert(frame);
                 }
             }
             if ins.op == OP_OVERLAY {
-                let number = pool_u32(cd.pool, ins.arg as u32 as usize + 6).unwrap_or(0);
+                let number = pool_u32(cd, cd.arg(ins) as u32 as usize + 6).unwrap_or(0);
                 if number > 0 {
                     self.backgrounds.insert(number as usize);
                 }
@@ -1222,21 +1222,21 @@ pub fn presets(scripts: &[(String, CdScript)]) -> Result<Presets, ConvertError> 
             let Some(l) = label else { continue };
             let name = format!("s{}_l{l}", cd.script_id);
             match ins.op {
-                OP_WINDOW_MODE => mode = ins.arg,
-                OP_WINDOW_STYLE => style = ins.arg,
+                OP_WINDOW_MODE => mode = cd.arg(ins),
+                OP_WINDOW_STYLE => style = cd.arg(ins),
                 OP_WINDOW_POS => {
                     let preset = WindowPreset {
                         full_screen: mode == 1,
                         style: style as u32,
-                        x: ins.arg & 0xffff,
-                        y: ins.arg >> 16,
+                        x: cd.arg(ins) & 0xffff,
+                        y: cd.arg(ins) >> 16,
                         instant: false,
                     };
                     presets.window.insert(name, preset);
                 }
                 OP_TEXT_DISPLAY => {
                     if let Some(p) = presets.window.get_mut(&name) {
-                        p.instant = ins.arg == 1;
+                        p.instant = cd.arg(ins) == 1;
                     }
                 }
                 _ => {}
@@ -1277,12 +1277,12 @@ fn entry_windows(
                     }
                 }
                 let target = match ins.op {
-                    OP_GOTO | OP_GOTO_2 if own_label_at(cd, ins.arg).is_some_and(|i| i != index) => {
-                        Some(format!("s{}_l{}", cd.script_id, ins.arg))
+                    OP_GOTO | OP_GOTO_2 if own_label_at(cd, cd.arg(ins)).is_some_and(|i| i != index) => {
+                        Some(format!("s{}_l{}", cd.script_id, cd.arg(ins)))
                     }
-                    OP_GOTO_SUB | OP_IF_EQUAL..=OP_IF_GE => table_label(cd, ins.sub.into()),
+                    OP_GOTO_SUB | OP_IF_EQUAL..=OP_IF_GE => table_label(cd, cd.sub(ins).into()),
                     OP_GOSUB => {
-                        let t = table_label(cd, ins.sub.into());
+                        let t = table_label(cd, cd.sub(ins).into());
                         if let Some(p) = t.as_ref().and_then(|t| window.get(t)) {
                             current = Some(*p);
                             None
@@ -1333,7 +1333,7 @@ fn sub_windows(scripts: &[(String, CdScript)], window: &HashMap<String, WindowPr
                 for ins in cd.code.iter().skip(l.code_offset as usize / 12 + 1) {
                     match ins.op {
                         OP_GOSUB => {
-                            let t = table_label(cd, ins.sub.into());
+                            let t = table_label(cd, cd.sub(ins).into());
                             if let Some(p) = t.as_ref().and_then(|t| window.get(t).or_else(|| subs.get(t))) {
                                 current = Some(*p);
                             }
@@ -1380,7 +1380,7 @@ fn falls_into(cd: &CdScript, index: usize) -> bool {
     loop {
         let Some(before) = at.checked_sub(2).and_then(|i| cd.code.get(i)) else { return false };
         match before.op {
-            OP_GOTO | OP_GOTO_2 if own_label_at(cd, before.arg).is_some_and(|i| i == at - 2) => at -= 1,
+            OP_GOTO | OP_GOTO_2 if own_label_at(cd, cd.arg(before)).is_some_and(|i| i == at - 2) => at -= 1,
             OP_GOTO | OP_GOTO_2 | OP_GOTO_SUB | OP_RETURN | OP_LINK_RETURN | OP_RETURN_TO_ROOT | OP_RETURN_TO_TITLE => return false,
             _ => return true,
         }
@@ -1740,16 +1740,17 @@ struct MotionEnd {
     opacity: Option<u16>,
 }
 
-fn motion(pool: &[u8], o: usize) -> Option<Motion> {
-    let u32_at = |at: usize| pool.get(at..at + 4).map(|b| u32::from_le_bytes(b.try_into().unwrap()));
-    let layer = *pool.get(o)?;
+fn motion(cd: &CdScript, o: usize) -> Option<Motion> {
+    let u32_at = |at: usize| pool_u32(cd, at);
+    let byte = |at: usize| cd.bytes(at, 1).map(|b| b[0]);
+    let layer = byte(o)?;
     let depth = u32_at(o + 1)?;
     let flags = u32_at(o + 9)?;
     let mut motion = Motion { layer, depth, flags, end: None };
     if flags & 0x8000_0000 != 0 {
         return Some(motion);
     }
-    let count = u16::from_le_bytes(pool.get(o + 13..o + 15)?.try_into().unwrap());
+    let count = u16::from_le_bytes(cd.bytes(o + 13, 2)?.try_into().unwrap());
     // Each field group's size in bytes, by flag (see OP_MODULE).
     let groups = [(0x10, 1), (0x20, 9), (0x40, 9), (0x80, 9), (0x100, 5), (0x200, 3)];
     let frame_size = 4 + groups.iter().filter(|(f, _)| flags & f != 0).map(|(_, n)| n).sum::<usize>();
@@ -1764,10 +1765,10 @@ fn motion(pool: &[u8], o: usize) -> Option<Motion> {
         match flag {
             MOTION_POSITION => {
                 (end.x, end.y) = (u32_at(at)? as i32, u32_at(at + 4)? as i32);
-                end.position = *pool.get(at + 8)? == 2;
+                end.position = byte(at + 8)? == 2;
             }
             0x100 => end.rotation = u32_at(at)? as i32,
-            MOTION_OPACITY if *pool.get(at + 2)? == 2 => end.opacity = Some(u16::from_le_bytes(pool.get(at..at + 2)?.try_into().unwrap())),
+            MOTION_OPACITY if byte(at + 2)? == 2 => end.opacity = Some(u16::from_le_bytes(cd.bytes(at, 2)?.try_into().unwrap())),
             _ => {}
         }
         at += size;
@@ -1923,7 +1924,7 @@ pub fn lower_script(
             continue;
         }
         let at = || SourceLoc { file: file.to_string(), index };
-        if matches!(ins.op, OP_GOTO | OP_GOTO_2) && own_label_at(cd, ins.arg).is_some_and(|i| i == index) {
+        if matches!(ins.op, OP_GOTO | OP_GOTO_2) && own_label_at(cd, cd.arg(ins)).is_some_and(|i| i == index) {
             continue; // label marker: a jump to the label sitting on this instruction
         }
         if flow == Flow::Linear && matches!(ins.op, OP_GOTO | OP_GOTO_2 | OP_GOTO_SUB | OP_IF_EQUAL..=OP_IF_GE | OP_GOSUB | OP_RETURN | OP_LINK_RETURN) {
@@ -1931,8 +1932,8 @@ pub fn lower_script(
             continue;
         }
         if ins.op == OP_MASK_TRANSITION {
-            let o = ins.arg as u32 as usize;
-            match (pool_u32(cd.pool, o), pool_u32(cd.pool, o + 4), pool_u32(cd.pool, o + 8)) {
+            let o = cd.arg(ins) as u32 as usize;
+            match (pool_u32(cd, o), pool_u32(cd, o + 4), pool_u32(cd, o + 8)) {
                 (Some(number), Some(soft), Some(fade_ms)) => {
                     // Assumption: negative softness runs the mask bright-first.
                     let mask = match assets.mask(number as usize, (soft as i32) < 0) {
@@ -1950,18 +1951,18 @@ pub fn lower_script(
             continue;
         }
         if ins.op == OP_OVERLAY {
-            let o = ins.arg as u32 as usize;
-            let record = cd.pool.get(o..o + 2).zip(pool_u32(cd.pool, o + 6));
+            let o = cd.arg(ins) as u32 as usize;
+            let record = cd.bytes(o, 2).zip(pool_u32(cd, o + 6));
             match record {
                 Some((&[2, layer @ 0..=2], number)) => {
                     let image = match number {
                         0 => None,
                         n => Some(assets.background(n as usize)?.path),
                     };
-                    let over = overlay_over(layer, pool_u32(cd.pool, o + 2).unwrap_or(0));
+                    let over = overlay_over(layer, pool_u32(cd, o + 2).unwrap_or(0));
                     overlay_depth = over.filter(|_| image.is_some());
                     ops.push(Op::Overlay { image, over_sprites: over.is_some() });
-                    if cd.pool.get(o + 10).is_some_and(|&mark| mark != 0) && let Some(number) = gallery_cg(number as i32) {
+                    if cd.bytes(o + 10, 1).is_some_and(|mark| mark[0] != 0) && let Some(number) = gallery_cg(number as i32) {
                         ops.push(Op::CgSeen { number });
                     }
                 }
@@ -1970,8 +1971,8 @@ pub fn lower_script(
             continue;
         }
         if ins.op == OP_FILL {
-            let o = ins.arg as u32 as usize;
-            let record = cd.pool.get(o..o + 2).zip(pool_u32(cd.pool, o + 6));
+            let o = cd.arg(ins) as u32 as usize;
+            let record = cd.bytes(o, 2).zip(pool_u32(cd, o + 6));
             let rgb = |c: u32| (c & 0xff) << 16 | (c & 0xff00) | (c >> 16 & 0xff);
             match record {
                 Some((&[1, _], colour)) => {
@@ -1980,7 +1981,7 @@ pub fn lower_script(
                 }
                 Some((&[2, layer @ 0..=2], colour)) => {
                     overlay_fill = true;
-                    let over = overlay_over(layer, pool_u32(cd.pool, o + 2).unwrap_or(0));
+                    let over = overlay_over(layer, pool_u32(cd, o + 2).unwrap_or(0));
                     overlay_depth = over;
                     ops.push(Op::Overlay { image: Some(assets.fill(rgb(colour))?), over_sprites: over.is_some() });
                 }
@@ -1988,7 +1989,7 @@ pub fn lower_script(
             }
             continue;
         }
-        if ins.op == OP_BLEND && overlay_fill && cd.pool.get(ins.arg as u32 as usize..ins.arg as u32 as usize + 5) == Some(&[1, 2, 0, 0, 0]) {
+        if ins.op == OP_BLEND && overlay_fill && cd.bytes(cd.arg(ins) as u32 as usize, 5) == Some(&[1, 2, 0, 0, 0]) {
             continue; // dissolve: the fade-out is drawn as a cross-fade
         }
         if ins.op == OP_RETURN_TO_TITLE {
@@ -2016,30 +2017,30 @@ pub fn lower_script(
         {
             ops.push(Op::SeFadeIn { ms: fade_in_ms });
         }
-        if ins.op == crate::xuse::cd::OP_BACKGROUND && ins.arg > 0 {
+        if ins.op == crate::xuse::cd::OP_BACKGROUND && cd.arg(ins) > 0 {
             // op_54 first removes background slots 1-10 (0x4132d0), the
             // overlay (0x55, slot 2) with them.
             overlay_depth = None;
             ops.push(Op::Overlay { image: None, over_sprites: false });
             // It starts no fade: the picture shows at once, or with the
             // transition armed around it.
-            ops.push(Op::Background { image: assets.background(ins.arg as usize)?.path, fade_ms: 0 });
-            if let Some(frame) = background_frame(ins.sub) {
+            ops.push(Op::Background { image: assets.background(cd.arg(ins) as usize)?.path, fade_ms: 0 });
+            if let Some(frame) = background_frame(cd.sub(ins)) {
                 ops.push(Op::Overlay { image: Some(assets.background(frame)?.path), over_sprites: false });
             }
         }
         if ins.op == crate::xuse::cd::OP_BACKGROUND {
             background_fill = None;
             // 0x54 marks its picture as seen (0x4222c0's last argument).
-            if let Some(number) = gallery_cg(ins.arg) {
+            if let Some(number) = gallery_cg(cd.arg(ins)) {
                 ops.push(Op::CgSeen { number });
             }
             continue;
         }
         if ins.op == OP_OPACITY && let Some(fill) = background_fill {
             // The filled background (slot 1) over nothing: darker.
-            let o = ins.arg as u32 as usize;
-            if cd.pool.get(o..o + 5) == Some(&[1, 1, 0, 0, 0]) && let Some(opacity) = cd.pool.get(o + 5..o + 7) {
+            let o = cd.arg(ins) as u32 as usize;
+            if cd.bytes(o, 5) == Some(&[1, 1, 0, 0, 0]) && let Some(opacity) = cd.bytes(o + 5, 2) {
                 let opacity = u32::from(u16::from_le_bytes([opacity[0], opacity[1]])).min(256);
                 let scaled = [16, 8, 0].iter().fold(0, |c, s| c | ((fill >> s & 0xff) * opacity / 256) << s);
                 ops.push(Op::Background { image: assets.fill(scaled)?, fade_ms: 0 });
@@ -2047,8 +2048,8 @@ pub fn lower_script(
             }
         }
         if ins.op == OP_OPACITY {
-            let o = ins.arg as u32 as usize;
-            let record = cd.pool.get(o..o + 7).map(|r| (r[0], u32::from_le_bytes([r[1], r[2], r[3], r[4]]), u16::from_le_bytes([r[5], r[6]])));
+            let o = cd.arg(ins) as u32 as usize;
+            let record = cd.bytes(o, 7).map(|r| (r[0], u32::from_le_bytes([r[1], r[2], r[3], r[4]]), u16::from_le_bytes([r[5], r[6]])));
             match record {
                 Some((2, character, opacity)) if opacity <= 256 => {
                     opacities.insert(character, opacity.into());
@@ -2060,9 +2061,9 @@ pub fn lower_script(
             continue;
         }
         if ins.op == OP_SCALE {
-            let o = ins.arg as u32 as usize;
-            let record = cd.pool.get(o..o + 5).map(|r| (r[0], u32::from_le_bytes([r[1], r[2], r[3], r[4]])));
-            let scale = pool_u32(cd.pool, o + 5).zip(pool_u32(cd.pool, o + 9));
+            let o = cd.arg(ins) as u32 as usize;
+            let record = cd.bytes(o, 5).map(|r| (r[0], u32::from_le_bytes([r[1], r[2], r[3], r[4]])));
+            let scale = pool_u32(cd, o + 5).zip(pool_u32(cd, o + 9));
             match (record, scale) {
                 (Some((2, layer)), Some((sx @ 1..=1000, sy @ 1..=1000))) if placed.contains_key(&layer) => {
                     let (number, cx, cy) = placed[&layer];
@@ -2079,9 +2080,9 @@ pub fn lower_script(
             continue;
         }
         if ins.op == OP_POSITION {
-            let o = ins.arg as u32 as usize;
-            let i = |at: usize| cd.pool.get(at..at + 4).map(|b| i32::from_le_bytes(b.try_into().unwrap()));
-            let record = cd.pool.get(o..o + 5).map(|r| (r[0], u32::from_le_bytes([r[1], r[2], r[3], r[4]])));
+            let o = cd.arg(ins) as u32 as usize;
+            let i = |at: usize| cd.bytes(at, 4).map(|b| i32::from_le_bytes(b.try_into().unwrap()));
+            let record = cd.bytes(o, 5).map(|r| (r[0], u32::from_le_bytes([r[1], r[2], r[3], r[4]])));
             match (record, i(o + 5), i(o + 9)) {
                 (Some((2, character)), Some(x), Some(y)) => {
                     if let Some(p) = placed.get_mut(&character) {
@@ -2097,8 +2098,8 @@ pub fn lower_script(
             continue; // the slides run to their end at 0x86
         }
         if ins.op == OP_MODULE {
-            let o = ins.arg as u32 as usize;
-            match motion(cd.pool, o) {
+            let o = cd.arg(ins) as u32 as usize;
+            match motion(cd, o) {
                 Some(m) if m.flags == MODULE_REMOVE => {}
                 // The fill's fade-out (0x56): a timed removal; the wait
                 // after it already covers the fade.
@@ -2144,13 +2145,14 @@ pub fn lower_script(
             continue;
         }
         if matches!(ins.op, OP_FX_CREATE | OP_FX_REMOVE | OP_PICTURE | OP_ANCHOR | OP_SHOW)
-            && cd.pool.get(ins.arg as u32 as usize) == Some(&2)
+            && cd.bytes(cd.arg(ins) as u32 as usize, 1) == Some(&[2])
         {
-            let o = ins.arg as u32 as usize;
+            let o = cd.arg(ins) as u32 as usize;
             let record = cd.pool.get(o..).unwrap_or(&[]);
             let unsupported = || Op::Unsupported { what: format!("opcode {:#04x} record {:02x?}", ins.op, &record[..record.len().min(24)]), at: at() };
-            let u16_at = |i: usize| record.get(i..i + 2).map(|b| u16::from_le_bytes([b[0], b[1]]));
-            let u32_at = |i: usize| record.get(i..i + 4).map(|b| u32::from_le_bytes(b.try_into().unwrap()));
+            let byte = |i: usize| cd.bytes(o + i, 1).map(|b| b[0]);
+            let u16_at = |i: usize| cd.bytes(o + i, 2).map(|b| u16::from_le_bytes([b[0], b[1]]));
+            let u32_at = |i: usize| cd.bytes(o + i, 4).map(|b| u32::from_le_bytes(b.try_into().unwrap()));
             let Some(layer) = u32_at(1) else {
                 ops.push(unsupported());
                 continue;
@@ -2159,8 +2161,8 @@ pub fn lower_script(
             let shown = match (ins.op, picture) {
                 (OP_FX_CREATE, _) => {
                     // Blend 0 and full opacity in every use; the size is the picture's.
-                    match (u16_at(10), u16_at(12), record.get(18), u16_at(19), record.get(21)) {
-                        (Some(x), Some(y), Some(0), Some(256), Some(&visible)) => {
+                    match (u16_at(10), u16_at(12), byte(18), u16_at(19), byte(21)) {
+                        (Some(x), Some(y), Some(0), Some(256), Some(visible)) => {
                             let picture = Picture { x: x.into(), y: y.into(), visible: visible != 0, ..Default::default() };
                             pictures.insert(layer, picture);
                             // The new object replaces the character's bust-up.
@@ -2175,15 +2177,15 @@ pub fn lower_script(
                     ops.push(Op::Sprites { changes: vec![SpriteChange { layer, sprite: None, keep_filters: false }], fade_ms: 0 });
                     continue;
                 }
-                (OP_PICTURE, Some(p)) if record.get(5) == Some(&PICTURE_KIND_BUSTUP) && u32_at(6).is_some_and(|n| n > 0) => {
+                (OP_PICTURE, Some(p)) if byte(5) == Some(PICTURE_KIND_BUSTUP) && u32_at(6).is_some_and(|n| n > 0) => {
                     p.sprite = u32_at(6);
                     p.change(assets, layer)?
                 }
-                (OP_ANCHOR, Some(p)) if matches!(record.get(5..7), Some(&[0..=2, 0..=2])) => {
+                (OP_ANCHOR, Some(p)) if matches!(cd.bytes(o + 5, 2), Some(&[0..=2, 0..=2])) => {
                     p.anchor = (record[5], record[6]);
                     p.change(assets, layer)?
                 }
-                (OP_SHOW, Some(p)) if record.len() > 5 => {
+                (OP_SHOW, Some(p)) if byte(5).is_some() => {
                     p.visible = record[5] != 0;
                     match p.change(assets, layer)? {
                         None => Some(SpriteChange { layer, sprite: None, keep_filters: false }),
@@ -2201,24 +2203,25 @@ pub fn lower_script(
             continue;
         }
         if matches!(ins.op, OP_FX_CREATE | OP_FX_LOAD | OP_FX_WAIT | OP_FX_REMOVE) {
-            let o = ins.arg as u32 as usize;
+            let o = cd.arg(ins) as u32 as usize;
             let record = cd.pool.get(o..).unwrap_or(&[]);
             let unsupported = || Op::Unsupported { what: format!("opcode {:#04x} record {:02x?}", ins.op, &record[..record.len().min(24)]), at: at() };
-            let u16_at = |i: usize| record.get(i..i + 2).map(|b| u16::from_le_bytes([b[0], b[1]]));
-            if record.first() != Some(&0) {
+            let byte = |i: usize| cd.bytes(o + i, 1).map(|b| b[0]);
+            let u16_at = |i: usize| cd.bytes(o + i, 2).map(|b| u16::from_le_bytes([b[0], b[1]]));
+            if byte(0) != Some(0) {
                 ops.push(unsupported());
                 continue;
             }
             match ins.op {
                 OP_FX_CREATE => {
                     let full_screen = [u16_at(10), u16_at(12), u16_at(14), u16_at(16)] == [Some(0), Some(0), Some(800), Some(600)];
-                    match (full_screen, record.get(18), u16_at(19)) {
+                    match (full_screen, byte(18), u16_at(19)) {
                         (true, Some(0), Some(opacity)) => fx_opacity = Some(u32::from(opacity).min(256)),
                         _ => ops.push(unsupported()),
                     }
                 }
                 OP_FX_LOAD => {
-                    let name = record.get(13..45).map(|n| n.split(|&b| b == 0).next().unwrap_or(&[]));
+                    let name = cd.bytes(o + 13, 32).map(|n| n.split(|&b| b == 0).next().unwrap_or(&[]));
                     let name = name.and_then(|n| std::str::from_utf8(n).ok()).filter(|n| n.starts_with("fx"));
                     let animation = match name {
                         Some(name) => assets.animation(name)?,
@@ -2249,16 +2252,16 @@ pub fn lower_script(
             continue;
         }
         if ins.op == OP_UNLOCK_SCENE {
-            match ins.arg {
+            match cd.arg(ins) {
                 scene @ 0..REPLAY_SCENES => ops.push(Op::UnlockScene { scene: scene as u32 }),
-                _ => ops.push(Op::Unsupported { what: format!("opcode {:#04x} arg {}", ins.op, ins.arg), at: at() }),
+                _ => ops.push(Op::Unsupported { what: format!("opcode {:#04x} arg {}", ins.op, cd.arg(ins)), at: at() }),
             }
             continue;
         }
         if ins.op == OP_DEFAULT_TEXT_STYLE {
-            let o = ins.arg as u32 as usize;
-            let size = cd.pool.get(o..o + 2).map(|b| u16::from_le_bytes([b[0], b[1]]));
-            match (size, pool_u32(cd.pool, o + 2)) {
+            let o = cd.arg(ins) as u32 as usize;
+            let size = cd.bytes(o, 2).map(|b| u16::from_le_bytes([b[0], b[1]]));
+            match (size, pool_u32(cd, o + 2)) {
                 (Some(size), Some(colour)) => {
                     default_style.1 = match size {
                         0xf002 => default_style.1,
@@ -2281,26 +2284,26 @@ pub fn lower_script(
             continue;
         }
         if ins.op == OP_STAFF_ROLL {
-            match assets.staff_roll(ins.arg as usize) {
+            match assets.staff_roll(cd.arg(ins) as usize) {
                 Ok(file) => ops.push(Op::Movie { file, skippable: false }),
                 Err(ConvertError::MissingAsset { .. }) => {
-                    ops.push(Op::Unsupported { what: format!("opcode {:#04x} arg {}", ins.op, ins.arg), at: at() })
+                    ops.push(Op::Unsupported { what: format!("opcode {:#04x} arg {}", ins.op, cd.arg(ins)), at: at() })
                 }
                 Err(e) => return Err(e),
             }
             continue;
         }
         if ins.op == OP_PROGRESS {
-            match ins.sub {
+            match cd.sub(ins) {
                 bit @ 0..32 => ops.push(Op::Progress { bit: bit.into() }),
-                _ => ops.push(Op::Unsupported { what: format!("opcode {:#04x} sub {:#x}", ins.op, ins.sub), at: at() }),
+                _ => ops.push(Op::Unsupported { what: format!("opcode {:#04x} sub {:#x}", ins.op, cd.sub(ins)), at: at() }),
             }
             continue;
         }
         if ins.op == OP_CG_SEEN {
-            match ins.arg {
+            match cd.arg(ins) {
                 number @ 1.. if (number as usize) <= 9 * BG_PER_ARCHIVE => ops.push(Op::CgSeen { number: number as u32 }),
-                _ => ops.push(Op::Unsupported { what: format!("opcode {:#04x} arg {}", ins.op, ins.arg), at: at() }),
+                _ => ops.push(Op::Unsupported { what: format!("opcode {:#04x} arg {}", ins.op, cd.arg(ins)), at: at() }),
             }
             continue;
         }
@@ -2309,7 +2312,7 @@ pub fn lower_script(
             continue;
         }
         if ins.op == OP_CHAPTER_END {
-            let target = pool_u32(cd.pool, ins.arg as u32 as usize + 4)
+            let target = pool_u32(cd, cd.arg(ins) as u32 as usize + 4)
                 .and_then(|i| cd.labels.get((i as usize).checked_sub(1)?));
             let next = cd.code.get(index + 1).map(|i| i.op);
             match target {
@@ -2323,7 +2326,7 @@ pub fn lower_script(
             continue;
         }
         if ins.op == OP_CHAPTER {
-            let title = pool_u32(cd.pool, ins.arg as u32 as usize)
+            let title = pool_u32(cd, cd.arg(ins) as u32 as usize)
                 .and_then(|label| names.own(cd, label))
                 .and_then(chapter_title);
             match title {
@@ -2333,20 +2336,20 @@ pub fn lower_script(
             continue;
         }
         if ins.op == OP_TRANSITION {
-            match pool_u32(cd.pool, ins.arg as u32 as usize) {
+            match pool_u32(cd, cd.arg(ins) as u32 as usize) {
                 Some(fade_ms) => {
                     transition_armed = true;
-                    let key = pool_u32(cd.pool, ins.arg as u32 as usize + 8);
+                    let key = pool_u32(cd, cd.arg(ins) as u32 as usize + 8);
                     keyed_start = key.filter(|k| matches!(k & 0xff, 1..=3)).map(|_| ops.len());
                     // TvPowerSwitch runs its own 700 ms key frames (setup
                     // 0x4485d7: 260 ... 700 ms) whatever the record says.
-                    let mut fade_ms = if ins.sub == TRANSITION_TV_POWER_SWITCH { TV_POWER_SWITCH_MS } else { fade_ms };
+                    let mut fade_ms = if cd.sub(ins) == TRANSITION_TV_POWER_SWITCH { TV_POWER_SWITCH_MS } else { fade_ms };
                     // SmoothCrossFade (filmed under wine, 3 s): the old
                     // picture blurs at once (about a Gaussian σ 1: a 3×3
                     // mean) and stays for a third of the time, cross-fades
                     // in the second third and the new one sharpens in the
                     // last ([`end_transition`]).
-                    if ins.sub == TRANSITION_SMOOTH_CROSS_FADE {
+                    if cd.sub(ins) == TRANSITION_SMOOTH_CROSS_FADE {
                         let blur = SpriteFilter {
                             kind: Operand::Const(FILTER_BLUR),
                             blend: Operand::Const(FILTER_BLEND_COPY),
@@ -2361,7 +2364,7 @@ pub fn lower_script(
                     // Dot4x4 (kernel 0x4430a0) copies the new picture
                     // through a 4×4 pattern: the hard mask transition over
                     // a tiled Bayer mask reveals the same dots.
-                    let mask = match ins.sub {
+                    let mask = match cd.sub(ins) {
                         TRANSITION_DOT4X4 => Some(assets.dither_mask()?),
                         // Trans_SoftEdgeWipe (setup 0x4481e0 with sub - 5;
                         // directions seen under wine): 5 up from the bottom,
@@ -2371,16 +2374,16 @@ pub fn lower_script(
                         // mask fade can't keep a narrow edge across the
                         // screen).
                         5..=8 => {
-                            let (dx, dy) = [(0, -1), (1, 0), (0, 1), (-1, 0)][usize::from(ins.sub - 5)];
+                            let (dx, dy) = [(0, -1), (1, 0), (0, 1), (-1, 0)][usize::from(cd.sub(ins) - 5)];
                             Some(assets.wipe_mask(dx, dy)?)
                         }
                         _ => None,
                     };
                     ops.push(Op::BeginTransition {
-                        effect: transition_name(ins.sub).to_string(),
+                        effect: transition_name(cd.sub(ins)).to_string(),
                         fade_ms,
                         mask,
-                        style: transition_style(ins.sub),
+                        style: transition_style(cd.sub(ins)),
                     });
                 }
                 None => ops.push(Op::Unsupported { what: format!("opcode {:#04x} (bad record)", ins.op), at: at() }),
@@ -2429,7 +2432,7 @@ pub fn lower_script(
         if ins.op == OP_ENV_WAIT {
             // Waits the module's whole time: the one use follows the 0x8c
             // that set the slot at once.
-            match pool_u32(cd.pool, ins.arg as u32 as usize).and_then(|slot| env_times.get(&slot)) {
+            match pool_u32(cd, cd.arg(ins) as u32 as usize).and_then(|slot| env_times.get(&slot)) {
                 Some(&ms) => ops.push(Op::Wait { ms }),
                 None => ops.push(Op::Unsupported { what: format!("opcode {:#04x} (no module time)", ins.op), at: at() }),
             }
@@ -2438,7 +2441,7 @@ pub fn lower_script(
         // While skipping (skip_state_a/_b) the original draws none of these;
         // with 画面エフェクトを使用 off (setting_effects bit 0) none but the
         // flash. A script fade left out draws no cover at all.
-        let fade = matches!(ins.op, OP_FADE_BLACK | OP_FADE_WHITE) && ins.arg >> 16 == 0;
+        let fade = matches!(ins.op, OP_FADE_BLACK | OP_FADE_WHITE) && cd.arg(ins) >> 16 == 0;
         if fade || matches!(ins.op, OP_FLASH | OP_QUAKE | OP_SURPRISE) {
             let gate = format!("s{}_fx{index}", cd.script_id);
             ops.push(Op::IfSkipping { label: gate.clone() });
@@ -2446,7 +2449,7 @@ pub fn lower_script(
                 ops.push(Op::IfSwitch { switch: Switch::Effects, on: false, label: gate.clone() });
             }
             if ins.op == OP_FLASH {
-                let c = ins.arg as u32;
+                let c = cd.arg(ins) as u32;
                 let colour = (c & 0xff) << 16 | (c & 0xff00) | (c >> 16 & 0xff);
                 // At sort key 0xffffffff: over the text window too.
                 ops.push(Op::ScreenFlash { colour, opacity: FLASH_OPACITY, ms: FLASH_MS });
@@ -2456,7 +2459,7 @@ pub fn lower_script(
                 lower_surprise(&surprise?, &mut ops);
             } else {
                 let colour = if ins.op == OP_FADE_WHITE { 0xffffff } else { 0 };
-                ops.push(Op::ScreenFade { colour, ms: u32::from(ins.arg as u16) });
+                ops.push(Op::ScreenFade { colour, ms: u32::from(cd.arg(ins) as u16) });
             }
             ops.push(Op::Label(gate));
             continue;
@@ -2525,7 +2528,7 @@ pub fn lower_script(
             }
             ops.extend(path.prefix);
             let Some(records) = path.records else { continue };
-            let unsupported = || format!("opcode {:#04x} sub {:#x} arg {}", ins.op, ins.sub, ins.arg);
+            let unsupported = || format!("opcode {:#04x} sub {:#x} arg {}", ins.op, cd.sub(ins), cd.arg(ins));
             match lower_instr(cd, ins, &records, assets, names) {
                 Ok(Some(Op::Text { speaker, text, voice, mut links, ruby, mut styles, hang, continues })) if flow == Flow::Linear => {
                     whole_text_style(&mut styles, &text, default_style);
@@ -2645,7 +2648,7 @@ fn add_record(cd: &CdScript, ins: &Instr, records: &mut MessageRecords) -> Resul
     } else if let Some(style) = cd.text_style(ins) {
         records.styles.push(style?);
     } else if ins.op == OP_TEXT_INDENT {
-        records.indent = Some((ins.arg as u32 >> 16) as u16);
+        records.indent = Some((cd.arg(ins) as u32 >> 16) as u16);
     } else {
         return Ok(false);
     }
@@ -2721,7 +2724,7 @@ fn unfold_records(
                 if is_record(ins) {
                     carried.push(i);
                 } else if ins.op == OP_GOTO_SUB {
-                    let Some(target) = table_label(cd, ins.sub.into()) else { unsupported = true; break };
+                    let Some(target) = table_label(cd, cd.sub(ins).into()) else { unsupported = true; break };
                     match target_of(&target, &carried, &mut entries) {
                         Some(name) => prefix.push(Op::Jump(name)),
                         None => prefix.push(Op::Jump(target)),
@@ -2739,7 +2742,7 @@ fn unfold_records(
                             break;
                         }
                     }
-                } else if own_label_at(cd, ins.arg) != Some(i) {
+                } else if own_label_at(cd, cd.arg(ins)) != Some(i) {
                     unsupported = true; // a goto by label number, not a marker
                     break;
                 }
@@ -2929,32 +2932,32 @@ fn lower_instr(
     let var = |v: u32| Var { global: v & 0x8000 != 0, index: (v & 0x7fff) as u16 };
     match ins.op {
         OP_GOTO | OP_GOTO_2 => {
-            return Ok(own_label_at(cd, ins.arg).map(|_| Op::Jump(format!("s{}_l{}", cd.script_id, ins.arg))));
+            return Ok(own_label_at(cd, cd.arg(ins)).map(|_| Op::Jump(format!("s{}_l{}", cd.script_id, cd.arg(ins)))));
         }
-        OP_GOTO_SUB => return Ok(label(ins.sub.into()).map(Op::Jump)),
-        OP_GOSUB => return Ok(label(ins.sub.into()).map(Op::Gosub)),
+        OP_GOTO_SUB => return Ok(label(cd.sub(ins).into()).map(Op::Jump)),
+        OP_GOSUB => return Ok(label(cd.sub(ins).into()).map(Op::Gosub)),
         OP_RETURN | OP_LINK_RETURN => return Ok(Some(Op::Return)),
         OP_CLEAR_SPRITES => return Ok(Some(Op::ClearSprites)),
         OP_HIDE_TEXT => return Ok(Some(Op::HideTextWindow)),
-        OP_TEXT_DISPLAY => return Ok(Some(Op::InstantText(ins.arg == 1))),
-        OP_CLICK_WAIT => return Ok(Some(Op::ClickWait { skippable: ins.arg != 0 })),
+        OP_TEXT_DISPLAY => return Ok(Some(Op::InstantText(cd.arg(ins) == 1))),
+        OP_CLICK_WAIT => return Ok(Some(Op::ClickWait { skippable: cd.arg(ins) != 0 })),
         OP_CLICK_WAIT_SKIPPABLE => return Ok(Some(Op::ClickWait { skippable: true })),
         OP_MOVIE => {
-            let file = assets.movie(ins.arg as u16)?;
-            return Ok(Some(Op::Movie { file, skippable: ins.arg >> 16 != 0 }));
+            let file = assets.movie(cd.arg(ins) as u16)?;
+            return Ok(Some(Op::Movie { file, skippable: cd.arg(ins) >> 16 != 0 }));
         }
         // The wait callback (0x475bf0) lets a click or skip end it only
         // when arg's high half isn't 0.
-        OP_WAIT if ins.arg >> 16 == 0 => return Ok(Some(Op::Pause { ms: u32::from(ins.arg as u16) })),
-        OP_WAIT => return Ok(Some(Op::Wait { ms: u32::from(ins.arg as u16) })),
+        OP_WAIT if cd.arg(ins) >> 16 == 0 => return Ok(Some(Op::Pause { ms: u32::from(cd.arg(ins) as u16) })),
+        OP_WAIT => return Ok(Some(Op::Wait { ms: u32::from(cd.arg(ins) as u16) })),
         OP_IF_EQUAL..=OP_IF_GE => {
             // Handlers 0x474400 (sete), 0x474460 (setne), 0x4745e0 (setl),
             // 0x474520 (setg), 0x474580 (setle), 0x4744c0 (setge); the
             // jump is taken when the comparison holds (0x474340).
             let cmp = [Compare::Eq, Compare::Ne, Compare::Lt, Compare::Gt, Compare::Le, Compare::Ge][usize::from(ins.op - OP_IF_EQUAL)];
-            let Some(target) = label(ins.sub.into()) else { return Ok(None) };
-            let o = ins.arg as u32 as usize;
-            let (Some(a), Some(b)) = (pool_u32(cd.pool, o), pool_u32(cd.pool, o + 4)) else { return Ok(None) };
+            let Some(target) = label(cd.sub(ins).into()) else { return Ok(None) };
+            let o = cd.arg(ins) as u32 as usize;
+            let (Some(a), Some(b)) = (pool_u32(cd, o), pool_u32(cd, o + 4)) else { return Ok(None) };
             return Ok(Some(Op::If { var: var(a), cmp, value: Operand::Const(b as i32), label: target }));
         }
         // Arithmetic on variables (sub = target variable). 0x03 shares
@@ -2976,8 +2979,8 @@ fn lower_instr(
                 0x0d => (ArithOp::BitAnd, true),
                 _ => (ArithOp::BitOr, true),
             };
-            let value = if by_var { Operand::Var(var(ins.arg as u32 & 0xffff)) } else { Operand::Const(ins.arg) };
-            return Ok(Some(Op::Arith { var: var(ins.sub.into()), op, value }));
+            let value = if by_var { Operand::Var(var(cd.arg(ins) as u32 & 0xffff)) } else { Operand::Const(cd.arg(ins)) };
+            return Ok(Some(Op::Arith { var: var(cd.sub(ins).into()), op, value }));
         }
         _ => {}
     }
@@ -3225,8 +3228,56 @@ pub fn table_label(cd: &CdScript, index: i64) -> Option<String> {
     cd.labels.get(stored).map(|l| format!("s{}_l{}", l.script, l.label))
 }
 
-fn pool_u32(pool: &[u8], offset: usize) -> Option<u32> {
-    pool.get(offset..offset + 4).map(|b| u32::from_le_bytes(b.try_into().unwrap()))
+/// Opcodes whose `arg` is the offset of a pool record (the records lie end
+/// to end in instruction order and fill the pool).
+const POOL_RECORDS: [u16; 44] = [
+    0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x36, 0x37, 0x38, 0x3b, 0x40, 0x41, 0x44, 0x46, 0x49, 0x4a, 0x55, 0x56, 0x59, 0x5a, 0x6d, 0x6f,
+    0x70, 0x76, 0x77, 0x7a, 0x7b, 0x7c, 0x7d, 0x7f, 0x80, 0x81, 0x82, 0x83, 0x84, 0x86, 0x87, 0x88, 0x8a, 0x8b, 0x8c, 0x8d, 0x8e, 0x90,
+];
+
+/// Operands the converter doesn't read because they don't matter:
+/// (opcode, operand as [`CdScript::ignored`] names it, why).
+const UNNEEDED_OPERANDS: &[(u16, &str, &str)] = &[
+    (0x41, "sub", "0x13 in every voiced message: bit 0 (has a voice) is the opcode itself"),
+    (0x40, "+8", "the source script's line number (`cd messages` prints it)"),
+    (0x41, "+8", "the source script's line number (`cd messages` prints it)"),
+    (0x40, "-8", "u32 4, u32 0 after the text of every story message"),
+    (0x41, "-8", "u32 4, u32 0 after the text of every message"),
+    (0x36, "-4", "the label-table index of the chapter's |chpe label, where its 0x37 sits"),
+    (0x37, "+0", "its own label number: the label table places it"),
+    (0x38, "+0", "its own label number: the label table places it"),
+    (0x3b, "sub", "the entry name's length: only 0x3c reads the name, and no script uses it"),
+    (0x3b, "+0", "the entry name (debug or release entry): only 0x3c reads it, and no script uses it"),
+    (0x77, "-8", "flags (always 0) and sort key: the 9 records with a key below the top band change only what it covers (History, item 15)"),
+    (0x7a, "+1", "the full-screen animation's depth: 1000 in every record (one object, sprite 59)"),
+    (0x7a, "-1", "the full-screen animation is visible (0xff) in every record"),
+    (0x7b, "-4", "the full-screen animation's depth: 1000 in every record"),
+    (0x8a, "-9", "depth 1000, slot 1, 0xff in every record: there is one full-screen animation"),
+    (0x8b, "+1", "the full-screen animation's depth: 1000 in every record"),
+    (0x83, "-1", "the blend, 6 (dissolve) in the one use, which the converter draws as one"),
+    (0x86, "+5", "the module slot: 1 in every use (one motion per object)"),
+    (0x87, "+0", "waits for the motion its object's 0x86 just started: the converter's slides run to their end at 0x86"),
+    (0x8d, "-1", "0xff, as in every 0x87 and 0x8a wait record"),
+    (0x8e, "+12", "the module name: empty in every entry (byte 0 is 0), leftover memory after it"),
+    (0x8e, "+56", "the module name: empty in every entry (byte 0 is 0), leftover memory after it"),
+    (0x8e, "+100", "the module name: empty in every entry (byte 0 is 0), leftover memory after it"),
+    (0x8e, "+144", "the module name: empty in every entry (byte 0 is 0), leftover memory after it"),
+    (0x8e, "+188", "the module name: empty in every entry (byte 0 is 0), leftover memory after it"),
+    (0x8e, "-32", "the module name: empty in every entry (byte 0 is 0), leftover memory after it"),
+];
+
+/// Counts the operands given but never read ([`CdScript::ignored`]) as
+/// "<opcode> operand <which> ignored", leaving out [`UNNEEDED_OPERANDS`].
+pub fn ignored_operands(cd: &CdScript, notes: &mut BTreeMap<String, usize>) {
+    for (op, which) in cd.ignored(&POOL_RECORDS) {
+        if !UNNEEDED_OPERANDS.iter().any(|&(o, w, _)| o == op && w == which) {
+            *notes.entry(format!("{op:#04x} operand {which} ignored")).or_default() += 1;
+        }
+    }
+}
+
+fn pool_u32(cd: &CdScript, offset: usize) -> Option<u32> {
+    cd.bytes(offset, 4).map(|b| u32::from_le_bytes(b.try_into().unwrap()))
 }
 
 /// The image at half brightness. The log base is a white-to-black gradient;
@@ -3465,7 +3516,7 @@ mod tests {
     #[test]
     fn link_ranges() {
         let segs: Vec<String> = ["名前", "「一行目です", "二行目」"].iter().map(|s| s.to_string()).collect();
-        let link = |row, column, length| Link { row, column, length, style: 0x8007, target: 0, reserved: 0 };
+        let link = |row, column, length| Link { row, column, length, style: 0x8007, target: 0 };
         // Row 2 is the first text line (row 1 is the name).
         assert_eq!(link_range(&segs, true, &link(2, 2, 3)), Some((1, 3)));
         assert_eq!(link_range(&segs, true, &link(3, 1, 2)), Some((7, 2)));
@@ -3522,7 +3573,7 @@ mod tests {
     #[test]
     fn ruby_ranges() {
         let body: Vec<String> = ["　吹く。", "　戦ぐ。"].iter().map(|s| s.to_string()).collect();
-        let ruby = |line, column, length| RubyRecord { line, column, length, flags: 3, text: "そよ".into() };
+        let ruby = |line, column, length| RubyRecord { line, column, length, text: "そよ".into() };
         // Lines count text lines only; '\n' counts as one character.
         assert_eq!(ruby_range(&body, &ruby(2, 2, 1)), Some((6, 1)));
         assert_eq!(ruby_range(&body, &ruby(1, 2, 3)), Some((1, 3)));
@@ -3534,7 +3585,7 @@ mod tests {
     #[test]
     fn text_style_ranges() {
         let body: Vec<String> = ["「牛めし", "　……カルビ"].iter().map(|s| s.to_string()).collect();
-        let style = |line, column, length, size, colour| StyleRecord { line, column, length, size, colour, edge: STYLE_COLOUR_KEEP };
+        let style = |line, column, length, size, colour| StyleRecord { line, column, length, size, colour };
         // 30000 runs to the end of the message; sizes below 0x1000 are percent.
         assert_eq!(
             text_style(&body, &style(2, 1, 30000, 94, STYLE_COLOUR_KEEP)),
