@@ -47,7 +47,7 @@ pub(super) struct Style {
 }
 
 impl Style {
-    fn from_set_font(a: &[Value]) -> Style {
+    pub(super) fn from_set_font(a: &[Value]) -> Style {
         let arg = |i: usize| a.get(i).cloned().unwrap_or(Value::Null);
         let sideways = arg(0).string().starts_with('@');
         let heavy = match arg(4) {
