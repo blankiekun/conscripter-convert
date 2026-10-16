@@ -119,6 +119,7 @@ impl Compiler<'_, '_> {
                 if children.is_empty() {
                     return Value::Null;
                 }
+                self.set_tempo(tempo(&arg(5)), &children);
                 self.timed(arg(1).int(), &arg(6), &children);
             }
             "CreateWindow" | "CreateName" => {
