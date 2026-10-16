@@ -525,7 +525,8 @@ Used to check what the engine does (`docs/new-game.md` step 9).
 ### Queue (2026-10-16)
 
 - Merged: `CreateText`'s box height (#52). Open, each waiting on its
-  engine PR: `consset` (#9, engine #5 merged: #9 moves the pointer next), `chvolfade` (#10, engine #6 to rebase), `sprot` as
+  engine PR: `consset` (#9, engine #5 merged: #9 moves the pointer
+  next), `chvolfade` (#10, engine #6 to rebase), `sprot` as
   `spzoom`'s angle (#16, engine #13), `chfreq` for `SetFrequency` (#22,
   engine #15), menu unrolls as motions (#34, after #18 and engine #14).
   Engine #5, #6, #13 and #14 remove commands main still emits, so each

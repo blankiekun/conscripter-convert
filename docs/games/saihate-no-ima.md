@@ -546,8 +546,10 @@ a copy of the save works.
 - Open: command coverage per operand, PR #28 (another session). Sent
   back on 2026-10-16: it skips unread operands of 0 and all-zero pool
   runs, and its exception table doesn't name the value each entry
-  covers; both against the rule above (every operand given and not
-  read, whatever its value). 0.txt doesn't change.
+  covers. The rule (the user's, as for nitroplus #30 and mages #24):
+  every operand given and not read, whatever its value (0 included), is
+  a dry-run note, except a short table of harmless ones, each naming
+  the value it covers and why. 0.txt doesn't change.
 - Merged: the exe map's fixes and missed callbacks (#46).
 - Open: `0x59` as a real cross-fade, converter #25 with engine #18 (asked
   for a web-build measurement of the old track's decode first);
