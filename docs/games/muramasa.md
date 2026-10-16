@@ -541,7 +541,7 @@ Used to check what the engine does (`docs/new-game.md` step 9).
   plan of PRs before coding.
 - Then the unread-argument gaps (item 5 below), most noticeable first;
   among them, `CreateText`'s box height is read (#52) and `SetVertex`
-  for every picture (#PR, "History", "`SetVertex`").
+  for every picture (#61, "History", "`SetVertex`").
 - Known limits: a window that moves (`絵演窓上`, `窓右`, about 56 `Move`s)
   has its clip jump to the end place when the move starts. Sprite movies
   (scene cuts, the turntables) don't play in CONscripter for Windows,
