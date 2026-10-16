@@ -615,11 +615,6 @@ handlers (audit table above); the dry run reports only `0x30`/`0x62`
 (debug menu). Lip sync (`VoiceSyncParts`, `lq.arc`) and animation parts
 are in the exe but unused here (no `lq.arc`; `0x8e`'s module names are
 empty). Gaps found, where the exe and the converter differ:
-- **Skip mode** (`skip_state_a`/`_b`, `0x51f82c`/`0x51f82e`): the
-  original draws none of `0x6d`, `0x6e` (flash, 88), `0x6f`, `0x72`,
-  `0x74` while skipping. Ours skips only their waits: the
-  `screenshake`/`screenflash`/`screenpulse` commands still run, and the
-  fade cover shows at once as above.
 - `0x49`'s edge colour (1 of 565 records, `0x808080`) and `0x4a`'s (2)
   are not converted.
 - `0x59` BGM crossfade (47): the old track stops at once instead of
@@ -648,6 +643,17 @@ at all). Each of these now sits behind `if <effects off> goto *sN_fxI`
 (`Op::IfSwitch` on `Switch::Effects`), so none of them runs; before,
 `effectoff` only cut `print` effects and the fade cover appeared at once
 and stayed until the next background.
+
+**Skip mode (2026-10-15, a gap from the whole-exe map):** while
+skipping (`skip_state_a`/`_b`, `0x51f82c`/`0x51f82e`) the original draws
+none of `0x6d`, `0x6e` (flash), `0x6f`, `0x72`, `0x74`. Each now starts
+with `isskip %105` / `if %105 == 1 goto *sN_fxI` (`Op::IfSkipping`, the
+flash too; it isn't cut by effects off). Before, only their waits were
+skipped: the shake, flash and pulse still ran and the fade cover showed
+at once. Kept in the converter, not the engine: the exe's skip check is
+in these handlers only, so `0x8c`'s environment shakes and ripples
+(the same engine commands) are taken to go on in skip mode. A skip by holding Ctrl isn't
+seen by `isskip` and still draws them.
 
 **Variables (2026-10-15, from the code audit):** the animation's state
 per link-scene level moved from %13-%20 to %21-%28: the game's local

@@ -542,6 +542,10 @@ pub enum Op {
     /// angle adds to it). 装甲悪鬼村正's battle HUD: the roll bar and the
     /// sky tilted as the craft rolls.
     SpriteAngle { layer: u32, degrees: i32 },
+    /// Jumps to `label` while the player skips (not in auto mode): past
+    /// what the original leaves out then. 最果てのイマ's quakes, flashes,
+    /// pulses and script fades.
+    IfSkipping { label: String },
 }
 
 /// [`Op::HoldMovie`]'s prompt: `image` is `cells` pictures side by side,

@@ -2435,20 +2435,22 @@ pub fn lower_script(
             }
             continue;
         }
-        if ins.op == OP_FLASH {
-            let c = ins.arg as u32;
-            let colour = (c & 0xff) << 16 | (c & 0xff00) | (c >> 16 & 0xff);
-            // At sort key 0xffffffff: over the text window too.
-            ops.push(Op::ScreenFlash { colour, opacity: FLASH_OPACITY, ms: FLASH_MS });
-            continue;
-        }
-        // With 画面エフェクトを使用 off (setting_effects bit 0) the original
-        // draws no quake, pulse or script fade (no cover at all).
+        // While skipping (skip_state_a/_b) the original draws none of these;
+        // with 画面エフェクトを使用 off (setting_effects bit 0) none but the
+        // flash. A script fade left out draws no cover at all.
         let fade = matches!(ins.op, OP_FADE_BLACK | OP_FADE_WHITE) && ins.arg >> 16 == 0;
-        if fade || ins.op == OP_QUAKE || ins.op == OP_SURPRISE {
+        if fade || matches!(ins.op, OP_FLASH | OP_QUAKE | OP_SURPRISE) {
             let gate = format!("s{}_fx{index}", cd.script_id);
-            ops.push(Op::IfSwitch { switch: Switch::Effects, on: false, label: gate.clone() });
-            if let Some(quake) = cd.quake(ins) {
+            ops.push(Op::IfSkipping { label: gate.clone() });
+            if ins.op != OP_FLASH {
+                ops.push(Op::IfSwitch { switch: Switch::Effects, on: false, label: gate.clone() });
+            }
+            if ins.op == OP_FLASH {
+                let c = ins.arg as u32;
+                let colour = (c & 0xff) << 16 | (c & 0xff00) | (c >> 16 & 0xff);
+                // At sort key 0xffffffff: over the text window too.
+                ops.push(Op::ScreenFlash { colour, opacity: FLASH_OPACITY, ms: FLASH_MS });
+            } else if let Some(quake) = cd.quake(ins) {
                 lower_quake(&quake?, &mut ops);
             } else if let Some(surprise) = cd.surprise(ins) {
                 lower_surprise(&surprise?, &mut ops);
