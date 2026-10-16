@@ -410,8 +410,9 @@ impl<'a> Emitter<'a> {
                 Some(page)
             };
             let plate = window.as_ref().and_then(|w| w.name_plate.as_ref());
-            let mut body = if script.single_byte_text { single_byte_text(text, styles) } else { with_markup(text, links, ruby, styles) }
+            let body = if script.single_byte_text { single_byte_text(text, styles) } else { with_markup(text, links, ruby, styles) }
                 .replace(conv_core::ir::CLICK_WAIT_MARK, "@");
+            let mut body = crate::wait_tags(&body);
             // Sprite changes only show after a print, so print when the
             // plate appears, changes or goes away.
             match (speaker, plate) {

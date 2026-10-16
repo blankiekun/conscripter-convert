@@ -100,10 +100,9 @@ It has no NPA archives and no NSS scripts.
      nowhere to be seen" / "My comrades …", ma01_003's `<CLICK>`
      rows); ma01_026's document is shown whole after its typing
      sounds, not typed letter by letter as the port does.
-  3. Gaps from the exe map ("The exe", coverage table): the English
-     rows' tags the converter drops (`<WAITVOICE=n>` 95, `<FW>` 25,
-     `<WAIT=n>` 16, `<RED>`/`<RED2>`/`<YELLOW>` 28, `<SMALL>` 8); the
-     port's centred subtitles (`ShowVOICESEText`, 32 calls in 10
+  3. Gaps from the exe map ("The exe", coverage table): `<FW>` (25,
+     the face window changing mid-page) is still dropped; `<SMALL>`'s
+     size (75 %) is a guess; the port's centred subtitles (`ShowVOICESEText`, 32 calls in 10
      scenes); its larger-type text boxes (`SetTextEXC_Large` …, 16
      calls in 8 scenes).
   4. Gaps from the scripts' coverage ("The scripts' coverage"):
@@ -241,12 +240,12 @@ something the NSS doesn't:
 | Scenario calls (`nut/*.nut`) | 635 names | Squirrel functions in `function/*.nut`; 430 carry the NSS's names, most of the other 205 wrap NSS constructs (`Print`/`PreStart`/`PreEnd` a `<PRE>` block, `SceneInit`, `CallSceneN2`, `RegisterCGvar`, `GetCheckReadFile`) | from the NSS |
 | `ShowVOICESEText`/`ClearVOICESEText` | 32/18 calls, 10 scenes (ma04_016vs, ma04_023, ma05_012, mb02_002, mb02_018, mb02_027, mc04_001, md01_018, md02_038, md06_036) | English only: a centred line of text (`serif0`, faded in and out), by its name for voices played as sound effects | **not converted** |
 | `SetTextEXC_Large/Huge/Big/Middle`, `TypeBegin…_Large/Huge/Big/Middle` | 16 calls, 8 scenes (mc03_010, md01_024, md01_030, md02_021, md03_008, md03_013, md04_061, md06_021) | English only: text boxes in larger type | **not converted** (the NSS's own box) |
-| `<WAITVOICE=n>` | 95 | `WaitVoice("voice0", n)` mid-text | **dropped** ("text tag" note) |
+| `<WAITVOICE=n>` | 95 | `WaitVoice("voice0", n)` mid-text | CONscripter's `!vn` (waits for the voice) |
 | `</voice>` | 68 | ends a voice's range | dropped |
 | `<FW>` | 25 | `SwitchFw`: the face window changes mid-page | **dropped** |
-| `<WAIT=n>` | 16 | `WaitKey(n)` mid-text | **dropped** |
-| `<RED2>` 14, `<RED>` 8, `<YELLOW>` 6 | 28 | the range's colour (`SetCharacterColor`) | **dropped** |
-| `<SMALL>` | 8 | native: smaller glyphs (`CTextEnglish_layout`) | **dropped** |
+| `<WAIT=n>` | 16 | `WaitKey(n)` mid-text | `!dn` |
+| `<RED2>` 14, `<RED>` 8, `<YELLOW>` 6 | 28 | the range's colour (`SetCharacterColor`) | `#RRGGBB` |
+| `<SMALL>` | 8 | native: smaller glyphs (`CTextEnglish_layout`) | `!z075` (size a guess) |
 | `RandomI` | 1,416 | native random integer | NSS `Random` |
 | `CountTextLength` 18, `TokenizeText` 1 | | text box sizing, line log | CONscripter's layout |
 | `FileDelete` 8, `GetSavePathRoot` 4, `Serialize`/`DeserializeRootTable` | | save screens, save data | CONscripter's saves |
@@ -345,6 +344,17 @@ md04_015, md04_026vs, md04_030 (dates and times: `November 30, 1940`,
 | `setting.ini` keys | files table | there |
 
 ## History
+
+- **English text tags (2026-10-15):** `<WAIT=n>` becomes a timed wait,
+  `<WAITVOICE=n>` a wait until the page's voice has played n ms
+  (`TIMED_WAIT_MARK`/`VOICE_WAIT_MARK` in the IR; CONscripter's `!dn`
+  and its new `!vn`), `<RED>`/`<RED2>`/`<RED3>`/`<YELLOW>` the port's
+  colours (#FF0000, #CC0000, #990000, #FFFF00: `TAG_RED` … in
+  `function_textbox.nut`), `<SMALL>` 75 % type (a guess). CONscripter
+  now reads `!w`, `!d`, `!z`, `!v`, `!s` before a number and `#` before
+  six hex digits in 1-byte text too (other `!` and `#` stay text), so
+  the single-byte text carries colours and sizes. Checked headless (a
+  test script; the trace of ma01_003 waits 5 s for "elaborate...").
 
 - **Click icon (2026-10-15):** the port's `cg/sys/adv/改行改頁アイコン.png`
   is the Japanese 32 frames in one sheet (pixel for pixel), so only its

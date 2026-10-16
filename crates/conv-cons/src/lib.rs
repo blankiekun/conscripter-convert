@@ -1060,22 +1060,9 @@ fn with_markup(text: &str, links: &[TextLink], ruby: &[Ruby], styles: &[TextStyl
         }
     }
     let inside = |i: usize| link_ranges.iter().position(|&(s, e)| s <= i && i < e);
-    let mut colours: Vec<String> = vec![TEXT_COLOR.to_string(); chars.len()];
-    for st in styles {
-        if let Some(c) = st.colour {
-            for colour in colours.iter_mut().skip(st.start).take(st.len) {
-                *colour = format!("#{c:06X}");
-            }
-        }
-    }
+    let (mut colours, sizes) = colours_and_sizes(chars.len(), styles);
     for &(s, e) in &link_ranges {
         colours[s..e].fill(LINK_COLOR.to_string());
-    }
-    let mut sizes: Vec<u16> = vec![100; chars.len()];
-    for st in styles {
-        if let Some(p) = st.size_percent {
-            sizes.iter_mut().skip(st.start).take(st.len).for_each(|s| *s = p.clamp(1, 999));
-        }
     }
     let mut readings: Vec<&Ruby> = ruby
         .iter()
@@ -1227,26 +1214,96 @@ fn escape(text: &str) -> String {
         .collect()
 }
 
+/// Each character's colour (`#RRGGBB`) and size (percent) from `styles`;
+/// later styles win where they overlap.
+fn colours_and_sizes(n: usize, styles: &[TextStyle]) -> (Vec<String>, Vec<u16>) {
+    let mut colours: Vec<String> = vec![TEXT_COLOR.to_string(); n];
+    let mut sizes: Vec<u16> = vec![100; n];
+    for st in styles {
+        if let Some(c) = st.colour {
+            colours.iter_mut().skip(st.start).take(st.len).for_each(|colour| *colour = format!("#{c:06X}"));
+        }
+        if let Some(p) = st.size_percent {
+            sizes.iter_mut().skip(st.start).take(st.len).for_each(|s| *s = p.clamp(1, 999));
+        }
+    }
+    (colours, sizes)
+}
+
 /// Text for a single-byte line (after a backquote), where only the click
-/// waits, the backquote itself and CONscripter's `!i` and `!c` are
-/// special: those turn full-width, everything else stays as written. The
-/// styles' slant and centring become those tags.
+/// waits, the backquote itself and CONscripter's tags are special (`!i`,
+/// `!c`; `!w`, `!d`, `!z`, `!v`, `!s` before a number; `#` before six hex
+/// digits): those turn full-width, everything else stays as written. The
+/// styles become those tags (colours, sizes, slant, centring), each line
+/// ending on the text colour and size.
 fn single_byte_text(text: &str, styles: &[TextStyle]) -> String {
     let chars: Vec<char> = text.chars().collect();
     let marks = slant_tags(&chars, styles);
+    let (colours, sizes) = colours_and_sizes(chars.len(), styles);
     let mut out = String::new();
+    let (mut current, mut size) = (TEXT_COLOR, 100);
     for (i, &c) in chars.iter().enumerate() {
+        if c != '\n' && colours[i] != current {
+            current = &colours[i];
+            out.push_str(current);
+        }
+        if c != '\n' && sizes[i] != size {
+            size = sizes[i];
+            write!(out, "!z{size:03}").unwrap();
+        }
         out.push_str(&marks[i]);
+        let next = |k: usize| chars.get(i + k).copied().unwrap_or(' ');
+        let numbered_tag = matches!(next(1), 's' | 'w' | 'd' | 'z' | 'v') && (next(2).is_ascii_digit() || (next(1) == 's' && next(2) == 'd'));
         out.push(match c {
             '@' => '＠',
             '\\' => '＼',
             '`' => '｀',
             '\r' => ' ',
-            '!' if matches!(chars.get(i + 1), Some('i' | 'c')) => '！',
+            '!' if matches!(next(1), 'i' | 'c') || numbered_tag => '！',
+            '#' if (1..=6).all(|k| next(k).is_ascii_hexdigit()) => '＃',
             c => c,
         });
+        let line_end = chars.get(i + 1).is_none_or(|&c| c == '\n');
+        if size != 100 && (line_end || sizes[i + 1] == 100) {
+            size = 100;
+            out.push_str("!z100");
+        }
+        if current != TEXT_COLOR && (line_end || colours[i + 1] == TEXT_COLOR) {
+            current = TEXT_COLOR;
+            out.push_str(TEXT_COLOR);
+        }
     }
     out.push_str(&marks[chars.len()]);
+    out
+}
+
+/// The text's timed and voice waits ([`conv_core::ir::TIMED_WAIT_MARK`],
+/// [`conv_core::ir::VOICE_WAIT_MARK`]) as CONscripter's `!d` and `!v`. The
+/// engine skips spaces after the number: a wait before spaces goes after
+/// them, and one before a digit is ended by a space.
+fn wait_tags(text: &str) -> String {
+    use conv_core::ir::{TIMED_WAIT_MARK, VOICE_WAIT_MARK, WAIT_END_MARK};
+    let mut out = String::new();
+    let mut tag: Option<String> = None;
+    let mut chars = text.chars().peekable();
+    while let Some(c) = chars.next() {
+        match (c, &mut tag) {
+            (TIMED_WAIT_MARK, _) => tag = Some("!d".into()),
+            (VOICE_WAIT_MARK, _) => tag = Some("!v".into()),
+            (WAIT_END_MARK, t) => {
+                let t = t.take().unwrap_or_default();
+                while let Some(' ') = chars.peek() {
+                    out.push(chars.next().unwrap_or(' '));
+                }
+                out.push_str(&t);
+                if chars.peek().is_some_and(char::is_ascii_digit) {
+                    out.push(' ');
+                }
+            }
+            (c, Some(t)) => t.push(c),
+            (c, None) => out.push(c),
+        }
+    }
     out
 }
 
@@ -2243,6 +2300,16 @@ end
         let slant = |start, len, centred: bool| TextStyle { start, len, italic: !centred, centred, ..Default::default() };
         assert_eq!(single_byte_text("Oh!it\nab cd", &[slant(4, 4, false), slant(6, 5, true)]), "Oh！i!i1t!i0\n!c!i1ab!i0 cd");
         assert_eq!(single_byte_text("x\nab", &[slant(2, 2, true)]), "x\n!cab");
+        // Tag-like text turns full-width; colours and sizes become tags,
+        // ended at the range's or the line's end.
+        assert_eq!(single_byte_text("!w5 !sd #00ff00 !wow", &[]), "！w5 ！sd ＃00ff00 !wow");
+        let red = TextStyle { start: 0, len: 2, colour: Some(0xCC0000), ..Default::default() };
+        let small = TextStyle { start: 3, len: 9, size_percent: Some(75), ..Default::default() };
+        assert_eq!(single_byte_text("ab cd\nef", &[red, small]), "#CC0000ab#FFFFFF !z075cd!z100\n!z075ef!z100");
+        // Waits: a space ends a number before a digit; one before spaces
+        // goes after them (the engine skips spaces after the number).
+        let (t, v, e) = (conv_core::ir::TIMED_WAIT_MARK, conv_core::ir::VOICE_WAIT_MARK, conv_core::ir::WAIT_END_MARK);
+        assert_eq!(wait_tags(&format!("0{t}300{e}1 a{v}5000{e}  b")), "0!d300 1 a  !v5000b");
         // 最果てのイマ, *conv_link19: the '?' stopped the engine (array).
         assert_eq!(text_safe("嘘ー！?  投稿者: x"), "嘘ー！？  投稿者: x");
         // Every ASCII character the engine's text parser reads specially:

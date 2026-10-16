@@ -91,6 +91,10 @@ mod array;
 mod fast_skip;
 pub(super) use fast_skip::read_flag;
 
+/// A window picture's text place ([`Game::box_text`]): picture, text x, y,
+/// width, the click-wait icon's x, y.
+pub type BoxText = (&'static str, i64, i64, i64, (i32, i32));
+
 /// What one game adds to the compiler, in its own module under `convert/`
 /// ([`MURAMASA`]): library functions it compiles itself (written as
 /// NScripter code instead of running their loops), scenes it replaces with
@@ -179,7 +183,7 @@ pub struct Game {
     /// picture is shown: the first of these shown (Full Metal Daemon
     /// Muramasa's English port, `BoxInfo` in `val.nut`): picture, text x,
     /// y, width, and the click-wait icon's x, y (`icon_pos`).
-    box_text: &'static [(&'static str, i64, i64, i64, (i32, i32))],
+    box_text: &'static [BoxText],
 }
 
 impl Game {
@@ -2847,6 +2851,38 @@ impl<'a, 'b> Compiler<'a, 'b> {
                             Some(v @ (Value::Str(_) | Value::Int(_))) => line.push_str(&v.string()),
                             _ => self.note("text tag <value> of a variable known only when the game runs"),
                         },
+                        // The English port's waits (function_textbox.nut): WaitKey and
+                        // WaitVoice mid-text.
+                        (n, false) if n.starts_with("wait=") || n.starts_with("waitvoice=") => {
+                            let (mark, ms) = match n.strip_prefix("waitvoice=") {
+                                Some(ms) => (conv_core::ir::VOICE_WAIT_MARK, ms),
+                                None => (conv_core::ir::TIMED_WAIT_MARK, &n["wait=".len()..]),
+                            };
+                            match ms.trim().parse::<u32>() {
+                                Ok(ms) => line.extend([mark.to_string(), ms.to_string(), conv_core::ir::WAIT_END_MARK.to_string()]),
+                                Err(_) => self.note(format!("text tag <{n}>")),
+                            }
+                        }
+                        // The English port's coloured ranges (SetCharacterColor)
+                        // and small type (CTextEnglish_layout).
+                        ("red" | "red2" | "red3" | "yellow" | "small", false) => {
+                            let start = page_len(&page, &line);
+                            let (colour, size_percent) = match tag.name.to_ascii_lowercase().as_str() {
+                                "red" => (Some(0xFF0000), None),
+                                "red2" => (Some(0xCC0000), None),
+                                "red3" => (Some(0x990000), None),
+                                "yellow" => (Some(0xFFFF00), None),
+                                // shortcut: 75 % is a guess (the exe's SMALL size isn't read yet); check it in the original.
+                                _ => (None, Some(75)),
+                            };
+                            page.styles.push(TextStyle { start, len: usize::MAX - start, colour, size_percent, ..Default::default() });
+                        }
+                        ("red" | "red2" | "red3" | "yellow" | "small", true) => {
+                            let end = page_len(&page, &line);
+                            if let Some(s) = page.styles.iter_mut().rev().find(|s| !s.italic && !s.centred && s.start + s.len == usize::MAX) {
+                                s.len = end - s.start;
+                            }
+                        }
                         (other, _) => self.note(format!("text tag <{other}>")),
                     }
                 }

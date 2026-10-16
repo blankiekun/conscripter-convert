@@ -270,6 +270,18 @@ pub enum ScreenEffect {
 /// same page, at the same place (NScripter's `@`).
 pub const CLICK_WAIT_MARK: char = '\u{1}';
 
+/// In [`Op::Text`] text: wait here the milliseconds written after it (ASCII
+/// digits, up to [`WAIT_END_MARK`]), or until a click, and go on typing.
+pub const TIMED_WAIT_MARK: char = '\u{2}';
+
+/// In [`Op::Text`] text: wait here until the page's voice has played the
+/// milliseconds written after it (as [`TIMED_WAIT_MARK`]'s), has ended, or
+/// a click.
+pub const VOICE_WAIT_MARK: char = '\u{3}';
+
+/// Ends the number after [`TIMED_WAIT_MARK`] or [`VOICE_WAIT_MARK`].
+pub const WAIT_END_MARK: char = '\u{4}';
+
 /// A clickable word in a text page.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TextLink {

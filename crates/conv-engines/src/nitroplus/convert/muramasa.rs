@@ -9,7 +9,7 @@ use conv_core::ir::{ArithOp, ChoicePlates, ChoiceStyle, Op, Operand, TextWindow,
 
 use std::collections::BTreeMap;
 
-use super::{negate, Compiler, Game, NssFile, Value};
+use super::{negate, BoxText, Compiler, Game, NssFile, Value};
 
 mod extras;
 mod favour;
@@ -70,7 +70,7 @@ fn choice_style_en(c: &mut Compiler<'_, '_>, n: i64) -> Option<ChoiceStyle> {
 /// The port's text places (`BoxInfo` in `val.nut`): box, text x, y and
 /// width, the click-wait icon's place (`icon_pos`, the English table);
 /// the ones with a face window first, as both may be shown.
-const EN_TEXT: [(&str, i64, i64, i64, (i32, i32)); 12] = [
+const EN_TEXT: [BoxText; 12] = [
     ("boxCT", 375, 190, 280, (640, 500)),
     ("boxCC", 375, 190, 280, (640, 500)),
     ("boxRT", 630, 190, 280, (896, 500)),
