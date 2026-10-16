@@ -2,18 +2,24 @@
 //! `Request(…, Start)` starts it. Converted when it only plays music on a
 //! timer (続・殺戮のジャンゴ: a loop a set time after its intro, a song
 //! five seconds after a line, a jingle in two parts): its sounds become
-//! [`Op::BgmLater`] at their time from the start. Others are noted.
+//! [`Op::BgmLater`] at their time from the start; or when it only runs
+//! timed actions (装甲悪鬼村正's `CP_RollBar`: the roll bar and the sky
+//! turning), run at its start as actions that don't block, which a
+//! `WaitAction` on the process waits for. Others are noted.
 
 use super::*;
 
 /// What a music process may call.
 const MUSIC_CALLS: &[&str] = &["SoundPlay", "MusicStart", "Wait", "WaitPlay", "CreateBGM"];
 
-/// Whether `body` only plays music on a timer.
-fn plays_music_only(body: &[Stmt]) -> bool {
+/// What an action process may call.
+const ACTION_CALLS: &[&str] = &["Rotate", "Move", "Fade", "Zoom"];
+
+/// Whether `body` only calls these (and has labels).
+fn calls_only(body: &[Stmt], calls: &[&str]) -> bool {
     body.iter().all(|s| match &s.kind {
         StmtKind::Label(_) => true,
-        StmtKind::Expr(Expr::Call { name, .. }) => MUSIC_CALLS.contains(&name.as_str()),
+        StmtKind::Expr(Expr::Call { name, .. }) => calls.contains(&name.as_str()),
         _ => false,
     })
 }
@@ -21,7 +27,7 @@ fn plays_music_only(body: &[Stmt]) -> bool {
 impl Compiler<'_, '_> {
     pub(super) fn create_process(&mut self, name: String, function: &str) {
         match self.function(function) {
-            Some((file, f)) if plays_music_only(&f.body) => {
+            Some((file, f)) if calls_only(&f.body, MUSIC_CALLS) || calls_only(&f.body, ACTION_CALLS) => {
                 self.create(name, Kind::Process { file, function: f }, 0, 0, 0);
             }
             _ => self.note(format!("CreateProcess {function}")),
@@ -33,6 +39,12 @@ impl Compiler<'_, '_> {
     pub(super) fn start_process(&mut self, name: &str) {
         let Some(Object { kind: Kind::Process { file, function }, .. }) = self.objects.get(name) else { return };
         let (file, function) = (*file, *function);
+        if !calls_only(&function.body, MUSIC_CALLS) {
+            self.action_process = Some(name.to_string());
+            self.call_function(file, function, Vec::new());
+            self.action_process = None;
+            return;
+        }
         self.flush_sounds();
         self.process_clock = Some(0);
         self.call_function(file, function, Vec::new());

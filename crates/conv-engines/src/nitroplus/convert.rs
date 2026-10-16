@@ -868,8 +868,8 @@ enum Kind<'a> {
     Movie(MovieObject),
     /// Names, windows and other objects that draw nothing themselves.
     Other,
-    /// `CreateProcess` of a function that only plays music on a timer
-    /// ([`Compiler::start_process`]).
+    /// `CreateProcess` of a function that only plays music on a timer or
+    /// only runs timed actions ([`Compiler::start_process`]).
     Process { file: &'a str, function: &'a Function },
     /// Pictures drawn by a game's own code ([`Assets::frames_strip`]),
     /// shown once in turn while the script goes on, the last one staying.
@@ -973,9 +973,9 @@ struct Object<'a> {
     /// with [`Game::zoom_vertex`]; `None` = the centre.
     vertex: Option<(i64, i64)>,
     /// `Rotate`: degrees about the x, y and z axes. A picture turned past
-    /// 90° about y shows mirrored left to right, about x upside down, and
-    /// about z (a half turn) both; the turns combine. Other turns aren't
-    /// drawn.
+    /// 90° about y shows mirrored left to right, about x upside down; other
+    /// turns about them aren't drawn. About z (clockwise, as `Rotate(text,
+    /// 90)` turns a line top to bottom) the engine turns it ([`Op::SpriteAngle`]).
     turn: (i64, i64, i64),
 }
 
@@ -983,8 +983,12 @@ impl Object<'_> {
     /// Mirrored (left to right, upside down) as its turn shows it.
     fn mirror(&self) -> (bool, bool) {
         let back = |deg: i64| (91..270).contains(&deg.rem_euclid(360));
-        let half = back(self.turn.2);
-        (back(self.turn.1) != half, back(self.turn.0) != half)
+        (back(self.turn.1), back(self.turn.0))
+    }
+
+    /// Its turn about z, counterclockwise (sprot's way).
+    fn angle(&self) -> i64 {
+        -self.turn.2
     }
 }
 
@@ -1044,8 +1048,8 @@ fn motion(old: &Shown, now: &Shown, ms: u32) -> Option<Op> {
     let centre = |s: &Shown| (s.x + s.w / 2, s.y + s.h / 2);
     let ((x0, y0), (x1, y1)) = (centre(old), centre(now));
     let zoom = ((zx + 5) / 10).clamp(1, 10000) as u32;
-    let key = |ms, x, y, zoom| MotionKey { ms, x, y, zoom, angle: 0, opacity: 256 };
-    let keys = vec![key(0, 0, 0, 100), key(ms, (x1 - x0) as i32, (y1 - y0) as i32, zoom)];
+    let key = |ms, x, y, zoom, angle| MotionKey { ms, x, y, zoom, angle, opacity: 256 };
+    let keys = vec![key(0, 0, 0, 100, 0), key(ms, (x1 - x0) as i32, (y1 - y0) as i32, zoom, (now.angle - old.angle) as i32)];
     Some(Op::SpriteMotion2 { layer: old.layer, keys, end: MotionEnd::Keep })
 }
 
@@ -1068,6 +1072,8 @@ struct Shown {
     /// the engine ([`Op::SpriteMotion2`]).
     source: String,
     zoom: (i64, i64),
+    /// Turned (degrees counterclockwise) by the engine ([`Op::SpriteAngle`]).
+    angle: i64,
     engine: Engine,
     /// A [`Kind::Flash`]'s `seq` (0 for any other picture): a new flash
     /// starts again.
@@ -1126,6 +1132,9 @@ struct Compiler<'a, 'b> {
     /// While a music process runs ([`Compiler::start_process`]): its time
     /// so far, ms.
     process_clock: Option<u32>,
+    /// The action process running ([`Compiler::start_process`]): its
+    /// actions don't block, and their time counts as its own.
+    action_process: Option<String>,
     /// [`Compiler::seq`] when the chapter being run began.
     chapter_mark: Option<u64>,
     /// `LoadText(unit, box, w, h, letter, line)` (続・殺戮のジャンゴ): the
@@ -1825,6 +1834,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
             texts_shown: 0,
             pending_enter: None,
             process_clock: None,
+            action_process: None,
             chapter_mark: None,
             box_layouts: HashMap::new(),
             whole_story: false,
@@ -2460,6 +2470,14 @@ impl<'a, 'b> Compiler<'a, 'b> {
     /// true blocks for the action, false lets the script go on.
     fn timed(&mut self, ms: i64, wait: &Value, targets: &[String]) {
         let ms = ms.max(0) as u32;
+        let wait = match self.action_process.clone() {
+            Some(p) => {
+                let e = self.pending_by.entry(p).or_default();
+                *e = (*e).max(ms);
+                &Value::Null
+            }
+            None => wait,
+        };
         match wait {
             Value::Null | Value::Int(0) => {
                 self.pending_ms = self.pending_ms.max(ms);
@@ -3288,13 +3306,14 @@ scene a.nss
         // Turned once: mirrored; twice: back as it was.
         assert_eq!(images.first(), Some(&"cg/st/a.png~x"), "{:?}", c.ops);
         assert_eq!(images.last(), Some(&"cg/st/a.png"), "{:?}", c.ops);
-        // A half turn in its plane is both mirrors; with x 180 as well, left
-        // to right only.
-        for (turn, image) in [("@0, @0, @180", "cg/st/a.png~xy"), ("180, 0, 180", "cg/st/a.png~x")] {
+        // A turn in its plane is the engine's, counterclockwise; with x 180
+        // as well, upside down too.
+        for (turn, image) in [("@0, @0, @180", "cg/st/a.png"), ("180, 0, 180", "cg/st/a.png~y")] {
             let story = format!("scene a.nss\n{{\n\tCreateTexture(\"st\", 100, 0, 0, \"cg/st/a.png\");\n\tRotate(\"st\", 0, {turn}, null, true);\n\tFade(\"st\", 0, 1000, null, true);\n\tWait(100);\n}}\n");
             let c = compile(&story, LIBRARY);
             let shown = c.ops.iter().any(|op| matches!(op, Op::Sprites { changes, .. } if changes.iter().any(|c| c.sprite.as_ref().is_some_and(|s| s.image == image))));
             assert!(shown, "{turn}: {:?}", c.ops);
+            assert!(c.ops.iter().any(|op| matches!(op, Op::SpriteAngle { degrees: -180, .. })), "{turn}: {:?}", c.ops);
         }
     }
 
@@ -3431,6 +3450,45 @@ function SoundPlay("ナット名", 秒数, ボリウム, ループ設定)
         // (Fake's sounds last 4 s.)
         assert_eq!(later, [("sound/bgm/intro.ogg", 0, false), ("sound/bgm/loop.ogg", 4500, true)], "{:?}", c.ops);
         assert!(!c.notes.keys().any(|n| n.starts_with("CreateProcess")));
+    }
+
+    #[test]
+    fn a_process_turning_pictures_turns_them_over_time_by_the_engine() {
+        // 装甲悪鬼村正's CP_RollBarMove: the sky turns one way and the roll
+        // bar the other, clockwise in NSS (the bar, on top, comes first);
+        // WaitAction waits for both.
+        let story = r#"
+scene a.nss
+{
+	CreateTexture("sky", 100, 0, 0, "cg/bg/a.jpg");
+	CreateTexture("bar", 15000, Center, Middle, "cg/st/a.png");
+	Fade("sky", 0, 1000, null, true);
+	Fade("bar", 0, 1000, null, true);
+	Wait(100);
+	$Rote = 45;
+	CreateProcess("P", 15000, 0, 0, "Roll");
+	Request("P", Start);
+	WaitAction("P", null);
+	Rotate("bar", 0, @0, @0, 30, null, true);
+	Wait(100);
+}
+function Roll()
+{
+	begin:
+	Rotate("@sky", 1000, @0, @0, $Rote, null, false);
+	Rotate("@bar", 1000, @0, @0, -$Rote, null, true);
+}
+"#;
+        let c = compile(story, LIBRARY);
+        let angles: Vec<i32> = c.ops.iter().filter_map(|op| match op {
+            Op::SpriteMotion2 { keys, end: MotionEnd::Keep, .. } => Some(keys[1].angle),
+            _ => None,
+        }).collect();
+        assert_eq!(angles, [45, -45], "{:?}", c.ops);
+        assert!(c.ops.iter().any(|op| matches!(op, Op::Wait { ms: 1000 })), "{:?}", c.ops);
+        // Turned at once: drawn anew at its angle.
+        assert!(c.ops.iter().any(|op| matches!(op, Op::SpriteAngle { degrees: -30, .. })), "{:?}", c.ops);
+        assert!(!c.notes.keys().any(|n| n.starts_with("CreateProcess") || n.starts_with("Rotate")), "{:?}", c.notes);
     }
 
     #[test]

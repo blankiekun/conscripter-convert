@@ -658,14 +658,20 @@ Next, in order:
 - `CreateProcess` (510 calls; the battle HUD `CP_*` in
   `function_cockpit.nss`, fire flicker, comic panels): parallel NSS
   processes. Planned as Lua coroutines through CONscripter's `USE_LUA`
-  bridge (`NSCALL_animation` per frame).
+  bridge (`NSCALL_animation` per frame). A process that only runs
+  `Rotate`/`Move`/`Fade`/`Zoom` (the roll bar's `CP_RollBar`,
+  `CP_RollBar_NoBG`) runs at its start without blocking, and a
+  `WaitAction` on it waits for it; the roll bar's endless wobble
+  `CP_RollBar_Auto` (59) is still left.
 - Non-blocking `Move`/`Zoom` over time (about 1,200 each), drawn as
   cross-fades.
 - `AddRender` (2,536) and `MulRender` (418): drawn normally. `lsp2add`
   only fits top-layer effects (the engine draws all `lsp2` sprites above
   `lsp` ones); an additive background needs a per-sprite blend mode in
   CONscripter.
-- `Rotate` (620), `SetFrequency` (1,170), `MoveCamera`, `SetTone`,
+- `Rotate` about z of a picture is CONscripter's `sprot` (still) or a
+  `spmotion2` angle (over time); left: about z of other objects (70),
+  about x or y over time (14, drawn at once). `SetFrequency` (1,170), `MoveCamera`, `SetTone`,
   `SetShade`, `BezierMove`, `CreateTexture` from an object or the screen
   (1,864).
 - 18 files whose `if`/`else if` chain on earlier flags has no `else`:

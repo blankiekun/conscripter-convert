@@ -209,18 +209,23 @@ impl Compiler<'_, '_> {
                     let (before, mirror) = (o.turn, o.mirror());
                     o.turn = (arg(2).position(o.turn.0, 0, 0), arg(3).position(o.turn.1, 0, 0), arg(4).position(o.turn.2, 0, 0));
                     let (turn, mirrored) = (o.turn, o.mirror() != (false, false));
-                    if o.mirror() != mirror && !matches!(o.kind, Kind::Text(_)) {
+                    let tilted = turn.2 != before.2 && matches!(o.kind, Kind::Image { .. });
+                    let text = matches!(o.kind, Kind::Text(_));
+                    if (o.mirror() != mirror || tilted) && !text {
                         flipped.push(t.clone());
                     }
                     match &mut o.kind {
                         Kind::Text(text) => text.rotation = turn.2,
-                        _ if turn.2.rem_euclid(180) != 0 => self.note("Rotate about z"),
+                        Kind::Image { .. } => {}
+                        _ if turn.2.rem_euclid(360) != 0 => self.note("Rotate about z"),
                         Kind::Movie(_) if mirrored => self.note("Rotate of a movie"),
-                        _ if arg(1).int() > 0 && turn != before => self.note("Rotate over time drawn at once"),
                         _ => {}
                     }
+                    if arg(1).int() > 0 && (turn.0, turn.1) != (before.0, before.1) && !text {
+                        self.note("Rotate over time drawn at once");
+                    }
                 }
-                // Only a picture that turns over shows a change.
+                // Only a picture that turns over or about z shows a change.
                 if flipped.iter().any(|t| self.shown.contains_key(t)) {
                     self.timed(arg(1).int(), &arg(6), &flipped);
                 }
