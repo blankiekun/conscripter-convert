@@ -89,43 +89,52 @@ pub(crate) fn confirm(out: &mut String, d: &ConfirmDialog) {
     w("return".into());
 }
 
-/// The unroll's frames (`ConfirmDialog::unroll`), about every 16 ms: the sprites (slot, x, y, width,
+/// The unroll (`ConfirmDialog::unroll`): the sprites (slot, x, y, width,
 /// height) stretched sideways about the line `u.x`, or up and down about
-/// `u.y` (eased out over `zoom_ms`), and
-/// faded (linearly over `fade_ms`), in from nothing (`opening`) or out to
-/// it. The backdrop (x, y, opacity) fades with them.
+/// `u.y` (eased out over `zoom_ms`), and faded (linearly over `fade_ms`),
+/// in from nothing (`opening`) or out to it, each an `spmotion` the engine
+/// steps (a key a frame, about every 16 ms, as straight lines between),
+/// waited for with `spmotionwait`. The backdrop (x, y, opacity) fades with
+/// them. Closing, the sprites are removed at the end (loop 3).
 pub(super) fn unroll_steps(w: &mut impl FnMut(String), u: &conv_core::ir::Unroll, sprites: &[(u32, i32, i32, i32, i32)], backdrop: Option<(i32, i32, u8)>, zoom_ms: u32, fade_ms: u32, opening: bool) {
     let total = zoom_ms.max(fade_ms);
-    let steps = (total / 16).max(1);
-    w("resettimer".into());
-    for k in 0..=steps {
+    // (spmotion takes 32 keys)
+    let steps = (total / 16).clamp(1, 31);
+    // At step k: the zoom (0-1) and the alpha (0-1).
+    let at = |k: u32| {
         let t = (total * k / steps) as f64;
         let p = (t / zoom_ms.max(1) as f64).min(1.0);
         let eased = 1.0 - (1.0 - p) * (1.0 - p);
         let f = (t / fade_ms.max(1) as f64).min(1.0);
-        let (s, a) = if opening { (eased, f) } else { (1.0 - eased, 1.0 - f) };
-        let mut line = Vec::new();
-        // The sprite's centre moves toward the line as it narrows.
-        let toward = |line: i32, from: i32, size: i32| {
-            let centre = line as f64 + (from as f64 + size as f64 / 2.0 - line as f64) * s;
-            (centre - size as f64 / 2.0).round() as i32
-        };
-        let zoom = ((s * 100.0).round() as u32).max(1);
-        for &(slot, sx, sy, sw, sh) in sprites {
-            let (left, top, zoom) = match u.y {
-                Some(y) => (sx, toward(y, sy, sh), format!("100,{zoom}")),
-                None => (toward(u.x, sx, sw), sy, format!("{zoom},100")),
-            };
-            line.push(format!("amsp {slot},{left},{top},{}", (255.0 * a).round() as u32));
-            line.push(format!("spzoom {slot},{zoom}"));
-        }
-        if let Some((bx, by, o)) = backdrop {
-            line.push(format!("amsp {DIALOG_BASE},{bx},{by},{}", (o as f64 * a).round() as u32));
-        }
-        if k > 0 {
-            line.push(format!("waittimer {}", total * k / steps));
-        }
-        line.push("print 1".into());
-        w(line.join(":"));
+        if opening { (eased, f) } else { (1.0 - eased, 1.0 - f) }
+    };
+    let mode = if opening { 0 } else { 3 };
+    let mut line = Vec::new();
+    let mut slots = Vec::new();
+    for &(slot, sx, sy, sw, sh) in sprites {
+        let keys: Vec<String> = (0..=steps)
+            .map(|k| {
+                let (s, a) = at(k);
+                let zoom = ((s * 100.0).round() as u32).max(1);
+                // The sprite's centre moves toward the line as it narrows.
+                let toward = |line: i32, from: i32, size: i32| ((line as f64 - (from as f64 + size as f64 / 2.0)) * (1.0 - s)).round() as i32;
+                let (dx, dy, zx, zy) = match u.y {
+                    Some(y) => (0, toward(y, sy, sh), 100, zoom),
+                    None => (toward(u.x, sx, sw), 0, zoom, 100),
+                };
+                format!("{},{dx},{dy},{zx},{zy},0,{},0", total * k / steps, (256.0 * a).round() as u32)
+            })
+            .collect();
+        line.push(format!("amsp {slot},{sx},{sy},255:spzoom {slot},100:spmotion {slot},{mode},{}", keys.join(",")));
+        slots.push(slot);
     }
+    if let Some((bx, by, o)) = backdrop {
+        let keys: Vec<String> = (0..=steps).map(|k| format!("{},0,0,100,100,0,{},0", total * k / steps, (256.0 * at(k).1).round() as u32)).collect();
+        line.push(format!("amsp {DIALOG_BASE},{bx},{by},{o}:spmotion {DIALOG_BASE},{mode},{}", keys.join(",")));
+        slots.push(DIALOG_BASE);
+    }
+    for l in line {
+        w(l);
+    }
+    w(format!("print 1:{}", slots.iter().map(|n| format!("spmotionwait {n}")).collect::<Vec<_>>().join(":")));
 }
