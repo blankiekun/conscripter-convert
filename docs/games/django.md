@@ -345,9 +345,7 @@ with the original (it wants all eleven endings' flags under wine).
 
 ### Queue (2026-10-16)
 
-- Open PR: windows clip their children (django/window-clip).
-- In progress (agent): the song `CreateText` with markup in `dja026`
-  (#17 leaves it out).
+- Open PR: the song's lines in dja026 (#47).
 - Open from the face windows (#37): a sliding frame's face jumps to its
   end place; dja003_02's blood movie is drawn mirrored by us, unmirrored
   under wine (which plays no movie there).
@@ -394,6 +392,16 @@ with the original (it wants all eleven endings' flags under wine).
 
 ## History
 
+- **The song in dja026 (2026-10-16).** `ShowWords` makes 13
+  `CreateText("songtxtNN", 10301, center, 0 or 27, auto, auto,
+  "<I>荒.野.開.く…</I>")`, takes them away (`Request(…, Erase)`), moves
+  them by (15, 460) and shows two at a time (`Request(…, Enter)`), until
+  a click. Under wine the lines are the letters alone, upright, white,
+  their middles at the screen's (the 15 doesn't show) and their ink 16 px
+  below their place; ours are drawn with `text_object.rs` without the
+  markup and dots, 15 px left and 13 px lower than its layout (a
+  measured nudge for these lines), now within 2 px of the original's.
+  A `CreateText` picture stays hidden from `Erase` to `Enter`.
 - **Windows clip their children (2026-10-16).** `CreateWindow` draws its
   children only inside it (`spclip`, from 装甲悪鬼村正's cockpit, #27),
   now for Django too, the window's place counted from its parents'

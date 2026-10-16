@@ -1026,6 +1026,9 @@ struct Object<'a> {
     /// that matches it doesn't reach its children (the exe's object flag
     /// at +0x9d4, 0 for these, 1 for pictures; [`Compiler::matching`]).
     container: bool,
+    /// A `CreateText` picture taken away by `Request(…, Erase)` until its
+    /// `Request(…, Enter)` (続・殺戮のジャンゴ's song, dja026).
+    erased: bool,
 }
 
 /// [`Object::shake`]: the process, the keys.
@@ -2431,7 +2434,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
 
     fn create(&mut self, name: String, kind: Kind<'a>, priority: i64, w: i64, h: i64) -> &mut Object<'a> {
         self.seq += 1;
-        let o = Object { kind, priority, x: 0, y: 0, w, h, opacity: 1000, locked: false, hideable: false, seq: self.seq, zoom: (1000, 1000), blur: 0, vertex: None, turn: (0, 0, 0), shake: None, clip: None, over_text: false, container: false };
+        let o = Object { kind, priority, x: 0, y: 0, w, h, opacity: 1000, locked: false, hideable: false, seq: self.seq, zoom: (1000, 1000), blur: 0, vertex: None, turn: (0, 0, 0), shake: None, clip: None, over_text: false, container: false, erased: false };
         self.objects.insert(name.clone(), o);
         self.objects.get_mut(&name).unwrap()
     }
@@ -2602,9 +2605,10 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 _ if !o.locked => self.delete(name),
                 _ => {}
             },
+            "enter" | "erase" if matches!(&o.kind, Kind::Image { image } if text_object::is_text(image)) => o.erased = action == "erase",
             "enter" => self.show_text(name),
             "start" if matches!(o.kind, Kind::Process { .. }) => self.start_process(name),
-            "smoothing" | "passive" | "erase" => {}
+            "smoothing" | "passive" | "erase" | "nolog" | "noicon" => {}
             other => self.note(format!("Request {other}")),
         }
     }
@@ -2649,7 +2653,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
     /// in `frame03` hides and turns away with the frame, under wine).
     fn drawn_opacity(&self, name: &str, own: i64) -> i64 {
         let edge_on = |o: &Object| o.turn.0.rem_euclid(180) == 90 || o.turn.1.rem_euclid(180) == 90;
-        if self.objects.get(name).is_some_and(edge_on) {
+        if self.objects.get(name).is_some_and(|o| edge_on(o) || o.erased) {
             return 0;
         }
         if !self.game.relative_children {
@@ -3301,6 +3305,9 @@ mod tests {
         fn frames_strip(&mut self, name: &str, _w: u32, _h: u32, _frames: u32, _draw: &mut dyn FnMut(u32, &mut image::RgbaImage)) -> Option<String> {
             Some(format!("system/strip/{name}.png"))
         }
+        fn font(&self) -> &[u8] {
+            include_bytes!("../../../conv-cli/fonts/ipag.ttf")
+        }
         fn delayed_sound(&mut self, path: &str, delay_ms: u32) -> Option<String> {
             Some(format!("{path}+{delay_ms}.ogg"))
         }
@@ -3894,6 +3901,32 @@ scene a.nss
         }
         let images: Vec<&str> = shown.values().map(String::as_str).collect();
         assert_eq!(images, ["cg/st/wa.png"], "{:?}", c.ops);
+    }
+
+    #[test]
+    fn a_song_line_shows_from_its_enter_to_its_delete() {
+        // 続・殺戮のジャンゴ's song (dja026): markup and dots left out,
+        // taken away by Erase until its Enter.
+        let story = r#"
+scene a.nss
+{
+	CreateText("songtxt01", 10301, center, 0, auto, auto, "<I>荒.野</I>");
+	CreateText("songtxt02", 10301, center, 27, auto, auto, "<I>種.は</I>");
+	Request("songtxt*", Erase);
+	Move("songtxt*", 0, @15, @460, null, true);
+	Request("songtxt01", Enter);
+	Wait(100);
+	Request("songtxt02", Enter);
+	Wait(100);
+}
+"#;
+        let c = compile(story, LIBRARY);
+        let shown: Vec<usize> = c.ops.iter().filter_map(|op| match op {
+            Op::Sprites { changes, .. } => Some(changes.iter().filter(|c| c.sprite.is_some()).count()),
+            _ => None,
+        }).collect();
+        assert_eq!(shown, [1, 1], "{:?}", c.ops);
+        assert!(!c.notes.keys().any(|n| n.contains("markup") || n.contains("font")), "{:?}", c.notes);
     }
 
     #[test]
