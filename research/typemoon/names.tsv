@@ -1,0 +1,7 @@
+# 月姫 1.0.2 main (NSO through research/tools/ghidra/nso2elf.py; Ghidra loads it
+# at 0x100000; the fan patch's main is the same but 65 bytes): functions and
+# data identified so far, applied by ghidra_export.sh --names. Columns
+# (tab-separated): address, name, comment. Details: docs/games/tsukihime.md.
+00177790	script_command	Runs one script command: switch on its first letter, then the next three packed as an int (0x504c59 = "PLY" for _MPLY)
+001649e0	cmd_MPLY	_MPLY(n,...): reads the backquote options, plays music n through FUN_0019c470 (fade-in from option 001), sets heard-music flag bit n+0xC80 for n < 0x418
+00154040	script_arg_short	Parses the current argument as a short (guess)

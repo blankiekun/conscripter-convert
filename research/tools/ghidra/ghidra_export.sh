@@ -21,13 +21,15 @@
 #   (RecoverClassesFromRTTIScript; Windows binaries only, slow).
 # After --: options for the import, e.g. `-processor ARM:LE:32:v8T`
 #   or `-loader ElfLoader`.
+# A Switch NSO: convert it with nso2elf.py first, and add
+#   `-- -postScript CodePointerFunctions.java` (functions auto-analysis misses).
 #
 # Finds analyzeHeadless on PATH, or in $GHIDRA_INSTALL_DIR/support
 # (default /opt/ghidra). Heap: GHIDRA_HEADLESS_MAXMEM (default 2G).
 set -euo pipefail
 
 here=$(cd "$(dirname "$0")" && pwd)
-usage() { sed -n '2,25p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
+usage() { sed -n '2,27p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
 
 [ $# -ge 2 ] || usage
 bin=$(realpath "$1")

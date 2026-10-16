@@ -43,6 +43,30 @@ It changes every archive but `allpachd`/`allpacml`/`allpachdml`:
 `allscr.mrg` grows from 9 to 19 MB (553 entries), `allpac` gains 10
 entries.
 
+The official update 1.0.2 (`[01001DC01486A800][v131072]`, 137 MB) is
+applied the same way. Its Program NCA uses title-key crypto: the key is
+the 16 bytes at 0x180 of its `.tik`. The result is `<game-102>`:
+
+```sh
+hactool -k prod.keys -t pfs0 --pfs0dir=upd <the 1.0.2 .nsp>
+hactool -k prod.keys --titlekey=$(xxd -p -s 0x180 -l 16 upd/*.tik) \
+  --basenca=nsp/<the base Program NCA> --exefsdir=exefs-102 \
+  --romfsdir=<game-102> upd/<the update's Program NCA>
+```
+
+**Which copy to convert**: Japanese from `<game-102>` (base + 1.0.2),
+English from `<game-en>` (the fan patch, which is 1.0.2 plus the
+translation).
+
+| File | base → 1.0.2 | 1.0.2 → fan patch |
+|---|---|---|
+| `main` (exe) | differs (a new build) | 65 bytes in 6 places |
+| `allscr.mrg`, `script_text.mrg`, `allpac`, `allpaccg`, `allui` | differ | differ |
+| `knife1.bfsar` | differs (adds `WSD_mix_se032`–`034`) | same |
+| `allpac.nam` | differs (the 10 new entries) | same |
+| `parts` | same | differs |
+| `allpachd*`, `allpacml*`, `sdk`, `subsdk*`, fonts, `stream/` | same | same |
+
 The Program NCA is the 22 GB one (the others: Meta, Control,
 Manual). The ExeFS holds `main` (3.3 MB NSO) and `subsdk0`/`subsdk1`.
 
@@ -112,6 +136,38 @@ out (the exe `main` is an NSO, to load in Ghidra).
 Not covered by anything found, and ours now: Nintendo Opus to Ogg
 Opus, the BFSAR chain to each wave sound's FWAV, DSP ADPCM. BNTX: our deswizzle (a few lines) and
 the `bcdec_rs` crate for BC blocks.
+
+## The exe
+
+`main` (an NSO) decompiles with Ghidra 12.1's AArch64 decompiler.
+`research/tools/ghidra/nso2elf.py <main> <main.elf>` decompresses the
+segments and writes an ELF with the module's dynamic section, so Ghidra
+applies the relocations. Ghidra loads the ELF at 0x100000. Then:
+
+```sh
+research/tools/ghidra/ghidra_export.sh <main.elf> research/typemoon/local/ghidra \
+  --names research/typemoon/names.tsv -- -postScript CodePointerFunctions.java
+```
+
+The export takes 5 minutes for 5,284 functions: 4 fail to decompile,
+and none is left as an unresolved `func_0x…` call. Without
+`CodePointerFunctions.java`, 1,420 functions are missing. The
+addresses in `research/typemoon/names.tsv` are those of the 1.0.2
+`main`.
+
+- `script_command` (0x177790) runs one command. It switches on the
+  first letter after `_`, then compares the next three letters packed
+  into an int (`0x504c59` = `PLY`). That is why no command name
+  appears as a string in the exe.
+- `cmd_MPLY` (0x1649e0): `_MPLY(n, …)` reads the backquote options
+  (`` `001:4000`` is option 1 with value 4000; option 1 sets the
+  fade-in, as 1666.67 / value). It plays music `n` through
+  `FUN_0019c470`, and for `n < 0x418` sets a heard-music flag bit
+  `n + 0xC80`. The archive's first 79 sounds are
+  `STRM_MOON01_BGM01`…`67` (each with its `stream/*.opus`), so `n` is
+  most likely the sound archive's sound index. `FUN_0019c470` (into
+  the Nintendo sound library) is still to be confirmed. The bfsar's
+  stream entries carry no loop frames.
 
 ## Script language
 
@@ -206,15 +262,23 @@ Japanese: 549 scripts, 1,079,001 commands, 93 command names. English
 
 The other 48: `_RDAS` 530; `_RDST` 530; `_RTST` 527; `_STRR` 447; `_ATSV` 398; `_SHAF` 397; `_SSW2` 205; `_SPMA` 195; `_STNS` 194; `_GOTS` 170; `_SELD` 170; `_SQS2` 132; `_SHK2` 120; `_GOTO` 101; `_SGMA` 100; `_SACL` 95; `_SOXY` 78; `_VCWT` 71; `_FADE` 62; `_IFNX` 53; `_IFP4` 52; `_TOMP` 48; `_TOMW` 48; `_SPRD` 41; `_SPRC` 40; `_STCG` 39; `_FCSP` 31; `_MSQK` 30; `_WTSV` 28; `_FCLN` 26; `_SELA` 26; `_STTR` 25; `_WKOR` 21; `_VPL2` 16; `_SESP` 15; `_STCL` 8; `_CLO2` 5; `_STQK` 5; `_SHS2` 3; `_IFSC` 2; `_TRPY` 2; `_XRSM` 2; `_XSTP` 2; `_IFUR` 1; `_RTM2` 1; `_RTMN` 1; `_SELS` 1; `_SSS2` 1.
 
-**How the patched `allscr.mrg` differs.** It has 553 entries: the same
-549 names and an empty 553rd entry. 28 scripts are byte-identical and
-521 differ. It adds `_END_()` at the end of 519 scripts, `_SPFC` (487
-uses in 16 scripts, `_SPFC(29,aki_a_30_01_n01,,,,,12,)`) and one
-`_NOP_`. It drops 2,347 `_STCP` and adds `_STGS` +874, `_STCC` +654,
-`_WTTM` +640, `_WKST` +636, `_CLO3` +581, `_SQS2`/`_SHS2`/`_SSS2` about
-+400 each, and `_SACL` +355. The patch is an update NSP, so some of
-this may be the official update rather than the translation. The text
-numbering is the same.
+**How the scripts differ, base → 1.0.2 → fan patch** (`typemoon
+script -o` on each copy, the dumps compared without their text):
+
+- **The official update 1.0.2** changes 521 of the 549 scripts and
+  leaves 28 alone (1,082,420 commands). It adds `_END_()` at the end of
+  519 scripts and a new command `_SPFC` (487 uses in 16 scripts). The
+  largest other additions: `_WKST` +1,280, `_STGS` +1,004, `_STCC`
+  +858, `_CLO3` +608, `_WTTM` +431, `_SQS2`/`_SHS2`/`_SSS2` about +400
+  each. The largest removals: `_STCP` −2,396, `_WKST` −672, `_MSAD`
+  −520, `_FADS` −477. Its text has the same 43,961 lines, of which it
+  uses 41,467. It brings a new malformed command, `_STTR,0,26)` in
+  `14_01A_CIEL14A_2`; the base's `_STCP)21,0)` is fixed.
+- **The fan patch** changes 213 scripts of 1.0.2 and leaves 336 alone.
+  Every script keeps the same text references in the same order. It
+  turns 303 `_ZM` into `_MSAD` (+814 `_MSAD` in all), swaps 238 `_WKAD`
+  for `_WTTM` (+236), fixes the `_STTR` typo, and adds an empty 553rd
+  entry and `_NOP_`.
 
 ## Story structure and walkthrough
 
@@ -241,15 +305,18 @@ Nothing yet.
 | Archives (`hed`/`mrg`/`nam`, MZP, MZX, NXGX/NXCX) | ✅ every entry of both RomFS copies |
 | Pictures (BNTX) | ✅ every texture of both RomFS copies decodes |
 | Sound (`stream/*.opus`, `knife1.bfsar`) | ✅ every sound of both RomFS copies converts |
+| Exe (`main`) in Ghidra | ✅ decompiles; dispatcher and `_MPLY` named |
 | Scripts | 🔶 read: every command of both languages splits (one malformed in the original) and its text and voices join; meanings not worked out yet |
 | Everything after (text, pictures, screens, extras) | ❌ |
 
 ### Next
 
-1. Work out the top commands' arguments (the picture layer commands
-   `_STCH`/`_STCP`/`_STCC`/`_STZ4`/`_STMA`, `_FADS`, `_WNTY`), from the
-   scripts and the exe (an NSO, Ghidra). In the exe, also find the
-   music number table (`_MPLY`) and the loop points.
+1. In the exe (see "The exe"): confirm that `_MPLY`'s number is the
+   bfsar sound index (follow `FUN_0019c470`), find where music loops
+   (or whether it loops whole), and work out the top commands'
+   arguments (the picture layer commands
+   `_STCH`/`_STCP`/`_STCC`/`_STZ4`/`_STMA`, `_FADS`, `_WNTY`) and the
+   sprite atlas cuts from their handlers under `script_command`.
 2. Write the walkthrough.
 3. Pictures for the build: cut the sprite atlases (body and faces in
    one texture) by the numbers the script or the exe gives.
@@ -258,6 +325,13 @@ Nothing yet.
    Opus files or the scripts: the bfsar's stream info or the exe).
 
 ## History
+
+- 2026-10-16: the exe decompiles (`nso2elf.py`,
+  `CodePointerFunctions.java`, `research/typemoon/names.tsv`); the
+  script dispatcher and `_MPLY` found. The official update 1.0.2 was
+  unpacked and compared with the base and the fan patch. The script
+  changes are split between them in "Script language", and the copies
+  to convert are chosen in "Build".
 
 - 2026-10-16: scripts read (`typemoon/script.rs`, `typemoon script`).
   Both languages: 549 scripts, 93 (96) command names ranked, every
