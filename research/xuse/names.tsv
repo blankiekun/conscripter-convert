@@ -6,8 +6,8 @@
 0047f620	voice_clip_by_index	archive index >> 8, slot index & 0xff
 0040b2e0	gaf_key_from_name	GAF4 key, indexed by file offset modulo keylen - 1
 004fb270	opcode_table	opcode handlers, indexed by the record's u16 opcode
-00475f40	show_message	drops the voice flag when voice_exists fails
-004679d0	voice_exists
+00475f40	show_message	drops the name flag (bit 0) when text_mode_allows_name fails
+004679d0	text_mode_allows_name	current local scene's text mode (entry +0x18 low nibble): 0 yes, 1 no, 2 bit 6
 0040bff0	load_background	bg*.004 holds 64 per file (n >> 6)
 00467670	leave_link_scene
 0045b6f0	title_task
