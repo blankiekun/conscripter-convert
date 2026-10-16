@@ -674,6 +674,14 @@ impl Lowering<'_> {
         let t = &tasks[i];
         let Some(ty) = t.task_type() else { return };
         let fade = |t: &Block| if t.int("FadeIn").unwrap_or(1) == 0 { 0 } else { ms(t.int("Time").unwrap_or(15)) };
+        // A character's fade (task_charopen_new, task_chardelete_new): over
+        // `:Fade` frames, 18 without one, at once for `:Fade 0` (or
+        // CharacterDelete's `:FadeOut 0`).
+        let char_fade = |t: &Block, off: &str| match t.int("Fade") {
+            Some(f) => ms(f),
+            None if t.int(off) == Some(0) => 0,
+            None => ms(18),
+        };
         match ty {
             "Message" => {
                 let text = t.str("Message").unwrap_or("").to_string();
@@ -772,7 +780,7 @@ impl Lowering<'_> {
                     let base_y = if h as i32 > SCREEN_H { SCREEN_H - h as i32 / 2 } else { sy(360 + offset) };
                     let y = base_y + sy(c.int_at("Position", 1).unwrap_or(0));
                     let prio = c.int("Priority").unwrap_or(9);
-                    self.show_at(&key, -1, (path, w, h), x, y, prio, if ty == "CharacterOpen" { 200 } else { 0 }, &[], Look::of(c));
+                    self.show_at(&key, -1, (path, w, h), x, y, prio, if ty == "CharacterOpen" { char_fade(t, "Fade") } else { 0 }, &[], Look::of(c));
                     if let Some(s) = self.shown.get_mut(&key) {
                         s.base_y = base_y;
                     }
@@ -790,8 +798,7 @@ impl Lowering<'_> {
                 } else {
                     listed
                 };
-                let f = if t.int("FadeOut").unwrap_or(1) == 0 { 0 } else { 200 };
-                self.hide_all(&keys, f);
+                self.hide_all(&keys, char_fade(t, "FadeOut"));
             }
             "CharacterMove" => {
                 let time = ms(t.int("Time").unwrap_or(0));
