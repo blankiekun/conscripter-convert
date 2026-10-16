@@ -291,7 +291,7 @@ playthroughs (`%410`-`%439`).
 - Merged: the chapter card's names (#48). Open: motions and fades as
   engine motions (#13, #18, waiting on engine #2 → #7 → #14).
 - The user picks the next fixes from "Arguments not read" below.
-  Proposed order: CharacterOpen's `:Color`, the shakes
+  Proposed order: the shakes
   (`:Fade 0` at full size, `:Loop 1`), `SpriteDeleteBG` always fading.
 - After engine #2 / converter #6: SpriteMove `:Curve` with the new
   per-key curves.
@@ -327,7 +327,7 @@ message (109 characters with the name; there is no paging).
 |---|---|
 | Messages, speaker names (from the scripts' `:Name N // name` comments), voices | converted |
 | Backgrounds and sprites (`SpriteBG`, `Sprite`, `SpriteBS`, deletes), by priority | converted (`:Scale` zooms the picture about its centre, which `:Position` places, with `spzoom`, as SpriteMove's: below): `SpriteBG` and `SpriteBS` replace every picture (a background, a black cover, a white flash, an event CG, in one fade), the characters too unless `:SpriteDelete 0` (the scripts never delete the characters a location change leaves, and after 37 of the 0s they delete them themselves); a scene's first picture also removes whatever the scene before left (the eboot loads each scene's textures anew). `Sprite` adds one, and `SpriteDelete`/`SpriteDeleteBG` remove the picture of their `:SpriteNumber` (a texture). Our reading of the scripts; positions not yet checked against the original |
-| Characters (`CharacterOpen`, `…BS`, `CharacterDelete`, `CharacterMove`) and `SpritePriority`/`CharacterPriority` | partial (CharacterOpen's own `:Color`, CharacterMove's `[CharaN]` `:Priority`, `[CharaN]` `:FadeOut 0`, CharacterMove `:Wait 0` dropped: below). At y 0 a character stands on the screen's bottom edge (1209 of the 1333 pictures, 630 pixels tall, are cut off along their bottom row); the eboot scales `OffsetY` (-68 for everyone standing) by 544/720, but centred that leaves them 8 pixels above the edge, so where it anchors them is still to be found. Shorter pictures (the 960×540 cut-ins) are centred plus `OffsetY`. CharacterMove's y counts from that height. `CharacterDelete` without a list (`:SpriteMax 0`, 962 of 1414) removes every character; `CharacterOpenBS` removes the characters it doesn't name (the scripts re-open or delete-all them afterwards, and only twice delete one by name). S04_16B's `:Number <ST_ASU02H>>` (a placeholder the script's tool never filled in) is resolved by the picture's name through the character tables (Asuka 0,0,2,8,0) |
+| Characters (`CharacterOpen`, `…BS`, `CharacterDelete`, `CharacterMove`) and `SpritePriority`/`CharacterPriority` | partial (CharacterMove's `[CharaN]` `:Priority`, `[CharaN]` `:FadeOut 0`, CharacterMove `:Wait 0` dropped: below). At y 0 a character stands on the screen's bottom edge (1209 of the 1333 pictures, 630 pixels tall, are cut off along their bottom row); the eboot scales `OffsetY` (-68 for everyone standing) by 544/720, but centred that leaves them 8 pixels above the edge, so where it anchors them is still to be found. Shorter pictures (the 960×540 cut-ins) are centred plus `OffsetY`. CharacterMove's y counts from that height. `CharacterDelete` without a list (`:SpriteMax 0`, 962 of 1414) removes every character; `CharacterOpenBS` removes the characters it doesn't name (the scripts re-open or delete-all them afterwards, and only twice delete one by name). S04_16B's `:Number <ST_ASU02H>>` (a placeholder the script's tool never filled in) is resolved by the picture's name through the character tables (Asuka 0,0,2,8,0) |
 | `:Color` tints (dusk 255,236,220 on 3,892 pictures, night 220,222,255 on 2,105), `:Grayscale` (479), with `:Gamma` the sepia flashbacks (188), `:Floor`/`:Ceil` film negatives (42), `:Color` alpha 0 | converted as sprite filters: a tint multiplies (`spfilter` colour, multiply), sepia is a monotone with each channel of the grey raised to 1/gamma as an offset at mid-grey (+75, +28, −47), and a picture with filters fades in inside a transition, filtered. Alpha 0 shows a character see-through; a CharacterMove that changes the alpha cross-fades to the new place and opacity over its `:Time` |
 | `InOut` transitions with the RULE masks | converted |
 | `InOut_Act` (the eboot's effect 25: `:Type` picks the class, `:Param` 0 mostly a direction 0-3 = right, down, left, up) | 0 (the old screen squeezes to that edge while the new one grows from the other; 21 uses) and 7 (a push; 89) as ONScripter's scrolls; 5 (to or from white or black; 9) through white; 2 (a mosaic growing to `:Param` 1 pixels of 720 halfway while the screens cross-fade; 66) as ONScripter's mosaic out and in; 3 (a card turning over in perspective, old in front, new behind, about the vertical axis for `:Param` 0 below 2; 47) as `cons_flip`, the new screen turning in. 1 (a fade with the rows waving sideways, `:Param` 1-2 the wave; 57) as CONscripter's `cons_wave.dll` (the size and wave length a guess: the shader's constants are uniforms, `:Param` 1 × 100 per mille of the screen, `:Param` 2 waves down it); 6 (a fade blurred sideways, the most halfway, by `:Param` 1 pixels of 1280, `:Param` 0 = 1 only the new screen; 130) as `cons_blur.dll`; 4 (2) a plain fade |
@@ -501,12 +501,11 @@ Not covered yet: only scene tasks are checked; `chract`'s actions (the
 eboot reads a `:Priority` and an easing per key there) and the `.txt`
 tables (`adv.txt`, `chr*.txt`, `CGMODE`) are not.
 
-The full dry run gives 5,824 notes of 101 kinds; by how much they show,
+The full dry run gives 5,806 notes of 99 kinds; by how much they show,
 with their uses:
 
 | Task | Argument | Uses | State: what is lost |
 |---|---|---|---|
-| CharacterOpen | the task's own `:Color` | 17 | dropped: 13 open see-through (alpha 0) and are shown solid |
 | EffectQuake, SpriteQuake | `:Fade 0` | 1,053, 85 | dropped: the eboot shakes at full size for `:Time` and stops; ours dies down |
 | CharacterMove, SpriteMove | `:Wait 0` | 668, 198 | dropped: moves the eboot runs under the text, ours wait for |
 | CharacterDelete | `[CharaN]` `:FadeOut 0` | 85 | dropped: those characters fade over 18 frames instead of leaving at once |
@@ -529,7 +528,7 @@ with their uses:
 | CharacterActionEnd | `:Copy`; `:Number` (read before `:Character`) | 5; 1 | dropped: it stops the character without the copy |
 | EffectEnd | `:Delete` | 7 | dropped |
 | SpriteDeleteBG | `:Time` with `:FadeOut 0` | 4 | dropped: the eboot fades it out anyway |
-| others | | 1-3 each | CharacterAction `:EndWait` on a loop; repeated keys (Message `:Name`, SpriteBG `:Priority`); FlagOperation `:CGFlag` (a CG never marked seen); CharacterOpenBS `:Fade 30`, `:Color`; EffectQuakeEnd `:Fade 1`; EffectQuake `:Texture` |
+| others | | 1-3 each | CharacterAction `:EndWait` on a loop; repeated keys (Message `:Name`, SpriteBG `:Priority`); FlagOperation `:CGFlag` (a CG never marked seen); CharacterOpenBS `:Fade 30`; EffectQuakeEnd `:Fade 1`; EffectQuake `:Texture` |
 
 Script errors, which the eboot can't read either: five tasks whose
 `[TaskN]` header is missing or misplaced (S01_04L, S03_03J2, S03C_03C
@@ -554,6 +553,14 @@ Next, in order:
 
 Finished work, moved out of "Status" so a session reads only the open
 state.
+
+**CharacterOpen's own `:Color` (2026-10-16).** 17 uses (13 with alpha
+0, before a CharacterMove that fades the character in) and one on
+CharacterOpenBS. The eboot doesn't read it. scene_load's CharacterOpen
+case (0x8102840a, cases 0x1b and 0x80) reads `Fade`, `FadeWait`,
+`SpriteMax`, `Walk` and each `[CharaN]`'s keys, its `:Color` among
+them, but no task-level `:Color`. So these characters open solid in
+the original too, as ours do, and the notes are `NOT_NEEDED` rows.
 
 **SpriteBG, SpriteBS, Sprite `:Scale` (2026-10-16).** 49 uses (15, 33,
 1): close-ups, ×1.5-10, mostly zoomed out by a SpriteMove after.

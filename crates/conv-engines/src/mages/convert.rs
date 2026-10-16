@@ -1701,6 +1701,8 @@ const NOT_NEEDED: &[(&str, &str)] = &[
     ("CharacterDelete [Chara] :Number argument", "scene_load case 0x1c reads only the character from :Number"),
     ("CharacterMove [Chara] :Number argument", "the same (case 0x1e)"),
     ("CharacterAction [Chara] :Number argument", "the same (case 0x20)"),
+    ("CharacterOpen :Color", "scene_load cases 0x1b, 0x80 read only [CharaN]'s :Color: the characters open solid, as ours"),
+    ("CharacterOpenBS :Color", "the same"),
     ("Achievement :ID", "trophies: nothing to show"),
     // Blocks and keys the eboot never asks for (cfg_find of
     // "TaskList/Task%d/Chara%d/<key>").
