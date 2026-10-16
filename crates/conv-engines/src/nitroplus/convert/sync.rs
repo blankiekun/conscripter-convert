@@ -62,25 +62,29 @@ impl Compiler<'_, '_> {
             .collect();
         let mut want = want;
         for (n, m, o) in movies {
-            // Playing: all its frames; else the one showing.
-            let (at, looped) = match m.state {
-                MovieState::Playing { .. } => (None, m.looped),
-                MovieState::Paused { at } => (Some(at), false),
-                MovieState::Played => (Some(m.info.ms.saturating_sub(1000 / MOVIE_FPS)), false),
+            // Playing: the movie itself, played by the engine as a
+            // picture; else the frame showing.
+            let at = match m.state {
+                MovieState::Playing { .. } => None,
+                MovieState::Paused { at } => Some(at),
+                MovieState::Played => Some(m.info.ms.saturating_sub(1000 / MOVIE_FPS)),
             };
-            let Some((image, cells, cw, ch)) = self.assets.movie_frames(&m.path, at, m.alpha, m.dark) else {
+            let picture = match at {
+                None => self.assets.movie_sprite(&m.path, m.alpha, m.dark),
+                Some(_) => self.assets.movie_frames(&m.path, at, m.alpha, m.dark).map(|(image, _, w, h)| (image, w, h)),
+            };
+            let Some((image, cw, ch)) = picture else {
                 self.note("movie frames missing");
                 continue;
             };
-            // The cells are drawn zoomed to the movie's size and its Zoom,
-            // about the centre of its place.
+            // Drawn zoomed to the movie's size and its Zoom, about the
+            // centre of its place.
             let zoom = ((o.zoom.0 * o.w / cw as i64 / 10) as i32, (o.zoom.1 * o.h / ch as i64 / 10) as i32);
             let (x, y) = (o.x + (o.w - cw as i64) / 2, o.y + (o.h - ch as i64) / 2);
-            // A long movie's strip has fewer frames (see `movie_frames`):
-            // spread over its length.
-            let full = (m.info.ms * MOVIE_FPS).div_ceil(1000).max(1);
-            let frame_ms = if at.is_none() && cells < full { m.info.ms / cells.max(1) } else { 1000 / MOVIE_FPS };
-            let shown = Shown { layer: 0, image, x, y, w: cw as i64, h: ch as i64, opacity: o.opacity, cells: Some((cells, looped, zoom, frame_ms)), source: String::new(), zoom: (1000, 1000), engine: Engine::default() };
+            // One cell: a movie file loops with no time a cell (`:c/1,0,0;`).
+            let looped = at.is_none() && m.looped;
+            let frame_ms = if at.is_none() { 0 } else { 1000 / MOVIE_FPS };
+            let shown = Shown { layer: 0, image, x, y, w: cw as i64, h: ch as i64, opacity: o.opacity, cells: Some((1, looped, zoom, frame_ms)), source: String::new(), zoom: (1000, 1000), engine: Engine::default() };
             want.push((n, shown, (o.priority, o.seq), (1000, 1000), (o.w, o.h), 0, (false, false)));
         }
         for (n, o) in &self.objects {

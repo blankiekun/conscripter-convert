@@ -450,6 +450,34 @@ impl Assets for NpaAssets<'_> {
         r.map(|n| (rel, n, w, h))
     }
 
+    fn movie_sprite(&mut self, path: &str, alpha: bool, dark: bool) -> Option<(String, u32, u32)> {
+        let info = self.movie_info(path)?;
+        let (src, name) = self.movie_source(path)?;
+        let rel = format!("movie/{name}_mute{}{}.mp4", if dark { "_dark" } else { "" }, if alpha { "_alpha" } else { "" });
+        let size = if alpha { (info.w, info.h / 2) } else { (info.w, info.h) };
+        let dest = self.out.root.join(&rel);
+        if self.out.dry_run || dest.exists() {
+            return Some((rel, size.0, size.1));
+        }
+        // All in video range (16-235): black is 16. `:a` takes the right
+        // half as the opacity inverted (white is clear), so the bottom
+        // half's luma v becomes 16 + 235 - v.
+        let colour = if dark { ",lutyuv=y=16:u=128:v=128" } else { "" };
+        let graph = if alpha {
+            format!("[0:v]format=yuv420p,split[a][b];[a]crop=iw:ih/2:0:0{colour}[c];[b]crop=iw:ih/2:0:ih/2,lutyuv=y=clip(251-val\\,16\\,235):u=128:v=128[m];[c][m]hstack")
+        } else {
+            format!("[0:v]format=yuv420p{colour}")
+        };
+        let mut args: Vec<std::ffi::OsString> = vec!["-i".into(), src.clone().into(), "-filter_complex".into(), graph.into()];
+        args.extend(crate::media::mp4_options(22, "slow").into_iter().map(Into::into));
+        args.push("-an".into());
+        if let Err(e) = crate::media::ffmpeg(&dest, args, |_| Ok(())) {
+            self.out.errors.push(format!("{}: {e}", src.display()));
+            return None;
+        }
+        Some((rel, size.0, size.1))
+    }
+
     fn overlaid(&mut self, base: &str, top: &str, zoom: i64, opacity: i64) -> Option<String> {
         let (top, tw, th) = self.image(top)?;
         use std::hash::{Hash, Hasher};

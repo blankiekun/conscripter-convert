@@ -296,7 +296,7 @@ with the original (it wants all eleven endings' flags under wine).
 | Area | Status |
 |---|---|
 | NPA archives (key), images, sounds | ✅ Every file decodes |
-| Movies (MPEG-1) | 🟡 Found in `<game>/movie` (the default) and drawn as Muramasa's compiler draws them (strips of frames at 15 a second); two long ones get fewer frames so that their JPEG strip stays within 65,535 px (`mv_ブラックホーク`, 70 s: 163 frames, 2.3 a second); the 400-vs-3 battle's six play while the button is held (`mpeghold`), its counter between them rolls as the original's |
+| Movies (MPEG-1) | 🟡 Found in `<game>/movie` (the default); the ones the script waits for play full screen (`mpegplay`), the others (smoke, the Black Hawk, cuts under the text) as sprite movies (H.264 MP4 given to `lsp`, the alpha ones with their opacity as the right half, CONscripter after 0.24.0), a paused or finished one as its frame; the 400-vs-3 battle's six play while the button is held (`mpeghold`), its counter between them rolls as the original's |
 | Script parsing | ✅ All 249 files; 56 places that don't parse, none in the story |
 | Story control flow (56 chapters, 10 choices, bad ends) | ✅ Compiled whole (`compile_story`); in the engine the good path plays to the end (6,496 pages) and each wrong answer ends the story with its own bad end, then the game goes back to the title (`research/nitroplus/django_routes.sh`, which stops each run there, 2026-10-15) |
 | Text | 🟡 In the boxes' places (box00: 39 columns at 50,472, white on the black bar; five rows, as many as end inside the 130 px box); 3,424 voiced lines; not compared with the original yet |
@@ -309,10 +309,9 @@ with the original (it wants all eleven endings' flags under wine).
 
 ### Next
 
-1. The trace checker's remaining findings: image memory peaks at
-   101 MB (the two long movies' strips, 75 MB each); "sounds on two
-   channels at once" are the script's own (the same shot or horse on
-   two sound objects, started 500 ms apart) and stay.
+1. The trace checker's remaining findings: "sounds on two channels at
+   once" are the script's own (the same shot or horse on two sound
+   objects, started 500 ms apart) and stay.
 2. The text window and name plates (`box00`-`box05`, face windows
    `frame03`-`frame05`) measured against the original under wine.
 3. The rest of the "not converted" list, by what shows most: the
@@ -326,6 +325,19 @@ with the original (it wants all eleven endings' flags under wine).
 
 ## History
 
+- **Movies as sprite movies (2026-10-15).** A `CreateMovie` that plays
+  while the script goes on (smoke, the Black Hawk, cuts under the text)
+  was a strip of frames at 15 a second, the two long ones at fewer
+  (2.3 a second for `mv_ブラックホーク`, 75 MB of image memory each).
+  The NSS compiler now gives the engine the movie itself
+  (`Assets::movie_sprite`: `movie/<name>_mute[_dark][_alpha].mp4`,
+  `lsp` with `:c/1,0,0;` when it loops, `:c/1,0,1;` once), at its own
+  frame rate; an alpha movie (colour on top, opacity below) is
+  re-encoded with the opacity, inverted, as its right half for `:a`, a
+  `SubRender` one with its colour black. Paused and finished movies
+  stay one frame. Checked headless with a test script: the smoke over a
+  picture, a looping pan moving between shots, Muramasa's dark smoke
+  darkening.
 - **The 400-vs-3 counter (2026-10-15).** `function_count.nss`'s counter
   (three digits from `cg/sys/count/count.png`, 9 at the top, in a
   194×52 window at 296,10, over the top black bar) is drawn by the
