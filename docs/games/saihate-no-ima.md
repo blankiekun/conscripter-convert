@@ -287,6 +287,7 @@ is noted) and why:
 | `0x87` | `+0` | layer 2, any depth, slot 1, 0xff | waits for the motion its object's `0x86` started; ours runs it to its end at `0x86` |
 | `0x8d` | `-1` | 0xff | as in every `0x87` and `0x8a` wait record |
 | `0x88` | `-4` | 0 | a cleared slot's blend and opacity, which `op_88` (`0x415b50`) doesn't use |
+| `0x88` | `+8` | u32 0, 2, 1000, 2000 | the module's place in its preset, where the modules set together are in slot order (History, item 36) |
 | `0x90` | `+2` | u32 1, 0, 2 | the preset module's place among the bust-up's modules, where it is alone (History, item 35) |
 | `0x8e` | the six module names | byte 0 is 0 | an empty module name (leftover memory after it) |
 
@@ -322,7 +323,6 @@ run's):
 | `0x82` | layer 1 depth 1 (one use, after `0x56`) | dropped |
 | `0x86` | one byte at the end of one record: 1 note | dropped, not looked into |
 | `0x86` | two zero bytes after the key frames of the 9 slides: 9 notes | dropped, not looked into |
-| `0x88` | the u32 module field at +8 (0 in 41, 1000 in 2, 2000, 2): 45 notes | dropped |
 | `0x8c` | the sort key in the second u32 (depth 1000 in 227, 1100 in 5, 0 in 4, 2000 in 3, 500 once): 240 notes | dropped: the static is always sprite 60, ripples and shakes move the whole screen |
 | `0x8f` | removes the bust-ups only | partial: `csp -1` also removes the fade cover (no script shows the difference) |
 | `0x30`, `0x62` | everything | dropped (the unreachable debug menu) |
@@ -633,6 +633,7 @@ a copy of the save works.
   (was 49,328).
 - Merged: `0x43` and `0x52`/`0x53` `arg` as harmless (#111, #114; History, items 32, 34).
 - Open: `0x90` +2 as harmless, PR #119 (History, item 35).
+- Open: `0x88` +8 as harmless, PR #126 (History, item 36).
 - Merged: the exe map's fixes and missed callbacks (#46).
 - Open: `0x59` as a real cross-fade, converter #25 with engine #18 (asked
   for a web-build measurement of the old track's decode first);
@@ -696,9 +697,6 @@ after History's 26, most noticeable first (notes = instructions):
     in 5, 0 in 4, 2000 in 3, 500 once): the same for the static, ripples and shakes.
 33. **Ruby flags** (`0x44` u16 at +6, 37 notes: 3 in 32, 1 in 5):
     meaning unknown.
-36. **`0x88` module field** (u32 at +8, 45 notes: 0 in 41, 1000 twice,
-    2000, 2): `op_88` (`0x415b50`) sets it at the module's +0xc, the
-    module order key of History, item 35.
 37. **Blog bust-up band and depth** (`0x7a` u8 4, u32 2000 at +5, 6
     notes): drawn as the character layer's sprite.
 38. **Filter-Replace's begin angle** (`0x70`'s last u32, 220 notes: 1
@@ -1241,3 +1239,17 @@ sound effects on `dwave` channels.
    another character, and none in `0011.cd`. So the three values draw
    the same and are a row of the harmless table ("Operand coverage").
    The 651 notes are gone; `0.txt` is unchanged.
+36. **Done: `0x88`'s module field** (2026-10-16). The u32 at +8 (0 in
+   41 records; 2 in `0010.cd` #7950, 2000 in #8881, 1000 in #9207 and
+   `0013.cd` #990) goes to the module's +0xc (`op_88` `0x415b50`), and
+   `FUN_0040e2a0` (insert `FUN_004128d0`) keeps a preset's modules in
+   ascending key order, a tie after the modules already there. Where
+   modules of one preset are set together, the keys rise with the slot:
+   the mood tint (slot 1, key 0) under `0010.cd` #7950's grey (slot 2,
+   key 2) and `0007.cd` #4075's brightness (slot 3, key 0, added after
+   it); `0011.cd` #2391's tint (preset 2 slot 1, key 0) under the
+   negative that `0010.cd` #9207 left in slot 2 (key 1000). `0013.cd`
+   #990 is preset 2's only module (cleared at `0011.cd` #2403 and
+   `0012.cd` #1487). So the converter's slot order is the exe's draw
+   order, and the field is a row of the harmless table. The 45 notes
+   are gone; `0.txt` is unchanged.
