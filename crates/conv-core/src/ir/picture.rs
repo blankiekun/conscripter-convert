@@ -615,7 +615,8 @@ pub struct TurntableEntry {
     /// Drawn in place of `details` once the variable is non-zero.
     pub details_after: Option<(Var, String)>,
     /// The movie's cells side by side (`w`×`h` each), shown `frame_ms`
-    /// apart and zoomed `zoom` percent, the zoomed movie's top left at
+    /// apart, or a movie file (one cell, 0 ms: the engine plays it,
+    /// looping), zoomed `zoom` percent, the zoomed movie's top left at
     /// `x`,`y`.
     pub movie: Placed,
     pub cells: u32,

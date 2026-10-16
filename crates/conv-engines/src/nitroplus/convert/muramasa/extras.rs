@@ -355,7 +355,8 @@ fn gallery(a: &mut dyn Assets, story: &Story) -> Option<PictureGallery> {
 
 /// 劒冑回転目録 (`extra_dimension.nss`): 3Dビュアー背景 with 24 name plates
 /// a page in two rows of twelve from the right (`Dimension`), NO for one
-/// not seen; the chosen one's movie (400×400, looping) at 80,28, its
+/// not seen; the chosen one's movie (400×400, looping, played by the
+/// engine as a sprite) at 80,28, its
 /// large name plate at 480,28 and its details at 60,436 (the （開放）
 /// ones once `#aw_` is set). 九〇式指揮官騎 and 九四式指揮官騎 are open
 /// from the first visit, the first chosen. The screen fades in from the
@@ -384,7 +385,7 @@ fn turntable(a: &mut dyn Assets, story: &Story) -> Option<Turntable> {
             first = k;
         }
         let details_after = story.flags.get(&format!("#aw_{key}")).and_then(|&v| Some((v, a.image(&format!("{DIR}/各スペック/{name}（開放）スペック.png"))?.0)));
-        let (movie, cells, mw, mh) = a.movie_frames(&format!("dx/3d/ex_{number:03}.ngs"), None, false, false)?;
+        let (movie, mw, mh) = a.movie_sprite(&format!("dx/3d/ex_{number:03}.ngs"), false, false)?;
         entries.push(TurntableEntry {
             plate: Placed { image, x, y, w: w as i32, h: h as i32 },
             unlocked_by,
@@ -392,8 +393,8 @@ fn turntable(a: &mut dyn Assets, story: &Story) -> Option<Turntable> {
             details: picture(a, &format!("{DIR}/各スペック/{name}スペック.png"), 60, 436)?,
             details_after,
             movie: Placed { image: movie, x: 80, y: 28, w: mw as i32, h: mh as i32 },
-            cells,
-            frame_ms: 1000 / crate::nitroplus::convert::MOVIE_FPS,
+            cells: 1,
+            frame_ms: 0,
             zoom: 400 * 100 / mw.max(1),
         });
     }
