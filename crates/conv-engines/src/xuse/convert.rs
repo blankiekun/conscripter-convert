@@ -18,7 +18,7 @@ use conv_core::ir::{
 };
 
 use crate::xuse::cd::{
-    PRESET_KIND_ZIGZAG, CdError, CdScript, EnvModule, Instr, Link, PresetModule, Quake, Surprise, SURPRISE_PRESETS, ENV_KIND_NOISE, FLASH_MS, FLASH_OPACITY, OP_FLASH, Ruby as RubyRecord, ScreenModule, Sound, SpriteEntry, TextStyle as StyleRecord, OP_TEXT_INDENT, PRESET_KIND_MONOTONE, PRESET_BLEND_ADD, PRESET_BLEND_ALPHA, PRESET_BLEND_COPY,
+    PRESET_KIND_ZIGZAG, CdError, CdScript, EnvModule, Instr, Link, PresetModule, Quake, Surprise, SURPRISE_PRESETS, ENV_KIND_NOISE, FLASH_MS, FLASH_OPACITY, OP_FLASH, OP_QUAKE, OP_SURPRISE, Ruby as RubyRecord, ScreenModule, Sound, SpriteEntry, TextStyle as StyleRecord, OP_TEXT_INDENT, PRESET_KIND_MONOTONE, PRESET_BLEND_ADD, PRESET_BLEND_ALPHA, PRESET_BLEND_COPY,
     PRESET_BLEND_MULTI, PRESET_BLEND_SCREEN, PRESET_KIND_BRIGHTNESS, PRESET_KIND_COLOUR, PRESET_KIND_GREYSCALE,
     PRESET_KIND_NEGATIVE, PRESET_KIND_SMOOTH, PRESET_KIND_HUE_SATURATION, PRESET_KIND_BRIGHTNESS_INVERT, PRESET_KIND_REPLACE,
     ModuleData,
@@ -2435,19 +2435,30 @@ pub fn lower_script(
             }
             continue;
         }
-        if ins.op == OP_FLASH {
-            let c = ins.arg as u32;
-            let colour = (c & 0xff) << 16 | (c & 0xff00) | (c >> 16 & 0xff);
-            // At sort key 0xffffffff: over the text window too.
-            ops.push(Op::ScreenFlash { colour, opacity: FLASH_OPACITY, ms: FLASH_MS });
-            continue;
-        }
-        if let Some(quake) = cd.quake(ins) {
-            lower_quake(&quake?, &mut ops);
-            continue;
-        }
-        if let Some(surprise) = cd.surprise(ins) {
-            lower_surprise(&surprise?, &mut ops);
+        // While skipping (skip_state_a/_b) the original draws none of these;
+        // with 画面エフェクトを使用 off (setting_effects bit 0) none but the
+        // flash. A script fade left out draws no cover at all.
+        let fade = matches!(ins.op, OP_FADE_BLACK | OP_FADE_WHITE) && ins.arg >> 16 == 0;
+        if fade || matches!(ins.op, OP_FLASH | OP_QUAKE | OP_SURPRISE) {
+            let gate = format!("s{}_fx{index}", cd.script_id);
+            ops.push(Op::IfSkipping { label: gate.clone() });
+            if ins.op != OP_FLASH {
+                ops.push(Op::IfSwitch { switch: Switch::Effects, on: false, label: gate.clone() });
+            }
+            if ins.op == OP_FLASH {
+                let c = ins.arg as u32;
+                let colour = (c & 0xff) << 16 | (c & 0xff00) | (c >> 16 & 0xff);
+                // At sort key 0xffffffff: over the text window too.
+                ops.push(Op::ScreenFlash { colour, opacity: FLASH_OPACITY, ms: FLASH_MS });
+            } else if let Some(quake) = cd.quake(ins) {
+                lower_quake(&quake?, &mut ops);
+            } else if let Some(surprise) = cd.surprise(ins) {
+                lower_surprise(&surprise?, &mut ops);
+            } else {
+                let colour = if ins.op == OP_FADE_WHITE { 0xffffff } else { 0 };
+                ops.push(Op::ScreenFade { colour, ms: u32::from(ins.arg as u16) });
+            }
+            ops.push(Op::Label(gate));
             continue;
         }
         if let Some(apply) = cd.apply_preset(ins) {
@@ -2936,10 +2947,6 @@ fn lower_instr(
         // when arg's high half isn't 0.
         OP_WAIT if ins.arg >> 16 == 0 => return Ok(Some(Op::Pause { ms: u32::from(ins.arg as u16) })),
         OP_WAIT => return Ok(Some(Op::Wait { ms: u32::from(ins.arg as u16) })),
-        OP_FADE_BLACK | OP_FADE_WHITE if ins.arg >> 16 == 0 => {
-            let colour = if ins.op == OP_FADE_WHITE { 0xffffff } else { 0 };
-            return Ok(Some(Op::ScreenFade { colour, ms: u32::from(ins.arg as u16) }));
-        }
         OP_IF_EQUAL..=OP_IF_GE => {
             // Handlers 0x474400 (sete), 0x474460 (setne), 0x4745e0 (setl),
             // 0x474520 (setg), 0x474580 (setle), 0x4744c0 (setge); the
