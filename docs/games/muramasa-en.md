@@ -81,8 +81,13 @@ settle:
   the captions' `print`): `CEASE YOUR` / `MINDLESS YAPPING, CUR!!!!!`
   centred over the bar. Left: the text window is drawn over them (the
   engine's window is above every sprite; in the original it is part of
-  the capture under them), and the bar is the Japanese 500×1000 (the
-  port's English branch scales it to 620×220).
+  the capture under them; fixed since by #173).
+- mb03_022's bar (this PR): the black bar behind `CEASE YOUR` /
+  `MINDLESS YAPPING, CUR!!!!!` is now the port's: its English branch
+  scales `絵色100` to 620×220 (`Scale` in mb03_022.nut) where the NSS
+  stands it 500×1000 (`call_en` in `muramasa.rs`, the game's one such
+  `Zoom`). In the dry run it is a 635×127 bar at 194,224, centred
+  under the captions (the only change).
 - Text-area lines (#166): the port's `CreateTextArea` + `SetText`
   lines (mb04_015vs: `《Even so―》`, `《That is justice!》`) pair with the
   NSS's `CreateText` by their Japanese (the port names the sprite
@@ -147,8 +152,7 @@ settle:
   Muramasa (both builds) and Django change: sounds and waits move into
   the page where they stand; line ends `/` (Muramasa 102, Django 7),
   `` `…`/ `` (English 43); `setwindow2` (Muramasa 11, English 126).
-- Open (2026-10-16): mb03_022's bar at the port's 620×220 is in
-  PR #247. The English-side
+- Open (2026-10-16): The English-side
   `Metrics::left_out` entries (the 444 story `CreateText` left out on
   purpose, menu built-ins the English screens replace) are not yet listed.
 - Decided: a click on an empty slot at the title doesn't save (the

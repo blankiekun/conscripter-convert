@@ -212,6 +212,16 @@ fn call_en(c: &mut Compiler<'_, '_>, name: &str, args: &[Value]) -> bool {
             c.voice_subtitle(args);
             true
         }
+        // mb03_022's black bar behind its captions: the port's English
+        // branch scales it across, `Scale("絵色100", 0, 620, 220)`
+        // (mb03_022.nut), where the NSS stands it 500×1000 (the game's one
+        // such `Zoom`; it runs from the text block, in function.nss).
+        ("Zoom", _) if args.len() >= 4 && args[0].string() == "絵色100" && args[1..4] == [Value::Int(0), Value::Int(500), Value::Int(1000)] => {
+            let mut args = args.to_vec();
+            (args[2], args[3]) = (Value::Int(620), Value::Int(220));
+            c.builtin("Zoom", &args);
+            true
+        }
         _ => call(c, name, args),
     }
 }
