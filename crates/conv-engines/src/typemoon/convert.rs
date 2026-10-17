@@ -624,8 +624,9 @@ impl Lowering<'_, '_> {
     /// Layer `i` as shown, a child placed in its parent (`FUN_001892b0`,
     /// `FUN_00189190`): its x, y are in the parent's picture, from its
     /// record's top-left, zoomed with the parent (and by ½, ¼, ⅛ for a
-    /// parent sprite's `_L_`, `_M_`, `_S_` shot) about the parent's place.
-    // shortcut: the parent's rotation (argument 19) and motions are not followed.
+    /// parent sprite's `_L_`, `_M_`, `_S_` shot) and turned with it about
+    /// the parent's place; its angle adds to the parent's.
+    // shortcut: the parent's motions are not followed.
     fn resolved(&self, i: usize, depth: usize) -> Option<Layer> {
         let mut l = self.shown[i].clone()?;
         let Some(p) = l.parent.filter(|_| depth < LAYERS) else { return Some(l) };
@@ -634,8 +635,12 @@ impl Lowering<'_, '_> {
         let shot = [1.0, 0.5, 0.25, 0.125].get(usize::from(record.shot)).copied().unwrap_or(1.0);
         let (zx, zy) = (parent.zoom * parent.stretch.0 * shot, parent.zoom * parent.stretch.1 * shot);
         // Script units: a record unit is 0.375 of one (1280 for the screen's 480).
-        l.x = parent.x + zx * (l.x - record.centre.0 * 0.375 / shot);
-        l.y = parent.y + zy * (l.y - record.centre.1 * 0.375 / shot);
+        let (u, v) = (zx * (l.x - record.centre.0 * 0.375 / shot), zy * (l.y - record.centre.1 * 0.375 / shot));
+        // Turned with the parent, y down (`FUN_0018c480` sums the angles).
+        let (sin, cos) = (parent.angle as f32 * std::f32::consts::PI / 18000.0).sin_cos();
+        l.x = parent.x + u * cos - v * sin;
+        l.y = parent.y + u * sin + v * cos;
+        l.angle += parent.angle;
         l.stretch = (l.stretch.0 * zx, l.stretch.1 * zy);
         l.parent = None;
         Some(l)
@@ -662,7 +667,8 @@ impl Lowering<'_, '_> {
         };
         self.ops.push(Op::Sprites { changes: vec![SpriteChange { layer, sprite: Some(SpritePlacement { image, x: 0, y: 0 }), keep_filters: false }], fade_ms: 0 });
         self.ops.push(Op::SpriteMove { layer, x: cx.round() as i32, y: cy.round() as i32, ms: 0 });
-        self.ops.push(Op::SpriteAngle { layer, degrees: (l.angle as f32 / 100.0).round() as i32, zoom });
+        // Clockwise, as the child-layer math turns (spzoom's angle is counter-clockwise).
+        self.ops.push(Op::SpriteAngle { layer, degrees: (-l.angle as f32 / 100.0).round() as i32, zoom });
         if l.alpha < 255 {
             self.ops.push(Op::SpriteOpacity { layer: Some(layer), opacity: l.alpha * 256 / 255 });
         }
@@ -873,6 +879,26 @@ mod tests {
     }
 
     #[test]
+    fn a_child_turns_with_its_parent() {
+        // The parent turned 90° clockwise: the child 60 script units right
+        // of its middle goes 60 below it, and turns with it.
+        let src = "_STCH(1,img1,240,136,1000,255,10,,,,,,,,,,,,,9000);_STCH(2,dot,300,136,1000,255,20,,,,,1);_FADS(1,0,0);";
+        let g = Game {
+            scripts: vec![("S".into(), script::parse(src).into_iter().map(Result::unwrap).collect())],
+            scenes: vec![],
+            lines: vec![],
+            pictures: [picture("img1", 1280.0, 724.0), picture("dot", 10.0, 10.0)].into(),
+            textures: HashMap::new(),
+            sounds: vec![],
+            waves: HashMap::new(),
+            motions: vec![],
+        };
+        let ops = compile(&g).ops;
+        assert!(ops.contains(&Op::SpriteMove { layer: 38, x: 639, y: 519, ms: 0 }), "{ops:?}");
+        assert!(ops.iter().any(|o| matches!(o, Op::SpriteAngle { layer: 38, degrees: -90, .. })), "{ops:?}");
+    }
+
+    #[test]
     fn turn_shader_and_tint() {
         let src = "_STCH(1,img1,240,136);_STRT(1,-9000,-9000,0,0);_STBR(1,18);_STEC(1,1,0xFF8000);_FADS(1,0,0);_STCH(1,img1,240,136);_FADS(1,0,0);";
         let g = Game {
@@ -888,7 +914,7 @@ mod tests {
         let c = compile(&g);
         assert!(c.notes.is_empty(), "{:?}", c.notes);
         let ops = c.ops;
-        assert!(ops.contains(&Op::SpriteAngle { layer: 39, degrees: -90, zoom: (50, 50) }), "{ops:?}");
+        assert!(ops.contains(&Op::SpriteAngle { layer: 39, degrees: 90, zoom: (50, 50) }), "{ops:?}");
         let blends: Vec<_> = ops.iter().filter_map(|o| if let Op::SpriteBlend { mode, .. } = o { Some(*mode) } else { None }).collect();
         // Added on, then normal again: `_STCH` resets the shader.
         assert_eq!(blends, [BLEND_ADD, BLEND_NORMAL]);
