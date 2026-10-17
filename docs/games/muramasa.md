@@ -598,8 +598,9 @@ oldest row. Open:
 (`conv-cons/src/picture_extras.rs`, `PictureExtras` with `engine_screen`;
 engine #93): the picture and its buttons (a locked one at 51/255 and not a
 button), fading in over 500 ms. It closes with the mode chosen holding
-its frame (`hold`), so the mode (the gallery's pages a screen, the
-rest still script routines: sound room, recollection, 3D viewer) and the title cross-fade straight
+its frame (`hold`), so the mode (the gallery's pages and the
+recollection's list screens, the rest still script routines: sound
+room, 3D viewer) and the title cross-fade straight
 from it. Checked on Xvfb against main's routine (this build and the
 English one, which shares it): open, a button hovered, the gallery, back
 to the menu, back to the title: 0 pixels; frames mid cross-fade show no
@@ -621,6 +622,19 @@ Checked on Xvfb against main's routine: open, a slot hovered, the next
 page, each category, the viewer, back, the menu: 0 pixels (1 px on an
 arrow). Again after the rebase onto engine master e585b68 (Japanese and
 English builds): the same, the cross-fade into it not black. Open: the viewer is still the script's.
+
+### Scene replay's list drawn by the engine (2026-10-17)
+
+回想映写機's list is CONscripter's `screen "replay"`
+(`conv-cons/src/picture_replay.rs`, `PictureReplay` with
+`engine_screen`; engine #100): the picture, each scene's thumbnail
+(空白アイコン while locked) under its cursor button, 退出, fading in over
+500 ms. A scene closes the screen holding its frame; `spgrab 999,-2`
+copies that frame so the freeze (`screenzoom` at 100 %) holds the list
+over the scene's first pictures as before; at the scene's end the list
+fades in again from black. Checked on Xvfb against main's routine: open,
+hover, the frozen list 0.4 and 0.8 s after the click, the scene at 3 and
+6 s, the way back to the menu: 0 pixels (1 px at 6 s).
 
 ### Settings drawn by the engine (2026-10-17)
 

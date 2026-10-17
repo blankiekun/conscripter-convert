@@ -218,6 +218,7 @@ fn replay(a: &mut dyn Assets, story: &Story) -> Option<PictureReplay> {
         end_ms: 2000,
         across: None,
         hold: Some((HOLD_SLOT, (SCREEN_W as i32 / 2, SCREEN_H as i32 / 2))),
+        engine_screen: true,
     })
 }
 

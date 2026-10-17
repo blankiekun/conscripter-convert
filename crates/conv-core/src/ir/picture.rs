@@ -609,6 +609,9 @@ pub struct PictureReplay {
     /// `.1`, the screen's centre), until the scene clears the slot
     /// (装甲悪鬼村正's `RecoIn` fades it out).
     pub hold: Option<(u32, (i32, i32))>,
+    /// The list is drawn by the engine (CONscripter's `screen`,
+    /// `screens/replay.lua`) rather than by a script loop.
+    pub engine_screen: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
