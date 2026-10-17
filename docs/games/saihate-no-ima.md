@@ -325,7 +325,6 @@ run's):
 | `0x40`, `0x41` | `sub` bit 0: the first line is the speaker's name (not in full-screen windows: the exe drops it there) | converted (History, item 27) |
 | `0x49` | the edge colour: the one of its own (0x808080, a grey outline; History, item 29) | converted (CONscripter's `!o#RRGGBB` … `!o0`) |
 | `0x56` | u32 depth at +2 (0 and 2000): 2 notes | dropped |
-| `0x59` | the old track fading out under the new one | partial: it stops at once (one BGM channel) |
 | `0x70` | the depth in the second u32 among the bust-ups (80, in 2 negative flashes) | partial: drawn over all the bust-ups (History, item 30) |
 | `0x76` | MeltDown's stretch for `sub` 46/47 | converted (scaled from the exe), not compared with the film |
 | `0x8f` | removes the bust-ups only | partial: `csp -1` also removes the fade cover (no script shows the difference) |
@@ -686,6 +685,24 @@ a copy of the save works.
   `*conv_confirm`.
 - Open: screen positions and the blog bar's level number from the exe's layout tables (History,
   "Screen positions from the exe").
+- Open: the exe mapping redone against `docs/new-game.md` §2
+  (2026-10-17): `docs/games/saihate-no-ima.findings.tsv`, one row per
+  opcode argument, branch, special value and timing rule, each seen,
+  inferred or unknown with its address in `Farthest2015.exe`. The
+  argcensus leads are explained: `csp -1` (all sprites) and
+  `screenpulse`'s colour (`0xFF8080` is the preset table's COLORREF
+  `0x8080ff`; `0xFFFFFF` goes with no tint). Two differences were fixed
+  in their own PRs (`0x6f`'s blend-6 tint, movies and the unskippable
+  click wait ending skip and auto). Open, not built:
+  - A click during an effect ends it and sets `skip_state_b`, which
+    skips every later effect and clickable wait until the next message,
+    `0x68`, `0x69` or `0x97` (the wait callbacks of `0x66`, `0x6d`,
+    `0x6e`, `0x6f`, `0x71`, `0x72`/`0x74`, `0x8d`, `0x8e`). Ours ends
+    only the one clicked. It needs engine state that every game would
+    share (a click skipping the effects up to the next text), so it
+    waits for the lead's decision.
+  - The volume curve of `sound_request` (`0x47aab0`) was not looked up
+    (findings row "volume curve": unknown).
 - Open: the hide button and right-click hide the link words, bars and
   name plate too (History, "Hiding the window").
 - Merged: `0x86`'s two trailing bytes as harmless (#163; History, item 45).

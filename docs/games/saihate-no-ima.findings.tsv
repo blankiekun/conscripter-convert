@@ -1,0 +1,94 @@
+handler	argument or branch	status	source (Farthest2015.exe sha256 efb7ec8e…)	what the original does	the converter
+(dispatch)	opcode	seen	table 004fb270	u16 opcode 0-0x9d indexes the handler table; 82 opcodes in the corpus (cd opstats, 84,713 instructions)	every one converted but 0x30, 0x62 (debug menu, LEFT_OUT)
+(dispatch)	arg	seen	every op_XX	for most opcodes the pool offset of the operand record; records lie end to end and fill the pool	POOL_RECORDS: every unread byte is a dry-run note
+(all effects)	effects off	seen	setting_effects 0051ed14 bit 0; surprise_start 00441960, script_fade 0044a2f0, op_76 00449df0	no transition fade (0x76, 0x77, 0x8e), quake 0x6d, pulse 0x6f, script fade 0x72/0x74	Op::IfSwitch on Switch::Effects around 0x6d, 0x6f, 0x72, 0x74; effectoff for print
+(all effects)	skip mode	seen	skip_state_a 0051f82c, skip_state_b 0051f82e	none of 0x6d, 0x6e, 0x6f, 0x72, 0x74 drawn; transitions skipped	isskip gate (Op::IfSkipping); Ctrl-held skip not seen by isskip
+(all effect waits)	click mid-effect	seen	cb_00449d40 (0x76), cb_0044a1f0 (0x72/0x74), cb_004418b0 (0x6f), cb_004420a0 (0x6d), cb_004414c0 (0x6e), cb_00434720 (0x8e), cb_004154b0 (0x8d), 00475bf0 (0x66)	a click (or Ctrl, or a key in mask 0x20ee007) ends the effect at once and sets skip_state_b, which skips every later effect and clickable wait until a message (op_40_41), 0x68, 0x69 or 0x97 clears it	a click ends only the effect or delay it lands in; the next ones play: differs, open (needs an engine state shared by every game: reported, not built)
+0x40, 0x41	record id, size, line, segments	seen	op_40_41 004771c0	message; 0x41 voiced (voice id); XOR-0x53 pre-wrapped lines	Op::Text
+0x40, 0x41	sub bit 0	seen	00475f40, 004679d0	the first line is the speaker's name, dropped in text modes without names	speaker name (#102)
+0x40, 0x41	+8 line number	seen	-	the source line number	harmless (cd messages prints it)
+0x40, 0x41	-8	seen	-	u32 4, u32 0 after every message	harmless
+0x40, 0x41	hidden state	seen	op_40_41 004771c0	clears skip_state_b	not modelled (see "click mid-effect")
+0x41	voice id	seen	imul 0x14f8b589; sar 13	clip (id-1) % 100000, character id / 100000	the same
+0x10, 0x11	arg	seen	-	label number in the current script; a 0x10 on its own label is a marker	goto; IR label after the marker
+0x15, 0x16, 0x22	label index	seen	op_15 004742c0, find_label	label-table index, implicit entry 0 (n = stored n-1)	the same
+0x16-0x1b	comparison	seen	op_16 00474400 sete, 00474460 setne, 004745e0 setl, 00474520 setg, 00474580 setle, 004744c0 setge	if v[a] cmp b goto label[sub]	Op::If; 0x17 and 0x1a used once each
+0x22, 0x23	stack	seen	op_22 00474940, op_23 00475230	gosub / return, stack depth 20	gosub / return
+0x01-0x0e	variables	seen	op_01 00473de0 … op_0e 00474120	bit 15 global; 0x03 is -= var	%200+n global, %10+n local; 0x01, 0x02, 0x08, 0x0d used
+0x36-0x38	chapter	seen	op_36 00475460, op_37 00475780, op_38 00475970	chapter title from the label name, |chpe ends, |chpl clears	$150; -4 (|chpe index) and +0 (own label) harmless
+0x39	clear chapter history	seen	op_39 00475af0	error inside a chapter; nothing in replay modes 1/2	clears the static and shakes (seen in a film, mechanism not found)
+0x3b	entry name	seen	op_3b 00478650	copies the name for 0x3c, which no script uses	nothing
+0x43	arg	seen	op_43 004772a0	hides the text window; 0 goes on the same frame, 1 the next	textoff; arg harmless
+0x44	ruby	seen	op_44 00495c10	line, column, length, alignment 3 or 1, u32 0, reading	(base/reading) with rubyon; alignment harmless
+0x46	link	seen	op_46 00477460	row, column, length, style 0x8000\|var (the variable that makes it a link), label index; -4 read only by save/load	buttons over the words, while the variable is set (#183)
+0x46	nesting	seen	enter_local_scene 004674e0 → 00463660	unbounded scene stack	at most 7 deep (MAX_LINK_DEPTH, the user's choice)
+0x47	link return	seen	op_47 004776c0	returns from a link scene; replay modes 2/3 branch	return through the link page
+0x48	return to root	seen	op_48 00477900, leave_link_scene	leaves every link scene; at the root logs and goes on	Op::ReturnToRoot
+0x49	line, column, length	seen	op_49 00477990	30000 = to the end of the message; lines and columns count as for ruby	the same
+0x49	size	seen	00491d80, table 004fa850	< 0x1000 percent; 0x1000+n = n × 25 % (0x1003 mumbling, 0x1005-0x1007 shouting); 0xf000 keep	!zNNN
+0x49	colour, edge	seen	00491e30	COLORREF; 0xff000000 keep; edge 0x808080 grey outline	#RRGGBB, !o#RRGGBB
+0x4a	size	seen	op_4a 00477af0	0xf000+k (0 none, 1 default, 2 kept); stored only when 10-1000 % after decoding	whole-message style; corpus 0x1005 and 0xf001
+0x4a	colour, edge	seen	op_4a 00477af0	0xff000000+k likewise; edge 0xff000000/0xff000001 = default	colour converted; edge harmless for these two values
+0x4c, 0x4f, 0x50, 0x4d	window preset	seen	op_4c 00476610, op_4f 00477be0, op_50 00477c90, op_4d 004766c0	mode, style TextWnd{n}.004, position, instant text	setwindow per preset (script 2's subroutines)
+0x4e	indent	seen	op_4e 00494750	arg = indent << 16 \| 1; half-width units of the first line	indent N
+0x52, 0x53	sub, arg	seen	FUN_00476a80, wait 00476750	window 0; arg the read-flag number	brn / p tags; kidoku by place in 0.txt
+0x54	arg	seen	op_54 00422380, loader 0040bff0	background 1-based (0 none), 64 per bg*.004; removes slots 1-10	bg; Op::Overlay(None)
+0x54	sub 1-3	seen	op_54 00422380	frame0{sub} on slot 2 under the bust-ups	the frame as the overlay
+0x54	fade	seen	op_54 00422380	no fade of its own (2,190 uses inside an armed transition)	none
+0x55	overlay	seen	op_55 00422440	a second background object (frameNN); layer 2 or 0 checked; mark as seen	sprite 61 or 999, kept over csp -1, removed by 0x54
+0x56	slot, colour	seen	op_56 004224a0 → 00412fe0	fill a slot with a COLORREF; slot 0 removes 1-10	fill_rrggbb.png; +2 depth harmless
+0x57	track, fade-in	seen	op_57 00473530 → sound_request 0047aab0	arg track 1-based, sub fade-in ms capped at 30 s	bgm with fade
+0x58	stop BGM	seen	op_58 004735a0	arg 0 all, sub fade-out ms	bgmfadeout / bgmstop
+0x59	crossfade	seen	op_59 00473610	u32 ms (cap 30000), u16 stop (0 all but the new), u16 play; both at once	bgm "file",ms (CONscripter's cross-fade)
+0x5a	SE record	seen	op_5a 004736f0	u32 fade-in, u8 loop, u32 sound 1-based; a non-looping SE isn't played in skip mode	dwave / dwavefadein, isskip guard
+0x5b	stop SE	seen	op_5b 004737a0	arg sound or 0 all, sub fade ms	dwavefadeout
+0x66	ms	seen	op_66 00475cd0, 00475bf0	low 16 bits ms; ms 0 goes on next frame	delay / wait
+0x66	high half	seen	00475bf0	≠ 0: a click, a key or skip ends it (and sets skip_state_b); 0: nothing ends it, not even skip mode	delay; high half 0 → wait (Op::Pause)
+0x67, 0x00	yield	seen	00473d20	one frame	nothing
+0x68	arg	seen	op_68 004784b0	click wait; arg 0 (4 uses) ends skip and auto mode first; clears skip_state_b	conv_click_wait; arg 0 with skipoff:autooff (#352)
+0x69	click wait	seen	op_69 00473940, 00473810	the picture alone, wait icon; skip passes it	like 0x68 skippable
+0x6d	speed, x, y range	seen	op_6d 00442000, quake_object	7-point path, speed points/s; after 4 points both ranges shrink by max(speed/4, 50) px/s; click ends; -12 zeros unread	screenshake 4 + delay
+0x6d	frame rate	seen	wine shot	30 fps: one point a frame	QUAKE_POINTS_PER_S 30
+0x6e	colour	seen	op_6e 00441550, object 004413d0	COLORREF Add at 128 for 100 ms over everything; click ends	screenflash 128 + delay 100
+0x6f	time	seen	surprise_create 00441730	clamped 1-32767 ms (corpus 50-1000)	delay of the same ms
+0x6f	preset zoom, opacity	seen	table 00500b68, step 00441670, draw 004415b0	f = sin(π t); zoom 16.16 × f, opacity 0-256 × f; fourth field 0 unused	screenpulse zoom ‰, opacity 0-256
+0x6f	preset tint 2 (3-5)	seen	00428b50 → 00428a50 → table 00518208 → 00433180	multiply c × k / 255 mixed at opacity/256, once on the snapshot	tint 1
+0x6f	preset tint 6 (6-8)	seen	table 00518208 entries 5, 6 = 00443090 (ret)	nothing drawn: an untinted copy	tint 0 (#350; before: white laid over)
+0x6f	click	seen	cb_004418b0	ends the pulse, sets skip_state_b	delay ends on a click
+0x70	slot, kind	seen	op_70 00415a30, creators 00501434	slot 0 clears all, kind 0 clears the slot; kinds 1-9, 12, 13	screenfilter / screenripple
+0x70	layer \| depth	seen	op_70 00415a30, table 00503e68	0/2 → 0x10, 1 → 0, 3 → 0x20, 4 → 0x30; depth within the band	over every bust-up; depth 80 (2 flashes) partial
+0x70	Zigzag begin angle, reduction	seen	draw 0041dab0	never read	harmless
+0x71	transition wait	seen	op_71 0044a1c0	waits for the armed transition; reveals the changes since	print
+0x72, 0x74	ms, direction	seen	op_72 0044a360, op_74 0044a390, script_fade 0044a2f0, fade_draw 00435f20	low 16 ms; high ≠ 0 the other direction (unused); 0x74 white; opacity elapsed × 256 / ms, linear	lsp2 26 cover faded with print 10,ms
+0x76	sub	seen	op_76 00449df0 jump table	0-3 Wave, 4 Dot4x4, 5-8 SoftEdgeWipe, 9 CrossFade, 10-25 Slide, 26 Dissolve, 27 Mosaic, 28-31 BoxRolling, 32-35 RollFlip, 36 SmoothCrossFade, 37-40 Zoom, 41-44 Scroll, 45-47 MeltDown, 48 TvPowerSwitch	transition_style
+0x76	flags	seen	op_76 00449df0	bit 0 hides windows, bits 0-1 remove bust-ups; corpus 0	harmless
+0x76	sort key	seen	op_76 00449df0, table 00503e54	layer byte 0 → band 4, 1-4 by the table, ≥ 5 → 0; covers only what sorts below	keyed records change at once what they don't cover (3 records)
+0x77	mask, softness	seen	op_77 00444090	mask%04u.png, sign = direction (-30 from the centre)	cons_rule mask wipe
+0x7a-0x7d, 0x84	layer-2 object	seen	op_7a 00414590, op_84 00414180, op_7d 00413940, op_7c 00414460	hidden object, picture kind × 10,000,000 + n - 1 (kind 2), anchor 0-2 (corpus 1,1), visible	Op::Sprites with spovertext
+0x7a-0x7b, 0x8a-0x8b	animation	seen	op_8b 00416310, op_8a 00416200	full-screen fx.arc animation; 0x8a waits for a one-shot	sprite 59
+0x7f	position	seen	op_7f 00413bb0	the object's centre at x, y	end point of a slide
+0x80	scale	seen	op_80 00413cd0	+0x1a8/+0x1ac percent, 100 for a new object	pre-scaled copy
+0x81	rotation	seen	op_81 00413df0	tenths of a degree mod 3600, clockwise	Op::SpriteTurn
+0x82	opacity	seen	op_82 00413f10	0-256; > 256 is a script error (nothing); keys by layer: depth, +10, +110, +120	msp; corpus 50-256
+0x83	blend	seen	op_83 00414050	0-6 Alpha … dissolve (< 7 checked); corpus 6	dissolve drawn
+0x86	flags, frames	seen	op_86 00413540, setup 00416fe0	key-frame motion; fields by flag; first frame replaced by the object's state	Op::SpriteMove for 2-frame position/opacity/rotation
+0x86	interpolation	seen	004176f0	0 kept, 1 jump at halfway, 2 linear, 3 a curve through the neighbours (00407540)	2 only; every corpus motion (19) is 2 frames, interpolation 2
+0x86	kind 0x80000001	seen	op_86 00413540	removes the slot's module	removal
+0x87	wait	seen	op_87 00413820	waits for the motion	ours runs it to its end at 0x86
+0x88	preset module	seen	op_88 00415b50, creators 00501434	preset, slot (0 clears), place, kind, blend, opacity 0-256, kind data	preset variables
+0x8c	slot, kind	seen	op_8c 004153c0, env_clear_slot, env_clear_all	slot 0 clears all, kind 0 the slot; 2 noise, 4 ripple, 5 shake	noise sprite 60, screenripple, screenshake
+0x8d	wait	seen	op_8d 004155c0, cb_004154b0	waits for slot n's module	delay of the module's time
+0x8e	entries	seen	op_8e 004347b0, 00434530, 00434130	mode bit 0 show, bit 1 no change, bit 2 keep; 500 ms Trans_CrossFade unless all have bit 1	sprites; instant when all have bit 1
+0x8e	depth	seen	00434130	drawing order 10-150, 1100-5000	z order
+0x8f	arg	seen	op_8f 00434900	-1: remove every bust-up (keys 11-110)	csp -1 with overlay, static, animation put back; the fade cover goes (no script shows it)
+0x90	preset	seen	op_90 00434960	0 removes; module type 1 CModule_Preset	spfilter from preset variables
+0x91	staff roll	seen	op_91 004788d0, staff_roll_task	0 StaffRoll1, 1 StaffRoll2; clears skip_state_b only	rendered MP4, mpegplay
+0x93, 0x94	scene replay	seen	op_93 00478830, op_94 004789a0	unlock scene N; end of a replayed scene	%3000+N; if %152 == 1
+0x96	end	seen	op_96 00478330	stops sounds, title task	reset
+0x97	movie	seen	op_97 00478ab0, 00408e5b	low 16 number, high ≠ 0 skippable; ends skip and auto mode first	mpegplay after skipoff:autooff (#352)
+0x99	progress bit	seen	op_99 00478b00	bit sub of 0051eb3c, saved with system data	%3600 + bit
+0x9d	CG seen	seen	op_9d 00478b30	bit arg-1 of 0051ea18	%2200 + n
+0x30, 0x62	debug menu	seen	op_30 004751f0, op_62 00472d10	debug menu only	LEFT_OUT
+(sound)	volume curve	unknown	-	not looked up for this pass	cheapest check: the DirectSound volume call under sound_request 0047aab0
+(hidden state)	new object	seen	op_80, op_82, op_7d	opacity 256, scale 100, anchor 0, rotation 0	a new sprite is opaque, unscaled
+(timing)	frame rate	seen	wine shot (0x6d)	30 fps for quakes	30 points a second
