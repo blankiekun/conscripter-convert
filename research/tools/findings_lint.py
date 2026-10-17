@@ -65,9 +65,12 @@ for mf in sorted(os.listdir("tests/snapshots")):
                     if a not in kinds and a not in OTHER[g]:
                         fail(f"{tsv}: row `{cell}`: {a} is not a kind")
         else:
+            # a kind of several words (`port Print`) is named by its whole comma-separated part
+            named |= {part.strip() for part in cell.split(",")}
+            words = {w for k in kinds for w in k.split()}
             for t in re.findall(r"\w+", cell):
                 named.add(t)
-                if t not in kinds and t not in OTHER.get(g, ()) and t.lower() not in GENERIC:
+                if t not in words and t not in OTHER.get(g, ()) and t.lower() not in GENERIC:
                     fail(f"{tsv}: row `{cell}`: {t} is not a kind")
     for rng, cell in ranges:
         if not rng & kinds:

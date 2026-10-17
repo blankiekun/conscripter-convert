@@ -524,6 +524,24 @@ Used to check what the engine does (`docs/new-game.md` step 9).
 
 ## Status: in progress (2026-10-14)
 
+### Exe mapping redone (2026-10-17)
+
+`docs/games/muramasa.findings.tsv`: one row per built-in and branch the
+dry run sees, marked seen/inferred/unknown with the exe address
+(Muramasa.exe, sha256 `1d67e4771a72…`; `research/nitroplus/names.tsv`,
+43 more callbacks from the export loop, step 2). Fixed from it: unread
+arguments that change nothing (#366), a shake growing from 0 px (#374),
+`SetVertex` in lower case only (#380), the colour names (#383),
+`DrawTransition`'s softness and fade-out direction (#386, engine #138).
+Open: a `Zoom` to 0 leaves a 1 px line (ma04_015vs ×2, mc02_029; the exe
+draws nothing); a partial `DrawTransition` ends masked in the exe (374
+calls, needs a masked-sprite engine feature); sound fades with a tempo
+(9 `SetVolume`, 37 `SetFrequency`) go straight; `SetFrequency` on music
+(1,486); `CreateSurface`/`SetSurface`, `Position`, `CreateMovie`'s
+arguments, `Delete`'s 1-2 unknown. Names were carried from Django.exe by
+hand (SetPan, Fade, SetVertex, colours), not by a version-tracking match
+(step 21).
+
 ### Accuracy (2026-10-17)
 
 Every hand-typed value of the Nitroplus converter that stands for the

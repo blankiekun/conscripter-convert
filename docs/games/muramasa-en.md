@@ -7,6 +7,18 @@ It has no NPA archives and no NSS scripts.
 
 ## Status
 
+### Exe mapping redone (2026-10-17)
+
+`docs/games/muramasa-en.findings.tsv`: the port's rows (tempo table, text,
+choices, pictures, subtitles) and the NSS built-ins it shares with the
+Japanese build (`muramasa.findings.tsv`). Open: the port's `Shake` is a
+Diesel `CEffectShake` (`sqSprite_shake` 004eb3f0 → 00484990, a period and
+repeat/round options), not mapped, so ours keeps the old 16 ms shake (n and
+tempo noted, 1,486); the port's `Transition` (DrawTransition) native is
+not mapped (ours: Muramasa.exe's `effectsoft`); `Move`/`Zoom`/`Rotate`
+keep the Japanese curves. No names carried between muramasa_en.exe and
+Muramasa.exe: different engines (Diesel/Squirrel against NSS).
+
 ### Accuracy (2026-10-17)
 
 The port's hand-typed values (`muramasa.rs`'s English parts,
