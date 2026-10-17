@@ -514,9 +514,10 @@ impl Lowering<'_, '_> {
         let base = arg(1).to_lowercase();
         let num = |i: usize, default: f32| if arg(i).is_empty() { Some(default) } else { number(arg(i)).map(|v| v as f32) };
         // src: exe 0x160840: with no x and y the layer keeps its place (0, 0 after `_STCC`), else a missing one is 0;
-        // zoom 1000 and alpha 255 by default (shortcut: the exe keeps a zoom left out, as after `_STCC`'s 1000).
+        // a zoom left out is the layer's (1000 after `_STCC`); alpha 255 by default.
         let (x0, y0) = old.as_ref().filter(|_| arg(2).is_empty() && arg(3).is_empty()).map_or((0.0, 0.0), |o| (o.x, o.y));
-        let (Some(x), Some(y), Some(zoom), Some(alpha)) = (num(2, x0), num(3, y0), num(4, 1000.0), num(5, 255.0)) else { return false };
+        let zoom0 = old.as_ref().map_or(1000.0, |o| o.zoom * 1000.0);
+        let (Some(x), Some(y), Some(zoom), Some(alpha)) = (num(2, x0), num(3, y0), num(4, zoom0), num(5, 255.0)) else { return false };
         let expression = if arg(9).is_empty() && arg(10).is_empty() {
             None
         } else {
@@ -1141,7 +1142,7 @@ mod tests {
 
     #[test]
     fn stch_without_a_place_keeps_the_layers() {
-        let src = "_STCH(1,img1,120,68);_STCH(1,img1);_FADS(1,0,0);_STCC(1);_STCH(1,img1,120);_FADS(1,0,0);";
+        let src = "_STCH(1,img1,120,68,500);_STCH(1,img1);_FADS(1,0,0);_STCC(1);_STCH(1,img1,120);_FADS(1,0,0);";
         let g = Game {
             scripts: vec![("S".into(), script::parse(src).into_iter().map(Result::unwrap).collect())],
             scenes: vec![],
@@ -1152,8 +1153,11 @@ mod tests {
             waves: HashMap::new(),
             motions: vec![],
         };
-        let moves: Vec<(i32, i32)> = compile(&g).ops.iter().filter_map(|o| if let Op::SpriteMove { x, y, .. } = o { Some((*x, *y)) } else { None }).collect();
-        // Kept at 120, 68; after `_STCC` a missing y is 0.
+        let ops = compile(&g).ops;
+        let moves: Vec<(i32, i32)> = ops.iter().filter_map(|o| if let Op::SpriteMove { x, y, .. } = o { Some((*x, *y)) } else { None }).collect();
+        let zooms: Vec<_> = ops.iter().filter_map(|o| if let Op::SpriteAngle { zoom, .. } = o { Some(*zoom) } else { None }).collect();
+        // Kept at 120, 68 and zoom 500; after `_STCC` a missing y is 0 and the zoom 1000.
         assert_eq!(moves, [(320, 180), (320, 0)]);
+        assert_eq!(zooms, [(25, 25), (50, 50)]);
     }
 }

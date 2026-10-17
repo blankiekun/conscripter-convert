@@ -649,12 +649,15 @@ original (Japanese, default text size):
   y (`FUN_001a7790` adds 14 + 10 of 1080 inside the line). Place,
   width and glyph size are the exe's (`FUN_001391a0`: from 88, 65 on
   a 640 × 448 stage, 464 wide; glyphs of the screen width / 32 × 0.76).
-- The English (fan patch) layout: from x 30, 584 wide, the first line
-  9.88 higher, glyphs × 0.9 (`FUN_0012df20`, the system language);
-  not followed, the build uses the Japanese one.
 - `_STBR` 11 (gauss) drawn as a blur of 8.
-- `_STCH` without a zoom: the exe keeps the layer's (1000 after
-  `_STCC`); the converter resets it to 1000 (9 uses).
+
+Open, settled by the code: the English (fan patch) text layout. When
+`FUN_0012df20` (0x12df20, the system language) says English, the text
+drawer `FUN_001391a0` (0x1391a0) starts lines at x 30 instead of 88,
+wraps them at 584 instead of 464 (the table at 0x44DEFC for the
+other window types), puts the first line 9.88 higher (65 → 55.1,
+state +0x670), and `FUN_001a7790` (0x1a7790) draws glyphs × 0.9.
+The build uses the Japanese layout for both languages.
 
 ### Open questions
 
