@@ -787,7 +787,13 @@ Next, in order:
      object in that tone with the same filters (the exe rewrites its
      pixels, `FUN_00452000`); on a `Plain` cover, the frozen pictures
      under it are drawn so; `null` takes it away. The sepia and
-     KitanoBlue colours are still ours (unverified).
+     KitanoBlue colours are still ours (unverified). `SetShade` (163)
+     likewise blurs the object (or what a `Plain` cover froze): the exe
+     runs its level's passes of a 3×3 mean over the pixels (`FUN_00465b10`;
+     a second call adds passes, `NULL` restores), drawn as one `spfilter`
+     box blur of the same spread, scaled with a zoom the converter
+     renders. Unverified: the engine's blur keeps the alpha, which the
+     exe blurs too.
    - `DrawEffect` waves (79), `CreateStencil` (59), `CreateMask` (31),
      `SetSurface`/`CreateSurface`, `LoadImage` as a texture source
      (Muramasa leaves `loaded_textures` off).
@@ -822,7 +828,7 @@ Next, in order:
 - `Rotate` about z of a picture is CONscripter's `spzoom` angle (still) or an
   `spmotion` angle (over time); left: about z of other objects (70),
   about x or y over time (14, drawn at once). `MoveCamera`,
-  `SetShade`, `BezierMove`, `CreateTexture` from an object or the screen
+  `BezierMove`, `CreateTexture` from an object or the screen
   (1,864).
 - 18 files whose `if`/`else if` chain on earlier flags has no `else`:
   by the story's logic one branch always matches; the fall-through ends
