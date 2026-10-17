@@ -4108,6 +4108,42 @@ scene a.nss
     }
 
     #[test]
+    fn set_tone_tints_a_picture_and_what_a_plain_cover_froze() {
+        // ma02_016: `SetTone` on a picture; mb04_011vs: on a `Plain` cover.
+        let grey = |c: &Compiled| -> Vec<u32> {
+            c.ops.iter().filter_map(|op| match op {
+                Op::SpriteFilters { layer, filters } if filters.iter().any(|f| f.kind == Operand::Const(conv_core::ir::FILTER_GREYSCALE)) => Some(*layer),
+                _ => None,
+            }).collect()
+        };
+        let story = r#"
+scene a.nss
+{
+	CreateTexture("bg", 100, 0, 0, "cg/bg/a.png");
+	CreateTexture("bar", 10000, 0, 0, "cg/bg/b.png");
+	SetTone("bg", Monochrome);
+	Wait(100);
+}
+"#;
+        assert_eq!(grey(&compile(story, LIBRARY)).len(), 1);
+        let story = r#"
+scene a.nss
+{
+	CreateTexture("bg", 100, 0, 0, "cg/bg/a.png");
+	Wait(100);
+	CreateEffect("板", 2000, 0, 0, 1024, 576, "Plain");
+	Fade("板", 0, 0, null, true);
+	SetTone("板", Monochrome);
+	Fade("板", 500, 1000, null, true);
+	Wait(100);
+}
+"#;
+        let c = compile(story, LIBRARY);
+        assert_eq!(grey(&c).len(), 1, "{:?}", c.ops);
+        assert!(!c.notes.keys().any(|n| n.contains("SetTone")), "{:?}", c.notes);
+    }
+
+    #[test]
     fn a_tint_over_part_of_the_screen_is_left_out() {
         // 装甲悪鬼村正's mc01_011vsa: a 200×150 KitanoBlue box.
         let story = r#"

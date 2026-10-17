@@ -182,7 +182,7 @@ dry run):
 | `LockVideo`, `WaitText`, `SetFrequency`, `Reset` | most story | dropped (`SetFrequency` noted when not 1000) |
 | `Request` | 1,643 / 1,748 / 469 | actions below |
 | `DrawTransition`, `Shake`, `Rotate`, `CreateTexture`, `CreateEffect`, `CreateMovie`, `MoviePlay` | story | converted except the noted cases (`Shake` of a small picture 145, `CreateTexture` from an object or the screen 1,812, `CreateEffect` Rain/Lens/Drop 41 and one KitanoBlue box, 3 transition masks missing) |
-| `CreateProcess`, `BezierMove`, `SetFrequency`, `SetShade`, `SetTone`, `MoveCamera`, `CreateCamera` | 287 / 193 / 30 … | not converted (Status) |
+| `CreateProcess`, `BezierMove`, `SetFrequency`, `SetShade`, `MoveCamera`, `CreateCamera` | 287 / 193 / 30 … | not converted (Status) |
 | `SetBacklog` | 83 / 6 / 0 | not converted: 1,958 noted; the hand-made backlog lines (pictures, ASCII art) are missing from our log |
 | `CreateWindow` | story | partial: its children are drawn only inside it (`spclip`), not with `Game::relative_children` (続・殺戮のジャンゴ, whose moved windows aren't checked); argument 6 (true/false) not read |
 | `CreateText` | 53 / 104 / 40 | story: drawn as pictures in the last `SetFont`'s style (`convert/text_object.rs`), clipped at the box's height (argument 5) as the exe's surface of the box's size; choices and markup left out; sys: replaced |
@@ -288,8 +288,8 @@ all_name` → the voice switches (`VOICES`; Status: grouped by `name`,
 the exe by `class`); `[プロダクト]`, `[セーブ]`: nothing to do.
 
 **Names the exe matches** (static; converter): `SetTone` Monochrome
-98, Sepia 38, NegaPosi 5, KitanoBlue 1 and `SetShade` levels: not
-converted (Status). `CreateEffect` Rain 37, Plain 33, Sepia 17,
+98, Sepia 38, NegaPosi 5, KitanoBlue 1: converted as `CreateEffect`'s
+tones, on the object itself; `SetShade` levels: not converted (Status). `CreateEffect` Rain 37, Plain 33, Sepia 17,
 Monochrome 16, KitanoBlue 4, NegaPosi 4, Lens 2, Drop 1: Plain, and
 Sepia, Monochrome, NegaPosi and KitanoBlue (the pictures below tinted,
 `spfilter`) converted, except a tint over part of the screen (one
@@ -555,7 +555,7 @@ on a channel picked per object name, looping SE (`MusicStart(…, true)`) →
 | `CreateWindow(obj, prio, x, y, w, h, clip?)` | 249 | Container object (children `obj/…`) clipped to the rect | sprite group / `lsp` positions relative |
 | `CursorPosition($x, $y)` / `MoveCursor(x, y)` | 167 / 62 | Read / warp the mouse | `getmousepos` / menus |
 | `SetShade(obj, level)` | 162 | Blur preset; **exe** (`shade_level`, `00465b10`): `EXTRALIGHT` 1, `LIGHT` 2, `MEDIUM` 4, `SEMIHEAVY` 8, `HEAVY` 16, `EXTRAHEAVY` 24, `NOMORE` 32 (also any unknown name), `NULL` removes it; the unit is undecoded | as `SetBlur` |
-| `SetTone(obj, tone)` | 143 | `Monochrome` (98), `Sepia` (38), `NegaPosi`, `KitanoBlue` | `lsp` with `:c`-style effect or pre-rendered image |
+| `SetTone(obj, tone)` | 143 | `Monochrome` (98), `Sepia` (38), `NegaPosi`, `KitanoBlue`, `null` (off); **exe** (`FUN_00447a00` → `FUN_00452000` per matching object): the object's pixels rewritten in the tone | `spfilter` on the object (a `Plain` cover: on the pictures it froze) |
 | `LoadImage(obj, file)` | 136 | Image without display, as a source for `CreateTexture` | |
 | `MoveCamera` / `CreateCamera` / `SetFov` / `CreateCube` | 128 / 40 / 1 / 1 | 3D camera over textures (battle scenes) | Lua or pre-render |
 | `String(fmt, …)` | 118 | `sprintf` (`"@noise1%04d"`) | `sprintf`-like via `itoa` + concatenation |
