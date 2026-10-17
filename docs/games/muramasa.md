@@ -553,13 +553,13 @@ Used to check what the engine does (`docs/new-game.md` step 9).
   process passes `is_loop`, and the signs that loop (3, 4, 10, 11, 15)
   take the loop path. Limits: 16 of the 18 signs are
   `Hideable`, so they are drawn into the text window's picture at their
-  end state, not moved; signs 10, 12 and 17 zoom unlike in x and y
-  (8 calls noted, drawn at their end: `MotionKey::zoom_y` is in the IR
-  since #159, `Pass::keyed` doesn't fill it yet); the zoom is about the
-  centre, not `SetVertex`'s point. Left: `EndSong` (12, music with
+  end state, not moved; the zoom is about the centre, not
+  `SetVertex`'s point. A zoom unlike in x and y (signs 10, 12, 17) is
+  keyed in both (`Pass::keyed` fills `MotionKey::zoom_y`; in review,
+  PR "NSS: unlike zooms in process motions"). Left: `EndSong` (12, music with
   `if`s), `ma03_024`/`025`/`027vs` `_runsProcess` (23, wait on the
   script: noted).
-  **C3** in review (#171): instead of Lua,
+  **C3** (#171): instead of Lua,
   `Random` is allowed on paper and gives 0 there, as everywhere else in
   the converter (`builtin.rs`), so `MFlashProcess` (43) is a one-shot:
   the flashes with a 1 s pause after the 6th and then every 3rd (the
@@ -570,9 +570,9 @@ Used to check what the engine does (`docs/new-game.md` step 9).
   stays for a process that needs the run (none left among the
   one-shots); the endless processes with `Random`
   (`BGMoveLengthProcess`, `ma03_moveAuto*`, `RandomMeimetsuSet*`, the
-  shakes) don't end on paper and stay noted. Still left by A:
-  `ma00_FireMoveAutoProcess` zooms unlike
-  in x and y.
+  shakes) don't end on paper and stay noted. A's last,
+  `ma00_FireMoveAutoProcess` (ma00_000's fire, zooming unlike in x and
+  y), loops now with the same PR; it wasn't drawn before.
 - Then the unread-argument gaps (item 5 below), most noticeable first;
   among them, `CreateText`'s box height is read (#52) and `SetVertex`
   for every picture (#61, "History", "`SetVertex`"). Tempo waits for
