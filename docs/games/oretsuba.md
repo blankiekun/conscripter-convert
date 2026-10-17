@@ -312,8 +312,10 @@ Every hand-typed value in `crates/conv-engines/src/mages/` carries a
 `// guess:` comment. The guesses still open; the decompile could settle
 the first ones, a frame of the Vita game the rest:
 
-- Defaults no script relies on: EffectStart 42/53/57/40/51 `:Param`s,
-  the centre for a missing `:Position`.
+- The centre for a missing `:Position` (no script relies on it; the
+  eboot clears the task's has-a-place flag, +0x560, whose reader isn't
+  traced). EffectStart's missing `:Param`s are 0 in the eboot
+  (`cfg_number`); ours keep usable fallbacks, which no script reaches.
 - The title's fade (500 ms): its menus fade 8 % an update (13 updates,
   0x81084c26), the picture's own fade-in is not traced.
 - Frames: the text window's place, its text origin and font size (23)

@@ -1339,7 +1339,7 @@ impl Lowering<'_> {
                     // ノイズ: static, :Param density 0-255.
                     53 => {
                         let noise = start.then(|| {
-                            // guess: the default 128; ours: 4 frames of 50 ms
+                            // ours: the fallback 128 (eboot: a missing :Param is 0, cfg_number 8108c8a8; no script omits it); 4 frames of 50 ms
                             let density = t.int_at("Param", 0).unwrap_or(128).clamp(0, 255) as u32;
                             Noise { image: self.assets.noise(4), frames: 4, frame_ms: 50, opacity: density * 256 / 255 }
                         });
@@ -1348,7 +1348,7 @@ impl Lowering<'_> {
                     // ブラー: blur, :Param radius (script pixels).
                     42 => {
                         let filter = start.then(|| {
-                            // guess: the default radius 4
+                            // ours: the fallback radius 4 (eboot: a missing :Param is 0, cfg_number 8108c8a8; no script omits it)
                             let r = sx(t.int_at("Param", 0).unwrap_or(4)).max(1);
                             let c = Operand::Const;
                             SpriteFilter { kind: c(FILTER_BLUR), blend: c(FILTER_BLEND_COPY), strength: c(256), params: [c(r), c(r), c(0)] }
@@ -1363,7 +1363,8 @@ impl Lowering<'_> {
                     // and out over EffectEnd's :Fade.
                     57 => {
                         if start {
-                            // guess: the defaults (centre, 1, 1, 0, 1); ours: interval_ms
+                            // ours: the fallbacks (centre, 1, 1, 0, 1) and interval_ms (eboot: a missing :Param is 0, cfg_number 8108c8a8; no script omits it;
+                            // effect57_set_params 81040940 then makes frames 1, power 1)
                             let p = |k: usize, d: f64| t.at("Param", k).and_then(Val::float).unwrap_or(d);
                             let power = p(5, 1.0);
                             let effect = ScreenEffect::Zoom {
@@ -1392,7 +1393,7 @@ impl Lowering<'_> {
                     // negative :Param 0 waves the columns (unused).
                     40 => {
                         let effect = start.then(|| {
-                            // guess: the defaults 400, 3000; ours: interval_ms
+                            // ours: the fallbacks 400, 3000 (eboot: a missing :Param is 0, cfg_number 8108c8a8; no script omits it; 0 would divide by 0) and interval_ms
                             let p0 = t.int_at("Param", 0).unwrap_or(400).max(1) as u32;
                             let p1 = t.int_at("Param", 1).unwrap_or(3000).max(1);
                             let amp = (SCREEN_W as f64 * 0.015 * std::f64::consts::SQRT_2).round() as i32;
@@ -1417,7 +1418,7 @@ impl Lowering<'_> {
                             52 => Particles::LightBalls,
                             _ => Particles::Confetti,
                         };
-                        // guess: the default count 60, frames of 125 ms
+                        // ours: the fallback count 60 (eboot: a missing :Param is 0, cfg_number 8108c8a8; no script omits it); guess: frames of 125 ms
                         let count = t.int_at("Param", 0).unwrap_or(60).max(1) as u32;
                         let animation = if start {
                             self.assets.particles(kind, count).map(|image| Animation {
