@@ -164,11 +164,22 @@ pub fn key(name: &str) -> String {
 /// `;` of a sprite's options (`bg "cg\a.png"`, `lsp 1,":a;cg\b.png",…`);
 /// names of pictures that weren't converted stay as they are.
 pub fn retarget_names(script: &str, names: &HashSet<String>) -> String {
+    retarget_by(script, |name| names.contains(name))
+}
+
+/// As [`retarget_names`] for a dry run, which has no files to convert: every
+/// picture under `dirs` is taken as converted (shortcut: a picture too large
+/// for WebP is named `.webp` too; no such picture is under the UI folders).
+pub fn retarget_dirs(script: &str, dirs: &[&str]) -> String {
+    retarget_by(script, |name| dirs.iter().any(|d| name.starts_with(&format!("{}/", key(d)))))
+}
+
+fn retarget_by(script: &str, converted: impl Fn(&str) -> bool) -> String {
     let mut out = String::with_capacity(script.len());
     let mut done = 0;
     for (at, _) in script.match_indices(".png\"") {
         let start = script[..at].rfind(['"', ';']).map_or(0, |i| i + 1);
-        if names.contains(&key(&script[start..at + 4])) {
+        if converted(&key(&script[start..at + 4])) {
             out.push_str(&script[done..at]);
             out.push_str(".webp");
             done = at + 4;
@@ -269,6 +280,15 @@ mod tests {
         assert!(decoded.is_alpha());
         assert_eq!(decoded[3], 0); // (0, 0): transparent, exactly
         assert_eq!(decoded[(10 * 256 + 20) * 4 + 3], 255);
+    }
+
+    #[test]
+    fn dry_run_names_match_converted_names() {
+        let script = "lsp 1,\":a;sys\\title\\bg1.png\",0,0\nbg \"pic\\a.webp\",1\nlsp 2,\"sys\\txtwindow.png\",0,0\nlsp 3,\"pic\\rule_01.png\",0,0\n";
+        let names: HashSet<String> = ["sys/title/bg1.png", "sys/txtwindow.png"].map(String::from).into();
+        let out = retarget_dirs(script, &["sys"]);
+        assert_eq!(out, retarget_names(script, &names));
+        assert!(out.contains("sys\\title\\bg1.webp") && out.contains("rule_01.png"));
     }
 
     #[test]

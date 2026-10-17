@@ -52,7 +52,7 @@ pub fn run(args: BuildArgs, title: &str, output_dirs: &[&str], compile: impl FnO
     let Built { mut ir, notes, metrics, engine, picture_dirs, audio_dirs, package } = compile(&opts)?;
     ir.version = Some(version::line());
     // A dry run writes the script but no assets (no WebP, no sound).
-    let source = webp_tree(&output, picture_dirs, webp.get().filter(|_| !dry_run), conv_cons::emit(&ir))?;
+    let source = webp_tree(&output, picture_dirs, webp.get(), dry_run, conv_cons::emit(&ir))?;
     if !dry_run {
         reencode_audio(&output, audio_dirs, opts.audio)?;
         // lossless PNGs (outside picture_dirs: --webp leaves them alone)
@@ -147,10 +147,13 @@ impl WebpArgs {
 /// With `webp` (Some: the lossy quality, if any), re-encodes the pictures
 /// under `dirs` in `output` (subfolders included) as WebP and points the
 /// script `source` at them. Pictures too large for WebP stay PNG.
-pub fn webp_tree(output: &Path, dirs: &[&str], webp: Option<Option<u8>>, source: String) -> Result<String> {
+pub fn webp_tree(output: &Path, dirs: &[&str], webp: Option<Option<u8>>, dry_run: bool, source: String) -> Result<String> {
     let Some(quality) = webp else {
         return Ok(source);
     };
+    if dry_run {
+        return Ok(conv_cons::webp::retarget_dirs(&source, dirs));
+    }
     let t = conv_cons::webp::convert_tree(output, dirs, quality).context("converting images to WebP")?;
     println!(
         "  {} images as WebP: {:.1} MB (PNG {:.1} MB); {} too large for WebP kept as PNG",
