@@ -1,11 +1,10 @@
 {
 "game": "tsukihime",
 "engine": "typemoon",
-"commit": "e3e51d0c",
+"commit": "1c88f914",
 "commit_date": "2026-10-17",
-"totals": {"calls": 1082419, "full": 941918, "gaps": 114537, "left_out": 25964},
+"totals": {"calls": 1082419, "full": 963274, "gaps": 93181, "left_out": 25964},
 "kinds": {
-"_STRT": {"calls": 21691, "gaps": 21691, "reasons": [["_STRT argument 1 ignored", 21691], ["_STRT argument 3 ignored", 21691], ["_STRT argument 4 ignored", 21690], ["_STRT argument 2 ignored", 335], ["_STRT argument 5 ignored", 1]]},
 "_VPLY": {"calls": 16690, "gaps": 16690, "reasons": [["_VPLY argument 1 ignored", 16690], ["_VPLY argument 2 ignored", 1]]},
 "_WTTM": {"calls": 14828, "gaps": 14821, "reasons": [["_WTTM argument 1 ignored", 14821]]},
 "_SEPL": {"calls": 14543, "gaps": 14543, "reasons": [["_SEPL option 17 ignored", 14509], ["_SEPL option 68 ignored", 3467], ["_SEPL option 1 ignored", 2788], ["not converted", 31], ["_SEPL option 70 ignored", 19], ["1 more", 15]]},
@@ -42,6 +41,7 @@
 "_ATSV": {"calls": 398, "gaps": 398, "reasons": [["not converted", 398]]},
 "_SSS2": {"calls": 398, "gaps": 398, "reasons": [["not converted", 398]]},
 "_SHAF": {"calls": 397, "gaps": 397, "reasons": [["not converted", 397]]},
+"_STRT": {"calls": 21691, "gaps": 335, "reasons": [["_STRT argument 1 ignored", 335], ["_STRT argument 2 ignored", 335], ["_STRT argument 3 ignored", 335], ["_STRT argument 4 ignored", 335]]},
 "_SOXY": {"calls": 208, "gaps": 208, "reasons": [["not converted", 208]]},
 "_SSW2": {"calls": 200, "gaps": 200, "reasons": [["not converted", 200]]},
 "_SPMA": {"calls": 199, "gaps": 199, "reasons": [["not converted", 199]]},
