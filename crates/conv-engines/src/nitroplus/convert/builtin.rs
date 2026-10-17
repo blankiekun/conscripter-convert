@@ -114,9 +114,10 @@ impl Compiler<'_, '_> {
                     self.create(name, kind, arg(1).int(), screen_w, screen_h);
                 }
             }
-            // (name, x, y, zoom per mille). With Game::relative_children
-            // only (装甲悪鬼村正's cameras aren't checked).
-            "CreateCamera" if self.game.relative_children => {
+            // (name, x, y, zoom per mille); a place such as `Center` is 0
+            // (装甲悪鬼村正's ma04_005a: only then do its pictures cover the
+            // screen through the camera).
+            "CreateCamera" => {
                 let name = self.object_name(&arg(0));
                 let o = self.create(name, Kind::Camera, 0, 0, 0);
                 o.container = true;

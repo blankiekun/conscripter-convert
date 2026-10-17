@@ -182,7 +182,7 @@ dry run):
 | `LockVideo`, `WaitText`, `SetFrequency`, `Reset` | most story | dropped (`SetFrequency` noted when not 1000) |
 | `Request` | 1,643 / 1,748 / 469 | actions below |
 | `DrawTransition`, `Shake`, `Rotate`, `CreateTexture`, `CreateEffect`, `CreateMovie`, `MoviePlay` | story | converted except the noted cases (`Shake` of a small picture 145, `CreateTexture` from an object or the screen 1,812, `CreateEffect` Rain/Lens/Drop 41 and one KitanoBlue box, 3 transition masks missing) |
-| `CreateProcess`, `BezierMove`, `SetFrequency`, `MoveCamera`, `CreateCamera` | 287 / 193 / 30 … | not converted (Status) |
+| `CreateProcess`, `BezierMove`, `SetFrequency` | 287 / 193 / 30 … | not converted (Status) |
 | `SetBacklog` | 83 / 6 / 0 | not converted: 1,958 noted; the hand-made backlog lines (pictures, ASCII art) are missing from our log |
 | `CreateWindow` | story | partial: its children are drawn only inside it (`spclip`), not with `Game::relative_children` (続・殺戮のジャンゴ, whose moved windows aren't checked); argument 6 (true/false) not read |
 | `CreateText` | 53 / 104 / 40 | story: drawn as pictures in the last `SetFont`'s style (`convert/text_object.rs`), clipped at the box's height (argument 5) as the exe's surface of the box's size; choices and markup left out; sys: replaced |
@@ -557,7 +557,7 @@ on a channel picked per object name, looping SE (`MusicStart(…, true)`) →
 | `SetShade(obj, level)` | 162 | Blur preset; **exe** (`shade_level`, `00465b10`): `EXTRALIGHT` 1, `LIGHT` 2, `MEDIUM` 4, `SEMIHEAVY` 8, `HEAVY` 16, `EXTRAHEAVY` 24, `NOMORE` 32, `NULL` restores the picture; names are matched by the sum of their upper-cased letters, any other sum does nothing. The unit: one pass sets each pixel (all four channels, in place) to the mean of the 3×3 about it; passes add up over calls (`cb_00451f30` keeps the original for `NULL`) | `spfilter` box blur, r(r+1) = 2 × passes |
 | `SetTone(obj, tone)` | 143 | `Monochrome` (98), `Sepia` (38), `NegaPosi`, `KitanoBlue`, `null` (off); **exe** (`FUN_00447a00` → `FUN_00452000` per matching object): the object's pixels rewritten in the tone | `spfilter` on the object (a `Plain` cover: on the pictures it froze) |
 | `LoadImage(obj, file)` | 136 | Image without display, as a source for `CreateTexture` | |
-| `MoveCamera` / `CreateCamera` / `SetFov` / `CreateCube` | 128 / 40 / 1 / 1 | 3D camera over textures (battle scenes) | Lua or pre-render |
+| `MoveCamera` / `CreateCamera` / `SetFov` / `CreateCube` | 128 / 40 / 1 / 1 | 3D camera over textures (battle scenes) | cameras converted (`Kind::Camera`); `SetFov`, `CreateCube` in process bodies only |
 | `String(fmt, …)` | 118 | `sprintf` (`"@noise1%04d"`) | `sprintf`-like via `itoa` + concatenation |
 | `CreateChoice(obj)` | 112 | Makes `obj` a clickable button; `select`/`case` test it | `btndef`/`btn` + `btnwait` |
 | `VariableValue(kind, name[, value])` | 103 | Read/write a variable by computed name (`$`/`#`) | runtime name table |
