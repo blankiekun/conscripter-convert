@@ -517,18 +517,17 @@ fn pictures(dir: &Path, out: &Path, webp: Option<Option<u8>>, base: Option<&Path
 /// remuxed, not re-encoded, with the index first so the web build's
 /// `<video>` starts before the file has loaded. Like the other games'
 /// movies, at their own size.
-/// With `base` (another movie folder), only those that differ from its own.
+/// With `base` (another movie folder), only those that differ from its own
+/// in what they show ([`looks_same`]), not merely in their encoding.
 fn movies(dir: &Path, out: &Path, base: Option<&Path>) -> Result<()> {
     let mut files: Vec<PathBuf> = fs::read_dir(dir)?.map(|e| e.map(|e| e.path())).collect::<Result<_, _>>()?;
     files.sort();
     if let Some(base) = base {
-        let same = |f: &PathBuf| -> Result<bool> {
-            let other = base.join(f.file_name().unwrap());
-            Ok(other.is_file() && fs::metadata(&other)?.len() == fs::metadata(f)?.len() && map(&other)?[..] == map(f)?[..])
-        };
         let mut kept = Vec::new();
         for f in files {
-            if !same(&f)? {
+            let other = base.join(f.file_name().unwrap());
+            let same_bytes = other.is_file() && fs::metadata(&other)?.len() == fs::metadata(&f)?.len() && map(&other)?[..] == map(&f)?[..];
+            if !same_bytes && !(other.is_file() && looks_same(&other, &f)?) {
                 kept.push(f);
             }
         }
@@ -550,6 +549,57 @@ fn movies(dir: &Path, out: &Path, base: Option<&Path>) -> Result<()> {
     println!("movie: {} of {}", files.len() - failed, files.len());
     anyhow::ensure!(failed == 0, "{failed} movies failed");
     Ok(())
+}
+
+/// Two movies show the same: at 200 times spread over them, each frame
+/// (grey, 480 × 270) against the other's nearest (one sample either side),
+/// the worst 16 × 16 block's mean difference stays within re-encoding
+/// noise.
+// ours: the threshold, 4 of 255. Measured (the fan patch against 1.0.2):
+// the re-encoded titlebg1-4 at most 0.9; a translated phasetitle_* 54-95,
+// the subtitled endings 42-62, op1/op2/prologue 143-241, TM_CI (an added
+// logo) 183.
+fn looks_same(a: &Path, b: &Path) -> Result<bool> {
+    const W: usize = 480;
+    const H: usize = 270;
+    const N: usize = 200;
+    let duration = |p: &Path| -> Result<f64> {
+        let o = std::process::Command::new("ffprobe").args(["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0"]).arg(p).output()?;
+        Ok(String::from_utf8_lossy(&o.stdout).trim().parse()?)
+    };
+    let fps = N as f64 / duration(a)?.min(duration(b)?);
+    let frames = |p: &Path| -> Result<Vec<u8>> {
+        let o = std::process::Command::new("ffmpeg")
+            .args(["-v", "error", "-i"])
+            .arg(p)
+            .args(["-vf", &format!("fps={fps},scale={W}:{H},format=gray"), "-frames:v", &N.to_string(), "-f", "rawvideo", "-"])
+            .output()?;
+        anyhow::ensure!(o.status.success(), "ffmpeg: {}", String::from_utf8_lossy(&o.stderr));
+        Ok(o.stdout)
+    };
+    let (fa, fb) = (frames(a)?, frames(b)?);
+    let (ca, cb) = (fa.as_chunks::<{ W * H }>().0, fb.as_chunks::<{ W * H }>().0);
+    let worst_block = |x: &[u8], y: &[u8]| -> f64 {
+        let mut worst = 0u32;
+        for by in 0..H / 16 {
+            for bx in 0..W / 16 {
+                let mut sum = 0;
+                for r in 0..16 {
+                    let i = (by * 16 + r) * W + bx * 16;
+                    sum += x[i..i + 16].iter().zip(&y[i..i + 16]).map(|(p, q)| u32::from(p.abs_diff(*q))).sum::<u32>();
+                }
+                worst = worst.max(sum);
+            }
+        }
+        f64::from(worst) / 256.0
+    };
+    for (i, x) in ca.iter().enumerate() {
+        let best = (i.saturating_sub(1)..=i + 1).filter_map(|j| cb.get(j)).map(|y| worst_block(x, y)).fold(f64::MAX, f64::min);
+        if best > 4.0 {
+            return Ok(false);
+        }
+    }
+    Ok(!ca.is_empty())
 }
 
 fn scripts(dir: &Path, output: Option<&Path>) -> Result<()> {
