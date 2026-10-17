@@ -211,11 +211,11 @@ N of the scene replay (`%3000+N`); `0x94` ends a replayed scene.
 | `0x4e` | 24 | **solved** (handler `0x494750`): arg = indent << 16 \| 1 (once 2); the indent is in half-width units of the first line (ASCII, half-width kana and Greek count 1), up to the text after the chat log's handle | hanging indent of the next message; the game puts it only before chat messages long enough to wrap. Converted to `indent N` around the message, N measured on the emitted line |
 | `0x70` | 457 | **solved** (handler `0x415a30`, objects `filter-<slot>`): u32 slot (0 = clear all), u32 layer \| depth << 8 (layer byte through the table at `0x503e68`: 0/2 → 0x10, 1 → 0, 3 → 0x20, 4 → 0x30; depth = the sort depth within that band, mostly 1000, above the bust-ups; no fade of its own), u32 kind (0 = clear the slot), u16 blend, u16 opacity, then 0x88's kind data; monotone (6) is a u32 palette, `pal%04u.pal` in `HD/pal.arc` (RIFF PAL, 256 entries for the grey levels) | filter on the whole screen, from 0x88's modules. Converted to `screenfilter` + `print 1` (or the surrounding transition); Smooth (1, u8 x, y range), HueSatura (3, i16 hue, saturation) and BrightnessInvert (9) as `screenfilter` kinds 6-8; Filter-Replace (13: u32 map, i32 direction, distance, begin angle in 1/100 turn) as a still `screenripple` in slot 4 + n, starting at the begin angle (`screenripple`'s phase, History, item 38). Kinds from the (type, creator) pairs at `0x501428`. Zigzag (12, one use: i32 centre x, y, direction, distance, frequency, begin angle, reduction; kernel `0x43f0b0`: each pixel from distance × sin(2π·i/1024) along the direction, i = d × frequency/100 for the distance d from the centre) as a still `screenripple` over a generated ring map, its Multi blend as `screenripple`'s blend 1 and its phase as the exe's (from the frequency: the draw `0x41dab0` never reads the begin angle or the reduction, History, item 39) |
 | `0x59` | 47 | **solved** (handler `0x473610`) | BGM crossfade: u32 fade ms (capped at 30000), u16 track to stop (0 = all but the new one), u16 track to play; the new track starts fading in, then the old fades out, at once. Converted to CONscripter's `bgm "file",ms`: the old track fades out as the new fades in |
-| `0x82` | 38 | **solved** (handler `0x413f10`) | set an object's opacity (field +0x1b2, 0-256): u8 layer, u32 depth, u16 opacity; the object is found by key = depth (layers 0, 1), depth + 10 (layer 2: character `depth`'s bust-up, as 0x90 finds it), + 110, + 120 (3, 4). Converted for bust-ups (34) and the 0x55 overlay (layer 1 depth 2, 3) as `msp n,0,0,-255:msp n,0,0,alpha`; a new picture is opaque again. Not converted: layer 1 depth 1 (one use after `0x56`) |
+| `0x82` | 38 | **solved** (handler `0x413f10`) | set an object's opacity (field +0x1b2, 0-256): u8 layer, u32 depth, u16 opacity; the object is found by key = depth (layers 0, 1), depth + 10 (layer 2: character `depth`'s bust-up, as 0x90 finds it), + 110, + 120 (3, 4). Converted for bust-ups (34) and the 0x55 overlay (layer 1 depth 2, 3) as `msp n,0,0,-255:msp n,0,0,alpha`; a new picture is opaque again. layer 1 depth 1 (the slot-1 fill, one use after `0x56`) as that filter's strength |
 | `0x84`, `0x7d`, `0x7c` (+ `0x7a`/`0x7b` on layer 2) | 10, 5, 6 (6, 8) | **solved** (handlers `0x414180`, `0x413940`, `0x414460`; objects found as in `0x82`) | `0x84` loads a picture into an object: u8 layer, u32 depth, u8 kind, u32 number, u8 ?; image id kind × 10,000,000 + number - 1 (kind 2 = bust-ups, numbered as in `0x8e`). `0x7d`: u8 layer, u32 depth, u8 horizontal, u8 vertical anchor (0-2: left/top, centre, right/bottom; a new object's is 0). `0x7c`: u8 layer, u32 depth, u8 visible. The blog scenes make a hidden layer 2 object with `0x7a` (depth = a character, band 4 above the bust-ups, at (650, 320) or (250, 375)), load a bust-up, centre it and show it; 0135.cd steps a 0-100 % meter (`bu99_*`) a picture a second. `0x7b` on layer 2 removes it, or a bust-up `0x8e` made (0011-0013.cd). Converted as the character layer's sprite (`Op::Sprites`), drawn over the text window (`Op::SpriteOverText`, `spovertext`): `0x7a`'s group 4 is the top sort band (History, item 37) |
 | `0x99` | 8 | **solved** (handler `0x478b00`) | sets progress bit `sub` of the global word `0x51eb3c` (saved with the system data, `0x45f801`): bits 0-3 at the start (0000.cd, 0003.cd), 4-7 at the end of each heroine's route (0009-0013.cd). Read by the extras: the title (bit 3, `0x45cce9`), getters for bits 1, 2, and the voice mode (`VoiceMode.cpp`, bit 4 + route via `0x4fbc00`). Converted as global flags `%3600 + bit` for the extras to come |
 | `0x9d` | 6 | **solved** (handler `0x478b30`) | marks CG `arg` (1-based, as in `0x54`) as seen without showing it: bit arg - 1 of the global set `0x51ea18`, read by `CGMode.cpp` (`0x44cd56`, `0x44d4af`); `0x55`'s "mark as seen" byte sets the same set (`0x42236b`). Used right after a `0x54` of a related CG (467 → 523). Converted as global flags `%2200 + n` (n up to 576; above the link flags, below the 4096 variables) for a CG gallery |
-| `0x56`, `0x83`, `0x67` | 3, 1, 2 | **solved** (handlers `0x4224a0` → `0x412fe0` kind 1, `0x414050`, `0x473d20`) | `0x56` fills a background slot with a colour: u8 slot (0 removes slots 1-10), u8 layer, u32 depth, u32 COLORREF; a screen-sized object with fill module 7 (`0x55` is the same with kind 0, a picture). Slot 1 = the background, 2 = the overlay. `0x83` sets an object's blend (u8 layer, u32 depth, u8 0-6: Alpha, Add, Multi, Screen, SignedAdd, Copy, dissolve). `0x67` yields one frame. Uses: black background at boot; the shared impact routine `s2_l2` (9 calls) puts white on the overlay, sets dissolve and fades it out over 1 s (`0x86` opacity motion); 0006.cd fills the background red at opacity 64 (`0x82`). Converted with generated `system/fill_rrggbb.png`: `bg` / the overlay; the fade-out as a 1 s cross-fade removal that the following 1 s wait no longer adds to; the red at 64/256 as `fill_3f0000` (over black) |
+| `0x56`, `0x83`, `0x67` | 3, 1, 2 | **solved** (handlers `0x4224a0` → `0x412fe0` kind 1, `0x414050`, `0x473d20`) | `0x56` fills a background slot with a colour: u8 slot (0 removes slots 1-10), u8 layer, u32 depth, u32 COLORREF; a screen-sized object with fill module 7 (`0x55` is the same with kind 0, a picture). Slot 1 = the background, 2 = the overlay. `0x83` sets an object's blend (u8 layer, u32 depth, u8 0-6: Alpha, Add, Multi, Screen, SignedAdd, Copy, dissolve). `0x67` yields one frame. Uses: black background at boot; the shared impact routine `s2_l2` (9 calls) puts white on the overlay, sets dissolve and fades it out over 1 s (`0x86` opacity motion); 0006.cd fills the background red at opacity 64 (`0x82`). Converted with generated `system/fill_rrggbb.png`: `bg` / the overlay; the fade-out as a 1 s cross-fade removal that the following 1 s wait no longer adds to; the red (slot 1 on layer 3, the band over the bust-ups and the static) as a black background under `screenfilter 4,1,0,64,255,0,0`, cleared by the next `0x54` (History, item 40) |
 | `0x39` | 4 | **solved** (handler `0x475af0`, `ScriptStd.cpp`) | clears the chapter history (an error inside a chapter; nothing in replay modes 1/2): start of 0004.cd, after the ends of 0021/0022.cd. No chapter history yet. The end of 0022.cd (存在消滅) leaves the static at 256 and jumps back to `s4_l1`; the original starts that week clean (filmed under wine), but no code clearing it was found (not `op_15`, `op_36`-`op_39`, `op_68`, `op_93`/`op_94`, nor the noise module) | converted as a clear of the environment effects (`0x8c` slot 0: `Op::Noise(None)`, `screenshake 0`), seen in the original, mechanism not found |
 | `0x3b`, `0x3c` | 2, 0 | **solved** (handlers `0x478650`, `0x4786c0`) | `0x3b` copies `sub` bytes of the record into the game state at +4 (an entry name: the boot script sets "debug entry" or "release entry"); `0x3c` jumps when the name matches and is never used. Nothing emitted |
 | `0x91` | 2 | **solved** (handler `0x4788d0`, task `0x454a60`, `StaffRoll\Staff.cpp`; descriptors via `0x517f30`) | the staff roll: arg 0 → `StaffRoll1.004` (63 s, BGM 23), 1 → `StaffRoll2.004` (223 s, BGM 22, the CG slideshow). A panel of key frames (clip rectangle, two picture layers with dx, dy, opacity) and a column of credits scrolling from `start` to `end`; details in `xuse/staffroll.rs`. Rendered by the converter into an MP4 with its song, played with `mpegplay` (not skippable, like the original). Checked frame by frame against the original under wine |
@@ -291,6 +291,7 @@ is noted) and why:
 | `0x7a` | `+6` | 2000 | a blog bust-up's depth in the top band, over everything else there (History, item 37) |
 | `0x70` | `-4` | 0 | a cleared slot's blend and opacity (kind 0 or slot 0), which `op_70` (`0x415a30`) doesn't read (History, item 38) |
 | `0x70` | `-8` | 10, 0 | Zigzag's begin angle and reduction, which its draw (`0x41dab0`) doesn't read (History, item 39) |
+| `0x56` | `+2` | u32 0, 2000 | a slot-1 fill's sort depth in its band, where it is alone (History, item 40) |
 | `0x90` | `+2` | u32 1, 0, 2 | the preset module's place among the bust-up's modules, where it is alone (History, item 35) |
 | `0x8e` | the six module names | byte 0 is 0 | an empty module name (leftover memory after it) |
 
@@ -631,10 +632,11 @@ a copy of the save works.
 - Open: speaker names from `sub` bit 0, PR #102 (History, item 27):
   4,867 notes of 20 kinds left; 80,285 of 84,713 calls fully converted
   (was 49,328).
+- Open: the red fill over the static in 0006.cd as a screen filter, PR #157 (History, item 40).
 - Merged: `0x43` and `0x52`/`0x53` `arg` as harmless (#111, #114; History, items 32, 34).
 - Open: `0x90` +2 as harmless, PR #119 (History, item 35).
 - Merged: Filter-Replace's begin angle as `screenripple`'s start phase (#134, engine #50; History, item 38).
-- Open: Zigzag's phase from its frequency, its begin angle and reduction as harmless, PR #153 (History, item 39).
+- Merged: Zigzag's phase from its frequency, its begin angle and reduction as harmless (#153; History, item 39).
 - Merged: the exe map's fixes and missed callbacks (#46).
 - Open: `0x59` as a real cross-fade, converter #25 with engine #18 (asked
   for a web-build measurement of the old track's decode first);
@@ -698,7 +700,6 @@ after History's 26, most noticeable first (notes = instructions):
     in 5, 0 in 4, 2000 in 3, 500 once): the same for the static, ripples and shakes.
 33. **Ruby flags** (`0x44` u16 at +6, 37 notes: 3 in 32, 1 in 5):
     meaning unknown.
-40. **`0x56` fill depth** (u32 at +2, 2 notes: 0 and 2000).
 41. **One `0x86` byte** at the end of one record (1 note), not looked
     into.
 42. **The debug menu's message block** (`0001.cd` #1, 1 note): in the
@@ -1291,3 +1292,19 @@ sound effects on `dwave` channels.
    entries in: the converter writes `screenripple`'s phase (`,1,100`,
    1/1000 turn) and lists the two fields as harmless. The Multi blend
    the row called missing had been converted already (blend 1).
+40. **Done: `0x56` fill depth** (2026-10-16). `op_56` (`0x4224a0`)
+   passes the record's u32 at +2 to `object_create` as the fill's sort
+   depth in its layer's band (`FUN_00412fe0`). Of the two slot-1 fills,
+   the boot's black (layer 0, depth 0) is alone on the screen. The other
+   (0006.cd, the "401 Unauthorized" page) is on layer 3 at depth 2000:
+   band 0x20, over the bust-ups and over the static `0x8c` had just put
+   on layer 0 (band 0x10); `0x82` then sets it to 64/256. So the red lies
+   over the static (red × ¼ + static × ¾ over black), where ours made it
+   the background under the static. Now a slot-1 fill on layer 3 or 4 is
+   a black background plus `screenfilter 4` colour at the `0x82`
+   strength, removed by the next `0x54`; checked headless: a sprite at
+   alpha 128 under `screenfilter 4,1,0,64,255,0,0` reads (63, 95, 0)
+   for green, as the original's maths. The depths themselves (0, 2000)
+   are a row of the harmless table. Not filmed: whether the original's
+   band 0x20 also covers the text window (ours: under it, as for the
+   `0x70` filters).

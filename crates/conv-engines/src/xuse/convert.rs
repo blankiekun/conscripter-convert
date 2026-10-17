@@ -1890,6 +1890,9 @@ pub fn lower_script(
     // 0x56 fills (file order): the background's colour, whether the
     // overlay is a fill, and the time of a fade that the next wait covers.
     let mut background_fill: Option<u32> = None;
+    // A slot-1 fill on layer 3 or 4 (0x20/0x30 bands, over the bust-ups and
+    // the static): its colour, drawn as a screen filter.
+    let mut top_fill: Option<u32> = None;
     let mut overlay_fill = false;
     // The depth of the overlay over the sprites, while one is up, and the
     // bust-up layers drawn in front of it (Op::SpriteInFront).
@@ -1985,6 +1988,14 @@ pub fn lower_script(
             let record = cd.bytes(o, 2).zip(pool_u32(cd, o + 6));
             let rgb = |c: u32| (c & 0xff) << 16 | (c & 0xff00) | (c >> 16 & 0xff);
             match record {
+                // Replaces the background (slot 1) and lies over everything
+                // else. Screen filter slot 4: no 0x70 filter is up at the
+                // one use (0006.cd).
+                Some((&[1, 3 | 4], colour)) => {
+                    top_fill = Some(rgb(colour));
+                    ops.push(Op::Background { image: assets.fill(0)?, fade_ms: 0 });
+                    ops.push(Op::ScreenFilter { slot: TOP_FILL_FILTER_SLOT, filter: Some(colour_filter(rgb(colour), 256)), fade_ms: 0 });
+                }
                 Some((&[1, _], colour)) => {
                     background_fill = Some(rgb(colour));
                     ops.push(Op::Background { image: assets.fill(rgb(colour))?, fade_ms: 0 });
@@ -2041,11 +2052,22 @@ pub fn lower_script(
         }
         if ins.op == crate::xuse::cd::OP_BACKGROUND {
             background_fill = None;
+            if top_fill.take().is_some() {
+                ops.push(Op::ScreenFilter { slot: TOP_FILL_FILTER_SLOT, filter: None, fade_ms: 0 });
+            }
             // 0x54 marks its picture as seen (0x4222c0's last argument).
             if let Some(number) = gallery_cg(cd.arg(ins)) {
                 ops.push(Op::CgSeen { number });
             }
             continue;
+        }
+        if ins.op == OP_OPACITY && let Some(fill) = top_fill {
+            let o = cd.arg(ins) as u32 as usize;
+            if cd.bytes(o, 5) == Some(&[1, 1, 0, 0, 0]) && let Some(opacity) = cd.bytes(o + 5, 2) {
+                let opacity = i32::from(u16::from_le_bytes([opacity[0], opacity[1]])).min(256);
+                ops.push(Op::ScreenFilter { slot: TOP_FILL_FILTER_SLOT, filter: Some(colour_filter(fill, opacity)), fade_ms: 0 });
+                continue;
+            }
         }
         if ins.op == OP_OPACITY && let Some(fill) = background_fill {
             // The filled background (slot 1) over nothing: darker.
@@ -3040,6 +3062,19 @@ fn hang_cells(text: &str, hang: Option<usize>) -> usize {
     hang.map_or(0, |n| line_cells(&text.split('\n').next().unwrap_or_default().chars().take(n).collect::<String>()))
 }
 
+/// The `screenfilter` slot of a 0x56 fill over everything ([`colour_filter`]).
+const TOP_FILL_FILTER_SLOT: u32 = 4;
+
+/// 0xRRGGBB laid over the picture at `opacity`/256.
+fn colour_filter(rgb: u32, opacity: i32) -> SpriteFilter {
+    SpriteFilter {
+        kind: Operand::Const(FILTER_COLOUR),
+        blend: Operand::Const(FILTER_BLEND_COPY),
+        strength: Operand::Const(opacity),
+        params: [16, 8, 0].map(|s| Operand::Const((rgb >> s & 0xff) as i32)),
+    }
+}
+
 /// The depth of an overlay (0x55, 0x58) drawn over the bust-ups, or `None`
 /// for one under them: objects sort by layer, then depth (filmed under
 /// wine): layer 0 and 1 are under the bust-ups, and layer 2 shares their
@@ -3319,6 +3354,8 @@ const UNNEEDED_OPERANDS: &[(u16, &str, &str, &str)] = &[
     (0x70, "-4", "00000000", "a cleared slot's blend and opacity"),
     // Filter-Zigzag's draw (0x41dab0) passes the frequency as the phase and never reads these.
     (0x70, "-8", "0a00000000000000", "Zigzag's begin angle (10) and reduction (0)"),
+    // op_56 0x4224a0 passes it to object_create as the sort depth in the layer's band.
+    (0x56, "+2", "00000000|d0070000", "a fill's depth (0, 2000) in a band where nothing else is"),
     // op_88 sets the module's +0xc, the key FUN_0040e2a0 keeps a preset's modules in (ascending, a tie after the earlier ones).
     (
         0x88,
