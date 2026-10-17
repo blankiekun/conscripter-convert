@@ -75,7 +75,7 @@ pub struct Compiled {
 }
 
 /// How a layer is drawn: the image, its middle on the screen, its zoom (%).
-type Look = (String, (f32, f32), (i32, i32));
+type Look = (String, (f32, f32), (f32, f32));
 
 impl Layer {
     /// The `_STZ4` zoom the draw uses.
@@ -972,20 +972,23 @@ impl Lowering<'_, '_> {
     /// An `spmotion` on IR layer `slot` from `start` (as it is drawn)
     /// through each key's state.
     fn emit_motion(&mut self, slot: usize, start: &Layer, states: &[(u32, Layer)]) {
-        let Ok((_, (x0, y0), _)) = self.look(start) else { return };
+        let Ok((_, (x0, y0), z0)) = self.look(start) else { return };
+        // Under 10 % the zoom placed is far from the exact one (1‰ → 1 %, not 0.05): from what was placed.
+        let base = |z: f32| if z.abs() < 10.0 { percent(z) as f32 } else { z };
+        let z0 = (base(z0.0), base(z0.1));
         let mut keys = Vec::new();
         for (ms, at) in states {
-            let Ok((_, (x, y), _)) = self.look(at) else { return };
+            let Ok((_, (x, y), z)) = self.look(at) else { return };
             // spmotion's zoom multiplies the place's (spzoom), about its centre.
-            let rel = |z: f32, z0: f32| if z0 == 0.0 { 100 } else { (100.0 * z / z0).round().max(0.0) as u32 };
+            let rel = |z: f32, z0: f32| if z0 == 0.0 { 100 } else { (100.0 * z.abs() / z0.abs()).round() as u32 };
             keys.push(MotionKey {
                 ms: *ms,
                 x: (x - x0).round() as i32,
                 y: (y - y0).round() as i32,
-                zoom: rel(at.drawn_stretch().0.abs(), start.drawn_stretch().0.abs()),
+                zoom: rel(z.0, z0.0),
                 angle: 0,
                 opacity: at.alpha * 256 / 255,
-                zoom_y: rel(at.drawn_stretch().1.abs(), start.drawn_stretch().1.abs()),
+                zoom_y: rel(z.1, z0.1),
             });
         }
         if keys.is_empty() {
@@ -1011,13 +1014,14 @@ impl Lowering<'_, '_> {
     }
 
     /// Where and how `l` is drawn: the image, its middle on the screen and
-    /// its zoom (%); or the name when the picture is unknown.
+    /// its zoom (%, as [`percent`] rounds it for `spzoom`); or the name when
+    /// the picture is unknown.
     fn look(&self, l: &Layer) -> Result<Look, String> {
         let name = self.name(l);
         let picture = self.g.pictures.get(&name);
         let fill = colour(&name).filter(|_| picture.is_none_or(|p| p.flags & 3 == 3));
         Ok(match (picture, fill) {
-            (_, Some(rgb)) => (format!(">{SCREEN_W},{SCREEN_H},#{rgb:06x}"), (SCREEN_W as f32 / 2.0, SCREEN_H as f32 / 2.0), (100, 100)),
+            (_, Some(rgb)) => (format!(">{SCREEN_W},{SCREEN_H},#{rgb:06x}"), (SCREEN_W as f32 / 2.0, SCREEN_H as f32 / 2.0), (100.0, 100.0)),
             (Some(p), None) => {
                 // The record's centre goes to the script's x, y (480 × 272
                 // for the screen); zoom about it. Records are 1280 × 724
@@ -1028,7 +1032,7 @@ impl Lowering<'_, '_> {
                 let my = l.y * sy + (p.height / 2.0 - p.centre.1) * zy * SCREEN_H as f32 / STAGE_H;
                 // The file at the record's size (its art is mostly 2×).
                 let (tw, th) = self.g.textures.get(&name).map_or((p.width * 2.0, p.height * 2.0), |&(w, h)| (w as f32, h as f32));
-                let zoom = |rec: f32, tex: f32, z: f32| (100.0 * rec / tex * z).round() as i32;
+                let zoom = |rec: f32, tex: f32, z: f32| 100.0 * rec / tex * z;
                 (format!("pic/{}{name}.{}", if self.own.contains(&name) { "en/" } else { "" }, self.g.pic_ext), (mx, my), (zoom(p.width, tw, zx), zoom(p.height * SCREEN_H as f32 / STAGE_H, th, zy)))
             }
             (None, None) => return Err(name),
@@ -1082,7 +1086,7 @@ impl Lowering<'_, '_> {
 
     /// Draws `l` on IR layer `layer`.
     fn place(&mut self, layer: u32, l: &Layer) {
-        let (image, (cx, cy), zoom) = match self.look(l) {
+        let (image, (cx, cy), (zx, zy)) = match self.look(l) {
             Ok(v) => v,
             Err(name) => {
                 self.note(format!("picture not in the exe's table: {name}"));
@@ -1093,7 +1097,7 @@ impl Lowering<'_, '_> {
         self.ops.push(Op::Sprites { changes: vec![SpriteChange { layer, sprite: Some(SpritePlacement { image, x: 0, y: 0 }), keep_filters: false }], fade_ms: 0 });
         self.ops.push(Op::SpriteMove { layer, x: cx.round() as i32, y: cy.round() as i32, ms: 0 });
         // Clockwise, as the child-layer math turns (spzoom's angle is counter-clockwise).
-        self.ops.push(Op::SpriteAngle { layer, degrees: (-l.angle as f32 / 100.0).round() as i32, zoom });
+        self.ops.push(Op::SpriteAngle { layer, degrees: (-l.angle as f32 / 100.0).round() as i32, zoom: (percent(zx), percent(zy)) });
         if l.alpha < 255 {
             self.ops.push(Op::SpriteOpacity { layer: Some(layer), opacity: l.alpha * 256 / 255 });
         }
@@ -1117,6 +1121,14 @@ impl Lowering<'_, '_> {
             self.ops.push(Op::SpriteFilters { layer, filters });
         }
     }
+}
+
+/// A zoom in % as `spzoom` takes it: whole, and not 0 unless it is (a
+/// line drawn at 1‰ across, `_STZ4(28,1,584,…)`, grows by a motion).
+// shortcut: under 10 % the rounding is coarse (3 % may be 2.5 or 3.49); a finer spzoom would need an engine change.
+fn percent(z: f32) -> i32 {
+    let r = z.round();
+    (if r == 0.0 && z != 0.0 { z.signum() } else { r }) as i32
 }
 
 /// A layer's `_STCH` rectangle on this screen (`FUN_00189ad0`): a
@@ -1379,6 +1391,36 @@ mod tests {
         let ops = compile(&g).ops;
         let Some(Op::SpriteMotion2 { layer: 39, keys, end: MotionEnd::Keep }) = ops.last() else { panic!("{ops:?}") };
         assert_eq!(keys.iter().map(|k| (k.ms, k.y, k.zoom, k.zoom_y, k.opacity)).collect::<Vec<_>>(), [(0, 0, 100, 100, 256), (500, 26, 200, 200, 0)]);
+    }
+
+    #[test]
+    fn a_tiny_zoom_is_placed_and_grows() {
+        use crate::typemoon::exe::{Key, Motion};
+        // 1‰ across (0.05 % of the 2× texture) is placed at 1 %, not 0, and a motion to 1000‰ goes to 50 %.
+        let key = |ms: u32, set: &[(usize, i16)]| {
+            let mut fields = [Key::UNSET; 30];
+            for &(at, v) in set {
+                fields[(at - 4) / 2] = v;
+            }
+            Key { time_ms: ms, fields }
+        };
+        let motion = Motion { length_ms: 500, keys: vec![key(0, &[]), key(500, &[(0x18, 1000)])] };
+        let src = "_STCH(1,img1,240,136);_STZ4(1,1,1000,1,1000,0,0,0);_FADS(1,0,0);_STMA(1,1);";
+        let g = Game {
+            scripts: vec![("S".into(), script::parse(src).into_iter().map(Result::unwrap).collect())],
+            scenes: vec![],
+            lines: vec![],
+            pictures: [picture("img1", 1280.0, 724.0)].into(),
+            textures: HashMap::new(),
+            sounds: vec![],
+            waves: HashMap::new(),
+            pic_ext: "webp",
+            motions: vec![motion],
+        };
+        let ops = compile(&g).ops;
+        assert!(ops.contains(&Op::SpriteAngle { layer: 39, degrees: 0, zoom: (1, 50) }), "{ops:?}");
+        let Some(Op::SpriteMotion2 { keys, .. }) = ops.last() else { panic!("{ops:?}") };
+        assert_eq!((keys[1].zoom, keys[1].zoom_y), (5000, 100));
     }
 
     #[test]
