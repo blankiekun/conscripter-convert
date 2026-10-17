@@ -50,6 +50,7 @@ pub const SCREEN_W: i64 = 1024;
 /// wait for them (a text page, a blocking action): the original goes on
 /// while they run, up to minutes (a background scrolling through a
 /// battle).
+// ours
 const UNWAITED_MS: u32 = 1000;
 pub const SCREEN_H: i64 = 576;
 /// 装甲悪鬼村正's story driver ([`Game::boot`]); the helper library is what
@@ -341,6 +342,7 @@ pub struct MovieInfo {
 }
 
 /// Frames a second of a movie drawn as cells ([`Assets::movie_frames`]).
+// ours
 pub const MOVIE_FPS: u32 = 15;
 
 /// The result of compiling one scene.
@@ -3138,6 +3140,8 @@ impl<'a, 'b> Compiler<'a, 'b> {
     /// How much (per mille) the cameras `name` is seen through magnify an
     /// object of `priority` ([`Kind::Camera`]); `None`: at or before the
     /// camera, not drawn.
+    // src: shot (続・殺戮のジャンゴ under wine: boxes at four priorities, six camera settings; docs/games/django.md)
+    // guess: the same depth rule in 装甲悪鬼村正 (its exe draws cameras through FUN_00445380, not decoded)
     fn camera_zoom(&self, name: &str, priority: i64) -> Option<i64> {
         let mut zoom = 1000;
         let mut end = 0;
@@ -3805,6 +3809,7 @@ fn add(l: &Value, r: &Value) -> Value {
 /// An NSS volume (0-1000) as a percent of the player's setting: the exe
 /// sends 3322·log10(volume/1000) hundredths of a dB, an amplitude of
 /// (volume/1000)^1.661 (`research/nitroplus/builtins.md`, `SetVolume`).
+// src: exe SetVolume (3322·log10 hundredths of a dB; research/nitroplus/builtins.md)
 fn percent(volume: i64) -> u32 {
     (100.0 * (volume.clamp(0, 1000) as f64 / 1000.0).powf(1.661)).round() as u32
 }

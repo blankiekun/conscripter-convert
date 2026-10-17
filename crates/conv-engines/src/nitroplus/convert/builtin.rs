@@ -471,6 +471,7 @@ impl Compiler<'_, '_> {
                 let end = (arg(4).int().abs() as i32, arg(5).int().abs() as i32);
                 self.sync(0);
                 if ms > 0 && (x > 0 || y > 0) {
+                    // guess: a flip every 16 ms (a 60 Hz frame) and the engine's own speed; the exe's step isn't decoded
                     let shake =
                         ScreenEffect::Shake { time_ms: ms, interval_ms: 16, path: false, speed: (1300, 1700), range: [(x, y), end], end_ms: ms };
                     self.ops.push(Op::ScreenEffect { slot: 1, effect: Some(shake) });

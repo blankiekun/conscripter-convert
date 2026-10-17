@@ -92,6 +92,7 @@ impl Compiler<'_, '_> {
         let (placed, sp) = if at_end { (now?, s1) } else { (old?, s0) };
         let cp = centre(placed);
         let span = (t.to.0 - t.from.0).abs().max((t.to.1 - t.from.1).abs());
+        // ours: a key every 10° (at most 63)
         let steps = (span / 10).clamp(4, 63) as u32;
         let keys = (0..=steps)
             .map(|i| {
