@@ -12,6 +12,7 @@ also works. Files match in any case, as on Windows.
 
 from __future__ import annotations
 
+import hashlib
 import os
 import struct
 from dataclasses import dataclass, field
@@ -124,6 +125,8 @@ class Game:
     check: Optional[Callable[[Path], tuple[list[str], list[str]]]] = None  # -> (problems, warnings)
     options: tuple[Option, ...] = ()  # the advanced settings; their defaults are the recommended ones
     icon: Optional[Callable[[Path], Optional[bytes]]] = None  # (game) -> its icon, an .ico or PNG file's bytes
+    exe: str = ""  # the executable whose sha256 is checked against `hashes` (docs/games/*.md, "Executables")
+    hashes: dict[str, str] = field(default_factory=dict)  # sha256 -> the build's label; empty = no check
     movies: bool = False  # its movies are in a folder of their own (movie/, ムービー/), in or beside the game
 
     def defaults(self) -> dict[str, object]:
@@ -178,6 +181,7 @@ class Detection:
     root: Path  # the folder the converter is given
     problems: list[str] = field(default_factory=list)  # the build can't start
     warnings: list[str] = field(default_factory=list)  # it can, but tell the user
+    version: str = ""  # the known build the executable matched, if any
 
 
 def _read(path: Path) -> Optional[bytes]:
@@ -199,6 +203,27 @@ def _find(root: Path, rel: str) -> Path:
                 pass
         at = at / part
     return at
+
+
+def check_exe(game: Game, root: Path, d: Detection) -> None:
+    """Hash the game's executable once: a known build sets `d.version`, any
+    other adds a warning. A missing or unreadable file says nothing."""
+    exe = _find(root, game.exe) if game.exe and game.hashes else None
+    if not exe or not exe.is_file():
+        return
+    h = hashlib.sha256()
+    try:
+        with exe.open("rb") as f:
+            while chunk := f.read(1 << 20):
+                h.update(chunk)
+    except OSError:
+        return
+    digest = h.hexdigest()
+    if digest in game.hashes:
+        d.version = game.hashes[digest]
+    else:
+        d.warnings.append(f"This {exe.name} is not the build we tested (sha256 {digest[:12]}…); "
+                          "the conversion may still work.")
 
 
 def _has(root: Path, marker: str) -> bool:
@@ -314,6 +339,10 @@ GAMES: tuple[Game, ...] = (
         output_name="saihate-no-ima-cons",
         needs_ffmpeg=True,  # movies and the staff roll become MP4s
         size_gb=1.5,
+        exe="Farthest2015.exe",
+        hashes={
+            "efb7ec8e00338376d37822880e7fb73ae86eca03895bf55a6b6826b1dda6a37f": "Farthest2015.exe",
+        },
         doc="docs/games/saihate-no-ima.md",
         check=_saiima_check,
         icon=lambda root: engine.exe_icon(_find(root, "Farthest2015.exe")),
@@ -351,6 +380,11 @@ GAMES: tuple[Game, ...] = (
         output_name="django-cons",
         needs_ffmpeg=True,  # movies become strips of frames
         size_gb=1.3,
+        exe="Django.exe",
+        hashes={
+            "b40fb35cacc672c5ea377ab86e5358fbe85b2a05c30edf5981fd509c5fc390e7": "Django.exe 1.01",
+            "d4bed22dd7062880b96476fe423f495cc1872bfb6a3b17c593c8313976040537": "Django.exe 1.00",
+        },
         doc="docs/games/django.md",
         check=_django_check,
         icon=lambda root: engine.exe_icon(_find(root, "Django.exe")),
@@ -367,6 +401,10 @@ GAMES: tuple[Game, ...] = (
         output_name="oretsuba-cons",
         needs_ffmpeg=True,  # sounds become Ogg, movies MP4
         size_gb=2.3,
+        exe="eboot.bin",
+        hashes={
+            "56ebe9ed1a64d5e9e8d3af5aef0ce4ea21cf35ebffcf4c6cfae49dc6db343bd6": "eboot.bin (PCSG00299)",
+        },
         doc="docs/games/oretsuba.md",
         check=_oretsuba_check,
         icon=lambda root: _read(_find(root, "sce_sys/icon0.png")),
@@ -403,6 +441,7 @@ def _detect_in(roots) -> list[Detection]:
                         d.problems, d.warnings = game.check(root)
                     except OSError as e:
                         d.problems = [f"Can't read the game files: {e}"]
+                check_exe(game, root, d)
                 if game.movies and not find_movies(root):
                     d.warnings.append("No movie folder (movie, movies or ムービー) in the game folder or beside it: "
                                       "the movies are left out.")
