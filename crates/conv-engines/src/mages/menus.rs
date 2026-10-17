@@ -401,6 +401,7 @@ pub fn backlog(assets: &mut ArchiveAssets, labels: &Labels) -> Option<Backlog> {
         font_size: 18,
         line_height: 26,
         columns: 37,
+        engine_screen: false,
     })
 }
 

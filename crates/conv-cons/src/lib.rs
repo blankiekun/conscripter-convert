@@ -605,6 +605,8 @@ pub fn emit(script: &Script) -> String {
     }
     if let Some(l) = &script.line_log {
         line_log::emit(&mut out, l, script.single_byte_text);
+    } else if script.backlog.as_ref().is_some_and(|b| b.engine_screen) {
+        screens::backlog_labels(&mut out);
     } else if let Some(b) = &script.backlog {
         menu::backlog(&mut out, b, has_ruby);
     }
@@ -2543,6 +2545,7 @@ end
             font_size: 16,
             line_height: 24,
             columns: 41,
+            engine_screen: false,
         });
         let voice = |n: &str| Some(Voice { file: format!("voice/{n}.ogg"), character: 1 });
         s.ops = vec![

@@ -628,6 +628,15 @@ a copy of the save works.
 
 ### Queue (2026-10-16)
 
+- Open: the backlog drawn by the engine (`screens/backlog.lua` from
+  `Backlog`; engine #75: a `list` of the text log, scrolling a page with
+  ▲▼ and the wheel, the speaker's name over each page and its voice
+  from the name), in place of the `*conv_log` loops; wheel down on the
+  newest page closes it unless 「マウスホイールで履歴を閉じる」 is off.
+  Same frames as main's (12 Xvfb steps, 0 to 673 px apart: the old
+  `lsp2`'s rounding of the base's last row and column and of the track).
+  `--auto-play` closes it by kind, so the bar's log button no longer
+  traps a run there.
 - Open: the settings drawn by the engine (`screens/settings.lua` from
   `SettingsMenu` by `crates/conv-cons/src/screens.rs`; engine #74:
   slider, toggle, radio, text buttons, the screen's pages), in place of

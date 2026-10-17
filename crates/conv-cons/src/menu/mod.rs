@@ -108,7 +108,7 @@ const LOG_VOICE: &str = "$109";
 const LOG_VOICES: u32 = 120;
 /// Speaker names: sprites M + 10 + k.
 const LOG_NAME_SPRITE: u32 = M + 10;
-const LOG_NAME_COLOR: &str = "#D8C088";
+pub(crate) const LOG_NAME_COLOR: &str = "#D8C088";
 const BTN_LOG_VOICE: u32 = 210; // + k
 /// The settings page shown: 0 levels, 1 voices.
 pub(crate) const SETTINGS_PAGE: &str = "%176";

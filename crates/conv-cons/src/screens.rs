@@ -5,7 +5,7 @@
 
 use std::fmt::Write as _;
 
-use conv_core::ir::{ConfirmDialog, Placed, SaveMenu, Script, SettingsMenu, Switch};
+use conv_core::ir::{Backlog, ConfirmDialog, Placed, SaveMenu, Script, SettingsMenu, Switch};
 
 use crate::menu::{hidden_while_open, switch_off, CHAPTER, IN_GAME, PAGE, SCENE_LOAD_SLOT, SELECTED};
 
@@ -33,6 +33,9 @@ pub fn screen_files(script: &Script) -> Vec<(String, String)> {
         let leave = script.extras.as_ref().and_then(|e| e.replay.as_ref()).filter(|_| has_replay).map(|r| (r.leave_label.as_str(), r.leave_question.as_str()));
         let version = script.version.as_deref().map(|v| (v, script.height));
         files.push(("settings.lua".to_string(), settings_lua(m, script.confirm.as_ref(), leave, version)));
+    }
+    if let Some(b) = script.backlog.as_ref().filter(|b| b.engine_screen && script.line_log.is_none()) {
+        files.push(("backlog.lua".to_string(), backlog_lua(b)));
     }
     if let Some(d) = script.confirm.as_ref().filter(|_| !files.is_empty()) {
         files.push(("confirm.lua".to_string(), confirm_lua(d)));
@@ -262,6 +265,49 @@ fn settings_lua(m: &SettingsMenu, confirm: Option<&ConfirmDialog>, leave: Option
     out
 }
 
+/// `*conv_backlog`: the screen; `*conv_pretext`, the pretextgosub that
+/// keeps each page's `[name|voice]` tag (it only allows the save point).
+pub(crate) fn backlog_labels(out: &mut String) {
+    writeln!(out, "*{}\nsaveon\nreturn\n*{}\nscreen \"backlog\"\nreturn", crate::menu::PRETEXT, crate::menu::BACKLOG).unwrap();
+}
+
+/// The backlog as the script one (`menu::backlog`) draws it: the log's
+/// pages from the newest up in `area`, the speaker's name over each (with
+/// a voice, a button replaying it), up and down a page, the wheel too
+/// (down past the newest page closes, unless switched off).
+fn backlog_lua(b: &Backlog) -> String {
+    let a = b.area;
+    let hidden: Vec<String> = hidden_while_open().iter().map(|s| if s.starts_with('%') { format!("var({})", lua(s)) } else { s.clone() }).collect();
+    let mut out = format!("-- The backlog (conscripter-convert, from Backlog).\nlocal in_game = var({}) == 1\nreturn {{\n  kind = \"backlog\",\n", lua(IN_GAME));
+    writeln!(out, "  hide = in_game and {{window=true, sprites={{{}}}}} or nil,", hidden.join(", ")).unwrap();
+    writeln!(out, "  wheel_up = {{\"scroll\", \"+1\"}},").unwrap();
+    writeln!(out, "  wheel_down = {{\"scroll\", \"-1\", at_end = var({}) == 0 and {{\"close\"}} or nil}},", lua(&switch_off(Switch::WheelClosesLog))).unwrap();
+    out.push_str("  widgets = {\n");
+    for w in [
+        image("image", &b.base, &format!(", alpha={}", b.base_opacity)),
+        image("image", &b.frame, ""),
+        image("image", &b.track, ""),
+        format!(
+            "{{\"list\", source=\"log\", x={}, y={}, w={}, h={}, size={}, line_height={}, cols={}, shadow=true, name_color={}, hover=\"#FFFFFF\"}}",
+            a.x,
+            a.y,
+            a.w,
+            a.h,
+            b.font_size,
+            b.line_height,
+            b.columns,
+            lua(crate::menu::LOG_NAME_COLOR)
+        ),
+        image("button", &b.up, ", cells=3, disabled=2, action={\"scroll\", \"+1\"}"),
+        image("button", &b.down, ", cells=3, disabled=2, action={\"scroll\", \"-1\"}"),
+        image("button", &b.close, ", cells=3, action={\"close\"}"),
+    ] {
+        writeln!(out, "    {w},").unwrap();
+    }
+    out.push_str("  },\n}\n");
+    out
+}
+
 /// The yes/no dialog: its base, the question (`arg`) centred, the buttons
 /// and their labels. Close gives 1 for yes.
 // shortcut: the dialog with a picture per question, its fade and unroll
@@ -336,6 +382,37 @@ mod tests {
         let mut out = String::new();
         settings_labels(&mut out, true);
         assert_eq!(out, "*conv_settings\nscreen \"settings\",%9\nif %9 == 1 && %152 == 1 goto *conv_replay_end\nif %9 == 1 reset\nif %9 == 2 end\nreturn\n");
+    }
+
+    #[test]
+    fn backlog_is_a_list() {
+        use conv_core::ir::{Backlog, Rect};
+        let p = Placed { image: "system/x.png".into(), x: 760, y: 44, w: 30, h: 33 };
+        let b = Backlog {
+            base: p.clone(),
+            base_opacity: 210,
+            frame: p.clone(),
+            track: p.clone(),
+            up: p.clone(),
+            down: p.clone(),
+            close: p,
+            area: Rect { x: 30, y: 44, w: 700, h: 516 },
+            font_size: 16,
+            line_height: 24,
+            columns: 41,
+            engine_screen: true,
+        };
+        let lua = backlog_lua(&b);
+        for part in [
+            "{\"list\", source=\"log\", x=30, y=44, w=700, h=516, size=16, line_height=24, cols=41,",
+            "action={\"scroll\", \"+1\"}",
+            "wheel_down = {\"scroll\", \"-1\", at_end = var(\"%3641\") == 0 and {\"close\"} or nil},",
+        ] {
+            assert!(lua.contains(part), "{part}\n{lua}");
+        }
+        let mut out = String::new();
+        backlog_labels(&mut out);
+        assert_eq!(out, "*conv_pretext\nsaveon\nreturn\n*conv_backlog\nscreen \"backlog\"\nreturn\n");
     }
 
     #[test]
