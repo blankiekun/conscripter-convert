@@ -38,6 +38,8 @@ pub fn build(romfs: &Path, main: &Path, opts: &Opts) -> Result<Built> {
     let pairs = mzp::parse(&script_text).context("reading script_text.mrg")?;
     anyhow::ensure!(pairs.len() >= 2, "script_text.mrg has {} entries", pairs.len());
     let lines = script::text(pairs[0], pairs[1]).context("script_text.mrg")?;
+    // The fan patch's text is English (the exe's language check, `FUN_0012df20`).
+    let english = lines.iter().filter(|l| !l.chars().any(|c| ('\u{3040}'..='\u{30ff}').contains(&c))).count() * 2 > lines.len();
     let exe = exe::Exe::parse(&map(main)?).with_context(|| format!("reading {}", main.display()))?;
     let pictures: HashMap<String, exe::Picture> = exe.pictures()?.into_iter().map(|p| (p.name.to_lowercase(), p)).collect();
     let textures = textures(romfs, &pictures)?;
@@ -53,20 +55,20 @@ pub fn build(romfs: &Path, main: &Path, opts: &Opts) -> Result<Built> {
         width: convert::SCREEN_W,
         height: convert::SCREEN_H,
         global_border: Some(convert::GLOBAL_BORDER),
-        // The Japanese layout of the text drawer (`FUN_001391a0`, on a 640 × 448
-        // stage): lines from x 88 (the panel's flat middle, 176–1104 here) and
+        // The text drawer's layout (`FUN_001391a0`, on a 640 × 448 stage): in
+        // Japanese lines from x 88 (the panel's flat middle, 176–1104 here),
         // 464 wide, the first at y 65; glyphs of the screen's width / 32 × 0.76
-        // (`FUN_001a7790`, the text size setting at its default).
-        // shortcut: the English layout (from x 30, 584 wide, glyphs × 0.9) is not followed.
+        // (`FUN_001a7790`, the text size setting at its default). In English
+        // from x 30, 584 wide, the first line at y 55, glyphs × 0.9.
         window: Some(TextWindow {
             image: WINDOW.into(),
             x: 0, // src: txtwindow01-1920 (a full-screen panel)
             y: 0,
-            text_x: 176,  // src: exe 0x1391a0 (88 × 2)
-            text_y: 104,  // src: exe 0x1391a0 (65 × 720 / 448); guess: the glyph's offset in its line (FUN_001a7790's +14) not added
-            columns: 30,  // src: exe 0x1391a0 (928 px / 30.4)
+            text_x: if english { 60 } else { 176 },  // src: exe 0x1391a0 (30 or 88, × 2)
+            text_y: if english { 88 } else { 104 },  // src: exe 0x1391a0 ((short)(65 − 9.88) = 55 or 65, × 720 / 448); guess: the glyph's offset in its line (FUN_001a7790's +14) not added
+            columns: if english { 41 } else { 30 },  // src: exe 0x1391a0 (584 × 2 = 1168 px / 28, or 928 px / 30.4); the window types ≥ 3 (table 0x44DEFC: 299.8, 405.6, 509.8) are the same in both languages and not drawn
             rows: 14,     // guess: the 16 line slots, as many as fit the screen at this pitch
-            font_size: 30, // src: exe 0x1a7790 (1280 / 32 × 0.76 = 30.4)
+            font_size: if english { 27 } else { 30 }, // src: exe 0x1a7790 (1280 / 32 × 0.76 = 30.4, × 0.9 in English = 27.4)
             line_gap: 15, // guess: a 45 px pitch (28 of 448, the drawer's step for its extra lines); the exe measures a line of the font
             vertical: false,
             name_plate: None,
