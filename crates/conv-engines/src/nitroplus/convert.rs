@@ -1300,6 +1300,8 @@ struct Shown {
     blend: u8,
     /// Drawn through a [`Kind::Tint`] above it ([`Op::SpriteFilters`]).
     tint: Option<Vec<SpriteFilter>>,
+    /// Drawn over the text window ([`Compiler::over_text`]).
+    over: bool,
 }
 
 /// What the engine's motions did to a [`Shown`] picture.
@@ -3032,6 +3034,22 @@ impl<'a, 'b> Compiler<'a, 'b> {
             end += 1;
         }
         Some(zoom)
+    }
+
+    /// Whether the picture `name` lies over the text window and its text
+    /// ([`Op::SpriteOverText`]): a subtitle strip, or one above the window
+    /// the text is in (`<PRE @box0>`: `CreateWindow("box0", 20001, …)`)
+    /// in priority, or as high and made after it.
+    fn over_text(&self, name: &str) -> bool {
+        let Some(o) = self.objects.get(name) else { return false };
+        if o.over_text {
+            return true;
+        }
+        let Some(text) = self.vars.get("$SYSTEM_present_text").map(Value::string) else { return false };
+        let text = text.trim_start_matches('@');
+        let window = text.split_once('/').map_or(text, |w| w.0);
+        let Some(w) = self.objects.get(window).or_else(|| self.objects.get(text)) else { return false };
+        (o.priority, o.seq) > (w.priority, w.seq)
     }
 
     /// The screen is frozen under an opaque `Plain` cover while one is up:
@@ -5396,6 +5414,28 @@ scene {name}_Y
         assert!(glob("a*", "a/b"));
         assert!(glob("*b", "ab") && !glob("*b", "ba"));
         assert!(!glob("a*c", "ab"));
+    }
+
+    #[test]
+    fn pictures_above_the_text_window_are_drawn_over_it() {
+        let story = r#"
+scene a.nss
+{
+	CreateWindow("box0", 20001, 0, 0, 1024, 576, false);
+<PRE @box0>
+[text0010]
+　一行目
+</PRE>
+	CreateColor("絵色下", 1000, 0, 0, 1024, 576, "Black");
+	CreateColor("絵色上", 25000, 0, 0, 100, 100, "White");
+	Wait(10);
+}
+"#;
+        let c = compile(story, LIBRARY);
+        let layers: Vec<u32> = c.ops.iter().filter_map(|op| if let Op::SpriteOverText { layer } = op { Some(*layer) } else { None }).collect();
+        let placed: Vec<(u32, String)> = c.ops.iter().filter_map(|op| if let Op::Sprites { changes, .. } = op { Some(changes) } else { None }).flatten().filter_map(|c| Some((c.layer, c.sprite.as_ref()?.image.clone()))).collect();
+        let white = placed.iter().find(|p| p.1.contains("ffffff")).unwrap().0;
+        assert_eq!(layers, [white], "{placed:?}");
     }
 
     #[test]
