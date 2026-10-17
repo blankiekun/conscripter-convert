@@ -668,7 +668,53 @@ not mapped yet. `G…` are presumably system data and `F…` save data
 
 ## Testing
 
-Nothing yet.
+### The original under a Switch emulator (Ryubing)
+
+Step 1, the boot check (2026-10-17): **does not boot yet**, for want
+of keys. Ryubing's own headless front end is built into its main
+binary (`Ryujinx --no-gui`, the old `Ryujinx.Headless.SDL2`), so the
+flatpak `io.github.ryubing.Ryujinx` (1.3.3) runs it; no source build.
+It still opens an SDL window, so it runs on its own Xvfb. A bare
+`flatpak run io.github.ryubing.Ryujinx` (even with `--help` or
+`--headless`) opens the GUI on the desktop: run it only through
+`research/typemoon/switch-emu.sh`.
+
+Setup, in a data dir of its own (`<emu>/data`, never the flatpak's
+`~/.var/app/...`, which the user plays with):
+
+- Firmware: each `<id>.nca` / `<id>.cnmt.nca` of the firmware zip goes
+  to `<emu>/data/bis/system/Contents/registered/<id>.nca/00` (what
+  the GUI's firmware install does; headless has no install option).
+- Keys: `<emu>/data/system/prod.keys` (the full file; Ryubing loads it
+  as it is, without hactool's filtering).
+- Update 1.0.2: `<emu>/data/games/01001dc01486a000/updates.json` =
+  `{"selected": "<update nsp>", "paths": ["<update nsp>"]}`; the log
+  then says `Application Loaded: ... v1.0.2`.
+- Run: `SHOT=15 research/typemoon/switch-emu.sh <emu>/data 240
+  --graphics-backend Vulkan --skip-user-profiles-manager "<base nsp>"`
+  (Xvfb by `-displayfd`, `SDL_AUDIODRIVER=dummy`, `MemoryMax=8G`; log
+  and a root-window shot every `SHOT` s in `<emu>/logs`). Vulkan runs
+  on the host GPU under Xvfb.
+
+What stops it: firmware 23.0.1's NCAs need master key 0x16 (96 of its
+238; hactool prints each one's "Master Key Revision"), and the keys at
+hand stop at 0x15. With all of them installed, Ryubing dies at once
+(`MissingKeyException: key_area_key_application_16` reading the
+firmware version); with only the 142 it can decrypt, the game loads
+(1.0.2 applied, guest code runs) and dies 8 s in for want of the
+shared font (`FontStandard (0100000000000811) system title not
+found`), which is among the 0x16 ones. Fix: keys dumped from a
+console on firmware 23 or later, or a firmware dump no newer than the
+keys (master key 0x15).
+
+Step 2, not started: a hook writing `--trace`-style JSONL from the
+original, to diff against our conversion. It would need the boot
+above, then either Ryubing's GDB stub (`--enable-gdb-stub`,
+`--suspend-on-start`) with breakpoints on the script dispatcher and
+the handlers named in Ghidra (offsets from `exefs/main`'s load base),
+or a patched `main` NSO / an exefs mod (`<emu>/data/mods/contents/<title
+id>/exefs/`) that logs through `svcOutputDebugString` (Ryubing prints
+guest logs) at those handlers.
 
 ## Status
 
@@ -686,6 +732,7 @@ Nothing yet.
 | Media folder (`typemoon media`) | ✅ `allpac`'s pictures at full size (PNG, or WebP with the shared `--webp` flags), the movies as they are, the sound (WAV wave sounds, or Opus/Vorbis with the shared `--audio-*` flags), loops kept in every mode |
 | Script conversion (`typemoon convert`) | 🔶 the flow (labels, `_JUMP`, `_IF__`, flags), text (pages, ruby, voices; the fan patch's styled letters, private-use U+E000–U+E2FE drawn by its own `ja/TT_TsukuMin-D.ttf`, as ASCII: italic and serif italic as italic (`!i1`), mirrored and upside-down plain (mirrored lines, stored right to left, put back in reading order), U+E200 as `^-35`; its accents (é ï ç â à ê, 46 uses) and em dashes kept, as the `0.txt` is UTF-8; a `^` break in a choice's option as a space), pictures (`_STCH`/`_STCC`/`_FADS`: record size and place, fades and rule wipes), sound effects and music; plays from the start through `00_00` into the first arc headless. Layers drawn in priority order (`_STCP`, `_STCH` argument 6), changed keeping their settings (`_SCH2`) or copying another layer's (argument 18), zoomed (`_STZ4`), faded (`_STGS`) and moved (`_STMA`, the exe's motions, a −32766 field interpolated across its key, turned by its turn keys, held where a key's mode 2 says, only the fields its mask drives, each key eased as the exe's (`spcurve` tables of its Penner set); curves, loops, priority and expression keys not followed), children placed in their parent layers, orbiting with their turn and following their motions (`_STCH` argument 11), clipped to their panels with their soft edges (`_STCH` arguments 12–17, CONscripter's `spclip` feather), turned (`_STRT`), drawn with their shader as far as CONscripter's blends and filters go (`_STBR`) and drawn with their `_STEC` effect (levels, greyscale and colour layers; effect 1 a colour fill, CONscripter's `spfilter` 9 and 10). Choices (`_SELR`, `_SELD`, `_GOTS`; options under a flag offered by it, greyed ones shown greyed and not selectable (`seldisable`); the chapter-jump menus), `_GOTO` and the Switch's own branches (`_IFNX`/`_IFP4`). The text window hidden and faded (`_CLO2`, `_CLO3`/`_CLO4`/`_CLO5` with CONscripter's `windowfade`, the script going on; the next text fades it back in). Not yet: the other layer commands, screens |
 | Screens, extras | 🔶 the title; the system menu's Save and Load tabs (see History, 2026-10-17), opened in game by a right click at a text wait (on its Save tab); Config (for now the language switch), FlowChart, the backlog not yet |
+| The original under an emulator | ❌ boot check fails: the keys lack master key 0x16 that firmware 23.0.1 needs (see "Testing") |
 | Languages (`--english`) | 🔶 one `0.txt` with both copies (below); the switch is the system menu's **Config** tab for now (in game; at rest on the title), until the settings tab with its 日本語/English option is converted |
 
 #### Languages
