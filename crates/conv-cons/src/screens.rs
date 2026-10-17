@@ -43,6 +43,7 @@ pub fn screen_files(script: &Script) -> Vec<(String, String)> {
     if let Some(e) = script.extras.as_ref().filter(|_| script.title_screen.is_some()) {
         files.extend(crate::extras_screens::files(e));
     }
+    files.extend(crate::system_menu::files(script));
     if let Some(d) = script.confirm.as_ref().filter(|_| !files.is_empty()) {
         files.push(("confirm.lua".to_string(), confirm_lua(d)));
     }
