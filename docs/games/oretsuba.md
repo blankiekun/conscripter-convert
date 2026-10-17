@@ -312,12 +312,6 @@ Every hand-typed value in `crates/conv-engines/src/mages/` carries a
 `// guess:` comment. The guesses still open; the decompile could settle
 the first ones, a frame of the Vita game the rest:
 
-- Text speed: the eboot (0x81126a80) shows a character every 15, 5 and
-  1 updates (遅い, 普通, 早い; 一括 at once), slower than our text speed
-  levels reach (60 ms a character at most); if an update is 2 frames,
-  普通 (the default) is 167 ms a character. conv-cons turns a level into
-  ms with one shared formula (`menu/settings.rs`, `(10 - level) × 6`), so
-  matching it needs a per-game IR value (the ms per level).
 - Defaults no script relies on: EffectStart 42/53/57/40/51 `:Param`s,
   the centre for a missing `:Position`.
 - The title's fade (500 ms): its menus fade 8 % an update (13 updates,
