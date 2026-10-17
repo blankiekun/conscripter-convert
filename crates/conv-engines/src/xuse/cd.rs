@@ -288,10 +288,11 @@ pub enum ModuleData {
 
 /// Filter-Zigzag (kernel 0x43f0b0, set up by 0x41dab0): each pixel taken
 /// from `distance` × sin(2π·i/1024) pixels away along `direction` (0.1°),
-/// i = d × `frequency`/100 (+ a phase), d being the pixel's distance from
-/// (`centre_x`, `centre_y`): rings around the centre. Record: i32 centre
-/// x, y, direction, distance, frequency, begin angle, reduction (the
-/// exe's debug output names them CenterX … Reduc).
+/// i = d × `frequency`/100 + a phase from the frequency too, d being the
+/// pixel's distance from (`centre_x`, `centre_y`): rings around the centre.
+/// Record: i32 centre x, y, direction, distance, frequency, begin angle,
+/// reduction (the exe's debug output names them CenterX … Reduc; the draw
+/// never reads the last two).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FilterZigzag {
     pub centre_x: i32,
