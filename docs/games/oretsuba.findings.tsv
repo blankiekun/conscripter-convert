@@ -74,7 +74,7 @@ EyeCatchEnd	:Fade (1/15 an update)	847	scene_load 0x70	fade	seen
 MoviePlay	:Movie N (code N × 2 + loop), :Loop, :EndWait 1 waits, 0 plays under the script	13	scene_load 0x48, 8100da30 0x48	movie N; EndWait 0 still waits	seen	
 MoviePlay	:Skip > 0 skippable, 0 not, < 0 (-1 default, every use) only once seen (global seen table 0x814e8a58, set as it starts)	13	8100da30 0x48 (+10000/+20000), 0x81044b74, 0x81044cb8	always skippable (#359: a global seen flag per movie, %1680 + N)	seen	
 MovieStop	:EndWait	7	0x49	nothing (our movies end before)	seen	
-CharacterOpen / OpenBS	Chara0-Chara9 in order, those with a :Number, until :SpriteMax of them; :SpriteMax 0 or missing (default 0) shows none, above 10 is 10	16948 / 892	scene_load case 0x1b/0x80 (record 0x8112963c)	every [CharaN] block (#360: as the eboot)	seen	
+CharacterOpen / CharacterOpenBS	Chara0-Chara9 in order, those with a :Number, until :SpriteMax of them; :SpriteMax 0 or missing (default 0) shows none, above 10 is 10	16948 / 892	scene_load case 0x1b/0x80 (record 0x8112963c)	every [CharaN] block (#360: as the eboot)	seen	
 CharacterOpen	:Fade F (step 2/F an update; 18 by default; 0 at once); OpenBS never fades	3186	0x8112963c	fade over F frames	seen	
 CharacterOpen	[CharaN] :Number, :Copy (+1000 × c), :Position, :Priority, :Color, :Grayscale, :Gamma, :Center	17960	scene_load case 0x1b	sprite per character	seen	
 CharacterOpen	[CharaN] :FadeWait	6	scene_load case 0x1b	dropped	inferred	read the per-character FadeWait use
