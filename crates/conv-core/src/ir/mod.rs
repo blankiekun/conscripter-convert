@@ -761,6 +761,12 @@ pub enum Op {
     /// `var` = a number from 0 to `below` − 1 picked at random when the
     /// game runs (NScripter's `rnd`). Nitroplus's `Random`.
     Random { var: Var, below: i32 },
+    /// Inside a transition with a mask: the mask is swept as a threshold
+    /// with a band about `softness` × threshold ÷ 255 grey levels wide
+    /// (CONscripter's `effectsoft`), the new screen first where the mask is
+    /// dark, or with `reverse` the old screen leaving its bright parts
+    /// first. Nitroplus's `DrawTransition` softness.
+    TransitionSoft { softness: u32, reverse: bool },
 }
 
 /// [`Op::HoldMovie`]'s prompt: `image` is `cells` pictures side by side,

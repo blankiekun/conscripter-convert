@@ -588,6 +588,19 @@ impl Compiler<'_, '_> {
                 if arg(1).int() > 0 && let Some(e) = self.game.fade_tempo.unwrap_or(|_| None)(&arg(5)) {
                     self.fade_tempo = Some(e);
                 }
+                // The mask as a threshold table (src: Muramasa.exe FUN_0044fe00, the
+                // per-frame 00457bf0): from and to × 0.255 are its ends; up to the
+                // threshold p shown, then a ramp losing 255 ÷ p × 255 ÷ softness a
+                // grey level; a fade-out's threshold falls, so the picture leaves
+                // the mask's bright parts first. CONscripter's effectsoft draws the
+                // full sweeps; a partial one (to 200, 250 → 150) ends masked in the
+                // exe, a uniform opacity here: noted.
+                let softness = arg(4).int();
+                match (from, to) {
+                    (0, 1000) | (1000, 0) if softness > 0 => self.transition_soft = Some((softness as u32, from > to)),
+                    _ if from != to => self.note("DrawTransition partial: ends masked in the exe"),
+                    _ => {}
+                }
                 self.pending_mask = Some(mask);
                 self.timed(arg(1).int(), &arg(7), &targets);
             }

@@ -1504,6 +1504,9 @@ struct Compiler<'a, 'b> {
     /// next sync's transition goes along it ([`Op::TransitionEase`]).
     // shortcut: one curve a transition (the last fade's) when fades with different tempos meet in one sync
     fade_tempo: Option<(u8, u32)>,
+    /// A pending full `DrawTransition`'s softness and whether it fades out
+    /// ([`Op::TransitionSoft`]).
+    transition_soft: Option<(u32, bool)>,
     /// A pending `Rotate` about x or y over time per object it turns.
     pending_turn: HashMap<String, turn::Turning>,
     /// The objects with a `Fade` over time pending (its ms).
@@ -2349,6 +2352,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
             pending_by: HashMap::new(),
             pending_tempo: HashMap::new(),
             fade_tempo: None,
+            transition_soft: None,
             pending_turn: HashMap::new(),
             pending_fade: HashMap::new(),
             vanishing: HashMap::new(),
@@ -5316,8 +5320,8 @@ function SoundPlay("ナット名", 秒数, ボリウム, ループ設定)
 
     #[test]
     fn an_argument_a_built_in_does_not_read_is_noted() {
-        // DrawTransition's softness isn't read (its start opacity is: noted
-        // where the picture isn't shown at it); a process's place is harmless.
+        // DrawTransition's softness is read (effectsoft; its start opacity is
+        // noted where the picture isn't shown at it); a process's place is harmless.
         let story = r#"
 scene a.nss
 {
@@ -5331,7 +5335,7 @@ function Nothing()
 }
 "#;
         let c = compile(story, LIBRARY);
-        assert!(c.notes.contains_key("DrawTransition argument 4 ignored"), "{:?}", c.notes);
+        assert!(!c.notes.keys().any(|n| n.starts_with("DrawTransition argument")), "{:?}", c.notes);
         assert!(c.notes.contains_key("DrawTransition from another opacity than the picture's"), "{:?}", c.notes);
         // Fade's tempo is read: its transition goes along Axl1 (t²) where
         // the game's exe eases fades.
@@ -5343,6 +5347,26 @@ function Nothing()
         let eased = compile_scene(&files, "a.nss", "a.nss", &Game { fade_tempo: Some(tempo), ..Game::PLAIN }, &mut Fake).unwrap();
         assert!(eased.ops.iter().any(|op| matches!(op, Op::TransitionEase { ease: 1, exponent: 2 })), "{:?}", eased.ops);
         assert!(!c.notes.keys().any(|n| n.starts_with("Fade argument") || n.starts_with("CreateProcess argument")), "{:?}", c.notes);
+    }
+
+    #[test]
+    fn a_full_draw_transition_out_sweeps_reversed_and_a_partial_one_is_noted() {
+        // src: Muramasa.exe 00457bf0: a falling threshold leaves the bright parts first.
+        let story = r#"
+scene a.nss
+{
+	CreateTexture("a", 100, 0, 0, "cg/bg/a.jpg");
+	Fade("a", 0, 1000, null, true);
+	Wait(10);
+	DrawTransition("a", 300, 1000, 0, 200, null, "cg/bg/a.jpg", true);
+	CreateTexture("b", 100, 0, 0, "cg/bg/a.jpg");
+	DrawTransition("b", 300, 0, 400, 100, null, "cg/bg/a.jpg", true);
+}
+"#;
+        let c = compile(story, LIBRARY);
+        assert!(c.ops.iter().any(|op| matches!(op, Op::TransitionSoft { softness: 200, reverse: true })), "{:?}", c.ops);
+        assert_eq!(c.ops.iter().filter(|op| matches!(op, Op::TransitionSoft { .. })).count(), 1, "{:?}", c.ops);
+        assert!(c.notes.contains_key("DrawTransition partial: ends masked in the exe"), "{:?}", c.notes);
     }
 
     #[test]

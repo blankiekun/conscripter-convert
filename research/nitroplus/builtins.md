@@ -217,7 +217,7 @@ whole-game dry run (`ma00_000.nss --chain 2000`), and 続・殺戮のジャン�
 | `Random` | read: picked at run time (`rnd`, "`Random`" in `docs/games/muramasa.md`); 771 calls still picked when converting | 7,411 | 0 |
 | `Fade` | 3 tempo (read for a fade over time: its transition's curve; a 0 ms one sets at once, `cb_Fade` 0044f020; not for the text window's); 5 (a sixth argument, 1) | 0 | 0 |
 | `WaitAction`, `WaitPlay`, `WaitFade`, `WaitZoom`, `WaitMove` | 1 (a time limit?) | 3,371, 2,477, 4, 3, 0 | 5,852, 51, 1, 0, 2 |
-| `DrawTransition` | 4 softness (2 from: read, 565 calls from another opacity than shown noted; 5 tempo: read; a missing mask: no transition) | 2,650 | 0 |
+| `DrawTransition` | none: 4 softness read (`effectsoft` for a full sweep; a partial one noted), 2 from read (another opacity than shown noted), 5 tempo read; a missing mask: no transition | 0 | 0 |
 | `Conquest` | 0-2 (we return 0) | 2,478 | 0 |
 | `CreateEffect` | none: 2-5 (place and size) are read; a tone or `Plain` covering the screen is ours, over part of it noted | 2,477 | 1 |
 | `SetBacklog` | 2 (the speaker) | 1,958 | 75 |

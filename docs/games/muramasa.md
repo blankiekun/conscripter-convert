@@ -965,14 +965,17 @@ Next, in order:
    - Story `CreateText`: a sideways text turned by `Rotate` sits about
      17 px lower than the original's under wine (cause unknown; "History",
      "Story `CreateText`").
-   - `DrawTransition`'s softness (an engine band width, to do). Its start
-     opacity is read (#357): 565 calls start from another opacity than the
-     screen shows (337 fade out from 1000 a picture not shown), noted:
-     what the exe draws then is to check. A mask cg.npa lacks
-     (ma04_018vs/020vs's `slide_01_02_2.png`, `cg/data/7.png`, an unset
-     `$Transition`): the exe's step returns before the transition when
-     the mask doesn't load (FUN_0044fe00, seen), so none is drawn (the
-     opacity left as it was: inferred).
+   - `DrawTransition` (FUN_0044fe00, 00457bf0, seen): the mask is a
+     threshold table, from and to × 0.255 its ends, shown up to the
+     threshold, then a ramp losing 255 ÷ p × 255 ÷ softness a grey level; a
+     fade-out's threshold falls, so the picture leaves the bright parts
+     first. Full sweeps (0 → 1000, 1000 → 0: 2,073 calls) are drawn so with
+     CONscripter's `effectsoft` (engine #138, PR). Left: a partial one (to 200,
+     250 → 150: 374 calls) ends with the picture masked at that threshold in
+     the exe, a uniform opacity in ours (noted); 565 calls start from another
+     opacity than shown (noted). A mask cg.npa lacks (ma04_018vs/020vs's
+     `slide_01_02_2.png`, `cg/data/7.png`, an unset `$Transition`): the
+     exe's step returns before the transition (seen), none drawn.
    - `Conquest` returns 0 whatever its arguments (`Random`: picked at run time, Status).
    - Done: a whole-screen `Shake` that grows from 0 px (7 calls, e.g.
      5000 ms to 20 px) shakes; it was dropped (`queue_shake` 004462d0: the

@@ -1,13 +1,13 @@
 {
 "game": "muramasa",
 "engine": "nitroplus",
-"commit": "405af7c3",
+"commit": "5cc5003f",
 "commit_date": "2026-10-17",
-"totals": {"calls": 1162127, "full": 1146758, "gaps": 6775, "left_out": 8594, "weighted": 1153126.1},
+"totals": {"calls": 1162127, "full": 1148608, "gaps": 4925, "left_out": 8594, "weighted": 1153456.7},
 "kinds": {
-"DrawTransition": {"calls": 2650, "gaps": 2650, "reasons": [["DrawTransition argument 4 ignored", 2645], ["DrawTransition from another opacity than the picture's", 565], ["DrawTransition mask missing: cg/data/slide_01_02_2.png", 2], ["DrawTransition mask missing: $Transition", 1], ["DrawTransition mask missing: cg/data/7.png", 1], ["1 more", 1]], "weighted": 2319.4},
 "SetFrequency": {"calls": 8778, "gaps": 1523, "reasons": [["SetFrequency on music", 1486], ["SetFrequency argument 3 ignored", 37]], "weighted": 8768.8},
 "Request": {"calls": 239985, "gaps": 1317, "reasons": [["Request stop", 1082], ["Request overlayrender", 111], ["Request compulsorysuspend", 18], ["Request pushtext", 15], ["Request entrustsuspend", 12], ["28 more", 79]], "weighted": 239985.0},
+"DrawTransition": {"calls": 2650, "gaps": 800, "reasons": [["DrawTransition from another opacity than the picture's", 565], ["DrawTransition partial: ends masked in the exe", 374], ["DrawTransition mask missing: cg/data/slide_01_02_2.png", 2], ["DrawTransition mask missing: $Transition", 1], ["DrawTransition mask missing: cg/data/7.png", 1], ["1 more", 1]], "weighted": 2650.0},
 "Random": {"calls": 7411, "gaps": 771, "reasons": [["Random picked when converting", 771]], "weighted": 7411.0},
 "Position": {"calls": 506, "gaps": 62, "left_out": 444, "reasons": [["the choice screen's own code: the engine's choice stands in", 444], ["built-in Position", 62]], "weighted": 62.0},
 "CreateMovie": {"calls": 61, "gaps": 61, "reasons": [["CreateMovie argument 2 ignored", 61], ["CreateMovie argument 3 ignored", 61], ["CreateMovie argument 4 ignored", 61], ["CreateMovie argument 5 ignored", 61], ["CreateMovie of a missing movie", 61]], "weighted": 26.1},
