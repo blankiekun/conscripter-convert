@@ -10,7 +10,7 @@
 use std::cell::Cell;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
-use conv_core::ir::{ArithOp, Compare, MotionEnd, MotionKey, Op, Operand, Ruby, SpriteChange, SpriteFilter, SpritePlacement, TransitionStyle, Var, Voice, BLEND_ADD, BLEND_MULTIPLY, BLEND_NORMAL, BLEND_SUBTRACT, FILTER_BLEND_COPY, FILTER_BLEND_MULTIPLY, FILTER_BLUR, FILTER_COLOUR, FILTER_GREYSCALE, FILTER_NEGATIVE};
+use conv_core::ir::{ArithOp, Compare, MotionEnd, MotionKey, Op, Operand, Ruby, SpriteChange, SpriteFilter, SpritePlacement, TransitionStyle, Var, Voice, BLEND_ADD, BLEND_MULTIPLY, BLEND_NORMAL, BLEND_SUBTRACT, FILTER_BLEND_COPY, FILTER_BLUR, FILTER_GREYSCALE, FILTER_NEGATIVE};
 
 use super::exe::Picture;
 use super::script::Command;
@@ -96,8 +96,8 @@ struct Layer {
     angle: i32,
     /// `_STBR`: the shader it is drawn with (0 or 255: the normal one).
     shader: u8,
-    /// `_STEC(layer, 1, colour)`: its colours multiplied by this one.
-    tint: Option<u32>,
+    /// `_STEC(layer, effect, colour)`: the effect (1-82) and its colour.
+    effect: Option<(i32, u32)>,
     /// `_STCH` arguments 12–16: the screen rectangle it is drawn in (x, y,
     /// w, h on a 1920 × 1080 screen; none if w or h is 0 or it is the
     /// screen) and its frame's width; a child is drawn in its parent's.
@@ -539,15 +539,16 @@ impl Lowering<'_, '_> {
                 let Some(l) = self.staged_layer(arg(0)) else { return arg(0).parse::<i32>().is_ok() };
                 l.shader = number(arg(1)).unwrap_or(0).clamp(0, 255) as u8;
             }
-            // `_STEC(layer, effect, colour)` (`FUN_00103de0`): effect 1 tints
-            // the layer (white: none), 0 ends it; the others are not known.
+            // `_STEC(layer, effect, colour)` (`FUN_00103de0`): 0 ends it, 1
+            // fills the layer with `colour`, the others are `stec::EFFECTS`.
             "_STEC" => {
                 let effect = number(arg(1)).unwrap_or(0);
                 let colour = arg(2).strip_prefix("0x").and_then(|h| u32::from_str_radix(h, 16).ok());
                 let Some(l) = self.staged_layer(arg(0)) else { return arg(0).parse::<i32>().is_ok() };
                 match (effect, colour) {
-                    (0, _) => l.tint = None,
-                    (1, Some(c)) => l.tint = (c != 0xFFFFFF).then_some(c),
+                    (0, _) => l.effect = None,
+                    (1, None) => return false,
+                    (e, c) if super::stec::filters(e, 0).is_some() => l.effect = Some((e, c.unwrap_or(0))),
                     _ => return false,
                 }
             }
@@ -594,7 +595,7 @@ impl Lowering<'_, '_> {
             }
         }
         let parent = number(arg(11)).filter(|&p| (0..LAYERS as i32).contains(&p) && p as usize != n).map(|p| p as usize);
-        self.staged[n] = Some(Layer { base, expression, x, y, zoom: zoom / 1000.0, stretch: (1.0, 1.0), stretch_off: false, alpha: alpha.clamp(0.0, 255.0) as u32, fade: None, motion: None, parent, angle: number(arg(19)).unwrap_or(0), shader: 255, tint: None, clip });
+        self.staged[n] = Some(Layer { base, expression, x, y, zoom: zoom / 1000.0, stretch: (1.0, 1.0), stretch_off: false, alpha: alpha.clamp(0.0, 255.0) as u32, fade: None, motion: None, parent, angle: number(arg(19)).unwrap_or(0), shader: 255, effect: None, clip });
         // Argument 6, else layer × 10 (`FUN_00160840`).
         // src: exe 0x160840 (priority layer × 10 by default)
         self.priority[n] = if arg(6).is_empty() { n as i32 * 10 } else { number(arg(6)).unwrap_or(n as i32 * 10) };
@@ -884,13 +885,9 @@ impl Lowering<'_, '_> {
             self.ops.push(Op::SpriteClip { layer, rect });
             self.clips[layer as usize] = clip;
         }
-        let tint = l.tint.map(|c| SpriteFilter {
-            kind: Operand::Const(FILTER_COLOUR),
-            blend: Operand::Const(FILTER_BLEND_MULTIPLY),
-            strength: Operand::Const(256),
-            params: [c >> 16, (c >> 8) & 0xFF, c & 0xFF].map(|v| Operand::Const(v as i32)),
-        });
-        let filters: Vec<SpriteFilter> = filter.into_iter().chain(tint).collect();
+        // The effect makes the texture the shader then draws.
+        let effect = l.effect.and_then(|(e, c)| super::stec::filters(e, c)).unwrap_or_default();
+        let filters: Vec<SpriteFilter> = effect.into_iter().chain(filter).collect();
         if !filters.is_empty() {
             self.ops.push(Op::SpriteFilters { layer, filters });
         }
@@ -1202,7 +1199,8 @@ mod tests {
         // Added on, then normal again: `_STCH` resets the shader.
         assert_eq!(blends, [BLEND_ADD, BLEND_NORMAL]);
         let Some(Op::SpriteFilters { filters, .. }) = ops.iter().find(|o| matches!(o, Op::SpriteFilters { .. })) else { panic!("{ops:?}") };
-        assert_eq!(filters[0].params, [255, 128, 0].map(Operand::Const));
+        // Filled with the colour, drawn in it again.
+        assert_eq!(filters[0].params, [255, 64, 0].map(Operand::Const));
     }
 
     #[test]

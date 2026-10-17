@@ -16,6 +16,7 @@ pub mod nso;
 pub mod nxopus;
 pub mod nxx;
 pub mod script;
+pub mod stec;
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;

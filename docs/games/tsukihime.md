@@ -610,7 +610,7 @@ Nothing yet.
 | Exe tables (pictures, motions, scene numbers) | ✅ read from the NSO (`typemoon exe`); picture sizes checked against the textures |
 | Scripts | 🔶 read: every command of both languages splits (one malformed in the original) and its text and voices join; the top commands' arguments read from the exe, the rest not yet |
 | Media folder (`typemoon media`) | ✅ `allpac`'s pictures as full-size WebP (2.37 GB), movies at 720p, sound |
-| Script conversion (`typemoon convert`) | 🔶 the flow (labels, `_JUMP`, `_IF__`, flags), text (pages, ruby, voices), pictures (`_STCH`/`_STCC`/`_FADS`: record size and place, fades and rule wipes), sound effects and music; plays from the start through `00_00` into the first arc headless. Layers drawn in priority order (`_STCP`, `_STCH` argument 6), zoomed (`_STZ4`), faded (`_STGS`) and moved (`_STMA`, the exe's motions; easing, priority and expression keys not followed), children placed in their parent layers, orbiting with their turn and following their motions (`_STCH` argument 11), clipped to their panels (`_STCH` arguments 12–16), turned (`_STRT`), drawn with their shader as far as CONscripter's blends and filters go (`_STBR`) and tinted (`_STEC` effect 1). Choices (`_SELR`, `_SELD`, `_GOTS`), `_GOTO` and the Switch's own branches (`_IFNX`/`_IFP4`). The text window hidden and faded (`_CLO2`, `_CLO3`/`_CLO4`/`_CLO5` with CONscripter's `windowfade`, the script going on; the next text fades it back in). Not yet: `_STEC`'s other effects, the other layer commands, screens |
+| Script conversion (`typemoon convert`) | 🔶 the flow (labels, `_JUMP`, `_IF__`, flags), text (pages, ruby, voices), pictures (`_STCH`/`_STCC`/`_FADS`: record size and place, fades and rule wipes), sound effects and music; plays from the start through `00_00` into the first arc headless. Layers drawn in priority order (`_STCP`, `_STCH` argument 6), zoomed (`_STZ4`), faded (`_STGS`) and moved (`_STMA`, the exe's motions; easing, priority and expression keys not followed), children placed in their parent layers, orbiting with their turn and following their motions (`_STCH` argument 11), clipped to their panels (`_STCH` arguments 12–16), turned (`_STRT`), drawn with their shader as far as CONscripter's blends and filters go (`_STBR`) and drawn with their `_STEC` effect (levels, greyscale and colour layers; effect 1 a colour fill, CONscripter's `spfilter` 9 and 10). Choices (`_SELR`, `_SELD`, `_GOTS`), `_GOTO` and the Switch's own branches (`_IFNX`/`_IFP4`). The text window hidden and faded (`_CLO2`, `_CLO3`/`_CLO4`/`_CLO5` with CONscripter's `windowfade`, the script going on; the next text fades it back in). Not yet: the other layer commands, screens |
 | Screens, extras | ❌ |
 
 ### Next
@@ -652,6 +652,10 @@ original (Japanese, default text size):
   width and glyph size are the exe's (`FUN_001391a0`: from 88, 65 on
   a 640 × 448 stage, 464 wide; glyphs of the screen width / 32 × 0.76).
 - `_STBR` 11 (gauss) drawn as a blur of 8.
+- `_STEC`'s math in the pictures' own 0–255 values: the shader decodes
+  the sRGB texture and re-encodes it as x^0.4545 before the levels, so
+  dark values may differ by a level or two. Effect 82 (2 uses) is drawn
+  as 67: its mode 3 also keeps G and B at 0 where they are 0.
 
 Open, settled by the code: the English (fan patch) text layout. When
 `FUN_0012df20` (0x12df20, the system language) says English, the text
@@ -666,31 +670,30 @@ The build uses the Japanese layout for both languages.
 The biggest commands not converted, looked up in `script_command`
 (0x177790):
 
-- `_STEC(layer, n)` for n ≠ 0, 1 (9,193): **seen**: `FUN_00103de0`
-  keeps `n` (0–82; 4 and the others alike) as the layer's effect
-  (state 0x1404, live layer 0x244) and resets its colour to white. The
-  effect is a key of the texture cache (`FUN_001aa340`, slot +0x28)
-  and makes an "altered texture" (`FUN_001a3180` → `FUN_0019f6c0`):
-  83 records of 20 f32 at 0x4358B0 (`FUN_00103fc0`; −9 = unset): per
-  channel R, G, B three values (a gain or gamma, then a low and a high
-  level), a mode (1 for effects 2, 3, 5–7, 77–81: greyscale, times
-  the gains in 3 sepia 0.941/0.784/0.569, 5 blue, 6 green, 7 red; 2 for
-  effect 1, the tint), then two colour layers (r, g, b, amount, blend
-  kind). They go to the shader constants (`DAT_019AFF00`…) of
-  `shader/nexl_nxshader_pre_alter.bnsh`, which turns the texel to
-  gamma (x^0.4545, ×255), takes greyscale as (54 R + 183 G + 19 B)/256
-  and applies the levels (c3[0x0] gain, c3[0x10] low, c3[0x20] high
-  per channel). The draw's own word for it (`FUN_001b0890`, the draw
-  descriptor's +0xC) is never read by `FUN_0019fe00`. **Unknown**: the
-  rest of that shader (the gain's exact use and the two layers'
-  blends). Following it needs a levels/colour-layer filter in the
-  engine; not converted.
 - `_SNX4(…)` (8,762), **seen**: `script_command` has no case for it
   (`_SNX2` and `_SNX3` have), so the Switch exe does nothing. Left
   out.
 
 ## History
 
+- 2026-10-17: `_STEC` effects 2–82 (9,193 uses), **seen**: the record
+  (83 × 20 f32 at 0x4358B0, `stec.rs`) goes to the shader constants
+  (`FUN_0019f6c0`, defaults from `FUN_001ec000`: gamma 1, low 0, high
+  255) of `shader/nexl_nxshader_pre_alter.bnsh` (fragment program at
+  file offset 0x1080, `envydis -m gm107`; its constant bank 1 is 1/255,
+  −1/255, 255, 127.5 at 0x2300), which draws an altered texture: per
+  texel (0–255) the greyscale (54 R + 183 G + 19 B)/256 in mode 1, then
+  per channel `low + (high − low)·g/255` with g = 0 for a gamma ≤ 0, else
+  255·(c/255)^(1/gamma); then each colour layer L (r, g, b) at amount a
+  (0–1) by its blend: 2 normal `c + a(L − c)`, 3 add `min(c + aL, 255)`,
+  5 multiply, 8 colour dodge `255c/(255 − aL)` (black for c ≤ 3), 14
+  add then mixed by a, 17 screen, 18 overlay; others none. Effect 1
+  (mode 2) fills the texel with the colour instead, and the layer is then
+  drawn in that colour too (the normal shader multiplies by it), so a
+  white `_STEC(n,1,0xFFFFFF)` is a white silhouette, not "none" as
+  converted before. The shader's last step (brightness and contrast,
+  `FUN_001a3180`'s first two arguments) is 1.0 for these. Converted
+  with CONscripter's `spfilter` kinds 9/10 and blends 4/5 (#99).
 - 2026-10-17: `_STCH` arguments 7 and 8, **seen** unused: `FUN_00160840`
   reads arguments 0 and 2–6 (`FUN_00102c38`/`FUN_00102d3c`), 1 as the
   name (`FUN_00102c6c`) and 9–19, never 7 or 8, and `script_command`
