@@ -3798,6 +3798,40 @@ scene a.nss
     }
 
     #[test]
+    fn ma01_009s_side_boxes_stand_apart_until_the_next_side_text() {
+        let story = r#"
+scene ma01_009.nss
+{
+	CreateTexture("boxRT", 20000, 0, 40, "cg/sys/adv/TextWindow_Fw.png");
+	Request("boxRT", Hideable);
+	Fade("boxRT", 0, 1000, null, true);
+	SetFwR("cg/fw/a.png");
+<PRE @box0>
+[text0010]
+　一行目
+</PRE>
+	SetText();
+	TypeBegin();
+	SetTextEXR();
+<PRE @box0>
+[text0020]
+　二行目
+</PRE>
+	SetText();
+	TypeBegin();
+}
+"#;
+        let mut files = BTreeMap::new();
+        files.insert(BOOT.to_string(), nss::parse("#include \"nss/function.nss\"\n").unwrap());
+        files.insert("function.nss".to_string(), nss::parse(LIBRARY).unwrap());
+        files.insert("ma01_009.nss".to_string(), nss::parse(story).unwrap());
+        let c = compile_scene(&files, "ma01_009.nss", "ma01_009.nss", &MURAMASA_EN, &mut Fake).unwrap();
+        let mut xs = vec![c.window.unwrap().x];
+        xs.extend(c.ops.iter().filter_map(|op| if let Op::SetWindow(w) = op { Some(w.x) } else { None }));
+        assert_eq!(xs, [690, 616]);
+    }
+
+    #[test]
     fn with_two_boxes_up_the_text_goes_in_the_one_set_text_names() {
         let story = r#"
 scene a.nss

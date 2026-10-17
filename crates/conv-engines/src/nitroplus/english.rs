@@ -238,9 +238,7 @@ impl English {
             let mut calls = Vec::new();
             scene_fn.calls(&mut calls);
             subtitles.insert(scene.to_lowercase(), scene_subtitles(&calls, &lang.table_literal_rows("TransVoice")));
-            if !OWN_BOXES.contains(&scene) {
-                captions.insert(scene.to_lowercase(), scene_captions(&calls));
-            }
+            captions.insert(scene.to_lowercase(), scene_captions(&calls));
             let mut vars: HashMap<String, Vec<String>> = HashMap::new();
             for (call, args) in &calls {
                 note_unread(&mut unread, call, args, false);
@@ -515,10 +513,6 @@ fn scene_subtitles(calls: &[(String, Vec<squirrel::Arg>)], rows: &[(String, Vec<
 fn is_japanese(t: &str) -> bool {
     t.chars().any(|c| ('\u{3040}'..='\u{9fff}').contains(&c))
 }
-
-/// Scenes whose English text areas lie in boxes of their own, not drawn
-/// yet (ma01_009's `SetFwLL`/`SetFwRR`): their lines are left out.
-const OWN_BOXES: &[&str] = &["ma01_009"];
 
 /// The story captions of a scene's calls: each `CreateText` of the
 /// Japanese branch, or `SetText` on a `CreateTextArea`, with the English

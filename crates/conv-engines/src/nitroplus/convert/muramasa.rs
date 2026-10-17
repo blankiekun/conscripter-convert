@@ -108,22 +108,43 @@ const EN_BOXES: [(&str, i64, Option<i64>, &str); 10] = [
 
 /// Where the port puts a face (`Fw…`) or name plate (`Nw…`) picture of
 /// `function_stand.nss`'s `FwC`, `NwC`, … (`$FwCName` = `FwC01` …): in
-/// its window's frame (`FwInfo` in `val.nut`, the English table), not at
-/// the Japanese place (C 451,4; H 228,450) the NSS `Move`s it to.
-fn en_face(name: &str) -> Option<(i64, i64)> {
+/// its window's frame (`FwInfo` in `val.nut`, the English table: 92 px
+/// into the box, C 452,55; R 708,55; L 195,55; RR and LL as far into
+/// theirs), not at the Japanese place (C 451,4; H 228,450) the NSS
+/// `Move`s it to.
+fn en_face(c: &Compiler<'_, '_>, name: &str) -> Option<(i64, i64)> {
     let kind = name.strip_prefix("Fw").map(|k| (k, true)).or(name.strip_prefix("Nw").map(|k| (k, false)))?;
     let (box_kind, face) = (kind.0.trim_end_matches(|c: char| c.is_ascii_digit()), kind.1);
     if box_kind.len() == kind.0.len() {
         return None;
     }
-    Some(match (box_kind, face) {
-        ("C", _) => (452, 55),
-        ("R", _) => (708, 55),
-        ("L", _) => (195, 55),
-        ("H", true) => (87, 439),
-        ("H", false) => (89, 439),
-        _ => return None,
-    })
+    // The box's x where it is up, else its usual place.
+    let in_box = |b: &str, x: i64| Some((c.objects.get(&format!("box{b}T")).map_or(x, |o| o.x) + 92, 55));
+    match (box_kind, face) {
+        ("C", _) => in_box("C", 360),
+        ("R", _) => in_box("R", 616),
+        ("L", _) => in_box("L", 103),
+        ("H", true) => Some((87, 439)),
+        ("H", false) => Some((89, 439)),
+        _ => None,
+    }
+}
+
+/// The side boxes' x (with a face and without): the port's R and L, or
+/// ma01_009's RR and LL (`SetFwRR`/`SetFwLL` where the NSS calls its only
+/// `SetFwR`/`SetFwL`: three boxes side by side, `FwInfo` 690 and 28).
+fn place_side_box(c: &mut Compiler<'_, '_>, side: &str, wide: bool) {
+    let x = match (side, wide) {
+        ("R", false) => 616,
+        ("R", true) => 690,
+        ("L", false) => 103,
+        _ => 28,
+    };
+    for b in [format!("box{side}T"), format!("box{side}{side}")] {
+        if let Some(o) = c.objects.get_mut(&b) {
+            o.x = x;
+        }
+    }
 }
 
 /// [`call`], with the port's boxes for `function.nss`'s: each made at the
@@ -133,6 +154,11 @@ fn call_en(c: &mut Compiler<'_, '_>, name: &str, args: &[Value]) -> bool {
     // shown for a caption: mb04_015vs).
     if let Some(k) = name.strip_prefix("SetTextEX") {
         c.text_box = Some(match k { "hyperR" => "R", "CColor" => "C", k => k }.to_string());
+    }
+    match name {
+        "SetFwR" | "SetFwL" => place_side_box(c, &name[5..], c.file == "ma01_009.nss"),
+        "SetTextEXR" | "SetTextEXL" => place_side_box(c, &name[9..], false),
+        _ => {}
     }
     let en_box = match args.first() {
         Some(Value::Str(s)) => EN_BOXES.iter().find(|b| b.0 == s),
@@ -166,8 +192,8 @@ fn call_en(c: &mut Compiler<'_, '_>, name: &str, args: &[Value]) -> bool {
             c.note("CreateText left out: the Japanese caption (English build)");
             true
         }
-        ("Move", None) if args.len() >= 4 && en_face(&args[0].string()).is_some() => {
-            let (x, y) = en_face(&args[0].string()).unwrap_or_default();
+        ("Move", None) if args.len() >= 4 && en_face(c, &args[0].string()).is_some() => {
+            let (x, y) = en_face(c, &args[0].string()).unwrap_or_default();
             let mut args = args.to_vec();
             (args[2], args[3]) = (Value::Int(x), Value::Int(y));
             c.builtin("Move", &args);
