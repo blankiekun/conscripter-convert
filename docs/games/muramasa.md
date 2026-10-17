@@ -794,7 +794,19 @@ Next, in order:
      box blur of the same spread, scaled with a zoom the converter
      renders. Unverified: the engine's blur keeps the alpha, which the
      exe blurs too.
-   - `DrawEffect` waves (79), `CreateStencil` (59), `CreateMask` (31),
+   - `DrawEffect`: the waves (LowWave, MiddleWave, HighWave, SuperWave)
+     are converted, waiting on engine PR blankiekun/CONscripter#61
+     (`spwave`). The exe (`FUN_00430a70`, `FUN_00430de0`, `cb_00431230`)
+     shifts each row by trunc(sin(2π·phase/256) × amp) px, the row's phase
+     row × K / height (K 64, 512, 1024, 4096 by name) plus one per tick of
+     more than 32 ms; amp goes `from` → `to` over `time` by the tempo, then
+     stays (a wave ramped to 0 is removed). Left: the 10 waves on a
+     `Plain` cover (noted; the frozen screen would wave), Ripple (4) and
+     the Split kinds (7), noted; a wave picked up later (a picture shown
+     after the call, or moved to a new layer) restarts its rest straight,
+     without the tempo, and a picture cut to the screen loses its part's
+     phase offset.
+   - `CreateStencil` (59), `CreateMask` (31),
      `SetSurface`/`CreateSurface`, `LoadImage` as a texture source
      (Muramasa leaves `loaded_textures` off).
    - `Request(…, NoIcon)` (4) is dropped without a note: a `Request` on
@@ -803,8 +815,8 @@ Next, in order:
    - `system.ini`: the auto-mode icon (`icon_auto`, 15 frames) and the
      line-end kinsoku (`bad_end`) aren't used.
    - Check under wine: `<BR>` (16 uses) isn't in the exe's tag list but
-     is a line break in ours; 13 `DrawEffect` names have a trailing
-     space (`"LowWave "`) the exe may not match.
+     is a line break in ours. (The 13 `DrawEffect` names with a trailing
+     space match: the exe allows a space or tab after a name.)
    - Small: 47 sounds missing from the archives, 3 transition masks
      missing, 2 statements that don't parse, 2 voices outside a text
      block, 3 BGMs without loop played looping (the notes give counts

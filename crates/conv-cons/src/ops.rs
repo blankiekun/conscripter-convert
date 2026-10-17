@@ -200,7 +200,7 @@ impl<'a> Emitter<'a> {
                 writeln!(out, "print 1").unwrap();
             }
         }
-        Op::SpriteWave { layer, ms: 0, .. } => writeln!(out, "spwave {}", SPRITE_BASE + layer).unwrap(),
+        Op::SpriteWave { layer, period: 0, .. } => writeln!(out, "spwave {}", SPRITE_BASE + layer).unwrap(),
         Op::SpriteWave { layer, ms, period, from, to, ease } => {
             let c = curve(*ease, eased);
             writeln!(out, "spwave {},{ms},{period},{from},{to},{c}", SPRITE_BASE + layer).unwrap();

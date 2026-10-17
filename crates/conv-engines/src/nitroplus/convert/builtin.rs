@@ -365,8 +365,8 @@ impl Compiler<'_, '_> {
                 self.timed(arg(1).int(), &arg(5), &targets);
             }
             "DrawEffect" => {
-                // (obj, ms, kind, from, to, tempo): a wave of `from` → `to` px
-                // over `ms`, then gone (the exe matches the name exactly, a
+                // (obj, ms, kind, from, to, tempo): a wave going `from` → `to`
+                // px over `ms`, then held (the exe matches the name exactly, a
                 // trailing space allowed). The phase's turns over the height
                 // by name (`FUN_00430a70`).
                 let period = match arg(2).string().trim_end_matches([' ', '\t']) {
@@ -379,12 +379,7 @@ impl Compiler<'_, '_> {
                         return Value::Null;
                     }
                 };
-                // shortcut: 0 ms is taken as for good (mc04_019's burning
-                // house, 20 → 20 px); the exe's end test would end it at once.
-                let ms = match arg(1).int() {
-                    n if n > 0 => n.min(i64::from(i32::MAX)) as u32,
-                    _ => WAVE_FOREVER_MS,
-                };
+                let ms = arg(1).int().clamp(0, i64::from(i32::MAX)) as u32;
                 let (from, to) = (arg(3).int().clamp(-1000, 1000) as i32, arg(4).int().clamp(-1000, 1000) as i32);
                 let wave = Wave { start: self.sound_clock(), ms, period, from, to, ease: tempo(&arg(5)) };
                 for t in self.matching(&arg(0)) {
@@ -779,6 +774,3 @@ pub(super) fn shade_blur(passes: i64, scale: (i64, i64)) -> Vec<SpriteFilter> {
     let f = SpriteFilter { kind: Operand::Const(FILTER_BLUR), blend: Operand::Const(FILTER_BLEND_COPY), strength: Operand::Const(256), params: [rx.max(0), ry.max(0), 0].map(Operand::Const) };
     vec![f]
 }
-
-/// A `DrawEffect` wave of 0 ms: a day, for good.
-const WAVE_FOREVER_MS: u32 = 86_400_000;

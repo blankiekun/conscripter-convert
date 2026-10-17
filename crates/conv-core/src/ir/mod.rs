@@ -675,10 +675,11 @@ pub enum Op {
     /// are (a filter sorted below the bust-ups). Cleared by
     /// [`Op::ScreenFilter`] with `None`.
     ScreenFilterUnderSprites { slot: u32, filter: SpriteFilter },
-    /// The layer's rows drawn shifted sideways for `ms` ms (CONscripter's
-    /// `spwave`): row r by sin(2π(r·`period`/height + t/33 ms)/256) ×
-    /// amp px, amp going `from` → `to` px over the time (eased by `ease`,
-    /// as [`Op::MoveEase`]'s); `ms` 0 stops it. Nitroplus's `DrawEffect`
+    /// The layer's rows drawn shifted sideways (CONscripter's `spwave`):
+    /// row r by sin(2π(r·`period`/height + t/33 ms)/256) × amp px, amp
+    /// going `from` → `to` px over `ms` (eased by `ease`, as
+    /// [`Op::MoveEase`]'s), then held at `to`; with `to` 0 the wave ends
+    /// there, and `period` 0 ends it at once. Nitroplus's `DrawEffect`
     /// waves.
     SpriteWave { layer: u32, ms: u32, period: u32, from: i32, to: i32, ease: Option<(u8, u32)> },
 }
