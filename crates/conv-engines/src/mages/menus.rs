@@ -289,7 +289,7 @@ pub fn save_menu(assets: &mut ArchiveAssets, labels: &Labels) -> Option<SaveMenu
         // To the plate's right edge, less a margin.
         text_width: plate.width().saturating_sub(172 + 12),
         backdrop: None,
-        engine_screen: false,
+        engine_screen: true,
     })
 }
 
