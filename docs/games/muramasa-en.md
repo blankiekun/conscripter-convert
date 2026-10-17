@@ -131,20 +131,22 @@ settle:
   dish is too unless another path sets the flags. `mc02_031time`'s
   `$mc02_時間` (set in `function_process.nss`) is not a story flag: as
   before.
-- Code inside a page (this PR, shared NSS; engine PR #63): a `{…}`
+- Code inside a page (this PR, shared NSS; engine PR #63, merged: CONscripter 7db2f06): a `{…}`
   block between a page's lines, or inside a line, now runs where it
   stands. The text before it shows, the code runs, and the page goes
   on: on the same line when the code is inside a line or after a `<?>`
   (`/`; in the English build `` `…`/ ``, which CONscripter now reads),
   otherwise on the next line. A face changed there swaps only the
-  window's picture (`setwindow2`, `Op::WindowImage`; 124 in the
+  window's picture (`setwindow2`, `Op::WindowImage`; 126 in the
   English dry run); 5 windows that move inside a page stay where the
   page began. In the Japanese builds ma01_026's document is typed one
   letter at a time with its key sounds (checked on a one-scene build
   with the trace). The English build still shows it whole before the
   sounds, because the port's English for it is one stretch (its
   `CreateTextArea` + `FadeCharacter` are not done). The dry runs of
-  Muramasa (both builds) and Django change (`/` line ends, `setwindow2`).
+  Muramasa (both builds) and Django change: sounds and waits move into
+  the page where they stand; line ends `/` (Muramasa 102, Django 7),
+  `` `…`/ `` (English 43); `setwindow2` (Muramasa 11, English 126).
 - Open (2026-10-16): mb03_022's bar at the port's 620×220 is done on
   branch `muramasa-en/bar-size` (pushed, no PR yet). The English-side
   `Metrics::left_out` entries (the 444 story `CreateText` left out on
