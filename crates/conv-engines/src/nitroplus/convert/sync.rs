@@ -101,6 +101,11 @@ impl Compiler<'_, '_> {
             })
             .collect();
         let mut want = want;
+        for (n, shown, ..) in want.iter_mut() {
+            if let Some(image) = self.stenciled(n, &shown.image) {
+                shown.image = image;
+            }
+        }
         for (n, m, o) in movies {
             // Playing: the movie itself, played by the engine as a
             // picture; else the frame showing.
