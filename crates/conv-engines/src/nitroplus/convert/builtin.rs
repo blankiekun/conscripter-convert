@@ -324,7 +324,9 @@ impl Compiler<'_, '_> {
                     let tilted = turn.2 != before.2 && matches!(o.kind, Kind::Image { .. });
                     let text = matches!(o.kind, Kind::Text(_));
                     let edge = |t: (i64, i64, i64)| t.0.rem_euclid(180) == 90 || t.1.rem_euclid(180) == 90;
-                    if (o.mirror() != mirror || tilted || edge(turn) != edge(before)) && !text {
+                    let turned = (turn.0, turn.1) != (before.0, before.1);
+                    let over = o.mirror() != mirror;
+                    if (over || tilted || turned || edge(turn) != edge(before)) && !text {
                         flipped.push(t.clone());
                     }
                     match &mut o.kind {
@@ -333,12 +335,23 @@ impl Compiler<'_, '_> {
                         _ if turn.2.rem_euclid(360) != 0 => self.note("Rotate about z"),
                         _ => {}
                     }
-                    if ms > 0 && (turn.0, turn.1) != (before.0, before.1) && !text {
-                        self.note("Rotate over time drawn at once");
+                    if ms > 0 && turned && !text {
+                        // (From or to edge-on it shows one side all the way.)
+                        if over && !edge(before) && !edge(turn) {
+                            self.note("Rotate over time turning a picture over: mirrored at once");
+                        }
+                        // It and its children squash as it turns (convert/turn.rs).
+                        let turning = turn::Turning { target: t.clone(), from: (before.0, before.1), to: (turn.0, turn.1), ms: ms as u32, ease: tempo(&arg(5)) };
+                        let prefix = format!("{t}/");
+                        let children: Vec<String> = self.objects.keys().filter(|k| k.starts_with(&prefix)).cloned().collect();
+                        for n in children.iter().chain([t]) {
+                            self.pending_turn.insert(n.clone(), turning.clone());
+                        }
+                        flipped.extend(children);
                     }
                 }
                 // Only a picture that turns over or about z shows a change.
-                if flipped.iter().any(|t| self.shown.contains_key(t)) {
+                if flipped.iter().any(|t| self.shown.contains_key(t) || self.pending_turn.contains_key(t)) {
                     self.timed(ms, &wait, &flipped);
                 }
             }
