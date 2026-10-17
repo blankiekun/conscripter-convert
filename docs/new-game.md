@@ -618,7 +618,9 @@ natively, at every milestone:
   (each source call converted fully or with a gap, per command kind),
   which the convert-metrics page on blankiekun.github.io shows: the
   engine opens and closes each call on `conv_engines::metrics::Metrics`
-  so its notes land on it.
+  so its notes land on it; a call left out on purpose (unreachable code such
+  as a debug menu) goes to `Metrics::left_out`, which the page counts as
+  done but lists apart (`left_out`), so it isn't a gap.
 - **Add the game to the GUI**: its entry in `gui/games.py` (the same
   markers as the registry, which a test checks; the marker
   files that recognise it, the command and font from the game's

@@ -655,7 +655,9 @@ names in `research/xuse/names.tsv`) showed opcodes read wrong from
 `objdump`. All 26 items of that list are done, and so is everything the
 debug trace found ("History", below). Items 28-45, from the operand notes, are done too (History); the one
 operand note left is `0x49`'s grey outline (message text has no outline
-in CONscripter), plus the debug menu's two opcodes (`0x30`, `0x62`).
+in CONscripter), plus the debug menu's two opcodes (`0x30`, `0x62`), which
+`metrics.json` counts as left out on purpose (`LEFT_OUT` in `xuse/build.rs`), not gaps.
+The outline is in `PLAN.md` §4.2's planned engine features.
 
 Converted and playable from start to end: text, voices, sprites with
 colour filters, backgrounds, BGM with loop points, sound effects, movies,

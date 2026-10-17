@@ -217,6 +217,7 @@ in the script today), roughly in order of payoff:
 | Game feature | Workaround today | Engine feature that would fix it |
 |---|---|---|
 | Right-click menu / hide window | Everything behind the on-screen button bar | CONscripter has `rgosub *label` now (engine PR #20): a right click at a text wait gosubs and returns to the same wait. Not emitted yet: which menu a right click opens is each game's choice (its command menu, or hiding the window), to be set where the game's menus are written |
+| An outline round message text in a colour of its own | 最果てのイマ's one `0x49` record with a grey (`0x808080`) outline is drawn with the usual decoration (its one remaining metrics gap) | A text tag (or `setwindow`-style setting) that draws the glyphs with an outline of a given colour and width, for every script |
 
 Done without engine work (the stock commands are enough; the per-game
 details, record layouts and handler addresses are in the game's document):
