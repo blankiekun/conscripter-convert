@@ -216,7 +216,37 @@ rather than by browsing:
    keys, an `spcurve` table, `cons_rule.dll` masks), Lua (logic,
    processes), or a new engine command (§10). Only the last needs an
    engine PR.
-6. **Write the results back.** Commit `names.tsv` with comments, fold the
+6. **Special values and units, per argument.** For every argument or
+   field the converter reads, look in the decompile for comparisons
+   against constants before it is used (`== -1`, `-32766`/`-32767`,
+   `0x8000`, `0xFFFF`, `-100000`, `0`) and record each special value's
+   meaning in the game document; the converter must handle each one
+   (Tsukihime: motion key fields of -32766 mean "no key, interpolate",
+   `FUN_00197710` skips them; we used them as values and pictures flew
+   to -86829, while the metrics counted the field as converted). Record
+   each argument's unit too (ms or frames; px at which scale; percent or
+   1/256; degrees) and packed fields (two halves forming one value, such
+   as fields 8 and 9 as one i32 whose skip value is -100000).
+7. **Census the output.** `python3 -I research/tools/argcensus.py
+   out/<game>/0.txt` lists per command argument the count, range, top
+   values and sentinel-like or huge values (`--self-test` for its
+   check). Run it on each new dry run and explain every flagged value
+   from the exe or the data; the value audit only covers literals in our
+   own code.
+8. **Triage rule.** An off-screen, invisible or out-of-range trace
+   finding is "the original's data" only when you have SEEN that in the
+   original's code or data. A picture more than a screen away
+   mid-motion is always checked.
+9. **Dry-run parity.** A dry run's `0.txt` must equal the full build's
+    with the same flags (file names included: the dry run named UI
+    pictures `.png` while the build wrote `.webp`). Check once per new
+    media option.
+10. **What keeps running.** List what the original updates every frame
+    during effects, waits and fades (movies, motions, particles, sounds)
+    and check ours does the same (a movie stood still during a fade
+    because the engine didn't advance it).
+
+11. **Write the results back.** Commit `names.tsv` with comments, fold the
    decoded semantics into the engine's built-ins reference
    (`research/nitroplus/builtins.md` for Nitroplus), and put the gaps
    found in the game document's Status.
