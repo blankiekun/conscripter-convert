@@ -284,10 +284,25 @@ const OP_MODULE_WAIT: u16 = 0x87;
 /// Effect presets (0x88 defines a module, 0x90 attaches a preset to a
 /// bust-up) are kept in variables, so they follow the game's control flow:
 /// preset p, slot s is [`PRESET_FIELDS`] local variables from
-/// [`PRESET_VAR_BASE`] (the game's own locals are 0-2). Preset 1 is the
+/// [`PRESET_VAR_BASE`] (below them the game's slot variables,
+/// [`script_var`]). Preset 1 is the
 /// lighting tint (script 2 redefines it per mood); 2 and 3 are used in a
 /// few single scenes.
 const PRESET_VAR_BASE: u16 = 30;
+/// A bytecode variable. Bit 15 set: the original keeps it in each slot
+/// save (`load_svar` 0x46de00 puts it in the table at 0x519554, which
+/// `LocalSave.cpp` 0x461790 writes), so a local here: n 0-10 → %10-%20,
+/// 11-21 → %29-%39 (%21-%28 are conv-cons', %40 up the presets; the game
+/// uses 0-20). Bit 15 clear: the system data's
+/// (table 0x519544, written by `GlobalSave.cpp` 0x45f1a0), so a global,
+/// %230 up (%200-%220 held the slot variables in older gloval.sav files).
+fn script_var(code: u32) -> Var {
+    let n = (code & 0x7fff) as u16;
+    match code & 0x8000 != 0 {
+        true => Var { global: false, index: if n <= 10 { n } else { n + 8 } },
+        false => Var { global: true, index: 30 + n },
+    }
+}
 const PRESETS: u32 = 3;
 const PRESET_SLOTS: u32 = 3;
 /// kind, blend, strength, three parameters (as in [`SpriteFilter`]).
@@ -2614,7 +2629,7 @@ pub fn lower_script(
                     let (mut speaker, mut voice, mut hang) = (speaker, voice, hang);
                     // The words are links only while their variable isn't 0
                     // (the page's links share one): else a plain page.
-                    let shown_by = records.links.first().map(|l| Var { global: l.style & 0x8000 != 0, index: (l.style & 0x7fff) as u16 });
+                    let shown_by = records.links.first().map(|l| script_var(l.style));
                     let full_screen_rows = window_size.filter(|w| w.2).map(|(rows, columns, _)| (rows, columns));
                     for part in parts {
                         let lines = rows_of(&part.text, if hang.is_some() { indent } else { 0 });
@@ -3014,7 +3029,7 @@ fn lower_instr(
     // Label-table index -> label name (index 0 is the engine's implicit
     // entry, not stored in the file; its meaning isn't known).
     let label = |n: i64| table_label(cd, n);
-    let var = |v: u32| Var { global: v & 0x8000 != 0, index: (v & 0x7fff) as u16 };
+    let var = script_var;
     match ins.op {
         OP_GOTO | OP_GOTO_2 => {
             return Ok(own_label_at(cd, cd.arg(ins)).map(|_| Op::Jump(format!("s{}_l{}", cd.script_id, cd.arg(ins)))));
@@ -3677,6 +3692,14 @@ mod tests {
         assert_eq!(unique(&mut used, "bg", "a b.png", 3), "bg/a_b.png");
         assert_eq!(unique(&mut used, "bg", "a b.png", 9), "bg/9_a_b.png");
         assert_eq!(unique(&mut used, "sprite", "背景.png", 1), "sprite/__.png");
+    }
+
+    #[test]
+    fn slot_variables_are_locals_and_system_ones_globals() {
+        let n = |code| conv_core::alloc::number(script_var(code), 200);
+        assert_eq!((n(0x8000), n(0x800a), n(0x800b), n(0x8014)), (10, 20, 29, 38));
+        assert!(n(0x8015) < 10 + u32::from(PRESET_VAR_BASE));
+        assert_eq!((n(0), n(3)), (230, 233));
     }
 
     #[test]
