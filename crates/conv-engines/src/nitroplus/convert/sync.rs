@@ -436,7 +436,7 @@ impl Compiler<'_, '_> {
                 }
                 Some(op) => {
                     self.runs.insert(name.clone(), Run { from: start.clone(), to: now.clone(), ms: t, at: clock, ease: tempo.get(name).copied() });
-                    let engine = Engine { zoomed: old.engine.zoomed || old.zoom != now.zoom || old.angle != now.angle, moved: true };
+                    let engine = Engine { zoomed: old.engine.zoomed || old.zoom != now.zoom || old.cells != now.cells || old.angle != now.angle, moved: true };
                     if let Some(t) = self.objects.get(name).and_then(|o| o.trail) {
                         self.ops.push(Op::SpriteTrail { layer, passes: t.passes, alpha: t.alpha, lag: t.lag });
                     }
@@ -536,6 +536,8 @@ impl Compiler<'_, '_> {
                 continue;
             }
             let mut now = Shown { layer, ..now };
+            // (A movie placed again goes before its motion: lsp stops one.)
+            let placing = animated.len();
             if let Some(old) = grow.get(&name)
                 && let Some(op) = self.turn_motion(&name, &turning[&name], layer, old.as_ref(), Some(&now), true)
             {
@@ -578,10 +580,10 @@ impl Compiler<'_, '_> {
                         // A strip placed again: its last picture.
                         Some((_, _, zoom, frame_ms)) if let Some(Object { kind: Kind::Strip(s), .. }) = self.objects.get(&name).filter(|o| matches!(&o.kind, Kind::Strip(s) if !s.looped) && old.is_some_and(|o| o.image == now.image)) => {
                             let sprite = SpritePlacement { image: s.last.clone(), ..sprite };
-                            animated.push(Op::AnimatedSprite { layer, sprite, cells: 1, frame_ms, looped: false, zoom });
+                            animated.insert(placing, Op::AnimatedSprite { layer, sprite, cells: 1, frame_ms, looped: false, zoom });
                         }
                         Some((cells, looped, zoom, frame_ms)) => {
-                            animated.push(Op::AnimatedSprite { layer, sprite, cells, frame_ms, looped, zoom });
+                            animated.insert(placing, Op::AnimatedSprite { layer, sprite, cells, frame_ms, looped, zoom });
                         }
                         None => placed.push(SpriteChange { layer, sprite: Some(sprite), keep_filters: false }),
                     }
