@@ -566,9 +566,18 @@ at each step). Open:
   1 px lower: positions round since engine #80);
 - a press on the knob itself keeps the grab offset (the engine's rule),
   so a drag started on it ends 2 px from the routine's;
-- Muramasa EN (`settings_en`) still uses the script routine: its lying
-  sliders with a lit bar (`spcut`) and its check boxes have no screen
-  widget yet. 続・殺戮のジャンゴ's (stepped sliders) likewise.
+- 続・殺戮のジャンゴ's settings (stepped sliders) still use the script
+  routine.
+
+Muramasa EN's settings (`settings_en`) are the same screen: the lying
+sliders are picture sliders with the lit bar as their `fill` (engine
+#80), moving `%conv_set_<name>_shown` (1000 - the position, since the
+engine lights the bar from its min end; `*conv_ps_show` and
+`*conv_ps_lie` convert), the check boxes toggles with `pressed`, and the
+ON/OFF pairs radios. Against main's routine: 36 pixels at open (the knobs
+round to the nearest pixel now), the voice-volume drags give the same
+values; after a drag main's routine left the lit bar where the press
+began (its bug), the screen lights it to the knob.
 
 ### Queue (2026-10-16)
 

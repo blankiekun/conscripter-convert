@@ -179,15 +179,19 @@ fn settings_en(a: &mut dyn Assets) -> Option<PictureSettings> {
     let box_on = ["ConfigButton-boxONcheck", "ConfigButton-boxONcheckOver", "ConfigButton-boxON"];
     let box_off = ["ConfigButton-box", "ConfigButton-boxMouseOver", "ConfigButton-boxMousePress"];
     let mut pairs = Vec::new();
+    // Check boxes need none (their sides are the pictures): theirs repeated.
+    let mut chosen = Vec::new();
     // src: sys_config.nut main (ConfigCreateToggle1-3, ConfigCreateGage places); sys_val.nut defaults
     for (option, x, y, default_on) in [(PairOption::MovieStop, 91, 74, false), (PairOption::AutoWaitsForVoice, 377, 396, true)] {
         pairs.push(PicturePair { option, on: strip(a, &box_on, x, y)?, off: strip(a, &box_off, x, y)?, default_on });
+        chosen.push((pairs.last()?.on.clone(), pairs.last()?.off.clone()));
     }
     // The mutes: checked is muted (the pair's off).
     for (option, y) in [(PairOption::Bgm, 57), (PairOption::Se, 130), (PairOption::Voice, 203)] {
         let heard = strip(a, &["ConfigButton-round", "ConfigButton-roundMouseOver", "ConfigButton-roundMousePress"], 769, y)?;
         let muted = strip(a, &["ConfigButton-roundONcheck", "ConfigButton-roundONcheckMouseOver", "ConfigButton-roundON"], 769, y)?;
         pairs.push(PicturePair { option, on: heard, off: muted, default_on: true });
+        chosen.push((pairs.last()?.on.clone(), pairs.last()?.off.clone()));
     }
     // ON and OFF: (the option's on side's column, …).
     let small = |a: &mut dyn Assets, side: &str, x: i32, y: i32| strip(a, &["ConfigButton-small-no", &format!("ConfigButton-small-{side}"), &format!("ConfigButton-small-{side}check")], x, y);
@@ -195,6 +199,16 @@ fn settings_en(a: &mut dyn Assets) -> Option<PictureSettings> {
         let (on_x, off_x) = if on_is_on { (394, 429) } else { (429, 394) };
         let (on_side, off_side) = if on_is_on { ("on", "off") } else { ("off", "on") };
         pairs.push(PicturePair { option, on: small(a, on_side, on_x, y)?, off: small(a, off_side, off_x, y)?, default_on });
+        // The chosen side as the routine draws it (its third cell over its
+        // first), in all three cells: an engine radio's picture while on.
+        let picked = |a: &mut dyn Assets, side: &str, x: i32| {
+            let (no, w, h) = a.image(&format!("{DIR}/ConfigButton-small-no.png"))?;
+            let (check, _, _) = a.image(&format!("{DIR}/ConfigButton-small-{side}check.png"))?;
+            let cells: Vec<(String, i64, i64, i64)> = (0..3).flat_map(|k| [(no.clone(), k * w as i64, 0, 1000), (check.clone(), k * w as i64, 0, 1000)]).collect();
+            let (image, _, _) = a.composite(&cells)?;
+            Some(Placed { image, x, y, w: w as i32, h: h as i32 })
+        };
+        chosen.push((picked(a, on_side, on_x)?, picked(a, off_side, off_x)?));
     }
     let knob = strip(a, &["ConfigSlider-off", "ConfigSlider-on"], 0, 0)?;
     let full = picture(a, "ConfigSlider-Full", 0, 0)?;
@@ -257,7 +271,7 @@ fn settings_en(a: &mut dyn Assets) -> Option<PictureSettings> {
         fade_ms: 300,
         pair_fade_ms: 0,
         voice_window: None,
-        engine_screen: None,
+        engine_screen: Some(SettingsScreen { chosen, voices_checked: Vec::new() }),
     })
 }
 
