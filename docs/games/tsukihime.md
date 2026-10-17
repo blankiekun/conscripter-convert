@@ -609,14 +609,13 @@ Nothing yet.
 | Exe tables (pictures, motions, scene numbers) | ✅ read from the NSO (`typemoon exe`); picture sizes checked against the textures |
 | Scripts | 🔶 read: every command of both languages splits (one malformed in the original) and its text and voices join; the top commands' arguments read from the exe, the rest not yet |
 | Media folder (`typemoon media`) | ✅ `allpac`'s pictures as full-size WebP (2.37 GB), movies at 720p, sound |
-| Script conversion (`typemoon convert`) | 🔶 the flow (labels, `_JUMP`, `_IF__`, flags), text (pages, ruby, voices), pictures (`_STCH`/`_STCC`/`_FADS`: record size and place, fades and rule wipes), sound effects and music; plays from the start through `00_00` into the first arc headless. Layers drawn in priority order (`_STCP`, `_STCH` argument 6), zoomed (`_STZ4`), faded (`_STGS`) and moved (`_STMA`, the exe's motions; easing, priority and expression keys not followed), children placed in their parent layers and orbiting with their turn (`_STCH` argument 11), clipped to their panels (`_STCH` arguments 12–16), turned (`_STRT`), drawn with their shader as far as CONscripter's blends and filters go (`_STBR`) and tinted (`_STEC` effect 1). Choices (`_SELR`, `_SELD`, `_GOTS`), `_GOTO` and the Switch's own branches (`_IFNX`/`_IFP4`). Not yet: `_STEC`'s other effects, the other layer commands, screens |
+| Script conversion (`typemoon convert`) | 🔶 the flow (labels, `_JUMP`, `_IF__`, flags), text (pages, ruby, voices), pictures (`_STCH`/`_STCC`/`_FADS`: record size and place, fades and rule wipes), sound effects and music; plays from the start through `00_00` into the first arc headless. Layers drawn in priority order (`_STCP`, `_STCH` argument 6), zoomed (`_STZ4`), faded (`_STGS`) and moved (`_STMA`, the exe's motions; easing, priority and expression keys not followed), children placed in their parent layers, orbiting with their turn and following their motions (`_STCH` argument 11), clipped to their panels (`_STCH` arguments 12–16), turned (`_STRT`), drawn with their shader as far as CONscripter's blends and filters go (`_STBR`) and tinted (`_STEC` effect 1). Choices (`_SELR`, `_SELD`, `_GOTS`), `_GOTO` and the Switch's own branches (`_IFNX`/`_IFP4`). Not yet: `_STEC`'s other effects, the other layer commands, screens |
 | Screens, extras | ❌ |
 
 ### Next
 
 1. The script conversion, next part: the layer commands the opening
-   leans on, in order of use: a parent's motions for its children;
-   then the chapter-jump menus (`JUMP00`–`JUMPQA`: `_SELR` with a
+   leans on, in order of use: the chapter-jump menus (`JUMP00`–`JUMPQA`: `_SELR` with a
    script name, 617 uses) and options shown only under a flag.
    `typemoon convert --dry-run` prints the counts. Splitting sprites
    into body and face crops is out unless the user asks.
@@ -661,6 +660,14 @@ The biggest commands not converted, looked up in `script_command`
   out.
 
 ## History
+
+- 2026-10-16: children follow their parent's motions. `_STMA` on a
+  parent gives each layer placed in it (and theirs) an `spmotion` of
+  its own, from where the parent's keys place it; the motions start
+  after every place of the `_FADS`. A child's alpha is its own times its
+  parent's (`FUN_001884f0`: the parent's at +0x1E4, `_STCH` argument 5).
+  Not followed: `_STGS` fades on a parent, and a child's own motion
+  beside its parent's.
 
 - 2026-10-16: a parent's turn for its children. `FUN_001892b0` and
   `FUN_00189420` (the child's x, y) turn its offset in the parent by

@@ -588,7 +588,10 @@ impl Lowering<'_, '_> {
                     self.clips[slot] = None;
                 }
             }
-            if let Some(m) = motions[slot] {
+        }
+        // After every place: a parent's motion moves its children too.
+        for (slot, m) in motions.into_iter().enumerate() {
+            if let Some(m) = m {
                 self.run_motion(slot, m);
             }
         }
@@ -615,30 +618,72 @@ impl Lowering<'_, '_> {
     }
 
     /// Emits motion `m` on IR layer `slot` (an `spmotion` from the
-    /// layer's place), and moves the layer's state to its last key.
+    /// layer's place), and moves the layer's state to its last key. Its
+    /// children (and theirs) follow it, each with an `spmotion` of its
+    /// own from where the parent's keys place it.
     // shortcut: the keys' easing, priority (0x3C) and expression (0x32, 0x34) are not followed; straight lines.
     fn run_motion(&mut self, slot: usize, m: usize) {
-        let (Some(start), Some(i)) = (self.slots[slot].clone(), self.slot_layer[slot]) else { return };
-        let Ok((_, (x0, y0), _)) = self.look(&start) else { return };
-        let mut at = start.clone();
-        let mut keys = Vec::new();
+        let Some(i) = self.slot_layer[slot] else { return };
+        let (Some(start), Some(shown)) = (self.slots[slot].clone(), self.shown[i].clone()) else { return };
+        // The layer as drawn and as shown (its own place) at each key.
+        let (mut at, mut own) = (start.clone(), shown.clone());
+        let mut states = Vec::new();
         for k in &self.g.motions[m - 1].keys {
-            if let Some(x) = k.x() {
-                at.x = f32::from(x);
+            for l in [&mut at, &mut own] {
+                if let Some(x) = k.x() {
+                    l.x = f32::from(x);
+                }
+                if let Some(y) = k.y() {
+                    l.y = f32::from(y);
+                }
+                if let Some(a) = k.alpha() {
+                    l.alpha = a.clamp(0, 255) as u32;
+                }
+                let (zx, zy) = k.zoom();
+                l.stretch = (zx.map_or(l.stretch.0, |z| f32::from(z) / 1000.0), zy.map_or(l.stretch.1, |z| f32::from(z) / 1000.0));
             }
-            if let Some(y) = k.y() {
-                at.y = f32::from(y);
+            states.push((k.time_ms, at.clone(), own.clone()));
+        }
+        if states.is_empty() {
+            return;
+        }
+        let mut moves = vec![(slot, start, states.iter().map(|(ms, l, _)| (*ms, l.clone())).collect::<Vec<_>>())];
+        for c in (0..LAYERS).filter(|&c| c != slot) {
+            let (Some(j), Some(child)) = (self.slot_layer[c], self.slots[c].clone()) else { continue };
+            if !self.descends(j, i) {
+                continue;
             }
-            if let Some(a) = k.alpha() {
-                at.alpha = a.clamp(0, 255) as u32;
-            }
-            let (zx, zy) = k.zoom();
-            at.stretch = (zx.map_or(at.stretch.0, |z| f32::from(z) / 1000.0), zy.map_or(at.stretch.1, |z| f32::from(z) / 1000.0));
-            let Ok((_, (x, y), _)) = self.look(&at) else { return };
+            let keys = states
+                .iter()
+                .filter_map(|(ms, _, own)| {
+                    self.shown[i] = Some(own.clone());
+                    Some((*ms, self.resolved(j, 0)?))
+                })
+                .collect();
+            moves.push((c, child, keys));
+        }
+        self.shown[i] = Some(shown);
+        for (c, start, keys) in moves {
+            self.emit_motion(c, &start, &keys);
+        }
+        // shortcut: the layer's state jumps to the motion's end; a picture drawn again mid-motion starts there.
+        let end = |l: &mut Layer| (l.x, l.y, l.alpha, l.stretch) = (at.x, at.y, at.alpha, at.stretch);
+        for l in [self.slots[slot].as_mut(), self.shown[i].as_mut(), self.staged[i].as_mut()].into_iter().flatten() {
+            end(l);
+        }
+    }
+
+    /// An `spmotion` on IR layer `slot` from `start` (as it is drawn)
+    /// through each key's state.
+    fn emit_motion(&mut self, slot: usize, start: &Layer, states: &[(u32, Layer)]) {
+        let Ok((_, (x0, y0), _)) = self.look(start) else { return };
+        let mut keys = Vec::new();
+        for (ms, at) in states {
+            let Ok((_, (x, y), _)) = self.look(at) else { return };
             // spmotion's zoom multiplies the place's (spzoom), about its centre.
             let rel = |z: f32, z0: f32| if z0 == 0.0 { 100 } else { (100.0 * z / z0).round().max(0.0) as u32 };
             keys.push(MotionKey {
-                ms: k.time_ms,
+                ms: *ms,
                 x: (x - x0).round() as i32,
                 y: (y - y0).round() as i32,
                 zoom: rel(at.stretch.0.abs(), start.stretch.0.abs()),
@@ -655,11 +700,18 @@ impl Lowering<'_, '_> {
             self.ops.push(Op::SpriteOpacity { layer: Some(slot as u32), opacity: 256 });
         }
         self.ops.push(Op::SpriteMotion2 { layer: slot as u32, keys, end: MotionEnd::Keep });
-        // shortcut: the layer's state jumps to the motion's end; a picture drawn again mid-motion starts there.
-        let end = |l: &mut Layer| (l.x, l.y, l.alpha, l.stretch) = (at.x, at.y, at.alpha, at.stretch);
-        for l in [self.slots[slot].as_mut(), self.shown[i].as_mut(), self.staged[i].as_mut()].into_iter().flatten() {
-            end(l);
+    }
+
+    /// Whether layer `j` is placed in layer `i`, or in one placed in it.
+    fn descends(&self, mut j: usize, i: usize) -> bool {
+        for _ in 0..LAYERS {
+            match self.shown[j].as_ref().and_then(|l| l.parent) {
+                Some(p) if p == i => return true,
+                Some(p) => j = p,
+                None => return false,
+            }
         }
+        false
     }
 
     /// Where and how `l` is drawn: the image, its middle on the screen and
@@ -694,7 +746,6 @@ impl Lowering<'_, '_> {
     /// the parent's place by the angles summed up the chain. Its own picture
     /// turns by its own angle only (`FUN_001884f0` copies the layer's angle
     /// alone into what `FUN_00189ad0` draws).
-    // shortcut: the parent's motions are not followed.
     fn resolved(&self, i: usize, depth: usize) -> Option<Layer> {
         let mut l = self.shown[i].clone()?;
         let Some(p) = l.parent.filter(|_| depth < LAYERS) else { return Some(l) };
@@ -708,6 +759,8 @@ impl Lowering<'_, '_> {
         let (sin, cos) = (self.turn(p, depth + 1) as f32 * std::f32::consts::PI / 18000.0).sin_cos();
         l.x = parent.x + u * cos - v * sin;
         l.y = parent.y + u * sin + v * cos;
+        // Its alpha times its parent's own (`FUN_001884f0`).
+        l.alpha = l.alpha * self.shown[p].as_ref().map_or(255, |q| q.alpha) / 255;
         l.stretch = (l.stretch.0 * zx, l.stretch.1 * zy);
         l.clip = parent.clip;
         l.parent = None;
@@ -997,6 +1050,34 @@ mod tests {
         let clips: Vec<_> = compile(&g).ops.into_iter().filter(|o| matches!(o, Op::SpriteClip { .. })).collect();
         let panel = (360, 220, 560, 280);
         assert_eq!(clips, [Op::SpriteClip { layer: 38, rect: panel }, Op::SpriteClip { layer: 39, rect: panel }, Op::SpriteClip { layer: 39, rect: (0, 0, 1280, 720) }]);
+    }
+
+    #[test]
+    fn a_child_follows_its_parents_motion() {
+        use crate::typemoon::exe::{Key, Motion};
+        let key = |ms, set: &[(usize, i16)]| {
+            let mut fields = [Key::UNSET; 30];
+            for &(at, v) in set {
+                fields[(at - 4) / 2] = v;
+            }
+            Key { time_ms: ms, fields }
+        };
+        // The parent goes 60 script units right (160 px) and fades out.
+        let motion = Motion { length_ms: 500, keys: vec![key(0, &[(0x08, 240), (0x0C, 255)]), key(500, &[(0x08, 300), (0x0C, 0)])] };
+        let src = "_STCH(1,img1,240,136,1000,255,10);_STCH(2,dot,300,136,1000,128,20,,,,,1);_FADS(1,0,0);_STMA(1,1);";
+        let g = Game {
+            scripts: vec![("S".into(), script::parse(src).into_iter().map(Result::unwrap).collect())],
+            scenes: vec![],
+            lines: vec![],
+            pictures: [picture("img1", 1280.0, 724.0), picture("dot", 10.0, 10.0)].into(),
+            textures: HashMap::new(),
+            sounds: vec![],
+            waves: HashMap::new(),
+            motions: vec![motion],
+        };
+        let ops = compile(&g).ops;
+        let moves: Vec<_> = ops.iter().filter_map(|o| if let Op::SpriteMotion2 { layer, keys, .. } = o { Some((*layer, keys.iter().map(|k| (k.ms, k.x, k.opacity)).collect::<Vec<_>>())) } else { None }).collect();
+        assert_eq!(moves, [(39, vec![(0, 0, 256), (500, 160, 0)]), (38, vec![(0, 0, 128), (500, 160, 0)])]);
     }
 
     #[test]
