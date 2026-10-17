@@ -294,6 +294,7 @@ is noted) and why:
 | `0x46` | `-4` | 0 | the link entry's first field, which only the save and load read (History, item 43) |
 | `0x70` | `-4` | 0 | a cleared slot's blend and opacity (kind 0 or slot 0), which `op_70` (`0x415a30`) doesn't read (History, item 38) |
 | `0x8c` | `+4` | layer 0, depth 1000, 1100, 2000, 500; 0 when clearing | the effect's sort key: every one sorts over all the bust-ups, as ours draws them (History, item 31) |
+| `0x49`, `0x4a` | `-4` | `0xff000000`; `0x4a` also `0xff000001` | no edge colour of the record's own, or the default one: the default decoration (History, item 29) |
 | `0x70` | `-8` | 10, 0 | Zigzag's begin angle and reduction, which its draw (`0x41dab0`) doesn't read (History, item 39) |
 | `0x56` | `+2` | u32 0, 2000 | a slot-1 fill's sort depth in its band, where it is alone (History, item 40) |
 | `0x90` | `+2` | u32 1, 0, 2 | the preset module's place among the bust-up's modules, where it is alone (History, item 35) |
@@ -316,8 +317,7 @@ run's):
 | `0x40` | the extra block after the debug menu's one message (`0001.cd` #1): 1 note | dropped (unreachable) |
 | `0x44` | u16 flags at +6 (3 in 32, 1 in 5): 37 notes | dropped: meaning unknown |
 | `0x46` | u32 style at +6 (0x8007 in 205, 0x8012 in 9): 214 notes | dropped: the 9 style-18 links look like the others |
-| `0x49` | u32 edge colour at +12 (0xff000000 "keep" in 564, 0x808080 in 1): 565 notes | dropped |
-| `0x4a` | u32 edge colour: 2 notes | dropped |
+| `0x49` | the one edge colour of its own (0x808080, a grey outline; History, item 29): 1 note | dropped (no outline for message text) |
 | `0x56` | u32 depth at +2 (0 and 2000): 2 notes | dropped |
 | `0x59` | the old track fading out under the new one | partial: it stops at once (one BGM channel) |
 | `0x6f` | the pulse | converted, not checked against the original |
@@ -624,6 +624,7 @@ a copy of the save works.
 
 - Merged: `0x86`'s two trailing bytes as harmless (#163; History, item 45).
 - Merged: `0x8c`'s sort key as harmless (#180; History, item 31).
+- Open: `0x49`/`0x4a`'s edge colours as harmless but the grey one, PR #181 (History, item 29).
 - Open: command coverage per operand, PR #85 (supersedes #28): every
   operand given and not read, whatever its value (0 included), is a
   dry-run note and a gap in `metrics.json`, except the filler (`NO_SUB`,
@@ -631,7 +632,7 @@ a copy of the save works.
   the values it covers. Merged.
 - Open: `0x7a`'s size at +14 as harmless, PR #164 (History, item 44).
 - Merged: `0x46`'s last u32 as harmless (#170; History, item 43).
-- Open: screen filters under the bust-ups, `screenfilter`'s new z, PR #177 (History, item 30; engine #56 merged).
+- Merged: screen filters under the bust-ups, `screenfilter`'s new z (#177, engine #56; History, item 30).
 - Open: speaker names from `sub` bit 0, PR #102 (History, item 27):
   4,867 notes of 20 kinds left; 80,285 of 84,713 calls fully converted
   (was 49,328).
@@ -694,9 +695,9 @@ after History's 26, most noticeable first (notes = instructions):
 
 28. **Link style 18** (`0x46` u32 at +6, 214 notes): 9 links have style
     0x8012 instead of 0x8007 and look like the others.
-29. **Edge colours** (`0x49` u32 at +12, 565 notes; `0x4a`, 2): one
-    grey (`0x808080`) outline and the two `0x4a` ones are not drawn (564
-    are "keep").
+29. **The grey outline** (`0x49` edge colour `0x808080`, 1 note): one
+    message's characters get a grey edge; message text has no outline
+    in CONscripter (`strspoutline` is for `strsp` only).
 33. **Ruby flags** (`0x44` u16 at +6, 37 notes: 3 in 32, 1 in 5):
     meaning unknown.
 42. **The debug menu's message block** (`0001.cd` #1, 1 note): in the
@@ -1369,3 +1370,14 @@ sound effects on `dwave` channels.
    overlay or the static at 1000) sort over it there, ours under it.
    Checked: the dry run (9 `screenfilter` lines gain `,999`), and a
    headless test of the engine change.
+29. **Done in part: edge colours** (2026-10-16). `0x49` (+12) and
+   `0x4a` (+6) end with an edge colour, decoded by `0x491e30`:
+   `0xff000000` becomes -1, `0xff000001` the default edge, `0xff000002`
+   the current one, any other value itself. `FUN_00492000` sets a
+   character range's edge flags (0x30) only for a value other than -1.
+   So 564 of the 565 `0x49` records (`0xff000000`) give no edge of
+   their own, and `0x4a`'s two (0011.cd #5052: `0xff000000` for the four
+   orange one-character pages, then `0xff000001`) the default: all drawn
+   with the message's usual decoration, a row of the harmless table.
+   Left: one `0x49` record with `0x808080`, a grey outline on its
+   characters, which message text can't draw (Status item 29).
