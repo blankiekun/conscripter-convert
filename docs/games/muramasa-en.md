@@ -64,10 +64,8 @@ It has no NPA archives and no NSS scripts.
   lines (mb04_015vs: `《Even so―》`, `《That is justice!》`) pair with the
   NSS's `CreateText` by their Japanese (the port names the sprite
   `add_text01` for the NSS's `text02`), at the area's place and width
-  (R box, 630,190, 280 wide). 22 captions in the dry run. ma01_009's are
-  left out (`OWN_BOXES`): they lie in its English-only boxes `SetFwLL`/
-  `SetFwRR`, not drawn yet. Checked on a one-scene build of mb04_015vs
-  with the trace: the lines are placed, but two problems hide them
+  (R box, 630,190, 280 wide). ma01_009's came with its boxes (below).
+  Checked on a one-scene build of mb04_015vs with the trace: the lines are placed, but two problems hide them
   (not this PR): the engine's text window is drawn over them, and with
   two boxes up the window takes the first box in `EN_TEXT` (R), not the
   one `SetTextEXL` names (L), so the page's text lands on the caption.
@@ -86,8 +84,16 @@ It has no NPA archives and no NSS scripts.
   shown one in `EN_TEXT` (`call_en` keeps it in `text_box`): mb04_015vs's
   two pages move from R (630) to L (118), the caption staying in R (the
   only change in the dry run).
-- Next: ma01_009's own boxes (`SetFwLL`/`SetFwRR`) and its lines;
-  ma01_026's typed document and mc02_031's menus (Status "Next" 4).
+- ma01_009's three boxes (this PR): where the NSS calls its only
+  `SetFwR`/`SetFwL` the port calls `SetFwRR`/`SetFwLL`: the side boxes
+  stand at x 690 and 28 (`FwInfo` RR/LL), beside C at 360, until the
+  next `SetTextEXR`/`SetTextEXL` puts them back at 616 and 103
+  (`place_side_box` in `muramasa.rs`); a face sits 92 px into its box
+  (`en_face`). Its two text-area lines (`"The darkling."`, 43,190 and
+  705,190) are now taken (`OWN_BOXES` gone): 24 captions. Checked on a
+  one-scene build with the trace: the three boxes side by side, a face
+  and the line in each; the next page in R at 616.
+- Next: ma01_026's typed document and mc02_031's menus (Status "Next" 4).
 - Decided: a click on an empty slot at the title doesn't save (the
   original saves the title screen there): a deliberate difference.
   Continue loads the quick save, else the newest save. Japanese story
