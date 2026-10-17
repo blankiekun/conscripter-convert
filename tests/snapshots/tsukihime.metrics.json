@@ -1,12 +1,11 @@
 {
 "game": "tsukihime",
 "engine": "typemoon",
-"commit": "47a707e9",
+"commit": "17883bd2",
 "commit_date": "2026-10-17",
-"totals": {"calls": 1082419, "full": 848683, "gaps": 207772, "left_out": 25964},
+"totals": {"calls": 1082419, "full": 878580, "gaps": 177875, "left_out": 25964},
 "kinds": {
 "_STCH": {"calls": 54503, "gaps": 54503, "reasons": [["_STCH argument 8 ignored", 54478], ["_STCH argument 17 ignored", 2435], ["_STCH argument 18 ignored", 201], ["not converted", 24], ["_STCH argument 7 ignored", 1]]},
-"_STZ4": {"calls": 32319, "gaps": 32319, "reasons": [["_STZ4 argument 5 ignored", 32318], ["_STZ4 argument 6 ignored", 32318], ["_STZ4 argument 1 ignored", 31750], ["_STZ4 argument 2 ignored", 31179], ["_STZ4 argument 7 ignored", 29786], ["3 more", 4715]]},
 "_STRT": {"calls": 21691, "gaps": 21691, "reasons": [["_STRT argument 1 ignored", 21691], ["_STRT argument 3 ignored", 21691], ["_STRT argument 4 ignored", 21690], ["_STRT argument 2 ignored", 335], ["_STRT argument 5 ignored", 1]]},
 "_VPLY": {"calls": 16690, "gaps": 16690, "reasons": [["_VPLY argument 1 ignored", 16690], ["_VPLY argument 2 ignored", 1]]},
 "_WTTM": {"calls": 14828, "gaps": 14821, "reasons": [["_WTTM argument 1 ignored", 14821]]},
@@ -16,6 +15,7 @@
 "_STCF": {"calls": 5179, "gaps": 5179, "reasons": [["not converted", 5179]]},
 "_SCH2": {"calls": 4674, "gaps": 4674, "reasons": [["not converted", 4674]]},
 "_FANX": {"calls": 2741, "gaps": 2741, "reasons": [["not converted", 2741]]},
+"_STZ4": {"calls": 32319, "gaps": 2422, "reasons": [["_STZ4 argument 5 ignored", 2421], ["_STZ4 argument 6 ignored", 2421], ["_STZ4 argument 1 ignored", 2420], ["_STZ4 argument 3 ignored", 2418], ["_STZ4 argument 2 ignored", 2298], ["3 more", 2320]]},
 "_SNX2": {"calls": 1678, "gaps": 1678, "reasons": [["not converted", 1678]]},
 "_SEVL": {"calls": 1285, "gaps": 1285, "reasons": [["not converted", 1285]]},
 "_SQK2": {"calls": 1236, "gaps": 1236, "reasons": [["not converted", 1236]]},

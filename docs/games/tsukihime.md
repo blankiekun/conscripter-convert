@@ -343,8 +343,9 @@ addresses in `research/typemoon/names.tsv` are those of the 1.0.2
   - `_STCP(layer, p)` (`FUN_00162a40`) sets the layer's priority.
   - `_STZ4(layer, x0, y0, x1, y1, ms, e, f)` (`FUN_00162d20`): zoom in
     ‰ from (x0, y0) (default: the current zoom) to (x1, y1) over `ms`
-    (turned into frames, ·60/1000); `e` goes to `FUN_00132030` (easing?)
-    and `f` is a per-layer byte.
+    (turned into frames, ·60/1000); `e` is the easing (`FUN_00132030`,
+    for `FUN_00130c80`) and `f` a per-layer byte that keeps the zoom
+    off the picture's size (see History, 2026-10-17).
   - `_STMA(layer, m, mode, p)` (`FUN_00199620`): motion `m` (above;
     0 stops it), `p` a start parameter; `mode` 1 (or −1/2, depending
     on a setting) sets a flag (0x89E, meaning not known yet).
@@ -628,13 +629,16 @@ Nothing yet.
    gallery's CGs, 2 GB), `allui` (71 MB).
 4. The title, menus and the registry/GUI entry.
 5. Still open in the exe: `_FADS` type 1, `_STCH`'s panel frames
-   (argument 17's colours, the corner pieces at 0x75BE00), `_STZ4`'s last two, and the motion keyframes' other fields.
+   (argument 17's colours, the corner pieces at 0x75BE00), and the motion keyframes' other fields.
 6. The metrics (`tests/snapshots/tsukihime.metrics.json`) count each
    argument a converted command passes and doesn't read as a gap
    (`<command> argument <i> ignored`, `option <n>` for a backquote
    option); the list is in that file. The biggest: `_STCH` argument 8
-   (54,478), `_STZ4` arguments 1, 2, 5–7 (the timed zoom), `_STRT` 1,
-   3, 4 (from, time, easing), `_VPLY` 1, `_WTTM` 1, `_SEPL` option 17.
+   (54,478), `_STRT` 1,
+   3, 4 (from, time, easing), `_STZ4` on a layer not staged (2,418,
+   dropped: the exe sets the live layer at once, `FUN_00131f30` on
+   `DAT_00be0258`; how that meets `_FADS` not worked out) and its 2
+   timed uses, `_VPLY` 1, `_WTTM` 1, `_SEPL` option 17.
 
 ### Accuracy
 
@@ -676,6 +680,22 @@ The biggest commands not converted, looked up in `script_command`
   out.
 
 ## History
+
+- 2026-10-17: `_STZ4`'s other arguments, **seen** in `FUN_00162d20`,
+  `FUN_00131f30` and the draws (`FUN_00132e30`/`FUN_00137f50` for the
+  live layers, `FUN_00189ad0` for `FUN_001884f0`'s list). The time is
+  ms · 60 / 1000 frames (integer); at 0 frames the zoom is the target
+  and x0, y0 and the easing `e` are never used, so the 29,897 static
+  calls now read every argument. Argument 7 (`f`; empty keeps the
+  layer's, `_STCH` and `_STCC` clear it) is the layer's byte 0xA2
+  (state 0x874): when set, the quad is drawn at zoom 1 and the zoom
+  goes only to the shaders' constants (`FUN_001b3780`, draw flag 0x40;
+  **inferred**: for the blurs, `_STBR` 11 or 17 in most of its 55
+  uses). A child's place still uses its parent's zoom
+  (`FUN_00138a70` doesn't read the byte). The converter draws such a
+  layer without its `_STZ4` (or motion) zoom: 78 `spzoom` and 23
+  `spmotion` of the Japanese `0.txt` changed. Left: the 2 timed uses
+  (jump to their end) and 2,418 calls on layers not staged.
 
 - 2026-10-17: `_CLO2`/`_CLO3`/`_CLO4` hide the text window (`textoff`),
   all **seen** in `script_command` (0x177790) and `FUN_00138d40`

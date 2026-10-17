@@ -62,6 +62,13 @@ pub struct Compiled {
 /// How a layer is drawn: the image, its middle on the screen, its zoom (%).
 type Look = (String, (f32, f32), (i32, i32));
 
+impl Layer {
+    /// The `_STZ4` zoom the draw uses.
+    fn drawn_stretch(&self) -> (f32, f32) {
+        if self.stretch_off { (1.0, 1.0) } else { self.stretch }
+    }
+}
+
 /// A picture on a layer, as `_STCH` left it.
 #[derive(Debug, Clone, PartialEq)]
 struct Layer {
@@ -73,6 +80,9 @@ struct Layer {
     zoom: f32,
     /// `_STZ4`'s zoom across and down (1 = none; negative flips), times `zoom`.
     stretch: (f32, f32),
+    /// `_STZ4` argument 7 set: the draw leaves `stretch` out (`FUN_00132e30`
+    /// reads the layer's byte 0xA2), a child's place still uses it.
+    stretch_off: bool,
     alpha: u32,
     /// `_STGS`'s fade, from the next `_FADS` on: (from, to, ms); `alpha` is
     /// already `to`.
@@ -451,15 +461,26 @@ impl Lowering<'_, '_> {
                     *l = None;
                 }
             }
-            // `_STZ4(layer, x0, y0, x1, y1, ms, …)` (`FUN_00162d20`): the zoom
-            // in ‰ goes to x1, y1 (`_STCH` resets it to 1000).
-            // shortcut: a timed zoom (2 uses) jumps to its end.
+            // `_STZ4(layer, x0, y0, x1, y1, ms, ease, off)` (`FUN_00162d20`): the
+            // zoom in ‰ goes to x1, y1 (`_STCH` resets it to 1000) over ms · 60
+            // / 1000 frames; at 0 frames `FUN_00131f30` leaves out x0, y0 and the
+            // easing. `off` (empty: the layer's, `_STCH` clears it) keeps the
+            // zoom from the draw (`FUN_00132e30`).
+            // shortcut: a timed zoom (2 uses) jumps to its end; its x0, y0, ms and easing stay gaps.
             "_STZ4" => {
                 let Some(n) = number(arg(0)).filter(|n| (0..LAYERS as i32).contains(n)) else { return false };
                 let Some(l) = self.staged[n as usize].as_mut() else { return true };
                 let z = |i: usize, old: f32| if arg(i).is_empty() { Some(old) } else { number(arg(i)).map(|v| v as f32 / 1000.0) };
                 let (Some(zx), Some(zy)) = (z(3, l.stretch.0), z(4, l.stretch.1)) else { return false };
                 l.stretch = (zx, zy);
+                if a.get(5).map_or(Some(0), |v| number(v.trim())).is_some_and(|ms| (0..17).contains(&ms)) {
+                    for i in [1, 2, 5, 6] {
+                        arg(i);
+                    }
+                }
+                if let Some(off) = number(arg(7)) {
+                    l.stretch_off = off as u8 != 0; // src: a byte at 0x874 of the state
+                }
             }
             // `_STGS(layer, from, to, ms, ease)` (`FUN_001637a0`): the alpha
             // from `from` (default: the layer's) to `to` (default 0) over `ms`,
@@ -545,7 +566,7 @@ impl Lowering<'_, '_> {
             }
         }
         let parent = number(arg(11)).filter(|&p| (0..LAYERS as i32).contains(&p) && p as usize != n).map(|p| p as usize);
-        self.staged[n] = Some(Layer { base, expression, x, y, zoom: zoom / 1000.0, stretch: (1.0, 1.0), alpha: alpha.clamp(0.0, 255.0) as u32, fade: None, motion: None, parent, angle: number(arg(19)).unwrap_or(0), shader: 255, tint: None, clip });
+        self.staged[n] = Some(Layer { base, expression, x, y, zoom: zoom / 1000.0, stretch: (1.0, 1.0), stretch_off: false, alpha: alpha.clamp(0.0, 255.0) as u32, fade: None, motion: None, parent, angle: number(arg(19)).unwrap_or(0), shader: 255, tint: None, clip });
         // Argument 6, else layer × 10 (`FUN_00160840`).
         // src: exe 0x160840 (priority layer × 10 by default)
         self.priority[n] = if arg(6).is_empty() { n as i32 * 10 } else { number(arg(6)).unwrap_or(n as i32 * 10) };
@@ -707,10 +728,10 @@ impl Lowering<'_, '_> {
                 ms: *ms,
                 x: (x - x0).round() as i32,
                 y: (y - y0).round() as i32,
-                zoom: rel(at.stretch.0.abs(), start.stretch.0.abs()),
+                zoom: rel(at.drawn_stretch().0.abs(), start.drawn_stretch().0.abs()),
                 angle: 0,
                 opacity: at.alpha * 256 / 255,
-                zoom_y: rel(at.stretch.1.abs(), start.stretch.1.abs()),
+                zoom_y: rel(at.drawn_stretch().1.abs(), start.drawn_stretch().1.abs()),
             });
         }
         if keys.is_empty() {
@@ -748,7 +769,7 @@ impl Lowering<'_, '_> {
                 // for the screen); zoom about it. Records are 1280 × 724
                 // for the screen.
                 let (sx, sy) = (SCREEN_W as f32 / 480.0, SCREEN_H as f32 / 272.0); // src: exe 0x189ad0
-                let (zx, zy) = (l.zoom * l.stretch.0, l.zoom * l.stretch.1);
+                let (zx, zy) = (l.zoom * l.drawn_stretch().0, l.zoom * l.drawn_stretch().1);
                 let mx = l.x * sx + (p.width / 2.0 - p.centre.0) * zx;
                 let my = l.y * sy + (p.height / 2.0 - p.centre.1) * zy * SCREEN_H as f32 / STAGE_H;
                 // The file at the record's size (its art is mostly 2×).
@@ -782,7 +803,9 @@ impl Lowering<'_, '_> {
         l.y = parent.y + u * sin + v * cos;
         // Its alpha times its parent's own (`FUN_001884f0`).
         l.alpha = l.alpha * self.shown[p].as_ref().map_or(255, |q| q.alpha) / 255;
-        l.stretch = (l.stretch.0 * zx, l.stretch.1 * zy);
+        // shortcut: a parent that is a child with `stretch_off` places its children without its own zoom; the exe (`FUN_00138a70`) keeps it.
+        l.stretch = (l.drawn_stretch().0 * zx, l.drawn_stretch().1 * zy);
+        l.stretch_off = false;
         l.clip = parent.clip;
         l.parent = None;
         Some(l)
@@ -983,6 +1006,12 @@ mod tests {
         };
         let ops = compile(&g).ops;
         assert!(ops.contains(&Op::SpriteAngle { layer: 39, degrees: 0, zoom: (100, -25) }), "{ops:?}");
+        // Argument 7 keeps the zoom from the draw; static ones read every argument.
+        let src = "_STCH(1,img1,240,136);_STZ4(1,1000,1000,2000,-500,0,0,1);_FADS(1,0,0);";
+        let g = Game { scripts: vec![("S".into(), script::parse(src).into_iter().map(Result::unwrap).collect())], ..g };
+        let c = compile(&g);
+        assert!(c.ops.contains(&Op::SpriteAngle { layer: 39, degrees: 0, zoom: (50, 50) }), "{:?}", c.ops);
+        assert!(!c.metrics.reasons().keys().any(|r| r.contains("_STZ4")), "{:?}", c.metrics.reasons());
     }
 
     #[test]
