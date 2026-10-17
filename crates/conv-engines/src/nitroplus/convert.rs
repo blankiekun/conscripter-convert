@@ -4148,6 +4148,20 @@ function TypeBegin()
 "#;
 
     #[test]
+    fn a_whole_screen_shake_may_grow_from_nothing() {
+        // src: Muramasa.exe queue_shake 004462d0: the size goes from args 2-3 to 4-5.
+        let story = r#"
+scene a.nss
+{
+	CreateColor("震", 100, 0, 0, 1024, 576, "BLACK");
+	Shake("震", 2000, 0, 0, 0, 30, 1000, null, false);
+}
+"#;
+        let c = compile(story, LIBRARY);
+        assert!(c.ops.iter().any(|op| matches!(op, Op::ScreenEffect { effect: Some(_), .. })), "{:?}", c.ops);
+    }
+
+    #[test]
     fn the_english_port_writes_vertical_boxes_across_in_its_own_window() {
         let story = r#"
 scene a.nss

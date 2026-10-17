@@ -974,6 +974,9 @@ Next, in order:
      the mask doesn't load (FUN_0044fe00, seen), so none is drawn (the
      opacity left as it was: inferred).
    - `Conquest` returns 0 whatever its arguments (`Random`: picked at run time, Status).
+   - Done: a whole-screen `Shake` that grows from 0 px (7 calls, e.g.
+     5000 ms to 20 px) shakes; it was dropped (`queue_shake` 004462d0: the
+     size goes from arguments 2-3 to 4-5, seen).
    - `MoveCamera`'s arguments in a process (4 calls). (`CreateEffect`'s
      place and size are read: every story call covers the screen, a tone
      or `Plain` over part of it is noted; #355.)
