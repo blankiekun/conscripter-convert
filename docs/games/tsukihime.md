@@ -657,14 +657,6 @@ original (Japanese, default text size):
   dark values may differ by a level or two. Effect 82 (2 uses) is drawn
   as 67: its mode 3 also keeps G and B at 0 where they are 0.
 
-Open, settled by the code: the English (fan patch) text layout. When
-`FUN_0012df20` (0x12df20, the system language) says English, the text
-drawer `FUN_001391a0` (0x1391a0) starts lines at x 30 instead of 88,
-wraps them at 584 instead of 464 (the table at 0x44DEFC for the
-other window types), puts the first line 9.88 higher (65 → 55.1,
-state +0x670), and `FUN_001a7790` (0x1a7790) draws glyphs × 0.9.
-The build uses the Japanese layout for both languages.
-
 ### Open questions
 
 The biggest commands not converted, looked up in `script_command`
@@ -676,6 +668,20 @@ The biggest commands not converted, looked up in `script_command`
 
 ## History
 
+- 2026-10-17: the English (fan patch) text layout, **seen** in the
+  code: when `FUN_0012df20` (0x12df20, the system language) says
+  English, the text drawer `FUN_001391a0` (0x1391a0) starts lines at x
+  30 instead of 88, wraps them at 584 instead of 464, puts the first
+  line at (short)(65 − 9.882353) = 55 (state +0x670), and
+  `FUN_001a7790` (0x1a7790) draws glyphs × 0.9. The wrap table at
+  0x44DEFC (30 floats, window types 3–32 from state +0x8a2, or +0x8aa
+  in English when it is above 0) holds 299.8, 405.6, 509.8 for each
+  pair of types, the same in both languages and in both exes; types
+  0–2 take 464 or 584. The English build (detected by its text: most
+  lines without kana) uses x 60, y 88, 41 columns (1168 px / 28) and
+  27 px glyphs (1280 / 32 × 0.76 × 0.9); a headless page fills x 61
+  to 1206 and wraps there. The fan patch's text carries its own `^`
+  line breaks at about 55 letters, so few lines reach the wrap.
 - 2026-10-17: `_STEC` effects 2–82 (9,193 uses), **seen**: the record
   (83 × 20 f32 at 0x4358B0, `stec.rs`) goes to the shader constants
   (`FUN_0019f6c0`, defaults from `FUN_001ec000`: gamma 1, low 0, high
