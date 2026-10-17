@@ -430,10 +430,6 @@ over 200, their bullets at once (ours at once both).
       eased fade; ours linear. Hard to see.
    5. **`Rotate` 5, tempo** (42 left): read for turns about x or y over
       time; the rest are about z (`spmotion` straight) or in loops.
-   7. **`SetBacklog` 2, the speaker** (75; 73 `null`): two calls in
-      `dja035_01` name ジュリアン and イライザ; what the original's log
-      does with it (a name line, or the voice switches by character) is
-      unchecked.
    8. **Left of the no-change candidates**: `MoveCamera` 6 (15, a
        camera with no children yet: nothing moves; noted, as the value
        alone can't tell) and `CreateEffect` 2-3 (1, the `Sepia` effect at
@@ -446,8 +442,40 @@ over 200, their bullets at once (ours at once both).
       before one may be taken as ended too soon. Fine as is.
 6. `CreateEffect` Rain (37), Drop (4), Lens (2): 装甲悪鬼村正's, shared
    NSS code; noted, drawn as nothing.
+7. The exe mapping redone against `docs/new-game.md` steps 6-17
+   (2026-10-17): every argument and branch the converter maps, with
+   seen/inferred/unknown, in `docs/games/django.findings.tsv`. The
+   census (`argcensus.py`) flags only the script's own values (shake
+   amplitudes going to ±1, 300000 ms shakes, 20000-80000 ms moves, the
+   slideshow's 1 ms jump keys). Fixed: `SetVertex` px outside the
+   picture. Open, each from the decompile:
+   1. **`Wait` isn't ended by a click** (`0040bd80` waits on quit,
+      state change and skip only; Muramasa.exe `0040f7f0` the same);
+      ours is `delay`. `wait` would also hold through skip mode:
+      needs an engine choice (a `wait` that skip ends), shared with
+      装甲悪鬼村正.
+   2. `SetVertex` names: the exe compares lower case; ours any case,
+      as 装甲悪鬼村正 writes `Center`/`Middle` (whether its reader
+      lowers them first is unchecked).
+   3. `CreateColor` `GREEN` is 0x008000 in the exe (`LIME` 0x00FF00),
+      ours 0x00FF00; the other HTML names are missing. Not in Django's
+      data.
+   4. `SetPan` is DirectSound's (dB on the other side), `chpan`
+      linear; the data uses only 0 and ±1000, where they agree.
+   5. `Fade` with four arguments takes the fourth as the tempo, not
+      the wait; the six such calls take 0 ms.
 
 ## History
+
+- **`SetBacklog`'s third argument** (2026-10-17): the voice's
+  character name (`0040cd90`: with a voice, it goes with the voice
+  entry, as `<voice NAME=>`), what the converter already reads it as
+  (`backlog_character`); with `null` as the voice it does nothing.
+- **`SetVertex` outside the picture** (2026-10-17): the exe
+  (`004666c0`) leaves an axis whose px lies outside 0..size as it was;
+  dja004's `SetVertex("立絵30", center, 704)` on the 600 px robber kept
+  `bottom`, while ours moved his pivot 104 px down and the zoomed
+  picture 20 px with it.
 
 - **The extras' doors, music and rifle (2026-10-17).** Left out when the
   extras reused Muramasa's `PictureExtras`, now from `extra_menu.nss`

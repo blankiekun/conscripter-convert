@@ -1,0 +1,32 @@
+handler	argument or branch	status	source (Django.exe 1.01 unpacked)	what the original does	the converter
+(all timed)	wait (last arg)	seen	004310e0	`true` with time > 0 waits the whole time; a number n waits n ms (partial); 0, `false`, `null`, a missing arg: no wait	true/false/null as the exe; a number > 1 noted ("waits only part"), none in the story (only boot.nss, the title is ours)
+(all timed)	time	seen	00437980, 00439200, cb_00438fb0	steps = time × fps × 0.001 (fps 60), at least 1; time 0 sets at once	ms, same at 60 fps
+(all timed)	tempo	seen	00434ea0 + tables 00440f10-004413c0 (objdump)	name matched by byte sum with the first letter counted twice (quoted forms too); null and anything unknown (also `nullDxl2`, dja023): straight; Axl1-3 t^2-t^4, Dxl1-3 1-(1-t)^2..^4, AxlAuto 1-cos, DxlAuto sin, AxlDxl (1-cos πt)/2, DxlAxl FUN_004b6020	tempo(): the same curves
+Move	x, y	seen	00437980	`@n` relative, `@$var`/`@#var` relative by a variable; a child of a CreateFrame (kind 0x102) moved to a new x or y lands 8 px less (not used: no CreateFrame); a child of a relative window adds the parent's offset	relative/absolute as the exe; CreateFrame not used
+Move	z (MoveCamera only)	seen	0040ae10 → 004310e0	MoveCamera is Move with a third coordinate (the zoom)	MoveCamera arg 4
+Zoom	x, y	seen	00439200	per mille, `@` relative; 0 allowed (invisible)	per mille, at least 1
+Zoom	missing wait (dja023 `Zoom(...,500,@0,nullDxl2)`)	seen	0040aa50	5 args: tempo `nullDxl2` (straight), no wait	the same
+Rotate	x, y, z degrees	seen	00439590	`@` relative, no special values	as the exe
+Fade	alpha	seen	cb_00438fb0	0-1000 → a byte (×255/1000, no clamp: > 1000 would wrap); time > 0 with no change: at once	clamped 0-1000; the corpus stays 0-1000
+Fade	4 arguments	seen	0040a6e0	arg 3 is the tempo, no wait	arg 3 read as the wait: all 6 such calls (function.nss) take 0 ms, so the same
+Shake	n > 1000	seen	00431de0	does nothing	the same (shared, `shake_jolts`)
+Shake	n, time	seen	00431de0, 0043f570	flip every 1000/(n·0.06) ms; amplitude (x0,y0)→(x1,y1) along the tempo	`screenshake` interval 1000/(n·0.06); census: 300000 ms (dja050 l.1142) and -1 offsets (amplitude 3→1) are the script's
+Shake	wait when stopping (0 ms)	inferred	-	nothing to wait for	"Shake argument 8 ignored" ×3: the stop calls; harmless
+SetVertex	x, y names	seen	004666c0	lower case, per axis: left/center/right, top/middle/bottom; another word → atol (0)	per axis; any case kept (Muramasa writes `Center`; whether it is lowered first is unknown)
+SetVertex	px outside 0..size	seen	004666c0 (Muramasa 004891e0 the same)	that axis left as it was	fixed (django/vertex-range): dja004's `center,704` on a 600 px picture
+SetVertex	default	inferred	-	unknown before any SetVertex	centre (w/2, h/2)
+CreateCamera	z	seen	00408540	not a number: no camera made	z at least 1
+Camera	child priority ≥ 1000	seen	wine (boxes at four priorities)	not drawn; magnify z/(1000-p)	the same
+Position	names	seen	004403a0	upper-cased; x `CENTER` = 400 - w/2 (also IN/OUT/ON… names), `#nP`/`#n%` centred, `@nP`/`@n%`; y `MIDDLE`	center/middle either axis; `#`/`%`/`P` forms not used in the corpus
+CreateColor	colour	seen	0040fce0, 00410030	`#hex`, `0Xhex`, `"…"`, RGB(…)/RGBA(…), names CLEAR BLACK GRAY SILVER WHITE RED LIME BLUE YELLOW AQUA FUCHSIA MAROON GREEN(0x008000) NAVY OLIVE TEAL PURPLE; a non-hex letter skipped	black white red green(0x00FF00!) blue yellow, hex; the corpus uses only BLACK/White/#hex/0xhex: no difference in the data
+CreateSound	type	seen	00457940	BGM, SE, VOICE, SILENT (exact, upper case, a digit may follow) pick the volume setting; volume 1000	`bgm` (any case) → music; corpus BGM/SE/VOICE only
+SetVolume	volume	seen	00457dd0 (objdump)	clamped 0-1000; 1000·log2(v/1000) mB, floor -10000 (amplitude (v/1000)^1.661); `@` relative	percent() the same curve
+SetVolume	fade shape	inferred	0045a040	steps in volume units, each sent through the log	engine fade (linear in percent)
+SetPan	pan	seen	00457f60	×10 → DirectSound pan mB, ±10000: attenuation of the other side in dB	chpan linear (1000-p)/1000; corpus only 0 and ±1000, where the two agree
+Wait	click	seen	0040bd80, 0045fda0 (mask 0xb: quit, state change, skip)	a click does not end it; skip does; time stops while a menu is open	`delay` (a click ends it): differs, open
+WaitKey	time	seen	0040c020	ms (no speed factor); a click or key ends it; null: no limit	delay / click wait
+LoadText, text	speed, tags	inferred	0045d520, 00463700	see builtins.md (Django.exe)	compared under wine (box places)
+Request	Start	inferred	-	starts a process	3 "Request start" notes: processes the loops module converts itself
+Request	Smoothing/UnSmoothing	seen	0043e650, 0043e6a0	texture filtering	nothing (`unsmoothing` 3 noted)
+SetBacklog	speaker	seen	0040cd90	with a voice: the voice entry's character name (per-character voice switch); with null as the voice: nothing	backlog_character: the same
+CreateEffect	Sepia	seen	00422110	sepia over what is below	spfilter (shared code: the Muramasa agent's)
