@@ -284,6 +284,7 @@ is noted) and why:
 | `0x84` | `-1` | 0 | `op_84` (`0x414180`) never reads the last byte |
 | `0x86` | `+5` | 1 | the module slot: one motion per object |
 | `0x86` | `+15` | zeros | the first key frame, which the setup (`0x416fe0`) replaces by the object's state |
+| `0x86` | `-2` | 0 | two bytes after the key frames of the 9 slides, which the motion's load (`0x416fe0`) doesn't read (History, item 45) |
 | `0x87` | `+0` | layer 2, any depth, slot 1, 0xff | waits for the motion its object's `0x86` started; ours runs it to its end at `0x86` |
 | `0x8d` | `-1` | 0xff | as in every `0x87` and `0x8a` wait record |
 | `0x88` | `-4` | 0 | a cleared slot's blend and opacity, which `op_88` (`0x415b50`) doesn't use |
@@ -321,8 +322,6 @@ run's):
 | `0x70` | the depth in the second u32 (0 in 254, 1000 in 188, 2000 in 5, 1100 in 4, …): 457 notes | dropped (`screenfilter` has no depth) |
 | `0x76` | MeltDown's stretch for `sub` 46/47 | converted (scaled from the exe), not compared with the film |
 | `0x7a` | u16, u16 at +14 (0, 0 in the 6 blog records), passed to `FUN_0040f060`: 6 notes | dropped: meaning unknown |
-| `0x82` | layer 1 depth 1 (one use, after `0x56`) | dropped |
-| `0x86` | two zero bytes after the key frames of the 9 slides: 9 notes | dropped, not looked into |
 | `0x8c` | the sort key in the second u32 (depth 1000 in 227, 1100 in 5, 0 in 4, 2000 in 3, 500 once): 240 notes | dropped: the static is always sprite 60, ripples and shakes move the whole screen |
 | `0x8f` | removes the bust-ups only | partial: `csp -1` also removes the fade cover (no script shows the difference) |
 | `0x30`, `0x62` | everything | dropped (the unreachable debug menu) |
@@ -623,6 +622,7 @@ a copy of the save works.
 
 ### Queue (2026-10-16)
 
+- Open: `0x86`'s two trailing bytes as harmless, PR #163 (History, item 45).
 - Open: command coverage per operand, PR #85 (supersedes #28): every
   operand given and not read, whatever its value (0 included), is a
   dry-run note and a gap in `metrics.json`, except the filler (`NO_SUB`,
@@ -637,7 +637,7 @@ a copy of the save works.
 - Merged: Filter-Replace's begin angle as `screenripple`'s start phase (#134, engine #50; History, item 38).
 - Merged: Zigzag's phase from its frequency, its begin angle and reduction as harmless (#153; History, item 39).
 - Merged: the exe map's fixes and missed callbacks (#46).
-- Open: the rotation's interpolation byte read, PR #162 (History, item 41).
+- Merged: the rotation's interpolation byte read (#162; History, item 41).
 - Open: `0x59` as a real cross-fade, converter #25 with engine #18 (asked
   for a web-build measurement of the old track's decode first);
   `bitand` for the three bitwise ops, converter #74 (takes over #12;
@@ -706,8 +706,6 @@ after History's 26, most noticeable first (notes = instructions):
     (`0x477460`) keeps it in the link; meaning unknown.
 44. **`0x7a` u16, u16 at +14** (0, 0 in the 6 blog records, 6 notes):
     passed to `FUN_0040f060`; meaning unknown.
-45. **`0x86`'s last two bytes** (0 after the key frames of the 9 slides,
-    9 notes): not looked into.
 
 **Script opcodes:** all converted (the converter reports 2 unsupported
 instructions, both in the unreachable debug menu). Notes on the last
@@ -1312,3 +1310,10 @@ sound effects on `dwave` channels.
    converter read the angle only. The byte is 2 (linear), which is how
    `Op::SpriteTurn` turns the sprite; it is now read, and a turn that
    isn't linear would no longer be drawn turning. `0.txt` is unchanged.
+45. **Done: `0x86`'s last two bytes** (2026-10-16). `op_86` (`0x413540`)
+   reads the layer, the depth and the slot, and `0x413350` hands the
+   record from +9 to the new module's load with a 0x400-byte budget.
+   The key-frame motion's load (`0x416fe0`, through `0x40af80`) reads
+   the u32 flags, the u16 count and each key frame's fields, then
+   stops: the two zero bytes after the 9 slides' key frames are never
+   read, a row of the harmless table.
