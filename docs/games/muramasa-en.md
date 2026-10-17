@@ -25,6 +25,12 @@ settle:
 - `<small>` text at 75 % (the exe's `CTextEnglish_layout` size isn't
   read yet).
 
+### Eased fades (2026-10-17)
+
+Open: `Move`, `Zoom` and `Rotate` go through the same tempo table in the
+port ("Eased fades", below), so their `AxlDxl` and `DxlAxl` would be the
+port's curves too; they keep the Japanese exe's.
+
 ### Queue (2026-10-16)
 
 - English-only gaps in `metrics.json` (this PR): the 444 `CreateText`
@@ -424,6 +430,43 @@ plus `patch/*.npk` mounted after them (opener 0x401960).
 - `system.npk`: `setting.ini` (`SCREEN_WIDTH=1024`, `SCREEN_HEIGHT=576`),
   shaders.
 
+## Eased fades
+
+The port's scenes pass a tempo to `Fade(name, time, dst, tempo, wait)`
+and `Transition(name, time, src, dst, rate, file, tempo, wait)` as a
+global looked up at run time (`GETK 'Dxl1'`). The globals are
+`framework/constantvalue.nut`'s constants, which the compiled file
+keeps after its main function as a table (u16 length with the NUL, the
+name, NUL, `0x05000002`, the int32 value): `Linear` 0, then `Axl1` 1,
+`Dxl1` 2, `Axl2` 3, … `Dxl8` 16, `AxlDxl1` 17, `DxlAxl1` 18, …
+`DxlAxl8` 32, and the same 32 again with `a`, `b`, `c`, `d` (33-160).
+Paired call by call with the NSS (same scene, sprite and order:
+`python3 -I research/nitroplus/en_tempos.py <nss dir> <script dir>`,
+with the extracted `nss.npa` and `script.npk`'s `media/script`), the
+port writes the NSS's tempos as:
+
+| NSS | Port | Id | Curve (share of the way at time share t) |
+|---|---|---|---|
+| `null` | `null` | 0 | t |
+| `Axl1`, `Axl2`, `Axl3` | the same | 1, 3, 5 | t², t³, t⁴ |
+| `Dxl1`, `Dxl2`, `Dxl3` | the same | 2, 4, 6 | 1-(1-t)², ³, ⁴ |
+| `AxlAuto` | `Axl1d` | 129 | 1 - cos(πt/2) |
+| `DxlAuto` | `Dxl1d` | 130 | sin(πt/2) |
+| `AxlDxl` | `AxlDxl1` | 17 | (2t)²/2, then 1 - (2-2t)²/2 |
+| `DxlAxl` | `DxlAxl1` | 18 | (1 - (1-2t)²)/2, then (1 + (2t-1)²)/2 |
+
+In the exe the natives `sqSprite_fade` (0x4eb0f0) and
+`sqSprite_transition` (0x4eb320, through 0x435760) store the time, the
+end value and the tempo (0 past 160) in an interpolator; its step
+(0x40bca0 for a fade, 0x437cc0 for a transition) calls
+`table[tempo](from, to, time, elapsed)` from the 161-entry table at
+0x5e40a0 (0x40c860 linear, 0x40c9c0 `Axl1`, 0x40ca00 `Dxl1`, …,
+0x40cec0 `AxlDxl1`, 0x40cf50 `DxlAxl1`, 0x412670 `Axl1d`, 0x4126d0
+`Dxl1d`; the last two call the CRT's `cosf`/`sinf`). The NSS names
+match Muramasa.exe's curves (`tempo` in `convert.rs`) except `AxlDxl`
+and `DxlAxl`, where Muramasa.exe has a cosine and an arccosine
+(`diesel_tempo` in `muramasa.rs`).
+
 ## Scripts (Squirrel 2.2)
 
     python3 -I research/nitroplus/nut.py FILE.nut [--strings | --tables]
@@ -646,6 +689,14 @@ and the build prints one line per argument passed and not read
 
 ## History
 
+- **Eased fades (2026-10-17):** the port eases `Fade` and `Transition`
+  (the NSS's `DrawTransition`) by their tempo as the Japanese exe does
+  ("Eased fades"), with its own `AxlDxl` and `DxlAxl` (`diesel_tempo`,
+  `Game::fade_tempo`): the 588 eased transitions of the Japanese build
+  are eased here too (`effectcurve` before their print), the 3 with
+  `AxlDxl` along t² to the middle and back out (`effectcurve 51`; the
+  Japanese exe's is a cosine, 72). `DxlAxl` has its curve (`MoveEase`'s
+  ease 8) but no fade of the story's uses it.
 - **Choice options at run time (2026-10-16, shared NSS code):** a
   choice's options set in runtime branches were taken at build time, so
   every player saw one set: mc02_031innsyoku listed all five items

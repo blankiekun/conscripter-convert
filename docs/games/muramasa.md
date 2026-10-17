@@ -947,8 +947,9 @@ A sync's transition now goes along the last eased fade's curve before
 its print (CONscripter's `effectcurve`, engine #85; `Op::TransitionEase`):
 588 transitions in the story; 61 in 続・殺戮のジャンゴ, whose exe eases the
 same way (`cb_00438fb0` and `FUN_00439d20` call its curve table
-`FUN_00434ea0` on the tempo). `Game::eased_fades` turns it on for these
-two; Muramasa EN keeps straight fades (its Diesel exe is not checked). The rest of
+`FUN_00434ea0` on the tempo). `Game::fade_tempo` turns it on for these
+two, and for Muramasa EN with the port's own reading of `AxlDxl`
+(`docs/games/muramasa-en.md`, "Eased fades"). The rest of
 the 3,869 eased `Fade`s take no time, fade the text window, or become
 part of a picture's motion.
 

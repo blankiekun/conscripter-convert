@@ -534,7 +534,8 @@ pub enum Op {
     /// 1 - (1-t)^p, 3 as (2t)^p / 2 for the first half and
     /// 1 - (2(1-t))^p / 2 for the second; 0 is straight. NSS's sine
     /// tempos, `exponent` unused: 4 as 1 - cos(πt/2), 5 sin(πt/2),
-    /// 6 ½ - ½cos(πt), 7 acos(1-2t)/π.
+    /// 6 ½ - ½cos(πt), 7 acos(1-2t)/π. 8 goes as 3 turned about the
+    /// middle: (1 - (1-2t)^p) / 2, then (1 + (2t-1)^p) / 2.
     MoveEase { ease: u8, exponent: u32 },
     /// As [`Op::Movie`], but the music and the sound effects play on: a
     /// movie without sound of its own cut into a scene (装甲悪鬼村正's
