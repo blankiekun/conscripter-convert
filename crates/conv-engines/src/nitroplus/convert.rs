@@ -1345,6 +1345,11 @@ struct Compiler<'a, 'b> {
     pending_tempo: HashMap<String, (u8, u32)>,
     /// A pending `Rotate` about x or y over time per object it turns.
     pending_turn: HashMap<String, turn::Turning>,
+    /// The objects with a `Fade` over time pending (its ms).
+    pending_fade: HashMap<String, u32>,
+    /// Pictures moving as they fade out to 0, drawn till then
+    /// ([`Compiler::sound_clock`] ms).
+    vanishing: HashMap<String, u64>,
     /// A `DrawTransition` mask for the next sync.
     pending_mask: Option<String>,
     /// The pictures the running screen shake shakes: it stops when they go.
@@ -2159,6 +2164,8 @@ impl<'a, 'b> Compiler<'a, 'b> {
             pending_by: HashMap::new(),
             pending_tempo: HashMap::new(),
             pending_turn: HashMap::new(),
+            pending_fade: HashMap::new(),
+            vanishing: HashMap::new(),
             pending_mask: None,
             shaken: Vec::new(),
             font_size: 20,
@@ -4272,6 +4279,27 @@ scene a.nss
         let moved = c.ops.iter().position(|op| matches!(op, Op::SpriteMotion2 { .. })).unwrap();
         assert!(placed < moved, "{:?}", c.ops);
         assert!(!c.notes.keys().any(|n| n.contains("cross-fade")), "{:?}", c.notes);
+    }
+
+    #[test]
+    fn a_move_that_fades_out_is_one_motion_then_goes() {
+        let story = r#"
+scene a.nss
+{
+	CreateTexture("a", 100, 0, 0, "cg/st/a.png");
+	Wait(100);
+	Move("a", 500, @100, @0, null, false);
+	Fade("a", 500, 0, null, true);
+	Delete("a");
+	Wait(100);
+}
+"#;
+        let c = compile(story, LIBRARY);
+        let at = c.ops.iter().position(|op| matches!(op, Op::SpriteMotion2 { .. })).unwrap_or_else(|| panic!("{:?}", c.ops));
+        let Op::SpriteMotion2 { layer, keys, .. } = &c.ops[at] else { unreachable!() };
+        assert_eq!((keys[0].opacity, keys[1].opacity, keys[1].x), (256, 0, 100), "{keys:?}");
+        // Taken away at the next change.
+        assert!(c.ops[at..].iter().any(|op| matches!(op, Op::Sprites { changes, .. } if changes.iter().any(|ch| ch.layer == *layer && ch.sprite.is_none()))), "{:?}", c.ops);
     }
 
     #[test]

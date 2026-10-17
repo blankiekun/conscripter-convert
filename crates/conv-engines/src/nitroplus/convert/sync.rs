@@ -11,6 +11,7 @@ impl Compiler<'_, '_> {
         let timed = std::mem::take(&mut self.pending_by);
         let tempo = std::mem::take(&mut self.pending_tempo);
         let turning = std::mem::take(&mut self.pending_turn);
+        let fades = std::mem::take(&mut self.pending_fade);
         let mut shake_once = std::mem::take(&mut self.shake_once);
         let mask = self.pending_mask.take();
         self.flush_sounds();
@@ -37,9 +38,10 @@ impl Compiler<'_, '_> {
             .objects
             .iter()
             .filter_map(|(n, o)| match &o.kind {
-                Kind::Image { image } if o.opacity > 0 && !o.hideable => {
+                // (Fading out to 0 as it moves: kept for its motion, below.)
+                Kind::Image { image } if (o.opacity > 0 || (timed.contains_key(n) && self.shown.contains_key(n))) && !o.hideable => {
                     let opacity = self.drawn_opacity(n, o.opacity);
-                    if opacity == 0 {
+                    if opacity == 0 && o.opacity > 0 {
                         return None;
                     }
                     let (mut px, mut py) = self.parent_offset(n);
@@ -197,6 +199,11 @@ impl Compiler<'_, '_> {
             }
         }
         want.sort_by_key(|w| std::cmp::Reverse(w.2));
+        // A picture fading out to 0 stays only when it also moves or zooms
+        // as one motion (alpha keys to 0), drawn until a later sync.
+        want.retain(|(n, s, _)| {
+            s.opacity > 0 || fades.contains_key(n) && self.shown.get(n).is_some_and(|old| (old.x, old.y, old.w, old.h) != (s.x, s.y, s.w, s.h) && motion(old, &Shown { layer: old.layer, ..s.clone() }, 1).is_some())
+        });
         // Pictures under an opaque one that fills the screen (an old
         // background left up under a new one) aren't drawn.
         let (sw, sh) = self.game.screen;
@@ -222,7 +229,14 @@ impl Compiler<'_, '_> {
         let mut opacity = Vec::new();
         let gone: Vec<String> = self.shown.keys().filter(|n| !want.iter().any(|w| &w.0 == *n)).cloned().collect();
         let mut moving = Vec::new();
+        let clock = self.sound_clock();
+        self.vanishing.retain(|_, end| *end > clock);
         for n in gone {
+            // Still fading out as it moves (the script went on).
+            if self.vanishing.contains_key(&n) && self.objects.contains_key(&n) {
+                continue;
+            }
+            self.vanishing.remove(&n);
             let s = self.shown.remove(&n).unwrap();
             // Turning edge-on: squashed away by the engine, then gone at a
             // later sync (its layer kept till then).
@@ -259,6 +273,16 @@ impl Compiler<'_, '_> {
             let n = want.len() as u32;
             layers = (0..n).map(|i| Some((i + 1) * MAX_LAYER / (n + 1))).collect();
         }
+        // A picture still fading out whose layer another takes: gone now.
+        let mut freed = Vec::new();
+        for n in self.vanishing.keys().filter(|n| !want.iter().any(|w| &w.0 == *n)).cloned().collect::<Vec<_>>() {
+            if let Some(s) = self.shown.get(&n).filter(|s| layers.contains(&Some(s.layer))) {
+                changes.push(SpriteChange { layer: s.layer, sprite: None, keep_filters: false });
+                freed.push(s.layer);
+                self.shown.remove(&n);
+                self.vanishing.remove(&n);
+            }
+        }
         // Pictures that only move or zoom over time: moved by the engine
         // while the script goes on (and during the cross-fade of the other
         // changes), which waits only for the blocking action's time.
@@ -268,6 +292,7 @@ impl Compiler<'_, '_> {
         // Moving pictures drawn on another layer (the layers spread out
         // again): placed where they end, then these ops from where they were.
         let mut moved_over: HashMap<String, Vec<Op>> = HashMap::new();
+        let mut vanished = Vec::new();
         for ((name, now, _), layer) in want.iter().zip(&layers) {
             let (Some(layer), Some(t)) = (*layer, turning.get(name)) else { continue };
             let old = self.shown.get(name);
@@ -313,7 +338,9 @@ impl Compiler<'_, '_> {
                 moving.push(name.clone());
                 continue;
             }
-            match motion(old, &now, t) {
+            // A fade at once (not over time) as the move starts: from the new opacity.
+            let start = if fades.contains_key(name) { old.clone() } else { Shown { opacity: now.opacity, ..old.clone() } };
+            match motion(&start, &now, t) {
                 // The move a loop starts after: its lead-in, from where the
                 // picture was to its new place (where it is put now).
                 Some(Op::SpriteMotion2 { keys: mk, .. }) if mk[1].zoom == 100 && mk[1].angle == 0 && self.lead_ins.contains_key(name) && let Some(Object { shake: Some((_, keys)), .. }) = self.objects.get(name) => {
@@ -329,12 +356,15 @@ impl Compiler<'_, '_> {
                         self.ops.push(Op::SpriteTrail { layer, passes: t.passes, alpha: t.alpha, lag: t.lag });
                     }
                     if old.opacity != now.opacity {
-                        self.ops.push(Op::SpriteOpacity { layer: Some(layer), opacity: (super::fade_base(old, &now) * 256 / 1000) as u32 });
+                        self.ops.push(Op::SpriteOpacity { layer: Some(layer), opacity: (super::fade_base(&start, &now) * 256 / 1000) as u32 });
                     }
                     if let Some(&(ease, exponent)) = tempo.get(name) {
                         self.ops.push(Op::MoveEase { ease, exponent });
                     }
                     self.ops.push(op);
+                    if now.opacity == 0 {
+                        self.vanishing.insert(name.clone(), clock + u64::from(t));
+                    }
                     // (Tinted anew as it moves: spfilter keeps the motion.)
                     if old.tint != now.tint {
                         opacity.push(Op::SpriteFilters { layer, filters: now.tint.clone().unwrap_or_default() });
@@ -343,6 +373,13 @@ impl Compiler<'_, '_> {
                     moving.push(name.clone());
                 }
                 None if (old.x, old.y, old.w, old.h) != (now.x, now.y, now.w, now.h) => {
+                    // Faded out to 0 (kept above for a motion): removed.
+                    if now.opacity == 0 {
+                        let layer = old.layer;
+                        changes.push(SpriteChange { layer, sprite: None, keep_filters: false });
+                        self.shown.remove(name);
+                        vanished.push(name.clone());
+                    }
                     self.note("move or zoom over time with a fade or a new picture drawn as a cross-fade");
                 }
                 None => {}
@@ -357,9 +394,13 @@ impl Compiler<'_, '_> {
         // picture takes the layer, which would keep the zoom.
         // So do flashes' layers (which would keep their blend and keys).
         let mut unzoom: Vec<u32> = changes.iter().filter(|c| self.shown.values().any(|s| s.layer == c.layer && (s.cells.is_some() || s.flash != 0 || s.blend != BLEND_NORMAL))).map(|c| c.layer).collect();
+        unzoom.extend(freed);
         let mut new_shown = Vec::new();
         for ((name, now, _), layer) in want.into_iter().zip(&layers) {
             let Some(layer) = *layer else { continue };
+            if vanished.contains(&name) {
+                continue;
+            }
             let mut now = Shown { layer, ..now };
             if let Some(old) = grow.get(&name)
                 && let Some(op) = self.turn_motion(&name, &turning[&name], layer, old.as_ref(), Some(&now), true)

@@ -380,9 +380,7 @@ with the original (it wants all eleven endings' flags under wine).
    2026-10-16): about 12 whose picture is cut to the screen at a zoom
    (`Assets::scaled`, mostly 窓/カメラ backgrounds in dja001), 9 movies,
    9 turned over or given a new picture as they move (`spgrab` could
-   fade the old one out), 3 fades that change layer. A move that fades
-   out to 0 isn't counted: the picture is removed with the fade,
-   unmoved.
+   fade the old one out), 3 fades that change layer.
 3. Extras: the doors' animation and the menu's own music (left out).
 4. From the exe's coverage table ("The exe"): `SetShade HEAVY` (one use).
 5. The unread-argument notes (`<Builtin> argument <i> ignored`;
@@ -431,6 +429,25 @@ with the original (it wants all eleven endings' flags under wine).
    NSS code; noted, drawn as nothing.
 
 ## History
+
+- **A move that fades out to 0 (2026-10-16, shared NSS code).** A
+  picture moving or zooming while a `Fade` over time takes it to 0 was
+  left out of the sync and so cross-faded away where it stood. Now it
+  stays for one motion with alpha keys to 0 (as #156's fades) and is
+  drawn until its time is up by the clock of the ops
+  (`Compiler::vanishing`), or until another picture takes its layer;
+  then it goes. Only a timed `Fade` counts (`pending_fade`): a `Fade` at
+  once while a move is pending (dja005's `FadeFade`: to 0 at once, then
+  in) sets the opacity at once and is not faded over the move's time,
+  which #156 did. Dry run: 8 such motions in Django; one that can't be a
+  motion (another layer, a cut picture) is still a cross-fade and now
+  counted in the notes (装甲悪鬼村正 245 → 252). Checked in the engine:
+  the trace of the first 1,560 pages has the same findings minus the 3
+  "shown at alpha 0" (sprites #156 left faded to 0), and dja012's 5 s
+  zoom-out keeps moving through the page after it (`--shot-at`, frames
+  differ by RMSE 0.2). #173's `spovertext` checked in Django too:
+  dja026's song lines type out over the black bar, the explosion's
+  white flash stays clipped to its window.
 
 - **A move onto another layer is still a motion (2026-10-16, shared NSS
   code).** When a new picture has no free layer between its neighbours,
