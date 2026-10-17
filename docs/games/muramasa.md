@@ -945,7 +945,7 @@ Next, in order:
    - `Random` and `Conquest` return 0 whatever their arguments.
    - `MoveCamera`'s arguments in a process (4 calls). (`CreateEffect`'s
      place and size are read: every story call covers the screen, a tone
-     or `Plain` over part of it is noted; #PR.)
+     or `Plain` over part of it is noted; #355.)
    - `LockVideo`, `WaitText`, `SetFrequency` (but 1000),
      the time limit (?) of `WaitAction` and the
      other waits: dropped; meaning to check in the exe.
