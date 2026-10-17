@@ -59,7 +59,7 @@ impl Compiler<'_, '_> {
         });
         let Some(strip) = strip else { return false };
         let o = self.objects.get_mut(&name).unwrap();
-        o.kind = Kind::Strip(StripObject { image: strip, cells, frame_ms: LETTER_MS, w, h, zoom: (100, 100), last });
+        o.kind = Kind::Strip(StripObject { image: strip, cells, frame_ms: LETTER_MS, w, h, zoom: (100, 100), last, looped: false });
         o.erased = false;
         // Shown now, so that it types (a sync over time would fade it in).
         self.sync(0);

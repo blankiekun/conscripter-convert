@@ -1,9 +1,9 @@
 {
 "game": "muramasa",
 "engine": "nitroplus",
-"commit": "c604009f",
+"commit": "1a9aa565",
 "commit_date": "2026-10-16",
-"totals": {"calls": 1161959, "full": 1025944, "gaps": 136015},
+"totals": {"calls": 1161959, "full": 1025981, "gaps": 135978},
 "kinds": {
 "LockVideo": {"calls": 50726, "gaps": 50726, "reasons": [["LockVideo argument 0 ignored", 50726]]},
 "WaitText": {"calls": 23689, "gaps": 23689, "reasons": [["WaitText argument 0 ignored", 23689], ["WaitText argument 1 ignored", 23689]]},
@@ -14,7 +14,7 @@
 "Fade": {"calls": 302598, "gaps": 3954, "reasons": [["Fade argument 3 ignored", 3869], ["move or zoom over time with a fade or a new picture drawn as a cross-fade", 76], ["timed action that waits only part of its time", 16], ["Fade argument 5 ignored", 1]]},
 "DrawTransition": {"calls": 2650, "gaps": 2650, "reasons": [["DrawTransition argument 2 ignored", 2650], ["DrawTransition argument 4 ignored", 2650], ["DrawTransition argument 5 ignored", 132], ["move or zoom over time with a fade or a new picture drawn as a cross-fade", 18], ["DrawTransition mask missing: cg/data/slide_01_02_2.png", 2], ["3 more", 3]]},
 "Conquest": {"calls": 2478, "gaps": 2478, "reasons": [["Conquest argument 0 ignored", 2478], ["Conquest argument 1 ignored", 2478], ["Conquest argument 2 ignored", 2478]]},
-"CreateEffect": {"calls": 2477, "gaps": 2477, "reasons": [["CreateEffect argument 2 ignored", 2477], ["CreateEffect argument 3 ignored", 2477], ["CreateEffect argument 5 ignored", 2436], ["CreateEffect argument 4 ignored", 2435], ["CreateEffect Rain", 37], ["3 more", 4]]},
+"CreateEffect": {"calls": 2477, "gaps": 2440, "reasons": [["CreateEffect argument 2 ignored", 2440], ["CreateEffect argument 3 ignored", 2440], ["CreateEffect argument 5 ignored", 2399], ["CreateEffect argument 4 ignored", 2398], ["CreateEffect Lens", 2], ["2 more", 2]]},
 "SetBacklog": {"calls": 2192, "gaps": 2192, "reasons": [["SetBacklog argument 2 ignored", 2192]]},
 "CreateTexture": {"calls": 61264, "gaps": 2010, "reasons": [["CreateTexture from an object or the screen", 2010]]},
 "SetNextFocus": {"calls": 1776, "gaps": 1776, "reasons": [["built-in SetNextFocus", 1776]]},

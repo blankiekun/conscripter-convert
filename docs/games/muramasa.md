@@ -767,10 +767,18 @@ Next, in order:
    with its status in `research/nitroplus/builtins.md`, "In the
    scripts: coverage"). Every file has a status (no gaps there); new
    gaps, most noticeable first:
-   - `CreateEffect` Rain (37, with `$SYSTEM_effect_rain_*` in 17 files),
-     Drop and Lens. The tone kinds Sepia, Monochrome and NegaPosi tint
-     the pictures below the effect with `spfilter` (#137); KitanoBlue and
-     `SetTone` are still noted and drawn plain.
+   - `CreateEffect` Drop (1, mc04_052's snow: an image per drop, swung
+     and turned) and Lens (2). Rain is converted (in review, #161): `convert/rain.rs` plays
+     the exe's rain (`00435e60`, `00436390`) into a 24-frame strip of the
+     effect's size (`$SYSTEM_effect_rain_dencity` drops, at most 128,
+     grey streaks 196 px with the exe's alpha ramp, falling their speed
+     per 16 ms, redrawn every 42 ms), looped; its place is read, and
+     `Zoom` and `Rotate` reach the strip (z as the `spzoom` angle, x or
+     y as a shorter zoom, no perspective). Unverified: the exe's frame
+     period (a run-time table; 16 ms assumed), so the fall speed. The
+     tone kinds Sepia, Monochrome, NegaPosi and KitanoBlue tint the
+     pictures below the effect (#137, #146); `SetTone` (228) is still
+     noted and drawn plain.
    - `DrawEffect` waves (79), `CreateStencil` (59), `CreateMask` (31),
      `SetSurface`/`CreateSurface`, `LoadImage` as a texture source
      (Muramasa leaves `loaded_textures` off).

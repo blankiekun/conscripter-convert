@@ -98,6 +98,10 @@ impl Compiler<'_, '_> {
                     "negaposi" => Kind::Tint(vec![filter(FILTER_NEGATIVE, FILTER_BLEND_COPY, [0; 3])]),
                     // shortcut: a guess like sepia's (grey times a cool blue).
                     "kitanoblue" => Kind::Tint(vec![grey, filter(FILTER_COLOUR, FILTER_BLEND_MULTIPLY, [170, 200, 255])]),
+                    "rain" => match self.rain(arg(4).int(), arg(5).int()) {
+                        Some(strip) => Kind::Strip(strip),
+                        None => Kind::Other,
+                    },
                     _ => {
                         self.note(format!("CreateEffect {}", arg(6).string()));
                         Kind::Other
@@ -111,7 +115,14 @@ impl Compiler<'_, '_> {
                 } else {
                     kind
                 };
-                self.create(name, kind, arg(1).int(), screen_w, screen_h);
+                if matches!(kind, Kind::Strip(_)) {
+                    let (w, h) = (arg(4).int(), arg(5).int());
+                    let o = self.create(name, kind, arg(1).int(), w, h);
+                    o.x = arg(2).position(0, w, screen_w);
+                    o.y = arg(3).position(0, h, screen_h);
+                } else {
+                    self.create(name, kind, arg(1).int(), screen_w, screen_h);
+                }
             }
             // (name, x, y, zoom per mille). With Game::relative_children
             // only (装甲悪鬼村正's cameras aren't checked).
