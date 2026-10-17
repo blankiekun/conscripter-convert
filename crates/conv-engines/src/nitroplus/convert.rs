@@ -297,6 +297,12 @@ pub trait Assets {
     /// (0,0) zoomed `zoom` per mille about its centre, at `opacity`
     /// (0-1000): the full-screen picture's path.
     fn overlaid(&mut self, base: &str, top: &str, zoom: i64, opacity: i64) -> Option<String>;
+    /// The output picture `image` with its opacity multiplied by that of
+    /// the output picture `mask`, 0 outside it (`CreateStencil`): the
+    /// mask's top left at (`dx`, `dy`) from the picture's, on the screen,
+    /// where the picture is drawn at `zoom` (per mille) about its centre.
+    /// Its path.
+    fn stenciled(&mut self, image: &str, mask: &str, dx: i64, dy: i64, zoom: (i64, i64)) -> Option<String>;
     /// A picture decoded: one the scripts name (`cg/…`) or one in the
     /// output (`system/…`). `None` in a dry run.
     fn rgba(&mut self, path: &str) -> Option<image::RgbaImage>;
@@ -1141,6 +1147,12 @@ struct Object<'a> {
     /// `SetShade`: how many passes of the exe's blur (`FUN_00465b10`) its
     /// pixels went through; they add up until `NULL` takes them away.
     shade: Option<i64>,
+    /// `CreateStencil`'s picture (output path): its children are drawn
+    /// only where it is opaque, as much as it is ([`Compiler::stenciled`]).
+    stencil: Option<String>,
+    /// A picture under stencils: its picture and their pictures and
+    /// places, and the cut made of them, kept while these stay the same.
+    cut: Option<((String, Vec<(String, i64, i64)>), String)>,
 }
 
 /// [`Object::shake`]: the process, the keys.
@@ -2793,7 +2805,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
 
     fn create(&mut self, name: String, kind: Kind<'a>, priority: i64, w: i64, h: i64) -> &mut Object<'a> {
         self.seq += 1;
-        let o = Object { kind, priority, x: 0, y: 0, w, h, opacity: 1000, locked: false, hideable: false, seq: self.seq, zoom: (1000, 1000), trail: None, blend: BLEND_NORMAL, vertex: None, turn: (0, 0, 0), shake: None, clip: None, over_text: false, container: false, erased: false, tone: None, shade: None };
+        let o = Object { kind, priority, x: 0, y: 0, w, h, opacity: 1000, locked: false, hideable: false, seq: self.seq, zoom: (1000, 1000), trail: None, blend: BLEND_NORMAL, vertex: None, turn: (0, 0, 0), shake: None, clip: None, over_text: false, container: false, erased: false, tone: None, shade: None, stencil: None, cut: None };
         self.objects.insert(name.clone(), o);
         self.objects.get_mut(&name).unwrap()
     }
@@ -3061,6 +3073,41 @@ impl<'a, 'b> Compiler<'a, 'b> {
     /// Where a child object's place counts from: the sum of the places of
     /// the objects its name runs through (`@frame03/顔窓31` at 25,25 in
     /// `frame03` at 25,80 is at 50,105).
+    /// Picture `image` of object `name` cut by the stencils it is in
+    /// (`CreateStencil`): its opacity times theirs where they lie over
+    /// it, none elsewhere (the exe's mode 128 makes the stencil's
+    /// pixels its alpha). `None` when it is in none.
+    // shortcut: a picture moved or zoomed over time against a stencil
+    // that stays keeps the cut it had where it was first drawn, so that the
+    // engine moves it as one picture; a zoom about a vertex is cut as one
+    // about the centre.
+    fn stenciled(&mut self, name: &str, image: &str) -> Option<String> {
+        let stencils: Vec<_> = name
+            .match_indices('/')
+            .filter_map(|(i, _)| {
+                let s = self.objects.get(&name[..i])?;
+                let (sx, sy) = self.parent_offset(&name[..i]);
+                Some((s.stencil.clone()?, s.x + sx, s.y + sy))
+            })
+            .collect();
+        let o = self.objects.get(name)?;
+        let key = (image.to_string(), stencils.clone());
+        if let Some((k, cut)) = &o.cut
+            && *k == key
+        {
+            return Some(cut.clone());
+        }
+        let (px, py) = self.parent_offset(name);
+        let (x, y, zoom) = (o.x + px, o.y + py, o.zoom);
+        let mut out: Option<String> = None;
+        for (mask, sx, sy) in stencils {
+            out = Some(self.assets.stenciled(out.as_deref().unwrap_or(image), &mask, sx - x, sy - y, zoom)?);
+        }
+        let cut = out?;
+        self.objects.get_mut(name)?.cut = Some((key, cut.clone()));
+        Some(cut)
+    }
+
     /// The rectangle of the windows `name` is in (`CreateWindow`), their
     /// overlap when there are several; `None` when it is in none.
     fn window_clip(&self, name: &str) -> Option<(i64, i64, i64, i64)> {
@@ -3848,6 +3895,9 @@ mod tests {
         }
         fn overlaid(&mut self, base: &str, top: &str, zoom: i64, opacity: i64) -> Option<String> {
             Some(format!("{base}+{top}@{zoom}x{opacity}"))
+        }
+        fn stenciled(&mut self, image: &str, mask: &str, dx: i64, dy: i64, zoom: (i64, i64)) -> Option<String> {
+            Some(format!("{image}%{mask}@{dx},{dy}x{}", zoom.0))
         }
         fn movie_frames(&mut self, path: &str, at: Option<u32>, alpha: bool, dark: bool) -> Option<(String, u32, u32, u32)> {
             let (w, h) = if alpha { (200, 108) } else { (1024, 576) };
@@ -5075,6 +5125,25 @@ scene a.nss
         let c = compile_scene(&files, "a.nss", "a.nss", &GAME, &mut Fake).unwrap();
         let at = c.ops.iter().position(|op| matches!(op, Op::AnimatedSprite { cells: 3, frame_ms: 125, looped: false, .. }));
         assert!(at.is_some_and(|i| c.ops[i + 1..].iter().any(|op| matches!(op, Op::Wait { ms: 250 }))), "{:?}", c.ops);
+    }
+
+    #[test]
+    fn a_stencil_cuts_its_children_to_its_picture() {
+        // 装甲悪鬼村正's ma04_013vs: a red colour drawn only over the
+        // standing picture (`絵演立絵覆`); the stencil itself draws nothing.
+        let story = r##"
+scene a.nss
+{
+	CreateStencil("覆", 1000, 100, 50, 128, "cg/st/s.png", false);
+	CreateColor("覆/赤", 1010, 0, 0, 1024, 576, "#CC0000");
+	Fade("覆/赤", 0, 1000, null, true);
+	Wait(100);
+}
+"##;
+        let c = compile(story, LIBRARY);
+        let script = format!("{:?}", c.ops);
+        assert!(script.contains("color/cc0000_1024x576.png%cg/st/s.png@100,50x1000"), "{script}");
+        assert!(!script.contains("\"cg/st/s.png\""), "{script}");
     }
 
     #[test]

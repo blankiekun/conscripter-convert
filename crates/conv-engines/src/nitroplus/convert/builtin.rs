@@ -68,6 +68,27 @@ impl Compiler<'_, '_> {
                 o.x = arg(2).position(0, w, screen_w);
                 o.y = arg(3).position(0, h, screen_h);
             }
+            "CreateStencil" => {
+                // (name, priority, x, y, mode, picture, wildcard): draws
+                // nothing; its children only where the picture is opaque.
+                // Mode 128 (every call) keeps the picture's alpha
+                // (`00409fa0`); `true` lets a wildcard reach the children
+                // (the flag at +0x9d4, left 0 otherwise).
+                let name = self.object_name(&arg(0));
+                if arg(4).int() != 128 {
+                    self.note("CreateStencil mode other than 128");
+                }
+                let Some((image, w, h)) = self.assets.image(&self.deref(&arg(5))) else {
+                    self.note("CreateStencil of a missing file");
+                    return Value::Null;
+                };
+                let (w, h) = (w as i64, h as i64);
+                let o = self.create(name, Kind::Other, arg(1).int(), w, h);
+                o.x = arg(2).position(0, w, screen_w);
+                o.y = arg(3).position(0, h, screen_h);
+                o.container = !arg(6).truthy();
+                o.stencil = Some(image);
+            }
             "CreateColor" => {
                 let name = self.object_name(&arg(0));
                 let (w, h) = (arg(4).int().max(1), arg(5).int().max(1));
