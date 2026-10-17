@@ -32,6 +32,7 @@ pub const EASY: &str = "$立方陣簡易フラグ";
 const DIR: &str = "cg/sys/magiccube";
 /// The tray: tile values in button order (`Count_1`-`Count_18`), six per
 /// column, columns at `$MCSetX1`-`3`, rows at `$MCSetY1`-`6`.
+// src: function_magiccube.nss (CreateChoiceCount, $MCSetX1-3, $MCSetY1-6, $マス目X/Y, MathAnswer, To_LevelDwon, To_Manual)
 const TILES: [i64; 18] = [62, 49, 8, 55, 84, 24, 9, 105, 22, 35, 60, 74, 41, 96, 101, 46, 99, 124];
 const TRAY_X: [i64; 3] = [52, 92, 132];
 const TRAY_Y: [i64; 6] = [218, 258, 298, 338, 378, 418];
@@ -78,6 +79,7 @@ pub fn puzzle(assets: &mut dyn Assets, easy: Option<Var>, solved: Var) -> Option
         Some((path, size.0, size.1))
     };
     let placed = |s: (String, i32, i32), cells: i32, x: i64, y: i64| Placed { image: s.0, x: x as i32, y: y as i32, w: s.1 * cells, h: s.2 };
+    // src: function_magiccube.nss (下敷き, 選択用マス, Answer, State, Manual, mbgm11, Over01's 500 ms blink)
     let backdrop = [("立方陣説明キューブ背景-58.png", 0, 0), ("問題パネル盤.png", 46, 212)]
         .iter()
         .map(|&(name, x, y)| assets.image(&format!("{DIR}/{name}")).map(|(path, w, h)| Placed { image: path, x, y, w: w as i32, h: h as i32 }))
@@ -118,6 +120,7 @@ pub fn puzzle(assets: &mut dyn Assets, easy: Option<Var>, solved: Var) -> Option
         reset,
         help,
         help_lines: HELP.iter().map(|&(t, x, y, yellow)| (t.to_string(), x as i32, y as i32, if yellow { 0xFFFF00 } else { 0xFFFFFF })).collect(),
+        // src: function_magiccube.nss To_Manual (SetFont 20; Fade 500)
         help_font_size: 20,
         easy,
         solved,

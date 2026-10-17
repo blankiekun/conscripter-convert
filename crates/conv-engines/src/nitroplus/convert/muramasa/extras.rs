@@ -26,6 +26,7 @@ pub fn extras(a: &mut dyn Assets, story: &Story) -> Option<PictureExtras> {
     const DIR: &str = "cg/sys/extra/main";
     let se = |a: &mut dyn Assets, name: &str| a.sound(&format!("sound/se/{name}"));
     let cleared = story.flags.get(CLEARED).copied();
+    // src: extra_menu.nss ExtraSet ($ExtraNutName, Fade 200, $Extra*SE, ExtraFade 500)
     let mut items = Vec::new();
     for (name, x, y, mode, locked) in [
         ("CG", 534, 114, ExtrasMode::Gallery, true),
@@ -201,6 +202,7 @@ fn replay(a: &mut dyn Assets, story: &Story) -> Option<PictureReplay> {
     }
     let state = |n: u32| format!("{DIR}/退出-{n:03}.png");
     let (exit, w, h) = a.strip(&[&state(1), &state(2), &state(3)])?;
+    // src: extra_recollection.nss ($PreX/Y 672,38, $X_plus -190, $Y_plus 100; RecoFade, RecoIn, RecoOut)
     Some(PictureReplay {
         background: a.image(&format!("{DIR}/背景画像.png"))?.0,
         exit: Placed { image: exit, x: 0, y: 438, w: w as i32, h: h as i32 },
@@ -232,6 +234,7 @@ fn replay(a: &mut dyn Assets, story: &Story) -> Option<PictureReplay> {
 fn sound(a: &mut dyn Assets, story: &Story) -> Option<SoundRoom> {
     const DIR: &str = "cg/sys/extra/sound";
     let entries = sound_entries(story.files);
+    // src: extra_sound.nss Media ($PreX/Y, $X, $Y steps, $X -= 26; SoundFade 2000; movie 1000, 300)
     let (mut x, mut y) = (380, 84);
     let mut tracks = Vec::new();
     let mut movies = Vec::new();
@@ -283,6 +286,7 @@ fn sound(a: &mut dyn Assets, story: &Story) -> Option<SoundRoom> {
         title_track,
         marker: Placed { image, x: 0, y: 0, w: w as i32, h: h as i32 },
         marker_cells: 10,
+        // src: film sound-icon.mkv (100 fps)
         marker_ms: 340,
         marker_dx: 26,
         open_ms: 500,
@@ -310,6 +314,7 @@ fn gallery(a: &mut dyn Assets, story: &Story) -> Option<PictureGallery> {
         Some(Placed { image, x, y, w: w as i32, h: h as i32 })
     };
     let slots = gallery_slots(story.files);
+    // src: extra_gallery.nss ($CgNutName places, $PreX/Y 672,38, $X_plus -190, Fade 0→500 for partial, $MoveTime 12 a px, CgFade 500/150/300)
     let mut categories = Vec::new();
     for (name, label, y) in [("2D", "人物画", 98), ("3D", "三次元的画", 194), ("BG", "背景画", 334)] {
         let mut out = Vec::new();
@@ -363,6 +368,7 @@ fn gallery(a: &mut dyn Assets, story: &Story) -> Option<PictureGallery> {
 /// menu over 500 ms, a page or a choice over 300 (`DxFade`).
 fn turntable(a: &mut dyn Assets, story: &Story) -> Option<Turntable> {
     const DIR: &str = "cg/sys/extra/3d";
+    // src: extra_dimension.nss ($DxNutName 948,…; $X 910 -= 30, $Y 28/238; DxName 480,28, DxSpec 60,436, DxMovie 80,28; DxFade)
     const OPEN: [&str; 2] = ["九〇式指揮官騎", "九四式指揮官騎"];
     let button = |a: &mut dyn Assets, name: &str, y: i32| {
         let state = |n: u32| format!("{DIR}/ボタン/{name}-{n:03}.png");
