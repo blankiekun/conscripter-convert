@@ -48,6 +48,7 @@ pub use screens::screen_files;
 mod settings_pages;
 mod settings_screen;
 mod switches;
+mod system_menu;
 mod line_log;
 mod line_log_screen;
 mod lua;
@@ -372,6 +373,9 @@ pub fn emit(script: &Script) -> String {
         picture_settings::define(&mut out, s);
     }
     let in_front = script.ops.iter().any(|op| matches!(op, Op::SpriteInFront { front: true, .. }));
+    if script.system_menu.is_some() {
+        writeln!(out, "{}", system_menu::DEFINE).unwrap();
+    }
     if has_overlay || has_noise || has_animation || in_front {
         writeln!(out, "{}", overlays_define(has_animation, has_noise, has_overlay || in_front)).unwrap();
     }
@@ -499,7 +503,7 @@ pub fn emit(script: &Script) -> String {
         }
     }
 
-    let save_menu = script.save_menu.is_some() || script.save_grid.is_some();
+    let save_menu = script.save_menu.is_some() || script.save_grid.is_some() || system_menu::loads(script);
     let effect = |ms: u32| if ms == 0 { "1".to_string() } else { effects[&(ms, Effect::Fade)].clone() };
     notice::emit(&mut out, script.width, script.height);
     if let Some(t) = &script.title_screen {
@@ -604,6 +608,8 @@ pub fn emit(script: &Script) -> String {
         save_grid::emit(&mut out, g, script.confirm.as_ref(), script.width, script.height, scene_stack);
     } else if screens::engine_menu(script).is_some() {
         screens::save_labels(&mut out);
+    } else if let Some(m) = system_menu::menu(script) {
+        system_menu::labels(&mut out, m, script.confirm.as_ref());
     }
     if let Some(b) = &script.button_bar {
         let screens = menu::BarScreens {

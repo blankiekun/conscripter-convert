@@ -940,3 +940,62 @@ pub struct ScreenPicture {
     pub picture: Placed,
     pub when: Option<(Var, Compare, i32)>,
 }
+
+/// A system menu the engine draws (`screen "system1"`…): a bar of tabs
+/// beside a panel. Each tab is a screen of its own with the same bar,
+/// its own tab shown current; a click on another tab cross-fades to it.
+/// Right-click closes it. `*conv_save` and `*conv_load` open it on its
+/// save and load tabs (the title's Load, the game's keys).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SystemMenu {
+    /// Drawn on every tab, the first at the bottom (the panel, the bar).
+    pub backdrop: Vec<Placed>,
+    pub tabs: Vec<SystemTab>,
+    /// The cross-fade on opening, closing and between tabs.
+    pub fade_ms: u32,
+}
+
+/// [`SystemMenu::tabs`]: its button and what it shows.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SystemTab {
+    /// Three cells side by side: at rest, under the pointer, current.
+    pub button: Placed,
+    pub page: SystemPage,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SystemPage {
+    Save(SaveList),
+    Load(SaveList),
+    /// Back to the title (asking first with the [`ConfirmDialog`]'s
+    /// title question, when there is one), in game only: shown at rest
+    /// on the title.
+    Title,
+    /// Drawn, not clickable (a page not converted yet).
+    Unavailable,
+}
+
+/// A [`SystemPage`]'s save slots: one column of `rows` rows a page, slots
+/// 1 to `slots`, the pages turned by the mouse wheel and Left/Right (no
+/// page buttons). A click saves or loads (asking first over a save with
+/// the [`ConfirmDialog`]'s questions); the slot's text is "chapter|last
+/// line" (the chapter from [`Op::Chapter`]).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SaveList {
+    pub slots: u32,
+    pub rows: u32,
+    /// The first row's top left, and the step to the next.
+    pub x: i32,
+    pub y: i32,
+    pub row_step: i32,
+    /// A row's picture at the row's place: two cells, at rest and under
+    /// the pointer.
+    pub row: Placed,
+    /// The rest relative to the row's top left.
+    pub thumb: Rect,
+    pub date: GridText,
+    pub chapter: GridText,
+    pub line: GridText,
+    /// The slot under the pointer's thumbnail, larger (absolute).
+    pub preview: Option<Rect>,
+}

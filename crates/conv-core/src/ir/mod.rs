@@ -926,4 +926,7 @@ pub struct Script {
     /// Milliseconds a character when the game has no settings screen
     /// (with one, the text speed is a setting); `None` = 20.
     pub text_ms: Option<u32>,
+    /// The system menu drawn by the engine, with its own save and load
+    /// tabs (used where no other save screen is).
+    pub system_menu: Option<SystemMenu>,
 }
