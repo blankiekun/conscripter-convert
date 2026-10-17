@@ -825,7 +825,17 @@ Next, in order:
      after the call, or moved to a new layer) restarts its rest straight,
      without the tempo, and a picture cut to the screen loses its part's
      phase offset.
-   - `CreateStencil` (59), `CreateMask` (31),
+   - `CreateStencil` (59): started on branch `nitroplus/stencil` (no PR
+     yet). The exe (`00409fa0`): mode 128 (every call) turns the picture
+     into its alpha; `false` leaves the object a container (a wildcard
+     doesn't reach its children). The branch cuts each child's picture by
+     the stencils over it at convert time (`Assets::stenciled`, zoom
+     about the centre), the cut kept while the stencil stays, so moves
+     and zooms stay engine motions. Left: check frames (ma04_013vs's red
+     silhouette, ma05_019's spider, ma02_009vs's zoomed bg201), snapshots
+     (Muramasa and EN change: pictures under an opaque child no longer
+     culled), the Status, and a `Plain` cover under a stencil (noted only).
+   - `CreateMask` (31),
      `SetSurface`/`CreateSurface`, `LoadImage` as a texture source
      (Muramasa leaves `loaded_textures` off).
    - `Request(…, NoIcon)` (4) is dropped without a note: a `Request` on
