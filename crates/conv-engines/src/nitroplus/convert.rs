@@ -1005,7 +1005,8 @@ enum Kind<'a> {
     /// `z` and a child's priority `p` (its depth) magnify the child
     /// `z / (1000 - p)` times about the screen's centre; one of priority
     /// 1000 or more isn't drawn. Measured under wine (続・殺戮のジャンゴ,
-    /// boxes at four priorities and six camera settings).
+    /// boxes at four priorities and six camera settings); 装甲悪鬼村正's
+    /// are drawn the same (not checked there).
     Camera,
     /// A colour added onto the screen, flashing while the script goes on
     /// (its own code, as 続・殺戮のジャンゴ's `GunFire`).
