@@ -62,7 +62,7 @@ impl<'a> Emitter<'a> {
         }
         let &mut Emitter { has_ruby, has_overlay, has_noise, has_chapters, has_animation, root_returns, has_replay, has_vertical, border, voice_switches, duck, back_to_choice, speed, link_depth, script, ref clear_fade, ref restore_overlay, ref effects, ref link_targets, ref zoomed_layers, ref mut out, ref mut root_resumes, ref mut puzzles, ref mut button_screens, ref mut plate_choices, ref mut picture_screens, ref mut se, ref mut se_not_skipped, ref mut noise_fade_in, ref mut move_ease, ref mut move_nowait, ref mut move_arc, ref mut eased, ref mut needs_click_wait, ref mut plate_visible, ref mut link_pages, ref mut transition, ref mut window, ref mut page_rows, ref mut page_tag, fading: ref mut fading_slots } = self;
         let effect = |ms: u32| if ms == 0 { "1".to_string() } else { effects[&(ms, Effect::Fade)].clone() };
-        let visited = |target: &str| LINK_VISITED_BASE + link_targets.iter().position(|&t| t == target).unwrap() as u32;
+        let visited = |target: &str| format!("?{LINK_VISITED}[{}]", link_targets.iter().position(|&t| t == target).unwrap());
     if let Op::Text { .. } = op {
         for line in transition.take().unwrap_or_default() {
             writeln!(out, "{line}").unwrap();
@@ -309,8 +309,8 @@ impl<'a> Emitter<'a> {
         Op::InstantText(on) => writeln!(out, "textspeed {}", if *on { "0" } else { speed }).unwrap(),
         Op::SetWindow(w) => {
             writeln!(out, "{}", setwindow(w, speed, has_ruby, has_vertical, true, script)).unwrap();
-            // shortcut: clears the name plate's old sprites 49/50 from saves made before #222; drop once no such saves are played
-            writeln!(out, "csp {NAME_PLATE_SPRITE}:csp {NAME_TEXT_SPRITE}:csp 50:csp 49").unwrap();
+            // shortcut: clears the name plate's old sprites 49/50 from saves made before #222, and the link words' 51-58 from before the link names; drop once no such saves are played
+            writeln!(out, "csp {NAME_PLATE_SPRITE}:csp {NAME_TEXT_SPRITE}:csp 50:csp 49:{}", (51..=58).map(|n| format!("csp {n}")).collect::<Vec<_>>().join(":")).unwrap();
             *plate_visible = false;
             *page_rows = 0;
             *window = Some(w.clone());
@@ -546,12 +546,12 @@ impl<'a> Emitter<'a> {
             if indent > 0 {
                 writeln!(out, "indent 0").unwrap();
             }
-            let clickable = &clickable[..clickable.len().min(LINK_SPRITES.count())];
+            let clickable = &clickable[..clickable.len().min(LINK_SPRITE_COUNT)];
             let window = window.as_ref();
             // Each word again as a sprite exactly over the text (the
             // button), and its underline, in the colours of its state.
             let mut underlines = String::new();
-            for ((link, slot), line) in clickable.iter().zip(LINK_SPRITES).zip(LINK_UNDERLINE_SPRITES.step_by(2)) {
+            for ((link, slot), line) in clickable.iter().zip((0..LINK_SPRITE_COUNT).map(link_sprite)).zip(LINK_UNDERLINE_SPRITES.step_by(2)) {
                 let word: String = text.chars().skip(link.start).take(link.len).collect();
                 let (x, y) = window.map_or((0, 0), |w| char_position(w, text, link.start));
                 let y = y + window.map_or(0, |w| rows_before as i32 * (w.font_size + w.line_gap) as i32);
@@ -562,7 +562,7 @@ impl<'a> Emitter<'a> {
                 for (test, colour, hover) in [("==", LINK_COLOR, LINK_HOVER_COLOR), ("!=", LINK_VISITED_COLOR, LINK_VISITED_HOVER_COLOR)] {
                     writeln!(
                         out,
-                        "if %{flag} {test} 0 strsp {slot},\"{}\",{x},{sprite_y},{},1,{size},{size},1,{gap},0,1,\"{colour}\",\"{hover}\"",
+                        "if {flag} {test} 0 strsp {slot},\"{}\",{x},{sprite_y},{},1,{size},{size},1,{gap},0,1,\"{colour}\",\"{hover}\"",
                         escape(&word),
                         // ONScripter wraps a full-width character one column early.
                         link.len + 1
@@ -572,7 +572,7 @@ impl<'a> Emitter<'a> {
                 // 1 px under the glyphs, as wide as the word's cells.
                 let (ux, uy, uw) = (x + 2, y + size as i32 + 1, link.len as u32 * (size + 1) - 1);
                 for (test, colour) in [("==", LINK_COLOR), ("!=", LINK_VISITED_COLOR)] {
-                    writeln!(underlines, "if %{flag} {test} 0 lsp {line},\":c;>{uw},1,{colour}\",{ux},{uy}").unwrap();
+                    writeln!(underlines, "if {flag} {test} 0 lsp {line},\":c;>{uw},1,{colour}\",{ux},{uy}").unwrap();
                 }
                 writeln!(underlines, "lsp {},\":c;>{uw},1,#000000\",{},{}", line + 1, ux + 1, uy + 1).unwrap();
             }
@@ -583,7 +583,7 @@ impl<'a> Emitter<'a> {
                 // Clears the buttons: register the words after it.
                 writeln!(out, "gosub *{}", menu::BAR_DRAW).unwrap();
             }
-            for (n, slot) in LINK_SPRITES.take(clickable.len()).enumerate() {
+            for (n, slot) in (0..clickable.len()).map(link_sprite).enumerate() {
                 if let Some(depth) = link_depth {
                     write!(out, "if {depth} < {MAX_LINK_DEPTH} ").unwrap();
                 }
@@ -607,7 +607,7 @@ impl<'a> Emitter<'a> {
                     writeln!(out, "if {BUTTON_VAR} > 0 savegame {}+{}", menu::SCENE_SLOT, menu::SCENE_DEPTH).unwrap();
                 }
             }
-            for slot in LINK_SPRITES.take(clickable.len()).chain(LINK_UNDERLINE_SPRITES.take(2 * clickable.len())) {
+            for slot in (0..clickable.len()).map(link_sprite).chain(LINK_UNDERLINE_SPRITES.take(2 * clickable.len()).map(|n| n.to_string())) {
                 writeln!(out, "csp {slot}").unwrap();
             }
             writeln!(out, "print 1").unwrap();
@@ -615,7 +615,7 @@ impl<'a> Emitter<'a> {
             for (n, link) in clickable.iter().enumerate() {
                 let target = link.target.as_deref().unwrap();
                 writeln!(out, "if {BUTTON_VAR} != {} goto *{page}_{}", n + 1, n + 1).unwrap();
-                writeln!(out, "mov %{},1", visited(target)).unwrap();
+                writeln!(out, "mov {},1", visited(target)).unwrap();
                 let scenes = bar.is_some_and(|b| b.top.is_some());
                 if scenes {
                     // Enter a new level (dropping any below it).

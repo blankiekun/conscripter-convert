@@ -110,10 +110,20 @@ fn names_define() -> String {
     lines.join("\n")
 }
 const NAME_SPRITES_DEFINE: &str = "defvar conv_name_text\ndefvar conv_name_plate\nspnew %conv_name_text,ui\nspnew %conv_name_plate,ui";
-/// Sprite slots for clickable link words. With `windowback` and `humanz
-/// 58`, slots up to 58 are drawn over the text window and the others
-/// under it.
-const LINK_SPRITES: std::ops::RangeInclusive<u32> = 51..=58;
+/// `humanz`: with `windowback`, sprites up to it (and `ui` handles) are
+/// drawn over the text window and the others under it.
+const HUMANZ: u32 = 58;
+/// Clickable link words (and choice plates): `spnew` handles in the `ui`
+/// layer, `%conv_link0` on top ([`LINKS_DEFINE`]; were sprites 51-58).
+const LINK_SPRITE_COUNT: usize = 8;
+fn link_sprite(n: usize) -> String {
+    format!("%conv_link{n}")
+}
+/// Their declarations, in the define section after the name plate's.
+fn links_define() -> String {
+    let names = (0..LINK_SPRITE_COUNT).map(|n| format!("defvar conv_link{n}"));
+    names.chain((0..LINK_SPRITE_COUNT).map(|n| format!("spnew {},ui", link_sprite(n)))).collect::<Vec<_>>().join("\n")
+}
 /// The animation ([`Op::Animation`]), over the static.
 const ANIMATION_SPRITE: u32 = 59;
 /// The static ([`Op::Noise`]), over the overlay.
@@ -202,8 +212,11 @@ const LINK_VISITED_HOVER_COLOR: &str = "#CB95FE";
 /// menus' slots: they are drawn again at every wait of the page, so a menu
 /// opened from the bar can't leave them wrong.
 const LINK_UNDERLINE_SPRITES: std::ops::Range<u32> = MENU_SPRITES.start..MENU_SPRITES.start + 2 * 8;
-/// Global flags: link target n (in order of first use) was visited.
-const LINK_VISITED_BASE: u32 = 2000;
+/// Global flags: link target n (in order of first use) was visited,
+/// `?conv_link_visited[n]`, declared when the script has links.
+const LINK_VISITED: &str = "conv_link_visited";
+/// How many link targets there can be.
+const LINK_TARGETS: usize = 200;
 /// Global flags: scene n of the scene replay is unlocked.
 const SCENE_UNLOCKED_BASE: u32 = 3000;
 /// Global flags: progress flag n ([`Op::Progress`]) is set.
@@ -310,6 +323,12 @@ pub fn emit(script: &Script) -> String {
     writeln!(out, "{}", notice::DEFINE).unwrap();
     writeln!(out, "{NAME_SPRITES_DEFINE}").unwrap();
     writeln!(out, "{}", names_define()).unwrap();
+    writeln!(out, "{}", links_define()).unwrap();
+    if script.ops.iter().any(|op| matches!(op, Op::Text { links, .. } if links.iter().any(|l| l.target.is_some()))) {
+        writeln!(out, "defarr {LINK_VISITED},{LINK_TARGETS},global").unwrap();
+        // shortcut: copies the visited links from %2000-%2199, where builds before the link names kept them; drop once no such gloval.sav is played
+        writeln!(out, "for %0 = 0 to {}\nmov %1,2000+%0\nif %%1 == 1 mov ?{LINK_VISITED}[%0],1\nnext", LINK_TARGETS - 1).unwrap();
+    }
     if lua::uses_processes(script) {
         for c in lua::COMMANDS {
             writeln!(out, "luasub {c}").unwrap();
@@ -317,7 +336,7 @@ pub fn emit(script: &Script) -> String {
     }
     if script.window.is_some() {
         writeln!(out, "windowback").unwrap();
-        writeln!(out, "humanz {}", LINK_SPRITES.end()).unwrap();
+        writeln!(out, "humanz {HUMANZ}").unwrap();
     }
     if script.backlog.is_some() || script.line_log.is_some() {
         // Wheel and arrow keys reach btnwait (backlog scrolling); keep more
@@ -461,6 +480,7 @@ pub fn emit(script: &Script) -> String {
             }
         }
     }
+    assert!(link_targets.len() <= LINK_TARGETS, "more than {LINK_TARGETS} link targets");
     // Effect numbers of an open transition, printed in turn: display
     // commands only update the buffer until then.
     // The lines that show an armed transition (prints and what goes between).
@@ -1540,9 +1560,9 @@ mod tests {
         let style = Some(ChoiceStyle { window, on_color: 0, off_color: 0, plates: Some(plates) });
         let text = emit(&script(vec![Op::Choice { options, style }]));
         for part in [
-            "lsp 52,\":a/2,0,3;system\\plate.png\",138,244\nstrsp 51,\"はい\",366,262,3,1,22,22,0,0,0,1,\"#FFFFFF\",\"#FFFFFF\"\n",
-            "strsp 53,\"OK\",377,330,",
-            "print 10,300\n*conv_cplate0_wait\nbtndef clear\nspbtn 52,1\nspbtn 54,2\nbtnwait %9\n",
+            "lsp %conv_link1,\":a/2,0,3;system\\plate.png\",138,244\nstrsp %conv_link0,\"はい\",366,262,3,1,22,22,0,0,0,1,\"#FFFFFF\",\"#FFFFFF\"\n",
+            "strsp %conv_link2,\"OK\",377,330,",
+            "print 10,300\n*conv_cplate0_wait\nbtndef clear\nspbtn %conv_link1,1\nspbtn %conv_link3,2\nbtnwait %9\n",
             "if %9 == 2 goto *b\n",
         ] {
             assert!(text.contains(part), "missing {part:?} in\n{text}");
@@ -1564,7 +1584,7 @@ mod tests {
         let plates = conv_core::ir::ChoicePlates { image: "system/plate.png".into(), x: 138, y: 244, step: 68, text_x: 388, text_dy: 18, font_size: 22, colour: "#FFFFFF".into(), fade_ms: 300, shot: None };
         let style = Some(ChoiceStyle { window, on_color: 0, off_color: 0, plates: Some(plates) });
         let text = emit(&script(vec![Op::RuntimeChoice { options, texts: vec![None, Some(rt)], style }]));
-        for part in ["if %15 == 2 mov $conv_choice_text1,\"Leave\":mov %conv_choice_x1,361", "strsp 53,$conv_choice_text1,%conv_choice_x1,330,6,"] {
+        for part in ["if %15 == 2 mov $conv_choice_text1,\"Leave\":mov %conv_choice_x1,361", "strsp %conv_link2,$conv_choice_text1,%conv_choice_x1,330,6,"] {
             assert!(text.contains(part), "missing {part:?} in\n{text}");
         }
         let text = emit(&script(vec![Op::RuntimeBacklogLine { text: "【】".into(), runtime: conv_core::ir::RuntimeText { var, texts: vec![(2, "【Leave】".into())] } }]));
@@ -1581,9 +1601,9 @@ mod tests {
         let text = emit(&script(vec![Op::Choice { options, style }]));
         for part in [
             "getmousepos %0,%1:add %0,-47:add %1,-41\ndwave 10,\"se\\shot.ogg\"\nif %9 == 1 goto *conv_cplate0_s1\n",
-            "*conv_cplate0_s2\ncell 54,1:spcut 54,\"system\\hole.png\",%0,%1:spcut 53,\"system\\hole.png\",%0,%1:print 1\ndelay 300\ncsp 51:csp 52:print 10,300\n",
+            "*conv_cplate0_s2\ncell %conv_link3,1:spcut %conv_link3,\"system\\hole.png\",%0,%1:spcut %conv_link2,\"system\\hole.png\",%0,%1:print 1\ndelay 300\ncsp %conv_link0:csp %conv_link1:print 10,300\n",
             // The last step: a quarter high, its bottom still at 380.
-            "spzoom 54,100,27:spzoom 53,100,27:amsp 54,138,337,64:amsp 53,377,358,64:print 1:delay 50\ncsp 53:csp 54:print 1\ngoto *b\n",
+            "spzoom %conv_link3,100,27:spzoom %conv_link2,100,27:amsp %conv_link3,138,337,64:amsp %conv_link2,377,358,64:print 1:delay 50\ncsp %conv_link2:csp %conv_link3:print 1\ngoto *b\n",
         ] {
             assert!(text.contains(part), "missing {part:?} in\n{text}");
         }
@@ -1630,7 +1650,7 @@ mod tests {
         ]);
         s.window = Some(window());
         let text = emit(&s);
-        assert!(text.contains("defstr conv_log_line\nwindowback\nhumanz 58\n"));
+        assert!(text.contains("spnew %conv_link7,ui\ndefarr conv_link_visited,200,global\nfor %0 = 0 to 199\nmov %1,2000+%0\nif %%1 == 1 mov ?conv_link_visited[%0],1\nnext\nwindowback\nhumanz 58\n"));
         // Row 2, column 1: x = 105 + 0 * 25, y = 470 + 1 * 37.
         let expected = "\
 *conv_link1
@@ -1639,22 +1659,22 @@ csp %conv_name_text
 print 1
 #FEE092一#FFFFFF行目
 #FEE092学校#FFFFFFに―――
-if %2000 == 0 strsp 51,\"学校\",105,507,3,1,24,24,1,13,0,1,\"#FEE092\",\"#FEC95E\"
-if %2000 != 0 strsp 51,\"学校\",105,507,3,1,24,24,1,13,0,1,\"#DCB8FE\",\"#CB95FE\"
+if ?conv_link_visited[0] == 0 strsp %conv_link0,\"学校\",105,507,3,1,24,24,1,13,0,1,\"#FEE092\",\"#FEC95E\"
+if ?conv_link_visited[0] != 0 strsp %conv_link0,\"学校\",105,507,3,1,24,24,1,13,0,1,\"#DCB8FE\",\"#CB95FE\"
 *conv_link1_wait
-if %2000 == 0 lsp 6,\":c;>49,1,#FEE092\",107,532
-if %2000 != 0 lsp 6,\":c;>49,1,#DCB8FE\",107,532
+if ?conv_link_visited[0] == 0 lsp 6,\":c;>49,1,#FEE092\",107,532
+if ?conv_link_visited[0] != 0 lsp 6,\":c;>49,1,#DCB8FE\",107,532
 lsp 7,\":c;>49,1,#000000\",108,533
-spbtn 51,1
+spbtn %conv_link0,1
 print 1
 btnwait %9
-csp 51
+csp %conv_link0
 csp 6
 csp 7
 print 1
 textclear
 if %9 != 1 goto *conv_link1_1
-mov %2000,1
+mov ?conv_link_visited[0],1
 pushscreen 59,999
 gosub *s10_l1
 popscreen
@@ -1683,7 +1703,7 @@ goto *conv_link1
         ]);
         s.window = Some(window());
         let text = emit(&s);
-        assert!(text.contains("\nif %181 < 7 spbtn 51,1\n"), "{text}");
+        assert!(text.contains("\nif %181 < 7 spbtn %conv_link0,1\n"), "{text}");
     }
 
     #[test]
@@ -2283,7 +2303,7 @@ effect 7,99,1000,\"cons_warp.dll/warp\\zoom_3_220_5.png,65\"
         let text = |t: &str, continues| Op::Text { speaker: None, text: t.into(), voice: None, links: vec![], ruby: vec![], styles: vec![], hang: None, continues };
         let s = script(vec![Op::SetWindow(nvl), text("一行目", true), text("二行目", false), text("新頁", false)]);
         let out = emit(&s);
-        assert!(out.contains("\":a;system\\textwnd5.png\",47,452\ncsp %conv_name_plate:csp %conv_name_text:csp 50:csp 49\n一行目@\n二行目\\\n新頁\\\n"), "{out}");
+        assert!(out.contains("\":a;system\\textwnd5.png\",47,452\ncsp %conv_name_plate:csp %conv_name_text:csp 50:csp 49:csp 51:csp 52:csp 53:csp 54:csp 55:csp 56:csp 57:csp 58\n一行目@\n二行目\\\n新頁\\\n"), "{out}");
     }
 
     #[test]
@@ -2373,6 +2393,22 @@ defvar conv_choice_x4
 defstr conv_choice_text5
 defvar conv_choice_x5
 defstr conv_log_line
+defvar conv_link0
+defvar conv_link1
+defvar conv_link2
+defvar conv_link3
+defvar conv_link4
+defvar conv_link5
+defvar conv_link6
+defvar conv_link7
+spnew %conv_link0,ui
+spnew %conv_link1,ui
+spnew %conv_link2,ui
+spnew %conv_link3,ui
+spnew %conv_link4,ui
+spnew %conv_link5,ui
+spnew %conv_link6,ui
+spnew %conv_link7,ui
 caption \"Test\"
 effect 2,10,500
 game

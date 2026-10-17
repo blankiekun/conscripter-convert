@@ -9,10 +9,10 @@ use std::fmt::Write;
 
 use conv_core::ir::{ChoicePlates, RuntimeText};
 
-use crate::{escape, label, menu, path, var_name, BUTTON_VAR, LINK_SPRITES};
+use crate::{escape, label, menu, path, var_name, BUTTON_VAR, LINK_SPRITE_COUNT};
 
 /// The sprites there are (two an option).
-const SPRITES: usize = (*LINK_SPRITES.end() - *LINK_SPRITES.start() + 1) as usize;
+const SPRITES: usize = LINK_SPRITE_COUNT;
 
 /// Writes the choice; `n` keeps its labels apart from other choices'.
 /// `texts[i]`, when given, picks option i's text at run time (centred by
@@ -20,9 +20,9 @@ const SPRITES: usize = (*LINK_SPRITES.end() - *LINK_SPRITES.start() + 1) as usiz
 pub(crate) fn emit(out: &mut String, options: &[(String, String)], texts: &[Option<RuntimeText>], p: &ChoicePlates, n: usize, bar: bool, border: u32) {
     assert!(2 * options.len() <= SPRITES, "more choice options than link sprites");
     let l = format!("conv_cplate{n}");
-    // The text over its plate: lower numbers are drawn on top.
-    let text_slot = |i: usize| *LINK_SPRITES.start() + 2 * i as u32;
-    let plate_slot = |i: usize| text_slot(i) + 1;
+    // The text over its plate: lower handles are drawn on top.
+    let text_slot = |i: usize| crate::link_sprite(2 * i);
+    let plate_slot = |i: usize| crate::link_sprite(2 * i + 1);
     let fade = if p.fade_ms > 0 { format!("print 10,{}", p.fade_ms) } else { "print 1".to_string() };
     writeln!(out, "textoff").unwrap();
     let mut text_at = Vec::new();
