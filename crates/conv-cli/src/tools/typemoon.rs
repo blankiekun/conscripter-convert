@@ -78,11 +78,16 @@ pub enum TypemoonCommand {
     /// `.NXGZ`); the movies as they are (H.264, remuxed to start playing
     /// before they have loaded) as `movie/<name>.mp4`; and the sound as
     /// `typemoon sounds` writes it. Pictures and movies already there are
-    /// kept, so an interrupted run goes on where it stopped
+    /// kept, so an interrupted run goes on where it stopped. With
+    /// `--english`, the fan patch's pictures and movies that differ from
+    /// `dir`'s as `pic/en/` and `movie/en/`
     Media {
         dir: PathBuf,
         #[arg(short, long)]
         output: PathBuf,
+        /// The fan patch's RomFS (English), beside `dir` (1.0.2's)
+        #[arg(long)]
+        english: Option<PathBuf>,
         #[command(flatten)]
         webp: crate::build::WebpArgs,
         #[command(flatten)]
@@ -98,6 +103,9 @@ pub enum TypemoonCommand {
         exe: Option<PathBuf>,
         #[arg(long, default_value = "月姫 -A piece of blue glass moon-")]
         title: String,
+        /// The fan patch's RomFS: its media that differ go in too (`typemoon media --english`)
+        #[arg(long)]
+        english: Option<PathBuf>,
         #[command(flatten)]
         build: crate::build::BuildArgs,
     },
@@ -114,12 +122,12 @@ pub fn run(command: TypemoonCommand) -> Result<()> {
         TypemoonCommand::Sounds { dir, output, audio } => sounds(&dir, &output, audio.format()?),
         TypemoonCommand::Script { dir, output } => scripts(&dir, output.as_deref()),
         TypemoonCommand::Exe { main, romfs, motion } => exe_tables(&main, romfs.as_deref(), &motion),
-        TypemoonCommand::Media { dir, output, webp, audio } => media(&dir, &output, webp.get(), audio.format()?),
-        TypemoonCommand::Convert { dir, exe, title, build } => {
+        TypemoonCommand::Media { dir, output, english, webp, audio } => media(&dir, english.as_deref(), &output, webp.get(), audio.format()?),
+        TypemoonCommand::Convert { dir, exe, title, english, build } => {
             let exe = exe.unwrap_or_else(|| dir.join("../exefs/main"));
             crate::build::run(build, &title, &typemoon::build::OUTPUT_DIRS, |opts| {
                 if !opts.dry_run {
-                    media(&dir, opts.output, opts.webp, opts.audio)?;
+                    media(&dir, english.as_deref(), opts.output, opts.webp, opts.audio)?;
                 }
                 typemoon::build::build(&dir, &exe, opts)
             })
@@ -407,23 +415,45 @@ fn sounds(dir: &Path, output: &Path, audio: AudioFormat) -> Result<()> {
     Ok(())
 }
 
-fn media(dir: &Path, output: &Path, webp: Option<Option<u8>>, audio: AudioFormat) -> Result<()> {
-    pictures(dir, &output.join("pic"), webp)?;
-    movies(&dir.join("movie"), &output.join("movie"))?;
+fn media(dir: &Path, english: Option<&Path>, output: &Path, webp: Option<Option<u8>>, audio: AudioFormat) -> Result<()> {
+    pictures(dir, &output.join("pic"), webp, None)?;
+    movies(&dir.join("movie"), &output.join("movie"), None)?;
+    if let Some(en) = english {
+        pictures(en, &output.join("pic/en"), webp, Some(dir))?;
+        movies(&en.join("movie"), &output.join("movie/en"), Some(&dir.join("movie")))?;
+        // The sound comes from `dir` alone: the fan patch's is the same.
+        let same = |rel: &str| -> Result<bool> { Ok(map(&dir.join(rel))?[..] == map(&en.join(rel))?[..]) };
+        anyhow::ensure!(same("knife1.bfsar")?, "the fan patch's knife1.bfsar differs from {}'s", dir.display());
+        let names = |d: &Path| -> Result<Vec<(String, u64)>> {
+            let mut v = fs::read_dir(d.join("stream"))?.map(|e| e.and_then(|e| Ok((e.file_name().to_string_lossy().into_owned(), e.metadata()?.len())))).collect::<Result<Vec<_>, _>>()?;
+            v.sort();
+            Ok(v)
+        };
+        anyhow::ensure!(names(dir)? == names(en)?, "the fan patch's stream/ differs from {}'s", dir.display());
+    }
     sounds(dir, output, audio)
 }
 
 /// `allpac`'s pictures as PNG, or WebP (`webp`: its lossy quality, if
 /// any); the `rule_*` masks always PNG, exact. Per name (case ignored,
 /// extension dropped) the `.JPG` if there is one, else the largest entry.
-fn pictures(dir: &Path, out: &Path, webp: Option<Option<u8>>) -> Result<()> {
+/// With `base` (another RomFS), only the pictures whose data differ from
+/// its own.
+fn pictures(dir: &Path, out: &Path, webp: Option<Option<u8>>, base: Option<&Path>) -> Result<()> {
     let ext = |stem: &str| if webp.is_none() || stem.starts_with("rule_") { "png" } else { "webp" };
     use std::sync::Mutex;
     use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
     let path = dir.join("allpac.mrg");
     let bytes = map(&path)?;
     let entries = mrg::parse(&map(&path.with_extension("hed"))?, Some(&map(&path.with_extension("nam"))?)).context("reading allpac.hed")?;
-    let best = typemoon::full_copies(&entries);
+    let mut best = typemoon::full_copies(&entries);
+    if let Some(base) = base {
+        let path = base.join("allpac.mrg");
+        let base_bytes = map(&path)?;
+        let base_entries = mrg::parse(&map(&path.with_extension("hed"))?, Some(&map(&path.with_extension("nam"))?)).context("reading allpac.hed")?;
+        let keep: std::collections::BTreeSet<String> = typemoon::differing(&typemoon::full_copies(&base_entries), &base_bytes, &best, &bytes)?.into_iter().collect();
+        best.retain(|stem, _| keep.contains(stem));
+    }
     fs::create_dir_all(out)?;
     let jobs: Vec<(&String, &&mrg::Entry)> = best.iter().filter(|(stem, _)| !out.join(format!("{stem}.{}", ext(stem))).exists()).collect();
     println!("allpac: {} pictures, {} to convert", best.len(), jobs.len());
@@ -487,9 +517,23 @@ fn pictures(dir: &Path, out: &Path, webp: Option<Option<u8>>) -> Result<()> {
 /// remuxed, not re-encoded, with the index first so the web build's
 /// `<video>` starts before the file has loaded. Like the other games'
 /// movies, at their own size.
-fn movies(dir: &Path, out: &Path) -> Result<()> {
+/// With `base` (another movie folder), only those that differ from its own
+/// in what they show ([`looks_same`]), not merely in their encoding.
+fn movies(dir: &Path, out: &Path, base: Option<&Path>) -> Result<()> {
     let mut files: Vec<PathBuf> = fs::read_dir(dir)?.map(|e| e.map(|e| e.path())).collect::<Result<_, _>>()?;
     files.sort();
+    if let Some(base) = base {
+        let mut kept = Vec::new();
+        for f in files {
+            let other = base.join(f.file_name().unwrap());
+            let same_bytes = other.is_file() && fs::metadata(&other)?.len() == fs::metadata(&f)?.len() && map(&other)?[..] == map(&f)?[..];
+            if !same_bytes && !(other.is_file() && looks_same(&other, &f)?) {
+                kept.push(f);
+            }
+        }
+        files = kept;
+    }
+    fs::create_dir_all(out)?;
     let mut failed = 0;
     for src in &files {
         let dest = out.join(src.file_name().unwrap().to_string_lossy().to_lowercase());
@@ -505,6 +549,57 @@ fn movies(dir: &Path, out: &Path) -> Result<()> {
     println!("movie: {} of {}", files.len() - failed, files.len());
     anyhow::ensure!(failed == 0, "{failed} movies failed");
     Ok(())
+}
+
+/// Two movies show the same: at 200 times spread over them, each frame
+/// (grey, 480 × 270) against the other's nearest (one sample either side),
+/// the worst 16 × 16 block's mean difference stays within re-encoding
+/// noise.
+// ours: the threshold, 4 of 255. Measured (the fan patch against 1.0.2):
+// the re-encoded titlebg1-4 at most 0.9; a translated phasetitle_* 54-95,
+// the subtitled endings 42-62, op1/op2/prologue 143-241, TM_CI (an added
+// logo) 183.
+fn looks_same(a: &Path, b: &Path) -> Result<bool> {
+    const W: usize = 480;
+    const H: usize = 270;
+    const N: usize = 200;
+    let duration = |p: &Path| -> Result<f64> {
+        let o = std::process::Command::new("ffprobe").args(["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0"]).arg(p).output()?;
+        Ok(String::from_utf8_lossy(&o.stdout).trim().parse()?)
+    };
+    let fps = N as f64 / duration(a)?.min(duration(b)?);
+    let frames = |p: &Path| -> Result<Vec<u8>> {
+        let o = std::process::Command::new("ffmpeg")
+            .args(["-v", "error", "-i"])
+            .arg(p)
+            .args(["-vf", &format!("fps={fps},scale={W}:{H},format=gray"), "-frames:v", &N.to_string(), "-f", "rawvideo", "-"])
+            .output()?;
+        anyhow::ensure!(o.status.success(), "ffmpeg: {}", String::from_utf8_lossy(&o.stderr));
+        Ok(o.stdout)
+    };
+    let (fa, fb) = (frames(a)?, frames(b)?);
+    let (ca, cb) = (fa.as_chunks::<{ W * H }>().0, fb.as_chunks::<{ W * H }>().0);
+    let worst_block = |x: &[u8], y: &[u8]| -> f64 {
+        let mut worst = 0u32;
+        for by in 0..H / 16 {
+            for bx in 0..W / 16 {
+                let mut sum = 0;
+                for r in 0..16 {
+                    let i = (by * 16 + r) * W + bx * 16;
+                    sum += x[i..i + 16].iter().zip(&y[i..i + 16]).map(|(p, q)| u32::from(p.abs_diff(*q))).sum::<u32>();
+                }
+                worst = worst.max(sum);
+            }
+        }
+        f64::from(worst) / 256.0
+    };
+    for (i, x) in ca.iter().enumerate() {
+        let best = (i.saturating_sub(1)..=i + 1).filter_map(|j| cb.get(j)).map(|y| worst_block(x, y)).fold(f64::MAX, f64::min);
+        if best > 4.0 {
+            return Ok(false);
+        }
+    }
+    Ok(!ca.is_empty())
 }
 
 fn scripts(dir: &Path, output: Option<&Path>) -> Result<()> {
