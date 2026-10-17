@@ -35,6 +35,7 @@ mod picture_gallery;
 mod gallery_screen;
 mod picture_replay;
 mod picture_sound;
+mod sound_screen;
 mod picture_settings;
 mod picture_turntable;
 mod puzzle;

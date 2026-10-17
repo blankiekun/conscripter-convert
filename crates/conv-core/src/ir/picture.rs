@@ -519,6 +519,9 @@ pub struct SoundRoom {
     pub stop_fade_ms: u32,
     pub movie_fade_ms: u32,
     pub movie_back_ms: u32,
+    /// Drawn by the engine (CONscripter's `screen`, `screens/sound.lua`)
+    /// rather than by a script loop.
+    pub engine_screen: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
