@@ -388,14 +388,18 @@ addresses in `research/typemoon/names.tsv` are those of the 1.0.2
     for `FUN_00130c80`) and `f` a per-layer byte that keeps the zoom
     off the picture's size (see History, 2026-10-17).
   - `_STMA(layer, m, mode, p)` (`FUN_00199620`): motion `m` (above;
-    0 stops it), `p` a start parameter; `mode` 1 (or −1/2, depending
-    on a setting) sets a flag (0x89E, meaning not known yet).
+    0 stops it), `p` a start parameter; `mode` 1 hides the text
+    window until the next text (0x89E, the flag `_CLO2` sets and the
+    next text clears, fading the window in over 18 frames); 2 hides it
+    while the settings' byte 99 is 1 (its default, `FUN_0012c810`), none
+    or −1 while it is 0; 0 never (117 uses of 2, all converted).
   - `_FADS(type, ms, rule, mode)` (inline in `script_command`, then
     `FUN_00160610`): shows the staged layers. Type 0 cross-fades over
     `ms` (12,240 uses); type 2 wipes through rule mask `rule` (947),
     the `rule`-th entry after `MASK_TOP.MZP` in `allpachd` (that is
     `RULE_<rule>`; `FUN_0014b4c0`); type 1 (20,842, always `ms` 0)
-    keeps a running mask and returns at once. `mode` as in `_STMA`.
+    keeps a running mask and returns at once. `mode` as in `_STMA`,
+    2 and none only for a fade of 2 ms or more (53 uses of 2, 1 of 1).
 - `_WNTY(n)` (`FUN_00138ea0`) picks the text window's type: 0 (42,820
   uses) or 1 (15,756); the text drawer (`FUN_001391a0`) offsets a
   line by 5.5 for type 1 and 3.5 otherwise (what that changes on
@@ -709,8 +713,7 @@ click.
    日本語/English switch: move `SystemPage::Jump(language::SWITCH)`
    from the Config tab to its option), the backlog; then the save list's route picture and chapter labels
    (by the phase), and Config and Gallery on the title.
-4. Still open in the exe: `_FADS`'s mode flag (0x89E), and the
-   motion keyframes' other fields.
+4. Still open in the exe: the motion keyframes' other fields.
 5. The metrics (`tests/snapshots/tsukihime.metrics.json`) count each
    argument a converted command passes and doesn't read as a gap
    (`<command> argument <i> ignored`, `option <n>` for a backquote
