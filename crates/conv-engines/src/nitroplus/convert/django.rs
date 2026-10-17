@@ -17,14 +17,14 @@ pub mod screens;
 
 /// The game's hooks; the CLI uses them for a game with `Django.exe`.
 pub const DJANGO: Game = Game {
-    screen: (800, 600),
+    screen: (800, 600), // src: the scripts' full-screen objects (CreateColor 800×600)
     boot: "boot.nss",
     story: Some((STORY, "SelectStoryMode")),
     call,
     relative_children: true,
     loaded_textures: true,
     chapter_objects: true,
-    text_drop: 7,
+    text_drop: 7, // src: shot (wine, not kept) box00's first row drawn from y 480, its box at 472
     family: true,
     string_vars: true,
     flags: extras::flags,
@@ -88,13 +88,17 @@ const STORY: &str = "dja000_開始スクリプト.nss";
 /// `select002.png` under the pointer) one under the other from (138, 244),
 /// the options in white 22 px text centred about x 386 (not the plate's
 /// centre, 403), their tops 21 px below the plate's (measured under
-/// wine); they fade in over 300 ms. The window is the same plates for a
+/// wine, in ＭＳ ゴシック; `TEXT_X`, `TEXT_DY` put ipag's glyphs
+/// there); they fade in over 300 ms. The window is the same plates for a
 /// game without [`ChoicePlates`].
 fn choice_style(c: &mut Compiler<'_, '_>, n: i64) -> Option<ChoiceStyle> {
+    // src: function_select.nss SetChoice02 (plates at 138,244 and 138,312; SetFont 22)
     const X: i64 = 138;
     const Y: i64 = 244;
     const FONT: i64 = 22;
+    // ours: the fallback window's text inset
     const INSET: i64 = 40;
+    // src: shot (wine, not kept; doc "How the compiler is set", Choices) with ipag
     const TEXT_X: i32 = 388;
     const TEXT_DY: i32 = 18;
     let (plate, w, h) = c.assets.image("cg/sys/select/select001.png")?;
@@ -116,10 +120,11 @@ fn choice_style(c: &mut Compiler<'_, '_>, n: i64) -> Option<ChoiceStyle> {
         name_plate: None,
     };
     let (image, _, _) = c.assets.strip(&["cg/sys/select/select001.png", "cg/sys/select/select002.png"])?;
-    // ChoiceA02/ChoiceB02: the hole's top left 47, 41 above and left of the pointer.
+    // src: function_select.nss ChoiceA02/ChoiceB02: the hole's top left 47, 41 above and left of the pointer.
     let hole = c.assets.image("cg/sys/select/dankon.png").map(|i| i.0);
     let sound = c.assets.sound("sound/se/SE_戦闘_銃器_発砲_マカロニ1");
     let shot = hole.zip(sound).map(|(hole, sound)| ChoiceShot { hole, hole_dx: -47, hole_dy: -41, sound });
     let plates = ChoicePlates { image, x: X as i32, y: Y as i32, step: h as i32, text_x: TEXT_X, text_dy: TEXT_DY, font_size: FONT as u32, colour: "#FFFFFF".into(), fade_ms: 300, shot };
+    // src: SetChoice02's Fade 300 and SetFont #FFFFFF; on_color ours (the original's hover is the select002 plate)
     Some(ChoiceStyle { window, on_color: 0xFFD070, off_color: 0xFFFFFF, plates: Some(plates) })
 }

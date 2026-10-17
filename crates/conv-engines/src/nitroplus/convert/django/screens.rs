@@ -77,28 +77,34 @@ fn settings(a: &mut dyn Assets) -> Option<PictureSettings> {
         horizontal: false,
         fill: None,
     };
+    // src: sys_config.nss btn_*_01-10 (x 306-414, 12 apart)
     let bullets = |a: &mut dyn Assets, y: i32, position: &dyn Fn(u32) -> u32| -> Option<Vec<(Placed, u32)>> {
         (1..=10).map(|k| Some((button(a, "bar-弾", 306 + 12 * (k as i32 - 1), y)?, position(k)))).collect()
     };
+    // src: sys_config.nss setgrade (text speed k × 100, level 1 none; auto 20 ms × k; volumes k × 100)
     let text_speed = |k: u32| if k == 1 { 0 } else { k * 100 };
     let per_char = |k: u32| k * 100;
     let volume = |k: u32| 1000 - k * 100;
     // The level a position of SliderSetting::GameSpeed gives: 12 - p × 12 / 1000.
     let speed = |level: u32| ((12 - level) * 1000).div_ceil(12);
     let mut presets = Vec::new();
+    // src: sys_config.nss NORMAL, QUICKA, QUICKB, LOWSPEC (y 188; #SYSTEM_play_speed 3, 5, 12, 1)
     for (name, x, level) in [("normal", 162, 3), ("quick-a", 238, 5), ("quick-b", 314, 12), ("lowspec", 392, 1)] {
         presets.push((button(a, name, x, 188)?, speed(level)));
     }
     let sliders = vec![
+        // src: 装甲悪鬼村正's exe FUN_0047c250 table (Django's Wait divides inline: its table not found)
         stepped(SliderSetting::GameSpeed { levels: [50, 75, 100, 150, 200, 300, 400, 550, 800, 1200, 1600, 3200] }, presets, speed(3), false),
         // The engine starts at 500 (level 5, under wine; config_default's
-        // 1000 is DEFAULT's).
+        // 1000 is DEFAULT's). guess: 50 ms a character at level 10 (the exe's unit isn't known).
         stepped(SliderSetting::TextSpeed { ms: 50 }, bullets(a, 212, &text_speed)?, text_speed(5), true),
+        // src: setgrade's 20 ms × level, config_default's 100 (level 5); volumes: system.ini 700, 900, 1000
         stepped(SliderSetting::AutoWait { ms: 200 }, bullets(a, 308, &per_char)?, per_char(5), true),
         stepped(SliderSetting::BgmVolume, bullets(a, 422, &volume)?, volume(7), true),
         stepped(SliderSetting::SeVolume, bullets(a, 470, &volume)?, volume(9), true),
         stepped(SliderSetting::VoiceVolume, bullets(a, 518, &volume)?, volume(10), true),
     ];
+    // src: sys_config.nss btn_*_ON/OFF (x 386/440) and config_default's values
     let mut pairs = Vec::new();
     for (option, y, default_on) in [
         (PairOption::MovieStop, 130, false),
@@ -112,6 +118,7 @@ fn settings(a: &mut dyn Assets) -> Option<PictureSettings> {
     }
     pairs.push(PicturePair { option: PairOption::VoicePlaysOn, on: button(a, "全て再生", 294, 284)?, off: button(a, "クリックで停止", 368, 284)?, default_on: true });
     pairs.push(PicturePair { option: PairOption::AutoWaitsForVoice, on: button(a, "終了まで待つ", 272, 332)?, off: button(a, "再生を中断する", 368, 332)?, default_on: true });
+    // src: sys_config.nss (DEFAULT, the question rows, CHARACTER_ONOFF, VOICE_TEST, ASPECT_UNFIXED, ENTRY)
     let fixed = vec![
         picture(a, "001-初期化_x450-y58", 450, 58)?,
         picture(a, "on-003", 386, 82)?,
@@ -133,7 +140,8 @@ fn settings(a: &mut dyn Assets) -> Option<PictureSettings> {
         sliders,
         pairs,
         texts: Vec::new(),
-        fade_ms: 300,
+        fade_ms: 300, // src: sys_config.nss Fade("video", 300)
+        // src: sys_config.nss: bullets switch at once; the pairs fade over 200 (one value here)
         pair_fade_ms: 0,
         voice_window: None,
     })
@@ -146,6 +154,7 @@ fn settings(a: &mut dyn Assets) -> Option<PictureSettings> {
 fn wait_icon(a: &mut dyn Assets) -> Option<WaitIcon> {
     let parts: Vec<String> = (1..=18).map(|n| format!("cg/sys/icon/page/bullet-{n:03}.png")).collect();
     let (image, w, h) = a.strip(&parts.iter().map(String::as_str).collect::<Vec<_>>())?;
+    // guess: no frame time in the files (装甲悪鬼村正's flame, watched: about 53 ms)
     Some(WaitIcon { image, frame_ms: vec![50; 18], w: w / 18, h })
 }
 
@@ -170,6 +179,8 @@ fn line_log(a: &mut dyn Assets) -> Option<LineLog> {
         strip(a, &[&n1, &n2, &n1, &n3], x, y)
     };
     let (background, w, h) = a.image(&format!("{DIR}/バックログ背景.jpg"))?;
+    // src: sys_backlog.nss (buttons, CreateScrollbar 646 from 90 to 490, SetFont 20 #000000/#AAAA88, Fade 300);
+    // text place, rows and columns: shot (wine, not kept); the knob's travel (its top 90-460): guess
     Some(LineLog {
         background: Placed { image: background, x: 0, y: 0, w: w as i32, h: h as i32 },
         up: button(a, "バックログrew002", 708, 228)?,
@@ -177,7 +188,7 @@ fn line_log(a: &mut dyn Assets) -> Option<LineLog> {
         close: strip(a, &["backlog-exit-001", "backlog-exit-002", "backlog-exit-001", "backlog-exit-003"], 690, 530)?,
         knob: strip(a, &["スクロール001", "スクロール002"], 635, 90)?,
         knob_y: (90, 460),
-        voice_icon: strip(a, &["スピーカー001", "スピーカー002", "スピーカー003"], 60, 0)?,
+        voice_icon: strip(a, &["スピーカー001", "スピーカー002", "スピーカー003"], 60, 0)?, // ours: x 60
         text_x: 120,
         text_y: 99,
         row_step: 24,
@@ -216,6 +227,7 @@ fn confirm(a: &mut dyn Assets) -> Option<ConfirmDialog> {
         let (image, w, h) = a.strip(&[&s1, &s2, &s1, &s3])?;
         Some(Placed { image, x, y: 238, w: w as i32, h: h as i32 })
     };
+    // src: sys_close.nss (yes 281,238, no 454,238, Fade 200); font_size ours (no text drawn)
     Some(ConfirmDialog {
         base: pictures[0].1.clone(),
         yes: button(a, "yes", 281)?,
@@ -254,6 +266,7 @@ fn save_grid(a: &mut dyn Assets) -> Option<SaveGrid> {
         for (mode, list) in ["save", "load"].iter().zip(pages.iter_mut()) {
             let back = a.image(&format!("cg/sys/{mode}/save-load-back{range}.png"))?.0;
             let logo = a.image(&format!("cg/sys/{mode}/{mode}-logo.png"))?.0;
+            // src: sys_save.nss (LOGO 50,24; no-pic 461,481 136×101; slots from 50,80, 150 and 96 apart)
             let mut parts = vec![(back, 0, 0, 1000), (logo, 50, 24, 1000), (a.color(0, 136, 101), 461, 481, 1000)];
             // An empty slot's icon; a save's thumbnail covers it.
             let icon = a.image(&format!("cg/sys/{mode}/save-load-icon.png"))?.0;
@@ -269,7 +282,8 @@ fn save_grid(a: &mut dyn Assets) -> Option<SaveGrid> {
         Some(Placed { image, x, y, w: w as i32, h: h as i32 })
     };
     let none = |a: &mut dyn Assets, x: i32, y: i32| Placed { image: a.transparent(), x, y, w: 1, h: 1 };
-    let text = |x: i32, y: i32, lines: u32, chars: u32, colour: &str| GridText { x, y, font_size: 18, lines, chars, line_gap: 0, char_gap: 0, colour: colour.into(), vertical: false };
+    // src: sys_save.nss CreateText places, <FONT size=18>, #EE9933; the date's and time's chars: ours
+    let text = |x: i32, y: i32, font_size: u32, lines: u32, chars: u32, colour: &str| GridText { x, y, font_size, lines, chars, line_gap: 0, char_gap: 0, colour: colour.into(), vertical: false };
     Some(SaveGrid {
         save_pages,
         load_pages,
@@ -279,7 +293,7 @@ fn save_grid(a: &mut dyn Assets) -> Option<SaveGrid> {
         column_step: 150,
         rows: 4,
         columns: 5,
-        thumb_w: 100,
+        thumb_w: 100, // src: save-load-icon.png's size; the preview is it at 1360 (sys_save.nss Zoom)
         thumb_h: 75,
         hover: none(a, 0, 0),
         hover_offset: (0, 0),
@@ -291,11 +305,13 @@ fn save_grid(a: &mut dyn Assets) -> Option<SaveGrid> {
         delete_on: none(a, -100, -100),
         close: button(a, "exit", 632, 542)?,
         preview: Rect { x: 461, y: 481, w: 136, h: 101 },
-        date: text(50, 486, 1, 20, "#ffffff"),
-        play_time: text(606, 30, 1, 12, "#ee9933"),
-        chapter: text(50, 464, 0, 0, "#ffffff"),
-        line: text(50, 518, 2, 19, "#ffffff"),
+        date: text(50, 486, 18, 1, 20, "#ffffff"),
+        play_time: text(606, 30, 18, 1, 12, "#ee9933"),
+        chapter: text(50, 464, 18, 0, 0, "#ffffff"),
+        // src: sys_save.nss: the comment in SetFont's 19 px, a 354×54 box (18 characters, 2 rows)
+        line: text(50, 518, 19, 2, 18, "#ffffff"),
         saved: None,
+        // src: sys_save.nss: it opens over 200 and closes over 300 (one value here)
         fade_ms: 300,
         across: true,
         tabs: Vec::new(),
@@ -316,6 +332,7 @@ fn save_grid(a: &mut dyn Assets) -> Option<SaveGrid> {
 /// C, T; SPACE, CTRL and ESC are the engine's own).
 fn command_menu(a: &mut dyn Assets) -> Option<CommandMenu> {
     const DIR: &str = "cg/sys/menu";
+    // src: sys_menu.nss (rows at 282, 113 + 24n; BAK 282,93; DrawTransition 600); keys: the rows' pictures
     let mut items = Vec::new();
     for (n, (name, action, key)) in [
         ("キャンセル", BarAction::Close, None),
@@ -356,6 +373,7 @@ fn command_menu(a: &mut dyn Assets) -> Option<CommandMenu> {
 /// and the tumbleweed's hidden chapter select.
 fn title(a: &mut dyn Assets) -> Option<TitleScreen> {
     const DIR: &str = "cg/sys/title";
+    // src: boot.nss TitleSet (places), TitleSelect (Start: SetVolume 1000, Fade 1000)
     let mut parts = Vec::new();
     for (name, x, y) in [("title-back.jpg", 0, 0), ("title-logo.png", 84, 111), ("tumbleweed.png", 300, 420)] {
         parts.push((a.image(&format!("{DIR}/{name}"))?.0, x, y, 1000));

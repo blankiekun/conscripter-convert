@@ -15,6 +15,7 @@ impl Compiler<'_, '_> {
     /// at 300 for a frame, faded out over 80 ms, a frame at 0, until the
     /// process is deleted (the flash goes with it here).
     fn strobe(&mut self, name: String, _priority: i64) -> bool {
+        // src: dja050_03 strobe (CreateColor 0,70 800×400 at 10160; Fade 300, Draw, 80, Draw); a Draw 17 ms: guess
         let image = self.assets.color(0xFFFFFF, 800, 400);
         let a = 300 * 256 / 1000;
         let keys = vec![(0, a), (17, a), (97, 0), (114, 0)];
