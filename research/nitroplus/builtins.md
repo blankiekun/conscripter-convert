@@ -215,19 +215,19 @@ whole-game dry run (`ma00_000.nss --chain 2000`), and 続・殺戮のジャン�
 | `LoadText` | 0, 1 of the 7-argument form, 0 of the 6 | 15,184 | 740 |
 | `SetFrequency` | 0, 1, 3 (2 is checked) | 8,724 | 1,283 |
 | `Random` | read: picked at run time (`rnd`, "`Random`" in `docs/games/muramasa.md`); 771 calls still picked when converting | 7,411 | 0 |
-| `Fade` | 3 tempo (read for a fade over time: its transition's curve; not for the text window's or a 0 ms one); 5 (a sixth argument, 1) | 3,145 | 11 |
+| `Fade` | 3 tempo (read for a fade over time: its transition's curve; a 0 ms one sets at once, `cb_Fade` 0044f020; not for the text window's); 5 (a sixth argument, 1) | 0 | 0 |
 | `WaitAction`, `WaitPlay`, `WaitFade`, `WaitZoom`, `WaitMove` | 1 (a time limit?) | 3,371, 2,477, 4, 3, 0 | 5,852, 51, 1, 0, 2 |
 | `DrawTransition` | 4 softness (2 from: read, 565 calls from another opacity than shown noted; 5 tempo: read; a missing mask: no transition) | 2,650 | 0 |
 | `Conquest` | 0-2 (we return 0) | 2,478 | 0 |
 | `CreateEffect` | none: 2-5 (place and size) are read; a tone or `Plain` covering the screen is ours, over part of it noted | 2,477 | 1 |
 | `SetBacklog` | 2 (the speaker) | 1,958 | 75 |
-| `Shake` | 6 `n`, 7 tempo (read: its step and curve); 8 wait; 2-5 (a picture smaller than the screen) | 0; 62; 144 | 0; 3; 3 |
+| `Shake` | 6 `n`, 7 tempo (read: its step and curve); 8 wait (read for a 0 ms stop; left: a whole-screen shake growing from 0 px) | 0; 7 | 0; 2 |
 | `SetBlur` | 4 strength; 2 passes (when off) | 983; 14 | 0 |
-| `CreateWindow` | 6 (`false`: children placed from the screen; read in Django) | 639 | 0 |
+| `CreateWindow` | 6 (`false`: children placed from the screen in Django; Muramasa.exe keeps it only in the creation text, 0040b3a0: read) | 0 | 0 |
 | `Rotate` | 5 tempo (read: a turn's curve) | 0 | 0 |
 | `MoveCamera` | 1-6 | 105 | 373 |
 | `CreateMovie` | 2-5 (a missing movie) | 61 | 0 |
-| `SetVolume` | 3 tempo; 4 | 23; 1 | 0 |
+| `SetVolume` | 3 tempo (a fade's steps, 00478570; read at 0 ms); 4 | 9; 1 | 0 |
 | `MoviePlay` | 1 (a missing movie) | 3 | 0 |
 | `Delete` | 1, 2 | 2 | 0 |
 

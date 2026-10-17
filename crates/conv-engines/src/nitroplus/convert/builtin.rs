@@ -232,7 +232,9 @@ impl Compiler<'_, '_> {
                 // the place parser (FUN_004403a0) and FUN_00437980 then count
                 // its children's places from the screen.
                 // (`true` is 1 here, `false` 0.)
-                o.screen_children = relative && is_window && !arg(6).truthy();
+                // src: Muramasa.exe builtin_CreateWindow 0040b3a0 keeps it only in the
+                // object's creation text (+0x180, FUN_00443500): read, it changes nothing there.
+                o.screen_children = !arg(6).truthy() && relative && is_window;
                 if a.len() >= 6 {
                     let (w, h) = (arg(4).int(), arg(5).int());
                     // shortcut: with Game::relative_children (続・殺戮のジャンゴ) a
@@ -290,6 +292,11 @@ impl Compiler<'_, '_> {
                     let o = self.objects.get_mut(t).unwrap();
                     o.opacity = to.position(o.opacity, 0, 0).clamp(0, 1000);
                     window_only &= o.hideable;
+                }
+                if ms <= 0 {
+                    // src: Muramasa.exe cb_Fade 0044f020: time 0 sets the opacity at
+                    // once, the tempo unused (Django.exe cb_00438fb0 the same).
+                    arg(3);
                 }
                 if !window_only {
                     if ms > 0 {
@@ -637,6 +644,9 @@ impl Compiler<'_, '_> {
                 let (x, y) = (arg(2).int().abs() as i32, arg(3).int().abs() as i32);
                 let end = (arg(4).int().abs() as i32, arg(5).int().abs() as i32);
                 self.sync(0);
+                if ms == 0 {
+                    last(); // a 0 ms stop has nothing to wait for
+                }
                 if ms > 0 && (x > 0 || y > 0) {
                     let shake = match step {
                         Some((interval_ms, ease)) => {
@@ -805,7 +815,14 @@ impl Compiler<'_, '_> {
                 }
                 self.process_fade = arg(1).int().max(0) as u32;
             }
-            "SetVolume" => self.set_volume(&arg(0), arg(1).int(), arg(2).int()),
+            "SetVolume" => {
+                // src: Muramasa.exe sound_set_volume 00475f50: time 0 sets the volume at
+                // once; only a fade builds its steps by the tempo (00478570).
+                if arg(1).int() <= 0 {
+                    arg(3);
+                }
+                self.set_volume(&arg(0), arg(1).int(), arg(2).int())
+            }
             "SetPan" => self.set_pan(&arg(0), arg(1).int(), arg(2).int()),
             "SetLoopPoint" => {
                 let points = (arg(1).int().max(0) as u32, arg(2).int().max(0) as u32);
