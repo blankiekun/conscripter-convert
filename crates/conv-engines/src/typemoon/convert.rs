@@ -140,6 +140,8 @@ fn label(script: &str, name: Option<&str>) -> String {
 }
 
 /// A whole-number argument: digits with `+`/`-` between them (`258-18`).
+/// A `.` ends it (`242.25` is 242): the exe's expression reader
+/// (`FUN_00103160`) takes the digits with `strtol` and stops at a `.`.
 fn number(arg: &str) -> Option<i32> {
     let arg = arg.trim();
     let mut total = 0i32;
@@ -153,6 +155,7 @@ fn number(arg: &str) -> Option<i32> {
     for (i, c) in arg.char_indices() {
         match c {
             '0'..='9' => digits.push(c),
+            '.' if !digits.is_empty() => break,
             '+' | '-' if i == 0 => sign = if c == '-' { -1 } else { 1 },
             '+' | '-' => {
                 flush(&mut digits, sign, &mut total)?;
@@ -188,6 +191,8 @@ const UNREAD_HARMLESS: &[(&str, usize, &str)] = &[
     ("_SELS", 0, "the choice's name: one choice is open at a time"),
     ("_GOTS", 0, "the choice's name: one choice is open at a time"),
     // `FUN_00160840` reads arguments 0–6 and 9–19 only; 8 is always `CC`.
+    // `script_command` (0x177790, case "PLY" under V) reads the name and argument 2 only.
+    ("_VPLY", 1, "the Switch exe never reads it"),
     ("_STCH", 7, "the Switch exe never reads it"),
     ("_STCH", 8, "the Switch exe never reads it"),
     ("_SCH2", 7, "the Switch exe never reads it"),
@@ -1492,6 +1497,7 @@ mod tests {
     fn numbers_and_markup() {
         assert_eq!(number("258-18"), Some(240));
         assert_eq!(number("-5"), Some(-5));
+        assert_eq!(number("242.25"), Some(242));
         assert_eq!(number("F1"), None);
         assert_eq!(option_at(&["", "`001:4000", "`017:50"], 17), Some((2, 50)));
         let (t, r) = text("@g　開け<肌寒|はだざむ>い^[ber00]風@k");

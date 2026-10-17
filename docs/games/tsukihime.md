@@ -640,8 +640,10 @@ Nothing yet.
 5. The metrics (`tests/snapshots/tsukihime.metrics.json`) count each
    argument a converted command passes and doesn't read as a gap
    (`<command> argument <i> ignored`, `option <n>` for a backquote
-   option); the list is in that file. The biggest: `_STZ4`'s 2 timed uses (and 14 on
-   layers with no picture), `_VPLY` 1, `_WTTM` 1, `_SEPL` option 17.
+   option); the list is in that file. The biggest: `_STZ4`'s 2 timed uses (and 2 on
+   layers with no picture), `_WTTM` 1 (with it, the wait less
+   `DAT_00be0a00`, a frame count `FUN_00181b30` adds to; when it is
+   reset not found), `_SEPL` option 17.
 
 ### Accuracy
 
@@ -678,6 +680,17 @@ The biggest commands not converted, looked up in `script_command`
   out.
 
 ## History
+
+- 2026-10-17: numbers with a `.` (`_STCH(19,img1729,…,242.25,…)`, 24
+  `_STCH` and with them 12 `_STZ4` and 4 `_STRT` on their layers),
+  **seen**: the expression reader (`FUN_00103160`) takes the digits
+  with `strtol` and stops at the `.`, so 242.25 is 242. `_VPLY`'s
+  argument 1 (`_VPLY(B50_01_01_0007_0,03978)`, 16,690 uses) is never
+  read (`script_command`, case "PLY": the name, then argument 2 when
+  there are three). `_SELS` (1 use, `QACALL`) is a two-slot choice
+  with no texts (`FUN_00192800`: slots 0 and 1, the select screen in
+  mode 2, `FUN_00183b20`); its look is the select screen's, left for
+  the screens.
 
 - 2026-10-17: media flags as the other games' (the user's choice): no
   re-encode by default. Pictures PNG, `--webp`/`--webp-quality`
