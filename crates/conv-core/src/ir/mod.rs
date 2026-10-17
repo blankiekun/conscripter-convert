@@ -185,6 +185,14 @@ pub const FILTER_GREY_LEVELS: i32 = 10;
 /// The grey of the weights in `params` (r, g, b in 1/256, each term
 /// rounded down).
 pub const FILTER_GREY_WEIGHTS: i32 = 11;
+/// [`FILTER_LEVELS`] on each channel decoded as sRGB and raised to 1/2.2
+/// (a shader sampling an sRGB texture and re-encoding it), in float with
+/// one rounding: 月姫's `_STEC`.
+pub const FILTER_ALTER_LEVELS: i32 = 12;
+/// [`FILTER_GREY_LEVELS`] on those decoded values.
+pub const FILTER_ALTER_GREY_LEVELS: i32 = 13;
+/// [`FILTER_ALTER_LEVELS`], a green or blue of 0 kept at 0.
+pub const FILTER_ALTER_LEVELS_KEEP: i32 = 14;
 /// How a filter's colour is combined with the pixel's
 /// ([`SpriteFilter::blend`]).
 pub const FILTER_BLEND_COPY: i32 = 0;
