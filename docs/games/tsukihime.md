@@ -671,6 +671,25 @@ The biggest commands not converted, looked up in `script_command`
   it in over `ms`; not converted (no IR op shows the window without
   text). Ours shows the window at once where the original fades it in
   over 18 frames after a hide (`FUN_0016e0d0`).
+- `_STEC(layer, n)` for n ≠ 0, 1 (9,193): **seen**: `FUN_00103de0`
+  keeps `n` (0–82; 4 and the others alike) as the layer's effect
+  (state 0x1404, live layer 0x244) and resets its colour to white. The
+  effect is a key of the texture cache (`FUN_001aa340`, slot +0x28)
+  and makes an "altered texture" (`FUN_001a3180` → `FUN_0019f6c0`):
+  83 records of 20 f32 at 0x4358B0 (`FUN_00103fc0`; −9 = unset): per
+  channel R, G, B three values (a gain or gamma, then a low and a high
+  level), a mode (1 for effects 2, 3, 5–7, 77–81: greyscale, times
+  the gains in 3 sepia 0.941/0.784/0.569, 5 blue, 6 green, 7 red; 2 for
+  effect 1, the tint), then two colour layers (r, g, b, amount, blend
+  kind). They go to the shader constants (`DAT_019AFF00`…) of
+  `shader/nexl_nxshader_pre_alter.bnsh`, which turns the texel to
+  gamma (x^0.4545, ×255), takes greyscale as (54 R + 183 G + 19 B)/256
+  and applies the levels (c3[0x0] gain, c3[0x10] low, c3[0x20] high
+  per channel). The draw's own word for it (`FUN_001b0890`, the draw
+  descriptor's +0xC) is never read by `FUN_0019fe00`. **Unknown**: the
+  rest of that shader (the gain's exact use and the two layers'
+  blends). Following it needs a levels/colour-layer filter in the
+  engine; not converted.
 - `_SNX4(…)` (8,762), **seen**: `script_command` has no case for it
   (`_SNX2` and `_SNX3` have), so the Switch exe does nothing. Left
   out.
@@ -795,7 +814,7 @@ The biggest commands not converted, looked up in `script_command`
   - `_STEC(layer, effect, colour)` (`FUN_00103de0`): effect 1 tints the
     layer by `colour` (0x000000 954 uses, 0xFFFFFF 410, 0xE5FFFF, …;
     multiplied, white none), 0 ends it; `_STCH` resets it. Effects 2–9
-    and 10–82 (2 is the most used, 1,338) are not known yet.
+    and 10–82 (2 is the most used, 1,338): see Open questions.
   1,001,727 commands fully converted.
 
 - 2026-10-16: parent layers. `_STCH` argument 11 names the layer a
