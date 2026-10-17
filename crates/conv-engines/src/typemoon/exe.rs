@@ -90,7 +90,7 @@ impl Exe {
     pub fn parse(nso: &[u8]) -> Result<Self, FormatError> {
         let exe = Exe { image: nso::image(nso)? };
         if exe.bytes(PICTURE_NAMES, 6)? != b"BLACK\0" {
-            return Err(FormatError::Bad("not 1.0.2's main: no picture table at 0x6E02A4".into()));
+            return Err(FormatError::Bad("not 1.0.2's or the fan patch's main (the base game's?): no picture table at 0x6E02A4".into()));
         }
         Ok(exe)
     }

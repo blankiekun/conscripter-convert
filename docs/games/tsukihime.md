@@ -36,7 +36,7 @@ applied with the base Program NCA; the result is a full second RomFS
 ```sh
 hactool -k prod.keys -t pfs0 --pfs0dir=patch <the patch .nsp>
 hactool -k prod.keys --basenca=nsp/<the base Program NCA> \
-  --romfsdir=<game-en> patch/<the patch's Program NCA>
+  --exefsdir=<game-en>/../exefs --romfsdir=<game-en> patch/<the patch's Program NCA>
 ```
 
 It changes every archive but `allpachd`/`allpacml`/`allpachdml`:
@@ -50,7 +50,7 @@ the 16 bytes at 0x180 of its `.tik`. The result is `<game-102>`:
 ```sh
 hactool -k prod.keys -t pfs0 --pfs0dir=upd <the 1.0.2 .nsp>
 hactool -k prod.keys --titlekey=$(xxd -p -s 0x180 -l 16 upd/*.tik) \
-  --basenca=nsp/<the base Program NCA> --exefsdir=exefs-102 \
+  --basenca=nsp/<the base Program NCA> --exefsdir=<game-102>/../exefs \
   --romfsdir=<game-102> upd/<the update's Program NCA>
 ```
 
@@ -105,8 +105,11 @@ into `arc*.nsa`):
 conscripter-convert typemoon convert <game-102> -o out/tsukihime-cons
 ```
 
-The exe is read from `<game-102>/../exefs/main` (`--exe` for another
-place).
+The exe is read from `<RomFS>/../exefs/main` (`--exe` for another
+place), so each RomFS sits beside its own ExeFS, as the commands above
+extract them: 1.0.2's `main` for Japanese, the fan patch's for English
+(both have 1.0.2's tables). The base game's `main` is an older build
+whose tables sit elsewhere; the converter refuses it.
 
 The Program NCA is the 22 GB one (the others: Meta, Control,
 Manual). The ExeFS holds `main` (3.3 MB NSO) and `subsdk0`/`subsdk1`.
@@ -624,7 +627,7 @@ Nothing yet.
 | Exe tables (pictures, motions, scene numbers) | ✅ read from the NSO (`typemoon exe`); picture sizes checked against the textures |
 | Scripts | 🔶 read: every command of both languages splits (one malformed in the original) and its text and voices join; the top commands' arguments read from the exe, the rest not yet |
 | Media folder (`typemoon media`) | ✅ `allpac`'s pictures at full size (PNG, or WebP with the shared `--webp` flags), the movies as they are, the sound (WAV wave sounds, or Opus/Vorbis with the shared `--audio-*` flags), loops kept in every mode |
-| Script conversion (`typemoon convert`) | 🔶 the flow (labels, `_JUMP`, `_IF__`, flags), text (pages, ruby, voices), pictures (`_STCH`/`_STCC`/`_FADS`: record size and place, fades and rule wipes), sound effects and music; plays from the start through `00_00` into the first arc headless. Layers drawn in priority order (`_STCP`, `_STCH` argument 6), changed keeping their settings (`_SCH2`) or copying another layer's (argument 18), zoomed (`_STZ4`), faded (`_STGS`) and moved (`_STMA`, the exe's motions; easing, priority and expression keys not followed), children placed in their parent layers, orbiting with their turn and following their motions (`_STCH` argument 11), clipped to their panels (`_STCH` arguments 12–16), turned (`_STRT`), drawn with their shader as far as CONscripter's blends and filters go (`_STBR`) and drawn with their `_STEC` effect (levels, greyscale and colour layers; effect 1 a colour fill, CONscripter's `spfilter` 9 and 10). Choices (`_SELR`, `_SELD`, `_GOTS`; options under a flag offered by it, greyed ones shown greyed and not selectable (`seldisable`); the chapter-jump menus), `_GOTO` and the Switch's own branches (`_IFNX`/`_IFP4`). The text window hidden and faded (`_CLO2`, `_CLO3`/`_CLO4`/`_CLO5` with CONscripter's `windowfade`, the script going on; the next text fades it back in). Not yet: the other layer commands, screens |
+| Script conversion (`typemoon convert`) | 🔶 the flow (labels, `_JUMP`, `_IF__`, flags), text (pages, ruby, voices; the fan patch's styled letters, private-use U+E000–U+E2FE drawn by its own `ja/TT_TsukuMin-D.ttf`, as ASCII: italic and serif italic as italic (`!i1`), mirrored and upside-down plain, U+E200 as `^-35`; its accents and em dashes as Shift-JIS stand-ins; a `^` break in a choice's option as a space), pictures (`_STCH`/`_STCC`/`_FADS`: record size and place, fades and rule wipes), sound effects and music; plays from the start through `00_00` into the first arc headless. Layers drawn in priority order (`_STCP`, `_STCH` argument 6), changed keeping their settings (`_SCH2`) or copying another layer's (argument 18), zoomed (`_STZ4`), faded (`_STGS`) and moved (`_STMA`, the exe's motions; easing, priority and expression keys not followed), children placed in their parent layers, orbiting with their turn and following their motions (`_STCH` argument 11), clipped to their panels (`_STCH` arguments 12–16), turned (`_STRT`), drawn with their shader as far as CONscripter's blends and filters go (`_STBR`) and drawn with their `_STEC` effect (levels, greyscale and colour layers; effect 1 a colour fill, CONscripter's `spfilter` 9 and 10). Choices (`_SELR`, `_SELD`, `_GOTS`; options under a flag offered by it, greyed ones shown greyed and not selectable (`seldisable`); the chapter-jump menus), `_GOTO` and the Switch's own branches (`_IFNX`/`_IFP4`). The text window hidden and faded (`_CLO2`, `_CLO3`/`_CLO4`/`_CLO5` with CONscripter's `windowfade`, the script going on; the next text fades it back in). Not yet: the other layer commands, screens |
 | Screens, extras | 🔶 the title; the system menu's Save and Load tabs (see History, 2026-10-17); Config, FlowChart, the backlog and the right-click menu not yet |
 
 ### Next
