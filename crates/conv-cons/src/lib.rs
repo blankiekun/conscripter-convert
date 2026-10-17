@@ -392,6 +392,10 @@ pub fn emit(script: &Script) -> String {
         writeln!(out, "windowback").unwrap();
         writeln!(out, "humanz {HUMANZ}").unwrap();
     }
+    if let Some(k) = script.button_bar.as_ref().and_then(|_| menu::pad_hide_key(script.command_menu.as_ref())) {
+        // The gamepad's Y hides the text window as the bar does.
+        writeln!(out, "padmap \"y\",\"{k}\"").unwrap();
+    }
     if script.backlog.is_some() || script.line_log.is_some() {
         // Wheel and arrow keys reach btnwait (backlog scrolling); keep more
         // pages of history than the default 16.
