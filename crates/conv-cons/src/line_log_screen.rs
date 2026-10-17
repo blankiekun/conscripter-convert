@@ -43,14 +43,15 @@ pub(crate) fn labels(out: &mut String, l: &LineLog) {
 /// `backlog.lua`.
 pub(crate) fn files(script: &Script) -> Vec<(String, String)> {
     let Some(l) = engine_log(script) else { return Vec::new() };
-    assert!(!script.single_byte_text && l.outline.is_none(), "an engine line log draws no single-byte rows or outline");
+    assert!(!script.single_byte_text, "an engine line log draws no single-byte rows");
     let mut w = Vec::new();
     w.push(image("image", &l.background, ", opaque=true"));
     let v = &l.voice_icon;
+    let outline = l.outline.as_ref().map_or(String::new(), |o| format!(", outline={}", lua(o)));
     // A row is cut at the columns, but strsp wraps a full-width character
     // one column early: a full row would lose its last.
     w.push(format!(
-        "{{\"list\", source=\"rows\", var={}, x={}, y={}, dy={}, rows={}, size={}, cols={}, color={},\n      voice={{file={}, cells=3, pressed=2, x={}, y={}}}}}",
+        "{{\"list\", source=\"rows\", var={}, x={}, y={}, dy={}, rows={}, size={}, cols={}, color={}{outline},\n      voice={{file={}, cells=3, pressed=2, x={}, y={}}}}}",
         lua(ROWS_BACK),
         l.text_x,
         l.text_y,
@@ -117,7 +118,7 @@ mod tests {
             font_size: 20,
             colour: "#000000".into(),
             fade_ms: 300,
-            outline: None,
+            outline: Some("#AAAA88".into()),
             row_width: None,
             engine_screen: true,
         };
@@ -127,7 +128,7 @@ mod tests {
         for part in [
             "local back_max = var(\"%174\")",
             "wheel_down = {\"scroll\", \"-1\", at_end = {\"close\"}},",
-            "{\"list\", source=\"rows\", var=\"%170\", x=140, y=49, dy=30, rows=16, size=20, cols=27, color=\"#000000\",\n      voice={file=\"system/voice.png\", cells=3, pressed=2, x=102, y=3}}",
+            "{\"list\", source=\"rows\", var=\"%170\", x=140, y=49, dy=30, rows=16, size=20, cols=27, color=\"#000000\", outline=\"#AAAA88\",\n      voice={file=\"system/voice.png\", cells=3, pressed=2, x=102, y=3}}",
             "{\"slider\", var=\"%170\", min=0, max=back_max, step=1, vertical=true, travel=-411, knob={file=\"system/knob.png\", cells=2, x=860, y=461}}",
         ] {
             assert!(lua.contains(part), "missing {part:?} in\n{lua}");
