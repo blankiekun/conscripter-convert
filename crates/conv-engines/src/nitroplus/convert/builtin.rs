@@ -222,6 +222,11 @@ impl Compiler<'_, '_> {
                 // The text window's own fades aren't waited for: the window
                 // just shows or hides.
                 if !window_only {
+                    if ms > 0 {
+                        for t in &targets {
+                            self.pending_fade.insert(t.clone(), ms as u32);
+                        }
+                    }
                     self.timed(ms, &wait, &targets);
                 } else if !matches!(wait, Value::Null | Value::Int(0)) {
                     self.check_window();
