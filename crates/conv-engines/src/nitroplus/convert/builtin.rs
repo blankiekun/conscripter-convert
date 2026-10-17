@@ -34,6 +34,13 @@ const UNREAD_HARMLESS: &[(&str, usize, Option<&str>, &str)] = &[
 /// The note on a `Conquest` call, left out ([`super::LEFT_OUT`]).
 pub(super) const CONQUEST: &str = "Conquest: whole-scene read marks";
 
+/// The note on a call of the choice screen's own code (`function_select.nss`:
+/// its buttons, labels, masks, focus, pointer and its `Save(9999)` for
+/// 選択肢に戻る), left out ([`super::LEFT_OUT`]): the engine's choice
+/// (`ChoiceStyle`) stands in, and conv-cons' back-to-choice save where the
+/// game's menu has that item.
+pub(super) const CHOICE_SCREEN: &str = "choice screen's own call";
+
 impl Compiler<'_, '_> {
     /// A built-in call; every argument passed and not read gets a note
     /// (`<Builtin> argument <i> ignored`), so a call converted only in part
@@ -804,7 +811,11 @@ impl Compiler<'_, '_> {
             // Noted whole: no note per argument.
             other if BUILTINS.contains(&other) => {
                 read.set(u64::MAX);
-                self.note(format!("built-in {other}"));
+                if self.file == "function_select.nss" {
+                    self.note(CHOICE_SCREEN);
+                } else {
+                    self.note(format!("built-in {other}"));
+                }
             }
             // No built-in and no NSS function has this name: the exe skips
             // the call (`Waitkey(500)`, `SL_Rightdown(…)`).
