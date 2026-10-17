@@ -459,6 +459,16 @@ over 200, their bullets at once (ours at once both).
       linear; the data uses only 0 and ±1000, where they agree.
    4. `Fade` with four arguments takes the fourth as the tempo, not
       the wait; the six such calls take 0 ms.
+   5. `Draw` (`0040ba10`) draws one frame and lets running actions go
+      on; ours waits for them (as `WaitAction`, shared with
+      装甲悪鬼村正): 500 ms too long in dja019_02, 100 ms in dja053_02.
+   6. `SetAlias` keeps one alias per object (a new one replaces it,
+      `00432da0`); ours keeps the older alias too. Not checked whether
+      the story re-aliases an object.
+   7. `SetFrequency` on music is noted ×15 though every call
+      (`MusicStart`) sets 1000, no change; `LoadFont` (×67, glyph
+      preloading) is noted as a gap though it draws nothing. Both only
+      inflate the gap count.
 
 ## History
 
