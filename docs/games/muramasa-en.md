@@ -36,8 +36,13 @@ The extras' menu is the Japanese build's `screen "extras"` (the same
 `extras.lua`; "Extras' menu drawn by the engine" in muramasa.md): checked
 on this build against main's routine (open, hover, the gallery, back,
 the title: 0 pixels). The save screen (popup, locks, tabs, quick page),
-the backlog (single-byte rows) and the extras' modes are still script
-routines.
+the backlog (single-byte rows) and the extras' modes other than the
+gallery's pages are still script routines.
+
+The CG gallery's pages are the Japanese build's `screen "gallery"` (the
+same `gallery.lua`; "CG gallery drawn by the engine" in muramasa.md),
+checked on this build against main's routine: 0 pixels (1 px on an
+arrow).
 
 ### Queue (2026-10-16)
 

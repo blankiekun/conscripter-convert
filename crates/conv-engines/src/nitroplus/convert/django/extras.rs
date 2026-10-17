@@ -246,6 +246,7 @@ fn gallery(a: &mut dyn Assets, story: &Story) -> Option<PictureGallery> {
         scroll_ms_per_px: 6,
         across: true,
         arrows_when_paged: true,
+        engine_screen: false,
     })
 }
 

@@ -466,6 +466,9 @@ pub struct PictureGallery {
     pub across: bool,
     /// Previous and next show only in a category of more than one page.
     pub arrows_when_paged: bool,
+    /// The pages are drawn by the engine (CONscripter's `screen`,
+    /// `screens/gallery.lua`); the viewer stays a script routine.
+    pub engine_screen: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

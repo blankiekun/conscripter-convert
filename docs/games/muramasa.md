@@ -598,13 +598,28 @@ oldest row. Open:
 (`conv-cons/src/picture_extras.rs`, `PictureExtras` with `engine_screen`;
 engine #93): the picture and its buttons (a locked one at 51/255 and not a
 button), fading in over 500 ms. It closes with the mode chosen holding
-its frame (`hold`), so the mode (still the script routines: gallery,
-sound room, recollection, 3D viewer) and the title cross-fade straight
+its frame (`hold`), so the mode (the gallery's pages a screen, the
+rest still script routines: sound room, recollection, 3D viewer) and the title cross-fade straight
 from it. Checked on Xvfb against main's routine (this build and the
 English one, which shares it): open, a button hovered, the gallery, back
 to the menu, back to the title: 0 pixels; frames mid cross-fade show no
 fade to black; again after the rebase onto engine master 1f90e0f: 0 pixels
 in the six frames, mid cross-fades not black. Open: the four modes' screens.
+
+### CG gallery drawn by the engine (2026-10-17)
+
+画像映写機's pages are CONscripter's `screen "gallery"`
+(`conv-cons/src/gallery_screen.rs`, `PictureGallery` with
+`engine_screen`): each category's pages are the screen's pages (19), a
+slot its first seen CG's thumbnail (128/255 while some are unseen,
+空白アイコン while none is) under the cursor button, the 2D/3D/BG
+buttons tabs (their pressed cell while open), 前/次 round inside the
+category, 300 ms cross-fades. A slot closes the screen holding its frame
+and the script's viewer runs as before (cross-fades, scrolling, unseen
+pictures); back from it the screen opens on the same page over 300 ms.
+Checked on Xvfb against main's routine: open, a slot hovered, the next
+page, each category, the viewer, back, the menu: 0 pixels (1 px on an
+arrow). Open: the viewer is still the script's.
 
 ### Settings drawn by the engine (2026-10-17)
 

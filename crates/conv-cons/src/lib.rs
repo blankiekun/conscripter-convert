@@ -32,6 +32,7 @@ pub mod nsa;
 mod picture_screen;
 mod picture_extras;
 mod picture_gallery;
+mod gallery_screen;
 mod picture_replay;
 mod picture_sound;
 mod picture_settings;
