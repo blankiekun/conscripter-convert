@@ -93,7 +93,26 @@ It has no NPA archives and no NSS scripts.
   705,190) are now taken (`OWN_BOXES` gone): 24 captions. Checked on a
   one-scene build with the trace: the three boxes side by side, a face
   and the line in each; the next page in R at 616.
-- Next: ma01_026's typed document and mc02_031's menus (Status "Next" 4).
+- mc02_031's menus (this PR, shared NSS): a page showing a variable
+  (`<VALUE name=$料理名前>`; the port's `<VALUE='料理名前'>` too) that a
+  runtime flag holds is given once for each text the flag can hold,
+  behind `if %flag != code` tests, and once without it (the existing
+  `If`/`Jump`/`Label` ops; labels named by file and page, so no other
+  label moves). The English values come from the port's slots as the
+  choices' do (`slot_strs` reads `=` as well as `<-`), its Japanese
+  values beside them left out: the dishes ("Here you are. Sauteed
+  pork.", 14) and the ingredient ("stocked with pork."). No variable
+  or code moves (the dry runs' `mov`/`if` lines against main: 15
+  added, none changed), so saves keep working. The ingredient is
+  always pork: `Random` is 0 at convert time (both builds), so the
+  dish is too unless another path sets the flags. `mc02_031time`'s
+  `$mc02_時間` (set in `function_process.nss`) is not a story flag: as
+  before.
+- Next: ma01_026's typed document: the port shows its 5 lines centred
+  one at a time, typed letter by letter (`CreateTextArea` 1280×150,
+  `FadeCharacter`); ours shows them in the text box after the typing
+  sounds (both builds run a page's code before it). Left for now
+  (the lead, 2026-10-16).
 - Decided: a click on an empty slot at the title doesn't save (the
   original saves the title screen there): a deliberate difference.
   Continue loads the quick save, else the newest save. Japanese story
