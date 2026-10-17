@@ -376,9 +376,9 @@ with the original (it wants all eleven endings' flags under wine).
 1. The trace checker's remaining findings: "sounds on two channels at
    once" are the script's own (the same shot or horse on two sound
    objects, started 500 ms apart) and stay.
-2. The 14 moves and zooms still drawn as cross-fades (dry run notes,
-   2026-10-16): 2 zooms between two pictures both cut to the screen, 9
-   movies, 3 fades that change layer or picture.
+2. The 10 moves and zooms still drawn as cross-fades (dry run notes,
+   2026-10-16): 1 zoom between two pictures both cut to the screen
+   (`立絵50`, zoom 4000), 9 movies.
 3. Extras: the doors' animation and the menu's own music (left out).
 4. From the exe's coverage table ("The exe"): `SetShade HEAVY` (one use): done (#197).
 5. The unread-argument notes (`<Builtin> argument <i> ignored`;
@@ -427,6 +427,19 @@ with the original (it wants all eleven endings' flags under wine).
    NSS code; noted, drawn as nothing.
 
 ## History
+
+- **Fading moves in a spread, uneven zooms (2026-10-16, shared NSS
+  code).** Two of the moves still drawn as cross-fades. (1) A picture
+  that starts to move as it fades out (dja047's `イベント絵23`, twice)
+  when the layers spread out: it now keeps its layer like a running
+  motion, and the one motion with alpha keys runs (trace: it ran its
+  400 ms). (2) A zoom more along one axis than the other (dja023's
+  イライザ unfolding from a line, `Zoom` x 0 to 500 over 200 ms): the
+  new sprite is placed where it ends and zooms its width from 0
+  (`uneven_motion`, its own keys, since `motion` takes even zooms
+  only). Checked with `--real-time --shot-at`: dja023 at +80 ms is a
+  narrow strip widening instead of a cross-fade of the whole picture
+  (AE 23k to 13k over +40 to +160 ms, the same at +400).
 
 - **Moving pictures spread with no room keep moving (2026-10-16, shared
   NSS code).** When the moving pictures leave no room for a new one
