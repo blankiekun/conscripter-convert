@@ -43,7 +43,8 @@ pub struct Picture {
     pub pose_value: u16,
 }
 
-/// One keyframe of a motion: fields not given are −32767 in the exe.
+/// One keyframe of a motion: fields not given are −32767 in the exe;
+/// −32766 (`Key::THROUGH`) is resolved by `Motion::through_filled`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Key {
     pub time_ms: u32,
@@ -54,6 +55,9 @@ pub struct Key {
 
 impl Key {
     pub const UNSET: i16 = -32767;
+    /// No key for this field here: the exe interpolates it between the
+    /// keys around it that have one (`FUN_00197710` skips these keys).
+    pub const THROUGH: i16 = -32766;
     fn field(&self, at: usize) -> Option<i16> {
         Some(self.fields[(at - 4) / 2]).filter(|&v| v != Self::UNSET)
     }
@@ -79,6 +83,35 @@ impl Key {
 pub struct Motion {
     pub length_ms: u32,
     pub keys: Vec<Key>,
+}
+
+impl Motion {
+    /// Each `Key::THROUGH` field given its value on the straight line
+    /// between the keys before and after it that set the field; with none
+    /// after, unset (the exe holds the last value set).
+    fn through_filled(mut self) -> Self {
+        // Fields 8 and 9 (0x14) are one i32, whose skip value is −100000.
+        for f in (0..30).filter(|f| !matches!(f, 8 | 9)) {
+            let set = |k: &Key| ![Key::UNSET, Key::THROUGH].contains(&k.fields[f]);
+            for i in 0..self.keys.len() {
+                if self.keys[i].fields[f] != Key::THROUGH {
+                    continue;
+                }
+                let before = self.keys[..i].iter().rev().find(|k| set(k));
+                let after = self.keys[i + 1..].iter().find(|k| set(k));
+                let t = self.keys[i].time_ms as f32;
+                self.keys[i].fields[f] = match (before, after) {
+                    (Some(a), Some(b)) if b.time_ms > a.time_ms => {
+                        let (va, vb) = (f32::from(a.fields[f]), f32::from(b.fields[f]));
+                        (va + (vb - va) * (t - a.time_ms as f32) / (b.time_ms - a.time_ms) as f32).round() as i16
+                    }
+                    (Some(a), Some(_)) => a.fields[f],
+                    _ => Key::UNSET,
+                };
+            }
+        }
+        self
+    }
 }
 
 pub struct Exe {
@@ -154,7 +187,7 @@ impl Exe {
                         Ok(Key { time_ms: u32::from_le_bytes(raw[..4].try_into().unwrap()), fields })
                     })
                     .collect::<Result<_, FormatError>>()?;
-                Ok(Motion { length_ms: self.u32(MOTION_LENGTH + 4 * m)?, keys })
+                Ok(Motion { length_ms: self.u32(MOTION_LENGTH + 4 * m)?, keys }.through_filled())
             })
             .collect()
     }
@@ -178,5 +211,18 @@ mod tests {
         fields[10] = 584; // 0x18: zoom
         let key = Key { time_ms: 0, fields };
         assert_eq!((key.x(), key.y(), key.zoom()), (Some(226), None, (Some(584), None)));
+    }
+
+    #[test]
+    fn through_keys_take_the_line_between_their_neighbours() {
+        let key = |time_ms, x| {
+            let mut fields = [Key::UNSET; 30];
+            fields[2] = x;
+            Key { time_ms, fields }
+        };
+        let m = Motion { length_ms: 1700, keys: vec![key(0, -205), key(1000, 885), key(1400, Key::THROUGH), key(1700, 175), key(1800, Key::THROUGH)] }.through_filled();
+        let xs: Vec<_> = m.keys.iter().map(Key::x).collect();
+        // 885 + (175 − 885) × 400 / 700
+        assert_eq!(xs, [Some(-205), Some(885), Some(479), Some(175), None]);
     }
 }
