@@ -3,7 +3,8 @@
 //! history's rows as `logrows` lays them out (a list of rows, each voiced
 //! page's first row with its voice button), 逆/進 and the wheel a row back
 //! or forward (the wheel past the newest row closes), the knob a picture
-//! slider over the same variable, 退出.
+//! slider over the same variable, 退出. A row of single-byte text (the
+//! English build's) the engine draws after a backquote.
 //!
 //! [`ROWS_BACK`] is how many rows back from the newest the list ends (0:
 //! the newest at the bottom); the label lays the rows out and puts how far
@@ -43,7 +44,6 @@ pub(crate) fn labels(out: &mut String, l: &LineLog) {
 /// `backlog.lua`.
 pub(crate) fn files(script: &Script) -> Vec<(String, String)> {
     let Some(l) = engine_log(script) else { return Vec::new() };
-    assert!(!script.single_byte_text, "an engine line log draws no single-byte rows");
     let mut w = Vec::new();
     w.push(image("image", &l.background, ", opaque=true"));
     let v = &l.voice_icon;
