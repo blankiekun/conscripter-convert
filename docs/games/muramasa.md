@@ -545,7 +545,7 @@ Used to check what the engine does (`docs/new-game.md` step 9).
   **A** endless loops, **B** `system.lua` from the IR, **C1** loops
   behind an `if` with a lead-in, **C2** the one-shots played once on
   paper (#151) (History, "Processes"). `ComicProcess` (83) in review
-  (PR "NSS ComicProcess"): `Shake` plays on paper (`one_shot.rs`
+  (#167): `Shake` plays on paper (`one_shot.rs`
   `paper_shake`: the picture moved to and fro by `shake_keys`, its
   wait holding the process), and a loop process's branch that doesn't
   loop (`ComicProcess`'s signs 1, 2, 5-9, 12, 13, 16-18) is played on
