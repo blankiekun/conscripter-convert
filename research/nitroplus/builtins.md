@@ -189,7 +189,7 @@ dry run):
 | `SetVertex` | most story | converted: the point a `Zoom` or `Rotate` keeps in place |
 | `SetFont` | most story | converted: its style is `CreateText`'s (the story's text window keeps ours) |
 | `LoadImage` | 30 / 16 / 101 | not converted for Muramasa (`Game::loaded_textures` is off; 487 noted): the sources of `CreateTexture` from an object |
-| `DrawEffect` | 79 / 0 / 2 | not converted (waves `SuperWave`, `LowWave`, …; 76 noted) |
+| `DrawEffect` | 79 / 0 / 2 | waves converted (`spwave`, Status); Ripple and the Splits noted |
 | `CreateStencil`, `CreateMask`, `SetSurface`, `CreateSurface` | 59 / 2 / 0 …; 30 / 1 / 1; 6 / 4 / 0; 0 / 3 / 0 | not converted (57, 28, 58, 52 noted) |
 | `SetLoopPoint` | 0 / 3 / 0 | not converted: the BGM helpers' loop points (33 noted) |
 | `String`, `VariableValue`, `Array`, `AssocArray`, `Count` | 2 / 52 / 64 …; mostly lib and sys | converted when the value is known at convert time; else noted (1,658, 1,584, 689, 165): `SetRoll`'s ending tables (Status), `sys_hmode` |
@@ -294,9 +294,10 @@ Monochrome 16, KitanoBlue 4, NegaPosi 4, Lens 2, Drop 1: Plain, and
 Sepia, Monochrome, NegaPosi and KitanoBlue (the pictures below tinted,
 `spfilter`) converted, except a tint over part of the screen (one
 KitanoBlue box, noted). `DrawEffect` SuperWave 21, LowWave 25, HighWave 11,
-MiddleWave 10, HardSplit 5, Ripple 4, SoftSplit, Split: not converted;
-13 of them are written with a trailing space (`"LowWave "`), which an
-exact match would reject (unverified). Tempo names: Status ("Tempo is
+MiddleWave 10: converted (`spwave`); HardSplit 5, Ripple 4, SoftSplit,
+Split: not converted. 13 are written with a trailing space
+(`"LowWave "`), which the exe accepts (`FUN_0042f770`: a space, tab or
+end after the name). Tempo names: Status ("Tempo is
 never read").
 
 ## Conventions shared by most built-ins
@@ -564,7 +565,7 @@ on a channel picked per object name, looping SE (`MusicStart(…, true)`) →
 | `Draw()` | 97 | Force a redraw now | `print 1` |
 | `CreateText(obj, prio, x, y, w, h, markup)` | 91 | Free text object (captions `字幕01`, menus) | `strsp` |
 | `SetBacklog(text, voice, name)` | 85 | Adds a backlog entry by hand (lines shown as images) | `[name|voice]` tag / skip |
-| `DrawEffect(obj, time, kind, …, tempo, wait)` | 79 | Wave distortion (`SuperWave`, `LowWave`, …) | Lua/skip |
+| `DrawEffect(obj, time, kind, from, to, tempo)` | 79 | Wave distortion (`SuperWave`, `LowWave`, …); **exe** reads 6 arguments (no wait): rows shifted by sin × amp, amp `from` → `to` px over `time`, then held | `spwave` |
 | `CreateStencil` / `CreateMask` / `SetSurface` / `CreateSurface` | 59 / 31 / 10 / 3 | Masks and render targets for effects | case by case |
 | `LockVideo(bool)` / `XBOX360_LockVideo` | 50 / 18 | Batch screen updates (draw nothing until unlocked) | maps well: `print` only at unlock |
 | `Position(obj, $x, $y)` | 47 | Read an object's position | compile-time table |

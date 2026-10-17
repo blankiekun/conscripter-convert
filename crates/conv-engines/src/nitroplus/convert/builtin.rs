@@ -380,6 +380,38 @@ impl Compiler<'_, '_> {
                 self.set_tempo(tempo(&arg(4)), &targets);
                 self.timed(arg(1).int(), &arg(5), &targets);
             }
+            "DrawEffect" => {
+                // (obj, ms, kind, from, to, tempo): a wave going `from` → `to`
+                // px over `ms`, then held (the exe matches the name exactly, a
+                // trailing space allowed). The phase's turns over the height
+                // by name (`FUN_00430a70`).
+                let period = match arg(2).string().trim_end_matches([' ', '\t']) {
+                    "LowWave" => 64,
+                    "MiddleWave" => 512,
+                    "HighWave" => 1024,
+                    "SuperWave" => 4096,
+                    _ => {
+                        self.note(format!("DrawEffect {}", arg(2).string().trim_end()));
+                        return Value::Null;
+                    }
+                };
+                let ms = arg(1).int().clamp(0, i64::from(i32::MAX)) as u32;
+                let (from, to) = (arg(3).int().clamp(-1000, 1000) as i32, arg(4).int().clamp(-1000, 1000) as i32);
+                let wave = Wave { start: self.sound_clock(), ms, period, from, to, ease: tempo(&arg(5)) };
+                for t in self.matching(&arg(0)) {
+                    let Some(o) = self.objects.get_mut(&t) else { continue };
+                    if matches!(o.kind, Kind::Cover) {
+                        self.note("DrawEffect wave on a Plain cover");
+                        continue;
+                    }
+                    o.wave = Some(wave);
+                    if let Some(s) = self.shown.get(&t)
+                        && let Some(op) = wave.op(s.layer, wave.start, s)
+                    {
+                        self.ops.push(op);
+                    }
+                }
+            }
             "SetShade" => {
                 // (obj, level): the exe's names (`FUN_00465b10`, matched by the
                 // sum of their letters); another name does nothing.
