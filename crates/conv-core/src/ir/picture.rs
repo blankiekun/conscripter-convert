@@ -518,8 +518,8 @@ pub struct RoomVideo {
 }
 
 /// A key of [`Op::SpriteMotion2`], `ms` from the motion's start: the offset
-/// from the sprite's place (pixels), its zoom (percent, 100 = its size) and
-/// angle (degrees, counterclockwise) about the centre of its place, and its
+/// from the sprite's place (pixels), its zoom (percent, 100 = its size;
+/// `zoom` across, `zoom_y` up and down) and angle (degrees, counterclockwise) about the centre of its place, and its
 /// opacity (0-256 of its own); straight from key to key.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MotionKey {
@@ -529,6 +529,7 @@ pub struct MotionKey {
     pub zoom: u32,
     pub angle: i32,
     pub opacity: u32,
+    pub zoom_y: u32,
 }
 
 /// After the last key of an [`Op::SpriteMotion2`].

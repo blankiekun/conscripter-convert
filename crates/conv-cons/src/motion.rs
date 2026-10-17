@@ -10,7 +10,12 @@ use crate::SPRITE_BASE;
 /// One `spmotion` key: ms, offset, zoom (x and y), angle, alpha 0-256,
 /// reached in a straight line (curve 0).
 fn key(ms: u32, x: i32, y: i32, zoom: u32, angle: i32, alpha: u32) -> String {
-    format!("{ms},{x},{y},{zoom},{zoom},{angle},{},0", alpha.min(256))
+    key2(ms, x, y, (zoom, zoom), angle, alpha)
+}
+
+/// [`key`] with its zoom across and up and down.
+fn key2(ms: u32, x: i32, y: i32, (zx, zy): (u32, u32), angle: i32, alpha: u32) -> String {
+    format!("{ms},{x},{y},{zx},{zy},{angle},{},0", alpha.min(256))
 }
 
 /// A fade in over `ms` from alpha 0 to the sprite's own (a loop 0 motion).
@@ -42,6 +47,7 @@ fn fold_fade(keys: &mut Vec<MotionKey>, fade: u32) {
                 x: f(a.x.into(), b.x.into()) as i32,
                 y: f(a.y.into(), b.y.into()) as i32,
                 zoom: f(a.zoom.into(), b.zoom.into()) as u32,
+                zoom_y: f(a.zoom_y.into(), b.zoom_y.into()) as u32,
                 angle: f(a.angle.into(), b.angle.into()) as i32,
                 opacity: f(a.opacity.into(), b.opacity.into()) as u32,
             };
@@ -153,7 +159,7 @@ pub(crate) fn emit(out: &mut String, layer: u32, keys: &[(u32, i32, i32)], loope
         writeln!(out, "spmotion {}", SPRITE_BASE + layer).unwrap();
         return;
     }
-    let keys: Vec<MotionKey> = keys.iter().map(|&(ms, x, y)| MotionKey { ms, x, y, zoom: 100, angle: 0, opacity: 256 }).collect();
+    let keys: Vec<MotionKey> = keys.iter().map(|&(ms, x, y)| MotionKey { ms, x, y, zoom: 100, angle: 0, opacity: 256, zoom_y: 100 }).collect();
     emit2(out, layer, &keys, if looped { MotionEnd::Loop } else { MotionEnd::Back }, fade, 0);
 }
 
@@ -173,7 +179,7 @@ pub(crate) fn emit2(out: &mut String, layer: u32, keys: &[MotionKey], end: Motio
     if let Some(fade) = fade.filter(|_| !matches!(end, MotionEnd::Loop | MotionEnd::LoopFrom(_))) {
         fold_fade(&mut keys, fade);
     }
-    let keys: Vec<String> = keys.iter().map(|k| key(k.ms, k.x, k.y, k.zoom, k.angle, k.opacity)).collect();
+    let keys: Vec<String> = keys.iter().map(|k| key2(k.ms, k.x, k.y, (k.zoom, k.zoom_y), k.angle, k.opacity)).collect();
     // (The first key's curve is unused: the motion starts there.)
     let keys: Vec<String> = keys.into_iter().map(|k| if curve == 0 { k } else { format!("{},{curve}", k.strip_suffix(",0").unwrap()) }).collect();
     writeln!(out, "spmotion {slot},{mode},{}", keys.join(",")).unwrap();
@@ -193,7 +199,7 @@ mod tests {
 
     #[test]
     fn writes_zoom_angle_and_opacity_keys() {
-        let key = |ms, x, zoom, angle, opacity| MotionKey { ms, x, y: 0, zoom, angle, opacity };
+        let key = |ms, x, zoom, angle, opacity| MotionKey { ms, x, y: 0, zoom, angle, opacity, zoom_y: zoom };
         let mut out = String::new();
         emit2(&mut out, 5, &[key(0, 0, 100, 0, 256), key(500, 300, 150, -45, 0)], MotionEnd::Keep, None, 0);
         assert_eq!(out, "spmotion 67,2,0,0,0,100,100,0,256,0,500,300,0,150,150,-45,0,0\n");
@@ -238,7 +244,7 @@ mod tests {
         emit(&mut out, 5, &[(0, 0, 0), (83, 0, 37), (183, 0, 0), (383, 0, 0), (583, 0, 37)], false, Some(300));
         assert_eq!(out, "spmotion 67,0,0,0,0,100,100,0,0,0,83,0,37,100,100,0,70,0,183,0,0,100,100,0,156,0,300,0,0,100,100,0,256,0,383,0,0,100,100,0,256,0,583,0,37,100,100,0,256,0\n");
         // a key's own alpha is kept times the fade's; a fade past the last key holds it
-        let key = |ms, x, opacity| MotionKey { ms, x, y: 0, zoom: 100, angle: 0, opacity };
+        let key = |ms, x, opacity| MotionKey { ms, x, y: 0, zoom: 100, angle: 0, opacity, zoom_y: 100 };
         let mut out = String::new();
         emit2(&mut out, 5, &[key(0, 0, 256), key(100, 50, 128)], MotionEnd::Keep, Some(200), 0);
         assert_eq!(out, "spmotion 67,2,0,0,0,100,100,0,0,0,100,50,0,100,100,0,64,0,200,50,0,100,100,0,128,0\n");
@@ -259,7 +265,7 @@ mod tests {
 
     #[test]
     fn a_loop_after_a_lead_in_names_its_first_key() {
-        let k = |ms, y| MotionKey { ms, x: 0, y, zoom: 100, angle: 0, opacity: 256 };
+        let k = |ms, y| MotionKey { ms, x: 0, y, zoom: 100, angle: 0, opacity: 256, zoom_y: 100 };
         let mut out = String::new();
         emit2(&mut out, 5, &[k(0, -40), k(500, 0), k(1500, 6), k(2500, 0)], MotionEnd::LoopFrom(1), Some(300), 0);
         // (A fade isn't folded into a loop.)
