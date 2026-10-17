@@ -241,6 +241,7 @@ fn unread(c: &Command, read: u64) -> Vec<String> {
 /// patch's styled letters (see [`styled`]).
 pub fn text(line: &str) -> (String, Vec<Ruby>, Vec<TextStyle>) {
     let (mut out, mut ruby, mut styles) = (String::new(), Vec::new(), Vec::<TextStyle>::new());
+    let line = unmirror(line);
     let mut chars = line.chars().peekable();
     let mut len = 0;
     while let Some(c) = chars.next() {
@@ -302,7 +303,28 @@ pub fn text(line: &str) -> (String, Vec<Ruby>, Vec<TextStyle>) {
 /// (`ja/TT_TsukuMin-D.ttf`, glyphs `uniE000`–`uniE2FE`) draws styled: the
 /// ASCII letter and whether it is italic. U+E0xx italic, U+E1xx mirrored,
 /// U+E1(80+xx) a serif italic, U+E2(80+xx) upside down, U+E200 a raised
-/// "-35" (`10^-35 m`). Mirrored and upside-down letters are drawn plain.
+/// "-35" (`10^-35 m`). Mirrored and upside-down letters are drawn plain
+/// (mirrored ones put back in reading order by [`unmirror`]).
+/// The fan patch's mirrored letters (U+E120–U+E17E) are stored right to
+/// left, so its font draws a mirror image of the line: on each line (`^`)
+/// the stretch from the first to the last of them (with what lies between,
+/// `■■` or spaces) is put back in reading order.
+fn unmirror(line: &str) -> String {
+    let mirrored = |c: char| ('\u{E120}'..='\u{E17E}').contains(&c);
+    let lines: Vec<String> = line
+        .split('^')
+        .map(|l| {
+            let c: Vec<char> = l.chars().collect();
+            let (Some(a), Some(b)) = (c.iter().position(|&x| mirrored(x)), c.iter().rposition(|&x| mirrored(x))) else { return l.to_string() };
+            if c[a..=b].iter().any(|x| "<>[]@".contains(*x)) {
+                return l.to_string();
+            }
+            c[..a].iter().chain(c[a..=b].iter().rev()).chain(&c[b + 1..]).collect()
+        })
+        .collect();
+    lines.join("^")
+}
+
 fn styled(c: char) -> Option<(String, bool)> {
     let (hi, lo, high) = (c as u32 >> 8, c as u32 & 0x7F, c as u32 & 0x80 != 0);
     match hi {
@@ -1556,6 +1578,9 @@ mod tests {
         // the fan patch's italic (U+E0xx, U+E1(80+xx)) and upside-down (U+E2(80+xx)) letters
         let (t, _, s) = text("A\u{E061}\u{E062}\u{E1E3} \u{E2E4}\u{E03F} \u{E041}");
         assert_eq!(t, "Aabc d? A");
+        // mirrored letters, stored right to left
+        let m = |s: &str| s.chars().map(|c| if c == ' ' { c } else { char::from_u32(0xE100 + c as u32).unwrap() }).collect::<String>();
+        assert_eq!(text(&format!("「{}■■{}^{} 」", m(" ti yas"), m("I "), m(".on"))).0, "「 I■■say it \nno. 」");
         assert_eq!(s, vec![TextStyle { start: 1, len: 3, italic: true, ..Default::default() }, TextStyle { start: 6, len: 3, italic: true, ..Default::default() }]);
     }
 
