@@ -609,14 +609,13 @@ Nothing yet.
 | Exe tables (pictures, motions, scene numbers) | ✅ read from the NSO (`typemoon exe`); picture sizes checked against the textures |
 | Scripts | 🔶 read: every command of both languages splits (one malformed in the original) and its text and voices join; the top commands' arguments read from the exe, the rest not yet |
 | Media folder (`typemoon media`) | ✅ `allpac`'s pictures as full-size WebP (2.37 GB), movies at 720p, sound |
-| Script conversion (`typemoon convert`) | 🔶 the flow (labels, `_JUMP`, `_IF__`, flags), text (pages, ruby, voices), pictures (`_STCH`/`_STCC`/`_FADS`: record size and place, fades and rule wipes), sound effects and music; plays from the start through `00_00` into the first arc headless. Layers drawn in priority order (`_STCP`, `_STCH` argument 6), zoomed (`_STZ4`), faded (`_STGS`) and moved (`_STMA`, the exe's motions; easing, priority and expression keys not followed), children placed in their parent layers and orbiting with their turn (`_STCH` argument 11), turned (`_STRT`), drawn with their shader as far as CONscripter's blends and filters go (`_STBR`) and tinted (`_STEC` effect 1). Choices (`_SELR`, `_SELD`, `_GOTS`), `_GOTO` and the Switch's own branches (`_IFNX`/`_IFP4`). Not yet: `_STEC`'s other effects, the other layer commands, screens |
+| Script conversion (`typemoon convert`) | 🔶 the flow (labels, `_JUMP`, `_IF__`, flags), text (pages, ruby, voices), pictures (`_STCH`/`_STCC`/`_FADS`: record size and place, fades and rule wipes), sound effects and music; plays from the start through `00_00` into the first arc headless. Layers drawn in priority order (`_STCP`, `_STCH` argument 6), zoomed (`_STZ4`), faded (`_STGS`) and moved (`_STMA`, the exe's motions; easing, priority and expression keys not followed), children placed in their parent layers and orbiting with their turn (`_STCH` argument 11), clipped to their panels (`_STCH` arguments 12–16), turned (`_STRT`), drawn with their shader as far as CONscripter's blends and filters go (`_STBR`) and tinted (`_STEC` effect 1). Choices (`_SELR`, `_SELD`, `_GOTS`), `_GOTO` and the Switch's own branches (`_IFNX`/`_IFP4`). Not yet: `_STEC`'s other effects, the other layer commands, screens |
 | Screens, extras | ❌ |
 
 ### Next
 
 1. The script conversion, next part: the layer commands the opening
-   leans on, in order of use: `_STCH`'s clip
-   (arguments 12–17, unread), a parent's motions for its children;
+   leans on, in order of use: a parent's motions for its children;
    then the chapter-jump menus (`JUMP00`–`JUMPQA`: `_SELR` with a
    script name, 617 uses) and options shown only under a flag.
    `typemoon convert --dry-run` prints the counts. Splitting sprites
@@ -631,8 +630,8 @@ Nothing yet.
 4. The text window's place and size (a guess now: 32 × 14 characters of
    28 px from 176, 64, over `txtwindow01-1920`), the title, menus and
    the registry/GUI entry.
-5. Still open in the exe: `_FADS` type 1, `_STCH`'s arguments
-   12–17, `_STZ4`'s last two, and the motion keyframes' other fields.
+5. Still open in the exe: `_FADS` type 1, `_STCH`'s panel frames
+   (argument 17's colours, the corner pieces at 0x75BE00), `_STZ4`'s last two, and the motion keyframes' other fields.
 
 ## History
 
@@ -664,6 +663,23 @@ Nothing yet.
     in turned parents, 14 set the parent's angle on the child too
     (1740 and 1740), which summing would turn twice. 1,405 `spzoom`
     lines of the Japanese `0.txt` changed.
+- 2026-10-16: panels (`_STCH` arguments 12–17). The draw
+  (`FUN_00189ad0`) reads arguments 12–15 as a rectangle x, y, w, h on a
+  1920 × 1080 screen: w or h 0, or 1920 × 1080, is no clip; otherwise
+  it is scaled to the render target (× width / 1920, × height / 1080)
+  and set as a scissor. Argument 16 is a frame's width (1920 units):
+  the scissor is the rectangle less the frame on each side, across if
+  narrower than the screen, down if lower. With argument 17 ≥ 1 the
+  frame is drawn in a colour (1 and 7 black, 2 white, 3, 4, 5, 6 tints;
+  261 uses), with corner pieces. A child draws in its parent's
+  rectangle (copied at `_STCH` and again at the draw), and an argument
+  left out keeps the layer's value. The uses fit: 2,210 rectangles,
+  mostly wide bands past both sides (−428, 158, 2775, 765) or tall ones
+  past the top and bottom (698, −136, 957, 1353), cut-in panels.
+  Converted with `spclip` (9,065 clips, 3,422 back to the full screen).
+  Not drawn: the frames, and a turned layer's rectangle isn't turned.
+  Checked headless: `01_00_ARC01_8`'s bedroom strip shows from y 166 to
+  554 on the 720 screen.
 
 - 2026-10-16: choices. `_SELR(index, $text[, 1])` adds an option (1:
   greyed), `_SELD(_D000, …)` shows them and `_GOTS(_D000, label, …)`

@@ -84,6 +84,10 @@ struct Layer {
     shader: u8,
     /// `_STEC(layer, 1, colour)`: its colours multiplied by this one.
     tint: Option<u32>,
+    /// `_STCH` arguments 12–16: the screen rectangle it is drawn in (x, y,
+    /// w, h on a 1920 × 1080 screen; none if w or h is 0 or it is the
+    /// screen) and its frame's width; a child is drawn in its parent's.
+    clip: [i32; 5],
 }
 
 /// CONscripter's `spblend` screen mode (lighten, never past white).
@@ -224,6 +228,8 @@ struct Lowering<'g, 'a> {
     slot_layer: Vec<Option<usize>>,
     /// Each IR layer's `spblend` mode.
     blends: Vec<u8>,
+    /// Each IR layer's `spclip` rectangle.
+    clips: Vec<Option<(i32, i32, i32, i32)>>,
     /// `_WNTY(1)`: the next line ends its page.
     page_end: bool,
     voice: Option<Voice>,
@@ -459,8 +465,15 @@ impl Lowering<'_, '_> {
             let e = |i: usize, d: u32| number(arg(i)).map_or(d, |v| v as u32);
             Some((e(9, oa), e(10, ob)))
         };
+        // An argument left out keeps the layer's rectangle (`FUN_00160840`).
+        let mut clip = old.as_ref().map_or([0; 5], |l| l.clip);
+        for (i, c) in clip.iter_mut().enumerate() {
+            if let Some(v) = number(arg(12 + i)) {
+                *c = v;
+            }
+        }
         let parent = number(arg(11)).filter(|&p| (0..LAYERS as i32).contains(&p) && p as usize != n).map(|p| p as usize);
-        self.staged[n] = Some(Layer { base, expression, x, y, zoom: zoom / 1000.0, stretch: (1.0, 1.0), alpha: alpha.clamp(0.0, 255.0) as u32, fade: None, motion: None, parent, angle: number(arg(19)).unwrap_or(0), shader: 255, tint: None });
+        self.staged[n] = Some(Layer { base, expression, x, y, zoom: zoom / 1000.0, stretch: (1.0, 1.0), alpha: alpha.clamp(0.0, 255.0) as u32, fade: None, motion: None, parent, angle: number(arg(19)).unwrap_or(0), shader: 255, tint: None, clip });
         // Argument 6, else layer × 10 (`FUN_00160840`).
         self.priority[n] = if arg(6).is_empty() { n as i32 * 10 } else { number(arg(6)).unwrap_or(n as i32 * 10) };
         true
@@ -520,6 +533,7 @@ impl Lowering<'_, '_> {
                 (None, _) => {
                     self.ops.push(Op::Sprites { changes: vec![SpriteChange { layer, sprite: None, keep_filters: false }], fade_ms: 0 });
                     self.blends[slot] = BLEND_NORMAL;
+                    self.clips[slot] = None;
                 }
             }
             if let Some(m) = motions[slot] {
@@ -643,6 +657,7 @@ impl Lowering<'_, '_> {
         l.x = parent.x + u * cos - v * sin;
         l.y = parent.y + u * sin + v * cos;
         l.stretch = (l.stretch.0 * zx, l.stretch.1 * zy);
+        l.clip = parent.clip;
         l.parent = None;
         Some(l)
     }
@@ -685,6 +700,13 @@ impl Lowering<'_, '_> {
             self.ops.push(Op::SpriteBlend { layer, mode: blend });
             self.blends[layer as usize] = blend;
         }
+        // spclip stays through lsp: a full-screen one draws everywhere again.
+        let clip = clip(l.clip);
+        if clip != self.clips[layer as usize] {
+            let rect = clip.unwrap_or((0, 0, SCREEN_W as i32, SCREEN_H as i32));
+            self.ops.push(Op::SpriteClip { layer, rect });
+            self.clips[layer as usize] = clip;
+        }
         let tint = l.tint.map(|c| SpriteFilter {
             kind: Operand::Const(FILTER_COLOUR),
             blend: Operand::Const(FILTER_BLEND_MULTIPLY),
@@ -696,6 +718,19 @@ impl Lowering<'_, '_> {
             self.ops.push(Op::SpriteFilters { layer, filters });
         }
     }
+}
+
+/// A layer's `_STCH` rectangle on this screen (`FUN_00189ad0`): a
+/// scissor on the 1920 × 1080 screen, inside its frame (the frame's width
+/// off each side, across if narrower than the screen and down if lower).
+// shortcut: the frame (argument 17's colour: 1, 7 black, 2 white, …) is not drawn, and a turned layer's rectangle isn't turned.
+fn clip([x, y, w, h, frame]: [i32; 5]) -> Option<(i32, i32, i32, i32)> {
+    if w == 0 || h == 0 || (w, h) == (1920, 1080) {
+        return None;
+    }
+    let (fx, fy) = (if w < 1920 { frame.max(0) } else { 0 }, if h < 1080 { frame.max(0) } else { 0 });
+    let px = |v: i32| (v as f32 * SCREEN_W as f32 / 1920.0).round() as i32;
+    Some((px(x + fx), px(y + fy), px(w - 2 * fx).max(0), px(h - 2 * fy).max(0)))
 }
 
 /// The `F`, `G` and `C` flags the scripts name, as IR variables.
@@ -743,6 +778,7 @@ pub fn compile(g: &Game) -> Compiled {
         slots: vec![None; LAYERS],
         slot_layer: vec![None; LAYERS],
         blends: vec![BLEND_NORMAL; LAYERS],
+        clips: vec![None; LAYERS],
         page_end: false,
         voice: None,
         held: None,
@@ -883,6 +919,26 @@ mod tests {
         // 240 + 0.5 × (120 − 240) = 180 script units: 480 px; 136 + 0.5 × (68 − 135.75) ≈ 102.1: 270 px.
         assert!(ops.contains(&Op::SpriteMove { layer: 38, x: 480, y: 270, ms: 0 }), "{ops:?}");
         assert!(ops.contains(&Op::SpriteAngle { layer: 38, degrees: 0, zoom: (25, 25) }), "{ops:?}");
+    }
+
+    #[test]
+    fn a_panel_is_clipped_to_its_rectangle() {
+        // img1 in a 960 × 540 panel framed 60 wide; the child in it, then
+        // img1 again without one.
+        let src = "_STCH(1,img1,240,136,1000,255,10,,,,,,480,270,960,540,60);_STCH(2,dot,10,10,1000,255,20,,,,,1);_FADS(1,0,0);_STCH(1,img1,240,136,1000,255,10,,,,,,0,0,0,0,0);_STCH(2,);_FADS(1,0,0);";
+        let g = Game {
+            scripts: vec![("S".into(), script::parse(src).into_iter().map(Result::unwrap).collect())],
+            scenes: vec![],
+            lines: vec![],
+            pictures: [picture("img1", 1280.0, 724.0), picture("dot", 10.0, 10.0)].into(),
+            textures: HashMap::new(),
+            sounds: vec![],
+            waves: HashMap::new(),
+            motions: vec![],
+        };
+        let clips: Vec<_> = compile(&g).ops.into_iter().filter(|o| matches!(o, Op::SpriteClip { .. })).collect();
+        let panel = (360, 220, 560, 280);
+        assert_eq!(clips, [Op::SpriteClip { layer: 38, rect: panel }, Op::SpriteClip { layer: 39, rect: panel }, Op::SpriteClip { layer: 39, rect: (0, 0, 1280, 720) }]);
     }
 
     #[test]
