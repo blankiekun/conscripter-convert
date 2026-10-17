@@ -202,6 +202,9 @@ pub struct Game {
     /// (a box with a face window, then the box without one) when the
     /// game's text has `<FW img=''>`.
     box_text: &'static [BoxText],
+    /// `Shake` jolts to and fro every 1000 ÷ (`n` × 0.06) ms, along its
+    /// tempo (続・殺戮のジャンゴ's exe; [`ScreenEffect::Jolt`]).
+    shake_jolts: bool,
 }
 
 impl Game {
@@ -228,6 +231,7 @@ impl Game {
         story_end: &[],
         horizontal_box: None,
         box_text: &[],
+        shake_jolts: false,
     };
 
     /// Fills `script`'s system screens.
@@ -1159,6 +1163,9 @@ struct Object<'a> {
     /// pictures and places, and the cut made of them, kept while these
     /// stay the same.
     cut: Option<(String, String)>,
+    /// With [`Game::relative_children`]: its children's places count from
+    /// the screen, not from it (`CreateWindow`'s last argument not `true`).
+    screen_children: bool,
 }
 
 /// `DrawEffect(obj, ms, wave, from, to, tempo)`: the exe's wave
@@ -2876,7 +2883,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
 
     fn create(&mut self, name: String, kind: Kind<'a>, priority: i64, w: i64, h: i64) -> &mut Object<'a> {
         self.seq += 1;
-        let o = Object { kind, priority, x: 0, y: 0, w, h, opacity: 1000, locked: false, hideable: false, seq: self.seq, zoom: (1000, 1000), trail: None, blend: BLEND_NORMAL, vertex: None, turn: (0, 0, 0), shake: None, clip: None, over_text: false, container: false, erased: false, tone: None, shade: None, wave: None, stencil: None, cut: None };
+        let o = Object { kind, priority, x: 0, y: 0, w, h, opacity: 1000, locked: false, hideable: false, seq: self.seq, zoom: (1000, 1000), trail: None, blend: BLEND_NORMAL, vertex: None, turn: (0, 0, 0), shake: None, clip: None, over_text: false, container: false, erased: false, tone: None, shade: None, wave: None, stencil: None, cut: None, screen_children: false };
         self.objects.insert(name.clone(), o);
         self.objects.get_mut(&name).unwrap()
     }
@@ -3214,7 +3221,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 Some(p) if matches!(p.kind, Kind::Camera) => (x, y) = (x - p.x, y - p.y),
                 // A window's or a name's child is at its own place
                 // (装甲悪鬼村正 under wine), but with Game::relative_children.
-                Some(p) if p.container && !self.game.relative_children => {}
+                Some(p) if p.container && (!self.game.relative_children || p.screen_children) => {}
                 Some(p) => (x, y) = (x + p.x, y + p.y),
                 None => {}
             }

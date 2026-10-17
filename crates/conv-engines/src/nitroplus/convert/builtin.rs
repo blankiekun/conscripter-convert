@@ -185,13 +185,20 @@ impl Compiler<'_, '_> {
                 self.timed(arg(1).int(), &arg(6), &children);
             }
             "CreateWindow" | "CreateName" => {
+                let is_window = name == "CreateWindow";
                 let name = self.object_name(&arg(0));
                 let relative = self.game.relative_children;
                 let o = self.create(name, Kind::Other, arg(1).int(), 0, 0);
                 o.container = true;
-                // (name, priority, x, y, w, h, ?): a text in the window
-                // starts at its corner (続・殺戮のジャンゴ's boxes); its
+                // (name, priority, x, y, w, h, relative): a text in the
+                // window starts at its corner (続・殺戮のジャンゴ's boxes); its
                 // children are drawn only inside it.
+                // src: Django.exe FUN_0042fee0: anything but `true` clears the
+                // object's +0x3c8 (1 for every new object, FUN_00436de0), and
+                // the place parser (FUN_004403a0) and FUN_00437980 then count
+                // its children's places from the screen.
+                // (`true` is 1 here, `false` 0.)
+                o.screen_children = relative && is_window && !arg(6).truthy();
                 if a.len() >= 6 {
                     let (w, h) = (arg(4).int(), arg(5).int());
                     // shortcut: with Game::relative_children (続・殺戮のジャンゴ) a
@@ -500,12 +507,33 @@ impl Compiler<'_, '_> {
             "Shake" => {
                 // (obj, time, x0, y0, x1, y1, n, tempo, wait). A full-screen picture (or all
                 // of them): the whole picture shakes.
+                // 続・殺戮のジャンゴ (src: Django.exe FUN_00431de0, the
+                // shake's frame FUN_0043f570): the sign flips once 1000 ÷
+                // (n × 0.001 × 60) ms have passed (60 a second at the
+                // default game speed, FUN_00469a20's table), the size
+                // eased by the tempo (the table FUN_00434ea0 picks).
+                let jolt = self.game.shake_jolts.then(|| (arg(6).int(), super::tempo(&arg(7))));
+                if jolt.is_some_and(|(n, _)| n > 1000) {
+                    return Value::Null; // src: FUN_00431de0 (n < 0x3e9), nor waited for
+                }
+                // guess: n 0 or below a flip each frame (the exe's 1000 ÷ 0)
+                let step = jolt.map(|(n, ease)| (if n > 0 { (1_000_000.0 / (60.0 * n as f64)).round() as u32 } else { 16 }, ease));
                 let targets = self.matching(&arg(0));
                 if !targets.iter().any(|t| self.objects[t].w >= screen_w && self.objects[t].h >= screen_h) {
                     // The picture alone: now if it is on the screen, else
                     // when the next sync shows it.
-                    let size = |x: i64, y: i64| (x.abs() as i32, y.abs() as i32);
-                    let keys = shake::shake_keys(&[(arg(1).int().max(0) as u32, size(arg(2).int(), arg(3).int()), size(arg(4).int(), arg(5).int()))]);
+                    let ms = arg(1).int().max(0) as u32;
+                    let keys = match step {
+                        // The exe keeps the signs: (x0, y0) × ±1.
+                        Some((step, ease)) => {
+                            let at = |x: i64, y: i64| (x as i32, y as i32);
+                            shake::shake_keys_at(&[(ms, at(arg(2).int(), arg(3).int()), at(arg(4).int(), arg(5).int()))], step, ease)
+                        }
+                        None => {
+                            let size = |x: i64, y: i64| (x.abs() as i32, y.abs() as i32);
+                            shake::shake_keys(&[(ms, size(arg(2).int(), arg(3).int()), size(arg(4).int(), arg(5).int()))])
+                        }
+                    };
                     for t in &targets {
                         match self.shown.get(t) {
                             Some(s) => self.ops.push(Op::SpriteMotion { layer: s.layer, keys: keys.clone(), looped: false }),
@@ -524,9 +552,14 @@ impl Compiler<'_, '_> {
                 let end = (arg(4).int().abs() as i32, arg(5).int().abs() as i32);
                 self.sync(0);
                 if ms > 0 && (x > 0 || y > 0) {
-                    // guess: a flip every 16 ms (a 60 Hz frame) and the engine's own speed; the exe's step isn't decoded
-                    let shake =
-                        ScreenEffect::Shake { time_ms: ms, interval_ms: 16, path: false, speed: (1300, 1700), range: [(x, y), end], end_ms: ms };
+                    let shake = match step {
+                        Some((interval_ms, ease)) => {
+                            let range = [(arg(2).int() as i32, arg(3).int() as i32), (arg(4).int() as i32, arg(5).int() as i32)];
+                            ScreenEffect::Jolt { time_ms: ms, interval_ms, range, ease, end_ms: ms }
+                        }
+                        // guess: a flip every 16 ms (a 60 Hz frame) and the engine's own speed; the exe's step isn't decoded
+                        None => ScreenEffect::Shake { time_ms: ms, interval_ms: 16, path: false, speed: (1300, 1700), range: [(x, y), end], end_ms: ms },
+                    };
                     self.ops.push(Op::ScreenEffect { slot: 1, effect: Some(shake) });
                     self.shaken = targets;
                     if !matches!(last(), Value::Null | Value::Int(0)) {

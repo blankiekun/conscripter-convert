@@ -411,23 +411,10 @@ over 200, their bullets at once (ours at once both).
    21,859 since later PRs read more), most visible first; counts are
    compiled occurrences, what the original does is from the scripts and
    `research/nitroplus/builtins.md`:
-   3. **`Shake` 6 `n` and 7 tempo** (58 each): `n` (200-1000; above
-      1000 the call does nothing) sets the jolt's rhythm and the tempo
-      its decay; ours shakes every 16 ms, dying linearly. `n`'s meaning
-      is lost in the exe's x87 code: one wine shot of a 200 and a 1000
-      shake would settle it.
    4. **`Fade` 3, tempo** (77 non-`null`, mostly `DxlAuto`/`AxlDxl`): an
       eased fade; ours linear. Hard to see.
    5. **`Rotate` 5, tempo** (42 left): read for turns about x or y over
       time; the rest are about z (`spmotion` straight) or in loops.
-   6. **`CreateWindow` 6** (975): `true` on every story window (the
-      boxes, `中窓`, `移動窓`), `false` on the full-screen `窓`, the 0×0
-      `音`, the system `WND` and the battle's `カウンタ窓`. Not the clip:
-      `カウンタ窓` must clip its digit strip to 52 px. Its digits sit at
-      x 346-410, inside the window only counted from the screen, so
-      `false` may mean children placed from the screen rather than the
-      window's corner. Nothing shows: `窓` is at 0,0 and the counter is
-      `django/counter.rs`'s own.
    7. **`SetBacklog` 2, the speaker** (75; 73 `null`): two calls in
       `dja035_01` name ジュリアン and イライザ; what the original's log
       does with it (a name line, or the voice switches by character) is
@@ -446,6 +433,33 @@ over 200, their bullets at once (ours at once both).
    NSS code; noted, drawn as nothing.
 
 ## History
+
+- **`Shake` 6 and 7, `CreateWindow` 6 (2026-10-17).** From the
+  decompile (`Django.exe` 1.01), each finding marked. `Shake(obj, time,
+  x0, y0, x1, y1, n, tempo, wait)` (`builtin_Shake` → `FUN_00431de0`,
+  frame `FUN_0043f570`): seen: `n` above 1000 does nothing, not even
+  the wait; the object is drawn at ±(x0 + (x1 − x0) × curve(t)), the
+  sign flipping, + first, once 1000 ÷ (`n` × 0.001 × fps) ms have
+  passed since the last flip; fps is 60 at the default game speed
+  (`FUN_00469a20`'s table: 960, 480, 240, 120, **60**, 50, … and
+  1, 2, 4, 8, **16** ms a frame); the curve is the tempo's table
+  (`FUN_00434ea0` by the name's byte sum; `Dxl2` read as 1 − (1 − t)³),
+  over time × 0.06 frames. Inferred: the other tempos' curves are
+  Muramasa's (the same dispatch); `n` 0 flips each frame (the exe divides
+  by 0). Ours: a full-screen `Shake` is CONscripter's new `screenshake`
+  mode 2 (to and fro, the full size; engine PR #79) with the tempo as
+  its curve, every 17 ms (`n` 1000) to 83 ms (`n` 200); a picture's
+  `spmotion` keys flip at the same step (longer when the 64 keys run
+  out), eased the same. `CreateWindow(name, priority, x, y, w, h,
+  relative)` (`FUN_0042fee0`): seen: anything but `true` clears the
+  object's +0x3c8, which every new object has at 1 (`FUN_00436de0`);
+  the place parser (`FUN_004403a0`) and `FUN_00437980` then count its
+  children's places from the screen, not from the window. It is not the
+  clip. Ours: such a window's children are placed from the screen. No
+  `0.txt` change: `窓` is at 0,0 and the counter is drawn by
+  `django/counter.rs`. Dry run: 52 `screenshake` and 3 `spmotion` lines
+  changed, the completion went from 55,499 to 56,529 of 57,053 calls (Shake
+  58 → 3 gaps, CreateWindow 975 → 0).
 
 - **Calls that change nothing, and calls left out (2026-10-16, shared
   NSS code).** Arguments whose value does what ours does are in

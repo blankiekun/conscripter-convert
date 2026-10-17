@@ -32,6 +32,7 @@ pub const DJANGO: Game = Game {
     choice_style,
     story_end: &["InitBGM", "TitleCongratulations"],
     menus: screens::menus,
+    shake_jolts: true,
     ..Game::PLAIN
 };
 
