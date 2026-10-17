@@ -180,6 +180,11 @@ const UNREAD_HARMLESS: &[(&str, usize, &str)] = &[
 const LEFT_OUT: &[(&str, &str)] = &[
     // `script_command` (0x177790) has no case for it: the Switch exe does nothing.
     ("_SNX4", "the Switch exe ignores it"),
+    // `script_command` stores the page in the state (+0x8c4) for the save; its
+    // only reader is the load (`FUN_00182330` → `FUN_00182c60`), which replays
+    // the script until `_PGST` reaches the saved page. CONscripter's saves
+    // restore the state themselves.
+    ("_PGST", "the page a load replays to; CONscripter's saves restore the state"),
 ];
 
 /// Why a converted call is only in part: each argument passed and not
