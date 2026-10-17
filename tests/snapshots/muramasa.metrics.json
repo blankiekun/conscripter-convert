@@ -1,15 +1,15 @@
 {
 "game": "muramasa",
 "engine": "nitroplus",
-"commit": "c7f98574",
+"commit": "89692623",
 "commit_date": "2026-10-16",
-"totals": {"calls": 1162084, "full": 1026021, "gaps": 136063},
+"totals": {"calls": 1162127, "full": 1026061, "gaps": 136066},
 "kinds": {
 "LockVideo": {"calls": 50726, "gaps": 50726, "reasons": [["LockVideo argument 0 ignored", 50726]]},
 "WaitText": {"calls": 23689, "gaps": 23689, "reasons": [["WaitText argument 0 ignored", 23689], ["WaitText argument 1 ignored", 23689]]},
 "LoadText": {"calls": 15184, "gaps": 15184, "reasons": [["LoadText argument 0 ignored", 15184], ["LoadText argument 1 ignored", 15184]]},
 "SetFrequency": {"calls": 8778, "gaps": 8778, "reasons": [["SetFrequency argument 3 ignored", 8778], ["SetFrequency on music", 1486]]},
-"Random": {"calls": 7368, "gaps": 7368, "reasons": [["Random argument 0 ignored", 7368]]},
+"Random": {"calls": 7411, "gaps": 7411, "reasons": [["Random argument 0 ignored", 7411]]},
 "WaitAction": {"calls": 5437, "gaps": 4105, "reasons": [["WaitAction argument 1 ignored", 4105], ["move or zoom over time with a fade or a new picture drawn as a cross-fade", 31]]},
 "Fade": {"calls": 302627, "gaps": 3943, "reasons": [["Fade argument 3 ignored", 3869], ["move or zoom over time with a fade or a new picture drawn as a cross-fade", 61], ["timed action that waits only part of its time", 16], ["Fade argument 5 ignored", 1]]},
 "DrawTransition": {"calls": 2650, "gaps": 2650, "reasons": [["DrawTransition argument 2 ignored", 2650], ["DrawTransition argument 4 ignored", 2650], ["DrawTransition argument 5 ignored", 132], ["move or zoom over time with a fade or a new picture drawn as a cross-fade", 18], ["DrawTransition mask missing: cg/data/slide_01_02_2.png", 2], ["3 more", 3]]},
@@ -19,7 +19,7 @@
 "CreateTexture": {"calls": 61264, "gaps": 2010, "reasons": [["CreateTexture from an object or the screen", 2010]]},
 "SetNextFocus": {"calls": 1776, "gaps": 1776, "reasons": [["built-in SetNextFocus", 1776]]},
 "Shake": {"calls": 1486, "gaps": 1486, "reasons": [["Shake argument 6 ignored", 1486], ["Shake argument 7 ignored", 1486], ["Shake argument 8 ignored", 58], ["move or zoom over time with a fade or a new picture drawn as a cross-fade", 24], ["timed action that waits only part of its time", 1]]},
-"Request": {"calls": 239985, "gaps": 1372, "reasons": [["Request stop", 1082], ["Request overlayrender", 111], ["code inside a page runs before it", 89], ["Request compulsorysuspend", 18], ["Request pushtext", 15], ["14 more", 58]]},
+"Request": {"calls": 239985, "gaps": 1413, "reasons": [["Request stop", 1082], ["Request overlayrender", 111], ["code inside a page runs before it", 89], ["Request compulsorysuspend", 18], ["Request pushtext", 15], ["30 more", 99]]},
 "SetBlur": {"calls": 985, "gaps": 970, "reasons": [["SetBlur argument 5 ignored", 970], ["SetBlur argument 4 ignored", 16]]},
 "CreateWindow": {"calls": 639, "gaps": 639, "reasons": [["CreateWindow argument 6 ignored", 639]]},
 "Rotate": {"calls": 16922, "gaps": 549, "reasons": [["Rotate argument 5 ignored", 486], ["Rotate about z", 69], ["Rotate over time turning a picture over: mirrored at once", 10]]},
@@ -33,7 +33,6 @@
 "MoveCursor": {"calls": 168, "gaps": 168, "reasons": [["built-in MoveCursor", 168]]},
 "Save": {"calls": 168, "gaps": 168, "reasons": [["built-in Save", 168]]},
 "SetShade": {"calls": 163, "gaps": 163, "reasons": [["built-in SetShade", 163]]},
-"CreateProcess": {"calls": 5582, "gaps": 129, "reasons": [["CreateProcess MFlashProcess", 43], ["CreateProcess EndSong", 12], ["CreateProcess DenziBladeChargeSet", 10], ["CreateProcess TurboBlur3", 10], ["CreateProcess BGMoveLengthProcess", 5], ["34 more", 49]]},
 "MoveCamera": {"calls": 105, "gaps": 105, "reasons": [["MoveCamera argument 1 ignored", 105], ["MoveCamera argument 2 ignored", 105], ["MoveCamera argument 3 ignored", 105], ["MoveCamera argument 4 ignored", 105], ["MoveCamera argument 5 ignored", 105], ["1 more", 105]]},
 "DrawEffect": {"calls": 76, "gaps": 76, "reasons": [["built-in DrawEffect", 76]]},
 "CreateMovie": {"calls": 61, "gaps": 61, "reasons": [["CreateMovie argument 2 ignored", 61], ["CreateMovie argument 3 ignored", 61], ["CreateMovie argument 4 ignored", 61], ["CreateMovie argument 5 ignored", 61], ["CreateMovie of a missing movie", 61]]},
@@ -41,6 +40,7 @@
 "CreateStencil": {"calls": 57, "gaps": 57, "reasons": [["built-in CreateStencil", 57]]},
 "Wait": {"calls": 56001, "gaps": 55, "reasons": [["move or zoom over time with a fade or a new picture drawn as a cross-fade", 55]]},
 "CreateSurface": {"calls": 52, "gaps": 52, "reasons": [["built-in CreateSurface", 52]]},
+"CreateProcess": {"calls": 5582, "gaps": 48, "reasons": [["CreateProcess EndSong", 12], ["CreateProcess TurboBlur3", 10], ["CreateProcess KodouSET", 3], ["CreateProcess Window_Delete_Process", 3], ["CreateProcess FrameShake_RanProcess", 2], ["18 more", 18]]},
 "Zoom": {"calls": 6621, "gaps": 44, "reasons": [["move or zoom over time with a fade or a new picture drawn as a cross-fade", 32], ["timed action that waits only part of its time", 16]]},
 "CreateCamera": {"calls": 40, "gaps": 40, "reasons": [["built-in CreateCamera", 40]]},
 "Move": {"calls": 73946, "gaps": 28, "reasons": [["move or zoom over time with a fade or a new picture drawn as a cross-fade", 21], ["timed action that waits only part of its time", 8]]},
@@ -85,5 +85,5 @@
 "SetLoopPoint": {"calls": 63, "gaps": 0, "reasons": []},
 "RecoIn": {"calls": 10, "gaps": 0, "reasons": []}
 },
-"outside_calls": [["branches of a runtime if end with different helper variables", 78850], ["paths merge with different $テキストデータバックログ１", 4601], ["paths merge with different $LOCAL_last_text2", 4578], ["paths merge with different $DEBUG_cgbglist", 4569], ["paths merge with different $filename", 4561], ["3300 more", 625113]]
+"outside_calls": [["branches of a runtime if end with different helper variables", 78878], ["paths merge with different $テキストデータバックログ１", 4601], ["paths merge with different $LOCAL_last_text2", 4578], ["paths merge with different $DEBUG_cgbglist", 4569], ["paths merge with different $filename", 4561], ["3304 more", 625117]]
 }

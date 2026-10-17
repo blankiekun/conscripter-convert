@@ -544,8 +544,7 @@ Used to check what the engine does (`docs/new-game.md` step 9).
   process running in Lua would have no sprite of its own to change). Done:
   **A** endless loops, **B** `system.lua` from the IR, **C1** loops
   behind an `if` with a lead-in, **C2** the one-shots played once on
-  paper (#151) (History, "Processes"). `ComicProcess` (83) in review
-  (#167): `Shake` plays on paper (`one_shot.rs`
+  paper (#151) (History, "Processes"). `ComicProcess` (83, #167): `Shake` plays on paper (`one_shot.rs`
   `paper_shake`: the picture moved to and fro by `shake_keys`, its
   wait holding the process), and a loop process's branch that doesn't
   loop (`ComicProcess`'s signs 1, 2, 5-9, 12, 13, 16-18) is played on
@@ -557,12 +556,22 @@ Used to check what the engine does (`docs/new-game.md` step 9).
   end state, not moved; signs 10, 12 and 17 zoom unlike in x and y
   (8 calls noted, drawn at their end: `MotionKey::zoom_y` is in the IR
   since #159, `Pass::keyed` doesn't fill it yet); the zoom is about the
-  centre, not `SetVertex`'s point. Left: `MFlashProcess` (43, `Random`:
-  C3), `EndSong` (12, music with `if`s), `ma03_024`/`025`/`027vs`
-  `_runsProcess` (23, wait on the script: noted).
-  Then **C3** Lua (`Op::StartProcess`, `Script::lua`) only
-  for what needs the run: `Random` (`MFlashProcess`'s pause, the
-  shakes). Still left by A: `ma00_FireMoveAutoProcess` zooms unlike
+  centre, not `SetVertex`'s point. Left: `EndSong` (12, music with
+  `if`s), `ma03_024`/`025`/`027vs` `_runsProcess` (23, wait on the
+  script: noted).
+  **C3** in review (#171): instead of Lua,
+  `Random` is allowed on paper and gives 0 there, as everywhere else in
+  the converter (`builtin.rs`), so `MFlashProcess` (43) is a one-shot:
+  the flashes with a 1 s pause after the 6th and then every 3rd (the
+  exe: every 3rd to 6th, chosen per run; a run-time pick is a possible
+  follow-up); 3 calls of 100 flashes are over `spmotion`'s 64 keys
+  (noted, drawn at their end). A refused paper run (10,000 turns) no
+  longer counts its notes. Lua (`Op::StartProcess`, `Script::lua`)
+  stays for a process that needs the run (none left among the
+  one-shots); the endless processes with `Random`
+  (`BGMoveLengthProcess`, `ma03_moveAuto*`, `RandomMeimetsuSet*`, the
+  shakes) don't end on paper and stay noted. Still left by A:
+  `ma00_FireMoveAutoProcess` zooms unlike
   in x and y.
 - Then the unread-argument gaps (item 5 below), most noticeable first;
   among them, `CreateText`'s box height is read (#52) and `SetVertex`

@@ -4752,6 +4752,54 @@ scene a.nss
     }
 
     #[test]
+    fn a_muzzle_flash_with_a_random_pause_plays_on_paper() {
+        // 装甲悪鬼村正's MFlashProcess: flashes, a 1 s pause after the 5th and
+        // then every Random(4)+3 (Random is 0 when converting).
+        let library = format!("{LIBRARY}{}", r#"
+function MFlashProcess()
+{
+	begin:
+	$MFlashLoop = true;
+	$MFlashLoopC = 0;
+	$MFlashLoopW = 5;
+	$MFlashLoopWP = Random(4)+3;
+	while($MFlashLoop){
+		Fade("@MFP", $MFlashTime, 1000, null, true);
+		Fade("@MFP", $MFlashTime, 0, null, true);
+		if($MFlashLoopC==$MFlashLoopW){
+			Wait(1000);
+			$MFlashLoopW = $MFlashLoopW+$MFlashLoopWP;
+		}
+		if($MFlashLoopC==$MFlashCount){$MFlashLoop = false;}
+		$MFlashLoopC++;
+	}
+	Delete("@MFP");
+}
+"#);
+        let story = r#"
+scene a.nss
+{
+	$MFlashTime = 30;
+	$MFlashCount = 8;
+	CreateColor("MFP", 19999, 0, 0, 1024, 576, "White");
+	Fade("MFP", 0, 0, null, true);
+	CreateProcess("MFlash", 150, 0, 0, "MFlashProcess");
+	Request("MFlash", Start);
+	Wait(5000);
+}
+"#;
+        let c = compile(story, &library);
+        let keys = c.ops.iter().find_map(|op| match op {
+            Op::SpriteMotion2 { keys, end: MotionEnd::Keep, .. } => Some(keys.clone()),
+            _ => None,
+        }).unwrap_or_else(|| panic!("{:?}", c.ops));
+        // 9 flashes of 60 ms, pauses after the 6th and the 9th.
+        let lit = keys.iter().filter(|k| k.opacity == 256).count();
+        assert_eq!((lit, keys.last().map(|k| k.ms)), (9, Some(9 * 60 + 2000 + 1)), "{keys:?}");
+        assert!(!c.notes.keys().any(|n| n.contains("Process")), "{:?}", c.notes);
+    }
+
+    #[test]
     fn a_loop_after_a_move_has_the_move_as_its_lead_in() {
         // 装甲悪鬼村正's CP_HighChange: CP_HighMove slides the meter to its
         // value, CP_HighAuto waits for that in the process (not the

@@ -87,7 +87,7 @@ fn calls_action(stmts: &[Stmt]) -> bool {
 
 fn pure(e: &Expr) -> bool {
     match e {
-        Expr::Call { name, args } => name != "Random" && args.iter().all(pure),
+        Expr::Call { args, .. } => args.iter().all(pure),
         Expr::Index { base, index } => pure(base) && pure(index),
         Expr::Unary { expr, .. } => pure(expr),
         Expr::Binary { left, right, .. } => pure(left) && pure(right),
@@ -133,11 +133,14 @@ impl<'a> Compiler<'a, '_> {
         let mut paper = Paper { clock, ..Paper::default() };
         let before = self.snapshot();
         let pending = (self.pending_ms, self.pending_mask.clone());
+        let counted = (self.notes.clone(), self.metrics.clone());
         self.walk(body, &mut paper);
         if paper.over() {
-            // As if it hadn't run (it waits on what the script sets later).
+            // As if it hadn't run (it waits on what the script sets later),
+            // its turns not counted.
             self.restore(before);
             (self.pending_ms, self.pending_mask) = pending;
+            (self.notes, self.metrics) = counted;
             self.note(format!("process that doesn't end on paper: {function}"));
             return;
         }
