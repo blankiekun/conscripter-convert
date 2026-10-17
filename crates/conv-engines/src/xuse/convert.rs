@@ -1639,20 +1639,20 @@ const QUAKE_SLOT: u32 = 4;
 
 /// Opcode 0x6d: a quake, as `screenshake` along the 7-point path, waited
 /// for with a `delay` (a click ends both, as in the game) and cleared.
-/// Assumption: the game holds the full range for 4 points, then shrinks
-/// it; here it shrinks from the start, over the same total time, and both
-/// axes reach 0 together.
+/// The game holds the full range for 4 points and the frame that switches
+/// (`cb_00441e50`), then shrinks both ranges at `max(speed / 4, 50)` px/s
+/// (`op_6d` 0x442000, `cb_00441da0`); timed with the breakpoint trace.
 fn lower_quake(q: &Quake, ops: &mut Vec<Op>) {
     let (x, y) = (q.range.0.min(1000) as i32, q.range.1.min(1000) as i32);
     if q.speed == 0 || (x == 0 && y == 0) {
         return;
     }
-    let shrink = (q.speed / 4).max(50); // guess: pixels a second
+    let shrink = (q.speed / 4).max(50); // src: op_6d 0x442000, px/s
     // Filmed under wine (speed 80): the picture jumps to the next point
     // every frame (30 a second), at the full range for the first points,
     // then the range shrinks: two shakes, the second shrinking to 0.
     let points = q.speed.min(QUAKE_POINTS_PER_S);
-    let hold_ms = 4000 / points;
+    let hold_ms = 4000 / points + 1000 / QUAKE_POINTS_PER_S; // 4 points + the switching frame
     let shrink_ms = x.max(y) as u32 * 1000 / shrink;
     let speed = (i64::from(points) * 65536 / 1000) as i32;
     for (time_ms, to) in [(hold_ms, (x, y)), (shrink_ms, (0, 0))] {
@@ -3841,14 +3841,14 @@ mod tests {
     fn quakes_shake_and_wait() {
         let mut ops = Vec::new();
         lower_quake(&Quake { speed: 80, range: (10, 20) }, &mut ops);
-        // 4 points at 30 a second at the full range, then shrinking 20 px
-        // at 50 px a second.
+        // 4 points at 30 a second and the switching frame at the full range,
+        // then shrinking 20 px at 50 px a second.
         let shake = |time_ms, to| ScreenEffect::Shake { time_ms, interval_ms: 10, path: true, speed: (1966, 0), range: [(10, 20), to], end_ms: 0 };
         assert_eq!(
             ops,
             [
-                Op::ScreenEffect { slot: QUAKE_SLOT, effect: Some(shake(133, (10, 20))) },
-                Op::Wait { ms: 133 },
+                Op::ScreenEffect { slot: QUAKE_SLOT, effect: Some(shake(166, (10, 20))) },
+                Op::Wait { ms: 166 },
                 Op::ScreenEffect { slot: QUAKE_SLOT, effect: Some(shake(400, (0, 0))) },
                 Op::Wait { ms: 400 },
                 Op::ScreenEffect { slot: QUAKE_SLOT, effect: None },
