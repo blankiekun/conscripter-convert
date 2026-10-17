@@ -396,6 +396,8 @@ pub struct PictureExtras {
     pub sound: Option<SoundRoom>,
     pub replay: Option<PictureReplay>,
     pub turntable: Option<Turntable>,
+    /// The way into a mode and back (`None`: the menu cross-fades).
+    pub passage: Option<ExtrasPassage>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -470,6 +472,8 @@ pub struct PictureGallery {
     /// The pages are drawn by the engine (CONscripter's `screen`,
     /// `screens/gallery.lua`); the viewer stays a script routine.
     pub engine_screen: bool,
+    /// Over a category's button under the pointer.
+    pub category_hover: Option<CategoryHover>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -515,6 +519,11 @@ pub struct SoundRoom {
     pub movies: Vec<RoomVideo>,
     /// The track playing at first: the title's music.
     pub title_track: usize,
+    /// The track the extras play each time they open from the title,
+    /// fading in over `menu_fade_ms` (続・殺戮のジャンゴ's `dj_INS12`); `None`:
+    /// the extras' music from before (kept across games).
+    pub menu_track: Option<usize>,
+    pub menu_fade_ms: u32,
     pub marker: Placed,
     pub marker_cells: u32,
     pub marker_ms: u32,
@@ -692,4 +701,48 @@ pub struct SlotPopup {
     /// A click on an empty slot saves at once in the game (asking nothing)
     /// and does nothing outside it, instead of opening the window.
     pub empty_saves: bool,
+}
+
+/// How [`PictureExtras`]' menu goes into a mode and back (続・殺戮のジャンゴ's
+/// saloon doors). Into a mode: the buttons fade out over `buttons_ms`,
+/// `open_se` plays and `doors` (a strip of `cells` cells over
+/// `background`, the first as the menu shows them) step to their last
+/// cell, each cross-fading in over `step_ms`, the first after `step_ms`,
+/// the last held `hold_ms` from its start; then background and doors zoom
+/// to `zoom` percent about their centres over `zoom_ms` (easing in, t²)
+/// while the screen goes to black, and the mode comes in from black. Back
+/// from a mode: it goes to black over `out_ms`; background and open doors
+/// zoom back from `zoom` over `back_ms` (easing out) as the black fades,
+/// `close_se` plays, the doors shut (their first cell) and the buttons
+/// fade in over `buttons_ms`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExtrasPassage {
+    /// The menu's background without the doors.
+    pub background: String,
+    pub doors: Placed,
+    pub cells: u32,
+    pub buttons_ms: u32,
+    pub step_ms: u32,
+    pub hold_ms: u32,
+    pub zoom: u32,
+    pub zoom_ms: u32,
+    pub out_ms: u32,
+    pub back_ms: u32,
+    pub open_se: Option<String>,
+    pub close_se: Option<String>,
+}
+
+/// A looping animation over a [`GalleryCategory`]'s button while the
+/// pointer is on it, not on the open category's (続・殺戮のジャンゴ's rifle);
+/// drawn by the script routine (not with `engine_screen`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CategoryHover {
+    /// A strip of `cells` cells, shown in turn `ms` each from the first.
+    pub image: String,
+    pub cells: u32,
+    pub ms: u32,
+    /// Its place over each category, in order.
+    pub places: Vec<(i32, i32)>,
+    /// Played on opening another category.
+    pub click_se: Option<String>,
 }

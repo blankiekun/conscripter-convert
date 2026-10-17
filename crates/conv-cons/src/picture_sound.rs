@@ -39,10 +39,14 @@ const EXIT: u32 = MENU_SPRITES.start;
 const BTN_VIDEO: usize = 101; // + movie
 const BTN_EXIT: usize = 201;
 
-/// Lines that start the extras' music where it isn't the title's (playing
-/// already), when the extras open.
-pub(crate) fn on_open(_r: &SoundRoom) -> String {
-    format!("if {MUSIC} != 0 gosub *{PLAY}")
+/// Lines that start the extras' music when they open: the menu's own,
+/// fading in, or the one from before where it isn't the title's (playing
+/// already).
+pub(crate) fn on_open(r: &SoundRoom) -> String {
+    match r.menu_track {
+        Some(t) => format!("mov {MUSIC},{}:chvolfade -1,100:bgmfadein {}:gosub *{PLAY}:bgmfadein 0", number(r, t), r.menu_fade_ms),
+        None => format!("if {MUSIC} != 0 gosub *{PLAY}"),
+    }
 }
 
 /// Lines that play the title's music again, going back to it, where the

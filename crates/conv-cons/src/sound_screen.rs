@@ -139,6 +139,8 @@ mod tests {
             tracks: vec![track(0, false), track(1, true)],
             movies: vec![RoomVideo { thumbnail: p("mv", 600, 100), cursor: "sys/cur.png".into(), file: "movie/op.mpg".into(), unlocked_by: None, locked: "sys/locked.png".into() }],
             title_track: 0,
+            menu_track: None,
+            menu_fade_ms: 0,
             marker: p("marker", 0, 0),
             marker_cells: 8,
             marker_ms: 100,

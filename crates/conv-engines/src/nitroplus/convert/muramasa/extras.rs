@@ -56,6 +56,7 @@ pub fn extras(a: &mut dyn Assets, story: &Story) -> Option<PictureExtras> {
         sound: sound(a, story),
         replay: replay(a, story),
         turntable: turntable(a, story),
+        passage: None,
     })
 }
 
@@ -285,6 +286,8 @@ fn sound(a: &mut dyn Assets, story: &Story) -> Option<SoundRoom> {
         tracks,
         movies,
         title_track,
+        menu_track: None,
+        menu_fade_ms: 0,
         marker: Placed { image, x: 0, y: 0, w: w as i32, h: h as i32 },
         marker_cells: 10,
         // src: film sound-icon.mkv (100 fps)
@@ -358,6 +361,7 @@ fn gallery(a: &mut dyn Assets, story: &Story) -> Option<PictureGallery> {
         across: false,
         arrows_when_paged: false,
         engine_screen: true,
+        category_hover: None,
     })
 }
 

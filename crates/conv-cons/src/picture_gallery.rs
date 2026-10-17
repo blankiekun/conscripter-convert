@@ -19,7 +19,7 @@ use conv_core::ir::{PictureGallery, Placed};
 
 use crate::menu::TMP;
 use crate::picture_extras::pic;
-use crate::{path, var_name, BUTTON_VAR, MAX_SPRITE, MENU_SPRITES};
+use crate::{path, var_name, BUTTON_VAR, DIALOG_SPRITES, MAX_SPRITE, MENU_SPRITES, SE_CHANNELS};
 
 /// Entered from the extras' menu, which [`MENU`] draws again.
 pub(crate) const GALLERY: &str = "conv_pextras_gallery";
@@ -55,6 +55,8 @@ const PREVIOUS: u32 = MENU_SPRITES.start + MAX_CATEGORIES;
 const NEXT: u32 = PREVIOUS + 1;
 const EXIT: u32 = PREVIOUS + 2;
 const BTN_CATEGORY: u32 = 100; // + category
+/// A category's hover animation, over the buttons.
+const HOVER: u32 = DIALOG_SPRITES.start; // + category
 const BTN_PREVIOUS: u32 = 201;
 const BTN_NEXT: u32 = 202;
 const BTN_EXIT: u32 = 203;
@@ -93,12 +95,25 @@ pub(crate) fn emit(out: &mut String, g: &PictureGallery, border: u32, width: u32
     w(format!("*{DRAW}"));
     w("csp -1".into());
     w(format!("lsp {BACKGROUND},\"{}\",0,0", pic(&g.background)));
+    // The hover animations, hidden while the pointer is on no category
+    // (`P` shows one from its first cell).
+    let hover = g.category_hover.as_ref().filter(|h| !h.places.is_empty());
+    if let Some(h) = hover {
+        assert!(h.places.len() <= DIALOG_SPRITES.len(), "more category hovers than sprites");
+        for (c, (x, y)) in h.places.iter().enumerate() {
+            w(format!("lsp {},\":a/{},{},0;{}\",{x},{y}:vsp {},0", HOVER + c as u32, h.cells, h.ms, path(&h.image), HOVER + c as u32));
+        }
+        w(format!("exbtn_d \"C{}-{}\"", HOVER, HOVER + h.places.len() as u32 - 1));
+    }
     for (c, category) in g.categories.iter().enumerate() {
         let slot = CATEGORY_BUTTON + c as u32;
         w(button(slot, &category.button));
         // The open category shows its pressed picture, and isn't a button.
         w(format!("if {CATEGORY} == {c} cell {slot},2"));
-        w(format!("if {CATEGORY} != {c} spbtn {slot},{}", BTN_CATEGORY + c as u32));
+        match hover {
+            Some(h) if c < h.places.len() => w(format!("if {CATEGORY} != {c} exbtn {slot},{},\"P{}\"", BTN_CATEGORY + c as u32, HOVER + c as u32)),
+            _ => w(format!("if {CATEGORY} != {c} spbtn {slot},{}", BTN_CATEGORY + c as u32)),
+        }
     }
     // Only in a category of more pages, if so asked.
     let paged: Vec<String> = pages.iter().enumerate().filter(|(_, n)| **n > 1).map(|(c, _)| format!("if {CATEGORY} == {c} ")).collect();
@@ -130,8 +145,9 @@ pub(crate) fn emit(out: &mut String, g: &PictureGallery, border: u32, width: u32
         w(format!("if {CATEGORY} == {c} && {PAGE} < 0 mov {PAGE},{}", n - 1));
         w(format!("if {CATEGORY} == {c} && {PAGE} >= {n} mov {PAGE},0"));
     }
+    let shot = g.category_hover.as_ref().and_then(|h| h.click_se.as_ref()).map_or(String::new(), |se| format!(":dwave {},\"{}\"", SE_CHANNELS.start(), path(se)));
     w(format!(
-        "if {BUTTON_VAR} >= {BTN_CATEGORY} && {BUTTON_VAR} < {} mov {CATEGORY},{BUTTON_VAR}-{BTN_CATEGORY}:mov {PAGE},0:mov {FADE},{}",
+        "if {BUTTON_VAR} >= {BTN_CATEGORY} && {BUTTON_VAR} < {} mov {CATEGORY},{BUTTON_VAR}-{BTN_CATEGORY}:mov {PAGE},0:mov {FADE},{}{shot}",
         BTN_CATEGORY + MAX_CATEGORIES,
         g.page_ms
     ));
