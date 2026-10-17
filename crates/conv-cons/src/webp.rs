@@ -34,7 +34,11 @@ const NEAR_LOSSLESS: i32 = 60;
 /// (0-100, as `cwebp -q`). Opaque images are encoded without an alpha
 /// channel.
 pub fn encode(png: &[u8], quality: Option<u8>) -> Result<Vec<u8>, EncodeError> {
-    let img = image::load_from_memory_with_format(png, image::ImageFormat::Png)?.to_rgba8();
+    encode_rgba(&image::load_from_memory_with_format(png, image::ImageFormat::Png)?.to_rgba8(), quality)
+}
+
+/// [`encode`] for a decoded picture.
+pub fn encode_rgba(img: &image::RgbaImage, quality: Option<u8>) -> Result<Vec<u8>, EncodeError> {
     let (w, h) = img.dimensions();
     let opaque = img.pixels().all(|p| p[3] == 255);
     let rgb: Vec<u8>;
@@ -42,7 +46,7 @@ pub fn encode(png: &[u8], quality: Option<u8>) -> Result<Vec<u8>, EncodeError> {
         rgb = img.pixels().flat_map(|p| [p[0], p[1], p[2]]).collect();
         webp::Encoder::from_rgb(&rgb, w, h)
     } else {
-        webp::Encoder::from_rgba(&img, w, h)
+        webp::Encoder::from_rgba(img, w, h)
     };
     // Fails only when the linked libwebp doesn't match its headers.
     let mut config = webp::WebPConfig::new().expect("libwebp config");

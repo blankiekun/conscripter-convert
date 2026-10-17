@@ -63,6 +63,20 @@ pub enum TypemoonCommand {
         #[arg(long)]
         romfs: Option<PathBuf>,
     },
+    /// Write a RomFS folder's media for the build into `<output>`: every
+    /// `allpac` picture at full size as `pic/<name>.webp` (lossy WebP at
+    /// `--quality`, the `RULE_*` masks near-lossless), each from its
+    /// largest copy (a bare background's `.JPG`, else the larger `.NXGZ`);
+    /// the movies at 1280 × 720 as `movie/<name>.mp4`; and the sound as
+    /// `typemoon sounds` writes it. Pictures and movies already there are
+    /// kept, so an interrupted run goes on where it stopped
+    Media {
+        dir: PathBuf,
+        #[arg(short, long)]
+        output: PathBuf,
+        #[arg(long, default_value_t = 85, value_parser = clap::value_parser!(u8).range(0..=100))]
+        quality: u8,
+    },
 }
 
 pub fn run(command: TypemoonCommand) -> Result<()> {
@@ -76,6 +90,7 @@ pub fn run(command: TypemoonCommand) -> Result<()> {
         TypemoonCommand::Sounds { dir, output } => sounds(&dir, &output),
         TypemoonCommand::Script { dir, output } => scripts(&dir, output.as_deref()),
         TypemoonCommand::Exe { main, romfs } => exe_tables(&main, romfs.as_deref()),
+        TypemoonCommand::Media { dir, output, quality } => media(&dir, &output, quality),
     }
 }
 
@@ -315,6 +330,115 @@ fn sounds(dir: &Path, output: &Path) -> Result<()> {
     Ok(())
 }
 
+fn media(dir: &Path, output: &Path, quality: u8) -> Result<()> {
+    pictures(dir, &output.join("pic"), quality)?;
+    movies(&dir.join("movie"), &output.join("movie"))?;
+    sounds(dir, output)
+}
+
+/// Per picture name (lowercase, extension dropped) its full art: the
+/// `.JPG` if there is one, else the largest `.NXGZ`/`.NXZ`/`.PNG`.
+fn full_copies(entries: &[mrg::Entry]) -> BTreeMap<String, &mrg::Entry> {
+    let mut best = BTreeMap::<String, (bool, &mrg::Entry)>::new();
+    for e in entries {
+        let Some((stem, ext)) = e.name.as_deref().and_then(|n| n.rsplit_once('.')) else { continue };
+        let ext = ext.to_ascii_uppercase();
+        if !matches!(ext.as_str(), "JPG" | "NXGZ" | "NXZ" | "PNG") {
+            continue;
+        }
+        let rank = (ext == "JPG", e);
+        let slot = best.entry(stem.to_lowercase()).or_insert(rank);
+        if (rank.0, rank.1.size) > (slot.0, slot.1.size) {
+            *slot = rank;
+        }
+    }
+    best.into_iter().map(|(k, (_, e))| (k, e)).collect()
+}
+
+/// `allpac`'s pictures as WebP: per name (case ignored, extension
+/// dropped) the `.JPG` if there is one, else the largest entry.
+fn pictures(dir: &Path, out: &Path, quality: u8) -> Result<()> {
+    use std::sync::Mutex;
+    use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+    let path = dir.join("allpac.mrg");
+    let bytes = map(&path)?;
+    let entries = mrg::parse(&map(&path.with_extension("hed"))?, Some(&map(&path.with_extension("nam"))?)).context("reading allpac.hed")?;
+    let best = full_copies(&entries);
+    fs::create_dir_all(out)?;
+    let jobs: Vec<(&String, &&mrg::Entry)> = best.iter().filter(|(stem, _)| !out.join(format!("{stem}.webp")).exists()).collect();
+    println!("allpac: {} pictures, {} to convert", best.len(), jobs.len());
+    let (next, done, in_bytes, out_bytes) = (AtomicUsize::new(0), AtomicUsize::new(0), AtomicU64::new(0), AtomicU64::new(0));
+    let failed = Mutex::new(Vec::new());
+    let one = |stem: &str, e: &mrg::Entry| -> Result<()> {
+        let img = {
+            let data = typemoon::unpack(mrg::data(&bytes, e)?)?;
+            if data.starts_with(b"BNTX") {
+                let textures = bntx::parse(&data)?;
+                anyhow::ensure!(textures.len() == 1, "{} textures", textures.len());
+                bntx::decode(&textures[0])?
+            } else {
+                image::load_from_memory(&data)?.to_rgba8()
+            }
+        };
+        let q = (!stem.starts_with("rule_")).then_some(quality);
+        let webp = conv_cons::webp::encode_rgba(&img, q)?;
+        let file = out.join(safe_relative_path(&format!("{stem}.webp")).with_context(|| format!("unsafe name {stem:?}"))?);
+        let part = file.with_extension("part");
+        fs::write(&part, &webp)?;
+        fs::rename(&part, &file)?;
+        in_bytes.fetch_add(e.size, Ordering::Relaxed);
+        out_bytes.fetch_add(webp.len() as u64, Ordering::Relaxed);
+        Ok(())
+    };
+    // 32 at a time went over 10 GB (the tall sprites); 8 peak at 5.7 GB.
+    let threads = std::thread::available_parallelism().map_or(4, |n| n.get()).min(8);
+    std::thread::scope(|s| {
+        for _ in 0..threads {
+            s.spawn(|| {
+                while let Some(&(stem, e)) = jobs.get(next.fetch_add(1, Ordering::Relaxed)) {
+                    if let Err(err) = one(stem, e) {
+                        failed.lock().unwrap().push(format!("{}: {err:#}", e.name.as_deref().unwrap_or(stem)));
+                    }
+                    let n = done.fetch_add(1, Ordering::Relaxed) + 1;
+                    if n % 1000 == 0 {
+                        println!("  {n} of {}", jobs.len());
+                    }
+                }
+            });
+        }
+    });
+    let mb = |a: &AtomicU64| a.load(Ordering::Relaxed) as f64 / 1e6;
+    println!("pic: {} written, {:.1} MB from {:.1} MB in the archive", jobs.len() - failed.lock().unwrap().len(), mb(&out_bytes), mb(&in_bytes));
+    let failed = failed.into_inner().unwrap();
+    for e in failed.iter().take(5) {
+        println!("  {e}");
+    }
+    anyhow::ensure!(failed.is_empty(), "{} pictures failed", failed.len());
+    Ok(())
+}
+
+/// The movies (H.264 1920 × 1080) at the stage's 1280 × 720.
+fn movies(dir: &Path, out: &Path) -> Result<()> {
+    let mut files: Vec<PathBuf> = fs::read_dir(dir)?.map(|e| e.map(|e| e.path())).collect::<Result<_, _>>()?;
+    files.sort();
+    let mut failed = 0;
+    for src in &files {
+        let dest = out.join(src.file_name().unwrap().to_string_lossy().to_lowercase());
+        if dest.exists() {
+            continue;
+        }
+        let mut args: Vec<std::ffi::OsString> = ["-i".into(), src.clone().into(), "-vf".into(), "scale=1280:-2".into()].into();
+        args.extend(conv_engines::media::mp4_options(23, "slow").into_iter().map(Into::into));
+        if let Err(e) = conv_engines::media::ffmpeg(&dest, args, |_| Ok(())) {
+            println!("  {}: {e}", src.display());
+            failed += 1;
+        }
+    }
+    println!("movie: {} of {} at 1280 × 720", files.len() - failed, files.len());
+    anyhow::ensure!(failed == 0, "{failed} movies failed");
+    Ok(())
+}
+
 fn scripts(dir: &Path, output: Option<&Path>) -> Result<()> {
     let allscr = map(&dir.join("allscr.mrg"))?;
     let entries = mzp::parse(&allscr).context("reading allscr.mrg")?;
@@ -406,4 +530,18 @@ fn scripts(dir: &Path, output: Option<&Path>) -> Result<()> {
         println!("| `{op}` | {uses} | {in_scripts} | `{example}` |");
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn full_copies_prefer_the_jpg_then_the_largest() {
+        let e = |name: &str, size| mrg::Entry { name: Some(name.into()), offset: 0, size, unpacked_sectors: 0 };
+        let entries = [e("IMG0020.NXGZ", 9), e("IMG0020.JPG", 5), e("ARU_A.NXGZ", 1), e("ARU_A.NXGZ", 7), e("X.MZP", 3)];
+        let best = full_copies(&entries);
+        let names: Vec<_> = best.iter().map(|(k, e)| (k.as_str(), e.name.as_deref().unwrap(), e.size)).collect();
+        assert_eq!(names, [("aru_a", "ARU_A.NXGZ", 7), ("img0020", "IMG0020.JPG", 5)]);
+    }
 }

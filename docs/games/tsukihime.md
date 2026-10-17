@@ -67,6 +67,23 @@ translation).
 | `parts` | same | differs |
 | `allpachd*`, `allpacml*`, `sdk`, `subsdk*`, fonts, `stream/` | same | same |
 
+**The media folder** (pictures, movies, sound; Japanese from
+`<game-102>`, English from `<game-en>`), about 15 minutes:
+
+```sh
+conscripter-convert typemoon media <game-102> -o out/tsukihime-cons
+```
+
+It writes every `allpac` picture once, from its full art (the `.JPG`
+for a bare background, else the larger of a name's two `.NXGZ`), as
+`pic/<name>.webp` (lowercase; lossy WebP quality 85, `--quality`; the
+`RULE_*` masks near-lossless) at the texture's full size; the movies
+as `movie/<name>.mp4`, H.264 1280 × 720 (CRF 23) + AAC; and the sound
+as `typemoon sounds` does (`stream/*.ogg`, `se/*.wav`). Pictures and
+movies already written are kept, so a stopped run goes on. Sizes for
+the Japanese copy: `pic/` 2.37 GB (14,763), `movie/` 182 MB,
+`stream/` 1.3 GB, `se/` 1.4 GB.
+
 The Program NCA is the 22 GB one (the others: Meta, Control,
 Manual). The ExeFS holds `main` (3.3 MB NSO) and `subsdk0`/`subsdk1`.
 
@@ -569,33 +586,40 @@ Nothing yet.
 | Exe (`main`) in Ghidra | ✅ decompiles; dispatcher, the top commands' handlers, the music, picture and motion tables named |
 | Exe tables (pictures, motions, scene numbers) | ✅ read from the NSO (`typemoon exe`); picture sizes checked against the textures |
 | Scripts | 🔶 read: every command of both languages splits (one malformed in the original) and its text and voices join; the top commands' arguments read from the exe, the rest not yet |
-| Everything after (text, pictures, screens, extras) | ❌ |
+| Media folder (`typemoon media`) | ✅ `allpac`'s pictures as full-size WebP (2.37 GB), movies at 720p, sound |
+| Everything after (text, pictures on screen, screens, extras) | ❌ |
 
 ### Next
 
-1. Pictures for the build: decode each `_STCH` picture's full art (the
-   `.JPG` entry for a bare background, the larger `.NXGZ` otherwise),
-   draw it at its record size on the 1280 × 724 stage and place it by
-   its record's centre at script x, y × 8/3 (see "The exe", the picture
-   table); every expression is already a whole picture, so nothing
-   needs cutting. **Decided (the user, 2026-10-16):** the build writes a
-   media folder of re-encoded files, not the BC7 textures: WebP
-   pictures, smaller movies (`movie/`, 1.7 GB), the Opus voices and
-   music copied as they are (`stream/`, 1.1 GB). Splitting sprites
-   into body and face crops is out unless the user asks. A sample of
-   101 `allpac` pictures (every 290th entry): 63.1 MB in the archive
-   (gzipped BC7; 159.7 MB unpacked), PNG 81.4 MB, WebP quality 85 at
-   full size 7.2 MB (11 % of the archive's), at half size (the
-   1280-wide stage) 2.6 MB (4 %). For all of `allpac` (16 GB): about
-   1.8 GB at full size, 0.7 GB at stage size. **Decided (the user,
-   2026-10-16): full size** (about 1.8 GB).
+1. The script conversion (the first scenes): `_STCH` draws
+   `pic/<name>.webp` from the media folder (see "Build") at its record
+   size on the 1280 × 724 stage, its record's centre at script x, y ×
+   8/3 (see "The exe", the picture table); the plain colours as
+   full-screen fills. Splitting sprites into body and face crops is out
+   unless the user asks.
 2. Sound for the build: the looping wave sounds' loop points
    (SDL_mixer loops a WAV whole), and the music's loop points from the
-   bfsar's stream details (see "The exe").
-3. Still open in the exe: `_FADS` type 1, `_STCH`'s arguments
+   bfsar's stream details (see "The exe"). The wave sounds are 1.4 GB
+   as WAV in the media folder: worth Opus or Vorbis once their loops
+   are kept.
+3. The other picture archives in the media folder: `allpaccg` (the
+   gallery's CGs, 2 GB), `allui` (71 MB).
+4. Still open in the exe: `_FADS` type 1, `_STCH`'s arguments
    12–17, `_STZ4`'s last two, and the motion keyframes' other fields.
 
 ## History
+
+- 2026-10-16: the media folder (`typemoon media`, see "Build"). The
+  user's picks: WebP at full size, not the BC7 textures (a sample of
+  101 `allpac` pictures: 63.1 MB in the archive, WebP q85 at full size
+  7.2 MB, at stage size 2.6 MB), smaller movies, the Opus as it is.
+  Japanese copy: 14,763 pictures (one per name: 1,279 bare
+  backgrounds from their 2560 × 1440 `.JPG`, the rest from the larger
+  `.NXGZ`/`.NXZ`), 2.37 GB from 16 GB; movies 1.7 GB → 182 MB; 15 min
+  on 8 threads, 5.7 GB peak (32 threads went over 10 GB). Checked: RMSE
+  against the lossless decode 0.3 % for `ARU_A_18_00_N01_10_10`
+  (886 × 4160), 1.6 % for `IMG0020` against its JPG; CONscripter
+  (native) draws both, the sprite's alpha whole.
 
 - 2026-10-16: how big a picture is drawn, settled by matching the
   gallery's CGs to the story pictures (`cg_framing.py`): a record

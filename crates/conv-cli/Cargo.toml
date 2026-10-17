@@ -12,6 +12,7 @@ path = "src/main.rs"
 anyhow.workspace = true
 clap.workspace = true
 memmap2.workspace = true
+image.workspace = true
 conv-core.workspace = true
 conv-engines.workspace = true
 conv-cons.workspace = true
