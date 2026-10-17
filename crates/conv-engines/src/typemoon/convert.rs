@@ -41,13 +41,17 @@ pub struct Game<'a> {
     pub lines: Vec<&'a str>,
     /// The exe's picture records by lowercase name.
     pub pictures: HashMap<String, Picture>,
-    /// The width and height of each picture's file (`pic/<name>.webp`),
+    /// The pictures' extension in `pic/` (`png`, or `webp` with `--webp`;
+    /// the `rule_*` masks are always PNG).
+    pub pic_ext: &'static str,
+    /// The width and height of each picture's file (`pic/<name>.<ext>`),
     /// by lowercase name: the record's size is drawn from it.
     pub textures: HashMap<String, (u32, u32)>,
     /// The sound archive's sound names: `_MPLY(n)` plays sound `n − 1`.
     pub sounds: Vec<String>,
-    /// The wave sounds' names (`WSD_moon_se02093`) by the scripts' name
-    /// for them (uppercase, without `WSD_`).
+    /// The wave sounds' files (`WSD_moon_se02093.wav`, `.ogg` when the
+    /// build re-encodes them) by the scripts' name for them (uppercase,
+    /// without `WSD_`).
     pub waves: HashMap<String, String>,
     /// The exe's motions: `_STMA(layer, m)` runs `motions[m - 1]`.
     pub motions: Vec<super::exe::Motion>,
@@ -538,7 +542,7 @@ impl Lowering<'_, '_> {
             }
             "_WTTM" => self.ops.push(Op::Wait { ms: number(arg(0)).unwrap_or(0).max(0) as u32 }),
             "_SEPL" => {
-                let Some(file) = self.g.waves.get(&arg(2).to_uppercase()).map(|w| format!("se/{w}.ogg")) else { return false };
+                let Some(file) = self.g.waves.get(&arg(2).to_uppercase()).map(|w| format!("se/{w}")) else { return false };
                 self.se_channels.insert(number(arg(0)).unwrap_or(0), file.clone());
                 self.ops.push(Op::SePlay { file, looped: arg(1) == "1" });
             }
@@ -766,7 +770,7 @@ impl Lowering<'_, '_> {
         if changed.is_empty() && fade_ms == 0 {
             return;
         }
-        let mask = (kind == 2).then(|| format!("pic/rule_{rule:02}.webp"));
+        let mask = (kind == 2).then(|| format!("pic/rule_{rule:02}.png"));
         self.ops.push(Op::BeginTransition { effect: format!("_FADS({kind},{ms},{rule})"), fade_ms, mask, style: TransitionStyle::Fade });
         for slot in changed {
             self.slots[slot] = want[slot].clone();
@@ -930,7 +934,7 @@ impl Lowering<'_, '_> {
                 // The file at the record's size (its art is mostly 2×).
                 let (tw, th) = self.g.textures.get(&name).map_or((p.width * 2.0, p.height * 2.0), |&(w, h)| (w as f32, h as f32));
                 let zoom = |rec: f32, tex: f32, z: f32| (100.0 * rec / tex * z).round() as i32;
-                (format!("pic/{name}.webp"), (mx, my), (zoom(p.width, tw, zx), zoom(p.height * SCREEN_H as f32 / STAGE_H, th, zy)))
+                (format!("pic/{name}.{}", self.g.pic_ext), (mx, my), (zoom(p.width, tw, zx), zoom(p.height * SCREEN_H as f32 / STAGE_H, th, zy)))
             }
             (None, None) => return Err(name),
         })
@@ -1140,6 +1144,7 @@ mod tests {
             textures: HashMap::new(),
             sounds: vec![],
             waves: HashMap::new(),
+            pic_ext: "webp",
             motions: vec![],
         };
         // Each IR layer as it is drawn or cleared, in order.
@@ -1167,6 +1172,7 @@ mod tests {
             textures: [("img1".into(), (2560, 1440))].into(),
             sounds: vec![],
             waves: HashMap::new(),
+            pic_ext: "webp",
             motions: vec![],
         };
         let ops = compile(&g).ops;
@@ -1190,6 +1196,7 @@ mod tests {
             textures: HashMap::new(),
             sounds: vec![],
             waves: HashMap::new(),
+            pic_ext: "webp",
             motions: vec![],
         };
         let ops = compile(&g).ops;
@@ -1221,6 +1228,7 @@ mod tests {
             textures: HashMap::new(),
             sounds: vec![],
             waves: HashMap::new(),
+            pic_ext: "webp",
             motions: vec![motion],
         };
         let ops = compile(&g).ops;
@@ -1241,6 +1249,7 @@ mod tests {
             textures: [("img1".into(), (2560, 1440)), ("dot".into(), (20, 20))].into(),
             sounds: vec![],
             waves: HashMap::new(),
+            pic_ext: "webp",
             motions: vec![],
         };
         let ops = compile(&g).ops;
@@ -1262,6 +1271,7 @@ mod tests {
             textures: [("img1".into(), (2560, 1440)), ("dot".into(), (20, 20))].into(),
             sounds: vec![],
             waves: HashMap::new(),
+            pic_ext: "webp",
             motions: vec![],
         };
         let c = compile(&g);
@@ -1286,6 +1296,7 @@ mod tests {
             textures: HashMap::new(),
             sounds: vec![],
             waves: HashMap::new(),
+            pic_ext: "webp",
             motions: vec![],
         };
         let clips: Vec<_> = compile(&g).ops.into_iter().filter(|o| matches!(o, Op::SpriteClip { .. })).collect();
@@ -1314,6 +1325,7 @@ mod tests {
             textures: HashMap::new(),
             sounds: vec![],
             waves: HashMap::new(),
+            pic_ext: "webp",
             motions: vec![motion],
         };
         let ops = compile(&g).ops;
@@ -1334,6 +1346,7 @@ mod tests {
             textures: HashMap::new(),
             sounds: vec![],
             waves: HashMap::new(),
+            pic_ext: "webp",
             motions: vec![],
         };
         let ops = compile(&g).ops;
@@ -1352,6 +1365,7 @@ mod tests {
             textures: [("img1".into(), (2560, 1440))].into(),
             sounds: vec![],
             waves: HashMap::new(),
+            pic_ext: "webp",
             motions: vec![],
         };
         let c = compile(&g);
@@ -1379,6 +1393,7 @@ mod tests {
             textures: HashMap::new(),
             sounds: vec![],
             waves: HashMap::new(),
+            pic_ext: "webp",
             motions: vec![],
         };
         let c = compile(&g);
@@ -1406,6 +1421,7 @@ mod tests {
             textures: HashMap::new(),
             sounds: vec![],
             waves: HashMap::new(),
+            pic_ext: "webp",
             motions: vec![],
         };
         let c = compile(&g);
@@ -1453,6 +1469,7 @@ mod tests {
             textures: HashMap::new(),
             sounds: vec![],
             waves: HashMap::new(),
+            pic_ext: "webp",
             motions: vec![],
         };
         let fades: Vec<_> = compile(&g).ops.into_iter().filter_map(|o| match o {
@@ -1493,6 +1510,7 @@ mod tests {
             textures: [("img1".into(), (2560, 1440))].into(),
             sounds: vec![],
             waves: HashMap::new(),
+            pic_ext: "webp",
             motions: vec![],
         };
         let c = compile(&g);
@@ -1534,6 +1552,7 @@ mod tests {
             textures: HashMap::new(),
             sounds: vec![],
             waves: HashMap::new(),
+            pic_ext: "webp",
             motions: vec![],
         };
         let ops = compile(&g).ops;

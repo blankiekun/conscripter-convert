@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 use clap::Subcommand;
+use conv_engines::media::AudioFormat;
 use conv_engines::typemoon::{self, bfsar, bntx, exe, fwav, mrg, mzp, nxopus, script};
 
 use crate::{map, safe_relative_path};
@@ -39,12 +40,16 @@ pub enum TypemoonCommand {
     /// inside and what fails
     Check { dir: PathBuf },
     /// Convert a RomFS folder's sound: `stream/*.opus` (Nintendo Opus) to
-    /// `<output>/stream/*.ogg`, and every wave sound of `knife1.bfsar` to
-    /// `<output>/se/<name>.ogg` (Opus), with their loops; counts them and fails on any error
+    /// `<output>/stream/*.ogg` (not re-encoded), and every wave sound of
+    /// `knife1.bfsar` to `<output>/se/<name>.wav`, or `.ogg` re-encoded as
+    /// `--audio-codec`/`--audio-quality` ask; each with its loop; counts
+    /// them and fails on any error
     Sounds {
         dir: PathBuf,
         #[arg(short, long)]
         output: PathBuf,
+        #[command(flatten)]
+        audio: crate::build::AudioArgs,
     },
     /// Read every script of a RomFS folder (`allscr.mrg`) with its text
     /// (`script_text.mrg`): rank the commands by use, check the text and
@@ -67,18 +72,21 @@ pub enum TypemoonCommand {
         motion: Vec<usize>,
     },
     /// Write a RomFS folder's media for the build into `<output>`: every
-    /// `allpac` picture at full size as `pic/<name>.webp` (lossy WebP at
-    /// `--quality`, the `RULE_*` masks near-lossless), each from its
-    /// largest copy (a bare background's `.JPG`, else the larger `.NXGZ`);
-    /// the movies at 1280 × 720 as `movie/<name>.mp4`; and the sound as
+    /// `allpac` picture at full size as `pic/<name>.png` (`.webp` with
+    /// `--webp`/`--webp-quality`; the `RULE_*` masks always PNG), each
+    /// from its largest copy (a bare background's `.JPG`, else the larger
+    /// `.NXGZ`); the movies as they are (H.264, remuxed to start playing
+    /// before they have loaded) as `movie/<name>.mp4`; and the sound as
     /// `typemoon sounds` writes it. Pictures and movies already there are
     /// kept, so an interrupted run goes on where it stopped
     Media {
         dir: PathBuf,
         #[arg(short, long)]
         output: PathBuf,
-        #[arg(long, default_value_t = 85, value_parser = clap::value_parser!(u8).range(0..=100))]
-        quality: u8,
+        #[command(flatten)]
+        webp: crate::build::WebpArgs,
+        #[command(flatten)]
+        audio: crate::build::AudioArgs,
     },
     /// Convert the game into a CONscripter folder: 0.txt from every script,
     /// and (unless --dry-run) the media as `typemoon media` writes them
@@ -103,15 +111,15 @@ pub fn run(command: TypemoonCommand) -> Result<()> {
         }),
         TypemoonCommand::Extract { archive, output, prefix, png, max_bytes } => extract(&archive, &output, &prefix.to_lowercase(), png, max_bytes),
         TypemoonCommand::Check { dir } => check(&dir),
-        TypemoonCommand::Sounds { dir, output } => sounds(&dir, &output),
+        TypemoonCommand::Sounds { dir, output, audio } => sounds(&dir, &output, audio.format()?),
         TypemoonCommand::Script { dir, output } => scripts(&dir, output.as_deref()),
         TypemoonCommand::Exe { main, romfs, motion } => exe_tables(&main, romfs.as_deref(), &motion),
-        TypemoonCommand::Media { dir, output, quality } => media(&dir, &output, quality),
+        TypemoonCommand::Media { dir, output, webp, audio } => media(&dir, &output, webp.get(), audio.format()?),
         TypemoonCommand::Convert { dir, exe, title, build } => {
             let exe = exe.unwrap_or_else(|| dir.join("../exefs/main"));
             crate::build::run(build, &title, &typemoon::build::OUTPUT_DIRS, |opts| {
                 if !opts.dry_run {
-                    media(&dir, opts.output, 85)?;
+                    media(&dir, opts.output, opts.webp, opts.audio)?;
                 }
                 typemoon::build::build(&dir, &exe, opts)
             })
@@ -315,7 +323,10 @@ fn exe_tables(main: &Path, romfs: Option<&Path>, show: &[usize]) -> Result<()> {
     Ok(())
 }
 
-fn sounds(dir: &Path, output: &Path) -> Result<()> {
+/// The wave sounds as WAV (`smpl` loop) unless `audio` re-encodes them:
+/// then Opus or Vorbis with `LOOPSTART`/`LOOPEND`, which CONscripter's
+/// `dwaveloop` loops by for both. The streams stay the game's Opus.
+fn sounds(dir: &Path, output: &Path, audio: AudioFormat) -> Result<()> {
     use std::sync::Mutex;
     use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
     let mut failed = Vec::new();
@@ -345,11 +356,8 @@ fn sounds(dir: &Path, output: &Path) -> Result<()> {
     let out = output.join("se");
     fs::create_dir_all(&out)?;
     let waves = bfsar::wave_sounds(&bfsar).context("reading knife1.bfsar")?;
-    // Opus at 48 kbit/s a channel (the waves are 48 kHz, as Opus is), the
-    // loop as LOOPSTART/LOOPEND, which CONscripter's dwaveloop keeps.
-    let opus = conv_engines::media::AudioFormat { codec: conv_engines::media::AudioCodec::Opus, quality: Some(48.0) };
     let (kinds, failed_waves) = (Mutex::new(BTreeMap::<String, usize>::new()), Mutex::new(Vec::new()));
-    let (wav_bytes, ogg_bytes, next) = (AtomicU64::new(0), AtomicU64::new(0), AtomicUsize::new(0));
+    let (wav_bytes, written_bytes, next) = (AtomicU64::new(0), AtomicU64::new(0), AtomicUsize::new(0));
     let one = |w: &bfsar::WaveSound| -> Result<()> {
         let wave = fwav::decode(w.fwav)?;
         let looped = match wave.looped {
@@ -358,16 +366,22 @@ fn sounds(dir: &Path, output: &Path) -> Result<()> {
             Some(_) => ", loops from inside",
         };
         *kinds.lock().unwrap().entry(format!("{} ch {} Hz{looped}", wave.channels, wave.rate)).or_default() += 1;
-        let file = out.join(safe_relative_path(&format!("{}.ogg", w.name)).with_context(|| format!("unsafe name {:?}", w.name))?);
+        let ext = if audio.reencodes() { "ogg" } else { "wav" };
+        let file = out.join(safe_relative_path(&format!("{}.{ext}", w.name)).with_context(|| format!("unsafe name {:?}", w.name))?);
         let wav = fwav::to_wav(&wave);
+        wav_bytes.fetch_add(wav.len() as u64, Ordering::Relaxed);
+        if !audio.reencodes() {
+            fs::write(&file, &wav)?;
+            written_bytes.fetch_add(wav.len() as u64, Ordering::Relaxed);
+            return Ok(());
+        }
         let mut args: Vec<String> = ["-f", "wav", "-i", "pipe:0"].map(Into::into).into();
-        args.extend(opus.ffmpeg_options(wave.channels as u8));
+        args.extend(audio.ffmpeg_options(wave.channels as u8));
         if let Some((start, end)) = wave.looped {
             args.extend(["-metadata".into(), format!("LOOPSTART={start}"), "-metadata".into(), format!("LOOPEND={end}")]);
         }
         conv_engines::media::ffmpeg(&file, args, |stdin| stdin.write_all(&wav)).map_err(anyhow::Error::msg)?;
-        wav_bytes.fetch_add(wav.len() as u64, Ordering::Relaxed);
-        ogg_bytes.fetch_add(fs::metadata(&file)?.len(), Ordering::Relaxed);
+        written_bytes.fetch_add(fs::metadata(&file)?.len(), Ordering::Relaxed);
         Ok(())
     };
     std::thread::scope(|s| {
@@ -385,7 +399,7 @@ fn sounds(dir: &Path, output: &Path) -> Result<()> {
     let kinds = kinds.into_inner().unwrap();
     let kinds: Vec<String> = kinds.iter().map(|(k, n)| format!("{n} {k}")).collect();
     let mb = |a: &AtomicU64| a.load(Ordering::Relaxed) as f64 / 1e6;
-    println!("knife1.bfsar: {} wave sounds ({}) to Opus: {:.1} MB ({:.1} MB as WAV)", waves.len(), kinds.join("; "), mb(&ogg_bytes), mb(&wav_bytes));
+    println!("knife1.bfsar: {} wave sounds ({}): {:.1} MB written ({:.1} MB as WAV)", waves.len(), kinds.join("; "), mb(&written_bytes), mb(&wav_bytes));
     for e in failed.iter().take(5) {
         println!("  {e}");
     }
@@ -393,15 +407,17 @@ fn sounds(dir: &Path, output: &Path) -> Result<()> {
     Ok(())
 }
 
-fn media(dir: &Path, output: &Path, quality: u8) -> Result<()> {
-    pictures(dir, &output.join("pic"), quality)?;
+fn media(dir: &Path, output: &Path, webp: Option<Option<u8>>, audio: AudioFormat) -> Result<()> {
+    pictures(dir, &output.join("pic"), webp)?;
     movies(&dir.join("movie"), &output.join("movie"))?;
-    sounds(dir, output)
+    sounds(dir, output, audio)
 }
 
-/// `allpac`'s pictures as WebP: per name (case ignored, extension
-/// dropped) the `.JPG` if there is one, else the largest entry.
-fn pictures(dir: &Path, out: &Path, quality: u8) -> Result<()> {
+/// `allpac`'s pictures as PNG, or WebP (`webp`: its lossy quality, if
+/// any); the `rule_*` masks always PNG, exact. Per name (case ignored,
+/// extension dropped) the `.JPG` if there is one, else the largest entry.
+fn pictures(dir: &Path, out: &Path, webp: Option<Option<u8>>) -> Result<()> {
+    let ext = |stem: &str| if webp.is_none() || stem.starts_with("rule_") { "png" } else { "webp" };
     use std::sync::Mutex;
     use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
     let path = dir.join("allpac.mrg");
@@ -409,7 +425,7 @@ fn pictures(dir: &Path, out: &Path, quality: u8) -> Result<()> {
     let entries = mrg::parse(&map(&path.with_extension("hed"))?, Some(&map(&path.with_extension("nam"))?)).context("reading allpac.hed")?;
     let best = typemoon::full_copies(&entries);
     fs::create_dir_all(out)?;
-    let jobs: Vec<(&String, &&mrg::Entry)> = best.iter().filter(|(stem, _)| !out.join(format!("{stem}.webp")).exists()).collect();
+    let jobs: Vec<(&String, &&mrg::Entry)> = best.iter().filter(|(stem, _)| !out.join(format!("{stem}.{}", ext(stem))).exists()).collect();
     println!("allpac: {} pictures, {} to convert", best.len(), jobs.len());
     let (next, done, in_bytes, out_bytes) = (AtomicUsize::new(0), AtomicUsize::new(0), AtomicU64::new(0), AtomicU64::new(0));
     let failed = Mutex::new(Vec::new());
@@ -424,14 +440,20 @@ fn pictures(dir: &Path, out: &Path, quality: u8) -> Result<()> {
                 image::load_from_memory(&data)?.to_rgba8()
             }
         };
-        let q = (!stem.starts_with("rule_")).then_some(quality);
-        let webp = conv_cons::webp::encode_rgba(&img, q)?;
-        let file = out.join(safe_relative_path(&format!("{stem}.webp")).with_context(|| format!("unsafe name {stem:?}"))?);
+        let data = match webp.filter(|_| ext(stem) == "webp") {
+            Some(q) => conv_cons::webp::encode_rgba(&img, q)?,
+            None => {
+                let mut png = std::io::Cursor::new(Vec::new());
+                img.write_to(&mut png, image::ImageFormat::Png)?;
+                png.into_inner()
+            }
+        };
+        let file = out.join(safe_relative_path(&format!("{stem}.{}", ext(stem))).with_context(|| format!("unsafe name {stem:?}"))?);
         let part = file.with_extension("part");
-        fs::write(&part, &webp)?;
+        fs::write(&part, &data)?;
         fs::rename(&part, &file)?;
         in_bytes.fetch_add(e.size, Ordering::Relaxed);
-        out_bytes.fetch_add(webp.len() as u64, Ordering::Relaxed);
+        out_bytes.fetch_add(data.len() as u64, Ordering::Relaxed);
         Ok(())
     };
     // 32 at a time went over 10 GB (the tall sprites); 8 peak at 5.7 GB.
@@ -461,7 +483,10 @@ fn pictures(dir: &Path, out: &Path, quality: u8) -> Result<()> {
     Ok(())
 }
 
-/// The movies (H.264 1920 × 1080) at the stage's 1280 × 720.
+/// The movies as they are (H.264 yuv420p 1920 × 1080, some with AAC):
+/// remuxed, not re-encoded, with the index first so the web build's
+/// `<video>` starts before the file has loaded. Like the other games'
+/// movies, at their own size.
 fn movies(dir: &Path, out: &Path) -> Result<()> {
     let mut files: Vec<PathBuf> = fs::read_dir(dir)?.map(|e| e.map(|e| e.path())).collect::<Result<_, _>>()?;
     files.sort();
@@ -471,14 +496,13 @@ fn movies(dir: &Path, out: &Path) -> Result<()> {
         if dest.exists() {
             continue;
         }
-        let mut args: Vec<std::ffi::OsString> = ["-i".into(), src.clone().into(), "-vf".into(), "scale=1280:-2".into()].into();
-        args.extend(conv_engines::media::mp4_options(23, "slow").into_iter().map(Into::into));
+        let args: Vec<std::ffi::OsString> = ["-i".into(), src.clone().into(), "-c".into(), "copy".into(), "-movflags".into(), "+faststart".into()].into();
         if let Err(e) = conv_engines::media::ffmpeg(&dest, args, |_| Ok(())) {
             println!("  {}: {e}", src.display());
             failed += 1;
         }
     }
-    println!("movie: {} of {} at 1280 × 720", files.len() - failed, files.len());
+    println!("movie: {} of {}", files.len() - failed, files.len());
     anyhow::ensure!(failed == 0, "{failed} movies failed");
     Ok(())
 }
