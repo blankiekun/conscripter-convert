@@ -6,6 +6,7 @@
 #                    [-- <extra analyzeHeadless import options>]
 #
 #   <outdir>/decomp/<address>_<name>.c   one file per function
+#   <outdir>/sha256.txt                  the input's sha256 (also printed)
 #   <outdir>/functions.tsv               address, name, size, callers, callees, strings
 #   <outdir>/strings.tsv                 cp932 strings and the functions using them
 #   <outdir>/project/                    the Ghidra project (reused by later runs)
@@ -29,7 +30,7 @@
 set -euo pipefail
 
 here=$(cd "$(dirname "$0")" && pwd)
-usage() { sed -n '2,27p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
+usage() { sed -n '2,28p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
 
 [ $# -ge 2 ] || usage
 bin=$(realpath "$1")
@@ -52,6 +53,7 @@ headless=$(command -v analyzeHeadless || echo "${GHIDRA_INSTALL_DIR:-/opt/ghidra
 [ -x "$headless" ] || { echo "analyzeHeadless not found; set GHIDRA_INSTALL_DIR" >&2; exit 1; }
 
 mkdir -p "$out/project"
+echo "$(sha256sum "$bin" | cut -d" " -f1)  $(basename "$bin")" | tee "$out/sha256.txt"
 log="$out/ghidra.log"
 common=(-scriptPath "$here" -log "$log" -scriptlog "$log")
 post=(-postScript ApplyNames.java "$names" -postScript ExportDecomp.java "$out")

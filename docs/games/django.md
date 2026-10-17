@@ -91,6 +91,15 @@ the fixed bytes of the Ogg headers of `sound.npa` and `voice.npa`
 for `Django.exe`. Tools: `conscripter-convert npa list|extract
 <game>/Django.exe <archive>`.
 
+## Executables
+
+The builds the decompile addresses in this document belong to.
+
+| File | Version | sha256 |
+|---|---|---|
+| `Django.exe` 1.01 (`DjangoUpdate101`, 1.6 MB) | 1.01 | `b40fb35cacc672c5ea377ab86e5358fbe85b2a05c30edf5981fd509c5fc390e7` |
+| `Django.exe` 1.00 (installed, 3.1 MB) | 1.00 | `d4bed22dd7062880b96476fe423f495cc1872bfb6a3b17c593c8313976040537` |
+
 ## Script language: what differs from Muramasa
 
 Checked with `conscripter-convert nss check <dir>` and `nss refs <dir>`

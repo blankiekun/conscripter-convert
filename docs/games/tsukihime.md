@@ -168,6 +168,16 @@ Not covered by anything found, and ours now: Nintendo Opus to Ogg
 Opus, the BFSAR chain to each wave sound's FWAV, DSP ADPCM. BNTX: our deswizzle (a few lines) and
 the `bcdec_rs` crate for BC blocks.
 
+## Executables
+
+The builds the decompile addresses in this document belong to (the Ghidra addresses are those of 1.0.2).
+
+| File | Version | sha256 |
+|---|---|---|
+| `main` (NSO), base game | 1.0.0 | `6e41c7094303a48b3223147b0fe52a2995c48f59af9d480b7e523ed4a1f103c7` |
+| `main` (NSO), official update | 1.0.2 | `c128d79d3abd02b5581348618aa6403fdd651e77f4955f99ae43b34b90395faa` |
+| `main` (NSO), fan patch | fan patch 2023.09.05 | `d28cb7c2391e74b2e3e2add120c208933aa314724efd2e47bfdf6c5c13aa6174` |
+
 ## The exe
 
 `main` (an NSO) decompiles with Ghidra 12.1's AArch64 decompiler.

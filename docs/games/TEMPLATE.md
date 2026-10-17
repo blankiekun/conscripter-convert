@@ -23,6 +23,24 @@ target/release/conscripter-convert <command> <game> -o out/<id>-cons \
 
 The web build, when it differs from `docs/new-game.md` step 12.
 
+## Executables
+
+Every decompile address (`FUN_…`, `0x…`) in this document belongs to
+one build. List each executable the addresses come from:
+
+| File | Version | sha256 |
+|---|---|---|
+| `<exe>` | `<version, or unknown>` | `<sha256sum; unknown if not at hand, never guessed>` |
+
+## Executables
+
+Every decompile address (`FUN_…`, `0x…`) in this document belongs to
+one build. List each executable the addresses come from:
+
+| File | Version | sha256 |
+|---|---|---|
+| `<exe>` | `<version, or unknown>` | `<sha256sum; unknown if not at hand, never guessed>` |
+
 ## Files and formats
 
 Archives, scripts, pictures, sounds, movies: how each is read (or a

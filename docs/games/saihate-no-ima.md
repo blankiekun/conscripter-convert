@@ -123,6 +123,14 @@ archive. The clips are Ogg Vorbis and are copied over as-is. The loader
 
 Still unknown: the 32-byte head, and `1.cd`'s cipher.
 
+## Executables
+
+The builds the decompile addresses in this document belong to.
+
+| File | Version | sha256 |
+|---|---|---|
+| `Farthest2015.exe` | unknown | `efb7ec8e00338376d37822880e7fb73ae86eca03895bf55a6b6826b1dda6a37f` |
+
 ## Script bytecode
 
 **Dispatch table:** `Farthest2015.exe` at `0x4fb270`, indexed by the u16
