@@ -228,7 +228,7 @@ pub(crate) const STR_TMP: &str = "$104";
 pub(crate) const PAGE: &str = "%900";
 pub(crate) const NEWEST: &str = "%901";
 /// Slot n was deleted by an older build when %(DELETED_BASE + n) is 1.
-pub(crate) const DELETED_BASE: u32 = 910;
+const DELETED_BASE: u32 = 910;
 /// The current chapter's title (a local: saves keep it), shown in the top
 /// bar and under a save's date.
 pub(crate) const CHAPTER: &str = "$150";

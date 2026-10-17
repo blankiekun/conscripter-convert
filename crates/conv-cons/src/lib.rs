@@ -505,8 +505,8 @@ pub fn emit(script: &Script) -> String {
     let scene_stack = script.button_bar.as_ref().is_some_and(|b| b.top.is_some());
     if let Some(g) = &script.save_grid {
         save_grid::emit(&mut out, g, script.confirm.as_ref(), script.width, script.height, scene_stack);
-    } else if let Some(m) = screens::engine_menu(script) {
-        screens::save_labels(&mut out, m);
+    } else if screens::engine_menu(script).is_some() {
+        screens::save_labels(&mut out);
     } else if let Some(m) = &script.save_menu {
         menu::save_menu(&mut out, m, script.confirm.as_ref(), scene_stack);
     }

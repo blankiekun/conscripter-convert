@@ -637,8 +637,8 @@ a copy of the save works.
   1,102 px a frame, all from two bugs of the old menu: column 799 that
   `lsp2` dropped, and the bar's labels its `btnwait` showed again). Saves
   of older builds ("No.NN - date|chapter") show the chapter (`%T-1`) and
-  the save file's date. Slots older builds marked deleted (`%910+n`) are
-  deleted when a menu opens. Settings' yes/no questions still use
+  the save file's date. Slots older builds only flagged deleted
+  (`%910+n`) show again (never deleted for the player). Settings' yes/no questions still use
   `*conv_confirm`.
 - Merged: `0x86`'s two trailing bytes as harmless (#163; History, item 45).
 - Merged: `0x8c`'s sort key as harmless (#180; History, item 31).

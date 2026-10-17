@@ -28,23 +28,11 @@ pub fn screen_files(script: &Script) -> Vec<(String, String)> {
     files
 }
 
-/// `*conv_save` and `*conv_load`: the screens. Slots that builds before
-/// `delsavegame` marked deleted (a global flag a slot) are deleted first.
-pub(crate) fn save_labels(out: &mut String, m: &SaveMenu) {
-    let slots = m.rows as usize * m.pages.len();
-    let (slot, tmp, num, file) = (crate::menu::SLOT, crate::menu::TMP, crate::menu::STR_TMP, crate::menu::FILE);
+/// `*conv_save` and `*conv_load`: the screens.
+pub(crate) fn save_labels(out: &mut String) {
     for (label, name) in [(crate::menu::SAVE, "save"), (crate::menu::LOAD, "load")] {
-        writeln!(out, "*{label}\ngosub *conv_sl_flags\nscreen \"{name}\"\nreturn").unwrap();
+        writeln!(out, "*{label}\nscreen \"{name}\"\nreturn").unwrap();
     }
-    writeln!(out, "*conv_sl_flags\nfor {slot}=1 to {slots}").unwrap();
-    writeln!(out, "mov {tmp},{slot}+{}", crate::menu::DELETED_BASE).unwrap();
-    writeln!(
-        out,
-        // %%105: the variable whose number %105 holds
-        "if %{tmp} == 1 itoa {num},{slot}:mov {file},\"savethumb\":add {file},{num}:add {file},\".bmp\":delsavegame {slot},{file}:mov %{tmp},0"
-    )
-    .unwrap();
-    writeln!(out, "next\nreturn").unwrap();
 }
 
 /// A Lua string.
