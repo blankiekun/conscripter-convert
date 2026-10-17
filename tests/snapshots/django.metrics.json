@@ -1,9 +1,9 @@
 {
 "game": "django",
 "engine": "nitroplus",
-"commit": "0c58a810",
+"commit": "63f3f00b",
 "commit_date": "2026-10-16",
-"totals": {"calls": 57053, "full": 47639, "gaps": 9414},
+"totals": {"calls": 57053, "full": 47640, "gaps": 9413},
 "kinds": {
 "WaitAction": {"calls": 5932, "gaps": 5839, "reasons": [["WaitAction argument 1 ignored", 5839], ["move or zoom over time with a fade or a new picture drawn as a cross-fade", 6]]},
 "SetFrequency": {"calls": 1283, "gaps": 1283, "reasons": [["SetFrequency argument 3 ignored", 1283], ["SetFrequency on music", 15]]},
@@ -31,7 +31,6 @@
 "ClearBacklog": {"calls": 1, "gaps": 1, "reasons": [["built-in ClearBacklog", 1]]},
 "ClearScore": {"calls": 1, "gaps": 1, "reasons": [["built-in ClearScore", 1]]},
 "CreateEffect": {"calls": 1, "gaps": 1, "reasons": [["CreateEffect argument 2 ignored", 1], ["CreateEffect argument 3 ignored", 1]]},
-"SetShade": {"calls": 1, "gaps": 1, "reasons": [["built-in SetShade", 1]]},
 "Time": {"calls": 1, "gaps": 1, "reasons": [["built-in Time", 1]]},
 "SetAlias": {"calls": 4152, "gaps": 0, "reasons": []},
 "SetVolume": {"calls": 3753, "gaps": 0, "reasons": []},
@@ -50,7 +49,8 @@
 "WaitKey": {"calls": 59, "gaps": 0, "reasons": []},
 "CreateText": {"calls": 33, "gaps": 0, "reasons": []},
 "CreateProcess": {"calls": 21, "gaps": 0, "reasons": []},
-"MoviePlay": {"calls": 2, "gaps": 0, "reasons": []}
+"MoviePlay": {"calls": 2, "gaps": 0, "reasons": []},
+"SetShade": {"calls": 1, "gaps": 0, "reasons": []}
 },
 "outside_calls": [["code inside a page runs before it", 19], ["branches of a runtime if end with different helper variables", 12], ["BGM without loop played looping", 6], ["Request Enter for another text than the next", 1]]
 }
