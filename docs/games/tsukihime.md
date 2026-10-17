@@ -415,7 +415,7 @@ Japanese: 549 scripts, 1,079,001 commands, 93 command names. English
 | `_STZ4` | 32305 | 512 | `_STZ4(4,984,984,984,984,0,0,0)` | zoom a layer (‰, from, to, ms) |
 | `_STMA` | 24309 | 485 | `_STMA(3,1)` | start a motion from the exe's table |
 | `_STRT` | 21829 | 516 | `_STRT(0,0,0,0,0)` |  |
-| `_PGST` | 17202 | 519 | `_PGST(-1)` | page start? |
+| `_PGST` | 17202 | 519 | `_PGST(-1)` | the page a load replays to (left out, see History) |
 | `_VPLY` | 16690 | 483 | `_VPLY(D10_00_00_0000_0,03fb5)` | play voice `stream/<name>.opus` |
 | `_STBR` | 14988 | 460 | `_STBR(4,23)` |  |
 | `_SEPL` | 14451 | 480 | `_SEPL(0,1,MOON_SE03001,,`001:4000,,`017:50)` | play sound effect (channel, loop, `WSD_` name less its prefix, options) |
@@ -663,13 +663,6 @@ The build uses the Japanese layout for both languages.
 The biggest commands not converted, looked up in `script_command`
 (0x177790):
 
-- `_PGST(n)` (17,202), **seen**: stores `n` as the page (state +0x8c4)
-  unless the exe is seeking, when reaching the sought page ends the
-  seek. The page goes into the save (`FUN_0015a910` writes it,
-  `FUN_0015baf0` reads it back); **inferred**: it is the place a load
-  seeks to, so CONscripter's own saves replace it. Still a gap:
-  what `FUN_00182c60` does with the page is unknown (to settle from
-  the code before it can be left out).
 - `_CLO3()` (12,208), **seen**: when flag `DAT_00be0550` is set,
   clears it and sets `DAT_00be0560`; `_CLO4` sets the flag again with
   a fade time and `_CLO2` clears it at once. **Inferred**: the text
@@ -680,6 +673,20 @@ The biggest commands not converted, looked up in `script_command`
   out.
 
 ## History
+
+- 2026-10-17: `_PGST(n)` left out, **seen**: `script_command` stores
+  `n` in the state (`DAT_00be0290` + 0x8c4) unless a seek is running;
+  the save writes it (`FUN_0015a910`) and the load reads it back
+  (`FUN_0015baf0`), the backup copies at `DAT_00be0338` (`FUN_001178c8`,
+  `FUN_00117af0`) keep it, and its only reader is the load:
+  `FUN_00182330` calls `FUN_00182c60(page)`, which finds the scene's
+  `_PGST(page)` in the script (for a few scenes, chosen by
+  `DAT_00450d58` and a flag, another page), sets the seek flag
+  `DAT_00be0900` and the sought page `DAT_00be09c0`, and runs commands
+  until `_PGST` reaches that page. CONscripter's saves restore the state
+  themselves. (The +0x8c4 in `FUN_0015baf0`'s copy into `DAT_00be0258`
+  and in `FUN_00160840` is another table, `DAT_00be0250`.) 17,202 calls
+  move from gaps to `left_out`.
 
 - 2026-10-16: children follow their parent's motions. `_STMA` on a
   parent gives each layer placed in it (and theirs) an `spmotion` of
