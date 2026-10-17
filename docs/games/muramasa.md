@@ -650,7 +650,9 @@ at once) or plays the movie (fading to black and back over 300 ms). The
 room exists only in a build given the movies (`--movies`): the snapshot's
 dry run has none, so its 0.txt doesn't change. Checked on Xvfb against
 main's routine (dry runs with `--movies` over a full build): open, a
-track played and stopped, hovers, a movie and back, the menu: 0 pixels.
+track played and stopped, hovers, a movie and back, the menu: 0 pixels. Again
+after the rebase onto engine master 4f1e1bb, this build and the English
+one: 0 pixels but for the movie's own frame (capture timing).
 
 ### Settings drawn by the engine (2026-10-17)
 
