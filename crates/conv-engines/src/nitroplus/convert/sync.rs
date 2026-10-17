@@ -324,10 +324,20 @@ impl Compiler<'_, '_> {
             }
             // (A fade too: its keys' alpha is for the old sprite, left as a cross-fade.)
             // (A cut picture zooming out: the uncut end placed instead.)
-            if (old.layer != layer || old.whole.is_some_and(|_| now.whole.is_none()))
+            let rect = |s: &Shown| s.whole.unwrap_or((s.x, s.y, s.w, s.h));
+            let (o, n) = (rect(old), rect(&now));
+            // A new picture (or turned over) as it moves: the new one,
+            // placed at once where the old one was (as the exe replaces it).
+            let start = if old.source != now.source && old.cells.is_none() && now.zoom.0 > 0 && now.zoom.1 > 0 {
+                let (w, h) = (n.2 * old.zoom.0 / now.zoom.0, n.3 * old.zoom.1 / now.zoom.1);
+                Shown { layer, x: o.0 + o.2 / 2 - w / 2, y: o.1 + o.3 / 2 - h / 2, w, h, whole: None, zoom: old.zoom, opacity: old.opacity, ..now.clone() }
+            } else {
+                Shown { layer, x: o.0, y: o.1, w: o.2, h: o.3, whole: None, ..old.clone() }
+            };
+            if (old.layer != layer || old.whole.is_some_and(|_| now.whole.is_none()) || old.source != now.source)
                 && old.opacity == now.opacity
                 && !self.lead_ins.contains_key(name)
-                && let Some(Op::SpriteMotion2 { keys, end, .. }) = motion(&Shown { layer, whole: None, ..old.clone() }, &now, t).or_else(|| old.whole.and_then(|(x, y, w, h)| motion(&Shown { layer, x, y, w, h, whole: None, ..old.clone() }, &now, t)))
+                && let Some(Op::SpriteMotion2 { keys, end, .. }) = motion(&start, &now, t)
             {
                 let mut ops = Vec::new();
                 if let Some(t) = self.objects.get(name).and_then(|o| o.trail) {
