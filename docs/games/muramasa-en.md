@@ -32,7 +32,7 @@ It has no NPA archives and no NSS scripts.
 - The local full build of 2026-10-15 is stale: it lacks the telop
   pictures (`cg/sys/telop/…`) that a fresh build packs (checked with a
   one-scene build of ma04_021). Rebuild before comparing pictures.
-- Story captions in English (this PR): the port's `LANG_NAME == "en"`
+- Story captions in English (#158): the port's `LANG_NAME == "en"`
   branches draw their own `CreateText` (dates and times in md04_002 …
   md04_030, `I AM POWER` in md02_009/038 and md04_048vs, `MURDERED` in
   mb03_006, `CEASE YOUR` / `MINDLESS YAPPING, CUR!!!!!` in mb03_022).
@@ -47,7 +47,7 @@ It has no NPA archives and no NSS scripts.
   centred 50 px apart). Story `CreateText` elsewhere stays left out
   (Decided). The text blocks' `{…}` code is now walked too (only
   mb03_022's captions are there; telops and choices unchanged).
-- Pictures over a frozen screen (this PR, shared NSS): a `Plain` cover
+- Pictures over a frozen screen (#165, shared NSS): a `Plain` cover
   (`CreatePlainSP`) froze the whole screen, so what a scene drew above
   it never showed: mb03_022's captions and black bar (over
   `絵板写` at 30000), the white flash over ma01_002's shaking capture,
@@ -60,7 +60,19 @@ It has no NPA archives and no NSS scripts.
   engine's window is above every sprite; in the original it is part of
   the capture under them), and the bar is the Japanese 500×1000 (the
   port's English branch scales it to 620×220).
-- Next: ma01_009, mb04_015vs's `CreateTextArea`/`SetText` lines,
+- Text-area lines (this PR): the port's `CreateTextArea` + `SetText`
+  lines (mb04_015vs: `《Even so―》`, `《That is justice!》`) pair with the
+  NSS's `CreateText` by their Japanese (the port names the sprite
+  `add_text01` for the NSS's `text02`), at the area's place and width
+  (R box, 630,190, 280 wide). 22 captions in the dry run. ma01_009's are
+  left out (`OWN_BOXES`): they lie in its English-only boxes `SetFwLL`/
+  `SetFwRR`, not drawn yet. Checked on a one-scene build of mb04_015vs
+  with the trace: the lines are placed, but two problems hide them
+  (not this PR): the engine's text window is drawn over them, and with
+  two boxes up the window takes the first box in `EN_TEXT` (R), not the
+  one `SetTextEXL` names (L), so the page's text lands on the caption.
+- Next: the text window over captions and the box chosen with two
+  boxes up (above);
   ma01_026's typed document and mc02_031's menus (Status "Next" 4).
 - Decided: a click on an empty slot at the title doesn't save (the
   original saves the title screen there): a deliberate difference.

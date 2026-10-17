@@ -144,9 +144,19 @@ struct Caption {
     sprite: String,
     /// The Japanese text as [`key`] gives it.
     japanese: String,
-    /// x, y, the text and the relative `Move` after it (none when the
-    /// English branch leaves this sprite out).
-    english: Option<(squirrel::Arg, squirrel::Arg, String, (i32, i32))>,
+    /// None when the English branch leaves this sprite out.
+    english: Option<CaptionEn>,
+}
+
+#[derive(Debug, PartialEq)]
+struct CaptionEn {
+    x: squirrel::Arg,
+    y: squirrel::Arg,
+    text: String,
+    /// The relative `Move` after it.
+    offset: (i32, i32),
+    /// A `CreateTextArea`'s width, the lines wrapped to it.
+    width: Option<i32>,
 }
 
 #[derive(Debug, Default)]
@@ -228,7 +238,9 @@ impl English {
             let mut calls = Vec::new();
             scene_fn.calls(&mut calls);
             subtitles.insert(scene.to_lowercase(), scene_subtitles(&calls, &lang.table_literal_rows("TransVoice")));
-            captions.insert(scene.to_lowercase(), scene_captions(&calls));
+            if !OWN_BOXES.contains(&scene) {
+                captions.insert(scene.to_lowercase(), scene_captions(&calls));
+            }
             let mut vars: HashMap<String, Vec<String>> = HashMap::new();
             for (call, args) in &calls {
                 note_unread(&mut unread, call, args, false);
@@ -498,24 +510,45 @@ fn scene_subtitles(calls: &[(String, Vec<squirrel::Arg>)], rows: &[(String, Vec<
     out
 }
 
+/// Whether `t` is Japanese: it has kana or kanji (the English has none,
+/// though it keeps `《》` and `―`).
+fn is_japanese(t: &str) -> bool {
+    t.chars().any(|c| ('\u{3040}'..='\u{9fff}').contains(&c))
+}
+
+/// Scenes whose English text areas lie in boxes of their own, not drawn
+/// yet (ma01_009's `SetFwLL`/`SetFwRR`): their lines are left out.
+const OWN_BOXES: &[&str] = &["ma01_009"];
+
 /// The story captions of a scene's calls: each `CreateText` of the
-/// Japanese branch (its text not ASCII) with the English one the `en`
-/// branch just before it makes on the same sprite.
+/// Japanese branch, or `SetText` on a `CreateTextArea`, with the English
+/// one the `en` branch just before it makes on the same sprite.
 fn scene_captions(calls: &[(String, Vec<squirrel::Arg>)]) -> Vec<Caption> {
     use squirrel::Arg;
-    let text = |a: &[Arg]| match a.iter().filter(|a| matches!(a, Arg::Str(_))).nth(1) {
-        Some(Arg::Str(t)) => Some(t.clone()),
-        _ => None,
-    };
-    let (mut out, mut english, mut after_japanese) = (Vec::new(), Vec::<(String, _)>::new(), false);
+    let (mut out, mut english, mut after_japanese) = (Vec::new(), Vec::<(String, CaptionEn)>::new(), false);
+    // CreateTextArea(name, priority, x, y, width, …)
+    let mut areas: HashMap<&str, (Arg, Arg, Option<i32>)> = HashMap::new();
     for (i, (call, args)) in calls.iter().enumerate() {
-        let (Some(Arg::Str(sprite)), Some(t)) = (args.first(), text(args)) else { continue };
-        if call != "CreateText" {
-            continue;
-        }
-        if !t.is_ascii() {
+        let Some(Arg::Str(sprite)) = args.first() else { continue };
+        let (t, x, y, width) = match (call.as_str(), args.get(1)) {
+            ("CreateTextArea", _) if args.len() >= 5 => {
+                let width = if let Arg::Int(w) = args[4] { Some(w) } else { None };
+                areas.insert(sprite, (args[2].clone(), args[3].clone(), width));
+                continue;
+            }
+            ("SetText", Some(Arg::Str(t))) => match areas.get(sprite.as_str()) {
+                Some((x, y, w)) => (t.clone(), x.clone(), y.clone(), *w),
+                None => continue,
+            },
+            ("CreateText", _) => match (args.iter().filter(|a| matches!(a, Arg::Str(_))).nth(1), args.get(2), args.get(3)) {
+                (Some(Arg::Str(t)), Some(x), Some(y)) => (t.clone(), x.clone(), y.clone(), None),
+                _ => continue,
+            },
+            _ => continue,
+        };
+        if is_japanese(&t) {
             after_japanese = true;
-            let en = english.iter().position(|(s, ..)| s == sprite).map(|i| english.remove(i).1);
+            let en = english.iter().position(|(s, _)| s == sprite).map(|i| english.remove(i).1);
             out.push(Caption { sprite: sprite.clone(), japanese: key(&t), english: en });
             continue;
         }
@@ -526,14 +559,13 @@ fn scene_captions(calls: &[(String, Vec<squirrel::Arg>)]) -> Vec<Caption> {
         // first line up, the second down).
         let offset = calls[i + 1..]
             .iter()
-            .take_while(|(c, _)| c != "CreateText")
+            .take_while(|(c, _)| !matches!(c.as_str(), "CreateText" | "CreateTextArea" | "SetText"))
             .find_map(|(c, a)| match (c.as_str(), a.first(), a.get(2), a.get(3)) {
                 ("Move", Some(s), Some(Arg::Relative(x)), Some(Arg::Relative(y))) if s == &args[0] => Some((*x, *y)),
                 _ => None,
             })
             .unwrap_or_default();
-        let (Some(x), Some(y)) = (args.get(2), args.get(3)) else { continue };
-        english.push((sprite.clone(), (x.clone(), y.clone(), t, offset)));
+        english.push((sprite.clone(), CaptionEn { x, y, text: t, offset, width }));
     }
     out
 }
@@ -542,11 +574,11 @@ fn scene_captions(calls: &[(String, Vec<squirrel::Arg>)]) -> Vec<Caption> {
 pub const CAPTION: &str = "english caption";
 
 /// Puts the port's English captions into `file`'s `CreateText` calls:
-/// the k-th on a sprite takes the port's k-th Japanese one's English
-/// when their Japanese is the same, drawn where the port draws it (its
-/// x, y, the box `auto`), not turned (`Rotate` after it) and moved by the
-/// port's offset (the first `Move` after it); one the port has no English
-/// for deletes the sprite. Returns how many took English.
+/// each takes the English of the port's next Japanese one with the same
+/// text (on the same sprite first), drawn where the port draws it (its
+/// x, y, the box `auto` or its text area's width), not turned (`Rotate`
+/// after it) and moved by the port's offset (the first `Move` after it);
+/// one the port has no English for deletes the sprite. Returns how many took English.
 fn put_captions(file: &mut NssFile, port: &[Caption]) -> usize {
     use nss::Expr;
     let rel = |n: i32| Expr::Unary { op: nss::UnaryOp::Relative, expr: Box::new(Expr::Int(i64::from(n))) };
@@ -555,7 +587,7 @@ fn put_captions(file: &mut NssFile, port: &[Caption]) -> usize {
         squirrel::Arg::Word(w) => Expr::Word(w.clone()),
         _ => Expr::Word("Center".into()),
     };
-    let mut seen: HashMap<String, usize> = HashMap::new();
+    let mut used = vec![false; port.len()];
     // The sprites just given English, with their offset, until a call on
     // another sprite.
     let mut laying: HashMap<String, (i32, i32)> = HashMap::new();
@@ -569,28 +601,30 @@ fn put_captions(file: &mut NssFile, port: &[Caption]) -> usize {
         match call.as_str() {
             "CreateText" if args.len() == 7 => {
                 laying.clear();
-                let n = seen.entry(sprite.clone()).or_default();
-                *n += 1;
-                let Some(c) = port.iter().filter(|c| c.sprite == sprite).nth(*n - 1) else { return };
                 let Expr::Str(jp) = &args[6] else { return };
-                if key(jp) != c.japanese {
-                    return;
-                }
+                let jp = key(jp);
+                // The port's next one with this Japanese, on this sprite
+                // or, when it names its text areas otherwise
+                // (`add_text01` for `text02`), on any.
+                let free = |c: &(usize, &Caption)| !used[c.0] && c.1.japanese == jp;
+                let found = port.iter().enumerate().filter(free).find(|c| c.1.sprite == sprite).or_else(|| port.iter().enumerate().find(free));
+                let Some((i, c)) = found else { return };
+                used[i] = true;
                 // The port's English has no line here: the sprite's last
                 // one goes, as the Japanese would have replaced it.
-                let Some((x, y, en, offset)) = &c.english else {
+                let Some(en) = &c.english else {
                     *call = "Delete".into();
                     args.truncate(1);
                     return;
                 };
-                args[2] = word(x);
-                args[3] = word(y);
-                args[4] = Expr::Word("auto".into());
+                args[2] = word(&en.x);
+                args[3] = word(&en.y);
+                args[4] = en.width.map_or(Expr::Word("auto".into()), |w| Expr::Int(i64::from(w)));
                 args[5] = Expr::Word("auto".into());
-                args[6] = Expr::Str(en.clone());
+                args[6] = Expr::Str(en.text.clone());
                 // Marks it for the English build's `CreateText` (muramasa.rs).
                 args.push(Expr::Str(CAPTION.into()));
-                laying.insert(sprite, *offset);
+                laying.insert(sprite, en.offset);
                 done += 1;
             }
             "Rotate" if laying.contains_key(&sprite) && args.len() >= 5 => args[2..5].iter_mut().for_each(|a| *a = rel(0)),
@@ -598,7 +632,7 @@ fn put_captions(file: &mut NssFile, port: &[Caption]) -> usize {
                 let (x, y) = laying.remove(&sprite).unwrap_or_default();
                 (args[2], args[3]) = (rel(x), rel(y));
             }
-            "Request" | "Fade" | "SetAlias" | "SetFont" if laying.contains_key(&sprite) || call == "SetFont" => {}
+            "Request" | "Fade" | "SetAlias" | "SetVertex" | "SetFont" if laying.contains_key(&sprite) || call == "SetFont" => {}
             _ => laying.clear(),
         }
     });
@@ -939,6 +973,21 @@ mod tests {
     }
 
     #[test]
+    fn text_areas_pair_by_their_japanese() {
+        use squirrel::Arg::{Int, Str};
+        let area = || ("CreateTextArea".to_string(), vec![Str("add_text01".into()), Int(20001), Int(630), Int(190), Int(280), Int(150), Str("text0".into())]);
+        let set = |t: &str| ("SetText".to_string(), vec![Str("add_text01".into()), Str(t.into())]);
+        // mb04_015vs: the port's add_text01 for the NSS's text02.
+        let port = scene_captions(&[area(), set("《Even so―》"), area(), set("《しかし》")]);
+        let mut file = nss::parse("scene a.nss{\nCreateText(\"text02\", 20001, 50, 40, 700, 500, \"《しかし》\");\nSetVertex(\"text02\", 0, 0);\nMove(\"text02\", 0, 828, 134, null, true);\n}").unwrap();
+        assert_eq!(put_captions(&mut file, &port), 1);
+        let mut out = Vec::new();
+        each_call(&mut file, &mut |c, a| out.push(format!("{c} {a:?}")));
+        assert!(out[0].contains("Int(630), Int(190), Int(280)") && out[0].contains("Even so"), "{}", out[0]);
+        assert!(out[2].contains("Relative, expr: Int(0) }, Unary"), "{}", out[2]);
+    }
+
+    #[test]
     fn captions_pair_the_english_branch_with_the_japanese() {
         use squirrel::Arg::{Int, Relative, Str, Word};
         let ct = |s: &str, t: &str| ("CreateText".to_string(), vec![Str(s.into()), Int(30411), Word("Center".into()), Word("Middle".into()), Str(t.into()), Str("メインフォント30".into())]);
@@ -947,7 +996,7 @@ mod tests {
         // line for the second of two Japanese.
         let calls = [ct("字幕01", "November 30, 1940"), mv("字幕01", -25), ct("字幕02", "41st"), ct("字幕01", "<Center>外暦</Center>"), ct("字幕02", "国紀"), ct("字幕02", "2:47 AM"), ct("字幕01", "一一月"), ct("字幕02", "午前")];
         let port = scene_captions(&calls);
-        let en: Vec<_> = port.iter().map(|c| (c.sprite.as_str(), c.japanese.as_str(), c.english.as_ref().map(|e| (e.2.as_str(), e.3)))).collect();
+        let en: Vec<_> = port.iter().map(|c| (c.sprite.as_str(), c.japanese.as_str(), c.english.as_ref().map(|e| (e.text.as_str(), e.offset)))).collect();
         assert_eq!(en, [("字幕01", "外暦", Some(("November 30, 1940", (0, -25)))), ("字幕02", "国紀", Some(("41st", (0, 0)))), ("字幕01", "一一月", None), ("字幕02", "午前", Some(("2:47 AM", (0, 0))))]);
         let mut file = nss::parse("scene a.nss{\nSetFont(\"@ＭＳ 明朝\", 30);\nCreateText(\"字幕01\",30411,Center,inherit,auto,auto,\"外暦\");\nRotate(\"字幕01\", 0, @0, @0, 90, null, false);\nMove(\"字幕01\", 0, @300, @10, null, false);\nCreateText(\"字幕02\",30411,Center,inherit,auto,auto,\"違う\");\nCreateText(\"字幕01\",30411,Center,inherit,auto,auto,\"一一月\");\n}").unwrap();
         assert_eq!(put_captions(&mut file, &port), 1);
