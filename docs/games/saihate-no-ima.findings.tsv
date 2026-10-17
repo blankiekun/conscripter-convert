@@ -37,7 +37,7 @@ handler	argument or branch	status	source (Farthest2015.exe sha256 efb7ec8e…)	w
 0x54	fade	seen	op_54 00422380	no fade of its own (2,190 uses inside an armed transition)	none
 0x55	overlay	seen	op_55 00422440	a second background object (frameNN); layer 2 or 0 checked; mark as seen	sprite 61 or 999, kept over csp -1, removed by 0x54
 0x56	slot, colour	seen	op_56 004224a0 → 00412fe0	fill a slot with a COLORREF; slot 0 removes 1-10	fill_rrggbb.png; +2 depth harmless
-0x57	track, fade-in	seen	op_57 00473530 → sound_request 0047aab0	arg track 1-based, sub fade-in ms capped at 30 s	bgm with fade
+0x57	track, fade-in	seen	op_57 00473530 → sound_request 0047aab0	arg track 1-based, sub fade-in ms capped at 30 s (`cmp edx,0x7530` in op_57's disassembly; Ghidra's pseudo-C omits it)	bgm with fade
 0x58	stop BGM	seen	op_58 004735a0	arg 0 all, sub fade-out ms	bgmfadeout / bgmstop
 0x59	crossfade	seen	op_59 00473610	u32 ms (cap 30000), u16 stop (0 all but the new), u16 play; both at once	bgm "file",ms (CONscripter's cross-fade)
 0x5a	SE record	seen	op_5a 004736f0	u32 fade-in, u8 loop, u32 sound 1-based; a non-looping SE isn't played in skip mode	dwave / dwavefadein, isskip guard
@@ -52,7 +52,7 @@ handler	argument or branch	status	source (Farthest2015.exe sha256 efb7ec8e…)	w
 0x6e	colour	seen	op_6e 00441550, object 004413d0	COLORREF Add at 128 for 100 ms over everything; click ends	screenflash 128 + delay 100
 0x6f	time	seen	surprise_create 00441730	clamped 1-32767 ms (corpus 50-1000)	delay of the same ms
 0x6f	preset zoom, opacity	seen	table 00500b68, step 00441670, draw 004415b0	f = sin(π t); zoom 16.16 × f, opacity 0-256 × f; fourth field 0 unused	screenpulse zoom ‰, opacity 0-256
-0x6f	preset tint 2 (3-5)	seen	00428b50 → 00428a50 → table 00518208 → 00433180	multiply c × k / 255 mixed at opacity/256, once on the snapshot	tint 1
+0x6f	preset tint 2 (3-5)	seen	00428b50 → 00428a50 → table 00518208 (its entries are stubs: 00431ea0 jumps to 00433180) → 00433180	multiply c × k / 255 mixed at opacity/256, once on the snapshot	tint 1
 0x6f	preset tint 6 (6-8)	seen	table 00518208 entries 5, 6 = 00443090 (ret)	nothing drawn: an untinted copy	tint 0 (#350; before: white laid over)
 0x6f	click	seen	cb_004418b0	ends the pulse, sets skip_state_b	delay ends on a click
 0x70	slot, kind	seen	op_70 00415a30, creators 00501434	slot 0 clears all, kind 0 clears the slot; kinds 1-9, 12, 13	screenfilter / screenripple
@@ -65,7 +65,7 @@ handler	argument or branch	status	source (Farthest2015.exe sha256 efb7ec8e…)	w
 0x76	sort key	seen	op_76 00449df0, table 00503e54	layer byte 0 → band 4, 1-4 by the table, ≥ 5 → 0; covers only what sorts below	keyed records change at once what they don't cover (3 records)
 0x77	mask, softness	seen	op_77 00444090	mask%04u.png, sign = direction (-30 from the centre)	cons_rule mask wipe
 0x7a-0x7d, 0x84	layer-2 object	seen	op_7a 00414590, op_84 00414180, op_7d 00413940, op_7c 00414460	hidden object, picture kind × 10,000,000 + n - 1 (kind 2), anchor 0-2 (corpus 1,1), visible	Op::Sprites with spovertext
-0x7a-0x7b, 0x8a-0x8b	animation	seen	op_8b 00416310, op_8a 00416200	full-screen fx.arc animation; 0x8a waits for a one-shot	sprite 59
+0x7a-0x7b, 0x8a-0x8b	animation	seen	op_8b 00416310, op_8a 00416200	full-screen fx.arc animation; 0x8a waits for a one-shot (inferred: rests on callback 004160d0, not decompiled)	sprite 59
 0x7f	position	seen	op_7f 00413bb0	the object's centre at x, y	end point of a slide
 0x80	scale	seen	op_80 00413cd0	+0x1a8/+0x1ac percent, 100 for a new object	pre-scaled copy
 0x81	rotation	seen	op_81 00413df0	tenths of a degree mod 3600, clockwise	Op::SpriteTurn
