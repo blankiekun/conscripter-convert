@@ -634,7 +634,7 @@ a copy of the save works.
 - Merged: `0x43` and `0x52`/`0x53` `arg` as harmless (#111, #114; History, items 32, 34).
 - Open: `0x90` +2 as harmless, PR #119 (History, item 35).
 - Merged: Filter-Replace's begin angle as `screenripple`'s start phase (#134, engine #50; History, item 38).
-- Open: Zigzag's phase from its frequency, its begin angle and reduction as harmless (History, item 39).
+- Open: Zigzag's phase from its frequency, its begin angle and reduction as harmless, PR #153 (History, item 39).
 - Merged: the exe map's fixes and missed callbacks (#46).
 - Open: `0x59` as a real cross-fade, converter #25 with engine #18 (asked
   for a web-build measurement of the old track's decode first);
