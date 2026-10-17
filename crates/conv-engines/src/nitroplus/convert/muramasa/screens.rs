@@ -648,7 +648,7 @@ fn save_grid_en(a: &mut dyn Assets) -> Option<SaveGrid> {
         quick_page: true,
         play_time_prefix: "PLAY TIME ".into(),
         play_time_hm: true,
-        engine_screen: false,
+        engine_screen: true,
     })
 }
 

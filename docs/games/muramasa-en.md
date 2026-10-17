@@ -276,6 +276,21 @@ arrow).
   empty slot does nothing (the port saves the title screen there, though
   its popup's Save is off at the title). Left as it is: the Q.Save page shows our one quick save (the port keeps 20,
   oldest overwritten).
+  Drawn by CONscripter's `screen` since 2026-10-17 (`save.lua`,
+  `load.lua`, the slot's window `save_popup.lua`; `save_grid_screen.rs`,
+  engine #105: a widget's `when` for the lock marks, a save from the
+  window takes the screen's shot and text): a slot click runs
+  `*conv_sg_slot` (saved? locked?), then saves at once or opens the
+  window; tabs are page buttons (the current one disabled, its pressed
+  cell); the Q.Save page is a one-slot widget of its own (slot 890).
+  Compared headless with main's routine (`--choose`, `--shot-effects
+  100` / `--shot-at`; save, notice, popup, lock, popup on a locked slot,
+  delete asked and refused, tabs, Q.Save, the load screen's popup):
+  every frame the same to the pixel, but Exit's hover cell where
+  auto-play's pointer rests (853 px). Different from the routine: a
+  click outside the window (another slot too) only closes it; after a
+  refused delete the window stays open; the play time is read when the
+  screen opens.
 - **Settings:** the port's (`sys_config.nut`, `settings_en`):
   `ConfigBG` with its check boxes (skip movies, wait for the voice in
   auto mode, the three mutes), ON/OFF pairs (skip unread, skip the voice

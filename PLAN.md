@@ -226,6 +226,7 @@ Engine features added for converted games (details in the engine's
 | `windowfade alpha,ms[,from[,delay]]` (the text window, its text, windowchip and cursor faded while the script goes on; faded out it is hidden as `textoff`; not saved) | 月姫's `_CLO3`/`_CLO4`/`_CLO5` window fades, which run under the next `_WTTM`, and the next text's 18-frame fade-in. CONscripter #82 |
 | `spfilter`/`screenfilter` kinds 9 (levels: per channel gamma, low and high, packed `gamma*65536 + low*256 + high`) and 10 (the same on the greyscale 54/183/19), blends 4 (overlay) and 5 (colour dodge) | 月姫's `_STEC` effects 2–82 (9,193 uses), the exe's `pre_alter` shader: levels, greyscale times gains (sepia, blue, green, red), two colour layers. CONscripter #99 |
 | `screen` text fields' `outline = "#rrggbb"` (the shadow drawn as a 1 px outline of that colour, as `strspoutline`). CONscripter engine #104 | 続・殺戮のジャンゴ's text log (`screen "backlog"`): black rows with an #AAAA88 rim |
+| `screen` a widget's `when` (drawn only while a variable holds a value, read at each draw); a `save` from a screen without save slots (a slot's own window) takes the shot and `save_text` of the screen under it. CONscripter engine #105 | Full Metal Daemon Muramasa's save screen (`save_grid_screen.rs`, a `SaveGrid` with `popup`, `tabs` and `quick_page`: the lock marks, the slot's Save/Load/Delete/Lock window), was a script loop |
 
 Planned, from limits hit by converted games (each one is worked around
 in the script today), roughly in order of payoff:

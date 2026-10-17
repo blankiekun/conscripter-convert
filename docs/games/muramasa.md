@@ -564,8 +564,8 @@ and 3 px of 削除. Open:
 - the play time is read when the screen opens (the routine read it at
   the click); S and L no longer close the save and load screens (a
   right-click and 退出 do).
-- Muramasa EN's save screen (popup, locks, tabs, quick page) still uses
-  the script routine.
+- Muramasa EN's save screen is the engine's too (popup, locks, tabs,
+  quick page: docs/games/muramasa-en.md).
 
 ### Backlog drawn by the engine (2026-10-17)
 
