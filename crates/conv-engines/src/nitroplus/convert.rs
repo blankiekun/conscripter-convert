@@ -1396,6 +1396,8 @@ struct Trail {
     passes: u32,
     alpha: u32,
     lag: u32,
+    /// The copies drawn over the picture (`SetBlur`'s `wait` not `true`).
+    over: bool,
 }
 
 /// A sprite layer as the output currently shows it.
@@ -5037,7 +5039,7 @@ scene a.nss
         let drawn = c.ops.iter().filter(|op| matches!(op, Op::Sprites { changes, .. } if changes.iter().any(|c| c.sprite.is_some()))).collect::<Vec<_>>();
         assert!(matches!(drawn[..], [Op::Sprites { changes, .. }] if changes[0].sprite.as_ref().unwrap().image == "cg/st/a.png"), "{:?}", c.ops);
         let trails: Vec<_> = c.ops.iter().filter(|op| matches!(op, Op::SpriteTrail { .. })).collect();
-        assert!(matches!(trails[..], [Op::SpriteTrail { passes: 2, alpha: 500, lag: 50, .. }]), "{:?}", c.ops);
+        assert!(matches!(trails[..], [Op::SpriteTrail { passes: 2, alpha: 500, lag: 50, over: true, .. }]), "{:?}", c.ops);
     }
 
     #[test]

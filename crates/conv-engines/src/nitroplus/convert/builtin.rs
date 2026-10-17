@@ -299,7 +299,7 @@ impl Compiler<'_, '_> {
                         let (cx, cy) = ((sh.x + sh.w / 2) as i32, (sh.y + sh.h / 2) as i32);
                         // (An spmotion: the engine's trail follows it.)
                         if let Some(t) = trail {
-                            self.ops.push(Op::SpriteTrail { layer: sh.layer, passes: t.passes, alpha: t.alpha, lag: t.lag });
+                            self.ops.push(Op::SpriteTrail { layer: sh.layer, passes: t.passes, alpha: t.alpha, lag: t.lag, over: t.over });
                         }
                         if let Some((ease, exponent)) = tempo {
                             self.ops.push(Op::MoveEase { ease, exponent });
@@ -483,16 +483,20 @@ impl Compiler<'_, '_> {
             }
             "SetBlur" => {
                 // (obj, on, passes, alpha, lag, wait): see `Object::trail`.
+                // src: Muramasa.exe 00454ca4: `wait` "TRUE" draws the copies
+                // (FUN_00456810) before the picture, anything else after it.
+                // shortcut: a literal 1 counts as `true` (the Value can't tell them apart; the story passes none)
                 let (passes, alpha) = (arg(2).int(), arg(3).int());
+                let over = !matches!(arg(5), Value::Int(1));
                 let trail = (arg(1).truthy() && (1..=128).contains(&passes) && (1..=1000).contains(&alpha))
-                    .then(|| Trail { passes: passes as u32, alpha: alpha as u32, lag: arg(4).int().max(0) as u32 });
+                    .then(|| Trail { passes: passes as u32, alpha: alpha as u32, lag: arg(4).int().max(0) as u32, over });
                 for t in self.matching(&arg(0)) {
                     let o = self.objects.get_mut(&t).unwrap();
                     // (A trail on screen ends; a new one is set at its next motion.)
                     if o.trail.is_some() && trail.is_none()
                         && let Some(sh) = self.shown.get(&t)
                     {
-                        self.ops.push(Op::SpriteTrail { layer: sh.layer, passes: 0, alpha: 0, lag: 0 });
+                        self.ops.push(Op::SpriteTrail { layer: sh.layer, passes: 0, alpha: 0, lag: 0, over: false });
                     }
                     self.objects.get_mut(&t).unwrap().trail = trail;
                 }

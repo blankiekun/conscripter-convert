@@ -651,9 +651,9 @@ pub enum Op {
     /// A layer's sprite draws `passes` copies of itself under it at
     /// `alpha` per mille of its alpha, copy i where its motions
     /// ([`Op::SpriteMotion2`]) had it `lag` × i ms before; `passes` 0 ends
-    /// it. Cleared with the layer (CONscripter's `sptrail`). NSS's
-    /// `SetBlur`: 装甲悪鬼村正's dashes.
-    SpriteTrail { layer: u32, passes: u32, alpha: u32, lag: u32 },
+    /// it; with `over` the copies are drawn over it. Cleared with the layer
+    /// (CONscripter's `sptrail`). NSS's `SetBlur`: 装甲悪鬼村正's dashes.
+    SpriteTrail { layer: u32, passes: u32, alpha: u32, lag: u32, over: bool },
     /// Plays the sound effect `file` (playing now, or right after its
     /// `SePlay`) at `rate`/1000 of its speed and pitch, reached over `ms`
     /// from its rate now while the script goes on. 装甲悪鬼村正's
