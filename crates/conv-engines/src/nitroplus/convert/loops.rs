@@ -179,6 +179,7 @@ impl Pass {
         let key = |t: u32| {
             let v = self.values(t);
             let zoom = (v[2] * 100.0 / base[2].max(1.0)).round().max(1.0) as u32;
+            let zoom_y = (v[3] * 100.0 / base[3].max(1.0)).round().max(1.0) as u32;
             MotionKey {
                 ms: t,
                 x: (v[0] - base[0]).round() as i32,
@@ -186,7 +187,7 @@ impl Pass {
                 zoom,
                 angle: (v[4] - base[4]).round() as i32,
                 opacity: (v[5] * 256.0 / top).round() as u32,
-                zoom_y: zoom,
+                zoom_y,
             }
         };
         let mut keys: Vec<MotionKey> = times.into_iter().map(key).collect();
@@ -341,14 +342,6 @@ impl<'a> Compiler<'a, '_> {
         targets.sort_by(|a, b| a.0.cmp(&b.0));
         for (target, pass) in targets {
             let v = pass.values(0);
-            let unlike = |t: u32| {
-                let n = pass.values(t);
-                (n[2] * v[3] - n[3] * v[2]).abs() > v[2].max(1.0) * v[3].max(1.0) / 100.0
-            };
-            if (0..=len).step_by(10).any(unlike) {
-                self.note(format!("loop process zooming unlike in x and y: {function}"));
-                continue;
-            }
             let Some(keys) = pass.keys(len) else { continue };
             if keys.len() > MAX_KEYS {
                 self.note(format!("loop process over {MAX_KEYS} keys: {function} ({})", keys.len()));

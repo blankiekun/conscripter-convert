@@ -164,10 +164,6 @@ impl<'a> Compiler<'a, '_> {
             let end = pass.values(len);
             let top = pass.top(len);
             let deleted = gone.contains_key(&t);
-            let unlike = (0..=len).step_by(10).any(|ms| {
-                let n = pass.values(ms);
-                (n[2] * end[3] - n[3] * end[2]).abs() > end[2].max(1.0) * end[3].max(1.0) / 100.0
-            });
             let keys = pass.keys_to_end(len, top.max(1.0));
             let Some(o) = self.objects.get_mut(&t) else { continue };
             (o.x, o.y) = (end[0].round() as i64, end[1].round() as i64);
@@ -180,8 +176,8 @@ impl<'a> Compiler<'a, '_> {
                 }
                 continue;
             }
-            if unlike || keys.len() > MAX_KEYS {
-                self.note(format!("one-shot process {}: {function}", if unlike { "zooming unlike in x and y" } else { "over the keys" }));
+            if keys.len() > MAX_KEYS {
+                self.note(format!("one-shot process over the keys: {function}"));
                 if deleted {
                     self.delete(&t);
                 }
