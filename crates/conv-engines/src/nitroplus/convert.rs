@@ -1366,6 +1366,11 @@ struct Compiler<'a, 'b> {
     /// While a music process runs ([`Compiler::start_process`]): its time
     /// so far, ms.
     process_clock: Option<u32>,
+    /// The last `SetVolume`'s ms in a music process.
+    process_fade: u32,
+    /// The music process running does what only the run could (a sound
+    /// effect after a wait, or its fade): it is noted instead.
+    music_refused: bool,
     /// [`Compiler::sound_clock`]: the time of the ops up to `clock_scanned`.
     clock_ms: u64,
     clock_scanned: usize,
@@ -2165,6 +2170,8 @@ impl<'a, 'b> Compiler<'a, 'b> {
             texts_shown: 0,
             pending_enter: None,
             process_clock: None,
+            process_fade: 0,
+            music_refused: false,
             clock_ms: 0,
             clock_scanned: 0,
             shake_once: HashMap::new(),
@@ -2873,6 +2880,11 @@ impl<'a, 'b> Compiler<'a, 'b> {
             "lock" => o.locked = true,
             "unlock" => o.locked = false,
             "hideable" => o.hideable = true,
+            // A BGM still playing, played again by a music process (EndSong
+            // when the roll outlasts the song): CONscripter's `bgm` loops it
+            // already. shortcut: the exe's 1 s gap and its stop after the
+            // second time aren't kept.
+            "play" if self.process_clock.is_some() && matches!(&o.kind, Kind::Sound(s) if s.bgm && s.playing.is_some()) => {}
             "play" => {
                 // `Play` on a loop that is still playing goes on with it
                 // (`md04_048vs` calls MusicStart again on its loop to change
@@ -3146,6 +3158,12 @@ impl<'a, 'b> Compiler<'a, 'b> {
             let Kind::Sound(s) = &mut self.objects.get_mut(&name).unwrap().kind else { continue };
             s.starting = false;
             if s.volume <= 0 && s.fade_ms == 0 {
+                continue;
+            }
+            // A music process's sound effect after its first wait: only
+            // music waits for its time (`Op::BgmLater`).
+            if !s.bgm && self.process_clock.is_some_and(|t| t > 0) {
+                self.music_refused = true;
                 continue;
             }
             let (path, bgm, looped, fade_ms, volume, loop_ms, pan) = (s.path.clone(), s.bgm, s.looped, s.fade_ms, s.volume, s.loop_ms, s.pan);
@@ -4600,6 +4618,54 @@ function SoundPlay("ナット名", 秒数, ボリウム, ループ設定)
         // (Fake's sounds last 4 s.)
         assert_eq!(later, [("sound/bgm/intro.ogg", 0, false), ("sound/bgm/loop.ogg", 4500, true)], "{:?}", c.ops);
         assert!(!c.notes.keys().any(|n| n.starts_with("CreateProcess")));
+    }
+
+    #[test]
+    fn a_music_process_decides_its_ifs_and_refuses_a_late_sound_effect() {
+        // 装甲悪鬼村正's EndSong: the second song once the first has ended,
+        // its fade out waited for; md01_023's ZansyuSet: a sound effect 6 s
+        // in, which only the run could play (noted).
+        let story = |two: &str| format!(r#"
+scene a.nss
+{{
+	CreateSound("song", BGM, "sound/bgm/song");
+	CreateSound("song2", BGM, "sound/bgm/song2");
+	CreateSound("se", SE, "sound/se/a");
+	$Two = {two};
+	CreateProcess("P", 0, 0, 0, "Music");
+	Request("P", Start);
+	Wait(100);
+}}
+function Music()
+{{
+	if($Two){{
+		SoundPlay("song", 0, 1000, false);
+		WaitPlay("song", null);
+		SetVolume("song", 1000, 0, null);
+		WaitAction("song", null);
+		SoundPlay("song2", 0, 1000, false);
+	}}else{{
+		Wait(6000);
+		SoundPlay("se", 0, 1000, false);
+	}}
+}}
+function SoundPlay("ナット名", 秒数, ボリウム, ループ設定)
+{{
+	Request("ナット名", Play);
+	SetLoop("ナット名", ループ設定);
+	SetVolume("ナット名", 秒数, ボリウム, null);
+}}
+"#);
+        let c = compile(&story("true"), LIBRARY);
+        let later: Vec<_> = c.ops.iter().filter_map(|op| match op {
+            Op::BgmLater { file, after_ms, .. } => Some((file.as_str(), *after_ms)),
+            _ => None,
+        }).collect();
+        assert_eq!(later, [("sound/bgm/song.ogg", 0), ("sound/bgm/song2.ogg", 5000)], "{:?}", c.ops);
+        assert!(!c.notes.keys().any(|n| n.starts_with("CreateProcess")), "{:?}", c.notes);
+        let c = compile(&story("false"), LIBRARY);
+        assert!(!c.ops.iter().any(|op| matches!(op, Op::SePlay { .. })), "{:?}", c.ops);
+        assert!(c.notes.contains_key("CreateProcess Music"), "{:?}", c.notes);
     }
 
     #[test]

@@ -10,7 +10,7 @@
 use super::*;
 
 /// What a music process may call.
-const MUSIC_CALLS: &[&str] = &["SoundPlay", "MusicStart", "Wait", "WaitPlay", "CreateBGM"];
+const MUSIC_CALLS: &[&str] = &["SoundPlay", "MusicStart", "Wait", "WaitPlay", "CreateBGM", "SetVolume", "WaitAction", "SetFrequency", "SetLoop", "Request"];
 
 /// What an action process may call.
 const ACTION_CALLS: &[&str] = &["Rotate", "Move", "Fade", "Zoom"];
@@ -19,6 +19,9 @@ const ACTION_CALLS: &[&str] = &["Rotate", "Move", "Fade", "Zoom"];
 fn calls_only(body: &[Stmt], calls: &[&str]) -> bool {
     body.iter().all(|s| match &s.kind {
         StmtKind::Label(_) => true,
+        // A music process's `if`s (装甲悪鬼村正's EndSong), decided as it starts.
+        StmtKind::If { then, otherwise, .. } if calls == MUSIC_CALLS => calls_only(then, calls) && otherwise.as_deref().is_none_or(|o| calls_only(o, calls)),
+        StmtKind::Assign { .. } if calls == MUSIC_CALLS => true,
         StmtKind::Expr(Expr::Call { name, .. }) => calls.contains(&name.as_str()),
         _ => false,
     })
@@ -72,10 +75,19 @@ impl Compiler<'_, '_> {
             return;
         }
         self.flush_sounds();
+        let (before, ops, counted) = (self.snapshot(), self.ops.len(), (self.notes.clone(), self.metrics.clone()));
+        let pending = (self.pending_ms, self.pending_mask.clone());
         self.process_clock = Some(0);
         self.call_function(file, function, Vec::new());
         self.flush_sounds();
         self.process_clock = None;
+        if std::mem::take(&mut self.music_refused) {
+            self.restore(before);
+            self.ops.truncate(ops);
+            (self.notes, self.metrics) = counted;
+            (self.pending_ms, self.pending_mask) = pending;
+            self.note(format!("CreateProcess {}", function.name));
+        }
     }
 
     /// A wait in a music process: the sounds started so far start at the

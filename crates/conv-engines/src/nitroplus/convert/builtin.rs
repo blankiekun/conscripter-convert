@@ -454,6 +454,10 @@ impl Compiler<'_, '_> {
                 }
             }
             "Wait" if self.process_clock.is_some() => self.process_wait(arg(0).int().max(0) as u32),
+            "WaitAction" if self.process_clock.is_some() => {
+                let ms = std::mem::take(&mut self.process_fade);
+                self.process_wait(ms);
+            }
             "WaitPlay" if self.process_clock.is_some() => {
                 // Until the sound's end.
                 for t in self.matching(&arg(0)) {
@@ -561,6 +565,16 @@ impl Compiler<'_, '_> {
                     self.matching(&arg(0)).iter().filter_map(|t| self.pending_by.get(t)).copied().max().unwrap_or(0)
                 };
                 self.sync(ms);
+            }
+            // In a music process, on a sound playing (not one it starts): on
+            // its clock, which only a WaitAction on it moves (EndSong fades
+            // out a song that has ended).
+            "SetVolume" if self.process_clock.is_some() && self.matching(&arg(0)).iter().all(|t| matches!(&self.objects[t].kind, Kind::Sound(s) if s.playing.is_some() && !s.starting)) => {
+                // (A sound effect's fade would be lost: the process is refused.)
+                if self.matching(&arg(0)).iter().any(|t| matches!(&self.objects[t].kind, Kind::Sound(s) if !s.bgm)) {
+                    self.music_refused = true;
+                }
+                self.process_fade = arg(1).int().max(0) as u32;
             }
             "SetVolume" => self.set_volume(&arg(0), arg(1).int(), arg(2).int()),
             "SetPan" => self.set_pan(&arg(0), arg(1).int(), arg(2).int()),
