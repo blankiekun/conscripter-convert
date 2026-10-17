@@ -41,6 +41,8 @@ pub struct English {
     telops: HashMap<String, Vec<(String, Vec<squirrel::Arg>)>>,
     /// Scene name → its subtitled voices ([`subtitles`]).
     subtitles: HashMap<String, Vec<Subtitle>>,
+    /// Scene name → its story `CreateText` captions ([`scene_captions`]).
+    captions: HashMap<String, Vec<Caption>>,
     /// The port's calls the converter takes from, as `port <function>`,
     /// with the arguments it doesn't read ([`note_unread`]).
     unread: Metrics,
@@ -135,6 +137,18 @@ struct Subtitle {
     lines: Vec<(i32, String)>,
 }
 
+/// A story `CreateText` of the port's Japanese branch, with the English
+/// its `LANG_NAME == "en"` branch draws on the same sprite instead.
+#[derive(Debug, PartialEq)]
+struct Caption {
+    sprite: String,
+    /// The Japanese text as [`key`] gives it.
+    japanese: String,
+    /// x, y, the text and the relative `Move` after it (none when the
+    /// English branch leaves this sprite out).
+    english: Option<(squirrel::Arg, squirrel::Arg, String, (i32, i32))>,
+}
+
 #[derive(Debug, Default)]
 pub struct Report {
     pub replaced: usize,
@@ -153,6 +167,8 @@ pub struct Report {
     pub subtitles: usize,
     /// (file, sound) of the subtitles with no place found.
     pub subtitles_missed: Vec<(String, String)>,
+    /// Story `CreateText` captions given the port's English.
+    pub captions: usize,
     /// Calls on telop sprites given the port's places.
     pub telops_placed: usize,
     /// (file, call, sprite and its number) that the port makes a
@@ -192,6 +208,7 @@ impl English {
         let mut choice_vars = HashMap::new();
         let mut telops = HashMap::new();
         let mut subtitles = HashMap::new();
+        let mut captions = HashMap::new();
         let mut unread = Metrics::default();
         for e in &scripts.entries {
             let Some(scene) = e.name.strip_prefix("media/script/nut/").and_then(|n| n.strip_suffix(".nut")) else { continue };
@@ -211,6 +228,7 @@ impl English {
             let mut calls = Vec::new();
             scene_fn.calls(&mut calls);
             subtitles.insert(scene.to_lowercase(), scene_subtitles(&calls, &lang.table_literal_rows("TransVoice")));
+            captions.insert(scene.to_lowercase(), scene_captions(&calls));
             let mut vars: HashMap<String, Vec<String>> = HashMap::new();
             for (call, args) in &calls {
                 note_unread(&mut unread, call, args, false);
@@ -247,7 +265,7 @@ impl English {
                 .collect();
             scenes.insert(scene.to_lowercase(), rows);
         }
-        Ok(English { scenes, choices, choice_vars, telops, subtitles, unread })
+        Ok(English { scenes, choices, choice_vars, telops, subtitles, captions, unread })
     }
 
     /// Puts the English into every text block of `files` (by file name,
@@ -300,6 +318,9 @@ impl English {
             }
             if let Some(port) = self.telops.get(scene) {
                 place_telops(name, file, port, &mut report);
+            }
+            if let Some(port) = self.captions.get(scene) {
+                report.captions += put_captions(file, port);
             }
             let Some(rows) = self.scenes.get(scene) else { continue };
             let mut keys = Vec::new();
@@ -475,6 +496,113 @@ fn scene_subtitles(calls: &[(String, Vec<squirrel::Arg>)], rows: &[(String, Vec<
         out.push(Subtitle { call: c.clone(), sound: sound.clone(), n, add: args.get(1) == Some(&Arg::Bool(true)), y, file: file.clone(), lines });
     }
     out
+}
+
+/// The story captions of a scene's calls: each `CreateText` of the
+/// Japanese branch (its text not ASCII) with the English one the `en`
+/// branch just before it makes on the same sprite.
+fn scene_captions(calls: &[(String, Vec<squirrel::Arg>)]) -> Vec<Caption> {
+    use squirrel::Arg;
+    let text = |a: &[Arg]| match a.iter().filter(|a| matches!(a, Arg::Str(_))).nth(1) {
+        Some(Arg::Str(t)) => Some(t.clone()),
+        _ => None,
+    };
+    let (mut out, mut english, mut after_japanese) = (Vec::new(), Vec::<(String, _)>::new(), false);
+    for (i, (call, args)) in calls.iter().enumerate() {
+        let (Some(Arg::Str(sprite)), Some(t)) = (args.first(), text(args)) else { continue };
+        if call != "CreateText" {
+            continue;
+        }
+        if !t.is_ascii() {
+            after_japanese = true;
+            let en = english.iter().position(|(s, ..)| s == sprite).map(|i| english.remove(i).1);
+            out.push(Caption { sprite: sprite.clone(), japanese: key(&t), english: en });
+            continue;
+        }
+        if std::mem::take(&mut after_japanese) {
+            english.clear();
+        }
+        // The English is laid out by a relative `Move` after it (the
+        // first line up, the second down).
+        let offset = calls[i + 1..]
+            .iter()
+            .take_while(|(c, _)| c != "CreateText")
+            .find_map(|(c, a)| match (c.as_str(), a.first(), a.get(2), a.get(3)) {
+                ("Move", Some(s), Some(Arg::Relative(x)), Some(Arg::Relative(y))) if s == &args[0] => Some((*x, *y)),
+                _ => None,
+            })
+            .unwrap_or_default();
+        let (Some(x), Some(y)) = (args.get(2), args.get(3)) else { continue };
+        english.push((sprite.clone(), (x.clone(), y.clone(), t, offset)));
+    }
+    out
+}
+
+/// The last argument [`put_captions`] gives a `CreateText` it puts English in.
+pub const CAPTION: &str = "english caption";
+
+/// Puts the port's English captions into `file`'s `CreateText` calls:
+/// the k-th on a sprite takes the port's k-th Japanese one's English
+/// when their Japanese is the same, drawn where the port draws it (its
+/// x, y, the box `auto`), not turned (`Rotate` after it) and moved by the
+/// port's offset (the first `Move` after it); one the port has no English
+/// for deletes the sprite. Returns how many took English.
+fn put_captions(file: &mut NssFile, port: &[Caption]) -> usize {
+    use nss::Expr;
+    let rel = |n: i32| Expr::Unary { op: nss::UnaryOp::Relative, expr: Box::new(Expr::Int(i64::from(n))) };
+    let word = |a: &squirrel::Arg| match a {
+        squirrel::Arg::Int(v) => Expr::Int(i64::from(*v)),
+        squirrel::Arg::Word(w) => Expr::Word(w.clone()),
+        _ => Expr::Word("Center".into()),
+    };
+    let mut seen: HashMap<String, usize> = HashMap::new();
+    // The sprites just given English, with their offset, until a call on
+    // another sprite.
+    let mut laying: HashMap<String, (i32, i32)> = HashMap::new();
+    let mut done = 0;
+    each_stmt(file, &mut |s| {
+        let StmtKind::Expr(Expr::Call { name: call, args }) = s else { return };
+        let sprite = match args.first() {
+            Some(Expr::Str(s)) => s.clone(),
+            _ => String::new(),
+        };
+        match call.as_str() {
+            "CreateText" if args.len() == 7 => {
+                laying.clear();
+                let n = seen.entry(sprite.clone()).or_default();
+                *n += 1;
+                let Some(c) = port.iter().filter(|c| c.sprite == sprite).nth(*n - 1) else { return };
+                let Expr::Str(jp) = &args[6] else { return };
+                if key(jp) != c.japanese {
+                    return;
+                }
+                // The port's English has no line here: the sprite's last
+                // one goes, as the Japanese would have replaced it.
+                let Some((x, y, en, offset)) = &c.english else {
+                    *call = "Delete".into();
+                    args.truncate(1);
+                    return;
+                };
+                args[2] = word(x);
+                args[3] = word(y);
+                args[4] = Expr::Word("auto".into());
+                args[5] = Expr::Word("auto".into());
+                args[6] = Expr::Str(en.clone());
+                // Marks it for the English build's `CreateText` (muramasa.rs).
+                args.push(Expr::Str(CAPTION.into()));
+                laying.insert(sprite, *offset);
+                done += 1;
+            }
+            "Rotate" if laying.contains_key(&sprite) && args.len() >= 5 => args[2..5].iter_mut().for_each(|a| *a = rel(0)),
+            "Move" if args.len() >= 4 && matches!(args[1], Expr::Int(0)) && laying.contains_key(&sprite) => {
+                let (x, y) = laying.remove(&sprite).unwrap_or_default();
+                (args[2], args[3]) = (rel(x), rel(y));
+            }
+            "Request" | "Fade" | "SetAlias" | "SetFont" if laying.contains_key(&sprite) || call == "SetFont" => {}
+            _ => laying.clear(),
+        }
+    });
+    done
 }
 
 /// The calls of `calls` on telop sprites: the ones a `Create…` call
@@ -677,6 +805,8 @@ fn each_stmt(file: &mut NssFile, f: &mut dyn FnMut(&mut StmtKind)) {
                     otherwise.iter_mut().for_each(|o| stmts(o, f));
                 }
                 StmtKind::While { body, .. } | StmtKind::Select(body) | StmtKind::Case { body, .. } | StmtKind::Block(body) => stmts(body, f),
+                // A text block's `{…}` code (mb03_022's captions).
+                StmtKind::Text(t) => t.items.iter_mut().for_each(|i| if let Inline::Code(body) = i { stmts(body, f) }),
                 _ => {}
             }
         }
@@ -748,7 +878,7 @@ mod tests {
     #[test]
     fn replaces_stretches_between_code() {
         let rows = vec![(key("「……"), "\"...\"".to_string()), (key("ああ」"), "\"Ah.\"".to_string())];
-        let english = English { scenes: HashMap::from([("a".to_string(), rows)]), choices: HashMap::new(), choice_vars: HashMap::new(), telops: HashMap::new(), subtitles: HashMap::new(), unread: Metrics::default() };
+        let english = English { scenes: HashMap::from([("a".to_string(), rows)]), choices: HashMap::new(), choice_vars: HashMap::new(), telops: HashMap::new(), subtitles: HashMap::new(), captions: HashMap::new(), unread: Metrics::default() };
         let src = "chapter main\n{\n<PRE @box0>\n[text0010]\n「……{WaitKey(1100);}ああ」\n</PRE>\n}\n";
         let mut files = BTreeMap::from([("a.nss".to_string(), nss::parse(src).unwrap())]);
         let report = english.apply(&mut files);
@@ -763,7 +893,7 @@ mod tests {
     #[test]
     fn choice_options_take_their_english() {
         let options = HashMap::from([("お任せします".to_string(), "As you wish.".to_string())]);
-        let english = English { scenes: HashMap::new(), choices: HashMap::from([("a".to_string(), options)]), choice_vars: HashMap::new(), telops: HashMap::new(), subtitles: HashMap::new(), unread: Metrics::default() };
+        let english = English { scenes: HashMap::new(), choices: HashMap::from([("a".to_string(), options)]), choice_vars: HashMap::new(), telops: HashMap::new(), subtitles: HashMap::new(), captions: HashMap::new(), unread: Metrics::default() };
         let src = "chapter main\n{\n\tSetChoice02(\"お任せします\",\"お断りします\");\n}\n";
         let mut files = BTreeMap::from([("a.nss".to_string(), nss::parse(src).unwrap())]);
         let report = english.apply(&mut files);
@@ -777,7 +907,7 @@ mod tests {
     fn choice_variables_take_the_ports_values_in_order() {
         // The port merged the NSS's first two branches.
         let vars = HashMap::from([("n".to_string(), vec!["Ask".to_string(), "Leave".to_string()])]);
-        let english = English { scenes: HashMap::new(), choices: HashMap::new(), choice_vars: HashMap::from([("a".to_string(), HashMap::from([("n".to_string(), vars["n"].clone())]))]), telops: HashMap::new(), subtitles: HashMap::new(), unread: Metrics::default() };
+        let english = English { scenes: HashMap::new(), choices: HashMap::new(), choice_vars: HashMap::from([("a".to_string(), HashMap::from([("n".to_string(), vars["n"].clone())]))]), telops: HashMap::new(), subtitles: HashMap::new(), captions: HashMap::new(), unread: Metrics::default() };
         let src = "chapter main\n{\n\tif($x==1){$n = \"頼む\";}else if($x==2){$n = \"頼む\";}else{$n = \"別れる\";}\n\tif($n==\"別れる\"){$m = \"頼む\";}\n}\n";
         let mut files = BTreeMap::from([("a.nss".to_string(), nss::parse(src).unwrap())]);
         let report = english.apply(&mut files);
@@ -809,6 +939,27 @@ mod tests {
     }
 
     #[test]
+    fn captions_pair_the_english_branch_with_the_japanese() {
+        use squirrel::Arg::{Int, Relative, Str, Word};
+        let ct = |s: &str, t: &str| ("CreateText".to_string(), vec![Str(s.into()), Int(30411), Word("Center".into()), Word("Middle".into()), Str(t.into()), Str("メインフォント30".into())]);
+        let mv = |s: &str, y| ("Move".to_string(), vec![Str(s.into()), Int(0), Relative(0), Relative(y)]);
+        // md04_002: two English lines, then the Japanese; then one English
+        // line for the second of two Japanese.
+        let calls = [ct("字幕01", "November 30, 1940"), mv("字幕01", -25), ct("字幕02", "41st"), ct("字幕01", "<Center>外暦</Center>"), ct("字幕02", "国紀"), ct("字幕02", "2:47 AM"), ct("字幕01", "一一月"), ct("字幕02", "午前")];
+        let port = scene_captions(&calls);
+        let en: Vec<_> = port.iter().map(|c| (c.sprite.as_str(), c.japanese.as_str(), c.english.as_ref().map(|e| (e.2.as_str(), e.3)))).collect();
+        assert_eq!(en, [("字幕01", "外暦", Some(("November 30, 1940", (0, -25)))), ("字幕02", "国紀", Some(("41st", (0, 0)))), ("字幕01", "一一月", None), ("字幕02", "午前", Some(("2:47 AM", (0, 0))))]);
+        let mut file = nss::parse("scene a.nss{\nSetFont(\"@ＭＳ 明朝\", 30);\nCreateText(\"字幕01\",30411,Center,inherit,auto,auto,\"外暦\");\nRotate(\"字幕01\", 0, @0, @0, 90, null, false);\nMove(\"字幕01\", 0, @300, @10, null, false);\nCreateText(\"字幕02\",30411,Center,inherit,auto,auto,\"違う\");\nCreateText(\"字幕01\",30411,Center,inherit,auto,auto,\"一一月\");\n}").unwrap();
+        assert_eq!(put_captions(&mut file, &port), 1);
+        let mut out = Vec::new();
+        each_call(&mut file, &mut |c, a| out.push(format!("{c} {a:?}")));
+        assert!(out[1].contains("Word(\"Middle\")") && out[1].contains("November 30, 1940") && out[1].contains(CAPTION), "{}", out[1]);
+        assert!(!out[2].contains("Int(90)") && out[3].contains("Int(-25)"), "{out:?}");
+        assert!(!out[4].contains(CAPTION));
+        assert_eq!(out[5], "Delete [Str(\"字幕01\")]");
+    }
+
+    #[test]
     fn telops_take_the_ports_places() {
         use squirrel::Arg::{Int, Relative, Str, Word};
         let s = |v: &str| Str(v.to_string());
@@ -818,7 +969,7 @@ mod tests {
             ("Move".into(), vec![s("bg"), Int(0), Int(5), Int(5)]),
         ]);
         assert_eq!(port.len(), 2, "only the telop sprite's calls");
-        let english = English { scenes: HashMap::new(), choices: HashMap::new(), choice_vars: HashMap::new(), telops: HashMap::from([("a".to_string(), port)]), subtitles: HashMap::new(), unread: Metrics::default() };
+        let english = English { scenes: HashMap::new(), choices: HashMap::new(), choice_vars: HashMap::new(), telops: HashMap::from([("a".to_string(), port)]), subtitles: HashMap::new(), captions: HashMap::new(), unread: Metrics::default() };
         let src = "chapter main\n{\n\tCreateTextureEX(\"t\", 100, 300, Middle, \"cg/sys/Telop/a.png\");\n\tMove(\"t\", 0, @0, @-40, null, true);\n}\n";
         let mut files = BTreeMap::from([("a.nss".to_string(), nss::parse(src).unwrap())]);
         let report = english.apply(&mut files);
@@ -856,7 +1007,7 @@ mod tests {
         assert_eq!((subs[0].n, subs[0].y, subs[0].lines.clone()), (0, 480, vec![(0, "Hi!".to_string())]));
         assert_eq!((subs[1].n, subs[1].add, subs[1].y), (1, true, 13));
         assert_eq!(subs[1].lines, vec![(500, "A".to_string()), (900, "B".to_string())]);
-        let english = English { scenes: HashMap::new(), choices: HashMap::new(), choice_vars: HashMap::new(), telops: HashMap::new(), subtitles: HashMap::from([("a".to_string(), subs)]), unread: Metrics::default() };
+        let english = English { scenes: HashMap::new(), choices: HashMap::new(), choice_vars: HashMap::new(), telops: HashMap::new(), subtitles: HashMap::from([("a".to_string(), subs)]), captions: HashMap::new(), unread: Metrics::default() };
         let src = "chapter main\n{\n\tMusicStart(\"v\",0);\n\tMusicStart(\"v\",0);\n}\n";
         let mut files = BTreeMap::from([("a.nss".to_string(), nss::parse(src).unwrap())]);
         assert_eq!(english.apply(&mut files).subtitles, 2);
