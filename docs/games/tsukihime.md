@@ -113,7 +113,7 @@ The RomFS, 21 GB, 16,729 files:
 | `stream/*.opus` (16,601) | Voices (`A00_01_00_0000_0.opus`) and songs, 30.1 hours; Nintendo's Opus framing (`typemoon/nxopus.rs`): 48 kHz, 16,468 mono, 133 stereo, pre-skip 120, no sample count or loop points in the file (the music's loops are in `knife1.bfsar`). `typemoon sounds` repacks them into Ogg Opus (no re-encode). The same files in both RomFS copies |
 | `movie/*.mp4` (46) | H.264 1920×1080 + AAC 48 kHz: ffmpeg reads them |
 | `ja*/` | Fonts (TT_TsukuMin-D, TT_TsukuGo-D, FOT-SeuratPro-M) |
-| `knife1.bfsar` (386 MB) | Nintendo sound archive (`typemoon/bfsar.rs`, `fwav.rs`): 1,297 wave sounds (`WSD_moon_se02093`, `WSD_woh_*`, `WSD_fate_*`, …; 1,300 in the patched copy, which adds `WSD_mix_se032`–`034`), all DSP ADPCM 48 kHz, 195 looping (107 from inside the wave); and 16,596 stream sounds `STRM_*`, whose files are the `stream/*.opus` above (their names are in the archive's file table). `typemoon sounds` writes each wave sound as `se/<name>.wav` |
+| `knife1.bfsar` (386 MB) | Nintendo sound archive (`typemoon/bfsar.rs`, `fwav.rs`): 1,297 wave sounds (`WSD_moon_se02093`, `WSD_woh_*`, `WSD_fate_*`, …; 1,300 in the patched copy, which adds `WSD_mix_se032`–`034`), all DSP ADPCM 48 kHz, 195 looping (107 from inside the wave); and 16,596 stream sounds `STRM_*`, whose files are the `stream/*.opus` above (their names are in the archive's file table). `typemoon sounds` writes each wave sound as `se/<name>.ogg` (Opus, its loop as tags) |
 | `shader/*.bnsh`, `exfont_nx01.bffnt` | Switch shaders and font, not needed |
 
 How the formats nest, checked over every entry of both RomFS copies
@@ -620,14 +620,12 @@ Nothing yet.
    script name, 617 uses) and options shown only under a flag.
    `typemoon convert --dry-run` prints the counts. Splitting sprites
    into body and face crops is out unless the user asks.
-2. Sound for the build: the wave sounds are 1.4 GB as WAV in the
-   media folder: worth Opus, its loop as `LOOPSTART`/`LOOPEND` tags.
-3. The other picture archives in the media folder: `allpaccg` (the
+2. The other picture archives in the media folder: `allpaccg` (the
    gallery's CGs, 2 GB), `allui` (71 MB).
-4. The title, menus and the registry/GUI entry.
-5. Still open in the exe: `_FADS` type 1, `_STCH`'s panel frames
+3. The title, menus and the registry/GUI entry.
+4. Still open in the exe: `_FADS` type 1, `_STCH`'s panel frames
    (argument 17's colours, the corner pieces at 0x75BE00), and the motion keyframes' other fields.
-6. The metrics (`tests/snapshots/tsukihime.metrics.json`) count each
+5. The metrics (`tests/snapshots/tsukihime.metrics.json`) count each
    argument a converted command passes and doesn't read as a gap
    (`<command> argument <i> ignored`, `option <n>` for a backquote
    option); the list is in that file. The biggest: `_STRT` 1,
@@ -671,6 +669,16 @@ The biggest commands not converted, looked up in `script_command`
   out.
 
 ## History
+
+- 2026-10-17: the 1,300 wave sounds as Ogg Opus (`se/<name>.ogg`,
+  ffmpeg's libopus at 48 kbit/s a channel, VBR): 1,395 MB as WAV, 83 MB
+  as Opus. Their loops go in as `LOOPSTART`/`LOOPEND` tags (start, and
+  the FWAV's end, the sample count). Checked: each decoded file is as
+  long as its wave (its `LOOPEND`), libopus's delay is undone (a test
+  pulse decodes at shift 0), and under SDL's disk audio driver the
+  engine's `dwaveloop` of `WSD_mix_se032.ogg` repeats exactly every
+  10,603 frames at 44.1 kHz, as the WAV did. Opus plays through the
+  engine's own decoder (`decodeOpus`, in every build, the web one too).
 
 - 2026-10-17: sound loops, **seen** in `knife1.bfsar`
   (`bfsar::stream_loops`): a stream's details (INFO sound, kind 0x2201)
