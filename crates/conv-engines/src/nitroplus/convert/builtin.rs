@@ -886,9 +886,10 @@ impl Compiler<'_, '_> {
                 // src: Django.exe FUN_004666c0, Muramasa.exe FUN_004891e0: the
                 // names per axis; px outside 0..size leaves that axis as it
                 // was (dja004's `center,704` on a 600 px picture).
-                // guess: any case (the exe compares lower case; 装甲悪鬼村正's
-                // `Center`/`Middle` may be lowered before, unchecked).
-                let place = |v: &Value, size: i64, was: i64, [near, mid, far]: [&str; 3]| match v.string().to_ascii_lowercase().as_str() {
+                // Lower case only: nothing lowers the name first (src: Muramasa.exe
+                // eval_arg 00413740 copies it, FUN_004891e0 compares 'c','e',…), so
+                // `Center`/`Middle` are atol's 0.
+                let place = |v: &Value, size: i64, was: i64, [near, mid, far]: [&str; 3]| match v.string().as_str() {
                     w if w == near => 0,
                     w if w == mid => size / 2,
                     w if w == far => size,
