@@ -209,6 +209,14 @@ impl<'a> Emitter<'a> {
                 writeln!(out, "print 1").unwrap();
             }
         }
+        Op::Language(code) => writeln!(out, "language \"{code}\"").unwrap(),
+        Op::SaveState { slot } => writeln!(out, "savegame {slot}").unwrap(),
+        Op::LoadState { slot } => writeln!(out, "loadgame {slot}").unwrap(),
+        Op::SeStopEvery => {
+            se.stop_all();
+            se.next = 0;
+            writeln!(out, "{}", crate::SE_CHANNELS.chain(crate::SE_OVERFLOW).map(|c| format!("dwavestop {c}")).collect::<Vec<_>>().join(":")).unwrap();
+        }
         Op::SpriteBlend { layer, mode } => {
             writeln!(out, "spblend {},{mode}", SPRITE_BASE + layer).unwrap();
             if transition.is_none() {

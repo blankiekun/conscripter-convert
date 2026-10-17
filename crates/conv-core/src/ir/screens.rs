@@ -1013,6 +1013,9 @@ pub enum SystemPage {
     Title,
     /// Drawn, not clickable (a page not converted yet).
     Unavailable,
+    /// In game only: closes the menu and goes to the game's label (the
+    /// wait the menu was opened from is left); shown at rest on the title.
+    Jump(String),
 }
 
 /// A [`SystemPage`]'s save slots: one column of `rows` rows a page, slots
