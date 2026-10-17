@@ -333,6 +333,7 @@ fn sound(a: &mut dyn Assets) -> Option<SoundRoom> {
         stop_fade_ms: 1000,
         movie_fade_ms: 0,
         movie_back_ms: 0,
+        engine_screen: false,
     })
 }
 

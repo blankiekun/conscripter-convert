@@ -57,6 +57,9 @@ pub fn screen_files(script: &Script) -> Vec<(String, String)> {
     if let Some(r) = script.picture_extras.as_ref().filter(|_| script.title_screen.is_some()).and_then(|e| e.replay.as_ref()).filter(|r| r.engine_screen) {
         files.push(("replay.lua".to_string(), crate::picture_replay::lua_file(r, script.global_border.unwrap_or(crate::GLOBAL_VAR_BASE))));
     }
+    if let Some(r) = script.picture_extras.as_ref().filter(|_| script.title_screen.is_some()).and_then(|e| e.sound.as_ref()).filter(|r| r.engine_screen) {
+        files.push(("sound.lua".to_string(), crate::sound_screen::lua_file(r, script.global_border.unwrap_or(crate::GLOBAL_VAR_BASE))));
+    }
     files.extend(crate::settings_screen::files(script, script.global_border.unwrap_or(crate::GLOBAL_VAR_BASE)));
     files
 }

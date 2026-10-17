@@ -602,9 +602,9 @@ oldest row. Open:
 (`conv-cons/src/picture_extras.rs`, `PictureExtras` with `engine_screen`;
 engine #93): the picture and its buttons (a locked one at 51/255 and not a
 button), fading in over 500 ms. It closes with the mode chosen holding
-its frame (`hold`), so the mode (the gallery's pages and the
-recollection's list screens, the rest still script routines: sound
-room, 3D viewer) and the title cross-fade straight
+its frame (`hold`), so the mode (the gallery's pages, the
+recollection's list and the sound room screens, the 3D viewer still a
+script routine) and the title cross-fade straight
 from it. Checked on Xvfb against main's routine (this build and the
 English one, which shares it): open, a button hovered, the gallery, back
 to the menu, back to the title: 0 pixels; frames mid cross-fade show no
@@ -641,6 +641,22 @@ hover, the frozen list 0.4 and 0.8 s after the click, the scene at 3 and
 6 s, the way back to the menu: 0 pixels (1 px at 6 s). Again after the
 rebase onto engine master 4f1e1bb (Japanese and English builds): open,
 hover, the frozen list, the scene at 3 and 6 s: 0 pixels.
+
+### Sound room drawn by the engine (2026-10-17)
+
+電磁蓄音機/動画映写機 is CONscripter's `screen "sound"`
+(`conv-cons/src/sound_screen.rs`, `SoundRoom` with `engine_screen`;
+engine #101): the track buttons (a locked song's `000` picture), the
+turning A-icon by the track playing (its cells in turn, 340 ms), the
+movies' thumbnails under their cursors, 退出. A click closes the screen
+holding its frame; the script plays or stops the track (the screen again
+at once) or plays the movie (fading to black and back over 300 ms). The
+room exists only in a build given the movies (`--movies`): the snapshot's
+dry run has none, so its 0.txt doesn't change. Checked on Xvfb against
+main's routine (dry runs with `--movies` over a full build): open, a
+track played and stopped, hovers, a movie and back, the menu: 0 pixels. Again
+after the rebase onto engine master 4f1e1bb, this build and the English
+one: 0 pixels but for the movie's own frame (capture timing).
 
 ### Settings drawn by the engine (2026-10-17)
 

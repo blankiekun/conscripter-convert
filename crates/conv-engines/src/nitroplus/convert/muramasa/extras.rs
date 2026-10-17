@@ -294,6 +294,7 @@ fn sound(a: &mut dyn Assets, story: &Story) -> Option<SoundRoom> {
         stop_fade_ms: 2000,
         movie_fade_ms: 1000,
         movie_back_ms: 300,
+        engine_screen: true,
     })
 }
 

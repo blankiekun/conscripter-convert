@@ -17,14 +17,14 @@ use crate::picture_extras::pic;
 use crate::{path, BUTTON_VAR, DIALOG_SPRITES, MAX_SPRITE, MENU_SPRITES};
 
 pub(crate) const SOUND: &str = "conv_pextras_sound";
-const MENU: &str = "conv_pextras_draw";
-const DRAW: &str = "conv_psnd_draw";
+pub(crate) const MENU: &str = "conv_pextras_draw";
+pub(crate) const DRAW: &str = "conv_psnd_draw";
 const LOOP: &str = "conv_psnd_loop";
 const WAIT: &str = "conv_psnd_wait";
 /// Plays [`MUSIC`] (a subroutine).
 pub(crate) const PLAY: &str = "conv_psnd_play";
 /// The extras' music: 0 the title's, -1 none, n track n - 1 (a global).
-const MUSIC: &str = "%2961";
+pub(crate) const MUSIC: &str = "%2961";
 // Sprites in the game's range (lower numbers drawn on top).
 const BACKGROUND: u32 = MAX_SPRITE;
 const TRACK: u32 = 900; // + track
@@ -34,7 +34,7 @@ const MARKER: u32 = 880;
 const MAX_TRACKS: usize = 60;
 const MAX_VIDEOS: usize = 10;
 /// The black over everything before and after a movie.
-const BLACK: u32 = DIALOG_SPRITES.start;
+pub(crate) const BLACK: u32 = DIALOG_SPRITES.start;
 const EXIT: u32 = MENU_SPRITES.start;
 const BTN_VIDEO: usize = 101; // + movie
 const BTN_EXIT: usize = 201;
@@ -51,7 +51,27 @@ pub(crate) fn back_to_title(r: &SoundRoom) -> String {
     format!("if {MUSIC} != 0 chvolfade -1,100:bgm \"{}\"", path(&r.tracks[r.title_track].file))
 }
 
+/// The track's number in [`MUSIC`].
+pub(crate) fn number(r: &SoundRoom, i: usize) -> i32 {
+    if i == r.title_track { 0 } else { i as i32 + 1 }
+}
+
+/// [`PLAY`], its lines.
+pub(crate) fn play_label(r: &SoundRoom) -> String {
+    let mut out = format!("*{PLAY}\nif {MUSIC} == -1 bgmstop:return\n");
+    for (i, t) in r.tracks.iter().enumerate() {
+        out.push_str(&format!("if {MUSIC} == {} bgm \"{}\":return\n", number(r, i), path(&t.file)));
+    }
+    out + "return"
+}
+
 pub(crate) fn emit(out: &mut String, r: &SoundRoom, border: u32, width: u32, height: u32) {
+    if r.engine_screen {
+        crate::sound_screen::labels(out, r, width, height);
+        out.push_str(&play_label(r));
+        out.push('\n');
+        return;
+    }
     assert!(r.tracks.len() <= MAX_TRACKS && r.movies.len() <= MAX_VIDEOS, "a sound room larger than its sprites");
     let mut w = |line: String| {
         out.push_str(&line);
@@ -91,13 +111,7 @@ pub(crate) fn emit(out: &mut String, r: &SoundRoom, border: u32, width: u32, hei
         w(format!("csp {BLACK}:print 10,{}", r.movie_back_ms));
         w(format!("goto *{WAIT}"));
     }
-    w(format!("*{PLAY}"));
-    w(format!("if {MUSIC} == -1 bgmstop:return"));
-    for (i, t) in r.tracks.iter().enumerate() {
-        w(format!("if {MUSIC} == {} bgm \"{}\":return", number(i), path(&t.file)));
-    }
-    w("return".into());
-
+    w(play_label(r));
     w(format!("*{DRAW}"));
     w("csp -1".into());
     w(format!("lsp {BACKGROUND},\"{}\",0,0", pic(&r.background)));
