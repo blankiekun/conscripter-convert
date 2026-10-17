@@ -728,9 +728,10 @@ pub enum Op {
     TransitionEase { ease: u8, exponent: u32 },
     /// [`Op::SpriteClip`] whose sprite fades in from the rectangle's edges
     /// over `feather` px (3t² − 2t³, a corner the product of its edges';
-    /// CONscripter's `spclip`'s sixth argument). 月姫's panels with a frame
-    /// width and no frame colour.
-    SpriteClipFeather { layer: u32, rect: (i32, i32, i32, i32), feather: u32 },
+    /// CONscripter's `spclip`'s sixth argument), from `colour` (0xRRGGBB:
+    /// a soft frame of it inside the rectangle) when given, else from what
+    /// is under it. 月姫's panel frames.
+    SpriteClipFeather { layer: u32, rect: (i32, i32, i32, i32), feather: u32, colour: Option<u32> },
 }
 
 /// [`Op::HoldMovie`]'s prompt: `image` is `cells` pictures side by side,
