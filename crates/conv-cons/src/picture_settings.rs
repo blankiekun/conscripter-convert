@@ -154,9 +154,6 @@ pub(crate) fn define(out: &mut String, s: &PictureSettings) {
     for n in names {
         out.push_str(&format!("defvar {},global\n", named(n)));
     }
-    for (i, _) in s.sliders.iter().enumerate().filter(|(_, l)| l.horizontal) {
-        out.push_str(&format!("defvar {}\n", &crate::settings_screen::shown_var(s, i)[1..]));
-    }
 }
 
 /// A stepped slider's steps, if it is one.

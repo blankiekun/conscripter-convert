@@ -158,9 +158,8 @@ fn fill_line(page: &RgbaImage, y: u32) -> u32 {
 }
 
 /// A level row on `page`'s bar whose fill line is at `line`: the knob at
-/// the fill's end, the line drawn filled up to it (in the bar's empty
-/// colour past it when `inverted`: the bar shows 10 minus the level, ◀
-/// raises it), and its ◀ ▶ buttons.
+/// the fill's end, the line drawn filled up to it (when `inverted` the
+/// bar shows 10 minus the level, ◀ raises it), and its ◀ ▶ buttons.
 fn slider(assets: &mut ArchiveAssets, page: &RgbaImage, line: u32, knob: &RgbaImage, name: &str, value: SettingValue, inverted: bool) -> RowControl {
     let length = FILL.1 - FILL.0;
     // Where the fill ends at level 0.
@@ -168,11 +167,9 @@ fn slider(assets: &mut ArchiveAssets, page: &RgbaImage, line: u32, knob: &RgbaIm
     let knob = place(assets, &format!("{name}_knob"), knob, (start - knob.width() / 2) as i32, (line + 1 - knob.height() / 2) as i32);
     let empty = RgbaImage::from_pixel(length, 2, Rgba([EMPTY[0], EMPTY[1], EMPTY[2], 255]));
     let empty = place(assets, &format!("{name}_empty"), &empty, FILL.0 as i32 + 1, line as i32);
-    let (fill, bar) = if inverted {
-        (empty, None)
-    } else {
-        (place(assets, &format!("{name}_fill"), &crop(page, (FILL.0, line, length + 1, 2)), FILL.0 as i32, line as i32), Some(empty))
-    };
+    // Lit from the left end either way (an inverted row's travel is negative: CONscripter lights its fill from the max end).
+    let fill = place(assets, &format!("{name}_fill"), &crop(page, (FILL.0, line, length + 1, 2)), FILL.0 as i32, line as i32);
+    let bar = Some(empty);
     let arrow = |assets: &mut ArchiveAssets, (x, w): (u32, u32), part: &str| {
         let img = crop(page, (x, line - 7, w, 16));
         place(assets, &format!("{name}_{part}"), &side_by_side(&[img.clone(), golden(&img)]), x as i32, line as i32 - 7)
