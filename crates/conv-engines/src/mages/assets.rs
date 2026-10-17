@@ -94,6 +94,15 @@ pub fn adx_loop(data: &[u8]) -> Option<(u64, u64)> {
     Some((be(0x28)?, be(0x30)? + 1))
 }
 
+/// An ADX file's length in ms (sample rate at 0x08, sample frames at 0x0c).
+fn adx_ms(data: &[u8]) -> Option<u32> {
+    let be = |at: usize| Some(u32::from_be_bytes(data.get(at..at + 4)?.try_into().ok()?) as u64);
+    if data.get(..2)? != [0x80, 0] || be(0x08)? == 0 {
+        return None;
+    }
+    Some((be(0x0c)? * 1000 / be(0x08)?) as u32)
+}
+
 impl<'a> ArchiveAssets<'a> {
     #[allow(clippy::too_many_arguments)]
     pub fn new(cg: Bank<'a>, chr: Bank<'a>, etc: Bank<'a>, system: Bank<'a>, voice: Bank<'a>, se: Bank<'a>, bgm: Bank<'a>, output: &Path) -> Self {
@@ -281,6 +290,10 @@ impl Assets for ArchiveAssets<'_> {
 
     fn se(&mut self, id: u32) -> Option<String> {
         self.sound(1, id)
+    }
+
+    fn se_ms(&self, id: u32) -> Option<u32> {
+        adx_ms(self.se.file(id)?.1)
     }
 
     fn bgm(&mut self, id: u32) -> Option<String> {
