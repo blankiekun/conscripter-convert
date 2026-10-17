@@ -685,11 +685,18 @@ impl Compiler<'_, '_> {
             "Wait" => {
                 // The actions still running are shown over the wait, at
                 // most.
+                let at = self.ops.len();
                 let ms = self.movie_wait(arg(0).int().max(0) as u32);
                 let shown = std::mem::take(&mut self.pending_ms).min(ms);
                 self.sync(shown);
                 if ms > shown {
                     self.ops.push(Op::Wait { ms: ms - shown });
+                }
+                // The exe's Wait: a click doesn't end it, skip does (0040bd80).
+                for op in &mut self.ops[at..] {
+                    if let Op::Wait { ms } = *op {
+                        *op = Op::Pause { ms };
+                    }
                 }
             }
             "WaitKey" => {

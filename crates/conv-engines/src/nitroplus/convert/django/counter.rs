@@ -251,7 +251,7 @@ impl Compiler<'_, '_> {
         let mut done = 0u32;
         for op in self.ops.get(at..).unwrap_or_default() {
             done += match op {
-                Op::Wait { ms } => *ms,
+                Op::Wait { ms } | Op::Pause { ms } => *ms,
                 Op::BeginTransition { fade_ms, .. } => *fade_ms,
                 Op::Text { .. } | Op::ClickWait { .. } | Op::Choice { .. } | Op::RuntimeChoice { .. } | Op::HoldMovie { .. } | Op::Movie { .. } => ms,
                 _ => 0,

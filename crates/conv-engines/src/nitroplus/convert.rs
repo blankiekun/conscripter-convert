@@ -4923,7 +4923,7 @@ scene a.nss
 "#;
         // A disused one-shot is still waited for until its end.
         let c = compile(story, LIBRARY);
-        let waits: Vec<u32> = c.ops.iter().filter_map(|op| match op { Op::Wait { ms } => Some(*ms), _ => None }).collect();
+        let waits: Vec<u32> = c.ops.iter().filter_map(|op| match op { Op::Wait { ms } | Op::Pause { ms } => Some(*ms), _ => None }).collect();
         assert_eq!(waits, [1000, 3000, 1000, 2500, 500, 3500], "{:?}", c.ops);
     }
 
@@ -4944,7 +4944,7 @@ scene a.nss
         let c = compile(story, LIBRARY);
         let longest = c.ops.iter().filter_map(|op| match op {
             Op::BeginTransition { fade_ms, .. } => Some(*fade_ms),
-            Op::Wait { ms } => Some(*ms),
+            Op::Wait { ms } | Op::Pause { ms } => Some(*ms),
             _ => None,
         }).max();
         assert!(longest.is_some_and(|ms| ms < 15000), "{:?}", c.ops);
@@ -5581,7 +5581,7 @@ function MeterAuto()
         assert!(matches!(c.ops[at + 1], Op::SpriteMove { ms: 0, .. }), "{:?}", c.ops);
         // The script waits only its own 100 ms, twice.
         let waited: u32 = c.ops.iter().map(|op| match op {
-            Op::Wait { ms } | Op::BeginTransition { fade_ms: ms, .. } => *ms,
+            Op::Wait { ms } | Op::Pause { ms } | Op::BeginTransition { fade_ms: ms, .. } => *ms,
             _ => 0,
         }).sum();
         assert_eq!(waited, 200, "{:?}", c.ops);
@@ -5669,7 +5669,7 @@ function Count()
             vec![(0, 0), (100, 0), (101, 256), (200, 256), (201, 0), (300, 0)],
             vec![(0, 0), (200, 0), (201, 256), (300, 256)],
         ], "{:?}", c.ops);
-        let waited: u32 = c.ops.iter().map(|op| if let Op::Wait { ms } = op { *ms } else { 0 }).sum();
+        let waited: u32 = c.ops.iter().map(|op| if let Op::Wait { ms } | Op::Pause { ms } = op { *ms } else { 0 }).sum();
         assert_eq!(waited, 200, "{:?}", c.ops);
         assert!(c.notes.is_empty(), "{:?}", c.notes);
     }
@@ -5728,7 +5728,7 @@ function Out()
         assert_eq!(keys.iter().map(|k| (k.ms, k.opacity)).collect::<Vec<_>>(), [(0, 256), (500, 0), (501, 0)]);
         // Deleted at the first sync after its end, not before.
         let gone = c.ops.iter().position(|op| matches!(op, Op::Sprites { changes, .. } if changes.iter().any(|ch| ch.layer == *layer && ch.sprite.is_none()))).unwrap_or_else(|| panic!("{:?}", c.ops));
-        let waited: u32 = c.ops[fade..gone].iter().map(|op| if let Op::Wait { ms } = op { *ms } else { 0 }).sum();
+        let waited: u32 = c.ops[fade..gone].iter().map(|op| if let Op::Wait { ms } | Op::Pause { ms } = op { *ms } else { 0 }).sum();
         assert_eq!(waited, 1100, "{:?}", c.ops);
         assert!(c.notes.is_empty(), "{:?}", c.notes);
     }
@@ -5862,7 +5862,7 @@ scene a.nss
 }
 "#;
         let c = compile(story, LIBRARY);
-        let waits: Vec<u32> = c.ops.iter().filter_map(|op| match op { Op::Wait { ms } => Some(*ms), _ => None }).collect();
+        let waits: Vec<u32> = c.ops.iter().filter_map(|op| match op { Op::Wait { ms } | Op::Pause { ms } => Some(*ms), _ => None }).collect();
         assert_eq!(waits, [100, 1500, 3000, 1000, 1000], "{:?}", c.ops);
     }
 
@@ -5996,7 +5996,7 @@ scene a.nss
         let texts: Vec<(&str, bool)> =
             c.ops.iter().filter_map(|op| if let Op::Text { text, continues, .. } = op { Some((text.as_str(), *continues)) } else { None }).collect();
         assert_eq!(texts, [("　怪我をする。\u{1}痛い。\u{1}\nもがき苦しみ", true), ("　兵士", false)]);
-        let wait = c.ops.iter().position(|op| matches!(op, Op::Wait { ms: 5 })).unwrap();
+        let wait = c.ops.iter().position(|op| matches!(op, Op::Pause { ms: 5 })).unwrap();
         assert!(matches!(c.ops[wait - 1], Op::Text { continues: true, .. }));
     }
 

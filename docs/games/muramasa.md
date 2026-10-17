@@ -1059,6 +1059,14 @@ out on purpose.
 
 ## History
 
+### `Wait` and clicks (2026-10-17)
+
+The exe's `Wait` (Muramasa.exe `0040f7f0`, Django's `0040bd80`) ends
+only on quit, a state change or skip mode; a click doesn't end it. Ours
+was `delay`; it is `wait` now (the part shown over the running actions
+too), which CONscripter ends in skip mode (engine PR #134). `WaitKey(ms)`
+stays `delay`. The script changed only in those lines (about 6,800).
+
 ### The backlog's voices and the voice switches (2026-10-17)
 
 The exe keeps each log line's speaker with its voice (`FUN_00403730`; a
