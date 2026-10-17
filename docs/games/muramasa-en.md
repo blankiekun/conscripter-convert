@@ -147,8 +147,8 @@ settle:
   Muramasa (both builds) and Django change: sounds and waits move into
   the page where they stand; line ends `/` (Muramasa 102, Django 7),
   `` `…`/ `` (English 43); `setwindow2` (Muramasa 11, English 126).
-- Open (2026-10-16): mb03_022's bar at the port's 620×220 is done on
-  branch `muramasa-en/bar-size` (pushed, no PR yet). The English-side
+- Open (2026-10-16): mb03_022's bar at the port's 620×220 is in
+  PR #247. The English-side
   `Metrics::left_out` entries (the 444 story `CreateText` left out on
   purpose, menu built-ins the English screens replace) are not yet listed.
 - Decided: a click on an empty slot at the title doesn't save (the
