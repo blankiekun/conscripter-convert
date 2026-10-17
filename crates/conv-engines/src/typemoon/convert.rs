@@ -402,6 +402,12 @@ struct Lowering<'g, 'a> {
     choices: usize,
     /// The pictures drawn from `pic/en/` (the fan patch's own).
     own: &'g HashSet<String>,
+    /// The looping motion each shown layer runs (`FUN_001999a0`).
+    looping: Vec<Option<usize>>,
+    /// The looping `spmotion`s running: the layer whose motion it is, and
+    /// the IR layers it runs on with the layer each shows (its own, its
+    /// children's).
+    loop_runs: Vec<(usize, Vec<(usize, usize)>)>,
 }
 
 impl Lowering<'_, '_> {
@@ -804,12 +810,19 @@ impl Lowering<'_, '_> {
             a.get(i).copied().unwrap_or("").trim()
         };
         let Some(n) = number(arg(0)).filter(|n| (0..LAYERS as i32).contains(n)).map(|n| n as usize) else { return false };
+        // src: exe 0x160840: the layer's motion stops (the shown one at once, unless argument 18
+        // copies another's settings: then at the `_FADS`, which shows the copy's).
+        let from = number(arg(18)).filter(|&s| (0..LAYERS as i32).contains(&s) && s as usize != n).map(|s| s as usize);
+        if arg(1).is_empty() || from.is_none() {
+            self.stop_loop(n, &[]);
+        } else {
+            self.looping[n] = None;
+        }
         if arg(1).is_empty() {
             self.staged[n] = None;
             return true;
         }
         // shortcut: a copy from a layer with no picture copies nothing (the exe copies its blank settings).
-        let from = number(arg(18)).filter(|&s| (0..LAYERS as i32).contains(&s) && s as usize != n).map(|s| s as usize);
         let copy = from.and_then(|s| self.staged[s].clone());
         let old = copy.clone().or_else(|| self.staged[n].clone());
         let base = arg(1).to_lowercase();
@@ -842,6 +855,10 @@ impl Lowering<'_, '_> {
         let (stretch, stretch_off, effect) = copy.as_ref().map_or(((1.0, 1.0), false, None), |c| (c.stretch, c.stretch_off, c.effect));
         self.staged[n] = Some(Layer { base, expression, x, y, zoom: zoom / 1000.0, stretch, stretch_off, alpha: alpha.clamp(0.0, 255.0) as u32, fade: None, motion: None, parent, angle, shader: 255, effect, clip });
         if let Some(s) = from.filter(|_| copy.is_some()) {
+            // A looping motion goes on in the copy (here from its start).
+            if let Some(l) = self.staged[n].as_mut() {
+                l.motion = self.looping[s];
+            }
             self.priority[n] = self.priority[s];
             for l in self.staged.iter_mut().flatten().filter(|l| l.parent == Some(s)) {
                 l.parent = Some(n);
@@ -890,7 +907,31 @@ impl Lowering<'_, '_> {
         for l in self.staged.iter_mut().chain(self.shown.iter_mut()).flatten() {
             (l.fade, l.motion) = (None, None);
         }
-        let changed: Vec<usize> = (0..LAYERS).filter(|&s| want[s] != self.slots[s] || fades[s].is_some() || motions[s].is_some()).collect();
+        let mut changed: Vec<usize> = (0..LAYERS).filter(|&s| want[s] != self.slots[s] || fades[s].is_some() || motions[s].is_some()).collect();
+        // A loop goes on while its layer and children keep their IR layers, unchanged; else it
+        // stops, and starts again from the layer's new IR layer while the layer still runs it.
+        // shortcut: started again from its start, not where it was.
+        for (i, runs) in std::mem::take(&mut self.loop_runs) {
+            let now: Vec<(usize, usize)> = (0..LAYERS).filter_map(|c| self.slot_layer[c].filter(|&j| j == i || self.descends(j, i)).map(|j| (c, j))).collect();
+            let mut was = runs.clone();
+            was.sort_unstable();
+            if self.looping[i].is_some() && was == now && !runs.iter().any(|(c, _)| changed.contains(c)) {
+                self.loop_runs.push((i, runs));
+                continue;
+            }
+            for (c, _) in runs {
+                self.ops.push(Op::SpriteMotion { layer: c as u32, keys: vec![], looped: false });
+            }
+            if let (Some(m), Some(c)) = (self.looping[i].take(), self.slot_layer.iter().position(|&l| l == Some(i)))
+                && motions[c].is_none()
+            {
+                motions[c] = Some(m);
+                if !changed.contains(&c) {
+                    changed.push(c);
+                    changed.sort_unstable();
+                }
+            }
+        }
         let fade_ms = if kind == 1 { 0 } else { ms.max(0) as u32 }; // src: exe script_command (type 1 returns at once)
         if changed.is_empty() && fade_ms == 0 {
             return;
@@ -930,8 +971,17 @@ impl Lowering<'_, '_> {
     /// units, alpha, the `_STZ4` zoom in ‰); a field a key leaves out
     /// keeps the one before. The layer stays at the last key's.
     fn stma(&mut self, n: usize, m: i32) -> bool {
-        if m <= 0 || m as usize > self.g.motions.len() {
-            return m == 0;
+        if m <= 0 {
+            // src: exe 0x199620: motion 0 on both copies; the layer stays as the motion left it.
+            // shortcut: a motion that doesn't loop runs on to its end (it has mostly ended by then).
+            self.stop_loop(n, &[]);
+            if let Some(l) = self.staged[n].as_mut() {
+                l.motion = None;
+            }
+            return true;
+        }
+        if m as usize > self.g.motions.len() {
+            return false;
         }
         match self.slot_layer.iter().position(|&l| l == Some(n)) {
             Some(slot) if self.shown[n].is_some() => self.run_motion(slot, m as usize),
@@ -950,7 +1000,7 @@ impl Lowering<'_, '_> {
     // Each key is reached along the easing (0x04) of the last key before it that sets one (`FUN_00197710`).
     // shortcut: the exe eases each field from the key that sets it to the next that does; a field another key
     // passes through (-32766) is eased per key here. Curve (0x06 = 1), priority (0x3C), expression (0x32, 0x34) and
-    // the other fields are not followed, nor a motion's loop (`FUN_001999a0`); once. Mode 2 holds: a key 1 ms early.
+    // the other fields are not followed. Mode 2 holds: a key 1 ms early. A loop (`FUN_001999a0`) runs until stopped.
     fn run_motion(&mut self, slot: usize, m: usize) {
         let Some(i) = self.slot_layer[slot] else { return };
         let (Some(start), Some(shown)) = (self.slots[slot].clone(), self.shown[i].clone()) else { return };
@@ -1007,8 +1057,19 @@ impl Lowering<'_, '_> {
             moves.push((c, child, keys));
         }
         self.shown[i] = Some(shown);
+        // A motion replaces the layer's loop: stopped where the new one doesn't run.
+        let ran: Vec<usize> = moves.iter().map(|m| m.0).collect();
+        self.stop_loop(i, &ran);
+        let loop_from = motion.loop_from;
+        let mut runs = Vec::new();
         for (c, start, keys) in moves {
-            self.emit_motion(c, &start, &keys);
+            if self.emit_motion(c, &start, &keys, loop_from) {
+                runs.push((c, self.slot_layer[c].unwrap_or(i)));
+            }
+        }
+        if loop_from != 0 {
+            self.looping[i] = Some(m);
+            self.loop_runs.push((i, runs));
         }
         // shortcut: the layer's state jumps to the motion's end; a picture drawn again mid-motion starts there.
         let end = |l: &mut Layer| (l.x, l.y, l.alpha, l.stretch, l.angle) = (at.x, at.y, at.alpha, at.stretch, at.angle);
@@ -1019,14 +1080,16 @@ impl Lowering<'_, '_> {
 
     /// An `spmotion` on IR layer `slot` from `start` (as it is drawn)
     /// through each key's state.
-    fn emit_motion(&mut self, slot: usize, start: &Layer, states: &[(u32, Curve, Layer)]) {
-        let Ok((_, (x0, y0), z0)) = self.look(start) else { return };
+    /// `loop_from` as `Motion`'s: from it on the motion starts again after
+    /// its last key. Whether it was written.
+    fn emit_motion(&mut self, slot: usize, start: &Layer, states: &[(u32, Curve, Layer)], loop_from: u32) -> bool {
+        let Ok((_, (x0, y0), z0)) = self.look(start) else { return false };
         // Under 10 % the zoom placed is far from the exact one (1‰ → 1 %, not 0.05): from what was placed.
         let base = |z: f32| if z.abs() < 10.0 { percent(z) as f32 } else { z };
         let z0 = (base(z0.0), base(z0.1));
         let mut keys = Vec::new();
         for (ms, curve, at) in states {
-            let Ok((_, (x, y), z)) = self.look(at) else { return };
+            let Ok((_, (x, y), z)) = self.look(at) else { return false };
             // spmotion's zoom multiplies the place's (spzoom), about its centre.
             let rel = |z: f32, z0: f32| if z0 == 0.0 { 100 } else { (100.0 * z.abs() / z0.abs()).round() as u32 };
             keys.push(MotionKey {
@@ -1042,17 +1105,46 @@ impl Lowering<'_, '_> {
             });
         }
         if keys.is_empty() {
-            return;
+            return false;
         }
         // shortcut: spmotion takes 64 keys; past that the middle ones go (7 calls), the last stays.
         if keys.len() > 64 {
             keys.drain(63..keys.len() - 1);
         }
+        // src: exe 0x197b80: past its length the time goes back to loop_from (1, or one at or
+        // past the length: the start) and on to the end again.
+        // shortcut: from the key nearest loop_from (16 of the 222 loops from a time between keys).
+        let last = keys.last().map_or(0, |k| k.ms);
+        let end = match loop_from {
+            0 => MotionEnd::Keep,
+            1 => MotionEnd::Loop,
+            t if t >= last => MotionEnd::Loop,
+            t => match keys.iter().enumerate().min_by_key(|(_, k)| k.ms.abs_diff(t)).map_or(0, |(j, _)| j) {
+                0 => MotionEnd::Loop,
+                j if j + 1 >= keys.len() => MotionEnd::Loop,
+                j => MotionEnd::LoopFrom(j),
+            },
+        };
         // Opaque, the keys giving the alpha (they multiply it).
         if start.alpha < 255 {
             self.ops.push(Op::SpriteOpacity { layer: Some(slot as u32), opacity: 256 });
         }
-        self.ops.push(Op::SpriteMotion2 { layer: slot as u32, keys, end: MotionEnd::Keep });
+        self.ops.push(Op::SpriteMotion2 { layer: slot as u32, keys, end });
+        true
+    }
+
+    /// Stops the loop layer `i`'s motion runs (`_STMA(i, 0)`, `_STCH`, a
+    /// new motion), but on the IR layers in `keep`. The exe leaves the
+    /// layer where the motion has it.
+    // shortcut: `spmotion n` puts the sprite back at its place (a loop's start, mostly where it ends).
+    fn stop_loop(&mut self, i: usize, keep: &[usize]) {
+        self.looping[i] = None;
+        let Some(at) = self.loop_runs.iter().position(|r| r.0 == i) else { return };
+        for (slot, _) in self.loop_runs.remove(at).1 {
+            if !keep.contains(&slot) {
+                self.ops.push(Op::SpriteMotion { layer: slot as u32, keys: vec![], looped: false });
+            }
+        }
     }
 
     /// Whether layer `j` is placed in layer `i`, or in one placed in it.
@@ -1311,6 +1403,8 @@ pub(super) fn compile_copy(g: &Game, prefix: &str, vars: HashMap<String, Var>, c
         choice_mask,
         choices: 0,
         own,
+        looping: vec![None; LAYERS],
+        loop_runs: Vec::new(),
     };
     let mut starts = Vec::new();
     for (name, commands) in &g.scripts {
@@ -1439,7 +1533,7 @@ mod tests {
             k
         };
         // y 136 -> 146 (10 script units = 26.5 px), zoom 1000 -> 2000 ‰, alpha 255 -> 0.
-        let motion = Motion { mask: u64::MAX, length_ms: 500, keys: vec![key(0, &[(0x0A, 136), (0x0C, 255)]), key(500, &[(0x0A, 146), (0x0C, 0), (0x18, 2000), (0x1A, 2000)])] };
+        let motion = Motion { mask: u64::MAX, length_ms: 500, keys: vec![key(0, &[(0x0A, 136), (0x0C, 255)]), key(500, &[(0x0A, 146), (0x0C, 0), (0x18, 2000), (0x1A, 2000)])], loop_from: 0 };
         let src = "_STCH(1,img1,240,136);_FADS(1,0,0);_STMA(1,1);";
         let g = Game {
             scripts: vec![("S".into(), script::parse(src).into_iter().map(Result::unwrap).collect())],
@@ -1476,7 +1570,7 @@ mod tests {
         let mut turned = key(1000, &[(0x08, 260), (0x0A, 200)]);
         turned.set_turn(9000);
         // Key 0's easing 3 (quad out) to key 1; the hold and the jump straight.
-        let motion = Motion { mask: Motion::X | Motion::TURN, length_ms: 1000, keys: vec![key(0, &[(0x04, 3), (0x08, 240)]), key(500, &[(0x06, 2), (0x08, 250)]), turned] };
+        let motion = Motion { mask: Motion::X | Motion::TURN, length_ms: 1000, keys: vec![key(0, &[(0x04, 3), (0x08, 240)]), key(500, &[(0x06, 2), (0x08, 250)]), turned], loop_from: 0 };
         let src = "_STCH(1,img1,240,136);_FADS(1,0,0);_STMA(1,1);";
         let g = Game {
             scripts: vec![("S".into(), script::parse(src).into_iter().map(Result::unwrap).collect())],
@@ -1494,6 +1588,52 @@ mod tests {
         // x in px: 10 script units = 10 · 1280/480.
         assert_eq!(keys.iter().map(|k| (k.ms, k.x, k.y, k.angle)).collect::<Vec<_>>(), [(0, 0, 0, 0), (500, 27, 0, 0), (999, 27, 0, 0), (1000, 53, 0, -90)]);
         assert_eq!(keys.iter().map(|k| k.ease).collect::<Vec<_>>(), [None, Some((2, 2)), None, None]);
+    }
+
+    #[test]
+    fn loops_run_until_stopped() {
+        use crate::typemoon::exe::{Key, Motion};
+        let key = |ms: u32, y: i16| {
+            let mut fields = [Key::UNSET; 30];
+            fields[3] = y;
+            let mut k = Key { time_ms: ms, fields };
+            k.set_turn(Key::TURN_UNSET);
+            k
+        };
+        let keys = vec![key(0, 136), key(500, 146), key(1000, 140), key(1500, 146)];
+        let g = |src: &'static str, loop_from| Game {
+            scripts: vec![("S".into(), script::parse(src).into_iter().map(Result::unwrap).collect())],
+            scenes: vec![],
+            lines: vec![],
+            pictures: [picture("img1", 1280.0, 724.0), picture("img2", 1280.0, 724.0)].into(),
+            textures: HashMap::new(),
+            sounds: vec![],
+            waves: HashMap::new(),
+            pic_ext: "webp",
+            motions: vec![Motion { mask: u64::MAX, length_ms: 1500, keys: keys.clone(), loop_from }],
+        };
+        let ends = |ops: &[Op]| ops.iter().filter_map(|o| match o {
+            Op::SpriteMotion2 { end, .. } => Some(Some(*end)),
+            Op::SpriteMotion { keys, .. } if keys.is_empty() => Some(None),
+            _ => None,
+        }).collect::<Vec<_>>();
+        let src = "_STCH(1,img1,240,136);_FADS(1,0,0);_STMA(1,1);_STMA(1,0);";
+        assert_eq!(ends(&compile(&g(src, 1)).ops), [Some(MotionEnd::Loop), None]);
+        // from the key at 500 ms; a motion that doesn't loop isn't stopped
+        assert_eq!(ends(&compile(&g(src, 500)).ops), [Some(MotionEnd::LoopFrom(1)), None]);
+        assert_eq!(ends(&compile(&g(src, 0)).ops), [Some(MotionEnd::Keep)]);
+        // a new picture stops it; a fade of another layer leaves it running
+        let src = "_STCH(1,img1,240,136);_FADS(1,0,0);_STMA(1,1);_STCH(2,img2,240,136);_FADS(1,0,0);_STCH(1,img2,240,136);_FADS(1,0,0);";
+        assert_eq!(ends(&compile(&g(src, 1)).ops), [Some(MotionEnd::Loop), None]);
+        // a layer drawn below it moves it to another IR layer: started again there
+        let src = "_STCH(1,img1,240,136);_FADS(1,0,0);_STMA(1,1);_STCH(0,img2,240,136,1000,255,5);_FADS(1,0,0);";
+        let ops = compile(&g(src, 1)).ops;
+        let layers: Vec<_> = ops.iter().filter_map(|o| match o {
+            Op::SpriteMotion2 { layer, .. } => Some((*layer, true)),
+            Op::SpriteMotion { layer, .. } => Some((*layer, false)),
+            _ => None,
+        }).collect();
+        assert_eq!(layers, [(39, true), (39, false), (38, true)]);
     }
 
     #[test]
@@ -1518,7 +1658,7 @@ mod tests {
             k.set_turn(Key::TURN_UNSET);
             k
         };
-        let motion = Motion { mask: u64::MAX, length_ms: 500, keys: vec![key(0, &[]), key(500, &[(0x18, 1000)])] };
+        let motion = Motion { mask: u64::MAX, length_ms: 500, keys: vec![key(0, &[]), key(500, &[(0x18, 1000)])], loop_from: 0 };
         let src = "_STCH(1,img1,240,136);_STZ4(1,1,1000,1,1000,0,0,0);_FADS(1,0,0);_STMA(1,1);";
         let g = Game {
             scripts: vec![("S".into(), script::parse(src).into_iter().map(Result::unwrap).collect())],
@@ -1677,7 +1817,7 @@ mod tests {
             k
         };
         // The parent goes 60 script units right (160 px) and fades out.
-        let motion = Motion { mask: u64::MAX, length_ms: 500, keys: vec![key(0, &[(0x08, 240), (0x0C, 255)]), key(500, &[(0x08, 300), (0x0C, 0)])] };
+        let motion = Motion { mask: u64::MAX, length_ms: 500, keys: vec![key(0, &[(0x08, 240), (0x0C, 255)]), key(500, &[(0x08, 300), (0x0C, 0)])], loop_from: 0 };
         let src = "_STCH(1,img1,240,136,1000,255,10);_STCH(2,dot,300,136,1000,128,20,,,,,1);_FADS(1,0,0);_STMA(1,1);";
         let g = Game {
             scripts: vec![("S".into(), script::parse(src).into_iter().map(Result::unwrap).collect())],

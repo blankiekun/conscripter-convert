@@ -279,7 +279,8 @@ fn exe_tables(main: &Path, romfs: Option<&Path>, show: &[usize]) -> Result<()> {
     );
     for &m in show {
         let motion = motions.get(m.wrapping_sub(1)).with_context(|| format!("no motion {m}"))?;
-        println!("motion {m}: {} ms", motion.length_ms);
+        let looped = match motion.loop_from { 0 => String::new(), 1 => ", loops".into(), ms => format!(", loops from {ms} ms") };
+        println!("motion {m}: {} ms{looped}", motion.length_ms);
         for k in &motion.keys {
             let fields: Vec<String> = k.fields.iter().enumerate().filter(|(_, v)| **v != exe::Key::UNSET).map(|(i, v)| format!("{:#04x}={v}", 4 + 2 * i)).collect();
             println!("  {:>6} ms  {}", k.time_ms, fields.join(" "));

@@ -19,6 +19,9 @@ const MOTION_MASKS: usize = 0x46_AB38;
 const MOTION_KEYS: usize = 0x75_CE18;
 const MOTIONS: usize = 24_192;
 const MOTION_KEY_COUNT: usize = 71_905;
+/// `FUN_001999a0(m)`: where motion m loops from (a switch the compiler
+/// made into jump tables, so it is run, not read: [`run_switch`]).
+const MOTION_LOOP: usize = 0x19_99A0;
 const SCENES: usize = 0x45_0D58;
 const SCENE_COUNT: usize = 551;
 
@@ -109,6 +112,10 @@ pub struct Motion {
     /// The fields it drives (`FUN_00197b80` applies a field only under
     /// its bits: `Motion::X` …).
     pub mask: u64,
+    /// Where it loops from (`FUN_001999a0`; `FUN_00197b80` wraps the time
+    /// past the length): 0 it doesn't, 1 the start, else that many ms (one
+    /// at or past the length: the start).
+    pub loop_from: u32,
 }
 
 impl Motion {
@@ -228,7 +235,8 @@ impl Exe {
                     })
                     .collect::<Result<_, FormatError>>()?;
                 let mask = u64::from_le_bytes(self.bytes(MOTION_MASKS + 8 * (m + 1), 8)?.try_into().unwrap());
-                Ok(Motion { length_ms: self.u32(MOTION_LENGTH + 4 * m)?, keys, mask }.through_filled())
+                let loop_from = run_switch(&self.image, MOTION_LOOP - BASE, m as u64 + 1)?;
+                Ok(Motion { length_ms: self.u32(MOTION_LENGTH + 4 * m)?, keys, mask, loop_from }.through_filled())
             })
             .collect()
     }
@@ -241,9 +249,131 @@ impl Exe {
     }
 }
 
+/// Runs the AArch64 function at `pc` (an offset in `image`) with `x0` =
+/// `arg` and returns `w0`: only what a compiled switch uses (moves,
+/// compares and branches, adds, `adr`/`adrp`, table loads, `br`, `ret`);
+/// anything else is an error.
+fn run_switch(image: &[u8], mut pc: usize, arg: u64) -> Result<u32, FormatError> {
+    let bad = |what: &str, pc: usize| FormatError::Bad(format!("motion loop function: {what} at {:#x}", pc + BASE));
+    let mut x = [0u64; 32];
+    x[0] = arg;
+    let mut nzcv = (false, false, false, false);
+    let sext = |v: u64, bits: u32| ((v << (64 - bits)) as i64 >> (64 - bits)) as u64;
+    for _ in 0..1000 {
+        let i = Reader(image).u32(pc).map_err(|_| bad("outside the image", pc))?;
+        let (rd, rn, rm) = ((i & 31) as usize, ((i >> 5) & 31) as usize, ((i >> 16) & 31) as usize);
+        let wide = i >> 31 == 1;
+        let fit = |v: u64| if wide { v } else { v & 0xFFFF_FFFF };
+        let r = |n: usize| if n == 31 { 0 } else { fit(x[n]) };
+        let mut next = pc + 4;
+        // what goes into rd, if anything
+        let out = match i {
+            _ if i == 0xD65F_03C0 => return Ok(x[0] as u32), // ret
+            _ if i & 0xFFFF_FC1F == 0xD61F_0000 => {
+                next = x[rn] as usize - BASE; // br
+                None
+            }
+            _ if i & 0xFC00_0000 == 0x1400_0000 => {
+                next = (pc as u64).wrapping_add(sext(u64::from(i & 0x3FF_FFFF) << 2, 28)) as usize; // b
+                None
+            }
+            _ if i & 0xFF00_0010 == 0x5400_0000 => {
+                let (n, z, c, v) = nzcv;
+                let taken = match i & 15 {
+                    0 => z,
+                    1 => !z,
+                    8 => c && !z,
+                    9 => !(c && !z),
+                    10 => n == v,
+                    11 => n != v,
+                    12 => !z && n == v,
+                    13 => z || n != v,
+                    _ => return Err(bad("condition", pc)),
+                };
+                if taken {
+                    next = (pc as u64).wrapping_add(sext(u64::from((i >> 5) & 0x7_FFFF) << 2, 21)) as usize;
+                }
+                None
+            }
+            _ if i & 0x7F80_0000 == 0x5280_0000 => Some(u64::from((i >> 5) & 0xFFFF) << (16 * ((i >> 21) & 3))), // movz
+            _ if i & 0x7F80_0000 == 0x1280_0000 => Some(!(u64::from((i >> 5) & 0xFFFF) << (16 * ((i >> 21) & 3)))), // movn
+            _ if i & 0x7F80_0000 == 0x7280_0000 => {
+                let sh = 16 * ((i >> 21) & 3);
+                Some((r(rd) & !(0xFFFF << sh)) | (u64::from((i >> 5) & 0xFFFF) << sh)) // movk
+            }
+            _ if i & 0x7F20_FC00 == 0x2A00_0000 && rn == 31 => Some(r(rm)), // mov (orr)
+            _ if i & 0xFFFF_FC00 == 0x1300_3C00 => Some(sext(r(rn) & 0xFFFF, 16)), // sxth
+            _ if i & 0x9F00_0000 == 0x9000_0000 => {
+                let imm = sext(u64::from(((i >> 5) & 0x7_FFFF) << 2 | ((i >> 29) & 3)), 21) << 12;
+                Some(((pc + BASE) as u64 & !0xFFF).wrapping_add(imm)) // adrp
+            }
+            _ if i & 0x9F00_0000 == 0x1000_0000 => Some(((pc + BASE) as u64).wrapping_add(sext(u64::from(((i >> 5) & 0x7_FFFF) << 2 | ((i >> 29) & 3)), 21))), // adr
+            _ if i & 0x7F00_0000 == 0x1100_0000 || i & 0x7F00_0000 == 0x7100_0000 || i & 0x7F00_0000 == 0x5100_0000 || i & 0x7F20_0000 == 0x0B00_0000 || i & 0x7F20_0000 == 0x6B00_0000 => {
+                // add/sub (immediate, or a register shifted left), maybe setting the flags
+                let b = if i & 0x1F00_0000 == 0x1100_0000 { u64::from((i >> 10) & 0xFFF) << (12 * ((i >> 22) & 1)) } else if (i >> 22) & 3 == 0 { r(rm) << ((i >> 10) & 63) } else { return Err(bad("shift", pc)) };
+                let a = if i & 0x1F00_0000 == 0x1100_0000 && rn == 31 { return Err(bad("sp", pc)) } else { r(rn) };
+                let sub = (i >> 30) & 1 == 1;
+                let v = fit(if sub { a.wrapping_sub(b) } else { a.wrapping_add(b) });
+                if (i >> 29) & 1 == 1 {
+                    let bits = if wide { 64 } else { 32 };
+                    let (sa, sb, sv) = (sext(a, bits) as i64, sext(fit(b), bits) as i64, sext(v, bits) as i64);
+                    let carry = if sub { a >= fit(b) } else { v < a };
+                    let over = if sub { (sa < 0) != (sb < 0) && (sv < 0) != (sa < 0) } else { (sa < 0) == (sb < 0) && (sv < 0) != (sa < 0) };
+                    nzcv = (sv < 0, v == 0, carry, over);
+                }
+                Some(v)
+            }
+            _ if i & 0xBFE0_0C00 == 0x3860_0800 || i & 0xFFE0_0C00 == 0x7860_0800 => {
+                // ldrb / ldrh [xn, xm{, lsl}]
+                let half = i >> 30 == 1;
+                let at = (x[rn] + (r(rm) << if half && (i >> 12) & 1 == 1 { 1 } else { 0 })) as usize - BASE;
+                let v = if half { u64::from(Reader(image).u16(at).map_err(|_| bad("table", pc))?) } else { u64::from(*image.get(at).ok_or_else(|| bad("table", pc))?) };
+                Some(v)
+            }
+            _ => return Err(bad(&format!("instruction {i:#010x}"), pc)),
+        };
+        if let Some(v) = out.filter(|_| rd != 31) {
+            x[rd] = fit(v);
+        }
+        pc = next;
+    }
+    Err(bad("no return", pc))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn runs_a_compiled_switch() {
+        // m > 5: a jump table of bytes at 0x100048 (m 6: 100 ms, m 7: from
+        // the start, else none); m <= 5: none.
+        let code: [u32; 13] = [
+            0x2A0003E8, // mov w8, w0
+            0x2A1F03E0, // mov w0, wzr
+            0x7100151F, // cmp w8, #5
+            0x5400004D, // b.le +8 (ret)
+            0x14000002, // b +8
+            0xD65F03C0, // ret
+            0x51001909, // sub w9, w8, #6
+            0x90000008, // adrp x8, 0x100000
+            0x91012108, // add x8, x8, #0x48
+            0x3869690B, // ldrb w11, [x8, x9]
+            0x1000006A, // adr x10, +12
+            0x8B0B094A, // add x10, x10, x11, lsl #2
+            0xD61F0140, // br x10
+        ];
+        let mut image: Vec<u8> = code.iter().flat_map(|i| i.to_le_bytes()).collect();
+        // the cases, from 0x100034 on: 0 -> w0 = 100, 2 -> w0 = 1, 4 -> ret (0)
+        for i in [0x52800C80u32, 0xD65F03C0, 0x52800020, 0xD65F03C0, 0xD65F03C0] {
+            image.extend(i.to_le_bytes());
+        }
+        image.resize(0x48, 0);
+        image.extend([0, 2, 4]);
+        let run = |m| run_switch(&image, 0, m).unwrap();
+        assert_eq!([3, 5, 6, 7, 8].map(run), [0, 0, 100, 1, 0]);
+        assert!(run_switch(&image, 0x48, 0).is_err());
+    }
 
     #[test]
     fn key_fields_unset_and_set() {
@@ -261,7 +391,7 @@ mod tests {
             fields[2] = x;
             Key { time_ms, fields }
         };
-        let m = Motion { mask: 0, length_ms: 1700, keys: vec![key(0, -205), key(1000, 885), key(1400, Key::THROUGH), key(1700, 175), key(1800, Key::THROUGH)] }.through_filled();
+        let m = Motion { mask: 0, length_ms: 1700, keys: vec![key(0, -205), key(1000, 885), key(1400, Key::THROUGH), key(1700, 175), key(1800, Key::THROUGH)], loop_from: 0 }.through_filled();
         let xs: Vec<_> = m.keys.iter().map(Key::x).collect();
         // 885 + (175 − 885) × 400 / 700
         assert_eq!(xs, [Some(-205), Some(885), Some(479), Some(175), None]);
@@ -274,7 +404,7 @@ mod tests {
             k.set_turn(turn);
             k
         };
-        let m = Motion { mask: Motion::TURN, length_ms: 400, keys: vec![key(0, 0), key(100, Key::TURN_THROUGH), key(200, 36000), key(400, Key::TURN_UNSET)] }.through_filled();
+        let m = Motion { mask: Motion::TURN, length_ms: 400, keys: vec![key(0, 0), key(100, Key::TURN_THROUGH), key(200, 36000), key(400, Key::TURN_UNSET)], loop_from: 0 }.through_filled();
         assert_eq!(m.keys.iter().map(Key::turn).collect::<Vec<_>>(), [Some(0), Some(18000), Some(36000), None]);
     }
 }
