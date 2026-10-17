@@ -5293,6 +5293,18 @@ scene a.nss
     }
 
     #[test]
+    fn a_vertex_outside_the_picture_leaves_that_axis_as_it_was() {
+        // The exe (FUN_004666c0) skips px outside 0..size: y 704 on a
+        // 600 px picture keeps `bottom`, as in dja004.
+        let zoomed = |vertex: &str| {
+            let story = format!("scene a.nss\n{{\n\tCreateColor(\"P\", 100, 0, 0, 800, 600, BLACK);\n\tSetVertex(\"P\", center, bottom);\n\tSetVertex(\"P\", {vertex});\n\tZoom(\"P\", 0, 500, 500, null, true);\n\tWait(100);\n}}\n");
+            format!("{:?}", compile(&story, LIBRARY).ops)
+        };
+        assert_eq!(zoomed("center, 704"), zoomed("center, bottom"));
+        assert_ne!(zoomed("center, 704"), zoomed("center, 300"));
+    }
+
+    #[test]
     fn a_wildcard_reaches_a_pictures_children_but_not_a_windows() {
         // 装甲悪鬼村正.exe under wine: Fade("@P*") fades P's child too,
         // Fade("@W*") leaves a window's child; Delete of a window takes its
