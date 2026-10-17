@@ -29,6 +29,15 @@ const LAYERS: usize = 40; // src: exe 0x162140 (`_STCC` with a negative layer cl
 /// index), one each in name order; the `G` flags globals %800 + n.
 // ours
 const FIRST_LOCAL: u16 = 186;
+/// `_RDST(n)` sets the exe's scene-read flag n (`FUN_00192630`, n below
+/// 0x240), kept as global %1200 + n.
+// ours: index 400 from the global border, in alloc.rs's free %1111-%1999
+const READ_FLAGS: u16 = 400;
+
+/// The global that holds scene-read flag `n` (`_RDST(n)`).
+pub fn read_flag(n: u16) -> Var {
+    Var { global: true, index: READ_FLAGS + n }
+}
 
 /// What the lowering reads from the game.
 pub struct Game<'a> {
@@ -382,6 +391,10 @@ impl Lowering<'_, '_> {
                 }
                 let (Some(var), Some(value)) = (self.var(arg(0)), self.operand(value)) else { return false };
                 self.ops.push(Op::Arith { var, op, value });
+            }
+            "_RDST" => {
+                let Some(n) = number(arg(0)).filter(|n| (0..0x240).contains(n)) else { return false };
+                self.ops.push(Op::Arith { var: read_flag(n as u16), op: ArithOp::Set, value: Operand::Const(1) });
             }
             "_END_" => self.ops.push(Op::ReturnToTitle),
             "_GOTO" => self.ops.push(Op::Jump(label(script, Some(arg(0))))),

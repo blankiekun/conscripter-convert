@@ -604,6 +604,7 @@ not mapped yet. `G…` are presumably system data and `F…` save data
 | `F063` | chose 「因果応報」 on day 9 | `09_01_CIEL09_3_1` | `10_01_CIEL10_8`, `12_01_CIEL12_1`, day 13 |
 | `F069` | day 12–13 variant (from `F063`) | `12_01_CIEL12_1_A`/`_B`, the `*_FLAG*` entries | day 12–13 scenes, the glasses choice |
 | `G008` | scene number for the chapter select | `JUMP*`, `QACALL` | `JUMP*` |
+| `_RDST(n)` flags (global %1200 + n) | scene n read (`FUN_00192630`, n < 0x240); 560, 383, 562 choose the title's movie | each scene's start | the title |
 
 ## Testing
 
@@ -624,7 +625,7 @@ Nothing yet.
 | Scripts | 🔶 read: every command of both languages splits (one malformed in the original) and its text and voices join; the top commands' arguments read from the exe, the rest not yet |
 | Media folder (`typemoon media`) | ✅ `allpac`'s pictures at full size (PNG, or WebP with the shared `--webp` flags), the movies as they are, the sound (WAV wave sounds, or Opus/Vorbis with the shared `--audio-*` flags), loops kept in every mode |
 | Script conversion (`typemoon convert`) | 🔶 the flow (labels, `_JUMP`, `_IF__`, flags), text (pages, ruby, voices), pictures (`_STCH`/`_STCC`/`_FADS`: record size and place, fades and rule wipes), sound effects and music; plays from the start through `00_00` into the first arc headless. Layers drawn in priority order (`_STCP`, `_STCH` argument 6), changed keeping their settings (`_SCH2`) or copying another layer's (argument 18), zoomed (`_STZ4`), faded (`_STGS`) and moved (`_STMA`, the exe's motions; easing, priority and expression keys not followed), children placed in their parent layers, orbiting with their turn and following their motions (`_STCH` argument 11), clipped to their panels (`_STCH` arguments 12–16), turned (`_STRT`), drawn with their shader as far as CONscripter's blends and filters go (`_STBR`) and drawn with their `_STEC` effect (levels, greyscale and colour layers; effect 1 a colour fill, CONscripter's `spfilter` 9 and 10). Choices (`_SELR`, `_SELD`, `_GOTS`; options under a flag offered by it, greyed ones shown greyed and not selectable (`seldisable`); the chapter-jump menus), `_GOTO` and the Switch's own branches (`_IFNX`/`_IFP4`). The text window hidden and faded (`_CLO2`, `_CLO3`/`_CLO4`/`_CLO5` with CONscripter's `windowfade`, the script going on; the next text fades it back in). Not yet: the other layer commands, screens |
-| Screens, extras | ❌ |
+| Screens, extras | 🔶 the title (see History, 2026-10-17); Load opens the built-in menu, Config and Gallery shown but not yet clickable; no save, settings or backlog screens yet |
 
 ### Next
 
@@ -634,7 +635,9 @@ Nothing yet.
    the user asks.
 2. The other picture archives in the media folder: `allpaccg` (the
    gallery's CGs, 2 GB), `allui` (71 MB).
-3. The title, menus and the registry/GUI entry.
+3. The menus: save/load, settings (the defaults in "Accuracy", the
+   日本語/English switch), backlog, the right-click menu; then Config and
+   Gallery on the title.
 4. Still open in the exe: `_FADS` type 1, `_STCH`'s panel frames
    (argument 17's colours, the corner pieces at 0x75BE00), and the motion keyframes' other fields.
 5. The metrics (`tests/snapshots/tsukihime.metrics.json`) count each
@@ -681,6 +684,30 @@ The biggest commands not converted, looked up in `script_command`
 
 ## History
 
+- 2026-10-17: **the title** (`typemoon/title.rs`), from the exe:
+  `FUN_0018d2e0` sets it up, `FUN_0018e200` runs it, `FUN_0018d5d0`
+  draws it, the parts from `allui`'s `TITLE_PARTS` (part ids 0x138–0x143
+  map to its textures by the tables at 0x75BFC8, one per movie). The
+  backdrop is one of four looping movies (table 0x50B890), chosen in
+  `FUN_0018d1c0` by the scene-read flags `_RDST` sets: `titlebg2` after
+  560 (Arcueid's ending), `titlebg3` after 383 too, `titlebg4` after 562
+  too (with music `_MPLY 72` in place of 2). The logo at (340, 36.27),
+  the copyright at (436, 507.73) and an added light pulsing over 4 s at
+  (360, 278.04) on a 960 × 544 stage; the menu on a 640 × 448 stage at
+  x 272, rows 23.23 apart from y 298.67 with Continue (shown only with a
+  save to resume), 312.36 without (table 0x452AF4). Sounds
+  (`FUN_001acef0`, table 0x4341A0): `WSD_MOON_SE00001` on a move,
+  `SE00002` on a choice, `SE00011` for New Game, which fades the music
+  over 1.5 s and the screen to white. The fade in: 1,389 ms (0.012 a
+  frame). Ours: the menu strip's cells cut 312 × 88 from (24, 22) so
+  the widget's hit box (table 0x75CBD8) centres on each label; New Game
+  and Load at rest, chosen and lit (the strip's three columns) as normal,
+  hover and pressed. Left out: the boot logo and caution screens, the
+  "PRESS ANY BUTTON" step, the logo's particles, its three bands and
+  the menu's rows fading in one after another, and the selection line
+  (`titlecursor`). Movies are no longer packed into `arc.nsa`
+  (CONscripter plays them from loose files only). The registry and GUI
+  list the game.
 - 2026-10-17: numbers with a `.` (`_STCH(19,img1729,…,242.25,…)`, 24
   `_STCH` and with them 12 `_STZ4` and 4 `_STRT` on their layers),
   **seen**: the expression reader (`FUN_00103160`) takes the digits

@@ -15,7 +15,8 @@ use super::{bfsar, bntx, exe, mrg, mzp, script};
 use crate::build::{Built, Opts, map};
 
 /// The output's asset folders (packed into `arc.nsa`).
-pub const OUTPUT_DIRS: [&str; 5] = ["pic", "movie", "stream", "se", "sys"];
+/// Not `movie`: CONscripter plays movies from loose files only.
+pub const OUTPUT_DIRS: [&str; 4] = ["pic", "stream", "se", "sys"];
 /// The text window's picture, written by the build.
 const WINDOW: &str = "sys/txtwindow.png";
 
@@ -83,6 +84,7 @@ pub fn build(romfs: &Path, main: &Path, opts: &Opts) -> Result<Built> {
         // 15 ms (+0x10); FUN_0013b2d0 shows 16.67 / ms characters a frame.
         // One speed here: the unread one.
         text_ms: Some(35),
+        title_screen: Some(super::title::title(romfs, opts.output, opts.dry_run)?),
         ..Default::default()
     };
     println!("{} scripts -> {}", game.scripts.len(), opts.output.join("0.txt").display());
