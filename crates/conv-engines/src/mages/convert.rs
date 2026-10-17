@@ -66,6 +66,19 @@ const PRIORITY_STEP: u32 = 20;
 const COVER_LAYER: u32 = 0;
 
 /// Frames (60 fps) to milliseconds.
+/// The characters CharacterOpen(BS) shows: Chara0-Chara9 in order, those
+/// with a `:Number`, until `:SpriteMax` of them (0 by default: none).
+/// src: exe 0x8102840a case 0x1b (record 0x8112963c); CharacterDelete,
+/// Move and Action (cases 0x1c, 0x1e, 0x20) read all ten, whatever
+/// `:SpriteMax` says.
+fn opened(t: &Block) -> Vec<&Block> {
+    let max = t.int("SpriteMax").unwrap_or(0).clamp(0, 10) as usize;
+    (0..10)
+        .filter_map(|n| t.children.iter().find(|c| c.name == format!("Chara{n}") && c.get("Number").is_some()))
+        .take(max)
+        .collect()
+}
+
 /// A character's key: `c<number>`, the eboot's number + `:Copy` × 1000
 /// (a second picture of one character, as the cut-ins in S03_02A).
 fn chara_key(c: &Block, number: i64) -> String {
@@ -779,13 +792,6 @@ impl Lowering<'_> {
             None if t.int(off) == Some(0) => 0,
             None => ms(18),
         };
-        // The eboot reads the first `:SpriteMax` of Chara0-Chara9.
-        if ty.starts_with("Character")
-            && let Some(max) = t.int("SpriteMax")
-            && (max as usize) < t.children.iter().filter(|c| c.name.starts_with("Chara")).count()
-        {
-            self.note(format!("{ty} :SpriteMax {max} below its [CharaN] blocks"));
-        }
         match ty {
             "Message" => {
                 let text = t.str("Message").unwrap_or("").to_string();
@@ -867,17 +873,15 @@ impl Lowering<'_> {
                     // The characters it doesn't name leave with the old
                     // scene (the scripts re-open or delete-all them after,
                     // and never delete them by name).
-                    let named: Vec<String> = t
-                        .children
-                        .iter()
-                        .filter(|c| c.name.starts_with("Chara"))
+                    let named: Vec<String> = opened(t)
+                        .into_iter()
                         .filter_map(|c| Some(chara_key(c, c.int("Number")?)))
                         .collect();
                     let mut gone: Vec<String> = self.shown.keys().filter(|k| k.starts_with('c') && !named.contains(k)).cloned().collect();
                     gone.sort();
                     self.hide_all(&gone, 0);
                 }
-                for c in t.children.iter().filter(|c| c.name.starts_with("Chara")) {
+                for c in opened(t) {
                     let Some(raw) = c.get("Number") else { continue };
                     let Some(number) = self.character_number(raw) else {
                         self.note(format!("{ty}: unknown character picture {raw:?}"));
@@ -2022,6 +2026,15 @@ fn ignored(task: &str, at: &str, b: &Block, notes: &mut BTreeMap<String, usize>)
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn character_open_shows_sprite_max_characters() {
+        let src = "[Task1]\n{\n:Tasktype \"CharacterOpen\"\n:SpriteMax 1\n[Chara2]\n{\n:Number 2,0,1,0,0\n}\n[Chara1]\n{\n:Number 1,0,1,0,0\n}\n}\n";
+        let t = &parse(src).unwrap()[0];
+        assert_eq!(opened(t).iter().map(|c| c.name.as_str()).collect::<Vec<_>>(), ["Chara1"]);
+        let none = &parse(&src.replace(":SpriteMax 1", ":SpriteMax 0")).unwrap()[0];
+        assert!(opened(none).is_empty());
+    }
 
     #[test]
     fn arguments_not_read_are_noted() {
