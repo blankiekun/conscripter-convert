@@ -665,6 +665,9 @@ python3 -I ../../engine/tools/cons_trace_check.py /tmp/t.jsonl --script 0.txt
 - To run your own script or engine over someone else's full build,
   set up a scratch folder with `research/tools/scratch.sh` (links only
   the read-only archives, font and movies) and run its `run.sh`.
+  `research/tools/scene_ab.py` builds on it: the same scene under two
+  engines or two scripts, picture by picture, and save with one engine,
+  load with another.
 - Always give `--save-dir`: a game that saves as it goes would otherwise
   write to the player's saves (never `out/saiima-flow`). The engine
   (CONscripter 0.19.0 and later) makes the folder if it doesn't exist.
