@@ -301,8 +301,15 @@ struct Lowering<'g, 'a> {
     /// A line ended with `@n`: the next one goes on after it, no click.
     held: Option<(String, Vec<Ruby>)>,
     se_channels: HashMap<i32, String>,
-    /// `_SELR`'s options so far: (index, text).
-    options: Vec<(i32, String)>,
+    /// `_SELR`'s options so far: (index, text, greyed, under an `_IF__`).
+    options: Vec<(i32, String, bool, bool)>,
+    /// The `_IF__`s whose label hasn't come yet in this script.
+    open_ifs: Vec<String>,
+    /// Bit i: option i, under an `_IF__`, is offered (`_SELR`'s run-time
+    /// part); the choice picks its option set by it and clears it.
+    choice_mask: Var,
+    /// Choices with options under an `_IF__` so far (their labels).
+    choices: usize,
 }
 
 impl Lowering<'_, '_> {
@@ -332,6 +339,7 @@ impl Lowering<'_, '_> {
         });
         match c.opcode() {
             "_ZZ" | "_ZY" => {
+                self.open_ifs.retain(|l| l != arg(0));
                 if !arg(0).is_empty() {
                     self.ops.push(Op::Label(label(script, Some(arg(0)))));
                 }
@@ -353,6 +361,7 @@ impl Lowering<'_, '_> {
                 };
                 let (Some(var), Some(value)) = (self.var(arg(0)), self.operand(arg(2))) else { return false };
                 // Runs on when it holds, else skips to the local label.
+                self.open_ifs.push(arg(3).to_string());
                 self.ops.push(Op::If { var, cmp, value, label: label(script, Some(arg(3))) });
             }
             "_WKST" | "_WKAD" => {
@@ -368,18 +377,33 @@ impl Lowering<'_, '_> {
             // The Switch's and the PS4's own lines: this is the Switch.
             "_IFNX" => {}
             "_IFP4" | "_IFSC" => self.ops.push(Op::Jump(label(script, Some(arg(1))))),
-            // `_SELR(index, $text[, 1])`: a choice's option (1: greyed, still
-            // offered here).
+            // `_SELR(index, text[, 1])` (`script_command` 0x177790, case "ELR"):
+            // adds a slot to the choice, in the order run, with the index
+            // `_GOTS` picks its label by; the text is a line (`$042569`) or
+            // written as it is (the chapter-jump menus' script names);
+            // 1: shown greyed, which the cursor skips (`FUN_00183e50`).
             "_SELR" => {
-                let Some(n) = arg(1).split_once('$').and_then(|(_, s)| s.get(..6)?.parse::<usize>().ok()) else { return false };
-                let Some(line) = self.g.lines.get(n) else { return false };
-                // An option is written once per branch of the `_IF__`s around it
-                // (shown or greyed): the converter keeps the first.
-                // shortcut: an option offered only under a flag is always offered.
+                let t = arg(1);
+                let text = match t.strip_prefix('$') {
+                    Some(n) => {
+                        let Some(line) = n.get(..6).and_then(|n| n.parse::<usize>().ok()).and_then(|n| self.g.lines.get(n)) else { return false };
+                        text(line).0
+                    }
+                    None if !t.is_empty() => t.to_string(),
+                    None => return false,
+                };
                 let i = number(arg(0)).unwrap_or(0);
-                if !self.options.iter().any(|o| o.0 == i) {
-                    self.options.push((i, text(line).0));
+                if !(0..16).contains(&i) {
+                    return false;
                 }
+                // dropped: a greyed option is left out (shown but not
+                // selectable; `Op::Choice` has no disabled option).
+                let grey = arg(2) == "1";
+                let cond = !self.open_ifs.is_empty();
+                if cond && !grey {
+                    self.ops.push(Op::Arith { var: self.choice_mask, op: ArithOp::BitOr, value: Operand::Const(1 << i) });
+                }
+                self.options.push((i, text, grey, cond));
             }
             // `_SELD`/`_SELA`/`_SELS(_D000, …)` show the choice; `_GOTS(_D000,
             // label, …)` goes to the label of the option picked.
@@ -388,14 +412,49 @@ impl Lowering<'_, '_> {
                 let options = std::mem::take(&mut self.options);
                 (1..a.len()).for_each(|i| mark(read, i));
                 let labels = &a[1..];
-                let choice: Vec<(String, String)> = options
-                    .into_iter()
-                    .filter_map(|(i, t)| Some((t, label(script, Some(labels.get(usize::try_from(i).ok()?)?.trim())))))
-                    .collect();
-                if choice.is_empty() {
-                    return false;
+                // Each index once, where it is first run; offered for sure
+                // when shown outside an `_IF__`, else by its mask bit.
+                let mut order: Vec<(i32, String, bool)> = Vec::new();
+                for (i, t, grey, cond) in options {
+                    let sure = !grey && !cond;
+                    match order.iter_mut().find(|o| o.0 == i) {
+                        Some(o) => o.2 |= sure,
+                        None if grey => {}
+                        None => order.push((i, t, sure)),
+                    }
                 }
-                self.ops.push(Op::Choice { options: choice, style: None });
+                let target = |i: i32| Some(label(script, Some(labels.get(usize::try_from(i).ok()?)?.trim())));
+                let pick = |mask: i32| -> Vec<(String, String)> {
+                    order.iter().filter(|o| o.2 || mask & (1 << o.0) != 0).filter_map(|o| Some((o.1.clone(), target(o.0)?))).collect()
+                };
+                let bits: Vec<i32> = order.iter().filter(|o| !o.2).map(|o| 1 << o.0).collect();
+                if bits.is_empty() {
+                    let choice = pick(0);
+                    if choice.is_empty() {
+                        return false;
+                    }
+                    self.ops.push(Op::Choice { options: choice, style: None });
+                    return true;
+                }
+                // One choice per set of the options under an `_IF__`.
+                self.choices += 1;
+                let masks: Vec<i32> = (0..1 << bits.len()).map(|m: i32| bits.iter().enumerate().filter(|(j, _)| m & (1 << j) != 0).map(|(_, b)| b).sum()).collect();
+                let leaf = |m: i32| label(script, Some(&format!("choice{}_{m}", self.choices)));
+                for &m in &masks[1..] {
+                    self.ops.push(Op::If { var: self.choice_mask, cmp: Compare::Eq, value: Operand::Const(m), label: leaf(m) });
+                }
+                for (k, &m) in masks.iter().enumerate() {
+                    if k > 0 {
+                        self.ops.push(Op::Label(leaf(m)));
+                    }
+                    self.ops.push(Op::Arith { var: self.choice_mask, op: ArithOp::Set, value: Operand::Const(0) });
+                    // shortcut: a set with no option offered (none in the
+                    // game) goes on to the next set's choice.
+                    let choice = pick(m);
+                    if !choice.is_empty() {
+                        self.ops.push(Op::Choice { options: choice, style: None });
+                    }
+                }
             }
             // `script_command` (0x177790): `_CLO2` hides the text window at once
             // (alpha 0), `_CLO3` lets `FUN_00138d40` fade it out in 4 frames,
@@ -939,12 +998,15 @@ fn variables(g: &Game) -> HashMap<String, Var> {
 
 pub fn compile(g: &Game) -> Compiled {
     let scene_labels = g.scenes.iter().zip(&g.scripts).map(|(&n, (name, _))| (n, label(name, None))).collect();
+    let vars = variables(g);
+    // ours: the local after the game's flags
+    let choice_mask = Var { global: false, index: vars.values().filter(|v| !v.global).map(|v| v.index + 1).max().unwrap_or(FIRST_LOCAL) };
     let mut l = Lowering {
         g,
         ops: Vec::new(),
         notes: BTreeMap::new(),
         metrics: Metrics::default(),
-        vars: variables(g),
+        vars,
         scene_labels,
         shown: vec![None; LAYERS],
         staged: vec![None; LAYERS],
@@ -961,9 +1023,13 @@ pub fn compile(g: &Game) -> Compiled {
         held: None,
         se_channels: HashMap::new(),
         options: Vec::new(),
+        open_ifs: Vec::new(),
+        choice_mask,
+        choices: 0,
     };
     for (name, commands) in &g.scripts {
         l.ops.push(Op::Label(label(name, None)));
+        l.open_ifs.clear();
         for c in commands {
             if let Some((_, why)) = LEFT_OUT.iter().find(|(k, _)| *k == c.opcode()) {
                 l.metrics.left_out(c.opcode(), why);
@@ -1226,6 +1292,43 @@ mod tests {
                 Op::Label("tm_S__SEL0_0".into()),
                 Op::Jump("tm_S__LV00100".into()),
                 Op::Label("tm_S__LV00100".into()),
+            ]
+        );
+    }
+
+    #[test]
+    fn an_option_under_a_flag_is_offered_by_it() {
+        let src = "_SELR(0,$000000);_IF__(F056,eq,1,LV00100);_SELR(1,$000001);_ZY10500(LV00100);_IF__(F056,eq,0,LV00200);_SELR(2,$000001,1);_ZY10700(LV00200);_SELR(3,next);_SELD(_D000,);_GOTS(_D000,A,B,C,D);";
+        let g = Game {
+            scripts: vec![("S".into(), script::parse(src).into_iter().map(Result::unwrap).collect())],
+            scenes: vec![],
+            lines: vec!["父の事だ。", "妹の事だ。"],
+            pictures: HashMap::new(),
+            textures: HashMap::new(),
+            sounds: vec![],
+            waves: HashMap::new(),
+            motions: vec![],
+        };
+        let c = compile(&g);
+        assert!(c.notes.is_empty(), "{:?}", c.notes);
+        let f = Var { global: false, index: FIRST_LOCAL };
+        let m = Var { global: false, index: FIRST_LOCAL + 1 };
+        let opt = |t: &str, l: &str| (t.to_string(), format!("tm_S__{l}"));
+        assert_eq!(
+            c.ops,
+            [
+                Op::Label("tm_S".into()),
+                Op::If { var: f, cmp: Compare::Ne, value: Operand::Const(1), label: "tm_S__LV00100".into() },
+                Op::Arith { var: m, op: ArithOp::BitOr, value: Operand::Const(2) },
+                Op::Label("tm_S__LV00100".into()),
+                Op::If { var: f, cmp: Compare::Ne, value: Operand::Const(0), label: "tm_S__LV00200".into() },
+                Op::Label("tm_S__LV00200".into()),
+                Op::If { var: m, cmp: Compare::Eq, value: Operand::Const(2), label: "tm_S__choice1_2".into() },
+                Op::Arith { var: m, op: ArithOp::Set, value: Operand::Const(0) },
+                Op::Choice { options: vec![opt("父の事だ。", "A"), opt("next", "D")], style: None },
+                Op::Label("tm_S__choice1_2".into()),
+                Op::Arith { var: m, op: ArithOp::Set, value: Operand::Const(0) },
+                Op::Choice { options: vec![opt("父の事だ。", "A"), opt("妹の事だ。", "B"), opt("next", "D")], style: None },
             ]
         );
     }

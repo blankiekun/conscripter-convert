@@ -442,7 +442,7 @@ Japanese: 549 scripts, 1,079,001 commands, 93 command names. English
 | `_SBAS` | 933 | 121 | `_SBAS(14,13)` |  |
 | `_SHOK` | 865 | 165 | `_SHOK(1,3,100,18)` |  |
 | `_SNX3` | 842 | 166 | `_SNX3(21,32)` |  |
-| `_SELR` | 823 | 100 | `_SELR(0,$042569)` | choice option (index, text line, 1 = shown greyed); `_GOTS` then jumps to the index-th label |
+| `_SELR` | 823 | 100 | `_SELR(0,$042569)` | choice option (index, text line or a name written as it is, 1 = shown greyed and skipped by the cursor); `_GOTS` then jumps to the index-th label |
 | `_MVOL` | 780 | 220 | `_MVOL(,,`001:5000,,`017:80)` | music volume |
 | `_MFAD` | 724 | 364 | `_MFAD(,,`001:4000,,`011:0)` | music fade |
 | `_STPV` | 712 | 173 | `_STPV(6,459,178,)` |  |
@@ -610,16 +610,15 @@ Nothing yet.
 | Exe tables (pictures, motions, scene numbers) | ✅ read from the NSO (`typemoon exe`); picture sizes checked against the textures |
 | Scripts | 🔶 read: every command of both languages splits (one malformed in the original) and its text and voices join; the top commands' arguments read from the exe, the rest not yet |
 | Media folder (`typemoon media`) | ✅ `allpac`'s pictures as full-size WebP (2.37 GB), movies at 720p, sound |
-| Script conversion (`typemoon convert`) | 🔶 the flow (labels, `_JUMP`, `_IF__`, flags), text (pages, ruby, voices), pictures (`_STCH`/`_STCC`/`_FADS`: record size and place, fades and rule wipes), sound effects and music; plays from the start through `00_00` into the first arc headless. Layers drawn in priority order (`_STCP`, `_STCH` argument 6), zoomed (`_STZ4`), faded (`_STGS`) and moved (`_STMA`, the exe's motions; easing, priority and expression keys not followed), children placed in their parent layers, orbiting with their turn and following their motions (`_STCH` argument 11), clipped to their panels (`_STCH` arguments 12–16), turned (`_STRT`), drawn with their shader as far as CONscripter's blends and filters go (`_STBR`) and drawn with their `_STEC` effect (levels, greyscale and colour layers; effect 1 a colour fill, CONscripter's `spfilter` 9 and 10). Choices (`_SELR`, `_SELD`, `_GOTS`), `_GOTO` and the Switch's own branches (`_IFNX`/`_IFP4`). The text window hidden and faded (`_CLO2`, `_CLO3`/`_CLO4`/`_CLO5` with CONscripter's `windowfade`, the script going on; the next text fades it back in). Not yet: the other layer commands, screens |
+| Script conversion (`typemoon convert`) | 🔶 the flow (labels, `_JUMP`, `_IF__`, flags), text (pages, ruby, voices), pictures (`_STCH`/`_STCC`/`_FADS`: record size and place, fades and rule wipes), sound effects and music; plays from the start through `00_00` into the first arc headless. Layers drawn in priority order (`_STCP`, `_STCH` argument 6), zoomed (`_STZ4`), faded (`_STGS`) and moved (`_STMA`, the exe's motions; easing, priority and expression keys not followed), children placed in their parent layers, orbiting with their turn and following their motions (`_STCH` argument 11), clipped to their panels (`_STCH` arguments 12–16), turned (`_STRT`), drawn with their shader as far as CONscripter's blends and filters go (`_STBR`) and drawn with their `_STEC` effect (levels, greyscale and colour layers; effect 1 a colour fill, CONscripter's `spfilter` 9 and 10). Choices (`_SELR`, `_SELD`, `_GOTS`; options under a flag offered by it, greyed ones left out; the chapter-jump menus), `_GOTO` and the Switch's own branches (`_IFNX`/`_IFP4`). The text window hidden and faded (`_CLO2`, `_CLO3`/`_CLO4`/`_CLO5` with CONscripter's `windowfade`, the script going on; the next text fades it back in). Not yet: the other layer commands, screens |
 | Screens, extras | ❌ |
 
 ### Next
 
 1. The script conversion, next part: the layer commands the opening
-   leans on, in order of use: the chapter-jump menus (`JUMP00`–`JUMPQA`: `_SELR` with a
-   script name, 617 uses) and options shown only under a flag.
-   `typemoon convert --dry-run` prints the counts. Splitting sprites
-   into body and face crops is out unless the user asks.
+   leans on, in order of use. `typemoon convert --dry-run` prints the
+   counts. Splitting sprites into body and face crops is out unless
+   the user asks.
 2. The other picture archives in the media folder: `allpaccg` (the
    gallery's CGs, 2 GB), `allui` (71 MB).
 3. The title, menus and the registry/GUI entry.
@@ -670,6 +669,19 @@ The biggest commands not converted, looked up in `script_command`
 
 ## History
 
+- 2026-10-17: the chapter-jump menus and options under a flag,
+  **seen** in `script_command` (0x177790, case "ELR"): `_SELR` adds a
+  slot in the order it runs, keeping its index (for `_GOTS`'s label)
+  and its text as written: a `$` line, else the name itself
+  (`JUMP00`–`JUMPQA`'s `SEL_JUMPn` menus list script names; only
+  `TEST_SCRIPT`, the debug menu, goes there; `ARCHIVE` uses their
+  `ARCHIVEJUMP` part to go to a scene by `G008`). Argument 2 = 1 marks
+  the slot greyed, and the cursor skips it (`FUN_00183e50`), so it
+  can't be picked. Eight choices have options under an `_IF__` (or
+  greyed under one flag, shown under another): each such option sets
+  a bit of a local the choice reads, and the choice is one `select`
+  per set of them; a greyed option is left out, as `select` has no
+  disabled option. `_SELS` (1 use, `QACALL`'s yes/no) is not converted.
 - 2026-10-17: the 1,300 wave sounds as Ogg Opus (`se/<name>.ogg`,
   ffmpeg's libopus at 48 kbit/s a channel, VBR): 1,395 MB as WAV, 83 MB
   as Opus. Their loops go in as `LOOPSTART`/`LOOPEND` tags (start, and
