@@ -378,9 +378,7 @@ with the original (it wants all eleven endings' flags under wine).
    objects, started 500 ms apart) and stay.
 2. The 14 moves and zooms still drawn as cross-fades (dry run notes,
    2026-10-16): 2 zooms between two pictures both cut to the screen, 9
-   movies, 3 fades that change layer or picture. A motion is still cut
-   short when the layers must spread out again and the moving pictures
-   leave no room between them (1 spread in the dry run).
+   movies, 3 fades that change layer or picture.
 3. Extras: the doors' animation and the menu's own music (left out).
 4. From the exe's coverage table ("The exe"): `SetShade HEAVY` (one use): done (#197).
 5. The unread-argument notes (`<Builtin> argument <i> ignored`;
@@ -429,6 +427,18 @@ with the original (it wants all eleven endings' flags under wine).
    NSS code; noted, drawn as nothing.
 
 ## History
+
+- **Moving pictures spread with no room keep moving (2026-10-16, shared
+  NSS code).** When the moving pictures leave no room for a new one
+  between them (dja049's zoom as the old man stands up: a picture
+  between two zooming ones), all are spread as before, and each one
+  whose move still runs now goes on with it on its new layer from where
+  it is (the straight line's point, as for camera children), instead
+  of being put where it ends. Moves onto another layer are now also
+  followed by new pictures in their camera. Checked with `--real-time
+  --shot-at` at that zoom (`wait 1000` after the change): at +100 ms
+  the scene is mid-zoom instead of at its end (AE 62k/48k/32k at
+  +50/+100/+150 ms, the same at +300).
 
 - **Running motions go on (2026-10-16, shared NSS code).** Two cases
   cut a motion short, its picture placed at its end. (1) When the layers
