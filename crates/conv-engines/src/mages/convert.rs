@@ -65,7 +65,6 @@ const PRIORITY_STEP: u32 = 20;
 /// The front layer that `FadeOut` covers the picture with.
 const COVER_LAYER: u32 = 0;
 
-/// Frames (60 fps) to milliseconds.
 /// The characters CharacterOpen(BS) shows: Chara0-Chara9 in order, those
 /// with a `:Number`, until `:SpriteMax` of them (0 by default: none).
 /// src: exe 0x8102840a case 0x1b (record 0x8112963c); CharacterDelete,
@@ -85,6 +84,7 @@ fn chara_key(c: &Block, number: i64) -> String {
     format!("c{}", number + c.int("Copy").unwrap_or(0) * 1000)
 }
 
+/// Frames (60 fps) to milliseconds.
 fn ms(frames: i64) -> u32 {
     (frames.max(0) * 1000 / 60) as u32
 }
