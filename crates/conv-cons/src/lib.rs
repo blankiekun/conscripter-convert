@@ -97,6 +97,18 @@ const BAR_SPRITES: std::ops::Range<u32> = 34..49;
 /// meaningful state, so they may move; the game's (59 up) may not.
 const NAME_TEXT_SPRITE: &str = "%conv_name_text";
 const NAME_PLATE_SPRITE: &str = "%conv_name_plate";
+/// The define section's named variables (`defvar`, `defstr`): the
+/// click-wait icon's place ([`WAIT_ICON_AT`]), a runtime choice's options
+/// ([`runtime_option`]) and backlog line ([`RUNTIME_LOG`]).
+fn names_define() -> String {
+    let mut lines = vec!["defvar conv_wait_icon_x".to_string(), "defvar conv_wait_icon_y".to_string()];
+    for n in 0..RUNTIME_OPTIONS {
+        lines.push(format!("defstr conv_choice_text{n}"));
+        lines.push(format!("defvar conv_choice_x{n}"));
+    }
+    lines.push("defstr conv_log_line".to_string());
+    lines.join("\n")
+}
 const NAME_SPRITES_DEFINE: &str = "defvar conv_name_text\ndefvar conv_name_plate\nspnew %conv_name_text,ui\nspnew %conv_name_plate,ui";
 /// Sprite slots for clickable link words. With `windowback` and `humanz
 /// 58`, slots up to 58 are drawn over the text window and the others
@@ -118,7 +130,7 @@ const FLASH_SPRITE2: u32 = 24;
 const FADE_SPRITE2: u32 = 26;
 /// The click-wait icon's place ([`Script::wait_icon`]), set with each
 /// window; the bar's wait routine shows it.
-const WAIT_ICON_AT: [&str; 2] = ["%183", "%184"];
+const WAIT_ICON_AT: [&str; 2] = ["%conv_wait_icon_x", "%conv_wait_icon_y"];
 /// The highest sprite number (ONScripter has 1000); also the overlay
 /// under the character sprites.
 const MAX_SPRITE: u32 = 999;
@@ -149,7 +161,7 @@ const BUTTON_VAR: &str = "%9";
 // the save grid ([`save_grid`]); %190-%289 and $200-$229, the tile puzzle's
 // state ([`puzzle`]; locals when the global border is 800); %170-%179 and
 // $107-$108, the backlog ([`menu::backlog`] or [`line_log`], never both);
-// %183-%184, the click-wait icon's place ([`WAIT_ICON_AT`]).
+// the click-wait icon's place is named ([`WAIT_ICON_AT`]).
 // The settings switches' flags: %3640-%3647, %2910-%2919, %2950-%2951 and
 // %4116-%5095 ([`switches`]). %2960, the title's openings
 // ([`TITLE_SHOWN`]). %5200 up: an NSS game's `#` flags past %969 (the
@@ -197,13 +209,15 @@ const SCENE_UNLOCKED_BASE: u32 = 3000;
 /// Global flags: progress flag n ([`Op::Progress`]) is set.
 const PROGRESS_BASE: u32 = 3600;
 /// Option n of an [`Op::RuntimeChoice`] whose text is known only at run
-/// time: its text in `$` n + this, its x on a plate in `%` n + this.
-const RUNTIME_OPTION_BASE: u32 = 3632;
-/// How many options of a choice can be runtime ones (alloc.rs reserves
-/// 3632-3637; NSS choices have six at most, `SetChoice06`).
+/// time: its text and its x on a plate ([`names_define`] declares them).
+fn runtime_option(n: usize) -> (String, String) {
+    (format!("$conv_choice_text{n}"), format!("%conv_choice_x{n}"))
+}
+/// How many options of a choice can be runtime ones (NSS choices have six
+/// at most, `SetChoice06`).
 const RUNTIME_OPTIONS: usize = 6;
 /// An [`Op::RuntimeBacklogLine`]'s text.
-const RUNTIME_LOG: u32 = 3638;
+const RUNTIME_LOG: &str = "$conv_log_line";
 /// Link scenes nest at most this deep: inside the deepest, link words
 /// aren't buttons. The original has no limit, but link scenes that link to
 /// each other (the encyclopedia) would nest without end, and each level
@@ -295,6 +309,7 @@ pub fn emit(script: &Script) -> String {
     writeln!(out, "globalon").unwrap();
     writeln!(out, "{}", notice::DEFINE).unwrap();
     writeln!(out, "{NAME_SPRITES_DEFINE}").unwrap();
+    writeln!(out, "{}", names_define()).unwrap();
     if lua::uses_processes(script) {
         for c in lua::COMMANDS {
             writeln!(out, "luasub {c}").unwrap();
@@ -1524,7 +1539,7 @@ mod tests {
         let rt = conv_core::ir::RuntimeText { var, texts: vec![(1, "頼む".into()), (2, "Leave".into())] };
         let options = vec![("見る".to_string(), "a".to_string()), ("頼む".to_string(), "b".to_string())];
         let text = emit(&script(vec![Op::RuntimeChoice { options: options.clone(), texts: vec![None, Some(rt.clone())], style: None }]));
-        for part in ["mov $3633,\"頼む\"", "if %15 == 2 mov $3633,\"　Leave\"", "select \"見る\",*a,$3633,*b"] {
+        for part in ["mov $conv_choice_text1,\"頼む\"", "if %15 == 2 mov $conv_choice_text1,\"　Leave\"", "select \"見る\",*a,$conv_choice_text1,*b"] {
             assert!(text.contains(part), "missing {part:?} in\n{text}");
         }
         // On plates: the text and its centred x, set together.
@@ -1532,11 +1547,11 @@ mod tests {
         let plates = conv_core::ir::ChoicePlates { image: "system/plate.png".into(), x: 138, y: 244, step: 68, text_x: 388, text_dy: 18, font_size: 22, colour: "#FFFFFF".into(), fade_ms: 300, shot: None };
         let style = Some(ChoiceStyle { window, on_color: 0, off_color: 0, plates: Some(plates) });
         let text = emit(&script(vec![Op::RuntimeChoice { options, texts: vec![None, Some(rt)], style }]));
-        for part in ["if %15 == 2 mov $3633,\"Leave\":mov %3633,361", "strsp 53,$3633,%3633,330,6,"] {
+        for part in ["if %15 == 2 mov $conv_choice_text1,\"Leave\":mov %conv_choice_x1,361", "strsp 53,$conv_choice_text1,%conv_choice_x1,330,6,"] {
             assert!(text.contains(part), "missing {part:?} in\n{text}");
         }
         let text = emit(&script(vec![Op::RuntimeBacklogLine { text: "【】".into(), runtime: conv_core::ir::RuntimeText { var, texts: vec![(2, "【Leave】".into())] } }]));
-        assert!(text.contains("mov $3638,\"【】\"\nif %15 == 2 mov $3638,\"【Leave】\"\nlogadd $3638\n"), "{text}");
+        assert!(text.contains("mov $conv_log_line,\"【】\"\nif %15 == 2 mov $conv_log_line,\"【Leave】\"\nlogadd $conv_log_line\n"), "{text}");
     }
 
     #[test]
@@ -1598,7 +1613,7 @@ mod tests {
         ]);
         s.window = Some(window());
         let text = emit(&s);
-        assert!(text.contains("spnew %conv_name_plate,ui\nwindowback\nhumanz 58\n"));
+        assert!(text.contains("defstr conv_log_line\nwindowback\nhumanz 58\n"));
         // Row 2, column 1: x = 105 + 0 * 25, y = 470 + 1 * 37.
         let expected = "\
 *conv_link1
@@ -2326,6 +2341,21 @@ defvar conv_name_text
 defvar conv_name_plate
 spnew %conv_name_text,ui
 spnew %conv_name_plate,ui
+defvar conv_wait_icon_x
+defvar conv_wait_icon_y
+defstr conv_choice_text0
+defvar conv_choice_x0
+defstr conv_choice_text1
+defvar conv_choice_x1
+defstr conv_choice_text2
+defvar conv_choice_x2
+defstr conv_choice_text3
+defvar conv_choice_x3
+defstr conv_choice_text4
+defvar conv_choice_x4
+defstr conv_choice_text5
+defvar conv_choice_x5
+defstr conv_log_line
 caption \"Test\"
 effect 2,10,500
 game
