@@ -702,7 +702,7 @@ impl Lowering<'_, '_> {
             // `_STGS(layer, from, to, ms, ease)` (`FUN_001637a0`): the alpha
             // from `from` (default: the layer's) to `to` (default 0) over `ms`,
             // running from the next `_FADS` while the script goes on.
-            // shortcut: the easing (argument 4) is not followed; straight.
+            // shortcut: an easing (argument 4) other than 0 or 1 (27 uses) is not followed; straight.
             "_STGS" => {
                 let Some(n) = number(arg(0)).filter(|n| (0..LAYERS as i32).contains(n)) else { return false };
                 let Some(l) = self.staged[n as usize].as_mut() else { return true };
@@ -711,6 +711,10 @@ impl Lowering<'_, '_> {
                 let ms = number(arg(3)).unwrap_or(0).max(0) as u32;
                 l.alpha = to;
                 l.fade = (ms > 16 && from != to).then_some((from, to, ms)); // ours: under a frame is at once
+                // src: exe 0x130c80 (easing 0, 1 and any it doesn't know: straight)
+                if matches!(a.get(4).map_or("", |v| v.trim()), "" | "0" | "1") {
+                    arg(4);
+                }
             }
             "_STMA" => {
                 self.hide_window_for(number(arg(2)), None);
