@@ -16,15 +16,18 @@ use super::exe::Picture;
 use super::script::Command;
 use crate::metrics::Metrics;
 
+// ours: the output size (the Switch draws at 1920 × 1080 docked, 1280 × 720 handheld).
 pub const SCREEN_W: u32 = 1280;
 pub const SCREEN_H: u32 = 720;
 /// Locals (saved with each slot) below, globals from here.
+// ours
 pub const GLOBAL_BORDER: u32 = 800;
 /// The stage's height in record units (its width is the screen's).
-const STAGE_H: f32 = 724.0;
-const LAYERS: usize = 40;
+const STAGE_H: f32 = 724.0; // src: exe 0x56F830 (a full-screen background's record is 1280 × 724)
+const LAYERS: usize = 40; // src: exe 0x162140 (`_STCC` with a negative layer clears 40)
 /// The `F` and `C` flags are locals from %196 (NScripter number 10 +
 /// index), one each in name order; the `G` flags globals %800 + n.
+// ours
 const FIRST_LOCAL: u16 = 186;
 
 /// What the lowering reads from the game.
@@ -98,6 +101,7 @@ const BLEND_SCREEN: u8 = 4;
 /// The shader numbers are the exe's shader table's (`FUN_00132d20`
 /// maps the layer's byte through a table at 0x44DD70, the same number
 /// for 1–39; the shaders are listed at 0xBD2308, 16 bytes each).
+// src: exe 0x44DD70 (the shader table), 0xBD2308 (its names)
 // shortcut: darken, burn and lighten, dodge are drawn as multiply and screen; overlay, soft and hard light and the rest as normal.
 fn shader(n: u8) -> (u8, Option<SpriteFilter>) {
     let filter = |kind, p: i32| Some(SpriteFilter { kind: Operand::Const(kind), blend: Operand::Const(FILTER_BLEND_COPY), strength: Operand::Const(256), params: [Operand::Const(p); 3] });
@@ -108,6 +112,7 @@ fn shader(n: u8) -> (u8, Option<SpriteFilter>) {
         20 | 23 | 24 | 30 | 34 | 35 | 37 => (BLEND_SCREEN, None),
         7 => (BLEND_NORMAL, filter(FILTER_GREYSCALE, 0)),
         8 => (BLEND_NORMAL, filter(FILTER_NEGATIVE, 0)),
+        // guess: gauss's radius, not read from its shader
         11 => (BLEND_NORMAL, filter(FILTER_BLUR, 8)),
         _ => (BLEND_NORMAL, None),
     }
@@ -236,17 +241,16 @@ pub fn text(line: &str) -> (String, Vec<Ruby>) {
 }
 
 /// The plain colours' fills (`BLACK` …), by name.
+// src: exe 0x6E02A4 (the seven plain colours, first in the picture table); allpac's textures (their colours)
 fn colour(name: &str) -> Option<u32> {
     Some(match name {
         "black" => 0x000000,
-        "white" => 0xFFFFFF,
-        "red" => 0xFF0000,
-        "green" => 0x00FF00,
         "blue" => 0x0000FF,
+        "green" => 0x00FF00,
+        "orange" => 0xFF7F00,
+        "red" => 0xFF0000,
+        "white" => 0xFFFFFF,
         "yellow" => 0xFFFF00,
-        "cyan" => 0x00FFFF,
-        "magenta" => 0xFF00FF,
-        "gray" | "grey" => 0x808080,
         _ => return None,
     })
 }
@@ -456,7 +460,7 @@ impl Lowering<'_, '_> {
                 let to = number(arg(2)).unwrap_or(0).clamp(0, 255) as u32;
                 let ms = number(arg(3)).unwrap_or(0).max(0) as u32;
                 l.alpha = to;
-                l.fade = (ms > 16 && from != to).then_some((from, to, ms));
+                l.fade = (ms > 16 && from != to).then_some((from, to, ms)); // ours: under a frame is at once
             }
             "_STMA" => {
                 let Some(n) = number(arg(0)).filter(|n| (0..LAYERS as i32).contains(n)) else { return false };
@@ -509,7 +513,11 @@ impl Lowering<'_, '_> {
         let old = self.staged[n].clone();
         let base = arg(1).to_lowercase();
         let num = |i: usize, default: f32| if arg(i).is_empty() { Some(default) } else { number(arg(i)).map(|v| v as f32) };
-        let (Some(x), Some(y), Some(zoom), Some(alpha)) = (num(2, 240.0), num(3, 136.0), num(4, 1000.0), num(5, 255.0)) else { return false };
+        // src: exe 0x160840: with no x and y the layer keeps its place (0, 0 after `_STCC`), else a missing one is 0;
+        // a zoom left out is the layer's (1000 after `_STCC`); alpha 255 by default.
+        let (x0, y0) = old.as_ref().filter(|_| arg(2).is_empty() && arg(3).is_empty()).map_or((0.0, 0.0), |o| (o.x, o.y));
+        let zoom0 = old.as_ref().map_or(1000.0, |o| o.zoom * 1000.0);
+        let (Some(x), Some(y), Some(zoom), Some(alpha)) = (num(2, x0), num(3, y0), num(4, zoom0), num(5, 255.0)) else { return false };
         let expression = if arg(9).is_empty() && arg(10).is_empty() {
             None
         } else {
@@ -527,6 +535,7 @@ impl Lowering<'_, '_> {
         let parent = number(arg(11)).filter(|&p| (0..LAYERS as i32).contains(&p) && p as usize != n).map(|p| p as usize);
         self.staged[n] = Some(Layer { base, expression, x, y, zoom: zoom / 1000.0, stretch: (1.0, 1.0), alpha: alpha.clamp(0.0, 255.0) as u32, fade: None, motion: None, parent, angle: number(arg(19)).unwrap_or(0), shader: 255, tint: None, clip });
         // Argument 6, else layer × 10 (`FUN_00160840`).
+        // src: exe 0x160840 (priority layer × 10 by default)
         self.priority[n] = if arg(6).is_empty() { n as i32 * 10 } else { number(arg(6)).unwrap_or(n as i32 * 10) };
         true
     }
@@ -565,7 +574,7 @@ impl Lowering<'_, '_> {
             (l.fade, l.motion) = (None, None);
         }
         let changed: Vec<usize> = (0..LAYERS).filter(|&s| want[s] != self.slots[s] || fades[s].is_some() || motions[s].is_some()).collect();
-        let fade_ms = if kind == 1 { 0 } else { ms.max(0) as u32 };
+        let fade_ms = if kind == 1 { 0 } else { ms.max(0) as u32 }; // src: exe script_command (type 1 returns at once)
         if changed.is_empty() && fade_ms == 0 {
             return;
         }
@@ -674,7 +683,7 @@ impl Lowering<'_, '_> {
                 // The record's centre goes to the script's x, y (480 × 272
                 // for the screen); zoom about it. Records are 1280 × 724
                 // for the screen.
-                let (sx, sy) = (SCREEN_W as f32 / 480.0, SCREEN_H as f32 / 272.0);
+                let (sx, sy) = (SCREEN_W as f32 / 480.0, SCREEN_H as f32 / 272.0); // src: exe 0x189ad0
                 let (zx, zy) = (l.zoom * l.stretch.0, l.zoom * l.stretch.1);
                 let mx = l.x * sx + (p.width / 2.0 - p.centre.0) * zx;
                 let my = l.y * sy + (p.height / 2.0 - p.centre.1) * zy * SCREEN_H as f32 / STAGE_H;
@@ -777,6 +786,7 @@ impl Lowering<'_, '_> {
 /// off each side, across if narrower than the screen and down if lower).
 // shortcut: the frame (argument 17's colour: 1, 7 black, 2 white, …) is not drawn, and a turned layer's rectangle isn't turned.
 fn clip([x, y, w, h, frame]: [i32; 5]) -> Option<(i32, i32, i32, i32)> {
+    // src: exe 0x189ad0 (a scissor in 1920 × 1080 pixels)
     if w == 0 || h == 0 || (w, h) == (1920, 1080) {
         return None;
     }
@@ -825,6 +835,7 @@ pub fn compile(g: &Game) -> Compiled {
         scene_labels,
         shown: vec![None; LAYERS],
         staged: vec![None; LAYERS],
+        // src: exe 0x160840, 0x162a40 (layer × 10)
         priority: (0..LAYERS as i32).map(|i| i * 10).collect(),
         shown_priority: (0..LAYERS as i32).map(|i| i * 10).collect(),
         slots: vec![None; LAYERS],
@@ -1127,5 +1138,26 @@ mod tests {
                 Op::Jump("tm_S".into()),
             ]
         );
+    }
+
+    #[test]
+    fn stch_without_a_place_keeps_the_layers() {
+        let src = "_STCH(1,img1,120,68,500);_STCH(1,img1);_FADS(1,0,0);_STCC(1);_STCH(1,img1,120);_FADS(1,0,0);";
+        let g = Game {
+            scripts: vec![("S".into(), script::parse(src).into_iter().map(Result::unwrap).collect())],
+            scenes: vec![],
+            lines: vec![],
+            pictures: [picture("img1", 1280.0, 724.0)].into(),
+            textures: HashMap::new(),
+            sounds: vec![],
+            waves: HashMap::new(),
+            motions: vec![],
+        };
+        let ops = compile(&g).ops;
+        let moves: Vec<(i32, i32)> = ops.iter().filter_map(|o| if let Op::SpriteMove { x, y, .. } = o { Some((*x, *y)) } else { None }).collect();
+        let zooms: Vec<_> = ops.iter().filter_map(|o| if let Op::SpriteAngle { zoom, .. } = o { Some(*zoom) } else { None }).collect();
+        // Kept at 120, 68 and zoom 500; after `_STCC` a missing y is 0 and the zoom 1000.
+        assert_eq!(moves, [(320, 180), (320, 0)]);
+        assert_eq!(zooms, [(25, 25), (50, 50)]);
     }
 }

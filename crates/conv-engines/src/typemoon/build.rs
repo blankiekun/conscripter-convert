@@ -53,17 +53,21 @@ pub fn build(romfs: &Path, main: &Path, opts: &Opts) -> Result<Built> {
         width: convert::SCREEN_W,
         height: convert::SCREEN_H,
         global_border: Some(convert::GLOBAL_BORDER),
-        // shortcut: the text's place and size are guessed from the window picture (a full-screen panel); measure the original's.
+        // The Japanese layout of the text drawer (`FUN_001391a0`, on a 640 × 448
+        // stage): lines from x 88 (the panel's flat middle, 176–1104 here) and
+        // 464 wide, the first at y 65; glyphs of the screen's width / 32 × 0.76
+        // (`FUN_001a7790`, the text size setting at its default).
+        // shortcut: the English layout (from x 30, 584 wide, glyphs × 0.9) is not followed.
         window: Some(TextWindow {
             image: WINDOW.into(),
-            x: 0,
+            x: 0, // src: txtwindow01-1920 (a full-screen panel)
             y: 0,
-            text_x: 176,
-            text_y: 64,
-            columns: 32,
-            rows: 14,
-            font_size: 28,
-            line_gap: 16,
+            text_x: 176,  // src: exe 0x1391a0 (88 × 2)
+            text_y: 104,  // src: exe 0x1391a0 (65 × 720 / 448); guess: the glyph's offset in its line (FUN_001a7790's +14) not added
+            columns: 30,  // src: exe 0x1391a0 (928 px / 30.4)
+            rows: 14,     // guess: the 16 line slots, as many as fit the screen at this pitch
+            font_size: 30, // src: exe 0x1a7790 (1280 / 32 × 0.76 = 30.4)
+            line_gap: 15, // guess: a 45 px pitch (28 of 448, the drawer's step for its extra lines); the exe measures a line of the font
             vertical: false,
             name_plate: None,
             wait_icon_at: None,
