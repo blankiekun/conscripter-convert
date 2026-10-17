@@ -691,10 +691,6 @@ original (Japanese, default text size):
   defaults (volumes +4/+8/+0xa = 40, 40, 10; auto wait +0x1c = 2200)
   wait for a settings screen.
 - `_STBR` 11 (gauss) drawn as a blur of 8.
-- `_STEC`'s math in the pictures' own 0–255 values: the shader decodes
-  the sRGB texture and re-encodes it as x^0.4545 before the levels, so
-  dark values may differ by a level or two. Effect 82 (2 uses) is drawn
-  as 67: its mode 3 also keeps G and B at 0 where they are 0.
 
 ### Open questions
 
@@ -707,6 +703,17 @@ The biggest commands not converted, looked up in `script_command`
 
 ## History
 
+- 2026-10-17: `_STEC` exact, **seen** in
+  `nexl_nxshader_pre_alter.bnsh`: the sampled texel (the sRGB texture,
+  decoded by the sampler) is raised to 0x3EE8BA2E = 0.454545 and × 255
+  before the levels (`lg2`, `ex2`), the output only clamped and ÷ 255;
+  mode 3 (effect 82) keeps G and B at 0 where the texel's are. Converted
+  with CONscripter's `spfilter` kinds 12–14 (engine PR 123: the levels
+  on 255·srgb⁻¹(v/255)^(1/2.2) in float, one rounding; kind 13 the grey
+  of those; 14 the zero rule): every effect 2–82 now decodes first, even
+  with identity levels (an identity effect lifts 10 to 18, 30 to 35).
+  Checked in the engine on test ramps against the formula in float64:
+  exact, but for 30 of 7,680 grey pixels a level off at a .5 boundary.
 - 2026-10-17: coloured panel frames (`_STCH` argument 17 1–6, 263
   uses), **seen** in `FUN_00189ad0`: the picture is cut at the frame's
   inner edge (the scissor), then the corner and edge pieces are drawn

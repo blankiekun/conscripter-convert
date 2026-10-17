@@ -1,7 +1,7 @@
 //! `_STEC(layer, effect[, colour])`: the effects the exe draws a layer
 //! with, from its `pre_alter` shader (`docs/games/tsukihime.md`, "The exe").
 
-use conv_core::ir::{Operand, SpriteFilter, FILTER_BLEND_ADD, FILTER_BLEND_COPY, FILTER_BLEND_DODGE, FILTER_BLEND_MULTIPLY, FILTER_BLEND_OVERLAY, FILTER_BLEND_SCREEN, FILTER_COLOUR, FILTER_GREY_LEVELS, FILTER_LEVELS};
+use conv_core::ir::{Operand, SpriteFilter, FILTER_BLEND_ADD, FILTER_BLEND_COPY, FILTER_BLEND_DODGE, FILTER_BLEND_MULTIPLY, FILTER_BLEND_OVERLAY, FILTER_BLEND_SCREEN, FILTER_ALTER_GREY_LEVELS, FILTER_ALTER_LEVELS, FILTER_ALTER_LEVELS_KEEP, FILTER_COLOUR};
 
 /// Unset in [`EFFECTS`].
 const UNSET: f32 = -9.0;
@@ -101,10 +101,10 @@ const EFFECTS: [[f32; 20]; 83] = [
 /// (`colour`); `None` for an effect the exe doesn't have. The exe makes an
 /// altered texture: effect 1 fills the picture with `colour` and draws it
 /// tinted by `colour` too (the layer's colour, `FUN_00103de0`), so it is
-/// `colour`²; the others take each channel through levels (after
-/// greyscale in mode 1), then the two colour layers, and draw it white.
-// shortcut: effect 82's mode 3 also keeps G and B at 0 where they are 0 (FUN_0019f6c0 →
-// shader); drawn as effect 67, its levels. 2 uses.
+/// `colour`²; the others take each channel, decoded from the sRGB texture
+/// and re-encoded as x^0.4545 (the shader's first step), through levels
+/// (after greyscale in mode 1; mode 3 keeps a green or blue of 0 at 0),
+/// then the two colour layers, and draw it white.
 pub fn filters(effect: i32, colour: u32) -> Option<Vec<SpriteFilter>> {
     let at = |kind, blend, strength: f32, params: [i32; 3]| SpriteFilter {
         kind: Operand::Const(kind),
@@ -124,13 +124,13 @@ pub fn filters(effect: i32, colour: u32) -> Option<Vec<SpriteFilter>> {
         ((gamma * 1000.0).round() as i32) * 65536 + (low.round() as i32) * 256 + high.round() as i32
     };
     let levels = [0, 1, 2].map(level);
-    let identity = 1000 * 65536 + 255;
-    let mut out = Vec::new();
-    if r[9] == 1.0 {
-        out.push(at(FILTER_GREY_LEVELS, FILTER_BLEND_COPY, 255.0, levels));
-    } else if levels != [identity; 3] {
-        out.push(at(FILTER_LEVELS, FILTER_BLEND_COPY, 255.0, levels));
-    }
+    // src: shader/nexl_nxshader_pre_alter.bnsh (lg2, × 0x3EE8BA2E, ex2 on the sampled texel; mode 3's G, B == 0 kept)
+    let kind = match r[9] as i32 {
+        1 => FILTER_ALTER_GREY_LEVELS,
+        3 => FILTER_ALTER_LEVELS_KEEP,
+        _ => FILTER_ALTER_LEVELS,
+    };
+    let mut out = vec![at(kind, FILTER_BLEND_COPY, 255.0, levels)];
     for l in [&r[10..15], &r[15..20]] {
         let (rgb, a) = ([l[0], l[1], l[2]].map(|v| v.max(0.0)), l[3].max(0.0));
         let pre = rgb.map(|v| v * a / 255.0);
@@ -163,7 +163,7 @@ mod tests {
     fn effects_as_filters() {
         // Sepia: greyscale, then gammas 0.941, 0.784, 0.569.
         let sepia: Vec<_> = filters(3, 0).unwrap().iter().map(consts).collect();
-        assert_eq!(sepia, [[FILTER_GREY_LEVELS, 0, 256, 941 * 65536 + 255, 784 * 65536 + 255, 569 * 65536 + 255]]);
+        assert_eq!(sepia, [[FILTER_ALTER_GREY_LEVELS, 0, 256, 941 * 65536 + 255, 784 * 65536 + 255, 569 * 65536 + 255]]);
         // Negative: low 255, high 0.
         assert_eq!(consts(&filters(4, 0).unwrap()[0])[3], 1000 * 65536 + 255 * 256);
         // Levels and a layer of 0,77,125 added at 68/255.
@@ -176,7 +176,9 @@ mod tests {
         assert_eq!(e13[2][1], FILTER_BLEND_DODGE);
         // The colour fill of effect 1, tinted again; identity records draw nothing.
         assert_eq!(consts(&filters(1, 0xFF8000).unwrap()[0]), [FILTER_COLOUR, 0, 256, 255, 64, 0]);
-        assert!(filters(14, 0).unwrap().is_empty());
+        // An identity record still decodes; effect 82 keeps G and B at 0.
+        assert_eq!(consts(&filters(14, 0).unwrap()[0]), [FILTER_ALTER_LEVELS, 0, 256, 65536255, 65536255, 65536255]);
+        assert_eq!(consts(&filters(82, 0).unwrap()[0])[0], FILTER_ALTER_LEVELS_KEEP);
         assert!(filters(83, 0).is_none());
     }
 }
