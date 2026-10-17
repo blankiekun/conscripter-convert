@@ -1,9 +1,9 @@
 {
 "game": "muramasa",
 "engine": "nitroplus",
-"commit": "13d2361f",
+"commit": "a0466366",
 "commit_date": "2026-10-16",
-"totals": {"calls": 1162127, "full": 1128004, "gaps": 31421, "left_out": 2702},
+"totals": {"calls": 1162127, "full": 1128091, "gaps": 31334, "left_out": 2702},
 "kinds": {
 "Random": {"calls": 7411, "gaps": 7411, "reasons": [["Random argument 0 ignored", 7411]]},
 "Fade": {"calls": 302627, "gaps": 3894, "reasons": [["Fade argument 3 ignored", 3869], ["timed action that waits only part of its time", 16], ["move or zoom over time with a fade or a new picture drawn as a cross-fade", 10], ["Fade argument 5 ignored", 1]]},
@@ -14,7 +14,7 @@
 "SetNextFocus": {"calls": 1776, "gaps": 1776, "reasons": [["built-in SetNextFocus", 1776]]},
 "SetFrequency": {"calls": 8778, "gaps": 1523, "reasons": [["SetFrequency on music", 1486], ["SetFrequency argument 3 ignored", 37]]},
 "Shake": {"calls": 1486, "gaps": 1486, "reasons": [["Shake argument 6 ignored", 1486], ["Shake argument 7 ignored", 1486], ["Shake argument 8 ignored", 58], ["move or zoom over time with a fade or a new picture drawn as a cross-fade", 1], ["timed action that waits only part of its time", 1]]},
-"Request": {"calls": 239985, "gaps": 1404, "reasons": [["Request stop", 1082], ["Request overlayrender", 111], ["code inside a page runs before it", 89], ["Request compulsorysuspend", 18], ["Request pushtext", 15], ["28 more", 90]]},
+"Request": {"calls": 239985, "gaps": 1317, "reasons": [["Request stop", 1082], ["Request overlayrender", 111], ["Request compulsorysuspend", 18], ["Request pushtext", 15], ["Request entrustsuspend", 12], ["28 more", 79]]},
 "SetBlur": {"calls": 985, "gaps": 970, "reasons": [["SetBlur argument 5 ignored", 970], ["SetBlur argument 4 ignored", 16]]},
 "CreateWindow": {"calls": 639, "gaps": 639, "reasons": [["CreateWindow argument 6 ignored", 639]]},
 "Rotate": {"calls": 16922, "gaps": 549, "reasons": [["Rotate argument 5 ignored", 486], ["Rotate about z", 69], ["Rotate over time turning a picture over: mirrored at once", 10]]},

@@ -22,7 +22,9 @@ impl Compiler<'_, '_> {
             self.clock_ms += match op {
                 Op::Wait { ms } => u64::from(*ms),
                 Op::BeginTransition { fade_ms, .. } => u64::from(*fade_ms),
-                Op::ClickWait { .. } | Op::Choice { .. } | Op::Text { continues: false, .. } => PLAYER_MS,
+                Op::ClickWait { .. } | Op::Choice { .. } => PLAYER_MS,
+                // A page that stops for code inside it doesn't wait.
+                Op::Text { continues: false, text, .. } if !text.ends_with(conv_core::ir::GOES_ON_MARK) => PLAYER_MS,
                 _ => 0,
             };
         }

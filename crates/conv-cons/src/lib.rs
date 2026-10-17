@@ -458,7 +458,7 @@ pub fn emit(script: &Script) -> String {
             _ => None,
         })
         .collect();
-    let mut e = ops::Emitter { script, out, effects, has_ruby, has_overlay, has_noise, has_chapters, has_animation, root_returns, has_replay, has_vertical, border, voice_switches, duck, back_to_choice, speed, link_depth, clear_fade, restore_overlay, link_targets, zoomed_layers, root_resumes, puzzles, button_screens, plate_choices, picture_screens, se, se_not_skipped, noise_fade_in, move_ease, move_nowait, move_arc, eased, needs_click_wait, plate_visible, link_pages, transition, window, page_rows, page_tag, fading };
+    let mut e = ops::Emitter { script, out, effects, has_ruby, has_overlay, has_noise, has_chapters, has_animation, root_returns, has_replay, has_vertical, border, voice_switches, duck, back_to_choice, speed, link_depth, clear_fade, restore_overlay, link_targets, zoomed_layers, root_resumes, puzzles, button_screens, plate_choices, picture_screens, se, se_not_skipped, noise_fade_in, move_ease, move_nowait, move_arc, eased, needs_click_wait, plate_visible, link_pages, transition, window, page_rows, page_tag, text_goes_on: false, fading };
     for (i, op) in script.ops.iter().enumerate() {
         e.op(i, op);
     }
@@ -2204,6 +2204,18 @@ effect 7,99,1000,\"cons_zoom.dll/3,220,5\"
         let s = script(vec![Op::SetWindow(nvl), text("一行目", true), text("二行目", false), text("新頁", false)]);
         let out = emit(&s);
         assert!(out.contains("\":a;system\\textwnd5.png\",47,452\ncsp 50:csp 49\n一行目@\n二行目\\\n新頁\\\n"), "{out}");
+    }
+
+    #[test]
+    fn a_page_goes_on_after_code_inside_it() {
+        let text = |t: &str| Op::Text { speaker: None, text: t.into(), voice: None, links: vec![], ruby: vec![], styles: vec![], hang: None, continues: false };
+        let image = Op::WindowImage("system/face2.png".into());
+        let s = script(vec![text("《\u{5}"), Op::Wait { ms: 50 }, image, text("興\n\u{5}"), Op::Wait { ms: 50 }, text("》")]);
+        let out = emit(&s);
+        assert!(out.contains("《/\ndelay 50\nsetwindow2 \":a;system\\face2.png\"\n興\ndelay 50\n》\\\n"), "{out}");
+        let mut s = script(vec![text("One\u{5}"), Op::Wait { ms: 50 }, text(" two")]);
+        s.single_byte_text = true;
+        assert!(emit(&s).contains("`One`/\ndelay 50\n` two\\\n"));
     }
 
     #[test]
