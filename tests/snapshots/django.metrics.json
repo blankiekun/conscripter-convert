@@ -1,7 +1,7 @@
 {
 "game": "django",
 "engine": "nitroplus",
-"commit": "63f3f00b",
+"commit": "66896afe",
 "commit_date": "2026-10-16",
 "totals": {"calls": 57053, "full": 47640, "gaps": 9413},
 "kinds": {
@@ -19,7 +19,7 @@
 "CreateMask": {"calls": 30, "gaps": 30, "reasons": [["built-in CreateMask", 30]]},
 "CreateChoice": {"calls": 20, "gaps": 20, "reasons": [["built-in CreateChoice", 20]]},
 "CursorPosition": {"calls": 20, "gaps": 20, "reasons": [["built-in CursorPosition", 20]]},
-"MoveCamera": {"calls": 373, "gaps": 15, "reasons": [["MoveCamera argument 1 ignored", 15], ["MoveCamera argument 5 ignored", 15], ["MoveCamera argument 6 ignored", 15]]},
+"MoveCamera": {"calls": 373, "gaps": 15, "reasons": [["MoveCamera argument 5 ignored", 15], ["MoveCamera argument 6 ignored", 15]]},
 "WaitPlay": {"calls": 55, "gaps": 11, "reasons": [["BGM without loop played looping", 10], ["WaitPlay argument 1 ignored", 1]]},
 "LoadColor": {"calls": 10, "gaps": 10, "reasons": [["built-in LoadColor", 10]]},
 "Save": {"calls": 10, "gaps": 10, "reasons": [["built-in Save", 10]]},
