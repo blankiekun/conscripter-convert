@@ -209,7 +209,7 @@ N of the scene replay (`%3000+N`); `0x94` ends a replayed scene.
 | `0x46` | 214 | **solved** (from the handler at `0x477460` plus a user-supplied example) | **hyperlink** on the next message: row, column, length, style, target (see 3c) |
 | `0x49` | 565 | **solved** (handler `0x477990`): u16 line, u16 column, u16 length (30000 = to the end of the message; the game wraps enlarged messages short enough to fit), u16 size (percent below 0x1000; 0x1000 + n = n × 25 percent from the table at `0x4fa850`, 0x1003 for mumbling, 0x1005-0x1007 for shouting; 0xf000 = keep), u32 colour (COLORREF, 0xff000000 = keep), u32 edge colour; lines and columns count as for ruby; later records override earlier ones | size and colour for characters of the next message: `#RRGGBB` and CONscripter's `!zNNN` size tag (`PLAN.md` §4.2) |
 | `0x4e` | 24 | **solved** (handler `0x494750`): arg = indent << 16 \| 1 (once 2); the indent is in half-width units of the first line (ASCII, half-width kana and Greek count 1), up to the text after the chat log's handle | hanging indent of the next message; the game puts it only before chat messages long enough to wrap. Converted to `indent N` around the message, N measured on the emitted line |
-| `0x70` | 457 | **solved** (handler `0x415a30`, objects `filter-<slot>`): u32 slot (0 = clear all), u32 layer \| depth << 8 (layer byte through the table at `0x503e68`: 0/2 → 0x10, 1 → 0, 3 → 0x20, 4 → 0x30; depth = the sort depth within that band, mostly 1000, above the bust-ups; no fade of its own), u32 kind (0 = clear the slot), u16 blend, u16 opacity, then 0x88's kind data; monotone (6) is a u32 palette, `pal%04u.pal` in `HD/pal.arc` (RIFF PAL, 256 entries for the grey levels) | filter on the whole screen, from 0x88's modules. Converted to `screenfilter` + `print 1` (or the surrounding transition); Smooth (1, u8 x, y range), HueSatura (3, i16 hue, saturation) and BrightnessInvert (9) as `screenfilter` kinds 6-8; Filter-Replace (13: u32 map, i32 direction, distance, begin angle in 1/100 turn) as a still `screenripple` in slot 4 + n, starting at the begin angle (`screenripple`'s phase, History, item 38). Kinds from the (type, creator) pairs at `0x501428`. Zigzag (12, one use: i32 centre x, y, direction, distance, frequency, begin angle, reduction; kernel `0x43f0b0`: each pixel from distance × sin(2π·i/1024) along the direction, i = d × frequency/100 for the distance d from the centre) as a still `screenripple` over a generated ring map; its Multi blend is drawn as alpha (the darkening is missing) |
+| `0x70` | 457 | **solved** (handler `0x415a30`, objects `filter-<slot>`): u32 slot (0 = clear all), u32 layer \| depth << 8 (layer byte through the table at `0x503e68`: 0/2 → 0x10, 1 → 0, 3 → 0x20, 4 → 0x30; depth = the sort depth within that band, mostly 1000, above the bust-ups; no fade of its own), u32 kind (0 = clear the slot), u16 blend, u16 opacity, then 0x88's kind data; monotone (6) is a u32 palette, `pal%04u.pal` in `HD/pal.arc` (RIFF PAL, 256 entries for the grey levels) | filter on the whole screen, from 0x88's modules. Converted to `screenfilter` + `print 1` (or the surrounding transition); Smooth (1, u8 x, y range), HueSatura (3, i16 hue, saturation) and BrightnessInvert (9) as `screenfilter` kinds 6-8; Filter-Replace (13: u32 map, i32 direction, distance, begin angle in 1/100 turn) as a still `screenripple` in slot 4 + n, starting at the begin angle (`screenripple`'s phase, History, item 38). Kinds from the (type, creator) pairs at `0x501428`. Zigzag (12, one use: i32 centre x, y, direction, distance, frequency, begin angle, reduction; kernel `0x43f0b0`: each pixel from distance × sin(2π·i/1024) along the direction, i = d × frequency/100 for the distance d from the centre) as a still `screenripple` over a generated ring map, its Multi blend as `screenripple`'s blend 1 and its phase as the exe's (from the frequency: the draw `0x41dab0` never reads the begin angle or the reduction, History, item 39) |
 | `0x59` | 47 | **solved** (handler `0x473610`) | BGM crossfade: u32 fade ms (capped at 30000), u16 track to stop (0 = all but the new one), u16 track to play; the new track starts fading in, then the old fades out, at once. Converted to CONscripter's `bgm "file",ms`: the old track fades out as the new fades in |
 | `0x82` | 38 | **solved** (handler `0x413f10`) | set an object's opacity (field +0x1b2, 0-256): u8 layer, u32 depth, u16 opacity; the object is found by key = depth (layers 0, 1), depth + 10 (layer 2: character `depth`'s bust-up, as 0x90 finds it), + 110, + 120 (3, 4). Converted for bust-ups (34) and the 0x55 overlay (layer 1 depth 2, 3) as `msp n,0,0,-255:msp n,0,0,alpha`; a new picture is opaque again. Not converted: layer 1 depth 1 (one use after `0x56`) |
 | `0x84`, `0x7d`, `0x7c` (+ `0x7a`/`0x7b` on layer 2) | 10, 5, 6 (6, 8) | **solved** (handlers `0x414180`, `0x413940`, `0x414460`; objects found as in `0x82`) | `0x84` loads a picture into an object: u8 layer, u32 depth, u8 kind, u32 number, u8 ?; image id kind × 10,000,000 + number - 1 (kind 2 = bust-ups, numbered as in `0x8e`). `0x7d`: u8 layer, u32 depth, u8 horizontal, u8 vertical anchor (0-2: left/top, centre, right/bottom; a new object's is 0). `0x7c`: u8 layer, u32 depth, u8 visible. The blog scenes make a hidden layer 2 object with `0x7a` (depth = a character, band 4 above the bust-ups, at (650, 320) or (250, 375)), load a bust-up, centre it and show it; 0135.cd steps a 0-100 % meter (`bu99_*`) a picture a second. `0x7b` on layer 2 removes it, or a bust-up `0x8e` made (0011-0013.cd). Converted as the character layer's sprite (`Op::Sprites`), drawn over the text window (`Op::SpriteOverText`, `spovertext`): `0x7a`'s group 4 is the top sort band (History, item 37) |
@@ -290,13 +290,14 @@ is noted) and why:
 | `0x88` | `+8` | u32 0, 2, 1000, 2000 | the module's place in its preset, where the modules set together are in slot order (History, item 36) |
 | `0x7a` | `+6` | 2000 | a blog bust-up's depth in the top band, over everything else there (History, item 37) |
 | `0x70` | `-4` | 0 | a cleared slot's blend and opacity (kind 0 or slot 0), which `op_70` (`0x415a30`) doesn't read (History, item 38) |
+| `0x70` | `-8` | 10, 0 | Zigzag's begin angle and reduction, which its draw (`0x41dab0`) doesn't read (History, item 39) |
 | `0x90` | `+2` | u32 1, 0, 2 | the preset module's place among the bust-up's modules, where it is alone (History, item 35) |
 | `0x8e` | the six module names | byte 0 is 0 | an empty module name (leftover memory after it) |
 
 A parsed
 field the converter never used counts as not read: `cd.rs` doesn't
 parse those (ruby flags, edge colours,
-Zigzag's begin angle and reduction, `0x70`'s depth); link styles and
+`0x70`'s depth); link styles and
 message line numbers are read only for `cd messages`, outside the
 tracking.
 
@@ -317,7 +318,6 @@ run's):
 | `0x59` | the old track fading out under the new one | partial: it stops at once (one BGM channel) |
 | `0x6f` | the pulse | converted, not checked against the original |
 | `0x70` | the depth in the second u32 (0 in 254, 1000 in 188, 2000 in 5, 1100 in 4, …): 457 notes | dropped (`screenfilter` has no depth) |
-| `0x70` | Zigzag's begin angle and reduction: 1 note; its Multi blend | dropped; partial (drawn as alpha) |
 | `0x76` | MeltDown's stretch for `sub` 46/47 | converted (scaled from the exe), not compared with the film |
 | `0x7a` | u16, u16 at +14 (0, 0 in the 6 blog records), passed to `FUN_0040f060`: 6 notes | dropped: meaning unknown |
 | `0x82` | layer 1 depth 1 (one use, after `0x56`) | dropped |
@@ -633,7 +633,8 @@ a copy of the save works.
   (was 49,328).
 - Merged: `0x43` and `0x52`/`0x53` `arg` as harmless (#111, #114; History, items 32, 34).
 - Open: `0x90` +2 as harmless, PR #119 (History, item 35).
-- Open: Filter-Replace's begin angle as `screenripple`'s new start phase, PR #134 with engine #50 (History, item 38).
+- Merged: Filter-Replace's begin angle as `screenripple`'s start phase (#134, engine #50; History, item 38).
+- Open: Zigzag's phase from its frequency, its begin angle and reduction as harmless (History, item 39).
 - Merged: the exe map's fixes and missed callbacks (#46).
 - Open: `0x59` as a real cross-fade, converter #25 with engine #18 (asked
   for a web-build measurement of the old track's decode first);
@@ -697,7 +698,6 @@ after History's 26, most noticeable first (notes = instructions):
     in 5, 0 in 4, 2000 in 3, 500 once): the same for the static, ripples and shakes.
 33. **Ruby flags** (`0x44` u16 at +6, 37 notes: 3 in 32, 1 in 5):
     meaning unknown.
-39. **Zigzag's begin angle and reduction** (`0x70`, 1 note).
 40. **`0x56` fill depth** (u32 at +2, 2 notes: 0 and 2000).
 41. **One `0x86` byte** at the end of one record (1 note), not looked
     into.
@@ -1280,3 +1280,14 @@ sound effects on `dwave` channels.
    this field are the cleared slots' trailing u32 (kind 0, or slot 0):
    `op_70` (`0x415a30`) clears them without reading blend and opacity,
    so they are a row of the harmless table, as `0x88`'s are.
+39. **Done: Zigzag's begin angle and reduction** (2026-10-16). The
+   Zigzag record (`0x70` kind 12) ends with a begin angle (10) and a
+   reduction (0); the debug output (`0x41da30`) names the fields at
+   +0x30 Freq, +0x34 BeginAngle, +0x38 Reduc. The draw (`0x41dab0`)
+   reads only +0x20 to +0x30: it passes `(freq << 16) / 100` to the
+   kernel (`0x43f0b0`) as both the ring scale (d × it >> 16, as before)
+   and the start phase (it >> 6 = 102 of 1024 sine entries). So the
+   begin angle and the reduction do nothing, and the ripple starts 102
+   entries in: the converter writes `screenripple`'s phase (`,1,100`,
+   1/1000 turn) and lists the two fields as harmless. The Multi blend
+   the row called missing had been converted already (blend 1).
