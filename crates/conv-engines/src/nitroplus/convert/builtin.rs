@@ -16,7 +16,23 @@ const UNREAD_HARMLESS: &[(&str, usize, Option<&str>, &str)] = &[
     ("CreateProcess", 1, None, "a process draws nothing: its priority is unused"),
     ("CreateProcess", 2, None, "a process draws nothing: its place is unused"),
     ("CreateProcess", 3, None, "a process draws nothing: its place is unused"),
+    ("SetFrequency", 3, Some("null"), "no tempo: at once, as ours"),
+    ("MoveCamera", 5, Some("null"), "no tempo: linear, as ours"),
+    ("WaitAction", 1, Some("null"), "no time limit: waits to the end, as ours"),
+    ("WaitPlay", 1, Some("null"), "no time limit: waits to the end, as ours"),
+    ("WaitFade", 1, Some("null"), "no time limit: waits to the end, as ours"),
+    ("WaitMove", 1, Some("null"), "no time limit: waits to the end, as ours"),
+    ("WaitZoom", 1, Some("null"), "no time limit: waits to the end, as ours"),
+    ("WaitText", 0, None, "the page's own text: ours waits on the page"),
+    ("WaitText", 1, Some("null"), "no time limit: waits to the end, as ours"),
+    // (Muramasa's `LoadText("$構文名", "$SYSTEM_present_preprocess", box, …)`, Django's `LoadText("main_stage", box, …)`.)
+    ("LoadText", 0, None, "the script unit's name: the text is compiled where it stands"),
+    ("LoadText", 1, None, "the box's preprocess name: the text is compiled where it stands"),
+    ("LockVideo", 0, None, "a group of changes shown at once: ours shows changes only at the next wait"),
 ];
+
+/// The note on a `Conquest` call, left out ([`super::LEFT_OUT`]).
+pub(super) const CONQUEST: &str = "Conquest: whole-scene read marks";
 
 impl Compiler<'_, '_> {
     /// A built-in call; every argument passed and not read gets a note
@@ -653,7 +669,13 @@ impl Compiler<'_, '_> {
                     (_, MovieState::Played) => 0,
                 }) as i64);
             }
-            "Conquest" | "Random" => return Value::Int(0),
+            "Conquest" => {
+                // (file, scene, mark): read marks for the skip; the engine keeps its own.
+                read.set(u64::MAX);
+                self.note(CONQUEST);
+                return Value::Int(0);
+            }
+            "Random" => return Value::Int(0),
             "ModuleFileName" => return Value::Str(self.file.to_string()),
             "Strstr" => return Value::Int(i64::from(arg(0).string().contains(&arg(1).string()))),
             "Integer" => return Value::Int(arg(0).int()),

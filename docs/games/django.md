@@ -413,17 +413,11 @@ with the original (it wants all eleven endings' flags under wine).
       `dja035_01` name ジュリアン and イライザ; what the original's log
       does with it (a name line, or the voice switches by character) is
       unchecked.
-   8. **No change** (the original passes values that do what ours
-       does; candidates for `UNREAD_HARMLESS`): `WaitAction` 1 (5,852),
-       `WaitFade` 1 (1), `WaitMove` 1 (2), all `null` (no limit);
-       `SetFrequency` 0, 1, 3 (1,283 each: `MusicStart`'s object, 0 ms,
-       `NULL`; the speed, argument 2, is 1000 everywhere and checked);
-       `LoadText` 0 (740, the
-       script unit's name; the text is compiled where it stands);
-       `CreateText` 5 (13, `Auto` height: dja026's song lines and the
-       ending's two texts); `MoveCamera` 1 and 6 (15 each, a camera with
-       no children yet: nothing moves); `CreateEffect` 2-5 (1, the
-       `Sepia` effect, drawn over the whole screen).
+   8. **Left of the no-change candidates**: `MoveCamera` 6 (15, a
+       camera with no children yet: nothing moves; noted, as the value
+       alone can't tell) and `CreateEffect` 2-3 (1, the `Sepia` effect at
+       0,0, drawn over the whole screen: left noted, as Muramasa's
+       undrawn effects pass 0 too). The rest is done (History).
 
 5. Sounds kept until their end (shared NSS code, `convert/sounds.rs`):
    1. **Time across runtime branches**: the sound clock adds up the ops
@@ -434,6 +428,20 @@ with the original (it wants all eleven endings' flags under wine).
 
 ## History
 
+- **Calls that change nothing, and calls left out (2026-10-16, shared
+  NSS code).** Arguments whose value does what ours does are in
+  `UNREAD_HARMLESS` (`convert/builtin.rs`), each for the value it covers:
+  a `null` limit on `WaitAction`, `WaitPlay`, `WaitFade`, `WaitMove`,
+  `WaitZoom`, `WaitText`; a `null` tempo on `SetFrequency` and
+  `MoveCamera`; `LoadText` 0 and 1 (the unit and preprocess names), and
+  `WaitText` 0 (the page's own text); `LockVideo` (a group of changes
+  shown at once, as ours shows them at the next wait). Calls left out on
+  purpose (`LEFT_OUT` in `convert.rs`, `metrics.json`'s `left_out`):
+  names no function or built-in has (the exe skips them too), and
+  `Conquest` (whole-scene read marks for the skip; the engine keeps its
+  own). Django's gaps went from 9,411 to 1,554. `Random` (returns 0) and
+  the built-ins of `function_select.nss`'s choice code (reached, replaced
+  by our choice screen) stay gaps.
 - **Movies moved or zoomed over time (2026-10-16, shared NSS code).**
   The last 10 moves still drawn as cross-fades were all movies played
   as sprites (smoke, explosions, `集中線21`, `背景21`): `motion` took
