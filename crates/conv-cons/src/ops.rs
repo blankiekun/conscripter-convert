@@ -503,6 +503,13 @@ impl<'a> Emitter<'a> {
             }
         }
         Op::TransitionEase { .. } => {}
+        Op::TransitionSoft { softness, reverse } => {
+            // Before the transition's masked print.
+            if let Some(i) = transition.as_ref().and_then(|l| l.iter().position(|l| l.starts_with("print ") && l.contains('"'))) {
+                let line = if *reverse { format!("effectsoft {softness},1") } else { format!("effectsoft {softness}") };
+                transition.as_mut().unwrap().insert(i, line);
+            }
+        }
         Op::EndTransition => {
             for line in transition.take().unwrap_or_default() {
                 writeln!(out, "{line}").unwrap();
