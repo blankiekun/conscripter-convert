@@ -630,6 +630,23 @@ step 9). Helper scripts of the sessions are in `research/xuse/local/`
   stays attached until the game is stopped (`wineserver -k`): no detach.
   Break on the handlers and their per-frame callbacks, not on
   `frame_loop` (History, "Breakpoint trace").
+- **Trace DLL** (`docs/new-game.md` step 22): `GAME=<install>
+  research/xuse/tracedll/xtrace.sh -o t.jsonl [--save slot.bin]
+  [--choices 12,34|none] [--pages N] [--seconds S] [--display :N]
+  [--shot end.png]` builds `xtrace.dll` and `xlaunch.exe` with mingw,
+  keeps a prepared prefix in `out/xtrace/` (the steps above), starts
+  the game on its own Xvfb and clicks to FIRST START (or loads slot 1),
+  then the game plays in its own auto mode. One JSON line per
+  dispatched instruction (`"t":"cmd"`: `op`, `sub`, `arg`, `src`, `"at"`
+  = `<script id>:<instruction number>` as `cd dump` counts them, `ms`
+  since the DLL loaded, `f` frames counted by `frame_loop`'s `Sleep`),
+  one per message (`"t":"page"` with its segments and voice id) and one
+  per page with links (`"t":"choice"`, `kind` `link`: each link's
+  label-table index and row/column; `picked` from 1, 0 none). Links are
+  taken as the click branch of `story_input_poll` takes them
+  (`0x470cc0`, then `0x49d740` on the link list); with no `--choices`
+  the first link of each page is taken once. The hooks and records:
+  `xtrace.c`'s head comment.
 - Dead ends: `winedbg` can read memory but detaching crashed the game;
   `/proc/<pid>/mem` is blocked by `ptrace_scope`.
 
@@ -715,10 +732,11 @@ there unlocks the extras; seen).
 
 ### Queue (2026-10-16)
 
-- Done, in review (2026-10-18): the progression variables are kept in
-  each slot save as in the original, the four system ones globally
-  ("Progression variables"; History, "Slot variables"; move this item
-  to History when it merges).
+- Open (Z2): turn the trace DLL's records (History, "Trace DLL") into a
+  comparison with ours: map `"at"` (`<script>:<instruction>`) to the
+  `0.txt` line the converter emits for it (a source map), then diff page
+  order, text and times against our debug trace. The DLL's `--save`
+  start (title load, slot 1) is untested.
 - Open: the extras' CG gallery, scene replay and BGM room drawn by the
   engine (`screens/gallery.lua`, `replay.lua`, `replay_list.lua`,
   `music.lua` from `ExtrasMenu` by `crates/conv-cons/src/extras_screens.rs`;
@@ -984,6 +1002,29 @@ there and the next loop or route branch may not be the save's: a new
 game plays right. The system variables start at 0 (they lived in the
 slots); the slot variables' last values stay unused at %200-%220 of
 `gloval.sav`.
+
+**Trace DLL (2026-10-17):** `research/xuse/tracedll/` (wine section,
+"Trace DLL"; `docs/new-game.md` step 22). `xlaunch.exe` starts the exe
+suspended and loads `xtrace.dll` with `CreateRemoteThread(LoadLibraryA)`;
+it worked at the first try under wine 11. A run from FIRST START with
+the first link taken: 200 pages in 768 s (3.3 s a page in auto mode,
+30.1 frames a second as in the breakpoint trace), the first link page
+(`0004.cd` #232, label-table index 6) after page 173. Taking it entered
+the link scene at #1230, whose `0x47` returned to #232 after 4.3 s; the
+page is then shown again (a second `page` record) and the run went on.
+Two lines of it:
+
+```
+{"t":"cmd","pg":13,"ms":80440,"f":2415,"at":"4:36","op":"0x40","sub":19,"arg":1326,"src":822}
+{"t":"page","pg":14,"ms":80440,"f":2415,"at":"4:36","voice":-1,"line":13,"segs":["忍","「え？」"]}
+```
+
+Dead ends: holding Ctrl (xdotool) or setting `skip_state_a` to skip
+ahead didn't: with the first the run stopped at page 1 with the text
+window gone, the second stops at
+"未読テキストはスキップすることはできません" (unread text); start from a
+save instead. The title needs its clicks retried: the first ENTER can
+come before the window takes input.
 
 **Breakpoint trace (2026-10-17):** `docs/new-game.md` steps 18-21 tried
 here first. The relay log (step 18) gives the frame rate: `frame_loop`
