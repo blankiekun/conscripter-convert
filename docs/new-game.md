@@ -377,6 +377,21 @@ rather than by browsing:
     "inferred" (step 16) until its decompile is read. Untested: 最果てのイマ
     has one build (the copies on hand have the same sha256), and none of
     these tools is installed here.
+22. **A trace DLL in the original** (the debug trace's records from the
+    original itself: every script command with its time, every page, every
+    choice, while the game plays by itself). Once the dispatch table and
+    the wait's input check are named (steps 1 and 17), a small DLL
+    (mingw `i686-w64-mingw32-gcc`) can replace each table entry with a
+    stub that logs the instruction and jumps on, count frames by hooking
+    the frame loop's `Sleep` in the import table, and patch the input
+    check's first bytes to turn on the game's own auto mode and take
+    choices the way its click code does. A launcher starts the exe
+    suspended and loads the DLL with `CreateRemoteThread(LoadLibraryA)`:
+    no file of the game is touched, and it works under wine 11's WoW64.
+    Cheaper than step 19 (no stop per hit, so frame times stay true) and
+    it runs for hundreds of pages unattended. 最果てのイマ:
+    `research/xuse/tracedll/` (`xtrace.sh`, docs/games/saihate-no-ima.md,
+    "Running the original under wine").
 
 ### Checklist: behaviours to map
 
