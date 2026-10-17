@@ -332,6 +332,8 @@ impl Compiler<'_, '_> {
         // Moving pictures drawn on another layer (the layers spread out
         // again): placed where they end, then these ops from where they were.
         let mut moved_over: HashMap<String, Vec<Op>> = HashMap::new();
+        // Placed instead of the wanted (cut) picture, for its motion (below).
+        let mut uncut: HashMap<String, Shown> = HashMap::new();
         let mut vanished = Vec::new();
         for ((name, now, _), layer) in want.iter().zip(&layers) {
             let (Some(layer), Some(t)) = (*layer, turning.get(name)) else { continue };
@@ -389,6 +391,34 @@ impl Compiler<'_, '_> {
                 ops.push(Op::SpriteMotion2 { layer, keys, end });
                 moved_over.insert(name.clone(), ops);
                 self.runs.insert(name.clone(), Run { from: start, to: now, ms: t, at: clock, ease: tempo.get(name).copied() });
+                moving.push(name.clone());
+                continue;
+            }
+            // A picture cut to the screen moving to another cut of it (a pan
+            // over a picture zoomed past the screen): the whole picture,
+            // zoomed by the engine (as many pixels as the cut), moves.
+            if let (Some(ow), Some(nw)) = (old.whole, now.whole)
+                && old.source == now.source
+                && old.opacity == now.opacity
+                && now.angle == 0
+                && now.zoom.0 > 0
+                && now.zoom.1 > 0
+                && !self.lead_ins.contains_key(name)
+            {
+                let (w, h) = (nw.2 * 1000 / now.zoom.0, nw.3 * 1000 / now.zoom.1);
+                let centre = |r: (i64, i64, i64, i64)| (r.0 + r.2 / 2, r.1 + r.3 / 2);
+                let ((x0, y0), (x1, y1)) = (centre(ow), centre(nw));
+                let engine = Engine { zoomed: true, moved: true };
+                uncut.insert(name.clone(), Shown { image: now.source.clone(), x: x1 - w / 2, y: y1 - h / 2, w, h, whole: None, engine, ..now.clone() });
+                let z = |o: i64, n: i64| (o * 100 / n.max(1)) as u32;
+                let key = |ms, x, y, zoom, zoom_y| MotionKey { ms, x, y, zoom, zoom_y, angle: 0, opacity: 256 };
+                let keys = vec![key(0, (x0 - x1) as i32, (y0 - y1) as i32, z(ow.2, nw.2), z(ow.3, nw.3)), key(t, 0, 0, 100, 100)];
+                let mut ops = vec![Op::SpriteAngle { layer, degrees: 0, zoom: ((now.zoom.0 / 10) as i32, (now.zoom.1 / 10) as i32) }];
+                if let Some(&(ease, exponent)) = tempo.get(name) {
+                    ops.push(Op::MoveEase { ease, exponent });
+                }
+                ops.push(Op::SpriteMotion2 { layer, keys, end: conv_core::ir::MotionEnd::Keep });
+                moved_over.insert(name.clone(), ops);
                 moving.push(name.clone());
                 continue;
             }
@@ -536,7 +566,14 @@ impl Compiler<'_, '_> {
                             unzoom.push(old.layer);
                         }
                     }
-                    let sprite = SpritePlacement { image: now.image.clone(), x: now.x as i32, y: now.y as i32 };
+                    // (Kept as the cut picture, so the next sync leaves it moving.)
+                    let sprite = match uncut.remove(&name) {
+                        Some(u) => {
+                            now.engine = u.engine;
+                            SpritePlacement { image: u.image, x: u.x as i32, y: u.y as i32 }
+                        }
+                        None => SpritePlacement { image: now.image.clone(), x: now.x as i32, y: now.y as i32 },
+                    };
                     match now.cells {
                         // A strip placed again: its last picture.
                         Some((_, _, zoom, frame_ms)) if let Some(Object { kind: Kind::Strip(s), .. }) = self.objects.get(&name).filter(|o| matches!(&o.kind, Kind::Strip(s) if !s.looped) && old.is_some_and(|o| o.image == now.image)) => {

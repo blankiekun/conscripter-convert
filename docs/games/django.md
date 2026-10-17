@@ -376,9 +376,9 @@ with the original (it wants all eleven endings' flags under wine).
 1. The trace checker's remaining findings: "sounds on two channels at
    once" are the script's own (the same shot or horse on two sound
    objects, started 500 ms apart) and stay.
-2. The 10 moves and zooms still drawn as cross-fades (dry run notes,
-   2026-10-16): 1 zoom between two pictures both cut to the screen
-   (`立絵50`, zoom 4000), 9 movies.
+2. The 9 moves and zooms still drawn as cross-fades (dry run notes,
+   2026-10-16): all movies (smoke, explosions, `集中線21`, `背景21`
+   moving as they play), left for last.
 3. Extras: the doors' animation and the menu's own music (left out).
 4. From the exe's coverage table ("The exe"): `SetShade HEAVY` (one use): done (#197).
 5. The unread-argument notes (`<Builtin> argument <i> ignored`;
@@ -427,6 +427,18 @@ with the original (it wants all eleven endings' flags under wine).
    NSS code; noted, drawn as nothing.
 
 ## History
+
+- **Pans over a picture cut to the screen (2026-10-16, shared NSS
+  code).** A picture zoomed past the screen is drawn cut to it
+  (`Assets::scaled`); a move or zoom from one cut to another (dja015's
+  `立絵50` at zoom 4000, dja001's carriage interior behind the zooming
+  camera) was a cross-fade. Now the whole picture is placed, zoomed by
+  the engine (`spzoom`, as many pixels as the cut), and moves; the
+  converter still records the cut, so the next change leaves it moving
+  and replaces it afterwards. Checked with `--real-time --shot-at` in
+  dja001 (`wait 1000` after the change): the interior zooms with the
+  characters instead of fading (AE 15k/9k/2k at +50/+100/+150 ms; 1.4k
+  at the end, the engine's resampling against the converter's).
 
 - **Fading moves in a spread, uneven zooms (2026-10-16, shared NSS
   code).** Two of the moves still drawn as cross-fades. (1) A picture
