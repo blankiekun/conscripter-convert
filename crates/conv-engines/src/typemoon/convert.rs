@@ -12,7 +12,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use conv_core::ir::{ArithOp, Compare, MotionEnd, MotionKey, Op, Operand, Ruby, SpriteChange, TextStyle, SpriteFilter, SpritePlacement, TransitionStyle, Var, Voice, BLEND_ADD, BLEND_MULTIPLY, BLEND_NORMAL, BLEND_SUBTRACT, FILTER_BLEND_COPY, FILTER_BLUR, FILTER_GREYSCALE, FILTER_NEGATIVE};
 
-use super::exe::Picture;
+use super::exe::{Motion, Picture};
 use super::script::Command;
 use crate::metrics::Metrics;
 
@@ -917,26 +917,40 @@ impl Lowering<'_, '_> {
     /// layer's place), and moves the layer's state to its last key. Its
     /// children (and theirs) follow it, each with an `spmotion` of its
     /// own from where the parent's keys place it.
-    // shortcut: the keys' easing, priority (0x3C) and expression (0x32, 0x34) are not followed; straight lines.
+    // shortcut: the keys' easing (0x04), curve (0x06 = 1), priority (0x3C), expression (0x32, 0x34) and the other
+    // fields are not followed, nor a motion's loop (`FUN_001999a0`); straight lines, once. Mode 2 holds: a key 1 ms early.
     fn run_motion(&mut self, slot: usize, m: usize) {
         let Some(i) = self.slot_layer[slot] else { return };
         let (Some(start), Some(shown)) = (self.slots[slot].clone(), self.shown[i].clone()) else { return };
         // The layer as drawn and as shown (its own place) at each key.
         let (mut at, mut own) = (start.clone(), shown.clone());
         let mut states = Vec::new();
-        for k in &self.g.motions[m - 1].keys {
+        let motion = &self.g.motions[m - 1];
+        // A field drives the layer only under its bits of the motion's mask.
+        let on = |bits: u64, v: Option<i16>| v.filter(|_| motion.mask & bits != 0);
+        // The way to each key is the mode last set before it (`FUN_00197710`); before the first key the layer stays.
+        let mut mode = None;
+        for (j, k) in motion.keys.iter().enumerate() {
+            let hold = if j == 0 { k.time_ms > 0 } else { mode == Some(2) && k.time_ms > motion.keys[j - 1].time_ms + 1 };
+            if hold {
+                states.push((k.time_ms - 1, at.clone(), own.clone()));
+            }
+            mode = k.mode().or(mode);
             for l in [&mut at, &mut own] {
-                if let Some(x) = k.x() {
+                if let Some(x) = on(Motion::X, k.x()) {
                     l.x = f32::from(x);
                 }
-                if let Some(y) = k.y() {
+                if let Some(y) = on(Motion::Y, k.y()) {
                     l.y = f32::from(y);
                 }
-                if let Some(a) = k.alpha() {
+                if let Some(a) = on(Motion::ALPHA, k.alpha()) {
                     l.alpha = a.clamp(0, 255) as u32;
                 }
-                let (zx, zy) = k.zoom();
+                let (zx, zy) = (on(Motion::ZOOM_X, k.zoom().0), on(Motion::ZOOM_Y, k.zoom().1));
                 l.stretch = (zx.map_or(l.stretch.0, |z| f32::from(z) / 1000.0), zy.map_or(l.stretch.1, |z| f32::from(z) / 1000.0));
+                if let Some(t) = k.turn().filter(|_| motion.mask & Motion::TURN != 0) {
+                    l.angle = t;
+                }
             }
             states.push((k.time_ms, at.clone(), own.clone()));
         }
@@ -963,7 +977,7 @@ impl Lowering<'_, '_> {
             self.emit_motion(c, &start, &keys);
         }
         // shortcut: the layer's state jumps to the motion's end; a picture drawn again mid-motion starts there.
-        let end = |l: &mut Layer| (l.x, l.y, l.alpha, l.stretch) = (at.x, at.y, at.alpha, at.stretch);
+        let end = |l: &mut Layer| (l.x, l.y, l.alpha, l.stretch, l.angle) = (at.x, at.y, at.alpha, at.stretch, at.angle);
         for l in [self.slots[slot].as_mut(), self.shown[i].as_mut(), self.staged[i].as_mut()].into_iter().flatten() {
             end(l);
         }
@@ -986,13 +1000,18 @@ impl Lowering<'_, '_> {
                 x: (x - x0).round() as i32,
                 y: (y - y0).round() as i32,
                 zoom: rel(z.0, z0.0),
-                angle: 0,
+                // Counter-clockwise, added to the place's (clockwise 1/100 degrees).
+                angle: ((start.angle - at.angle) as f32 / 100.0).round() as i32,
                 opacity: at.alpha * 256 / 255,
                 zoom_y: rel(z.1, z0.1),
             });
         }
         if keys.is_empty() {
             return;
+        }
+        // shortcut: spmotion takes 64 keys; past that the middle ones go (7 calls), the last stays.
+        if keys.len() > 64 {
+            keys.drain(63..keys.len() - 1);
         }
         // Opaque, the keys giving the alpha (they multiply it).
         if start.alpha < 255 {
@@ -1372,10 +1391,14 @@ mod tests {
             for &(at, v) in set {
                 fields[(at - 4) / 2] = v;
             }
-            Key { time_ms: ms, fields }
+            let mut k = Key { time_ms: ms, fields };
+            if !set.iter().any(|&(at, _)| at == 0x14) {
+                k.set_turn(Key::TURN_UNSET);
+            }
+            k
         };
         // y 136 -> 146 (10 script units = 26.5 px), zoom 1000 -> 2000 ‰, alpha 255 -> 0.
-        let motion = Motion { length_ms: 500, keys: vec![key(0, &[(0x0A, 136), (0x0C, 255)]), key(500, &[(0x0A, 146), (0x0C, 0), (0x18, 2000), (0x1A, 2000)])] };
+        let motion = Motion { mask: u64::MAX, length_ms: 500, keys: vec![key(0, &[(0x0A, 136), (0x0C, 255)]), key(500, &[(0x0A, 146), (0x0C, 0), (0x18, 2000), (0x1A, 2000)])] };
         let src = "_STCH(1,img1,240,136);_FADS(1,0,0);_STMA(1,1);";
         let g = Game {
             scripts: vec![("S".into(), script::parse(src).into_iter().map(Result::unwrap).collect())],
@@ -1394,6 +1417,44 @@ mod tests {
     }
 
     #[test]
+    fn a_motion_turns_holds_and_follows_its_mask() {
+        use crate::typemoon::exe::Key;
+        let key = |ms: u32, set: &[(usize, i16)]| {
+            let mut fields = [Key::UNSET; 30];
+            for &(at, v) in set {
+                fields[(at - 4) / 2] = v;
+            }
+            let mut k = Key { time_ms: ms, fields };
+            if !set.iter().any(|&(at, _)| at == 0x14) {
+                k.set_turn(Key::TURN_UNSET);
+            }
+            k
+        };
+        // From key 1 on, mode 2: x jumps at key 2 (a key at 999 ms holds key 1's).
+        // The turn 9000 (90° clockwise) at key 2; y is set but not in the mask.
+        let mut turned = key(1000, &[(0x08, 260), (0x0A, 200)]);
+        turned.set_turn(9000);
+        let motion = Motion { mask: Motion::X | Motion::TURN, length_ms: 1000, keys: vec![key(0, &[(0x08, 240)]), key(500, &[(0x06, 2), (0x08, 250)]), turned] };
+        let src = "_STCH(1,img1,240,136);_FADS(1,0,0);_STMA(1,1);";
+        let g = Game {
+            scripts: vec![("S".into(), script::parse(src).into_iter().map(Result::unwrap).collect())],
+            scenes: vec![],
+            lines: vec![],
+            pictures: [picture("img1", 1280.0, 724.0)].into(),
+            textures: HashMap::new(),
+            sounds: vec![],
+            waves: HashMap::new(),
+            pic_ext: "webp",
+            motions: vec![motion],
+        };
+        let ops = compile(&g).ops;
+        let Some(Op::SpriteMotion2 { keys, .. }) = ops.last() else { panic!("{ops:?}") };
+        // x in px: 10 script units = 10 · 1280/480.
+        assert_eq!(keys.iter().map(|k| (k.ms, k.x, k.y, k.angle)).collect::<Vec<_>>(), [(0, 0, 0, 0), (500, 27, 0, 0), (999, 27, 0, 0), (1000, 53, 0, -90)]);
+    }
+
+
+    #[test]
     fn a_tiny_zoom_is_placed_and_grows() {
         use crate::typemoon::exe::{Key, Motion};
         // 1‰ across (0.05 % of the 2× texture) is placed at 1 %, not 0, and a motion to 1000‰ goes to 50 %.
@@ -1402,9 +1463,11 @@ mod tests {
             for &(at, v) in set {
                 fields[(at - 4) / 2] = v;
             }
-            Key { time_ms: ms, fields }
+            let mut k = Key { time_ms: ms, fields };
+            k.set_turn(Key::TURN_UNSET);
+            k
         };
-        let motion = Motion { length_ms: 500, keys: vec![key(0, &[]), key(500, &[(0x18, 1000)])] };
+        let motion = Motion { mask: u64::MAX, length_ms: 500, keys: vec![key(0, &[]), key(500, &[(0x18, 1000)])] };
         let src = "_STCH(1,img1,240,136);_STZ4(1,1,1000,1,1000,0,0,0);_FADS(1,0,0);_STMA(1,1);";
         let g = Game {
             scripts: vec![("S".into(), script::parse(src).into_iter().map(Result::unwrap).collect())],
@@ -1556,10 +1619,14 @@ mod tests {
             for &(at, v) in set {
                 fields[(at - 4) / 2] = v;
             }
-            Key { time_ms: ms, fields }
+            let mut k = Key { time_ms: ms, fields };
+            if !set.iter().any(|&(at, _)| at == 0x14) {
+                k.set_turn(Key::TURN_UNSET);
+            }
+            k
         };
         // The parent goes 60 script units right (160 px) and fades out.
-        let motion = Motion { length_ms: 500, keys: vec![key(0, &[(0x08, 240), (0x0C, 255)]), key(500, &[(0x08, 300), (0x0C, 0)])] };
+        let motion = Motion { mask: u64::MAX, length_ms: 500, keys: vec![key(0, &[(0x08, 240), (0x0C, 255)]), key(500, &[(0x08, 300), (0x0C, 0)])] };
         let src = "_STCH(1,img1,240,136,1000,255,10);_STCH(2,dot,300,136,1000,128,20,,,,,1);_FADS(1,0,0);_STMA(1,1);";
         let g = Game {
             scripts: vec![("S".into(), script::parse(src).into_iter().map(Result::unwrap).collect())],

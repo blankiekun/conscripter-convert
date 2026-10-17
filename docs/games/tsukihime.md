@@ -301,19 +301,38 @@ addresses in `research/typemoon/names.tsv` are those of the 1.0.2
     sprite's shot (`_A_` 0, `_L_` 1, `_M_` 2, `_S_` 3); u16 at 0x44
     per pose, not known.
 - **The motion table**: `_STMA(layer, m)` starts motion `m`
-  (1–24,192). u32 at 0x4B1940 + 4(m−1): its first keyframe (motion m's
-  keys run to motion m+1's first; keys 0 and 1 are unused, 71,903
-  used); u32 at 0x499F40 + 4(m−1): its length in ms (not always the
-  last key's time: 12,693 differ). Keyframes are 0x40 bytes at
-  0x75CE18: u32 time in ms, then 30 s16 (0x04 easing, 0x08 x, 0x0A y,
-  0x0C alpha, 0x18/0x1A zoom ‰ (the `_STZ4` zoom), 0x32/0x34 the
-  expression, 0x3C the priority, …), −32767 for "unchanged", −32766
-  for "no key here": `FUN_00197710` (a field's value at a time) skips
-  such keys, so the field runs straight on between the keys around it
-  (5,926 fields: x 1,015, y 1,258, alpha 1,229, zoom 2,360; 48 with no
-  key after them hold the last value); the
-  values are absolute (x, y in script units). Motion 229: zoom 584‰ →
-  566‰ and y 130 → 136 over 5 s.
+  (1–24,192; `FUN_00197b80` runs it each frame). u32 at 0x4B1940 +
+  4(m−1): one past its last keyframe (motion 1 starts at key 0;
+  71,905 keys); u32 at 0x499F40 + 4(m−1): its length in ms (the last
+  key's time, for all 24,191 with keys); u64 at 0x46AB38 + 8m: the
+  fields it drives (a field is applied only under its bits: x 0x40880,
+  y 0x5100000, alpha 0x4000, zoom 0x80200000/0x100400000, turn 0x88000,
+  priority 1; 50-odd `_STMA` calls have keys for a field outside their
+  mask); `FUN_001999a0(m)`: where it loops from (0: no loop; 1: the
+  start; else a time in ms; motions over 9,859, a jump table: 2,037
+  `_STMA` calls loop). Keyframes are 0x40 bytes at 0x75CE18
+  (`FUN_00199ff0` reads field f): u32 time in ms, then s16 0x04 easing
+  (`FUN_001961b0`'s set, as `FUN_00130c80`: 0, 1 straight, 2 quad in,
+  3 quad out, 4 quad in-out, …, up to 41), 0x06 mode (2: each value
+  holds until the next key, then jumps; 1: a curve, `FUN_001972c0`), 0x08
+  x, 0x0A y, 0x0C alpha, 0x0E/0x10 (the centre?), an i32 at 0x14 the
+  turn in 1/100° (as `_STRT`'s; −100001 unchanged, −100000 no key
+  here), 0x18/0x1A zoom ‰ (the `_STZ4` zoom), 0x1C–0x22 (four shorts,
+  1,920 × 1,080 values: a clip?), 0x24, 0x26, 0x28 and 0x2A (0x28,
+  0x2A: shader and effect?), 0x2C–0x30 the effect colour (r, g, b), 0x32/0x34
+  the expression, 0x36 (/255 + 1) and 0x38 (·0.01 + 1) to the state's
+  0x1454/0x1458, 0x3A, 0x3C the priority (applied only to a layer whose
+  priority isn't 0); fields 0x24 and 0x28–0x3C step (no in-between
+  values). −32767 is "unchanged", −32766 "no key here":
+  `FUN_00197710` (a field's value at a time) skips such keys, so the
+  field runs straight on between the keys around it (5,926 fields: x
+  1,015, y 1,258, alpha 1,229, zoom 2,360; 48 with no key after them
+  hold the last value). The way to key j (its easing and mode) is set
+  by the last key before j that sets it; before the first key's time
+  the layer stays. The values are absolute (x, y in script units).
+  Motion 229: zoom 584‰ → 566‰ and y 130 → 136 over 5 s. In the
+  `_STMA` calls (24,333): 8,215 drive the turn, 10,801 ways to a key
+  hold (mode 2), 18,775 keys ease (12,239 quad out, 2,881 quad in).
 - **Scene numbers**: `_JUMP(n[,label])` goes to the script whose
   scene number is `n`, not by name: 551 s16 at 0x450D58, one per
   script in `allscr` order (`START_SCRIPT` 110, `00_00` 240,
@@ -659,7 +678,7 @@ Nothing yet.
 | Exe tables (pictures, motions, scene numbers) | ✅ read from the NSO (`typemoon exe`); picture sizes checked against the textures |
 | Scripts | 🔶 read: every command of both languages splits (one malformed in the original) and its text and voices join; the top commands' arguments read from the exe, the rest not yet |
 | Media folder (`typemoon media`) | ✅ `allpac`'s pictures at full size (PNG, or WebP with the shared `--webp` flags), the movies as they are, the sound (WAV wave sounds, or Opus/Vorbis with the shared `--audio-*` flags), loops kept in every mode |
-| Script conversion (`typemoon convert`) | 🔶 the flow (labels, `_JUMP`, `_IF__`, flags), text (pages, ruby, voices; the fan patch's styled letters, private-use U+E000–U+E2FE drawn by its own `ja/TT_TsukuMin-D.ttf`, as ASCII: italic and serif italic as italic (`!i1`), mirrored and upside-down plain (mirrored lines, stored right to left, put back in reading order), U+E200 as `^-35`; its accents (é ï ç â à ê, 46 uses) and em dashes kept, as the `0.txt` is UTF-8; a `^` break in a choice's option as a space), pictures (`_STCH`/`_STCC`/`_FADS`: record size and place, fades and rule wipes), sound effects and music; plays from the start through `00_00` into the first arc headless. Layers drawn in priority order (`_STCP`, `_STCH` argument 6), changed keeping their settings (`_SCH2`) or copying another layer's (argument 18), zoomed (`_STZ4`), faded (`_STGS`) and moved (`_STMA`, the exe's motions, a −32766 field interpolated across its key; easing, priority and expression keys not followed), children placed in their parent layers, orbiting with their turn and following their motions (`_STCH` argument 11), clipped to their panels with their soft edges (`_STCH` arguments 12–17, CONscripter's `spclip` feather), turned (`_STRT`), drawn with their shader as far as CONscripter's blends and filters go (`_STBR`) and drawn with their `_STEC` effect (levels, greyscale and colour layers; effect 1 a colour fill, CONscripter's `spfilter` 9 and 10). Choices (`_SELR`, `_SELD`, `_GOTS`; options under a flag offered by it, greyed ones shown greyed and not selectable (`seldisable`); the chapter-jump menus), `_GOTO` and the Switch's own branches (`_IFNX`/`_IFP4`). The text window hidden and faded (`_CLO2`, `_CLO3`/`_CLO4`/`_CLO5` with CONscripter's `windowfade`, the script going on; the next text fades it back in). Not yet: the other layer commands, screens |
+| Script conversion (`typemoon convert`) | 🔶 the flow (labels, `_JUMP`, `_IF__`, flags), text (pages, ruby, voices; the fan patch's styled letters, private-use U+E000–U+E2FE drawn by its own `ja/TT_TsukuMin-D.ttf`, as ASCII: italic and serif italic as italic (`!i1`), mirrored and upside-down plain (mirrored lines, stored right to left, put back in reading order), U+E200 as `^-35`; its accents (é ï ç â à ê, 46 uses) and em dashes kept, as the `0.txt` is UTF-8; a `^` break in a choice's option as a space), pictures (`_STCH`/`_STCC`/`_FADS`: record size and place, fades and rule wipes), sound effects and music; plays from the start through `00_00` into the first arc headless. Layers drawn in priority order (`_STCP`, `_STCH` argument 6), changed keeping their settings (`_SCH2`) or copying another layer's (argument 18), zoomed (`_STZ4`), faded (`_STGS`) and moved (`_STMA`, the exe's motions, a −32766 field interpolated across its key, turned by its turn keys, held where a key's mode 2 says, only the fields its mask drives; easing, curves, loops, priority and expression keys not followed), children placed in their parent layers, orbiting with their turn and following their motions (`_STCH` argument 11), clipped to their panels with their soft edges (`_STCH` arguments 12–17, CONscripter's `spclip` feather), turned (`_STRT`), drawn with their shader as far as CONscripter's blends and filters go (`_STBR`) and drawn with their `_STEC` effect (levels, greyscale and colour layers; effect 1 a colour fill, CONscripter's `spfilter` 9 and 10). Choices (`_SELR`, `_SELD`, `_GOTS`; options under a flag offered by it, greyed ones shown greyed and not selectable (`seldisable`); the chapter-jump menus), `_GOTO` and the Switch's own branches (`_IFNX`/`_IFP4`). The text window hidden and faded (`_CLO2`, `_CLO3`/`_CLO4`/`_CLO5` with CONscripter's `windowfade`, the script going on; the next text fades it back in). Not yet: the other layer commands, screens |
 | Screens, extras | 🔶 the title; the system menu's Save and Load tabs (see History, 2026-10-17), opened in game by a right click at a text wait (on its Save tab); Config (for now the language switch), FlowChart, the backlog not yet |
 | Languages (`--english`) | 🔶 one `0.txt` with both copies (below); the switch is the system menu's **Config** tab for now (in game; at rest on the title), until the settings tab with its 日本語/English option is converted |
 
