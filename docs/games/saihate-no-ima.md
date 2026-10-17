@@ -628,7 +628,7 @@ a copy of the save works.
 
 ### Queue (2026-10-16)
 
-- Open: slides, zooms, flips, cube turns and melts as warp maps (`cons_warp.dll`, engine #67/#69; maps in `warp/`, melt with a fixed edge, seed 1); the plugins go in a later PR.
+- Merged: slides, zooms, flips, cube turns and melts as warp maps (`cons_warp.dll`, #227, engine #67/#69; maps in `warp/`, melt with a fixed edge, seed 1). Open: the plugins retired (engine #72): a build from before #227 plays them as cross-fades until rebuilt.
 - Open: the save and load menus and their yes/no dialog drawn by the
   engine (`screen`, engine #70/#71; `screens/save.lua`, `load.lua`,
   `confirm.lua` in `arc.nsa`, from `SaveMenu`/`ConfirmDialog` by

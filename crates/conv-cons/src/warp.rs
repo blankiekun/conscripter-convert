@@ -17,7 +17,8 @@ const GRID: u32 = 8;
 const SMOOTH: u8 = 128;
 const BLACK: u8 = 64;
 
-/// A transition drawn by a warp map, with the plugin's parameters.
+/// A transition drawn by a warp map, with the parameters of the plugin it
+/// replaced (retired in CONscripter #72).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Kind {
     /// `cons_slide.dll/layer,dx,dy`
@@ -189,7 +190,7 @@ fn squeeze(a: f64, len: f64, from: f64, to: f64) -> (f64, f64) {
     ((a + 0.5 - from) * len / span - 0.5, (a + 0.5 - from).min(to - a - 0.5))
 }
 
-/// cons_melt's delay of each column (in f32, as the plugin computes it).
+/// cons_melt's delay of each column (in f32, as the plugin computed it).
 fn melt_delay(w: u32, seed: u32) -> Vec<f64> {
     let mut r = seed;
     let mut pt = [0f32; 13];
