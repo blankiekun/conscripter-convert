@@ -4134,6 +4134,34 @@ scene a.nss
     }
 
     #[test]
+    fn a_move_onto_another_layer_is_placed_at_its_end_and_moved_from_its_start() {
+        // A new picture between two shown on next layers spreads the layers
+        // out again: the moving one is drawn on another.
+        let story = r#"
+scene a.nss
+{
+	CreateTexture("a", 100, 0, 0, "cg/st/a.png");
+	CreateTexture("b", 133, 0, 0, "cg/st/b.png");
+	Wait(100);
+	CreateTexture("c", 120, 0, 0, "cg/st/c.png");
+	Move("a", 500, @100, @0, null, false);
+	Wait(600);
+}
+"#;
+        let c = compile(story, LIBRARY);
+        let keys = c.ops.iter().find_map(|op| match op {
+            Op::SpriteMotion2 { keys, .. } => Some(keys),
+            _ => None,
+        }).unwrap_or_else(|| panic!("{:?}", c.ops));
+        assert_eq!((keys[0].x, keys[1].x, keys[1].ms), (-100, 0, 500), "{keys:?}");
+        // After its placement, in the same change.
+        let placed = c.ops.iter().rposition(|op| matches!(op, Op::Sprites { .. })).unwrap();
+        let moved = c.ops.iter().position(|op| matches!(op, Op::SpriteMotion2 { .. })).unwrap();
+        assert!(placed < moved, "{:?}", c.ops);
+        assert!(!c.notes.keys().any(|n| n.contains("cross-fade")), "{:?}", c.notes);
+    }
+
+    #[test]
     fn a_face_slides_with_its_frame() {
         // `WindowMoveM` moves only the frame (dja003_02): its face, placed
         // from it, moves by the engine with it, not at once to its end.

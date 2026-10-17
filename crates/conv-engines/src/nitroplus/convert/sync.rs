@@ -264,6 +264,9 @@ impl Compiler<'_, '_> {
         // Turning pictures that grow (or come in from edge-on): placed as
         // they end, then the motion from the start (below).
         let mut grow: HashMap<String, Option<Shown>> = HashMap::new();
+        // Moving pictures drawn on another layer (the layers spread out
+        // again): placed where they end, then these ops from where they were.
+        let mut moved_over: HashMap<String, Vec<Op>> = HashMap::new();
         for ((name, now, _), layer) in want.iter().zip(&layers) {
             let (Some(layer), Some(t)) = (*layer, turning.get(name)) else { continue };
             let old = self.shown.get(name);
@@ -287,6 +290,26 @@ impl Compiler<'_, '_> {
             let now = Shown { layer, ..now.clone() };
             // (Only tinted anew: spfilter below, no motion.)
             if t == 0 || *old == (Shown { engine: old.engine, tint: old.tint.clone(), ..now.clone() }) {
+                continue;
+            }
+            // (A fade too: its keys' alpha is for the old sprite, left as a cross-fade.)
+            if old.layer != layer
+                && old.opacity == now.opacity
+                && !self.lead_ins.contains_key(name)
+                && let Some(Op::SpriteMotion2 { keys, end, .. }) = motion(&Shown { layer, ..old.clone() }, &now, t)
+            {
+                let mut ops = Vec::new();
+                if let Some(t) = self.objects.get(name).and_then(|o| o.trail) {
+                    ops.push(Op::SpriteTrail { layer, passes: t.passes, alpha: t.alpha, lag: t.lag });
+                }
+                if let Some(&(ease, exponent)) = tempo.get(name) {
+                    ops.push(Op::MoveEase { ease, exponent });
+                }
+                let last = *keys.last().unwrap();
+                let from_end = |k: MotionKey| MotionKey { x: k.x - last.x, y: k.y - last.y, zoom: k.zoom * 100 / last.zoom.max(1), zoom_y: k.zoom_y * 100 / last.zoom_y.max(1), angle: k.angle - last.angle, ..k };
+                ops.push(Op::SpriteMotion2 { layer, keys: keys.into_iter().map(from_end).collect(), end });
+                moved_over.insert(name.clone(), ops);
+                moving.push(name.clone());
                 continue;
             }
             match motion(old, &now, t) {
@@ -341,6 +364,10 @@ impl Compiler<'_, '_> {
                 && let Some(op) = self.turn_motion(&name, &turning[&name], layer, old.as_ref(), Some(&now), true)
             {
                 animated.push(op);
+                now.engine.moved = true;
+            }
+            if let Some(ops) = moved_over.remove(&name) {
+                animated.extend(ops);
                 now.engine.moved = true;
             }
             match self.shown.get(&name) {
