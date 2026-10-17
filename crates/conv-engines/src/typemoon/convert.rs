@@ -230,6 +230,8 @@ struct Lowering<'g, 'a> {
     /// A line ended with `@n`: the next one goes on after it, no click.
     held: Option<(String, Vec<Ruby>)>,
     se_channels: HashMap<i32, String>,
+    /// `_SELR`'s options so far: (index, text).
+    options: Vec<(i32, String)>,
 }
 
 impl Lowering<'_, '_> {
@@ -283,6 +285,38 @@ impl Lowering<'_, '_> {
                 self.ops.push(Op::Arith { var, op, value });
             }
             "_END_" => self.ops.push(Op::ReturnToTitle),
+            "_GOTO" => self.ops.push(Op::Jump(label(script, Some(arg(0))))),
+            // The Switch's and the PS4's own lines: this is the Switch.
+            "_IFNX" => {}
+            "_IFP4" | "_IFSC" => self.ops.push(Op::Jump(label(script, Some(arg(1))))),
+            // `_SELR(index, $text[, 1])`: a choice's option (1: greyed, still
+            // offered here).
+            "_SELR" => {
+                let Some(n) = arg(1).split_once('$').and_then(|(_, s)| s.get(..6)?.parse::<usize>().ok()) else { return false };
+                let Some(line) = self.g.lines.get(n) else { return false };
+                // An option is written once per branch of the `_IF__`s around it
+                // (shown or greyed): the converter keeps the first.
+                // shortcut: an option offered only under a flag is always offered.
+                let i = number(arg(0)).unwrap_or(0);
+                if !self.options.iter().any(|o| o.0 == i) {
+                    self.options.push((i, text(line).0));
+                }
+            }
+            // `_SELD`/`_SELA`/`_SELS(_D000, …)` show the choice; `_GOTS(_D000,
+            // label, …)` goes to the label of the option picked.
+            "_SELD" | "_SELA" | "_SELS" => {}
+            "_GOTS" => {
+                let options = std::mem::take(&mut self.options);
+                let labels = &a[1..];
+                let choice: Vec<(String, String)> = options
+                    .into_iter()
+                    .filter_map(|(i, t)| Some((t, label(script, Some(labels.get(usize::try_from(i).ok()?)?.trim())))))
+                    .collect();
+                if choice.is_empty() {
+                    return false;
+                }
+                self.ops.push(Op::Choice { options: choice, style: None });
+            }
             "_WNTY" => self.page_end = arg(0) == "1",
             "_VPLY" => self.voice = Some(Voice { file: format!("stream/{}.ogg", arg(0)), character: 0 }),
             "_ZM" | "_MSAD" => {
@@ -700,6 +734,7 @@ pub fn compile(g: &Game) -> Compiled {
         voice: None,
         held: None,
         se_channels: HashMap::new(),
+        options: Vec::new(),
     };
     for (name, commands) in &g.scripts {
         l.ops.push(Op::Label(label(name, None)));
@@ -859,6 +894,33 @@ mod tests {
         assert_eq!(blends, [BLEND_ADD, BLEND_NORMAL]);
         let Some(Op::SpriteFilters { filters, .. }) = ops.iter().find(|o| matches!(o, Op::SpriteFilters { .. })) else { panic!("{ops:?}") };
         assert_eq!(filters[0].params, [255, 128, 0].map(Operand::Const));
+    }
+
+    #[test]
+    fn a_choice_goes_to_its_label() {
+        let src = "_SELR(0,$000000);_SELR(1,$000001,1);_SELR(1,$000001);_SELD(_D000,);_GOTS(_D000,SEL0_0,SEL0_1);_ZZ05a01(SEL0_0);_IFP4(,LV00100);_ZY12800(LV00100);_IFNX(,LV00200);";
+        let g = Game {
+            scripts: vec![("S".into(), script::parse(src).into_iter().map(Result::unwrap).collect())],
+            scenes: vec![],
+            lines: vec!["父の<事|こと>だ。", "妹の事だ。"],
+            pictures: HashMap::new(),
+            textures: HashMap::new(),
+            sounds: vec![],
+            waves: HashMap::new(),
+            motions: vec![],
+        };
+        let c = compile(&g);
+        assert!(c.notes.is_empty(), "{:?}", c.notes);
+        assert_eq!(
+            c.ops,
+            [
+                Op::Label("tm_S".into()),
+                Op::Choice { options: vec![("父の事だ。".into(), "tm_S__SEL0_0".into()), ("妹の事だ。".into(), "tm_S__SEL0_1".into())], style: None },
+                Op::Label("tm_S__SEL0_0".into()),
+                Op::Jump("tm_S__LV00100".into()),
+                Op::Label("tm_S__LV00100".into()),
+            ]
+        );
     }
 
     #[test]

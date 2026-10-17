@@ -599,7 +599,7 @@ Nothing yet.
 | Exe tables (pictures, motions, scene numbers) | ✅ read from the NSO (`typemoon exe`); picture sizes checked against the textures |
 | Scripts | 🔶 read: every command of both languages splits (one malformed in the original) and its text and voices join; the top commands' arguments read from the exe, the rest not yet |
 | Media folder (`typemoon media`) | ✅ `allpac`'s pictures as full-size WebP (2.37 GB), movies at 720p, sound |
-| Script conversion (`typemoon convert`) | 🔶 the flow (labels, `_JUMP`, `_IF__`, flags), text (pages, ruby, voices), pictures (`_STCH`/`_STCC`/`_FADS`: record size and place, fades and rule wipes), sound effects and music; plays from the start through `00_00` into the first arc headless. Layers drawn in priority order (`_STCP`, `_STCH` argument 6), zoomed (`_STZ4`), faded (`_STGS`) and moved (`_STMA`, the exe's motions; easing, priority and expression keys not followed), children placed in their parent layers (`_STCH` argument 11), turned (`_STRT`), drawn with their shader as far as CONscripter's blends and filters go (`_STBR`) and tinted (`_STEC` effect 1). Not yet: `_STEC`'s other effects, the other layer commands, choices (`_SELR`/`_GOTS`), screens |
+| Script conversion (`typemoon convert`) | 🔶 the flow (labels, `_JUMP`, `_IF__`, flags), text (pages, ruby, voices), pictures (`_STCH`/`_STCC`/`_FADS`: record size and place, fades and rule wipes), sound effects and music; plays from the start through `00_00` into the first arc headless. Layers drawn in priority order (`_STCP`, `_STCH` argument 6), zoomed (`_STZ4`), faded (`_STGS`) and moved (`_STMA`, the exe's motions; easing, priority and expression keys not followed), children placed in their parent layers (`_STCH` argument 11), turned (`_STRT`), drawn with their shader as far as CONscripter's blends and filters go (`_STBR`) and tinted (`_STEC` effect 1). Choices (`_SELR`, `_SELD`, `_GOTS`), `_GOTO` and the Switch's own branches (`_IFNX`/`_IFP4`). Not yet: `_STEC`'s other effects, the other layer commands, screens |
 | Screens, extras | ❌ |
 
 ### Next
@@ -608,7 +608,8 @@ Nothing yet.
    leans on, in order of use: `_STCH`'s clip
    (arguments 12–17, unread), a parent's motions and rotation for its
    children;
-   then choices (`_SELR`, `_GOTS`, `_IFNX`) so a route can be picked.
+   then the chapter-jump menus (`JUMP00`–`JUMPQA`: `_SELR` with a
+   script name, 617 uses) and options shown only under a flag.
    `typemoon convert --dry-run` prints the counts. Splitting sprites
    into body and face crops is out unless the user asks.
 2. Sound for the build: the looping wave sounds' loop points
@@ -625,6 +626,18 @@ Nothing yet.
    12–17, `_STZ4`'s last two, and the motion keyframes' other fields.
 
 ## History
+
+- 2026-10-16: choices. `_SELR(index, $text[, 1])` adds an option (1:
+  greyed), `_SELD(_D000, …)` shows them and `_GOTS(_D000, label, …)`
+  goes to the picked option's label; an option is written once per
+  branch of the `_IF__`s around it (shown or greyed), and the converter
+  keeps the first text of each index, so a flag-gated option is always
+  offered. `_GOTO(label)` jumps in the script. `_IFNX(,L)` and
+  `_IFP4(,L)` (also `_IFSC`) hold the Switch's and the PS4's own lines
+  (a picture placed a few pixels apart): the Switch's run, the others
+  are skipped. Headless (300 s, auto-play): 29 choices, from `00_00`
+  through the first four days of Arcueid's route into a bad end's
+  Q&A (`QACALL`).
 
 - 2026-10-16: turns, shaders, tints.
   - `_STRT(layer, from, to, ms, ease)` (`FUN_00162b20`) turns the
