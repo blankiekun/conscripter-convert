@@ -100,8 +100,10 @@ shared code. A team lead hands out the items and reviews the PRs.
 - **Start every item from a fresh `origin/main`** (`git fetch && git
   switch -c <game>/<topic> origin/main && git submodule update engine`),
   then build and run `cargo test`. Rebase onto `origin/main` again before
-  pushing a change to a hot spot (below). Conflicts are small when they
-  are fresh. Never switch branches in another agent's worktree.
+  pushing a change to a hot spot (below), and again just before handing
+  the PR back, so it is mergeable when the lead reads the report.
+  Conflicts are small when they are fresh. Never switch branches in
+  another agent's worktree.
 - **No `git stash`**: the stash list is shared by every worktree, so a
   `pop` can apply another agent's stash into your tree. To set work
   aside, commit it on a scratch branch or save a patch
@@ -167,37 +169,9 @@ shared code. A team lead hands out the items and reviews the PRs.
   engine/build/conscripter -r .` with the game folder as the working
   directory (otherwise `default.ttf` isn't found). Screenshot with
   `print 1:getscreenshot 800,600:savescreenshot "x.bmp"`.
-- Scratch run beside a full build (yours or another agent's):
-  `research/tools/scratch.sh out/<game>-cons <scratch> [0.txt [engine]]`
-  links only the archives, `default.ttf` and `movie/`, copies in your
-  script and a renamed engine, and writes `<scratch>/run.sh [options]`
-  (headless, `--save-dir <scratch>/save`).
-- A/B frames and saves: `research/tools/scene_ab.py frames|saves`
-  plays a scene under two engines (or with one line dropped) in such
-  scratch folders and prints `compare -metric AE` per shot; `saves`
-  saves with engine A and loads with B (every save-version PR).
-- Saves at chosen scenes: `research/tools/test_saves.py`; every route:
-  `engine/tools/cons_explore.py`; value census of a `0.txt`: `argcensus.py`.
-- Debug trace (CONscripter after 0.18.0; reference: `engine/DEBUG.md`;
-  recipes: `docs/new-game.md`, "Checking a build with the debug
-  trace"): `--trace t.jsonl --auto-play 0 --save-dir <scratch>` plays
-  the game by itself, headless with `SDL_VIDEODRIVER=dummy` (no Xvfb),
-  and writes one JSON line per page, per command that changed the
-  screen or sound, per choice, missing file, script error and crash. `--trace-ignore` leaves the game's own UI
-  sprites out and keeps auto-play off their buttons. Check a trace with
-  `python3 -I engine/tools/cons_trace_check.py t.jsonl --script 0.txt`.
-  Start anywhere with `--goto <label> --vars <file>` instead of patching
-  `0.txt`. Exit codes: 0 end, 1 auto-play stuck, 2 script error, 3
-  startup failure, 128+n a signal.
-- Frames mid-effect: the trace's `--shot-effects 25,50,75`. The older
-  patched-script runs: `docs/new-game.md` step 9 and "When the trace
-  can't do it". On Xvfb always set
-  `WAYLAND_DISPLAY=`, or the window opens on the user's desktop.
-- Test scripts: UTF-8 with `--enc:utf8` in `ons_args`, as the builds;
-  a Shift-JIS one with `iconv -t cp932` (not `sjis`, which turns `\` into
-  `＼`) and `--enc:sjis`.
-- Read a variable headless: `lsp 999,"X:"+$1,0,0` prints "can't find
-  file X:..." on stderr.
+- Scratch runs, A/B frames, saves at chosen scenes, the debug trace,
+  frames mid-effect, test scripts, reading a variable headless:
+  `docs/tools.md` (read the bullet you need).
 
 ## Keeping usage down
 
@@ -206,20 +180,9 @@ on each later turn; several agents run at once.
 
 - **Read narrowly.** `grep -n` first, then read only the lines you need
   (`sed -n a,bp`, Read with offset/limit). Don't dump whole big files
-  (generated `0.txt`, CG lists, disassembly, traces). For the docs and
-  scripts read most often, use the helpers in `research/tools/`
-  (run with `python3 -I`):
-  `mdsec.py <file.md>` lists the headings, `mdsec.py <file.md> Status`
-  prints that section only (game docs, `docs/lessons.md`, this file);
-  `label.py 0.txt <label> [lines]` prints one label's block with line
-  numbers, `label.py 0.txt -l <text>` finds labels; `txtdiff.py old.txt
-  new.txt [--map 's/old/new/'|--rules <file>]` prints changed hunks under
-  their labels, counts them by command (numbers masked) and says whether
-  the rules make it only a rename (`--self-test` tests it). Source code is the
-  biggest text cost: `code.py <file.rs|.cpp>` lists its items with line
-  numbers, `code.py <file> <name> [lines]` prints one fn, type, impl or
-  C++ `Class::name` with its doc comments; use it instead of paging
-  through a file with `sed`.
+  (generated `0.txt`, CG lists, disassembly, traces). Helpers for the files
+  read most often (`mdsec.py`, `label.py`, `txtdiff.py`, `code.py`):
+  `docs/tools.md`; `code.py` instead of paging source with `sed`.
 - **Trim command output.** Pipe builds and long runs through
   `tail -n 30` or `grep -E 'error|warning|FAIL'`; write traces and logs
   to a file and query them (`cons_trace_check.py`, `grep`, `jq`).
@@ -254,30 +217,19 @@ on each later turn; several agents run at once.
   memory carry the state into a fresh session.
 - No `/loop`, scheduled wakeups or polling unless the user asks; wait
   for background runs to notify.
-- **Delegate small jobs to cheaper subagents** when you judge it fits
-  (no need to ask): `model: "haiku"` for searches, greps across the
-  tree, reading a long file for one fact, summarising a log or trace,
-  reruns and checks (`tests/snapshot.sh`, `cargo test`/`clippy`), a
-  clean rebase, push and `gh pr checks --watch`;
-  `model: "sonnet"` for mechanical edits, doc updates, build-test-commit
-  loops, route runs, a rebase with simple conflicts and releases. Keep design, engine work, reverse engineering
-  and hard debugging yourself. Give the subagent the exact task and
-  the files, and ask for a short report, not file dumps. Don't
-  delegate when the job needs much of what you already know (the
-  session's findings, many files read, a long chain of reasoning):
-  a subagent starts empty and re-reading all that costs more than
-  doing the job yourself. Delegate only what a few lines of prompt
-  can fully describe.
-- **The team lead picks the agent type for every agent it starts**,
-  by the same split (the user, 2026-10-17). The types in
-  `.claude/agents/` set model and effort: `checker` (haiku, low effort)
-  for reruns and checks, `worker` (sonnet, medium) for mechanical work,
-  `engineer` (the session's model, high) only for design, engine work,
-  reverse engineering, hard debugging and new features. Where the Agent
-  tool takes `model`/`effort` per call, those override the type.
-  For a mechanical follow-up ("rebase and rerun the snapshot"), start
-  a `checker` with an exact few-line prompt instead of resuming a big
-  agent.
+- **Delegate only what a few lines of prompt can fully describe**, to
+  the cheapest type in `.claude/agents/`: `checker` (haiku) for reruns,
+  checks, greps, a clean rebase + push + `gh pr checks --watch`;
+  `worker` (sonnet) for mechanical edits, doc updates, build-test-commit
+  loops, route runs, releases; `engineer` only for design, engine work,
+  reverse engineering, hard debugging and new features. The team lead
+  picks the type for every agent it starts (the user, 2026-10-17).
+- **Do small jobs yourself**: a fresh agent costs about 45k tokens
+  before it does anything. A doc-only rebase, a doc edit of 10 lines or
+  less, or anything needing what you already know (the session's
+  findings, files read, a chain of reasoning) is cheaper done in place.
+- **Reports at most 10 lines**; the detail goes in the PR body. Every
+  line of a report stays in the lead's context.
 
 ## Releasing CONscripter
 
