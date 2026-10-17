@@ -32,22 +32,33 @@ API = "https://api.github.com/repos/blankiekun/CONscripter/releases/latest"
 
 # --- which binary ---------------------------------------------------------
 
-def platform_suffix() -> Optional[str]:
-    """The release asset's suffix for this computer, None when CONscripter
-    has no build for it."""
+def platform_suffix(version: Optional[str] = None) -> Optional[str]:
+    """The release asset's suffix for this computer and CONscripter
+    `version` (None: the newest), None when there is no build for it."""
     machine = platform.machine().lower()
     if os.name == "nt":
         return "x64_win.exe" if machine in ("amd64", "x86_64", "arm64") else "x86_win.exe"
     if sys.platform == "darwin":
-        # An x64 app under Rosetta still runs on Apple silicon.
+        if not version or not _before_universal(version):
+            return "universal_darwin"  # Apple silicon and Intel
+        # Up to 0.28.1 only Apple silicon; an x64 app under Rosetta still runs it.
         if machine == "arm64" or _sysctl("sysctl.proc_translated") == "1":
             return "aarch64_darwin"
-        return None  # no Intel Mac build
+        return None
     if sys.platform.startswith("linux"):
         return {"x86_64": "x64_linux", "amd64": "x64_linux", "aarch64": "arm64_linux", "arm64": "arm64_linux",
                 "i686": "x86_linux", "i386": "x86_linux"}.get(machine) or (
             "arm32_linux" if machine.startswith("arm") else None)
     return None
+
+
+def _before_universal(version: str) -> bool:
+    """True for CONscripter 0.28.1 and older (no universal macOS build);
+    a version that doesn't parse ("v0.29.0-dev" does) counts as new."""
+    parts = [re.match(r"\d+", p) for p in version.lstrip("v").split(".")[:3]]
+    if len(parts) < 3 or not all(parts):
+        return False
+    return tuple(int(m.group()) for m in parts) <= (0, 28, 1)
 
 
 def _sysctl(name: str) -> str:
@@ -216,10 +227,13 @@ def install(output: Path, title: str, icon: Optional[bytes], log: Callable[[str]
     """Puts CONscripter into `output` as `title`, with `icon` (an .ico or a
     PNG file's bytes) when given. Returns what it wrote (the program, or the
     .app on macOS). Raises on failure; the build itself is still fine."""
-    suffix = platform_suffix()
-    if not suffix:
-        raise RuntimeError(f"CONscripter has no build for this computer ({sys.platform} {platform.machine()})")
+    no_build = f"CONscripter has no build for this computer ({sys.platform} {platform.machine()})"
+    if not platform_suffix():
+        raise RuntimeError(no_build)
     version = build_version(output) or latest_version()
+    suffix = platform_suffix(version)
+    if not suffix:
+        raise RuntimeError(f"{no_build}, version {version}")
     binary = download(version, suffix, log)
     name = file_name(title)
     ico = png = None
