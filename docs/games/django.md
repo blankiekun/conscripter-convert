@@ -360,7 +360,7 @@ with the original (it wants all eleven endings' flags under wine).
   disused one-shot sounds kept until their end (#76).
 - `spgrab` (engine #32, merged) could draw a move that changes picture
   as a copy fading out over the moved picture: not used yet.
-- The unread-argument notes (#30) are sorted into Next, item 5: easing
+- The unread-argument notes (#30) are sorted into Next, item 4: easing
   first.
 - `RemainTime` on a sound returns its whole length, not the rest
   (`sound_left` has it); right after the start, where most calls are,
@@ -373,7 +373,7 @@ with the original (it wants all eleven endings' flags under wine).
 | Script parsing | ✅ All 249 files; 56 places that don't parse, none in the story |
 | Story control flow (56 chapters, 10 choices, bad ends) | ✅ Compiled whole (`compile_story`); in the engine the good path plays to the end (6,496 pages) and each wrong answer ends the story with its own bad end, then the game goes back to the title (`research/nitroplus/django_routes.sh`, which stops each run there, 2026-10-15) |
 | Text | 🟡 In the boxes' places (box00: 39 columns at 50,472, white on the black bar; five rows, as many as end inside the 130 px box); 3,424 voiced lines; `box00`, `box01` (x 250) and `box02` (x 390) start within 1 px of the original's under wine (`box03`-`box05` are never used) |
-| Pictures, sound in scripts | 🟡 Black bars, face windows in their frames, standing pictures, backgrounds; pictures turned over (`Rotate` by 180°, 315 calls: characters facing the other way; 12 movies) drawn mirrored (dja004's choice now as the original's); turned about x or y they are drawn squashed by |cos| about their vertex, their children with them (no perspective), and turning over time (the face windows' `WindowRotateR`/`WindowCloseR`) they unfold or fold away as one `spmotion` (checked frame by frame in dja002); children of a picture moved over time (a face in its frame) move with it; `CreateEffect` Sepia (dja038_03) tints the pictures below it (`spfilter`); cameras (`CreateCamera`, `MoveCamera`, 365 calls): a camera's child of priority p drawn about the screen's centre at (its place − the camera's) × z / (1000 − p), as large, z the camera's zoom (priority is depth: measured under wine with boxes at four priorities and six camera settings, and dja001's carriage scene then matched the original's frames); moves, zooms and camera moves over time (1,765) as real motion: the engine moves the picture (`spmotion2`, keeping its last place) while the script goes on, also through the cross-fade of what else changes; those that also fade are one motion with alpha keys, and those drawn on another layer (the layers spread out again) are placed where they end and moved from where they were; 33 that change picture or size otherwise are still cross-fades; a picture under an opaque full-screen one isn't drawn (old backgrounds the script leaves up under `窓`); the 400-vs-3 battle's muzzle flashes (`GunFire`) as a white sprite added on (`spblend`), flashing its number of times while the text goes on (`spalpha` keys), and its strobe the same way until deleted; the looping shakes (`ShakeVLoop*`) as the background's looped `spmotion`, and dja001's opening slideshow (`MoveBlackHawk`: the pictures fading and sliding in turn) as looped motions (`convert/loops.rs`, shared with 装甲悪鬼村正); every sound is found |
+| Pictures, sound in scripts | 🟡 Black bars, face windows in their frames, standing pictures, backgrounds; pictures turned over (`Rotate` by 180°, 315 calls: characters facing the other way; 12 movies) drawn mirrored (dja004's choice now as the original's); turned about x or y they are drawn squashed by |cos| about their vertex, their children with them (no perspective), and turning over time (the face windows' `WindowRotateR`/`WindowCloseR`) they unfold or fold away as one `spmotion` (checked frame by frame in dja002); children of a picture moved over time (a face in its frame) move with it; `CreateEffect` Sepia (dja038_03) tints the pictures below it (`spfilter`); cameras (`CreateCamera`, `MoveCamera`, 365 calls): a camera's child of priority p drawn about the screen's centre at (its place − the camera's) × z / (1000 − p), as large, z the camera's zoom (priority is depth: measured under wine with boxes at four priorities and six camera settings, and dja001's carriage scene then matched the original's frames); moves, zooms and camera moves over time (1,765) as real motion: the engine moves the picture (`spmotion2`, keeping its last place) while the script goes on, also through the cross-fade of what else changes; those that also fade are one motion with alpha keys, and those drawn on another layer (the layers spread out again) are placed where they end and moved from where they were; movies (smoke, explosions, `集中線21`, `背景21`) move and zoom the same way and keep playing; a picture under an opaque full-screen one isn't drawn (old backgrounds the script leaves up under `窓`); the 400-vs-3 battle's muzzle flashes (`GunFire`) as a white sprite added on (`spblend`), flashing its number of times while the text goes on (`spalpha` keys), and its strobe the same way until deleted; the looping shakes (`ShakeVLoop*`) as the background's looped `spmotion`, and dja001's opening slideshow (`MoveBlackHawk`: the pictures fading and sliding in turn) as looped motions (`convert/loops.rs`, shared with 装甲悪鬼村正); every sound is found |
 | Choices | ✅ Plates as picture buttons, text placed as the original's (compared under wine) |
 | System screens | 🟡 From the game's pictures (`django/screens.rs`): title, right-click menu, save/load (3×20 slots), yes/no questions, text log, settings (bullet rows as `SliderSteps`), the click-wait bullet after the last character (`getcursorpos` in the bar's wait routine); compared under wine: right-click menu, save, log, settings (text speed starts at level 5 as the original's; the two SAVE-DATA question rows drawn as they stand, ON chosen; the display options and version panel left out on purpose) |
 | Extras | 🟡 Menu, CG library, sound library, recollection, each compared with the original; left out: the doors' animation, the rifle over a category |
@@ -385,12 +385,9 @@ with the original (it wants all eleven endings' flags under wine).
 1. The trace checker's remaining findings: "sounds on two channels at
    once" are the script's own (the same shot or horse on two sound
    objects, started 500 ms apart) and stay.
-2. The 9 moves and zooms still drawn as cross-fades (dry run notes,
-   2026-10-16): all movies (smoke, explosions, `集中線21`, `背景21`
-   moving as they play), left for last.
-3. Extras: the doors' animation and the menu's own music (left out).
-4. From the exe's coverage table ("The exe"): `SetShade HEAVY` (one use): done (#197).
-5. The unread-argument notes (`<Builtin> argument <i> ignored`;
+2. Extras: the doors' animation and the menu's own music (left out).
+3. From the exe's coverage table ("The exe"): `SetShade HEAVY` (one use): done (#197).
+4. The unread-argument notes (`<Builtin> argument <i> ignored`;
    dry run 2026-10-16: 33 kinds, 18,947 notes, fewer than #30's 39 and
    21,859 since later PRs read more), most visible first; counts are
    compiled occurrences, what the original does is from the scripts and
@@ -428,15 +425,24 @@ with the original (it wants all eleven endings' flags under wine).
        no children yet: nothing moves); `CreateEffect` 2-5 (1, the
        `Sepia` effect, drawn over the whole screen).
 
-6. Sounds kept until their end (shared NSS code, `convert/sounds.rs`):
+5. Sounds kept until their end (shared NSS code, `convert/sounds.rs`):
    1. **Time across runtime branches**: the sound clock adds up the ops
       of both branches of a runtime `if`/`else`, so a sound started
       before one may be taken as ended too soon. Fine as is.
-7. `CreateEffect` Rain (37), Drop (4), Lens (2): 装甲悪鬼村正's, shared
+6. `CreateEffect` Rain (37), Drop (4), Lens (2): 装甲悪鬼村正's, shared
    NSS code; noted, drawn as nothing.
 
 ## History
 
+- **Movies moved or zoomed over time (2026-10-16, shared NSS code).**
+  The last 10 moves still drawn as cross-fades were all movies played
+  as sprites (smoke, explosions, `集中線21`, `背景21`): `motion` took
+  only pictures. A movie's zoom is its cell's (`spzoom`), so the keys
+  now take the ratio of the two, and the movie keeps playing as it moves
+  (`spmotion2`, which CONscripter applies to movie sprites); one placed
+  again on another layer gets its `lsp` before the motion (an `lsp`
+  after it stopped it, which also fixes a rain strip's motion in
+  装甲悪鬼村正's `ma00_000` chain). Dry run: no cross-fade notes left.
 - **Pans over a picture cut to the screen (2026-10-16, shared NSS
   code).** A picture zoomed past the screen is drawn cut to it
   (`Assets::scaled`); a move or zoom from one cut to another (dja015's
