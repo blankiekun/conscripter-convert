@@ -1,9 +1,9 @@
 {
 "game": "muramasa",
 "engine": "nitroplus",
-"commit": "13d2361f",
+"commit": "a0466366",
 "commit_date": "2026-10-16",
-"totals": {"calls": 1162127, "full": 1128004, "gaps": 31421, "left_out": 2702},
+"totals": {"calls": 1162127, "full": 1128059, "gaps": 31366, "left_out": 2702},
 "kinds": {
 "Random": {"calls": 7411, "gaps": 7411, "reasons": [["Random argument 0 ignored", 7411]]},
 "Fade": {"calls": 302627, "gaps": 3894, "reasons": [["Fade argument 3 ignored", 3869], ["timed action that waits only part of its time", 16], ["move or zoom over time with a fade or a new picture drawn as a cross-fade", 10], ["Fade argument 5 ignored", 1]]},
@@ -24,7 +24,6 @@
 "CursorPosition": {"calls": 168, "gaps": 168, "reasons": [["built-in CursorPosition", 168]]},
 "MoveCursor": {"calls": 168, "gaps": 168, "reasons": [["built-in MoveCursor", 168]]},
 "Save": {"calls": 168, "gaps": 168, "reasons": [["built-in Save", 168]]},
-"DrawEffect": {"calls": 76, "gaps": 76, "reasons": [["built-in DrawEffect", 76]]},
 "CreateMovie": {"calls": 61, "gaps": 61, "reasons": [["CreateMovie argument 2 ignored", 61], ["CreateMovie argument 3 ignored", 61], ["CreateMovie argument 4 ignored", 61], ["CreateMovie argument 5 ignored", 61], ["CreateMovie of a missing movie", 61]]},
 "SetSurface": {"calls": 58, "gaps": 58, "reasons": [["built-in SetSurface", 58]]},
 "CreateStencil": {"calls": 57, "gaps": 57, "reasons": [["built-in CreateStencil", 57]]},
@@ -33,6 +32,7 @@
 "WaitAction": {"calls": 5437, "gaps": 29, "reasons": [["WaitAction argument 1 ignored", 28], ["move or zoom over time with a fade or a new picture drawn as a cross-fade", 1]]},
 "CreateMask": {"calls": 28, "gaps": 28, "reasons": [["built-in CreateMask", 28]]},
 "SetVolume": {"calls": 23866, "gaps": 24, "reasons": [["SetVolume argument 3 ignored", 23], ["SetVolume argument 4 ignored", 1]]},
+"DrawEffect": {"calls": 76, "gaps": 21, "reasons": [["DrawEffect argument 0 ignored", 11], ["DrawEffect argument 1 ignored", 11], ["DrawEffect argument 3 ignored", 11], ["DrawEffect argument 4 ignored", 11], ["DrawEffect argument 5 ignored", 11], ["6 more", 22]]},
 "Zoom": {"calls": 6621, "gaps": 19, "reasons": [["timed action that waits only part of its time", 16], ["move or zoom over time with a fade or a new picture drawn as a cross-fade", 4]]},
 "BezierMove": {"calls": 335, "gaps": 15, "reasons": [["timed action that waits only part of its time", 14], ["move or zoom over time with a fade or a new picture drawn as a cross-fade", 1]]},
 "Move": {"calls": 73946, "gaps": 14, "reasons": [["timed action that waits only part of its time", 8], ["move or zoom over time with a fade or a new picture drawn as a cross-fade", 6]]},
