@@ -783,8 +783,11 @@ Next, in order:
      y as a shorter zoom, no perspective). Unverified: the exe's frame
      period (a run-time table; 16 ms assumed), so the fall speed. The
      tone kinds Sepia, Monochrome, NegaPosi and KitanoBlue tint the
-     pictures below the effect (#137, #146); `SetTone` (228) is still
-     noted and drawn plain.
+     pictures below the effect (#137, #146). `SetTone` (228) draws the
+     object in that tone with the same filters (the exe rewrites its
+     pixels, `FUN_00452000`); on a `Plain` cover, the frozen pictures
+     under it are drawn so; `null` takes it away. The sepia and
+     KitanoBlue colours are still ours (unverified).
    - `DrawEffect` waves (79), `CreateStencil` (59), `CreateMask` (31),
      `SetSurface`/`CreateSurface`, `LoadImage` as a texture source
      (Muramasa leaves `loaded_textures` off).
@@ -818,7 +821,7 @@ Next, in order:
   cross-fades.
 - `Rotate` about z of a picture is CONscripter's `spzoom` angle (still) or an
   `spmotion` angle (over time); left: about z of other objects (70),
-  about x or y over time (14, drawn at once). `MoveCamera`, `SetTone`,
+  about x or y over time (14, drawn at once). `MoveCamera`,
   `SetShade`, `BezierMove`, `CreateTexture` from an object or the screen
   (1,864).
 - 18 files whose `if`/`else if` chain on earlier flags has no `else`:

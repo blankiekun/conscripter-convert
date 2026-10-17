@@ -85,19 +85,9 @@ impl Compiler<'_, '_> {
             }
             "CreateEffect" => {
                 let name = self.object_name(&arg(0));
-                use conv_core::ir::{FILTER_BLEND_COPY, FILTER_BLEND_MULTIPLY, FILTER_COLOUR, FILTER_GREYSCALE, FILTER_NEGATIVE};
-                let filter = |kind, blend, params: [i32; 3]| SpriteFilter { kind: Operand::Const(kind), blend: Operand::Const(blend), strength: Operand::Const(256), params: params.map(Operand::Const) };
-                let grey = filter(FILTER_GREYSCALE, FILTER_BLEND_COPY, [0; 3]);
                 let kind = match arg(6).string().to_ascii_lowercase().as_str() {
                     "plain" => Kind::Cover,
-                    // shortcut: the exe's sepia code is encrypted on disk, so this
-                    // tone (grey times cream, black kept) is ours; set it from a
-                    // frame of the original if it looks off.
-                    "sepia" => Kind::Tint(vec![grey, filter(FILTER_COLOUR, FILTER_BLEND_MULTIPLY, [255, 235, 195])]),
-                    "monochrome" => Kind::Tint(vec![grey]),
-                    "negaposi" => Kind::Tint(vec![filter(FILTER_NEGATIVE, FILTER_BLEND_COPY, [0; 3])]),
-                    // shortcut: a guess like sepia's (grey times a cool blue).
-                    "kitanoblue" => Kind::Tint(vec![grey, filter(FILTER_COLOUR, FILTER_BLEND_MULTIPLY, [170, 200, 255])]),
+                    t if let Some(fs) = tone(t) => Kind::Tint(fs),
                     "rain" => match self.rain(arg(4).int(), arg(5).int()) {
                         Some(strip) => Kind::Strip(strip),
                         None => Kind::Other,
@@ -369,6 +359,18 @@ impl Compiler<'_, '_> {
                 }
                 self.set_tempo(tempo(&arg(4)), &targets);
                 self.timed(arg(1).int(), &arg(5), &targets);
+            }
+            "SetTone" => {
+                // (obj, tone): `null` takes it away.
+                let t = arg(1).string().to_ascii_lowercase();
+                let fs = tone(&t);
+                if fs.is_none() && !matches!(t.as_str(), "" | "null") {
+                    self.note(format!("SetTone {}", arg(1).string()));
+                    return Value::Null;
+                }
+                for t in self.matching(&arg(0)) {
+                    self.objects.get_mut(&t).unwrap().tone = fs.clone();
+                }
             }
             "SetBlur" => {
                 // (obj, on, passes, alpha, lag, wait): see `Object::trail`.
@@ -678,4 +680,22 @@ impl Compiler<'_, '_> {
         }
         Value::Null
     }
+}
+
+/// The filters drawing a tone `CreateEffect` and `SetTone` name (lower case).
+fn tone(name: &str) -> Option<Vec<SpriteFilter>> {
+    use conv_core::ir::{FILTER_BLEND_COPY, FILTER_BLEND_MULTIPLY, FILTER_COLOUR, FILTER_GREYSCALE, FILTER_NEGATIVE};
+    let filter = |kind, blend, params: [i32; 3]| SpriteFilter { kind: Operand::Const(kind), blend: Operand::Const(blend), strength: Operand::Const(256), params: params.map(Operand::Const) };
+    let grey = filter(FILTER_GREYSCALE, FILTER_BLEND_COPY, [0; 3]);
+    Some(match name {
+        // shortcut: the exe's sepia code is encrypted on disk, so this
+        // tone (grey times cream, black kept) is ours; set it from a
+        // frame of the original if it looks off.
+        "sepia" => vec![grey, filter(FILTER_COLOUR, FILTER_BLEND_MULTIPLY, [255, 235, 195])],
+        "monochrome" => vec![grey],
+        "negaposi" => vec![filter(FILTER_NEGATIVE, FILTER_BLEND_COPY, [0; 3])],
+        // shortcut: a guess like sepia's (grey times a cool blue).
+        "kitanoblue" => vec![grey, filter(FILTER_COLOUR, FILTER_BLEND_MULTIPLY, [170, 200, 255])],
+        _ => return None,
+    })
 }

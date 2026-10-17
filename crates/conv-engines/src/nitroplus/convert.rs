@@ -1133,6 +1133,10 @@ struct Object<'a> {
     /// A `CreateText` picture taken away by `Request(…, Erase)` until its
     /// `Request(…, Enter)` (続・殺戮のジャンゴ's song, dja026).
     erased: bool,
+    /// `SetTone`: the exe rewrites the object's pixels in that tone
+    /// (`FUN_00452000`); drawn through these filters ([`Op::SpriteFilters`]).
+    /// On a `Plain` cover, the pictures under it are.
+    tone: Option<Vec<SpriteFilter>>,
 }
 
 /// [`Object::shake`]: the process, the keys.
@@ -2732,7 +2736,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
 
     fn create(&mut self, name: String, kind: Kind<'a>, priority: i64, w: i64, h: i64) -> &mut Object<'a> {
         self.seq += 1;
-        let o = Object { kind, priority, x: 0, y: 0, w, h, opacity: 1000, locked: false, hideable: false, seq: self.seq, zoom: (1000, 1000), trail: None, blend: BLEND_NORMAL, vertex: None, turn: (0, 0, 0), shake: None, clip: None, over_text: false, container: false, erased: false };
+        let o = Object { kind, priority, x: 0, y: 0, w, h, opacity: 1000, locked: false, hideable: false, seq: self.seq, zoom: (1000, 1000), trail: None, blend: BLEND_NORMAL, vertex: None, turn: (0, 0, 0), shake: None, clip: None, over_text: false, container: false, erased: false, tone: None };
         self.objects.insert(name.clone(), o);
         self.objects.get_mut(&name).unwrap()
     }
@@ -4101,6 +4105,42 @@ scene a.nss
         }).collect();
         assert_eq!(tinted.len(), 1, "{:?}", c.ops);
         assert!(!c.notes.keys().any(|n| n.starts_with("CreateEffect Sepia")), "{:?}", c.notes);
+    }
+
+    #[test]
+    fn set_tone_tints_a_picture_and_what_a_plain_cover_froze() {
+        // ma02_016: `SetTone` on a picture; mb04_011vs: on a `Plain` cover.
+        let grey = |c: &Compiled| -> Vec<u32> {
+            c.ops.iter().filter_map(|op| match op {
+                Op::SpriteFilters { layer, filters } if filters.iter().any(|f| f.kind == Operand::Const(conv_core::ir::FILTER_GREYSCALE)) => Some(*layer),
+                _ => None,
+            }).collect()
+        };
+        let story = r#"
+scene a.nss
+{
+	CreateTexture("bg", 100, 0, 0, "cg/bg/a.png");
+	CreateTexture("bar", 10000, 0, 0, "cg/bg/b.png");
+	SetTone("bg", Monochrome);
+	Wait(100);
+}
+"#;
+        assert_eq!(grey(&compile(story, LIBRARY)).len(), 1);
+        let story = r#"
+scene a.nss
+{
+	CreateTexture("bg", 100, 0, 0, "cg/bg/a.png");
+	Wait(100);
+	CreateEffect("板", 2000, 0, 0, 1024, 576, "Plain");
+	Fade("板", 0, 0, null, true);
+	SetTone("板", Monochrome);
+	Fade("板", 500, 1000, null, true);
+	Wait(100);
+}
+"#;
+        let c = compile(story, LIBRARY);
+        assert_eq!(grey(&c).len(), 1, "{:?}", c.ops);
+        assert!(!c.notes.keys().any(|n| n.contains("SetTone")), "{:?}", c.notes);
     }
 
     #[test]

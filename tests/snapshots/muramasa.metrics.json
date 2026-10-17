@@ -1,9 +1,9 @@
 {
 "game": "muramasa",
 "engine": "nitroplus",
-"commit": "d1f8a307",
+"commit": "f38f012b",
 "commit_date": "2026-10-16",
-"totals": {"calls": 1162127, "full": 1026142, "gaps": 135985},
+"totals": {"calls": 1162127, "full": 1026370, "gaps": 135757},
 "kinds": {
 "LockVideo": {"calls": 50726, "gaps": 50726, "reasons": [["LockVideo argument 0 ignored", 50726]]},
 "WaitText": {"calls": 23689, "gaps": 23689, "reasons": [["WaitText argument 0 ignored", 23689], ["WaitText argument 1 ignored", 23689]]},
@@ -27,7 +27,6 @@
 "Position": {"calls": 506, "gaps": 506, "reasons": [["built-in Position", 506]]},
 "CreateChoice": {"calls": 444, "gaps": 444, "reasons": [["built-in CreateChoice", 444]]},
 "BezierMove": {"calls": 335, "gaps": 335, "reasons": [["built-in BezierMove", 335]]},
-"SetTone": {"calls": 228, "gaps": 228, "reasons": [["built-in SetTone", 228]]},
 "Boxframe": {"calls": 168, "gaps": 168, "reasons": [["skipped: no function Boxframe", 168]]},
 "CursorPosition": {"calls": 168, "gaps": 168, "reasons": [["built-in CursorPosition", 168]]},
 "MoveCursor": {"calls": 168, "gaps": 168, "reasons": [["built-in MoveCursor", 168]]},
@@ -80,6 +79,7 @@
 "ModuleFileName": {"calls": 1141, "gaps": 0, "reasons": []},
 "CreateName": {"calls": 579, "gaps": 0, "reasons": []},
 "CreateText": {"calls": 474, "gaps": 0, "reasons": []},
+"SetTone": {"calls": 228, "gaps": 0, "reasons": []},
 "Draw": {"calls": 169, "gaps": 0, "reasons": []},
 "RemainTime": {"calls": 160, "gaps": 0, "reasons": []},
 "SetLoopPoint": {"calls": 63, "gaps": 0, "reasons": []},
