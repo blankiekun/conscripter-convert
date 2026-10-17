@@ -140,7 +140,7 @@ pub fn extras(assets: &mut ArchiveAssets, labels: &Labels, game: &Game) -> Optio
     let gallery = gallery(assets, labels, game, &album, &parts, header);
     let music = music(assets, labels);
     let movies = movies(assets, labels);
-    Some(ExtrasMenu { background: background_path, items, gallery, replay: None, music, movies, menu_background: None, engine_screen: false })
+    Some(ExtrasMenu { background: background_path, items, gallery, replay: None, music, movies, menu_background: None, engine_screen: true })
 }
 
 /// A title tinted for the pointer (warm) or the song playing (blue).

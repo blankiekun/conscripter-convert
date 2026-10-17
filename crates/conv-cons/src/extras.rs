@@ -188,12 +188,14 @@ pub(crate) fn extras(out: &mut String, m: &ExtrasMenu, fade: &str, settings: boo
         replay::replay(out, r, DRAW);
     }
     match &m.music {
-        Some(_) if m.engine_screen => out.push_str(&format!("*{}\ncsp -1:screen \"music\"\ngoto *{DRAW}\n", music::MUSIC)),
+        Some(music) if m.engine_screen => music::screen_labels(out, music, DRAW, settings),
         Some(music) => music::music(out, music, &m.background, DRAW, settings),
         None => {}
     }
-    if let Some(room) = &m.movies {
-        movies::movies(out, room, &m.background, DRAW);
+    match &m.movies {
+        Some(room) if m.engine_screen => movies::screen_labels(out, room, DRAW),
+        Some(room) => movies::movies(out, room, &m.background, DRAW),
+        None => {}
     }
 }
 
