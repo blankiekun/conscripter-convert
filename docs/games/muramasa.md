@@ -578,11 +578,17 @@ closes), the knob a picture slider on `%170`, 退出, 300 ms fades. Checked
 on Xvfb against main's routine after 20 prologue pages
 (`compare -metric AE -fuzz 2%`): at open, after wheel-ups and 逆, at the
 newest and the oldest rows, a voice icon hovered and clicked, closed by
-the wheel: 0 pixels. Open:
+the wheel: 0 pixels. Again after the rebase onto engine master (#88,
+#100, #101): 0 pixels at open, the rest only the knob (1 px) and 逆 at the
+oldest row. Open:
 
-- after a drag the knob sits up to 1 px from the routine's (the slider
-  rounds its place, the routine truncated); a press on the knob's sweep
-  away from the knob jumps it there (the routine only dragged the knob).
+- the knob sits up to 1 px from the routine's after a wheel or a drag
+  (the slider rounds its place, the routine truncated); a press on the
+  knob's sweep away from the knob jumps it there (the routine only
+  dragged the knob).
+- 逆 at the oldest row and 進 at the newest are not buttons (the screen
+  turns off a scroll that can't move), so they don't light under the
+  pointer; the routine's did.
 - Muramasa EN's backlog (single-byte rows, `row_width`) still uses the
   script routine.
 
