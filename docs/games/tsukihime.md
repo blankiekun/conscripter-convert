@@ -749,6 +749,20 @@ click.
    layers with no picture), `_WTTM` 1 (with it, the wait less
    `DAT_00be0a00`, a frame count `FUN_00181b30` adds to; when it is
    reset not found), `_SEPL` option 17.
+6. Every kind has a row in `tsukihime.findings.tsv` (2026-10-17, from
+   the decompile; 47 rows open). The open ones that matter most, by
+   use: `_STCF` (5,179: the script waits for a layer's fade or
+   motion; ours runs on), `_SEVL`/`_MVOL` (sound and music volume
+   fades), the layer quakes `_SQK2`/`_SHK2`/`_SSW2` and the screen
+   shake `_SHOK`/`_SHAF`, `_STPV` (the layer's pivot), `_SNX2`/`_SNX3`
+   and `_STNS`/`_STRA`/`_STRR`/`_SACL`/`_SBAS`/`_SOXY` (layer fields
+   whose drawing is not found yet), `_VCWT` (wait for the voice),
+   `_VPL2`, `_SESP`, `_WKOR`, `_STTR`, `_STCL`, `_SGMA`, `_SPMA`, the
+   chapter start (`_SELA`, `_TOMP`/`_TOMW`, `_ATSV`/`_WTSV`), the
+   read flags (`_RTST`/`_RDED`, which `_IFUR` in `QA_25` needs), the
+   gallery flag `_STCG`, `_SELD`'s choice number and `_SELS`'s
+   yes/no choice. `_FANX`, `_STQK` and `_TRPY` have no case in the
+   exe: the next converter PR adds them to `LEFT_OUT`.
 
 ### Accuracy
 

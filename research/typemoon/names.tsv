@@ -50,3 +50,47 @@
 00199fc0	motion_keys_range	keys of motion m: [end(m-1), end(m)), length = last key's time
 0019caa0	sound_one_shot_cut	a one-shot cut by the next sound on its channel (_SEPL)
 001f6720	clock_nn_time	clock: nn::time in FUN_001f67xx (save dates)
+0015f420	cmd_FADE	_FADE(type, ms, …): screen filter switch by type 0-41; 40 sets filter mode 4 (state 0x898) with level 127+arg1 and arg2, 41 clears it
+00192120	cmd_FCLN	_FCLN: argument 5 starts full-screen effect n (screen_effect_set); arguments 0-4 never read
+001921b0	cmd_FCSP	_FCSP(ms): ends the full-screen effect over ms*60/1000 frames
+00186470	screen_effect_set	full-screen effect n (4-33 from the table at 0x45261c) at once, or 0: fade it out over the frames given
+00139110	window_quake	_MSQK(ms, a, b): text window shake; ms over 10000 -> 1000, a*640/1280, b*448/720
+001653b0	cmd_MVOL	_MVOL: music volume to option 17 over option 1 ms
+001922c0	read_flag_global	true if global read flag n (words 300+ of the global save) is set; n < 0x240
+00192580	cmd_RDAS_skip	_RDAS: with setting 0x5e on and global read flag n set, sets DAT 06b0 = 1 (read-skip, inferred)
+00192440	cmd_RDED	_RDED(n): n the scene _RTST started and its per-play bit set -> global read flag n; returns 0 then
+00192770	cmd_RTST	_RTST(n): per-play bit n (state words 0xc9+); current scene +0xdc = n
+001926f0	all_read_check	(1): false when the completion bits (global 0x29c) are all set; (else): flags 0x1e6-0x231 all set
+00147b00	scene_mode_flag	returns DAT_00c34af0 (set by FUN_00148ac0); _IFSC jumps when 0
+0015f200	script_end_reset	_RTM_: stops the 20 sound channels, the music unless DAT_0156e64d (_RTM2/_RTMN)
+0016ae10	cmd_SEVL	_SEVL: channel n%20 volume to option 17 over option 1 ms (0: 2000 ms)
+0019a270	cmd_SGMA	_SGMA(layer, m, k): writes the layer's live x, y, alpha, picture into key k of motion m
+00191540	cmd_SQK2	_SQK2: layer quake (layer_quake_start kind 1); x, y amplitude default 15, ms argument 4 *3/50
+00191900	cmd_SHK2	_SHK2: layer_quake_start kind 2
+00191cf0	cmd_SSW2	_SSW2: layer_quake_start kind 3
+00163520	layer_quake_start	starts per-layer effect kind 1-3 (_SQK2/_SHK2/_SSW2) on a layer
+00163680	layer_quake_stop	_SQS2/_SHS2/_SSS2: clears effect kind 1/2/3 on a layer (< 0: all 40)
+0015f8f0	cmd_SHOK	_SHOK: screen shake FUN_0012ee70(1, a0, a1, a2 = 300, a3 = 3, a4 = 0); not while skipping
+0012e560	shake_stop	_SHAF(): ends the screen shake at once
+0012e9d0	shake_decay	_SHAF(ms): the screen shake decays over ms*60/1000 frames
+00104030	cmd_SNX2	_SNX2(layer, v): layer floats 0x1454 / live +0x248 = v/255+1
+00104120	cmd_SNX3	_SNX3(layer, v): layer floats 0x1458 / live +0x24c = v*0.01+1
+00199880	cmd_SPMA	_SPMA(b): byte +8 of every layer's motion state = (b == 1)
+00162f90	cmd_STCF	_STCF(layer, mask = 63): wait flag 0x20 until layer_busy is false for the mask
+001329f0	layer_busy	a layer's timed changes still running, by mask bit (1-8 counters +0x78/+0x7e/+0x84/+0x8a, 16 +0x13c, 32 motion)
+001802c0	frame_update	frame loop: clears the wait flags (4 voice, 0x20 _STCF) when their condition ends
+001774f0	cg_flag_set	_STCG(name): sets the picture's CG flag (bitset at 07a8, < 0xc80)
+001625c0	cmd_STCL	_STCL(?, layer, x0, y0, x1, y1, ms, ease): stops the motion, moves the layer
+001648a0	cmd_STNS	_STNS(layer, n 0-12): layer +0x1b0 = n, +0x1b1 = 1 if n > 2 else 3
+001639a0	cmd_STPV	_STPV(layer, x, y): the live +0x64/+0x68 pair the motion keys 0x0E/0x10 drive
+001645f0	cmd_STRA	_STRA(layer, v, ms): layer +0x238 to v over ms*60/1000 frames
+001633d0	cmd_STRR	_STRR(layer, angle): 0xbe4 = angle in 1/100 deg (-99999 -> -0x8000)
+0016ef30	cmd_TOMP	_TOMP(n): overlay_open slot 0 kind 0 with n
+0013f600	overlay_open	opens overlay slot s of kind k (table 0x673730, 0x88 bytes a kind)
+0013f9b0	overlay_flag	sets overlay slot s's flag (+0x28 of its record); _XRSM, _FADE
+0019c400	voice_state	the voice channel's state (0: not playing)
+00192930	cmd_SELA	_SELA: choice screen mode 3 (two slots) when state +0x8bc is 0
+00192800	cmd_SELS	_SELS: choice screen mode 2 (two slots)
+00192a60	choice_flow_flags	_SELD argument 1 (choice 1-0x52): sets its global flags (table 0x4594d0, words 400+)
+001527f0	autosave_copy	_ATSV: copies the 0x3aa8-byte save record into the auto-save buffer
+0015f3b0	state_snapshot	first change after a text: copies the scene state (0x19b8 bytes) for the save

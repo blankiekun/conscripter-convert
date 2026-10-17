@@ -20,10 +20,9 @@ os.chdir(subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=
 
 # kinds with no row yet: next mapping work
 NO_ROW = {
-    "tsukihime": set("""_ATSV _FADE _FANX _FCLN _FCSP _IFNX _IFP4 _IFSC _IFUR _MSQK _MVOL _NOP_ _PGST _RDAS _RDED _RTM2 _RTMN _RTM_ _RTST _SACL _SBAS _SELA _SELD _SELS _SESP _SEVL _SGMA _SHAF _SHK2 _SHOK _SHS2 _SNX2 _SNX3 _SNX4 _SOXY _SPFC _SPMA _SPRC _SPRD _SQK2 _SQS2 _SSS2 _SSW2 _STCF _STCG _STCL _STNS _STPV _STQK _STRA _STRR _STTR _TOMP _TOMW _TRPY _VCWT _VPL2 _WKOR _WTSV _XRSM _XSTP""".split()),  # no row yet
 }
 # ceiling per game for NO_ROW: lower it as rows land, never raise it
-NO_ROW_MAX = {"django": 0, "tsukihime": 61}
+NO_ROW_MAX = {"django": 0, "tsukihime": 0}
 # names in the first column that are not kinds
 OTHER = {
     "saihate-no-ima": {"0x81", "0x11"},
