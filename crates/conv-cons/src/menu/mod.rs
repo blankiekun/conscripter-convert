@@ -273,6 +273,27 @@ pub(crate) fn hidden_while_open() -> Vec<String> {
     BAR_SPRITES.map(numbered).chain([NAME_TEXT_SPRITE, NAME_PLATE_SPRITE].map(String::from)).chain((0..LINK_SPRITE_COUNT).map(crate::link_sprite)).collect()
 }
 
+/// The hide button's and right-click's commands around `systemcall
+/// windowerase`, which hides only the text window: hiding and showing again
+/// the sprites of [`hidden_while_open`], the link words' underlines and the
+/// top bars, as the games hide every UI window with the text (最果てのイマ's
+/// `toggle_ui_windows`, 0x407690).
+pub(crate) fn hidden_while_erased(top: bool) -> (String, String) {
+    let mut sprites = hidden_while_open();
+    sprites.extend(crate::LINK_UNDERLINE_SPRITES.map(|n| n.to_string()));
+    if top {
+        sprites.extend(scenes::scene_row_sprites().map(|n| n.to_string()));
+    }
+    let vsp = |on: u32| {
+        let mut all: Vec<String> = sprites.iter().map(|n| format!("vsp {n},{on}")).collect();
+        if top {
+            all.extend(TOP_SPRITES2.map(|n| format!("vsp2 {n},{on}")));
+        }
+        all.join(":")
+    };
+    (vsp(0), vsp(1))
+}
+
 /// `lsp2` places the image by its centre.
 pub(crate) fn lsp2(slot: u32, p: &Placed, opacity: Option<u8>) -> String {
     let (w, h) = (p.w, p.h);
@@ -605,7 +626,10 @@ pub(crate) mod tests {
             "if %9 == -1 goto *conv_bar_hide\nif %9 == -2 goto *conv_bar_log\nif %9 == 1001 goto *conv_bar_auto\nif %9 == 1002 goto *conv_bar_save\nreturn\n",
             "*conv_bar_log\nsystemcall lookback\nreturn\n",
             "*conv_bar_save\ngosub *conv_bar_clear\nmov %101,1\ngosub *conv_save\nreturn\n",
-            "*conv_bar_hide\nsystemcall windowerase\nreturn\n",
+            "*conv_bar_hide\nvsp 34,0:",
+            ":vsp %conv_link7,0:vsp 6,0:",
+            ":vsp 21,0\nsystemcall windowerase\nvsp 34,1:",
+            ":vsp 21,1\nreturn\n",
         ] {
             assert!(out.contains(line), "missing {line:?} in\n{out}");
         }
