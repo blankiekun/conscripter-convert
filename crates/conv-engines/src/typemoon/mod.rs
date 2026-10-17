@@ -10,6 +10,7 @@ pub mod convert;
 pub mod exe;
 pub mod fwav;
 pub mod mrg;
+pub mod menu;
 pub mod mzp;
 pub mod mzx;
 pub mod nso;

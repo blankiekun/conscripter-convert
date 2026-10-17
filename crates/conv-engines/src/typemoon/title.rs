@@ -31,13 +31,13 @@ fn se(name: &str) -> Option<String> {
     Some(format!("se/WSD_MOON_{name}.ogg"))
 }
 
-fn px(v: f32) -> i32 {
+pub(super) fn px(v: f32) -> i32 {
     (v * SCALE).round() as i32
 }
 
 /// The title, and (unless `dry_run`) its pictures in `<output>/sys/title`.
 pub fn title(romfs: &Path, output: &Path, dry_run: bool) -> Result<TitleScreen> {
-    let parts = if dry_run { None } else { Some(Parts::read(romfs)?) };
+    let parts = if dry_run { None } else { Some(Parts::read(romfs, "TITLE_PARTS")?) };
     let save = |name: &str, img: Option<RgbaImage>| -> Result<String> {
         let file = format!("{DIR}/{name}.png");
         if let Some(img) = img {
@@ -120,27 +120,27 @@ pub fn title(romfs: &Path, output: &Path, dry_run: bool) -> Result<TitleScreen> 
     })
 }
 
-/// `TITLE_PARTS` (`allui`), decoded.
-struct Parts {
+/// A picture set of `allui` (`TITLE_PARTS`, …), decoded.
+pub(super) struct Parts {
     textures: Vec<(String, RgbaImage)>,
 }
 
 impl Parts {
-    fn read(romfs: &Path) -> Result<Parts> {
+    pub(super) fn read(romfs: &Path, prefix: &str) -> Result<Parts> {
         let path = romfs.join("allui.mrg");
         let (hed, nam, bytes) = (map(&path.with_extension("hed"))?, map(&path.with_extension("nam"))?, map(&path)?);
-        let entry = mrg::parse(&hed, Some(&nam))?.into_iter().find(|e| e.name.as_deref().is_some_and(|n| n.starts_with("TITLE_PARTS"))).context("allui has no TITLE_PARTS")?;
+        let entry = mrg::parse(&hed, Some(&nam))?.into_iter().find(|e| e.name.as_deref().is_some_and(|n| n.starts_with(prefix))).with_context(|| format!("allui has no {prefix}"))?;
         let data = super::unpack(mrg::data(&bytes, &entry)?)?;
         let textures = bntx::parse(&data)?.iter().map(|t| Ok((t.name.clone(), bntx::decode(t)?))).collect::<Result<_>>()?;
         Ok(Parts { textures })
     }
 
     fn get(&self, name: &str) -> Result<&RgbaImage> {
-        self.textures.iter().find(|(n, _)| n == name).map(|(_, t)| t).with_context(|| format!("no {name} in TITLE_PARTS"))
+        self.textures.iter().find(|(n, _)| n == name).map(|(_, t)| t).with_context(|| format!("no {name} in allui"))
     }
 
     /// A texture (or a part of it: x, y, w, h) at the screen's scale.
-    fn scaled(&self, name: &str, rect: Option<(u32, u32, u32, u32)>) -> Result<RgbaImage> {
+    pub(super) fn scaled(&self, name: &str, rect: Option<(u32, u32, u32, u32)>) -> Result<RgbaImage> {
         let t = self.get(name)?;
         let (x, y, w, h) = rect.unwrap_or((0, 0, t.width(), t.height()));
         let part = imageops::crop_imm(t, x, y, w, h).to_image();
@@ -152,13 +152,20 @@ impl Parts {
         // ours: the cells cut 312 × 88 from (24, 22) so the widget's hit box
         // (0, 4, 98 × 25 on the 640 × 448 stage, table 0x75CBD8) is centred
         // on each label, as measured from the picture's alpha
-        let cell = |c: u32| self.scaled("titlemenu", Some((24 + 312 * c, 22 + 88 * row, 312, 88))).expect("titlemenu was read");
-        let first = cell(0);
-        let mut out = RgbaImage::new(first.width() * cells, first.height());
-        for c in 0..cells {
-            imageops::replace(&mut out, &cell(c), i64::from(first.width() * c), 0);
+        let rects: Vec<_> = (0..cells).map(|c| (24 + 312 * c, 22 + 88 * row, 312, 88)).collect();
+        self.cells("titlemenu", &rects).expect("titlemenu was read")
+    }
+
+    /// Parts of a texture (x, y, w, h) side by side at the screen's scale.
+    pub(super) fn cells(&self, name: &str, rects: &[(u32, u32, u32, u32)]) -> Result<RgbaImage> {
+        let cells = rects.iter().map(|&r| self.scaled(name, Some(r))).collect::<Result<Vec<_>>>()?;
+        let mut out = RgbaImage::new(cells.iter().map(|c| c.width()).sum(), cells.iter().map(|c| c.height()).max().unwrap_or(1));
+        let mut x = 0;
+        for c in &cells {
+            imageops::replace(&mut out, c, i64::from(x), 0);
+            x += c.width();
         }
-        out
+        Ok(out)
     }
 }
 
