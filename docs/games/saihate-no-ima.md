@@ -290,6 +290,7 @@ is noted) and why:
 | `0x88` | `-4` | 0 | a cleared slot's blend and opacity, which `op_88` (`0x415b50`) doesn't use |
 | `0x88` | `+8` | u32 0, 2, 1000, 2000 | the module's place in its preset, where the modules set together are in slot order (History, item 36) |
 | `0x7a` | `+6` | 2000 | a blog bust-up's depth in the top band, over everything else there (History, item 37) |
+| `0x7a` | `+14` | u16 0, 0 | the new object's width and height, which the picture `0x84` loads replaces (History, item 44) |
 | `0x70` | `-4` | 0 | a cleared slot's blend and opacity (kind 0 or slot 0), which `op_70` (`0x415a30`) doesn't read (History, item 38) |
 | `0x70` | `-8` | 10, 0 | Zigzag's begin angle and reduction, which its draw (`0x41dab0`) doesn't read (History, item 39) |
 | `0x56` | `+2` | u32 0, 2000 | a slot-1 fill's sort depth in its band, where it is alone (History, item 40) |
@@ -321,7 +322,6 @@ run's):
 | `0x6f` | the pulse | converted, not checked against the original |
 | `0x70` | the depth in the second u32 (0 in 254, 1000 in 188, 2000 in 5, 1100 in 4, …): 457 notes | dropped (`screenfilter` has no depth) |
 | `0x76` | MeltDown's stretch for `sub` 46/47 | converted (scaled from the exe), not compared with the film |
-| `0x7a` | u16, u16 at +14 (0, 0 in the 6 blog records), passed to `FUN_0040f060`: 6 notes | dropped: meaning unknown |
 | `0x8c` | the sort key in the second u32 (depth 1000 in 227, 1100 in 5, 0 in 4, 2000 in 3, 500 once): 240 notes | dropped: the static is always sprite 60, ripples and shakes move the whole screen |
 | `0x8f` | removes the bust-ups only | partial: `csp -1` also removes the fade cover (no script shows the difference) |
 | `0x30`, `0x62` | everything | dropped (the unreachable debug menu) |
@@ -622,12 +622,13 @@ a copy of the save works.
 
 ### Queue (2026-10-16)
 
-- Open: `0x86`'s two trailing bytes as harmless, PR #163 (History, item 45).
+- Merged: `0x86`'s two trailing bytes as harmless (#163; History, item 45).
 - Open: command coverage per operand, PR #85 (supersedes #28): every
   operand given and not read, whatever its value (0 included), is a
   dry-run note and a gap in `metrics.json`, except the filler (`NO_SUB`,
   `NO_ARG`) and the harmless table ("Operand coverage"), each row with
   the values it covers. Merged.
+- Open: `0x7a`'s size at +14 as harmless, PR #164 (History, item 44).
 - Open: speaker names from `sub` bit 0, PR #102 (History, item 27):
   4,867 notes of 20 kinds left; 80,285 of 84,713 calls fully converted
   (was 49,328).
@@ -704,8 +705,6 @@ after History's 26, most noticeable first (notes = instructions):
     debug menu, which the user didn't want.
 43. **`0x46`'s last u32** (+14, 0 in all 214 links, 214 notes): `op_46`
     (`0x477460`) keeps it in the link; meaning unknown.
-44. **`0x7a` u16, u16 at +14** (0, 0 in the 6 blog records, 6 notes):
-    passed to `FUN_0040f060`; meaning unknown.
 
 **Script opcodes:** all converted (the converter reports 2 unsupported
 instructions, both in the unreachable debug menu). Notes on the last
@@ -1317,3 +1316,13 @@ sound effects on `dwave` channels.
    the u32 flags, the u16 count and each key frame's fields, then
    stops: the two zero bytes after the 9 slides' key frames are never
    read, a row of the harmless table.
+44. **Done: `0x7a` u16, u16 at +14** (2026-10-16). `op_7a` (`0x414590`)
+   passes them to `FUN_0040f060`, which stores them as the object's
+   width and height (+0x198, +0x19c): the size of the blank surface
+   `0x40f380` makes for an object without a picture (+0x1a0 = -1, which
+   `op_7a` sets), and the base of `0x7d`'s anchor (`0x40f220`: half or
+   all of it). Once a picture is loaded (`0x84`, through `0x40f380`
+   again), the object's size becomes the picture's (`FUN_0040f060` with
+   the image's width and height). The 6 blog records give 0 × 0 and
+   load a bust-up right after, before `0x7d` centres it: a row of the
+   harmless table.
