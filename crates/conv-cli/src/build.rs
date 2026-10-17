@@ -74,7 +74,14 @@ pub fn run(args: BuildArgs, title: &str, output_dirs: &[&str], compile: impl FnO
         fs::write(output.join("metrics.json"), json)?;
         let (calls, gaps) = metrics.totals();
         let left_out = metrics.left_out_total();
-        println!("  source calls: {calls}, fully converted {}, with gaps {gaps}, left out on purpose {left_out} (metrics.json)", calls - gaps - left_out);
+        let pct = |n: f64| 100.0 * n / (calls - left_out).max(1) as f64;
+        let full = calls - gaps - left_out;
+        let weighted = metrics.weighted_total();
+        println!(
+            "  source calls: {calls}, fully converted {full} ({:.1}%), weighted by arguments read {weighted:.1} ({:.1}%), with gaps {gaps}, left out on purpose {left_out} (metrics.json)",
+            pct(full as f64),
+            pct(weighted)
+        );
     }
     summary(&output, &ir, lost, notes, Some(!dry_run))
 }

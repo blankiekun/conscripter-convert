@@ -1897,7 +1897,8 @@ pub fn compile(game: &Game, scenes: &[String], assets: &mut dyn Assets) -> Compi
                 reasons.push(what.clone());
                 *l.out.notes.entry(what).or_default() += n;
             }
-            l.out.metrics.call(&kind, reasons);
+            // shortcut: a key never read counts as one value lost however many it has.
+            l.out.metrics.call(&kind, t.values(), reasons);
         }
         if l.staging {
             l.out.ops.push(Op::EndTransition);

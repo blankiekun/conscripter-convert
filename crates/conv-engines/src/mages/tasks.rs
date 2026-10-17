@@ -129,6 +129,12 @@ impl Block {
         out
     }
 
+    /// How many values it was given, its sub-blocks' too (a key without
+    /// values counts one).
+    pub fn values(&self) -> usize {
+        self.props.iter().map(|(_, v)| v.len().max(1)).sum::<usize>() + self.children.iter().map(Block::values).sum::<usize>()
+    }
+
     /// The first child named `name` (case-insensitive).
     pub fn child(&self, name: &str) -> Option<&Block> {
         self.children.iter().find(|c| c.name.eq_ignore_ascii_case(name))
