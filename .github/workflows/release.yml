@@ -130,11 +130,14 @@ jobs:
         name: conscripter-convert_${{ matrix.os.suffix }}
         path: release/*
 
+    # The matrix jobs race to create the page: whoever creates it carries
+    # the (empty) notes; a job that loses the race (422 already_exists)
+    # only uploads its files, so the notes written by hand are never touched.
     - name: create release
-      uses: ncipollo/release-action@v1
       if: github.ref_type == 'tag'
-      with:
-        artifacts: "release/*"
-        allowUpdates: "true"
-        omitBodyDuringUpdate: "true" # keep the release notes written by hand
-        token: ${{ secrets.GITHUB_TOKEN }}
+      shell: bash
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        gh release create "$NAME" --title "$NAME" --notes "" release/* \
+          || { gh release view "$NAME" >/dev/null && gh release upload "$NAME" release/* --clobber; }
