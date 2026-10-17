@@ -23,20 +23,16 @@
 //!   buttons and labels `lsp` sprites over them. The text window, name
 //!   plate and link words are hidden while the menu is open.
 
-use conv_core::ir::{BarAction, Backlog, ButtonBar, CommandMenu, ConfirmDialog, Placed, SaveMenu, Setting, SettingsMenu, Switch, TextSpot, TopBars, VoiceToggle, WaitIcon};
+use conv_core::ir::{BarAction, ButtonBar, CommandMenu, ConfirmDialog, Placed, Setting, SettingsMenu, Switch, TextSpot, TopBars, VoiceToggle, WaitIcon};
 
 use crate::{escape, path, BAR_SPRITES, BUTTON_VAR, DIALOG_SPRITES, LINK_SPRITE_COUNT, MENU_SPRITES, NAME_PLATE_SPRITE, NAME_TEXT_SPRITE};
 
-mod backlog;
 mod bar;
 mod confirm;
-mod save;
 mod scenes;
 mod settings;
-pub(crate) use backlog::*;
 pub(crate) use bar::*;
 pub(crate) use confirm::*;
-pub(crate) use save::*;
 use scenes::*;
 pub(crate) use settings::*;
 
@@ -90,26 +86,7 @@ const BTN_QUIT: u32 = 31;
 const BTN_TAB: u32 = 40; // + 1 + page
 const BTN_SKIP: u32 = 32;
 const BTN_VOICE: u32 = 50; // + 1 + switch
-const LOG_PAGES: u32 = 10; // text sprites M..M + LOG_PAGES, names after
-const LOG_UP: u32 = M + 20;
-const LOG_DOWN: u32 = M + 21;
-const LOG_OFFSET: &str = "%170";
-const LOG_Y: &str = "%171";
-const LOG_K: &str = "%172";
-const LOG_LINES: &str = "%173";
-const LOG_OLDER: &str = "%174";
-const LOG_SPRITE: &str = "%175";
-const LOG_TEXT_Y: &str = "%177";
-const LOG_NAMED: &str = "%178";
-const LOG_TAG: &str = "$107";
-const LOG_NAME: &str = "$108";
-const LOG_VOICE: &str = "$109";
-/// The voice of shown page k is in $(LOG_VOICES + k).
-const LOG_VOICES: u32 = 120;
-/// Speaker names: sprites M + 10 + k.
-const LOG_NAME_SPRITE: u32 = M + 10;
 pub(crate) const LOG_NAME_COLOR: &str = "#D8C088";
-const BTN_LOG_VOICE: u32 = 210; // + k
 /// The settings page shown: 0 levels, 1 voices.
 pub(crate) const SETTINGS_PAGE: &str = "%176";
 /// Voice character c is muted when the global %(VOICE_OFF_BASE + c) is 1.
@@ -215,35 +192,23 @@ pub(crate) const SLOT: &str = "%103";
 pub(crate) const HAS_DATA: &str = "%104";
 pub(crate) const TMP: &str = "%105";
 pub(crate) const FIRST: &str = "%106"; // first slot on the page
-const SELECTED_HAS_DATA: &str = "%107";
 const MODE_STATE: &str = "%108"; // isskip: 1 skip, 2 auto
 pub(crate) const DATE: [&str; 6] = ["%110", "%111", "%112", "%113", "%114", "%115"];
 pub(crate) const LABEL: &str = "$100";
 const LINE1: &str = "$101";
-const LINE2: &str = "$102";
 pub(crate) const FILE: &str = "$103"; // thumbnail file
 pub(crate) const THUMB_IMAGE: &str = "$105"; // the same with its sprite tag
 pub(crate) const STR_TMP: &str = "$104";
 // Globals (`globalon` keeps %200 and up; the game uses up to %220).
 pub(crate) const PAGE: &str = "%900";
 pub(crate) const NEWEST: &str = "%901";
-/// Slot n was deleted by an older build when %(DELETED_BASE + n) is 1.
-const DELETED_BASE: u32 = 910;
 /// The current chapter's title (a local: saves keep it), shown in the top
 /// bar and under a save's date.
 pub(crate) const CHAPTER: &str = "$150";
 
 // lsp slots (all within MENU_SPRITES).
 const M: u32 = MENU_SPRITES.start;
-const TEXT1: u32 = M; // + row
-const TEXT2: u32 = M + 5; // + row
-const ROW_BUTTON: u32 = M + 10; // + row
-const PAGE_BUTTON: u32 = M + 15; // + page index
-const DELETE: u32 = M + 25;
-const ACTION: u32 = M + 26;
 const CLOSE: u32 = M + 27;
-const MAX_ROWS: usize = 5;
-const MAX_PAGES: usize = 10;
 // Dialog lsp slots (DIALOG_SPRITES).
 const DIALOG_TEXT: u32 = DIALOG_SPRITES.start;
 const DIALOG_YES_LABEL: u32 = DIALOG_TEXT + 1;
@@ -252,18 +217,9 @@ const DIALOG_YES: u32 = DIALOG_TEXT + 3;
 const DIALOG_NO: u32 = DIALOG_TEXT + 4;
 const DIALOG_BASE: u32 = DIALOG_TEXT + 5;
 // lsp2 slots (higher numbers are drawn further down).
-const NEW: u32 = 0;
-const THUMB: u32 = 1; // + row
-const PREVIEW: u32 = 6;
-const MARKER: u32 = 7;
-const SELECTION: u32 = 8;
 const HEADER: u32 = 9;
-const FRAME: u32 = 10;
 pub(crate) const BASE: u32 = 11;
 // Button numbers returned by btnwait: rows 1.., pages 101..
-const BTN_PAGE: u32 = 100;
-const BTN_DELETE: u32 = 200;
-const BTN_ACTION: u32 = 201;
 const BTN_CLOSE: u32 = 202;
 
 /// Sprites hidden while a full-screen menu is open: the bars, the name
@@ -304,68 +260,9 @@ pub(crate) fn lsp2(slot: u32, p: &Placed, opacity: Option<u8>) -> String {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use conv_core::ir::{PageButton, Rect};
 
     fn placed(name: &str, w: i32, h: i32) -> Placed {
         Placed { image: format!("system/{name}.png"), x: 10, y: 20, w, h }
-    }
-
-    #[test]
-    fn save_menu_routine() {
-        let page = |n: i32| PageButton { button: placed(&format!("page{n}"), 30, 27), marker_x: 100 * n, marker_y: 480 };
-        let m = SaveMenu {
-            base: placed("base", 800, 600),
-            base_opacity: 140,
-            frame: placed("frame", 800, 600),
-            save_header: placed("save_header", 173, 74),
-            load_header: placed("load_header", 173, 74),
-            delete: placed("delete", 285, 33),
-            save: placed("save", 237, 33),
-            load: placed("load", 237, 33),
-            close: placed("close", 267, 33),
-            pages: vec![page(1), page(2)],
-            page_marker: placed("marker", 28, 9),
-            rows: 5,
-            row_y: 44,
-            row_pitch: 92,
-            row_hover: placed("hover", 758, 92),
-            row_selected: placed("selected", 379, 92),
-            thumbnail: Rect { x: 14, y: 10, w: 100, h: 75 },
-            new_icon: placed("new", 66, 20),
-            text_x: 124,
-            text_y: 11,
-            font_size: 14,
-            line_height: 15,
-            preview: Rect { x: 390, y: 137, w: 400, h: 300 },
-            text_width: 0,
-            backdrop: Some((4, [6, 0, 256, 1, 1, 0])),
-            engine_screen: false,
-        };
-        let d = dialog();
-        let mut out = String::new();
-        save_menu(&mut out, &m, Some(&d), false);
-        for line in [
-            "if %100 == 1 getscreenshot 400,300\n",
-            // lsp2 takes the centre.
-            "lsp2 11,\":a;system\\base.png\",410,320,100,100,0,140\n",
-            // Row 2 (slot FIRST + 1): thumbnail at 25%, centred in its box.
-            "if %104 == 1 lsp2 2,$105,64,183,25,25,0\n",
-            "if %900 == 2 cell 22,2:lsp2 7,\":a;system\\marker.png\",214,484,100,100,0\n",
-            "if %9 > 100 && %9 <= 102 mov %900,%9-100:goto *conv_sl_page\n",
-            "savescreenshot2 $103\n",
-            "screenfilter 4,0:savegame2 %102,$100:screenfilter 4,6,0,256,1,1,0\n",
-            "if %101 == 1 screenfilter 4,6,0,256,1,1,0\n",
-            "if %101 == 1 screenfilter 4,0\n",
-            "loadgame %102\n",
-            // Delete removes the save and its thumbnail; a slot an older
-            // build hid with a flag is deleted when listed.
-            "mov %103,%102\ngosub *conv_sl_file\ndelsavegame %102,$103\n",
-            "if %%105 == 1 delsavegame %103,$103:mov %%105,0\nsavefileexist %104,%103\n",
-            // Saving over a save asks first.
-            "if %107 == 0 goto *conv_sl_save\nmov %103,%102\ngosub *conv_sl_number\nmov %125,3:mov $106,$101\nadd $106,\" over?\"\ngosub *conv_confirm\nif %109 == 0 goto *conv_sl_buttons\n*conv_sl_save\n",
-        ] {
-            assert!(out.contains(line), "missing {line:?} in\n{out}");
-        }
     }
 
     pub(crate) fn dialog() -> ConfirmDialog {

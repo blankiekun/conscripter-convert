@@ -289,7 +289,6 @@ pub fn save_menu(assets: &mut ArchiveAssets, labels: &Labels) -> Option<SaveMenu
         // To the plate's right edge, less a margin.
         text_width: plate.width().saturating_sub(172 + 12),
         backdrop: None,
-        engine_screen: true,
     })
 }
 
@@ -401,7 +400,6 @@ pub fn backlog(assets: &mut ArchiveAssets, labels: &Labels) -> Option<Backlog> {
         font_size: 18,
         line_height: 26,
         columns: 37,
-        engine_screen: true,
     })
 }
 

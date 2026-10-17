@@ -1,5 +1,5 @@
 //! [`LineLog`] as an NScripter subroutine under the backlog's label
-//! ([`menu::BACKLOG`]), entered the same way as [`menu::backlog`].
+//! ([`menu::BACKLOG`]), entered the same way as the backlog screen.
 //!
 //! CONscripter lays the history out as rows (`logrows`, cut at the log's
 //! columns, ruby as its base text) and gives each row's text and its
@@ -22,7 +22,7 @@ use conv_core::ir::{LineLog, Placed};
 use crate::menu::{self, IN_GAME, TMP};
 use crate::{path, BUTTON_VAR, MAX_SPRITE, MENU_SPRITES};
 
-// Variables (shared with menu::backlog's, never both in one script).
+// Variables.
 /// The first row shown.
 const TOP: &str = "%170";
 /// The number of rows; the largest TOP.

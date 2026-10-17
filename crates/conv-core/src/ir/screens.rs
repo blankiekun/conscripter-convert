@@ -214,9 +214,6 @@ pub struct SaveMenu {
     /// blend, strength and the three parameters. It is off while a save is
     /// written, since saves keep the screen filters.
     pub backdrop: Option<(u32, [i32; 6])>,
-    /// Drawn by the engine (CONscripter's `screen`, from `screens/*.lua`)
-    /// rather than by script loops.
-    pub engine_screen: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -420,10 +417,6 @@ pub struct ExtrasMenu {
     /// (俺たちに翼はない lists the modes over the title); `None` uses
     /// `background`.
     pub menu_background: Option<String>,
-    /// The gallery and the music room are drawn by the engine
-    /// (CONscripter's `screen`, `screens/gallery.lua`, `music.lua`) rather
-    /// than by script loops. The scene replay always is.
-    pub engine_screen: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -866,9 +859,6 @@ pub struct Backlog {
     pub font_size: u32,
     pub line_height: i32,
     pub columns: u32,
-    /// Drawn by the engine (CONscripter's `screen`, `screens/backlog.lua`)
-    /// rather than by script loops.
-    pub engine_screen: bool,
 }
 
 /// A yes/no question over whatever is on screen, asked before saving over
