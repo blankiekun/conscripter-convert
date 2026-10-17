@@ -392,6 +392,9 @@ pub struct PictureExtras {
     pub sound: Option<SoundRoom>,
     pub replay: Option<PictureReplay>,
     pub turntable: Option<Turntable>,
+    /// The menu is drawn by the engine (CONscripter's `screen`,
+    /// `screens/extras.lua`) rather than by a script loop.
+    pub engine_screen: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -10,7 +10,7 @@
 
 use std::fmt::Write;
 
-use conv_core::ir::{ExtrasMode, PictureExtras};
+use conv_core::ir::{ExtrasMode, PictureExtras, PictureExtrasItem};
 
 use crate::{menu_slot, menu_z, path, var_name, BUTTON_VAR, MAX_SPRITE, MENU_SLOTS, SE_CHANNELS, TITLE_SHOWN};
 
@@ -49,13 +49,93 @@ fn mode_label(mode: ExtrasMode) -> String {
 
 pub(crate) fn emit(out: &mut String, e: &PictureExtras, border: u32, width: u32, height: u32) {
     assert!(e.items.len() <= MENU_SLOTS, "more extras buttons than menu sprites");
-    let fade = if e.fade_ms > 0 { format!("print 10,{}", e.fade_ms) } else { "print 1".to_string() };
     writeln!(out, "*{EXTRAS}").unwrap();
     if let Some(r) = &e.sound {
         writeln!(out, "{}", crate::picture_sound::on_open(r)).unwrap();
     }
     writeln!(out, "*{DRAW}").unwrap();
     writeln!(out, "csp -1").unwrap();
+    if e.engine_screen {
+        screen_menu(out, e);
+    } else {
+        script_menu(out, e, border);
+    }
+    writeln!(out, "*{BACK}").unwrap();
+    back(out, e);
+    if let Some(g) = &e.gallery {
+        crate::picture_gallery::emit(out, g, border, width, height);
+    }
+    if let Some(r) = &e.sound {
+        crate::picture_sound::emit(out, r, border, width, height);
+    }
+    if let Some(r) = &e.replay {
+        let music = e.sound.as_ref().map(|_| format!("gosub *{}", crate::picture_sound::PLAY));
+        crate::picture_replay::emit(out, r, border, music.as_deref());
+    }
+    if let Some(t) = &e.turntable {
+        crate::picture_turntable::emit(out, t, border);
+    }
+}
+
+/// The buttons that open something (with their value, 1 up).
+fn clickable(e: &PictureExtras) -> impl Iterator<Item = (usize, &PictureExtrasItem)> {
+    e.items.iter().filter(|item| has_mode(e, item.mode)).enumerate().map(|(n, item)| (n + 1, item))
+}
+
+/// What a click on button `n` runs: its sound, then its mode.
+fn dispatch(out: &mut String, e: &PictureExtras) {
+    for (n, item) in clickable(e) {
+        let se = item.click_se.as_ref().map_or(String::new(), |se| format!("dwave {},\"{}\":", SE_CHANNELS.start(), path(se)));
+        writeln!(out, "if {BUTTON_VAR} == {n} {se}goto *{}", mode_label(item.mode)).unwrap();
+    }
+}
+
+/// The menu as `screens/extras.lua`; a right-click closes it with 0.
+fn screen_menu(out: &mut String, e: &PictureExtras) {
+    if let Some(se) = &e.hover_se {
+        writeln!(out, "selectvoice \"\",\"{}\",\"\"", path(se)).unwrap();
+    }
+    writeln!(out, "screen \"extras\",{BUTTON_VAR}").unwrap();
+    if e.hover_se.is_some() {
+        writeln!(out, "selectvoice \"\",{},\"\"", crate::MENU_HOVER).unwrap();
+    }
+    writeln!(out, "if {BUTTON_VAR} == 0 goto *{BACK}").unwrap();
+    dispatch(out, e);
+    writeln!(out, "goto *{DRAW}").unwrap();
+}
+
+/// `screens/extras.lua`. Every close holds the menu on the display, so the
+/// mode (or the title) cross-fades straight from it, as the routine's
+/// menu did.
+pub(crate) fn lua_file(e: &PictureExtras, border: u32) -> String {
+    use crate::screens::lua;
+    let mut out = String::from("-- The extras' menu (conscripter-convert, from PictureExtras).\nreturn {\n  kind = \"extras\",\n  cancel = {\"close\", 0, hold=true},\n");
+    if e.fade_ms > 0 {
+        writeln!(out, "  fade = {},", e.fade_ms).unwrap();
+    }
+    let opaque = if crate::sprite_mode(&e.background) == 'c' { ", opaque=true" } else { "" };
+    writeln!(out, "  widgets = {{\n    {{\"image\", file={}{opaque}, x=0, y=0}},", lua(&e.background)).unwrap();
+    let values: Vec<usize> = e.items.iter().map(|item| clickable(e).find(|(_, c)| std::ptr::eq(*c, item)).map_or(0, |(n, _)| n)).collect();
+    for (item, n) in e.items.iter().zip(values) {
+        let b = &item.button;
+        // Locked: faint and not a button; a mode the script lacks: not a button.
+        let state = match (n, item.unlocked_by) {
+            (0, _) => ", enabled=false".to_string(),
+            (_, Some(v)) => {
+                let v = lua(&var_name(v, border));
+                format!(", enabled=var({v}) ~= 0, alpha=var({v}) ~= 0 and 255 or {}", item.locked_alpha)
+            }
+            (_, None) => String::new(),
+        };
+        writeln!(out, "    {{\"button\", file={}, x={}, y={}, cells=3, pressed=2{state}, action={{\"close\", {n}, hold=true}}}},", lua(&b.image), b.x, b.y).unwrap();
+    }
+    out.push_str("  },\n}\n");
+    out
+}
+
+/// The menu as a script loop.
+fn script_menu(out: &mut String, e: &PictureExtras, border: u32) {
+    let fade = if e.fade_ms > 0 { format!("print 10,{}", e.fade_ms) } else { "print 1".to_string() };
     writeln!(out, "lsp {BACKGROUND},\"{}\",0,0", pic(&e.background)).unwrap();
     for (i, item) in e.items.iter().enumerate() {
         let b = &item.button;
@@ -86,12 +166,12 @@ pub(crate) fn emit(out: &mut String, e: &PictureExtras, border: u32, width: u32,
         writeln!(out, "selectvoice \"\",{},\"\"", crate::MENU_HOVER).unwrap();
     }
     writeln!(out, "if {BUTTON_VAR} == -1 goto *{BACK}").unwrap();
-    for (n, (_, item)) in clickable.iter().enumerate() {
-        let se = item.click_se.as_ref().map_or(String::new(), |se| format!("dwave {},\"{}\":", SE_CHANNELS.start(), path(se)));
-        writeln!(out, "if {BUTTON_VAR} == {} {se}goto *{}", n + 1, mode_label(item.mode)).unwrap();
-    }
+    dispatch(out, e);
     writeln!(out, "goto *{WAIT}").unwrap();
-    writeln!(out, "*{BACK}").unwrap();
+}
+
+/// Back to the title.
+fn back(out: &mut String, e: &PictureExtras) {
     // A channel of its own: the title's opening sound comes at once.
     if let Some(se) = &e.back_se {
         writeln!(out, "dwave {},\"{}\"", SE_CHANNELS.start() + 1, path(se)).unwrap();
@@ -102,17 +182,41 @@ pub(crate) fn emit(out: &mut String, e: &PictureExtras, border: u32, width: u32,
     writeln!(out, "mov {TITLE_SHOWN},2").unwrap();
     writeln!(out, "csp -1").unwrap();
     writeln!(out, "goto *{TITLE_BACK}").unwrap();
-    if let Some(g) = &e.gallery {
-        crate::picture_gallery::emit(out, g, border, width, height);
-    }
-    if let Some(r) = &e.sound {
-        crate::picture_sound::emit(out, r, border, width, height);
-    }
-    if let Some(r) = &e.replay {
-        let music = e.sound.as_ref().map(|_| format!("gosub *{}", crate::picture_sound::PLAY));
-        crate::picture_replay::emit(out, r, border, music.as_deref());
-    }
-    if let Some(t) = &e.turntable {
-        crate::picture_turntable::emit(out, t, border);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use conv_core::ir::{Placed, Var};
+
+    #[test]
+    fn menu_becomes_a_screen() {
+        let item = |mode, unlocked_by| PictureExtrasItem { button: Placed { image: "sys/b.png".into(), x: 10, y: 20, w: 30, h: 40 }, mode, unlocked_by, locked_alpha: 51, click_se: None };
+        let e = PictureExtras {
+            background: "sys/menu.jpg".into(),
+            items: vec![item(ExtrasMode::Gallery, None), item(ExtrasMode::Sound, Some(Var { global: true, index: 7 })), item(ExtrasMode::Back, None)],
+            hover_se: None,
+            back_se: None,
+            fade_ms: 500,
+            gallery: None,
+            sound: None,
+            replay: None,
+            turntable: None,
+            engine_screen: true,
+        };
+        let lua = lua_file(&e, 4000);
+        for part in [
+            "cancel = {\"close\", 0, hold=true},\n  fade = 500,",
+            "{\"image\", file=\"sys/menu.jpg\", opaque=true, x=0, y=0},",
+            // No gallery or sound room in this script: drawn, not buttons.
+            "cells=3, pressed=2, enabled=false, action={\"close\", 0, hold=true}}",
+            // Back is the only mode here: value 1.
+            "cells=3, pressed=2, action={\"close\", 1, hold=true}}",
+        ] {
+            assert!(lua.contains(part), "missing {part:?} in\n{lua}");
+        }
+        let mut out = String::new();
+        screen_menu(&mut out, &e);
+        assert!(out.contains("screen \"extras\",%9\nif %9 == 0 goto *conv_pextras_back\nif %9 == 1 goto *conv_pextras_back\n"), "{out}");
     }
 }

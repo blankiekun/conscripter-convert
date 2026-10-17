@@ -48,6 +48,9 @@ pub fn screen_files(script: &Script) -> Vec<(String, String)> {
     }
     files.extend(crate::save_grid_screen::files(script));
     files.extend(crate::line_log_screen::files(script));
+    if let Some(e) = script.picture_extras.as_ref().filter(|e| e.engine_screen && script.title_screen.is_some()) {
+        files.push(("extras.lua".to_string(), crate::picture_extras::lua_file(e, script.global_border.unwrap_or(crate::GLOBAL_VAR_BASE))));
+    }
     files.extend(crate::settings_screen::files(script, script.global_border.unwrap_or(crate::GLOBAL_VAR_BASE)));
     files
 }
