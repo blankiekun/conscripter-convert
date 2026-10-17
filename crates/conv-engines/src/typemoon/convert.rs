@@ -294,6 +294,9 @@ struct Lowering<'g, 'a> {
     clips: Vec<Option<(i32, i32, i32, i32)>>,
     /// `_WNTY(1)`: the next line ends its page.
     page_end: bool,
+    /// The text window was hidden or faded (`_CLO2`/`_CLO3`/`_CLO4`): the
+    /// next text fades it in.
+    window_faded: bool,
     voice: Option<Voice>,
     /// A line ended with `@n`: the next one goes on after it, no click.
     held: Option<(String, Vec<Ruby>)>,
@@ -397,10 +400,28 @@ impl Lowering<'_, '_> {
             // `script_command` (0x177790): `_CLO2` hides the text window at once
             // (alpha 0), `_CLO3` lets `FUN_00138d40` fade it out in 4 frames,
             // `_CLO4(ms)` fades window and text out over `ms` (visible over the
-            // first half: drawn at 2 × (fade − 0.5)). The next text fades it back
-            // in (`FUN_0016e0d0`).
-            // shortcut: `_CLO4`'s fade hides at once (its time is a gap); a fade that doesn't block needs the engine.
-            "_CLO2" | "_CLO3" | "_CLO4" => self.ops.push(Op::HideTextWindow),
+            // first half: drawn at 2 × (fade − 0.5)), `_CLO5(ms)` shows the
+            // window and fades it in the same way. None of them blocks. The
+            // next text fades it back in over 18 frames (`FUN_0016e0d0`).
+            "_CLO2" => {
+                self.ops.push(Op::HideTextWindow);
+                self.window_faded = true;
+            }
+            "_CLO3" => {
+                self.ops.push(Op::WindowFade { alpha: 0, ms: 67, from: None, delay: 0, show: false });
+                self.window_faded = true;
+            }
+            "_CLO4" | "_CLO5" => {
+                let Some(ms) = number(arg(0)) else { return false };
+                let half = (ms.max(0) / 2) as u32;
+                if c.opcode() == "_CLO4" {
+                    self.ops.push(Op::WindowFade { alpha: 0, ms: half, from: None, delay: 0, show: false });
+                    self.window_faded = true;
+                } else {
+                    self.ops.push(Op::WindowFade { alpha: 256, ms: half, from: Some(0), delay: half, show: true });
+                    self.window_faded = false;
+                }
+            }
             "_WNTY" => self.page_end = arg(0) == "1",
             "_VPLY" => self.voice = Some(Voice { file: format!("stream/{}.ogg", arg(0)), character: 0 }),
             "_ZM" | "_MSAD" => {
@@ -420,6 +441,10 @@ impl Lowering<'_, '_> {
                     return true;
                 }
                 let continues = !std::mem::take(&mut self.page_end);
+                if std::mem::take(&mut self.window_faded) {
+                    // 18 frames, drawn at 2 × (fade − 0.5): hidden 150 ms, then in over 150
+                    self.ops.push(Op::WindowFade { alpha: 256, ms: 150, from: Some(0), delay: 150, show: false });
+                }
                 self.ops.push(Op::Text { speaker: None, text: body, voice: self.voice.take(), links: vec![], ruby, styles: vec![], hang: None, continues });
             }
             "_WTTM" => self.ops.push(Op::Wait { ms: number(arg(0)).unwrap_or(0).max(0) as u32 }),
@@ -934,6 +959,7 @@ pub fn compile(g: &Game) -> Compiled {
         blends: vec![BLEND_NORMAL; LAYERS],
         clips: vec![None; LAYERS],
         page_end: false,
+        window_faded: false,
         voice: None,
         held: None,
         se_channels: HashMap::new(),
@@ -1204,6 +1230,28 @@ mod tests {
                 Op::Label("tm_S__LV00100".into()),
             ]
         );
+    }
+
+    #[test]
+    fn window_fades_go_on_and_the_next_text_fades_in() {
+        let src = "_CLO4(1000);_ZM($000000);_ZM($000001);_CLO3();_CLO5(2000);_ZM($000000);";
+        let g = Game {
+            scripts: vec![("S".into(), script::parse(src).into_iter().map(Result::unwrap).collect())],
+            scenes: vec![],
+            lines: vec!["父だ。", "妹だ。"],
+            pictures: HashMap::new(),
+            textures: HashMap::new(),
+            sounds: vec![],
+            waves: HashMap::new(),
+            motions: vec![],
+        };
+        let fades: Vec<_> = compile(&g).ops.into_iter().filter_map(|o| match o {
+            Op::WindowFade { alpha, ms, from, delay, show } => Some((alpha, ms, from, delay, show)),
+            Op::Text { .. } => Some((1, 0, None, 0, false)),
+            _ => None,
+        }).collect();
+        let text = (1, 0, None, 0, false);
+        assert_eq!(fades, [(0, 500, None, 0, false), (256, 150, Some(0), 150, false), text, text, (0, 67, None, 0, false), (256, 1000, Some(0), 1000, true), text]);
     }
 
     #[test]

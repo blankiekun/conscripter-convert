@@ -610,7 +610,7 @@ Nothing yet.
 | Exe tables (pictures, motions, scene numbers) | ✅ read from the NSO (`typemoon exe`); picture sizes checked against the textures |
 | Scripts | 🔶 read: every command of both languages splits (one malformed in the original) and its text and voices join; the top commands' arguments read from the exe, the rest not yet |
 | Media folder (`typemoon media`) | ✅ `allpac`'s pictures as full-size WebP (2.37 GB), movies at 720p, sound |
-| Script conversion (`typemoon convert`) | 🔶 the flow (labels, `_JUMP`, `_IF__`, flags), text (pages, ruby, voices), pictures (`_STCH`/`_STCC`/`_FADS`: record size and place, fades and rule wipes), sound effects and music; plays from the start through `00_00` into the first arc headless. Layers drawn in priority order (`_STCP`, `_STCH` argument 6), zoomed (`_STZ4`), faded (`_STGS`) and moved (`_STMA`, the exe's motions; easing, priority and expression keys not followed), children placed in their parent layers, orbiting with their turn and following their motions (`_STCH` argument 11), clipped to their panels (`_STCH` arguments 12–16), turned (`_STRT`), drawn with their shader as far as CONscripter's blends and filters go (`_STBR`) and tinted (`_STEC` effect 1). Choices (`_SELR`, `_SELD`, `_GOTS`), `_GOTO` and the Switch's own branches (`_IFNX`/`_IFP4`). The text window hidden (`_CLO2`/`_CLO3`/`_CLO4`; `_CLO4`'s fade time not followed). Not yet: `_CLO5`, `_STEC`'s other effects, the other layer commands, screens |
+| Script conversion (`typemoon convert`) | 🔶 the flow (labels, `_JUMP`, `_IF__`, flags), text (pages, ruby, voices), pictures (`_STCH`/`_STCC`/`_FADS`: record size and place, fades and rule wipes), sound effects and music; plays from the start through `00_00` into the first arc headless. Layers drawn in priority order (`_STCP`, `_STCH` argument 6), zoomed (`_STZ4`), faded (`_STGS`) and moved (`_STMA`, the exe's motions; easing, priority and expression keys not followed), children placed in their parent layers, orbiting with their turn and following their motions (`_STCH` argument 11), clipped to their panels (`_STCH` arguments 12–16), turned (`_STRT`), drawn with their shader as far as CONscripter's blends and filters go (`_STBR`) and tinted (`_STEC` effect 1). Choices (`_SELR`, `_SELD`, `_GOTS`), `_GOTO` and the Switch's own branches (`_IFNX`/`_IFP4`). The text window hidden and faded (`_CLO2`, `_CLO3`/`_CLO4`/`_CLO5` with CONscripter's `windowfade`, the script going on; the next text fades it back in). Not yet: `_STEC`'s other effects, the other layer commands, screens |
 | Screens, extras | ❌ |
 
 ### Next
@@ -666,14 +666,6 @@ The build uses the Japanese layout for both languages.
 The biggest commands not converted, looked up in `script_command`
 (0x177790):
 
-- `_CLO4(ms)` (978) and `_CLO5(ms)` (596), **seen** (see History,
-  2026-10-17): `_CLO4` fades window and text out over `ms` (visible over
-  the first half), converted as an instant hide with `ms` a gap: a fade
-  that doesn't block the script needs the engine (`windoweffect` +
-  `textoff` blocks). `_CLO5` shows the empty window at once and fades
-  it in over `ms`; not converted (no IR op shows the window without
-  text). Ours shows the window at once where the original fades it in
-  over 18 frames after a hide (`FUN_0016e0d0`).
 - `_STEC(layer, n)` for n ≠ 0, 1 (9,193): **seen**: `FUN_00103de0`
   keeps `n` (0–82; 4 and the others alike) as the layer's effect
   (state 0x1404, live layer 0x244) and resets its colour to white. The
@@ -721,6 +713,17 @@ The biggest commands not converted, looked up in `script_command`
   layer without its `_STZ4` (or motion) zoom: 78 `spzoom` and 23
   `spmotion` of the Japanese `0.txt` changed. Left: the 2 timed uses
   (jump to their end) and 2,418 calls on layers not staged.
+
+- 2026-10-17: `_CLO3`/`_CLO4`/`_CLO5` fade the text window while the
+  script goes on, with CONscripter's new `windowfade` (engine #82):
+  `_CLO3` → `windowfade 0,67` (4 frames), `_CLO4(ms)` → `windowfade
+  0,ms/2` (drawn at 2 × (f − 0.5), so gone at half time), `_CLO5(ms)` →
+  `windowfade 256,ms/2,0,ms/2:textclear:texton`, and the first text after
+  `_CLO2`/`_CLO3`/`_CLO4` gets `windowfade 256,150,0,150` (18 frames,
+  the same curve). Tracked in script order: a text reached by a jump
+  from elsewhere may get a needless fade-in, or keep the plain show.
+  Japanese `0.txt`: 13,186 `textoff` became `windowfade` (`_CLO2`'s 5
+  stay), 12,624 fade-ins (596 of them `_CLO5`); metrics full +1,574.
 
 - 2026-10-17: `_CLO2`/`_CLO3`/`_CLO4` hide the text window (`textoff`),
   all **seen** in `script_command` (0x177790) and `FUN_00138d40`
