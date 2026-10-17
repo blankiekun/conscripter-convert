@@ -540,7 +540,6 @@ and of `0.txt`, `docs/new-game.md` step 11.4).
   opcode dispatch table is at `0x4fb270`; `names.tsv` names it and every
   handler and address this document mentions. Raw disassembly:
   `objdump -d -M intel --no-show-raw-insn Farthest2015.exe`.
-- After a rebuild delete `kidoku.dat`: its offsets go stale.
 
 ## Running the original under wine
 

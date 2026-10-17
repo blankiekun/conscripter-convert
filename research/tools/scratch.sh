@@ -33,7 +33,6 @@ for f in "$game"/*.nsa "$game"/*.sar "$game"/*.ns2 "$game"/default.ttf "$game"/m
 done
 [ -f "$game/ons_args" ] && cp "$game/ons_args" "$scratch/"
 cp "$script" "$scratch/0.txt"
-rm -f "$scratch/kidoku.dat"  # byte offsets into the old 0.txt
 exe=cons-$(basename "$scratch")
 cp "$engine" "$scratch/$exe"
 mkdir -p "$scratch/save"
