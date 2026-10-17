@@ -13,7 +13,7 @@ Message	:Color	1	scene_load case 0	noted	seen
 BacklogMessage	:Message	56	scene_load case 1	logadd line	seen	
 Tag / Jump_Tag	:Name / :NextTag	1194 / 104	task numbers: Jump_Tag 0x31; `Tag` and `End` are not in task_type_number 81035094	labels, jumps	inferred	find where 0x31 and the tag names are resolved (not in task_run's switch)
 FlagSwitch_Tag	:Operator == or = (eq), > < >= <= !=; missing or unknown: a multi-way switch on `:NextTag`'s list	59	scene_load case 0x34 (strings 81145f74-81145f80); comparisons as FlagSwitch's task_run case 0x33: flag < param for `<`	== and < only (51, 8): Eq, Lt	seen	
-FlagSwitch_Tag	operator 6 (none): three tags for <, ==, >	0	task_run case 0x33	an absent :Operator is 6 in the eboot; ours reads it as == (unused: 0 uses)	seen	not used
+FlagSwitch_Tag	operator 6 (none): three tags for <, ==, >	0	task_run case 0x33	three Ifs: < the first tag, == the second, > the third (as the eboot; unused: 0 uses)	seen	not used
 FlagOperation / GlobalFlagOperation	:Action "=",1; :FlagName	11 / 19	0x32 / 0x53	Arith	seen	
 GlobalFlagSwitch_Tag	== only	21	0x55	If on a global	seen	
 FlagOperation	:CGFlag	1	0x32	noted (a CG never marked seen)	inferred	read 0x32's CGFlag branch
@@ -87,6 +87,6 @@ CharacterAction	every Chara0-9 with a :Number (:SpriteMax ignored), :Action (chr
 CharacterAction	chract's per-key :Priority and easing	-	0x81008008	straight keys	unknown	read 0x81008008's key reader
 CharacterActionEnd	:Character first value; :Copy; :EndWait; ends only the action (+0x2e8), moves go on	2212	0x21, 0x81127a00 → 0x811277c0	as the eboot; :Copy dropped	seen	
 CharacterWait	waits for the characters' moves	651	0x23	MotionWait	seen	
-CharacterStop	(no arguments)	2	0x24: task_run stops every character action (0x81127a00, -1) and settles their moves (0x81127620, 0x810072e4 → 0x81000c10)	nothing (the eboot stops the actions and moves; the 2 uses are not checked)	inferred	dry run S* the 2 uses: is a move or loop running at CharacterStop?
+CharacterStop	(no arguments)	2	0x24: task_run stops every character action (0x81127a00, -1) and settles their moves (0x81127620, 0x810072e4 → 0x81000c10)	spmotion N (stop) on every character with a motion running: a move (loop 2) ends at its end, an action back at its place, as CharacterActionEnd	seen	
 SetSceneName	:SceneName	24	0x42	chapter title	seen	
 Achievement	:ID	11	0x56	nothing (trophies)	seen	

@@ -547,7 +547,7 @@ Traced in the eboot (2026-10-16; scene_load 0x8102840a reads a task,
 
 **Exe mapping redone (2026-10-17, `docs/new-game.md` §2 steps 6-16).**
 `docs/games/oretsuba.findings.tsv` has one row per task argument or
-branch the scenes use: 88 rows, 70 seen, 11 inferred, 6 unknown (each
+branch the scenes use: 88 rows, 71 seen, 10 inferred, 6 unknown (each
 with its check). The game updates at 30 fps (0x810009b4 waits two
 vblanks a frame) and every script time counts 60 fps frames, halved
 into updates or turned into ms, as ours. Fixed from it: MoviePlay
@@ -612,6 +612,17 @@ Next, in order:
 
 Finished work, moved out of "Status" so a session reads only the open
 state.
+
+**CharacterStop and FlagSwitch_Tag's operator 6 (2026-10-18).**
+CharacterStop (task_run case 0x24) stops every character action and
+settles every move (0x81127620 → 0x81000c10 per slot): ours stops each
+character motion still running (`spmotion N`), which leaves a move
+(a loop-2 `spmotion`) at its end and an action back at its place, as
+CharacterActionEnd. Its 2 uses (S03C_11C) follow a two-character
+CharacterMove `:Wait 0`. FlagSwitch_Tag/GlobalFlagSwitch_Tag with no or
+an unknown `:Operator` is operator 6 in the eboot (scene_load), a
+three-way branch on `:NextTag`'s three tags (flag <, ==, > `:Param`);
+ours emits the three Ifs. No script uses it.
 
 **SE fades and waits, the window's fade-out, characters leaving at once
 (2026-10-17).** scene_load cases 0x37 and 0x38 (0x8102840a) read
