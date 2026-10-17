@@ -3394,6 +3394,10 @@ const UNNEEDED_OPERANDS: &[(u16, &str, &str, &str)] = &[
     (0x88, "-4", "00000000", "a cleared slot's blend and opacity"),
     // op_70 0x415a30 likewise clears a kind-0 or slot-0 filter without them.
     (0x70, "-4", "00000000", "a cleared slot's blend and opacity"),
+    // op_44's u16 at +6 is the ruby's alignment (0x48a0a0 from 0x48cb50): 0 left, 1 centred, 2 right, 3 spread
+    // (slack / n between the readings, half of it first), which is how rubyon lays a short reading out.
+    // The u32 after it (0) goes to the ruby entry's +0, which the drawing (0x494e20) doesn't pass on.
+    (0x44, "+6", "030000000000|010000000000", "spread (32) as rubyon does, or centred (5): those 5 are one reading character or longer than the base, which lay out the same"),
     // op_8c 0x4153c0: layer | depth << 8, the effect object's sort key (layer 0 = band 0x10).
     (
         0x8c,

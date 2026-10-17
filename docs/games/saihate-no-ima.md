@@ -295,6 +295,7 @@ is noted) and why:
 | `0x46` | `-4` | 0 | the link entry's first field, which only the save and load read (History, item 43) |
 | `0x70` | `-4` | 0 | a cleared slot's blend and opacity (kind 0 or slot 0), which `op_70` (`0x415a30`) doesn't read (History, item 38) |
 | `0x40` | `-60` | the one block | after the unreachable debug menu's message (`0001.cd` #1), which stays out (History, item 42) |
+| `0x44` | `+6` | u16 3 or 1, u32 0 | the ruby's alignment: spread (as `rubyon`) or centred over the base, the same here; the u32 isn't drawn (History, item 33) |
 | `0x8c` | `+4` | layer 0, depth 1000, 1100, 2000, 500; 0 when clearing | the effect's sort key: every one sorts over all the bust-ups, as ours draws them (History, item 31) |
 | `0x49`, `0x4a` | `-4` | `0xff000000`; `0x4a` also `0xff000001` | no edge colour of the record's own, or the default one: the default decoration (History, item 29) |
 | `0x70` | `-8` | 10, 0 | Zigzag's begin angle and reduction, which its draw (`0x41dab0`) doesn't read (History, item 39) |
@@ -316,7 +317,6 @@ run's):
 |---|---|---|
 | every opcode the corpus uses, except as below | every operand | converted |
 | `0x40`, `0x41` | `sub` bit 0: the first line is the speaker's name (not in full-screen windows: the exe drops it there) | converted (History, item 27) |
-| `0x44` | u16 flags at +6 (3 in 32, 1 in 5): 37 notes | dropped: meaning unknown |
 | `0x49` | the one edge colour of its own (0x808080, a grey outline; History, item 29): 1 note | dropped (no outline for message text) |
 | `0x56` | u32 depth at +2 (0 and 2000): 2 notes | dropped |
 | `0x59` | the old track fading out under the new one | partial: it stops at once (one BGM channel) |
@@ -626,7 +626,8 @@ a copy of the save works.
 - Merged: `0x8c`'s sort key as harmless (#180; History, item 31).
 - Merged: `0x49`/`0x4a`'s edge colours as harmless but the grey one (#181; History, item 29).
 - Merged: links only while their variable is set (#183; History, item 28).
-- Open: the debug menu's message block as harmless (History, item 42).
+- Merged: the debug menu's message block as harmless (#189; History, item 42).
+- Open: the ruby alignment as harmless (History, item 33).
 - Open: command coverage per operand, PR #85 (supersedes #28): every
   operand given and not read, whatever its value (0 included), is a
   dry-run note and a gap in `metrics.json`, except the filler (`NO_SUB`,
@@ -698,8 +699,6 @@ after History's 26, most noticeable first (notes = instructions):
 29. **The grey outline** (`0x49` edge colour `0x808080`, 1 note): one
     message's characters get a grey edge; message text has no outline
     in CONscripter (`strspoutline` is for `strsp` only).
-33. **Ruby flags** (`0x44` u16 at +6, 37 notes: 3 in 32, 1 in 5):
-    meaning unknown.
 
 **Script opcodes:** all converted (the converter reports 2 unsupported
 instructions, both in the unreachable debug menu). Notes on the last
@@ -1399,3 +1398,18 @@ sound effects on `dwave` channels.
    60 bytes after `0001.cd` #1, the debug menu's one message, belong to
    a menu that stays out (the lead's call, left to it by the user): a
    row of the harmless table.
+
+33. **Done: ruby flags** (2026-10-16). `op_44` maps the u16 at +6 to
+   0-3 and the ruby goes to the text field with it (| 0x10, `0x494e20` →
+   `0x48b3f0`, item +6). The layout (`0x48cb50` → `0x48a0a0`) reads it
+   as the alignment over the base: 0 at the start, 1 centred, 2 at the
+   end, 3 spread (the slack divided among the reading's characters,
+   half a share first; when the reading is longer than the base, the
+   centred case). 32 rubies are 3, which is how `rubyon` lays out a
+   short reading (`FontInfo::initRuby`); the 5 that are 1 are a single
+   reading character or longer than their base, where centred and
+   spread come out the same. The u32 after it (0 in all) goes to the
+   ruby entry's +0, which the drawing (`0x494e20`) doesn't pass on. So
+   both are a row of the harmless table. (Not compared: how a reading
+   longer than its base pushes the next characters; `rubyon` widens
+   the base.)
