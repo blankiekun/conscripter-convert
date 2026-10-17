@@ -725,7 +725,9 @@ hub that is always answered the same way leaves whole routes unreached
 **Start anywhere.** `--goto <label> --vars <file>` starts at a label
 with `%`/`$` variables preset (`%312=876`, `$5=text`, one per line). It
 replaces patching `0.txt` (a scene deep in a route reproduced in seconds
-instead of an hour's replay). The vars file can come from:
+instead of an hour's replay). `*start`'s setup (the settings' defaults
+and the text window) runs first, so game time matches a run from the
+start. The vars file can come from:
 - a simulator's or the converter's tracer (write it in that format),
 - another run: `--dump-vars file` writes one at F8 and when the engine
   exits (F8's `dump` record lists the same variables),
