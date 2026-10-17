@@ -989,9 +989,10 @@ pub struct SaveList {
     pub x: i32,
     pub y: i32,
     pub row_step: i32,
-    /// A row's picture at the row's place: two cells, at rest and under
-    /// the pointer.
+    /// A row's picture at the row's place (`x`, `y` from it), and in its
+    /// place while the pointer is on it; both under the thumbnail.
     pub row: Placed,
+    pub row_hover: Placed,
     /// The rest relative to the row's top left.
     pub thumb: Rect,
     pub date: GridText,

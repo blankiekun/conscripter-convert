@@ -6,7 +6,7 @@
 
 use std::fmt::Write as _;
 
-use conv_core::ir::{ConfirmDialog, GridText, SaveList, Script, Switch, SystemMenu, SystemPage};
+use conv_core::ir::{ConfirmDialog, GridText, Placed, SaveList, Script, Switch, SystemMenu, SystemPage};
 
 use crate::menu::{CHAPTER, CONFIRM, IN_GAME, LABEL, LOAD, SAVE, STR_TMP};
 use crate::screens::{image, lua, question};
@@ -92,16 +92,20 @@ fn slots(l: &SaveList, saving: bool, confirm: Option<&ConfirmDialog>) -> String 
     let t = l.thumb;
     let preview = l.preview.map(|p| format!(" preview={{x={}, y={}, w={}, h={}}},", p.x, p.y, p.w, p.h)).unwrap_or_default();
     format!(
-        "{{\"saveslots\", x={}, y={}, dy={}, rows={}, cols=1, pages={}, page_var={}, action={act},\n      button={{file={}, cells=2, x={}, y={}}},\n      thumb={{x={}, y={}, w={}, h={}}},{preview} shot={{{}, {}}},\n      save_text={}, split=\"|\",\n      lines={{{}, {}, {}}}}}",
+        "{{\"saveslots\", x={}, y={}, dy={}, rows={}, cols=1, pages={}, page_var={}, action={act},\n      button={{file=\">{},{},#000000\", opaque=true, alpha=0, x={}, y={}}},\n      hover={{under={{file={}, x={}, y={}}}}},\n      thumb={{x={}, y={}, w={}, h={}}},{preview} shot={{{}, {}}},\n      save_text={}, split=\"|\",\n      lines={{{}, {}, {}}}}}",
         l.x,
         l.y,
         l.row_step,
         l.rows,
         l.slots.div_ceil(l.rows.max(1)),
         lua(crate::menu::PAGE),
-        lua(&l.row.image),
+        l.row.w,
+        l.row.h,
         l.row.x,
         l.row.y,
+        lua(&l.row_hover.image),
+        l.row_hover.x,
+        l.row_hover.y,
         t.x,
         t.y,
         t.w,
@@ -146,6 +150,11 @@ fn tab_lua(m: &SystemMenu, n: usize, confirm: Option<&ConfirmDialog>) -> String 
     if m.fade_ms > 0 {
         writeln!(out, "  fade = {},", m.fade_ms).unwrap();
     }
+    if let SystemPage::Save(l) | SystemPage::Load(l) = page {
+        for r in 0..l.rows as i32 {
+            w.push(image("image", &Placed { x: l.x + l.row.x, y: l.y + l.row.y + r * l.row_step, ..l.row.clone() }, ""));
+        }
+    }
     if let Some(s) = paged {
         out.push_str("  wheel_up = {\"page\", \"-1\"},\n  wheel_down = {\"page\", \"+1\"},\n");
         w.push(s);
@@ -161,7 +170,7 @@ fn tab_lua(m: &SystemMenu, n: usize, confirm: Option<&ConfirmDialog>) -> String 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use conv_core::ir::{Placed, Rect, SystemTab};
+    use conv_core::ir::{Rect, SystemTab};
 
     fn placed(image: &str) -> Placed {
         Placed { image: image.into(), x: 10, y: 20, w: 30, h: 40 }
@@ -169,7 +178,7 @@ mod tests {
 
     pub(crate) fn sample() -> SystemMenu {
         let text = GridText { x: 1, y: 2, font_size: 20, lines: 1, chars: 30, line_gap: 0, char_gap: 0, colour: "#FFFFFF".into(), vertical: false };
-        let list = SaveList { slots: 10, rows: 4, x: 100, y: 50, row_step: 120, row: placed("sys/row.png"), thumb: Rect { x: 5, y: 6, w: 160, h: 90 }, date: text.clone(), chapter: text.clone(), line: text, preview: None };
+        let list = SaveList { slots: 10, rows: 4, x: 100, y: 50, row_step: 120, row: placed("sys/row.png"), row_hover: placed("sys/row_on.png"), thumb: Rect { x: 5, y: 6, w: 160, h: 90 }, date: text.clone(), chapter: text.clone(), line: text, preview: None };
         let tab = |i: i32, page| SystemTab { button: Placed { y: 20 + 50 * i, ..placed("sys/tab.png") }, page };
         let panel = Placed { x: 0, y: 0, ..placed("sys/panel.png") };
         SystemMenu { backdrop: vec![panel], tabs: vec![tab(0, SystemPage::Save(list.clone())), tab(1, SystemPage::Load(list)), tab(2, SystemPage::Unavailable), tab(3, SystemPage::Title)], fade_ms: 200 }
