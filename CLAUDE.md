@@ -265,11 +265,15 @@ on each later turn; several agents run at once.
   a subagent starts empty and re-reading all that costs more than
   doing the job yourself. Delegate only what a few lines of prompt
   can fully describe.
-- **The team lead sets `model` on every agent it starts**, by the
-  same split (the user, 2026-10-17): the default model only for design,
-  engine work, reverse engineering, hard debugging and new features.
+- **The team lead picks the agent type for every agent it starts**,
+  by the same split (the user, 2026-10-17). The types in
+  `.claude/agents/` set model and effort: `checker` (haiku, low effort)
+  for reruns and checks, `worker` (sonnet, medium) for mechanical work,
+  `engineer` (the session's model, high) only for design, engine work,
+  reverse engineering, hard debugging and new features. Where the Agent
+  tool takes `model`/`effort` per call, those override the type.
   For a mechanical follow-up ("rebase and rerun the snapshot"), start
-  a haiku agent with an exact few-line prompt instead of resuming a big
+  a `checker` with an exact few-line prompt instead of resuming a big
   agent.
 
 ## Releasing CONscripter
