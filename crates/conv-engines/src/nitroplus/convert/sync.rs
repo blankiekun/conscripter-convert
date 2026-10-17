@@ -302,11 +302,14 @@ impl Compiler<'_, '_> {
         // No gap left between two pictures: spread them all out again, in
         // the same order (pictures that move layer are drawn anew).
         // Pictures whose motion still runs (or loops) keep their layer when
-        // there is room around them, so the engine's motion goes on.
+        // there is room around them, so the engine's motion goes on; so do
+        // those that start to move as they fade (a motion with alpha keys
+        // is for the sprite already there, not one put on another layer).
+        let fading_move = |n: &String| fades.contains_key(n) && timed.get(n).is_some_and(|&t| t > 0);
         if crowded {
             let kept: Vec<Option<u32>> = want
                 .iter()
-                .map(|w| self.shown.get(&w.0).filter(|_| self.motion_until.contains_key(&w.0) || self.objects.get(&w.0).is_some_and(|o| o.shake.is_some())).map(|s| s.layer))
+                .map(|w| self.shown.get(&w.0).filter(|_| self.motion_until.contains_key(&w.0) || fading_move(&w.0) || self.objects.get(&w.0).is_some_and(|o| o.shake.is_some())).map(|s| s.layer))
                 .collect();
             layers = spread(&kept).unwrap_or_else(|| spread(&vec![None; want.len()]).unwrap());
         }
@@ -367,10 +370,14 @@ impl Compiler<'_, '_> {
             } else {
                 Shown { layer, x: o.0, y: o.1, w: o.2, h: o.3, whole: None, ..old.clone() }
             };
-            if (old.layer != layer || old.whole.is_some_and(|_| now.whole.is_none()) || old.source != now.source)
+            let uneven = super::uneven_motion(old, &now, t);
+            if (old.layer != layer || old.whole.is_some_and(|_| now.whole.is_none()) || old.source != now.source || uneven.is_some())
                 && old.opacity == now.opacity
                 && !self.lead_ins.contains_key(name)
-                && let Some(Op::SpriteMotion2 { keys, end, .. }) = motion(&start, &now, t).map(|op| along(op, paths.remove(name)))
+                && let Some((keys, end)) = uneven.map(|k| (k, conv_core::ir::MotionEnd::Keep)).or_else(|| match motion(&start, &now, t).map(|op| along(op, paths.remove(name))) {
+                    Some(Op::SpriteMotion2 { keys, end, .. }) => Some((from_end(keys), end)),
+                    _ => None,
+                })
             {
                 let mut ops = Vec::new();
                 if let Some(t) = self.objects.get(name).and_then(|o| o.trail) {
@@ -379,7 +386,7 @@ impl Compiler<'_, '_> {
                 if let Some(&(ease, exponent)) = tempo.get(name) {
                     ops.push(Op::MoveEase { ease, exponent });
                 }
-                ops.push(Op::SpriteMotion2 { layer, keys: from_end(keys), end });
+                ops.push(Op::SpriteMotion2 { layer, keys, end });
                 moved_over.insert(name.clone(), ops);
                 self.runs.insert(name.clone(), Run { from: start, to: now, ms: t, at: clock, ease: tempo.get(name).copied() });
                 moving.push(name.clone());

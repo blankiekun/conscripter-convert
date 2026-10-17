@@ -1273,6 +1273,21 @@ fn motion(old: &Shown, now: &Shown, ms: u32) -> Option<Op> {
     Some(Op::SpriteMotion2 { layer: old.layer, keys, end: MotionEnd::Keep })
 }
 
+/// A zoom over time more along one axis than the other (dja023: a
+/// picture unfolding from a line): the keys for the new sprite, placed
+/// where it ends, from the old place and zoom ([`motion`] takes even
+/// zooms only).
+fn uneven_motion(old: &Shown, now: &Shown, ms: u32) -> Option<Vec<MotionKey>> {
+    let (o, n) = (old.zoom, now.zoom);
+    if (n.0 * o.1 - n.1 * o.0).abs() * 200 <= o.0 * o.1 || n.0 <= 0 || n.1 <= 0 || old.whole.is_some() || now.whole.is_some() {
+        return None;
+    }
+    let centre = |s: &Shown| (s.x + s.w / 2, s.y + s.h / 2);
+    let ((x0, y0), (x1, y1)) = (centre(old), centre(now));
+    let key = |ms, x, y, zoom, zoom_y, angle| MotionKey { ms, x, y, zoom, zoom_y, angle, opacity: 256 };
+    Some(vec![key(0, (x0 - x1) as i32, (y0 - y1) as i32, (o.0 * 100 / n.0) as u32, (o.1 * 100 / n.1) as u32, (old.angle - now.angle) as i32), key(ms, 0, 0, 100, 100, 0)])
+}
+
 /// The opacity (per mille) a sprite fading from `old` to `now` in a
 /// [`motion`] is set to: its keys' opacity is times it.
 fn fade_base(old: &Shown, now: &Shown) -> i64 {
