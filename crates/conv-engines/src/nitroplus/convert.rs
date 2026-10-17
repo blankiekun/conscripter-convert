@@ -1247,6 +1247,20 @@ fn tempo(v: &Value) -> Option<(u8, u32)> {
     }
 }
 
+/// Calls left out on purpose (a note's start, why): done for the
+/// completion figure (`metrics.json`'s `left_out`), not gaps.
+const LEFT_OUT: &[(&str, &str)] = &[
+    ("skipped: no function ", "no function of this name: the exe skips the call too"),
+    (builtin::CONQUEST, "whole-scene read marks for the skip: the engine keeps its own per page"),
+];
+
+/// Why a call whose notes are all [`LEFT_OUT`]'s is left out.
+fn left_out(reasons: &[String]) -> Option<&'static str> {
+    let why = |r: &String| LEFT_OUT.iter().find(|(start, _)| r.starts_with(start)).map(|&(_, why)| why);
+    let first = why(reasons.first()?)?;
+    reasons.iter().all(|r| why(r).is_some()).then_some(first)
+}
+
 /// `old` moved and zoomed into `now` over `ms` by the engine: the same
 /// picture, zoomed alike both ways. A fade goes into the keys' opacity,
 /// times the sprite's, which must first be set to the larger of the two
@@ -2626,8 +2640,11 @@ impl<'a, 'b> Compiler<'a, 'b> {
                         None => self.builtin(name, &args),
                     }
                 };
-                if command {
-                    self.metrics.end();
+                if command && let Some((kind, reasons)) = self.metrics.pop() {
+                    match left_out(&reasons) {
+                        Some(why) => self.metrics.left_out(&kind, why),
+                        None => self.metrics.call(&kind, reasons),
+                    }
                 }
                 value
             }
@@ -4103,6 +4120,24 @@ scene a.nss
         assert!(matches!(&ops[last + 1], Op::Sprites { changes, .. } if changes[0].sprite.is_none()));
         // SoundPlay and OnSE aren't defined here, and aren't built-ins.
         assert!(c.notes.contains_key("skipped: no function SoundPlay"));
+    }
+
+    #[test]
+    fn calls_left_out_or_harmless_are_no_gaps() {
+        let story = r#"
+scene a.nss
+{
+	Waitkey(500);
+	Conquest("nss/a.nss", null, true);
+	WaitAction("x", null);
+	WaitAction("x", 100);
+}
+"#;
+        let c = compile(story, LIBRARY);
+        let k = |name: &str| c.metrics.kinds[name].clone();
+        assert_eq!((k("Waitkey").left_out, k("Conquest").left_out, k("Conquest").gaps), (1, 1, 0));
+        // A null limit changes nothing; 100 ms does.
+        assert_eq!((k("WaitAction").calls, k("WaitAction").gaps), (2, 1));
     }
 
     #[test]
