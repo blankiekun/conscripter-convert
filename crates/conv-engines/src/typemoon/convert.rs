@@ -186,6 +186,8 @@ const UNREAD_HARMLESS: &[(&str, usize, &str)] = &[
     // `FUN_00160840` reads arguments 0–6 and 9–19 only; 8 is always `CC`.
     ("_STCH", 7, "the Switch exe never reads it"),
     ("_STCH", 8, "the Switch exe never reads it"),
+    ("_SCH2", 7, "the Switch exe never reads it"),
+    ("_SCH2", 8, "the Switch exe never reads it"),
 ];
 
 /// Commands left out on purpose (command, why): done for the completion
@@ -539,7 +541,8 @@ impl Lowering<'_, '_> {
                 }
                 self.ops.push(Op::BgmStop { fade_out_ms: option(a, 1).unwrap_or(0).max(0) as u32 });
             }
-            "_STCH" => return self.stch(a, read),
+            "_STCH" => return self.stch(a, read, true),
+            "_SCH2" => return self.stch(a, read, false),
             "_STCC" => {
                 let n = number(arg(0)).unwrap_or(0);
                 if n < 0 {
@@ -634,7 +637,13 @@ impl Lowering<'_, '_> {
         true
     }
 
-    fn stch(&mut self, a: &[&str], read: &Cell<u64>) -> bool {
+    /// `_STCH` (`fresh`) and `_SCH2`: both `FUN_00160840`, `_SCH2` with
+    /// its first parameter 0, which keeps the layer's alpha (0 on a layer
+    /// with no picture), priority and turn where `_STCH` sets 255, layer
+    /// × 10 and 0. Argument 18 copies another layer's settings first (its
+    /// place, zoom, alpha, priority, turn, parent, clip, effect), and its
+    /// children become this layer's.
+    fn stch(&mut self, a: &[&str], read: &Cell<u64>, fresh: bool) -> bool {
         let arg = |i: usize| {
             mark(read, i);
             a.get(i).copied().unwrap_or("").trim()
@@ -644,14 +653,19 @@ impl Lowering<'_, '_> {
             self.staged[n] = None;
             return true;
         }
-        let old = self.staged[n].clone();
+        // shortcut: a copy from a layer with no picture copies nothing (the exe copies its blank settings).
+        let from = number(arg(18)).filter(|&s| (0..LAYERS as i32).contains(&s) && s as usize != n).map(|s| s as usize);
+        let copy = from.and_then(|s| self.staged[s].clone());
+        let old = copy.clone().or_else(|| self.staged[n].clone());
         let base = arg(1).to_lowercase();
         let num = |i: usize, default: f32| if arg(i).is_empty() { Some(default) } else { number(arg(i)).map(|v| v as f32) };
         // src: exe 0x160840: with no x and y the layer keeps its place (0, 0 after `_STCC`), else a missing one is 0;
-        // a zoom left out is the layer's (1000 after `_STCC`); alpha 255 by default.
+        // a zoom left out is the layer's (1000 after `_STCC`).
         let (x0, y0) = old.as_ref().filter(|_| arg(2).is_empty() && arg(3).is_empty()).map_or((0.0, 0.0), |o| (o.x, o.y));
         let zoom0 = old.as_ref().map_or(1000.0, |o| o.zoom * 1000.0);
-        let (Some(x), Some(y), Some(zoom), Some(alpha)) = (num(2, x0), num(3, y0), num(4, zoom0), num(5, 255.0)) else { return false };
+        // src: exe 0x160840: alpha 255 by default (`_STCH`), else the layer's, 0 with no picture.
+        let alpha0 = if fresh { 255.0 } else { old.as_ref().map_or(0.0, |o| o.alpha as f32) };
+        let (Some(x), Some(y), Some(zoom), Some(alpha)) = (num(2, x0), num(3, y0), num(4, zoom0), num(5, alpha0)) else { return false };
         let expression = if arg(9).is_empty() && arg(10).is_empty() {
             None
         } else {
@@ -666,11 +680,23 @@ impl Lowering<'_, '_> {
                 *c = v;
             }
         }
-        let parent = number(arg(11)).filter(|&p| (0..LAYERS as i32).contains(&p) && p as usize != n).map(|p| p as usize);
-        self.staged[n] = Some(Layer { base, expression, x, y, zoom: zoom / 1000.0, stretch: (1.0, 1.0), stretch_off: false, alpha: alpha.clamp(0.0, 255.0) as u32, fade: None, motion: None, parent, angle: number(arg(19)).unwrap_or(0), shader: 255, effect: None, clip });
-        // Argument 6, else layer × 10 (`FUN_00160840`).
+        let parent = number(arg(11)).filter(|&p| (0..LAYERS as i32).contains(&p) && p as usize != n).map(|p| p as usize).or(copy.as_ref().and_then(|c| c.parent));
+        let angle = number(arg(19)).unwrap_or(if fresh { 0 } else { old.as_ref().map_or(0, |o| o.angle) });
+        let (stretch, stretch_off, effect) = copy.as_ref().map_or(((1.0, 1.0), false, None), |c| (c.stretch, c.stretch_off, c.effect));
+        self.staged[n] = Some(Layer { base, expression, x, y, zoom: zoom / 1000.0, stretch, stretch_off, alpha: alpha.clamp(0.0, 255.0) as u32, fade: None, motion: None, parent, angle, shader: 255, effect, clip });
+        if let Some(s) = from.filter(|_| copy.is_some()) {
+            self.priority[n] = self.priority[s];
+            for l in self.staged.iter_mut().flatten().filter(|l| l.parent == Some(s)) {
+                l.parent = Some(n);
+            }
+        }
+        // Argument 6, else layer × 10 (`_STCH`) or the layer's (`_SCH2`).
         // src: exe 0x160840 (priority layer × 10 by default)
-        self.priority[n] = if arg(6).is_empty() { n as i32 * 10 } else { number(arg(6)).unwrap_or(n as i32 * 10) };
+        if let Some(p) = number(arg(6)) {
+            self.priority[n] = p;
+        } else if fresh {
+            self.priority[n] = n as i32 * 10;
+        }
         true
     }
 
@@ -1187,6 +1213,30 @@ mod tests {
         // 240 + 0.5 × (120 − 240) = 180 script units: 480 px; 136 + 0.5 × (68 − 135.75) ≈ 102.1: 270 px.
         assert!(ops.contains(&Op::SpriteMove { layer: 38, x: 480, y: 270, ms: 0 }), "{ops:?}");
         assert!(ops.contains(&Op::SpriteAngle { layer: 38, degrees: 0, zoom: (25, 25) }), "{ops:?}");
+    }
+
+    #[test]
+    fn sch2_keeps_the_layer_and_copies_from_argument_18() {
+        // Layer 1 zoomed and placed with a child on it; `_SCH2` on layer 3
+        // copies it (its child moves over) and keeps its own alpha 0.
+        let src = "_STCH(1,img1,120,68,1000,200,10);_STZ4(1,500,500,500,500,0,0,0);_STCH(2,dot,,,,,20,,CC,,,1);_SCH2(3,img1,,,,,,,CC,,,,,,,,,,1);_SCH2(4,dot);_FADS(1,0,0);";
+        let g = Game {
+            scripts: vec![("S".into(), script::parse(src).into_iter().map(Result::unwrap).collect())],
+            scenes: vec![],
+            lines: vec![],
+            pictures: [picture("img1", 1280.0, 724.0), picture("dot", 10.0, 10.0)].into(),
+            textures: [("img1".into(), (2560, 1440)), ("dot".into(), (20, 20))].into(),
+            sounds: vec![],
+            waves: HashMap::new(),
+            motions: vec![],
+        };
+        let c = compile(&g);
+        assert!(c.notes.is_empty(), "{:?}", c.notes);
+        let ops = c.ops;
+        // Layers 1 and 3 (priority 10) on IR layers 39, 38; the child 2 on 37, layer 4 on 36.
+        for o in [Op::SpriteAngle { layer: 38, degrees: 0, zoom: (25, 25) }, Op::SpriteOpacity { layer: Some(38), opacity: 200 }, Op::SpriteOpacity { layer: Some(36), opacity: 0 }] {
+            assert!(ops.contains(&o), "{o:?} in {ops:?}");
+        }
     }
 
     #[test]
