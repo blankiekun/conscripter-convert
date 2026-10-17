@@ -420,6 +420,10 @@ pub struct ExtrasMenu {
     /// (俺たちに翼はない lists the modes over the title); `None` uses
     /// `background`.
     pub menu_background: Option<String>,
+    /// The gallery and the music room are drawn by the engine
+    /// (CONscripter's `screen`, `screens/gallery.lua`, `music.lua`) rather
+    /// than by script loops. The scene replay always is.
+    pub engine_screen: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

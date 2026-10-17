@@ -19,6 +19,7 @@ mod choice_plates;
 mod command_menu;
 mod ease;
 mod extras;
+mod extras_screens;
 mod hold_movie;
 mod roll;
 pub mod lint;
@@ -2166,19 +2167,27 @@ effect 7,99,1000,\"cons_warp.dll/warp\\zoom_3_220_5.png,65\"
             music: None,
             movies: None,
             menu_background: None,
+            engine_screen: false,
         });
         let out = emit(&s);
         assert!(out.contains("*conv_title_back\nbg \"system\\title.png\",0\n"), "{out}");
         assert!(out.contains("if %9 == 1 csp -1:goto *conv_extras\n"), "{out}");
         // The gallery opens once one of its CGs is seen.
-        assert!(out.contains("if ?conv_cg_seen[213] == 1 mov %128,1:if ?conv_cg_seen[214] == 1 mov %128,1\n"), "{out}");
+        assert!(out.contains("mov %128,0\nif ?conv_cg_seen[213] == 1 mov %128,1\nif ?conv_cg_seen[214] == 1 mov %128,1\n"), "{out}");
         assert!(out.contains("if %128 == 0 cell 100,2\nif %128 == 1 spbtn 100,1\n"), "{out}");
         // A slot is a button once one of its CGs is seen, else locked.
-        assert!(out.contains("mov %122,0:if ?conv_cg_seen[213] == 1 mov %122,1:if ?conv_cg_seen[214] == 1 mov %122,1\n\
+        assert!(out.contains("mov %122,0\nif ?conv_cg_seen[213] == 1 mov %122,1\nif ?conv_cg_seen[214] == 1 mov %122,1\n\
             if %122 == 1 lsp 130,\":a/2,0,3;system\\t.png\",40,138:spbtn 130,100\n\
             if %122 == 0 lsp 130,\":a;system\\locked.png\",44,142\n"), "{out}");
         // The viewer steps past unseen variants.
         assert!(out.contains("*conv_cg_v0_1\nif ?conv_cg_seen[214] == 0 add %124,%126:goto *conv_cg_v0\nbg \"bg\\b.png\",0:goto *conv_cg_view_show\n"), "{out}");
+        // Drawn by the engine: the screen, its slots unlocked by the same flags.
+        s.extras.as_mut().unwrap().engine_screen = true;
+        let out = emit(&s);
+        assert!(out.contains("*conv_cg\ncsp -1:mov %121,0:screen \"gallery\"\nreturn\n") && !out.contains("*conv_cg_view"), "{out}");
+        let files = screen_files(&s);
+        let lua = &files.iter().find(|f| f.0 == "gallery.lua").unwrap().1;
+        assert!(lua.contains("add{\"gallery\", page=1, x=44, y=142,") && lua.contains("seen=var(\"?conv_cg_seen[214]\")}"), "{lua}");
     }
 
     #[test]
@@ -2228,19 +2237,22 @@ effect 7,99,1000,\"cons_warp.dll/warp\\zoom_3_220_5.png,65\"
             music: None,
             movies: None,
             menu_background: None,
+            engine_screen: false,
         });
         let out = emit(&s);
         assert!(out.contains("if %9 == 1 goto *conv_replay\n"), "{out}");
         // A replay stops at the scene's end.
         assert!(out.contains("*s4_l2\nif %152 == 1 goto *conv_replay_end\nmov ?conv_scene_unlocked[5],1\n"), "{out}");
+        // The screens give the list, then the title (from 1).
+        assert!(out.contains("*conv_replay\ncsp -1:screen \"replay\",%9\nif %9 == 0 csp -1:goto *conv_extras_draw\nmov %153,%9-1\n"), "{out}");
+        assert!(out.contains("*conv_replay_list\ncsp -1:screen \"replay_list\",%9\nif %9 == 0 goto *conv_replay\nmov %160,%9-1\n"), "{out}");
+        let files = screen_files(&s);
+        let menu = &files.iter().find(|f| f.0 == "replay.lua").unwrap().1;
         // A list is open once one of its scenes is unlocked.
-        assert!(out.contains("mov %160,0\nif ?conv_scene_unlocked[5] == 1 mov %160,1:if ?conv_scene_unlocked[7] == 1 mov %160,1\n"), "{out}");
+        assert!(menu.contains("enabled=(var(\"?conv_scene_unlocked[5]\") == 1 or var(\"?conv_scene_unlocked[7]\") == 1), action={\"close\", 1}"), "{menu}");
         // Unlocked scenes get a row, "new" until replayed.
-        assert!(out.contains(
-            "*conv_replay_rows0\n\
-            if ?conv_scene_unlocked[5] == 1 mov $130,\"工場への道\":mov %155,1:mov %156,1-?conv_scene_replayed[5]:mov %157,0:gosub *conv_replay_row\n\
-            if ?conv_scene_unlocked[7] == 1 mov $130,\"Ｈ\":mov %155,2:mov %156,1-?conv_scene_replayed[7]:mov %157,1:gosub *conv_replay_row\n"
-        ), "{out}");
+        let list = &files.iter().find(|f| f.0 == "replay_list.lua").unwrap().1;
+        assert!(list.contains("{text=\"Ｈ\", shown=var(\"?conv_scene_unlocked[7]\") == 1, new=var(\"?conv_scene_replayed[7]\") == 0, color=\"#FEC7C7\", action={\"close\", 2}}"), "{list}");
         assert!(out.contains("*conv_replay_go0_1\nmov ?conv_scene_replayed[7],1\ngosub *conv_replay_begin:goto *s14_l5\n"), "{out}");
     }
 
@@ -2268,6 +2280,7 @@ effect 7,99,1000,\"cons_warp.dll/warp\\zoom_3_220_5.png,65\"
                 background: None,
             }),
             menu_background: Some("system/title.png".into()),
+            engine_screen: false,
         });
         let out = emit(&s);
         assert!(out.contains("if %9 == 1 goto *conv_movies\n"), "{out}");
@@ -2309,6 +2322,7 @@ effect 7,99,1000,\"cons_warp.dll/warp\\zoom_3_220_5.png,65\"
             }),
             movies: None,
             menu_background: None,
+            engine_screen: false,
         });
         let out = emit(&s);
         assert!(out.contains("if %9 == 1 goto *conv_music\n"), "{out}");

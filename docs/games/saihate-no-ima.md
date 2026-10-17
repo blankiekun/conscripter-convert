@@ -628,6 +628,19 @@ a copy of the save works.
 
 ### Queue (2026-10-16)
 
+- Open: the extras' CG gallery, scene replay and BGM room drawn by the
+  engine (`screens/gallery.lua`, `replay.lua`, `replay_list.lua`,
+  `music.lua` from `ExtrasMenu` by `crates/conv-cons/src/extras_screens.rs`;
+  engine #77: `gallery`, item lists, tabs, picture radios, `bgm`), in
+  place of the `*conv_cg`, `*conv_replay` and `*conv_music` loops; the
+  unlocks are read from `?conv_cg_seen`, `?conv_scene_unlocked` and
+  `?conv_progress` when a screen opens. Same frames as main's (25 Xvfb
+  steps with everything unlocked: 0 px apart except the viewer, 137 px
+  in its top-left corner, and the list, under 50 px). It also fixes three bugs that
+  main has: a cell, a list or the CG button counted as unlocked only if the
+  first CG or scene of its chain was (a false `if` skips the rest of its
+  line), and closing a list left the menu over the list's darkened
+  background.
 - Open: the backlog drawn by the engine (`screens/backlog.lua` from
   `Backlog`; engine #75: a `list` of the text log, scrolling a page with
   ▲▼ and the wheel, the speaker's name over each page and its voice

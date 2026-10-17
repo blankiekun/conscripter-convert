@@ -19,7 +19,7 @@ const LAST: &str = "%163";
 const HEADER: u32 = 100;
 const EXIT: u32 = 101;
 const SONG_SLOT: u32 = 102; // + song
-const MAX_SONGS: usize = 98;
+pub(crate) const MAX_SONGS: usize = 98;
 const BTN_EXIT: i32 = 99;
 /// The player's sprites (after the songs') and buttons.
 const PREVIOUS: u32 = 200;
