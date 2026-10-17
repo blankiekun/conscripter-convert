@@ -5098,6 +5098,35 @@ function Count()
     }
 
     #[test]
+    fn a_one_shot_zooming_unlike_in_x_and_y_keys_both() {
+        // 装甲悪鬼村正's ComicProcess sign 12: flat, then up to its height.
+        let story = r#"
+scene a.nss
+{
+	CreateTexture("p", 100, 0, 0, "cg/st/a.png");
+	Zoom("p", 0, 800, 0, null, true);
+	Fade("p", 0, 1000, null, true);
+	Wait(100);
+	CreateProcess("P", 15000, 0, 0, "Up");
+	Request("P", Start);
+	Wait(1000);
+}
+function Up()
+{
+	Wait(1);
+	Zoom("@p", 200, 800, 800, null, true);
+}
+"#;
+        let c = compile(story, LIBRARY);
+        let keys = c.ops.iter().find_map(|op| match op {
+            Op::SpriteMotion2 { keys, end: MotionEnd::Keep, .. } => Some(keys.clone()),
+            _ => None,
+        }).unwrap_or_else(|| panic!("{:?}", c.ops));
+        assert_eq!(keys.iter().map(|k| (k.ms, k.zoom, k.zoom_y)).collect::<Vec<_>>(), [(0, 100, 1), (1, 100, 1), (201, 100, 100)], "{:?}", c.ops);
+        assert!(c.notes.is_empty(), "{:?}", c.notes);
+    }
+
+    #[test]
     fn a_one_shot_fading_out_then_disused_goes_after_its_fade() {
         let story = r#"
 scene a.nss
