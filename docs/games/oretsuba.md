@@ -296,7 +296,7 @@ playthroughs (`%410`-`%439`).
 
 ### Queue (2026-10-16)
 
-- Open: InOut_Act 3 (flip) and 1 (wave) as warp maps (`cons_warp.dll`, engine #67/#69; maps in `warp/`); 6 (blur) stays `cons_blur`.
+- Merged: InOut_Act 3 (flip) and 1 (wave) as warp maps (`cons_warp.dll`, #227, engine #67/#69; maps in `warp/`); 6 (blur) stays `cons_blur`. Open: the plugins retired (engine #72): a build from before #227 plays them as cross-fades until rebuilt.
 - Merged: the chapter card's names (#48). Open: motions and fades as
   engine motions (#13, #18, waiting on engine #2 → #7 → #14).
 - The user picks the next fixes from "Arguments not read" below.

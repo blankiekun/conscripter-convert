@@ -1028,7 +1028,10 @@ fn transition_steps(fade_ms: u32, mask: Option<&str>, style: TransitionStyle) ->
             let half = (fade_ms / 2).max(1);
             vec![(half, Effect::Builtin(16)), ((fade_ms - half).max(1), Effect::Builtin(17))]
         }
-        // (every other style has a warp map, above)
+        // No style reaches this today: the moving ones (flip, melt, cube,
+        // wave, zoom, slides but orthogonal pushes) have warp maps above,
+        // the rest their own arms. A style added to the IR without an arm
+        // here plays as a cross-fade.
         (None, _) => one(Effect::Fade),
     }
 }
