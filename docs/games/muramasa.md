@@ -538,6 +538,10 @@ exe or a shot. Open guesses a frame of the original could settle:
 - a choice's text 40 px down its plate, and red under the pointer;
 - the blur of the title's glow (`SetBlur(…, 2, …)` as 3 px);
 - the `sepia` and `kitanoblue` tones; the rain's 16 ms frame period.
+- the shared NSS code's: a shaken picture's 100 ms step (the exe's
+  `FUN_004578e0` divides by a run-time frame value), the screen
+  shake's 16 ms, and cameras' depth rule (`zoom / (1000 − priority)`,
+  measured in 続・殺戮のジャンゴ, not yet in this game).
 
 ### Queue (2026-10-16)
 

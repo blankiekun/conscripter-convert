@@ -27,6 +27,7 @@ pub(super) fn is_text(image: &str) -> bool {
 }
 
 /// The shadow's offset, measured at size 30.
+// src: measured under wine at size 30 (no shot kept)
 const SHADOW: i32 = 2;
 
 /// Lie along a sideways line as they are (turned with it): their glyphs
@@ -64,7 +65,8 @@ impl Style {
         // the line is turned clockwise.
         let offset = if sideways { (dy, -dx) } else { (dx, dy) };
         Style {
-            size: if a.is_empty() { 20 } else { arg(1).int().clamp(1, 400) as u32 },
+            // src: system.ini [フォント] size 18 (before any SetFont)
+            size: if a.is_empty() { 18 } else { arg(1).int().clamp(1, 400) as u32 },
             rgb: color(&arg(2)).unwrap_or(0xFFFFFF),
             shadow: (offset != (0, 0)).then(|| (color(&arg(3)).unwrap_or(0), offset)),
             heavy,
