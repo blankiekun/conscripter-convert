@@ -627,9 +627,7 @@ Nothing yet.
    are kept.
 3. The other picture archives in the media folder: `allpaccg` (the
    gallery's CGs, 2 GB), `allui` (71 MB).
-4. The text window's place and size (a guess now: 32 × 14 characters of
-   28 px from 176, 64, over `txtwindow01-1920`), the title, menus and
-   the registry/GUI entry.
+4. The title, menus and the registry/GUI entry.
 5. Still open in the exe: `_FADS` type 1, `_STCH`'s panel frames
    (argument 17's colours, the corner pieces at 0x75BE00), `_STZ4`'s last two, and the motion keyframes' other fields.
 6. The metrics (`tests/snapshots/tsukihime.metrics.json`) count each
@@ -638,6 +636,25 @@ Nothing yet.
    option); the list is in that file. The biggest: `_STCH` argument 8
    (54,478), `_STZ4` arguments 1, 2, 5–7 (the timed zoom), `_STRT` 1,
    3, 4 (from, time, easing), `_VPLY` 1, `_WTTM` 1, `_SEPL` option 17.
+
+### Accuracy
+
+The converter's hand-typed values carry a provenance comment (`src:`,
+`guess:`, `ours`). Open guesses, each settled by one frame of the
+original (Japanese, default text size):
+
+- The text window's line pitch (45 px: 28 of the drawer's 448, the step
+  it uses for its extra lines; the exe measures a line of the font) and
+  so its 14 rows, and whether the glyph sits 16 px below its line's
+  y (`FUN_001a7790` adds 14 + 10 of 1080 inside the line). Place,
+  width and glyph size are the exe's (`FUN_001391a0`: from 88, 65 on
+  a 640 × 448 stage, 464 wide; glyphs of the screen width / 32 × 0.76).
+- The English (fan patch) layout: from x 30, 584 wide, the first line
+  9.88 higher, glyphs × 0.9 (`FUN_0012df20`, the system language);
+  not followed, the build uses the Japanese one.
+- `_STBR` 11 (gauss) drawn as a blur of 8.
+- `_STCH` without a zoom: the exe keeps the layer's (1000 after
+  `_STCC`); the converter resets it to 1000 (9 uses).
 
 ### Open questions
 
