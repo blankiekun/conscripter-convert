@@ -224,7 +224,7 @@ whole-game dry run (`ma00_000.nss --chain 2000`), and 続・殺戮のジャン�
 | `Shake` | 6 `n`, 7 tempo (read: its step and curve); 8 wait; 2-5 (a picture smaller than the screen) | 0; 62; 144 | 0; 3; 3 |
 | `SetBlur` | 4 strength; 2 passes (when off) | 983; 14 | 0 |
 | `CreateWindow` | 6 (`false`: children placed from the screen; read in Django) | 639 | 0 |
-| `Rotate` | 5 tempo | 488 | 264 |
+| `Rotate` | 5 tempo (read: a turn's curve) | 0 | 0 |
 | `MoveCamera` | 1-6 | 105 | 373 |
 | `CreateMovie` | 2-5 (a missing movie) | 61 | 0 |
 | `SetVolume` | 3 tempo; 4 | 23; 1 | 0 |
