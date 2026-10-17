@@ -7,6 +7,7 @@
 //! 1280 × 724 stage (the texture at half size), the record's centre at
 //! the script's x, y × 8/3 ("The stage"). The screen is 1280 × 720.
 
+use std::cell::Cell;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use conv_core::ir::{ArithOp, Compare, MotionEnd, MotionKey, Op, Operand, Ruby, SpriteChange, SpriteFilter, SpritePlacement, TransitionStyle, Var, Voice, BLEND_ADD, BLEND_MULTIPLY, BLEND_NORMAL, BLEND_SUBTRACT, FILTER_BLEND_COPY, FILTER_BLEND_MULTIPLY, FILTER_BLUR, FILTER_COLOUR, FILTER_GREYSCALE, FILTER_NEGATIVE};
@@ -145,12 +146,51 @@ fn number(arg: &str) -> Option<i32> {
     Some(total)
 }
 
-/// A backquote option `` `001:4000`` among `args`: option 1's value.
-fn option(args: &[&str], n: u32) -> Option<i32> {
-    args.iter().find_map(|a| {
+/// A backquote option `` `001:4000`` among `args`: the argument it is in
+/// and option 1's value.
+fn option_at(args: &[&str], n: u32) -> Option<(usize, i32)> {
+    args.iter().enumerate().find_map(|(i, a)| {
         let (k, v) = a.strip_prefix('`')?.split_once(':')?;
-        (k.parse::<u32>().ok()? == n).then(|| number(v)).flatten()
+        (k.parse::<u32>().ok()? == n).then(|| number(v).map(|v| (i, v))).flatten()
     })
+}
+
+/// Marks argument `i` read in `read`.
+fn mark(read: &Cell<u64>, i: usize) {
+    read.set(read.get() | 1u64.checked_shl(i as u32).unwrap_or(0));
+}
+
+/// Arguments a converted command passes and the conversion doesn't need
+/// to read: (command, argument, why).
+const UNREAD_HARMLESS: &[(&str, usize, &str)] = &[
+    ("_IFNX", 1, "the label a non-Switch build goes to; this is the Switch"),
+    ("_SELD", 0, "the choice's name: one choice is open at a time"),
+    ("_SELA", 0, "the choice's name: one choice is open at a time"),
+    ("_SELS", 0, "the choice's name: one choice is open at a time"),
+    ("_GOTS", 0, "the choice's name: one choice is open at a time"),
+];
+
+/// Commands left out on purpose (command, why): done for the completion
+/// figure (`metrics.json`'s `left_out`), not gaps.
+const LEFT_OUT: &[(&str, &str)] = &[
+    // `script_command` (0x177790) has no case for it: the Switch exe does nothing.
+    ("_SNX4", "the Switch exe ignores it"),
+];
+
+/// Why a converted call is only in part: each argument passed and not
+/// read (`<command> argument <i> ignored`, or `option <n>` for a backquote
+/// option).
+fn unread(c: &Command, read: u64) -> Vec<String> {
+    let op = c.opcode();
+    c.args
+        .iter()
+        .enumerate()
+        .filter(|&(i, a)| !a.trim().is_empty() && (i >= 64 || read & (1 << i) == 0) && !UNREAD_HARMLESS.iter().any(|&(o, k, _)| o == op && k == i))
+        .map(|(i, a)| match a.trim().strip_prefix('`').and_then(|o| o.split_once(':')) {
+            Some((k, _)) => format!("{op} option {} ignored", k.parse::<u32>().unwrap_or(0)),
+            None => format!("{op} argument {i} ignored"),
+        })
+        .collect()
 }
 
 /// A text line's markup: `<base|ruby>` readings, `^` line breaks, `@x`
@@ -253,10 +293,18 @@ impl Lowering<'_, '_> {
         number(arg).map(Operand::Const).or_else(|| self.var(arg).map(Operand::Var))
     }
 
-    /// Lowers one command; false when it isn't (yet).
-    fn command(&mut self, script: &str, c: &Command) -> bool {
+    /// Lowers one command; false when it isn't (yet). The arguments it
+    /// reads are marked in `read`.
+    fn command(&mut self, script: &str, c: &Command, read: &Cell<u64>) -> bool {
         let a = &c.args;
-        let arg = |i: usize| a.get(i).copied().unwrap_or("").trim();
+        let arg = |i: usize| {
+            mark(read, i);
+            a.get(i).copied().unwrap_or("").trim()
+        };
+        let option = |args: &[&str], n: u32| option_at(args, n).map(|(i, v)| {
+            mark(read, i);
+            v
+        });
         match c.opcode() {
             "_ZZ" | "_ZY" => {
                 if !arg(0).is_empty() {
@@ -313,6 +361,7 @@ impl Lowering<'_, '_> {
             "_SELD" | "_SELA" | "_SELS" => {}
             "_GOTS" => {
                 let options = std::mem::take(&mut self.options);
+                (1..a.len()).for_each(|i| mark(read, i));
                 let labels = &a[1..];
                 let choice: Vec<(String, String)> = options
                     .into_iter()
@@ -377,7 +426,7 @@ impl Lowering<'_, '_> {
                 }
                 self.ops.push(Op::BgmStop { fade_out_ms: option(a, 1).unwrap_or(0).max(0) as u32 });
             }
-            "_STCH" => return self.stch(a),
+            "_STCH" => return self.stch(a, read),
             "_STCC" => {
                 let n = number(arg(0)).unwrap_or(0);
                 if n < 0 {
@@ -447,8 +496,11 @@ impl Lowering<'_, '_> {
         true
     }
 
-    fn stch(&mut self, a: &[&str]) -> bool {
-        let arg = |i: usize| a.get(i).copied().unwrap_or("").trim();
+    fn stch(&mut self, a: &[&str], read: &Cell<u64>) -> bool {
+        let arg = |i: usize| {
+            mark(read, i);
+            a.get(i).copied().unwrap_or("").trim()
+        };
         let Some(n) = number(arg(0)).filter(|n| (0..LAYERS as i32).contains(n)).map(|n| n as usize) else { return false };
         if arg(1).is_empty() {
             self.staged[n] = None;
@@ -788,11 +840,17 @@ pub fn compile(g: &Game) -> Compiled {
     for (name, commands) in &g.scripts {
         l.ops.push(Op::Label(label(name, None)));
         for c in commands {
-            let done = l.command(name, c);
+            if let Some((_, why)) = LEFT_OUT.iter().find(|(k, _)| *k == c.opcode()) {
+                l.metrics.left_out(c.opcode(), why);
+                continue;
+            }
+            let read = Cell::new(0);
+            let done = l.command(name, c, &read);
             if !done {
                 l.note(format!("not converted: {}", c.opcode()));
             }
-            l.metrics.call(c.opcode(), if done { vec![] } else { vec!["not converted".into()] });
+            let reasons = if done { unread(c, read.get()) } else { vec!["not converted".into()] };
+            l.metrics.call(c.opcode(), reasons);
         }
     }
     Compiled { ops: l.ops, notes: l.notes, metrics: l.metrics }
@@ -1013,11 +1071,18 @@ mod tests {
     }
 
     #[test]
+    fn unread_arguments_are_gaps() {
+        let c = &script::parse("_MPLY(5,7,`001:4000,`017:50);").into_iter().map(Result::unwrap).collect::<Vec<_>>()[0];
+        let read = Cell::new(0b101);
+        assert_eq!(unread(c, read.get()), ["_MPLY argument 1 ignored", "_MPLY option 17 ignored"]);
+    }
+
+    #[test]
     fn numbers_and_markup() {
         assert_eq!(number("258-18"), Some(240));
         assert_eq!(number("-5"), Some(-5));
         assert_eq!(number("F1"), None);
-        assert_eq!(option(&["", "`001:4000", "`017:50"], 17), Some(50));
+        assert_eq!(option_at(&["", "`001:4000", "`017:50"], 17), Some((2, 50)));
         let (t, r) = text("@g　開け<肌寒|はだざむ>い^[ber00]風@k");
         assert_eq!(t, "　開け肌寒い\n風");
         assert_eq!(r, vec![Ruby { start: 3, len: 2, text: "はだざむ".into() }]);
