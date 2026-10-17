@@ -575,7 +575,7 @@ sliders are picture sliders with the lit bar as their `fill` (engine
 engine lights the bar from its min end; `*conv_ps_show` and
 `*conv_ps_lie` convert), the check boxes toggles with `pressed`, and the
 ON/OFF pairs radios. Against main's routine: 36 pixels at open (the knobs
-round to the nearest pixel now), the voice-volume drags give the same
+round to the nearest pixel now), drags of the five sliders give the same
 values; after a drag main's routine left the lit bar where the press
 began (its bug), the screen lights it to the knob.
 
