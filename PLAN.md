@@ -210,6 +210,7 @@ Engine features added for converted games (details in the engine's
 | `chpan ch,pan[,ms]` (a `dwave` channel's pan, -1000 left .. 1000 right, the other side lowered, ramped in the track effect as `chvolfade`'s volume; stays with the channel, saved, `reset` centres it; not the music) (CONscripter PR #35) | NSS `SetPan`: 続・殺戮のジャンゴ's sounds panned hard left or right (`MusicStart`'s 4th argument, dja001_03's footsteps); 装甲悪鬼村正 pans none off centre |
 | The trace's `stale archive` warning (the hash of the `0.txt` a full build packed for, kept as `cons\script.hash` in `arc.nsa`, against the running `0.txt`) and `cons_trace_check.py --script` listing the pictures the script names that no archive or loose file has (CONscripter PR #52) | Every game: a `0.txt` rebuilt (a dry run) into a full build's folder, after its archives were packed, plays against pictures and labels it wasn't built with |
 | An opaque WebP (no alpha channel) shown with `:a` is opaque, as a PNG is, not split into picture and right-half mask (native builds; CONscripter PR #55) | 月姫's media folder and every `--webp` build (続・殺戮のジャンゴ's) on Linux, Windows and macOS: libwebp leaves the channel out of opaque pictures |
+| `!o#RRGGBB` … `!o0` text tag (the following message text drawn with a 1 px outline of that colour in place of its shadow; `reset` clears it) | 最果てのイマ's one `0x49` record with an edge colour of its own: a grey (`0x808080`) rim round black text in `s29_l1` (CONscripter PR #62) |
 
 Planned, from limits hit by converted games (each one is worked around
 in the script today), roughly in order of payoff:
@@ -217,7 +218,6 @@ in the script today), roughly in order of payoff:
 | Game feature | Workaround today | Engine feature that would fix it |
 |---|---|---|
 | Right-click menu / hide window | Everything behind the on-screen button bar | CONscripter has `rgosub *label` now (engine PR #20): a right click at a text wait gosubs and returns to the same wait. Not emitted yet: which menu a right click opens is each game's choice (its command menu, or hiding the window), to be set where the game's menus are written |
-| An outline round message text in a colour of its own | 最果てのイマ's one `0x49` record with a grey (`0x808080`) outline is drawn with the usual decoration (its one remaining metrics gap) | A text tag (or `setwindow`-style setting) that draws the glyphs with an outline of a given colour and width, for every script |
 
 Done without engine work (the stock commands are enough; the per-game
 details, record layouts and handler addresses are in the game's document):

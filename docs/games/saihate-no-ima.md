@@ -216,7 +216,7 @@ N of the scene replay (`%3000+N`); `0x94` ends a replayed scene.
 | `0x90` | 651 | **solved** (handler `0x434960`) | attach a preset to a bust-up: u16 character, u32 module field, u32 preset (0 = remove). Module type 1 = `CModule_Preset`. Converted to CONscripter's `spfilter`, reading the preset from variables (`PLAN.md` §4.2) |
 | `0x54` | 2,195 | **solved** (`op_54` `0x422380`): `arg` = background number, 1-based (0 = none); `bg*.004` holds 64 per file (`n >> 6` in the exe's loader at `0x40bff0`). The most common is 1 = `Black`. The handler first removes background slots 1-10 (`0x4132d0`: the background and the `0x55` overlays), puts the picture on slot 1 (layer 1, depth 0, marked seen) and, for `sub` 1-3 (41 uses of 1), picture `sub + 5` (`frame01`-`03`) on slot 2 (layer 1, depth 1: under the bust-ups). It starts no fade: 2,190 uses are inside an armed transition, the other 5 show at once. Before the audit the overlay stayed up across backgrounds (86 places), `sub` was ignored and backgrounds outside a transition faded over a guessed 500 ms | set background: `Op::Overlay(None)`, `bg`, then the frame as the overlay |
 | `0x46` | 214 | **solved** (from the handler at `0x477460` plus a user-supplied example) | **hyperlink** on the next message: row, column, length, style, target (see 3c) |
-| `0x49` | 565 | **solved** (handler `0x477990`): u16 line, u16 column, u16 length (30000 = to the end of the message; the game wraps enlarged messages short enough to fit), u16 size (percent below 0x1000; 0x1000 + n = n × 25 percent from the table at `0x4fa850`, 0x1003 for mumbling, 0x1005-0x1007 for shouting; 0xf000 = keep), u32 colour (COLORREF, 0xff000000 = keep), u32 edge colour; lines and columns count as for ruby; later records override earlier ones | size and colour for characters of the next message: `#RRGGBB` and CONscripter's `!zNNN` size tag (`PLAN.md` §4.2) |
+| `0x49` | 565 | **solved** (handler `0x477990`): u16 line, u16 column, u16 length (30000 = to the end of the message; the game wraps enlarged messages short enough to fit), u16 size (percent below 0x1000; 0x1000 + n = n × 25 percent from the table at `0x4fa850`, 0x1003 for mumbling, 0x1005-0x1007 for shouting; 0xf000 = keep), u32 colour (COLORREF, 0xff000000 = keep), u32 edge colour; lines and columns count as for ruby; later records override earlier ones | size, colour and edge for characters of the next message: `#RRGGBB`, CONscripter's `!zNNN` size tag and `!o#RRGGBB` outline (`PLAN.md` §4.2) |
 | `0x4e` | 24 | **solved** (handler `0x494750`): arg = indent << 16 \| 1 (once 2); the indent is in half-width units of the first line (ASCII, half-width kana and Greek count 1), up to the text after the chat log's handle | hanging indent of the next message; the game puts it only before chat messages long enough to wrap. Converted to `indent N` around the message, N measured on the emitted line |
 | `0x70` | 457 | **solved** (handler `0x415a30`, objects `filter-<slot>`): u32 slot (0 = clear all), u32 layer \| depth << 8 (layer byte through the table at `0x503e68`: 0/2 → 0x10, 1 → 0, 3 → 0x20, 4 → 0x30; depth = the sort depth within that band, mostly 1000, above the bust-ups; no fade of its own), u32 kind (0 = clear the slot), u16 blend, u16 opacity, then 0x88's kind data; monotone (6) is a u32 palette, `pal%04u.pal` in `HD/pal.arc` (RIFF PAL, 256 entries for the grey levels) | filter on the whole screen, from 0x88's modules. Converted to `screenfilter` + `print 1` (or the surrounding transition); Smooth (1, u8 x, y range), HueSatura (3, i16 hue, saturation) and BrightnessInvert (9) as `screenfilter` kinds 6-8; Filter-Replace (13: u32 map, i32 direction, distance, begin angle in 1/100 turn) as a still `screenripple` in slot 4 + n, starting at the begin angle (`screenripple`'s phase, History, item 38). Kinds from the (type, creator) pairs at `0x501428`. Zigzag (12, one use: i32 centre x, y, direction, distance, frequency, begin angle, reduction; kernel `0x43f0b0`: each pixel from distance × sin(2π·i/1024) along the direction, i = d × frequency/100 for the distance d from the centre) as a still `screenripple` over a generated ring map, its Multi blend as `screenripple`'s blend 1 and its phase as the exe's (from the frequency: the draw `0x41dab0` never reads the begin angle or the reduction, History, item 39) |
 | `0x59` | 47 | **solved** (handler `0x473610`) | BGM crossfade: u32 fade ms (capped at 30000), u16 track to stop (0 = all but the new one), u16 track to play; the new track starts fading in, then the old fades out, at once. Converted to CONscripter's `bgm "file",ms`: the old track fades out as the new fades in |
@@ -302,10 +302,9 @@ is noted) and why:
 | `0x7a` | `+14` | u16 0, 0 | the new object's width and height, which the picture `0x84` loads replaces (History, item 44) |
 | `0x46` | `-4` | 0 | the link entry's first field, which only the save and load read (History, item 43) |
 | `0x70` | `-4` | 0 | a cleared slot's blend and opacity (kind 0 or slot 0), which `op_70` (`0x415a30`) doesn't read (History, item 38) |
-| `0x40` | `-60` | the one block | after the unreachable debug menu's message (`0001.cd` #1), which stays out (History, item 42) |
 | `0x44` | `+6` | u16 3 or 1, u32 0 | the ruby's alignment: spread (as `rubyon`) or centred over the base, the same here; the u32 isn't drawn (History, item 33) |
 | `0x8c` | `+4` | layer 0, depth 1000, 1100, 2000, 500; 0 when clearing | the effect's sort key: every one sorts over all the bust-ups, as ours draws them (History, item 31) |
-| `0x49`, `0x4a` | `-4` | `0xff000000`; `0x4a` also `0xff000001` | no edge colour of the record's own, or the default one: the default decoration (History, item 29) |
+| `0x4a` | `-4` | `0xff000000`, `0xff000001` | no edge colour of the record's own, or the default one: the default decoration (History, item 29) |
 | `0x70` | `-8` | 10, 0 | Zigzag's begin angle and reduction, which its draw (`0x41dab0`) doesn't read (History, item 39) |
 | `0x56` | `+2` | u32 0, 2000 | a slot-1 fill's sort depth in its band, where it is alone (History, item 40) |
 | `0x90` | `+2` | u32 1, 0, 2 | the preset module's place among the bust-up's modules, where it is alone (History, item 35) |
@@ -313,7 +312,7 @@ is noted) and why:
 
 A parsed
 field the converter never used counts as not read: `cd.rs` doesn't
-parse those (ruby flags, edge colours,
+parse those (ruby flags, `0x4a`'s edge colour,
 `0x70`'s depth); link styles and
 message line numbers are read only for `cd messages`, outside the
 tracking.
@@ -325,14 +324,14 @@ run's):
 |---|---|---|
 | every opcode the corpus uses, except as below | every operand | converted |
 | `0x40`, `0x41` | `sub` bit 0: the first line is the speaker's name (not in full-screen windows: the exe drops it there) | converted (History, item 27) |
-| `0x49` | the one edge colour of its own (0x808080, a grey outline; History, item 29): 1 note | dropped (no outline for message text) |
+| `0x49` | the edge colour: the one of its own (0x808080, a grey outline; History, item 29) | converted (CONscripter's `!o#RRGGBB` … `!o0`) |
 | `0x56` | u32 depth at +2 (0 and 2000): 2 notes | dropped |
 | `0x59` | the old track fading out under the new one | partial: it stops at once (one BGM channel) |
 | `0x6f` | the pulse | converted, not checked against the original |
 | `0x70` | the depth in the second u32 among the bust-ups (80, in 2 negative flashes) | partial: drawn over all the bust-ups (History, item 30) |
 | `0x76` | MeltDown's stretch for `sub` 46/47 | converted (scaled from the exe), not compared with the film |
 | `0x8f` | removes the bust-ups only | partial: `csp -1` also removes the fade cover (no script shows the difference) |
-| `0x30`, `0x62` | everything | dropped (the unreachable debug menu) |
+| `0x30`, `0x62`; `0x40` `0001.cd` #1 | everything; the 60 bytes after the message | dropped (the unreachable debug menu; `LEFT_OUT` in `xuse/build.rs`) |
 
 Two doc mistakes corrected on the way: `0x8e`'s last 32 bytes are an
 (always empty) module name, not junk; `0x76`'s third u32 is a sort key,
@@ -634,7 +633,8 @@ a copy of the save works.
 - Merged: `0x8c`'s sort key as harmless (#180; History, item 31).
 - Merged: `0x49`/`0x4a`'s edge colours as harmless but the grey one (#181; History, item 29).
 - Merged: links only while their variable is set (#183; History, item 28).
-- Merged: the debug menu's message block as harmless (#189; History, item 42).
+- Merged: the debug menu's message block as harmless (#189; History, item 42); now left out with the menu's two opcodes (`LEFT_OUT`).
+- Open: `0x49`'s grey outline as `!o#808080` (engine #62; History, item 29).
 - Merged: the ruby alignment as harmless (#192; History, item 33).
 - Merged: command coverage per operand, PR #85 (supersedes #28): every
   operand given and not read, whatever its value (0 included), is a
@@ -662,10 +662,10 @@ debug trace and the decompiled exe (`research/tools/ghidra/ghidra_export.sh`,
 names in `research/xuse/names.tsv`) showed opcodes read wrong from
 `objdump`. All 26 items of that list are done, and so is everything the
 debug trace found ("History", below). Items 28-45, from the operand notes, are done too (History); the one
-operand note left is `0x49`'s grey outline (message text has no outline
-in CONscripter), plus the debug menu's two opcodes (`0x30`, `0x62`), which
-`metrics.json` counts as left out on purpose (`LEFT_OUT` in `xuse/build.rs`), not gaps.
-The outline is in `PLAN.md` §4.2's planned engine features.
+operand note left is the debug menu's: its message (`0001.cd` #1, 60
+bytes after it) and two opcodes (`0x30`, `0x62`), which `metrics.json`
+counts as left out on purpose (`LEFT_OUT` in `xuse/build.rs`, by script
+and instruction), not gaps: 84,710 of 84,713 calls converted, 3 left out.
 
 Converted and playable from start to end: text, voices, sprites with
 colour filters, backgrounds, BGM with loop points, sound effects, movies,
@@ -705,9 +705,7 @@ operands the converter is given and never reads ("Operand coverage"
 under "Script bytecode"); the user made every note an item. Numbered
 after History's 26, most noticeable first (notes = instructions):
 
-29. **The grey outline** (`0x49` edge colour `0x808080`, 1 note): one
-    message's characters get a grey edge; message text has no outline
-    in CONscripter (`strspoutline` is for `strsp` only).
+None left.
 
 **Script opcodes:** all converted (the converter reports 2 unsupported
 instructions, both in the unreachable debug menu). Notes on the last
@@ -751,8 +749,8 @@ handlers (audit table above); the dry run reports `0x30`/`0x62`
 (debug menu) as unsupported, plus the operand notes above. Lip sync (`VoiceSyncParts`, `lq.arc`) and animation parts
 are in the exe but unused here (no `lq.arc`; `0x8e`'s module names are
 empty). Gaps found, where the exe and the converter differ:
-- `0x49`'s edge colour (1 of 565 records, `0x808080`) and `0x4a`'s (2)
-  are not converted.
+- none left: `0x4a`'s two edge colours (none, then the default) are
+  the usual decoration.
 
 **Accuracy.**
 - Transitions: MeltDown's stretch for subs 46/47 is scaled from the exe
@@ -1385,8 +1383,13 @@ sound effects on `dwave` channels.
    their own, and `0x4a`'s two (0011.cd #5052: `0xff000000` for the four
    orange one-character pages, then `0xff000001`) the default: all drawn
    with the message's usual decoration, a row of the harmless table.
-   Left: one `0x49` record with `0x808080`, a grey outline on its
-   characters, which message text can't draw (Status item 29).
+   The one `0x49` record with `0x808080` (`s29_l1`, black "503 Service
+   Temporarily Unavailable" on white) is a grey outline: the exe's edge
+   (`0x489c50`) is the glyph dilated by a short at the style's +0x14/+0x16
+   (1 px) with the glyph cut out. Converted (2026-10-16) as CONscripter's
+   new `!o#808080` … `!o0` (engine PR #62), a 1 px outline in place of the
+   shadow. Checked with `--goto s29_l1 --shot-pages 1`: 854 grey pixels
+   on the page against 196 without the tag.
 28. **Done: link style 18** (2026-10-16). `0x46`'s u32 at +6 isn't a
    style: `op_46` checks it as a scenario variable (bit 15 = global,
    `0x4673f0`/`0x45ff30`) and keeps it at the link entry's +0x10. When

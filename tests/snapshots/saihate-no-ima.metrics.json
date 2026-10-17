@@ -1,12 +1,11 @@
 {
 "game": "saihate-no-ima",
 "engine": "xuse",
-"commit": "5fb05699",
+"commit": "ea3c69a5",
 "commit_date": "2026-10-16",
-"totals": {"calls": 84713, "full": 84710, "gaps": 1, "left_out": 2},
+"totals": {"calls": 84713, "full": 84710, "gaps": 0, "left_out": 3},
 "kinds": {
-"opcode 0x49": {"calls": 565, "gaps": 1, "reasons": [["0x49 operand -4 ignored", 1]]},
-"opcode 0x40": {"calls": 30958, "gaps": 0, "reasons": []},
+"opcode 0x40": {"calls": 30958, "gaps": 0, "left_out": 1, "reasons": [["the unreachable debug menu", 1]]},
 "opcode 0x41": {"calls": 15620, "gaps": 0, "reasons": []},
 "opcode 0x8e": {"calls": 10271, "gaps": 0, "reasons": []},
 "opcode 0x71": {"calls": 3908, "gaps": 0, "reasons": []},
@@ -20,6 +19,7 @@
 "opcode 0x90": {"calls": 651, "gaps": 0, "reasons": []},
 "opcode 0x58": {"calls": 579, "gaps": 0, "reasons": []},
 "opcode 0x43": {"calls": 578, "gaps": 0, "reasons": []},
+"opcode 0x49": {"calls": 565, "gaps": 0, "reasons": []},
 "opcode 0x57": {"calls": 542, "gaps": 0, "reasons": []},
 "opcode 0x53": {"calls": 501, "gaps": 0, "reasons": []},
 "opcode 0x70": {"calls": 457, "gaps": 0, "reasons": []},

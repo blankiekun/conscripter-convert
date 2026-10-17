@@ -1143,14 +1143,16 @@ fn with_markup(text: &str, links: &[TextLink], ruby: &[Ruby], styles: &[TextStyl
     out
 }
 
-/// CONscripter's tags for the styles' slant and centring, to go before
-/// each character (and after the last): `!c` where a centred range starts
-/// a line, `!i1` and `!i0` around italics, closed at each line's end as
+/// CONscripter's tags for the styles' slant, centring and outline, to go
+/// before each character (and after the last): `!c` where a centred range
+/// starts a line, `!i1` and `!i0` around italics, `!o#RRGGBB` and `!o0`
+/// around outlines (the last style's wins), closed at each line's end as
 /// tags last past the page.
 fn slant_tags(chars: &[char], styles: &[TextStyle]) -> Vec<String> {
     let covered = |i: usize, f: fn(&TextStyle) -> bool| styles.iter().any(|s| f(s) && s.start <= i && i < s.start + s.len);
     let mut marks = vec![String::new(); chars.len() + 1];
     let mut italic = false;
+    let mut outline = None;
     for (i, mark) in marks.iter_mut().enumerate() {
         let line_end = chars.get(i).is_none_or(|&c| c == '\n');
         if !line_end && (i == 0 || chars[i - 1] == '\n') && covered(i, |s| s.centred) {
@@ -1160,6 +1162,14 @@ fn slant_tags(chars: &[char], styles: &[TextStyle]) -> Vec<String> {
         if want != italic {
             italic = want;
             mark.push_str(if want { "!i1" } else { "!i0" });
+        }
+        let want = if line_end { None } else { styles.iter().rev().find(|s| s.outline.is_some() && s.start <= i && i < s.start + s.len).and_then(|s| s.outline) };
+        if want != outline {
+            outline = want;
+            match want {
+                Some(c) => write!(mark, "!o#{c:06X}").unwrap(),
+                None => mark.push_str("!o0"),
+            }
         }
     }
     marks
@@ -1255,9 +1265,10 @@ fn colours_and_sizes(n: usize, styles: &[TextStyle]) -> (Vec<String>, Vec<u16>) 
 
 /// Text for a single-byte line (after a backquote), where only the click
 /// waits, the backquote itself and CONscripter's tags are special (`!i`,
-/// `!c`; `!w`, `!d`, `!z`, `!v`, `!s` before a number; `#` before six hex
-/// digits): those turn full-width, everything else stays as written. The
-/// styles become those tags (colours, sizes, slant, centring), each line
+/// `!c`; `!w`, `!d`, `!z`, `!v`, `!s` before a number; `!o` before a
+/// number or `#`; `#` before six hex digits): those turn full-width,
+/// everything else stays as written. The styles become those tags
+/// (colours, sizes, slant, centring, outline), each line
 /// ending on the text colour and size.
 fn single_byte_text(text: &str, styles: &[TextStyle]) -> String {
     let chars: Vec<char> = text.chars().collect();
@@ -1276,7 +1287,8 @@ fn single_byte_text(text: &str, styles: &[TextStyle]) -> String {
         }
         out.push_str(&marks[i]);
         let next = |k: usize| chars.get(i + k).copied().unwrap_or(' ');
-        let numbered_tag = matches!(next(1), 's' | 'w' | 'd' | 'z' | 'v') && (next(2).is_ascii_digit() || (next(1) == 's' && next(2) == 'd'));
+        let numbered_tag = (matches!(next(1), 's' | 'w' | 'd' | 'z' | 'v') && (next(2).is_ascii_digit() || (next(1) == 's' && next(2) == 'd')))
+            || (next(1) == 'o' && (next(2).is_ascii_digit() || next(2) == '#'));
         out.push(match c {
             '@' => '＠',
             '\\' => '＼',
@@ -2456,6 +2468,10 @@ end
         let red = TextStyle { start: 0, len: 2, colour: Some(0xCC0000), ..Default::default() };
         let small = TextStyle { start: 3, len: 9, size_percent: Some(75), ..Default::default() };
         assert_eq!(single_byte_text("ab cd\nef", &[red, small]), "#CC0000ab#FFFFFF !z075cd!z100\n!z075ef!z100");
+        // Outlines: "!o" before '#' or a digit is a tag; closed at the line's end.
+        assert_eq!(single_byte_text("!o# !o1 !ok", &[]), "！o# ！o1 !ok");
+        let grey = TextStyle { start: 1, len: 3, outline: Some(0x808080), ..Default::default() };
+        assert_eq!(single_byte_text("ab\ncd", &[grey]), "a!o#808080b!o0\n!o#808080c!o0d");
         // Waits: a space ends a number before a digit; one before spaces
         // goes after them (the engine skips spaces after the number).
         let (t, v, e) = (conv_core::ir::TIMED_WAIT_MARK, conv_core::ir::VOICE_WAIT_MARK, conv_core::ir::WAIT_END_MARK);

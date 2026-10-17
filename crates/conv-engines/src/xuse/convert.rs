@@ -2896,16 +2896,20 @@ fn text_style(body: &[String], s: &StyleRecord) -> Option<TextStyle> {
     let total = body.iter().map(|s| s.chars().count() + 1).sum::<usize>() - 1;
     let len = usize::from(s.length).min(total - before - col);
     let colour = (s.colour != STYLE_COLOUR_KEEP).then(|| rgb_of(s.colour));
+    // An edge colour of its own (FUN_00492000 sets the characters' edge
+    // flags); 0xff00000k (none, the default, the current) is the message's
+    // usual decoration.
+    let outline = (s.edge >> 24 != 0xff).then(|| rgb_of(s.edge));
     let size = match s.size {
         STYLE_SIZE_KEEP => None,
         n if n & 0xf000 == 0x1000 => Some(STYLE_PRESET_PERCENT[usize::from(n & 0xfff).clamp(1, 7)]),
         n if n < 0x1000 => Some(n),
         _ => None,
     };
-    if len == 0 || (colour.is_none() && size.is_none()) {
+    if len == 0 || (colour.is_none() && size.is_none() && outline.is_none()) {
         return None;
     }
-    Some(TextStyle { start: before + col, len, colour, size_percent: size, ..Default::default() })
+    Some(TextStyle { start: before + col, len, colour, size_percent: size, outline, ..Default::default() })
 }
 
 fn lower_instr(
@@ -3338,13 +3342,6 @@ const UNNEEDED_OPERANDS: &[(u16, &str, &str, &str)] = &[
     // Message records (op_40_41 0x4771c0).
     (0x40, "+8", "*", "any: the source script's line number (`cd messages` prints it)"),
     (0x41, "+8", "*", "any: the source script's line number (`cd messages` prints it)"),
-    // 0001.cd #1, the debug menu's message (left out: the lead's call).
-    (
-        0x40,
-        "-60",
-        "04000000000000000e000000d035d03cd031d01cd0d1d208d03b0e000000d0d9d0d9d208d00bd0d1d208d03b00800000020000000200000003000000",
-        "the block after the unreachable debug menu's one message",
-    ),
     (0x40, "-8", "0400000000000000", "u32 4, u32 0 after the text of every story message"),
     (0x41, "-8", "0400000000000000", "u32 4, u32 0 after the text of every message"),
     // Chapter labels (op_36 0x475460, op_37 0x475780, op_38 0x475970).
@@ -3405,8 +3402,7 @@ const UNNEEDED_OPERANDS: &[(u16, &str, &str, &str)] = &[
         "00e80300|004c0400|00d00700|00f40100|00000000",
         "layer 0 at depth 1000 (227), 1100, 2000, 500, or 0 when clearing: over every bust-up (10-150), as ours draws the static, ripples and shakes",
     ),
-    // The edge colour through 0x491e30: 0xff000000 is -1, no edge set (FUN_00492000 sets the edge flags only for another value); 0xff000001 the default edge.
-    (0x49, "-4", "000000ff", "no edge colour of its own: the message's default decoration"),
+    // The edge colour through 0x491e30: 0xff000000 is -1, no edge set; 0xff000001 the default edge.
     (0x4a, "-4", "000000ff|010000ff", "no edge colour, then the default one: the default decoration either way"),
     // Filter-Zigzag's draw (0x41dab0) passes the frequency as the phase and never reads these.
     (0x70, "-8", "0a00000000000000", "Zigzag's begin angle (10) and reduction (0)"),
@@ -3781,7 +3777,7 @@ mod tests {
     #[test]
     fn text_style_ranges() {
         let body: Vec<String> = ["「牛めし", "　……カルビ"].iter().map(|s| s.to_string()).collect();
-        let style = |line, column, length, size, colour| StyleRecord { line, column, length, size, colour };
+        let style = |line, column, length, size, colour| StyleRecord { line, column, length, size, colour, edge: 0xff00_0000 };
         // 30000 runs to the end of the message; sizes below 0x1000 are percent.
         assert_eq!(
             text_style(&body, &style(2, 1, 30000, 94, STYLE_COLOUR_KEEP)),
@@ -3800,6 +3796,10 @@ mod tests {
         assert_eq!(text_style(&body, &style(1, 1, 30000, STYLE_SIZE_KEEP, STYLE_COLOUR_KEEP)), None);
         assert_eq!(text_style(&body, &style(3, 1, 1, 90, STYLE_COLOUR_KEEP)), None);
         assert_eq!(text_style(&body, &style(1, 6, 1, 90, STYLE_COLOUR_KEEP)), None);
+        // An edge colour of its own is an outline; 0xff000001 (the default) is not.
+        let edged = |edge| text_style(&body, &StyleRecord { edge, ..style(1, 2, 2, STYLE_SIZE_KEEP, STYLE_COLOUR_KEEP) });
+        assert_eq!(edged(0x0080_8080), Some(TextStyle { start: 1, len: 2, outline: Some(0x808080), ..Default::default() }));
+        assert_eq!(edged(0xff00_0001), None);
     }
 
     #[test]

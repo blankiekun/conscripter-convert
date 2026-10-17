@@ -25,12 +25,15 @@ pub const AUDIO_DIRS: &[&str] = &["voice", "se"];
 pub const SCREEN: (u32, u32) = (800, 600);
 
 
-/// Instructions left out on purpose (the gap they would be, why): done
-/// for the completion figure (`metrics.json`'s `left_out`), not gaps.
-const LEFT_OUT: &[(&str, &str)] = &[
-    // 0001.cd's start point: the unreachable debug menu (the user's call).
-    ("opcode 0x30 sub 0xffff arg 94", "the unreachable debug menu"),
-    ("opcode 0x62 sub 0x2 arg 58", "the unreachable debug menu"),
+/// Instructions left out on purpose, where they have a gap (script,
+/// instruction index, why): done for the completion figure
+/// (`metrics.json`'s `left_out`), not gaps.
+const LEFT_OUT: &[(&str, usize, &str)] = &[
+    // 0001.cd's start point: the unreachable debug menu (the user's call):
+    // its message (#1, 60 bytes after it unread), 0x62 (#2) and 0x30 (#3).
+    ("0001.cd", 1, "the unreachable debug menu"),
+    ("0001.cd", 2, "the unreachable debug menu"),
+    ("0001.cd", 3, "the unreachable debug menu"),
 ];
 
 /// Compiles every `NNNN.cd` script of `game` (the installed game, with
@@ -110,8 +113,8 @@ pub fn build(game: &Path, linear: bool, opts: &Opts) -> Result<Built> {
         for (index, ins) in cd.code.iter().enumerate() {
             let kind = format!("opcode {:#04x}", ins.op);
             let reasons = gaps.remove(&index).unwrap_or_default();
-            match LEFT_OUT.iter().find(|(r, _)| reasons.len() == 1 && reasons[0] == *r) {
-                Some((_, why)) => metrics.left_out(&kind, why),
+            match LEFT_OUT.iter().find(|&&(f, i, _)| !reasons.is_empty() && f == file && i == index) {
+                Some((_, _, why)) => metrics.left_out(&kind, why),
                 None => metrics.call(&kind, reasons),
             }
         }

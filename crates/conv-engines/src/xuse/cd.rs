@@ -522,7 +522,9 @@ pub struct Ruby {
 /// for ruby. Size: a percentage below 0x1000, 0x1000 + n a preset of
 /// n × 25 percent (0x1003 for mumbling, 0x1005-0x1007 for shouting),
 /// 0xf000 to keep the size. Colours are Windows COLORREFs (0x00BBGGRR);
-/// 0xff000000 keeps the colour.
+/// 0xff000000 keeps the colour. The edge colour likewise, 0xff000000 for
+/// no edge of its own, 0xff000001 the default one, 0xff000002 the current
+/// one (decoded by 0x491e30).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TextStyle {
     pub line: u16,
@@ -530,6 +532,7 @@ pub struct TextStyle {
     pub length: u16,
     pub size: u16,
     pub colour: u32,
+    pub edge: u32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -869,6 +872,7 @@ impl<'a> CdScript<'a> {
                 length: r.u16(o + 4)?,
                 size: r.u16(o + 6)?,
                 colour: r.u32(o + 8)?,
+                edge: r.u32(o + 12)?,
             })
         })
     }
