@@ -226,7 +226,7 @@ N of the scene replay (`%3000+N`); `0x94` ends a replayed scene.
 | `0x8d` | 1 | **solved** (handler `0x4155c0`, wait task `0x4154b0`) | waits until environment slot n's module (object key n + 0x78) has finished: u32 slot, u8 0xff. 0007.cd waits out a 3 s ripple, then clears it. Converted as a `delay` of the module's time (exact there: it follows the 0x8c that set the slot) |
 | `0x80` | 1 | **solved** (handler `0x413cd0`; fields +0x1a8/+0x1ac, 100 for a new object; key-frame motions set them with flag 0x80) | an object's scale: u8 layer, u32 depth, i32 x, y percent. 0013.cd: character 12 at 80 % after 0x82 made it translucent. Converted as a pre-scaled copy of the bust-up centred on the same point, then the opacity again |
 | `0x69` | 32 | **solved** (handler `0x473940`, wait callback `0x473810`; checked under wine with a patched `0002.cd`) | no record: a click wait showing the picture alone (text window and bars hidden, the wait icon in the corner), passed by skip mode. Converted like 0x68 with `skippable` |
-| `0x86`, `0x87`, `0x7f` | 19, 9, 12 | **solved** (handlers `0x413540`/`0x413350`, `0x413820`, `0x413bb0`; objects found as in `0x82`) | `0x86` adds a module to an object (u8 layer, u32 depth, u32 slot, u32 kind; kind `0x80000001` removes the slot's module) — always a key-frame motion (`CModule_Animation_KeyFrameMotion`, setup `0x416fe0`): the kind is its flags, which fields each key frame has after its u32 ms (0x10 u8; 0x20/0x40/0x80 i32, i32, u8 with 0x40 the position; 0x100 i32 rotation, u8; 0x200 u16 opacity, u8), then a u16 key frame count; the first frame is replaced by the object's state; each u8 is the field's interpolation (`0x4176f0`: 0 kept, 1 a jump halfway, 2 linear, 3 a curve). `0x87` waits for it (u8 layer, u32 depth, u32 slot, u8 `0xff`); `0x7f` puts the object's centre at i32 x, y. The game slides bust-ups (9: start, wait, remove, `0x7f` to the end point; all inside an armed transition, so the original fades and slides at once) and fades the overlay out once (`0x200`, `0002.cd` #14). Converted as `Op::SpriteMove`: `*conv_move` (`getsppos`/`getspsize`, `amsp` steps on the timer); the transition is shown first, then the slide. The rotation (field +0x1b0, tenths of a degree mod 3600, clockwise; `0x81` sets it: u8 layer, u32 depth, i32 angle) of -900 in `0043.cd` #440 is drawn by `Op::SpriteTurn` (lsp2/amsp2, the sprite ends off screen). Key-frame group 0x80 is the scale (+0x1a8/+0x1ac) |
+| `0x86`, `0x87`, `0x7f` | 19, 9, 12 | **solved** (handlers `0x413540`/`0x413350`, `0x413820`, `0x413bb0`; objects found as in `0x82`) | `0x86` adds a module to an object (u8 layer, u32 depth, u32 slot, u32 kind; kind `0x80000001` removes the slot's module) — always a key-frame motion (`CModule_Animation_KeyFrameMotion`, setup `0x416fe0`): the kind is its flags, which fields each key frame has after its u32 ms (0x10 u8; 0x20/0x40/0x80 i32, i32, u8 with 0x40 the position; 0x100 i32 rotation, u8; 0x200 u16 opacity, u8), then a u16 key frame count; the first frame is replaced by the object's state; each u8 is the field's interpolation (`0x4176f0`: 0 kept, 1 a jump halfway, 2 linear, 3 a curve). `0x87` waits for it (u8 layer, u32 depth, u32 slot, u8 `0xff`); `0x7f` puts the object's centre at i32 x, y. The game slides bust-ups (9: start, wait, remove, `0x7f` to the end point; all inside an armed transition, so the original fades and slides at once) and fades the overlay out once (`0x200`, `0002.cd` #14). Converted as `Op::SpriteMove`: `*conv_move` (`getsppos`/`getspsize`, `amsp` steps on the timer); the transition is shown first, then the slide. The rotation (field +0x1b0, tenths of a degree mod 3600, clockwise; `0x81` sets it: u8 layer, u32 depth, i32 angle) of -900 in `0043.cd` #440 is drawn by `Op::SpriteTurn` (lsp2/amsp2, the sprite ends off screen), when its interpolation byte is 2 (linear, as there; History, item 41). Key-frame group 0x80 is the scale (+0x1a8/+0x1ac) |
 | `0x8c` | 240 | **solved** (handler `0x4153c0`, `AdvObjectScript_Env.cpp`, objects `environment-<slot>`): u32 slot (0 = clear all), u32 layer \| depth << 8 (the word goes to `0x4109a0` as the object's sort key, see `0x4126c0`; the game uses depth 1000), u32 kind (0 = clear the slot), then the kind's module data (setup table `0x5013bc`; module class from the creator table `0x501434` + RTTI): 1 Animation-Simple on `HD/env.arc` image 50,000,000 + n (light rays, unused), 2 Animation-RandomNoise (88 uses), 3 Filter-LensFlare (unused), 4 Animation-Replace (25), 5 Animation-Vibrate (12). Layouts and maths in `cd.rs` (`Noise`, `Ripple`, `Shake`) | static: an animated sprite (4 generated frames, `system/noise.png`) at the end opacity, sprite 60, kept across `csp -1` like `0x55`; its rise from opacity 0 over `time_ms` (up to 2 s) is CONscripter's `spfade` (`Op::NoiseFadeIn`). Ripple (draw `0x41a2d0`, per pixel `0x43d9d0`: each pixel from amp × sin(2π(grey/256 + phase/1000)) pixels away along the angle, map `mask%04u.png`, blended at the opacity) → `screenripple`; shaking (draw `0x41ac70`: the picture blitted onto itself at a sine or 7-point-path offset) → `screenshake` |
 | `0x6d` | 198 | **solved** (handler `0x442000`, object `0x441ee0` at sort key `0x06000000`, the bottom of the text window's band): u32 speed, u32 x and y range in pixels (mostly 80, 20, 20). The picture moves along 0x8c's 7-point path, `speed` points a second; after 4 points both ranges shrink by max(speed / 4, 50) px/s until 0. The script waits; a click ends it. Skipped while skipping or with effects off. Filmed (speed 80, 20 × 20): the picture jumps to the next point every frame (30 a second), at the full range for the first points, then shrinking | a quake, often right after a sound effect. Converted to `screenshake 4,…` (mode 1, at most 30 points a second, the full range for 4 points, then shrinking at the same rate) + `delay`, twice, then `screenshake 4` |
 | `0x6e` | 88 | **solved** (handler `0x441550`, object `0x4413d0` at sort key `0xffffffff`, over everything): `arg` = COLORREF filled over the screen with blend 1 (Add) at opacity 128 for 100 ms; the script waits, a click ends it. White for lightning and shocks, red (`0x0000ff`) for blows | a flash. Converted to CONscripter's `screenflash 128,"#rrggbb"` (`Op::ScreenFlash`; the colour added over everything, the text window included, as the original's sort key puts it) for a 100 ms `delay` |
@@ -322,7 +322,6 @@ run's):
 | `0x76` | MeltDown's stretch for `sub` 46/47 | converted (scaled from the exe), not compared with the film |
 | `0x7a` | u16, u16 at +14 (0, 0 in the 6 blog records), passed to `FUN_0040f060`: 6 notes | dropped: meaning unknown |
 | `0x82` | layer 1 depth 1 (one use, after `0x56`) | dropped |
-| `0x86` | one byte at the end of one record: 1 note | dropped, not looked into |
 | `0x86` | two zero bytes after the key frames of the 9 slides: 9 notes | dropped, not looked into |
 | `0x8c` | the sort key in the second u32 (depth 1000 in 227, 1100 in 5, 0 in 4, 2000 in 3, 500 once): 240 notes | dropped: the static is always sprite 60, ripples and shakes move the whole screen |
 | `0x8f` | removes the bust-ups only | partial: `csp -1` also removes the fade cover (no script shows the difference) |
@@ -632,12 +631,13 @@ a copy of the save works.
 - Open: speaker names from `sub` bit 0, PR #102 (History, item 27):
   4,867 notes of 20 kinds left; 80,285 of 84,713 calls fully converted
   (was 49,328).
-- Open: the red fill over the static in 0006.cd as a screen filter, PR #157 (History, item 40).
+- Merged: the red fill over the static in 0006.cd as a screen filter (#157; History, item 40).
 - Merged: `0x43` and `0x52`/`0x53` `arg` as harmless (#111, #114; History, items 32, 34).
 - Open: `0x90` +2 as harmless, PR #119 (History, item 35).
 - Merged: Filter-Replace's begin angle as `screenripple`'s start phase (#134, engine #50; History, item 38).
 - Merged: Zigzag's phase from its frequency, its begin angle and reduction as harmless (#153; History, item 39).
 - Merged: the exe map's fixes and missed callbacks (#46).
+- Open: the rotation's interpolation byte read, PR #162 (History, item 41).
 - Open: `0x59` as a real cross-fade, converter #25 with engine #18 (asked
   for a web-build measurement of the old track's decode first);
   `bitand` for the three bitwise ops, converter #74 (takes over #12;
@@ -700,8 +700,6 @@ after History's 26, most noticeable first (notes = instructions):
     in 5, 0 in 4, 2000 in 3, 500 once): the same for the static, ripples and shakes.
 33. **Ruby flags** (`0x44` u16 at +6, 37 notes: 3 in 32, 1 in 5):
     meaning unknown.
-41. **One `0x86` byte** at the end of one record (1 note), not looked
-    into.
 42. **The debug menu's message block** (`0001.cd` #1, 1 note): in the
     debug menu, which the user didn't want.
 43. **`0x46`'s last u32** (+14, 0 in all 214 links, 214 notes): `op_46`
@@ -1308,3 +1306,9 @@ sound effects on `dwave` channels.
    are a row of the harmless table. Not filmed: whether the original's
    band 0x20 also covers the text window (ours: under it, as for the
    `0x70` filters).
+41. **Done: one `0x86` byte** (2026-10-16). The one byte was the last of
+   `0043.cd` #440, the slide with a rotation: the rotation group (0x100)
+   of its last key frame is i32 angle, u8 interpolation, and the
+   converter read the angle only. The byte is 2 (linear), which is how
+   `Op::SpriteTurn` turns the sprite; it is now read, and a turn that
+   isn't linear would no longer be drawn turning. `0.txt` is unchanged.

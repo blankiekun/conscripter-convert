@@ -1777,7 +1777,8 @@ fn motion(cd: &CdScript, o: usize) -> Option<Motion> {
                 (end.x, end.y) = (u32_at(at)? as i32, u32_at(at + 4)? as i32);
                 end.position = byte(at + 8)? == 2;
             }
-            0x100 => end.rotation = u32_at(at)? as i32,
+            // Only a linear turn (u8 2, as all the game's) is drawn turning.
+            0x100 if byte(at + 4)? == 2 => end.rotation = u32_at(at)? as i32,
             MOTION_OPACITY if byte(at + 2)? == 2 => end.opacity = Some(u16::from_le_bytes(cd.bytes(at, 2)?.try_into().unwrap())),
             _ => {}
         }
