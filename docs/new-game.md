@@ -270,6 +270,50 @@ rather than by browsing:
    decoded semantics into the engine's built-ins reference
    (`research/nitroplus/builtins.md` for Nitroplus), and put the gaps
    found in the game document's Status.
+18. **Wine API log with timestamps** (steps 10 and 15, sound in the
+    checklist; wine is the last resort, CLAUDE.md rules apply: scratch
+    prefix, own Xvfb, `LANG=ja_JP.UTF-8`). Log only the calls that answer
+    the question, to a file in `research/<engine>/local/`:
+    `WINEDEBUG=+timestamp,+tid,+relay wine game.exe 2> local/relay.log`,
+    with `RelayInclude` set in the prefix
+    (`wine reg add 'HKCU\Software\Wine\Debug' /v RelayInclude /d
+    'kernel32.Sleep;kernel32.QueryPerformanceCounter;winmm.timeGetTime;winmm.waveOutWrite;dsound.DirectSoundCreate;ddraw.DirectDrawCreate;d3d9.Direct3DCreate9;user32.GetMessageA;gdi32.SwapBuffers'`;
+    names are `module.function`, `;`-separated, no spaces). Then count and
+    space the calls with `grep`/`awk` (frames = present calls per second;
+    waits = `Sleep` arguments; sound = the `waveOut`/`dsound` calls and
+    their gaps); never read the log whole. Source: CodeWeavers, "Working
+    on Wine, part 4: debugging Wine". Untested here.
+19. **Breakpoint trace of the original** (argument values and call order,
+    in place of screenshots). `research/tools/wine_bptrace.py names.tsv
+    [name ...] -o bp.gdb` turns the game's `names.tsv` into a gdb command
+    file: a breakpoint per function that prints its address, the time and
+    the first stack arguments as JSON, then continues. Run
+    `winedbg --gdb --no-start game.exe` (it prints the port), then
+    `gdb -batch -x bp.gdb -ex 'target remote localhost:PORT'` and keep
+    only the records. A row it confirms is "seen" (step 16). Only for
+    32-bit x86 stack arguments. Untested against a game
+    (`--self-test` checks the generator only). Reference: winedbg(1).
+20. **Library signatures in Ghidra** (steps 3 and 5). The export's
+    analysis already runs Ghidra's Function ID analyzer (on by default;
+    the bundled `vs2012`..`vs2019` `.fidbf` databases in
+    `Ghidra/Features/FunctionID/data` name MSVC CRT functions such as
+    `_ftol2`, `memcpy`, `_strlen`); look for the labels Ghidra gives them (names in
+    `functions.tsv`) before naming a CRT helper by hand. zlib, libpng and
+    libjpeg are not in the bundled set: for them (or the MSVC sets from
+    Trellix's "No symbols, no problem") attach the extra `.fidbf` once in
+    the Ghidra GUI (Tools, Function ID, Attach existing FidDb); the
+    attachment is kept in the user's Ghidra settings and the headless
+    run then uses it. Delete `<outdir>/project` to re-analyze. Untested.
+21. **Carrying names between builds** (Muramasa JP/EN, Django versions,
+    Saihate builds, Tsukihime 1.0.0/1.0.2). Match the functions of the
+    two executables with Ghidra's Version Tracking (exact-bytes and
+    exact-instructions correlators first, then the combined-reference
+    ones), or `ghidriff old.exe new.exe`, or BinDiff on two exports; take
+    the matches of high similarity, write the new address next to the old
+    name in the other build's `names.tsv`, and review the rest by hand.
+    Every finding then says which build it was seen in (the executables
+    table of the game document); a name carried over by matching is
+    "inferred" (step 16) until its decompile is read.
 
 ### Checklist: behaviours to map
 
