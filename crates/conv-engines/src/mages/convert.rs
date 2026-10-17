@@ -31,20 +31,21 @@ use super::tasks::{Block, Scene, Val, parse};
 // src: the Vita's screen (SystemData's 960×544 pictures)
 pub const SCREEN_W: i32 = 960;
 pub const SCREEN_H: i32 = 544;
-/// The eye catch's shutters: frames and how long they take to close (the
-/// eboot's time is not known; its chapter cards fade in over 30 frames).
-// guess: SHUTTER_MS. scene_load case 0x6f steps EyeCatch's progress 1/9 an
-// update without `:Fade` (2/`:Fade` with one); how far it goes before
-// EyeCatchEnd is not read. SHUTTER_FRAMES: ours.
+/// The eye catch's shutters: frames of their animation (ours). They close
+/// over EyeCatch's `:Fade` frames, 18 without one: scene_load case 0x6f
+/// steps the effect's level 1/9 an update (2 frames) by default, and the
+/// effect (0x81041bfe) hands the shutters half the level while it comes
+/// in, so they are shut when it is full.
 const SHUTTER_FRAMES: u32 = 10;
-const SHUTTER_MS: u32 = 500;
+// src: exe 0x8102840a case 0x6f (1/9 an update)
+const SHUTTER_FADE: i64 = 18;
 /// The skip dialog fades in and out over 15 frames (the eboot adds 1/15
 /// a frame to its opacity).
 // src: exe 0x8103e7d6
 const SKIP_DIALOG_FADE_MS: u32 = 250;
 /// The story menu fades in over the title, and out once an item is chosen.
-// guess: the eboot's story menu fade is not read
-const STORY_MENU_FADE_MS: u32 = 300;
+// src: exe 0x81084c26 (8 % an update, 13 updates of 2 frames)
+const STORY_MENU_FADE_MS: u32 = 433;
 // ours: GLOBAL_BORDER to PRIORITY_STEP, COVER_LAYER
 /// Variables from here up are global (kept across playthroughs).
 pub const GLOBAL_BORDER: u32 = 200;
@@ -897,7 +898,12 @@ impl Lowering<'_> {
                         None => sy(360 + offset),
                     };
                     let y = base_y + sy(c.int_at("Position", 1).unwrap_or(0));
-                    let prio = c.int("Priority").unwrap_or(9);
+                    // src: exe 0x8112963c (-1 by default), 0x8100322a (then
+                    // the table 0x81001eb2 sets by the `:Number` size: 4, 6,
+                    // 8, 8, then 4; every script's size is 0)
+                    const BY_SIZE: [i64; 10] = [4, 6, 8, 8, 4, 4, 4, 4, 4, 4];
+                    let size = number.get(4).copied().unwrap_or(0).rem_euclid(10) as usize;
+                    let prio = c.int("Priority").filter(|p| *p >= 0).unwrap_or(BY_SIZE[size]);
                     self.show_at(&key, -1, (path, w, h), x, y, prio, if ty == "CharacterOpen" { char_fade(t, "Fade") } else { 0 }, &[], Look::of(c));
                     if let Some(s) = self.shown.get_mut(&key) {
                         s.base_y = base_y;
@@ -1146,8 +1152,9 @@ impl Lowering<'_> {
             "Flash" => {
                 let c: Vec<i64> = t.get("Color").unwrap_or(&[]).iter().filter_map(Val::int).collect();
                 let alpha = c.get(3).copied().unwrap_or(255).clamp(0, 255) as u32;
-                // guess: the defaults 3 (scene_load case 0x71's are not read)
-                let time = ms(t.int("InTime").unwrap_or(3) + t.int("OutTime").unwrap_or(3));
+                // src: exe 0x8102840a case 0x71 (a step of 15 an update by
+                // default: at once)
+                let time = ms(t.int("InTime").unwrap_or(0) + t.int("OutTime").unwrap_or(0));
                 self.out.ops.push(Op::Flash { colour: colour(t), opacity: alpha * 256 / 255, ms: time.max(16) });
             }
             "SpriteQuake" => {
@@ -1176,9 +1183,9 @@ impl Lowering<'_> {
                 }
             }
             "EffectQuake" => {
-                // guess: `:Param` 30 by default (every script sets it)
-                let ax = sx(t.int_at("Param", 0).unwrap_or(30));
-                let ay = sy(t.int_at("Param", 1).unwrap_or(30));
+                // src: exe 0x8112a26c (`:Param` 0 by default: no shake)
+                let ax = sx(t.int_at("Param", 0).unwrap_or(0));
+                let ay = sy(t.int_at("Param", 1).unwrap_or(0));
                 // scene_load case 99 (0x8102840a; defaults from 0x8112a26c:
                 // `:Time` 60 of our frames, `:Fade` 0, `:Wait` 1): a negative
                 // `:Time` or `:Loop 1` shakes at full size until
@@ -1279,10 +1286,15 @@ impl Lowering<'_> {
                         self.shutters = None;
                         match closing {
                             Some(image) => {
-                                self.out.ops.push(Op::Animation(Some(Animation { image, frame_ms: vec![SHUTTER_MS / SHUTTER_FRAMES; SHUTTER_FRAMES as usize], looped: false, opacity: 256 })));
-                                self.out.ops.push(Op::Wait { ms: SHUTTER_MS });
+                                let close_ms = ms(t.int("Fade").unwrap_or(SHUTTER_FADE));
+                                if close_ms > 0 {
+                                    self.out.ops.push(Op::Animation(Some(Animation { image, frame_ms: vec![close_ms.div_ceil(SHUTTER_FRAMES); SHUTTER_FRAMES as usize], looped: false, opacity: 256 })));
+                                    self.out.ops.push(Op::Wait { ms: close_ms });
+                                }
                                 self.out.ops.push(Op::Sprites { changes: vec![change], fade_ms: 0 });
-                                self.out.ops.push(Op::Animation(None));
+                                if close_ms > 0 {
+                                    self.out.ops.push(Op::Animation(None));
+                                }
                                 self.shutters = Some(n as u32);
                             }
                             // src: exe 0x81048ef2 (the card fades in over 30 frames)
