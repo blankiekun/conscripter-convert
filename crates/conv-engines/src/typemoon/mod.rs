@@ -76,6 +76,23 @@ pub fn full_copies(entries: &[mrg::Entry]) -> BTreeMap<String, &mrg::Entry> {
     best.into_iter().map(|(k, (_, e))| (k, e)).collect()
 }
 
+/// The names of `en`'s [`full_copies`] whose data differ from `ja`'s
+/// (or that `ja` lacks): the pictures an English build has of its own.
+/// `ja_data`, `en_data`: the two `.mrg` files.
+pub fn differing(ja: &BTreeMap<String, &mrg::Entry>, ja_data: &[u8], en: &BTreeMap<String, &mrg::Entry>, en_data: &[u8]) -> Result<Vec<String>, FormatError> {
+    let mut out = Vec::new();
+    for (stem, e) in en {
+        let same = match ja.get(stem) {
+            Some(j) => j.size == e.size && mrg::data(ja_data, j)? == mrg::data(en_data, e)?,
+            None => false,
+        };
+        if !same {
+            out.push(stem.clone());
+        }
+    }
+    Ok(out)
+}
+
 /// A picture entry's width and height without decoding it: a BNTX's
 /// header (the first 64 KiB unpacked), or a JPEG's or PNG's.
 pub fn picture_size(data: &[u8]) -> Result<(u32, u32), FormatError> {
@@ -100,5 +117,15 @@ mod tests {
         let best = full_copies(&entries);
         let names: Vec<_> = best.iter().map(|(k, e)| (k.as_str(), e.name.as_deref().unwrap(), e.size)).collect();
         assert_eq!(names, [("aru_a", "ARU_A.NXGZ", 7), ("img0020", "IMG0020.JPG", 5)]);
+    }
+
+    #[test]
+    fn differing_finds_changed_and_new_pictures() {
+        let e = |name: &str, offset, size| mrg::Entry { name: Some(name.into()), offset, size, unpacked_sectors: 0 };
+        let ja = [e("A.NXGZ", 0, 2), e("B.NXGZ", 2, 2)];
+        let en = [e("A.NXGZ", 0, 2), e("B.NXGZ", 2, 2), e("C.NXGZ", 4, 1)];
+        let (jd, ed) = (b"aabb".as_slice(), b"aaxbc".as_slice());
+        let (ja, en) = (full_copies(&ja), full_copies(&en));
+        assert_eq!(differing(&ja, jd, &en, ed).unwrap(), ["b", "c"]);
     }
 }

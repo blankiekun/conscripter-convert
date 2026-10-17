@@ -97,6 +97,19 @@ default), 110 MB as Vorbis q4; `pic/` (14,763) 2.37 GB at
 36 large backgrounds; 167 MB as PNG) near-lossless WebP is 45 % of PNG
 and lossy q85 10 %: PNG would be about 23 GB, `--webp` about 10 GB.
 
+**Both languages** (the build that switches between them, in
+progress): `--english <game-en>` on `typemoon media` (and `typemoon
+convert`) also writes the fan patch's pictures and movies that differ
+from `<game-102>`'s, as `pic/en/<name>` and `movie/en/<name>`: 155 of
+the 14,763 pictures (21 MB as WebP at 80) and 38 of the 46 movies (the
+patch re-encoded them, 1.6 GB). The sound is the same in both copies
+(`knife1.bfsar` and `stream/`, checked at each run) and comes from
+`<game-102>`.
+
+```sh
+conscripter-convert typemoon media <game-102> --english <game-en> -o out/tsukihime-cons
+```
+
 **The game** (`0.txt` and, unless `--dry-run`, the media folder below
 in the same output; `--loose` keeps the folders, else they are packed
 into `arc*.nsa`):
