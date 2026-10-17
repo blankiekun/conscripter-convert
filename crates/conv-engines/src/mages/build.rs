@@ -73,6 +73,7 @@ pub fn build(game: &Path, scenes: &[String], opts: &Opts) -> Result<Built> {
     }
     let ir = Script {
         title: title.to_string(),
+        language: "ja".into(),
         width: convert::SCREEN_W as u32,
         height: convert::SCREEN_H as u32,
         global_border: Some(convert::GLOBAL_BORDER),
