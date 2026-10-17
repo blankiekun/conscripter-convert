@@ -721,6 +721,15 @@ The steps that apply them are in `docs/new-game.md`.
   whole, 8 GB bitmaps), not the mapped archives; cutting big zooms to the
   screen brought it to 1.2 GB. Run builds under `systemd-run --user
   --scope -p MemoryMax=…` so a regression can't take the desktop down.
+- **An opaque WebP has no alpha channel** (月姫): libwebp leaves it out when
+  every pixel is opaque, and `lsp ":a;…"` on a picture without one takes
+  its right half as the mask (the native build; checked headless). A
+  picture shown with `:a` must keep the channel (`typemoon media` sets
+  one corner pixel to 254). `--webp`'s `encode` drops it for opaque PNGs.
+- **Check a muxer's output with the strict reader** (月姫): Ogg Opus files
+  with a wrong OpusTags vendor length played in ffmpeg and failed in
+  opusfile, which the engine uses for chunks; music, through SDL_mixer,
+  played. The trace's "broken sound" found it.
 
 ### 13.2 Ways to speed up conversion
 

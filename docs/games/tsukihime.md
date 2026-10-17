@@ -84,6 +84,17 @@ movies already written are kept, so a stopped run goes on. Sizes for
 the Japanese copy: `pic/` 2.37 GB (14,763), `movie/` 182 MB,
 `stream/` 1.3 GB, `se/` 1.4 GB.
 
+**The game** (`0.txt` and, unless `--dry-run`, the media folder below
+in the same output; `--loose` keeps the folders, else they are packed
+into `arc*.nsa`):
+
+```sh
+conscripter-convert typemoon convert <game-102> -o out/tsukihime-cons
+```
+
+The exe is read from `<game-102>/../exefs/main` (`--exe` for another
+place).
+
 The Program NCA is the 22 GB one (the others: Meta, Control,
 Manual). The ExeFS holds `main` (3.3 MB NSO) and `subsdk0`/`subsdk1`.
 
@@ -587,16 +598,19 @@ Nothing yet.
 | Exe tables (pictures, motions, scene numbers) | ✅ read from the NSO (`typemoon exe`); picture sizes checked against the textures |
 | Scripts | 🔶 read: every command of both languages splits (one malformed in the original) and its text and voices join; the top commands' arguments read from the exe, the rest not yet |
 | Media folder (`typemoon media`) | ✅ `allpac`'s pictures as full-size WebP (2.37 GB), movies at 720p, sound |
-| Everything after (text, pictures on screen, screens, extras) | ❌ |
+| Script conversion (`typemoon convert`) | 🔶 the flow (labels, `_JUMP`, `_IF__`, flags), text (pages, ruby, voices), pictures (`_STCH`/`_STCC`/`_FADS`: record size and place, fades and rule wipes), sound effects and music; plays from the start through `00_00` into the first arc headless. Not yet: layer priority (`_STCP`), zoom and motions (`_STZ4`, `_STMA`), parent layers, `_STGS` and the other layer commands, choices (`_SELR`/`_GOTS`), screens |
+| Screens, extras | ❌ |
 
 ### Next
 
-1. The script conversion (the first scenes): `_STCH` draws
-   `pic/<name>.webp` from the media folder (see "Build") at its record
-   size on the 1280 × 724 stage, its record's centre at script x, y ×
-   8/3 (see "The exe", the picture table); the plain colours as
-   full-screen fills. Splitting sprites into body and face crops is out
-   unless the user asks.
+1. The script conversion, next part: the layer commands the opening
+   leans on, in order of use: `_STCP` (priority: the IR layer is the
+   layer's number now), `_STZ4` (zoom), `_STMA` (motions from the exe),
+   `_STRT`, `_STBR`, `_STEC`, `_STGS` (alpha fades: 412 pictures come
+   out invisible), parent layers (`_STCH` argument 11, 6,028 uses);
+   then choices (`_SELR`, `_GOTS`, `_IFNX`) so a route can be picked.
+   `typemoon convert --dry-run` prints the counts. Splitting sprites
+   into body and face crops is out unless the user asks.
 2. Sound for the build: the looping wave sounds' loop points
    (SDL_mixer loops a WAV whole), and the music's loop points from the
    bfsar's stream details (see "The exe"). The wave sounds are 1.4 GB
@@ -604,10 +618,32 @@ Nothing yet.
    are kept.
 3. The other picture archives in the media folder: `allpaccg` (the
    gallery's CGs, 2 GB), `allui` (71 MB).
-4. Still open in the exe: `_FADS` type 1, `_STCH`'s arguments
+4. The text window's place and size (a guess now: 32 × 14 characters of
+   28 px from 176, 64, over `txtwindow01-1920`), the title, menus and
+   the registry/GUI entry.
+5. Still open in the exe: `_FADS` type 1, `_STCH`'s arguments
    12–17, `_STZ4`'s last two, and the motion keyframes' other fields.
 
 ## History
+
+- 2026-10-16: the script conversion's first part (`typemoon/convert.rs`,
+  `build.rs`; `typemoon convert`). Every script is lowered, 845,480 of
+  1,082,419 commands fully. A picture is drawn at its record's size
+  from its file's (the full art's header, read without decoding:
+  `typemoon::picture_size`), its record's centre at the script's x, y
+  (480 × 272 for the screen); the layers' order follows their number.
+  `_FADS` 0 is a cross-fade, 2 a wipe through `pic/rule_NN.webp`. Text:
+  each `_ZM`/`_MSAD` is a line of the page, `_WNTY(1)` before one
+  ends the page, `@n` joins the next line without a click; `^` is a
+  line break, `@x` codes and `[ber00]` are dropped, ♡/♥ become ♪
+  (Shift-JIS). Flags: `F`/`C` locals from %196, `G` globals %800 + n.
+  Found on the way: the Ogg Opus files' OpusTags said a vendor length
+  of 13 for "conscripter" (11); ffmpeg read them, opusfile (the
+  engine's voices and sound effects) refused every one; and an opaque
+  WebP has no alpha channel, so `lsp ":a;…"` took its right half as
+  the mask: `typemoon media` now keeps the channel (one corner pixel
+  at 254). Checked headless (trace, 200 s): from `START_SCRIPT` through
+  `00_00` into `01_00_ARC01_*`, every voice and sound loads.
 
 - 2026-10-16: the media folder (`typemoon media`, see "Build"). The
   user's picks: WebP at full size, not the BC7 textures (a sample of
