@@ -321,10 +321,16 @@ fn sounds(dir: &Path, output: &Path) -> Result<()> {
     fs::create_dir_all(&out)?;
     let mut streams: Vec<PathBuf> = fs::read_dir(dir.join("stream"))?.map(|e| e.map(|e| e.path())).collect::<Result<_, _>>()?;
     streams.sort();
-    let (mut count, mut seconds) = (0, 0.0);
+    let bfsar = map(&dir.join("knife1.bfsar"))?;
+    let loops = bfsar::stream_loops(&bfsar).context("reading knife1.bfsar")?;
+    let (mut count, mut seconds, mut looped) = (0, 0.0, 0);
     for path in &streams {
         let name = path.file_name().unwrap().to_string_lossy();
-        match nxopus::to_ogg(&map(path)?) {
+        // The archive's name of `arcstaffroll(short).opus` is STRM_ARCSTAFFROLL_SHORT_.
+        let key: String = path.file_stem().unwrap().to_string_lossy().chars().map(|c| if c.is_ascii_alphanumeric() { c.to_ascii_uppercase() } else { '_' }).collect();
+        let lp = loops.get(&key).copied();
+        looped += usize::from(lp.is_some());
+        match nxopus::to_ogg(&map(path)?, lp) {
             Ok((ogg, samples)) => {
                 fs::write(out.join(path.with_extension("ogg").file_name().unwrap()), ogg)?;
                 (count, seconds) = (count + 1, seconds + samples as f64 / 48000.0);
@@ -332,11 +338,10 @@ fn sounds(dir: &Path, output: &Path) -> Result<()> {
             Err(e) => failed.push(format!("{name}: {e}")),
         }
     }
-    println!("stream: {count} of {} to Ogg Opus, {:.1} hours", streams.len(), seconds / 3600.0);
+    println!("stream: {count} of {} to Ogg Opus, {:.1} hours, {looped} looping (of {} in knife1.bfsar)", streams.len(), seconds / 3600.0, loops.len());
 
     let out = output.join("se");
     fs::create_dir_all(&out)?;
-    let bfsar = map(&dir.join("knife1.bfsar"))?;
     let waves = bfsar::wave_sounds(&bfsar).context("reading knife1.bfsar")?;
     let mut kinds = BTreeMap::<String, usize>::new();
     for w in &waves {
