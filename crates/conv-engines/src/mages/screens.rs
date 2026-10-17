@@ -46,8 +46,9 @@ pub fn title(assets: &mut ArchiveAssets, extras: bool) -> Option<TitleScreen> {
         let (image, _, _) = assets.system_cells("title_bg.png", &format!("title_{row}.png"), &cells, 100)?;
         buttons.push(TitleButton { image, x: TITLE_X, y: title_y(row), action, ..Default::default() });
     }
-    // guess: fade_ms (the eboot's title fade not found)
-    Some(TitleScreen { background, fade_ms: 500, buttons, ..Default::default() })
+    // src: exe 0x81085a4c (the screen fade 0x8115c634 from black, started
+    // once the title is loaded: 4 % an update, 25 updates of 2 frames)
+    Some(TitleScreen { background, fade_ms: 833, buttons, ..Default::default() })
 }
 
 /// SystemSE.AWB's two sounds, in every menu: the eboot ticks (0) as the

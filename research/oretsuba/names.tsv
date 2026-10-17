@@ -60,6 +60,12 @@
 81166d4c	cfg_message_speed	message speed (default 55: 普通)
 8119327f	cfg_window_opacity	window opacity 0-100 (default 70)
 8106551c	music_room_new	music room constructor: mode +0x30 = 0, then play-on +0x2d = mode odd (0), repeat +0x2c = 1; nothing else writes them on the Vita
+81085a4c	title_update	title screen per update: once loaded, starts the screen fade-in (0x814f2214), then runs the state's input (title_state_enter's states)
+8104a056	screen_fade_update	screen fade object (vtable 0x8115c634): progress +0x38 += 4 an update (+0xc) to 100; state 0 fades in from black, 2 out
+81049fba	screen_fade_start_in	screen fade object: state 0 (fade in from black), progress 0, step 4
+81127c94	camera_x	a default x minus the camera scroll (+0x44c0) times a zoom factor (0 1.0, 1 1.2, 2 1.3, 3 1.5, 4 2.0)
+81129a80	task_sprite_new	Sprite (9) / SpriteBS (0x81) record: 10 pictures of 0x88 bytes from +0x10, has-a-place flags +0x560 (one byte each), Priority 5
+81129ba4	task_spritebg_new	SpriteBG (10) record: has-a-place flag +0x94, Priority 5
 # Pass 2 (docs/new-game.md §2, "Mapping the whole exe"): code reached only
 # through a pointer (`&LAB_…_1` in decomp/, Thumb), made functions. Most are
 # CRI middleware and SDK callbacks (thread entries, atexit destructors).

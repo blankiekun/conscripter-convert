@@ -62,9 +62,14 @@ key revision 5); it reads the keys from a Vita3K checkout
 (the release built for the installed Ghidra, unzipped into Ghidra's user
 `Extensions` folder; 1.09 for Ghidra 12.1.2):
 
-    research/tools/ghidra/ghidra_export.sh research/oretsuba/local/eboot.elf \
-        research/oretsuba/local/ghidra --names research/oretsuba/names.tsv \
+    research/tools/ghidra/ghidra_export.sh <work>/eboot.elf <work>/ghidra \
+        --names research/oretsuba/names.tsv \
         -- -loader ArmElfPrxLoader -postScript ThumbPointerFunctions.java
+
+`<work>` is any folder outside the repository's tracked files (the
+project and export are large and machine-local); `self2elf.py` only
+needs `sce_utils.cpp` itself, which can be fetched alone from Vita3K's
+repository (`vita3k/packages/src/sce_utils.cpp`).
 
 About 4 minutes the first time; later runs reuse the project and only
 apply `names.tsv` and export (2 minutes). The stock ELF loader also takes
@@ -312,12 +317,17 @@ Every hand-typed value in `crates/conv-engines/src/mages/` carries a
 `// guess:` comment. The guesses still open; the decompile could settle
 the first ones, a frame of the Vita game the rest:
 
-- The centre for a missing `:Position` (no script relies on it; the
-  eboot clears the task's has-a-place flag, +0x560, whose reader isn't
-  traced). EffectStart's missing `:Param`s are 0 in the eboot
-  (`cfg_number`); ours keep usable fallbacks, which no script reaches.
-- The title's fade (500 ms): its menus fade 8 % an update (13 updates,
-  0x81084c26), the picture's own fade-in is not traced.
+- A missing `:Position` (no script relies on it). Settled for Sprite,
+  SpriteBG and SpriteBS: `task_run` (0x81021070) reads the has-a-place
+  flag (Sprite's +0x560, one byte per picture; SpriteBG's +0x94) and,
+  clear, puts the picture where the picture it replaces (same
+  SpriteNumber, the texture by default) was; ours does too. With none to
+  replace, Sprite gets (640, 560) and SpriteBG's corner goes to
+  (640 - w/2, 360 - h/2), in placement units not traced against our
+  centre: ours still centres it (guess). The characters' flag (+0x44 in
+  CharacterOpen's record) has no reader traced yet. EffectStart's
+  missing `:Param`s are 0 in the eboot (`cfg_number`); ours keep usable
+  fallbacks, which no script reaches.
 - Frames: the text window's place, its text origin and font size (23)
   and line gap; the skip dialog's font size (21); the particles'
   motion (ETC.cpk's sheets, our own drift).
@@ -580,6 +590,14 @@ Next, in order:
 
 Finished work, moved out of "Status" so a session reads only the open
 state.
+
+**Guesses settled from the decompile (2026-10-17).** The title fades in
+from black over 833 ms, not 500: once its pictures are loaded, the title
+update (0x81085a4c) starts the screen fade object (vtable 0x8115c634,
+global 0x814f2214), whose update (0x8104a056) adds 4 % an update to a
+black cover's progress (25 updates of 2 frames). A Sprite, SpriteBG or
+SpriteBS without `:Position` takes the place of the picture it replaces
+(above, "Accuracy"); no script's `0.txt` changes for it.
 
 **Zooms straight in time (2026-10-16).** 0x81086a0c steps a move's
 zoom (+0x38, +0x48) by the raw frame count and hands only the place to
