@@ -322,6 +322,8 @@ fn end_transition(ops: &mut Vec<Op>, tail: &mut Option<u32>) {
 /// The deepest a bust-up usually sits (0x8e's depth: 10-150, then
 /// 1100-5000 for the few drawn over the overlay).
 const BUST_UP_DEPTH_MAX: u32 = 1000;
+/// The lowest depth a bust-up has (0x8e: 10-150, then 1100 up).
+const BUST_UP_DEPTH_MIN: u32 = 10;
 const TV_POWER_SWITCH_MS: u32 = 700;
 /// Plays `HD/mvNNNN.bin` (handler 0x478ab0, task 0x408ed0): arg's low 16
 /// bits are the number, its high 16 bits whether a click or key ends it
@@ -1526,7 +1528,14 @@ fn lower_screen_module(
                 strength: Operand::Const(strength),
                 params: [p0, p1, p2].map(Operand::Const),
             };
-            ops.push(Op::ScreenFilter { slot: m.slot, filter: Some(filter), fade_ms: 0 });
+            // Band 0 (layer 1), or band 0x10 under every bust-up (depth
+            // 10 up): the bust-ups and all over them stay unfiltered.
+            // shortcut: a depth among the bust-ups' (80 twice) filters them all.
+            if m.layer == 1 || (matches!(m.layer, 0 | 2) && m.depth < BUST_UP_DEPTH_MIN) {
+                ops.push(Op::ScreenFilterUnderSprites { slot: m.slot, filter });
+            } else {
+                ops.push(Op::ScreenFilter { slot: m.slot, filter: Some(filter), fade_ms: 0 });
+            }
         }
         Err(what) => ops.push(Op::Unsupported { what: format!("opcode 0x70 {what}"), at: at() }),
     }

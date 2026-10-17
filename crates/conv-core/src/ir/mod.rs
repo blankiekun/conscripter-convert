@@ -669,6 +669,12 @@ pub enum Op {
     /// alone: an eased move whose zoom isn't eased). 俺たちに翼はない's
     /// SpriteMove `:Curve` and zooms.
     MoveArc { bow: i32 },
+    /// Set one slot of the screen filter ([`Op::ScreenFilter`]) under the
+    /// character sprites: it filters the background and what lies under
+    /// the sprites, and the sprites and everything over them stay as they
+    /// are (a filter sorted below the bust-ups). Cleared by
+    /// [`Op::ScreenFilter`] with `None`.
+    ScreenFilterUnderSprites { slot: u32, filter: SpriteFilter },
 }
 
 /// [`Op::HoldMovie`]'s prompt: `image` is `cells` pictures side by side,

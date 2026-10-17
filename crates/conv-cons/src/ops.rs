@@ -297,6 +297,14 @@ impl<'a> Emitter<'a> {
                 writeln!(out, "print {}", effect(*fade_ms)).unwrap();
             }
         }
+        // screenfilter's z: applied right after the lowest sprite.
+        Op::ScreenFilterUnderSprites { slot, filter: f } => {
+            let args = [&f.kind, &f.blend, &f.strength, &f.params[0], &f.params[1], &f.params[2]].map(|o| operand(*o, border));
+            writeln!(out, "screenfilter {slot},{},{MAX_SPRITE}", args.join(",")).unwrap();
+            if transition.is_none() {
+                writeln!(out, "print 1").unwrap();
+            }
+        }
         Op::HideTextWindow => writeln!(out, "textoff").unwrap(),
         Op::InstantText(on) => writeln!(out, "textspeed {}", if *on { "0" } else { speed }).unwrap(),
         Op::SetWindow(w) => {
