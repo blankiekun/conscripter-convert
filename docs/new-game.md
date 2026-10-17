@@ -277,6 +277,16 @@ the same coverage table as the exe's rows:
   `switches.rs`, which a test keeps unique: branches adding switches at
   the same time both took 9-11 once. Never move a number
   once a build is out (step 11.9).
+- **Say where every hand-typed value comes from.** A literal that
+  stands for a fact about the original (a position, size, colour,
+  opacity, font size, timing, count, order) gets a one-line comment:
+  `// src: exe 0x4fb808`, `// src: <file> <what>`, `// src: shot <name>`
+  (`research/<engine>/local/shots/`), `// guess: <why this value>`, or
+  `// ours` for the converter's own choice; one comment covers a block
+  from one table. Check a value in that order (the game's data, the
+  exe's tables, an exact capture of the original, a guess) and read it
+  from the files at convert time when that is small. A scaled
+  screenshot is a guess, not a source: Saiima's were off by up to 12 px.
 
 ## 4. Control flow: prove it before looking at pictures
 

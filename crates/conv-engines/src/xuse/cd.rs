@@ -460,6 +460,7 @@ pub struct SurprisePreset {
     pub tint_blend: i32,
 }
 
+// src: exe 0x500b68
 pub const SURPRISE_PRESETS: [SurprisePreset; 9] = {
     const fn p(zoom: i32, opacity: i32, tint: u32, tint_opacity: i32, tint_blend: i32) -> SurprisePreset {
         SurprisePreset { zoom: (zoom, zoom), opacity, tint, tint_opacity, tint_blend }

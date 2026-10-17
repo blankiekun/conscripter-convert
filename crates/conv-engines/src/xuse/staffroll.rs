@@ -51,6 +51,7 @@ pub struct Roll {
 }
 
 /// Indexed by 0x91's arg.
+// src: exe 0x4fbf48, 0x4fc720
 pub const ROLLS: [Roll; 2] = [
     Roll {
         file: "StaffRoll1.004",

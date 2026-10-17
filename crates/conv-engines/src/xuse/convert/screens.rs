@@ -19,8 +19,9 @@ impl AssetBank {
                 .map_err(|source| ConvertError::Image { what: format!("Title.004 #{n}"), source })
         };
         let mut background = get(0)?;
+        // src: exe 0x4599a0 (the logo at (0, 171), "COMPLETE" at (100, 383)).
         image::imageops::overlay(&mut background, &get(10)?, 0, 171);
-        image::imageops::overlay(&mut background, &get(14)?, 101, 384);
+        image::imageops::overlay(&mut background, &get(14)?, 100, 383);
         let background_path = "system/title.png".to_string();
         self.save_image(&background_path, &background)?;
 
@@ -66,6 +67,7 @@ impl AssetBank {
         // Menu words: columns of four states (normal, under the pointer,
         // pressed, disabled).
         let mut items = Vec::new();
+        // src: exe 0x4fb8a8; the heading's place 0x459b90.
         for (n, name, x, y, action) in [
             (12, "option", 625, 129, ExtrasAction::Settings),
             (4, "cg", 625, 221, ExtrasAction::Gallery),
@@ -91,6 +93,9 @@ impl AssetBank {
         let locked = column_cells(&get(&common, 20)?, 4, &[0]);
         let locked = self.place("cg_locked", &locked, None, 0, 0)?.image;
         let mut tabs = Vec::new();
+        // src: exe 0x4552c0 (tabs at x 624 from y 160, 33 px apart under
+        // 6 items), 0x44dc90 (the viewer's name at (601, 545)); the
+        // headings at (96, 97): shot (the user's, scaled).
         for (i, &(tab, label, heading, name)) in gallery::TAB_PICTURES.iter().enumerate() {
             let label_img = get(&common, label)?;
             let button = self.place(&format!("cg_tab{i}"), &column_cells(&label_img, 4, &[0, 1]), None, 624, 160 + 33 * i as i32)?;
@@ -120,6 +125,9 @@ impl AssetBank {
         let page_numbers = (0..7)
             .map(|p| self.place(&format!("cg_page{}", p + 1), &column_cells(&get(&common, 24 + p)?, 4, &[0, 1]), None, 0, 0).map(|p| p.image))
             .collect::<Result<_, _>>()?;
+        // src: exe 0x4fbba0 (exit), 0x4fb970 (grid and page buttons),
+        // 0x4585b0 (page label); header and page marker: shot (the
+        // user's, scaled).
         let gallery = CgGallery {
             header: self.place("cg_header", &get(&common, 16)?, None, 621, 122)?,
             exit: self.place("cg_exit", &column_cells(&get(&common, 15)?, 4, &[0, 1]), None, 624, 470)?,
@@ -139,13 +147,18 @@ impl AssetBank {
             marker_dx: 0,
             marker_dy: -3,
             viewer: CgViewer {
+                // guess: exe 461 overflows the screen; origin unclear.
+                // 0x44dc90 draws #11/#12 whole (no source rect) at the
+                // viewer's origin (461, 545) on the back buffer, clipped;
+                // at 451 the lines meet the buttons. Base at the window
+                // opacity (src: exe 0x51ed12, default 128 of 256).
                 panel: vec![
-                    // Drawn at half opacity (fitted on a screenshot of the original).
-                    self.place("cgv_base", &with_opacity(get(&viewer, 11)?, 50), None, 451, 545)?,
+                    self.place("cgv_base", &with_opacity(get(&viewer, 11)?, WINDOW_OPACITY_PERCENT), None, 451, 545)?,
                     self.place("cgv_lines", &get(&viewer, 12)?, None, 451, 545)?,
                 ],
                 name_x: 601,
                 name_y: 545,
+                // src: exe 0x4fe3c0 (from the viewer's origin (461, 545)).
                 previous: self.place("cgv_prev", &column_cells(&get(&viewer, 8)?, 4, &[0, 1]), None, 721, 549)?,
                 next: self.place("cgv_next", &column_cells(&get(&viewer, 7)?, 4, &[0, 1]), None, 737, 549)?,
                 hide: self.place("cgv_hide", &column_cells(&get(&viewer, 6)?, 4, &[0, 1]), None, 756, 548)?,
@@ -182,6 +195,7 @@ impl AssetBank {
             let progress = (i == music::LOCKED).then_some(music::LOCK_BIT);
             songs.push(MusicSong { button, playing, file: self.bgm(track)?, progress });
         }
+        // Header and exit as in the CG gallery.
         Ok(MusicRoom {
             header: self.place("music_header", &get(common, 17)?, None, 621, 122)?,
             exit: self.place("music_exit", &column_cells(&get(common, 15)?, 4, &[0, 1]), None, 624, 470)?,
@@ -265,6 +279,7 @@ impl AssetBank {
             lists,
             list_background,
             frame: self.place("replay_frame", &get(&parts, 1)?, None, 0, 0)?,
+            // src: exe 0x4529c0.
             close: self.place("replay_close", &column_cells(&get(&parts, 2)?, 4, &[0, 1]), None, 715, 577)?,
             selector: self.place("replay_row", &cells, None, 0, 0)?.image,
             new_mark: self.place("replay_new", &get(&parts, 4)?, None, 0, 0)?.image,
@@ -373,6 +388,7 @@ impl AssetBank {
             base: placed(self, "base", &get(2)?, 0, 0)?,
             base_opacity: (255 * WINDOW_OPACITY_PERCENT / 100) as u8,
             frame: placed(self, "frame", &get(3)?, 0, 0)?,
+            // src: exe 0x46afd0.
             save_header: placed(self, "header_save", &get(12)?, 627, 0)?,
             load_header: placed(self, "header_load", &get(11)?, 627, 0)?,
             delete: button(self, "delete", 5, 512, 531)?,
@@ -381,18 +397,22 @@ impl AssetBank {
             close: button(self, "close", 4, 702, 531)?,
             pages,
             page_marker,
+            // src: exe 0x469850 (rows of 92 px, the cursor from y 44).
             rows: 5,
             row_y: 44,
             row_pitch: 92,
             row_hover,
             row_selected,
             thumbnail,
+            // guess: the exe puts "New" after the slot's text (0x46ac50);
+            // the text: shot (the user's, scaled).
             new_icon: placed(self, "new", &get(10)?, 50, 67)?,
             text_x: 124,
             text_y: 11,
             font_size: 14,
             line_height: 15,
-            preview: Rect { x: 390, y: 137, w: 400, h: 300 },
+            // src: exe 0x46ac50 (the preview at (389, 136)).
+            preview: Rect { x: 389, y: 136, w: 400, h: 300 },
             text_width: 0,
             // The scene behind is blurred slightly (measured under wine:
             // Gaussian σ about 1): a 3×3 mean, in SmoothCrossFade's slot.
@@ -420,7 +440,9 @@ impl AssetBank {
             (3, "load", 607, 581, BarAction::Load),
             (7, "setting", 682, 581, BarAction::Settings),
             (8, "hide", 756, 583, BarAction::HideWindow),
-            (9, "lock", 304, 581, BarAction::Lock { reveal_y: 573, fade_ms: 100 }),
+            // src: exe 0x51b610 (the bar's hot area from y 581 - 10),
+            // 0x4a47e0 (a 100 ms fade).
+            (9, "lock", 304, 581, BarAction::Lock { reveal_y: 571, fade_ms: 100 }),
         ] {
             let png = images.get(n).ok_or(ConvertError::MissingAsset { kind: "button bar image", number: n })?;
             let states = image::load_from_memory_with_format(png, image::ImageFormat::Png)
@@ -496,6 +518,7 @@ impl AssetBank {
             images.get(n).cloned().ok_or(ConvertError::MissingAsset { kind: "menu image", number: n })
         };
         let row = |label: &str, setting| SettingRow { label: label.to_string(), setting };
+        // ours: the layout, sizes and opacity (the original has a dialog).
         Ok(SettingsMenu {
             base: self.place("menu_base", &darker(get(&log, 0)?), None, 0, 0)?,
             base_opacity: 210,
@@ -506,7 +529,7 @@ impl AssetBank {
                 row("効果音", Setting::SeVolume),
                 row("音声", Setting::VoiceVolume),
                 row("文字速度", Setting::TextSpeed),
-                // Level 5 is the original's default auto wait (0x46d000):
+                // src: exe 0x46d000 (level 5 is the default auto wait):
                 // 2.5 s a page plus 20 ms a character (0x476f50).
                 row("オート速度", Setting::AutoWait { page_step: 500, char_step: 4 }),
                 row("ウィンドウ透過", Setting::WindowTransparency),
@@ -589,8 +612,11 @@ impl AssetBank {
             no,
             yes_label: "はい".into(),
             no_label: "いいえ".into(),
+            // guess: text_y (no shot of the original's dialog).
             text_y: 16,
-            font_size: 20,
+            // src: exe 0x4a6410 (16 px, weight 600, for the message and
+            // the button words).
+            font_size: 16,
             overwrite: "のデータに上書きします。よろしいですか？".into(),
             load: "のデータをロードします。よろしいですか？".into(),
             delete: "のデータを削除します。よろしいですか？".into(),
@@ -613,9 +639,11 @@ impl AssetBank {
         let get = |n: usize| log.get(n).cloned().ok_or(ConvertError::MissingAsset { kind: "backlog image", number: n });
         let cells: &[u32] = &[0, 1, 3];
         Ok(Backlog {
-            base: self.place("menu_base", &darker(get(0)?), None, 0, 0)?,
-            base_opacity: 210,
+            // src: exe 0x41fc50 (the base at the window opacity, 0x51ed12).
+            base: self.place("log_base", &get(0)?, None, 0, 0)?,
+            base_opacity: (255 * WINDOW_OPACITY_PERCENT / 100) as u8,
             frame: self.place("log_frame", &get(1)?, None, 0, 0)?,
+            // ours: the layout (Status, "Accuracy").
             track: self.place("log_track", &get(2)?, None, 745, 40)?,
             up: self.place("log_up", &get(4)?, Some((4, cells)), 760, 44)?,
             down: self.place("log_down", &get(3)?, Some((4, cells)), 760, 546)?,
@@ -668,6 +696,9 @@ impl AssetBank {
             this.save_image(&image, &out)?;
             Ok::<_, ConvertError>(Placed { image, x, y, w: w as i32, h: h as i32 })
         };
+        // src: exe 0x496fe0 (scene bar at (416, 0), list at (778, 5)); the
+        // rest: shot (the user's, scaled), and #223's checks; row colours:
+        // guess.
         let digit_strip = load(&blog, 15)?;
         let dw = digit_strip.width() / 10;
         let mut digits = Vec::new();
@@ -739,8 +770,10 @@ impl AssetBank {
         }
         Ok(ChapterHistory {
             base: self.place("chapters_base", &get(0)?, None, 0, 0)?,
-            base_opacity: 140,
+            // src: exe 0x468be0 (the base at the window opacity, 0x51ed12).
+            base_opacity: (255 * WINDOW_OPACITY_PERCENT / 100) as u8,
             frame: self.place("chapters_frame", &get(1)?, None, 0, 0)?,
+            // src: shot (wine), for the rest of the layout.
             close: self.place("chapters_close", &close, None, 715, 576)?,
             hover: self.place("chapters_hover", &hover, None, 0, 0)?,
             current: self.place("chapters_current", &get(4)?, None, -16, 0)?,
