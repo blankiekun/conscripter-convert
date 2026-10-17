@@ -538,9 +538,7 @@ exe or a shot. Open guesses a frame of the original could settle:
 - a choice's text 40 px down its plate, and red under the pointer;
 - the blur of the title's glow (`SetBlur(…, 2, …)` as 3 px);
 - the `sepia` and `kitanoblue` tones; the rain's 16 ms frame period.
-- the shared NSS code's: a shaken picture's 100 ms step (the exe's
-  `FUN_004578e0` divides by a run-time frame value), the screen
-  shake's 16 ms, and cameras' depth rule (`zoom / (1000 − priority)`,
+- the shared NSS code's: cameras' depth rule (`zoom / (1000 − priority)`,
   measured in 続・殺戮のジャンゴ, not yet in this game).
 
 ### Settings drawn by the engine (2026-10-17)
@@ -803,7 +801,7 @@ Next, in order:
      ASCII-art pages (`Request(…, PushText)` + `NoLog`: shown at once,
      not in the backlog), `<voice mode="off">` (3, meaning unknown).
    - Tempo (easing) of `Fade`, `Rotate`, `SetVolume`,
-     `DrawTransition`, `Shake` is never read (`Move` and `Zoom`'s is:
+     `DrawTransition` is never read (`Move` and `Zoom`'s is:
      "History", "Tempo of `Move` and `Zoom`").
    - A 4-argument `Fade` probably doesn't wait in the exe (49 calls
      wait in ours); check under wine first.
@@ -819,8 +817,7 @@ Next, in order:
    - Story `CreateText`: a sideways text turned by `Rotate` sits about
      17 px lower than the original's under wine (cause unknown; "History",
      "Story `CreateText`").
-   - `DrawTransition`'s start opacity and softness; `Shake`'s `n` and
-     tempo; `SetBlur`'s `wait`.
+   - `DrawTransition`'s start opacity and softness; `SetBlur`'s `wait`.
    - `Random` and `Conquest` return 0 whatever their arguments.
    - `CreateEffect`'s place and size; `SetBacklog`'s speaker;
      `MoveCamera`'s arguments in a process (4 calls).
@@ -932,6 +929,23 @@ Next, in order:
   held (seen once in a small test script; not looked into).
 
 ## History
+
+### `Shake`'s `n` and tempo (2026-10-17)
+
+Seen in Muramasa.exe, as 続・殺戮のジャンゴ's: `queue_shake`
+(`004462d0`) stores the step 1000 ÷ (`n` × fps ÷ 1000) ms
+(`00446381`-`004463c3`) and returns at once for `n` above 1000;
+`shake_frame` (`004578e0`) flips the offset once `timeGetTime` has gone
+more than a step past the last flip, the size eased by the tempo over
+`time` × fps ÷ 1000 frames. fps is the double at `005dcb40` + 8 × the
+speed index `005dcaf0`, which `init_frame_tables` (`0048c5d0`) sets to
+4 and nothing changes: 60.0. So `n` 1000 flips every 17 ms, 500 every
+33 ms, 200 every 83 ms. Muramasa now takes `Game::shake_jolts`: the
+1,284 screen shakes are `screenshake` mode 2 with that step and the
+tempo's curve, and the 81 picture shakes' `spmotion` keys turn at that
+step (the 100 ms and 16 ms guesses are gone). Muramasa EN keeps the old
+shake (its exe is not checked). `Shake`'s argument 8 (wait, 58 calls)
+is still unread.
 
 ### `CreateStencil` (2026-10-17)
 

@@ -221,7 +221,7 @@ whole-game dry run (`ma00_000.nss --chain 2000`), and 続・殺戮のジャン�
 | `Conquest` | 0-2 (we return 0) | 2,478 | 0 |
 | `CreateEffect` | 2-5 (place and size) | 2,474 | 1 |
 | `SetBacklog` | 2 (the speaker) | 1,958 | 75 |
-| `Shake` | 6 `n`, 7 tempo (read in Django: its step and curve); 8 wait; 2-5 (a picture smaller than the screen) | 1,486; 62; 144 | 0; 3; 3 |
+| `Shake` | 6 `n`, 7 tempo (read: its step and curve); 8 wait; 2-5 (a picture smaller than the screen) | 0; 62; 144 | 0; 3; 3 |
 | `SetBlur` | 4 strength; 2 passes (when off) | 983; 14 | 0 |
 | `CreateWindow` | 6 (`false`: children placed from the screen; read in Django) | 639 | 0 |
 | `Rotate` | 5 tempo | 488 | 264 |
@@ -547,7 +547,7 @@ on a channel picked per object name, looping SE (`MusicStart(…, true)`) →
 
 | Built-in | Uses | Meaning | CONscripter |
 |---|---|---|---|
-| `Shake(obj, time, x0, y0, x1, y1, n, tempo, wait)` | 1,343 | **exe** (`queue_shake` `004462d0`, `shake_frame` `004578e0`): the amplitude goes from (x0, y0) to (x1, y1) over `time` along `tempo`, the offset flipping sign each step; nearly every call ends at 0, a jolt that eases out. `n` above 1000 makes the call do nothing. Django.exe (`FUN_00431de0`, `FUN_0043f570`): the sign flips once 1000 ÷ (`n` × 0.001 × fps) ms have passed, fps 60 at the default game speed, so `n` 1000 is a flip a frame and `n` 200 every 83 ms (docs/games/django.md, History) | `screenshake` when `obj` is the whole screen (Django: mode 2, to and fro, eased by the tempo); else a one-shot `spmotion` of the picture (`convert/shake.rs`), from the next sync if not shown yet |
+| `Shake(obj, time, x0, y0, x1, y1, n, tempo, wait)` | 1,343 | **exe** (`queue_shake` `004462d0`, `shake_frame` `004578e0`): the amplitude goes from (x0, y0) to (x1, y1) over `time` along `tempo`, the offset flipping sign each step; nearly every call ends at 0, a jolt that eases out. `n` above 1000 makes the call do nothing. Django.exe (`FUN_00431de0`, `FUN_0043f570`): the sign flips once 1000 ÷ (`n` × 0.001 × fps) ms have passed, fps 60 at the default game speed, so `n` 1000 is a flip a frame and `n` 200 every 83 ms (docs/games/django.md, History); Muramasa.exe the same (`queue_shake` 00446381-004463c3, fps the double at 005dcb40 + 8 × 4, set to 60.0 at 0048c5d0) | `screenshake` when `obj` is the whole screen (mode 2, to and fro, eased by the tempo); else a one-shot `spmotion` of the picture (`convert/shake.rs`), from the next sync if not shown yet |
 | `SetBlur(obj, on, passes, time?, strength, wait)` | 914 | Gaussian blur; nearly always `true, 1–3, 500, 30–100, false` | engine addition (blur) or skip |
 | `Array(…)` / `AssocArray(…)` / `Count(a)` | 719 / 27 / 57 | Array literal, keyed array, length | converter: NScripter arrays (`dim`) or compile-time tables |
 | `CreateProcess(obj, prio, x, y, "Func")` | 493 | Runs NSS function `Func` as a parallel thread; `Request(obj, Start/Stop)`, `Delete(obj)` stops it | Lua coroutine (`docs/games/muramasa.md`, "Approach") |
