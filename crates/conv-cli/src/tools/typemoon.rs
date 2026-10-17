@@ -77,6 +77,19 @@ pub enum TypemoonCommand {
         #[arg(long, default_value_t = 85, value_parser = clap::value_parser!(u8).range(0..=100))]
         quality: u8,
     },
+    /// Convert the game into a CONscripter folder: 0.txt from every script,
+    /// and (unless --dry-run) the media as `typemoon media` writes them
+    Convert {
+        /// The RomFS folder (1.0.2's for Japanese, the fan patch's for English)
+        dir: PathBuf,
+        /// 1.0.2's exe (its ExeFS `main`); default: `exefs/main` beside the RomFS
+        #[arg(long)]
+        exe: Option<PathBuf>,
+        #[arg(long, default_value = "月姫 -A piece of blue glass moon-")]
+        title: String,
+        #[command(flatten)]
+        build: crate::build::BuildArgs,
+    },
 }
 
 pub fn run(command: TypemoonCommand) -> Result<()> {
@@ -91,6 +104,15 @@ pub fn run(command: TypemoonCommand) -> Result<()> {
         TypemoonCommand::Script { dir, output } => scripts(&dir, output.as_deref()),
         TypemoonCommand::Exe { main, romfs } => exe_tables(&main, romfs.as_deref()),
         TypemoonCommand::Media { dir, output, quality } => media(&dir, &output, quality),
+        TypemoonCommand::Convert { dir, exe, title, build } => {
+            let exe = exe.unwrap_or_else(|| dir.join("../exefs/main"));
+            crate::build::run(build, &title, &typemoon::build::OUTPUT_DIRS, |opts| {
+                if !opts.dry_run {
+                    media(&dir, opts.output, 85)?;
+                }
+                typemoon::build::build(&dir, &exe, opts)
+            })
+        }
     }
 }
 
@@ -336,25 +358,6 @@ fn media(dir: &Path, output: &Path, quality: u8) -> Result<()> {
     sounds(dir, output)
 }
 
-/// Per picture name (lowercase, extension dropped) its full art: the
-/// `.JPG` if there is one, else the largest `.NXGZ`/`.NXZ`/`.PNG`.
-fn full_copies(entries: &[mrg::Entry]) -> BTreeMap<String, &mrg::Entry> {
-    let mut best = BTreeMap::<String, (bool, &mrg::Entry)>::new();
-    for e in entries {
-        let Some((stem, ext)) = e.name.as_deref().and_then(|n| n.rsplit_once('.')) else { continue };
-        let ext = ext.to_ascii_uppercase();
-        if !matches!(ext.as_str(), "JPG" | "NXGZ" | "NXZ" | "PNG") {
-            continue;
-        }
-        let rank = (ext == "JPG", e);
-        let slot = best.entry(stem.to_lowercase()).or_insert(rank);
-        if (rank.0, rank.1.size) > (slot.0, slot.1.size) {
-            *slot = rank;
-        }
-    }
-    best.into_iter().map(|(k, (_, e))| (k, e)).collect()
-}
-
 /// `allpac`'s pictures as WebP: per name (case ignored, extension
 /// dropped) the `.JPG` if there is one, else the largest entry.
 fn pictures(dir: &Path, out: &Path, quality: u8) -> Result<()> {
@@ -363,9 +366,10 @@ fn pictures(dir: &Path, out: &Path, quality: u8) -> Result<()> {
     let path = dir.join("allpac.mrg");
     let bytes = map(&path)?;
     let entries = mrg::parse(&map(&path.with_extension("hed"))?, Some(&map(&path.with_extension("nam"))?)).context("reading allpac.hed")?;
-    let best = full_copies(&entries);
+    let best = typemoon::full_copies(&entries);
     fs::create_dir_all(out)?;
-    let jobs: Vec<(&String, &&mrg::Entry)> = best.iter().filter(|(stem, _)| !out.join(format!("{stem}.webp")).exists()).collect();
+    // Written by an older run without the alpha channel: again.
+    let jobs: Vec<(&String, &&mrg::Entry)> = best.iter().filter(|(stem, _)| !fs::read(out.join(format!("{stem}.webp"))).is_ok_and(|w| webp_has_alpha(&w))).collect();
     println!("allpac: {} pictures, {} to convert", best.len(), jobs.len());
     let (next, done, in_bytes, out_bytes) = (AtomicUsize::new(0), AtomicUsize::new(0), AtomicU64::new(0), AtomicU64::new(0));
     let failed = Mutex::new(Vec::new());
@@ -380,6 +384,13 @@ fn pictures(dir: &Path, out: &Path, quality: u8) -> Result<()> {
                 image::load_from_memory(&data)?.to_rgba8()
             }
         };
+        // An opaque WebP has no alpha channel, and `lsp ":a;…"` then takes
+        // its right half for the mask: one pixel a step short of opaque
+        // keeps the channel (pictures come in as `:a`, whatever they are).
+        let mut img = img;
+        if img.pixels().all(|p| p[3] == 255) {
+            img.get_pixel_mut(0, 0)[3] = 254;
+        }
         let q = (!stem.starts_with("rule_")).then_some(quality);
         let webp = conv_cons::webp::encode_rgba(&img, q)?;
         let file = out.join(safe_relative_path(&format!("{stem}.webp")).with_context(|| format!("unsafe name {stem:?}"))?);
@@ -415,6 +426,16 @@ fn pictures(dir: &Path, out: &Path, quality: u8) -> Result<()> {
     }
     anyhow::ensure!(failed.is_empty(), "{} pictures failed", failed.len());
     Ok(())
+}
+
+/// A WebP file has an alpha channel: VP8X with its alpha flag, or VP8L
+/// with its alpha bit.
+fn webp_has_alpha(w: &[u8]) -> bool {
+    match w.get(12..16) {
+        Some(b"VP8X") => w.get(20).is_some_and(|f| f & 0x10 != 0),
+        Some(b"VP8L") => w.get(24).is_some_and(|b| b & 0x10 != 0),
+        _ => false,
+    }
 }
 
 /// The movies (H.264 1920 × 1080) at the stage's 1280 × 720.
@@ -537,11 +558,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn full_copies_prefer_the_jpg_then_the_largest() {
-        let e = |name: &str, size| mrg::Entry { name: Some(name.into()), offset: 0, size, unpacked_sectors: 0 };
-        let entries = [e("IMG0020.NXGZ", 9), e("IMG0020.JPG", 5), e("ARU_A.NXGZ", 1), e("ARU_A.NXGZ", 7), e("X.MZP", 3)];
-        let best = full_copies(&entries);
-        let names: Vec<_> = best.iter().map(|(k, e)| (k.as_str(), e.name.as_deref().unwrap(), e.size)).collect();
-        assert_eq!(names, [("aru_a", "ARU_A.NXGZ", 7), ("img0020", "IMG0020.JPG", 5)]);
+    fn webp_alpha_kept_on_opaque_pictures() {
+        let mut img = image::RgbaImage::from_pixel(8, 8, image::Rgba([10, 20, 30, 255]));
+        assert!(!webp_has_alpha(&conv_cons::webp::encode_rgba(&img, Some(85)).unwrap()));
+        img.get_pixel_mut(0, 0)[3] = 254;
+        assert!(webp_has_alpha(&conv_cons::webp::encode_rgba(&img, Some(85)).unwrap()));
+        assert!(webp_has_alpha(&conv_cons::webp::encode_rgba(&img, None).unwrap()));
     }
 }

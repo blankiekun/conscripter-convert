@@ -26,6 +26,20 @@ pub fn decompress(data: &[u8]) -> Result<Vec<u8>, FormatError> {
     Ok(out)
 }
 
+/// The first `n` bytes of the unpacked data (fewer if it is shorter).
+pub fn head(data: &[u8], n: u64) -> Result<Vec<u8>, FormatError> {
+    let r = Reader(data);
+    let packed = r.slice(16, r.u32(8)? as usize)?;
+    let mut out = Vec::new();
+    let read = match &data[..4] {
+        b"NXGX" => GzDecoder::new(packed).take(n).read_to_end(&mut out),
+        b"NXCX" => ZlibDecoder::new(packed).take(n).read_to_end(&mut out),
+        _ => return Err(FormatError::BadMagic("NXGX/NXCX")),
+    };
+    read.map_err(|e| FormatError::Bad(format!("{}: {e}", String::from_utf8_lossy(&data[..4]))))?;
+    Ok(out)
+}
+
 #[cfg(test)]
 mod tests {
     use std::io::Write;
@@ -49,7 +63,9 @@ mod tests {
     fn both_kinds() {
         let mut gz = GzEncoder::new(Vec::new(), Compression::default());
         gz.write_all(b"BNTX....").unwrap();
-        assert_eq!(decompress(&wrap(b"NXGX", gz.finish().unwrap(), 8)).unwrap(), b"BNTX....");
+        let nxgx = wrap(b"NXGX", gz.finish().unwrap(), 8);
+        assert_eq!(decompress(&nxgx).unwrap(), b"BNTX....");
+        assert_eq!(head(&nxgx, 4).unwrap(), b"BNTX");
         let mut z = ZlibEncoder::new(Vec::new(), Compression::default());
         z.write_all(b"BNTX").unwrap();
         let packed = z.finish().unwrap();

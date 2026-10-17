@@ -5,6 +5,8 @@
 
 pub mod bfsar;
 pub mod bntx;
+pub mod build;
+pub mod convert;
 pub mod exe;
 pub mod fwav;
 pub mod mrg;
@@ -16,6 +18,7 @@ pub mod nxx;
 pub mod script;
 
 use std::borrow::Cow;
+use std::collections::BTreeMap;
 
 use thiserror::Error;
 
@@ -48,5 +51,51 @@ pub fn extension(data: &[u8]) -> &'static str {
         [0xFF, 0xD8, ..] => "jpg",
         [0x89, b'P', b'N', b'G', ..] => "png",
         _ => "bin",
+    }
+}
+
+/// Per picture name of an MRG (lowercase, extension dropped) its full art:
+/// the `.JPG` if there is one, else the largest `.NXGZ`/`.NXZ`/`.PNG`.
+pub fn full_copies(entries: &[mrg::Entry]) -> BTreeMap<String, &mrg::Entry> {
+    let mut best = BTreeMap::<String, (bool, &mrg::Entry)>::new();
+    for e in entries {
+        let Some((stem, ext)) = e.name.as_deref().and_then(|n| n.rsplit_once('.')) else { continue };
+        let ext = ext.to_ascii_uppercase();
+        if !matches!(ext.as_str(), "JPG" | "NXGZ" | "NXZ" | "PNG") {
+            continue;
+        }
+        let rank = (ext == "JPG", e);
+        let slot = best.entry(stem.to_lowercase()).or_insert(rank);
+        if (rank.0, rank.1.size) > (slot.0, slot.1.size) {
+            *slot = rank;
+        }
+    }
+    best.into_iter().map(|(k, (_, e))| (k, e)).collect()
+}
+
+/// A picture entry's width and height without decoding it: a BNTX's
+/// header (the first 64 KiB unpacked), or a JPEG's or PNG's.
+pub fn picture_size(data: &[u8]) -> Result<(u32, u32), FormatError> {
+    if matches!(data.get(..4), Some(b"NXGX" | b"NXCX")) {
+        return bntx::size(&nxx::head(data, 0x10000)?);
+    }
+    image::ImageReader::new(std::io::Cursor::new(data))
+        .with_guessed_format()
+        .ok()
+        .and_then(|r| r.into_dimensions().ok())
+        .ok_or_else(|| FormatError::Bad("not a picture".into()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn full_copies_prefer_the_jpg_then_the_largest() {
+        let e = |name: &str, size| mrg::Entry { name: Some(name.into()), offset: 0, size, unpacked_sectors: 0 };
+        let entries = [e("IMG0020.NXGZ", 9), e("IMG0020.JPG", 5), e("ARU_A.NXGZ", 1), e("ARU_A.NXGZ", 7), e("X.MZP", 3)];
+        let best = full_copies(&entries);
+        let names: Vec<_> = best.iter().map(|(k, e)| (k.as_str(), e.name.as_deref().unwrap(), e.size)).collect();
+        assert_eq!(names, [("aru_a", "ARU_A.NXGZ", 7), ("img0020", "IMG0020.JPG", 5)]);
     }
 }

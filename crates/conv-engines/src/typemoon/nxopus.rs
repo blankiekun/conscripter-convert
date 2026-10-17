@@ -51,7 +51,8 @@ pub fn to_ogg(data: &[u8]) -> Result<(Vec<u8>, u64), FormatError> {
     head.extend(rate.to_le_bytes());
     head.extend([0, 0, 0]); // gain 0, mapping family 0 (mono or stereo)
     write_page(&mut out, 2, 0, serial, 0, &[head.len() as u8], &head);
-    let tags = b"OpusTags\x0d\0\0\0conscripter\0\0\0\0";
+    // Vendor length 11 ("conscripter"), no comments; opusfile refuses a wrong length.
+    let tags = b"OpusTags\x0b\0\0\0conscripter\0\0\0\0";
     write_page(&mut out, 0, 0, serial, 1, &[tags.len() as u8], tags);
 
     let (mut at, mut granule, mut sequence) = (data_at + 8, 0u64, 2);
@@ -101,6 +102,11 @@ mod tests {
         assert_eq!(samples, 1920);
         assert_eq!(ogg.windows(8).filter(|w| w == b"OpusHead").count(), 1);
         assert_eq!(ogg.windows(4).filter(|w| w == b"OggS").count(), 4);
+        // OpusTags: its vendor length covers the vendor string, then a count of 0.
+        let tags = ogg.windows(8).position(|w| w == b"OpusTags").unwrap() + 8;
+        let vendor = u32::from_le_bytes(ogg[tags..tags + 4].try_into().unwrap()) as usize;
+        assert_eq!(&ogg[tags + 4..tags + 4 + vendor], b"conscripter");
+        assert_eq!(&ogg[tags + 4 + vendor..tags + 8 + vendor], &[0; 4]);
         assert!(to_ogg(&nx[..nx.len() - 1]).is_err());
     }
 }

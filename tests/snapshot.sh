@@ -8,7 +8,8 @@
 # Games are found through $CONS_GAMES (default ~/.config/conscripter-convert/games),
 # a folder of links named by game id to each game's folder (<game> in
 # its document): saihate-no-ima, muramasa, muramasa-en (the English
-# release; needs muramasa too), django, oretsuba. A game without its
+# release; needs muramasa too), django, oretsuba, tsukihime (the RomFS of
+# 1.0.2, its ExeFS beside it as ../exefs). A game without its
 # link is skipped. --update writes the snapshots of the games run.
 # Exit status 1 when a snapshot differs.
 #
@@ -43,7 +44,7 @@ while [ $# -gt 0 ]; do
 done
 [ ${#map[@]} = 0 ] || [ -n "$ref" ] || ref=origin/main
 ids=("$@")
-[ ${#ids[@]} -gt 0 ] || ids=(saihate-no-ima muramasa muramasa-en django oretsuba)
+[ ${#ids[@]} -gt 0 ] || ids=(saihate-no-ima muramasa muramasa-en django oretsuba tsukihime)
 
 cargo build --release -q
 if [ -n "$ref" ]; then
@@ -77,6 +78,7 @@ for id in "${ids[@]}"; do
         muramasa-en) args=(convert-nss "$game" --file ma00_000.nss --chain 2000 --english "$english") ;;
         django) args=(convert-nss "$game") ;;
         oretsuba) args=(mages convert "$game") ;;
+        tsukihime) args=(typemoon convert "$game") ;;
         *) echo "$id: unknown game"; exit 2 ;;
     esac
     if ! "$bin" "${args[@]}" -o "$out" --dry-run > "$out.log" 2>&1; then

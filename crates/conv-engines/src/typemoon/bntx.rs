@@ -39,6 +39,20 @@ fn offset(r: &Reader, at: usize) -> Result<usize, FormatError> {
     }
 }
 
+/// The first texture's width and height, from the start of the data
+/// (the headers come before the pixels).
+pub fn size(head: &[u8]) -> Result<(u32, u32), FormatError> {
+    if !head.starts_with(b"BNTX") {
+        return Err(FormatError::BadMagic("BNTX"));
+    }
+    let r = Reader(head);
+    let at = offset(&r, offset(&r, 0x28)?)?;
+    if r.slice(at, 4)? != b"BRTI" {
+        return Err(FormatError::BadMagic("BRTI"));
+    }
+    Ok((r.u32(at + 0x24)?, r.u32(at + 0x28)?))
+}
+
 pub fn parse(data: &[u8]) -> Result<Vec<Texture<'_>>, FormatError> {
     if !data.starts_with(b"BNTX") {
         return Err(FormatError::BadMagic("BNTX"));

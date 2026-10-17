@@ -48,6 +48,30 @@ fn sized(r: &Reader, entry: usize, base: usize) -> Result<std::ops::Range<usize>
     Ok(start..start + r.u32(entry + 4)? as usize)
 }
 
+/// Every sound's name, in the archive's order (its item ID less
+/// `0x01000000`); empty for a sound without one. `_MPLY(n)` plays sound
+/// `n − 1`, a stream (`STRM_MOON01_BGM01`, the file `stream/MOON01_BGM01.opus`).
+pub fn sound_names(data: &[u8]) -> Result<Vec<String>, FormatError> {
+    if !data.starts_with(b"FSAR") {
+        return Err(FormatError::BadMagic("FSAR"));
+    }
+    let r = Reader(data);
+    let strings = block(&r, 0x2000)? + r.u32(block(&r, 0x2000)? + 4)? as usize;
+    let info = block(&r, 0x2001)?;
+    let sounds = table(&r, info + r.u32(info + 4)? as usize, 8)?;
+    sounds
+        .iter()
+        .map(|&s| {
+            if r.u32(s + 0x14)? & 1 == 0 {
+                return Ok(String::new());
+            }
+            let entry = strings + 4 + 12 * r.u32(s + 0x18)? as usize;
+            let b = r.slice(strings + r.u32(entry + 4)? as usize, r.u32(entry + 8)? as usize)?;
+            Ok(String::from_utf8_lossy(b.strip_suffix(b"\0").unwrap_or(b)).into_owned())
+        })
+        .collect()
+}
+
 pub struct WaveSound<'a> {
     pub name: String,
     pub fwav: &'a [u8],
