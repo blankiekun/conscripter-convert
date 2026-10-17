@@ -76,7 +76,7 @@ The other convert options (`--loose`, `--audio-codec`,
 | Choices | ✅ Drawn like the original's `SetChoiceBase` plates |
 | Parallel processes (`CreateProcess`: battle HUD, fire flicker, …) | 🟡 Endless loops of timed actions (`FlyMoving*`, `TurboBlur*`, `RotetoLoop*`, the clouds, `ma_03_SBProcess`, …) as looping `spmotion`, also behind an `if` and after a lead-in (the cockpit meters); the one-shots next (Status) |
 | Additive / multiply / subtractive blends (`Request` `AddRender`/`MulRender`/`SubRender`) | ✅ `spblend` 1/2/3 (History, "Render modes") |
-| `Rotate`, camera moves | ❌ Not converted |
+| `Rotate`, camera moves | 🟡 `Rotate` about z; cameras as 続・殺戮のジャンゴ's (Status) |
 | `SetFrequency` (pitch bends) | ✅ `chfreq` (tempo curve drawn straight) |
 | 立方陣 minigame (`function_magiccube.nss`) | ✅ Ported (see "The 立方陣" below) |
 | System screens (title, save/load, settings, backlog) | ✅ Title, right-click menu, quick bar, confirmations, save/load, backlog, settings, favour screen, click-wait icon (each checked beside the original); 🟡 the title's fire flicker and openings left ("Next" item 4, step 7) |
@@ -764,7 +764,7 @@ Next, in order:
      tempo; `SetBlur`'s `wait`.
    - `Random` and `Conquest` return 0 whatever their arguments.
    - `CreateEffect`'s place and size; `SetBacklog`'s speaker;
-     `MoveCamera`'s arguments.
+     `MoveCamera`'s arguments in a process (4 calls).
    - `LockVideo`, `WaitText`, `SetFrequency` (but 1000),
      the time limit (?) of `WaitAction` and the
      other waits: dropped; meaning to check in the exe.
@@ -827,9 +827,16 @@ Next, in order:
   cross-fades.
 - `Rotate` about z of a picture is CONscripter's `spzoom` angle (still) or an
   `spmotion` angle (over time); left: about z of other objects (70),
-  about x or y over time (14, drawn at once). `MoveCamera`,
-  `BezierMove`, `CreateTexture` from an object or the screen
-  (1,864).
+  about x or y over time (14, drawn at once). `BezierMove`,
+  `CreateTexture` from an object or the screen (1,864).
+- Cameras (`CreateCamera` 40, `MoveCamera` 105): drawn by
+  続・殺戮のジャンゴ's model, measured there under wine (a child of depth
+  `p` seen `z / (1000 - p)` times about the screen's centre, the
+  camera's place the other way; `Kind::Camera`), now for 装甲悪鬼村正 too,
+  its moves engine motions with their tempo. A camera at `Center`,
+  `Middle` is at 0, 0: only so do ma04_005a's pictures cover the screen
+  through it. Unverified against the original: its zooms other than
+  1000 (Django has none).
 - 18 files whose `if`/`else if` chain on earlier flags has no `else`:
   by the story's logic one branch always matches; the fall-through ends
   the run.
