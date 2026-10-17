@@ -291,6 +291,7 @@ is noted) and why:
 | `0x88` | `+8` | u32 0, 2, 1000, 2000 | the module's place in its preset, where the modules set together are in slot order (History, item 36) |
 | `0x7a` | `+6` | 2000 | a blog bust-up's depth in the top band, over everything else there (History, item 37) |
 | `0x7a` | `+14` | u16 0, 0 | the new object's width and height, which the picture `0x84` loads replaces (History, item 44) |
+| `0x46` | `-4` | 0 | the link entry's first field, which only the save and load read (History, item 43) |
 | `0x70` | `-4` | 0 | a cleared slot's blend and opacity (kind 0 or slot 0), which `op_70` (`0x415a30`) doesn't read (History, item 38) |
 | `0x70` | `-8` | 10, 0 | Zigzag's begin angle and reduction, which its draw (`0x41dab0`) doesn't read (History, item 39) |
 | `0x56` | `+2` | u32 0, 2000 | a slot-1 fill's sort depth in its band, where it is alone (History, item 40) |
@@ -314,7 +315,6 @@ run's):
 | `0x40` | the extra block after the debug menu's one message (`0001.cd` #1): 1 note | dropped (unreachable) |
 | `0x44` | u16 flags at +6 (3 in 32, 1 in 5): 37 notes | dropped: meaning unknown |
 | `0x46` | u32 style at +6 (0x8007 in 205, 0x8012 in 9): 214 notes | dropped: the 9 style-18 links look like the others |
-| `0x46` | u32 at +14 (0 in all 214), kept by `op_46` (`0x477460`) in the link: 214 notes | dropped: meaning unknown |
 | `0x49` | u32 edge colour at +12 (0xff000000 "keep" in 564, 0x808080 in 1): 565 notes | dropped |
 | `0x4a` | u32 edge colour: 2 notes | dropped |
 | `0x56` | u32 depth at +2 (0 and 2000): 2 notes | dropped |
@@ -629,6 +629,7 @@ a copy of the save works.
   `NO_ARG`) and the harmless table ("Operand coverage"), each row with
   the values it covers. Merged.
 - Open: `0x7a`'s size at +14 as harmless, PR #164 (History, item 44).
+- Open: `0x46`'s last u32 as harmless (History, item 43).
 - Open: speaker names from `sub` bit 0, PR #102 (History, item 27):
   4,867 notes of 20 kinds left; 80,285 of 84,713 calls fully converted
   (was 49,328).
@@ -703,8 +704,6 @@ after History's 26, most noticeable first (notes = instructions):
     meaning unknown.
 42. **The debug menu's message block** (`0001.cd` #1, 1 note): in the
     debug menu, which the user didn't want.
-43. **`0x46`'s last u32** (+14, 0 in all 214 links, 214 notes): `op_46`
-    (`0x477460`) keeps it in the link; meaning unknown.
 
 **Script opcodes:** all converted (the converter reports 2 unsupported
 instructions, both in the unreachable debug menu). Notes on the last
@@ -1326,3 +1325,19 @@ sound effects on `dwave` channels.
    the image's width and height). The 6 blog records give 0 × 0 and
    load a bust-up right after, before `0x7d` centres it: a row of the
    harmless table.
+43. **Done: `0x46`'s last u32** (2026-10-16). `op_46` (`0x477460`)
+   builds the link on its stack and `0x492f00` copies it from the
+   record's +14 on, so the u32 is the stored entry's +0. The rest of the
+   entry: +4/+6 row and column - 1, +8 length, +0xc the record's +0xa,
+   +0x10 the style (+6), +0x14/+0x18 an 8-byte descriptor of the label
+   (file, label). Readers: the save (`0x493290`) writes all the fields
+   and the load reads them back. The drawing (`0x493140` →
+   `0x48e500`) passes row and column, length, +0xc, the callback
+   `0x492bb0` and the entry pointer. The callback reads only the
+   label (+0x14/+0x18) to pick the seen/unseen colour, and for the
+   hover/click messages 3 and 4 (sent by `0x4991f3` and others through
+   the text field's handler `0x48f5d0`) it returns the entry pointer,
+   which `0x48f5d0` stores at the text field's +0x1a0. Nothing in the
+   text code (`0x480000`-`0x4a0000`) reads that +0x1a0 back. So no
+   reader of entry +0 turned up besides save and load (one bounded pass;
+   0 in all 214 links anyway): a row of the harmless table.

@@ -3341,6 +3341,8 @@ const UNNEEDED_OPERANDS: &[(u16, &str, &str, &str)] = &[
     (0x7a, "+6", "d0070000", "a blog bust-up's depth in the top band, 2000: over everything else there"),
     // op_7a sets them as the object's size (+0x198, +0x19c, FUN_0040f060); 0x40f380 replaces it by the picture's once 0x84 loads one.
     (0x7a, "+14", "00000000", "the empty object's width and height, 0 x 0, until 0x84's picture sets its own"),
+    // op_46 0x477460 puts it at +0 of the link entry; only the save (0x493290) and load read it back, not the drawing (0x493140) or the link callback (0x492bb0).
+    (0x46, "-4", "00000000", "a field of the link entry nothing but the save reads"),
     (0x7b, "-4", "e8030000", "its depth, 1000"),
     (0x8a, "-9", "e803000001000000ff", "depth 1000, slot 1, 0xff"),
     (0x8b, "+1", "e80300000100000000000000", "its depth, 1000"),
