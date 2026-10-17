@@ -8,7 +8,7 @@ _FADS	type 2 rule mask RULE_<rule>	947	FUN_0014b4c0	mask fade	seen
 _FADS	ms: frames or ms (FUN_0015d3a0)	34029	FUN_0015d3a0	ms	inferred	read FUN_0015d3a0 for ·60/1000
 _FADS	mode 1 / 2 (ms > 1, settings byte 99 = 1) hide the text window (0x89E)	54	FUN_00160610	textoff (#342)	seen	
 _FADS	mode none or -1: hides only under settings byte 99 = 0	32639	FUN_00160610	nothing (default byte 99 = 1)	seen	what byte 99 is on the settings screen: FUN_0012c810 callers
-_STMA	m <= 0 stops the motion (the layer stays as it is)	92	FUN_00199620	nothing: the spmotion runs on	seen	open: stop at the current state
+_STMA	m <= 0 stops the motion (the layer stays as it is)	92	FUN_00199620	a loop stopped (4 of the 92; the rest stop motions that don't loop: run on to their end), back at its place	seen	open: stop where it is (an engine stop that keeps the offset)
 _STMA	mode 1 / 2 hide the text window (as _FADS, no ms condition)	117	FUN_00199620	textoff (#342)	seen	
 _STMA	p (argument 3): start time of the motion	15	FUN_001958e8	ignored (gap)	inferred	FUN_00197b80's use of +8
 _STMA	layer > 39 ignored (after the window flag)	0	FUN_00199620	same	seen	
@@ -31,7 +31,9 @@ motion	0x2A effect switch, 0x2C-0x30 effect colour	7240	FUN_00197b80 (state 0x16
 motion	0x32/0x34 expression	5254	FUN_00197b80	ignored	seen	open: change the picture mid-motion
 motion	0x36 /255+1, 0x38 x0.01+1 (state 0x1454/0x1458)	873	FUN_00197b80	ignored	unknown	who reads 0x1454
 motion	0x3C priority (only on a layer whose priority isn't 0)	23115	FUN_00197b80	ignored	seen	open: re-sort layers mid-motion
-motion	loop start FUN_001999a0 (1: from the start; else ms)	2037	FUN_001999a0 (jump table)	played once	seen	open: MotionEnd::Loop / LoopFrom with a key at the loop time
+motion	loop start FUN_001999a0 (0 none, 1 the start, else ms; past the length: the start); 2,027 motions	2037	FUN_001999a0 (run: exe.rs run_switch), FUN_00197b80	spmotion loop 1, or 4 from the key nearest the time (16 of 222 between keys)	seen	
+motion	_STCH/_SCH2 stop the layer's motion (at once; with argument 18 at the _FADS, the copy's goes on)	-	FUN_00160840	loop stopped; a copied loop starts again	seen	
+motion	a looping layer moved to another IR layer (priority order) or changed at a _FADS	2240	-	stopped, started again from its start	ours	phase lost
 motion	motion 9999: the whole time eased by key 0's easing	0	FUN_00199950	-	seen	not used
 motion	more than 64 keys	7	-	middle keys dropped (#346)	seen	
 _STCH	layer > 39 ignored; empty picture clears the layer	54503	FUN_00160840	same	seen	
