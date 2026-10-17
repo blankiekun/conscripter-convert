@@ -605,7 +605,7 @@ Nothing yet.
 | Survey of existing tools | ✅ (see "Existing tools") |
 | Archives (`hed`/`mrg`/`nam`, MZP, MZX, NXGX/NXCX) | ✅ every entry of both RomFS copies |
 | Pictures (BNTX) | ✅ every texture of both RomFS copies decodes |
-| Sound (`stream/*.opus`, `knife1.bfsar`) | ✅ every sound of both RomFS copies converts |
+| Sound (`stream/*.opus`, `knife1.bfsar`) | ✅ every sound of both RomFS copies converts, with its loop (music and wave sounds) |
 | Exe (`main`) in Ghidra | ✅ decompiles; dispatcher, the top commands' handlers, the music, picture and motion tables named |
 | Exe tables (pictures, motions, scene numbers) | ✅ read from the NSO (`typemoon exe`); picture sizes checked against the textures |
 | Scripts | 🔶 read: every command of both languages splits (one malformed in the original) and its text and voices join; the top commands' arguments read from the exe, the rest not yet |
@@ -620,11 +620,8 @@ Nothing yet.
    script name, 617 uses) and options shown only under a flag.
    `typemoon convert --dry-run` prints the counts. Splitting sprites
    into body and face crops is out unless the user asks.
-2. Sound for the build: the looping wave sounds' loop points
-   (SDL_mixer loops a WAV whole), and the music's loop points from the
-   bfsar's stream details (see "The exe"). The wave sounds are 1.4 GB
-   as WAV in the media folder: worth Opus or Vorbis once their loops
-   are kept.
+2. Sound for the build: the wave sounds are 1.4 GB as WAV in the
+   media folder: worth Opus, its loop as `LOOPSTART`/`LOOPEND` tags.
 3. The other picture archives in the media folder: `allpaccg` (the
    gallery's CGs, 2 GB), `allui` (71 MB).
 4. The title, menus and the registry/GUI entry.
@@ -674,6 +671,23 @@ The biggest commands not converted, looked up in `script_command`
   out.
 
 ## History
+
+- 2026-10-17: sound loops, **seen** in `knife1.bfsar`
+  (`bfsar::stream_loops`): a stream's details (INFO sound, kind 0x2201)
+  hold at 0x18 a reference (kind 0x2210) to u32 stream type (byte 1:
+  loops), u32 loop start, u32 loop end. 131 streams loop (all the
+  `BGM`s and `SONG`s, 105 after an intro); voices don't. The positions
+  count decoded samples after the Opus pre-skip: in 59 of the 80 tracks
+  with enough after their end to compare, the decoded music repeats
+  itself exactly from end − 1 (the shift with the least difference over
+  0.1 s, searched ±400 samples; the rest end in a fade or noise), so
+  the end is taken as end − 1. `typemoon sounds` writes them as Ogg
+  Opus `LOOPSTART`/`LOOPEND` tags, which CONscripter loops music and
+  `dwaveloop` by (`decodeOpus`); the 196 looping wave sounds get their
+  FWAV loop as a WAV `smpl` chunk. Checked in the engine with SDL's disk
+  audio driver: `dwaveloop` of `WSD_mix_se032` (loop 16352–27892 of
+  27893) repeats exactly every 10,603 frames at 44.1 kHz (the loop's
+  11,541 at 48 kHz). The songs' loops end 1–6 s before their files do.
 
 - 2026-10-17: the English (fan patch) text layout, **seen** in the
   code: when `FUN_0012df20` (0x12df20, the system language) says

@@ -72,6 +72,41 @@ pub fn sound_names(data: &[u8]) -> Result<Vec<String>, FormatError> {
         .collect()
 }
 
+/// The loop of each looping stream, by its name less `STRM_`
+/// (`MOON01_BGM01`): (start, end) in samples, the end exclusive. A
+/// stream's details (INFO sound at 0x0C, kind 0x2201) hold at 0x18 a
+/// reference (kind 0x2210) to its extension: u32 stream type (byte 1:
+/// loops), u32 loop start, u32 loop end; 131 streams loop, 105 of them
+/// after an intro. The positions count the decoded samples after the Opus
+/// pre-skip, and the end is one past what it says: the decoded music
+/// repeats itself from `end − 1` (59 of the 80 tracks with enough after
+/// their end to compare, the rest a fade or noise).
+pub fn stream_loops(data: &[u8]) -> Result<std::collections::HashMap<String, (u32, u32)>, FormatError> {
+    let names = sound_names(data)?;
+    let r = Reader(data);
+    let info = block(&r, 0x2001)?;
+    let sounds = table(&r, info + r.u32(info + 4)? as usize, 8)?;
+    let mut out = std::collections::HashMap::new();
+    for (&s, name) in sounds.iter().zip(&names) {
+        if r.u16(s + 0x0C)? != 0x2201 {
+            continue;
+        }
+        let details = s + r.u32(s + 0x10)? as usize;
+        if r.u16(details + 0x18)? != 0x2210 {
+            continue; // no extension: no loop
+        }
+        let ext = details + r.u32(details + 0x1C)? as usize;
+        if r.u32(ext)? >> 8 & 0xFF == 0 {
+            continue;
+        }
+        let (start, end) = (r.u32(ext + 4)?, r.u32(ext + 8)?.saturating_sub(1));
+        if let (Some(n), true) = (name.strip_prefix("STRM_"), end > start) {
+            out.insert(n.to_string(), (start, end));
+        }
+    }
+    Ok(out)
+}
+
 pub struct WaveSound<'a> {
     pub name: String,
     pub fwav: &'a [u8],

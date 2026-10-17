@@ -81,12 +81,15 @@ pub fn decode(data: &[u8]) -> Result<Wave, FormatError> {
     Ok(Wave { rate, channels: channels.len() as u16, samples: out, looped })
 }
 
-/// A PCM16 WAV file.
+/// A PCM16 WAV file; a looping wave gets a `smpl` chunk with its loop
+/// (its last sample inclusive), which CONscripter loops by.
 pub fn to_wav(w: &Wave) -> Vec<u8> {
     let data = 2 * w.samples.len() as u32;
-    let mut out = Vec::with_capacity(44 + data as usize);
+    let le = |out: &mut Vec<u8>, v: &[u32]| v.iter().for_each(|x| out.extend(x.to_le_bytes()));
+    let smpl = w.looped.map_or(0, |_| 8 + 60);
+    let mut out = Vec::with_capacity(44 + smpl as usize + data as usize);
     out.extend(b"RIFF");
-    out.extend((36 + data).to_le_bytes());
+    out.extend((36 + smpl + data).to_le_bytes());
     out.extend(b"WAVEfmt ");
     out.extend(16u32.to_le_bytes());
     out.extend(1u16.to_le_bytes());
@@ -95,6 +98,11 @@ pub fn to_wav(w: &Wave) -> Vec<u8> {
     out.extend((w.rate * 2 * u32::from(w.channels)).to_le_bytes());
     out.extend((2 * w.channels).to_le_bytes());
     out.extend(16u16.to_le_bytes());
+    if let Some((start, end)) = w.looped {
+        out.extend(b"smpl");
+        // manufacturer … SMPTE offset, one loop, no sampler data; loop id 0, forward, start, last, fraction, forever
+        le(&mut out, &[60, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, start, end.saturating_sub(1), 0, 0]);
+    }
     out.extend(b"data");
     out.extend(data.to_le_bytes());
     w.samples.iter().for_each(|s| out.extend(s.to_le_bytes()));
@@ -145,5 +153,8 @@ mod tests {
         assert!(decode(&fwav([0; 8], [0, 0], 15)).is_err()); // a second frame is missing
         assert_eq!(&to_wav(&w)[..4], b"RIFF");
         assert_eq!(to_wav(&w).len(), 44 + 8);
+        let looped = to_wav(&Wave { looped: Some((1, 2)), ..w });
+        assert_eq!((looped.len(), &looped[36..40]), (44 + 8 + 68, &b"smpl"[..]));
+        assert_eq!(&looped[88..96], &[1, 0, 0, 0, 1, 0, 0, 0]); // start 1, last 1
     }
 }

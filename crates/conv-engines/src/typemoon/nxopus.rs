@@ -28,7 +28,9 @@ fn packet_samples(packet: &[u8]) -> Result<u64, FormatError> {
 }
 
 /// The Ogg Opus file and its length in samples (pre-skip included).
-pub fn to_ogg(data: &[u8]) -> Result<(Vec<u8>, u64), FormatError> {
+/// `looped`: its loop (`bfsar::stream_loops`), written as `LOOPSTART` and
+/// `LOOPEND` tags, which CONscripter loops by.
+pub fn to_ogg(data: &[u8], looped: Option<(u32, u32)>) -> Result<(Vec<u8>, u64), FormatError> {
     let r = Reader(data);
     if r.u32(0)? != 0x8000_0001 {
         return Err(FormatError::BadMagic("Nintendo Opus"));
@@ -51,9 +53,15 @@ pub fn to_ogg(data: &[u8]) -> Result<(Vec<u8>, u64), FormatError> {
     head.extend(rate.to_le_bytes());
     head.extend([0, 0, 0]); // gain 0, mapping family 0 (mono or stereo)
     write_page(&mut out, 2, 0, serial, 0, &[head.len() as u8], &head);
-    // Vendor length 11 ("conscripter"), no comments; opusfile refuses a wrong length.
-    let tags = b"OpusTags\x0b\0\0\0conscripter\0\0\0\0";
-    write_page(&mut out, 0, 0, serial, 1, &[tags.len() as u8], tags);
+    // Vendor "conscripter", then the comments; opusfile refuses a wrong length.
+    let comments: Vec<String> = looped.map(|(s, e)| vec![format!("LOOPSTART={s}"), format!("LOOPEND={e}")]).unwrap_or_default();
+    let mut tags = b"OpusTags\x0b\0\0\0conscripter".to_vec();
+    tags.extend((comments.len() as u32).to_le_bytes());
+    for c in &comments {
+        tags.extend((c.len() as u32).to_le_bytes());
+        tags.extend(c.as_bytes());
+    }
+    write_page(&mut out, 0, 0, serial, 1, &[tags.len() as u8], &tags);
 
     let (mut at, mut granule, mut sequence) = (data_at + 8, 0u64, 2);
     while at < end {
@@ -98,7 +106,7 @@ mod tests {
             nx.extend([0; 4]);
             nx.extend(packet);
         }
-        let (ogg, samples) = to_ogg(&nx).unwrap();
+        let (ogg, samples) = to_ogg(&nx, None).unwrap();
         assert_eq!(samples, 1920);
         assert_eq!(ogg.windows(8).filter(|w| w == b"OpusHead").count(), 1);
         assert_eq!(ogg.windows(4).filter(|w| w == b"OggS").count(), 4);
@@ -107,6 +115,12 @@ mod tests {
         let vendor = u32::from_le_bytes(ogg[tags..tags + 4].try_into().unwrap()) as usize;
         assert_eq!(&ogg[tags + 4..tags + 4 + vendor], b"conscripter");
         assert_eq!(&ogg[tags + 4 + vendor..tags + 8 + vendor], &[0; 4]);
-        assert!(to_ogg(&nx[..nx.len() - 1]).is_err());
+        assert!(to_ogg(&nx[..nx.len() - 1], None).is_err());
+        let (ogg, _) = to_ogg(&nx, Some((5, 900))).unwrap();
+        let tags = ogg.windows(8).position(|w| w == b"OpusTags").unwrap() + 8 + 4 + vendor;
+        assert_eq!(&ogg[tags..tags + 4], &2u32.to_le_bytes());
+        assert_eq!(&ogg[tags + 4..tags + 8], &11u32.to_le_bytes());
+        assert_eq!(&ogg[tags + 8..tags + 19], b"LOOPSTART=5");
+        assert_eq!(&ogg[tags + 23..tags + 34], b"LOOPEND=900");
     }
 }
