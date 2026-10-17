@@ -275,6 +275,10 @@ impl Compiler<'_, '_> {
                         for t in &targets {
                             self.pending_fade.insert(t.clone(), ms as u32);
                         }
+                        // src: Muramasa.exe's fade step (0044f020) eases by the tempo (apply_tempo)
+                        if a.len() > 4 && let Some(e) = tempo(&arg(3)) {
+                            self.fade_tempo = Some(e);
+                        }
                     }
                     self.timed(ms, &wait, &targets);
                 } else {
@@ -535,6 +539,10 @@ impl Compiler<'_, '_> {
                 let targets = self.matching(&arg(0));
                 for t in &targets {
                     self.objects.get_mut(t).unwrap().opacity = to;
+                }
+                // src: Muramasa.exe's transition step (FUN_0044fe00) eases by the tempo (apply_tempo)
+                if arg(1).int() > 0 && let Some(e) = tempo(&arg(5)) {
+                    self.fade_tempo = Some(e);
                 }
                 match self.assets.image(&self.deref(&arg(6))) {
                     Some((mask, _, _)) => self.pending_mask = Some(mask),

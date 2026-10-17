@@ -802,8 +802,7 @@ Next, in order:
      `$mc02_TimeCount`, and the IR has no runtime strings), the
      ASCII-art pages (`Request(…, PushText)` + `NoLog`: shown at once,
      not in the backlog), `<voice mode="off">` (3, meaning unknown).
-   - Tempo (easing) of `Fade`, `SetVolume`,
-     `DrawTransition` is never read (`Move` and `Zoom`'s is:
+   - Tempo (easing) of `SetVolume` and of the text window's `Fade`s is never read (`Move` and `Zoom`'s is:
      "History", "Tempo of `Move` and `Zoom`").
    - A 4-argument `Fade` probably doesn't wait in the exe (49 calls
      wait in ours); check under wine first.
@@ -811,10 +810,10 @@ Next, in order:
    arguments the converter doesn't read, with counts, in
    `research/nitroplus/builtins.md`, "Arguments not read"), most
    noticeable first:
-   - Tempo (easing) of `Fade`, `SetVolume`, `DrawTransition`
-     (`Move`, `Zoom` and `Rotate` done: "History", "Tempo of `Move` and
-     `Zoom`"): fades over time aren't engine motions yet, and a sound's
-     volume has no curve. A move with a fade folded into its keys still
+   - Tempo (easing) of `SetVolume` and the text window's fades (`Move`,
+     `Zoom`, `Rotate`, `Fade` and `DrawTransition` done: "History"): a
+     sound's volume has no curve, nor `windowfade`; a fade folded into a
+     picture's motion keys is straight. A move with a fade folded into its keys still
      goes straight.
    - Story `CreateText`: a sideways text turned by `Rotate` sits about
      17 px lower than the original's under wine (cause unknown; "History",
@@ -937,6 +936,17 @@ Next, in order:
   held (seen once in a small test script; not looked into).
 
 ## History
+
+### Tempo of `Fade` and `DrawTransition` (2026-10-17)
+
+Seen in Muramasa.exe: the fade's per-object step (`0044f020`) and the
+transition's (`FUN_0044fe00`) ease by the tempo through `apply_tempo`.
+A sync's transition now goes along the last eased fade's curve before
+its print (CONscripter's `effectcurve`, engine #85; `Op::TransitionEase`):
+588 transitions in the story (the same in Muramasa EN; 61 in
+続・殺戮のジャンゴ, from the shared code, its exe not checked). The rest of
+the 3,869 eased `Fade`s take no time, fade the text window, or become
+part of a picture's motion.
 
 ### The text window's fades (2026-10-17)
 

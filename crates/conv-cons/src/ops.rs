@@ -470,6 +470,14 @@ impl<'a> Emitter<'a> {
             }
             *transition = Some(lines);
         }
+        Op::TransitionEase { ease, exponent } if (1..=7).contains(ease) => {
+            // Before the transition's first timed print.
+            if let Some(i) = transition.as_ref().and_then(|l| l.iter().position(|l| l.starts_with("print ") && l != "print 1")) {
+                transition.as_mut().unwrap().insert(i, format!("effectcurve {}", crate::ease::curve_id(*ease, *exponent)));
+                eased.insert((*ease, *exponent));
+            }
+        }
+        Op::TransitionEase { .. } => {}
         Op::EndTransition => {
             for line in transition.take().unwrap_or_default() {
                 writeln!(out, "{line}").unwrap();

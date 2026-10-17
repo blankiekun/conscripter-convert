@@ -706,6 +706,11 @@ pub enum Op {
     /// the script goes on (CONscripter's `windowfade`); faded out to 0 it
     /// is hidden, as [`Op::HideTextWindow`]. `show`: then show it, empty.
     WindowFade { alpha: u32, ms: u32, from: Option<u32>, delay: u32, show: bool },
+    /// Inside a transition ([`Op::BeginTransition`]…[`Op::EndTransition`]):
+    /// its fade goes along this curve ([`Op::MoveEase`]'s), not straight
+    /// (CONscripter's `effectcurve`). Nitroplus's `Fade`/`DrawTransition`
+    /// tempo.
+    TransitionEase { ease: u8, exponent: u32 },
 }
 
 /// [`Op::HoldMovie`]'s prompt: `image` is `cells` pictures side by side,
