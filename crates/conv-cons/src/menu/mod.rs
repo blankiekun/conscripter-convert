@@ -422,6 +422,10 @@ pub(crate) mod tests {
         ] {
             assert!(out.contains(line), "missing {line:?} in\n{out}");
         }
+        // The report lists the shared defaults it took (no window row: not that one).
+        let mut m = m;
+        m.defaults = vec![(Setting::BgmVolume, 6), (Setting::AutoWait { page_step: 500, char_step: 10 }, 5)];
+        assert_eq!(fallback_defaults(&m), ["SeVolume 8", "VoiceVolume 10", "TextSpeed 7"]);
     }
 
     #[test]

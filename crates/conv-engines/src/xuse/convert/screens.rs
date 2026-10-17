@@ -531,8 +531,9 @@ impl AssetBank {
                 row("音声", Setting::VoiceVolume),
                 row("文字速度", Setting::TextSpeed),
                 // src: exe 0x46d000 (level 5 is the default auto wait):
-                // 2.5 s a page plus 20 ms a character (0x476f50).
-                row("オート速度", Setting::AutoWait { page_step: 500, char_step: 4 }),
+                // 2.5 s a page (0x51ed3c) plus 50 ms a character
+                // (0x51ed68), 0x476f50.
+                row("オート速度", Setting::AutoWait { page_step: 500, char_step: 10 }),
                 row("ウィンドウ透過", Setting::WindowTransparency),
             ],
             // Labels and levels share a text line: level_x - label_x is
@@ -559,10 +560,23 @@ impl AssetBank {
             voice_pitch: 26,
             skip_unread_label: Some("未読テキストもスキップする".into()),
             pictures: None,
-            defaults: Vec::new(),
+            // src: exe 0x46d000. Volumes 0-255 (0x482750): BGM and SE
+            // 0x99 (60 %), voices 0xff. Text 20 ms a character (0x51ed38,
+            // one character each 20 ms in 0x486540). The window's 50 %
+            // is in its picture (WINDOW_OPACITY_PERCENT), so level 0.
+            defaults: vec![
+                (Setting::BgmVolume, 6),
+                (Setting::SeVolume, 6),
+                (Setting::VoiceVolume, 10),
+                (Setting::TextSpeed, 8),
+                (Setting::AutoSpeed, 5),
+                (Setting::WindowTransparency, 0),
+            ],
             switches_off: Vec::new(),
             engine_screen: true,
-            text_ms: None,
+            // src: exe 0x484d60: the dialog's text speed slider, 10 steps
+            // of 0-100 ms a character (0 = at once).
+            text_ms: Some([100, 90, 80, 70, 60, 50, 40, 30, 20, 10, 0]),
             // The original's マウス and 確認メッセージ pages (labels as there).
             switches: [
                 ("マウスホイールでテキストを進める", Switch::WheelReadsOn),
