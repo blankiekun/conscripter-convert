@@ -23,6 +23,8 @@ NO_ROW = {
     "django": set("""ClearBacklog ClearScore CreateChoice CreateMask CreateMovie CreateProcess CreateText CreateTexture CreateWindow CursorPosition Delete Draw LoadColor LoadFont LoadImage MoveCamera MoviePlay Save SetAlias SetFont SetFrequency SetLoop SetNextFocus SetShade Time WaitAction WaitFade WaitMove WaitPlay""".split()),  # no row yet
     "tsukihime": set("""_ATSV _FADE _FANX _FCLN _FCSP _IFNX _IFP4 _IFSC _IFUR _MSQK _MVOL _NOP_ _PGST _RDAS _RDED _RTM2 _RTMN _RTM_ _RTST _SACL _SBAS _SELA _SELD _SELS _SESP _SEVL _SGMA _SHAF _SHK2 _SHOK _SHS2 _SNX2 _SNX3 _SNX4 _SOXY _SPFC _SPMA _SPRC _SPRD _SQK2 _SQS2 _SSS2 _SSW2 _STCF _STCG _STCL _STNS _STPV _STQK _STRA _STRR _STTR _TOMP _TOMW _TRPY _VCWT _VPL2 _WKOR _WTSV _XRSM _XSTP""".split()),  # no row yet
 }
+# ceiling per game for NO_ROW: lower it as rows land, never raise it
+NO_ROW_MAX = {"django": 29, "tsukihime": 61}
 # names in the first column that are not kinds
 OTHER = {
     "saihate-no-ima": {"0x81", "0x11"},
@@ -73,7 +75,14 @@ for mf in sorted(os.listdir("tests/snapshots")):
         if not rng & kinds:
             fail(f"{tsv}: range `{cell}` holds no kind")
     miss = sorted(kinds - named - NO_ROW.get(g, set()))
-    print(f"{g}: {len(NO_ROW.get(g, ()))} kinds in NO_ROW")
+    nr = NO_ROW.get(g, set())
+    print(f"{g}: {len(nr)} kinds in NO_ROW")
+    for k in sorted(nr & named):
+        fail(f"{tsv}: {k} now has a row: remove {k} from NO_ROW")
+    for k in sorted(nr - kinds):
+        fail(f"{tsv}: {k} in NO_ROW is not a kind: remove it")
+    if len(nr) > NO_ROW_MAX.get(g, 0):
+        fail(f"{g}: NO_ROW has {len(nr)} kinds, ceiling {NO_ROW_MAX.get(g, 0)}: add rows, don't grow the list")
     if miss:
         fail(f"{tsv}: kinds with no row (add one, or NO_ROW in research/tools/findings_lint.py): {' '.join(miss)}")
 sys.exit(1 if bad else 0)
