@@ -542,6 +542,30 @@ impl Assets for NpaAssets<'_> {
         Some(rel)
     }
 
+    fn stenciled(&mut self, image: &str, mask: &str, dx: i64, dy: i64, zoom: (i64, i64)) -> Option<String> {
+        use std::hash::{Hash, Hasher};
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        (image, mask, dx, dy, zoom).hash(&mut h);
+        let rel = format!("system/stencil_{:016x}.png", h.finish());
+        // Its size, for a zoom of it (a dry run has no file).
+        let (w, h) = self.size(image)?;
+        self.images.insert(normalize(&rel), Some((rel.clone(), w, h)));
+        if self.out.dry_run || self.out.root.join(&rel).exists() {
+            return Some(rel);
+        }
+        let mut out = image::open(self.out.root.join(image)).ok()?.into_rgba8();
+        let m = image::open(self.out.root.join(mask)).ok()?.into_rgba8();
+        // A pixel's place on the screen from the picture's unzoomed top left.
+        let on_screen = |u: u32, size: u32, z: i64| (size as f64 / 2.0 + (u as f64 + 0.5 - size as f64 / 2.0) * z as f64 / 1000.0).floor() as i64;
+        for (x, y, p) in out.enumerate_pixels_mut() {
+            let (mx, my) = (on_screen(x, w, zoom.0) - dx, on_screen(y, h, zoom.1) - dy);
+            let a = if mx < 0 || my < 0 || mx >= m.width() as i64 || my >= m.height() as i64 { 0 } else { m.get_pixel(mx as u32, my as u32).0[3] as u32 };
+            p.0[3] = (p.0[3] as u32 * a / 255) as u8;
+        }
+        self.out.write_png(&rel, &out);
+        Some(rel)
+    }
+
     fn rgba(&mut self, path: &str) -> Option<image::RgbaImage> {
         if self.out.dry_run {
             return None;
