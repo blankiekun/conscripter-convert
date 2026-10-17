@@ -102,9 +102,8 @@ mod tests {
         Placed { image: format!("system/{name}.png"), x, y, w: 30, h: 60 }
     }
 
-    #[test]
-    fn line_log_becomes_a_screen() {
-        let l = LineLog {
+    fn log() -> LineLog {
+        LineLog {
             background: placed("bg", 0, 0),
             up: placed("up", 898, 168),
             down: placed("down", 898, 303),
@@ -123,7 +122,12 @@ mod tests {
             outline: Some("#AAAA88".into()),
             row_width: None,
             engine_screen: true,
-        };
+        }
+    }
+
+    #[test]
+    fn line_log_becomes_a_screen() {
+        let l = log();
         let script = Script { line_log: Some(l.clone()), ..Default::default() };
         let files = files(&script);
         let lua = &files[0].1;
@@ -138,5 +142,51 @@ mod tests {
         let mut out = String::new();
         labels(&mut out, &l);
         assert!(out.contains("logrows %171,26\nmov %174,%171-16:if %174 < 0 mov %174,0\nmov %170,0\nscreen \"backlog\"\n"), "{out}");
+    }
+
+    /// With voice switches, a voice is logged with its character (played
+    /// or not) and the rows list hides it while its switch is off.
+    #[test]
+    fn switched_off_voice_is_tagged() {
+        use conv_core::ir::{Op, Setting, SettingRow, SettingsMenu, Switch, Voice, VoiceToggle};
+        let settings = SettingsMenu {
+            base: placed("base", 800, 600),
+            base_opacity: 210,
+            header: placed("header", 100, 30),
+            close: placed("close", 60, 20),
+            rows: vec![SettingRow { label: "ＢＧＭ".into(), setting: Setting::BgmVolume }],
+            label_x: 140,
+            minus_x: 340,
+            level_x: 380,
+            plus_x: 680,
+            y: 140,
+            pitch: 70,
+            font_size: 22,
+            title_label: "title".into(),
+            quit_label: "quit".into(),
+            exits_y: 540,
+            tab_labels: vec!["音量".into(), "音声".into(), "確認".into()],
+            tabs_x: 300,
+            tabs_y: 34,
+            voices: vec![VoiceToggle { label: "あずさ".into(), characters: vec![3] }],
+            voice_column_x: 440,
+            voice_pitch: 50,
+            skip_unread_label: None,
+            pictures: None,
+            defaults: Vec::new(),
+            switches_off: Vec::new(),
+            engine_screen: false,
+            text_ms: None,
+            switches: vec![conv_core::ir::SettingSwitch { label: "セーブ確認".into(), switch: Switch::ConfirmSave }],
+        };
+        let ops = vec![
+            Op::BacklogLine { text: "《見えた》".into(), voice: Some("voice/b.ogg".into()), character: Some(3) },
+            Op::Text { speaker: None, text: "「一」".into(), voice: Some(Voice { file: "voice/a.ogg".into(), character: 3 }), links: vec![], ruby: vec![], styles: vec![], hang: None, continues: false },
+        ];
+        let script = Script { line_log: Some(log()), settings: Some(settings), ops, ..Default::default() };
+        let text = crate::emit(&script);
+        assert!(text.contains("logvoice \"voice\\a.ogg\",3\nif %973 == 0 dwave 0,\"voice\\a.ogg\"\n"), "{text}");
+        assert!(text.contains("logadd \"《見えた》\",\"voice\\b.ogg\",3\n"), "{text}");
+        assert!(files(&script)[0].1.contains("outline=\"#AAAA88\", voice_off=970,"));
     }
 }
