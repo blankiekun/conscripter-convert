@@ -18,6 +18,7 @@
 //! check box of unknown use.
 
 /// Per tab (1-based in the file names), pages of slots of CG bits.
+// src: exe 0x500118
 pub const TABS: [&[&[&[u16]]]; 7] = [
     // Tab 1: あずさ
     &[
@@ -175,9 +176,11 @@ pub const TABS: [&[&[&[u16]]]; 7] = [
 
 /// Tab order on screen and the pictures of each: (tab index in [`TABS`],
 /// label `SubModeCommon.004` #, heading #, viewer name `CgViewer.004` #).
+// src: shot (wine, the tab order)
 pub const TAB_PICTURES: [(usize, usize, usize, usize); 5] =
     [(0, 0, 10, 0), (1, 1, 11, 3), (2, 4, 14, 4), (3, 3, 13, 1), (6, 2, 12, 2)];
 
 /// Size of a cell of the thumbnail sheets.
+// src: the sheets (5 cells a row)
 pub const THUMB_W: u32 = 105;
 pub const THUMB_H: u32 = 81;

@@ -295,7 +295,7 @@ const PRESET_FIELDS: u32 = 6;
 /// Pictures of static in the noise strip ([`AssetBank::noise`]); the
 /// original draws new static every interval, which a short loop stands in
 /// for.
-const NOISE_FRAMES: u32 = 4;
+const NOISE_FRAMES: u32 = 4; // ours
 /// A timed wait (handler 0x475cd0, callback 0x475bf0): arg's low 16 bits
 /// are the ms; when its high half isn't 0 a click or skip mode ends it.
 const OP_WAIT: u16 = 0x66;
@@ -324,7 +324,7 @@ fn end_transition(ops: &mut Vec<Op>, tail: &mut Option<u32>) {
 const BUST_UP_DEPTH_MAX: u32 = 1000;
 /// The lowest depth a bust-up has (0x8e: 10-150, then 1100 up).
 const BUST_UP_DEPTH_MIN: u32 = 10;
-const TV_POWER_SWITCH_MS: u32 = 700;
+const TV_POWER_SWITCH_MS: u32 = 700; // src: exe 0x4485d7
 /// Plays `HD/mvNNNN.bin` (handler 0x478ab0, task 0x408ed0): arg's low 16
 /// bits are the number, its high 16 bits whether a click or key ends it
 /// (checked at 0x408e5b).
@@ -336,20 +336,23 @@ const OP_MOVIE: u16 = 0x97;
 /// the text window and the bars, and stays until the next background.
 const OP_FADE_BLACK: u16 = 0x72;
 const OP_FADE_WHITE: u16 = 0x74;
+// src: the archives' layout (pictures a bgNNNN/buNNNN.004; first SE slot).
 const BG_PER_ARCHIVE: usize = 64;
 const BU_PER_ARCHIVE: usize = 128;
 const SE_FIRST_BANK: usize = 256;
 /// Opacity of the text window's base layer, and of the save menu's:
 /// measured under wine against the same scene without them, 0.495 on
 /// every row of the box's gradient and 0.50 on the save menu's.
+/// src: exe 0x46d000 (setting 0x51ed12 defaults to 128 of 256).
 const WINDOW_OPACITY_PERCENT: u32 = 50;
-/// Assumption: the title screen fades in and out over this long.
+/// guess: the title screen fades in and out over this long.
 const TITLE_FADE_MS: u32 = 1000;
 /// A voice id's character is `id / VOICE_CHARACTER`.
-const VOICE_CHARACTER: u32 = 100_000;
+const VOICE_CHARACTER: u32 = 100_000; // src: the scripts' voice ids
 /// The original's voice switches (the settings dialog's 音声 page, in its
 /// order) and the voice characters each covers. 0 and 1 are the minor
 /// women and men (フランシス, 紅緒 / 邑西, 宗多, ...); 2 is unused.
+/// src: the exe's settings dialog (its resources), filmed under wine.
 const VOICE_TOGGLES: [(&str, &[u32]); 13] = [
     ("紅緒　あずさ", &[3]),
     ("本堂　沙也加", &[4]),
@@ -370,7 +373,7 @@ const VOICE_TOGGLES: [(&str, &[u32]); 13] = [
 /// wine). Skip mode shows them at once, and so does a record whose
 /// entries all have mode bit 1 (0x434530 counts only entries without it as
 /// changes; 1,301 records).
-const SPRITE_FADE_MS: u32 = 500;
+const SPRITE_FADE_MS: u32 = 500; // src: exe 0x4347b0
 
 #[derive(Debug, Error)]
 pub enum ConvertError {
@@ -800,51 +803,47 @@ impl AssetBank {
         Ok(Some(FxAnimation { image, frame_ms: script.frames.iter().map(|&(_, ms)| ms).collect(), looped: script.looped }))
     }
 
-    /// Text window for a preset: the measured ADV box for style 0, else the
-    /// style's `TextWnd{n}.004` graphics at the preset's height, centred.
-    ///
-    /// Metrics per style are estimates from the window size and the longest
-    /// lines / most lines per page the game shows in that style (not yet
-    /// checked against screenshots of the original): font size, line gap,
-    /// columns, rows.
+    /// Text window for a preset: the style's `TextWnd{n}.004` graphics at
+    /// the preset's position (0x50), as the exe draws it (0x4a1360; wine
+    /// shots `S1_b`, `S5_b`, `k1` put the frame there to the pixel).
     pub fn text_window_style(&mut self, preset: WindowPreset) -> Result<TextWindow, ConvertError> {
         if preset.style == 0 {
             return self.text_window();
         }
-        // Font size, line gap, columns, rows and the first character's
-        // offset from the window: measured under wine, the opening's pages
-        // shown in each style (`0002.cd`'s ADV preset patched), against
-        // ours on the same lines, to 2-3 px. Characters advance by the font
-        // size + 1, so an 18 px pitch is a 17 px font. `None`: estimated
-        // (style 6, which the game doesn't use).
+        // src: exe 0x517678 (one 0xb0 record a style): the first
+        // character at the window + (left, top) margins (+0x18, +0x1c);
+        // font size, line gap at +0x4c, +0x54. Characters advance by the
+        // exe's font height, + 1 for its weight-600 (synthesised bold)
+        // ones; ours by font size + 1, so an 18 px weight-400 font is 17.
+        // Columns: the text width (window - left - right margins, +0x20)
+        // over that pitch. Rows: our measurement under wine.
         let (font_size, line_gap, columns, rows, offset) = match preset.style {
-            1 => (24, 12, 24, 12, Some((21, 24))),
-            2 | 7 => (24, 12, 25, 13, Some((48, 35))),
-            3 | 4 => (17, 5, 40, 23, Some((41, 26))),
-            5 => (17, 11, 36, 16, Some((33, 21))),
-            6 => (24, 12, 26, 5, None),
-            8 => (20, 13, 36, 15, Some((43, 60))),
-            _ => (24, 12, 26, 3, None),
+            1 => (24, 12, 24, 12, (15, 23)),
+            2 | 7 => (24, 12, 24, 13, (37, 35)),
+            3 | 4 => (17, 5, 40, 23, (42, 25)),
+            5 => (17, 11, 36, 16, (32, 21)),
+            // guess: rows (the game doesn't use style 6).
+            6 => (24, 12, 26, 5, (28, 21)),
+            8 => (20, 14, 34, 15, (43, 60)),
+            // guess: no such style in the game.
+            _ => (24, 12, 26, 3, (28, 21)),
         };
         let file = format!("TextWnd{}.004", preset.style);
         let images = self.wnd_images(&file)?;
         let image = format!("system/textwnd{}.png", preset.style);
         self.layered(&image, &images[0], &images[1])?;
-        let (w, _) = png_size(&images[0]);
-        let x = (800 - w as i32) / 2;
-        // The ADV box draws 3 px below its preset position (measured).
-        let y = if preset.style == 6 { preset.y + 3 } else { preset.y };
-        let name_plate = if png_size(&images[2]).1 > 1 {
+        let (x, y) = (preset.x, preset.y);
+        // Only styles 0 and 6 show the name plate (bit 0 of the record),
+        // at (-21, -33), the name at +(24, 11) in it (+0x28, +0x3c).
+        let name_plate = if preset.style == 6 {
             let plate = format!("system/nameplate{}.png", preset.style);
             self.layered(&plate, &images[2], &images[3])?;
-            Some(NamePlate { image: plate, x: x - 5, y: y - 40, text_x: x + 11, text_y: y - 28, font_size: 20 })
+            // guess: font size 20 (shot k1: the ADV box's).
+            Some(NamePlate { image: plate, x: x - 21, y: y - 33, text_x: x + 3, text_y: y - 22, font_size: 20 })
         } else {
             None
         };
-        let (text_x, text_y) = match offset {
-            Some((dx, dy)) => (x + dx, y + dy),
-            None => (x + (w as i32 - columns as i32 * (font_size as i32 + 1)) / 2, y + 20),
-        };
+        let (text_x, text_y) = (x + offset.0, y + offset.1);
         Ok(TextWindow { image, x, y, text_x, text_y, columns, rows, font_size, line_gap, vertical: false, name_plate, wait_icon_at: None })
     }
 
@@ -890,20 +889,25 @@ impl AssetBank {
         let plate = "system/nameplate.png".to_string();
         self.layered(&window, &images[0], &images[1])?;
         self.layered(&plate, &images[2], &images[3])?;
-        // Positions measured on screenshots of the original game.
+        // src: the scripts' ADV preset (0x50: 53, 449) and exe 0x517678
+        // style 0: text at +(28, 21), 24 px weight 600 (pitch 25: 650 px
+        // fit 26), line gap 12, plate at (-21, -33), name at +(24, 11);
+        // shot k1 (wine) has the frame and plate there to the pixel.
         Ok(TextWindow {
             wait_icon_at: None,
             image: window,
-            x: 47,
-            y: 452,
-            text_x: 89,
-            text_y: 474,
+            x: 53,
+            y: 449,
+            text_x: 81,
+            text_y: 470,
             columns: 26,
+            // guess: rows (the 140 px box holds three of 36).
             rows: 3,
             font_size: 24,
             line_gap: 12,
             vertical: false,
-            name_plate: Some(NamePlate { image: plate, x: 42, y: 412, text_x: 58, text_y: 424, font_size: 20 }),
+            // guess: the name's font size (shot k1's glyphs fit 20).
+            name_plate: Some(NamePlate { image: plate, x: 32, y: 416, text_x: 56, text_y: 427, font_size: 20 }),
         })
     }
 
@@ -1061,7 +1065,7 @@ impl AssetBank {
 const BGM: &str = "BGM track";
 const MOVIE: &str = "movie";
 const STAFF_ROLL: &str = "staff roll";
-const STAFF_ROLL_FPS: u32 = 30;
+const STAFF_ROLL_FPS: u32 = 30; // ours
 
 impl AssetBank {
     /// Movie `number` (`HD/mvNNNN.bin`, an MPEG-1 program stream) as H.264
@@ -1437,7 +1441,7 @@ const REPLACE_SLOT_BASE: u32 = 4;
 
 /// The interval of a still `screenripple` (it never changes; each step
 /// redraws the screen).
-const REPLACE_INTERVAL_MS: u32 = 1000;
+const REPLACE_INTERVAL_MS: u32 = 1000; // ours
 
 /// Opcode 0x70: sets one slot of the screen filter. A Filter-Replace
 /// becomes a still `screenripple` in slot 4 + n; `replaces` holds the
@@ -1640,7 +1644,7 @@ fn lower_quake(q: &Quake, ops: &mut Vec<Op>) {
     if q.speed == 0 || (x == 0 && y == 0) {
         return;
     }
-    let shrink = (q.speed / 4).max(50); // pixels a second
+    let shrink = (q.speed / 4).max(50); // guess: pixels a second
     // Filmed under wine (speed 80): the picture jumps to the next point
     // every frame (30 a second), at the full range for the first points,
     // then the range shrinks: two shakes, the second shrinking to 0.
@@ -1657,7 +1661,7 @@ fn lower_quake(q: &Quake, ops: &mut Vec<Op>) {
 }
 
 /// A quake's points a second at most: one a frame at the original's 30.
-const QUAKE_POINTS_PER_S: u32 = 30;
+const QUAKE_POINTS_PER_S: u32 = 30; // src: shot (wine)
 
 /// The `screenpulse` slot for opcode 0x6f's pulses.
 const PULSE_SLOT: u32 = 3;
@@ -2869,7 +2873,7 @@ const STYLE_COLOUR_KEEP: u32 = 0xff00_0000;
 /// game wraps the lines of enlarged messages short enough to fit.
 /// Sizes are percent; 0x1000 + n is a preset (table at 0x4fa850, looked
 /// up at 0x491d00).
-const STYLE_PRESET_PERCENT: [u16; 8] = [0, 25, 50, 75, 100, 125, 150, 175];
+const STYLE_PRESET_PERCENT: [u16; 8] = [0, 25, 50, 75, 100, 125, 150, 175]; // src: exe 0x4fa850
 
 /// COLORREF 0x00BBGGRR to 0xRRGGBB.
 fn rgb_of(c: u32) -> u32 {
@@ -3290,6 +3294,7 @@ fn transition_style(sub: u16) -> TransitionStyle {
         // the falling columns.
         45..=47 => {
             let a = [0.0f64, 128.0, 255.0][usize::from(sub - 45)] / 255.0;
+            // guess: the scale to our stretch (Status, "Accuracy").
             TransitionStyle::Melt { stretch_percent: ((a * a * 0.45 + 0.03) * 500.0).round() as u32 }
         }
         27 => TransitionStyle::Mosaic,
@@ -3297,6 +3302,7 @@ fn transition_style(sub: u16) -> TransitionStyle {
         // seen in the original under wine, 0004.cd #13 slowed to 8 s).
         TRANSITION_DOT4X4 | 5..=8 => TransitionStyle::Threshold,
         TRANSITION_DISSOLVE => TransitionStyle::ThroughWhite,
+        // src: exe 0x449800 (1 + 50, 1 + 1.2).
         37 => zoom(ZoomStyle::NewIn, 5100),
         38 => zoom(ZoomStyle::OldOut, 5100),
         39 => zoom(ZoomStyle::Through, 5100),

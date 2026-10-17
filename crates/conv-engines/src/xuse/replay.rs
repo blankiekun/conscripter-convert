@@ -38,26 +38,32 @@ pub struct List {
     pub scenes: &'static [(u16, bool, &'static str)],
 }
 
-/// Where the list window's parts go (fitted on screenshots).
+/// Where the list window's parts go. src: exe 0x4529c0 (rows of 21 px,
+/// 23 to a column, columns 258 px apart; a row's hit box from (17, 60),
+/// its title at (21, 64) in 14 px, white or 0xc8c8ff for H scenes),
+/// 0x453130 (the row under the pointer at the hit box - (3, 2), "new"
+/// at the title - (5, 6)).
 pub const ROWS: usize = 23;
 pub const COLUMNS: usize = 3;
 pub const COLUMN_DX: i32 = 258;
 pub const ROW_DY: i32 = 21;
 /// The row under the pointer, the "new" mark (both at a row's top left).
-pub const SELECTOR_X: i32 = 15;
+pub const SELECTOR_X: i32 = 14;
 pub const NEW_X: i32 = 16;
 pub const ROW_Y: i32 = 58;
 /// The title.
 pub const TEXT_X: i32 = 21;
-pub const TEXT_Y: i32 = 63;
+pub const TEXT_Y: i32 = 64;
 pub const FONT_SIZE: u32 = 14;
-pub const TEXT_COLOR: &str = "#FEFEFE";
-pub const H_COLOR: &str = "#FEC7C7";
-/// The menu: lists from (624, 160) every 28 px.
+pub const TEXT_COLOR: &str = "#FFFFFF";
+pub const H_COLOR: &str = "#FFC8C8";
+/// The menu: lists from (624, 160) every 28 px (src: exe 0x4552c0, 33 px
+/// with fewer than 6 items).
 pub const MENU_X: i32 = 624;
 pub const MENU_Y: i32 = 160;
 pub const MENU_DY: i32 = 28;
-/// The window's black band darkens the screen by this much per channel.
+/// The window's black band darkens the screen by this much per channel
+/// (src: shot under wine, see the module doc).
 pub const DARKEN: u8 = 80;
 
 /// The title shown for a label: `rm<NNN><title>` → title.
@@ -66,6 +72,7 @@ pub fn title(label: &str) -> &str {
     rest.trim_start_matches(|c: char| c.is_ascii_digit())
 }
 
+// src: exe 0x4fe200
 pub const LISTS: [List; 11] = [
     // プロローグ (table entry 0)
     List {

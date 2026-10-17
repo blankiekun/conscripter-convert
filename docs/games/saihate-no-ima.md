@@ -394,8 +394,8 @@ archives.
 
 **System screens** (measured from screenshots of the original, not
 committed):
-- **Text box:** ADV box at the measured positions; seven full-screen
-  styles (metrics estimated).
+- **Text box:** the ADV box and seven full-screen styles at the
+  scripts' positions, margins and metrics from the exe's table.
 - **Backlog:** a full-screen dark window (like `TextWnd5`, 714×472) with
   names and voice replay.
 - **Title:** FIRST START / load / option / EXIT over `Entrance.004`.
@@ -777,6 +777,19 @@ empty). Gaps found, where the exe and the converter differ:
   the usual decoration.
 
 **Accuracy.**
+- Hand-typed values (audit of 2026-10-17, History "Value audit"): every
+  one in `xuse/` says where it comes from (`src:`, `guess:`, `ours`).
+  The guesses a frame of the original would settle: the save menu's
+  thumbnail (the exe draws it at (13, 52 + 92 r), `0x46ac50`; ours sits
+  in the frame's box at (14, 54 + 92 r)), its "New" mark (the exe puts
+  it after the slot's text) and the slot text (124, 11; 14 px, 15 px
+  lines); the yes/no message's y (its font is now the exe's 16 px); the
+  rows of text styles 3/4 (23 or 24 fit) and the name plate's font
+  (20); the CG gallery's header (621, 122), headings (96, 97) and page
+  marker (3 px up); the top bars' row colours and font sizes; the
+  title's 1 s fade; the quake's hold and shrink; a picture the title
+  draws at (680, 444), not identified and not drawn; the CG viewer's
+  panel, now at the exe's x 461, runs 10 px past the right edge.
 - Transitions: MeltDown's stretch for subs 46/47 is scaled from the exe
   (filmed for item 25, not yet compared).
 
@@ -790,6 +803,31 @@ empty). Gaps found, where the exe and the converter differ:
 
 Finished work, moved out of "Status" so a session reads only the open
 state. Items are referred to elsewhere as "History, item N".
+
+**Value audit (2026-10-17):** the hand-typed values in `xuse/` checked
+against the exe's tables (`Farthest2015.exe`, addresses in the code's
+`src:` comments) and the wine shots of the original, after #223/#221.
+The text windows sit at the script's preset (`0x50`), not centred, as
+the exe draws them (`0x4a1360`) and the wine shots show to the pixel:
+the ADV box at (53, 449), not (47, 452) (that was a scaled
+screenshot), its text at +(28, 21) (`0x517678`, was (89, 474), now
+(81, 470)), the name plate at (32, 416) with the name at (56, 427);
+styles 1, 2 and 7 move 7 and 12 px right with their text within a
+pixel of before (the wine measurements matched the text, not the
+frame); style 8's line gap 14 (was 13), columns 34 (8) and 24 (2/7)
+from the text width over the pitch (a weight-600 font advances one px
+more), the name plate only in styles 0 and 6. Also: "COMPLETE" on the
+title at (100, 383) (`0x4599a0`); the save preview at (389, 136)
+(`0x46ac50`); the yes/no font 16 px (`0x4a6410`, was 20); the backlog's
+and chapter history's base at the window opacity (`0x41fc50`,
+`0x468be0`: 127, was 210 darkened and 140); the CG viewer's panel at
+x 461 (`0x44dc90`, was 451); the scene list's rows (`0x4529c0`,
+`0x453130`): cursor x 14, titles at y 64, colours #FFFFFF and #FFC8C8
+(were 15, 63, #FEFEFE, #FEC7C7); the unpinned bar shows from y 571
+(`0x51b610`, was 573). Matched: the extras, CG tabs and gallery
+tables, the BGM room, staff rolls, replay lists, surprise presets and
+text size presets, the bar's log/save buttons, the save rows and
+header, the CG exit and page label, the replay close button.
 
 **Effects off (2026-10-15, a gap from the whole-exe map):** with
 画面エフェクトを使用 off (`setting_effects` `0x51ed14` bit 0) the

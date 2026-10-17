@@ -12,6 +12,7 @@
 //! playing.
 
 /// The BGM track of each song, in list order (inverse of 0x500598).
+// src: exe 0x500598, 0x5001d0
 pub const TRACKS: [usize; 22] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 18, 19, 20, 21, 17, 22];
 /// The song shown only once progress bit [`LOCK_BIT`] is set.
 pub const LOCKED: usize = 21;
