@@ -956,7 +956,12 @@ Next, in order:
      `Zoom`, `Rotate`, `Fade` and `DrawTransition` done: "History"): a
      sound's volume has no curve, nor `windowfade`; a fade folded into a
      picture's motion keys is straight. A move with a fade folded into its keys still
-     goes straight.
+     goes straight. A 0 ms `Fade`'s or `SetVolume`'s tempo, a 0 ms
+     `Shake` stop's wait and `CreateWindow`'s last argument are read:
+     they change nothing in Muramasa.exe (`cb_Fade` 0044f020,
+     `sound_set_volume` 00475f50, `builtin_CreateWindow` 0040b3a0); 9
+     `SetVolume` fades over time keep a straight ramp (the exe steps them
+     by the tempo, 00478570).
    - Story `CreateText`: a sideways text turned by `Rotate` sits about
      17 px lower than the original's under wine (cause unknown; "History",
      "Story `CreateText`").
