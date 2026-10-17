@@ -3,7 +3,7 @@
 The third game, started 2026-10-13. This is the game's committed
 record: formats, how its features map to CONscripter, the routes and
 progression variables, and its status. The general process is in
-`docs/new-game.md`, general lessons in `PLAN.md` §13. `<pkg>` is the
+`docs/new-game.md`, general lessons in `docs/lessons.md`. `<pkg>` is the
 folder holding the game's Vita package and its license.
 
 - **Status:** the whole story plays, with title, menus, the CG

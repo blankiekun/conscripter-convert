@@ -6,7 +6,7 @@ fourth game. It uses the same NPA archives and NSS script language as
 in an older version (`NitroplusSystem2.0`), so it reuses
 `crates/conv-engines/src/nitroplus/`, with its own rules in
 `nitroplus/convert/django.rs`. The general process is in
-`docs/new-game.md`, general lessons in `PLAN.md` §13.
+`docs/new-game.md`, general lessons in `docs/lessons.md`.
 
 - **Status:** started 2026-10-15 (see "Status" below). Branch `django`.
 - **Game files:** `<game>` is the install folder holding `Django.exe`,

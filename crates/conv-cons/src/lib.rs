@@ -3,7 +3,7 @@
 //! Targets CONscripter (ONScripter-Yuri fork) with Japanese text; the
 //! NScripter commands used also run on ogapee's ONScripter. Things marked
 //! "unverified" below follow the NScripter documentation but haven't been
-//! checked in a running engine yet (see PLAN.md, Phase 0).
+//! checked in a running engine yet.
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fmt::Write;

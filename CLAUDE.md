@@ -17,8 +17,9 @@ build.
 `docs/new-engine.md` for a new engine).
 
 Read first, in order: the game's document (its "Status" section holds
-the feature state and the next steps), `PLAN.md` §4.2 (engine
-additions) and §13 (lessons). These are long: list the headings
+the feature state and the next steps) and `docs/lessons.md` (general
+lessons); `engine/COMMANDS.md` is the reference for every engine
+command. These are long: list the headings
 (`grep -n '^##' <file>`), read the "Status" section and what the task
 touches, and look up the rest by heading when you need it.
 
@@ -67,8 +68,8 @@ not in the repo.
   behaviour applies to every script, with no command or flag to turn it
   on; new commands take effect where a script uses them. They live in
   `engine/src/cons/` (preferably `ONScripter_cons.cpp`), work in the
-  web build, and are listed in `PLAN.md` §4.2 (the engine's
-  `COMMANDS.md` is the reference for every script command). Check that a change of behaviour doesn't break another game's
+  web build, and are listed in the engine's `COMMANDS.md` (the
+  reference for every script command). Check that a change of behaviour doesn't break another game's
   build. Bug fixes likewise: when the engine does something wrong (text
   misplaced, characters dropped), fix it for every script. Then drop any converter workaround for
   it.
@@ -117,7 +118,7 @@ shared code. A team lead hands out the items and reviews the PRs.
   | `crates/conv-cons/src/switches.rs` | A new settings switch is one entry in `def` (its index and what applying it does), with the next free index; nothing in `menu/` |
   | `crates/conv-cli/src/main.rs` | One subcommand per engine; keep the engine's own code in `crates/conv-engines/src/<engine>/` |
   | `engine` (submodule pointer) | Merge the engine PR first, then point the submodule at a commit on CONscripter `master` that contains every engine commit `origin/main` points at (rebase onto `origin/main` first, so the pointer only moves forward) |
-  | `PLAN.md`, `README.md`, `docs/new-game.md`, this file | Edit only your game's rows and paragraphs; general lessons go in `PLAN.md` §13 |
+  | `README.md`, `docs/new-game.md`, `docs/lessons.md`, `docs/design.md`, this file | Edit only your game's rows and paragraphs; general lessons go in `docs/lessons.md` |
   | `Cargo.toml`, `Cargo.lock` | Add dependencies in their own commit; on a conflict, take both sides and let `cargo build` rewrite the lock file |
 
 - **Shared refactors go in first**: when you change the shape of
@@ -204,7 +205,7 @@ on each later turn; several agents run at once.
   scripts read most often, use the helpers in `research/tools/`
   (run with `python3 -I`):
   `mdsec.py <file.md>` lists the headings, `mdsec.py <file.md> Status`
-  prints that section only (game docs, `PLAN.md`, this file);
+  prints that section only (game docs, `docs/lessons.md`, this file);
   `label.py 0.txt <label> [lines]` prints one label's block with line
   numbers, `label.py 0.txt -l <text>` finds labels; `txtdiff.py old.txt
   new.txt [--map 's/old/new/'|--rules <file>]` prints changed hunks under

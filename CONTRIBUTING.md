@@ -45,10 +45,12 @@ output stage already does for you.
    [`docs/games/saihate-no-ima.md`](docs/games/saihate-no-ima.md).
    For a game on an engine already supported, read that engine's game
    document instead (the table in the README).
-4. [`PLAN.md`](PLAN.md) §3 (the IR), §4.2 (what CONscripter adds to
-   ONScripter) and §13 (lessons from earlier games). It is long: read
-   the headings (`grep -n '^##' PLAN.md`) and look up the rest when you
-   need it.
+4. [`docs/design.md`](docs/design.md) (the IR, the output stage) and
+   [`docs/lessons.md`](docs/lessons.md) (lessons from earlier games);
+   what CONscripter adds to ONScripter is in
+   [`engine/COMMANDS.md`](engine/COMMANDS.md). They are long: read the
+   headings (`grep -n '^##' <file>`) and look up the rest when you need
+   it.
 
 ## 3. Find out where your game fits
 
@@ -108,7 +110,7 @@ A game's own rules never go in shared files.
 
 When the original does something ONScripter's commands can't reproduce,
 the feature goes into the engine, not an approximation in the converter
-(`PLAN.md` §4.1). Look for an existing NScripter command first.
+(`docs/design.md`, "Target engine: CONscripter"). Look for an existing NScripter command first.
 
 - Engine code is in the `engine/` submodule
   ([blankiekun/CONscripter](https://github.com/blankiekun/CONscripter)),
@@ -117,7 +119,7 @@ the feature goes into the engine, not an approximation in the converter
   with no flag to turn it on. Check that it doesn't change another
   game's output.
 - It must work in the web build (`engine/script/cross_web.sh`).
-- List it in `PLAN.md` §4.2.
+- Document it in the engine's `COMMANDS.md`.
 - Send the engine change to CONscripter first; the converter change that
   uses it then moves the submodule pointer in the same commit.
 
