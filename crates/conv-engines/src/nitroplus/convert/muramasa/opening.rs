@@ -11,6 +11,7 @@ use image::{RgbImage, RgbaImage};
 
 use super::super::{Assets, SCREEN_H, SCREEN_W};
 
+// ours
 const FPS: u32 = 30;
 
 /// Where the title's pictures are and where they go: the Japanese
@@ -30,6 +31,7 @@ pub struct TitleLook {
 }
 
 /// `0_boot.nss`: the buttons upright in two groups of three at y 150.
+// src: 0_boot.nss TitleSet (タイトルロゴ 346,40; $TitleNutName; LinerNotes)
 pub const JP: TitleLook = TitleLook {
     dir: "cg/sys/title",
     logo: (346.0, 40.0),
@@ -315,6 +317,7 @@ fn buttons(a: &mut dyn Assets, look: &TitleLook, at: f64) -> Option<Vec<Layer>> 
 }
 
 /// Blur of `SetBlur(…, true, 2, …)`: two passes of 1.5 px.
+// guess: the exe's blur radius isn't read; a frame of the title's glow could settle it
 const BLUR: f32 = 3.0;
 
 /// The first title after the game starts (`TitleFade`, `!$Logo`): 善悪相殺
@@ -325,6 +328,7 @@ pub fn at_launch(a: &mut dyn Assets, look: &TitleLook, picture: &str, name: &str
     let fuji = format!("{}/偽富士背景画像.png", look.dir);
     let logo = format!("{}/ロゴ画像.png", look.dir);
     let muramasa = picture;
+    // src: 0_boot.nss TitleFade (!$Logo): every time, zoom and opacity below; MoveFRP1/2 (10000, 15, 15)
     let end = 11200.0;
     let mut layers = Vec::new();
 
@@ -449,6 +453,7 @@ pub fn after_extras(a: &mut dyn Assets, look: &TitleLook) -> Option<String> {
 }
 
 fn return_layers(a: &mut dyn Assets, look: &TitleLook) -> Option<Vec<Layer>> {
+    // src: 0_boot.nss TitleFade ($Logo, $エキストラタイトル): every time, zoom and opacity below
     let fuji = format!("{}/偽富士背景画像.png", look.dir);
     let logo = format!("{}/ロゴ画像.png", look.dir);
     let mut layers = Vec::new();

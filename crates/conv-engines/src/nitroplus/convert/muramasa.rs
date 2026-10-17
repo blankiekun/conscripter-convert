@@ -243,6 +243,7 @@ fn flags(files: &BTreeMap<String, NssFile>) -> Vec<String> {
     out.extend(screens::VOICES.iter().map(|(name, _)| screens::heard_flag(name)));
     out.push(screens::CHAPTER_ONE_CLEARED.to_string());
     // Each ending's roll seen (TheEND: `VariableValue(#, "ClearRoll%02d")`).
+    // src: function.nss TheEND (ClearRoll00-05)
     out.extend((0..6).map(|n| format!("#ClearRoll{n:02}")));
     // The scenes 超速スキップ jumps over once read (SkipOut).
     let main_scene = |name: &str, f: &NssFile| f.items.iter().any(|i| matches!(i, crate::nitroplus::nss::Item::Scene(b) if b.name == format!("{name}_MAIN")));
@@ -262,6 +263,7 @@ fn flags(files: &BTreeMap<String, NssFile>) -> Vec<String> {
 /// a heroine's rank is 1 + the number with a higher flag + the number
 /// earlier in the order with the same flag. Results: `ARRAY["name"]` =
 /// rank (1-4), `LAST` = the name ranked last.
+// src: sys_hmode.nss RouteChicker, RouteChicker2
 const RANKINGS: [(&str, [&str; 4], &str, &str); 2] = [
     ("RouteChicker", ["アナザー", "一条", "香奈枝", "村正"], "$RC_N", "$ルート分岐用フラグ"),
     ("RouteChicker2", ["村正", "一条", "香奈枝", "アナザー"], "$RC_N2", "$ルート分岐用フラグ2"),
@@ -269,6 +271,7 @@ const RANKINGS: [(&str, [&str; 4], &str, &str); 2] = [
 
 /// The heroines of `sys_hmode.nss` (`ArrayHex`): counter name and the
 /// name in their `<name>死亡` / `<name>復活` flags, in `SetHex` order.
+// src: sys_hmode.nss ArrayHex ($H_Name, $SatugaiRate)
 const HEX: [(&str, &str); 4] = [("Others", "その他"), ("Muramasa", "村正"), ("Kanae", "香奈枝"), ("Ichizyou", "一条")];
 /// `SatugaiSystem`'s order: the first heroine whose counter is at least
 /// every other one dies (善悪相殺).
@@ -382,6 +385,7 @@ impl Compiler<'_, '_> {
     /// start: the held list ([`extras::HOLD_SLOT`]) fades out over 500 ms
     /// onto the scene's first picture, then 1 s passes.
     fn reco_in(&mut self) -> bool {
+        // src: extra_recollection.nss RecoIn (Fade 500, Wait 1000)
         self.sync(0);
         self.ops.extend([
             Op::BeginTransition { effect: "Fade".into(), fade_ms: 500, mask: None, style: TransitionStyle::Fade },

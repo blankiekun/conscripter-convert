@@ -524,6 +524,21 @@ Used to check what the engine does (`docs/new-game.md` step 9).
 
 ## Status: in progress (2026-10-14)
 
+### Accuracy (2026-10-17)
+
+Every hand-typed value of the Nitroplus converter that stands for the
+original (`convert/muramasa/`, the shared NSS compiler) carries a
+`// src:`, `// guess:` or `// ours` comment; most are the scripts'
+own numbers (`sys_*.nss`, `extra_*.nss`, `0_boot.nss`), the rest the
+exe or a shot. Open guesses a frame of the original could settle:
+
+- the click-wait flame's frame times (53 ms × 19, 77 ms × 13, a 500 ms
+  pause: watched, the film redraws once a second);
+- the text speed slider's range (0-100 ms a character);
+- a choice's text 40 px down its plate, and red under the pointer;
+- the blur of the title's glow (`SetBlur(…, 2, …)` as 3 px);
+- the `sepia` and `kitanoblue` tones; the rain's 16 ms frame period.
+
 ### Queue (2026-10-16)
 
 - Merged: `CreateText`'s box height (#52). Open, each waiting on its

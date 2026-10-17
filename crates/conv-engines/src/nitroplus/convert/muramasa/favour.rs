@@ -18,10 +18,12 @@ use super::{hex_counter, hex_flag, HEX};
 const DIR: &str = "cg/sys/Fav";
 /// Icons (`ArrayHex`): x of each heroine's icon at y 371 and of her mask
 /// (the dead heroine's column cover) at y 93, in `HEX` order.
+// src: sys_hmode.nss ArrayHex ($H_Name[…][1], [2]); y 371, 93: judgment_of_count's CreateTexture
 const ICON_X: [i32; 4] = [385, 453, 521, 589];
-const MASK_X: [i32; 4] = [389, 457, 525, 593];
+const MASK_X: [i32; 4] = [389, 457, 525, 594];
 /// Gauges (`CreateHex`): the first at y 333, each next one 30 px higher,
 /// columns 68 px apart from x 389.
+// src: sys_hmode.nss CreateHex ($H_x 389 += 68, $H_y 333 -= 30); RouteChicker's 10; H_video2's Fade 300
 const GAUGE_X: i32 = 389;
 const GAUGE_DX: i32 = 68;
 const GAUGE_Y: i32 = 333;
@@ -31,6 +33,7 @@ const MAX_GAUGES: i32 = 10;
 /// Its fades in and out (`Fade("H_video2", 300, …)`).
 const FADE_MS: u32 = 300;
 /// Layers, bottom up: the background, gauges, icons, masks, 村正's box.
+// ours
 const BACK: u32 = 0;
 const GAUGES: u32 = 1;
 const ICONS: u32 = 5;
@@ -81,6 +84,7 @@ impl Compiler<'_, '_> {
         }
         // 村正 is hidden until her counter moves (`村正隠蔽`).
         let unknown = self.test(&hex_counter("Muramasa"), Compare::Eq, 0);
+        // src: sys_hmode.nss 村正隠蔽 (CreateColor 48×58 at her icon)
         let black = self.assets.color(0x000000, 48, 58);
         show(self, HIDDEN, Some(Placed { image: black, x: ICON_X[1], y: 371, w: 48, h: 58 }), unknown);
         let mask = self.picture(&format!("{DIR}/ゲージマスクicon.png"), MASK_X[1], 93);

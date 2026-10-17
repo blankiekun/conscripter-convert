@@ -18,6 +18,7 @@ use super::opening::{self, TitleLook};
 /// menu's 好感度記録.
 pub const FAVOUR: &str = "conv_favour";
 
+// src: sys_config.nss ConfigSet (CreateWindow 1024×576)
 const SCREEN_W: i32 = 1024;
 const SCREEN_H: i32 = 576;
 
@@ -77,6 +78,7 @@ fn settings(a: &mut dyn Assets, story: &Story) -> Option<PictureSettings> {
         Some(Placed { image, x, y: 67, w: w as i32 / 2, h: h as i32 })
     };
     let mut sliders = Vec::new();
+    // src: sys_config.nss ConfigSet ($Config*X, $ConfigMathY 67, $ConfigCursor2 206, $pos + $CVer 7); system.ini [サウンド] volumes 800/800/600
     for (setting, x, default) in [
         (SliderSetting::VoiceVolume, 358, 207),
         (SliderSetting::SeVolume, 430, 207),
@@ -85,12 +87,16 @@ fn settings(a: &mut dyn Assets, story: &Story) -> Option<PictureSettings> {
         // each character of the page.
         (SliderSetting::AutoWait { ms: 200 }, 610, 507),
         // Default 200 of 1000: 20 ms a character, as the story is shown.
+        // guess: ms 100 (0-100 ms a character), unmeasured
         (SliderSetting::TextSpeed { ms: 100 }, 754, 207),
+        // src: exe FUN_0047c250 (the speed table)
         (SliderSetting::GameSpeed { levels: [50, 75, 100, 150, 200, 300, 400, 550, 800, 1200, 1600, 3200] }, 862, 750),
     ] {
-        sliders.push(PictureSlider { setting, knob: knob(a, x)?, knob_y: (67, 206), track: Rect { x, y: 67, w: 24, h: 147 }, default, steps: None, horizontal: false, fill: None });
+        let (_, tw, th) = a.image(&format!("{DIR}/バー裏側アタリ判定.png"))?;
+        sliders.push(PictureSlider { setting, knob: knob(a, x)?, knob_y: (67, 206), track: Rect { x, y: 67, w: tw as i32, h: th as i32 }, default, steps: None, horizontal: false, fill: None });
     }
     let mut pairs = Vec::new();
+    // src: sys_config.nss ConfigSet ($Config*X, $ConfigMathY3/4 183/213, KVoice 63/133, SVoice 49/137) and ConfigFormat (defaults)
     for (option, x, default_on, on, off) in [
         (PairOption::Confirm, 827, true, ("入", 183), ("切", 213)),
         (PairOption::MovieStop, 791, false, ("入", 183), ("切", 213)),
@@ -107,7 +113,9 @@ fn settings(a: &mut dyn Assets, story: &Story) -> Option<PictureSettings> {
     }
     // The display options as a first start leaves them: aspect not set by
     // itself (切), display dependent, the scaling methods not chosen.
+    // src: sys_config.nss ConfigSet ($ConfigAAutoX 251, FAspect 215,51, $ConfigWay 177,255)
     let fixed = vec![picture(a, "003-切", 251, 213)?, picture(a, "003-ディスプレイ依存", 215, 51)?, picture(a, "002-アスペクト方法OFF", 177, 255)?];
+    // src: sys_config.nss ConfigSet (バージョン情報: SetFont 11 #bb7420, 453/678,548; Exit 26,108, Default 899,197, Test 287,197; Fade 300, 100)
     let version = |text: &str, x: i32| PictureText { text: format!("◆ＧＡＭＥ{text}バージョン情報：1.00"), x, y: 548, font_size: 11, colour: "#bb7420".into() };
     Some(PictureSettings {
         background: picture(a, "コンフィグ", 0, 0)?,
@@ -237,6 +245,7 @@ fn settings_en(a: &mut dyn Assets) -> Option<PictureSettings> {
 
 /// The characters of the voice window (`VoiceResetSet`): each one's name
 /// (its pictures, its `#voice_on_` flag) and its voices' class.
+// src: sys_config.nss VoiceResetSet; system.ini [ボイス] all_name
 pub(super) const VOICES: [(&str, &str); 55] = [
     ("湊斗景明", "景明"), ("村正", "村正さん"), ("新田雄飛", "雄飛"), ("来栖野小夏", "小夏"), ("稲城忠保", "忠保"),
     ("鈴川令法", "鈴川"), ("大鳥香奈枝", "香奈枝"), ("永倉さよ", "さよ"), ("綾弥一条", "一条"), ("雪車町一蔵", "雪車町"),
@@ -269,11 +278,14 @@ pub(super) fn heard_flag(name: &str) -> String {
 /// is never turned off). It cross-fades in and out over 300 ms.
 fn voice_window(a: &mut dyn Assets, story: &Story) -> Option<VoiceWindow> {
     const DIR: &str = "cg/sys/config";
+    // src: sys_config.nss ConfigVoiceSet ($ConfigCvX 790 -= 32, $ConfigCvY 82/229/376; Fade 700, 300)
     let place = |slot: i32| match slot {
         1..=19 => (790 - 32 * (slot - 1), 82),
         20..=38 => (790 - 32 * (slot - 20), 229),
         _ => (790 - 32 * (slot - 39), 376),
     };
+    let (_, hw, hh) = a.image(&format!("{DIR}/data/hit.png"))?;
+    let hit_size = (hw as i32, hh as i32);
     let layout = |a: &mut dyn Assets, names: &[(i32, &str)], prefix: &str| -> Option<Vec<VoiceEntry>> {
         let mut entries = Vec::new();
         for &(slot, name) in names {
@@ -283,7 +295,7 @@ fn voice_window(a: &mut dyn Assets, story: &Story) -> Option<VoiceWindow> {
             let characters = story.voice_classes.iter().enumerate().filter(|(_, c)| c.as_str() == class).map(|(i, _)| i as u32).collect();
             entries.push(VoiceEntry {
                 picture: Placed { image, x, y, w: w as i32, h: h as i32 },
-                hit: (15, 142),
+                hit: hit_size,
                 characters,
                 heard: story.flags.get(&heard_flag(name)).copied(),
             });
@@ -291,6 +303,7 @@ fn voice_window(a: &mut dyn Assets, story: &Story) -> Option<VoiceWindow> {
         Some(entries)
     };
     let all: Vec<(i32, &str)> = VOICES.iter().enumerate().map(|(i, v)| (i as i32 + 1, v.0)).collect();
+    // src: sys_config.nss ConfigVoiceArray (before 一章クリア)
     let chapter_one: Vec<(i32, &str)> = ["新田雄飛", "来栖野小夏", "稲城忠保", "鈴川令法", "大鳥香奈枝", "永倉さよ", "綾弥一条", "雪車町一蔵", "真改"]
         .into_iter()
         .enumerate()
@@ -307,6 +320,7 @@ fn voice_window(a: &mut dyn Assets, story: &Story) -> Option<VoiceWindow> {
     let (open, ow, oh) = a.strip(&["", &part("002"), &part("003")])?;
     let black = a.color(0, SCREEN_W as u32, SCREEN_H as u32);
     Some(VoiceWindow {
+        // src: sys_config.nss ConfigSet ($ConfigAction 323,151)
         open: Placed { image: open, x: 323, y: 151, w: ow as i32 / 3, h: oh as i32 },
         backdrop: (Placed { image: black, x: 0, y: 0, w: SCREEN_W, h: SCREEN_H }, 178),
         background: Placed { image: background, x: 0, y: 0, w: w as i32, h: h as i32 },
@@ -326,6 +340,7 @@ fn voice_window(a: &mut dyn Assets, story: &Story) -> Option<VoiceWindow> {
 fn wait_icon(a: &mut dyn Assets) -> Option<WaitIcon> {
     let parts: Vec<String> = (1..=32).map(|n| format!("cg/sys/icon/改行改頁アイコン/{n:03}.png")).collect();
     let (image, w, h) = a.strip(&parts.iter().map(String::as_str).collect::<Vec<_>>())?;
+    // guess: watched, not filmed (clickwait-icon-60.mkv redraws about once a second)
     let mut frame_ms = vec![53; 19];
     frame_ms.extend([77; 13]);
     frame_ms[31] += 500;
@@ -348,6 +363,7 @@ fn wait_icon(a: &mut dyn Assets) -> Option<WaitIcon> {
 /// original's are, measured under wine).
 fn line_log(a: &mut dyn Assets, en: bool) -> Option<LineLog> {
     let dir = if en { "en/cg/sys/backlog" } else { "cg/sys/backlog" };
+    // src: sys_backlog.nss (buttons, scrollbar, SetFont 20, Fade 300), system.ini word_in_row 26; rows: shot backlog-1 (within 2 px)
     let ((close_x, close_y), text_x, columns) = if en { ((906, 443), 150, 28) } else { ((927, 438), 140, 26) };
     let strip = |a: &mut dyn Assets, names: &[&str], x: i32, y: i32| {
         let parts: Vec<String> = names.iter().map(|n| format!("{dir}/{n}.png")).collect();
@@ -419,6 +435,7 @@ fn save_grid(a: &mut dyn Assets) -> Option<SaveGrid> {
         colour: colour.into(),
         vertical,
     };
+    // src: sys_save.nss ($PreSave*, $Save*_plus, $Gyou*, $SaveNew*_plus, SetFont 18/20, SaveDialog, SaveFade)
     let saved = a.image("cg/sys/dialog/記録しました.png").map(|(image, w, h)| Placed { image, x: (SCREEN_W - w as i32) / 2, y: 88, w: w as i32, h: h as i32 });
     Some(SaveGrid {
         save_pages,
@@ -443,8 +460,9 @@ fn save_grid(a: &mut dyn Assets) -> Option<SaveGrid> {
         preview: Rect { x: 810, y: 416, w: 192, h: 108 },
         date: text(821, 516, 18, 1, 20, 0, "#000000", false),
         play_time: text(68, 528, 18, 1, 12, 0, "#ffffff", false),
+        // src: shot save-hover-ruby-slot2 (columns' ink from x 929, 899, 874: 25 apart)
         chapter: text(929, 41, 20, 1, 24, 0, "#000000", true),
-        line: text(898, 45, 18, 3, 20, -1, "#000000", true),
+        line: GridText { line_gap: 7, ..text(898, 45, 18, 3, 20, -1, "#000000", true) },
         saved,
         fade_ms: 300,
         across: false,
@@ -484,6 +502,7 @@ fn command_menu(a: &mut dyn Assets) -> Option<CommandMenu> {
     ];
     // No pressed picture: filmed, the menu keeps the hover one while the
     // mouse button is held.
+    // src: sys_menu.nss ($MenuX 636, $Menu*Y 89 + 20 a row; Fade 100, $menuwait 10); 0_boot.nss SetShortcut
     let items = menu_items(a, "cg/sys/menu", (636, 89), &rows, &[1, 2, 0])?;
     let backdrop = picture(a, "cg/sys/menu/メニュー黒バック.png", 0, 0)?;
     Some(CommandMenu { backdrop, items, fade_ms: 100, step_ms: 10, key: Some('M'), pressed: false })
@@ -628,6 +647,7 @@ fn menu_items(a: &mut dyn Assets, dir: &str, at: (i32, i32), rows: &[(&str, BarA
     for (n, &(name, action, key)) in rows.iter().enumerate() {
         let parts: Vec<String> = states.iter().map(|s| format!("{dir}/{s:03}-{name}.png")).collect();
         let (image, w, h) = a.strip(&parts.iter().map(String::as_str).collect::<Vec<_>>())?;
+        // src: sys_menu.nss $Menu*Y (20 apart)
         let button = Placed { image, x: at.0, y: at.1 + 20 * n as i32, w: w as i32, h: h as i32 };
         let label = (action == BarAction::Call).then(|| FAVOUR.to_string());
         items.push(CommandItem { button, action, key, label });
@@ -650,6 +670,7 @@ fn picture(a: &mut dyn Assets, path: &str, x: i32, y: i32) -> Option<Placed> {
 /// other closes on its own); not yet compared with the original.
 fn quick_bar(a: &mut dyn Assets, en: bool) -> Option<ButtonBar> {
     const DIR: &str = "cg/sys/quick";
+    // src: function_quick.nss ($Quick*X/Y, QuickBase 992,26, hidden at 1030, $PosX 968, Move 200 Dxl2, Fade BLACK 300)
     let mut buttons = Vec::new();
     for (name, y, action) in [
         ("栞を差す", 47, BarAction::QuickSave),
@@ -688,6 +709,7 @@ fn quick_bar(a: &mut dyn Assets, en: bool) -> Option<ButtonBar> {
 /// `look` places the pictures: the Japanese or the English port's.
 fn title(a: &mut dyn Assets, story: &Story, look: &TitleLook) -> Option<TitleScreen> {
     let dir = look.dir;
+    // src: 0_boot.nss TitleSet (タイトル版権 50,540; $TitleNutName; $Title*SE; mbgm04), TitleFade, title start 1099-1125 (SetVolume 3000, Fade 1000, Wait 2000)
     let mut parts = Vec::new();
     for (name, x, y) in [("偽富士背景画像", 0, 0), ("ロゴ画像", look.logo.0 as i64, look.logo.1 as i64), ("コピーライト", 50, 540)] {
         parts.push((a.image(&format!("{dir}/{name}.png"))?.0, x, y, 1000));
@@ -708,6 +730,7 @@ fn title(a: &mut dyn Assets, story: &Story, look: &TitleLook) -> Option<TitleScr
             movies.insert(picture, m);
         }
         let Some(movie) = movies[picture].clone() else { continue };
+        // src: 0_boot.nss CreateTPO1(…, 600, 300, 1100, 2), 1000 ms into its loop as the opening ends
         let glow_keys = Some(vec![(0, 256), (100, 256), (700, 0), (1200, 0), (1800, 256), (2200, 256)]);
         openings.push(TitleOpening { movie, at_launch: true, sound: launch_sound.clone(), glow_keys, when, sets, random, ..Default::default() });
     }
@@ -720,6 +743,7 @@ fn title(a: &mut dyn Assets, story: &Story, look: &TitleLook) -> Option<TitleScr
         let sound = a.sound("sound/se/se戦闘_攻撃_刀衝突01");
         openings.push(TitleOpening { movie, sound, after_extras: true, ..Default::default() });
     }
+    // src: 0_boot.nss CreateTPO1(…, 600, 300, 1100, 2)
     let glow = a.overlaid(&background, "cg/ef/ef046_炎a.jpg", 2000, 300).map(|image| TitleGlow {
         image,
         keys: vec![(0, 0), (600, 256), (1100, 256), (1700, 0), (2200, 0)],
@@ -824,6 +848,7 @@ fn centred(a: &mut dyn Assets, path: &str) -> Option<Placed> {
 /// 150 ms (the original also unrolls them sideways from the middle).
 fn confirm(a: &mut dyn Assets) -> Option<ConfirmDialog> {
     const DIR: &str = "cg/sys/dialog";
+    // src: sys_close.nss (MSG_yes 515,397, MSG_no 471,397, MSG_bak 800, Zoom/Fade 150 Dxl1; close 200)
     let question = |a: &mut dyn Assets, name: &str| centred(a, &format!("{DIR}/{name}.png"));
     let mut pictures = Vec::new();
     for (kind, name) in [

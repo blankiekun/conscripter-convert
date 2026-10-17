@@ -44,6 +44,7 @@ use conv_core::ir::{ArithOp, SpriteFilter, BLEND_ADD, BLEND_MULTIPLY, BLEND_NORM
 use super::nss::{AssignOp, BinaryOp, Expr, Function, Inline, Item, NssFile, Param, Stmt, StmtKind, Target, Text, UnaryOp};
 
 /// 装甲悪鬼村正's screen ([`Game::screen`]).
+// src: sys_config.nss ConfigSet (CreateWindow 1024×576)
 pub const SCREEN_W: i64 = 1024;
 /// The longest cross-fade non-blocking actions get where the script doesn't
 /// wait for them (a text page, a blocking action): the original goes on
@@ -1781,6 +1782,8 @@ impl<'a, 'b> Compiler<'a, 'b> {
     /// `n` vertical plates 100 px apart, the first at the right, centred on
     /// the screen; the options in black, vertical, one per plate.
     fn vertical_choice_style(&mut self, n: i64) -> Option<ChoiceStyle> {
+        // src: function_select.nss SetChoiceBase ($SelectX_plus 100, + 50, SetFont 20 #000000)
+        // guess: MARGIN (the text 40 px down its plate) and the red under the pointer, not filmed
         const PITCH: i64 = 100;
         const FONT: i64 = 20;
         const MARGIN: i64 = 40;
@@ -2252,7 +2255,8 @@ impl<'a, 'b> Compiler<'a, 'b> {
             runs: BTreeMap::new(),
             pending_mask: None,
             shaken: Vec::new(),
-            font_size: 20,
+            // src: system.ini [フォント] size (18 in both 装甲悪鬼村正's and 続・殺戮のジャンゴ's)
+            font_size: 18,
             font: Vec::new(),
             text_box: None,
             window: None,
