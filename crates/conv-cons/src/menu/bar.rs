@@ -70,6 +70,26 @@ pub(crate) fn disabled_while(a: BarAction, picture_replay: bool) -> Option<&'sta
     }
 }
 
+/// The letter that hides the text window in a game whose waits read
+/// letters (`getkey`); the gamepad's Y sends it (`padmap`).
+const HIDE_KEY: char = 'W';
+
+/// The key the gamepad's Y sends to hide the text window (`padmap "y"`):
+/// the hide letter where the waits read letters, Esc where a right click
+/// hides; `None` where nothing hides it from a key.
+pub(crate) fn pad_hide_key(menu: Option<&CommandMenu>) -> Option<String> {
+    match menu {
+        None => Some("Escape".into()),
+        Some(_) if reads_keys(menu) => Some(HIDE_KEY.to_string()),
+        Some(_) => None,
+    }
+}
+
+/// The waits read letters (`getkey`): the command menu has key shortcuts.
+fn reads_keys(menu: Option<&CommandMenu>) -> bool {
+    menu.is_some_and(|m| m.key.is_some() || m.items.iter().any(|i| i.key.is_some()))
+}
+
 /// The value CONscripter's `getkey` makes `btnwait` return for a letter.
 pub(crate) fn key_code(c: char) -> i32 {
     -1000 - c.to_ascii_uppercase() as i32
@@ -122,7 +142,7 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, s: BarScreens) {
     let number = |i: usize| BAR_BUTTON_BASE + 1 + i as i32;
     let menu = s.command_menu;
     let menu_items = menu.map_or(&[][..], |m| &m.items[..]);
-    let keys = menu.is_some_and(|m| m.key.is_some() || m.items.iter().any(|i| i.key.is_some()));
+    let keys = reads_keys(menu);
 
     w(format!("*{WAIT}"));
     // *start's erasetextwindow 0 again: a run started with --goto (a test
@@ -332,6 +352,10 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, s: BarScreens) {
     w(format!("if {BUTTON_VAR} == -1 goto *{right_click}"));
     if let Some(k) = menu.and_then(|m| m.key) {
         w(format!("if {BUTTON_VAR} == {} goto *{right_click}", key_code(k)));
+    }
+    if keys {
+        assert!(menu_items.iter().all(|i| i.key != Some(HIDE_KEY)), "a menu item takes the hide key {HIDE_KEY}");
+        w(format!("if {BUTTON_VAR} == {} goto *conv_bar_hide", key_code(HIDE_KEY)));
     }
     for (i, item) in menu_items.iter().enumerate() {
         let Some(k) = item.key else { continue };
