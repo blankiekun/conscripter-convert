@@ -76,7 +76,7 @@ impl Compiler<'_, '_> {
                         y = (sq[1].0 * c[1] + sq[1].1).round() as i64 - o.h / 2;
                         zoom = ((zoom.0 as f64 * sq[0].0).round().max(1.0) as i64, (zoom.1 as f64 * sq[1].0).round().max(1.0) as i64);
                     }
-                    let shown = Shown { layer: 0, image: image.clone(), x, y, w: o.w, h: o.h, opacity, cells: None, source: String::new(), zoom: (1000, 1000), angle: o.angle(), clip: None, engine: Engine::default(), flash: 0, blend: o.blend, tint: None };
+                    let shown = Shown { layer: 0, image: image.clone(), x, y, w: o.w, h: o.h, opacity, cells: None, source: String::new(), zoom: (1000, 1000), angle: o.angle(), clip: None, engine: Engine::default(), flash: 0, blend: o.blend, tint: None, over: false };
                     Some((n.clone(), shown, (o.priority, o.seq), zoom, (o.w, o.h), o.mirror()))
                 }
                 _ => None,
@@ -114,7 +114,7 @@ impl Compiler<'_, '_> {
             // One cell: a movie file loops with no time a cell (`:c/1,0,0;`).
             let looped = at.is_none() && m.looped;
             let frame_ms = if at.is_none() { 0 } else { 1000 / MOVIE_FPS };
-            let shown = Shown { layer: 0, image, x, y, w: cw as i64, h: ch as i64, opacity: o.opacity, cells: Some((1, looped, zoom, frame_ms)), source: String::new(), zoom: (1000, 1000), angle: 0, clip: None, engine: Engine::default(), flash: 0, blend: o.blend, tint: None };
+            let shown = Shown { layer: 0, image, x, y, w: cw as i64, h: ch as i64, opacity: o.opacity, cells: Some((1, looped, zoom, frame_ms)), source: String::new(), zoom: (1000, 1000), angle: 0, clip: None, engine: Engine::default(), flash: 0, blend: o.blend, tint: None, over: false };
             // (Turned over as a picture is: the frame, or the movie file.)
             want.push((n, shown, (o.priority, o.seq), (1000, 1000), (o.w, o.h), o.mirror()));
         }
@@ -129,7 +129,7 @@ impl Compiler<'_, '_> {
                 let zoom = (s.zoom.0 * tilt(o.turn.1, o.zoom.0) / 1000, s.zoom.1 * tilt(o.turn.0, o.zoom.1) / 1000);
                 let cells = Some((s.cells, s.looped, zoom, s.frame_ms));
                 let (px, py) = self.parent_offset(n);
-                let shown = Shown { layer: 0, image: s.image.clone(), x: o.x + px, y: o.y + py, w: s.w, h: s.h, opacity: o.opacity, cells, source: String::new(), zoom: (1000, 1000), angle: o.angle(), clip: None, engine: Engine::default(), flash: 0, blend: o.blend, tint: None };
+                let shown = Shown { layer: 0, image: s.image.clone(), x: o.x + px, y: o.y + py, w: s.w, h: s.h, opacity: o.opacity, cells, source: String::new(), zoom: (1000, 1000), angle: o.angle(), clip: None, engine: Engine::default(), flash: 0, blend: o.blend, tint: None, over: false };
                 want.push((n.clone(), shown, (o.priority, o.seq), (1000, 1000), (s.w, s.h), (false, false)));
             }
         }
@@ -138,7 +138,7 @@ impl Compiler<'_, '_> {
                 && o.opacity > 0
                 && !o.hideable
             {
-                let shown = Shown { layer: 0, image: f.image.clone(), x: o.x, y: o.y, w: o.w, h: o.h, opacity: 1000, cells: None, source: String::new(), zoom: (1000, 1000), angle: 0, clip: None, engine: Engine::default(), flash: o.seq, blend: BLEND_NORMAL, tint: None };
+                let shown = Shown { layer: 0, image: f.image.clone(), x: o.x, y: o.y, w: o.w, h: o.h, opacity: 1000, cells: None, source: String::new(), zoom: (1000, 1000), angle: 0, clip: None, engine: Engine::default(), flash: o.seq, blend: BLEND_NORMAL, tint: None, over: false };
                 want.push((n.clone(), shown, (o.priority, o.seq), (1000, 1000), (o.w, o.h), (false, false)));
             }
         }
@@ -152,6 +152,7 @@ impl Compiler<'_, '_> {
                     shown.image = image;
                 }
                 (shown.source, shown.zoom) = (shown.image.clone(), zoom);
+                shown.over = self.over_text(&n);
                 if zoom != (1000, 1000)
                     && let Some((image, x, y, sw, sh)) = self.assets.scaled(&shown.image, zoom.0, zoom.1, (shown.x, shown.y, w, h))
                 {
@@ -372,7 +373,7 @@ impl Compiler<'_, '_> {
             }
             match self.shown.get(&name) {
                 Some(old) if *old == Shown { engine: old.engine, ..now.clone() } => continue,
-                Some(old) if old.layer == now.layer && old.image == now.image && old.x == now.x && old.y == now.y && old.cells == now.cells && old.flash == now.flash && old.angle == now.angle && old.clip == now.clip => {
+                Some(old) if old.layer == now.layer && old.image == now.image && old.x == now.x && old.y == now.y && old.cells == now.cells && old.flash == now.flash && old.angle == now.angle && old.clip == now.clip && old.over == now.over => {
                     now.engine = old.engine;
                     if old.tint != now.tint {
                         opacity.push(Op::SpriteFilters { layer, filters: now.tint.clone().unwrap_or_default() });
@@ -383,7 +384,8 @@ impl Compiler<'_, '_> {
                     opacity.push(Op::SpriteOpacity { layer: Some(layer), opacity: (now.opacity * 256 / 1000) as u32 });
                 }
                 old => {
-                    if let Some(old) = old.filter(|o| o.layer != layer || o.engine.zoomed || (o.cells.is_some() && now.cells.is_none()) || o.flash != 0) {
+                    // (`spovertext` stays on the layer until it is cleared.)
+                    if let Some(old) = old.filter(|o| o.layer != layer || o.engine.zoomed || (o.cells.is_some() && now.cells.is_none()) || o.flash != 0 || (o.over && !now.over)) {
                         changes.push(SpriteChange { layer: old.layer, sprite: None, keep_filters: false });
                         if old.cells.is_some() || old.engine.zoomed || old.flash != 0 || old.blend != BLEND_NORMAL {
                             unzoom.push(old.layer);
@@ -412,7 +414,7 @@ impl Compiler<'_, '_> {
                         f.started = true;
                         animated.push(Op::SpriteFlashing { layer, keys, times });
                     }
-                    if let Some(Object { kind: Kind::Strip(_), over_text: true, .. }) = self.objects.get(&name) {
+                    if now.over {
                         animated.push(Op::SpriteOverText { layer });
                     }
                     if let Some(Object { shake: Some((_, keys)), .. }) = self.objects.get(&name) {

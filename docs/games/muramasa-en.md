@@ -60,7 +60,7 @@ It has no NPA archives and no NSS scripts.
   engine's window is above every sprite; in the original it is part of
   the capture under them), and the bar is the Japanese 500×1000 (the
   port's English branch scales it to 620×220).
-- Text-area lines (this PR): the port's `CreateTextArea` + `SetText`
+- Text-area lines (#166): the port's `CreateTextArea` + `SetText`
   lines (mb04_015vs: `《Even so―》`, `《That is justice!》`) pair with the
   NSS's `CreateText` by their Japanese (the port names the sprite
   `add_text01` for the NSS's `text02`), at the area's place and width
@@ -71,8 +71,17 @@ It has no NPA archives and no NSS scripts.
   (not this PR): the engine's text window is drawn over them, and with
   two boxes up the window takes the first box in `EN_TEXT` (R), not the
   one `SetTextEXL` names (L), so the page's text lands on the caption.
-- Next: the text window over captions and the box chosen with two
-  boxes up (above);
+- Pictures over the text window (this PR, shared NSS): a picture above
+  the window the text is in (`<PRE @box0>`: `CreateWindow("box0",
+  20001, …)`) in priority, or as high and made after it, is drawn over
+  the text window and its text (CONscripter's `spovertext`), as the exe
+  draws by priority: mb03_022's captions and bar, mb04_015vs's text-area
+  lines, name plates, flashes and blackouts over the window. Only 3
+  pages in the Japanese build show their text under an opaque picture
+  that covers the screen (mc04_022vs's `絵演弓聖終` at 29000). Checked
+  on a one-scene build of mb03_022 with the trace: the captions over
+  the box.
+- Next: the box chosen with two boxes up (above);
   ma01_026's typed document and mc02_031's menus (Status "Next" 4).
 - Decided: a click on an empty slot at the title doesn't save (the
   original saves the title screen there): a deliberate difference.
