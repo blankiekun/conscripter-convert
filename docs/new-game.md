@@ -753,6 +753,13 @@ saves, loads and compares the state every N pages; a `save/load
 mismatch` warning means part of the state (filters, the `pushscreen`
 stack, screen effects, variables) doesn't survive a save.
 
+**Sound.** `sound` records say when a `chvolfade`/`chpan`/`chfreq` ramp
+got there and when a sound ended, `ms_cpu` marks a command that held the
+main thread over a frame, and `--audio-stats` adds an `audio` record per
+100 ms per channel and for the mix (RMS, balance, frequency, largest
+sample step, file position): sound plays in real time, so run it with
+`--real-time` or without `--auto-play` (`engine/DEBUG.md`).
+
 **Story flags.** `--trace-vars 300-899` writes a `var` record each time
 one of those variables changes, with the script line. Compare them with
 the route simulator's variables (step 11.4) to see where and why the
