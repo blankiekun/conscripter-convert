@@ -579,6 +579,11 @@ anything is reached (step 11.6).
   in `research/<engine>/local/shots/` before filming new ones.
 - **Reach the moment by patching, not by clicking.** To see a page,
   effect or menu in the original, in this order of preference:
+  0. **Write a save with `research/tools/<engine>_save.py`** where the
+     engine has one (最果てのイマ: `xuse_save.py`): it stands at any
+     label with the variables you give, and the original loads it from
+     its own load screen. Write such a tool once the save format is known
+     (the game document's "Save format"): it beats patching and clicking.
   1. **Patch the game's scripts** in a copy: skip the logos and title,
      start straight at the scene, set the flags its branch needs, and let
      the pages advance by themselves (auto mode, or a timed wait added
