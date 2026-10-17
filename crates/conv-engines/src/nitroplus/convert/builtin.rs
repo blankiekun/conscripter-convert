@@ -66,7 +66,7 @@ impl Compiler<'_, '_> {
         };
         let last = || a.len().checked_sub(1).map_or(Value::Null, arg);
         match name {
-            "LoadImage" if self.game.loaded_textures => {
+            "LoadImage" if self.game.loaded_textures && self.file != "function_select.nss" => {
                 // (name, path): a picture other objects are made from
                 // (`CreateTexture("frame03", …, "@LoadFrame")`), not shown.
                 let name = self.object_name(&arg(0));
@@ -81,6 +81,12 @@ impl Compiler<'_, '_> {
                 let name = self.object_name(&arg(0));
                 let src = self.deref(&arg(4));
                 let Some((image, w, h)) = self.texture_source(&src) else {
+                    if self.file == "function_select.nss" {
+                        // The choice plates (装甲悪鬼村正's `select_img*`): the engine's choice.
+                        (0..a.len()).for_each(|i| drop(arg(i)));
+                        self.note(CHOICE_SCREEN);
+                        return Value::Null;
+                    }
                     self.note(format!("CreateTexture from {}", if src.contains('/') { "a missing file" } else { "an object or the screen" }));
                     let o = self.create(name, Kind::Other, arg(1).int(), 0, 0);
                     (o.x, o.y) = (arg(2).position(0, 0, screen_w), arg(3).position(0, 0, screen_h));

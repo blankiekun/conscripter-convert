@@ -875,7 +875,8 @@ Next, in order:
      `Plain` cover under a stencil (noted only).
    - `CreateMask` (31),
      `SetSurface`/`CreateSurface`, `LoadImage` as a texture source
-     (Muramasa leaves `loaded_textures` off).
+     (on since 2026-10-17, "History"; 25 `CreateTexture`s from an
+     object or the screen are still noted).
    - `Request(…, NoIcon)` (4) is dropped without a note: a `Request` on
      an object the converter doesn't keep returns silently, so the dry
      run's notes undercount those.
@@ -936,6 +937,19 @@ Next, in order:
   held (seen once in a small test script; not looked into).
 
 ## History
+
+### Pictures made from `LoadImage` (2026-10-17)
+
+`CreateTexture(…, "name")` draws a picture `LoadImage` loaded under that
+name (seen: `builtin_CreateTexture` looks the source up by name,
+`FUN_004491a0`, and copies its picture, `FUN_00488670`, before trying a
+file). Muramasa now takes `Game::loaded_textures`: the story's pictures
+made that way (the scrolling battle backgrounds, `雑魚イメージ`, `イメージ１`)
+are drawn, about 11,000 lines of `0.txt` (new `lsp`s, `spmotion`s and
+the re-layering they cause). The choice screen's plates (`select_img*`
+in `function_select.nss`) stay the engine's choice: left out (1,776
+`CreateTexture`, 504 `LoadImage`; 続・殺戮のジャンゴ's 40 and 10 the same,
+its script unchanged).
 
 ### Tempo of `Rotate` (2026-10-17)
 

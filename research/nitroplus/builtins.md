@@ -188,7 +188,7 @@ dry run):
 | `CreateText` | 53 / 104 / 40 | story: drawn as pictures in the last `SetFont`'s style (`convert/text_object.rs`), clipped at the box's height (argument 5) as the exe's surface of the box's size; choices and markup left out; sys: replaced |
 | `SetVertex` | most story | converted: the point a `Zoom` or `Rotate` keeps in place |
 | `SetFont` | most story | converted: its style is `CreateText`'s (the story's text window keeps ours) |
-| `LoadImage` | 30 / 16 / 101 | not converted for Muramasa (`Game::loaded_textures` is off; 487 noted): the sources of `CreateTexture` from an object |
+| `LoadImage` | 30 / 16 / 101 | converted: the sources of `CreateTexture` from an object (`builtin_CreateTexture` looks the source up by name, FUN_004491a0, and copies its picture, FUN_00488670, before loading a file, FUN_00488130); the choice screen's (`function_select.nss`) are left out |
 | `DrawEffect` | 79 / 0 / 2 | waves converted (`spwave`, Status); Ripple and the Splits noted |
 | `CreateStencil`, `CreateMask`, `SetSurface`, `CreateSurface` | 59 / 2 / 0 …; 30 / 1 / 1; 6 / 4 / 0; 0 / 3 / 0 | not converted (57, 28, 58, 52 noted) |
 | `SetLoopPoint` | 0 / 3 / 0 | not converted: the BGM helpers' loop points (33 noted) |
