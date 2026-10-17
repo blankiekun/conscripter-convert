@@ -779,6 +779,23 @@ The biggest commands not converted, looked up in `script_command`
   (`_SNX2` and `_SNX3` have), so the Switch exe does nothing. Left
   out.
 
+The mapped commands, argument by argument and branch by branch, are in
+`docs/games/tsukihime.findings.tsv` (seen, inferred or unknown, and the
+cheapest check for each; redone 2026-10-17 against docs/new-game.md's
+steps 6–17: 67 seen, 16 inferred, 6 unknown). Open there, by size:
+
+- Motion keys' easing (0x04, 18,775 keys, mostly quad out) and `_STGS`'s
+  (27): needs a curve per `MotionKey` in the IR (a shared change), then
+  `spcurve` tables of the exe's set (`FUN_00130c80`).
+- Motion keys' priority (0x3C, 23,115 calls) and expression (0x32/0x34,
+  5,254), and the stepped fields 0x24–0x2A (shader, effect and colour
+  changes mid-motion?).
+- Looping motions (`FUN_001999a0`, 2,037 calls) play once; `_STMA(n, 0)`
+  (92) doesn't stop a motion.
+- `_SEPL`/`_MPLY` volume (option 17) and `_SEVL` (not converted, 1,285):
+  every sound at full volume.
+- Zooms under 10 % are coarse (`spzoom` takes whole percents).
+
 ## History
 
 - 2026-10-17: `_STEC` exact, **seen** in
