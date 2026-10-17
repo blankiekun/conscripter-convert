@@ -14,6 +14,7 @@ impl Compiler<'_, '_> {
         let fades = std::mem::take(&mut self.pending_fade);
         let cameras = std::mem::take(&mut self.pending_camera);
         let mut shake_once = std::mem::take(&mut self.shake_once);
+        let mut paths = std::mem::take(&mut self.pending_path);
         let mask = self.pending_mask.take();
         self.flush_sounds();
         self.end_one_shots();
@@ -369,7 +370,7 @@ impl Compiler<'_, '_> {
             if (old.layer != layer || old.whole.is_some_and(|_| now.whole.is_none()) || old.source != now.source)
                 && old.opacity == now.opacity
                 && !self.lead_ins.contains_key(name)
-                && let Some(Op::SpriteMotion2 { keys, end, .. }) = motion(&start, &now, t)
+                && let Some(Op::SpriteMotion2 { keys, end, .. }) = motion(&start, &now, t).map(|op| along(op, paths.remove(name)))
             {
                 let mut ops = Vec::new();
                 if let Some(t) = self.objects.get(name).and_then(|o| o.trail) {
@@ -407,7 +408,7 @@ impl Compiler<'_, '_> {
                     if let Some(&(ease, exponent)) = tempo.get(name) {
                         self.ops.push(Op::MoveEase { ease, exponent });
                     }
-                    self.ops.push(op);
+                    self.ops.push(along(op, paths.remove(name)));
                     if now.opacity == 0 {
                         self.vanishing.insert(name.clone(), clock + u64::from(t));
                     }
@@ -656,6 +657,33 @@ fn spread(kept: &[Option<u32>]) -> Option<Vec<Option<u32>>> {
     // (The last is MAX_LAYER, the end of the last run.)
     out.pop();
     Some(out)
+}
+
+/// A two-key motion through a `BezierMove`'s `path` (keys from the start,
+/// over the same time): its places in between, the rest of each key
+/// (zoom, turn, opacity) as the motion has it then.
+fn along(op: Op, path: Option<Vec<MotionKey>>) -> Op {
+    let (Op::SpriteMotion2 { layer, keys, end }, Some(path)) = (&op, path) else { return op };
+    let ([a, b], Some(last)) = (keys.as_slice(), path.last()) else { return op };
+    if last.ms != b.ms || b.ms == 0 {
+        return op;
+    }
+    // (The motion's end, from the pictures as drawn, may differ from the
+    // path's by a cut or a zoom's rounding: the difference spread over it.)
+    let mix = |p: i64, q: i64, k: &MotionKey| p + (q - p) * i64::from(k.ms) / i64::from(b.ms);
+    let keys = path
+        .iter()
+        .map(|k| MotionKey {
+            x: k.x + mix(0, i64::from(b.x - last.x), k) as i32,
+            y: k.y + mix(0, i64::from(b.y - last.y), k) as i32,
+            zoom: mix(a.zoom.into(), b.zoom.into(), k) as u32,
+            zoom_y: mix(a.zoom_y.into(), b.zoom_y.into(), k) as u32,
+            opacity: mix(a.opacity.into(), b.opacity.into(), k) as u32,
+            angle: mix(a.angle.into(), b.angle.into(), k) as i32,
+            ..*k
+        })
+        .collect();
+    Op::SpriteMotion2 { layer: *layer, keys, end: *end }
 }
 
 #[cfg(test)]

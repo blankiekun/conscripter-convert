@@ -435,6 +435,38 @@ impl<'a> Compiler<'a, '_> {
         }
     }
 
+    /// `BezierMove(obj, ms, path, tempo, wait)` in the script: each picture
+    /// moved to the path's end over `ms` as `Move` is, the sync's motion
+    /// going through the path's points ([`bezier`], `pending_path`).
+    pub(super) fn bezier_move(&mut self, exprs: &'a [Expr], v: &[Value]) -> Value {
+        let arg = |i: usize| v.get(i).cloned().unwrap_or(Value::Null);
+        let (sw, sh) = self.game.screen;
+        let ms = arg(1).int().max(0) as u32;
+        let Some(Expr::Path(points)) = exprs.get(2) else {
+            self.note("BezierMove without a path");
+            return Value::Null;
+        };
+        let points: Vec<(bool, Value, Value)> = points.iter().filter_map(|pt| match pt {
+            Expr::Point { control, x, y } => Some((*control, x, y)),
+            _ => None,
+        }).collect::<Vec<_>>().into_iter().map(|(c, x, y)| (c, self.eval(x), self.eval(y))).collect();
+        let targets = self.matching(&arg(0));
+        for t in &targets {
+            let Some(o) = self.objects.get_mut(t) else { continue };
+            let pts: Vec<_> = points.iter().map(|(c, x, y)| (*c, x.position(o.x, o.w, sw) as f64, y.position(o.y, o.h, sh) as f64)).collect();
+            let mut p = Pass::starting([o.x as f64, o.y as f64, o.zoom.0 as f64, o.zoom.1 as f64, 0.0, 1000.0]);
+            bezier(&mut p, 0, ms, &pts);
+            let end = p.ends();
+            (o.x, o.y) = (end[0].round() as i64, end[1].round() as i64);
+            if let Some(keys) = p.keys(ms).filter(|k| k.len() > 2) {
+                self.pending_path.insert(t.clone(), keys);
+            }
+        }
+        self.set_tempo(super::tempo(&arg(3)), &targets);
+        self.timed(i64::from(ms), &arg(4), &targets);
+        Value::Null
+    }
+
     /// Picture `target` loops `keys` while process `name` runs, after the
     /// process's waits ([`Compiler::process_lead`]).
     fn set_loop(&mut self, name: &str, target: &str, keys: Vec<MotionKey>) {
