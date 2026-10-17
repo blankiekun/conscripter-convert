@@ -768,8 +768,7 @@ Next, in order:
    scripts: coverage"). Every file has a status (no gaps there); new
    gaps, most noticeable first:
    - `CreateEffect` Drop (1, mc04_052's snow: an image per drop, swung
-     and turned) and Lens (2). Rain is converted (in review, PR
-     "NSS CreateEffect Rain as a looping strip"): `convert/rain.rs` plays
+     and turned) and Lens (2). Rain is converted (in review, #161): `convert/rain.rs` plays
      the exe's rain (`00435e60`, `00436390`) into a 24-frame strip of the
      effect's size (`$SYSTEM_effect_rain_dencity` drops, at most 128,
      grey streaks 196 px with the exe's alpha ramp, falling their speed
