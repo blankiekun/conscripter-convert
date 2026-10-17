@@ -261,6 +261,13 @@ impl<'a> Emitter<'a> {
         }
         Op::SpriteMotion { layer, keys, looped } => motion::emit(out, *layer, keys, *looped, fading_slots.remove(&(SPRITE_BASE + layer))),
         Op::SpriteMotion2 { layer, keys, end } => {
+            // Its opacity just set for the keys' fade (Op::SpriteOpacity):
+            // not drawn at it first, the motion sets its first key's at once.
+            // (Patched here: SpriteOpacity's emitter can't see the next op.)
+            let set = format!("\nmsp {0},0,0,-255:msp {0},0,0,", SPRITE_BASE + layer);
+            if out.ends_with("\nprint 1\n") && out[..out.len() - 9].rfind('\n').is_some_and(|i| out[i..].starts_with(&set)) {
+                out.truncate(out.len() - 8);
+            }
             let (ease, fade) = (move_ease.take(), fading_slots.remove(&(SPRITE_BASE + layer)));
             // shortcut: a fade folded into the keys splits them, so the motion goes straight; ease each part when a game needs it.
             let curve = if fade.is_none() { curve(ease, eased) } else { 0 };
