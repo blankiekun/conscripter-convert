@@ -962,6 +962,16 @@ fn uses_switch(script: &Script, s: Switch) -> bool {
 /// `--no-text-overlay`: the web player draws no text overlay.
 pub const ENGINE_ARGS: &str = "--enc:sjis\n--no-text-overlay\n";
 
+/// `ons_args`: [`ENGINE_ARGS`], and with a button bar its sprites for
+/// `--trace-ignore` (the lists add up), so `--auto-play` doesn't open the
+/// menus from the bar and get lost in them.
+pub fn engine_args(script: &Script) -> String {
+    match script.button_bar {
+        Some(_) => format!("{ENGINE_ARGS}--trace-ignore\n{}-{}\n", BAR_SPRITES.start, BAR_SPRITES.end - 1),
+        None => ENGINE_ARGS.to_string(),
+    }
+}
+
 /// Encodes NScripter source as Shift-JIS. Characters Shift-JIS can't
 /// represent become `?`; their count is returned.
 pub fn encode(source: &str) -> (Vec<u8>, usize) {
@@ -1481,6 +1491,13 @@ mod tests {
     use super::*;
     use conv_core::ir::Compare;
     use conv_core::ir::{Animation, ButtonScreen, ChoiceStyle, Noise, Placed, SourceLoc, SpriteChange, SpriteFilter, SpritePlacement, Voice, FILTER_BLEND_COPY, FILTER_BLEND_MULTIPLY, FILTER_BRIGHTNESS, FILTER_COLOUR};
+
+    #[test]
+    fn ons_args_ignore_the_bar_for_auto_play() {
+        assert_eq!(engine_args(&Script::default()), ENGINE_ARGS);
+        let script = Script { button_bar: Some(conv_core::ir::ButtonBar::default()), ..Default::default() };
+        assert_eq!(engine_args(&script), format!("{ENGINE_ARGS}--trace-ignore\n34-48\n"));
+    }
 
     fn script(ops: Vec<Op>) -> Script {
         Script { title: "Test".into(), width: 800, height: 600, ops, ..Default::default() }

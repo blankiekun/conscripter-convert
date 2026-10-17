@@ -229,7 +229,7 @@ pub fn write_game(output: &Path, ir: &Script, source: &str, font: Option<&[u8]>,
     if let Some(v) = &ir.version {
         version::write(output, &ir.title, v, package)?;
     }
-    fs::write(output.join("ons_args"), conv_cons::ENGINE_ARGS)?;
+    fs::write(output.join("ons_args"), conv_cons::engine_args(ir))?;
     if let Some(font) = font {
         fs::write(output.join("default.ttf"), font)?;
     }
