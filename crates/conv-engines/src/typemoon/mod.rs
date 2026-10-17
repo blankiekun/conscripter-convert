@@ -9,6 +9,7 @@ pub mod build;
 pub mod convert;
 pub mod exe;
 pub mod fwav;
+pub mod language;
 pub mod mrg;
 pub mod menu;
 pub mod mzp;

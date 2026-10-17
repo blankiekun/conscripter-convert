@@ -420,6 +420,10 @@ pub fn emit(script: &Script) -> String {
             writeln!(out, "loadgosub *{}", menu::SCENE_LOADED).unwrap();
         }
     }
+    if let Some(label) = &script.after_load {
+        // shortcut: replaces a bar's loadgosub above; chain the two when a game with a bar needs both.
+        writeln!(out, "loadgosub *{label}").unwrap();
+    }
     // CONscripter converts the caption to UTF-8 for the window title.
     if has_ruby {
         // Draw ruby (readings) in the line gap above the text. Text then
@@ -485,6 +489,9 @@ pub fn emit(script: &Script) -> String {
         // (by default every print hides it until the next text, which
         // flickers); the script hides it explicitly with textoff.
         writeln!(out, "erasetextwindow 0").unwrap();
+    }
+    if system_menu::menu(script).is_some() {
+        writeln!(out, "rgosub *{}", system_menu::RIGHT_CLICK).unwrap();
     }
     // An icon with no place of its own in any window: drawn after the text
     // by the engine, at line and page waits alike.

@@ -103,7 +103,8 @@ pub enum TypemoonCommand {
         exe: Option<PathBuf>,
         #[arg(long, default_value = "月姫 -A piece of blue glass moon-")]
         title: String,
-        /// The fan patch's RomFS: its media that differ go in too (`typemoon media --english`)
+        /// The fan patch's RomFS: the English script beside the Japanese (one 0.txt,
+        /// a language switch), and its media that differ (`typemoon media --english`)
         #[arg(long)]
         english: Option<PathBuf>,
         #[command(flatten)]
@@ -129,7 +130,7 @@ pub fn run(command: TypemoonCommand) -> Result<()> {
                 if !opts.dry_run {
                     media(&dir, english.as_deref(), opts.output, opts.webp, opts.audio)?;
                 }
-                typemoon::build::build(&dir, &exe, opts)
+                typemoon::build::build(&dir, &exe, english.as_deref(), opts)
             })
         }
     }

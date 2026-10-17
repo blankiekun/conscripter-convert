@@ -740,6 +740,19 @@ pub enum Op {
     /// a soft frame of it inside the rectangle) when given, else from what
     /// is under it. 月姫's panel frames.
     SpriteClipFeather { layer: u32, rect: (i32, i32, i32, i32), feather: u32, colour: Option<u32> },
+    /// The text's language from here on (ISO 639-1), told to the web page
+    /// (CONscripter's `language`; not saved: set it again after a load,
+    /// [`Script::after_load`]).
+    Language(String),
+    /// Save the game here into save slot `slot` (one the save screens
+    /// don't show); [`Op::LoadState`] goes on just after it.
+    SaveState { slot: u32 },
+    /// Load save slot `slot`, as a load from the save screen does.
+    LoadState { slot: u32 },
+    /// Stop every sound effect channel, also those the ops before didn't
+    /// start (a label reached from elsewhere); the channels are handed out
+    /// from the first again, as at the script's start.
+    SeStopEvery,
 }
 
 /// [`Op::HoldMovie`]'s prompt: `image` is `cells` pictures side by side,
@@ -946,4 +959,6 @@ pub struct Script {
     /// The text's language (ISO 639-1: "ja", "en"), told to the web page
     /// at start (CONscripter's `language`); empty: not told.
     pub language: String,
+    /// A label of the game's gosubbed after every load (`loadgosub`).
+    pub after_load: Option<String>,
 }

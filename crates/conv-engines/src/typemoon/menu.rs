@@ -28,7 +28,9 @@ fn stage(x: f32, y: f32) -> (i32, i32) {
 }
 
 /// The system menu, and (unless `dry_run`) its pictures in `<output>/sys/menu`.
-pub fn system_menu(romfs: &Path, output: &Path, dry_run: bool) -> Result<SystemMenu> {
+/// `languages`: the build has both; Config switches between them (for
+/// now, until the settings tab is converted: its 日本語/English option).
+pub fn system_menu(romfs: &Path, output: &Path, dry_run: bool, languages: bool) -> Result<SystemMenu> {
     let (menu, save) = if dry_run { (None, None) } else { (Some(Parts::read(romfs, "MENU_PARTS")?), Some(Parts::read(romfs, "SAVE_PARTS")?)) };
     let write = |name: &str, img: Option<RgbaImage>| -> Result<(String, i32, i32)> {
         let file = format!("{DIR}/{name}.png");
@@ -99,8 +101,9 @@ pub fn system_menu(romfs: &Path, output: &Path, dry_run: bool) -> Result<SystemM
     // ours: menu_btn's cells cut 240 × 104 from (24, 26) so the hit box is
     // centred on each label, as measured from its alpha; its columns at
     // rest, under the pointer, lit
+    let config = if languages { SystemPage::Jump(super::language::SWITCH.into()) } else { SystemPage::Unavailable };
     let mut tabs = Vec::new();
-    for (r, page) in [SystemPage::Save(list.clone()), SystemPage::Load(list), SystemPage::Unavailable, SystemPage::Unavailable, SystemPage::Title].into_iter().enumerate() {
+    for (r, page) in [SystemPage::Save(list.clone()), SystemPage::Load(list), config, SystemPage::Unavailable, SystemPage::Title].into_iter().enumerate() {
         let r = r as u32;
         let img = menu.as_ref().map(|p| p.cells("menu_btn_ja", &[0, 1, 2].map(|c| (24 + 240 * c, 26 + 104 * r, 240, 104)))).transpose()?;
         let button = placed(&format!("tab{r}"), img, stage(26.667, 43.556 + 31.111 * r as f32))?;
@@ -116,7 +119,7 @@ mod tests {
 
     #[test]
     fn places_from_the_stage() {
-        let m = system_menu(Path::new("/nonexistent"), Path::new("/nonexistent"), true).unwrap();
+        let m = system_menu(Path::new("/nonexistent"), Path::new("/nonexistent"), true, false).unwrap();
         // The bar's first button at (80, 105) of 1080p, the rows 226 apart from y 89.
         assert_eq!((m.tabs[0].button.x, m.tabs[0].button.y), (53, 70));
         let SystemPage::Save(l) = &m.tabs[0].page else { panic!() };
