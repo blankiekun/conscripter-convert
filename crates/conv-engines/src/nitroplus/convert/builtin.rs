@@ -281,17 +281,19 @@ impl Compiler<'_, '_> {
                     // The text window fades as the script's own `Fade`s say
                     // (CONscripter's `windowfade`): out when a waited fade
                     // leaves no box (an unwaited one is a box switch), in
-                    // from hidden as the next text shows it.
-                    // shortcut: a waited fade-in doesn't hold the text (it types while the window fades in); holding it needs the window shown before its next setwindow
+                    // from hidden with the next page (its text after the fade
+                    // when the fade is waited).
                     let waited = !matches!(wait, Value::Null | Value::Int(0));
                     let visible = self.objects.values().any(|o| o.hideable && o.opacity > 0 && matches!(o.kind, Kind::Image { .. }));
                     let ms = ms.max(0) as u32;
                     if waited && self.window_visible && !visible {
                         self.ops.push(Op::WindowFade { alpha: 0, ms, from: None, delay: 0, show: false });
                         self.window_visible = false;
+                        self.window_fade_in = None;
                         self.timed(i64::from(ms), &wait, &[]);
-                    } else if !self.window_visible && visible && ms > 0 && !matches!(self.ops.last(), Some(Op::WindowFade { alpha: 256, .. })) {
-                        self.ops.push(Op::WindowFade { alpha: 256, ms, from: Some(0), delay: 0, show: false });
+                    } else if !self.window_visible && visible && ms > 0 {
+                        let (m, w) = self.window_fade_in.unwrap_or((0, false));
+                        self.window_fade_in = Some((m.max(ms), w || waited));
                     }
                 }
             }

@@ -945,13 +945,13 @@ only lets the player hide it): the text's preprocess fades it in over
 `$BoxFadeTime` (150 ms) and a waited `Fade(…, 0, …, true)` takes it
 away. Ours showed and hid it at once (`textoff`); now CONscripter's
 `windowfade` (engine #82, `Op::WindowFade`) fades it: 5,644 hides
-become `windowfade 0,ms` with the script's wait after (4,149 `delay`s;
-the rest join a sync's wait), and 5,574 shows fade in from 0 as the next
-text appears. An unwaited fade to 0 is a box switch and changes nothing.
-Left: the original's waited fade-in holds the text until the box is in;
-ours types it while the box fades in (holding it needs the window shown
-before its next `setwindow`). Muramasa EN the same; 続・殺戮のジャンゴ's
-script doesn't change.
+become `windowfade 0,ms` with the script's wait after (most a `delay`,
+the rest joining a sync's wait), and 5,573 shows fade the window in from
+0 with the next page (after its `setwindow`: `windowfade 256,ms,0,0`,
+`textclear:texton`), the text held for the waited fade (`delay ms`), as
+the preprocess's `Fade(…, true)` holds the script before
+`Request(…, Enter)`. An unwaited fade to 0 is a box switch and changes
+nothing. Muramasa EN the same; 続・殺戮のジャンゴ's script doesn't change.
 
 ### Pictures made from `LoadImage` (2026-10-17)
 
