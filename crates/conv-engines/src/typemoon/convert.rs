@@ -9,7 +9,7 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
-use conv_core::ir::{ArithOp, Compare, MotionEnd, MotionKey, Op, Operand, Ruby, SpriteChange, SpritePlacement, TransitionStyle, Var, Voice};
+use conv_core::ir::{ArithOp, Compare, MotionEnd, MotionKey, Op, Operand, Ruby, SpriteChange, SpriteFilter, SpritePlacement, TransitionStyle, Var, Voice, BLEND_ADD, BLEND_MULTIPLY, BLEND_NORMAL, BLEND_SUBTRACT, FILTER_BLEND_COPY, FILTER_BLEND_MULTIPLY, FILTER_BLUR, FILTER_COLOUR, FILTER_GREYSCALE, FILTER_NEGATIVE};
 
 use super::exe::Picture;
 use super::script::Command;
@@ -77,6 +77,35 @@ struct Layer {
     motion: Option<usize>,
     /// `_STCH` argument 11: the layer this one is placed in.
     parent: Option<usize>,
+    /// Turned by this many 1/100 degrees, counter-clockwise (`_STRT`,
+    /// `_STCH` argument 19).
+    angle: i32,
+    /// `_STBR`: the shader it is drawn with (0 or 255: the normal one).
+    shader: u8,
+    /// `_STEC(layer, 1, colour)`: its colours multiplied by this one.
+    tint: Option<u32>,
+}
+
+/// CONscripter's `spblend` screen mode (lighten, never past white).
+const BLEND_SCREEN: u8 = 4;
+
+/// How a `_STBR` shader is drawn here: an `spblend` mode and a filter.
+/// The shader numbers are the exe's shader table's (`FUN_00132d20`
+/// maps the layer's byte through a table at 0x44DD70, the same number
+/// for 1–39; the shaders are listed at 0xBD2308, 16 bytes each).
+// shortcut: darken, burn and lighten, dodge are drawn as multiply and screen; overlay, soft and hard light and the rest as normal.
+fn shader(n: u8) -> (u8, Option<SpriteFilter>) {
+    let filter = |kind, p: i32| Some(SpriteFilter { kind: Operand::Const(kind), blend: Operand::Const(FILTER_BLEND_COPY), strength: Operand::Const(256), params: [Operand::Const(p); 3] });
+    match n {
+        3 | 18 | 25 | 27 => (BLEND_ADD, None),
+        19 | 21 | 22 | 29 | 36 | 38 => (BLEND_MULTIPLY, None),
+        26 | 28 => (BLEND_SUBTRACT, None),
+        20 | 23 | 24 | 30 | 34 | 35 | 37 => (BLEND_SCREEN, None),
+        7 => (BLEND_NORMAL, filter(FILTER_GREYSCALE, 0)),
+        8 => (BLEND_NORMAL, filter(FILTER_NEGATIVE, 0)),
+        11 => (BLEND_NORMAL, filter(FILTER_BLUR, 8)),
+        _ => (BLEND_NORMAL, None),
+    }
 }
 
 fn label(script: &str, name: Option<&str>) -> String {
@@ -193,6 +222,8 @@ struct Lowering<'g, 'a> {
     /// What each IR layer shows, and the layer it shows.
     slots: Vec<Option<Layer>>,
     slot_layer: Vec<Option<usize>>,
+    /// Each IR layer's `spblend` mode.
+    blends: Vec<u8>,
     /// `_WNTY(1)`: the next line ends its page.
     page_end: bool,
     voice: Option<Voice>,
@@ -342,6 +373,30 @@ impl Lowering<'_, '_> {
                 let Some(n) = number(arg(0)).filter(|n| (0..LAYERS as i32).contains(n)) else { return false };
                 return self.stma(n as usize, number(arg(1)).unwrap_or(0));
             }
+            // `_STRT(layer, from, to, ms, ease)` (`FUN_00162b20`): the turn
+            // in 1/100 degrees, to `to` (default 0; `_STCH` resets it).
+            // shortcut: timed turns (none in the scripts) jump to the end.
+            "_STRT" => {
+                let Some(l) = self.staged_layer(arg(0)) else { return arg(0).parse::<i32>().is_ok() };
+                l.angle = number(arg(2)).unwrap_or(0);
+            }
+            // `_STBR(layer, n)` (`FUN_00162490`): the shader (0: the normal one).
+            "_STBR" => {
+                let Some(l) = self.staged_layer(arg(0)) else { return arg(0).parse::<i32>().is_ok() };
+                l.shader = number(arg(1)).unwrap_or(0).clamp(0, 255) as u8;
+            }
+            // `_STEC(layer, effect, colour)` (`FUN_00103de0`): effect 1 tints
+            // the layer (white: none), 0 ends it; the others are not known.
+            "_STEC" => {
+                let effect = number(arg(1)).unwrap_or(0);
+                let colour = arg(2).strip_prefix("0x").and_then(|h| u32::from_str_radix(h, 16).ok());
+                let Some(l) = self.staged_layer(arg(0)) else { return arg(0).parse::<i32>().is_ok() };
+                match (effect, colour) {
+                    (0, _) => l.tint = None,
+                    (1, Some(c)) => l.tint = (c != 0xFFFFFF).then_some(c),
+                    _ => return false,
+                }
+            }
             "_STCP" => {
                 let Some(n) = number(arg(0)).filter(|n| (0..LAYERS as i32).contains(n)) else { return false };
                 self.priority[n as usize] = number(arg(1)).unwrap_or(0);
@@ -371,10 +426,16 @@ impl Lowering<'_, '_> {
             Some((e(9, oa), e(10, ob)))
         };
         let parent = number(arg(11)).filter(|&p| (0..LAYERS as i32).contains(&p) && p as usize != n).map(|p| p as usize);
-        self.staged[n] = Some(Layer { base, expression, x, y, zoom: zoom / 1000.0, stretch: (1.0, 1.0), alpha: alpha.clamp(0.0, 255.0) as u32, fade: None, motion: None, parent });
+        self.staged[n] = Some(Layer { base, expression, x, y, zoom: zoom / 1000.0, stretch: (1.0, 1.0), alpha: alpha.clamp(0.0, 255.0) as u32, fade: None, motion: None, parent, angle: number(arg(19)).unwrap_or(0), shader: 255, tint: None });
         // Argument 6, else layer × 10 (`FUN_00160840`).
         self.priority[n] = if arg(6).is_empty() { n as i32 * 10 } else { number(arg(6)).unwrap_or(n as i32 * 10) };
         true
+    }
+
+    /// The staged picture on layer `arg`, if any.
+    fn staged_layer(&mut self, arg: &str) -> Option<&mut Layer> {
+        let n = number(arg).filter(|n| (0..LAYERS as i32).contains(n))?;
+        self.staged[n as usize].as_mut()
     }
 
     /// Shows the staged layers. The original draws the layers with a
@@ -422,7 +483,10 @@ impl Lowering<'_, '_> {
                     self.ops.push(Op::SpriteMotion2 { layer, keys: vec![key(0, from), key(ms, to)], end: MotionEnd::Keep });
                 }
                 (Some(l), None) => self.place(layer, &l),
-                (None, _) => self.ops.push(Op::Sprites { changes: vec![SpriteChange { layer, sprite: None, keep_filters: false }], fade_ms: 0 }),
+                (None, _) => {
+                    self.ops.push(Op::Sprites { changes: vec![SpriteChange { layer, sprite: None, keep_filters: false }], fade_ms: 0 });
+                    self.blends[slot] = BLEND_NORMAL;
+                }
             }
             if let Some(m) = motions[slot] {
                 self.run_motion(slot, m);
@@ -564,9 +628,25 @@ impl Lowering<'_, '_> {
         };
         self.ops.push(Op::Sprites { changes: vec![SpriteChange { layer, sprite: Some(SpritePlacement { image, x: 0, y: 0 }), keep_filters: false }], fade_ms: 0 });
         self.ops.push(Op::SpriteMove { layer, x: cx.round() as i32, y: cy.round() as i32, ms: 0 });
-        self.ops.push(Op::SpriteAngle { layer, degrees: 0, zoom });
+        self.ops.push(Op::SpriteAngle { layer, degrees: (l.angle as f32 / 100.0).round() as i32, zoom });
         if l.alpha < 255 {
             self.ops.push(Op::SpriteOpacity { layer: Some(layer), opacity: l.alpha * 256 / 255 });
+        }
+        let (blend, filter) = shader(l.shader);
+        // spblend stays through lsp and goes with csp.
+        if blend != self.blends[layer as usize] {
+            self.ops.push(Op::SpriteBlend { layer, mode: blend });
+            self.blends[layer as usize] = blend;
+        }
+        let tint = l.tint.map(|c| SpriteFilter {
+            kind: Operand::Const(FILTER_COLOUR),
+            blend: Operand::Const(FILTER_BLEND_MULTIPLY),
+            strength: Operand::Const(256),
+            params: [c >> 16, (c >> 8) & 0xFF, c & 0xFF].map(|v| Operand::Const(v as i32)),
+        });
+        let filters: Vec<SpriteFilter> = filter.into_iter().chain(tint).collect();
+        if !filters.is_empty() {
+            self.ops.push(Op::SpriteFilters { layer, filters });
         }
     }
 }
@@ -615,6 +695,7 @@ pub fn compile(g: &Game) -> Compiled {
         shown_priority: (0..LAYERS as i32).map(|i| i * 10).collect(),
         slots: vec![None; LAYERS],
         slot_layer: vec![None; LAYERS],
+        blends: vec![BLEND_NORMAL; LAYERS],
         page_end: false,
         voice: None,
         held: None,
@@ -754,6 +835,30 @@ mod tests {
         // 240 + 0.5 × (120 − 240) = 180 script units: 480 px; 136 + 0.5 × (68 − 135.75) ≈ 102.1: 270 px.
         assert!(ops.contains(&Op::SpriteMove { layer: 38, x: 480, y: 270, ms: 0 }), "{ops:?}");
         assert!(ops.contains(&Op::SpriteAngle { layer: 38, degrees: 0, zoom: (25, 25) }), "{ops:?}");
+    }
+
+    #[test]
+    fn turn_shader_and_tint() {
+        let src = "_STCH(1,img1,240,136);_STRT(1,-9000,-9000,0,0);_STBR(1,18);_STEC(1,1,0xFF8000);_FADS(1,0,0);_STCH(1,img1,240,136);_FADS(1,0,0);";
+        let g = Game {
+            scripts: vec![("S".into(), script::parse(src).into_iter().map(Result::unwrap).collect())],
+            scenes: vec![],
+            lines: vec![],
+            pictures: [picture("img1", 1280.0, 724.0)].into(),
+            textures: [("img1".into(), (2560, 1440))].into(),
+            sounds: vec![],
+            waves: HashMap::new(),
+            motions: vec![],
+        };
+        let c = compile(&g);
+        assert!(c.notes.is_empty(), "{:?}", c.notes);
+        let ops = c.ops;
+        assert!(ops.contains(&Op::SpriteAngle { layer: 39, degrees: -90, zoom: (50, 50) }), "{ops:?}");
+        let blends: Vec<_> = ops.iter().filter_map(|o| if let Op::SpriteBlend { mode, .. } = o { Some(*mode) } else { None }).collect();
+        // Added on, then normal again: `_STCH` resets the shader.
+        assert_eq!(blends, [BLEND_ADD, BLEND_NORMAL]);
+        let Some(Op::SpriteFilters { filters, .. }) = ops.iter().find(|o| matches!(o, Op::SpriteFilters { .. })) else { panic!("{ops:?}") };
+        assert_eq!(filters[0].params, [255, 128, 0].map(Operand::Const));
     }
 
     #[test]

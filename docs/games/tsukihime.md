@@ -599,13 +599,13 @@ Nothing yet.
 | Exe tables (pictures, motions, scene numbers) | ✅ read from the NSO (`typemoon exe`); picture sizes checked against the textures |
 | Scripts | 🔶 read: every command of both languages splits (one malformed in the original) and its text and voices join; the top commands' arguments read from the exe, the rest not yet |
 | Media folder (`typemoon media`) | ✅ `allpac`'s pictures as full-size WebP (2.37 GB), movies at 720p, sound |
-| Script conversion (`typemoon convert`) | 🔶 the flow (labels, `_JUMP`, `_IF__`, flags), text (pages, ruby, voices), pictures (`_STCH`/`_STCC`/`_FADS`: record size and place, fades and rule wipes), sound effects and music; plays from the start through `00_00` into the first arc headless. Layers drawn in priority order (`_STCP`, `_STCH` argument 6), zoomed (`_STZ4`), faded (`_STGS`) and moved (`_STMA`, the exe's motions; easing, priority and expression keys not followed), children placed in their parent layers (`_STCH` argument 11). Not yet: the other layer commands, choices (`_SELR`/`_GOTS`), screens |
+| Script conversion (`typemoon convert`) | 🔶 the flow (labels, `_JUMP`, `_IF__`, flags), text (pages, ruby, voices), pictures (`_STCH`/`_STCC`/`_FADS`: record size and place, fades and rule wipes), sound effects and music; plays from the start through `00_00` into the first arc headless. Layers drawn in priority order (`_STCP`, `_STCH` argument 6), zoomed (`_STZ4`), faded (`_STGS`) and moved (`_STMA`, the exe's motions; easing, priority and expression keys not followed), children placed in their parent layers (`_STCH` argument 11), turned (`_STRT`), drawn with their shader as far as CONscripter's blends and filters go (`_STBR`) and tinted (`_STEC` effect 1). Not yet: `_STEC`'s other effects, the other layer commands, choices (`_SELR`/`_GOTS`), screens |
 | Screens, extras | ❌ |
 
 ### Next
 
 1. The script conversion, next part: the layer commands the opening
-   leans on, in order of use: `_STRT`, `_STBR`, `_STEC`, `_STCH`'s clip
+   leans on, in order of use: `_STCH`'s clip
    (arguments 12–17, unread), a parent's motions and rotation for its
    children;
    then choices (`_SELR`, `_GOTS`, `_IFNX`) so a route can be picked.
@@ -625,6 +625,30 @@ Nothing yet.
    12–17, `_STZ4`'s last two, and the motion keyframes' other fields.
 
 ## History
+
+- 2026-10-16: turns, shaders, tints.
+  - `_STRT(layer, from, to, ms, ease)` (`FUN_00162b20`) turns the
+    staged layer to `to` in 1/100° (counter-clockwise; the child-layer
+    math turns by −r/100°, y down); `_STCH` argument 19 the same, and
+    `_STCH` resets it. No use is timed.
+  - `_STBR(layer, n)` (`FUN_00162490`) picks the layer's pixel shader;
+    `_STCH` resets it (to a global default, else none). The draw maps
+    the byte through a table at 0x44DD70 (`FUN_00132d20`; 1–39 map to
+    themselves) into the shader list at 0xBD2308 (56 names, 16 bytes
+    each, relocated): 0 default, 3 fulladd, 7 monotone, 8 negative,
+    11 gauss, 15 haze, 18 add, 19 multi, 20 dodge, 21 burn, 22 darken,
+    23 lighten, 24 screen, 25 add_alpha, 26 sub, 27 ps_add, 28 ps_sub,
+    29 ps_mul, 30 ps_screen, 31 overlay, 32 hardlight, 33 softlight, …
+    Uses: 17 (3,475), 11 (3,158), 23 (1,909), 24, 22, 7, 10, 19. Drawn
+    with `spblend` (add, multiply, subtract, screen; darken and burn as
+    multiply, lighten and dodge as screen) or a filter (greyscale,
+    negative, blur); forcealpha, haze, wave, overlay and the lights as
+    normal.
+  - `_STEC(layer, effect, colour)` (`FUN_00103de0`): effect 1 tints the
+    layer by `colour` (0x000000 954 uses, 0xFFFFFF 410, 0xE5FFFF, …;
+    multiplied, white none), 0 ends it; `_STCH` resets it. Effects 2–9
+    and 10–82 (2 is the most used, 1,338) are not known yet.
+  1,001,727 commands fully converted.
 
 - 2026-10-16: parent layers. `_STCH` argument 11 names the layer a
   picture is placed in (6,028 uses, mostly effect pictures over a
