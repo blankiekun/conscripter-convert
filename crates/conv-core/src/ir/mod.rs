@@ -701,6 +701,11 @@ pub enum Op {
     /// there, and `period` 0 ends it at once. Nitroplus's `DrawEffect`
     /// waves.
     SpriteWave { layer: u32, ms: u32, period: u32, from: i32, to: i32, ease: Option<(u8, u32)> },
+    /// The text window, its text and cursor drawn at `alpha`/256, from
+    /// `from` (`None`: where it is), held `delay` ms, then over `ms` while
+    /// the script goes on (CONscripter's `windowfade`); faded out to 0 it
+    /// is hidden, as [`Op::HideTextWindow`]. `show`: then show it, empty.
+    WindowFade { alpha: u32, ms: u32, from: Option<u32>, delay: u32, show: bool },
 }
 
 /// [`Op::HoldMovie`]'s prompt: `image` is `cells` pictures side by side,

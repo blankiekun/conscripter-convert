@@ -314,6 +314,15 @@ impl<'a> Emitter<'a> {
             }
         }
         Op::HideTextWindow => writeln!(out, "textoff").unwrap(),
+        Op::WindowFade { alpha, ms, from, delay, show } => {
+            match from {
+                Some(f) => writeln!(out, "windowfade {alpha},{ms},{f},{delay}").unwrap(),
+                None => writeln!(out, "windowfade {alpha},{ms}").unwrap(),
+            }
+            if *show {
+                writeln!(out, "textclear:texton").unwrap();
+            }
+        }
         Op::InstantText(on) => writeln!(out, "textspeed {}", if *on { "0" } else { speed }).unwrap(),
         Op::SetWindow(w) => {
             writeln!(out, "{}", setwindow(w, speed, has_ruby, has_vertical, true, script)).unwrap();
