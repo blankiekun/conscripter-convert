@@ -148,6 +148,18 @@ you reach it, not the whole file up front
   check all targets across the corpus. A wrong guess still produces a
   script that runs.
 
+### Marking what a finding rests on
+
+Mark each finding **seen** (the code, a script or a trace shows it),
+**inferred** (from names or layout) or **unknown**, and for an unknown
+write the cheapest check that settles it (the code, a dry run, or a
+wine frame). A negative search says what it searched ("not found in the
+1.0.2 scripts"), never "absent". Name the executable build for every
+decompile address (the game document's "Executables" table; the export
+writes the input's sha256 to `sha256.txt`). The game's Status keeps a
+short "Open questions" list, and reports and PR bodies end by marking
+each original question answered, partly answered or open.
+
 ### Mapping the whole exe
 
 When the scripts use more than the top of the ranking, extend the same

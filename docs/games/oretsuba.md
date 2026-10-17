@@ -202,6 +202,14 @@ another file. `SceneJumpDialog` offers to skip a scene already read
 `[Flag]`s (affection points such as `asu_pts`, route switches) and 30
 `[GlobalFlag]`s (endings seen such as `asuka_ed`, `two_clear`).
 
+## Executables
+
+The builds the decompile addresses in this document belong to.
+
+| File | Version | sha256 |
+|---|---|---|
+| `eboot.bin` (NPDRM SELF; addresses are those of the decrypted `eboot.elf` made from it) | unknown (PCSG00299) | `56ebe9ed1a64d5e9e8d3af5aef0ce4ea21cf35ebffcf4c6cfae49dc6db343bd6` |
+
 ## Walkthrough
 
 Source: the scripts themselves (no public choice walkthrough was found;

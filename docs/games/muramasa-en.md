@@ -333,6 +333,14 @@ It has no NPA archives and no NSS scripts.
      argument by argument"), most noticeable first (the telops' calls are now read
      whole: `Move` and `CreateTextureEX`/`SP`, above).
 
+## Executables
+
+The builds the decompile addresses in this document belong to.
+
+| File | Version | sha256 |
+|---|---|---|
+| `muramasa_en.exe` | unknown | `5a174f7037f021ec22f228869b3d0e62ca143dcdc051597fe4a378c26ba0b4b9` |
+
 ## Archives (NPK3)
 
 `<game>/*.npk`: system, script, cg, dx, font, sound, voice, particle,
