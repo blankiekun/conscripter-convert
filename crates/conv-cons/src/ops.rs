@@ -21,7 +21,7 @@ pub(crate) struct Emitter<'a> {
     pub has_vertical: bool,
     pub restore_overlay: String,
     pub border: u32,
-    pub speed: &'static str,
+    pub speed: &'a str,
     pub voice_switches: bool,
     pub duck: bool,
     pub back_to_choice: bool,

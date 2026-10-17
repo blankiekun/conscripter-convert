@@ -651,6 +651,13 @@ original (Japanese, default text size):
   y (`FUN_001a7790` adds 14 + 10 of 1080 inside the line). Place,
   width and glyph size are the exe's (`FUN_001391a0`: from 88, 65 on
   a 640 × 448 stage, 464 wide; glyphs of the screen width / 32 × 0.76).
+- The text speed: 35 ms a character, the exe's default for unread
+  text (the settings' defaults at 0x56b080, the same as the reset in
+  `FUN_0012c810`: +0xe unread 35 ms, +0x10 read 15 ms; `FUN_0013b2d0`
+  shows 16.67 / ms characters a frame, all at once at 0). Read text is
+  typed at the same 35 ms here (CONscripter has one speed); the other
+  defaults (volumes +4/+8/+0xa = 40, 40, 10; auto wait +0x1c = 2200)
+  wait for a settings screen.
 - `_STBR` 11 (gauss) drawn as a blur of 8.
 - `_STEC`'s math in the pictures' own 0–255 values: the shader decodes
   the sRGB texture and re-encodes it as x^0.4545 before the levels, so

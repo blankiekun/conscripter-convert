@@ -75,6 +75,11 @@ pub fn build(romfs: &Path, main: &Path, opts: &Opts) -> Result<Built> {
             wait_icon_at: None,
         }),
         ops: compiled.ops,
+        // src: exe 0x56b080 (the settings' defaults, also the reset in
+        // FUN_0012c810): unread text 35 ms a character (+0xe), read text
+        // 15 ms (+0x10); FUN_0013b2d0 shows 16.67 / ms characters a frame.
+        // One speed here: the unread one.
+        text_ms: Some(35),
         ..Default::default()
     };
     println!("{} scripts -> {}", game.scripts.len(), opts.output.join("0.txt").display());
