@@ -305,6 +305,7 @@ playthroughs (`%410`-`%439`).
 - Merged: the chapter card's names (#48). Open: motions and fades as
   engine motions (#13, #18, waiting on engine #2 → #7 → #14).
 - The user picks the next fixes from "Arguments not read" below.
+- Dropped arguments picked by the user (2026-10-17): the SE fades and waits, CharacterDelete's `:FadeOut 0` and the window's fade-out are done ("History"); SceneJumpDialogEnd's `:Fade` is left (table below). Next PR: BacklogMessage `:Message`, the shakes' `:Param` 2-5 and SpriteQuake's `:Wait`, SpriteMove `:Roll`, CharacterWait waiting for fades and CharacterActionEnd stopping moves.
 - Looks against the Vita stay blocked (needs Vita screenshots).
 - `spgrab` (engine #32, merged) could let SpriteBG/SpriteBS with
   `:FadeWait 0` (890) cross-fade without waiting: grab the screen, change
@@ -365,11 +366,11 @@ message (109 characters with the name; there is no paging).
 |---|---|
 | Messages, speaker names (from the scripts' `:Name N // name` comments), voices | converted |
 | Backgrounds and sprites (`SpriteBG`, `Sprite`, `SpriteBS`, deletes), by priority | converted (`:Scale` zooms the picture about its centre, which `:Position` places, with `spzoom`, as SpriteMove's: below): `SpriteBG` and `SpriteBS` replace every picture (a background, a black cover, a white flash, an event CG, in one fade), the characters too unless `:SpriteDelete 0` (the scripts never delete the characters a location change leaves, and after 37 of the 0s they delete them themselves); a scene's first picture also removes whatever the scene before left (the eboot loads each scene's textures anew). `Sprite` adds one, and `SpriteDelete`/`SpriteDeleteBG` remove the picture of their `:SpriteNumber` (a texture). Our reading of the scripts; positions not yet checked against the original |
-| Characters (`CharacterOpen`, `…BS`, `CharacterDelete`, `CharacterMove`) and `SpritePriority`/`CharacterPriority` | partial (CharacterMove's `[CharaN]` `:Priority`, `[CharaN]` `:FadeOut 0` dropped: below; a `:Wait 0` move that also fades the character in or out still waits). CharacterMove `:Wait 0` (668 uses) runs the move under the text (`spmotion` without `spmotionwait`); `:Wait 1`, the default, waits for every character's move, as CharacterWait (651 uses) waits for their moves and actions (task_run cases 0x1e, 0x23). At y 0 a character stands on the screen's bottom edge (1209 of the 1333 pictures, 630 pixels tall, are cut off along their bottom row); the eboot scales `OffsetY` (-68 for everyone standing) by 544/720, but centred that leaves them 8 pixels above the edge, so where it anchors them is still to be found. Shorter pictures (the 960×540 cut-ins) are centred plus `OffsetY`. CharacterMove's y counts from that height. `CharacterDelete` without a list (`:SpriteMax 0`, 962 of 1414) removes every character; `CharacterOpenBS` removes the characters it doesn't name (the scripts re-open or delete-all them afterwards, and only twice delete one by name). S04_16B's `:Number <ST_ASU02H>>` (a placeholder the script's tool never filled in) is resolved by the picture's name through the character tables (Asuka 0,0,2,8,0) |
+| Characters (`CharacterOpen`, `…BS`, `CharacterDelete`, `CharacterMove`) and `SpritePriority`/`CharacterPriority` | partial (CharacterMove's `[CharaN]` `:Priority` dropped: below; a `:Wait 0` move that also fades the character in or out still waits). CharacterMove `:Wait 0` (668 uses) runs the move under the text (`spmotion` without `spmotionwait`); `:Wait 1`, the default, waits for every character's move, as CharacterWait (651 uses) waits for their moves and actions (task_run cases 0x1e, 0x23). At y 0 a character stands on the screen's bottom edge (1209 of the 1333 pictures, 630 pixels tall, are cut off along their bottom row); the eboot scales `OffsetY` (-68 for everyone standing) by 544/720, but centred that leaves them 8 pixels above the edge, so where it anchors them is still to be found. Shorter pictures (the 960×540 cut-ins) are centred plus `OffsetY`. CharacterMove's y counts from that height. `CharacterDelete` without a list (`:SpriteMax 0`, 962 of 1414) removes every character; `CharacterOpenBS` removes the characters it doesn't name (the scripts re-open or delete-all them afterwards, and only twice delete one by name). S04_16B's `:Number <ST_ASU02H>>` (a placeholder the script's tool never filled in) is resolved by the picture's name through the character tables (Asuka 0,0,2,8,0) |
 | `:Color` tints (dusk 255,236,220 on 3,892 pictures, night 220,222,255 on 2,105), `:Grayscale` (479), with `:Gamma` the sepia flashbacks (188), `:Floor`/`:Ceil` film negatives (42), `:Color` alpha 0 | converted as sprite filters: a tint multiplies (`spfilter` colour, multiply), sepia is a monotone with each channel of the grey raised to 1/gamma as an offset at mid-grey (+75, +28, −47), and a picture with filters fades in inside a transition, filtered. Alpha 0 shows a character see-through; a CharacterMove that changes the alpha cross-fades to the new place and opacity over its `:Time` |
 | `InOut` transitions with the RULE masks | converted |
 | `InOut_Act` (the eboot's effect 25: `:Type` picks the class, `:Param` 0 mostly a direction 0-3 = right, down, left, up) | 0 (the old screen squeezes to that edge while the new one grows from the other; 21 uses) and 7 (a push; 89) as ONScripter's scrolls; 5 (to or from white or black; 9) through white; 2 (a mosaic growing to `:Param` 1 pixels of 720 halfway while the screens cross-fade; 66) as ONScripter's mosaic out and in; 3 (a card turning over in perspective, old in front, new behind, about the vertical axis for `:Param` 0 below 2; 47) as `cons_flip`, the new screen turning in. 1 (a fade with the rows waving sideways, `:Param` 1-2 the wave; 57) as CONscripter's `cons_wave.dll` (the size and wave length a guess: the shader's constants are uniforms, `:Param` 1 × 100 per mille of the screen, `:Param` 2 waves down it); 6 (a fade blurred sideways, the most halfway, by `:Param` 1 pixels of 1280, `:Param` 0 = 1 only the new screen; 130) as `cons_blur.dll`; 4 (2) a plain fade |
-| FadeOut/FadeIn, TimeWait, BGM, SE, Window hide | partial (SE fades and waits, the window's `:Time` dropped: below) |
+| FadeOut/FadeIn, TimeWait, BGM, SE, Window hide | partial (the window's fade-in, `:Visible 1` with a `:Time`, dropped: below). SePlay `:Div` n > 1 fades the SE in over n frames of 60 a second (`dwavefadein`), SeStop's out (`chvolfade …,1`); SePlay `:Wait 1` waits for the SE's length (from its ADX header), SeStop's for the fade-out. Window `:Visible 0` fades the window out over 2 × `:Time` frames (500 ms without one: a step of 1/15 an update) and waits, when a message showed it last (`windowfade`, `delay`) |
 | Tags, jumps, flag switches and operations, choices with points, NextScene | converted (BacklogMessage, the chosen answer in the log, dropped: below), not yet checked against a walkthrough |
 | SceneJumpDialog (skip a scene already read) | partial (SceneJumpDialogEnd's `:Fade` dropped: below): a global "read" flag per scene (`%1200` + the scene's index in name order). A read scene shows the eboot's dialog (layout below): SystemData's `ss_bg1`…`ss_bg5` by `:BG` 0 (the protagonist), このシーンをスキップしますか？, the date (`:BG` 2), the emblem (`:BG` 1), the `:CharaIcon` faces, the summary (`:Text`) drawn with the `--font`, and Yes (skip) / No buttons that glow under the pointer. The line the eboot also writes at (81, 99) is left empty (its text isn't in the task; perhaps the chapter's name). The original asks only when its setting is on, and so does ours (シーンスキップ機能 in the settings). |
 | Flash; EffectQuake/End (a screen shake for `:Time` (60 frames if none), dying down with `:Fade 1`, at full size with `:Fade 0`, the default; `:Loop 1` or a negative `:Time` until EffectQuakeEnd; `:Time 0` otherwise stops it); SpriteQuake (one picture, a background, shaken by `:Param` 0, 1 for `:Time`, dying down with `:Fade 1`; all zeros stop it; `:Time 0` with a size, once in S04_07A after a `// wt` comment, waits for the shake before it, which the message in between outlasts: nothing); SpriteMove (`:Wait 0`, 198 uses, runs under the text until a SpriteMoveEnd of that picture or every one, 171 uses: cases 0x27, 0x29) | partial (the shakes' `:Param` 2-5 other than 1; SpriteMove `:Roll`: below); `:Curve` (12 uses) bows the move as the eboot does (0x8103cf20: "Small coverage gaps" in "History"), one `spmotion` key a frame (IR `MoveArc`); `:Scale` (90 uses) zooms the picture about its centre with CONscripter's `spzoom` (after 0.19.1), which keeps it in its place among the sprites; the zoom stays for the moves after it. The two values after `:Position` are the eboot's easing (ease_value, 0x8103cc18: type 1 in, 2 out, 3 in and out, raising t² to the power): converted for moves and zooms (IR `MoveEase`, the power × 2 a whole exponent), 65 of them; the rest are straight. Only the place is eased: the zoom goes straight with the time (0x81086a0c), so an eased move that zooms (37) is one `spmotion` key a frame, as `:Curve`'s (IR `MoveArc` with bow 0) |
@@ -499,7 +500,7 @@ argument a task was given that it never read is a dry-run note,
 (an argument we don't read gets our behaviour, which differs unless it
 is the value we reproduce). `convert.rs`'s `NOT_NEEDED` lists the notes
 known not to matter, each with its reason: a row naming a value (`SpriteMove
-:Wait = 1`, `SePlay :Div = 1`, `MoviePlay :EndWait = 1`) covers only
+:Wait = 1`, `MoviePlay :EndWait = 1`) covers only
 that value, the others are still noted; rows without one cover only
 what is harmless whatever its value (FadeIn `:Color`, always the
 FadeOut's, 579 of 579; trophies; typos and nameless blocks the eboot
@@ -543,22 +544,20 @@ Not covered yet: only scene tasks are checked; `chract`'s actions (the
 eboot reads a `:Priority` and an easing per key there) and the `.txt`
 tables (`adv.txt`, `chr*.txt`, `CGMODE`) are not.
 
-The full dry run gives 4,549 notes of 96 kinds; by how much they show,
+The full dry run gives 3,227 notes of 89 kinds; by how much they show,
 with their uses:
 
 | Task | Argument | Uses | State: what is lost |
 |---|---|---|---|
-| CharacterDelete | `[CharaN]` `:FadeOut 0` | 85 | dropped: those characters fade over 18 frames instead of leaving at once |
 | SpriteMove | `:Roll` | 12 | dropped: turns |
 | SpriteMove, SpriteQuake | every argument (`:Scale` too) | 8, 16 | dropped: the picture they name isn't up by our tracking (one we removed too early?) |
 | EffectQuake, SpriteQuake | `:Param` 2-5 other than 1 (SpriteQuake's layout not traced) | 12-19, 71 | dropped: a swing of that size |
-| SceneJumpDialogEnd | `:Fade` | 531 | dropped: the fade back from the skip dialog |
-| SeStop, SePlay | `:Div` (fade-out, fade-in frames); `:Wait 1` | 281, 32; 4, 32 | dropped: SEs cut off and started at once, never waited for |
+| SceneJumpDialogEnd | `:Fade` | 531 | dropped: the eboot keeps the skip dialog up after the click (task 0x85 fades it out over `:Fade` frames, 18 by default, 0x8112a490, only while it is up), so the tasks between (BgmStop, SpriteBG black, …) happen under it; ours fades it out on the click. Not converted: on the skip path the dialog stays through NextScene (382 of 894 paths) and before 22 choices no End comes, which isn't traced |
 | EffectStart | `:Priority`; `:EffectNumber` 1 (always 0, above); `:Param` past those an effect reads (mostly 0s; 52's 1, 54's 1-2) | 208; 208; up to 202 | dropped: where the effect sits among the pictures; the particles' motion |
 | InOut_Act | `:Param` 1 (2, 3 once) | 72 | dropped for the `:Type`s that read only `:Param` 0 (which ones not yet checked) |
 | BacklogMessage | `:Message` | 56 | dropped: the chosen answer isn't in the backlog |
 | SpriteQuake | `:Wait` on a stop or with `:Time 0` | 54 | dropped |
-| Window | `:Time` | 20 | dropped: the window hides at once |
+| Window | `:Time` with `:Visible 1` | 2 | dropped: the window fades in over it (ours shows it at the next message). A third, with `:WindowNumber 0`, the eboot doesn't read |
 | CharacterOpen, …Move, …Delete, …Action | `:SpriteMax` below its `[CharaN]` blocks | 8, 4, 4, 2 | dropped: we show (move, delete) the characters past it, the eboot doesn't |
 | SpriteBG | `:SpriteDelete` (with the pictures an earlier scene left) | 8 | dropped |
 | EyeCatch, EyeCatchEnd, MovieStop, MoviePlay | `:Color`, `:Fade`, `:EndWait` | 7 each | dropped with `:Image 0,-1`'s panels and the movies under the script (`:EndWait 0`) |
@@ -590,6 +589,26 @@ Next, in order:
 
 Finished work, moved out of "Status" so a session reads only the open
 state.
+
+**SE fades and waits, the window's fade-out, characters leaving at once
+(2026-10-17).** scene_load cases 0x37 and 0x38 (0x8102840a) read
+SePlay's and SeStop's `:Div` and `:Wait` (0 by default); 0x8100da30 fades
+the SE in (0x810370d4) or out (0x81037794) over `:Div` frames of 60 a
+second when it is 1 or more, and task_run waits with `:Wait 1` while the
+SE plays (SePlay, 32 uses) or until its fade-out ends (SeStop, 4). Now
+SePlay `:Div` > 1 (31) is `dwavefadein`, SeStop `:Div` > 0 (279) a
+`chvolfade` to 0 that stops the sound, and the waits a `delay` of the
+SE's length (its ADX header) or of the fade. CharacterDelete's
+`[CharaN]` `:FadeOut 0` (85; case 0x1c reads a character's `:Fade`, then
+its `:FadeOut`, then the task's) takes that character away at once,
+before the others fade. Window `:Visible 0` (case 0x51; 0x8112a19c: no
+`:Time`, a step of 1/15 an update) fades the window out over 1/`:Time`
+an update and task_run waits for it: ours `windowfade 0,ms` then `delay
+ms` (500 ms without `:Time`, 1,508 of them), when a message showed the
+window last. Checked with debug traces of M02_08 on, before and after
+(same route, 21,408 pages compared): 383 pages wait 500 ms more (the
+window), others an SE's length (875, 1095 ms, …); 387 `windowfade`, 112
+SE `chvolfade` stops and 15 `dwavefadein` ran, no new findings.
 
 **Guesses settled from the decompile (2026-10-17).** The title fades in
 from black over 833 ms, not 500: once its pictures are loaded, the title

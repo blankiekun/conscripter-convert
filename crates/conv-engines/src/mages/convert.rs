@@ -107,6 +107,8 @@ pub trait Assets {
     fn rule(&mut self, n: u32) -> Option<String>;
     fn voice(&mut self, id: u32) -> Option<String>;
     fn se(&mut self, id: u32) -> Option<String>;
+    /// SE `id`'s length in ms.
+    fn se_ms(&self, id: u32) -> Option<u32>;
     fn bgm(&mut self, id: u32) -> Option<String>;
     /// Movie `n` (`:Movie`), converted to `movie/<name>.mp4`.
     fn movie(&mut self, n: u32) -> Option<String>;
@@ -922,18 +924,36 @@ impl Lowering<'_> {
                 }
             }
             "CharacterDelete" => {
-                let listed: Vec<String> =
-                    t.children.iter().filter(|c| c.name.starts_with("Chara")).map(|c| chara_key(c, c.int("Number").unwrap_or(-1))).collect();
+                let fade = char_fade(t, "FadeOut");
+                // src: exe 0x8102840a case 0x1c: a [CharaN]'s own `:Fade`,
+                // else its `:FadeOut 0` (at once), else the task's.
+                let listed: Vec<(String, u32)> = t
+                    .children
+                    .iter()
+                    .filter(|c| c.name.starts_with("Chara"))
+                    .map(|c| {
+                        let own = match c.int("Fade") {
+                            Some(f) => ms(f),
+                            None if c.int("FadeOut") == Some(0) => 0,
+                            None => fade,
+                        };
+                        (chara_key(c, c.int("Number").unwrap_or(-1)), own)
+                    })
+                    .collect();
                 // Without a list (`:SpriteMax 0`, 962 of 1414 uses) every
                 // character leaves.
-                let keys = if listed.is_empty() {
+                if listed.is_empty() {
                     let mut all: Vec<String> = self.shown.keys().filter(|k| k.starts_with('c')).cloned().collect();
                     all.sort();
-                    all
+                    self.hide_all(&all, fade);
                 } else {
-                    listed
-                };
-                self.hide_all(&keys, char_fade(t, "FadeOut"));
+                    // Those leaving at once first, then the ones fading.
+                    for at_once in [true, false] {
+                        let keys: Vec<String> = listed.iter().filter(|(_, f)| (*f == 0) == at_once).map(|(k, _)| k.clone()).collect();
+                        let f = listed.iter().find(|(_, f)| (*f == 0) == at_once).map_or(0, |(_, f)| *f);
+                        self.hide_all(&keys, f);
+                    }
+                }
             }
             "CharacterMove" => {
                 let time = ms(t.int("Time").unwrap_or(0));
@@ -1004,7 +1024,24 @@ impl Lowering<'_> {
                 // next message sets again: the text window stays. -1 (the
                 // default, 1,506 uses) is the window itself.
                 if t.int("Visible") == Some(0) && t.int("WindowNumber").unwrap_or(-1) < 0 {
-                    self.out.ops.push(Op::HideTextWindow);
+                    // src: exe 0x8102840a case 0x51 (a step of 1/`:Time` an
+                    // update; without it 1/15, 0x8100da30), 81009a2e steps
+                    // it once an update (2 frames); task_run waits for the
+                    // fade-out.
+                    let time = ms(2 * t.int("Time").filter(|&n| n > 0).unwrap_or(15));
+                    // shortcut: the window counts as shown when the last
+                    // text-window op before is a message, in script order.
+                    let shown = self.out.ops.iter().rev().find_map(|op| match op {
+                        Op::Text { .. } | Op::Choice { .. } => Some(true),
+                        Op::HideTextWindow | Op::WindowFade { .. } | Op::ButtonScreen(_) => Some(false),
+                        _ => None,
+                    });
+                    if shown == Some(true) && !self.staging {
+                        self.out.ops.push(Op::WindowFade { alpha: 0, ms: time, from: None, delay: 0, show: false });
+                        self.out.ops.push(Op::Wait { ms: time });
+                    } else {
+                        self.out.ops.push(Op::HideTextWindow);
+                    }
                 }
             }
             "BgmPlay" => {
@@ -1014,14 +1051,40 @@ impl Lowering<'_> {
                 }
             }
             "BgmStop" => self.out.ops.push(Op::BgmStop { fade_out_ms: ms(t.int("Div").unwrap_or(0)) }),
+            // src: exe 0x8102840a cases 0x37, 0x38 (`:Div` 0, `:Wait` 0 by
+            // default, 0x81129f58, 0x81129f6c); 0x8100da30 fades the SE in
+            // or out over `:Div` frames of 60 a second (0x810370d4,
+            // 0x81037794: div × 1000 / 60 ms) when it is 1 or more.
             "SePlay" => {
-                if let Some(file) = t.int("SE").and_then(|id| self.assets.se(id as u32)) {
-                    self.out.ops.push(Op::SePlay { file, looped: t.int("Loop").unwrap_or(0) != 0 });
+                let id = t.int("SE").unwrap_or(-1);
+                if let Some(file) = u32::try_from(id).ok().and_then(|id| self.assets.se(id)) {
+                    let div = t.int("Div").unwrap_or(0);
+                    if div > 1 {
+                        self.out.ops.push(Op::SeFadeIn { ms: ms(div) });
+                    }
+                    let looped = t.int("Loop").unwrap_or(0) != 0;
+                    self.out.ops.push(Op::SePlay { file, looped });
+                    // `:Wait 1`: task_run case 0x37 waits while the SE plays.
+                    if t.int("Wait") == Some(1) && !looped
+                        && let Some(length) = self.assets.se_ms(id as u32)
+                    {
+                        self.out.ops.push(Op::Wait { ms: length });
+                    }
                 }
             }
             "SeStop" => {
                 let file = t.int("SE").and_then(|id| self.assets.se(id as u32));
-                self.out.ops.push(Op::SeStop { file });
+                let fade = ms(t.int("Div").unwrap_or(0));
+                let wait = t.int("Wait") == Some(1);
+                if fade > 0 {
+                    self.out.ops.push(Op::SeFadeOut { file, ms: fade });
+                    // `:Wait 1`: task_run case 0x38 waits for the fade-out.
+                    if wait {
+                        self.out.ops.push(Op::Wait { ms: fade });
+                    }
+                } else {
+                    self.out.ops.push(Op::SeStop { file });
+                }
             }
             "Tag" => {
                 if let Some(name) = t.str("Name") {
@@ -1798,10 +1861,6 @@ const NOT_NEEDED: &[(&str, &str)] = &[
     ("FadeIn :Color", "always the colour of the FadeOut before it (579 of 579)"),
     ("CharacterDelete :FadeOut", "with a :Fade always 1 (fade), which :Fade times"),
     ("CharacterActionEnd :Character argument", "scene_load (0x8102840a) case 0x21 reads only its first value"),
-    ("CharacterDelete [Chara] :FadeOut = 1", "fade, as the task does"),
-    ("SePlay :Wait = 0", "don't wait, as ours don't"),
-    ("SeStop :Wait = 0", "the same"),
-    ("SePlay :Div = 1", "a 1-frame fade-in: none, as ours"),
     ("EffectQuakeEnd :EndWait = 0", "stop at once, as ours does"),
     ("CharacterOpenBS :Fade = 0", "at once, as ours opens"),
     ("MoviePlay :Loop = 0", "play once, as ours"),
@@ -1897,11 +1956,11 @@ mod tests {
             "SpriteMove [Chara] :Number ignored",
         ];
         assert_eq!(notes.keys().map(String::as_str).collect::<Vec<_>>(), want);
-        // `SePlay :Wait = 0` is covered.
-        let blocks = parse("[Task2]\n{\n:Tasktype \"SePlay\"\n:Wait 0\n}\n").unwrap();
+        // `MoviePlay :Loop = 0` is covered.
+        let blocks = parse("[Task2]\n{\n:Tasktype \"MoviePlay\"\n:Loop 0\n}\n").unwrap();
         blocks[0].task_type();
         let mut notes = BTreeMap::new();
-        ignored("SePlay", "", &blocks[0], &mut notes);
+        ignored("MoviePlay", "", &blocks[0], &mut notes);
         assert!(notes.is_empty());
     }
 
