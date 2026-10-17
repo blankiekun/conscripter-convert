@@ -181,7 +181,7 @@ dry run):
 | `Fade`, `Move`, `Zoom`, `Rotate`, `SetVolume`, `DrawTransition`, `Shake`, `SetBlur`, `Random`, `Conquest`, `LoadText`, `WaitAction`, `WaitPlay`, `WaitFade`, `WaitZoom`, `CreateWindow`, `CreateEffect`, `CreateMovie`, `MoviePlay`, `SetBacklog` | most story | **partial**: arguments not read, below (non-blocking `Move`/`Zoom` as cross-fades, Status) |
 | `LockVideo`, `WaitText`, `SetFrequency`, `Reset` | most story | dropped (`SetFrequency` noted when not 1000) |
 | `Request` | 1,643 / 1,748 / 469 | actions below |
-| `DrawTransition`, `Shake`, `Rotate`, `CreateTexture`, `CreateEffect`, `CreateMovie`, `MoviePlay` | story | converted except the noted cases (`Shake` of a small picture 145, `CreateTexture` from an object or the screen 1,812, `CreateEffect` Rain/KitanoBlue/Lens/Drop 45, 3 transition masks missing) |
+| `DrawTransition`, `Shake`, `Rotate`, `CreateTexture`, `CreateEffect`, `CreateMovie`, `MoviePlay` | story | converted except the noted cases (`Shake` of a small picture 145, `CreateTexture` from an object or the screen 1,812, `CreateEffect` Rain/Lens/Drop 41 and one KitanoBlue box, 3 transition masks missing) |
 | `CreateProcess`, `BezierMove`, `SetFrequency`, `SetShade`, `SetTone`, `MoveCamera`, `CreateCamera` | 287 / 193 / 30 … | not converted (Status) |
 | `SetBacklog` | 83 / 6 / 0 | not converted: 1,958 noted; the hand-made backlog lines (pictures, ASCII art) are missing from our log |
 | `CreateWindow` | story | partial: its children are drawn only inside it (`spclip`), not with `Game::relative_children` (続・殺戮のジャンゴ, whose moved windows aren't checked); argument 6 (true/false) not read |
@@ -291,8 +291,9 @@ the exe by `class`); `[プロダクト]`, `[セーブ]`: nothing to do.
 98, Sepia 38, NegaPosi 5, KitanoBlue 1 and `SetShade` levels: not
 converted (Status). `CreateEffect` Rain 37, Plain 33, Sepia 17,
 Monochrome 16, KitanoBlue 4, NegaPosi 4, Lens 2, Drop 1: Plain, and
-Sepia, Monochrome and NegaPosi (the pictures below tinted, `spfilter`)
-converted. `DrawEffect` SuperWave 21, LowWave 25, HighWave 11,
+Sepia, Monochrome, NegaPosi and KitanoBlue (the pictures below tinted,
+`spfilter`) converted, except a tint over part of the screen (one
+KitanoBlue box, noted). `DrawEffect` SuperWave 21, LowWave 25, HighWave 11,
 MiddleWave 10, HardSplit 5, Ripple 4, SoftSplit, Split: not converted;
 13 of them are written with a trailing space (`"LowWave "`), which an
 exact match would reject (unverified). Tempo names: Status ("Tempo is

@@ -96,10 +96,20 @@ impl Compiler<'_, '_> {
                     "sepia" => Kind::Tint(vec![grey, filter(FILTER_COLOUR, FILTER_BLEND_MULTIPLY, [255, 235, 195])]),
                     "monochrome" => Kind::Tint(vec![grey]),
                     "negaposi" => Kind::Tint(vec![filter(FILTER_NEGATIVE, FILTER_BLEND_COPY, [0; 3])]),
+                    // shortcut: a guess like sepia's (grey times a cool blue).
+                    "kitanoblue" => Kind::Tint(vec![grey, filter(FILTER_COLOUR, FILTER_BLEND_MULTIPLY, [170, 200, 255])]),
                     _ => {
                         self.note(format!("CreateEffect {}", arg(6).string()));
                         Kind::Other
                     }
+                };
+                // A tint drawn over part of the screen (装甲悪鬼村正's mc01_011vsa
+                // zoom box) would tint it all: left out.
+                let kind = if matches!(kind, Kind::Tint(_)) && (arg(4).int() < screen_w || arg(5).int() < screen_h) {
+                    self.note(format!("CreateEffect {} on part of the screen", arg(6).string()));
+                    Kind::Other
+                } else {
+                    kind
                 };
                 self.create(name, kind, arg(1).int(), screen_w, screen_h);
             }
