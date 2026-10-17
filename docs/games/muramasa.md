@@ -545,7 +545,7 @@ Used to check what the engine does (`docs/new-game.md` step 9).
   **A** endless loops, **B** `system.lua` from the IR, **C1** loops
   behind an `if` with a lead-in (History, "Processes"). Next:
   **C2** the one-shots played once on paper, their waits as key times:
-  done, in review (PR "NSS: one-shot processes played on paper"). `convert/one_shot.rs` walks the function at the process's start
+  done, in review (#151). `convert/one_shot.rs` walks the function at the process's start
   (`if`/`while` decided then, assignments run, a 10,000-turn cap: a
   process waiting on what the script sets later, `ProcessAFB1`/`2`, is
   noted and its state put back), puts each picture's actions on a clock
