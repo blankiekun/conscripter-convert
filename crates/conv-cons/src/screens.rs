@@ -37,6 +37,9 @@ pub fn screen_files(script: &Script) -> Vec<(String, String)> {
     if let Some(b) = script.backlog.as_ref().filter(|b| b.engine_screen && script.line_log.is_none()) {
         files.push(("backlog.lua".to_string(), backlog_lua(b)));
     }
+    if let Some(e) = script.extras.as_ref().filter(|_| script.title_screen.is_some()) {
+        files.extend(crate::extras_screens::files(e));
+    }
     if let Some(d) = script.confirm.as_ref().filter(|_| !files.is_empty()) {
         files.push(("confirm.lua".to_string(), confirm_lua(d)));
     }
@@ -62,11 +65,11 @@ pub(crate) fn save_labels(out: &mut String) {
 }
 
 /// A Lua string.
-fn lua(s: &str) -> String {
+pub(crate) fn lua(s: &str) -> String {
     format!("\"{}\"", s.replace('\\', "\\\\").replace('"', "\\\""))
 }
 
-fn image(kind: &str, p: &Placed, extra: &str) -> String {
+pub(crate) fn image(kind: &str, p: &Placed, extra: &str) -> String {
     format!("{{\"{kind}\", file={}, x={}, y={}{extra}}}", lua(&p.image), p.x, p.y)
 }
 

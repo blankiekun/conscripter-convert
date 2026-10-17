@@ -13,7 +13,7 @@
 
 use conv_core::ir::{CgGallery, ExtrasAction, ExtrasMenu, Placed};
 
-use crate::{menu, movies, music, path, replay, BUTTON_VAR, CG_SEEN};
+use crate::{extras_screens, menu, movies, music, path, replay, BUTTON_VAR, CG_SEEN};
 
 pub(crate) const EXTRAS: &str = "conv_extras";
 /// Back to the title screen (its background and buttons).
@@ -109,8 +109,9 @@ pub(crate) fn extras(out: &mut String, m: &ExtrasMenu, fade: &str, settings: boo
         let mut numbers: Vec<u32> = g.tabs.iter().flat_map(|t| t.pages.iter().flatten()).flat_map(|s| s.cgs.iter().map(|c| c.0)).collect();
         numbers.sort_unstable();
         numbers.dedup();
-        for chunk in numbers.chunks(8) {
-            w(chunk.iter().map(|&n| format!("if {} == 1 mov {UNLOCKED},1", seen(n))).collect::<Vec<_>>().join(":"));
+        // One `if` a line: a false one skips the rest of its line.
+        for n in numbers {
+            w(format!("if {} == 1 mov {UNLOCKED},1", seen(n)));
         }
     }
     let mut buttons = Vec::new();
@@ -177,14 +178,19 @@ pub(crate) fn extras(out: &mut String, m: &ExtrasMenu, fade: &str, settings: boo
     w("*conv_extras_close".into());
     w(format!("csp -1:{clear_vars}"));
     w(format!("goto *{TITLE_BACK}"));
-    if let Some(g) = gallery {
-        gallery_routine(out, g, &m.background);
+    match gallery {
+        // The screen's page from the first each time.
+        Some(_) if m.engine_screen => out.push_str(&format!("*{GALLERY}\ncsp -1:mov {},0:screen \"gallery\"\nreturn\n", extras_screens::GALLERY_PAGE)),
+        Some(g) => gallery_routine(out, g, &m.background),
+        None => {}
     }
     if let Some(r) = &m.replay {
-        replay::replay(out, r, &m.background, DRAW);
+        replay::replay(out, r, DRAW);
     }
-    if let Some(music) = &m.music {
-        music::music(out, music, &m.background, DRAW, settings);
+    match &m.music {
+        Some(_) if m.engine_screen => out.push_str(&format!("*{}\ncsp -1:screen \"music\"\ngoto *{DRAW}\n", music::MUSIC)),
+        Some(music) => music::music(out, music, &m.background, DRAW, settings),
+        None => {}
     }
     if let Some(room) = &m.movies {
         movies::movies(out, room, &m.background, DRAW);
@@ -241,7 +247,8 @@ fn gallery_routine(out: &mut String, g: &CgGallery, background: &str) {
                 let x = g.grid_x + g.grid_dx * (k % g.columns) as i32;
                 let y = g.grid_y + g.grid_dy * (k / g.columns) as i32;
                 let unlock: Vec<String> = s.cgs.iter().map(|&(n, _)| format!("if {} == 1 mov {TMP},1", seen(n))).collect();
-                w(format!("mov {TMP},0:{}", unlock.join(":")));
+                w(format!("mov {TMP},0"));
+                unlock.into_iter().for_each(&mut w); // one `if` a line: a false one skips the rest of its line
                 // The thumbnail strip has its frame 4 px up and left.
                 w(format!("if {TMP} == 1 lsp {slot},\":a/2,0,3;{}\",{},{}:spbtn {slot},{}", path(&s.thumbnail), x - 4, y - 4, BTN_SLOT + k as i32));
                 w(format!("if {TMP} == 0 {}", picture(slot, &g.locked, x, y)));
