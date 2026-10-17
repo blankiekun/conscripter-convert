@@ -17,6 +17,11 @@ It has no NPA archives and no NSS scripts.
 - Merged since: #54 (choice options keep their places past a
   variable), #60 and #66 (shared NSS: choice options set in runtime
   branches, and their line-log entries, picked at run time).
+- `―` (SJIS 0x815C) showed the missing-glyph box: the engine maps it
+  to U+2500, which the release font lacks (it has U+2015). The engine
+  now draws U+2015 when the font has no U+2500 (engine PR #60); the
+  converter is unchanged. Other characters absent from the font are
+  only the Japanese marks in the Japanese text the build still carries.
 - Telop `Move` timing (this PR): of the 252 telop `Move`s paired with
   the port's, 251 have the same time, tempo and wait (155 null tempo,
   96 `Dxl1`; waits equal). The only difference: ma04_021, 250 ms in the
