@@ -32,8 +32,9 @@ bullet you need.
   can't do it". On Xvfb always set
   `WAYLAND_DISPLAY=`, or the window opens on the user's desktop.
   Never hard-code the display (agents collide); Xvfb picks a free one:
-  `exec 3< <(Xvfb -displayfd 1 -screen 0 1280x800x24 -nolisten tcp &); read -r D <&3; export DISPLAY=:$D WAYLAND_DISPLAY=`
-  (stop it with `pkill -x Xvfb` only if no other agent runs one: kill by pid).
+  `Xvfb -displayfd 3 -screen 0 1280x800x24 -nolisten tcp 3>"$T/xvfb.d" & XP=$!;
+  until [ -s "$T/xvfb.d" ]; do sleep 0.1; done; export DISPLAY=:$(cat "$T/xvfb.d") WAYLAND_DISPLAY=`
+  (`$T` your scratch dir); stop it with `kill $XP`, never `pkill Xvfb` (other agents' displays).
 - Test scripts: UTF-8 with `--enc:utf8` in `ons_args`, as the builds;
   a Shift-JIS one with `iconv -t cp932` (not `sjis`, which turns `\` into
   `＼`) and `--enc:sjis`.
