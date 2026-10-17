@@ -607,8 +607,9 @@ anything is reached (step 11.6).
   doubt (transitions, effects, menus). Set up a scratch `WINEPREFIX` whose Documents, Desktop
   and other user folders are **real folders, not symlinks to the user's
   home** (games save there), use a symlink farm so patched scripts never
-  touch the install, no audio, an Xvfb display of its own (never the
-  user's desktop). Slow a transition down by patching its duration in a
+  touch the install, no audio, an Xvfb display of its own, a free one
+  picked with `-displayfd`, never a fixed number (`docs/tools.md`; never
+  the user's desktop). Slow a transition down by patching its duration in a
   copy of the script, and take shots at fixed fractions of it. Film
   each screen once and keep the shots in `research/<engine>/local/shots/`
   (git-ignored), named for what they show, so later checks reuse them
