@@ -543,6 +543,30 @@ exe or a shot. Open guesses a frame of the original could settle:
   shake's 16 ms, and cameras' depth rule (`zoom / (1000 − priority)`,
   measured in 続・殺戮のジャンゴ, not yet in this game).
 
+### Settings drawn by the engine (2026-10-17)
+
+コンフィグ is CONscripter's `screen "settings"` (`conv-cons/src/settings_screen.rs`,
+from `PictureSettings` with `engine_screen`): the six sliders are picture
+sliders (knob dragged along the invisible track, engine #78), each pair's
+sides radios (the chosen side's `003` while on), the voice window a screen
+over it (`settings_voices`), 承認's question its own dialog
+(`settings_confirm`, the game's picture). The values are named globals
+(`%conv_set_bgm_volume`, …, `%conv_set_done`); a gloval.sav from before
+gets its `%2920`-`%2938` values copied once. Checked on Xvfb against
+main's routine (`compare -metric AE`): the screen at open, after clicking
+two pairs, the voice window: 0 pixels; dragging each slider from y 100
+to 180 sets the value (trace `var`/`screen set`, `*conv_ps_apply` run
+at each step). Open:
+
+- no fades: the screen, the voice window and the reset question appear
+  at once (the routine faded 300 ms, pairs 100 ms, the question
+  unrolled);
+- a press on the knob itself keeps the grab offset (the engine's rule),
+  so a drag started on it ends 2 px from the routine's;
+- Muramasa EN (`settings_en`) still uses the script routine: its lying
+  sliders with a lit bar (`spcut`) and its check boxes have no screen
+  widget yet. 続・殺戮のジャンゴ's (stepped sliders) likewise.
+
 ### Queue (2026-10-16)
 
 - Merged: `CreateText`'s box height (#52). Open, each waiting on its
