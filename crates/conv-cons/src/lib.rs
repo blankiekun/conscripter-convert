@@ -2208,7 +2208,7 @@ effect 7,99,1000,\"cons_zoom.dll/3,220,5\"
         let text = |t: &str, continues| Op::Text { speaker: None, text: t.into(), voice: None, links: vec![], ruby: vec![], styles: vec![], hang: None, continues };
         let s = script(vec![Op::SetWindow(nvl), text("一行目", true), text("二行目", false), text("新頁", false)]);
         let out = emit(&s);
-        assert!(out.contains("\":a;system\\textwnd5.png\",47,452\ncsp %conv_name_plate:csp %conv_name_text\n一行目@\n二行目\\\n新頁\\\n"), "{out}");
+        assert!(out.contains("\":a;system\\textwnd5.png\",47,452\ncsp %conv_name_plate:csp %conv_name_text:csp 50:csp 49\n一行目@\n二行目\\\n新頁\\\n"), "{out}");
     }
 
     #[test]
