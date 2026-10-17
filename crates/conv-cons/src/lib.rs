@@ -695,9 +695,10 @@ fn title_screen(out: &mut String, t: &TitleScreen, fade: &str, save_menu: bool, 
         writeln!(out, "mov {TITLE_SHOWN},1").unwrap();
     }
     writeln!(out, "*{TITLE_DRAW}").unwrap();
-    if let Some(bgm) = &t.bgm {
+    if let Some(bgm) = t.bgm.as_ref().filter(|_| t.movies.is_empty()) {
         writeln!(out, "bgm \"{}\"", path(bgm)).unwrap();
     }
+    title_movies(out, t, true, border);
     if picture_extras {
         writeln!(out, "*{TITLE_SPRITES}").unwrap();
     }
@@ -710,7 +711,7 @@ fn title_screen(out: &mut String, t: &TitleScreen, fade: &str, save_menu: bool, 
     if quick {
         writeln!(out, "{quick_exists}").unwrap();
     }
-    if t.hide_without_saves {
+    if t.hide_without_saves || t.continue_hides.is_some() {
         writeln!(out, "{}", saves_check()).unwrap();
     }
     let press = if t.pressed { ",2" } else { "" };
@@ -726,7 +727,7 @@ fn title_screen(out: &mut String, t: &TitleScreen, fade: &str, save_menu: bool, 
     for (n, (b, _)) in clickable.iter().enumerate() {
         let then = match b.action {
             TitleAction::Start => format!("goto *{TITLE_START}"),
-            TitleAction::Continue if t.hide_without_saves => format!("csp -1:loadgame {}", menu::HAS_DATA),
+            TitleAction::Continue if t.hide_without_saves || t.continue_hides.is_some() => format!("csp -1:loadgame {}", menu::HAS_DATA),
             TitleAction::Continue => format!("csp -1:loadgame {}", menu::QUICK_SLOT),
             TitleAction::Load if save_menu => {
                 format!("csp -1:mov {},0:gosub *{}:goto *{TITLE_DRAW}", menu::IN_GAME, menu::LOAD)
@@ -781,7 +782,7 @@ fn title_screen(out: &mut String, t: &TitleScreen, fade: &str, save_menu: bool, 
     if t.bgm.is_some() && t.start_bgm_fade_ms > 0 {
         writeln!(out, "bgmfadeout {}:bgmstop:bgmfadeout 0", t.start_bgm_fade_ms).unwrap();
     }
-    writeln!(out, "bg black,{fade}").unwrap();
+    writeln!(out, "bg {},{fade}", if t.start_white { "white" } else { "black" }).unwrap();
     if t.start_wait_ms > 0 {
         writeln!(out, "wait {}", t.start_wait_ms).unwrap();
     }
@@ -851,7 +852,19 @@ fn title_sprites(out: &mut String, t: &TitleScreen, buttons: &[(&conv_core::ir::
             writeln!(out, "lsp {slot},\":c;{}\",0,0,{alpha}", path(&g.image)).unwrap();
         }
     }
-    if t.hide_without_saves {
+    title_movies(out, t, false, border);
+    for (i, p) in t.pictures.iter().enumerate() {
+        // Over the movie (the last menu sprite), under the buttons.
+        let slot = MENU_SPRITES.end - 2 - i as u32;
+        writeln!(out, "lsp {slot},\":a;{}\",{},{}", path(&p.image), p.x, p.y).unwrap();
+        if p.add {
+            writeln!(out, "spblend {slot},1").unwrap();
+        }
+        if !p.keys.is_empty() {
+            writeln!(out, "spmotion {slot},{},{}", if p.repeat { 1 } else { 2 }, glow_keys(&p.keys)).unwrap();
+        }
+    }
+    if t.hide_without_saves || t.continue_hides.is_some() {
         writeln!(out, "{}", saves_check()).unwrap();
     }
     if quick {
@@ -859,7 +872,14 @@ fn title_sprites(out: &mut String, t: &TitleScreen, buttons: &[(&conv_core::ir::
     }
     for (b, slot) in buttons {
         let image = if b.action == TitleAction::Unavailable { format!(":a;{}", path(&b.image)) } else { format!(":a/{cells},0,3;{}", path(&b.image)) };
-        if b.action == TitleAction::Continue && !t.hide_without_saves {
+        if let Some(dy) = t.continue_hides.filter(|_| b.action != TitleAction::Continue) {
+            let only = title_button_shown(t, b, border);
+            let only = only.strip_prefix("if ").map_or(String::new(), |c| format!("&& {c}"));
+            writeln!(out, "if {} > 0 {only}lsp {slot},\"{image}\",{},{}", menu::HAS_DATA, b.x, b.y).unwrap();
+            writeln!(out, "if {} == 0 {only}lsp {slot},\"{image}\",{},{}", menu::HAS_DATA, b.x, b.y + dy).unwrap();
+            continue;
+        }
+        if b.action == TitleAction::Continue && !t.hide_without_saves && t.continue_hides.is_none() {
             let only = b.shown_by.map_or(String::new(), |v| format!("if {} != 0 ", var_name(v, border)));
             writeln!(out, "{only}lsp {slot},\"{image}\",{},{}", b.x, b.y).unwrap();
             writeln!(out, "if {} == 0 lsp {slot},\"{image}\",{},{},128", menu::TMP, b.x, b.y).unwrap();
@@ -867,6 +887,27 @@ fn title_sprites(out: &mut String, t: &TitleScreen, buttons: &[(&conv_core::ir::
         }
         let only = title_button_shown(t, b, border);
         writeln!(out, "{only}lsp {slot},\"{image}\",{},{}", b.x, b.y).unwrap();
+    }
+}
+
+/// [`TitleScreen::movies`]: the first whose conditions hold, looping in
+/// the last menu sprite (`bgm`: its music instead).
+fn title_movies(out: &mut String, t: &TitleScreen, bgm: bool, border: u32) {
+    if t.movies.is_empty() {
+        return;
+    }
+    debug_assert!(t.glow.is_none(), "a title movie takes the glow's sprite");
+    let slot = MENU_SPRITES.end - 1;
+    writeln!(out, "mov {},0", menu::TMP).unwrap();
+    for m in &t.movies {
+        let mut cond = vec![format!("{} == 0", menu::TMP)];
+        cond.extend(m.when.iter().map(|(v, value)| format!("{} == {value}", var_name(*v, border))));
+        let then = if bgm {
+            m.bgm.as_ref().or(t.bgm.as_ref()).map_or("bgmstop".to_string(), |b| format!("bgm \"{}\"", path(b)))
+        } else {
+            format!("lsp {slot},\":c/1,0,0;{}\",0,0", path(&m.movie))
+        };
+        writeln!(out, "if {} {then}:mov {},1", cond.join(" && "), menu::TMP).unwrap();
     }
 }
 
@@ -888,6 +929,7 @@ fn title_button_shown(t: &TitleScreen, b: &conv_core::ir::TitleButton, border: u
     let mut conds = Vec::new();
     match b.action {
         TitleAction::Continue | TitleAction::Load if t.hide_without_saves => conds.push(format!("{} > 0", menu::HAS_DATA)),
+        TitleAction::Continue if t.continue_hides.is_some() => conds.push(format!("{} > 0", menu::HAS_DATA)),
         TitleAction::Continue => conds.push(format!("{} == 1", menu::TMP)),
         // NScripter's `if` has no brackets: either flag, alone.
         TitleAction::Extras if !t.extras_shown_by.is_empty() => {

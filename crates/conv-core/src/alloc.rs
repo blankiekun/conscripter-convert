@@ -9,7 +9,8 @@
 //! %5096 up (to the script's 8,192). Engines today: Xuse %10-%12 and its
 //! presets from %40, globals %200 up; Nitroplus fork variables %50-%80,
 //! story locals from %300, `#` globals %800-%899 then %5200 up; MAGES
-//! locals %60-%92, globals %410-%439, scene-read flags %1200 up.
+//! locals %60-%92, globals %410-%439, scene-read flags %1200 up;
+//! TYPE-MOON locals from %196, `G` flags %800 up, `_RDST` flags %1200-%1775.
 //!
 //! A new range in conv-cons goes here first; conv-cons' tests check that
 //! every variable its code names is in this table.

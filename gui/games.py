@@ -328,6 +328,20 @@ def _oretsuba_check(root: Path) -> tuple[list[str], list[str]]:
     return problems, warnings
 
 
+# --- 月姫 -A piece of blue glass moon- (Switch, TYPE-MOON) ------------------
+
+def _tsukihime_command(game: Path, output: Path, font: Path) -> list[str]:
+    # docs/games/tsukihime.md, "Build": the RomFS, its exe in ../exefs/main.
+    return ["typemoon", "convert", str(game), "-o", str(output), "--font", str(font)]
+
+
+def _tsukihime_check(root: Path) -> tuple[list[str], list[str]]:
+    if not (root.parent / "exefs" / "main").is_file():
+        return ["No exefs/main beside the RomFS folder: extract the ExeFS next to it "
+                "(docs/games/tsukihime.md, 'Build')."], []
+    return [], []
+
+
 GAMES: tuple[Game, ...] = (
     Game(
         key="saihate-no-ima",
@@ -414,6 +428,20 @@ GAMES: tuple[Game, ...] = (
                    "Scene names such as S01_01A, separated by commas, played in that order. "
                    "Leave it empty for every scene, with the menus and extras.", wide=True),
         ),
+    ),
+    Game(
+        key="tsukihime",
+        name="月姫 -A piece of blue glass moon- (Switch)",
+        engine="TYPE-MOON",
+        markers=("allscr.mrg", "script_text.mrg", "allui.mrg", "knife1.bfsar"),
+        command=_tsukihime_command,
+        font="ipag.ttf",
+        output_name="tsukihime-cons",
+        needs_ffmpeg=True,  # movies at 720p, sounds to Ogg
+        size_gb=5.3,
+        doc="docs/games/tsukihime.md",
+        check=_tsukihime_check,
+        options=_common("月姫 -A piece of blue glass moon-"),
     ),
 )
 

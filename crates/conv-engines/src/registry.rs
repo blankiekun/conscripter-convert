@@ -53,6 +53,14 @@ pub const GAMES: &[GameInfo] = &[
         command: &["mages", "convert"],
         options: &[],
     },
+    GameInfo {
+        id: "tsukihime",
+        name: "月姫 -A piece of blue glass moon- (Switch)",
+        engine: "TYPE-MOON",
+        markers: &["allscr.mrg", "script_text.mrg", "allui.mrg", "knife1.bfsar"],
+        command: &["typemoon", "convert"],
+        options: &[],
+    },
 ];
 
 /// The games whose markers are all in `dir`.

@@ -76,6 +76,19 @@ pub struct TitleScreen {
     /// Extras is drawn only while one of these isn't 0 (a game's flags:
     /// either route cleared). Empty: as its [`TitleButton::shown_by`].
     pub extras_shown_by: Vec<Var>,
+    /// Looping movies over `background`, under the rest (not with a
+    /// `glow`): the first whose `when` holds plays, with its music in
+    /// place of `bgm` (月姫's titlebg1–4, by the scenes read).
+    pub movies: Vec<TitleMovie>,
+    /// Pictures over the movie, under the buttons, the first at the bottom.
+    pub pictures: Vec<TitlePicture>,
+    /// Continue is drawn only while there is a save to load (found as for
+    /// `hide_without_saves`, Load staying), and while it isn't the other
+    /// buttons move down by this many pixels (negative: up; 月姫 centres
+    /// its menu on the buttons shown).
+    pub continue_hides: Option<i32>,
+    /// Start fades to white instead of black.
+    pub start_white: bool,
 }
 
 /// [`TitleScreen::openings`]: a silent movie of the title coming up, ending
@@ -146,6 +159,32 @@ pub enum TitleAction {
     /// Open this web page in the browser (`openurl`): 装甲悪鬼村正's
     /// ライナー画像, its staff-comment page.
     Link(&'static str),
+}
+
+/// [`TitleScreen::movies`]: a full-screen movie, looping.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct TitleMovie {
+    pub movie: String,
+    /// Music while it plays, in place of [`TitleScreen::bgm`].
+    pub bgm: Option<String>,
+    /// Chosen only while each of these variables has its value.
+    pub when: Vec<(Var, i32)>,
+}
+
+/// [`TitleScreen::pictures`]: a picture with alpha, its top-left corner
+/// at `x`, `y`.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct TitlePicture {
+    pub image: String,
+    pub x: i32,
+    pub y: i32,
+    /// Its colours added to what is under it.
+    pub add: bool,
+    /// Its opacity along these keys (ms from the title's first draw,
+    /// opacity 0-256), held at the last; empty: shown as it is.
+    pub keys: Vec<(u32, u32)>,
+    /// The keys loop.
+    pub repeat: bool,
 }
 
 /// An image with its top-left corner on screen, and its size (all cells).
