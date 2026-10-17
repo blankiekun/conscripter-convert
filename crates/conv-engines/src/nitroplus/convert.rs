@@ -103,6 +103,7 @@ mod text_object;
 mod sounds;
 mod shake;
 mod rain;
+mod turn;
 pub(super) use fast_skip::read_flag;
 
 /// A window picture's text place ([`Game::box_text`]): picture, text x, y,
@@ -1330,6 +1331,8 @@ struct Compiler<'a, 'b> {
     /// The tempo of a pending `Move` or `Zoom` per object, as
     /// [`Op::MoveEase`] (see [`tempo`]).
     pending_tempo: HashMap<String, (u8, u32)>,
+    /// A pending `Rotate` about x or y over time per object it turns.
+    pending_turn: HashMap<String, turn::Turning>,
     /// A `DrawTransition` mask for the next sync.
     pending_mask: Option<String>,
     /// The pictures the running screen shake shakes: it stops when they go.
@@ -2135,6 +2138,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
             pending_ms: 0,
             pending_by: HashMap::new(),
             pending_tempo: HashMap::new(),
+            pending_turn: HashMap::new(),
             pending_mask: None,
             shaken: Vec::new(),
             font_size: 20,
@@ -4043,6 +4047,80 @@ scene a.nss
             _ => None,
         });
         assert_eq!(gone, Some(true), "{:?}", c.ops);
+    }
+
+    #[test]
+    fn a_face_window_turning_in_unfolds_with_its_face() {
+        // `WindowRotateR(frame, face, 500, 0,90,0, Dxl1, true)`: turned
+        // edge-on at once, then back over 500 ms about the frame's centre.
+        let story = r#"
+scene a.nss
+{
+	CreateTexture("frame03", 100, 25, 80, "cg/st/a.png");
+	CreateTexture("frame03/顔窓31", 101, 25, 25, "cg/st/b.png");
+	Rotate("frame03", 0, @0, @-90, @0, null, true);
+	Rotate("frame03", 500, @0, @90, @0, Dxl1, true);
+	Wait(100);
+}
+"#;
+        static GAME: Game = Game { family: true, relative_children: true, ..Game::PLAIN };
+        let mut files = BTreeMap::new();
+        files.insert(BOOT.to_string(), nss::parse("#include \"nss/function.nss\"\n").unwrap());
+        files.insert("function.nss".to_string(), nss::parse(LIBRARY).unwrap());
+        files.insert("a.nss".to_string(), nss::parse(story).unwrap());
+        let c = compile_scene(&files, "a.nss", "a.nss", &GAME, &mut Fake).unwrap();
+        let motions: Vec<&Vec<MotionKey>> = c.ops.iter().filter_map(|op| match op {
+            Op::SpriteMotion2 { keys, end: MotionEnd::Keep, .. } => Some(keys),
+            _ => None,
+        }).collect();
+        assert_eq!(motions.len(), 2, "{:?}", c.ops);
+        for keys in &motions {
+            let (first, last) = (keys[0], *keys.last().unwrap());
+            // From edge-on (no width) to flat, across only; Dxl1 eases out.
+            assert_eq!((first.zoom, first.zoom_y, last.zoom, last.zoom_y, last.x, last.y, last.ms), (0, 100, 100, 100, 0, 0, 500), "{keys:?}");
+            assert!(keys[1].zoom > 30, "{keys:?}");
+        }
+        // The face starts at the frame's centre line.
+        let face = motions.iter().find(|k| k[0].x != 0).unwrap_or_else(|| panic!("{motions:?}"));
+        assert!(face[0].y == 0, "{face:?}");
+        assert!(!c.notes.keys().any(|n| n.starts_with("Rotate over time")), "{:?}", c.notes);
+    }
+
+    #[test]
+    fn a_face_window_turning_away_squashes_out_then_goes() {
+        // `WindowCloseR(frame, face, 500, 0,90,0, Dxl1, true)`.
+        let story = r#"
+scene a.nss
+{
+	CreateTexture("frame03", 100, 25, 80, "cg/st/a.png");
+	CreateTexture("frame03/顔窓31", 101, 25, 25, "cg/st/b.png");
+	Wait(100);
+	Rotate("frame03", 500, 0, 90, 0, Dxl1, true);
+	Fade("frame03", 0, 0, null, false);
+	Rotate("frame03", 0, 0, 0, 0, null, true);
+	Delete("frame03/顔窓31");
+	Wait(100);
+}
+"#;
+        static GAME: Game = Game { family: true, relative_children: true, ..Game::PLAIN };
+        let mut files = BTreeMap::new();
+        files.insert(BOOT.to_string(), nss::parse("#include \"nss/function.nss\"\n").unwrap());
+        files.insert("function.nss".to_string(), nss::parse(LIBRARY).unwrap());
+        files.insert("a.nss".to_string(), nss::parse(story).unwrap());
+        let c = compile_scene(&files, "a.nss", "a.nss", &GAME, &mut Fake).unwrap();
+        let at = c.ops.iter().position(|op| matches!(op, Op::SpriteMotion2 { .. })).unwrap_or_else(|| panic!("{:?}", c.ops));
+        let lasts: Vec<u32> = c.ops.iter().filter_map(|op| match op {
+            Op::SpriteMotion2 { keys, end: MotionEnd::Keep, .. } => Some(keys.last().unwrap().zoom),
+            _ => None,
+        }).collect();
+        assert_eq!(lasts, [0, 0], "{:?}", c.ops);
+        // Both waited for, then taken away.
+        assert!(c.ops[at..].iter().any(|op| matches!(op, Op::Wait { ms: 500 }) || matches!(op, Op::BeginTransition { fade_ms: 500, .. })), "{:?}", c.ops);
+        let gone = c.ops.iter().rev().find_map(|op| match op {
+            Op::Sprites { changes, .. } if !changes.is_empty() => Some(changes.iter().filter(|c| c.sprite.is_none()).count()),
+            _ => None,
+        });
+        assert_eq!(gone, Some(2), "{:?}", c.ops);
     }
 
     #[test]

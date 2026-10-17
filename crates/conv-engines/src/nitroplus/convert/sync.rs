@@ -10,6 +10,7 @@ impl Compiler<'_, '_> {
         let ms = ms.max(std::mem::take(&mut self.pending_ms).min(UNWAITED_MS));
         let timed = std::mem::take(&mut self.pending_by);
         let tempo = std::mem::take(&mut self.pending_tempo);
+        let turning = std::mem::take(&mut self.pending_turn);
         let mut shake_once = std::mem::take(&mut self.shake_once);
         let mask = self.pending_mask.take();
         self.flush_sounds();
@@ -66,6 +67,14 @@ impl Compiler<'_, '_> {
                         x = sx + (cx - sx) * k / 1000 - o.w / 2;
                         y = sy + (cy - sy) * k / 1000 - o.h / 2;
                         zoom = (zoom.0 * k / 1000, zoom.1 * k / 1000);
+                    }
+                    // Turned about x or y: squashed (convert/turn.rs).
+                    let sq = self.squash(n, None);
+                    if sq != super::turn::FLAT {
+                        let c = [(x + o.w / 2) as f64, (y + o.h / 2) as f64];
+                        x = (sq[0].0 * c[0] + sq[0].1).round() as i64 - o.w / 2;
+                        y = (sq[1].0 * c[1] + sq[1].1).round() as i64 - o.h / 2;
+                        zoom = ((zoom.0 as f64 * sq[0].0).round().max(1.0) as i64, (zoom.1 as f64 * sq[1].0).round().max(1.0) as i64);
                     }
                     let shown = Shown { layer: 0, image: image.clone(), x, y, w: o.w, h: o.h, opacity, cells: None, source: String::new(), zoom: (1000, 1000), angle: o.angle(), clip: None, engine: Engine::default(), flash: 0, blend: o.blend, tint: None };
                     Some((n.clone(), shown, (o.priority, o.seq), zoom, (o.w, o.h), o.mirror()))
@@ -211,8 +220,19 @@ impl Compiler<'_, '_> {
         let mut changes = Vec::new();
         let mut opacity = Vec::new();
         let gone: Vec<String> = self.shown.keys().filter(|n| !want.iter().any(|w| &w.0 == *n)).cloned().collect();
+        let mut moving = Vec::new();
         for n in gone {
             let s = self.shown.remove(&n).unwrap();
+            // Turning edge-on: squashed away by the engine, then gone at a
+            // later sync (its layer kept till then).
+            if let Some(t) = turning.get(&n).filter(|_| self.objects.contains_key(&n))
+                && let Some(op) = self.turn_motion(&n, t, s.layer, Some(&s), None, false)
+            {
+                self.ops.push(op);
+                self.shown.insert(n.clone(), Shown { engine: Engine { zoomed: true, moved: true }, ..s });
+                moving.push(n);
+                continue;
+            }
             changes.push(SpriteChange { layer: s.layer, sprite: None, keep_filters: false });
         }
         // Layers of the wanted pictures in drawing order, top first: each
@@ -241,8 +261,28 @@ impl Compiler<'_, '_> {
         // Pictures that only move or zoom over time: moved by the engine
         // while the script goes on (and during the cross-fade of the other
         // changes), which waits only for the blocking action's time.
-        let mut moving = Vec::new();
+        // Turning pictures that grow (or come in from edge-on): placed as
+        // they end, then the motion from the start (below).
+        let mut grow: HashMap<String, Option<Shown>> = HashMap::new();
         for ((name, now, _), layer) in want.iter().zip(&layers) {
+            let (Some(layer), Some(t)) = (*layer, turning.get(name)) else { continue };
+            let old = self.shown.get(name);
+            if old.is_none_or(|o| o.layer != layer || now.w * now.h >= o.w * o.h) {
+                grow.insert(name.clone(), old.cloned());
+                moving.push(name.clone());
+            } else if let Some(old) = old
+                && let Some(op) = self.turn_motion(name, t, layer, Some(old), Some(now), false)
+            {
+                let now = Shown { layer, engine: Engine { zoomed: true, moved: true }, ..now.clone() };
+                self.ops.push(op);
+                self.shown.insert(name.clone(), now);
+                moving.push(name.clone());
+            }
+        }
+        for ((name, now, _), layer) in want.iter().zip(&layers) {
+            if turning.contains_key(name) {
+                continue;
+            }
             let (Some(layer), Some(old), Some(&t)) = (*layer, self.shown.get(name), timed.get(name)) else { continue };
             let now = Shown { layer, ..now.clone() };
             // (Only tinted anew: spfilter below, no motion.)
@@ -294,6 +334,12 @@ impl Compiler<'_, '_> {
         for ((name, now, _), layer) in want.into_iter().zip(&layers) {
             let Some(layer) = *layer else { continue };
             let mut now = Shown { layer, ..now };
+            if let Some(old) = grow.get(&name)
+                && let Some(op) = self.turn_motion(&name, &turning[&name], layer, old.as_ref(), Some(&now), true)
+            {
+                animated.push(op);
+                now.engine.moved = true;
+            }
             match self.shown.get(&name) {
                 Some(old) if *old == Shown { engine: old.engine, ..now.clone() } => continue,
                 Some(old) if old.layer == now.layer && old.image == now.image && old.x == now.x && old.y == now.y && old.cells == now.cells && old.flash == now.flash && old.angle == now.angle && old.clip == now.clip => {

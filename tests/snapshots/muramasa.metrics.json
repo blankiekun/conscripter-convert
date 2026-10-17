@@ -1,9 +1,9 @@
 {
 "game": "muramasa",
 "engine": "nitroplus",
-"commit": "768957ae",
+"commit": "615073be",
 "commit_date": "2026-10-16",
-"totals": {"calls": 1161959, "full": 1025980, "gaps": 135979},
+"totals": {"calls": 1161959, "full": 1025983, "gaps": 135976},
 "kinds": {
 "LockVideo": {"calls": 50726, "gaps": 50726, "reasons": [["LockVideo argument 0 ignored", 50726]]},
 "WaitText": {"calls": 23689, "gaps": 23689, "reasons": [["WaitText argument 0 ignored", 23689], ["WaitText argument 1 ignored", 23689]]},
@@ -22,7 +22,7 @@
 "Request": {"calls": 239985, "gaps": 1152, "reasons": [["Request stop", 894], ["Request overlayrender", 111], ["code inside a page runs before it", 89], ["Request compulsorysuspend", 18], ["Request pushtext", 15], ["9 more", 26]]},
 "SetBlur": {"calls": 985, "gaps": 970, "reasons": [["SetBlur argument 5 ignored", 970], ["SetBlur argument 4 ignored", 16]]},
 "CreateWindow": {"calls": 639, "gaps": 639, "reasons": [["CreateWindow argument 6 ignored", 639]]},
-"Rotate": {"calls": 16921, "gaps": 552, "reasons": [["Rotate argument 5 ignored", 488], ["Rotate about z", 69], ["Rotate over time drawn at once", 14]]},
+"Rotate": {"calls": 16921, "gaps": 549, "reasons": [["Rotate argument 5 ignored", 486], ["Rotate about z", 69], ["Rotate over time turning a picture over: mirrored at once", 10]]},
 "LoadImage": {"calls": 532, "gaps": 532, "reasons": [["built-in LoadImage", 532]]},
 "Position": {"calls": 506, "gaps": 506, "reasons": [["built-in Position", 506]]},
 "CreateChoice": {"calls": 444, "gaps": 444, "reasons": [["built-in CreateChoice", 444]]},
