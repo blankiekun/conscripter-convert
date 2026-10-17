@@ -766,7 +766,8 @@ impl<'a> Emitter<'a> {
         }
         Op::BgmLater { file, after_ms: 0, looped } => {
             writeln!(out, "bgmfadein 0").unwrap();
-            writeln!(out, "{} \"{}\"", if *looped { "bgm" } else { "bgmonce" }, path(file)).unwrap();
+            // mp3save: played once, but a load plays it again (bgmonce's isn't saved)
+            writeln!(out, "{} \"{}\"", if *looped { "bgm" } else { "mp3save" }, path(file)).unwrap();
         }
         Op::BgmLater { file, after_ms, looped } => {
             writeln!(out, "bgmlater {after_ms},\"{}\"{}", path(file), if *looped { "" } else { ",0" }).unwrap();

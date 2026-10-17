@@ -381,7 +381,7 @@ with the original (it wants all eleven endings' flags under wine).
 | Choices | ✅ Plates as picture buttons, text placed as the original's (compared under wine) |
 | System screens | 🟡 From the game's pictures (`django/screens.rs`): title, right-click menu, save/load (3×20 slots), yes/no questions, text log, settings (bullet rows as `SliderSteps`; drawn by the engine, `screen "settings"`: each bullet a radio lit from the chosen one down its row with `on_range`, engine #98), the click-wait bullet after the last character (`getcursorpos` in the bar's wait routine); compared under wine: right-click menu, save, log, settings (text speed starts at level 5 as the original's; the two SAVE-DATA question rows drawn as they stand, ON chosen; the display options and version panel left out on purpose) |
 | Extras | 🟡 Menu, CG library, sound library, recollection, each compared with the original; left out: the doors' animation, the rifle over a category |
-| Saves | 🟡 `--roundtrip-every 100` over the first 1,500 pages: no save/load mismatch; saves from the screens not tried by hand |
+| Saves | 🟡 `--roundtrip-every 100` over the first 1,500 pages, and `--roundtrip-every 1` over the 569 pages one auto-play reaches: no save/load mismatch (a music played once before the next part, `BgmLater`, is `mp3save`, so a load plays it again); saves from the screens not tried by hand |
 | Web build | 🟡 Plays in a browser (title, story pages); saves, sound and touch not checked yet |
 
 ### Accuracy (value audit, 2026-10-17)
