@@ -837,16 +837,22 @@ impl Compiler<'_, '_> {
                 // (name, x: left | center | right | px, y: top | middle |
                 // bottom | px), from the object's top left: the point a
                 // `Zoom` or `Rotate` keeps in place (builtin_SetVertex).
-                let place = |v: &Value, size: i64, near: &str, far: &str| match v {
-                    Value::Str(w) if w.eq_ignore_ascii_case(near) => 0,
-                    Value::Str(w) if w.eq_ignore_ascii_case(far) => size,
-                    Value::Str(w) if w.eq_ignore_ascii_case("center") || w.eq_ignore_ascii_case("middle") => size / 2,
-                    v => v.int(),
+                // src: Django.exe FUN_004666c0, Muramasa.exe FUN_004891e0: the
+                // names per axis; px outside 0..size leaves that axis as it
+                // was (dja004's `center,704` on a 600 px picture).
+                // guess: any case (the exe compares lower case; 装甲悪鬼村正's
+                // `Center`/`Middle` may be lowered before, unchecked).
+                let place = |v: &Value, size: i64, was: i64, [near, mid, far]: [&str; 3]| match v.string().to_ascii_lowercase().as_str() {
+                    w if w == near => 0,
+                    w if w == mid => size / 2,
+                    w if w == far => size,
+                    _ => Some(v.int()).filter(|p| (0..=size).contains(p)).unwrap_or(was),
                 };
                 let (vx, vy) = (arg(1), arg(2));
                 for t in self.matching(&arg(0)) {
                     let o = self.objects.get_mut(&t).unwrap();
-                    o.vertex = Some((place(&vx, o.w, "left", "right"), place(&vy, o.h, "top", "bottom")));
+                    let (wx, wy) = o.vertex.unwrap_or((o.w / 2, o.h / 2));
+                    o.vertex = Some((place(&vx, o.w, wx, ["left", "center", "right"]), place(&vy, o.h, wy, ["top", "middle", "bottom"])));
                 }
             }
             "WaitText" | "LockVideo" | "Reset" | "SetShortcut" => {}
