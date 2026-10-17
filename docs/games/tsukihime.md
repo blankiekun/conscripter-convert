@@ -627,8 +627,7 @@ Nothing yet.
 5. The metrics (`tests/snapshots/tsukihime.metrics.json`) count each
    argument a converted command passes and doesn't read as a gap
    (`<command> argument <i> ignored`, `option <n>` for a backquote
-   option); the list is in that file. The biggest: `_STRT` 1,
-   3, 4 (from, time, easing), `_STZ4` on a layer not staged (2,418,
+   option); the list is in that file. The biggest: `_STZ4` on a layer not staged (2,418,
    dropped: the exe sets the live layer at once, `FUN_00131f30` on
    `DAT_00be0258`; how that meets `_FADS` not worked out) and its 2
    timed uses, `_VPLY` 1, `_WTTM` 1, `_SEPL` option 17.
@@ -668,6 +667,15 @@ The biggest commands not converted, looked up in `script_command`
   out.
 
 ## History
+
+- 2026-10-17: `_STRT(layer, from, to, ms, ease, cx, cy)`
+  (`FUN_00162b20`), **seen**: `FUN_001326e0` sets the live layer's turn
+  to `to` with `from − to` left to run off over ms · 60 / 1000 frames
+  (none at 0 frames), `FUN_001325d0` the easing; `cx`, `cy` go to the
+  live layer's 0x72, 0x74. All 21,691 uses are untimed with from = to,
+  so `from`, the time and the easing are read as meaning nothing
+  (21,356 now fully converted; 0.txt unchanged). The 335 left are on
+  layers the converter hasn't staged (see `_STZ4`).
 
 - 2026-10-17: the chapter-jump menus and options under a flag,
   **seen** in `script_command` (0x177790, case "ELR"): `_SELR` adds a

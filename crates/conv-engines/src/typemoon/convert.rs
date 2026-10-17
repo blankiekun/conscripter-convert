@@ -586,12 +586,25 @@ impl Lowering<'_, '_> {
                 let Some(n) = number(arg(0)).filter(|n| (0..LAYERS as i32).contains(n)) else { return false };
                 return self.stma(n as usize, number(arg(1)).unwrap_or(0));
             }
-            // `_STRT(layer, from, to, ms, ease)` (`FUN_00162b20`): the turn
-            // in 1/100 degrees, to `to` (default 0; `_STCH` resets it).
-            // shortcut: timed turns (none in the scripts) jump to the end.
+            // `_STRT(layer, from, to, ms, ease, cx, cy)` (`FUN_00162b20`): the
+            // turn in 1/100 degrees goes to `to` (default 0; `_STCH` resets it)
+            // from `from` (default: the layer's) over ms · 60 / 1000 frames
+            // (`FUN_001326e0`: at 0 frames straight to `to`); `ease` the
+            // easing (`FUN_001325d0`), `cx`, `cy` two shorts beside the turn
+            // (the live layer's 0x72, 0x74).
             "_STRT" => {
                 let Some(l) = self.staged_layer(arg(0)) else { return arg(0).parse::<i32>().is_ok() };
                 l.angle = number(arg(2)).unwrap_or(0);
+                // Every use is at once and from = to: then `from` and the easing
+                // mean nothing, and a centre of 0 is none.
+                // shortcut: a timed turn would jump to its end; its arguments stay gaps.
+                let raw = |i: usize| a.get(i).map_or("", |v| v.trim());
+                let zero = |i: usize| raw(i).is_empty() || number(raw(i)) == Some(0);
+                if zero(3) && (raw(1).is_empty() || number(raw(1)) == Some(l.angle)) {
+                    for i in [1, 3, 4].into_iter().chain([5, 6].into_iter().filter(|&i| zero(i))) {
+                        arg(i);
+                    }
+                }
             }
             // `_STBR(layer, n)` (`FUN_00162490`): the shader (0: the normal one).
             "_STBR" => {
@@ -1259,6 +1272,8 @@ mod tests {
         };
         let c = compile(&g);
         assert!(c.notes.is_empty(), "{:?}", c.notes);
+        // An untimed turn from where it goes reads every argument.
+        assert!(!c.metrics.reasons().keys().any(|r| r.contains("_STRT")), "{:?}", c.metrics.reasons());
         let ops = c.ops;
         assert!(ops.contains(&Op::SpriteAngle { layer: 39, degrees: 90, zoom: (50, 50) }), "{ops:?}");
         let blends: Vec<_> = ops.iter().filter_map(|o| if let Op::SpriteBlend { mode, .. } = o { Some(*mode) } else { None }).collect();
