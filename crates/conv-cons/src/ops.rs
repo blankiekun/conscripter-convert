@@ -52,6 +52,9 @@ pub(crate) struct Emitter<'a> {
     pub window: Option<TextWindow>,
     pub page_rows: usize,
     pub page_tag: Option<String>,
+    /// The last page stopped for code inside it ([`conv_core::ir::GOES_ON_MARK`]): the
+    /// next text goes on in it.
+    pub text_goes_on: bool,
 }
 
 impl<'a> Emitter<'a> {
@@ -60,7 +63,7 @@ impl<'a> Emitter<'a> {
         if !matches!(op, Op::Sprites { .. } | Op::SpritesFading { .. } | Op::SpriteMotion { .. } | Op::SpriteMotion2 { .. } | Op::SpriteMove { .. } | Op::MoveEase { .. } | Op::MoveNoWait | Op::MoveArc { .. }) {
             self.fading.clear();
         }
-        let &mut Emitter { has_ruby, has_overlay, has_noise, has_chapters, has_animation, root_returns, has_replay, has_vertical, border, voice_switches, duck, back_to_choice, speed, link_depth, script, ref clear_fade, ref restore_overlay, ref effects, ref link_targets, ref zoomed_layers, ref mut out, ref mut root_resumes, ref mut puzzles, ref mut button_screens, ref mut plate_choices, ref mut picture_screens, ref mut se, ref mut se_not_skipped, ref mut noise_fade_in, ref mut move_ease, ref mut move_nowait, ref mut move_arc, ref mut eased, ref mut needs_click_wait, ref mut plate_visible, ref mut link_pages, ref mut transition, ref mut window, ref mut page_rows, ref mut page_tag, fading: ref mut fading_slots } = self;
+        let &mut Emitter { has_ruby, has_overlay, has_noise, has_chapters, has_animation, root_returns, has_replay, has_vertical, border, voice_switches, duck, back_to_choice, speed, link_depth, script, ref clear_fade, ref restore_overlay, ref effects, ref link_targets, ref zoomed_layers, ref mut out, ref mut root_resumes, ref mut puzzles, ref mut button_screens, ref mut plate_choices, ref mut picture_screens, ref mut se, ref mut se_not_skipped, ref mut noise_fade_in, ref mut move_ease, ref mut move_nowait, ref mut move_arc, ref mut eased, ref mut needs_click_wait, ref mut plate_visible, ref mut link_pages, ref mut transition, ref mut window, ref mut page_rows, ref mut page_tag, ref mut text_goes_on, fading: ref mut fading_slots } = self;
         let effect = |ms: u32| if ms == 0 { "1".to_string() } else { effects[&(ms, Effect::Fade)].clone() };
         let visited = |target: &str| format!("?{LINK_VISITED}[{}]", link_targets.iter().position(|&t| t == target).unwrap());
     if let Op::Text { .. } = op {
@@ -315,6 +318,12 @@ impl<'a> Emitter<'a> {
             *page_rows = 0;
             *window = Some(w.clone());
         }
+        Op::WindowImage(image) => {
+            writeln!(out, "setwindow2 \":a;{}\"", path(image)).unwrap();
+            if let Some(w) = window {
+                w.image = image.clone();
+            }
+        }
         Op::ClearSprites => {
             writeln!(out, "csp -1{clear_fade}").unwrap();
             out.push_str(restore_overlay);
@@ -447,8 +456,13 @@ impl<'a> Emitter<'a> {
             }
         }
         Op::Text { speaker, text, voice, links, ruby, styles, hang, continues } => {
+            // Going on in a page that stopped for code: its speaker, plate
+            // and ducking stay.
+            let goes_on = text.ends_with(conv_core::ir::GOES_ON_MARK);
+            let text = text.strip_suffix(conv_core::ir::GOES_ON_MARK).unwrap_or(text);
+            let resumed = std::mem::replace(text_goes_on, goes_on);
             // Ducking: the music lowered while a line is voiced.
-            if duck {
+            if duck && !resumed {
                 let off = menu::switch_off(Switch::BgmFullForVoice);
                 let to = if voice.is_some() { "50,200" } else { "100,400" };
                 writeln!(out, "if {off} == 1 chvolfade -1,{to}").unwrap();
@@ -477,6 +491,7 @@ impl<'a> Emitter<'a> {
             // Sprite changes only show after a print, so print when the
             // plate appears, changes or goes away.
             match (speaker, plate) {
+                _ if resumed => {}
                 (Some(name), Some(p)) => {
                     writeln!(out, "lsp {NAME_PLATE_SPRITE},\":a;{}\",{},{}", path(&p.image), p.x, p.y).unwrap();
                     writeln!(
@@ -520,19 +535,31 @@ impl<'a> Emitter<'a> {
             };
             // A backquote starts a single-byte text line, whatever follows.
             let lines: Vec<String> = if script.single_byte_text { lines.into_iter().map(|l| format!("`{l}")).collect() } else { lines };
-            if !*continues || page.is_some() {
+            if !(*continues || goes_on) || page.is_some() {
                 *page_tag = None;
             }
             let rows_before = *page_rows;
-            *page_rows = if *continues { *page_rows + lines.len() } else { 0 };
+            *page_rows = if *continues || goes_on { *page_rows + lines.len() } else { 0 };
             let indent = hang.map_or(0, |n| hang_indent(text, n));
             if indent > 0 {
                 writeln!(out, "indent {indent}").unwrap();
             }
             let Some(page) = page else {
                 // `@` waits and keeps the text (the next page continues
-                // below); `\` waits and clears.
-                let end = if *continues { "@" } else { "\\" };
+                // below); `\` waits and clears; a page that goes on after
+                // code doesn't wait: `/` keeps the line open (after a
+                // backquoted line, closed first), else the line ends.
+                let mut lines = lines;
+                let end = match () {
+                    _ if goes_on && text.ends_with('\n') => {
+                        lines.pop();
+                        ""
+                    }
+                    _ if goes_on && script.single_byte_text => "`/",
+                    _ if goes_on => "/",
+                    _ if *continues => "@",
+                    _ => "\\",
+                };
                 writeln!(out, "{}{end}", lines.join("\n")).unwrap();
                 if indent > 0 {
                     writeln!(out, "indent 0").unwrap();

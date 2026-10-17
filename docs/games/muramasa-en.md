@@ -131,11 +131,26 @@ settle:
   dish is too unless another path sets the flags. `mc02_031time`'s
   `$mc02_時間` (set in `function_process.nss`) is not a story flag: as
   before.
-- Next: ma01_026's typed document: the port shows its 5 lines centred
-  one at a time, typed letter by letter (`CreateTextArea` 1280×150,
-  `FadeCharacter`); ours shows them in the text box after the typing
-  sounds (both builds run a page's code before it). Left for now
-  (the lead, 2026-10-16).
+- Code inside a page (this PR, shared NSS; engine PR #63, merged: CONscripter 7db2f06): a `{…}`
+  block between a page's lines, or inside a line, now runs where it
+  stands. The text before it shows, the code runs, and the page goes
+  on: on the same line when the code is inside a line or after a `<?>`
+  (`/`; in the English build `` `…`/ ``, which CONscripter now reads),
+  otherwise on the next line. A face changed there swaps only the
+  window's picture (`setwindow2`, `Op::WindowImage`; 126 in the
+  English dry run); 5 windows that move inside a page stay where the
+  page began. In the Japanese builds ma01_026's document is typed one
+  letter at a time with its key sounds (checked on a one-scene build
+  with the trace). The English build still shows it whole before the
+  sounds, because the port's English for it is one stretch (its
+  `CreateTextArea` + `FadeCharacter` are not done). The dry runs of
+  Muramasa (both builds) and Django change: sounds and waits move into
+  the page where they stand; line ends `/` (Muramasa 102, Django 7),
+  `` `…`/ `` (English 43); `setwindow2` (Muramasa 11, English 126).
+- Open (2026-10-16): mb03_022's bar at the port's 620×220 is in
+  PR #247. The English-side
+  `Metrics::left_out` entries (the 444 story `CreateText` left out on
+  purpose, menu built-ins the English screens replace) are not yet listed.
 - Decided: a click on an empty slot at the title doesn't save (the
   original saves the title screen there): a deliberate difference.
   Continue loads the quick save, else the newest save. Japanese story
@@ -326,8 +341,8 @@ settle:
   2. 22 rows of English are placed nowhere (lines the NSS orders or
      splits otherwise, route variants such as mc01's "Ichijo is
      nowhere to be seen" / "My comrades …", ma01_003's `<CLICK>`
-     rows); ma01_026's document is shown whole after its typing
-     sounds, not typed letter by letter as the port does.
+     rows); ma01_026's document is shown whole, then its typing
+     sounds play; the port types it letter by letter (`FadeCharacter`).
   3. Gaps from the exe map ("The exe", coverage table): `<SMALL>`'s
      size (75 %) is a guess; its larger-type text boxes (`SetTextEXC_Large` …, 16
      calls in 8 scenes).

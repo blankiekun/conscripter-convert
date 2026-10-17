@@ -293,6 +293,13 @@ pub const VOICE_WAIT_MARK: char = '\u{3}';
 /// Ends the number after [`TIMED_WAIT_MARK`] or [`VOICE_WAIT_MARK`].
 pub const WAIT_END_MARK: char = '\u{4}';
 
+/// At the end of [`Op::Text`] text: the page stops here without a wait,
+/// the ops up to the next [`Op::Text`] run (code inside the page), and
+/// that one goes on in the same page with the same speaker and window: on
+/// the same line, or on the next one when the text before the mark ends
+/// with '\n'.
+pub const GOES_ON_MARK: char = '\u{5}';
+
 /// A clickable word in a text page.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TextLink {
@@ -678,6 +685,9 @@ pub enum Op {
     /// are (a filter sorted below the bust-ups). Cleared by
     /// [`Op::ScreenFilter`] with `None`.
     ScreenFilterUnderSprites { slot: u32, filter: SpriteFilter },
+    /// The text window's picture changes, its text staying (a face
+    /// changed by code inside a page, [`GOES_ON_MARK`]).
+    WindowImage(String),
 }
 
 /// [`Op::HoldMovie`]'s prompt: `image` is `cells` pictures side by side,
