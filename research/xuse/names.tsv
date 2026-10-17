@@ -616,3 +616,11 @@
 # Frame loop and clock (wine relay and breakpoint trace, 2026-10-17)
 00406f30	frame_loop	one frame: input, tasks, draw, then Sleep(period - work) from 0x407102; period = table 004fb4e8 {66, 33, 16, 1} ms by the frame-rate setting 0051ed11 (1 = 33 ms, measured 30.1 fps); no Sleep in skip mode or with Ctrl held
 004bb8c0	frame_clock	start of frame_loop: dt 00519094 = the last frame from its start to the end of its Sleep; 00519098 = dt capped at 100 ms, what the effect callbacks add
+0040b130	save_path	Documents\\Xuse\\<title>\\ + Farthest2015_%03u.bin / _000.bin / _sys.bin by kind
+00466ab0	slot_save	stamps the FILETIME, writes the slot file (slot_save_write)
+00466bf0	slot_load_read	reads a slot file into the staging area at 0x5621dc; refuses version != 1
+00461790	slot_save_write	LOCL + thumbnails, sRIO, SVAR, LSNL, CPHS
+00461b90	slot_save_read	reads the chunks slot_save_write writes
+00471480	svar_write	SVAR: count, (len, name ^ 0x65, i32) per variable, crc over the entries
+00460a90	lsnp_write	LSNP: scene name, script id, code offset, call stack
+004654e0	cphs_write	CPHS: chapter history, sRIO/SVAR/LSNL per entry

@@ -464,9 +464,18 @@ follows the bytecode, and `routesim.py` confirms both sides agree.
 ## Progression variables
 
 Global variables (bit 0x8000 in the bytecode, `%200 + n` in `0.txt`;
-the original's table of 20, `0x46de00`). Assumed kept in the system
-data, not in saves, as the conversion does (`globalon`); not checked
-against the original yet (`docs/new-game.md` step 11.5). Scripts:
+the original's table of 20, `0x46de00`). The original keeps them **in
+each slot save**, by name (`SVAR`, "Save format"), not in the system
+data; the conversion keeps them global (`globalon`). Names, matched to
+the table by role and by the values in a save (inferred): %200-%202
+`rv`, `tmp1`, `tmp2`; %203 `debug`; %204-%207 `us_enable`, `us_disable`,
+`us_hide`, `href_enable`; %208 `sentaku_now`; %209 `sentaku_all`;
+%210-%213 `sentaku_azusa`, `sentaku_fueko`, `sentaku_yoko`,
+`sentaku_sayaka`; %214 `sentaku_zumi`; %215 `sentaku_bad`; %216
+`loopsu`; %217-%219 `loop1`-`loop3`; %220 `clear_count`. The system data
+(`Farthest2015_000.bin`) holds four more: `azusa_tsuikabun`,
+`pkc_result`, `proskip`, `war_clear` (where the bytecode reads them:
+unknown). Scripts:
 0000 `!boot`, 0004 `00_プロローグ` (お茶会－０ and 最初の日), 0009 あずさ,
 0010 さやか, 0011/0012 ようこ, 0013 ふえこ, 0021 リピート, 0022 死,
 0019 `09_回想初期化` (scene replay setup).
@@ -601,15 +610,10 @@ step 9). Helper scripts of the sessions are in `research/xuse/local/`
 - Dead ends: `winedbg` can read memory but detaching crashed the game;
   `/proc/<pid>/mem` is blocked by `ptrace_scope`.
 
-**Save files:** `Farthest2015_000.bin` (global), `Farthest2015_sys.bin`
-(SYSM), `Farthest2015.log`. The global save is "GLBL", then chunks of
-tag(4), size(u32), data, crc(u16 big-endian), the CRC being
-CRC-16/XMODEM over tag + size + data: CG ×2 (68 bytes: the seen bits at
-`0x51ea18`, then `0x51ea5c`), RMSN ×2 (76: replay bits `0x51eaa0`, the
-second set = scenes replayed, no "new") + RMSN (4), SWTC ×2, SVAR, then
-OTHR (two 7-byte strings, the progress word `0x51eb3c` at OTHR+18, a
-FILETIME, a u32 = 1) with one CRC over OTHR to the end. Patching bits in
-a copy of the save works.
+**Saves:** format and the tool that writes them in "Save format" below.
+To reach a moment, write a save with `research/tools/xuse_save.py` and
+load it from the title's load (670, 262): slot rows at y 90, 165, 255,
+then load (652, 544) and はい (370, 320).
 
 **Measured screens:**
 - **CG gallery:** tabs at x 624, y 160 + 33·i (selected tab = the
@@ -633,6 +637,57 @@ a copy of the save works.
   (96, 97); events (114, 149 + 21 i); buttons (316 + 63 i, 466); exit
   (624, 470). Buttons are enabled by progress bit 4 + `0x4fbc00`[id].
 
+## Save format
+
+Folder `Documents\Xuse\最果てのイマ COMPLETE\` (`0x40b130`): the
+global save `Farthest2015_000.bin`, `Farthest2015_sys.bin` (SYSM,
+settings), slot `n` (1-50, 10 pages of 5) in `Farthest2015_NNN.bin`,
+and `Farthest2015.log` (records `DATA`, a SYSTEMTIME, then the source
+file, line and message as u32 length + text XORed with `0x53`: the
+game's own error log, worth reading when a load fails). No compression
+or encryption; every chunk ends in a CRC-16/XMODEM (poly `0x1021`, init
+0, `crc16_ccitt` `0x4a7be0`), stored big-endian, and the loader refuses
+a chunk whose CRC is wrong. Integers are little-endian.
+
+Tool: `python3 -I research/tools/xuse_save.py dump <save>` prints a save
+(slot or global) as JSON; `write <template> <json> -o <out> [--cd
+<install>/HD/CDFiles]` applies an edited dump to a save the game wrote
+and recomputes the CRCs (an empty `{}` gives the template back byte for
+byte). A slot's position is set with `"scene": {"label": "s9_l3"}` (or
+`script` + `index`), its variables with `"vars": {...}`; the screen
+state and thumbnails stay the template's, and the script redraws the
+screen at a scene's entry label. Checked: a slot made from a save at the
+prologue's third page, moved to `s9_l3` with `sentaku_now` etc. set,
+loads from the title into 「本鈴が鳴ると、生徒たちは一斉に席につく。」 in
+the classroom, chapter bar 沙也加のいる平日, with no error in the log.
+
+**Slot save** (writer `0x461790`, reader `0x461b90`; `LocalSave.cpp`).
+Seen = read in saves the game wrote and changed by the tool with the
+expected result; inferred = from the code or from values; unknown = kept
+as is.
+
+| Chunk | Layout | What it is |
+|---|---|---|
+| `LOCL` | tag, FILETIME saved, FILETIME (a later time, unknown), i32 version (1; the loader refuses others, `0x466bf0`), i32 0, 0x24 chapter name, 0x40 comment, crc over tag + fields; then two pictures, each u32 size + PNG: 100×75 and 400×300 | The slot list's line and thumbnails (seen) |
+| `sRIO` | tag, 0x78 bytes (zero), 1 byte (0), 0x80 chapter title, i32 × 2 chapter start, i32 open chapter, crc over tag + fields | Live at `0x51eb78` + 0x80 (inferred). The open chapter is `0x51ecfc`: a chapter start (`0x36`, `op_36`) while one is open stops the game with 「チャプタが終了する前に開始点に遭遇しました」 (seen), so a save moved to a scene's entry label sets it to -1 |
+| `SVAR` | tag, u32 count, count × (u32 length, name XORed with `0x65`, i32 value), crc over the entries only | The 21 progression variables by name (seen; table in "Progression variables"). Writer `0x471480` |
+| `LSNL` | tag, u32 1, u32 0, crc over tag + both; then `LSNp` and the scene | The scene list: one scene in every save seen |
+| `LSNP` | tag, 0x24 scene name, i32 × 4 (0, 0, -1, 0), 1 byte, i32 script id, i32 code byte offset (instruction × 12), 11 × i32, 0x172 bytes, i32, 20 × u32 call-stack scripts, 20 × u32 call-stack return offsets, i32 call depth, crc over tag + fields (`0x460a90`) | **The position** (seen): the message instruction on screen; the load runs it again. The call stack is inferred (depth 0 in the saves seen, stale entries left in the arrays) |
+| `HyLk` | tag, 0x41 bytes, 6 × i32, 0x10 bytes, crc (`0x461160`) | The page's link words (inferred from the tag) |
+| rest of `LSNp` | `0x412360`, `0x47cfb0`, `0x4874f0`, `0x4a7d20` and one `0x47cfb0` per layer | Screen state the load rebuilds: background, sprites, sound (unknown, kept from the template) |
+| `CPHS` | tag, i32 count, i32, crc; then count × (`sRIO`, `SVAR`, `LSNL`…) | Chapter history (the chapter-history screen's jump-back points), written by `0x4654e0` (inferred) |
+
+**Global save** `Farthest2015_000.bin` (`GlobalSave.cpp`): `GLBL`, then
+chunks of tag, u32 size, data, crc over tag + size + data: CG ×2 (68
+bytes: the seen bits at `0x51ea18`, then `0x51ea5c`), RMSN ×2 (76:
+replay bits `0x51eaa0`, the second set = scenes replayed, no "new") +
+RMSN (4), SWTC ×2 (unknown); then an `SVAR` as in a slot (the four
+global variables); then `OTHR` (two 7-byte strings, the progress word
+`0x51eb3c` at OTHR+18, a FILETIME, a u32 = 1) with one CRC over OTHR to
+the end. The dump shows each chunk as hex, the variables and the
+progress word, and `write` takes them back (setting CG or replay bits
+there unlocks the extras; seen).
+
 ## Status: reopened (2026-10-14): fixes from the debug trace, then an opcode audit
 
 ### Queue (2026-10-16)
@@ -641,6 +696,10 @@ a copy of the save works.
   points, then the frame that switches to shrinking; `cb_00441e50`),
   ours 4 points (133 ms): measured with the breakpoint trace (History,
   "Breakpoint trace"); fixed by #368 (move this to History when it merges).
+- Open (found 2026-10-17): the original keeps the progression
+  variables %200-%220 in each slot save ("Save format"), the conversion
+  in global data (`globalon`): loading an older save in the original
+  brings back that save's loop and route state. Not changed yet.
 - Open: the extras' CG gallery, scene replay and BGM room drawn by the
   engine (`screens/gallery.lua`, `replay.lua`, `replay_list.lua`,
   `music.lua` from `ExtrasMenu` by `crates/conv-cons/src/extras_screens.rs`;
