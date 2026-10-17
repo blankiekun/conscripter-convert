@@ -12,7 +12,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use conv_core::ir::{ArithOp, Compare, MotionEnd, MotionKey, Op, Operand, Ruby, SpriteChange, TextStyle, SpriteFilter, SpritePlacement, TransitionStyle, Var, Voice, BLEND_ADD, BLEND_MULTIPLY, BLEND_NORMAL, BLEND_SUBTRACT, FILTER_BLEND_COPY, FILTER_BLUR, FILTER_GREYSCALE, FILTER_NEGATIVE};
 
-use super::exe::{Motion, Picture};
+use super::exe::{Key, Motion, Picture};
 use super::script::Command;
 use crate::metrics::Metrics;
 
@@ -99,9 +99,9 @@ struct Layer {
     /// reads the layer's byte 0xA2), a child's place still uses it.
     stretch_off: bool,
     alpha: u32,
-    /// `_STGS`'s fade, from the next `_FADS` on: (from, to, ms); `alpha` is
-    /// already `to`.
-    fade: Option<(u32, u32, u32)>,
+    /// `_STGS`'s fade, from the next `_FADS` on: (from, to, ms, its
+    /// curve); `alpha` is already `to`.
+    fade: Option<(u32, u32, u32, Curve)>,
     /// `_STMA` on a layer not shown yet: the motion, from the `_FADS` that shows it.
     motion: Option<usize>,
     /// `_STCH` argument 11: the layer this one is placed in.
@@ -140,6 +140,26 @@ fn shader(n: u8) -> (u8, Option<SpriteFilter>) {
         // guess: gauss's radius, not read from its shader
         11 => (BLEND_NORMAL, filter(FILTER_BLUR, 8)),
         _ => (BLEND_NORMAL, None),
+    }
+}
+
+/// A curve, as [`Op::MoveEase`]'s `(ease, exponent)`; `None` straight.
+type Curve = Option<(u8, u32)>;
+
+/// The exe's easing `code` (`FUN_00130c80`: 2-41, Penner's quad, cubic,
+/// quart, quint, sine, circ, expo, elastic, back and bounce, each in,
+/// out, in-out, out-in) as [`Op::MoveEase`]'s; 0, 1 and the rest are
+/// straight (`None`).
+fn ease(code: i32) -> Curve {
+    let (family, kind) = ((code - 2) / 4, (code - 2) % 4);
+    if code < 2 {
+        return None;
+    }
+    match family {
+        0..=3 => Some(([1, 2, 3, 8][kind as usize], family as u32 + 2)),
+        4 => Some(([4, 5, 6, 9][kind as usize], 0)),
+        5..=9 => Some((10 + (family as u8 - 5) * 4 + kind as u8, 0)),
+        _ => None,
     }
 }
 
@@ -702,7 +722,6 @@ impl Lowering<'_, '_> {
             // `_STGS(layer, from, to, ms, ease)` (`FUN_001637a0`): the alpha
             // from `from` (default: the layer's) to `to` (default 0) over `ms`,
             // running from the next `_FADS` while the script goes on.
-            // shortcut: an easing (argument 4) other than 0 or 1 (27 uses) is not followed; straight.
             "_STGS" => {
                 let Some(n) = number(arg(0)).filter(|n| (0..LAYERS as i32).contains(n)) else { return false };
                 let Some(l) = self.staged[n as usize].as_mut() else { return true };
@@ -710,11 +729,9 @@ impl Lowering<'_, '_> {
                 let to = number(arg(2)).unwrap_or(0).clamp(0, 255) as u32;
                 let ms = number(arg(3)).unwrap_or(0).max(0) as u32;
                 l.alpha = to;
-                l.fade = (ms > 16 && from != to).then_some((from, to, ms)); // ours: under a frame is at once
                 // src: exe 0x130c80 (easing 0, 1 and any it doesn't know: straight)
-                if matches!(a.get(4).map_or("", |v| v.trim()), "" | "0" | "1") {
-                    arg(4);
-                }
+                let curve = ease(number(arg(4)).unwrap_or(0));
+                l.fade = (ms > 16 && from != to).then_some((from, to, ms, curve)); // ours: under a frame is at once
             }
             "_STMA" => {
                 self.hide_window_for(number(arg(2)), None);
@@ -884,11 +901,11 @@ impl Lowering<'_, '_> {
             self.slots[slot] = want[slot].clone();
             let layer = slot as u32;
             match (want[slot].take(), fades[slot]) {
-                (Some(l), Some((from, to, ms))) => {
+                (Some(l), Some((from, to, ms, curve))) => {
                     // Opaque, the motion's keys giving the alpha (they multiply it).
                     self.place(layer, &Layer { alpha: 255, ..l });
                     let key = |ms, alpha: u32| MotionKey { ms, x: 0, y: 0, zoom: 100, angle: 0, opacity: alpha * 256 / 255, zoom_y: 100, ease: None };
-                    self.ops.push(Op::SpriteMotion2 { layer, keys: vec![key(0, from), key(ms, to)], end: MotionEnd::Keep });
+                    self.ops.push(Op::SpriteMotion2 { layer, keys: vec![key(0, from), MotionKey { ease: curve, ..key(ms, to) }], end: MotionEnd::Keep });
                 }
                 (Some(l), None) => self.place(layer, &l),
                 (None, _) => {
@@ -930,8 +947,10 @@ impl Lowering<'_, '_> {
     /// layer's place), and moves the layer's state to its last key. Its
     /// children (and theirs) follow it, each with an `spmotion` of its
     /// own from where the parent's keys place it.
-    // shortcut: the keys' easing (0x04), curve (0x06 = 1), priority (0x3C), expression (0x32, 0x34) and the other
-    // fields are not followed, nor a motion's loop (`FUN_001999a0`); straight lines, once. Mode 2 holds: a key 1 ms early.
+    // Each key is reached along the easing (0x04) of the last key before it that sets one (`FUN_00197710`).
+    // shortcut: the exe eases each field from the key that sets it to the next that does; a field another key
+    // passes through (-32766) is eased per key here. Curve (0x06 = 1), priority (0x3C), expression (0x32, 0x34) and
+    // the other fields are not followed, nor a motion's loop (`FUN_001999a0`); once. Mode 2 holds: a key 1 ms early.
     fn run_motion(&mut self, slot: usize, m: usize) {
         let Some(i) = self.slot_layer[slot] else { return };
         let (Some(start), Some(shown)) = (self.slots[slot].clone(), self.shown[i].clone()) else { return };
@@ -941,14 +960,16 @@ impl Lowering<'_, '_> {
         let motion = &self.g.motions[m - 1];
         // A field drives the layer only under its bits of the motion's mask.
         let on = |bits: u64, v: Option<i16>| v.filter(|_| motion.mask & bits != 0);
-        // The way to each key is the mode last set before it (`FUN_00197710`); before the first key the layer stays.
-        let mut mode = None;
+        // The way to each key is the mode and easing last set before it (`FUN_00197710`); before the first key the layer stays.
+        let (mut mode, mut easing) = (None, None);
         for (j, k) in motion.keys.iter().enumerate() {
             let hold = if j == 0 { k.time_ms > 0 } else { mode == Some(2) && k.time_ms > motion.keys[j - 1].time_ms + 1 };
             if hold {
-                states.push((k.time_ms - 1, at.clone(), own.clone()));
+                states.push((k.time_ms - 1, None, at.clone(), own.clone()));
             }
+            let curve = if hold { None } else { easing.flatten() };
             mode = k.mode().or(mode);
+            easing = k.easing().filter(|&e| e != Key::THROUGH).map(|e| ease(e.into())).or(easing);
             for l in [&mut at, &mut own] {
                 if let Some(x) = on(Motion::X, k.x()) {
                     l.x = f32::from(x);
@@ -965,12 +986,12 @@ impl Lowering<'_, '_> {
                     l.angle = t;
                 }
             }
-            states.push((k.time_ms, at.clone(), own.clone()));
+            states.push((k.time_ms, curve, at.clone(), own.clone()));
         }
         if states.is_empty() {
             return;
         }
-        let mut moves = vec![(slot, start, states.iter().map(|(ms, l, _)| (*ms, l.clone())).collect::<Vec<_>>())];
+        let mut moves = vec![(slot, start, states.iter().map(|(ms, e, l, _)| (*ms, *e, l.clone())).collect::<Vec<_>>())];
         for c in (0..LAYERS).filter(|&c| c != slot) {
             let (Some(j), Some(child)) = (self.slot_layer[c], self.slots[c].clone()) else { continue };
             if !self.descends(j, i) {
@@ -978,9 +999,9 @@ impl Lowering<'_, '_> {
             }
             let keys = states
                 .iter()
-                .filter_map(|(ms, _, own)| {
+                .filter_map(|(ms, e, _, own)| {
                     self.shown[i] = Some(own.clone());
-                    Some((*ms, self.resolved(j, 0)?))
+                    Some((*ms, *e, self.resolved(j, 0)?))
                 })
                 .collect();
             moves.push((c, child, keys));
@@ -998,13 +1019,13 @@ impl Lowering<'_, '_> {
 
     /// An `spmotion` on IR layer `slot` from `start` (as it is drawn)
     /// through each key's state.
-    fn emit_motion(&mut self, slot: usize, start: &Layer, states: &[(u32, Layer)]) {
+    fn emit_motion(&mut self, slot: usize, start: &Layer, states: &[(u32, Curve, Layer)]) {
         let Ok((_, (x0, y0), z0)) = self.look(start) else { return };
         // Under 10 % the zoom placed is far from the exact one (1‰ → 1 %, not 0.05): from what was placed.
         let base = |z: f32| if z.abs() < 10.0 { percent(z) as f32 } else { z };
         let z0 = (base(z0.0), base(z0.1));
         let mut keys = Vec::new();
-        for (ms, at) in states {
+        for (ms, curve, at) in states {
             let Ok((_, (x, y), z)) = self.look(at) else { return };
             // spmotion's zoom multiplies the place's (spzoom), about its centre.
             let rel = |z: f32, z0: f32| if z0 == 0.0 { 100 } else { (100.0 * z.abs() / z0.abs()).round() as u32 };
@@ -1017,7 +1038,7 @@ impl Lowering<'_, '_> {
                 angle: ((start.angle - at.angle) as f32 / 100.0).round() as i32,
                 opacity: at.alpha * 256 / 255,
                 zoom_y: rel(z.1, z0.1),
-                ease: None,
+                ease: *curve,
             });
         }
         if keys.is_empty() {
@@ -1393,8 +1414,14 @@ mod tests {
         let motions: Vec<_> = ops.iter().filter(|o| matches!(o, Op::SpriteMotion2 { .. })).collect();
         assert_eq!(motions.len(), 1, "{ops:?}");
         let Op::SpriteMotion2 { layer: 39, keys, end: MotionEnd::Keep } = motions[0] else { panic!("{:?}", motions[0]) };
-        assert_eq!(keys.iter().map(|k| (k.ms, k.opacity)).collect::<Vec<_>>(), [(0, 0), (1000, 256)]);
+        assert_eq!(keys.iter().map(|k| (k.ms, k.opacity, k.ease)).collect::<Vec<_>>(), [(0, 0, None), (1000, 256, None)]);
         assert!(!ops.iter().any(|o| matches!(o, Op::SpriteOpacity { .. })), "{ops:?}");
+        // easing 35 (back out)
+        let src = "_STCH(1,img1,240,136,1000,0);_STGS(1,,255,1000,35);_FADS(1,0,0);";
+        let g = Game { scripts: vec![("S".into(), script::parse(src).into_iter().map(Result::unwrap).collect())], ..g };
+        let ops = compile(&g).ops;
+        let Some(Op::SpriteMotion2 { keys, .. }) = ops.iter().find(|o| matches!(o, Op::SpriteMotion2 { .. })) else { panic!("{ops:?}") };
+        assert_eq!(keys[1].ease, Some((23, 0)));
     }
 
     #[test]
@@ -1448,7 +1475,8 @@ mod tests {
         // The turn 9000 (90° clockwise) at key 2; y is set but not in the mask.
         let mut turned = key(1000, &[(0x08, 260), (0x0A, 200)]);
         turned.set_turn(9000);
-        let motion = Motion { mask: Motion::X | Motion::TURN, length_ms: 1000, keys: vec![key(0, &[(0x08, 240)]), key(500, &[(0x06, 2), (0x08, 250)]), turned] };
+        // Key 0's easing 3 (quad out) to key 1; the hold and the jump straight.
+        let motion = Motion { mask: Motion::X | Motion::TURN, length_ms: 1000, keys: vec![key(0, &[(0x04, 3), (0x08, 240)]), key(500, &[(0x06, 2), (0x08, 250)]), turned] };
         let src = "_STCH(1,img1,240,136);_FADS(1,0,0);_STMA(1,1);";
         let g = Game {
             scripts: vec![("S".into(), script::parse(src).into_iter().map(Result::unwrap).collect())],
@@ -1465,6 +1493,15 @@ mod tests {
         let Some(Op::SpriteMotion2 { keys, .. }) = ops.last() else { panic!("{ops:?}") };
         // x in px: 10 script units = 10 · 1280/480.
         assert_eq!(keys.iter().map(|k| (k.ms, k.x, k.y, k.angle)).collect::<Vec<_>>(), [(0, 0, 0, 0), (500, 27, 0, 0), (999, 27, 0, 0), (1000, 53, 0, -90)]);
+        assert_eq!(keys.iter().map(|k| k.ease).collect::<Vec<_>>(), [None, Some((2, 2)), None, None]);
+    }
+
+    #[test]
+    fn easings_as_the_exe_numbers_them() {
+        // FUN_00130c80: 2-5 quad in, out, in-out, out-in … 38-41 bounce.
+        let e = [0, 1, 2, 3, 4, 5, 7, 16, 18, 20, 21, 22, 27, 33, 35, 41, 42].map(ease);
+        let want = [None, None, Some((1, 2)), Some((2, 2)), Some((3, 2)), Some((8, 2)), Some((2, 3)), Some((3, 5)), Some((4, 0)), Some((6, 0)), Some((9, 0)), Some((10, 0)), Some((15, 0)), Some((21, 0)), Some((23, 0)), Some((29, 0)), None];
+        assert_eq!(e, want);
     }
 
 

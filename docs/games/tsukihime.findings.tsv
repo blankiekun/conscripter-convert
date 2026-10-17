@@ -15,7 +15,7 @@ _STMA	layer > 39 ignored (after the window flag)	0	FUN_00199620	same	seen
 motion	keys of motion m: [end(m-1), end(m)), length = last key's time	24333	FUN_00199fc0, FUN_00199f90	same	seen	
 motion	field mask u64 at 0x46AB38+8m (x 0x40880, y 0x5100000, alpha 0x4000, zoom 0x80200000/0x100400000, turn 0x88000)	24333	FUN_00199960, FUN_00197b80	followed (#346)	seen	
 motion	-32767 unchanged, -32766 no key (interpolated)	5926	FUN_00197710	followed (#339)	seen	
-motion	0x04 easing (Penner set, 0/1 straight), from the last key before	18775	FUN_001961b0, FUN_00130c80	straight	seen	open: per-key curve in the IR (MotionKey), then spcurve tables
+motion	0x04 easing (Penner set, 0/1 straight), from the last key before	18775	FUN_001961b0, FUN_00130c80	followed: each key's curve, spcurve tables of the exe's functions	seen	open: a field passed through (-32766) eased per key, not across
 motion	0x06 mode 2: hold until the next key	10801	FUN_00197710	key 1 ms early (#346)	seen	
 motion	0x06 mode 1: a cubic curve	72	FUN_001972c0	straight	inferred	read FUN_001972c0
 motion	before the first key's time the layer stays	56	FUN_00197710	key 1 ms early (#346)	seen	
@@ -58,7 +58,7 @@ _STZ4	negative zoom mirrors	?	FUN_00162d20 (short)	spzoom negative	inferred	the 
 _STZ4	byte f (0x874): zoom off the picture's size	?	FUN_00132e30	stretch_off	seen	
 _STGS	from default the layer's alpha, to default 0, over 254 -> 255; ms*60/1000 frames	8114	FUN_001637a0	same	seen	
 _STGS	easing 0/1/none straight	8057	FUN_00130c80	read (#348)	seen	
-_STGS	easing 2, 3, 6, 10, 35	27	FUN_00130c80	straight (gap)	seen	open: with the per-key curve
+_STGS	easing 2, 3, 6, 10, 35	27	FUN_00130c80	followed (spcurve)	seen	
 _STRT	turn 1/100 deg to `to` from `from` over ms*60/1000 frames; cx, cy	21691	FUN_00162b20	at once (all uses are)	seen	
 _STBR	shader n	14946	FUN_00162490	blends and filters	seen	
 _STBR	arguments 2, 3	920	FUN_00162490	ignored (gap)	unknown	read FUN_00162490
