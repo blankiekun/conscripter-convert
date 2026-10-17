@@ -653,6 +653,8 @@ a copy of the save works.
   the save file's date. Slots older builds only flagged deleted
   (`%910+n`) show again (never deleted for the player). Settings' yes/no questions still use
   `*conv_confirm`.
+- Open: screen positions and the blog bar's level number from the exe's layout tables (History,
+  "Screen positions from the exe").
 - Merged: `0x86`'s two trailing bytes as harmless (#163; History, item 45).
 - Merged: `0x8c`'s sort key as harmless (#180; History, item 31).
 - Merged: `0x49`/`0x4a`'s edge colours as harmless but the grey one (#181; History, item 29).
@@ -792,6 +794,14 @@ empty). Gaps found, where the exe and the converter differ:
   panel: the exe draws it whole at x 461 (`0x44dc90`, no source rect,
   clipped at the edge, 10 px past it), but the art meets the buttons at
   our 451, which stays.
+- Layout left open by the exe-table check (History, "Screen positions
+  from the exe"): the backlog draws one 720×20 line per entry at
+  x 52, y 49 + 35·i, 15 shown (`0x41ffa0`, `0x420070`; ours wraps from
+  (30, 44) at 24 px); the top bars' text origins (`0x496fe0`: scene name at (531, 6),
+  ours 524; rows at +24, ours +19; `0x49b1a0`: chapter name at (73, 6),
+  ours (72, 7)); the CG viewer's 21×21 button (image 9 at (566, 547),
+  table `0x4fe3c0`) is not placed. Each needs a frame of the original
+  before it changes.
 - Transitions: MeltDown's stretch for subs 46/47 is scaled from the exe
   (filmed for item 25, not yet compared).
 
@@ -829,6 +839,37 @@ and chapter history's base at the window opacity (`0x41fc50`,
 tables, the BGM room, staff rolls, replay lists, surprise presets and
 text size presets, the bar's log/save buttons, the save rows and
 header, the CG exit and page label, the replay close button.
+
+**Screen positions from the exe (2026-10-17):** the hand-measured
+positions in `convert/screens.rs` checked against the exe's layout
+tables and constants (read from `Farthest2015.exe`'s data at the
+addresses given). The user's screenshots are scaled about 1.78× and
+not evenly (the save frame, always at (0, 0), fits about 1 px right and
+down in the lower half; the title background about 4 px right near the
+buttons), so the exe wins where they differ. Changed: title buttons at
+x 626, option y 300, exit y 369 (table `0x4fb808`; the extras menu's
+`0x4fb8a8` already matched); save menu buttons at y 530, x 511/614/701,
+the page strip at (457, 479) in even 34 px cells (`0x469850`, marker
+`0x46b3a0`); button bar from (304, 581) by table `0x4fa558`: auto 366,
+skip 420, load 606, setting 681, hide 754; top bars' rows 77 px left of
+the level box, x 533 (`0x496610`); backlog close at (732, 580) in the
+frame's bottom-right tab, not the top bar (`0x41f4b0`); yes/no buttons
+10 px either side of the centre and above the bottom (`0x4a6270`);
+chapter history columns of 20 rows (`i % 20`, `0x4682a0`), not 19.
+Matched already: the extras menu, CG grid (44 + 108c, 142 + 92r) and
+pages (`0x4fb970`), CG viewer buttons (from (461, 545), `0x4fe3c0`), BGM
+room (`0x5001d0`), scene list rows, the level box and its buttons. The
+chapter history's other positions were measured on exact wine frames
+and stay (the text windows: History, "Value audit"); what is left is
+under "Accuracy" in Status.
+
+**Level numbers (2026-10-16, reported by the user):** the blog bar's
+current level was drawn at x 664, over the slash that the level box's
+frame layer (`BlogStackBar.004` #14) holds at x 669-672, so "0/0" read
+as "0 0". It is now at 647, 13 px left of the slash as the deepest
+level is 13 px right of it. No check saw it: the slash is part of a
+picture, and the trace and its checker see sprites and text, not what
+a picture holds under them.
 
 **Effects off (2026-10-15, a gap from the whole-exe map):** with
 画面エフェクトを使用 off (`setting_effects` `0x51ed14` bit 0) the
