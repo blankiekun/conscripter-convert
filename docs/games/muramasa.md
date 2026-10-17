@@ -960,7 +960,14 @@ Next, in order:
    - Story `CreateText`: a sideways text turned by `Rotate` sits about
      17 px lower than the original's under wine (cause unknown; "History",
      "Story `CreateText`").
-   - `DrawTransition`'s start opacity and softness.
+   - `DrawTransition`'s softness (an engine band width, to do). Its start
+     opacity is read (#357): 565 calls start from another opacity than the
+     screen shows (337 fade out from 1000 a picture not shown), noted:
+     what the exe draws then is to check. A mask cg.npa lacks
+     (ma04_018vs/020vs's `slide_01_02_2.png`, `cg/data/7.png`, an unset
+     `$Transition`): the exe's step returns before the transition when
+     the mask doesn't load (FUN_0044fe00, seen), so none is drawn (the
+     opacity left as it was: inferred).
    - `Conquest` returns 0 whatever its arguments (`Random`: picked at run time, Status).
    - `MoveCamera`'s arguments in a process (4 calls). (`CreateEffect`'s
      place and size are read: every story call covers the screen, a tone

@@ -557,9 +557,13 @@ impl Compiler<'_, '_> {
             "DrawTransition" => {
                 // (obj, time, from, to, softness, tempo, mask, wait): a fade
                 // to `to` shaped by the mask.
-                // A mask that isn't there: the exe's step (FUN_0044fe00) ends
-                // the action at once when the mask doesn't load (inferred).
+                // A mask that isn't there (ma04_018vs/020vs name a
+                // slide_01_02_2.png cg.npa lacks): Muramasa.exe's step
+                // (FUN_0044fe00) returns before the transition when its
+                // loader (FUN_00488130) gives nothing, so nothing is drawn
+                // (seen); the picture's opacity left as it was (inferred).
                 let Some((mask, _, _)) = self.assets.image(&self.deref(&arg(6))) else {
+                    (0..a.len()).for_each(|i| drop(arg(i)));
                     self.note(format!("DrawTransition mask missing: {}", arg(6).string()));
                     return Value::Null;
                 };
