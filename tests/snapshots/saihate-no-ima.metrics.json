@@ -1,14 +1,14 @@
 {
 "game": "saihate-no-ima",
 "engine": "xuse",
-"commit": "b501ba9c",
+"commit": "5a8ecbfd",
 "commit_date": "2026-10-16",
 "totals": {"calls": 84713, "full": 83195, "gaps": 1518},
 "kinds": {
 "opcode 0x49": {"calls": 565, "gaps": 565, "reasons": [["0x49 operand -4 ignored", 565]]},
 "opcode 0x70": {"calls": 457, "gaps": 457, "reasons": [["0x70 operand +5 ignored", 457]]},
 "opcode 0x8c": {"calls": 240, "gaps": 240, "reasons": [["0x8c operand +4 ignored", 240]]},
-"opcode 0x46": {"calls": 214, "gaps": 214, "reasons": [["0x46 operand +6 ignored", 214], ["0x46 operand -4 ignored", 214]]},
+"opcode 0x46": {"calls": 214, "gaps": 214, "reasons": [["0x46 operand +6 ignored", 214]]},
 "opcode 0x44": {"calls": 37, "gaps": 37, "reasons": [["0x44 operand +6 ignored", 37]]},
 "opcode 0x4a": {"calls": 2, "gaps": 2, "reasons": [["0x4a operand -4 ignored", 2]]},
 "opcode 0x40": {"calls": 30958, "gaps": 1, "reasons": [["0x40 operand -60 ignored", 1]]},
