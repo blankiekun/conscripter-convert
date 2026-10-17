@@ -558,9 +558,12 @@ two pairs, the voice window: 0 pixels; dragging each slider from y 100
 to 180 sets the value (trace `var`/`screen set`, `*conv_ps_apply` run
 at each step). Open:
 
-- no fades: the screen, the voice window and the reset question appear
-  at once (the routine faded 300 ms, pairs 100 ms, the question
-  unrolled);
+- fades (engine #81): the screen and the voice window fade 300 ms, a
+  pair's chosen side 100 ms, the reset question unrolls out of x 512 over
+  150 ms (back over 200) with its backdrop fading, as the routine did;
+  checked by frames mid-transition (they differ from the end frame) and
+  the end frames against main's routine (the knobs at 207 and 407 sit
+  1 px lower: positions round since engine #80);
 - a press on the knob itself keeps the grab offset (the engine's rule),
   so a drag started on it ends 2 px from the routine's;
 - Muramasa EN (`settings_en`) still uses the script routine: its lying

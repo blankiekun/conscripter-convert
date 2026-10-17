@@ -8,8 +8,8 @@
 //! (`settings_confirm`: the game's question picture), the voice window a
 //! screen over the settings (`settings_voices`).
 //!
-//! shortcut: the screens open and close at once, and a pair's sides switch
-//! at once (the routine fades them): the engine's screens have no fades.
+//! The screens fade in and out, a pair's chosen side cross-fades, and the
+//! reset question unrolls as the game's dialog does.
 //!
 //! [`engine_screen`]: PictureSettings::engine_screen
 //! [`APPLY`]: picture_settings::APPLY
@@ -34,9 +34,27 @@ pub(crate) fn files(script: &Script, border: u32) -> Vec<(String, String)> {
     if let Some((d, picture)) = question {
         let cells = if d.pressed { 4 } else { 3 };
         let pressed = if d.pressed { ", pressed=3" } else { "" };
-        let mut out = String::from("-- The reset question (conscripter-convert, from ConfirmDialog).\nreturn {\n  kind = \"confirm\",\n  widgets = {\n");
+        let mut out = String::from("-- The reset question (conscripter-convert, from ConfirmDialog).\nreturn {\n  kind = \"confirm\",\n");
+        // It unrolls out of a line as it fades in, and back as it fades out;
+        // the backdrop only fades.
+        let backdrop_fx = match &d.unroll {
+            Some(u) => {
+                let at = match u.y {
+                    Some(y) => format!("zoom_y=0, y={y}"),
+                    None => format!("zoom_x=0, x={}", u.x),
+                };
+                writeln!(out, "  open = {{ms={}, {at}, alpha=0}},\n  close = {{ms={}, {at}, alpha=0}},", d.fade_ms, u.close_ms).unwrap();
+                format!(", open={{ms={}, alpha=0}}, close={{ms={}, alpha=0}}", d.fade_ms, u.close_ms)
+            }
+            None if d.fade_ms > 0 => {
+                writeln!(out, "  fade = {},", d.fade_ms).unwrap();
+                String::new()
+            }
+            None => String::new(),
+        };
+        out.push_str("  widgets = {\n");
         if let Some((b, opacity)) = &d.backdrop {
-            writeln!(out, "    {},", image("image", b, &format!(", alpha={opacity}"))).unwrap();
+            writeln!(out, "    {},", image("image", b, &format!(", alpha={opacity}{backdrop_fx}"))).unwrap();
         }
         writeln!(out, "    {},", image("image", picture, "")).unwrap();
         for (p, value) in [(&d.yes, 1), (&d.no, 0)] {
@@ -67,6 +85,8 @@ fn settings_lua(s: &PictureSettings, asks: bool) -> String {
     assert!(s.sliders.iter().all(|l| l.steps.is_none() && !l.horizontal && l.fill.is_none()), "the engine's settings have standing knobs only");
     assert!(!s.pairs.iter().any(picture_settings::check_box) && e.chosen.len() == s.pairs.len(), "the engine's settings have pairs of sides only");
     let apply = format!("action={{\"gosub\", \"*{APPLY}\"}}");
+    // A pair's chosen side cross-fades in.
+    let pair_fade = if s.pair_fade_ms > 0 { format!(", fade={}", s.pair_fade_ms) } else { String::new() };
     let button = ", cells=3, pressed=2";
     let mut w = vec![image("image", &s.background, ", opaque=true")];
     w.extend(s.fixed.iter().map(|p| image("image", p, "")));
@@ -76,7 +96,7 @@ fn settings_lua(s: &PictureSettings, asks: bool) -> String {
     for (i, (p, (on, off))) in s.pairs.iter().zip(&e.chosen).enumerate() {
         let var = lua(&pair_var(s, i));
         for (side, chosen, value) in [(&p.on, on, 1), (&p.off, off, 0)] {
-            w.push(image("radio", side, &format!(", cells=3, on_file={}, var={var}, value={value}, {apply}", lua(&chosen.image))));
+            w.push(image("radio", side, &format!(", cells=3, on_file={}, var={var}, value={value}{pair_fade}, {apply}", lua(&chosen.image))));
         }
     }
     w.push(image("button", &s.close, &format!("{button}, action={{\"close\"}}")));
@@ -106,6 +126,9 @@ fn settings_lua(s: &PictureSettings, asks: bool) -> String {
         ));
     }
     let mut out = format!("-- The settings (conscripter-convert, from PictureSettings).\nlocal in_game = var({}) == 1\nreturn {{\n  kind = \"settings\",\n", lua(IN_GAME));
+    if s.fade_ms > 0 {
+        writeln!(out, "  fade = {},", s.fade_ms).unwrap();
+    }
     out.push_str("  hide = in_game and {window=true} or nil,\n  dialog = \"settings_confirm\",\n  widgets = {\n");
     for x in w {
         writeln!(out, "    {x},").unwrap();
@@ -144,14 +167,15 @@ fn voices_lua(v: &VoiceWindow, checked: &[Vec<String>], border: u32) -> String {
         }
         out.push_str("end\n");
     }
-    out.push_str("return {\n  kind = \"settings\",\n  widgets = w,\n}\n");
+    let fade = if v.fade_ms > 0 { format!("\n  fade = {},", v.fade_ms) } else { String::new() };
+    writeln!(out, "return {{\n  kind = \"settings\",{fade}\n  widgets = w,\n}}").unwrap();
     out
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use conv_core::ir::{PairOption, PicturePair, PictureSlider, Placed, Rect, SettingsScreen, SliderSetting, Var, VoiceEntry, VoiceLayout};
+    use conv_core::ir::{ConfirmDialog, PairOption, PicturePair, PictureSlider, Placed, Rect, SettingsScreen, SliderSetting, Var, VoiceEntry, VoiceLayout};
 
     fn placed(name: &str, x: i32, y: i32) -> Placed {
         Placed { image: format!("system/{name}.png"), x, y, w: 24, h: 7 }
@@ -191,7 +215,8 @@ mod tests {
         let lua_of = |name: &str| &files.iter().find(|f| f.0 == name).unwrap().1;
         let settings = lua_of("settings.lua");
         for line in [
-            "{\"radio\", file=\"system/on.png\", x=827, y=183, cells=3, on_file=\"system/on3.png\", var=\"%conv_set_confirm\", value=1, action={\"gosub\", \"*conv_ps_apply\"}}",
+            "{\"radio\", file=\"system/on.png\", x=827, y=183, cells=3, on_file=\"system/on3.png\", var=\"%conv_set_confirm\", value=1, fade=100, action={\"gosub\", \"*conv_ps_apply\"}}",
+            "  fade = 300,\n  hide = in_game",
             "{\"slider\", var=\"%conv_set_voice_volume\", min=0, max=1000, step=1, vertical=true, travel=139, knob={file=\"system/knob.png\", cells=2, x=358, y=67}, track={x=358, y=67, w=24, h=147}",
             "action={\"open\", \"settings_voices\"}",
             "action={\"gosub\", \"*conv_ps_test\"}",
@@ -202,11 +227,41 @@ mod tests {
         assert!(settings.contains("action={\"gosub\", \"*conv_ps_reset\"}}"), "{settings}");
         let voices = lua_of("settings_voices.lua");
         for line in [
+            "kind = \"settings\",\n  fade = 300,\n",
             "local layout = 2\nif var(\"%850\") == 1 then layout = 1 end\n",
             "  if var(\"%810\") == 1 then w[#w+1] = {\"toggle\", file=\"system/a.png\", x=790, y=82, on_file=\"system/a_c.png\", var={\"%973\", \"%977\"}, on=0, off=1} end\n",
             "if layout == 2 then\n  w[#w+1] = {\"image\", file=\"system/b_c.png\", x=214, y=376}\nend\n",
         ] {
             assert!(voices.contains(line), "missing {line:?} in\n{voices}");
+        }
+        // The game's question unrolls out of x 512, its backdrop only fades.
+        let yes = placed("yes", 515, 397);
+        script.confirm = Some(ConfirmDialog {
+            base: placed("q", 300, 200),
+            yes: yes.clone(),
+            no: yes,
+            yes_label: String::new(),
+            no_label: String::new(),
+            text_y: 0,
+            font_size: 20,
+            overwrite: String::new(),
+            load: String::new(),
+            delete: String::new(),
+            title: String::new(),
+            quit: String::new(),
+            pictures: vec![(Switch::ConfirmReset, placed("reset_q", 300, 200))],
+            backdrop: Some((placed("black", 0, 0), 204)),
+            pressed: true,
+            fade_ms: 150,
+            unroll: Some(conv_core::ir::Unroll { x: 512, close_ms: 200, y: None }),
+        });
+        let files = super::files(&script, 800);
+        let question = &files.iter().find(|f| f.0 == "settings_confirm.lua").unwrap().1;
+        for line in [
+            "  open = {ms=150, zoom_x=0, x=512, alpha=0},\n  close = {ms=200, zoom_x=0, x=512, alpha=0},\n",
+            "{\"image\", file=\"system/black.png\", x=0, y=0, alpha=204, open={ms=150, alpha=0}, close={ms=200, alpha=0}}",
+        ] {
+            assert!(question.contains(line), "missing {line:?} in\n{question}");
         }
         let mut out = String::new();
         picture_settings::emit(&mut out, &s, 800);
