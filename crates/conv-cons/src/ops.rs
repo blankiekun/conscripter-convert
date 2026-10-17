@@ -309,7 +309,8 @@ impl<'a> Emitter<'a> {
         Op::InstantText(on) => writeln!(out, "textspeed {}", if *on { "0" } else { speed }).unwrap(),
         Op::SetWindow(w) => {
             writeln!(out, "{}", setwindow(w, speed, has_ruby, has_vertical, true, script)).unwrap();
-            writeln!(out, "csp {NAME_PLATE_SPRITE}:csp {NAME_TEXT_SPRITE}").unwrap();
+            // shortcut: clears the name plate's old sprites 49/50 from saves made before #222; drop once no such saves are played
+            writeln!(out, "csp {NAME_PLATE_SPRITE}:csp {NAME_TEXT_SPRITE}:csp 50:csp 49").unwrap();
             *plate_visible = false;
             *page_rows = 0;
             *window = Some(w.clone());
