@@ -505,9 +505,13 @@ known not to matter, each with its reason: a row naming a value (`SpriteMove
 that value, the others are still noted; rows without one cover only
 what is harmless whatever its value (FadeIn `:Color`, always the
 FadeOut's, 579 of 579; trophies; typos and nameless blocks the eboot
-doesn't read either). A `:SpriteMax` below the task's `[CharaN]` blocks
-is noted too: the eboot (scene_load 0x8102840a) reads that many of
-Chara0-Chara9.
+doesn't read either). `:SpriteMax` limits only CharacterOpen and
+CharacterOpenBS: scene_load (0x8102840a case 0x1b) shows Chara0-Chara9
+in order, those with a `:Number`, until `:SpriteMax` of them (0 when
+missing or empty: none), and ours does too (2026-10-17: 7 tasks named
+one character more, S04_12B's `:SpriteMax 0` and S04_13B's empty one
+show none); CharacterDelete, Move and Action (cases 0x1c, 0x1e, 0x20)
+read all ten whatever it says, as ours.
 
 Traced in the eboot (2026-10-16; scene_load 0x8102840a reads a task,
 0x8100da30 starts it, task_run 0x81021070 runs it), each now a
@@ -578,7 +582,6 @@ with their uses:
 | EffectStart | `:Priority`; `:EffectNumber` 1 (always 0, above); `:Param` past those an effect reads (mostly 0s; 52's 1, 54's 1-2) | 208; 208; up to 202 | dropped: where the effect sits among the pictures; the particles' motion |
 | InOut_Act | `:Param` 1 (2, 3 once) | 72 | dropped for the `:Type`s that read only `:Param` 0 (which ones not yet checked) |
 | Window | `:Time` with `:Visible 1` | 2 | dropped: the window fades in over it (ours shows it at the next message). A third, with `:WindowNumber 0`, the eboot doesn't read |
-| CharacterOpen, …Move, …Delete, …Action | `:SpriteMax` below its `[CharaN]` blocks | 8, 4, 4, 2 | dropped: we show (move, delete) the characters past it, the eboot doesn't |
 | SpriteBG | `:SpriteDelete` (with the pictures an earlier scene left) | 8 | dropped |
 | EyeCatch, EyeCatchEnd, MovieStop, MoviePlay | `:Color`, `:Fade`, `:EndWait` | 7 each | dropped with `:Image 0,-1`'s panels and the movies under the script (`:EndWait 0`) |
 | CharacterMove, CharacterAction | `[CharaN]` `:Priority` | 7, 1 | dropped |
