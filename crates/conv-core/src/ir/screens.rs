@@ -965,6 +965,7 @@ pub struct SystemTab {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SystemPage {
+    /// In game only: shown at rest on the title.
     Save(SaveList),
     Load(SaveList),
     /// Back to the title (asking first with the [`ConfirmDialog`]'s

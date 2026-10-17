@@ -130,6 +130,8 @@ fn tab_lua(m: &SystemMenu, n: usize, confirm: Option<&ConfirmDialog>) -> String 
             match t.page {
                 SystemPage::Unavailable => ", cells=3, enabled=0, disabled=0".to_string(),
                 SystemPage::Title => ", cells=3, enabled=in_game, disabled=0, action={\"close\", 2}".to_string(),
+                // Saving from the title would save the title.
+                SystemPage::Save(_) => format!(", cells=3, enabled=in_game, disabled=0, action={{\"close\", {}, hold=true}}", 10 + i + 1),
                 _ => format!(", cells=3, action={{\"close\", {}, hold=true}}", 10 + i + 1),
             }
         };
