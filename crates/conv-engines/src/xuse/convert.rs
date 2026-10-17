@@ -3375,6 +3375,9 @@ const UNNEEDED_OPERANDS: &[(u16, &str, &str, &str)] = &[
         "00e80300|004c0400|00d00700|00f40100|00000000",
         "layer 0 at depth 1000 (227), 1100, 2000, 500, or 0 when clearing: over every bust-up (10-150), as ours draws the static, ripples and shakes",
     ),
+    // The edge colour through 0x491e30: 0xff000000 is -1, no edge set (FUN_00492000 sets the edge flags only for another value); 0xff000001 the default edge.
+    (0x49, "-4", "000000ff", "no edge colour of its own: the message's default decoration"),
+    (0x4a, "-4", "000000ff|010000ff", "no edge colour, then the default one: the default decoration either way"),
     // Filter-Zigzag's draw (0x41dab0) passes the frequency as the phase and never reads these.
     (0x70, "-8", "0a00000000000000", "Zigzag's begin angle (10) and reduction (0)"),
     // op_56 0x4224a0 passes it to object_create as the sort depth in the layer's band.
