@@ -161,9 +161,11 @@ details, record layouts and handler addresses are in the game's document):
   to keep the text in place. ONScripter reads the markup bytes singly, so
   single-byte padding must treat them like colour tags. Readings wider
   than their base push the rest of the line right.
-- **No web text overlay:** `ons_args` carries `--no-text-overlay`
-  (engine #49), so the web player gets no text, choice or backlog hooks
-  and draws no selectable text over the picture.
+- **Web text overlay on:** `ons_args` leaves out `--no-text-overlay`,
+  so the web player gets the text, choice and backlog hooks and lays
+  selectable text over the picture (for scanning and Yomitan). The
+  player turns it off and on while the game runs
+  (`Module.consNoTextOverlay`, engine `COMMANDS.md`, "Web hooks").
 - **Right-click menu (not emitted yet):** CONscripter has `rgosub *label`
   (a right click at a text wait gosubs and returns to the same wait);
   which menu a right click opens is each game's choice, to be set where

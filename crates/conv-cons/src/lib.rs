@@ -1043,9 +1043,9 @@ fn uses_switch(script: &Script, s: Switch) -> bool {
 }
 
 /// Command-line options CONscripter reads from `ons_args` in the game
-/// directory. Without `--enc:sjis` it reads the script as GBK;
-/// `--no-text-overlay`: the web player draws no text overlay.
-pub const ENGINE_ARGS: &str = "--enc:sjis\n--no-text-overlay\n";
+/// directory. Without `--enc:sjis` it reads the script as GBK. The web
+/// text overlay stays on (the player can turn it off).
+pub const ENGINE_ARGS: &str = "--enc:sjis\n";
 
 /// `ons_args`: [`ENGINE_ARGS`], and with a button bar its sprites for
 /// `--trace-ignore` (the lists add up), so `--auto-play` doesn't open the
