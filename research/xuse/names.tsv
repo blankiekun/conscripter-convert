@@ -613,3 +613,6 @@
 004415b0	surprise_draw	0x6f: tints the snapshot once (fill_colour), then draws it scaled 1 + zoom f
 004176f0	keyframe_interpolate	0 kept, 1 jump at halfway, 2 linear, 3 curve (00407540) through the neighbours
 00500b68	surprise_presets	0x6f: 9 x 7 u32: zoom x, y (16.16), opacity, 0, COLORREF, tint opacity, tint blend
+# Frame loop and clock (wine relay and breakpoint trace, 2026-10-17)
+00406f30	frame_loop	one frame: input, tasks, draw, then Sleep(period - work) from 0x407102; period = table 004fb4e8 {66, 33, 16, 1} ms by the frame-rate setting 0051ed11 (1 = 33 ms, measured 30.1 fps); no Sleep in skip mode or with Ctrl held
+004bb8c0	frame_clock	start of frame_loop: dt 00519094 = the last frame from its start to the end of its Sleep; 00519098 = dt capped at 100 ms, what the effect callbacks add

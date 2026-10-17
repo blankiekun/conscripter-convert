@@ -589,6 +589,15 @@ step 9). Helper scripts of the sessions are in `research/xuse/local/`
   wss 331, exit 397 (game y, x 650). The "option" heading isn't a
   button; the original has no settings on the title, and in game the
   bar's SETTING opens a Windows dialog.
+- **Breakpoint trace** (`docs/new-game.md` steps 18-19): start the exe
+  as `winedbg --gdb --no-start 'C:\Xuse\ima\Farthest2015.exe'` (the
+  port is on stderr), attach `gdb -batch -ex 'target remote
+  localhost:PORT' -x bp.gdb` from `research/tools/wine_bptrace.py
+  research/xuse/names.tsv op_6d cb_004420a0 op_66 wait_66_task …`, walk
+  to the patched site as usual, and fold the log with `--fold`. Gdb
+  stays attached until the game is stopped (`wineserver -k`): no detach.
+  Break on the handlers and their per-frame callbacks, not on
+  `frame_loop` (History, "Breakpoint trace").
 - Dead ends: `winedbg` can read memory but detaching crashed the game;
   `/proc/<pid>/mem` is blocked by `ptrace_scope`.
 
@@ -628,6 +637,10 @@ a copy of the save works.
 
 ### Queue (2026-10-16)
 
+- Open: a quake (`0x6d`) holds the full range 5 frames in the exe (4
+  points, then the frame that switches to shrinking; `cb_00441e50`),
+  ours 4 points (133 ms): measured with the breakpoint trace (History,
+  "Breakpoint trace"); fixed by #368 (move this to History when it merges).
 - Open: the extras' CG gallery, scene replay and BGM room drawn by the
   engine (`screens/gallery.lua`, `replay.lua`, `replay_list.lua`,
   `music.lua` from `ExtrasMenu` by `crates/conv-cons/src/extras_screens.rs`;
@@ -874,6 +887,30 @@ empty). Gaps found, where the exe and the converter differ:
 
 Finished work, moved out of "Status" so a session reads only the open
 state. Items are referred to elsewhere as "History, item N".
+
+**Breakpoint trace (2026-10-17):** `docs/new-game.md` steps 18-21 tried
+here first. The relay log (step 18) gives the frame rate: `frame_loop`
+(`0x406f30`) sleeps once a frame for the period from the table at
+`0x4fb4e8` (66, 33, 16, 1 ms by the frame-rate setting `0x51ed11`): 30.1
+frames a second. The breakpoint trace (step 19) timed `0004.cd` #13-#18
+patched (`cdpatch.py`) to a quake 80/20×20, `0x66` 500, a quake 80/40×40,
+`0x72` 1000, `0x76` sub 9 (3,000 ms) and `0x71`, from the click at #12;
+the time is from one handler to the next, frames are the callback's hits:
+
+| Command | Exe: frames, ms | Ours (`0.txt`) |
+|---|---|---|
+| `0x6d` 80, 20×20 | 19, 660 | 133 + 400 ms |
+| `0x66` 500 | 16, 530 | `wait 500` |
+| `0x6d` 80, 40×40 | 31, 1,058 | 133 + 800 ms |
+| `0x72` 1000 | 33, 1,086 | `print` effect 1000 ms |
+| `0x76` 9 (3,000) + `0x71` | 93, 3,075 | `print` effect 3000 ms |
+
+Every waited command takes a frame more than its time, as the next
+handler runs on the next frame (not modelled). The quakes confirm
+the shrink, 50 px/s (the 40×40 one takes 398 ms more), and show a hold of
+5 frames at the full range (Status). Our debug trace can't time these:
+`--auto-play` answers `delay` at once, even with `--real-time`; the
+numbers are the `0.txt`'s.
 
 **Value audit (2026-10-17):** the hand-typed values in `xuse/` checked
 against the exe's tables (`Farthest2015.exe`, addresses in the code's
