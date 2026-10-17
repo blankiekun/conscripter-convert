@@ -213,6 +213,7 @@ dependencies = [
  "conv-cons",
  "conv-core",
  "conv-engines",
+ "image",
  "memmap2",
 ]
 
