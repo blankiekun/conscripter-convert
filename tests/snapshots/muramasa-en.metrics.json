@@ -1,9 +1,9 @@
 {
 "game": "muramasa-en",
 "engine": "nitroplus",
-"commit": "f38f012b",
+"commit": "63f3f00b",
 "commit_date": "2026-10-16",
-"totals": {"calls": 1201854, "full": 1065518, "gaps": 136336},
+"totals": {"calls": 1201854, "full": 1065681, "gaps": 136173},
 "kinds": {
 "LockVideo": {"calls": 50726, "gaps": 50726, "reasons": [["LockVideo argument 0 ignored", 50726]]},
 "WaitText": {"calls": 23689, "gaps": 23689, "reasons": [["WaitText argument 0 ignored", 23689], ["WaitText argument 1 ignored", 23689]]},
@@ -32,7 +32,6 @@
 "CursorPosition": {"calls": 168, "gaps": 168, "reasons": [["built-in CursorPosition", 168]]},
 "MoveCursor": {"calls": 168, "gaps": 168, "reasons": [["built-in MoveCursor", 168]]},
 "Save": {"calls": 168, "gaps": 168, "reasons": [["built-in Save", 168]]},
-"SetShade": {"calls": 163, "gaps": 163, "reasons": [["built-in SetShade", 163]]},
 "MoveCamera": {"calls": 105, "gaps": 105, "reasons": [["MoveCamera argument 1 ignored", 105], ["MoveCamera argument 2 ignored", 105], ["MoveCamera argument 3 ignored", 105], ["MoveCamera argument 4 ignored", 105], ["MoveCamera argument 5 ignored", 105], ["1 more", 105]]},
 "DrawEffect": {"calls": 76, "gaps": 76, "reasons": [["built-in DrawEffect", 76]]},
 "CreateMovie": {"calls": 61, "gaps": 61, "reasons": [["CreateMovie argument 2 ignored", 61], ["CreateMovie argument 3 ignored", 61], ["CreateMovie argument 4 ignored", 61], ["CreateMovie argument 5 ignored", 61], ["CreateMovie of a missing movie", 61]]},
@@ -85,6 +84,7 @@
 "Draw": {"calls": 169, "gaps": 0, "reasons": []},
 "port CreateTextureEX": {"calls": 168, "gaps": 0, "reasons": []},
 "port SetChoice": {"calls": 166, "gaps": 0, "reasons": []},
+"SetShade": {"calls": 163, "gaps": 0, "reasons": []},
 "RemainTime": {"calls": 160, "gaps": 0, "reasons": []},
 "SetLoopPoint": {"calls": 63, "gaps": 0, "reasons": []},
 "port CreateTextureSP": {"calls": 46, "gaps": 0, "reasons": []},

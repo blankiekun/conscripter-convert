@@ -360,6 +360,28 @@ impl Compiler<'_, '_> {
                 self.set_tempo(tempo(&arg(4)), &targets);
                 self.timed(arg(1).int(), &arg(5), &targets);
             }
+            "SetShade" => {
+                // (obj, level): the exe's names (`FUN_00465b10`, matched by the
+                // sum of their letters); another name does nothing.
+                let passes = match arg(1).string().to_ascii_uppercase().as_str() {
+                    "EXTRALIGHT" => 1,
+                    "LIGHT" => 2,
+                    "MEDIUM" => 4,
+                    "SEMIHEAVY" => 8,
+                    "HEAVY" => 16,
+                    "EXTRAHEAVY" => 24,
+                    "NOMORE" => 32,
+                    "NULL" | "" => 0,
+                    _ => {
+                        self.note(format!("SetShade {}", arg(1).string()));
+                        return Value::Null;
+                    }
+                };
+                for t in self.matching(&arg(0)) {
+                    let o = self.objects.get_mut(&t).unwrap();
+                    o.shade = (passes > 0).then(|| o.shade.unwrap_or(0) + passes);
+                }
+            }
             "SetTone" => {
                 // (obj, tone): `null` takes it away.
                 let t = arg(1).string().to_ascii_lowercase();
@@ -698,4 +720,21 @@ fn tone(name: &str) -> Option<Vec<SpriteFilter>> {
         "kitanoblue" => vec![grey, filter(FILTER_COLOUR, FILTER_BLEND_MULTIPLY, [170, 200, 255])],
         _ => return None,
     })
+}
+
+/// `SetShade`'s `passes` of the exe's blur, each the mean of the 3×3
+/// pixels about one (`FUN_00465b10`), at `scale` per mille: one box blur
+/// of the same spread (a pass adds 2/3 px² to the variance, a box of
+/// radius r gives r(r + 1)/3). The engine's blur keeps the alpha; the
+/// exe's blurs it too.
+pub(super) fn shade_blur(passes: i64, scale: (i64, i64)) -> Vec<SpriteFilter> {
+    use conv_core::ir::{FILTER_BLEND_COPY, FILTER_BLUR};
+    let r = ((1.0 + 8.0 * passes as f64).sqrt() - 1.0) / 2.0;
+    let px = |k: i64| (r * k as f64 / 1000.0).round() as i32;
+    let (rx, ry) = (px(scale.0), px(scale.1));
+    if rx <= 0 && ry <= 0 {
+        return Vec::new();
+    }
+    let f = SpriteFilter { kind: Operand::Const(FILTER_BLUR), blend: Operand::Const(FILTER_BLEND_COPY), strength: Operand::Const(256), params: [rx.max(0), ry.max(0), 0].map(Operand::Const) };
+    vec![f]
 }

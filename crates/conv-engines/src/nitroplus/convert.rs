@@ -1137,6 +1137,9 @@ struct Object<'a> {
     /// (`FUN_00452000`); drawn through these filters ([`Op::SpriteFilters`]).
     /// On a `Plain` cover, the pictures under it are.
     tone: Option<Vec<SpriteFilter>>,
+    /// `SetShade`: how many passes of the exe's blur (`FUN_00465b10`) its
+    /// pixels went through; they add up until `NULL` takes them away.
+    shade: Option<i64>,
 }
 
 /// [`Object::shake`]: the process, the keys.
@@ -1147,6 +1150,14 @@ impl Object<'_> {
     fn mirror(&self) -> (bool, bool) {
         let back = |deg: i64| (91..270).contains(&deg.rem_euclid(360));
         (back(self.turn.1), back(self.turn.0))
+    }
+
+    /// Its `SetTone` and `SetShade` filters, for its image drawn at
+    /// `scale` (per mille, x and y) of the pixels the blur is counted in.
+    fn filters(&self, scale: (i64, i64)) -> Vec<SpriteFilter> {
+        let mut fs = self.tone.clone().unwrap_or_default();
+        fs.extend(self.shade.map(|n| builtin::shade_blur(n, scale)).unwrap_or_default());
+        fs
     }
 
     /// Its turn about z, counterclockwise (spzoom's angle).
@@ -2736,7 +2747,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
 
     fn create(&mut self, name: String, kind: Kind<'a>, priority: i64, w: i64, h: i64) -> &mut Object<'a> {
         self.seq += 1;
-        let o = Object { kind, priority, x: 0, y: 0, w, h, opacity: 1000, locked: false, hideable: false, seq: self.seq, zoom: (1000, 1000), trail: None, blend: BLEND_NORMAL, vertex: None, turn: (0, 0, 0), shake: None, clip: None, over_text: false, container: false, erased: false, tone: None };
+        let o = Object { kind, priority, x: 0, y: 0, w, h, opacity: 1000, locked: false, hideable: false, seq: self.seq, zoom: (1000, 1000), trail: None, blend: BLEND_NORMAL, vertex: None, turn: (0, 0, 0), shake: None, clip: None, over_text: false, container: false, erased: false, tone: None, shade: None };
         self.objects.insert(name.clone(), o);
         self.objects.get_mut(&name).unwrap()
     }
@@ -4141,6 +4152,35 @@ scene a.nss
         let c = compile(story, LIBRARY);
         assert_eq!(grey(&c).len(), 1, "{:?}", c.ops);
         assert!(!c.notes.keys().any(|n| n.contains("SetTone")), "{:?}", c.notes);
+    }
+
+    #[test]
+    fn set_shade_blurs_a_picture_by_its_passes() {
+        // ma03_016: `SetShade` on a background; HEAVY is 16 passes, and a
+        // second call adds to them (the exe blurs the blurred pixels).
+        let blurs = |c: &Compiled| -> Vec<Operand> {
+            c.ops.iter().filter_map(|op| match op {
+                Op::SpriteFilters { filters, .. } => filters.iter().find(|f| f.kind == Operand::Const(conv_core::ir::FILTER_BLUR)).map(|f| f.params[0]),
+                _ => None,
+            }).collect()
+        };
+        let story = r#"
+scene a.nss
+{
+	CreateTexture("bg", 100, 0, 0, "cg/bg/a.png");
+	SetShade("bg", HEAVY);
+	Wait(100);
+	SetShade("bg", MEDIUM);
+	Wait(100);
+	SetShade("bg", NULL);
+	Wait(100);
+}
+"#;
+        let c = compile(story, LIBRARY);
+        // r(r + 1) = 2 × passes: 16 → 5, 20 → 6.
+        assert_eq!(blurs(&c), [Operand::Const(5), Operand::Const(6)], "{:?}", c.ops);
+        assert!(c.ops.iter().any(|op| matches!(op, Op::SpriteFilters { filters, .. } if filters.is_empty())), "{:?}", c.ops);
+        assert!(!c.notes.keys().any(|n| n.contains("SetShade")), "{:?}", c.notes);
     }
 
     #[test]

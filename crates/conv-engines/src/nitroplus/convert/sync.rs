@@ -27,11 +27,11 @@ impl Compiler<'_, '_> {
         let frozen = self.frozen_at();
         let above = |o: &Object| frozen.is_some_and(|p| o.priority > p);
         let nothing_above = !self.objects.values().any(|o| above(o) && o.opacity > 0 && !o.hideable) && !self.shown.keys().any(|n| self.objects.get(n).is_some_and(above));
-        // A toned cover (`SetTone` on a `Plain`): the frozen pictures under
-        // it drawn through its tone.
-        let cover_tone = frozen.and_then(|p| self.objects.values().filter(|o| matches!(o.kind, Kind::Cover) && o.opacity >= 1000 && o.priority == p).find_map(|o| o.tone.clone()));
+        // A toned or shaded cover (`SetTone`, `SetShade` on a `Plain`): the
+        // frozen pictures under it drawn through its filters.
+        let cover_tone = frozen.and_then(|p| self.objects.values().filter(|o| matches!(o.kind, Kind::Cover) && o.opacity >= 1000 && o.priority == p).map(|o| o.filters((1000, 1000))).find(|f| !f.is_empty()));
         let under = |n: &String| frozen.is_some_and(|p| self.objects.get(n).is_none_or(|o| o.priority <= p));
-        let retone = cover_tone.as_ref().is_some_and(|c| self.shown.iter().any(|(n, s)| under(n) && s.tint.as_ref() != Some(&toned(self.objects.get(n), c))));
+        let retone = cover_tone.as_ref().is_some_and(|c| self.shown.iter().any(|(n, s)| under(n) && s.tint.as_ref() != Some(&toned(self.objects.get(n), s, c))));
         if frozen.is_some() && nothing_above && !retone {
             if ms > 0 {
                 self.ops.push(Op::Wait { ms });
@@ -184,9 +184,13 @@ impl Compiler<'_, '_> {
             .objects
             .values()
             .filter(|o| o.opacity > 0 && !o.hideable)
-            .filter_map(|o| match (&o.kind, &o.tone) {
-                (Kind::Tint(fs), _) | (Kind::Cover, Some(fs)) => Some(((o.priority, o.seq), fs.iter().map(|f| SpriteFilter { strength: Operand::Const((o.opacity.min(1000) * 256 / 1000) as i32), ..*f }).collect::<Vec<_>>())),
-                _ => None,
+            .filter_map(|o| {
+                let fs = match &o.kind {
+                    Kind::Tint(fs) => fs.clone(),
+                    Kind::Cover => o.filters((1000, 1000)),
+                    _ => return None,
+                };
+                (!fs.is_empty()).then(|| ((o.priority, o.seq), fs.iter().map(|f| SpriteFilter { strength: Operand::Const((o.opacity.min(1000) * 256 / 1000) as i32), ..*f }).collect::<Vec<_>>()))
             })
             .max_by_key(|t| t.0);
         if let Some((above, f)) = tint {
@@ -195,8 +199,11 @@ impl Compiler<'_, '_> {
             }
         }
         for w in want.iter_mut() {
-            if let Some(t) = self.objects.get(&w.0).and_then(|o| o.tone.as_ref()) {
-                w.1.tint = Some([t.clone(), w.1.tint.take().unwrap_or_default()].concat());
+            let own = self.objects.get(&w.0).map(|o| o.filters(scale(&w.1))).unwrap_or_default();
+            if !own.is_empty() {
+                let mut fs = [own, w.1.tint.take().unwrap_or_default()].concat();
+                fs.truncate(MAX_FILTERS);
+                w.1.tint = Some(fs);
             }
         }
         if let Some(p) = frozen {
@@ -211,7 +218,7 @@ impl Compiler<'_, '_> {
                 };
                 let mut shown = shown.clone();
                 if let Some(c) = &cover_tone {
-                    shown.tint = Some(toned(self.objects.get(n), c));
+                    shown.tint = Some(toned(self.objects.get(n), &shown, c));
                 }
                 want.push((n.clone(), shown, key));
             }
@@ -546,7 +553,20 @@ impl Compiler<'_, '_> {
     }
 }
 
-/// A picture's own tone, then a toned cover's above it.
-fn toned(o: Option<&Object>, cover: &[SpriteFilter]) -> Vec<SpriteFilter> {
-    [o.and_then(|o| o.tone.as_deref()).unwrap_or_default(), cover].concat()
+/// A picture's own filters ([`Object::filters`]), then a cover's above it.
+fn toned(o: Option<&Object>, s: &Shown, cover: &[SpriteFilter]) -> Vec<SpriteFilter> {
+    let mut fs = [o.map(|o| o.filters(scale(s))).unwrap_or_default(), cover.to_vec()].concat();
+    fs.truncate(MAX_FILTERS);
+    fs
+}
+
+/// spfilter keeps up to 4 filters a sprite.
+// shortcut: the filters past it (a toned, shaded picture under a tint) are
+// left out; merge pointwise ones into one if a scene needs them.
+const MAX_FILTERS: usize = 4;
+
+/// The scale (per mille) a picture is drawn at against its loaded image:
+/// its zoom when the converter scaled the image ([`Assets::scaled`]).
+fn scale(s: &Shown) -> (i64, i64) {
+    if s.image != s.source { s.zoom } else { (1000, 1000) }
 }
