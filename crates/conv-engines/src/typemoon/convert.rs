@@ -9,7 +9,7 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
-use conv_core::ir::{ArithOp, Compare, Op, Operand, Ruby, SpriteChange, SpritePlacement, TransitionStyle, Var, Voice};
+use conv_core::ir::{ArithOp, Compare, MotionEnd, MotionKey, Op, Operand, Ruby, SpriteChange, SpritePlacement, TransitionStyle, Var, Voice};
 
 use super::exe::Picture;
 use super::script::Command;
@@ -62,7 +62,12 @@ struct Layer {
     x: f32,
     y: f32,
     zoom: f32,
+    /// `_STZ4`'s zoom across and down (1 = none; negative flips), times `zoom`.
+    stretch: (f32, f32),
     alpha: u32,
+    /// `_STGS`'s fade, from the next `_FADS` on: (from, to, ms); `alpha` is
+    /// already `to`.
+    fade: Option<(u32, u32, u32)>,
 }
 
 fn label(script: &str, name: Option<&str>) -> String {
@@ -300,6 +305,29 @@ impl Lowering<'_, '_> {
                     *l = None;
                 }
             }
+            // `_STZ4(layer, x0, y0, x1, y1, ms, …)` (`FUN_00162d20`): the zoom
+            // in ‰ goes to x1, y1 (`_STCH` resets it to 1000).
+            // shortcut: a timed zoom (2 uses) jumps to its end.
+            "_STZ4" => {
+                let Some(n) = number(arg(0)).filter(|n| (0..LAYERS as i32).contains(n)) else { return false };
+                let Some(l) = self.staged[n as usize].as_mut() else { return true };
+                let z = |i: usize, old: f32| if arg(i).is_empty() { Some(old) } else { number(arg(i)).map(|v| v as f32 / 1000.0) };
+                let (Some(zx), Some(zy)) = (z(3, l.stretch.0), z(4, l.stretch.1)) else { return false };
+                l.stretch = (zx, zy);
+            }
+            // `_STGS(layer, from, to, ms, ease)` (`FUN_001637a0`): the alpha
+            // from `from` (default: the layer's) to `to` (default 0) over `ms`,
+            // running from the next `_FADS` while the script goes on.
+            // shortcut: the easing (argument 4) is not followed; straight.
+            "_STGS" => {
+                let Some(n) = number(arg(0)).filter(|n| (0..LAYERS as i32).contains(n)) else { return false };
+                let Some(l) = self.staged[n as usize].as_mut() else { return true };
+                let from = if arg(1).is_empty() { l.alpha } else { number(arg(1)).unwrap_or(0).clamp(0, 255) as u32 };
+                let to = number(arg(2)).unwrap_or(0).clamp(0, 255) as u32;
+                let ms = number(arg(3)).unwrap_or(0).max(0) as u32;
+                l.alpha = to;
+                l.fade = (ms > 16 && from != to).then_some((from, to, ms));
+            }
             "_STCP" => {
                 let Some(n) = number(arg(0)).filter(|n| (0..LAYERS as i32).contains(n)) else { return false };
                 self.priority[n as usize] = number(arg(1)).unwrap_or(0);
@@ -328,7 +356,7 @@ impl Lowering<'_, '_> {
             let e = |i: usize, d: u32| number(arg(i)).map_or(d, |v| v as u32);
             Some((e(9, oa), e(10, ob)))
         };
-        self.staged[n] = Some(Layer { base, expression, x, y, zoom: zoom / 1000.0, alpha: alpha.clamp(0.0, 255.0) as u32 });
+        self.staged[n] = Some(Layer { base, expression, x, y, zoom: zoom / 1000.0, stretch: (1.0, 1.0), alpha: alpha.clamp(0.0, 255.0) as u32, fade: None });
         // Argument 6, else layer × 10 (`FUN_00160840`).
         self.priority[n] = if arg(6).is_empty() { n as i32 * 10 } else { number(arg(6)).unwrap_or(n as i32 * 10) };
         if !arg(11).is_empty() && arg(11) != "-1" {
@@ -349,10 +377,19 @@ impl Lowering<'_, '_> {
         let mut order: Vec<usize> = (0..LAYERS).filter(|&i| self.shown[i].is_some() && self.shown_priority[i] > 0).collect();
         order.sort_by_key(|&i| self.shown_priority[i]);
         let mut want = vec![None; LAYERS];
+        let mut fades = vec![None; LAYERS];
         for (rank, &i) in order.iter().enumerate() {
-            want[LAYERS - 1 - rank] = self.shown[i].clone();
+            let slot = LAYERS - 1 - rank;
+            want[slot] = self.shown[i].clone();
+            if let Some(l) = want[slot].as_mut() {
+                fades[slot] = l.fade.take();
+            }
         }
-        let changed: Vec<usize> = (0..LAYERS).filter(|&s| want[s] != self.slots[s]).collect();
+        // A fade runs once.
+        for l in self.staged.iter_mut().chain(self.shown.iter_mut()).flatten() {
+            l.fade = None;
+        }
+        let changed: Vec<usize> = (0..LAYERS).filter(|&s| want[s] != self.slots[s] || fades[s].is_some()).collect();
         let fade_ms = if kind == 1 { 0 } else { ms.max(0) as u32 };
         if changed.is_empty() && fade_ms == 0 {
             return;
@@ -362,9 +399,15 @@ impl Lowering<'_, '_> {
         for slot in changed {
             self.slots[slot] = want[slot].clone();
             let layer = slot as u32;
-            match want[slot].take() {
-                Some(l) => self.place(layer, &l),
-                None => self.ops.push(Op::Sprites { changes: vec![SpriteChange { layer, sprite: None, keep_filters: false }], fade_ms: 0 }),
+            match (want[slot].take(), fades[slot]) {
+                (Some(l), Some((from, to, ms))) => {
+                    // Opaque, the motion's keys giving the alpha (they multiply it).
+                    self.place(layer, &Layer { alpha: 255, ..l });
+                    let key = |ms, alpha: u32| MotionKey { ms, x: 0, y: 0, zoom: 100, angle: 0, opacity: alpha * 256 / 255, zoom_y: 100 };
+                    self.ops.push(Op::SpriteMotion2 { layer, keys: vec![key(0, from), key(ms, to)], end: MotionEnd::Keep });
+                }
+                (Some(l), None) => self.place(layer, &l),
+                (None, _) => self.ops.push(Op::Sprites { changes: vec![SpriteChange { layer, sprite: None, keep_filters: false }], fade_ms: 0 }),
             }
         }
         self.ops.push(Op::EndTransition);
@@ -386,12 +429,13 @@ impl Lowering<'_, '_> {
                 // for the screen); zoom about it. Records are 1280 × 724
                 // for the screen.
                 let (sx, sy) = (SCREEN_W as f32 / 480.0, SCREEN_H as f32 / 272.0);
-                let mx = l.x * sx + (p.width / 2.0 - p.centre.0) * l.zoom;
-                let my = l.y * sy + (p.height / 2.0 - p.centre.1) * l.zoom * SCREEN_H as f32 / STAGE_H;
+                let (zx, zy) = (l.zoom * l.stretch.0, l.zoom * l.stretch.1);
+                let mx = l.x * sx + (p.width / 2.0 - p.centre.0) * zx;
+                let my = l.y * sy + (p.height / 2.0 - p.centre.1) * zy * SCREEN_H as f32 / STAGE_H;
                 // The file at the record's size (its art is mostly 2×).
                 let (tw, th) = self.g.textures.get(&name).map_or((p.width * 2.0, p.height * 2.0), |&(w, h)| (w as f32, h as f32));
-                let zoom = |rec: f32, tex: f32| (100.0 * rec / tex * l.zoom).round() as i32;
-                (format!("pic/{name}.webp"), (mx, my), (zoom(p.width, tw), zoom(p.height * SCREEN_H as f32 / STAGE_H, th)))
+                let zoom = |rec: f32, tex: f32, z: f32| (100.0 * rec / tex * z).round() as i32;
+                (format!("pic/{name}.webp"), (mx, my), (zoom(p.width, tw, zx), zoom(p.height * SCREEN_H as f32 / STAGE_H, th, zy)))
             }
             (None, None) => {
                 self.note(format!("picture not in the exe's table: {name}"));
@@ -502,6 +546,42 @@ mod tests {
         let (a, b) = (Some("pic/a.webp".to_string()), Some("pic/b.webp".to_string()));
         // a (10) under b (20); a raised to 50 goes over b; b at 0 isn't drawn.
         assert_eq!(drawn, [(38, b.clone()), (39, a.clone()), (38, a.clone()), (39, b), (38, None), (39, a)]);
+    }
+
+    #[test]
+    fn stz4_zooms_the_staged_picture() {
+        let src = "_STCH(1,img1,240,136);_STZ4(1,1000,1000,2000,-500,0,0,0);_FADS(1,0,0);";
+        let g = Game {
+            scripts: vec![("S".into(), script::parse(src).into_iter().map(Result::unwrap).collect())],
+            scenes: vec![],
+            lines: vec![],
+            pictures: [picture("img1", 1280.0, 724.0)].into(),
+            textures: [("img1".into(), (2560, 1440))].into(),
+            sounds: vec![],
+            waves: HashMap::new(),
+        };
+        let ops = compile(&g).ops;
+        assert!(ops.contains(&Op::SpriteAngle { layer: 39, degrees: 0, zoom: (100, -25) }), "{ops:?}");
+    }
+
+    #[test]
+    fn stgs_fades_from_the_next_fads() {
+        let src = "_STCH(1,img1,240,136,1000,0);_STGS(1,,255,1000,0);_FADS(1,0,0);_FADS(1,0,0);";
+        let g = Game {
+            scripts: vec![("S".into(), script::parse(src).into_iter().map(Result::unwrap).collect())],
+            scenes: vec![],
+            lines: vec![],
+            pictures: [picture("img1", 1280.0, 724.0)].into(),
+            textures: HashMap::new(),
+            sounds: vec![],
+            waves: HashMap::new(),
+        };
+        let ops = compile(&g).ops;
+        let motions: Vec<_> = ops.iter().filter(|o| matches!(o, Op::SpriteMotion2 { .. })).collect();
+        assert_eq!(motions.len(), 1, "{ops:?}");
+        let Op::SpriteMotion2 { layer: 39, keys, end: MotionEnd::Keep } = motions[0] else { panic!("{:?}", motions[0]) };
+        assert_eq!(keys.iter().map(|k| (k.ms, k.opacity)).collect::<Vec<_>>(), [(0, 0), (1000, 256)]);
+        assert!(!ops.iter().any(|o| matches!(o, Op::SpriteOpacity { .. })), "{ops:?}");
     }
 
     #[test]
