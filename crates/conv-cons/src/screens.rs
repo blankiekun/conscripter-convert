@@ -43,6 +43,7 @@ pub fn screen_files(script: &Script) -> Vec<(String, String)> {
     if let Some(d) = script.confirm.as_ref().filter(|_| !files.is_empty()) {
         files.push(("confirm.lua".to_string(), confirm_lua(d)));
     }
+    files.extend(crate::settings_screen::files(script, script.global_border.unwrap_or(crate::GLOBAL_VAR_BASE)));
     files
 }
 
@@ -74,7 +75,7 @@ pub(crate) fn image(kind: &str, p: &Placed, extra: &str) -> String {
 }
 
 /// A question when the switch is on: `var(off) == 0 and "..." or nil`.
-fn question(text: &str, s: Switch) -> String {
+pub(crate) fn question(text: &str, s: Switch) -> String {
     format!("var({}) == 0 and {} or nil", lua(&switch_off(s)), lua(text))
 }
 

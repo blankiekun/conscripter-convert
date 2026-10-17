@@ -43,6 +43,7 @@ pub mod warp;
 mod screens;
 pub use screens::screen_files;
 mod settings_pages;
+mod settings_screen;
 mod switches;
 mod line_log;
 mod lua;
@@ -344,6 +345,9 @@ pub fn emit(script: &Script) -> String {
     writeln!(out, "{NAME_SPRITES_DEFINE}").unwrap();
     writeln!(out, "{}", names_define()).unwrap();
     writeln!(out, "{}", links_define()).unwrap();
+    if let Some(s) = &script.picture_settings {
+        picture_settings::define(&mut out, s);
+    }
     if script.ops.iter().any(|op| matches!(op, Op::Text { links, .. } if links.iter().any(|l| l.target.is_some()))) {
         writeln!(out, "defarr {LINK_VISITED},{LINK_TARGETS},global").unwrap();
         // shortcut: copies the visited links from %2000-%2199, where builds before the link names kept them; drop once no such gloval.sav is played
