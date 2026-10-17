@@ -449,23 +449,24 @@ over 200, their bullets at once (ours at once both).
    amplitudes going to ±1, 300000 ms shakes, 20000-80000 ms moves, the
    slideshow's 1 ms jump keys). Fixed: `SetVertex` px outside the
    picture. Open, each from the decompile:
-   1. **`Wait` isn't ended by a click** (`0040bd80` waits on quit,
-      state change and skip only; Muramasa.exe `0040f7f0` the same);
-      ours is `delay`. `wait` would also hold through skip mode:
-      needs an engine choice (a `wait` that skip ends), shared with
-      装甲悪鬼村正.
-   2. `SetVertex` names: the exe compares lower case; ours any case,
+   1. `SetVertex` names: the exe compares lower case; ours any case,
       as 装甲悪鬼村正 writes `Center`/`Middle` (whether its reader
       lowers them first is unchecked).
-   3. `CreateColor` `GREEN` is 0x008000 in the exe (`LIME` 0x00FF00),
+   2. `CreateColor` `GREEN` is 0x008000 in the exe (`LIME` 0x00FF00),
       ours 0x00FF00; the other HTML names are missing. Not in Django's
       data.
-   4. `SetPan` is DirectSound's (dB on the other side), `chpan`
+   3. `SetPan` is DirectSound's (dB on the other side), `chpan`
       linear; the data uses only 0 and ±1000, where they agree.
-   5. `Fade` with four arguments takes the fourth as the tempo, not
+   4. `Fade` with four arguments takes the fourth as the tempo, not
       the wait; the six such calls take 0 ms.
 
 ## History
+
+- **`Wait` and clicks** (2026-10-17): the exe's `Wait` (`0040bd80`,
+  Muramasa.exe `0040f7f0`) ends only on quit, a state change or skip
+  mode, not on a click; ours was `delay`. It is `wait` now, which
+  CONscripter ends in skip mode (engine PR #134); `WaitKey(ms)` stays
+  `delay`.
 
 - **`SetBacklog`'s third argument** (2026-10-17): the voice's
   character name (`0040cd90`: with a voice, it goes with the voice

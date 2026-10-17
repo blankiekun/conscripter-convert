@@ -20,7 +20,7 @@ impl Compiler<'_, '_> {
         // transition's end) are skipped: they don't wait.
         for op in self.ops.get(self.clock_scanned..).unwrap_or_default() {
             self.clock_ms += match op {
-                Op::Wait { ms } => u64::from(*ms),
+                Op::Wait { ms } | Op::Pause { ms } => u64::from(*ms),
                 Op::BeginTransition { fade_ms, .. } => u64::from(*fade_ms),
                 Op::ClickWait { .. } | Op::Choice { .. } => PLAYER_MS,
                 // A page that stops for code inside it doesn't wait.

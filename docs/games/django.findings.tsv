@@ -23,7 +23,7 @@ CreateSound	type	seen	00457940	BGM, SE, VOICE, SILENT (exact, upper case, a digi
 SetVolume	volume	seen	00457dd0 (objdump)	clamped 0-1000; 1000·log2(v/1000) mB, floor -10000 (amplitude (v/1000)^1.661); `@` relative	percent() the same curve
 SetVolume	fade shape	inferred	0045a040	steps in volume units, each sent through the log	engine fade (linear in percent)
 SetPan	pan	seen	00457f60	×10 → DirectSound pan mB, ±10000: attenuation of the other side in dB	chpan linear (1000-p)/1000; corpus only 0 and ±1000, where the two agree
-Wait	click	seen	0040bd80, 0045fda0 (mask 0xb: quit, state change, skip)	a click does not end it; skip does; time stops while a menu is open	`delay` (a click ends it): differs, open
+Wait	click	seen	0040bd80, 0045fda0 (mask 0xb: quit, state change, skip)	a click does not end it; skip does; time stops while a menu is open	`wait`, which skip ends (engine #134): the same
 WaitKey	time	seen	0040c020	ms (no speed factor); a click or key ends it; null: no limit	delay / click wait
 LoadText, text	speed, tags	inferred	0045d520, 00463700	see builtins.md (Django.exe)	compared under wine (box places)
 Request	Start	inferred	-	starts a process	3 "Request start" notes: processes the loops module converts itself
