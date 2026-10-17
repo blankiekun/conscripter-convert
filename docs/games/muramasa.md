@@ -577,7 +577,7 @@ Used to check what the engine does (`docs/new-game.md` step 9).
   among them, `CreateText`'s box height is read (#52) and `SetVertex`
   for every picture (#61, "History", "`SetVertex`"). Tempo waits for
   engine #2 and converter #13 (the curves are in item 5).
-- `EndSong` (12) in review (PR "NSS EndSong"): a music process may
+- `EndSong` (12) in review (#176): a music process may
   have `if`s (decided as it starts) and call `SetVolume`, `WaitAction`,
   `SetFrequency`, `SetLoop` and `Request`; a `SetVolume` on a song
   already playing goes on its clock, which a `WaitAction` moves; a BGM
