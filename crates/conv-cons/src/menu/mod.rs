@@ -25,7 +25,7 @@
 
 use conv_core::ir::{BarAction, Backlog, ButtonBar, CommandMenu, ConfirmDialog, Placed, SaveMenu, Setting, SettingsMenu, Switch, TextSpot, TopBars, VoiceToggle, WaitIcon};
 
-use crate::{escape, path, BAR_SPRITES, BUTTON_VAR, DIALOG_SPRITES, LINK_SPRITES, MENU_SPRITES, NAME_PLATE_SPRITE, NAME_TEXT_SPRITE};
+use crate::{escape, path, BAR_SPRITES, BUTTON_VAR, DIALOG_SPRITES, LINK_SPRITE_COUNT, MENU_SPRITES, NAME_PLATE_SPRITE, NAME_TEXT_SPRITE};
 
 mod backlog;
 mod bar;
@@ -270,7 +270,7 @@ const BTN_CLOSE: u32 = 202;
 /// plate and the link words.
 pub(crate) fn hidden_while_open() -> Vec<String> {
     let numbered = |n: u32| n.to_string();
-    BAR_SPRITES.map(numbered).chain([NAME_TEXT_SPRITE, NAME_PLATE_SPRITE].map(String::from)).chain(LINK_SPRITES.map(numbered)).collect()
+    BAR_SPRITES.map(numbered).chain([NAME_TEXT_SPRITE, NAME_PLATE_SPRITE].map(String::from)).chain((0..LINK_SPRITE_COUNT).map(crate::link_sprite)).collect()
 }
 
 /// `lsp2` places the image by its centre.
