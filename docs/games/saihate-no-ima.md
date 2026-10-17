@@ -664,6 +664,8 @@ a copy of the save works.
   `*conv_confirm`.
 - Open: screen positions and the blog bar's level number from the exe's layout tables (History,
   "Screen positions from the exe").
+- Open: the hide button and right-click hide the link words, bars and
+  name plate too (History, "Hiding the window").
 - Merged: `0x86`'s two trailing bytes as harmless (#163; History, item 45).
 - Merged: `0x8c`'s sort key as harmless (#180; History, item 31).
 - Merged: `0x49`/`0x4a`'s edge colours as harmless but the grey one (#181; History, item 29).
@@ -879,6 +881,16 @@ as "0 0". It is now at 647, 13 px left of the slash as the deepest
 level is 13 px right of it. No check saw it: the slash is part of a
 picture, and the trace and its checker see sprites and text, not what
 a picture holds under them.
+
+**Hiding the window (2026-10-17):** the original's hide
+(`hide_window_until_input` `0x408860` → `toggle_ui_windows` `0x407690`)
+hides the eight UI window objects of the table at `0x51c090` (text
+window, both top bars, button bar among them) until a click. Ours used
+`systemcall windowerase` alone, which hides only the text window: a
+link page's words and underlines, the name plate and the bars stayed
+on the screen. The bar's hide action now hides those sprites around it
+(`menu::hidden_while_erased`, shared by every game with a button bar)
+and shows them again after the click.
 
 **Effects off (2026-10-15, a gap from the whole-exe map):** with
 画面エフェクトを使用 off (`setting_effects` `0x51ed14` bit 0) the
