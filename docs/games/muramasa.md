@@ -578,6 +578,10 @@ ON/OFF pairs radios. Against main's routine: 36 pixels at open (the knobs
 round to the nearest pixel now), drags of the five sliders give the same
 values; after a drag main's routine left the lit bar where the press
 began (its bug), the screen lights it to the knob.
+Open: EN's screen fades 300 ms (guess: the Japanese value, not read from
+`sys_config.nut` nor seen in the original), its pairs switch at once. A
+negative `travel` doesn't replace `_shown`: the engine lights `fill` from
+the knob's min end, which would then be the right end.
 
 ### Queue (2026-10-16)
 
