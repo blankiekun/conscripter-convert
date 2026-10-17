@@ -646,7 +646,7 @@ Nothing yet.
 | Exe tables (pictures, motions, scene numbers) | ✅ read from the NSO (`typemoon exe`); picture sizes checked against the textures |
 | Scripts | 🔶 read: every command of both languages splits (one malformed in the original) and its text and voices join; the top commands' arguments read from the exe, the rest not yet |
 | Media folder (`typemoon media`) | ✅ `allpac`'s pictures at full size (PNG, or WebP with the shared `--webp` flags), the movies as they are, the sound (WAV wave sounds, or Opus/Vorbis with the shared `--audio-*` flags), loops kept in every mode |
-| Script conversion (`typemoon convert`) | 🔶 the flow (labels, `_JUMP`, `_IF__`, flags), text (pages, ruby, voices; the fan patch's styled letters, private-use U+E000–U+E2FE drawn by its own `ja/TT_TsukuMin-D.ttf`, as ASCII: italic and serif italic as italic (`!i1`), mirrored and upside-down plain (mirrored lines, stored right to left, put back in reading order), U+E200 as `^-35`; its accents (é ï ç â à ê, 46 uses) as their base letters and em dashes as `―` (Shift-JIS has no Latin accents; keeping them needs a UTF-8 `0.txt`, `--enc:utf8`); a `^` break in a choice's option as a space), pictures (`_STCH`/`_STCC`/`_FADS`: record size and place, fades and rule wipes), sound effects and music; plays from the start through `00_00` into the first arc headless. Layers drawn in priority order (`_STCP`, `_STCH` argument 6), changed keeping their settings (`_SCH2`) or copying another layer's (argument 18), zoomed (`_STZ4`), faded (`_STGS`) and moved (`_STMA`, the exe's motions; easing, priority and expression keys not followed), children placed in their parent layers, orbiting with their turn and following their motions (`_STCH` argument 11), clipped to their panels (`_STCH` arguments 12–16), turned (`_STRT`), drawn with their shader as far as CONscripter's blends and filters go (`_STBR`) and drawn with their `_STEC` effect (levels, greyscale and colour layers; effect 1 a colour fill, CONscripter's `spfilter` 9 and 10). Choices (`_SELR`, `_SELD`, `_GOTS`; options under a flag offered by it, greyed ones shown greyed and not selectable (`seldisable`); the chapter-jump menus), `_GOTO` and the Switch's own branches (`_IFNX`/`_IFP4`). The text window hidden and faded (`_CLO2`, `_CLO3`/`_CLO4`/`_CLO5` with CONscripter's `windowfade`, the script going on; the next text fades it back in). Not yet: the other layer commands, screens |
+| Script conversion (`typemoon convert`) | 🔶 the flow (labels, `_JUMP`, `_IF__`, flags), text (pages, ruby, voices; the fan patch's styled letters, private-use U+E000–U+E2FE drawn by its own `ja/TT_TsukuMin-D.ttf`, as ASCII: italic and serif italic as italic (`!i1`), mirrored and upside-down plain (mirrored lines, stored right to left, put back in reading order), U+E200 as `^-35`; its accents (é ï ç â à ê, 46 uses) as their base letters and em dashes as `―` (Shift-JIS has no Latin accents; keeping them needs a UTF-8 `0.txt`, `--enc:utf8`); a `^` break in a choice's option as a space), pictures (`_STCH`/`_STCC`/`_FADS`: record size and place, fades and rule wipes), sound effects and music; plays from the start through `00_00` into the first arc headless. Layers drawn in priority order (`_STCP`, `_STCH` argument 6), changed keeping their settings (`_SCH2`) or copying another layer's (argument 18), zoomed (`_STZ4`), faded (`_STGS`) and moved (`_STMA`, the exe's motions; easing, priority and expression keys not followed), children placed in their parent layers, orbiting with their turn and following their motions (`_STCH` argument 11), clipped to their panels with their soft edges (`_STCH` arguments 12–17, CONscripter's `spclip` feather), turned (`_STRT`), drawn with their shader as far as CONscripter's blends and filters go (`_STBR`) and drawn with their `_STEC` effect (levels, greyscale and colour layers; effect 1 a colour fill, CONscripter's `spfilter` 9 and 10). Choices (`_SELR`, `_SELD`, `_GOTS`; options under a flag offered by it, greyed ones shown greyed and not selectable (`seldisable`); the chapter-jump menus), `_GOTO` and the Switch's own branches (`_IFNX`/`_IFP4`). The text window hidden and faded (`_CLO2`, `_CLO3`/`_CLO4`/`_CLO5` with CONscripter's `windowfade`, the script going on; the next text fades it back in). Not yet: the other layer commands, screens |
 | Screens, extras | 🔶 the title; the system menu's Save and Load tabs (see History, 2026-10-17); Config, FlowChart, the backlog and the right-click menu not yet |
 
 ### Next
@@ -661,8 +661,10 @@ Nothing yet.
    日本語/English switch), the right-click menu opening the system menu,
    the backlog; then the save list's route picture and chapter labels
    (by the phase), and Config and Gallery on the title.
-4. Still open in the exe: `_FADS` type 1, `_STCH`'s panel frames
-   (argument 17's colours, the corner pieces at 0x75BE00), and the motion keyframes' other fields.
+4. Still open in the exe: the coloured panel frames (`_STCH`
+   argument 17 1–6, 263 uses: drawn in colour from `BORDER_PARTS`'
+   pieces, here cut at their inner edge), `_FADS`'s mode flag (0x89E),
+   and the motion keyframes' other fields.
 5. The metrics (`tests/snapshots/tsukihime.metrics.json`) count each
    argument a converted command passes and doesn't read as a gap
    (`<command> argument <i> ignored`, `option <n>` for a backquote
@@ -706,6 +708,26 @@ The biggest commands not converted, looked up in `script_command`
   out.
 
 ## History
+
+- 2026-10-17: panel frames and `_FADS` type 1, **seen**.
+  `FUN_00189ad0` picks a frame piece size by the frame width (≥ 10,
+  32, 40, 64, 128, 256 px: tables 0x4528E0, 0x75BE00 (each size's
+  3 × 3 cuts), textures 338–343, which `FUN_0013b9a0` loads from
+  `allui`'s `BORDER_PARTS.NXGZ`: `alphagradation020`–`512`, then
+  `_inv` and `_2`). With no colour (argument 17 0) it draws the layer's
+  mask in blend 0 (replace): the inner rectangle, then the corner and
+  edge pieces, so the picture fades in from the rectangle's edge over
+  the frame width (the ramp is near 3t² − 2t³: 0.16, 0.52, 0.87 at a
+  quarter, half, three quarters). Converted with CONscripter's new
+  `spclip` feather (engine PR 118): 6,846 `spclip`s of the Japanese
+  `0.txt` are feathered, and an axis as wide as the screen gets no
+  frame, as the exe's. With a colour (1–6, 263 uses) the pieces
+  (normal, then `_inv` one frame in) are drawn in that colour (1 and 7
+  black, 2 white, 3–6 tints): not drawn yet; the picture is cut at the
+  frame's inner edge as before. `_FADS` type 1 (20,842 uses, always
+  0 ms and rule 0) is a cut that switches the rule mask off
+  (`FUN_0014b4c0(-1)`) and goes on at once (`FUN_00160610` returns
+  −1), as converted; its mode 0 (417 uses) sets nothing.
 
 - 2026-10-17: **the system menu's Save and Load tabs**
   (`typemoon/menu.rs`, the shared `SystemMenu`), from the exe:
