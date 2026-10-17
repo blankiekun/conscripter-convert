@@ -9,8 +9,7 @@ import re, sys, glob, os
 
 DROP = re.compile(r"left out|not converted|dropped|skipped|not yet", re.I)
 REASON = re.compile(
-    r"because|since |\bas \b|the exe|the user|decided|\(user|\bno \b|never|"
-    r"cannot|can't|\bso \b|to avoid|unused|only |: ?\S|src:|guess:|ours\b", re.I)
+    r"because|since |the exe|the user|decided|\(user|on purpose|src:|dropped: ", re.I)
 
 def sentences(path):
     """Yield (line, sentence) per sentence; paragraphs are joined, fences skipped."""
