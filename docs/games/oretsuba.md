@@ -305,6 +305,34 @@ playthroughs (`%410`-`%439`).
   `:FadeWait 0` (890) cross-fade without waiting: grab the screen, change
   the picture under the copy, fade the copy out. Not used yet.
 
+### Accuracy (value audit, 2026-10-17)
+
+Every hand-typed value in `crates/conv-engines/src/mages/` carries a
+`// src:` (eboot address or measured SystemData picture), `// ours` or
+`// guess:` comment. The guesses still open; the decompile could settle
+the first ones, a frame of the Vita game the rest:
+
+- Text speed: the eboot (0x81126a80) shows a character every 15, 5 and
+  1 updates (遅い, 普通, 早い; 一括 at once), slower than our text speed
+  levels reach (60 ms a character at most); if an update is 2 frames,
+  普通 (the default) is 167 ms a character.
+- CharacterOpen's `[CharaN] :Priority` default (ours 9; 18,055 blocks
+  have none): the eboot stores it at +0x90 of the character entry,
+  whose default isn't traced.
+- Defaults no script relies on yet: Flash `:InTime`/`:OutTime` 3,
+  EffectQuake `:Param` 30, EffectStart 42/53/57/40/51 `:Param`s, the
+  centre for a missing `:Position`.
+- The eye catch shutters' time (500 ms): scene_load case 0x6f steps
+  the progress 1/9 an update without `:Fade`; how far it goes before
+  EyeCatchEnd is not read.
+- The story menu's fade (300 ms), the title's (500 ms).
+- Frames: the text window's place, its text origin and font size (23)
+  and line gap; the skip dialog's font size (21); the particles'
+  motion (ETC.cpk's sheets, our own drift).
+- CONFIG's lit options: the eboot (0x8107145c) draws 90/180-wide cells
+  from x 289; ours cut each to the word, losing the glow's last 1-3
+  pixels.
+
 `crates/conv-engines/src/mages/` reads the archives (`cpk.rs`), the
 scripts (`tasks.rs`), lowers scenes to the IR (`convert.rs`) and writes
 the assets (`assets.rs`; sounds become Ogg Vorbis through ffmpeg, BGM
