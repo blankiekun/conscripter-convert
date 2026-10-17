@@ -789,7 +789,9 @@ empty). Gaps found, where the exe and the converter differ:
   marker (3 px up); the top bars' row colours and font sizes; the
   title's 1 s fade; the quake's hold and shrink; a picture the title
   draws at (680, 444), not identified and not drawn; the CG viewer's
-  panel, now at the exe's x 461, runs 10 px past the right edge.
+  panel: the exe draws it whole at x 461 (`0x44dc90`, no source rect,
+  clipped at the edge, 10 px past it), but the art meets the buttons at
+  our 451, which stays.
 - Transitions: MeltDown's stretch for subs 46/47 is scaled from the exe
   (filmed for item 25, not yet compared).
 
@@ -820,8 +822,7 @@ more), the name plate only in styles 0 and 6. Also: "COMPLETE" on the
 title at (100, 383) (`0x4599a0`); the save preview at (389, 136)
 (`0x46ac50`); the yes/no font 16 px (`0x4a6410`, was 20); the backlog's
 and chapter history's base at the window opacity (`0x41fc50`,
-`0x468be0`: 127, was 210 darkened and 140); the CG viewer's panel at
-x 461 (`0x44dc90`, was 451); the scene list's rows (`0x4529c0`,
+`0x468be0`: 127, was 210 darkened and 140); the scene list's rows (`0x4529c0`,
 `0x453130`): cursor x 14, titles at y 64, colours #FFFFFF and #FFC8C8
 (were 15, 63, #FEFEFE, #FEC7C7); the unpinned bar shows from y 571
 (`0x51b610`, was 573). Matched: the extras, CG tabs and gallery

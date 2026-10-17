@@ -147,12 +147,14 @@ impl AssetBank {
             marker_dx: 0,
             marker_dy: -3,
             viewer: CgViewer {
-                // src: exe 0x44dc90: the panel at the viewer's origin
-                // (461, 545, 0x44d290), its base at the window opacity
-                // (0x51ed12, default 128 of 256), the name 140 px right.
+                // guess: exe 461 overflows the screen; origin unclear.
+                // 0x44dc90 draws #11/#12 whole (no source rect) at the
+                // viewer's origin (461, 545) on the back buffer, clipped;
+                // at 451 the lines meet the buttons. Base at the window
+                // opacity (src: exe 0x51ed12, default 128 of 256).
                 panel: vec![
-                    self.place("cgv_base", &with_opacity(get(&viewer, 11)?, WINDOW_OPACITY_PERCENT), None, 461, 545)?,
-                    self.place("cgv_lines", &get(&viewer, 12)?, None, 461, 545)?,
+                    self.place("cgv_base", &with_opacity(get(&viewer, 11)?, WINDOW_OPACITY_PERCENT), None, 451, 545)?,
+                    self.place("cgv_lines", &get(&viewer, 12)?, None, 451, 545)?,
                 ],
                 name_x: 601,
                 name_y: 545,
