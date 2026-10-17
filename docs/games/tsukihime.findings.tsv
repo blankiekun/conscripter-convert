@@ -93,3 +93,62 @@ _END_	back to the title	519	script_command	return to title	seen
 runtime	randomness: rand() only under FUN_0013c970 (an effect), not a script command	-	FUN_00186120, FUN_001862e0	-	inferred	
 runtime	clock: nn::time in FUN_001f67xx (save dates)	-	FUN_001f6720	-	inferred	
 spzoom	whole percents: under 10 % coarse, under 1 % placed at 1 %	933	-	#344	seen	open: a finer spzoom in the engine
+_ATSV	copies the save record (0x3aa8 bytes) into the auto-save buffer; nothing during a load's replay; argument bit 3 read	398	script_command case A "TSV", autosave_copy	nothing	inferred	open: an auto-save; the user decides (a CONscripter slot or left out)
+_WTSV	after _SELA/_ATSV: waits for the auto-save (inferred); W's second letter goes through a jump table (0x450c0a), not found by its constant	28	script_command case W	nothing	unknown	open: find the "TSV" entry of the W table
+_FADE	type 0-41 (ms*60/1000): flashes and colour fades (FUN_0012e260), 40 sets screen filter mode 4 (0x898) with level 127+arg 1 and arg 2, 41 clears it; types 40, 41 used	61	cmd_FADE	nothing	seen	open: what filter mode 4 draws (readers of 0x898)
+_FANX	no case in script_command (F: ADE ADS CCL CLN CSP LNT LOP LSP)	2741	script_command	nothing	seen	left_out (add to LEFT_OUT)
+_FCLN	argument 5 starts full-screen effect n (state 0x19a9); arguments 0-4 never read	26	cmd_FCLN, screen_effect_set	nothing	seen	open: what effects 4-33 draw (table 0x45261c)
+_FCSP	ends the full-screen effect over ms*60/1000 frames (none: at once)	31	cmd_FCSP, screen_effect_set	nothing	seen	open: with _FCLN
+_IFNX	no case in the Switch exe: never jumps	234	script_command	nothing (falls through)	seen	done
+_IFP4	jumps to argument 1's label, no condition	204	script_command case I "FP4"	goto	seen	done
+_IFSC	jumps to argument 1's label when DAT_00c34af0 is 0	2	scene_mode_flag	goto always	inferred	done; check: FUN_00148ac0, where it sets the flag to 1 (0 in normal play inferred)
+_IFUR	(1, L, LV): jumps when all_read_check(1) is false (every completion bit set); one use, QA_25, before an _RTM_	1	script_command case I "FUR", all_read_check	nothing: runs on into the label as if complete	seen	open: needs _RDED's global read flags
+_MSQK	text window shake: ms (over 10000 -> 1000), a*640/1280, b*448/720	30	window_quake	nothing	seen	open
+_MVOL	music volume to option 17 over option 1 ms; not while skipping or replaying	780	cmd_MVOL	nothing	seen	open: a timed music volume
+_NOP_	nothing	1	script_command case N	nothing	seen	done
+_PGST	the page a load replays to (state +0x8c4)	17202	script_command case P	left out	seen	left_out
+_RDAS	(n): out of mode 2, with setting 03d8+0x5e on and global read flag n set: a 3.0 indicator (FUN_0013b480), waits while DAT_00bfec90 is set, then DAT 06b0 = 1 (read-skip)	530	script_command, read_flag_global, cmd_RDAS_skip	nothing	inferred	open: low; CONscripter's own read skip covers the lines
+_RDED	(n): n the scene _RTST started (+0xdc) with its per-play bit set -> global read flag n (words 300+); in a scene replay (+0x30) ends it as _RTM_	550	cmd_RDED	nothing	seen	open: the flags _IFUR and the menus (read_flag_global callers) read
+_RTST	(n < 0x240): per-play bit n, current scene +0xdc = n (n 0x215-0x22d, or in a replay)	527	cmd_RTST	nothing	seen	open: with _RDED
+_RTM_	ends the script: stops the 20 sound channels and the music (script_end_reset), state 2 (back to the caller, inferred); nothing in a load's replay	544	script_command, script_end_reset	nothing: the next command runs (_END_ after 516; after a _JUMP in 25, dead)	seen	open: ARCHIVE ends on it, QA_25's is live (with _IFUR)
+_RTM2	keeps the music on the next _RTM_ (DAT_0156e64d)	1	script_command	nothing	seen	open: with _RTM_
+_RTMN	as _RTM2, then _RTM_	1	script_command	nothing	seen	open: with _RTM_
+_SACL	(layer, on): bit 0x40 of layer byte 0x54; set, the draw leaves out an offset it adds from 1920x1080 shorts	450	script_command, FUN_001884f0	nothing	seen	open: which offset (FUN_001884f0 near the 0x54 test)
+_SBAS	(layer, n = -1): layer short 0x93c = n; copied by _STCH argument 18 and into the draw record (+0x114)	943	script_command, frame_update	nothing	unknown	open: who reads the draw record's +0x114
+_SELA	choice screen mode 3 (two slots, the name _Dnnn its id) when state +0x8bc is 0, drawn by FUN_00184a90; at each arc's start, no _SELR or _GOTS	26	cmd_SELA	nothing	unknown	open: what mode 3 shows (FUN_00184a90)
+_SELD	opens the _SELR slots' choice (mode 1); argument 1 (choice 1-0x52) sets its flowchart flags (table 0x4594d0) and reads 07b0[n]	170	script_command, choice_flow_flags	the choice; argument 1 ignored (83)	seen	open: argument 1 for the flowchart
+_SELS	choice screen mode 2 (two slots: yes, no) with no _SELR; one use, QACALL	1	cmd_SELS	nothing, and its _GOTS has no option: not converted	seen	open: a two-option choice
+_SESP	stops channel n % 20 (< 0: all 20) at once	18	script_command case S "ESP"	nothing	seen	open
+_SEVL	channel n % 20 volume to option 17 over option 1 ms (0: 2000 ms); a waiting loop only stores it	1285	cmd_SEVL	nothing	seen	open: chvolfade as _SEFD
+_SGMA	(layer, m, k): the layer's live x, y, alpha, picture and clip into key k of motion m, so the motion starts where the layer is	109	cmd_SGMA	nothing	seen	open: with the motion keys
+_SHAF	(): ends the screen shake at once; (ms): it decays over ms*60/1000 frames	397	shake_stop, shake_decay	nothing	seen	open: with _SHOK
+_SHOK	screen shake FUN_0012ee70(1, a0, a1, a2 = 300, a3 = 3, a4 = 0); not while skipping	870	cmd_SHOK	nothing	seen	open: read FUN_0012ee70 for what each argument does
+_SQK2	layer quake kind 1: layer (< 0 every shown one), x, y amplitude (default 15), argument 3, ms (argument 4, -1 for ever) *3/50 frames, 5-7	1236	cmd_SQK2, layer_quake_start	nothing	seen	open: what kind 1 moves (FUN_00163520's readers)
+_SHK2	layer effect kind 2, arguments read as _SQK2's	125	cmd_SHK2, layer_quake_start	nothing	inferred	open: with _SQK2
+_SSW2	layer effect kind 3, arguments 0-7	200	cmd_SSW2, layer_quake_start	nothing	inferred	open: with _SQK2
+_SQS2 _SHS2 _SSS2	stop effect kind 1 / 2 / 3 on a layer (< 0: all 40)	532 / 400 / 398	layer_quake_stop	nothing (nothing started)	seen	open: with _SQK2
+_SNX2	(layer, v): floats 0x1454 / live +0x248 = v/255+1 (motion key 0x36's field)	1678	cmd_SNX2	nothing	seen	open: who reads +0x248 in the draw
+_SNX3	(layer, v): floats 0x1458 / live +0x24c = v*0.01+1 (motion key 0x38's field)	845	cmd_SNX3	nothing	seen	open: with _SNX2
+_SNX4	no case in script_command	8762	script_command	left out	seen	left_out
+_SOXY	(layer, _, _, a, b): only 0, 3, 4 read; shorts 0x98c = a, 0x9dc = b; the draw adds b/9 to x (FUN_001884f0)	208	script_command	nothing	inferred	open: what 0x98c does
+_SPFC	preloads a picture into one of 30 cache slots (FUN_001b6a20) with _SNX2/_SNX3-style scales (arguments 2, 3), argument 6 and colour 7; not while skipping	487	script_command	nothing	seen	done (a cache, nothing drawn)
+_SPRC	releases the 30 cache slots	85	script_command	nothing	seen	done
+_SPRD	(layer, name, a0, a1, b0, b1): preloads name_aa_bb over the ranges with the layer's effect	36	script_command	nothing	seen	done (a cache)
+_SPMA	(b): byte +8 of every layer's motion state (saved and live) = (b == 1)	189	cmd_SPMA	nothing	seen	open: what +8 does in FUN_00197b80 (pause, inferred)
+_STCF	(layer, mask = 63; layer > 39: all): the script waits until layer_busy is false for the mask (1-8 counters +0x78, +0x7e, +0x84, +0x8a; 16 +0x13c; 32 the motion)	5179	cmd_STCF, layer_busy, frame_update	nothing: the script runs on	seen	open: wait for the fade or motion (which counter bit 8 is: the alpha, inferred)
+_STCG	sets the picture's CG flag (bitset 07a8, < 0xc80) for the gallery	39	script_command, cg_flag_set	nothing	seen	open: with the gallery (allpaccg)
+_STCL	(?, layer, x0, y0, x1, y1, ms, ease): stops the motion and moves the layer (x*640/1280, y*480/720)	9	cmd_STCL	nothing	seen	open
+_STNS	(layer, n 0-12): +0x1b0 = n, +0x1b1 = 1 if n > 2 else 3	196	cmd_STNS	nothing	unknown	open: what +0x1b0 draws
+_STPV	(layer, x, y): x*1.875/0.46875/3 (by FUN_0012dfd0 for a layer with a picture), y*362/1080 to live +0x64/+0x68 (the motion's 0x0E/0x10)	734	cmd_STPV	nothing	seen	open: what +0x64 does in the draw (FUN_001884f0), a centre inferred
+_STQK	no case in script_command	3	script_command	nothing	seen	left_out (add to LEFT_OUT)
+_STRA	(layer, < 0 all; v; ms): +0x238 to v over ms*60/1000 frames	569	cmd_STRA	nothing	unknown	open: what +0x238 draws
+_STRR	(layer, angle 1/100 deg, -99999 off) to 0xbe4 (the _STCH argument 19 field)	448	cmd_STRR	nothing	seen	open: what 0xbe4 draws (frame_update)
+_STTR	(layer, n, x): the layer's rule 0x8ec = n-1 with x << 12 (n < 1: none), set_rule_mask n-1	110	script_command, set_rule_mask	nothing	inferred	open: the layer's fades through rule n
+_TOMP	(n): overlay_open slot 0 kind 0 with n (7 kept while skipping), window flag 0x89E = 1; at each arc's start	48	cmd_TOMP, overlay_open	nothing	inferred	open: a chapter title card (inferred), kind 0 in the table 0x673730
+_TOMW	waits while state +0x48 is set	48	script_command	nothing	seen	open: with _TOMP
+_TRPY	no case in script_command (trophies)	2	script_command	nothing	seen	left_out (add to LEFT_OUT)
+_VCWT	with a voice playing, wait flag 4: the frame loop holds the script until the voice ends	75	script_command, voice_state, frame_update	nothing	seen	open: wait for the voice
+_VPL2	as _VPLY, then plays the voice at once (FUN_001aa970) when not skipping and the character's voice is on	16	script_command case V "PL2"	nothing	seen	open: play the voice now
+_WKOR	(var, v): var = var OR v (F, G and _ variables)	21	script_command case W "KOR"	nothing	seen	open: OR on a variable
+_XRSM	overlay_flag(1, 1): slot 1's flag	2	script_command, overlay_flag	nothing	seen	open: with _XSTP
+_XSTP	state +0x48 = 1; overlay_open slot 1 kind 1 with 0x24	2	script_command, overlay_open	nothing	seen	open: what overlay kind 1 is
