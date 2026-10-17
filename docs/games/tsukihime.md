@@ -632,6 +632,33 @@ Nothing yet.
    the registry/GUI entry.
 5. Still open in the exe: `_FADS` type 1, `_STCH`'s panel frames
    (argument 17's colours, the corner pieces at 0x75BE00), `_STZ4`'s last two, and the motion keyframes' other fields.
+6. The metrics (`tests/snapshots/tsukihime.metrics.json`) count each
+   argument a converted command passes and doesn't read as a gap
+   (`<command> argument <i> ignored`, `option <n>` for a backquote
+   option); the list is in that file. The biggest: `_STCH` argument 8
+   (54,478), `_STZ4` arguments 1, 2, 5–7 (the timed zoom), `_STRT` 1,
+   3, 4 (from, time, easing), `_VPLY` 1, `_WTTM` 1, `_SEPL` option 17.
+
+### Open questions
+
+The biggest commands not converted, looked up in `script_command`
+(0x177790):
+
+- `_PGST(n)` (17,202), **seen**: stores `n` as the page (state +0x8c4)
+  unless the exe is seeking, when reaching the sought page ends the
+  seek. The page goes into the save (`FUN_0015a910` writes it,
+  `FUN_0015baf0` reads it back); **inferred**: it is the place a load
+  seeks to, so CONscripter's own saves replace it. Still a gap:
+  what `FUN_00182c60` does with the page is unknown (to settle from
+  the code before it can be left out).
+- `_CLO3()` (12,208), **seen**: when flag `DAT_00be0550` is set,
+  clears it and sets `DAT_00be0560`; `_CLO4` sets the flag again with
+  a fade time and `_CLO2` clears it at once. **Inferred**: the text
+  window's shown state, faded by `FUN_00138d40` (alpha in
+  `DAT_00be0558`), so `_CLO3` fades the window out. To convert.
+- `_SNX4(…)` (8,762), **seen**: `script_command` has no case for it
+  (`_SNX2` and `_SNX3` have), so the Switch exe does nothing. Left
+  out.
 
 ## History
 
