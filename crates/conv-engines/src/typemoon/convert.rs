@@ -183,6 +183,9 @@ const UNREAD_HARMLESS: &[(&str, usize, &str)] = &[
     ("_SELA", 0, "the choice's name: one choice is open at a time"),
     ("_SELS", 0, "the choice's name: one choice is open at a time"),
     ("_GOTS", 0, "the choice's name: one choice is open at a time"),
+    // `FUN_00160840` reads arguments 0–6 and 9–19 only; 8 is always `CC`.
+    ("_STCH", 7, "the Switch exe never reads it"),
+    ("_STCH", 8, "the Switch exe never reads it"),
 ];
 
 /// Commands left out on purpose (command, why): done for the completion

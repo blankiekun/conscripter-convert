@@ -332,7 +332,7 @@ addresses in `research/typemoon/names.tsv` are those of the 1.0.2
     layer's 0x324, a zoom in ‰ (default 1000) multiplied with
     `_STZ4`'s at the draw; 5 alpha 0–255 (default 255); 6
     priority (draw order; default layer × 10, as `_STCP`); 7 and 8
-    (`CC`) not read; 9 and 10 the expression: when either is set,
+    (`CC`) never read (see History, 2026-10-17); 9 and 10 the expression: when either is set,
     `_a_b` (two digits each) is added to the name, and both default to
     the numbers of the picture already on the layer; 11 a parent layer
     (−1 none) whose clip and settings it copies; 12–15 four shorts
@@ -633,8 +633,7 @@ Nothing yet.
 6. The metrics (`tests/snapshots/tsukihime.metrics.json`) count each
    argument a converted command passes and doesn't read as a gap
    (`<command> argument <i> ignored`, `option <n>` for a backquote
-   option); the list is in that file. The biggest: `_STCH` argument 8
-   (54,478), `_STRT` 1,
+   option); the list is in that file. The biggest: `_STRT` 1,
    3, 4 (from, time, easing), `_STZ4` on a layer not staged (2,418,
    dropped: the exe sets the live layer at once, `FUN_00131f30` on
    `DAT_00be0258`; how that meets `_FADS` not worked out) and its 2
@@ -699,6 +698,13 @@ The biggest commands not converted, looked up in `script_command`
   out.
 
 ## History
+
+- 2026-10-17: `_STCH` arguments 7 and 8, **seen** unused: `FUN_00160840`
+  reads arguments 0 and 2–6 (`FUN_00102c38`/`FUN_00102d3c`), 1 as the
+  name (`FUN_00102c6c`) and 9–19, never 7 or 8, and `script_command`
+  passes the split arguments straight to it. Argument 8 is `CC` in
+  54,502 of 54,503 calls (the other has it as argument 7). They no longer
+  count as gaps.
 
 - 2026-10-17: `_STZ4`'s other arguments, **seen** in `FUN_00162d20`,
   `FUN_00131f30` and the draws (`FUN_00132e30`/`FUN_00137f50` for the
