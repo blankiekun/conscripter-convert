@@ -13,7 +13,7 @@
 
 use conv_core::ir::{CgGallery, ExtrasAction, ExtrasMenu, Placed};
 
-use crate::{menu, movies, music, path, replay, BUTTON_VAR, CG_SEEN_BASE};
+use crate::{menu, movies, music, path, replay, BUTTON_VAR, CG_SEEN};
 
 pub(crate) const EXTRAS: &str = "conv_extras";
 /// Back to the title screen (its background and buttons).
@@ -78,7 +78,7 @@ fn picture(slot: u32, image: &str, x: i32, y: i32) -> String {
 }
 
 fn seen(number: u32) -> String {
-    format!("%{}", CG_SEEN_BASE + number)
+    CG_SEEN.at(number)
 }
 
 /// `fade`: the effect the title fades in with. `settings`: there is a

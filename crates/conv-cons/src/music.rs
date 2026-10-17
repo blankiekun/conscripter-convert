@@ -4,7 +4,7 @@
 
 use conv_core::ir::{MusicPlayer, MusicRoom, Setting};
 
-use crate::{menu, path, BUTTON_VAR, PROGRESS_BASE};
+use crate::{menu, path, BUTTON_VAR, PROGRESS};
 
 pub(crate) const MUSIC: &str = "conv_music";
 const DRAW: &str = "conv_music_draw";
@@ -58,7 +58,7 @@ pub(crate) fn music(out: &mut String, m: &MusicRoom, background: &str, back: &st
     w(format!("lsp {EXIT},\":a/2,0,3;{}\",{},{}:spbtn {EXIT},{BTN_EXIT}", path(&m.exit.image), m.exit.x, m.exit.y));
     for (i, s) in songs.iter().enumerate() {
         let (slot, n) = (SONG_SLOT + i as u32, i + 1);
-        let shown = s.progress.map(|bit| format!("%{} == 1 && ", PROGRESS_BASE + bit)).unwrap_or_default();
+        let shown = s.progress.map(|bit| format!("{} == 1 && ", PROGRESS.at(bit))).unwrap_or_default();
         let (x, y) = (s.button.x, s.button.y);
         w(format!("if {shown}{PLAYING} != {n} lsp {slot},\":a/2,0,3;{}\",{x},{y}:spbtn {slot},{n}", path(&s.button.image)));
         w(format!("if {shown}{PLAYING} == {n} lsp {slot},\":a/2,0,3;{}\",{x},{y}:spbtn {slot},{n}", path(&s.playing)));
