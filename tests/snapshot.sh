@@ -3,7 +3,7 @@
 # 0.txt with tests/snapshots/<game>.txt (sha256 and line count), so a
 # change to shared code shows which games' scripts it changed.
 #
-#   tests/snapshot.sh [--update] [game ...]
+#   tests/snapshot.sh [--update] [--diff REF] [--map RULES] [game ...]
 #
 # Games are found through $CONS_GAMES (default ~/.config/conscripter-convert/games),
 # a folder of links named by game id to each game's folder (<game> in
@@ -18,16 +18,43 @@
 # one only when its counts changed, naming the commit on origin/main
 # they were measured on top of (the merge base: a branch's own commits
 # are gone once it is squash-merged).
+#
+# --diff REF also builds REF (a commit, branch or tag; origin/main for a
+# fresh base) in its own worktree out/snapshot-ref with its own target
+# dir, dry-runs each game with it and shows what changed in 0.txt with
+# research/tools/txtdiff.py (hunks under their labels, changed lines
+# counted by command). --map RULES (a file of s/old/new/ lines, or one
+# such rule) checks that the change is only a rename: the rules map
+# REF's commands to the new ones and nothing else may differ; it
+# implies --diff origin/main.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 games_dir=${CONS_GAMES:-$HOME/.config/conscripter-convert/games}
 bin=target/release/conscripter-convert
-update=0
-if [ "${1:-}" = --update ]; then update=1; shift; fi
+update=0 ref= map=()
+while [ $# -gt 0 ]; do
+    case $1 in
+        --update) update=1 ;;
+        --diff) ref=$2; shift ;;
+        --map) if [ -f "$2" ]; then map=(--rules "$2"); else map=(--map "$2"); fi; shift ;;
+        *) break ;;
+    esac
+    shift
+done
+[ ${#map[@]} = 0 ] || [ -n "$ref" ] || ref=origin/main
 ids=("$@")
 [ ${#ids[@]} -gt 0 ] || ids=(saihate-no-ima muramasa muramasa-en django oretsuba)
 
 cargo build --release -q
+if [ -n "$ref" ]; then
+    sha=$(git rev-parse --verify "$ref^{commit}")
+    refdir=out/snapshot-ref
+    [ -e $refdir/.git ] || git worktree add -q --detach $refdir "$sha"
+    git -C $refdir checkout -q --detach "$sha"
+    git -C $refdir submodule update --init -q engine
+    CARGO_TARGET_DIR=$PWD/$refdir/target cargo build --release -q --manifest-path $refdir/Cargo.toml
+    echo "comparing with $ref ($(git rev-parse --short "$sha"))"
+fi
 base=$(git merge-base HEAD origin/main 2>/dev/null || git rev-parse HEAD)
 base_line="\"commit\": \"$(git rev-parse --short "$base")\","
 base_date="\"commit_date\": \"$(git log -1 --format=%cs "$base")\","
@@ -54,6 +81,18 @@ for id in "${ids[@]}"; do
     esac
     if ! "$bin" "${args[@]}" -o "$out" --dry-run > "$out.log" 2>&1; then
         echo "$id: dry run failed, see $out.log"; changed=1; continue
+    fi
+    if [ -n "$ref" ]; then
+        rout=$refdir/out/$id
+        mkdir -p $refdir/out
+        if ! $refdir/target/release/conscripter-convert "${args[@]}" -o "$rout" --dry-run > "$rout.log" 2>&1; then
+            echo "$id: dry run at $ref failed, see $rout.log"; changed=1
+        elif python3 -I research/tools/txtdiff.py "$rout/0.txt" "$out/0.txt" "${map[@]}" --hunks 5 --top 10 > "$out.diff"; then
+            echo "$id: 0.txt $(cat "$out.diff") (vs $ref)"
+        else
+            echo "$id: 0.txt differs from $ref ($rout/0.txt; full report: python3 -I research/tools/txtdiff.py $rout/0.txt $out/0.txt):"
+            sed 's/^/    /' "$out.diff"; changed=1
+        fi
     fi
     # The version line (build date, commit) changes with every build, and
     # so does the width of its strsp (a -dirty tree's line is longer).

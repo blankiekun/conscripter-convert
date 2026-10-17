@@ -150,7 +150,9 @@ shared code. A team lead hands out the items and reviews the PRs.
   in `$CONS_GAMES`, see the script) and says which games' `0.txt`
   changed. Run it after any change to shared code; a change to another
   game's script must be deliberate and said in the commit
-  (`--update` then rewrites `tests/snapshots/`).
+  (`--update` then rewrites `tests/snapshots/`). `--diff origin/main`
+  builds that ref in its own worktree and shows each game's 0.txt
+  changes; `--map <rules>` checks a change is only a rename (below).
 - Full build: `target/release/conscripter-convert convert-game <install
   dir> -o out/<game>-cons --font <a Japanese TTF, e.g. ipag.ttf> --title
   "<title>"`. Each game's exact command is in its document.
@@ -204,7 +206,10 @@ on each later turn; several agents run at once.
   `mdsec.py <file.md>` lists the headings, `mdsec.py <file.md> Status`
   prints that section only (game docs, `PLAN.md`, this file);
   `label.py 0.txt <label> [lines]` prints one label's block with line
-  numbers, `label.py 0.txt -l <text>` finds labels. Source code is the
+  numbers, `label.py 0.txt -l <text>` finds labels; `txtdiff.py old.txt
+  new.txt [--map 's/old/new/'|--rules <file>]` prints changed hunks under
+  their labels, counts them by command (numbers masked) and says whether
+  the rules make it only a rename (`--self-test` tests it). Source code is the
   biggest text cost: `code.py <file.rs|.cpp>` lists its items with line
   numbers, `code.py <file> <name> [lines]` prints one fn, type, impl or
   C++ `Class::name` with its doc comments; use it instead of paging
