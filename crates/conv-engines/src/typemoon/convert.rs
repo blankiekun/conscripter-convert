@@ -449,7 +449,7 @@ impl Lowering<'_, '_> {
             }
             "_WTTM" => self.ops.push(Op::Wait { ms: number(arg(0)).unwrap_or(0).max(0) as u32 }),
             "_SEPL" => {
-                let Some(file) = self.g.waves.get(&arg(2).to_uppercase()).map(|w| format!("se/{w}.wav")) else { return false };
+                let Some(file) = self.g.waves.get(&arg(2).to_uppercase()).map(|w| format!("se/{w}.ogg")) else { return false };
                 self.se_channels.insert(number(arg(0)).unwrap_or(0), file.clone());
                 self.ops.push(Op::SePlay { file, looped: arg(1) == "1" });
             }

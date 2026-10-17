@@ -40,7 +40,7 @@ pub enum TypemoonCommand {
     Check { dir: PathBuf },
     /// Convert a RomFS folder's sound: `stream/*.opus` (Nintendo Opus) to
     /// `<output>/stream/*.ogg`, and every wave sound of `knife1.bfsar` to
-    /// `<output>/se/<name>.wav`; counts them and fails on any error
+    /// `<output>/se/<name>.ogg` (Opus), with their loops; counts them and fails on any error
     Sounds {
         dir: PathBuf,
         #[arg(short, long)]
@@ -316,6 +316,8 @@ fn exe_tables(main: &Path, romfs: Option<&Path>, show: &[usize]) -> Result<()> {
 }
 
 fn sounds(dir: &Path, output: &Path) -> Result<()> {
+    use std::sync::Mutex;
+    use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
     let mut failed = Vec::new();
     let out = output.join("stream");
     fs::create_dir_all(&out)?;
@@ -343,24 +345,47 @@ fn sounds(dir: &Path, output: &Path) -> Result<()> {
     let out = output.join("se");
     fs::create_dir_all(&out)?;
     let waves = bfsar::wave_sounds(&bfsar).context("reading knife1.bfsar")?;
-    let mut kinds = BTreeMap::<String, usize>::new();
-    for w in &waves {
-        match fwav::decode(w.fwav) {
-            Ok(wave) => {
-                let looped = match wave.looped {
-                    None => "",
-                    Some((0, _)) => ", loops from the start",
-                    Some(_) => ", loops from inside",
-                };
-                *kinds.entry(format!("{} ch {} Hz{looped}", wave.channels, wave.rate)).or_default() += 1;
-                let file = out.join(safe_relative_path(&format!("{}.wav", w.name)).with_context(|| format!("unsafe name {:?}", w.name))?);
-                fs::write(file, fwav::to_wav(&wave))?;
-            }
-            Err(e) => failed.push(format!("{}: {e}", w.name)),
+    // Opus at 48 kbit/s a channel (the waves are 48 kHz, as Opus is), the
+    // loop as LOOPSTART/LOOPEND, which CONscripter's dwaveloop keeps.
+    let opus = conv_engines::media::AudioFormat { codec: conv_engines::media::AudioCodec::Opus, quality: Some(48.0) };
+    let (kinds, failed_waves) = (Mutex::new(BTreeMap::<String, usize>::new()), Mutex::new(Vec::new()));
+    let (wav_bytes, ogg_bytes, next) = (AtomicU64::new(0), AtomicU64::new(0), AtomicUsize::new(0));
+    let one = |w: &bfsar::WaveSound| -> Result<()> {
+        let wave = fwav::decode(w.fwav)?;
+        let looped = match wave.looped {
+            None => "",
+            Some((0, _)) => ", loops from the start",
+            Some(_) => ", loops from inside",
+        };
+        *kinds.lock().unwrap().entry(format!("{} ch {} Hz{looped}", wave.channels, wave.rate)).or_default() += 1;
+        let file = out.join(safe_relative_path(&format!("{}.ogg", w.name)).with_context(|| format!("unsafe name {:?}", w.name))?);
+        let wav = fwav::to_wav(&wave);
+        let mut args: Vec<String> = ["-f", "wav", "-i", "pipe:0"].map(Into::into).into();
+        args.extend(opus.ffmpeg_options(wave.channels as u8));
+        if let Some((start, end)) = wave.looped {
+            args.extend(["-metadata".into(), format!("LOOPSTART={start}"), "-metadata".into(), format!("LOOPEND={end}")]);
         }
-    }
+        conv_engines::media::ffmpeg(&file, args, |stdin| stdin.write_all(&wav)).map_err(anyhow::Error::msg)?;
+        wav_bytes.fetch_add(wav.len() as u64, Ordering::Relaxed);
+        ogg_bytes.fetch_add(fs::metadata(&file)?.len(), Ordering::Relaxed);
+        Ok(())
+    };
+    std::thread::scope(|s| {
+        for _ in 0..std::thread::available_parallelism().map_or(4, |n| n.get()) {
+            s.spawn(|| {
+                while let Some(w) = waves.get(next.fetch_add(1, Ordering::Relaxed)) {
+                    if let Err(e) = one(w) {
+                        failed_waves.lock().unwrap().push(format!("{}: {e:#}", w.name));
+                    }
+                }
+            });
+        }
+    });
+    failed.extend(failed_waves.into_inner().unwrap());
+    let kinds = kinds.into_inner().unwrap();
     let kinds: Vec<String> = kinds.iter().map(|(k, n)| format!("{n} {k}")).collect();
-    println!("knife1.bfsar: {} wave sounds ({})", waves.len(), kinds.join("; "));
+    let mb = |a: &AtomicU64| a.load(Ordering::Relaxed) as f64 / 1e6;
+    println!("knife1.bfsar: {} wave sounds ({}) to Opus: {:.1} MB ({:.1} MB as WAV)", waves.len(), kinds.join("; "), mb(&ogg_bytes), mb(&wav_bytes));
     for e in failed.iter().take(5) {
         println!("  {e}");
     }
