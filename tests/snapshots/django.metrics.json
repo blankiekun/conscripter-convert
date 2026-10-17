@@ -1,7 +1,7 @@
 {
 "game": "django",
 "engine": "nitroplus",
-"commit": "f3fc2d28",
+"commit": "a0466366",
 "commit_date": "2026-10-16",
 "totals": {"calls": 57053, "full": 55499, "gaps": 1554},
 "kinds": {
@@ -52,5 +52,5 @@
 "MoviePlay": {"calls": 2, "gaps": 0, "reasons": []},
 "SetShade": {"calls": 1, "gaps": 0, "reasons": []}
 },
-"outside_calls": [["code inside a page runs before it", 19], ["branches of a runtime if end with different helper variables", 12], ["BGM without loop played looping", 6], ["Request Enter for another text than the next", 1]]
+"outside_calls": [["branches of a runtime if end with different helper variables", 12], ["BGM without loop played looping", 6], ["Request Enter for another text than the next", 1]]
 }

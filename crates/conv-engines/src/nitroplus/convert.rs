@@ -1195,6 +1195,9 @@ struct Page<'a> {
     /// After the English port's `<FW img=''>` (`SwitchFw`): shown in the
     /// window's box without a face, the face and name plate gone.
     face_off: bool,
+    /// Goes on in the page before, which stopped for `code` (code inside
+    /// a page: the text before it shows first).
+    goes_on: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -3415,11 +3418,27 @@ impl<'a, 'b> Compiler<'a, 'b> {
                         page.continues = true;
                         pages.push(std::mem::take(&mut page));
                     } else if !page.text.is_empty() || !line.is_empty() {
-                        self.note("code inside a page runs before it");
+                        // Code inside the page runs where it stands: the
+                        // text before it shows, then the page goes on, on
+                        // the same line when the code is inside one (or
+                        // after a `<?>`).
+                        // shortcut: a ruby open across the code is lost; none is.
+                        let n = text.chars().count();
+                        let mut open = Vec::new();
+                        for s in page.styles.iter_mut().filter(|s| s.start + s.len == usize::MAX) {
+                            s.len = n - s.start;
+                            open.push(TextStyle { start: 0, len: usize::MAX, ..*s });
+                        }
+                        page.text = if line.is_empty() { text + "\n" } else { text };
+                        page.text.push(conv_core::ir::GOES_ON_MARK);
+                        line.clear();
+                        pages.push(std::mem::take(&mut page));
+                        (page.goes_on, page.styles) = (true, open);
                     }
                     page.code.extend(stmts.iter());
                     face_off = false;
                     other = true;
+                    joined = false;
                 }
                 Inline::Tag(tag) => {
                     other = true;
@@ -3478,7 +3497,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
                             if !line.is_empty() {
                                 end_line(&mut page, &mut line);
                             }
-                            if !page.text.is_empty() {
+                            if !page.text.is_empty() || page.goes_on {
                                 pages.push(std::mem::take(&mut page));
                             }
                             face_off = tag.attr("img").is_none_or(str::is_empty);
@@ -3538,7 +3557,9 @@ impl<'a, 'b> Compiler<'a, 'b> {
                     }
                     if !line.is_empty() {
                         end_line(&mut page, &mut line);
-                    } else if !other && !page.text.is_empty() {
+                    // (A line of only `<?>`, as the English leaves a
+                    // typewriter's letters, isn't blank.)
+                    } else if !other && !joined && (!page.text.is_empty() || page.goes_on) {
                         pages.push(std::mem::take(&mut page));
                     }
                     other = false;
@@ -3548,7 +3569,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
         if !line.is_empty() {
             end_line(&mut page, &mut line);
         }
-        if !page.text.is_empty() || !page.code.is_empty() {
+        if !page.text.is_empty() || !page.code.is_empty() || page.goes_on {
             pages.push(page);
         }
         pages
@@ -3565,13 +3586,25 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 self.exec(s);
             }
             self.flush_sounds();
-            if page.text.is_empty() {
+            if page.text.is_empty() && !page.goes_on {
                 continue;
             }
             self.sync(0);
             // Code before the page may have changed the face window.
-            let window = self.text_window(&t, x, y, page.face_off);
-            if self.texts_shown == 0 {
+            let mut window = self.text_window(&t, x, y, page.face_off);
+            if page.goes_on && self.window.as_ref() != Some(&window) {
+                // A new window would clear the page: only its picture
+                // changes (a face changed mid-page); one that moved stays
+                // as the page began.
+                match self.window.clone() {
+                    Some(w) if TextWindow { image: window.image.clone(), ..w.clone() } == window => self.ops.push(Op::WindowImage(window.image.clone())),
+                    Some(w) => {
+                        self.note("text window moved inside a page: kept");
+                        window = w;
+                    }
+                    None => {}
+                }
+            } else if self.texts_shown == 0 {
                 self.first_window = Some(window.clone());
             } else if self.window.as_ref() != Some(&window) {
                 self.ops.push(Op::SetWindow(window.clone()));
@@ -3618,7 +3651,12 @@ impl<'a, 'b> Compiler<'a, 'b> {
             // flag can hold, behind a test of its code, and without it.
             // shortcut: styles after the mark keep their places; fine for
             // the pages that have one (mc02_031: none).
-            match runtime_text(&page.text).and_then(|(var, before, after)| Some((var, before, after, self.flag_texts.get(&var)?.clone()))) {
+            // Only spaces left after the code (before its line's end): none.
+            let mut text = page.text.clone();
+            if page.goes_on && text.trim_end_matches(conv_core::ir::GOES_ON_MARK).trim().is_empty() {
+                text.retain(|c| c == conv_core::ir::GOES_ON_MARK);
+            }
+            match runtime_text(&text).and_then(|(var, before, after)| Some((var, before, after, self.flag_texts.get(&var)?.clone()))) {
                 Some((var, before, after, texts)) => {
                     // (Named by the file and page, so that no other label's
                     // number moves.)
@@ -3634,7 +3672,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
                     self.ops.push(page_op(format!("{before}{after}")));
                     self.ops.push(Op::Label(end));
                 }
-                None => self.ops.push(page_op(page.text.clone())),
+                None => self.ops.push(page_op(text)),
             }
             self.texts_shown += 1;
         }
@@ -5664,7 +5702,7 @@ function SoundPlay($ナット名,秒数,ボリウム,ループ設定)
     }
 
     #[test]
-    fn a_line_ending_in_question_tag_goes_on_after_the_code() {
+    fn code_inside_a_page_runs_where_it_stands() {
         let story = r#"
 scene a.nss
 {
@@ -5687,7 +5725,11 @@ WaitKey(50);}
 "#;
         let c = compile(story, LIBRARY);
         let texts: Vec<&str> = c.ops.iter().filter_map(|op| if let Op::Text { text, .. } = op { Some(text.as_str()) } else { None }).collect();
-        assert_eq!(texts, ["《興隆》", "次"]);
+        // Each letter, then its code (the key's wait): the page stops for it
+        // and goes on on the same line.
+        assert_eq!(texts, ["《\u{5}", "興\u{5}", "隆\u{5}", "》", "次"]);
+        let first = c.ops.iter().position(|op| matches!(op, Op::Text { .. })).unwrap();
+        assert!(matches!(c.ops[first + 2], Op::Wait { ms: 50 }), "{:?}", &c.ops[first..first + 4]);
     }
 
     #[test]
