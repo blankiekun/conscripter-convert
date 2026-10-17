@@ -78,7 +78,7 @@ impl Compiler<'_, '_> {
                         y = (sq[1].0 * c[1] + sq[1].1).round() as i64 - o.h / 2;
                         zoom = ((zoom.0 as f64 * sq[0].0).round().max(1.0) as i64, (zoom.1 as f64 * sq[1].0).round().max(1.0) as i64);
                     }
-                    let shown = Shown { layer: 0, image: image.clone(), x, y, w: o.w, h: o.h, opacity, cells: None, source: String::new(), zoom: (1000, 1000), angle: o.angle(), clip: None, engine: Engine::default(), flash: 0, blend: o.blend, tint: None, over: false };
+                    let shown = Shown { layer: 0, image: image.clone(), x, y, w: o.w, h: o.h, opacity, cells: None, source: String::new(), zoom: (1000, 1000), angle: o.angle(), clip: None, engine: Engine::default(), flash: 0, blend: o.blend, tint: None, over: false, whole: None };
                     Some((n.clone(), shown, (o.priority, o.seq), zoom, (o.w, o.h), o.mirror()))
                 }
                 _ => None,
@@ -116,7 +116,7 @@ impl Compiler<'_, '_> {
             // One cell: a movie file loops with no time a cell (`:c/1,0,0;`).
             let looped = at.is_none() && m.looped;
             let frame_ms = if at.is_none() { 0 } else { 1000 / MOVIE_FPS };
-            let shown = Shown { layer: 0, image, x, y, w: cw as i64, h: ch as i64, opacity: o.opacity, cells: Some((1, looped, zoom, frame_ms)), source: String::new(), zoom: (1000, 1000), angle: 0, clip: None, engine: Engine::default(), flash: 0, blend: o.blend, tint: None, over: false };
+            let shown = Shown { layer: 0, image, x, y, w: cw as i64, h: ch as i64, opacity: o.opacity, cells: Some((1, looped, zoom, frame_ms)), source: String::new(), zoom: (1000, 1000), angle: 0, clip: None, engine: Engine::default(), flash: 0, blend: o.blend, tint: None, over: false, whole: None };
             // (Turned over as a picture is: the frame, or the movie file.)
             want.push((n, shown, (o.priority, o.seq), (1000, 1000), (o.w, o.h), o.mirror()));
         }
@@ -131,7 +131,7 @@ impl Compiler<'_, '_> {
                 let zoom = (s.zoom.0 * tilt(o.turn.1, o.zoom.0) / 1000, s.zoom.1 * tilt(o.turn.0, o.zoom.1) / 1000);
                 let cells = Some((s.cells, s.looped, zoom, s.frame_ms));
                 let (px, py) = self.parent_offset(n);
-                let shown = Shown { layer: 0, image: s.image.clone(), x: o.x + px, y: o.y + py, w: s.w, h: s.h, opacity: o.opacity, cells, source: String::new(), zoom: (1000, 1000), angle: o.angle(), clip: None, engine: Engine::default(), flash: 0, blend: o.blend, tint: None, over: false };
+                let shown = Shown { layer: 0, image: s.image.clone(), x: o.x + px, y: o.y + py, w: s.w, h: s.h, opacity: o.opacity, cells, source: String::new(), zoom: (1000, 1000), angle: o.angle(), clip: None, engine: Engine::default(), flash: 0, blend: o.blend, tint: None, over: false, whole: None };
                 want.push((n.clone(), shown, (o.priority, o.seq), (1000, 1000), (s.w, s.h), (false, false)));
             }
         }
@@ -140,7 +140,7 @@ impl Compiler<'_, '_> {
                 && o.opacity > 0
                 && !o.hideable
             {
-                let shown = Shown { layer: 0, image: f.image.clone(), x: o.x, y: o.y, w: o.w, h: o.h, opacity: 1000, cells: None, source: String::new(), zoom: (1000, 1000), angle: 0, clip: None, engine: Engine::default(), flash: o.seq, blend: BLEND_NORMAL, tint: None, over: false };
+                let shown = Shown { layer: 0, image: f.image.clone(), x: o.x, y: o.y, w: o.w, h: o.h, opacity: 1000, cells: None, source: String::new(), zoom: (1000, 1000), angle: 0, clip: None, engine: Engine::default(), flash: o.seq, blend: BLEND_NORMAL, tint: None, over: false, whole: None };
                 want.push((n.clone(), shown, (o.priority, o.seq), (1000, 1000), (o.w, o.h), (false, false)));
             }
         }
@@ -158,6 +158,10 @@ impl Compiler<'_, '_> {
                 if zoom != (1000, 1000)
                     && let Some((image, x, y, sw, sh)) = self.assets.scaled(&shown.image, zoom.0, zoom.1, (shown.x, shown.y, w, h))
                 {
+                    let (ww, wh) = (w * zoom.0 / 1000, h * zoom.1 / 1000);
+                    if (sw as i64) < ww - 2 || (sh as i64) < wh - 2 {
+                        shown.whole = Some((shown.x + (w - ww) / 2, shown.y + (h - wh) / 2, ww, wh));
+                    }
                     (shown.x, shown.y) = (x, y);
                     (shown.w, shown.h) = (sw as i64, sh as i64);
                     shown.image = image;
@@ -319,10 +323,11 @@ impl Compiler<'_, '_> {
                 continue;
             }
             // (A fade too: its keys' alpha is for the old sprite, left as a cross-fade.)
-            if old.layer != layer
+            // (A cut picture zooming out: the uncut end placed instead.)
+            if (old.layer != layer || old.whole.is_some_and(|_| now.whole.is_none()))
                 && old.opacity == now.opacity
                 && !self.lead_ins.contains_key(name)
-                && let Some(Op::SpriteMotion2 { keys, end, .. }) = motion(&Shown { layer, ..old.clone() }, &now, t)
+                && let Some(Op::SpriteMotion2 { keys, end, .. }) = motion(&Shown { layer, whole: None, ..old.clone() }, &now, t).or_else(|| old.whole.and_then(|(x, y, w, h)| motion(&Shown { layer, x, y, w, h, whole: None, ..old.clone() }, &now, t)))
             {
                 let mut ops = Vec::new();
                 if let Some(t) = self.objects.get(name).and_then(|o| o.trail) {

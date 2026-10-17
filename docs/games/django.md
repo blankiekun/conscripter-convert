@@ -376,9 +376,8 @@ with the original (it wants all eleven endings' flags under wine).
 1. The trace checker's remaining findings: "sounds on two channels at
    once" are the script's own (the same shot or horse on two sound
    objects, started 500 ms apart) and stay.
-2. The 33 moves and zooms still drawn as cross-fades (dry run notes,
-   2026-10-16): about 12 whose picture is cut to the screen at a zoom
-   (`Assets::scaled`, mostly 窓/カメラ backgrounds in dja001), 9 movies,
+2. The 23 moves and zooms still drawn as cross-fades (dry run notes,
+   2026-10-16): 2 zooms between two pictures both cut to the screen, 9 movies,
    9 turned over or given a new picture as they move (`spgrab` could
    fade the old one out), 3 fades that change layer.
 3. Extras: the doors' animation and the menu's own music (left out).
@@ -429,6 +428,18 @@ with the original (it wants all eleven endings' flags under wine).
    NSS code; noted, drawn as nothing.
 
 ## History
+
+- **A zoom out of a picture cut to the screen (2026-10-16, shared NSS
+  code).** A picture zoomed past 4096 px is drawn as only its part on
+  the screen (`Assets::scaled`), so a zoom out of it (dja001's camera
+  backgrounds diving in and out) was a cross-fade: the engine zooming
+  the cut part down would leave the rest empty. `Shown::whole` keeps the
+  whole picture's place, the motion goes by it, and a zoom out of a cut
+  picture places the uncut end and runs the motion from the cut start
+  (as a move onto another layer, #175). A zoom into a cut picture keeps
+  the uncut start, zoomed by the engine. Dry run: 33 → 23 notes. Checked
+  with `--real-time --shot-at` in dja001's carriage (`*conv_title_start:1013`):
+  mid-zoom, the wall behind zooms out with the four passengers.
 
 - **A move that fades out to 0 (2026-10-16, shared NSS code).** A
   picture moving or zooming while a `Fade` over time takes it to 0 was

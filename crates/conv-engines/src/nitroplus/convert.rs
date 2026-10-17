@@ -1242,10 +1242,12 @@ fn motion(old: &Shown, now: &Shown, ms: u32) -> Option<Op> {
     let (zx, zy) = (now.zoom.0 * 1000 / old.zoom.0.max(1), now.zoom.1 * 1000 / old.zoom.1.max(1));
     // (A picture cut to the screen, see `Assets::scaled`, isn't the whole.)
     let sized = |a: i64, b: i64, z: i64| (b * 1000 - a * z).abs() <= a * 10 + 1000;
-    if (zx - zy).abs() > 5 || !sized(old.w, now.w, zx) || !sized(old.h, now.h, zy) {
+    let (o, n) = (old.whole.unwrap_or((old.x, old.y, old.w, old.h)), now.whole.unwrap_or((now.x, now.y, now.w, now.h)));
+    // (The engine zooms the old sprite: a cut one would show only its part.)
+    if (zx - zy).abs() > 5 || !sized(o.2, n.2, zx) || !sized(o.3, n.3, zy) || old.whole.is_some() {
         return None;
     }
-    let centre = |s: &Shown| (s.x + s.w / 2, s.y + s.h / 2);
+    let centre = |s: &Shown| s.whole.map_or((s.x + s.w / 2, s.y + s.h / 2), |(x, y, w, h)| (x + w / 2, y + h / 2));
     let ((x0, y0), (x1, y1)) = (centre(old), centre(now));
     let zoom = ((zx + 5) / 10).clamp(1, 10000) as u32;
     let base = fade_base(old, now);
@@ -1302,6 +1304,9 @@ struct Shown {
     tint: Option<Vec<SpriteFilter>>,
     /// Drawn over the text window ([`Compiler::over_text`]).
     over: bool,
+    /// Cut to the screen at a big zoom (`Assets::scaled`): the place and
+    /// size of the whole picture (x, y, w, h), which a motion goes by.
+    whole: Option<(i64, i64, i64, i64)>,
 }
 
 /// What the engine's motions did to a [`Shown`] picture.
@@ -3711,7 +3716,12 @@ mod tests {
         }
         fn scaled(&mut self, image: &str, zx: i64, zy: i64, at: (i64, i64, i64, i64)) -> Option<(String, i64, i64, u32, u32)> {
             let (w, h) = (1024 * zx / 1000, 576 * zy / 1000);
-            Some((format!("{image}@{zx}x{zy}"), at.0 + (at.2 - w) / 2, at.1 + (at.3 - h) / 2, w as u32, h as u32))
+            let (x, y) = (at.0 + (at.2 - w) / 2, at.1 + (at.3 - h) / 2);
+            // Cut to the screen past 4096 px, as Assets::scaled.
+            if w.max(h) > 4096 {
+                return Some((format!("{image}@{zx}x{zy}_screen"), x.max(0), y.max(0), (x + w).min(1024).saturating_sub(x.max(0)) as u32, (y + h).min(576).saturating_sub(y.max(0)) as u32));
+            }
+            Some((format!("{image}@{zx}x{zy}"), x, y, w as u32, h as u32))
         }
         fn mirrored(&mut self, image: &str, x: bool, y: bool) -> Option<String> {
             Some(format!("{image}~{}{}", if x { "x" } else { "" }, if y { "y" } else { "" }))
@@ -4300,6 +4310,27 @@ scene a.nss
         assert_eq!((keys[0].opacity, keys[1].opacity, keys[1].x), (256, 0, 100), "{keys:?}");
         // Taken away at the next change.
         assert!(c.ops[at..].iter().any(|op| matches!(op, Op::Sprites { changes, .. } if changes.iter().any(|ch| ch.layer == *layer && ch.sprite.is_none()))), "{:?}", c.ops);
+    }
+
+    #[test]
+    fn a_zoom_out_of_a_picture_cut_to_the_screen_places_the_whole_end() {
+        // dja001's dives: zoomed to 5x (cut to the screen), then out.
+        let story = r#"
+scene a.nss
+{
+	CreateTexture("bg", 100, 0, 0, "cg/bg/a.jpg");
+	Zoom("bg", 0, 5000, 5000, null, true);
+	Wait(100);
+	Zoom("bg", 500, 1000, 1000, null, false);
+	Wait(600);
+}
+"#;
+        let c = compile(story, LIBRARY);
+        let at = c.ops.iter().position(|op| matches!(op, Op::SpriteMotion2 { .. })).unwrap_or_else(|| panic!("{:?}", c.ops));
+        let Op::SpriteMotion2 { keys, .. } = &c.ops[at] else { unreachable!() };
+        assert_eq!((keys[0].zoom, keys[1].zoom, keys[1].x, keys[1].y), (500, 100, 0, 0), "{keys:?}");
+        assert!(matches!(&c.ops[at - 1], Op::Sprites { changes, .. } if changes.iter().any(|ch| ch.sprite.as_ref().is_some_and(|s| s.image == "cg/bg/a.jpg"))), "{:?}", c.ops);
+        assert!(!c.notes.keys().any(|n| n.contains("cross-fade")), "{:?}", c.notes);
     }
 
     #[test]
