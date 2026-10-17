@@ -395,9 +395,6 @@ rest. Open guesses, each settled by a frame of the original:
 - The log's knob travel (its top from y 90 to 460; `CreateScrollbar`'s
   646, 490 to 646, 90 may be the knob's centre).
 - The click-wait bullet's frame time (50 ms; not in the files).
-- The text speed's unit (50 ms a character at level 10).
-- The game speed table, 装甲悪鬼村正's (Django's `Wait` divides inline).
-- A frame (`Draw`) as 17 ms in `GunFire` and the strobe.
 
 One value where the original has two: the save screen opens over
 200 ms and closes over 300 (ours 300 both); the settings' pairs fade

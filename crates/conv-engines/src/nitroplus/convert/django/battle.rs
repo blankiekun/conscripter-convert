@@ -19,10 +19,10 @@ use conv_core::ir::{HoldPrompt, HoldSound, Op};
 use super::super::{Compiler, FlashObject, Kind, Value};
 
 /// `Fire`'s colour object, its priority, and the time a `Draw` takes (a
-/// frame at 60 a second).
+/// frame).
 const FLASH: &str = "仮色";
 const FLASH_PRIORITY: i64 = 150; // src: function_count.nss Fire
-const FRAME_MS: u32 = 17; // guess: a frame at 60 a second
+const FRAME_MS: u32 = 16; // src: Django.exe init_speed_tables 00469a20 (ms a frame 0x531a5c[4] = 16)
 
 /// `PushInit`'s pictures, shown in turn by `PushShow`.
 const PROMPT: [&str; 10] = [
