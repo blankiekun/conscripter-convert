@@ -233,7 +233,7 @@ impl ArchiveAssets<'_> {
 }
 
 /// Frames of a particle animation ([`ArchiveAssets::particles`]): 16
-/// screens side by side stay under the 16,384-pixel texture limit.
+/// screens side by side stay under the 16,384-pixel texture limit (ours).
 pub const PARTICLE_FRAMES: u32 = 16;
 
 impl Assets for ArchiveAssets<'_> {
@@ -332,7 +332,8 @@ impl Assets for ArchiveAssets<'_> {
     }
 
     // The eboot's eye catch type 1 (0x81048c68): the place (SystemData
-    // 74 + picture, 352×517) cut to 312×516 and centred at (173, 275);
+    // 74 + picture, 352×517) cut to 312×517 and centred at (173, 275)
+    // (top 16.5, drawn from row 17);
     // the card (67 + card: ec1_bg … ec6_bg, the protagonists' chapters)
     // over the screen; the date, cell date % 6, date / 6 (169×18) of the
     // card's calendar below y 545, centred at (754, 484). The place's
@@ -351,7 +352,8 @@ impl Assets for ArchiveAssets<'_> {
         let card_img = decode(&self.system, 67 + card)?;
         let place = decode(&self.system, 74 + picture)?;
         let mut img = RgbaImage::from_pixel(SCREEN_W as u32, SCREEN_H as u32, Rgba([0, 0, 0, 255]));
-        let place = imageops::crop_imm(&place, 40, 0, 312, 516).to_image();
+        // src: exe 0x81048c68 (this block's rectangles)
+        let place = imageops::crop_imm(&place, 40, 0, 312, 517).to_image();
         imageops::overlay(&mut img, &place, 173 - 156, 275 - 258);
         imageops::overlay(&mut img, &imageops::crop_imm(&card_img, 0, 0, SCREEN_W as u32, SCREEN_H as u32).to_image(), 0, 0);
         if (0..34).contains(&date) {
@@ -399,6 +401,8 @@ impl Assets for ArchiveAssets<'_> {
 
     fn particles(&mut self, kind: Particles, count: u32) -> Option<String> {
         let (file, cell, falls) = match kind {
+            // src: ETC.cpk sheets (32×32 cells, measured); the motion below is
+            // ours (guess: the eboot's particle code is not read)
             Particles::LightBalls => ("lightball.png", (32, 32), false),
             Particles::Snow => ("snow.png", (32, 32), true),
             Particles::Confetti => ("paper.png", (32, 32), true),
@@ -498,6 +502,7 @@ impl Assets for ArchiveAssets<'_> {
     // The header is drawn unlit (the Vita lights it while the cursor is on
     // an after-story).
     fn story_menu(&mut self, locked: bool) -> Option<(Vec<Placed>, Vec<Placed>)> {
+        // src: exe 0x81083086 (story_menu_init)
         const X: i64 = 788;
         let atlas = self.system_image("title_bg.png")?;
         let title = self.put_system_png("title", &imageops::crop_imm(&atlas, 0, 0, 960, 544).to_image());
@@ -556,6 +561,7 @@ impl Assets for ArchiveAssets<'_> {
             }
             Some(Placed { image: path, x: (cx - w / 2) as i32, y: (cy - h / 2) as i32, w: (w * cells.len() as i64) as i32, h: h as i32 })
         };
+        // src: exe 0x8103e248, 0x8103e7d6 (every cell and centre below)
         let mut pictures = vec![cut(self, "bg".into(), &[(0, 0)], (960, 544), (480, 272))?, cut(self, "question".into(), &[(606, 746)], (302, 39), (480, 184))?];
         if let Some(&d) = bg.get(2).filter(|d| (0..36).contains(*d)) {
             pictures.push(cut(self, format!("date{d}"), &[(d % 6 * 138, 545 + d / 6 * 21)], (138, 20), (129, 48))?);
@@ -569,6 +575,7 @@ impl Assets for ArchiveAssets<'_> {
                 pictures.push(cut(self, format!("face{id}"), &[(id % 25 * 37, 671 + id / 25 * 37)], (37, 37), (858 - 38 * k as i64, 60))?);
             }
         }
+        // src: exe 0x8103ebf2 (origin, 27 apart); guess: the font size 21
         let lines: Vec<RgbaImage> = text.lines().map(|l| labels.draw(l, 21.0, [255, 255, 255], [0, 0, 0], 255)).collect();
         if let Some(h) = lines.iter().map(|l| l.height()).max() {
             // draw() leaves 4 pixels around the letters.

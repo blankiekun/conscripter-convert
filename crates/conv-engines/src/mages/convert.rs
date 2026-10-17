@@ -28,17 +28,24 @@ use conv_core::ir::{
 
 use super::tasks::{Block, Scene, Val, parse};
 
+// src: the Vita's screen (SystemData's 960×544 pictures)
 pub const SCREEN_W: i32 = 960;
 pub const SCREEN_H: i32 = 544;
 /// The eye catch's shutters: frames and how long they take to close (the
 /// eboot's time is not known; its chapter cards fade in over 30 frames).
+// guess: SHUTTER_MS. scene_load case 0x6f steps EyeCatch's progress 1/9 an
+// update without `:Fade` (2/`:Fade` with one); how far it goes before
+// EyeCatchEnd is not read. SHUTTER_FRAMES: ours.
 const SHUTTER_FRAMES: u32 = 10;
 const SHUTTER_MS: u32 = 500;
 /// The skip dialog fades in and out over 15 frames (the eboot adds 1/15
 /// a frame to its opacity).
+// src: exe 0x8103e7d6
 const SKIP_DIALOG_FADE_MS: u32 = 250;
 /// The story menu fades in over the title, and out once an item is chosen.
+// guess: the eboot's story menu fade is not read
 const STORY_MENU_FADE_MS: u32 = 300;
+// ours: GLOBAL_BORDER to PRIORITY_STEP, COVER_LAYER
 /// Variables from here up are global (kept across playthroughs).
 pub const GLOBAL_BORDER: u32 = 200;
 /// First local of the per-save flags (`[Flag]` in adv.txt): %60-%92,
@@ -350,6 +357,9 @@ fn tag_label(scene: &str, tag: &str) -> String {
 pub fn text_window(assets: &mut dyn Assets) -> TextWindow {
     let (image, w, h) = assets.window().unwrap_or_default();
     let (w, h) = (w as i32, h as i32);
+    // ours: centred, above the button bar. src: meswin.png (measured):
+    // text_x, text_y; the scripts: rows, columns (the longest message).
+    // guess: font_size, line_gap. The eboot's message layout is not read.
     let x = (SCREEN_W - w) / 2;
     let y = SCREEN_H - h - 16;
     TextWindow {
@@ -657,6 +667,7 @@ impl Lowering<'_> {
         let reveal = tasks[from..].iter().find(|t| matches!(t.task_type(), Some("InOut" | "InOut_Act")));
         let (fade_ms, mask, style) = match reveal {
             Some(t) => {
+                // src: exe 0x8112a420 (17/255 an update: 30 frames)
                 let time = ms(t.int("Time").unwrap_or(30));
                 match t.task_type() {
                     // `:Type N` is RULE<N-1>, 0 a plain fade (table 0x81162e38).
@@ -686,6 +697,7 @@ impl Lowering<'_> {
             let cover = SpriteChange { layer: COVER_LAYER, sprite: Some(SpritePlacement { image, x: 0, y: 0 }), keep_filters: false };
             self.out.ops.push(Op::Sprites { changes: vec![cover], fade_ms: 0 });
         }
+        // guess: the screen's centre without `:Position`
         let (x, y) = (t.int_at("Position", 0).unwrap_or(640), t.int_at("Position", 1).unwrap_or(360));
         self.show(key, tex, img, x, y, priority, 0, &[], Look::of(t));
         if let Some(flag) = t.int("CGFlag").filter(|f| *f >= 0) {
@@ -723,7 +735,9 @@ impl Lowering<'_> {
     fn task(&mut self, scene: &str, tasks: &[Block], i: usize) {
         let t = &tasks[i];
         let Some(ty) = t.task_type() else { return };
-        let fade = |t: &Block| if t.int("FadeIn").unwrap_or(1) == 0 { 0 } else { ms(t.int("Time").unwrap_or(15)) };
+        // src: exe 0x81129a80, 0x81129ba4 (Sprite's and SpriteBG's `:Time`: 15
+        // updates of 2 frames by default; scene_load halves the scripts')
+        let fade = |t: &Block| if t.int("FadeIn").unwrap_or(1) == 0 { 0 } else { ms(t.int("Time").unwrap_or(30)) };
         // `:FadeWait 0` (task_run 0x81021070 goes to the next task at
         // once); SpriteBG and SpriteBS, which replace the whole picture,
         // still wait.
@@ -790,7 +804,9 @@ impl Lowering<'_> {
                     self.stage(tasks, i);
                 }
                 let key = format!("t{tex}");
-                let prio = t.int("Priority").unwrap_or(if ty == "Sprite" { 5 } else { 10 });
+                // src: exe 0x81129a80, 0x81129ba4 (5 for all three; SpriteBS is
+                // scene_load's case 9, Sprite's)
+                let prio = t.int("Priority").unwrap_or(5);
                 if std::mem::take(&mut self.inherited) {
                     self.replace_inherited(&key, tex, img, t, prio, fade(t));
                     return;
@@ -807,6 +823,7 @@ impl Lowering<'_> {
                 } else {
                     self.shown.keys().filter(|k| k.starts_with('t') || !keep_characters).cloned().collect()
                 };
+                // guess: the screen's centre without `:Position`
                 let (x, y) = (t.int_at("Position", 0).unwrap_or(640), t.int_at("Position", 1).unwrap_or(360));
                 self.show(&key, tex, img, x, y, prio, fade(t), &replaces, Look::of(t));
                 // A gallery CG: seen from now on (CG numbers are 1-based).
@@ -824,7 +841,8 @@ impl Lowering<'_> {
                 } else if t.int("FadeOut").unwrap_or(0) == 0 {
                     0
                 } else {
-                    ms(t.int("Time").unwrap_or(15))
+                    // src: exe 0x81129ca4 (6 % an update: 33 frames)
+                    ms(t.int("Time").unwrap_or(33))
                 };
                 self.hide(&format!("t{tex}"), f);
             }
@@ -857,6 +875,7 @@ impl Lowering<'_> {
                     };
                     let key = chara_key(c, number.first().copied().unwrap_or(-1));
                     self.settle(&key);
+                    // guess: the centre without `:Position`
                     let x = sx(c.int_at("Position", 0).unwrap_or(640));
                     // y 0 is the usual height: a picture taller than the
                     // screen (the standing characters, cut at the waist)
@@ -1127,6 +1146,7 @@ impl Lowering<'_> {
             "Flash" => {
                 let c: Vec<i64> = t.get("Color").unwrap_or(&[]).iter().filter_map(Val::int).collect();
                 let alpha = c.get(3).copied().unwrap_or(255).clamp(0, 255) as u32;
+                // guess: the defaults 3 (scene_load case 0x71's are not read)
                 let time = ms(t.int("InTime").unwrap_or(3) + t.int("OutTime").unwrap_or(3));
                 self.out.ops.push(Op::Flash { colour: colour(t), opacity: alpha * 256 / 255, ms: time.max(16) });
             }
@@ -1156,6 +1176,7 @@ impl Lowering<'_> {
                 }
             }
             "EffectQuake" => {
+                // guess: `:Param` 30 by default (every script sets it)
                 let ax = sx(t.int_at("Param", 0).unwrap_or(30));
                 let ay = sy(t.int_at("Param", 1).unwrap_or(30));
                 // scene_load case 99 (0x8102840a; defaults from 0x8112a26c:
@@ -1181,6 +1202,7 @@ impl Lowering<'_> {
                 } else {
                     ((ax, ay), ms(time))
                 };
+                // ours: the shake's interval and speed
                 let shake = ScreenEffect::Shake { time_ms: ms(time).max(1), interval_ms: 16, path: false, speed: (2200, 2900), range: [(ax, ay), end], end_ms };
                 self.out.ops.push(Op::ScreenEffect { slot: 1, effect: Some(shake) });
                 if !looped && t.int("Wait").unwrap_or(1) != 0 {
@@ -1263,6 +1285,7 @@ impl Lowering<'_> {
                                 self.out.ops.push(Op::Animation(None));
                                 self.shutters = Some(n as u32);
                             }
+                            // src: exe 0x81048ef2 (the card fades in over 30 frames)
                             None => self.out.ops.push(Op::Sprites { changes: vec![change], fade_ms: 500 }),
                         }
                         self.eye_catch = true;
@@ -1276,6 +1299,7 @@ impl Lowering<'_> {
                 if std::mem::take(&mut self.eye_catch) {
                     let sprite = self.cover.map(|rgb| SpritePlacement { image: self.assets.colour(rgb), x: 0, y: 0 });
                     let change = SpriteChange { layer: COVER_LAYER, sprite, keep_filters: false };
+                    // src: exe 0x8102840a case 0x70 (1/15 an update, 2 frames each)
                     let fade_ms = ms(t.int("Fade").unwrap_or(30));
                     match self.shutters.take().and_then(|n| self.assets.shutters(n, false, SHUTTER_FRAMES)) {
                         // The opening shutters, first the whole picture,
@@ -1303,6 +1327,7 @@ impl Lowering<'_> {
                     // ノイズ: static, :Param density 0-255.
                     53 => {
                         let noise = start.then(|| {
+                            // guess: the default 128; ours: 4 frames of 50 ms
                             let density = t.int_at("Param", 0).unwrap_or(128).clamp(0, 255) as u32;
                             Noise { image: self.assets.noise(4), frames: 4, frame_ms: 50, opacity: density * 256 / 255 }
                         });
@@ -1311,6 +1336,7 @@ impl Lowering<'_> {
                     // ブラー: blur, :Param radius (script pixels).
                     42 => {
                         let filter = start.then(|| {
+                            // guess: the default radius 4
                             let r = sx(t.int_at("Param", 0).unwrap_or(4)).max(1);
                             let c = Operand::Const;
                             SpriteFilter { kind: c(FILTER_BLUR), blend: c(FILTER_BLEND_COPY), strength: c(256), params: [c(r), c(r), c(0)] }
@@ -1325,6 +1351,7 @@ impl Lowering<'_> {
                     // and out over EffectEnd's :Fade.
                     57 => {
                         if start {
+                            // guess: the defaults (centre, 1, 1, 0, 1); ours: interval_ms
                             let p = |k: usize, d: f64| t.at("Param", k).and_then(Val::float).unwrap_or(d);
                             let power = p(5, 1.0);
                             let effect = ScreenEffect::Zoom {
@@ -1353,6 +1380,7 @@ impl Lowering<'_> {
                     // negative :Param 0 waves the columns (unused).
                     40 => {
                         let effect = start.then(|| {
+                            // guess: the defaults 400, 3000; ours: interval_ms
                             let p0 = t.int_at("Param", 0).unwrap_or(400).max(1) as u32;
                             let p1 = t.int_at("Param", 1).unwrap_or(3000).max(1);
                             let amp = (SCREEN_W as f64 * 0.015 * std::f64::consts::SQRT_2).round() as i32;
@@ -1377,6 +1405,7 @@ impl Lowering<'_> {
                             52 => Particles::LightBalls,
                             _ => Particles::Confetti,
                         };
+                        // guess: the default count 60, frames of 125 ms
                         let count = t.int_at("Param", 0).unwrap_or(60).max(1) as u32;
                         let animation = if start {
                             self.assets.particles(kind, count).map(|image| Animation {
@@ -1626,7 +1655,7 @@ impl Lowering<'_> {
 /// 33 ms or more, alternating sides, dying down when `fades`, ending at the
 /// picture's place.
 fn quake_keys(ax: i32, ay: i32, time: u32, fades: bool) -> Vec<(u32, i32, i32)> {
-    // spmotion takes up to 32 keys.
+    // ours: spmotion takes up to 32 keys; 33 ms or more between them.
     let step = (time / 31).max(33);
     let n = (time / step).max(1);
     let signs = [(1, 1), (-1, -1), (1, -1), (-1, 1)];

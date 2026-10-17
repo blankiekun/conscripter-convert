@@ -18,6 +18,7 @@ use conv_core::ir::{PagedSettings, Placed, RowControl, Setting, SettingValue, Se
 use super::assets::ArchiveAssets;
 use super::menus::{Labels, difference, patch, place, side_by_side};
 
+// src: bg_config_01.png, bg_config_02.png (measured: ROWS to PAGE_TITLE)
 /// The rows' middles on page 1 (page 2's are the first six).
 const ROWS: [u32; 8] = [147, 185, 222, 258, 297, 334, 370, 409];
 /// A row's label starts here on page 1 (page 2's are further left).
@@ -39,7 +40,7 @@ const PREV: (u32, u32, u32, u32) = (20, 262, 42, 40);
 const NEXT: (u32, u32, u32, u32) = (898, 262, 42, 40);
 /// The page's title (基本設定).
 const PAGE_TITLE: (u32, u32, u32, u32) = (84, 88, 130, 26);
-const GOLD: [u8; 3] = [255, 200, 90];
+const GOLD: [u8; 3] = [255, 200, 90]; // ours
 
 /// An option: where its plain word is on the page (top left) and its lit
 /// version in the atlas (x, y, w, h).
@@ -52,6 +53,9 @@ const fn opt(x: u32, y: u32, lx: u32, ly: u32, w: u32, h: u32) -> Opt {
     Opt { at: (x, y), lit: (lx, ly, w, h) }
 }
 
+// src: bg_config_01.png (measured: the words and their lit cells; the exe
+// 0x8107145c draws 90 or 180 wide cells from x 289 around them, whose glow
+// reaches 1-3 pixels past these)
 /// Page 1's options by row: シーンスキップ機能, 音声スキップ, スキップモード,
 /// 選択後のスキップ, (選んだ選択肢の色), (自動クイックセーブ), メッセージ速度.
 const PAGE1: [&[Opt]; 7] = [
@@ -68,6 +72,7 @@ const PAGE2: [&[Opt]; 2] = [
     &[opt(553, 283, 313, 547, 49, 26), opt(690, 283, 385, 547, 57, 26)],
     &[opt(539, 320, 291, 577, 75, 26), opt(678, 320, 368, 577, 77, 26)],
 ];
+// src: bg_config_01.png snowflake (measured)
 const KNOB1: (u32, u32, u32, u32) = (290, 764, 25, 22);
 
 fn crop(img: &RgbaImage, (x, y, w, h): (u32, u32, u32, u32)) -> RgbaImage {
@@ -236,6 +241,7 @@ fn letters_only(word: &RgbaImage, lit: &RgbaImage) -> RgbaImage {
 /// A label in the pages' style (white, a soft blue halo), its left edge
 /// at `x`, centred on row `y`.
 fn draw_label(page: &mut RgbaImage, labels: &Labels, text: &str, x: i32, y: u32) {
+    // src: bg_config_01.png labels (measured style)
     let img = labels.draw(text, 17.0, [255, 255, 255], [60, 70, 130], 255);
     imageops::overlay(page, &img, x as i64 - 4, y as i64 - img.height() as i64 / 2);
 }
@@ -296,7 +302,10 @@ pub fn pictures(assets: &mut ArchiveAssets, labels: &Labels, switches: &[(String
         // 持続: skip goes on after a choice.
         choice(assets, &atlas1, &clean1, o[3], &[0, 1], sw(Switch::StopSkipAtChoice), "cfg_after", 0),
         slider(assets, &page1, auto_line, &knob, "cfg_auto", auto_line, SettingValue::Level(Setting::AutoSpeed), false),
-        // 遅い 普通 早い 一括: text speed levels.
+        // 遅い 普通 早い 一括: text speed levels. guess: the eboot (0x81126a80,
+        // 0x8107145c) shows one character every 15, 5 and 1 updates and the
+        // whole page at once (speeds 59, 55, 10, 0), slower than our levels
+        // can go (60 ms a character at most).
         choice(assets, &atlas1, &clean1, o[6], &[4, 7, 9, 10], SettingValue::Level(Setting::TextSpeed), "cfg_speed", 0),
         // ウインドウの不透明度: the transparency, shown the other way round.
         slider(assets, &orig1, window_line, &knob, "cfg_window", window_line, SettingValue::Level(Setting::WindowTransparency), true),
@@ -340,6 +349,7 @@ pub fn pictures(assets: &mut ArchiveAssets, labels: &Labels, switches: &[(String
         pages,
         prev: arrow(assets, PREV, "cfg_prev"),
         next: arrow(assets, NEXT, "cfg_next"),
+        // ours: the buttons (the Vita uses its own keys)
         defaults: text_button(assets, labels, "cfg_defaults", "デフォルト設定", 600, 505),
         close: text_button(assets, labels, "cfg_close", "戻る", 860, 505),
         title: text_button(assets, labels, "cfg_title", "タイトルに戻る", 90, 505),
