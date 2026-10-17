@@ -277,7 +277,7 @@ impl Compiler<'_, '_> {
                         }
                         // src: Muramasa.exe's fade step (0044f020) eases by the tempo
                         // (apply_tempo); Django.exe's (cb_00438fb0) by FUN_00434ea0's curve
-                        if a.len() > 4 && let Some(e) = tempo(&arg(3)).filter(|_| self.game.eased_fades) {
+                        if a.len() > 4 && let Some(e) = self.game.fade_tempo.unwrap_or(|_| None)(&arg(3)) {
                             self.fade_tempo = Some(e);
                         }
                     }
@@ -543,7 +543,7 @@ impl Compiler<'_, '_> {
                 }
                 // src: Muramasa.exe's transition step (FUN_0044fe00) eases by the tempo
                 // (apply_tempo); Django.exe's (FUN_00439d20) by FUN_00434ea0's curve
-                if arg(1).int() > 0 && let Some(e) = tempo(&arg(5)).filter(|_| self.game.eased_fades) {
+                if arg(1).int() > 0 && let Some(e) = self.game.fade_tempo.unwrap_or(|_| None)(&arg(5)) {
                     self.fade_tempo = Some(e);
                 }
                 match self.assets.image(&self.deref(&arg(6))) {

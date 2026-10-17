@@ -204,9 +204,10 @@ pub struct Game {
     /// `Shake` jolts to and fro every 1000 ÷ (`n` × 0.06) ms, along its
     /// tempo (続・殺戮のジャンゴ's and 装甲悪鬼村正's exes; [`ScreenEffect::Jolt`]).
     shake_jolts: bool,
-    /// `Fade` and `DrawTransition` ease by their tempo (装甲悪鬼村正's and
-    /// 続・殺戮のジャンゴ's exes; [`Op::TransitionEase`]).
-    eased_fades: bool,
+    /// How `Fade` and `DrawTransition` ease by their tempo
+    /// ([`Op::TransitionEase`]): 装甲悪鬼村正's and 続・殺戮のジャンゴ's exes
+    /// as [`tempo`]; `None`, straight.
+    fade_tempo: Option<Tempo>,
 }
 
 impl Game {
@@ -234,7 +235,7 @@ impl Game {
         horizontal_box: None,
         box_text: &[],
         shake_jolts: false,
-        eased_fades: false,
+        fade_tempo: None,
     };
 
     /// Fills `script`'s system screens.
@@ -1291,6 +1292,9 @@ struct SoundObject {
     /// as the exe's fade thread (`0x459980`) stops it at the fade's end.
     stops_at: Option<u64>,
 }
+
+/// A game's reading of a tempo as [`Op::MoveEase`]'s (ease, exponent).
+type Tempo = fn(&Value) -> Option<(u8, u32)>;
 
 /// An NSS tempo as [`Op::MoveEase`]'s (ease, exponent), the exe's
 /// curves (`apply_tempo`, `research/nitroplus/builtins.md`): `Axl1`-`3`
@@ -5244,7 +5248,7 @@ function Nothing()
         files.insert(BOOT.to_string(), nss::parse("#include \"nss/function.nss\"\n").unwrap());
         files.insert("function.nss".to_string(), nss::parse(LIBRARY).unwrap());
         files.insert("a.nss".to_string(), nss::parse(story).unwrap());
-        let eased = compile_scene(&files, "a.nss", "a.nss", &Game { eased_fades: true, ..Game::PLAIN }, &mut Fake).unwrap();
+        let eased = compile_scene(&files, "a.nss", "a.nss", &Game { fade_tempo: Some(tempo), ..Game::PLAIN }, &mut Fake).unwrap();
         assert!(eased.ops.iter().any(|op| matches!(op, Op::TransitionEase { ease: 1, exponent: 2 })), "{:?}", eased.ops);
         assert!(!c.notes.keys().any(|n| n.starts_with("Fade argument") || n.starts_with("CreateProcess argument")), "{:?}", c.notes);
     }

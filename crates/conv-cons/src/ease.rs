@@ -6,10 +6,11 @@ use std::fmt::Write;
 
 /// The `spcurve` id of curve `ease` (see
 /// [`Op::MoveEase`](conv_core::ir::Op::MoveEase)): 10-69 for 1-3 with
-/// `exponent` (past 20 drawn as 20), 70-73 for 4-7.
+/// `exponent` (past 20 drawn as 20), 70-73 for 4-7, 74-93 for 8.
 pub(crate) fn curve_id(ease: u8, exponent: u32) -> u32 {
     match ease {
         4..=7 => 66 + u32::from(ease),
+        8 => 74 + exponent.clamp(1, 20) - 1,
         _ => 10 + u32::from(ease.clamp(1, 3) - 1) * 20 + exponent.clamp(1, 20) - 1,
     }
 }
@@ -23,6 +24,8 @@ pub(crate) fn eased(ease: u8, exponent: u32, t: f64) -> f64 {
         5 => (pi * t / 2.0).sin(),
         6 => 0.5 - (pi * t).cos() / 2.0,
         7 => (1.0 - 2.0 * t).acos() / pi,
+        8 if t < 0.5 => (1.0 - (1.0 - 2.0 * t).powi(n)) / 2.0,
+        8 => (1.0 + (2.0 * t - 1.0).powi(n)) / 2.0,
         1 => t.powi(n),
         2 => 1.0 - (1.0 - t).powi(n),
         _ if t < 0.5 => (2.0 * t).powi(n) / 2.0,
@@ -72,5 +75,9 @@ mod tests {
         // the sine ones (NSS's AxlAuto, DxlAuto, AxlDxl, DxlAxl): half way
         let half = |e| curve_def(e, 1).split(',').nth(17).unwrap().parse::<i64>().unwrap();
         assert_eq!([4, 5, 6, 7].map(half), [300, 724, 512, 512]);
+        // muramasa_en.exe's DxlAxl1 (0x40cf50): out to the middle, then t²
+        assert_eq!(curve_id(8, 2), 75);
+        let q = |t: f64| eased(8, 2, t);
+        assert_eq!([0.0, 0.25, 0.5, 0.75, 1.0].map(q), [0.0, 0.375, 0.5, 0.625, 1.0]);
     }
 }

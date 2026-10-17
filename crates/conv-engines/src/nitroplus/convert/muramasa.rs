@@ -20,7 +20,7 @@ pub mod screens;
 mod subtitles;
 
 /// The game's hooks; the CLI uses them for a game with `Muramasa.exe`.
-pub const MURAMASA: Game = Game { call, scene, flags, files: &[magiccube::FILE], menus: screens::menus, subroutines: &[(screens::FAVOUR, "nss/sys_hmode.nss")], replays: extras::replays, string_vars: true, shake_jolts: true, loaded_textures: true, eased_fades: true, ..Game::PLAIN };
+pub const MURAMASA: Game = Game { call, scene, flags, files: &[magiccube::FILE], menus: screens::menus, subroutines: &[(screens::FAVOUR, "nss/sys_hmode.nss")], replays: extras::replays, string_vars: true, shake_jolts: true, loaded_textures: true, fade_tempo: Some(super::tempo), ..Game::PLAIN };
 
 /// Full Metal Daemon Muramasa (the English release's text in the Japanese
 /// scripts): its port writes the vertical text boxes horizontally, 280
@@ -29,7 +29,22 @@ pub const MURAMASA: Game = Game { call, scene, flags, files: &[magiccube::FILE],
 /// click icon at 500: 12 lines; every box in its own window picture
 /// ([`EN_BOXES`]), with the text where [`EN_TEXT`] puts it.
 // src: function_textbox.nut text0 (280 wide, font 20, rowSpace 1); text_drop 2: shot en/orig-page1
-pub const MURAMASA_EN: Game = Game { call: call_en, menus: screens::menus_en, horizontal_box: Some((280, 300, 25)), box_text: &EN_TEXT, choice_style: choice_style_en, text_drop: 2, shake_jolts: false, eased_fades: false, ..MURAMASA };
+pub const MURAMASA_EN: Game = Game { call: call_en, menus: screens::menus_en, horizontal_box: Some((280, 300, 25)), box_text: &EN_TEXT, choice_style: choice_style_en, text_drop: 2, shake_jolts: false, fade_tempo: Some(diesel_tempo), ..MURAMASA };
+
+/// The port's tempo of a `Fade` or `Transition` (its `DrawTransition`), as
+/// [`super::tempo`]: the port's scenes name the NSS's tempos as their
+/// `Axl1`-`3`, `Dxl1`-`3`, `Axl1d` (`AxlAuto`), `Dxl1d` (`DxlAuto`),
+/// `AxlDxl1` (`AxlDxl`), `DxlAxl1` (`DxlAxl`), `null` (`Linear`), and the
+/// exe's curves (its tempo table) give the same as Muramasa.exe's but the
+/// last two: t² to the middle then out, and out to the middle then t².
+// src: muramasa_en.exe's tempo table 0x5e40a0 (17: 0x40cec0, 18: 0x40cf50), docs/games/muramasa-en.md "Eased fades"
+fn diesel_tempo(v: &Value) -> Option<(u8, u32)> {
+    match v.string().as_str() {
+        "AxlDxl" => Some((3, 2)),
+        "DxlAxl" => Some((8, 2)),
+        _ => super::tempo(v),
+    }
+}
 
 /// The port's choices (`SetChoice` in `function_select.nut`, its
 /// `LANG_NAME == "en"` branch): 440×50 plates (`cg/sys/select/en/
