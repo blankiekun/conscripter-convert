@@ -94,7 +94,9 @@ impl Compiler<'_, '_> {
         // the engine's own choice; markup is noted.
         if self.file == "function_select.nss" || text.contains('<') {
             (0..7).for_each(|i| drop(arg(i)));
-            if text.contains('<') {
+            if self.file == "function_select.nss" {
+                self.note(super::builtin::CHOICE_SCREEN);
+            } else {
                 self.note("CreateText with markup");
             }
             return;

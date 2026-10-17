@@ -1314,6 +1314,7 @@ fn tempo(v: &Value) -> Option<(u8, u32)> {
 const LEFT_OUT: &[(&str, &str)] = &[
     ("skipped: no function ", "no function of this name: the exe skips the call too"),
     (builtin::CONQUEST, "whole-scene read marks for the skip: the engine keeps its own per page"),
+    (builtin::CHOICE_SCREEN, "the choice screen's own code: the engine's choice stands in"),
 ];
 
 /// Why a call whose notes are all [`LEFT_OUT`]'s is left out.
@@ -3638,6 +3639,11 @@ impl<'a, 'b> Compiler<'a, 'b> {
                                 s.len = end - s.start;
                             }
                         }
+                        // The English port's end of a voice's line
+                        // (function_textbox.nut `Print`: a `voice` tag without
+                        // parameters empties voice_name/class/file for the
+                        // text after it); the voice plays on: nothing to do.
+                        ("voice", true) => {}
                         (other, _) => self.note(format!("text tag <{other}>")),
                     }
                 }
@@ -4278,6 +4284,21 @@ scene a.nss
         assert_eq!((k("Waitkey").left_out, k("Conquest").left_out, k("Conquest").gaps), (1, 1, 0));
         // A null limit changes nothing; 100 ms does.
         assert_eq!((k("WaitAction").calls, k("WaitAction").gaps), (2, 1));
+    }
+
+    #[test]
+    fn the_choice_screen_s_own_calls_are_left_out() {
+        let mut files = BTreeMap::new();
+        files.insert(BOOT.to_string(), nss::parse("#include \"nss/function.nss\"\n#include \"nss/function_select.nss\"\n").unwrap());
+        files.insert("function.nss".to_string(), nss::parse(LIBRARY).unwrap());
+        let select = "function SetChoiceBase()\n{\n\tCreateChoice(\"c\");\n\tSetNextFocus(\"a\", \"b\", DOWN);\n\tCreateText(\"c/txt\", 1, 0, 0, auto, auto, \"x\");\n\tSave(9999);\n}\n";
+        files.insert("function_select.nss".to_string(), nss::parse(select).unwrap());
+        files.insert("a.nss".to_string(), nss::parse("scene a.nss\n{\n\tSetChoiceBase();\n\tSetNextFocus(\"a\", \"b\", UP);\n}\n").unwrap());
+        let c = compile_scene(&files, "a.nss", "a.nss", &Game::PLAIN, &mut Fake).unwrap();
+        let k = |name: &str| c.metrics.kinds[name].clone();
+        assert_eq!([k("CreateChoice").left_out, k("CreateText").left_out, k("Save").left_out], [1, 1, 1]);
+        // Outside function_select.nss it stays a gap.
+        assert_eq!((k("SetNextFocus").left_out, k("SetNextFocus").gaps), (1, 1));
     }
 
     #[test]

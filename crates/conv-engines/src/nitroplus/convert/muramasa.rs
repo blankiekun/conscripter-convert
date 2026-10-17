@@ -196,8 +196,9 @@ fn call_en(c: &mut Compiler<'_, '_>, name: &str, args: &[Value]) -> bool {
             c.font = font;
             true
         }
-        // The rest would draw the Japanese: left out.
-        ("CreateText", _) => {
+        // The rest would draw the Japanese: left out. The choices'
+        // labels (function_select.nss) are the engine's choice, in English.
+        ("CreateText", _) if c.file != "function_select.nss" => {
             c.note("CreateText left out: the Japanese caption (English build)");
             true
         }

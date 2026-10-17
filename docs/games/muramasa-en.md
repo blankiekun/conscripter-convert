@@ -27,6 +27,19 @@ settle:
 
 ### Queue (2026-10-16)
 
+- English-only gaps in `metrics.json` (this PR): the 444 `CreateText`
+  notes were all `function_select.nss`'s choice labels (the choice is
+  the engine's, in English), not story captions; they and the choice
+  screen's built-ins (`CreateChoice`, `SetNextFocus`, `Position`,
+  `LoadImage`, `CursorPosition`, `MoveCursor`, `Save(9999)`; seen in
+  `SetChoiceBase`/`ChoiceFocus`/`SelectSave`) now count as left out
+  (`CHOICE_SCREEN`), in both builds and Django's; `</voice>` (68) is
+  seen to change nothing visible. Gaps 31,735 → 27,552, `0.txt`
+  unchanged. Left: 4 "text window moved inside a page: kept" (the C
+  box moved mid-page in function.nss where the English page goes on),
+  the larger-type boxes (`SetTextEXC_Large` …, port-only, not in the
+  metrics).
+
 - Merged this round: text box (#20), settings (#21), line log (#23,
   engine #17), save/load (#26), title (#29), subtitles over the window
   (#35, engine #21), `Labels` moved out of mages (#38), story
@@ -316,7 +329,9 @@ settle:
 - **Decided (2026-10-16, the lead for the user):** story `CreateText`
   (the Japanese build draws it since #17: captions, dates, 殺 害,
   〝我は力〟) is left out in the English build, which would show the
-  Japanese (423 calls; the dry run's `CreateText left out` note); the
+  Japanese (the dry run's `CreateText left out` note: 0 calls now,
+  every story caption takes the port's English or goes; the 444 calls
+  it counted were the choices' labels, below); the
   title's empty-slot save is not copied (Save/load, above); Continue
   loads the quick save, else the newest.
 - **Text box** (compared with the original under wine, History): the
@@ -504,7 +519,7 @@ something the NSS doesn't:
 | `ShowVOICESEText`/`ClearVOICESEText` | 32/18 calls, 10 scenes (ma04_016vs, ma04_023, ma05_012, mb02_002, mb02_018, mb02_027, mc04_001, md01_018, md02_038, md06_036) | English only: a centred line of text (`serif0`), by its name for voices played as sound effects | converted (Status, "Subtitles") |
 | `SetTextEXC_Large/Huge/Big/Middle`, `TypeBegin…_Large/Huge/Big/Middle` | 16 calls, 8 scenes (mc03_010, md01_024, md01_030, md02_021, md03_008, md03_013, md04_061, md06_021) | English only: text boxes in larger type | **not converted** (the NSS's own box) |
 | `<WAITVOICE=n>` | 95 | `WaitVoice("voice0", n)` mid-text | CONscripter's `!vn` (waits for the voice) |
-| `</voice>` | 68 | ends a voice's range | dropped |
+| `</voice>` | 68 | ends a voice's range: `Print` (function_textbox.nut) empties `voice_name`/`class`/`file` for the text after it; the voice plays on | nothing to do (seen; no note) |
 | `<FW>` | 25 | `SwitchFw`: the face window changes mid-page (24 `img=''`: the face goes and the text goes on in the box without one; md05_033's one picture brings the face back) | a new page in the box without a face (`EN_TEXT`'s pairs) until the next code; a picture: the face the NSS has set |
 | `<WAIT=n>` | 16 | `WaitKey(n)` mid-text | `!dn` |
 | `<RED2>` 14, `<RED>` 8, `<YELLOW>` 6 | 28 | the range's colour (`SetCharacterColor`) | `#RRGGBB` |
