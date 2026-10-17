@@ -604,9 +604,10 @@ pub enum Op {
     /// ending roll).
     StopAutoSkip,
     /// Adds `text` to the text history as a page of its own, without
-    /// showing it; `voice` (a sound file) is played from the history.
-    /// Lines the story shows as pictures (装甲悪鬼村正's SetBacklog).
-    BacklogLine { text: String, voice: Option<String> },
+    /// showing it; `voice` (a sound file) is played from the history,
+    /// `character` its [`Voice::character`] for the voice switches. Lines
+    /// the story shows as pictures (装甲悪鬼村正's SetBacklog).
+    BacklogLine { text: String, voice: Option<String>, character: Option<u32> },
     /// Jumps to `label` while 超速スキップ is on: the skip that
     /// `BarAction::FastSkip` started still runs (装甲悪鬼村正's
     /// `SkipOut`, which jumps over a scene read before).

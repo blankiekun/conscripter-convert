@@ -854,13 +854,14 @@ impl Compiler<'_, '_> {
                 // (text, voice or "null", speaker)
                 let text = arg(0).string();
                 let voice = Some(arg(1).string()).filter(|v| !v.is_empty() && v != "null").and_then(|v| self.assets.sound(&v));
+                let character = self.backlog_character(&arg(2).string());
                 // A choice's option known only at run time (its line in
                 // the log): each text the flag can hold.
                 if let Some((var, before, after)) = super::runtime_text(&text) {
                     let texts = self.flag_texts.get(&var).map(|t| t.iter().map(|(&c, s)| (c, format!("{before}{s}{after}"))).collect()).unwrap_or_default();
                     self.ops.push(Op::RuntimeBacklogLine { text: format!("{before}{after}"), runtime: conv_core::ir::RuntimeText { var, texts } });
                 } else if !text.is_empty() {
-                    self.ops.push(Op::BacklogLine { text, voice });
+                    self.ops.push(Op::BacklogLine { text, voice, character });
                 }
             }
             "CreateProcess" => {

@@ -48,10 +48,12 @@ pub(crate) fn files(script: &Script) -> Vec<(String, String)> {
     w.push(image("image", &l.background, ", opaque=true"));
     let v = &l.voice_icon;
     let outline = l.outline.as_ref().map_or(String::new(), |o| format!(", outline={}", lua(o)));
+    // A voice switched off has no button (its row's logvoice tag).
+    let off = if crate::voice_switches(script) { format!(", voice_off={}", crate::menu::VOICE_OFF_BASE) } else { String::new() };
     // A row is cut at the columns, but strsp wraps a full-width character
     // one column early: a full row would lose its last.
     w.push(format!(
-        "{{\"list\", source=\"rows\", var={}, x={}, y={}, dy={}, rows={}, size={}, cols={}, color={}{outline},\n      voice={{file={}, cells=3, pressed=2, x={}, y={}}}}}",
+        "{{\"list\", source=\"rows\", var={}, x={}, y={}, dy={}, rows={}, size={}, cols={}, color={}{outline}{off},\n      voice={{file={}, cells=3, pressed=2, x={}, y={}}}}}",
         lua(ROWS_BACK),
         l.text_x,
         l.text_y,
