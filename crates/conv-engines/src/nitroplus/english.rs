@@ -508,6 +508,7 @@ fn scene_subtitles(calls: &[(String, Vec<squirrel::Arg>)], rows: &[(String, Vec<
             })
         });
         let Some((file, row)) = file else { continue };
+        // src: function_textbox.nut serif0 (y 480)
         let (mut y, mut lines) = (480, Vec::new());
         match row.as_slice() {
             [Literal::Str(text)] => lines.push((0, text.clone())),

@@ -43,6 +43,7 @@ pub const JP: TitleLook = TitleLook {
 /// The English port's (`sys_titlelogo.nut`, its `LANG_NAME == "en"`
 /// places): the logo a full screen 40 px up, the buttons in a row at
 /// y 467, from the English `cg.npk` ([`super::super::Assets`] `en/…`).
+// src: sys_titlelogo.nut (the "en" places, the logo 40 up, the notes' URL)
 pub const EN: TitleLook = TitleLook {
     dir: "en/cg/sys/title",
     logo: (0.0, -40.0),

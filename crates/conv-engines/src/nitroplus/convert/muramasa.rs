@@ -28,6 +28,7 @@ pub const MURAMASA: Game = Game { call, scene, flags, files: &[magiccube::FILE],
 /// (`function_textbox.nut`; a 25 px pitch in the original), down to the
 /// click icon at 500: 12 lines; every box in its own window picture
 /// ([`EN_BOXES`]), with the text where [`EN_TEXT`] puts it.
+// src: function_textbox.nut text0 (280 wide, font 20, rowSpace 1); text_drop 2: shot en/orig-page1
 pub const MURAMASA_EN: Game = Game { call: call_en, menus: screens::menus_en, horizontal_box: Some((280, 300, 25)), box_text: &EN_TEXT, choice_style: choice_style_en, text_drop: 2, ..MURAMASA };
 
 /// The port's choices (`SetChoice` in `function_select.nut`, its
@@ -39,6 +40,7 @@ pub const MURAMASA_EN: Game = Game { call: call_en, menus: screens::menus_en, ho
 /// selects of 5 or 6 are the plates in the window, their texts at the
 /// plates' left and red under the pointer, until it has more.
 fn choice_style_en(c: &mut Compiler<'_, '_>, n: i64) -> Option<ChoiceStyle> {
+    // src: function_select.nut SetChoice (100 apart, text y + 13); FONT_LIST 選択肢 size 20
     const PITCH: i64 = 100;
     const FONT: i64 = 20;
     const FREE: &str = "cg/sys/select/en/select001.png";
@@ -53,6 +55,7 @@ fn choice_style_en(c: &mut Compiler<'_, '_>, n: i64) -> Option<ChoiceStyle> {
         image,
         x: wx as i32,
         y: wy as i32,
+        // ours: the window's text inset for 5-6 options (the port has no such window)
         text_x: (x + 30) as i32,
         text_y: (y + 13) as i32,
         columns: (w / FONT) as u32,
@@ -63,9 +66,11 @@ fn choice_style_en(c: &mut Compiler<'_, '_>, n: i64) -> Option<ChoiceStyle> {
         name_plate: None,
     };
     if n > 4 {
+        // ours: red under the pointer (the port changes the plate instead)
         return Some(ChoiceStyle { window, on_color: 0xA00000, off_color: 0, plates: None });
     }
     let (image, _, _) = c.assets.strip(&[FREE, "cg/sys/select/en/select002.png"])?;
+    // guess: fade_ms 300, not read from function_select.nut
     let plates = ChoicePlates { image, x: x as i32, y: y as i32, step: PITCH as i32, text_x: (sw / 2) as i32, text_dy: 13, font_size: FONT as u32, colour: "#000000".into(), fade_ms: 300, shot: None };
     Some(ChoiceStyle { window, on_color: 0, off_color: 0, plates: Some(plates) })
 }
@@ -74,6 +79,7 @@ fn choice_style_en(c: &mut Compiler<'_, '_>, n: i64) -> Option<ChoiceStyle> {
 /// width, the click-wait icon's place (`icon_pos`, the English table);
 /// in pairs: the box with a face window first, as both may be shown,
 /// then the same box without one (drawn for it after `<FW img=''>`).
+// src: val.nut BoxInfo (LANG_NAME "en" table: text_pos(_fw), field_size(_fw), icon_pos)
 const EN_TEXT: [BoxText; 12] = [
     ("boxCT", 375, 190, 280, (640, 500)),
     ("boxCC", 375, 190, 280, (640, 500)),
@@ -93,6 +99,7 @@ const EN_TEXT: [BoxText; 12] = [
 /// x, y, picture in `cg/sys/adv/en/`. The vertical ones are 305×475 at y
 /// 51; the horizontal ones 880×158, at the Japanese y (`None`, moved by
 /// the `Move` after them as there).
+// src: function_textbox.nut CreateAllTextBox
 const EN_BOXES: [(&str, i64, Option<i64>, &str); 10] = [
     ("boxCC", 360, Some(51), "TextWindow"),
     ("boxCT", 360, Some(51), "TextWindow_Fw"),
@@ -118,6 +125,7 @@ fn en_face(c: &Compiler<'_, '_>, name: &str) -> Option<(i64, i64)> {
     if box_kind.len() == kind.0.len() {
         return None;
     }
+    // src: val.nut FwInfo (the "en" table): 92 px into the box at y 55; H 87/89,439
     // The box's x where it is up, else its usual place.
     let in_box = |b: &str, x: i64| Some((c.objects.get(&format!("box{b}T")).map_or(x, |o| o.x) + 92, 55));
     match (box_kind, face) {
@@ -134,6 +142,7 @@ fn en_face(c: &Compiler<'_, '_>, name: &str) -> Option<(i64, i64)> {
 /// ma01_009's RR and LL (`SetFwRR`/`SetFwLL` where the NSS calls its only
 /// `SetFwR`/`SetFwL`: three boxes side by side, `FwInfo` 690 and 28).
 fn place_side_box(c: &mut Compiler<'_, '_>, side: &str, wide: bool) {
+    // src: function_textbox.nut CreateAllTextBox (616, 103); val.nut FwInfo RR/LL (690, 28)
     let x = match (side, wide) {
         ("R", false) => 616,
         ("R", true) => 690,

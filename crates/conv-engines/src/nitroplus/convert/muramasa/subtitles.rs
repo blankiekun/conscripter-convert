@@ -15,11 +15,13 @@ use super::super::{Compiler, Kind, StripObject, Value};
 use crate::labels::Labels;
 
 /// `serif0`'s priority: over the text window.
+// src: function_textbox.nut serif0 (priority 20005; 字幕: Droid Serif Muramasa 20, rowSpace 1)
 const PRIORITY: i64 = 20005;
 /// The `字幕` style's size (SDL_ttf's: the em) and line pitch (`rowSpace` 1).
 const SIZE: f32 = 20.0;
 const PITCH: i32 = 21;
 /// A cell of the subtitle's strip: its changes land on these steps.
+// ours: FRAME_MS, UNKNOWN_MS, PAD
 const FRAME_MS: u32 = 250;
 /// Shown this long when the voice's length is unknown.
 const UNKNOWN_MS: u32 = 3000;
