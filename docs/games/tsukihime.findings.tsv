@@ -1,0 +1,93 @@
+# Tsukihime exe mapping: one row per argument or branch the converter maps (docs/new-game.md step 16).
+# Exe: 1.0.2's main (Ghidra, image at 0x100000). mark: seen (decompile, data or dry run shows it), inferred (names, layout), unknown.
+# An inferred row becomes seen only by a decompile lookup. check: the cheapest way to settle it. Uses: the 1.0.2 scripts.
+command	argument_or_branch	uses	exe	converter	mark	check
+_FADS	type 0 cross-fade over ms	12240	script_command, FUN_00160610	print fade	seen	
+_FADS	type 1 (ms 0) running mask, returns at once	20842	script_command	no wait	seen	
+_FADS	type 2 rule mask RULE_<rule>	947	FUN_0014b4c0	mask fade	seen	
+_FADS	ms: frames or ms (FUN_0015d3a0)	34029	FUN_0015d3a0	ms	inferred	read FUN_0015d3a0 for ·60/1000
+_FADS	mode 1 / 2 (ms > 1, settings byte 99 = 1) hide the text window (0x89E)	54	FUN_00160610	textoff (#342)	seen	
+_FADS	mode none or -1: hides only under settings byte 99 = 0	32639	FUN_00160610	nothing (default byte 99 = 1)	seen	what byte 99 is on the settings screen: FUN_0012c810 callers
+_STMA	m <= 0 stops the motion (the layer stays as it is)	92	FUN_00199620	nothing: the spmotion runs on	seen	open: stop at the current state
+_STMA	mode 1 / 2 hide the text window (as _FADS, no ms condition)	117	FUN_00199620	textoff (#342)	seen	
+_STMA	p (argument 3): start time of the motion	15	FUN_001958e8	ignored (gap)	inferred	FUN_00197b80's use of +8
+_STMA	layer > 39 ignored (after the window flag)	0	FUN_00199620	same	seen	
+motion	keys of motion m: [end(m-1), end(m)), length = last key's time	24333	FUN_00199fc0, FUN_00199f90	same	seen	
+motion	field mask u64 at 0x46AB38+8m (x 0x40880, y 0x5100000, alpha 0x4000, zoom 0x80200000/0x100400000, turn 0x88000)	24333	FUN_00199960, FUN_00197b80	followed (#346)	seen	
+motion	-32767 unchanged, -32766 no key (interpolated)	5926	FUN_00197710	followed (#339)	seen	
+motion	0x04 easing (Penner set, 0/1 straight), from the last key before	18775	FUN_001961b0, FUN_00130c80	straight	seen	open: per-key curve in the IR (MotionKey), then spcurve tables
+motion	0x06 mode 2: hold until the next key	10801	FUN_00197710	key 1 ms early (#346)	seen	
+motion	0x06 mode 1: a cubic curve	72	FUN_001972c0	straight	inferred	read FUN_001972c0
+motion	before the first key's time the layer stays	56	FUN_00197710	key 1 ms early (#346)	seen	
+motion	0x08/0x0A x, y script units; 0x0C alpha	20116	FUN_00197b80	followed	seen	
+motion	0x0E/0x10 (centre?, 1280/640 units)	470	FUN_00197b80 (live +0x64/+0x68)	ignored	inferred	what +0x64 does in the draw (FUN_001884f0)
+motion	i32 0x14 turn 1/100 deg (-100001 unchanged, -100000 no key)	8215	FUN_00197b80 (state 0x284)	followed (#346)	seen	
+motion	i32 0x14 to 0xbe4 under mask bit 34	2	FUN_00197b80	ignored	seen	what 0xbe4 draws
+motion	0x18/0x1A zoom per mille (the _STZ4 zoom)	18386	FUN_00197b80	followed	seen	
+motion	0x1C-0x22 four shorts (1920x1080 values: a clip?)	1430	FUN_00197b80	ignored	unknown	read FUN_00197b80 lines 661-720
+motion	0x24, 0x26 (stepped / straight)	1068	FUN_00197b80	ignored	unknown	same
+motion	0x28 stepped (shader?)	8907	FUN_00197b80	ignored	unknown	same, lines 752-776
+motion	0x2A effect switch, 0x2C-0x30 effect colour	7240	FUN_00197b80 (state 0x16DA)	ignored	inferred	compare with _STEC's 0x1404/0x16DA
+motion	0x32/0x34 expression	5254	FUN_00197b80	ignored	seen	open: change the picture mid-motion
+motion	0x36 /255+1, 0x38 x0.01+1 (state 0x1454/0x1458)	873	FUN_00197b80	ignored	unknown	who reads 0x1454
+motion	0x3C priority (only on a layer whose priority isn't 0)	23115	FUN_00197b80	ignored	seen	open: re-sort layers mid-motion
+motion	loop start FUN_001999a0 (1: from the start; else ms)	2037	FUN_001999a0 (jump table)	played once	seen	open: MotionEnd::Loop / LoopFrom with a key at the loop time
+motion	motion 9999: the whole time eased by key 0's easing	0	FUN_00199950	-	seen	not used
+motion	more than 64 keys	7	-	middle keys dropped (#346)	seen	
+_STCH	layer > 39 ignored; empty picture clears the layer	54503	FUN_00160840	same	seen	
+_STCH	x*640/1280, y*480/720; one left out keeps the layer's or the copied one's	54503	FUN_00160840	same (#343)	seen	
+_STCH	4 zoom per mille, left out keeps the layer's	54503	FUN_00160840	same	seen	
+_STCH	5 alpha: over 254 -> 255, negative -> 0; default 255 (_STCH), kept (_SCH2)	54503	FUN_00160840	same	seen	
+_STCH	6 priority, default layer x 10 (_STCH), kept (_SCH2)	54503	FUN_00160840	same	seen	
+_STCH	7, 8 (CC) never read	54503	FUN_00160840	unread-harmless	seen	
+_STCH	9, 10 expression: left out 0, or the copied layer's (from its name), even with neither	1881	FUN_00160840	same (#343)	seen	
+_STCH	expression picture not in the table: picture_lookup -1	?	FUN_00155d30	the bare picture	inferred	count the names our name() falls back on; what the draw does with index -1
+_STCH	11 parent (-1 none)	?	FUN_00160840 (0x89C)	same	seen	
+_STCH	12-16 clip rectangle and frame, 17 frame colour	?	FUN_00160840, FUN_00189ad0	spclip feather	seen	
+_STCH	18 copy every setting from a layer	4874	FUN_00160840	same	seen	
+_STCH	18 copy from a layer with no picture copies its blank settings	?	FUN_00160840	copies nothing	seen	count them
+_STCH	without 18: effect, parent, effect colour reset	54303	FUN_00160840	same	seen	
+_STCH	19 angle (normalised to +-18000) to 0xbe4, not the _STRT turn 0x284	2	FUN_00160840	as the turn	seen	what 0xbe4 draws (FUN_001802c0)
+_STCH	_STCH resets the turn (0x284) and the zoom (0x7d4/0x824 = 1000, 0x874 = 0)	54503	FUN_00160840	same	seen	
+_SCH2	without 18 keeps the old picture's centre	1	FUN_00160840	the new record's centre	seen	
+_STCC	none -> 0, < 0 all 40, > 39 ignored; priority to 0	63260	FUN_00162140	same (#343)	seen	
+_STCP	priority	51568	FUN_00162a40	same	seen	
+_STZ4	x0, y0 default the current zoom; x1, y1 left out kept; ms*60/1000 frames	32319	FUN_00162d20	jumps to x1, y1	seen	
+_STZ4	timed zoom	2	FUN_00131f30	jumps to its end (gap)	seen	open
+_STZ4	negative zoom mirrors	?	FUN_00162d20 (short)	spzoom negative	inferred	the draw's scale
+_STZ4	byte f (0x874): zoom off the picture's size	?	FUN_00132e30	stretch_off	seen	
+_STGS	from default the layer's alpha, to default 0, over 254 -> 255; ms*60/1000 frames	8114	FUN_001637a0	same	seen	
+_STGS	easing 0/1/none straight	8057	FUN_00130c80	read (#348)	seen	
+_STGS	easing 2, 3, 6, 10, 35	27	FUN_00130c80	straight (gap)	seen	open: with the per-key curve
+_STRT	turn 1/100 deg to `to` from `from` over ms*60/1000 frames; cx, cy	21691	FUN_00162b20	at once (all uses are)	seen	
+_STBR	shader n	14946	FUN_00162490	blends and filters	seen	
+_STBR	arguments 2, 3	920	FUN_00162490	ignored (gap)	unknown	read FUN_00162490
+_STEC	0 off, 1 fill colour (strtol), 2-9, 10-76, 77-82	12906	FUN_00103de0	stec::EFFECTS	seen	
+_STEC	other effects ignored; layer > 39 ignored	0	FUN_00103de0	not converted	seen	
+_CLO2	window alpha 0 at once, 0x89E = 1	5	script_command	textoff	seen	
+_CLO3	fade out in 4 frames; nothing if the window isn't up	12208	script_command, FUN_00138d40	windowfade 0,67	seen	
+_CLO4	fade out over ms (skip or ms <= 0: at once)	978	script_command	windowfade half	seen	
+_CLO5	fade in over ms; clears 0x89E	596	script_command	windowfade	seen	
+_ZM/_MSAD	next text fades the window in over 18 frames when hidden	-	FUN_0016e0d0	windowfade 256,150,0,150	seen	
+_ZM/_MSAD	@n joins the next line	-	FUN_0016e0d0	held	seen	
+_WNTY	type 0/1: line offset 3.5 or 5.5	58576	FUN_00138ea0, FUN_001391a0	page end flag	seen	what the offset changes on screen
+_WTTM	ms*3/50 frames	14828	script_command	delay ms	seen	
+_WTTM	argument 1: less the frame counter DAT_00be0a00	14821	script_command	ignored (gap)	inferred	when DAT_00be0a00 is reset
+_SEPL	plays on its channel in place of the one there; the same loop there at volume > 0 goes on	14543	FUN_0016a340	loop stopped first (#347)	seen	
+_SEPL	a one-shot cut by the next sound on its channel	2408	FUN_0019caa0	let play	inferred	FUN_0019caa0
+_SEPL	option 17 volume, 1 fade-in, 68, 70	14509	FUN_0016a340	ignored (gap)	inferred	read the option switch
+_SEFD	channel (< 0 all), option 1 fade ms	3516	FUN_0016b310	chvolfade	seen	
+_SEFD	option 68	583	FUN_0016b310	ignored (gap)	unknown	read FUN_0016b310
+_MPLY	n < 0 stops; sound n-1; option 1 fade-in	1171	cmd_MPLY	bgm	seen	
+_MPLY	option 17 volume, 69 start (samples), 49 flag	1170	cmd_MPLY	ignored (gap)	seen	
+_MPLY	heard-music flag n + 0xC80 (n < 0x418)	1171	cmd_MPLY	not kept	seen	open: for the music room
+_MFAD	option 1 fade, 11 a second fade	724	FUN_00164fa0	bgmfadeout; 11 not converted	inferred	read FUN_00164fa0
+_VPLY	voice file; argument 2	16690	script_command	voice	inferred	read the case
+_JUMP	scene number table 0x450D58, label inside	1741	script_command	jump	seen	
+_IF__ / _WKST / _WKAD / _GOTO / _ZZ / _ZY	flags and flow	-	script_command (cases not re-read)	if, mov, add	inferred	read the cases
+_RDST	read flag n (0..0x23F)	530	FUN_00192630	global flag	inferred	read FUN_00192630
+_SELR / _GOTS	choice slots, 1: greyed (FUN_00183e50)	823	script_command	choice	seen	
+_END_	back to the title	519	script_command	return to title	seen	
+runtime	randomness: rand() only under FUN_0013c970 (an effect), not a script command	-	FUN_00186120, FUN_001862e0	-	inferred	
+runtime	clock: nn::time in FUN_001f67xx (save dates)	-	FUN_001f6720	-	inferred	
+spzoom	whole percents: under 10 % coarse, under 1 % placed at 1 %	933	-	#344	seen	open: a finer spzoom in the engine
