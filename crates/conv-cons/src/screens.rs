@@ -1,10 +1,11 @@
 //! Menus the engine draws (CONscripter's `screen`, COMMANDS.md "Screens"):
-//! the save and load menus and the yes/no dialog as Lua tables in
-//! `screens/`, for a [`SaveMenu`] with `engine_screen`.
+//! the save and load menus, the settings and the yes/no dialog as Lua
+//! tables in `screens/`, for a [`SaveMenu`] or [`SettingsMenu`] with
+//! `engine_screen`.
 
 use std::fmt::Write as _;
 
-use conv_core::ir::{ConfirmDialog, Placed, SaveMenu, Script, Switch};
+use conv_core::ir::{ConfirmDialog, Placed, SaveMenu, Script, SettingsMenu, Switch};
 
 use crate::menu::{hidden_while_open, switch_off, CHAPTER, IN_GAME, PAGE, SCENE_LOAD_SLOT, SELECTED};
 
@@ -13,19 +14,41 @@ pub(crate) fn engine_menu(script: &Script) -> Option<&SaveMenu> {
     script.save_menu.as_ref().filter(|m| m.engine_screen).filter(|_| script.save_grid.is_none())
 }
 
+/// The settings are the engine's.
+pub(crate) fn engine_settings(script: &Script) -> Option<&SettingsMenu> {
+    script.settings.as_ref().filter(|m| m.engine_screen && m.pictures.is_none()).filter(|_| script.picture_settings.is_none())
+}
+
 /// The files under `screens/` (name, UTF-8 Lua), empty when the game has
 /// no menu the engine draws.
 pub fn screen_files(script: &Script) -> Vec<(String, String)> {
-    let Some(m) = engine_menu(script) else { return Vec::new() };
-    let scene_stack = script.button_bar.as_ref().is_some_and(|b| b.top.is_some());
-    let mut files = vec![
-        ("save.lua".to_string(), save_lua(m, script.confirm.as_ref(), scene_stack, true)),
-        ("load.lua".to_string(), save_lua(m, script.confirm.as_ref(), scene_stack, false)),
-    ];
-    if let Some(d) = &script.confirm {
+    let mut files = Vec::new();
+    if let Some(m) = engine_menu(script) {
+        let scene_stack = script.button_bar.as_ref().is_some_and(|b| b.top.is_some());
+        files.push(("save.lua".to_string(), save_lua(m, script.confirm.as_ref(), scene_stack, true)));
+        files.push(("load.lua".to_string(), save_lua(m, script.confirm.as_ref(), scene_stack, false)));
+    }
+    if let Some(m) = engine_settings(script) {
+        let has_replay = script.title_screen.is_some() && script.extras.as_ref().is_some_and(|e| e.replay.is_some());
+        let leave = script.extras.as_ref().and_then(|e| e.replay.as_ref()).filter(|_| has_replay).map(|r| (r.leave_label.as_str(), r.leave_question.as_str()));
+        let version = script.version.as_deref().map(|v| (v, script.height));
+        files.push(("settings.lua".to_string(), settings_lua(m, script.confirm.as_ref(), leave, version)));
+    }
+    if let Some(d) = script.confirm.as_ref().filter(|_| !files.is_empty()) {
         files.push(("confirm.lua".to_string(), confirm_lua(d)));
     }
     files
+}
+
+/// `*conv_settings`: the screen; it closes with 1 for back to the title
+/// (during a scene replay: back to its list), 2 for quit.
+pub(crate) fn settings_labels(out: &mut String, replay: bool) {
+    let b = crate::BUTTON_VAR;
+    writeln!(out, "*{}\nscreen \"settings\",{b}", crate::menu::SETTINGS).unwrap();
+    if replay {
+        writeln!(out, "if {b} == 1 && {} == 1 goto *{}", crate::replay::REPLAYING, crate::replay::END).unwrap();
+    }
+    writeln!(out, "if {b} == 1 reset\nif {b} == 2 end\nreturn").unwrap();
 }
 
 /// `*conv_save` and `*conv_load`: the screens.
@@ -127,6 +150,118 @@ fn save_lua(m: &SaveMenu, confirm: Option<&ConfirmDialog>, scene_stack: bool, sa
     out
 }
 
+/// The settings screen, as the script one (`menu::settings_menu`) draws
+/// it: text rows with －/＋ and a bar of ■□, switches as "■　label", the
+/// voices in two columns, tabs for the pages, and in game back to the
+/// title and quit.
+fn settings_lua(m: &SettingsMenu, confirm: Option<&ConfirmDialog>, leave: Option<(&str, &str)>, version: Option<(&str, u32)>) -> String {
+    use crate::menu::{setting_var, SETTINGS_APPLY, SKIP_UNREAD, VOICE_OFF_BASE};
+    let rows = &m.rows[..m.rows.len().min(6)];
+    let voices = &m.voices[..m.voices.len().min(15)];
+    let switches = &m.switches[..m.switches.len().min(15)];
+    let pages = m.tab_labels.len().min(1 + usize::from(!voices.is_empty()) + usize::from(!switches.is_empty()));
+    let size = m.font_size;
+    let apply = format!("{{\"gosub\", \"*{SETTINGS_APPLY}\"}}");
+    // "strsp" drops a line's last character unless there is a column to spare.
+    let text = |chars: usize| format!("size={size}, cols={}, shadow=true", chars + 1);
+    let hover = "color=\"#FFFFFF\", hover=\"#F0C040\"";
+    let mut w = Vec::new();
+    w.push(image("image", &m.base, &format!(", alpha={}", m.base_opacity)));
+    w.push(image("image", &m.header, ""));
+    w.push(image("button", &m.close, ", cells=3, action={\"close\"}"));
+    if let Some((line, height)) = version {
+        let t = crate::sprite_text(line);
+        w.push(format!("{{\"text\", text={}, x=8, y={}, size=14, cols={}, shadow=true, color=\"#B0B0B0\"}}", lua(&t), height - 22, t.chars().count().div_ceil(2) + 1));
+    }
+    if pages > 1 {
+        let mut x = m.tabs_x;
+        for (page, label) in m.tab_labels.iter().take(pages).enumerate() {
+            let chars = label.chars().count();
+            w.push(format!("{{\"button\", text={}, x={x}, y={}, {}, {hover}, disabled_color=\"#F0C040\", action={{\"page\", {}}}}}", lua(label), m.tabs_y, text(chars), page + 1));
+            x += (chars as i32 + 2) * (size as i32 + 1);
+        }
+    }
+    let on_page = |p: usize| if pages > 1 { format!(", page={p}") } else { String::new() };
+    for (r, row) in rows.iter().enumerate() {
+        let y = m.y + r as i32 * m.pitch;
+        // "ＢＧＭ　…　■■■■■■■□□□　７": the label padded with full-width
+        // spaces up to the level's column (minus sits over the padding).
+        let pad = ((m.level_x - m.label_x) / (size as i32 + 1)).max(row.label.chars().count() as i32 + 1) as usize;
+        let label = format!("{}{}%B　%V", row.label, "　".repeat(pad - row.label.chars().count()));
+        w.push(format!(
+            "{{\"slider\", var={}, min=0, max=10, text={}, x={}, y={y}, size={size}, cols={}, shadow=true{},\n      minus={{text=\"－\", x={}, y={y}, {}, {hover}}}, plus={{text=\"＋\", x={}, y={y}, {}, {hover}}}, action={apply}}}",
+            lua(setting_var(row.setting)),
+            lua(&label),
+            m.label_x,
+            pad + 14,
+            on_page(1),
+            m.minus_x,
+            text(1),
+            m.plus_x,
+            text(1),
+        ));
+    }
+    if let Some(label) = &m.skip_unread_label {
+        w.push(format!(
+            "{{\"toggle\", var={}, text={}, x={}, y={}, {}, {hover}{}, action={apply}}}",
+            lua(SKIP_UNREAD),
+            lua(&format!("%C　{label}")),
+            m.label_x,
+            m.y + rows.len() as i32 * m.pitch,
+            text(label.chars().count() + 2),
+            on_page(1)
+        ));
+    }
+    let column_rows = voices.len().div_ceil(2);
+    for (i, t) in voices.iter().enumerate() {
+        let x = if i < column_rows { m.label_x } else { m.voice_column_x };
+        let y = m.y + (i % column_rows) as i32 * m.voice_pitch;
+        let vars: Vec<String> = t.characters.iter().map(|c| lua(&format!("%{}", VOICE_OFF_BASE + c))).collect();
+        w.push(format!(
+            "{{\"toggle\", var={{{}}}, on=0, off=1, text={}, x={x}, y={y}, {}, {hover}{}}}",
+            vars.join(", "),
+            lua(&format!("%C　{}", t.label)),
+            text(t.label.chars().count() + 2),
+            on_page(2)
+        ));
+    }
+    for (i, sw) in switches.iter().enumerate() {
+        let y = m.y + i as i32 * m.voice_pitch;
+        // A switch the apply routine puts into effect does so at once.
+        let then = if crate::switches::apply(sw.switch) != crate::switches::Apply::Read { format!(", action={apply}") } else { String::new() };
+        w.push(format!(
+            "{{\"toggle\", var={}, on=0, off=1, text={}, x={}, y={y}, {}, {hover}{}{then}}}",
+            lua(&switch_off(sw.switch)),
+            lua(&format!("%C　{}", sw.label)),
+            m.label_x,
+            text(sw.label.chars().count() + 2),
+            on_page(if voices.is_empty() { 2 } else { 3 })
+        ));
+    }
+    let ask = |q: Option<&String>, s: Switch| q.map(|q| format!(", confirm={}", question(q, s))).unwrap_or_default();
+    let title_q = ask(confirm.map(|c| &c.title), Switch::ConfirmTitle);
+    let quit_q = ask(confirm.map(|c| &c.quit), Switch::ConfirmQuit);
+    let mut out = format!("-- The settings (conscripter-convert, from SettingsMenu).\nlocal in_game = var({}) == 1\nlocal w = {{\n", lua(IN_GAME));
+    for x in w {
+        writeln!(out, "  {x},").unwrap();
+    }
+    out.push_str("}\nif in_game then\n");
+    let exit = |label: &str, x: i32, value: u32, q: &str| {
+        format!("{{\"button\", text={}, x={x}, y={}, size={size}, cols=21, shadow=true, {hover}, action={{\"close\", {value}{q}}}}}", lua(label), m.exits_y)
+    };
+    match leave {
+        Some((label, question_text)) => {
+            let leave_q = confirm.map(|_| format!(", confirm={}", question(question_text, Switch::ConfirmTitle))).unwrap_or_default();
+            writeln!(out, "  if var({}) == 1 then\n    w[#w+1] = {}\n  else\n    w[#w+1] = {}\n  end", lua(crate::replay::REPLAYING), exit(label, m.label_x, 1, &leave_q), exit(&m.title_label, m.label_x, 1, &title_q)).unwrap();
+        }
+        None => writeln!(out, "  w[#w+1] = {}", exit(&m.title_label, m.label_x, 1, &title_q)).unwrap(),
+    }
+    writeln!(out, "  w[#w+1] = {}", exit(&m.quit_label, m.level_x, 2, &quit_q)).unwrap();
+    let hidden: Vec<String> = hidden_while_open().iter().map(|s| if s.starts_with('%') { format!("var({})", lua(s)) } else { s.clone() }).collect();
+    writeln!(out, "end\nreturn {{\n  kind = \"settings\",{}\n  hide = in_game and {{window=true, sprites={{{}}}}} or nil,\n  widgets = w,\n}}", if pages > 1 { format!("\n  pages = {pages},") } else { String::new() }, hidden.join(", ")).unwrap();
+    out
+}
+
 /// The yes/no dialog: its base, the question (`arg`) centred, the buttons
 /// and their labels. Close gives 1 for yes.
 // shortcut: the dialog with a picture per question, its fade and unroll
@@ -152,6 +287,55 @@ fn confirm_lua(d: &ConfirmDialog) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn settings_become_widgets() {
+        use conv_core::ir::{Setting, SettingRow, SettingSwitch, VoiceToggle};
+        let placed = |name: &str| Placed { image: format!("system/{name}.png"), x: 10, y: 20, w: 60, h: 20 };
+        let m = SettingsMenu {
+            base: placed("base"),
+            base_opacity: 210,
+            header: placed("header"),
+            close: placed("close"),
+            rows: vec![SettingRow { label: "ＢＧＭ".into(), setting: Setting::BgmVolume }],
+            label_x: 140,
+            minus_x: 340,
+            level_x: 380,
+            plus_x: 680,
+            y: 140,
+            pitch: 70,
+            font_size: 22,
+            title_label: "title".into(),
+            quit_label: "quit".into(),
+            exits_y: 540,
+            tab_labels: vec!["音量".into(), "音声".into(), "確認".into()],
+            tabs_x: 300,
+            tabs_y: 34,
+            voices: vec![VoiceToggle { label: "その他".into(), characters: vec![0, 2] }],
+            voice_column_x: 440,
+            voice_pitch: 50,
+            skip_unread_label: Some("未読".into()),
+            switches: vec![SettingSwitch { label: "セーブ確認".into(), switch: Switch::ConfirmSave }],
+            pictures: None,
+            defaults: Vec::new(),
+            switches_off: Vec::new(),
+            engine_screen: true,
+        };
+        let lua = settings_lua(&m, None, None, None);
+        for part in [
+            "pages = 3,",
+            "{\"slider\", var=\"%902\", min=0, max=10, text=\"ＢＧＭ　　　　　　　%B　%V\", x=140, y=140,",
+            "action={\"gosub\", \"*conv_settings_apply\"}",
+            "{\"toggle\", var={\"%970\", \"%972\"}, on=0, off=1, text=\"%C　その他\"",
+            "page=3",
+            "{\"button\", text=\"quit\", x=380, y=540",
+        ] {
+            assert!(lua.contains(part), "{part}\n{lua}");
+        }
+        let mut out = String::new();
+        settings_labels(&mut out, true);
+        assert_eq!(out, "*conv_settings\nscreen \"settings\",%9\nif %9 == 1 && %152 == 1 goto *conv_replay_end\nif %9 == 1 reset\nif %9 == 2 end\nreturn\n");
+    }
 
     #[test]
     fn lua_strings_escape() {
