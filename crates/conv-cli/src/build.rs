@@ -40,6 +40,9 @@ pub struct BuildArgs {
 /// pictures and sounds, writes, packs and reports.
 pub fn run(args: BuildArgs, title: &str, output_dirs: &[&str], compile: impl FnOnce(&Opts) -> Result<Built>) -> Result<()> {
     let BuildArgs { output, font, loose, dry_run, webp, audio } = args;
+    // every engine's folders, and the warp maps of its transitions
+    let output_dirs: Vec<&str> = output_dirs.iter().copied().chain([conv_cons::warp::DIR]).collect();
+    let output_dirs = &output_dirs[..];
     check_output(&output, output_dirs, !loose && !dry_run)?;
     let font = read_font(font.as_deref())?;
     let opts = Opts { output: &output, title, font: &font, dry_run, audio: audio.format()? };
@@ -49,6 +52,12 @@ pub fn run(args: BuildArgs, title: &str, output_dirs: &[&str], compile: impl FnO
     let source = webp_tree(&output, picture_dirs, webp.get().filter(|_| !dry_run), conv_cons::emit(&ir))?;
     if !dry_run {
         reencode_audio(&output, audio_dirs, opts.audio)?;
+        // lossless PNGs (outside picture_dirs: --webp leaves them alone)
+        for (rel, map) in conv_cons::warp_maps(&ir) {
+            let path = output.join(&rel);
+            fs::create_dir_all(path.parent().unwrap())?;
+            map.save_with_format(&path, image::ImageFormat::Png).with_context(|| format!("writing {}", path.display()))?;
+        }
     }
     let lost = write_game(&output, &ir, &source, (!dry_run).then_some(&*font), package.as_deref())?;
     if !dry_run && !loose {
