@@ -426,6 +426,7 @@ class App:
             notes.append("Can't find conscripter-convert next to this app or on PATH.")
             ready = False
         if d:
+            notes += [f"✓ {d.version}"] if d.version else []
             notes += [f"✗ {p}" for p in d.problems] + [f"⚠ {w}" for w in d.warnings]
             ready &= not d.problems
             option_problems = d.game.option_problems(self._values())
@@ -743,6 +744,8 @@ def cli_detect(folder: str) -> int:
     for d in found:
         font = tools.find_font(d.game.font)
         print(f"{d.game.name} ({d.game.engine}) at {d.root}")
+        if d.version:
+            print(f"  build: {d.version}")
         for p in d.problems:
             print(f"  problem: {p}")
         for w in d.warnings:
