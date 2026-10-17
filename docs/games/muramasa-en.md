@@ -19,10 +19,14 @@ is in its own document. Open guesses a frame of the original could
 settle:
 
 - the backlog's speaker icon at x 102 (no voiced row filmed);
-- the text speed's 0-100 ms a character (the exe's mapping not read);
-- the save screen's thumbnails (158×90) and its 300 ms page fade;
-- `<small>` text at 75 % (the exe's `CTextEnglish_layout` size isn't
-  read yet).
+- the save screen's thumbnails (158×90) and its 300 ms page fade.
+
+Settled from the exe (2026-10-17): the text speed (`004b4510`: s =
+text_speed ÷ 1000, a character fading in at (212.5 − 5.3125)(1 − s)⁴ +
+5.3125 alpha per 16 ms frame, the next 50 alpha later; 0 instant, 58 ms
+at the default 550, 150.6 ms at 1000; the slider's `TextSpeedCurve`);
+`<small>` at 50 % (`CTextEnglish_layout` draws SMALL with the text's
+ruby font, `function_textbox.nut`'s fonts size 20, ruby_size 10).
 
 ### Eased fades (2026-10-17)
 
