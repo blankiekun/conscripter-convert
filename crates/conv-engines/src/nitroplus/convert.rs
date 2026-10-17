@@ -95,6 +95,7 @@ mod django;
 pub use django::DJANGO;
 mod process;
 mod loops;
+mod one_shot;
 mod array;
 mod fast_skip;
 mod text_object;
@@ -1363,6 +1364,9 @@ struct Compiler<'a, 'b> {
     /// Processes run in line ([`Compiler::inline_process`]): their waits
     /// hold the script.
     inline_processes: Vec<String>,
+    /// Pictures moved by a one-shot process ([`one_shot`]), and their
+    /// motions.
+    one_shots: BTreeMap<String, one_shot::OneShot>,
     /// The next runtime `if` is the `SkipOut` test of the scene with this
     /// read flag ([`Compiler::fast_skip_test`]).
     fast_skip_read: Option<conv_core::ir::Var>,
@@ -2144,6 +2148,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
             process_lead: 0,
             lead_ins: BTreeMap::new(),
             inline_processes: Vec::new(),
+            one_shots: BTreeMap::new(),
             fast_skip_read: None,
             chapter_mark: None,
             box_layouts: HashMap::new(),
@@ -4632,6 +4637,83 @@ function Roll()
         // Turned at once: drawn anew at its angle.
         assert!(c.ops.iter().any(|op| matches!(op, Op::SpriteAngle { degrees: -30, .. })), "{:?}", c.ops);
         assert!(!c.notes.keys().any(|n| n.starts_with("CreateProcess") || n.starts_with("Rotate")), "{:?}", c.notes);
+    }
+
+    #[test]
+    fn a_one_shot_counter_flips_its_digits_on_paper() {
+        // 装甲悪鬼村正's MyTr_* counters: each digit shown in turn, the one
+        // before it hidden, 100 ms apart; only the process waits.
+        let story = r#"
+scene a.nss
+{
+	CreateTexture("d1", 100, 0, 0, "cg/st/1.png");
+	CreateTexture("d2", 100, 0, 0, "cg/st/2.png");
+	CreateTexture("d3", 100, 0, 0, "cg/st/3.png");
+	Fade("d1", 0, 0, null, true);
+	Fade("d2", 0, 0, null, true);
+	Fade("d3", 0, 0, null, true);
+	Wait(100);
+	CreateProcess("P", 15000, 0, 0, "Count");
+	Request("P", Start);
+	Wait(100);
+}
+function Count()
+{
+	$n = 1;
+	while($n < 4){
+		$cur = "@d" + $n;
+		$prev = "@d" + ($n - 1);
+		Fade($cur, 0, 1000, null, true);
+		Fade($prev, 0, 0, null, false);
+		Wait(100);
+		$n++;
+	}
+}
+"#;
+        let c = compile(story, LIBRARY);
+        let alphas: Vec<Vec<(u32, u32)>> = c.ops.iter().filter_map(|op| match op {
+            Op::SpriteMotion2 { keys, end: MotionEnd::Keep, .. } => Some(keys.iter().map(|k| (k.ms, k.opacity)).collect()),
+            _ => None,
+        }).collect();
+        // Shown at its turn, hidden at the next one's; the last stays.
+        assert_eq!(alphas, [
+            vec![(0, 0), (1, 256), (100, 256), (101, 0), (300, 0)],
+            vec![(0, 0), (100, 0), (101, 256), (200, 256), (201, 0), (300, 0)],
+            vec![(0, 0), (200, 0), (201, 256), (300, 256)],
+        ], "{:?}", c.ops);
+        let waited: u32 = c.ops.iter().map(|op| if let Op::Wait { ms } = op { *ms } else { 0 }).sum();
+        assert_eq!(waited, 200, "{:?}", c.ops);
+        assert!(c.notes.is_empty(), "{:?}", c.notes);
+    }
+
+    #[test]
+    fn a_one_shot_fading_out_then_disused_goes_after_its_fade() {
+        let story = r#"
+scene a.nss
+{
+	CreateTexture("p", 100, 0, 0, "cg/st/a.png");
+	Fade("p", 0, 1000, null, true);
+	Wait(100);
+	CreateProcess("P", 15000, 0, 0, "Out");
+	Request("P", Start);
+	Wait(100);
+	Wait(1000);
+}
+function Out()
+{
+	Fade("@p", 500, 0, null, true);
+	Request("@p", Disused);
+}
+"#;
+        let c = compile(story, LIBRARY);
+        let fade = c.ops.iter().position(|op| matches!(op, Op::SpriteMotion2 { end: MotionEnd::Keep, .. })).unwrap_or_else(|| panic!("{:?}", c.ops));
+        let Op::SpriteMotion2 { layer, keys, .. } = &c.ops[fade] else { unreachable!() };
+        assert_eq!(keys.iter().map(|k| (k.ms, k.opacity)).collect::<Vec<_>>(), [(0, 256), (500, 0), (501, 0)]);
+        // Deleted at the first sync after its end, not before.
+        let gone = c.ops.iter().position(|op| matches!(op, Op::Sprites { changes, .. } if changes.iter().any(|ch| ch.layer == *layer && ch.sprite.is_none()))).unwrap_or_else(|| panic!("{:?}", c.ops));
+        let waited: u32 = c.ops[fade..gone].iter().map(|op| if let Op::Wait { ms } = op { *ms } else { 0 }).sum();
+        assert_eq!(waited, 1100, "{:?}", c.ops);
+        assert!(c.notes.is_empty(), "{:?}", c.notes);
     }
 
     #[test]

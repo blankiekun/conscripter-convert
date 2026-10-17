@@ -27,7 +27,7 @@ fn calls_only(body: &[Stmt], calls: &[&str]) -> bool {
 impl Compiler<'_, '_> {
     pub(super) fn create_process(&mut self, name: String, function: &str) {
         match self.function(function) {
-            Some((file, f)) if calls_only(&f.body, MUSIC_CALLS) || calls_only(&f.body, ACTION_CALLS) || super::loops::is_loop(f) => {
+            Some((file, f)) if calls_only(&f.body, MUSIC_CALLS) || calls_only(&f.body, ACTION_CALLS) || super::loops::is_loop(f) || super::one_shot::is_one_shot(f) => {
                 self.create(name, Kind::Process { file, function: f }, 0, 0, 0);
             }
             _ => self.note(format!("CreateProcess {function}")),
@@ -58,6 +58,11 @@ impl Compiler<'_, '_> {
         let (file, function) = (*file, *function);
         if super::loops::is_loop(function) {
             self.start_loop(name, file, function);
+            return;
+        }
+        // (One run in line holds the script with its waits: as an action process.)
+        if !calls_only(&function.body, ACTION_CALLS) && !calls_only(&function.body, MUSIC_CALLS) && !self.inline_processes.iter().any(|p| p == name) {
+            self.start_one_shot(name, file, function);
             return;
         }
         if !calls_only(&function.body, MUSIC_CALLS) {
