@@ -1,9 +1,9 @@
 {
 "game": "saihate-no-ima",
 "engine": "xuse",
-"commit": "c313923f",
+"commit": "7a25cb73",
 "commit_date": "2026-10-16",
-"totals": {"calls": 84713, "full": 83177, "gaps": 1536},
+"totals": {"calls": 84713, "full": 83179, "gaps": 1534},
 "kinds": {
 "opcode 0x49": {"calls": 565, "gaps": 565, "reasons": [["0x49 operand -4 ignored", 565]]},
 "opcode 0x70": {"calls": 457, "gaps": 457, "reasons": [["0x70 operand +5 ignored", 457]]},
@@ -12,7 +12,6 @@
 "opcode 0x44": {"calls": 37, "gaps": 37, "reasons": [["0x44 operand +6 ignored", 37]]},
 "opcode 0x86": {"calls": 19, "gaps": 10, "reasons": [["0x86 operand -2 ignored", 9], ["0x86 operand -1 ignored", 1]]},
 "opcode 0x7a": {"calls": 91, "gaps": 6, "reasons": [["0x7a operand +14 ignored", 6]]},
-"opcode 0x56": {"calls": 3, "gaps": 2, "reasons": [["0x56 operand +2 ignored", 2]]},
 "opcode 0x4a": {"calls": 2, "gaps": 2, "reasons": [["0x4a operand -4 ignored", 2]]},
 "opcode 0x40": {"calls": 30958, "gaps": 1, "reasons": [["0x40 operand -60 ignored", 1]]},
 "opcode 0x30": {"calls": 1, "gaps": 1, "reasons": [["opcode 0x30 sub 0xffff arg 94", 1]]},
@@ -75,6 +74,7 @@
 "opcode 0x39": {"calls": 4, "gaps": 0, "reasons": []},
 "opcode 0x02": {"calls": 3, "gaps": 0, "reasons": []},
 "opcode 0x0d": {"calls": 3, "gaps": 0, "reasons": []},
+"opcode 0x56": {"calls": 3, "gaps": 0, "reasons": []},
 "opcode 0x3b": {"calls": 2, "gaps": 0, "reasons": []},
 "opcode 0x48": {"calls": 2, "gaps": 0, "reasons": []},
 "opcode 0x67": {"calls": 2, "gaps": 0, "reasons": []},
