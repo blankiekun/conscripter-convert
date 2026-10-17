@@ -619,7 +619,8 @@ and the script's viewer runs as before (cross-fades, scrolling, unseen
 pictures); back from it the screen opens on the same page over 300 ms.
 Checked on Xvfb against main's routine: open, a slot hovered, the next
 page, each category, the viewer, back, the menu: 0 pixels (1 px on an
-arrow). Open: the viewer is still the script's.
+arrow). Again after the rebase onto engine master e585b68 (Japanese and
+English builds): the same, the cross-fade into it not black. Open: the viewer is still the script's.
 
 ### Settings drawn by the engine (2026-10-17)
 
