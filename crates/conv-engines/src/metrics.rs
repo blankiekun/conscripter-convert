@@ -1,8 +1,10 @@
 //! How much of a game converts: each source command call (a built-in, a
 //! task, an opcode) is either fully converted or has a gap, when the
 //! converter drops it, approximates it or leaves an argument it was given
-//! unread (any note made while the call is open). Every engine reports its
-//! calls here; the dry run writes them as `metrics.json`, and
+//! unread (any note made while the call is open), or is left out on
+//! purpose (code the game can't reach, such as a debug menu: counted as
+//! done in the completion figure, apart from the gaps). Every engine
+//! reports its calls here; the dry run writes them as `metrics.json`, and
 //! `tests/snapshot.sh --update` keeps them in `tests/snapshots/`.
 
 use std::collections::BTreeMap;
@@ -12,6 +14,8 @@ use std::collections::BTreeMap;
 pub struct Kind {
     pub calls: usize,
     pub gaps: usize,
+    /// Calls left out on purpose ([`Metrics::left_out`]), not gaps.
+    pub left_out: usize,
     /// Each reason with the number of calls it was noted on.
     pub reasons: BTreeMap<String, usize>,
 }
@@ -68,12 +72,22 @@ impl Metrics {
         }
     }
 
+    /// One whole call left out on purpose (unreachable, such as a debug
+    /// menu), with why: done for the completion figure, not a gap.
+    pub fn left_out(&mut self, kind: &str, why: &str) {
+        let k = self.kinds.entry(kind.to_string()).or_default();
+        k.calls += 1;
+        k.left_out += 1;
+        *k.reasons.entry(why.to_string()).or_default() += 1;
+    }
+
     /// Adds `other`'s counts.
     pub fn merge(&mut self, other: Metrics) {
         for (name, o) in other.kinds {
             let k = self.kinds.entry(name).or_default();
             k.calls += o.calls;
             k.gaps += o.gaps;
+            k.left_out += o.left_out;
             for (r, n) in o.reasons {
                 *k.reasons.entry(r).or_default() += n;
             }
@@ -97,28 +111,38 @@ impl Metrics {
         self.kinds.values().fold((0, 0), |(c, g), k| (c + k.calls, g + k.gaps))
     }
 
+    /// Calls left out on purpose, over every kind.
+    pub fn left_out_total(&self) -> usize {
+        self.kinds.values().map(|k| k.left_out).sum()
+    }
+
     /// The JSON the dry run writes: `commit` and `commit_date` each on a
     /// line of their own (`tests/snapshot.sh` compares without them), the
     /// kinds by gaps, each with its [`TOP`] reasons.
     pub fn json(&self, game: &str, engine: &str, commit: &str, commit_date: &str) -> String {
         let (calls, gaps) = self.totals();
+        let left_out = self.left_out_total();
+        // "left_out" only when there are some, so other games' files stay as they were.
+        let lo = |n: usize| if n > 0 { format!(", \"left_out\": {n}") } else { String::new() };
         let mut s = format!(
-            "{{\n\"game\": {},\n\"engine\": {},\n\"commit\": {},\n\"commit_date\": {},\n\"totals\": {{\"calls\": {calls}, \"full\": {}, \"gaps\": {gaps}}},\n\"kinds\": {{",
+            "{{\n\"game\": {},\n\"engine\": {},\n\"commit\": {},\n\"commit_date\": {},\n\"totals\": {{\"calls\": {calls}, \"full\": {}, \"gaps\": {gaps}{}}},\n\"kinds\": {{",
             q(game),
             q(engine),
             q(commit),
             q(commit_date),
-            calls - gaps
+            calls - gaps - left_out,
+            lo(left_out)
         );
         let mut kinds: Vec<_> = self.kinds.iter().collect();
         kinds.sort_by(|a, b| b.1.gaps.cmp(&a.1.gaps).then(b.1.calls.cmp(&a.1.calls)).then(a.0.cmp(b.0)));
         for (i, (name, k)) in kinds.iter().enumerate() {
             s += &format!(
-                "{}\n{}: {{\"calls\": {}, \"gaps\": {}, \"reasons\": {}}}",
+                "{}\n{}: {{\"calls\": {}, \"gaps\": {}{}, \"reasons\": {}}}",
                 if i > 0 { "," } else { "" },
                 q(name),
                 k.calls,
                 k.gaps,
+                lo(k.left_out),
                 top(&k.reasons)
             );
         }
@@ -179,5 +203,16 @@ mod tests {
         let json = m.json("g", "e", "abc", "2026-10-16");
         assert!(json.contains("\"totals\": {\"calls\": 3, \"full\": 2, \"gaps\": 1}"), "{json}");
         assert!(json.contains("\n\"commit\": \"abc\",\n"));
+    }
+
+    #[test]
+    fn left_out_calls_are_neither_full_nor_gaps() {
+        let mut m = Metrics::default();
+        m.call("opcode 0x30", vec![]);
+        m.left_out("opcode 0x30", "the debug menu");
+        assert_eq!((m.totals(), m.left_out_total()), ((2, 0), 1));
+        let json = m.json("g", "e", "c", "d");
+        assert!(json.contains("\"totals\": {\"calls\": 2, \"full\": 1, \"gaps\": 0, \"left_out\": 1}"), "{json}");
+        assert!(json.contains("\"calls\": 2, \"gaps\": 0, \"left_out\": 1, \"reasons\""), "{json}");
     }
 }

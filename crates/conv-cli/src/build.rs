@@ -61,7 +61,8 @@ pub fn run(args: BuildArgs, title: &str, output_dirs: &[&str], compile: impl FnO
         let json = metrics.json(&game, engine, env!("CONV_COMMIT"), env!("CONV_COMMIT_DATE"));
         fs::write(output.join("metrics.json"), json)?;
         let (calls, gaps) = metrics.totals();
-        println!("  source calls: {calls}, fully converted {}, with gaps {gaps} (metrics.json)", calls - gaps);
+        let left_out = metrics.left_out_total();
+        println!("  source calls: {calls}, fully converted {}, with gaps {gaps}, left out on purpose {left_out} (metrics.json)", calls - gaps - left_out);
     }
     summary(&output, &ir, lost, notes, Some(!dry_run))
 }

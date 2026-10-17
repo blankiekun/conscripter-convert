@@ -24,6 +24,15 @@ pub const AUDIO_DIRS: &[&str] = &["voice", "se"];
 /// The game's screen.
 pub const SCREEN: (u32, u32) = (800, 600);
 
+
+/// Instructions left out on purpose (the gap they would be, why): done
+/// for the completion figure (`metrics.json`'s `left_out`), not gaps.
+const LEFT_OUT: &[(&str, &str)] = &[
+    // 0001.cd's start point: the unreachable debug menu (the user's call).
+    ("opcode 0x30 sub 0xffff arg 94", "the unreachable debug menu"),
+    ("opcode 0x62 sub 0x2 arg 58", "the unreachable debug menu"),
+];
+
 /// Compiles every `NNNN.cd` script of `game` (the installed game, with
 /// `HD/` and `CD/`). `linear`: play the story scripts straight through in
 /// file order, skipping the engine-setup ones (names starting with '!'),
@@ -99,7 +108,12 @@ pub fn build(game: &Path, linear: bool, opts: &Opts) -> Result<Built> {
             }
         }
         for (index, ins) in cd.code.iter().enumerate() {
-            metrics.call(&format!("opcode {:#04x}", ins.op), gaps.remove(&index).unwrap_or_default());
+            let kind = format!("opcode {:#04x}", ins.op);
+            let reasons = gaps.remove(&index).unwrap_or_default();
+            match LEFT_OUT.iter().find(|(r, _)| reasons.len() == 1 && reasons[0] == *r) {
+                Some((_, why)) => metrics.left_out(&kind, why),
+                None => metrics.call(&kind, reasons),
+            }
         }
         ops.extend(lowered);
     }
