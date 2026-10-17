@@ -1,9 +1,9 @@
 {
 "game": "muramasa",
 "engine": "nitroplus",
-"commit": "d603cfef",
+"commit": "7489c1e1",
 "commit_date": "2026-10-17",
-"totals": {"calls": 1162127, "full": 1131605, "gaps": 21928, "left_out": 8594},
+"totals": {"calls": 1162127, "full": 1131633, "gaps": 21900, "left_out": 8594},
 "kinds": {
 "Random": {"calls": 7411, "gaps": 7411, "reasons": [["Random argument 0 ignored", 7411]]},
 "Fade": {"calls": 302627, "gaps": 3172, "reasons": [["Fade argument 3 ignored", 3145], ["timed action that waits only part of its time", 16], ["move or zoom over time with a fade or a new picture drawn as a cross-fade", 10], ["Fade argument 5 ignored", 1]]},
@@ -21,7 +21,6 @@
 "Rotate": {"calls": 16922, "gaps": 44, "reasons": [["Rotate about z", 31], ["Rotate over time turning a picture over: mirrored at once", 10], ["timed action that waits only part of its time", 3]]},
 "CreateProcess": {"calls": 5582, "gaps": 35, "reasons": [["CreateProcess TurboBlur3", 10], ["CreateProcess KodouSET", 3], ["CreateProcess Window_Delete_Process", 3], ["CreateProcess FrameShake_RanProcess", 2], ["CreateProcess ActionCameraProcess", 1], ["16 more", 16]]},
 "WaitAction": {"calls": 5437, "gaps": 29, "reasons": [["WaitAction argument 1 ignored", 28], ["move or zoom over time with a fade or a new picture drawn as a cross-fade", 1]]},
-"CreateMask": {"calls": 28, "gaps": 28, "reasons": [["built-in CreateMask", 28]]},
 "CreateTexture": {"calls": 61264, "gaps": 25, "left_out": 1776, "reasons": [["the choice screen's own code: the engine's choice stands in", 1776], ["CreateTexture from an object or the screen", 25]]},
 "SetVolume": {"calls": 23866, "gaps": 24, "reasons": [["SetVolume argument 3 ignored", 23], ["SetVolume argument 4 ignored", 1]]},
 "DrawEffect": {"calls": 76, "gaps": 21, "reasons": [["DrawEffect argument 0 ignored", 11], ["DrawEffect argument 1 ignored", 11], ["DrawEffect argument 3 ignored", 11], ["DrawEffect argument 4 ignored", 11], ["DrawEffect argument 5 ignored", 11], ["6 more", 22]]},
@@ -67,6 +66,7 @@
 "SetLoopPoint": {"calls": 63, "gaps": 0, "reasons": []},
 "CreateStencil": {"calls": 57, "gaps": 0, "reasons": []},
 "CreateCamera": {"calls": 40, "gaps": 0, "reasons": []},
+"CreateMask": {"calls": 28, "gaps": 0, "reasons": []},
 "ReConquest": {"calls": 20, "gaps": 0, "left_out": 20, "reasons": [["no function of this name: the exe skips the call too", 20]]},
 "RecoIn": {"calls": 10, "gaps": 0, "reasons": []},
 "RecoOut": {"calls": 10, "gaps": 0, "left_out": 10, "reasons": [["no function of this name: the exe skips the call too", 10]]},

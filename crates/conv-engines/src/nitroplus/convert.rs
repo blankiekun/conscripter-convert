@@ -308,11 +308,13 @@ pub trait Assets {
     /// (0-1000): the full-screen picture's path.
     fn overlaid(&mut self, base: &str, top: &str, zoom: i64, opacity: i64) -> Option<String>;
     /// The output picture `image` with its opacity multiplied by that of
-    /// the output picture `mask`, 0 outside it (`CreateStencil`): the
+    /// the output picture `mask`, 0 outside it (`CreateStencil`); with
+    /// `colour`, its colour by the mask's too, and 0 where the mask is
+    /// clear (`CreateMask`): the
     /// mask's top left at (`dx`, `dy`) from the picture's, on the screen,
     /// where the picture is drawn at `zoom` (per mille) about its centre.
     /// Its path.
-    fn stenciled(&mut self, image: &str, mask: &str, dx: i64, dy: i64, zoom: (i64, i64)) -> Option<String>;
+    fn stenciled(&mut self, image: &str, mask: &str, colour: bool, dx: i64, dy: i64, zoom: (i64, i64)) -> Option<String>;
     /// A picture decoded: one the scripts name (`cg/…`) or one in the
     /// output (`system/…`). `None` in a dry run.
     fn rgba(&mut self, path: &str) -> Option<image::RgbaImage>;
@@ -1161,8 +1163,9 @@ struct Object<'a> {
     /// `DrawEffect`'s wave ([`Wave`]), while it runs.
     wave: Option<Wave>,
     /// `CreateStencil`'s picture (output path): its children are drawn
-    /// only where it is opaque, as much as it is ([`Compiler::stenciled`]).
-    stencil: Option<String>,
+    /// only where it is opaque, as much as it is ([`Compiler::stenciled`]);
+    /// `true` for `CreateMask`'s, which multiplies their colour too.
+    stencil: Option<(String, bool)>,
     /// A picture under stencils: its picture, place and zoom and their
     /// pictures and places, and the cut made of them, kept while these
     /// stay the same.
@@ -3193,8 +3196,8 @@ impl<'a, 'b> Compiler<'a, 'b> {
             return Some(cut.clone());
         }
         let mut out: Option<String> = None;
-        for (mask, sx, sy) in stencils {
-            out = Some(self.assets.stenciled(out.as_deref().unwrap_or(image), &mask, sx - x, sy - y, zoom)?);
+        for ((mask, colour), sx, sy) in stencils {
+            out = Some(self.assets.stenciled(out.as_deref().unwrap_or(image), &mask, colour, sx - x, sy - y, zoom)?);
         }
         let cut = out?;
         self.objects.get_mut(name)?.cut = Some((key, cut.clone()));
@@ -4041,8 +4044,8 @@ mod tests {
         fn overlaid(&mut self, base: &str, top: &str, zoom: i64, opacity: i64) -> Option<String> {
             Some(format!("{base}+{top}@{zoom}x{opacity}"))
         }
-        fn stenciled(&mut self, image: &str, mask: &str, dx: i64, dy: i64, zoom: (i64, i64)) -> Option<String> {
-            Some(format!("{image}%{mask}@{dx},{dy}x{}", zoom.0))
+        fn stenciled(&mut self, image: &str, mask: &str, colour: bool, dx: i64, dy: i64, zoom: (i64, i64)) -> Option<String> {
+            Some(format!("{image}%{mask}{}@{dx},{dy}x{}", if colour { "*" } else { "" }, zoom.0))
         }
         fn movie_frames(&mut self, path: &str, at: Option<u32>, alpha: bool, dark: bool) -> Option<(String, u32, u32, u32)> {
             let (w, h) = if alpha { (200, 108) } else { (1024, 576) };
@@ -5386,6 +5389,25 @@ scene a.nss
         let script = format!("{:?}", c.ops);
         assert!(script.contains("color/cc0000_1024x576.png%cg/st/s.png@100,50x1000"), "{script}");
         assert!(!script.contains("\"cg/st/s.png\""), "{script}");
+    }
+
+    #[test]
+    fn a_mask_multiplies_its_children_by_its_picture() {
+        // 装甲悪鬼村正's ma01_019: smoke (an added grey) only where the
+        // mask is light; the mask itself draws nothing.
+        let story = r##"
+scene a.nss
+{
+	CreateMask("絵Ｍ", 6000, 0, 0, "cg/st/s.png", false);
+	CreateColor("絵Ｍ/煙", 6000, 0, 0, 1024, 576, "#BBBBBB");
+	Fade("絵Ｍ/煙", 0, 1000, null, true);
+	Wait(100);
+}
+"##;
+        let c = compile(story, LIBRARY);
+        let script = format!("{:?}", c.ops);
+        assert!(script.contains("color/bbbbbb_1024x576.png%cg/st/s.png*@0,0x1000"), "{script}");
+        assert!(!c.notes.keys().any(|n| n.contains("CreateMask")), "{:?}", c.notes);
     }
 
     #[test]

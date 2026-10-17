@@ -190,7 +190,7 @@ dry run):
 | `SetFont` | most story | converted: its style is `CreateText`'s (the story's text window keeps ours) |
 | `LoadImage` | 30 / 16 / 101 | converted: the sources of `CreateTexture` from an object (`builtin_CreateTexture` looks the source up by name, FUN_004491a0, and copies its picture, FUN_00488670, before loading a file, FUN_00488130); the choice screen's (`function_select.nss`) are left out |
 | `DrawEffect` | 79 / 0 / 2 | waves converted (`spwave`, Status); Ripple and the Splits noted |
-| `CreateStencil`, `CreateMask`, `SetSurface`, `CreateSurface` | 59 / 2 / 0 …; 30 / 1 / 1; 6 / 4 / 0; 0 / 3 / 0 | not converted (57, 28, 58, 52 noted) |
+| `CreateStencil`, `CreateMask`, `SetSurface`, `CreateSurface` | 59 / 2 / 0 …; 30 / 1 / 1; 6 / 4 / 0; 0 / 3 / 0 | `CreateStencil` and `CreateMask` converted (children cut by the picture; `docs/games/muramasa.md`, "History"); `SetSurface`, `CreateSurface` not converted |
 | `SetLoopPoint` | 0 / 3 / 0 | not converted: the BGM helpers' loop points (33 noted) |
 | `String`, `VariableValue`, `Array`, `AssocArray`, `Count` | 2 / 52 / 64 …; mostly lib and sys | converted when the value is known at convert time; else noted (1,658, 1,584, 689, 165): `SetRoll`'s ending tables (Status), `sys_hmode` |
 | `CreateChoice`, `SetNextFocus`, `CursorPosition`, `MoveCursor`, `Position`, `Save` | 0 story | lib and sys only: replaced by our choices and screens (`function_select.nss`'s body gives the 153 notes each); `Position` in the battle HUD (`function_cockpit.nss`) goes with `CreateProcess` |
