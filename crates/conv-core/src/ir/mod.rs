@@ -182,6 +182,9 @@ pub const FILTER_LIGHTNESS_INVERT: i32 = 8;
 pub const FILTER_LEVELS: i32 = 9;
 /// [`FILTER_LEVELS`] on the greyscale `(54 r + 183 g + 19 b) / 256`.
 pub const FILTER_GREY_LEVELS: i32 = 10;
+/// The grey of the weights in `params` (r, g, b in 1/256, each term
+/// rounded down).
+pub const FILTER_GREY_WEIGHTS: i32 = 11;
 /// How a filter's colour is combined with the pixel's
 /// ([`SpriteFilter::blend`]).
 pub const FILTER_BLEND_COPY: i32 = 0;

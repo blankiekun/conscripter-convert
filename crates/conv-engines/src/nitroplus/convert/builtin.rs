@@ -890,18 +890,21 @@ impl Compiler<'_, '_> {
 
 /// The filters drawing a tone `CreateEffect` and `SetTone` name (lower case).
 fn tone(name: &str) -> Option<Vec<SpriteFilter>> {
-    use conv_core::ir::{FILTER_BLEND_COPY, FILTER_BLEND_MULTIPLY, FILTER_COLOUR, FILTER_GREYSCALE, FILTER_NEGATIVE};
+    use conv_core::ir::{FILTER_BLEND_ADD, FILTER_BLEND_COPY, FILTER_COLOUR, FILTER_GREY_WEIGHTS, FILTER_NEGATIVE};
     let filter = |kind, blend, params: [i32; 3]| SpriteFilter { kind: Operand::Const(kind), blend: Operand::Const(blend), strength: Operand::Const(256), params: params.map(Operand::Const) };
-    let grey = filter(FILTER_GREYSCALE, FILTER_BLEND_COPY, [0; 3]);
+    // src: exe 0043fcc0 (the tables: 28 r + 151 g + 77 b, each /256 rounded down; the
+    // exe reads its BGRA pixels as RGB, so red and blue weigh the other way round)
+    let grey = filter(FILTER_GREY_WEIGHTS, FILTER_BLEND_COPY, [28, 151, 77]);
+    // The grey plus (r, g, b), each at most 255.
+    let plus = |rgb| filter(FILTER_COLOUR, FILTER_BLEND_ADD, rgb);
     Some(match name {
-        // shortcut: the exe's sepia code is encrypted on disk, so this
-        // tone (grey times cream, black kept) is ours; set it from a
-        // frame of the original if it looks off.
-        "sepia" => vec![grey, filter(FILTER_COLOUR, FILTER_BLEND_MULTIPLY, [255, 235, 195])],
+        // src: exe 004403d0 (Sepia's draw: b grey, g and r grey + 30)
+        "sepia" => vec![grey, plus([30, 30, 0])],
+        // src: exe 004401d0
         "monochrome" => vec![grey],
         "negaposi" => vec![filter(FILTER_NEGATIVE, FILTER_BLEND_COPY, [0; 3])],
-        // shortcut: a guess like sepia's (grey times a cool blue).
-        "kitanoblue" => vec![grey, filter(FILTER_COLOUR, FILTER_BLEND_MULTIPLY, [170, 200, 255])],
+        // src: exe 004405e0 (KitanoBlue's draw: r grey, g grey + 20, b grey + 80)
+        "kitanoblue" => vec![grey, plus([0, 20, 80])],
         _ => return None,
     })
 }

@@ -3266,7 +3266,8 @@ impl<'a, 'b> Compiler<'a, 'b> {
     /// object of `priority` ([`Kind::Camera`]); `None`: at or before the
     /// camera, not drawn.
     // src: shot (続・殺戮のジャンゴ under wine: boxes at four priorities, six camera settings; docs/games/django.md)
-    // guess: the same depth rule in 装甲悪鬼村正 (its exe draws cameras through FUN_00445380, not decoded)
+    // src: exe 00489a52 (装甲悪鬼村正, FUN_00489570: a camera's picture at depth 1000 − priority,
+    // seen at the camera's z: x = 512 + (x − 512)·z/(1000 − priority), y alike about 288)
     fn camera_zoom(&self, name: &str, priority: i64) -> Option<i64> {
         let mut zoom = 1000;
         let mut end = 0;
@@ -4403,7 +4404,7 @@ scene a.nss
 "#;
         let c = compile(story, LIBRARY);
         let tinted: Vec<u32> = c.ops.iter().filter_map(|op| match op {
-            Op::SpriteFilters { layer, filters } if filters.iter().any(|f| f.kind == Operand::Const(conv_core::ir::FILTER_GREYSCALE)) => Some(*layer),
+            Op::SpriteFilters { layer, filters } if filters.iter().any(|f| f.kind == Operand::Const(conv_core::ir::FILTER_GREY_WEIGHTS)) => Some(*layer),
             _ => None,
         }).collect();
         assert_eq!(tinted.len(), 1, "{:?}", c.ops);
@@ -4415,7 +4416,7 @@ scene a.nss
         // ma02_016: `SetTone` on a picture; mb04_011vs: on a `Plain` cover.
         let grey = |c: &Compiled| -> Vec<u32> {
             c.ops.iter().filter_map(|op| match op {
-                Op::SpriteFilters { layer, filters } if filters.iter().any(|f| f.kind == Operand::Const(conv_core::ir::FILTER_GREYSCALE)) => Some(*layer),
+                Op::SpriteFilters { layer, filters } if filters.iter().any(|f| f.kind == Operand::Const(conv_core::ir::FILTER_GREY_WEIGHTS)) => Some(*layer),
                 _ => None,
             }).collect()
         };
