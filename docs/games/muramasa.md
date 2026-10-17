@@ -814,8 +814,8 @@ Next, in order:
      renders. Unverified: the engine's blur keeps the alpha, which the
      exe blurs too.
    - `DrawEffect`: the waves (LowWave, MiddleWave, HighWave, SuperWave)
-     are converted, drawn by the engine's spwave (CONscripter#76)
-     (`spwave`). The exe (`FUN_00430a70`, `FUN_00430de0`, `cb_00431230`)
+     are converted, drawn by the engine's `spwave`
+     (CONscripter#76). The exe (`FUN_00430a70`, `FUN_00430de0`, `cb_00431230`)
      shifts each row by trunc(sin(2π·phase/256) × amp) px, the row's phase
      row × K / height (K 64, 512, 1024, 4096 by name) plus one per tick of
      more than 32 ms; amp goes `from` → `to` over `time` by the tempo, then
