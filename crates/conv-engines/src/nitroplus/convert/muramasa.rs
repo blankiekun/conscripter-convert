@@ -20,7 +20,7 @@ pub mod screens;
 mod subtitles;
 
 /// The game's hooks; the CLI uses them for a game with `Muramasa.exe`.
-pub const MURAMASA: Game = Game { call, scene, flags, files: &[magiccube::FILE], menus: screens::menus, subroutines: &[(screens::FAVOUR, "nss/sys_hmode.nss")], replays: extras::replays, string_vars: true, shake_jolts: true, ..Game::PLAIN };
+pub const MURAMASA: Game = Game { call, scene, flags, files: &[magiccube::FILE], menus: screens::menus, subroutines: &[(screens::FAVOUR, "nss/sys_hmode.nss")], replays: extras::replays, string_vars: true, shake_jolts: true, loaded_textures: true, ..Game::PLAIN };
 
 /// Full Metal Daemon Muramasa (the English release's text in the Japanese
 /// scripts): its port writes the vertical text boxes horizontally, 280

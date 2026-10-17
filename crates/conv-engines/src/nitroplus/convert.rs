@@ -150,8 +150,7 @@ pub struct Game {
     /// checked against it.
     relative_children: bool,
     /// `CreateTexture` from a `LoadImage` picture draws it (続・殺戮のジャンゴ's
-    /// face-window frames). Off for 装甲悪鬼村正, whose choice plates come
-    /// from `SetChoiceBase` and would be drawn twice.
+    /// face-window frames, 装甲悪鬼村正's pictures made from them).
     loaded_textures: bool,
     /// The objects a chapter file made are deleted when it ends, except
     /// those hung under an object made before it (続・殺戮のジャンゴ: its
