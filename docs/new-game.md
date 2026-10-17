@@ -581,9 +581,8 @@ lose the loop state between sessions.
    previous build's saves (story slots and system data) into it, natively
    and in the web build. Global variables, the game's sprite numbers,
    setting switches and save-slot numbers must not move between builds
-   (`--roundtrip-every` only checks one build against itself). Read
-   marks (`kidoku.dat`) are lost on every rebuild of `0.txt`; say so to
-   the user rather than ship a stale one.
+   (`--roundtrip-every` only checks one build against itself). Saves
+   and read marks (`kidoku.dat`) follow a rebuilt `0.txt` by label.
 10. **Write it down.** Add a checklist entry to the game's document:
    "progression verified against walkthrough: yes/no, date,
    how" (which paths were simulated, and whether both sides matched). Add any new lesson to `PLAN.md` §13.

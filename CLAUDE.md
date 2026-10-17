@@ -266,7 +266,6 @@ Steps in `docs/releasing.md`; read it only when releasing.
 - `pkill -f`/`pgrep -f` match your own shell when the pattern is in the
   command line: use `pkill -x conscripter`.
 - ONScripter ignores SIGTERM in script loops: always `timeout -k 5`.
-- Rebuilding `0.txt` makes `kidoku.dat` stale (byte offsets): delete it.
 - Python text-mode writes turn CRLF files into LF: check
   `grep -c $'\r$'` before committing engine files.
 - `find /` and `locate` can be slow on machines with big network
