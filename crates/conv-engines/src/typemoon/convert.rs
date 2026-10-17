@@ -105,7 +105,7 @@ struct Layer {
     /// `_STCH` arguments 12–16: the screen rectangle it is drawn in (x, y,
     /// w, h on a 1920 × 1080 screen; none if w or h is 0 or it is the
     /// screen) and its frame's width; a child is drawn in its parent's.
-    clip: [i32; 5],
+    clip: [i32; 6],
 }
 
 /// CONscripter's `spblend` screen mode (lighten, never past white).
@@ -302,7 +302,7 @@ struct Lowering<'g, 'a> {
     /// Each IR layer's `spblend` mode.
     blends: Vec<u8>,
     /// Each IR layer's `spclip` rectangle.
-    clips: Vec<Option<(i32, i32, i32, i32)>>,
+    clips: Vec<Option<Clip>>,
     /// `_WNTY(1)`: the next line ends its page.
     page_end: bool,
     /// The text window was hidden or faded (`_CLO2`/`_CLO3`/`_CLO4`): the
@@ -668,7 +668,15 @@ impl Lowering<'_, '_> {
                 let Some(n) = number(arg(0)).filter(|n| (0..LAYERS as i32).contains(n)) else { return false };
                 self.priority[n as usize] = number(arg(1)).unwrap_or(0);
             }
-            "_FADS" => self.fads(number(arg(0)).unwrap_or(1), number(arg(1)).unwrap_or(0), number(arg(2)).unwrap_or(0)),
+            // `_FADS(type, ms, rule, mode)` (`FUN_00160610`): mode 0 sets nothing
+            // (1, and 2 or none over a timed fade under two settings, set
+            // a flag at 0x89E of the state, meaning not known).
+            "_FADS" => {
+                if number(a.get(3).map_or("", |v| v.trim())) == Some(0) {
+                    arg(3);
+                }
+                self.fads(number(arg(0)).unwrap_or(1), number(arg(1)).unwrap_or(0), number(arg(2)).unwrap_or(0));
+            }
             _ => return false,
         }
         true
@@ -711,10 +719,17 @@ impl Lowering<'_, '_> {
             Some((e(9, oa), e(10, ob)))
         };
         // An argument left out keeps the layer's rectangle (`FUN_00160840`).
-        let mut clip = old.as_ref().map_or([0; 5], |l| l.clip);
-        for (i, c) in clip.iter_mut().enumerate() {
+        let mut clip = old.as_ref().map_or([0; 6], |l| l.clip);
+        for (i, c) in clip.iter_mut().enumerate().take(5) {
             if let Some(v) = number(arg(12 + i)) {
                 *c = v;
+            }
+        }
+        // Argument 17, the frame's colour: read when 0 (none); a colour isn't drawn.
+        if let Some(v) = a.get(17).and_then(|v| number(v.trim())) {
+            clip[5] = v;
+            if v == 0 {
+                arg(17);
             }
         }
         let parent = number(arg(11)).filter(|&p| (0..LAYERS as i32).contains(&p) && p as usize != n).map(|p| p as usize).or(copy.as_ref().and_then(|c| c.parent));
@@ -1016,8 +1031,8 @@ impl Lowering<'_, '_> {
         // spclip stays through lsp: a full-screen one draws everywhere again.
         let clip = clip(l.clip);
         if clip != self.clips[layer as usize] {
-            let rect = clip.unwrap_or((0, 0, SCREEN_W as i32, SCREEN_H as i32));
-            self.ops.push(Op::SpriteClip { layer, rect });
+            let (rect, feather) = clip.unwrap_or(((0, 0, SCREEN_W as i32, SCREEN_H as i32), 0));
+            self.ops.push(if feather > 0 { Op::SpriteClipFeather { layer, rect, feather } } else { Op::SpriteClip { layer, rect } });
             self.clips[layer as usize] = clip;
         }
         // The effect makes the texture the shader then draws.
@@ -1033,14 +1048,28 @@ impl Lowering<'_, '_> {
 /// scissor on the 1920 × 1080 screen, inside its frame (the frame's width
 /// off each side, across if narrower than the screen and down if lower).
 // shortcut: the frame (argument 17's colour: 1, 7 black, 2 white, …) is not drawn, and a turned layer's rectangle isn't turned.
-fn clip([x, y, w, h, frame]: [i32; 5]) -> Option<(i32, i32, i32, i32)> {
+/// A screen rectangle (x, y, w, h) and its feather in px.
+type Clip = ((i32, i32, i32, i32), u32);
+
+/// A panel's screen rectangle and feather. With no frame colour
+/// (argument 17 0) the frame is a soft edge: the draw (`FUN_00189ad0`)
+/// makes the layer's mask (blend 0 into its target) from the inner
+/// rectangle and `BORDER_PARTS`' `alphagradation*` pieces, a smooth ramp
+/// over the frame width from the rectangle's edge in. An axis as wide as
+/// the screen has no frame; its sides are pushed out of the feather.
+fn clip([x, y, w, h, frame, colour]: [i32; 6]) -> Option<Clip> {
     // src: exe 0x189ad0 (a scissor in 1920 × 1080 pixels)
     if w == 0 || h == 0 || (w, h) == (1920, 1080) {
         return None;
     }
     let (fx, fy) = (if w < 1920 { frame.max(0) } else { 0 }, if h < 1080 { frame.max(0) } else { 0 });
     let px = |v: i32| (v as f32 * SCREEN_W as f32 / 1920.0).round() as i32;
-    Some((px(x + fx), px(y + fy), px(w - 2 * fx).max(0), px(h - 2 * fy).max(0)))
+    if colour != 0 || frame <= 0 {
+        // shortcut: a coloured frame (argument 17 1–6, 263 uses) isn't drawn; the picture is cut at its inner edge.
+        return Some(((px(x + fx), px(y + fy), px(w - 2 * fx).max(0), px(h - 2 * fy).max(0)), 0));
+    }
+    let (ex, ey) = (if fx == 0 { frame } else { 0 }, if fy == 0 { frame } else { 0 });
+    Some(((px(x - ex), px(y - ey), px(w + 2 * ex), px(h + 2 * ey)), px(frame).max(1) as u32))
 }
 
 /// The `F`, `G` and `C` flags the scripts name, as IR variables.
@@ -1290,9 +1319,9 @@ mod tests {
 
     #[test]
     fn a_panel_is_clipped_to_its_rectangle() {
-        // img1 in a 960 × 540 panel framed 60 wide; the child in it, then
-        // img1 again without one.
-        let src = "_STCH(1,img1,240,136,1000,255,10,,,,,,480,270,960,540,60);_STCH(2,dot,10,10,1000,255,20,,,,,1);_FADS(1,0,0);_STCH(1,img1,240,136,1000,255,10,,,,,,0,0,0,0,0);_STCH(2,);_FADS(1,0,0);";
+        // img1 in a 960 × 540 panel with a soft frame 60 wide; the child in
+        // it; then a black frame (cut at its inner edge), then none.
+        let src = "_STCH(1,img1,240,136,1000,255,10,,,,,,480,270,960,540,60);_STCH(2,dot,10,10,1000,255,20,,,,,1);_FADS(1,0,0);_STCH(1,img1,240,136,1000,255,10,,,,,,,,,,,7);_STCH(2,);_FADS(1,0,0);_STCH(1,img1,240,136,1000,255,10,,,,,,0,0,0,0,0,0);_FADS(1,0,0);";
         let g = Game {
             scripts: vec![("S".into(), script::parse(src).into_iter().map(Result::unwrap).collect())],
             scenes: vec![],
@@ -1304,9 +1333,20 @@ mod tests {
             pic_ext: "webp",
             motions: vec![],
         };
-        let clips: Vec<_> = compile(&g).ops.into_iter().filter(|o| matches!(o, Op::SpriteClip { .. })).collect();
-        let panel = (360, 220, 560, 280);
-        assert_eq!(clips, [Op::SpriteClip { layer: 38, rect: panel }, Op::SpriteClip { layer: 39, rect: panel }, Op::SpriteClip { layer: 39, rect: (0, 0, 1280, 720) }]);
+        let c = compile(&g);
+        let clips: Vec<_> = c.ops.into_iter().filter(|o| matches!(o, Op::SpriteClip { .. } | Op::SpriteClipFeather { .. })).collect();
+        let (outer, inner) = ((320, 180, 640, 360), (360, 220, 560, 280));
+        assert_eq!(
+            clips,
+            [
+                Op::SpriteClipFeather { layer: 38, rect: outer, feather: 40 },
+                Op::SpriteClipFeather { layer: 39, rect: outer, feather: 40 },
+                Op::SpriteClip { layer: 39, rect: inner },
+                Op::SpriteClip { layer: 39, rect: (0, 0, 1280, 720) },
+            ]
+        );
+        // A colour is a gap; no colour is read.
+        assert_eq!(c.metrics.reasons().get("_STCH argument 17 ignored"), Some(&1), "{:?}", c.metrics.reasons());
     }
 
     #[test]
