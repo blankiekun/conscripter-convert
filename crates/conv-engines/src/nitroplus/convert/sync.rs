@@ -389,7 +389,7 @@ impl Compiler<'_, '_> {
             {
                 let mut ops = Vec::new();
                 if let Some(t) = self.objects.get(name).and_then(|o| o.trail) {
-                    ops.push(Op::SpriteTrail { layer, passes: t.passes, alpha: t.alpha, lag: t.lag });
+                    ops.push(Op::SpriteTrail { layer, passes: t.passes, alpha: t.alpha, lag: t.lag, over: t.over });
                 }
                 if let Some(&(ease, exponent)) = tempo.get(name) {
                     ops.push(Op::MoveEase { ease, exponent });
@@ -444,7 +444,7 @@ impl Compiler<'_, '_> {
                     self.runs.insert(name.clone(), Run { from: start.clone(), to: now.clone(), ms: t, at: clock, ease: tempo.get(name).copied() });
                     let engine = Engine { zoomed: old.engine.zoomed || old.zoom != now.zoom || old.cells != now.cells || old.angle != now.angle, moved: true };
                     if let Some(t) = self.objects.get(name).and_then(|o| o.trail) {
-                        self.ops.push(Op::SpriteTrail { layer, passes: t.passes, alpha: t.alpha, lag: t.lag });
+                        self.ops.push(Op::SpriteTrail { layer, passes: t.passes, alpha: t.alpha, lag: t.lag, over: t.over });
                     }
                     if old.opacity != now.opacity {
                         self.ops.push(Op::SpriteOpacity { layer: Some(layer), opacity: (super::fade_base(&start, &now) * 256 / 1000) as u32 });

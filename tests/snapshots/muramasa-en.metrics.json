@@ -1,9 +1,9 @@
 {
 "game": "muramasa-en",
 "engine": "nitroplus",
-"commit": "17883bd2",
+"commit": "5d08fed3",
 "commit_date": "2026-10-17",
-"totals": {"calls": 1201854, "full": 1167484, "gaps": 27552, "left_out": 6818},
+"totals": {"calls": 1201854, "full": 1168438, "gaps": 26598, "left_out": 6818},
 "kinds": {
 "Random": {"calls": 7411, "gaps": 7411, "reasons": [["Random argument 0 ignored", 7411]]},
 "Fade": {"calls": 302628, "gaps": 3894, "reasons": [["Fade argument 3 ignored", 3869], ["timed action that waits only part of its time", 16], ["move or zoom over time with a fade or a new picture drawn as a cross-fade", 10], ["Fade argument 5 ignored", 1]]},
@@ -14,7 +14,6 @@
 "SetFrequency": {"calls": 8778, "gaps": 1523, "reasons": [["SetFrequency on music", 1486], ["SetFrequency argument 3 ignored", 37]]},
 "Shake": {"calls": 1486, "gaps": 1486, "reasons": [["Shake argument 6 ignored", 1486], ["Shake argument 7 ignored", 1486], ["Shake argument 8 ignored", 58], ["move or zoom over time with a fade or a new picture drawn as a cross-fade", 1], ["timed action that waits only part of its time", 1]]},
 "Request": {"calls": 239987, "gaps": 1320, "reasons": [["Request stop", 1082], ["Request overlayrender", 111], ["Request compulsorysuspend", 18], ["Request pushtext", 14], ["Request entrustsuspend", 12], ["28 more", 83]]},
-"SetBlur": {"calls": 985, "gaps": 970, "reasons": [["SetBlur argument 5 ignored", 970], ["SetBlur argument 4 ignored", 16]]},
 "CreateWindow": {"calls": 639, "gaps": 639, "reasons": [["CreateWindow argument 6 ignored", 639]]},
 "Rotate": {"calls": 16922, "gaps": 549, "reasons": [["Rotate argument 5 ignored", 486], ["Rotate about z", 69], ["Rotate over time turning a picture over: mirrored at once", 10]]},
 "Position": {"calls": 506, "gaps": 62, "left_out": 444, "reasons": [["the choice screen's own code: the engine's choice stands in", 444], ["built-in Position", 62]]},
@@ -28,6 +27,7 @@
 "SetVolume": {"calls": 23866, "gaps": 24, "reasons": [["SetVolume argument 3 ignored", 23], ["SetVolume argument 4 ignored", 1]]},
 "DrawEffect": {"calls": 76, "gaps": 21, "reasons": [["DrawEffect argument 0 ignored", 11], ["DrawEffect argument 1 ignored", 11], ["DrawEffect argument 3 ignored", 11], ["DrawEffect argument 4 ignored", 11], ["DrawEffect argument 5 ignored", 11], ["6 more", 22]]},
 "Zoom": {"calls": 6621, "gaps": 19, "reasons": [["timed action that waits only part of its time", 16], ["move or zoom over time with a fade or a new picture drawn as a cross-fade", 4]]},
+"SetBlur": {"calls": 985, "gaps": 16, "reasons": [["SetBlur argument 4 ignored", 16]]},
 "BezierMove": {"calls": 335, "gaps": 15, "reasons": [["timed action that waits only part of its time", 14], ["move or zoom over time with a fade or a new picture drawn as a cross-fade", 1]]},
 "Move": {"calls": 73937, "gaps": 14, "reasons": [["timed action that waits only part of its time", 8], ["move or zoom over time with a fade or a new picture drawn as a cross-fade", 6]]},
 "Wait": {"calls": 56001, "gaps": 13, "reasons": [["move or zoom over time with a fade or a new picture drawn as a cross-fade", 13]]},

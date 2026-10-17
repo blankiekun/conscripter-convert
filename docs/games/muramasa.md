@@ -674,6 +674,8 @@ the knob's min end, which would then be the right end.
   game, not started.
 - Done: `SetBlur`'s trail behind a moving picture as CONscripter's
   `sptrail` (engine #25, converter #82; "History", "`SetBlur`").
+  Its last argument draws the copies over the picture (`false`) or
+  under it (`true`): `sptrail`'s `over` (engine #83, "History").
 - Decided: the hover sound's 0.125 s of silence is in the original file
   and stays. The trace checker's `movie` rule will skip movies that start
   from black (an engine-tools change, once the engine queue drains).
@@ -817,7 +819,7 @@ Next, in order:
    - Story `CreateText`: a sideways text turned by `Rotate` sits about
      17 px lower than the original's under wine (cause unknown; "History",
      "Story `CreateText`").
-   - `DrawTransition`'s start opacity and softness; `SetBlur`'s `wait`.
+   - `DrawTransition`'s start opacity and softness.
    - `Random` and `Conquest` return 0 whatever their arguments.
    - `CreateEffect`'s place and size; `SetBacklog`'s speaker;
      `MoveCamera`'s arguments in a process (4 calls).
@@ -1073,6 +1075,11 @@ under the sprite, following its `spmotion` keys `lag` × i ms late; the
 converter emits it before each motion of a trailed picture, a blocking
 `Move` included (an `spmotion` too since #101): 594 in the story;
 `sptrail layer` ends it when `SetBlur` is turned off on screen (28).
+The last argument (`wait` in the old notes) is no wait: the exe
+(`00454ca4`) draws the copies (`FUN_00456810`) before the picture when
+it is `true` and after it otherwise, so the story's `false` (955 of
+996 calls) puts them over the picture. CONscripter's `sptrail
+…,lag,1` (engine #83) draws them over: 659 of the story's 704 trails.
 
 Finished work, moved out of "Status" so a session reads only the open
 state.

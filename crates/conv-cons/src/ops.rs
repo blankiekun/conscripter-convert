@@ -209,7 +209,9 @@ impl<'a> Emitter<'a> {
             writeln!(out, "spwave {},{ms},{period},{from},{to},{c}", SPRITE_BASE + layer).unwrap();
         }
         Op::SpriteTrail { layer, passes: 0, .. } => writeln!(out, "sptrail {}", SPRITE_BASE + layer).unwrap(),
-        Op::SpriteTrail { layer, passes, alpha, lag } => writeln!(out, "sptrail {},{passes},{alpha},{lag}", SPRITE_BASE + layer).unwrap(),
+        Op::SpriteTrail { layer, passes, alpha, lag, over } => {
+            writeln!(out, "sptrail {},{passes},{alpha},{lag}{}", SPRITE_BASE + layer, if *over { ",1" } else { "" }).unwrap()
+        }
         Op::SpriteOverText { layer } => {
             writeln!(out, "spovertext {}", SPRITE_BASE + layer).unwrap();
             if transition.is_none() {
