@@ -3,7 +3,9 @@
 //! converter drops it, approximates it or leaves an argument it was given
 //! unread (any note made while the call is open), or is left out on
 //! purpose (code the game can't reach, such as a debug menu: counted as
-//! done in the completion figure, apart from the gaps). Every engine
+//! done in the completion figure, apart from the gaps). Each call also
+//! counts its weighted share ([`share`]): the arguments it was given that
+//! the converter read. Every engine
 //! reports its calls here; the dry run writes them as `metrics.json`, and
 //! `tests/snapshot.sh --update` keeps them in `tests/snapshots/`.
 
@@ -16,6 +18,8 @@ pub struct Kind {
     pub gaps: usize,
     /// Calls left out on purpose ([`Metrics::left_out`]), not gaps.
     pub left_out: usize,
+    /// The calls' [`share`]s summed (left-out calls not in it).
+    pub weighted: f64,
     /// Each reason with the number of calls it was noted on.
     pub reasons: BTreeMap<String, usize>,
 }
@@ -39,10 +43,10 @@ impl Metrics {
         self.open.push((kind.to_string(), Vec::new()));
     }
 
-    /// The innermost call ends.
-    pub fn end(&mut self) {
+    /// The innermost call ends; it was given `args` arguments.
+    pub fn end(&mut self, args: usize) {
         if let Some((kind, reasons)) = self.pop() {
-            self.call(&kind, reasons);
+            self.call(&kind, args, reasons);
         }
     }
 
@@ -60,12 +64,15 @@ impl Metrics {
         }
     }
 
-    /// One whole call with the reasons noted on it (none: fully converted).
-    pub fn call(&mut self, kind: &str, mut reasons: Vec<String>) {
+    /// One whole call given `args` arguments (options counted as
+    /// arguments of their own), with the reasons noted on it (none: fully
+    /// converted).
+    pub fn call(&mut self, kind: &str, args: usize, mut reasons: Vec<String>) {
         let k = self.kinds.entry(kind.to_string()).or_default();
         k.calls += 1;
         reasons.sort();
         reasons.dedup();
+        k.weighted += share(args, &reasons);
         k.gaps += usize::from(!reasons.is_empty());
         for r in reasons {
             *k.reasons.entry(r).or_default() += 1;
@@ -88,6 +95,7 @@ impl Metrics {
             k.calls += o.calls;
             k.gaps += o.gaps;
             k.left_out += o.left_out;
+            k.weighted += o.weighted;
             for (r, n) in o.reasons {
                 *k.reasons.entry(r).or_default() += n;
             }
@@ -111,6 +119,11 @@ impl Metrics {
         self.kinds.values().fold((0, 0), |(c, g), k| (c + k.calls, g + k.gaps))
     }
 
+    /// The weighted shares over every kind.
+    pub fn weighted_total(&self) -> f64 {
+        self.kinds.values().map(|k| k.weighted).sum()
+    }
+
     /// Calls left out on purpose, over every kind.
     pub fn left_out_total(&self) -> usize {
         self.kinds.values().map(|k| k.left_out).sum()
@@ -125,30 +138,47 @@ impl Metrics {
         // "left_out" only when there are some, so other games' files stay as they were.
         let lo = |n: usize| if n > 0 { format!(", \"left_out\": {n}") } else { String::new() };
         let mut s = format!(
-            "{{\n\"game\": {},\n\"engine\": {},\n\"commit\": {},\n\"commit_date\": {},\n\"totals\": {{\"calls\": {calls}, \"full\": {}, \"gaps\": {gaps}{}}},\n\"kinds\": {{",
+            "{{\n\"game\": {},\n\"engine\": {},\n\"commit\": {},\n\"commit_date\": {},\n\"totals\": {{\"calls\": {calls}, \"full\": {}, \"gaps\": {gaps}{}, \"weighted\": {:.1}}},\n\"kinds\": {{",
             q(game),
             q(engine),
             q(commit),
             q(commit_date),
             calls - gaps - left_out,
-            lo(left_out)
+            lo(left_out),
+            self.weighted_total()
         );
         let mut kinds: Vec<_> = self.kinds.iter().collect();
         kinds.sort_by(|a, b| b.1.gaps.cmp(&a.1.gaps).then(b.1.calls.cmp(&a.1.calls)).then(a.0.cmp(b.0)));
         for (i, (name, k)) in kinds.iter().enumerate() {
             s += &format!(
-                "{}\n{}: {{\"calls\": {}, \"gaps\": {}{}, \"reasons\": {}}}",
+                "{}\n{}: {{\"calls\": {}, \"gaps\": {}{}, \"reasons\": {}, \"weighted\": {:.1}}}",
                 if i > 0 { "," } else { "" },
                 q(name),
                 k.calls,
                 k.gaps,
                 lo(k.left_out),
-                top(&k.reasons)
+                top(&k.reasons),
+                k.weighted
             );
         }
         s += &format!("\n}},\n\"outside_calls\": {}\n}}\n", top(&self.outside));
         s
     }
+}
+
+/// A call's weighted share, from 0 to 1: the part of its `args` arguments
+/// read. Each "… ignored" reason (an argument, option, operand or key) is
+/// one argument lost; "not converted" makes it 0. Other reasons (an
+/// approximation) leave the share as is: the arguments were read.
+pub fn share(args: usize, reasons: &[String]) -> f64 {
+    if reasons.iter().any(|r| r.contains("not converted")) {
+        return 0.0;
+    }
+    let lost = reasons.iter().filter(|r| r.ends_with(" ignored")).count();
+    if args == 0 {
+        return if lost > 0 { 0.0 } else { 1.0 };
+    }
+    args.saturating_sub(lost) as f64 / args as f64
 }
 
 /// The `TOP` entries with the highest counts, as `[[reason, n], …]`, and
@@ -190,10 +220,10 @@ mod tests {
         m.note("Move argument 5 ignored");
         m.note("Move argument 4 ignored");
         m.begin("Fade"); // nested: its notes are its own
-        m.end();
-        m.end();
+        m.end(1);
+        m.end(8);
         m.begin("Move");
-        m.end();
+        m.end(6);
         m.note("text tag <x>");
         assert_eq!(m.totals(), (3, 1));
         assert_eq!(m.kinds["Move"].gaps, 1);
@@ -201,18 +231,27 @@ mod tests {
         assert_eq!(m.kinds["Fade"].gaps, 0);
         assert_eq!(m.outside["text tag <x>"], 1);
         let json = m.json("g", "e", "abc", "2026-10-16");
-        assert!(json.contains("\"totals\": {\"calls\": 3, \"full\": 2, \"gaps\": 1}"), "{json}");
+        assert!(json.contains("\"totals\": {\"calls\": 3, \"full\": 2, \"gaps\": 1, \"weighted\": 2.8}"), "{json}");
         assert!(json.contains("\n\"commit\": \"abc\",\n"));
     }
 
     #[test]
     fn left_out_calls_are_neither_full_nor_gaps() {
         let mut m = Metrics::default();
-        m.call("opcode 0x30", vec![]);
+        m.call("opcode 0x30", 2, vec![]);
         m.left_out("opcode 0x30", "the debug menu");
         assert_eq!((m.totals(), m.left_out_total()), ((2, 0), 1));
         let json = m.json("g", "e", "c", "d");
-        assert!(json.contains("\"totals\": {\"calls\": 2, \"full\": 1, \"gaps\": 0, \"left_out\": 1}"), "{json}");
+        assert!(json.contains("\"totals\": {\"calls\": 2, \"full\": 1, \"gaps\": 0, \"left_out\": 1, \"weighted\": 1.0}"), "{json}");
         assert!(json.contains("\"calls\": 2, \"gaps\": 0, \"left_out\": 1, \"reasons\""), "{json}");
+    }
+
+    #[test]
+    fn share_is_the_arguments_read() {
+        let r = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        assert_eq!(super::share(3, &r(&["_VPLY argument 1 ignored"])), 2.0 / 3.0);
+        assert_eq!(super::share(4, &r(&["_MPLY argument 1 ignored", "_MPLY option 17 ignored", "approximated"])), 0.5);
+        assert_eq!(super::share(2, &r(&["not converted"])), 0.0);
+        assert_eq!(super::share(0, &r(&["approximated"])), 1.0);
     }
 }

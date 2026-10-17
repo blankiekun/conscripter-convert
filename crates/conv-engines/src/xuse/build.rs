@@ -115,7 +115,8 @@ pub fn build(game: &Path, linear: bool, opts: &Opts) -> Result<Built> {
             let reasons = gaps.remove(&index).unwrap_or_default();
             match LEFT_OUT.iter().find(|&&(f, i, _)| !reasons.is_empty() && f == file && i == index) {
                 Some((_, _, why)) => metrics.left_out(&kind, why),
-                None => metrics.call(&kind, reasons),
+                // shortcut: sub and arg counted as the two operands (a record's pool fields as part of arg), finer once xuse has gaps.
+                None => metrics.call(&kind, 2, reasons),
             }
         }
         ops.extend(lowered);

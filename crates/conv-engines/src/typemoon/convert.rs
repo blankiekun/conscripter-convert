@@ -1118,7 +1118,7 @@ pub fn compile(g: &Game) -> Compiled {
                 l.note(format!("not converted: {}", c.opcode()));
             }
             let reasons = if done { unread(c, read.get()) } else { vec!["not converted".into()] };
-            l.metrics.call(c.opcode(), reasons);
+            l.metrics.call(c.opcode(), c.args.iter().filter(|a| !a.trim().is_empty()).count(), reasons);
         }
     }
     Compiled { ops: l.ops, notes: l.notes, metrics: l.metrics }

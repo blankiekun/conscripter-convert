@@ -105,7 +105,7 @@ fn note_unread(unread: &mut Metrics, call: &str, args: &[squirrel::Arg], telop: 
         .filter(|&(i, a)| !read.contains(&i) && !UNREAD_HARMLESS.iter().any(|&(f, k, v, _)| f == call && k == i && v.is_none_or(|v| v == arg_text(a))))
         .map(|(i, _)| format!("{call} argument {i} ignored"))
         .collect();
-    unread.call(&format!("port {call}"), reasons);
+    unread.call(&format!("port {call}"), args.len(), reasons);
 }
 
 /// The variable `args[i]` or `args[i..=i + 1]` names: `Route.<name>` is

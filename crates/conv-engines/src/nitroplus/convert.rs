@@ -2721,6 +2721,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 }
                 let exprs = args;
                 let args: Vec<Value> = args.iter().map(|a| self.eval(a)).collect();
+                let given = args.len();
                 // A call of anything but the scripts' own functions is one
                 // source command call (`metrics.json`).
                 let command = self.function(name).is_none();
@@ -2740,7 +2741,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 if command && let Some((kind, reasons)) = self.metrics.pop() {
                     match left_out(&reasons) {
                         Some(why) => self.metrics.left_out(&kind, why),
-                        None => self.metrics.call(&kind, reasons),
+                        None => self.metrics.call(&kind, given, reasons),
                     }
                 }
                 value
