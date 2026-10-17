@@ -165,6 +165,7 @@ fn settings_en(a: &mut dyn Assets) -> Option<PictureSettings> {
     let box_on = ["ConfigButton-boxONcheck", "ConfigButton-boxONcheckOver", "ConfigButton-boxON"];
     let box_off = ["ConfigButton-box", "ConfigButton-boxMouseOver", "ConfigButton-boxMousePress"];
     let mut pairs = Vec::new();
+    // src: sys_config.nut main (ConfigCreateToggle1-3, ConfigCreateGage places); sys_val.nut defaults
     for (option, x, y, default_on) in [(PairOption::MovieStop, 91, 74, false), (PairOption::AutoWaitsForVoice, 377, 396, true)] {
         pairs.push(PicturePair { option, on: strip(a, &box_on, x, y)?, off: strip(a, &box_off, x, y)?, default_on });
     }
@@ -207,6 +208,7 @@ fn settings_en(a: &mut dyn Assets) -> Option<PictureSettings> {
         });
     }
     let mut fixed = Vec::new();
+    // src: sys_config.nut main (the controls' places); their states: shot en/orig-config
     for (name, x, y) in [
         ("ConfigButton-boxONcheck", 229, 74),
         ("ConfigButton-small-oncheck", 394, 209),
@@ -237,6 +239,7 @@ fn settings_en(a: &mut dyn Assets) -> Option<PictureSettings> {
         sliders,
         pairs,
         texts: Vec::new(),
+        // guess: fade 300 as the Japanese, pairs at once; not read from sys_config.nut
         fade_ms: 300,
         pair_fade_ms: 0,
         voice_window: None,
@@ -364,6 +367,8 @@ fn wait_icon(a: &mut dyn Assets) -> Option<WaitIcon> {
 fn line_log(a: &mut dyn Assets, en: bool) -> Option<LineLog> {
     let dir = if en { "en/cg/sys/backlog" } else { "cg/sys/backlog" };
     // src: sys_backlog.nss (buttons, scrollbar, SetFont 20, Fade 300), system.ini word_in_row 26; rows: shot backlog-1 (within 2 px)
+    // src: sys_backlog.nut 退出 906,443; function_textbox.nut backlogFieldRect, backlogRowSpace; rows: shot en/orig-backlog
+    // guess: the speaker icon's x 102 in the English port (no voiced row filmed)
     let ((close_x, close_y), text_x, columns) = if en { ((906, 443), 150, 28) } else { ((927, 438), 140, 26) };
     let strip = |a: &mut dyn Assets, names: &[&str], x: i32, y: i32| {
         let parts: Vec<String> = names.iter().map(|n| format!("{dir}/{n}.png")).collect();
@@ -525,6 +530,7 @@ fn command_menu(a: &mut dyn Assets) -> Option<CommandMenu> {
 /// clicked; here under the pointer.
 fn save_grid_en(a: &mut dyn Assets) -> Option<SaveGrid> {
     const DIR: &str = "en/cg/sys/save";
+    // src: sys_saveload.nut main (PreSave*, Save*_plus, Page1-5, SaveNew*_plus, SaveTotal*, SaveComment*, SaveCOME1-4)
     let slots_bg = a.image(&format!("{DIR}/Slots BG.png"))?.0;
     let mut pages = Vec::new();
     for n in [1, 2, 3, 4, 1] {
@@ -584,6 +590,7 @@ fn save_grid_en(a: &mut dyn Assets) -> Option<SaveGrid> {
         delete: none(a),
         delete_on: none(a),
         close: button(a, ["EXITボタン_bt_exit_off", "EXITボタン_bt_exit_over", "EXITボタン_bt_exit_off", "EXITボタン_bt_exit_on"], 0, 0)?,
+        // guess: thumbnails 158×90 (Slots-Grid's cells), page fade 300
         // The port has no larger picture, date or chapter.
         preview: Rect { x: -2000, y: -2000, w: 158, h: 90 },
         date: text(-2000, -2000, 18, 0, 0, 0, "#000000"),
@@ -635,6 +642,7 @@ fn command_menu_en(a: &mut dyn Assets) -> Option<CommandMenu> {
         ("タイトルに戻る", BarAction::Title, Some('T')),
         ("ゲーム終了", BarAction::Quit, None),
     ];
+    // src: sys_menu.nut (637, 90; Fade 300); main IsKeyDown
     let items = menu_items(a, "en/cg/sys/menu", (637, 90), &rows, &[1, 2, 0, 3])?;
     let backdrop = picture(a, "en/cg/sys/menu/メニュー黒バック.png", 0, 0)?;
     Some(CommandMenu { backdrop, items, fade_ms: 300, step_ms: 0, key: Some('M'), pressed: true })
@@ -895,6 +903,7 @@ fn confirm(a: &mut dyn Assets) -> Option<ConfirmDialog> {
 /// backdrop fade in, and shut (to 90) as they go.
 fn confirm_en(a: &mut dyn Assets) -> Option<ConfirmDialog> {
     const DIR: &str = "en/cg/sys/dialog";
+    // src: sys_dialog.nut CreateDialogImage_YesNo (yes 108,100, no 230,100; 150 ms, backdrop 800)
     let mut pictures = Vec::new();
     for (kind, name) in [
         (Switch::ConfirmQuit, "終了しますか"),

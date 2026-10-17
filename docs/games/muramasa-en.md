@@ -7,6 +7,24 @@ It has no NPA archives and no NSS scripts.
 
 ## Status
 
+### Accuracy (2026-10-17)
+
+The port's hand-typed values (`muramasa.rs`'s English parts,
+`screens.rs`'s `*_en`, `subtitles.rs`, `english.rs`) carry a
+`// src:`, `// guess:` or `// ours` comment; the places and defaults
+are the Squirrel scripts' (`val.nut`, `sys_*.nut`,
+`function_textbox.nut`, `function_select.nut`), checked against the
+disassembly. The Japanese build's audit (shared values, 一条's mask)
+is in its own document. Open guesses a frame of the original could
+settle:
+
+- the backlog's speaker icon at x 102 (no voiced row filmed);
+- the settings screen's fades (300 ms, the pairs at once);
+- the save screen's thumbnails (158×90) and its 300 ms page fade;
+- the choice plates' 300 ms fade;
+- `<small>` text at 75 % (the exe's `CTextEnglish_layout` size isn't
+  read yet).
+
 ### Queue (2026-10-16)
 
 - Merged this round: text box (#20), settings (#21), line log (#23,
