@@ -70,7 +70,8 @@ class Detect(unittest.TestCase):
             found = games.detect(root)
             self.assertEqual([(d.game.key, d.root) for d in found], [(key, root)])
             self.assertEqual(found[0].problems, [])
-            self.assertEqual(found[0].warnings, [])
+            # the fake exes are not a tested build
+            self.assertEqual([w for w in found[0].warnings if "not the build" not in w], [])
 
     def test_empty_and_unrelated(self):
         self.assertEqual(self.keys(self.dir), [])
