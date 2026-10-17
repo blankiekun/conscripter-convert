@@ -18,8 +18,9 @@
 //!   (wait = false) join the next blocking point.
 //! - **`PrintBG`** freezes the screen in a `CreateEffect("Plain")` cover and
 //!   rebuilds the scene under it; fading the cover out reveals the new
-//!   scene. While a cover is opaque nothing changes on screen, so the cover
-//!   itself is never drawn: its fade-out is the cross-fade.
+//!   scene. While a cover is opaque nothing under it changes on screen
+//!   (what lies above it does), so the cover itself is never drawn: its
+//!   fade-out is the cross-fade.
 //! - **Text.** A `<PRE>` block becomes a text object; `Request(text, Enter)`
 //!   (in the `TypeBegin*` helpers) shows its pages. The text window is
 //!   taken from the layout the `SetText*` helper gave the text
@@ -3019,9 +3020,10 @@ impl<'a, 'b> Compiler<'a, 'b> {
         Some(zoom)
     }
 
-    /// The screen is frozen while an opaque `Plain` cover is up.
-    fn frozen(&self) -> bool {
-        self.objects.values().any(|o| matches!(o.kind, Kind::Cover) && o.opacity >= 1000)
+    /// The screen is frozen under an opaque `Plain` cover while one is up:
+    /// the top one's priority.
+    fn frozen_at(&self) -> Option<i64> {
+        self.objects.values().filter(|o| matches!(o.kind, Kind::Cover) && o.opacity >= 1000).map(|o| o.priority).max()
     }
 
     /// Hides the text window once no picture of it is visible.
@@ -5256,6 +5258,26 @@ scene {name}_Y
         assert!(glob("a*", "a/b"));
         assert!(glob("*b", "ab") && !glob("*b", "ba"));
         assert!(!glob("a*c", "ab"));
+    }
+
+    #[test]
+    fn pictures_above_a_plain_cover_still_change() {
+        let story = r#"
+scene a.nss
+{
+	CreateTexture("絵背景100", 10000, 0, 0, "cg/bg/a.jpg");
+	Wait(10);
+	CreateEffect("絵板写", 30000, 0, 0, 1024, 576, "Plain");
+	Delete("絵背景100");
+	CreateColor("絵色100", 30200, 0, 0, 1024, 576, "Black");
+	Wait(10);
+}
+"#;
+        let c = compile(story, LIBRARY);
+        let Some(Op::Sprites { changes, .. }) = c.ops.iter().rev().find(|op| matches!(op, Op::Sprites { .. })) else { panic!() };
+        // The black drawn over the frozen screen, whose background stays.
+        assert!(changes.iter().all(|c| c.sprite.is_some()), "{changes:?}");
+        assert!(changes.iter().any(|c| c.sprite.as_ref().is_some_and(|s| s.image == "color/000000_1024x576.png")));
     }
 
     #[test]
