@@ -547,7 +547,7 @@ Traced in the eboot (2026-10-16; scene_load 0x8102840a reads a task,
 
 **Exe mapping redone (2026-10-17, `docs/new-game.md` §2 steps 6-16).**
 `docs/games/oretsuba.findings.tsv` has one row per task argument or
-branch the scenes use: 88 rows, 68 seen, 13 inferred, 6 unknown (each
+branch the scenes use: 88 rows, 70 seen, 11 inferred, 6 unknown (each
 with its check). The game updates at 30 fps (0x810009b4 waits two
 vblanks a frame) and every script time counts 60 fps frames, halved
 into updates or turned into ms, as ours. Fixed from it: MoviePlay
@@ -842,3 +842,4 @@ equal), then auto-play tours the title's menus. The checker found:
   px down over black in S04_05I); now a real zoom (`spzoom`).
 - **Not converted, found on the way (now converted):** the `:Color`
   tints, greyscale, sepia and negatives (above).
+- **Findings audit (2026-10-18, seed 20261018):** 10 "seen" rows and 10 dropped-argument rows re-derived from the decompile: 17 confirmed, 2 stale (FlagSwitch_Tag, drawn twice: its converter cell), 1 unsupported (CharacterStop is not "nothing": the eboot stops every character action and settles their moves; left inferred, converter gap), none wrong. CharacterOpen `[CharaN]` `:FadeWait` and CharacterMove/Action `[CharaN]` `:Priority` are never read by the eboot: now seen.

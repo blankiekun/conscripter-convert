@@ -13,7 +13,7 @@ Message	:Color	1	scene_load case 0	noted	seen
 BacklogMessage	:Message	56	scene_load case 1	logadd line	seen	
 Tag / Jump_Tag	:Name / :NextTag	1194 / 104	task numbers: Jump_Tag 0x31; `Tag` and `End` are not in task_type_number 81035094	labels, jumps	inferred	find where 0x31 and the tag names are resolved (not in task_run's switch)
 FlagSwitch_Tag	:Operator == or = (eq), > < >= <= !=; missing or unknown: a multi-way switch on `:NextTag`'s list	59	scene_load case 0x34 (strings 81145f74-81145f80); comparisons as FlagSwitch's task_run case 0x33: flag < param for `<`	== and < only (51, 8): Eq, Lt	seen	
-FlagSwitch_Tag	operator 6 (none): three tags for <, ==, >	0	task_run case 0x33	not converted	seen	not used
+FlagSwitch_Tag	operator 6 (none): three tags for <, ==, >	0	task_run case 0x33	an absent :Operator is 6 in the eboot; ours reads it as == (unused: 0 uses)	seen	not used
 FlagOperation / GlobalFlagOperation	:Action "=",1; :FlagName	11 / 19	0x32 / 0x53	Arith	seen	
 GlobalFlagSwitch_Tag	== only	21	0x55	If on a global	seen	
 FlagOperation	:CGFlag	1	0x32	noted (a CG never marked seen)	inferred	read 0x32's CGFlag branch
@@ -77,16 +77,16 @@ MovieStop	:EndWait	7	0x49	nothing (our movies end before)	seen
 CharacterOpen / CharacterOpenBS	Chara0-Chara9 in order, those with a :Number, until :SpriteMax of them; :SpriteMax 0 or missing (default 0) shows none, above 10 is 10	16948 / 892	scene_load case 0x1b/0x80 (record 0x8112963c)	every [CharaN] block (#360: as the eboot)	seen	
 CharacterOpen	:Fade F (step 2/F an update; 18 by default; 0 at once); OpenBS never fades	3186	0x8112963c	fade over F frames	seen	
 CharacterOpen	[CharaN] :Number, :Copy (+1000 × c), :Position, :Priority, :Color, :Grayscale, :Gamma, :Center	17960	scene_load case 0x1b	sprite per character	seen	
-CharacterOpen	[CharaN] :FadeWait	6	scene_load case 0x1b	dropped	inferred	read the per-character FadeWait use
+CharacterOpen	[CharaN] :FadeWait	6	scene_load 0x1b reads only the task-level :FadeWait, no Chara%d/FadeWait	dropped, as the eboot	seen	
 CharacterOpen	no :Position: the has-a-place flag +0x44	0	scene_load 0x1b	centre (guess)	unknown	find +0x44's reader
 CharacterDelete	:SpriteMax 1-10: every Chara0-9 with a :Number (the count replaces :SpriteMax); 0 or below / above 10: all characters	1414	scene_load case 0x1c	every block; SpriteMax 0 all	seen	
 CharacterDelete	:Fade, :FadeOut 0 (at once), :FadeWait 0 (any non-zero waits)	991	0x1c, 0x81129758 (FadeWait 1 by default)	char_fade, Some(0) = no wait	seen	
 CharacterMove	every Chara0-9 with a :Number (:SpriteMax ignored), :Time, :Position (ease type, power), :Wait 0	836	scene_load case 0x1e	spmotion	seen	
-CharacterMove / Action	[CharaN] :Priority	7, 1	scene_load 0x1e / 0x20	dropped	inferred	read the move record's priority use
+CharacterMove / Action	[CharaN] :Priority	7, 1	scene_load 0x1e / 0x20 read no Chara%d/Priority (only 0x1b does)	dropped, as the eboot	seen	
 CharacterAction	every Chara0-9 with a :Number (:SpriteMax ignored), :Action (chract), :EndWait	2310	scene_load case 0x20	spmotion keys	seen	
 CharacterAction	chract's per-key :Priority and easing	-	0x81008008	straight keys	unknown	read 0x81008008's key reader
 CharacterActionEnd	:Character first value; :Copy; :EndWait; ends only the action (+0x2e8), moves go on	2212	0x21, 0x81127a00 → 0x811277c0	as the eboot; :Copy dropped	seen	
 CharacterWait	waits for the characters' moves	651	0x23	MotionWait	seen	
-CharacterStop	(no arguments)	2	0x24	nothing	inferred	read 0x24
+CharacterStop	(no arguments)	2	0x24: task_run stops every character action (0x81127a00, -1) and settles their moves (0x81127620, 0x810072e4 → 0x81000c10)	nothing (the eboot stops the actions and moves; the 2 uses are not checked)	inferred	dry run S* the 2 uses: is a move or loop running at CharacterStop?
 SetSceneName	:SceneName	24	0x42	chapter title	seen	
 Achievement	:ID	11	0x56	nothing (trophies)	seen	
