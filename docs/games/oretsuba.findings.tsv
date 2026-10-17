@@ -1,0 +1,92 @@
+# 俺たちに翼はない (PS Vita) eboot mapping: one row per task argument or branch the 463 scenes use (docs/new-game.md step 16).
+# Exe: the decrypted eboot.bin of PCSG00299 (Ghidra, code at 0x81000000; scene_load 0x8102840a reads a task, 0x8100da30 starts it, task_run 0x81021070 runs it).
+# mark: seen (decompile, data or dry run shows it), inferred (names, layout), unknown. check: the cheapest way to settle an open row. Uses: [TaskN] blocks in SCRIPT.cpk's scenes.
+# Units: the game updates at 30 fps (0x810009b4 waits 2 vblanks a frame, 0x8104ffe4 passes mode 2); every script time counts 60 fps frames, halved into updates (time × 30/60) or turned into ms (time × 1000/60).
+command	argument_or_branch	uses	exe	converter	mark	check
+(all)	key lookup: cfg_find by name, case-sensitive; typos (`:Prioriry`, `:TIme`, `:fFade`, `:Fadein`, `:Priorit`) not read	7	cfg_find 8108ca08, scene_load	not read (NOT_NEEDED rows)	seen	
+(all)	a key with no value (`:FadeWait`, `:Fade`, `:Rule`, `:SpriteMax` followed by nothing) is 0	6	parser 8108cc48 makes the key node at the name's end; cfg_number 8108c8a8 returns 0 for a missing value	treated as missing (the default)	inferred	disassemble the parser's state 4 (the value states the decompile lost) for whether a key without values is kept
+(all)	time units: 60 fps frames, run in 30 fps updates	-	810009b4, 8104ffe4; time × 30/60 in scene_load (SpriteMove 0x27, Sprite 9, Flash 0x71, CharacterOpen 0x1b)	ms(frames) = frames × 1000/60	seen	
+(all)	skip mode (+0xe3/+0xe4/+0xe0 of the scene): timed tasks run at once	-	8100da30 case 0x27 (time 0), task_run 0x58	engine skip	seen	
+Message	:Message, :Name, :Voice	65485	scene_load case 0	text, speaker from `:Name N // name`, voice	seen	
+Message	:FontScale	435	scene_load case 0	font size × scale	seen	
+Message	:Color	1	scene_load case 0	noted	seen	
+BacklogMessage	:Message	56	scene_load case 1	logadd line	seen	
+Tag / Jump_Tag	:Name / :NextTag	1194 / 104	task numbers: Jump_Tag 0x31; `Tag` and `End` are not in task_type_number 81035094	labels, jumps	inferred	find where 0x31 and the tag names are resolved (not in task_run's switch)
+FlagSwitch_Tag	:Operator == or = (eq), > < >= <= !=; missing or unknown: a multi-way switch on `:NextTag`'s list	59	scene_load case 0x34 (strings 81145f74-81145f80); comparisons as FlagSwitch's task_run case 0x33: flag < param for `<`	== and < only (51, 8): Eq, Lt	seen	
+FlagSwitch_Tag	operator 6 (none): three tags for <, ==, >	0	task_run case 0x33	not converted	seen	not used
+FlagOperation / GlobalFlagOperation	:Action "=",1; :FlagName	11 / 19	0x32 / 0x53	Arith	seen	
+GlobalFlagSwitch_Tag	== only	21	0x55	If on a global	seen	
+FlagOperation	:CGFlag	1	0x32	noted (a CG never marked seen)	inferred	read 0x32's CGFlag branch
+MessageSwitch_Tag	:AnswerMax, :AnswerMessageNumberN, :MessageNFlag, :Text	25	scene_load case 7	choice with points	seen	
+MessageSwitch_Tag	:Frame	25	0x810160e2 (cell down :Frame rows)	0 = first look (NOT_NEEDED)	seen	
+NextScene	:NextScene name[, "SJ"]	521	0x41	jump to the scene	seen	
+End	(no arguments)	469	not a task_type_number name	ReturnToTitle	inferred	find what handles `End`
+SceneJumpDialog	:BG 0 protagonist (ss_bg1-5), :BG 1 emblem, :BG 2 date; below 0 hidden	447	0x84; cells 0x8103e248 (date n%6×138, 545+n/6×21; emblem 158e; `< 0` hides)	same cells; out of 0..36 / 0..5 hidden	seen	
+SceneJumpDialog	:CharaIcon (up to 10 faces), :Text, :NextTag, :JumpNextTag, :UnreadTag	447	handler 0x810265b4	ButtonScreen; read flag %1200 + scene	seen	
+SceneJumpDialog	the setting off or an unread scene go to :UnreadTag (or :NextTag)	80	0x810265b4	IfSwitch SceneSkipDialog, read flag	seen	
+SceneJumpDialogEnd	:Fade (18 by default) keeps the dialog up while it fades	531	task 0x85, 0x8112a490	fades on the click (dropped, user's choice)	seen	
+Window	:Visible 0 with :Time: fade out over 2 × :Time frames (a step of 1/:Time an update; 1/15 without)	1557	case 0x51, 0x8112a19c, 81009a2e	windowfade + delay	seen	
+Window	:Visible 1 with :Time (fade in)	2	case 0x51	dropped (shown at the next message)	seen	
+Window	:WindowNumber -1 (all), 0: extra text box n	1508	0x81120abc	< 0 handled, 0 not read	seen	
+BgmPlay	:BGM id, :Div fade-in frames (1 and 0: none)	1557	scene_load 0x35 (defaults 0, 0x81129f38); start 0x8111ee38 also sets the music-room heard flag 0x814e8a76 + id	fade if div > 1	inferred	read 0x8111ee38 for div 1 (763 uses): a 16 ms fade either way
+BgmStop	:Div fade-out frames; :Wait 1 waits (only with div > 0)	1665	scene_load 0x36; 0x81120910 (0 under skip)	bgmfadeout	seen	
+SePlay	:SE, :Div n ≥ 1 fades in over n frames (×1000/60 ms), -1 none, :Wait 1 waits for the end, :Loop	4738	0x37, 0x81129f58, 0x810370d4	dwavefadein when > 1, Wait length from the ADX header	seen	
+SeStop	:SE (none: all), :Div fade-out, :Wait 1 waits for it	2883	0x38, 0x81129f6c, 0x81037794	chvolfade …,1, wait	seen	
+(voice)	ducking: the music lowered while a voice plays (CONFIG 音声再生時にBGM音量を下げる)	24873	not traced	conv-cons shared: 50 % in 200 ms, back in 400 ms (`chvolfade -1`)	unknown	find the config field's reader (the BGM volume while the voice channel plays)
+FadeOut / FadeIn	:Time, :Color (FadeIn's always the FadeOut's), :Type (the rule, 0 none), :SpriteDelete	585 / 579	0x4f / 0x4e; rule table 0x81049292	cover sprite fade; Type 0 only	seen	
+TimeWait	:Time frames → ms (× 1000/60), negative: no task	405	scene_load 0x58 (time × 1000 / 60), task_run 0x58 (wall clock)	Wait ms	seen	
+Flash	:InTime, :OutTime (frames, step 1/(t × 30/60) an update; 0 at once), :Color	461	scene_load 0x71 (defaults: a step of 15, at once)	Flash over in + out	seen	
+Flash	:TimeWait (hold)	0	scene_load 0x71	not read	seen	not used
+InOut	:Type N = RULE<N-1>, 0 plain; :Time	969	0x82; rule table 0x81162e38	print with the mask	seen	
+InOut_Act	:Type 0, 7 (squeeze, push), 5 (through white), 2 (mosaic), 1, 3 (warp maps), 6 (blur), 4, 8	441	0x83 (task_run 0x81022f9a); effect 25, classes 0x81041812	per type (game doc)	seen	
+InOut_Act	:Param 1 (2, 3) for the types that read only :Param 0	72	each type's init	noted	inferred	read each type's init for :Param 1
+Sprite	:Texture, :Position (centre), :Priority, :Scale, :FadeIn, :Time (× 30/60 updates), :FadeWait, :Rule, :CGFlag	843	scene_load case 9 (record 0x81129a80); FadeIn 0 skips the time	lsp, fade, zoom	seen	
+Sprite	no :Position: where the picture it replaces was, else (640, 560)	-	task_run 0x81021070 (+0x560 has-a-place flag)	as the eboot for a replacement; centre without one (guess)	seen	
+SpriteBG / SpriteBS	:Texture, :Position, :Priority, :Scale, :Rule, :FadeIn, :FadeWait, :Time, :SpriteDelete, :CGFlag	2840 / 1410	case 10 / 0x81 (record 0x81129ba4)	replace every picture in one fade	seen	
+SpriteBG / SpriteBS	:FadeWait 0 (fade under the text)	890	task_run 0x81021070	still waits (one picture can't cross-fade under the text; spgrab could)	seen	
+SpriteBG / SpriteBS	:Grayscale, :Gamma (sepia), :Floor/:Ceil (negative), :Color	-	scene_load case 10	spfilter	seen	
+SpriteDelete	:SpriteNumber/:Texture, :FadeOut, :Time (33 by default), :Rule, :FadeWait	72	0x25, 0x81129ca4	hide with fade	seen	
+SpriteDeleteBG	always fades over :Time (60 by default); no :FadeOut read	277	0x26, 0x81129ccc, 8100da30 case 0x26	as the eboot	seen	
+SpriteMove	:Texture first, :SpriteNumber only without one (second value × 100000: a copy)	385	scene_load 0x27	SpriteNumber first (never both in the scenes)	seen	
+SpriteMove	:Time (30 by default), × 30/60 updates	385	scene_load 0x27, record 0x81129cec, 8100da30 case 0x27	ms	seen	
+SpriteMove	:Position x, y, ease type 0-3, power (default 0, 1.0): ease_value pow(t², p)	385	0x8103cc18, 0x810867c2 (states 10-12)	MoveEase, exponent 2p	seen	
+SpriteMove	ease power 0 with type 1-3 (would jump or stay)	0	0x8103cc18	treated as 1	seen	not used (power 0 only with type 0)
+SpriteMove	:Curve c bows the path by c/2 of its length; negative the other way	12	0x8103cf20	MoveArc	seen	
+SpriteMove	:Scale lerped straight from the current zoom	202	FUN_81086a0c	spzoom	seen	
+SpriteMove	:Scale -2 (S01_05B: zoom through 0 to a mirrored 2×?)	1	stored as is (+0x28 → sprite +0x48)	clamped to 0: the picture shrinks away	unknown	find where the quad's corners use +0x48 (0x8103d53c's callers) or one frame
+SpriteMove	:Roll (radians, kept)	12	+0x24 → sprite +0x38, GPU 0x8103d53c	dropped (direction and pivot not traced)	unknown	the quad's rotation in 0x8103d53c
+SpriteMove	:Wait 0 runs under the text	198	scene_load 0x27 (+0x3c), +8 set	spmotion without wait	seen	
+SpriteMove	:FadePosition, :Alpha, :Floor/:Ceil/:Gamma (fade, alpha, filters during a move)	0	scene_load 0x27, 8100da30 0x27 (FadePosition ≥ 0 fades)	not read	seen	not used
+SpriteMoveEnd	:Sprite	171	0x29	settles the move	seen	
+SpritePriority / CharacterPriority	:Priority	59 / 44	0x2d / 0x22	layer order	seen	
+SpriteQuake	:Param 0, 1 percent of the pattern, 2-5 swing; :Time; :Fade 1 dying (mode 8), 0 full (7), negative :Time a loop (9); :Wait 1 default	87	0x2c, 0x81120894, 0x81087114	as the eboot	seen	
+EffectQuake	same shake, :Loop 1 or negative :Time until EffectQuakeEnd, :Time 0 stops; :Window 1 shakes the window too	1076	case 99, 0x8112a26c, 0x81008a3c, 0x810089a4	screenshake; :Window 0 only	seen	
+EffectQuakeEnd	:Fade > 0 runs out over that many frames, 0 stops	918	0x64	as the eboot	seen	
+EffectStart	:EffectNumber 40, 42, 51-54, 57; :Param per effect; :Fade	208	0x3e, effect_create 0x8103f75a	per effect (game doc)	seen	
+EffectStart	:EffectNumber argument 1 (variant code at +0x18)	208	0x8112a860	noted (always 0)	inferred	read each effect class's use of +0x18
+EffectStart	:Priority (where the effect sits among the pictures)	208	scene_load 0x3e	dropped	inferred	trace the effect layer's draw order
+EffectStart	51, 52, 54 particles' motion	34	effect classes	our own drift	unknown	the classes' update methods
+EffectEnd	:Fade, :Delete	136	0x3f	fade out; :Delete noted	inferred	read 0x3f's :Delete
+EyeCatch	:Image 0,N: CG ID N + 457 (at least 458), shutters (vtable 0x8115c59c)	733	0x6f, 0x81048978, 0x81048b8a	as the eboot	seen	
+EyeCatch	:Image 0,-1: colour panels, :Color, :Fade	7	0x6f	dropped	inferred	read 0x81048b8a's -1 branch
+EyeCatch	:Image 1,card,place,date (-1 no date): the chapter card (vtable 0x8115c5bc, alpha 0→100→0)	114	0x81048c68, 0x81048ef2	one screen from SystemData	seen	
+EyeCatchEnd	:Fade (1/15 an update)	847	scene_load 0x70	fade	seen	
+MoviePlay	:Movie N (code N × 2 + loop), :Loop, :EndWait 1 waits, 0 plays under the script	13	scene_load 0x48, 8100da30 0x48	movie N; EndWait 0 still waits	seen	
+MoviePlay	:Skip > 0 skippable, 0 not, < 0 (-1 default, every use) only once seen (global seen table 0x814e8a58, set as it starts)	13	8100da30 0x48 (+10000/+20000), 0x81044b74, 0x81044cb8	always skippable (#359: a global seen flag per movie, %1680 + N)	seen	
+MovieStop	:EndWait	7	0x49	nothing (our movies end before)	seen	
+CharacterOpen / OpenBS	Chara0-Chara9 in order, those with a :Number, until :SpriteMax of them; :SpriteMax 0 or missing (default 0) shows none, above 10 is 10	16948 / 892	scene_load case 0x1b/0x80 (record 0x8112963c)	every [CharaN] block (#360: as the eboot)	seen	
+CharacterOpen	:Fade F (step 2/F an update; 18 by default; 0 at once); OpenBS never fades	3186	0x8112963c	fade over F frames	seen	
+CharacterOpen	[CharaN] :Number, :Copy (+1000 × c), :Position, :Priority, :Color, :Grayscale, :Gamma, :Center	17960	scene_load case 0x1b	sprite per character	seen	
+CharacterOpen	[CharaN] :FadeWait	6	scene_load case 0x1b	dropped	inferred	read the per-character FadeWait use
+CharacterOpen	no :Position: the has-a-place flag +0x44	0	scene_load 0x1b	centre (guess)	unknown	find +0x44's reader
+CharacterDelete	:SpriteMax 1-10: every Chara0-9 with a :Number (the count replaces :SpriteMax); 0 or below / above 10: all characters	1414	scene_load case 0x1c	every block; SpriteMax 0 all	seen	
+CharacterDelete	:Fade, :FadeOut 0 (at once), :FadeWait 0 (any non-zero waits)	991	0x1c, 0x81129758 (FadeWait 1 by default)	char_fade, Some(0) = no wait	seen	
+CharacterMove	every Chara0-9 with a :Number (:SpriteMax ignored), :Time, :Position (ease type, power), :Wait 0	836	scene_load case 0x1e	spmotion	seen	
+CharacterMove / Action	[CharaN] :Priority	7, 1	scene_load 0x1e / 0x20	dropped	inferred	read the move record's priority use
+CharacterAction	every Chara0-9 with a :Number (:SpriteMax ignored), :Action (chract), :EndWait	2310	scene_load case 0x20	spmotion keys	seen	
+CharacterAction	chract's per-key :Priority and easing	-	0x81008008	straight keys	unknown	read 0x81008008's key reader
+CharacterActionEnd	:Character first value; :Copy; :EndWait; ends only the action (+0x2e8), moves go on	2212	0x21, 0x81127a00 → 0x811277c0	as the eboot; :Copy dropped	seen	
+CharacterWait	waits for the characters' moves	651	0x23	MotionWait	seen	
+CharacterStop	(no arguments)	2	0x24	nothing	inferred	read 0x24
+SetSceneName	:SceneName	24	0x42	chapter title	seen	
+Achievement	:ID	11	0x56	nothing (trophies)	seen	
