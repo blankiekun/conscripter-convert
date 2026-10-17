@@ -1,12 +1,12 @@
 {
 "game": "muramasa-en",
 "engine": "nitroplus",
-"commit": "e048dad4",
+"commit": "148c2114",
 "commit_date": "2026-10-17",
-"totals": {"calls": 1201854, "full": 1181200, "gaps": 12060, "left_out": 8594, "weighted": 1191460.7},
+"totals": {"calls": 1201854, "full": 1181200, "gaps": 12060, "left_out": 8594, "weighted": 1191792.5},
 "kinds": {
 "Fade": {"calls": 302628, "gaps": 3172, "reasons": [["Fade argument 3 ignored", 3145], ["timed action that waits only part of its time", 16], ["move or zoom over time with a fade or a new picture drawn as a cross-fade", 10], ["Fade argument 5 ignored", 1]], "weighted": 301998.8},
-"DrawTransition": {"calls": 2650, "gaps": 2650, "reasons": [["DrawTransition argument 2 ignored", 2650], ["DrawTransition argument 4 ignored", 2650], ["DrawTransition mask missing: cg/data/slide_01_02_2.png", 2], ["DrawTransition mask missing: $Transition", 1], ["DrawTransition mask missing: cg/data/7.png", 1], ["1 more", 1]], "weighted": 1987.5},
+"DrawTransition": {"calls": 2650, "gaps": 2650, "reasons": [["DrawTransition argument 4 ignored", 2645], ["DrawTransition from another opacity than the picture's", 565], ["DrawTransition mask missing: cg/data/slide_01_02_2.png", 2], ["DrawTransition mask missing: $Transition", 1], ["DrawTransition mask missing: cg/data/7.png", 1], ["1 more", 1]], "weighted": 2319.4},
 "SetFrequency": {"calls": 8778, "gaps": 1523, "reasons": [["SetFrequency on music", 1486], ["SetFrequency argument 3 ignored", 37]], "weighted": 8768.8},
 "Shake": {"calls": 1486, "gaps": 1486, "reasons": [["Shake argument 6 ignored", 1486], ["Shake argument 7 ignored", 1486], ["Shake argument 8 ignored", 59], ["move or zoom over time with a fade or a new picture drawn as a cross-fade", 2]], "weighted": 1149.2},
 "Request": {"calls": 239987, "gaps": 1320, "reasons": [["Request stop", 1082], ["Request overlayrender", 111], ["Request compulsorysuspend", 18], ["Request pushtext", 14], ["Request entrustsuspend", 12], ["28 more", 83]], "weighted": 239987.0},

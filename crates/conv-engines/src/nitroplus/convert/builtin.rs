@@ -557,8 +557,22 @@ impl Compiler<'_, '_> {
             "DrawTransition" => {
                 // (obj, time, from, to, softness, tempo, mask, wait): a fade
                 // to `to` shaped by the mask.
-                let to = arg(3).int().clamp(0, 1000);
+                // A mask that isn't there (ma04_018vs/020vs name a
+                // slide_01_02_2.png cg.npa lacks): Muramasa.exe's step
+                // (FUN_0044fe00) returns before the transition when its
+                // loader (FUN_00488130) gives nothing, so nothing is drawn
+                // (seen); the picture's opacity left as it was (inferred).
+                let Some((mask, _, _)) = self.assets.image(&self.deref(&arg(6))) else {
+                    (0..a.len()).for_each(|i| drop(arg(i)));
+                    self.note(format!("DrawTransition mask missing: {}", arg(6).string()));
+                    return Value::Null;
+                };
+                let (from, to) = (arg(2).int().clamp(0, 1000), arg(3).int().clamp(0, 1000));
                 let targets = self.matching(&arg(0));
+                // From what the screen shows of it (nothing, if not shown yet).
+                if targets.iter().any(|t| self.shown.get(t).map_or(0, |s| s.opacity) != from) {
+                    self.note("DrawTransition from another opacity than the picture's");
+                }
                 for t in &targets {
                     self.objects.get_mut(t).unwrap().opacity = to;
                 }
@@ -567,10 +581,7 @@ impl Compiler<'_, '_> {
                 if arg(1).int() > 0 && let Some(e) = self.game.fade_tempo.unwrap_or(|_| None)(&arg(5)) {
                     self.fade_tempo = Some(e);
                 }
-                match self.assets.image(&self.deref(&arg(6))) {
-                    Some((mask, _, _)) => self.pending_mask = Some(mask),
-                    None => self.note(format!("DrawTransition mask missing: {}", arg(6).string())),
-                }
+                self.pending_mask = Some(mask);
                 self.timed(arg(1).int(), &arg(7), &targets);
             }
             "Shake" => {
