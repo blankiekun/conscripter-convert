@@ -544,15 +544,38 @@ Used to check what the engine does (`docs/new-game.md` step 9).
   process running in Lua would have no sprite of its own to change). Done:
   **A** endless loops, **B** `system.lua` from the IR, **C1** loops
   behind an `if` with a lead-in (History, "Processes"). Next:
-  **C2** the one-shots played once on paper, their waits as key times
-  (`MotionEnd::Keep` motions; today an action process runs all its
-  actions at its start and ignores its `Wait`s): the counters
-  `MyTr_*`/`MyLife_*` (about 1,300 notes), `CP_LockOn*` (208),
-  `CP_IHPMove`/`CP_EHPMove` (130), `ComicProcess`'s other signs (83),
-  `MFlashProcess`; **C3** Lua (`Op::StartProcess`, `Script::lua`) only
+  **C2** the one-shots played once on paper, their waits as key times:
+  done, in review (PR "NSS: one-shot processes played on paper"). `convert/one_shot.rs` walks the function at the process's start
+  (`if`/`while` decided then, assignments run, a 10,000-turn cap: a
+  process waiting on what the script sets later, `ProcessAFB1`/`2`, is
+  noted and its state put back), puts each picture's actions on a clock
+  (`loops.rs` `paper_action`, `Pass::keys_to_end`), and gives it one
+  loop-2 `spmotion` at the next sync: placed where the process leaves it
+  at the highest opacity it reaches, keyed from where it was; once
+  `sound_clock` passes the end it takes its last opacity, or is deleted
+  (`Delete`, `Request(…, Disused)`). A process run in line (the end roll)
+  keeps its old path. Dry run: `CreateProcess` notes 1,756 → 236 (the
+  counters `MyTr_*`/`MyLife_*`/`EnTr_*`/`EnLife_*`, `CP_LockOn*`,
+  `CP_IHPMove`/`CP_EHPMove`, `md02_023_ComicProcess*`, `MapBGLoop`, …
+  gone), about 800 new many-key motions; the script's total waits change
+  by +27 s over the game (a `WaitAction` on a one-shot now waits for it).
+  Real-time trace, 90 s from `*if0_else` (`--auto-play 0 --real-time
+  --vars` with the settings' defaults: `--goto` leaves `%2920`-`%2938` at
+  0, so the story ran at `gamespeed` 10 without them): main 57 loop-2
+  motions, C2 92 (and 17 more pages); the 35 new ones are the blood-spray
+  frame flips (`SL_rightdamfade`, `ma00_000`, 13 frames; three sets of 8
+  in `ma01`): 11 ran out, 3 cut short by the next set's `spmotion` on the
+  same sprites (after 34-86 of 80-90 ms), 21 removed by the scene's `csp`
+  after 18-43 ms because auto-play clicked through the 500 ms `print`
+  before it (a player sees them whole: motions go on during effects).
+  Every other ending count is the same as main's. Tests:
+  `a_one_shot_counter_flips_its_digits_on_paper`,
+  `a_one_shot_fading_out_then_disused_goes_after_its_fade`. Left after C2: `ComicProcess` (83, `Shake`),
+  `MFlashProcess` (43, `Random`: C3), `EndSong` (12, music with `if`s),
+  `CP_LockOnBGMoveProcess` now passes (`SetVertex` allowed).
+  Then **C3** Lua (`Op::StartProcess`, `Script::lua`) only
   for what needs the run: `Random` (`MFlashProcess`'s pause, the
-  shakes). `EndSong` (12) is music only (`process.rs`'s music
-  processes). Still left by A: `ma00_FireMoveAutoProcess` zooms unlike
+  shakes). Still left by A: `ma00_FireMoveAutoProcess` zooms unlike
   in x and y.
 - Then the unread-argument gaps (item 5 below), most noticeable first;
   among them, `CreateText`'s box height is read (#52) and `SetVertex`
@@ -745,8 +768,9 @@ Next, in order:
    scripts: coverage"). Every file has a status (no gaps there); new
    gaps, most noticeable first:
    - `CreateEffect` Rain (37, with `$SYSTEM_effect_rain_*` in 17 files),
-     Drop and Lens; the tone kinds (Sepia, Monochrome, KitanoBlue,
-     NegaPosi: 41, besides `SetTone`) are noted and drawn plain.
+     Drop and Lens. The tone kinds Sepia, Monochrome and NegaPosi tint
+     the pictures below the effect with `spfilter` (#137); KitanoBlue and
+     `SetTone` are still noted and drawn plain.
    - `DrawEffect` waves (79), `CreateStencil` (59), `CreateMask` (31),
      `SetSurface`/`CreateSurface`, `LoadImage` as a texture source
      (Muramasa leaves `loaded_textures` off).
