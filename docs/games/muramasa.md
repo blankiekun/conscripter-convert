@@ -537,12 +537,19 @@ exe or a shot. Open guesses a frame of the original could settle:
 - a choice's text 40 px down its plate, and red under the pointer;
 - the title's glow: the exe's `SetBlur(…, 2, …)` is a trail of the last
   frames' copies (`FUN_00456810`), sharp at rest; ours a 3 px blur;
-- the `sepia` and `kitanoblue` tones (sepia's draw code, `0x4403d0`, not
-  decoded);
 - looped and paper `Shake`s turning every 100 ms (the exe: every
-  1000 ÷ (n × 0.06) ms, `queue_shake` 004462d0; they don't read n);
-- the shared NSS code's: cameras' depth rule (`zoom / (1000 − priority)`,
-  measured in 続・殺戮のジャンゴ, not yet in this game).
+  1000 ÷ (n × 0.06) ms, `queue_shake` 004462d0; they don't read n).
+
+Settled from the exe (2026-10-17): the tones (`0043fcc0` builds grey
+tables of r 28, g 151, b 77 per 256, red and blue the other way round
+since the exe reads BGRA as RGB; `004401d0` Monochrome is that grey,
+`004403d0` Sepia adds 30 to green and red, `004405e0` KitanoBlue 20 to
+green and 80 to blue; CONscripter's `spfilter` kind 11 then an added
+colour); a camera's depth rule (`FUN_00489570` at `00489a52`: a picture
+under a camera scales by z ÷ (1000 − priority) about the screen's
+centre, 512, 288, as measured in 続・殺戮のジャンゴ). Where the exe
+draws only the innermost camera of nested ones, ours multiplies them;
+not checked whether a script nests them.
 
 ### Save and load drawn by the engine (2026-10-17)
 
