@@ -634,7 +634,9 @@ copies that frame so the freeze (`screenzoom` at 100 %) holds the list
 over the scene's first pictures as before; at the scene's end the list
 fades in again from black. Checked on Xvfb against main's routine: open,
 hover, the frozen list 0.4 and 0.8 s after the click, the scene at 3 and
-6 s, the way back to the menu: 0 pixels (1 px at 6 s).
+6 s, the way back to the menu: 0 pixels (1 px at 6 s). Again after the
+rebase onto engine master 4f1e1bb (Japanese and English builds): open,
+hover, the frozen list, the scene at 3 and 6 s: 0 pixels.
 
 ### Settings drawn by the engine (2026-10-17)
 
