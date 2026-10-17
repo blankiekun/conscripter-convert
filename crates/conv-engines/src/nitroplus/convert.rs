@@ -204,6 +204,9 @@ pub struct Game {
     /// `Shake` jolts to and fro every 1000 ÷ (`n` × 0.06) ms, along its
     /// tempo (続・殺戮のジャンゴ's and 装甲悪鬼村正's exes; [`ScreenEffect::Jolt`]).
     shake_jolts: bool,
+    /// `Fade` and `DrawTransition` ease by their tempo (装甲悪鬼村正's and
+    /// 続・殺戮のジャンゴ's exes; [`Op::TransitionEase`]).
+    eased_fades: bool,
 }
 
 impl Game {
@@ -231,6 +234,7 @@ impl Game {
         horizontal_box: None,
         box_text: &[],
         shake_jolts: false,
+        eased_fades: false,
     };
 
     /// Fills `script`'s system screens.
@@ -1476,6 +1480,10 @@ struct Compiler<'a, 'b> {
     /// The tempo of a pending `Move` or `Zoom` per object, as
     /// [`Op::MoveEase`] (see [`tempo`]).
     pending_tempo: HashMap<String, (u8, u32)>,
+    /// The tempo of a pending `Fade` or `DrawTransition` over time: the
+    /// next sync's transition goes along it ([`Op::TransitionEase`]).
+    // shortcut: one curve a transition (the last fade's) when fades with different tempos meet in one sync
+    fade_tempo: Option<(u8, u32)>,
     /// A pending `Rotate` about x or y over time per object it turns.
     pending_turn: HashMap<String, turn::Turning>,
     /// The objects with a `Fade` over time pending (its ms).
@@ -2313,6 +2321,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
             pending_ms: 0,
             pending_by: HashMap::new(),
             pending_tempo: HashMap::new(),
+            fade_tempo: None,
             pending_turn: HashMap::new(),
             pending_fade: HashMap::new(),
             vanishing: HashMap::new(),
@@ -5213,12 +5222,13 @@ function SoundPlay("ナット名", 秒数, ボリウム, ループ設定)
 
     #[test]
     fn an_argument_a_built_in_does_not_read_is_noted() {
-        // Fade's tempo (Axl1) isn't read; a process's place is harmless.
+        // DrawTransition's start opacity isn't read; a process's place is harmless.
         let story = r#"
 scene a.nss
 {
 	CreateTexture("a", 100, 0, 0, "cg/bg/a.jpg");
 	Fade("a", 300, 1000, Axl1, true);
+	DrawTransition("a", 300, 0, 1000, 100, null, "cg/bg/a.jpg", true);
 	CreateProcess("P", 100, 5, 5, "Nothing");
 }
 function Nothing()
@@ -5226,8 +5236,17 @@ function Nothing()
 }
 "#;
         let c = compile(story, LIBRARY);
-        assert!(c.notes.contains_key("Fade argument 3 ignored"), "{:?}", c.notes);
-        assert!(!c.notes.keys().any(|n| n.starts_with("Fade argument 0") || n.starts_with("CreateProcess argument")), "{:?}", c.notes);
+        assert!(c.notes.contains_key("DrawTransition argument 2 ignored"), "{:?}", c.notes);
+        // Fade's tempo is read: its transition goes along Axl1 (t²) where
+        // the game's exe eases fades.
+        assert!(!c.ops.iter().any(|op| matches!(op, Op::TransitionEase { .. })), "{:?}", c.ops);
+        let mut files = BTreeMap::new();
+        files.insert(BOOT.to_string(), nss::parse("#include \"nss/function.nss\"\n").unwrap());
+        files.insert("function.nss".to_string(), nss::parse(LIBRARY).unwrap());
+        files.insert("a.nss".to_string(), nss::parse(story).unwrap());
+        let eased = compile_scene(&files, "a.nss", "a.nss", &Game { eased_fades: true, ..Game::PLAIN }, &mut Fake).unwrap();
+        assert!(eased.ops.iter().any(|op| matches!(op, Op::TransitionEase { ease: 1, exponent: 2 })), "{:?}", eased.ops);
+        assert!(!c.notes.keys().any(|n| n.starts_with("Fade argument") || n.starts_with("CreateProcess argument")), "{:?}", c.notes);
     }
 
     #[test]

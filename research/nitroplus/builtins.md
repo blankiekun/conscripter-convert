@@ -215,9 +215,9 @@ whole-game dry run (`ma00_000.nss --chain 2000`), and 続・殺戮のジャン�
 | `LoadText` | 0, 1 of the 7-argument form, 0 of the 6 | 15,184 | 740 |
 | `SetFrequency` | 0, 1, 3 (2 is checked) | 8,724 | 1,283 |
 | `Random` | 0 (the range: we return 0) | 7,368 | 0 |
-| `Fade` | 3 tempo (not `null`); 5 (a sixth argument, 1) | 3,863 | 77 |
+| `Fade` | 3 tempo (read for a fade over time: its transition's curve; not for the text window's or a 0 ms one); 5 (a sixth argument, 1) | 3,145 | 11 |
 | `WaitAction`, `WaitPlay`, `WaitFade`, `WaitZoom`, `WaitMove` | 1 (a time limit?) | 3,371, 2,477, 4, 3, 0 | 5,852, 51, 1, 0, 2 |
-| `DrawTransition` | 2 from, 4 softness; 5 tempo | 2,622; 132 | 0 |
+| `DrawTransition` | 2 from, 4 softness (5 tempo: read) | 2,622 | 0 |
 | `Conquest` | 0-2 (we return 0) | 2,478 | 0 |
 | `CreateEffect` | 2-5 (place and size) | 2,474 | 1 |
 | `SetBacklog` | 2 (the speaker) | 1,958 | 75 |

@@ -1776,6 +1776,16 @@ goto *conv_link1
     }
 
     #[test]
+    fn an_eased_transition_prints_after_its_curve() {
+        let fade = |ease| vec![Op::BeginTransition { effect: "Fade".into(), fade_ms: 300, mask: None, style: TransitionStyle::Fade }, Op::TransitionEase { ease, exponent: 3 }, Op::EndTransition];
+        let text = emit(&script(fade(2)));
+        assert!(text.contains("effectcurve 32\nprint 2\n"), "{text}");
+        assert!(text.contains("\nspcurve 32,0,"), "{text}");
+        // An unknown curve: straight.
+        assert!(!emit(&script(fade(0))).contains("effectcurve"));
+    }
+
+    #[test]
     fn jpeg_sprites_are_opaque() {
         let jpeg = SpritePlacement { image: "cg/bg/a.JPG".into(), x: 0, y: 0 };
         assert_eq!(lsp(70, &jpeg), "lsp 70,\":c;cg\\bg\\a.JPG\",0,0");

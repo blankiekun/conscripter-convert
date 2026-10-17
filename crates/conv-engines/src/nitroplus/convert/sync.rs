@@ -10,6 +10,7 @@ impl Compiler<'_, '_> {
         let ms = ms.max(std::mem::take(&mut self.pending_ms).min(UNWAITED_MS));
         let timed = std::mem::take(&mut self.pending_by);
         let tempo = std::mem::take(&mut self.pending_tempo);
+        let fade_tempo = self.fade_tempo.take();
         let turning = std::mem::take(&mut self.pending_turn);
         let fades = std::mem::take(&mut self.pending_fade);
         let cameras = std::mem::take(&mut self.pending_camera);
@@ -661,6 +662,9 @@ impl Compiler<'_, '_> {
         }
         let effect = if mask.is_some() { "DrawTransition" } else { "Fade" }.to_string();
         self.ops.push(Op::BeginTransition { effect, fade_ms: ms, mask, style: TransitionStyle::Fade });
+        if let Some((ease, exponent)) = fade_tempo {
+            self.ops.push(Op::TransitionEase { ease, exponent });
+        }
         if !changes.is_empty() {
             self.ops.push(Op::Sprites { changes, fade_ms: 0 });
         }
