@@ -485,8 +485,9 @@ pub enum Op {
     SceneEnd,
     /// Ask the player to pick one of `options` (text, label) in the text
     /// window (or in `style`'s own window) and continue at the label
-    /// picked.
-    Choice { options: Vec<(String, String)>, style: Option<ChoiceStyle> },
+    /// picked. `disabled`: the options (indices into `options`) shown
+    /// greyed, which can't be picked (`seldisable`); empty for none.
+    Choice { options: Vec<(String, String)>, style: Option<ChoiceStyle>, disabled: Vec<usize> },
     /// A puzzle the player solves with the mouse on a screen of its own,
     /// then the screen goes white and clears to black (see [`TilePuzzle`]).
     TilePuzzle(Box<TilePuzzle>),

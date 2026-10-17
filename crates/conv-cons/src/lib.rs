@@ -1634,7 +1634,7 @@ mod tests {
         let plates = conv_core::ir::ChoicePlates { image: "system/plate.png".into(), x: 138, y: 244, step: 68, text_x: 388, text_dy: 18, font_size: 22, colour: "#FFFFFF".into(), fade_ms: 300, shot: None };
         let options = vec![("はい".to_string(), "a".to_string()), ("OK".to_string(), "b".to_string())];
         let style = Some(ChoiceStyle { window, on_color: 0, off_color: 0, plates: Some(plates) });
-        let text = emit(&script(vec![Op::Choice { options, style }]));
+        let text = emit(&script(vec![Op::Choice { options, style, disabled: vec![] }]));
         for part in [
             "lsp %conv_link1,\":a/2,0,3;system\\plate.png\",138,244\nstrsp %conv_link0,\"はい\",366,262,3,1,22,22,0,0,0,1,\"#FFFFFF\",\"#FFFFFF\"\n",
             "strsp %conv_link2,\"OK\",377,330,",
@@ -1674,7 +1674,7 @@ mod tests {
         let plates = conv_core::ir::ChoicePlates { image: "system/plate.png".into(), x: 138, y: 244, step: 68, text_x: 388, text_dy: 18, font_size: 22, colour: "#FFFFFF".into(), fade_ms: 300, shot };
         let options = vec![("はい".to_string(), "a".to_string()), ("OK".to_string(), "b".to_string())];
         let style = Some(ChoiceStyle { window, on_color: 0, off_color: 0, plates: Some(plates) });
-        let text = emit(&script(vec![Op::Choice { options, style }]));
+        let text = emit(&script(vec![Op::Choice { options, style, disabled: vec![] }]));
         for part in [
             "getmousepos %0,%1:add %0,-47:add %1,-41\ndwave 10,\"se\\shot.ogg\"\nif %9 == 1 goto *conv_cplate0_s1\n",
             "*conv_cplate0_s2\ncell %conv_link3,1:spcut %conv_link3,\"system\\hole.png\",%0,%1:spcut %conv_link2,\"system\\hole.png\",%0,%1:print 1\ndelay 300\ncsp %conv_link0:csp %conv_link1:print 10,300\n",
@@ -1830,10 +1830,17 @@ goto *conv_link1
         let plates = TextWindow { vertical: true, name_plate: None, x: 462, y: 68, text_x: 477, text_y: 108, columns: 18, rows: 2, font_size: 20, line_gap: 80, ..window() };
         let style = Some(ChoiceStyle { window: plates, on_color: 0xA00000, off_color: 0, plates: None });
         let options = vec![("はい".into(), "a".into()), ("いいえ".into(), "b".into())];
-        let text = emit(&script(vec![Op::Choice { options, style }]));
+        let text = emit(&script(vec![Op::Choice { options, style, disabled: vec![] }]));
         // No shadow; no ruby here, so text_x as given.
         assert!(text.contains("selectcolor \"#A00000\",\"#000000\"\ntateyoko 1:setwindow3 477,108,2,18,20,20,80,0,20,0,0,"), "{text}");
         assert!(text.contains("select \"はい\",*a,\"いいえ\",*b\n"), "{text}");
+    }
+
+    #[test]
+    fn disabled_options_are_greyed_just_before_the_select() {
+        let options = vec![("一".into(), "a".into()), ("二".into(), "b".into()), ("三".into(), "c".into())];
+        let text = emit(&script(vec![Op::Choice { options, style: None, disabled: vec![0, 2] }]));
+        assert!(text.contains("seldisable 1,3\nselect \"一\",*a,"), "{text}");
     }
 
     #[test]

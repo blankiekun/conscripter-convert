@@ -1840,7 +1840,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
         let options = texts.into_iter().zip(labels.iter().cloned()).collect();
         self.ops.push(match runtime.iter().any(Option::is_some) {
             true => Op::RuntimeChoice { options, texts: runtime, style },
-            false => Op::Choice { options, style },
+            false => Op::Choice { options, style, disabled: vec![] },
         });
         if style_shown {
             // The next text sets its own window again.
@@ -6007,7 +6007,7 @@ scene a.nss
         files.insert("d.nss".into(), nss::parse(&main("d.nss", "$GameCircle = 0;")).unwrap());
         let (c, played) = compile_run(&files, "a.nss", 10, &Game::PLAIN, &mut Fake).unwrap();
         assert_eq!(played, ["a.nss", "b.nss", "c.nss", "d.nss"]);
-        let Some(Op::Choice { options, style }) = c.ops.iter().find(|op| matches!(op, Op::Choice { .. })) else { panic!() };
+        let Some(Op::Choice { options, style, .. }) = c.ops.iter().find(|op| matches!(op, Op::Choice { .. })) else { panic!() };
         assert_eq!(options.iter().map(|o| o.0.as_str()).collect::<Vec<_>>(), ["はい", "いいえ"]);
         // Two plates, the first at x 562; one vertical line on each.
         let w = &style.as_ref().unwrap().window;
