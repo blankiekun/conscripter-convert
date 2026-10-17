@@ -3359,6 +3359,13 @@ const UNNEEDED_OPERANDS: &[(u16, &str, &str, &str)] = &[
     (0x88, "-4", "00000000", "a cleared slot's blend and opacity"),
     // op_70 0x415a30 likewise clears a kind-0 or slot-0 filter without them.
     (0x70, "-4", "00000000", "a cleared slot's blend and opacity"),
+    // op_8c 0x4153c0: layer | depth << 8, the effect object's sort key (layer 0 = band 0x10).
+    (
+        0x8c,
+        "+4",
+        "00e80300|004c0400|00d00700|00f40100|00000000",
+        "layer 0 at depth 1000 (227), 1100, 2000, 500, or 0 when clearing: over every bust-up (10-150), as ours draws the static, ripples and shakes",
+    ),
     // Filter-Zigzag's draw (0x41dab0) passes the frequency as the phase and never reads these.
     (0x70, "-8", "0a00000000000000", "Zigzag's begin angle (10) and reduction (0)"),
     // op_56 0x4224a0 passes it to object_create as the sort depth in the layer's band.

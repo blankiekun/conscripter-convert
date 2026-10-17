@@ -293,6 +293,7 @@ is noted) and why:
 | `0x7a` | `+14` | u16 0, 0 | the new object's width and height, which the picture `0x84` loads replaces (History, item 44) |
 | `0x46` | `-4` | 0 | the link entry's first field, which only the save and load read (History, item 43) |
 | `0x70` | `-4` | 0 | a cleared slot's blend and opacity (kind 0 or slot 0), which `op_70` (`0x415a30`) doesn't read (History, item 38) |
+| `0x8c` | `+4` | layer 0, depth 1000, 1100, 2000, 500; 0 when clearing | the effect's sort key: every one sorts over all the bust-ups, as ours draws them (History, item 31) |
 | `0x70` | `-8` | 10, 0 | Zigzag's begin angle and reduction, which its draw (`0x41dab0`) doesn't read (History, item 39) |
 | `0x56` | `+2` | u32 0, 2000 | a slot-1 fill's sort depth in its band, where it is alone (History, item 40) |
 | `0x90` | `+2` | u32 1, 0, 2 | the preset module's place among the bust-up's modules, where it is alone (History, item 35) |
@@ -322,7 +323,6 @@ run's):
 | `0x6f` | the pulse | converted, not checked against the original |
 | `0x70` | the depth in the second u32 (0 in 254, 1000 in 188, 2000 in 5, 1100 in 4, …): 457 notes | dropped (`screenfilter` has no depth) |
 | `0x76` | MeltDown's stretch for `sub` 46/47 | converted (scaled from the exe), not compared with the film |
-| `0x8c` | the sort key in the second u32 (depth 1000 in 227, 1100 in 5, 0 in 4, 2000 in 3, 500 once): 240 notes | dropped: the static is always sprite 60, ripples and shakes move the whole screen |
 | `0x8f` | removes the bust-ups only | partial: `csp -1` also removes the fade cover (no script shows the difference) |
 | `0x30`, `0x62` | everything | dropped (the unreachable debug menu) |
 
@@ -623,6 +623,7 @@ a copy of the save works.
 ### Queue (2026-10-16)
 
 - Merged: `0x86`'s two trailing bytes as harmless (#163; History, item 45).
+- Open: `0x8c`'s sort key as harmless (History, item 31).
 - Open: command coverage per operand, PR #85 (supersedes #28): every
   operand given and not read, whatever its value (0 included), is a
   dry-run note and a gap in `metrics.json`, except the filler (`NO_SUB`,
@@ -698,8 +699,6 @@ after History's 26, most noticeable first (notes = instructions):
 30. **Screen filter depth** (`0x70`'s second u32, 457 notes: 0 in 254,
     1000 in 188, 2000 in 5, 1100 in 4, …): where the filter sorts against the
     bust-ups and overlays; `screenfilter` has no depth.
-31. **Effect depth** (`0x8c`'s second u32, 240 notes: 1000 in 227, 1100
-    in 5, 0 in 4, 2000 in 3, 500 once): the same for the static, ripples and shakes.
 33. **Ruby flags** (`0x44` u16 at +6, 37 notes: 3 in 32, 1 in 5):
     meaning unknown.
 42. **The debug menu's message block** (`0001.cd` #1, 1 note): in the
@@ -1341,3 +1340,13 @@ sound effects on `dwave` channels.
    text code (`0x480000`-`0x4a0000`) reads that +0x1a0 back. So no
    reader of entry +0 turned up besides save and load (one bounded pass;
    0 in all 214 links anyway): a row of the harmless table.
+31. **Done: effect depth** (2026-10-16). `0x8c`'s second u32 is the
+   effect object's sort key, layer | depth << 8 as in `0x70`: always
+   layer 0 (band 0x10, the bust-ups' band). The effects set are at depth
+   1000 (120), 1100 (2), 2000 (2 ripples) and 500 (one static, 0011.cd
+   #8534); 0 only in clearing records. All are over every bust-up
+   (10-150), where ours draws the static (sprite 60) and the ripples and
+   shakes (on the whole picture). The static at 500 would sort under a
+   0x55 overlay at 1000, but none comes before it is cleared (#8542);
+   the static at 1100 (0008.cd #3904) is over its bust-ups (10-20) as at
+   1000. So the key is a row of the harmless table.
