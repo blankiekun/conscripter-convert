@@ -1141,6 +1141,41 @@ struct Object<'a> {
     /// `SetShade`: how many passes of the exe's blur (`FUN_00465b10`) its
     /// pixels went through; they add up until `NULL` takes them away.
     shade: Option<i64>,
+    /// `DrawEffect`'s wave ([`Wave`]), while it runs.
+    wave: Option<Wave>,
+}
+
+/// `DrawEffect(obj, ms, wave, from, to, tempo)`: the exe's wave
+/// (`FUN_00430a70`, `FUN_00430de0`), drawn by the engine ([`Op::SpriteWave`]).
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct Wave {
+    /// The sound clock ([`Compiler::sound_clock`]) it started at.
+    start: u64,
+    ms: u32,
+    /// The rows' phase over the picture's height, in 1/256 turns.
+    period: u32,
+    from: i32,
+    to: i32,
+    ease: Option<(u8, u32)>,
+}
+
+impl Wave {
+    /// Its op on `layer` at sound clock `now` for `shown` (a picture cut to
+    /// the screen has the phase of its part's height); `None` once over.
+    fn op(&self, layer: u32, now: u64, shown: &Shown) -> Option<Op> {
+        let gone = now.saturating_sub(self.start).min(u64::from(self.ms)) as u32;
+        let ms = self.ms - gone;
+        if ms == 0 {
+            return None;
+        }
+        // shortcut: past its start the rest goes straight from where it got to.
+        let from = self.from + ((i64::from(self.to - self.from) * i64::from(gone)) / i64::from(self.ms.max(1))) as i32;
+        let period = match shown.whole {
+            Some((_, _, _, h)) if h > 0 => (i64::from(self.period) * shown.h / h) as u32,
+            _ => self.period,
+        };
+        Some(Op::SpriteWave { layer, ms, period, from, to: self.to, ease: if gone == 0 { self.ease } else { None } })
+    }
 }
 
 /// [`Object::shake`]: the process, the keys.
@@ -2778,7 +2813,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
 
     fn create(&mut self, name: String, kind: Kind<'a>, priority: i64, w: i64, h: i64) -> &mut Object<'a> {
         self.seq += 1;
-        let o = Object { kind, priority, x: 0, y: 0, w, h, opacity: 1000, locked: false, hideable: false, seq: self.seq, zoom: (1000, 1000), trail: None, blend: BLEND_NORMAL, vertex: None, turn: (0, 0, 0), shake: None, clip: None, over_text: false, container: false, erased: false, tone: None, shade: None };
+        let o = Object { kind, priority, x: 0, y: 0, w, h, opacity: 1000, locked: false, hideable: false, seq: self.seq, zoom: (1000, 1000), trail: None, blend: BLEND_NORMAL, vertex: None, turn: (0, 0, 0), shake: None, clip: None, over_text: false, container: false, erased: false, tone: None, shade: None, wave: None };
         self.objects.insert(name.clone(), o);
         self.objects.get_mut(&name).unwrap()
     }
