@@ -3,12 +3,12 @@ handler	argument or branch	status	source (Farthest2015.exe sha256 efb7ec8e…)	w
 (dispatch)	arg	seen	every op_XX	for most opcodes the pool offset of the operand record; records lie end to end and fill the pool	POOL_RECORDS: every unread byte is a dry-run note
 (all effects)	effects off	seen	setting_effects 0051ed14 bit 0; surprise_start 00441960, script_fade 0044a2f0, op_76 00449df0	no transition fade (0x76, 0x77, 0x8e), quake 0x6d, pulse 0x6f, script fade 0x72/0x74	Op::IfSwitch on Switch::Effects around 0x6d, 0x6f, 0x72, 0x74; effectoff for print
 (all effects)	skip mode	seen	skip_state_a 0051f82c, skip_state_b 0051f82e	none of 0x6d, 0x6e, 0x6f, 0x72, 0x74 drawn; transitions skipped	isskip gate (Op::IfSkipping); Ctrl-held skip not seen by isskip
-(all effect waits)	click mid-effect	seen	cb_00449d40 (0x76), cb_0044a1f0 (0x72/0x74), cb_004418b0 (0x6f), cb_004420a0 (0x6d), cb_004414c0 (0x6e), cb_00434720 (0x8e), cb_004154b0 (0x8d), 00475bf0 (0x66)	a click (or Ctrl, or a key in mask 0x20ee007) ends the effect at once and sets skip_state_b, which skips every later effect and clickable wait until a message (op_40_41), 0x68, 0x69 or 0x97 clears it	a click ends only the effect or delay it lands in; the next ones play: differs, open (needs an engine state shared by every game: reported, not built)
+(all effect waits)	click mid-effect	seen	cb_00449d40 (0x76), cb_0044a1f0 (0x72/0x74), cb_004418b0 (0x6f), cb_004420a0 (0x6d), cb_004414c0 (0x6e), cb_00434720 (0x8e), cb_004154b0 (0x8d), 00475bf0 (0x66)	a click (or Ctrl, or a key in mask 0x20ee007) ends the effect at once and sets skip_state_b, which skips every later effect and clickable wait until a message (op_40_41), 0x68, 0x69 or 0x97 clears it	clickskip: a click ending a delay or an effect ends every later one at once until the next text, click wait or mpegplay; the skip gates check getclickskip
 0x40, 0x41	record id, size, line, segments	seen	op_40_41 004771c0	message; 0x41 voiced (voice id); XOR-0x53 pre-wrapped lines	Op::Text
 0x40, 0x41	sub bit 0	seen	00475f40, 004679d0	the first line is the speaker's name, dropped in text modes without names	speaker name (#102)
 0x40, 0x41	+8 line number	seen	-	the source line number	harmless (cd messages prints it)
 0x40, 0x41	-8	seen	-	u32 4, u32 0 after every message	harmless
-0x40, 0x41	hidden state	seen	op_40_41 004771c0	clears skip_state_b	not modelled (see "click mid-effect")
+0x40, 0x41	hidden state	seen	op_40_41 004771c0	clears skip_state_b	the text clears clickskip
 0x41	voice id	seen	imul 0x14f8b589; sar 13	clip (id-1) % 100000, character id / 100000	the same
 0x10, 0x11	arg	seen	-	label number in the current script; a 0x10 on its own label is a marker	goto; IR label after the marker
 0x15, 0x16, 0x22	label index	seen	op_15 004742c0, find_label	label-table index, implicit entry 0 (n = stored n-1)	the same

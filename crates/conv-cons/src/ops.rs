@@ -282,6 +282,9 @@ impl<'a> Emitter<'a> {
         // isskip: 1 while skipping (2 in auto mode).
         Op::IfSkipping { label: target } => {
             writeln!(out, "isskip {0}\nif {0} == 1 goto *{1}", menu::TMP, label(target)).unwrap();
+            if self.script.click_skips_effects {
+                writeln!(out, "getclickskip {0}\nif {0} == 1 goto *{1}", menu::TMP, label(target)).unwrap();
+            }
         }
         Op::IfFastSkip { label: target } => {
             let fast = menu::FAST_SKIP;

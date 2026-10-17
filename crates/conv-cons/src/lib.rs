@@ -463,6 +463,9 @@ pub fn emit(script: &Script) -> String {
     if !script.language.is_empty() {
         writeln!(out, "language \"{}\"", script.language).unwrap();
     }
+    if script.click_skips_effects {
+        writeln!(out, "clickskip").unwrap();
+    }
     writeln!(out, "game").unwrap();
     writeln!(out, "*start").unwrap();
     // The text speed is a setting when there is a settings menu.
@@ -1851,6 +1854,14 @@ goto *conv_link1
         assert!(text.contains("\nspcurve 32,0,"), "{text}");
         // An unknown curve: straight.
         assert!(!emit(&script(fade(0))).contains("effectcurve"));
+    }
+
+    #[test]
+    fn a_click_skipping_effects_jumps_the_skip_gate() {
+        let gate = vec![Op::IfSkipping { label: "fx".into() }, Op::Label("fx".into())];
+        let text = emit(&Script { click_skips_effects: true, ..script(gate.clone()) });
+        assert!(text.contains("clickskip\ngame\n") && text.contains("getclickskip "), "{text}");
+        assert!(!emit(&script(gate)).contains("clickskip"));
     }
 
     #[test]

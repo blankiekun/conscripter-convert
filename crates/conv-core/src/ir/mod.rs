@@ -609,7 +609,8 @@ pub enum Op {
     SpriteAngle { layer: u32, degrees: i32, zoom: (i32, i32) },
     /// Jumps to `label` while the player skips (not in auto mode): past
     /// what the original leaves out then. 最果てのイマ's quakes, flashes,
-    /// pulses and script fades.
+    /// pulses and script fades. Also while a click skips effects
+    /// ([`Script::click_skips_effects`]).
     IfSkipping { label: String },
     /// Auto mode and skip stop, as a click would (Nitroplus: the script
     /// sets `$SYSTEM_text_auto` false or `$SYSTEM_menu_lock`, before the
@@ -964,4 +965,9 @@ pub struct Script {
     pub language: String,
     /// A label of the game's gosubbed after every load (`loadgosub`).
     pub after_load: Option<String>,
+    /// A click that ends a wait or an effect early also ends every later one
+    /// at once until the next text or click wait (CONscripter's
+    /// `clickskip`; [`Op::IfSkipping`] jumps then too): 最果てのイマ's
+    /// skip_state_b.
+    pub click_skips_effects: bool,
 }

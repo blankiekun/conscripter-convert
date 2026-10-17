@@ -693,14 +693,9 @@ a copy of the save works.
   `screenpulse`'s colour (`0xFF8080` is the preset table's COLORREF
   `0x8080ff`; `0xFFFFFF` goes with no tint). Two differences were fixed
   in their own PRs (`0x6f`'s blend-6 tint, movies and the unskippable
-  click wait ending skip and auto). Open, not built:
-  - A click during an effect ends it and sets `skip_state_b`, which
-    skips every later effect and clickable wait until the next message,
-    `0x68`, `0x69` or `0x97` (the wait callbacks of `0x66`, `0x6d`,
-    `0x6e`, `0x6f`, `0x71`, `0x72`/`0x74`, `0x8d`, `0x8e`). Ours ends
-    only the one clicked. It needs engine state that every game would
-    share (a click skipping the effects up to the next text), so it
-    waits for the lead's decision.
+  click wait ending skip and auto) and a click skipping the effects up
+  to the next text in a third (History, "A click skips the effects").
+  Open, not built:
   - The volume curve of `sound_request` (`0x47aab0`) was not looked up
     (findings row "volume curve": unknown).
 - Open: the hide button and right-click hide the link words, bars and
@@ -1603,3 +1598,24 @@ sound effects on `dwave` channels.
    both are a row of the harmless table. (Not compared: how a reading
    longer than its base pushes the next characters; `rubyon` widens
    the base.)
+
+**A click skips the effects (2026-10-17).** In the original a click (or
+Ctrl, or a key in mask `0x20ee007`) that ends an effect or a clickable
+wait sets `skip_state_b` (`0x51f82e`; the wait callbacks of `0x66`,
+`0x6d`, `0x6e`, `0x6f`, `0x72`/`0x74`, `0x76`, `0x8d`, `0x8e`, e.g.
+`cb_004418b0`, `FUN_00475bf0`), and while it is set every later effect
+and clickable wait ends at once (`op_6d`, `script_fade` and `op_76` don't
+start theirs) until a message (`op_40_41`), `0x68`, `0x69` or `0x91`
+clears it. No NScripter command tells a script that a `delay` or an
+effect was cut short, so CONscripter got `clickskip` (define;
+`getclickskip %v` reads it): with it a click that ends a `delay` or an
+effect makes every later `delay` and effect end at once (drawn as
+`print 1`) until the next text, click wait or `mpegplay`. The converter
+writes `clickskip` (`Script::click_skips_effects`) and the skip gates of
+quakes, flashes, pulses and script fades (`Op::IfSkipping`) also jump
+while `getclickskip` is 1 (601 gates, +1,203 lines). Unclickable waits
+(`0x66` with high half 0, `wait`) are not affected, as in the original.
+Checked with a test script under `--auto-play` (each delay is clicked)
+and 1,500 auto-play pages of the game: same pages and page pixels, 87
+pages with shorter waits (the delays and effects after a clicked one),
+no errors. Not checked with a real mouse in a window.
