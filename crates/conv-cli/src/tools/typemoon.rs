@@ -368,8 +368,7 @@ fn pictures(dir: &Path, out: &Path, quality: u8) -> Result<()> {
     let entries = mrg::parse(&map(&path.with_extension("hed"))?, Some(&map(&path.with_extension("nam"))?)).context("reading allpac.hed")?;
     let best = typemoon::full_copies(&entries);
     fs::create_dir_all(out)?;
-    // Written by an older run without the alpha channel: again.
-    let jobs: Vec<(&String, &&mrg::Entry)> = best.iter().filter(|(stem, _)| !fs::read(out.join(format!("{stem}.webp"))).is_ok_and(|w| webp_has_alpha(&w))).collect();
+    let jobs: Vec<(&String, &&mrg::Entry)> = best.iter().filter(|(stem, _)| !out.join(format!("{stem}.webp")).exists()).collect();
     println!("allpac: {} pictures, {} to convert", best.len(), jobs.len());
     let (next, done, in_bytes, out_bytes) = (AtomicUsize::new(0), AtomicUsize::new(0), AtomicU64::new(0), AtomicU64::new(0));
     let failed = Mutex::new(Vec::new());
@@ -384,13 +383,6 @@ fn pictures(dir: &Path, out: &Path, quality: u8) -> Result<()> {
                 image::load_from_memory(&data)?.to_rgba8()
             }
         };
-        // An opaque WebP has no alpha channel, and `lsp ":a;…"` then takes
-        // its right half for the mask: one pixel a step short of opaque
-        // keeps the channel (pictures come in as `:a`, whatever they are).
-        let mut img = img;
-        if img.pixels().all(|p| p[3] == 255) {
-            img.get_pixel_mut(0, 0)[3] = 254;
-        }
         let q = (!stem.starts_with("rule_")).then_some(quality);
         let webp = conv_cons::webp::encode_rgba(&img, q)?;
         let file = out.join(safe_relative_path(&format!("{stem}.webp")).with_context(|| format!("unsafe name {stem:?}"))?);
@@ -426,16 +418,6 @@ fn pictures(dir: &Path, out: &Path, quality: u8) -> Result<()> {
     }
     anyhow::ensure!(failed.is_empty(), "{} pictures failed", failed.len());
     Ok(())
-}
-
-/// A WebP file has an alpha channel: VP8X with its alpha flag, or VP8L
-/// with its alpha bit.
-fn webp_has_alpha(w: &[u8]) -> bool {
-    match w.get(12..16) {
-        Some(b"VP8X") => w.get(20).is_some_and(|f| f & 0x10 != 0),
-        Some(b"VP8L") => w.get(24).is_some_and(|b| b & 0x10 != 0),
-        _ => false,
-    }
 }
 
 /// The movies (H.264 1920 × 1080) at the stage's 1280 × 720.
@@ -551,18 +533,4 @@ fn scripts(dir: &Path, output: Option<&Path>) -> Result<()> {
         println!("| `{op}` | {uses} | {in_scripts} | `{example}` |");
     }
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn webp_alpha_kept_on_opaque_pictures() {
-        let mut img = image::RgbaImage::from_pixel(8, 8, image::Rgba([10, 20, 30, 255]));
-        assert!(!webp_has_alpha(&conv_cons::webp::encode_rgba(&img, Some(85)).unwrap()));
-        img.get_pixel_mut(0, 0)[3] = 254;
-        assert!(webp_has_alpha(&conv_cons::webp::encode_rgba(&img, Some(85)).unwrap()));
-        assert!(webp_has_alpha(&conv_cons::webp::encode_rgba(&img, None).unwrap()));
-    }
 }

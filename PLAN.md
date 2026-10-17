@@ -208,6 +208,7 @@ Engine features added for converted games (details in the engine's
 | Lua state in save files (the script's data globals) and `cons_process(name, "fn", ...)` (a coroutine resumed once a frame, saved by name and restarted from the top on load) | Logic read from an exe (rankings, unlock checks, minigames) written in Lua instead of NScripter arithmetic; 装甲悪鬼村正's CreateProcess (510 calls, parallel processes run each frame) is the first planned user. CONscripter PR #30 |
 | `chpan ch,pan[,ms]` (a `dwave` channel's pan, -1000 left .. 1000 right, the other side lowered, ramped in the track effect as `chvolfade`'s volume; stays with the channel, saved, `reset` centres it; not the music) (CONscripter PR #35) | NSS `SetPan`: 続・殺戮のジャンゴ's sounds panned hard left or right (`MusicStart`'s 4th argument, dja001_03's footsteps); 装甲悪鬼村正 pans none off centre |
 | The trace's `stale archive` warning (the hash of the `0.txt` a full build packed for, kept as `cons\script.hash` in `arc.nsa`, against the running `0.txt`) and `cons_trace_check.py --script` listing the pictures the script names that no archive or loose file has (CONscripter PR #52) | Every game: a `0.txt` rebuilt (a dry run) into a full build's folder, after its archives were packed, plays against pictures and labels it wasn't built with |
+| An opaque WebP (no alpha channel) shown with `:a` is opaque, as a PNG is, not split into picture and right-half mask (native builds; CONscripter PR #55) | 月姫's media folder and every `--webp` build (続・殺戮のジャンゴ's) on Linux, Windows and macOS: libwebp leaves the channel out of opaque pictures |
 
 Planned, from limits hit by converted games (each one is worked around
 in the script today), roughly in order of payoff:
@@ -722,10 +723,10 @@ The steps that apply them are in `docs/new-game.md`.
   screen brought it to 1.2 GB. Run builds under `systemd-run --user
   --scope -p MemoryMax=…` so a regression can't take the desktop down.
 - **An opaque WebP has no alpha channel** (月姫): libwebp leaves it out when
-  every pixel is opaque, and `lsp ":a;…"` on a picture without one takes
-  its right half as the mask (the native build; checked headless). A
-  picture shown with `:a` must keep the channel (`typemoon media` sets
-  one corner pixel to 254). `--webp`'s `encode` drops it for opaque PNGs.
+  every pixel is opaque, and on native builds (SDL_image) `lsp ":a;…"`
+  took such a picture's right half as the mask; a PNG without alpha was
+  already exempt. CONscripter now treats a WebP as it treats a PNG
+  (engine PR #55); the web build's own decoder was never affected.
 - **Check a muxer's output with the strict reader** (月姫): Ogg Opus files
   with a wrong OpusTags vendor length played in ffmpeg and failed in
   opusfile, which the engine uses for chunks; music, through SDL_mixer,

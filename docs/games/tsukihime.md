@@ -641,8 +641,8 @@ Nothing yet.
   of 13 for "conscripter" (11); ffmpeg read them, opusfile (the
   engine's voices and sound effects) refused every one; and an opaque
   WebP has no alpha channel, so `lsp ":a;…"` took its right half as
-  the mask: `typemoon media` now keeps the channel (one corner pixel
-  at 254). Checked headless (trace, 200 s): from `START_SCRIPT` through
+  the mask on native builds (fixed in CONscripter, engine PR #55; the
+  corner-pixel workaround in `typemoon media` is gone). Checked headless (trace, 200 s): from `START_SCRIPT` through
   `00_00` into `01_00_ARC01_*`, every voice and sound loads.
 
 - 2026-10-16: the media folder (`typemoon media`, see "Build"). The
