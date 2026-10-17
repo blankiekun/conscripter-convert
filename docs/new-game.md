@@ -246,10 +246,49 @@ rather than by browsing:
     and check ours does the same (a movie stood still during a fade
     because the engine didn't advance it).
 
-11. **Write the results back.** Commit `names.tsv` with comments, fold the
+11. **Motion easing.** Record each motion's and fade's curve (linear,
+    ease in/out, the exe's table), not only its key values.
+12. **Branches, not just arguments.** For each handler list the branches
+    an argument picks (`_FADS` type 0/1, `_STEC` modes), which of them
+    the game's data reaches, and count each (command, branch) in the
+    metrics (a follow-up for the metrics code).
+13. **Hidden state.** What a new picture inherits (alpha, zoom, blend,
+    priority), what each command leaves unchanged, what a scene change
+    or a load resets.
+14. **Coordinates and colour from the drawing code.** Origin, anchor of
+    zoom and rotation, the original's resolution against ours, rounding;
+    sRGB or linear blending (the `_STEC` bug), premultiplied alpha, each
+    blend's formula from the shader.
+15. **Timing and blocking.** For each timed command: does the script
+    wait, go on, or wait part of the time; ms or frames, and at what
+    frame rate; what a click does mid-effect (finish, cancel, skip).
+16. **Track inferred findings to the end.** Keep a machine-readable
+    table per game (`docs/games/<game>.findings.tsv`, or a section):
+    every argument and branch marked seen, inferred or unknown. An
+    inferred row becomes seen only by a decompile lookup.
+17. **Write the results back.** Commit `names.tsv` with comments, fold the
    decoded semantics into the engine's built-ins reference
    (`research/nitroplus/builtins.md` for Nitroplus), and put the gaps
    found in the game document's Status.
+
+### Checklist: behaviours to map
+
+Each needs an answer from the exe or the data (or "not used") in the
+game document:
+
+6. **Out-of-range input:** clamp, wrap or ignore; negative times;
+   missing files.
+7. **Run-time-only behaviour:** randomness, clock and date checks.
+8. **Persistent state:** global flags, unlock conditions, read marks,
+   what a save holds.
+9. **Sound:** channel choice, loop points, dB or linear volume, fade
+   shapes, load latency.
+10. **Text:** line-break rules, ruby placement, speed units, inline wait
+    codes.
+11. **Golden frames:** one capture of the original per distinct screen in
+    `research/<engine>/local/shots/`, compared numerically with ours;
+    wine stays the last resort (CLAUDE.md), so only where the code leaves
+    a real doubt.
 
 ### Covering the scripts too
 
