@@ -543,36 +543,23 @@ Used to check what the engine does (`docs/new-game.md` step 9).
   convert time, not Lua; the compiler draws the screen at its syncs, so a
   process running in Lua would have no sprite of its own to change). Done:
   **A** endless loops, **B** `system.lua` from the IR, **C1** loops
-  behind an `if` with a lead-in (History, "Processes"). Next:
-  **C2** the one-shots played once on paper, their waits as key times:
-  done, in review (#151). `convert/one_shot.rs` walks the function at the process's start
-  (`if`/`while` decided then, assignments run, a 10,000-turn cap: a
-  process waiting on what the script sets later, `ProcessAFB1`/`2`, is
-  noted and its state put back), puts each picture's actions on a clock
-  (`loops.rs` `paper_action`, `Pass::keys_to_end`), and gives it one
-  loop-2 `spmotion` at the next sync: placed where the process leaves it
-  at the highest opacity it reaches, keyed from where it was; once
-  `sound_clock` passes the end it takes its last opacity, or is deleted
-  (`Delete`, `Request(…, Disused)`). A process run in line (the end roll)
-  keeps its old path. Dry run: `CreateProcess` notes 1,756 → 236 (the
-  counters `MyTr_*`/`MyLife_*`/`EnTr_*`/`EnLife_*`, `CP_LockOn*`,
-  `CP_IHPMove`/`CP_EHPMove`, `md02_023_ComicProcess*`, `MapBGLoop`, …
-  gone), about 800 new many-key motions; the script's total waits change
-  by +27 s over the game (a `WaitAction` on a one-shot now waits for it).
-  Real-time trace, 90 s from `*if0_else` (`--auto-play 0 --real-time
-  --vars` with the settings' defaults: `--goto` leaves `%2920`-`%2938` at
-  0, so the story ran at `gamespeed` 10 without them): main 57 loop-2
-  motions, C2 92 (and 17 more pages); the 35 new ones are the blood-spray
-  frame flips (`SL_rightdamfade`, `ma00_000`, 13 frames; three sets of 8
-  in `ma01`): 11 ran out, 3 cut short by the next set's `spmotion` on the
-  same sprites (after 34-86 of 80-90 ms), 21 removed by the scene's `csp`
-  after 18-43 ms because auto-play clicked through the 500 ms `print`
-  before it (a player sees them whole: motions go on during effects).
-  Every other ending count is the same as main's. Tests:
-  `a_one_shot_counter_flips_its_digits_on_paper`,
-  `a_one_shot_fading_out_then_disused_goes_after_its_fade`. Left after C2: `ComicProcess` (83, `Shake`),
-  `MFlashProcess` (43, `Random`: C3), `EndSong` (12, music with `if`s),
-  `CP_LockOnBGMoveProcess` now passes (`SetVertex` allowed).
+  behind an `if` with a lead-in, **C2** the one-shots played once on
+  paper (#151) (History, "Processes"). `ComicProcess` (83) in review
+  (#167): `Shake` plays on paper (`one_shot.rs`
+  `paper_shake`: the picture moved to and fro by `shake_keys`, its
+  wait holding the process), and a loop process's branch that doesn't
+  loop (`ComicProcess`'s signs 1, 2, 5-9, 12, 13, 16-18) is played on
+  paper (`loops.rs` `run_loop` → `play_once`) instead of as an action
+  process, so its waits don't hold the script. With that the whole
+  process passes `is_loop`, and the signs that loop (3, 4, 10, 11, 15)
+  take the loop path. Limits: 16 of the 18 signs are
+  `Hideable`, so they are drawn into the text window's picture at their
+  end state, not moved; signs 10, 12 and 17 zoom unlike in x and y
+  (8 calls noted, drawn at their end: `MotionKey::zoom_y` is in the IR
+  since #159, `Pass::keyed` doesn't fill it yet); the zoom is about the
+  centre, not `SetVertex`'s point. Left: `MFlashProcess` (43, `Random`:
+  C3), `EndSong` (12, music with `if`s), `ma03_024`/`025`/`027vs`
+  `_runsProcess` (23, wait on the script: noted).
   Then **C3** Lua (`Op::StartProcess`, `Script::lua`) only
   for what needs the run: `Random` (`MFlashProcess`'s pause, the
   shakes). Still left by A: `ma00_FireMoveAutoProcess` zooms unlike
@@ -829,6 +816,35 @@ Next, in order:
   held (seen once in a small test script; not looked into).
 
 ## History
+
+### Processes: one-shots on paper (C2, 2026-10-16, #151)
+
+`convert/one_shot.rs` walks the function at the process's start
+(`if`/`while` decided then, assignments run, a 10,000-turn cap: a
+process waiting on what the script sets later, `ProcessAFB1`/`2`, is
+noted and its state put back), puts each picture's actions on a clock
+(`loops.rs` `paper_action`, `Pass::keys_to_end`), and gives it one
+loop-2 `spmotion` at the next sync: placed where the process leaves it
+at the highest opacity it reaches, keyed from where it was; once
+`sound_clock` passes the end it takes its last opacity, or is deleted
+(`Delete`, `Request(…, Disused)`). A process run in line (the end roll)
+keeps its old path. Dry run: `CreateProcess` notes 1,756 → 236 (the
+counters `MyTr_*`/`MyLife_*`/`EnTr_*`/`EnLife_*`, `CP_LockOn*`,
+`CP_IHPMove`/`CP_EHPMove`, `md02_023_ComicProcess*`, `MapBGLoop`, …
+gone), about 800 new many-key motions; the script's total waits change
+by +27 s over the game (a `WaitAction` on a one-shot now waits for it).
+Real-time trace, 90 s from `*if0_else` (`--auto-play 0 --real-time
+--vars` with the settings' defaults: `--goto` leaves `%2920`-`%2938` at
+0, so the story ran at `gamespeed` 10 without them): main 57 loop-2
+motions, C2 92 (and 17 more pages); the 35 new ones are the blood-spray
+frame flips (`SL_rightdamfade`, `ma00_000`, 13 frames; three sets of 8
+in `ma01`): 11 ran out, 3 cut short by the next set's `spmotion` on the
+same sprites (after 34-86 of 80-90 ms), 21 removed by the scene's `csp`
+after 18-43 ms because auto-play clicked through the 500 ms `print`
+before it (a player sees them whole: motions go on during effects).
+Every other ending count is the same as main's. Tests:
+`a_one_shot_counter_flips_its_digits_on_paper`,
+`a_one_shot_fading_out_then_disused_goes_after_its_fade`. `CP_LockOnBGMoveProcess` passes (`SetVertex` allowed).
 
 ### Processes: loops behind an `if`, after a lead-in (2026-10-16)
 

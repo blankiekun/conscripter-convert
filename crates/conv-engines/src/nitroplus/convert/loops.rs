@@ -76,7 +76,7 @@ fn ends_in_loop(stmts: &[Stmt]) -> bool {
         split(stmts, LOOP_CALLS).is_some() || split(stmts, SHAKE_CALLS).is_some()
     }
     fn fits(stmts: &[Stmt]) -> bool {
-        looped(stmts) || one_shot(stmts) || split_if(stmts).is_some_and(|(_, _, t, o)| fits(t) && fits(o))
+        looped(stmts) || one_shot(stmts) || super::one_shot::runs_once(stmts) || split_if(stmts).is_some_and(|(_, _, t, o)| fits(t) && fits(o))
     }
     fn loops(stmts: &[Stmt]) -> bool {
         looped(stmts) || split_if(stmts).is_some_and(|(_, _, t, o)| loops(t) || loops(o))
@@ -249,6 +249,9 @@ impl<'a> Compiler<'a, '_> {
             let branch = if self.eval(cond).truthy() { then } else { otherwise };
             if ends_in_loop(branch) {
                 self.run_loop(name, function, branch, before);
+            } else if super::one_shot::runs_once(branch) {
+                // Played on paper: its waits hold only the process.
+                self.play_once(name, function, branch, self.process_lead);
             } else {
                 self.action_process = Some(name.to_string());
                 self.exec_block(branch);

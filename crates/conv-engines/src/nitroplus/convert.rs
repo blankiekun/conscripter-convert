@@ -4945,6 +4945,57 @@ scene a.nss
     }
 
     #[test]
+    fn a_comic_sign_that_runs_once_shakes_on_paper_and_one_that_loops_loops() {
+        // 装甲悪鬼村正's ComicProcess: one branch per sign, chosen as it starts.
+        let library = format!("{LIBRARY}{}", r#"
+function Comic()
+{
+	Begin:
+	Wait(1);
+	if($Sign==1){
+		Fade("@c", 300, 1000, null, false);
+		Shake("@c", 500, 2, 2, 0, 0, 500, null, true);
+		Wait(2000);
+		Fade("@c", 2000, 0, null, false);
+	}else if($Sign==2){
+		Fade("@c", 100, 1000, null, true);
+		while(1){
+			Zoom("@c", 150, 700, 700, null, true);
+			Wait(100);
+			Zoom("@c", 150, 600, 600, null, true);
+			Wait(100);
+		}
+	}
+}
+"#);
+        let story = |sign| format!(r#"
+scene a.nss
+{{
+	CreateTexture("c", 100, 100, 100, "cg/ef/a.png");
+	Fade("c", 0, 0, null, true);
+	Zoom("c", 0, 500, 500, null, true);
+	$Sign = {sign};
+	CreateProcess("P", 150, 0, 0, "Comic");
+	Request("P", Start);
+	Wait(100);
+}}
+"#);
+        let c = compile(&story(1), &library);
+        let keys = c.ops.iter().find_map(|op| match op {
+            Op::SpriteMotion2 { keys, end: MotionEnd::Keep, .. } => Some(keys.clone()),
+            _ => None,
+        }).unwrap_or_else(|| panic!("{:?}", c.ops));
+        // (ComicProcess's sign 6.) To and fro 2 px as it fades in, still
+        // for 2 s, then fading out: 4.5 s in all.
+        assert!(keys.iter().any(|k| k.y == 2) && keys.iter().any(|k| k.y == -2), "{keys:?}");
+        assert_eq!(keys.last().map(|k| (k.ms, k.x, k.y, k.opacity)), Some((4501, 0, 0, 0)), "{keys:?}");
+        assert!(c.notes.is_empty(), "{:?}", c.notes);
+        let c = compile(&story(2), &library);
+        assert!(c.ops.iter().any(|op| matches!(op, Op::SpriteMotion2 { end: MotionEnd::Loop, .. })), "{:?}", c.ops);
+        assert!(!c.notes.keys().any(|n| n.contains("Comic") || n.contains("paper")), "{:?}", c.notes);
+    }
+
+    #[test]
     fn delete_all_in_a_chapter_keeps_what_was_made_before_it() {
         static GAME: Game = Game { chapter_objects: true, ..Game::PLAIN };
         let mut files = BTreeMap::new();
