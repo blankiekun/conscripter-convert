@@ -287,6 +287,13 @@ the same coverage table as the exe's rows:
   exe's tables, an exact capture of the original, a guess) and read it
   from the files at convert time when that is small. A scaled
   screenshot is a guess, not a source: Saiima's were off by up to 12 px.
+- **Say why a feature is left out.** In code, `// dropped: <reason>` on
+  the line that skips it; in `docs/games/*.md`, every left-out item
+  states its reason in the same sentence or bullet (the exe does not
+  have it, the user decided, it cannot work in the engine, ...).
+  `python3 -I research/tools/dropped_lint.py [--max N]` lists the
+  sentences that say "left out", "not converted", "dropped", "skipped"
+  or "not yet" with no reason word (tune its two regexes if it misfires).
 
 ## 4. Control flow: prove it before looking at pictures
 
