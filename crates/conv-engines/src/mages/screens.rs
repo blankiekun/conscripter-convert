@@ -13,6 +13,7 @@ use super::assets::ArchiveAssets;
 /// 258 + 41.25 N) (its pictures are placed by their centres: "Press START
 /// button", 258 wide, at x 769): we have no quick save, so its place stays
 /// empty.
+// src: exe 0x81083fd8 (title_menu_init: atlas cells and their centres)
 pub(super) const TITLE_ROW_Y: u32 = 545;
 pub(super) const TITLE_ROW_H: u32 = 36;
 pub(super) const TITLE_CELL_W: u32 = 173;
@@ -45,12 +46,14 @@ pub fn title(assets: &mut ArchiveAssets, extras: bool) -> Option<TitleScreen> {
         let (image, _, _) = assets.system_cells("title_bg.png", &format!("title_{row}.png"), &cells, 100)?;
         buttons.push(TitleButton { image, x: TITLE_X, y: title_y(row), action, ..Default::default() });
     }
+    // guess: fade_ms (the eboot's title fade not found)
     Some(TitleScreen { background, fade_ms: 500, buttons, ..Default::default() })
 }
 
 /// SystemSE.AWB's two sounds, in every menu: the eboot ticks (0) as the
 /// cursor moves and confirms (1) an item (the title's at 0x8105e7a6).
 pub fn menu_sounds(assets: &mut ArchiveAssets) -> Option<MenuSounds> {
+    // src: exe 0x8105e7a6 (SystemSE ids)
     let (hover, confirm) = (assets.system_sound(0), assets.system_sound(1));
     (hover.is_some() || confirm.is_some()).then_some(MenuSounds { hover, confirm })
 }

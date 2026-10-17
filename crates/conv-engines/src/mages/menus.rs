@@ -23,13 +23,16 @@ use super::convert::{SCREEN_H, SCREEN_W};
 
 /// Where SystemData's screens show the Vita's button hints (◎決定 …) and
 /// the page box (/10).
+// src: save_bg.png, bklog.png (measured: HINTS, HINTS_CORNER, PAGE_BOX)
 pub(crate) const HINTS: (u32, u32, u32, u32) = (636, 486, 310, 38);
 /// Around them, to the screen's right edge.
 const HINTS_CORNER: (u32, u32, u32, u32) = (626, 470, 334, 70);
 const PAGE_BOX: (u32, u32, u32, u32) = (818, 22, 142, 64);
+// ours: our labels' glows
 const GLOW: [u8; 3] = [90, 130, 255];
 const HOVER_GLOW: [u8; 3] = [255, 190, 70];
 /// The atlas labels' glow.
+// src: ss_bg1.png label glow (measured)
 const BAR_GLOW: [u8; 3] = [70, 80, 255];
 
 impl Labels<'_> {
@@ -152,6 +155,7 @@ fn button(assets: &mut ArchiveAssets, labels: &Labels, name: &str, text: &str, s
 /// Q-Save, Q-Load, Return, Save, Load, Log, Config in 60×24 cells from
 /// x = 0, in rows from y = 746: white, glowing blue (selected), navy (for
 /// light backgrounds), faded.
+// src: ss_bg1.png (measured: 7 columns of 60, rows 24 apart)
 const ATLAS_LABELS: (u32, u32, u32, u32) = (0, 746, 60, 24);
 
 /// Label `column` of the atlas as a button (normal, glowing, faded),
@@ -183,6 +187,7 @@ pub fn button_bar(assets: &mut ArchiveAssets, labels: &Labels) -> ButtonBar {
         ("Config", Some(6), BarAction::Settings),
         ("Hide", None, BarAction::HideWindow),
     ];
+    // ours: the bar (the Vita has none): size, margins, place
     let size = 17.0;
     let drawn = |text: &str, rgb: [u8; 3], glow: [u8; 3], alpha: u8| labels.draw(text, size, rgb, glow, alpha);
     let mut x = SCREEN_W - 12;
@@ -199,7 +204,7 @@ pub fn button_bar(assets: &mut ArchiveAssets, labels: &Labels) -> ButtonBar {
         let (w, h) = ((img.width() / 3) as i32, img.height() as i32);
         x -= w;
         let name = format!("bar_{}", text.to_ascii_lowercase());
-        // The atlas's letters sit 2 pixels higher in their cells than the font's.
+        // src: ss_bg1.png (measured): the atlas's letters sit 2 pixels higher in their cells than the font's.
         let lower = if column.is_some() && atlas.is_some() { 2 } else { 0 };
         let image = place(assets, &name, &img, x, SCREEN_H - 16 - h / 2 + lower);
         let active = matches!(action, BarAction::Auto | BarAction::Skip).then(|| {
@@ -219,6 +224,7 @@ pub fn save_menu(assets: &mut ArchiveAssets, labels: &Labels) -> Option<SaveMenu
     let save_bg = assets.system_image("save_bg.png")?;
     let load_bg = assets.system_image("load_bg.png")?;
     let slots = assets.system_image("sl_data.png")?;
+    // src: save_bg.png, load_bg.png header (measured)
     let header = (24, 22, 106, 50);
     let mut base = save_bg.clone();
     // Without the header, the controller hints and the page box.
@@ -229,6 +235,7 @@ pub fn save_menu(assets: &mut ArchiveAssets, labels: &Labels) -> Option<SaveMenu
     let log = assets.system_image("bklog.png")?;
     cover(&mut base, &log, PAGE_BOX);
 
+    // src: sl_data.png plate (measured); the rest of the screen's layout is ours
     let plate = imageops::crop_imm(&slots, 3, 2, 416, 131).to_image();
     let (row_x, row_y, pitch) = (40i32, 96i32, 140i32);
     let mut frame = RgbaImage::new(SCREEN_W as u32, SCREEN_H as u32);
@@ -292,6 +299,7 @@ pub fn settings_menu(assets: &mut ArchiveAssets, labels: &Labels) -> Option<Sett
     let config = assets.system_image("bg_config_01.png")?;
     let load = assets.system_image("load_bg.png")?;
     let log = assets.system_image("bklog.png")?;
+    // src: bg_config_01.png header (measured); the rest of this screen is ours
     let header_rect = (24, 22, 140, 50);
     let mut base = load;
     patch(&mut base, header_rect);
@@ -349,6 +357,7 @@ pub fn settings_menu(assets: &mut ArchiveAssets, labels: &Labels) -> Option<Sett
         skip_unread_label: Some("未読テキストもスキップする".into()),
         pictures: super::config::pictures(assets, labels, &switches, characters).map(Box::new),
         switches: switches.into_iter().map(|(label, switch)| SettingSwitch { label, switch }).collect(),
+        // src: exe 0x81070e70 (55 % and 85 % rounded up to levels).
         // The Vita's デフォルト設定 (0x81070e70): BGM, SE and system sounds
         // 55 %, voices 85 %, the window 70 % opaque, the music lowered for
         // voices.
@@ -365,6 +374,7 @@ pub fn settings_menu(assets: &mut ArchiveAssets, labels: &Labels) -> Option<Sett
 
 /// The backlog: `bklog.png`'s header and panel, darkened.
 pub fn backlog(assets: &mut ArchiveAssets, labels: &Labels) -> Option<Backlog> {
+    // ours: the layout (the Vita's is not read yet)
     let mut base = darker(screen_part(&assets.system_image("bklog.png")?), 45);
     patch(&mut base, HINTS);
     let none = transparent(assets);
@@ -386,6 +396,7 @@ pub fn backlog(assets: &mut ArchiveAssets, labels: &Labels) -> Option<Backlog> {
 
 /// The yes/no dialog: `dlg_bg_26.png` (the frame without words), darkened.
 pub fn confirm_dialog(assets: &mut ArchiveAssets, labels: &Labels) -> Option<ConfirmDialog> {
+    // ours: the layout, darkness and plates
     let frame = darker(assets.system_image("dlg_bg_26.png")?, 55);
     let (x, y) = ((SCREEN_W - frame.width() as i32) / 2, (SCREEN_H - frame.height() as i32) / 2);
     // Plain plates: conv-cons writes はい/いいえ over them.
