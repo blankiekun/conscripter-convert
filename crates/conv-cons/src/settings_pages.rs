@@ -10,9 +10,8 @@ use std::fmt::Write as _;
 
 use conv_core::ir::{ConfirmDialog, PagedSettings, Placed, RowControl, SettingValue, SettingsMenu, Switch};
 
-use crate::menu::{confirm_call, hidden_while_open, setting_var, settings_defaults, switch_off, CONFIRM, IN_GAME, SETTINGS_APPLY, SETTINGS_PAGE, SKIP_UNREAD, VOICE_OFF_BASE};
-use crate::screens::{image, lua};
-use crate::BUTTON_VAR;
+use crate::menu::{hidden_while_open, setting_var, settings_defaults, switch_off, IN_GAME, SETTINGS_APPLY, SKIP_UNREAD, VOICE_OFF_BASE};
+use crate::screens::{image, lua, question};
 
 /// The variables a value lives in (set together), and whether they are 1
 /// for a 0 option.
@@ -47,7 +46,7 @@ fn part(p: &Placed, extra: &str) -> String {
 }
 
 /// `screens/settings.lua`.
-pub(crate) fn lua_file(p: &PagedSettings) -> String {
+pub(crate) fn lua_file(p: &PagedSettings, confirm: Option<&ConfirmDialog>, leave: Option<(&str, &str)>) -> String {
     let pages = p.pages.len().max(1);
     let apply = format!("action={{\"gosub\", \"*{SETTINGS_APPLY}\"}}");
     let mut w = Vec::new();
@@ -94,35 +93,33 @@ pub(crate) fn lua_file(p: &PagedSettings) -> String {
     for x in w {
         writeln!(out, "  {x},").unwrap();
     }
-    // Back to the title and quit close the screen: `*conv_settings` asks.
-    writeln!(out, "}}\nif in_game then\n  w[#w+1] = {}\n  w[#w+1] = {}\nend", image("button", &p.title, ", cells=2, action={\"close\", 1}"), image("button", &p.quit, ", cells=2, action={\"close\", 2}")).unwrap();
+    // Back to the title (or, during a replay, to its list) and quit ask
+    // on `screens/confirm.lua` over the screen, then close it.
+    let ask = |q: Option<&String>, s: Switch| q.map(|q| format!(", confirm={}", question(q, s))).unwrap_or_default();
+    let title = ask(confirm.map(|c| &c.title), Switch::ConfirmTitle);
+    let button = |p: &Placed, value: u32, q: &str| image("button", p, &format!(", cells=2, action={{\"close\", {value}{q}}}"));
+    writeln!(out, "}}\nif in_game then").unwrap();
+    match leave {
+        Some((_, text)) => {
+            let leave_q = ask(confirm.map(|_| text.to_string()).as_ref(), Switch::ConfirmTitle);
+            writeln!(out, "  if var({}) == 1 then\n    w[#w+1] = {}\n  else\n    w[#w+1] = {}\n  end", lua(crate::replay::REPLAYING), button(&p.title, 1, &leave_q), button(&p.title, 1, &title)).unwrap();
+        }
+        None => writeln!(out, "  w[#w+1] = {}", button(&p.title, 1, &title)).unwrap(),
+    }
+    writeln!(out, "  w[#w+1] = {}\nend", button(&p.quit, 2, &ask(confirm.map(|c| &c.quit), Switch::ConfirmQuit))).unwrap();
     let hidden: Vec<String> = hidden_while_open().iter().map(|s| if s.starts_with('%') { format!("var({})", lua(s)) } else { s.clone() }).collect();
     writeln!(
         out,
-        "return {{\n  kind = \"settings\",\n  pages = {pages},\n  page_var = {},\n  hide = in_game and {{window=true, sprites={{{}}}}} or nil,\n  widgets = w,\n}}",
-        lua(SETTINGS_PAGE),
+        "return {{\n  kind = \"settings\",\n  pages = {pages},\n  hide = in_game and {{window=true, sprites={{{}}}}} or nil,\n  widgets = w,\n}}",
         hidden.join(", ")
     )
     .unwrap();
     out
 }
 
-/// `*conv_settings`: the screen from its first page; back to the title
-/// and quit ask first (the game's own dialog) and open it again on no.
-/// `*conv_settings_defaults`: every setting back to its default.
-pub(crate) fn labels(out: &mut String, m: &SettingsMenu, p: &PagedSettings, confirm: Option<&ConfirmDialog>, leave: Option<(&str, &str)>) {
-    let mut w = |line: String| {
-        out.push_str(&line);
-        out.push('\n');
-    };
-    let b = BUTTON_VAR;
-    w(format!("*{}", crate::menu::SETTINGS));
-    w(format!("mov {SETTINGS_PAGE},1"));
-    w("*conv_settings_open".into());
-    w(format!("screen \"settings\",{b}"));
-    w(format!("if {b} == 1 goto *conv_settings_title"));
-    w(format!("if {b} == 2 goto *conv_settings_quit"));
-    w("return".into());
+/// `*conv_settings_defaults`: every setting back to its default (the
+/// screen's labels are [`crate::screens::settings_labels`]).
+pub(crate) fn labels(out: &mut String, m: &SettingsMenu, p: &PagedSettings) {
     // The levels' defaults and those of the values on the pages.
     let mut defaults = vec![settings_defaults(m)];
     for c in p.pages.iter().flat_map(|page| &page.rows) {
@@ -134,32 +131,7 @@ pub(crate) fn labels(out: &mut String, m: &SettingsMenu, p: &PagedSettings, conf
             SettingValue::Level(_) => {}
         }
     }
-    w("*conv_settings_defaults".into());
-    w(format!("{}:gosub *{SETTINGS_APPLY}", defaults.join(":")));
-    w("return".into());
-    // `reset` starts the script over: the title screen. During a replay:
-    // back to its list instead.
-    if let Some((_, question)) = leave {
-        w("*conv_settings_title".into());
-        w(format!("if {} == 0 goto *conv_settings_title_go", crate::replay::REPLAYING));
-        if confirm.is_some() {
-            w(confirm_call(question, Switch::ConfirmTitle));
-            w(format!("if {CONFIRM} == 0 goto *conv_settings_open"));
-        }
-        w(format!("goto *{}", crate::replay::END));
-    }
-    let title = if leave.is_some() { "conv_settings_title_go" } else { "conv_settings_title" };
-    for (label, question, then, kind) in [
-        (title, confirm.map(|c| &c.title), "reset", Switch::ConfirmTitle),
-        ("conv_settings_quit", confirm.map(|c| &c.quit), "end", Switch::ConfirmQuit),
-    ] {
-        w(format!("*{label}"));
-        if let Some(q) = question {
-            w(confirm_call(q, kind));
-            w(format!("if {CONFIRM} == 0 goto *conv_settings_open"));
-        }
-        w(then.into());
-    }
+    writeln!(out, "*conv_settings_defaults\n{}:gosub *{SETTINGS_APPLY}\nreturn", defaults.join(":")).unwrap();
 }
 
 #[cfg(test)]
@@ -200,7 +172,7 @@ mod tests {
             title: placed("title.png", 0),
             quit: placed("quit.png", 0),
         };
-        let lua = lua_file(&p);
+        let lua = lua_file(&p, None, None);
         // The switch's global is 1 while off: option 1 is value 0.
         assert!(lua.contains("{\"radio\", file=\"on.png\", x=500, y=100, page=1, cells=2, on_file=\"on_lit.png\", var=\"%2919\", value=0,"), "{lua}");
         assert!(lua.contains("knob={file=\"k.png\", x=764, y=100}, fill={file=\"e.png\", x=509, y=100}, track="), "{lua}");

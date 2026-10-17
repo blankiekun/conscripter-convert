@@ -28,11 +28,14 @@ pub fn screen_files(script: &Script) -> Vec<(String, String)> {
         files.push(("save.lua".to_string(), save_lua(m, script.confirm.as_ref(), scene_stack, true)));
         files.push(("load.lua".to_string(), save_lua(m, script.confirm.as_ref(), scene_stack, false)));
     }
+    let has_replay = script.title_screen.is_some() && script.extras.as_ref().is_some_and(|e| e.replay.is_some());
+    let leave = script.extras.as_ref().and_then(|e| e.replay.as_ref()).filter(|_| has_replay).map(|r| (r.leave_label.as_str(), r.leave_question.as_str()));
     if let Some(m) = engine_settings(script) {
-        let has_replay = script.title_screen.is_some() && script.extras.as_ref().is_some_and(|e| e.replay.is_some());
-        let leave = script.extras.as_ref().and_then(|e| e.replay.as_ref()).filter(|_| has_replay).map(|r| (r.leave_label.as_str(), r.leave_question.as_str()));
         let version = script.version.as_deref().map(|v| (v, script.height));
         files.push(("settings.lua".to_string(), settings_lua(m, script.confirm.as_ref(), leave, version)));
+    }
+    if let Some(p) = script.settings.as_ref().and_then(|m| m.pictures.as_deref()).filter(|_| script.picture_settings.is_none()) {
+        files.push(("settings.lua".to_string(), crate::settings_pages::lua_file(p, script.confirm.as_ref(), leave)));
     }
     if let Some(b) = script.backlog.as_ref().filter(|b| b.engine_screen && script.line_log.is_none()) {
         files.push(("backlog.lua".to_string(), backlog_lua(b)));
@@ -44,10 +47,6 @@ pub fn screen_files(script: &Script) -> Vec<(String, String)> {
         files.push(("confirm.lua".to_string(), confirm_lua(d)));
     }
     files.extend(crate::settings_screen::files(script, script.global_border.unwrap_or(crate::GLOBAL_VAR_BASE)));
-    // Asks with the game's own dialog (`settings_pages::labels`).
-    if let Some(p) = script.settings.as_ref().and_then(|m| m.pictures.as_deref()).filter(|_| script.picture_settings.is_none()) {
-        files.push(("settings.lua".to_string(), crate::settings_pages::lua_file(p)));
-    }
     files
 }
 
