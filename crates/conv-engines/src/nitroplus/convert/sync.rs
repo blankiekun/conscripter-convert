@@ -304,6 +304,9 @@ impl Compiler<'_, '_> {
                     if let Some(t) = self.objects.get(name).and_then(|o| o.trail) {
                         self.ops.push(Op::SpriteTrail { layer, passes: t.passes, alpha: t.alpha, lag: t.lag });
                     }
+                    if old.opacity != now.opacity {
+                        self.ops.push(Op::SpriteOpacity { layer: Some(layer), opacity: (super::fade_base(old, &now) * 256 / 1000) as u32 });
+                    }
                     if let Some(&(ease, exponent)) = tempo.get(name) {
                         self.ops.push(Op::MoveEase { ease, exponent });
                     }

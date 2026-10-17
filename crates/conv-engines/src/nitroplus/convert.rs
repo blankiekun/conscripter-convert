@@ -1232,9 +1232,11 @@ fn tempo(v: &Value) -> Option<(u8, u32)> {
 }
 
 /// `old` moved and zoomed into `now` over `ms` by the engine: the same
-/// picture at the same opacity, zoomed alike both ways.
+/// picture, zoomed alike both ways. A fade goes into the keys' opacity,
+/// times the sprite's, which must first be set to the larger of the two
+/// ([`fade_base`]).
 fn motion(old: &Shown, now: &Shown, ms: u32) -> Option<Op> {
-    if old.layer != now.layer || old.source != now.source || old.opacity != now.opacity || old.cells.is_some() || now.cells.is_some() {
+    if old.layer != now.layer || old.source != now.source || old.cells.is_some() || now.cells.is_some() {
         return None;
     }
     let (zx, zy) = (now.zoom.0 * 1000 / old.zoom.0.max(1), now.zoom.1 * 1000 / old.zoom.1.max(1));
@@ -1246,9 +1248,17 @@ fn motion(old: &Shown, now: &Shown, ms: u32) -> Option<Op> {
     let centre = |s: &Shown| (s.x + s.w / 2, s.y + s.h / 2);
     let ((x0, y0), (x1, y1)) = (centre(old), centre(now));
     let zoom = ((zx + 5) / 10).clamp(1, 10000) as u32;
-    let key = |ms, x, y, zoom, angle| MotionKey { ms, x, y, zoom, angle, opacity: 256, zoom_y: zoom };
-    let keys = vec![key(0, 0, 0, 100, 0), key(ms, (x1 - x0) as i32, (y1 - y0) as i32, zoom, (now.angle - old.angle) as i32)];
+    let base = fade_base(old, now);
+    let alpha = |s: &Shown| (s.opacity.min(1000) * 256 / base) as u32;
+    let key = |ms, x, y, zoom, angle, opacity| MotionKey { ms, x, y, zoom, angle, opacity, zoom_y: zoom };
+    let keys = vec![key(0, 0, 0, 100, 0, alpha(old)), key(ms, (x1 - x0) as i32, (y1 - y0) as i32, zoom, (now.angle - old.angle) as i32, alpha(now))];
     Some(Op::SpriteMotion2 { layer: old.layer, keys, end: MotionEnd::Keep })
+}
+
+/// The opacity (per mille) a sprite fading from `old` to `now` in a
+/// [`motion`] is set to: its keys' opacity is times it.
+fn fade_base(old: &Shown, now: &Shown) -> i64 {
+    old.opacity.max(now.opacity).clamp(1, 1000)
 }
 
 /// `SetBlur`'s copies ([`Object::trail`]).
@@ -4317,6 +4327,28 @@ scene a.nss
             _ => None,
         }).collect();
         assert_eq!(eases, [(2, 2), (7, 1)], "{:?}", c.ops);
+    }
+
+    #[test]
+    fn a_move_that_also_fades_is_one_motion_with_alpha_keys() {
+        let story = r#"
+scene a.nss
+{
+	CreateTexture("bg", 100, 0, 0, "cg/bg/a.jpg");
+	Fade("bg", 0, 200, null, true);
+	Wait(100);
+	Move("bg", 1000, @100, @0, null, false);
+	Fade("bg", 1000, 1000, null, true);
+	Wait(100);
+}
+"#;
+        let c = compile(story, LIBRARY);
+        let at = c.ops.iter().position(|op| matches!(op, Op::SpriteMotion2 { .. })).unwrap_or_else(|| panic!("{:?}", c.ops));
+        let Op::SpriteMotion2 { keys, .. } = &c.ops[at] else { unreachable!() };
+        assert_eq!((keys[0].opacity, keys[1].opacity, keys[1].x), (51, 256, 100), "{:?}", c.ops);
+        // The sprite at the larger opacity, the keys times it.
+        assert!(matches!(c.ops[at - 1], Op::SpriteOpacity { opacity: 256, .. }), "{:?}", c.ops);
+        assert!(!c.notes.keys().any(|n| n.contains("cross-fade")), "{:?}", c.notes);
     }
 
     #[test]
