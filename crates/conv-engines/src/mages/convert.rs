@@ -530,15 +530,9 @@ impl Lowering<'_> {
         base + *n
     }
 
-    /// Shows `image` centred at script position (x, y) on `key`'s layer,
-    /// removing the pictures `replaces` in the same fade.
-    #[allow(clippy::too_many_arguments)]
-    fn show(&mut self, key: &str, tex: i64, image: (String, u32, u32), x: i64, y: i64, priority: i64, fade_ms: u32, replaces: &[String], look: Look) {
-        self.show_at(key, tex, image, sx(x), sy(y), priority, fade_ms, replaces, look);
-    }
-
-    /// `show` with the centre in screen pixels. A picture with filters
-    /// fades in inside a transition, so that it does so filtered.
+    /// Shows `image` centred at (cx, cy) in screen pixels on `key`'s layer,
+    /// removing the pictures `replaces` in the same fade. A picture with
+    /// filters fades in inside a transition, so that it does so filtered.
     #[allow(clippy::too_many_arguments)]
     fn show_at(&mut self, key: &str, tex: i64, image: (String, u32, u32), cx: i32, cy: i32, priority: i64, fade_ms: u32, replaces: &[String], look: Look) {
         // A zoomed picture is shown zoomed in the same print.
@@ -682,6 +676,23 @@ impl Lowering<'_> {
         self.staging = true;
     }
 
+    /// Where a Sprite, SpriteBG or SpriteBS task puts its picture's
+    /// centre, in screen pixels: at `:Position`; without one, where the
+    /// picture it replaces (same SpriteNumber, by default the texture: our
+    /// key) is; else the centre.
+    fn place(&self, key: &str, t: &Block) -> (i32, i32) {
+        let (px, py) = (t.int_at("Position", 0), t.int_at("Position", 1));
+        // src: exe 0x81021070 (task_run: with the has-a-place flag +0x560
+        // (Sprite) or +0x94 (SpriteBG) clear, the old picture's place)
+        if let (None, None, Some(old)) = (px, py, self.shown.get(key)) {
+            return (old.x, old.y);
+        }
+        // guess: the centre with no picture to replace (no script reaches
+        // it). task_run gives Sprite (640, 560) and moves SpriteBG's
+        // corner to (640 - w/2, 360 - h/2), in units not traced.
+        (sx(px.unwrap_or(640)), sy(py.unwrap_or(360)))
+    }
+
     /// A scene's first picture: clears every picture (an
     /// earlier scene's are unknown here) in its fade, keeping the FadeOut
     /// cover if the scene starts under it.
@@ -691,6 +702,7 @@ impl Lowering<'_> {
             self.out.ops.push(Op::BeginTransition { effect: "SpriteBG".into(), fade_ms, mask: None, style: TransitionStyle::Fade });
             self.staging = true;
         }
+        let (x, y) = self.place(key, t);
         self.shown.clear();
         self.out.ops.push(Op::ClearSprites);
         if let Some(rgb) = self.cover {
@@ -698,9 +710,7 @@ impl Lowering<'_> {
             let cover = SpriteChange { layer: COVER_LAYER, sprite: Some(SpritePlacement { image, x: 0, y: 0 }), keep_filters: false };
             self.out.ops.push(Op::Sprites { changes: vec![cover], fade_ms: 0 });
         }
-        // guess: the screen's centre without `:Position`
-        let (x, y) = (t.int_at("Position", 0).unwrap_or(640), t.int_at("Position", 1).unwrap_or(360));
-        self.show(key, tex, img, x, y, priority, 0, &[], Look::of(t));
+        self.show_at(key, tex, img, x, y, priority, 0, &[], Look::of(t));
         if let Some(flag) = t.int("CGFlag").filter(|f| *f >= 0) {
             self.out.ops.push(Op::CgSeen { number: flag as u32 + 1 });
         }
@@ -824,9 +834,8 @@ impl Lowering<'_> {
                 } else {
                     self.shown.keys().filter(|k| k.starts_with('t') || !keep_characters).cloned().collect()
                 };
-                // guess: the screen's centre without `:Position`
-                let (x, y) = (t.int_at("Position", 0).unwrap_or(640), t.int_at("Position", 1).unwrap_or(360));
-                self.show(&key, tex, img, x, y, prio, fade(t), &replaces, Look::of(t));
+                let (x, y) = self.place(&key, t);
+                self.show_at(&key, tex, img, x, y, prio, fade(t), &replaces, Look::of(t));
                 // A gallery CG: seen from now on (CG numbers are 1-based).
                 if let Some(flag) = t.int("CGFlag").filter(|f| *f >= 0) {
                     self.out.ops.push(Op::CgSeen { number: flag as u32 + 1 });
@@ -876,7 +885,9 @@ impl Lowering<'_> {
                     };
                     let key = chara_key(c, number.first().copied().unwrap_or(-1));
                     self.settle(&key);
-                    // guess: the centre without `:Position`
+                    // guess: the centre without `:Position` (the record's
+                    // has-a-place flag, +0x44 in scene_load 0x8102840a, has
+                    // no reader traced yet)
                     let x = sx(c.int_at("Position", 0).unwrap_or(640));
                     // y 0 is the usual height: a picture taller than the
                     // screen (the standing characters, cut at the waist)
