@@ -3,7 +3,7 @@
 A playbook for an agent starting a new game. It is what 最果てのイマ
 COMPLETE (Xuse, finished 2026-10-14) taught us, put in the order that
 would have been fastest. The general lessons behind each step are in
-`PLAN.md` §13. The house rules are in `CLAUDE.md`.
+`docs/lessons.md`. The house rules are in `CLAUDE.md`.
 
 For scale: 最果てのイマ took about two days of agent sessions, around
 120 converter commits and ten CONscripter releases (0.8.0 to 0.17.0). The
@@ -33,10 +33,10 @@ you reach it, not the whole file up front
 | 7 | System screens from the IR's screens | Every screen opens, closes by mouse, keyboard and touch |
 | 8 | Extras from a 100 % save | Locked and unlocked states both right |
 | 9 | Match the original: code first, wine last | Differences measured (`compare -metric`), shots kept in `local/shots/` |
-| 10 | Engine additions, engine PR first | Listed in `PLAN.md` §4.2; submodule on CONscripter `master` |
+| 10 | Engine additions, engine PR first | Documented in the engine's `COMMANDS.md`; submodule on CONscripter `master` |
 | 11 | Route, progression, unlocks, settings, input, saves across rebuilds | The document says "progression verified: yes, date, how" |
 | 12 | Web build, loose files | Played in a browser; size and file count in the document |
-| 13 | Finish: README, `PLAN.md` §6 and §13, GUI entry | The user agrees it's done |
+| 13 | Finish: README, CLAUDE.md's table, `docs/lessons.md`, GUI entry | The user agrees it's done |
 
 ## 0. Before writing any code
 
@@ -452,7 +452,7 @@ the feature as data; most of an exe's presentation code is one of these:
 - **Sprite animation** (moves, zooms, turns, fades, flashes, glows over
   time): `spmotion` keys (offset, zoom x/y, angle, alpha) with a curve
   per key; the exe's own easing goes in an `spcurve` table as read (or as
-  computed by running its function, PLAN.md §13.2). `spblend` adds or
+  computed by running its function, `docs/lessons.md`, "Ways to speed up conversion"). `spblend` adds or
   multiplies.
 - **Transitions that mix the two pictures in place** (wipes, dissolves,
   blinds, soft rules): `cons_rule.dll` with a strip of mask frames, made
@@ -472,7 +472,7 @@ A new command is for what none of these can do. Then:
    script, with no command to turn it on. Effects are `cons_*.dll` effect-99 plugins; screen
    effects use the `screenfilter`/`screenshake` slot machinery. It must
    build for the web (emscripten) and keep its state in saves.
-2. List it in `PLAN.md` §4.2.
+2. Document it in the engine's `COMMANDS.md`.
 3. Open the engine PR first (`CLAUDE.md`, "Rules"); point the
    submodule at your branch's commit while you work, and at a commit on
    CONscripter `master` once the engine PR is merged.
@@ -595,7 +595,7 @@ lose the loop state between sessions.
    and read marks (`kidoku.dat`) follow a rebuilt `0.txt` by label.
 10. **Write it down.** Add a checklist entry to the game's document:
    "progression verified against walkthrough: yes/no, date,
-   how" (which paths were simulated, and whether both sides matched). Add any new lesson to `PLAN.md` §13.
+   how" (which paths were simulated, and whether both sides matched). Add any new lesson to `docs/lessons.md`.
 
 ## 12. The web build
 
@@ -630,7 +630,7 @@ natively, at every milestone:
   (step 11, unlocks included) done, the remaining differences written down as optional
   leftovers in the game's document.
 - Update the game's document (status, leftovers), `README.md`'s support
-  table, `PLAN.md` §6 (the list of games) and §13 (new lessons, stated
+  table, CLAUDE.md's game table, `docs/lessons.md` (new lessons, stated
   for any engine), and this playbook if the process changed.
 - **The game is in `crates/conv-engines/src/registry.rs`** (id, name,
   engine, marker files, command; `conscripter-convert games` lists it)

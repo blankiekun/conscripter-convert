@@ -11,7 +11,7 @@ including its WebAssembly build.
 The converter and the engine are developed together. When a feature of the
 original game can't be reproduced with the commands ONScripter already has,
 it is added to CONscripter rather than approximated (see
-[`PLAN.md`](PLAN.md) §4.1).
+[`docs/design.md`](docs/design.md), "Target engine: CONscripter").
 
 > CONscripter-convert ships no game data. It reads files from your own
 > installation.
@@ -26,7 +26,7 @@ it is added to CONscripter rather than approximated (see
 | 5pb./MAGES TaskList (PS Vita, CRI archives) | In progress (branch `oretsuba`): the story plays, all endings reachable | 俺たちに翼はない (Vita) | [`docs/games/oretsuba.md`](docs/games/oretsuba.md) |
 
 Each engine is a separate reader feeding the same output stage (see
-[`PLAN.md`](PLAN.md)). Each game's document says what converts, what
+[`docs/design.md`](docs/design.md)). Each game's document says what converts, what
 doesn't and why. How a new game is approached is in
 [`docs/new-game.md`](docs/new-game.md).
 
@@ -155,7 +155,8 @@ game dir → unpack archives → decode assets, decompile scripts → IR → 0.t
 | `crates/conv-cli` | The `conscripter-convert` command |
 | `engine/` | CONscripter, the target engine (git submodule) |
 | `research/` | Scripts used while reverse-engineering formats (see [`research/README.md`](research/README.md)) |
-| `PLAN.md` | Design, IR, output stage, engine additions, general lessons |
+| `docs/design.md` | Design: architecture, IR, output stage, assets, testing |
+| `docs/lessons.md` | General lessons from converting games |
 | `docs/new-game.md` | Steps and planning for converting a new game |
 | `docs/games/` | One document per game: formats, opcodes, progression variables, status |
 | `CLAUDE.md` | Working rules and recipes for AI agents working on this repo |
@@ -170,8 +171,8 @@ When a game needs something the engine can't do:
 1. Add it to `engine/src/cons/` as a new command or behaviour. Nothing
    is opt-in: a new behaviour, like a bug fix, applies to every script.
    It must work in the web build too.
-2. List it in [`PLAN.md`](PLAN.md) §4.2 (every script command is in
-   [`engine/COMMANDS.md`](engine/COMMANDS.md)).
+2. Document it in [`engine/COMMANDS.md`](engine/COMMANDS.md), the
+   reference for every script command.
 3. Commit and push it in the engine repository, then commit the new
    submodule commit here together with the converter change that uses it.
 

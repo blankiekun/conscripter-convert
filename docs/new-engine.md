@@ -40,5 +40,5 @@ own (`nitroplus/convert/muramasa.rs`).
    `Fake` assets in `nitroplus/convert.rs` are the pattern), and the
    format readers' corner cases.
 8. **Docs**: `docs/games/<id>.md` from `docs/games/TEMPLATE.md`, a row
-   in CLAUDE.md's table, `PLAN.md` §6, and lessons for any engine in
-   `PLAN.md` §13.
+   in CLAUDE.md's table and README's, and lessons for any engine in
+   `docs/lessons.md`.

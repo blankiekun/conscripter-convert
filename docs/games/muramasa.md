@@ -4,7 +4,7 @@ Full Metal Daemon Muramasa, the second game, and the reference for the
 Nitroplus NSS engine. This is the game's committed record: file
 formats, the script language, how the compiler maps it to CONscripter,
 the routes and progression variables, and what is left. The general
-process is in `docs/new-game.md`, general lessons in `PLAN.md` §13.
+process is in `docs/new-game.md`, general lessons in `docs/lessons.md`.
 Paths below are relative to the repository unless they say otherwise;
 `<game>` is the folder holding `Muramasa.exe` and the `*.npa` archives.
 

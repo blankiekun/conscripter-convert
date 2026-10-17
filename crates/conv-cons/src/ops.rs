@@ -835,7 +835,7 @@ impl<'a> Emitter<'a> {
                 writeln!(out, "dwavestop {ch}").unwrap();
             }
         }
-        // CONscripter's channel fades (PLAN.md §4.2).
+        // CONscripter's channel fades (`chvolfade`).
         Op::SeFadeIn { ms } => {
             let when = if *se_not_skipped { format!("if {} != 1 ", menu::TMP) } else { String::new() };
             writeln!(out, "{when}dwavefadein {ms}").unwrap();
@@ -870,7 +870,7 @@ impl<'a> Emitter<'a> {
                 }
             }
         }
-        // CONscripter's chpan (PLAN.md §4.2), right before the sound
+        // CONscripter's chpan, right before the sound
         // starts for the channel it will play on, as SoundVolume.
         Op::SoundPan { file, pan, ms } => {
             let starts = |op: Option<&Op>| matches!(op, Some(Op::SePlay { file: g, .. }) if g == file);

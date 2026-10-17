@@ -55,7 +55,7 @@ pub fn encode_rgba(img: &image::RgbaImage, quality: Option<u8>) -> Result<Vec<u8
             config.lossless = 0;
             config.quality = f32::from(q.min(100));
             config.alpha_quality = 100;
-            // Sharper colour edges at 4:2:0 (PLAN.md §13).
+            // Sharper colour edges at 4:2:0 (docs/lessons.md).
             config.use_sharp_yuv = 1;
         }
         None => {
