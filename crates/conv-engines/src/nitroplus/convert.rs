@@ -1133,6 +1133,10 @@ struct Object<'a> {
     /// A `CreateText` picture taken away by `Request(…, Erase)` until its
     /// `Request(…, Enter)` (続・殺戮のジャンゴ's song, dja026).
     erased: bool,
+    /// `SetTone`: the exe rewrites the object's pixels in that tone
+    /// (`FUN_00452000`); drawn through these filters ([`Op::SpriteFilters`]).
+    /// On a `Plain` cover, the pictures under it are.
+    tone: Option<Vec<SpriteFilter>>,
 }
 
 /// [`Object::shake`]: the process, the keys.
@@ -2732,7 +2736,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
 
     fn create(&mut self, name: String, kind: Kind<'a>, priority: i64, w: i64, h: i64) -> &mut Object<'a> {
         self.seq += 1;
-        let o = Object { kind, priority, x: 0, y: 0, w, h, opacity: 1000, locked: false, hideable: false, seq: self.seq, zoom: (1000, 1000), trail: None, blend: BLEND_NORMAL, vertex: None, turn: (0, 0, 0), shake: None, clip: None, over_text: false, container: false, erased: false };
+        let o = Object { kind, priority, x: 0, y: 0, w, h, opacity: 1000, locked: false, hideable: false, seq: self.seq, zoom: (1000, 1000), trail: None, blend: BLEND_NORMAL, vertex: None, turn: (0, 0, 0), shake: None, clip: None, over_text: false, container: false, erased: false, tone: None };
         self.objects.insert(name.clone(), o);
         self.objects.get_mut(&name).unwrap()
     }
