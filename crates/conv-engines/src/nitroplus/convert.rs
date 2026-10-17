@@ -987,13 +987,25 @@ fn word(w: &str) -> Value {
 fn color(v: &Value) -> Option<u32> {
     match v {
         Value::Int(n) => Some(*n as u32 & 0xFF_FFFF),
+        // src: Muramasa.exe FUN_00414dd0 (upper-cased by FUN_00414980), Django.exe
+        // 00410030: the HTML 4 names, GREEN 0x008000 (LIME is 0x00FF00).
         Value::Str(s) => Some(match s.to_ascii_lowercase().as_str() {
             "black" => 0x000000,
+            "gray" => 0x808080,
+            "silver" => 0xC0C0C0,
             "white" => 0xFFFFFF,
             "red" => 0xFF0000,
-            "green" => 0x00FF00,
+            "lime" => 0x00FF00,
             "blue" => 0x0000FF,
             "yellow" => 0xFFFF00,
+            "aqua" => 0x00FFFF,
+            "fuchsia" => 0xFF00FF,
+            "maroon" => 0x800000,
+            "green" => 0x008000,
+            "navy" => 0x000080,
+            "olive" => 0x808000,
+            "teal" => 0x008080,
+            "purple" => 0x800080,
             other => u32::from_str_radix(other.trim_start_matches('#'), 16).ok()?,
         }),
         _ => None,
@@ -4146,6 +4158,13 @@ function TypeBegin()
 	Fade("@box", 150, 0, null, true);
 }
 "#;
+
+    #[test]
+    fn colour_names_are_the_exes() {
+        assert_eq!(color(&Value::Str("Green".into())), Some(0x008000));
+        assert_eq!(color(&Value::Str("LIME".into())), Some(0x00FF00));
+        assert_eq!(color(&Value::Str("#336600".into())), Some(0x336600));
+    }
 
     #[test]
     fn a_whole_screen_shake_may_grow_from_nothing() {
