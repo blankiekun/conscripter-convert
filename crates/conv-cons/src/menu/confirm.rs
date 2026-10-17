@@ -4,8 +4,8 @@ use super::*;
 
 /// The yes/no dialog (see [`ConfirmDialog`]) over whatever is on screen:
 /// asks [`CONFIRM_TEXT`], sets [`CONFIRM`] (1 yes, 0 no or right-click)
-/// and takes itself away. The message is centred by its length in bytes
-/// (Shift-JIS: half-width characters are one byte, half as wide).
+/// and takes itself away. The message is centred by its length
+/// (`len`: half-width characters count one, half as wide).
 ///
 /// A dialog with pictures shows the question's picture (or, for a question
 /// without one, the base and the text) over the backdrop; its sprites are

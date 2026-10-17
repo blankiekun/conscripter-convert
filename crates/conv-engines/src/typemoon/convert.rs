@@ -284,16 +284,7 @@ pub fn text(line: &str) -> (String, Vec<Ruby>, Vec<TextStyle>) {
                 len += plain.chars().count();
             }
             _ => {
-                // shortcut: Shift-JIS has no hearts, em dashes or the English text's accents; stand-ins until the engine reads UTF-8 text.
-                out.push(match c {
-                    '♡' | '♥' => '♪',
-                    '—' => '―',
-                    'à' | 'â' => 'a',
-                    'ç' => 'c',
-                    'é' | 'ê' => 'e',
-                    'ï' => 'i',
-                    _ => c,
-                });
+                out.push(c);
                 len += 1;
             }
         }

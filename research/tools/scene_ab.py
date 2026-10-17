@@ -114,7 +114,7 @@ def frames(o, extra):
     if o.drop_line:
         with open(script_a, "rb") as f:
             lines = f.read().split(b"\n")
-        print(f"b drops line {o.drop_line}: {lines[o.drop_line - 1].decode('cp932', 'replace').strip()}")
+        print(f"b drops line {o.drop_line}: {lines[o.drop_line - 1].decode('utf-8', 'replace').strip()}")
         lines[o.drop_line - 1] = b";" + (b"\r" if lines[o.drop_line - 1].endswith(b"\r") else b"")
         os.makedirs(o.out, exist_ok=True)
         script_b = os.path.join(o.out, "b.txt")

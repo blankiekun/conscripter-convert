@@ -23,7 +23,7 @@ import sys
 args = [a for a in sys.argv[1:] if not a.startswith('--')]
 quiet = '--quiet' in sys.argv
 watch = sys.argv[sys.argv.index('--watch') + 1].split(',') if '--watch' in sys.argv else []
-src = open(args[0], 'rb').read().decode('cp932')
+src = open(args[0], 'rb').read().decode('utf-8')
 lines = src.split('\n')
 labels = {}
 for i, l in enumerate(lines):

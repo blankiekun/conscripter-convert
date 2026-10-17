@@ -48,7 +48,7 @@ def main():
     args = ap.parse_args()
     game, engine, out = (os.path.abspath(p) for p in (args.game, args.engine, args.out))
     os.makedirs(out, exist_ok=True)
-    src = open(os.path.join(game, "0.txt"), "rb").read().decode("cp932", "replace").split("\n")
+    src = open(os.path.join(game, "0.txt"), "rb").read().decode("utf-8", "replace").split("\n")
     selects, label = {}, None
     for i, line in enumerate(src, 1):
         if line.startswith("*"):

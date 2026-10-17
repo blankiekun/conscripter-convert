@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Print one label's block of a generated 0.txt (cp932), with line numbers.
+"""Print one label's block of a generated 0.txt (UTF-8, or Shift-JIS from older builds), with line numbers.
 
 usage: label.py 0.txt LABEL [MAX_LINES]     (default 60 lines)
        label.py 0.txt -l TEXT               list labels containing TEXT
@@ -12,7 +12,11 @@ import sys
 if len(sys.argv) < 3:
     sys.exit(__doc__)
 # split on \n only: cp932 text holds bytes that splitlines() would also break on
-lines = open(sys.argv[1], "rb").read().decode("cp932", "replace").split("\n")
+data = open(sys.argv[1], "rb").read()
+try:
+    lines = data.decode("utf-8").split("\n")
+except UnicodeDecodeError:  # a build from before 2026-10-17
+    lines = data.decode("cp932", "replace").split("\n")
 
 if sys.argv[2] == "-l":
     want = sys.argv[3].lower() if len(sys.argv) > 3 else ""

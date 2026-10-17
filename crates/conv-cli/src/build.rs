@@ -219,7 +219,7 @@ pub fn read_font(path: Option<&Path>) -> Result<Cow<'static, [u8]>> {
 /// script), `system.lua` when the script has Lua, `version.txt` (with
 /// `package`, the source's own version, when known), `ons_args` and, when
 /// given, the font as `default.ttf`. Returns
-/// the number of characters Shift-JIS can't show. Fails when a game
+/// the number of characters the engine can't draw. Fails when a game
 /// variable is one conv-cons keeps for itself ([`conv_cons::clashes`]).
 pub fn write_game(output: &Path, ir: &Script, source: &str, font: Option<&[u8]>, package: Option<&str>) -> Result<usize> {
     let clashes = conv_cons::clashes(ir);
@@ -333,7 +333,7 @@ fn report(ir: &Script, lost: usize) {
         println!("    {n:>6}  {what}");
     }
     if lost > 0 {
-        println!("  characters not representable in Shift-JIS: {lost}");
+        println!("  characters past U+FFFF (not drawn): {lost}");
     }
 }
 

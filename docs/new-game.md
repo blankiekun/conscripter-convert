@@ -920,7 +920,7 @@ picture (`--shot-pages 1`, or `--shot-after 3000` when a run gets stuck
 before it). A checkpoint is a bare save, without what our save
 menu adds when the player saves, so the script adds both: a 160×90
 `savethumbN.bmp` (the menu's thumbnail) and the slot's text, which
-`savegame2` appends to the file as `"<date>|<play time>|<text>"*` (cp932)
+`savegame2` appends to the file as `"<date>|<play time>|<text>"*` (UTF-8)
 and `getsavestr` reads back from the end; the description goes in the
 text. The zip holds the files flat and uncompressed, as the web
 player's Export Saves writes them (`save16.dat`, `savethumb16.bmp`);
