@@ -146,11 +146,30 @@ impl Compiler<'_, '_> {
                 o.y = arg(3).position(0, h, screen_h);
             }
             "CreateEffect" => {
+                // (name, priority, x, y, w, h, type): a tone or a frozen
+                // copy of the screen over the rectangle, rain in it.
                 let name = self.object_name(&arg(0));
+                let (w, h) = (arg(4).int(), arg(5).int());
+                let (x, y) = (arg(2).position(0, w, screen_w), arg(3).position(0, h, screen_h));
+                let whole = x <= 0 && y <= 0 && x + w >= screen_w && y + h >= screen_h;
                 let kind = match arg(6).string().to_ascii_lowercase().as_str() {
-                    "plain" => Kind::Cover,
-                    t if let Some(fs) = tone(t) => Kind::Tint(fs),
-                    "rain" => match self.rain(arg(4).int(), arg(5).int()) {
+                    // shortcut: a Plain cover over part of the screen freezes all of it (one call, 800×600)
+                    "plain" => {
+                        if !whole {
+                            self.note("CreateEffect Plain on part of the screen");
+                        }
+                        Kind::Cover
+                    }
+                    // A tint drawn over part of the screen (装甲悪鬼村正's
+                    // mc01_011vsa zoom box) would tint it all: left out.
+                    t if let Some(fs) = tone(t) => match whole {
+                        true => Kind::Tint(fs),
+                        false => {
+                            self.note(format!("CreateEffect {} on part of the screen", arg(6).string()));
+                            Kind::Other
+                        }
+                    },
+                    "rain" => match self.rain(w, h) {
                         Some(strip) => Kind::Strip(strip),
                         None => Kind::Other,
                     },
@@ -159,19 +178,9 @@ impl Compiler<'_, '_> {
                         Kind::Other
                     }
                 };
-                // A tint drawn over part of the screen (装甲悪鬼村正's mc01_011vsa
-                // zoom box) would tint it all: left out.
-                let kind = if matches!(kind, Kind::Tint(_)) && (arg(4).int() < screen_w || arg(5).int() < screen_h) {
-                    self.note(format!("CreateEffect {} on part of the screen", arg(6).string()));
-                    Kind::Other
-                } else {
-                    kind
-                };
                 if matches!(kind, Kind::Strip(_)) {
-                    let (w, h) = (arg(4).int(), arg(5).int());
                     let o = self.create(name, kind, arg(1).int(), w, h);
-                    o.x = arg(2).position(0, w, screen_w);
-                    o.y = arg(3).position(0, h, screen_h);
+                    (o.x, o.y) = (x, y);
                 } else {
                     self.create(name, kind, arg(1).int(), screen_w, screen_h);
                 }

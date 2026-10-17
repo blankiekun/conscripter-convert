@@ -943,7 +943,9 @@ Next, in order:
      "Story `CreateText`").
    - `DrawTransition`'s start opacity and softness.
    - `Random` and `Conquest` return 0 whatever their arguments.
-   - `CreateEffect`'s place and size; `MoveCamera`'s arguments in a process (4 calls).
+   - `MoveCamera`'s arguments in a process (4 calls). (`CreateEffect`'s
+     place and size are read: every story call covers the screen, a tone
+     or `Plain` over part of it is noted; #PR.)
    - `LockVideo`, `WaitText`, `SetFrequency` (but 1000),
      the time limit (?) of `WaitAction` and the
      other waits: dropped; meaning to check in the exe.
