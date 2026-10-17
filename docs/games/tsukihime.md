@@ -97,9 +97,10 @@ default), 110 MB as Vorbis q4; `pic/` (14,763) 2.37 GB at
 36 large backgrounds; 167 MB as PNG) near-lossless WebP is 45 % of PNG
 and lossy q85 10 %: PNG would be about 23 GB, `--webp` about 10 GB.
 
-**Both languages** (the build that switches between them, in
-progress): `--english <game-en>` on `typemoon media` (and `typemoon
-convert`) also writes the fan patch's pictures and movies that differ
+**Both languages** in one build: `typemoon convert <game-102> --english
+<game-en>` puts both copies of the scripts in one `0.txt` with a
+language switch ("Languages" under "Status"). `--english` on `typemoon
+media` (and `typemoon convert`) also writes the fan patch's pictures and movies that differ
 from `<game-102>`'s, as `pic/en/<name>` and `movie/en/<name>`: 155 of
 the 14,763 pictures (21 MB as WebP at 80) and 34 of the 46 movies
 (1.4 GB: the 31 chapter titles, the endings with subtitles, the
@@ -114,6 +115,7 @@ worst 16 × 16 block's mean difference stays at most 4 of 255
 
 ```sh
 conscripter-convert typemoon media <game-102> --english <game-en> -o out/tsukihime-cons
+conscripter-convert typemoon convert <game-102> --english <game-en> -o out/tsukihime-cons [--webp …]
 ```
 
 **The game** (`0.txt` and, unless `--dry-run`, the media folder below
@@ -647,7 +649,49 @@ Nothing yet.
 | Scripts | 🔶 read: every command of both languages splits (one malformed in the original) and its text and voices join; the top commands' arguments read from the exe, the rest not yet |
 | Media folder (`typemoon media`) | ✅ `allpac`'s pictures at full size (PNG, or WebP with the shared `--webp` flags), the movies as they are, the sound (WAV wave sounds, or Opus/Vorbis with the shared `--audio-*` flags), loops kept in every mode |
 | Script conversion (`typemoon convert`) | 🔶 the flow (labels, `_JUMP`, `_IF__`, flags), text (pages, ruby, voices; the fan patch's styled letters, private-use U+E000–U+E2FE drawn by its own `ja/TT_TsukuMin-D.ttf`, as ASCII: italic and serif italic as italic (`!i1`), mirrored and upside-down plain (mirrored lines, stored right to left, put back in reading order), U+E200 as `^-35`; its accents (é ï ç â à ê, 46 uses) as their base letters and em dashes as `―` (Shift-JIS has no Latin accents; keeping them needs a UTF-8 `0.txt`, `--enc:utf8`); a `^` break in a choice's option as a space), pictures (`_STCH`/`_STCC`/`_FADS`: record size and place, fades and rule wipes), sound effects and music; plays from the start through `00_00` into the first arc headless. Layers drawn in priority order (`_STCP`, `_STCH` argument 6), changed keeping their settings (`_SCH2`) or copying another layer's (argument 18), zoomed (`_STZ4`), faded (`_STGS`) and moved (`_STMA`, the exe's motions; easing, priority and expression keys not followed), children placed in their parent layers, orbiting with their turn and following their motions (`_STCH` argument 11), clipped to their panels with their soft edges (`_STCH` arguments 12–17, CONscripter's `spclip` feather), turned (`_STRT`), drawn with their shader as far as CONscripter's blends and filters go (`_STBR`) and drawn with their `_STEC` effect (levels, greyscale and colour layers; effect 1 a colour fill, CONscripter's `spfilter` 9 and 10). Choices (`_SELR`, `_SELD`, `_GOTS`; options under a flag offered by it, greyed ones shown greyed and not selectable (`seldisable`); the chapter-jump menus), `_GOTO` and the Switch's own branches (`_IFNX`/`_IFP4`). The text window hidden and faded (`_CLO2`, `_CLO3`/`_CLO4`/`_CLO5` with CONscripter's `windowfade`, the script going on; the next text fades it back in). Not yet: the other layer commands, screens |
-| Screens, extras | 🔶 the title; the system menu's Save and Load tabs (see History, 2026-10-17); Config, FlowChart, the backlog and the right-click menu not yet |
+| Screens, extras | 🔶 the title; the system menu's Save and Load tabs (see History, 2026-10-17), opened in game by a right click at a text wait (on its Save tab); Config (for now the language switch), FlowChart, the backlog not yet |
+| Languages (`--english`) | 🔶 one `0.txt` with both copies (below); the switch is the system menu's **Config** tab for now (in game; at rest on the title), until the settings tab with its 日本語/English option is converted |
+
+#### Languages
+
+With `--english <game-en>` the build holds both copies of the
+scripts (`language.rs`): the Japanese as before (labels `tm_<script>…`)
+and the fan patch's (`tm_en_<script>…`, `pic/en/` for its own 155
+pictures, the English text layout). The flags keep the Japanese
+numbering (none is the English copy's alone). The language is the
+copy the script runs in, so a save keeps it; the engine's `language`
+is set at a new game's start, on each switch and after each load
+(`loadgosub`). A new game starts in the language last chosen (global
+%1800).
+
+The switch goes into the other copy at once:
+
+- At the same page when the script's ops up to it are the same in both
+  copies but for the text (screen, sound and flags then are too): 29,197
+  of 42,532 Japanese pages; 330 of the 515 scripts with text line up to
+  the end. The
+  rest differ from some point on (the fan patch splits and joins pages
+  with `_MSAD`, counts them in `F823`, and has its own waits).
+- Else where the scene was entered (a script's start or a label another
+  script's `_JUMP` goes to, 1,088 of them), put back as it was there:
+  each entry saves the game into slot 897, and the switch loads it,
+  then goes on in the other copy. After a load from the save screen
+  that slot is of another visit, so the entry is played again from a
+  cleared screen (sprites, music, every sound channel) with the flags
+  as they are (a flag the scene added to before the switch is added to
+  twice).
+
+Checked headless (trace, `--goto conv_title_start`, the switch
+reached by a patched `0.txt` that `return *tm_switch`s from a `gosub`
+at a page's wait as the menu does from the right click's `rgosub`):
+Japanese page 5 of `00_00` → English page 5 (same sprites and sound);
+the same with the page forced unaligned → slot 897 loaded, English from
+`00_00`'s `START`; %1800 = 1 → a new game in English; an English save
+loaded → `language "en"`, English pages; there a switch at an unaligned
+page → the reset path, Japanese from the entry, the old loops stopped.
+The Japanese-only build (no `--english`) is unchanged but for the right
+click.
+
 
 ### Next
 
@@ -658,8 +702,8 @@ Nothing yet.
 2. The other picture archives in the media folder: `allpaccg` (the
    gallery's CGs, 2 GB), `allui` (71 MB).
 3. The menus: the settings tab (the defaults in "Accuracy", the
-   日本語/English switch), the right-click menu opening the system menu,
-   the backlog; then the save list's route picture and chapter labels
+   日本語/English switch: move `SystemPage::Jump(language::SWITCH)`
+   from the Config tab to its option), the backlog; then the save list's route picture and chapter labels
    (by the phase), and Config and Gallery on the title.
 4. Still open in the exe: `_FADS`'s mode flag (0x89E), and the
    motion keyframes' other fields.

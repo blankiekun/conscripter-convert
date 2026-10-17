@@ -8,7 +8,7 @@
 //! the script's x, y × 8/3 ("The stage"). The screen is 1280 × 720.
 
 use std::cell::Cell;
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use conv_core::ir::{ArithOp, Compare, MotionEnd, MotionKey, Op, Operand, Ruby, SpriteChange, TextStyle, SpriteFilter, SpritePlacement, TransitionStyle, Var, Voice, BLEND_ADD, BLEND_MULTIPLY, BLEND_NORMAL, BLEND_SUBTRACT, FILTER_BLEND_COPY, FILTER_BLUR, FILTER_GREYSCALE, FILTER_NEGATIVE};
 
@@ -70,6 +70,8 @@ pub struct Compiled {
     pub ops: Vec<Op>,
     pub notes: BTreeMap<String, usize>,
     pub metrics: Metrics,
+    /// Where each script's ops start in `ops` (its label).
+    pub starts: Vec<usize>,
 }
 
 /// How a layer is drawn: the image, its middle on the screen, its zoom (%).
@@ -386,6 +388,8 @@ struct Lowering<'g, 'a> {
     choice_mask: Var,
     /// Choices with options under an `_IF__` so far (their labels).
     choices: usize,
+    /// The pictures drawn from `pic/en/` (the fan patch's own).
+    own: &'g HashSet<String>,
 }
 
 impl Lowering<'_, '_> {
@@ -1023,7 +1027,7 @@ impl Lowering<'_, '_> {
                 // The file at the record's size (its art is mostly 2×).
                 let (tw, th) = self.g.textures.get(&name).map_or((p.width * 2.0, p.height * 2.0), |&(w, h)| (w as f32, h as f32));
                 let zoom = |rec: f32, tex: f32, z: f32| (100.0 * rec / tex * z).round() as i32;
-                (format!("pic/{name}.{}", self.g.pic_ext), (mx, my), (zoom(p.width, tw, zx), zoom(p.height * SCREEN_H as f32 / STAGE_H, th, zy)))
+                (format!("pic/{}{name}.{}", if self.own.contains(&name) { "en/" } else { "" }, self.g.pic_ext), (mx, my), (zoom(p.width, tw, zx), zoom(p.height * SCREEN_H as f32 / STAGE_H, th, zy)))
             }
             (None, None) => return Err(name),
         })
@@ -1163,7 +1167,7 @@ fn frame_colour(n: i32) -> u32 {
 }
 
 /// The `F`, `G` and `C` flags the scripts name, as IR variables.
-fn variables(g: &Game) -> HashMap<String, Var> {
+pub(super) fn variables(g: &Game) -> HashMap<String, Var> {
     let mut names = BTreeSet::new();
     for (_, commands) in &g.scripts {
         for c in commands {
@@ -1198,10 +1202,21 @@ fn choice_bit(i: i32, grey: bool) -> i32 {
 }
 
 pub fn compile(g: &Game) -> Compiled {
-    let scene_labels = g.scenes.iter().zip(&g.scripts).map(|(&n, (name, _))| (n, label(name, None))).collect();
     let vars = variables(g);
-    // ours: the local after the game's flags
-    let choice_mask = Var { global: false, index: vars.values().filter(|v| !v.global).map(|v| v.index + 1).max().unwrap_or(FIRST_LOCAL) };
+    let mask = choice_mask(&vars);
+    compile_copy(g, "", vars, mask, &HashSet::new())
+}
+
+/// The local after the game's flags: [`Lowering::choice_mask`].
+// ours
+pub(super) fn choice_mask(vars: &HashMap<String, Var>) -> Var {
+    Var { global: false, index: vars.values().filter(|v| !v.global).map(|v| v.index + 1).max().unwrap_or(FIRST_LOCAL) }
+}
+
+/// One copy of the scripts: its labels `tm_<prefix><script>…`, the
+/// pictures in `own` from `pic/en/`.
+pub(super) fn compile_copy(g: &Game, prefix: &str, vars: HashMap<String, Var>, choice_mask: Var, own: &HashSet<String>) -> Compiled {
+    let scene_labels = g.scenes.iter().zip(&g.scripts).map(|(&n, (name, _))| (n, label(&format!("{prefix}{name}"), None))).collect();
     let mut l = Lowering {
         g,
         ops: Vec::new(),
@@ -1227,8 +1242,12 @@ pub fn compile(g: &Game) -> Compiled {
         open_ifs: Vec::new(),
         choice_mask,
         choices: 0,
+        own,
     };
+    let mut starts = Vec::new();
     for (name, commands) in &g.scripts {
+        let name = &format!("{prefix}{name}");
+        starts.push(l.ops.len());
         l.ops.push(Op::Label(label(name, None)));
         l.open_ifs.clear();
         for c in commands {
@@ -1245,7 +1264,7 @@ pub fn compile(g: &Game) -> Compiled {
             l.metrics.call(c.opcode(), c.args.iter().filter(|a| !a.trim().is_empty()).count(), reasons);
         }
     }
-    Compiled { ops: l.ops, notes: l.notes, metrics: l.metrics }
+    Compiled { ops: l.ops, notes: l.notes, metrics: l.metrics, starts }
 }
 
 #[cfg(test)]

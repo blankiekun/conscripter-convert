@@ -20,37 +20,89 @@ pub const OUTPUT_DIRS: [&str; 4] = ["pic", "stream", "se", "sys"];
 /// The text window's picture, written by the build.
 const WINDOW: &str = "sys/txtwindow.png";
 
-/// Builds the game from `romfs` (1.0.2's or the fan patch's RomFS) and
-/// `main`, 1.0.2's exe.
-pub fn build(romfs: &Path, main: &Path, opts: &Opts) -> Result<Built> {
-    let allscr = map(&romfs.join("allscr.mrg"))?;
-    let entries = mzp::parse(&allscr).context("reading allscr.mrg")?;
-    let names: Vec<String> = mrg::names(entries.first().context("allscr.mrg is empty")?).into_iter().filter(|n| !n.is_empty()).collect();
-    let data: Vec<Vec<u8>> = (0..names.len())
-        .map(|i| Ok(super::unpack(entries.get(i + 3).with_context(|| format!("no entry for script {}", names[i]))?)?.into_owned()))
-        .collect::<Result<_>>()?;
-    let mut scripts = Vec::new();
-    for (name, d) in names.iter().zip(&data) {
-        let text = std::str::from_utf8(d).with_context(|| format!("script {name}"))?;
-        // The one malformed command of each copy is left out.
-        scripts.push((name.clone(), script::parse(text).into_iter().filter_map(Result::ok).collect()));
+/// Every script by name with its commands ([`Game::scripts`]).
+type Scripts<'a> = Vec<(String, Vec<script::Command<'a>>)>;
+
+/// One RomFS copy's scripts and text, read.
+struct Source {
+    names: Vec<String>,
+    data: Vec<Vec<u8>>,
+    script_text: memmap2::Mmap,
+}
+
+impl Source {
+    fn read(romfs: &Path) -> Result<Source> {
+        let allscr = map(&romfs.join("allscr.mrg"))?;
+        let entries = mzp::parse(&allscr).context("reading allscr.mrg")?;
+        let names: Vec<String> = mrg::names(entries.first().context("allscr.mrg is empty")?).into_iter().filter(|n| !n.is_empty()).collect();
+        let data: Vec<Vec<u8>> = (0..names.len())
+            .map(|i| Ok(super::unpack(entries.get(i + 3).with_context(|| format!("no entry for script {}", names[i]))?)?.into_owned()))
+            .collect::<Result<_>>()?;
+        Ok(Source { names, data, script_text: map(&romfs.join("script_text.mrg"))? })
     }
-    let script_text = map(&romfs.join("script_text.mrg"))?;
-    let pairs = mzp::parse(&script_text).context("reading script_text.mrg")?;
-    anyhow::ensure!(pairs.len() >= 2, "script_text.mrg has {} entries", pairs.len());
-    let lines = script::text(pairs[0], pairs[1]).context("script_text.mrg")?;
+
+    /// Every script with its commands, and the text lines.
+    fn scripts(&self) -> Result<(Scripts<'_>, Vec<&str>)> {
+        let mut scripts = Vec::new();
+        for (name, d) in self.names.iter().zip(&self.data) {
+            let text = std::str::from_utf8(d).with_context(|| format!("script {name}"))?;
+            // The one malformed command of each copy is left out.
+            scripts.push((name.clone(), script::parse(text).into_iter().filter_map(Result::ok).collect()));
+        }
+        let pairs = mzp::parse(&self.script_text).context("reading script_text.mrg")?;
+        anyhow::ensure!(pairs.len() >= 2, "script_text.mrg has {} entries", pairs.len());
+        Ok((scripts, script::text(pairs[0], pairs[1]).context("script_text.mrg")?))
+    }
+}
+
+/// The text window: the text drawer's layout (`FUN_001391a0`, on a 640 ×
+/// 448 stage): in Japanese lines from x 88 (the panel's flat middle,
+/// 176–1104 here), 464 wide, the first at y 65; glyphs of the screen's
+/// width / 32 × 0.76 (`FUN_001a7790`, the text size setting at its
+/// default). In English from x 30, 584 wide, the first line at y 55,
+/// glyphs × 0.9.
+fn text_window(english: bool) -> TextWindow {
+    TextWindow {
+        image: WINDOW.into(),
+        x: 0, // src: txtwindow01-1920 (a full-screen panel)
+        y: 0,
+        text_x: if english { 60 } else { 176 },  // src: exe 0x1391a0 (30 or 88, × 2)
+        text_y: if english { 88 } else { 104 },  // src: exe 0x1391a0 ((short)(65 − 9.88) = 55 or 65, × 720 / 448); guess: the glyph's offset in its line (FUN_001a7790's +14) not added
+        columns: if english { 41 } else { 30 },  // src: exe 0x1391a0 (584 × 2 = 1168 px / 28, or 928 px / 30.4); the window types ≥ 3 (table 0x44DEFC: 299.8, 405.6, 509.8) are the same in both languages and not drawn
+        rows: 14,     // guess: the 16 line slots, as many as fit the screen at this pitch
+        font_size: if english { 27 } else { 30 }, // src: exe 0x1a7790 (1280 / 32 × 0.76 = 30.4, × 0.9 in English = 27.4)
+        line_gap: 15, // guess: a 45 px pitch (28 of 448, the drawer's step for its extra lines); the exe measures a line of the font
+        vertical: false,
+        name_plate: None,
+        wait_icon_at: None,
+    }
+}
+
+/// Builds the game from `romfs` (1.0.2's or the fan patch's RomFS) and
+/// `main`, 1.0.2's exe. With `english` (the fan patch's RomFS beside
+/// 1.0.2's), both languages in one script (`language.rs`).
+pub fn build(romfs: &Path, main: &Path, english: Option<&Path>, opts: &Opts) -> Result<Built> {
+    let source = Source::read(romfs)?;
+    let (scripts, lines) = source.scripts()?;
     // The fan patch's text is English (the exe's language check, `FUN_0012df20`).
-    let english = lines.iter().filter(|l| !l.chars().any(|c| ('\u{3040}'..='\u{30ff}').contains(&c))).count() * 2 > lines.len();
+    let is_english = lines.iter().filter(|l| !l.chars().any(|c| ('\u{3040}'..='\u{30ff}').contains(&c))).count() * 2 > lines.len();
     let exe = exe::Exe::parse(&map(main)?).with_context(|| format!("reading {}", main.display()))?;
     let pictures: HashMap<String, exe::Picture> = exe.pictures()?.into_iter().map(|p| (p.name.to_lowercase(), p)).collect();
-    let textures = textures(romfs, &pictures)?;
     let bfsar = map(&romfs.join("knife1.bfsar"))?;
     let ext = if opts.audio.reencodes() { "ogg" } else { "wav" }; // as `typemoon sounds` writes them
     let waves = bfsar::wave_sounds(&bfsar)?.into_iter().map(|w| (w.name.trim_start_matches("WSD_").to_uppercase(), format!("{}.{ext}", w.name))).collect::<HashMap<_, _>>();
     let sounds = stream_names(romfs, bfsar::sound_names(&bfsar)?)?;
     let pic_ext = if opts.webp.is_some() { "webp" } else { "png" }; // as `typemoon media` writes them
-    let game = Game { scripts, scenes: exe.scenes()?, lines, pictures, textures, sounds, waves, pic_ext, motions: exe.motions()? };
-    let compiled = convert::compile(&game);
+    let game = Game { scripts, scenes: exe.scenes()?, lines, textures: textures(romfs, &pictures)?, pictures, sounds, waves, pic_ext, motions: exe.motions()? };
+    let en_source = english.map(Source::read).transpose()?;
+    let compiled = match (english, &en_source) {
+        (Some(en_dir), Some(en)) => {
+            let (scripts, lines) = en.scripts()?;
+            let en_game = Game { scripts, lines, textures: textures(en_dir, &game.pictures)?, pictures: game.pictures.clone(), scenes: game.scenes.clone(), sounds: game.sounds.clone(), waves: game.waves.clone(), motions: game.motions.clone(), pic_ext };
+            super::language::compile(&game, &en_game, &own_pictures(romfs, en_dir)?, text_window(false), text_window(true))
+        }
+        _ => convert::compile(&game),
+    };
     if !opts.dry_run {
         window(romfs, &opts.output.join(WINDOW))?;
     }
@@ -59,25 +111,7 @@ pub fn build(romfs: &Path, main: &Path, opts: &Opts) -> Result<Built> {
         width: convert::SCREEN_W,
         height: convert::SCREEN_H,
         global_border: Some(convert::GLOBAL_BORDER),
-        // The text drawer's layout (`FUN_001391a0`, on a 640 × 448 stage): in
-        // Japanese lines from x 88 (the panel's flat middle, 176–1104 here),
-        // 464 wide, the first at y 65; glyphs of the screen's width / 32 × 0.76
-        // (`FUN_001a7790`, the text size setting at its default). In English
-        // from x 30, 584 wide, the first line at y 55, glyphs × 0.9.
-        window: Some(TextWindow {
-            image: WINDOW.into(),
-            x: 0, // src: txtwindow01-1920 (a full-screen panel)
-            y: 0,
-            text_x: if english { 60 } else { 176 },  // src: exe 0x1391a0 (30 or 88, × 2)
-            text_y: if english { 88 } else { 104 },  // src: exe 0x1391a0 ((short)(65 − 9.88) = 55 or 65, × 720 / 448); guess: the glyph's offset in its line (FUN_001a7790's +14) not added
-            columns: if english { 41 } else { 30 },  // src: exe 0x1391a0 (584 × 2 = 1168 px / 28, or 928 px / 30.4); the window types ≥ 3 (table 0x44DEFC: 299.8, 405.6, 509.8) are the same in both languages and not drawn
-            rows: 14,     // guess: the 16 line slots, as many as fit the screen at this pitch
-            font_size: if english { 27 } else { 30 }, // src: exe 0x1a7790 (1280 / 32 × 0.76 = 30.4, × 0.9 in English = 27.4)
-            line_gap: 15, // guess: a 45 px pitch (28 of 448, the drawer's step for its extra lines); the exe measures a line of the font
-            vertical: false,
-            name_plate: None,
-            wait_icon_at: None,
-        }),
+        window: Some(text_window(is_english)),
         ops: compiled.ops,
         // src: exe 0x56b080 (the settings' defaults, also the reset in
         // FUN_0012c810): unread text 35 ms a character (+0xe), read text
@@ -85,12 +119,27 @@ pub fn build(romfs: &Path, main: &Path, opts: &Opts) -> Result<Built> {
         // One speed here: the unread one.
         text_ms: Some(35),
         title_screen: Some(super::title::title(romfs, opts.output, opts.dry_run)?),
-        system_menu: Some(super::menu::system_menu(romfs, opts.output, opts.dry_run)?),
-        language: if english { "en" } else { "ja" }.into(),
+        system_menu: Some(super::menu::system_menu(romfs, opts.output, opts.dry_run, english.is_some())?),
+        language: if is_english { "en" } else { "ja" }.into(),
+        after_load: english.map(|_| super::language::LOADED.to_string()),
         ..Default::default()
     };
     println!("{} scripts -> {}", game.scripts.len(), opts.output.join("0.txt").display());
     Ok(Built { ir, notes: compiled.notes, metrics: compiled.metrics, engine: "typemoon", picture_dirs: &["sys"], audio_dirs: &[], package: None })
+}
+
+/// The pictures the fan patch has its own of (`pic/en/`, as `typemoon
+/// media --english` writes them), lowercase.
+fn own_pictures(ja: &Path, en: &Path) -> Result<std::collections::HashSet<String>> {
+    let read = |dir: &Path| -> Result<(memmap2::Mmap, memmap2::Mmap, memmap2::Mmap)> {
+        let path = dir.join("allpac.mrg");
+        Ok((map(&path)?, map(&path.with_extension("hed"))?, map(&path.with_extension("nam"))?))
+    };
+    let (jb, jh, jn) = read(ja)?;
+    let (eb, eh, en_) = read(en)?;
+    let je = mrg::parse(&jh, Some(&jn)).context("reading allpac.hed")?;
+    let ee = mrg::parse(&eh, Some(&en_)).context("reading allpac.hed")?;
+    Ok(super::differing(&super::full_copies(&je), &jb, &super::full_copies(&ee), &eb)?.into_iter().collect())
 }
 
 /// The size of each picture's full art in `allpac` (what `typemoon media`
