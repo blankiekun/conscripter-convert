@@ -598,15 +598,14 @@ Nothing yet.
 | Exe tables (pictures, motions, scene numbers) | ✅ read from the NSO (`typemoon exe`); picture sizes checked against the textures |
 | Scripts | 🔶 read: every command of both languages splits (one malformed in the original) and its text and voices join; the top commands' arguments read from the exe, the rest not yet |
 | Media folder (`typemoon media`) | ✅ `allpac`'s pictures as full-size WebP (2.37 GB), movies at 720p, sound |
-| Script conversion (`typemoon convert`) | 🔶 the flow (labels, `_JUMP`, `_IF__`, flags), text (pages, ruby, voices), pictures (`_STCH`/`_STCC`/`_FADS`: record size and place, fades and rule wipes), sound effects and music; plays from the start through `00_00` into the first arc headless. Layers drawn in priority order (`_STCP`, `_STCH` argument 6). Not yet: zoom and motions (`_STZ4`, `_STMA`), parent layers, `_STGS` and the other layer commands, choices (`_SELR`/`_GOTS`), screens |
+| Script conversion (`typemoon convert`) | 🔶 the flow (labels, `_JUMP`, `_IF__`, flags), text (pages, ruby, voices), pictures (`_STCH`/`_STCC`/`_FADS`: record size and place, fades and rule wipes), sound effects and music; plays from the start through `00_00` into the first arc headless. Layers drawn in priority order (`_STCP`, `_STCH` argument 6), zoomed (`_STZ4`) and faded (`_STGS`). Not yet: motions (`_STMA`), parent layers, the other layer commands, choices (`_SELR`/`_GOTS`), screens |
 | Screens, extras | ❌ |
 
 ### Next
 
 1. The script conversion, next part: the layer commands the opening
-   leans on, in order of use: `_STZ4` (zoom), `_STMA` (motions from the exe),
-   `_STRT`, `_STBR`, `_STEC`, `_STGS` (alpha fades: 412 pictures come
-   out invisible), parent layers (`_STCH` argument 11, 6,028 uses);
+   leans on, in order of use: `_STMA` (motions from the exe), `_STRT`,
+   `_STBR`, `_STEC`, parent layers (`_STCH` argument 11, 6,028 uses);
    then choices (`_SELR`, `_GOTS`, `_IFNX`) so a route can be picked.
    `typemoon convert --dry-run` prints the counts. Splitting sprites
    into body and face crops is out unless the user asks.
@@ -624,6 +623,17 @@ Nothing yet.
    12–17, `_STZ4`'s last two, and the motion keyframes' other fields.
 
 ## History
+
+- 2026-10-16: zoom and alpha fades. `_STZ4(layer, x0, y0, x1, y1, ms,
+  …)` (`FUN_00162d20`) sets the staged layer's zoom across and down in
+  ‰ (to x1, y1; `_STCH` resets it to 1000), times `_STCH`'s zoom
+  (32,317 of 32,319 uses are static; the 2 timed ones jump to their
+  end). `_STGS(layer, from, to, ms, ease)` (`FUN_001637a0`) fades the
+  layer's alpha from `from` (default its own) to `to` (default 0) over
+  `ms`, running from the next `_FADS` while the script goes on (4,877
+  of 8,114 timed; easing not followed): an `spmotion` from the IR's
+  `SpriteMotion2`, started inside the transition so its first key
+  shows. 937,479 commands fully converted.
 
 - 2026-10-16: layer priority. The draw list (`FUN_001884f0`) keeps the
   layers with a picture and a priority above 0 (`+0x234` per layer,
