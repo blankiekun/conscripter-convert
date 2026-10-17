@@ -38,6 +38,7 @@ mod picture_turntable;
 mod puzzle;
 mod replay;
 mod save_grid;
+pub mod warp;
 mod settings_pages;
 mod switches;
 mod line_log;
@@ -990,12 +991,10 @@ fn transition_steps(fade_ms: u32, mask: Option<&str>, style: TransitionStyle) ->
         (Some(m), TransitionStyle::Threshold) => one(Effect::HardMask(m.to_string())),
         (Some(m), _) => one(Effect::Mask(m.to_string())),
         (None, TransitionStyle::Threshold) => one(Effect::Fade),
-        (None, TransitionStyle::Flip { horizontal, grow }) => {
-            one(Effect::Dll(format!("cons_flip.dll/{},{}", u8::from(!horizontal), u8::from(!grow))))
+        (None, style) if warp_kind(style).is_some() => {
+            let k = warp_kind(style).unwrap();
+            one(Effect::Dll(format!("cons_warp.dll/{}\\{},{}", warp::DIR, k.file_name(), k.cells())))
         }
-        (None, TransitionStyle::Melt { stretch_percent }) => one(Effect::Dll(format!("cons_melt.dll/{stretch_percent}"))),
-        (None, TransitionStyle::Cube { dx, dy }) => one(Effect::Dll(format!("cons_cube.dll/{dx},{dy}"))),
-        (None, TransitionStyle::Wave { direction, amplitude, waves }) => one(Effect::Dll(format!("cons_wave.dll/{direction},{amplitude},{waves}"))),
         (None, TransitionStyle::Blur { radius, new_only }) => one(Effect::Dll(format!("cons_blur.dll/{radius},{}", u8::from(new_only)))),
         (_, TransitionStyle::ThroughWhite) => {
             let half = (fade_ms / 2).max(1);
@@ -1019,30 +1018,64 @@ fn transition_steps(fade_ms: u32, mask: Option<&str>, style: TransitionStyle) ->
                 _ => 14,
             }))
         }
-        (None, TransitionStyle::Slide { moving, dx, dy }) => {
-            let layer = match moving {
-                SlideLayer::New => 0,
-                SlideLayer::Old => 1,
-                SlideLayer::Both => 2,
-            };
-            one(Effect::Dll(format!("cons_slide.dll/{layer},{dx},{dy}")))
-        }
         // Mosaic out (16: the old picture coarsens), then in (17: the new
         // one sharpens), half the time each.
         (None, TransitionStyle::Mosaic) => {
             let half = (fade_ms / 2).max(1);
             vec![(half, Effect::Builtin(16)), ((fade_ms - half).max(1), Effect::Builtin(17))]
         }
-        (None, TransitionStyle::Zoom { style, max_percent, curve }) => {
+        // (every other style has a warp map, above)
+        (None, _) => one(Effect::Fade),
+    }
+}
+
+/// cons_melt's seed for the melting edge: the plugin picked a new one
+/// each time, a map keeps one.
+const MELT_SEED: u32 = 1;
+
+/// The warp map that draws a transition style (with no mask picture):
+/// the plugins' moving transitions. Orthogonal pushes stay ONScripter's
+/// scrolls, blurs a plugin.
+fn warp_kind(style: TransitionStyle) -> Option<warp::Kind> {
+    Some(match style {
+        TransitionStyle::Flip { horizontal, grow } => warp::Kind::Flip { axis: u8::from(!horizontal), layer: u8::from(!grow) },
+        TransitionStyle::Melt { stretch_percent } => warp::Kind::Melt { stretch: stretch_percent, seed: MELT_SEED },
+        TransitionStyle::Cube { dx, dy } => warp::Kind::Cube { dx, dy },
+        TransitionStyle::Wave { direction, amplitude, waves } => warp::Kind::Wave { direction, amplitude, waves },
+        TransitionStyle::Slide { moving: SlideLayer::Both, dx, dy } if dx == 0 || dy == 0 => return None,
+        TransitionStyle::Slide { moving, dx, dy } => {
+            let layer = match moving {
+                SlideLayer::New => 0,
+                SlideLayer::Old => 1,
+                SlideLayer::Both => 2,
+            };
+            warp::Kind::Slide { layer, dx, dy }
+        }
+        TransitionStyle::Zoom { style, max_percent, curve } => {
             let mode = match style {
                 ZoomStyle::NewIn => 0,
                 ZoomStyle::OldOut => 1,
                 ZoomStyle::Through => 2,
                 ZoomStyle::Cross => 3,
             };
-            one(Effect::Dll(format!("cons_zoom.dll/{mode},{max_percent},{curve}")))
+            warp::Kind::Zoom { mode, scale: max_percent, curve: u32::from(curve) }
         }
-    }
+        _ => return None,
+    })
+}
+
+/// The warp maps the script's transitions use, with their paths in the
+/// output (`warp/<name>.png`), for the CLI to write.
+pub fn warp_maps(script: &Script) -> Vec<(String, image::RgbImage)> {
+    let kinds: std::collections::BTreeSet<warp::Kind> = script
+        .ops
+        .iter()
+        .filter_map(|op| match op {
+            Op::BeginTransition { fade_ms, mask: None, style, .. } if *fade_ms > 0 => warp_kind(*style),
+            _ => None,
+        })
+        .collect();
+    kinds.into_iter().map(|k| (format!("{}/{}", warp::DIR, k.file_name()), warp::map(k, script.width, script.height))).collect()
 }
 
 /// One effect number per distinct (duration, effect) pair, in a stable
@@ -1830,11 +1863,14 @@ print 3
 effect 2,16,500
 effect 3,17,500
 effect 4,14,1000
-effect 5,99,1000,\"cons_melt.dll/71\"
-effect 6,99,1000,\"cons_slide.dll/0,-1,0\"
-effect 7,99,1000,\"cons_zoom.dll/3,220,5\"
+effect 5,99,1000,\"cons_warp.dll/warp\\melt_71_1.png,33\"
+effect 6,99,1000,\"cons_warp.dll/warp\\slide_0_-1_0.png,2\"
+effect 7,99,1000,\"cons_warp.dll/warp\\zoom_3_220_5.png,65\"
 ";
         assert!(text.contains(defs), "{text}");
+        let maps: Vec<_> = warp_maps(&s).into_iter().map(|(p, m)| (p, m.dimensions())).collect();
+        assert!(maps.contains(&("warp/slide_0_-1_0.png".to_string(), (2 * (s.width / 8 + 1), 4 * (s.height / 8 + 1)))), "{maps:?}");
+        assert_eq!(maps.len(), 3);
         assert!(text.contains("; transition: x\nprint 6\n; transition: x\nprint 4\n; transition: x\nprint 2\nprint 3\n; transition: x\nprint 7\n; transition: x\nprint 5\nあ"), "{text}");
     }
 
