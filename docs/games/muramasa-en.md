@@ -32,8 +32,26 @@ It has no NPA archives and no NSS scripts.
 - The local full build of 2026-10-15 is stale: it lacks the telop
   pictures (`cg/sys/telop/…`) that a fresh build packs (checked with a
   one-scene build of ma04_021). Rebuild before comparing pictures.
-- Next: the port's
-  English captions from its `LANG_NAME` branches (15 scenes).
+- Story captions in English (this PR): the port's `LANG_NAME == "en"`
+  branches draw their own `CreateText` (dates and times in md04_002 …
+  md04_030, `I AM POWER` in md02_009/038 and md04_048vs, `MURDERED` in
+  mb03_006, `CEASE YOUR` / `MINDLESS YAPPING, CUR!!!!!` in mb03_022).
+  `english::put_captions` gives the NSS's `CreateText` the English of
+  the port's call on the same sprite (the k-th one whose Japanese is the
+  same): its x, y (Center, Middle), the box `auto`, drawn across in the
+  release's font at the NSS's `SetFont` size; the `Rotate` after it is
+  undone and the first `Move` takes the port's offset (two-line dates:
+  -25/+25). A Japanese line the English branch has no line for deletes
+  the sprite (md04_002's second date). 20 calls in the dry run; checked
+  on a one-scene build of md04_002 (`2:47 AM` at 450,268, the two lines
+  centred 50 px apart). Story `CreateText` elsewhere stays left out
+  (Decided). The text blocks' `{…}` code is now walked too (only
+  mb03_022's captions are there; telops and choices unchanged).
+- Next: mb03_022's captions (`ぐだぐだやかましいわ…`, in `[text0019]`'s
+  code) are drawn in neither build (no `lsp` for them or the black bar
+  `絵色100` in the Japanese build either): a shared NSS issue. Then
+  ma01_009, mb04_015vs's `CreateTextArea`/`SetText` lines, ma01_026's
+  typed document and mc02_031's menus (Status "Next" 4).
 - Decided: a click on an empty slot at the title doesn't save (the
   original saves the title screen there): a deliberate difference.
   Continue loads the quick save, else the newest save. Japanese story
@@ -234,9 +252,9 @@ It has no NPA archives and no NSS scripts.
      `_system.nut`'s line-log strings not read; 15 scenes with English
      written into the scenario (`LANG_NAME` branches: captions, dates,
      ma01_026's document, mc02_031's menus) show the NSS's Japanese,
-     or, for story `CreateText`, nothing (Decided, above): later, draw
-     the port's English captions from those branches in the release's
-     font;
+     or, for story `CreateText`, nothing (Decided, above); the
+     branches' `CreateText` are drawn in English (Queue, above), the
+     `CreateTextArea` ones (ma01_009, mb04_015vs, ma01_026) not yet;
      the telops the port rewrote (md05_037vs's 魔剣対決 and 魔王編挿入
      pictures, mc01_026's last 殺意 word: see "Telops") stay at the
      Japanese places;
@@ -458,8 +476,10 @@ The system scripts' own calls: 252 names that only `system/*.nut` calls
 (1,068 calls), all inside the replaced screens above.
 
 **Scenes with English written into the scenario** (`LANG_NAME == "en"`
-branches, 15 scenes), all **Japanese in the build** (the NSS's strings
-or pictures): ma01_009, ma01_026 (the document), mb03_006, mb03_022
+branches, 15 scenes): their `CreateText` in English (`put_captions`:
+mb03_006, md02_009, md02_038, md04_*, md04_048vs; mb03_022's are in
+code the converter doesn't draw), the rest **Japanese in the build**
+(the NSS's strings or pictures): ma01_009, ma01_026 (the document), mb03_006, mb03_022
 (`CEASE YOUR MINDLESS YAPPING, CUR!!!!!`), mb04_015vs (`CreateTextArea`
 lines), mc02_031daidokoroa/aa (the menus: `horse meat`, `Lamb pilaf`,
 …), md02_009 and md02_038 (`I AM POWER`), md04_002, md04_006,

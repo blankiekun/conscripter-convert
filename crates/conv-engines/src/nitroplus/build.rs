@@ -85,6 +85,7 @@ pub fn build(game: &Path, run: &Run, opts: &Opts) -> Result<Built> {
         for (file, call) in report.telops_unpaired.iter().take(5) {
             println!("  {file}: {call}");
         }
+        println!("English: {} story captions from the port's English branches", report.captions);
         println!("English: {} subtitled voices, {} with no place", report.subtitles, report.subtitles_missed.len());
         for (file, sound) in report.subtitles_missed.iter().take(5) {
             println!("  {file}: {sound}");

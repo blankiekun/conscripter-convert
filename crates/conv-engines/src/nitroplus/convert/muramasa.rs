@@ -10,6 +10,7 @@ use conv_core::ir::{ArithOp, ChoicePlates, ChoiceStyle, Op, Operand, TextWindow,
 use std::collections::BTreeMap;
 
 use super::{negate, BoxText, Compiler, Game, NssFile, Value};
+use crate::nitroplus::english;
 
 mod extras;
 mod favour;
@@ -144,8 +145,18 @@ fn call_en(c: &mut Compiler<'_, '_>, name: &str, args: &[Value]) -> bool {
             true
         }
         ("Move", Some((_, _, Some(_), _))) => true,
-        // Story `CreateText` would draw the Japanese captions: left out
-        // until the port's own (its `LANG_NAME` branches) are taken.
+        // The port's English captions (`english::put_captions`), drawn
+        // across: the NSS's `SetFont` is for vertical text (`@`).
+        ("CreateText", _) if args.len() == 8 && args[7].string() == english::CAPTION => {
+            let font = c.font.clone();
+            if let Some(face) = c.font.first_mut() {
+                *face = Value::Str(face.string().trim_start_matches('@').to_string());
+            }
+            c.builtin("CreateText", &args[..7]);
+            c.font = font;
+            true
+        }
+        // The rest would draw the Japanese: left out.
         ("CreateText", _) => {
             c.note("CreateText left out: the Japanese caption (English build)");
             true
