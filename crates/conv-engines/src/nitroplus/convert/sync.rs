@@ -381,12 +381,12 @@ impl Compiler<'_, '_> {
                 }
                 ops.push(Op::SpriteMotion2 { layer, keys: from_end(keys), end });
                 moved_over.insert(name.clone(), ops);
+                self.runs.insert(name.clone(), Run { from: start, to: now, ms: t, at: clock, ease: tempo.get(name).copied() });
                 moving.push(name.clone());
                 continue;
             }
             // A fade at once (not over time) as the move starts: from the new opacity.
             let start = if fades.contains_key(name) { old.clone() } else { Shown { opacity: now.opacity, ..old.clone() } };
-            self.runs.insert(name.clone(), Run { from: start.clone(), to: now.clone(), ms: t, at: clock, ease: tempo.get(name).copied() });
             match motion(&start, &now, t) {
                 // The move a loop starts after: its lead-in, from where the
                 // picture was to its new place (where it is put now).
@@ -398,6 +398,7 @@ impl Compiler<'_, '_> {
                     moving.push(name.clone());
                 }
                 Some(op) => {
+                    self.runs.insert(name.clone(), Run { from: start.clone(), to: now.clone(), ms: t, at: clock, ease: tempo.get(name).copied() });
                     let engine = Engine { zoomed: old.engine.zoomed || old.zoom != now.zoom || old.angle != now.angle, moved: true };
                     if let Some(t) = self.objects.get(name).and_then(|o| o.trail) {
                         self.ops.push(Op::SpriteTrail { layer, passes: t.passes, alpha: t.alpha, lag: t.lag });
@@ -434,20 +435,27 @@ impl Compiler<'_, '_> {
         }
         // A new picture in a camera that moves (dja022's expressions, put
         // up as the camera moves): moved as the camera's other children at
-        // its depth, from where the camera draws it now.
+        // its depth, from where the camera draws it now. And a moving
+        // picture the layers spread onto another layer (no room was left
+        // around it): its motion goes on there.
         for ((name, now, (priority, _)), layer) in want.iter().zip(&layers) {
             let Some(layer) = *layer else { continue };
-            let in_moving_camera = self.motion_until.keys().any(|c| name.starts_with(&format!("{c}/")) && self.objects.get(c).is_some_and(|o| matches!(o.kind, Kind::Camera)));
-            if self.shown.contains_key(name) || now.whole.is_some() || !in_moving_camera {
-                continue;
-            }
-            let parent = |n: &str| n.rsplit_once('/').map(|p| p.0.to_string());
-            let Some((_, Run { from: start, to: end, ms: t, at, ease })) = self.runs.iter().find(|(s, r)| {
-                r.from.whole.is_none() && r.to.whole.is_none() && self.shown.contains_key(*s) && parent(s) == parent(name) && self.objects.get(*s).is_some_and(|o| o.priority == *priority)
-            }) else {
-                continue;
+            let run = match self.shown.get(name) {
+                Some(old) if old.layer != layer && !moving.contains(name) && !moved_over.contains_key(name) => self.runs.get(name).filter(|r| {
+                    (r.to.x, r.to.y, r.to.w, r.to.h) == (now.x, now.y, now.w, now.h) && r.to.source == now.source && r.from.whole.is_none() && r.to.whole.is_none()
+                }),
+                Some(_) => None,
+                None => {
+                    let in_moving_camera = self.motion_until.keys().any(|c| name.starts_with(&format!("{c}/")) && self.objects.get(c).is_some_and(|o| matches!(o.kind, Kind::Camera)));
+                    let parent = |n: &str| n.rsplit_once('/').map(|p| p.0.to_string());
+                    let sibling = |(s, r): &(&String, &Run)| {
+                        r.from.whole.is_none() && r.to.whole.is_none() && self.shown.contains_key(*s) && parent(s) == parent(name) && self.objects.get(*s).is_some_and(|o| o.priority == *priority)
+                    };
+                    self.runs.iter().find(sibling).map(|r| r.1).filter(|_| in_moving_camera && now.whole.is_none())
+                }
             };
-            // shortcut: begun later than the camera, it starts from the straight
+            let Some(Run { from: start, to: end, ms: t, at, ease }) = run else { continue };
+            // shortcut: begun later than the move, it starts from the straight
             // line's point and eases anew over the rest; exact when begun with it.
             let (e, t) = ((clock - at) as i64, i64::from(*t));
             let f = |a: i64, b: i64| a + (b - a) * e / t;
@@ -465,6 +473,8 @@ impl Compiler<'_, '_> {
                 ops.push(Op::SpriteMotion2 { layer, keys: from_end(keys), end });
                 moved_over.insert(name.clone(), ops);
                 self.motion_until.insert(name.clone(), clock + u64::from(left));
+                let run = Run { from, to: Shown { layer, ..now.clone() }, ms: left, at: clock, ease: *ease };
+                self.runs.insert(name.clone(), run);
             }
         }
         for name in &moving {
