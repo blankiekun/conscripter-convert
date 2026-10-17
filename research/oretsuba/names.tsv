@@ -130,3 +130,45 @@
 8108f27a	cri_warning	CRI message callback (two hooks at 0x811638ec/0x811638f0)
 8110c81c	cri_cs_enter	CRI critical section enter (E10062221)
 8110c86a	cri_cs_leave	CRI critical section leave (E10062223)
+810009b4	time_frames_to_updates	task times: 60 fps frames, run in 30 fps updates (time x 30/60 in scene_load)
+81008008	chract_key_priority	CharacterAction: chract's per-key :Priority and easing
+810089a4	effect_quake_a	EffectQuake: the shake (with 81008a3c, 8112a26c)
+81008a3c	effect_quake_b	EffectQuake: :Loop 1 or negative :Time until EffectQuakeEnd, :Time 0 stops; :Window 1 shakes the window too
+81009a2e	window_fade_out	Window :Visible 0 with :Time: fade out over 2 x :Time frames (a step of 1/:Time an update; 1/15 without)
+8100da30	task_start	starts a task; skip mode (+0xe3/+0xe4/+0xe0 of the scene) runs timed tasks at once
+810160e2	message_switch_tag_frame	MessageSwitch_Tag :Frame (cell down :Frame rows)
+81022f9a	task_inout_act	task_run case 0x83 InOut_Act: :Type 0-8 effects (classes in 81041812)
+810265b4	task_scene_jump_dialog	SceneJumpDialog handler: :CharaIcon (up to 10 faces), :Text, :NextTag, :JumpNextTag, :UnreadTag
+810370d4	se_play_start	SePlay (0x37): :SE, :Div n >= 1 fades in over n frames (x1000/60 ms), -1 none, :Wait 1 waits for the end, :Loop
+81037794	se_stop	SeStop (0x38): :SE (none: all), :Div fade-out, :Wait 1 waits for it
+8103cf20	sprite_move_curve	SpriteMove :Curve c bows the path by c/2 of its length; negative the other way
+8103d53c	sprite_move_roll	SpriteMove :Roll (radians, kept): +0x24 -> sprite +0x38, GPU
+81044b74	movie_play_a	MoviePlay :Skip (> 0 skippable, 0 not, < 0 only once seen; global seen table 0x814e8a58)
+81044cb8	movie_play_b	MoviePlay :Skip (with 81044b74)
+81049292	fade_out_rule_table	FadeOut/FadeIn (0x4f/0x4e): rule table :Type, :Color, :SpriteDelete
+8104ffe4	time_frames_to_updates_b	task times: 60 fps frames, run in 30 fps updates (with 810009b4)
+810867c2	sprite_move_ease	SpriteMove :Position x, y, ease type 0-3, power (default 0, 1.0): ease_value pow(t^2, p) (states 10-12)
+81086a0c	sprite_move_scale	SpriteMove :Scale lerped straight from the current zoom
+81087114	sprite_quake	SpriteQuake (0x2c): :Param 0, 1 percent of the pattern, 2-5 swing; :Time; :Fade 1 dying (mode 8), 0 full (7), negative :Time a loop (9); :Wait 1 default
+8108ca08	cfg_find	key lookup by name, case-sensitive; typos (:Prioriry, :TIme, ...) not read
+8108cc48	cfg_parser_key_node	parser: makes the key node at the name's end; a key with no value is 0
+8111ee38	bgm_start	BgmPlay start (0x35): :BGM id, :Div fade-in frames (1 and 0: none); also sets the music-room heard flag 814e8a76 + id
+81120894	sprite_quake_record	SpriteQuake record (0x2c); read in scene_load
+81120910	bgm_stop	BgmStop (0x36): :Div fade-out frames; :Wait 1 waits (only with div > 0); 0 under skip
+81120abc	window_number	Window :WindowNumber -1 (all), 0: extra text box n
+811277c0	character_action_end	CharacterActionEnd: :Character first value; :Copy; :EndWait; ends only the action (+0x2e8), moves go on
+81127a00	character_action_end_record	CharacterActionEnd record (0x21), calls 811277c0
+81129ca4	sprite_delete_record	SpriteDelete record (0x25): :SpriteNumber/:Texture, :FadeOut, :Time (33 by default), :Rule, :FadeWait
+81129ccc	sprite_delete_bg_record	SpriteDeleteBG record (0x26): always fades over :Time (60 by default); no :FadeOut read
+81129cec	sprite_move_record	SpriteMove record (0x27): :Time (30 by default), x 30/60 updates
+81129f38	bgm_play_record	BgmPlay record (0x35), defaults 0
+81129f58	se_play_record	SePlay record (0x37)
+81129f6c	se_stop_record	SeStop record (0x38)
+8112a19c	window_record	Window record (case 0x51)
+8112a26c	effect_quake_record	EffectQuake record (case 99)
+8112a490	scene_jump_dialog_end_record	SceneJumpDialogEnd record (task 0x85): :Fade (18 by default) keeps the dialog up while it fades
+8112a860	effect_start_record	EffectStart record: :EffectNumber argument 1 (variant code at +0x18)
+81145f74	flag_switch_tag_strings	FlagSwitch_Tag strings 81145f74-81145f80 (:Operator == or = (eq), > < >= <= !=), start
+81145f80	flag_switch_tag_strings_end	FlagSwitch_Tag strings 81145f74-81145f80, end
+81162e38	inout_rule_table	InOut (0x82) rule table: :Type N = RULE<N-1>, 0 plain
+814e8a76	music_room_heard_flags	music-room heard flag, set to 0x814e8a76 + id as BgmPlay starts (0x8111ee38)
