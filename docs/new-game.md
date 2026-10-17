@@ -274,28 +274,55 @@ rather than by browsing:
     checklist; wine is the last resort, CLAUDE.md rules apply: scratch
     prefix, own Xvfb, `LANG=ja_JP.UTF-8`). Log only the calls that answer
     the question, to a file in `research/<engine>/local/`:
-    `WINEDEBUG=+timestamp,+tid,+relay wine game.exe 2> local/relay.log`,
-    with `RelayInclude` set in the prefix
-    (`wine reg add 'HKCU\Software\Wine\Debug' /v RelayInclude /d
-    'kernel32.Sleep;kernel32.QueryPerformanceCounter;winmm.timeGetTime;winmm.waveOutWrite;dsound.DirectSoundCreate;ddraw.DirectDrawCreate;d3d9.Direct3DCreate9;user32.GetMessageA;gdi32.SwapBuffers'`;
+    `WINEDEBUG=+timestamp,+relay wine game.exe 2> local/relay.log` (each
+    line already carries the thread id), with `RelayInclude` set in the
+    prefix (`wine reg add 'HKCU\Software\Wine\Debug' /v RelayInclude /d
+    'kernel32.Sleep;kernel32.QueryPerformanceCounter;winmm.timeGetTime;user32.PeekMessageA;dsound.DirectSoundCreate;ddraw.DirectDrawCreate;d3d9.Direct3DCreate9'`;
     names are `module.function`, `;`-separated, no spaces). Then count and
-    space the calls with `grep`/`awk` (frames = present calls per second;
-    waits = `Sleep` arguments; sound = the `waveOut`/`dsound` calls and
-    their gaps); never read the log whole. Source: CodeWeavers, "Working
-    on Wine, part 4: debugging Wine". Untested here.
-19. **Breakpoint trace of the original** (argument values and call order,
-    in place of screenshots). `research/tools/wine_bptrace.py names.tsv
-    [name ...] -o bp.gdb` turns the game's `names.tsv` into a gdb command
-    file: a breakpoint per function that prints its address, the time and
-    the first stack arguments as JSON, then continues. Run
-    `winedbg --gdb --no-start game.exe` (it prints the port), then
-    `gdb -batch -x bp.gdb -ex 'target remote localhost:PORT'` and keep
-    only the records. A row it confirms is "seen" (step 16). Only for
-    32-bit x86 stack arguments. Untested against a game
-    (`--self-test` checks the generator only). Reference: winedbg(1).
+    space the calls with `grep`/`awk`; never read the log whole. The
+    `ret=` address on each `Call` line tells call sites apart: group by
+    it to find the frame loop (the one site called once a frame) and
+    space its calls. COM methods (`Present`, `Flip`, a sound buffer's
+    `Play`) are vtable calls the relay never sees: count frames from the
+    game's own pacing call, and get sound from a debug channel instead
+    (`WINEDEBUG=+timestamp,+dsound`: `IDirectSoundBufferImpl_Play`,
+    `_Stop`, `_SetVolume` lines; drop the mixer's own lines). Tried on
+    最果てのイマ (wine 11): with the list above, 2.3 MB a minute; the
+    frame loop (`0x406f30`) calls `Sleep(period - work)` from one site,
+    30.1 frames a second (33.2 ms on average), the period from a table
+    by a frame-rate setting (`docs/games/saihate-no-ima.findings.tsv`);
+    `QueryPerformanceCounter` was never called. Source: CodeWeavers,
+    "Working on Wine, part 4: debugging Wine".
+19. **Breakpoint trace of the original** (argument values, call order
+    and frame counts, in place of screenshots).
+    `research/tools/wine_bptrace.py names.tsv [name ...] -o bp.gdb` turns
+    the game's `names.tsv` into a gdb command file: a breakpoint per
+    function that prints its address, the time and the first stack
+    arguments as JSON, then continues. Run `winedbg --gdb --no-start
+    'C:\<dir>\game.exe'` (the Windows path: a bare name fails with
+    "Couldn't start process"; it prints the port on stderr), then
+    `gdb -batch -ex 'target remote localhost:PORT' -x bp.gdb > bp.log`
+    (connect first: the file ends with `continue`), drive the game as
+    usual, and fold the log with `wine_bptrace.py --fold bp.log` (one line
+    per run of hits of one function: first and last time, count). A row
+    it confirms is "seen" (step 16). Only for 32-bit x86 stack
+    arguments; works on a 32-bit exe under wine 11's WoW64. Tried on
+    最果てのイマ (`docs/games/saihate-no-ima.md`, "Running the original
+    under wine"):
+    - Break on the script's handlers and on their per-frame callbacks:
+      the time from one handler to the next is what the script waits,
+      and the callback's count is that wait in frames.
+    - Don't break on the frame loop itself. Each stop costs a few ms
+      (30.7 frames a second with handler breakpoints only, 24 with one in
+      the frame loop), and Saihate's clock measures a frame from the end
+      of the last frame's `Sleep`, so a stop between frames is lost from
+      game time: waits then count right in frames but stretch in seconds.
+    - Every handler that waits hands over to the next one on the next
+      frame: each waited command takes one frame more than its time
+      (0x66 500 ms: 530 ms, 16 frames).
 20. **Library signatures in Ghidra** (steps 3 and 5). The export's
     analysis already runs Ghidra's Function ID analyzer (on by default;
-    the bundled `vs2012`..`vs2019` `.fidbf` databases in
+    the bundled `vs2012`..`vs2019` and `vsOlder` `.fidbf` databases in
     `Ghidra/Features/FunctionID/data` name MSVC CRT functions such as
     `_ftol2`, `memcpy`, `_strlen`); look for the labels Ghidra gives them (names in
     `functions.tsv`) before naming a CRT helper by hand. zlib, libpng and
@@ -303,9 +330,16 @@ rather than by browsing:
     Trellix's "No symbols, no problem") attach the extra `.fidbf` once in
     the Ghidra GUI (Tools, Function ID, Attach existing FidDb); the
     attachment is kept in the user's Ghidra settings and the headless
-    run then uses it. Delete `<outdir>/project` to re-analyze. Untested.
+    run then uses it. Delete `<outdir>/project` to re-analyze. Tried on
+    最果てのイマ (VS2008, `MSVCR90.dll`): Function ID named the 18
+    statically linked CRT helpers (`__allmul`, `__alldiv`, `__allshr`,
+    `__SEH_prolog4`, `__security_check_cookie`, `_atexit` …) in
+    `functions.tsv` (`ghidra.log`: "Function ID"); the rest of the CRT
+    is imported, and zlib and libpng are DLLs beside the exe, so their
+    calls already carry the import names. The extra databases are
+    untested.
 21. **Carrying names between builds** (Muramasa JP/EN, Django versions,
-    Saihate builds, Tsukihime 1.0.0/1.0.2). Match the functions of the
+    Tsukihime 1.0.0/1.0.2). Match the functions of the
     two executables with Ghidra's Version Tracking (exact-bytes and
     exact-instructions correlators first, then the combined-reference
     ones), or `ghidriff old.exe new.exe`, or BinDiff on two exports; take
@@ -313,7 +347,9 @@ rather than by browsing:
     name in the other build's `names.tsv`, and review the rest by hand.
     Every finding then says which build it was seen in (the executables
     table of the game document); a name carried over by matching is
-    "inferred" (step 16) until its decompile is read.
+    "inferred" (step 16) until its decompile is read. Untested: 最果てのイマ
+    has one build (the copies on hand have the same sha256), and none of
+    these tools is installed here.
 
 ### Checklist: behaviours to map
 
