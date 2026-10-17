@@ -20,7 +20,6 @@ import re
 import shutil
 import ssl
 import struct
-import subprocess
 import sys
 import urllib.request
 from pathlib import Path
@@ -39,22 +38,12 @@ def platform_suffix() -> Optional[str]:
     if os.name == "nt":
         return "x64_win.exe" if machine in ("amd64", "x86_64", "arm64") else "x86_win.exe"
     if sys.platform == "darwin":
-        # An x64 app under Rosetta still runs on Apple silicon.
-        if machine == "arm64" or _sysctl("sysctl.proc_translated") == "1":
-            return "aarch64_darwin"
-        return None  # no Intel Mac build
+        return "universal_darwin"  # Apple silicon and Intel
     if sys.platform.startswith("linux"):
         return {"x86_64": "x64_linux", "amd64": "x64_linux", "aarch64": "arm64_linux", "arm64": "arm64_linux",
                 "i686": "x86_linux", "i386": "x86_linux"}.get(machine) or (
             "arm32_linux" if machine.startswith("arm") else None)
     return None
-
-
-def _sysctl(name: str) -> str:
-    try:
-        return subprocess.run(["sysctl", "-n", name], capture_output=True, text=True, timeout=5).stdout.strip()
-    except (OSError, subprocess.SubprocessError):
-        return ""
 
 
 def build_version(output: Path) -> Optional[str]:
@@ -220,6 +209,8 @@ def install(output: Path, title: str, icon: Optional[bytes], log: Callable[[str]
     if not suffix:
         raise RuntimeError(f"CONscripter has no build for this computer ({sys.platform} {platform.machine()})")
     version = build_version(output) or latest_version()
+    if suffix == "universal_darwin" and tuple(map(int, version.split("."))) <= (0, 28, 1):
+        suffix = "aarch64_darwin"  # the universal build came after 0.28.1
     binary = download(version, suffix, log)
     name = file_name(title)
     ico = png = None

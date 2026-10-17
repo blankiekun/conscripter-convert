@@ -47,7 +47,7 @@ original's `.exe`, or the Vita's `sce_sys/icon0.png`):
 |---|---|
 | Windows | `<title>.exe`, its icon replaced |
 | Linux | `<title>`, and `<title>.desktop` with `icon.png` (a program file has no icon; the launcher also starts it in the game folder, by absolute paths, so it needs a new build if the folder moves) |
-| macOS (Apple silicon; Intel Macs have no CONscripter build) | `<title>.app`, which starts CONscripter in the folder the `.app` is in |
+| macOS (Apple silicon and Intel; Intel Macs need a build for CONscripter after 0.28.1) | `<title>.app`, which starts CONscripter in the folder the `.app` is in |
 
 Without a connection the build still finishes, and the status says where
 to download CONscripter.
