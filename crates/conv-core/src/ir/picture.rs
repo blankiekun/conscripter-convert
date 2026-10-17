@@ -565,7 +565,7 @@ pub struct RoomVideo {
 /// A key of [`Op::SpriteMotion2`], `ms` from the motion's start: the offset
 /// from the sprite's place (pixels), its zoom (percent, 100 = its size;
 /// `zoom` across, `zoom_y` up and down) and angle (degrees, counterclockwise) about the centre of its place, and its
-/// opacity (0-256 of its own); straight from key to key.
+/// opacity (0-256 of its own); reached from the key before along `ease`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MotionKey {
     pub ms: u32,
@@ -575,6 +575,10 @@ pub struct MotionKey {
     pub angle: i32,
     pub opacity: u32,
     pub zoom_y: u32,
+    /// The curve from the key before to this one, as [`Op::MoveEase`]'s
+    /// `(ease, exponent)`; `None`: the motion's own (a `MoveEase` before
+    /// it), else straight. Unused on the first key.
+    pub ease: Option<(u8, u32)>,
 }
 
 /// After the last key of an [`Op::SpriteMotion2`].

@@ -102,7 +102,7 @@ impl Compiler<'_, '_> {
                 let s = at(turn);
                 let c = [0, 1].map(|a| s[a].0 * (r0[a] + (r1[a] - r0[a]) * u) + s[a].1);
                 let zoom = [0, 1].map(|a| (s[a].0 / sp[a].0.max(1e-3) * 100.0).round().clamp(0.0, 10000.0) as u32);
-                MotionKey { ms: (u * f64::from(t.ms)).round() as u32, x: (c[0] - cp[0]).round() as i32, y: (c[1] - cp[1]).round() as i32, zoom: zoom[0], angle: 0, opacity: 256, zoom_y: zoom[1] }
+                MotionKey { ms: (u * f64::from(t.ms)).round() as u32, x: (c[0] - cp[0]).round() as i32, y: (c[1] - cp[1]).round() as i32, zoom: zoom[0], angle: 0, opacity: 256, zoom_y: zoom[1], ease: None }
             })
             .collect();
         Some(Op::SpriteMotion2 { layer, keys, end: MotionEnd::Keep })

@@ -43,8 +43,8 @@ pub(crate) struct Emitter<'a> {
     pub move_nowait: bool,
     /// The next timed move's bow ([`Op::MoveArc`]), 0 for none.
     pub move_arc: Option<i32>,
-    /// The eased curves used, (ease, exponent): `spcurve` tables at `*start`.
-    pub eased: std::collections::BTreeSet<(u8, u32)>,
+    /// The eased curves used, (ease, exponent), and their `spcurve` ids: tables at `*start`.
+    pub eased: BTreeMap<(u8, u32), u32>,
     pub needs_click_wait: bool,
     pub plate_visible: bool,
     pub link_pages: usize,
@@ -226,7 +226,7 @@ impl<'a> Emitter<'a> {
         }
         Op::SpriteWave { layer, period: 0, .. } => writeln!(out, "spwave {}", SPRITE_BASE + layer).unwrap(),
         Op::SpriteWave { layer, ms, period, from, to, ease } => {
-            let c = curve(*ease, eased);
+            let c = ease::curve(*ease, eased);
             writeln!(out, "spwave {},{ms},{period},{from},{to},{c}", SPRITE_BASE + layer).unwrap();
         }
         Op::SpriteTrail { layer, passes: 0, .. } => writeln!(out, "sptrail {}", SPRITE_BASE + layer).unwrap(),
@@ -271,7 +271,7 @@ impl<'a> Emitter<'a> {
             if let Some(bow) = arc.filter(|_| *ms > 0 && transition.is_none()) {
                 motion::arc_to(out, slot, *x, *y, *ms, None, ease, bow, fading_slots.remove(&slot), wait);
             } else if *ms > 0 && transition.is_none() {
-                motion::move_to(out, slot, *x, *y, *ms, None, curve(ease, eased), fading_slots.remove(&slot), wait);
+                motion::move_to(out, slot, *x, *y, *ms, None, ease::curve(ease, eased), fading_slots.remove(&slot), wait);
             } else {
                 writeln!(out, "getspsize {slot},%1,%2:amsp {slot},{x}-%1/2,{y}-%2/2").unwrap();
                 if transition.is_none() {
@@ -303,9 +303,9 @@ impl<'a> Emitter<'a> {
                 out.truncate(out.len() - 8);
             }
             let (ease, fade) = (move_ease.take(), fading_slots.remove(&(SPRITE_BASE + layer)));
-            // shortcut: a fade folded into the keys splits them, so the motion goes straight; ease each part when a game needs it.
-            let curve = if fade.is_none() { curve(ease, eased) } else { 0 };
-            motion::emit2(out, *layer, keys, *end, fade, curve);
+            // shortcut: a fade folded into the keys splits them, so the motion goes straight (keys with their own curve keep it); ease each part when a game needs it.
+            let curve = if fade.is_none() { ease::curve(ease, eased) } else { 0 };
+            motion::emit2(out, *layer, keys, *end, fade, curve, eased);
         }
         Op::SpriteZoom { layer, x, y, from, to, ms } => {
             let ease = move_ease.take();
@@ -314,7 +314,7 @@ impl<'a> Emitter<'a> {
             if let Some(bow) = arc.filter(|_| *ms > 0 && transition.is_none()) {
                 motion::arc_to(out, SPRITE_BASE + layer, *x, *y, *ms, Some((*from, *to)), ease, bow, None, wait);
             } else {
-                let curve = if *ms > 0 { curve(ease, eased) } else { 0 };
+                let curve = if *ms > 0 { ease::curve(ease, eased) } else { 0 };
                 zoom::emit(out, *layer, *x, *y, *from, *to, *ms, transition.is_some(), curve, wait);
             }
         }
@@ -472,7 +472,7 @@ impl<'a> Emitter<'a> {
                     .unwrap();
                 }
                 Some(ScreenEffect::Jolt { time_ms, interval_ms, range: [(x0, y0), (x1, y1)], ease, end_ms }) => {
-                    let c = curve(*ease, eased);
+                    let c = ease::curve(*ease, eased);
                     writeln!(out, "screenshake {slot},{time_ms},{interval_ms},2,0,0,{x0},{y0},{x1},{y1},{end_ms},{c}").unwrap();
                 }
             }
@@ -496,9 +496,10 @@ impl<'a> Emitter<'a> {
         }
         Op::TransitionEase { ease, exponent } if (1..=7).contains(ease) => {
             // Before the transition's first timed print.
-            if let Some(i) = transition.as_ref().and_then(|l| l.iter().position(|l| l.starts_with("print ") && l != "print 1")) {
-                transition.as_mut().unwrap().insert(i, format!("effectcurve {}", crate::ease::curve_id(*ease, *exponent)));
-                eased.insert((*ease, *exponent));
+            if let Some(i) = transition.as_ref().and_then(|l| l.iter().position(|l| l.starts_with("print ") && l != "print 1"))
+                && let Some(id) = crate::ease::curve_id(*ease, *exponent, eased)
+            {
+                transition.as_mut().unwrap().insert(i, format!("effectcurve {id}"));
             }
         }
         Op::TransitionEase { .. } => {}
@@ -1025,17 +1026,5 @@ impl<'a> Emitter<'a> {
             *picture_screens += 1;
         }
     }
-    }
-}
-
-/// A move's or zoom's curve: 0 straight, or the `spcurve` id of an eased
-/// one, noted in `eased` for its table at `*start`.
-fn curve(ease: Option<(u8, u32)>, eased: &mut std::collections::BTreeSet<(u8, u32)>) -> u32 {
-    match ease {
-        Some((e, n)) if n > 1 || e > 3 => {
-            eased.insert((e, n));
-            ease::curve_id(e, n)
-        }
-        _ => 0,
     }
 }

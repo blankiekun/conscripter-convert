@@ -556,7 +556,11 @@ pub enum Op {
     /// 1 - (2(1-t))^p / 2 for the second; 0 is straight. NSS's sine
     /// tempos, `exponent` unused: 4 as 1 - cos(πt/2), 5 sin(πt/2),
     /// 6 ½ - ½cos(πt), 7 acos(1-2t)/π. 8 goes as 3 turned about the
-    /// middle: (1 - (1-2t)^p) / 2, then (1 + (2t-1)^p) / 2.
+    /// middle: (1 - (1-2t)^p) / 2, then (1 + (2t-1)^p) / 2. Penner's
+    /// others (as in 月姫's exe), `exponent` unused: 9 sine out then in;
+    /// circ 10-13, expo 14-17, elastic 18-21, back 22-25, bounce 26-29,
+    /// each family in, out, in-out, out-in (in-out: in over the first
+    /// half, out over the second; out-in the other way).
     MoveEase { ease: u8, exponent: u32 },
     /// As [`Op::Movie`], but the music and the sound effects play on: a
     /// movie without sound of its own cut into a scene (装甲悪鬼村正's

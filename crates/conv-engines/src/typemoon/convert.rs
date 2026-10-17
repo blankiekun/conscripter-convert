@@ -887,7 +887,7 @@ impl Lowering<'_, '_> {
                 (Some(l), Some((from, to, ms))) => {
                     // Opaque, the motion's keys giving the alpha (they multiply it).
                     self.place(layer, &Layer { alpha: 255, ..l });
-                    let key = |ms, alpha: u32| MotionKey { ms, x: 0, y: 0, zoom: 100, angle: 0, opacity: alpha * 256 / 255, zoom_y: 100 };
+                    let key = |ms, alpha: u32| MotionKey { ms, x: 0, y: 0, zoom: 100, angle: 0, opacity: alpha * 256 / 255, zoom_y: 100, ease: None };
                     self.ops.push(Op::SpriteMotion2 { layer, keys: vec![key(0, from), key(ms, to)], end: MotionEnd::Keep });
                 }
                 (Some(l), None) => self.place(layer, &l),
@@ -1017,6 +1017,7 @@ impl Lowering<'_, '_> {
                 angle: ((start.angle - at.angle) as f32 / 100.0).round() as i32,
                 opacity: at.alpha * 256 / 255,
                 zoom_y: rel(z.1, z0.1),
+                ease: None,
             });
         }
         if keys.is_empty() {
