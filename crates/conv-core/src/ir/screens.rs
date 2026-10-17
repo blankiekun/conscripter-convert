@@ -214,6 +214,9 @@ pub struct SaveMenu {
     /// blend, strength and the three parameters. It is off while a save is
     /// written, since saves keep the screen filters.
     pub backdrop: Option<(u32, [i32; 6])>,
+    /// Drawn by the engine (CONscripter's `screen`, from `screens/*.lua`)
+    /// rather than by script loops.
+    pub engine_screen: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

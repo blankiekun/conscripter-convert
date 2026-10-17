@@ -38,10 +38,13 @@ pub struct BuildArgs {
 /// asset folders, packed into `arc.nsa`), lets the engine compile the game
 /// and write its assets (`compile`), then emits the script, converts
 /// pictures and sounds, writes, packs and reports.
+/// Where [`conv_cons::screen_files`] go: packed like the asset folders.
+const SCREENS: &str = "screens";
+
 pub fn run(args: BuildArgs, title: &str, output_dirs: &[&str], compile: impl FnOnce(&Opts) -> Result<Built>) -> Result<()> {
     let BuildArgs { output, font, loose, dry_run, webp, audio } = args;
-    // every engine's folders, and the warp maps of its transitions
-    let output_dirs: Vec<&str> = output_dirs.iter().copied().chain([conv_cons::warp::DIR]).collect();
+    // every engine's folders, the warp maps of its transitions and the screens
+    let output_dirs: Vec<&str> = output_dirs.iter().copied().chain([conv_cons::warp::DIR, SCREENS]).collect();
     let output_dirs = &output_dirs[..];
     check_output(&output, output_dirs, !loose && !dry_run)?;
     let font = read_font(font.as_deref())?;
@@ -217,6 +220,11 @@ pub fn write_game(output: &Path, ir: &Script, source: &str, font: Option<&[u8]>,
     fs::write(output.join("0.txt"), encoded)?;
     if let Some(lua) = conv_cons::system_lua(ir) {
         fs::write(output.join("system.lua"), conv_cons::encode(&lua).0)?;
+    }
+    // Menus the engine draws, UTF-8 (packed with the pictures)
+    for (name, lua) in conv_cons::screen_files(ir) {
+        fs::create_dir_all(output.join(SCREENS))?;
+        fs::write(output.join(SCREENS).join(name), lua)?;
     }
     if let Some(v) = &ir.version {
         version::write(output, &ir.title, v, package)?;

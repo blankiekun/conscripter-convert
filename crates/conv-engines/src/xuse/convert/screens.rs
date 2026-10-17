@@ -397,6 +397,7 @@ impl AssetBank {
             // The scene behind is blurred slightly (measured under wine:
             // Gaussian σ about 1): a 3×3 mean, in SmoothCrossFade's slot.
             backdrop: Some((SMOOTH_BLUR_SLOT, [FILTER_BLUR, FILTER_BLEND_COPY, 256, 1, 1, 0])),
+            engine_screen: true,
         })
     }
 

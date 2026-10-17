@@ -629,6 +629,17 @@ a copy of the save works.
 ### Queue (2026-10-16)
 
 - Open: slides, zooms, flips, cube turns and melts as warp maps (`cons_warp.dll`, engine #67/#69; maps in `warp/`, melt with a fixed edge, seed 1); the plugins go in a later PR.
+- Open: the save and load menus and their yes/no dialog drawn by the
+  engine (`screen`, engine #70/#71; `screens/save.lua`, `load.lua`,
+  `confirm.lua` in `arc.nsa`, from `SaveMenu`/`ConfirmDialog` by
+  `crates/conv-cons/src/screens.rs`), in place of the `*conv_sl` loops.
+  Same look (the 16-click Xvfb comparison against main's build: 0 to
+  1,102 px a frame, all from two bugs of the old menu: column 799 that
+  `lsp2` dropped, and the bar's labels its `btnwait` showed again). Saves
+  of older builds ("No.NN - date|chapter") show the chapter (`%T-1`) and
+  the save file's date. Slots older builds marked deleted (`%910+n`) are
+  deleted when a menu opens. Settings' yes/no questions still use
+  `*conv_confirm`.
 - Merged: `0x86`'s two trailing bytes as harmless (#163; History, item 45).
 - Merged: `0x8c`'s sort key as harmless (#180; History, item 31).
 - Merged: `0x49`/`0x4a`'s edge colours as harmless but the grey one (#181; History, item 29).
