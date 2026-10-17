@@ -120,7 +120,7 @@ fn slider_name(l: SliderSetting) -> &'static str {
         SliderSetting::BgmVolume => "bgm_volume",
         SliderSetting::SeVolume => "se_volume",
         SliderSetting::VoiceVolume => "voice_volume",
-        SliderSetting::TextSpeed { .. } => "text_speed",
+        SliderSetting::TextSpeed { .. } | SliderSetting::TextSpeedCurve { .. } => "text_speed",
         SliderSetting::AutoWait { .. } => "auto_wait",
         SliderSetting::GameSpeed { .. } => "game_speed",
     }
@@ -448,6 +448,12 @@ fn values(out: &mut String, s: &PictureSettings) {
             SliderSetting::VoiceVolume => volume(&mut w, "voicevol"),
             SliderSetting::TextSpeed { ms } => w(format!("mov {TEXT_MS},{v}*{ms}/1000:textspeed {TEXT_MS}")),
             SliderSetting::AutoWait { ms } => w(format!("mov {TMP},{v}*{ms}/1000:automode_time 0,{TMP}")),
+            // TMP = u in 1/100000 (each product under 2^31 for slow up to 2000);
+            // text_ms(v) in the tests is the same sum.
+            SliderSetting::TextSpeedCurve { fast, slow } => w(format!(
+                "mov {TMP},(1000-{v})*(1000-{v})/100:mov {TMP},{TMP}*{TMP}/1000:mov {TEXT_MS},{}/({TMP}*{slow}+(100000-{TMP})*{fast}):if {v} == 0 mov {TEXT_MS},0:textspeed {TEXT_MS}",
+                10000 * fast as u64 * slow as u64
+            )),
             SliderSetting::GameSpeed { levels } => {
                 w(format!("mov {TMP},12-{v}*12/1000:if {TMP} < 1 mov {TMP},1"));
                 for (k, percent) in levels.iter().enumerate() {
@@ -640,6 +646,24 @@ mod tests {
         }
         // No knob or track for it.
         assert!(!out.contains("exbtn 782"));
+    }
+
+    #[test]
+    fn text_speed_curve_follows_the_rate() {
+        // The integer sum TextSpeedCurve writes, against 1 / (u/fast + (1-u)/slow).
+        let (fast, slow) = (38i64, 1506i64);
+        let text_ms = |v: i64| {
+            let u = (1000 - v) * (1000 - v) / 100;
+            let u = u * u / 1000;
+            let (num, den) = (10000 * fast * slow, u * slow + (100000 - u) * fast);
+            assert!(num < 1 << 31 && den < 1 << 31);
+            if v == 0 { 0 } else { num / den }
+        };
+        for v in 1..=1000 {
+            let u = (1.0 - v as f64 / 1000.0).powi(4);
+            let want = 1.0 / (u / (fast as f64 / 10.0) + (1.0 - u) / (slow as f64 / 10.0));
+            assert!((text_ms(v) as f64 - want).abs() <= 1.0, "v {v}: {} vs {want}", text_ms(v));
+        }
     }
 
     #[test]

@@ -325,6 +325,11 @@ pub enum SliderSetting {
     /// The game's speed: level 12 - p × 12 / 1000 (1-12), each level a
     /// `consset "gamespeed"` percent (`levels[level - 1]`).
     GameSpeed { levels: [u32; 12] },
+    /// Per character, with s = p/1000 and u = (1 - s)^4:
+    /// 1 / (u / `fast` + (1 - u) / `slow`) ms (`fast` and `slow` in 1/10
+    /// ms); none at the top. Nitroplus Diesel's typing: a rate between
+    /// its fastest and slowest weighted by (1 - s)^4.
+    TextSpeedCurve { fast: u32, slow: u32 },
 }
 
 /// Two pictures for one on/off option of [`PictureSettings`]: three cells

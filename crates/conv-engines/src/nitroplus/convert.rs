@@ -3660,8 +3660,9 @@ impl<'a, 'b> Compiler<'a, 'b> {
                                 "red2" => (Some(0xCC0000), None),
                                 "red3" => (Some(0x990000), None),
                                 "yellow" => (Some(0xFFFF00), None),
-                                // shortcut: 75 % is a guess (the exe's SMALL size isn't read yet); check it in the original.
-                                _ => (None, Some(75)),
+                                // src: exe 004a82e7 (CTextEnglish_layout: SMALL draws with the text's ruby
+                                // font, setRubyFont), function_textbox.nut (Droid Serif size 20, ruby_size 10)
+                                _ => (None, Some(50)),
                             };
                             page.styles.push(TextStyle { start, len: usize::MAX - start, colour, size_percent, ..Default::default() });
                         }

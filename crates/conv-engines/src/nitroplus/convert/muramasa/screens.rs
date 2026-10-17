@@ -219,8 +219,11 @@ fn settings_en(a: &mut dyn Assets) -> Option<PictureSettings> {
     // knobs where the original draws them.
     for (setting, x, y, default) in [
         (SliderSetting::AutoWait { ms: 200 }, 133, 405, 600),
-        // guess: TextSpeed's 0-100 ms (the port's text_speed → ms isn't read; not the Japanese 48)
-        (SliderSetting::TextSpeed { ms: 100 }, 133, 483, 550),
+        // src: exe 004b4510 (setTypingSpeed, s = text_speed/1000 = p/1000; s 0 shows the page at
+        // once): a character fades in at (212.5 − 5.3125)(1 − s)^4 + 5.3125 alpha per 16 ms (the
+        // 20 and 800 ms defaults of 004ad1c0), the next 50 alpha later (function_textbox.nut's
+        // voice sync: 255 + 50 a character): 3.76 to 150.6 ms a character
+        (SliderSetting::TextSpeedCurve { fast: 38, slow: 1506 }, 133, 483, 550),
         (SliderSetting::BgmVolume, 588, 65, 200),
         (SliderSetting::SeVolume, 588, 138, 0),
         (SliderSetting::VoiceVolume, 588, 211, 300),
