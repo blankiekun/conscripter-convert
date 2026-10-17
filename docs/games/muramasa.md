@@ -556,7 +556,7 @@ Used to check what the engine does (`docs/new-game.md` step 9).
   end state, not moved; the zoom is about the centre, not
   `SetVertex`'s point. A zoom unlike in x and y (signs 10, 12, 17) is
   keyed in both (`Pass::keyed` fills `MotionKey::zoom_y`; in review,
-  PR "NSS: unlike zooms in process motions"). Left: `EndSong` (12, music with
+  #188). Left: `EndSong` (12, music with
   `if`s), `ma03_024`/`025`/`027vs` `_runsProcess` (23, wait on the
   script: noted).
   **C3** (#171): instead of Lua,
