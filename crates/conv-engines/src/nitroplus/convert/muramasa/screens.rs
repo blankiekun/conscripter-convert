@@ -219,6 +219,7 @@ fn settings_en(a: &mut dyn Assets) -> Option<PictureSettings> {
     // knobs where the original draws them.
     for (setting, x, y, default) in [
         (SliderSetting::AutoWait { ms: 200 }, 133, 405, 600),
+        // guess: TextSpeed's 0-100 ms (the port's text_speed → ms isn't read; not the Japanese 48)
         (SliderSetting::TextSpeed { ms: 100 }, 133, 483, 550),
         (SliderSetting::BgmVolume, 588, 65, 200),
         (SliderSetting::SeVolume, 588, 138, 0),
@@ -267,7 +268,7 @@ fn settings_en(a: &mut dyn Assets) -> Option<PictureSettings> {
         sliders,
         pairs,
         texts: Vec::new(),
-        // guess: fade 300 as the Japanese, pairs at once; not read from sys_config.nut
+        // src: sys_config.nut main (Fade SCREEN over 300 ms, in and out; the toggles' Fade 0)
         fade_ms: 300,
         pair_fade_ms: 0,
         voice_window: None,

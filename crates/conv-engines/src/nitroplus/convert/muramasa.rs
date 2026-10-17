@@ -85,8 +85,8 @@ fn choice_style_en(c: &mut Compiler<'_, '_>, n: i64) -> Option<ChoiceStyle> {
         return Some(ChoiceStyle { window, on_color: 0xA00000, off_color: 0, plates: None });
     }
     let (image, _, _) = c.assets.strip(&[FREE, "cg/sys/select/en/select002.png"])?;
-    // guess: fade_ms 300, not read from function_select.nut
-    let plates = ChoicePlates { image, x: x as i32, y: y as i32, step: PITCH as i32, text_x: (sw / 2) as i32, text_dy: 13, font_size: FONT as u32, colour: "#000000".into(), fade_ms: 300, shot: None };
+    // src: function_select.nut (Fade "choice*/txt", "choice*/free" over 500 ms, in and out)
+    let plates = ChoicePlates { image, x: x as i32, y: y as i32, step: PITCH as i32, text_x: (sw / 2) as i32, text_dy: 13, font_size: FONT as u32, colour: "#000000".into(), fade_ms: 500, shot: None };
     Some(ChoiceStyle { window, on_color: 0, off_color: 0, plates: Some(plates) })
 }
 

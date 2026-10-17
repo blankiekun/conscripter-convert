@@ -19,9 +19,8 @@ is in its own document. Open guesses a frame of the original could
 settle:
 
 - the backlog's speaker icon at x 102 (no voiced row filmed);
-- the settings screen's fades (300 ms, the pairs at once);
+- the text speed's 0-100 ms a character (the exe's mapping not read);
 - the save screen's thumbnails (158×90) and its 300 ms page fade;
-- the choice plates' 300 ms fade;
 - `<small>` text at 75 % (the exe's `CTextEnglish_layout` size isn't
   read yet).
 
