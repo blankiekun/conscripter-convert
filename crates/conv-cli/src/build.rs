@@ -48,7 +48,7 @@ pub fn run(args: BuildArgs, title: &str, output_dirs: &[&str], compile: impl FnO
     let output_dirs = &output_dirs[..];
     check_output(&output, output_dirs, !loose && !dry_run)?;
     let font = read_font(font.as_deref())?;
-    let opts = Opts { output: &output, title, font: &font, dry_run, audio: audio.format()? };
+    let opts = Opts { output: &output, title, font: &font, dry_run, audio: audio.format()?, webp: webp.get() };
     let Built { mut ir, notes, metrics, engine, picture_dirs, audio_dirs, package } = compile(&opts)?;
     ir.version = Some(version::line());
     // A dry run writes the script but no assets (no WebP, no sound).

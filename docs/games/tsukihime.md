@@ -71,18 +71,31 @@ translation).
 `<game-102>`, English from `<game-en>`), about 15 minutes:
 
 ```sh
-conscripter-convert typemoon media <game-102> -o out/tsukihime-cons
+conscripter-convert typemoon media <game-102> -o out/tsukihime-cons \
+  [--webp [--webp-quality 85]] [--audio-codec opus | --audio-quality 4]
 ```
 
-It writes every `allpac` picture once, from its full art (the `.JPG`
-for a bare background, else the larger of a name's two `.NXGZ`), as
-`pic/<name>.webp` (lowercase; lossy WebP quality 85, `--quality`; the
-`RULE_*` masks near-lossless) at the texture's full size; the movies
-as `movie/<name>.mp4`, H.264 1280 × 720 (CRF 23) + AAC; and the sound
-as `typemoon sounds` does (`stream/*.ogg`, `se/*.wav`). Pictures and
-movies already written are kept, so a stopped run goes on. Sizes for
-the Japanese copy: `pic/` 2.37 GB (14,763), `movie/` 182 MB,
-`stream/` 1.3 GB, `se/` 1.4 GB.
+The flags are the other games' (`convert` takes the same, and its
+`0.txt` names the files they write). It writes every `allpac` picture
+once, from its full art (the `.JPG` for a bare background, else the
+larger of a name's two `.NXGZ`), at the texture's full size as
+`pic/<name>.png` (lowercase), or `.webp` with `--webp` (near-lossless)
+or `--webp-quality N` (lossy); the 98 `RULE_*` masks always PNG. The
+movies as they are (H.264 1920 × 1080, remuxed with the index first, not
+re-encoded) as `movie/<name>.mp4`, at their own size as the other
+games' movies. The sound as `typemoon sounds` does: `stream/*.ogg` (the
+game's Opus, repacked, loops as tags) and the wave sounds as
+`se/*.wav` (PCM, loops as `smpl`), or with `--audio-codec opus` /
+`--audio-quality N` (Vorbis) re-encoded as `se/*.ogg` with
+`LOOPSTART`/`LOOPEND`. Pictures and movies already written are kept,
+so a stopped run goes on.
+
+Sizes for the Japanese copy: `stream/` 1.3 GB; `movie/` 1.7 GB; `se/`
+1,395 MB as WAV, 56 MB as Opus (32 kbit/s a channel, the shared
+default), 110 MB as Vorbis q4; `pic/` (14,763) 2.37 GB at
+`--webp-quality 85`. On a sample of 57 pictures (12 sprites, 9 masks,
+36 large backgrounds; 167 MB as PNG) near-lossless WebP is 45 % of PNG
+and lossy q85 10 %: PNG would be about 23 GB, `--webp` about 10 GB.
 
 **The game** (`0.txt` and, unless `--dry-run`, the media folder below
 in the same output; `--loose` keeps the folders, else they are packed
@@ -609,7 +622,7 @@ Nothing yet.
 | Exe (`main`) in Ghidra | ✅ decompiles; dispatcher, the top commands' handlers, the music, picture and motion tables named |
 | Exe tables (pictures, motions, scene numbers) | ✅ read from the NSO (`typemoon exe`); picture sizes checked against the textures |
 | Scripts | 🔶 read: every command of both languages splits (one malformed in the original) and its text and voices join; the top commands' arguments read from the exe, the rest not yet |
-| Media folder (`typemoon media`) | ✅ `allpac`'s pictures as full-size WebP (2.37 GB), movies at 720p, sound |
+| Media folder (`typemoon media`) | ✅ `allpac`'s pictures at full size (PNG, or WebP with the shared `--webp` flags), the movies as they are, the sound (WAV wave sounds, or Opus/Vorbis with the shared `--audio-*` flags), loops kept in every mode |
 | Script conversion (`typemoon convert`) | 🔶 the flow (labels, `_JUMP`, `_IF__`, flags), text (pages, ruby, voices), pictures (`_STCH`/`_STCC`/`_FADS`: record size and place, fades and rule wipes), sound effects and music; plays from the start through `00_00` into the first arc headless. Layers drawn in priority order (`_STCP`, `_STCH` argument 6), changed keeping their settings (`_SCH2`) or copying another layer's (argument 18), zoomed (`_STZ4`), faded (`_STGS`) and moved (`_STMA`, the exe's motions; easing, priority and expression keys not followed), children placed in their parent layers, orbiting with their turn and following their motions (`_STCH` argument 11), clipped to their panels (`_STCH` arguments 12–16), turned (`_STRT`), drawn with their shader as far as CONscripter's blends and filters go (`_STBR`) and drawn with their `_STEC` effect (levels, greyscale and colour layers; effect 1 a colour fill, CONscripter's `spfilter` 9 and 10). Choices (`_SELR`, `_SELD`, `_GOTS`; options under a flag offered by it, greyed ones shown greyed and not selectable (`seldisable`); the chapter-jump menus), `_GOTO` and the Switch's own branches (`_IFNX`/`_IFP4`). The text window hidden and faded (`_CLO2`, `_CLO3`/`_CLO4`/`_CLO5` with CONscripter's `windowfade`, the script going on; the next text fades it back in). Not yet: the other layer commands, screens |
 | Screens, extras | ❌ |
 
@@ -666,6 +679,18 @@ The biggest commands not converted, looked up in `script_command`
 
 ## History
 
+- 2026-10-17: media flags as the other games' (the user's choice): no
+  re-encode by default. Pictures PNG, `--webp`/`--webp-quality`
+  WebP (was lossy q85 always); the `RULE_*` masks always PNG, exact.
+  Movies remuxed at 1080p (were re-encoded at 720p, 182 MB; the
+  title background `titlebg2` is 150 MB as is, 2.3 MB at 720p CRF 23).
+  Wave sounds WAV with `smpl`, `--audio-codec opus` / `--audio-quality`
+  re-encode with loop tags. Vorbis loops checked as Opus: CONscripter
+  reads its `LOOPSTART`/`LOOPEND` comments (`soundLoop`); a test pulse
+  decodes at shift 0; the disk-audio `dwaveloop` of
+  `WSD_mix_se032.ogg` repeats exactly every 10,603 frames; one of the
+  196 looping files (`WSD_moon_se02067`, a loop from 0) decodes 128
+  frames short of its end, which the engine then loops whole.
 - 2026-10-17: `_SCH2` (4,674 uses) and `_STCH` argument 18, **seen**:
   both are `FUN_00160840` (0x160840), `_SCH2` with its first parameter
   0, which keeps the layer's alpha (0 on a layer with no picture),

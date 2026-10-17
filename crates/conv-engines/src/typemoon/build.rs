@@ -44,9 +44,11 @@ pub fn build(romfs: &Path, main: &Path, opts: &Opts) -> Result<Built> {
     let pictures: HashMap<String, exe::Picture> = exe.pictures()?.into_iter().map(|p| (p.name.to_lowercase(), p)).collect();
     let textures = textures(romfs, &pictures)?;
     let bfsar = map(&romfs.join("knife1.bfsar"))?;
-    let waves = bfsar::wave_sounds(&bfsar)?.into_iter().map(|w| (w.name.trim_start_matches("WSD_").to_uppercase(), w.name)).collect::<HashMap<_, _>>();
+    let ext = if opts.audio.reencodes() { "ogg" } else { "wav" }; // as `typemoon sounds` writes them
+    let waves = bfsar::wave_sounds(&bfsar)?.into_iter().map(|w| (w.name.trim_start_matches("WSD_").to_uppercase(), format!("{}.{ext}", w.name))).collect::<HashMap<_, _>>();
     let sounds = stream_names(romfs, bfsar::sound_names(&bfsar)?)?;
-    let game = Game { scripts, scenes: exe.scenes()?, lines, pictures, textures, sounds, waves, motions: exe.motions()? };
+    let pic_ext = if opts.webp.is_some() { "webp" } else { "png" }; // as `typemoon media` writes them
+    let game = Game { scripts, scenes: exe.scenes()?, lines, pictures, textures, sounds, waves, pic_ext, motions: exe.motions()? };
     let compiled = convert::compile(&game);
     if !opts.dry_run {
         window(romfs, &opts.output.join(WINDOW))?;

@@ -26,6 +26,9 @@ pub struct Opts<'a> {
     pub dry_run: bool,
     /// For voices and sound effects an engine converts itself.
     pub audio: AudioFormat,
+    /// For pictures an engine writes itself: None for PNG, else WebP
+    /// (`--webp`) with its lossy quality, if any (`--webp-quality`).
+    pub webp: Option<Option<u8>>,
 }
 
 /// A compiled game, its assets written.
