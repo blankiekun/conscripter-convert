@@ -610,7 +610,7 @@ Nothing yet.
 | Exe tables (pictures, motions, scene numbers) | ✅ read from the NSO (`typemoon exe`); picture sizes checked against the textures |
 | Scripts | 🔶 read: every command of both languages splits (one malformed in the original) and its text and voices join; the top commands' arguments read from the exe, the rest not yet |
 | Media folder (`typemoon media`) | ✅ `allpac`'s pictures as full-size WebP (2.37 GB), movies at 720p, sound |
-| Script conversion (`typemoon convert`) | 🔶 the flow (labels, `_JUMP`, `_IF__`, flags), text (pages, ruby, voices), pictures (`_STCH`/`_STCC`/`_FADS`: record size and place, fades and rule wipes), sound effects and music; plays from the start through `00_00` into the first arc headless. Layers drawn in priority order (`_STCP`, `_STCH` argument 6), zoomed (`_STZ4`), faded (`_STGS`) and moved (`_STMA`, the exe's motions; easing, priority and expression keys not followed), children placed in their parent layers, orbiting with their turn and following their motions (`_STCH` argument 11), clipped to their panels (`_STCH` arguments 12–16), turned (`_STRT`), drawn with their shader as far as CONscripter's blends and filters go (`_STBR`) and drawn with their `_STEC` effect (levels, greyscale and colour layers; effect 1 a colour fill, CONscripter's `spfilter` 9 and 10). Choices (`_SELR`, `_SELD`, `_GOTS`; options under a flag offered by it, greyed ones left out; the chapter-jump menus), `_GOTO` and the Switch's own branches (`_IFNX`/`_IFP4`). The text window hidden and faded (`_CLO2`, `_CLO3`/`_CLO4`/`_CLO5` with CONscripter's `windowfade`, the script going on; the next text fades it back in). Not yet: the other layer commands, screens |
+| Script conversion (`typemoon convert`) | 🔶 the flow (labels, `_JUMP`, `_IF__`, flags), text (pages, ruby, voices), pictures (`_STCH`/`_STCC`/`_FADS`: record size and place, fades and rule wipes), sound effects and music; plays from the start through `00_00` into the first arc headless. Layers drawn in priority order (`_STCP`, `_STCH` argument 6), changed keeping their settings (`_SCH2`) or copying another layer's (argument 18), zoomed (`_STZ4`), faded (`_STGS`) and moved (`_STMA`, the exe's motions; easing, priority and expression keys not followed), children placed in their parent layers, orbiting with their turn and following their motions (`_STCH` argument 11), clipped to their panels (`_STCH` arguments 12–16), turned (`_STRT`), drawn with their shader as far as CONscripter's blends and filters go (`_STBR`) and drawn with their `_STEC` effect (levels, greyscale and colour layers; effect 1 a colour fill, CONscripter's `spfilter` 9 and 10). Choices (`_SELR`, `_SELD`, `_GOTS`; options under a flag offered by it, greyed ones left out; the chapter-jump menus), `_GOTO` and the Switch's own branches (`_IFNX`/`_IFP4`). The text window hidden and faded (`_CLO2`, `_CLO3`/`_CLO4`/`_CLO5` with CONscripter's `windowfade`, the script going on; the next text fades it back in). Not yet: the other layer commands, screens |
 | Screens, extras | ❌ |
 
 ### Next
@@ -627,10 +627,8 @@ Nothing yet.
 5. The metrics (`tests/snapshots/tsukihime.metrics.json`) count each
    argument a converted command passes and doesn't read as a gap
    (`<command> argument <i> ignored`, `option <n>` for a backquote
-   option); the list is in that file. The biggest: `_STZ4` on a layer not staged (2,418,
-   dropped: the exe sets the live layer at once, `FUN_00131f30` on
-   `DAT_00be0258`; how that meets `_FADS` not worked out) and its 2
-   timed uses, `_VPLY` 1, `_WTTM` 1, `_SEPL` option 17.
+   option); the list is in that file. The biggest: `_STZ4`'s 2 timed uses (and 14 on
+   layers with no picture), `_VPLY` 1, `_WTTM` 1, `_SEPL` option 17.
 
 ### Accuracy
 
@@ -667,6 +665,21 @@ The biggest commands not converted, looked up in `script_command`
   out.
 
 ## History
+
+- 2026-10-17: `_SCH2` (4,674 uses) and `_STCH` argument 18, **seen**:
+  both are `FUN_00160840` (0x160840), `_SCH2` with its first parameter
+  0, which keeps the layer's alpha (0 on a layer with no picture),
+  priority and turn where `_STCH` sets 255, layer × 10 and 0, and
+  skips the live layer's reset (`FUN_00131f00`) and the tint's.
+  Argument 18 first copies another layer's settings (place 0xa4/0x144,
+  alpha 0x1e4, priority 0x234, turn 0x284/0xbe4, zoom 0x324, `_STZ4`'s
+  0x7d4/0x824/0x874, parent 0x89c, clip 0xa2c, tint 0x16da, motion
+  0xc34), and every layer whose parent was that layer gets this one.
+  The scripts change a character's expression this way (`_SCH2(19,
+  ari_…,…,16)`, then `_STCP(16,0)` and a cross-fade). The 2,418
+  `_STZ4` and 330 `_STRT` "on a layer not staged" were these layers:
+  14 and 5 are left. The motion isn't copied (the converter's runs at
+  its `_FADS`).
 
 - 2026-10-17: `_STRT(layer, from, to, ms, ease, cx, cy)`
   (`FUN_00162b20`), **seen**: `FUN_001326e0` sets the live layer's turn
