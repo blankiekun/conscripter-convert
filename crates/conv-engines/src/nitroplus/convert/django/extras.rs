@@ -65,7 +65,6 @@ pub fn extras(a: &mut dyn Assets, story: &Story) -> Option<PictureExtras> {
         sound: sound(a),
         replay: replay(a, story),
         turntable: None,
-        engine_screen: false,
     })
 }
 

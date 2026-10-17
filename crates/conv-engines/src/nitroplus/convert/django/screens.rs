@@ -218,7 +218,7 @@ fn line_log(a: &mut dyn Assets) -> Option<LineLog> {
         fade_ms: 300,
         outline: Some("#AAAA88".into()),
         row_width: None,
-        engine_screen: false,
+        engine_screen: true,
     })
 }
 
@@ -340,7 +340,7 @@ fn save_grid(a: &mut dyn Assets) -> Option<SaveGrid> {
         quick_page: false,
         play_time_prefix: String::new(),
         play_time_hm: false,
-        engine_screen: false,
+        engine_screen: true,
     })
 }
 
