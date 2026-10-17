@@ -849,16 +849,10 @@ Next, in order:
      after the call, or moved to a new layer) restarts its rest straight,
      without the tempo, and a picture cut to the screen loses its part's
      phase offset.
-   - `CreateStencil` (59): started on branch `nitroplus/stencil` (no PR
-     yet). The exe (`00409fa0`): mode 128 (every call) turns the picture
-     into its alpha; `false` leaves the object a container (a wildcard
-     doesn't reach its children). The branch cuts each child's picture by
-     the stencils over it at convert time (`Assets::stenciled`, zoom
-     about the centre), the cut kept while the stencil stays, so moves
-     and zooms stay engine motions. Left: check frames (ma04_013vs's red
-     silhouette, ma05_019's spider, ma02_009vs's zoomed bg201), snapshots
-     (Muramasa and EN change: pictures under an opaque child no longer
-     culled), the Status, and a `Plain` cover under a stencil (noted only).
+   - `CreateStencil` (59), converted ("History", "`CreateStencil`"):
+     left a picture moved or zoomed over time under a stencil (none in
+     this game), a zoom about a vertex (cut as about the centre) and a
+     `Plain` cover under a stencil (noted only).
    - `CreateMask` (31),
      `SetSurface`/`CreateSurface`, `LoadImage` as a texture source
      (Muramasa leaves `loaded_textures` off).
@@ -922,6 +916,28 @@ Next, in order:
   held (seen once in a small test script; not looked into).
 
 ## History
+
+### `CreateStencil` (2026-10-17)
+
+The exe (`00409fa0`): mode 128 (every call) turns the picture into its
+alpha; `false` leaves the object a container (a wildcard doesn't reach
+its children, which sit at their own place). The converter cuts each
+child's picture by the stencils over it (`Assets::stenciled`, a zoom
+about the centre), kept while the picture, its place and zoom and the
+stencils' places stay the same; a child created off the screen and
+moved in (`CreateColorEX`, `CreateTextureEXover`) is cut where it ends
+up. Checked in our build (out of 89 cuts, one empty: a one-frame
+intermediate in mb03_011): ma04_013vs's red and blood over each
+standing picture (seen: 皇路's red cut has exactly the picture's 83617
+opaque pixels at its place; this was empty before the place was in the
+cut's key), ma05_019's spider (seen: the event picture only inside the
+spider, its wave on), ma02_009vs's zoomed bg201 inside 月山 (seen). Not
+compared with the original (no wine run). Inferred, not checked:
+ma04_013vs's `DrawTransition` of the red to 200 through
+`slide_02_01_0.png` is drawn as a plain 20 % opacity (the transition's
+mask isn't kept at the end, an older gap). Snapshots: Muramasa and EN
+change (the cut pictures; inferred: pictures under a cut child are
+no longer culled as under an opaque one).
 
 ### Processes: one-shots on paper (C2, 2026-10-16, #151)
 
