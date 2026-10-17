@@ -376,10 +376,11 @@ with the original (it wants all eleven endings' flags under wine).
 1. The trace checker's remaining findings: "sounds on two channels at
    once" are the script's own (the same shot or horse on two sound
    objects, started 500 ms apart) and stay.
-2. The 23 moves and zooms still drawn as cross-fades (dry run notes,
-   2026-10-16): 2 zooms between two pictures both cut to the screen, 9 movies,
-   9 turned over or given a new picture as they move (`spgrab` could
-   fade the old one out), 3 fades that change layer.
+2. The 14 moves and zooms still drawn as cross-fades (dry run notes,
+   2026-10-16): 2 zooms between two pictures both cut to the screen, 9
+   movies, 3 fades that change layer or picture. A motion is cut short
+   when the layers spread out again at the next change (dja022's
+   expressions: the picture is placed anew at its end).
 3. Extras: the doors' animation and the menu's own music (left out).
 4. From the exe's coverage table ("The exe"): `SetShade HEAVY` (one use).
 5. The unread-argument notes (`<Builtin> argument <i> ignored`;
@@ -428,6 +429,17 @@ with the original (it wants all eleven endings' flags under wine).
    NSS code; noted, drawn as nothing.
 
 ## History
+
+- **A picture replaced or turned over as it moves (2026-10-16, shared
+  NSS code).** A `CreateTexture` of the same name with another picture
+  (an expression, a CG) or a turn over at once while a move or zoom is
+  pending was a cross-fade. The exe replaces the picture at once, so now
+  the new picture is placed where the old one was (its size from the
+  new picture at the old zoom, about the old centre) and moves from
+  there, as a move onto another layer (#175). No `spgrab` needed. Dry
+  run: 23 → 14 notes. Checked with `--shot-effects` in dja001
+  (`*conv_title_start:1896`): Eliza, turned to face right, slides in
+  from the left during the scene's 500 ms cross-fade.
 
 - **A zoom out of a picture cut to the screen (2026-10-16, shared NSS
   code).** A picture zoomed past 4096 px is drawn as only its part on

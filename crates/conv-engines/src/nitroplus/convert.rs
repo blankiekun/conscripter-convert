@@ -4334,6 +4334,26 @@ scene a.nss
     }
 
     #[test]
+    fn a_picture_replaced_as_it_moves_is_the_new_one_moving_from_the_old_place() {
+        let story = r#"
+scene a.nss
+{
+	CreateTexture("a", 100, 0, 0, "cg/st/a.png");
+	Wait(100);
+	CreateTexture("a", 100, 0, 0, "cg/st/b.png");
+	Move("a", 500, @100, @0, null, false);
+	Wait(600);
+}
+"#;
+        let c = compile(story, LIBRARY);
+        let at = c.ops.iter().position(|op| matches!(op, Op::SpriteMotion2 { .. })).unwrap_or_else(|| panic!("{:?}", c.ops));
+        let Op::SpriteMotion2 { keys, .. } = &c.ops[at] else { unreachable!() };
+        assert_eq!((keys[0].x, keys[1].x, keys[0].zoom), (-100, 0, 100), "{keys:?}");
+        assert!(matches!(&c.ops[at - 1], Op::Sprites { changes, .. } if changes.iter().any(|ch| ch.sprite.as_ref().is_some_and(|s| s.image == "cg/st/b.png"))), "{:?}", c.ops);
+        assert!(!c.notes.keys().any(|n| n.contains("cross-fade")), "{:?}", c.notes);
+    }
+
+    #[test]
     fn a_face_slides_with_its_frame() {
         // `WindowMoveM` moves only the frame (dja003_02): its face, placed
         // from it, moves by the engine with it, not at once to its end.
