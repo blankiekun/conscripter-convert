@@ -380,6 +380,25 @@ with the original (it wants all eleven endings' flags under wine).
 | Saves | 🟡 `--roundtrip-every 100` over the first 1,500 pages: no save/load mismatch; saves from the screens not tried by hand |
 | Web build | 🟡 Plays in a browser (title, story pages); saves, sound and touch not checked yet |
 
+### Accuracy (value audit, 2026-10-17)
+
+Every hand-typed value in `convert/django.rs` and `convert/django/`
+carries its source (`// src:`, `// guess:`, `// ours`). Fixed: the save
+screen's last line in `SetFont`'s 19 px (18 characters, was 18 px, 19),
+リリィ's name plate in the CG library's open category 6 px up, as at
+rest. Open guesses, each settled by a frame of the original:
+
+- The log's knob travel (its top from y 90 to 460; `CreateScrollbar`'s
+  646, 490 to 646, 90 may be the knob's centre).
+- The click-wait bullet's frame time (50 ms; not in the files).
+- The text speed's unit (50 ms a character at level 10).
+- The game speed table, 装甲悪鬼村正's (Django's `Wait` divides inline).
+- A frame (`Draw`) as 17 ms in `GunFire` and the strobe.
+
+One value where the original has two: the save screen opens over
+200 ms and closes over 300 (ours 300 both); the settings' pairs fade
+over 200, their bullets at once (ours at once both).
+
 ### Next
 
 1. The trace checker's remaining findings: "sounds on two channels at

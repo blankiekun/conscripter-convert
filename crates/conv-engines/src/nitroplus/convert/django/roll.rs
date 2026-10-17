@@ -21,7 +21,7 @@ const IMAGE: &str = "cg/sys/good/EDROLL.jpg";
 const SONG: &str = "@dj_INS01";
 /// The closing song, after the insert song.
 const NEXT: &str = "@dj_INS11";
-const AFTER_MS: u32 = 6000;
+const AFTER_MS: u32 = 6000; // src: dja056_09 ProcessRoll
 
 impl Compiler<'_, '_> {
     /// `CreateProcess(…, "ProcessRoll")`, `Request(…, Start)` of it, its
@@ -64,7 +64,7 @@ impl Compiler<'_, '_> {
         self.builtin("CreateTexture", &[Value::Str(PICTURE.into()), Value::Int(100), Value::Int(0), Value::Int(300), Value::Str(IMAGE.into())]);
         self.sync(0);
         let Some(o) = self.objects.get_mut(PICTURE) else { return };
-        let dy = 235 - o.h;
+        let dy = 235 - o.h; // src: ProcessRoll: -(height + 65 - 300)
         o.y += dy;
         let Some(sh) = self.shown.get_mut(PICTURE) else { return };
         sh.y += dy;

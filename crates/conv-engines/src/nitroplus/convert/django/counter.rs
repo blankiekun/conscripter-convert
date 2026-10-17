@@ -25,16 +25,17 @@ use conv_core::ir::Op;
 use super::super::{Compiler, Kind, StripObject, Value};
 
 const DIR: &str = "cg/sys/count";
-/// The counter's window.
+/// The counter's window. src: function_count.nss (window, places, 52 px digits,
+/// fly-ins, shakes, 380 and 2000 ms).
 const WINDOW: (i64, i64, u32, u32) = (296, 10, 194, 52);
 /// The places' x in the window: hundreds, tens, ones.
 const PLACES: [i64; 3] = [50, 82, 114];
 const DIGIT_H: i64 = 52;
 /// A frame of the counter's strips.
-const FRAME_MS: u32 = 33;
+const FRAME_MS: u32 = 33; // ours
 /// The fade-in's and fade-out's: x 80-720, y 0-168, drawn at half size.
-const FLY: (i64, i64, u32, u32) = (80, 0, 640, 168);
-const FLY_FRAME_MS: u32 = 50;
+const FLY: (i64, i64, u32, u32) = (80, 0, 640, 168); // ours
+const FLY_FRAME_MS: u32 = 50; // ours
 /// The count at which the digits fade out, over [`GONE_MS`].
 const GONE_AT: i64 = 380;
 const GONE_MS: u32 = 2000;

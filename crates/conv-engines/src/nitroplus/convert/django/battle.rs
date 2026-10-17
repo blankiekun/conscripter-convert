@@ -21,8 +21,8 @@ use super::super::{Compiler, FlashObject, Kind, Value};
 /// `Fire`'s colour object, its priority, and the time a `Draw` takes (a
 /// frame at 60 a second).
 const FLASH: &str = "仮色";
-const FLASH_PRIORITY: i64 = 150;
-const FRAME_MS: u32 = 17;
+const FLASH_PRIORITY: i64 = 150; // src: function_count.nss Fire
+const FRAME_MS: u32 = 17; // guess: a frame at 60 a second
 
 /// `PushInit`'s pictures, shown in turn by `PushShow`.
 const PROMPT: [&str; 10] = [
@@ -58,6 +58,7 @@ impl Compiler<'_, '_> {
             self.note("VS400 of a missing movie");
             return true;
         };
+        // src: function_count.nss PushInit (690,20), PushShow (Wait 100), VS400 (SetVolume 500)
         let prompt = self.assets.strip(&PROMPT).map(|(image, _, _)| HoldPrompt { image, x: 690, y: 20, cells: PROMPT.len() as u32, frame_ms: 100 });
         let fade_ms = if keep.int() == 0 { 500 } else { 0 };
         let sound = self.assets.sound(&format!("sound/se/{}", sound.string())).map(|file| HoldSound { file, fade_ms });

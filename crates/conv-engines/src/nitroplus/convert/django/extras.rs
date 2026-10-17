@@ -38,6 +38,7 @@ pub fn flags(_: &BTreeMap<String, NssFile>) -> Vec<String> {
 /// nothing; ours keeps the title's).
 pub fn extras(a: &mut dyn Assets, story: &Story) -> Option<PictureExtras> {
     const DIR: &str = "cg/sys/extra/menu";
+    // src: extra_menu.nss (places; Fade("blk", 500))
     let mut parts = Vec::new();
     for (name, x, y) in [("extramenu背景.png", 0, 0), ("extramenu扉01.png", 89, 58)] {
         parts.push((a.image(&format!("{DIR}/{name}"))?.0, x, y, 1000));
@@ -176,17 +177,18 @@ fn gallery(a: &mut dyn Assets, story: &Story) -> Option<PictureGallery> {
     };
     let table = slots(story.files);
     let mut categories = Vec::new();
+    // src: extra_cg.nss chara_btn (x; face at y 440, plate at 500, リリィ's 名前001 6 px up)
     for (c, (name, x)) in [("フランコ", 76), ("リリィ", 202), ("名無し", 376), ("OTHERS", 508), ("ART", 616)].into_iter().enumerate() {
         // The button: face and name plate, three cells (at rest, under the
         // pointer, open: the face's silhouette over the plate at rest).
-        // リリィ's plate at rest is 6 px higher (and taller).
+        // リリィ's plate at rest (`plate_リリィ` under the open face too) is 6 px higher (and taller).
         let (face, w, _) = a.image(&format!("{DIR}/{name}顔001.png"))?;
         let (open, _, _) = a.image(&format!("{DIR}/{name}顔003.png"))?;
         let mut parts = Vec::new();
         for (k, (face, plate)) in [(&face, 1), (&face, 2), (&open, 1)].into_iter().enumerate() {
             let (plate, _, _) = a.image(&format!("{DIR}/{name}名前{plate:03}.png"))?;
             let dx = (k as u32 * w) as i64;
-            let dy = if name == "リリィ" && k == 0 { 54 } else { 60 };
+            let dy = if name == "リリィ" && k != 1 { 54 } else { 60 };
             parts.push((face.clone(), dx, 0, 1000));
             parts.push((plate, dx, dy, 1000));
         }
@@ -199,6 +201,7 @@ fn gallery(a: &mut dyn Assets, story: &Story) -> Option<PictureGallery> {
             for picture in s.pictures.values().take(s.count as usize) {
                 let Some((image, w, h)) = a.image(&format!("cg/{picture}.jpg")) else { continue };
                 let (w, h) = (w as i64, h as i64);
+                // src: show_pic: larger than the screen, zoomed to 500 and centred
                 let picture = if w > 800 || h > 600 {
                     let (image, _, _, w, h) = a.scaled(&image, 500, 500, (0, 0, w, h))?;
                     let (w, h) = (w as i32, h as i32);
@@ -217,6 +220,7 @@ fn gallery(a: &mut dyn Assets, story: &Story) -> Option<PictureGallery> {
     // No cursor: a see-through cell over a thumbnail, as the button.
     let clear = a.transparent();
     let (cursor, _, _) = a.composite(&[(clear.clone(), 0, 0, 1000), (clear, 199, 74, 1000)])?;
+    // src: extra_cg.nss (buttons, thumbnails from 130,80, 110 and 86 apart; blk 500; show_pic's fades 300)
     Some(PictureGallery {
         background: a.image(&format!("{DIR}/CG-背景.jpg"))?.0,
         categories,
@@ -236,8 +240,8 @@ fn gallery(a: &mut dyn Assets, story: &Story) -> Option<PictureGallery> {
         page_ms: 0,
         view_fade_ms: 300,
         close_ms: 300,
-        // 3 s over the half-size picture's part below the screen (about
-        // 470 px for the tallest).
+        // src: show_pic's Move over 3000 ms, here per pixel of the half-size
+        // picture's part below the screen (about 470 px for the tallest).
         scroll_ms_per_px: 6,
         across: true,
         arrows_when_paged: true,
@@ -295,6 +299,8 @@ const SONGS: [&str; 35] = [
 /// over 2 s in the original.
 fn sound(a: &mut dyn Assets) -> Option<SoundRoom> {
     const DIR: &str = "cg/sys/extra/sound";
+    // src: extra_sound.nss (titles from 136,92 and 438,92, 20 apart; uma 11 frames, 50 ms, x - 34;
+    // EXIT 702,538; blk 500; SetVolume("@dj*", 1000, 0))
     let mut tracks = Vec::new();
     for (i, song) in SONGS.iter().enumerate() {
         let state = |n: u32| format!("cg2/sys/extra/sound/kyoku/sound-{:03}-{n:03}.png", i + 1);
@@ -378,6 +384,7 @@ fn replay(a: &mut dyn Assets, story: &Story) -> Option<PictureReplay> {
     let (exit, w, h) = a.strip(&[&format!("{DIR}/EXIT001.png"), &format!("{DIR}/EXIT002.png"), &format!("{DIR}/EXIT003.png")])?;
     let clear = a.transparent();
     let (cursor, _, _) = a.composite(&[(clear.clone(), 0, 0, 1000), (clear, 199, 74, 1000)])?;
+    // src: extra_recollection.nss (from 130,80, 110 and 86 apart, five a row; EXIT 702,536; blk 500)
     Some(PictureReplay {
         background: a.image(&format!("{DIR}/エクストラレコレ背景.jpg"))?.0,
         exit: Placed { image: exit, x: 702, y: 536, w: w as i32, h: h as i32 },

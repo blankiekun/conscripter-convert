@@ -12,7 +12,7 @@ use super::super::text_object::{Style, draw};
 use super::super::{Compiler, Kind, StripObject, Value};
 
 /// The time a letter takes, measured under wine (100 of it the dot).
-const LETTER_MS: u32 = 125;
+const LETTER_MS: u32 = 125; // src: shot d26 (wine)
 
 /// Where a line's letters wait for its `Enter`.
 fn key(name: &str) -> String {
