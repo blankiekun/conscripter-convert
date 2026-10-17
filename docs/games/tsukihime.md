@@ -369,18 +369,21 @@ addresses in `research/typemoon/names.tsv` are those of the 1.0.2
   by `_FADS`. Arguments are expressions (`FUN_00102d3c`); `FUN_00102b24`
   splits at most 20 of them.
   - `_STCH` (`FUN_00160840`): 0 layer; 1 picture (empty: clear the
-    layer); 2 x and 3 y (kept as x·640/1280 and y·480/720); 4 → the
+    layer); 2 x and 3 y (kept as x·640/1280 and y·480/720; one left out
+    keeps the layer's, or the copied layer's); 4 → the
     layer's 0x324, a zoom in ‰ (default 1000) multiplied with
     `_STZ4`'s at the draw; 5 alpha 0–255 (default 255); 6
     priority (draw order; default layer × 10, as `_STCP`); 7 and 8
-    (`CC`) never read (see History, 2026-10-17); 9 and 10 the expression: when either is set,
-    `_a_b` (two digits each) is added to the name, and both default to
-    the numbers of the picture already on the layer; 11 a parent layer
+    (`CC`) never read (see History, 2026-10-17); 9 and 10 the expression: unless both are 0,
+    `_a_b` (two digits each) is added to the name; one left out is 0,
+    or with argument 18 the copied layer's (read from its picture's
+    name, `_xx_yy` at its end), even with neither given; 11 a parent layer
     (−1 none) whose clip and settings it copies; 12–15 four shorts
     (a clip rectangle?), 16 and 17 two more; 18 a layer to copy every
     setting from; 19 rotation in 1/100°.
   - `_STCC(n)` (`FUN_00162140`) clears layer `n` (no argument: 0,
-    negative: all 40).
+    negative: all 40), its priority to 0 (so a `_SCH2` after it without
+    argument 6 isn't drawn).
   - `_STCP(layer, p)` (`FUN_00162a40`) sets the layer's priority.
   - `_STZ4(layer, x0, y0, x1, y1, ms, e, f)` (`FUN_00162d20`): zoom in
     ‰ from (x0, y0) (default: the current zoom) to (x1, y1) over `ms`
