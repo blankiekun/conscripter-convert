@@ -9,7 +9,7 @@
 
 use std::fmt::Write as _;
 
-use conv_core::ir::{CgGallery, ExtrasMenu, MusicRoom, Placed, SceneReplay};
+use conv_core::ir::{CgGallery, ExtrasMenu, MovieRoom, MusicPlayer, MusicRoom, Placed, SceneReplay};
 
 use crate::screens::{image, lua};
 use crate::{replay, CG_SEEN, PROGRESS, SCENE_UNLOCKED};
@@ -29,6 +29,9 @@ pub(crate) fn files(m: &ExtrasMenu) -> Vec<(String, String)> {
     }
     if let Some(music) = m.music.as_ref().filter(|_| m.engine_screen) {
         files.push(("music.lua".to_string(), music_lua(music, &m.background)));
+    }
+    if let Some(movies) = m.movies.as_ref().filter(|_| m.engine_screen) {
+        files.push(("movies.lua".to_string(), movies_lua(movies, &m.background)));
     }
     files
 }
@@ -211,20 +214,116 @@ fn music_lua(m: &MusicRoom, bg: &str) -> String {
     add(&mut out, image("button", &m.exit, ", cells=2, action={\"close\"}"));
     for (i, s) in m.songs.iter().take(crate::music::MAX_SONGS).enumerate() {
         let widget = format!(
-            "{{\"radio\", file={}, on_file={}, cells=2, x={}, y={}, var={}, value={}, action={{\"bgm\", {}}}}}",
+            "{{\"radio\", file={}, on_file={}, cells=2, x={}, y={}, var={}, value={}, action={{{}}}}}",
             lua(&s.button.image),
             lua(&s.playing),
             s.button.x,
             s.button.y,
             lua(crate::music::PLAYING),
             i + 1,
-            lua(&s.file)
+            if m.player.is_some() { format!("\"gosub\", \"*{}\"", crate::music::PLAY_SONG) } else { format!("\"bgm\", {}", lua(&s.file)) }
         );
         match s.progress {
             Some(bit) => writeln!(out, "if var({}) == 1 then add{widget} end", lua(&PROGRESS.at(bit))).unwrap(),
             None => add(&mut out, widget),
         }
     }
+    if let Some(p) = &m.player {
+        player(&mut out, p);
+    }
     out.push_str("return {kind=\"extras\", widgets=w}\n");
     out
+}
+
+/// The music room's player bar ([`MusicPlayer`]): its buttons run
+/// [`crate::music::screen_labels`]' labels; the play button is a toggle
+/// on the song playing, lit while one plays (0: off), which it sets to 0
+/// (stop) or -1 (play the last again); the volume a picture slider.
+fn player(out: &mut String, p: &MusicPlayer) {
+    use crate::music::{NEXT_SONG, PLAYING, PREVIOUS_SONG, TOGGLE, VOLUME, VOLUME_SET};
+    let gosub = |label: &str| format!(", cells=2, action={{\"gosub\", \"*{label}\"}}");
+    add(out, image("button", &p.previous, &gosub(PREVIOUS_SONG)));
+    add(out, format!("{{\"toggle\", file={}, on_file={}, cells=2, x={}, y={}, var={}, on=0, off=-1, action={{\"gosub\", \"*{TOGGLE}\"}}}}", lua(&p.playing), lua(&p.play.image), p.play.x, p.play.y, lua(PLAYING)));
+    add(out, image("button", &p.next, &gosub(NEXT_SONG)));
+    let (b, k) = (&p.bar, &p.knob);
+    let side = |q: &Placed| format!("{{file={}, cells=2, x={}, y={}}}", lua(&q.image), q.x, q.y);
+    add(
+        out,
+        format!(
+            "{{\"slider\", var={}, min=0, max=100, step=10, travel={}, knob={{file={}, x={}, y={}}}, track={{x={}, y={}, w={}, h={}}}, minus={}, plus={}, action={{\"gosub\", \"*{VOLUME_SET}\"}}}}",
+            lua(VOLUME),
+            p.knob_travel,
+            lua(&k.image),
+            k.x,
+            k.y,
+            b.x,
+            b.y,
+            b.w,
+            b.h,
+            side(&p.lower),
+            side(&p.raise)
+        ),
+    );
+}
+
+/// The movie room: a button per movie (left out until a scene has played
+/// it, unless always open) closing with its number, which
+/// [`crate::movies::screen_labels`] plays.
+fn movies_lua(m: &MovieRoom, bg: &str) -> String {
+    let mut out = prelude("The movie room, from MovieRoom");
+    out.push_str(&background(m.background.as_deref().unwrap_or(bg)));
+    add(&mut out, image("button", &m.exit, ", cells=2, action={\"close\"}"));
+    for (i, movie) in m.movies.iter().take(crate::movies::MAX_MOVIES).enumerate() {
+        let widget = image("button", &movie.button, &format!(", cells=2, action={{\"close\", {}}}", i + 1));
+        if movie.open {
+            add(&mut out, widget);
+        } else {
+            writeln!(out, "if var({}) == 1 then add{widget} end", lua(&crate::movies::SEEN.at(i as u32))).unwrap();
+        }
+    }
+    out.push_str("return {kind=\"extras\", widgets=w}\n");
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    use conv_core::ir::{MovieRoom, MusicPlayer, MusicRoom, MusicSong, Placed, Rect, RoomMovie};
+
+    fn placed(image: &str, x: i32) -> Placed {
+        Placed { image: image.into(), x, y: 10, w: 20, h: 20 }
+    }
+
+    #[test]
+    fn player_and_movie_room_become_widgets() {
+        let song = |i: i32| MusicSong { button: placed(&format!("s{i}"), 0), playing: format!("s{i}_on"), file: format!("bgm/{i}.ogg"), progress: None };
+        let player = MusicPlayer {
+            previous: placed("prev", 100),
+            play: placed("play", 130),
+            playing: "play_on".into(),
+            next: placed("next", 160),
+            lower: placed("lower", 200),
+            raise: placed("raise", 500),
+            bar: Rect { x: 220, y: 10, w: 270, h: 20 },
+            knob: placed("knob", 225),
+            knob_travel: 250,
+        };
+        let room = MusicRoom { header: placed("h", 0), exit: placed("x", 0), songs: vec![song(0), song(1)], background: None, player: Some(player) };
+        let lua = super::music_lua(&room, "bg");
+        assert!(lua.contains("value=2, action={\"gosub\", \"*conv_music_play\"}}"), "{lua}");
+        assert!(lua.contains("{\"toggle\", file=\"play_on\", on_file=\"play\", cells=2, x=130, y=10, var=\"%161\", on=0, off=-1, action={\"gosub\", \"*conv_music_toggle\"}}"), "{lua}");
+        assert!(lua.contains("{\"slider\", var=\"%162\", min=0, max=100, step=10, travel=250, knob={file=\"knob\", x=225, y=10}, track={x=220, y=10, w=270, h=20}, minus={file=\"lower\", cells=2, x=200, y=10}"), "{lua}");
+        let mut out = String::new();
+        crate::music::screen_labels(&mut out, &room, "back", false);
+        assert!(out.contains("screen \"music\"\nbgmvol 100:goto *back\n"), "{out}");
+        assert!(out.contains("*conv_music_toggle\nif %161 == 0 bgmstop:return\nif %163 < 1 mov %163,1\nmov %161,%163\n*conv_music_play\nmov %163,%161:mov %105,%161-1\n"), "{out}");
+        assert!(out.contains("*conv_music1\nbgmfadein 0:bgm \"bgm\\1.ogg\":return\n"), "{out}");
+
+        let movie = |i: i32, open| RoomMovie { button: placed(&format!("m{i}"), i * 100), file: format!("movie/{i}.mp4"), open };
+        let movies = MovieRoom { exit: placed("x", 0), movies: vec![movie(0, true), movie(1, false)], background: None };
+        let lua = super::movies_lua(&movies, "bg");
+        assert!(lua.contains("add{\"button\", file=\"m0\", x=0, y=10, cells=2, action={\"close\", 1}}\nif var(\"?conv_movie_seen[1]\") == 1 then add{\"button\", file=\"m1\", x=100, y=10, cells=2, action={\"close\", 2}} end\n"), "{lua}");
+        let mut out = String::new();
+        crate::movies::screen_labels(&mut out, &movies, "back");
+        assert!(out.starts_with("*conv_movies\ncsp -1:screen \"movies\",%9\nif %9 < 1 || %9 > 2 csp -1:goto *back\n"), "{out}");
+    }
 }

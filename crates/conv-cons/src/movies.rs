@@ -10,7 +10,7 @@ pub(crate) const MOVIES: &str = "conv_movies";
 const DRAW: &str = "conv_movies_draw";
 /// Movie n of the room was played.
 pub(crate) const SEEN: Flags = Flags { name: "conv_movie_seen", size: MAX_MOVIES as u32, old_base: 2800 };
-const MAX_MOVIES: usize = 32;
+pub(crate) const MAX_MOVIES: usize = 32;
 const EXIT: u32 = 101;
 const MOVIE: u32 = 102; // + movie
 const BTN_EXIT: i32 = 99;
@@ -20,6 +20,20 @@ pub(crate) fn seen(script: &Script, file: &str) -> Option<String> {
     let room = script.extras.as_ref()?.movies.as_ref()?;
     let n = room.movies.iter().take(MAX_MOVIES).position(|m| m.file == file)?;
     Some(format!("mov {},1", SEEN.at(n as u32)))
+}
+
+/// The room as the engine's screen (`screens/movies.lua`,
+/// [`crate::extras_screens`]): it closes with the movie to play (from 1),
+/// or 0 to go back.
+pub(crate) fn screen_labels(out: &mut String, m: &MovieRoom, back: &str) {
+    let movies = &m.movies[..m.movies.len().min(MAX_MOVIES)];
+    out.push_str(&format!("*{MOVIES}\ncsp -1:screen \"movies\",{BUTTON_VAR}\n"));
+    out.push_str(&format!("if {BUTTON_VAR} < 1 || {BUTTON_VAR} > {} csp -1:goto *{back}\n", movies.len()));
+    out.push_str(&format!("sub {BUTTON_VAR},1\ntablegoto {BUTTON_VAR},{}\n", (0..movies.len()).map(|i| format!("*conv_movie{i}")).collect::<Vec<_>>().join(",")));
+    for (i, movie) in movies.iter().enumerate() {
+        // The music room's song stops with the movie.
+        out.push_str(&format!("*conv_movie{i}\nbgmstop:mov {},0:mpegplay \"{}\",1:goto *{MOVIES}\n", music::PLAYING, path(&movie.file)));
+    }
 }
 
 /// `background`: the extras menu's; `back`: the extras menu's label.
