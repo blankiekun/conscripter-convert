@@ -1161,11 +1161,12 @@ struct Wave {
 
 impl Wave {
     /// Its op on `layer` at sound clock `now` for `shown` (a picture cut to
-    /// the screen has the phase of its part's height); `None` once over.
+    /// the screen has the phase of its part's height); `None` once over
+    /// (ramped to 0: the exe's `cb_00431230` removes it, else it stays).
     fn op(&self, layer: u32, now: u64, shown: &Shown) -> Option<Op> {
         let gone = now.saturating_sub(self.start).min(u64::from(self.ms)) as u32;
         let ms = self.ms - gone;
-        if ms == 0 {
+        if ms == 0 && self.to == 0 {
             return None;
         }
         // shortcut: past its start the rest goes straight from where it got to.
@@ -4347,6 +4348,27 @@ scene a.nss
         }).expect("a motion");
         assert_eq!(keys.iter().map(|k| (k.ms, k.x, k.y)).collect::<Vec<_>>(), [(0, 0, 0), (200, 100, -60), (400, 200, -60), (600, 300, 0)]);
         assert!(!c.notes.keys().any(|n| n.contains("BezierMove")), "{:?}", c.notes);
+    }
+
+    #[test]
+    fn a_draw_effect_wave_is_an_engine_wave_held_at_its_end() {
+        // mc04_019: HighWave 20 → 20 px at once, on a picture shown.
+        let story = r#"
+scene a.nss
+{
+	CreateTexture("bg", 100, 0, 0, "cg/bg/a.png");
+	Wait(100);
+	DrawEffect("bg", 0, "HighWave ", 20, 20, null);
+	Wait(100);
+}
+"#;
+        let c = compile(story, LIBRARY);
+        let waves: Vec<(u32, u32, i32, i32)> = c.ops.iter().filter_map(|op| match op {
+            Op::SpriteWave { ms, period, from, to, .. } => Some((*ms, *period, *from, *to)),
+            _ => None,
+        }).collect();
+        assert_eq!(waves, [(0, 1024, 20, 20)], "{:?}", c.ops);
+        assert!(!c.notes.keys().any(|n| n.contains("DrawEffect")), "{:?}", c.notes);
     }
 
     #[test]
