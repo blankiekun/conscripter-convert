@@ -745,6 +745,11 @@ original (Japanese, default text size):
   defaults (volumes +4/+8/+0xa = 40, 40, 10; auto wait +0x1c = 2200)
   wait for a settings screen.
 - `_STBR` 11 (gauss) drawn as a blur of 8.
+- Zooms are whole percents (`spzoom`): one under 10 % is coarse
+  (`spzoom 95,5,9` may be 4.5–5.5 %), and one under 1 % is placed at
+  1 %, not 0, with a motion's keys scaled from what was placed (a line
+  drawn at 1‰ across that a motion opens to 1933‰, `05_00_ARC05INTERLUDE`).
+  Exact would need a finer `spzoom` in the engine.
 
 ### Open questions
 
