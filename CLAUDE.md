@@ -154,12 +154,19 @@ shared code. A team lead hands out the items and reviews the PRs.
 - Full build: `target/release/conscripter-convert convert-game <install
   dir> -o out/<game>-cons --font <a Japanese TTF, e.g. ipag.ttf> --title
   "<title>"`. Each game's exact command is in its document.
-- Engine: `make -C engine/build -j16` → `engine/build/conscripter`.
+- Engine: `research/tools/build-engine.sh [engine dir] [build dir]`
+  (cmake + make; `SDL2_MIXER_PREFIX=<prefix>` when the system has no
+  SDL2_mixer) → `engine/build/conscripter`.
   Web: `cd engine/script && EMSDK_HOME=<emsdk dir> bash ./cross_web.sh`.
 - Headless: `SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy timeout -k 5 N
   engine/build/conscripter -r .` with the game folder as the working
   directory (otherwise `default.ttf` isn't found). Screenshot with
   `print 1:getscreenshot 800,600:savescreenshot "x.bmp"`.
+- Scratch run beside a full build (yours or another agent's):
+  `research/tools/scratch.sh out/<game>-cons <scratch> [0.txt [engine]]`
+  links only the archives, `default.ttf` and `movie/`, copies in your
+  script and a renamed engine, and writes `<scratch>/run.sh [options]`
+  (headless, `--save-dir <scratch>/save`).
 - Debug trace (CONscripter after 0.18.0; reference: `engine/DEBUG.md`;
   recipes: `docs/new-game.md`, "Checking a build with the debug
   trace"): `--trace t.jsonl --auto-play 0 --save-dir <scratch>` plays

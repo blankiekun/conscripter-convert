@@ -662,6 +662,9 @@ echo $?   # 0 end, 1 auto-play stuck, 2 script error, 3 startup failure, 128+n s
 python3 -I ../../engine/tools/cons_trace_check.py /tmp/t.jsonl --script 0.txt
 ```
 
+- To run your own script or engine over someone else's full build,
+  set up a scratch folder with `research/tools/scratch.sh` (links only
+  the read-only archives, font and movies) and run its `run.sh`.
 - Always give `--save-dir`: a game that saves as it goes would otherwise
   write to the player's saves (never `out/saiima-flow`). The engine
   (CONscripter 0.19.0 and later) makes the folder if it doesn't exist.
