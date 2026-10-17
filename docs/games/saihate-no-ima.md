@@ -627,36 +627,35 @@ a copy of the save works.
 - Merged: `0x49`/`0x4a`'s edge colours as harmless but the grey one (#181; History, item 29).
 - Merged: links only while their variable is set (#183; History, item 28).
 - Merged: the debug menu's message block as harmless (#189; History, item 42).
-- Open: the ruby alignment as harmless (History, item 33).
-- Open: command coverage per operand, PR #85 (supersedes #28): every
+- Merged: the ruby alignment as harmless (#192; History, item 33).
+- Merged: command coverage per operand, PR #85 (supersedes #28): every
   operand given and not read, whatever its value (0 included), is a
   dry-run note and a gap in `metrics.json`, except the filler (`NO_SUB`,
   `NO_ARG`) and the harmless table ("Operand coverage"), each row with
-  the values it covers. Merged.
-- Open: `0x7a`'s size at +14 as harmless, PR #164 (History, item 44).
+  the values it covers. Merged (#85).
+- Merged: `0x7a`'s size at +14 as harmless (#164; History, item 44).
 - Merged: `0x46`'s last u32 as harmless (#170; History, item 43).
 - Merged: screen filters under the bust-ups, `screenfilter`'s new z (#177, engine #56; History, item 30).
-- Open: speaker names from `sub` bit 0, PR #102 (History, item 27):
+- Merged: speaker names from `sub` bit 0, PR #102 (History, item 27):
   4,867 notes of 20 kinds left; 80,285 of 84,713 calls fully converted
   (was 49,328).
 - Merged: the red fill over the static in 0006.cd as a screen filter (#157; History, item 40).
 - Merged: `0x43` and `0x52`/`0x53` `arg` as harmless (#111, #114; History, items 32, 34).
-- Open: `0x90` +2 as harmless, PR #119 (History, item 35).
+- Merged: `0x90` +2 as harmless (#119; History, item 35).
 - Merged: Filter-Replace's begin angle as `screenripple`'s start phase (#134, engine #50; History, item 38).
 - Merged: Zigzag's phase from its frequency, its begin angle and reduction as harmless (#153; History, item 39).
 - Merged: the exe map's fixes and missed callbacks (#46).
 - Merged: the rotation's interpolation byte read (#162; History, item 41).
-- Open: `0x59` as a real cross-fade, converter #25 with engine #18 (asked
-  for a web-build measurement of the old track's decode first);
-  `bitand` for the three bitwise ops, converter #74 (takes over #12;
-  engine #11 in main's pointer since #72).
+- Closed unmerged: `0x59` as a real cross-fade (converter #25, engine #18).
+- Merged: `bitand` for the three bitwise ops (#74, engine #11).
 
 Declared finished on 2026-10-14, then reopened the same day: the 0.19
 debug trace and the decompiled exe (`research/tools/ghidra/ghidra_export.sh`,
 names in `research/xuse/names.tsv`) showed opcodes read wrong from
 `objdump`. All 26 items of that list are done, and so is everything the
-debug trace found ("History", below). Open: items 28-45 below, from
-the operand notes.
+debug trace found ("History", below). Items 28-45, from the operand notes, are done too (History); the one
+operand note left is `0x49`'s grey outline (message text has no outline
+in CONscripter), plus the debug menu's two opcodes (`0x30`, `0x62`).
 
 Converted and playable from start to end: text, voices, sprites with
 colour filters, backgrounds, BGM with loop points, sound effects, movies,
