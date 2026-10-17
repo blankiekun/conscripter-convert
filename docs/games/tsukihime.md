@@ -609,7 +609,7 @@ Nothing yet.
 | Exe tables (pictures, motions, scene numbers) | ✅ read from the NSO (`typemoon exe`); picture sizes checked against the textures |
 | Scripts | 🔶 read: every command of both languages splits (one malformed in the original) and its text and voices join; the top commands' arguments read from the exe, the rest not yet |
 | Media folder (`typemoon media`) | ✅ `allpac`'s pictures as full-size WebP (2.37 GB), movies at 720p, sound |
-| Script conversion (`typemoon convert`) | 🔶 the flow (labels, `_JUMP`, `_IF__`, flags), text (pages, ruby, voices), pictures (`_STCH`/`_STCC`/`_FADS`: record size and place, fades and rule wipes), sound effects and music; plays from the start through `00_00` into the first arc headless. Layers drawn in priority order (`_STCP`, `_STCH` argument 6), zoomed (`_STZ4`), faded (`_STGS`) and moved (`_STMA`, the exe's motions; easing, priority and expression keys not followed), children placed in their parent layers, orbiting with their turn and following their motions (`_STCH` argument 11), clipped to their panels (`_STCH` arguments 12–16), turned (`_STRT`), drawn with their shader as far as CONscripter's blends and filters go (`_STBR`) and tinted (`_STEC` effect 1). Choices (`_SELR`, `_SELD`, `_GOTS`), `_GOTO` and the Switch's own branches (`_IFNX`/`_IFP4`). Not yet: `_STEC`'s other effects, the other layer commands, screens |
+| Script conversion (`typemoon convert`) | 🔶 the flow (labels, `_JUMP`, `_IF__`, flags), text (pages, ruby, voices), pictures (`_STCH`/`_STCC`/`_FADS`: record size and place, fades and rule wipes), sound effects and music; plays from the start through `00_00` into the first arc headless. Layers drawn in priority order (`_STCP`, `_STCH` argument 6), zoomed (`_STZ4`), faded (`_STGS`) and moved (`_STMA`, the exe's motions; easing, priority and expression keys not followed), children placed in their parent layers, orbiting with their turn and following their motions (`_STCH` argument 11), clipped to their panels (`_STCH` arguments 12–16), turned (`_STRT`), drawn with their shader as far as CONscripter's blends and filters go (`_STBR`) and tinted (`_STEC` effect 1). Choices (`_SELR`, `_SELD`, `_GOTS`), `_GOTO` and the Switch's own branches (`_IFNX`/`_IFP4`). The text window hidden (`_CLO2`/`_CLO3`/`_CLO4`; `_CLO4`'s fade time not followed). Not yet: `_CLO5`, `_STEC`'s other effects, the other layer commands, screens |
 | Screens, extras | ❌ |
 
 ### Next
@@ -663,16 +663,36 @@ The build uses the Japanese layout for both languages.
 The biggest commands not converted, looked up in `script_command`
 (0x177790):
 
-- `_CLO3()` (12,208), **seen**: when flag `DAT_00be0550` is set,
-  clears it and sets `DAT_00be0560`; `_CLO4` sets the flag again with
-  a fade time and `_CLO2` clears it at once. **Inferred**: the text
-  window's shown state, faded by `FUN_00138d40` (alpha in
-  `DAT_00be0558`), so `_CLO3` fades the window out. To convert.
+- `_CLO4(ms)` (978) and `_CLO5(ms)` (596), **seen** (see History,
+  2026-10-17): `_CLO4` fades window and text out over `ms` (visible over
+  the first half), converted as an instant hide with `ms` a gap: a fade
+  that doesn't block the script needs the engine (`windoweffect` +
+  `textoff` blocks). `_CLO5` shows the empty window at once and fades
+  it in over `ms`; not converted (no IR op shows the window without
+  text). Ours shows the window at once where the original fades it in
+  over 18 frames after a hide (`FUN_0016e0d0`).
 - `_SNX4(…)` (8,762), **seen**: `script_command` has no case for it
   (`_SNX2` and `_SNX3` have), so the Switch exe does nothing. Left
   out.
 
 ## History
+
+- 2026-10-17: `_CLO2`/`_CLO3`/`_CLO4` hide the text window (`textoff`),
+  all **seen** in `script_command` (0x177790) and `FUN_00138d40`
+  (0x138d40, the window's alpha each frame; ticks from `FUN_001ad180`,
+  1 per 60 Hz frame, 2 after a dropped one). `DAT_00be0550` is the
+  shown flag, `DAT_00be0558` the window alpha, `DAT_00be05b0` a second
+  fade multiplied into the window art (pictures 0x1d, 0x1e) and the
+  text as max(0, 2 × (f − 0.5)) (`FUN_001391a0`). `_CLO2` calls
+  `FUN_00153ab0(1)` (new page) and sets flag and alpha to 0. `_CLO3`,
+  when shown, clears the flag and sets `DAT_00be0560`, so the alpha
+  falls 0.2604 a tick (4 frames) instead of the normal 0.06 a tick.
+  `_CLO4(ms)` sets the second fade to 1 and its step to −16.67/`ms` a
+  tick (the earlier note that it sets the flag was wrong); `_CLO5(ms)`
+  sets flag and alpha to 1 and fades the second one up from 0. The
+  next text (`FUN_0016e0d0`) restarts that fade from 0 at 0.0556 a tick
+  when it is below 1 or after `_CLO2`/`_CLO3`. 13,191 `textoff` in the
+  Japanese `0.txt`.
 
 - 2026-10-17: `_PGST(n)` left out, **seen**: `script_command` stores
   `n` in the state (`DAT_00be0290` + 0x8c4) unless a seek is running;

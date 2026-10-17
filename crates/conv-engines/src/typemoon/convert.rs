@@ -381,6 +381,13 @@ impl Lowering<'_, '_> {
                 }
                 self.ops.push(Op::Choice { options: choice, style: None });
             }
+            // `script_command` (0x177790): `_CLO2` hides the text window at once
+            // (alpha 0), `_CLO3` lets `FUN_00138d40` fade it out in 4 frames,
+            // `_CLO4(ms)` fades window and text out over `ms` (visible over the
+            // first half: drawn at 2 × (fade − 0.5)). The next text fades it back
+            // in (`FUN_0016e0d0`).
+            // shortcut: `_CLO4`'s fade hides at once (its time is a gap); a fade that doesn't block needs the engine.
+            "_CLO2" | "_CLO3" | "_CLO4" => self.ops.push(Op::HideTextWindow),
             "_WNTY" => self.page_end = arg(0) == "1",
             "_VPLY" => self.voice = Some(Voice { file: format!("stream/{}.ogg", arg(0)), character: 0 }),
             "_ZM" | "_MSAD" => {
