@@ -640,7 +640,7 @@ a copy of the save works.
 - Open: a quake (`0x6d`) holds the full range 5 frames in the exe (4
   points, then the frame that switches to shrinking; `cb_00441e50`),
   ours 4 points (133 ms): measured with the breakpoint trace (History,
-  "Breakpoint trace"); fix PR to follow.
+  "Breakpoint trace"); fixed by #368 (move this to History when it merges).
 - Open: the extras' CG gallery, scene replay and BGM room drawn by the
   engine (`screens/gallery.lua`, `replay.lua`, `replay_list.lua`,
   `music.lua` from `ExtrasMenu` by `crates/conv-cons/src/extras_screens.rs`;
