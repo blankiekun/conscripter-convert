@@ -557,8 +557,18 @@ impl Compiler<'_, '_> {
             "DrawTransition" => {
                 // (obj, time, from, to, softness, tempo, mask, wait): a fade
                 // to `to` shaped by the mask.
-                let to = arg(3).int().clamp(0, 1000);
+                // A mask that isn't there: the exe's step (FUN_0044fe00) ends
+                // the action at once when the mask doesn't load (inferred).
+                let Some((mask, _, _)) = self.assets.image(&self.deref(&arg(6))) else {
+                    self.note(format!("DrawTransition mask missing: {}", arg(6).string()));
+                    return Value::Null;
+                };
+                let (from, to) = (arg(2).int().clamp(0, 1000), arg(3).int().clamp(0, 1000));
                 let targets = self.matching(&arg(0));
+                // From what the screen shows of it (nothing, if not shown yet).
+                if targets.iter().any(|t| self.shown.get(t).map_or(0, |s| s.opacity) != from) {
+                    self.note("DrawTransition from another opacity than the picture's");
+                }
                 for t in &targets {
                     self.objects.get_mut(t).unwrap().opacity = to;
                 }
@@ -567,10 +577,7 @@ impl Compiler<'_, '_> {
                 if arg(1).int() > 0 && let Some(e) = self.game.fade_tempo.unwrap_or(|_| None)(&arg(5)) {
                     self.fade_tempo = Some(e);
                 }
-                match self.assets.image(&self.deref(&arg(6))) {
-                    Some((mask, _, _)) => self.pending_mask = Some(mask),
-                    None => self.note(format!("DrawTransition mask missing: {}", arg(6).string())),
-                }
+                self.pending_mask = Some(mask);
                 self.timed(arg(1).int(), &arg(7), &targets);
             }
             "Shake" => {
