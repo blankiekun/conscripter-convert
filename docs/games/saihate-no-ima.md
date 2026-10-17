@@ -321,7 +321,7 @@ run's):
 | `0x56` | u32 depth at +2 (0 and 2000): 2 notes | dropped |
 | `0x59` | the old track fading out under the new one | partial: it stops at once (one BGM channel) |
 | `0x6f` | the pulse | converted, not checked against the original |
-| `0x70` | the depth in the second u32 (0 in 254, 1000 in 188, 2000 in 5, 1100 in 4, …): 457 notes | dropped (`screenfilter` has no depth) |
+| `0x70` | the depth in the second u32 among the bust-ups (80, in 2 negative flashes) | partial: drawn over all the bust-ups (History, item 30) |
 | `0x76` | MeltDown's stretch for `sub` 46/47 | converted (scaled from the exe), not compared with the film |
 | `0x8f` | removes the bust-ups only | partial: `csp -1` also removes the fade cover (no script shows the difference) |
 | `0x30`, `0x62` | everything | dropped (the unreachable debug menu) |
@@ -623,14 +623,15 @@ a copy of the save works.
 ### Queue (2026-10-16)
 
 - Merged: `0x86`'s two trailing bytes as harmless (#163; History, item 45).
-- Open: `0x8c`'s sort key as harmless (History, item 31).
+- Merged: `0x8c`'s sort key as harmless (#180; History, item 31).
 - Open: command coverage per operand, PR #85 (supersedes #28): every
   operand given and not read, whatever its value (0 included), is a
   dry-run note and a gap in `metrics.json`, except the filler (`NO_SUB`,
   `NO_ARG`) and the harmless table ("Operand coverage"), each row with
   the values it covers. Merged.
 - Open: `0x7a`'s size at +14 as harmless, PR #164 (History, item 44).
-- Open: `0x46`'s last u32 as harmless (History, item 43).
+- Merged: `0x46`'s last u32 as harmless (#170; History, item 43).
+- Open: screen filters under the bust-ups, `screenfilter`'s new z, PR #177 (History, item 30; engine #56 merged).
 - Open: speaker names from `sub` bit 0, PR #102 (History, item 27):
   4,867 notes of 20 kinds left; 80,285 of 84,713 calls fully converted
   (was 49,328).
@@ -696,9 +697,6 @@ after History's 26, most noticeable first (notes = instructions):
 29. **Edge colours** (`0x49` u32 at +12, 565 notes; `0x4a`, 2): one
     grey (`0x808080`) outline and the two `0x4a` ones are not drawn (564
     are "keep").
-30. **Screen filter depth** (`0x70`'s second u32, 457 notes: 0 in 254,
-    1000 in 188, 2000 in 5, 1100 in 4, …): where the filter sorts against the
-    bust-ups and overlays; `screenfilter` has no depth.
 33. **Ruby flags** (`0x44` u16 at +6, 37 notes: 3 in 32, 1 in 5):
     meaning unknown.
 42. **The debug menu's message block** (`0001.cd` #1, 1 note): in the
@@ -1350,3 +1348,24 @@ sound effects on `dwave` channels.
    0x55 overlay at 1000, but none comes before it is cleared (#8542);
    the static at 1100 (0008.cd #3904) is over its bust-ups (10-20) as at
    1000. So the key is a row of the harmless table.
+30. **Done: screen filter depth** (2026-10-16). `0x70`'s second u32 is
+   layer | depth << 8: the filter object sorts in its layer's band
+   (layer 1 → band 0 with the background and the frame overlays, 0/2 →
+   0x10 with the bust-ups at depth 10-150 and the 0x55 overlays and the
+   static at 1000, 3 → 0x20, 4 → 0x30), and what sorts above it is drawn
+   unfiltered. Of the 253 filters set, 9 sit under every bust-up: band
+   0x10 at depth 0 (0008.cd's blur and darkening, 5; 0010.cd, 0012.cd,
+   0079.cd) and band 0 (0009.cd #5080, a blur). Those now use
+   CONscripter's new `screenfilter` z (engine #56; the slot applies right
+   after sprite z is drawn) as z = 999, the lowest sprite: the
+   background and the overlay under the bust-ups are filtered, the
+   bust-ups, the overlay over them, the static and the animations not
+   (`Op::ScreenFilterUnderSprites`). The rest sort over every bust-up
+   (depth 500-2000, or bands 0x20/0x30) and filter the whole picture as
+   before. Left: the two negative flashes at depth 80 (0007.cd #3918,
+   0011.cd #171) filter all the bust-ups, where those deeper than 80 (one
+   at 100 in 0011.cd, the 1500 one in 0007.cd) stay unfiltered in the
+   original; and objects made later at the filter's own depth (a 0x55
+   overlay or the static at 1000) sort over it there, ours under it.
+   Checked: the dry run (9 `screenfilter` lines gain `,999`), and a
+   headless test of the engine change.

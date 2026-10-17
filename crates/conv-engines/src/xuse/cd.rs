@@ -333,6 +333,8 @@ pub struct FilterReplace {
 pub struct ScreenModule {
     pub slot: u32,
     pub layer: u8,
+    /// The sort depth within the layer's band.
+    pub depth: u32,
     pub kind: u32,
     pub blend: u16,
     pub opacity: u16,
@@ -945,11 +947,11 @@ impl<'a> CdScript<'a> {
         (ins.op == OP_SCREEN_MODULE).then(|| {
             let r = self.reader();
             let o = ins.arg as u32 as usize;
-            let (slot, timing, kind) = (r.u32(o)?, r.slice(o + 4, 1)?[0], r.u32(o + 8)?);
+            let (slot, key, kind) = (r.u32(o)?, r.u32(o + 4)?, r.u32(o + 8)?);
             let set = slot != 0 && kind != 0;
             let (blend, opacity) = if set { (r.u16(o + 12)?, r.u16(o + 14)?) } else { (0, 0) };
             let data = if set { module_data(&r, kind, o + 16)? } else { ModuleData::None };
-            Ok(ScreenModule { slot, layer: timing, kind, blend, opacity, data })
+            Ok(ScreenModule { slot, layer: key as u8, depth: key >> 8, kind, blend, opacity, data })
         })
     }
 
