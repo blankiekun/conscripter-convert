@@ -519,6 +519,11 @@ impl Compiler<'_, '_> {
                 // (n × 0.001 × 60) ms have passed (60 a second at the
                 // default game speed, FUN_00469a20's table), the size
                 // eased by the tempo (the table FUN_00434ea0 picks).
+                // 装甲悪鬼村正 the same (src: Muramasa.exe queue_shake 004462d0:
+                // step = 1000 ÷ (n × fps ÷ 1000) at 00446381-004463c3, fps the
+                // double table at 005dcb40 (filled at 0048c5d0) at index 4
+                // (005dcaf0, never changed): 60.0; shake_frame 004578e0 flips
+                // once timeGetTime − last > step).
                 let jolt = self.game.shake_jolts.then(|| (arg(6).int(), super::tempo(&arg(7))));
                 if jolt.is_some_and(|(n, _)| n > 1000) {
                     return Value::Null; // src: FUN_00431de0 (n < 0x3e9), nor waited for

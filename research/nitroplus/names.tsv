@@ -184,3 +184,4 @@
 004699b0	cb_004699b0	per-object callback queued by FUN_00469190
 0046aad0	cb_0046aad0	per-object callback queued by FUN_0046a880
 00491f20	cb_00491f20	per-object callback queued by FUN_00466d60
+0048c5d0	init_frame_tables	fills the frame-rate tables of the global at 005dcad8: speed index 005dcaf0 = 4 (never changed), ms per frame ints at 005dcb0c (1,2,4,8,16,...), fps doubles at 005dcb40 (960,480,240,120,60,...): 60 fps, 16 ms

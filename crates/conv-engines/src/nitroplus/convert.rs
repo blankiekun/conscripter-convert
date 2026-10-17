@@ -203,7 +203,7 @@ pub struct Game {
     /// game's text has `<FW img=''>`.
     box_text: &'static [BoxText],
     /// `Shake` jolts to and fro every 1000 ÷ (`n` × 0.06) ms, along its
-    /// tempo (続・殺戮のジャンゴ's exe; [`ScreenEffect::Jolt`]).
+    /// tempo (続・殺戮のジャンゴ's and 装甲悪鬼村正's exes; [`ScreenEffect::Jolt`]).
     shake_jolts: bool,
 }
 
