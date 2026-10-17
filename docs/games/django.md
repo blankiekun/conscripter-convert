@@ -378,9 +378,9 @@ with the original (it wants all eleven endings' flags under wine).
    objects, started 500 ms apart) and stay.
 2. The 14 moves and zooms still drawn as cross-fades (dry run notes,
    2026-10-16): 2 zooms between two pictures both cut to the screen, 9
-   movies, 3 fades that change layer or picture. A motion is cut short
-   when the layers spread out again at the next change (dja022's
-   expressions: the picture is placed anew at its end).
+   movies, 3 fades that change layer or picture. A motion is still cut
+   short when the layers must spread out again and the moving pictures
+   leave no room between them (1 spread in the dry run).
 3. Extras: the doors' animation and the menu's own music (left out).
 4. From the exe's coverage table ("The exe"): `SetShade HEAVY` (one use).
 5. The unread-argument notes (`<Builtin> argument <i> ignored`;
@@ -429,6 +429,23 @@ with the original (it wants all eleven endings' flags under wine).
    NSS code; noted, drawn as nothing.
 
 ## History
+
+- **Running motions go on (2026-10-16, shared NSS code).** Two cases
+  cut a motion short, its picture placed at its end. (1) When the layers
+  spread out again, pictures whose motion still runs on the ops' clock
+  (or that loop) now keep their layer and the others spread between
+  them; all of them spread as before only when there is no room (7 of
+  Django's 8 such spreads keep them; in Muramasa 1,181 restarted loops
+  fewer). (2) A new picture in a camera that is moving (dja022's
+  expressions: `ReplaceFace` right after a `MoveCamera` over time) was
+  put at the camera's end while its neighbours still zoomed: now it
+  gets their motion, from where the camera draws it (mapped from a
+  child at the same depth; begun later, from the straight line's point).
+  Checked with `--real-time --shot-at` at dja022's `0200280ku` (a
+  `wait 1000` patched after the page's `print 4`): at +150 ms クラウス's
+  new expression is mid-zoom with the background instead of already at
+  its end; frames +50 to +350 differ from before (AE 70k to 22k), and
+  at +600 they are the same.
 
 - **A picture replaced or turned over as it moves (2026-10-16, shared
   NSS code).** A `CreateTexture` of the same name with another picture

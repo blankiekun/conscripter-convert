@@ -1278,6 +1278,17 @@ fn fade_base(old: &Shown, now: &Shown) -> i64 {
     old.opacity.max(now.opacity).clamp(1, 1000)
 }
 
+/// A picture's move over time, as [`Compiler::sync`] gave it to the engine.
+#[derive(Debug, Clone)]
+struct Run {
+    from: Shown,
+    to: Shown,
+    ms: u32,
+    /// When it started ([`Compiler::sound_clock`] ms).
+    at: u64,
+    ease: Option<(u8, u32)>,
+}
+
 /// `SetBlur`'s copies ([`Object::trail`]).
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct Trail {
@@ -1370,6 +1381,15 @@ struct Compiler<'a, 'b> {
     /// Pictures moving as they fade out to 0, drawn till then
     /// ([`Compiler::sound_clock`] ms).
     vanishing: HashMap<String, u64>,
+    /// When each picture's motion started at a sync ends
+    /// ([`Compiler::sound_clock`] ms): its layer stays when the layers
+    /// spread out again, so the engine's motion goes on.
+    motion_until: HashMap<String, u64>,
+    /// The cameras a `MoveCamera` over time moves at the next sync (its ms).
+    pending_camera: HashMap<String, u32>,
+    /// The pictures' moves running: a new picture beside them in a moving
+    /// camera moves as they do.
+    runs: BTreeMap<String, Run>,
     /// A `DrawTransition` mask for the next sync.
     pending_mask: Option<String>,
     /// The pictures the running screen shake shakes: it stops when they go.
@@ -2186,6 +2206,9 @@ impl<'a, 'b> Compiler<'a, 'b> {
             pending_turn: HashMap::new(),
             pending_fade: HashMap::new(),
             vanishing: HashMap::new(),
+            motion_until: HashMap::new(),
+            pending_camera: HashMap::new(),
+            runs: BTreeMap::new(),
             pending_mask: None,
             shaken: Vec::new(),
             font_size: 20,
