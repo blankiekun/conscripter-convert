@@ -12,6 +12,7 @@ impl Compiler<'_, '_> {
         let tempo = std::mem::take(&mut self.pending_tempo);
         let turning = std::mem::take(&mut self.pending_turn);
         let fades = std::mem::take(&mut self.pending_fade);
+        let cameras = std::mem::take(&mut self.pending_camera);
         let mut shake_once = std::mem::take(&mut self.shake_once);
         let mask = self.pending_mask.take();
         self.flush_sounds();
@@ -255,6 +256,11 @@ impl Compiler<'_, '_> {
         let gone: Vec<String> = self.shown.keys().filter(|n| !want.iter().any(|w| &w.0 == *n)).cloned().collect();
         let mut moving = Vec::new();
         let clock = self.sound_clock();
+        self.motion_until.retain(|_, end| *end > clock);
+        self.runs.retain(|_, r| r.at + u64::from(r.ms) > clock);
+        for (camera, t) in cameras {
+            self.motion_until.insert(camera, clock + u64::from(t));
+        }
         self.vanishing.retain(|_, end| *end > clock);
         for n in gone {
             // Still fading out as it moves (the script went on).
@@ -294,9 +300,14 @@ impl Compiler<'_, '_> {
         }
         // No gap left between two pictures: spread them all out again, in
         // the same order (pictures that move layer are drawn anew).
+        // Pictures whose motion still runs (or loops) keep their layer when
+        // there is room around them, so the engine's motion goes on.
         if crowded {
-            let n = want.len() as u32;
-            layers = (0..n).map(|i| Some((i + 1) * MAX_LAYER / (n + 1))).collect();
+            let kept: Vec<Option<u32>> = want
+                .iter()
+                .map(|w| self.shown.get(&w.0).filter(|_| self.motion_until.contains_key(&w.0) || self.objects.get(&w.0).is_some_and(|o| o.shake.is_some())).map(|s| s.layer))
+                .collect();
+            layers = spread(&kept).unwrap_or_else(|| spread(&vec![None; want.len()]).unwrap());
         }
         // A picture still fading out whose layer another takes: gone now.
         let mut freed = Vec::new();
@@ -367,15 +378,14 @@ impl Compiler<'_, '_> {
                 if let Some(&(ease, exponent)) = tempo.get(name) {
                     ops.push(Op::MoveEase { ease, exponent });
                 }
-                let last = *keys.last().unwrap();
-                let from_end = |k: MotionKey| MotionKey { x: k.x - last.x, y: k.y - last.y, zoom: k.zoom * 100 / last.zoom.max(1), zoom_y: k.zoom_y * 100 / last.zoom_y.max(1), angle: k.angle - last.angle, ..k };
-                ops.push(Op::SpriteMotion2 { layer, keys: keys.into_iter().map(from_end).collect(), end });
+                ops.push(Op::SpriteMotion2 { layer, keys: from_end(keys), end });
                 moved_over.insert(name.clone(), ops);
                 moving.push(name.clone());
                 continue;
             }
             // A fade at once (not over time) as the move starts: from the new opacity.
             let start = if fades.contains_key(name) { old.clone() } else { Shown { opacity: now.opacity, ..old.clone() } };
+            self.runs.insert(name.clone(), Run { from: start.clone(), to: now.clone(), ms: t, at: clock, ease: tempo.get(name).copied() });
             match motion(&start, &now, t) {
                 // The move a loop starts after: its lead-in, from where the
                 // picture was to its new place (where it is put now).
@@ -419,6 +429,46 @@ impl Compiler<'_, '_> {
                     self.note("move or zoom over time with a fade or a new picture drawn as a cross-fade");
                 }
                 None => {}
+            }
+        }
+        // A new picture in a camera that moves (dja022's expressions, put
+        // up as the camera moves): moved as the camera's other children at
+        // its depth, from where the camera draws it now.
+        for ((name, now, (priority, _)), layer) in want.iter().zip(&layers) {
+            let Some(layer) = *layer else { continue };
+            let in_moving_camera = self.motion_until.keys().any(|c| name.starts_with(&format!("{c}/")) && self.objects.get(c).is_some_and(|o| matches!(o.kind, Kind::Camera)));
+            if self.shown.contains_key(name) || now.whole.is_some() || !in_moving_camera {
+                continue;
+            }
+            let parent = |n: &str| n.rsplit_once('/').map(|p| p.0.to_string());
+            let Some((_, Run { from: start, to: end, ms: t, at, ease })) = self.runs.iter().find(|(s, r)| {
+                r.from.whole.is_none() && r.to.whole.is_none() && self.shown.contains_key(*s) && parent(s) == parent(name) && self.objects.get(*s).is_some_and(|o| o.priority == *priority)
+            }) else {
+                continue;
+            };
+            // shortcut: begun later than the camera, it starts from the straight
+            // line's point and eases anew over the rest; exact when begun with it.
+            let (e, t) = ((clock - at) as i64, i64::from(*t));
+            let f = |a: i64, b: i64| a + (b - a) * e / t;
+            let (sx, sy, sw, sh) = (f(start.x, end.x), f(start.y, end.y), f(start.w, end.w), f(start.h, end.h));
+            let (w, h) = (now.w * sw / end.w.max(1), now.h * sh / end.h.max(1));
+            let (cx, cy) = (sx + sw / 2 + (now.x + now.w / 2 - end.x - end.w / 2) * sw / end.w.max(1), sy + sh / 2 + (now.y + now.h / 2 - end.y - end.h / 2) * sh / end.h.max(1));
+            let zoom = (now.zoom.0 * f(start.zoom.0, end.zoom.0) / end.zoom.0.max(1), now.zoom.1 * f(start.zoom.1, end.zoom.1) / end.zoom.1.max(1));
+            let from = Shown { layer, x: cx - w / 2, y: cy - h / 2, w, h, zoom, ..now.clone() };
+            let left = (t - e) as u32;
+            if let Some(Op::SpriteMotion2 { keys, end, .. }) = motion(&from, &Shown { layer, ..now.clone() }, left) {
+                let mut ops = Vec::new();
+                if let Some((ease, exponent)) = *ease {
+                    ops.push(Op::MoveEase { ease, exponent });
+                }
+                ops.push(Op::SpriteMotion2 { layer, keys: from_end(keys), end });
+                moved_over.insert(name.clone(), ops);
+                self.motion_until.insert(name.clone(), clock + u64::from(left));
+            }
+        }
+        for name in &moving {
+            if let Some(t) = timed.get(name).copied().or(turning.get(name).map(|t| t.ms)) {
+                self.motion_until.insert(name.clone(), clock + u64::from(t));
             }
         }
         // (A process's own time holds only the process.)
@@ -569,4 +619,58 @@ const MAX_FILTERS: usize = 4;
 /// its zoom when the converter scaled the image ([`Assets::scaled`]).
 fn scale(s: &Shown) -> (i64, i64) {
     if s.image != s.source { s.zoom } else { (1000, 1000) }
+}
+
+/// A motion's keys from its last one: for a sprite placed where it ends.
+fn from_end(keys: Vec<MotionKey>) -> Vec<MotionKey> {
+    let last = *keys.last().unwrap();
+    keys.into_iter().map(|k| MotionKey { x: k.x - last.x, y: k.y - last.y, zoom: k.zoom * 100 / last.zoom.max(1), zoom_y: k.zoom_y * 100 / last.zoom_y.max(1), angle: k.angle - last.angle, ..k }).collect()
+}
+
+/// Layers for pictures in drawing order (top first): the given ones kept,
+/// the others spread evenly between them (all of them evenly when none is
+/// given); `None` when the kept ones leave no room or aren't in order.
+fn spread(kept: &[Option<u32>]) -> Option<Vec<Option<u32>>> {
+    let mut out = Vec::with_capacity(kept.len());
+    let mut prev: Option<u32> = None;
+    let mut free = 0;
+    // Each run of free pictures ends at a kept one, or after the last.
+    for i in 0..=kept.len() {
+        let high = match kept.get(i) {
+            Some(None) => {
+                free += 1;
+                continue;
+            }
+            Some(Some(l)) if prev.is_some_and(|p| *l <= p) => return None,
+            Some(Some(l)) => *l,
+            None => MAX_LAYER,
+        };
+        let low = prev.unwrap_or(0);
+        if free > 0 && high <= low + free {
+            return None;
+        }
+        out.extend((1..=free).map(|j| Some(low + j * (high - low) / (free + 1))));
+        out.push(Some(high));
+        (prev, free) = (Some(high), 0);
+    }
+    // (The last is MAX_LAYER, the end of the last run.)
+    out.pop();
+    Some(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn spread_keeps_given_layers() {
+        // None kept: as evenly as before.
+        assert_eq!(spread(&[None, None]), Some(vec![Some(MAX_LAYER / 3), Some(2 * MAX_LAYER / 3)]));
+        assert_eq!(spread(&[None, Some(10), None, None, Some(13), None]), Some(vec![Some(5), Some(10), Some(11), Some(12), Some(13), Some(13 + (MAX_LAYER - 13) / 2)]));
+        assert_eq!(spread(&[Some(0), None]), Some(vec![Some(0), Some(MAX_LAYER / 2)]));
+        // No room, or out of order.
+        assert_eq!(spread(&[Some(10), None, Some(11)]), None);
+        assert_eq!(spread(&[Some(11), Some(10)]), None);
+        assert_eq!(spread(&[None, Some(MAX_LAYER)]), Some(vec![Some(MAX_LAYER / 2), Some(MAX_LAYER)]));
+    }
 }

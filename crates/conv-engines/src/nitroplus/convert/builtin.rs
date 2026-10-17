@@ -136,6 +136,9 @@ impl Compiler<'_, '_> {
                     o.zoom = (z, z);
                     let prefix = format!("{t}/");
                     children.extend(self.objects.keys().filter(|k| k.starts_with(&prefix)).cloned());
+                    if arg(1).int() > 0 {
+                        self.pending_camera.insert(t.clone(), arg(1).int() as u32);
+                    }
                 }
                 if children.is_empty() {
                     return Value::Null;
