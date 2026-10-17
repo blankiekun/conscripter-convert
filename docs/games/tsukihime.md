@@ -598,14 +598,13 @@ Nothing yet.
 | Exe tables (pictures, motions, scene numbers) | ✅ read from the NSO (`typemoon exe`); picture sizes checked against the textures |
 | Scripts | 🔶 read: every command of both languages splits (one malformed in the original) and its text and voices join; the top commands' arguments read from the exe, the rest not yet |
 | Media folder (`typemoon media`) | ✅ `allpac`'s pictures as full-size WebP (2.37 GB), movies at 720p, sound |
-| Script conversion (`typemoon convert`) | 🔶 the flow (labels, `_JUMP`, `_IF__`, flags), text (pages, ruby, voices), pictures (`_STCH`/`_STCC`/`_FADS`: record size and place, fades and rule wipes), sound effects and music; plays from the start through `00_00` into the first arc headless. Not yet: layer priority (`_STCP`), zoom and motions (`_STZ4`, `_STMA`), parent layers, `_STGS` and the other layer commands, choices (`_SELR`/`_GOTS`), screens |
+| Script conversion (`typemoon convert`) | 🔶 the flow (labels, `_JUMP`, `_IF__`, flags), text (pages, ruby, voices), pictures (`_STCH`/`_STCC`/`_FADS`: record size and place, fades and rule wipes), sound effects and music; plays from the start through `00_00` into the first arc headless. Layers drawn in priority order (`_STCP`, `_STCH` argument 6). Not yet: zoom and motions (`_STZ4`, `_STMA`), parent layers, `_STGS` and the other layer commands, choices (`_SELR`/`_GOTS`), screens |
 | Screens, extras | ❌ |
 
 ### Next
 
 1. The script conversion, next part: the layer commands the opening
-   leans on, in order of use: `_STCP` (priority: the IR layer is the
-   layer's number now), `_STZ4` (zoom), `_STMA` (motions from the exe),
+   leans on, in order of use: `_STZ4` (zoom), `_STMA` (motions from the exe),
    `_STRT`, `_STBR`, `_STEC`, `_STGS` (alpha fades: 412 pictures come
    out invisible), parent layers (`_STCH` argument 11, 6,028 uses);
    then choices (`_SELR`, `_GOTS`, `_IFNX`) so a route can be picked.
@@ -625,6 +624,14 @@ Nothing yet.
    12–17, `_STZ4`'s last two, and the motion keyframes' other fields.
 
 ## History
+
+- 2026-10-16: layer priority. The draw list (`FUN_001884f0`) keeps the
+  layers with a picture and a priority above 0 (`+0x234` per layer,
+  set by `_STCP` and `_STCH` argument 6, default layer × 10) and
+  stable-sorts them by priority, lower first (drawn first, so under).
+  Each `_FADS` gives them IR layers in that order from 39 up and draws
+  again only the IR layers whose picture changed. 897,047 of 1,082,419
+  commands fully converted (was 845,480).
 
 - 2026-10-16: the script conversion's first part (`typemoon/convert.rs`,
   `build.rs`; `typemoon convert`). Every script is lowered, 845,480 of

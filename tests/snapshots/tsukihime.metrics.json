@@ -1,11 +1,10 @@
 {
 "game": "tsukihime",
 "engine": "typemoon",
-"commit": "9f21bf71",
+"commit": "345fb919",
 "commit_date": "2026-10-16",
-"totals": {"calls": 1082419, "full": 845480, "gaps": 236939},
+"totals": {"calls": 1082419, "full": 897047, "gaps": 185372},
 "kinds": {
-"_STCP": {"calls": 51568, "gaps": 51568, "reasons": [["not converted", 51568]]},
 "_STZ4": {"calls": 32319, "gaps": 32319, "reasons": [["not converted", 32319]]},
 "_STMA": {"calls": 24333, "gaps": 24333, "reasons": [["not converted", 24333]]},
 "_STRT": {"calls": 21691, "gaps": 21691, "reasons": [["not converted", 21691]]},
@@ -81,6 +80,7 @@
 "_TRPY": {"calls": 2, "gaps": 2, "reasons": [["not converted", 2]]},
 "_XRSM": {"calls": 2, "gaps": 2, "reasons": [["not converted", 2]]},
 "_XSTP": {"calls": 2, "gaps": 2, "reasons": [["not converted", 2]]},
+"_STCP": {"calls": 51568, "gaps": 1, "reasons": [["not converted", 1]]},
 "_IFUR": {"calls": 1, "gaps": 1, "reasons": [["not converted", 1]]},
 "_NOP_": {"calls": 1, "gaps": 1, "reasons": [["not converted", 1]]},
 "_RTM2": {"calls": 1, "gaps": 1, "reasons": [["not converted", 1]]},

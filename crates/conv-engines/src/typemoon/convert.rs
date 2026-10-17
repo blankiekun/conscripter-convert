@@ -173,6 +173,11 @@ struct Lowering<'g, 'a> {
     scene_labels: HashMap<i16, String>,
     shown: Vec<Option<Layer>>,
     staged: Vec<Option<Layer>>,
+    /// Each layer's priority (`_STCP`, `_STCH` argument 6), staged and shown.
+    priority: Vec<i32>,
+    shown_priority: Vec<i32>,
+    /// What each IR layer shows.
+    slots: Vec<Option<Layer>>,
     /// `_WNTY(1)`: the next line ends its page.
     page_end: bool,
     voice: Option<Voice>,
@@ -295,6 +300,10 @@ impl Lowering<'_, '_> {
                     *l = None;
                 }
             }
+            "_STCP" => {
+                let Some(n) = number(arg(0)).filter(|n| (0..LAYERS as i32).contains(n)) else { return false };
+                self.priority[n as usize] = number(arg(1)).unwrap_or(0);
+            }
             "_FADS" => self.fads(number(arg(0)).unwrap_or(1), number(arg(1)).unwrap_or(0), number(arg(2)).unwrap_or(0)),
             _ => return false,
         }
@@ -320,66 +329,82 @@ impl Lowering<'_, '_> {
             Some((e(9, oa), e(10, ob)))
         };
         self.staged[n] = Some(Layer { base, expression, x, y, zoom: zoom / 1000.0, alpha: alpha.clamp(0.0, 255.0) as u32 });
+        // Argument 6, else layer × 10 (`FUN_00160840`).
+        self.priority[n] = if arg(6).is_empty() { n as i32 * 10 } else { number(arg(6)).unwrap_or(n as i32 * 10) };
         if !arg(11).is_empty() && arg(11) != "-1" {
             self.note("_STCH with a parent layer (placed on its own)");
         }
         true
     }
 
-    /// Shows the staged layers: each changed one placed again.
+    /// Shows the staged layers. The original draws the layers with a
+    /// picture and a priority above 0 in order of priority, the lower
+    /// first (a stable sort, so the lower layer first on a tie;
+    /// `FUN_001884f0`): the IR's layers take them in that order from the
+    /// bottom (layer 39) up, and each IR layer whose picture changes is
+    /// drawn again.
     fn fads(&mut self, kind: i32, ms: i32, rule: i32) {
-        let changed: Vec<usize> = (0..LAYERS).filter(|&i| self.staged[i] != self.shown[i]).collect();
+        self.shown.clone_from(&self.staged);
+        self.shown_priority.clone_from(&self.priority);
+        let mut order: Vec<usize> = (0..LAYERS).filter(|&i| self.shown[i].is_some() && self.shown_priority[i] > 0).collect();
+        order.sort_by_key(|&i| self.shown_priority[i]);
+        let mut want = vec![None; LAYERS];
+        for (rank, &i) in order.iter().enumerate() {
+            want[LAYERS - 1 - rank] = self.shown[i].clone();
+        }
+        let changed: Vec<usize> = (0..LAYERS).filter(|&s| want[s] != self.slots[s]).collect();
         let fade_ms = if kind == 1 { 0 } else { ms.max(0) as u32 };
         if changed.is_empty() && fade_ms == 0 {
             return;
         }
         let mask = (kind == 2).then(|| format!("pic/rule_{rule:02}.webp"));
         self.ops.push(Op::BeginTransition { effect: format!("_FADS({kind},{ms},{rule})"), fade_ms, mask, style: TransitionStyle::Fade });
-        for i in changed {
-            self.shown[i] = self.staged[i].clone();
-            // Layer priority is layer × 10 by default, higher on top; the
-            // IR's lower layers are on top.
-            // shortcut: `_STCP` and `_STCH`'s priority are not followed yet; the layer's number decides.
-            let layer = (LAYERS - 1 - i) as u32;
-            let Some(l) = self.shown[i].clone() else {
-                self.ops.push(Op::Sprites { changes: vec![SpriteChange { layer, sprite: None, keep_filters: false }], fade_ms: 0 });
-                continue;
-            };
-            // An expression the picture doesn't have (`_00_00` on a background): the picture.
-            let name = match l.expression {
-                Some((a, b)) => Some(format!("{}_{a:02}_{b:02}", l.base)).filter(|n| self.g.pictures.contains_key(n)).unwrap_or_else(|| l.base.clone()),
-                None => l.base.clone(),
-            };
-            let picture = self.g.pictures.get(&name);
-            let fill = colour(&name).filter(|_| picture.is_none_or(|p| p.flags & 3 == 3));
-            let (image, (cx, cy), zoom) = match (picture, fill) {
-                (_, Some(rgb)) => (format!(">{SCREEN_W},{SCREEN_H},#{rgb:06x}"), (SCREEN_W as f32 / 2.0, SCREEN_H as f32 / 2.0), (100, 100)),
-                (Some(p), None) => {
-                    // The record's centre goes to the script's x, y (480 × 272
-                    // for the screen); zoom about it. Records are 1280 × 724
-                    // for the screen.
-                    let (sx, sy) = (SCREEN_W as f32 / 480.0, SCREEN_H as f32 / 272.0);
-                    let mx = l.x * sx + (p.width / 2.0 - p.centre.0) * l.zoom;
-                    let my = l.y * sy + (p.height / 2.0 - p.centre.1) * l.zoom * SCREEN_H as f32 / STAGE_H;
-                    // The file at the record's size (its art is mostly 2×).
-                    let (tw, th) = self.g.textures.get(&name).map_or((p.width * 2.0, p.height * 2.0), |&(w, h)| (w as f32, h as f32));
-                    let zoom = |rec: f32, tex: f32| (100.0 * rec / tex * l.zoom).round() as i32;
-                    (format!("pic/{name}.webp"), (mx, my), (zoom(p.width, tw), zoom(p.height * SCREEN_H as f32 / STAGE_H, th)))
-                }
-                (None, None) => {
-                    self.note(format!("picture not in the exe's table: {name}"));
-                    self.ops.push(Op::Sprites { changes: vec![SpriteChange { layer, sprite: None, keep_filters: false }], fade_ms: 0 });
-                    continue;
-                }
-            };
-            self.ops.push(Op::Sprites { changes: vec![SpriteChange { layer, sprite: Some(SpritePlacement { image, x: 0, y: 0 }), keep_filters: false }], fade_ms: 0 });
-            self.ops.push(Op::SpriteMove { layer, x: cx.round() as i32, y: cy.round() as i32, ms: 0 });
-            self.ops.push(Op::SpriteAngle { layer, degrees: 0, zoom });
-            if l.alpha < 255 {
-                self.ops.push(Op::SpriteOpacity { layer: Some(layer), opacity: l.alpha * 256 / 255 });
+        for slot in changed {
+            self.slots[slot] = want[slot].clone();
+            let layer = slot as u32;
+            match want[slot].take() {
+                Some(l) => self.place(layer, &l),
+                None => self.ops.push(Op::Sprites { changes: vec![SpriteChange { layer, sprite: None, keep_filters: false }], fade_ms: 0 }),
             }
         }
         self.ops.push(Op::EndTransition);
+    }
+
+    /// Draws `l` on IR layer `layer`.
+    fn place(&mut self, layer: u32, l: &Layer) {
+        // An expression the picture doesn't have (`_00_00` on a background): the picture.
+        let name = match l.expression {
+            Some((a, b)) => Some(format!("{}_{a:02}_{b:02}", l.base)).filter(|n| self.g.pictures.contains_key(n)).unwrap_or_else(|| l.base.clone()),
+            None => l.base.clone(),
+        };
+        let picture = self.g.pictures.get(&name);
+        let fill = colour(&name).filter(|_| picture.is_none_or(|p| p.flags & 3 == 3));
+        let (image, (cx, cy), zoom) = match (picture, fill) {
+            (_, Some(rgb)) => (format!(">{SCREEN_W},{SCREEN_H},#{rgb:06x}"), (SCREEN_W as f32 / 2.0, SCREEN_H as f32 / 2.0), (100, 100)),
+            (Some(p), None) => {
+                // The record's centre goes to the script's x, y (480 × 272
+                // for the screen); zoom about it. Records are 1280 × 724
+                // for the screen.
+                let (sx, sy) = (SCREEN_W as f32 / 480.0, SCREEN_H as f32 / 272.0);
+                let mx = l.x * sx + (p.width / 2.0 - p.centre.0) * l.zoom;
+                let my = l.y * sy + (p.height / 2.0 - p.centre.1) * l.zoom * SCREEN_H as f32 / STAGE_H;
+                // The file at the record's size (its art is mostly 2×).
+                let (tw, th) = self.g.textures.get(&name).map_or((p.width * 2.0, p.height * 2.0), |&(w, h)| (w as f32, h as f32));
+                let zoom = |rec: f32, tex: f32| (100.0 * rec / tex * l.zoom).round() as i32;
+                (format!("pic/{name}.webp"), (mx, my), (zoom(p.width, tw), zoom(p.height * SCREEN_H as f32 / STAGE_H, th)))
+            }
+            (None, None) => {
+                self.note(format!("picture not in the exe's table: {name}"));
+                self.ops.push(Op::Sprites { changes: vec![SpriteChange { layer, sprite: None, keep_filters: false }], fade_ms: 0 });
+                return;
+            }
+        };
+        self.ops.push(Op::Sprites { changes: vec![SpriteChange { layer, sprite: Some(SpritePlacement { image, x: 0, y: 0 }), keep_filters: false }], fade_ms: 0 });
+        self.ops.push(Op::SpriteMove { layer, x: cx.round() as i32, y: cy.round() as i32, ms: 0 });
+        self.ops.push(Op::SpriteAngle { layer, degrees: 0, zoom });
+        if l.alpha < 255 {
+            self.ops.push(Op::SpriteOpacity { layer: Some(layer), opacity: l.alpha * 256 / 255 });
+        }
     }
 }
 
@@ -423,6 +448,9 @@ pub fn compile(g: &Game) -> Compiled {
         scene_labels,
         shown: vec![None; LAYERS],
         staged: vec![None; LAYERS],
+        priority: (0..LAYERS as i32).map(|i| i * 10).collect(),
+        shown_priority: (0..LAYERS as i32).map(|i| i * 10).collect(),
+        slots: vec![None; LAYERS],
         page_end: false,
         voice: None,
         held: None,
@@ -451,6 +479,32 @@ mod tests {
     }
 
     #[test]
+    fn layers_are_drawn_in_priority_order() {
+        let src = "_STCH(1,a,240,136);_STCH(2,b,240,136);_FADS(1,0,0);_STCP(1,50);_FADS(1,0,0);_STCP(2,0);_FADS(1,0,0);";
+        let g = Game {
+            scripts: vec![("S".into(), script::parse(src).into_iter().map(Result::unwrap).collect())],
+            scenes: vec![],
+            lines: vec![],
+            pictures: [picture("a", 10.0, 10.0), picture("b", 10.0, 10.0)].into(),
+            textures: HashMap::new(),
+            sounds: vec![],
+            waves: HashMap::new(),
+        };
+        // Each IR layer as it is drawn or cleared, in order.
+        let drawn: Vec<(u32, Option<String>)> = compile(&g)
+            .ops
+            .iter()
+            .filter_map(|o| match o {
+                Op::Sprites { changes, .. } => Some((changes[0].layer, changes[0].sprite.as_ref().map(|s| s.image.clone()))),
+                _ => None,
+            })
+            .collect();
+        let (a, b) = (Some("pic/a.webp".to_string()), Some("pic/b.webp".to_string()));
+        // a (10) under b (20); a raised to 50 goes over b; b at 0 isn't drawn.
+        assert_eq!(drawn, [(38, b.clone()), (39, a.clone()), (38, a.clone()), (39, b), (38, None), (39, a)]);
+    }
+
+    #[test]
     fn numbers_and_markup() {
         assert_eq!(number("258-18"), Some(240));
         assert_eq!(number("-5"), Some(-5));
@@ -475,7 +529,7 @@ mod tests {
         };
         let c = compile(&g);
         assert!(c.notes.is_empty(), "{:?}", c.notes);
-        let layer = 38;
+        let layer = 39;
         assert_eq!(
             c.ops,
             vec![
