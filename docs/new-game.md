@@ -266,10 +266,37 @@ rather than by browsing:
     table per game (`docs/games/<game>.findings.tsv`, or a section):
     every argument and branch marked seen, inferred or unknown. An
     inferred row becomes seen only by a decompile lookup.
+    The table starts as soon as the dry run's metrics exist
+    (`tests/snapshots/<game>.metrics.json`, from `tests/snapshot.sh
+    --update`): one row per kind, the kind in the first column.
+    `research/tools/findings_lint.py` (CI's doc-paths job) ties the two:
+    every kind needs a row, every row names a kind, a kind in `NO_ROW`
+    that gets a row must leave `NO_ROW`, and `NO_ROW_MAX` per game only
+    goes down. A new game has no `NO_ROW` entry and a ceiling of 0: its
+    table covers every kind from the first PR.
 17. **Write the results back.** Commit `names.tsv` with comments, fold the
    decoded semantics into the engine's built-ins reference
    (`research/nitroplus/builtins.md` for Nitroplus), and put the gaps
    found in the game document's Status.
+    - **names.tsv is the index, a standing rule**: before reading a
+      function, `grep research/<engine>/names.tsv` for it; for every
+      function you read, add a line (address, name, one-line comment) in
+      the same PR as the finding. Findings rows cite names from it.
+    - **Audit when the mapping is done**: a second agent re-derives 10
+      random "seen" rows (fixed seed, stated in the report) and up to 10
+      `left_out` kinds from the decompile, and checks each row's
+      converter column against the code. Verdicts: confirmed, wrong,
+      unsupported, stale. A wrong row is downgraded to inferred or
+      unknown. Done once on 2026-10-18 for Django, Saihate and
+      Tsukihime (30 of 30 rows confirmed).
+    - **Tools for reaching a moment and comparing our builds**:
+      `engine/tools/cons_explore.py` plays every route by taking the
+      untaken choices; `engine/tools/cons_trace_vars.py` turns a trace
+      into a `--vars` file for the engine's `--goto <label> --vars F`;
+      `research/tools/test_saves.py` makes saves at chosen scenes;
+      `scene_ab.py` compares a scene under two engines or scripts;
+      `txtdiff.py` compares two `0.txt` by label; `argcensus.py` lists
+      the values each command takes (step 7).
 18. **Wine API log with timestamps** (steps 10 and 15, sound in the
     checklist; wine is the last resort, CLAUDE.md rules apply: scratch
     prefix, own Xvfb, `LANG=ja_JP.UTF-8`). Log only the calls that answer
