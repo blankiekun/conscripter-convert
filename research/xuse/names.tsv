@@ -601,3 +601,15 @@
 0046f240	start_extra_script	task from ExtraMode (cb_004505e0): replay_mode 2, save and load allowed. Unreachable in this release: cb_004505e0 starts it only when ExtraMode +0xa28 != -1, and the exe only ever stores -1 there (0x44f93a, 0x44fde3)
 00473810	wait_icon_task	WindowWaitIcon.cpp: a wait with the click icon, polls story_input_poll
 00476780	text_wait_task	ScriptText.cpp: the page wait after a text, polls story_input_poll
+004a45b0	bar_toggle_auto_skip	button 6 toggles auto_mode, 7 toggles skip_state_a (each clears the other)
+0051f82d	auto_mode	auto mode on; cleared by op_97, op_68 (arg 0), to_title_clear_skip
+00443090	blit_nop	a bare ret: the fill routines of blends 5 and 6 in fill_blend_table
+00518208	fill_blend_table	colour-fill routines by blend (0-9), each a table by bytes per pixel; 5 and 6 are blit_nop
+00428b50	fill_colour	fills a surface with a COLORREF at an opacity (0-256) and blend, through fill_blend_table
+00428a50	fill_colour_dispatch	calls fill_blend_table[blend][bpp/8]
+00433180	fill_multiply_32	blend 2 fill: c * k / 255 mixed at opacity/256
+00475bf0	wait_66_task	op_66 callback: high half 0 waits the full time (not even skip ends it); else a click, key or skip ends it and sets skip_state_b
+00441670	surprise_step	0x6f: f = sin(pi t); zoom and opacity times f (16.16)
+004415b0	surprise_draw	0x6f: tints the snapshot once (fill_colour), then draws it scaled 1 + zoom f
+004176f0	keyframe_interpolate	0 kept, 1 jump at halfway, 2 linear, 3 curve (00407540) through the neighbours
+00500b68	surprise_presets	0x6f: 9 x 7 u32: zoom x, y (16.16), opacity, 0, COLORREF, tint opacity, tint blend
