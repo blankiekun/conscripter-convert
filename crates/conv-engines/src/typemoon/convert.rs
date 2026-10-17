@@ -625,7 +625,9 @@ impl Lowering<'_, '_> {
     /// `FUN_00189190`): its x, y are in the parent's picture, from its
     /// record's top-left, zoomed with the parent (and by ½, ¼, ⅛ for a
     /// parent sprite's `_L_`, `_M_`, `_S_` shot) and turned with it about
-    /// the parent's place; its angle adds to the parent's.
+    /// the parent's place by the angles summed up the chain. Its own picture
+    /// turns by its own angle only (`FUN_001884f0` copies the layer's angle
+    /// alone into what `FUN_00189ad0` draws).
     // shortcut: the parent's motions are not followed.
     fn resolved(&self, i: usize, depth: usize) -> Option<Layer> {
         let mut l = self.shown[i].clone()?;
@@ -637,13 +639,18 @@ impl Lowering<'_, '_> {
         // Script units: a record unit is 0.375 of one (1280 for the screen's 480).
         let (u, v) = (zx * (l.x - record.centre.0 * 0.375 / shot), zy * (l.y - record.centre.1 * 0.375 / shot));
         // Turned with the parent, y down (`FUN_0018c480` sums the angles).
-        let (sin, cos) = (parent.angle as f32 * std::f32::consts::PI / 18000.0).sin_cos();
+        let (sin, cos) = (self.turn(p, depth + 1) as f32 * std::f32::consts::PI / 18000.0).sin_cos();
         l.x = parent.x + u * cos - v * sin;
         l.y = parent.y + u * sin + v * cos;
-        l.angle += parent.angle;
         l.stretch = (l.stretch.0 * zx, l.stretch.1 * zy);
         l.parent = None;
         Some(l)
+    }
+
+    /// Layer `i`'s angle summed up its parents (`FUN_0018c480`).
+    fn turn(&self, i: usize, depth: usize) -> i32 {
+        let Some(l) = &self.shown[i] else { return 0 };
+        l.angle + l.parent.filter(|_| depth < LAYERS).map_or(0, |p| self.turn(p, depth + 1))
     }
 
     /// The picture `l` draws: with its expression, or the bare picture if
@@ -881,7 +888,7 @@ mod tests {
     #[test]
     fn a_child_turns_with_its_parent() {
         // The parent turned 90° clockwise: the child 60 script units right
-        // of its middle goes 60 below it, and turns with it.
+        // of its middle goes 60 below it; its own picture isn't turned.
         let src = "_STCH(1,img1,240,136,1000,255,10,,,,,,,,,,,,,9000);_STCH(2,dot,300,136,1000,255,20,,,,,1);_FADS(1,0,0);";
         let g = Game {
             scripts: vec![("S".into(), script::parse(src).into_iter().map(Result::unwrap).collect())],
@@ -895,7 +902,7 @@ mod tests {
         };
         let ops = compile(&g).ops;
         assert!(ops.contains(&Op::SpriteMove { layer: 38, x: 639, y: 519, ms: 0 }), "{ops:?}");
-        assert!(ops.iter().any(|o| matches!(o, Op::SpriteAngle { layer: 38, degrees: -90, .. })), "{ops:?}");
+        assert!(ops.iter().any(|o| matches!(o, Op::SpriteAngle { layer: 38, degrees: 0, .. })), "{ops:?}");
     }
 
     #[test]

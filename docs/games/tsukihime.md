@@ -609,7 +609,7 @@ Nothing yet.
 | Exe tables (pictures, motions, scene numbers) | ✅ read from the NSO (`typemoon exe`); picture sizes checked against the textures |
 | Scripts | 🔶 read: every command of both languages splits (one malformed in the original) and its text and voices join; the top commands' arguments read from the exe, the rest not yet |
 | Media folder (`typemoon media`) | ✅ `allpac`'s pictures as full-size WebP (2.37 GB), movies at 720p, sound |
-| Script conversion (`typemoon convert`) | 🔶 the flow (labels, `_JUMP`, `_IF__`, flags), text (pages, ruby, voices), pictures (`_STCH`/`_STCC`/`_FADS`: record size and place, fades and rule wipes), sound effects and music; plays from the start through `00_00` into the first arc headless. Layers drawn in priority order (`_STCP`, `_STCH` argument 6), zoomed (`_STZ4`), faded (`_STGS`) and moved (`_STMA`, the exe's motions; easing, priority and expression keys not followed), children placed in their parent layers and turned with them (`_STCH` argument 11), turned (`_STRT`), drawn with their shader as far as CONscripter's blends and filters go (`_STBR`) and tinted (`_STEC` effect 1). Choices (`_SELR`, `_SELD`, `_GOTS`), `_GOTO` and the Switch's own branches (`_IFNX`/`_IFP4`). Not yet: `_STEC`'s other effects, the other layer commands, screens |
+| Script conversion (`typemoon convert`) | 🔶 the flow (labels, `_JUMP`, `_IF__`, flags), text (pages, ruby, voices), pictures (`_STCH`/`_STCC`/`_FADS`: record size and place, fades and rule wipes), sound effects and music; plays from the start through `00_00` into the first arc headless. Layers drawn in priority order (`_STCP`, `_STCH` argument 6), zoomed (`_STZ4`), faded (`_STGS`) and moved (`_STMA`, the exe's motions; easing, priority and expression keys not followed), children placed in their parent layers and orbiting with their turn (`_STCH` argument 11), turned (`_STRT`), drawn with their shader as far as CONscripter's blends and filters go (`_STBR`) and tinted (`_STEC` effect 1). Choices (`_SELR`, `_SELD`, `_GOTS`), `_GOTO` and the Switch's own branches (`_IFNX`/`_IFP4`). Not yet: `_STEC`'s other effects, the other layer commands, screens |
 | Screens, extras | ❌ |
 
 ### Next
@@ -640,10 +640,30 @@ Nothing yet.
   `FUN_00189420` (the child's x, y) turn its offset in the parent by
   the parent's angle (`FUN_0018c480`: the angles summed up the chain,
   in 1/100°) with x' = u cos a − v sin a, y' = u sin a + v cos a, y down:
-  clockwise on the screen. The child's own angle adds to the parent's.
-  So a positive angle turns a picture clockwise (it was drawn
-  counter-clockwise before): `spzoom`'s angle is now −a/100.
-  20,757 `spzoom` and 1,725 places of the Japanese `0.txt` changed.
+  clockwise on the screen. So a positive angle turns a picture
+  clockwise (it was drawn counter-clockwise before): `spzoom`'s angle
+  is now −a/100. 20,757 `spzoom` and 1,725 places of the Japanese
+  `0.txt` changed.
+  - **The sign, checked again** (the same day). Two places in the game's
+    own code put things clockwise for a positive angle: the child math
+    above and `FUN_00189ad0`'s frame corners (it turns the corner
+    offsets with x' = dx cos − dy sin, y' = dy cos + dx sin, y down,
+    and draws the corner pieces with the same angle). 1,725 child
+    places sit in turned parents, which the original couldn't have
+    shipped if the picture turned the other way. The renderer itself
+    (`FUN_001b1890` → `FUN_001bacf0` → `FUN_001b8990`: Euler z = −angle,
+    row-vector model matrix, y-down ortho in `FUN_001d83bc`) reads as
+    counter-clockwise, but that read leans on the view matrix and the
+    shader's layout, neither traced; so clockwise is inferred from the
+    game's code, not seen at the vertex.
+  - **A child's own picture turns by its own angle only**:
+    `FUN_001884f0` copies the layer's angle alone into the draw record
+    that `FUN_00189ad0` reads (record +0x1c, ×1.82 into 1/65536 turns
+    for `FUN_001b0480`), and `FUN_0018c480` (the sum) is called only by
+    the two position functions. The scripts agree: of 1,831 children
+    in turned parents, 14 set the parent's angle on the child too
+    (1740 and 1740), which summing would turn twice. 1,405 `spzoom`
+    lines of the Japanese `0.txt` changed.
 
 - 2026-10-16: choices. `_SELR(index, $text[, 1])` adds an option (1:
   greyed), `_SELD(_D000, …)` shows them and `_GOTS(_D000, label, …)`
