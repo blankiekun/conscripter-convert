@@ -452,7 +452,8 @@ pub fn emit(script: &Script) -> String {
     writeln!(out, "*start").unwrap();
     // The text speed is a setting when there is a settings menu.
     let has_settings = script.settings.is_some() || script.picture_settings.is_some();
-    let speed = if has_settings { menu::TEXT_MS } else { "20" };
+    let speed = if has_settings { menu::TEXT_MS.to_string() } else { script.text_ms.unwrap_or(20).to_string() };
+    let speed = speed.as_str();
     let voice_switches = voice_switches(script);
     let duck = uses_switch(script, Switch::BgmFullForVoice);
     if let Some(s) = &script.settings {

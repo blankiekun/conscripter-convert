@@ -922,4 +922,7 @@ pub struct Script {
     /// runs), written into `system.lua` after conv-cons' own lines. A
     /// global holding data is saved with each save (CONscripter).
     pub lua: String,
+    /// Milliseconds a character when the game has no settings screen
+    /// (with one, the text speed is a setting); `None` = 20.
+    pub text_ms: Option<u32>,
 }
