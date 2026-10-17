@@ -20,3 +20,33 @@
 00160610	cmd_FADS	_FADS(type, ms, rule, mode): show the staged layers (0 fade, 2 rule mask)
 0014b4c0	set_rule_mask	Loads rule mask n: the n+1-th entry after mask_top.mzp
 00138ea0	cmd_WNTY	_WNTY(n): text window type
+00103de0	cmd_STEC_effects	_STEC: fill colour (strtol) and effects 2-82 (findings row _STEC)
+00130c80	motion_easing	motion key easing 0x04 (Penner set, 0/1 straight), from the last key before (findings row motion)
+00131f30	cmd_STZ4_zoom	_STZ4 timed zoom
+00132e30	cmd_STZ4_size	_STZ4 byte f (0x874): zoom off the picture's size
+00138d40	cmd_CLO3	_CLO3: fade out in 4 frames; nothing if the window isn't up
+001391a0	cmd_WNTY_offset	_WNTY type 0/1: line offset 3.5 or 5.5
+0015d3a0	fads_time	_FADS ms: frames or ms
+00162490	cmd_STBR_shader	_STBR: shader n
+00162b20	cmd_STRT_turn	_STRT: turn 1/100 deg to `to` from `from` over ms*60/1000 frames; cx, cy
+001637a0	cmd_STGS_alpha	_STGS: from default the layer's alpha, to default 0, over 254 -> 255; ms*60/1000 frames
+00164fa0	cmd_MFAD_fade	_MFAD: option 1 fade, 11 a second fade
+0016a340	cmd_SEPL_play	_SEPL: plays on its channel in place of the one there; the same loop there at volume > 0 goes on
+0016b310	cmd_SEFD_fade	_SEFD: channel (< 0 all), option 1 fade ms
+0016e0d0	text_window_fade_in	next text fades the window in over 18 frames when hidden (_ZM/_MSAD)
+00186120	rand_a	rand() only under FUN_0013c970 (an effect), not a script command
+001862e0	rand_b	rand() only under FUN_0013c970 (an effect), not a script command
+00189ad0	cmd_STCH_clip	_STCH: 12-16 clip rectangle and frame, 17 frame colour
+00192630	cmd_RDST_flag	_RDST: read flag n (0..0x23F)
+001958e8	motion_start_time	_STMA argument 3 (p): start time of the motion
+001961b0	motion_easing_b	motion key easing 0x04 (Penner set, 0/1 straight), from the last key before (with FUN_00130c80)
+001972c0	motion_cubic	motion 0x06 mode 1: a cubic curve
+00197710	motion_key_values	motion: -32767 unchanged, -32766 no key (interpolated)
+00197b80	motion_field_mask	motion field mask u64 at 0x46AB38+8m (x 0x40880, y 0x5100000, alpha 0x4000, zoom 0x80200000/0x100400000, turn 0x88000)
+00199950	motion_9999	motion 9999: the whole time eased by key 0's easing
+00199960	motion_field_mask_b	motion field mask u64 at 0x46AB38+8m (with FUN_00197b80)
+001999a0	motion_loop_start	motion loop start (1: from the start; else ms); jump table
+00199f90	motion_keys_range_b	keys of motion m: [end(m-1), end(m)), length = last key's time (with FUN_00199fc0)
+00199fc0	motion_keys_range	keys of motion m: [end(m-1), end(m)), length = last key's time
+0019caa0	sound_one_shot_cut	a one-shot cut by the next sound on its channel (_SEPL)
+001f6720	clock_nn_time	clock: nn::time in FUN_001f67xx (save dates)

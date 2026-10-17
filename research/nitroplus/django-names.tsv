@@ -247,3 +247,35 @@
 0042fee0	create_window	CreateWindow's work: last argument not TRUE clears +0x3c8 (children placed from the screen)
 004403a0	parse_position	an object's place from its x, y text, from its parent's corner when the parent's +0x3c8 is set
 00436de0	init_object	new object: +0x3c8 = 1, place from the parent's when the parent's +0x3c8 is set
+00402480	clear_backlog	empties the text log (ClearBacklog, called from 0040d680)
+004283c0	set_font_apply	SetFont: applies the font settings (called from 0040d760; face, size, colours, weight, outline)
+004308b0	load_font_object	LoadFont: pre-renders the characters' glyphs into a font object (called from 004094d0)
+004310e0	timed_wait	wait for a timed builtin: true with time > 0 waits the whole time, a number n waits n ms, 0/false/null/missing no wait
+004328a0	set_frequency_object	SetFrequency: sound object step (called from 0040d220)
+00432da0	set_alias_object	SetAlias: clears the alias from its holder, stores it on every object the name matches
+00433040	set_shade_object	SetShade: object step (called from 0040c710; passes the level to 0044af20, not read)
+00433860	set_next_focus_object	SetNextFocus: both names must match objects (keyboard focus link, not read)
+00433b00	delete_objects	Delete: every object the name matches (wildcards, @ aliases); locked ones stay, children go with it
+00433bf0	wait_object_idle	WaitAction/WaitFade/WaitMove/WaitPlay: wait until nothing runs on the object
+00437980	timed_steps	timed builtins: steps = time * fps * 0.001 (fps 60), at least 1; time 0 sets at once
+00439200	timed_steps_b	timed builtins: steps from the time (with 00437980)
+00439590	builtin_Rotate_values	Rotate: x, y, z degrees; @ relative, no special values
+0043a2b0	clip_vertex_default	SetVertex: unknown before any SetVertex; a clip puts it at the clip's centre
+0043a4c0	wait_object_idle_b	WaitAction/WaitFade/WaitMove: second wait helper (with 00433bf0)
+0043cca0	delete_objects_b	Delete: second step (called from 0040a660, with 00433b00)
+0043e270	request_start	Request Start: processes only; the process thread set to run (state 0x13, its event set)
+00440f10	tempo_tables_start	tempo (easing) tables 00440f10-004413c0 (start)
+004413c0	tempo_tables_end	tempo (easing) tables 00440f10-004413c0 (end)
+004482e0	clear_score_a	ClearScore: LOCAL/GLOBAL/ALL (with 0040d4f0, 00448340)
+00448340	clear_score_b	ClearScore: LOCAL/GLOBAL/ALL (with 0040d4f0, 004482e0)
+0044ddb0	movie_play	MoviePlay: turns skip off; plays full screen, the script waiting (called from 0040d3a0)
+004515a0	movie_stop_callback	MoviePlay: window callback that stops the movie (called from 0040d3a0)
+00452410	save_slot	Save: slot atol, then this (the save itself not read)
+00457940	create_sound_type	CreateSound type: BGM, SE, VOICE, SILENT (exact, upper case, a digit may follow) pick the volume setting; volume 1000
+00457dd0	set_volume	SetVolume: clamped 0-1000; 1000*log2(v/1000) mB, floor -10000; @ relative
+00457f60	set_pan	SetPan: pan x10 -> DirectSound pan mB, +-10000
+004580a0	set_frequency_sound	SetFrequency: sound step (called from 0040d220); stepped by a thread (0045a040) unless at once
+00458220	set_loop_sound	SetLoop: true -> -1, false -> 0, a number -> that count (called from 0040d300)
+0045a040	volume_step_thread	SetVolume/SetFrequency fade: steps (time x a factor, at least 1) from old to new volume along the tempo's curve (00434ea0)
+0045fda0	wait_click_mask	Wait click: mask 0xb (quit, state change, skip); a click does not end it, skip does (with 0040bd80)
+004666c0	set_vertex_names	SetVertex: x, y names lower case, per axis left/center/right, top/middle/bottom; another word atol (0)
