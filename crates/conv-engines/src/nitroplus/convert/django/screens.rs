@@ -93,11 +93,12 @@ fn settings(a: &mut dyn Assets) -> Option<PictureSettings> {
         presets.push((button(a, name, x, 188)?, speed(level)));
     }
     let sliders = vec![
-        // src: 装甲悪鬼村正's exe FUN_0047c250 table (Django's Wait divides inline: its table not found)
+        // src: Django.exe reset_system_defaults 0045cb30 (the table at 00529408 that text_speed_seconds 0045d520 reads)
         stepped(SliderSetting::GameSpeed { levels: [50, 75, 100, 150, 200, 300, 400, 550, 800, 1200, 1600, 3200] }, presets, speed(3), false),
         // The engine starts at 500 (level 5, under wine; config_default's
-        // 1000 is DEFAULT's). guess: 50 ms a character at level 10 (the exe's unit isn't known).
-        stepped(SliderSetting::TextSpeed { ms: 50 }, bullets(a, 212, &text_speed)?, text_speed(5), true),
+        // 1000 is DEFAULT's). src: Django.exe 00461e40 (a character's ms = the base × text_speed ÷ 1000),
+        // 004605b0 (the base 30 ms: the scripts set no $SYSTEM_text_interval)
+        stepped(SliderSetting::TextSpeed { ms: 30 }, bullets(a, 212, &text_speed)?, text_speed(5), true),
         // src: setgrade's 20 ms × level, config_default's 100 (level 5); volumes: system.ini 700, 900, 1000
         stepped(SliderSetting::AutoWait { ms: 200 }, bullets(a, 308, &per_char)?, per_char(5), true),
         stepped(SliderSetting::BgmVolume, bullets(a, 422, &volume)?, volume(7), true),
