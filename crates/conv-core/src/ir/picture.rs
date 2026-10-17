@@ -177,6 +177,9 @@ pub struct LineLog {
     /// Rows this many pixels wide instead of `columns` cells (proportional
     /// text in a field of its own width).
     pub row_width: Option<u32>,
+    /// Drawn by the engine (CONscripter's `screen`, `screens/backlog.lua`)
+    /// rather than by script loops.
+    pub engine_screen: bool,
 }
 
 /// An animated click-wait icon ([`Script::wait_icon`]): pictures of `w`×`h`

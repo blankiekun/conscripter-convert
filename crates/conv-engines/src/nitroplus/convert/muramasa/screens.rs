@@ -424,6 +424,8 @@ fn line_log(a: &mut dyn Assets, en: bool) -> Option<LineLog> {
         fade_ms: 300,
         outline: None,
         row_width: en.then_some(570),
+        // The English port's single-byte rows: not yet.
+        engine_screen: !en,
     })
 }
 

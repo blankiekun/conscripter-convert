@@ -565,7 +565,32 @@ and 3 px of 削除. Open:
   the click); S and L no longer close the save and load screens (a
   right-click and 退出 do).
 - Muramasa EN's save screen (popup, locks, tabs, quick page) still uses
-  the script routine, as do the backlog and the extras.
+  the script routine, as do the extras.
+
+### Backlog drawn by the engine (2026-10-17)
+
+ログ表示 is CONscripter's `screen "backlog"` (`conv-cons/src/line_log_screen.rs`,
+from `LineLog` with `engine_screen`; engine #88): `*conv_backlog` lays
+the history out with `logrows` and opens the screen; a list of rows
+(`source = "rows"`, `%170` rows back from the newest) with each voiced
+page's voice button, 逆/進 and the wheel a row (wheel-down past the newest
+closes), the knob a picture slider on `%170`, 退出, 300 ms fades. Checked
+on Xvfb against main's routine after 20 prologue pages
+(`compare -metric AE -fuzz 2%`): at open, after wheel-ups and 逆, at the
+newest and the oldest rows, a voice icon hovered and clicked, closed by
+the wheel: 0 pixels. Again after the rebase onto engine master (#88,
+#100, #101): 0 pixels at open, the rest only the knob (1 px) and 逆 at the
+oldest row. Open:
+
+- the knob sits up to 1 px from the routine's after a wheel or a drag
+  (the slider rounds its place, the routine truncated); a press on the
+  knob's sweep away from the knob jumps it there (the routine only
+  dragged the knob).
+- 逆 at the oldest row and 進 at the newest are not buttons (the screen
+  turns off a scroll that can't move), so they don't light under the
+  pointer; the routine's did.
+- Muramasa EN's backlog (single-byte rows, `row_width`) still uses the
+  script routine.
 
 ### Settings drawn by the engine (2026-10-17)
 

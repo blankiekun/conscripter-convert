@@ -47,6 +47,7 @@ mod settings_pages;
 mod settings_screen;
 mod switches;
 mod line_log;
+mod line_log_screen;
 mod lua;
 pub use lua::system_lua;
 mod zoom;
@@ -633,7 +634,9 @@ pub fn emit(script: &Script) -> String {
         let replay = script.extras.as_ref().and_then(|e| e.replay.as_ref()).filter(|_| has_replay);
         menu::settings_menu(&mut out, m, script.confirm.as_ref(), replay.map(|r| (r.leave_label.as_str(), r.leave_question.as_str())), script.version.as_deref().map(|v| (v, script.height)));
     }
-    if let Some(l) = &script.line_log {
+    if let Some(l) = line_log_screen::engine_log(script) {
+        line_log_screen::labels(&mut out, l);
+    } else if let Some(l) = &script.line_log {
         line_log::emit(&mut out, l, script.single_byte_text);
     } else if script.backlog.is_some() {
         screens::backlog_labels(&mut out);

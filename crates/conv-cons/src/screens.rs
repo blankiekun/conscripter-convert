@@ -47,6 +47,7 @@ pub fn screen_files(script: &Script) -> Vec<(String, String)> {
         files.push(("confirm.lua".to_string(), confirm_lua(d)));
     }
     files.extend(crate::save_grid_screen::files(script));
+    files.extend(crate::line_log_screen::files(script));
     files.extend(crate::settings_screen::files(script, script.global_border.unwrap_or(crate::GLOBAL_VAR_BASE)));
     files
 }

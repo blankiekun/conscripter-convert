@@ -226,6 +226,7 @@ mod tests {
             fade_ms: 300,
             outline: None,
             row_width: None,
+            engine_screen: false,
         };
         let mut out = String::new();
         emit(&mut out, &l, false);
