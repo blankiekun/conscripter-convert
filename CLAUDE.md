@@ -82,7 +82,8 @@ not in the repo.
   audio, a Japanese locale (`LANG=ja_JP.UTF-8 LC_ALL=ja_JP.UTF-8`, for
   every game), never the user's desktop. Reach a moment by patching
   scripts or saves before clicking through (`docs/new-game.md` step 9).
-  Stop wine and Xvfb when done.
+  Xvfb with `-displayfd` (a free display), never a fixed number
+  (recipe: `docs/tools.md`). Stop wine and Xvfb when done.
 - Wine is the last resort (the user, 2026-10-16: it takes long and costs
   many tokens). Work out what the original does from its code first:
   the scripts, the decompile (`research/tools/ghidra`), the formats.
