@@ -1241,7 +1241,7 @@ fn motion(old: &Shown, now: &Shown, ms: u32) -> Option<Op> {
     let centre = |s: &Shown| (s.x + s.w / 2, s.y + s.h / 2);
     let ((x0, y0), (x1, y1)) = (centre(old), centre(now));
     let zoom = ((zx + 5) / 10).clamp(1, 10000) as u32;
-    let key = |ms, x, y, zoom, angle| MotionKey { ms, x, y, zoom, angle, opacity: 256 };
+    let key = |ms, x, y, zoom, angle| MotionKey { ms, x, y, zoom, angle, opacity: 256, zoom_y: zoom };
     let keys = vec![key(0, 0, 0, 100, 0), key(ms, (x1 - x0) as i32, (y1 - y0) as i32, zoom, (now.angle - old.angle) as i32)];
     Some(Op::SpriteMotion2 { layer: old.layer, keys, end: MotionEnd::Keep })
 }

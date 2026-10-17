@@ -1058,6 +1058,7 @@ impl Lowering<'_> {
                             x: sx(k.x.round() as i64),
                             y: sy(k.y.round() as i64),
                             zoom: (k.scale * 100.0).round().max(0.0) as u32,
+                            zoom_y: (k.scale * 100.0).round().max(0.0) as u32,
                             // Radians, clockwise on the screen (our guess).
                             angle: (-k.roll.to_degrees()).round() as i32,
                             opacity: (k.alpha.clamp(0.0, 255.0) * 256.0 / 255.0).round() as u32,
@@ -1076,7 +1077,7 @@ impl Lowering<'_> {
                     // `:EndSet` leaves the character where the last key
                     // has it; spmotion's motions end back at the place.
                     let last = *keys.last().unwrap();
-                    let keep = a.end_set && (last.x, last.y, last.zoom, last.opacity) != (0, 0, 100, 256);
+                    let keep = a.end_set && (last.x, last.y, last.zoom, last.zoom_y, last.opacity) != (0, 0, 100, 100, 256);
                     self.settle(&key);
                     if !keep && a.keys.iter().all(ActionKey::plain) {
                         let keys = keys.iter().map(|k| (k.ms, k.x, k.y)).collect();

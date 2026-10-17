@@ -178,18 +178,20 @@ impl Pass {
         let times = self.key_times(len);
         let key = |t: u32| {
             let v = self.values(t);
+            let zoom = (v[2] * 100.0 / base[2].max(1.0)).round().max(1.0) as u32;
             MotionKey {
                 ms: t,
                 x: (v[0] - base[0]).round() as i32,
                 y: (v[1] - base[1]).round() as i32,
-                zoom: (v[2] * 100.0 / base[2].max(1.0)).round().max(1.0) as u32,
+                zoom,
                 angle: (v[4] - base[4]).round() as i32,
                 opacity: (v[5] * 256.0 / top).round() as u32,
+                zoom_y: zoom,
             }
         };
         let mut keys: Vec<MotionKey> = times.into_iter().map(key).collect();
         // A key between two like it adds nothing.
-        let same = |a: &MotionKey, b: &MotionKey| (a.x, a.y, a.zoom, a.angle, a.opacity) == (b.x, b.y, b.zoom, b.angle, b.opacity);
+        let same = |a: &MotionKey, b: &MotionKey| (a.x, a.y, a.zoom, a.zoom_y, a.angle, a.opacity) == (b.x, b.y, b.zoom, b.zoom_y, b.angle, b.opacity);
         let mut i = 1;
         while i + 1 < keys.len() {
             if same(&keys[i - 1], &keys[i]) && same(&keys[i], &keys[i + 1]) {
@@ -313,7 +315,7 @@ impl<'a> Compiler<'a, '_> {
             }
         }
         let Some(target) = target else { return };
-        let keys = shake_keys(&parts).into_iter().map(|(ms, x, y)| MotionKey { ms, x, y, zoom: 100, angle: 0, opacity: 256 }).collect();
+        let keys = shake_keys(&parts).into_iter().map(|(ms, x, y)| MotionKey { ms, x, y, zoom: 100, angle: 0, opacity: 256, zoom_y: 100 }).collect();
         self.set_loop(name, &target, keys);
     }
 
