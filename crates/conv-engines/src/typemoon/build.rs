@@ -45,7 +45,8 @@ pub fn build(romfs: &Path, main: &Path, opts: &Opts) -> Result<Built> {
     let textures = textures(romfs, &pictures)?;
     let bfsar = map(&romfs.join("knife1.bfsar"))?;
     let waves = bfsar::wave_sounds(&bfsar)?.into_iter().map(|w| (w.name.trim_start_matches("WSD_").to_uppercase(), w.name)).collect::<HashMap<_, _>>();
-    let game = Game { scripts, scenes: exe.scenes()?, lines, pictures, textures, sounds: bfsar::sound_names(&bfsar)?, waves, motions: exe.motions()? };
+    let sounds = stream_names(romfs, bfsar::sound_names(&bfsar)?)?;
+    let game = Game { scripts, scenes: exe.scenes()?, lines, pictures, textures, sounds, waves, motions: exe.motions()? };
     let compiled = convert::compile(&game);
     if !opts.dry_run {
         window(romfs, &opts.output.join(WINDOW))?;
@@ -116,4 +117,42 @@ fn window(romfs: &Path, dest: &Path) -> Result<()> {
     let img = image::imageops::resize(&img, convert::SCREEN_W, convert::SCREEN_H, image::imageops::FilterType::Triangle);
     fs::create_dir_all(dest.parent().unwrap())?;
     img.save(dest).with_context(|| format!("writing {}", dest.display()))
+}
+
+/// The bfsar names a stream by its file's name in capitals with every
+/// other character than a letter or digit as `_` (`STRM_ARCSTAFFROLL_SHORT_`
+/// for `stream/arcstaffroll(short).opus`): each `STRM_` name with the
+/// file's own name, as the media folder writes it.
+fn stream_names(romfs: &Path, names: Vec<String>) -> Result<Vec<String>> {
+    let key = |n: &str| n.chars().map(|c| if c.is_ascii_alphanumeric() { c.to_ascii_uppercase() } else { '_' }).collect::<String>();
+    let mut files = HashMap::new();
+    for e in fs::read_dir(romfs.join("stream")).context("reading stream/")? {
+        let path = e?.path();
+        if let Some(stem) = path.file_stem().and_then(|s| s.to_str()).filter(|_| path.extension().is_some_and(|x| x == "opus")) {
+            files.insert(key(stem), stem.to_string());
+        }
+    }
+    Ok(names
+        .into_iter()
+        .map(|n| match n.strip_prefix("STRM_").and_then(|k| files.get(k)) {
+            Some(file) => format!("STRM_{file}"),
+            None => n,
+        })
+        .collect())
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn a_stream_is_named_as_its_file() {
+        let dir = std::env::temp_dir().join(format!("tm-stream-{}", std::process::id()));
+        std::fs::create_dir_all(dir.join("stream")).unwrap();
+        for f in ["arcstaffroll(short).opus", "Believer_Tape_FinalMix_Take1-2.opus", "MOON01_BGM01.opus"] {
+            std::fs::write(dir.join("stream").join(f), b"").unwrap();
+        }
+        let names = ["STRM_ARCSTAFFROLL_SHORT_", "STRM_BELIEVER_TAPE_FINALMIX_TAKE1_2", "STRM_MOON01_BGM01", ""].map(String::from).to_vec();
+        let got = super::stream_names(&dir, names).unwrap();
+        std::fs::remove_dir_all(&dir).unwrap();
+        assert_eq!(got, ["STRM_arcstaffroll(short)", "STRM_Believer_Tape_FinalMix_Take1-2", "STRM_MOON01_BGM01", ""]);
+    }
 }
