@@ -598,6 +598,13 @@ anything is reached (step 11.6).
      the format from the exe's save and load code first.
   3. **Click through by hand** only when neither works. It is slow, and
      a click can miss or land during a fade.
+- **Console games: an emulator instead of wine.** Same rules: last
+  resort, its own Xvfb (`-displayfd`, `WAYLAND_DISPLAY=` empty; never
+  start the emulator bare, even for `--help`: GUI front ends open on
+  the desktop), its own data dir (not the user's), no audio, memory
+  capped. Check the boot first: firmware and keys must match (every
+  firmware NCA's key revision must be in the keys). Switch: Ryubing's
+  `--no-gui` front end, recipe in `docs/games/tsukihime.md`, "Testing".
 - **Wine gotchas:** run every game with `LANG=ja_JP.UTF-8` and
   `LC_ALL=ja_JP.UTF-8`, or folder and file names come out garbled and
   saves can fail (Muramasa's new game went straight back to the title). Wine has no MS fonts, so a
