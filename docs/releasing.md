@@ -10,7 +10,8 @@ Bump the version in `asset/icon1.rc`, `src/cons/version.h`,
 protected); then tag the merged commit `vX.Y.0` on `master` and push the
 tag. Five workflows
 run on tags (Linux, Windows, macOS, web, Android); the release should
-have 9 assets. If `build_web.yml`, `cross_web.sh` or `_fetch.sh`
+have 10 assets, and `build_web`'s "web smoke test" step must be green
+(`engine/tests/web/smoke.py`: the page hooks in headless Chrome). If `build_web.yml`, `cross_web.sh` or `_fetch.sh`
 changed, let the `master` run finish first (tags read its caches).
 Then write the release notes, a changelog from `git log vOLD..vNEW`
 grouped by what changed for a game or a player:
