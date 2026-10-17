@@ -424,6 +424,8 @@ with the original (it wants all eleven endings' flags under wine).
    1. **Time across runtime branches**: the sound clock adds up the ops
       of both branches of a runtime `if`/`else`, so a sound started
       before one may be taken as ended too soon. Fine as is.
+7. `CreateEffect` Rain (37), Drop (4), Lens (2): 装甲悪鬼村正's, shared
+   NSS code; noted, drawn as nothing.
 
 ## History
 
@@ -436,7 +438,11 @@ with the original (it wants all eleven endings' flags under wine).
   greyscale and then a multiply by cream (255,235,195), its strength the
   effect's opacity; the black bars (10000) above it stay black.
   `Monochrome` (greyscale) and `NegaPosi` (negative) the same way
-  (装甲悪鬼村正's 13 and 4; `KitanoBlue`, Rain, Drop, Lens still noted).
+  (装甲悪鬼村正's 13 and 4; Rain, Drop, Lens still noted).
+  `KitanoBlue` (装甲悪鬼村正's 4) followed: grey times a cool blue
+  (170,200,255), a guess like sepia's; a tint over part of the screen
+  (mc01_011vsa's 200×150 zoom box) is noted and left out, since it
+  would tint the whole screen.
   The exe's sepia code (`parse_effect_name` → 0x425a10) is encrypted on
   disk, so the tone is ours: black stays black, grey 132 becomes
   (132,121,100) (headless test script). A change of tint alone is an

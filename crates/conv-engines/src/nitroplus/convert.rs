@@ -3904,7 +3904,7 @@ scene a.nss
 	CreateTexture("bg", 100, 0, 0, "cg/bg/a.png");
 	CreateTexture("bar", 10000, 0, 0, "cg/bg/b.png");
 	Wait(100);
-	CreateEffect("効果", 2000, 0, 0, 800, 600, "Sepia");
+	CreateEffect("効果", 2000, 0, 0, 1024, 576, "Sepia");
 	Fade("効果", 0, 1000, null, true);
 	Wait(100);
 }
@@ -3916,6 +3916,23 @@ scene a.nss
         }).collect();
         assert_eq!(tinted.len(), 1, "{:?}", c.ops);
         assert!(!c.notes.keys().any(|n| n.starts_with("CreateEffect Sepia")), "{:?}", c.notes);
+    }
+
+    #[test]
+    fn a_tint_over_part_of_the_screen_is_left_out() {
+        // 装甲悪鬼村正's mc01_011vsa: a 200×150 KitanoBlue box.
+        let story = r#"
+scene a.nss
+{
+	CreateTexture("bg", 100, 0, 0, "cg/bg/a.png");
+	CreateEffect("効果", 2000, 120, 205, 200, 150, "KitanoBlue");
+	Fade("効果", 0, 1000, null, true);
+	Wait(100);
+}
+"#;
+        let c = compile(story, LIBRARY);
+        assert!(!c.ops.iter().any(|op| matches!(op, Op::SpriteFilters { .. })), "{:?}", c.ops);
+        assert!(c.notes.keys().any(|n| n == "CreateEffect KitanoBlue on part of the screen"), "{:?}", c.notes);
     }
 
     #[test]
