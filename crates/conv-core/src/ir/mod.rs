@@ -330,6 +330,9 @@ pub struct TextStyle {
     pub italic: bool,
     /// The lines this range starts are centred in the window (`!c`).
     pub centred: bool,
+    /// A 1 px outline of this 0xRRGGBB round the characters, in place of
+    /// their shadow (CONscripter's `!o#RRGGBB` … `!o0`); `None`: none.
+    pub outline: Option<u32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
