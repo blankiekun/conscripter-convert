@@ -3389,11 +3389,20 @@ impl<'a, 'b> Compiler<'a, 'b> {
                             }
                             face_off = tag.attr("img").is_none_or(str::is_empty);
                         }
-                        // A variable's value, when it is known here.
-                        ("value", false) => match tag.attr("name").and_then(|n| self.vars.get(n)).cloned() {
-                            Some(v @ (Value::Str(_) | Value::Int(_))) => line.push_str(&v.string()),
-                            _ => self.note("text tag <value> of a variable known only when the game runs"),
-                        },
+                        // A variable's value, when it is known here; one a
+                        // runtime flag holds as a mark (`show_text` gives the
+                        // page once for each of its texts). The English
+                        // port writes `<VALUE='材料名前'>`.
+                        (n, false) if n == "value" || n.starts_with("value=") => {
+                            let name = tag.attr("name").map(str::to_string).or_else(|| tag.name.split_once('=').map(|(_, v)| format!("${}", v.trim_matches(['\'', '"']))));
+                            match name.and_then(|n| self.vars.get(&n)).cloned() {
+                                Some(v @ (Value::Str(_) | Value::Int(_))) => line.push_str(&v.string()),
+                                Some(Value::Runtime(var)) if self.flag_texts.get(&var).is_some_and(|t| !t.is_empty()) => {
+                                    line.push_str(&format!("{}{}{}{}", RUNTIME_MARK.0, if var.global { "g" } else { "" }, var.index, RUNTIME_MARK.1));
+                                }
+                                _ => self.note("text tag <value> of a variable known only when the game runs"),
+                            }
+                        }
                         // The English port's waits (function_textbox.nut): WaitKey and
                         // WaitVoice mid-text.
                         (n, false) if n.starts_with("wait=") || n.starts_with("waitvoice=") => {
@@ -3494,23 +3503,45 @@ impl<'a, 'b> Compiler<'a, 'b> {
             // Vertical text is full-width (CONscripter also exits on a
             // half-width character in vertical mode).
             let vertical = self.window.as_ref().is_some_and(|w| w.vertical);
-            let text = if vertical { full_width(&page.text) } else { page.text.clone() };
+            let shown = |t: &str| if vertical { full_width(t) } else { t.to_string() };
             let mut ruby = page.ruby.clone();
             if vertical {
                 for r in &mut ruby {
                     r.text = full_width(&r.text);
                 }
             }
-            self.ops.push(Op::Text {
+            let page_op = |text: String| Op::Text {
                 speaker: None,
-                text,
-                voice,
+                text: shown(&text),
+                voice: voice.clone(),
                 links: Vec::new(),
-                ruby,
+                ruby: ruby.clone(),
                 styles: page.styles.clone(),
                 hang: None,
                 continues: page.continues,
-            });
+            };
+            // A runtime flag's text in it: the page once for each text the
+            // flag can hold, behind a test of its code, and without it.
+            // shortcut: styles after the mark keep their places; fine for
+            // the pages that have one (mc02_031: none).
+            match runtime_text(&page.text).and_then(|(var, before, after)| Some((var, before, after, self.flag_texts.get(&var)?.clone()))) {
+                Some((var, before, after, texts)) => {
+                    // (Named by the file and page, so that no other label's
+                    // number moves.)
+                    let n = format!("{}_value{}", file_label(self.file), self.texts_shown);
+                    let end = format!("{n}_end");
+                    for (i, (code, s)) in texts.iter().enumerate() {
+                        let next = format!("{n}_{i}");
+                        self.ops.push(Op::If { var, cmp: conv_core::ir::Compare::Ne, value: Operand::Const(*code), label: next.clone() });
+                        self.ops.push(page_op(format!("{before}{s}{after}")));
+                        self.ops.push(Op::Jump(end.clone()));
+                        self.ops.push(Op::Label(next));
+                    }
+                    self.ops.push(page_op(format!("{before}{after}")));
+                    self.ops.push(Op::Label(end));
+                }
+                None => self.ops.push(page_op(page.text.clone())),
+            }
             self.texts_shown += 1;
         }
         self.window_visible = true;
@@ -5786,6 +5817,32 @@ scene a.nss
         let placed: Vec<(u32, String)> = c.ops.iter().filter_map(|op| if let Op::Sprites { changes, .. } = op { Some(changes) } else { None }).flatten().filter_map(|c| Some((c.layer, c.sprite.as_ref()?.image.clone()))).collect();
         let white = placed.iter().find(|p| p.1.contains("ffffff")).unwrap().0;
         assert_eq!(layers, [white], "{placed:?}");
+    }
+
+    #[test]
+    fn a_page_showing_a_runtime_flag_is_given_once_for_each_of_its_texts() {
+        let story = r#"
+scene a.nss
+{
+	if($分岐 == 1){$名前 = "甲";}else{$名前 = "乙";}
+	if($名前 == "甲"){$分岐 = 2;}
+<PRE @box0>
+[text0010]
+<VALUE name=$名前>だ。
+</PRE>
+	SetText();
+	TypeBegin();
+}
+"#;
+        // The whole story: `$分岐` may hold anything when the file starts.
+        let mut files = BTreeMap::new();
+        files.insert(BOOT.to_string(), nss::parse("#include \"nss/function.nss\"\n").unwrap());
+        files.insert("function.nss".to_string(), nss::parse(LIBRARY).unwrap());
+        files.insert("a.nss".to_string(), nss::parse(story).unwrap());
+        let c = compile_story(&files, "a.nss", "a.nss", &Game::PLAIN, &mut Fake).unwrap();
+        let texts: Vec<&str> = c.ops.iter().filter_map(|op| if let Op::Text { text, .. } = op { Some(text.as_str()) } else { None }).collect();
+        assert!(texts.iter().any(|t| t.contains('甲')) && texts.iter().any(|t| t.contains('乙')), "{texts:?}");
+        assert_eq!(texts.len(), 3, "{texts:?}");
     }
 
     #[test]

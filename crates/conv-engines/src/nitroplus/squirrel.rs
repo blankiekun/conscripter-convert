@@ -23,6 +23,8 @@ const CALL: u8 = 6;
 const PREPCALLK: u8 = 8;
 const GETK: u8 = 9;
 const NEWSLOT: u8 = 11;
+/// `a.key = value` on a slot that exists.
+const SET: u8 = 13;
 // Read by `Function::calls` only.
 const LINE: u8 = 0;
 const LOADFLOAT: u8 = 3;
@@ -287,11 +289,11 @@ impl Function {
     }
 
     /// Every string put in a slot named `key` (`Route.選択肢名前1 <-
-    /// "The pestle"`: `DLOAD key value`, then `NEWSLOT`), in this function
+    /// "The pestle"`: `DLOAD key value`, then `NEWSLOT`, or `=`: `SET`), in this function
     /// and the ones inside it, in order.
     pub fn slot_strs(&self, key: &str, out: &mut Vec<String>) {
         for w in self.code.windows(2) {
-            if w[0].op == DLOAD && w[1].op == NEWSLOT && self.str(w[0].arg1) == Some(key)
+            if w[0].op == DLOAD && (w[1].op == NEWSLOT || w[1].op == SET) && self.str(w[0].arg1) == Some(key)
                 && let Some(s) = self.str(i32::from(w[0].arg3))
             {
                 out.push(s.to_string());

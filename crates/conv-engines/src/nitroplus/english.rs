@@ -252,6 +252,17 @@ impl English {
                     }
                 }
             }
+            // Variables a page shows (`<VALUE='材料名前'>`: mc02_031's
+            // ingredients and dishes), set by the port as the choices' are.
+            for en in english.values() {
+                for name in en.split("<VALUE='").skip(1).filter_map(|r| r.split_once('\'').map(|p| p.0)) {
+                    vars.entry(name.to_string()).or_insert_with(|| {
+                        let mut en = Vec::new();
+                        scene_fn.slot_strs(name, &mut en);
+                        en
+                    });
+                }
+            }
             choice_vars.insert(scene.to_lowercase(), vars);
             let scene_telops = telop_calls(calls);
             for (call, args) in &scene_telops {
@@ -302,12 +313,30 @@ impl English {
                 each_choice_var(file, var, &mut |s, assigned| if assigned && !jp.contains(s) { jp.push(s.clone()) });
                 let mut en_values: Vec<&String> = Vec::new();
                 en.iter().for_each(|e| if !en_values.contains(&e) { en_values.push(e) });
+                // The port sets both its branches' values, the NSS's and the
+                // English (before or after them; mc02_031's dishes leave the
+                // blank one out): the English for the last of the NSS's.
+                let n = jp.len();
+                let same = |h: &[&String]| h.len() == n && h.iter().zip(&jp).all(|(p, j)| *p == j);
+                if en_values.len() > n && en_values.len() <= 2 * n {
+                    let rest = en_values.len() - n;
+                    let english: Option<Vec<&String>> = if same(&en_values[..n]) {
+                        Some(en_values[n..].to_vec())
+                    } else if same(&en_values[rest..]) {
+                        Some(en_values[..rest].to_vec())
+                    } else {
+                        None
+                    };
+                    if let Some(english) = english {
+                        en_values = jp[..n - rest].iter().chain(english).collect();
+                    }
+                }
                 if jp.len() == en_values.len() {
                     report.options += jp.len();
-                    let map: HashMap<String, String> = jp.into_iter().zip(en_values.into_iter().cloned()).collect();
+                    let map: HashMap<String, String> = jp.iter().cloned().zip(en_values.into_iter().cloned()).collect();
                     each_choice_var(file, var, &mut |s, _| if let Some(en) = map.get(s.as_str()) { s.clone_from(en) });
                 } else {
-                    report.options_missed.extend(jp.into_iter().map(|jp| (name.clone(), jp)));
+                    report.options_missed.extend(jp.iter().map(|jp| (name.clone(), jp.clone())));
                 }
             }
             for sub in self.subtitles.get(scene).into_iter().flatten() {
@@ -929,6 +958,20 @@ mod tests {
         let StmtKind::Expr(nss::Expr::Call { args, .. }) = &b.body[0].kind else { panic!("{:?}", b.body[0]) };
         assert_eq!(args[0], nss::Expr::Str("As you wish.".into()));
         assert_eq!((report.options, report.options_missed.len()), (1, 1));
+    }
+
+    #[test]
+    fn shown_variables_take_the_ports_english_beside_its_japanese() {
+        // mc02_031daidokoroaa: the port sets the NSS's values, then the
+        // English for all but the blank one.
+        let port = ["　", "豚肉", "牛肉", "Pork", "Beef"].map(String::from).to_vec();
+        let english = English { scenes: HashMap::new(), choices: HashMap::new(), choice_vars: HashMap::from([("a".to_string(), HashMap::from([("n".to_string(), port)]))]), telops: HashMap::new(), subtitles: HashMap::new(), captions: HashMap::new(), unread: Metrics::default() };
+        let src = "chapter main\n{\n\t$n = \"　\";\n\tif($x==1){$n = \"豚肉\";}else{$n = \"牛肉\";}\n}\n";
+        let mut files = BTreeMap::from([("a.nss".to_string(), nss::parse(src).unwrap())]);
+        english.apply(&mut files);
+        let mut seen = Vec::new();
+        each_stmt(files.get_mut("a.nss").unwrap(), &mut |s| if let StmtKind::Assign { value: Some(nss::Expr::Str(v)), .. } = s { seen.push(v.clone()) });
+        assert_eq!(seen, ["　", "Pork", "Beef"]);
     }
 
     #[test]
