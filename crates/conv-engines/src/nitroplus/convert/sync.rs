@@ -15,6 +15,7 @@ impl Compiler<'_, '_> {
         let cameras = std::mem::take(&mut self.pending_camera);
         let mut shake_once = std::mem::take(&mut self.shake_once);
         let mut paths = std::mem::take(&mut self.pending_path);
+        let wave_clock = self.sound_clock();
         let mask = self.pending_mask.take();
         self.flush_sounds();
         self.end_one_shots();
@@ -616,6 +617,10 @@ impl Compiler<'_, '_> {
                     }
                     if let Some(f) = &now.tint {
                         opacity.push(Op::SpriteFilters { layer, filters: f.clone() });
+                    }
+                    // spwave stays through lsp: cleared with the layer.
+                    if let Some(op) = self.objects.get(&name).and_then(|o| o.wave).and_then(|w| w.op(layer, wave_clock, &now)) {
+                        opacity.push(op);
                     }
                     // spclip stays through lsp too.
                     if let Some((x, y, w, h)) = now.clip {
