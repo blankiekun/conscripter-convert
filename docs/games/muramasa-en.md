@@ -47,11 +47,21 @@ It has no NPA archives and no NSS scripts.
   centred 50 px apart). Story `CreateText` elsewhere stays left out
   (Decided). The text blocks' `{…}` code is now walked too (only
   mb03_022's captions are there; telops and choices unchanged).
-- Next: mb03_022's captions (`ぐだぐだやかましいわ…`, in `[text0019]`'s
-  code) are drawn in neither build (no `lsp` for them or the black bar
-  `絵色100` in the Japanese build either): a shared NSS issue. Then
-  ma01_009, mb04_015vs's `CreateTextArea`/`SetText` lines, ma01_026's
-  typed document and mc02_031's menus (Status "Next" 4).
+- Pictures over a frozen screen (this PR, shared NSS): a `Plain` cover
+  (`CreatePlainSP`) froze the whole screen, so what a scene drew above
+  it never showed: mb03_022's captions and black bar (over
+  `絵板写` at 30000), the white flash over ma01_002's shaking capture,
+  ma00_000's split windows over `絵垣見側`. Now only what lies under the
+  top opaque cover stays as it was; pictures above it change (`sync`).
+  Both builds change (the Japanese one has 635 more `print`s). Checked
+  on a one-scene build of mb03_022 with the trace (`--shot-at` after
+  the captions' `print`): `CEASE YOUR` / `MINDLESS YAPPING, CUR!!!!!`
+  centred over the bar. Left: the text window is drawn over them (the
+  engine's window is above every sprite; in the original it is part of
+  the capture under them), and the bar is the Japanese 500×1000 (the
+  port's English branch scales it to 620×220).
+- Next: ma01_009, mb04_015vs's `CreateTextArea`/`SetText` lines,
+  ma01_026's typed document and mc02_031's menus (Status "Next" 4).
 - Decided: a click on an empty slot at the title doesn't save (the
   original saves the title screen there): a deliberate difference.
   Continue loads the quick save, else the newest save. Japanese story
@@ -477,8 +487,7 @@ The system scripts' own calls: 252 names that only `system/*.nut` calls
 
 **Scenes with English written into the scenario** (`LANG_NAME == "en"`
 branches, 15 scenes): their `CreateText` in English (`put_captions`:
-mb03_006, md02_009, md02_038, md04_*, md04_048vs; mb03_022's are in
-code the converter doesn't draw), the rest **Japanese in the build**
+mb03_006, mb03_022, md02_009, md02_038, md04_*, md04_048vs), the rest **Japanese in the build**
 (the NSS's strings or pictures): ma01_009, ma01_026 (the document), mb03_006, mb03_022
 (`CEASE YOUR MINDLESS YAPPING, CUR!!!!!`), mb04_015vs (`CreateTextArea`
 lines), mc02_031daidokoroa/aa (the menus: `horse meat`, `Lamb pilaf`,

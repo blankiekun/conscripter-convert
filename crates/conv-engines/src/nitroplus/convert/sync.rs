@@ -19,7 +19,13 @@ impl Compiler<'_, '_> {
             self.shaken.clear();
             self.ops.push(Op::ScreenEffect { slot: 1, effect: None });
         }
-        if self.frozen() {
+        // Under an opaque cover the screen stays as it was; what lies
+        // above the cover still changes (mb03_022's captions over its
+        // `CreatePlainSP`).
+        let frozen = self.frozen_at();
+        let above = |o: &Object| frozen.is_some_and(|p| o.priority > p);
+        let nothing_above = !self.objects.values().any(|o| above(o) && o.opacity > 0 && !o.hideable) && !self.shown.keys().any(|n| self.objects.get(n).is_some_and(above));
+        if frozen.is_some() && nothing_above {
             if ms > 0 {
                 self.ops.push(Op::Wait { ms });
             }
@@ -165,6 +171,19 @@ impl Compiler<'_, '_> {
         if let Some((above, f)) = tint {
             for w in want.iter_mut().filter(|w| w.2 < above) {
                 w.1.tint = Some(f.clone());
+            }
+        }
+        if let Some(p) = frozen {
+            // shortcut: a picture above the cover deleted while frozen stays
+            // up until the cover goes; track the cover's own set if a game needs it.
+            want.retain(|w| w.2.0 > p);
+            for (n, shown) in &self.shown {
+                let key = match self.objects.get(n) {
+                    Some(o) if o.priority > p => continue,
+                    Some(o) => (o.priority, o.seq),
+                    None => (p, 0),
+                };
+                want.push((n.clone(), shown.clone(), key));
             }
         }
         want.sort_by_key(|w| std::cmp::Reverse(w.2));
