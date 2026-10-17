@@ -802,7 +802,7 @@ Next, in order:
      `$mc02_TimeCount`, and the IR has no runtime strings), the
      ASCII-art pages (`Request(…, PushText)` + `NoLog`: shown at once,
      not in the backlog), `<voice mode="off">` (3, meaning unknown).
-   - Tempo (easing) of `Fade`, `Rotate`, `SetVolume`,
+   - Tempo (easing) of `Fade`, `SetVolume`,
      `DrawTransition` is never read (`Move` and `Zoom`'s is:
      "History", "Tempo of `Move` and `Zoom`").
    - A 4-argument `Fade` probably doesn't wait in the exe (49 calls
@@ -811,9 +811,9 @@ Next, in order:
    arguments the converter doesn't read, with counts, in
    `research/nitroplus/builtins.md`, "Arguments not read"), most
    noticeable first:
-   - Tempo (easing) of `Fade`, `Rotate`, `SetVolume`, `DrawTransition`
-     (`Move` and `Zoom` done: "History", "Tempo of `Move` and `Zoom`"):
-     fades and turns over time aren't engine motions yet, and a sound's
+   - Tempo (easing) of `Fade`, `SetVolume`, `DrawTransition`
+     (`Move`, `Zoom` and `Rotate` done: "History", "Tempo of `Move` and
+     `Zoom`"): fades over time aren't engine motions yet, and a sound's
      volume has no curve. A move with a fade folded into its keys still
      goes straight.
    - Story `CreateText`: a sideways text turned by `Rotate` sits about
@@ -821,7 +821,12 @@ Next, in order:
      "Story `CreateText`").
    - `DrawTransition`'s start opacity and softness.
    - `Random` and `Conquest` return 0 whatever their arguments.
-   - `CreateEffect`'s place and size; `SetBacklog`'s speaker;
+   - `CreateEffect`'s place and size; `SetBacklog`'s speaker (seen,
+     2026-10-17: the exe stores it with the line's voice, `FUN_00403730`,
+     and the backlog (`FUN_00403910`) offers the voice only when the name
+     is not in `#SYSTEM_voice_enable_list`, the names of the characters
+     switched off (`ConfigCharacterVoice`): our backlog offers every
+     voice, story lines' too; needs the character per log row);
      `MoveCamera`'s arguments in a process (4 calls).
    - `LockVideo`, `WaitText`, `SetFrequency` (but 1000),
      the time limit (?) of `WaitAction` and the
@@ -931,6 +936,17 @@ Next, in order:
   held (seen once in a small test script; not looked into).
 
 ## History
+
+### Tempo of `Rotate` (2026-10-17)
+
+Seen in Muramasa.exe: `builtin_Rotate` passes its tempo to
+`FUN_00446010`, which keeps it in the command (`+0xa0`); the turn's
+step `FUN_0044f620` eases each of the three angles by it through
+`apply_tempo`. A turn about z over time (an `spmotion2` angle) now
+takes the tempo's curve as `Move` and `Zoom` do: 187 motions in the
+story (the same in Muramasa EN); turning over about x or y already read
+it (`convert/turn.rs`). 続・殺戮のジャンゴ's script doesn't change (its
+42 eased `Rotate`s now count as read).
 
 ### `Shake`'s `n` and tempo (2026-10-17)
 

@@ -366,10 +366,17 @@ impl Compiler<'_, '_> {
                 let (ms, turn_x, turn_y, turn_z, wait) = (arg(1).int(), arg(2), arg(3), arg(4), arg(6));
                 let targets = self.matching(&arg(0));
                 let mut flipped = Vec::new();
+                // src: Muramasa.exe FUN_00446010 keeps the tempo (+0xa0) and the
+                // turn's step FUN_0044f620 eases each angle by it (apply_tempo).
+                let ease = tempo(&arg(5));
                 for t in &targets {
                     let o = self.objects.get_mut(t).unwrap();
                     let (before, mirror) = (o.turn, o.mirror());
                     o.turn = (turn_x.position(o.turn.0, 0, 0), turn_y.position(o.turn.1, 0, 0), turn_z.position(o.turn.2, 0, 0));
+                    if ms > 0 && o.turn.2 != before.2 {
+                        self.set_tempo(ease, std::slice::from_ref(t));
+                    }
+                    let o = self.objects.get_mut(t).unwrap();
                     let turn = o.turn;
                     let tilted = turn.2 != before.2 && matches!(o.kind, Kind::Image { .. });
                     let text = matches!(o.kind, Kind::Text(_));
@@ -391,7 +398,7 @@ impl Compiler<'_, '_> {
                             self.note("Rotate over time turning a picture over: mirrored at once");
                         }
                         // It and its children squash as it turns (convert/turn.rs).
-                        let turning = turn::Turning { target: t.clone(), from: (before.0, before.1), to: (turn.0, turn.1), ms: ms as u32, ease: tempo(&arg(5)) };
+                        let turning = turn::Turning { target: t.clone(), from: (before.0, before.1), to: (turn.0, turn.1), ms: ms as u32, ease };
                         let prefix = format!("{t}/");
                         let children: Vec<String> = self.objects.keys().filter(|k| k.starts_with(&prefix)).cloned().collect();
                         for n in children.iter().chain([t]) {
