@@ -1124,15 +1124,25 @@ impl Lowering<'_> {
                     self.unsupported(scene, i, format!("{ty}: unknown flag {name}"));
                     return;
                 };
-                let cmp = match t.str("Operator").unwrap_or("==") {
-                    "!=" => Compare::Ne,
-                    "<" => Compare::Lt,
-                    ">" => Compare::Gt,
-                    "<=" => Compare::Le,
-                    ">=" => Compare::Ge,
-                    _ => Compare::Eq,
-                };
                 let value = Operand::Const(t.int("Param").unwrap_or(0) as i32);
+                let cmp = match t.str("Operator") {
+                    Some("==" | "=") => Compare::Eq,
+                    Some("!=") => Compare::Ne,
+                    Some("<") => Compare::Lt,
+                    Some(">") => Compare::Gt,
+                    Some("<=") => Compare::Le,
+                    Some(">=") => Compare::Ge,
+                    // src: exe 0x8102840a (operator 6 when missing or
+                    // unknown), task_run case 0x33: `:NextTag`'s three tags
+                    // for flag <, ==, > `:Param` (no script uses it).
+                    _ => {
+                        let tags = t.get("NextTag").unwrap_or(&[]).iter().filter_map(Val::str);
+                        for (cmp, tag) in [Compare::Lt, Compare::Eq, Compare::Gt].into_iter().zip(tags) {
+                            self.out.ops.push(Op::If { var, cmp, value, label: tag_label(scene, tag) });
+                        }
+                        return;
+                    }
+                };
                 self.out.ops.push(Op::If { var, cmp, value, label: tag_label(scene, tag) });
             }
             "FlagOperation" | "GlobalFlagOperation" => {
@@ -1570,7 +1580,16 @@ impl Lowering<'_> {
                     self.out.ops.push(Op::Chapter { title: title.to_string() });
                 }
             }
-            // CharacterStop stops a looping action, which isn't played.
+            // src: exe task_run case 0x24: stops every character action
+            // (0x81127a00, -1) and settles every move (0x81127620): ours
+            // stops each one running, which puts a move at its end.
+            "CharacterStop" => {
+                for s in self.shown.iter_mut().filter(|(k, _)| k.starts_with('c')).map(|(_, s)| s) {
+                    if s.motion.take().is_some() {
+                        self.out.ops.push(Op::SpriteMotion { layer: s.layer, keys: vec![], looped: false });
+                    }
+                }
+            }
             // Wait for the characters' moves and actions (task_run case
             // 0x23), or a picture's moves (`:Sprite`, -1 or none: every
             // one; case 0x29).
@@ -1586,7 +1605,7 @@ impl Lowering<'_> {
                     self.out.ops.push(Op::BacklogLine { text: text.to_string(), voice: None, character: None });
                 }
             }
-            "SceneJumpDialogEnd" | "MovieStop" | "CharacterStop" => {}
+            "SceneJumpDialogEnd" | "MovieStop" => {}
             _ => self.unsupported(scene, i, ty.to_string()),
         }
     }
