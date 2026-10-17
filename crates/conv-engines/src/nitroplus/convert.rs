@@ -1352,6 +1352,9 @@ struct Compiler<'a, 'b> {
     font_size: i64,
     /// The last `SetFont`'s arguments, for `CreateText`.
     font: Vec<Value>,
+    /// The box the last `SetTextEX…` names (`L`, `CH`, …), for a game's
+    /// [`Game::box_text`] when two boxes are up.
+    text_box: Option<String>,
     window: Option<TextWindow>,
     first_window: Option<TextWindow>,
     window_visible: bool,
@@ -2155,6 +2158,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
             shaken: Vec::new(),
             font_size: 20,
             font: Vec::new(),
+            text_box: None,
             window: None,
             first_window: None,
             window_visible: false,
@@ -3530,7 +3534,18 @@ impl<'a, 'b> Compiler<'a, 'b> {
             None => up(name),
         };
         let mut box_icon = None;
-        if let Some(&(_, x, y, w, icon)) = self.game.box_text.iter().find(|b| shown(b.0)) {
+        // `boxLT` and `boxLL` are box `L`, `boxCTH` box `CH` (`T`: with a face).
+        let stem = |b: &str| {
+            let s = b.trim_start_matches("box").replace('T', "");
+            let mut c = s.chars();
+            match (c.next(), c.next(), c.next()) {
+                (Some(a), Some(b), None) if a == b => a.to_string(),
+                _ => s,
+            }
+        };
+        let boxes = || self.game.box_text.iter().filter(|b| shown(b.0));
+        let named = boxes().find(|b| self.text_box.as_deref() == Some(stem(b.0).as_str()));
+        if let Some(&(_, x, y, w, icon)) = named.or_else(|| boxes().next()) {
             (text_x, text_y, columns, box_icon) = (x, y + self.game.text_drop, (w / font.max(1)).max(1) as u32, Some(icon));
             // The port's boxes across have its pitch too (`rowSpace` 1 under
             // the font's height, in every `SetTextBoxVal`).
@@ -3780,6 +3795,34 @@ scene a.nss
         assert_eq!(w.image, "cg/sys/adv/en/textwindow.png@1000");
         assert_eq!((w.x, w.y, w.text_x, w.text_y, w.columns, w.rows), (360, 51, 375, 192, 14, 12));
         assert_eq!(w.line_gap, 5);
+    }
+
+    #[test]
+    fn with_two_boxes_up_the_text_goes_in_the_one_set_text_names() {
+        let story = r#"
+scene a.nss
+{
+	CreateTexture("boxLT", 20000, 0, 40, "cg/sys/adv/TextWindow_Fw.png");
+	Request("boxLT", Hideable);
+	Fade("boxLT", 0, 1000, null, true);
+	CreateTexture("boxRT", 20000, 0, 40, "cg/sys/adv/TextWindow_Fw.png");
+	Request("boxRT", Hideable);
+	Fade("boxRT", 0, 1000, null, true);
+<PRE @box0>
+[text0010]
+　一行目
+</PRE>
+	SetTextEXL();
+	SetText();
+	TypeBegin();
+}
+"#;
+        let mut files = BTreeMap::new();
+        files.insert(BOOT.to_string(), nss::parse("#include \"nss/function.nss\"\n").unwrap());
+        files.insert("function.nss".to_string(), nss::parse(LIBRARY).unwrap());
+        files.insert("a.nss".to_string(), nss::parse(story).unwrap());
+        let w = compile_scene(&files, "a.nss", "a.nss", &MURAMASA_EN, &mut Fake).unwrap().window.unwrap();
+        assert_eq!(w.text_x, 118);
     }
 
     #[test]

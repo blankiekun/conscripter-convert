@@ -129,6 +129,11 @@ fn en_face(name: &str) -> Option<(i64, i64)> {
 /// [`call`], with the port's boxes for `function.nss`'s: each made at the
 /// port's place, and the vertical ones not moved by the `Move` after them.
 fn call_en(c: &mut Compiler<'_, '_>, name: &str, args: &[Value]) -> bool {
+    // The box the text goes in when two are up (`SetTextEXL` with `boxRT`
+    // shown for a caption: mb04_015vs).
+    if let Some(k) = name.strip_prefix("SetTextEX") {
+        c.text_box = Some(match k { "hyperR" => "R", "CColor" => "C", k => k }.to_string());
+    }
     let en_box = match args.first() {
         Some(Value::Str(s)) => EN_BOXES.iter().find(|b| b.0 == s),
         _ => None,

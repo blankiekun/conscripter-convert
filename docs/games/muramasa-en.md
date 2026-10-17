@@ -71,7 +71,7 @@ It has no NPA archives and no NSS scripts.
   (not this PR): the engine's text window is drawn over them, and with
   two boxes up the window takes the first box in `EN_TEXT` (R), not the
   one `SetTextEXL` names (L), so the page's text lands on the caption.
-- Pictures over the text window (this PR, shared NSS): a picture above
+- Pictures over the text window (#173, shared NSS): a picture above
   the window the text is in (`<PRE @box0>`: `CreateWindow("box0",
   20001, …)`) in priority, or as high and made after it, is drawn over
   the text window and its text (CONscripter's `spovertext`), as the exe
@@ -81,7 +81,12 @@ It has no NPA archives and no NSS scripts.
   that covers the screen (mc04_022vs's `絵演弓聖終` at 29000). Checked
   on a one-scene build of mb03_022 with the trace: the captions over
   the box.
-- Next: the box chosen with two boxes up (above);
+- Two boxes up (this PR): the text goes in the box the last
+  `SetTextEX…` names (`SetTextEXL`: `boxLT`/`boxLL`), not the first
+  shown one in `EN_TEXT` (`call_en` keeps it in `text_box`): mb04_015vs's
+  two pages move from R (630) to L (118), the caption staying in R (the
+  only change in the dry run).
+- Next: ma01_009's own boxes (`SetFwLL`/`SetFwRR`) and its lines;
   ma01_026's typed document and mc02_031's menus (Status "Next" 4).
 - Decided: a click on an empty slot at the title doesn't save (the
   original saves the title screen there): a deliberate difference.
