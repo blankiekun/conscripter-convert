@@ -365,6 +365,10 @@ with the original (it wants all eleven endings' flags under wine).
 - `RemainTime` on a sound returns its whole length, not the rest
   (`sound_left` has it); right after the start, where most calls are,
   the two agree.
+- Open bugs from `--roundtrip-every 1` (240 s from the start,
+  2026-10-17): after a load, looping sounds come back quieter than
+  saved (`se 1` 100 -> 83 in `conv_title_start`, `se 2` -> 57, `se 7`
+  and `se 9` -> 83), and the BGM `se_fue01.ogg` is gone at `if1_end`.
 
 | Area | Status |
 |---|---|
