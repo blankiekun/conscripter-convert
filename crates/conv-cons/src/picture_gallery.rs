@@ -23,8 +23,8 @@ use crate::{path, var_name, BUTTON_VAR, MAX_SPRITE, MENU_SPRITES};
 
 /// Entered from the extras' menu, which [`MENU`] draws again.
 pub(crate) const GALLERY: &str = "conv_pextras_gallery";
-const MENU: &str = "conv_pextras_draw";
-const DRAW: &str = "conv_pg_draw";
+pub(crate) const MENU: &str = "conv_pextras_draw";
+pub(crate) const DRAW: &str = "conv_pg_draw";
 /// Back from the viewer to the page it was opened on.
 const CLOSE: &str = "conv_pg_close";
 const SCROLL: &str = "conv_pg_scroll";
@@ -34,7 +34,9 @@ const CLICK: &str = "conv_pg_click";
 // two ends, length and time gone. Only at the title (the extras' own).
 const CATEGORY: &str = "%130";
 const PAGE: &str = "%131";
-const FADE: &str = "%132";
+/// The screen's page (1 up), in place of [`PAGE`] when the engine draws it.
+pub(crate) const SCREEN_PAGE: &str = PAGE;
+pub(crate) const FADE: &str = "%132";
 const PREVIOUS_UNSEEN: &str = "%133";
 const FROM: [&str; 2] = ["%134", "%135"];
 const TO: [&str; 2] = ["%136", "%137"];
@@ -62,6 +64,11 @@ fn button(slot: u32, p: &Placed) -> String {
 }
 
 pub(crate) fn emit(out: &mut String, g: &PictureGallery, border: u32, width: u32, height: u32) {
+    if g.engine_screen {
+        crate::gallery_screen::labels(out, g);
+        viewers(out, g, border, width, height);
+        return;
+    }
     let per_page = g.rows * g.columns;
     assert!(per_page <= MAX_SLOTS && g.categories.len() as u32 <= MAX_CATEGORIES, "a picture gallery larger than its sprites");
     let pages: Vec<usize> = g.categories.iter().map(|c| c.slots.len().div_ceil(per_page as usize).max(1)).collect();
@@ -157,7 +164,16 @@ pub(crate) fn emit(out: &mut String, g: &PictureGallery, border: u32, width: u32
         }
     }
 
-    // The viewers.
+    viewers(out, g, border, width, height);
+}
+
+/// The viewer of each slot ([`CLOSE`] goes back to [`DRAW`] with the
+/// close fade), and the click and scroll subroutines.
+fn viewers(out: &mut String, g: &PictureGallery, border: u32, width: u32, height: u32) {
+    let mut w = |line: String| {
+        out.push_str(&line);
+        out.push('\n');
+    };
     for (c, category) in g.categories.iter().enumerate() {
         for (s, slot) in category.slots.iter().enumerate() {
             let label = format!("conv_pg_v{c}_{s}");
