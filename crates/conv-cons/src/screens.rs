@@ -320,6 +320,7 @@ mod tests {
             defaults: Vec::new(),
             switches_off: Vec::new(),
             engine_screen: true,
+            text_ms: None,
         };
         let lua = settings_lua(&m, None, None, None);
         for part in [

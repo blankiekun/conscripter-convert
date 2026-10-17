@@ -245,7 +245,15 @@ pub(crate) fn settings_apply(out: &mut String, m: &SettingsMenu) {
     if has_setting(m, Setting::SystemVolume) {
         w(format!("mov {TMP},{}*10:consset \"sysevol\",{TMP}", setting_var(Setting::SystemVolume)));
     }
-    w(format!("mov {TEXT_MS},(10-{})*{TEXT_MS_STEP}:textspeed {TEXT_MS}", setting_var(Setting::TextSpeed)));
+    match &m.text_ms {
+        Some(table) => {
+            for (level, ms) in table.iter().enumerate() {
+                w(format!("if {} == {level} mov {TEXT_MS},{ms}", setting_var(Setting::TextSpeed)));
+            }
+            w(format!("textspeed {TEXT_MS}"));
+        }
+        None => w(format!("mov {TEXT_MS},(10-{})*{TEXT_MS_STEP}:textspeed {TEXT_MS}", setting_var(Setting::TextSpeed))),
+    }
     let auto = setting_var(Setting::AutoSpeed);
     match rows.iter().find_map(|r| match r.setting {
         Setting::AutoWait { page_step, char_step } => Some((page_step, char_step)),

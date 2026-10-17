@@ -302,10 +302,7 @@ pub fn pictures(assets: &mut ArchiveAssets, labels: &Labels, switches: &[(String
         // 持続: skip goes on after a choice.
         choice(assets, &atlas1, &clean1, o[3], &[0, 1], sw(Switch::StopSkipAtChoice), "cfg_after", 0),
         slider(assets, &page1, auto_line, &knob, "cfg_auto", auto_line, SettingValue::Level(Setting::AutoSpeed), false),
-        // 遅い 普通 早い 一括: text speed levels. guess: the eboot (0x81126a80,
-        // 0x8107145c) shows one character every 15, 5 and 1 updates and the
-        // whole page at once (speeds 59, 55, 10, 0), slower than our levels
-        // can go (60 ms a character at most).
+        // 遅い 普通 早い 一括: text speed levels (their ms: menus.rs, text_ms).
         choice(assets, &atlas1, &clean1, o[6], &[4, 7, 9, 10], SettingValue::Level(Setting::TextSpeed), "cfg_speed", 0),
         // ウインドウの不透明度: the transparency, shown the other way round.
         slider(assets, &orig1, window_line, &knob, "cfg_window", window_line, SettingValue::Level(Setting::WindowTransparency), true),
