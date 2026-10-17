@@ -26,7 +26,7 @@ pub(super) const FLAT: Squash = [(1.0, 0.0); 2];
 
 /// The eased share (0-1) of the time gone `t` (0-1), as conv-cons'
 /// `ease::eased` (the same curves, [`Op::MoveEase`]).
-fn eased(ease: Option<(u8, u32)>, t: f64) -> f64 {
+pub(super) fn eased(ease: Option<(u8, u32)>, t: f64) -> f64 {
     let Some((ease, exponent)) = ease else { return t };
     let n = exponent.clamp(1, 20) as i32;
     let pi = std::f64::consts::PI;

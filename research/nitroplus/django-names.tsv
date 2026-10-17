@@ -238,3 +238,12 @@
 00478ad0	cb_00478ad0
 004794a0	cb_004794a0
 0047b870	cb_0047b870
+00431de0	queue_shake	Shake's work: n > 1000 does nothing; flip interval 1000/(n*0.001*fps) into the job (+0x4c), tempo (+0xa0)
+00439ab0	shake_start	per-object Shake setup: steps = time*fps*0.001, tempo tables for |x1-x0|, |y1-y0|; frame callback shake_frame
+0043f570	shake_frame	draws the object at sign*(x0 +- table[step]); the sign flips once the flip interval has passed
+00434ea0	tempo_table_for	tempo name (byte sum) -> table builder (Dxl2 00441240: 1-(1-t)^3)
+00441240	tempo_dxl2	table of dist*(1-(1-i/n)^3), i = 0..n
+00469a20	init_speed_tables	game speed tables at 0x531a5c (ms a frame 1,2,4,8,16,...) and 0x531a90 (fps 960,...,60,...), index byte 0x531a40 = 4
+0042fee0	create_window	CreateWindow's work: last argument not TRUE clears +0x3c8 (children placed from the screen)
+004403a0	parse_position	an object's place from its x, y text, from its parent's corner when the parent's +0x3c8 is set
+00436de0	init_object	new object: +0x3c8 = 1, place from the parent's when the parent's +0x3c8 is set

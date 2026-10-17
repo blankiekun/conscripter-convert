@@ -436,6 +436,10 @@ impl<'a> Emitter<'a> {
                     )
                     .unwrap();
                 }
+                Some(ScreenEffect::Jolt { time_ms, interval_ms, range: [(x0, y0), (x1, y1)], ease, end_ms }) => {
+                    let c = curve(*ease, eased);
+                    writeln!(out, "screenshake {slot},{time_ms},{interval_ms},2,0,0,{x0},{y0},{x1},{y1},{end_ms},{c}").unwrap();
+                }
             }
             if transition.is_none() {
                 writeln!(out, "print 1").unwrap();

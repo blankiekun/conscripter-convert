@@ -275,6 +275,12 @@ pub enum ScreenEffect {
     /// in over `fade_ms`, then stays until the slot is cleared. With
     /// `zoom` 1000 a freeze frame.
     Zoom { interval_ms: u32, zoom: i32, centre: (i32, i32), zoom_ms: u32, fade_ms: u32, ease: u8, power: i32 },
+    /// Jolting to and fro: every `interval_ms` the picture moves by the
+    /// whole size (x, y; first and last), the other way from the last time,
+    /// the first time + (Nitroplus's `Shake`); over `time_ms` the size goes
+    /// from the first to the last along `ease` ([`Op::MoveEase`]'s; `None`
+    /// straight); it stops after `end_ms`.
+    Jolt { time_ms: u32, interval_ms: u32, range: [(i32, i32); 2], ease: Option<(u8, u32)>, end_ms: u32 },
 }
 
 /// In [`Op::Text`] text: wait for a click here and go on typing on the

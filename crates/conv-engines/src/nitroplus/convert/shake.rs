@@ -16,10 +16,16 @@ type Part = (u32, (i32, i32), (i32, i32));
 /// 0 px a wait): to and fro every step (longer when the keys would run
 /// out), back at 0 at the end.
 pub(super) fn shake_keys(parts: &[Part]) -> Vec<(u32, i32, i32)> {
+    shake_keys_at(parts, STEP_MS, None)
+}
+
+/// [`shake_keys`] turning every `step` ms at least, the size going from
+/// one to the other along `ease` ([`super::turn::eased`]).
+pub(super) fn shake_keys_at(parts: &[Part], step: u32, ease: Option<(u8, u32)>) -> Vec<(u32, i32, i32)> {
     let still = |p: &Part| p.1 == (0, 0) && p.2 == (0, 0);
     let waits = parts.iter().filter(|p| still(p)).count() as u32;
     let shaking: u32 = parts.iter().filter(|p| !still(p)).map(|p| p.0).sum();
-    let step = STEP_MS.max(shaking.div_ceil(MAX_KEYS - 2 - waits).div_ceil(10) * 10);
+    let step = step.max(1).max(shaking.div_ceil(MAX_KEYS - 2 - waits).div_ceil(10) * 10);
     let (mut keys, mut t, mut sign) = (vec![(0, 0, 0)], 0, 1);
     for p @ &(ms, from, to) in parts {
         if still(p) {
@@ -29,7 +35,9 @@ pub(super) fn shake_keys(parts: &[Part]) -> Vec<(u32, i32, i32)> {
         }
         let n = (ms / step).max(1);
         for i in 1..=n {
-            let at = |a: i32, b: i32| sign * (a + (b - a) * i as i32 / n as i32);
+            let f = super::turn::eased(ease, f64::from(i) / f64::from(n));
+            let part = |d: i32| if ease.is_some() { (f64::from(d) * f).round() as i32 } else { d * i as i32 / n as i32 };
+            let at = |a: i32, b: i32| sign * (a + part(b - a));
             keys.push((t + ms * i / n, at(from.0, to.0), at(from.1, to.1)));
             sign = -sign;
         }
@@ -65,5 +73,8 @@ mod tests {
         let keys = shake_keys(&[(1000, (10, 4), (0, 0))]);
         assert_eq!((keys[1], keys[2]), ((100, 9, 4), (200, -8, -4)));
         assert_eq!(keys.last().unwrap(), &(1000, 0, 0));
+        // 続・殺戮のジャンゴ: n 200 turns every 83 ms, Dxl1 dying out fast.
+        let keys = shake_keys_at(&[(500, (0, 10), (0, 0))], 83, Some((2, 2)));
+        assert_eq!((keys[1], keys[2]), ((83, 0, 7), (166, 0, -4)));
     }
 }
