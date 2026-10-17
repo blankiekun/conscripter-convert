@@ -398,12 +398,10 @@ impl Lowering<'_, '_> {
                 if !(0..16).contains(&i) {
                     return false;
                 }
-                // dropped: a greyed option is left out (shown but not
-                // selectable; `Op::Choice` has no disabled option).
                 let grey = arg(2) == "1";
                 let cond = !self.open_ifs.is_empty();
-                if cond && !grey {
-                    self.ops.push(Op::Arith { var: self.choice_mask, op: ArithOp::BitOr, value: Operand::Const(1 << i) });
+                if cond {
+                    self.ops.push(Op::Arith { var: self.choice_mask, op: ArithOp::BitOr, value: Operand::Const(choice_bit(i, grey)) });
                 }
                 self.options.push((i, text, grey, cond));
             }
@@ -414,28 +412,59 @@ impl Lowering<'_, '_> {
                 let options = std::mem::take(&mut self.options);
                 (1..a.len()).for_each(|i| mark(read, i));
                 let labels = &a[1..];
-                // Each index once, where it is first run; offered for sure
-                // when shown outside an `_IF__`, else by its mask bit.
-                let mut order: Vec<(i32, String, bool)> = Vec::new();
-                for (i, t, grey, cond) in options {
-                    let sure = !grey && !cond;
-                    match order.iter_mut().find(|o| o.0 == i) {
-                        Some(o) => o.2 |= sure,
-                        None if grey => {}
-                        None => order.push((i, t, sure)),
-                    }
+                // Each index once, where it is first run. Its two bits
+                // (offered, greyed) are set for sure when run outside an
+                // `_IF__`, else by the mask; offered wins over greyed.
+                struct Slot {
+                    i: i32,
+                    text: String,
+                    sure: i32,
+                    maybe: i32,
+                }
+                let mut order: Vec<Slot> = Vec::new();
+                for (i, text, grey, cond) in options {
+                    let at = match order.iter().position(|o| o.i == i) {
+                        Some(at) => at,
+                        None => {
+                            order.push(Slot { i, text, sure: 0, maybe: 0 });
+                            order.len() - 1
+                        }
+                    };
+                    let o = &mut order[at];
+                    *(if cond { &mut o.maybe } else { &mut o.sure }) |= choice_bit(i, grey);
                 }
                 let target = |i: i32| Some(label(script, Some(labels.get(usize::try_from(i).ok()?)?.trim())));
-                let pick = |mask: i32| -> Vec<(String, String)> {
-                    order.iter().filter(|o| o.2 || mask & (1 << o.0) != 0).filter_map(|o| Some((o.1.clone(), target(o.0)?))).collect()
-                };
-                let bits: Vec<i32> = order.iter().filter(|o| !o.2).map(|o| 1 << o.0).collect();
-                if bits.is_empty() {
-                    let choice = pick(0);
-                    if choice.is_empty() {
-                        return false;
+                let pick = |mask: i32| -> Option<Op> {
+                    let (mut options, mut disabled) = (Vec::new(), Vec::new());
+                    for o in &order {
+                        let set = o.sure | (o.maybe & mask);
+                        let offered = set & choice_bit(o.i, false) != 0;
+                        let Some(to) = target(o.i).filter(|_| offered || set & choice_bit(o.i, true) != 0) else { continue };
+                        if !offered {
+                            disabled.push(options.len());
+                        }
+                        options.push((o.text.clone(), to));
                     }
-                    self.ops.push(Op::Choice { options: choice, style: None });
+                    // none to pick: no choice
+                    (disabled.len() < options.len()).then_some(Op::Choice { options, style: None, disabled })
+                };
+                // The mask bits that change what is shown.
+                let mut bits = Vec::new();
+                for o in &order {
+                    let (on, grey) = (choice_bit(o.i, false), choice_bit(o.i, true));
+                    if o.sure & on != 0 {
+                        continue;
+                    }
+                    if o.maybe & on != 0 {
+                        bits.push(on);
+                    }
+                    if o.maybe & grey != 0 && o.sure & grey == 0 {
+                        bits.push(grey);
+                    }
+                }
+                if bits.is_empty() {
+                    let Some(choice) = pick(0) else { return false };
+                    self.ops.push(choice);
                     return true;
                 }
                 // One choice per set of the options under an `_IF__`.
@@ -452,9 +481,8 @@ impl Lowering<'_, '_> {
                     self.ops.push(Op::Arith { var: self.choice_mask, op: ArithOp::Set, value: Operand::Const(0) });
                     // shortcut: a set with no option offered (none in the
                     // game) goes on to the next set's choice.
-                    let choice = pick(m);
-                    if !choice.is_empty() {
-                        self.ops.push(Op::Choice { options: choice, style: None });
+                    if let Some(choice) = pick(m) {
+                        self.ops.push(choice);
                     }
                 }
             }
@@ -1035,6 +1063,12 @@ fn variables(g: &Game) -> HashMap<String, Var> {
         .collect()
 }
 
+/// `_SELR` option `i`'s bit in the choice mask: offered, or shown greyed
+/// (16 up; options are 0-15).
+fn choice_bit(i: i32, grey: bool) -> i32 {
+    1 << (i + if grey { 16 } else { 0 })
+}
+
 pub fn compile(g: &Game) -> Compiled {
     let scene_labels = g.scenes.iter().zip(&g.scripts).map(|(&n, (name, _))| (n, label(name, None))).collect();
     let vars = variables(g);
@@ -1353,7 +1387,7 @@ mod tests {
             c.ops,
             [
                 Op::Label("tm_S".into()),
-                Op::Choice { options: vec![("父の事だ。".into(), "tm_S__SEL0_0".into()), ("妹の事だ。".into(), "tm_S__SEL0_1".into())], style: None },
+                Op::Choice { options: vec![("父の事だ。".into(), "tm_S__SEL0_0".into()), ("妹の事だ。".into(), "tm_S__SEL0_1".into())], style: None, disabled: vec![] },
                 Op::Label("tm_S__SEL0_0".into()),
                 Op::Jump("tm_S__LV00100".into()),
                 Op::Label("tm_S__LV00100".into()),
@@ -1387,13 +1421,23 @@ mod tests {
                 Op::Arith { var: m, op: ArithOp::BitOr, value: Operand::Const(2) },
                 Op::Label("tm_S__LV00100".into()),
                 Op::If { var: f, cmp: Compare::Ne, value: Operand::Const(0), label: "tm_S__LV00200".into() },
+                // option 2 greyed: its bit 16 up
+                Op::Arith { var: m, op: ArithOp::BitOr, value: Operand::Const(1 << 18) },
                 Op::Label("tm_S__LV00200".into()),
                 Op::If { var: m, cmp: Compare::Eq, value: Operand::Const(2), label: "tm_S__choice1_2".into() },
+                Op::If { var: m, cmp: Compare::Eq, value: Operand::Const(1 << 18), label: "tm_S__choice1_262144".into() },
+                Op::If { var: m, cmp: Compare::Eq, value: Operand::Const(2 | 1 << 18), label: "tm_S__choice1_262146".into() },
                 Op::Arith { var: m, op: ArithOp::Set, value: Operand::Const(0) },
-                Op::Choice { options: vec![opt("父の事だ。", "A"), opt("next", "D")], style: None },
+                Op::Choice { options: vec![opt("父の事だ。", "A"), opt("next", "D")], style: None, disabled: vec![] },
                 Op::Label("tm_S__choice1_2".into()),
                 Op::Arith { var: m, op: ArithOp::Set, value: Operand::Const(0) },
-                Op::Choice { options: vec![opt("父の事だ。", "A"), opt("妹の事だ。", "B"), opt("next", "D")], style: None },
+                Op::Choice { options: vec![opt("父の事だ。", "A"), opt("妹の事だ。", "B"), opt("next", "D")], style: None, disabled: vec![] },
+                Op::Label("tm_S__choice1_262144".into()),
+                Op::Arith { var: m, op: ArithOp::Set, value: Operand::Const(0) },
+                Op::Choice { options: vec![opt("父の事だ。", "A"), opt("妹の事だ。", "C"), opt("next", "D")], style: None, disabled: vec![1] },
+                Op::Label("tm_S__choice1_262146".into()),
+                Op::Arith { var: m, op: ArithOp::Set, value: Operand::Const(0) },
+                Op::Choice { options: vec![opt("父の事だ。", "A"), opt("妹の事だ。", "B"), opt("妹の事だ。", "C"), opt("next", "D")], style: None, disabled: vec![2] },
             ]
         );
     }

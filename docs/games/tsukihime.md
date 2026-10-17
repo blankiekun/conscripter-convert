@@ -610,7 +610,7 @@ Nothing yet.
 | Exe tables (pictures, motions, scene numbers) | ✅ read from the NSO (`typemoon exe`); picture sizes checked against the textures |
 | Scripts | 🔶 read: every command of both languages splits (one malformed in the original) and its text and voices join; the top commands' arguments read from the exe, the rest not yet |
 | Media folder (`typemoon media`) | ✅ `allpac`'s pictures as full-size WebP (2.37 GB), movies at 720p, sound |
-| Script conversion (`typemoon convert`) | 🔶 the flow (labels, `_JUMP`, `_IF__`, flags), text (pages, ruby, voices), pictures (`_STCH`/`_STCC`/`_FADS`: record size and place, fades and rule wipes), sound effects and music; plays from the start through `00_00` into the first arc headless. Layers drawn in priority order (`_STCP`, `_STCH` argument 6), changed keeping their settings (`_SCH2`) or copying another layer's (argument 18), zoomed (`_STZ4`), faded (`_STGS`) and moved (`_STMA`, the exe's motions; easing, priority and expression keys not followed), children placed in their parent layers, orbiting with their turn and following their motions (`_STCH` argument 11), clipped to their panels (`_STCH` arguments 12–16), turned (`_STRT`), drawn with their shader as far as CONscripter's blends and filters go (`_STBR`) and drawn with their `_STEC` effect (levels, greyscale and colour layers; effect 1 a colour fill, CONscripter's `spfilter` 9 and 10). Choices (`_SELR`, `_SELD`, `_GOTS`; options under a flag offered by it, greyed ones left out; the chapter-jump menus), `_GOTO` and the Switch's own branches (`_IFNX`/`_IFP4`). The text window hidden and faded (`_CLO2`, `_CLO3`/`_CLO4`/`_CLO5` with CONscripter's `windowfade`, the script going on; the next text fades it back in). Not yet: the other layer commands, screens |
+| Script conversion (`typemoon convert`) | 🔶 the flow (labels, `_JUMP`, `_IF__`, flags), text (pages, ruby, voices), pictures (`_STCH`/`_STCC`/`_FADS`: record size and place, fades and rule wipes), sound effects and music; plays from the start through `00_00` into the first arc headless. Layers drawn in priority order (`_STCP`, `_STCH` argument 6), changed keeping their settings (`_SCH2`) or copying another layer's (argument 18), zoomed (`_STZ4`), faded (`_STGS`) and moved (`_STMA`, the exe's motions; easing, priority and expression keys not followed), children placed in their parent layers, orbiting with their turn and following their motions (`_STCH` argument 11), clipped to their panels (`_STCH` arguments 12–16), turned (`_STRT`), drawn with their shader as far as CONscripter's blends and filters go (`_STBR`) and drawn with their `_STEC` effect (levels, greyscale and colour layers; effect 1 a colour fill, CONscripter's `spfilter` 9 and 10). Choices (`_SELR`, `_SELD`, `_GOTS`; options under a flag offered by it, greyed ones shown greyed and not selectable (`seldisable`); the chapter-jump menus), `_GOTO` and the Switch's own branches (`_IFNX`/`_IFP4`). The text window hidden and faded (`_CLO2`, `_CLO3`/`_CLO4`/`_CLO5` with CONscripter's `windowfade`, the script going on; the next text fades it back in). Not yet: the other layer commands, screens |
 | Screens, extras | ❌ |
 
 ### Next
@@ -703,6 +703,15 @@ The biggest commands not converted, looked up in `script_command`
   a bit of a local the choice reads, and the choice is one `select`
   per set of them; a greyed option is left out, as `select` has no
   disabled option. `_SELS` (1 use, `QACALL`'s yes/no) is not converted.
+- 2026-10-17: greyed options (`_SELR(i, text, 1)`) are shown greyed
+  and can't be picked, with CONscripter's `seldisable` (engine #116:
+  the off colour at half alpha, no mouse area, the cursor keys pass
+  over them). A greyed option sets a second bit (16 up) of the
+  choice's local when run under an `_IF__`; an option offered anywhere
+  is offered (offered wins over greyed). Four choices show one
+  (day 3's Ciel route, 「……二十七祖ってなんだ？」, 「……眼鏡は外さない。」,
+  「……アルクェイドを、嫌いにはなれない。」), each in the `select` for
+  the flags that grey it.
 - 2026-10-17: the 1,300 wave sounds as Ogg Opus (`se/<name>.ogg`,
   ffmpeg's libopus at 48 kbit/s a channel, VBR): 1,395 MB as WAV, 83 MB
   as Opus. Their loops go in as `LOOPSTART`/`LOOPEND` tags (start, and
