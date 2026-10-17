@@ -541,6 +541,28 @@ Traced in the eboot (2026-10-16; scene_load 0x8102840a reads a task,
   reads it. 0 in every use; whether 0 is each class's plain form is not
   traced, so it stays noted.
 
+**Exe mapping redone (2026-10-17, `docs/new-game.md` §2 steps 6-16).**
+`docs/games/oretsuba.findings.tsv` has one row per task argument or
+branch the scenes use: 88 rows, 68 seen, 13 inferred, 6 unknown (each
+with its check). The game updates at 30 fps (0x810009b4 waits two
+vblanks a frame) and every script time counts 60 fps frames, halved
+into updates or turned into ms, as ours. Fixed from it: MoviePlay
+`:Skip -1` (skippable only once seen, #359) and CharacterOpen's
+`:SpriteMax` (#360). `argcensus.py` on the dry run flags two values,
+both explained: `chvolfade -1` (65,497: the music ducking under each
+message, -1 is the music channel) and `spmotion` 20000 ms (9: SpriteMove
+`:Time 1200`, S03C_02B's 20-second pan). Open questions:
+- SpriteMove `:Scale -2` (S01_05B, once): the eboot stores it as is;
+  ours clamps it to 0, so the picture shrinks away. Whether a negative
+  scale mirrors the quad: unknown (the corner maths of the sprite quad).
+- A key with no value (6: two `:FadeWait`, two `:Fade`, a `:Rule`, a
+  `:SpriteMax`) is 0 if the parser (0x8108cc48) keeps the key, ours the
+  default: inferred, the parser's value states not decompiled.
+- The voice ducking's level and ramp (conv-cons's 50 %, 200/400 ms) are
+  not traced in the eboot.
+- `Tag` and `End` are not in task_type_number (0x81035094); where they
+  are handled is not traced.
+
 Not covered yet: only scene tasks are checked; `chract`'s actions (the
 eboot reads a `:Priority` and an easing per key there) and the `.txt`
 tables (`adv.txt`, `chr*.txt`, `CGMODE`) are not.
