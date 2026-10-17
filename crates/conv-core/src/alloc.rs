@@ -20,19 +20,22 @@ use std::ops::RangeInclusive;
 /// The ranges conv-cons uses, with who uses them.
 pub const RESERVED: &[(RangeInclusive<u32>, &str)] = &[
     (0..=9, "scratch, %9 the button clicked"),
+    // Kept numbered on purpose: the overlay's, static's and animation's
+    // state per link-scene level, %/$ 21-28, 130-137 and 182-189 (`defarr`
+    // holds no strings, and an engine string array isn't worth one use).
     (21..=28, "the animation's state per link-scene level (ANIMATION_SAVED + depth)"),
     (100..=195, "menus and screens: scratch, backlog, bars, replays, galleries, overlay and static per link level, scene stack"),
     (900..=1010, "the classic menus' globals: save page, volumes, text speed, settings; deleted slots %910 + slot; voice switches %970 + character"),
     (1011..=1110, "save grid locks: %1010 + slot (1-100)"),
     (2000..=2199, "link targets visited, before ?conv_link_visited: read at start from an older gloval.sav"),
-    (2200..=2775, "CGs seen (9 × 64)"),
-    (2800..=2899, "movies seen"),
+    (2200..=2775, "CGs seen (9 × 64), before ?conv_cg_seen: read at start from an older gloval.sav"),
+    (2800..=2899, "movies seen, before ?conv_movie_seen: read at start from an older gloval.sav"),
     (2900..=2999, "scene stack across loads, bar state, settings sliders and pairs, title openings, picture extras"),
-    (3000..=3599, "scene replay unlocks"),
-    (3600..=3631, "progress flags"),
+    (3000..=3599, "scene replay unlocks, before ?conv_scene_unlocked: read at start from an older gloval.sav"),
+    (3600..=3631, "progress flags, before ?conv_progress: read at start from an older gloval.sav"),
     (3639..=3639, "the startup notice dismissed, before it was %conv_notice_seen: read once at start from an older gloval.sav"),
     (3640..=3647, "settings switches 0-7"),
-    (3650..=4095, "scene replays watched"),
+    (3650..=4095, "scene replays watched, before ?conv_scene_replayed: read at start from an older gloval.sav"),
     (4096..=5095, "settings switches 20 up"),
 ];
 

@@ -217,10 +217,30 @@ const LINK_UNDERLINE_SPRITES: std::ops::Range<u32> = MENU_SPRITES.start..MENU_SP
 const LINK_VISITED: &str = "conv_link_visited";
 /// How many link targets there can be.
 const LINK_TARGETS: usize = 200;
-/// Global flags: scene n of the scene replay is unlocked.
-const SCENE_UNLOCKED_BASE: u32 = 3000;
-/// Global flags: progress flag n ([`Op::Progress`]) is set.
-const PROGRESS_BASE: u32 = 3600;
+/// Global flags the player unlocks, kept by name (`defarr ...,global`),
+/// with the numbers builds before the names kept them at.
+pub(crate) struct Flags {
+    name: &'static str,
+    size: u32,
+    old_base: u32,
+}
+impl Flags {
+    /// Flag `n`.
+    pub(crate) fn at(&self, n: u32) -> String {
+        assert!(n < self.size, "{} has {} flags, not {n}", self.name, self.size);
+        format!("?{}[{n}]", self.name)
+    }
+    /// The declaration, and the copy of an older gloval.sav's flags.
+    fn define(&self) -> String {
+        let (name, last, base) = (self.name, self.size - 1, self.old_base);
+        // shortcut: copies the flags from where builds before the unlock names kept them; drop once no such gloval.sav is played
+        format!("defarr {name},{},global\nfor %0 = 0 to {last}\nmov %1,{base}+%0\nif %%1 != 0 mov ?{name}[%0],%%1\nnext", self.size)
+    }
+}
+/// Scene n of the scene replay is unlocked.
+const SCENE_UNLOCKED: Flags = Flags { name: "conv_scene_unlocked", size: 600, old_base: 3000 };
+/// Progress flag n ([`Op::Progress`]) is set.
+const PROGRESS: Flags = Flags { name: "conv_progress", size: 32, old_base: 3600 };
 /// Option n of an [`Op::RuntimeChoice`] whose text is known only at run
 /// time: its text and its x on a plate ([`names_define`] declares them).
 fn runtime_option(n: usize) -> (String, String) {
@@ -245,9 +265,8 @@ const ROOT_RESUME: &str = "%119";
 /// Returns from one more link scene, or at the root jumps to the
 /// [`ROOT_RESUME`] point.
 const UNWIND: &str = "conv_unwind";
-/// Global flags: CG n ([`Op::CgSeen`], up to 9 × 64) was seen; above the
-/// link flags, below 4096 (the variable range).
-const CG_SEEN_BASE: u32 = 2200;
+/// CG n ([`Op::CgSeen`], up to 9 × 64) was seen.
+const CG_SEEN: Flags = Flags { name: "conv_cg_seen", size: 576, old_base: 2200 };
 const TEXT_COLOR: &str = "#FFFFFF";
 
 /// Renders the script as NScripter source text (UTF-8; use [`encode`] to
@@ -328,6 +347,9 @@ pub fn emit(script: &Script) -> String {
         writeln!(out, "defarr {LINK_VISITED},{LINK_TARGETS},global").unwrap();
         // shortcut: copies the visited links from %2000-%2199, where builds before the link names kept them; drop once no such gloval.sav is played
         writeln!(out, "for %0 = 0 to {}\nmov %1,2000+%0\nif %%1 == 1 mov ?{LINK_VISITED}[%0],1\nnext", LINK_TARGETS - 1).unwrap();
+    }
+    for flags in [&CG_SEEN, &movies::SEEN, &SCENE_UNLOCKED, &PROGRESS, &replay::REPLAYED] {
+        writeln!(out, "{}", flags.define()).unwrap();
     }
     if lua::uses_processes(script) {
         for c in lua::COMMANDS {
@@ -1653,7 +1675,7 @@ mod tests {
         ]);
         s.window = Some(window());
         let text = emit(&s);
-        assert!(text.contains("spnew %conv_link7,ui\ndefarr conv_link_visited,200,global\nfor %0 = 0 to 199\nmov %1,2000+%0\nif %%1 == 1 mov ?conv_link_visited[%0],1\nnext\nwindowback\nhumanz 58\n"));
+        assert!(text.contains("mov ?conv_scene_replayed[%0],%%1\nnext\nwindowback\nhumanz 58\n"));
         // Row 2, column 1: x = 105 + 0 * 25, y = 470 + 1 * 37.
         let expected = "\
 *conv_link1
@@ -1782,7 +1804,7 @@ goto *conv_link1
     #[test]
     fn scene_replay_unlocks_are_global_flags() {
         let text = emit(&script(vec![Op::SceneEnd, Op::UnlockScene { scene: 5 }, Op::Progress { bit: 3 }, Op::CgSeen { number: 519 }]));
-        assert!(text.contains("; scene end\nmov %3005,1\nmov %3603,1\nmov %2719,1\n"), "{text}");
+        assert!(text.contains("; scene end\nmov ?conv_scene_unlocked[5],1\nmov ?conv_progress[3],1\nmov ?conv_cg_seen[519],1\n"), "{text}");
     }
 
     #[test]
@@ -2147,14 +2169,14 @@ effect 7,99,1000,\"cons_warp.dll/warp\\zoom_3_220_5.png,65\"
         assert!(out.contains("*conv_title_back\nbg \"system\\title.png\",0\n"), "{out}");
         assert!(out.contains("if %9 == 1 csp -1:goto *conv_extras\n"), "{out}");
         // The gallery opens once one of its CGs is seen.
-        assert!(out.contains("if %2413 == 1 mov %128,1:if %2414 == 1 mov %128,1\n"), "{out}");
+        assert!(out.contains("if ?conv_cg_seen[213] == 1 mov %128,1:if ?conv_cg_seen[214] == 1 mov %128,1\n"), "{out}");
         assert!(out.contains("if %128 == 0 cell 100,2\nif %128 == 1 spbtn 100,1\n"), "{out}");
         // A slot is a button once one of its CGs is seen, else locked.
-        assert!(out.contains("mov %122,0:if %2413 == 1 mov %122,1:if %2414 == 1 mov %122,1\n\
+        assert!(out.contains("mov %122,0:if ?conv_cg_seen[213] == 1 mov %122,1:if ?conv_cg_seen[214] == 1 mov %122,1\n\
             if %122 == 1 lsp 130,\":a/2,0,3;system\\t.png\",40,138:spbtn 130,100\n\
             if %122 == 0 lsp 130,\":a;system\\locked.png\",44,142\n"), "{out}");
         // The viewer steps past unseen variants.
-        assert!(out.contains("*conv_cg_v0_1\nif %2414 == 0 add %124,%126:goto *conv_cg_v0\nbg \"bg\\b.png\",0:goto *conv_cg_view_show\n"), "{out}");
+        assert!(out.contains("*conv_cg_v0_1\nif ?conv_cg_seen[214] == 0 add %124,%126:goto *conv_cg_v0\nbg \"bg\\b.png\",0:goto *conv_cg_view_show\n"), "{out}");
     }
 
     #[test]
@@ -2208,16 +2230,16 @@ effect 7,99,1000,\"cons_warp.dll/warp\\zoom_3_220_5.png,65\"
         let out = emit(&s);
         assert!(out.contains("if %9 == 1 goto *conv_replay\n"), "{out}");
         // A replay stops at the scene's end.
-        assert!(out.contains("*s4_l2\nif %152 == 1 goto *conv_replay_end\nmov %3005,1\n"), "{out}");
+        assert!(out.contains("*s4_l2\nif %152 == 1 goto *conv_replay_end\nmov ?conv_scene_unlocked[5],1\n"), "{out}");
         // A list is open once one of its scenes is unlocked.
-        assert!(out.contains("mov %160,0\nif %3005 == 1 mov %160,1:if %3007 == 1 mov %160,1\n"), "{out}");
+        assert!(out.contains("mov %160,0\nif ?conv_scene_unlocked[5] == 1 mov %160,1:if ?conv_scene_unlocked[7] == 1 mov %160,1\n"), "{out}");
         // Unlocked scenes get a row, "new" until replayed.
         assert!(out.contains(
             "*conv_replay_rows0\n\
-            if %3005 == 1 mov $130,\"工場への道\":mov %155,1:mov %156,1-%3655:mov %157,0:gosub *conv_replay_row\n\
-            if %3007 == 1 mov $130,\"Ｈ\":mov %155,2:mov %156,1-%3657:mov %157,1:gosub *conv_replay_row\n"
+            if ?conv_scene_unlocked[5] == 1 mov $130,\"工場への道\":mov %155,1:mov %156,1-?conv_scene_replayed[5]:mov %157,0:gosub *conv_replay_row\n\
+            if ?conv_scene_unlocked[7] == 1 mov $130,\"Ｈ\":mov %155,2:mov %156,1-?conv_scene_replayed[7]:mov %157,1:gosub *conv_replay_row\n"
         ), "{out}");
-        assert!(out.contains("*conv_replay_go0_1\nmov %3657,1\ngosub *conv_replay_begin:goto *s14_l5\n"), "{out}");
+        assert!(out.contains("*conv_replay_go0_1\nmov ?conv_scene_replayed[7],1\ngosub *conv_replay_begin:goto *s14_l5\n"), "{out}");
     }
 
     #[test]
@@ -2251,10 +2273,10 @@ effect 7,99,1000,\"cons_warp.dll/warp\\zoom_3_220_5.png,65\"
         assert!(out.contains("*conv_extras_draw\ncsp -1\nbg \"system\\title.png\",0\n"), "{out}");
         assert!(out.contains("bg \"system\\extras.png\",0"), "{out}");
         // A scene playing a movie of the room marks it.
-        assert!(out.contains("mpegplay \"movie\\op01.mp4\",1\nmov %2801,1\n"), "{out}");
+        assert!(out.contains("mpegplay \"movie\\op01.mp4\",1\nmov ?conv_movie_seen[1],1\n"), "{out}");
         assert!(out.contains(
             "lsp 102,\":a/2,0,3;system\\m0.png\",120,71:spbtn 102,1\n\
-            if %2801 == 1 lsp 103,\":a/2,0,3;system\\m1.png\",120,71:spbtn 103,2\n"
+            if ?conv_movie_seen[1] == 1 lsp 103,\":a/2,0,3;system\\m1.png\",120,71:spbtn 103,2\n"
         ), "{out}");
         assert!(out.contains("*conv_movie1\nbgmstop:mov %161,0:mpegplay \"movie\\op01.mp4\",1:goto *conv_movies_draw\n"), "{out}");
     }
@@ -2293,7 +2315,7 @@ effect 7,99,1000,\"cons_warp.dll/warp\\zoom_3_220_5.png,65\"
         assert!(out.contains(
             "if %161 != 1 lsp 102,\":a/2,0,3;system\\s1.png\",120,71:spbtn 102,1\n\
             if %161 == 1 lsp 102,\":a/2,0,3;system\\s1.png_on\",120,71:spbtn 102,1\n\
-            if %3600 == 1 && %161 != 2 lsp 103,"
+            if ?conv_progress[0] == 1 && %161 != 2 lsp 103,"
         ), "{out}");
         assert!(out.contains("*conv_music1\nbgmfadein 0:bgm \"bgm\\bgm22.ogg\":goto *conv_music_draw\n"), "{out}");
     }
@@ -2412,6 +2434,31 @@ spnew %conv_link4,ui
 spnew %conv_link5,ui
 spnew %conv_link6,ui
 spnew %conv_link7,ui
+defarr conv_cg_seen,576,global
+for %0 = 0 to 575
+mov %1,2200+%0
+if %%1 != 0 mov ?conv_cg_seen[%0],%%1
+next
+defarr conv_movie_seen,32,global
+for %0 = 0 to 31
+mov %1,2800+%0
+if %%1 != 0 mov ?conv_movie_seen[%0],%%1
+next
+defarr conv_scene_unlocked,600,global
+for %0 = 0 to 599
+mov %1,3000+%0
+if %%1 != 0 mov ?conv_scene_unlocked[%0],%%1
+next
+defarr conv_progress,32,global
+for %0 = 0 to 31
+mov %1,3600+%0
+if %%1 != 0 mov ?conv_progress[%0],%%1
+next
+defarr conv_scene_replayed,446,global
+for %0 = 0 to 445
+mov %1,3650+%0
+if %%1 != 0 mov ?conv_scene_replayed[%0],%%1
+next
 caption \"Test\"
 effect 2,10,500
 game

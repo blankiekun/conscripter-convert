@@ -861,7 +861,7 @@ impl<'a> Emitter<'a> {
         }
         Op::ChapterHistoryClear if has_chapters => writeln!(out, "mov {},0:mov {},0", chapters::COUNT, chapters::CURRENT).unwrap(),
         Op::ChapterHistoryClear => {}
-        Op::UnlockScene { scene } => writeln!(out, "mov %{},1", SCENE_UNLOCKED_BASE + scene).unwrap(),
+        Op::UnlockScene { scene } => writeln!(out, "mov {},1", SCENE_UNLOCKED.at(*scene)).unwrap(),
         // Starts the script over: the title screen.
         Op::ReturnToTitle => writeln!(out, "reset").unwrap(),
         Op::ReturnToRoot => {
@@ -869,8 +869,8 @@ impl<'a> Emitter<'a> {
             writeln!(out, "if {LINK_NEST} > 0 mov {ROOT_RESUME},{root_resumes}:return").unwrap();
             writeln!(out, "*conv_root{root_resumes}").unwrap();
         }
-        Op::Progress { bit } => writeln!(out, "mov %{},1", PROGRESS_BASE + bit).unwrap(),
-        Op::CgSeen { number } => writeln!(out, "mov %{},1", CG_SEEN_BASE + number).unwrap(),
+        Op::Progress { bit } => writeln!(out, "mov {},1", PROGRESS.at(*bit)).unwrap(),
+        Op::CgSeen { number } => writeln!(out, "mov {},1", CG_SEEN.at(*number)).unwrap(),
         Op::SceneEnd if has_replay => writeln!(out, "if {} == 1 goto *{}", replay::REPLAYING, replay::END).unwrap(),
         Op::SceneEnd => writeln!(out, "; scene end").unwrap(),
         op @ (Op::Choice { .. } | Op::RuntimeChoice { .. }) => {

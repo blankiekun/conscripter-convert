@@ -14,7 +14,7 @@
 
 use conv_core::ir::SceneReplay;
 
-use crate::{path, sprite_text, BUTTON_VAR, SCENE_UNLOCKED_BASE};
+use crate::{path, sprite_text, Flags, BUTTON_VAR, SCENE_UNLOCKED};
 
 pub(crate) const REPLAY: &str = "conv_replay";
 /// Where a replayed scene ends.
@@ -22,10 +22,9 @@ pub(crate) const END: &str = "conv_replay_end";
 /// 1 while a scene is replayed (saving is off, the settings screen leads
 /// back to the list).
 pub(crate) const REPLAYING: &str = "%152";
-/// Global flags: scene n has been replayed (no "new" mark); above the
-/// settings switches, n up to 445 (the switches' flags are from 4096).
-const REPLAYED_BASE: u32 = 3650;
-const VARIABLE_RANGE: u32 = 4096;
+/// Scene n has been replayed (no "new" mark), n up to 445 (the size the
+/// numbered flags had).
+pub(crate) const REPLAYED: Flags = Flags { name: "conv_scene_replayed", size: 446, old_base: 3650 };
 const DRAW: &str = "conv_replay_draw";
 const LIST: &str = "conv_replay_list";
 const LIST_WAIT: &str = "conv_replay_list_wait";
@@ -63,7 +62,7 @@ const LAST_VAR: u32 = 160;
 pub(crate) const VARS: [&str; 9] = [REPLAYING, LIST_VAR, ROW_VAR, ROW_BUTTON, ROW_NEW, ROW_HIGHLIGHT, X, Y, TMP];
 
 fn unlocked(scene: u32) -> String {
-    format!("%{}", SCENE_UNLOCKED_BASE + scene)
+    SCENE_UNLOCKED.at(scene)
 }
 
 /// `background`: the extras menu's; `back`: the extras menu's label.
@@ -115,7 +114,7 @@ pub(crate) fn replay(out: &mut String, r: &SceneReplay, background: &str, back: 
     for (i, l) in lists.iter().enumerate() {
         w(rows_label(i));
         for (k, s) in l.scenes.iter().enumerate().take(max_rows) {
-            let new = if REPLAYED_BASE + s.scene < VARIABLE_RANGE { format!("1-%{}", REPLAYED_BASE + s.scene) } else { "0".into() };
+            let new = if s.scene < REPLAYED.size { format!("1-{}", REPLAYED.at(s.scene)) } else { "0".into() };
             w(format!(
                 "if {} == 1 mov {ROW_TITLE},\"{}\":mov {ROW_BUTTON},{}:mov {ROW_NEW},{new}:mov {ROW_HIGHLIGHT},{}:gosub *{ROW}",
                 unlocked(s.scene),
@@ -141,8 +140,8 @@ pub(crate) fn replay(out: &mut String, r: &SceneReplay, background: &str, back: 
         w(format!("goto *{LIST}"));
         for (k, s) in scenes.iter().enumerate() {
             w(format!("*conv_replay_go{i}_{k}"));
-            if REPLAYED_BASE + s.scene < VARIABLE_RANGE {
-                w(format!("mov %{},1", REPLAYED_BASE + s.scene));
+            if s.scene < REPLAYED.size {
+                w(format!("mov {},1", REPLAYED.at(s.scene)));
             }
             w(format!("gosub *{BEGIN}:goto *{}", crate::label(&s.label)));
         }

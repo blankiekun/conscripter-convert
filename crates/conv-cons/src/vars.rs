@@ -72,7 +72,7 @@ mod tests {
                 }
             }
         }
-        let bases = [crate::CG_SEEN_BASE, crate::SCENE_UNLOCKED_BASE, crate::PROGRESS_BASE, crate::menu::VOICE_OFF_BASE];
+        let bases = [crate::menu::VOICE_OFF_BASE];
         for n in bases.into_iter().chain((0..=crate::MAX_LINK_DEPTH).flat_map(|d| [crate::OVERLAY_SAVED + d, crate::NOISE_SAVED + d, crate::ANIMATION_SAVED + d])) {
             assert!(alloc::reserved(n).is_some(), "%{n} is not in conv_core::alloc");
         }
