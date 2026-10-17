@@ -1922,6 +1922,8 @@ pub fn lower_script(
     let mut unfolded = if flow == Flow::Jumps { unfold_records(cd, &own_labels, assets, names)? } else { HashMap::new() };
     let mut variants: Option<(usize, usize, Vec<RecordPath>)> = None;
     let mut unfold_id = 0;
+    // Pages whose links depend on a variable ([`Link::style`]), numbered.
+    let mut cond_link_id = 0;
     for (index, ins) in cd.code.iter().enumerate() {
         if let Some((message, paths)) = unfolded.remove(&index) {
             variants = Some((index, message, paths));
@@ -2596,6 +2598,9 @@ pub fn lower_script(
                         _ => vec![PagePart { text, links, ruby, styles }],
                     };
                     let (mut speaker, mut voice, mut hang) = (speaker, voice, hang);
+                    // The words are links only while their variable isn't 0
+                    // (the page's links share one): else a plain page.
+                    let shown_by = records.links.first().map(|l| Var { global: l.style & 0x8000 != 0, index: (l.style & 0x7fff) as u16 });
                     let full_screen_rows = window_size.filter(|w| w.2).map(|(rows, columns, _)| (rows, columns));
                     for part in parts {
                         let lines = rows_of(&part.text, if hang.is_some() { indent } else { 0 });
@@ -2611,7 +2616,21 @@ pub fn lower_script(
                         }
                         page_break = false;
                         let PagePart { text, links, ruby, styles } = part;
-                        ops.push(Op::Text { speaker: speaker.take(), text, voice: voice.take(), links, ruby, styles, hang: hang.take(), continues: false });
+                        let (speaker, voice, hang) = (speaker.take(), voice.take(), hang.take());
+                        match shown_by.filter(|_| links.iter().any(|l| l.target.is_some())) {
+                            Some(var) => {
+                                cond_link_id += 1;
+                                let (plain, end) = (format!("s{}_plain{cond_link_id}", cd.script_id), format!("s{}_plain{cond_link_id}_end", cd.script_id));
+                                ops.push(Op::If { var, cmp: Compare::Eq, value: Operand::Const(0), label: plain.clone() });
+                                let page = Op::Text { speaker: speaker.clone(), text: text.clone(), voice: voice.clone(), links, ruby: ruby.clone(), styles: styles.clone(), hang, continues: false };
+                                ops.extend([page, Op::Jump(end.clone()), Op::Label(plain)]);
+                                ops.push(Op::Text { speaker, text, voice, links: Vec::new(), ruby, styles, hang, continues: false });
+                                ops.push(Op::Label(end));
+                                // Link pages end with textclear: nothing joins them.
+                                last_text = None;
+                            }
+                            None => ops.push(Op::Text { speaker, text, voice, links, ruby, styles, hang, continues: false }),
+                        }
                     }
                 }
                 Ok(Some(Op::Gosub(target))) => {

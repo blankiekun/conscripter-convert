@@ -165,7 +165,8 @@ alignment (`research/xuse/voice_align.py`) only matched 87 %.
 encyclopedia. One record right before the message it applies to, per
 linked word: `row, column, length` in characters (1-based, from where
 the next message starts), style `0x8000 | 7` (205) or `| 18` (9), and a
-label-table index. Targets are full scenes (link scenes, label names
+label-table index. The "style" is the variable that makes the word a
+link (History, item 28). Targets are full scenes (link scenes, label names
 `blog?<title>`) that can change the whole screen; `0x47` returns from
 one and `0x48` returns to the root scene. Converted as buttons over the
 linked words that `gosub` the scene inside `pushscreen`/`popscreen`.
@@ -316,7 +317,6 @@ run's):
 | `0x40`, `0x41` | `sub` bit 0: the first line is the speaker's name (not in full-screen windows: the exe drops it there) | converted (History, item 27) |
 | `0x40` | the extra block after the debug menu's one message (`0001.cd` #1): 1 note | dropped (unreachable) |
 | `0x44` | u16 flags at +6 (3 in 32, 1 in 5): 37 notes | dropped: meaning unknown |
-| `0x46` | u32 style at +6 (0x8007 in 205, 0x8012 in 9): 214 notes | dropped: the 9 style-18 links look like the others |
 | `0x49` | the one edge colour of its own (0x808080, a grey outline; History, item 29): 1 note | dropped (no outline for message text) |
 | `0x56` | u32 depth at +2 (0 and 2000): 2 notes | dropped |
 | `0x59` | the old track fading out under the new one | partial: it stops at once (one BGM channel) |
@@ -624,7 +624,8 @@ a copy of the save works.
 
 - Merged: `0x86`'s two trailing bytes as harmless (#163; History, item 45).
 - Merged: `0x8c`'s sort key as harmless (#180; History, item 31).
-- Open: `0x49`/`0x4a`'s edge colours as harmless but the grey one, PR #181 (History, item 29).
+- Merged: `0x49`/`0x4a`'s edge colours as harmless but the grey one (#181; History, item 29).
+- Open: links only while their variable is set, PR #183 (History, item 28).
 - Open: command coverage per operand, PR #85 (supersedes #28): every
   operand given and not read, whatever its value (0 included), is a
   dry-run note and a gap in `metrics.json`, except the filler (`NO_SUB`,
@@ -693,8 +694,6 @@ operands the converter is given and never reads ("Operand coverage"
 under "Script bytecode"); the user made every note an item. Numbered
 after History's 26, most noticeable first (notes = instructions):
 
-28. **Link style 18** (`0x46` u32 at +6, 214 notes): 9 links have style
-    0x8012 instead of 0x8007 and look like the others.
 29. **The grey outline** (`0x49` edge colour `0x808080`, 1 note): one
     message's characters get a grey edge; message text has no outline
     in CONscripter (`strspoutline` is for `strsp` only).
@@ -1381,3 +1380,19 @@ sound effects on `dwave` channels.
    with the message's usual decoration, a row of the harmless table.
    Left: one `0x49` record with `0x808080`, a grey outline on its
    characters, which message text can't draw (Status item 29).
+28. **Done: link style 18** (2026-10-16). `0x46`'s u32 at +6 isn't a
+   style: `op_46` checks it as a scenario variable (bit 15 = global,
+   `0x4673f0`/`0x45ff30`) and keeps it at the link entry's +0x10. When
+   the text field adds the link (`0x48e500`), it asks the link callback
+   `0x492bb0` (message 0xb), which answers 1 only if the target scene
+   isn't open already (`0x464870`) and the variable isn't 0; on 0 the
+   word is never made a link and stays plain text. The 205 links use
+   global 7, which the boot sets to 1 (0000.cd #13) and the scene
+   replay's set-up to 0 (0019.cd, 回想初期化); the 9 others use global
+   18, which says the second part is playing (0000.cd sets 0x8011,
+   0x8012, 0x8013 for parts one to three; 0015.cd, あずさ's replay, sets
+   18 too): 6 words in 0009.cd and 3 in 0013.cd are links only in the
+   second part. Now each link page is preceded by `if %2NN == 0 goto`
+   a copy of the page without links (`sN_plainM`). So the scene replay
+   shows no links, as the original; the variable stays a note-free read.
+   Not checked in the game: the second part's links (dry run only).

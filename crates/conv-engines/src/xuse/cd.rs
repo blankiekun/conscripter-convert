@@ -537,6 +537,10 @@ pub struct Link {
     pub row: u16,
     pub column: u16,
     pub length: u16,
+    /// The scenario variable that must be non-zero for the word to be a
+    /// link (0x492bb0 at 0x48e500's message 0xb): bit 15 = global, as in
+    /// `0x01`. The game uses global 7 (1 from the boot, 0 in the scene
+    /// replay) and 18 (1 in the second part only).
     pub style: u32,
     pub target: u32,
 }
@@ -830,8 +834,7 @@ impl<'a> CdScript<'a> {
                 row: r.u16(o)?,
                 column: r.u16(o + 2)?,
                 length: r.u16(o + 4)?,
-                // For `cd messages`: the converter doesn't use it.
-                style: Reader(self.pool).u32(o + 6)?,
+                style: r.u32(o + 6)?,
                 target: r.u32(o + 10)?,
             })
         })
