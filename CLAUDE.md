@@ -253,9 +253,11 @@ on each later turn; several agents run at once.
   for background runs to notify.
 - **Delegate small jobs to cheaper subagents** when you judge it fits
   (no need to ask): `model: "haiku"` for searches, greps across the
-  tree, reading a long file for one fact, summarising a log or trace;
+  tree, reading a long file for one fact, summarising a log or trace,
+  reruns and checks (`tests/snapshot.sh`, `cargo test`/`clippy`), a
+  clean rebase, push and `gh pr checks --watch`;
   `model: "sonnet"` for mechanical edits, doc updates, build-test-commit
-  loops and route runs. Keep design, engine work, reverse engineering
+  loops, route runs, a rebase with simple conflicts and releases. Keep design, engine work, reverse engineering
   and hard debugging yourself. Give the subagent the exact task and
   the files, and ask for a short report, not file dumps. Don't
   delegate when the job needs much of what you already know (the
@@ -263,6 +265,12 @@ on each later turn; several agents run at once.
   a subagent starts empty and re-reading all that costs more than
   doing the job yourself. Delegate only what a few lines of prompt
   can fully describe.
+- **The team lead sets `model` on every agent it starts**, by the
+  same split (the user, 2026-10-17): the default model only for design,
+  engine work, reverse engineering, hard debugging and new features.
+  For a mechanical follow-up ("rebase and rerun the snapshot"), start
+  a haiku agent with an exact few-line prompt instead of resuming a big
+  agent.
 
 ## Releasing CONscripter
 
