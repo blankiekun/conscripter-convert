@@ -69,7 +69,7 @@ with zipfile.ZipFile(a.out, "w", zipfile.ZIP_STORED) as z:
             raise SystemExit(f"slot {slot} ({label}): no save, exit code {r.returncode}")
         data = open(dat, "rb").read()
         text = f"{stamp}|000:00:00|{label.removeprefix('f_')} {desc[0].strip() if desc else ''}"
-        z.writestr(f"save{slot}.dat", data + b'"' + text.replace('"', "").encode("cp932") + b'"*')
+        z.writestr(f"save{slot}.dat", data + b'"' + text.replace('"', "").encode("utf-8") + b'"*')
         thumb = os.path.join(work, f"savethumb{slot}.bmp")
         pics = sorted(f for f in os.listdir(shots) if f.endswith(".png")) if os.path.isdir(shots) else []
         if not pics:

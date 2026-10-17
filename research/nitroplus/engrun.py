@@ -284,7 +284,7 @@ def main():
         sys.exit('--engine <conscripter binary> is needed')
     game, paths = args[0], args[1:]
     segs = record(os.path.join(game, '0.txt'), paths, at)
-    text = open(os.path.join(game, '0.txt'), 'rb').read().decode('cp932')
+    text = open(os.path.join(game, '0.txt'), 'rb').read().decode('utf-8')
     failed = 0
     for n, seg in enumerate(segs, 1):
         if only and str(n) != only or not every and not only and is_bad_end(seg['ended']):
@@ -302,7 +302,7 @@ def main():
             if os.path.exists(os.path.join(folder, name)):
                 os.remove(os.path.join(folder, name))
         shutil.rmtree(os.path.join(folder, 'saves'), ignore_errors=True)
-        open(os.path.join(folder, '0.txt'), 'wb').write(patch(text, seg, at).encode('cp932'))
+        open(os.path.join(folder, '0.txt'), 'wb').write(patch(text, seg, at).encode('utf-8'))
         config = os.path.join(folder, 'cons_trace_check.json')
         if not os.path.lexists(config):
             os.symlink(os.path.abspath(os.path.join(os.path.dirname(__file__), 'cons_trace_check.json')), config)

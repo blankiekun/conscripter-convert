@@ -295,8 +295,8 @@ const UNWIND: &str = "conv_unwind";
 const CG_SEEN: Flags = Flags { name: "conv_cg_seen", size: 576, old_base: 2200 };
 const TEXT_COLOR: &str = "#FFFFFF";
 
-/// Renders the script as NScripter source text (UTF-8; use [`encode`] to
-/// produce the Shift-JIS bytes ONScripter reads).
+/// Renders the script as NScripter source text (use [`encode`] for the
+/// bytes CONscripter reads).
 pub fn emit(script: &Script) -> String {
     let effects = fade_effects(script);
     let has_ruby = script.ops.iter().any(|op| matches!(op, Op::Text { ruby, .. } if !ruby.is_empty()));
@@ -1086,9 +1086,10 @@ fn align_single_bytes(line: &str) -> String {
     out
 }
 
-/// One byte in Shift JIS.
+/// A half-width character: one byte in Shift-JIS, or a Latin letter it
+/// lacks (CONscripter's `charCells`).
 fn is_single_byte(c: char) -> bool {
-    c.is_ascii() || ('\u{FF61}'..='\u{FF9F}').contains(&c)
+    c.is_ascii() || ('\u{FF61}'..='\u{FF9F}').contains(&c) || (('\u{C0}'..='\u{24F}').contains(&c) && !matches!(c, '×' | '÷'))
 }
 
 fn starts_ascii(line: &str) -> bool {
@@ -1106,9 +1107,9 @@ fn uses_switch(script: &Script, s: Switch) -> bool {
 }
 
 /// Command-line options CONscripter reads from `ons_args` in the game
-/// directory. Without `--enc:sjis` it reads the script as GBK. The web
-/// text overlay stays on (the player can turn it off).
-pub const ENGINE_ARGS: &str = "--enc:sjis\n";
+/// directory: the script is UTF-8 (without `--enc:` it reads it as GBK).
+/// The web text overlay stays on (the player can turn it off).
+pub const ENGINE_ARGS: &str = "--enc:utf8\n";
 
 /// `ons_args`: [`ENGINE_ARGS`], and with a button bar its sprites for
 /// `--trace-ignore` (the lists add up), so `--auto-play` doesn't open the
@@ -1126,27 +1127,15 @@ pub fn settings_fallbacks(script: &Script) -> Vec<String> {
     script.settings.as_ref().map(menu::fallback_defaults).unwrap_or_default()
 }
 
-/// Encodes NScripter source as Shift-JIS. Characters Shift-JIS can't
-/// represent become `?`; their count is returned.
+/// Encodes NScripter source as UTF-8 ([`ENGINE_ARGS`]), with the count of
+/// characters past U+FFFF, which CONscripter doesn't draw.
 pub fn encode(source: &str) -> (Vec<u8>, usize) {
-    let mut lost = 0;
-    let mut out = Vec::with_capacity(source.len());
-    for ch in source.chars() {
-        let mut buf = [0u8; 4];
-        let (bytes, _, bad) = encoding_rs::SHIFT_JIS.encode(ch.encode_utf8(&mut buf));
-        if bad {
-            lost += 1;
-            out.push(b'?');
-        } else {
-            out.extend_from_slice(&bytes);
-        }
-    }
-    (out, lost)
+    (source.as_bytes().to_vec(), source.chars().filter(|&c| c > '\u{FFFF}').count())
 }
 
-/// Decodes a Shift-JIS `0.txt` (the reverse of [`encode`]).
+/// Decodes a `0.txt` (the reverse of [`encode`]).
 pub fn decode(bytes: &[u8]) -> String {
-    encoding_rs::SHIFT_JIS.decode(bytes).0.into_owned()
+    String::from_utf8_lossy(bytes).into_owned()
 }
 
 /// What an `effect` definition draws.
@@ -2828,10 +2817,11 @@ end
     }
 
     #[test]
-    fn encodes_shift_jis() {
-        let (bytes, lost) = encode("あ\u{1F600}");
-        assert_eq!(bytes, [0x82, 0xa0, b'?']);
+    fn encodes_utf8() {
+        let (bytes, lost) = encode("あé\u{1F600}");
+        assert_eq!(bytes, "あé\u{1F600}".as_bytes());
         assert_eq!(lost, 1);
+        assert_eq!(decode(&bytes), "あé\u{1F600}");
     }
 
     #[test]

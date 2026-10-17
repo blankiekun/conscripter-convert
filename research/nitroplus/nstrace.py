@@ -47,7 +47,7 @@ MAX_PROBLEMS = 20
 
 
 def load_script(path):
-    lines = open(path, 'rb').read().decode('cp932').split('\n')
+    lines = open(path, 'rb').read().decode('utf-8').split('\n')
     lines = [l.rstrip('\r') for l in lines]
     labels = {l[1:].strip(): i for i, l in enumerate(lines) if l.startswith('*')}
     return lines, labels

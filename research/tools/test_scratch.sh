@@ -5,7 +5,7 @@ t=$(mktemp -d); trap 'rm -rf "$t"' EXIT
 g=$t/game; s=$t/scratch
 mkdir -p "$g/movie" "$s"
 for f in arc.nsa arc1.nsa default.ttf 0.txt kidoku.dat envdata gloval.sav save1.dat; do echo "$f" > "$g/$f"; done
-echo --enc:sjis > "$g/ons_args"; echo mine > "$t/my.txt"; cp /bin/true "$t/eng"
+echo --enc:utf8 > "$g/ons_args"; echo mine > "$t/my.txt"; cp /bin/true "$t/eng"
 ln -s "$g/0.txt" "$s/0.txt"; ln -s "$g/envdata" "$s/envdata"   # a bad earlier set-up
 "$(dirname "$0")/scratch.sh" "$g" "$s" "$t/my.txt" "$t/eng" > /dev/null
 links=$(find "$s" -maxdepth 1 -type l -printf '%f\n' | LC_ALL=C sort | tr '\n' ' ')

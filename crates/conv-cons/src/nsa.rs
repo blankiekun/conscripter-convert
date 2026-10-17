@@ -5,7 +5,7 @@
 //! ```text
 //! u16   file count
 //! u32   offset of the data area
-//! entry[count]: name (Shift-JIS, NUL-terminated, '\\' separators),
+//! entry[count]: name (the script's encoding, UTF-8; NUL-terminated, '\\' separators),
 //!               u8 compression (0 = none), u32 offset (from the data
 //!               area), u32 stored length, u32 original length
 //! data
@@ -60,14 +60,9 @@ pub fn write_archives(dir: &Path, files: &[NsaFile]) -> io::Result<Vec<PathBuf>>
 fn write_one(path: &Path, files: &[(&NsaFile, u64)]) -> io::Result<()> {
     let names: Vec<Vec<u8>> = files
         .iter()
-        .map(|(f, _)| {
-            let (bytes, _, bad) = encoding_rs::SHIFT_JIS.encode(&f.name);
-            if bad {
-                return Err(io::Error::other(format!("{:?} can't be encoded as Shift-JIS", f.name)));
-            }
-            Ok(bytes.into_owned())
-        })
-        .collect::<io::Result<_>>()?;
+        // in the script's encoding, UTF-8 (`encode`): CONscripter compares the bytes
+        .map(|(f, _)| f.name.as_bytes().to_vec())
+        .collect();
     let header_len: usize = 6 + names.iter().map(|n| n.len() + 1 + 1 + 12).sum::<usize>();
 
     let mut out = BufWriter::new(File::create(path)?);
@@ -121,7 +116,7 @@ pub fn read_names(path: &Path) -> io::Result<Vec<String>> {
         }
         let mut rest = [0u8; 13];
         r.read_exact(&mut rest)?;
-        names.push(encoding_rs::SHIFT_JIS.decode(&name).0.into_owned());
+        names.push(String::from_utf8_lossy(&name).into_owned());
     }
     Ok(names)
 }

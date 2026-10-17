@@ -85,7 +85,7 @@ Rules:
 | `Unsupported` | `;` comment + entry in the conversion report |
 
 The output stage also writes the `*define` section (`effect` defs, window and
-font setup, menu, `game`). Text is encoded to Shift-JIS with `encoding_rs`.
+font setup, menu, `game`). The script is written in UTF-8.
 
 ### Target engine: CONscripter
 
@@ -114,8 +114,9 @@ original), add the feature to CONscripter instead of approximating it:
 
 **Startup options.** CONscripter reads command-line options from an
 `ons_args` file in the game directory (whitespace-separated, up to 16).
-The converter writes one with `--enc:sjis`, because ONScripter-Yuri reads
-scripts as GBK by default. This is how every converted game passes
+The converter writes one with `--enc:utf8` (the script is UTF-8; CONscripter
+lays its text out as a Shift-JIS one's, `engine/COMMANDS.md`), because
+ONScripter-Yuri reads scripts as GBK by default. This is how every converted game passes
 options to the engine, including in the web build.
 
 **Building** (Arch Linux; `sdl2_mixer` from the package or built locally):
@@ -194,7 +195,7 @@ details, record layouts and handler addresses are in the game's document):
    machine and says which games' `0.txt` changed.
 3. **Linter** (`conscripter-convert lint`): every jump target exists,
    variable numbers are in range, referenced files exist in the archives,
-   Shift-JIS is valid.
+   the text is valid.
 4. **Smoke test:** CONscripter's debug trace (`engine/DEBUG.md`) plays a
    build headless by itself and records every page, choice, missing file
    and script error; `engine/tools/cons_trace_check.py` checks it.

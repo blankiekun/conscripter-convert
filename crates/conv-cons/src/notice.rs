@@ -45,7 +45,7 @@ pub(crate) fn emit(out: &mut String, width: u32, height: u32) {
     writeln!(out, "bg black,1").unwrap();
     for (i, line) in LINES.iter().enumerate() {
         let Some(text) = line else { continue };
-        // Half-width characters are half as wide (one Shift-JIS byte).
+        // Half-width characters are half as wide (as `len` counts them).
         let units: i32 = text.chars().map(|c| if c.is_ascii() { 1 } else { 2 }).sum();
         let x = (width as i32 - units * size / 2) / 2;
         let color = if i + 1 == LINES.len() { "#A0A0A0" } else { "#FFFFFF" };

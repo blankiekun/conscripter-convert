@@ -94,8 +94,8 @@ character in a full-width cell, so a proportional font such as IPA P
 Gothic leaves gaps after narrow kana.
 
 The output folder holds `0.txt`, `arc.nsa`, `default.ttf` and `ons_args`.
-`ons_args` holds the engine's startup options (`--enc:sjis`: the script is
-Shift-JIS); CONscripter reads it from the game folder, so keep it with the
+`ons_args` holds the engine's startup options (`--enc:utf8`: the script is
+UTF-8); CONscripter reads it from the game folder, so keep it with the
 other files.
 
 Every build names itself, for players reporting a problem: `version.txt`

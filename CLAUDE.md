@@ -191,8 +191,9 @@ shared code. A team lead hands out the items and reviews the PRs.
   patched-script runs: `docs/new-game.md` step 9 and "When the trace
   can't do it". On Xvfb always set
   `WAYLAND_DISPLAY=`, or the window opens on the user's desktop.
-- Test scripts: encode with `iconv -t cp932` (not `sjis`, which turns `\`
-  into `＼`).
+- Test scripts: UTF-8 with `--enc:utf8` in `ons_args`, as the builds;
+  a Shift-JIS one with `iconv -t cp932` (not `sjis`, which turns `\` into
+  `＼`) and `--enc:sjis`.
 - Read a variable headless: `lsp 999,"X:"+$1,0,0` prints "can't find
   file X:..." on stderr.
 

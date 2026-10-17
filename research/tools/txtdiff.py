@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compare two generated 0.txt files (cp932): what changed, and is it only a rename?
+"""Compare two generated 0.txt files (UTF-8, or Shift-JIS from older builds): what changed, and is it only a rename?
 
 usage: txtdiff.py OLD NEW [--map 's/OLD/NEW/'] [--rules FILE] [--hunks N] [--top N]
        txtdiff.py --self-test
@@ -32,7 +32,11 @@ MASK = [(re.compile(r'"[^"]*"'), '"…"'), (re.compile(r"(?<![\w$%])-?\d+"), "N"
 
 def read(path):
     # split on \n only: cp932 text holds bytes that splitlines() would also break on
-    lines = open(path, "rb").read().decode("cp932", "replace").split("\n")
+    data = open(path, "rb").read()
+    try:
+        lines = data.decode("utf-8").split("\n")
+    except UnicodeDecodeError:  # a build from before 2026-10-17
+        lines = data.decode("cp932", "replace").split("\n")
     return [norm(l) for l in lines]
 
 
