@@ -12,7 +12,7 @@ Fade	4 arguments	seen	0040a6e0	arg 3 is the tempo, no wait	arg 3 read as the wai
 Shake	n > 1000	seen	00431de0	does nothing	the same (shared, `shake_jolts`)
 Shake	n, time	seen	00431de0, 0043f570	flip every 1000/(n·0.06) ms; amplitude (x0,y0)→(x1,y1) along the tempo	`screenshake` interval 1000/(n·0.06); census: 300000 ms (dja050 l.1142) and -1 offsets (amplitude 3→1) are the script's
 Shake	wait when stopping (0 ms)	seen	00431de0	`true` waits only when the time is not 0, a number only when not 0 (then 00433bf0); the stop calls take 0 ms: no wait	"Shake argument 8 ignored" ×3: the stop calls; harmless
-SetVertex	x, y names	seen	004666c0	lower case, per axis: left/center/right, top/middle/bottom; another word → atol (0)	per axis; any case kept (Muramasa writes `Center`; whether it is lowered first is unknown)
+SetVertex	x, y names	seen	004666c0	lower case, per axis: left/center/right, top/middle/bottom; another word → atol (0)	per axis; lower case only, as the exe (Muramasa.exe doesn't lower `Center` either: FUN_004891e0, eval_arg 00413740)
 SetVertex	px outside 0..size	seen	004666c0 (Muramasa 004891e0 the same)	that axis left as it was	fixed (django/vertex-range): dja004's `center,704` on a 600 px picture
 SetVertex	default	inferred	0043a2b0	unknown before any SetVertex (a clip, 0043a2b0, puts it at the clip's centre; the creators that would set it not found)	centre (w/2, h/2)
 CreateCamera	z	seen	00408540	not a number: no camera made	z at least 1
