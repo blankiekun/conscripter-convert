@@ -91,6 +91,16 @@ fn write_one(path: &Path, files: &[(&NsaFile, u64)]) -> io::Result<()> {
     out.flush()
 }
 
+/// Where the archive keeps [`script_hash`] of the 0.txt it was packed for:
+/// the engine's debug trace warns when the running 0.txt differs.
+pub const SCRIPT_HASH: &str = "cons\\script.hash";
+
+/// FNV-1a 64 of `script`, as 16 hex digits.
+pub fn script_hash(script: &[u8]) -> String {
+    let h = script.iter().fold(0xcbf2_9ce4_8422_2325u64, |h, &b| (h ^ b as u64).wrapping_mul(0x100_0000_01b3));
+    format!("{h:016x}")
+}
+
 /// The names of the files in an NSA archive, as the script refers to them.
 pub fn read_names(path: &Path) -> io::Result<Vec<String>> {
     use std::io::{BufReader, Read};
@@ -119,6 +129,12 @@ pub fn read_names(path: &Path) -> io::Result<Vec<String>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn script_hash_is_fnv1a() {
+        assert_eq!(script_hash(b""), "cbf29ce484222325");
+        assert_eq!(script_hash(b"a"), "af63dc4c8601ec8c");
+    }
 
     #[test]
     fn writes_a_readable_archive() {

@@ -263,7 +263,11 @@ pub fn pack(output: &Path, dirs: &[&str]) -> Result<()> {
     for d in dirs {
         walk(&output.join(d), d, &mut files)?;
     }
+    let hash = output.join("script.hash");
+    fs::write(&hash, conv_cons::nsa::script_hash(&fs::read(output.join("0.txt"))?))?;
+    files.push(conv_cons::nsa::NsaFile { name: conv_cons::nsa::SCRIPT_HASH.into(), source: hash.clone() });
     let archives = conv_cons::nsa::write_archives(output, &files).context("packing .nsa archives")?;
+    let _ = fs::remove_file(hash);
     for d in dirs {
         let _ = fs::remove_dir_all(output.join(d));
     }
