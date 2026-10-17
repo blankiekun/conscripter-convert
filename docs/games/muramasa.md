@@ -577,6 +577,16 @@ Used to check what the engine does (`docs/new-game.md` step 9).
   among them, `CreateText`'s box height is read (#52) and `SetVertex`
   for every picture (#61, "History", "`SetVertex`"). Tempo waits for
   engine #2 and converter #13 (the curves are in item 5).
+- `EndSong` (12) in review (PR "NSS EndSong"): a music process may
+  have `if`s (decided as it starts) and call `SetVolume`, `WaitAction`,
+  `SetFrequency`, `SetLoop` and `Request`; a `SetVolume` on a song
+  already playing goes on its clock, which a `WaitAction` moves; a BGM
+  played again while it plays is left to CONscripter's loop. One that
+  starts a sound effect after a wait, or fades one, is put back and
+  noted (md01_023's `ZansyuSet`). The script doesn't change: the roll
+  starts `EndSong` only when it outlasts its song by a minute
+  (`$EndName[…][4]`), never with these songs, and no ending has a
+  second song (`[8]` is `false`).
 - Changed by the Muramasa EN agent (#60, shared NSS code): choice
   options set in runtime branches are picked at run time
   (mc02_031innsyoku lists the items held; md05_004 offers 別れる with a
