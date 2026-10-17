@@ -628,6 +628,8 @@ a copy of the save works.
 
 ### Queue (2026-10-16)
 
+- Open: screen positions from the exe's layout tables (History,
+  "Screen positions from the exe").
 - Merged: `0x86`'s two trailing bytes as harmless (#163; History, item 45).
 - Merged: `0x8c`'s sort key as harmless (#180; History, item 31).
 - Merged: `0x49`/`0x4a`'s edge colours as harmless but the grey one (#181; History, item 29).
@@ -752,6 +754,18 @@ empty). Gaps found, where the exe and the converter differ:
   the usual decoration.
 
 **Accuracy.**
+- Layout left open by the exe-table check (History, "Screen positions
+  from the exe"): the backlog draws one 720×20 line per entry at
+  x 52, y 49 + 35·i, 15 shown (`0x41ffa0`, `0x420070`; ours wraps from
+  (30, 44) at 24 px); the text window's first-character offsets in the
+  per-style table at `0x517678` (+6 dwords: x, y) disagree with the
+  wine measurements for styles 0 (28 against 42), 1 ((15, 23) against
+  (21, 24)) and 2/7 ((37, 35) against (48, 35)), the others within a
+  pixel; the top bars' text origins (`0x496fe0`: scene name at (531, 6),
+  ours 524; rows at +24, ours +19; `0x49b1a0`: chapter name at (73, 6),
+  ours (72, 7)); the CG viewer's 21×21 button (image 9 at (566, 547),
+  table `0x4fe3c0`) is not placed. Each needs a frame of the original
+  before it changes.
 - Transitions: MeltDown's stretch for subs 46/47 is scaled from the exe
   (filmed for item 25, not yet compared).
 
@@ -765,6 +779,29 @@ empty). Gaps found, where the exe and the converter differ:
 
 Finished work, moved out of "Status" so a session reads only the open
 state. Items are referred to elsewhere as "History, item N".
+
+**Screen positions from the exe (2026-10-17):** the hand-measured
+positions in `convert/screens.rs` checked against the exe's layout
+tables and constants (read from `Farthest2015.exe`'s data at the
+addresses given). The user's screenshots are scaled about 1.78× and
+not evenly (the save frame, always at (0, 0), fits about 1 px right and
+down in the lower half; the title background about 4 px right near the
+buttons), so the exe wins where they differ. Changed: title buttons at
+x 626, option y 300, exit y 369 (table `0x4fb808`; the extras menu's
+`0x4fb8a8` already matched); save menu buttons at y 530, x 511/614/701,
+the page strip at (457, 479) in even 34 px cells (`0x469850`, marker
+`0x46b3a0`); button bar from (304, 581) by table `0x4fa558`: auto 366,
+skip 420, load 606, setting 681, hide 754; top bars' rows 77 px left of
+the level box, x 533 (`0x496610`); backlog close at (732, 580) in the
+frame's bottom-right tab, not the top bar (`0x41f4b0`); yes/no buttons
+10 px either side of the centre and above the bottom (`0x4a6270`);
+chapter history columns of 20 rows (`i % 20`, `0x4682a0`), not 19.
+Matched already: the extras menu, CG grid (44 + 108c, 142 + 92r) and
+pages (`0x4fb970`), CG viewer buttons (from (461, 545), `0x4fe3c0`), BGM
+room (`0x5001d0`), scene list rows, the level box and its buttons. The
+chapter history's other positions and the text window's offsets were
+measured on exact wine frames and stay; what is left is under
+"Accuracy" in Status.
 
 **Effects off (2026-10-15, a gap from the whole-exe map):** with
 画面エフェクトを使用 off (`setting_effects` `0x51ed14` bit 0) the

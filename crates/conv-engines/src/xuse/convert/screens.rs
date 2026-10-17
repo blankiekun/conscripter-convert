@@ -7,7 +7,7 @@ impl AssetBank {
     /// The title screen from `HD/gd.arc` → `Title.004`: background (0) with
     /// the logo (10) and "COMPLETE" (14) on it, and the menu words, each a
     /// column of four states (normal, under the pointer, pressed, disabled).
-    /// Positions measured on a screenshot of the original. The extra modes
+    /// Positions from the exe's table at 0x4fb808 (title.cpp, 0x45a330). The extra modes
     /// (cg 4, bgm 5, chapter 8, wss 13) appear after clearing the game and
     /// aren't converted yet; neither is the options menu.
     pub fn title_screen(&mut self) -> Result<TitleScreen, ConvertError> {
@@ -26,10 +26,10 @@ impl AssetBank {
 
         let mut buttons = Vec::new();
         for (n, name, x, y, action) in [
-            (6, "start", 631, 221, TitleAction::Start),
-            (2, "load", 631, 250, TitleAction::Load),
-            (7, "option", 631, 299, TitleAction::Settings),
-            (3, "exit", 631, 370, TitleAction::Exit),
+            (6, "start", 626, 221, TitleAction::Start),
+            (2, "load", 626, 250, TitleAction::Load),
+            (7, "option", 626, 300, TitleAction::Settings),
+            (3, "exit", 626, 369, TitleAction::Exit),
         ] {
             let states = get(n)?;
             let (w, h) = (states.width(), states.height() / 4);
@@ -302,8 +302,9 @@ impl AssetBank {
     /// states: normal, under the pointer, pressed, disabled), page numbers
     /// (7, the same four states), current-page marker (1), row cursor (9,
     /// opaque, black where nothing is added: the game blends it
-    /// additively), "New" icon (10). Positions measured on a screenshot of
-    /// the original and on the frame's thumbnail boxes.
+    /// additively), "New" icon (10). Buttons and pages from the exe
+    /// (SaveMode.cpp, 0x469850); the rest measured on a screenshot of the
+    /// original and on the frame's thumbnail boxes.
     pub fn save_menu(&mut self) -> Result<SaveMenu, ConvertError> {
         let images = self.gaf_images("wnd.arc", "Save.004", "save menu")?;
         let get = |n: usize| {
@@ -329,10 +330,10 @@ impl AssetBank {
         let button = |this: &Self, name: &str, n: usize, x: i32, y: i32| placed(this, name, &cells(&get(n)?, &[0, 1, 3]), x, y);
 
         let pages_strip = get(7)?;
-        let (strip_x, strip_y) = (458, 480);
+        let (strip_x, strip_y) = (457, 479);
         let cell_h = pages_strip.height() / 4;
-        // Cut between the numbers.
-        let bounds = [0, 31, 67, 98, 136, 169, 203, 237, 271, 303, pages_strip.width()];
+        // One 34 px cell a page, as the exe cuts and places them (0x469850).
+        let bounds: Vec<u32> = (0..=10).map(|i| i * 34).collect();
         let marker = get(1)?;
         let marker_cell = image::imageops::crop_imm(&marker, 0, 0, marker.width(), marker.height() / 4).to_image();
         let page_marker = placed(self, "page_marker", &marker_cell, 0, 0)?;
@@ -375,10 +376,10 @@ impl AssetBank {
             frame: placed(self, "frame", &get(3)?, 0, 0)?,
             save_header: placed(self, "header_save", &get(12)?, 627, 0)?,
             load_header: placed(self, "header_load", &get(11)?, 627, 0)?,
-            delete: button(self, "delete", 5, 512, 531)?,
-            save: button(self, "save", 8, 615, 531)?,
-            load: button(self, "load", 6, 615, 531)?,
-            close: button(self, "close", 4, 702, 531)?,
+            delete: button(self, "delete", 5, 511, 530)?,
+            save: button(self, "save", 8, 614, 530)?,
+            load: button(self, "load", 6, 614, 530)?,
+            close: button(self, "close", 4, 701, 530)?,
             pages,
             page_marker,
             rows: 5,
@@ -403,8 +404,9 @@ impl AssetBank {
     /// The bottom button bar from `HD/wnd.arc` → `SysTray.004`: rows of
     /// eight states side by side (normal, under the pointer, pressed,
     /// disabled, then the same four while the mode is on). Base and frame
-    /// (0, 1) are empty. Positions measured on a screenshot of the
-    /// original, where the bar runs along the bottom edge. The lock button
+    /// (0, 1) are empty. Positions from the exe's table at 0x4fa558 from
+    /// (304, 581) (WindowIconTray.cpp, 0x4a3930, 0x4a3f50): the bar runs
+    /// along the bottom edge. The lock button
     /// (9) unpins the bars (filmed under wine): the top bars hide and this
     /// one shows only while the pointer is on it (below y 573); its open
     /// padlock (cells 4-7) is the pinned default, the closed one unpinned.
@@ -412,13 +414,13 @@ impl AssetBank {
         let images = self.gaf_images("wnd.arc", "SysTray.004", "button bar")?;
         let mut buttons = Vec::new();
         for (n, name, x, y, action) in [
-            (4, "auto", 365, 581, BarAction::Auto),
-            (5, "skip", 419, 581, BarAction::Skip),
+            (4, "auto", 366, 581, BarAction::Auto),
+            (5, "skip", 420, 581, BarAction::Skip),
             (6, "log", 473, 581, BarAction::Log),
             (2, "save", 550, 581, BarAction::Save),
-            (3, "load", 607, 581, BarAction::Load),
-            (7, "setting", 682, 581, BarAction::Settings),
-            (8, "hide", 756, 583, BarAction::HideWindow),
+            (3, "load", 606, 581, BarAction::Load),
+            (7, "setting", 681, 581, BarAction::Settings),
+            (8, "hide", 754, 583, BarAction::HideWindow),
             (9, "lock", 304, 581, BarAction::Lock { reveal_y: 573, fade_ms: 100 }),
         ] {
             let png = images.get(n).ok_or(ConvertError::MissingAsset { kind: "button bar image", number: n })?;
@@ -577,10 +579,11 @@ impl AssetBank {
         image::imageops::overlay(&mut button, &get(3)?, 0, 0);
         let (x, y) = ((800 - base.width() as i32) / 2, (600 - base.height() as i32) / 2);
         let bw = (button.width() / 4) as i32;
-        let by = y + base.height() as i32 - button.height() as i32 - 12;
+        // 10 px either side of the centre and above the bottom (0x4a6270).
+        let by = y + base.height() as i32 - button.height() as i32 - 10;
         let cells: &[u32] = &[0, 1, 3];
-        let yes = self.place("dialog_button", &button, Some((4, cells)), 400 - bw - 16, by)?;
-        let no = Placed { x: 400 + 16, ..yes.clone() };
+        let yes = self.place("dialog_button", &button, Some((4, cells)), 400 - bw - 10, by)?;
+        let no = Placed { x: 400 + 10, ..yes.clone() };
         Ok(ConfirmDialog {
             base: self.place("dialog_base", &base, None, x, y)?,
             yes,
@@ -605,7 +608,8 @@ impl AssetBank {
     /// The backlog from `HD/wnd.arc` → `LogWnd.004`: base (0, an opaque
     /// gradient, drawn mostly opaque), frame (1, "back log »"), scroll track
     /// (2), down and up arrows (3, 4) and close (5), the buttons four states
-    /// side by side. Layout is ours (no screenshot of the original's).
+    /// side by side. Close from the exe (BackLog.cpp, 0x41f4b0, in the
+    /// frame's bottom-right tab); the rest of the layout is ours.
     pub fn backlog(&mut self) -> Result<Backlog, ConvertError> {
         let log = self.gaf_rgba("wnd.arc", "LogWnd.004", "backlog")?;
         let get = |n: usize| log.get(n).cloned().ok_or(ConvertError::MissingAsset { kind: "backlog image", number: n });
@@ -617,7 +621,7 @@ impl AssetBank {
             track: self.place("log_track", &get(2)?, None, 745, 40)?,
             up: self.place("log_up", &get(4)?, Some((4, cells)), 760, 44)?,
             down: self.place("log_down", &get(3)?, Some((4, cells)), 760, 546)?,
-            close: self.place("menu_close", &get(5)?, Some((4, cells)), 729, 5)?,
+            close: self.place("menu_close", &get(5)?, Some((4, cells)), 732, 580)?,
             area: Rect { x: 30, y: 44, w: 700, h: 516 },
             font_size: 16,
             line_height: 24,
@@ -677,8 +681,9 @@ impl AssetBank {
         }
         let all = &[0, 1, 2, 3];
         // A row: cursor (») at (9, 5) on the current level's, title at
-        // (19, 4); rows push the level box down by their height.
-        let (row_x, row_y) = (531, 30);
+        // (19, 4); rows push the level box down by their height. Rows start
+        // 77 px left of the level box (0x496610).
+        let (row_x, row_y) = (533, 30);
         let cursor = load(&blog, 12)?;
         Ok(TopBars {
             chapter_bar: layered(self, &chapter, 0, &[0], 1, None, "chapter_bar", (0, 0))?,
@@ -709,7 +714,8 @@ impl AssetBank {
     /// of 21 px stacked, #4 the current chapter's bracket, #5 the row
     /// highlight, additive, four states of 25 px stacked). Layout and
     /// opacity measured on screenshots of the original under wine: rows 24
-    /// px apart from (16, 83), columns 258 px apart, 19 rows to a column.
+    /// px apart from (16, 83), columns 258 px apart, 20 rows to a column
+    /// (`i % 20` in the exe, 0x4682a0).
     pub(super) fn chapter_history(&mut self) -> Result<ChapterHistory, ConvertError> {
         let images = self.gaf_rgba("wnd.arc", "ChapterHistory.004", "chapter history")?;
         let get = |n: usize| images.get(n).cloned().ok_or(ConvertError::MissingAsset { kind: "chapter history image", number: n });
@@ -746,7 +752,7 @@ impl AssetBank {
             y: 83,
             row_pitch: 24,
             column_pitch: 258,
-            rows: 19,
+            rows: 20,
             columns: 3,
             row_width: 256,
             text_dx: 5,
