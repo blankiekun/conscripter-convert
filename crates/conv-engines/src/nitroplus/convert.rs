@@ -1505,6 +1505,9 @@ struct Compiler<'a, 'b> {
     window: Option<TextWindow>,
     first_window: Option<TextWindow>,
     window_visible: bool,
+    /// The box faded in from hidden (ms, waited): the next page shows the
+    /// window fading in, and a waited fade holds its text until it is in.
+    window_fade_in: Option<(u32, bool)>,
     texts_shown: usize,
     /// `Request("@text131", Enter)` before the text block `[text131]`
     /// exists (続・殺戮のジャンゴ's `TypeBegin`): the block shows its
@@ -2325,6 +2328,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
             window: None,
             first_window: None,
             window_visible: false,
+            window_fade_in: None,
             texts_shown: 0,
             pending_enter: None,
             process_clock: None,
@@ -3707,6 +3711,12 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 self.ops.push(Op::SetWindow(window.clone()));
             }
             self.window = Some(window);
+            if let Some((ms, waited)) = self.window_fade_in.take() {
+                self.ops.push(Op::WindowFade { alpha: 256, ms, from: Some(0), delay: 0, show: true });
+                if waited {
+                    self.ops.push(Op::Wait { ms });
+                }
+            }
             // 続・殺戮のジャンゴ's src leaves out the voice folder
             // (`dja002/0100010ri`; system.ini: `path = voice/`).
             let voice = page.voice.as_ref().and_then(|(_, src)| self.assets.sound(src).or_else(|| self.assets.sound(&format!("voice/{src}"))));
@@ -4262,7 +4272,12 @@ scene a.nss
         assert!(w.vertical);
         assert_eq!((w.x, w.y, w.text_x, w.text_y, w.rows, w.columns, w.line_gap), (447, 40, 430, 55, 5, 27, 9));
         assert_eq!(w.image, "cg/sys/adv/textwindow.png@800");
-        assert!(ops.iter().any(|op| matches!(op, Op::HideTextWindow)));
+        // The box fades in with the page, its text after the waited 150 ms,
+        // and out over its 150 ms as a waited `Fade` takes it.
+        let fade_in = ops.iter().position(|op| matches!(op, Op::WindowFade { alpha: 256, ms: 150, from: Some(0), show: true, .. })).expect("fade in");
+        assert!(matches!(ops[fade_in + 1], Op::Wait { ms: 150 }), "{:?}", &ops[fade_in..]);
+        assert!(matches!(ops[fade_in..].iter().find(|op| matches!(op, Op::Text { .. })), Some(Op::Text { text, .. }) if text.starts_with("　一行目")));
+        assert!(ops.iter().any(|op| matches!(op, Op::WindowFade { alpha: 0, ms: 150, .. })));
         let last = ops.iter().rposition(|op| matches!(op, Op::BeginTransition { fade_ms: 500, .. })).expect("fade out");
         assert!(matches!(&ops[last + 1], Op::Sprites { changes, .. } if changes[0].sprite.is_none()));
         // SoundPlay and OnSE aren't defined here, and aren't built-ins.

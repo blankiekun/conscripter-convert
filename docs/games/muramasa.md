@@ -938,6 +938,21 @@ Next, in order:
 
 ## History
 
+### The text window's fades (2026-10-17)
+
+The box is an ordinary picture the scripts fade (`Request(…, Hideable)`
+only lets the player hide it): the text's preprocess fades it in over
+`$BoxFadeTime` (150 ms) and a waited `Fade(…, 0, …, true)` takes it
+away. Ours showed and hid it at once (`textoff`); now CONscripter's
+`windowfade` (engine #82, `Op::WindowFade`) fades it: 5,644 hides
+become `windowfade 0,ms` with the script's wait after (most a `delay`,
+the rest joining a sync's wait), and 5,573 shows fade the window in from
+0 with the next page (after its `setwindow`: `windowfade 256,ms,0,0`,
+`textclear:texton`), the text held for the waited fade (`delay ms`), as
+the preprocess's `Fade(…, true)` holds the script before
+`Request(…, Enter)`. An unwaited fade to 0 is a box switch and changes
+nothing. Muramasa EN the same; 続・殺戮のジャンゴ's script doesn't change.
+
 ### Pictures made from `LoadImage` (2026-10-17)
 
 `CreateTexture(…, "name")` draws a picture `LoadImage` loaded under that

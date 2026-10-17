@@ -270,8 +270,6 @@ impl Compiler<'_, '_> {
                     o.opacity = to.position(o.opacity, 0, 0).clamp(0, 1000);
                     window_only &= o.hideable;
                 }
-                // The text window's own fades aren't waited for: the window
-                // just shows or hides.
                 if !window_only {
                     if ms > 0 {
                         for t in &targets {
@@ -279,8 +277,24 @@ impl Compiler<'_, '_> {
                         }
                     }
                     self.timed(ms, &wait, &targets);
-                } else if !matches!(wait, Value::Null | Value::Int(0)) {
-                    self.check_window();
+                } else {
+                    // The text window fades as the script's own `Fade`s say
+                    // (CONscripter's `windowfade`): out when a waited fade
+                    // leaves no box (an unwaited one is a box switch), in
+                    // from hidden with the next page (its text after the fade
+                    // when the fade is waited).
+                    let waited = !matches!(wait, Value::Null | Value::Int(0));
+                    let visible = self.objects.values().any(|o| o.hideable && o.opacity > 0 && matches!(o.kind, Kind::Image { .. }));
+                    let ms = ms.max(0) as u32;
+                    if waited && self.window_visible && !visible {
+                        self.ops.push(Op::WindowFade { alpha: 0, ms, from: None, delay: 0, show: false });
+                        self.window_visible = false;
+                        self.window_fade_in = None;
+                        self.timed(i64::from(ms), &wait, &[]);
+                    } else if !self.window_visible && visible && ms > 0 {
+                        let (m, w) = self.window_fade_in.unwrap_or((0, false));
+                        self.window_fade_in = Some((m.max(ms), w || waited));
+                    }
                 }
             }
             "Move" => {
