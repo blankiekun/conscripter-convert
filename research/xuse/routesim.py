@@ -9,8 +9,8 @@ the links clicked and where they go, and the progression variables at each
 
 The source side follows the original engine's run-time rules: link, ruby,
 style and indent records collect until a message uses them, so a jump past
-a record leaves it out. Variables: globals (0x8000) are %200+n, locals
-%10+n, as in the conversion.
+a record leaves it out. Variables as in the conversion (`script_var`): the
+slot ones (0x8000) %10-%20 then %29 up, the system ones %230+n.
 
 <path> names a click path in PATHS, one entry per loop: the link text to
 click for the route (None for no link), plus texts to try anyway. --lore
@@ -36,7 +36,6 @@ PATHS = {
     'no-links': [(None, ())] * 4,
 }
 CHAPTER_LOOP = 'お茶会－０'
-PROGRESS_VARS = list(range(200, 221))
 MAX_STEPS = 40_000_000
 
 
@@ -176,7 +175,11 @@ def u32(pool, o):
 
 
 def var_of(code):
-    return (200 if code & 0x8000 else 10) + (code & 0x7fff)
+    n = code & 0x7fff
+    return (10 + n if n <= 10 else 18 + n) if code & 0x8000 else 230 + n
+
+
+PROGRESS_VARS = [var_of(0x8000 | n) for n in range(21)]
 
 
 def chapter_title(name):

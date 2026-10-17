@@ -148,8 +148,10 @@ For most opcodes `arg` is the pool offset of the operand record.
   engine's in-memory table has an implicit entry 0, so index `n` =
   stored entry `n − 1`.
 
-**Variables:** bit 15 set = global. Globals map to `%200+n` with
-`globalon`, locals to `%10+n`. The game uses 3 locals and 19 globals.
+**Variables:** bit 15 set = kept in each slot save, clear = in the
+system data ("Progression variables"): the slot ones are locals
+(`%10+n`, then `%18+n` from n 11), the system ones globals (`%230+n`).
+The game uses 19 slot and 3 system variables.
 `0x01`–`0x0e` are the arithmetic (`=`, `+=`, `*=`, `/=`, `&=`, `|=`
 with a constant or a variable; `0x03` is `-= var`, an engine quirk).
 `0x16`-`0x1b` are `if v[a] <cmp> b goto` (see the table). `0x22`/`0x23`
@@ -455,7 +457,7 @@ Heroine links (guide's wording / the game's link text): あずさ
 あずさ. Every other link is lore; all links fill BLOG-1..3.
 
 The guides list 死 right after cycle 1. COMPLETE's bytecode gives it on
-the third no-link loop (`%215 <= 2` → リピート, 0x1a = setle in the
+the third no-link loop (`%33 <= 2` → リピート, 0x1a = setle in the
 exe's table): the second no-link loop is a リピート identical to the
 first (0021 has no conditions). The full-voice note in 愚者の館
 (sagaoz.net, "one more no-link pass") matches this. The conversion
@@ -463,44 +465,65 @@ follows the bytecode, and `routesim.py` confirms both sides agree.
 
 ## Progression variables
 
-Global variables (bit 0x8000 in the bytecode, `%200 + n` in `0.txt`;
-the original's table of 20, `0x46de00`). The original keeps them **in
-each slot save**, by name (`SVAR`, "Save format"), not in the system
-data; the conversion keeps them global (`globalon`). Names, matched to
-the table by role and by the values in a save (inferred): %200-%202
-`rv`, `tmp1`, `tmp2`; %203 `debug`; %204-%207 `us_enable`, `us_disable`,
-`us_hide`, `href_enable`; %208 `sentaku_now`; %209 `sentaku_all`;
-%210-%213 `sentaku_azusa`, `sentaku_fueko`, `sentaku_yoko`,
-`sentaku_sayaka`; %214 `sentaku_zumi`; %215 `sentaku_bad`; %216
-`loopsu`; %217-%219 `loop1`-`loop3`; %220 `clear_count`. The system data
-(`Farthest2015_000.bin`) holds four more: `azusa_tsuikabun`,
-`pkc_result`, `proskip`, `war_clear` (where the bytecode reads them:
-unknown). Scripts:
+The bytecode's variables are two tables (`load_svar` `0x46de00` sorts
+them by id): bit 15 set, 150 places at `0x519554`, which the slot save
+writes (`LocalSave.cpp` `0x461790` → `SVAR`, seen in the code and in
+saves); bit 15 clear, 20 places at `0x519544`, which the system data
+writes (`GlobalSave.cpp` `0x45f1a0`, the `SVAR` in
+`Farthest2015_000.bin`, seen). The conversion does the same with
+NScripter's border (`script_var` in `xuse/convert.rs`): the slot ones
+are locals, saved with each slot (n 0-10 → `%10+n`, 11-20 → `%18+n`,
+since %21-%28 are conv-cons'), the system ones globals (`globalon`)
+from %230 (`%230+n`; %10-%38, the slot ones' old place, still hold
+stale values in an older `gloval.sav`).
+
+Slot variables (the 21 names of a slot's `SVAR`, seen; matched to the
+ids by role and by the values in a save, inferred): %10-%12 `rv`,
+`tmp1`, `tmp2`; %13 `debug`; %14-%17 `us_enable`, `us_disable`,
+`us_hide`, `href_enable`; %18 `sentaku_now`; %19 `sentaku_all`;
+%20, %29-%31 `sentaku_azusa`, `sentaku_fueko`, `sentaku_yoko`,
+`sentaku_sayaka`; %32 `sentaku_zumi`; %33 `sentaku_bad`; %34 `loopsu`;
+%35-%37 `loop1`-`loop3`; %38 `clear_count`. Used: all but `tmp1` and
+`tmp2` (19). System variables (the 4 names of the global `SVAR`, seen;
+which id is which inferred from where they are set and the values in a
+100 % save, 1, 0, 0, 1): %231 set to 1 at the end of the epilogue
+(`s3_l13`, `war_clear`), %232 set to 1 in あずさ's route (`0009`
+`s9_fx110`, `azusa_tsuikabun`) and read in `0015` `s15_l1`
+(sets `loop2` when not 0), %233 compared with 4603 (`s6_l1`; `proskip` or
+`pkc_result`); id 0 unused. Before 2026-10-18 the conversion had the two
+the wrong way round: the slot variables at %10-%38 (global, so loading
+an older save kept today's loop and route state) and the system ones at
+%10-%13 (in the slot, and cleared by the `reset` right after
+`war_clear` is set).
+
+Scripts:
 0000 `!boot`, 0004 `00_プロローグ` (お茶会－０ and 最初の日), 0009 あずさ,
 0010 さやか, 0011/0012 ようこ, 0013 ふえこ, 0021 リピート, 0022 死,
 0019 `09_回想初期化` (scene replay setup).
 
 | Var | Meaning | Set | Reset | Read |
 |---|---|---|---|---|
-| %203 | 1 debug entry, 0 release entry | 0001 | | |
-| %204-%207 | constants 0, 1, 2, 1 (%207 = 0 in the scene replay) | 0000 `s0_l2` | | not read |
-| %208 | heroine chosen this loop: 1 あずさ, 2 ふえこ, 3 ようこ, 4 さやか | each link scene (`s9_l1`, `s13_l1`, `s11_l1`, `s10_l1`) | each お茶会－０ (`s4_l2`), `s0_l4` | end of 最初の日: 1 → あずさ (`s9_l3`), else ふえこ (`s13_l2`); さやか and ようこ jump to their routes from the link scene (0x48) |
-| %209 | scratch: all four heroines done (`%210 & %211 & %212 & %213`) | `s0_l6` | | `s0_l5`, `s0_l8` |
-| %210, %211, %212, %213 | あずさ, ふえこ, ようこ, さやか done this cycle | their link scenes | `s0_l4` (start, and at each cycle's end) | 最初の日 hides the heroine's link (jumps past the 0x46) |
-| %214 | a heroine link was clicked this loop | link scenes | each お茶会－０ | 最初の日 hides all heroine links; its end picks a route or no route |
-| %215 | loops with no link | end of 最初の日 (+1) | `s0_l2` | `<= 2` → リピート (0021), else 死 (0022) |
-| %216 | phase: 1 cycle 1, 2 cycle 2, 3 after it | `s0_l2`, `s0_l5`, `s0_l8`, end of the epilogue | | not read |
-| %217 | 1 in cycle 1 | `s0_l2` | `s0_l5` (all four done) | route text variants (23 places) |
-| %218 | 1 in cycle 2 | `s0_l5` (all four done) | `s0_l8` | route text variants (40 places) |
-| %219 | 1 after cycle 2: the war arc | `s0_l8` (all four done again) | end of the epilogue | route ends: → `s5_l1` (00_共通前, お茶会－１/２) |
-| %220 | routes finished | `s0_l5`, `s0_l8` (+1) | | not read |
+| %13 | 1 debug entry, 0 release entry | 0001 | | |
+| %14-%17 | constants 0, 1, 2, 1 (%17 = 0 in the scene replay) | 0000 `s0_l2` | | not read |
+| %18 | heroine chosen this loop: 1 あずさ, 2 ふえこ, 3 ようこ, 4 さやか | each link scene (`s9_l1`, `s13_l1`, `s11_l1`, `s10_l1`) | each お茶会－０ (`s4_l2`), `s0_l4` | end of 最初の日: 1 → あずさ (`s9_l3`), else ふえこ (`s13_l2`); さやか and ようこ jump to their routes from the link scene (0x48) |
+| %19 | scratch: all four heroines done (`%20 & %29 & %30 & %31`) | `s0_l6` | | `s0_l5`, `s0_l8` |
+| %20, %29, %30, %31 | あずさ, ふえこ, ようこ, さやか done this cycle | their link scenes | `s0_l4` (start, and at each cycle's end) | 最初の日 hides the heroine's link (jumps past the 0x46) |
+| %32 | a heroine link was clicked this loop | link scenes | each お茶会－０ | 最初の日 hides all heroine links; its end picks a route or no route |
+| %33 | loops with no link | end of 最初の日 (+1) | `s0_l2` | `<= 2` → リピート (0021), else 死 (0022) |
+| %34 | phase: 1 cycle 1, 2 cycle 2, 3 after it | `s0_l2`, `s0_l5`, `s0_l8`, end of the epilogue | | not read |
+| %35 | 1 in cycle 1 | `s0_l2` | `s0_l5` (all four done) | route text variants (23 places) |
+| %36 | 1 in cycle 2 | `s0_l5` (all four done) | `s0_l8` | route text variants (40 places) |
+| %37 | 1 after cycle 2: the war arc | `s0_l8` (all four done again) | end of the epilogue | route ends: → `s5_l1` (00_共通前, お茶会－１/２) |
+| %38 | routes finished | `s0_l5`, `s0_l8` (+1) | | not read |
 
 A route's end calls `s0_l5` in cycle 1 or `s0_l8` in cycle 2, then goes
 back to お茶会－０ (`s4_l1`). FIRST START runs `s0_l2`, which zeroes all
 of this. Progress bits for the extras (0x99) are `%3600 + bit`.
 
 Checked by `research/xuse/routesim.py` (route simulation of the bytecode
-and of `0.txt`, `docs/new-game.md` step 11.4).
+and of `0.txt`, `docs/new-game.md` step 11.4; its `0.txt` side reads
+the cp932 scripts of before the UTF-8 builds and no named variables, so
+it needs updating before its next use).
 
 ## Testing
 
@@ -692,10 +715,10 @@ there unlocks the extras; seen).
 
 ### Queue (2026-10-16)
 
-- Open (found 2026-10-17): the original keeps the progression
-  variables %200-%220 in each slot save ("Save format"), the conversion
-  in global data (`globalon`): loading an older save in the original
-  brings back that save's loop and route state. Not changed yet.
+- Done, in review (2026-10-18): the progression variables are kept in
+  each slot save as in the original, the four system ones globally
+  ("Progression variables"; History, "Slot variables"; move this item
+  to History when it merges).
 - Open: the extras' CG gallery, scene replay and BGM room drawn by the
   engine (`screens/gallery.lua`, `replay.lua`, `replay_list.lua`,
   `music.lua` from `ExtrasMenu` by `crates/conv-cons/src/extras_screens.rs`;
@@ -942,6 +965,25 @@ empty). Gaps found, where the exe and the converter differ:
 
 Finished work, moved out of "Status" so a session reads only the open
 state. Items are referred to elsewhere as "History, item N".
+
+**Slot variables (2026-10-18):** the original keeps the bytecode's
+bit-15 variables (the route and loop state, `sentaku_*`, `loop1`-`loop3`,
+`clear_count`, …) in each slot save and the others (`war_clear`,
+`azusa_tsuikabun`, …) in the system data (`load_svar` `0x46de00`, the
+two writers `0x461790`/`0x45f1a0`); the conversion had them the other
+way round, so loading an older save kept today's loop and route state,
+and `war_clear` was lost to the `reset` after the epilogue. Now the slot
+ones are locals (%10-%20, %29-%38) and the system ones globals
+(%231-%233), with NScripter's own border (200, unchanged, so an older
+`gloval.sav` still loads its CG, replay and settings data). Checked
+headless: a slot saved with %17 = 5, %36 = 7, %231 = 3, then %17 and
+%36 set to 99 and %231 to 4, loads back 5, 7 and 4. Older saves: a slot
+save still loads at its page, but it holds no route state (its %10-%13
+held the system variables, %29-%38 nothing), so the variables read 0
+there and the next loop or route branch may not be the save's: a new
+game plays right. The system variables start at 0 (they lived in the
+slots); the slot variables' last values stay unused at %200-%220 of
+`gloval.sav`.
 
 **Breakpoint trace (2026-10-17):** `docs/new-game.md` steps 18-21 tried
 here first. The relay log (step 18) gives the frame rate: `frame_loop`
