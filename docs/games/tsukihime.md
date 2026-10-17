@@ -625,7 +625,7 @@ Nothing yet.
 | Scripts | 🔶 read: every command of both languages splits (one malformed in the original) and its text and voices join; the top commands' arguments read from the exe, the rest not yet |
 | Media folder (`typemoon media`) | ✅ `allpac`'s pictures at full size (PNG, or WebP with the shared `--webp` flags), the movies as they are, the sound (WAV wave sounds, or Opus/Vorbis with the shared `--audio-*` flags), loops kept in every mode |
 | Script conversion (`typemoon convert`) | 🔶 the flow (labels, `_JUMP`, `_IF__`, flags), text (pages, ruby, voices), pictures (`_STCH`/`_STCC`/`_FADS`: record size and place, fades and rule wipes), sound effects and music; plays from the start through `00_00` into the first arc headless. Layers drawn in priority order (`_STCP`, `_STCH` argument 6), changed keeping their settings (`_SCH2`) or copying another layer's (argument 18), zoomed (`_STZ4`), faded (`_STGS`) and moved (`_STMA`, the exe's motions; easing, priority and expression keys not followed), children placed in their parent layers, orbiting with their turn and following their motions (`_STCH` argument 11), clipped to their panels (`_STCH` arguments 12–16), turned (`_STRT`), drawn with their shader as far as CONscripter's blends and filters go (`_STBR`) and drawn with their `_STEC` effect (levels, greyscale and colour layers; effect 1 a colour fill, CONscripter's `spfilter` 9 and 10). Choices (`_SELR`, `_SELD`, `_GOTS`; options under a flag offered by it, greyed ones shown greyed and not selectable (`seldisable`); the chapter-jump menus), `_GOTO` and the Switch's own branches (`_IFNX`/`_IFP4`). The text window hidden and faded (`_CLO2`, `_CLO3`/`_CLO4`/`_CLO5` with CONscripter's `windowfade`, the script going on; the next text fades it back in). Not yet: the other layer commands, screens |
-| Screens, extras | 🔶 the title (see History, 2026-10-17); Load opens the built-in menu, Config and Gallery shown but not yet clickable; no save, settings or backlog screens yet |
+| Screens, extras | 🔶 the title; the system menu's Save and Load tabs (see History, 2026-10-17); Config, FlowChart, the backlog and the right-click menu not yet |
 
 ### Next
 
@@ -635,9 +635,10 @@ Nothing yet.
    the user asks.
 2. The other picture archives in the media folder: `allpaccg` (the
    gallery's CGs, 2 GB), `allui` (71 MB).
-3. The menus: save/load, settings (the defaults in "Accuracy", the
-   日本語/English switch), backlog, the right-click menu; then Config and
-   Gallery on the title.
+3. The menus: the settings tab (the defaults in "Accuracy", the
+   日本語/English switch), the right-click menu opening the system menu,
+   the backlog; then the save list's route picture and chapter labels
+   (by the phase), and Config and Gallery on the title.
 4. Still open in the exe: `_FADS` type 1, `_STCH`'s panel frames
    (argument 17's colours, the corner pieces at 0x75BE00), and the motion keyframes' other fields.
 5. The metrics (`tests/snapshots/tsukihime.metrics.json`) count each
@@ -683,6 +684,29 @@ The biggest commands not converted, looked up in `script_command`
   out.
 
 ## History
+
+- 2026-10-17: **the system menu's Save and Load tabs**
+  (`typemoon/menu.rs`, the shared `SystemMenu`), from the exe:
+  `FUN_0014c370` draws the bar (`menu_window` at (18.67, 1), the
+  buttons Save, Load, Config, FlowChart, Title at (26.67, 43.56 + 31.11
+  a row), hit box 74 × 29 at table 0x691438; `system_titlebg`,
+  `system_scenebg` at (250.67, 0), `underline` at (0, 29.87)),
+  `FUN_0014f240` the save list (`config_innerbg` at (120, 0); 4 rows at
+  (133.67, 36.92 + 93.75 a row) of `save_win`'s (32, 32)-(992, 304), and
+  (31, 336)-(991, 608) for the row chosen; the thumbnail at (151, row +
+  23.23); the route panel at (453.33, 39.41)), all on the 640 × 448
+  stage. 100 slots, 25 pages turned by the wheel and Left/Right; a
+  click saves (Save only in game) or loads, asking first over a save;
+  Title goes back to the title. The title's Load opens the Load tab.
+  Ours: `menu_btn`'s cells cut 240 × 104 from (24, 26), centred on the
+  hit box. Guesses: the game dimmed under the menu, the thumbnail 192 ×
+  108, the date and the slot's last line in the font where the picture
+  digits and the slot text are, the fade 200 ms. Left out: the header's
+  chapter title and scene name, the cursor's line and light, the route
+  picture by the save's phase (the unknown route's is drawn), each
+  save's chapter label, the 39 autosaves. Config and FlowChart are shown
+  at rest. Engine: CONscripter #117 (a tab reached from a held tab
+  keeps the game as its thumbnail), #119 (`hover.under`).
 
 - 2026-10-17: **the title** (`typemoon/title.rs`), from the exe:
   `FUN_0018d2e0` sets it up, `FUN_0018e200` runs it, `FUN_0018d5d0`

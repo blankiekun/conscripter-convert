@@ -85,6 +85,7 @@ pub fn build(romfs: &Path, main: &Path, opts: &Opts) -> Result<Built> {
         // One speed here: the unread one.
         text_ms: Some(35),
         title_screen: Some(super::title::title(romfs, opts.output, opts.dry_run)?),
+        system_menu: Some(super::menu::system_menu(romfs, opts.output, opts.dry_run)?),
         ..Default::default()
     };
     println!("{} scripts -> {}", game.scripts.len(), opts.output.join("0.txt").display());
