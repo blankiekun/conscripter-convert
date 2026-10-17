@@ -179,9 +179,12 @@ impl<'a> Emitter<'a> {
             }
         }
         Op::StopAutoSkip => writeln!(out, "skipoff:autooff").unwrap(),
-        Op::BacklogLine { text, voice } => match voice {
-            Some(v) => writeln!(out, "logadd \"{}\",\"{}\"", escape(text), path(v)).unwrap(),
-            None => writeln!(out, "logadd \"{}\"", escape(text)).unwrap(),
+        Op::BacklogLine { text, voice, character } => match (voice, character) {
+            (Some(v), Some(c)) if voice_switches && crate::line_log_screen::engine_log(script).is_some() => {
+                writeln!(out, "logadd \"{}\",\"{}\",{c}", escape(text), path(v)).unwrap()
+            }
+            (Some(v), _) => writeln!(out, "logadd \"{}\",\"{}\"", escape(text), path(v)).unwrap(),
+            (None, _) => writeln!(out, "logadd \"{}\"", escape(text)).unwrap(),
         },
         Op::RuntimeBacklogLine { text, runtime } => {
             let s = crate::RUNTIME_LOG;
@@ -496,6 +499,11 @@ impl<'a> Emitter<'a> {
                 writeln!(out, "if {off} == 1 chvolfade -1,{to}").unwrap();
             }
             if let Some(v) = voice {
+                // The engine's backlog keeps a voice switched off, its button
+                // hidden while the switch is off.
+                if voice_switches && crate::line_log_screen::engine_log(script).is_some() {
+                    writeln!(out, "logvoice \"{}\",{}", path(&v.file), v.character).unwrap();
+                }
                 if voice_switches {
                     write!(out, "if %{} == 0 ", menu::VOICE_OFF_BASE + v.character).unwrap();
                 }

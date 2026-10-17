@@ -2387,6 +2387,16 @@ impl<'a, 'b> Compiler<'a, 'b> {
         }
     }
 
+    /// SetBacklog's speaker as a voice class seen so far: the class itself,
+    /// or one it starts (村正 for 村正さん: the exe looks for the speaker in
+    /// the list of classes switched off).
+    /// shortcut: a class first voiced after the line has no switch there
+    /// (1 of 90 lines, ma01_021's 鈴川); a pre-pass would number it.
+    fn backlog_character(&self, speaker: &str) -> Option<u32> {
+        let c = &self.voice_classes;
+        c.iter().position(|c| c == speaker).or_else(|| c.iter().position(|c| !speaker.is_empty() && c.starts_with(speaker))).map(|i| i as u32)
+    }
+
     fn note(&mut self, what: impl Into<String>) {
         let what = what.into();
         self.metrics.note(&what);

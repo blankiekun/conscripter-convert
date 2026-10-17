@@ -1,11 +1,10 @@
 {
 "game": "django",
 "engine": "nitroplus",
-"commit": "d603cfef",
+"commit": "375b602b",
 "commit_date": "2026-10-17",
-"totals": {"calls": 57053, "full": 56607, "gaps": 206, "left_out": 240},
+"totals": {"calls": 57053, "full": 56682, "gaps": 131, "left_out": 240},
 "kinds": {
-"SetBacklog": {"calls": 75, "gaps": 75, "reasons": [["SetBacklog argument 2 ignored", 75]]},
 "LoadFont": {"calls": 67, "gaps": 67, "reasons": [["built-in LoadFont", 67]]},
 "SetFrequency": {"calls": 1283, "gaps": 15, "reasons": [["SetFrequency on music", 15]]},
 "MoveCamera": {"calls": 373, "gaps": 15, "reasons": [["MoveCamera argument 6 ignored", 15], ["MoveCamera argument 5 ignored", 3]]},
@@ -39,6 +38,7 @@
 "Draw": {"calls": 102, "gaps": 0, "reasons": []},
 "CreateCamera": {"calls": 87, "gaps": 0, "reasons": []},
 "SetNextFocus": {"calls": 80, "gaps": 0, "left_out": 80, "reasons": [["the choice screen's own code: the engine's choice stands in", 80]]},
+"SetBacklog": {"calls": 75, "gaps": 0, "reasons": []},
 "WaitKey": {"calls": 59, "gaps": 0, "reasons": []},
 "CreateText": {"calls": 33, "gaps": 0, "left_out": 20, "reasons": [["the choice screen's own code: the engine's choice stands in", 20]]},
 "WaitMove": {"calls": 33, "gaps": 0, "reasons": []},

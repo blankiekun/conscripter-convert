@@ -591,6 +591,10 @@ oldest row. Open:
   pointer; the routine's did.
 - Muramasa EN's backlog (single-byte rows, `row_width`) still uses the
   script routine.
+- A row's voice button follows the voice switches when the backlog opens
+  (below, "History", "The backlog's voices and the voice switches");
+  `SetBacklog`'s speaker 鈴川 in ma01_021, voiced in no earlier file, has
+  no switch there (the other 52 voiced `SetBacklog` lines have one).
 
 ### Extras' menu drawn by the engine (2026-10-17)
 
@@ -916,13 +920,7 @@ Next, in order:
      "Story `CreateText`").
    - `DrawTransition`'s start opacity and softness.
    - `Random` and `Conquest` return 0 whatever their arguments.
-   - `CreateEffect`'s place and size; `SetBacklog`'s speaker (seen,
-     2026-10-17: the exe stores it with the line's voice, `FUN_00403730`,
-     and the backlog (`FUN_00403910`) offers the voice only when the name
-     is not in `#SYSTEM_voice_enable_list`, the names of the characters
-     switched off (`ConfigCharacterVoice`): our backlog offers every
-     voice, story lines' too; needs the character per log row);
-     `MoveCamera`'s arguments in a process (4 calls).
+   - `CreateEffect`'s place and size; `MoveCamera`'s arguments in a process (4 calls).
    - `LockVideo`, `WaitText`, `SetFrequency` (but 1000),
      the time limit (?) of `WaitAction` and the
      other waits: dropped; meaning to check in the exe.
@@ -1037,6 +1035,27 @@ out on purpose.
   held (seen once in a small test script; not looked into).
 
 ## History
+
+### The backlog's voices and the voice switches (2026-10-17)
+
+The exe keeps each log line's speaker with its voice (`FUN_00403730`; a
+text's `<voice class>`, `SetBacklog`'s third argument) and its backlog
+(`FUN_00403910`) offers the voice only when the speaker is not in
+`#SYSTEM_voice_enable_list`, the classes switched off
+(`ConfigCharacterVoice`): it decides when the backlog is drawn. Ours
+logged a voice only when it played, so a voice switched off while read
+never had a button and one switched off later kept it. Now every voiced
+line runs `logvoice "<voice>",<character>` before its `if %970+c == 0
+dwave` (CONscripter's history voice without playing it, with a tag),
+`SetBacklog` lines `logadd "<text>","<voice>",<character>` (the speaker as
+a class, or the class it starts: 村正 for 村正さん), and the backlog's rows
+list has `voice_off=970`, which leaves a row's button out while `%(970 +
+tag)` is set (engine PR blankiekun/CONscripter#103). 0.txt: 36,053
+`logvoice` lines, 53 `logadd`s with a tag. Checked on the full build
+(`--goto if0_else`, a `gosub *conv_backlog` after ma00_000's 卵 lines,
+`--skip-screens none`): voice buttons on rows 6, 7, 9, 10, 11, 13-16
+with `%971=0`, on 6, 7, 10, 13 with `%971=1` (the five rows of character
+1 lose theirs).
 
 ### Tempo of `Fade` and `DrawTransition` (2026-10-17)
 

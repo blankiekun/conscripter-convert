@@ -452,7 +452,7 @@ pub fn emit(script: &Script) -> String {
     // The text speed is a setting when there is a settings menu.
     let has_settings = script.settings.is_some() || script.picture_settings.is_some();
     let speed = if has_settings { menu::TEXT_MS } else { "20" };
-    let voice_switches = script.settings.as_ref().is_some_and(|s| !s.voices.is_empty()) || script.picture_settings.as_ref().is_some_and(|s| s.voice_window.is_some());
+    let voice_switches = voice_switches(script);
     let duck = uses_switch(script, Switch::BgmFullForVoice);
     if let Some(s) = &script.settings {
         menu::settings_init(&mut out, s);
@@ -1029,6 +1029,11 @@ fn is_single_byte(c: char) -> bool {
 
 fn starts_ascii(line: &str) -> bool {
     line.starts_with(|c: char| c.is_ascii())
+}
+
+/// The settings switch voices per character (%970 + character, `menu::VOICE_OFF_BASE`).
+pub(crate) fn voice_switches(script: &Script) -> bool {
+    script.settings.as_ref().is_some_and(|s| !s.voices.is_empty()) || script.picture_settings.as_ref().is_some_and(|s| s.voice_window.is_some())
 }
 
 /// The settings screen has switch `s` (in its list or on a picture page).
