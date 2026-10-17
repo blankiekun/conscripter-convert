@@ -456,6 +456,9 @@ pub fn emit(script: &Script) -> String {
     if script.title_screen.as_ref().is_some_and(|t| !t.openings.is_empty()) {
         writeln!(out, "mov {TITLE_SHOWN},0").unwrap();
     }
+    if !script.language.is_empty() {
+        writeln!(out, "language \"{}\"", script.language).unwrap();
+    }
     writeln!(out, "game").unwrap();
     writeln!(out, "*start").unwrap();
     // The text speed is a setting when there is a settings menu.

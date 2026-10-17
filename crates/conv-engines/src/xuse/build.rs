@@ -137,6 +137,7 @@ pub fn build(game: &Path, linear: bool, opts: &Opts) -> Result<Built> {
     };
     let ir = Script {
         title: opts.title.to_string(),
+        language: "ja".into(),
         width: SCREEN.0,
         height: SCREEN.1,
         window: Some(window),

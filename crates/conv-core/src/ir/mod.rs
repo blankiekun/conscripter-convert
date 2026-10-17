@@ -929,4 +929,7 @@ pub struct Script {
     /// The system menu drawn by the engine, with its own save and load
     /// tabs (used where no other save screen is).
     pub system_menu: Option<SystemMenu>,
+    /// The text's language (ISO 639-1: "ja", "en"), told to the web page
+    /// at start (CONscripter's `language`); empty: not told.
+    pub language: String,
 }

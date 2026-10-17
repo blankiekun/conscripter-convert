@@ -156,6 +156,7 @@ pub fn build(game: &Path, run: &Run, opts: &Opts) -> Result<Built> {
         window: compiled.window,
         ops: compiled.ops,
         single_byte_text: run.english.is_some(),
+        language: if run.english.is_some() { "en" } else { "ja" }.into(),
         ..Default::default()
     };
     g.menus(&mut assets, &mut ir, &story);
