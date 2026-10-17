@@ -473,6 +473,7 @@ pub(crate) mod tests {
             defaults: Vec::new(),
             switches_off: Vec::new(),
             engine_screen: false,
+            text_ms: None,
             switches: vec![conv_core::ir::SettingSwitch { label: "セーブ確認".into(), switch: Switch::ConfirmSave }],
         };
         let mut out = String::new();
@@ -734,6 +735,7 @@ pub(crate) mod tests {
             defaults: Vec::new(),
             switches_off: Vec::new(),
             engine_screen: false,
+            text_ms: None,
             switches: Vec::new(),
         };
         let mut out = String::new();
@@ -751,5 +753,12 @@ pub(crate) mod tests {
         assert!(out.contains("mov %105,%902*10\nif %2911 == 1 mov %105,0\nbgmvol %105\n"), "{out}");
         assert!(out.contains("if %9 == 71 mov %2911,1-%2911:gosub *conv_settings_apply:goto *conv_settings_draw\n"), "{out}");
         assert!(out.contains("itoa2 $101,%906\n"), "{out}");
+        // A game's own text speeds replace the shared formula.
+        assert!(out.contains("mov %907,(10-%905)*6:textspeed %907\n"), "{out}");
+        m.text_ms = Some([500, 500, 500, 500, 500, 167, 167, 167, 33, 33, 0]);
+        let mut out = String::new();
+        settings_menu(&mut out, &m, None, None, None);
+        assert!(out.contains("if %905 == 4 mov %907,500\n") && out.contains("if %905 == 10 mov %907,0\ntextspeed %907\n"), "{out}");
+        assert!(!out.contains("(10-%905)"), "{out}");
     }
 }

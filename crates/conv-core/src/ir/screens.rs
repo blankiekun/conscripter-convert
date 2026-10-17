@@ -695,6 +695,9 @@ pub struct SettingsMenu {
     /// Drawn by the engine (CONscripter's `screen`, `screens/settings.lua`)
     /// rather than by script loops (without `pictures` only).
     pub engine_screen: bool,
+    /// Milliseconds a character for text speed levels 0-10, where the
+    /// game's speeds differ from the shared `(10 - level) × 6`.
+    pub text_ms: Option<[u32; 11]>,
 }
 
 /// A settings screen made of a game's own pictures: pages switched with

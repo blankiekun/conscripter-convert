@@ -370,6 +370,15 @@ pub fn settings_menu(assets: &mut ArchiveAssets, labels: &Labels) -> Option<Sett
         ],
         switches_off: vec![Switch::BgmFullForVoice],
         engine_screen: false,
+        // src: exe 0x81126a80, 0x8107145c: a character every 15, 5 and 1
+        // updates (遅い, 普通, 早い: speeds 59, 55, 10; 一括 at once). The
+        // text drawer runs once per scene update, and an update is 2
+        // frames: the main loop (0x8104ffe4) runs once per displayed
+        // frame and queues it with a wait of 2 vblanks
+        // (sceDisplayWaitSetFrameBufMulti(2), 0x810009b4), so 30 a
+        // second. The CONFIG choice sets levels 4, 7, 9, 10 (config.rs);
+        // a level between them takes the slower option's speed.
+        text_ms: Some([500, 500, 500, 500, 500, 167, 167, 167, 33, 33, 0]),
     })
 }
 
