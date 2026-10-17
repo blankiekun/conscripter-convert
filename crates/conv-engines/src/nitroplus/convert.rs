@@ -204,6 +204,9 @@ pub struct Game {
     /// `Shake` jolts to and fro every 1000 ÷ (`n` × 0.06) ms, along its
     /// tempo (続・殺戮のジャンゴ's and 装甲悪鬼村正's exes; [`ScreenEffect::Jolt`]).
     shake_jolts: bool,
+    /// `Fade` and `DrawTransition` ease by their tempo (装甲悪鬼村正's and
+    /// 続・殺戮のジャンゴ's exes; [`Op::TransitionEase`]).
+    eased_fades: bool,
 }
 
 impl Game {
@@ -231,6 +234,7 @@ impl Game {
         horizontal_box: None,
         box_text: &[],
         shake_jolts: false,
+        eased_fades: false,
     };
 
     /// Fills `script`'s system screens.
@@ -5233,8 +5237,15 @@ function Nothing()
 "#;
         let c = compile(story, LIBRARY);
         assert!(c.notes.contains_key("DrawTransition argument 2 ignored"), "{:?}", c.notes);
-        // Fade's tempo is read: its transition goes along Axl1 (t²).
-        assert!(c.ops.iter().any(|op| matches!(op, Op::TransitionEase { ease: 1, exponent: 2 })), "{:?}", c.ops);
+        // Fade's tempo is read: its transition goes along Axl1 (t²) where
+        // the game's exe eases fades.
+        assert!(!c.ops.iter().any(|op| matches!(op, Op::TransitionEase { .. })), "{:?}", c.ops);
+        let mut files = BTreeMap::new();
+        files.insert(BOOT.to_string(), nss::parse("#include \"nss/function.nss\"\n").unwrap());
+        files.insert("function.nss".to_string(), nss::parse(LIBRARY).unwrap());
+        files.insert("a.nss".to_string(), nss::parse(story).unwrap());
+        let eased = compile_scene(&files, "a.nss", "a.nss", &Game { eased_fades: true, ..Game::PLAIN }, &mut Fake).unwrap();
+        assert!(eased.ops.iter().any(|op| matches!(op, Op::TransitionEase { ease: 1, exponent: 2 })), "{:?}", eased.ops);
         assert!(!c.notes.keys().any(|n| n.starts_with("Fade argument") || n.starts_with("CreateProcess argument")), "{:?}", c.notes);
     }
 

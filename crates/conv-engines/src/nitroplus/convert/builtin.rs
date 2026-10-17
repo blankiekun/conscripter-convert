@@ -275,8 +275,9 @@ impl Compiler<'_, '_> {
                         for t in &targets {
                             self.pending_fade.insert(t.clone(), ms as u32);
                         }
-                        // src: Muramasa.exe's fade step (0044f020) eases by the tempo (apply_tempo)
-                        if a.len() > 4 && let Some(e) = tempo(&arg(3)) {
+                        // src: Muramasa.exe's fade step (0044f020) eases by the tempo
+                        // (apply_tempo); Django.exe's (cb_00438fb0) by FUN_00434ea0's curve
+                        if a.len() > 4 && let Some(e) = tempo(&arg(3)).filter(|_| self.game.eased_fades) {
                             self.fade_tempo = Some(e);
                         }
                     }
@@ -540,8 +541,9 @@ impl Compiler<'_, '_> {
                 for t in &targets {
                     self.objects.get_mut(t).unwrap().opacity = to;
                 }
-                // src: Muramasa.exe's transition step (FUN_0044fe00) eases by the tempo (apply_tempo)
-                if arg(1).int() > 0 && let Some(e) = tempo(&arg(5)) {
+                // src: Muramasa.exe's transition step (FUN_0044fe00) eases by the tempo
+                // (apply_tempo); Django.exe's (FUN_00439d20) by FUN_00434ea0's curve
+                if arg(1).int() > 0 && let Some(e) = tempo(&arg(5)).filter(|_| self.game.eased_fades) {
                     self.fade_tempo = Some(e);
                 }
                 match self.assets.image(&self.deref(&arg(6))) {
