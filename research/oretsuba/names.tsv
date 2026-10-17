@@ -172,3 +172,11 @@
 81145f80	flag_switch_tag_strings_end	FlagSwitch_Tag strings 81145f74-81145f80, end
 81162e38	inout_rule_table	InOut (0x82) rule table: :Type N = RULE<N-1>, 0 plain
 814e8a76	music_room_heard_flags	music-room heard flag, set to 0x814e8a76 + id as BgmPlay starts (0x8111ee38)
+81127620	characters_settle_moves	CharacterStop (0x24): calls 0x81000c10 on each of the 10 character slots (0x39c bytes each)
+810072e4	characters_stop_all	CharacterStop (0x24): calls 0x81001a2a on each character slot
+81000c10	char_motion_settle	snaps a slot's move/action state 1-4 to its end values and clears it
+81001a2a	char_stop_fade_and_move	slot state 1/2 left, 4 -> 8, 3/other -> 0; then 0x81000c10 settles the move
+8111d888	window_apply_visible	Window :Visible: sets the window alpha to 1/0 by its visible byte, clears the text state when hidden
+81027618	trophy_unlock_wrapper	Achievement (0x56) / all_endings_check: forwards to 0x8108b476
+8108b476	trophy_unlock_thread	starts "Trophy Unlock Thread" for a trophy ID
+8112a03c	movie_stop_new	MovieStop (0x49) record: :EndWait 1 sets +0xc, else +8
