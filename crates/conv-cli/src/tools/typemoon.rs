@@ -62,6 +62,9 @@ pub enum TypemoonCommand {
         main: PathBuf,
         #[arg(long)]
         romfs: Option<PathBuf>,
+        /// Print these motions' keys (`_STMA`'s numbers, from 1)
+        #[arg(long, value_delimiter = ',')]
+        motion: Vec<usize>,
     },
     /// Write a RomFS folder's media for the build into `<output>`: every
     /// `allpac` picture at full size as `pic/<name>.webp` (lossy WebP at
@@ -102,7 +105,7 @@ pub fn run(command: TypemoonCommand) -> Result<()> {
         TypemoonCommand::Check { dir } => check(&dir),
         TypemoonCommand::Sounds { dir, output } => sounds(&dir, &output),
         TypemoonCommand::Script { dir, output } => scripts(&dir, output.as_deref()),
-        TypemoonCommand::Exe { main, romfs } => exe_tables(&main, romfs.as_deref()),
+        TypemoonCommand::Exe { main, romfs, motion } => exe_tables(&main, romfs.as_deref(), &motion),
         TypemoonCommand::Media { dir, output, quality } => media(&dir, &output, quality),
         TypemoonCommand::Convert { dir, exe, title, build } => {
             let exe = exe.unwrap_or_else(|| dir.join("../exefs/main"));
@@ -245,7 +248,7 @@ fn check(dir: &Path) -> Result<()> {
 }
 
 
-fn exe_tables(main: &Path, romfs: Option<&Path>) -> Result<()> {
+fn exe_tables(main: &Path, romfs: Option<&Path>, show: &[usize]) -> Result<()> {
     let exe = exe::Exe::parse(&map(main)?).with_context(|| format!("reading {}", main.display()))?;
     let pictures = exe.pictures()?;
     let motions = exe.motions()?;
@@ -257,6 +260,14 @@ fn exe_tables(main: &Path, romfs: Option<&Path>) -> Result<()> {
         motions.len(),
         exe.scenes()?.len()
     );
+    for &m in show {
+        let motion = motions.get(m.wrapping_sub(1)).with_context(|| format!("no motion {m}"))?;
+        println!("motion {m}: {} ms", motion.length_ms);
+        for k in &motion.keys {
+            let fields: Vec<String> = k.fields.iter().enumerate().filter(|(_, v)| **v != exe::Key::UNSET).map(|(i, v)| format!("{:#04x}={v}", 4 + 2 * i)).collect();
+            println!("  {:>6} ms  {}", k.time_ms, fields.join(" "));
+        }
+    }
     let Some(romfs) = romfs else { return Ok(()) };
     let by_name: BTreeMap<String, &exe::Picture> = pictures.iter().map(|p| (p.name.to_uppercase(), p)).collect();
     // Texture sizes per picture: a name can have two entries (a third-size copy and the full one).

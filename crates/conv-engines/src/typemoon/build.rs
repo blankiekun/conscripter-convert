@@ -43,7 +43,7 @@ pub fn build(romfs: &Path, main: &Path, opts: &Opts) -> Result<Built> {
     let textures = textures(romfs, &pictures)?;
     let bfsar = map(&romfs.join("knife1.bfsar"))?;
     let waves = bfsar::wave_sounds(&bfsar)?.into_iter().map(|w| (w.name.trim_start_matches("WSD_").to_uppercase(), w.name)).collect::<HashMap<_, _>>();
-    let game = Game { scripts, scenes: exe.scenes()?, lines, pictures, textures, sounds: bfsar::sound_names(&bfsar)?, waves };
+    let game = Game { scripts, scenes: exe.scenes()?, lines, pictures, textures, sounds: bfsar::sound_names(&bfsar)?, waves, motions: exe.motions()? };
     let compiled = convert::compile(&game);
     if !opts.dry_run {
         window(romfs, &opts.output.join(WINDOW))?;

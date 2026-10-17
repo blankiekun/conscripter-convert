@@ -12,7 +12,7 @@ const PICTURE_NAMES: usize = 0x6E_02A4;
 const PICTURE_RECORDS: usize = 0x56_F830;
 /// The lookup's limit; 14,713 are used.
 const PICTURES: usize = 23_000;
-const MOTION_FIRST_KEY: usize = 0x4B_1940;
+const MOTION_KEY_END: usize = 0x4B_1940;
 const MOTION_LENGTH: usize = 0x49_9F40;
 const MOTION_KEYS: usize = 0x75_CE18;
 const MOTIONS: usize = 24_192;
@@ -133,13 +133,14 @@ impl Exe {
         Ok(out)
     }
 
-    /// Motions 1 to 24,192, as `motions()[m - 1]`. Each one's keys run up
-    /// to the next one's first.
+    /// Motions 1 to 24,192, as `motions()[m - 1]`, each with its keys (the
+    /// keys run on from one motion to the next).
     pub fn motions(&self) -> Result<Vec<Motion>, FormatError> {
-        let first = |m: usize| -> Result<usize, FormatError> { Ok(if m == MOTIONS { MOTION_KEY_COUNT } else { self.u32(MOTION_FIRST_KEY + 4 * m)? as usize }) };
+        // The table's entry m − 1 is one past motion m's last key; motion 1 starts at key 0.
+        let end = |m: usize| -> Result<usize, FormatError> { Ok(self.u32(MOTION_KEY_END + 4 * m)? as usize) };
         (0..MOTIONS)
             .map(|m| {
-                let (from, to) = (first(m)?, first(m + 1)?);
+                let (from, to) = (if m == 0 { 0 } else { end(m - 1)? }, end(m)?);
                 if from > to || to > MOTION_KEY_COUNT {
                     return Err(FormatError::Bad(format!("motion {}: keys {from}..{to}", m + 1)));
                 }

@@ -1,11 +1,10 @@
 {
 "game": "tsukihime",
 "engine": "typemoon",
-"commit": "345fb919",
+"commit": "c7f98574",
 "commit_date": "2026-10-16",
-"totals": {"calls": 1082419, "full": 937479, "gaps": 144940},
+"totals": {"calls": 1082419, "full": 961377, "gaps": 121042},
 "kinds": {
-"_STMA": {"calls": 24333, "gaps": 24333, "reasons": [["not converted", 24333]]},
 "_STRT": {"calls": 21691, "gaps": 21691, "reasons": [["not converted", 21691]]},
 "_PGST": {"calls": 17202, "gaps": 17202, "reasons": [["not converted", 17202]]},
 "_STBR": {"calls": 14946, "gaps": 14946, "reasons": [["not converted", 14946]]},
@@ -36,6 +35,7 @@
 "_SPFC": {"calls": 487, "gaps": 487, "reasons": [["not converted", 487]]},
 "_SACL": {"calls": 450, "gaps": 450, "reasons": [["not converted", 450]]},
 "_STRR": {"calls": 448, "gaps": 448, "reasons": [["not converted", 448]]},
+"_STMA": {"calls": 24333, "gaps": 435, "reasons": [["not converted", 435]]},
 "_SHS2": {"calls": 400, "gaps": 400, "reasons": [["not converted", 400]]},
 "_ATSV": {"calls": 398, "gaps": 398, "reasons": [["not converted", 398]]},
 "_SSS2": {"calls": 398, "gaps": 398, "reasons": [["not converted", 398]]},

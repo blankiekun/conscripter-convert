@@ -259,9 +259,10 @@ addresses in `research/typemoon/names.tsv` are those of the 1.0.2
   used); u32 at 0x499F40 + 4(m−1): its length in ms (not always the
   last key's time: 12,693 differ). Keyframes are 0x40 bytes at
   0x75CE18: u32 time in ms, then 30 s16 (0x04 easing, 0x08 x, 0x0A y,
-  0x0C alpha, 0x18/0x1A zoom ‰, …), −32767 for "unchanged". Motion
-  228: zoom 584‰ → 566‰ and y 130 → 136 over 5 s; motion 14682:
-  alpha 0 → 255 over 20 s.
+  0x0C alpha, 0x18/0x1A zoom ‰ (the `_STZ4` zoom), 0x32/0x34 the
+  expression, 0x3C the priority, …), −32767 for "unchanged"; the
+  values are absolute (x, y in script units). Motion 229: zoom 584‰ →
+  566‰ and y 130 → 136 over 5 s.
 - **Scene numbers**: `_JUMP(n[,label])` goes to the script whose
   scene number is `n`, not by name: 551 s16 at 0x450D58, one per
   script in `allscr` order (`START_SCRIPT` 110, `00_00` 240,
@@ -598,14 +599,14 @@ Nothing yet.
 | Exe tables (pictures, motions, scene numbers) | ✅ read from the NSO (`typemoon exe`); picture sizes checked against the textures |
 | Scripts | 🔶 read: every command of both languages splits (one malformed in the original) and its text and voices join; the top commands' arguments read from the exe, the rest not yet |
 | Media folder (`typemoon media`) | ✅ `allpac`'s pictures as full-size WebP (2.37 GB), movies at 720p, sound |
-| Script conversion (`typemoon convert`) | 🔶 the flow (labels, `_JUMP`, `_IF__`, flags), text (pages, ruby, voices), pictures (`_STCH`/`_STCC`/`_FADS`: record size and place, fades and rule wipes), sound effects and music; plays from the start through `00_00` into the first arc headless. Layers drawn in priority order (`_STCP`, `_STCH` argument 6), zoomed (`_STZ4`) and faded (`_STGS`). Not yet: motions (`_STMA`), parent layers, the other layer commands, choices (`_SELR`/`_GOTS`), screens |
+| Script conversion (`typemoon convert`) | 🔶 the flow (labels, `_JUMP`, `_IF__`, flags), text (pages, ruby, voices), pictures (`_STCH`/`_STCC`/`_FADS`: record size and place, fades and rule wipes), sound effects and music; plays from the start through `00_00` into the first arc headless. Layers drawn in priority order (`_STCP`, `_STCH` argument 6), zoomed (`_STZ4`), faded (`_STGS`) and moved (`_STMA`, the exe's motions; easing, priority and expression keys not followed). Not yet: parent layers, the other layer commands, choices (`_SELR`/`_GOTS`), screens |
 | Screens, extras | ❌ |
 
 ### Next
 
 1. The script conversion, next part: the layer commands the opening
-   leans on, in order of use: `_STMA` (motions from the exe), `_STRT`,
-   `_STBR`, `_STEC`, parent layers (`_STCH` argument 11, 6,028 uses);
+   leans on, in order of use: parent layers (`_STCH` argument 11, 6,028 uses),
+   `_STRT`, `_STBR`, `_STEC`;
    then choices (`_SELR`, `_GOTS`, `_IFNX`) so a route can be picked.
    `typemoon convert --dry-run` prints the counts. Splitting sprites
    into body and face crops is out unless the user asks.
@@ -623,6 +624,17 @@ Nothing yet.
    12–17, `_STZ4`'s last two, and the motion keyframes' other fields.
 
 ## History
+
+- 2026-10-16: motions. `_STMA(layer, m)` (`FUN_00199620`) starts motion
+  `m` on the shown layer at once (and its staged copy), while the
+  script goes on; on a layer not shown yet it waits for the `_FADS`
+  that shows it. Its keys are absolute (x, y in script units, alpha,
+  the `_STZ4` zoom); the converter turns them into `spmotion` offsets
+  and zooms from the layer's place (the IR's `SpriteMotion2`, kept at
+  the end) and moves the layer's state to the last key. The motion
+  table was read one motion late (its entries are each motion's end,
+  not its start; see "The exe"). `typemoon exe --motion m,…` prints
+  motions' keys. 961,377 commands fully converted.
 
 - 2026-10-16: zoom and alpha fades. `_STZ4(layer, x0, y0, x1, y1, ms,
   …)` (`FUN_00162d20`) sets the staged layer's zoom across and down in

@@ -45,6 +45,8 @@ pub struct Game<'a> {
     /// The wave sounds' names (`WSD_moon_se02093`) by the scripts' name
     /// for them (uppercase, without `WSD_`).
     pub waves: HashMap<String, String>,
+    /// The exe's motions: `_STMA(layer, m)` runs `motions[m - 1]`.
+    pub motions: Vec<super::exe::Motion>,
 }
 
 pub struct Compiled {
@@ -52,6 +54,9 @@ pub struct Compiled {
     pub notes: BTreeMap<String, usize>,
     pub metrics: Metrics,
 }
+
+/// How a layer is drawn: the image, its middle on the screen, its zoom (%).
+type Look = (String, (f32, f32), (i32, i32));
 
 /// A picture on a layer, as `_STCH` left it.
 #[derive(Debug, Clone, PartialEq)]
@@ -68,6 +73,8 @@ struct Layer {
     /// `_STGS`'s fade, from the next `_FADS` on: (from, to, ms); `alpha` is
     /// already `to`.
     fade: Option<(u32, u32, u32)>,
+    /// `_STMA` on a layer not shown yet: the motion, from the `_FADS` that shows it.
+    motion: Option<usize>,
 }
 
 fn label(script: &str, name: Option<&str>) -> String {
@@ -181,8 +188,9 @@ struct Lowering<'g, 'a> {
     /// Each layer's priority (`_STCP`, `_STCH` argument 6), staged and shown.
     priority: Vec<i32>,
     shown_priority: Vec<i32>,
-    /// What each IR layer shows.
+    /// What each IR layer shows, and the layer it shows.
     slots: Vec<Option<Layer>>,
+    slot_layer: Vec<Option<usize>>,
     /// `_WNTY(1)`: the next line ends its page.
     page_end: bool,
     voice: Option<Voice>,
@@ -328,6 +336,10 @@ impl Lowering<'_, '_> {
                 l.alpha = to;
                 l.fade = (ms > 16 && from != to).then_some((from, to, ms));
             }
+            "_STMA" => {
+                let Some(n) = number(arg(0)).filter(|n| (0..LAYERS as i32).contains(n)) else { return false };
+                return self.stma(n as usize, number(arg(1)).unwrap_or(0));
+            }
             "_STCP" => {
                 let Some(n) = number(arg(0)).filter(|n| (0..LAYERS as i32).contains(n)) else { return false };
                 self.priority[n as usize] = number(arg(1)).unwrap_or(0);
@@ -356,7 +368,7 @@ impl Lowering<'_, '_> {
             let e = |i: usize, d: u32| number(arg(i)).map_or(d, |v| v as u32);
             Some((e(9, oa), e(10, ob)))
         };
-        self.staged[n] = Some(Layer { base, expression, x, y, zoom: zoom / 1000.0, stretch: (1.0, 1.0), alpha: alpha.clamp(0.0, 255.0) as u32, fade: None });
+        self.staged[n] = Some(Layer { base, expression, x, y, zoom: zoom / 1000.0, stretch: (1.0, 1.0), alpha: alpha.clamp(0.0, 255.0) as u32, fade: None, motion: None });
         // Argument 6, else layer × 10 (`FUN_00160840`).
         self.priority[n] = if arg(6).is_empty() { n as i32 * 10 } else { number(arg(6)).unwrap_or(n as i32 * 10) };
         if !arg(11).is_empty() && arg(11) != "-1" {
@@ -377,19 +389,22 @@ impl Lowering<'_, '_> {
         let mut order: Vec<usize> = (0..LAYERS).filter(|&i| self.shown[i].is_some() && self.shown_priority[i] > 0).collect();
         order.sort_by_key(|&i| self.shown_priority[i]);
         let mut want = vec![None; LAYERS];
-        let mut fades = vec![None; LAYERS];
+        let (mut fades, mut motions) = (vec![None; LAYERS], vec![None; LAYERS]);
+        self.slot_layer = vec![None; LAYERS];
         for (rank, &i) in order.iter().enumerate() {
             let slot = LAYERS - 1 - rank;
             want[slot] = self.shown[i].clone();
+            self.slot_layer[slot] = Some(i);
             if let Some(l) = want[slot].as_mut() {
                 fades[slot] = l.fade.take();
+                motions[slot] = l.motion.take();
             }
         }
-        // A fade runs once.
+        // A fade or motion runs once.
         for l in self.staged.iter_mut().chain(self.shown.iter_mut()).flatten() {
-            l.fade = None;
+            (l.fade, l.motion) = (None, None);
         }
-        let changed: Vec<usize> = (0..LAYERS).filter(|&s| want[s] != self.slots[s] || fades[s].is_some()).collect();
+        let changed: Vec<usize> = (0..LAYERS).filter(|&s| want[s] != self.slots[s] || fades[s].is_some() || motions[s].is_some()).collect();
         let fade_ms = if kind == 1 { 0 } else { ms.max(0) as u32 };
         if changed.is_empty() && fade_ms == 0 {
             return;
@@ -409,12 +424,83 @@ impl Lowering<'_, '_> {
                 (Some(l), None) => self.place(layer, &l),
                 (None, _) => self.ops.push(Op::Sprites { changes: vec![SpriteChange { layer, sprite: None, keep_filters: false }], fade_ms: 0 }),
             }
+            if let Some(m) = motions[slot] {
+                self.run_motion(slot, m);
+            }
         }
         self.ops.push(Op::EndTransition);
     }
 
-    /// Draws `l` on IR layer `layer`.
-    fn place(&mut self, layer: u32, l: &Layer) {
+    /// `_STMA(layer, m)` (`FUN_00199620`): motion `m` of the exe runs on the
+    /// layer at once (the shown one and the staged copy), while the script
+    /// goes on; 0 stops it. Its keys hold absolute values (x, y in script
+    /// units, alpha, the `_STZ4` zoom in ‰); a field a key leaves out
+    /// keeps the one before. The layer stays at the last key's.
+    fn stma(&mut self, n: usize, m: i32) -> bool {
+        if m <= 0 || m as usize > self.g.motions.len() {
+            return m == 0;
+        }
+        match self.slot_layer.iter().position(|&l| l == Some(n)) {
+            Some(slot) if self.shown[n].is_some() => self.run_motion(slot, m as usize),
+            _ => match self.staged[n].as_mut() {
+                Some(l) => l.motion = Some(m as usize),
+                None => return false,
+            },
+        }
+        true
+    }
+
+    /// Emits motion `m` on IR layer `slot` (an `spmotion` from the
+    /// layer's place), and moves the layer's state to its last key.
+    // shortcut: the keys' easing, priority (0x3C) and expression (0x32, 0x34) are not followed; straight lines.
+    fn run_motion(&mut self, slot: usize, m: usize) {
+        let (Some(start), Some(i)) = (self.slots[slot].clone(), self.slot_layer[slot]) else { return };
+        let Ok((_, (x0, y0), _)) = self.look(&start) else { return };
+        let mut at = start.clone();
+        let mut keys = Vec::new();
+        for k in &self.g.motions[m - 1].keys {
+            if let Some(x) = k.x() {
+                at.x = f32::from(x);
+            }
+            if let Some(y) = k.y() {
+                at.y = f32::from(y);
+            }
+            if let Some(a) = k.alpha() {
+                at.alpha = a.clamp(0, 255) as u32;
+            }
+            let (zx, zy) = k.zoom();
+            at.stretch = (zx.map_or(at.stretch.0, |z| f32::from(z) / 1000.0), zy.map_or(at.stretch.1, |z| f32::from(z) / 1000.0));
+            let Ok((_, (x, y), _)) = self.look(&at) else { return };
+            // spmotion's zoom multiplies the place's (spzoom), about its centre.
+            let rel = |z: f32, z0: f32| if z0 == 0.0 { 100 } else { (100.0 * z / z0).round().max(0.0) as u32 };
+            keys.push(MotionKey {
+                ms: k.time_ms,
+                x: (x - x0).round() as i32,
+                y: (y - y0).round() as i32,
+                zoom: rel(at.stretch.0.abs(), start.stretch.0.abs()),
+                angle: 0,
+                opacity: at.alpha * 256 / 255,
+                zoom_y: rel(at.stretch.1.abs(), start.stretch.1.abs()),
+            });
+        }
+        if keys.is_empty() {
+            return;
+        }
+        // Opaque, the keys giving the alpha (they multiply it).
+        if start.alpha < 255 {
+            self.ops.push(Op::SpriteOpacity { layer: Some(slot as u32), opacity: 256 });
+        }
+        self.ops.push(Op::SpriteMotion2 { layer: slot as u32, keys, end: MotionEnd::Keep });
+        // shortcut: the layer's state jumps to the motion's end; a picture drawn again mid-motion starts there.
+        let end = |l: &mut Layer| (l.x, l.y, l.alpha, l.stretch) = (at.x, at.y, at.alpha, at.stretch);
+        for l in [self.slots[slot].as_mut(), self.shown[i].as_mut(), self.staged[i].as_mut()].into_iter().flatten() {
+            end(l);
+        }
+    }
+
+    /// Where and how `l` is drawn: the image, its middle on the screen and
+    /// its zoom (%); or the name when the picture is unknown.
+    fn look(&self, l: &Layer) -> Result<Look, String> {
         // An expression the picture doesn't have (`_00_00` on a background): the picture.
         let name = match l.expression {
             Some((a, b)) => Some(format!("{}_{a:02}_{b:02}", l.base)).filter(|n| self.g.pictures.contains_key(n)).unwrap_or_else(|| l.base.clone()),
@@ -422,7 +508,7 @@ impl Lowering<'_, '_> {
         };
         let picture = self.g.pictures.get(&name);
         let fill = colour(&name).filter(|_| picture.is_none_or(|p| p.flags & 3 == 3));
-        let (image, (cx, cy), zoom) = match (picture, fill) {
+        Ok(match (picture, fill) {
             (_, Some(rgb)) => (format!(">{SCREEN_W},{SCREEN_H},#{rgb:06x}"), (SCREEN_W as f32 / 2.0, SCREEN_H as f32 / 2.0), (100, 100)),
             (Some(p), None) => {
                 // The record's centre goes to the script's x, y (480 × 272
@@ -437,7 +523,15 @@ impl Lowering<'_, '_> {
                 let zoom = |rec: f32, tex: f32, z: f32| (100.0 * rec / tex * z).round() as i32;
                 (format!("pic/{name}.webp"), (mx, my), (zoom(p.width, tw, zx), zoom(p.height * SCREEN_H as f32 / STAGE_H, th, zy)))
             }
-            (None, None) => {
+            (None, None) => return Err(name),
+        })
+    }
+
+    /// Draws `l` on IR layer `layer`.
+    fn place(&mut self, layer: u32, l: &Layer) {
+        let (image, (cx, cy), zoom) = match self.look(l) {
+            Ok(v) => v,
+            Err(name) => {
                 self.note(format!("picture not in the exe's table: {name}"));
                 self.ops.push(Op::Sprites { changes: vec![SpriteChange { layer, sprite: None, keep_filters: false }], fade_ms: 0 });
                 return;
@@ -495,6 +589,7 @@ pub fn compile(g: &Game) -> Compiled {
         priority: (0..LAYERS as i32).map(|i| i * 10).collect(),
         shown_priority: (0..LAYERS as i32).map(|i| i * 10).collect(),
         slots: vec![None; LAYERS],
+        slot_layer: vec![None; LAYERS],
         page_end: false,
         voice: None,
         held: None,
@@ -533,6 +628,7 @@ mod tests {
             textures: HashMap::new(),
             sounds: vec![],
             waves: HashMap::new(),
+            motions: vec![],
         };
         // Each IR layer as it is drawn or cleared, in order.
         let drawn: Vec<(u32, Option<String>)> = compile(&g)
@@ -559,6 +655,7 @@ mod tests {
             textures: [("img1".into(), (2560, 1440))].into(),
             sounds: vec![],
             waves: HashMap::new(),
+            motions: vec![],
         };
         let ops = compile(&g).ops;
         assert!(ops.contains(&Op::SpriteAngle { layer: 39, degrees: 0, zoom: (100, -25) }), "{ops:?}");
@@ -575,6 +672,7 @@ mod tests {
             textures: HashMap::new(),
             sounds: vec![],
             waves: HashMap::new(),
+            motions: vec![],
         };
         let ops = compile(&g).ops;
         let motions: Vec<_> = ops.iter().filter(|o| matches!(o, Op::SpriteMotion2 { .. })).collect();
@@ -582,6 +680,34 @@ mod tests {
         let Op::SpriteMotion2 { layer: 39, keys, end: MotionEnd::Keep } = motions[0] else { panic!("{:?}", motions[0]) };
         assert_eq!(keys.iter().map(|k| (k.ms, k.opacity)).collect::<Vec<_>>(), [(0, 0), (1000, 256)]);
         assert!(!ops.iter().any(|o| matches!(o, Op::SpriteOpacity { .. })), "{ops:?}");
+    }
+
+    #[test]
+    fn stma_runs_the_exe_motion_from_the_layer() {
+        use crate::typemoon::exe::{Key, Motion};
+        let key = |ms, set: &[(usize, i16)]| {
+            let mut fields = [Key::UNSET; 30];
+            for &(at, v) in set {
+                fields[(at - 4) / 2] = v;
+            }
+            Key { time_ms: ms, fields }
+        };
+        // y 136 -> 146 (10 script units = 26.5 px), zoom 1000 -> 2000 ‰, alpha 255 -> 0.
+        let motion = Motion { length_ms: 500, keys: vec![key(0, &[(0x0A, 136), (0x0C, 255)]), key(500, &[(0x0A, 146), (0x0C, 0), (0x18, 2000), (0x1A, 2000)])] };
+        let src = "_STCH(1,img1,240,136);_FADS(1,0,0);_STMA(1,1);";
+        let g = Game {
+            scripts: vec![("S".into(), script::parse(src).into_iter().map(Result::unwrap).collect())],
+            scenes: vec![],
+            lines: vec![],
+            pictures: [picture("img1", 1280.0, 724.0)].into(),
+            textures: HashMap::new(),
+            sounds: vec![],
+            waves: HashMap::new(),
+            motions: vec![motion],
+        };
+        let ops = compile(&g).ops;
+        let Some(Op::SpriteMotion2 { layer: 39, keys, end: MotionEnd::Keep }) = ops.last() else { panic!("{ops:?}") };
+        assert_eq!(keys.iter().map(|k| (k.ms, k.y, k.zoom, k.zoom_y, k.opacity)).collect::<Vec<_>>(), [(0, 0, 100, 100, 256), (500, 26, 200, 200, 0)]);
     }
 
     #[test]
@@ -606,6 +732,7 @@ mod tests {
             textures: [("img1".into(), (2560, 1440))].into(),
             sounds: vec![],
             waves: HashMap::new(),
+            motions: vec![],
         };
         let c = compile(&g);
         assert!(c.notes.is_empty(), "{:?}", c.notes);
