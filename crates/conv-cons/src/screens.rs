@@ -44,6 +44,10 @@ pub fn screen_files(script: &Script) -> Vec<(String, String)> {
         files.push(("confirm.lua".to_string(), confirm_lua(d)));
     }
     files.extend(crate::settings_screen::files(script, script.global_border.unwrap_or(crate::GLOBAL_VAR_BASE)));
+    // Asks with the game's own dialog (`settings_pages::labels`).
+    if let Some(p) = script.settings.as_ref().and_then(|m| m.pictures.as_deref()).filter(|_| script.picture_settings.is_none()) {
+        files.push(("settings.lua".to_string(), crate::settings_pages::lua_file(p)));
+    }
     files
 }
 

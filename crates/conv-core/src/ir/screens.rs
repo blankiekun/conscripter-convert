@@ -732,12 +732,15 @@ pub struct SettingsPage {
 /// A row's control on a [`SettingsPage`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RowControl {
-    /// A level 0-10: `bars` (11 pictures, levels 0 to 10) at `bar`'s place,
-    /// with buttons lowering and raising it by one.
-    Slider { value: SettingValue, bar: Placed, bars: Vec<String>, minus: Placed, plus: Placed },
-    /// Options side by side: (the value it sets, its button). The current
-    /// one is drawn with its second cell.
-    Choice { value: SettingValue, options: Vec<(i32, Placed)> },
+    /// A level 0-10 on the page's bar: `knob` (one cell, placed where it
+    /// is at level 0) moves `travel` pixels from level 0 to 10, dragged or
+    /// stepped by the buttons lowering and raising it by one. `fill` is
+    /// shown from the level-0 end of the bar to the knob's centre, over
+    /// `bar` (the bar as it is at level 0 where the page differs).
+    Slider { value: SettingValue, knob: Placed, travel: i32, fill: Placed, bar: Option<Placed>, minus: Placed, plus: Placed },
+    /// Options side by side: (the value it sets, its button, the picture
+    /// shown while it is the current one: its second cell twice).
+    Choice { value: SettingValue, options: Vec<(i32, Placed, String)> },
 }
 
 /// What a [`RowControl`] sets.

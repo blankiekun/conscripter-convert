@@ -1,201 +1,142 @@
-//! A settings screen made of a game's own pictures ([`PagedSettings`]):
+//! A settings screen made of a game's own pictures ([`PagedSettings`]),
+//! drawn by the engine (`screens/settings.lua`, COMMANDS.md "screen"):
 //! pages with their rows' words drawn in, switched with ◀ ▶; each row an
-//! option list (the current option lit) or a level bar with ◀ ▶ buttons.
-//! It sets the same variables as the text screen (`menu.rs`) and ends in
-//! its `*conv_settings_apply` routine.
+//! option list (the current option lit) or a level bar whose knob is
+//! dragged (a picture slider with a fill) or stepped with ◀ ▶. It sets the same
+//! variables as the text screen (`menu/settings.rs`) and runs its
+//! `*conv_settings_apply` routine at each change.
 
+use std::fmt::Write as _;
 
-use conv_core::ir::{ConfirmDialog, Placed, PagedSettings, RowControl, SettingValue, SettingsMenu, Switch};
+use conv_core::ir::{ConfirmDialog, PagedSettings, Placed, RowControl, SettingValue, SettingsMenu, Switch};
 
-use crate::menu::{
-    confirm_call, hidden_while_open, lsp2, setting_var, settings_defaults, switch_off, BASE, CONFIRM, IN_GAME, SETTINGS_APPLY,
-    SETTINGS_PAGE, SKIP_UNREAD, VOICE_OFF_BASE,
-};
-use crate::{path, BUTTON_VAR, MENU_SPRITES};
+use crate::menu::{confirm_call, hidden_while_open, setting_var, settings_defaults, switch_off, CONFIRM, IN_GAME, SETTINGS_APPLY, SETTINGS_PAGE, SKIP_UNREAD, VOICE_OFF_BASE};
+use crate::screens::{image, lua};
+use crate::BUTTON_VAR;
 
-const M: u32 = MENU_SPRITES.start;
-const PREV: u32 = M;
-const NEXT: u32 = M + 1;
-const CLOSE: u32 = M + 2;
-const DEFAULTS: u32 = M + 3;
-const TITLE: u32 = M + 4;
-const QUIT: u32 = M + 5;
-/// A row's sprites from here, in order: an option each, or bar, ◀, ▶.
-const CONTROLS: u32 = M + 6;
-const BTN_PREV: u32 = 1;
-const BTN_NEXT: u32 = 2;
-const BTN_CLOSE: u32 = 3;
-const BTN_DEFAULTS: u32 = 4;
-const BTN_TITLE: u32 = 5;
-const BTN_QUIT: u32 = 6;
-/// A control's button: this plus its sprite.
-const BTN_CONTROL: u32 = 100;
-
-/// The variable a value lives in, and how a 0/1 option compares with it.
-fn var(v: &SettingValue) -> (String, bool) {
+/// The variables a value lives in (set together), and whether they are 1
+/// for a 0 option.
+fn vars(v: &SettingValue) -> (Vec<String>, bool) {
     match v {
-        SettingValue::Level(s) => (setting_var(*s).to_string(), false),
+        SettingValue::Level(s) => (vec![setting_var(*s).to_string()], false),
         // The globals are 1 while off.
-        SettingValue::Switch(s) => (switch_off(*s), true),
-        SettingValue::SkipUnread => (SKIP_UNREAD.to_string(), false),
-        SettingValue::Voices(c) => (format!("%{}", VOICE_OFF_BASE + c.first().copied().unwrap_or(0)), true),
+        SettingValue::Switch(s) => (vec![switch_off(*s)], true),
+        SettingValue::SkipUnread => (vec![SKIP_UNREAD.to_string()], false),
+        SettingValue::Voices(c) => (c.iter().map(|c| format!("%{}", VOICE_OFF_BASE + c)).collect(), true),
     }
-}
-
-/// `value == v` as an NScripter condition.
-fn is(v: &SettingValue, value: i32) -> String {
-    let (var, inverted) = var(v);
-    format!("{var} == {}", if inverted { 1 - value } else { value })
-}
-
-/// `value != v` as an NScripter condition.
-fn isnt(v: &SettingValue, value: i32) -> String {
-    let (var, inverted) = var(v);
-    format!("{var} != {}", if inverted { 1 - value } else { value })
 }
 
 /// Sets `v` to `value`.
 fn set(v: &SettingValue, value: i32) -> String {
-    match v {
-        SettingValue::Voices(chars) => chars.iter().map(|c| format!("mov %{},{}", VOICE_OFF_BASE + c, 1 - value)).collect::<Vec<_>>().join(":"),
-        _ => {
-            let (var, inverted) = var(v);
-            format!("mov {var},{}", if inverted { 1 - value } else { value })
-        }
+    let (vars, inverted) = vars(v);
+    vars.iter().map(|var| format!("mov {var},{}", if inverted { 1 - value } else { value })).collect::<Vec<_>>().join(":")
+}
+
+/// `var=...` of a widget.
+fn var_field(v: &SettingValue) -> String {
+    let (vars, _) = vars(v);
+    match &vars[..] {
+        [one] => lua(one),
+        all => format!("{{{}}}", all.iter().map(|v| lua(v)).collect::<Vec<_>>().join(", ")),
     }
 }
 
-fn button(slot: u32, p: &Placed) -> String {
-    format!("lsp {slot},\":a/2,0,3;{}\",{},{}", path(&p.image), p.x, p.y)
+/// `{file=..., x=..., y=...}`, a slider's part.
+fn part(p: &Placed, extra: &str) -> String {
+    format!("{{file={}, x={}, y={}{extra}}}", lua(&p.image), p.x, p.y)
 }
 
-/// The sprites of a page's controls: (control, sprite of its first part).
-fn sprites(rows: &[RowControl]) -> Vec<u32> {
-    let mut next = CONTROLS;
-    rows.iter()
-        .map(|c| {
-            let first = next;
-            next += match c {
-                RowControl::Choice { options, .. } => options.len() as u32,
-                RowControl::Slider { .. } => 3,
-            };
-            first
-        })
-        .collect()
+/// `screens/settings.lua`.
+pub(crate) fn lua_file(p: &PagedSettings) -> String {
+    let pages = p.pages.len().max(1);
+    let apply = format!("action={{\"gosub\", \"*{SETTINGS_APPLY}\"}}");
+    let mut w = Vec::new();
+    for (n, page) in p.pages.iter().enumerate() {
+        let on = format!(", page={}", n + 1);
+        w.push(image("image", &page.base, &on));
+        if pages > 1 {
+            w.push(image("button", &p.prev, &format!("{on}, cells=2, action={{\"page\", {}}}", (n + pages - 1) % pages + 1)));
+            w.push(image("button", &p.next, &format!("{on}, cells=2, action={{\"page\", {}}}", (n + 1) % pages + 1)));
+        }
+        for c in &page.rows {
+            match c {
+                RowControl::Choice { value, options } => {
+                    let inverted = vars(value).1;
+                    for (v, o, current) in options {
+                        let v = if inverted { 1 - v } else { *v };
+                        w.push(image("radio", o, &format!("{on}, cells=2, on_file={}, var={}, value={v}, {apply}", lua(current), var_field(value))));
+                    }
+                }
+                RowControl::Slider { value, knob, travel, fill, bar, minus, plus } => {
+                    let var = var_field(value);
+                    if let Some(bar) = bar {
+                        w.push(image("image", bar, &on));
+                    }
+                    // Presses anywhere along the fill line, between ◀ and ▶.
+                    let left = knob.x + knob.w / 2 + travel.min(&0) - 8;
+                    w.push(format!(
+                        "{{\"slider\", var={var}, min=0, max=10, travel={travel}, knob={}, fill={}, track={{x={left}, y={}, w={}, h={}}},\n      minus={}, plus={}{on}, {apply}}}",
+                        part(knob, ""),
+                        part(fill, ""),
+                        knob.y,
+                        travel.abs() + 17,
+                        knob.h,
+                        part(minus, ", cells=2"),
+                        part(plus, ", cells=2"),
+                    ));
+                }
+            }
+        }
+    }
+    w.push(image("button", &p.close, ", cells=2, action={\"close\"}"));
+    w.push(image("button", &p.defaults, ", cells=2, action={\"gosub\", \"*conv_settings_defaults\"}"));
+    let mut out = format!("-- The settings (conscripter-convert, from PagedSettings).\nlocal in_game = var({}) == 1\nlocal w = {{\n", lua(IN_GAME));
+    for x in w {
+        writeln!(out, "  {x},").unwrap();
+    }
+    // Back to the title and quit close the screen: `*conv_settings` asks.
+    writeln!(out, "}}\nif in_game then\n  w[#w+1] = {}\n  w[#w+1] = {}\nend", image("button", &p.title, ", cells=2, action={\"close\", 1}"), image("button", &p.quit, ", cells=2, action={\"close\", 2}")).unwrap();
+    let hidden: Vec<String> = hidden_while_open().iter().map(|s| if s.starts_with('%') { format!("var({})", lua(s)) } else { s.clone() }).collect();
+    writeln!(
+        out,
+        "return {{\n  kind = \"settings\",\n  pages = {pages},\n  page_var = {},\n  hide = in_game and {{window=true, sprites={{{}}}}} or nil,\n  widgets = w,\n}}",
+        lua(SETTINGS_PAGE),
+        hidden.join(", ")
+    )
+    .unwrap();
+    out
 }
 
-pub(crate) fn emit(out: &mut String, m: &SettingsMenu, p: &PagedSettings, confirm: Option<&ConfirmDialog>, leave: Option<(&str, &str)>) {
+/// `*conv_settings`: the screen from its first page; back to the title
+/// and quit ask first (the game's own dialog) and open it again on no.
+/// `*conv_settings_defaults`: every setting back to its default.
+pub(crate) fn labels(out: &mut String, m: &SettingsMenu, p: &PagedSettings, confirm: Option<&ConfirmDialog>, leave: Option<(&str, &str)>) {
     let mut w = |line: String| {
         out.push_str(&line);
         out.push('\n');
     };
-    let pages = p.pages.len().max(1) as u32;
-    let others = hidden_while_open();
-    let vsp = |on: u32| others.iter().map(|n| format!("vsp {n},{on}")).collect::<Vec<_>>().join(":");
-    let menu_sprites = MENU_SPRITES.map(|n| format!("csp {n}")).collect::<Vec<_>>().join(":");
+    let b = BUTTON_VAR;
     w(format!("*{}", crate::menu::SETTINGS));
-    w(format!("if {IN_GAME} == 1 textoff:{}", vsp(0)));
-    w(format!("mov {SETTINGS_PAGE},0"));
-    w("*conv_settings_draw".into());
-    w(menu_sprites.clone());
-    for (n, page) in p.pages.iter().enumerate() {
-        w(format!("if {SETTINGS_PAGE} == {n} {}", lsp2(BASE, &page.base, None)));
-    }
-    if pages > 1 {
-        w(button(PREV, &p.prev));
-        w(button(NEXT, &p.next));
-    }
-    w(button(CLOSE, &p.close));
-    w(button(DEFAULTS, &p.defaults));
-    w(format!("if {IN_GAME} == 1 {}:{}", button(TITLE, &p.title), button(QUIT, &p.quit)));
-    for (n, page) in p.pages.iter().enumerate() {
-        w(format!("if {SETTINGS_PAGE} != {n} goto *conv_settings_draw_{}", n + 1));
-        for (c, first) in page.rows.iter().zip(sprites(&page.rows)) {
-            match c {
-                RowControl::Choice { value, options } => {
-                    for (k, (v, o)) in options.iter().enumerate() {
-                        let slot = first + k as u32;
-                        // The current option lit (and not a button).
-                        w(button(slot, o));
-                        w(format!("if {} cell {slot},1", is(value, *v)));
-                    }
-                }
-                RowControl::Slider { value, bar, bars, minus, plus } => {
-                    let (level, _) = var(value);
-                    for (k, image) in bars.iter().enumerate() {
-                        w(format!("if {level} == {k} lsp {first},\":a;{}\",{},{}", path(image), bar.x, bar.y));
-                    }
-                    w(button(first + 1, minus));
-                    w(button(first + 2, plus));
-                }
-            }
-        }
-        w("goto *conv_settings_wait".into());
-        w(format!("*conv_settings_draw_{}", n + 1));
-    }
-    w("*conv_settings_wait".into());
-    if pages > 1 {
-        w(format!("spbtn {PREV},{BTN_PREV}:spbtn {NEXT},{BTN_NEXT}"));
-    }
-    w(format!("spbtn {CLOSE},{BTN_CLOSE}:spbtn {DEFAULTS},{BTN_DEFAULTS}"));
-    w(format!("if {IN_GAME} == 1 spbtn {TITLE},{BTN_TITLE}:spbtn {QUIT},{BTN_QUIT}"));
-    for (n, page) in p.pages.iter().enumerate() {
-        for (c, first) in page.rows.iter().zip(sprites(&page.rows)) {
-            match c {
-                RowControl::Choice { value, options } => {
-                    for (k, (v, _)) in options.iter().enumerate() {
-                        let slot = first + k as u32;
-                        w(format!("if {SETTINGS_PAGE} == {n} && {} spbtn {slot},{}", isnt(value, *v), BTN_CONTROL + slot));
-                    }
-                }
-                RowControl::Slider { .. } => {
-                    w(format!("if {SETTINGS_PAGE} == {n} spbtn {},{}:spbtn {},{}", first + 1, BTN_CONTROL + first + 1, first + 2, BTN_CONTROL + first + 2));
-                }
-            }
-        }
-    }
-    w("print 1".into());
-    w(format!("btnwait {BUTTON_VAR}"));
-    w(format!("if {BUTTON_VAR} == -1 || {BUTTON_VAR} == {BTN_CLOSE} goto *conv_settings_close"));
-    w(format!("if {BUTTON_VAR} == {BTN_TITLE} goto *conv_settings_title"));
-    w(format!("if {BUTTON_VAR} == {BTN_QUIT} goto *conv_settings_quit"));
-    w(format!("if {BUTTON_VAR} == {BTN_PREV} mov {SETTINGS_PAGE},({SETTINGS_PAGE}+{}) mod {pages}:goto *conv_settings_draw", pages - 1));
-    w(format!("if {BUTTON_VAR} == {BTN_NEXT} mov {SETTINGS_PAGE},({SETTINGS_PAGE}+1) mod {pages}:goto *conv_settings_draw"));
-    // Every setting back to its default: the levels' and those of the
-    // values on the pages.
+    w(format!("mov {SETTINGS_PAGE},1"));
+    w("*conv_settings_open".into());
+    w(format!("screen \"settings\",{b}"));
+    w(format!("if {b} == 1 goto *conv_settings_title"));
+    w(format!("if {b} == 2 goto *conv_settings_quit"));
+    w("return".into());
+    // The levels' defaults and those of the values on the pages.
     let mut defaults = vec![settings_defaults(m)];
-    for page in &p.pages {
-        for c in &page.rows {
-            let v = match c {
-                RowControl::Choice { value, .. } | RowControl::Slider { value, .. } => value,
-            };
-            match v {
-                SettingValue::Switch(s) => defaults.push(set(v, i32::from(!m.switches_off.contains(s)))),
-                SettingValue::Voices(_) => defaults.push(set(v, 1)),
-                SettingValue::SkipUnread => defaults.push(set(v, 0)),
-                SettingValue::Level(_) => {}
-            }
+    for c in p.pages.iter().flat_map(|page| &page.rows) {
+        let (RowControl::Choice { value: v, .. } | RowControl::Slider { value: v, .. }) = c;
+        match v {
+            SettingValue::Switch(s) => defaults.push(set(v, i32::from(!m.switches_off.contains(s)))),
+            SettingValue::Voices(_) => defaults.push(set(v, 1)),
+            SettingValue::SkipUnread => defaults.push(set(v, 0)),
+            SettingValue::Level(_) => {}
         }
     }
-    w(format!("if {BUTTON_VAR} == {BTN_DEFAULTS} {}:gosub *{SETTINGS_APPLY}:goto *conv_settings_draw", defaults.join(":")));
-    for (n, page) in p.pages.iter().enumerate() {
-        for (c, first) in page.rows.iter().zip(sprites(&page.rows)) {
-            match c {
-                RowControl::Choice { value, options } => {
-                    for (k, (v, _)) in options.iter().enumerate() {
-                        w(format!("if {SETTINGS_PAGE} == {n} && {BUTTON_VAR} == {} {}", BTN_CONTROL + first + k as u32, set(value, *v)));
-                    }
-                }
-                RowControl::Slider { value, .. } => {
-                    let (level, _) = var(value);
-                    w(format!("if {SETTINGS_PAGE} == {n} && {BUTTON_VAR} == {} && {level} > 0 sub {level},1", BTN_CONTROL + first + 1));
-                    w(format!("if {SETTINGS_PAGE} == {n} && {BUTTON_VAR} == {} && {level} < 10 add {level},1", BTN_CONTROL + first + 2));
-                }
-            }
-        }
-    }
-    w(format!("gosub *{SETTINGS_APPLY}"));
-    w("goto *conv_settings_draw".into());
+    w("*conv_settings_defaults".into());
+    w(format!("{}:gosub *{SETTINGS_APPLY}", defaults.join(":")));
+    w("return".into());
     // `reset` starts the script over: the title screen. During a replay:
     // back to its list instead.
     if let Some((_, question)) = leave {
@@ -203,7 +144,7 @@ pub(crate) fn emit(out: &mut String, m: &SettingsMenu, p: &PagedSettings, confir
         w(format!("if {} == 0 goto *conv_settings_title_go", crate::replay::REPLAYING));
         if confirm.is_some() {
             w(confirm_call(question, Switch::ConfirmTitle));
-            w(format!("if {CONFIRM} == 0 goto *conv_settings_wait"));
+            w(format!("if {CONFIRM} == 0 goto *conv_settings_open"));
         }
         w(format!("goto *{}", crate::replay::END));
     }
@@ -215,29 +156,56 @@ pub(crate) fn emit(out: &mut String, m: &SettingsMenu, p: &PagedSettings, confir
         w(format!("*{label}"));
         if let Some(q) = question {
             w(confirm_call(q, kind));
-            w(format!("if {CONFIRM} == 0 goto *conv_settings_wait"));
+            w(format!("if {CONFIRM} == 0 goto *conv_settings_open"));
         }
         w(then.into());
     }
-    w("*conv_settings_close".into());
-    // texton first: it drops the pending screen updates except the window's.
-    w(format!("if {IN_GAME} == 1 texton:{}", vsp(1)));
-    w(format!("csp2 {BASE}"));
-    w(menu_sprites);
-    w("print 1".into());
-    w("return".into());
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use conv_core::ir::Setting;
+    use conv_core::ir::{Setting, SettingsPage};
+
+    fn placed(image: &str, x: i32) -> Placed {
+        Placed { image: image.into(), x, y: 100, w: 20, h: 10 }
+    }
 
     #[test]
-    fn values_compare_and_set() {
-        assert_eq!(is(&SettingValue::Level(Setting::TextSpeed), 7), "%905 == 7");
-        assert_eq!(is(&SettingValue::Switch(Switch::SceneSkipDialog), 1), "%2919 == 0");
+    fn values_set() {
         assert_eq!(set(&SettingValue::Switch(Switch::SceneSkipDialog), 0), "mov %2919,1");
         assert_eq!(set(&SettingValue::Voices(vec![3, 5]), 0), "mov %973,1:mov %975,1");
+        assert_eq!(var_field(&SettingValue::Voices(vec![3, 5])), "{\"%973\", \"%975\"}");
+    }
+
+    #[test]
+    fn rows_become_widgets() {
+        let slider = RowControl::Slider {
+            value: SettingValue::Level(Setting::WindowTransparency),
+            knob: placed("k.png", 764),
+            travel: -268,
+            fill: placed("e.png", 509),
+            bar: None,
+            minus: placed("p.png", 785),
+            plus: placed("n.png", 484),
+        };
+        let choice = RowControl::Choice { value: SettingValue::Switch(Switch::SceneSkipDialog), options: vec![(1, placed("on.png", 500), "on_lit.png".into())] };
+        let page = |rows| SettingsPage { base: placed("base.png", 0), rows };
+        let p = PagedSettings {
+            pages: vec![page(vec![choice]), page(vec![slider])],
+            prev: placed("prev.png", 0),
+            next: placed("next.png", 900),
+            close: placed("close.png", 0),
+            defaults: placed("defaults.png", 0),
+            title: placed("title.png", 0),
+            quit: placed("quit.png", 0),
+        };
+        let lua = lua_file(&p);
+        // The switch's global is 1 while off: option 1 is value 0.
+        assert!(lua.contains("{\"radio\", file=\"on.png\", x=500, y=100, page=1, cells=2, on_file=\"on_lit.png\", var=\"%2919\", value=0,"), "{lua}");
+        assert!(lua.contains("knob={file=\"k.png\", x=764, y=100}, fill={file=\"e.png\", x=509, y=100}, track="), "{lua}");
+        // The track from ◀ to ▶: the knob's centre at level 10 (506) minus 8.
+        assert!(lua.contains("track={x=498, y=100, w=285, h=10}"), "{lua}");
+        assert!(lua.contains("action={\"page\", 1}"));
     }
 }
