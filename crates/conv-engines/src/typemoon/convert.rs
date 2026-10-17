@@ -660,12 +660,13 @@ impl Lowering<'_, '_> {
             }
             "_STCH" => return self.stch(a, read, true),
             "_SCH2" => return self.stch(a, read, false),
+            // `_STCC(n)` (`FUN_00162140`): clears layer n (all for n < 0), its
+            // priority to 0 too.
             "_STCC" => {
                 let n = number(arg(0)).unwrap_or(0);
-                if n < 0 {
-                    self.staged.iter_mut().for_each(|l| *l = None);
-                } else if let Some(l) = self.staged.get_mut(n as usize) {
-                    *l = None;
+                for i in (0..LAYERS).filter(|&i| n < 0 || i as i32 == n) {
+                    self.staged[i] = None;
+                    self.priority[i] = 0;
                 }
             }
             // `_STZ4(layer, x0, y0, x1, y1, ms, ease, off)` (`FUN_00162d20`): the
@@ -783,20 +784,18 @@ impl Lowering<'_, '_> {
         let old = copy.clone().or_else(|| self.staged[n].clone());
         let base = arg(1).to_lowercase();
         let num = |i: usize, default: f32| if arg(i).is_empty() { Some(default) } else { number(arg(i)).map(|v| v as f32) };
-        // src: exe 0x160840: with no x and y the layer keeps its place (0, 0 after `_STCC`), else a missing one is 0;
+        // src: exe 0x160840: an x or y left out is the layer's (0 after `_STCC`), or the copied one's;
         // a zoom left out is the layer's (1000 after `_STCC`).
-        let (x0, y0) = old.as_ref().filter(|_| arg(2).is_empty() && arg(3).is_empty()).map_or((0.0, 0.0), |o| (o.x, o.y));
+        let (x0, y0) = old.as_ref().map_or((0.0, 0.0), |o| (o.x, o.y));
         let zoom0 = old.as_ref().map_or(1000.0, |o| o.zoom * 1000.0);
         // src: exe 0x160840: alpha 255 by default (`_STCH`), else the layer's, 0 with no picture.
         let alpha0 = if fresh { 255.0 } else { old.as_ref().map_or(0.0, |o| o.alpha as f32) };
         let (Some(x), Some(y), Some(zoom), Some(alpha)) = (num(2, x0), num(3, y0), num(4, zoom0), num(5, alpha0)) else { return false };
-        let expression = if arg(9).is_empty() && arg(10).is_empty() {
-            None
-        } else {
-            let (oa, ob) = old.as_ref().and_then(|l| l.expression).unwrap_or((0, 0));
-            let e = |i: usize, d: u32| number(arg(i)).map_or(d, |v| v as u32);
-            Some((e(9, oa), e(10, ob)))
-        };
+        // src: exe 0x160840: arguments 9 and 10 left out are the copied layer's numbers (argument
+        // 18; parsed from its picture's name), else 0; with both 0 the bare picture.
+        let (oa, ob) = copy.as_ref().and_then(|l| l.expression).unwrap_or((0, 0));
+        let e = |i: usize, d: u32| number(arg(i)).map_or(d, |v| v as u32);
+        let expression = Some((e(9, oa), e(10, ob))).filter(|&ab| ab != (0, 0));
         // An argument left out keeps the layer's rectangle (`FUN_00160840`).
         let mut clip = old.as_ref().map_or([0; 6], |l| l.clip);
         for (i, c) in clip.iter_mut().enumerate().take(5) {
@@ -1402,6 +1401,52 @@ mod tests {
         // 240 + 0.5 × (120 − 240) = 180 script units: 480 px; 136 + 0.5 × (68 − 135.75) ≈ 102.1: 270 px.
         assert!(ops.contains(&Op::SpriteMove { layer: 38, x: 480, y: 270, ms: 0 }), "{ops:?}");
         assert!(ops.contains(&Op::SpriteAngle { layer: 38, degrees: 0, zoom: (25, 25) }), "{ops:?}");
+    }
+
+    #[test]
+    fn stch_defaults_follow_the_exe() {
+        // Layer 1's expression 3, 4 goes with a copy (layer 2); a lone argument 9 means 0 for 10
+        // (layer 3, its old 1, 1 not kept); y alone keeps the copied x (layer 2 at 100).
+        let src = "_STCH(1,a,100,50,1000,255,10,,CC,3,4);_STCH(3,a,10,10,1000,255,30,,CC,1,1);_SCH2(2,b,,70,,,,,CC,,,,,,,,,,1);_STCH(3,a,10,10,1000,255,30,,CC,5,);_FADS(1,0,0);";
+        let p = |n: &str| picture(n, 10.0, 10.0);
+        let g = Game {
+            scripts: vec![("S".into(), script::parse(src).into_iter().map(Result::unwrap).collect())],
+            scenes: vec![],
+            lines: vec![],
+            pictures: [p("a"), p("b"), p("a_03_04"), p("b_03_04"), p("a_01_01"), p("a_05_00"), p("a_05_01")].into(),
+            textures: HashMap::new(),
+            sounds: vec![],
+            waves: HashMap::new(),
+            pic_ext: "webp",
+            motions: vec![],
+        };
+        let ops = compile(&g).ops;
+        let shown: Vec<&str> = ops.iter().filter_map(|o| match o {
+            Op::Sprites { changes, .. } => changes[0].sprite.as_ref().map(|s| s.image.as_str()),
+            _ => None,
+        }).collect();
+        // Drawn from the highest priority down: layers 3, 2, 1.
+        assert_eq!(shown, ["pic/a_05_00.webp", "pic/b_03_04.webp", "pic/a_03_04.webp"]);
+        let moves: Vec<i32> = ops.iter().filter_map(|o| match o { Op::SpriteMove { x, .. } => Some(*x), _ => None }).collect();
+        assert_eq!(moves[1], moves[2]);
+    }
+
+    #[test]
+    fn stcc_clears_the_priority() {
+        // After `_STCC` a `_SCH2` keeps priority 0: not drawn.
+        let src = "_STCH(1,a,0,0,1000,255,10);_STCC(1);_SCH2(1,a,0,0);_FADS(1,0,0);";
+        let g = Game {
+            scripts: vec![("S".into(), script::parse(src).into_iter().map(Result::unwrap).collect())],
+            scenes: vec![],
+            lines: vec![],
+            pictures: [picture("a", 10.0, 10.0)].into(),
+            textures: HashMap::new(),
+            sounds: vec![],
+            waves: HashMap::new(),
+            pic_ext: "webp",
+            motions: vec![],
+        };
+        assert!(!compile(&g).ops.iter().any(|o| matches!(o, Op::Sprites { changes, .. } if changes[0].sprite.is_some())));
     }
 
     #[test]
