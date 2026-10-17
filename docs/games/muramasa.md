@@ -544,6 +544,29 @@ exe or a shot. Open guesses a frame of the original could settle:
 - the shared NSS code's: cameras' depth rule (`zoom / (1000 − priority)`,
   measured in 続・殺戮のジャンゴ, not yet in this game).
 
+### Save and load drawn by the engine (2026-10-17)
+
+記録/読込 are CONscripter's `screen "save"`/`"load"`
+(`conv-cons/src/save_grid_screen.rs`, from `SaveGrid` with
+`engine_screen`; engine #87): the page's picture, the slots down the
+columns (`down`), the frames over the thumbnails (`over`), the slot
+under the pointer's details (`hover`: hover frame, large thumbnail,
+date, play time, chapter and last line in columns), 前頁/次頁 going round
+with a 300 ms cross-fade, 削除 a toggle whose mode picks the slots'
+action (`when`), the game's own questions (`save_ask_save`, `_load`,
+`_delete`) and 記録しました after a save (`save_saved`). A save's text is
+"|play time|chapter|last line" (the date is the file's), so saves of the
+routine ("date|…") show the same. Checked on Xvfb against main's routine
+(`compare -metric AE -fuzz 2%`, 12 frames from open to delete and the
+load screen): 0 pixels in 8, the rest only the play time's last digit
+and 3 px of 削除. Open:
+
+- the play time is read when the screen opens (the routine read it at
+  the click); S and L no longer close the save and load screens (a
+  right-click and 退出 do).
+- Muramasa EN's save screen (popup, locks, tabs, quick page) still uses
+  the script routine, as do the backlog and the extras.
+
 ### Settings drawn by the engine (2026-10-17)
 
 コンフィグ is CONscripter's `screen "settings"` (`conv-cons/src/settings_screen.rs`,

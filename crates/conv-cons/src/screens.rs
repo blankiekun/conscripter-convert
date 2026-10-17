@@ -46,6 +46,7 @@ pub fn screen_files(script: &Script) -> Vec<(String, String)> {
     if let Some(d) = script.confirm.as_ref().filter(|_| !files.is_empty()) {
         files.push(("confirm.lua".to_string(), confirm_lua(d)));
     }
+    files.extend(crate::save_grid_screen::files(script));
     files.extend(crate::settings_screen::files(script, script.global_border.unwrap_or(crate::GLOBAL_VAR_BASE)));
     files
 }

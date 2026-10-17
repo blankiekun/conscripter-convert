@@ -16,7 +16,7 @@
 
 use std::fmt::Write as _;
 
-use conv_core::ir::{PictureSettings, Script, Switch, VoiceWindow};
+use conv_core::ir::{ConfirmDialog, PictureSettings, Placed, Script, Switch, VoiceWindow};
 
 use crate::menu::IN_GAME;
 use crate::picture_settings::{self, pair_var, slider_var, APPLY, DEFAULTS};
@@ -32,41 +32,48 @@ pub(crate) fn files(script: &Script, border: u32) -> Vec<(String, String)> {
     let question = script.confirm.as_ref().and_then(|d| Some((d, &d.pictures.iter().find(|(q, _)| *q == Switch::ConfirmReset)?.1)));
     let mut files = vec![("settings.lua".to_string(), settings_lua(s, question.is_some()))];
     if let Some((d, picture)) = question {
-        let cells = if d.pressed { 4 } else { 3 };
-        let pressed = if d.pressed { ", pressed=3" } else { "" };
-        let mut out = String::from("-- The reset question (conscripter-convert, from ConfirmDialog).\nreturn {\n  kind = \"confirm\",\n");
-        // It unrolls out of a line as it fades in, and back as it fades out;
-        // the backdrop only fades.
-        let backdrop_fx = match &d.unroll {
-            Some(u) => {
-                let at = match u.y {
-                    Some(y) => format!("zoom_y=0, y={y}"),
-                    None => format!("zoom_x=0, x={}", u.x),
-                };
-                writeln!(out, "  open = {{ms={}, {at}, alpha=0}},\n  close = {{ms={}, {at}, alpha=0}},", d.fade_ms, u.close_ms).unwrap();
-                format!(", open={{ms={}, alpha=0}}, close={{ms={}, alpha=0}}", d.fade_ms, u.close_ms)
-            }
-            None if d.fade_ms > 0 => {
-                writeln!(out, "  fade = {},", d.fade_ms).unwrap();
-                String::new()
-            }
-            None => String::new(),
-        };
-        out.push_str("  widgets = {\n");
-        if let Some((b, opacity)) = &d.backdrop {
-            writeln!(out, "    {},", image("image", b, &format!(", alpha={opacity}{backdrop_fx}"))).unwrap();
-        }
-        writeln!(out, "    {},", image("image", picture, "")).unwrap();
-        for (p, value) in [(&d.yes, 1), (&d.no, 0)] {
-            writeln!(out, "    {},", image("button", p, &format!(", cells={cells}{pressed}, action={{\"close\", {value}}}"))).unwrap();
-        }
-        out.push_str("  },\n}\n");
-        files.push(("settings_confirm.lua".to_string(), out));
+        files.push(("settings_confirm.lua".to_string(), question_lua(d, picture, "The reset question")));
     }
     if let (Some(v), Some(e)) = (&s.voice_window, &s.engine_screen) {
         files.push(("settings_voices.lua".to_string(), voices_lua(v, &e.voices_checked, border)));
     }
     files
+}
+
+/// A question screen with the game's own picture (`what`, for the file's
+/// comment): the backdrop, the picture, yes (1) and no (0); it fades in
+/// and out, or unrolls as the game's dialog does.
+pub(crate) fn question_lua(d: &ConfirmDialog, picture: &Placed, what: &str) -> String {
+    let cells = if d.pressed { 4 } else { 3 };
+    let pressed = if d.pressed { ", pressed=3" } else { "" };
+    let mut out = format!("-- {what} (conscripter-convert, from ConfirmDialog).\nreturn {{\n  kind = \"confirm\",\n");
+    // It unrolls out of a line as it fades in, and back as it fades out;
+    // the backdrop only fades.
+    let backdrop_fx = match &d.unroll {
+        Some(u) => {
+            let at = match u.y {
+                Some(y) => format!("zoom_y=0, y={y}"),
+                None => format!("zoom_x=0, x={}", u.x),
+            };
+            writeln!(out, "  open = {{ms={}, {at}, alpha=0}},\n  close = {{ms={}, {at}, alpha=0}},", d.fade_ms, u.close_ms).unwrap();
+            format!(", open={{ms={}, alpha=0}}, close={{ms={}, alpha=0}}", d.fade_ms, u.close_ms)
+        }
+        None if d.fade_ms > 0 => {
+            writeln!(out, "  fade = {},", d.fade_ms).unwrap();
+            String::new()
+        }
+        None => String::new(),
+    };
+    out.push_str("  widgets = {\n");
+    if let Some((b, opacity)) = &d.backdrop {
+        writeln!(out, "    {},", image("image", b, &format!(", alpha={opacity}{backdrop_fx}"))).unwrap();
+    }
+    writeln!(out, "    {},", image("image", picture, "")).unwrap();
+    for (p, value) in [(&d.yes, 1), (&d.no, 0)] {
+        writeln!(out, "    {},", image("button", p, &format!(", cells={cells}{pressed}, action={{\"close\", {value}}}"))).unwrap();
+    }
+    out.push_str("  },\n}\n");
+    out
 }
 
 /// `*conv_settings`, and what its buttons run.
