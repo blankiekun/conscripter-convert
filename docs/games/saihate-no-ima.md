@@ -294,6 +294,7 @@ is noted) and why:
 | `0x7a` | `+14` | u16 0, 0 | the new object's width and height, which the picture `0x84` loads replaces (History, item 44) |
 | `0x46` | `-4` | 0 | the link entry's first field, which only the save and load read (History, item 43) |
 | `0x70` | `-4` | 0 | a cleared slot's blend and opacity (kind 0 or slot 0), which `op_70` (`0x415a30`) doesn't read (History, item 38) |
+| `0x40` | `-60` | the one block | after the unreachable debug menu's message (`0001.cd` #1), which stays out (History, item 42) |
 | `0x8c` | `+4` | layer 0, depth 1000, 1100, 2000, 500; 0 when clearing | the effect's sort key: every one sorts over all the bust-ups, as ours draws them (History, item 31) |
 | `0x49`, `0x4a` | `-4` | `0xff000000`; `0x4a` also `0xff000001` | no edge colour of the record's own, or the default one: the default decoration (History, item 29) |
 | `0x70` | `-8` | 10, 0 | Zigzag's begin angle and reduction, which its draw (`0x41dab0`) doesn't read (History, item 39) |
@@ -315,7 +316,6 @@ run's):
 |---|---|---|
 | every opcode the corpus uses, except as below | every operand | converted |
 | `0x40`, `0x41` | `sub` bit 0: the first line is the speaker's name (not in full-screen windows: the exe drops it there) | converted (History, item 27) |
-| `0x40` | the extra block after the debug menu's one message (`0001.cd` #1): 1 note | dropped (unreachable) |
 | `0x44` | u16 flags at +6 (3 in 32, 1 in 5): 37 notes | dropped: meaning unknown |
 | `0x49` | the one edge colour of its own (0x808080, a grey outline; History, item 29): 1 note | dropped (no outline for message text) |
 | `0x56` | u32 depth at +2 (0 and 2000): 2 notes | dropped |
@@ -625,7 +625,8 @@ a copy of the save works.
 - Merged: `0x86`'s two trailing bytes as harmless (#163; History, item 45).
 - Merged: `0x8c`'s sort key as harmless (#180; History, item 31).
 - Merged: `0x49`/`0x4a`'s edge colours as harmless but the grey one (#181; History, item 29).
-- Open: links only while their variable is set, PR #183 (History, item 28).
+- Merged: links only while their variable is set (#183; History, item 28).
+- Open: the debug menu's message block as harmless (History, item 42).
 - Open: command coverage per operand, PR #85 (supersedes #28): every
   operand given and not read, whatever its value (0 included), is a
   dry-run note and a gap in `metrics.json`, except the filler (`NO_SUB`,
@@ -699,8 +700,6 @@ after History's 26, most noticeable first (notes = instructions):
     in CONscripter (`strspoutline` is for `strsp` only).
 33. **Ruby flags** (`0x44` u16 at +6, 37 notes: 3 in 32, 1 in 5):
     meaning unknown.
-42. **The debug menu's message block** (`0001.cd` #1, 1 note): in the
-    debug menu, which the user didn't want.
 
 **Script opcodes:** all converted (the converter reports 2 unsupported
 instructions, both in the unreachable debug menu). Notes on the last
@@ -1396,3 +1395,7 @@ sound effects on `dwave` channels.
    a copy of the page without links (`sN_plainM`). So the scene replay
    shows no links, as the original; the variable stays a note-free read.
    Not checked in the game: the second part's links (dry run only).
+42. **Done: the debug menu's message block** (2026-10-16). The extra
+   60 bytes after `0001.cd` #1, the debug menu's one message, belong to
+   a menu that stays out (the lead's call, left to it by the user): a
+   row of the harmless table.

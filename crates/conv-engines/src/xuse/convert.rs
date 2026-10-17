@@ -3338,6 +3338,13 @@ const UNNEEDED_OPERANDS: &[(u16, &str, &str, &str)] = &[
     // Message records (op_40_41 0x4771c0).
     (0x40, "+8", "*", "any: the source script's line number (`cd messages` prints it)"),
     (0x41, "+8", "*", "any: the source script's line number (`cd messages` prints it)"),
+    // 0001.cd #1, the debug menu's message (left out: the lead's call).
+    (
+        0x40,
+        "-60",
+        "04000000000000000e000000d035d03cd031d01cd0d1d208d03b0e000000d0d9d0d9d208d00bd0d1d208d03b00800000020000000200000003000000",
+        "the block after the unreachable debug menu's one message",
+    ),
     (0x40, "-8", "0400000000000000", "u32 4, u32 0 after the text of every story message"),
     (0x41, "-8", "0400000000000000", "u32 4, u32 0 after the text of every message"),
     // Chapter labels (op_36 0x475460, op_37 0x475780, op_38 0x475970).
