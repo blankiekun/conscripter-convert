@@ -4262,7 +4262,9 @@ scene a.nss
         assert!(w.vertical);
         assert_eq!((w.x, w.y, w.text_x, w.text_y, w.rows, w.columns, w.line_gap), (447, 40, 430, 55, 5, 27, 9));
         assert_eq!(w.image, "cg/sys/adv/textwindow.png@800");
-        assert!(ops.iter().any(|op| matches!(op, Op::HideTextWindow)));
+        // The box fades in with the text, and out over its 150 ms as a waited `Fade` takes it.
+        assert!(ops.iter().any(|op| matches!(op, Op::WindowFade { alpha: 256, ms: 150, from: Some(0), .. })));
+        assert!(ops.iter().any(|op| matches!(op, Op::WindowFade { alpha: 0, ms: 150, .. })));
         let last = ops.iter().rposition(|op| matches!(op, Op::BeginTransition { fade_ms: 500, .. })).expect("fade out");
         assert!(matches!(&ops[last + 1], Op::Sprites { changes, .. } if changes[0].sprite.is_none()));
         // SoundPlay and OnSE aren't defined here, and aren't built-ins.
