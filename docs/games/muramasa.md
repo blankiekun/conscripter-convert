@@ -795,7 +795,7 @@ Open: EN's screen fades 300 ms (guess: the Japanese value, not read from
   (scene cuts, the turntables) don't play in CONscripter for Windows,
   which only opens a movie in an outside player: an engine item for every
   game, not started.
-- `Random` (#PR, 2026-10-17) is picked when the game runs. The exe gives
+- `Random` (#354, 2026-10-17) is picked when the game runs. The exe gives
   `rand() % n` (`eval_primary` 0043a780, reseeded from the clock each
   call; seen). A statement that draws one (itself, in a function it
   calls or a process it starts; not an endless process, which doesn't
