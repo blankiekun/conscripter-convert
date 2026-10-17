@@ -351,7 +351,10 @@ archives.
 
 - **Movies:** opcode `0x97` plays `HD/mvNNNN.bin` (MPEG-1 program stream);
   arg's low 16 bits are the number, the high 16 bits whether a click or
-  key ends it (handler 0x478ab0, checked at 0x408e5b). The boot script
+  key ends it (handler 0x478ab0, checked at 0x408e5b). The handler
+  ends skip and auto mode first (`skip_state_a`, `0x51f82d`), as a
+  `0x68` with arg 0 does (`op_68` `0x4784b0`): both are converted with
+  `skipoff:autooff` before them. The boot script
   (opening, `mv0001`), script 7 (`mv0002`, not skippable) and the
   recollection screen (all three) use it. ffmpeg encodes them as H.264 +
   AAC MP4 (`movie/`, loose files, about 55 MB each) and the script runs
@@ -642,6 +645,11 @@ a copy of the save works.
 - Open: `0x6f`'s presets 6-8 (3 pulses) as an untinted copy: their
   blend 6 tint draws nothing in the exe (`0x443090`); they were laid
   over in white before.
+- Open: skip and auto mode end at a movie (`0x97`, 5 uses) and at an
+  unskippable click wait (`0x68` arg 0, 4 uses), as in the exe
+  (`op_97` `0x478ab0`, `op_68` `0x4784b0`): `skipoff:autooff` before
+  them. Before, skipping ran on past them, and auto mode passed the
+  click wait after 2 s.
 - Open: the backlog drawn by the engine (`screens/backlog.lua` from
   `Backlog`; engine #75: a `list` of the text log, scrolling a page with
   ▲▼ and the wheel, the speaker's name over each page and its voice
