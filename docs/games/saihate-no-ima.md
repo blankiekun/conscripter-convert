@@ -813,7 +813,8 @@ empty). Gaps found, where the exe and the converter differ:
   rows of text styles 3/4 (23 or 24 fit) and the name plate's font
   (20); the CG gallery's header (621, 122), headings (96, 97) and page
   marker (3 px up); the top bars' row colours and font sizes; the
-  title's 1 s fade; the quake's hold and shrink; a picture the title
+  title's 1 s fade (its states cross-fade 2 s, `0x459d10`, and 1 s,
+  `0x45a240`); the quake's hold and shrink; a picture the title
   draws at (680, 444), not identified and not drawn; the CG viewer's
   panel: the exe draws it whole at x 461 (`0x44dc90`, no source rect,
   clipped at the edge, 10 px past it), but the art meets the buttons at
