@@ -647,7 +647,9 @@ impl Compiler<'_, '_> {
                 if ms == 0 {
                     last(); // a 0 ms stop has nothing to wait for
                 }
-                if ms > 0 && (x > 0 || y > 0) {
+                // A shake may grow from 0 px (src: Muramasa.exe queue_shake 004462d0:
+                // the size goes from args 2-3 to 4-5 over the time).
+                if ms > 0 && (x > 0 || y > 0 || end != (0, 0)) {
                     let shake = match step {
                         Some((interval_ms, ease)) => {
                             let range = [(arg(2).int() as i32, arg(3).int() as i32), (arg(4).int() as i32, arg(5).int() as i32)];
