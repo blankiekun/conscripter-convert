@@ -200,6 +200,15 @@ impl<'a> Emitter<'a> {
                 writeln!(out, "print 1").unwrap();
             }
         }
+        Op::SpriteClipFeather { layer, rect: (x, y, w, h), feather, colour } => {
+            match colour {
+                Some(c) => writeln!(out, "spclip {},{x},{y},{w},{h},{feather},\"#{c:06x}\"", SPRITE_BASE + layer).unwrap(),
+                None => writeln!(out, "spclip {},{x},{y},{w},{h},{feather}", SPRITE_BASE + layer).unwrap(),
+            }
+            if transition.is_none() {
+                writeln!(out, "print 1").unwrap();
+            }
+        }
         Op::SpriteBlend { layer, mode } => {
             writeln!(out, "spblend {},{mode}", SPRITE_BASE + layer).unwrap();
             if transition.is_none() {

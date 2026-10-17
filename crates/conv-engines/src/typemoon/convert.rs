@@ -114,7 +114,7 @@ struct Layer {
     /// `_STCH` arguments 12–16: the screen rectangle it is drawn in (x, y,
     /// w, h on a 1920 × 1080 screen; none if w or h is 0 or it is the
     /// screen) and its frame's width; a child is drawn in its parent's.
-    clip: [i32; 5],
+    clip: [i32; 6],
 }
 
 /// CONscripter's `spblend` screen mode (lighten, never past white).
@@ -367,7 +367,7 @@ struct Lowering<'g, 'a> {
     /// Each IR layer's `spblend` mode.
     blends: Vec<u8>,
     /// Each IR layer's `spclip` rectangle.
-    clips: Vec<Option<(i32, i32, i32, i32)>>,
+    clips: Vec<Option<Clip>>,
     /// `_WNTY(1)`: the next line ends its page.
     page_end: bool,
     /// The text window was hidden or faded (`_CLO2`/`_CLO3`/`_CLO4`): the
@@ -740,7 +740,15 @@ impl Lowering<'_, '_> {
                 let Some(n) = number(arg(0)).filter(|n| (0..LAYERS as i32).contains(n)) else { return false };
                 self.priority[n as usize] = number(arg(1)).unwrap_or(0);
             }
-            "_FADS" => self.fads(number(arg(0)).unwrap_or(1), number(arg(1)).unwrap_or(0), number(arg(2)).unwrap_or(0)),
+            // `_FADS(type, ms, rule, mode)` (`FUN_00160610`): mode 0 sets nothing
+            // (1, and 2 or none over a timed fade under two settings, set
+            // a flag at 0x89E of the state, meaning not known).
+            "_FADS" => {
+                if number(a.get(3).map_or("", |v| v.trim())) == Some(0) {
+                    arg(3);
+                }
+                self.fads(number(arg(0)).unwrap_or(1), number(arg(1)).unwrap_or(0), number(arg(2)).unwrap_or(0));
+            }
             _ => return false,
         }
         true
@@ -783,11 +791,15 @@ impl Lowering<'_, '_> {
             Some((e(9, oa), e(10, ob)))
         };
         // An argument left out keeps the layer's rectangle (`FUN_00160840`).
-        let mut clip = old.as_ref().map_or([0; 5], |l| l.clip);
-        for (i, c) in clip.iter_mut().enumerate() {
+        let mut clip = old.as_ref().map_or([0; 6], |l| l.clip);
+        for (i, c) in clip.iter_mut().enumerate().take(5) {
             if let Some(v) = number(arg(12 + i)) {
                 *c = v;
             }
+        }
+        // Argument 17, the frame's colour (0 none).
+        if let Some(v) = number(arg(17)) {
+            clip[5] = v;
         }
         let parent = number(arg(11)).filter(|&p| (0..LAYERS as i32).contains(&p) && p as usize != n).map(|p| p as usize).or(copy.as_ref().and_then(|c| c.parent));
         let angle = number(arg(19)).unwrap_or(if fresh { 0 } else { old.as_ref().map_or(0, |o| o.angle) });
@@ -1088,8 +1100,8 @@ impl Lowering<'_, '_> {
         // spclip stays through lsp: a full-screen one draws everywhere again.
         let clip = clip(l.clip);
         if clip != self.clips[layer as usize] {
-            let rect = clip.unwrap_or((0, 0, SCREEN_W as i32, SCREEN_H as i32));
-            self.ops.push(Op::SpriteClip { layer, rect });
+            let (rect, feather, colour) = clip.unwrap_or(((0, 0, SCREEN_W as i32, SCREEN_H as i32), 0, None));
+            self.ops.push(if feather > 0 { Op::SpriteClipFeather { layer, rect, feather, colour } } else { Op::SpriteClip { layer, rect } });
             self.clips[layer as usize] = clip;
         }
         // The effect makes the texture the shader then draws.
@@ -1105,14 +1117,49 @@ impl Lowering<'_, '_> {
 /// scissor on the 1920 × 1080 screen, inside its frame (the frame's width
 /// off each side, across if narrower than the screen and down if lower).
 // shortcut: the frame (argument 17's colour: 1, 7 black, 2 white, …) is not drawn, and a turned layer's rectangle isn't turned.
-fn clip([x, y, w, h, frame]: [i32; 5]) -> Option<(i32, i32, i32, i32)> {
+/// A screen rectangle (x, y, w, h), its feather in px and the colour it
+/// fades from.
+type Clip = ((i32, i32, i32, i32), u32, Option<u32>);
+
+/// A panel's screen rectangle and feather. With no frame colour
+/// (argument 17 0) the frame is a soft edge: the draw (`FUN_00189ad0`)
+/// makes the layer's mask (blend 0 into its target) from the inner
+/// rectangle and `BORDER_PARTS`' `alphagradation*` pieces, a smooth ramp
+/// over the frame width from the rectangle's edge in. With a colour the
+/// picture is cut at the frame's inner edge (the scissor) and the `_inv`
+/// pieces are drawn over it in the colour, inside the cut: the same ramp
+/// from the colour. An axis as wide as the screen has no frame; its sides
+/// are pushed out of the feather.
+fn clip([x, y, w, h, frame, colour]: [i32; 6]) -> Option<Clip> {
     // src: exe 0x189ad0 (a scissor in 1920 × 1080 pixels)
     if w == 0 || h == 0 || (w, h) == (1920, 1080) {
         return None;
     }
     let (fx, fy) = (if w < 1920 { frame.max(0) } else { 0 }, if h < 1080 { frame.max(0) } else { 0 });
     let px = |v: i32| (v as f32 * SCREEN_W as f32 / 1920.0).round() as i32;
-    Some((px(x + fx), px(y + fy), px(w - 2 * fx).max(0), px(h - 2 * fy).max(0)))
+    if frame <= 0 {
+        return Some(((px(x), px(y), px(w), px(h)), 0, None));
+    }
+    if colour != 0 {
+        let inner = (px(x + fx), px(y + fy), px(w - 2 * fx).max(0), px(h - 2 * fy).max(0));
+        return Some((inner, px(frame).max(1) as u32, Some(frame_colour(colour))));
+    }
+    let (ex, ey) = (if fx == 0 { frame } else { 0 }, if fy == 0 { frame } else { 0 });
+    Some(((px(x - ex), px(y - ey), px(w + 2 * ex), px(h + 2 * ey)), px(frame).max(1) as u32, None))
+}
+
+/// A frame colour (`_STCH` argument 17) as 0xRRGGBB.
+// src: exe 0x189ad0 (the switch before the frame pieces: alpha, r, g, b to FUN_001b03e0; case 1's r and g read as 0)
+fn frame_colour(n: i32) -> u32 {
+    let rgb = |r: f32, g: f32, b: f32| ((r * 255.0) as u32) << 16 | ((g * 255.0) as u32) << 8 | (b * 255.0) as u32;
+    match n {
+        2 => 0xffffff,
+        3 => rgb(1.0, 0.0, 0.0),
+        4 => rgb(f32::from_bits(0x3e34b4b5), f32::from_bits(0x3d989899), 0.0),
+        5 => rgb(f32::from_bits(0x3f76f6f7), f32::from_bits(0x3f74f4f5), f32::from_bits(0x3f68e8e9)),
+        6 => rgb(1.0, f32::from_bits(0x3f68e8e9), f32::from_bits(0x3f52d2d3)),
+        _ => 0, // 1, and the default (7)
+    }
 }
 
 /// The `F`, `G` and `C` flags the scripts name, as IR variables.
@@ -1362,9 +1409,10 @@ mod tests {
 
     #[test]
     fn a_panel_is_clipped_to_its_rectangle() {
-        // img1 in a 960 × 540 panel framed 60 wide; the child in it, then
-        // img1 again without one.
-        let src = "_STCH(1,img1,240,136,1000,255,10,,,,,,480,270,960,540,60);_STCH(2,dot,10,10,1000,255,20,,,,,1);_FADS(1,0,0);_STCH(1,img1,240,136,1000,255,10,,,,,,0,0,0,0,0);_STCH(2,);_FADS(1,0,0);";
+        // img1 in a 960 × 540 panel with a soft frame 60 wide; the child in
+        // it; then a black frame (cut at its inner edge, the black fading in
+        // from there), then none.
+        let src = "_STCH(1,img1,240,136,1000,255,10,,,,,,480,270,960,540,60);_STCH(2,dot,10,10,1000,255,20,,,,,1);_FADS(1,0,0);_STCH(1,img1,240,136,1000,255,10,,,,,,,,,,,7);_STCH(2,);_FADS(1,0,0);_STCH(1,img1,240,136,1000,255,10,,,,,,0,0,0,0,0,0);_FADS(1,0,0);";
         let g = Game {
             scripts: vec![("S".into(), script::parse(src).into_iter().map(Result::unwrap).collect())],
             scenes: vec![],
@@ -1376,9 +1424,19 @@ mod tests {
             pic_ext: "webp",
             motions: vec![],
         };
-        let clips: Vec<_> = compile(&g).ops.into_iter().filter(|o| matches!(o, Op::SpriteClip { .. })).collect();
-        let panel = (360, 220, 560, 280);
-        assert_eq!(clips, [Op::SpriteClip { layer: 38, rect: panel }, Op::SpriteClip { layer: 39, rect: panel }, Op::SpriteClip { layer: 39, rect: (0, 0, 1280, 720) }]);
+        let c = compile(&g);
+        let clips: Vec<_> = c.ops.into_iter().filter(|o| matches!(o, Op::SpriteClip { .. } | Op::SpriteClipFeather { .. })).collect();
+        let (outer, inner) = ((320, 180, 640, 360), (360, 220, 560, 280));
+        assert_eq!(
+            clips,
+            [
+                Op::SpriteClipFeather { layer: 38, rect: outer, feather: 40, colour: None },
+                Op::SpriteClipFeather { layer: 39, rect: outer, feather: 40, colour: None },
+                Op::SpriteClipFeather { layer: 39, rect: inner, feather: 40, colour: Some(0) },
+                Op::SpriteClip { layer: 39, rect: (0, 0, 1280, 720) },
+            ]
+        );
+        assert!(!c.metrics.reasons().keys().any(|r| r.contains("argument 17")), "{:?}", c.metrics.reasons());
     }
 
     #[test]
