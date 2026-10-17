@@ -9,7 +9,7 @@ use std::fmt::Write;
 
 use conv_core::ir::{ChoicePlates, RuntimeText};
 
-use crate::{escape, label, menu, path, var_name, BUTTON_VAR, LINK_SPRITES, RUNTIME_OPTION_BASE};
+use crate::{escape, label, menu, path, var_name, BUTTON_VAR, LINK_SPRITES};
 
 /// The sprites there are (two an option).
 const SPRITES: usize = (*LINK_SPRITES.end() - *LINK_SPRITES.start() + 1) as usize;
@@ -33,7 +33,7 @@ pub(crate) fn emit(out: &mut String, options: &[(String, String)], texts: &[Opti
         let text = escape(text);
         let (text, x, columns) = match texts.get(i).and_then(Option::as_ref) {
             Some(rt) => {
-                let (s, x) = (format!("${}", RUNTIME_OPTION_BASE + i as u32), format!("%{}", RUNTIME_OPTION_BASE + i as u32));
+                let (s, x) = crate::runtime_option(i);
                 writeln!(out, "mov {s},\"{text}\":mov {x},{}", p.text_x - width(&text) / 2).unwrap();
                 let mut columns = text.chars().count();
                 for (value, t) in &rt.texts {

@@ -181,7 +181,7 @@ impl<'a> Emitter<'a> {
             None => writeln!(out, "logadd \"{}\"", escape(text)).unwrap(),
         },
         Op::RuntimeBacklogLine { text, runtime } => {
-            let s = format!("${}", crate::RUNTIME_LOG);
+            let s = crate::RUNTIME_LOG;
             writeln!(out, "mov {s},\"{}\"", escape(text)).unwrap();
             for (value, t) in &runtime.texts {
                 writeln!(out, "if {} == {value} mov {s},\"{}\"", var_name(runtime.var, border), escape(t)).unwrap();
@@ -901,7 +901,7 @@ impl<'a> Emitter<'a> {
                 for (i, (t, l)) in options.iter().enumerate() {
                     match texts.get(i).and_then(Option::as_ref) {
                         Some(rt) => {
-                            let s = format!("${}", crate::RUNTIME_OPTION_BASE + i as u32);
+                            let (s, _) = crate::runtime_option(i);
                             writeln!(out, "mov {s},\"{}\"", text_safe(t)).unwrap();
                             for (value, text) in &rt.texts {
                                 writeln!(out, "if {} == {value} mov {s},\"{}\"", var_name(rt.var, border), text_safe(text)).unwrap();
