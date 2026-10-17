@@ -1,6 +1,6 @@
 //! The extras' CG gallery, scene replay lists and BGM room as screens the
 //! engine draws (CONscripter's `screen`, COMMANDS.md "Screens"), for an
-//! [`ExtrasMenu`] with `engine_screen`. Each is a Lua table computed when
+//! [`ExtrasMenu`]. Each is a Lua table computed when
 //! it opens, so what is unlocked is read then from the named arrays
 //! ([`crate::CG_SEEN`], [`crate::SCENE_UNLOCKED`], [`crate::PROGRESS`]).
 //!
@@ -20,17 +20,17 @@ pub(crate) const GALLERY_PAGE: &str = "%121";
 /// The files under `screens/` for the extras.
 pub(crate) fn files(m: &ExtrasMenu) -> Vec<(String, String)> {
     let mut files = Vec::new();
-    if let Some(g) = m.gallery.as_ref().filter(|_| m.engine_screen) {
+    if let Some(g) = &m.gallery {
         files.push(("gallery.lua".to_string(), gallery_lua(g, &m.background)));
     }
     if let Some(r) = &m.replay {
         files.push(("replay.lua".to_string(), replay_lua(r, &m.background)));
         files.push(("replay_list.lua".to_string(), replay_list_lua(r)));
     }
-    if let Some(music) = m.music.as_ref().filter(|_| m.engine_screen) {
+    if let Some(music) = &m.music {
         files.push(("music.lua".to_string(), music_lua(music, &m.background)));
     }
-    if let Some(movies) = m.movies.as_ref().filter(|_| m.engine_screen) {
+    if let Some(movies) = &m.movies {
         files.push(("movies.lua".to_string(), movies_lua(movies, &m.background)));
     }
     files

@@ -167,7 +167,7 @@ impl AssetBank {
         };
         let replay = self.scene_replay(&common, &label)?;
         let music = self.music_room(&common)?;
-        Ok(ExtrasMenu { background, items, gallery: Some(gallery), replay: Some(replay), music: Some(music), movies: None, menu_background: None, engine_screen: true })
+        Ok(ExtrasMenu { background, items, gallery: Some(gallery), replay: Some(replay), music: Some(music), movies: None, menu_background: None })
     }
 
     /// The BGM room (see [`music`]); `common` is `SubModeCommon.004`.
@@ -418,7 +418,6 @@ impl AssetBank {
             // The scene behind is blurred slightly (measured under wine:
             // Gaussian σ about 1): a 3×3 mean, in SmoothCrossFade's slot.
             backdrop: Some((SMOOTH_BLUR_SLOT, [FILTER_BLUR, FILTER_BLEND_COPY, 256, 1, 1, 0])),
-            engine_screen: true,
         })
     }
 
@@ -657,7 +656,6 @@ impl AssetBank {
             font_size: 16,
             line_height: 24,
             columns: 41,
-            engine_screen: true,
         })
     }
 

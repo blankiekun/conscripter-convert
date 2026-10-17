@@ -1,6 +1,6 @@
 //! Menus the engine draws (CONscripter's `screen`, COMMANDS.md "Screens"):
 //! the save and load menus, the settings and the yes/no dialog as Lua
-//! tables in `screens/`, for a [`SaveMenu`] or [`SettingsMenu`] with
+//! tables in `screens/`, for a [`SaveMenu`], and a [`SettingsMenu`] with
 //! `engine_screen`.
 
 use std::fmt::Write as _;
@@ -11,7 +11,7 @@ use crate::menu::{hidden_while_open, switch_off, CHAPTER, IN_GAME, PAGE, SCENE_L
 
 /// The save menu is the engine's.
 pub(crate) fn engine_menu(script: &Script) -> Option<&SaveMenu> {
-    script.save_menu.as_ref().filter(|m| m.engine_screen).filter(|_| script.save_grid.is_none())
+    script.save_menu.as_ref().filter(|_| script.save_grid.is_none())
 }
 
 /// The settings are the engine's.
@@ -37,7 +37,7 @@ pub fn screen_files(script: &Script) -> Vec<(String, String)> {
     if let Some(p) = script.settings.as_ref().and_then(|m| m.pictures.as_deref()).filter(|_| script.picture_settings.is_none()) {
         files.push(("settings.lua".to_string(), crate::settings_pages::lua_file(p, script.confirm.as_ref(), leave)));
     }
-    if let Some(b) = script.backlog.as_ref().filter(|b| b.engine_screen && script.line_log.is_none()) {
+    if let Some(b) = script.backlog.as_ref().filter(|_| script.line_log.is_none()) {
         files.push(("backlog.lua".to_string(), backlog_lua(b)));
     }
     if let Some(e) = script.extras.as_ref().filter(|_| script.title_screen.is_some()) {
@@ -278,7 +278,7 @@ pub(crate) fn backlog_labels(out: &mut String) {
     writeln!(out, "*{}\nsaveon\nreturn\n*{}\nscreen \"backlog\"\nreturn", crate::menu::PRETEXT, crate::menu::BACKLOG).unwrap();
 }
 
-/// The backlog as the script one (`menu::backlog`) draws it: the log's
+/// The backlog: the log's
 /// pages from the newest up in `area`, the speaker's name over each (with
 /// a voice, a button replaying it), up and down a page, the wheel too
 /// (down past the newest page closes, unless switched off).
@@ -407,7 +407,6 @@ mod tests {
             font_size: 16,
             line_height: 24,
             columns: 41,
-            engine_screen: true,
         };
         let lua = backlog_lua(&b);
         for part in [

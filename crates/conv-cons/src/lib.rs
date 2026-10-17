@@ -191,7 +191,7 @@ const BUTTON_VAR: &str = "%9";
 // bar ([`command_menu`], [`menu::button_bar`]); %147, %149 and $110-$113,
 // the save grid ([`save_grid`]); %190-%289 and $200-$229, the tile puzzle's
 // state ([`puzzle`]; locals when the global border is 800); %170-%179 and
-// $107-$108, the backlog ([`menu::backlog`] or [`line_log`], never both);
+// $107-$108, the backlog ([`line_log`]);
 // the click-wait icon's place is named ([`WAIT_ICON_AT`]).
 // The settings switches' flags: %3640-%3647, %2910-%2919, %2950-%2951 and
 // %4116-%5095 ([`switches`]). %2960, the title's openings
@@ -592,8 +592,6 @@ pub fn emit(script: &Script) -> String {
         save_grid::emit(&mut out, g, script.confirm.as_ref(), script.width, script.height, scene_stack);
     } else if screens::engine_menu(script).is_some() {
         screens::save_labels(&mut out);
-    } else if let Some(m) = &script.save_menu {
-        menu::save_menu(&mut out, m, script.confirm.as_ref(), scene_stack);
     }
     if let Some(b) = &script.button_bar {
         let screens = menu::BarScreens {
@@ -633,10 +631,8 @@ pub fn emit(script: &Script) -> String {
     }
     if let Some(l) = &script.line_log {
         line_log::emit(&mut out, l, script.single_byte_text);
-    } else if script.backlog.as_ref().is_some_and(|b| b.engine_screen) {
+    } else if script.backlog.is_some() {
         screens::backlog_labels(&mut out);
-    } else if let Some(b) = &script.backlog {
-        menu::backlog(&mut out, b, has_ruby);
     }
     if let Some(d) = &script.confirm {
         menu::confirm(&mut out, d);
@@ -2206,7 +2202,6 @@ effect 7,99,1000,\"cons_warp.dll/warp\\zoom_3_220_5.png,65\"
             music: None,
             movies: None,
             menu_background: None,
-            engine_screen: false,
         });
         let out = emit(&s);
         assert!(out.contains("*conv_title_back\nbg \"system\\title.png\",0\n"), "{out}");
@@ -2214,15 +2209,7 @@ effect 7,99,1000,\"cons_warp.dll/warp\\zoom_3_220_5.png,65\"
         // The gallery opens once one of its CGs is seen.
         assert!(out.contains("mov %128,0\nif ?conv_cg_seen[213] == 1 mov %128,1\nif ?conv_cg_seen[214] == 1 mov %128,1\n"), "{out}");
         assert!(out.contains("if %128 == 0 cell 100,2\nif %128 == 1 spbtn 100,1\n"), "{out}");
-        // A slot is a button once one of its CGs is seen, else locked.
-        assert!(out.contains("mov %122,0\nif ?conv_cg_seen[213] == 1 mov %122,1\nif ?conv_cg_seen[214] == 1 mov %122,1\n\
-            if %122 == 1 lsp 130,\":a/2,0,3;system\\t.png\",40,138:spbtn 130,100\n\
-            if %122 == 0 lsp 130,\":a;system\\locked.png\",44,142\n"), "{out}");
-        // The viewer steps past unseen variants.
-        assert!(out.contains("*conv_cg_v0_1\nif ?conv_cg_seen[214] == 0 add %124,%126:goto *conv_cg_v0\nbg \"bg\\b.png\",0:goto *conv_cg_view_show\n"), "{out}");
         // Drawn by the engine: the screen, its slots unlocked by the same flags.
-        s.extras.as_mut().unwrap().engine_screen = true;
-        let out = emit(&s);
         assert!(out.contains("*conv_cg\ncsp -1:mov %121,0:screen \"gallery\"\nreturn\n") && !out.contains("*conv_cg_view"), "{out}");
         let files = screen_files(&s);
         let lua = &files.iter().find(|f| f.0 == "gallery.lua").unwrap().1;
@@ -2276,7 +2263,6 @@ effect 7,99,1000,\"cons_warp.dll/warp\\zoom_3_220_5.png,65\"
             music: None,
             movies: None,
             menu_background: None,
-            engine_screen: false,
         });
         let out = emit(&s);
         assert!(out.contains("if %9 == 1 goto *conv_replay\n"), "{out}");
@@ -2319,20 +2305,17 @@ effect 7,99,1000,\"cons_warp.dll/warp\\zoom_3_220_5.png,65\"
                 background: None,
             }),
             menu_background: Some("system/title.png".into()),
-            engine_screen: false,
         });
         let out = emit(&s);
         assert!(out.contains("if %9 == 1 goto *conv_movies\n"), "{out}");
         // The menu over its own picture, the room over the extras' one.
         assert!(out.contains("*conv_extras_draw\ncsp -1\nbg \"system\\title.png\",0\n"), "{out}");
-        assert!(out.contains("bg \"system\\extras.png\",0"), "{out}");
         // A scene playing a movie of the room marks it.
         assert!(out.contains("mpegplay \"movie\\op01.mp4\",1\nmov ?conv_movie_seen[1],1\n"), "{out}");
-        assert!(out.contains(
-            "lsp 102,\":a/2,0,3;system\\m0.png\",120,71:spbtn 102,1\n\
-            if ?conv_movie_seen[1] == 1 lsp 103,\":a/2,0,3;system\\m1.png\",120,71:spbtn 103,2\n"
-        ), "{out}");
-        assert!(out.contains("*conv_movie1\nbgmstop:mov %161,0:mpegplay \"movie\\op01.mp4\",1:goto *conv_movies_draw\n"), "{out}");
+        assert!(out.contains("*conv_movie1\nbgmstop:mov %161,0:mpegplay \"movie\\op01.mp4\",1:goto *conv_movies\n"), "{out}");
+        let files = screen_files(&s);
+        let lua = &files.iter().find(|f| f.0 == "movies.lua").unwrap().1;
+        assert!(lua.contains("file=\"system/extras.png\"") && lua.contains("if var(\"?conv_movie_seen[1]\") == 1 then add{\"button\", file=\"system/m1.png\""), "{lua}");
     }
 
     #[test]
@@ -2361,18 +2344,14 @@ effect 7,99,1000,\"cons_warp.dll/warp\\zoom_3_220_5.png,65\"
             }),
             movies: None,
             menu_background: None,
-            engine_screen: false,
         });
         let out = emit(&s);
         assert!(out.contains("if %9 == 1 goto *conv_music\n"), "{out}");
-        assert!(out.contains("*conv_music\ncsp -1\nbg \"system\\music.png\",0\n"), "{out}");
-        // The song playing is drawn marked; a locked one isn't drawn.
-        assert!(out.contains(
-            "if %161 != 1 lsp 102,\":a/2,0,3;system\\s1.png\",120,71:spbtn 102,1\n\
-            if %161 == 1 lsp 102,\":a/2,0,3;system\\s1.png_on\",120,71:spbtn 102,1\n\
-            if ?conv_progress[0] == 1 && %161 != 2 lsp 103,"
-        ), "{out}");
-        assert!(out.contains("*conv_music1\nbgmfadein 0:bgm \"bgm\\bgm22.ogg\":goto *conv_music_draw\n"), "{out}");
+        assert!(out.contains("*conv_music\ncsp -1:screen \"music\"\ngoto *conv_extras_draw\n"), "{out}");
+        // A locked song is left out until its progress bit.
+        let files = screen_files(&s);
+        let lua = &files.iter().find(|f| f.0 == "music.lua").unwrap().1;
+        assert!(lua.contains("file=\"system/music.png\"") && lua.contains("if var(\"?conv_progress[0]\") == 1 then add{\"radio\", file=\"system/s2.png\""), "{lua}");
     }
 
     #[test]
@@ -2610,7 +2589,6 @@ end
             font_size: 16,
             line_height: 24,
             columns: 41,
-            engine_screen: false,
         });
         let voice = |n: &str| Some(Voice { file: format!("voice/{n}.ogg"), character: 1 });
         s.ops = vec![
