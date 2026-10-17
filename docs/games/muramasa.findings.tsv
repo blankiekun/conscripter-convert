@@ -1,0 +1,68 @@
+handler	argument or branch	status	source (Muramasa.exe, sha256 1d67e477…, names.tsv)	what the original does	the converter
+(all timed)	wait (last arg)	inferred	Django.exe 004310e0 (carried); 0040f7f0	`true` with time > 0 waits the whole time; a number waits that many ms; 0/false/null/missing: no wait	as the exe; a partial wait noted (16 Fade, 16 Zoom, 14 BezierMove, 7 Move, 3 Rotate)
+(all timed)	tempo	seen	apply_tempo 00449f40	name picks the step table (Axl1-3, Dxl1-3, AxlAuto, DxlAuto, AxlDxl, DxlAxl, null straight); used by Fade, Move, Zoom, Rotate, DrawTransition, SetVolume/SetPan/SetFrequency (00478570)	tempo(): the same curves; sound fades straight
+(all timed)	time 0	seen	cb_Fade 0044f020, sound_set_volume 00475f50	sets the value at once; the tempo is unused	read, nothing to do (#366)
+Fade	opacity	seen	cb_Fade 0044f020	0-1000 × 0.255 → a byte, rounded	clamped 0-1000, alpha ×256/1000
+Fade	4 arguments	seen	builtin_Fade 0040e050	arg 3 is the tempo, no wait (eval_arg returns empty)	arg 3 read as the wait; all 119 such calls take 0 ms: no difference
+Fade	text window's fade	inferred	-	the box's picture fades along the tempo	windowfade, straight; all such calls 0 ms
+DrawTransition	mask, softness	seen	FUN_0044fe00, 00457bf0	threshold table: from/to × 0.255 ends, 255 up to p, then −255/p × 255/softness a grey level (truncated)	effectsoft for full sweeps (#386, engine #138)
+DrawTransition	fade-out direction	seen	00457bf0	the threshold falls: the picture leaves the mask's bright parts first	effectsoft …,1 (#386); before, print 18 reversed it
+DrawTransition	partial from/to (0→200, 250→150)	seen	00457bf0 (end: table kept unless to is 0 or 255)	the picture stays masked at the end threshold	a uniform opacity: noted (374)
+DrawTransition	missing mask	seen	FUN_0044fe00 → FUN_00488130	returns before the transition: nothing drawn	nothing drawn (#357)
+DrawTransition	from ≠ shown opacity	unknown	FUN_0044fe00 stores from at +0xb78	the table starts from `from`	from what is shown: noted (565)
+Zoom	x, y per mille	seen	builtin_Zoom 0040e3e0 → FUN_00445d60 → FUN_0044f2a0	atol, `@` relative; 0 not clamped (drawn at size 0: invisible, inferred)	at least 1‰: a 1 px line/dot stays (ma04_015vs ×2, mc02_029): open
+Zoom	SetVertex point	seen	FUN_004891e0	zoom about the vertex	about the vertex (#61)
+SetVertex	names	seen	FUN_004891e0, eval_arg 00413740	lower case only, per axis; other words → atol (`Center`, `Middle` = 0)	the same (#380)
+SetVertex	px outside 0..size	seen	FUN_004891e0	that axis left as it was	the same
+Move	x, y	inferred	builtin_Move 0040e150; Django.exe 00437980	`@` relative, along the tempo	as Django
+BezierMove	points	inferred	builtin_BezierMove 0040e270	a Bézier path over time	spmotion keys along the path
+Rotate	x, y, z degrees	inferred	builtin_Rotate 0040e4f0; Django 00439590	`@` relative	about z noted (31); x/y turns as mirror or zoom
+Shake	n, tempo	seen	queue_shake 004462d0, shake_frame 004578e0	flip every 1000/(n·0.06) ms (fps 60 at 005dcaf0); n > 1000 does nothing; size args 2-3 → 4-5 along the tempo	screenshake mode 2 (#261); growing from 0 (#374)
+Shake, ShakeOne	time ≥ 2,160,000	seen	script data	the scripts' endless shakes (36 min, 2.8 h), stopped by a later Shake or Delete	kept (census lead triaged)
+SetVolume	volume	seen	sound_set_volume 00475f50	0-1000 clamped, `@` relative; DirectSound max(−10000, 3322·log10(v/1000)·…) mB; 0 stops	percent(), the same curve
+SetVolume	fade	seen	00478570, sound_volume_fade_thread 00477ec0	steps by the tempo table	chvolfade straight: 9 fades noted
+SetPan	pan	seen	cb_SetPan 004505d0 → FUN_004760f0	×10 → IDirectSoundBuffer::SetPan, ±10000 (dB attenuation of the other side)	chpan linear; the corpus only passes 0 (MusicStart): no difference
+SetFrequency	rate on music	seen	cb_SetFrequency 00450610 → FUN_00476230	DirectSound frequency, any sound	chfreq on dwave only; music noted (1,486)
+SetFrequency	tempo	seen	00478570	stepped by the tempo	chfreq straight: noted (37)
+SetLoop, SetLoopPoint	loop	inferred	cb_SetLoop 00450650, cb_SetLoopPoint 00450700	loop on/off; points in ms (0, 999999 = whole)	the same
+CreateSound	type	inferred	builtin_CreateSound 0040bca0; Django 00457940	BGM/SE/VOICE pick the volume setting	the same
+CreateColor, CreateColorSaddP	colour	seen	FUN_00414a50, FUN_00414dd0 (FUN_00414980 upper-cases)	#hex, 0x, RGB()/RGBA(), 16 HTML names (GREEN 0x008000)	the same names (#383); the corpus uses black/white/red/blue/hex
+CreateTexture, CreateTextureadd	source	seen	builtin_CreateTexture 00408cc0, parse_texture_source 00464b50	a file, an object's picture (FUN_004491a0, FUN_00488670), SCREEN/VIDEO/SCENE	files and objects; from the screen noted (25)
+CreateWindow	argument 6	seen	builtin_CreateWindow 0040b3a0 → FUN_00443500	kept only in the creation text (+0x180): no effect	read (#366)
+CreateWindow	children	seen	FUN_00443500	children clipped to the window	spclip
+CreateText	box, text	inferred	builtin_CreateText 0040aee0, parse_text_tags 00485760	text tags FONT, I, U, S, K, CENTER, MIDDLE, PRE, SPAN, WAIT, INTERVAL, RUBY, VALUE, VOICE	drawn to pictures at convert time; sideways text 17 px low (open)
+CreateEffect	Sepia, Monochrome, KitanoBlue, Plain	seen	0043fcc0, 004401d0, 004403d0, 004405e0	grey r28 g151 b77 /256 tables; sepia +30 g,r; KitanoBlue +20 g +80 b	spfilter 11 + colour; Lens, Drop noted (3)
+CreateMask, CreateStencil	mask	seen	builtin_CreateMask 00409ce0, cb_CreateStencil 00454bd0	children cut by the picture	converted (History)
+CreateSurface, SetSurface	render target	unknown	builtin_CreateSurface 0040a570, builtin_SetSurface 00410310, cb_SetSurface 004523c0	draws children into a surface	noted (52, 58)
+CreateMovie, MoviePlay	movie	inferred	builtin_CreateMovie 0040a830, builtin_MoviePlay 004115d0	MPEG-1 .ngs from ムービー/	MP4s in a full build; the dry run's copy lacks ムービー/, hence 'missing' (61, 3)
+CreateMovie	args 2-5 (place, loop, alpha)	unknown	builtin_CreateMovie 0040a830	-	not read in the dry run (movie missing)
+CreateCamera, MoveCamera	z, magnify	seen	FUN_00489570 (00489a52)	a picture under a camera scales by z/(1000 − priority) about 512, 288; only the innermost of nested cameras	multiplied when nested; MoveCamera args 5-6 in a process noted (4)
+CreateProcess	process	inferred	builtin_CreateProcess 004085d0	runs an NSS function beside the script	on paper / loops (History); 35 noted
+CreateName, CreateChoice	objects	inferred	0040b5e0…0040b7b0; cb_CreateChoice 00451d50	named groups; choice buttons	groups; the engine's choice stands in for function_select.nss
+SetShade	level	seen	shade_level 00465b10	blur levels	spfilter blur
+SetBlur	trail	seen	blur_strength 00447f40, FUN_00456810, 00454ca4	copies of the last frames as a trail; wait true under, else over	sptrail (#103); argument 4 noted (16)
+SetTone	tone	inferred	builtin_SetTone 00410120	Monochrome/Sepia… on one picture	spfilter
+SetAlias, SetNextFocus, SetFont	state	inferred	0040fe60, 00410e60, 004119e0	aliases, focus order, font for CreateText	kept at convert time
+SetBacklog	speaker	inferred	builtin_SetBacklog 00410c80	the voice entry's character name	backlog_character
+Request	actions	inferred	builtin_Request 0040df30, cb_Request 00452400	Lock/UnLock, Disused, Hideable, Play, Stop, Smoothing, Enter, PushText, …; names compared exactly	most converted; Stop 1,082, OverlayRender 111, CompulsorySuspend 18, PushText 15, EntrustSuspend 12, 28 more noted
+Delete	args 1-2	unknown	builtin_Delete 0040dfd0	-	noted (2 calls)
+Wait, WaitKey, Waitkey	click	seen	builtin_Wait 0040f7f0, builtin_WaitKey 0040f9d0, cb_WaitKey 004680f0	Wait: a click doesn't end it, skip does; WaitKey: a click ends it, ms	wait / delay (History)
+WaitAction, WaitPlay, WaitFade, WaitZoom, WaitText	time limit	inferred	0040f020, 0040f190, 0040ea60, 0040ebd0, 0040f300	waits for the object's action, at most arg 1 ms	to the end; WaitAction(@MovieSE, 100) noted (28, movie missing in the dry run)
+LockVideo	on/off	inferred	-	groups changes into one frame	ours shows changes at the next wait
+Draw	frame	inferred	builtin_Draw 0040f470	draws the frame now	print
+DrawEffect	wave	seen	FUN_00430a70	LowWave 64, MiddleWave 512, HighWave 1024, SuperWave 4096 turns; exact name	screenripple; 11 on a Plain cover noted
+Position	place names	unknown	builtin_Position 004122e0	-	noted (62, besides the choice screen's 444)
+CursorPosition, MoveCursor	cursor	inferred	00412440, 004124f0	mouse position	our screens
+Save	slot	inferred	builtin_Save 00411ea0	Save(9999): back-to-choice	conv-cons back-to-choice
+LoadText	box	inferred	builtin_LoadText 0040d360	text unit into a box	compiled in place
+LoadImage	texture	inferred	builtin_LoadImage 0040c360	loads a picture into an object	pictures from LoadImage (History)
+Random, RandomMeimetsu	value	inferred	Integer helpers; RandomMeimetsu is a script function	0 … n − 1 at run time	rnd; 771 picked at convert time (paper runs)
+Conquest, ReConquest	read marks	inferred	-	whole-scene read marks	0
+ImageHorizon, ImageVertical	size	inferred	-	the picture's width/height	the same
+PassageTime, RemainTime	sound clock	inferred	-	time played / left	the sound's length
+ModuleFileName	name	inferred	-	the current script's name	compile-time constant
+Strstr	search	inferred	-	substring position	compile-time
+Boxframe, DeleteFw, MoveFFPstop, SL_Rightdown, SL_Rightdownfade, KaisouReverse	script functions	seen	corpus	typos or removed helpers nothing defines: call_nss_function 004130a0 finds no function, does nothing	dropped
+RecoIn, RecoOut, RecoReturn	recollection	seen	extra_recollection.nss	the scene replay's fades and return	our replay (extras.rs)
+md02_023_comic	comic process	seen	md02_023.nss	a comic-panel process	played on paper
+Zoom	census spmotion zoom 100000%	seen	dry run	the inverse of a picture pre-scaled to 1‰ (Zoom to 0)	see Zoom x, y
