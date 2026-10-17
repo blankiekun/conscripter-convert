@@ -872,7 +872,7 @@ Next, in order:
      left a picture moved or zoomed over time under a stencil (none in
      this game), a zoom about a vertex (cut as about the centre) and a
      `Plain` cover under a stencil (noted only).
-   - `CreateMask` (31),
+   - `CreateMask` (28),
      `SetSurface`/`CreateSurface`, `LoadImage` as a texture source
      (on since 2026-10-17, "History"; 25 `CreateTexture`s from an
      object or the screen are still noted).
@@ -884,30 +884,32 @@ Next, in order:
    - Check under wine: `<BR>` (16 uses) isn't in the exe's tag list but
      is a line break in ours. (The 13 `DrawEffect` names with a trailing
      space match: the exe allows a space or tab after a name.)
-   - Small: 47 sounds missing from the archives, 3 transition masks
-     missing, 2 statements that don't parse, 2 voices outside a text
+   - Small: 25 sounds missing from the archives, 2 transition masks
+     missing (`cg/data/slide_01_02_2.png`), 2 statements that don't parse, 2 voices outside a text
      block, 3 BGMs without loop played looping (the notes give counts
      only, not where).
 
 **Leftovers** (counts from the dry run's notes):
+Counts from the dry run on main (2026-10-17, `metrics.json`): 1,162,127
+source calls, 1,131,605 converted fully, 21,928 with gaps, 8,594 left
+out on purpose.
+
 - `CreateProcess` (510 calls; the battle HUD `CP_*` in
-  `function_cockpit.nss`, fire flicker, comic panels): parallel NSS
-  processes. One that ends in an endless loop of `Fade`/`Move`/`Zoom`/
-  `Rotate`/`BezierMove`/`Wait` (or `Shake`/`Wait`) loops its pictures'
-  motion in the engine from its `Start` (`convert/loops.rs`: the loop
-  played twice on paper, the second pass keyed; 2,581 looped motions,
-  the dry run's `CreateProcess` notes 4,205 → 2,459, then 1,756 with
-  C1). The rest: Status. A process that only runs
-  `Rotate`/`Move`/`Fade`/`Zoom` (the roll bar's `CP_RollBar`,
-  `CP_RollBar_NoBG`) runs at its start without blocking, and a
-  `WaitAction` on it waits for it; the roll bar's endless wobble
-  `CP_RollBar_Auto` (59) is still left.
-- Non-blocking `Move`/`Zoom` over time (about 1,200 each), drawn as
-  cross-fades.
+  `function_cockpit.nss`, fire flicker, comic panels): endless loops
+  play as engine motions (`convert/loops.rs`), one-shots on paper
+  (C2, "History"), the roll bar's wobble too. Left: 108 notes, most
+  `TurboBlur3` (10), `DenziBladeChargeSet` (10) and the
+  `ma03_*_runsProcess`/`ma03_moveAuto*Process`/`BGMove*Process` runs
+  that don't end on paper (about 45). `Request(<process>, Stop)` (1,126
+  notes over the paths; `プロセス*`, `プロセス１`, …) is dropped: not
+  checked whether a looped motion keeps running where the original
+  stops it.
+- Moves and zooms over time that come with a fade or a new picture are
+  drawn as cross-fades: 38 left (about 1,200 each before the motions).
 - `Rotate` about z of a picture is CONscripter's `spzoom` angle (still) or an
-  `spmotion` angle (over time); left: about z of other objects (70),
-  about x or y over time (14, drawn at once). `CreateTexture` from an
-  object or the screen (1,864).
+  `spmotion` angle (over time); left: about z of other objects (31),
+  a turn over (about x or y) over time, mirrored at once (10).
+  `CreateTexture` from an object or the screen (25).
 - Cameras (`CreateCamera` 40, `MoveCamera` 105): drawn by
   続・殺戮のジャンゴ's model, measured there under wine (a child of depth
   `p` seen `z / (1000 - p)` times about the screen's centre, the
