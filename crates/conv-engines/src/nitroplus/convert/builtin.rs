@@ -97,26 +97,38 @@ impl Compiler<'_, '_> {
                 o.x = arg(2).position(0, w, screen_w);
                 o.y = arg(3).position(0, h, screen_h);
             }
-            "CreateStencil" => {
-                // (name, priority, x, y, mode, picture, wildcard): draws
-                // nothing; its children only where the picture is opaque.
-                // Mode 128 (every call) keeps the picture's alpha
-                // (`00409fa0`); `true` lets a wildcard reach the children
-                // (the flag at +0x9d4, left 0 otherwise).
+            "CreateStencil" | "CreateMask" => {
+                // Stencil (name, priority, x, y, mode, picture, wildcard):
+                // draws nothing; its children only where the picture is
+                // opaque. Mode 128 (every call) keeps the picture's alpha
+                // (`00409fa0`). Mask (name, priority, x, y, picture,
+                // wildcard): draws nothing; its children multiplied by the
+                // picture, colour and alpha, nothing outside it or where
+                // it is clear. `true` lets a wildcard reach the children (the flag at
+                // +0x9d4, left 0 otherwise; 00443800 for both).
+                // src: exe 00457e80 (a mask's clear pixels → 0), 00416860 (its picture into a screen-sized buffer cleared to 0), 00419210 (a child's pixel × the buffer's, per byte)
+                let mask = name == "CreateMask";
+                if mask && self.file == "function_select.nss" {
+                    read.set(u64::MAX);
+                    self.note(CHOICE_SCREEN);
+                    return Value::Null;
+                }
+                let what = name.to_string();
                 let name = self.object_name(&arg(0));
-                if arg(4).int() != 128 {
+                if !mask && arg(4).int() != 128 {
                     self.note("CreateStencil mode other than 128");
                 }
-                let Some((image, w, h)) = self.assets.image(&self.deref(&arg(5))) else {
-                    self.note("CreateStencil of a missing file");
+                let at = usize::from(!mask);
+                let Some((image, w, h)) = self.assets.image(&self.deref(&arg(4 + at))) else {
+                    self.note(format!("{what} of a missing file"));
                     return Value::Null;
                 };
                 let (w, h) = (w as i64, h as i64);
                 let o = self.create(name, Kind::Other, arg(1).int(), w, h);
                 o.x = arg(2).position(0, w, screen_w);
                 o.y = arg(3).position(0, h, screen_h);
-                o.container = !arg(6).truthy();
-                o.stencil = Some(image);
+                o.container = !arg(5 + at).truthy();
+                o.stencil = Some((image, mask));
             }
             "CreateColor" => {
                 let name = self.object_name(&arg(0));

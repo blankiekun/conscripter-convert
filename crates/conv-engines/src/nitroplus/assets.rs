@@ -542,10 +542,14 @@ impl Assets for NpaAssets<'_> {
         Some(rel)
     }
 
-    fn stenciled(&mut self, image: &str, mask: &str, dx: i64, dy: i64, zoom: (i64, i64)) -> Option<String> {
+    fn stenciled(&mut self, image: &str, mask: &str, colour: bool, dx: i64, dy: i64, zoom: (i64, i64)) -> Option<String> {
         use std::hash::{Hash, Hasher};
         let mut h = std::collections::hash_map::DefaultHasher::new();
+        // (A stencil's key as before, so its cuts keep their names.)
         (image, mask, dx, dy, zoom).hash(&mut h);
+        if colour {
+            colour.hash(&mut h);
+        }
         let rel = format!("system/stencil_{:016x}.png", h.finish());
         // Its size, for a zoom of it (a dry run has no file).
         let (w, h) = self.size(image)?;
@@ -559,8 +563,12 @@ impl Assets for NpaAssets<'_> {
         let on_screen = |u: u32, size: u32, z: i64| (size as f64 / 2.0 + (u as f64 + 0.5 - size as f64 / 2.0) * z as f64 / 1000.0).floor() as i64;
         for (x, y, p) in out.enumerate_pixels_mut() {
             let (mx, my) = (on_screen(x, w, zoom.0) - dx, on_screen(y, h, zoom.1) - dy);
-            let a = if mx < 0 || my < 0 || mx >= m.width() as i64 || my >= m.height() as i64 { 0 } else { m.get_pixel(mx as u32, my as u32).0[3] as u32 };
-            p.0[3] = (p.0[3] as u32 * a / 255) as u8;
+            let q = if mx < 0 || my < 0 || mx >= m.width() as i64 || my >= m.height() as i64 { [0; 4] } else { m.get_pixel(mx as u32, my as u32).0 };
+            // A mask's clear pixels are black (`00457e80`).
+            let q = if colour && q[3] == 0 { [0; 4] } else { q };
+            for c in if colour { 0..4 } else { 3..4 } {
+                p.0[c] = (p.0[c] as u32 * q[c] as u32 / 255) as u8;
+            }
         }
         self.out.write_png(&rel, &out);
         Some(rel)

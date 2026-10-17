@@ -900,14 +900,15 @@ Next, in order:
    scripts: coverage"). Every file has a status (no gaps there); new
    gaps, most noticeable first:
    - `CreateEffect` Drop (1, mc04_052's snow: an image per drop, swung
-     and turned) and Lens (2). Rain is converted (in review, #161): `convert/rain.rs` plays
+     and turned) and Lens (2). Rain is converted (#161; values checked
+     against the exe again 2026-10-17): `convert/rain.rs` plays
      the exe's rain (`00435e60`, `00436390`) into a 24-frame strip of the
      effect's size (`$SYSTEM_effect_rain_dencity` drops, at most 128,
      grey streaks 196 px with the exe's alpha ramp, falling their speed
      per 16 ms, redrawn every 42 ms), looped; its place is read, and
      `Zoom` and `Rotate` reach the strip (z as the `spzoom` angle, x or
-     y as a shorter zoom, no perspective). Unverified: the exe's frame
-     period (a run-time table; 16 ms assumed), so the fall speed. The
+     y as a shorter zoom, no perspective). The frame period is the
+     exe's 16 ms (`init_frame_tables`, `0048c5d0`). The
      tone kinds Sepia, Monochrome, NegaPosi and KitanoBlue tint the
      pictures below the effect (#137, #146). `SetTone` (228) draws the
      object in that tone with the same filters (the exe rewrites its
@@ -936,8 +937,10 @@ Next, in order:
      left a picture moved or zoomed over time under a stencil (none in
      this game), a zoom about a vertex (cut as about the centre) and a
      `Plain` cover under a stencil (noted only).
-   - `CreateMask` (28),
-     `SetSurface`/`CreateSurface`, `LoadImage` as a texture source
+   - `CreateMask` (28), converted ("History", "`CreateMask`"): left
+     the same as `CreateStencil`'s, and a colour mask is exact only for
+     the alpha blend (per-channel factors on one picture).
+   - `SetSurface`/`CreateSurface`, `LoadImage` as a texture source
      (on since 2026-10-17, "History"; 25 `CreateTexture`s from an
      object or the screen are still noted).
    - `Request(…, NoIcon)` (4) is dropped without a note: a `Request` on
@@ -1094,6 +1097,53 @@ ma04_013vs's `DrawTransition` of the red to 200 through
 mask isn't kept at the end, an older gap). Snapshots: Muramasa and EN
 change (the cut pictures; inferred: pictures under a cut child are
 no longer culled as under an opaque one).
+
+### `CreateMask` (2026-10-17)
+
+`CreateMask(name, priority, x, y, picture, wildcard)` draws nothing
+itself; its children are drawn multiplied by the picture, byte by byte
+(colour and alpha), and not at all outside it or where it is clear
+(28 calls in the story; 30 in Django's choice screen, left out with
+it). From the exe:
+
+- `builtin_CreateMask` (`00409ce0`) reads the name, priority, x, y and
+  picture, and passes the last argument to `00443800`, which, as for
+  `CreateStencil`, leaves the flag at +0x9d4 0 unless it is `true`
+  (a wildcard then reaches the children).
+- `00457e80` sets the mask up: every pixel of its picture whose alpha
+  is 0 is made 0 (black and clear), and a 1024×576 buffer (576 row
+  pointers) is made for the screen; the draw call is `00416860`.
+- `00416860` clears the buffer to 0 (or copies the enclosing mask's
+  buffer) and draws the picture into it at its place, zoom and turn
+  (per-row texture steps); inside another mask, the two multiply per
+  byte (black stays black, white leaves the other).
+- The blitters that draw a child under a mask (`00419210` normal,
+  `0041a510` added, and their kin with the same tests) skip a pixel
+  where the buffer is black, copy it where it is white, else multiply
+  the child's pixel by the buffer's, each byte (with the child's
+  opacity), before blending.
+
+So a white child shows the mask's picture (ma01_019's `絵Ｍ１/絵白`
+over ev104_d: a copy of the event picture that zooms and fades), an
+added grey shows as smoke where the mask is light (ma01_021's
+`絵マスク１/もや`). The converter treats it as a stencil whose cut
+multiplies colour as well as alpha (`Assets::stenciled` with
+`colour`; the same cut cache, place and zoom shortcuts as
+`CreateStencil`). A colour mask under a normal blend is drawn as the
+child's colour times the mask's with alpha times the mask's alpha,
+which is the exe's only when the mask is grey (the exe's per-byte
+factor is also a per-channel opacity); the story's colour masks are
+ev104_d (white child: exact) and 3d村正蜘蛛_正面 (Ｓ/Ｍ).
+
+Checked with numbers in our build of ma01_021 (`--goto` at the もや,
+shot with and without the masked sprite): the added smoke follows
+`cg/data/effect_01_00_0.png` (correlation 0.90 over 9,216 points; mean
+added red 10, 21, 32, 41 where the mask is 16-64, 64-128, 128-192,
+192-256, against 0.29 × 187 × mask/255 expected; before, it was a
+flat grey over the whole screen). Not compared with the original (no
+wine run). Snapshots: Muramasa and EN change (the cut pictures of 28
+masks' children); Django's 0.txt does not (its masks are in the
+choice screen, left out).
 
 ### Processes: one-shots on paper (C2, 2026-10-16, #151)
 
