@@ -218,9 +218,9 @@ fn routine(out: &mut String, s: &PictureSettings, border: u32) {
 
     w(format!("*{}", menu::SETTINGS));
     w(format!("if {IN_GAME} == 1 textoff"));
-    w(format!("pushscreen {},{MAX_SPRITE}", crate::ANIMATION_SPRITE));
+    w(format!("pushscreen {},{MAX_SPRITE}", crate::SPRITE_BASE));
     // pushscreen keeps the scene's sprites up: the screen covers them.
-    w(format!("for {TMP} = {} to {MAX_SPRITE}:csp {TMP}:next", crate::ANIMATION_SPRITE));
+    w(format!("for {TMP} = {} to {MAX_SPRITE}:csp {TMP}:next", crate::SPRITE_BASE));
     let b = &s.background;
     w(format!("lsp {BACKGROUND},\":c;{}\",{},{}", path(&b.image), b.x, b.y));
     for (k, p) in s.fixed.iter().enumerate() {

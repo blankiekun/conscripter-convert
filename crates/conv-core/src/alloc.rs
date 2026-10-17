@@ -4,7 +4,7 @@
 //! (see the table), and the build refuses a game variable that falls in
 //! one of these ranges.
 //!
-//! Free for games: %10-%20 and %29-%99 (locals), %196-%899 (%290 up in a
+//! Free for games: %10-%20, %29-%99, %116-%117 and %180-%181 (locals), %196-%899 (%290 up in a
 //! script with a tile puzzle, [`PUZZLE`]), %1111-%1999,
 //! %5096 up (to the script's 8,192). Engines today: Xuse %10-%12 and its
 //! presets from %40, globals %200 up; Nitroplus fork variables %50-%80,
@@ -24,7 +24,11 @@ pub const RESERVED: &[(RangeInclusive<u32>, &str)] = &[
     // state per link-scene level, %/$ 21-28, 130-137 and 182-189 (`defarr`
     // holds no strings, and an engine string array isn't worth one use).
     (21..=28, "the animation's state per link-scene level (ANIMATION_SAVED + depth)"),
-    (100..=195, "menus and screens: scratch, backlog, bars, replays, galleries, overlay and static per link level, scene stack"),
+    // %116-%117 and %180-%181 (the overlay's, static's and animation's
+    // state) are names now (`conv_overlay_slot`, ...).
+    (100..=115, "menus and screens: scratch, backlog, bars, replays, galleries"),
+    (118..=179, "link nesting, menus and screens, the static per link level (130-137)"),
+    (182..=195, "the overlay per link level (182-189), scene stack"),
     (900..=1010, "the classic menus' globals: save page, volumes, text speed, settings; deleted slots %910 + slot; voice switches %970 + character"),
     (1011..=1110, "save grid locks: %1010 + slot (1-100)"),
     (2000..=2199, "link targets visited, before ?conv_link_visited: read at start from an older gloval.sav"),
