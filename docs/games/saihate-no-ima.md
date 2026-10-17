@@ -766,6 +766,14 @@ empty). Gaps found, where the exe and the converter differ:
 Finished work, moved out of "Status" so a session reads only the open
 state. Items are referred to elsewhere as "History, item N".
 
+**Level numbers (2026-10-16, reported by the user):** the blog bar's
+current level was drawn at x 664, over the slash that the level box's
+frame layer (`BlogStackBar.004` #14) holds at x 669-672, so "0/0" read
+as "0 0". It is now at 647, 13 px left of the slash as the deepest
+level is 13 px right of it. No check saw it: the slash is part of a
+picture, and the trace and its checker see sprites and text, not what
+a picture holds under them.
+
 **Effects off (2026-10-15, a gap from the whole-exe map):** with
 画面エフェクトを使用 off (`setting_effects` `0x51ed14` bit 0) the
 original draws no quake (`0x6d`), pulse (`0x6f`, `surprise_start`

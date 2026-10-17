@@ -688,7 +688,9 @@ impl AssetBank {
             root_scene: "root scene".into(),
             level_box: layered(self, &blog, 13, &[0], 1, None, "scene_depth", (610, 30))?,
             digits,
-            depth_at: (664, 34),
+            // The slash is in the box's frame layer, x 669-672: the two
+            // digits sit 13 px either side of it.
+            depth_at: (647, 34),
             max_depth_at: (685, 34),
             back: layered(self, &blog, 8, all, 4, None, "scene_prev", (708, 30))?,
             forward: layered(self, &blog, 6, all, 4, None, "scene_next", (734, 30))?,
