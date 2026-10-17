@@ -69,12 +69,12 @@ const LOCKED_MARKS: u32 = 880;
 /// The slot the popup is open on (1 up), 0 while it is shut.
 const POPUP_AT: &str = "%164";
 /// 1 while that slot is locked.
-const LOCKED: &str = "%165";
+pub(crate) const LOCKED: &str = "%165";
 /// The popup's top left (its slot's).
 const POPUP_XY: [&str; 2] = ["%166", "%167"];
 /// Slot n's lock is the global %(LOCK_BASE + n), n 1-100 (the user's
 /// slots only).
-const LOCK_BASE: u32 = 1010;
+pub(crate) const LOCK_BASE: u32 = 1010;
 
 /// `confirm`: the script's yes/no dialog (none: act without asking).
 pub(crate) fn emit(out: &mut String, g: &SaveGrid, confirm: Option<&ConfirmDialog>, width: u32, height: u32, scene_stack: bool) {

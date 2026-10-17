@@ -82,8 +82,7 @@ pub struct SaveGrid {
     /// instead of hours (three digits), minutes and seconds.
     pub play_time_hm: bool,
     /// Drawn by the engine (CONscripter's `screen`, `screens/save.lua` and
-    /// `load.lua`) rather than by script loops; without `popup`, `tabs` or
-    /// `quick_page`.
+    /// `load.lua`) rather than by script loops.
     pub engine_screen: bool,
 }
 
