@@ -167,6 +167,10 @@ shared code. A team lead hands out the items and reviews the PRs.
   links only the archives, `default.ttf` and `movie/`, copies in your
   script and a renamed engine, and writes `<scratch>/run.sh [options]`
   (headless, `--save-dir <scratch>/save`).
+- A/B frames and saves: `research/tools/scene_ab.py frames|saves`
+  plays a scene under two engines (or with one line dropped) in such
+  scratch folders and prints `compare -metric AE` per shot; `saves`
+  saves with engine A and loads with B (every save-version PR).
 - Debug trace (CONscripter after 0.18.0; reference: `engine/DEBUG.md`;
   recipes: `docs/new-game.md`, "Checking a build with the debug
   trace"): `--trace t.jsonl --auto-play 0 --save-dir <scratch>` plays
