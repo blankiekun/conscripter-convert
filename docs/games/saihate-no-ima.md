@@ -826,6 +826,19 @@ empty). Gaps found, where the exe and the converter differ:
   ours (72, 7)); the CG viewer's 21×21 button (image 9 at (566, 547),
   table `0x4fe3c0`) is not placed. Each needs a frame of the original
   before it changes.
+- Settings defaults (2026-10-17, from `0x46d000`, the defaults; ranges
+  from the dialog, `0x484d60`, `0x482750`): BGM and SE 0x99 of 255
+  (level 6), voices 255 (10), text 20 ms a character (`0x51ed38`;
+  `0x486540` shows one character each that many ms; the dialog's
+  slider is 10 steps of 0-100 ms, so the game's own `text_ms` table
+  100, 90, … 0 and level 8), auto 2.5 s a page plus 50 ms a character
+  (`0x51ed3c`, `0x51ed68`, `0x476f50`: level 5 with `char_step` 10;
+  History item 9 said 20 ms, which is the text speed), window level 0
+  (the 50 % of `0x51ed12` is in the window picture). The original's
+  two auto sliders (0-5 s, 0-500 ms) are one row here, so only the
+  default matches exactly. Saves made before keep their levels (the
+  defaults are set once, `%909`). Checked headless: at the start
+  bgm 6, se 6, voice 10, text level 8 = 20 ms, auto 5, window 0.
 - Transitions: MeltDown's stretch for subs 46/47 is scaled from the exe
   (filmed for item 25, not yet compared).
 

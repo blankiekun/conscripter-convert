@@ -1057,6 +1057,12 @@ pub fn engine_args(script: &Script) -> String {
     }
 }
 
+/// The settings that start at the shared default level because the game
+/// gives none, as "name level" (for the build report).
+pub fn settings_fallbacks(script: &Script) -> Vec<String> {
+    script.settings.as_ref().map(menu::fallback_defaults).unwrap_or_default()
+}
+
 /// Encodes NScripter source as Shift-JIS. Characters Shift-JIS can't
 /// represent become `?`; their count is returned.
 pub fn encode(source: &str) -> (Vec<u8>, usize) {

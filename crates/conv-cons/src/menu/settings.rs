@@ -339,7 +339,12 @@ pub(crate) fn settings_init(out: &mut String, m: &SettingsMenu) {
 /// The levels' defaults (as [`settings_init`] sets them, the game's
 /// [`SettingsMenu::defaults`] over the shared ones), as commands.
 pub(crate) fn settings_defaults(m: &SettingsMenu) -> String {
-    let shared = [
+    shared_defaults(m).iter().map(|&(s, level)| format!("mov {},{}", setting_var(s), default_level(m, s, level))).collect::<Vec<_>>().join(":")
+}
+
+/// The shared default levels for `m`'s settings.
+fn shared_defaults(m: &SettingsMenu) -> Vec<(Setting, u32)> {
+    let mut all = vec![
         (Setting::BgmVolume, 8),
         (Setting::SeVolume, 8),
         (Setting::VoiceVolume, 10),
@@ -347,11 +352,22 @@ pub(crate) fn settings_defaults(m: &SettingsMenu) -> String {
         (Setting::AutoSpeed, 5),
         (Setting::WindowTransparency, 0),
     ];
-    let mut all = shared.to_vec();
     if has_setting(m, Setting::SystemVolume) {
         all.push((Setting::SystemVolume, 8));
     }
-    all.iter().map(|&(s, level)| format!("mov {},{}", setting_var(s), default_level(m, s, level))).collect::<Vec<_>>().join(":")
+    all
+}
+
+/// The settings whose default level `m` doesn't give, so they start at the
+/// shared one, as "name level" (for the build report). The window level
+/// counts only where the screen has it (nothing applies it otherwise).
+pub(crate) fn fallback_defaults(m: &SettingsMenu) -> Vec<String> {
+    shared_defaults(m)
+        .into_iter()
+        .filter(|&(s, _)| s != Setting::WindowTransparency || has_setting(m, s))
+        .filter(|&(s, _)| !m.defaults.iter().any(|(d, _)| setting_var(*d) == setting_var(s)))
+        .map(|(s, level)| format!("{s:?} {level}"))
+        .collect()
 }
 
 /// Setting `s`'s default level: the game's, else `level`.

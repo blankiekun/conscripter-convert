@@ -243,6 +243,10 @@ pub fn write_game(output: &Path, ir: &Script, source: &str, font: Option<&[u8]>,
 /// the part have no labels.
 pub fn summary(output: &Path, ir: &Script, lost: usize, notes: BTreeMap<String, usize>, lint: Option<bool>) -> Result<()> {
     report(ir, lost);
+    let fallbacks = conv_cons::settings_fallbacks(ir);
+    if !fallbacks.is_empty() {
+        println!("  settings at the shared default (none from the game): {}", fallbacks.join(", "));
+    }
     let mut notes: Vec<_> = notes.into_iter().collect();
     notes.sort_by_key(|n| std::cmp::Reverse(n.1));
     if !notes.is_empty() {
