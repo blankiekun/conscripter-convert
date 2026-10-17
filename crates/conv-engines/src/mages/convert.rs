@@ -1240,7 +1240,13 @@ impl Lowering<'_> {
                 let (ax, ay) = (sx(t.int_at("Param", 0).unwrap_or(0)), sy(t.int_at("Param", 1).unwrap_or(0)));
                 let time = ms(t.int("Time").unwrap_or(0));
                 let fades = t.int("Fade") == Some(1);
-                if ax == 0 && ay == 0 {
+                // Without them, the swing (`:Param` 2-5, as EffectQuake's:
+                // scene_load case 0x2c reads the same layout).
+                let swing = if ax == 0 && ay == 0 { swing(t) } else { None };
+                if ax == 0 && ay == 0 && swing.is_none() {
+                    // A stop: nothing runs for `:Wait` to wait for (task_run
+                    // case 0x2c: 0x811280a0 is false once it stopped).
+                    t.int("Wait");
                     self.out.ops.push(Op::SpriteMotion { layer: s.layer, keys: vec![], looped: false });
                     return;
                 }
@@ -1248,9 +1254,14 @@ impl Lowering<'_> {
                 // waits for the shake an earlier task started, which a
                 // message in between has already outlasted.
                 if time == 0 {
+                    t.int("Wait");
                     return;
                 }
-                self.out.ops.push(Op::SpriteMotion { layer: s.layer, keys: quake_keys(ax, ay, time, fades), looped: false });
+                let keys = match swing {
+                    Some(sw) => swing_keys(sw, time, fades),
+                    None => quake_keys(ax, ay, time, fades),
+                };
+                self.out.ops.push(Op::SpriteMotion { layer: s.layer, keys, looped: false });
                 // 0x81129db8: `:Wait` 1 by default.
                 if t.int("Wait").unwrap_or(1) != 0 {
                     self.out.ops.push(Op::Wait { ms: time });
@@ -1283,8 +1294,21 @@ impl Lowering<'_> {
                 } else {
                     ((ax, ay), ms(time))
                 };
-                // ours: the shake's interval and speed
-                let shake = ScreenEffect::Shake { time_ms: ms(time).max(1), interval_ms: 16, path: false, speed: (2200, 2900), range: [(ax, ay), end], end_ms };
+                // ours: the shake's interval and speed. Without `:Param` 0,
+                // 1, the swing (2-5): a sine of its half-waves over `:Time`.
+                let (speed, (ax, ay), end) = match (ax, ay) {
+                    (0, 0) => match swing(t) {
+                        Some(((sx_, hx), (sy_, hy))) => {
+                            let turn = |h: i64| (32768 * h / i64::from(ms(time).max(1))) as i32;
+                            // dying down with `:Fade 1` (the end above)
+                            let end = if !looped && t.int("Fade") == Some(1) { (0, 0) } else { (sx_, sy_) };
+                            ((turn(hx), turn(hy)), (sx_, sy_), end)
+                        }
+                        None => ((2200, 2900), (ax, ay), end),
+                    },
+                    _ => ((2200, 2900), (ax, ay), end),
+                };
+                let shake = ScreenEffect::Shake { time_ms: ms(time).max(1), interval_ms: 16, path: false, speed, range: [(ax, ay), end], end_ms };
                 self.out.ops.push(Op::ScreenEffect { slot: 1, effect: Some(shake) });
                 if !looped && t.int("Wait").unwrap_or(1) != 0 {
                     self.out.ops.push(Op::Wait { ms: ms(time) });
@@ -1528,7 +1552,14 @@ impl Lowering<'_> {
                 let tex = t.int("Sprite").or_else(|| t.int("SpriteNumber")).or_else(|| t.int("Texture")).unwrap_or(-1);
                 self.wait_motions(|k, s| !k.starts_with('c') && (tex < 0 || s.tex == tex));
             }
-            "BacklogMessage" | "SceneJumpDialogEnd" | "MovieStop" | "CharacterStop" => {}
+            // src: exe 0x8102840a case 1 (`:Message`, the answer chosen):
+            // a line of the backlog.
+            "BacklogMessage" => {
+                if let Some(text) = t.str("Message") {
+                    self.out.ops.push(Op::BacklogLine { text: text.to_string(), voice: None, character: None });
+                }
+            }
+            "SceneJumpDialogEnd" | "MovieStop" | "CharacterStop" => {}
             _ => self.unsupported(scene, i, ty.to_string()),
         }
     }
@@ -1757,6 +1788,31 @@ fn quake_keys(ax: i32, ay: i32, time: u32, fades: bool) -> Vec<(u32, i32, i32)> 
     keys
 }
 
+/// A shake's swing, `:Param` 2-5: sizes across and down, and their
+/// half-waves over `:Time` (0x81008a3c: each half-wave eased out to the
+/// size and back, every other one the other way; one of 0 or less: that
+/// axis stays; SpriteQuake's the same, 0x81087114). `None` without one.
+fn swing(t: &Block) -> Option<((i32, i64), (i32, i64))> {
+    let p = |i| t.int_at("Param", i).unwrap_or(0);
+    let (x, y, hx, hy) = (sx(p(2)), sy(p(3)), p(4).max(0), p(5).max(0));
+    let (x, y) = (if hx > 0 { x } else { 0 }, if hy > 0 { y } else { 0 });
+    (x != 0 || y != 0).then_some(((x, hx), (y, hy)))
+}
+
+/// A swing's keys over `time` ms: four a half-wave (at most 32), dying
+/// down when `fades`, ending at the picture's place.
+fn swing_keys(((ax, hx), (ay, hy)): ((i32, i64), (i32, i64)), time: u32, fades: bool) -> Vec<(u32, i32, i32)> {
+    let n = (4 * hx.max(hy)).clamp(2, 31) as u32;
+    (0..=n)
+        .map(|k| {
+            let f = f64::from(k) / f64::from(n);
+            let left = if fades { 1.0 - f } else { 1.0 };
+            let at = |a: i32, h: i64| (f64::from(a) * (std::f64::consts::PI * h as f64 * f).sin() * left).round() as i32;
+            (time * k / n, at(ax, hx), at(ay, hy))
+        })
+        .collect()
+}
+
 fn colour(t: &Block) -> u32 {
     let c: Vec<i64> = t.get("Color").unwrap_or(&[]).iter().filter_map(Val::int).collect();
     match c.as_slice() {
@@ -1879,6 +1935,14 @@ const NOT_NEEDED: &[(&str, &str)] = &[
     ("EffectQuake :Param argument 3 = 1", "the same"),
     ("EffectQuake :Param argument 4 = 1", "the same"),
     ("EffectQuake :Param argument 5 = 1", "the same"),
+    ("SpriteQuake :Param argument 2 = 1", "a 1-pixel swing, as EffectQuake's (0x81087114 draws it with the same half-waves)"),
+    ("SpriteQuake :Param argument 3 = 1", "the same"),
+    ("SpriteQuake :Param argument 4 = 1", "the same"),
+    ("SpriteQuake :Param argument 5 = 1", "the same"),
+    ("SpriteQuake :Param argument 2 = 0", "no swing, as ours"),
+    ("SpriteQuake :Param argument 3 = 0", "the same"),
+    ("SpriteQuake :Param argument 4 = 0", "the same"),
+    ("SpriteQuake :Param argument 5 = 0", "the same"),
     ("FadeOut :Type = 0", "a plain fade, as ours: the type goes to the transition's rule table (0x81049292), 0 none, as InOut's"),
     ("FadeIn :Type = 0", "the same"),
     ("MessageSwitch_Tag :Frame = 0", "the choice box's first look (0x810160e2 moves its cell down :Frame rows)"),
@@ -1962,6 +2026,18 @@ mod tests {
         let mut notes = BTreeMap::new();
         ignored("MoviePlay", "", &blocks[0], &mut notes);
         assert!(notes.is_empty());
+    }
+
+    #[test]
+    fn swings_go_one_half_wave_a_count() {
+        let blocks = parse("[Task1]\n{\n:Tasktype \"SpriteQuake\"\n:Param 0,0,0,30,0,1\n}\n").unwrap();
+        let sw = swing(&blocks[0]).unwrap();
+        assert_eq!(sw, ((0, 0), (22, 1)));
+        let keys = swing_keys(sw, 300, false);
+        assert_eq!((keys.len(), keys[2], keys[4]), (5, (150, 0, 22), (300, 0, 0)));
+        // A count of 0 or less: no swing on that axis.
+        let blocks = parse("[Task1]\n{\n:Tasktype \"EffectQuake\"\n:Param 0,0,50,0,-2,0\n}\n").unwrap();
+        assert_eq!(swing(&blocks[0]), None);
     }
 
     #[test]
