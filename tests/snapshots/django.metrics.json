@@ -5,7 +5,7 @@
 "commit_date": "2026-10-16",
 "totals": {"calls": 57053, "full": 47642, "gaps": 9411},
 "kinds": {
-"WaitAction": {"calls": 5932, "gaps": 5839, "reasons": [["WaitAction argument 1 ignored", 5839], ["move or zoom over time with a fade or a new picture drawn as a cross-fade", 5]]},
+"WaitAction": {"calls": 5932, "gaps": 5839, "reasons": [["WaitAction argument 1 ignored", 5839], ["move or zoom over time with a fade or a new picture drawn as a cross-fade", 4]]},
 "SetFrequency": {"calls": 1283, "gaps": 1283, "reasons": [["SetFrequency argument 3 ignored", 1283], ["SetFrequency on music", 15]]},
 "CreateWindow": {"calls": 975, "gaps": 975, "reasons": [["CreateWindow argument 6 ignored", 975]]},
 "LoadText": {"calls": 740, "gaps": 740, "reasons": [["LoadText argument 0 ignored", 740]]},
