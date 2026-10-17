@@ -176,12 +176,21 @@ pub const FILTER_BLUR: i32 = 6;
 pub const FILTER_HUE_SATURATION: i32 = 7;
 /// The pixel with its lightness inverted (a negative that keeps the hue).
 pub const FILTER_LIGHTNESS_INVERT: i32 = 8;
+/// Levels: each of `params` (r, g, b) is `gamma * 65536 + low * 256 +
+/// high` (gamma in 1/1000; 0 makes the channel `low`), and a channel v
+/// becomes `low + (high - low) * (v/255)^(1000/gamma)`.
+pub const FILTER_LEVELS: i32 = 9;
+/// [`FILTER_LEVELS`] on the greyscale `(54 r + 183 g + 19 b) / 256`.
+pub const FILTER_GREY_LEVELS: i32 = 10;
 /// How a filter's colour is combined with the pixel's
 /// ([`SpriteFilter::blend`]).
 pub const FILTER_BLEND_COPY: i32 = 0;
 pub const FILTER_BLEND_MULTIPLY: i32 = 1;
 pub const FILTER_BLEND_ADD: i32 = 2;
 pub const FILTER_BLEND_SCREEN: i32 = 3;
+pub const FILTER_BLEND_OVERLAY: i32 = 4;
+/// Colour dodge (pixels of 3 or less go black).
+pub const FILTER_BLEND_DODGE: i32 = 5;
 
 /// How a sprite is drawn onto what is under it ([`Op::SpriteBlend`]; the
 /// numbers of CONscripter's `spblend`).
