@@ -599,14 +599,15 @@ Nothing yet.
 | Exe tables (pictures, motions, scene numbers) | ✅ read from the NSO (`typemoon exe`); picture sizes checked against the textures |
 | Scripts | 🔶 read: every command of both languages splits (one malformed in the original) and its text and voices join; the top commands' arguments read from the exe, the rest not yet |
 | Media folder (`typemoon media`) | ✅ `allpac`'s pictures as full-size WebP (2.37 GB), movies at 720p, sound |
-| Script conversion (`typemoon convert`) | 🔶 the flow (labels, `_JUMP`, `_IF__`, flags), text (pages, ruby, voices), pictures (`_STCH`/`_STCC`/`_FADS`: record size and place, fades and rule wipes), sound effects and music; plays from the start through `00_00` into the first arc headless. Layers drawn in priority order (`_STCP`, `_STCH` argument 6), zoomed (`_STZ4`), faded (`_STGS`) and moved (`_STMA`, the exe's motions; easing, priority and expression keys not followed). Not yet: parent layers, the other layer commands, choices (`_SELR`/`_GOTS`), screens |
+| Script conversion (`typemoon convert`) | 🔶 the flow (labels, `_JUMP`, `_IF__`, flags), text (pages, ruby, voices), pictures (`_STCH`/`_STCC`/`_FADS`: record size and place, fades and rule wipes), sound effects and music; plays from the start through `00_00` into the first arc headless. Layers drawn in priority order (`_STCP`, `_STCH` argument 6), zoomed (`_STZ4`), faded (`_STGS`) and moved (`_STMA`, the exe's motions; easing, priority and expression keys not followed), children placed in their parent layers (`_STCH` argument 11). Not yet: the other layer commands, choices (`_SELR`/`_GOTS`), screens |
 | Screens, extras | ❌ |
 
 ### Next
 
 1. The script conversion, next part: the layer commands the opening
-   leans on, in order of use: parent layers (`_STCH` argument 11, 6,028 uses),
-   `_STRT`, `_STBR`, `_STEC`;
+   leans on, in order of use: `_STRT`, `_STBR`, `_STEC`, `_STCH`'s clip
+   (arguments 12–17, unread), a parent's motions and rotation for its
+   children;
    then choices (`_SELR`, `_GOTS`, `_IFNX`) so a route can be picked.
    `typemoon convert --dry-run` prints the counts. Splitting sprites
    into body and face crops is out unless the user asks.
@@ -624,6 +625,16 @@ Nothing yet.
    12–17, `_STZ4`'s last two, and the motion keyframes' other fields.
 
 ## History
+
+- 2026-10-16: parent layers. `_STCH` argument 11 names the layer a
+  picture is placed in (6,028 uses, mostly effect pictures over a
+  scene). From `FUN_001892b0` and `FUN_00189190`: the child's x, y are
+  in its parent's picture, from the parent record's top-left
+  (child = parent's place + parent's zoom × (x · shot − the parent
+  record's centre), the shot ½, ¼, ⅛ for a parent sprite's `_L_`,
+  `_M_`, `_S_`); its zoom is the parent's times its own and the shot.
+  Resolved at each `_FADS`, so a moved parent places its children
+  again. Not followed: the parent's rotation and motions.
 
 - 2026-10-16: motions. `_STMA(layer, m)` (`FUN_00199620`) starts motion
   `m` on the shown layer at once (and its staged copy), while the
