@@ -369,7 +369,8 @@ struct Lowering<'g, 'a> {
     voice: Option<Voice>,
     /// A line ended with `@n`: the next one goes on after it, no click.
     held: Option<(String, Vec<Ruby>, Vec<TextStyle>)>,
-    se_channels: HashMap<i32, String>,
+    /// `_SEPL`'s channels: the sound on each, and whether it loops.
+    se_channels: HashMap<i32, (String, bool)>,
     /// `_SELR`'s options so far: (index, text, greyed, under an `_IF__`).
     options: Vec<(i32, String, bool, bool)>,
     /// The `_IF__`s whose label hasn't come yet in this script.
@@ -626,10 +627,18 @@ impl Lowering<'_, '_> {
                 self.ops.push(Op::Text { speaker: None, text: body, voice: self.voice.take(), links: vec![], ruby, styles, hang: None, continues });
             }
             "_WTTM" => self.ops.push(Op::Wait { ms: number(arg(0)).unwrap_or(0).max(0) as u32 }),
+            // `_SEPL(channel, loop, sound, …)` (`FUN_0016a340`): the sound
+            // plays on its channel, in place of the one there. (The same
+            // sound looping there already at a volume above 0 goes on.)
+            // shortcut: a loop on the channel is stopped first (the same one starts again; the channels are
+            // followed down the script, not its jumps); a one-shot cut short by the next is let play.
             "_SEPL" => {
                 let Some(file) = self.g.waves.get(&arg(2).to_uppercase()).map(|w| format!("se/{w}")) else { return false };
-                self.se_channels.insert(number(arg(0)).unwrap_or(0), file.clone());
-                self.ops.push(Op::SePlay { file, looped: arg(1) == "1" });
+                let (ch, looped) = (number(arg(0)).unwrap_or(0), arg(1) == "1");
+                if let Some((old, true)) = self.se_channels.insert(ch, (file.clone(), looped)) {
+                    self.ops.push(Op::SeFadeOut { file: Some(old), ms: 0 });
+                }
+                self.ops.push(Op::SePlay { file, looped });
             }
             "_SEFD" => {
                 let ms = option(a, 1).unwrap_or(0).max(0) as u32;
@@ -638,7 +647,7 @@ impl Lowering<'_, '_> {
                     self.se_channels.clear();
                     None
                 } else {
-                    let Some(f) = self.se_channels.remove(&ch) else { return true };
+                    let Some((f, _)) = self.se_channels.remove(&ch) else { return true };
                     Some(f)
                 };
                 self.ops.push(Op::SeFadeOut { file, ms });
@@ -1792,6 +1801,29 @@ mod tests {
             _ => None,
         }).collect();
         assert_eq!(ops, ["fade", "fade", "hide", "fade", "in", "text", "hide", "in", "text", "hide"]);
+    }
+
+    #[test]
+    fn a_loop_gives_its_channel_up() {
+        // The same loop again on channel 0 starts once more, not twice over; a one-shot after it stops it too.
+        let src = "_SEPL(0,1,A);_SEPL(0,1,A,,`017:40);_SEPL(0,0,B);_SEPL(0,0,A);";
+        let g = Game {
+            scripts: vec![("S".into(), script::parse(src).into_iter().map(Result::unwrap).collect())],
+            scenes: vec![],
+            lines: vec![],
+            pictures: HashMap::new(),
+            textures: HashMap::new(),
+            sounds: vec![],
+            waves: [("A".into(), "a.wav".into()), ("B".into(), "b.wav".into())].into(),
+            pic_ext: "webp",
+            motions: vec![],
+        };
+        let ops: Vec<String> = compile(&g).ops.iter().filter_map(|o| match o {
+            Op::SePlay { file, looped } => Some(format!("{file}{}", if *looped { " loop" } else { "" })),
+            Op::SeFadeOut { file: Some(f), ms: 0 } => Some(format!("stop {f}")),
+            _ => None,
+        }).collect();
+        assert_eq!(ops, ["se/a.wav loop", "stop se/a.wav", "se/a.wav loop", "stop se/a.wav", "se/b.wav", "se/a.wav"]);
     }
 
     #[test]

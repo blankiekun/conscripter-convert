@@ -427,6 +427,12 @@ addresses in `research/typemoon/names.tsv` are those of the 1.0.2
   line by 5.5 for type 1 and 3.5 otherwise (what that changes on
   screen is not worked out).
 - `_WTTM(ms, …)` waits `ms`, turned into frames as ms·3/50.
+- `_SEPL(channel, loop, sound, …)` (`FUN_0016a340`) plays a sound
+  effect on its channel, in place of the one there; the same sound
+  already looping there at a volume above 0 goes on (not started
+  again, its options unread). The converter stops a loop on the
+  channel before the next sound (83 replays of the same loop played it
+  twice over).
 
 ## Script language
 
