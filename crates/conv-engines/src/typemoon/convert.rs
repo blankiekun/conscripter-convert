@@ -396,6 +396,19 @@ impl Lowering<'_, '_> {
         number(arg).map(Operand::Const).or_else(|| self.var(arg).map(Operand::Var))
     }
 
+    /// `_FADS`'s and `_STMA`'s `mode` (`FUN_00160610`, `FUN_00199620`): 1
+    /// hides the text window until the next text (the flag at 0x89E that
+    /// `_CLO2` sets), 2 hides it too (for `_FADS` over a fade of 2 ms or
+    /// more) under the settings' byte 99 at its default 1; none (or −1)
+    /// would under byte 99 = 0, and 0 never does. Not while the window
+    /// fades (`_CLO4`, `_CLO5`): left out here.
+    fn hide_window_for(&mut self, mode: Option<i32>, ms: Option<i32>) {
+        if mode == Some(1) || (mode == Some(2) && ms.is_none_or(|ms| ms > 1)) {
+            self.ops.push(Op::HideTextWindow);
+            self.window_faded = true;
+        }
+    }
+
     /// Lowers one command; false when it isn't (yet). The arguments it
     /// reads are marked in `read`.
     fn command(&mut self, script: &str, c: &Command, read: &Cell<u64>) -> bool {
@@ -690,6 +703,7 @@ impl Lowering<'_, '_> {
                 l.fade = (ms > 16 && from != to).then_some((from, to, ms)); // ours: under a frame is at once
             }
             "_STMA" => {
+                self.hide_window_for(number(arg(2)), None);
                 let Some(n) = number(arg(0)).filter(|n| (0..LAYERS as i32).contains(n)) else { return false };
                 return self.stma(n as usize, number(arg(1)).unwrap_or(0));
             }
@@ -735,14 +749,12 @@ impl Lowering<'_, '_> {
                 let Some(n) = number(arg(0)).filter(|n| (0..LAYERS as i32).contains(n)) else { return false };
                 self.priority[n as usize] = number(arg(1)).unwrap_or(0);
             }
-            // `_FADS(type, ms, rule, mode)` (`FUN_00160610`): mode 0 sets nothing
-            // (1, and 2 or none over a timed fade under two settings, set
-            // a flag at 0x89E of the state, meaning not known).
+            // `_FADS(type, ms, rule, mode)` (`FUN_00160610`): `mode` may hide the
+            // text window first (`hides_window`).
             "_FADS" => {
-                if number(a.get(3).map_or("", |v| v.trim())) == Some(0) {
-                    arg(3);
-                }
-                self.fads(number(arg(0)).unwrap_or(1), number(arg(1)).unwrap_or(0), number(arg(2)).unwrap_or(0));
+                let ms = number(arg(1)).unwrap_or(0);
+                self.hide_window_for(number(arg(3)), Some(ms));
+                self.fads(number(arg(0)).unwrap_or(1), ms, number(arg(2)).unwrap_or(0));
             }
             _ => return false,
         }
@@ -1601,6 +1613,31 @@ mod tests {
                 Op::Choice { options: vec![opt("父の事だ。", "A"), opt("妹の事だ。", "B"), opt("妹の事だ。", "C"), opt("next", "D")], style: None, disabled: vec![2] },
             ]
         );
+    }
+
+    #[test]
+    fn fads_and_stma_mode_hide_the_window() {
+        // 1 hides; 2 over a fade of 2 ms or more (always for `_STMA`); 0, none and a 1 ms 2 don't.
+        let src = "_FADS(0,500,,0);_FADS(0,500,,);_FADS(1,0,,2);_STMA(0,0,0);_FADS(0,500,,2);_ZM($000000);_STMA(0,0,2);_ZM($000000);_FADS(1,0,,1);";
+        let g = Game {
+            scripts: vec![("S".into(), script::parse(src).into_iter().map(Result::unwrap).collect())],
+            scenes: vec![],
+            lines: vec!["父だ。"],
+            pictures: HashMap::new(),
+            textures: HashMap::new(),
+            sounds: vec![],
+            waves: HashMap::new(),
+            pic_ext: "webp",
+            motions: vec![],
+        };
+        let ops: Vec<&str> = compile(&g).ops.iter().filter_map(|o| match o {
+            Op::HideTextWindow => Some("hide"),
+            Op::BeginTransition { .. } => Some("fade"),
+            Op::WindowFade { .. } => Some("in"),
+            Op::Text { .. } => Some("text"),
+            _ => None,
+        }).collect();
+        assert_eq!(ops, ["fade", "fade", "hide", "fade", "in", "text", "hide", "in", "text", "hide"]);
     }
 
     #[test]
