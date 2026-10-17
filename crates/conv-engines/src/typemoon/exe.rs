@@ -14,6 +14,8 @@ const PICTURE_RECORDS: usize = 0x56_F830;
 const PICTURES: usize = 23_000;
 const MOTION_KEY_END: usize = 0x4B_1940;
 const MOTION_LENGTH: usize = 0x49_9F40;
+/// u64 per motion, indexed by m (`FUN_00199960`).
+const MOTION_MASKS: usize = 0x46_AB38;
 const MOTION_KEYS: usize = 0x75_CE18;
 const MOTIONS: usize = 24_192;
 const MOTION_KEY_COUNT: usize = 71_905;
@@ -76,6 +78,27 @@ impl Key {
     pub fn zoom(&self) -> (Option<i16>, Option<i16>) {
         (self.field(0x18), self.field(0x1A))
     }
+    /// 0x06, how the motion goes on from this key (sticky until a key sets
+    /// it again): 2 holds each value until the next key, 1 a curve
+    /// (`FUN_001972c0`), others straight (`FUN_00197710`).
+    pub fn mode(&self) -> Option<i16> {
+        self.field(0x06).filter(|&v| v != Self::THROUGH)
+    }
+    /// −100001 at 0x14 (an i32): no turn here.
+    pub const TURN_UNSET: i32 = -100_001;
+    /// −100000 at 0x14: no key for the turn here (as `THROUGH`).
+    pub const TURN_THROUGH: i32 = -100_000;
+    fn turn_raw(&self) -> i32 {
+        (u32::from(self.fields[8] as u16) | u32::from(self.fields[9] as u16) << 16) as i32
+    }
+    pub fn set_turn(&mut self, v: i32) {
+        (self.fields[8], self.fields[9]) = (v as i16, (v >> 16) as i16);
+    }
+    /// The i32 at 0x14: the layer's turn in 1/100 degrees, clockwise, as
+    /// `_STRT`'s (`FUN_00197b80` writes it to the state's 0x284).
+    pub fn turn(&self) -> Option<i32> {
+        Some(self.turn_raw()).filter(|&v| v != Self::TURN_UNSET && v != Self::TURN_THROUGH)
+    }
 }
 
 /// `_STMA(layer, m)`'s motion `m` (from 1).
@@ -83,34 +106,51 @@ impl Key {
 pub struct Motion {
     pub length_ms: u32,
     pub keys: Vec<Key>,
+    /// The fields it drives (`FUN_00197b80` applies a field only under
+    /// its bits: `Motion::X` …).
+    pub mask: u64,
 }
 
 impl Motion {
+    pub const X: u64 = 0x4_0880;
+    pub const Y: u64 = 0x510_0000;
+    pub const ALPHA: u64 = 1 << 14;
+    pub const ZOOM_X: u64 = 0x8020_0000;
+    pub const ZOOM_Y: u64 = 0x1_0040_0000;
+    pub const TURN: u64 = 0x8_8000;
+
     /// Each `Key::THROUGH` field given its value on the straight line
     /// between the keys before and after it that set the field; with none
     /// after, unset (the exe holds the last value set).
     fn through_filled(mut self) -> Self {
-        // Fields 8 and 9 (0x14) are one i32, whose skip value is −100000.
-        for f in (0..30).filter(|f| !matches!(f, 8 | 9)) {
-            let set = |k: &Key| ![Key::UNSET, Key::THROUGH].contains(&k.fields[f]);
-            for i in 0..self.keys.len() {
-                if self.keys[i].fields[f] != Key::THROUGH {
-                    continue;
-                }
-                let before = self.keys[..i].iter().rev().find(|k| set(k));
-                let after = self.keys[i + 1..].iter().find(|k| set(k));
-                let t = self.keys[i].time_ms as f32;
-                self.keys[i].fields[f] = match (before, after) {
-                    (Some(a), Some(b)) if b.time_ms > a.time_ms => {
-                        let (va, vb) = (f32::from(a.fields[f]), f32::from(b.fields[f]));
-                        (va + (vb - va) * (t - a.time_ms as f32) / (b.time_ms - a.time_ms) as f32).round() as i16
-                    }
-                    (Some(a), Some(_)) => a.fields[f],
-                    _ => Key::UNSET,
-                };
-            }
+        // Fields 8 and 9 (0x14) are one i32, the turn, whose skip value is
+        // −100000; 0 and 1 (easing, mode) are looked for, not interpolated.
+        for f in (0..30).filter(|f| !matches!(f, 0 | 1 | 8 | 9)) {
+            self.fill(|k| i32::from(k.fields[f]), |k, v| k.fields[f] = v as i16, Key::THROUGH.into(), Key::UNSET.into());
         }
+        self.fill(Key::turn_raw, Key::set_turn, Key::TURN_THROUGH, Key::TURN_UNSET);
         self
+    }
+
+    fn fill(&mut self, get: impl Fn(&Key) -> i32, set: impl Fn(&mut Key, i32), through: i32, unset: i32) {
+        let given = |k: &Key| ![unset, through].contains(&get(k));
+        for i in 0..self.keys.len() {
+            if get(&self.keys[i]) != through {
+                continue;
+            }
+            let before = self.keys[..i].iter().rev().find(|k| given(k));
+            let after = self.keys[i + 1..].iter().find(|k| given(k));
+            let t = self.keys[i].time_ms as f64;
+            let v = match (before, after) {
+                (Some(a), Some(b)) if b.time_ms > a.time_ms => {
+                    let (va, vb) = (f64::from(get(a)), f64::from(get(b)));
+                    (va + (vb - va) * (t - a.time_ms as f64) / (b.time_ms - a.time_ms) as f64).round() as i32
+                }
+                (Some(a), Some(_)) => get(a),
+                _ => unset,
+            };
+            set(&mut self.keys[i], v);
+        }
     }
 }
 
@@ -187,7 +227,8 @@ impl Exe {
                         Ok(Key { time_ms: u32::from_le_bytes(raw[..4].try_into().unwrap()), fields })
                     })
                     .collect::<Result<_, FormatError>>()?;
-                Ok(Motion { length_ms: self.u32(MOTION_LENGTH + 4 * m)?, keys }.through_filled())
+                let mask = u64::from_le_bytes(self.bytes(MOTION_MASKS + 8 * (m + 1), 8)?.try_into().unwrap());
+                Ok(Motion { length_ms: self.u32(MOTION_LENGTH + 4 * m)?, keys, mask }.through_filled())
             })
             .collect()
     }
@@ -220,9 +261,20 @@ mod tests {
             fields[2] = x;
             Key { time_ms, fields }
         };
-        let m = Motion { length_ms: 1700, keys: vec![key(0, -205), key(1000, 885), key(1400, Key::THROUGH), key(1700, 175), key(1800, Key::THROUGH)] }.through_filled();
+        let m = Motion { mask: 0, length_ms: 1700, keys: vec![key(0, -205), key(1000, 885), key(1400, Key::THROUGH), key(1700, 175), key(1800, Key::THROUGH)] }.through_filled();
         let xs: Vec<_> = m.keys.iter().map(Key::x).collect();
         // 885 + (175 − 885) × 400 / 700
         assert_eq!(xs, [Some(-205), Some(885), Some(479), Some(175), None]);
+    }
+
+    #[test]
+    fn the_turn_is_an_i32_with_its_own_skip_values() {
+        let key = |time_ms, turn| {
+            let mut k = Key { time_ms, fields: [Key::UNSET; 30] };
+            k.set_turn(turn);
+            k
+        };
+        let m = Motion { mask: Motion::TURN, length_ms: 400, keys: vec![key(0, 0), key(100, Key::TURN_THROUGH), key(200, 36000), key(400, Key::TURN_UNSET)] }.through_filled();
+        assert_eq!(m.keys.iter().map(Key::turn).collect::<Vec<_>>(), [Some(0), Some(18000), Some(36000), None]);
     }
 }
