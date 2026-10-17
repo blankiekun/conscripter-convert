@@ -635,10 +635,8 @@ Nothing yet.
 2. The other picture archives in the media folder: `allpaccg` (the
    gallery's CGs, 2 GB), `allui` (71 MB).
 3. The title, menus and the registry/GUI entry.
-4. Still open in the exe: the coloured panel frames (`_STCH`
-   argument 17 1–6, 263 uses: drawn in colour from `BORDER_PARTS`'
-   pieces, here cut at their inner edge), `_FADS`'s mode flag (0x89E),
-   and the motion keyframes' other fields.
+4. Still open in the exe: `_FADS`'s mode flag (0x89E), and the
+   motion keyframes' other fields.
 5. The metrics (`tests/snapshots/tsukihime.metrics.json`) count each
    argument a converted command passes and doesn't read as a gap
    (`<command> argument <i> ignored`, `option <n>` for a backquote
@@ -683,6 +681,20 @@ The biggest commands not converted, looked up in `script_command`
 
 ## History
 
+- 2026-10-17: coloured panel frames (`_STCH` argument 17 1–6, 263
+  uses), **seen** in `FUN_00189ad0`: the picture is cut at the frame's
+  inner edge (the scissor), then the corner and edge pieces are drawn
+  over it in the colour (alpha, r, g, b to `FUN_001b03e0`: 1 and the
+  default black, 2 white, 3 red, 4 0.18, 0.07, 0, 5 0.97, 0.96, 0.91,
+  6 1, 0.91, 0.82; case 1's r and g are a register Ghidra shows as a
+  handle, read as 0): `alphagradation` from the rectangle's edge, then
+  `_inv` one frame in; the scissor keeps only the `_inv` part, the
+  colour fading from the cut inward over the frame width. Converted
+  with CONscripter's `spclip` feather from a colour (engine PR 122):
+  1,119 `spclip`s of the Japanese `0.txt`. Checked on page 14 from
+  `tm_01_00_ARC01_1__LV00000`: the panel's right edge at x 664 goes
+  black over 20 px (x 655: 57 of 149 without the frame; 3t² − 2t³ of
+  8.5/20 gives 58).
 - 2026-10-17: panel frames and `_FADS` type 1, **seen**.
   `FUN_00189ad0` picks a frame piece size by the frame width (≥ 10,
   32, 40, 64, 128, 256 px: tables 0x4528E0, 0x75BE00 (each size's
