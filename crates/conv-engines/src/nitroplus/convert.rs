@@ -1252,12 +1252,20 @@ fn tempo(v: &Value) -> Option<(u8, u32)> {
 /// times the sprite's, which must first be set to the larger of the two
 /// ([`fade_base`]).
 fn motion(old: &Shown, now: &Shown, ms: u32) -> Option<Op> {
-    if old.layer != now.layer || old.source != now.source || old.cells.is_some() || now.cells.is_some() {
+    if old.layer != now.layer || old.source != now.source {
         return None;
     }
-    let (zx, zy) = (now.zoom.0 * 1000 / old.zoom.0.max(1), now.zoom.1 * 1000 / old.zoom.1.max(1));
+    // A movie (one cell, the same file or frame) keeps playing as it moves:
+    // its zoom is the cell's, its size the movie's.
+    let (zx, zy) = match (old.cells, now.cells) {
+        (None, None) => (now.zoom.0 * 1000 / old.zoom.0.max(1), now.zoom.1 * 1000 / old.zoom.1.max(1)),
+        (Some((1, _, (ox, oy), _)), Some((1, _, (nx, ny), _))) if old.image == now.image && (old.w, old.h) == (now.w, now.h) => {
+            (i64::from(nx) * 1000 / i64::from(ox).max(1), i64::from(ny) * 1000 / i64::from(oy).max(1))
+        }
+        _ => return None,
+    };
     // (A picture cut to the screen, see `Assets::scaled`, isn't the whole.)
-    let sized = |a: i64, b: i64, z: i64| (b * 1000 - a * z).abs() <= a * 10 + 1000;
+    let sized = |a: i64, b: i64, z: i64| now.cells.is_some() || (b * 1000 - a * z).abs() <= a * 10 + 1000;
     let (o, n) = (old.whole.unwrap_or((old.x, old.y, old.w, old.h)), now.whole.unwrap_or((now.x, now.y, now.w, now.h)));
     // (The engine zooms the old sprite: a cut one would show only its part.)
     if (zx - zy).abs() > 5 || !sized(o.2, n.2, zx) || !sized(o.3, n.3, zy) || old.whole.is_some() {
@@ -4303,6 +4311,30 @@ scene a.nss
         assert!(c.ops.iter().any(|op| matches!(op, Op::SceneMovie { file, .. } if file == "movie/dx/mv剣戟.ngs-mute~x")), "{:?}", c.ops);
         let last = |op: &Op| matches!(op, Op::AnimatedSprite { sprite, .. } if sprite.image.contains("Some(1934)~x"));
         assert!(c.ops.iter().any(last), "{:?}", c.ops);
+    }
+
+    #[test]
+    fn a_movie_moved_and_zoomed_over_time_keeps_playing_as_a_motion() {
+        // function.nss's 背景21: a looping movie panned and zoomed.
+        let story = r#"
+scene a.nss
+{
+	CreateMovie("bg", 100, 0, 0, true, true, "dx/mvk100.ngs");
+	Wait(100);
+	Move("bg", 500, @100, @0, null, false);
+	Zoom("bg", 500, 2000, 2000, null, false);
+	Wait(600);
+}
+"#;
+        let c = compile(story, LIBRARY);
+        assert!(!c.notes.keys().any(|n| n.contains("cross-fade")), "{:?}", c.notes);
+        // Placed once: the movie isn't started again.
+        assert_eq!(c.ops.iter().filter(|op| matches!(op, Op::AnimatedSprite { .. })).count(), 1, "{:?}", c.ops);
+        let keys = c.ops.iter().find_map(|op| match op {
+            Op::SpriteMotion2 { keys, .. } => Some(keys),
+            _ => None,
+        }).unwrap_or_else(|| panic!("{:?}", c.ops));
+        assert_eq!((keys[1].x, keys[1].zoom, keys[1].ms), (100, 200, 500), "{keys:?}");
     }
 
     #[test]
