@@ -472,6 +472,7 @@ pub(crate) mod tests {
             pictures: None,
             defaults: Vec::new(),
             switches_off: Vec::new(),
+            engine_screen: false,
             switches: vec![conv_core::ir::SettingSwitch { label: "セーブ確認".into(), switch: Switch::ConfirmSave }],
         };
         let mut out = String::new();
@@ -732,6 +733,7 @@ pub(crate) mod tests {
             pictures: None,
             defaults: Vec::new(),
             switches_off: Vec::new(),
+            engine_screen: false,
             switches: Vec::new(),
         };
         let mut out = String::new();

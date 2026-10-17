@@ -369,6 +369,7 @@ pub fn settings_menu(assets: &mut ArchiveAssets, labels: &Labels) -> Option<Sett
             (Setting::SystemVolume, 6),
         ],
         switches_off: vec![Switch::BgmFullForVoice],
+        engine_screen: false,
     })
 }
 

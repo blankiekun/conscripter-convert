@@ -692,6 +692,9 @@ pub struct SettingsMenu {
     pub defaults: Vec<(Setting, u32)>,
     /// Switches that start off (and go back off with the defaults button).
     pub switches_off: Vec<Switch>,
+    /// Drawn by the engine (CONscripter's `screen`, `screens/settings.lua`)
+    /// rather than by script loops (without `pictures` only).
+    pub engine_screen: bool,
 }
 
 /// A settings screen made of a game's own pictures: pages switched with

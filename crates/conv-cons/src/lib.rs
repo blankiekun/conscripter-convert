@@ -574,6 +574,9 @@ pub fn emit(script: &Script) -> String {
     }
     if let Some(s) = &script.picture_settings {
         picture_settings::emit(&mut out, s, border);
+    } else if let Some(m) = screens::engine_settings(script) {
+        screens::settings_labels(&mut out, has_replay);
+        menu::settings_apply(&mut out, m);
     } else if let Some(m) = &script.settings {
         let replay = script.extras.as_ref().and_then(|e| e.replay.as_ref()).filter(|_| has_replay);
         menu::settings_menu(&mut out, m, script.confirm.as_ref(), replay.map(|r| (r.leave_label.as_str(), r.leave_question.as_str())), script.version.as_deref().map(|v| (v, script.height)));

@@ -226,7 +226,7 @@ pub(crate) fn settings_menu(
 
 /// The routine putting the settings into effect (volumes, speeds, window,
 /// skip).
-pub(super) fn settings_apply(out: &mut String, m: &SettingsMenu) {
+pub(crate) fn settings_apply(out: &mut String, m: &SettingsMenu) {
     let rows = &m.rows[..m.rows.len().min(MAX_SETTING_ROWS)];
     let mut w = |line: String| {
         out.push_str(&line);

@@ -537,6 +537,7 @@ impl AssetBank {
             pictures: None,
             defaults: Vec::new(),
             switches_off: Vec::new(),
+            engine_screen: true,
             // The original's マウス and 確認メッセージ pages (labels as there).
             switches: [
                 ("マウスホイールでテキストを進める", Switch::WheelReadsOn),

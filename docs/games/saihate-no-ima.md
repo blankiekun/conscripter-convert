@@ -628,6 +628,14 @@ a copy of the save works.
 
 ### Queue (2026-10-16)
 
+- Open: the settings drawn by the engine (`screens/settings.lua` from
+  `SettingsMenu` by `crates/conv-cons/src/screens.rs`; engine #74:
+  slider, toggle, radio, text buttons, the screen's pages), in place of
+  the `*conv_settings` loops; `*conv_settings_apply` stays and runs after
+  each change, and the screen closes with 1 (back to the title, or to the
+  replay list) or 2 (quit). Same frames as main's menu (15 Xvfb clicks,
+  0 px apart but the version line and the bar labels the old `btnwait`
+  showed again); a level survives a load and a restart (`gloval.sav`).
 - Open: `--auto-play` without `--trace-ignore` no longer opens the
   backlog from the bar and gets stuck there (page 173, `*conv_log_wait`):
   `ons_args` lists the bar's sprites 34-48 for `--trace-ignore` (engine
