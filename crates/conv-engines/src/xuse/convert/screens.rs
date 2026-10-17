@@ -657,6 +657,7 @@ impl AssetBank {
             font_size: 16,
             line_height: 24,
             columns: 41,
+            engine_screen: true,
         })
     }
 

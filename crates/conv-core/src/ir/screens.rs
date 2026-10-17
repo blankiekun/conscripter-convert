@@ -859,6 +859,9 @@ pub struct Backlog {
     pub font_size: u32,
     pub line_height: i32,
     pub columns: u32,
+    /// Drawn by the engine (CONscripter's `screen`, `screens/backlog.lua`)
+    /// rather than by script loops.
+    pub engine_screen: bool,
 }
 
 /// A yes/no question over whatever is on screen, asked before saving over
