@@ -565,7 +565,7 @@ and 3 px of 削除. Open:
   the click); S and L no longer close the save and load screens (a
   right-click and 退出 do).
 - Muramasa EN's save screen (popup, locks, tabs, quick page) still uses
-  the script routine, as do the extras.
+  the script routine.
 
 ### Backlog drawn by the engine (2026-10-17)
 
@@ -591,6 +591,20 @@ oldest row. Open:
   pointer; the routine's did.
 - Muramasa EN's backlog (single-byte rows, `row_width`) still uses the
   script routine.
+
+### Extras' menu drawn by the engine (2026-10-17)
+
+特別付加目録's menu is CONscripter's `screen "extras"`
+(`conv-cons/src/picture_extras.rs`, `PictureExtras` with `engine_screen`;
+engine #93): the picture and its buttons (a locked one at 51/255 and not a
+button), fading in over 500 ms. It closes with the mode chosen holding
+its frame (`hold`), so the mode (still the script routines: gallery,
+sound room, recollection, 3D viewer) and the title cross-fade straight
+from it. Checked on Xvfb against main's routine (this build and the
+English one, which shares it): open, a button hovered, the gallery, back
+to the menu, back to the title: 0 pixels; frames mid cross-fade show no
+fade to black; again after the rebase onto engine master 1f90e0f: 0 pixels
+in the six frames, mid cross-fades not black. Open: the four modes' screens.
 
 ### Settings drawn by the engine (2026-10-17)
 
