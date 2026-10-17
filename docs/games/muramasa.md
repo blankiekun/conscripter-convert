@@ -603,7 +603,8 @@ sound room, recollection, 3D viewer) and the title cross-fade straight
 from it. Checked on Xvfb against main's routine (this build and the
 English one, which shares it): open, a button hovered, the gallery, back
 to the menu, back to the title: 0 pixels; frames mid cross-fade show no
-fade to black. Open: the four modes' screens.
+fade to black; again after the rebase onto engine master 1f90e0f: 0 pixels
+in the six frames, mid cross-fades not black. Open: the four modes' screens.
 
 ### Settings drawn by the engine (2026-10-17)
 
