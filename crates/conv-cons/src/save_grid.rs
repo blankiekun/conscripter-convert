@@ -31,7 +31,7 @@ const PLAY: &str = "%147";
 /// What a new game runs.
 pub(crate) const NEW_GAME: &str = "setplaytime 0";
 /// 1 in delete mode.
-const DELETING: &str = "%149";
+pub(crate) const DELETING: &str = "%149";
 /// A slot's details: date, play time, chapter, last line.
 const TEXTS: [&str; 4] = ["$110", "$111", "$112", "$113"];
 // Sprites in the game's range (lower numbers drawn on top).
@@ -265,33 +265,7 @@ pub(crate) fn emit(out: &mut String, g: &SaveGrid, confirm: Option<&ConfirmDialo
         w(format!("itoa {STR_TMP},{v}"));
         w(format!("add {LABEL},{STR_TMP}"));
     }
-    w(format!("getplaytime {PLAY}"));
-    w(format!("add {LABEL},\"|\""));
-    let parts = if g.play_time_hm {
-        vec![(format!("{PLAY}/3600"), 2), (format!("{PLAY}/60 mod 60"), 2)]
-    } else {
-        vec![(format!("{PLAY}/3600"), 3), (format!("{PLAY}/60 mod 60"), 2), (format!("{PLAY} mod 60"), 2)]
-    };
-    for (n, (part, digits)) in parts.into_iter().enumerate() {
-        if n > 0 {
-            w(format!("add {LABEL},\":\""));
-        }
-        w(format!("mov {TMP},{part}"));
-        // Hours stop at 99 (the English Muramasa port's `GetDataInfoPlayTime`).
-        if g.play_time_hm && n == 0 {
-            w(format!("if {TMP} > 99 mov {TMP},99"));
-        }
-        if digits == 3 {
-            w(format!("if {TMP} < 100 add {LABEL},\"0\""));
-        }
-        w(format!("if {TMP} < 10 add {LABEL},\"0\""));
-        w(format!("itoa {STR_TMP},{TMP}"));
-        w(format!("add {LABEL},{STR_TMP}"));
-    }
-    w(format!("add {LABEL},\"|\":add {LABEL},{}", menu::CHAPTER));
-    // With its line breaks, as the original shows it.
-    w(format!("getlog {STR_TMP},0"));
-    w(format!("add {LABEL},\"|\":add {LABEL},{STR_TMP}"));
+    details(&mut w, g);
     w(format!("savegame2 {SLOT},{LABEL}"));
     if scene_stack {
         w(format!("mov {SELECTED},{SLOT}:gosub *conv_scene_keep"));
@@ -430,6 +404,38 @@ pub(crate) fn emit(out: &mut String, g: &SaveGrid, confirm: Option<&ConfirmDialo
     w("return".into());
 }
 
+/// Adds "|play time|chapter|last line" to [`LABEL`] (a save's label after
+/// its date).
+pub(crate) fn details(w: &mut impl FnMut(String), g: &SaveGrid) {
+    w(format!("getplaytime {PLAY}"));
+    w(format!("add {LABEL},\"|\""));
+    let parts = if g.play_time_hm {
+        vec![(format!("{PLAY}/3600"), 2), (format!("{PLAY}/60 mod 60"), 2)]
+    } else {
+        vec![(format!("{PLAY}/3600"), 3), (format!("{PLAY}/60 mod 60"), 2), (format!("{PLAY} mod 60"), 2)]
+    };
+    for (n, (part, digits)) in parts.into_iter().enumerate() {
+        if n > 0 {
+            w(format!("add {LABEL},\":\""));
+        }
+        w(format!("mov {TMP},{part}"));
+        // Hours stop at 99 (the English Muramasa port's `GetDataInfoPlayTime`).
+        if g.play_time_hm && n == 0 {
+            w(format!("if {TMP} > 99 mov {TMP},99"));
+        }
+        if digits == 3 {
+            w(format!("if {TMP} < 100 add {LABEL},\"0\""));
+        }
+        w(format!("if {TMP} < 10 add {LABEL},\"0\""));
+        w(format!("itoa {STR_TMP},{TMP}"));
+        w(format!("add {LABEL},{STR_TMP}"));
+    }
+    w(format!("add {LABEL},\"|\":add {LABEL},{}", menu::CHAPTER));
+    // With its line breaks, as the original shows it.
+    w(format!("getlog {STR_TMP},0"));
+    w(format!("add {LABEL},\"|\":add {LABEL},{STR_TMP}"));
+}
+
 /// A [`GridText`] as a `strsp` (or `vstrsp`) of `text`.
 fn grid_text(slot: u32, t: &GridText, text: &str) -> String {
     let pitch = t.font_size + t.line_gap;
@@ -443,7 +449,7 @@ fn grid_text(slot: u32, t: &GridText, text: &str) -> String {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use conv_core::ir::{Rect, SlotPopup};
 
@@ -455,7 +461,7 @@ mod tests {
         GridText { x, y, font_size: 18, lines, chars: 20, line_gap: 0, char_gap: -1, colour: "#000000".into(), vertical }
     }
 
-    fn grid() -> SaveGrid {
+    pub(crate) fn grid() -> SaveGrid {
         SaveGrid {
             save_pages: vec!["sys/save1.png".into(), "sys/save2.png".into()],
             load_pages: vec!["sys/load1.png".into(), "sys/load2.png".into()],
@@ -490,6 +496,7 @@ mod tests {
             quick_page: false,
             play_time_prefix: String::new(),
             play_time_hm: false,
+            engine_screen: false,
         }
     }
 

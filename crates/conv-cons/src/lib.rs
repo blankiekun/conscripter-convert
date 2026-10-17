@@ -39,6 +39,7 @@ mod picture_turntable;
 mod puzzle;
 mod replay;
 mod save_grid;
+mod save_grid_screen;
 pub mod warp;
 mod screens;
 pub use screens::screen_files;
@@ -588,7 +589,10 @@ pub fn emit(script: &Script) -> String {
         writeln!(out, "return").unwrap();
     }
     let scene_stack = script.button_bar.as_ref().is_some_and(|b| b.top.is_some());
-    if let Some(g) = &script.save_grid {
+    if let Some(g) = save_grid_screen::engine_grid(script) {
+        // shortcut: no link scene levels (scene_stack) kept with a save; add them when a game with both needs it.
+        save_grid_screen::labels(&mut out, g);
+    } else if let Some(g) = &script.save_grid {
         save_grid::emit(&mut out, g, script.confirm.as_ref(), script.width, script.height, scene_stack);
     } else if screens::engine_menu(script).is_some() {
         screens::save_labels(&mut out);
