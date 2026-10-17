@@ -4,7 +4,9 @@
 //! function it calls, or a process it starts) is compiled once per pick,
 //! and NScripter's `rnd` chooses among them at run time: every value when
 //! it draws once from at most [`EXACT`], else [`SAMPLES`] draws of every
-//! call. The statements after it that read what it set go with it.
+//! call. The statements after it that read what it set go with it. Picks
+//! that would hold text, or leave the pictures unlike for what follows,
+//! are picked when converting instead (noted).
 
 use super::{Compiler, Flow, State, Value};
 use crate::nitroplus::nss::Var;

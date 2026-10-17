@@ -214,7 +214,7 @@ whole-game dry run (`ma00_000.nss --chain 2000`), and 続・殺戮のジャン�
 | `WaitText` | 0, 1 | 23,689 | 0 |
 | `LoadText` | 0, 1 of the 7-argument form, 0 of the 6 | 15,184 | 740 |
 | `SetFrequency` | 0, 1, 3 (2 is checked) | 8,724 | 1,283 |
-| `Random` | 0 (the range: we return 0) | 7,368 | 0 |
+| `Random` | read: picked at run time (`rnd`, "`Random`" in `docs/games/muramasa.md`); 771 calls still picked when converting | 7,411 | 0 |
 | `Fade` | 3 tempo (read for a fade over time: its transition's curve; not for the text window's or a 0 ms one); 5 (a sixth argument, 1) | 3,145 | 11 |
 | `WaitAction`, `WaitPlay`, `WaitFade`, `WaitZoom`, `WaitMove` | 1 (a time limit?) | 3,371, 2,477, 4, 3, 0 | 5,852, 51, 1, 0, 2 |
 | `DrawTransition` | 2 from, 4 softness (5 tempo: read) | 2,622 | 0 |

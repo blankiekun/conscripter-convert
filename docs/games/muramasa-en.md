@@ -168,7 +168,8 @@ arrow).
   pork.", 14) and the ingredient ("stocked with pork."). No variable
   or code moves (the dry runs' `mov`/`if` lines against main: 15
   added, none changed), so saves keep working. The ingredient is
-  always pork: `Random` is 0 at convert time (both builds), so the
+  always the same: its `Random` is picked at convert time (both builds;
+  the picks reach text, see muramasa.md "`Random`"), so the
   dish is too unless another path sets the flags. `mc02_031time`'s
   `$mc02_時間` (set in `function_process.nss`) is not a story flag: as
   before.
