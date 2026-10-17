@@ -253,7 +253,15 @@ arrow).
   wide measured letter by letter (CONscripter's `logrows %n,28,570`,
   engine PR #17), 34 px apart from y 22, 14 rows, a paragraph's
   indent kept (each row `strsp`'d after a backquote). Not compared: the
-  voice icon's place, scrolling.
+  voice icon's place, scrolling. Drawn by CONscripter's `screen
+  "backlog"` since 2026-10-17, as the Japanese build's (`list source =
+  "rows"`; engine #107 draws a row of half-width text after a backquote
+  and keeps a text's double quotes). Compared headless with main's
+  routine (backlog opened after pages 40 and 119, `--shot-effects 0`
+  against `--shot-at`): 0 px different, quoted lines and voice icons
+  included; scrolling (a row a click, the wheel, the knob) is the
+  engine's, checked in the trace (main's routine can't scroll under
+  auto-play: it acts on `isdown`).
 - **Save/load:** the port's one screen for both (`sys_saveload.nut`,
   `save_grid_en`): the page pictures `ナンバリング001`-`004` with
   `Slots BG`, 15 slots 5×3 under `Slots-Grid`, `未選択時` in the empty
