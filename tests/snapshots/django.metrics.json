@@ -1,9 +1,9 @@
 {
 "game": "django",
 "engine": "nitroplus",
-"commit": "13d2ac95",
+"commit": "1c416232",
 "commit_date": "2026-10-17",
-"totals": {"calls": 57053, "full": 56682, "gaps": 131, "left_out": 240, "weighted": 56807.6},
+"totals": {"calls": 57053, "full": 56683, "gaps": 130, "left_out": 240, "weighted": 56807.9},
 "kinds": {
 "LoadFont": {"calls": 67, "gaps": 67, "reasons": [["built-in LoadFont", 67]], "weighted": 67.0},
 "SetFrequency": {"calls": 1283, "gaps": 15, "reasons": [["SetFrequency on music", 15]], "weighted": 1283.0},
@@ -14,7 +14,6 @@
 "Shake": {"calls": 58, "gaps": 3, "reasons": [["Shake argument 8 ignored", 3]], "weighted": 57.7},
 "ClearBacklog": {"calls": 1, "gaps": 1, "reasons": [["built-in ClearBacklog", 1]], "weighted": 1.0},
 "ClearScore": {"calls": 1, "gaps": 1, "reasons": [["built-in ClearScore", 1]], "weighted": 1.0},
-"CreateEffect": {"calls": 1, "gaps": 1, "reasons": [["CreateEffect argument 2 ignored", 1], ["CreateEffect argument 3 ignored", 1]], "weighted": 0.7},
 "Time": {"calls": 1, "gaps": 1, "reasons": [["built-in Time", 1]], "weighted": 1.0},
 "WaitAction": {"calls": 5932, "gaps": 0, "reasons": [], "weighted": 5932.0},
 "SetAlias": {"calls": 4152, "gaps": 0, "reasons": [], "weighted": 4152.0},
@@ -50,6 +49,7 @@
 "Save": {"calls": 10, "gaps": 0, "left_out": 10, "reasons": [["the choice screen's own code: the engine's choice stands in", 10]], "weighted": 0.0},
 "WaitFade": {"calls": 7, "gaps": 0, "reasons": [], "weighted": 7.0},
 "MoviePlay": {"calls": 2, "gaps": 0, "reasons": [], "weighted": 2.0},
+"CreateEffect": {"calls": 1, "gaps": 0, "reasons": [], "weighted": 1.0},
 "SetShade": {"calls": 1, "gaps": 0, "reasons": [], "weighted": 1.0}
 },
 "outside_calls": [["branches of a runtime if end with different helper variables", 12], ["BGM without loop played looping", 6], ["Request Enter for another text than the next", 1]]

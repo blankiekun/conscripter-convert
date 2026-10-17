@@ -219,7 +219,7 @@ whole-game dry run (`ma00_000.nss --chain 2000`), and 続・殺戮のジャン�
 | `WaitAction`, `WaitPlay`, `WaitFade`, `WaitZoom`, `WaitMove` | 1 (a time limit?) | 3,371, 2,477, 4, 3, 0 | 5,852, 51, 1, 0, 2 |
 | `DrawTransition` | 2 from, 4 softness (5 tempo: read) | 2,622 | 0 |
 | `Conquest` | 0-2 (we return 0) | 2,478 | 0 |
-| `CreateEffect` | 2-5 (place and size) | 2,474 | 1 |
+| `CreateEffect` | none: 2-5 (place and size) are read; a tone or `Plain` covering the screen is ours, over part of it noted | 2,477 | 1 |
 | `SetBacklog` | 2 (the speaker) | 1,958 | 75 |
 | `Shake` | 6 `n`, 7 tempo (read: its step and curve); 8 wait; 2-5 (a picture smaller than the screen) | 0; 62; 144 | 0; 3; 3 |
 | `SetBlur` | 4 strength; 2 passes (when off) | 983; 14 | 0 |
