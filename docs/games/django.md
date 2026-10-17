@@ -209,7 +209,7 @@ Where they differ:
 | `Request` `Smoothing` / `UnSmoothing` | 20 / 3 | texture filtering on / off | nothing | `unsmoothing` 3 |
 | `$SYSTEM_skip`, `$SYSTEM_text_auto` = false at each choice | 25 / 31 | skip and auto mode stop before the choice | `skipoff:autooff` where `$SYSTEM_text_auto` goes false; the choice's `btnwait` also ends both (CONscripter after 0.24.0) | none |
 | `$SYSTEM_menu_lock` = 1 (the title, the ending roll) | 8 | no right-click menu, skip off, the text window shown | `skipoff:autooff`; the roll's wait is a `click`, which takes no right-click | none |
-| `SetShade(…, HEAVY)` | 1 (dja048) | a blur preset | not done | `SetShade` 1 |
+| `SetShade(…, HEAVY)` | 1 (dja048) | a blur preset | done (#197: an `spfilter` box blur) | |
 | `CreateEffect(…, "Sepia")` | 1 (dja038) | sepia over the screen | not done | `CreateEffect Sepia` 1 |
 
 The system screens' tags (`FONT`, `INTERVAL`, 28 and 7, in
@@ -382,7 +382,7 @@ with the original (it wants all eleven endings' flags under wine).
    short when the layers must spread out again and the moving pictures
    leave no room between them (1 spread in the dry run).
 3. Extras: the doors' animation and the menu's own music (left out).
-4. From the exe's coverage table ("The exe"): `SetShade HEAVY` (one use).
+4. From the exe's coverage table ("The exe"): `SetShade HEAVY` (one use): done (#197).
 5. The unread-argument notes (`<Builtin> argument <i> ignored`;
    dry run 2026-10-16: 33 kinds, 18,947 notes, fewer than #30's 39 and
    21,859 since later PRs read more), most visible first; counts are

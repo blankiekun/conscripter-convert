@@ -182,7 +182,7 @@ dry run):
 | `LockVideo`, `WaitText`, `SetFrequency`, `Reset` | most story | dropped (`SetFrequency` noted when not 1000) |
 | `Request` | 1,643 / 1,748 / 469 | actions below |
 | `DrawTransition`, `Shake`, `Rotate`, `CreateTexture`, `CreateEffect`, `CreateMovie`, `MoviePlay` | story | converted except the noted cases (`Shake` of a small picture 145, `CreateTexture` from an object or the screen 1,812, `CreateEffect` Rain/Lens/Drop 41 and one KitanoBlue box, 3 transition masks missing) |
-| `CreateProcess`, `BezierMove`, `SetFrequency` | 287 / 193 / 30 … | not converted (Status) |
+| `CreateProcess`, `SetFrequency` | 287 / 193 / 30 … | not converted (Status) |
 | `SetBacklog` | 83 / 6 / 0 | not converted: 1,958 noted; the hand-made backlog lines (pictures, ASCII art) are missing from our log |
 | `CreateWindow` | story | partial: its children are drawn only inside it (`spclip`), not with `Game::relative_children` (続・殺戮のジャンゴ, whose moved windows aren't checked); argument 6 (true/false) not read |
 | `CreateText` | 53 / 104 / 40 | story: drawn as pictures in the last `SetFont`'s style (`convert/text_object.rs`), clipped at the box's height (argument 5) as the exe's surface of the box's size; choices and markup left out; sys: replaced |
@@ -550,7 +550,7 @@ on a channel picked per object name, looping SE (`MusicStart(…, true)`) →
 | `SetBlur(obj, on, passes, time?, strength, wait)` | 914 | Gaussian blur; nearly always `true, 1–3, 500, 30–100, false` | engine addition (blur) or skip |
 | `Array(…)` / `AssocArray(…)` / `Count(a)` | 719 / 27 / 57 | Array literal, keyed array, length | converter: NScripter arrays (`dim`) or compile-time tables |
 | `CreateProcess(obj, prio, x, y, "Func")` | 493 | Runs NSS function `Func` as a parallel thread; `Request(obj, Start/Stop)`, `Delete(obj)` stops it | Lua coroutine (`docs/games/muramasa.md`, "Approach") |
-| `BezierMove(obj, time, curve, tempo, wait)` | 471 | Move along a Bézier path (`(x,y){cx,cy}…` points) | Lua |
+| `BezierMove(obj, time, curve, tempo, wait)` | 471 | Move along a Bézier path (`(x,y){cx,cy}…` points) | converted: an `spmotion` through the path (Status) |
 | `SetNextFocus(a, b, dir)` | 283 | Menu keyboard navigation: from `a`, key `dir` goes to `b` | own menus |
 | `CreateWindow(obj, prio, x, y, w, h, clip?)` | 249 | Container object (children `obj/…`) clipped to the rect | sprite group / `lsp` positions relative |
 | `CursorPosition($x, $y)` / `MoveCursor(x, y)` | 167 / 62 | Read / warp the mouse | `getmousepos` / menus |

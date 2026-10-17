@@ -1423,6 +1423,9 @@ struct Compiler<'a, 'b> {
     /// `Shake`s of pictures not shown yet, as `spmotion` keys: started
     /// when the next sync shows them, dropped otherwise.
     shake_once: HashMap<String, Vec<(u32, i32, i32)>>,
+    /// `BezierMove`s since the last sync: the pictures' places along the
+    /// way, as `spmotion` keys from where they start ([`loops`]).
+    pending_path: HashMap<String, Vec<MotionKey>>,
     /// The action process running ([`Compiler::start_process`]): its
     /// actions don't block, and their time counts as its own.
     action_process: Option<String>,
@@ -2226,6 +2229,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
             clock_ms: 0,
             clock_scanned: 0,
             shake_once: HashMap::new(),
+            pending_path: HashMap::new(),
             action_process: None,
             process_lead: 0,
             lead_ins: BTreeMap::new(),
@@ -2581,6 +2585,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 if let Some(v) = self.variable_call(name, args) {
                     return v;
                 }
+                let exprs = args;
                 let args: Vec<Value> = args.iter().map(|a| self.eval(a)).collect();
                 // A call of anything but the scripts' own functions is one
                 // source command call (`metrics.json`).
@@ -2593,6 +2598,8 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 } else {
                     match self.function(name) {
                         Some((file, f)) => self.call_function(file, f, args),
+                        // (Its path is no value: read from the call.)
+                        None if name == "BezierMove" => self.bezier_move(exprs, &args),
                         None => self.builtin(name, &args),
                     }
                 };
@@ -4227,6 +4234,26 @@ scene a.nss
         }).collect();
         assert_eq!(placed.last(), Some(&(-100, 0)), "{:?}", c.ops);
         assert!(!c.notes.keys().any(|n| n.contains("Camera")), "{:?}", c.notes);
+    }
+
+    #[test]
+    fn a_bezier_move_goes_through_its_path() {
+        // function_move.nss's FadeXH: a hop to the right (cubic, 3 pieces).
+        let story = r#"
+scene a.nss
+{
+	CreateTexture("bg", 100, 0, 0, "cg/bg/a.png");
+	Wait(100);
+	BezierMove("bg", 600, (@0,@0){@100,@-90}{@200,@-90}(@300,@0), null, true);
+}
+"#;
+        let c = compile(story, LIBRARY);
+        let keys = c.ops.iter().find_map(|op| match op {
+            Op::SpriteMotion2 { keys, .. } => Some(keys.clone()),
+            _ => None,
+        }).expect("a motion");
+        assert_eq!(keys.iter().map(|k| (k.ms, k.x, k.y)).collect::<Vec<_>>(), [(0, 0, 0), (200, 100, -60), (400, 200, -60), (600, 300, 0)]);
+        assert!(!c.notes.keys().any(|n| n.contains("BezierMove")), "{:?}", c.notes);
     }
 
     #[test]

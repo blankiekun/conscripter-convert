@@ -827,8 +827,8 @@ Next, in order:
   cross-fades.
 - `Rotate` about z of a picture is CONscripter's `spzoom` angle (still) or an
   `spmotion` angle (over time); left: about z of other objects (70),
-  about x or y over time (14, drawn at once). `BezierMove`,
-  `CreateTexture` from an object or the screen (1,864).
+  about x or y over time (14, drawn at once). `CreateTexture` from an
+  object or the screen (1,864).
 - Cameras (`CreateCamera` 40, `MoveCamera` 105): drawn by
   続・殺戮のジャンゴ's model, measured there under wine (a child of depth
   `p` seen `z / (1000 - p)` times about the screen's centre, the
@@ -837,6 +837,12 @@ Next, in order:
   `Middle` is at 0, 0: only so do ma04_005a's pictures cover the screen
   through it. Unverified against the original: its zooms other than
   1000 (Django has none).
+- `BezierMove` (335 in the script, outside processes) moves the picture
+  to the path's end as `Move` does, and the sync's motion goes through
+  the path (`loops.rs` `bezier_move`: the curves cut into straight
+  pieces as in a loop, `sync.rs` `along`); its tempo eases the whole
+  motion. Where the sync draws no motion (a cross-fade: a new picture,
+  a fade with it), the picture is only put at the end.
 - 18 files whose `if`/`else if` chain on earlier flags has no `else`:
   by the story's logic one branch always matches; the fall-through ends
   the run.
