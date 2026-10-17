@@ -345,7 +345,9 @@ const SE_FIRST_BANK: usize = 256;
 /// every row of the box's gradient and 0.50 on the save menu's.
 /// src: exe 0x46d000 (setting 0x51ed12 defaults to 128 of 256).
 const WINDOW_OPACITY_PERCENT: u32 = 50;
-/// guess: the title screen fades in and out over this long.
+/// guess: the title screen fades in and out over this long (the exe's title
+/// states cross-fade over 2000 ms, 0x459d10, and 1000 ms, 0x45a240; which
+/// one shows the menu isn't traced).
 const TITLE_FADE_MS: u32 = 1000;
 /// A voice id's character is `id / VOICE_CHARACTER`.
 const VOICE_CHARACTER: u32 = 100_000; // src: the scripts' voice ids
@@ -822,8 +824,9 @@ impl AssetBank {
             2 | 7 => (24, 12, 24, 13, (37, 35)),
             3 | 4 => (17, 5, 40, 23, (42, 25)),
             5 => (17, 11, 36, 16, (32, 21)),
-            // guess: rows (the game doesn't use style 6).
-            6 => (24, 12, 26, 5, (28, 21)),
+            // 18 px weight 400, gap 12 (src: exe 0x517678 record 6, +0x50, +0x58);
+            // guess: rows, and columns as TextWnd0's 650 px (the game doesn't use style 6).
+            6 => (17, 13, 36, 5, (28, 21)),
             8 => (20, 14, 34, 15, (43, 60)),
             // guess: no such style in the game.
             _ => (24, 12, 26, 3, (28, 21)),
