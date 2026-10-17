@@ -75,6 +75,8 @@ struct Layer {
     fade: Option<(u32, u32, u32)>,
     /// `_STMA` on a layer not shown yet: the motion, from the `_FADS` that shows it.
     motion: Option<usize>,
+    /// `_STCH` argument 11: the layer this one is placed in.
+    parent: Option<usize>,
 }
 
 fn label(script: &str, name: Option<&str>) -> String {
@@ -368,12 +370,10 @@ impl Lowering<'_, '_> {
             let e = |i: usize, d: u32| number(arg(i)).map_or(d, |v| v as u32);
             Some((e(9, oa), e(10, ob)))
         };
-        self.staged[n] = Some(Layer { base, expression, x, y, zoom: zoom / 1000.0, stretch: (1.0, 1.0), alpha: alpha.clamp(0.0, 255.0) as u32, fade: None, motion: None });
+        let parent = number(arg(11)).filter(|&p| (0..LAYERS as i32).contains(&p) && p as usize != n).map(|p| p as usize);
+        self.staged[n] = Some(Layer { base, expression, x, y, zoom: zoom / 1000.0, stretch: (1.0, 1.0), alpha: alpha.clamp(0.0, 255.0) as u32, fade: None, motion: None, parent });
         // Argument 6, else layer × 10 (`FUN_00160840`).
         self.priority[n] = if arg(6).is_empty() { n as i32 * 10 } else { number(arg(6)).unwrap_or(n as i32 * 10) };
-        if !arg(11).is_empty() && arg(11) != "-1" {
-            self.note("_STCH with a parent layer (placed on its own)");
-        }
         true
     }
 
@@ -393,7 +393,7 @@ impl Lowering<'_, '_> {
         self.slot_layer = vec![None; LAYERS];
         for (rank, &i) in order.iter().enumerate() {
             let slot = LAYERS - 1 - rank;
-            want[slot] = self.shown[i].clone();
+            want[slot] = self.resolved(i, 0);
             self.slot_layer[slot] = Some(i);
             if let Some(l) = want[slot].as_mut() {
                 fades[slot] = l.fade.take();
@@ -501,11 +501,7 @@ impl Lowering<'_, '_> {
     /// Where and how `l` is drawn: the image, its middle on the screen and
     /// its zoom (%); or the name when the picture is unknown.
     fn look(&self, l: &Layer) -> Result<Look, String> {
-        // An expression the picture doesn't have (`_00_00` on a background): the picture.
-        let name = match l.expression {
-            Some((a, b)) => Some(format!("{}_{a:02}_{b:02}", l.base)).filter(|n| self.g.pictures.contains_key(n)).unwrap_or_else(|| l.base.clone()),
-            None => l.base.clone(),
-        };
+        let name = self.name(l);
         let picture = self.g.pictures.get(&name);
         let fill = colour(&name).filter(|_| picture.is_none_or(|p| p.flags & 3 == 3));
         Ok(match (picture, fill) {
@@ -525,6 +521,35 @@ impl Lowering<'_, '_> {
             }
             (None, None) => return Err(name),
         })
+    }
+
+    /// Layer `i` as shown, a child placed in its parent (`FUN_001892b0`,
+    /// `FUN_00189190`): its x, y are in the parent's picture, from its
+    /// record's top-left, zoomed with the parent (and by ½, ¼, ⅛ for a
+    /// parent sprite's `_L_`, `_M_`, `_S_` shot) about the parent's place.
+    // shortcut: the parent's rotation (argument 19) and motions are not followed.
+    fn resolved(&self, i: usize, depth: usize) -> Option<Layer> {
+        let mut l = self.shown[i].clone()?;
+        let Some(p) = l.parent.filter(|_| depth < LAYERS) else { return Some(l) };
+        let Some(parent) = self.resolved(p, depth + 1) else { return Some(l) };
+        let Some(record) = self.g.pictures.get(&self.name(&parent)) else { return Some(l) };
+        let shot = [1.0, 0.5, 0.25, 0.125].get(usize::from(record.shot)).copied().unwrap_or(1.0);
+        let (zx, zy) = (parent.zoom * parent.stretch.0 * shot, parent.zoom * parent.stretch.1 * shot);
+        // Script units: a record unit is 0.375 of one (1280 for the screen's 480).
+        l.x = parent.x + zx * (l.x - record.centre.0 * 0.375 / shot);
+        l.y = parent.y + zy * (l.y - record.centre.1 * 0.375 / shot);
+        l.stretch = (l.stretch.0 * zx, l.stretch.1 * zy);
+        l.parent = None;
+        Some(l)
+    }
+
+    /// The picture `l` draws: with its expression, or the bare picture if
+    /// it has none (`_00_00` on a background).
+    fn name(&self, l: &Layer) -> String {
+        match l.expression {
+            Some((a, b)) => Some(format!("{}_{a:02}_{b:02}", l.base)).filter(|n| self.g.pictures.contains_key(n)).unwrap_or_else(|| l.base.clone()),
+            None => l.base.clone(),
+        }
     }
 
     /// Draws `l` on IR layer `layer`.
@@ -708,6 +733,27 @@ mod tests {
         let ops = compile(&g).ops;
         let Some(Op::SpriteMotion2 { layer: 39, keys, end: MotionEnd::Keep }) = ops.last() else { panic!("{ops:?}") };
         assert_eq!(keys.iter().map(|k| (k.ms, k.y, k.zoom, k.zoom_y, k.opacity)).collect::<Vec<_>>(), [(0, 0, 100, 100, 256), (500, 26, 200, 200, 0)]);
+    }
+
+    #[test]
+    fn a_child_is_placed_in_its_parent() {
+        // Parent img1 (the screen's size) at half size about the middle; the
+        // child at its parent's top-left quarter point.
+        let src = "_STCH(1,img1,240,136,1000,255,10);_STZ4(1,500,500,500,500,0,0,0);_STCH(2,dot,120,68,1000,255,20,,CC,,,1);_FADS(1,0,0);";
+        let g = Game {
+            scripts: vec![("S".into(), script::parse(src).into_iter().map(Result::unwrap).collect())],
+            scenes: vec![],
+            lines: vec![],
+            pictures: [picture("img1", 1280.0, 724.0), picture("dot", 10.0, 10.0)].into(),
+            textures: [("img1".into(), (2560, 1440)), ("dot".into(), (20, 20))].into(),
+            sounds: vec![],
+            waves: HashMap::new(),
+            motions: vec![],
+        };
+        let ops = compile(&g).ops;
+        // 240 + 0.5 × (120 − 240) = 180 script units: 480 px; 136 + 0.5 × (68 − 135.75) ≈ 102.1: 270 px.
+        assert!(ops.contains(&Op::SpriteMove { layer: 38, x: 480, y: 270, ms: 0 }), "{ops:?}");
+        assert!(ops.contains(&Op::SpriteAngle { layer: 38, degrees: 0, zoom: (25, 25) }), "{ops:?}");
     }
 
     #[test]
