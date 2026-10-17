@@ -7,7 +7,7 @@
 //! are joined into strips of normal, hover, disabled, pressed.
 
 use conv_core::ir::{
-    BarAction, BarButton, BarSlide, ButtonBar, CommandItem, CommandMenu, ConfirmDialog, GridText, LineLog, PairOption, PicturePair, PictureSettings, PictureSlider, PictureText, Placed, Rect, SaveGrid, SlotPopup,
+    BarAction, BarButton, BarSlide, ButtonBar, CommandItem, CommandMenu, ConfirmDialog, GridText, LineLog, PairOption, PicturePair, PictureSettings, PictureSlider, PictureText, Placed, SettingsScreen, Rect, SaveGrid, SlotPopup,
     Script, SliderSetting, Switch, TitleAction, TitleButton, TitleGlow, TitleOpening, TitleScreen, Unroll, Var, VoiceEntry, VoiceLayout, VoiceWindow, WaitIcon,
 };
 
@@ -96,6 +96,7 @@ fn settings(a: &mut dyn Assets, story: &Story) -> Option<PictureSettings> {
         sliders.push(PictureSlider { setting, knob: knob(a, x)?, knob_y: (67, 206), track: Rect { x, y: 67, w: tw as i32, h: th as i32 }, default, steps: None, horizontal: false, fill: None });
     }
     let mut pairs = Vec::new();
+    let mut chosen = Vec::new();
     // src: sys_config.nss ConfigSet ($Config*X, $ConfigMathY3/4 183/213, KVoice 63/133, SVoice 49/137) and ConfigFormat (defaults)
     for (option, x, default_on, on, off) in [
         (PairOption::Confirm, 827, true, ("入", 183), ("切", 213)),
@@ -110,6 +111,11 @@ fn settings(a: &mut dyn Assets, story: &Story) -> Option<PictureSettings> {
     ] {
         let side = |a: &mut dyn Assets, (name, y): (&str, i32)| control(a, "", &format!("002-{name}"), &format!("003-{name}"), x, y);
         pairs.push(PicturePair { option, on: side(a, on)?, off: side(a, off)?, default_on });
+        let picked = |a: &mut dyn Assets, (name, y): (&str, i32)| {
+            let n = format!("003-{name}");
+            control(a, &n, &n, &n, x, y)
+        };
+        chosen.push((picked(a, on)?, picked(a, off)?));
     }
     // The display options as a first start leaves them: aspect not set by
     // itself (切), display dependent, the scaling methods not chosen.
@@ -117,6 +123,13 @@ fn settings(a: &mut dyn Assets, story: &Story) -> Option<PictureSettings> {
     let fixed = vec![picture(a, "003-切", 251, 213)?, picture(a, "003-ディスプレイ依存", 215, 51)?, picture(a, "002-アスペクト方法OFF", 177, 255)?];
     // src: sys_config.nss ConfigSet (バージョン情報: SetFont 11 #bb7420, 453/678,548; Exit 26,108, Default 899,197, Test 287,197; Fade 300, 100)
     let version = |text: &str, x: i32| PictureText { text: format!("◆ＧＡＭＥ{text}バージョン情報：1.00"), x, y: 548, font_size: 11, colour: "#bb7420".into() };
+    let voice_window = voice_window(a, story);
+    let mut voices_checked = Vec::new();
+    for layout in voice_window.iter().flat_map(|v| &v.layouts) {
+        let check = &voice_window.as_ref()?.check.image;
+        let entries = layout.entries.iter().map(|e| a.composite(&[(e.picture.image.clone(), 0, 0, 1000), (check.clone(), 0, 0, 1000)]).map(|c| c.0)).collect::<Option<Vec<_>>>()?;
+        voices_checked.push(entries);
+    }
     Some(PictureSettings {
         background: picture(a, "コンフィグ", 0, 0)?,
         fixed,
@@ -129,7 +142,8 @@ fn settings(a: &mut dyn Assets, story: &Story) -> Option<PictureSettings> {
         texts: vec![version("システム", 453), version("スクリプト", 678)],
         fade_ms: 300,
         pair_fade_ms: 100,
-        voice_window: voice_window(a, story),
+        voice_window,
+        engine_screen: Some(SettingsScreen { chosen, voices_checked }),
     })
 }
 
@@ -243,6 +257,7 @@ fn settings_en(a: &mut dyn Assets) -> Option<PictureSettings> {
         fade_ms: 300,
         pair_fade_ms: 0,
         voice_window: None,
+        engine_screen: None,
     })
 }
 

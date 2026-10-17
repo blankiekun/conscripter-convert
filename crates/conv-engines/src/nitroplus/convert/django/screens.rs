@@ -144,6 +144,7 @@ fn settings(a: &mut dyn Assets) -> Option<PictureSettings> {
         // src: sys_config.nss: bullets switch at once; the pairs fade over 200 (one value here)
         pair_fade_ms: 0,
         voice_window: None,
+        engine_screen: None,
     })
 }
 

@@ -213,6 +213,21 @@ pub struct PictureSettings {
     pub pair_fade_ms: u32,
     /// Opened by its own button: a switch for each character's voice.
     pub voice_window: Option<VoiceWindow>,
+    /// Drawn by the engine (`screen "settings"`) instead of a script
+    /// routine, with the pictures it needs besides.
+    pub engine_screen: Option<SettingsScreen>,
+}
+
+/// The pictures [`PictureSettings`] drawn by the engine needs besides its
+/// own: an engine radio shows a picture of its own while on.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SettingsScreen {
+    /// Per pair, its on and off sides' chosen pictures (the third cell) in
+    /// all three cells.
+    pub chosen: Vec<(Placed, Placed)>,
+    /// Per [`VoiceLayout`], per entry: its picture with the check over it
+    /// (at the picture's place).
+    pub voices_checked: Vec<Vec<String>>,
 }
 
 /// A window of [`PictureSettings`] with a switch for each character's

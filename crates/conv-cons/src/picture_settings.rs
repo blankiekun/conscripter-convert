@@ -48,7 +48,7 @@ const MUTE: [&str; 3] = ["%171", "%172", "%173"];
 const LAYOUT: &str = "%174";
 
 pub(crate) const APPLY: &str = "conv_ps_apply";
-const DEFAULTS: &str = "conv_ps_defaults";
+pub(crate) const DEFAULTS: &str = "conv_ps_defaults";
 
 // Sprites in the game's range (lower numbers drawn on top).
 const BACKGROUND: u32 = MAX_SPRITE;
@@ -99,12 +99,61 @@ const QUESTIONS: [Switch; 8] = [
 ];
 
 /// A pair at one place is a check box.
-fn check_box(p: &conv_core::ir::PicturePair) -> bool {
+pub(crate) fn check_box(p: &conv_core::ir::PicturePair) -> bool {
     (p.on.x, p.on.y) == (p.off.x, p.off.y)
 }
 
-fn slider_var(i: usize) -> String {
+pub(crate) fn slider_var(s: &PictureSettings, i: usize) -> String {
+    if s.engine_screen.is_some() {
+        return format!("%{}", named(slider_name(s.sliders[i].setting)));
+    }
     format!("%{}", SLIDER_BASE + i as u32)
+}
+
+/// The engine's screen binds its values by name (`defvar ...,global`).
+fn named(what: &str) -> String {
+    format!("conv_set_{what}")
+}
+
+fn slider_name(l: SliderSetting) -> &'static str {
+    match l {
+        SliderSetting::BgmVolume => "bgm_volume",
+        SliderSetting::SeVolume => "se_volume",
+        SliderSetting::VoiceVolume => "voice_volume",
+        SliderSetting::TextSpeed { .. } => "text_speed",
+        SliderSetting::AutoWait { .. } => "auto_wait",
+        SliderSetting::GameSpeed { .. } => "game_speed",
+    }
+}
+
+fn pair_name(p: PairOption) -> &'static str {
+    match p {
+        PairOption::Confirm => "confirm",
+        PairOption::MovieStop => "movie_stop",
+        PairOption::StopAtChoice => "stop_at_choice",
+        PairOption::SkipUnread => "skip_unread",
+        PairOption::VoicePlaysOn => "voice_plays_on",
+        PairOption::AutoWaitsForVoice => "auto_waits_for_voice",
+        PairOption::Bgm => "bgm_on",
+        PairOption::Se => "se_on",
+        PairOption::Voice => "voice_on",
+    }
+}
+
+/// 1 once the values have their defaults.
+fn set_var(s: &PictureSettings) -> String {
+    if s.engine_screen.is_some() { format!("%{}", named("done")) } else { SET.to_string() }
+}
+
+/// The define section's names, for the engine's screen.
+pub(crate) fn define(out: &mut String, s: &PictureSettings) {
+    if s.engine_screen.is_none() {
+        return;
+    }
+    let names = s.sliders.iter().map(|l| slider_name(l.setting)).chain(s.pairs.iter().map(|p| pair_name(p.option))).chain(["done"]);
+    for n in names {
+        out.push_str(&format!("defvar {},global\n", named(n)));
+    }
 }
 
 /// A stepped slider's steps, if it is one.
@@ -112,13 +161,22 @@ fn steps(l: &PictureSlider) -> Option<&conv_core::ir::SliderSteps> {
     l.steps.as_ref()
 }
 
-fn pair_var(i: usize) -> String {
+pub(crate) fn pair_var(s: &PictureSettings, i: usize) -> String {
+    if s.engine_screen.is_some() {
+        return format!("%{}", named(pair_name(s.pairs[i].option)));
+    }
     format!("%{}", PAIR_BASE + i as u32)
 }
 
 /// At `*start`: the defaults on the first start, then the values applied.
 pub(crate) fn init(out: &mut String, s: &PictureSettings) {
-    out.push_str(&format!("if {SET} == 0 gosub *{DEFAULTS}\ngosub *{APPLY}\n"));
+    let set = set_var(s);
+    if s.engine_screen.is_some() {
+        // shortcut: takes the values from where builds before the names kept them; drop once no such gloval.sav is played
+        let copies: String = (0..s.sliders.len()).map(|i| format!(":mov {},%{}", slider_var(s, i), SLIDER_BASE + i as u32)).chain((0..s.pairs.len()).map(|i| format!(":mov {},%{}", pair_var(s, i), PAIR_BASE + i as u32))).collect();
+        out.push_str(&format!("if {set} == 0 && {SET} == 1 mov {set},1{copies}\n"));
+    }
+    out.push_str(&format!("if {set} == 0 gosub *{DEFAULTS}\ngosub *{APPLY}\n"));
     // `reset` comes back here: the title runs at the normal speed.
     if s.sliders.iter().any(|l| matches!(l.setting, SliderSetting::GameSpeed { .. })) {
         out.push_str("consset \"gamespeed\",100\n");
@@ -130,7 +188,17 @@ pub(crate) fn skips_unread(s: &PictureSettings) -> bool {
     s.pairs.iter().any(|p| p.option == PairOption::SkipUnread)
 }
 
+/// The settings label (the engine's screen, or a script routine), and
+/// the routines that put the defaults back and apply the values.
 pub(crate) fn emit(out: &mut String, s: &PictureSettings, border: u32) {
+    match s.engine_screen {
+        Some(_) => crate::settings_screen::labels(out, s),
+        None => routine(out, s, border),
+    }
+    values(out, s);
+}
+
+fn routine(out: &mut String, s: &PictureSettings, border: u32) {
     assert!(s.sliders.len() <= MAX_SLIDERS && s.pairs.len() <= MAX_PAIRS && s.fixed.len() <= MAX_FIXED, "too many settings controls");
     assert!(s.sliders.iter().filter_map(steps).all(|st| st.buttons.len() <= MAX_STEPS), "too many steps");
     let step_slot = |base: u32, i: usize, k: usize| base + (MAX_STEPS * i + k) as u32;
@@ -200,7 +268,7 @@ pub(crate) fn emit(out: &mut String, s: &PictureSettings, border: u32) {
     for (i, p) in s.pairs.iter().enumerate() {
         for side in 0..2 {
             // A check box: only the side shown.
-            let shown = if check_box(p) { format!("if {} == {} ", pair_var(i), 1 - side) } else { String::new() };
+            let shown = if check_box(p) { format!("if {} == {} ", pair_var(s, i), 1 - side) } else { String::new() };
             w(format!("{shown}spbtn {},{}", PAIR + 2 * i as u32 + side, BTN_PAIR + 2 * i as i32 + side as i32));
         }
     }
@@ -222,7 +290,7 @@ pub(crate) fn emit(out: &mut String, s: &PictureSettings, border: u32) {
     w("gosub *conv_ps_release".into());
     for (i, st) in s.sliders.iter().enumerate().filter_map(|(i, l)| Some((i, steps(l)?))) {
         for (k, (_, position)) in st.buttons.iter().enumerate() {
-            w(format!("if {BUTTON_VAR} == {} mov {},{position}:goto *conv_ps_changed", BTN_STEP + (MAX_STEPS * i + k) as i32, slider_var(i)));
+            w(format!("if {BUTTON_VAR} == {} mov {},{position}:goto *conv_ps_changed", BTN_STEP + (MAX_STEPS * i + k) as i32, slider_var(s, i)));
         }
     }
     w(format!("if {BUTTON_VAR} == {BTN_CLOSE} goto *conv_ps_close"));
@@ -236,7 +304,7 @@ pub(crate) fn emit(out: &mut String, s: &PictureSettings, border: u32) {
         w(format!("if {BUTTON_VAR} == {BTN_VOICE_TEST} dwave 0,\"{}\"", path(v)));
     }
     for (i, p) in s.pairs.iter().enumerate() {
-        let (n, v) = (BTN_PAIR + 2 * i as i32, pair_var(i));
+        let (n, v) = (BTN_PAIR + 2 * i as i32, pair_var(s, i));
         // A check box's side switches to the other.
         let (on, off) = if check_box(p) { (n + 1, n) } else { (n, n + 1) };
         w(format!("if {BUTTON_VAR} == {on} && {v} == 0 mov {v},1:goto *conv_ps_changed"));
@@ -269,7 +337,7 @@ pub(crate) fn emit(out: &mut String, s: &PictureSettings, border: u32) {
         w(format!("getmousepos {MOUSE_X},{MOUSE_Y}"));
         for &(i, l) in &knobbed {
             let (k0, k1) = l.knob_y;
-            let v = slider_var(i);
+            let v = slider_var(s, i);
             if l.horizontal {
                 w(format!("if {DRAGGED} == {i} mov {TMP},({k1}-{MOUSE_X}+{})*1000/{}", l.knob.w / 2, (k1 - k0).max(1)));
             } else {
@@ -309,7 +377,7 @@ pub(crate) fn emit(out: &mut String, s: &PictureSettings, border: u32) {
     w("*conv_ps_draw".into());
     for (i, p) in s.pairs.iter().enumerate() {
         let (on, off) = (CHOSEN + 2 * i as u32, CHOSEN + 2 * i as u32 + 1);
-        let v = pair_var(i);
+        let v = pair_var(s, i);
         if check_box(p) {
             let (on, off) = (PAIR + 2 * i as u32, PAIR + 2 * i as u32 + 1);
             w(format!("vsp {on},{v}:mov {TMP},1-{v}:vsp {off},{TMP}"));
@@ -321,10 +389,10 @@ pub(crate) fn emit(out: &mut String, s: &PictureSettings, border: u32) {
     for &(i, l) in &knobbed {
         let (k0, k1) = l.knob_y;
         if l.horizontal {
-            w(format!("mov {TMP},{k1}-{}*{}/1000", slider_var(i), k1 - k0));
+            w(format!("mov {TMP},{k1}-{}*{}/1000", slider_var(s, i), k1 - k0));
             w(format!("amsp {},{TMP},{}", KNOB + i as u32, l.knob.y));
         } else {
-            w(format!("mov {TMP},{}*{}/1000+{k0}", slider_var(i), k1 - k0));
+            w(format!("mov {TMP},{}*{}/1000+{k0}", slider_var(s, i), k1 - k0));
             w(format!("amsp {},{},{TMP}", KNOB + i as u32, l.knob.x));
         }
         if let Some((f, mask)) = &l.fill {
@@ -336,7 +404,7 @@ pub(crate) fn emit(out: &mut String, s: &PictureSettings, border: u32) {
     for (i, st) in s.sliders.iter().enumerate().filter_map(|(i, l)| Some((i, steps(l)?))) {
         w(format!("mov {TMP},-1"));
         for (k, (_, position)) in st.buttons.iter().enumerate() {
-            w(format!("if {} == {position} mov {TMP},{k}", slider_var(i)));
+            w(format!("if {} == {position} mov {TMP},{k}", slider_var(s, i)));
         }
         for (k, (p, _)) in st.buttons.iter().enumerate() {
             let slot = step_slot(STEP_CHOSEN, i, k);
@@ -349,20 +417,27 @@ pub(crate) fn emit(out: &mut String, s: &PictureSettings, border: u32) {
     if let Some(v) = &s.voice_window {
         voice_window(&mut w, v, border, &fade);
     }
+}
 
+/// `*conv_ps_defaults` and [`APPLY`].
+fn values(out: &mut String, s: &PictureSettings) {
+    let mut w = |line: String| {
+        out.push_str(&line);
+        out.push('\n');
+    };
     w(format!("*{DEFAULTS}"));
     for (i, l) in s.sliders.iter().enumerate() {
-        w(format!("mov {},{}", slider_var(i), l.default));
+        w(format!("mov {},{}", slider_var(s, i), l.default));
     }
     for (i, p) in s.pairs.iter().enumerate() {
-        w(format!("mov {},{}", pair_var(i), u8::from(p.default_on)));
+        w(format!("mov {},{}", pair_var(s, i), u8::from(p.default_on)));
     }
-    w(format!("mov {SET},1"));
+    w(format!("mov {},1", set_var(s)));
     w("return".into());
 
     w(format!("*{APPLY}"));
     for (i, l) in s.sliders.iter().enumerate() {
-        let v = slider_var(i);
+        let v = slider_var(s, i);
         let volume = |w: &mut dyn FnMut(String), cmd: &str| {
             // 100 × (v/1000)^1.661 ≈ (p² / 50 + p) / 3 with p = v / 10.
             w(format!("mov {TMP},(1000-{v})/10:mov {TMP},({TMP}*{TMP}/50+{TMP})/3:{cmd} {TMP}"));
@@ -383,7 +458,7 @@ pub(crate) fn emit(out: &mut String, s: &PictureSettings, border: u32) {
     }
     let mut mute = [None, None, None];
     for (i, p) in s.pairs.iter().enumerate() {
-        let v = pair_var(i);
+        let v = pair_var(s, i);
         match p.option {
             PairOption::Confirm => {
                 for q in QUESTIONS {
@@ -533,6 +608,7 @@ mod tests {
                 ],
                 fade_ms: 300,
             }),
+            engine_screen: None,
         }
     }
 
