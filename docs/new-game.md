@@ -773,6 +773,15 @@ pictures of chosen pages during the same run; F8 while playing with a
 trace on writes the state at that moment (and natively a picture). The
 web build takes `?trace` in its URL and downloads the trace with F7.
 
+**A frame mid-motion.** `--real-time --shot-at '*label:line+ms'` takes a
+picture that many ms of game time after the line has run (a `spmotion`
+line: the sprite part of the way), `--shot-after ms` at a game time.
+Under `SDL_VIDEODRIVER=dummy` the run has a virtual clock that moves
+only as the engine waits, so two runs give the same frames
+(`compare -metric AE` 0) and the waits cost no wall-clock time. A
+`savescreenshot` that writes nothing is a `screenshot not written`
+warning (with `--save-dir` it writes into the save folder).
+
 **When the trace can't do it** (the older recipe): patch a copy of
 `0.txt`: `textbtnwait` in `*conv_wait` → `mov %9,0`; comment out
 `click` in `*conv_click_wait`; put `mov %101,1:goto *label` right after
