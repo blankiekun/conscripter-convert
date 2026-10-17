@@ -25,21 +25,6 @@ use crate::{path, var_name};
 
 const RESET: &str = "conv_ps_reset";
 const VOICE_TEST: &str = "conv_ps_test";
-/// Sets each lying slider's shown value from its position.
-const SHOW: &str = "conv_ps_show";
-/// Puts each lying slider's position back from its shown value, then [`APPLY`].
-const LIE: &str = "conv_ps_lie";
-
-/// A lying slider's position runs from its right end (the IR's), the
-/// engine's from the left (where its lit bar starts): the screen moves
-/// this, 1000 - the position.
-pub(crate) fn shown_var(s: &PictureSettings, i: usize) -> String {
-    format!("{}_shown", slider_var(s, i))
-}
-
-fn lying(s: &PictureSettings) -> impl Iterator<Item = usize> + '_ {
-    s.sliders.iter().enumerate().filter(|(_, l)| l.horizontal).map(|(i, _)| i)
-}
 
 /// The settings' files under `screens/`, if the engine draws them.
 pub(crate) fn files(script: &Script, border: u32) -> Vec<(String, String)> {
@@ -86,22 +71,9 @@ pub(crate) fn files(script: &Script, border: u32) -> Vec<(String, String)> {
 
 /// `*conv_settings`, and what its buttons run.
 pub(crate) fn labels(out: &mut String, s: &PictureSettings) {
-    let lies = lying(s).next().is_some();
-    let show = if lies { format!("gosub *{SHOW}\n") } else { String::new() };
-    writeln!(out, "*{}\n{show}screen \"settings\"\nreturn", crate::menu::SETTINGS).unwrap();
+    writeln!(out, "*{}\nscreen \"settings\"\nreturn", crate::menu::SETTINGS).unwrap();
     if s.reset.is_some() {
-        writeln!(out, "*{RESET}\ngosub *{DEFAULTS}\ngosub *{APPLY}\n{show}return").unwrap();
-    }
-    if lies {
-        writeln!(out, "*{SHOW}").unwrap();
-        for i in lying(s) {
-            writeln!(out, "mov {},1000-{}", shown_var(s, i), slider_var(s, i)).unwrap();
-        }
-        writeln!(out, "return\n*{LIE}").unwrap();
-        for i in lying(s) {
-            writeln!(out, "mov {},1000-{}", slider_var(s, i), shown_var(s, i)).unwrap();
-        }
-        writeln!(out, "goto *{APPLY}").unwrap();
+        writeln!(out, "*{RESET}\ngosub *{DEFAULTS}\ngosub *{APPLY}\nreturn").unwrap();
     }
     if let Some(v) = &s.test_voice {
         writeln!(out, "*{VOICE_TEST}\ndwave 0,\"{}\"\nreturn", path(v)).unwrap();
@@ -147,11 +119,12 @@ fn settings_lua(s: &PictureSettings, asks: bool) -> String {
         let (k0, k1) = l.knob_y;
         let t = &l.track;
         if l.horizontal {
+            // Position 0 at the right end: a reversed slider, its fill lit from the left (engine #86).
             let fill = l.fill.as_ref().map(|(f, _)| format!(", fill={{file={}, x={}, y={}}}", lua(&f.image), f.x, f.y)).unwrap_or_default();
             w.push(format!(
-                "{{\"slider\", var={}, min=0, max=1000, step=1, travel={}, knob={{file={}, cells=2, x={k0}, y={}}}, track={{x={}, y={}, w={}, h={}}}{fill}, action={{\"gosub\", \"*{LIE}\"}}}}",
-                lua(&shown_var(s, i)),
-                k1 - k0,
+                "{{\"slider\", var={}, min=0, max=1000, step=1, travel={}, knob={{file={}, cells=2, x={k1}, y={}}}, track={{x={}, y={}, w={}, h={}}}{fill}, {apply}}}",
+                lua(&slider_var(s, i)),
+                k0 - k1,
                 lua(&l.knob.image),
                 l.knob.y,
                 t.x,
@@ -348,15 +321,15 @@ mod tests {
         let lua = &files(&script, 800)[0].1;
         for line in [
             "{\"toggle\", file=\"system/muted.png\", x=769, y=57, cells=3, pressed=2, on_file=\"system/heard.png\", var=\"%conv_set_bgm_on\", action=",
-            "{\"slider\", var=\"%conv_set_bgm_volume_shown\", min=0, max=1000, step=1, travel=134, knob={file=\"system/knob.png\", cells=2, x=588, y=84}, track={x=588, y=65, w=141, h=34}, fill={file=\"system/full.png\", x=584, y=72}, action={\"gosub\", \"*conv_ps_lie\"}}",
+            "{\"slider\", var=\"%conv_set_bgm_volume\", min=0, max=1000, step=1, travel=-134, knob={file=\"system/knob.png\", cells=2, x=722, y=84}, track={x=588, y=65, w=141, h=34}, fill={file=\"system/full.png\", x=584, y=72}, action={\"gosub\", \"*conv_ps_apply\"}}",
         ] {
             assert!(lua.contains(line), "missing {line:?} in\n{lua}");
         }
         let mut out = String::new();
         picture_settings::emit(&mut out, &s, 800);
-        assert!(out.starts_with("*conv_settings\ngosub *conv_ps_show\nscreen \"settings\"\nreturn\n*conv_ps_show\nmov %conv_set_bgm_volume_shown,1000-%conv_set_bgm_volume\nreturn\n*conv_ps_lie\nmov %conv_set_bgm_volume,1000-%conv_set_bgm_volume_shown\ngoto *conv_ps_apply\n"), "{out}");
+        assert!(out.starts_with("*conv_settings\nscreen \"settings\"\nreturn\n"), "{out}");
         let mut define = String::new();
         picture_settings::define(&mut define, &s);
-        assert!(define.ends_with("defvar conv_set_done,global\ndefvar conv_set_bgm_volume_shown\n"), "{define}");
+        assert!(define.ends_with("defvar conv_set_done,global\n"), "{define}");
     }
 }
