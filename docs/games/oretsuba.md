@@ -315,17 +315,13 @@ the first ones, a frame of the Vita game the rest:
 - Text speed: the eboot (0x81126a80) shows a character every 15, 5 and
   1 updates (遅い, 普通, 早い; 一括 at once), slower than our text speed
   levels reach (60 ms a character at most); if an update is 2 frames,
-  普通 (the default) is 167 ms a character.
-- CharacterOpen's `[CharaN] :Priority` default (ours 9; 18,055 blocks
-  have none): the eboot stores it at +0x90 of the character entry,
-  whose default isn't traced.
-- Defaults no script relies on yet: Flash `:InTime`/`:OutTime` 3,
-  EffectQuake `:Param` 30, EffectStart 42/53/57/40/51 `:Param`s, the
-  centre for a missing `:Position`.
-- The eye catch shutters' time (500 ms): scene_load case 0x6f steps
-  the progress 1/9 an update without `:Fade`; how far it goes before
-  EyeCatchEnd is not read.
-- The story menu's fade (300 ms), the title's (500 ms).
+  普通 (the default) is 167 ms a character. conv-cons turns a level into
+  ms with one shared formula (`menu/settings.rs`, `(10 - level) × 6`), so
+  matching it needs a per-game IR value (the ms per level).
+- Defaults no script relies on: EffectStart 42/53/57/40/51 `:Param`s,
+  the centre for a missing `:Position`.
+- The title's fade (500 ms): its menus fade 8 % an update (13 updates,
+  0x81084c26), the picture's own fade-in is not traced.
 - Frames: the text window's place, its text origin and font size (23)
   and line gap; the skip dialog's font size (21); the particles'
   motion (ETC.cpk's sheets, our own drift).
