@@ -2586,6 +2586,11 @@ pub fn lower_script(
             ops.extend(path.prefix);
             let Some(records) = path.records else { continue };
             let unsupported = || format!("opcode {:#04x} sub {:#x} arg {}", ins.op, cd.sub(ins), cd.arg(ins));
+            // A movie (op_97 0x478ab0) and an unskippable click wait (op_68
+            // 0x4784b0, arg 0) end skip and auto mode first.
+            if ins.op == OP_MOVIE || (ins.op == OP_CLICK_WAIT && cd.arg(ins) == 0) {
+                ops.push(Op::StopAutoSkip);
+            }
             match lower_instr(cd, ins, &records, assets, names, window_size.is_none_or(|w| !w.2)) {
                 Ok(Some(Op::Text { speaker, text, voice, mut links, ruby, mut styles, hang, continues })) if flow == Flow::Linear => {
                     whole_text_style(&mut styles, &text, default_style);
