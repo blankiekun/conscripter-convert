@@ -19,7 +19,7 @@ fn key2(ms: u32, x: i32, y: i32, (zx, zy): (u32, u32), angle: i32, alpha: u32) -
 }
 
 /// A fade in over `ms` from alpha 0 to the sprite's own (a loop 0 motion).
-pub(crate) fn fade_in(slot: u32, ms: u32) -> String {
+pub(crate) fn fade_in(slot: impl std::fmt::Display, ms: u32) -> String {
     format!("spmotion {slot},0,{},{}", key(0, 0, 0, 100, 0, 0), key(ms, 0, 0, 100, 0, 256))
 }
 

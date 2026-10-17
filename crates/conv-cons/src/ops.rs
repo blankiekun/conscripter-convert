@@ -341,7 +341,7 @@ impl<'a> Emitter<'a> {
             writeln!(out, "if {OVERLAY_SLOT} != 0 csp {OVERLAY_SLOT}").unwrap();
             match image {
                 Some(image) => {
-                    let slot = if *over_sprites { OVERLAY_SPRITE } else { MAX_SPRITE };
+                    let slot = if *over_sprites { OVERLAY_SPRITE.to_string() } else { MAX_SPRITE.to_string() };
                     writeln!(out, "mov {OVERLAY_SLOT},{slot}:mov {OVERLAY_IMAGE},\":a;{}\"", path(image)).unwrap();
                     writeln!(out, "lsp {slot},{OVERLAY_IMAGE},0,0").unwrap();
                 }
@@ -663,9 +663,9 @@ impl<'a> Emitter<'a> {
                 }
                 // The scene may change the whole screen: save the
                 // background, the game's sprites and the BGM around it.
-                writeln!(out, "pushscreen {ANIMATION_SPRITE},{}", MAX_SPRITE).unwrap();
-                // popscreen brings the overlay and the static back; so
-                // must the variables.
+                writeln!(out, "pushscreen {SPRITE_BASE},{}", MAX_SPRITE).unwrap();
+                // The variables bring the overlay, static and animation
+                // back (their handles are outside pushscreen's range).
                 if has_overlay || has_noise || has_animation {
                     writeln!(out, "add {OVERLAY_DEPTH},1").unwrap();
                 }
@@ -711,6 +711,10 @@ impl<'a> Emitter<'a> {
                 }
                 if has_overlay || has_noise || has_animation {
                     writeln!(out, "sub {OVERLAY_DEPTH},1").unwrap();
+                    let handles = [(has_overlay, OVERLAY_SPRITE), (has_noise, NOISE_SPRITE), (has_animation, ANIMATION_SPRITE)];
+                    let csp: Vec<String> = handles.iter().filter(|h| h.0).map(|h| format!("csp {}", h.1)).collect();
+                    writeln!(out, "{}", csp.join(":")).unwrap();
+                    out.push_str(restore_overlay);
                 }
                 if let Some(w) = window {
                     // The scene may have switched the text window.

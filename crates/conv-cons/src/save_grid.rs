@@ -136,7 +136,7 @@ pub(crate) fn emit(out: &mut String, g: &SaveGrid, confirm: Option<&ConfirmDialo
     // With the popup the screen saves whichever way it was opened.
     let saving = if g.popup.is_some() { format!("{IN_GAME} == 1") } else { format!("{MODE} == 1") };
     w(format!("if {saving} getscreenshot {},{}", g.thumb_w, g.thumb_h));
-    w(format!("pushscreen {},{MAX_SPRITE}", crate::ANIMATION_SPRITE));
+    w(format!("pushscreen {},{MAX_SPRITE}", crate::SPRITE_BASE));
     w(format!("mov {DELETING},0"));
     if g.popup.is_some() {
         w(format!("mov {POPUP_AT},0"));
@@ -350,7 +350,7 @@ pub(crate) fn emit(out: &mut String, g: &SaveGrid, confirm: Option<&ConfirmDialo
     w("*conv_sg_draw".into());
     // The whole game range: the scene's sprites (saved by pushscreen)
     // would be drawn over the page.
-    w(format!("for {TMP} = {} to {MAX_SPRITE}:csp {TMP}:next", crate::ANIMATION_SPRITE));
+    w(format!("for {TMP} = {} to {MAX_SPRITE}:csp {TMP}:next", crate::SPRITE_BASE));
     for (p, (save, load)) in g.save_pages.iter().zip(&g.load_pages).enumerate() {
         w(format!("if {PAGE} == {} && {MODE} == 1 lsp {BACKGROUND},\":c;{}\",0,0", p + 1, path(save)));
         w(format!("if {PAGE} == {} && {MODE} == 2 lsp {BACKGROUND},\":c;{}\",0,0", p + 1, path(load)));

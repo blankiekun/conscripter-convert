@@ -96,7 +96,7 @@ const BAR_SPRITES: std::ops::Range<u32> = 34..49;
 /// `windowback` and `humanz`, over the text window, under sprites 0-58),
 /// taken in the define section ([`NAME_SPRITES_DEFINE`]), the text first so
 /// it is over the plate. The UI slots (0-58) are never saved in a
-/// meaningful state, so they may move; the game's (59 up) may not.
+/// meaningful state, so they may move; the game's (62 up) may not.
 const NAME_TEXT_SPRITE: &str = "%conv_name_text";
 const NAME_PLATE_SPRITE: &str = "%conv_name_plate";
 /// The define section's named variables (`defvar`, `defstr`): the
@@ -126,12 +126,31 @@ fn links_define() -> String {
     let names = (0..LINK_SPRITE_COUNT).map(|n| format!("defvar conv_link{n}"));
     names.chain((0..LINK_SPRITE_COUNT).map(|n| format!("spnew {},ui", link_sprite(n)))).collect::<Vec<_>>().join("\n")
 }
-/// The animation ([`Op::Animation`]), over the static.
-const ANIMATION_SPRITE: u32 = 59;
-/// The static ([`Op::Noise`]), over the overlay.
-const NOISE_SPRITE: u32 = 60;
-/// The overlay ([`Op::Overlay`]) over the character sprites.
-const OVERLAY_SPRITE: u32 = 61;
+/// The animation ([`Op::Animation`]), over the static; the static
+/// ([`Op::Noise`]), over the overlay; the overlay ([`Op::Overlay`]) over
+/// the character sprites: `spnew` handles in the `game` layer (were sprites
+/// 59-61), taken in the define section in that order ([`overlays_define`]).
+const ANIMATION_SPRITE: &str = "%conv_animation";
+const NOISE_SPRITE: &str = "%conv_noise";
+const OVERLAY_SPRITE: &str = "%conv_overlay";
+/// Their declarations, with their state below, for the features the
+/// script uses (an [`Op::SpriteInFront`] goes over the overlay's handle).
+fn overlays_define(animation: bool, noise: bool, overlay: bool) -> String {
+    let mut lines = Vec::new();
+    if animation {
+        lines.push("defvar conv_animation\ndefvar conv_animation_alpha\ndefstr conv_animation_image\nspnew %conv_animation");
+    }
+    if noise {
+        lines.push("defvar conv_noise\ndefvar conv_noise_alpha\ndefstr conv_noise_image\nspnew %conv_noise");
+    }
+    if overlay {
+        lines.push("defvar conv_overlay\ndefvar conv_overlay_slot\ndefstr conv_overlay_image\nspnew %conv_overlay");
+    }
+    if animation || noise || overlay {
+        lines.push("defvar conv_overlay_depth");
+    }
+    lines.join("\n")
+}
 /// Sprite layer n is NScripter sprite 62 + n.
 const SPRITE_BASE: u32 = 62;
 /// The lsp2 slot of a flash ([`Op::Flash`]), under the menus' and the top
@@ -148,21 +167,21 @@ const WAIT_ICON_AT: [&str; 2] = ["%conv_wait_icon_x", "%conv_wait_icon_y"];
 const MAX_SPRITE: u32 = 999;
 /// The overlay's sprite (0 = none) and image, to show it again after
 /// `csp -1`. Link scenes save them at OVERLAY_SAVED + depth.
-const OVERLAY_SLOT: &str = "%180";
-const OVERLAY_IMAGE: &str = "$180";
-const OVERLAY_DEPTH: &str = "%181";
+const OVERLAY_SLOT: &str = "%conv_overlay_slot";
+const OVERLAY_IMAGE: &str = "$conv_overlay_image";
+const OVERLAY_DEPTH: &str = "%conv_overlay_depth";
 const OVERLAY_SAVED: u32 = 182;
 /// The static's opacity (0 = none, else 1-255) and image, to show it again
 /// after `csp -1`. Link scenes save them at NOISE_SAVED + depth (the depth
 /// is the overlay's counter).
-const NOISE_ALPHA: &str = "%116";
-const NOISE_IMAGE: &str = "$116";
+const NOISE_ALPHA: &str = "%conv_noise_alpha";
+const NOISE_IMAGE: &str = "$conv_noise_image";
 const NOISE_SAVED: u32 = 130;
 /// The animation's opacity (0 = none, else 1-255) and image, to show it
 /// again after `csp -1`. Link scenes save them at ANIMATION_SAVED + depth
 /// (free locals between the game's own and the presets').
-const ANIMATION_ALPHA: &str = "%117";
-const ANIMATION_IMAGE: &str = "$117";
+const ANIMATION_ALPHA: &str = "%conv_animation_alpha";
+const ANIMATION_IMAGE: &str = "$conv_animation_image";
 const ANIMATION_SAVED: u32 = 21;
 /// Scratch variable receiving the clicked button (also used by nstrace).
 const BUTTON_VAR: &str = "%9";
@@ -347,6 +366,10 @@ pub fn emit(script: &Script) -> String {
     writeln!(out, "{}", links_define()).unwrap();
     if let Some(s) = &script.picture_settings {
         picture_settings::define(&mut out, s);
+    }
+    let in_front = script.ops.iter().any(|op| matches!(op, Op::SpriteInFront { front: true, .. }));
+    if has_overlay || has_noise || has_animation || in_front {
+        writeln!(out, "{}", overlays_define(has_animation, has_noise, has_overlay || in_front)).unwrap();
     }
     if script.ops.iter().any(|op| matches!(op, Op::Text { links, .. } if links.iter().any(|l| l.target.is_some()))) {
         writeln!(out, "defarr {LINK_VISITED},{LINK_TARGETS},global").unwrap();
@@ -1707,7 +1730,7 @@ print 1
 textclear
 if %9 != 1 goto *conv_link1_1
 mov ?conv_link_visited[0],1
-pushscreen 59,999
+pushscreen 62,999
 gosub *s10_l1
 popscreen
 setwindow3 105,470,25,3,24,24,1,13,20,0,1,\":a;system\\window.png\",47,452
@@ -1735,7 +1758,9 @@ goto *conv_link1
         ]);
         s.window = Some(window());
         let text = emit(&s);
-        assert!(text.contains("\nif %181 < 7 spbtn %conv_link0,1\n"), "{text}");
+        assert!(text.contains("\nif %conv_overlay_depth < 7 spbtn %conv_link0,1\n"), "{text}");
+        // popscreen leaves the overlay's handle (over 999) as the scene left it.
+        assert!(text.contains("sub %conv_overlay_depth,1\ncsp %conv_overlay\nif %conv_overlay_slot != 0 lsp %conv_overlay_slot,"), "{text}");
     }
 
     #[test]
@@ -2508,7 +2533,7 @@ if %40 != 0 spfilter 65,%40,%41,%42,%43,%44,%45
 print 1
 msp 65,0,0,-255:msp 65,0,0,127
 print 1
-if %180 != 0 msp %180,0,0,-255:msp %180,0,0,255
+if %conv_overlay_slot != 0 msp %conv_overlay_slot,0,0,-255:msp %conv_overlay_slot,0,0,255
 print 1
 getspsize 65,%1,%2:amsp 65,-400-%1/2,300-%2/2
 print 1
@@ -2792,9 +2817,9 @@ end
         let out = emit(&s);
         assert!(
             out.contains(
-                "csp 59\nmov %117,255:mov $117,\":c/2,<33,50>,1;fx\\fx0401.png\"\nlsp 59,$117,0,0,%117\nprint 1\n\
-                 csp -1\nif %117 != 0 lsp 59,$117,0,0,%117\nbg \"bg\\room.png\",1\n\
-                 csp 59\nmov %117,0\nprint 1\n"
+                "csp %conv_animation\nmov %conv_animation_alpha,255:mov $conv_animation_image,\":c/2,<33,50>,1;fx\\fx0401.png\"\nlsp %conv_animation,$conv_animation_image,0,0,%conv_animation_alpha\nprint 1\n\
+                 csp -1\nif %conv_animation_alpha != 0 lsp %conv_animation,$conv_animation_image,0,0,%conv_animation_alpha\nbg \"bg\\room.png\",1\n\
+                 csp %conv_animation\nmov %conv_animation_alpha,0\nprint 1\n"
             ),
             "{out}"
         );
@@ -2810,9 +2835,9 @@ end
         let out = emit(&s);
         assert!(
             out.contains(
-                "if %180 != 0 csp %180\nmov %180,61:mov $180,\":a;bg\\frame01.png\"\nlsp 61,$180,0,0\nprint 1\n\
-                 csp -1\nif %180 != 0 lsp %180,$180,0,0\nbg \"bg\\room.png\",1\n\
-                 if %180 != 0 csp %180\nmov %180,0\nprint 1\n"
+                "if %conv_overlay_slot != 0 csp %conv_overlay_slot\nmov %conv_overlay_slot,%conv_overlay:mov $conv_overlay_image,\":a;bg\\frame01.png\"\nlsp %conv_overlay,$conv_overlay_image,0,0\nprint 1\n\
+                 csp -1\nif %conv_overlay_slot != 0 lsp %conv_overlay_slot,$conv_overlay_image,0,0\nbg \"bg\\room.png\",1\n\
+                 if %conv_overlay_slot != 0 csp %conv_overlay_slot\nmov %conv_overlay_slot,0\nprint 1\n"
             ),
             "{out}"
         );
@@ -2829,14 +2854,14 @@ end
         let out = emit(&s);
         assert!(
             out.contains(
-                "csp 60\nmov %116,120:mov $116,\":c/4,100,0;system\\noise.png\"\nlsp 60,$116,0,0,%116\nprint 1\n\
-                 csp -1\nif %116 != 0 lsp 60,$116,0,0,%116\nbg \"bg\\room.png\",1\n\
-                 csp 60\nmov %116,0\nprint 1\n"
+                "csp %conv_noise\nmov %conv_noise_alpha,120:mov $conv_noise_image,\":c/4,100,0;system\\noise.png\"\nlsp %conv_noise,$conv_noise_image,0,0,%conv_noise_alpha\nprint 1\n\
+                 csp -1\nif %conv_noise_alpha != 0 lsp %conv_noise,$conv_noise_image,0,0,%conv_noise_alpha\nbg \"bg\\room.png\",1\n\
+                 csp %conv_noise\nmov %conv_noise_alpha,0\nprint 1\n"
             ),
             "{out}"
         );
         let out = emit(&script(vec![Op::NoiseFadeIn { ms: 2000 }, Op::Noise(Some(noise))]));
-        assert!(out.contains("lsp 60,$116,0,0,%116\nspmotion 60,0,0,0,0,100,100,0,0,0,2000,0,0,100,100,0,256,0\nprint 1\n"), "{out}");
+        assert!(out.contains("lsp %conv_noise,$conv_noise_image,0,0,%conv_noise_alpha\nspmotion %conv_noise,0,0,0,0,100,100,0,0,0,2000,0,0,100,100,0,256,0\nprint 1\n"), "{out}");
     }
 
     #[test]
@@ -2887,7 +2912,7 @@ end
     #[test]
     fn sprites_in_front_of_the_overlay() {
         let out = emit(&script(vec![Op::SpriteInFront { layer: 7, front: true }, Op::SpriteInFront { layer: 7, front: false }]));
-        assert!(out.contains("spz 69,61\nspz 69\n"), "{out}");
+        assert!(out.contains("spz 69,%conv_overlay\nspz 69\n"), "{out}");
     }
 
     #[test]

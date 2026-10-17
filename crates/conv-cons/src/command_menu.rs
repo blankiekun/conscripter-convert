@@ -139,7 +139,7 @@ pub(crate) fn emit(out: &mut String, m: &CommandMenu, bar: &ButtonBar, picture_r
     for (i, it) in m.items.iter().enumerate() {
         let Some(l) = it.label.as_ref().filter(|_| it.action == BarAction::Call) else { continue };
         w(format!("*{}", call_label(i)));
-        w(format!("gosub *{BAR_CLEAR}:pushscreen {},{}", crate::ANIMATION_SPRITE, crate::MAX_SPRITE));
+        w(format!("gosub *{BAR_CLEAR}:pushscreen {},{}", crate::SPRITE_BASE, crate::MAX_SPRITE));
         w(format!("gosub *{}", crate::label(l)));
         w("popscreen:print 1".into());
         w("return".into());

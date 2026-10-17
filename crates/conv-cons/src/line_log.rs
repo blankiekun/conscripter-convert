@@ -70,9 +70,9 @@ pub(crate) fn emit(out: &mut String, l: &LineLog, single_byte: bool) {
 
     w(format!("*{}", menu::BACKLOG));
     w(format!("if {IN_GAME} == 1 textoff"));
-    w(format!("pushscreen {},{MAX_SPRITE}", crate::ANIMATION_SPRITE));
+    w(format!("pushscreen {},{MAX_SPRITE}", crate::SPRITE_BASE));
     // pushscreen keeps the scene's sprites up: the screen covers them.
-    w(format!("for {TMP} = {} to {MAX_SPRITE}:csp {TMP}:next", crate::ANIMATION_SPRITE));
+    w(format!("for {TMP} = {} to {MAX_SPRITE}:csp {TMP}:next", crate::SPRITE_BASE));
     w(format!("logrows {ROWS},{}{}", l.columns, l.row_width.map_or(String::new(), |w| format!(",{w}"))));
     w(format!("mov {MAX_TOP},{ROWS}-{}:if {MAX_TOP} < 0 mov {MAX_TOP},0", l.rows));
     w(format!("mov {TOP},{MAX_TOP}"));
