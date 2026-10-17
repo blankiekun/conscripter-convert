@@ -58,6 +58,9 @@ const GLOBAL_FLAG_BASE: u16 = 210;
 /// Global variable index of scene `n`'s "read" flag (the scenes in name
 /// order): %1200 up, past conv-cons's and smoke.py's (%1000-%1099).
 const SCENE_READ_BASE: u16 = 1000;
+/// Global variable index of `:Movie` n's "seen" flag: %1680 + n, past the
+/// scenes' read flags (463 scenes).
+const MOVIE_SEEN_BASE: u16 = SCENE_READ_BASE + 480;
 const PRIORITY_STEP: u32 = 20;
 /// The front layer that `FadeOut` covers the picture with.
 const COVER_LAYER: u32 = 0;
@@ -1426,7 +1429,26 @@ impl Lowering<'_> {
                 }
             }
             "MoviePlay" => match t.int("Movie").and_then(|n| self.assets.movie(n as u32)) {
-                Some(file) => self.out.ops.push(Op::Movie { file, skippable: t.int("Skip").unwrap_or(-1) != 0 }),
+                // src: exe 0x81044b74: `:Skip` > 0 skippable, 0 not, below 0
+                // (-1 by default, 0x8112a024; every use) only once seen: the
+                // seen flag (0x814e8a58 + movie, global) is set as it starts
+                // (0x81044cb8), after the check.
+                Some(file) => match t.int("Skip").unwrap_or(-1) {
+                    skip @ 0.. => self.out.ops.push(Op::Movie { file, skippable: skip > 0 }),
+                    _ => {
+                        let n = t.int("Movie").unwrap_or(0) as u16;
+                        let seen = Var { global: true, index: MOVIE_SEEN_BASE + n };
+                        let again = format!("{}_movie{i}", scene_label(scene));
+                        let done = format!("{again}_done");
+                        self.out.ops.push(Op::If { var: seen, cmp: Compare::Ne, value: Operand::Const(0), label: again.clone() });
+                        self.out.ops.push(Op::Arith { var: seen, op: ArithOp::Set, value: Operand::Const(1) });
+                        self.out.ops.push(Op::Movie { file: file.clone(), skippable: false });
+                        self.out.ops.push(Op::Jump(done.clone()));
+                        self.out.ops.push(Op::Label(again));
+                        self.out.ops.push(Op::Movie { file, skippable: true });
+                        self.out.ops.push(Op::Label(done));
+                    }
+                },
                 None => self.unsupported(scene, i, format!("MoviePlay {:?}", t.int("Movie"))),
             },
             "EffectStart" | "EffectEnd" => {
