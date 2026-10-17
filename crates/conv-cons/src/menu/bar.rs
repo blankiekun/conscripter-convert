@@ -391,7 +391,10 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, s: BarScreens) {
                 if slide.is_some() {
                     w(format!("if {BAR_OUT} == 1 gosub *{BAR_SLIDE_OUT}"));
                 }
-                w("systemcall windowerase".into())
+                let (off, on) = hidden_while_erased(bar.top.is_some());
+                w(off);
+                w("systemcall windowerase".into());
+                w(on)
             }
             BarAction::QuickSave => {
                 w(format!("savegame {QUICK_SLOT}"));
