@@ -3347,6 +3347,8 @@ const UNNEEDED_OPERANDS: &[(u16, &str, &str, &str)] = &[
     // Key-frame motions: op_86 0x413540, setup 0x416fe0; op_87 0x413820; op_8d 0x4155c0.
     (0x86, "+5", "01000000", "the module slot, 1: one motion per object"),
     (0x86, "+15", "zeros", "the first key frame, which the setup replaces by the object's state"),
+    // 0x413350 hands the module the record from +9; its load (0x416fe0) reads the flags, the count and the key frames only.
+    (0x86, "-2", "0000", "two zero bytes after the key frames, which the motion's load doesn't read"),
     (0x87, "+0", "02????????01000000ff", "layer 2, any depth, slot 1: waits for the motion its object's 0x86 just started, which ours runs to its end at 0x86"),
     (0x8d, "-1", "ff", "0xff, as in every 0x87 and 0x8a wait record"),
     // op_88 0x415b50 clears a slot-0 module without its blend and opacity.
