@@ -106,6 +106,7 @@ mod sounds;
 mod shake;
 mod rain;
 mod turn;
+mod random;
 pub(super) use fast_skip::read_flag;
 
 /// A window picture's text place ([`Game::box_text`]): picture, text x, y,
@@ -1616,6 +1617,13 @@ struct Compiler<'a, 'b> {
     dynamic: HashMap<String, conv_core::ir::Var>,
     next_dynamic: u16,
     dynamic_values: HashMap<conv_core::ir::Var, std::collections::BTreeSet<String>>,
+    /// The `Random` picks being compiled ([`random`]), whether each
+    /// function draws one, and processes being played on paper (which
+    /// draw when converting).
+    random: Option<random::Draws>,
+    random_users: HashMap<String, bool>,
+    paper: u32,
+    random_sites: usize,
 }
 
 /// One way through a fork: its state at the end, and the op that marks it
@@ -2384,6 +2392,10 @@ impl<'a, 'b> Compiler<'a, 'b> {
             dynamic: HashMap::new(),
             next_dynamic: 0,
             dynamic_values: HashMap::new(),
+            random: None,
+            random_users: HashMap::new(),
+            paper: 0,
+            random_sites: 0,
         }
     }
 
@@ -2435,8 +2447,17 @@ impl<'a, 'b> Compiler<'a, 'b> {
     /// flushed after it (their volume and loop calls come right after the
     /// `Play`).
     fn run_top(&mut self, stmts: &'a [Stmt]) {
-        for s in stmts {
-            self.exec(s);
+        let (mut skip, mut checkpoint) = (0, None);
+        for (i, s) in stmts.iter().enumerate() {
+            if i < skip {
+                continue;
+            }
+            if let Some((end, _)) = self.exec_drawing(stmts, i, &mut checkpoint) {
+                skip = end + 1;
+            } else {
+                checkpoint = self.checkpoint(stmts, i).or(checkpoint.filter(|_| random::simple(s)));
+                self.exec(s);
+            }
             self.flush_sounds();
         }
     }
@@ -2450,7 +2471,22 @@ impl<'a, 'b> Compiler<'a, 'b> {
     /// it only in its other branch: the player who died doesn't go on.
     fn exec_seq(&mut self, parts: &[&'a [Stmt]]) -> Flow {
         for (pi, part) in parts.iter().enumerate() {
+            let mut skip = 0;
+            let mut checkpoint = None;
             for (i, s) in part.iter().enumerate() {
+                if i < skip {
+                    continue;
+                }
+                if let Some((end, flow)) = self.exec_drawing(part, i, &mut checkpoint) {
+                    skip = end + 1;
+                    if self.in_function == 0 {
+                        self.flush_sounds();
+                    }
+                    match flow {
+                        Flow::Normal => continue,
+                        flow => return flow,
+                    }
+                }
                 if let StmtKind::If { cond, then, otherwise } = &s.kind
                     && (ends_in_return(then) || otherwise.as_deref().is_some_and(ends_in_return))
                     && self.is_runtime(cond)
@@ -2463,6 +2499,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
                     }
                     return Flow::Normal;
                 }
+                checkpoint = self.checkpoint(part, i).or(checkpoint.filter(|_| random::simple(s)));
                 let flow = self.exec(s);
                 // A statement of a scene (not of a helper) has finished
                 // setting up the sounds it started.
@@ -3103,7 +3140,11 @@ impl<'a, 'b> Compiler<'a, 'b> {
             },
             "enter" | "erase" if matches!(&o.kind, Kind::Image { image } if text_object::is_text(image)) => o.erased = action == "erase",
             "enter" => self.show_text(name),
-            "start" if matches!(o.kind, Kind::Process { .. }) => self.start_process(name),
+            "start" if matches!(o.kind, Kind::Process { .. }) => {
+                self.paper += 1;
+                self.start_process(name);
+                self.paper -= 1;
+            }
             "smoothing" | "passive" | "erase" | "nolog" | "noicon" => {}
             other => self.note(format!("Request {other}")),
         }
@@ -5533,6 +5574,63 @@ scene a.nss
         let lit = keys.iter().filter(|k| k.opacity == 256).count();
         assert_eq!((lit, keys.last().map(|k| k.ms)), (9, Some(9 * 60 + 2000 + 1)), "{keys:?}");
         assert!(!c.notes.keys().any(|n| n.contains("Process")), "{:?}", c.notes);
+    }
+
+    #[test]
+    fn a_random_is_picked_at_run_time_among_its_values() {
+        // MFlash() starts MFlashProcess: its Random(4)+3 is compiled once
+        // per value, `rnd` choosing; a picture moved by Random over a few
+        // samples, the statements reading what it set going with it.
+        let library = format!("{LIBRARY}{}", r#"
+function MFlash()
+{
+	CreateProcess("MFlash", 150, 0, 0, "MFlashProcess");
+	Request("MFlash", Start);
+}
+function MFlashProcess()
+{
+	$MFlashLoopC = 0;
+	$MFlashLoopW = 2;
+	$MFlashLoopWP = Random(4)+3;
+	while($MFlashLoopC < 8){
+		Fade("@MFP", 30, 1000, null, true);
+		Fade("@MFP", 30, 0, null, true);
+		if($MFlashLoopC==$MFlashLoopW){
+			Wait(1000);
+			$MFlashLoopW = $MFlashLoopW+$MFlashLoopWP;
+		}
+		$MFlashLoopC++;
+	}
+	Delete("@MFP");
+}
+"#);
+        let story = r#"
+scene a.nss
+{
+	CreateColor("MFP", 19999, 0, 0, 1024, 576, "White");
+	Fade("MFP", 0, 0, null, true);
+	MFlash();
+	Wait(5000);
+	CreateColor("box", 100, 0, 0, 100, 100, "Red");
+	$a = Random(5) + Random(5);
+	$b = $a * 10;
+	Move("box", 300, @$b, @0, null, true);
+	Move("box", 300, @-$b, @0, null, true);
+}
+"#;
+        let c = compile(story, &library);
+        let picks: Vec<i32> = c.ops.iter().filter_map(|op| match op {
+            Op::Random { below, .. } => Some(*below),
+            _ => None,
+        }).collect();
+        assert_eq!(picks, vec![4, random::SAMPLES as i32], "{:?}", c.ops);
+        // The pauses after the 3rd flash and then every 3rd to 6th.
+        let flashes: std::collections::BTreeSet<String> = c.ops.iter().filter_map(|op| match op {
+            Op::SpriteMotion2 { keys, end: MotionEnd::Keep, .. } if keys.len() > 2 => Some(format!("{keys:?}")),
+            _ => None,
+        }).collect();
+        assert_eq!(flashes.len(), 4, "{flashes:?}");
+        assert!(!c.notes.keys().any(|n| n.contains("Random")), "{:?}", c.notes);
     }
 
     #[test]

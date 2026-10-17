@@ -753,6 +753,9 @@ pub enum Op {
     /// start (a label reached from elsewhere); the channels are handed out
     /// from the first again, as at the script's start.
     SeStopEvery,
+    /// `var` = a number from 0 to `below` − 1 picked at random when the
+    /// game runs (NScripter's `rnd`). Nitroplus's `Random`.
+    Random { var: Var, below: i32 },
 }
 
 /// [`Op::HoldMovie`]'s prompt: `image` is `cells` pictures side by side,

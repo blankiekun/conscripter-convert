@@ -94,6 +94,7 @@ impl<'a> Emitter<'a> {
             };
             writeln!(out, "{cmd} {target},{value}").unwrap();
         }
+        Op::Random { var, below } => writeln!(out, "rnd {},{below}", var_name(*var, border)).unwrap(),
         Op::If { var, cmp, value, label: target } => {
             writeln!(out, "if {} {} {} goto *{}", var_name(*var, border), cmp.operator(), operand(*value, border), label(target)).unwrap()
         }

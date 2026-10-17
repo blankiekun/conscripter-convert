@@ -795,6 +795,25 @@ Open: EN's screen fades 300 ms (guess: the Japanese value, not read from
   (scene cuts, the turntables) don't play in CONscripter for Windows,
   which only opens a movie in an outside player: an engine item for every
   game, not started.
+- `Random` (#354, 2026-10-17) is picked when the game runs. The exe gives
+  `rand() % n` (`eval_primary` 0043a780, reseeded from the clock each
+  call; seen). A statement that draws one (itself, in a function it
+  calls or a process it starts; not an endless process, which doesn't
+  end on paper) is compiled once per pick, and `rnd %81,N` chooses: each
+  value for a single draw of up to 16 (`Shake_Delete`'s, `MFlash`'s
+  pause), else 8 samples of every draw (the `FadeFR*`/`MoveFRP*`/
+  `MoveFTP*` jitter, which were straight paths at 0). The picks start at
+  the last statement where nothing waited to be shown and go on to the
+  one that waits for them, sounds every pick starts alike are played
+  once between them (conv-cons hands out channels in order), so the
+  screen is synced where it was before (`convert/random.rs`). Left
+  (771 calls, noted "Random picked when converting", a seeded pick):
+  picks that reach text (SetKenki's 《…！》 lines in md05_008vs/009, the
+  airship kitchen), that leave a picture at a random place
+  (md04_043's 量産 moves, the cockpit compass `CP_AziChange`), or that
+  give a loop to a picture shown only later. The endless processes with
+  `Random` (`BGMoveAuto`, `RandomMeimetsu*`, `GunFlash`) stay noted as
+  before.
 - Done: `SetBlur`'s trail behind a moving picture as CONscripter's
   `sptrail` (engine #25, converter #82; "History", "`SetBlur`").
   Its last argument draws the copies over the picture (`false`) or
@@ -942,7 +961,7 @@ Next, in order:
      17 px lower than the original's under wine (cause unknown; "History",
      "Story `CreateText`").
    - `DrawTransition`'s start opacity and softness.
-   - `Random` and `Conquest` return 0 whatever their arguments.
+   - `Conquest` returns 0 whatever its arguments (`Random`: picked at run time, Status).
    - `MoveCamera`'s arguments in a process (4 calls). (`CreateEffect`'s
      place and size are read: every story call covers the screen, a tone
      or `Plain` over part of it is noted; #355.)
@@ -1495,8 +1514,8 @@ beside the roll, ours after it.
 
 **`<VALUE>` in text (2026-10-15, exe review):** `<VALUE name=$var>`
 prints the variable; it is now filled in where the value is known when
-converting (the airship kitchen's `$材料名前`, `$料理名前`; `Random` is 0
-then, so the ingredient is always 豚肉).
+converting (the airship kitchen's `$材料名前`, `$料理名前`; their `Random`
+reaches text, so it is picked when converting: one ingredient always).
 
 **`<FONT>` in story text (2026-10-15, exe review):** `incolor` (the red
 違う。 in `mb03_006`, the yellow puzzle rules in `md05_025`) and `size`

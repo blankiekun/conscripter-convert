@@ -844,7 +844,7 @@ impl Compiler<'_, '_> {
                 self.note(CONQUEST);
                 return Value::Int(0);
             }
-            "Random" => return Value::Int(0),
+            "Random" => return self.random(arg(0).int()),
             "ModuleFileName" => return Value::Str(self.file.to_string()),
             "Strstr" => return Value::Int(i64::from(arg(0).string().contains(&arg(1).string()))),
             "Integer" => return Value::Int(arg(0).int()),
