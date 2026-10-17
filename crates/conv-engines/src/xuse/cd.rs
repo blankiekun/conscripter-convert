@@ -456,7 +456,8 @@ pub struct SurprisePreset {
     pub tint: u32,
     /// 0-256.
     pub tint_opacity: i32,
-    /// The blend of the tint: 2 (Multi) or 6 (in 0x88's list "dissolve").
+    /// The blend of the tint: 2 (Multi) or 6 (no tint: 0x428b50's fill
+    /// does nothing for blends 5 and 6).
     pub tint_blend: i32,
 }
 

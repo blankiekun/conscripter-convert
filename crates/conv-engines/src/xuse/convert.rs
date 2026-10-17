@@ -1671,7 +1671,8 @@ const PULSE_SLOT: u32 = 3;
 
 /// Opcode 0x6f: a pulse, as `screenpulse` waited for with a `delay` (a
 /// click ends both) and cleared. The tints: blend 2 (Multi) is `tint` 1;
-/// blend 6 (white, presets 6-8) is assumed to lay the colour over the copy.
+/// blends 5 and 6 (presets 6-8) draw nothing: their fill routines in the
+/// table at 0x518208 are 0x443090, a bare `ret`.
 fn lower_surprise(s: &Surprise, ops: &mut Vec<Op>) {
     let p = SURPRISE_PRESETS[s.preset];
     let zoom = |v: i32| ((i64::from(v) * 1000 + 32768) >> 16) as i32;
@@ -1679,6 +1680,7 @@ fn lower_surprise(s: &Surprise, ops: &mut Vec<Op>) {
     let colour = (c & 0xff) << 16 | (c & 0xff00) | (c >> 16 & 0xff);
     let (tint, tint_opacity) = match p.tint_blend {
         _ if p.tint_opacity == 0 => (0, 0),
+        5 | 6 => (0, 0),
         2 => (1, p.tint_opacity),
         _ => (2, p.tint_opacity),
     };
@@ -3886,6 +3888,10 @@ mod tests {
         ops.clear();
         lower_surprise(&Surprise { time_ms: 300, preset: 0 }, &mut ops);
         assert!(matches!(ops[0], Op::ScreenEffect { effect: Some(ScreenEffect::Pulse { zoom: (100, 100), tint: 0, tint_opacity: 0, .. }), .. }));
+        // Blend 6's fill does nothing: an untinted copy.
+        ops.clear();
+        lower_surprise(&Surprise { time_ms: 300, preset: 8 }, &mut ops);
+        assert!(matches!(ops[0], Op::ScreenEffect { effect: Some(ScreenEffect::Pulse { zoom: (200, 200), tint: 0, tint_opacity: 0, .. }), .. }));
     }
 
     #[test]
