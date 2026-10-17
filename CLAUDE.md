@@ -154,6 +154,8 @@ shared code. A team lead hands out the items and reviews the PRs.
   (`--update` then rewrites `tests/snapshots/`). `--diff origin/main`
   builds that ref in its own worktree and shows each game's 0.txt
   changes; `--map <rules>` checks a change is only a rename (below).
+  On a conflict in `tests/snapshots/` never take one side: rebase, rerun
+  `--update`, and explain each changed game's 0.txt in the PR body.
 - Full build: `target/release/conscripter-convert convert-game <install
   dir> -o out/<game>-cons --font <a Japanese TTF, e.g. ipag.ttf> --title
   "<title>"`. Each game's exact command is in its document.
@@ -221,9 +223,13 @@ on each later turn; several agents run at once.
   Show the checker few findings per kind (`--max 5`) and, after a fix,
   only what changed (`--diff before.jsonl after.jsonl`).
 - **Numbers before pictures.** Compare frames with
-  `compare -metric AE -fuzz 2% a.png b.png null:` (pixel count) or
+  `compare -metric AE -fuzz 0 a.png b.png null:` (pixel count) or
   `-metric RMSE`, or crop to the region in question; view an image only
-  when the numbers can't tell what is wrong. Screenshots are the biggest
+  when the numbers can't tell what is wrong. Where the expected pixels
+  are known exactly (a source picture against the drawn sprite, a colour
+  from the exe) use no fuzz or read the pixel values: 2 % hid sprites
+  drawn 1 % dark. Keep a small fuzz only for frames that legitimately
+  differ (video, scaled pictures) and say so in the report. Screenshots are the biggest
   cost in past sessions: never Read a full-size PNG, look through
   `research/tools/view.py a.png [b.png] [--crop WxH+X+Y] [--scale 50]
   [-o out.png]`, which crops, halves and puts the shots side by side

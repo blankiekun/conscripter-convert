@@ -432,7 +432,9 @@ anything is reached (step 11.6).
   each screen once and keep the shots in `research/<engine>/local/shots/`
   (git-ignored), named for what they show, so later checks reuse them
   instead of starting wine again. Compare ours with them by numbers
-  first (`compare -metric AE -fuzz 2%`, on a crop), and look at a
+  first (`compare -metric AE -fuzz 0`, on a crop; a small fuzz only for frames
+  that legitimately differ, such as video or scaled pictures, and say so
+  in the report: 2 % hid sprites drawn 1 % dark), and look at a
   picture only when the numbers don't say what differs. Stop
   wine and Xvfb afterwards. Recipes: "Running the original under
   wine" in `docs/games/saihate-no-ima.md`, and in
@@ -641,7 +643,9 @@ natively, at every milestone:
   for any engine), and this playbook if the process changed.
 - **The game is in `crates/conv-engines/src/registry.rs`** (id, name,
   engine, marker files, command; `conscripter-convert games` lists it)
-  and in `tests/snapshot.sh` from its first dry run (checklist 3a). Its `--update` also keeps
+  and in `tests/snapshot.sh` from its first dry run (checklist 3a). On a conflict in `tests/snapshots/` never take one side:
+  rebase, rerun `tests/snapshot.sh --update`, and explain each changed
+  game's 0.txt in the PR body. Its `--update` also keeps
   `tests/snapshots/<game>.metrics.json`, the dry run's completion counts
   (each source call converted fully or with a gap, per command kind),
   which the convert-metrics page on blankiekun.github.io shows: the
