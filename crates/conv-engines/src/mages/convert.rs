@@ -1593,7 +1593,7 @@ impl Lowering<'_> {
         }
         let options = vec![("このシーンを読む".to_string(), tag_label(scene, play)), ("このシーンをスキップする".to_string(), tag_label(scene, skip))];
         self.choices += 1;
-        self.out.ops.push(Op::Choice { options, style: None });
+        self.out.ops.push(Op::Choice { options, style: None, disabled: vec![] });
     }
 
     /// START's story menu (the original's labels in `title_bg.png`), as
@@ -1634,7 +1634,7 @@ impl Lowering<'_> {
             options.push((title.to_string(), gate.clone()));
             gates.push((gate, scene, flags));
         }
-        self.out.ops.push(Op::Choice { options, style: None });
+        self.out.ops.push(Op::Choice { options, style: None, disabled: vec![] });
         for (gate, scene, flags) in gates {
             self.out.ops.push(Op::Label(gate));
             for flag in flags {
@@ -1758,7 +1758,7 @@ impl Lowering<'_> {
             }
         }
         self.choices += 1;
-        self.out.ops.push(Op::Choice { options, style: None });
+        self.out.ops.push(Op::Choice { options, style: None, disabled: vec![] });
         for (stub, change, target) in stubs {
             self.out.ops.push(Op::Label(stub));
             if let Some((var, (op, v))) = change {

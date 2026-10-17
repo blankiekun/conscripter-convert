@@ -942,9 +942,9 @@ impl<'a> Emitter<'a> {
         Op::SceneEnd if has_replay => writeln!(out, "if {} == 1 goto *{}", replay::REPLAYING, replay::END).unwrap(),
         Op::SceneEnd => writeln!(out, "; scene end").unwrap(),
         op @ (Op::Choice { .. } | Op::RuntimeChoice { .. }) => {
-            let (options, texts, style) = match op {
-                Op::Choice { options, style } => (options, &[][..], style),
-                Op::RuntimeChoice { options, texts, style } => (options, &texts[..], style),
+            let (options, texts, style, disabled) = match op {
+                Op::Choice { options, style, disabled } => (options, &[][..], style, &disabled[..]),
+                Op::RuntimeChoice { options, texts, style } => (options, &texts[..], style, &[][..]),
                 _ => unreachable!(),
             };
             assert!(texts.len() <= crate::RUNTIME_OPTIONS, "a choice with more than {} options set at run time", crate::RUNTIME_OPTIONS);
@@ -962,6 +962,7 @@ impl<'a> Emitter<'a> {
                 writeln!(out, "savegame {}", menu::BACK_SLOT).unwrap();
             }
             if let Some(p) = plates {
+                assert!(disabled.is_empty(), "disabled options on picture plates");
                 choice_plates::emit(out, options, texts, p, *plate_choices, script.button_bar.is_some(), border);
                 *plate_choices += 1;
             } else {
@@ -978,6 +979,10 @@ impl<'a> Emitter<'a> {
                         }
                         None => items.push(format!("\"{}\",*{}", text_safe(t), label(l))),
                     }
+                }
+                if !disabled.is_empty() {
+                    // just before the select: a load (BACK_SLOT too) runs it again
+                    writeln!(out, "seldisable {}", disabled.iter().map(|i| (i + 1).to_string()).collect::<Vec<_>>().join(",")).unwrap();
                 }
                 writeln!(out, "select {}", items.join(",")).unwrap();
             }
