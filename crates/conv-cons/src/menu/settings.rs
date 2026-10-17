@@ -18,7 +18,7 @@ pub(crate) fn settings_menu(
     version: Option<(&str, u32)>,
 ) {
     if let Some(p) = &m.pictures {
-        crate::settings_pages::emit(out, m, p, confirm, leave);
+        crate::settings_pages::labels(out, m, p, confirm, leave);
         settings_apply(out, m);
         return;
     }

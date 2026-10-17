@@ -4,9 +4,10 @@
 //! an atlas: the options lit (a glow and a cloud), a snowflake, and the
 //! rows' cursor plates. The option words are cut out of the page (the
 //! page minus the page with them painted over) so that the current one
-//! can be drawn lit; the level bars are the page's own, emptied past the
-//! level, with the snowflake at its end. A third page holds our own
-//! switches (the confirmations, the mouse wheel) in the same style.
+//! can be drawn lit; the level bars are the page's own, the snowflake a
+//! knob at the fill's end with the bar's empty part moving along with
+//! it. A third page holds our own switches (the confirmations, the
+//! mouse wheel) in the same style.
 //!
 //! Left out: 選んだ選択肢の色を変更 and 自動クイックセーブ (not converted);
 //! their rows are painted over.
@@ -23,10 +24,8 @@ use super::menus::{Labels, difference, patch, place, side_by_side};
 const ROWS: [u32; 8] = [147, 185, 222, 258, 297, 334, 370, 409];
 /// A row's label starts here on page 1 (page 2's are further left).
 const LABEL_X: i32 = 140;
-/// The level bars: the fill line from x 508 to 776, and the part of the
-/// page each bar picture covers.
+/// The level bars: the fill line from x 508 to 776.
 const FILL: (u32, u32) = (508, 776);
-const BAR_X: (u32, u32) = (500, 786);
 /// The ◀ and ▶ beside a bar.
 const MINUS_X: (u32, u32) = (484, 16);
 const PLUS_X: (u32, u32) = (785, 16);
@@ -153,48 +152,35 @@ fn golden(img: &RgbaImage) -> RgbaImage {
     out
 }
 
-/// The 11 bar pictures (levels 0-10) of the bar whose fill line is at
-/// `line` on `page`, placed at `y`, its knob `knob`.
-fn bars(assets: &mut ArchiveAssets, page: &RgbaImage, line: u32, knob: &RgbaImage, name: &str, y: i32, inverted: bool) -> (Placed, Vec<String>) {
-    let top = line - 11;
-    let rect = (BAR_X.0, top, BAR_X.1 - BAR_X.0, 24);
-    let base = crop(page, rect);
-    let mut paths = Vec::new();
-    for k in 0..=10u32 {
-        let level = if inverted { 10 - k } else { k };
-        let end = FILL.0 + (FILL.1 - FILL.0) * level / 10;
-        let mut img = base.clone();
-        for x in end + 1..=FILL.1 {
-            for dy in 0..2 {
-                img.put_pixel(x - BAR_X.0, line - top + dy, Rgba([EMPTY[0], EMPTY[1], EMPTY[2], 255]));
-            }
-        }
-        let kx = end as i64 - BAR_X.0 as i64 - knob.width() as i64 / 2;
-        imageops::overlay(&mut img, knob, kx, (line - top) as i64 + 1 - knob.height() as i64 / 2);
-        paths.push(assets.put_system_png(&format!("{name}_{k}"), &img));
-    }
-    let bar = Placed { image: paths[0].clone(), x: BAR_X.0 as i32, y: y - (line - top) as i32, w: rect.2 as i32, h: 24 };
-    (bar, paths)
-}
-
 /// The fill line of the bar on row `y` of `page` (its first dark row).
 fn fill_line(page: &RgbaImage, y: u32) -> u32 {
     (y - 12..y + 4).find(|&r| page.get_pixel(600, r).0[..3].iter().map(|&c| c as u32).sum::<u32>() < 470).map_or(y - 2, |r| r + 3)
 }
 
-/// A level row: bar pictures and its ◀ ▶ buttons, cut from `page`'s bar
-/// whose fill line is at `line`, drawn on row `y` (`line`'s own row when
-/// the same). `inverted`: the bar shows 10 minus the level, ◀ raises it.
-#[allow(clippy::too_many_arguments)]
-fn slider(assets: &mut ArchiveAssets, page: &RgbaImage, line: u32, knob: &RgbaImage, name: &str, y_line: u32, value: SettingValue, inverted: bool) -> RowControl {
-    let (bar, bars) = bars(assets, page, line, knob, name, y_line as i32, inverted);
+/// A level row on `page`'s bar whose fill line is at `line`: the knob at
+/// the fill's end, the line drawn filled up to it (in the bar's empty
+/// colour past it when `inverted`: the bar shows 10 minus the level, ◀
+/// raises it), and its ◀ ▶ buttons.
+fn slider(assets: &mut ArchiveAssets, page: &RgbaImage, line: u32, knob: &RgbaImage, name: &str, value: SettingValue, inverted: bool) -> RowControl {
+    let length = FILL.1 - FILL.0;
+    // Where the fill ends at level 0.
+    let start = if inverted { FILL.1 } else { FILL.0 };
+    let knob = place(assets, &format!("{name}_knob"), knob, (start - knob.width() / 2) as i32, (line + 1 - knob.height() / 2) as i32);
+    let empty = RgbaImage::from_pixel(length, 2, Rgba([EMPTY[0], EMPTY[1], EMPTY[2], 255]));
+    let empty = place(assets, &format!("{name}_empty"), &empty, FILL.0 as i32 + 1, line as i32);
+    let (fill, bar) = if inverted {
+        (empty, None)
+    } else {
+        (place(assets, &format!("{name}_fill"), &crop(page, (FILL.0, line, length + 1, 2)), FILL.0 as i32, line as i32), Some(empty))
+    };
     let arrow = |assets: &mut ArchiveAssets, (x, w): (u32, u32), part: &str| {
         let img = crop(page, (x, line - 7, w, 16));
-        place(assets, &format!("{name}_{part}"), &side_by_side(&[img.clone(), golden(&img)]), x as i32, y_line as i32 - 7)
+        place(assets, &format!("{name}_{part}"), &side_by_side(&[img.clone(), golden(&img)]), x as i32, line as i32 - 7)
     };
     let (left, right) = (arrow(assets, MINUS_X, "minus"), arrow(assets, PLUS_X, "plus"));
     let (minus, plus) = if inverted { (right, left) } else { (left, right) };
-    RowControl::Slider { value, bar, bars, minus, plus }
+    let travel = if inverted { -(length as i32) } else { length as i32 };
+    RowControl::Slider { value, knob, travel, fill, bar, minus, plus }
 }
 
 /// An option list: each word cut out of the page `atlas` starts with
@@ -212,7 +198,8 @@ fn choice(assets: &mut ArchiveAssets, atlas: &RgbaImage, clean: &RgbaImage, opts
             let plain = letters_only(&difference(atlas, clean, (o.at.0, o.at.1, w, h)), &glow);
             let mut lit = plain.clone();
             imageops::overlay(&mut lit, &glow, 0, 0);
-            (v, place(assets, &format!("{name}_{i}"), &side_by_side(&[plain, lit]), o.at.0 as i32, o.at.1 as i32 + dy))
+            let current = place(assets, &format!("{name}_{i}_on"), &side_by_side(&[lit.clone(), lit.clone()]), 0, 0).image;
+            (v, place(assets, &format!("{name}_{i}"), &side_by_side(&[plain, lit]), o.at.0 as i32, o.at.1 as i32 + dy), current)
         })
         .collect();
     RowControl::Choice { value, options }
@@ -301,16 +288,16 @@ pub fn pictures(assets: &mut ArchiveAssets, labels: &Labels, switches: &[(String
         choice(assets, &atlas1, &clean1, o[2], &[0, 1], SettingValue::SkipUnread, "cfg_mode", 0),
         // 持続: skip goes on after a choice.
         choice(assets, &atlas1, &clean1, o[3], &[0, 1], sw(Switch::StopSkipAtChoice), "cfg_after", 0),
-        slider(assets, &page1, auto_line, &knob, "cfg_auto", auto_line, SettingValue::Level(Setting::AutoSpeed), false),
+        slider(assets, &page1, auto_line, &knob, "cfg_auto", SettingValue::Level(Setting::AutoSpeed), false),
         // 遅い 普通 早い 一括: text speed levels (their ms: menus.rs, text_ms).
         choice(assets, &atlas1, &clean1, o[6], &[4, 7, 9, 10], SettingValue::Level(Setting::TextSpeed), "cfg_speed", 0),
         // ウインドウの不透明度: the transparency, shown the other way round.
-        slider(assets, &orig1, window_line, &knob, "cfg_window", window_line, SettingValue::Level(Setting::WindowTransparency), true),
+        slider(assets, &orig1, window_line, &knob, "cfg_window", SettingValue::Level(Setting::WindowTransparency), true),
     ];
     let mut rows2 = Vec::new();
     for (i, setting) in [Setting::VoiceVolume, Setting::BgmVolume, Setting::SeVolume, Setting::SystemVolume].into_iter().enumerate() {
         let line = fill_line(&orig2, ROWS[i]);
-        rows2.push(slider(assets, &orig2, line, &knob, &format!("cfg_vol{i}"), line, SettingValue::Level(setting), false));
+        rows2.push(slider(assets, &orig2, line, &knob, &format!("cfg_vol{i}"), SettingValue::Level(setting), false));
     }
     // ON: the music is lowered (the switch keeps it full).
     rows2.push(choice(assets, &atlas2, &clean2, PAGE2[0], &[0, 1], sw(Switch::BgmFullForVoice), "cfg_duck", 0));
