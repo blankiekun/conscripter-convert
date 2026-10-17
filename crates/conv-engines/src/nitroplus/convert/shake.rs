@@ -3,8 +3,8 @@
 //! going from (x0, y0) to (x1, y1) over the time.
 
 /// How often a shaken picture turns.
-// guess: the exe (FUN_004578e0) flips the sign once the time since the last
-// flip passes the shake's ms ÷ DAT_005dcaf0 (a run-time frame value, not read)
+// guess: the exe (queue_shake 004462d0, shake_frame 004578e0) flips the sign every
+// 1000 ÷ (n × 60 ÷ 1000) ms, n the shake's 7th argument; loops and paper shakes don't read n
 const STEP_MS: u32 = 100;
 /// `spmotion` takes 64 keys (engine `COMMANDS.md`; it was 32 before engine #44).
 const MAX_KEYS: u32 = super::loops::MAX_KEYS as u32;

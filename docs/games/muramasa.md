@@ -534,10 +534,13 @@ exe or a shot. Open guesses a frame of the original could settle:
 
 - the click-wait flame's frame times (53 ms × 19, 77 ms × 13, a 500 ms
   pause: watched, the film redraws once a second);
-- the text speed slider's range (0-100 ms a character);
 - a choice's text 40 px down its plate, and red under the pointer;
-- the blur of the title's glow (`SetBlur(…, 2, …)` as 3 px);
-- the `sepia` and `kitanoblue` tones; the rain's 16 ms frame period.
+- the title's glow: the exe's `SetBlur(…, 2, …)` is a trail of the last
+  frames' copies (`FUN_00456810`), sharp at rest; ours a 3 px blur;
+- the `sepia` and `kitanoblue` tones (sepia's draw code, `0x4403d0`, not
+  decoded);
+- looped and paper `Shake`s turning every 100 ms (the exe: every
+  1000 ÷ (n × 0.06) ms, `queue_shake` 004462d0; they don't read n);
 - the shared NSS code's: cameras' depth rule (`zoom / (1000 − priority)`,
   measured in 続・殺戮のジャンゴ, not yet in this game).
 

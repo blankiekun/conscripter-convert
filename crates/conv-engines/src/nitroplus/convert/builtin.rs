@@ -569,7 +569,8 @@ impl Compiler<'_, '_> {
                 if jolt.is_some_and(|(n, _)| n > 1000) {
                     return Value::Null; // src: FUN_00431de0 (n < 0x3e9), nor waited for
                 }
-                // guess: n 0 or below a flip each frame (the exe's 1000 ÷ 0)
+                // n 0 or below: a flip each frame (src: exe 004462d0, 1000 ÷ 0 → _ftol's
+                // 0x80000000; shake_frame 004578e0's signed `elapsed <= step` never holds)
                 let step = jolt.map(|(n, ease)| (if n > 0 { (1_000_000.0 / (60.0 * n as f64)).round() as u32 } else { 16 }, ease));
                 let targets = self.matching(&arg(0));
                 if !targets.iter().any(|t| self.objects[t].w >= screen_w && self.objects[t].h >= screen_h) {

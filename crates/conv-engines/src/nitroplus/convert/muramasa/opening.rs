@@ -318,7 +318,8 @@ fn buttons(a: &mut dyn Assets, look: &TitleLook, at: f64) -> Option<Vec<Layer>> 
 }
 
 /// Blur of `SetBlur(…, true, 2, …)`: two passes of 1.5 px.
-// guess: the exe's blur radius isn't read; a frame of the title's glow could settle it
+// guess: the exe has no radius: SetBlur draws the last `passes` frames' copies (FUN_00456810,
+// a trail), so at rest they coincide and only the 1000→1200 zoom smears; 3 px stands in for it
 const BLUR: f32 = 3.0;
 
 /// The first title after the game starts (`TitleFade`, `!$Logo`): 善悪相殺

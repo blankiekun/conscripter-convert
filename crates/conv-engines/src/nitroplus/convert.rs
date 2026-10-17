@@ -3967,7 +3967,7 @@ fn add(l: &Value, r: &Value) -> Value {
 /// An NSS volume (0-1000) as a percent of the player's setting: the exe
 /// sends 3322·log10(volume/1000) hundredths of a dB, an amplitude of
 /// (volume/1000)^1.661 (`research/nitroplus/builtins.md`, `SetVolume`).
-// src: exe SetVolume (3322·log10 hundredths of a dB; research/nitroplus/builtins.md)
+// src: exe sound_set_volume 00475f50 (3322.0 at 0x514fe8 × log10, at least -10000.0 at 0x514fe0)
 fn percent(volume: i64) -> u32 {
     (100.0 * (volume.clamp(0, 1000) as f64 / 1000.0).powf(1.661)).round() as u32
 }
