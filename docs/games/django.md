@@ -283,22 +283,27 @@ What it showed (2026-10-15):
 `nitroplus/convert/django/extras.rs` on Muramasa's `PictureExtras`:
 
 - **Menu**: the saloon with its doors shut, CG LIBRARY, RECOLLECTION
-  LIBRARY, SOUND LIBRARY, EXIT. The doors swinging open and the zoom
-  through them are left out.
+  LIBRARY, SOUND LIBRARY, EXIT, with its own music: `dj_INS12`, fading
+  in over 3 s each time the menu opens from the title. On a library's
+  button the buttons fade out, the doors swing open (`扉02`, `扉03`, with
+  their sound) and the saloon zooms in through them to black; back
+  from a library it zooms out of black, the doors shut and the buttons
+  fade in (`ExtrasPassage`, `dr_open`/`dr_close`'s times).
 - **CG library** (`extra_cg.nss`, `PictureGallery`): five categories
   (wanted posters), 20 thumbnails a page five across, ARTIFACT's three
   pages with BACK (next page) and NEXT (the one before). The script
   locks nothing: every picture is open once EXTRA is, except おめでとう画像
   (`#ClearAll`, set by the title's congratulations after every
   ending). Pictures larger than the screen are shown at half size; tall
-  ones scroll up from their bottom. Beside the original under wine
-  (2026-10-15): the page and the viewer match pixel for pixel, but for
-  the rifle animation over a category under the pointer (left out).
+  ones scroll up from their bottom. A category under the pointer shows
+  the rifle (`gun_anime`: 25 frames, 50 ms each, looping), and choosing
+  another fires it (`se_gun`). Beside the original under wine
+  (2026-10-15): the page and the viewer match pixel for pixel.
 - **Sound library** (`extra_sound.nss`, Muramasa's `SoundRoom`): 35
   songs (1.01's `cg2.npa` titles), the one playing in white with the
   running horse; pixel for pixel the original's but for the horse's
-  frame. Ours keeps the title's music in the extras where the original
-  starts `dj_INS12`, and a click on the song playing stops it.
+  frame. A click on the song playing stops it (the original starts it
+  again).
 - **Recollection** (`extra_recollection.nss`, `PictureReplay`): eleven
   scenes, all open; each `extra_N_*.nss` chapter is compiled once more as
   a subroutine (`Game::subroutines`) and played from the list. The list
@@ -365,10 +370,6 @@ with the original (it wants all eleven endings' flags under wine).
 - `RemainTime` on a sound returns its whole length, not the rest
   (`sound_left` has it); right after the start, where most calls are,
   the two agree.
-- Open bugs from `--roundtrip-every 1` (240 s from the start,
-  2026-10-17): after a load, looping sounds come back quieter than
-  saved (`se 1` 100 -> 83 in `conv_title_start`, `se 2` -> 57, `se 7`
-  and `se 9` -> 83), and the BGM `se_fue01.ogg` is gone at `if1_end`.
 
 | Area | Status |
 |---|---|
@@ -380,7 +381,7 @@ with the original (it wants all eleven endings' flags under wine).
 | Pictures, sound in scripts | 🟡 Black bars, face windows in their frames, standing pictures, backgrounds; pictures turned over (`Rotate` by 180°, 315 calls: characters facing the other way; 12 movies) drawn mirrored (dja004's choice now as the original's); turned about x or y they are drawn squashed by |cos| about their vertex, their children with them (no perspective), and turning over time (the face windows' `WindowRotateR`/`WindowCloseR`) they unfold or fold away as one `spmotion` (checked frame by frame in dja002); children of a picture moved over time (a face in its frame) move with it; `CreateEffect` Sepia (dja038_03) tints the pictures below it (`spfilter`); cameras (`CreateCamera`, `MoveCamera`, 365 calls): a camera's child of priority p drawn about the screen's centre at (its place − the camera's) × z / (1000 − p), as large, z the camera's zoom (priority is depth: measured under wine with boxes at four priorities and six camera settings, and dja001's carriage scene then matched the original's frames); moves, zooms and camera moves over time (1,765) as real motion: the engine moves the picture (`spmotion2`, keeping its last place) while the script goes on, also through the cross-fade of what else changes; those that also fade are one motion with alpha keys, and those drawn on another layer (the layers spread out again) are placed where they end and moved from where they were; movies (smoke, explosions, `集中線21`, `背景21`) move and zoom the same way and keep playing; a picture under an opaque full-screen one isn't drawn (old backgrounds the script leaves up under `窓`); the 400-vs-3 battle's muzzle flashes (`GunFire`) as a white sprite added on (`spblend`), flashing its number of times while the text goes on (`spalpha` keys), and its strobe the same way until deleted; the looping shakes (`ShakeVLoop*`) as the background's looped `spmotion`, and dja001's opening slideshow (`MoveBlackHawk`: the pictures fading and sliding in turn) as looped motions (`convert/loops.rs`, shared with 装甲悪鬼村正); every sound is found |
 | Choices | ✅ Plates as picture buttons, text placed as the original's (compared under wine) |
 | System screens | 🟡 From the game's pictures (`django/screens.rs`): title, right-click menu, save/load (3×20 slots; drawn by the engine, `screen "save"`/`"load"`), yes/no questions, text log (drawn by the engine, `screen "backlog"`: rows from `logrows`, the #AAAA88 rim as the text's `outline`, engine #104), settings (bullet rows as `SliderSteps`; drawn by the engine, `screen "settings"`: each bullet a radio lit from the chosen one down its row with `on_range`, engine #98), the click-wait bullet after the last character (`getcursorpos` in the bar's wait routine); compared under wine: right-click menu, save, log, settings (text speed starts at level 5 as the original's; the two SAVE-DATA question rows drawn as they stand, ON chosen; the display options and version panel left out on purpose) |
-| Extras | 🟡 Menu (drawn by the engine, `screen "extras"`; the libraries stay script routines), CG library, sound library, recollection, each compared with the original; left out: the doors' animation, the rifle over a category |
+| Extras | 🟡 Menu (drawn by the engine, `screen "extras"`; the libraries stay script routines) with its music and the doors into each library and back, CG library (with the rifle over a category), sound library, recollection, each compared with the original; the doors and the rifle not filmed beside the original |
 | Saves | 🟡 `--roundtrip-every 100` over the first 1,500 pages, and `--roundtrip-every 1` over the 569 pages one auto-play reaches: no save/load mismatch (a music played once before the next part, `BgmLater`, is `mp3save`, so a load plays it again); saves from the screens not tried by hand |
 | Web build | 🟡 Plays in a browser (title, story pages); saves, sound and touch not checked yet |
 
@@ -417,7 +418,8 @@ over 200, their bullets at once (ours at once both).
 1. The trace checker's remaining findings: "sounds on two channels at
    once" are the script's own (the same shot or horse on two sound
    objects, started 500 ms apart) and stay.
-2. Extras: the doors' animation and the menu's own music (left out).
+2. Extras: film the doors and the rifle beside the original once wine
+   is next used (ours from the scripts' times only).
 3. From the exe's coverage table ("The exe"): `SetShade HEAVY` (one use): done (#197).
 4. The unread-argument notes (`<Builtin> argument <i> ignored`;
    dry run 2026-10-16: 33 kinds, 18,947 notes, fewer than #30's 39 and
@@ -446,6 +448,21 @@ over 200, their bullets at once (ours at once both).
    NSS code; noted, drawn as nothing.
 
 ## History
+
+- **The extras' doors, music and rifle (2026-10-17).** Left out when the
+  extras reused Muramasa's `PictureExtras`, now from `extra_menu.nss`
+  and `extra_cg.nss`: the doors (`ExtrasPassage`; the menu screen closes
+  holding the display, the script runs the doors, `spmotion` zooms about
+  each picture's centre, t² in and out as `Axl1`/`Dxl1`; back, the screen
+  opens with `"back"` and its buttons' `open` motion), the menu's music
+  (`SoundRoom::menu_track`, `bgmfadein 3000`), the rifle (`CategoryHover`:
+  an `exbtn` showing an animated sprite, `exbtn_d` hiding it). Checked
+  headless against main's build (`compare -metric AE -fuzz 2%`): the menu
+  as it opens and after coming back 0 px; the gallery with the pointer on
+  リリィ differs only in the rifle's 50×52 box at 252,442, which steps
+  through its frames; the trace has `bgm` dj_INS_スィートウォーター讃歌民衆
+  with `bgmfadein 3000` at the menu's start. The roundtrip sound bugs
+  once listed in Queue were fixed by #292 and engine #102.
 
 - **`Shake` 6 and 7, `CreateWindow` 6 (2026-10-17).** From the
   decompile (`Django.exe` 1.01), each finding marked. `Shake(obj, time,

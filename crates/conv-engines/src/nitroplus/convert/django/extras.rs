@@ -7,7 +7,7 @@
 
 use std::collections::BTreeMap;
 
-use conv_core::ir::{ExtrasMode, GalleryCategory, PictureExtras, PictureExtrasItem, PictureGallery, PictureReplay, PictureSlot, Placed, ReplayEntry, RoomTrack, SlotCg, SoundRoom};
+use conv_core::ir::{CategoryHover, ExtrasMode, ExtrasPassage, GalleryCategory, PictureExtras, PictureExtrasItem, PictureGallery, PictureReplay, PictureSlot, Placed, ReplayEntry, RoomTrack, SlotCg, SoundRoom};
 
 use super::super::{Assets, Story};
 use crate::nitroplus::nss::{AssignOp, BinaryOp, Expr, Item, NssFile, Stmt, StmtKind, Var};
@@ -32,10 +32,10 @@ pub fn flags(_: &BTreeMap<String, NssFile>) -> Vec<String> {
 /// closed doors (`extramenu扉01` at 89,58), CG LIBRARY (281,193),
 /// RECOLLECTION LIBRARY (156,260), SOUND LIBRARY (241,328) and EXIT
 /// (615,551), each `001` at rest, `002` under the pointer, `003` pressed;
-/// it comes in from black over 500 ms. Left out: the doors swinging open
-/// (`扉02`, `扉03`) with the screen zooming in on the way to a library,
-/// the menu's own music (`dj_INS12` where the sound library has chosen
-/// nothing; ours keeps the title's).
+/// it comes in from black over 500 ms. On the way to a library the doors
+/// swing open (`扉02`, `扉03`) and the screen zooms in through them
+/// ([`ExtrasPassage`]); the menu's own music is `dj_INS12`
+/// ([`SoundRoom::menu_track`]).
 pub fn extras(a: &mut dyn Assets, story: &Story) -> Option<PictureExtras> {
     const DIR: &str = "cg/sys/extra/menu";
     // src: extra_menu.nss (places; Fade("blk", 500))
@@ -65,6 +65,38 @@ pub fn extras(a: &mut dyn Assets, story: &Story) -> Option<PictureExtras> {
         sound: sound(a),
         replay: replay(a, story),
         turntable: None,
+        passage: passage(a),
+    })
+}
+
+/// The doors (`extra_menu.nss`, `dr_open`, `dr_close`): on a library's
+/// button the buttons fade out (200 ms), `se_open` plays, 扉01 turns to
+/// 扉02 after 30 ms and to 扉03 30 ms later (each a 30 ms fade), held
+/// 100 ms; the saloon and the doors zoom to 2000 (each about its centre,
+/// `Axl1`) over 500 ms as `blk` fades in. Back (each library fades to
+/// black over 300 ms): they zoom back over 200 ms (`Dxl1`) as `blk` fades
+/// out, `se_close` plays, the doors shut at once and the buttons fade in
+/// over 200 ms. `se_walk` is never created (its line is commented out).
+fn passage(a: &mut dyn Assets) -> Option<ExtrasPassage> {
+    const DIR: &str = "cg/sys/extra/menu";
+    let frames: Vec<String> = (1..=3).map(|n| format!("{DIR}/extramenu扉{n:02}.png")).collect();
+    let frames: Vec<&str> = frames.iter().map(String::as_str).collect();
+    let (doors, w, h) = a.strip(&frames)?;
+    // src: extra_menu.nss (dr_* at 89,58; Fade btn_* 200; dr_open's Wait 30, Fade 30, Wait 100;
+    // Zoom 500 to 2000 Axl1, back 200 Dxl1; the libraries' Fade("blk", 300))
+    Some(ExtrasPassage {
+        background: a.image(&format!("{DIR}/extramenu背景.png"))?.0,
+        doors: Placed { image: doors, x: 89, y: 58, w: w as i32, h: h as i32 },
+        cells: 3,
+        buttons_ms: 200,
+        step_ms: 30,
+        hold_ms: 100,
+        zoom: 200,
+        zoom_ms: 500,
+        out_ms: 300,
+        back_ms: 200,
+        open_se: a.sound("sound/se/SE_日常_建物_ドア_木_屋内_開く_乱雑2"),
+        close_se: a.sound("sound/se/SE_日常_建物_ドア_開閉_木_開く_勝手口開く"),
     })
 }
 
@@ -164,9 +196,9 @@ fn walk(stmts: &[Stmt], at: At, out: &mut BTreeMap<(i64, i64, i64), Slot>) {
 /// 未見画像アイコン). The viewer (`show_pic`): a picture larger than the
 /// screen is shown at half size, centred; a tall one (`$act`) starts at
 /// its bottom and a click scrolls it up over 3 s; each picture fades in
-/// over 300 ms; the screen comes in from black over 500 ms. Left out: the
-/// rifle animation over a category under the pointer and the shot fired
-/// on choosing one.
+/// over 300 ms; the screen comes in from black over 500 ms. Under the
+/// pointer a category shows the rifle (`gun_anime`), and choosing another
+/// fires it (`se_gun`).
 fn gallery(a: &mut dyn Assets, story: &Story) -> Option<PictureGallery> {
     const DIR: &str = "cg/sys/extra/cg";
     let cleared = *story.flags.get(CLEARED)?;
@@ -246,6 +278,23 @@ fn gallery(a: &mut dyn Assets, story: &Story) -> Option<PictureGallery> {
         across: true,
         arrows_when_paged: true,
         engine_screen: false,
+        category_hover: rifle(a),
+    })
+}
+
+/// The rifle over a category under the pointer (`extra_cg.nss`,
+/// `gun_anime`, `animset_*`): `anime/001`-`025`, 50 ms each, looping from
+/// the first, at y 440 and each category's x.
+fn rifle(a: &mut dyn Assets) -> Option<CategoryHover> {
+    let frames: Vec<String> = (1..=25).map(|n| format!("cg/sys/extra/cg/anime/{n:03}.png")).collect();
+    let frames: Vec<&str> = frames.iter().map(String::as_str).collect();
+    // src: extra_cg.nss (anim_1-25; gun_anime's Wait(50); animset_*'s Move to 100, 252, 404, 528, 644 and 440)
+    Some(CategoryHover {
+        image: a.strip(&frames)?.0,
+        cells: 25,
+        ms: 50,
+        places: [100, 252, 404, 528, 644].into_iter().map(|x| (x, 440)).collect(),
+        click_se: a.sound("sound/se/SE_戦闘_銃器_発砲_マカロニ1"),
     })
 }
 
@@ -294,8 +343,9 @@ const SONGS: [&str; 35] = [
 /// white while it plays) down two columns from (136,92) and (438,92), 20
 /// px apart; the horse (`uma/uma-001`-`011`, 50 ms a frame) runs 34 px
 /// left of the title playing; EXIT at (702,538). A title plays its song
-/// looping, which stays the extras' music. The title's music
-/// (`dj23_harmonica`) plays at first. Differences: clicking the title
+/// looping, which stays the extras' music. The menu starts `dj_INS12`
+/// each time it opens from the title, fading in over 3 s (`$extra_sound_num`
+/// is 0 again after EXIT). Differences: clicking the title
 /// playing stops it (the original starts it again); the song fades in
 /// over 2 s in the original.
 fn sound(a: &mut dyn Assets) -> Option<SoundRoom> {
@@ -325,6 +375,9 @@ fn sound(a: &mut dyn Assets) -> Option<SoundRoom> {
         tracks,
         movies: Vec::new(),
         title_track: 30,
+        // src: extra_menu.nss (SoundPlay("@dj_INS12"), SetVolume to 1000 over 3000; $extra_sound_num=3)
+        menu_track: Some(2),
+        menu_fade_ms: 3000,
         marker: Placed { image: marker, x: 0, y: 0, w: mw as i32, h: mh as i32 },
         marker_cells: 11,
         marker_ms: 50,

@@ -146,6 +146,7 @@ mod tests {
             across: false,
             arrows_when_paged: true,
             engine_screen: true,
+            category_hover: None,
         };
         let lua = lua_file(&g, 4000);
         for part in [
