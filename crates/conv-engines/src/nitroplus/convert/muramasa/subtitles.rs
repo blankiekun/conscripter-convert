@@ -65,7 +65,7 @@ impl Compiler<'_, '_> {
         });
         let blank = self.assets.frames_strip(&format!("subtitle_blank_{w}x{h}"), w, h, 1, &mut |_, _| {});
         let (Some(image), Some(blank)) = (image, blank) else { return };
-        let strip = StripObject { image, cells, frame_ms: FRAME_MS, w: w as i64, h: h as i64, zoom: (100, 100), last: blank };
+        let strip = StripObject { image, cells, frame_ms: FRAME_MS, w: w as i64, h: h as i64, zoom: (100, 100), last: blank, looped: false };
         let object = if add.truthy() { "serif0+" } else { "serif0" };
         self.delete(object);
         let o = self.create(object.into(), Kind::Strip(strip), PRIORITY, w as i64, h as i64);

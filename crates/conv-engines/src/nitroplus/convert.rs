@@ -101,6 +101,7 @@ mod fast_skip;
 mod text_object;
 mod sounds;
 mod shake;
+mod rain;
 pub(super) use fast_skip::read_flag;
 
 /// A window picture's text place ([`Game::box_text`]): picture, text x, y,
@@ -1054,6 +1055,8 @@ struct StripObject {
     h: i64,
     zoom: (i32, i32),
     last: String,
+    /// Its cells repeat (else it stops on the last).
+    looped: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -4714,6 +4717,30 @@ function Out()
         let waited: u32 = c.ops[fade..gone].iter().map(|op| if let Op::Wait { ms } = op { *ms } else { 0 }).sum();
         assert_eq!(waited, 1100, "{:?}", c.ops);
         assert!(c.notes.is_empty(), "{:?}", c.notes);
+    }
+
+    #[test]
+    fn rain_is_a_looping_strip_zoomed_and_turned() {
+        // 装甲悪鬼村正's mc01_019vsa: sideways speed lines.
+        let story = r#"
+scene a.nss
+{
+	$SYSTEM_effect_rain_dencity = 16;
+	$SYSTEM_effect_rain_speed = 128;
+	CreateEffect("線", 19990, Center, Middle, 288, 512, "Rain");
+	Rotate("線", 0, @0, @0, @-90, null, true);
+	Zoom("線", 0, 2000, 2000, null, true);
+	Wait(100);
+}
+"#;
+        let c = compile(story, LIBRARY);
+        let strip = c.ops.iter().find_map(|op| match op {
+            Op::AnimatedSprite { sprite, cells, frame_ms, looped, zoom, .. } => Some((sprite.image.as_str(), sprite.x, sprite.y, *cells, *frame_ms, *looped, *zoom)),
+            _ => None,
+        });
+        assert_eq!(strip, Some(("system/strip/rain_288x512_16_128.png", 368, 32, 24, 42, true, (200, 200))), "{:?}", c.ops);
+        assert!(c.ops.iter().any(|op| matches!(op, Op::SpriteAngle { degrees: 90, zoom: (200, 200), .. })), "{:?}", c.ops);
+        assert!(!c.notes.keys().any(|n| n.contains("Rain")), "{:?}", c.notes);
     }
 
     #[test]

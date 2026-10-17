@@ -230,7 +230,7 @@ impl Compiler<'_, '_> {
             }
         });
         let (Some(image), Some(last)) = (image, last) else { return };
-        let strip = StripObject { image, cells: frames, frame_ms: FRAME_MS, w: w as i64, h: h as i64, zoom: (100, 100), last };
+        let strip = StripObject { image, cells: frames, frame_ms: FRAME_MS, w: w as i64, h: h as i64, zoom: (100, 100), last, looped: false };
         self.vars.insert("$CountOp".into(), Value::Int(self.ops.len() as i64));
         self.vars.insert("$CountMs".into(), Value::Int(ms as i64));
         match self.objects.get_mut(COUNTER) {
@@ -360,7 +360,7 @@ impl Compiler<'_, '_> {
         });
         let Some(image) = image else { return };
         let last = self.assets.transparent();
-        let strip = StripObject { image, cells: frames, frame_ms: FLY_FRAME_MS, w: (w / 2) as i64, h: (h / 2) as i64, zoom: (200, 200), last };
+        let strip = StripObject { image, cells: frames, frame_ms: FLY_FRAME_MS, w: (w / 2) as i64, h: (h / 2) as i64, zoom: (200, 200), last, looped: false };
         let name = if fade_in { "カウント初弾" } else { "カウント終弾" };
         let o = self.create(name.into(), Kind::Strip(strip), 10200, (w / 2) as i64, (h / 2) as i64);
         (o.x, o.y) = (x0 + w as i64 / 4, y0 + h as i64 / 4);

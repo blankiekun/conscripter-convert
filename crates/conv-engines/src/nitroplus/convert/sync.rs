@@ -108,8 +108,13 @@ impl Compiler<'_, '_> {
                 && o.opacity > 0
                 && !o.hideable
             {
-                let cells = Some((s.cells, false, s.zoom, s.frame_ms));
-                let shown = Shown { layer: 0, image: s.image.clone(), x: o.x, y: o.y, w: s.w, h: s.h, opacity: o.opacity, cells, source: String::new(), zoom: (1000, 1000), angle: 0, clip: None, engine: Engine::default(), flash: 0, blend: o.blend, tint: None };
+                // Zoomed and turned by the engine about its centre; a turn
+                // about x or y draws it that much shorter (no perspective).
+                let tilt = |deg: i64, z: i64| (z as f64 * (deg as f64).to_radians().cos().abs()).round() as i32;
+                let zoom = (s.zoom.0 * tilt(o.turn.1, o.zoom.0) / 1000, s.zoom.1 * tilt(o.turn.0, o.zoom.1) / 1000);
+                let cells = Some((s.cells, s.looped, zoom, s.frame_ms));
+                let (px, py) = self.parent_offset(n);
+                let shown = Shown { layer: 0, image: s.image.clone(), x: o.x + px, y: o.y + py, w: s.w, h: s.h, opacity: o.opacity, cells, source: String::new(), zoom: (1000, 1000), angle: o.angle(), clip: None, engine: Engine::default(), flash: 0, blend: o.blend, tint: None };
                 want.push((n.clone(), shown, (o.priority, o.seq), (1000, 1000), (s.w, s.h), (false, false)));
             }
         }
@@ -292,7 +297,7 @@ impl Compiler<'_, '_> {
                     let sprite = SpritePlacement { image: now.image.clone(), x: now.x as i32, y: now.y as i32 };
                     match now.cells {
                         // A strip placed again: its last picture.
-                        Some((_, _, zoom, frame_ms)) if let Some(Object { kind: Kind::Strip(s), .. }) = self.objects.get(&name).filter(|_| old.is_some_and(|o| o.image == now.image)) => {
+                        Some((_, _, zoom, frame_ms)) if let Some(Object { kind: Kind::Strip(s), .. }) = self.objects.get(&name).filter(|o| matches!(&o.kind, Kind::Strip(s) if !s.looped) && old.is_some_and(|o| o.image == now.image)) => {
                             let sprite = SpritePlacement { image: s.last.clone(), ..sprite };
                             animated.push(Op::AnimatedSprite { layer, sprite, cells: 1, frame_ms, looped: false, zoom });
                         }
