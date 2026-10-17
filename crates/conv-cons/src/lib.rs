@@ -87,11 +87,14 @@ fn menu_z(slot: u32) -> String {
 }
 /// The bars use 34-42.
 const BAR_SPRITES: std::ops::Range<u32> = 34..49;
-/// Sprite slots for the name text and its plate: the text over the plate,
-/// both over the character sprites. The UI slots (0-58) are never saved in
-/// a meaningful state, so they may move; the game's (59 up) may not.
-const NAME_TEXT_SPRITE: u32 = 49;
-const NAME_PLATE_SPRITE: u32 = 50;
+/// The name text and its plate: `spnew` handles in the `ui` layer (with
+/// `windowback` and `humanz`, over the text window, under sprites 0-58),
+/// taken in the define section ([`NAME_SPRITES_DEFINE`]), the text first so
+/// it is over the plate. The UI slots (0-58) are never saved in a
+/// meaningful state, so they may move; the game's (59 up) may not.
+const NAME_TEXT_SPRITE: &str = "%conv_name_text";
+const NAME_PLATE_SPRITE: &str = "%conv_name_plate";
+const NAME_SPRITES_DEFINE: &str = "defvar conv_name_text\ndefvar conv_name_plate\nspnew %conv_name_text,ui\nspnew %conv_name_plate,ui";
 /// Sprite slots for clickable link words. With `windowback` and `humanz
 /// 58`, slots up to 58 are drawn over the text window and the others
 /// under it.
@@ -287,6 +290,8 @@ pub fn emit(script: &Script) -> String {
     // loose files still work either way).
     writeln!(out, "nsa").unwrap();
     writeln!(out, "globalon").unwrap();
+    writeln!(out, "{}", notice::DEFINE).unwrap();
+    writeln!(out, "{NAME_SPRITES_DEFINE}").unwrap();
     if lua::uses_processes(script) {
         for c in lua::COMMANDS {
             writeln!(out, "luasub {c}").unwrap();
@@ -1553,12 +1558,12 @@ mod tests {
         ]);
         s.window = Some(window());
         let text = emit(&s);
-        assert!(text.contains("globalon\nwindowback\nhumanz 58\n"));
+        assert!(text.contains("spnew %conv_name_plate,ui\nwindowback\nhumanz 58\n"));
         // Row 2, column 1: x = 105 + 0 * 25, y = 470 + 1 * 37.
         let expected = "\
 *conv_link1
-csp 50
-csp 49
+csp %conv_name_plate
+csp %conv_name_text
 print 1
 #FEE092一#FFFFFF行目
 #FEE092学校#FFFFFFに―――
@@ -2203,7 +2208,7 @@ effect 7,99,1000,\"cons_zoom.dll/3,220,5\"
         let text = |t: &str, continues| Op::Text { speaker: None, text: t.into(), voice: None, links: vec![], ruby: vec![], styles: vec![], hang: None, continues };
         let s = script(vec![Op::SetWindow(nvl), text("一行目", true), text("二行目", false), text("新頁", false)]);
         let out = emit(&s);
-        assert!(out.contains("\":a;system\\textwnd5.png\",47,452\ncsp 50:csp 49\n一行目@\n二行目\\\n新頁\\\n"), "{out}");
+        assert!(out.contains("\":a;system\\textwnd5.png\",47,452\ncsp %conv_name_plate:csp %conv_name_text\n一行目@\n二行目\\\n新頁\\\n"), "{out}");
     }
 
     #[test]
@@ -2272,6 +2277,12 @@ effect 7,99,1000,\"cons_zoom.dll/3,220,5\"
 *define
 nsa
 globalon
+defvar conv_notice_seen,global
+if %3639 == 1 mov %conv_notice_seen,1
+defvar conv_name_text
+defvar conv_name_plate
+spnew %conv_name_text,ui
+spnew %conv_name_plate,ui
 caption \"Test\"
 effect 2,10,500
 game
@@ -2339,8 +2350,8 @@ end
         });
         let text = emit(&s);
         assert!(text.contains("setwindow3 105,470,25,3,24,24,1,13,20,0,1,\":a;system\\window.png\",47,452\nerasetextwindow 0\n"));
-        assert!(text.contains("lsp 50,\":a;system\\name.png\",55,412\nstrsp 49,\"名前\",75,422,16,1,20,20,1,0,0,1\nprint 1\n「台詞」\\\n"));
-        assert!(text.contains("csp 50\ncsp 49\nprint 1\n　Ghost \\\n"));
+        assert!(text.contains("lsp %conv_name_plate,\":a;system\\name.png\",55,412\nstrsp %conv_name_text,\"名前\",75,422,16,1,20,20,1,0,0,1\nprint 1\n「台詞」\\\n"));
+        assert!(text.contains("csp %conv_name_plate\ncsp %conv_name_text\nprint 1\n　Ghost \\\n"));
         // With a backlog, lines carry their page's first speaker and voice.
         use conv_core::ir::{Backlog, Placed, Rect};
         let p = Placed { image: "system/x.png".into(), x: 0, y: 0, w: 10, h: 10 };

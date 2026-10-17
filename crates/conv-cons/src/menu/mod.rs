@@ -268,8 +268,9 @@ const BTN_CLOSE: u32 = 202;
 
 /// Sprites hidden while a full-screen menu is open: the bars, the name
 /// plate and the link words.
-pub(crate) fn hidden_while_open() -> Vec<u32> {
-    BAR_SPRITES.chain([NAME_TEXT_SPRITE, NAME_PLATE_SPRITE]).chain(LINK_SPRITES).collect()
+pub(crate) fn hidden_while_open() -> Vec<String> {
+    let numbered = |n: u32| n.to_string();
+    BAR_SPRITES.map(numbered).chain([NAME_TEXT_SPRITE, NAME_PLATE_SPRITE].map(String::from)).chain(LINK_SPRITES.map(numbered)).collect()
 }
 
 /// `lsp2` places the image by its centre.
