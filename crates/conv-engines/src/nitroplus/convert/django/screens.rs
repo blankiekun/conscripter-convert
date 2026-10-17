@@ -7,7 +7,7 @@ use conv_core::ir::{
     BarAction, ButtonBar, CommandItem, CommandMenu, ConfirmDialog, GridText, LineLog, Placed, Rect, SaveGrid, Script, Switch, TitleAction, TitleButton, TitleScreen, WaitIcon,
 };
 
-use conv_core::ir::{PairOption, PicturePair, PictureSettings, PictureSlider, SliderSetting, SliderSteps};
+use conv_core::ir::{PairOption, PicturePair, PictureSettings, PictureSlider, SettingsScreen, SliderSetting, SliderSteps};
 
 use super::super::{Assets, Story};
 
@@ -61,6 +61,12 @@ fn settings(a: &mut dyn Assets) -> Option<PictureSettings> {
         let (image, w, h) = a.strip(&[&s1, &s2, &s3])?;
         Some(Placed { image, x, y, w: w as i32, h: h as i32 })
     };
+    // The chosen cell in all three: an engine radio's picture while on.
+    let picked = |a: &mut dyn Assets, name: &str, x: i32, y: i32| {
+        let s3 = format!("{DIR}/{name}-003.png");
+        let (image, w, h) = a.strip(&[&s3, &s3, &s3])?;
+        Some(Placed { image, x, y, w: w as i32, h: h as i32 })
+    };
     let picture = |a: &mut dyn Assets, name: &str, x: i32, y: i32| {
         let (image, w, h) = a.image(&format!("{DIR}/{name}.png"))?;
         Some(Placed { image, x, y, w: w as i32, h: h as i32 })
@@ -81,6 +87,7 @@ fn settings(a: &mut dyn Assets) -> Option<PictureSettings> {
     let bullets = |a: &mut dyn Assets, y: i32, position: &dyn Fn(u32) -> u32| -> Option<Vec<(Placed, u32)>> {
         (1..=10).map(|k| Some((button(a, "bar-弾", 306 + 12 * (k as i32 - 1), y)?, position(k)))).collect()
     };
+    let bullets_chosen = |a: &mut dyn Assets, y: i32| -> Option<Vec<Placed>> { (1..=10).map(|k| picked(a, "bar-弾", 306 + 12 * (k - 1), y)).collect() };
     // src: sys_config.nss setgrade (text speed k × 100, level 1 none; auto 20 ms × k; volumes k × 100)
     let text_speed = |k: u32| if k == 1 { 0 } else { k * 100 };
     let per_char = |k: u32| k * 100;
@@ -88,9 +95,11 @@ fn settings(a: &mut dyn Assets) -> Option<PictureSettings> {
     // The level a position of SliderSetting::GameSpeed gives: 12 - p × 12 / 1000.
     let speed = |level: u32| ((12 - level) * 1000).div_ceil(12);
     let mut presets = Vec::new();
+    let mut presets_chosen = Vec::new();
     // src: sys_config.nss NORMAL, QUICKA, QUICKB, LOWSPEC (y 188; #SYSTEM_play_speed 3, 5, 12, 1)
     for (name, x, level) in [("normal", 162, 3), ("quick-a", 238, 5), ("quick-b", 314, 12), ("lowspec", 392, 1)] {
         presets.push((button(a, name, x, 188)?, speed(level)));
+        presets_chosen.push(picked(a, name, x, 188)?);
     }
     let sliders = vec![
         // src: Django.exe reset_system_defaults 0045cb30 (the table at 00529408 that text_speed_seconds 0045d520 reads)
@@ -105,8 +114,13 @@ fn settings(a: &mut dyn Assets) -> Option<PictureSettings> {
         stepped(SliderSetting::SeVolume, bullets(a, 470, &volume)?, volume(9), true),
         stepped(SliderSetting::VoiceVolume, bullets(a, 518, &volume)?, volume(10), true),
     ];
+    let mut steps_chosen = vec![presets_chosen];
+    for y in [212, 308, 422, 470, 518] {
+        steps_chosen.push(bullets_chosen(a, y)?);
+    }
     // src: sys_config.nss btn_*_ON/OFF (x 386/440) and config_default's values
     let mut pairs = Vec::new();
+    let mut chosen = Vec::new();
     for (option, y, default_on) in [
         (PairOption::MovieStop, 130, false),
         (PairOption::StopAtChoice, 236, true),
@@ -116,9 +130,12 @@ fn settings(a: &mut dyn Assets) -> Option<PictureSettings> {
         (PairOption::Voice, 494, true),
     ] {
         pairs.push(PicturePair { option, on: button(a, "on", 386, y)?, off: button(a, "off", 440, y)?, default_on });
+        chosen.push((picked(a, "on", 386, y)?, picked(a, "off", 440, y)?));
     }
-    pairs.push(PicturePair { option: PairOption::VoicePlaysOn, on: button(a, "全て再生", 294, 284)?, off: button(a, "クリックで停止", 368, 284)?, default_on: true });
-    pairs.push(PicturePair { option: PairOption::AutoWaitsForVoice, on: button(a, "終了まで待つ", 272, 332)?, off: button(a, "再生を中断する", 368, 332)?, default_on: true });
+    for (option, (on, on_x), (off, off_x), y) in [(PairOption::VoicePlaysOn, ("全て再生", 294), ("クリックで停止", 368), 284), (PairOption::AutoWaitsForVoice, ("終了まで待つ", 272), ("再生を中断する", 368), 332)] {
+        pairs.push(PicturePair { option, on: button(a, on, on_x, y)?, off: button(a, off, off_x, y)?, default_on: true });
+        chosen.push((picked(a, on, on_x, y)?, picked(a, off, off_x, y)?));
+    }
     // src: sys_config.nss (DEFAULT, the question rows, CHARACTER_ONOFF, VOICE_TEST, ASPECT_UNFIXED, ENTRY)
     let fixed = vec![
         picture(a, "001-初期化_x450-y58", 450, 58)?,
@@ -145,7 +162,7 @@ fn settings(a: &mut dyn Assets) -> Option<PictureSettings> {
         // src: sys_config.nss: bullets switch at once; the pairs fade over 200 (one value here)
         pair_fade_ms: 0,
         voice_window: None,
-        engine_screen: None,
+        engine_screen: Some(SettingsScreen { chosen, voices_checked: Vec::new(), steps_chosen }),
     })
 }
 

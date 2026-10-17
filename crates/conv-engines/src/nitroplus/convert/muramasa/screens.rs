@@ -143,7 +143,7 @@ fn settings(a: &mut dyn Assets, story: &Story) -> Option<PictureSettings> {
         fade_ms: 300,
         pair_fade_ms: 100,
         voice_window,
-        engine_screen: Some(SettingsScreen { chosen, voices_checked }),
+        engine_screen: Some(SettingsScreen { chosen, voices_checked, steps_chosen: Vec::new() }),
     })
 }
 
@@ -272,7 +272,7 @@ fn settings_en(a: &mut dyn Assets) -> Option<PictureSettings> {
         fade_ms: 300,
         pair_fade_ms: 0,
         voice_window: None,
-        engine_screen: Some(SettingsScreen { chosen, voices_checked: Vec::new() }),
+        engine_screen: Some(SettingsScreen { chosen, voices_checked: Vec::new(), steps_chosen: Vec::new() }),
     })
 }
 

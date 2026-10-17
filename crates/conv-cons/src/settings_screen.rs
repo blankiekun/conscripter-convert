@@ -82,7 +82,7 @@ pub(crate) fn labels(out: &mut String, s: &PictureSettings) {
 
 fn settings_lua(s: &PictureSettings, asks: bool) -> String {
     let e = s.engine_screen.as_ref().expect("an engine screen");
-    assert!(s.sliders.iter().all(|l| l.steps.is_none() && (l.horizontal || l.fill.is_none())), "the engine's settings have knobs, a lit bar only lying");
+    assert!(s.sliders.iter().all(|l| l.steps.is_some() || l.horizontal || l.fill.is_none()), "the engine's sliders have a lit bar only lying");
     assert!(e.chosen.len() == s.pairs.len(), "a chosen picture pair per pair");
     let apply = format!("action={{\"gosub\", \"*{APPLY}\"}}");
     // A pair's chosen side cross-fades in.
@@ -116,6 +116,17 @@ fn settings_lua(s: &PictureSettings, asks: bool) -> String {
         w.push(image("button", &v.open, &format!("{button}, action={{\"open\", \"settings_voices\"}}")));
     }
     for (i, l) in s.sliders.iter().enumerate() {
+        if let Some(st) = &l.steps {
+            // A radio per step, its chosen picture while on: with `filled`
+            // every step up to the chosen one (the positions from it on).
+            let chosen = e.steps_chosen.get(i).filter(|c| c.len() == st.buttons.len()).expect("a chosen picture per step");
+            for (k, ((p, position), c)) in st.buttons.iter().zip(chosen).enumerate() {
+                let rest = st.buttons[k..].iter().map(|b| b.1);
+                let range = if st.filled { format!(", on_range={{{}, {}}}", rest.clone().min().unwrap_or(0), rest.max().unwrap_or(0)) } else { String::new() };
+                w.push(image("radio", p, &format!(", cells=3, on_file={}, var={}, value={position}{range}, {apply}", lua(&c.image), lua(&slider_var(s, i)))));
+            }
+            continue;
+        }
         let (k0, k1) = l.knob_y;
         let t = &l.track;
         if l.horizontal {
@@ -229,7 +240,7 @@ mod tests {
             fade_ms: 300,
             pair_fade_ms: 100,
             voice_window: Some(voice),
-            engine_screen: Some(SettingsScreen { chosen: vec![(placed("on3", 827, 183), placed("off3", 827, 213))], voices_checked: vec![vec!["system/a_c.png".into()], vec!["system/b_c.png".into()]] }),
+            engine_screen: Some(SettingsScreen { chosen: vec![(placed("on3", 827, 183), placed("off3", 827, 213))], voices_checked: vec![vec!["system/a_c.png".into()], vec!["system/b_c.png".into()]], steps_chosen: vec![] }),
         };
         script.picture_settings = Some(s.clone());
         let files = files(&script, 800);
@@ -315,7 +326,7 @@ mod tests {
             fade_ms: 300,
             pair_fade_ms: 0,
             voice_window: None,
-            engine_screen: Some(SettingsScreen { chosen: vec![(placed("heard", 769, 57), placed("muted", 769, 57))], voices_checked: vec![] }),
+            engine_screen: Some(SettingsScreen { chosen: vec![(placed("heard", 769, 57), placed("muted", 769, 57))], voices_checked: vec![], steps_chosen: vec![] }),
         };
         script.picture_settings = Some(s.clone());
         let lua = &files(&script, 800)[0].1;
@@ -331,5 +342,40 @@ mod tests {
         let mut define = String::new();
         picture_settings::define(&mut define, &s);
         assert!(define.ends_with("defvar conv_set_done,global\n"), "{define}");
+    }
+
+    #[test]
+    fn stepped_sliders_become_radios() {
+        let mut script = Script::default();
+        let step = |x: i32, p: u32| (placed("bullet", x, 422), p);
+        let gauge = PictureSlider {
+            setting: SliderSetting::BgmVolume,
+            knob: placed("none", 0, 0),
+            knob_y: (0, 0),
+            track: Rect { x: 0, y: 0, w: 0, h: 0 },
+            default: 300,
+            steps: Some(conv_core::ir::SliderSteps { buttons: vec![step(306, 900), step(318, 800), step(330, 700)], filled: true }),
+            horizontal: false,
+            fill: None,
+        };
+        let s = PictureSettings {
+            background: placed("bg", 0, 0),
+            fixed: vec![],
+            close: placed("exit", 650, 518),
+            reset: None,
+            voice_test: None,
+            test_voice: None,
+            sliders: vec![gauge],
+            pairs: vec![],
+            texts: vec![],
+            fade_ms: 0,
+            pair_fade_ms: 0,
+            voice_window: None,
+            engine_screen: Some(SettingsScreen { chosen: vec![], voices_checked: vec![], steps_chosen: vec![vec![placed("lit", 306, 422), placed("lit", 318, 422), placed("lit", 330, 422)]] }),
+        };
+        script.picture_settings = Some(s);
+        let lua = &files(&script, 800)[0].1;
+        let line = "{\"radio\", file=\"system/bullet.png\", x=318, y=422, cells=3, on_file=\"system/lit.png\", var=\"%conv_set_bgm_volume\", value=800, on_range={700, 800}, action={\"gosub\", \"*conv_ps_apply\"}}";
+        assert!(lua.contains(line), "missing {line:?} in\n{lua}");
     }
 }

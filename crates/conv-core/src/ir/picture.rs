@@ -228,6 +228,10 @@ pub struct SettingsScreen {
     /// Per [`VoiceLayout`], per entry: its picture with the check over it
     /// (at the picture's place).
     pub voices_checked: Vec<Vec<String>>,
+    /// Per slider, per step of a stepped one ([`SliderSteps`]): its
+    /// button's chosen picture (the third cell) in all three cells; empty
+    /// for a slider with a knob.
+    pub steps_chosen: Vec<Vec<Placed>>,
 }
 
 /// A window of [`PictureSettings`] with a switch for each character's
