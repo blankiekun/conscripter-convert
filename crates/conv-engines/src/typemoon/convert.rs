@@ -10,7 +10,7 @@
 use std::cell::Cell;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
-use conv_core::ir::{ArithOp, Compare, MotionEnd, MotionKey, Op, Operand, Ruby, SpriteChange, SpriteFilter, SpritePlacement, TransitionStyle, Var, Voice, BLEND_ADD, BLEND_MULTIPLY, BLEND_NORMAL, BLEND_SUBTRACT, FILTER_BLEND_COPY, FILTER_BLUR, FILTER_GREYSCALE, FILTER_NEGATIVE};
+use conv_core::ir::{ArithOp, Compare, MotionEnd, MotionKey, Op, Operand, Ruby, SpriteChange, TextStyle, SpriteFilter, SpritePlacement, TransitionStyle, Var, Voice, BLEND_ADD, BLEND_MULTIPLY, BLEND_NORMAL, BLEND_SUBTRACT, FILTER_BLEND_COPY, FILTER_BLUR, FILTER_GREYSCALE, FILTER_NEGATIVE};
 
 use super::exe::Picture;
 use super::script::Command;
@@ -237,9 +237,10 @@ fn unread(c: &Command, read: u64) -> Vec<String> {
 }
 
 /// A text line's markup: `<base|ruby>` readings, `^` line breaks, `@x`
-/// codes and `[ber00]` inline pictures (both dropped).
-pub fn text(line: &str) -> (String, Vec<Ruby>) {
-    let (mut out, mut ruby) = (String::new(), Vec::new());
+/// codes and `[ber00]` inline pictures (both dropped), and the fan
+/// patch's styled letters (see [`styled`]).
+pub fn text(line: &str) -> (String, Vec<Ruby>, Vec<TextStyle>) {
+    let (mut out, mut ruby, mut styles) = (String::new(), Vec::new(), Vec::<TextStyle>::new());
     let mut chars = line.chars().peekable();
     let mut len = 0;
     while let Some(c) = chars.next() {
@@ -263,19 +264,52 @@ pub fn text(line: &str) -> (String, Vec<Ruby>) {
                 let (base, reading) = inner.split_once('|').unwrap_or((&inner, ""));
                 let n = base.chars().count();
                 if !reading.is_empty() {
-                    ruby.push(Ruby { start: len, len: n, text: reading.to_string() });
+                    ruby.push(Ruby { start: len, len: n, text: reading.chars().map(|c| styled(c).map_or(c.to_string(), |s| s.0)).collect() });
                 }
                 out.push_str(base);
                 len += n;
             }
+            _ if let Some((plain, italic)) = styled(c) => {
+                if italic {
+                    match styles.last_mut() {
+                        // over a plain space between two italic words too
+                        Some(s) if s.start + s.len == len || (s.start + s.len + 1 == len && out.ends_with(' ')) => s.len = len - s.start + plain.chars().count(),
+                        _ => styles.push(TextStyle { start: len, len: plain.chars().count(), italic: true, ..Default::default() }),
+                    }
+                }
+                out.push_str(&plain);
+                len += plain.chars().count();
+            }
             _ => {
-                // shortcut: Shift-JIS has no hearts; a note stands in until the engine reads UTF-8 text.
-                out.push(if matches!(c, '♡' | '♥') { '♪' } else { c });
+                // shortcut: Shift-JIS has no hearts, em dashes or the English text's accents; stand-ins until the engine reads UTF-8 text.
+                out.push(match c {
+                    '♡' | '♥' => '♪',
+                    '—' => '―',
+                    'à' | 'â' => 'a',
+                    'ç' => 'c',
+                    'é' | 'ê' => 'e',
+                    'ï' => 'i',
+                    _ => c,
+                });
                 len += 1;
             }
         }
     }
-    (out, ruby)
+    (out, ruby, styles)
+}
+
+/// The fan patch's letters in private-use code points, which its font
+/// (`ja/TT_TsukuMin-D.ttf`, glyphs `uniE000`–`uniE2FE`) draws styled: the
+/// ASCII letter and whether it is italic. U+E0xx italic, U+E1xx mirrored,
+/// U+E1(80+xx) a serif italic, U+E2(80+xx) upside down, U+E200 a raised
+/// "-35" (`10^-35 m`). Mirrored and upside-down letters are drawn plain.
+fn styled(c: char) -> Option<(String, bool)> {
+    let (hi, lo, high) = (c as u32 >> 8, c as u32 & 0x7F, c as u32 & 0x80 != 0);
+    match hi {
+        0xE2 if c == '\u{E200}' => Some(("^-35".into(), false)),
+        0xE0..=0xE2 if (0x20..0x7F).contains(&lo) => Some(((lo as u8 as char).to_string(), hi == 0xE0 || (hi == 0xE1 && high))),
+        _ => None,
+    }
 }
 
 /// The plain colours' fills (`BLACK` …), by name.
@@ -319,7 +353,7 @@ struct Lowering<'g, 'a> {
     window_faded: bool,
     voice: Option<Voice>,
     /// A line ended with `@n`: the next one goes on after it, no click.
-    held: Option<(String, Vec<Ruby>)>,
+    held: Option<(String, Vec<Ruby>, Vec<TextStyle>)>,
     se_channels: HashMap<i32, String>,
     /// `_SELR`'s options so far: (index, text, greyed, under an `_IF__`).
     options: Vec<(i32, String, bool, bool)>,
@@ -411,7 +445,8 @@ impl Lowering<'_, '_> {
                 let text = match t.strip_prefix('$') {
                     Some(n) => {
                         let Some(line) = n.get(..6).and_then(|n| n.parse::<usize>().ok()).and_then(|n| self.g.lines.get(n)) else { return false };
-                        text(line).0
+                        // a `^` break: one line, as `select` shows it
+                        text(line).0.split('\n').map(str::trim).collect::<Vec<_>>().join(" ")
                     }
                     None if !t.is_empty() => t.to_string(),
                     None => return false,
@@ -539,16 +574,18 @@ impl Lowering<'_, '_> {
                 // `$000107`, with codes around it (`@x$001549@n`, `^$042767`).
                 let Some(n) = arg(0).split_once('$').and_then(|(_, s)| s.get(..6)?.parse::<usize>().ok()) else { return false };
                 let Some(line) = self.g.lines.get(n) else { return false };
-                let (mut body, mut ruby) = text(line);
-                if let Some((before, mut r)) = self.held.take() {
+                let (mut body, mut ruby, mut styles) = text(line);
+                if let Some((before, mut r, mut s)) = self.held.take() {
                     let shift = before.chars().count();
                     ruby.iter_mut().for_each(|x| x.start += shift);
+                    styles.iter_mut().for_each(|x| x.start += shift);
                     r.append(&mut ruby);
-                    (body, ruby) = (before + &body, r);
+                    s.append(&mut styles);
+                    (body, ruby, styles) = (before + &body, r, s);
                 }
                 // shortcut: `@n` joins the next line to this one, no click; what happens between them is shown before both.
                 if arg(0).contains("@n") {
-                    self.held = Some((body, ruby));
+                    self.held = Some((body, ruby, styles));
                     return true;
                 }
                 let continues = !std::mem::take(&mut self.page_end);
@@ -556,7 +593,7 @@ impl Lowering<'_, '_> {
                     // 18 frames, drawn at 2 × (fade − 0.5): hidden 150 ms, then in over 150
                     self.ops.push(Op::WindowFade { alpha: 256, ms: 150, from: Some(0), delay: 150, show: false });
                 }
-                self.ops.push(Op::Text { speaker: None, text: body, voice: self.voice.take(), links: vec![], ruby, styles: vec![], hang: None, continues });
+                self.ops.push(Op::Text { speaker: None, text: body, voice: self.voice.take(), links: vec![], ruby, styles, hang: None, continues });
             }
             "_WTTM" => self.ops.push(Op::Wait { ms: number(arg(0)).unwrap_or(0).max(0) as u32 }),
             "_SEPL" => {
@@ -1513,9 +1550,13 @@ mod tests {
         assert_eq!(number("242.25"), Some(242));
         assert_eq!(number("F1"), None);
         assert_eq!(option_at(&["", "`001:4000", "`017:50"], 17), Some((2, 50)));
-        let (t, r) = text("@g　開け<肌寒|はだざむ>い^[ber00]風@k");
+        let (t, r, _) = text("@g　開け<肌寒|はだざむ>い^[ber00]風@k");
         assert_eq!(t, "　開け肌寒い\n風");
         assert_eq!(r, vec![Ruby { start: 3, len: 2, text: "はだざむ".into() }]);
+        // the fan patch's italic (U+E0xx, U+E1(80+xx)) and upside-down (U+E2(80+xx)) letters
+        let (t, _, s) = text("A\u{E061}\u{E062}\u{E1E3} \u{E2E4}\u{E03F} \u{E041}");
+        assert_eq!(t, "Aabc d? A");
+        assert_eq!(s, vec![TextStyle { start: 1, len: 3, italic: true, ..Default::default() }, TextStyle { start: 6, len: 3, italic: true, ..Default::default() }]);
     }
 
     #[test]
