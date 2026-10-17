@@ -188,6 +188,7 @@ impl Pass {
                 angle: (v[4] - base[4]).round() as i32,
                 opacity: (v[5] * 256.0 / top).round() as u32,
                 zoom_y,
+                ease: None,
             }
         };
         let mut keys: Vec<MotionKey> = times.into_iter().map(key).collect();
@@ -319,7 +320,7 @@ impl<'a> Compiler<'a, '_> {
             }
         }
         let Some(target) = target else { return };
-        let keys = shake_keys(&parts).into_iter().map(|(ms, x, y)| MotionKey { ms, x, y, zoom: 100, angle: 0, opacity: 256, zoom_y: 100 }).collect();
+        let keys = shake_keys(&parts).into_iter().map(|(ms, x, y)| MotionKey { ms, x, y, zoom: 100, angle: 0, opacity: 256, zoom_y: 100, ease: None }).collect();
         self.set_loop(name, &target, keys);
     }
 

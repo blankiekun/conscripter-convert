@@ -542,7 +542,7 @@ pub fn emit(script: &Script) -> String {
     let move_ease: Option<(u8, u32)> = None;
     let move_nowait = false;
     let move_arc = None;
-    let eased = std::collections::BTreeSet::new();
+    let eased = BTreeMap::new();
     let needs_click_wait = false;
     let plate_visible = false;
     let link_pages = 0;
@@ -586,7 +586,7 @@ pub fn emit(script: &Script) -> String {
     writeln!(out, "end").unwrap();
     if !eased.is_empty() {
         // The eased moves' curves, defined as the game starts (saves keep them).
-        let defs: String = eased.iter().map(|&(e, n)| ease::curve_def(e, n) + "\n").collect();
+        let defs: String = eased.iter().map(|(&(e, n), &id)| ease::curve_def(id, e, n) + "\n").collect();
         let at = out.find("\n*start\n").map(|i| i + "\n*start\n".len()).expect("*start");
         out.insert_str(at, &defs);
     }

@@ -1168,6 +1168,7 @@ impl Lowering<'_> {
                             // Radians, clockwise on the screen (our guess).
                             angle: (-k.roll.to_degrees()).round() as i32,
                             opacity: (k.alpha.clamp(0.0, 255.0) * 256.0 / 255.0).round() as u32,
+                            ease: None,
                         })
                         .collect();
                     if a.looped

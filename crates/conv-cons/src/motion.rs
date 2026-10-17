@@ -1,6 +1,7 @@
 //! Sprites moving by themselves ([`Op::SpriteMotion`]) with CONscripter's
 //! `spmotion`, which the engine steps during text and click waits too.
 
+use std::collections::BTreeMap;
 use std::fmt::Write;
 
 use conv_core::ir::{MotionEnd, MotionKey};
@@ -50,6 +51,8 @@ fn fold_fade(keys: &mut Vec<MotionKey>, fade: u32) {
                 zoom_y: f(a.zoom_y.into(), b.zoom_y.into()) as u32,
                 angle: f(a.angle.into(), b.angle.into()) as i32,
                 opacity: f(a.opacity.into(), b.opacity.into()) as u32,
+                // shortcut: both halves take the key's curve whole (the place split straight); split the curve when a game needs it exact.
+                ease: b.ease,
             };
             keys.insert(i, k);
         }
@@ -159,14 +162,15 @@ pub(crate) fn emit(out: &mut String, layer: u32, keys: &[(u32, i32, i32)], loope
         writeln!(out, "spmotion {}", SPRITE_BASE + layer).unwrap();
         return;
     }
-    let keys: Vec<MotionKey> = keys.iter().map(|&(ms, x, y)| MotionKey { ms, x, y, zoom: 100, angle: 0, opacity: 256, zoom_y: 100 }).collect();
-    emit2(out, layer, &keys, if looped { MotionEnd::Loop } else { MotionEnd::Back }, fade, 0);
+    let keys: Vec<MotionKey> = keys.iter().map(|&(ms, x, y)| MotionKey { ms, x, y, zoom: 100, angle: 0, opacity: 256, zoom_y: 100, ease: None }).collect();
+    emit2(out, layer, &keys, if looped { MotionEnd::Loop } else { MotionEnd::Back }, fade, 0, &mut BTreeMap::new());
 }
 
 /// Writes an [`conv_core::ir::Op::SpriteMotion2`] with `spmotion`. A fade
 /// in over `fade` ms started with it goes into its keys; each key is
-/// reached along `curve` (0 straight, or an `spcurve` id).
-pub(crate) fn emit2(out: &mut String, layer: u32, keys: &[MotionKey], end: MotionEnd, fade: Option<u32>, curve: u32) {
+/// reached along its own `ease` (its `spcurve` id given in `ids`), else
+/// along `curve` (0 straight, or an `spcurve` id).
+pub(crate) fn emit2(out: &mut String, layer: u32, keys: &[MotionKey], end: MotionEnd, fade: Option<u32>, curve: u32, ids: &mut BTreeMap<(u8, u32), u32>) {
     let slot = SPRITE_BASE + layer;
     let mode = match end {
         MotionEnd::Back => "0".to_string(),
@@ -179,9 +183,17 @@ pub(crate) fn emit2(out: &mut String, layer: u32, keys: &[MotionKey], end: Motio
     if let Some(fade) = fade.filter(|_| !matches!(end, MotionEnd::Loop | MotionEnd::LoopFrom(_))) {
         fold_fade(&mut keys, fade);
     }
-    let keys: Vec<String> = keys.iter().map(|k| key2(k.ms, k.x, k.y, (k.zoom, k.zoom_y), k.angle, k.opacity)).collect();
     // (The first key's curve is unused: the motion starts there.)
-    let keys: Vec<String> = keys.into_iter().map(|k| if curve == 0 { k } else { format!("{},{curve}", k.strip_suffix(",0").unwrap()) }).collect();
+    let keys: Vec<String> = keys
+        .iter()
+        .map(|k| {
+            let s = key2(k.ms, k.x, k.y, (k.zoom, k.zoom_y), k.angle, k.opacity);
+            match k.ease.map_or(curve, |e| crate::ease::curve(Some(e), ids)) {
+                0 => s,
+                c => format!("{},{c}", s.strip_suffix(",0").unwrap()),
+            }
+        })
+        .collect();
     writeln!(out, "spmotion {slot},{mode},{}", keys.join(",")).unwrap();
 }
 
@@ -199,12 +211,12 @@ mod tests {
 
     #[test]
     fn writes_zoom_angle_and_opacity_keys() {
-        let key = |ms, x, zoom, angle, opacity| MotionKey { ms, x, y: 0, zoom, angle, opacity, zoom_y: zoom };
+        let key = |ms, x, zoom, angle, opacity| MotionKey { ms, x, y: 0, zoom, angle, opacity, zoom_y: zoom, ease: None };
         let mut out = String::new();
-        emit2(&mut out, 5, &[key(0, 0, 100, 0, 256), key(500, 300, 150, -45, 0)], MotionEnd::Keep, None, 0);
+        emit2(&mut out, 5, &[key(0, 0, 100, 0, 256), key(500, 300, 150, -45, 0)], MotionEnd::Keep, None, 0, &mut BTreeMap::new());
         assert_eq!(out, "spmotion 67,2,0,0,0,100,100,0,256,0,500,300,0,150,150,-45,0,0\n");
         let mut out = String::new();
-        emit2(&mut out, 5, &[key(0, 0, 100, 0, 256), key(500, 300, 100, 0, 256)], MotionEnd::Keep, None, 72);
+        emit2(&mut out, 5, &[key(0, 0, 100, 0, 256), key(500, 300, 100, 0, 256)], MotionEnd::Keep, None, 72, &mut BTreeMap::new());
         assert_eq!(out, "spmotion 67,2,0,0,0,100,100,0,256,72,500,300,0,100,100,0,256,72\n");
     }
 
@@ -244,9 +256,9 @@ mod tests {
         emit(&mut out, 5, &[(0, 0, 0), (83, 0, 37), (183, 0, 0), (383, 0, 0), (583, 0, 37)], false, Some(300));
         assert_eq!(out, "spmotion 67,0,0,0,0,100,100,0,0,0,83,0,37,100,100,0,70,0,183,0,0,100,100,0,156,0,300,0,0,100,100,0,256,0,383,0,0,100,100,0,256,0,583,0,37,100,100,0,256,0\n");
         // a key's own alpha is kept times the fade's; a fade past the last key holds it
-        let key = |ms, x, opacity| MotionKey { ms, x, y: 0, zoom: 100, angle: 0, opacity, zoom_y: 100 };
+        let key = |ms, x, opacity| MotionKey { ms, x, y: 0, zoom: 100, angle: 0, opacity, zoom_y: 100, ease: None };
         let mut out = String::new();
-        emit2(&mut out, 5, &[key(0, 0, 256), key(100, 50, 128)], MotionEnd::Keep, Some(200), 0);
+        emit2(&mut out, 5, &[key(0, 0, 256), key(100, 50, 128)], MotionEnd::Keep, Some(200), 0, &mut BTreeMap::new());
         assert_eq!(out, "spmotion 67,2,0,0,0,100,100,0,0,0,100,50,0,100,100,0,64,0,200,50,0,100,100,0,128,0\n");
         // a loop isn't folded
         let mut out = String::new();
@@ -265,9 +277,9 @@ mod tests {
 
     #[test]
     fn a_loop_after_a_lead_in_names_its_first_key() {
-        let k = |ms, y| MotionKey { ms, x: 0, y, zoom: 100, angle: 0, opacity: 256, zoom_y: 100 };
+        let k = |ms, y| MotionKey { ms, x: 0, y, zoom: 100, angle: 0, opacity: 256, zoom_y: 100, ease: None };
         let mut out = String::new();
-        emit2(&mut out, 5, &[k(0, -40), k(500, 0), k(1500, 6), k(2500, 0)], MotionEnd::LoopFrom(1), Some(300), 0);
+        emit2(&mut out, 5, &[k(0, -40), k(500, 0), k(1500, 6), k(2500, 0)], MotionEnd::LoopFrom(1), Some(300), 0, &mut BTreeMap::new());
         // (A fade isn't folded into a loop.)
         assert_eq!(out, format!("spmotion {},4,1,0,0,-40,100,100,0,256,0,500,0,0,100,100,0,256,0,1500,0,6,100,100,0,256,0,2500,0,0,100,100,0,256,0\n", SPRITE_BASE + 5));
     }

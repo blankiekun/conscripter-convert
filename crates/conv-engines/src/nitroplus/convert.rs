@@ -1364,7 +1364,7 @@ fn motion(old: &Shown, now: &Shown, ms: u32) -> Option<Op> {
     let zoom = ((zx + 5) / 10).clamp(1, 10000) as u32;
     let base = fade_base(old, now);
     let alpha = |s: &Shown| (s.opacity.min(1000) * 256 / base) as u32;
-    let key = |ms, x, y, zoom, angle, opacity| MotionKey { ms, x, y, zoom, angle, opacity, zoom_y: zoom };
+    let key = |ms, x, y, zoom, angle, opacity| MotionKey { ms, x, y, zoom, angle, opacity, zoom_y: zoom, ease: None };
     let keys = vec![key(0, 0, 0, 100, 0, alpha(old)), key(ms, (x1 - x0) as i32, (y1 - y0) as i32, zoom, (now.angle - old.angle) as i32, alpha(now))];
     Some(Op::SpriteMotion2 { layer: old.layer, keys, end: MotionEnd::Keep })
 }
@@ -1380,7 +1380,7 @@ fn uneven_motion(old: &Shown, now: &Shown, ms: u32) -> Option<Vec<MotionKey>> {
     }
     let centre = |s: &Shown| (s.x + s.w / 2, s.y + s.h / 2);
     let ((x0, y0), (x1, y1)) = (centre(old), centre(now));
-    let key = |ms, x, y, zoom, zoom_y, angle| MotionKey { ms, x, y, zoom, zoom_y, angle, opacity: 256 };
+    let key = |ms, x, y, zoom, zoom_y, angle| MotionKey { ms, x, y, zoom, zoom_y, angle, opacity: 256, ease: None };
     Some(vec![key(0, (x0 - x1) as i32, (y0 - y1) as i32, (o.0 * 100 / n.0) as u32, (o.1 * 100 / n.1) as u32, (old.angle - now.angle) as i32), key(ms, 0, 0, 100, 100, 0)])
 }
 

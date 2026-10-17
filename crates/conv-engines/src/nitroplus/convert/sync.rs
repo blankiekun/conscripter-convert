@@ -418,7 +418,7 @@ impl Compiler<'_, '_> {
                 let engine = Engine { zoomed: true, moved: true };
                 uncut.insert(name.clone(), Shown { image: now.source.clone(), x: x1 - w / 2, y: y1 - h / 2, w, h, whole: None, engine, ..now.clone() });
                 let z = |o: i64, n: i64| (o * 100 / n.max(1)) as u32;
-                let key = |ms, x, y, zoom, zoom_y| MotionKey { ms, x, y, zoom, zoom_y, angle: 0, opacity: 256 };
+                let key = |ms, x, y, zoom, zoom_y| MotionKey { ms, x, y, zoom, zoom_y, angle: 0, opacity: 256, ease: None };
                 let keys = vec![key(0, (x0 - x1) as i32, (y0 - y1) as i32, z(ow.2, nw.2), z(ow.3, nw.3)), key(t, 0, 0, 100, 100)];
                 let mut ops = vec![Op::SpriteAngle { layer, degrees: 0, zoom: ((now.zoom.0 / 10) as i32, (now.zoom.1 / 10) as i32) }];
                 if let Some(&(ease, exponent)) = tempo.get(name) {
