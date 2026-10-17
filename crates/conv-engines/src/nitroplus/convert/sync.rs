@@ -13,6 +13,7 @@ impl Compiler<'_, '_> {
         let mut shake_once = std::mem::take(&mut self.shake_once);
         let mask = self.pending_mask.take();
         self.flush_sounds();
+        self.end_one_shots();
         self.check_window();
         if !self.shaken.is_empty() && !self.shaken.iter().any(|t| self.objects.get(t).is_some_and(|o| o.opacity > 0)) {
             self.shaken.clear();
@@ -349,6 +350,7 @@ impl Compiler<'_, '_> {
         changes.retain(|c| unzoom.contains(&c.layer) || !placed.iter().any(|p| p.layer == c.layer));
         changes.extend(placed);
         self.shown.extend(new_shown);
+        animated.extend(self.start_one_shots());
         // Loops started during a change that isn't a move: after their lead.
         for (name, lead) in std::mem::take(&mut self.lead_ins) {
             if let (Some(s), Some(Object { shake: Some((_, keys)), .. })) = (self.shown.get(&name), self.objects.get(&name)) {

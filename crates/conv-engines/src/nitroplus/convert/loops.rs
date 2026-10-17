@@ -92,7 +92,7 @@ pub(super) fn is_loop(f: &Function) -> bool {
 /// One property of a picture over a pass: its value at the start and the
 /// actions on it (start ms, ms, to), in order.
 #[derive(Debug, Clone, Default)]
-struct Track {
+pub(super) struct Track {
     start: f64,
     actions: Vec<(u32, u32, f64)>,
 }
@@ -115,7 +115,7 @@ impl Track {
     }
 
     /// The value now (at `t`), for an action starting then.
-    fn push(&mut self, t: u32, ms: u32, to: f64) {
+    pub(super) fn push(&mut self, t: u32, ms: u32, to: f64) {
         self.actions.push((t, ms.max(1), to));
     }
 }
@@ -124,13 +124,13 @@ impl Track {
 /// (counterclockwise), opacity (0-1000); and the extra key times a Bézier
 /// path adds.
 #[derive(Debug, Clone, Default)]
-struct Pass {
-    props: [Track; 6],
+pub(super) struct Pass {
+    pub(super) props: [Track; 6],
     times: Vec<u32>,
 }
 
 impl Pass {
-    fn starting(v: [f64; 6]) -> Self {
+    pub(super) fn starting(v: [f64; 6]) -> Self {
         Pass { props: v.map(|start| Track { start, actions: Vec::new() }), times: Vec::new() }
     }
 
@@ -138,24 +138,44 @@ impl Pass {
         self.props[i].end()
     }
 
-    fn ends(&self) -> [f64; 6] {
+    pub(super) fn ends(&self) -> [f64; 6] {
         [0, 1, 2, 3, 4, 5].map(|i| self.props[i].end())
     }
 
-    fn values(&self, t: u32) -> [f64; 6] {
+    pub(super) fn values(&self, t: u32) -> [f64; 6] {
         [0, 1, 2, 3, 4, 5].map(|i| self.props[i].at(t))
     }
 
-    /// Keys over `len` ms: every time an action starts or ends.
-    fn keys(&self, len: u32) -> Option<Vec<MotionKey>> {
+    /// The times keys go at over `len` ms: every time an action starts or
+    /// ends.
+    fn key_times(&self, len: u32) -> Vec<u32> {
         let mut times: Vec<u32> = self.props.iter().flat_map(|p| p.actions.iter().flat_map(|&(s, ms, _)| [s, s + ms])).chain(self.times.iter().copied()).chain([0, len]).filter(|&t| t <= len).collect();
         times.sort_unstable();
         times.dedup();
-        let base = self.values(0);
-        let top = times.iter().map(|&t| self.values(t)[5]).fold(0.0, f64::max);
-        if top <= 0.0 {
-            return None;
-        }
+        times
+    }
+
+    /// Keys over `len` ms, as offsets from the values at the start and
+    /// opacity from the highest at a key; `None` when never seen.
+    fn keys(&self, len: u32) -> Option<Vec<MotionKey>> {
+        let top = self.key_times(len).iter().map(|&t| self.values(t)[5]).fold(0.0, f64::max);
+        (top > 0.0).then(|| self.keyed(len, self.values(0), top))
+    }
+
+    /// Keys over `len` ms as offsets from the values at the end and
+    /// opacity from `top`, for a motion that ends where the picture is
+    /// placed ([`super::one_shot`]).
+    pub(super) fn keys_to_end(&self, len: u32, top: f64) -> Vec<MotionKey> {
+        self.keyed(len, self.values(len), top)
+    }
+
+    /// When the last action ends.
+    pub(super) fn end_time(&self) -> u32 {
+        self.props.iter().flat_map(|p| p.actions.iter().map(|&(s, ms, _)| s + ms)).chain(self.times.iter().copied()).max().unwrap_or(0)
+    }
+
+    fn keyed(&self, len: u32, base: [f64; 6], top: f64) -> Vec<MotionKey> {
+        let times = self.key_times(len);
         let key = |t: u32| {
             let v = self.values(t);
             MotionKey {
@@ -178,10 +198,10 @@ impl Pass {
                 i += 1;
             }
         }
-        Some(keys)
+        keys
     }
 
-    fn top(&self, len: u32) -> f64 {
+    pub(super) fn top(&self, len: u32) -> f64 {
         (0..=len).step_by(10).map(|t| self.values(t)[5]).fold(self.values(len)[5], f64::max)
     }
 }
@@ -346,17 +366,27 @@ impl<'a> Compiler<'a, '_> {
         let mut clock = 0u32;
         for s in body {
             let StmtKind::Expr(Expr::Call { name: call, args }) = &s.kind else { continue };
-            let v: Vec<Value> = args.iter().map(|a| self.eval(a)).collect();
-            let arg = |i: usize| v.get(i).cloned().unwrap_or(Value::Null);
             if call == "Wait" {
-                clock += arg(0).int().max(0) as u32;
+                clock += self.eval(&args[0]).int().max(0) as u32;
                 continue;
             }
+            clock += self.paper_action(call, args, passes, clock, (sw, sh), made);
+        }
+        clock
+    }
+
+    /// Plays the timed action `call` (`Fade`, `Move`, `Zoom`, `Rotate`,
+    /// `BezierMove`) on paper into `passes` at `clock`; the time it takes
+    /// when it is waited for, else 0.
+    pub(super) fn paper_action(&mut self, call: &str, args: &'a [Expr], passes: &mut HashMap<String, Pass>, clock: u32, (sw, sh): (i64, i64), made: &[(String, String)]) -> u32 {
+        {
+            let v: Vec<Value> = args.iter().map(|a| self.eval(a)).collect();
+            let arg = |i: usize| v.get(i).cloned().unwrap_or(Value::Null);
             let ms = arg(1).int().max(0) as u32;
             // The wait argument: Fade(obj, ms, to[, tempo], wait),
             // BezierMove(obj, ms, path, tempo, wait), Move and Zoom (obj,
             // ms, x, y, tempo, wait), Rotate(obj, ms, x, y, z, tempo, wait).
-            let wait = match call.as_str() {
+            let wait = match call {
                 "Fade" if v.len() == 4 => arg(3),
                 "Fade" | "BezierMove" => arg(4),
                 "Move" | "Zoom" => arg(5),
@@ -367,7 +397,7 @@ impl<'a> Compiler<'a, '_> {
                 let (w, h) = (o.w, o.h);
                 let p = passes.entry(t).or_insert_with(|| Pass::starting([o.x as f64, o.y as f64, o.zoom.0 as f64, o.zoom.1 as f64, -o.turn.2 as f64, o.opacity as f64]));
                 let now = |i: usize| p.now(i).round() as i64;
-                match call.as_str() {
+                match call {
                     "Fade" => {
                         let to = arg(2).position(now(5), 0, 0).clamp(0, 1000);
                         p.props[5].push(clock, ms, to as f64);
@@ -401,10 +431,10 @@ impl<'a> Compiler<'a, '_> {
                 }
             }
             if !matches!(wait, Value::Null | Value::Int(0)) {
-                clock += ms;
+                return ms;
             }
+            0
         }
-        clock
     }
 
     /// Picture `target` loops `keys` while process `name` runs, after the
