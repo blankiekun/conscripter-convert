@@ -277,7 +277,7 @@ rather than by browsing:
     `WINEDEBUG=+timestamp,+tid,+relay wine game.exe 2> local/relay.log`,
     with `RelayInclude` set in the prefix
     (`wine reg add 'HKCU\Software\Wine\Debug' /v RelayInclude /d
-    'ntdll.Sleep;kernel32.QueryPerformanceCounter;winmm.timeGetTime;winmm.waveOutWrite;dsound.DirectSoundCreate;ddraw.DirectDrawCreate;d3d9.Direct3DCreate9;user32.GetMessageA;gdi32.SwapBuffers'`;
+    'kernel32.Sleep;kernel32.QueryPerformanceCounter;winmm.timeGetTime;winmm.waveOutWrite;dsound.DirectSoundCreate;ddraw.DirectDrawCreate;d3d9.Direct3DCreate9;user32.GetMessageA;gdi32.SwapBuffers'`;
     names are `module.function`, `;`-separated, no spaces). Then count and
     space the calls with `grep`/`awk` (frames = present calls per second;
     waits = `Sleep` arguments; sound = the `waveOut`/`dsound` calls and
