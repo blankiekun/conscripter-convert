@@ -15,9 +15,8 @@ use super::{Compiler, StripObject, Value};
 // src: exe 00435e60 (setup: 128 drops, speed 0x98), 00436390 (draw: 42 ms, 196 px streak, 0xadadad), 0042f680 (alpha)
 /// The exe redraws the rain at most this often, ms.
 const TICK_MS: u32 = 42;
-/// shortcut: the exe divides by its frame period (a table filled at run
-/// time, the render loop's wait); 16 ms (60 Hz) assumed, check under wine
-/// if the rain looks too fast or slow.
+/// The exe divides by its frame period.
+// src: exe init_frame_tables 0048c5d0 (ms per frame 005dcb0c[4] = 16, index 005dcaf0 = 4)
 const FRAME_MS: i64 = 16;
 // ours: CELLS, WARM_UP
 /// Frames in the strip: a second of rain, looped.

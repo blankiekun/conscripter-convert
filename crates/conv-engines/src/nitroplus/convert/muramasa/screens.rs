@@ -86,9 +86,9 @@ fn settings(a: &mut dyn Assets, story: &Story) -> Option<PictureSettings> {
         // 0-200 ms a character (default 100): the exe waits that long for
         // each character of the page.
         (SliderSetting::AutoWait { ms: 200 }, 610, 507),
-        // Default 200 of 1000: 20 ms a character, as the story is shown.
-        // guess: ms 100 (0-100 ms a character), unmeasured
-        (SliderSetting::TextSpeed { ms: 100 }, 754, 207),
+        // Default 200 of 1000: 9.6 ms a character, as the story is shown.
+        // src: exe 00483930 (a character's ms = $SYSTEM_text_interval × text_speed ÷ 1000), function.nss SystemInit (interval 48)
+        (SliderSetting::TextSpeed { ms: 48 }, 754, 207),
         // src: exe FUN_0047c250 (the speed table)
         (SliderSetting::GameSpeed { levels: [50, 75, 100, 150, 200, 300, 400, 550, 800, 1200, 1600, 3200] }, 862, 750),
     ] {
