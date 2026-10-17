@@ -83,6 +83,23 @@ class Install(unittest.TestCase):
             self.assertEqual(engine.build_version(Path(d)), "0.21.0")
             self.assertIsNone(engine.build_version(Path(d) / "none"))
 
+    def test_before_universal(self):
+        for v, old in (("0.28.1", True), ("v0.28.1", True), ("0.21.0", True), ("0.28.2", False),
+                       ("0.29.0-dev", False), ("v1.0.0rc1", False), ("dev", False), ("", False)):
+            self.assertEqual(engine._before_universal(v), old, v)
+
+    def test_mac_suffix(self):
+        def suffix(version, machine, translated=""):
+            with mock.patch.object(engine.sys, "platform", "darwin"), mock.patch.object(engine.os, "name", "posix"), \
+                    mock.patch.object(engine.platform, "machine", return_value=machine), \
+                    mock.patch.object(engine, "_sysctl", return_value=translated):
+                return engine.platform_suffix(version)
+        self.assertEqual(suffix(None, "x86_64"), "universal_darwin")
+        self.assertEqual(suffix("0.29.0", "x86_64"), "universal_darwin")
+        self.assertEqual(suffix("0.28.1", "arm64"), "aarch64_darwin")
+        self.assertEqual(suffix("0.28.1", "x86_64", "1"), "aarch64_darwin")  # Rosetta
+        self.assertIsNone(suffix("0.28.1", "x86_64"))  # an Intel Mac, before the universal build
+
     @unittest.skipIf(os.name == "nt" or sys.platform == "darwin", "the Linux layout")
     def test_linux_layout(self):
         try:
