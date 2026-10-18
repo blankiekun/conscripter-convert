@@ -923,8 +923,8 @@ Flowchart, Movie and Ending List.
    layers with no picture).
 6. Every kind has a row in `tsukihime.findings.tsv` (2026-10-17, from
    the decompile; 47 rows open). The open ones that matter most, by
-   use: the layer quakes `_SQK2`/`_SHK2`/`_SSW2` and the screen
-   shake `_SHOK`/`_SHAF`, `_STPV` (the layer's pivot), `_SNX2`/`_SNX3`
+   use: the layer quakes `_SQK2`/`_SHK2`/`_SSW2`, the screen
+   shake's start delay (`_SHOK` argument 4, 260 uses), `_STPV` (the layer's pivot), `_SNX2`/`_SNX3`
    and `_STNS`/`_STRA`/`_STRR`/`_SACL`/`_SBAS`/`_SOXY` (layer fields
    whose drawing is not found yet), `_VCWT` (wait for the voice),
    `_VPL2`, `_SESP`, `_WKOR`, `_STTR`, `_STCL`, `_SGMA`, `_SPMA`, the
@@ -975,6 +975,18 @@ Open there, by size:
 
 ## History
 
+- 2026-10-18: **screen shake**. `_SHOK(x, y, period = 300, turns = 3,
+  delay = 0)` (`cmd_SHOK` → `FUN_0012ee70` kind 1, drawn each frame by
+  `FUN_0012ef30`): one sine for both axes, a turn every `period` ms
+  (2π · frames / (period · 3/50)), x and y in 1280 × 720 units (scaled
+  by 640/1280 and 480/720), times a gain falling straight from 1 to 0
+  over the turns, then it ends. Ours: `screenshake 1` mode 0, speed
+  65536/period, size (x, y) to 0 over period · turns ms, `end` the
+  same. `_SHAF()` (`shake_stop`) clears slot 1; `_SHAF(ms)` is unused.
+  Left out: the start delay (argument 4, `FUN_0012ef30` counts it down
+  in ms; 260 uses, 205 of them 50-200 ms, 9 over 1 s; it starts at once
+  here, so it needs a delay in `screenshake`), and the exe's "not while
+  skipping".
 - 2026-10-18: **`_WTTM`'s second argument** (14,821 calls, the biggest
   gap) changes nothing seen. The decompile seems to take the frame
   counter `DAT_00be0a00` (0x1473cde) off the wait when a second
