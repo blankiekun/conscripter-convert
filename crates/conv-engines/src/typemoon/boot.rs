@@ -1,11 +1,11 @@
 //! What the game shows before the title (`FUN_001b5650`, one state a
-//! frame): 15 frames of black, the TYPE-MOON logo movie (`TM_CI`, movie
+//! frame): 15 frames of black (always), the TYPE-MOON logo movie (`TM_CI`, movie
 //! table 0x50B890 entry 0x26) on white, then the caution screen
 //! (`parts.mrg` entry 1, `caution2`) faded in and out. The steps' table at
 //! 0x4C98FC (0x18 a step): picture, hold frames, frames before a press
 //! skips, …, the colour behind (1 white, 0 black).
 //!
-//! Only once the prologue has been read (scene-read flag 485, `_RDST(485)`
+//! The movie and the caution only once the prologue has been read (scene-read flag 485, `_RDST(485)`
 //! in `00_01`): with no such save (the first launch) the exe goes straight
 //! on (state 0x10). The fan patch has its own movie and caution picture.
 //! Left out: state 0xD (the logo picture `logo_fix` held 8 s), which needs
@@ -31,7 +31,8 @@ const fn frames(n: u32) -> u32 {
 /// alone); `english`, the fan patch's beside it, whose copies show while
 /// `lang` is 1.
 pub fn steps(romfs: &Path, english: Option<(&Path, Var)>, output: &Path, dry_run: bool) -> Result<Vec<BootStep>> {
-    let mut steps = Vec::new();
+    // src: FUN_001b5650 state 1: 15 frames (black: the colour starts at 0), before the flag is looked at
+    let mut steps = vec![BootStep { backdrop: "black".into(), hold_ms: frames(15), ..Default::default() }];
     let read = (read_flag(485), 1);
     let mut add = |dir: &Path, sub: &str, lang: Option<(Var, i32)>| -> Result<()> {
         let image = format!("{DIR}/{sub}caution.png");
@@ -41,8 +42,6 @@ pub fn steps(romfs: &Path, english: Option<(&Path, Var)>, output: &Path, dry_run
             caution(dir)?.save(&dest).with_context(|| format!("writing {}", dest.display()))?;
         }
         let when: Vec<_> = std::iter::once(read).chain(lang).collect();
-        // src: FUN_001b5650 state 1: 15 frames (black: the colour starts at 0)
-        steps.push(BootStep { backdrop: "black".into(), hold_ms: frames(15), when: when.clone(), ..Default::default() });
         // src: states 3, 9–0xB: TM_CI; a press ends it once 120 frames (table +8) have played; white behind (+0x14 = 1)
         steps.push(BootStep { image: format!("movie/{sub}TM_CI.mp4"), movie: true, backdrop: "white".into(), skip_after_ms: Some(frames(120)), when: when.clone(), ..Default::default() });
         // src: states 3–7: +0.025 opacity a frame, over 1.0 at the 41st (from the white still behind), held
@@ -90,11 +89,12 @@ mod tests {
     fn logo_then_caution_once_the_prologue_is_read() {
         let lang = Var { global: true, index: 1000 };
         let s = steps(Path::new("/nonexistent"), Some((Path::new("/nonexistent"), lang)), Path::new("/nonexistent"), true).unwrap();
-        assert_eq!(s.len(), 6);
+        assert_eq!(s.len(), 5);
+        assert_eq!((s[0].hold_ms, s[0].when.len()), (250, 0));
         assert_eq!(s[1].image, "movie/TM_CI.mp4");
-        assert_eq!(s[4].image, "movie/en/TM_CI.mp4");
-        assert_eq!(s[5].image, "sys/boot/en/caution.png");
-        assert_eq!(s[5].when, vec![(read_flag(485), 1), (lang, 1)]);
+        assert_eq!(s[3].image, "movie/en/TM_CI.mp4");
+        assert_eq!(s[4].image, "sys/boot/en/caution.png");
+        assert_eq!(s[4].when, vec![(read_flag(485), 1), (lang, 1)]);
         assert_eq!((s[2].fade_in_ms, s[2].hold_ms, s[1].skip_after_ms), (683, 8000, Some(2000)));
     }
 }
