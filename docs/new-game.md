@@ -61,7 +61,10 @@ items of section 2's list "Mapping the whole exe", not rows of this table.
    For a Windows game, start with the **first-contact kit**
    (`research/tools/firstcontact/`): `first_contact.py <install>
    [--ghidra <export> | --ghidra-run]` writes
-   `out/<install name>-first-contact/report.md` (engine guesses from file
+   `out/<install name>-first-contact/report.md` (first, a "Known family"
+   block when it is a family we already convert: the nearest game's
+   document, the readers, the modules that carry over and the command to
+   start from; it works on console dumps too. Then engine guesses from file
    names, archive magic and exe strings; imports by use; files by
    extension; RTTI) and, with a Ghidra export, `hooks.tsv`: candidate
    dispatch, wait-loop and present functions as count breakpoints. Then
