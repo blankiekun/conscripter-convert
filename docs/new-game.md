@@ -633,7 +633,8 @@ anything is reached (step 11.6).
   start the emulator bare, even for `--help`: GUI front ends open on
   the desktop), its own data dir (not the user's), no audio, memory
   capped. Check the boot first: firmware and keys must match (every
-  firmware NCA's key revision must be in the keys). Switch: Ryubing's
+  firmware NCA's master key revision must be in the keys; a firmware
+  newer than the keys fails). Switch: Ryubing's
   `--no-gui` front end, recipe in `docs/games/tsukihime.md`, "Testing".
 - **Wine gotchas:** run every game with `LANG=ja_JP.UTF-8` and
   `LC_ALL=ja_JP.UTF-8`, or folder and file names come out garbled and
