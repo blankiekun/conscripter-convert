@@ -10,15 +10,22 @@
  * - story_input_poll 0x477d90 (the input check of every wait): turns the
  *   game's auto mode (0x51f82d) on and takes a hyperlink (0x46) the way
  *   its click branch does (0x477ff0-0x47805c).
+ * - XTRACE_COVER: an int3 on each listed code address, taken out at its
+ *   first hit by a vectored exception handler (one-shot breakpoints:
+ *   no cost after the first hit), which logs a "hit" record.
  * Records ("t"): meta, cmd (one per dispatched instruction), page (one
  * per message, 0x40/0x41, with its text), choice (links offered on a
- * page and the one taken). "at" = "<script id>:<instruction number>".
+ * page and the one taken), hit (first run of a listed address).
+ * "at" = "<script id>:<instruction number>".
  * Environment (wine passes it through):
  *   XTRACE_OUT      Windows path of the JSONL (default C:\xtrace.jsonl)
  *   XTRACE_CHOICES  link label-table indices to take, comma-separated;
  *                   unset: the first link of each page; "none": none
  *   XTRACE_PAGES    exit the game after this many pages (0: never)
  *   XTRACE_NOAUTO   set: leave auto mode alone
+ *   XTRACE_COVER    Windows path of a file of hex code addresses, one
+ *                   per line, each an instruction start (research/xuse/
+ *                   cover.py addrs writes it)
  */
 #include <windows.h>
 #include <stdio.h>
@@ -191,6 +198,79 @@ unsigned __cdecl xt_poll(unsigned *res, char a2, char *task, unsigned a4) {
     return ((poll_fn)(void *)poll_tramp)(res, a2, task, a4);
 }
 
+/* one-shot breakpoints: sorted addresses, their first bytes, hit flags */
+#define N_COVER 4096
+static unsigned cov[N_COVER];
+static unsigned char cov_byte[N_COVER];
+static volatile long cov_hit[N_COVER];
+static int n_cov;
+
+static int cov_find(unsigned a) {
+    int lo = 0, hi = n_cov - 1;
+    while (lo <= hi) {
+        int m = (lo + hi) / 2;
+        if (cov[m] == a) return m;
+        if (cov[m] < a) lo = m + 1;
+        else hi = m - 1;
+    }
+    return -1;
+}
+
+static void cov_poke(unsigned a, unsigned char b) {
+    DWORD old;
+    VirtualProtect((void *)a, 1, PAGE_EXECUTE_READWRITE, &old);
+    *(volatile unsigned char *)a = b;
+    VirtualProtect((void *)a, 1, old, &old);
+    FlushInstructionCache(GetCurrentProcess(), (void *)a, 1);
+}
+
+static LONG CALLBACK xt_veh(EXCEPTION_POINTERS *e) {
+    if (e->ExceptionRecord->ExceptionCode != EXCEPTION_BREAKPOINT) return EXCEPTION_CONTINUE_SEARCH;
+    unsigned a = (unsigned)e->ExceptionRecord->ExceptionAddress;
+    int i = cov_find(a);
+    if (i < 0 && (i = cov_find(a - 1)) >= 0) a--; /* in case Eip is past the int3 */
+    if (i < 0) return EXCEPTION_CONTINUE_SEARCH;
+    if (!InterlockedExchange(&cov_hit[i], 1)) {
+        cov_poke(a, cov_byte[i]);
+        fprintf(out, "{\"t\":\"hit\",\"pg\":%ld,\"ms\":%ld,\"f\":%ld,\"at\":\"%d:%d\",\"addr\":\"%08x\"}\n", pages, ms(),
+                frames, script_id(), ins_no(), a);
+        fflush(out);
+    }
+    e->ContextRecord->Eip = a; /* run the restored instruction (another thread may still be restoring it) */
+    while (*(volatile unsigned char *)a == 0xcc && cov_byte[i] != 0xcc) Sleep(0);
+    return EXCEPTION_CONTINUE_EXECUTION;
+}
+
+static int cmp_u(const void *x, const void *y) {
+    unsigned a = *(const unsigned *)x, b = *(const unsigned *)y;
+    return a < b ? -1 : a > b;
+}
+
+static void cover_install(const char *path) {
+    FILE *f = fopen(path, "r");
+    char line[64];
+    if (!f) return;
+    while (n_cov < N_COVER && fgets(line, sizeof line, f)) {
+        unsigned a = strtoul(line, NULL, 16);
+        /* .text only, and not the bytes the poll hook rewrites */
+        if (a >= 0x401000 && a < 0x4f630b && (a < POLL || a >= POLL + 7)) cov[n_cov++] = a;
+    }
+    fclose(f);
+    qsort(cov, n_cov, sizeof *cov, cmp_u);
+    int k = 0;
+    for (int i = 0; i < n_cov; i++)
+        if (!k || cov[k - 1] != cov[i]) cov[k++] = cov[i];
+    n_cov = k;
+    AddVectoredExceptionHandler(1, xt_veh);
+    for (int i = 0; i < n_cov; i++) {
+        cov_byte[i] = *(unsigned char *)cov[i];
+        cov_poke(cov[i], 0xcc);
+    }
+    fprintf(out, "{\"t\":\"cover\",\"addrs\":[");
+    for (int i = 0; i < n_cov; i++) fprintf(out, "%s\"%08x\"", i ? "," : "", cov[i]);
+    fputs("]}\n", out);
+}
+
 static VOID WINAPI xt_sleep(DWORD n) {
     frames++;
     real_sleep(n);
@@ -246,6 +326,7 @@ static void install(void) {
     *(int *)(POLL + 1) = (int)xt_poll - (POLL + 5);
     *(unsigned short *)(POLL + 5) = 0x9090;
     VirtualProtect((void *)POLL, 7, old, &old);
+    if ((p = getenv("XTRACE_COVER"))) cover_install(p);
     fflush(out);
 }
 

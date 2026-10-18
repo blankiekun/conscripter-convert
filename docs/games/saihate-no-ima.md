@@ -632,8 +632,8 @@ step 9). Helper scripts of the sessions are in `research/xuse/local/`
   `frame_loop` (History, "Breakpoint trace").
 - **Trace DLL** (`docs/new-game.md` step 22): `GAME=<install>
   research/xuse/tracedll/xtrace.sh -o t.jsonl [--save slot.bin]
-  [--choices 12,34|none] [--pages N] [--seconds S] [--display :N]
-  [--shot end.png]` builds `xtrace.dll` and `xlaunch.exe` with mingw,
+  [--choices 12,34|none] [--pages N] [--seconds S] [--shot end.png]
+  [--no-cover]` builds `xtrace.dll` and `xlaunch.exe` with mingw,
   keeps a prepared prefix in `out/xtrace/` (the steps above), starts
   the game on its own Xvfb and clicks to FIRST START (or loads slot 1),
   then the game plays in its own auto mode. One JSON line per
@@ -646,7 +646,15 @@ step 9). Helper scripts of the sessions are in `research/xuse/local/`
   taken as the click branch of `story_input_poll` takes them
   (`0x470cc0`, then `0x49d740` on the link list); with no `--choices`
   the first link of each page is taken once. The hooks and records:
-  `xtrace.c`'s head comment.
+  `xtrace.c`'s head comment. Xvfb picks its own display (`-displayfd`).
+- **Branch coverage** (`docs/new-game.md` step 24): each xtrace run
+  also arms one-shot breakpoints on the code addresses of `names.tsv`
+  and of the findings table (`research/xuse/cover.py addrs`: 599 of 610
+  are instruction starts) and logs each first hit (`"t":"hit"`).
+  `python3 -I research/xuse/cover.py mark t1.jsonl [t2.jsonl ...]
+  --write` fills `saihate-no-ima.findings.tsv`'s last column (`runs:`
+  the addresses hit, `not:` those armed and never hit, or `never runs`;
+  by opcode when a row cites no address).
 - **Trace diff** (`docs/new-game.md` step 23), against a dry run with
   the same choices:
 
@@ -747,6 +755,15 @@ there unlocks the extras; seen).
 
 ### Queue (2026-10-16)
 
+- Open: branch coverage of the original (`docs/new-game.md` step 24,
+  `research/xuse/cover.py`): one FIRST START xtrace run (390 pages,
+  first links, 2026-10-17) hit 173 of 598 armed addresses (47 opcodes);
+  the findings table's last column holds the marks. The debug menu
+  (`0x30`, `0x62`, `LEFT_OUT`) never runs: the start enters `0001.cd`
+  at #7, past the menu's message #1. Rows marked `never runs` there
+  (0x44 ruby, 0x49, 0x4a, 0x7f-0x87, 0x91 …) are only not on this
+  stretch of the story: later runs (`--save` or `--choices`) add to
+  the marks (`cover.py mark t1.jsonl t2.jsonl --write`).
 - Open: waited transitions take about 3 frames (90 ms) longer in the
   exe than their time, ours the time to the ms (trace diff, History,
   "Trace diff"): `0x76`+`0x71` 1000 ms = 33 frames (1,096 ms), 1500 =
