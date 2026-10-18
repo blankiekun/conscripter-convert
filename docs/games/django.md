@@ -1429,3 +1429,10 @@ diff's `boot.nss:153` pairs.
   background stayed over the bad end's title. The branch that returned
   now hands its own state (with the chapter's objects deleted) to the
   caller's `if` on the same test.
+
+### One `*conv_boot_end` (2026-10-18)
+
+The boot logos' subroutine was jumped over to a label of the same name
+as conv-cons's boot guard end (`*conv_boot_end`, defined twice; the
+engine keeps the first). It is `*conv_boot_body_end` now (dead code
+today: the jump follows the story's last jump).

@@ -303,3 +303,14 @@ scene a.nss
     assert!(c.ops.iter().any(|op| matches!(op, Op::Wait { ms: 500 })), "{:?}", c.ops);
     assert!(!c.ops.iter().any(|op| matches!(op, Op::Wait { ms } if *ms > 500)), "{:?}", c.ops);
 }
+
+#[test]
+fn boot_logos_end_label_is_not_conv_cons_boot_guard() {
+    static GAME: Game = Game { boot_logos: ("a.nss", "function BootLogos() { Wait(10); }"), ..Game::PLAIN };
+    let files = nss_files(LIBRARY, &[("a.nss", "scene a.nss\n{\n\tWait(100);\n}")]);
+    let c = compile_story(&files, "a.nss", "a.nss", &GAME, &mut Fake).unwrap();
+    let labels: Vec<_> = c.ops.iter().filter_map(|o| if let Op::Label(l) = o { Some(l.as_str()) } else { None }).collect();
+    assert!(labels.contains(&BOOT_LABEL), "{labels:?}");
+    // conv-cons defines `*conv_boot_end` after the boot guard.
+    assert!(!labels.contains(&"conv_boot_end"), "{labels:?}");
+}

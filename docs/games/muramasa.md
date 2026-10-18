@@ -2727,3 +2727,10 @@ again with a shot of each of its first 400 pages. Closed unless it comes
 back. On the way, nstrace looped forever in `ma02_003a`: it skipped
 `btnwait`, so the favour screen's wait loop never ended; `btnwait` now
 sets its variable to 0, a click.
+
+### One `*conv_boot_end` (2026-10-18)
+
+The boot logos' subroutine was jumped over to a label of the same name
+as conv-cons's boot guard end (`*conv_boot_end`, defined twice; the
+engine keeps the first). It is `*conv_boot_body_end` now (dead code
+today: the jump follows the story's last jump).
