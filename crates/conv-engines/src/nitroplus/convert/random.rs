@@ -449,6 +449,7 @@ impl<'a> Compiler<'a, '_> {
             || !self.pending_camera.is_empty()
             || !self.shake_once.is_empty()
             || !self.pending_path.is_empty()
+            || !self.pending_from.is_empty()
             || self.pending_mask.is_some()
             || self.pending_enter.is_some()
     }
@@ -462,7 +463,7 @@ impl<'a> Compiler<'a, '_> {
             v.join(",")
         };
         format!(
-            "{} {} {} {:?} {} {} {} {} {} {:?} {:?} {:?}",
+            "{} {} {} {:?} {} {} {} {} {} {} {:?} {:?} {:?}",
             self.pending_ms,
             sorted(&self.pending_by),
             sorted(&self.pending_tempo),
@@ -472,6 +473,7 @@ impl<'a> Compiler<'a, '_> {
             sorted(&self.pending_camera),
             sorted(&self.shake_once),
             sorted(&self.pending_path),
+            sorted(&self.pending_from),
             self.pending_mask,
             self.pending_enter,
             self.objects
@@ -496,6 +498,7 @@ impl<'a> Compiler<'a, '_> {
         self.pending_camera.clear();
         self.shake_once.clear();
         self.pending_path.clear();
+        self.pending_from.clear();
         self.pending_mask = None;
         self.pending_enter = None;
     }

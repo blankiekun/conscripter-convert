@@ -17,6 +17,7 @@ impl Compiler<'_, '_> {
         let cameras = std::mem::take(&mut self.pending_camera);
         let mut shake_once = std::mem::take(&mut self.shake_once);
         let mut paths = std::mem::take(&mut self.pending_path);
+        let from = std::mem::take(&mut self.pending_from);
         let wave_clock = self.sound_clock();
         let mask = self.pending_mask.take();
         self.flush_sounds();
@@ -357,6 +358,31 @@ impl Compiler<'_, '_> {
                 self.shown.insert(name.clone(), now);
                 moving.push(name.clone());
             }
+        }
+        // A new picture as it moves: placed where it ends, then moved there
+        // from where it starts (under wine ma00_000's pans run as the
+        // script goes on).
+        for ((name, now, _), layer) in want.iter().zip(&layers) {
+            let (Some(layer), Some(&(dx, dy)), Some(&t)) = (*layer, from.get(name), timed.get(name)) else { continue };
+            // (Not moved at all too, so that a `Random` pick of 0 leaves
+            // the sprite as the other picks: moved by the engine.)
+            if t == 0 || self.shown.contains_key(name) || turning.contains_key(name) || paths.contains_key(name) {
+                continue;
+            }
+            let now = Shown { layer, ..now.clone() };
+            let start = Shown { x: now.x + dx, y: now.y + dy, ..now.clone() };
+            let Some(Op::SpriteMotion2 { keys, end, .. }) = motion(&start, &now, t) else { continue };
+            let mut ops = Vec::new();
+            if let Some(t) = self.objects.get(name).and_then(|o| o.trail) {
+                ops.push(Op::SpriteTrail { layer, passes: t.passes, alpha: t.alpha, lag: t.lag, over: t.over });
+            }
+            if let Some(&(ease, exponent)) = tempo.get(name) {
+                ops.push(Op::MoveEase { ease, exponent });
+            }
+            ops.push(Op::SpriteMotion2 { layer, keys: from_end(keys), end });
+            moved_over.insert(name.clone(), ops);
+            self.runs.insert(name.clone(), Run { from: start, to: now, ms: t, at: clock, ease: tempo.get(name).copied() });
+            moving.push(name.clone());
         }
         for ((name, now, _), layer) in want.iter().zip(&layers) {
             if turning.contains_key(name) {
