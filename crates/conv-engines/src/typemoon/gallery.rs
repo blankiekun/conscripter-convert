@@ -15,13 +15,15 @@
 //! flag (`Seen::Pictures`); the 926 CGs nothing unlocks, by flag 557 (the
 //! last lesson's `_RDED(557)`).
 //!
+//! The grid lists only the slots with a CG to show (`FUN_0010b830`;
+//! `PictureGallery::compact`).
+//!
 //! Coordinates: the exe's widgets are placed in 1080p pixels (`FUN_0011fa60`
 //! with 1920 × 905 from y 109); here × 2/3. Left out: the slots' condition
 //! (route flags read by `FUN_0010b58c`; a CG's pictures are shown on that
 //! route anyway) and flag 557 for the CGs that have pictures (a seen test
-//! is one or the other); the grid lists every slot (the exe lists only
-//! those with a CG to show, scrolling 6 across), in pages of 6 rows; the
-//! viewer's zoom (a CG shown to cover the screen, its far part scrolled
+//! is one or the other); the list in pages of 6 rows (the exe scrolls it,
+//! 6 across); the viewer's zoom (a CG shown to cover the screen, its far part scrolled
 //! to); the Music Player, Flowchart, Movie and Ending List (drawn, not
 //! clickable).
 
@@ -367,6 +369,7 @@ pub fn extras(exe: &Exe, pictures: &[Picture], s: &Sources, flag557: Var) -> Res
         arrows_when_paged: true,
         engine_screen: false,
         category_hover: None,
+        compact: true,
     };
     Ok(PictureExtras { background, items, hover_se: None, back_se: None, fade_ms: 300, gallery: Some(gallery), sound: None, replay: None, turntable: None, passage: None })
 }

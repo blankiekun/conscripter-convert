@@ -279,6 +279,7 @@ fn gallery(a: &mut dyn Assets, story: &Story) -> Option<PictureGallery> {
         arrows_when_paged: true,
         engine_screen: false,
         category_hover: rifle(a),
+        compact: false,
     })
 }
 

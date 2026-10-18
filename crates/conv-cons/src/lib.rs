@@ -379,6 +379,9 @@ pub fn emit_mapped(script: &Script) -> (String, Vec<(usize, Option<SourceLoc>)>)
     }
     writeln!(out, "{}", notice::DEFINE).unwrap();
     boot::define(&mut out, script);
+    if let Some(g) = script.picture_extras.as_ref().and_then(|e| e.gallery.as_ref()) {
+        picture_gallery::define(&mut out, g);
+    }
     writeln!(out, "{NAME_SPRITES_DEFINE}").unwrap();
     writeln!(out, "{}", names_define()).unwrap();
     writeln!(out, "{}", links_define()).unwrap();

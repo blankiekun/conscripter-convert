@@ -825,8 +825,7 @@ Config on the title.
    Flowchart; drawn in its menu, not clickable), and in the CG gallery
    what is left out (History, 2026-10-18, "the CG gallery"): the
    slots' route conditions, flag 557 for the CGs with pictures (a
-   seen test is either), the viewer's zoom, the list holding only
-   the slots with a CG to show. 926 CGs, in neither unlock table,
+   seen test is either), the viewer's zoom. 926 CGs, in neither unlock table,
    show only after flag 557 (`_RDED(557)`, the last lesson), as the
    exe reads (`FUN_00156720` scans the first 0xA8C picture names).
    `_STCG` (the CG flag of a picture not shown) is not converted:
@@ -898,6 +897,14 @@ Open there, by size:
   every sound at full volume.
 
 ## History
+
+- 2026-10-18: **the CG gallery lists only the slots with a CG to show**
+  (`FUN_0010b830`: a slot goes in the list when `FUN_00105118` finds
+  one of its CGs shown). Ours: `PictureGallery::compact`, each redraw
+  counting every slot's seen CGs and drawing those on the page asked
+  for, closing up (still in pages of 6 × 6; the exe scrolls); the
+  arrows only past one page. Checked headless: 45 slots marked seen
+  (every other one of the first 90) fill page 1 and 9 of page 2.
 
 - 2026-10-18: **the CG gallery** (title > Gallery; `gallery.rs`).
   **Seen**: the menu's widgets (`FUN_00106124`, descriptors at
