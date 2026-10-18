@@ -183,6 +183,7 @@ fn sound(op: &Op) -> bool {
             | Op::SoundVolume { .. }
             | Op::SoundPan { .. }
             | Op::SoundRate { .. }
+            | Op::SoundEase { .. }
             | Op::BgmPlay { .. }
             | Op::BgmStop { .. }
             | Op::BgmLater { .. }

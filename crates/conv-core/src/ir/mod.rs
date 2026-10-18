@@ -774,6 +774,11 @@ pub enum Op {
     /// motion handed to another layer goes on (CONscripter's
     /// `spmotionclock`). 月姫's loops whose layer moves at a `_FADS`.
     MotionClock { layer: u32, from: u32 },
+    /// The next [`Op::SoundVolume`], [`Op::SeFadeOut`] or
+    /// [`Op::SoundRate`] (the op right after this one) ramps along this
+    /// curve ([`Op::MoveEase`]'s), not straight (CONscripter's
+    /// `chvolfade`/`chfreq` curve). Nitroplus's sound tempos.
+    SoundEase { ease: u8, exponent: u32 },
 }
 
 /// [`Op::HoldMovie`]'s prompt: `image` is `cells` pictures side by side,

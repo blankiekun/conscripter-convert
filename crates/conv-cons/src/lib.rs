@@ -2006,6 +2006,21 @@ goto *conv_link1
     }
 
     #[test]
+    fn eased_sound_ramps_take_their_curve() {
+        let s = script(vec![
+            Op::SePlay { file: "se\\a.ogg".into(), looped: true },
+            Op::SoundEase { ease: 2, exponent: 4 },
+            Op::SoundRate { file: "se\\a.ogg".into(), rate: 400, ms: 1000 },
+            Op::SoundEase { ease: 1, exponent: 3 },
+            Op::SeFadeOut { file: Some("se\\a.ogg".into()), ms: 1500 },
+        ]);
+        let text = emit(&s);
+        let ch = text.split("dwaveloop ").nth(1).unwrap().split(',').next().unwrap();
+        assert!(text.contains(&format!("chfreq {ch},400,1000,33\nchvolfade {ch},0,1500,1,12\n")), "{text}");
+        assert!(text.contains("spcurve 33,") && text.contains("spcurve 12,"), "{text}");
+    }
+
+    #[test]
     fn bgm_crossfades_over_the_music_playing() {
         let text = emit(&script(vec![Op::BgmPlay { file: "bgm/a.ogg".into(), fade_in_ms: 0 }, Op::BgmCrossfade { file: "bgm/b.ogg".into(), ms: 3000 }]));
         assert!(text.contains("bgm \"bgm\\b.ogg\",3000\n"), "{text}");

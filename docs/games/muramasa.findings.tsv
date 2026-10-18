@@ -1,6 +1,6 @@
 handler	argument or branch	status	source (Muramasa.exe, sha256 1d67e477…, names.tsv)	what the original does	the converter
 (all timed)	wait (last arg)	inferred	Django.exe 004310e0 (carried); 0040f7f0	`true` with time > 0 waits the whole time; a number waits that many ms; 0/false/null/missing: no wait	as the exe; a partial wait noted (16 Fade, 16 Zoom, 14 BezierMove, 7 Move, 3 Rotate)
-(all timed)	tempo	seen	apply_tempo 00449f40	name picks the step table (Axl1-3, Dxl1-3, AxlAuto, DxlAuto, AxlDxl, DxlAxl, null straight); used by Fade, Move, Zoom, Rotate, DrawTransition, SetVolume/SetPan/SetFrequency (00478570)	tempo(): the same curves; sound fades straight
+(all timed)	tempo	seen	apply_tempo 00449f40	name picks the step table (Axl1-3, Dxl1-3, AxlAuto, DxlAuto, AxlDxl, DxlAxl, null straight); used by Fade, Move, Zoom, Rotate, DrawTransition, SetVolume/SetPan/SetFrequency (00478570)	tempo(): the same curves; sound ramps too (`chvolfade`/`chfreq` curve, engine #145), but a music fade-out (1, noted) and a sound's fade-in straight
 (all timed)	time 0	seen	cb_Fade 0044f020, sound_set_volume 00475f50	sets the value at once; the tempo is unused	read, nothing to do (#366)
 Fade	opacity	seen	cb_Fade 0044f020	0-1000 × 0.255 → a byte, rounded	clamped 0-1000, alpha ×256/1000
 Fade	4 arguments	seen	builtin_Fade 0040e050	arg 3 is the tempo, no wait (eval_arg returns empty)	arg 3 read as the wait; all 119 such calls take 0 ms: no difference
