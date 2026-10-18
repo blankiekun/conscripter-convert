@@ -550,6 +550,7 @@ impl AssetBank {
 
     /// Writes `data` to `name` in the output, unless this is a dry run.
     fn write(&self, name: &str, data: &[u8]) -> Result<(), ConvertError> {
+        crate::output::record(name);
         if self.dry_run {
             return Ok(());
         }
@@ -577,6 +578,7 @@ impl AssetBank {
         let stem = base.path.strip_suffix(".png").unwrap_or(&base.path);
         let name = format!("{stem}_s{sx}x{sy}.png");
         let key = ("scaled sprite", number * 1_000_000 + sx as usize * 1000 + sy as usize);
+        crate::output::record(&name);
         if !self.dry_run && !self.written.contains_key(&key) {
             let src = self.out.join(&base.path);
             let img = image::open(&src).map_err(|source| ConvertError::Image { what: base.path.clone(), source })?;
@@ -896,6 +898,7 @@ impl AssetBank {
     }
 
     fn save_image(&self, name: &str, img: &image::RgbaImage) -> Result<(), ConvertError> {
+        crate::output::record(name);
         if self.dry_run {
             return Ok(());
         }

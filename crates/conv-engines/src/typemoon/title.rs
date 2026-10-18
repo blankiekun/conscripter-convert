@@ -27,8 +27,9 @@ const SCALE: f32 = SCREEN_W as f32 / 1920.0;
 
 /// A system sound (`FUN_001acef0(n)`: table 0x4341A0, sound items
 /// 0x10040D4 up, the bfsar's wave sounds `WSD_MOON_SE00001`…).
-fn se(name: &str) -> Option<String> {
-    Some(format!("se/WSD_MOON_{name}.ogg"))
+/// `ext`: as the build writes the wave sounds (`.wav` unless re-encoded).
+fn se(name: &str, ext: &str) -> Option<String> {
+    Some(format!("se/WSD_MOON_{name}.{ext}"))
 }
 
 pub(super) fn px(v: f32) -> i32 {
@@ -36,10 +37,11 @@ pub(super) fn px(v: f32) -> i32 {
 }
 
 /// The title, and (unless `dry_run`) its pictures in `<output>/sys/title`.
-pub fn title(romfs: &Path, output: &Path, dry_run: bool) -> Result<TitleScreen> {
+pub fn title(romfs: &Path, output: &Path, dry_run: bool, se_ext: &str) -> Result<TitleScreen> {
     let parts = if dry_run { None } else { Some(Parts::read(romfs, "TITLE_PARTS")?) };
     let save = |name: &str, img: Option<RgbaImage>| -> Result<String> {
         let file = format!("{DIR}/{name}.png");
+        crate::output::record(&file);
         if let Some(img) = img {
             let dest = output.join(&file);
             std::fs::create_dir_all(dest.parent().unwrap())?;
@@ -87,7 +89,7 @@ pub fn title(romfs: &Path, output: &Path, dry_run: bool) -> Result<TitleScreen> 
     // The strip's rows in titlemenu: New Game, Load Game, Config, Gallery,
     // Continue; its three columns at rest, chosen and lit.
     let menu = |v: f32| v * 1080.0 / 448.0;
-    let (decide, start) = (se("SE00002"), se("SE00011"));
+    let (decide, start) = (se("SE00002", se_ext), se("SE00011", se_ext));
     let mut buttons = Vec::new();
     for (i, (row, action, click_se)) in [(4, TitleAction::Continue, decide.clone()), (0, TitleAction::Start, start), (1, TitleAction::Load, decide.clone()), (2, TitleAction::Settings, decide.clone()), (3, TitleAction::Extras, decide)].into_iter().enumerate() {
         let cells = if action == TitleAction::Unavailable { 1 } else { 3 };
@@ -107,7 +109,7 @@ pub fn title(romfs: &Path, output: &Path, dry_run: bool) -> Result<TitleScreen> 
         fade_ms: 1389,
         buttons,
         pressed: true,
-        hover_se: se("SE00001"),
+        hover_se: se("SE00001", se_ext),
         bgm: Some("stream/MOON01_BGM02.ogg".into()),
         // src: FUN_0018e200 New Game: FUN_0019c9b0(1.5) fades the music; the
         // white comes up by 0.01 a frame (case 0x14)
@@ -175,7 +177,7 @@ mod tests {
 
     #[test]
     fn places_from_the_stages() {
-        let t = title(Path::new("/nonexistent"), Path::new("/nonexistent"), true).unwrap();
+        let t = title(Path::new("/nonexistent"), Path::new("/nonexistent"), true, "wav").unwrap();
         // Continue's row at y 720 of 1080, the logo at (680, 72), the menu at x 816.
         assert_eq!((t.buttons[0].x, t.buttons[0].y), (544, 480));
         assert_eq!((t.pictures[1].x, t.pictures[1].y), (453, 48));

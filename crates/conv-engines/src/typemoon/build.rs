@@ -114,12 +114,13 @@ pub fn build(romfs: &Path, main: &Path, english: Option<&Path>, opts: &Opts) -> 
             v.character = v.file.trim_start_matches("stream/").get(..3).and_then(|p| rows.get(p)).copied().unwrap_or(other);
         }
     }
+    crate::output::record(WINDOW);
     if !opts.dry_run {
         window(romfs, &opts.output.join(WINDOW))?;
-        super::question::write(romfs, opts.output, opts.font, false)?;
-        if let Some(en) = english {
-            super::question::write(en, opts.output, opts.font, true)?;
-        }
+    }
+    super::question::write(romfs, opts.output, opts.font, false, opts.dry_run)?;
+    if let Some(en) = english {
+        super::question::write(en, opts.output, opts.font, true, opts.dry_run)?;
     }
     let ir = Script {
         title: opts.title.to_string(),
@@ -134,7 +135,7 @@ pub fn build(romfs: &Path, main: &Path, english: Option<&Path>, opts: &Opts) -> 
         // 15 ms (+0x10); FUN_0013b2d0 shows 16.67 / ms characters a frame.
         // One speed here: the unread one.
         text_ms: Some(35),
-        title_screen: Some(super::title::title(romfs, opts.output, opts.dry_run)?),
+        title_screen: Some(super::title::title(romfs, opts.output, opts.dry_run, ext)?),
         picture_extras: Some(super::gallery::extras(&exe, &picture_list, &super::gallery::Sources { romfs, output: opts.output, font: opts.font, cgs: &gallery_cgs(romfs)?, own: &own, pic_ext, dry_run: opts.dry_run }, super::gallery::FLAG_557, &convert::cg_flags(&game.scripts))?),
         system_menu: Some(super::menu::system_menu(romfs, opts.output, opts.dry_run, english.is_some())?),
         settings: Some(super::settings::settings(romfs, opts.output, opts.font, opts.dry_run, english.map(|_| super::language::PREF))?),

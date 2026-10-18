@@ -11,9 +11,11 @@
 # release; needs muramasa too), django, oretsuba, tsukihime (the RomFS of
 # 1.0.2, its ExeFS beside it as ../exefs). A game without its
 # link is skipped. --update writes the snapshots of the games run.
-# Exit status 1 when a snapshot differs; 2 when a game's gaps or
-# left_out total rose against its metrics snapshot (each printed per
-# game), unless --accept-gaps.
+# Exit status 1 when a snapshot differs, or when the dry run's lint finds
+# files the script names that the build wouldn't write (each engine
+# records the files it writes, or would: conv_engines::output::record);
+# 2 when a game's gaps or left_out total rose against its metrics
+# snapshot (each printed per game), unless --accept-gaps.
 #
 # Each game's completion counts (the dry run's metrics.json: source
 # calls fully converted or with gaps) are kept as <game>.metrics.json
@@ -101,6 +103,10 @@ for id in "${ids[@]}"; do
     fi
     # The version line (build date, commit) changes with every build, and
     # so does the width of its strsp (a -dirty tree's line is longer).
+    missing=$(sed -n 's/^ *\([0-9]*\)  file not in the archives.*/\1/p' "$out.log")
+    if [ -n "$missing" ]; then
+        echo "$id: $missing files the script names aren't written (lint in $out.log)"; changed=1
+    fi
     now="$(LC_ALL=C sed -E -e 's/"build [0-9]{4}-[0-9]{2}-[0-9]{2}, converter [^"]*",([0-9]+,[0-9]+),[0-9]+,/"build VERSION",\1,W,/' \
         -e 's/build [0-9]{4}-[0-9]{2}-[0-9]{2}, converter [0-9a-f]+(-dirty)?, CONscripter [^"]*/build VERSION/' "$out/0.txt" | sha256sum | cut -d' ' -f1) $(wc -l < "$out/0.txt")"
     snap=tests/snapshots/$id.txt
