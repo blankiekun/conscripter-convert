@@ -542,7 +542,13 @@ Used to check what the engine does (`docs/new-game.md` step 9).
   call statement (built-in or NSS function: `op`, `at` =
   `<file>:<line>`, `ms`, `th` the OS thread, 0 the story) and one
   `page` record per page of a text block (split at blank lines and
-  `<k>`, tags and code left out). A patched copy of `nss.npa` skips the
+  `<k>`, tags and code left out). The `page` records come when the
+  block is loaded, every page of the block at the same `ms`, before its
+  `TypeBegin*` runs; the first page is shown at that function's
+  `Request($textnumber, Enter)` (after its waited box `Fade`). Ours
+  writes `page` at the page's click wait, after the text is typed: to
+  time a page, compare the original's `Request` with our last command
+  before the text. A patched copy of `nss.npa` skips the
   logos and the title (0_boot.nss lines 85, 157) and turns auto mode on
   where TypeBeginCIO unlocks it (function.nss line 1139; set at the
   boot, while locked, it stays off); no line moves. `xlaunch.exe` from
