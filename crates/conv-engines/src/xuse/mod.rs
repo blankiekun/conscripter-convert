@@ -3,6 +3,7 @@
 pub mod build;
 pub mod cd;
 pub mod convert;
+pub mod exe;
 pub mod gaf;
 pub mod gallery;
 pub mod music;

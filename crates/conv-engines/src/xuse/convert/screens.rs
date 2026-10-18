@@ -129,7 +129,7 @@ impl AssetBank {
             let title = self.place(&format!("cg_title{i}"), &get(&common, heading)?, None, 96, 97)?;
             let viewer_name = self.place(&format!("cg_name{i}"), &get(&viewer, name)?, None, 601, 545)?;
             let mut pages = Vec::new();
-            for (p, slots) in gallery::TABS[tab].iter().enumerate() {
+            for (p, slots) in self.tables.tabs[tab].clone().iter().enumerate() {
                 let sheet = self.arc_png("gd.arc", &format!("SubModeThumb-{:02}-{p}.png", tab + 1))?;
                 let mut page = Vec::new();
                 for (k, cgs) in slots.iter().enumerate() {
@@ -138,7 +138,7 @@ impl AssetBank {
                     let strip = thumbnail_cells(&thumb, &frame);
                     let thumbnail = self.place(&format!("cg_thumb{i}_{p}_{k}"), &strip, None, 0, 0)?.image;
                     let mut pictures = Vec::new();
-                    for &bit in *cgs {
+                    for &bit in cgs {
                         let number = usize::from(bit) + 1;
                         pictures.push((number as u32, self.background(number)?.path));
                     }
@@ -257,7 +257,7 @@ impl AssetBank {
             }
         };
         let mut lists = Vec::new();
-        for (i, l) in replay::LISTS.iter().enumerate() {
+        for (i, l) in self.tables.lists.iter().enumerate() {
             let img = get(common, l.picture)?;
             let (x, y) = (replay::MENU_X, replay::MENU_Y + replay::MENU_DY * i as i32);
             image::imageops::overlay(&mut menu, &column_cells(&img, 4, &[0]), x.into(), y.into());
@@ -274,8 +274,8 @@ impl AssetBank {
             let scenes = l
                 .scenes
                 .iter()
-                .filter_map(|&(scene, highlight, name)| {
-                    Some(ReplayScene { scene: scene.into(), title: replay::title(name).to_string(), label: label(l.file, name)?, highlight })
+                .filter_map(|&(scene, highlight, ref name)| {
+                    Some(ReplayScene { scene: scene.into(), title: replay::title(name).to_string(), label: label(&l.file, name)?, highlight })
                 })
                 .collect();
             lists.push(ReplayList { button, selected, scenes });

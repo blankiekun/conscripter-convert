@@ -86,7 +86,7 @@ pub fn build(game: &Path, linear: bool, opts: &Opts) -> Result<Built> {
         needs.bgm.len(),
         needs.se.len()
     );
-    let mut assets = AssetBank::new(game, opts.output);
+    let mut assets = AssetBank::new(game, opts.output)?;
     assets.dry_run = opts.dry_run;
     assets.prefetch(&needs).context("extracting assets")?;
     let window = assets.text_window().context("building the text window")?;
