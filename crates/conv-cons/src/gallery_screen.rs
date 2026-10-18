@@ -131,7 +131,7 @@ mod tests {
     #[test]
     fn gallery_pages_become_a_screen() {
         let p = |name: &str, x, y| Placed { image: format!("sys/{name}.png"), x, y, w: 50, h: 50 };
-        let slot = |i: u16| PictureSlot { cgs: vec![SlotCg { seen: Seen::Var(Var { global: true, index: i }), picture: p("cg", 0, 0), thumbnail: format!("t/{i}.jpg") }], reversed: false };
+        let slot = |i: u16| PictureSlot { cgs: vec![SlotCg { seen: Seen::Var(Var { global: true, index: i }), picture: p("cg", 0, 0), thumbnail: format!("t/{i}.jpg") }], reversed: false, shown_if: Vec::new() };
         let g = PictureGallery {
             background: "sys/bg.png".into(),
             categories: vec![GalleryCategory { button: p("c1", 862, 136), slots: (0..25).map(slot).collect() }, GalleryCategory { button: p("c2", 862, 240), slots: vec![slot(30)] }],

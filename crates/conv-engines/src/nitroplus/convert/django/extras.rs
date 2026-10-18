@@ -244,7 +244,7 @@ fn gallery(a: &mut dyn Assets, story: &Story) -> Option<PictureGallery> {
                 cgs.push(SlotCg { seen: Seen::Var(seen), picture, thumbnail: thumbnail.clone() });
             }
             if !cgs.is_empty() {
-                slots.push(PictureSlot { cgs, reversed: s.scrolls });
+                slots.push(PictureSlot { cgs, shown_if: Vec::new(), reversed: s.scrolls });
             }
         }
         categories.push(GalleryCategory { button: Placed { image, x, y: 440, w: 3 * w as i32, h: 80 }, slots });

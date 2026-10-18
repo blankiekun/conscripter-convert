@@ -88,6 +88,7 @@ pub(crate) fn emit(out: &mut String, g: &PictureGallery, border: u32, width: u32
     }
     let per_page = g.rows * g.columns;
     assert!(per_page <= MAX_SLOTS && g.categories.len() as u32 <= MAX_CATEGORIES, "a picture gallery larger than its sprites");
+    assert!(g.compact || g.categories.iter().flat_map(|c| &c.slots).all(|s| s.shown_if.is_empty()), "a slot's condition in a gallery that lists every slot");
     assert!(!g.compact || g.categories.iter().all(|c| c.slots.len() < COMPACT_BUTTON as usize), "a compact gallery's slots past its buttons");
     // A compact gallery's category is one label drawing the page asked for.
     let pages: Vec<usize> = g.categories.iter().map(|c| if g.compact { 1 } else { c.slots.len().div_ceil(per_page as usize).max(1) }).collect();
@@ -243,6 +244,10 @@ fn compact_pages(out: &mut String, g: &PictureGallery, border: u32, per_page: u3
             // from the last CG to the first: THUMBNAIL ends as the first seen's
             for cg in slot.cgs.iter().rev() {
                 w(format!("if {} inc {TMP}:mov {THUMBNAIL},\"{}\"", seen(&cg.seen, border).0, pic(&cg.thumbnail)));
+            }
+            if !slot.shown_if.is_empty() {
+                let unset: Vec<String> = slot.shown_if.iter().map(|v| format!("{} == 0", var_name(*v, border))).collect();
+                w(format!("if {} mov {TMP},0", unset.join(" && ")));
             }
             w(format!("if {TMP} > 0 inc {SHOWN}"));
             w(format!("if {TMP} > 0 && {SHOWN} > {FIRST} && {SHOWN} <= {LAST} mov {SLOT},{}:mov {CGS},{}:gosub *{CELL}", COMPACT_BUTTON * (c as u32 + 1) + s as u32, slot.cgs.len()));
@@ -407,7 +412,7 @@ mod tests {
         use conv_core::ir::{GalleryCategory, PictureSlot, SlotCg};
         let p = |name: &str| Placed { image: format!("sys/{name}.png"), x: 0, y: 0, w: 50, h: 50 };
         let cg = |i: u16| SlotCg { seen: Seen::Var(Var { global: true, index: i }), picture: p("cg"), thumbnail: format!("t/{i}.png") };
-        let slots = vec![PictureSlot { cgs: vec![cg(1), cg(2)], reversed: false }, PictureSlot { cgs: vec![cg(3)], reversed: false }];
+        let slots = vec![PictureSlot { cgs: vec![cg(1), cg(2)], reversed: false, shown_if: Vec::new() }, PictureSlot { cgs: vec![cg(3)], reversed: false, shown_if: vec![Var { global: true, index: 7 }, Var { global: true, index: 8 }] }];
         let g = PictureGallery {
             background: "sys/bg.png".into(),
             categories: vec![GalleryCategory { button: p("c"), slots }],
@@ -440,6 +445,8 @@ mod tests {
             // the first seen of slot 0's CGs is its thumbnail; a slot is counted, and drawn when on the page
             "if %201 != 0 inc %105:mov $conv_pg_thumb,\":a;t\\1.png\"\nif %105 > 0 inc %conv_pg_shown\n",
             "mov %conv_pg_slot,1001:mov %conv_pg_cgs,1:gosub *conv_pg_cell\n",
+            // slot 1 only while flag 7 or 8 is set
+            "if %203 != 0 inc %105:mov $conv_pg_thumb,\":a;t\\3.png\"\nif %207 == 0 && %208 == 0 mov %105,0\nif %105 > 0 inc %conv_pg_shown\n",
             "if %conv_pg_shown > 6 lsp",
             "mov %conv_pg_x,100+160*(%conv_pg_at mod 3):mov %conv_pg_y,50+90*(%conv_pg_at/3)\n",
             "if %131 < 0 mov %131,(%conv_pg_shown-1)/6\n",

@@ -824,7 +824,7 @@ Config on the title.
 2. The Gallery's other modes (Music Player, Movie, Ending List,
    Flowchart; drawn in its menu, not clickable), and in the CG gallery
    what is left out (History, 2026-10-18, "the CG gallery"): the
-   slots' route conditions, the viewer's zoom. 926 CGs, in neither unlock table,
+   viewer's zoom. 926 CGs, in neither unlock table,
    show only after flag 557 (`_RDED(557)`, the last lesson), as the
    exe reads (`FUN_00156720` scans the first 0xA8C picture names).
    `allui` (71 MB) is still not in the media folder.
@@ -894,6 +894,18 @@ Open there, by size:
   every sound at full volume.
 
 ## History
+
+- 2026-10-18: **the gallery's slot conditions**. A slot's +8 (0–19)
+  goes through `FUN_0010b58c`: 0 (270 slots) and past 19 always, the
+  others a scene-read flag (`FUN_001926b0`, the `_RDST` words 110 +
+  n/16): 1–4 flags 2–5, 5 0x17F, 6 0xD0, 7–9 flags 7–9, 10 0xE2, 11–14
+  flags 10–13, 15 0x113 or 0x114, 16 flag 14, 17 0x129, 18 300, 19
+  0x135. `FUN_00104470` leaves a slot's CGs out while it fails. Ours:
+  `PictureSlot::shown_if` (any of the `_RDST` globals; compact
+  galleries only), 188 slots; every flag is set by one `_RDST` in the
+  scripts. Checked headless (the listed count, read back): flag 557
+  alone lists 270 slots; with flag 0x129 331 (+61), with 0x113 291
+  (+21), with 0x114 and 5 319 (+21 + 28).
 
 - 2026-10-18: **`_STCG` and flag 557 in the gallery's seen test**.
   `script_command`'s `_STCG(name)` sets the CG flag of the picture's

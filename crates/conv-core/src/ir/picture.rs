@@ -492,6 +492,9 @@ pub struct PictureSlot {
     /// A picture larger than the screen starts at its far end (bottom or
     /// right) and scrolls back to the top left.
     pub reversed: bool,
+    /// Listed only while one of these is set (empty: always); only in a
+    /// [`PictureGallery::compact`] one (月姫's route conditions).
+    pub shown_if: Vec<Var>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

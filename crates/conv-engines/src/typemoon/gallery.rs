@@ -20,9 +20,8 @@
 //! `PictureGallery::compact`).
 //!
 //! Coordinates: the exe's widgets are placed in 1080p pixels (`FUN_0011fa60`
-//! with 1920 × 905 from y 109); here × 2/3. Left out: the slots' condition
-//! (route flags read by `FUN_0010b58c`; a CG's pictures are shown on that
-//! route anyway); the list in pages of 6 rows (the exe scrolls it,
+//! with 1920 × 905 from y 109); here × 2/3. A slot is listed only while
+//! its condition holds (`FUN_0010b58c`: scene-read flags). Left out: the list in pages of 6 rows (the exe scrolls it,
 //! 6 across); the viewer's zoom (a CG shown to cover the screen, its far part scrolled
 //! to); the Music Player, Flowchart, Movie and Ending List (drawn, not
 //! clickable).
@@ -72,6 +71,19 @@ pub struct Cg {
     pub number: u32,
     /// Its size in the viewer at 1080p.
     pub size: (u32, u32),
+}
+
+/// Each slot's condition (the slot table's +8) as the scene-read flags
+/// (`_RDST`) any of which lets it be listed; none for 0 (always) and past
+/// 19 (src: FUN_0010b58c, its flags read by FUN_001926b0).
+fn condition(c: i32) -> &'static [u16] {
+    const FLAGS: [&[u16]; 20] = [&[], &[2], &[3], &[4], &[5], &[0x17F], &[0xD0], &[7], &[8], &[9], &[0xE2], &[10], &[11], &[12], &[13], &[0x113, 0x114], &[14], &[0x129], &[300], &[0x135]];
+    usize::try_from(c).ok().and_then(|c| FLAGS.get(c)).copied().unwrap_or(&[])
+}
+
+/// The slots' conditions (`_RDST` flags, any of them; none: always).
+fn conditions(exe: &Exe) -> Result<Vec<&'static [u16]>> {
+    (0..SLOT_COUNT).map(|i| Ok(condition(exe.i32(SLOTS + 0x20 * i + 8)?))).collect()
 }
 
 /// The slots' CGs, in order.
@@ -327,7 +339,10 @@ pub fn extras(exe: &Exe, pictures: &[Picture], s: &Sources, flag557: Var, cg_fla
             let seen = if any.len() == 1 { any.pop().unwrap() } else { Seen::Any(any) };
             out.push(SlotCg { seen, picture: Placed { image, x: 0, y: 0, w, h }, thumbnail });
         }
-        gallery_slots.push(PictureSlot { cgs: out, reversed: false });
+        gallery_slots.push(PictureSlot { cgs: out, reversed: false, shown_if: Vec::new() });
+    }
+    for (slot, flags) in gallery_slots.iter_mut().zip(conditions(exe)?) {
+        slot.shown_if = flags.iter().map(|&n| super::convert::read_flag(n)).collect();
     }
     if !s.dry_run {
         write_views(s.output, &views)?;
