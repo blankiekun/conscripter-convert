@@ -72,6 +72,10 @@ pub struct Compiled {
     pub metrics: Metrics,
     /// Where each script's ops start in `ops` (its label).
     pub starts: Vec<usize>,
+    /// (op index, command) marks: each command's ops start there
+    /// ([`conv_core::ir::Script::source_map`]); the command is its index
+    /// in the script's [`script::parse`] list, the malformed one left out.
+    pub source_map: Vec<(usize, conv_core::ir::SourceLoc)>,
 }
 
 /// How a layer is drawn: the image, its middle on the screen, its zoom (%).
@@ -1417,12 +1421,14 @@ pub(super) fn compile_copy(g: &Game, prefix: &str, vars: HashMap<String, Var>, c
         loop_runs: Vec::new(),
     };
     let mut starts = Vec::new();
+    let mut source_map = Vec::new();
     for (name, commands) in &g.scripts {
         let name = &format!("{prefix}{name}");
         starts.push(l.ops.len());
         l.ops.push(Op::Label(label(name, None)));
         l.open_ifs.clear();
-        for c in commands {
+        for (index, c) in commands.iter().enumerate() {
+            source_map.push((l.ops.len(), conv_core::ir::SourceLoc { file: name.clone(), index }));
             if let Some((_, why)) = LEFT_OUT.iter().find(|(k, _)| *k == c.opcode()) {
                 l.metrics.left_out(c.opcode(), why);
                 continue;
@@ -1436,7 +1442,7 @@ pub(super) fn compile_copy(g: &Game, prefix: &str, vars: HashMap<String, Var>, c
             l.metrics.call(c.opcode(), c.args.iter().filter(|a| !a.trim().is_empty()).count(), reasons);
         }
     }
-    Compiled { ops: l.ops, notes: l.notes, metrics: l.metrics, starts }
+    Compiled { ops: l.ops, notes: l.notes, metrics: l.metrics, starts, source_map }
 }
 
 #[cfg(test)]
@@ -2087,6 +2093,10 @@ mod tests {
         };
         let c = compile(&g);
         assert!(c.notes.is_empty(), "{:?}", c.notes);
+        // each command marks where its ops start, after the script's label
+        let marks: Vec<(usize, usize)> = c.source_map.iter().map(|(at, l)| (*at, l.index)).collect();
+        assert_eq!(marks[..3], [(1, 0), (2, 1), (2, 2)]);
+        assert!(c.source_map.iter().all(|(at, l)| l.file == "S" && *at <= c.ops.len()));
         let layer = 39;
         assert_eq!(
             c.ops,

@@ -113,6 +113,7 @@ pub fn build(romfs: &Path, main: &Path, english: Option<&Path>, opts: &Opts) -> 
         global_border: Some(convert::GLOBAL_BORDER),
         window: Some(text_window(is_english)),
         ops: compiled.ops,
+        source_map: compiled.source_map,
         // src: exe 0x56b080 (the settings' defaults, also the reset in
         // FUN_0012c810): unread text 35 ms a character (+0xe), read text
         // 15 ms (+0x10); FUN_0013b2d0 shows 16.67 / ms characters a frame.

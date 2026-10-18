@@ -257,7 +257,7 @@ pub fn compile(ja: &Game, en: &Game, own: &HashSet<String>, ja_window: TextWindo
         Op::Language("en".into()),
         Op::Return,
     ]);
-    Compiled { ops, notes: a.notes, metrics: a.metrics, starts: Vec::new() }
+    Compiled { ops, notes: a.notes, metrics: a.metrics, starts: Vec::new(), source_map: Vec::new() }
 }
 
 #[cfg(test)]
