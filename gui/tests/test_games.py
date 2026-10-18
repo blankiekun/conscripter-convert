@@ -73,6 +73,17 @@ class Detect(unittest.TestCase):
             # the fake exes are not a tested build
             self.assertEqual([w for w in found[0].warnings if "not the build" not in w], [])
 
+    def test_steam_libraries(self):
+        steam, other = self.dir / "Steam", self.dir / "Games2"
+        (steam / "steamapps/common").mkdir(parents=True)
+        make_muramasa(other / "steamapps/common/Muramasa")
+        touch(steam, "steamapps/libraryfolders.vdf",
+              f'"libraryfolders"\n{{\n\t"0"\n\t{{\n\t\t"path"\t\t"{steam}"\n\t}}\n'
+              f'\t"1"\n\t{{\n\t\t"path"\t\t"{other}"\n\t}}\n}}\n'.encode())
+        found = games.detect_steam([steam])
+        self.assertEqual([(d.game.key, d.root) for d in found], [("muramasa", other / "steamapps/common/Muramasa")])
+        self.assertEqual(games.detect_steam([self.dir / "none"]), [])
+
     def test_empty_and_unrelated(self):
         self.assertEqual(self.keys(self.dir), [])
         touch(self.dir, "HD/CDFiles/0000.cd")  # Xuse layout but not this game

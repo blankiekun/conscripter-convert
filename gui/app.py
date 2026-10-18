@@ -744,7 +744,7 @@ def open_folder(path: Path) -> None:
 
 
 def cli_detect(folder: str) -> int:
-    found = games.detect(folder)
+    found = games.detect_steam() if folder == "steam" else games.detect(folder)
     if not found:
         print(f"no supported game in {folder}")
         return 1

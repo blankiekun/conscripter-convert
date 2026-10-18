@@ -270,6 +270,15 @@ addresses in `research/typemoon/names.tsv` are those of the 1.0.2
   0; every loop end is within the decoded length (49 within a second
   of it, the others leave a tail that never plays). Nothing in the
   start call (`FUN_001ee200`) overrides them.
+- **vgmstream agrees** (r2117 `vgmstream-cli -m`, 2026-10-18; a release
+  binary, no loops are read from our own output): 50 random FWAVs cut
+  raw out of `knife1.bfsar` (every `FWAV` magic, 1,297 found, as many as
+  the wave sounds) give the same sample count as one of our decoded WAVs
+  and the same loop (start, end within a sample, or none) in 50 of 50.
+  50 random `stream/*.opus`: vgmstream reads no loop (as noted, the
+  loops are only in the bfsar, so the 131 music loops stay unchecked by
+  a second decoder) and its length is ours less the 120-sample pre-skip
+  in 50 of 50 (it counts our Ogg's granule, which includes the pre-skip).
 - **The tables are read** by `typemoon/exe.rs` from the NSO itself
   (`typemoon/nso.rs`: the three segments, LZ4-unpacked, at their
   memory offsets; addresses below are Ghidra's, image at 0x100000).
