@@ -755,7 +755,13 @@ anything is reached (step 11.6).
   Vita: Vita3K's AppImage, recipe in `docs/games/oretsuba.md`,
   "Testing". SDL apps find the desktop's Wayland socket in
   `$XDG_RUNTIME_DIR` even with `WAYLAND_DISPLAY` unset: give them an
-  empty `XDG_RUNTIME_DIR` and `SDL_VIDEO_DRIVER=x11`.
+  empty `XDG_RUNTIME_DIR` and `SDL_VIDEO_DRIVER=x11`. Qt front ends open
+  web pages (update prompts, welcome links) in the user's browser through
+  D-Bus: run them with `DBUS_SESSION_BUS_ADDRESS=disabled:`,
+  `BROWSER=true` and no-op `xdg-open`/`gio` first in `PATH`
+  (`research/oretsuba/vita-emu.sh`). When an emulator crashes, a source
+  build with symbols under gdb names the function in minutes (Vita3K:
+  a texture upload from memory the game had freed).
 - **Wine gotchas:** run every game with `LANG=ja_JP.UTF-8` and
   `LC_ALL=ja_JP.UTF-8`, or folder and file names come out garbled and
   saves can fail (Muramasa's new game went straight back to the title). Wine has no MS fonts, so a

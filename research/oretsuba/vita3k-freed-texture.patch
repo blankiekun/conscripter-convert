@@ -1,0 +1,43 @@
+diff --git a/vita3k/renderer/src/texture/cache.cpp b/vita3k/renderer/src/texture/cache.cpp
+index 9f9d927..6ce9b87 100644
+--- a/vita3k/renderer/src/texture/cache.cpp
++++ b/vita3k/renderer/src/texture/cache.cpp
+@@ -21,6 +21,7 @@
+ #include <renderer/texture_cache.h>
+ 
+ #include <gxm/functions.h>
++#include <mem/functions.h>
+ #include <mem/ptr.h>
+ #include <util/align.h>
+ #include <util/log.h>
+@@ -342,6 +343,7 @@ void TextureCache::upload_texture(const SceGxmTexture &gxm_texture, MemState &me
+ 
+     std::vector<uint8_t> texture_data_decompressed;
+     std::vector<uint8_t> texture_pixels_lineared;
++    std::vector<uint8_t> texture_data_guarded;
+ 
+     const void *pixels = nullptr;
+ 
+@@ -436,6 +438,22 @@ void TextureCache::upload_texture(const SceGxmTexture &gxm_texture, MemState &me
+         pixels_per_stride = align(pixels_per_stride, align_width);
+         memory_height = align(memory_height, align_height);
+ 
++        // A texture in memory the game has freed (or only partly mapped): on the Vita the GPU reads
++        // whatever is left there; here unmapped pages fault, so read the mapped part, zeros after it.
++        {
++            const Address src = data.address() + static_cast<Address>(texture_data - data.get(mem));
++            const uint32_t size = static_cast<uint32_t>((uint64_t(pixels_per_stride) * memory_height * bpp + 7) / 8);
++            if (!is_valid_addr_range(mem, src, src + size)) {
++                uint32_t valid = 0;
++                while (valid < size && is_valid_addr(mem, src + valid))
++                    valid = std::min(size, align(src + valid + 1, 4096u) - src);
++                LOG_WARN_ONCE("Texture at 0x{:X} ({}x{}) reads past mapped memory: {} of {} bytes mapped", src, width, height, valid, size);
++                texture_data_guarded.assign(size, 0);
++                memcpy(texture_data_guarded.data(), texture_data, valid);
++                pixels = texture_data_guarded.data();
++            }
++        }
++
+         // perform all needed conversions (formats not supported by modern GPUs)
+         switch (base_format) {
+         case SCE_GXM_TEXTURE_BASE_FORMAT_P4:
