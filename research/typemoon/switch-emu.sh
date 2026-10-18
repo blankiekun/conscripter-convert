@@ -18,9 +18,9 @@ set -u
 D=$(cd "$1" && pwd); T=$2; shift 2
 L=$D/../logs; mkdir -p "$L" "$D/xdg"
 N=$DISPLAY
-timeout -k 10 "$T" systemd-run --user --scope -q -p MemoryMax=8G \
-  flatpak run --nosocket=wayland --nosocket=fallback-x11 --nosocket=pulseaudio --socket=x11 \
-  --env=WAYLAND_DISPLAY= --env=DISPLAY=$N --env=XDG_SESSION_TYPE=x11 --env=SDL_AUDIODRIVER=dummy \
+timeout -k 10 "$T" env XDG_RUNTIME_DIR="$HEADLESS_USER_RUNTIME" DBUS_SESSION_BUS_ADDRESS=unix:path=$HEADLESS_USER_RUNTIME/bus systemd-run --user --scope -q -p MemoryMax=8G \
+  flatpak run --nosocket=wayland --nosocket=fallback-x11 --nosocket=pulseaudio --nosocket=session-bus --socket=x11 \
+  --env=WAYLAND_DISPLAY= --env=DBUS_SESSION_BUS_ADDRESS=disabled: --env=DISPLAY=$N --env=XDG_SESSION_TYPE=x11 --env=SDL_AUDIODRIVER=dummy \
   --env=SDL_VIDEODRIVER=x11 --env=XDG_RUNTIME_DIR="$D/xdg" \
   --filesystem="$D" --command=/app/bin/Ryujinx io.github.ryubing.Ryujinx \
   --no-gui --root-data-dir "$D" "$@" >"$L/ryu.log" 2>&1 &

@@ -44,6 +44,9 @@ bullet you need.
   on exit. It sets `HEADLESS=1` and `DISPLAY`; `xtrace.sh`, `ntrace.sh`,
   `vita-emu.sh` and `switch-emu.sh` re-run themselves under it. Never
   `pkill Xvfb` (other agents' displays).
+  Xvfb also dies if the wrapper is SIGKILLed (a pid watcher). 2026-10-18: all four
+  scripts started, ran and exited cleanly through it (short capped runs); `vita-emu.sh` and
+  `switch-emu.sh` get the user bus for `systemd-run` only (`HEADLESS_USER_RUNTIME`).
 - What a frame costs: `--trace-perf` adds a `perf` record per page
   (frames presented, the wall-clock ms worked for them, the slowest
   frame); `--dump-frames frames.tsv` writes a line per present (game ms,

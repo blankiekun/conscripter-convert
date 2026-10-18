@@ -31,8 +31,8 @@ for f in "$V"/share/*; do [ "${f##*/}" = fonts ] || ln -sfn "$f" "$S/"; done
 ln -sfn /usr/share/fonts "$S/fonts"; ln -sfn "$S" /tmp/17-Tt; ln -sfn "$V/lib" /tmp/8_P
 for f in "$V"/share/Vita3K/*; do ln -sfn "../share/Vita3K/${f##*/}" "$V/bin/"; done
 N=$DISPLAY
-timeout -k 10 "$T" systemd-run --user --scope -q -p MemoryMax=6G \
-  env PATH="$B:$PATH" HOME="$H" XDG_RUNTIME_DIR="$H/run" \
+timeout -k 10 "$T" env XDG_RUNTIME_DIR="$HEADLESS_USER_RUNTIME" DBUS_SESSION_BUS_ADDRESS=unix:path=$HEADLESS_USER_RUNTIME/bus systemd-run --user --scope -q -p MemoryMax=6G \
+  env DBUS_SESSION_BUS_ADDRESS=disabled: PATH="$B:$PATH" HOME="$H" XDG_RUNTIME_DIR="$H/run" \
   SDL_VIDEO_DRIVER=x11 SDL_VIDEODRIVER=x11 QT_QPA_PLATFORM=xcb \
   XDG_DATA_HOME="$H/data" XDG_CONFIG_HOME="$H/config" XDG_CACHE_HOME="$H/cache" \
   SDL_AUDIODRIVER=dummy ${WRAP:-} "$V/bin/Vita3K" ${APP--r PCSG00299} "$@" >"$L/vita3k.log" 2>&1 &
