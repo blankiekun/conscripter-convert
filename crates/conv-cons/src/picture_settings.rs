@@ -80,6 +80,8 @@ fn pair_name(p: PairOption) -> &'static str {
         PairOption::Bgm => "bgm_on",
         PairOption::Se => "se_on",
         PairOption::Voice => "voice_on",
+        PairOption::ConfirmSave => "confirm_save",
+        PairOption::ConfirmLoad => "confirm_load",
     }
 }
 
@@ -178,6 +180,8 @@ fn values(out: &mut String, s: &PictureSettings) {
             PairOption::Bgm => mute[0] = Some(v),
             PairOption::Se => mute[1] = Some(v),
             PairOption::Voice => mute[2] = Some(v),
+            PairOption::ConfirmSave => w(format!("mov {},1-{v}", menu::switch_off(Switch::ConfirmSave))),
+            PairOption::ConfirmLoad => w(format!("mov {},1-{v}", menu::switch_off(Switch::ConfirmLoad))),
         }
     }
     if mute.iter().any(Option::is_some) {

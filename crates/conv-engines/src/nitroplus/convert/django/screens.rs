@@ -140,6 +140,11 @@ fn settings(a: &mut dyn Assets) -> Option<PictureSettings> {
         let (image, w, h) = a.image(&format!("{DIR}/{name}.png"))?;
         Some(Placed { image, x, y, w: w as i32, h: h as i32 })
     };
+    let states = |a: &mut dyn Assets, n: [&str; 3], x: i32, y: i32| {
+        let f = |i: usize| format!("{DIR}/{}.png", n[i]);
+        let (image, w, h) = a.strip(&[&f(0), &f(1), &f(2)])?;
+        Some(Placed { image, x, y, w: w as i32, h: h as i32 })
+    };
     let (background, w, h) = a.image(&format!("{DIR}/コンフィグ地.png"))?;
     let none = Placed { image: a.transparent(), x: 0, y: 0, w: 1, h: 1 };
     let stepped = |setting: SliderSetting, buttons: Vec<(Placed, u32)>, default: u32, filled: bool| PictureSlider {
@@ -191,6 +196,8 @@ fn settings(a: &mut dyn Assets) -> Option<PictureSettings> {
     let mut pairs = Vec::new();
     let mut chosen = Vec::new();
     for (option, y, default_on) in [
+        (PairOption::ConfirmSave, 82, true),
+        (PairOption::ConfirmLoad, 106, true),
         (PairOption::MovieStop, 130, false),
         (PairOption::StopAtChoice, 236, true),
         (PairOption::SkipUnread, 260, false),
@@ -207,13 +214,7 @@ fn settings(a: &mut dyn Assets) -> Option<PictureSettings> {
     }
     // src: sys_config.nss (DEFAULT, the question rows, CHARACTER_ONOFF, VOICE_TEST, ASPECT_UNFIXED, ENTRY)
     let fixed = vec![
-        picture(a, "001-初期化_x450-y58", 450, 58)?,
-        picture(a, "on-003", 386, 82)?,
-        picture(a, "on-003", 386, 106)?,
-        picture(a, "off-001", 440, 82)?,
-        picture(a, "off-001", 440, 106)?,
         picture(a, "各キャラ-001", 293, 362)?,
-        picture(a, "vioce-test-01", 440, 542)?,
         picture(a, "ディスプレイ依存-003", 516, 82)?,
         picture(a, "ユーザー-001", 516, 476)?,
     ];
@@ -221,9 +222,10 @@ fn settings(a: &mut dyn Assets) -> Option<PictureSettings> {
         background: Placed { image: background, x: 0, y: 0, w: w as i32, h: h as i32 },
         fixed,
         close: button(a, "exit", 650, 518)?,
-        reset: None,
-        voice_test: None,
-        test_voice: None,
+        // src: sys_config.nss DEFAULT (450,58) and VOICE_TEST (440,542); no question before the reset (ours)
+        reset: states(a, ["001-初期化_x450-y58", "002-初期化_x450-y58", "003-初期化_x450-y58"], 450, 58),
+        voice_test: states(a, ["vioce-test-01", "vioce-test-02", "vioce-test-03"], 440, 542),
+        test_voice: a.sound("cg/sys/config/test.wav"),
         sliders,
         pairs,
         texts: Vec::new(),

@@ -359,6 +359,10 @@ pub enum PairOption {
     Bgm,
     Se,
     Voice,
+    /// The save (overwrite) question alone is asked (off: it answers yes).
+    ConfirmSave,
+    /// The load question alone is asked.
+    ConfirmLoad,
 }
 
 /// A line of text on a picture screen.
