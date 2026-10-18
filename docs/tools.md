@@ -103,6 +103,18 @@ for screenshots (`docs/new-game.md` step 9). Extract into
   legal/support HTML (`legalinfo.xml`, `support.htdocs/`), not a game
   manual.
 
+## PR report
+
+`tests/pr-report.sh [--base REF]` (about 5 minutes) runs `cargo test`,
+`clippy -D warnings`, `findings_lint.py`, `dropped_lint.py`,
+`docpaths.py`, `doclint.py` (template headings and Status length per game
+against ceilings that only go down) and `tests/snapshot.sh --diff`, and
+prints a Markdown block for the PR body: per changed game the txtdiff
+counts, metrics totals before and after, and a `why it changed: <fill in>`
+line. It also fails when a branch changes `crates/conv-engines/src/<engine>/`
+without a `docs/games/*.md`. `docpaths` reports `engine/build/...` in a
+worktree that has not built the engine.
+
 ## Reading files cheaply
 
 For the docs and scripts read most often, use the helpers in
