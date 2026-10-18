@@ -15,10 +15,15 @@ import re, sys
 
 LINKS = ['最初の頃', 'たまに早く出る', '違う制服', '静かな朝']  # あずさ, さやか, ふえこ, ようこ
 
-lines = open(sys.argv[1], 'rb').read().decode('cp932').replace('\r', '').split('\n')
+b = open(sys.argv[1], 'rb').read()
+try:
+    b = b.decode('utf-8')  # --enc:utf8 builds
+except UnicodeDecodeError:
+    b = b.decode('cp932')
+lines = b.replace('\r', '').split('\n')
 places = []
 for word in LINKS:
-    start = next(i for i, l in enumerate(lines) if l.startswith(f'if %') and f'strsp 51,"{word}"' in l)
+    start = next(i for i, l in enumerate(lines) if l.startswith('if ') and re.search(f'strsp [^,]+,"{word}"', l))
     label = None
     for i in range(start, len(lines)):
         if re.fullmatch(r'\*conv_link\d+_wait', lines[i]):
