@@ -708,9 +708,18 @@ Open, by area (each is small; most noticeable first):
 - **Effects**: `CreateEffect` Drop (1, mc04_052) and Lens (2); `DrawEffect`
   waves on a `Plain` cover (10), Ripple (4), Split (7), a wave picked up
   later restarts straight; `DrawTransition` partial sweep is a plain mask
-  print, two on a `Plain` cover (md05_016vs's `絵板写*`) are unmasked,
-  a rain strip keeps the cut made where it stood (mc04_022vs moves its
-  rain after), 565 calls start from another opacity (noted); `CreateStencil`/`CreateMask`: a moved or zoomed picture
+  print; md05_016vs's two on `Plain` covers (`絵板写*`, 1049-1050) don't
+  matter yet: those covers (`CreatePlainEXsub`/`EXadd`, then zoomed to
+  1500) aren't drawn at all (`shows_froze`'s shortcut for a blended or
+  zoomed cover), so the 空間歪曲 flashes show nothing: drawing them needs
+  blended, zoomed-over-time cover copies (and the wave), a feature; a
+  rain strip keeps the cut made where it stood: mc04_022vs's
+  `MoveFFP1("@絵効果線")` jitters it ±10 px (a looped `spmotion`) while
+  the exe's veil stays on the screen (`00418320` reads the mask at the
+  screen pixel); `slide_01_03_0`'s hard steps make a 10 px shift differ
+  by up to 255 on 80,000 pixels, but only a screen-anchored live mask in
+  the engine (none: `spcut` cuts once) would fix it; 565 calls start from
+  another opacity (noted); `CreateStencil`/`CreateMask`: a moved or zoomed picture
   under them, a zoom about a vertex, a `Plain` cover under a stencil, a
   colour mask exact only for alpha blend; 25 `CreateTexture`s from an
   object or the screen; `Rotate` of other objects about z (31), a turn
