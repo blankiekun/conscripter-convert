@@ -388,6 +388,10 @@ fails the puzzle. Not done: state across relaunch and in the web build
 
 ## Testing
 
+Manual: none found in the unpacked install; the release's disc image
+(`FMDM.mdf`) was not opened, only its extracted installer files
+listed (no manual among them).
+
 - **Logic:** the dry run (see "Build") and the route check (above).
   `NSS_TRACE=1` gives the `flag %N name` lines for `nstrace.py --flags
   <file> --watch '$Muramasa_Flag,RC_N[,死亡'`, which prints those flags

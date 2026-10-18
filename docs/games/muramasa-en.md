@@ -7,6 +7,10 @@ It has no NPA archives and no NSS scripts.
 
 ## Status
 
+Manual: `Manual.pdf` in the install (29 pages, English; screens: title
+menu, main menu, quick menu, save/load, backlog, extra, config with
+basic/text/sound/display tabs). Use it before asking for screenshots.
+
 ### Exe mapping redone (2026-10-17)
 
 `docs/games/muramasa-en.findings.tsv`: the port's rows (tempo table, text,

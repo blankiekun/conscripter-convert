@@ -668,6 +668,10 @@ not mapped yet. `G…` are presumably system data and `F…` save data
 
 ## Testing
 
+Manual: none for the game. The NSP's `Manual` NCA holds only legal and
+support HTML (`legalinfo.xml`), so reference screens must come from the
+emulator trace or footage.
+
 ### The original under a Switch emulator (Ryubing)
 
 Step 1, the boot check (2026-10-17): **boots to the title** at full

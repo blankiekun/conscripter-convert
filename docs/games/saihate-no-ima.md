@@ -527,6 +527,8 @@ it needs updating before its next use).
 
 ## Testing
 
+Manual: none found in the install.
+
 - **Scripted runs:** `python3 -I research/xuse/smoke.py <build>
   <workdir> "1,0,998,1,201,999"` patches a copy of the build and plays
   a click queue (format in its docstring: button numbers at `btnwait`s
