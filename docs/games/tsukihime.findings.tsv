@@ -121,8 +121,8 @@ _SELS	choice screen mode 2 (two slots: yes, no) with no _SELR; one use, QACALL	1
 _SESP	stops channel n % 20 (< 0: all 20) at once	18	script_command case S "ESP"	nothing	seen	open
 _SEVL	channel n % 20 volume to option 17 (none: 0) over option 1 ms (none: at once); a waiting loop only stores it	1285	cmd_SEVL	SoundVolume (chvolfade)	seen	skipping: the exe leaves it out
 _SGMA	(layer, m, k): the layer's live x, y, alpha, picture and clip into key k of motion m, so the motion starts where the layer is	109	cmd_SGMA	nothing	seen	open: with the motion keys
-_SHAF	(): ends the screen shake at once; (ms): it decays over ms*60/1000 frames	397	shake_stop, shake_decay	nothing	seen	open: with _SHOK
-_SHOK	screen shake FUN_0012ee70(1, a0, a1, a2 = 300, a3 = 3, a4 = 0); not while skipping	870	cmd_SHOK	nothing	seen	open: read FUN_0012ee70 for what each argument does
+_SHAF	(): ends the screen shake at once; (ms): it decays over ms*60/1000 frames	397	shake_stop, shake_decay	(): screenshake slot 1 cleared; (ms) unused	seen	
+_SHOK	(x, y, period=300, turns=3, delay=0): one sine both axes, a turn per period ms, x,y in 1280x720 units, gain 1->0 over the turns; delay ms before it starts; not while skipping	870	cmd_SHOK	screenshake 1 mode 0, speed 65536/period, (x,y)->0 over period*turns, end the same	seen	open: the delay (argument 4, 260 uses)
 _SQK2	layer quake kind 1: layer (< 0 every shown one), x, y amplitude (default 15), argument 3, ms (argument 4, -1 for ever) *3/50 frames, 5-7	1236	cmd_SQK2, layer_quake_start	nothing	seen	open: what kind 1 moves (FUN_00163520's readers)
 _SHK2	layer effect kind 2, arguments read as _SQK2's	125	cmd_SHK2, layer_quake_start	nothing	inferred	open: with _SQK2
 _SSW2	layer effect kind 3, arguments 0-7	200	cmd_SSW2, layer_quake_start	nothing	inferred	open: with _SQK2

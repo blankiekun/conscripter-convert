@@ -10,7 +10,7 @@
 use std::cell::Cell;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
-use conv_core::ir::{ArithOp, Compare, MotionEnd, MotionKey, Op, Operand, Ruby, SpriteChange, TextStyle, SpriteFilter, SpritePlacement, TransitionStyle, Var, Voice, BLEND_ADD, BLEND_MULTIPLY, BLEND_NORMAL, BLEND_SUBTRACT, FILTER_BLEND_COPY, FILTER_BLUR, FILTER_GREYSCALE, FILTER_NEGATIVE};
+use conv_core::ir::{ArithOp, Compare, MotionEnd, MotionKey, Op, Operand, Ruby, ScreenEffect, SpriteChange, TextStyle, SpriteFilter, SpritePlacement, TransitionStyle, Var, Voice, BLEND_ADD, BLEND_MULTIPLY, BLEND_NORMAL, BLEND_SUBTRACT, FILTER_BLEND_COPY, FILTER_BLUR, FILTER_GREYSCALE, FILTER_NEGATIVE};
 
 use super::exe::{Key, Motion, Picture};
 use super::script::Command;
@@ -560,6 +560,24 @@ impl Lowering<'_, '_> {
             }
             "_END_" => self.ops.push(Op::ReturnToTitle),
             "_GOTO" => self.ops.push(Op::Jump(label(script, Some(arg(0))))),
+            // `cmd_SHOK(x, y, period = 300, turns = 3, delay = 0)` (`FUN_0012ee70`
+            // kind 1, drawn by `FUN_0012ef30`): both axes on one sine, a turn
+            // every `period` ms, x and y in 1280 × 720 units (it scales them by
+            // 640/1280 and 480/720), the size falling straight to 0 over the
+            // turns, then it ends. shortcut: shaken while skipping too (the exe
+            // doesn't; it ends by itself within ~1 s), and at once: the start
+            // delay (261 uses, most 50-200 ms, 9 over 1 s) needs one in screenshake.
+            "_SHOK" => {
+                let n = |i: usize, default: i32| if arg(i).is_empty() { Some(default) } else { number(arg(i)) };
+                let (Some(x), Some(y), Some(period), Some(turns)) = (n(0, 0), n(1, 0), n(2, 300), n(3, 3)) else { return false };
+                let (period, turns) = (period.max(17), turns.max(1));
+                let time_ms = (period * turns) as u32;
+                let speed = (65536 + period / 2) / period;
+                let range = [(x * SCREEN_W as i32 / 1280, y * SCREEN_H as i32 / 720), (0, 0)];
+                self.ops.push(Op::ScreenEffect { slot: 1, effect: Some(ScreenEffect::Shake { time_ms, interval_ms: 16, path: false, speed: (speed, speed), range, end_ms: time_ms }) });
+            }
+            // `shake_stop`: `_SHAF()` ends it at once (`_SHAF(ms)`, unused, decays it).
+            "_SHAF" if arg(0).is_empty() => self.ops.push(Op::ScreenEffect { slot: 1, effect: None }),
             // The Switch's and the PS4's own lines: this is the Switch.
             "_IFNX" => {}
             "_IFP4" | "_IFSC" => self.ops.push(Op::Jump(label(script, Some(arg(1))))),
@@ -2254,5 +2272,13 @@ mod tests {
         // Kept at 120, 68 and zoom 500; after `_STCC` a missing y is 0 and the zoom 1000.
         assert_eq!(moves, [(320, 180), (320, 0)]);
         assert_eq!(zooms, [(25, 25), (50, 50)]);
+    }
+
+    #[test]
+    fn a_shake_dies_down_over_its_turns() {
+        let c = compile(&game("_SHOK(0,3,100,10);_SHOK(4);_SHAF();"));
+        let shake = |time_ms, speed, range| Op::ScreenEffect { slot: 1, effect: Some(ScreenEffect::Shake { time_ms, interval_ms: 16, path: false, speed: (speed, speed), range: [range, (0, 0)], end_ms: time_ms }) };
+        // a turn every 100 ms, 10 turns; the defaults 300 ms and 3 turns
+        assert_eq!(c.ops[1..], [shake(1000, 655, (0, 3)), shake(900, 218, (4, 0)), Op::ScreenEffect { slot: 1, effect: None }]);
     }
 }
