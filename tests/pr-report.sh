@@ -5,7 +5,8 @@
 # per changed game, missing assets, gaps), findings_lint, dropped_lint,
 # docpaths, doclint; metrics totals before (REF) and after per changed game;
 # flags engine code changed without a docs/games/*.md. Exit 1 on any failure.
-# Fill in each "why it changed" line before opening the PR.
+# Fill in each "why it changed" line, and the "Found by" block, before
+# opening the PR.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 base=origin/main; [ "${1:-}" = --base ] && base=$2
@@ -35,4 +36,8 @@ for id in $(sed -n 's/^\([a-z-]*\): \(0.txt differs\|CHANGED\|metrics CHANGED\).
     echo "  after: $(tot < out/snapshot/$id/metrics.json 2>/dev/null)"
     echo "  why it changed: <fill in>"
 done
+echo; echo "## Found by"
+echo "Found by: <user|check|agent>"
+echo "<user only> The check that now catches this kind: <name it, or \"none possible: why\">"
+echo "<user only> Left of the report: <none, or what is still open>"
 rm -f "$log"; exit $fail

@@ -30,6 +30,14 @@
 # count rose; 2 when a game's gaps or left_out total rose against its
 # metrics snapshot (each printed per game), unless --accept-gaps.
 #
+# How often each command is used (cmdcheck.py --counts) is kept as
+# <game>.cmds.json: a command whose count moved over 5 %, appeared or went
+# is printed and exits 2 like gaps (a feature silently gone: 2 dwave
+# against 36,055), unless --accept-gaps; --update rewrites it. An edition
+# pair (muramasa and muramasa-en) prints the commands whose count ratio is
+# over 20 % off the pair's median ratio (informative: the editions differ
+# on purpose in places).
+#
 # Each game's completion counts (the dry run's metrics.json: source
 # calls fully converted or with gaps) are kept as <game>.metrics.json
 # the same way, compared without their commit lines; --update rewrites
@@ -110,7 +118,16 @@ for id in "${ids[@]}"; do
         echo "$id: dry run failed, see $out.log"; changed=1; continue
     fi
     # every command it uses is in the engine's command table (the submodule's)
-    python3 -I research/tools/cmdcheck.py engine/src/cons/ONScripter_lut.cpp "$out/0.txt" || changed=1
+    python3 -I research/tools/cmdcheck.py engine/src/cons/ONScripter_lut.cpp "$out/0.txt" --counts "$out.cmds.json" || changed=1
+    csnap=tests/snapshots/$id.cmds.json
+    if [ $update = 1 ]; then
+        cp "$out.cmds.json" "$csnap"
+    elif [ ! -f "$csnap" ]; then
+        echo "$id: no command counts snapshot (run with --update)"; changed=1
+    elif ! moved=$(python3 -I research/tools/cmdcheck.py --compare "$csnap" "$out.cmds.json"); then
+        echo "$id: command counts moved over 5 % (diff $csnap $out.cmds.json):"; echo "$moved" | sed 's/^/    /'
+        [ $accept = 1 ] || rose=1
+    fi
     if [ -n "$ref" ]; then
         rout=$refdir/out/$id
         mkdir -p $refdir/out
@@ -176,5 +193,13 @@ $others"
         done
     fi
 done
-[ $rose = 0 ] || { echo "gaps/left_out rose: fix them, or rerun with --accept-gaps and explain in the PR"; exit 2; }
+# edition pairs: the English row reads its Japanese twin's install (f[1])
+for id in "${ids[@]}"; do
+    IFS=$'\t' read -ra f <<< "${row[$id]}"
+    a=out/snapshot/${f[1]}.cmds.json b=out/snapshot/$id.cmds.json
+    if [ "${f[1]}" != "$id" ] && [[ " ${ids[*]} " == *" ${f[1]} "* ]] && [ -f "$a" ] && [ -f "$b" ] && off=$(python3 -I research/tools/cmdcheck.py --pair "$a" "$b") && [ -n "$off" ]; then
+        echo "${f[1]} : $id command counts off the pair's ratio (informative):"; echo "$off" | sed 's/^/    /'
+    fi
+done
+[ $rose = 0 ] || { echo "gaps/left_out rose or command counts moved: fix them, or rerun with --accept-gaps and explain in the PR"; exit 2; }
 exit $changed
