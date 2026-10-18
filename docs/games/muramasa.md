@@ -636,6 +636,15 @@ whose `_SELECT` scene has already passed `call_scene $MainGameName`).
 
 ## Status: in progress (2026-10-14)
 
+### Web crash on the second start (2026-10-17)
+
+In the web build (v0.29.0) Muramasa trapped with "memory access out of
+bounds" (Firefox: "index out of bounds") on every start after the
+first: the engine read `kidoku.dat` through a 64 KB stack buffer, the
+whole of the web build's stack. Fixed for every game in CONscripter
+#148 (the submodule points at it); repro: the site's `cons/player.html`
+in headless Chromium with a persistent profile, opened twice.
+
 ### Trace diff (2026-10-17)
 
 The original's trace (`ntrace.sh`, wine section) against our
