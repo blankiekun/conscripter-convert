@@ -341,10 +341,9 @@ pub trait Assets {
     /// `colour`, its colour by the mask's too, and 0 where the mask is
     /// clear (`CreateMask`): the
     /// mask's top left at `at` from the picture's, on the screen, where
-    /// the picture is drawn at `zoom` (per mille) and turned by `turn.1`
-    /// degrees (as `lsp2`) about its centre; a strip of `turn.0` cells
-    /// has each cell cut so. Its path.
-    fn stenciled(&mut self, image: &str, mask: &str, colour: bool, at: (i64, i64), zoom: (i64, i64), turn: (u32, i64)) -> Option<String>;
+    /// the picture is drawn at `zoom` (per mille) about its centre. Its
+    /// path.
+    fn stenciled(&mut self, image: &str, mask: &str, colour: bool, at: (i64, i64), zoom: (i64, i64)) -> Option<String>;
     /// A screen-sized picture whose opacity is `table` at the grey (green)
     /// of the output picture `mask` stretched over the screen
     /// (`DrawTransition` stopped partway, [`transition::table`]). Its path.
@@ -1298,7 +1297,8 @@ struct Object<'a> {
     /// [`Game::relative_children`]).
     screen_children: bool,
     /// A `DrawTransition` stopped partway: the screen-sized picture whose
-    /// opacity the picture is drawn times ([`Assets::veil`]).
+    /// opacity the picture is drawn times ([`Assets::veil`]), laid on the
+    /// screen however the picture moves ([`Shown::mask`]).
     veil: Option<String>,
 }
 
@@ -1578,6 +1578,9 @@ struct Shown {
     /// Cut to the screen at a big zoom (`Assets::scaled`): the place and
     /// size of the whole picture (x, y, w, h), which a motion goes by.
     whole: Option<(i64, i64, i64, i64)>,
+    /// A partial `DrawTransition`'s veil, laid on the screen
+    /// ([`Op::SpriteMask`]).
+    mask: Option<String>,
 }
 
 /// What the engine's motions did to a [`Shown`] picture.
@@ -3494,8 +3497,6 @@ impl<'a, 'b> Compiler<'a, 'b> {
             .collect();
         let (px, py) = self.parent_offset(name);
         let o = self.objects.get(name)?;
-        let mut stencils = stencils;
-        stencils.extend(o.veil.clone().map(|v| ((v, false), 0, 0)));
         let (x, y, zoom) = (o.x + px, o.y + py, o.zoom);
         let key = format!("{image}{stencils:?}{x},{y}{zoom:?}");
         if let Some((k, cut)) = &o.cut
@@ -3505,7 +3506,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
         }
         let mut out: Option<String> = None;
         for ((mask, colour), sx, sy) in stencils {
-            out = Some(self.assets.stenciled(out.as_deref().unwrap_or(image), &mask, colour, (sx - x, sy - y), zoom, (1, 0))?);
+            out = Some(self.assets.stenciled(out.as_deref().unwrap_or(image), &mask, colour, (sx - x, sy - y), zoom)?);
         }
         let cut = out?;
         self.objects.get_mut(name)?.cut = Some((key, cut.clone()));
@@ -4419,7 +4420,7 @@ mod tests {
         fn overlaid(&mut self, base: &str, top: &str, zoom: i64, opacity: i64) -> Option<String> {
             Some(format!("{base}+{top}@{zoom}x{opacity}"))
         }
-        fn stenciled(&mut self, image: &str, mask: &str, colour: bool, (dx, dy): (i64, i64), zoom: (i64, i64), _: (u32, i64)) -> Option<String> {
+        fn stenciled(&mut self, image: &str, mask: &str, colour: bool, (dx, dy): (i64, i64), zoom: (i64, i64)) -> Option<String> {
             Some(format!("{image}%{mask}{}@{dx},{dy}x{}", if colour { "*" } else { "" }, zoom.0))
         }
         fn veil(&mut self, mask: &str, table: &[u8; 256]) -> Option<String> {

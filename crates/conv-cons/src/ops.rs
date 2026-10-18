@@ -218,6 +218,12 @@ impl<'a> Emitter<'a> {
             se.next = 0;
             writeln!(out, "{}", crate::SE_CHANNELS.chain(crate::SE_OVERFLOW).map(|c| format!("dwavestop {c}")).collect::<Vec<_>>().join(":")).unwrap();
         }
+        Op::SpriteMask { layer, image } => {
+            writeln!(out, "spmask {},\"{}\"", SPRITE_BASE + layer, path(image)).unwrap();
+            if transition.is_none() {
+                writeln!(out, "print 1").unwrap();
+            }
+        }
         Op::SpriteBlend { layer, mode } => {
             writeln!(out, "spblend {},{mode}", SPRITE_BASE + layer).unwrap();
             if transition.is_none() {

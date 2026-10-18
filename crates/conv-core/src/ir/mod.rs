@@ -784,6 +784,11 @@ pub enum Op {
     /// right after this one) after `ms` instead. Nitroplus's `WaitKey`,
     /// which auto mode ends after 1.5 s.
     AutoWait { ms: u32 },
+    /// Draws a layer's sprite times `image` laid on the screen at (0, 0)
+    /// (its alpha × grey), wherever the sprite moves, until the layer is
+    /// cleared or `image` is empty (CONscripter's `spmask`). Nitroplus's
+    /// partial `DrawTransition`, read at the screen pixel.
+    SpriteMask { layer: u32, image: String },
 }
 
 /// [`Op::HoldMovie`]'s prompt: `image` is `cells` pictures side by side,

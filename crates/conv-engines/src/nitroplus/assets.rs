@@ -542,16 +542,13 @@ impl Assets for NpaAssets<'_> {
         Some(rel)
     }
 
-    fn stenciled(&mut self, image: &str, mask: &str, colour: bool, (dx, dy): (i64, i64), zoom: (i64, i64), turn: (u32, i64)) -> Option<String> {
+    fn stenciled(&mut self, image: &str, mask: &str, colour: bool, (dx, dy): (i64, i64), zoom: (i64, i64)) -> Option<String> {
         use std::hash::{Hash, Hasher};
         let mut h = crate::nitroplus::NameHasher::default();
         // (A stencil's key as before, so its cuts keep their names.)
         (image, mask, dx, dy, zoom).hash(&mut h);
         if colour {
             colour.hash(&mut h);
-        }
-        if turn != (1, 0) {
-            turn.hash(&mut h);
         }
         let rel = format!("system/stencil_{:016x}.png", h.finish());
         // Its size, for a zoom of it (a dry run has no file).
@@ -562,15 +559,11 @@ impl Assets for NpaAssets<'_> {
         }
         let mut out = image::open(self.out.root.join(image)).ok()?.into_rgba8();
         let m = image::open(self.out.root.join(mask)).ok()?.into_rgba8();
-        // A pixel's place on the screen from its cell's unzoomed top left:
-        // zoomed, then turned as the engine's `calcAffineMatrix` turns.
-        let cw = w / turn.0.max(1);
-        let (sin, cos) = (-turn.1 as f64).to_radians().sin_cos();
+        // A pixel's place on the screen from the picture's unzoomed top left.
         let from_centre = |u: u32, size: u32, z: i64| (u as f64 + 0.5 - size as f64 / 2.0) * z as f64 / 1000.0;
         for (x, y, p) in out.enumerate_pixels_mut() {
-            let (u, v) = (from_centre(x % cw, cw, zoom.0), from_centre(y, h, zoom.1));
-            let mx = (cw as f64 / 2.0 + u * cos - v * sin).floor() as i64 - dx;
-            let my = (h as f64 / 2.0 + u * sin + v * cos).floor() as i64 - dy;
+            let mx = (w as f64 / 2.0 + from_centre(x, w, zoom.0)).floor() as i64 - dx;
+            let my = (h as f64 / 2.0 + from_centre(y, h, zoom.1)).floor() as i64 - dy;
             let q = if mx < 0 || my < 0 || mx >= m.width() as i64 || my >= m.height() as i64 { [0; 4] } else { m.get_pixel(mx as u32, my as u32).0 };
             // A mask's clear pixels are black (`00457e80`).
             let q = if colour && q[3] == 0 { [0; 4] } else { q };
