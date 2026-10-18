@@ -16,6 +16,10 @@ bullet you need.
   saves with engine A and loads with B (every save-version PR).
 - Saves at chosen scenes: `research/tools/test_saves.py`; every route:
   `engine/tools/cons_explore.py`; value census of a `0.txt`: `argcensus.py`.
+- A new Windows game's first look and its one logged wine run:
+  `research/tools/firstcontact/first_contact.py <install>` (report,
+  hooks) and `fc.sh <install>` (API-level trace, capped WebP shots);
+  `docs/new-game.md` step 0.3.
 - Debug trace (CONscripter after 0.18.0; reference: `engine/DEBUG.md`;
   recipes: `docs/new-game.md`, "Checking a build with the debug
   trace"): `--trace t.jsonl --auto-play 0 --save-dir <scratch>` plays
