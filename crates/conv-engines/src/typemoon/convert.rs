@@ -560,6 +560,8 @@ impl Lowering<'_, '_> {
             "_RDED" => {
                 let Some(var) = number(arg(0)).and_then(lesson_flag) else { return false };
                 self.ops.push(Op::Arith { var, op: ArithOp::Set, value: Operand::Const(1) });
+                // the Ending List's last entry, and the end of a lesson it replays
+                self.ops.extend([Op::Gosub(super::gallery::ALL_LESSONS_CHECK.into()), Op::SceneEnd]);
             }
             // `_IFUR(1, L, LV)` (`all_read_check(1)`): to L when lessons
             // 533-556 are all read; else on to the `_RTM_` after it (`QA_25`,
@@ -2094,10 +2096,10 @@ mod tests {
     fn the_last_lesson_needs_every_other_read() {
         let c = compile(&game("_RTST(533);_RDED(533);_RDED(12);_IFUR(1,OK,LV0);_RTM_();_ZZbbc01(OK);"));
         let flag = lesson_flag(533).unwrap();
-        assert_eq!(c.ops[1], Op::Arith { var: flag, op: ArithOp::Set, value: Operand::Const(1) });
+        assert_eq!(c.ops[1..4], [Op::Arith { var: flag, op: ArithOp::Set, value: Operand::Const(1) }, Op::Gosub("tm_all_lessons".into()), Op::SceneEnd]);
         // `_RDED(12)` (a scene's flag, no reader yet) is left out.
-        assert_eq!(c.ops[2], Op::If { var: flag, cmp: Compare::Eq, value: Operand::Const(0), label: "tm_S__OK_not_all".into() });
-        assert_eq!(c.ops[2 + 24..2 + 27], [Op::Jump("tm_S__OK".into()), Op::Label("tm_S__OK_not_all".into()), Op::ReturnToTitle]);
+        assert_eq!(c.ops[4], Op::If { var: flag, cmp: Compare::Eq, value: Operand::Const(0), label: "tm_S__OK_not_all".into() });
+        assert_eq!(c.ops[4 + 24..4 + 27], [Op::Jump("tm_S__OK".into()), Op::Label("tm_S__OK_not_all".into()), Op::ReturnToTitle]);
         assert_eq!(lesson_flag(556).unwrap().index, 999);
     }
 

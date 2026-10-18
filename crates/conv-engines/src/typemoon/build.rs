@@ -114,6 +114,7 @@ pub fn build(romfs: &Path, main: &Path, english: Option<&Path>, opts: &Opts) -> 
             v.character = v.file.trim_start_matches("stream/").get(..3).and_then(|p| rows.get(p)).copied().unwrap_or(other);
         }
     }
+    compiled.ops.extend(super::gallery::ending_ops(en_source.is_some()));
     crate::output::record(WINDOW);
     if !opts.dry_run {
         window(romfs, &opts.output.join(WINDOW))?;

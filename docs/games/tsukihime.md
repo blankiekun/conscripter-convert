@@ -627,8 +627,8 @@ load). `F081` is the Arcueid points of Ciel's route (`F051` →
 for 「『それ以上進んだら嫌いになるからなっ！』」: 5 needs all of them.
 At `F081` ≥ 7 two lines of `14_01B_03_CIEL14B_5B` differ; whether
 that can be reached isn't checked. `QA_25` is reached only from the
-gallery's `JUMPQA` (the walkthrough: Gallery > Ending List, the icon at
-the bottom right).
+Gallery's Ending List (the walkthrough: the icon at the bottom right),
+shown once the other 24 lessons are read (`_RDED`).
 
 **Dead ends.** 21, each followed by a 「教えて！シエル先生」 lesson
 (`_JUMP(3100,QA_nn)` into `QACALL`). The walkthrough's dead end n is
@@ -878,7 +878,8 @@ ours over `00_00`'s first 297 pages. How each was done: History
 Languages and Trace diff).
 
 Not yet: the other layer commands, FlowChart, the backlog, the Gallery's Music Player,
-Flowchart, Movie and Ending List.
+Flowchart and Movie. The Ending List replays the lessons (History,
+2026-10-18, "the Ending List"); its pictures' places are partly guessed.
 
 ### Next
 
@@ -886,8 +887,8 @@ Flowchart, Movie and Ending List.
    leans on, in order of use. `typemoon convert --dry-run` prints the
    counts. Splitting sprites into body and face crops is out unless
    the user asks.
-2. The Gallery's other modes (Music Player, Movie, Ending List,
-   Flowchart; drawn in its menu, not clickable). None is small: each
+2. The Gallery's other modes (Music Player, Movie, Flowchart; drawn
+   in its menu, not clickable). None is small: each
    needs its table, its `allui` parts and its screen read from the
    exe, then an IR screen (`SoundRoom` fits the music and movie
    lists). `FUN_00107f38` opens them by the menu row: 1
@@ -895,8 +896,7 @@ Flowchart, Movie and Ending List.
    and panel `cGalleryMusicPanel`), 2 `cFlowchart` (`FUN_0010f8fc`,
    `cFlowchartScene`; the 495 `GALLERY_FC_TH*` thumbnails), 3
    `cGalleryMovie` (`FUN_00117cd0`, the player `FUN_00104f28`
-   `cGalleryMoviePlayer`), 4 `cGalleryEnding` (`FUN_0010d5e8`,
-   `FUN_0010daf8`/`FUN_0010dda4` reading scene-read flags). In the CG gallery
+   `cGalleryMoviePlayer`). In the CG gallery
    what is left out (History, 2026-10-18, "the CG gallery"): the
    viewer's zoom and pan (`FUN_0010c56c`: the right stick or a pinch
    zooms between fitted and 1:1, a button toggles fitted and filling
@@ -988,6 +988,24 @@ Open there, by size:
 
 ## History
 
+- 2026-10-18: **the Ending List** (Gallery row 4, `cGalleryEnding`,
+  `FUN_0010d5e8`) as the extras' replay (`PictureReplay`, with per-entry
+  places, locked pictures and cursors added to `ReplayEntry`). Its
+  table (0x4374E8, 25 × 12 bytes: scene, `_RDST` flag, voice) lists
+  the lessons `QA_01`-`QA_25` (scenes 1000-1024): first the three
+  endings' (`QA_12` Arcueid, `QA_23`/`QA_24` Ciel; `ending_icon_*`
+  432 × 544 at (416 + 480 i, 120) in 1080p, `ending_icon_non` while
+  unread), then the 21 dead ends' (`ending_badend`'s cells, 180 × 88,
+  the read ones 296 lower, 8 across from (384, 680), 180 and 96 apart),
+  then `QA_25`'s (a 112 × 112 hit box at (1700, 892)) while
+  `all_read_check(1)` holds, here `gallery::ALL_LESSONS`, set after each
+  lesson's `_RDED`. An entry is lit and chosen once its scene is read;
+  choosing it replays the lesson (`FUN_00105040`: replay mode), which
+  `_RDED` ends (`Op::SceneEnd`, now a `return` for the picture extras'
+  replay), in the language last chosen. Guessed: the dead ends' button
+  `ending_badendbtn` and `QA_25`'s `ending_btn` centred on their hit
+  boxes, the endings' cursor (a white frame, ours), the fades. Left out:
+  the voice an entry plays, the pad's cursor moves (`FUN_0010f6f8`).
 - 2026-10-18: **screen shake start delay**. `_SHOK`'s argument 4 (260
   uses, 50 ms-3.95 s) goes to `screenshake`'s new `delay` (engine PR
   blankiekun/CONscripter#167): the shake holds still that long, then
