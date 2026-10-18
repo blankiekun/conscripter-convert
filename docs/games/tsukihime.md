@@ -862,15 +862,18 @@ waits for it (`FUN_00162f90`, `FUN_001802c0`, `FUN_001329f0`: mask 8
 the fade, 0x20 a motion that doesn't loop; ours an `spmotionwait`).
 Left (was 46 `missing`, 149 `time`, 180 `text`; then 14 and 89):
 
-- 45 `missing`: 29 `_STGS` on a layer the next `_FADS` shows (its
-  fade or alpha is among the `_FADS`'s ops; marking it the `_STGS`'s
-  puts the `_FADS`'s frames before it and adds about 40 `time`
-  findings, so it stays the `_FADS`'s); `_STMA` `00_00:212` and `1121`
-  (`_STMA(7,5)`, `_STMA(20,6)`: their layer is set to priority 0 by
-  `_STCP` before its `_FADS`, so it is never drawn, in the exe too);
-  13 `_FADS(1,0,0)` that change nothing visible in ours, so the trace
-  has no event from them; one `_STCF` after a 1 ms `_STGS` (the exe
-  waits a frame).
+- `trace_diff.py` credits a `missing` command to the next one of its
+  page that has ours, as `merged` (counted, not listed): 34 of the
+  former 45 `missing` (the 29 `_STGS` on a layer the next `_FADS`
+  shows, its fade or alpha being among the `_FADS`'s ops; marking
+  them the `_STGS`'s would put the `_FADS`'s frames before them and
+  add about 40 `time` findings; and 5 others). Left, 11 `missing`,
+  all `_FADS(1,0,0)` that change nothing visible in ours, so the
+  trace has no event from them. Totals: merged 34, missing 11,
+  time 73. (Seen in the list before: `_STMA` `00_00:212` and `1121`,
+  never drawn in the exe either, since `_STCP` sets their layer's
+  priority to 0; one `_STCF` after a 1 ms `_STGS`, where the exe
+  waits a frame: now among the merged.)
 - 73 `time`: chiefly `_FADS` after a new picture (12 after `_SEPL`,
   13 after `_CLO3`, 6 after `_SEFD`: the original's 2–10 frames
   loading it, left out), and `_MPLY(52)` at `00_00:4296`.

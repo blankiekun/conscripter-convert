@@ -21,6 +21,8 @@ page, between it and the page before:
 - missing: an instruction the original ran that none of our commands
   came from (the page's own message left out), for opcodes that did give one of ours elsewhere in the run
   (variables and jumps never do);
+- merged: a missing one before a later command of the page that has ours: our
+  ops for it sit under that command's mark (counted, not a finding);
 - extra: an instruction ours ran a command from that the original
   didn't run there;
 - time: the time from one command both ran to the next one off by more
@@ -155,9 +157,14 @@ def compare(orig, ours, fps, unit=None):
         where = f"page {o['pg']}/{p['pg']} ({o['at']})"
         if o['text'] not in (p['text'], p.get('own')):
             findings.append((o['pg'], 'text', f"{where}: original {o['text']!r}, ours {p['text']!r}"))
-        for k, op in o['ops'].items():
+        keys = list(o['ops'])
+        for i, (k, op) in enumerate(o['ops'].items()):
             if k not in p['ends'] and op in visible and k != o['at']:
-                findings.append((o['pg'], 'missing', f"{where}: {k} (op {op}) gave none of ours"))
+                nxt = next((y for y in keys[i + 1:] if y in p['ends']), None)
+                if nxt:  # ours emits its ops under the next command's mark
+                    findings.append((o['pg'], 'merged', f"{where}: {k} (op {op}) credited to {nxt}"))
+                else:
+                    findings.append((o['pg'], 'missing', f"{where}: {k} (op {op}) gave none of ours"))
         for k in p['ends']:
             if k not in o['ops'] and k != o['at']:
                 findings.append((o['pg'], 'extra', f"{where}: ours ran a command from {k}, the original didn't run it here"))
@@ -194,6 +201,11 @@ def self_test():
     assert sorted(k for _, k, _ in compare(orig, ours, 60.0, 1.0)) == ['extra', 'page', 'time']
     orig[0]['ends']['4:9'] = 400
     assert sorted(k for _, k, _ in compare(orig, ours, 60.0, 1.0)) == ['extra', 'page']
+    # a missing command whose next one has ours is merged into it
+    orig[0]['ops'] = {'4:0': '0x76', '4:8': '0x76', '4:9': '0x76'}
+    orig[0]['ends'] = {'4:0': 10, '4:9': 400}
+    ours[0]['ends'] = {'4:0': 0, '4:9': 400, '4:1': 400}
+    assert sorted(k for _, k, _ in compare(orig, ours, 60.0, 1.0)) == ['merged', 'page'], compare(orig, ours, 60.0, 1.0)
     # a continued page: the original's text is its own lines
     ours[0].update(text='za', own='a')
     assert 'text' not in [k for _, k, _ in compare(orig, ours, 60.0, 1.0)]
@@ -222,7 +234,7 @@ def main():
     shown = {}
     for pg, kind, text in sorted(findings, key=lambda f: f[0]):
         shown[kind] = shown.get(kind, 0) + 1
-        if shown[kind] <= a.max:
+        if shown[kind] <= a.max and kind != 'merged':
             print(f'{kind:8} {text}')
     print('totals: ' + (', '.join(f'{k} {n}' for k, n in sorted(shown.items())) or 'no differences'))
 
