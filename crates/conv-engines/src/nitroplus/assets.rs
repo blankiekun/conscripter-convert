@@ -235,7 +235,7 @@ impl Assets for NpaAssets<'_> {
         if let Some(r) = self.sounds.get(&key) {
             return r.clone();
         }
-        let file = if key.ends_with(".ogg") { key.clone() } else { format!("{key}.ogg") };
+        let file = if key.ends_with(".ogg") || key.ends_with(".wav") { key.clone() } else { format!("{key}.ogg") };
         let r = self.extract(&file, &file).map(|_| file);
         self.sounds.insert(key, r.clone());
         r
