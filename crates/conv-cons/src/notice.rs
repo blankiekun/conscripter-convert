@@ -36,25 +36,34 @@ const ISSUES: &str = "https://github.com/blankiekun/conscripter-convert/issues";
 
 /// The notice for a `width` × `height` screen: white text centred on black,
 /// faded in, dismissed by a click or key, never shown again.
-pub(crate) fn emit(out: &mut String, width: u32, height: u32) {
+/// An `en` build (a font without Japanese glyphs) gets the English lines only.
+pub(crate) fn emit(out: &mut String, width: u32, height: u32, language: &str) {
+    let lines: Vec<Option<&str>> = if language == "en" {
+        let mut v = LINES[6..11].to_vec();
+        v.extend([None, Some("Click to continue")]);
+        v
+    } else {
+        LINES.to_vec()
+    };
+    let lines = &lines[..];
     let size = (height / 30).max(12) as i32;
     let pitch = size * 3 / 2;
-    let top = (height as i32 - LINES.len() as i32 * pitch) / 2;
+    let top = (height as i32 - lines.len() as i32 * pitch) / 2;
     let sprites = crate::MENU_SPRITES;
     writeln!(out, "if {SEEN} == 1 goto *conv_notice_done").unwrap();
     writeln!(out, "bg black,1").unwrap();
-    for (i, line) in LINES.iter().enumerate() {
+    for (i, line) in lines.iter().enumerate() {
         let Some(text) = line else { continue };
         // Half-width characters are half as wide (as `len` counts them).
         let units: i32 = text.chars().map(|c| if c.is_ascii() { 1 } else { 2 }).sum();
         let x = (width as i32 - units * size / 2) / 2;
-        let color = if i + 1 == LINES.len() { "#A0A0A0" } else { "#FFFFFF" };
+        let color = if i + 1 == lines.len() { "#A0A0A0" } else { "#FFFFFF" };
         writeln!(out, "strsp {},\"{text}\",{x},{},64,1,{size},{size},0,0,0,1,\"{color}\"", sprites.start + i as u32, top + i as i32 * pitch).unwrap();
     }
     writeln!(out, "print 10,400").unwrap();
     writeln!(out, "click").unwrap();
     writeln!(out, "mov {SEEN},1:savegame {FLUSH_SLOT}:delsavegame {FLUSH_SLOT}").unwrap();
-    let clear: Vec<String> = (0..LINES.len() as u32).map(|i| format!("csp {}", sprites.start + i)).collect();
+    let clear: Vec<String> = (0..lines.len() as u32).map(|i| format!("csp {}", sprites.start + i)).collect();
     writeln!(out, "{}", clear.join(":")).unwrap();
     writeln!(out, "print 10,400").unwrap();
     writeln!(out, "*conv_notice_done").unwrap();
@@ -65,7 +74,7 @@ mod tests {
     #[test]
     fn notice_fits_and_is_shown_once() {
         let mut out = String::new();
-        super::emit(&mut out, 640, 480);
+        super::emit(&mut out, 640, 480, "");
         assert!(out.starts_with("if %conv_notice_seen == 1 goto *conv_notice_done\n"), "{out}");
         assert!(out.contains("click\nmov %conv_notice_seen,1:"), "{out}");
         // Every line inside a 640-wide screen.
@@ -73,6 +82,9 @@ mod tests {
             let x: i32 = l.split("\",").nth(1).unwrap().split(',').next().unwrap().parse().unwrap();
             assert!(x >= 8, "{l}");
         }
+        let mut en = String::new();
+        super::emit(&mut en, 640, 480, "en");
+        assert!(en.contains("Click to continue") && !en.contains("クリック"), "{en}");
         assert!(super::LINES.len() as u32 <= (crate::MENU_SPRITES.end - crate::MENU_SPRITES.start));
     }
 }

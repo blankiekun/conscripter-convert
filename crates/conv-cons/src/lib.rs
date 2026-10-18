@@ -545,7 +545,7 @@ pub fn emit_mapped(script: &Script) -> (String, Vec<(usize, Option<SourceLoc>)>)
     let save_menu = script.save_menu.is_some() || script.save_grid.is_some() || system_menu::loads(script);
     let effect = |ms: u32| if ms == 0 { "1".to_string() } else { effects[&(ms, Effect::Fade)].clone() };
     boot::emit(&mut out, script, border);
-    notice::emit(&mut out, script.width, script.height);
+    notice::emit(&mut out, script.width, script.height, &script.language);
     if let Some(t) = &script.title_screen {
         title_screen(&mut out, t, &effect(t.fade_ms), save_menu, has_settings, script.confirm.as_ref(), script.extras.is_some(), border, picture_replay, boot::keeps_bgm(script));
     }
@@ -2345,7 +2345,7 @@ effect 7,99,1000,\"cons_warp.dll/warp\\zoom_3_220_5.png,65\"
     /// The startup notice's lines, which the tests comparing a whole script leave out.
     fn notice_of(s: &Script) -> String {
         let mut out = String::new();
-        notice::emit(&mut out, s.width, s.height);
+        notice::emit(&mut out, s.width, s.height, &s.language);
         out
     }
 
