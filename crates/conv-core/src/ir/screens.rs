@@ -774,9 +774,14 @@ pub struct PagedSettings {
     pub close: Placed,
     /// Puts every setting back to its default.
     pub defaults: Placed,
-    /// Back to the title and quit, shown from the game only.
-    pub title: Placed,
-    pub quit: Placed,
+    /// Back to the title and quit, shown from the game only (`None`: not
+    /// on this screen).
+    pub title: Option<Placed>,
+    pub quit: Option<Placed>,
+    /// Page tabs: each shows its first page and is drawn lit on its pages.
+    /// With tabs, `prev` and `next` turn only between the pages of one tab,
+    /// not round (`prev` left out on its first page, `next` on its last).
+    pub tabs: Vec<PageTab>,
 }
 
 /// One page of [`PagedSettings`].
@@ -799,6 +804,10 @@ pub enum RowControl {
     /// Options side by side: (the value it sets, its button, the picture
     /// shown while it is the current one: its second cell twice).
     Choice { value: SettingValue, options: Vec<(i32, Placed, String)> },
+    /// A check box: `button` (two cells: normal, under the pointer) flips
+    /// the value between `on` and the other (`1 - on`); `checked` (its
+    /// second cell twice) is shown while the value is `on`.
+    Toggle { value: SettingValue, on: i32, button: Placed, checked: String },
 }
 
 /// What a [`RowControl`] sets.
@@ -812,6 +821,20 @@ pub enum SettingValue {
     SkipUnread,
     /// The voices of all these characters: 1 on, 0 off.
     Voices(Vec<u32>),
+    /// The language, in the game's global variable: 0 Japanese, 1 English.
+    /// Picking the other in game closes the settings with 3 (a
+    /// [`SystemPage::Settings`] then goes to its label, which switches).
+    Language(Var),
+}
+
+/// A tab of [`PagedSettings`]: `button` (two cells: normal, under the
+/// pointer) shows page `pages.0`; the picture `selected` (one cell) is
+/// drawn in its place on pages `pages.0` to `pages.1` (0 up).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PageTab {
+    pub button: Placed,
+    pub selected: String,
+    pub pages: (usize, usize),
 }
 
 /// One on/off option of [`SettingsMenu::switches`].
@@ -1042,6 +1065,10 @@ pub enum SystemPage {
     /// In game only: closes the menu and goes to the game's label (the
     /// wait the menu was opened from is left); shown at rest on the title.
     Jump(String),
+    /// Opens the settings screen, back to the menu after it; when the
+    /// settings close on a language pick in game ([`SettingValue::Language`])
+    /// the menu closes and goes to the label, as [`SystemPage::Jump`].
+    Settings(Option<String>),
 }
 
 /// A [`SystemPage`]'s save slots: one column of `rows` rows a page, slots

@@ -21,6 +21,7 @@ pub mod nxopus;
 pub mod nxx;
 pub mod question;
 pub mod script;
+pub mod settings;
 pub mod stec;
 pub mod title;
 

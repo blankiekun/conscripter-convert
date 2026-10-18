@@ -71,7 +71,7 @@ pub(super) fn used_switches(m: &SettingsMenu) -> Vec<Switch> {
     let mut all: Vec<Switch> = m.switches.iter().map(|s| s.switch).collect();
     if let Some(p) = &m.pictures {
         for c in p.pages.iter().flat_map(|page| &page.rows) {
-            let (conv_core::ir::RowControl::Choice { value, .. } | conv_core::ir::RowControl::Slider { value, .. }) = c;
+            let (conv_core::ir::RowControl::Choice { value, .. } | conv_core::ir::RowControl::Slider { value, .. } | conv_core::ir::RowControl::Toggle { value, .. }) = c;
             if let conv_core::ir::SettingValue::Switch(s) = value {
                 all.push(*s);
             }
@@ -87,7 +87,7 @@ pub(crate) fn has_switch(m: &SettingsMenu, s: Switch) -> bool {
     m.switches.iter().any(|x| x.switch == s)
         || m.pictures.as_ref().is_some_and(|p| {
             p.pages.iter().flat_map(|page| &page.rows).any(|c| match c {
-                conv_core::ir::RowControl::Choice { value, .. } | conv_core::ir::RowControl::Slider { value, .. } => *value == conv_core::ir::SettingValue::Switch(s),
+                conv_core::ir::RowControl::Choice { value, .. } | conv_core::ir::RowControl::Slider { value, .. } | conv_core::ir::RowControl::Toggle { value, .. } => *value == conv_core::ir::SettingValue::Switch(s),
             })
         })
 }
@@ -165,7 +165,7 @@ pub(super) fn has_setting(m: &SettingsMenu, s: Setting) -> bool {
     m.rows.iter().any(|r| r.setting == s)
         || m.pictures.as_ref().is_some_and(|p| {
             p.pages.iter().flat_map(|page| &page.rows).any(|c| match c {
-                conv_core::ir::RowControl::Choice { value, .. } | conv_core::ir::RowControl::Slider { value, .. } => *value == conv_core::ir::SettingValue::Level(s),
+                conv_core::ir::RowControl::Choice { value, .. } | conv_core::ir::RowControl::Slider { value, .. } | conv_core::ir::RowControl::Toggle { value, .. } => *value == conv_core::ir::SettingValue::Level(s),
             })
         })
 }

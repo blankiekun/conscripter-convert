@@ -333,7 +333,8 @@ pub fn pictures(assets: &mut ArchiveAssets, labels: &Labels, switches: &[(String
         // ours: the buttons (the Vita uses its own keys)
         defaults: text_button(assets, labels, "cfg_defaults", "デフォルト設定", 600, 505),
         close: text_button(assets, labels, "cfg_close", "戻る", 860, 505),
-        title: text_button(assets, labels, "cfg_title", "タイトルに戻る", 90, 505),
-        quit: text_button(assets, labels, "cfg_quit", "ゲームを終了", 260, 505),
+        title: Some(text_button(assets, labels, "cfg_title", "タイトルに戻る", 90, 505)),
+        quit: Some(text_button(assets, labels, "cfg_quit", "ゲームを終了", 260, 505)),
+        tabs: Vec::new(),
     })
 }

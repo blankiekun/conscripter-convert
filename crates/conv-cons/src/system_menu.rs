@@ -8,7 +8,7 @@ use std::fmt::Write as _;
 
 use conv_core::ir::{ConfirmDialog, GridText, Placed, SaveList, Script, Switch, SystemMenu, SystemPage};
 
-use crate::menu::{CHAPTER, CONFIRM, IN_GAME, LABEL, LOAD, SAVE, STR_TMP};
+use crate::menu::{CHAPTER, CONFIRM, IN_GAME, LABEL, LOAD, SAVE, SETTINGS, STR_TMP};
 use crate::screens::{image, lua, question};
 
 /// The tab shown (1 up).
@@ -52,8 +52,17 @@ pub(crate) fn labels(out: &mut String, m: &SystemMenu, confirm: Option<&ConfirmD
         writeln!(out, "if {TAB} == {n} screen \"system{n}\",{b}").unwrap();
     }
     for (i, t) in m.tabs.iter().enumerate() {
-        if let SystemPage::Jump(label) = &t.page {
-            writeln!(out, "if {b} == {} texton:return *{label}", JUMP + i + 1).unwrap();
+        match &t.page {
+            SystemPage::Jump(label) => writeln!(out, "if {b} == {} texton:return *{label}", JUMP + i + 1).unwrap(),
+            // Back to the menu, or (3: a language picked) to the label.
+            SystemPage::Settings(then) => {
+                let back = format!("goto *{LABEL_SYSTEM}_tab");
+                match then {
+                    Some(label) => writeln!(out, "if {b} == {} gosub *{SETTINGS}:if {b} != 3 {back}\nif {b} == 3 texton:return *{label}", JUMP + i + 1).unwrap(),
+                    None => writeln!(out, "if {b} == {} gosub *{SETTINGS}:{back}", JUMP + i + 1).unwrap(),
+                }
+            }
+            _ => {}
         }
     }
     writeln!(out, "if {b} >= 10 mov {TAB},{b}:sub {TAB},10:goto *{LABEL_SYSTEM}_tab").unwrap();
@@ -146,6 +155,7 @@ fn tab_lua(m: &SystemMenu, n: usize, confirm: Option<&ConfirmDialog>) -> String 
                 SystemPage::Unavailable => ", cells=3, enabled=0, disabled=0".to_string(),
                 SystemPage::Title => ", cells=3, enabled=in_game, disabled=0, action={\"close\", 2}".to_string(),
                 SystemPage::Jump(_) => format!(", cells=3, enabled=in_game, disabled=0, action={{\"close\", {}}}", JUMP + i + 1),
+                SystemPage::Settings(_) => format!(", cells=3, action={{\"close\", {}}}", JUMP + i + 1),
                 // Saving from the title would save the title.
                 SystemPage::Save(_) => format!(", cells=3, enabled=in_game, disabled=0, action={{\"close\", {}, hold=true}}", 10 + i + 1),
                 _ => format!(", cells=3, action={{\"close\", {}, hold=true}}", 10 + i + 1),
@@ -225,6 +235,16 @@ mod tests {
         labels(&mut out, &m, None);
         // Before the tab change (33 >= 10).
         assert!(out.contains("if %9 == 33 texton:return *game_switch\nif %9 >= 10 "), "{out}");
+    }
+
+    #[test]
+    fn a_settings_tab_comes_back_or_leaves_for_the_language() {
+        let mut m = sample();
+        m.tabs[2].page = SystemPage::Settings(Some("game_switch".into()));
+        assert!(tab_lua(&m, 1, None).contains("cells=3, action={\"close\", 33}"));
+        let mut out = String::new();
+        labels(&mut out, &m, None);
+        assert!(out.contains("if %9 == 33 gosub *conv_settings:if %9 != 3 goto *conv_system_tab\nif %9 == 3 texton:return *game_switch\nif %9 >= 10 "), "{out}");
     }
 }
 

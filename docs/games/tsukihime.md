@@ -835,7 +835,8 @@ command splits, text and voices join); `typemoon convert` plays from
 the start through `00_00` into the first arc (flow, text, pictures,
 sound, layers, motions, choices, text window fade, the lessons' yes/no
 question); boot logos, title,
-the system menu's Save and Load tabs, Config (language switch only);
+the system menu's Save and Load tabs, Config (the settings, also on
+the title; History, 2026-10-18, "the settings");
 the Gallery's CG gallery (its other modes drawn, not open);
 `--english <game-en>` builds both languages in one `0.txt`, switching
 in game; the original boots under Ryubing and its trace diffs against
@@ -843,9 +844,9 @@ ours over `00_00`'s first 297 pages. How each was done: History
 ("Status as it stood before the 2026-10-18 prune" has the full table,
 Languages and Trace diff).
 
-Not yet: the other layer commands, FlowChart, the backlog, the settings
-tab, the Gallery's Music Player, Flowchart, Movie and Ending List,
-Config on the title.
+Not yet: the other layer commands, FlowChart, the backlog, the
+settings' voice rows per character (T2), the Gallery's Music Player,
+Flowchart, Movie and Ending List.
 
 ### Next
 
@@ -874,10 +875,17 @@ Config on the title.
    show only after flag 557 (`_RDED(557)`, the last lesson), as the
    exe reads (`FUN_00156720` scans the first 0xA8C picture names).
    `allui` (71 MB) is still not in the media folder.
-3. The menus: the settings tab (the defaults in "Accuracy", the
-   日本語/English switch: move `SystemPage::Jump(language::SWITCH)`
-   from the Config tab to its option), the backlog; then the save list's route picture and chapter labels
-   (by the phase), and Config and Gallery on the title.
+3. The menus: the settings' voice rows (T2: voice_bg's character rows,
+   on/off each, the user's choice; `FUN_00129fa0` builds them), the
+   rows waiting for engine features (below), the backlog; then the
+   save list's route picture and chapter labels (by the phase). The
+   settings rows drawn at the exe's defaults with no effect: the read
+   text speed (+0x10, 15 ms) and the unread/read samples, the two
+   "ページ末まで一気に表示" boxes (+0x5A, +0x5B), the auto page wait
+   (+0x5C, 3000 ms; the engine has one auto wait), 既読シーンのオート
+   スキップ and its question box (+0x5E, +0x60), the text fade-ins
+   (+0x61, +0x62), the system sound's mute (+0x66), the SE test, the
+   values' digits (`config_number`); the 推奨設定 question is not asked.
 4. Still open in the exe: the motion keyframes' other fields.
 5. The full-route reference trace (Testing, step 3): rerun it whole
    once the machine has 8 GB free (Ryubing takes 5.5 GB), from the
@@ -922,9 +930,11 @@ original (Japanese, default text size):
   y (`FUN_001a7790` adds 14 + 10 of 1080 inside the line).
 - The text speed: 35 ms a character, the exe's default for unread
   text (+0xe unread 35 ms, +0x10 read 15 ms). Read text is typed at the
-  same 35 ms here (CONscripter has one speed); the other defaults
-  (volumes +4/+8/+0xa = 40, 40, 10; auto wait +0x1c = 2200) wait for a
-  settings screen.
+  same speed here (CONscripter has one). The settings' sliders step in
+  11 levels where the exe's go by 1 ms, 50 ms or 1 %: the text speed
+  25 ms a level (35 at level 9, its knob 10 % from the left, the exe's
+  14 %), the auto wait 1100 ms a level (2200 at level 8, 0-11000 for
+  the exe's 0-10000), the volumes 10 % a level (40, 40, 10 exact).
 - `_STBR` 11 (gauss) drawn as a blur of 8.
 - Motions (`_STMA`): the place moves a pixel at a time (a 5 s pan of
   16 px steps every 300 ms; the exe draws it at sub-pixel places).
@@ -945,6 +955,39 @@ Open there, by size:
   every sound at full volume.
 
 ## History
+
+- 2026-10-18: **the settings** (`typemoon/settings.rs`, the shared
+  `PagedSettings`; the system menu's Config tab and the title's
+  Config). **Seen**: `FUN_0012c810` runs the screen, `FUN_0012aa80`
+  draws it, `FUN_0012a550` puts the settings (0x56B080) into its
+  widgets; each page a table at 0x56CDB0 (0x9D0 bytes: its rows, the
+  control kinds, widgets 0x37-0x4D and 0x4E-0xBD, each control's top
+  left on the stage, the sliders' most: 250, 250, 10000, 10000 ms; 100
+  %); a slider's knob moves 169.33 (stage) and its − + step 1, or 50
+  from a most of 1000 (`FUN_0012b930`). Tabs システム設定, サウンド設定,
+  操作説明 (`btn_base0`) over `tab_bg`; the panel clipped to (407, 165,
+  1402 × 858) of 1080p and scrolled. System: `system_bg` (メッセージ
+  設定: unread and read speed, auto page and click waits, 既読シーンの
+  オートスキップ, メッセージの早送り, the two text fade-ins); Sound:
+  `sound_bg` (BGM, SE, system SE with mutes, an SE test) and `voice_bg`
+  (すべてのボイスの再生, メッセージ送り時の音声停止, then a row per
+  character); 操作説明: `conf_manual0_ja`. `effect_bg` is never drawn;
+  `SYSMES_TEXT.DAT`'s config help lines (1-160) describe another,
+  older screen (Voice, Text pages, 5.1ch, window design), not this one.
+  Defaults (the reset, case 8): BGM 40, SE 40, system SE 10 %, all
+  voices 100 × a character's 50 %, unread 35 ms, read 15, auto page
+  3000, auto click 2200 ms, skip read text only, a click stops the
+  voice. **Ours**: the System tab in two pages (▲ ▼; the panel cut at
+  its line under the auto skip), the language as our own row under
+  the last one (`言語 / Language`, with `--english`: a pick in game
+  closes the menu and switches, on the title it is kept for the next
+  start), 閉じる under the menu bar's buttons, the bar's Title live in
+  game; the menu bar drawn as the Config tab shows it. Live rows: the
+  unread speed, the auto click wait, 全文/既読のみ, the BGM, SE and
+  system SE volumes, the BGM and SE mutes, all voices, the click
+  stopping the voice. Checked headless: each page shot against the
+  parts, the knobs on their lines at the defaults, a language pick
+  closing with 3 in game only, the mutes flipping.
 
 - 2026-10-18: **the gallery viewer fits the CG**. `FUN_0010be84`
   opens a CG at the smaller of the screen's width and height over its

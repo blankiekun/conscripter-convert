@@ -89,7 +89,7 @@ pub fn title(romfs: &Path, output: &Path, dry_run: bool) -> Result<TitleScreen> 
     let menu = |v: f32| v * 1080.0 / 448.0;
     let (decide, start) = (se("SE00002"), se("SE00011"));
     let mut buttons = Vec::new();
-    for (i, (row, action, click_se)) in [(4, TitleAction::Continue, decide.clone()), (0, TitleAction::Start, start), (1, TitleAction::Load, decide.clone()), (2, TitleAction::Unavailable, None), (3, TitleAction::Extras, decide)].into_iter().enumerate() {
+    for (i, (row, action, click_se)) in [(4, TitleAction::Continue, decide.clone()), (0, TitleAction::Start, start), (1, TitleAction::Load, decide.clone()), (2, TitleAction::Settings, decide.clone()), (3, TitleAction::Extras, decide)].into_iter().enumerate() {
         let cells = if action == TitleAction::Unavailable { 1 } else { 3 };
         let img = parts.as_ref().map(|p| p.strip(row, cells));
         buttons.push(TitleButton {
