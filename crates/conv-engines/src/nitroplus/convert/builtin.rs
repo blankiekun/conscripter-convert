@@ -177,7 +177,10 @@ impl Compiler<'_, '_> {
                         if !whole {
                             self.note("CreateEffect Plain on part of the screen");
                         }
-                        Kind::Cover
+                        let p = arg(1).int();
+                        let mut froze: Vec<_> = self.shown.iter().filter(|(n, _)| self.objects.get(*n).is_none_or(|o| o.priority <= p)).map(|(n, s)| (n.clone(), s.clone())).collect();
+                        froze.sort_by_key(|(_, s)| s.layer);
+                        Kind::Cover { froze, again: false }
                     }
                     // A tint drawn over part of the screen (装甲悪鬼村正's
                     // mc01_011vsa zoom box) would tint it all: left out.
@@ -557,7 +560,7 @@ impl Compiler<'_, '_> {
                 let wave = Wave { start: self.sound_clock(), ms, period, from, to, ease: tempo(&arg(5)) };
                 for t in self.matching(&arg(0)) {
                     let Some(o) = self.objects.get_mut(&t) else { continue };
-                    if matches!(o.kind, Kind::Cover) {
+                    if matches!(o.kind, Kind::Cover { .. }) {
                         self.note("DrawEffect wave on a Plain cover");
                         continue;
                     }

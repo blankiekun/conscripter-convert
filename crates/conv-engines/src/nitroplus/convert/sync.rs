@@ -17,6 +17,13 @@ impl Compiler<'_, '_> {
         let from_zero = std::mem::take(&mut self.fade_from_zero);
         let cameras = std::mem::take(&mut self.pending_camera);
         let mut shake_once = std::mem::take(&mut self.shake_once);
+        for o in self.objects.values_mut() {
+            if let Kind::Cover { again, .. } = &mut o.kind
+                && o.opacity == 0
+            {
+                *again = true;
+            }
+        }
         let mut paths = std::mem::take(&mut self.pending_path);
         let from = std::mem::take(&mut self.pending_from);
         let zoom_from = std::mem::take(&mut self.pending_zoom_from);
@@ -37,7 +44,7 @@ impl Compiler<'_, '_> {
         let nothing_above = !self.objects.values().any(|o| above(o) && o.opacity > 0 && !o.hideable) && !self.shown.keys().any(|n| self.objects.get(n).is_some_and(above));
         // A toned or shaded cover (`SetTone`, `SetShade` on a `Plain`): the
         // frozen pictures under it drawn through its filters.
-        let cover_tone = frozen.and_then(|p| self.objects.values().filter(|o| matches!(o.kind, Kind::Cover) && o.opacity >= 1000 && o.priority == p).map(|o| o.filters((1000, 1000))).find(|f| !f.is_empty()));
+        let cover_tone = frozen.and_then(|p| self.objects.values().filter(|o| matches!(o.kind, Kind::Cover { .. }) && o.opacity >= 1000 && o.priority == p).map(|o| o.filters((1000, 1000))).find(|f| !f.is_empty()));
         let under = |n: &String| frozen.is_some_and(|p| self.objects.get(n).is_none_or(|o| o.priority <= p));
         let retone = cover_tone.as_ref().is_some_and(|c| self.shown.iter().any(|(n, s)| under(n) && s.tint.as_ref() != Some(&toned(self.objects.get(n), s, c))));
         if frozen.is_some() && nothing_above && !retone {
@@ -202,7 +209,7 @@ impl Compiler<'_, '_> {
             .filter_map(|o| {
                 let fs = match &o.kind {
                     Kind::Tint(fs) => fs.clone(),
-                    Kind::Cover => o.filters((1000, 1000)),
+                    Kind::Cover { .. } => o.filters((1000, 1000)),
                     _ => return None,
                 };
                 (!fs.is_empty()).then(|| ((o.priority, o.seq), fs.iter().map(|f| SpriteFilter { strength: Operand::Const((o.opacity.min(1000) * 256 / 1000) as i32), ..*f }).collect::<Vec<_>>()))
@@ -236,6 +243,23 @@ impl Compiler<'_, '_> {
                     shown.tint = Some(toned(self.objects.get(n), &shown, c));
                 }
                 want.push((n.clone(), shown, key));
+            }
+        }
+        // A cover shown again: the pictures it froze, in its place.
+        for (c, o) in self.objects.iter().filter(|(_, o)| o.opacity > 0 && !o.hideable && frozen.is_none_or(|p| o.priority > p)) {
+            if let Kind::Cover { froze, .. } = &o.kind
+                && self.shows_froze(o)
+            {
+                let fs = o.filters((1000, 1000));
+                for (n, s) in froze {
+                    let mut shown = Shown { opacity: s.opacity * o.opacity.min(1000) / 1000, engine: Engine::default(), ..s.clone() };
+                    if !fs.is_empty() {
+                        let mut t = [shown.tint.take().unwrap_or_default(), fs.clone()].concat();
+                        t.truncate(MAX_FILTERS);
+                        shown.tint = Some(t);
+                    }
+                    want.push((format!("{c}\u{1}{n}"), shown, (o.priority, o.seq)));
+                }
             }
         }
         want.sort_by_key(|w| std::cmp::Reverse(w.2));
@@ -787,6 +811,20 @@ impl Compiler<'_, '_> {
 }
 
 /// A picture's own filters ([`Object::filters`]), then a cover's above it.
+impl Compiler<'_, '_> {
+    /// A cover shown again over a screen that changed since it froze it
+    /// draws what it froze; over the same screen it only keeps it.
+    pub(super) fn shows_froze(&self, o: &Object) -> bool {
+        let Kind::Cover { froze, again: true } = &o.kind else { return false };
+        // shortcut: a cover made over an empty screen keeps the screen (as before), not black; draw black if a scene needs it
+        if froze.is_empty() {
+            return false;
+        }
+        let under = self.shown.keys().filter(|n| self.objects.get(*n).is_none_or(|x| x.priority <= o.priority)).count();
+        under != froze.len() || froze.iter().any(|(n, s)| self.shown.get(n).is_none_or(|t| *t != Shown { engine: t.engine, layer: t.layer, tint: t.tint.clone(), ..s.clone() }))
+    }
+}
+
 fn toned(o: Option<&Object>, s: &Shown, cover: &[SpriteFilter]) -> Vec<SpriteFilter> {
     let mut fs = [o.map(|o| o.filters(scale(s))).unwrap_or_default(), cover.to_vec()].concat();
     fs.truncate(MAX_FILTERS);
