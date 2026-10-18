@@ -283,12 +283,23 @@ fn seen(s: &Seen, border: u32) -> (String, String) {
             let v = var_name(*v, border);
             (format!("{v} != 0"), format!("if {v} == 0"))
         }
-        Seen::Pictures(p) => {
-            assert!(!p.is_empty(), "a CG seen by none of its pictures");
-            let f: Vec<String> = p.iter().map(|p| format!("fchk \"{}\"", path(p))).collect();
+        _ => {
+            let f = tests(s, border);
             // `notif` negates each test: none seen is all of them unseen
             (f.join(" || "), format!("notif {}", f.join(" && ")))
         }
+    }
+}
+
+/// The tests any of which is true once a CG is seen.
+fn tests(s: &Seen, border: u32) -> Vec<String> {
+    match s {
+        Seen::Var(v) => vec![format!("{} != 0", var_name(*v, border))],
+        Seen::Pictures(p) => {
+            assert!(!p.is_empty(), "a CG seen by none of its pictures");
+            p.iter().map(|p| format!("fchk \"{}\"", path(p))).collect()
+        }
+        Seen::Any(s) => s.iter().flat_map(|s| tests(s, border)).collect(),
     }
 }
 
@@ -387,6 +398,8 @@ mod tests {
         assert_eq!(seen(&Seen::Var(Var { global: true, index: 5 }), 200), ("%205 != 0".into(), "if %205 == 0".into()));
         let s = Seen::Pictures(vec!["pic/a.png".into(), "pic/b.png".into()]);
         assert_eq!(seen(&s, 200), (r#"fchk "pic\a.png" || fchk "pic\b.png""#.into(), r#"notif fchk "pic\a.png" && fchk "pic\b.png""#.into()));
+        let any = Seen::Any(vec![Seen::Pictures(vec!["pic/a.png".into()]), Seen::Var(Var { global: true, index: 5 })]);
+        assert_eq!(seen(&any, 200), (r#"fchk "pic\a.png" || %205 != 0"#.into(), r#"notif fchk "pic\a.png" && %205 != 0"#.into()));
     }
 
     #[test]

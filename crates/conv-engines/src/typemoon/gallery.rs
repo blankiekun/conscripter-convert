@@ -12,8 +12,9 @@
 //! only) or by the pictures the table at 0x5525C8 lists for it, a sprite's
 //! shot letter tried as A, L, M and S (`FUN_001051e0`). Here a CG counts
 //! as seen once the engine has shown one of the pictures that set that
-//! flag (`Seen::Pictures`); the 926 CGs nothing unlocks, by flag 557 (the
-//! last lesson's `_RDED(557)`).
+//! flag (`Seen::Pictures`), once `_STCG` marked one of them (a global each,
+//! `convert::cg_flags`), or by flag 557 (the last lesson's `_RDED(557)`;
+//! the only test of the 926 CGs nothing unlocks).
 //!
 //! The grid lists only the slots with a CG to show (`FUN_0010b830`;
 //! `PictureGallery::compact`).
@@ -21,13 +22,12 @@
 //! Coordinates: the exe's widgets are placed in 1080p pixels (`FUN_0011fa60`
 //! with 1920 × 905 from y 109); here × 2/3. Left out: the slots' condition
 //! (route flags read by `FUN_0010b58c`; a CG's pictures are shown on that
-//! route anyway) and flag 557 for the CGs that have pictures (a seen test
-//! is one or the other); the list in pages of 6 rows (the exe scrolls it,
+//! route anyway); the list in pages of 6 rows (the exe scrolls it,
 //! 6 across); the viewer's zoom (a CG shown to cover the screen, its far part scrolled
 //! to); the Music Player, Flowchart, Movie and Ending List (drawn, not
 //! clickable).
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::Path;
 
 use anyhow::{Context, Result};
@@ -162,10 +162,16 @@ impl<'a> Flags<'a> {
     }
 }
 
+/// A CG's unlocking pictures and `_STCG` globals.
+type SeenBy = (Vec<String>, Vec<Var>);
+
 /// The gallery's seen tests, slot by slot: per CG the pictures that set a
-/// flag unlocking it (lowercase names), empty for none.
-fn seen_by(exe: &Exe, pictures: &[Picture], slots: &[Vec<Cg>]) -> Result<Vec<Vec<Vec<String>>>> {
+/// flag unlocking it (lowercase names) and the `_STCG` globals that do
+/// (`cg_flags`: by lowercase name).
+fn seen_by(exe: &Exe, pictures: &[Picture], slots: &[Vec<Cg>], cg_flags: &BTreeMap<String, Var>) -> Result<Vec<Vec<SeenBy>>> {
     let flags = Flags::new(pictures, sprite_flags(exe)?);
+    // script_command's _STCG: the picture's index, none past 0xA8C
+    let marked: Vec<(u32, Var)> = cg_flags.iter().filter_map(|(n, &v)| flags.index.get(n.to_uppercase().as_str()).filter(|&&i| i <= NAMED).and_then(|&i| flags.shown(i)).map(|f| (f, v))).collect();
     let unlocks = unlocks(exe)?;
     let mut setters: HashMap<u32, Vec<String>> = HashMap::new();
     for (i, p) in pictures.iter().enumerate() {
@@ -192,7 +198,7 @@ fn seen_by(exe: &Exe, pictures: &[Picture], slots: &[Vec<Cg>]) -> Result<Vec<Vec
                     let mut names: Vec<String> = tested.iter().flat_map(|f| setters.get(f).into_iter().flatten().cloned()).collect();
                     names.sort();
                     names.dedup();
-                    names
+                    (names, marked.iter().filter(|(f, _)| tested.contains(f)).map(|&(_, v)| v).collect())
                 })
                 .collect()
         })
@@ -214,9 +220,10 @@ pub struct Sources<'a> {
 
 /// The Gallery, and (unless a dry run) its pictures in `<output>/sys/gallery`.
 /// `flag557`: global flag 557 (`_RDED(557)`).
-pub fn extras(exe: &Exe, pictures: &[Picture], s: &Sources, flag557: Var) -> Result<PictureExtras> {
+/// `cg_flags`: the globals `_STCG` sets (`convert::cg_flags`).
+pub fn extras(exe: &Exe, pictures: &[Picture], s: &Sources, flag557: Var, cg_flags: &BTreeMap<String, Var>) -> Result<PictureExtras> {
     let slots = slots(exe)?;
-    let seen = seen_by(exe, pictures, &slots)?;
+    let seen = seen_by(exe, pictures, &slots, cg_flags)?;
     let parts = if s.dry_run { None } else { Some(Parts::read(s.romfs, "GALLERY_PARTS")?) };
     let save = |name: &str, img: Option<RgbaImage>| -> Result<String> {
         let file = format!("{DIR}/{name}.png");
@@ -297,7 +304,7 @@ pub fn extras(exe: &Exe, pictures: &[Picture], s: &Sources, flag557: Var) -> Res
     let mut gallery_slots = Vec::new();
     for (cgs, seen) in slots.iter().zip(&seen) {
         let mut out = Vec::new();
-        for (cg, by) in cgs.iter().zip(seen) {
+        for (cg, (by, marked)) in cgs.iter().zip(seen) {
             let lower = cg.name.to_lowercase();
             let thumb = thumbs.as_ref().map(|t| -> Result<RgbaImage> {
                 let (x, y) = ((cg.number % 36) * 154, (cg.number / 36) * 88);
@@ -310,11 +317,14 @@ pub fn extras(exe: &Exe, pictures: &[Picture], s: &Sources, flag557: Var) -> Res
             let source = if s.cgs.contains(&lower) { format!("cg/{lower}.{}", s.pic_ext) } else { format!("pic/{lower}.{}", s.pic_ext) };
             let image = format!("{DIR}/view/{lower}.png");
             views.push((source, image.clone(), (w as u32, h as u32)));
-            let seen = if by.is_empty() {
-                Seen::Var(flag557)
-            } else {
-                Seen::Pictures(by.iter().flat_map(|n| std::iter::once(format!("pic/{n}.{}", s.pic_ext)).chain(s.own.contains(n).then(|| format!("pic/en/{n}.{}", s.pic_ext)))).collect())
-            };
+            // FUN_00104470: its pictures, its own name, then flag 557
+            let mut any = Vec::new();
+            if !by.is_empty() {
+                any.push(Seen::Pictures(by.iter().flat_map(|n| std::iter::once(format!("pic/{n}.{}", s.pic_ext)).chain(s.own.contains(n).then(|| format!("pic/en/{n}.{}", s.pic_ext)))).collect()));
+            }
+            any.extend(marked.iter().map(|&v| Seen::Var(v)));
+            any.push(Seen::Var(flag557));
+            let seen = if any.len() == 1 { any.pop().unwrap() } else { Seen::Any(any) };
             out.push(SlotCg { seen, picture: Placed { image, x: 0, y: 0, w, h }, thumbnail });
         }
         gallery_slots.push(PictureSlot { cgs: out, reversed: false });
