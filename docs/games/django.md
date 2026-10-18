@@ -278,6 +278,10 @@ use a no-CD 1.01 exe the user owns, copied into the scratch game folder
   as a 256-byte file; `npa.py` takes it in place of the exe. Link the
   copy as `nss.npa` in `C:\django\`.
 
+- **Trace speed**: `SPEED=8` before `ntrace.sh` plays 0.9 s a page
+  instead of 7.0, `ms` in game time (93 % of steps within 2 frames of a
+  1x run; the text decoration's `WaitAction`, `CreateTexture` and
+  `CreateMovie` are not scaled: `docs/new-game.md`, "Trace speeds").
 - **Trace DLL** (`docs/new-game.md` step 22; 装甲悪鬼村正's tool):
   `GAME=<game, 1.01 files over the install> EXE=<the unpacked 1.01
   Django.exe> research/nitroplus/tracedll/ntrace.sh -o orig.jsonl

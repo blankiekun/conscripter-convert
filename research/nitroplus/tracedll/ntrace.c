@@ -33,12 +33,15 @@
  * Environment (wine passes it through):
  *   NTRACE_OUT    Windows path of the JSONL (default C:\ntrace.jsonl)
  *   NTRACE_PAGES  exit the game after this many pages (0: never)
+ *   TRACE_SPEED   N: the game runs N times as fast, "ms" in its time
+ *                 (research/tools/trace_speed.h)
  */
 #include <windows.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include "../../tools/trace_speed.h"
 
 #define CALL_DISPATCH 0x470b7c
 #define DISPATCH 0x405250
@@ -56,7 +59,6 @@ static int file_base = 0x1130, file_size = 0x158, file_idx = 0x20, file_text = 0
 #define FILE_NAME_AT 0 /* the file record's name, "nss/0_boot.nss" */
 
 static FILE *out;
-static LARGE_INTEGER t0, freq;
 static long pages, max_pages;
 static CRITICAL_SECTION lock;
 static DWORD threads[64];
@@ -65,11 +67,7 @@ static int n_threads, n_frames, page_th = -1;
 static unsigned char *d_ctx; /* the script context (one for the game) */
 void *nt_dispatch = (void *)DISPATCH, *nt_block = (void *)BLOCK;
 
-static long ms(void) {
-    LARGE_INTEGER t;
-    QueryPerformanceCounter(&t);
-    return (long)((t.QuadPart - t0.QuadPart) * 1000 / freq.QuadPart);
-}
+static long ms(void) { return speed_ms(); } /* game time: trace_speed.h */
 
 /* cp932 -> JSON-escaped UTF-8; tags: leave out <...>, [textNNNN] and line breaks */
 static void put_str(const unsigned char *s, int n, int tags) {
@@ -349,7 +347,7 @@ static int sus_slot(DWORD id) {
 }
 
 static DWORD WINAPI nt_wait(HANDLE h, DWORD ms_) {
-    if (!obj_mutex || h != *obj_mutex || ms_ != INFINITE) return WaitForSingleObject(h, ms_);
+    if (!obj_mutex || h != *obj_mutex || ms_ != INFINITE) return sp_WaitForSingleObject(h, ms_);
     DWORD me = GetCurrentThreadId(), r;
     EnterCriticalSection(&sus_lock);
     int k = sus_slot(me);
@@ -432,13 +430,11 @@ static void install(void) {
     out = fopen(p ? p : "C:\\ntrace.jsonl", "w");
     if (!out) return;
     InitializeCriticalSection(&lock);
-    QueryPerformanceFrequency(&freq);
-    QueryPerformanceCounter(&t0);
     if ((p = getenv("NTRACE_PAGES"))) max_pages = atol(p);
     int django = !memcmp((void *)D_AFTER_LAYOUT, "\x83\xc4\x1c\x85\xc0", 5) && *(unsigned char *)D_CALL_DISPATCH == 0xe8 &&
                  *(unsigned char *)D_CALL_ENTER1 == 0xe8 && *(unsigned char *)D_CALL_ENTER2 == 0xe8;
-    fprintf(out, "{\"t\":\"meta\",\"schema\":1,\"engine\":\"%s (ntrace)\",\"max_pages\":%ld}\n",
-            django ? "Django.exe" : "Muramasa.exe", max_pages);
+    fprintf(out, "{\"t\":\"meta\",\"schema\":1,\"engine\":\"%s (ntrace)\",\"max_pages\":%ld,\"speed\":%ld}\n",
+            django ? "Django.exe" : "Muramasa.exe", max_pages, (p = getenv("TRACE_SPEED")) && atol(p) > 1 ? atol(p) : 1L);
     if (django) {
         file_base = 0x22c, file_size = 0x14c, file_idx = 0x1c, file_text = 0x114;
         hook_import("user32.dll", "GetMessageA", (void *)nt_get_message);
@@ -457,6 +453,7 @@ static void install(void) {
         *(unsigned char *)D_AFTER_LAYOUT = 0xe8; /* call rel32 */
         VirtualProtect((void *)D_AFTER_LAYOUT, 5, old, &old);
         redirect_call(D_AFTER_LAYOUT, (void *)nt_layout_stub);
+        speed_install(); /* after nt_wait, which is hooked by the real function's address */
         fflush(out);
         return;
     }
@@ -467,6 +464,7 @@ static void install(void) {
     }
     redirect_call(CALL_DISPATCH, (void *)nt_dispatch_stub);
     redirect_call(CALL_BLOCK, (void *)nt_block_stub);
+    speed_install();
     fflush(out);
 }
 

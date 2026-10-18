@@ -30,7 +30,10 @@ bullet you need.
 - Against the original (a trace of it, `docs/new-game.md` steps 22-23):
   `research/tools/trace_diff.py orig.jsonl ours.jsonl --map <the
   build's --source-map file>` prints the pages' text, command and time
-  differences (`--self-test` tests it).
+  differences (`--self-test` tests it). A wine original's trace
+  (`xtrace.sh`, `ntrace.sh`) runs N times as fast with `SPEED=N`, its
+  times still comparable (4 for 最果てのイマ, 8 for the Nitroplus games);
+  the Switch one with `IDLEA=0.3` (`docs/new-game.md`, "Trace speeds").
 - Frames mid-effect: the trace's `--shot-effects 25,50,75`. The older
   patched-script runs: `docs/new-game.md` step 9 and "When the trace
   can't do it". On Xvfb always set

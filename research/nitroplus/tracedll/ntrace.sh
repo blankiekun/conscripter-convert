@@ -11,6 +11,10 @@
 #
 #   ntrace.sh -o trace.jsonl [--pages N] [--seconds S] [--shot NAME.png]
 #
+# SPEED=N runs the game N times as fast (its clock and waits scaled by
+# research/tools/trace_speed.h; "ms" stays in game time, so the trace
+# diff's times hold: docs/new-game.md, "Trace speeds").
+#
 # Django: its 1.01 Django.exe is packed and asks for the disc: EXE = the
 # unpacked 1.01 exe (docs/games/django.md "The exe"), copied in; the boot
 # skips the logos and the title ($TitleSelect=1) and the start script turns
@@ -45,7 +49,7 @@ export WINEDLLOVERRIDES="winepulse.drv,wineoss.drv,winewayland.drv=d;winemenubui
 mkdir -p "$H/build"
 printf 'pcm.!default { type null }\nctl.!default { type hw card 0 }\n' > "$ALSA_CONFIG_PATH"
 
-i686-w64-mingw32-gcc -O2 -Wall -shared -static-libgcc -o "$H/build/ntrace.dll" "$here/ntrace.c"
+i686-w64-mingw32-gcc -O2 -Wall -shared -static-libgcc -o "$H/build/ntrace.dll" "$here/ntrace.c" -lwinmm
 # -mwindows: no console window over the game in wine's desktop
 i686-w64-mingw32-gcc -O2 -Wall -static-libgcc -mwindows -o "$H/build/xlaunch.exe" "$repo/research/xuse/tracedll/xlaunch.c"
 
@@ -127,7 +131,7 @@ rm -f "$C/ntrace/trace.jsonl" "$H/clicks.log"
 # wine's explorer may hand the game on and exit; shortcut: another prefix's
 # Django.exe counts too (a run then lasts --seconds)
 alive() { kill -0 $wpid 2>/dev/null || { [ $EXE_NAME = Django.exe ] && pgrep -x Django.exe >/dev/null; }; }
-export NTRACE_OUT='C:\ntrace\trace.jsonl' NTRACE_PAGES=$PAGES
+export NTRACE_OUT='C:\ntrace\trace.jsonl' NTRACE_PAGES=$PAGES TRACE_SPEED=${SPEED:-1}
 if [ $EXE_NAME = Django.exe ]; then
   (cd "$M" && wine explorer /desktop=ntrace,1024x768 'C:\ntrace\xlaunch.exe' 'C:\game\Django.exe' 'C:\ntrace\ntrace.dll') > "$H/wine.log" 2>&1 &
   wpid=$!

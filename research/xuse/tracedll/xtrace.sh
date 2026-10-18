@@ -5,6 +5,10 @@
 #   xtrace.sh -o trace.jsonl [--save SLOT.bin] [--choices 12,34|none]
 #             [--pages N] [--seconds S] [--shot NAME.png] [--no-cover]
 #
+# SPEED=N runs the game N times as fast (its clock and waits scaled by
+# research/tools/trace_speed.h; "ms" and "f" stay in game time, so the
+# trace diff's times hold: docs/new-game.md, "Trace speeds").
+#
 # GAME = the install folder (required). XTRACE_HOME (default out/xtrace in
 # the repo) keeps the wine prefix between runs (prepared on the first run,
 # about a minute) and the built DLL. --save copies a slot save (made with
@@ -22,7 +26,7 @@ OUT= SAVE= CHOICES= PAGES=200 SECS=600 SHOT= COVER=1
 while [ $# -gt 0 ]; do case $1 in
   -o) OUT=$2; shift 2;; --save) SAVE=$2; shift 2;; --choices) CHOICES=$2; shift 2;;
   --pages) PAGES=$2; shift 2;; --seconds) SECS=$2; shift 2;; --no-cover) COVER=; shift;;
-  --shot) SHOT=$2; shift 2;; *) sed -n '2,17p' "$0"; exit 2;; esac; done
+  --shot) SHOT=$2; shift 2;; *) sed -n '2,21p' "$0"; exit 2;; esac; done
 [ -n "$OUT" ] && [ -d "$GAME/HD" ] || { echo "need -o and GAME=<install folder>" >&2; exit 2; }
 
 mkdir -p "$H/build"
@@ -41,8 +45,8 @@ echo 'pcm.!default { type null }' > "$ALSA_CONFIG_PATH"
 
 for f in xtrace.c xlaunch.c; do  # rebuild when the source is newer
   b=$H/build/${f%.c}.$([ $f = xtrace.c ] && echo dll || echo exe)
-  [ "$b" -nt "$here/$f" ] || i686-w64-mingw32-gcc -O2 -Wall $([ $f = xtrace.c ] && echo -shared) \
-    -static-libgcc -o "$b" "$here/$f"
+  [ "$b" -nt "$here/$f" ] && [ "$b" -nt "$repo/research/tools/trace_speed.h" ] || i686-w64-mingw32-gcc -O2 -Wall $([ $f = xtrace.c ] && echo -shared) \
+    -static-libgcc -o "$b" "$here/$f" -lwinmm
 done
 
 
@@ -70,7 +74,7 @@ rm -f "$C/xtrace/trace.jsonl" "$C/xtrace/cover.txt"
 [ -n "$COVER" ] && python3 -I "$repo/research/xuse/cover.py" addrs "$GAME/Farthest2015.exe" > "$C/xtrace/cover.txt" \
   && export XTRACE_COVER='C:\xtrace\cover.txt'
 
-export XTRACE_OUT='C:\xtrace\trace.jsonl' XTRACE_PAGES=$PAGES
+export XTRACE_OUT='C:\xtrace\trace.jsonl' XTRACE_PAGES=$PAGES TRACE_SPEED=${SPEED:-1}
 [ -n "$CHOICES" ] && export XTRACE_CHOICES=$CHOICES
 wine 'C:\xtrace\xlaunch.exe' 'C:\Xuse\ima\Farthest2015.exe' 'C:\xtrace\xtrace.dll' > "$H/wine.log" 2>&1 &
 wpid=$!

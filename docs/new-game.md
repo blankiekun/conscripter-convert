@@ -462,6 +462,33 @@ rather than by browsing:
     with the function's own line), a text page with its text block, and
     sounds flushed after a statement with that statement; 装甲悪鬼村正:
     docs/games/muramasa.md, "Trace diff".
+
+    **Trace speeds** (2026-10-17, 40 pages from each trace's start; wall
+    seconds a page once the game runs, plus 20-30 s of start-up). A wine
+    original runs faster with `SPEED=N` (`xtrace.sh`, `ntrace.sh`):
+    `research/tools/trace_speed.h` gives the exe a clock N times as fast
+    (`timeGetTime`, `GetTickCount`, `QueryPerformanceCounter`) and
+    divides its waits by N (`Sleep`, the `Wait*` timeouts,
+    `timeSetEvent`, `SetTimer`); the records' `ms` (and xtrace's frame
+    count `f`) are in that game time, so they diff as a 1x run's.
+    "Same times": the share of command-to-command steps of the fast
+    run within two frames of a 1x run's (`difflib`-paired by `at`).
+    Not scaled, and so off in a fast run: what the exe doesn't time by
+    those clocks, wine's sound (a wait on a voice lasts the voice's
+    real length, N times too long in game time) and loading (a
+    `CreateTexture` costs N times its real time).
+
+    | Game | Run | 1x | Fast | Same times |
+    |---|---|---|---|---|
+    | 最果てのイマ | original, `xtrace.sh` | 3.8 | `SPEED=4`: 1.0 | 17/17 steps within 2 frames (`f`); `SPEED=8` (0.6) is off by up to 10 frames: the frame loop can't keep up |
+    | 装甲悪鬼村正 | original, `ntrace.sh` | 3.1 | `SPEED=8`: 0.45 (`SPEED=4`: 0.8) | 97 % (two 1x runs: 100 %, worst 75 ms); off: `WaitText` on a voiced page, `CreateTexture` |
+    | 続・殺戮のジャンゴ | original, `ntrace.sh` | 7.0 | `SPEED=8`: 0.9 (`SPEED=4`: 1.8) | 93 %; off: `WaitAction` of the text decoration, `CreateTexture`, `CreateMovie` |
+    | 月姫 | original, `switch-emu.sh` + hook | 2.5 (`IDLEA=1`) | `IDLEA=0.3`: 1.4 | 91 %, step ratio 1.00 (the clock is untouched); a refresh rate of 400 % (`--vsync-mode Custom --custom-refresh-rate 400`) gives 1.1 but the game then runs only ~1.7x, by no fixed factor: times not comparable, not used |
+    | any | ours, `--trace --auto-play N` | 0.08 (`--real-time`) | 0.03 (without) | `--real-time` keeps the times (headless, its waits take no wall time); without it times are not comparable |
+
+    So a whole route of 装甲悪鬼村正 (23k pages) is about 3 h of
+    original trace at `SPEED=8`, against 20 h at 1x. Skip mode (the
+    original's own, text and order only) wasn't needed.
 24. **Which branches the original runs** (marks for the findings table,
     step 16). The trace DLL (step 22) also arms one-shot breakpoints:
     an `int3` on every code address of `names.tsv` and of the findings

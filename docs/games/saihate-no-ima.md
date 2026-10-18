@@ -630,6 +630,10 @@ step 9). Helper scripts of the sessions are in `research/xuse/local/`
   stays attached until the game is stopped (`wineserver -k`): no detach.
   Break on the handlers and their per-frame callbacks, not on
   `frame_loop` (History, "Breakpoint trace").
+- **Trace speed**: `SPEED=4 GAME=<install> research/xuse/tracedll/xtrace.sh
+  ...` plays 1.0 s a page instead of 3.8, its `f` and `ms` in game time
+  (17 of 17 timed steps within 2 frames of a 1x run); `SPEED=8` drifts
+  by up to 10 frames (`docs/new-game.md`, "Trace speeds").
 - **Trace DLL** (`docs/new-game.md` step 22): `GAME=<install>
   research/xuse/tracedll/xtrace.sh -o t.jsonl [--save slot.bin]
   [--choices 12,34|none] [--pages N] [--seconds S] [--shot end.png]
