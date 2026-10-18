@@ -804,6 +804,7 @@ the start through `00_00` into the first arc (flow, text, pictures,
 sound, layers, motions, choices, text window fade, the lessons' yes/no
 question); boot logos, title,
 the system menu's Save and Load tabs, Config (language switch only);
+the Gallery's CG gallery (its other modes drawn, not open);
 `--english <game-en>` builds both languages in one `0.txt`, switching
 in game; the original boots under Ryubing and its trace diffs against
 ours over `00_00`'s first 297 pages. How each was done: History
@@ -811,7 +812,8 @@ ours over `00_00`'s first 297 pages. How each was done: History
 Languages and Trace diff).
 
 Not yet: the other layer commands, FlowChart, the backlog, the settings
-tab, Gallery, Config on the title.
+tab, the Gallery's Music Player, Flowchart, Movie and Ending List,
+Config on the title.
 
 ### Next
 
@@ -819,19 +821,17 @@ tab, Gallery, Config on the title.
    leans on, in order of use. `typemoon convert --dry-run` prints the
    counts. Splitting sprites into body and face crops is out unless
    the user asks.
-2. The CG gallery (Gallery on the title), from the exe's tables (History,
-   2026-10-18, "the gallery's tables"): its CGs are in the media folder
-   (`cg/`). Before the screen: the seen flags. The gallery needs about
-   1,100 of them (1,007 picture flags under 0xA8C, about 100 the
-   sprites map to, read flag 557); the converter's
-   `SlotCg::seen` is a whole variable, and the free globals are fewer.
-   A bit flag (a shared `Var` bit, or a CONscripter seen-picture set the
-   showing of a picture fills, as `kidoku`) is a shared change: its own
-   PR first. Then `PictureExtras` with the CG mode (the music, movies and
-   ending list later), slots from the 458-slot table and the thumbnails
-   (likely `allui`'s `CG_THUMB_PARTS_JA`, 22 MB, not looked at;
-   `allpaccg`'s `THUMCG_TOP.MZP` is a 2 KB stub). `allui` (71 MB) is
-   still not in the media folder.
+2. The Gallery's other modes (Music Player, Movie, Ending List,
+   Flowchart; drawn in its menu, not clickable), and in the CG gallery
+   what is left out (History, 2026-10-18, "the CG gallery"): the
+   slots' route conditions, flag 557 for the CGs with pictures (a
+   seen test is either), the viewer's zoom, the list holding only
+   the slots with a CG to show. 926 CGs, in neither unlock table,
+   show only after flag 557 (`_RDED(557)`, the last lesson), as the
+   exe reads (`FUN_00156720` scans the first 0xA8C picture names).
+   `_STCG` (the CG flag of a picture not shown) is not converted:
+   `img2460`, `img2461`, `img2601`, `img2636` are flagged only by it.
+   `allui` (71 MB) is still not in the media folder.
 3. The menus: the settings tab (the defaults in "Accuracy", the
    日本語/English switch: move `SystemPage::Jump(language::SWITCH)`
    from the Config tab to its option), the backlog; then the save list's route picture and chapter labels
@@ -898,6 +898,32 @@ Open there, by size:
   every sound at full volume.
 
 ## History
+
+- 2026-10-18: **the CG gallery** (title > Gallery; `gallery.rs`).
+  **Seen**: the menu's widgets (`FUN_00106124`, descriptors at
+  0x54E2F8: texture, place in 1080p pixels; `GALLERY_PARTS` textures
+  7179 up in BNTX order): `gallerymenu_window` at (56, 0),
+  `config_innerbg` at (365, 0), `underline` at (0, 72); the buttons'
+  list (0x54E438) at x 80, y 160 + 80 a row, cut from `gallerymenu_btn`
+  (CG Gallery, Music Player, Flowchart, Movie, Ending List, Title;
+  at rest, chosen, lit). The grid (`FUN_0010af78`): 6 across from
+  (392, 109), 240 × 139 apart, each slot's first CG to show by its
+  thumbnail, cell n of `CG_THUMB_PARTS`' `cg_thumb_all` (36 a row,
+  154 × 87 every 154 × 88; n the slot table's number, 0–1977 but 911),
+  drawn at 1.5; `cg_cursor` (8, 8, 248 × 144) at (384, 103); the list
+  only of slots with a CG to show (`FUN_0010b830`), scrolled. The seen
+  test (`FUN_001051e0`): of a CG's unlocking pictures the first found
+  by name decides, else any sprite's shot letter; then its own name.
+  Ours: `PictureExtras` with the six rows (CG Gallery opens the
+  gallery, Title goes back, the others drawn, not clickable) and a
+  `PictureGallery` of every slot in pages of 6 × 6 (13 pages), a CG
+  seen once CONscripter's file log (`filelog`, `fchk`) has one of the
+  pictures that set its flag (1,051 CGs) or by flag 557 (926;
+  `_RDED(557)` now sets it, `FLAG_557`, global 1003). The viewer shows
+  each CG covering the screen (`sys/gallery/view/`, written by the
+  build from `pic/` and `cg/`), scrolling to its far part. Guesses:
+  the buttons' anchor, what is under the menu (black), the fades,
+  the page buttons and Back (ours, in the font).
 
 - 2026-10-18: **`_SELS`, the lessons' yes/no question** (`QACALL`,
   `question.rs`). **Seen**: `FUN_00192800` opens the choice in mode 2

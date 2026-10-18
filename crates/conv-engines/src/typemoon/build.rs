@@ -16,7 +16,7 @@ use crate::build::{Built, Opts, map};
 
 /// The output's asset folders (packed into `arc.nsa`).
 /// Not `movie`: CONscripter plays movies from loose files only.
-pub const OUTPUT_DIRS: [&str; 4] = ["pic", "stream", "se", "sys"];
+pub const OUTPUT_DIRS: [&str; 5] = ["pic", "cg", "stream", "se", "sys"];
 /// The text window's picture, written by the build.
 const WINDOW: &str = "sys/txtwindow.png";
 
@@ -87,7 +87,8 @@ pub fn build(romfs: &Path, main: &Path, english: Option<&Path>, opts: &Opts) -> 
     // The fan patch's text is English (the exe's language check, `FUN_0012df20`).
     let is_english = lines.iter().filter(|l| !l.chars().any(|c| ('\u{3040}'..='\u{30ff}').contains(&c))).count() * 2 > lines.len();
     let exe = exe::Exe::parse(&map(main)?).with_context(|| format!("reading {}", main.display()))?;
-    let pictures: HashMap<String, exe::Picture> = exe.pictures()?.into_iter().map(|p| (p.name.to_lowercase(), p)).collect();
+    let picture_list = exe.pictures()?;
+    let pictures: HashMap<String, exe::Picture> = picture_list.iter().map(|p| (p.name.to_lowercase(), p.clone())).collect();
     let bfsar = map(&romfs.join("knife1.bfsar"))?;
     let ext = if opts.audio.reencodes() { "ogg" } else { "wav" }; // as `typemoon sounds` writes them
     let waves = bfsar::wave_sounds(&bfsar)?.into_iter().map(|w| (w.name.trim_start_matches("WSD_").to_uppercase(), format!("{}.{ext}", w.name))).collect::<HashMap<_, _>>();
@@ -95,11 +96,12 @@ pub fn build(romfs: &Path, main: &Path, english: Option<&Path>, opts: &Opts) -> 
     let pic_ext = if opts.webp.is_some() { "webp" } else { "png" }; // as `typemoon media` writes them
     let game = Game { scripts, scenes: exe.scenes()?, lines, textures: textures(romfs, &pictures)?, pictures, sounds, waves, pic_ext, motions: exe.motions()? };
     let en_source = english.map(Source::read).transpose()?;
+    let own = english.map(|en| own_pictures(romfs, en)).transpose()?.unwrap_or_default();
     let compiled = match (english, &en_source) {
         (Some(en_dir), Some(en)) => {
             let (scripts, lines) = en.scripts()?;
             let en_game = Game { scripts, lines, textures: textures(en_dir, &game.pictures)?, pictures: game.pictures.clone(), scenes: game.scenes.clone(), sounds: game.sounds.clone(), waves: game.waves.clone(), motions: game.motions.clone(), pic_ext };
-            super::language::compile(&game, &en_game, &own_pictures(romfs, en_dir)?, text_window(false), text_window(true))
+            super::language::compile(&game, &en_game, &own, text_window(false), text_window(true))
         }
         _ => convert::compile(&game),
     };
@@ -124,6 +126,7 @@ pub fn build(romfs: &Path, main: &Path, english: Option<&Path>, opts: &Opts) -> 
         // One speed here: the unread one.
         text_ms: Some(35),
         title_screen: Some(super::title::title(romfs, opts.output, opts.dry_run)?),
+        picture_extras: Some(super::gallery::extras(&exe, &picture_list, &super::gallery::Sources { romfs, output: opts.output, font: opts.font, cgs: &gallery_cgs(romfs)?, own: &own, pic_ext, dry_run: opts.dry_run }, super::gallery::FLAG_557)?),
         system_menu: Some(super::menu::system_menu(romfs, opts.output, opts.dry_run, english.is_some())?),
         boot: super::boot::steps(romfs, english.map(|en| (en, super::language::PREF)), opts.output, opts.dry_run)?,
         language: if is_english { "en" } else { "ja" }.into(),
@@ -132,6 +135,13 @@ pub fn build(romfs: &Path, main: &Path, english: Option<&Path>, opts: &Opts) -> 
     };
     println!("{} scripts -> {}", game.scripts.len(), opts.output.join("0.txt").display());
     Ok(Built { ir, notes: compiled.notes, metrics: compiled.metrics, engine: "typemoon", picture_dirs: &["sys"], audio_dirs: &[], package: None })
+}
+
+/// `allpaccg`'s CGs (`typemoon media` writes them to `cg/`), lowercase.
+fn gallery_cgs(romfs: &Path) -> Result<std::collections::HashSet<String>> {
+    let path = romfs.join("allpaccg.mrg");
+    let entries = mrg::parse(&map(&path.with_extension("hed"))?, Some(&map(&path.with_extension("nam"))?)).context("reading allpaccg.hed")?;
+    Ok(super::full_copies(&entries).into_keys().filter(|k| k.starts_with("img")).collect())
 }
 
 /// The pictures the fan patch has its own of (`pic/en/`, as `typemoon

@@ -237,12 +237,15 @@ impl Motion {
 
 pub struct Exe {
     image: Vec<u8>,
+    /// Each pointer's place and value ([`nso::relative`]).
+    pointers: std::collections::HashMap<usize, usize>,
 }
 
 impl Exe {
     /// From the NSO; fails unless it is 1.0.2's layout.
     pub fn parse(nso: &[u8]) -> Result<Self, FormatError> {
-        let exe = Exe { image: nso::image(nso)? };
+        let image = nso::image(nso)?;
+        let exe = Exe { pointers: nso::relative(&image)?, image };
         if exe.bytes(PICTURE_NAMES, 6)? != b"BLACK\0" {
             return Err(FormatError::Bad("not 1.0.2's or the fan patch's main (the base game's?): no picture table at 0x6E02A4".into()));
         }
@@ -255,6 +258,21 @@ impl Exe {
 
     fn u32(&self, address: usize) -> Result<u32, FormatError> {
         Ok(Reader(&self.image).u32(address - BASE)?)
+    }
+
+    pub(super) fn i32(&self, address: usize) -> Result<i32, FormatError> {
+        Ok(self.u32(address)? as i32)
+    }
+
+    /// The pointer at `address` (its relocation), 0 for none.
+    pub(super) fn pointer(&self, address: usize) -> usize {
+        self.pointers.get(&(address - BASE)).map_or(0, |v| v + BASE)
+    }
+
+    /// The NUL-ended string at `address`.
+    pub(super) fn string(&self, address: usize) -> Result<String, FormatError> {
+        let rest = self.image.get(address - BASE..).ok_or_else(|| FormatError::Bad(format!("no string at {address:#x}")))?;
+        Ok(String::from_utf8_lossy(&rest[..rest.iter().position(|&b| b == 0).unwrap_or(rest.len())]).into_owned())
     }
 
     fn f32(&self, address: usize) -> Result<f32, FormatError> {

@@ -10,6 +10,7 @@ pub mod build;
 pub mod convert;
 pub mod exe;
 pub mod fwav;
+pub mod gallery;
 pub mod language;
 pub mod mrg;
 pub mod menu;

@@ -503,6 +503,10 @@ impl Lowering<'_, '_> {
                 let Some(n) = number(arg(0)).filter(|n| (0..0x240).contains(n)) else { return false };
                 self.ops.push(Op::Arith { var: read_flag(n as u16), op: ArithOp::Set, value: Operand::Const(1) });
             }
+            // `cmd_RDED(n)`: global flag n (words 300 up) once the scene read
+            // to its end. shortcut: only 557 (the last lesson, `QA_25`), the
+            // gallery's unlock-all; the others when something reads them
+            "_RDED" if arg(0) == "557" => self.ops.push(Op::Arith { var: super::gallery::FLAG_557, op: ArithOp::Set, value: Operand::Const(1) }),
             "_END_" => self.ops.push(Op::ReturnToTitle),
             "_GOTO" => self.ops.push(Op::Jump(label(script, Some(arg(0))))),
             // The Switch's and the PS4's own lines: this is the Switch.
