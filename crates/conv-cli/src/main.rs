@@ -174,6 +174,23 @@ enum Command {
         #[command(subcommand)]
         command: tools::typemoon::TypemoonCommand,
     },
+    /// Split a built game's 0.txt into the script with text IDs and one
+    /// text table per language (docs/string-tables.md)
+    Strtab {
+        /// The built game's 0.txt (Japanese)
+        script: PathBuf,
+        /// The build's --source-map (IDs by source instruction; needed with --english)
+        #[arg(long)]
+        map: Option<PathBuf>,
+        /// The same game's 0.txt built in English, and its --source-map: its text becomes text.en.txt
+        #[arg(long, num_args = 2, value_names = ["0.txt", "MAP"])]
+        english: Option<Vec<PathBuf>>,
+        /// Labels starting with this begin a scene (IDs are per scene); default: every label
+        #[arg(long, default_value = "")]
+        scene_prefix: String,
+        #[arg(short, long)]
+        output: PathBuf,
+    },
 }
 
 fn main() -> Result<()> {
@@ -196,6 +213,25 @@ fn run(command: Command) -> Result<()> {
         Command::ConvertNss { game, file, scene, chain, movies, no_movies, title, english, original_archives, build } => {
             let run = nitroplus::build::Run { file: file.as_deref(), scene: scene.as_deref(), chain, movies: movies.as_deref(), no_movies, english: english.as_deref(), original_archives };
             build::run(build, &title, &nitroplus::assets::OUTPUT_DIRS, |opts| nitroplus::build::build(&game, &run, opts))
+        }
+        Command::Strtab { script, map, english, scene_prefix, output } => {
+            let read = |p: &PathBuf| std::fs::read_to_string(p);
+            let ja = read(&script)?;
+            let map = map.as_ref().map(read).transpose()?;
+            let en = english.as_ref().map(|e| Ok::<_, std::io::Error>((read(&e[0])?, read(&e[1])?))).transpose()?;
+            let s = conv_cons::strtab::split(&ja, map.as_deref(), en.as_ref().map(|(a, b)| (a.as_str(), b.as_str())), &scene_prefix);
+            std::fs::create_dir_all(&output)?;
+            std::fs::write(output.join("0.txt"), &s.script)?;
+            for (lang, table) in &s.tables {
+                std::fs::write(output.join(format!("text.{lang}.txt")), table)?;
+            }
+            let st = &s.stats;
+            println!("{} scenes, {} text lines, {} choice options, {} window lines in the tables; script {} bytes (was {})",
+                st.scenes, st.text_lines, st.choices, st.window_lines, s.script.len(), ja.len());
+            if st.english_missing > 0 {
+                println!("{} text lines keep their Japanese in text.en.txt (no English line from the same source)", st.english_missing);
+            }
+            Ok(())
         }
         Command::Games { dir, json } => {
             use conv_engines::registry;
