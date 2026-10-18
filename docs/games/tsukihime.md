@@ -764,7 +764,11 @@ python3 -I research/typemoon/switchtrace/tmtrace.py <emu>/logs/ryu.log <scr> <tx
 
 `IDLEA=1` is the original's auto mode: A once the last command has
 stayed a second on a text, the opening's `_TOMW` or a script's end (the
-title then takes A as New Game). `tmtrace.py` turns the log into
+title then takes A as New Game). `IDLEA=0.3` (checked every 0.2 s) is
+the fast run: 1.4 s a page instead of 2.5, the times unchanged (the
+emulator's clock is untouched). A custom refresh rate does not scale
+the game's frames by a fixed factor (400 %: about 1.7x), so its times
+would not compare (`docs/new-game.md`, "Trace speeds"). `tmtrace.py` turns the log into
 `trace_diff.py`'s records: "at" `<script>:<command>` counted as
 `script::parse` counts them (the converter's `--source-map` gives the
 same), "ms" the log's clock, one record for a command run again, a

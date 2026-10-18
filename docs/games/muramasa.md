@@ -523,6 +523,10 @@ Used to check what the engine does (`docs/new-game.md` step 9).
   after `#play_speed_plus = #SYSTEM_play_speed;` in `0_boot.nss`.
 - Film transitions with `ffmpeg -f x11grab -video_size 1024x576 -i
   :N+128,125`; single shots with `import` as above.
+- **Trace speed**: `SPEED=8 GAME=<game> research/nitroplus/tracedll/ntrace.sh
+  ...` plays 0.45 s a page instead of 3.1, `ms` in game time (97 % of
+  steps within 2 frames of a 1x run; a `WaitText` on a voiced page and
+  `CreateTexture` are not scaled: `docs/new-game.md`, "Trace speeds").
 - **Trace DLL** (`docs/new-game.md` step 22):
   `GAME=<game> research/nitroplus/tracedll/ntrace.sh -o orig.jsonl
   --pages 60` plays the game from the start of `ma00_000` with no

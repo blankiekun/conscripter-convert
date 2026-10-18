@@ -23,6 +23,8 @@
  *                   unset: the first link of each page; "none": none
  *   XTRACE_PAGES    exit the game after this many pages (0: never)
  *   XTRACE_NOAUTO   set: leave auto mode alone
+ *   TRACE_SPEED     N: the game runs N times as fast, "ms" in its time
+ *                   (research/tools/trace_speed.h)
  *   XTRACE_COVER    Windows path of a file of hex code addresses, one
  *                   per line, each an instruction start (research/xuse/
  *                   cover.py addrs writes it)
@@ -31,6 +33,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "../../tools/trace_speed.h"
 
 #define OPCODE_TABLE ((void **)0x4fb270)
 #define N_OPS 0x9e
@@ -43,7 +46,6 @@
 #define LINKS_CLEAR 0x49d740 /* eax = 0x51fba0, the link list */
 
 static FILE *out;
-static LARGE_INTEGER t0, freq;
 static void *orig[N_OPS];
 void *xt_jump; /* the handler `stub` jumps to */
 static volatile long frames;
@@ -56,11 +58,7 @@ static unsigned char *last_ip;
 static unsigned char poll_tramp[16];
 static VOID (WINAPI *real_sleep)(DWORD);
 
-static long ms(void) {
-    LARGE_INTEGER t;
-    QueryPerformanceCounter(&t);
-    return (long)((t.QuadPart - t0.QuadPart) * 1000 / freq.QuadPart);
-}
+static long ms(void) { return speed_ms(); } /* game time: trace_speed.h */
 
 static int script_id(void) { return CUR_SCENE ? *(int *)(CUR_SCENE + 0x3c) : -1; }
 static int ins_no(void) {
@@ -299,8 +297,7 @@ static void install(void) {
     const char *p = getenv("XTRACE_OUT");
     out = fopen(p ? p : "C:\\xtrace.jsonl", "w");
     if (!out) return;
-    QueryPerformanceFrequency(&freq);
-    QueryPerformanceCounter(&t0);
+    long speed = speed_install(); /* before the Sleep hook, which then wraps it */
     if ((p = getenv("XTRACE_PAGES"))) max_pages = atol(p);
     const char *ch = getenv("XTRACE_CHOICES");
     if (ch) {
@@ -308,8 +305,8 @@ static void install(void) {
         for (char *s = (char *)ch; *s && n_choices < 256; s++)
             if (*s >= '0' && *s <= '9') choices[n_choices++] = strtol(s, &s, 10), s--;
     }
-    fprintf(out, "{\"t\":\"meta\",\"schema\":1,\"engine\":\"Farthest2015.exe (xtrace)\",\"choices\":\"%s\",\"max_pages\":%ld}\n",
-            ch ? ch : "first", max_pages);
+    fprintf(out, "{\"t\":\"meta\",\"schema\":1,\"engine\":\"Farthest2015.exe (xtrace)\",\"choices\":\"%s\",\"max_pages\":%ld,\"speed\":%ld}\n",
+            ch ? ch : "first", max_pages, speed);
     DWORD old;
     VirtualProtect(OPCODE_TABLE, N_OPS * 4, PAGE_READWRITE, &old);
     for (int i = 0; i < N_OPS; i++)
