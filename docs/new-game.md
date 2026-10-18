@@ -19,20 +19,22 @@ converted, every ending reachable.
 One line per step; the step's section has the how. Read a section when
 you reach it, not the whole file up front
 (`python3 -I research/tools/mdsec.py docs/new-game.md "9. Matching"`).
+"Step 14" to "step 24" elsewhere (game documents, `docs/tools.md`) are the
+items of section 2's list "Mapping the whole exe", not rows of this table.
 
 | Step | Do | Done when |
 |---|---|---|
 | 0 | Ask the user the scope; learn the game as a player; identify the engine; start `docs/games/<id>.md` from the template | Scope, walkthrough source and engine are in the document |
 | 1 | Archive reader and format decoders, `<format> list\|extract` | The whole corpus verifies and decodes; degenerate assets counted |
-| 2 | Decode the scripts; rank opcodes by use; Ghidra export with `names.tsv`; coverage table | Every script parses, every jump target exists |
+| 2 | Decode the scripts; rank opcodes by use; Ghidra export with `names.tsv`; coverage table; map the exe (section 2 list, items 1-17) | Every script parses, every jump target exists; findings table marks each behaviour seen/inferred |
 | 3 | Lower to the IR; flags in `conv_core::alloc`'s free ranges | `--dry-run` writes a `0.txt`; what is left out is a ranked list |
 | 3a | Registry entry, `tests/snapshot.sh` case and baseline (`docs/new-engine.md` 6) | `tests/snapshot.sh` covers the game |
 | 4 | Dry run + `lint` + debug trace after every feature | Trace check clean; every ending reachable |
 | 5 | Text box, name plate, voices, ruby; the longest message fits | Every voiced line plays |
 | 6 | Pictures, sound, transitions with real durations | Sprite references match asset names |
-| 7 | System screens from the IR's screens | Every screen opens, closes by mouse, keyboard and touch |
+| 7 | System screens from the IR's screens; boot warnings and brand logos (`Script::boot`) | Every screen opens, closes by mouse, keyboard and touch; launch to title matches the original's steps, times and skip rules |
 | 8 | Extras from a 100 % save | Locked and unlocked states both right |
-| 9 | Match the original: code first, wine last | Differences measured (`compare -metric`), shots kept in `local/shots/` |
+| 9 | Match the original: the manual first, then code, wine or an emulator last; trace DLL and trace diff (section 2 list, items 22-23; "Trace speeds") | Differences measured (`compare -metric`, `trace_diff.py`), shots kept in `local/shots/` |
 | 10 | Engine additions, engine PR first | Documented in the engine's `COMMANDS.md`; submodule on CONscripter `master` |
 | 11 | Route, progression, unlocks, settings, input, saves across rebuilds | The document says "progression verified: yes, date, how" |
 | 12 | Web build, loose files | Played in a browser; size and file count in the document |
