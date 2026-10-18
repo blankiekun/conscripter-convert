@@ -634,9 +634,115 @@ python3 -I research/tools/nitroplus_save.py write <game>/Muramasa.exe <saves>/00
 The template must stand on a page of a story scene (not at a choice,
 whose `_SELECT` scene has already passed `call_scene $MainGameName`).
 
-## Status: in progress (2026-10-14)
+## Status: in progress (2026-10-18)
 
-### Web crash on the second start (2026-10-17)
+The whole story compiles and every ending is reached in the converted
+control flow (10 route runs passed, 2026-10-14). The system screens
+(title, menu, save/load, backlog, settings, extras, gallery, replay,
+sound room), movies, processes, `Random` and the effects are done; their
+write-ups, the route-run table and the old queue are in "History"
+("Status as it stood before the 2026-10-18 prune"). Dry-run counts
+(2026-10-17): 1,162,127 source calls, 1,131,605 converted fully, 21,928
+with gaps, 8,594 left out on purpose.
+
+Testing notes: other agents stop engines with `pkill -x conscripter`; run
+ours through a symlink with another name (`--engine out/conscripter-mura`).
+The route runs and `--at` starts are in `research/nitroplus/engrun.py`.
+
+Open, by area (each is small; most noticeable first):
+
+- **Engine-drawn screens**
+  - Save/load: the play time is read when the screen opens (the routine
+    read it at the click); S and L no longer close the screens.
+  - Backlog: the knob sits up to 1 px off after a wheel or drag; a press
+    on the sweep jumps the knob; 逆 at the oldest row and 進 at the newest
+    are not buttons (no hover light); Muramasa EN's backlog (`row_width`)
+    still uses the script routine; `SetBacklog`'s 鈴川 in ma01_021 has no
+    voice switch.
+  - Extras: the four modes' screens; the gallery's viewer is still the
+    script's.
+  - Settings: a press on a knob keeps the grab offset (a drag ends 2 px
+    from the routine's); Django's stepped sliders use the script routine;
+    EN's screen fades 300 ms (guess) and its pairs switch at once.
+  - The quick bar sliding while text types (user's choice, 2026-10-15:
+    left; needs the engine to move the bar).
+- **Movies**: sprite movies don't play in CONscripter for Windows (opens
+  an outside player): an engine item for every game, not started. The
+  original under wine draws no movie (no 32-bit GStreamer), so movies
+  and the smoke's strength (`SubRender`; ours draws it black, lighter)
+  can't be compared. The trace checker's `movie` rule should skip movies
+  that start from black.
+- **Exe mapping** (`docs/games/muramasa.findings.tsv`): unknown
+  `SetFrequency` on music (1,486), `CreateSurface`/`SetSurface`,
+  `Position`, `CreateMovie`'s arguments, `Delete`'s 1-2; names carried
+  from Django.exe by hand (`docs/new-game.md` step 21).
+- **Accuracy guesses** a frame of the original could settle: the
+  click-wait flame's frame times; a choice's text 40 px down its plate
+  and red under the pointer; the title glow (`SetBlur(…, 2, …)` is a
+  trail of copies, ours a 3 px blur); looped and paper `Shake`s turning
+  every 100 ms (exe: 1000 ÷ (n × 0.06) ms). Nested cameras: the exe draws
+  only the innermost, ours multiplies (not checked whether a script
+  nests). Camera zooms other than 1000 are unverified. Sepia and
+  KitanoBlue colours of `CreateEffect` are ours; the engine's blur keeps
+  the alpha (the exe's too, unverified). Making every timed effect 4 %
+  shorter (16/16.67) is possible, the lead's call.
+- **Processes**: `EndSong` (#176) was in review; `ma03_024`/`025`/
+  `027vs` `_runsProcess` (23, wait on the script) noted; endless
+  processes with `Random` (`BGMoveLengthProcess`, `ma03_moveAuto*`,
+  `RandomMeimetsuSet*`, `GunFlash`, shakes) stay noted; 108 process notes
+  (`TurboBlur3` 10, `DenziBladeChargeSet` 10, about 45 `*_runsProcess`);
+  `Request(<process>, Stop)` (1,126 notes) is dropped, unchecked whether a
+  looped motion keeps running; `MFlashProcess`'s pause is picked at
+  convert time, not run time; `ComicProcess`: 16 of 18 signs are drawn
+  at their end state, zoom about the centre not `SetVertex`'s point.
+- **`Random`** (771 calls, "Random picked when converting"): picks that
+  reach text (SetKenki's lines in md05_008vs/009), leave a picture at a
+  random place (md04_043, `CP_AziChange`), or give a loop to a picture
+  shown only later.
+- **Effects**: `CreateEffect` Drop (1, mc04_052) and Lens (2); `DrawEffect`
+  waves on a `Plain` cover (10), Ripple (4), Split (7), a wave picked up
+  later restarts straight; `DrawTransition` partial sweep is a plain mask
+  print, one on an effect (rain) is unmasked, 565 calls start from another
+  opacity (noted); `CreateStencil`/`CreateMask`: a moved or zoomed picture
+  under them, a zoom about a vertex, a `Plain` cover under a stencil, a
+  colour mask exact only for alpha blend; 25 `CreateTexture`s from an
+  object or the screen; `Rotate` of other objects about z (31), a turn
+  over time about x or y mirrored at once (10); 38 moves/zooms with a
+  fade or new picture drawn as cross-fades; a window that moves (`絵演窓上`,
+  `窓右`, about 56 `Move`s) has its clip jump to the end place.
+- **Tempo/arguments**: easing of `SetVolume` (9 fades over time keep a
+  straight ramp) and the text window's `windowfade`; a move with a fade
+  folded into its keys is straight; story `CreateText` rotated sideways
+  sits about 17 px lower than the original's (cause unknown);
+  `MoveCamera`'s arguments in a process (4); `LockVideo`, `WaitText`,
+  `SetFrequency` (but 1000), `WaitAction`'s time limit, other waits:
+  dropped, meaning to check in the exe; `Conquest` returns 0.
+- **Text and small**: `<VALUE name=$mc02_時間>` (airship clock in
+  `mc02_031time` prints a gap), ASCII-art pages (`PushText` + `NoLog`
+  shown at once, not in the backlog), `<voice mode="off">` (3);
+  `Request(…, NoIcon)` (4) dropped without a note; `system.ini`'s
+  `icon_auto` (15 frames) and kinsoku (`bad_end`) unused; a 4-argument
+  `Fade` probably doesn't wait in the exe (49 calls wait in ours; check
+  under wine first); `<BR>` (16 uses) isn't in the exe's tag list;
+  25 sounds and 2 transition masks missing from the archives, 2
+  statements that don't parse, 2 voices outside a text block, 3 BGMs
+  without loop played looping.
+- **Optional**: 18 files whose `if`/`else if` chain has no `else`.
+- **Engine**: CONscripter segfaults on `end` after a `dwave` voice with
+  Ctrl held (seen once; not looked into).
+- **Queue** (2026-10-16, probably stale; check against `gh pr list`):
+  `consset` (#9), `chvolfade` (#10), `sprot` as `spzoom`'s angle (#16),
+  `chfreq` for `SetFrequency` (#22), menu unrolls as motions (#34) wait
+  on engine PRs; `spgrab` could stand for `CreateTexture`'s
+  render-to-texture (unused).
+
+## History
+
+### Status as it stood before the 2026-10-18 prune
+
+Moved whole from "Status"; its subsections are one level down.
+
+#### Web crash on the second start (2026-10-17)
 
 In the web build (v0.29.0) Muramasa trapped with "memory access out of
 bounds" (Firefox: "index out of bounds") on every start after the
@@ -645,7 +751,7 @@ whole of the web build's stack. Fixed for every game in CONscripter
 #148 (the submodule points at it); repro: the site's `cons/player.html`
 in headless Chromium with a persistent profile, opened twice.
 
-### Trace diff (2026-10-17)
+#### Trace diff (2026-10-17)
 
 The original's trace (`ntrace.sh`, wine section) against our
 `--auto-play 60 --real-time` run, first 50 pages of `ma00_000`: every
@@ -677,7 +783,7 @@ original's command ends when its next record starts, ours when its last
 `ev` is written (`trace_diff.py`), so the 4 to 161 ms after a page's box
 fade were the next command's time against the box fade's: not findings.
 
-### Exe mapping redone (2026-10-17)
+#### Exe mapping redone (2026-10-17)
 
 `docs/games/muramasa.findings.tsv`: one row per built-in and branch the
 dry run sees, marked seen/inferred/unknown with the exe address
@@ -708,7 +814,7 @@ FUN_004403a0 does the same, so 続・殺戮のジャンゴ's `中窓` busts too)
 rounded in ours (≤ 1 ms); `DrawTransition`'s table is stored truncated
 (fldcw 0xc00 at 00457dee), as the engine's `effectsoft` does.
 
-### Accuracy (2026-10-17)
+#### Accuracy (2026-10-17)
 
 Every hand-typed value of the Nitroplus converter that stands for the
 original (`convert/muramasa/`, the shared NSS compiler) carries a
@@ -735,7 +841,7 @@ centre, 512, 288, as measured in 続・殺戮のジャンゴ). Where the exe
 draws only the innermost camera of nested ones, ours multiplies them;
 not checked whether a script nests them.
 
-### Save and load drawn by the engine (2026-10-17)
+#### Save and load drawn by the engine (2026-10-17)
 
 記録/読込 are CONscripter's `screen "save"`/`"load"`
 (`conv-cons/src/save_grid_screen.rs`, from `SaveGrid` with
@@ -758,7 +864,7 @@ and 3 px of 削除. Open:
 - Muramasa EN's save screen is the engine's too (popup, locks, tabs,
   quick page: docs/games/muramasa-en.md).
 
-### Backlog drawn by the engine (2026-10-17)
+#### Backlog drawn by the engine (2026-10-17)
 
 ログ表示 is CONscripter's `screen "backlog"` (`conv-cons/src/line_log_screen.rs`,
 from `LineLog` with `engine_screen`; engine #88): `*conv_backlog` lays
@@ -787,7 +893,7 @@ oldest row. Open:
   `SetBacklog`'s speaker 鈴川 in ma01_021, voiced in no earlier file, has
   no switch there (the other 52 voiced `SetBacklog` lines have one).
 
-### Extras' menu drawn by the engine (2026-10-17)
+#### Extras' menu drawn by the engine (2026-10-17)
 
 特別付加目録's menu is CONscripter's `screen "extras"`
 (`conv-cons/src/picture_extras.rs`, `PictureExtras` with `engine_screen`;
@@ -802,7 +908,7 @@ to the menu, back to the title: 0 pixels; frames mid cross-fade show no
 fade to black; again after the rebase onto engine master 1f90e0f: 0 pixels
 in the six frames, mid cross-fades not black. Open: the four modes' screens.
 
-### CG gallery drawn by the engine (2026-10-17)
+#### CG gallery drawn by the engine (2026-10-17)
 
 画像映写機's pages are CONscripter's `screen "gallery"`
 (`conv-cons/src/gallery_screen.rs`, `PictureGallery` with
@@ -818,7 +924,7 @@ page, each category, the viewer, back, the menu: 0 pixels (1 px on an
 arrow). Again after the rebase onto engine master e585b68 (Japanese and
 English builds): the same, the cross-fade into it not black. Open: the viewer is still the script's.
 
-### Scene replay's list drawn by the engine (2026-10-17)
+#### Scene replay's list drawn by the engine (2026-10-17)
 
 回想映写機's list is CONscripter's `screen "replay"`
 (`conv-cons/src/picture_replay.rs`, `PictureReplay` with
@@ -833,7 +939,7 @@ hover, the frozen list 0.4 and 0.8 s after the click, the scene at 3 and
 rebase onto engine master 4f1e1bb (Japanese and English builds): open,
 hover, the frozen list, the scene at 3 and 6 s: 0 pixels.
 
-### Sound room drawn by the engine (2026-10-17)
+#### Sound room drawn by the engine (2026-10-17)
 
 電磁蓄音機/動画映写機 is CONscripter's `screen "sound"`
 (`conv-cons/src/sound_screen.rs`, `SoundRoom` with `engine_screen`;
@@ -849,7 +955,7 @@ track played and stopped, hovers, a movie and back, the menu: 0 pixels. Again
 after the rebase onto engine master 4f1e1bb, this build and the English
 one: 0 pixels but for the movie's own frame (capture timing).
 
-### Settings drawn by the engine (2026-10-17)
+#### Settings drawn by the engine (2026-10-17)
 
 コンフィグ is CONscripter's `screen "settings"` (`conv-cons/src/settings_screen.rs`,
 from `PictureSettings` with `engine_screen`): the six sliders are picture
@@ -888,7 +994,7 @@ began (its bug), the screen lights it to the knob.
 Open: EN's screen fades 300 ms (guess: the Japanese value, not read from
 `sys_config.nut` nor seen in the original), its pairs switch at once.
 
-### Queue (2026-10-16)
+#### Queue (2026-10-16)
 
 - Merged: `CreateText`'s box height (#52). Open, each waiting on its
   engine PR: `consset` (#9, engine #5 merged: #9 moves the pointer
@@ -1285,7 +1391,6 @@ out on purpose.
 - Engine: CONscripter segfaults on `end` after a `dwave` voice with Ctrl
   held (seen once in a small test script; not looked into).
 
-## History
 
 ### Boot logos (2026-10-18)
 
