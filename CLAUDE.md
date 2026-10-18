@@ -113,21 +113,9 @@ shared code. A team lead hands out the items and reviews the PRs.
   `pop` can apply another agent's stash into your tree. To set work
   aside, commit it on a scratch branch or save a patch
   (`git diff > <scratchpad>/x.patch`).
-- **Hot spots**: files every game's work changes. Before editing one,
-  check what main changed in it (`git log -p HEAD..origin/main -- <file>`).
-  Keep each edit small and in its own place:
-
-  | File | How to edit it |
-  |---|---|
-  | `crates/conv-core/src/ir/` (`mod.rs`: the ops and `Script`; `screens.rs`: the shared screens; `picture.rs`: the picture-drawn ones) | Add new types and `Op` variants at the end of their block, with a doc comment; don't reorder or reformat existing ones |
-  | `crates/conv-cons/src/lib.rs`, `ops.rs` | Put a new feature's emitter in its own module (`puzzle.rs`, `replay.rs`) and add one `match` arm in `ops.rs` (`Emitter::op`). Sprite ranges are the constants at the top of `lib.rs`; a new variable range goes into `conv-core/src/alloc.rs` first (a test checks every `%N` conv-cons names is there, and the build refuses a game variable inside one) |
-  | `crates/conv-cons/src/menu/` (one file per screen; the shared constants in `mod.rs`) | Shared by every game's menus: change it only through what a game passes in its IR (`SaveMenu`, `ButtonBar`, …), not with game-specific branches |
-  | `crates/conv-cons/src/switches.rs` | A new settings switch is one entry in `def` (its index and what applying it does), with the next free index; nothing in `menu/` |
-  | `crates/conv-cli/src/main.rs` | One subcommand per engine; keep the engine's own code in `crates/conv-engines/src/<engine>/` |
-  | `engine` (submodule pointer) | Merge the engine PR first, then point the submodule at a commit on CONscripter `master` that contains every engine commit `origin/main` points at (rebase onto `origin/main` first, so the pointer only moves forward) |
-  | `README.md`, `docs/new-game.md`, `docs/lessons.md`, `docs/design.md`, this file | Edit only your game's rows and paragraphs; general lessons go in `docs/lessons.md` |
-  | `Cargo.toml`, `Cargo.lock` | Add dependencies in their own commit; on a conflict, take both sides and let `cargo build` rewrite the lock file |
-
+- **Hot spots**: files every game's work changes (IR, conv-cons, menus,
+  switches, the CLI, the engine pointer, shared docs, Cargo files). Before
+  editing a shared file, read `docs/hot-spots.md`.
 - **Shared refactors go in first**: when you change the shape of
   shared code (a helper's signature, a function split or moved, an IR
   type renamed, numbers renumbered), open that change as its own PR and
@@ -145,39 +133,20 @@ shared code. A team lead hands out the items and reviews the PRs.
 | `crates/conv-core/src/ir/` | Engine-neutral IR; `alloc.rs`: the variables conv-cons keeps |
 | `crates/conv-engines/src/<engine>/` | Source readers (`xuse/`, `nitroplus/`); a game's own rules in a module there (`nitroplus/convert/muramasa.rs`) |
 | `crates/conv-cons/` | IR → `0.txt` (`lib.rs`), menus, extras, NSA writer |
-| `crates/conv-cli/` | The `conscripter-convert` command |
 | `engine/` | CONscripter (C++; our code in `src/cons/ONScripter_cons.cpp`, the debug trace in `ONScripter_trace.cpp`) |
 | `research/<engine>/` | Throwaway Python; `local/` is git-ignored (disassembly, wine scripts, shots) |
-| `docs/new-game.md` | Playbook for converting a new game |
-| `docs/games/<game>.md` | Per-game record: formats, opcodes, progression variables, status |
 
 ## Build and test
 
 - `cargo test`, `cargo clippy --all-targets`; `cargo build --release`.
-- `tests/snapshot.sh`: dry-runs every game present on the machine (links
-  in `$CONS_GAMES`, see the script) and says which games' `0.txt`
-  changed. Run it after any change to shared code; a change to another
-  game's script must be deliberate and said in the commit
-  (`--update` then rewrites `tests/snapshots/`). `--diff origin/main`
-  builds that ref in its own worktree and shows each game's 0.txt
-  changes; `--map <rules>` checks a change is only a rename (below).
-  On a conflict in `tests/snapshots/` never take one side: rebase, rerun
-  `--update`, and explain each changed game's 0.txt in the PR body.
-- `python3 -I tests/extras_smoke.py <full build>`: opens the extras'
-  menu headless with every lock open and checks each mode is a button
-  and opens (the trace); run it on every full build handed to the user
-  (the snapshot sees only 0.txt, route runs skip the screens).
+- `tests/snapshot.sh`: dry-runs every game present and says which games'
+  `0.txt` changed; run it after any change to shared code (`--update`
+  rewrites `tests/snapshots/`). More: `docs/tools.md` ("Build and test
+  details").
+- Engine build and headless runs: `docs/tools.md` ("Build and test details").
 - Full build: `target/release/conscripter-convert convert-game <install
   dir> -o out/<game>-cons --font <a Japanese TTF, e.g. ipag.ttf> --title
   "<title>"`. Each game's exact command is in its document.
-- Engine: `research/tools/build-engine.sh [engine dir] [build dir]`
-  (cmake + make; `SDL2_MIXER_PREFIX=<prefix>` when the system has no
-  SDL2_mixer) → `engine/build/conscripter`.
-  Web: `cd engine/script && EMSDK_HOME=<emsdk dir> bash ./cross_web.sh`.
-- Headless: `SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy timeout -k 5 N
-  engine/build/conscripter -r .` with the game folder as the working
-  directory (otherwise `default.ttf` isn't found). Screenshot with
-  `print 1:getscreenshot 800,600:savescreenshot "x.bmp"`.
 - Scratch runs, A/B frames, saves at chosen scenes, the debug trace,
   frames mid-effect, test scripts, reading a variable headless:
   `docs/tools.md` (read the bullet you need).
@@ -197,34 +166,14 @@ on each later turn; several agents run at once.
   to a file and query them (`cons_trace_check.py`, `grep`, `jq`).
   Show the checker few findings per kind (`--max 5`) and, after a fix,
   only what changed (`--diff before.jsonl after.jsonl`).
-- **Numbers before pictures.** Compare frames with
-  `compare -metric AE -fuzz 0 a.png b.png null:` (pixel count) or
-  `-metric RMSE`, or crop to the region in question; view an image only
-  when the numbers can't tell what is wrong. Where the expected pixels
-  are known exactly (a source picture against the drawn sprite, a colour
-  from the exe) use no fuzz or read the pixel values: 2 % hid sprites
-  drawn 1 % dark. Keep a small fuzz only for frames that legitimately
-  differ (video, scaled pictures) and say so in the report. Screenshots are the biggest
-  cost in past sessions: never Read a full-size PNG, look through
-  `research/tools/view.py a.png [b.png] [--crop WxH+X+Y] [--scale 50]
-  [-o out.png]`, which crops, halves and puts the shots side by side
-  in one small image (original and ours in one read). A hook
-  (`.claude/hooks/image_read.py`) refuses the first Read of an image
-  over 250,000 pixels; if `view.py` really can't do the job, say why
-  and Read it again.
+- **Numbers before pictures.** Compare frames by numbers; never Read a
+  full-size PNG (use `research/tools/view.py`). Details: `docs/tools.md`
+  ("Numbers before pictures").
 - **Logic checks use the dry run** (`--dry-run`, script only, seconds);
   the full build re-renders every asset.
 - **Code before wine**: the decompile and the dry run answer most
-  questions (Rules, "Wine is the last resort"). When you do film the
-  original, film it once per screen and keep the shots in
-  `research/<engine>/local/shots/` (git-ignored) with a name that says
-  what they show; reuse them before starting wine again. Search
-  `research/tools/shots.py find <words>` first, `shots.py add` every
-  new shot; a quick check from a generated save may run at once (Rules),
-  anything longer: park a doubt only the original can settle in
-  `research/<engine>/local/film-list.md` (docs/new-game.md, "Film
-  list"). A hook refuses wine/Xvfb/Vita3K/Ryujinx run outside
-  `research/tools/headless-run.sh`.
+  questions (Rules, "Wine is the last resort"). Shots, `shots.py` and the
+  film list: `docs/tools.md` ("Code before wine").
 - **Batch** independent commands into one call; keep replies short, no
   progress narration between steps.
 - **Stop at the end of the item asked for** (commit, push, update the
@@ -232,19 +181,7 @@ on each later turn; several agents run at once.
   memory carry the state into a fresh session.
 - No `/loop`, scheduled wakeups or polling unless the user asks; wait
   for background runs to notify.
-- **Delegate only what a few lines of prompt can fully describe**, to
-  the cheapest type in `.claude/agents/`: `checker` (haiku) for reruns,
-  checks, greps, a clean rebase + push + `gh pr checks --watch`;
-  `worker` (sonnet) for mechanical edits, doc updates, build-test-commit
-  loops, route runs, releases; `builder` (opus, medium effort) for
-  features and engine additions with a clear spec (a screen, a setting,
-  wiring existing commands); `engineer` (opus, high) only for reverse
-  engineering, decompiles, hard debugging and design calls. The team
-  lead picks the type for every agent it starts (the user, 2026-10-17).
-- **Do small jobs yourself**: a fresh agent costs about 45k tokens
-  before it does anything. A doc-only rebase, a doc edit of 10 lines or
-  less, or anything needing what you already know (the session's
-  findings, files read, a chain of reasoning) is cheaper done in place.
+- **Delegation** (team lead only): `docs/lead.md`.
 - **Reports at most 10 lines**; the detail goes in the PR body. Every
   line of a report stays in the lead's context.
 

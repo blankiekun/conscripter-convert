@@ -118,3 +118,59 @@ biggest text cost: `code.py <file.rs|.cpp>` lists its items with line
 numbers, `code.py <file> <name> [lines]` prints one fn, type, impl or
 C++ `Class::name` with its doc comments; use it instead of paging
 through a file with `sed`.
+
+## Numbers before pictures
+
+- **Numbers before pictures.** Compare frames with
+  `compare -metric AE -fuzz 0 a.png b.png null:` (pixel count) or
+  `-metric RMSE`, or crop to the region in question; view an image only
+  when the numbers can't tell what is wrong. Where the expected pixels
+  are known exactly (a source picture against the drawn sprite, a colour
+  from the exe) use no fuzz or read the pixel values: 2 % hid sprites
+  drawn 1 % dark. Keep a small fuzz only for frames that legitimately
+  differ (video, scaled pictures) and say so in the report. Screenshots are the biggest
+  cost in past sessions: never Read a full-size PNG, look through
+  `research/tools/view.py a.png [b.png] [--crop WxH+X+Y] [--scale 50]
+  [-o out.png]`, which crops, halves and puts the shots side by side
+  in one small image (original and ours in one read). A hook
+  (`.claude/hooks/image_read.py`) refuses the first Read of an image
+  over 250,000 pixels; if `view.py` really can't do the job, say why
+  and Read it again.
+
+## Code before wine
+
+- **Code before wine**: the decompile and the dry run answer most
+  questions (Rules, "Wine is the last resort"). When you do film the
+  original, film it once per screen and keep the shots in
+  `research/<engine>/local/shots/` (git-ignored) with a name that says
+  what they show; reuse them before starting wine again. Search
+  `research/tools/shots.py find <words>` first, `shots.py add` every
+  new shot; a quick check from a generated save may run at once (Rules),
+  anything longer: park a doubt only the original can settle in
+  `research/<engine>/local/film-list.md` (docs/new-game.md, "Film
+  list"). A hook refuses wine/Xvfb/Vita3K/Ryujinx run outside
+  `research/tools/headless-run.sh`.
+
+## Build and test details
+
+- `tests/snapshot.sh`: dry-runs every game present on the machine (links
+  in `$CONS_GAMES`, see the script) and says which games' `0.txt`
+  changed. Run it after any change to shared code; a change to another
+  game's script must be deliberate and said in the commit
+  (`--update` then rewrites `tests/snapshots/`). `--diff origin/main`
+  builds that ref in its own worktree and shows each game's 0.txt
+  changes; `--map <rules>` checks a change is only a rename (below).
+  On a conflict in `tests/snapshots/` never take one side: rebase, rerun
+  `--update`, and explain each changed game's 0.txt in the PR body.
+- `python3 -I tests/extras_smoke.py <full build>`: opens the extras'
+  menu headless with every lock open and checks each mode is a button
+  and opens (the trace); run it on every full build handed to the user
+  (the snapshot sees only 0.txt, route runs skip the screens).
+- Engine: `research/tools/build-engine.sh [engine dir] [build dir]`
+  (cmake + make; `SDL2_MIXER_PREFIX=<prefix>` when the system has no
+  SDL2_mixer) → `engine/build/conscripter`.
+  Web: `cd engine/script && EMSDK_HOME=<emsdk dir> bash ./cross_web.sh`.
+- Headless: `SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy timeout -k 5 N
+  engine/build/conscripter -r .` with the game folder as the working
+  directory (otherwise `default.ttf` isn't found). Screenshot with
+  `print 1:getscreenshot 800,600:savescreenshot "x.bmp"`.
