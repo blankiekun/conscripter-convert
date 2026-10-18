@@ -1,11 +1,10 @@
 {
 "game": "muramasa-en",
 "engine": "nitroplus",
-"commit": "2de13403",
+"commit": "fe873506",
 "commit_date": "2026-10-17",
-"totals": {"calls": 1201854, "full": 1186862, "gaps": 6398, "left_out": 8594, "weighted": 1192853.5},
+"totals": {"calls": 1201854, "full": 1188345, "gaps": 4915, "left_out": 8594, "weighted": 1192853.5},
 "kinds": {
-"SetFrequency": {"calls": 8778, "gaps": 1523, "reasons": [["SetFrequency on music", 1486], ["SetFrequency argument 3 ignored", 37]], "weighted": 8768.8},
 "Shake": {"calls": 1486, "gaps": 1486, "reasons": [["Shake argument 6 ignored", 1486], ["Shake argument 7 ignored", 1486], ["move or zoom over time with a fade or a new picture drawn as a cross-fade", 2]], "weighted": 1155.8},
 "Request": {"calls": 239987, "gaps": 1306, "reasons": [["Request stop", 1068], ["Request overlayrender", 111], ["Request compulsorysuspend", 18], ["Request pushtext", 14], ["Request entrustsuspend", 12], ["28 more", 83]], "weighted": 239987.0},
 "DrawTransition": {"calls": 2650, "gaps": 800, "reasons": [["DrawTransition from another opacity than the picture's", 565], ["DrawTransition partial: ends masked in the exe", 374], ["DrawTransition mask missing: cg/data/slide_01_02_2.png", 2], ["DrawTransition mask missing: $Transition", 1], ["DrawTransition mask missing: cg/data/7.png", 1], ["1 more", 1]], "weighted": 2650.0},
@@ -15,6 +14,7 @@
 "SetSurface": {"calls": 58, "gaps": 58, "reasons": [["built-in SetSurface", 58]], "weighted": 58.0},
 "CreateSurface": {"calls": 52, "gaps": 52, "reasons": [["built-in CreateSurface", 52]], "weighted": 52.0},
 "Rotate": {"calls": 16922, "gaps": 44, "reasons": [["Rotate about z", 31], ["Rotate over time turning a picture over: mirrored at once", 10], ["timed action that waits only part of its time", 3]], "weighted": 16922.0},
+"SetFrequency": {"calls": 8778, "gaps": 40, "reasons": [["SetFrequency argument 3 ignored", 37], ["SetFrequency on music", 3]], "weighted": 8768.8},
 "CreateProcess": {"calls": 5582, "gaps": 35, "reasons": [["CreateProcess TurboBlur3", 10], ["CreateProcess KodouSET", 3], ["CreateProcess Window_Delete_Process", 3], ["CreateProcess FrameShake_RanProcess", 2], ["CreateProcess ActionCameraProcess", 1], ["16 more", 16]], "weighted": 5582.0},
 "WaitAction": {"calls": 5437, "gaps": 29, "reasons": [["WaitAction argument 1 ignored", 28], ["move or zoom over time with a fade or a new picture drawn as a cross-fade", 1]], "weighted": 5423.0},
 "Fade": {"calls": 302628, "gaps": 27, "reasons": [["timed action that waits only part of its time", 16], ["move or zoom over time with a fade or a new picture drawn as a cross-fade", 10], ["Fade argument 5 ignored", 1]], "weighted": 302627.8},
