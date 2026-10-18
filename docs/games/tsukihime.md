@@ -806,7 +806,7 @@ python3 -I research/tools/trace_diff.py orig.jsonl ours.jsonl --map map.tsv --ms
 | Scripts | 🔶 read: every command of both languages splits (one malformed in the original) and its text and voices join; the top commands' arguments read from the exe, the rest not yet |
 | Media folder (`typemoon media`) | ✅ `allpac`'s pictures at full size (PNG, or WebP with the shared `--webp` flags), the movies as they are, the sound (WAV wave sounds, or Opus/Vorbis with the shared `--audio-*` flags), loops kept in every mode |
 | Script conversion (`typemoon convert`) | 🔶 the flow (labels, `_JUMP`, `_IF__`, flags), text (pages, ruby, voices; the fan patch's styled letters, private-use U+E000–U+E2FE drawn by its own `ja/TT_TsukuMin-D.ttf`, as ASCII: italic and serif italic as italic (`!i1`), mirrored and upside-down plain (mirrored lines, stored right to left, put back in reading order), U+E200 as `^-35`; its accents (é ï ç â à ê, 46 uses) and em dashes kept, as the `0.txt` is UTF-8; a `^` break in a choice's option as a space), pictures (`_STCH`/`_STCC`/`_FADS`: record size and place, fades and rule wipes), sound effects and music; plays from the start through `00_00` into the first arc headless. Layers drawn in priority order (`_STCP`, `_STCH` argument 6), changed keeping their settings (`_SCH2`) or copying another layer's (argument 18), zoomed (`_STZ4`), faded (`_STGS`) and moved (`_STMA`, the exe's motions, a −32766 field eased once across its key as the exe eases it (the keys between cut into straight steps of its values where one curve a key would miss it), turned by its turn keys, held where a key's mode 2 says, only the fields its mask drives, each key eased as the exe's (`spcurve` tables of its Penner set), looping where the exe loops until `_STMA(n, 0)` (where it is), `_STCH` or another motion stops it, going on with its clock when its layer moves to another IR layer; curves, priority and expression keys not followed), children placed in their parent layers, orbiting with their turn and following their motions (`_STCH` argument 11), clipped to their panels with their soft edges (`_STCH` arguments 12–17, CONscripter's `spclip` feather), turned (`_STRT`), drawn with their shader as far as CONscripter's blends and filters go (`_STBR`) and drawn with their `_STEC` effect (levels, greyscale and colour layers; effect 1 a colour fill, CONscripter's `spfilter` 9 and 10). Choices (`_SELR`, `_SELD`, `_GOTS`; options under a flag offered by it, greyed ones shown greyed and not selectable (`seldisable`); the chapter-jump menus), `_GOTO` and the Switch's own branches (`_IFNX`/`_IFP4`). The text window hidden and faded (`_CLO2`, `_CLO3`/`_CLO4`/`_CLO5` with CONscripter's `windowfade`, the script going on; the next text fades it back in). Not yet: the other layer commands, screens |
-| Screens, extras | 🔶 the title; the system menu's Save and Load tabs (see History, 2026-10-17), opened in game by a right click at a text wait (on its Save tab); Config (for now the language switch), FlowChart, the backlog not yet |
+| Screens, extras | 🔶 the boot logo movie and caution screen (History, 2026-10-18); the title; the system menu's Save and Load tabs (see History, 2026-10-17), opened in game by a right click at a text wait (on its Save tab); Config (for now the language switch), FlowChart, the backlog not yet |
 | The original under an emulator | ✅ boots to the title under Ryubing headless on Xvfb, 60 fps; ✅ the trace hook, diffed against ours over `00_00`'s first 297 pages (see "Testing" and "Trace diff" below) |
 | Languages (`--english`) | 🔶 one `0.txt` with both copies (below); the switch is the system menu's **Config** tab for now (in game; at rest on the title), until the settings tab with its 日本語/English option is converted |
 
@@ -965,6 +965,26 @@ steps 6–17: 67 seen, 16 inferred, 6 unknown). Open there, by size:
 
 ## History
 
+- 2026-10-18: **the boot logos** (`typemoon/boot.rs`, the shared
+  `Script::boot` steps), from the exe's `FUN_001b5650` (one state a
+  frame) and its step table at 0x4C98FC (0x18 a step: picture, hold
+  frames, frames before a press skips, …, the colour behind): 15 frames
+  of black; the TYPE-MOON logo movie `TM_CI` (movie table entry 0x26,
+  6 s, white at both ends) on white, a press ending it once 120 frames
+  (2 s) have played; then the caution screen (`parts.mrg` entry 1,
+  `caution2`, loaded by `FUN_001b4a20(1, 0x47, 0x1B)`) faded in from the
+  white still behind it at +0.025 a frame (41 frames, 683 ms), held 480
+  frames (8 s) or until a press (any time), faded out to black at the
+  same rate; then the title. Only once scene-read flag 485 is set
+  (`_RDST(485)` at the start of `00_01`): with no such save, the first
+  launch, the exe skips them (state 1 → 0x10, `PTR_DAT_00be0e98` starts
+  at 1). The fan patch has its own `TM_CI` and caution picture
+  (`movie/en/`, `sys/boot/en/`), shown while the language (%1800) is
+  English. Left out: state 0xD (`parts.mrg` entry 0, `logo_fix`, held
+  8 s), reached only with `DAT_01a4df08` set, a BSS word nothing writes;
+  the movie's volume setting (the settings' +0x30); the title's "PRESS
+  ANY BUTTON" step (title state 0, needs the title IR).
+
 - 2026-10-17: a looping motion whose layer goes to another IR layer at a
   `_FADS`, or whose IR layers change, goes on where it was (CONscripter's
   `spmotionclock`, 2,305 in the Japanese build); it started again from
@@ -1099,8 +1119,8 @@ steps 6–17: 67 seen, 16 inferred, 6 unknown). Open there, by size:
   frame). Ours: the menu strip's cells cut 312 × 88 from (24, 22) so
   the widget's hit box (table 0x75CBD8) centres on each label; New Game
   and Load at rest, chosen and lit (the strip's three columns) as normal,
-  hover and pressed. Left out: the boot logo and caution screens, the
-  "PRESS ANY BUTTON" step, the logo's particles, its three bands and
+  hover and pressed. Left out: the boot logo and caution screens (in
+  since 2026-10-18, below), the "PRESS ANY BUTTON" step, the logo's particles, its three bands and
   the menu's rows fading in one after another, and the selection line
   (`titlecursor`). Movies are no longer packed into `arc.nsa`
   (CONscripter plays them from loose files only). The registry and GUI

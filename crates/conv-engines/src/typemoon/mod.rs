@@ -5,6 +5,7 @@
 
 pub mod bfsar;
 pub mod bntx;
+pub mod boot;
 pub mod build;
 pub mod convert;
 pub mod exe;
