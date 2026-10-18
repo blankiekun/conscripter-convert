@@ -552,6 +552,22 @@ rather than by browsing:
     original trace at `SPEED=8`, against 20 h at 1x. Skip mode (the
     original's own, text and order only) wasn't needed.
 
+    **Full-route reference trace** (2026-10-18): one canonical route of
+    the original, traced whole, as the reference our later builds are
+    diffed against. Pick the route from the game's route map (the one
+    with the fewest forced choices, e.g. every first option where that
+    reaches an ending); force the original's choices by its script, a
+    save or the key driver (a choice wait the trace hook logs: press
+    to the wanted option), never by hand; auto mode or the trace's own
+    idle presses, shots off (or one every 10 minutes to see a stall);
+    stop after 10 minutes without a new page and resume from a save.
+    Ours: the same choices (`--choose '*label:line=N'`, or `--taken`
+    with `avoid` lines), `--trace --auto-play 0` (with `--real-time`
+    only when its times are wanted: as long as the original's run).
+    Keep the traces gzipped in `out/<game>-reftrace/` (never committed);
+    in the game document: how far the route got, the commands, and the
+    top `trace_diff.py` kinds as Status items.
+
     **Picture diff** (2026-10-18): the same pages' frames, as numbers.
     The original's: `ntrace.sh --shots <dir> [--shot-delay MS]` saves
     the game window as lossless WebP `MS` of game time (default 1000)

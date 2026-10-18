@@ -62,6 +62,17 @@ def main():
     at = next(i for i, line in enumerate(src) if line.strip() == "*conv_title")
     end = next(i for i in range(at, len(src)) if src[i].startswith("btnwait"))
     title_nos = [int(m.group(1)) for line in src[at:end] if (m := re.match(r"spbtn \d+,(\d+)", line))]
+    # The story menu: two button screens (*conv_bscreenN, the second once an
+    # after-story opens), keyed by their btnwait line, with their button count.
+    menus, lab, k = [], None, 0
+    for i in range(next(i for i, line in enumerate(src) if line.strip() == "*mg_story_menu"), len(src)):
+        if src[i].startswith("*conv_bscreen"):
+            lab, k = src[i].strip(), 0
+        k += src[i].startswith("spbtn ")
+        if lab and src[i].startswith("btnwait"):
+            menus.append((f"{lab}:{i + 1}", k)); lab = None
+        if len(menus) == 2:
+            break
     only = {int(n) for n in args.only.split(",")} if args.only else None
     saves = os.path.join(out, "saves")
     runs = [(name, path, ending, 1) for name, path, ending in ROUTES] + [(name, "", ending, option) for name, option, ending in AFTER]
@@ -70,8 +81,7 @@ def main():
             continue
         want = dict(p.split(":") for p in path.split(",") if p)
         lines = [f"{title}\t{o}\tavoid" for o in [0, *title_nos] if o != start_no]
-        menu, k = selects["STORY_MENU"]
-        lines += [f"{menu}\t{o}\tavoid" for o in range(1, k + 1) if o != story]
+        lines += [f"{menu}\t{o}\tavoid" for menu, k in menus for o in range(k + 1) if o != story]
         for scene, (at, k) in selects.items():
             if scene != "STORY_MENU":
                 pick = int(want.get(scene, 1))
