@@ -25,6 +25,9 @@ page, between it and the page before:
   is one of --merge-into's ops (those that commit staged changes, e.g.
   Tsukihime's _FADS): our ops for it sit under that command's mark
   (counted, not a finding). Without the option, none;
+- quiet: a missing one our 0.txt has lines from (the map): ours ran
+  them, and they changed nothing the trace records (a print with nothing
+  new, a wait). Counted, not a finding;
 - extra: an instruction ours ran a command from that the original
   didn't run there;
 - time: the time from one command both ran to the next one off by more
@@ -151,8 +154,9 @@ def pair(orig, ours, look=5):
 REAL_TIME_OPS = ('WaitText', 'CreateSound', 'CreateSE', 'CreateBGM', 'CreateTexture', 'CreateMovie', 'LoadImage')
 
 
-def compare(orig, ours, fps, unit=None, merge_into=(), speed=1):
-    """unit: ms per step of the original's clock (default: a frame)."""
+def compare(orig, ours, fps, unit=None, merge_into=(), speed=1, mapped=()):
+    """unit: ms per step of the original's clock (default: a frame);
+    mapped: the instructions our 0.txt has lines from (the map's keys)."""
     frame = 1000.0 / fps
     unit = unit or frame
     pairs = pair(orig, ours)
@@ -174,6 +178,8 @@ def compare(orig, ours, fps, unit=None, merge_into=(), speed=1):
                 nxt = next((y for y in keys[i + 1:] if y in p['ends']), None)
                 if nxt and o['ops'][nxt] in merge_into:  # ours emits its ops under the next command's mark
                     findings.append((o['pg'], 'merged', f"{where}: {k} (op {op}) credited to {nxt}"))
+                elif k in mapped:  # ours ran commands from it that changed nothing the trace records
+                    findings.append((o['pg'], 'quiet', f"{where}: {k} (op {op}) changed nothing in ours"))
                 else:
                     findings.append((o['pg'], 'missing', f"{where}: {k} (op {op}) gave none of ours"))
         for k in p['ends']:
@@ -223,6 +229,8 @@ def self_test():
     orig[0]['ops']['4:9'] = '_FADS'
     got = sorted(k for _, k, _ in compare(orig, ours, 60.0, 1.0, {'_FADS'}))
     assert got == ['merged', 'page'], got
+    # a missing command our 0.txt has lines from is quiet
+    assert sorted(k for _, k, _ in compare(orig, ours, 60.0, 1.0, mapped={'4:8'})) == ['page', 'quiet']
     # a continued page: the original's text is its own lines
     ours[0].update(text='za', own='a')
     assert 'text' not in [k for _, k, _ in compare(orig, ours, 60.0, 1.0)]
@@ -258,11 +266,11 @@ def main():
     m = read_map(a.map)
     orig = orig_side(a.orig, a.pages, 'ms' if a.ms else 'f', a.thread)
     speed = a.orig_speed or next((r.get('speed', 1) for r in records(a.orig) if r['t'] == 'meta'), 1)
-    findings = compare(orig, ours_side(a.ours, m, a.pages), a.fps, 1.0 if a.ms else None, set(filter(None, a.merge_into.split(','))), speed)
+    findings = compare(orig, ours_side(a.ours, m, a.pages), a.fps, 1.0 if a.ms else None, set(filter(None, a.merge_into.split(','))), speed, set(m[1]))
     shown = {}
     for pg, kind, text in sorted(findings, key=lambda f: f[0]):
         shown[kind] = shown.get(kind, 0) + 1
-        if shown[kind] <= a.max and kind not in ('merged', 'fast-voice'):
+        if shown[kind] <= a.max and kind not in ('merged', 'quiet', 'fast-voice'):
             print(f'{kind:8} {text}')
     print('totals: ' + (', '.join(f'{k} {n}' for k, n in sorted(shown.items())) or 'no differences'))
 
