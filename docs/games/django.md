@@ -682,7 +682,9 @@ script's times add up). What it took, shared NSS code:
 
 - A number as a timed action's wait (`Fade(…, 300, 1000, null, 50)`)
   waits that long, the action going on (Django.exe `004310e0`); it
-  waited the whole action. 装甲悪鬼村正's 56 such calls change too:
+  waited the whole action. 装甲悪鬼村正's scripts have 56 such calls
+  (its findings' census); its snapshot's chain gets 26 shorter
+  cross-fades and 15 shorter `delay`s from them:
   Muramasa.exe's `Fade` (`0040e050` → `00445ac0`) passes `true` as -1
   and a number through `atol` to the wait loop `004489e0`, which
   returns once that many ms (`timeGetTime`) have passed.
@@ -690,15 +692,17 @@ script's times add up). What it took, shared NSS code:
   from 0 with the move when the fade takes as long and the script
   doesn't wait it out (it showed upright, faded in by the cross-fade).
   Story pages change too: 21 pictures sliding in now fade in over their
-  slide (e.g. 300 ms, not the 100 ms cross-fade); 128 in 装甲悪鬼村正.
+  slide (e.g. 300 ms, not the 100 ms cross-fade); 125 in 装甲悪鬼村正.
 - A loop process whose timed actions come after a wait before the loop
   (`TumbleweedMove`: still 3 s, faded in and rolled once, 3 s, then the
   loop) plays them on paper as the motion's lead-in (`spmotion` loop 4);
   they were drawn at once and the loop started at the process's start.
 - A picture turning about x or y as it zooms, moves along a path or
   fades (the boot's Nitroplus logo: `BezierMove`, `Zoom` 500, `Rotate`
-  @60, `Fade` 0) does all of them in one motion; the turn's motion
-  dropped the rest (the logo kept its size and went at the end).
+  @60, `Fade` 0) does all of them in one motion: the zoom from the
+  sync's `Zoom`s, the fade over its own time (a turned picture's
+  children with it); the turn's motion dropped the rest (the logo kept
+  its size and went at the end).
 
 Checked with a `--real-time` trace: the opening from 12,354 to
 17,960 ms (5,606; the script's 5,551 plus frames). Its last frame
