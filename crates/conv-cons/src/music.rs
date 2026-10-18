@@ -25,10 +25,7 @@ pub(crate) const MAX_SONGS: usize = 98;
 /// [`crate::extras_screens`]): the player's buttons and the songs' radios
 /// run these labels with the screen up.
 pub(crate) fn screen_labels(out: &mut String, m: &MusicRoom, back: &str, settings: bool) {
-    let mut w = |line: String| {
-        out.push_str(&line);
-        out.push('\n');
-    };
+    let mut w = lines!(out);
     let Some(_) = &m.player else {
         w(format!("*{MUSIC}\ncsp -1:screen \"music\"\ngoto *{back}"));
         return;

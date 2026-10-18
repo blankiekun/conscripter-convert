@@ -204,10 +204,7 @@ fn routine(out: &mut String, s: &PictureSettings, border: u32) {
     let step_slot = |base: u32, i: usize, k: usize| base + (MAX_STEPS * i + k) as u32;
     // The sliders with a knob (the others are rows of buttons).
     let knobbed: Vec<(usize, &PictureSlider)> = s.sliders.iter().enumerate().filter(|(_, l)| l.steps.is_none()).collect();
-    let mut w = |line: String| {
-        out.push_str(&line);
-        out.push('\n');
-    };
+    let mut w = lines!(out);
     let strip = |slot: u32, cells: u32, p: &Placed| format!("lsp {slot},\":a/{cells},0,3;{}\",{},{}", path(&p.image), p.x, p.y);
     let fade = if s.fade_ms > 0 { format!("print 10,{}", s.fade_ms) } else { "print 1".into() };
     let pair_fade = if s.pair_fade_ms > 0 { format!("print 10,{}", s.pair_fade_ms) } else { "print 1".into() };
@@ -421,10 +418,7 @@ fn routine(out: &mut String, s: &PictureSettings, border: u32) {
 
 /// `*conv_ps_defaults` and [`APPLY`].
 fn values(out: &mut String, s: &PictureSettings) {
-    let mut w = |line: String| {
-        out.push_str(&line);
-        out.push('\n');
-    };
+    let mut w = lines!(out);
     w(format!("*{DEFAULTS}"));
     for (i, l) in s.sliders.iter().enumerate() {
         w(format!("mov {},{}", slider_var(s, i), l.default));

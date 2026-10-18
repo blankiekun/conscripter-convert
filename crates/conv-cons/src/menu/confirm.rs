@@ -11,10 +11,7 @@ use super::*;
 /// without one, the base and the text) over the backdrop; its sprites are
 /// yes, no, text, picture, backdrop from the top.
 pub(crate) fn confirm(out: &mut String, d: &ConfirmDialog) {
-    let mut w = |line: String| {
-        out.push_str(&line);
-        out.push('\n');
-    };
+    let mut w = lines!(out);
     let size = d.font_size;
     let label_size = d.yes.h as u32 * 2 / 3;
     let centre = d.base.x + d.base.w / 2;

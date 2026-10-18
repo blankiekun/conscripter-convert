@@ -97,10 +97,7 @@ pub(crate) fn emit(out: &mut String, g: &PictureGallery, border: u32, width: u32
         let (column, row) = if g.across { (i % g.columns, i / g.columns) } else { (i / g.rows, i % g.rows) };
         (g.first.0 + g.column_step * column as i32, g.first.1 + g.row_step * row as i32)
     };
-    let mut w = |line: String| {
-        out.push_str(&line);
-        out.push('\n');
-    };
+    let mut w = lines!(out);
     let prints: Vec<u32> = {
         let mut p = vec![g.open_ms, g.page_ms, g.close_ms];
         p.retain(|&ms| ms > 0);
@@ -196,10 +193,7 @@ pub(crate) fn emit(out: &mut String, g: &PictureGallery, border: u32, width: u32
         viewers(out, g, border, width, height);
         return;
     }
-    let mut w = |line: String| {
-        out.push_str(&line);
-        out.push('\n');
-    };
+    let mut w = lines!(out);
     for (c, category) in g.categories.iter().enumerate() {
         for (p, slots) in category.slots.chunks(per_page as usize).enumerate() {
             w(format!("*conv_pg_c{c}_p{p}"));
@@ -232,10 +226,7 @@ pub(crate) fn emit(out: &mut String, g: &PictureGallery, border: u32, width: u32
 /// CG seen (SHOWN), drawing those on the page asked for ([`CELL`]), then
 /// the arrows if they fill more than a page.
 fn compact_pages(out: &mut String, g: &PictureGallery, border: u32, per_page: u32) {
-    let mut w = |line: String| {
-        out.push_str(&line);
-        out.push('\n');
-    };
+    let mut w = lines!(out);
     for (c, category) in g.categories.iter().enumerate() {
         w(format!("*conv_pg_c{c}_p0"));
         w(format!("mov {SHOWN},0:mov {FIRST},{PAGE}*{per_page}:mov {LAST},{FIRST}+{per_page}"));
@@ -311,10 +302,7 @@ fn tests(s: &Seen, border: u32) -> Vec<String> {
 /// The viewer of each slot ([`CLOSE`] goes back to [`DRAW`] with the
 /// close fade), and the click and scroll subroutines.
 fn viewers(out: &mut String, g: &PictureGallery, border: u32, width: u32, height: u32) {
-    let mut w = |line: String| {
-        out.push_str(&line);
-        out.push('\n');
-    };
+    let mut w = lines!(out);
     for (c, category) in g.categories.iter().enumerate() {
         for (s, slot) in category.slots.iter().enumerate() {
             let label = format!("conv_pg_v{c}_{s}");

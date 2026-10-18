@@ -49,10 +49,7 @@ fn seen(number: u32) -> String {
 /// `fade`: the effect the title fades in with. `settings`: there is a
 /// settings screen for the option heading to open.
 pub(crate) fn extras(out: &mut String, m: &ExtrasMenu, fade: &str, settings: bool) {
-    let mut w = |line: String| {
-        out.push_str(&line);
-        out.push('\n');
-    };
+    let mut w = lines!(out);
     let gallery = m.gallery.as_ref();
     let clear_vars = [TAB_VAR, PAGE_VAR, TMP, SLOT_VAR, VARIANT, STEP, PAGE_FIRST, UNLOCKED, PANEL_HIDDEN]
         .iter()

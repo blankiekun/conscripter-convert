@@ -98,10 +98,7 @@ pub(crate) fn emit(out: &mut String, g: &SaveGrid, confirm: Option<&ConfirmDialo
         format!("{HAS_DATA} == 0 || {LOCKED} == 1"),
         format!("{HAS_DATA} == 0{quick_off}"),
     ];
-    let mut w = |line: String| {
-        out.push_str(&line);
-        out.push('\n');
-    };
+    let mut w = lines!(out);
     let place = |i: u32| {
         let (column, row) = if g.across { (i % g.columns, i / g.columns) } else { (i / g.rows, i % g.rows) };
         (g.first.0 + g.column_step * column as i32, g.first.1 + g.row_step * row as i32)

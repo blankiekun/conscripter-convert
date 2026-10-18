@@ -24,6 +24,7 @@ use crate::xuse::cd::{
     ModuleData,
 };
 use crate::media;
+use crate::output::image_size;
 use crate::xuse::gaf::{Gaf, GafError};
 use crate::xuse::exe;
 use crate::xuse::gallery;
@@ -1007,7 +1008,7 @@ impl AssetBank {
         if let Some(done) = self.images.get(&(kind, number)) {
             return Ok(done.clone());
         }
-        let (width, height) = png_size(img.png);
+        let (width, height) = image_size(img.png).unwrap_or((0, 0));
         let name = unique(&mut self.used_names, dir, &img.file_name(), number);
         self.write(&name, img.png)?;
         let image = Image { path: name, width, height };
@@ -3557,15 +3558,6 @@ fn with_opacity(mut img: image::RgbaImage, percent: u32) -> image::RgbaImage {
     img
 }
 
-fn darker(mut img: image::RgbaImage) -> image::RgbaImage {
-    for px in img.pixels_mut() {
-        for c in &mut px.0[..3] {
-            *c /= 2;
-        }
-    }
-    img
-}
-
 /// `top` over `base`, the base made translucent like the text window's.
 fn blend_layers(mut base: image::RgbaImage, top: &image::RgbaImage) -> image::RgbaImage {
     for px in base.pixels_mut() {
@@ -3573,11 +3565,6 @@ fn blend_layers(mut base: image::RgbaImage, top: &image::RgbaImage) -> image::Rg
     }
     image::imageops::overlay(&mut base, top, 0, 0);
     base
-}
-
-fn png_size(png: &[u8]) -> (u32, u32) {
-    let be = |o: usize| png.get(o..o + 4).map_or(0, |b| u32::from_be_bytes(b.try_into().unwrap()));
-    (be(16), be(20))
 }
 
 /// `dir/name`, made unique if another asset already used that name.
@@ -3935,14 +3922,5 @@ mod tests {
         assert_eq!(hang_char("θ　すべて", 3), Some(2));
         assert_eq!(hang_char("Ghost　", 7), None);
         assert_eq!(hang_char("Ghost", 0), None);
-    }
-
-    #[test]
-    fn reads_png_size() {
-        let mut png = vec![0u8; 24];
-        png[16..20].copy_from_slice(&348u32.to_be_bytes());
-        png[20..24].copy_from_slice(&700u32.to_be_bytes());
-        assert_eq!(png_size(&png), (348, 700));
-        assert_eq!(png_size(&[]), (0, 0));
     }
 }

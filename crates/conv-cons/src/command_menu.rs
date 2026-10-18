@@ -33,10 +33,7 @@ pub(crate) fn call_label(i: usize) -> String {
 /// `picture_replay`: see [`crate::menu::BarScreens::picture_replay`].
 pub(crate) fn emit(out: &mut String, m: &CommandMenu, bar: &ButtonBar, picture_replay: bool) {
     assert!(m.items.len() < MENU_SLOTS, "too many command menu items");
-    let mut w = |line: String| {
-        out.push_str(&line);
-        out.push('\n');
-    };
+    let mut w = lines!(out);
     let slot = menu_slot;
     // Under the items: 33, or under the slots past it.
     let bd = slot(m.items.len().max(MENU_SPRITES.len() - 1));

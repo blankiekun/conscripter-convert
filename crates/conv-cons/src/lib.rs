@@ -13,6 +13,16 @@ use conv_core::ir::{
     SourceLoc, TransitionStyle, Var, ZoomStyle,
 };
 
+/// A line writer onto `out` (a closure, so `out` is free again after its last use): each call appends the line and a newline.
+macro_rules! lines {
+    ($out:expr) => {
+        |line: String| {
+            $out.push_str(&line);
+            $out.push('\n');
+        }
+    };
+}
+
 mod boot;
 mod button_screen;
 mod chapters;
