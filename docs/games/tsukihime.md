@@ -931,7 +931,8 @@ Flowchart, Movie and Ending List.
    whose drawing is not found yet), `_VCWT` (wait for the voice),
    `_VPL2`, `_SESP`, `_WKOR`, `_STTR`, `_STCL`, `_SGMA`, `_SPMA`, the
    chapter start (`_SELA`, `_TOMP`/`_TOMW`, `_ATSV`/`_WTSV`), the
-   read flags (`_RTST`/`_RDED`, which `_IFUR` in `QA_25` needs), the
+   scenes' read flags (`_RDED(1..532)`, for the Flowchart; the
+   lessons' are done, History 2026-10-18 "lesson read flags"), the
    `_SELD`'s choice number. `_FANX`, `_STQK` and `_TRPY` have no case in the
    exe: the next converter PR adds them to `LEFT_OUT`.
 7. Trace diff leftovers (`trace_diff.py --merge-into _FADS`): 2
@@ -976,6 +977,19 @@ Open there, by size:
 
 ## History
 
+- 2026-10-18: **lesson read flags**. `_RDED(n)` (`cmd_RDED`) sets
+  global read flag n when n is the current scene (+0xdc) with its
+  per-play bit set; `_RTST(n)` (`cmd_RTST`) sets both for a lesson
+  (0x215-0x22d), and every lesson runs `_RTST(n)` before its
+  `_RDED(n)`, so `_RTST` keeps nothing and `_RDED(533..557)` sets a
+  global (`convert::lesson_flag`: 976-999, 557 `gallery::FLAG_557`).
+  `_IFUR(1, L, LV)` (`all_read_check(1)`) goes to L when lessons
+  533-556 are all read, else on to `QA_25`'s `_RTM_`: here back to the
+  title. The scenes' `_RDED(1..532)` stay open: only the Flowchart
+  (`read_flag_global`'s gallery callers) reads them, and 532 more
+  globals don't fit beside the read flags. The Ending List draws its
+  21 entries from the `_RDST` flags (`FUN_0010dda4`, table 0x437510)
+  and its `QA_25` icon from `all_read_check(1)`.
 - 2026-10-18: **volumes and their fades**. `_SEPL`/`_MPLY` option 17
   (0-100, default 100, clamped by `FUN_0016a340`) is the volume the
   sound starts at (`chvolfade` before it); `_SEPL` option 1 fades it in

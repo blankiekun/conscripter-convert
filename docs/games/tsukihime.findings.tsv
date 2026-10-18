@@ -102,14 +102,14 @@ _FCSP	ends the full-screen effect over ms*60/1000 frames (none: at once)	31	cmd_
 _IFNX	no case in the Switch exe: never jumps	234	script_command	nothing (falls through)	seen	done
 _IFP4	jumps to argument 1's label, no condition	204	script_command case I "FP4"	goto	seen	done
 _IFSC	jumps to argument 1's label when DAT_00c34af0 is 0	2	scene_mode_flag	goto always	inferred	done; check: FUN_00148ac0, where it sets the flag to 1 (0 in normal play inferred)
-_IFUR	(1, L, LV): jumps when all_read_check(1) is false (every completion bit set); one use, QA_25, before an _RTM_	1	script_command case I "FUR", all_read_check	nothing: runs on into the label as if complete	seen	open: needs _RDED's global read flags
+_IFUR	(1, L, LV): jumps when all_read_check(1) is false (every completion bit set); one use, QA_25, before an _RTM_	1	script_command case I "FUR", all_read_check	lessons 533-556 all set (convert::lesson_flag) -> L, else back to the title (the _RTM_ after it)	seen	
 _MSQK	text window shake: ms (over 10000 -> 1000), a*640/1280, b*448/720	30	window_quake	nothing	seen	open
 _MVOL	music volume to option 17 over option 1 ms; not while skipping or replaying	780	cmd_MVOL	SoundVolume (chvolfade -1)	seen	skipping: the exe leaves it out
 _NOP_	nothing	1	script_command case N	nothing	seen	done
 _PGST	the page a load replays to (state +0x8c4)	17202	script_command case P	left out	seen	left_out
 _RDAS	(n): out of mode 2, with setting 03d8+0x5e on and global read flag n set: a 3.0 indicator (FUN_0013b480), waits while DAT_00bfec90 is set, then DAT 06b0 = 1 (read-skip)	530	script_command, read_flag_global, cmd_RDAS_skip	nothing	inferred	open: low; CONscripter's own read skip covers the lines
-_RDED	(n): n the scene _RTST started (+0xdc) with its per-play bit set -> global read flag n (words 300+); in a scene replay (+0x30) ends it as _RTM_	550	cmd_RDED	557 only: gallery::FLAG_557 (the gallery's unlock-all)	seen	open: the other flags, when _IFUR and the menus (read_flag_global callers) are converted
-_RTST	(n < 0x240): per-play bit n, current scene +0xdc = n (n 0x215-0x22d, or in a replay)	527	cmd_RTST	nothing	seen	open: with _RDED
+_RDED	(n): n the scene _RTST started (+0xdc) with its per-play bit set -> global read flag n (words 300+); in a scene replay (+0x30) ends it as _RTM_	550	cmd_RDED	533-557 (the lessons): convert::lesson_flag; 1-532 nothing	seen	open: 1-532, with the Flowchart
+_RTST	(n < 0x240): per-play bit n, current scene +0xdc = n (n 0x215-0x22d, or in a replay)	527	cmd_RTST	nothing: every lesson runs it before its _RDED, so the check holds	seen	
 _RTM_	ends the script: stops the 20 sound channels and the music (script_end_reset), state 2 (back to the caller, inferred); nothing in a load's replay	544	script_command, script_end_reset	nothing: the next command runs (_END_ after 516; after a _JUMP in 25, dead)	seen	open: ARCHIVE ends on it, QA_25's is live (with _IFUR)
 _RTM2	keeps the music on the next _RTM_ (DAT_0156e64d)	1	script_command	nothing	seen	open: with _RTM_
 _RTMN	as _RTM2, then _RTM_	1	script_command	nothing	seen	open: with _RTM_

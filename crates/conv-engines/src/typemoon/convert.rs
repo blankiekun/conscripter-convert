@@ -52,6 +52,17 @@ pub fn read_flag(n: u16) -> Var {
     Var { global: true, index: READ_FLAGS + n }
 }
 
+/// The global that holds lesson `n`'s read flag (`_RDED(n)`, n 533-557):
+/// 557, the last, is [`super::gallery::FLAG_557`].
+// ours: 976-999, between the read flags' end (975) and language.rs's 1000
+pub fn lesson_flag(n: i32) -> Option<Var> {
+    match n {
+        533..=556 => Some(Var { global: true, index: (n + 443) as u16 }),
+        557 => Some(super::gallery::FLAG_557),
+        _ => None,
+    }
+}
+
 /// What the lowering reads from the game.
 pub struct Game<'a> {
     /// Every script by name with its commands, in `allscr` order (the first
@@ -516,10 +527,33 @@ impl Lowering<'_, '_> {
                 let Some(n) = number(arg(0)).filter(|n| (0..0x240).contains(n)) else { return false };
                 self.ops.push(Op::Arith { var: read_flag(n as u16), op: ArithOp::Set, value: Operand::Const(1) });
             }
-            // `cmd_RDED(n)`: global flag n (words 300 up) once the scene read
-            // to its end. shortcut: only 557 (the last lesson, `QA_25`), the
-            // gallery's unlock-all; the others when something reads them
-            "_RDED" if arg(0) == "557" => self.ops.push(Op::Arith { var: super::gallery::FLAG_557, op: ArithOp::Set, value: Operand::Const(1) }),
+            // `cmd_RTST(n)` sets per-play bit n and, for a lesson (0x215-0x22d),
+            // the current scene +0xdc = n: only `_RDED` reads them, and every
+            // lesson runs `_RTST(n)` before its `_RDED(n)`, so nothing to keep.
+            "_RTST" => {
+                arg(0);
+            }
+            // `cmd_RDED(n)`: global read flag n (words 300 up) when n is the
+            // current scene with its per-play bit set, which holds for the
+            // lessons (above). shortcut: only the lessons 533-557, the flags
+            // `_IFUR` and the gallery read; the scenes' 1-532 with the Flowchart
+            "_RDED" => {
+                let Some(var) = number(arg(0)).and_then(lesson_flag) else { return false };
+                self.ops.push(Op::Arith { var, op: ArithOp::Set, value: Operand::Const(1) });
+            }
+            // `_IFUR(1, L, LV)` (`all_read_check(1)`): to L when lessons
+            // 533-556 are all read; else on to the `_RTM_` after it (`QA_25`,
+            // its only use), which ends the script: here back to the title.
+            "_IFUR" if arg(0) == "1" => {
+                arg(2); // the exe reads up to the label: LV, the else label, is the compiler's
+                let not_all = label(script, Some(&format!("{}_not_all", arg(1))));
+                for n in 533..557 {
+                    self.ops.push(Op::If { var: lesson_flag(n).unwrap(), cmp: Compare::Eq, value: Operand::Const(0), label: not_all.clone() });
+                }
+                self.ops.push(Op::Jump(label(script, Some(arg(1)))));
+                self.ops.push(Op::Label(not_all));
+                self.ops.push(Op::ReturnToTitle);
+            }
             "_STCG" => {
                 let Some(&var) = self.vars.get(&format!("_STCG {}", arg(0).to_lowercase())) else { return false };
                 self.ops.push(Op::Arith { var, op: ArithOp::Set, value: Operand::Const(1) });
@@ -1968,6 +2002,17 @@ mod tests {
         let Some(Op::SpriteFilters { filters, .. }) = ops.iter().find(|o| matches!(o, Op::SpriteFilters { .. })) else { panic!("{ops:?}") };
         // Filled with the colour, drawn in it again.
         assert_eq!(filters[0].params, [255, 64, 0].map(Operand::Const));
+    }
+
+    #[test]
+    fn the_last_lesson_needs_every_other_read() {
+        let c = compile(&game("_RTST(533);_RDED(533);_RDED(12);_IFUR(1,OK,LV0);_RTM_();_ZZbbc01(OK);"));
+        let flag = lesson_flag(533).unwrap();
+        assert_eq!(c.ops[1], Op::Arith { var: flag, op: ArithOp::Set, value: Operand::Const(1) });
+        // `_RDED(12)` (a scene's flag, no reader yet) is left out.
+        assert_eq!(c.ops[2], Op::If { var: flag, cmp: Compare::Eq, value: Operand::Const(0), label: "tm_S__OK_not_all".into() });
+        assert_eq!(c.ops[2 + 24..2 + 27], [Op::Jump("tm_S__OK".into()), Op::Label("tm_S__OK_not_all".into()), Op::ReturnToTitle]);
+        assert_eq!(lesson_flag(556).unwrap().index, 999);
     }
 
     #[test]
