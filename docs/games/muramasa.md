@@ -630,16 +630,29 @@ whose `_SELECT` scene has already passed `call_scene $MainGameName`).
 The original's trace (`ntrace.sh`, wine section) against our
 `--auto-play 60 --real-time` run, first 50 pages of `ma00_000`: every
 page pairs by its `<PRE>` line with the same text (ruby as its base).
-The unwaited moves are fixed (History, "Trace diff fixes"). Open, not
-fixed: the exe's waited `Fade`s last longer than their time, the more
-the shorter they are: 150 ms (function.nss:1158, the box) 195 to 225 ms
-to the next statement, 100 ms 145 to 162, 500 ms 530 to 545, 1000 ms
-1008 to 1028 (a `Wait` 10 more); ours take the script's time (150, 109,
-509, 1009). The wait polls every 16 ms frame (`FUN_004489e0`, its
-interval from `init_frame_tables` 0048c5d0) until the render thread ends
-the fade; where the extra 30 to 60 ms comes from (wine's frames or the
-exe's fade steps) needs the fade's step code (`cb_Fade_0044f020`,
-`FUN_00449de0`) or a frame count of the original. Reading the diff: the
+The unwaited moves are fixed (History, "Trace diff fixes"). The
+waited `Fade`s that end 30 to 60 ms after their time in the original's
+trace (150 ms, the box at function.nss:1158: 195 to 225 ms to the next
+statement; 100 ms: 145 to 162; 500: 530 to 545; 1000: 1008 to 1028)
+are wine's frames, not a rule to copy. Every timed effect of the exe
+(Fade, Move, Zoom, Rotate, Shake, transitions, volume: 14 sites)
+builds `floor(time * 60 / 1000)` steps (`cb_Fade_0044f020`: time × fps
+table 0x5dcb40[4] / 1000.0, `_ftol`) and advances one step per 16 ms
+of real time (`tempo_advance` 00449930: ms since the object's last
+frame / 0x5dcb0c[4] = 16, speed 1.0 at the default index 3), so its
+animation lasts `16 * floor(0.06 * time)` ms (144, 96, 480, 960), a
+little *less* than the time. It ends at the first render frame after
+that (`fade_step` 00456a20 checks the index before advancing), and the
+waiting script sees it at its next 16 ms poll (`wait_effect`
+004489e0). Measured from those 144/96/480/960, the trace's excess is
+the same 48 to 81 ms for every length (the box fade's 208/224 are 13
+and 14 polls), the latency of about two ~30 ms frames under wine plus
+the poll; at 60 Hz it would be 17 to 50 ms. Ours (time + 9 ms) is
+within two frames of the exe at 60 Hz, so nothing changed; making
+every timed effect 4 % shorter (the 16/16.67 ratio) is possible but
+not done (lead's call). Django.exe has the same rule
+(`init_speed_tables`, its advance 004348f0, its counts at 0x422d40 …
+the fps table 0x531a90 × 0.001). Reading the diff: the
 original's command ends when its next record starts, ours when its last
 `ev` is written (`trace_diff.py`), so the 4 to 161 ms after a page's box
 fade were the next command's time against the box fade's: not findings.

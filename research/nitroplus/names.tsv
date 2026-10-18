@@ -208,8 +208,8 @@
 00436550	cb_00436550	code reached through a pointer (callback), recovered by the export loop (new-game.md step 2)
 00436590	cb_00436590	code reached through a pointer (callback), recovered by the export loop (new-game.md step 2)
 00436980	cb_00436980	code reached through a pointer (callback), recovered by the export loop (new-game.md step 2)
-0044b390	cb_0044b390	code reached through a pointer (callback), recovered by the export loop (new-game.md step 2)
-00456a20	cb_00456a20	code reached through a pointer (callback), recovered by the export loop (new-game.md step 2)
+0044b390	render_thread	the render thread: each pass runs every object's callbacks (render_frame) and presents (present_frame); no frame limiter while something changes
+00456a20	fade_step	Fade's per-frame step (0x123c): alpha = table[index>>16] while index < count, else the end alpha and done; then tempo_advance
 00466050	cb_00466050	code reached through a pointer (callback), recovered by the export loop (new-game.md step 2)
 004661c0	cb_004661c0	code reached through a pointer (callback), recovered by the export loop (new-game.md step 2)
 00477920	cb_00477920	code reached through a pointer (callback), recovered by the export loop (new-game.md step 2)
@@ -246,3 +246,7 @@
 00472620	conquest	Conquest(file, label, set): the read marks of a scene; `true` marks it all read, null returns whether all is read (the skip's $AllRead)
 00470a50	run_statement	runs one statement: dispatch_builtin, else (a letter or $ # ( + -) FUN_00472e50
 00472e50	eval_statement	reads a statement to `;` and evaluates it as an expression: a call of no built-in and no NSS function does nothing
+00449930	tempo_advance	advances an effect's 16.16 step index by (now - the object's last frame stamp 0x9b4) ms / 16 (ms a frame, init_frame_tables): count = floor(time*60/1000) steps last 16*count ms
+004489e0	wait_effect	the script thread's wait for a waited effect: polls the named objects every 16 ms until their step callbacks are idle
+0044b850	render_frame	one render pass: per object, stamps timeGetTime before its callbacks and stores it in 0x9b4 after
+0044b510	present_frame	draws and presents when something changed, else sleeps 16 ms
