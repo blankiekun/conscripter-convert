@@ -590,8 +590,21 @@ impl Compiler<'_, '_> {
                 if targets.iter().any(|t| self.shown.get(t).map_or(0, |s| s.opacity) != from) {
                     self.note("DrawTransition from another opacity than the picture's");
                 }
+                // Stopped partway: drawn through the mask at that level, its
+                // opacity left (src: the exe's table, `transition::table`; a
+                // later `Fade` multiplies it, as fire01's in function_process.nss).
+                let veil = super::transition::table(from, to, arg(4).int(), arg(1).int())
+                    .filter(|t| t.iter().any(|&v| v > 0))
+                    .and_then(|t| self.assets.veil(&mask, &t));
+                if veil.is_some() && targets.iter().any(|t| !matches!(self.objects[t].kind, Kind::Image { .. })) {
+                    self.note("DrawTransition partial on an effect: drawn unmasked");
+                }
                 for t in &targets {
-                    self.objects.get_mut(t).unwrap().opacity = to;
+                    let o = self.objects.get_mut(t).unwrap();
+                    if veil.is_none() {
+                        o.opacity = to;
+                    }
+                    o.veil = veil.clone();
                 }
                 // src: Muramasa.exe's transition step (FUN_0044fe00) eases by the tempo
                 // (apply_tempo); Django.exe's (FUN_00439d20) by FUN_00434ea0's curve
@@ -603,13 +616,11 @@ impl Compiler<'_, '_> {
                 // threshold p shown, then a ramp losing 255 ÷ p × 255 ÷ softness a
                 // grey level; a fade-out's threshold falls, so the picture leaves
                 // the mask's bright parts first. CONscripter's effectsoft draws the
-                // full sweeps; a partial one (to 200, 250 → 150) ends masked in the
-                // exe, a uniform opacity here: noted.
+                // full sweeps; a partial one (to 200, 250 → 150) ends masked, its
+                // picture cut by the table above (the sweep to it a mask print).
                 let softness = arg(4).int();
-                match (from, to) {
-                    (0, 1000) | (1000, 0) if softness > 0 => self.transition_soft = Some((softness as u32, from > to)),
-                    _ if from != to => self.note("DrawTransition partial: ends masked in the exe"),
-                    _ => {}
+                if matches!((from, to), (0, 1000) | (1000, 0)) && softness > 0 {
+                    self.transition_soft = Some((softness as u32, from > to));
                 }
                 self.pending_mask = Some(mask);
                 self.timed(arg(1).int(), &arg(7), &targets);
