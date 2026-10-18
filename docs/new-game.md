@@ -711,8 +711,10 @@ the same coverage table as the exe's rows:
   states its reason in the same sentence or bullet (the exe does not
   have it, the user decided, it cannot work in the engine, ...).
   `python3 -I research/tools/dropped_lint.py [--max N]` lists the
-  sentences that say "left out", "not converted", "dropped", "skipped"
-  or "not yet" with no reason word (tune its two regexes if it misfires).
+  sentences that say "left out", "not converted", "dropped" or "skipped"
+  with no reason word (tune its two regexes if it misfires). CI runs it
+  with a ceiling per game (`CEIL` in the script): lower it as reasons
+  are added, never raise it.
 
 ## 4. Control flow: prove it before looking at pictures
 
