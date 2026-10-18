@@ -362,6 +362,16 @@ impl English {
                 report.captions += put_captions(file, port);
             }
             let Some(rows) = self.scenes.get(scene) else { continue };
+            // The log's own copy of a line (`SetBacklog`) takes the English of the row with
+            // the same Japanese; a line no row has stays as it is.
+            each_call(file, &mut |c, args| {
+                if let ("SetBacklog", Some(nss::Expr::Str(t))) = (c, args.first_mut()) {
+                    let k = key(t);
+                    if let Some((_, en)) = rows.iter().find(|(jp, _)| !k.is_empty() && *jp == k) {
+                        *t = en.clone();
+                    }
+                }
+            });
             let mut keys = Vec::new();
             each_run(file, &mut |run, _| {
                 let jp = run_key(&run);
