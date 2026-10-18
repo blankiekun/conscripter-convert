@@ -537,7 +537,10 @@ free RAM); `reftrace.sh summary <game>` at most 15 (pages, how far, top `trace_d
 `SPEED=1`: at `SPEED=8` its full run stalled on several pages (2026-10-18), and at 1 it ran on, so the speed
 hook is the suspected cause (not yet confirmed). 装甲悪鬼村正's first H-mode screen
 (`sys_hmode.nss`, near page 4884) waits in a `select` for a click the clickless run never gives: `mura-patch/`
-holds a copy with that line's `select{` made `if(0){` (one line, so the trace's lines hold). A watchdog
+holds a copy with that line's `select{` made `if(0){` (one line, so the trace's lines hold), and `function_magiccube.nss` (the 立方陣 puzzle after
+`md05_025`) one whose line 261 `select{` is `$立方陣正解=true;$Loop_end=false;$Answer=true;if(0){` (solved, so the
+route goes on to `md05_025end`). The other selects outside the story files are menus, the title or the quick
+bar, which a clickless run never opens or which don't block the story. A watchdog
 resumes 最果てのイマ from its last save after 10 min without progress; for the others it logs the stall
 to `watchdog.log`. Rhythm: one `status` about 5 min after the start (setup problems show then), then every
 30-60 min, `summary` at the end.
