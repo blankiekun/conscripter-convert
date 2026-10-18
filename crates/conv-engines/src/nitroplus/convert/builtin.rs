@@ -4,6 +4,34 @@ use std::cell::Cell;
 
 use super::*;
 
+/// The built-ins of Muramasa.exe, as `dispatch_builtin` (`00405250`,
+/// statements) and `eval_primary` (`0043a780`, values) name them
+/// (`research/nitroplus/builtins.md`, "In the exe"). The exe matches them
+/// case-sensitively; any other name is an NSS function, and a call to a
+/// function that doesn't exist is skipped.
+const BUILTINS: [&str; 122] = [
+    "CreateName", "CreateAnimation", "CreateProcess", "CreateColor", "CreateEffect",
+    "CreateFrame", "CreateTexture", "CreateClipTexture", "CreateDifferenceTexture",
+    "CreateMask", "CreateStencil", "CreateSurface", "CreateMovie", "CreateCube", "CreateSound",
+    "CreateText", "CreateWindow", "CreateCamera", "CreateChoice", "CreateBacklog",
+    "CreateScrollbar", "LoadImage", "LoadClipImage", "LoadColor", "LoadFont", "LoadText",
+    "LoadFile", "UnloadFile", "LoadNPT", "Move", "BezierMove", "Request", "Rotate", "Shake",
+    "MoveCamera", "MoveCube", "Delete", "Disable", "Fade", "SetChip", "SetAlias", "SetVertex",
+    "SetShade", "SetTone", "SetImage", "SetSurface", "SetComposite", "SetBlur", "SetStream",
+    "SetFov", "SetNextFocus", "SetScrollbar", "SetScrollSpeed", "SetBacklog", "Zoom", "Draw",
+    "DrawEffect", "DrawTransition", "Wait", "WaitKey", "WaitMove", "WaitFade", "WaitZoom",
+    "WaitRotate", "WaitShake", "WaitPlay", "WaitText", "WaitAction", "SetVolume", "SetPan",
+    "SetFrequency", "SetLoop", "SetLoopPoint", "MoviePlay", "ClearScore", "ClearBacklog",
+    "SetBaseTextInterval", "SetFont", "Save", "Load", "DeleteSaveFile", "Position",
+    "CursorPosition", "MoveCursor", "DateTime", "WriteFile", "SetShortcut", "Escape", "Reset",
+    "Exit", "System",
+    "Random", "RemainTime", "DurationTime", "PassageTime", "ImageHorizon", "ImageVertical",
+    "Strlen", "Strstr", "String", "EnableBacklog", "ExistSave", "ReadFile", "ModuleFileName",
+    "BacklogRow", "BacklogLine", "ScrollbarValue", "Time", "MilliTime", "Integer",
+    "SoundAmplitude", "Conquest", "Message", "Array", "AssocArray", "Count", "VariableValue",
+    "EnableDirect3DHAL", "Platform", "AvailableFile", "MountSavedata", "LockVideo",
+];
+
 /// Arguments the compiler doesn't read that change nothing it draws or
 /// plays: (built-in, index, the value covered (`"null"`: NSS's null) or
 /// `None` for any), why.
