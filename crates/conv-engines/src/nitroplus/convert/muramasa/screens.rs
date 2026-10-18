@@ -363,6 +363,7 @@ fn voice_window(a: &mut dyn Assets, story: &Story) -> Option<VoiceWindow> {
         check: Placed { image: check, x: 0, y: 0, w: cw as i32, h: ch as i32 },
         layouts,
         fade_ms: 300,
+        close: None,
     })
 }
 

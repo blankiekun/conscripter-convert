@@ -7,7 +7,7 @@ use conv_core::ir::{
     BarAction, ButtonBar, CommandItem, CommandMenu, ConfirmDialog, GridText, LineLog, Op, Placed, Rect, SaveGrid, Script, Switch, TitleAction, TitleButton, TitleMotion, TitleOpening, TitlePicture, TitleScreen, TitleSprite, WaitIcon,
 };
 
-use conv_core::ir::{PairOption, PicturePair, PictureSettings, PictureSlider, SettingsScreen, SliderSetting, SliderSteps};
+use conv_core::ir::{PairOption, PicturePair, PictureSettings, PictureSlider, SettingsScreen, SliderSetting, SliderSteps, VoiceEntry, VoiceLayout, VoiceWindow};
 
 use super::super::{Assets, Story};
 
@@ -36,7 +36,7 @@ pub fn menus(a: &mut dyn Assets, script: &mut Script, story: &Story) {
     script.confirm = confirm(a);
     script.line_log = line_log(a);
     script.wait_icon = wait_icon(a);
-    script.picture_settings = settings(a);
+    script.picture_settings = settings(a, story);
     script.picture_extras = super::extras::extras(a, story);
     if let Some(t) = script.title_screen.as_mut() {
         let cleared = story.flags.get(super::extras::CLEARED).copied();
@@ -120,9 +120,9 @@ fn title_motion(a: &mut dyn Assets, t: &mut TitleScreen, image: &str, keys: &[co
 /// percent of 装甲悪鬼村正's exe table (assumed the same engine). Left
 /// out and drawn as they stand by default: the two questions' rows (ON
 /// chosen, OFF at rest; one switch here turns all questions off), the
-/// display options, the character voices window, the voice test, DEFAULT (it would ask with no
-/// picture of its own), the links.
-fn settings(a: &mut dyn Assets) -> Option<PictureSettings> {
+/// display options, the voice test, DEFAULT (it would ask with no
+/// picture of its own), the links. 各キャラ opens [`voice_window`].
+fn settings(a: &mut dyn Assets, story: &Story) -> Option<PictureSettings> {
     const DIR: &str = "cg/sys/config";
     let button = |a: &mut dyn Assets, name: &str, x: i32, y: i32| {
         let state = |n: u32| format!("{DIR}/{name}-{n:03}.png");
@@ -214,10 +214,10 @@ fn settings(a: &mut dyn Assets) -> Option<PictureSettings> {
     }
     // src: sys_config.nss (DEFAULT, the question rows, CHARACTER_ONOFF, VOICE_TEST, ASPECT_UNFIXED, ENTRY)
     let fixed = vec![
-        picture(a, "各キャラ-001", 293, 362)?,
         picture(a, "ディスプレイ依存-003", 516, 82)?,
         picture(a, "ユーザー-001", 516, 476)?,
     ];
+    let (voice_window, voices_checked) = voice_window(a, story)?;
     Some(PictureSettings {
         background: Placed { image: background, x: 0, y: 0, w: w as i32, h: h as i32 },
         fixed,
@@ -232,9 +232,57 @@ fn settings(a: &mut dyn Assets) -> Option<PictureSettings> {
         fade_ms: 300, // src: sys_config.nss Fade("video", 300)
         // src: sys_config.nss: bullets switch at once; the pairs fade over 200 (one value here)
         pair_fade_ms: 0,
-        voice_window: None,
-        screen: SettingsScreen { chosen, voices_checked: Vec::new(), steps_chosen },
+        voice_window: Some(voice_window),
+        screen: SettingsScreen { chosen, voices_checked, steps_chosen },
     })
+}
+
+/// The character voices window (`charavoiceconfig`), opened by 各キャラ
+/// (293,362): `window.png` at (240,230), a check box per voice class
+/// (`#voice_skip_<class>`, `チェックボックス-01` while heard, `-02` muted),
+/// OK at (390,340). Every class always listed; no backdrop. Ours: it fades
+/// in and out over 300 ms (the original zooms the window in over 500 ms and
+/// out over 300).
+fn voice_window(a: &mut dyn Assets, story: &Story) -> Option<(VoiceWindow, Vec<Vec<String>>)> {
+    const DIR: &str = "cg/sys/config";
+    let placed = |a: &mut dyn Assets, name: &str, x: i32, y: i32| {
+        let (image, w, h) = a.image(&format!("{DIR}/{name}.png"))?;
+        Some(Placed { image, x, y, w: w as i32, h: h as i32 })
+    };
+    let cells = |a: &mut dyn Assets, n: [&str; 3], x: i32, y: i32| {
+        let f = |i: usize| format!("{DIR}/{}.png", n[i]);
+        let (image, w, h) = a.strip(&[&f(0), &f(1), &f(2)])?;
+        Some(Placed { image, x, y, w: w as i32 / 3, h: h as i32 })
+    };
+    let (on, _, _) = a.image(&format!("{DIR}/チェックボックス-01.png"))?;
+    let mut entries = Vec::new();
+    // src: sys_config.nss charavoiceconfig (CHAWND/cha<class> boxes)
+    for (class, x, y) in [
+        ("イライザ", 266, 258),
+        ("名無し", 338, 258),
+        ("リリィ", 398, 258),
+        ("アルフィー", 458, 258),
+        ("クラウス", 266, 282),
+        ("ジュリアン", 338, 282),
+        ("アイリス", 422, 282),
+        ("その他女", 266, 306),
+        ("その他男", 362, 306),
+    ] {
+        let picture = placed(a, "チェックボックス-02", x, y)?;
+        let characters = story.voice_classes.iter().enumerate().filter(|(_, c)| c.as_str() == class).map(|(i, _)| i as u32).collect();
+        entries.push(VoiceEntry { hit: (picture.w, picture.h), picture, characters, heard: None });
+    }
+    let checked = vec![vec![on.clone(); entries.len()]];
+    let window = VoiceWindow {
+        open: cells(a, ["各キャラ-001", "各キャラ-002", "各キャラ-003"], 293, 362)?,
+        backdrop: (Placed { image: a.transparent(), x: 0, y: 0, w: 1, h: 1 }, 0),
+        background: placed(a, "window", 240, 230)?,
+        check: Placed { image: on, x: 0, y: 0, w: 20, h: 20 },
+        layouts: vec![VoiceLayout { when: None, entries }],
+        fade_ms: 300,
+        close: cells(a, ["チェックボックスOK-01", "チェックボックスOK-02", "チェックボックスOK-03"], 390, 340),
+    };
+    Some((window, checked))
 }
 
 /// The click-wait icon (system.ini `icon_page`: `Bullet-%03d.png#20`; the
