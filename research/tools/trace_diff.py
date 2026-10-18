@@ -31,7 +31,12 @@ page, between it and the page before:
   than one frame. The original's command ends when its next record
   starts; ours when its last `ev` is written. Auto mode's wait for the
   reader differs, and the original's page record comes as the message
-  starts, ours once its text is drawn: nothing is timed across a page.
+  starts, ours once its text is drawn: nothing is timed across a page;
+- fast-voice: a time finding of a trace made with SPEED=N > 1 (the
+  trace's meta record says N, or --orig-speed) whose step holds a wait
+  on a voice or a load (WaitText, CreateSound, CreateTexture...): those
+  run in real time, so the step is up to N times too long in game
+  time. Counted, not a finding.
 """
 import argparse
 import bisect
@@ -142,7 +147,11 @@ def pair(orig, ours, look=5):
     return out
 
 
-def compare(orig, ours, fps, unit=None, merge_into=()):
+# ops whose time a fast run does not scale: a voice wait, loading
+REAL_TIME_OPS = ('WaitText', 'CreateSound', 'CreateSE', 'CreateBGM', 'CreateTexture', 'CreateMovie', 'LoadImage')
+
+
+def compare(orig, ours, fps, unit=None, merge_into=(), speed=1):
     """unit: ms per step of the original's clock (default: a frame)."""
     frame = 1000.0 / fps
     unit = unit or frame
@@ -173,12 +182,15 @@ def compare(orig, ours, fps, unit=None, merge_into=()):
         both = sorted((o['ends'][k], k) for k in o['ends'] if k in p['ends'])
         if not both:
             continue
+        keys = list(o['ops'])
         for (f0, k0), (f, k) in zip(both, both[1:]):
             want = (f - f0) * unit
             got = p['ends'][k] - p['ends'][k0]
             if abs(got - want) > frame:
                 steps = f' ({f - f0} frames)' if unit == frame else ''
-                findings.append((o['pg'], 'time', f"{where}: {k0} to {k} {got:.0f} ms, original {want:.0f} ms{steps}"))
+                span = keys[keys.index(k0):keys.index(k)]
+                kind = 'fast-voice' if speed > 1 and any(o['ops'][y].startswith(REAL_TIME_OPS) for y in span) else 'time'
+                findings.append((o['pg'], kind, f"{where}: {k0} to {k} {got:.0f} ms, original {want:.0f} ms{steps}"))
     return findings
 
 
@@ -214,6 +226,14 @@ def self_test():
     # a continued page: the original's text is its own lines
     ours[0].update(text='za', own='a')
     assert 'text' not in [k for _, k, _ in compare(orig, ours, 60.0, 1.0)]
+    # a fast run: a time finding over a voice wait is fast-voice, else time
+    orig[0]['ops'] = {'4:0': 'WaitText', '4:9': 'Fade'}
+    orig[0]['ends'] = {'4:0': 10, '4:9': 20}
+    ours[0]['ends'] = {'4:0': 0, '4:9': 400, '4:1': 400}
+    assert sorted(k for _, k, _ in compare(orig, ours, 60.0, 1.0, speed=8)) == ['fast-voice', 'page']
+    assert sorted(k for _, k, _ in compare(orig, ours, 60.0, 1.0)) == ['page', 'time']
+    orig[0]['ops']['4:0'] = 'Fade'
+    assert sorted(k for _, k, _ in compare(orig, ours, 60.0, 1.0, speed=8)) == ['page', 'time']
     print('self-test ok')
 
 
@@ -227,6 +247,7 @@ def main():
     ap.add_argument('--ms', action='store_true', help="time the original by its \"ms\" (Nitroplus NSS: its waits are timeGetTime waits), not its frames")
     ap.add_argument('--thread', type=int, help='only the original\'s records of this "th" (Nitroplus NSS: 0, the story; the others are processes)')
     ap.add_argument('--merge-into', default='', help="the original's ops that commit staged changes (Tsukihime: _FADS): a missing command before one that has ours is 'merged'")
+    ap.add_argument('--orig-speed', type=float, help="the original's SPEED=N when its trace has no meta record saying so")
     ap.add_argument('--max', type=int, default=20, help='findings shown per kind (default 20)')
     ap.add_argument('--self-test', action='store_true')
     a = ap.parse_args()
@@ -236,11 +257,12 @@ def main():
         ap.error('ORIG, OURS and --map are needed')
     m = read_map(a.map)
     orig = orig_side(a.orig, a.pages, 'ms' if a.ms else 'f', a.thread)
-    findings = compare(orig, ours_side(a.ours, m, a.pages), a.fps, 1.0 if a.ms else None, set(filter(None, a.merge_into.split(','))))
+    speed = a.orig_speed or next((r.get('speed', 1) for r in records(a.orig) if r['t'] == 'meta'), 1)
+    findings = compare(orig, ours_side(a.ours, m, a.pages), a.fps, 1.0 if a.ms else None, set(filter(None, a.merge_into.split(','))), speed)
     shown = {}
     for pg, kind, text in sorted(findings, key=lambda f: f[0]):
         shown[kind] = shown.get(kind, 0) + 1
-        if shown[kind] <= a.max and kind != 'merged':
+        if shown[kind] <= a.max and kind not in ('merged', 'fast-voice'):
             print(f'{kind:8} {text}')
     print('totals: ' + (', '.join(f'{k} {n}' for k, n in sorted(shown.items())) or 'no differences'))
 
