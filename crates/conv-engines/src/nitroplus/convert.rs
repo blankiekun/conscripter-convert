@@ -3403,8 +3403,11 @@ impl<'a, 'b> Compiler<'a, 'b> {
         let (ms, rate) = (ms.max(0) as u32, rate.clamp(100, 4000) as u32);
         for t in self.matching(target) {
             let Some(Object { kind: Kind::Sound(s), .. }) = self.objects.get_mut(&t) else { continue };
+            // (Music keeps 1000: only a change of it is a gap; `MusicStart` sets 1000.)
             if s.bgm {
-                self.note("SetFrequency on music");
+                if rate != s.freq {
+                    self.note("SetFrequency on music");
+                }
             } else if s.starting {
                 s.rate = Some((rate, ms));
             } else if let Some(file) = s.playing.clone().filter(|_| s.freq != rate) {

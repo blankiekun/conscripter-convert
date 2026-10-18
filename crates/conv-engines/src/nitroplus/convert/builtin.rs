@@ -944,6 +944,9 @@ impl Compiler<'_, '_> {
                     self.ops.push(Op::BacklogLine { text, voice, character });
                 }
             }
+            // src: Django.exe load_font_object 004308b0: pre-renders the listed
+            // glyphs into a font object no text names; draws nothing.
+            "LoadFont" => read.set(u64::MAX),
             "CreateProcess" => {
                 let name = self.object_name(&arg(0));
                 self.create_process(name, &arg(4).string());
