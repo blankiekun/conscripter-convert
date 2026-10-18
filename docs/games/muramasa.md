@@ -550,8 +550,11 @@ is not inert: anything but `true` clears the window's +0x9d4
 (`create_window` 00443500, the value in EAX), so `true` windows place
 their children from the window's place (`init_object_place` 0044c8c0,
 `parse_object_place` 00458d50), as in Django; ours places them from the
-screen (74 `true` calls; 絵演窓上's children 50 px off). Row corrected,
-the converter gap is open. `Shake`'s flip step is truncated in the exe,
+screen (74 `true` calls; 絵演窓上's children 50 px off). Row corrected;
+fixed (2026-10-18): a `true` window's children are placed from its place,
+their named places (`Center`, `InBottom`) count in its rectangle, and
+they move with it (`Compiler::places_children`, `frame`; Django.exe's
+FUN_004403a0 does the same, so 続・殺戮のジャンゴ's `中窓` busts too). `Shake`'s flip step is truncated in the exe,
 rounded in ours (≤ 1 ms); `DrawTransition`'s table is stored truncated
 (fldcw 0xc00 at 00457dee), as the engine's `effectsoft` does.
 

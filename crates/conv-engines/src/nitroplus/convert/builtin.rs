@@ -79,6 +79,7 @@ impl Compiler<'_, '_> {
             }
             "CreateTexture" => {
                 let name = self.object_name(&arg(0));
+                let (screen_w, screen_h) = self.frame(&name);
                 let src = self.deref(&arg(4));
                 let Some((image, w, h)) = self.texture_source(&src) else {
                     if self.file == "function_select.nss" {
@@ -115,6 +116,7 @@ impl Compiler<'_, '_> {
                 }
                 let what = name.to_string();
                 let name = self.object_name(&arg(0));
+                let (screen_w, screen_h) = self.frame(&name);
                 if !mask && arg(4).int() != 128 {
                     self.note("CreateStencil mode other than 128");
                 }
@@ -124,14 +126,17 @@ impl Compiler<'_, '_> {
                     return Value::Null;
                 };
                 let (w, h) = (w as i64, h as i64);
+                let relative = self.game.relative_children;
                 let o = self.create(name, Kind::Other, arg(1).int(), w, h);
                 o.x = arg(2).position(0, w, screen_w);
                 o.y = arg(3).position(0, h, screen_h);
                 o.container = !arg(5 + at).truthy();
+                o.screen_children = o.container && !relative;
                 o.stencil = Some((image, mask));
             }
             "CreateColor" => {
                 let name = self.object_name(&arg(0));
+                let (screen_w, screen_h) = self.frame(&name);
                 let (w, h) = (arg(4).int().max(1), arg(5).int().max(1));
                 let Some(rgb) = color(&arg(6)) else {
                     if std::env::var_os("NSS_TRACE").is_some() {
@@ -232,9 +237,9 @@ impl Compiler<'_, '_> {
                 // the place parser (FUN_004403a0) and FUN_00437980 then count
                 // its children's places from the screen.
                 // (`true` is 1 here, `false` 0.)
-                // src: Muramasa.exe builtin_CreateWindow 0040b3a0 keeps it only in the
-                // object's creation text (+0x180, FUN_00443500): read, it changes nothing there.
-                o.screen_children = !arg(6).truthy() && relative && is_window;
+                // src: Muramasa.exe builtin_CreateWindow 0040b3a0 → create_window 00443500 clears
+                // +0x9d4 alike (the value in EAX); init_object_place 0044c8c0, parse_object_place 00458d50.
+                o.screen_children = if is_window { !arg(6).truthy() } else { !relative };
                 if a.len() >= 6 {
                     let (w, h) = (arg(4).int(), arg(5).int());
                     // shortcut: with Game::relative_children (続・殺戮のジャンゴ) a
@@ -248,6 +253,7 @@ impl Compiler<'_, '_> {
             }
             "CreateMovie" => {
                 let name = self.object_name(&arg(0));
+                let (screen_w, screen_h) = self.frame(&name);
                 let path = self.deref(&arg(6));
                 let Some(info) = self.assets.movie_info(&path) else {
                     self.note("CreateMovie of a missing movie");
@@ -338,10 +344,12 @@ impl Compiler<'_, '_> {
                 // One picture on screen moving while the script waits: a real
                 // motion (after showing what changed before it).
                 // (A picture with children shown goes the general way below.)
-                let alone = |t: &String| !self.game.relative_children || !self.shown.keys().any(|k| k.starts_with(&format!("{t}/")));
+                let carries = |t: &String| self.game.relative_children || self.places_children(t);
+                let alone = |t: &String| !carries(t) || !self.shown.keys().any(|k| k.starts_with(&format!("{t}/")));
                 if ms > 0 && blocking && targets.len() == 1 && self.shown.contains_key(&targets[0]) && alone(&targets[0]) {
                     self.sync(0);
                     let trail = self.objects[&targets[0]].trail;
+                    let (screen_w, screen_h) = self.frame(&targets[0]);
                     let o = self.objects.get_mut(&targets[0]).unwrap();
                     let (x, y) = (to_x.position(o.x, o.w, screen_w), to_y.position(o.y, o.h, screen_h));
                     let (dx, dy) = (x - o.x, y - o.y);
@@ -362,6 +370,7 @@ impl Compiler<'_, '_> {
                     return Value::Null;
                 }
                 for t in &targets {
+                    let (screen_w, screen_h) = self.frame(t);
                     let o = self.objects.get_mut(t).unwrap();
                     o.x = to_x.position(o.x, o.w, screen_w);
                     o.y = to_y.position(o.y, o.h, screen_h);
@@ -369,11 +378,9 @@ impl Compiler<'_, '_> {
                 // Children placed from their parent slide with it (a face in
                 // its frame: `WindowMoveM` moves only the frame).
                 let mut moved = targets.clone();
-                if self.game.relative_children {
-                    for t in &targets {
-                        let inside = format!("{t}/");
-                        moved.extend(self.objects.keys().filter(|k| k.starts_with(&inside) && !targets.contains(k)).cloned());
-                    }
+                for t in targets.iter().filter(|t| self.game.relative_children || self.places_children(t)) {
+                    let inside = format!("{t}/");
+                    moved.extend(self.objects.keys().filter(|k| k.starts_with(&inside) && !targets.contains(k)).cloned());
                 }
                 self.set_tempo(tempo, &moved);
                 self.timed(ms, &arg(5), &moved);

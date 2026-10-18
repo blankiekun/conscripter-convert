@@ -147,8 +147,9 @@ pub struct Game {
     pub story: Option<(&'static str, &'static str)>,
     /// A child object (`frame03/顔窓31`) is placed from its parent's
     /// place, not the screen's corner (続・殺戮のジャンゴ's face windows).
-    /// Off for 装甲悪鬼村正, whose children of cameras and windows weren't
-    /// checked against it.
+    /// Off for 装甲悪鬼村正, whose children of cameras weren't checked
+    /// against it (a window's follow `CreateWindow`'s last argument in
+    /// both games).
     relative_children: bool,
     /// `CreateTexture` from a `LoadImage` picture draws it (続・殺戮のジャンゴ's
     /// face-window frames, 装甲悪鬼村正's pictures made from them).
@@ -1183,8 +1184,9 @@ struct Object<'a> {
     /// pictures and places, and the cut made of them, kept while these
     /// stay the same.
     cut: Option<(String, String)>,
-    /// With [`Game::relative_children`]: its children's places count from
-    /// the screen, not from it (`CreateWindow`'s last argument not `true`).
+    /// A container's children's places count from the screen, not from it
+    /// (`CreateWindow`'s last argument not `true`; a name without
+    /// [`Game::relative_children`]).
     screen_children: bool,
 }
 
@@ -3309,15 +3311,34 @@ impl<'a, 'b> Compiler<'a, 'b> {
             match self.objects.get(&name[..end]) {
                 // Seen through a camera: the other way.
                 Some(p) if matches!(p.kind, Kind::Camera) => (x, y) = (x - p.x, y - p.y),
-                // A window's or a name's child is at its own place
-                // (装甲悪鬼村正 under wine), but with Game::relative_children.
-                Some(p) if p.container && (!self.game.relative_children || p.screen_children) => {}
+                // A child of a window whose last argument isn't `true`, or of a
+                // name (but with Game::relative_children), is at its own place.
+                Some(p) if p.container && p.screen_children => {}
                 Some(p) => (x, y) = (x + p.x, y + p.y),
                 None => {}
             }
             end += 1;
         }
         (x, y)
+    }
+
+    /// Whether `name` is a window that places its children from its own
+    /// place and rectangle (`CreateWindow`'s last argument `true`).
+    fn places_children(&self, name: &str) -> bool {
+        self.objects.get(name).is_some_and(|p| p.container && !p.screen_children && p.clip.is_some() && !matches!(p.kind, Kind::Camera))
+    }
+
+    /// The size a named place (`Center`, `InBottom`) of `name` counts in:
+    /// its window's ([`Compiler::places_children`]), else the screen's.
+    // src: exe 00458d50 (parse_object_place: the rect at the parent's +0x11f4 when its +0x9d4 is set; 00443500 sets it to the window's)
+    // src: Django.exe FUN_004403a0 alike (the rect at +0x7f8 when +0x3c8 is set)
+    // shortcut: the nearest parent only, so a named place deeper in a window
+    // counts from the screen (none in 装甲悪鬼村正 or 続・殺戮のジャンゴ).
+    fn frame(&self, name: &str) -> (i64, i64) {
+        match name.rfind('/') {
+            Some(i) if self.places_children(&name[..i]) => self.objects[&name[..i]].clip.unwrap_or(self.game.screen),
+            _ => self.game.screen,
+        }
     }
 
     /// How much (per mille) the cameras `name` is seen through magnify an
