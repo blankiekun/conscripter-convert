@@ -13,6 +13,7 @@ use conv_core::ir::{
     SourceLoc, TransitionStyle, Var, ZoomStyle,
 };
 
+mod boot;
 mod button_screen;
 mod chapters;
 mod choice_plates;
@@ -525,6 +526,7 @@ pub fn emit_mapped(script: &Script) -> (String, Vec<(usize, Option<SourceLoc>)>)
 
     let save_menu = script.save_menu.is_some() || script.save_grid.is_some() || system_menu::loads(script);
     let effect = |ms: u32| if ms == 0 { "1".to_string() } else { effects[&(ms, Effect::Fade)].clone() };
+    boot::emit(&mut out, script, border);
     notice::emit(&mut out, script.width, script.height);
     if let Some(t) = &script.title_screen {
         title_screen(&mut out, t, &effect(t.fade_ms), save_menu, has_settings, script.confirm.as_ref(), script.extras.is_some(), border, picture_replay);

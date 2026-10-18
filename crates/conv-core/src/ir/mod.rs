@@ -996,4 +996,7 @@ pub struct Script {
     /// and the ops after it, up to the next entry, were lowered from),
     /// sorted by op index. Written out by `--source-map`; empty: unknown.
     pub source_map: Vec<(usize, SourceLoc)>,
+    /// What the game shows at every launch before the title (brand logos,
+    /// a movie), in order; empty: straight to the title.
+    pub boot: Vec<BootStep>,
 }
