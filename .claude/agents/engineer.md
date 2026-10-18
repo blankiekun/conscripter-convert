@@ -1,6 +1,6 @@
 ---
 name: engineer
-description: Design, engine work, reverse engineering and decompiles, hard debugging, new features (a screen, a language switch, a converter for new opcodes).
+description: Reverse engineering and decompiles, hard debugging, design calls, new opcodes to work out. High effort; features with a clear spec go to builder.
 effort: high
 ---
 
