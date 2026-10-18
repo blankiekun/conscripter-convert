@@ -525,6 +525,19 @@ rather than by browsing:
     sounds flushed after a statement with that statement; 装甲悪鬼村正:
     docs/games/muramasa.md, "Trace diff".
 
+**Reference traces** (a full trace of the original, few tokens): `research/tools/reftrace.sh <game>`
+(saihate, muramasa, muramasa-en, django, oretsuba, tsukihime) builds our dry run, `ours.map` and our
+trace on the same route, then starts the original's run in the background under
+`systemd-run --user --scope -p MemoryMax=3G`, through `headless-run.sh`, into `out/<game>-reftrace/`
+(git-ignored). Game folders come from the `~/.config/conscripter-convert/games` links; per-machine route
+inputs (`saihate-route.arg`, `<mura|django>-choose.txt`, the patched `*-patch/` dirs, oretsuba's
+`keys.sh`) from `$CD` (default `out/reftrace`); other variables are listed at the top of the script.
+`reftrace.sh status <game>` prints at most 5 lines (running, pages, last scene, minutes since progress,
+free RAM); `reftrace.sh summary <game>` at most 15 (pages, how far, top `trace_diff.py` kinds). A watchdog
+resumes 最果てのイマ from its last save after 10 min without progress; for the others it logs the stall
+to `watchdog.log`. Rhythm: one `status` about 5 min after the start (setup problems show then), then every
+30-60 min, `summary` at the end.
+
     **Trace speeds** (2026-10-17, 40 pages from each trace's start; wall
     seconds a page once the game runs, plus 20-30 s of start-up). A wine
     original runs faster with `SPEED=N` (`xtrace.sh`, `ntrace.sh`):
