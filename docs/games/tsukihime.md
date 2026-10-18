@@ -713,7 +713,7 @@ Setup, in a data dir of its own (`<emu>/data`, never the flatpak's
   host GPU under Xvfb. Never the desktop: no Wayland socket, an empty
   `XDG_RUNTIME_DIR` (SDL finds a Wayland socket there even without
   `WAYLAND_DISPLAY`), `SDL_VIDEODRIVER=x11`, and the run stops unless
-  its window is on its own Xvfb. The `MemoryMax=8G` scope does not
+  its window is on its own Xvfb. The `capped.sh` 8 GiB scope does not
   hold it: flatpak moves the emulator into a scope of its own, so the
   script stops only the Ryujinx on its display (SIGKILL after 10 s:
   it outlives SIGTERM), never one the user runs.

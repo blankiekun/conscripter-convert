@@ -1236,8 +1236,7 @@ start. The vars file can come from:
 **Long runs.** Other agents stop engines with `pkill -x conscripter`,
 which ends every run on the machine: run long traces through a symlink
 with another name (`ln -s conscripter out/conscripter-<game>`). Run
-builds and engine runs under `systemd-run --user --scope -p
-MemoryMax=…` so a memory regression can't take the desktop down (村正's
+builds and engine runs under `research/tools/capped.sh <GiB> <cmd>` so a memory regression can't take the desktop down (村正's
 full build once grew to 7 GB). `--checkpoint-every N` saves a slot every N pages during
 auto-play, and `--load n` starts a run from slot n, so a run that fails
 deep in a route restarts from the last checkpoint. Checkpoints go to
