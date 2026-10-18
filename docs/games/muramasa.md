@@ -780,8 +780,11 @@ so the split screen stayed. The cover now remembers the pictures it
 froze; once it has been at 0 and the screen under it changed, it draws
 those (its shade or tone over them) at its own priority. 10 such
 fade-ins in 5 files by a scan of the scripts, more through
-`CreatePlainEX` (made at 0, faded in later, e.g. ma04_016vs's
-cockpit). #457's picture diff of pages 62, 64, 76-78: 83-86 % of
+`CreatePlainEX` (made at 0, faded in later: ma04_014vs's blurred
+copy, where the white flash above it no longer stays). A cover that is
+moved, zoomed, turned, shaken or blended (mc03_021vs's `SubRender`
+copy) or that froze a strip or movie (md04_037's rain) still keeps the
+screen as before. #457's picture diff of pages 62, 64, 76-78: 83-86 % of
 pixels differing before, only the text window after.
 
 ### Status as it stood before the 2026-10-18 prune

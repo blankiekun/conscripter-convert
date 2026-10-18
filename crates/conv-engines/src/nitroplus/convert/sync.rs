@@ -820,6 +820,12 @@ impl Compiler<'_, '_> {
         if froze.is_empty() {
             return false;
         }
+        // shortcut: a cover moved, zoomed, turned, shaken or blended (mc03_021vs's
+        // SubRender copy), or one that froze a strip or movie (md04_037's rain), keeps
+        // the screen as before; draw its copy so if a scene needs it
+        if (o.x, o.y, o.zoom, o.turn) != (0, 0, (1000, 1000), (0, 0, 0)) || o.shake.is_some() || o.blend != BLEND_NORMAL || froze.iter().any(|(_, s)| s.cells.is_some()) {
+            return false;
+        }
         let under = self.shown.keys().filter(|n| self.objects.get(*n).is_none_or(|x| x.priority <= o.priority)).count();
         under != froze.len() || froze.iter().any(|(n, s)| self.shown.get(n).is_none_or(|t| *t != Shown { engine: t.engine, layer: t.layer, tint: t.tint.clone(), ..s.clone() }))
     }

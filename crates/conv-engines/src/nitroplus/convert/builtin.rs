@@ -180,6 +180,8 @@ impl Compiler<'_, '_> {
                         let p = arg(1).int();
                         let mut froze: Vec<_> = self.shown.iter().filter(|(n, _)| self.objects.get(*n).is_none_or(|o| o.priority <= p)).map(|(n, s)| (n.clone(), s.clone())).collect();
                         froze.sort_by_key(|(_, s)| s.layer);
+                        // Their order kept, not the layers (which differ between a Random's picks).
+                        froze.iter_mut().enumerate().for_each(|(i, (_, s))| s.layer = i as u32);
                         Kind::Cover { froze, again: false }
                     }
                     // A tint drawn over part of the screen (装甲悪鬼村正's
