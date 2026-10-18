@@ -60,6 +60,10 @@ fit.
   screens replace) are not yet listed.
 - ma01_026's document is shown whole before its key sounds; the port
   types it letter by letter (`CreateTextArea` + `FadeCharacter`).
+- Backlog (`SetBacklog`) lines take the English of the row with the same
+  Japanese; 51 `logadd` lines still carry Japanese: voice-only lines
+  (ex/vs, ma02, mb04, mc02 dishes), the date telops, and lines the port
+  folds into one row (ma01_017's three-line speech).
 - 22 rows of English placed nowhere (lines the NSS orders or splits
   otherwise: route variants such as mc01's "Ichijo is nowhere to be
   seen" / "My comrades …", ma01_003's `<CLICK>` rows).
