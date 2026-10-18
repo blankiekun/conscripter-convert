@@ -687,10 +687,8 @@ The route runs and `--at` starts are in `research/nitroplus/engrun.py`.
 
 Open, by area (each is small; most noticeable first):
 
-- **Original archives** (`--original-archives`,
-  `docs/original-archives.md`): the whole story plays from the game's
-  own NPAs (page shots AE 0 against today's build, folder 3.6 GB →
-  889 MB); not with `--english` yet.
+- **Original archives** (`--original-archives`, `docs/original-archives.md`):
+  works (3.6 GB → 889 MB, page shots AE 0); not with `--english` yet.
 
 - **Engine-drawn screens**
   - Save/load: the play time is read when the screen opens (the routine
@@ -790,23 +788,38 @@ Open, by area (each is small; most noticeable first):
   loads under wine. (A `Fade` that leaves the opacity as it was, or
   on no object: History, "Fades that change nothing", "Actions on no
   object".)
-- **Picture diff of ma00_000** (#457's 24 blocks, rerun 2026-10-18 with
-  `--real-time`): what is left is small and not fixed.
-  - Pages 57, 66 (66 is 57 kept in a cover): `SetShade(…, MEDIUM)`
-    pictures are about 2.5/255 darker in the exe. Its passes of a 3×3
-    mean floor (`FUN_00465b10`: `sum / 9` on unsigned ints), about
-    0.4/255 lost a pass (4 passes on a frame of the game, simulated:
-    1.5/255); the engine's blur rounds. Invisible; a fix would darken
-    a shaded picture by its passes' loss.
-  - Pages 55, 56, 62, 64, 76-79: inside the text window, which ours
-    moves to the same place (`SetTextEXR`/`EXL`, x 191 or 703): the
-    original's frame 1 s into the block is still typing (62: 3 of 4
-    columns), ours is typed out with the click-wait icon. 79: our
-    frame is 200 ms into the unwaited 300 ms `Move("@StC*", …, @+10,
-    @+5)` (the knight 4, 2 px short; the original's is done).
+- **Picture diff of ma00_000** (#457's 24 blocks, 2026-10-18): small
+  differences left, not fixed (History, "ma00_000 picture diff: what is left").
 - **Unused**: `spgrab` could stand for `CreateTexture`'s render-to-texture.
 
 ## History
+
+### `csp 49`-`58` once per load, not per `setwindow` (2026-10-18)
+
+Every `setwindow` was followed by `csp 49` to `csp 58`, which only
+cleared the name plate's and link words' old sprites in saves made
+before #222 and the link names: about 384k commands, 2.7 MB (9 %) of the
+`0.txt` (JP 28.8 → 26.1 MB, EN 27.1 → 24.5 MB). A load is the only way
+those sprites come back, so the `loadgosub` routine `conv_load_clear`
+(every game) clears them once and goes on to the game's own routine.
+Sprites 49-58 are used by nothing else in any game.
+
+### ma00_000 picture diff: what is left (2026-10-18)
+
+#457's 24 blocks, rerun with `--real-time`:
+
+- Pages 57, 66 (66 is 57 kept in a cover): `SetShade(…, MEDIUM)`
+  pictures are about 2.5/255 darker in the exe. Its passes of a 3×3
+  mean floor (`FUN_00465b10`: `sum / 9` on unsigned ints), about
+  0.4/255 lost a pass (4 passes on a frame of the game, simulated:
+  1.5/255); the engine's blur rounds. Invisible; a fix would darken
+  a shaded picture by its passes' loss.
+- Pages 55, 56, 62, 64, 76-79: inside the text window, which ours
+  moves to the same place (`SetTextEXR`/`EXL`, x 191 or 703): the
+  original's frame 1 s into the block is still typing (62: 3 of 4
+  columns), ours is typed out with the click-wait icon. 79: our
+  frame is 200 ms into the unwaited 300 ms `Move("@StC*", …, @+10,
+  @+5)` (the knight 4, 2 px short; the original's is done).
 
 ### `DrawTransition` as the engine's `spfadeto` (2026-10-18)
 
