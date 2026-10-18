@@ -297,6 +297,78 @@ playthroughs (`%410`-`%439`).
 | one_clear, two_clear, three_clear, four_clear (global) | part cleared | S01_19A, S02_17A, S03_23A, S04_29A | S04_05I (true ending), the `NEXT_HINT` messages |
 | Pre_asuka, Pre_miyako, Pre_misaki, Pre_karuo (global) | after-story read | P01_01D, P02_01E, P03_01D, P04_02B | not in the scenes (the title menu) |
 
+## Testing
+
+### The original under Vita3K
+
+Step 1, the boot check (2026-10-17): **boots to the title**, drawn
+right, at 30 frames a second by Vita3K's own counter (its performance
+overlay, steady on the title and on the save dialog). The official
+Vita3K AppImage (`Vita3K v0.2.1 4190-fab6bfc7`) runs it; no source
+build. Run it only through `research/oretsuba/vita-emu.sh`, which
+starts it on its own Xvfb with private XDG dirs.
+
+Setup, in a folder of its own (`<emu>`, never `~/.local/share/Vita3K`
+or `~/.config/Vita3K`, which the user plays with):
+
+- `<Vita3K.AppImage> --appimage-extract` in `<emu>` gives
+  `<emu>/AppDir`; the script starts `AppDir/bin/Vita3K` itself (not
+  `AppRun`, whose hooks run a self-updater) and makes the links
+  AppRun would (`/tmp/17-Tt`, `/tmp/8_P`, `bin/shaders-builtin`).
+- The game: the decrypted package (`<game>`, "Decrypting the package")
+  as `<emu>/home/data/Vita3K/Vita3K/ux0/app/PCSG00299` (`cp -al`, hard
+  links, no copy), and its license, `work.bin`, as
+  `ux0/license/PCSG00299/JP0745-PCSG00299_00-ORETSUBA0000VITA.rif`:
+  without it the eboot fails (`No klic provided for encrypted App`).
+- No firmware: the game boots without it. The save dialogs draw their
+  text with the host's DejaVuSans (the script links `/usr/share/fonts`
+  into the AppImage's font path); with no font at all the first save
+  dialog ends the game.
+- `<emu>/home/config/Vita3K/config.yml` (written by a first run):
+  `backend-renderer: Vulkan` (OpenGL dies 1 s in, a null call, and
+  the Qt window wants OpenGL 4.4, which Xvfb's GLX lacks; Vulkan runs on
+  the host GPU), `show-welcome: false`, `warn-missing-firmware: false`;
+  `performance-overlay: true` shows the frame counter.
+- Run: `SHOT=10 KEYS="30:c 34:c" research/oretsuba/vita-emu.sh
+  <emu>/home 60` (shots of the root window in `<emu>/logs`, the game
+  in its top-left 960x544; log `<emu>/logs/vita3k.log`). Keys go to
+  the game window by xdotool: `c` = circle, the OK of this Japanese
+  game, `x` = cross, `Return` = start. The Qt front end takes them;
+  `--frontend sdl` draws the game but ignores them.
+- SDL connects to the desktop's Wayland (`$XDG_RUNTIME_DIR/wayland-0`)
+  even with `WAYLAND_DISPLAY` unset: the script gives Vita3K an empty
+  `XDG_RUNTIME_DIR` and `SDL_VIDEO_DRIVER=x11`.
+
+What a boot does: CRIWARE, Navel and 5pb. logos (to about 22 s); on the
+first boot "There is no saved data", then "Saving complete" (circle
+each), on later ones "Loading complete" (circle, about 30 s in), then
+the title ("Press START button") by 40 s. The title is still: the
+counted distinct frames there are under 1 a second.
+
+Step 2, planned, not built: a trace of the original as JSONL for
+`research/tools/trace_diff.py` ("cmd" records with `at` =
+`<scene>:<instruction>` and `f` = frames, "page" records with the
+text). The hook point is `task_run` (0x81021070), the loop head at
+0x81021188 where `switch(*rec)` dispatches the current task record
+`rec = *(ctx + 0x4450)` on its task number. Two ways, the first first:
+
+1. Vita3K's GDB stub (`gdbstub: true` in config.yml): a Python client
+   sets a breakpoint at 0x81021188 (+ the load base, 0x81000000 when it
+   matches the ELF), reads `rec`, its task number and the scene it
+   belongs to, and a counter at the frame flip
+   (`sceGxmDisplayQueueAddEntry`), and writes the records. Slow per
+   stop, but nothing to patch.
+2. If that is too slow: an eboot patch through Vita3K's patch folder
+   (`data/Vita3K/patch/PCSG00299.txt`), a branch at 0x81021188 to a
+   code cave that `sceClibPrintf`s the task number, the record and the
+   frame, back again; the prints land in the log as `TTY:` lines, which
+   a small script turns into JSONL.
+
+Either needs first, from the decompile: how a record maps to the
+scene's instruction index (the record size and the scene's base in
+the loaded script), and which task shows a page (the message task's
+text pointer).
+
 ## Status: the whole story plays (2026-10-15)
 
 ### Queue (2026-10-16)
@@ -307,7 +379,9 @@ playthroughs (`%410`-`%439`).
 - The user picks the next fixes from "Arguments not read" below.
 - Dropped arguments picked by the user (2026-10-17): the SE fades and waits, CharacterDelete's `:FadeOut 0` and the window's fade-out are done ("History"); SceneJumpDialogEnd's `:Fade` is left (table below). Next PR: BacklogMessage `:Message`, the shakes' `:Param` 2-5 and SpriteQuake's `:Wait`, SpriteMove `:Roll`, CharacterWait waiting for fades and CharacterActionEnd stopping moves.
 - Dropped arguments picked by the user (2026-10-17), second part: BacklogMessage `:Message` (a `logadd`), the shakes' swing (`:Param` 2-5) and SpriteQuake `:Wait` are done ("History"). SpriteMove `:Roll` is left (table below). CharacterWait waiting for fades needs nothing: no CharacterWait follows a `:FadeWait 0` character fade without a message between, whose click outlasts it (a dry run that waited for them added no line). CharacterActionEnd leaving moves running is what the eboot does: 0x81127a00 → 0x811277c0 ends only the action (+0x2e8).
-- Looks against the Vita stay blocked (needs Vita screenshots).
+- Looks against the Vita: the original now boots to the title under
+  Vita3K ("Testing"), so screens can be filmed; the trace hook
+  (step 2 there) is planned, not built.
 - `spgrab` (engine #32, merged) could let SpriteBG/SpriteBS with
   `:FadeWait 0` (890) cross-fade without waiting: grab the screen, change
   the picture under the copy, fade the copy out. Not used yet.

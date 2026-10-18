@@ -672,6 +672,10 @@ anything is reached (step 11.6).
   firmware NCA's master key revision must be in the keys; a firmware
   newer than the keys fails). Switch: Ryubing's
   `--no-gui` front end, recipe in `docs/games/tsukihime.md`, "Testing".
+  Vita: Vita3K's AppImage, recipe in `docs/games/oretsuba.md`,
+  "Testing". SDL apps find the desktop's Wayland socket in
+  `$XDG_RUNTIME_DIR` even with `WAYLAND_DISPLAY` unset: give them an
+  empty `XDG_RUNTIME_DIR` and `SDL_VIDEO_DRIVER=x11`.
 - **Wine gotchas:** run every game with `LANG=ja_JP.UTF-8` and
   `LC_ALL=ja_JP.UTF-8`, or folder and file names come out garbled and
   saves can fail (Muramasa's new game went straight back to the title). Wine has no MS fonts, so a
