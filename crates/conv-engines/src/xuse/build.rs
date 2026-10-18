@@ -3,7 +3,7 @@
 
 use std::collections::BTreeMap;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail};
 use conv_core::ir::{Script, SourceLoc};
@@ -39,8 +39,14 @@ const LEFT_OUT: &[(&str, usize, &str)] = &[
 /// Compiles every `NNNN.cd` script of `game` (the installed game, with
 /// `HD/` and `CD/`). `linear`: play the story scripts straight through in
 /// file order, skipping the engine-setup ones (names starting with '!'),
-/// with no jumps and no menus.
-pub fn build(game: &Path, linear: bool, opts: &Opts) -> Result<Built> {
+/// with no jumps and no menus. `original_archives`: leave the pictures and
+/// sounds copied unchanged out of the output; CONscripter reads them from
+/// the game's own files, which `cons_archives.txt` names by byte range
+/// (docs/original-archives.md).
+pub fn build(game: &Path, linear: bool, original_archives: bool, opts: &Opts) -> Result<Built> {
+    if original_archives && (opts.webp.is_some() || opts.audio.reencodes()) {
+        bail!("--original-archives keeps the game's own pictures and sounds: no --webp or audio re-encoding");
+    }
     let dir = crate::find(game, "HD/CDFiles");
     let mut ids: Vec<u32> = fs::read_dir(&dir)
         .with_context(|| format!("reading {}", dir.display()))?
@@ -88,6 +94,9 @@ pub fn build(game: &Path, linear: bool, opts: &Opts) -> Result<Built> {
     );
     let mut assets = AssetBank::new(game, opts.output)?;
     assets.dry_run = opts.dry_run;
+    if original_archives {
+        assets.ranges = Some(Vec::new());
+    }
     assets.prefetch(&needs).context("extracting assets")?;
     let window = assets.text_window().context("building the text window")?;
 
@@ -158,6 +167,9 @@ pub fn build(game: &Path, linear: bool, opts: &Opts) -> Result<Built> {
         boot,
         ..Default::default()
     };
+    if let Some(ranges) = assets.ranges.take() {
+        original_archives_file(game, &ranges, &assets.xor_keys, opts)?;
+    }
     Ok(Built { ir, notes, metrics, engine: "xuse", picture_dirs: PICTURE_DIRS, audio_dirs: AUDIO_DIRS, package: None })
 }
 
@@ -174,4 +186,28 @@ pub fn read_symbols(path: &Path) -> Result<SymbolTable> {
 /// Label names (chapter titles, link scene titles) from `HD/CDFiles/0.cd`.
 pub fn label_names(game: &Path) -> Result<LabelNames> {
     Ok(LabelNames::new(&read_symbols(&crate::find(game, "HD/CDFiles/0.cd"))?))
+}
+
+/// Writes `cons_archives.txt`, one `range` line per file copied unchanged
+/// from the game (paths relative to the game folder, which the player's
+/// `HD/` and `CD/` are copied into), after an `xor` line per encrypted
+/// file, and deletes those files.
+fn original_archives_file(game: &Path, ranges: &[(String, PathBuf, usize, usize)], xor_keys: &BTreeMap<PathBuf, Vec<u8>>, opts: &Opts) -> Result<()> {
+    let rel = |file: &Path| file.strip_prefix(game).unwrap_or(file).to_string_lossy().replace('\\', "/");
+    let mut list = String::new();
+    for (file, key) in xor_keys {
+        let hex: String = key.iter().map(|b| format!("{b:02x}")).collect();
+        list += &format!("xor\t{}\t{hex}\n", rel(file));
+    }
+    for (name, file, offset, len) in ranges {
+        let rel = rel(file);
+        list += &format!("range\t{name}\t{rel}\t{offset}\t{len}\n");
+        if !opts.dry_run {
+            let _ = fs::remove_file(opts.output.join(name));
+        }
+    }
+    fs::create_dir_all(opts.output)?;
+    fs::write(opts.output.join("cons_archives.txt"), list)?;
+    println!("--original-archives: {} files read in place from the game's own", ranges.len());
+    Ok(())
 }

@@ -802,6 +802,10 @@ addresses in `xuse/replay.rs`, `gallery.rs`, `staffroll.rs`), so the
 build needs the exe; a missing or different exe stops it with an error.
 
 **Open**
+- Original archives (`convert-game --original-archives`,
+  `docs/original-archives.md`): pictures, voices and effects read in
+  place from `HD/` and `CD/` (page shots AE 0 against today's build,
+  folder 1.4 GB → 426 MB).
 - Launch warning's visitor counter ("あなたは N 人目のお客様です"): not
   drawn. User (2026-10-18): not worth more than a one-line fix, so left
   out; likewise ENTER only (any click goes on). Data: the system data's

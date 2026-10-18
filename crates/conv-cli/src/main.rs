@@ -41,6 +41,11 @@ enum Command {
         /// jumps. Stopgap until conditions are decoded.
         #[arg(long)]
         linear: bool,
+        /// Leave the pictures and sounds out of the output: CONscripter
+        /// reads them from the game's own HD/ and CD/ files (copy or link
+        /// them into the output), which cons_archives.txt names
+        #[arg(long)]
+        original_archives: bool,
         #[command(flatten)]
         build: build::BuildArgs,
     },
@@ -204,8 +209,8 @@ fn run(command: Command) -> Result<()> {
             println!("conscripter-convert {}", args[1..].iter().map(|a| a.to_string_lossy()).collect::<Vec<_>>().join(" "));
             run(Cli::try_parse_from(args)?.command)
         }
-        Command::ConvertGame { game, title, linear, build } => {
-            build::run(build, &title, xuse::build::OUTPUT_DIRS, |opts| xuse::build::build(&game, linear, opts))
+        Command::ConvertGame { game, title, linear, original_archives, build } => {
+            build::run(build, &title, xuse::build::OUTPUT_DIRS, |opts| xuse::build::build(&game, linear, original_archives, opts))
         }
         Command::ConvertScript { game, script, output, font, title, webp, audio } => {
             convert_script(&game, script, &output, font.as_deref(), &title, webp.get(false)?, audio.format(false)?)
