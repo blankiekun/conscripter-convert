@@ -267,7 +267,7 @@ The audit itself, `docs/audit-2026-10.md`, is history. Still open:
 
 - **Colours into the IR (step 17):** skipped while one game has links;
   move them into the IR when a second game needs other ones.
-- **Rename `onsyuri` (step 21):** the source folders are `src/cons*`; the
-  names outside pages and saved data use (the web hooks `onsyuri*`,
-  `onsyuri_index.json`, `/onsyuri_save`, the `onsyuri` JS factory, the
-  Android package) wait for the user.
+- **Rename `onsyuri` (step 21):** done: the web index is
+  `cons_index.json`, saves `/cons_save`, the JS factory `cons`, the
+  Android package `io.github.blankiekun.conscripter`. The stock page does
+  not move old `/onsyuri_save` saves (the site's page does).

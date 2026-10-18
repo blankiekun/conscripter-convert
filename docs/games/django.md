@@ -45,7 +45,7 @@ finds loose files with Japanese names):
 target/release/conscripter-convert convert-nss <game> -o out/django-web \
     --font <ipag.ttf> --title 続・殺戮のジャンゴ --loose --webp --webp-quality 80
 python3 -I engine/src/cons_web/conscripter_index.py -i out/django-web \
-    -o out/django-web/onsyuri_index.json --title 続・殺戮のジャンゴ --lazyload
+    -o out/django-web/cons_index.json --title 続・殺戮のジャンゴ --lazyload
 cp engine/build_web/conscripter.{html,js,wasm} engine/build_web/favicon.ico out/django-web/
 python3 -m http.server 8000 -d out/django-web   # then open /conscripter.html
 ```
