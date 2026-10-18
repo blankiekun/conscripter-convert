@@ -101,6 +101,11 @@ enum Command {
         /// *.npk): its text replaces the Japanese
         #[arg(long)]
         english: Option<PathBuf>,
+        /// Leave the pictures and sounds out of the output: CONscripter
+        /// reads them from the game's own *.npa, which the output's
+        /// cons_archives.txt names (put them in the game folder)
+        #[arg(long)]
+        original_archives: bool,
         #[command(flatten)]
         build: build::BuildArgs,
     },
@@ -188,8 +193,8 @@ fn run(command: Command) -> Result<()> {
         Command::ConvertScript { game, script, output, font, title, webp, audio } => {
             convert_script(&game, script, &output, font.as_deref(), &title, webp.get(false)?, audio.format(false)?)
         }
-        Command::ConvertNss { game, file, scene, chain, movies, no_movies, title, english, build } => {
-            let run = nitroplus::build::Run { file: file.as_deref(), scene: scene.as_deref(), chain, movies: movies.as_deref(), no_movies, english: english.as_deref() };
+        Command::ConvertNss { game, file, scene, chain, movies, no_movies, title, english, original_archives, build } => {
+            let run = nitroplus::build::Run { file: file.as_deref(), scene: scene.as_deref(), chain, movies: movies.as_deref(), no_movies, english: english.as_deref(), original_archives };
             build::run(build, &title, &nitroplus::assets::OUTPUT_DIRS, |opts| nitroplus::build::build(&game, &run, opts))
         }
         Command::Games { dir, json } => {

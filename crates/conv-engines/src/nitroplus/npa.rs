@@ -103,6 +103,12 @@ impl Key {
         Key::from_table(Reader(exe).slice(TABLE_OFFSET, 256)?)
     }
 
+    /// The decryption table in hex, as CONscripter's `cons_archives.txt`
+    /// takes it.
+    pub fn hex(&self) -> String {
+        self.0.iter().map(|b| format!("{b:02x}")).collect()
+    }
+
     fn from_table(table: &[u8]) -> Result<Key, NpaError> {
         let mut inv = [0u8; 256];
         let mut seen = [false; 256];
