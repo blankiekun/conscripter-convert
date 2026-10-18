@@ -34,6 +34,19 @@ const FIRST_LOCAL: u16 = 186;
 // ours: index 400 from the global border, in alloc.rs's free %1111-%1999
 const READ_FLAGS: u16 = 400;
 
+/// `_STCG(name)` sets the CG flag of a picture it doesn't show
+/// (`FUN_001774f0`); here a global per name, in name order from
+/// [`CG_FLAGS`], which the gallery reads ([`cg_flags`]).
+// ours: after gallery::FLAG_557 (1003), in alloc.rs's free %1111-%1999
+const CG_FLAGS: u16 = 1004;
+
+/// The globals `_STCG` sets, by lowercase picture name.
+pub fn cg_flags(scripts: &[(String, Vec<Command>)]) -> BTreeMap<String, Var> {
+    let names: BTreeSet<String> = scripts.iter().flat_map(|(_, c)| c).filter(|c| c.opcode() == "_STCG").filter_map(|c| c.args.first()).map(|a| a.trim().to_lowercase()).collect();
+    assert!(names.len() < 100, "more _STCG pictures than their globals");
+    names.into_iter().enumerate().map(|(i, n)| (n, Var { global: true, index: CG_FLAGS + i as u16 })).collect()
+}
+
 /// The global that holds scene-read flag `n` (`_RDST(n)`).
 pub fn read_flag(n: u16) -> Var {
     Var { global: true, index: READ_FLAGS + n }
@@ -507,6 +520,10 @@ impl Lowering<'_, '_> {
             // to its end. shortcut: only 557 (the last lesson, `QA_25`), the
             // gallery's unlock-all; the others when something reads them
             "_RDED" if arg(0) == "557" => self.ops.push(Op::Arith { var: super::gallery::FLAG_557, op: ArithOp::Set, value: Operand::Const(1) }),
+            "_STCG" => {
+                let Some(&var) = self.vars.get(&format!("_STCG {}", arg(0).to_lowercase())) else { return false };
+                self.ops.push(Op::Arith { var, op: ArithOp::Set, value: Operand::Const(1) });
+            }
             "_END_" => self.ops.push(Op::ReturnToTitle),
             "_GOTO" => self.ops.push(Op::Jump(label(script, Some(arg(0))))),
             // The Switch's and the PS4's own lines: this is the Switch.
@@ -1460,6 +1477,7 @@ pub(super) fn variables(g: &Game) -> HashMap<String, Var> {
         }
     }
     let mut next = FIRST_LOCAL;
+    let cg = cg_flags(&g.scripts).into_iter().map(|(n, v)| (format!("_STCG {n}"), v));
     names
         .into_iter()
         .map(|n| {
@@ -1471,6 +1489,7 @@ pub(super) fn variables(g: &Game) -> HashMap<String, Var> {
             };
             (n, var)
         })
+        .chain(cg)
         .collect()
 }
 

@@ -824,12 +824,9 @@ Config on the title.
 2. The Gallery's other modes (Music Player, Movie, Ending List,
    Flowchart; drawn in its menu, not clickable), and in the CG gallery
    what is left out (History, 2026-10-18, "the CG gallery"): the
-   slots' route conditions, flag 557 for the CGs with pictures (a
-   seen test is either), the viewer's zoom. 926 CGs, in neither unlock table,
+   slots' route conditions, the viewer's zoom. 926 CGs, in neither unlock table,
    show only after flag 557 (`_RDED(557)`, the last lesson), as the
    exe reads (`FUN_00156720` scans the first 0xA8C picture names).
-   `_STCG` (the CG flag of a picture not shown) is not converted:
-   `img2460`, `img2461`, `img2601`, `img2636` are flagged only by it.
    `allui` (71 MB) is still not in the media folder.
 3. The menus: the settings tab (the defaults in "Accuracy", the
    日本語/English switch: move `SystemPage::Jump(language::SWITCH)`
@@ -854,7 +851,7 @@ Config on the title.
    `_VPL2`, `_SESP`, `_WKOR`, `_STTR`, `_STCL`, `_SGMA`, `_SPMA`, the
    chapter start (`_SELA`, `_TOMP`/`_TOMW`, `_ATSV`/`_WTSV`), the
    read flags (`_RTST`/`_RDED`, which `_IFUR` in `QA_25` needs), the
-   gallery flag `_STCG` and `_SELD`'s choice number. `_FANX`, `_STQK` and `_TRPY` have no case in the
+   `_SELD`'s choice number. `_FANX`, `_STQK` and `_TRPY` have no case in the
    exe: the next converter PR adds them to `LEFT_OUT`.
 7. Trace diff leftovers (`trace_diff.py --merge-into _FADS`): 2
    `missing` (`_STMA` `00_00:212` and `1121`, never drawn in the exe)
@@ -897,6 +894,20 @@ Open there, by size:
   every sound at full volume.
 
 ## History
+
+- 2026-10-18: **`_STCG` and flag 557 in the gallery's seen test**.
+  `script_command`'s `_STCG(name)` sets the CG flag of the picture's
+  index (`FUN_001774f0`; none past 0xA8C), as showing it would;
+  `FUN_00104470` shows a CG when its pictures' flags, its own, or flag
+  557 say so (557 for every CG, not only the 926 with no picture).
+  Ours: `_STCG` sets a global per picture name (39, `%1804` up in name
+  order, `convert::cg_flags`) and a CG's seen test is any of its
+  pictures shown, those globals, flag 557 (`Seen::Any`). Of the 39,
+  6 CGs read one (`IMG0758`, `IMG1685`, `IMG1686`, `IMG2605`,
+  `IMG2606`, and `IMG3864` by `IMG2602`/`IMG2604`); the others (with
+  `img2460`, `img2461`, `img2601`, `img2636`, which an earlier note
+  said were flagged only by it) are no gallery CG and unlock none, so
+  they change nothing in the gallery.
 
 - 2026-10-18: **the CG gallery lists only the slots with a CG to show**
   (`FUN_0010b830`: a slot goes in the list when `FUN_00105118` finds

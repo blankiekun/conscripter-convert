@@ -1,9 +1,9 @@
 {
 "game": "tsukihime",
 "engine": "typemoon",
-"commit": "ec3d0d55",
+"commit": "343b95f1",
 "commit_date": "2026-10-18",
-"totals": {"calls": 1082419, "full": 1005127, "gaps": 51328, "left_out": 25964, "weighted": 1024180.1},
+"totals": {"calls": 1082419, "full": 1005166, "gaps": 51289, "left_out": 25964, "weighted": 1024219.1},
 "kinds": {
 "_WTTM": {"calls": 14828, "gaps": 14821, "reasons": [["_WTTM argument 1 ignored", 14821]], "weighted": 7417.5},
 "_SEPL": {"calls": 14543, "gaps": 14543, "reasons": [["_SEPL option 17 ignored", 14509], ["_SEPL option 68 ignored", 3467], ["_SEPL option 1 ignored", 2788], ["not converted", 31], ["_SEPL option 70 ignored", 19], ["1 more", 15]], "weighted": 9951.2},
@@ -46,7 +46,6 @@
 "_FADE": {"calls": 61, "gaps": 61, "reasons": [["not converted", 61]], "weighted": 0.0},
 "_TOMP": {"calls": 48, "gaps": 48, "reasons": [["not converted", 48]], "weighted": 0.0},
 "_TOMW": {"calls": 48, "gaps": 48, "reasons": [["not converted", 48]], "weighted": 0.0},
-"_STCG": {"calls": 39, "gaps": 39, "reasons": [["not converted", 39]], "weighted": 0.0},
 "_SPRD": {"calls": 36, "gaps": 36, "reasons": [["not converted", 36]], "weighted": 0.0},
 "_FCSP": {"calls": 31, "gaps": 31, "reasons": [["not converted", 31]], "weighted": 0.0},
 "_STGS": {"calls": 8114, "gaps": 30, "reasons": [["_STGS argument 2 ignored", 25], ["_STGS argument 3 ignored", 25], ["_STGS argument 4 ignored", 25], ["_STGS argument 5 ignored", 5]], "weighted": 8094.2},
@@ -97,6 +96,7 @@
 "_IFP4": {"calls": 204, "gaps": 0, "reasons": [], "weighted": 204.0},
 "_GOTS": {"calls": 170, "gaps": 0, "reasons": [], "weighted": 170.0},
 "_GOTO": {"calls": 101, "gaps": 0, "reasons": [], "weighted": 101.0},
+"_STCG": {"calls": 39, "gaps": 0, "reasons": [], "weighted": 39.0},
 "_SELA": {"calls": 26, "gaps": 0, "reasons": [], "weighted": 26.0},
 "_CLO2": {"calls": 5, "gaps": 0, "reasons": [], "weighted": 5.0},
 "_IFSC": {"calls": 2, "gaps": 0, "reasons": [], "weighted": 2.0},

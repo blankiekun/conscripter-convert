@@ -374,7 +374,7 @@ pub fn emit_mapped(script: &Script) -> (String, Vec<(usize, Option<SourceLoc>)>)
     writeln!(out, "nsa").unwrap();
     writeln!(out, "globalon").unwrap();
     // A gallery CG seen by its pictures: the engine's log of every picture loaded (`fchk`).
-    if script.picture_extras.as_ref().and_then(|e| e.gallery.as_ref()).is_some_and(|g| g.categories.iter().flat_map(|c| &c.slots).flat_map(|s| &s.cgs).any(|cg| matches!(cg.seen, conv_core::ir::Seen::Pictures(_)))) {
+    if script.picture_extras.as_ref().and_then(|e| e.gallery.as_ref()).is_some_and(|g| g.categories.iter().flat_map(|c| &c.slots).flat_map(|s| &s.cgs).any(|cg| cg.seen.reads_pictures())) {
         writeln!(out, "filelog").unwrap();
     }
     writeln!(out, "{}", notice::DEFINE).unwrap();

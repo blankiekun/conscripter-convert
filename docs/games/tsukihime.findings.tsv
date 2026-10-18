@@ -136,7 +136,7 @@ _SPRC	releases the 30 cache slots	85	script_command	nothing	seen	done
 _SPRD	(layer, name, a0, a1, b0, b1): preloads name_aa_bb over the ranges with the layer's effect	36	script_command	nothing	seen	done (a cache)
 _SPMA	(b): byte +8 of every layer's motion state (saved and live) = (b == 1)	189	cmd_SPMA	nothing	seen	open: what +8 does in FUN_00197b80 (pause, inferred)
 _STCF	(layer, mask = 63; layer > 39: all): the script waits until layer_busy is false for the mask (1-8 counters +0x78, +0x7e, +0x84, +0x8a; 16 +0x13c; 32 the motion)	5179	cmd_STCF, layer_busy, frame_update	nothing: the script runs on	seen	open: wait for the fade or motion (which counter bit 8 is: the alpha, inferred)
-_STCG	sets the picture's CG flag (bitset 07a8, < 0xc80) for the gallery	39	script_command, cg_flag_set	nothing: the gallery's seen test is the file log of pictures shown	seen	open: img2460, img2461, img2601, img2636 are flagged only by it (never shown), so their CGs unlock only by flag 557 here
+_STCG	sets the picture's CG flag (bitset 07a8, < 0xc80) for the gallery	39	script_command, cg_flag_set	a global per picture name (convert::cg_flags), read by the gallery's seen test with its pictures and flag 557	seen	done (only index <= 0xA8C, as script_command; 6 gallery CGs read one)
 _STCL	(?, layer, x0, y0, x1, y1, ms, ease): stops the motion and moves the layer (x*640/1280, y*480/720)	9	cmd_STCL	nothing	seen	open
 _STNS	(layer, n 0-12): +0x1b0 = n, +0x1b1 = 1 if n > 2 else 3	196	cmd_STNS	nothing	unknown	open: what +0x1b0 draws
 _STPV	(layer, x, y): x*1.875/0.46875/3 (by FUN_0012dfd0 for a layer with a picture), y*362/1080 to live +0x64/+0x68 (the motion's 0x0E/0x10)	734	cmd_STPV	nothing	seen	open: what +0x64 does in the draw (FUN_001884f0), a centre inferred

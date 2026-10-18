@@ -763,4 +763,18 @@ pub enum Seen {
     /// log, `filelog` and `fchk`, which records every picture loaded and
     /// keeps it across games).
     Pictures(Vec<String>),
+    /// Seen once any of these is (月姫: a CG's pictures, the flags of
+    /// pictures marked without being shown, the flag that unlocks all).
+    Any(Vec<Seen>),
+}
+
+impl Seen {
+    /// It reads the file log ([`Seen::Pictures`]).
+    pub fn reads_pictures(&self) -> bool {
+        match self {
+            Seen::Var(_) => false,
+            Seen::Pictures(_) => true,
+            Seen::Any(s) => s.iter().any(Seen::reads_pictures),
+        }
+    }
 }
