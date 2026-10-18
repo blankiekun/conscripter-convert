@@ -388,8 +388,26 @@ at the first story task.**
   firmware, the patch, the scene jump dialog (patched off), movies
   (patched to no-ops), NGS, the texture cache, async pipelines, surface
   sync or memory mapping changed. So no scene has been traced and no diff
-  run (step c). Next: a newer Vita3K build, or a source build with
-  symbols to find what that thread copies.
+  run (step c).
+- Tried 2026-10-17, timeboxed (the lead: Vita emulation is shaky, no
+  hours on Vita3K itself): **no emulator gets through S01_01.**
+  - Vita3K 4191-8084aa24 (the newest continuous build; it differs from
+    4190 only in CI) crashes the same way, `Unhandled access to
+    0x463780000` as S01_01 starts. The core dump's stack (stripped
+    binary): libc memcpy ← `Vita3K+0xfc8f3f` ← `+0xf2004a` ←
+    `+0xf21c48` ← `+0xfc1dbd` ← `+0xf2b6b4` ← a `std::thread`.
+  - The RetroArch core (flatpak `org.libretro.RetroArch`,
+    `vita3k_libretro` v0.2.1 4123, older upstream a5aa96572) needs the
+    firmware in `<system>/vita3k` (copied from `<emu>`'s `vs0`/`os0`) and
+    the eboot as content (`.../PCSG00299/eboot.bin`). It loads the app, then
+    hangs in RetroArch's video setup on Xvfb (Vulkan and glcore alike,
+    nothing drawn in 60 s). Not pursued further.
+  - The source build with symbols (step 3) was skipped: neither quick
+    option came close.
+- **So the Vita3K trace is unreliable**: the decompile and our own
+  traces stay the main checks for this game. Any timings
+  taken from Vita3K (the boot, the 30 fps title) are rough, not the
+  Vita's.
 
 ## Status: the whole story plays (2026-10-15)
 
@@ -403,9 +421,12 @@ at the first story task.**
 - Dropped arguments picked by the user (2026-10-17), second part: BacklogMessage `:Message` (a `logadd`), the shakes' swing (`:Param` 2-5) and SpriteQuake `:Wait` are done ("History"). SpriteMove `:Roll` is left (table below). CharacterWait waiting for fades needs nothing: no CharacterWait follows a `:FadeWait 0` character fade without a message between, whose click outlasts it (a dry run that waited for them added no line). CharacterActionEnd leaving moves running is what the eboot does: 0x81127a00 → 0x811277c0 ends only the action (+0x2e8).
 - Looks against the Vita: the original boots to the title under
   Vita3K ("Testing"), so the title can be filmed. The trace (step 2
-  there) is built (`vpatch.py`, `--source-map`), but Vita3K crashes as
-  the first story scene starts, so no diff yet: next a newer or
-  symbol-built Vita3K.
+  there) is built (`vpatch.py`, `--source-map`), but Vita3K (4190 and
+  4191) crashes as the first story scene starts, and the RetroArch core
+  hangs on Xvfb, so no diff ("Testing", 2026-10-17). The emulator is
+  unreliable: the decompile and our own traces stay the main checks, and
+  Vita3K timings are rough. A source-built Vita3K is the only option
+  left untried, and only if the user asks for it.
 - `spgrab` (engine #32, merged) could let SpriteBG/SpriteBS with
   `:FadeWait 0` (890) cross-fade without waiting: grab the screen, change
   the picture under the copy, fade the copy out. Not used yet.
