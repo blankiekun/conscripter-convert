@@ -1,9 +1,9 @@
 {
 "game": "tsukihime",
 "engine": "typemoon",
-"commit": "02fc9e8f",
-"commit_date": "2026-10-17",
-"totals": {"calls": 1082419, "full": 1005124, "gaps": 51331, "left_out": 25964, "weighted": 1024177.1},
+"commit": "7106bd96",
+"commit_date": "2026-10-18",
+"totals": {"calls": 1082419, "full": 1005125, "gaps": 51330, "left_out": 25964, "weighted": 1024178.1},
 "kinds": {
 "_WTTM": {"calls": 14828, "gaps": 14821, "reasons": [["_WTTM argument 1 ignored", 14821]], "weighted": 7417.5},
 "_SEPL": {"calls": 14543, "gaps": 14543, "reasons": [["_SEPL option 17 ignored", 14509], ["_SEPL option 68 ignored", 3467], ["_SEPL option 1 ignored", 2788], ["not converted", 31], ["_SEPL option 70 ignored", 19], ["1 more", 15]], "weighted": 9951.2},
@@ -69,7 +69,6 @@
 "_STRT": {"calls": 21691, "gaps": 1, "reasons": [["_STRT argument 1 ignored", 1], ["_STRT argument 2 ignored", 1], ["_STRT argument 3 ignored", 1], ["_STRT argument 4 ignored", 1]], "weighted": 21690.2},
 "_VPLY": {"calls": 16690, "gaps": 1, "reasons": [["_VPLY argument 2 ignored", 1]], "weighted": 16689.7},
 "_MFAD": {"calls": 724, "gaps": 1, "reasons": [["_MFAD option 11 ignored", 1]], "weighted": 723.5},
-"_GOTS": {"calls": 170, "gaps": 1, "reasons": [["not converted", 1]], "weighted": 169.0},
 "_IFUR": {"calls": 1, "gaps": 1, "reasons": [["not converted", 1]], "weighted": 0.0},
 "_NOP_": {"calls": 1, "gaps": 1, "reasons": [["not converted", 1]], "weighted": 0.0},
 "_RTM2": {"calls": 1, "gaps": 1, "reasons": [["not converted", 1]], "weighted": 0.0},
@@ -96,6 +95,7 @@
 "_END_": {"calls": 519, "gaps": 0, "reasons": [], "weighted": 519.0},
 "_IFNX": {"calls": 234, "gaps": 0, "reasons": [], "weighted": 234.0},
 "_IFP4": {"calls": 204, "gaps": 0, "reasons": [], "weighted": 204.0},
+"_GOTS": {"calls": 170, "gaps": 0, "reasons": [], "weighted": 170.0},
 "_GOTO": {"calls": 101, "gaps": 0, "reasons": [], "weighted": 101.0},
 "_SELA": {"calls": 26, "gaps": 0, "reasons": [], "weighted": 26.0},
 "_CLO2": {"calls": 5, "gaps": 0, "reasons": [], "weighted": 5.0},
