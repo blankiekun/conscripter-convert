@@ -58,7 +58,7 @@ not in the repo.
   After the agent reports, the lead may rebase and land the PR itself
   with `tests/land.sh <pr>` (user, 2026-10-18).
 - The PR body says what changed and why, links the engine PR, and gives
-  the `cargo test`/`clippy` and `tests/snapshot.sh` results (CI has no
+  the `tests/pr-report.sh` block (tests, clippy, snapshots, lints; CI has no
   games: name every game whose `0.txt` changed and why) and how it was
   checked in the game. Update the game document's "Status" in the same
   PR.
