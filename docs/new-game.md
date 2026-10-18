@@ -699,6 +699,12 @@ anything is reached (step 11.6).
 
 ## 9. Matching the original
 
+- **Check the game's manual before asking the user for screenshots or
+  footage.** It shows the title, menu, save/load, config and backlog
+  screens of the real game. Look for it in the dump, then extract it
+  into `research/<engine>/local/manual/` (git-ignored) and note in the
+  game document which screens it covers (`docs/tools.md`, "Manuals").
+  Where there is none, say so in the document so nobody searches again.
 - **Read before you film.** Most questions about what the original does
   are answered faster from its code than from frames: the script
   commands' arguments, the decompiled function behind them (curves,

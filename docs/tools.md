@@ -67,6 +67,23 @@ bullet you need.
 - Read a variable headless: `lsp 999,"X:"+$1,0,0` prints "can't find
   file X:..." on stderr.
 
+## Manuals
+
+Each platform keeps the manual in a known place; check it before asking
+for screenshots (`docs/new-game.md` step 9). Extract into
+`research/<engine>/local/manual/`.
+
+- **PC**: a PDF/HTML/CHM in the install or on the disc (`find <install>
+  -iname '*manual*' -o -iname '*.pdf' -o -iname '*.chm'`);
+  `pdftoppm -r 80 -png Manual.pdf p` renders the pages.
+- **Vita**: `sce_sys/manual/NNN.png` in the decrypted app (the
+  encrypted copy's PNGs do not open); 960x544 pages.
+- **Switch**: the NSP's NCA of Content Type `Manual` (find it with
+  `hactool -k <keys> -i <nca>`), extracted with `hactool -k <keys>
+  --romfsdir=<empty dir> <nca>`. Many games' Manual NCA is only the
+  legal/support HTML (`legalinfo.xml`, `support.htdocs/`), not a game
+  manual.
+
 ## Reading files cheaply
 
 For the docs and scripts read most often, use the helpers in

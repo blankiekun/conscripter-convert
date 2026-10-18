@@ -299,6 +299,10 @@ playthroughs (`%410`-`%439`).
 
 ## Testing
 
+Manual: `sce_sys/manual/001-010.png` in the decrypted app (Japanese; 8
+used pages: contents, story, controls, title menu, start menu, system
+menu, two config pages). Use it before asking for screenshots.
+
 ### The original under Vita3K
 
 Step 1, the boot check (2026-10-17): **boots to the title**, drawn

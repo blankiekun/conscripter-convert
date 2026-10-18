@@ -18,6 +18,8 @@ in an older version (`NitroplusSystem2.0`), so it reuses
 
 ## Scope
 
+Manual: none found in the install (`Django.exe`, `.npa` archives, mp3s).
+
 Asked 2026-10-15: the story first, the web build as the main platform,
 and the extras (CG library, recollection, sound library) wanted too.
 Running the original under wine with a no-CD exe the user owns is
