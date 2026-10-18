@@ -97,15 +97,15 @@ pub(crate) fn emit(out: &mut String, r: &PictureReplay, border: u32, music: Opti
     w(format!("lsp {BACKGROUND},\"{}\",0,0", pic(&r.background)));
     w(format!("lsp {EXIT},\":a/3,0,3;{}\",{},{}:spbtn {EXIT},{BTN_EXIT},2", path(&r.exit.image), r.exit.x, r.exit.y));
     for (i, s) in r.scenes.iter().enumerate() {
-        let (x, y) = place(i as u32);
+        let (x, y) = s.place.unwrap_or_else(|| place(i as u32));
         let v = var_name(s.unlocked_by, border);
-        w(format!("lsp {},\"{}\",{x},{y}", THUMB + i as u32, pic(&r.blank)));
+        w(format!("lsp {},\"{}\",{x},{y}", THUMB + i as u32, pic(s.blank.as_ref().unwrap_or(&r.blank))));
         w(format!(
             "if {v} != 0 lsp {},\"{}\",{x},{y}:lsp {},\":a/2,0,3;{}\",{x},{y}:spbtn {},{}",
             THUMB + i as u32,
             pic(&s.thumbnail),
             CURSOR + i as u32,
-            path(&r.cursor),
+            path(s.cursor.as_ref().unwrap_or(&r.cursor)),
             CURSOR + i as u32,
             i + 1
         ));
@@ -127,17 +127,17 @@ pub(crate) fn lua_file(r: &PictureReplay, border: u32) -> String {
         opaque(&r.background)
     );
     for (i, s) in r.scenes.iter().enumerate() {
-        let (x, y) = place(r, i as u32);
+        let (x, y) = s.place.unwrap_or_else(|| place(r, i as u32));
         let v = lua(&var_name(s.unlocked_by, border));
         writeln!(
             out,
             "if var({v}) ~= 0 then\n  add({{\"image\", file={}, opaque={}, x={x}, y={y}}})\n  add({{\"button\", file={}, cells=2, x={x}, y={y}, action={{\"close\", {}, hold=true}}}})\nelse\n  add({{\"image\", file={}, opaque={}, x={x}, y={y}}})\nend",
             lua(&s.thumbnail),
             opaque(&s.thumbnail),
-            lua(&r.cursor),
+            lua(s.cursor.as_ref().unwrap_or(&r.cursor)),
             i + 1,
-            lua(&r.blank),
-            opaque(&r.blank)
+            lua(s.blank.as_ref().unwrap_or(&r.blank)),
+            opaque(s.blank.as_ref().unwrap_or(&r.blank))
         )
         .unwrap();
     }
@@ -179,7 +179,7 @@ mod screen_tests {
             rows: 5,
             blank: "sys/blank.png".into(),
             cursor: "sys/cursor.png".into(),
-            scenes: vec![ReplayEntry { thumbnail: "t/a.jpg".into(), unlocked_by: Var { global: true, index: 3 }, label: "reco_a".into() }],
+            scenes: vec![ReplayEntry { thumbnail: "t/a.jpg".into(), unlocked_by: Var { global: true, index: 3 }, label: "reco_a".into(), place: None, blank: None, cursor: None }],
             open_ms: 500,
             start_ms: 1000,
             end_ms: 1000,
