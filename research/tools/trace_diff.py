@@ -16,7 +16,8 @@ run with `--auto-play N --real-time` (engine/DEBUG.md), "at" =
 Pages are paired in order by the instruction that shows them; then, per
 page, between it and the page before:
 - text: the page's text differs (speaker, spaces and line breaks left
-  out);
+  out), as the whole screen's or, where our page continues the one
+  before, as its own lines (TYPE-MOON's trace has only those);
 - missing: an instruction the original ran that none of our commands
   came from (the page's own message left out), for opcodes that did give one of ours elsewhere in the run
   (variables and jumps never do);
@@ -103,7 +104,7 @@ def orig_side(path, max_pages, clock='f', thread=None):
 def ours_side(path, m, max_pages):
     recs = [r for r in records(path) if r['t'] in ('ev', 'page')]
     st = stretches(recs, lambda r: True)[:max_pages]
-    pages = []
+    pages, before = [], None
     for page, evs in st:
         ends, helpers = {}, 0
         for e in evs:
@@ -113,7 +114,11 @@ def ours_side(path, m, max_pages):
             else:
                 ends[k] = e['ms']  # the last command from an instruction
         speaker = (page.get('tag') or '').split('|')[0] or None
-        pages.append({'at': lookup(m, line_of(page.get('at'))), 'text': norm(page.get('text'), speaker), 'shown': page['ms'],
+        text = page.get('text') or ''
+        # a page added below the one before (full-screen text): its own lines too
+        own = norm(text[len(before):], speaker) if before and text.startswith(before) else None
+        before = text
+        pages.append({'at': lookup(m, line_of(page.get('at'))), 'text': norm(text, speaker), 'own': own, 'shown': page['ms'],
                       'ends': ends, 'helpers': helpers, 'pg': page['pg'], 'line': page.get('at')})
     return pages
 
@@ -148,7 +153,7 @@ def compare(orig, ours, fps, unit=None):
             findings.append((p['pg'], 'page', f"our page {p['pg']} ({p['line']}, {p['at']}) not in the original"))
             continue
         where = f"page {o['pg']}/{p['pg']} ({o['at']})"
-        if o['text'] != p['text']:
+        if o['text'] not in (p['text'], p.get('own')):
             findings.append((o['pg'], 'text', f"{where}: original {o['text']!r}, ours {p['text']!r}"))
         for k, op in o['ops'].items():
             if k not in p['ends'] and op in visible and k != o['at']:
@@ -189,6 +194,9 @@ def self_test():
     assert sorted(k for _, k, _ in compare(orig, ours, 60.0, 1.0)) == ['extra', 'page', 'time']
     orig[0]['ends']['4:9'] = 400
     assert sorted(k for _, k, _ in compare(orig, ours, 60.0, 1.0)) == ['extra', 'page']
+    # a continued page: the original's text is its own lines
+    ours[0].update(text='za', own='a')
+    assert 'text' not in [k for _, k, _ in compare(orig, ours, 60.0, 1.0)]
     print('self-test ok')
 
 
