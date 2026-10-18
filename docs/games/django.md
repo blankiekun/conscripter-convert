@@ -498,11 +498,6 @@ blocks since 2026-10-17, History). Not findings: page 1's 50
 `missing` (the patched boot skips the title, ours plays it),
 `call_chapter` lines (no call record in the original), 0-72 ms gaps.
 Open, not fixed:
-- **An unwaited fade to black holds the text in ours:**
-  dja001_01:126-128 (`Fade("黒幕", 3000, 1000, null, false)` after
-  `SetVolume("@dj*", 5000, 0, NULL)`), then text015: the original
-  shows the text 240 ms later while the screen darkens for 3 s; ours
-  `print`s a 1 s transition first (1009 ms).
 - Smaller, maybe wine's timing: dja001_02:50 (`Move("背景10", 1000, …,
   true)`) then `Zoom` (function.nss:877): 419 + 2 ms in the original,
   0 + 300 in ours; a 0 ms waited `Move` (function.nss:910) took 618 ms
@@ -557,6 +552,18 @@ Open, not fixed:
 
 ## History
 
+- **Unwaited fades run on** (2026-10-17, trace diff): dja001_01:126-128
+  (`Fade("黒幕", 3000, 1000, null, false)`, then `TypeBegin`): the
+  exe's `Fade` (`cb_00438fb0`, Muramasa.exe `0044f020` alike) doesn't
+  block, so the text shows 100 ms later (240 under wine) while the
+  screen darkens for 3 s; ours held the text for a 1 s cross-fade
+  (1009 ms). A new picture faded in from 0 for longer than the sync
+  waits is now placed and faded in by the engine (`spmotion` alpha
+  keys, the fade's tempo as its curve), as a shown picture's fade
+  already was, and a later `WaitFade`/`WaitAction` on it waits for it
+  (`spmotionwait`; also for moves the script went on from). Trace diff:
+  109 ms there. 装甲悪鬼村正 and its English build change too (733
+  such fade-ins, 199 `spmotionwait`).
 - **The text window fades between blocks** (2026-10-17, trace diff):
   each `TypeEnd()` fades `@box*` out over 100 ms and waits
   (function.nss:510), and the next `TypeBegin` fades the box in over
