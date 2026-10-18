@@ -388,9 +388,12 @@ fails the puzzle. Not done: state across relaunch and in the web build
 
 ## Testing
 
-Manual: none found in the unpacked install; the release's disc image
-(`FMDM.mdf`) was not opened, only its extracted installer files
-listed (no manual among them).
+Manual: none in digital form (2026-10-18). The game disc holds only
+the InstallShield installer (its file table lists the game, its
+archives and the setup), and the Sofmap bonus disc holds drama
+tracks, the theater videos and system voices. The retail manual was
+printed. The English port's `Manual.pdf` (muramasa-en.md) shows the
+same screens in the port's look.
 
 - **Logic:** the dry run (see "Build") and the route check (above).
   `NSS_TRACE=1` gives the `flag %N name` lines for `nstrace.py --flags
