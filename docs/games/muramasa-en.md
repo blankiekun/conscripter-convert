@@ -52,6 +52,8 @@ fit.
   quick bar, click icon, which quick-save notice the game takes
   (`sys_quicksave.nut`), boxes across (H, CH, Noh; 6 lines), backlog
   voice icon and scrolling, settings dragging.
+- Settings' "click stops auto" pair (y 269) works (2026-10-18:
+  `consset "clickautostop"`; off, the bar's AUTO button ends auto).
 - Not done: the character voices window (`OpenCVSetting`: 4 columns,
   x 118 + 204 i, y 69 + 32 row, the English `cg/sys/config/cv/` names)
   and the text sample; `クイックセーブ中`, `読み込んでいます`, `削除しました`,
