@@ -28,6 +28,11 @@ bullet you need.
   screen or sound, per choice, missing file, script error and crash. `--trace-ignore` leaves the game's own UI
   sprites out and keeps auto-play off their buttons. Check a trace with
   `python3 -I engine/tools/cons_trace_check.py t.jsonl --script 0.txt`.
+  With `--real-time` the trace samples each moving sprite every 4 frames
+  (`--trace-motion-samples`) and times each effect: the check's `jump`
+  (a sprite stepping much faster than its motion around it, or off and
+  back) and `duration` (an effect or motion off its asked time) catch
+  jumpy motion no picture check sees.
   Start anywhere with `--goto <label> --vars <file>` instead of patching
   `0.txt`. Exit codes: 0 end, 1 auto-play stuck, 2 script error, 3
   startup failure, 128+n a signal.
