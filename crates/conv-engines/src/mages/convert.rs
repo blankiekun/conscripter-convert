@@ -1625,6 +1625,8 @@ impl Lowering<'_> {
         let read = Var { global: true, index: SCENE_READ_BASE + n as u16 };
         let unread = t.str("UnreadTag").unwrap_or(play);
         let offer = format!("{}_offer{}", scene_label(scene), self.choices);
+        // Counted here: the picture dialog below returns before the choice.
+        self.choices += 1;
         self.out.ops.push(Op::If { var: read, cmp: Compare::Ne, value: Operand::Const(0), label: offer.clone() });
         self.out.ops.push(Op::Arith { var: read, op: ArithOp::Set, value: Operand::Const(1) });
         self.out.ops.push(Op::Jump(tag_label(scene, unread)));
@@ -1643,7 +1645,6 @@ impl Lowering<'_> {
             self.out.ops.push(Op::Text { speaker: None, text: summary, voice: None, links: vec![], ruby: vec![], styles: vec![], hang: None, continues: false });
         }
         let options = vec![("このシーンを読む".to_string(), tag_label(scene, play)), ("このシーンをスキップする".to_string(), tag_label(scene, skip))];
-        self.choices += 1;
         self.out.ops.push(Op::Choice { options, style: None, disabled: vec![] });
     }
 
@@ -2054,6 +2055,48 @@ fn ignored(task: &str, at: &str, b: &Block, notes: &mut BTreeMap<String, usize>)
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Only the skip dialog's picture: everything else is missing.
+    struct DialogOnly;
+    impl Assets for DialogOnly {
+        fn cg(&mut self, _: u32) -> Option<(String, u32, u32)> { None }
+        fn cg_named(&mut self, _: &str) -> Option<(String, u32, u32)> { None }
+        fn chr_id(&self, _: &str) -> Option<u32> { None }
+        fn chr(&mut self, _: u32) -> Option<(String, u32, u32)> { None }
+        fn rule(&mut self, _: u32) -> Option<String> { None }
+        fn voice(&mut self, _: u32) -> Option<String> { None }
+        fn se(&mut self, _: u32) -> Option<String> { None }
+        fn se_ms(&self, _: u32) -> Option<u32> { None }
+        fn bgm(&mut self, _: u32) -> Option<String> { None }
+        fn movie(&mut self, _: u32) -> Option<String> { None }
+        fn noise(&mut self, _: u32) -> String { String::new() }
+        fn wave_map(&mut self, _: u32) -> String { String::new() }
+        fn chapter_card(&mut self, _: u32, _: u32, _: i32) -> Option<String> { None }
+        fn shutters(&mut self, _: u32, _: bool, _: u32) -> Option<String> { None }
+        fn particles(&mut self, _: Particles, _: u32) -> Option<String> { None }
+        fn colour(&mut self, _: u32) -> String { String::new() }
+        fn window(&mut self) -> Option<(String, u32, u32)> { None }
+        fn skip_dialog(&mut self, _: &[i64], _: &[i64], _: &str, _: &str) -> Option<(Vec<Placed>, [Placed; 2])> {
+            let p = || Placed { image: String::new(), x: 0, y: 0, w: 1, h: 1 };
+            Some((vec![], [p(), p()]))
+        }
+        fn story_menu(&mut self, _: bool) -> Option<(Vec<Placed>, Vec<Placed>)> { None }
+    }
+
+    #[test]
+    fn two_skip_dialogs_in_a_scene_have_their_own_labels() {
+        // s01_12b: the 明日香 and the 宮子 paths each offer the skip.
+        let scene = Scene { title: None, tasks: vec![] };
+        let game = Game { scenes: BTreeMap::from([("s01".to_string(), scene)]), characters: HashMap::new(), flags: vec![], global_flags: vec![], names: HashMap::new(), actions: HashMap::new(), gallery: vec![], start: "s01".into() };
+        let mut assets = DialogOnly;
+        let mut l = Lowering { game: &game, assets: &mut assets, out: Compiled::default(), shown: BTreeMap::new(), next_slot: HashMap::new(), fading: false, rule: None, scale: 100, staging: false, choices: 0, cover: None, eye_catch: false, shutters: None, inherited: false, opening: false, messages: 0 };
+        let dialog = &parse("[Task1]\n{\n:Tasktype \"SceneJumpDialog\"\n:NextTag \"a\"\n:JumpNextTag \"b\"\n}\n").unwrap()[0];
+        l.scene_jump("s01", dialog);
+        l.scene_jump("s01", dialog);
+        let labels: Vec<_> = l.out.ops.iter().filter_map(|o| if let Op::Label(s) = o { Some(s.clone()) } else { None }).collect();
+        assert_eq!(labels.len(), 2);
+        assert_ne!(labels[0], labels[1]);
+    }
 
     #[test]
     fn character_open_shows_sprite_max_characters() {

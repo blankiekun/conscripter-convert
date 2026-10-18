@@ -576,6 +576,12 @@ runs" (`engine/tools/cons_trace_check.py t.jsonl --script 0.txt
 
 ## History
 
+- Two skip dialogs in one scene (S01_12B, S01_13B: one per path) shared
+  their `*<scene>_offerN` label, so the 宮子 path's skip went to the
+  明日香 path's dialog: the picture dialog returned before counting
+  itself. Counted first now; every label in 0.txt is defined once
+  (2026-10-18).
+
 - SpriteMove `:Scale -2` (S01_05B, once): the eboot turns the picture
   180° at 2× (the zoom goes straight through 0 to it); ours clamps to 0,
   so the picture shrinks away. Found by running the sprite quad
