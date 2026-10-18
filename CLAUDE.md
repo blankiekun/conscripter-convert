@@ -163,6 +163,10 @@ shared code. A team lead hands out the items and reviews the PRs.
   changes; `--map <rules>` checks a change is only a rename (below).
   On a conflict in `tests/snapshots/` never take one side: rebase, rerun
   `--update`, and explain each changed game's 0.txt in the PR body.
+- `python3 -I tests/extras_smoke.py <full build>`: opens the extras'
+  menu headless with every lock open and checks each mode is a button
+  and opens (the trace); run it on every full build handed to the user
+  (the snapshot sees only 0.txt, route runs skip the screens).
 - Full build: `target/release/conscripter-convert convert-game <install
   dir> -o out/<game>-cons --font <a Japanese TTF, e.g. ipag.ttf> --title
   "<title>"`. Each game's exact command is in its document.

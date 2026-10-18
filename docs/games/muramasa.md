@@ -667,6 +667,11 @@ Open, by area (each is small; most noticeable first):
     voice switch.
   - Extras: the four modes' screens; the gallery's viewer is still the
     script's.
+  - Extras: a build without the disc's movies (`--movies`) has no sound
+    room or 3D viewer (both read movies): their buttons are drawn faint,
+    as locked ones. Build with the movies; `tests/extras_smoke.py <build>`
+    fails on such a build. A songs-only sound room without the movies is
+    not done.
   - Settings: a press on a knob keeps the grab offset (a drag ends 2 px
     from the routine's); Django's stepped sliders use the script routine;
     EN's screen fades 300 ms (guess) and its pairs switch at once.
