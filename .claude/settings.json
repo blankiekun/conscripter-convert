@@ -20,5 +20,17 @@
         ]
       }
     ]
+  },
+  "permissions": {
+    "deny": [
+      "Artifact",
+      "ScheduleWakeup",
+      "SendFeedback",
+      "ReportFindings",
+      "EnterWorktree"
+    ]
+  },
+  "enabledPlugins": {
+    "frontend-design@anthropic-plugin-directory": false
   }
 }
