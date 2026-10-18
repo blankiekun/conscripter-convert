@@ -54,9 +54,7 @@ fit.
   voice icon and scrolling, settings dragging.
 - Settings' "click stops auto" pair (y 269) works (2026-10-18:
   `consset "clickautostop"`; off, the bar's AUTO button ends auto).
-- Not done: the character voices window (`OpenCVSetting`: 4 columns,
-  x 118 + 204 i, y 69 + 32 row, the English `cg/sys/config/cv/` names)
-  and the text sample; `クイックセーブ中`, `読み込んでいます`, `削除しました`,
+- Not done: the settings' text sample; `クイックセーブ中`, `読み込んでいます`, `削除しました`,
   `ロック通知`; faces of `FwB`/`FwCH` keep the Japanese place (the port's
   `FwInfo` has none).
 - Metrics: 4 "text window moved inside a page: kept" notes; the
@@ -1066,3 +1064,20 @@ jumps (1-2 frames each). The n and tempo notes are gone (gaps 4,786 →
   for a click and goes on on a new page (`pastPage`; the built-in wait,
   since `textgosub`'s return goes on after the line's next click wait
   and would drop the rest of the line).
+
+### Character voices window (2026-10-18)
+
+Settings' Individual (`ConfigIndividual-…`, 557,263) opens the port's
+`OpenCVSetting` as the engine's `settings_voices` screen (`VoiceWindow`,
+as the Japanese build's): `cv/ボイスセレクトウィンドウ背景` at (0,0), the 55
+`SYSTEM_CV` names (`function/val.nut`, the Japanese `VOICES` in order)
+four to a row at (118 + 204 (i mod 4), 69 + 32 (i div 4)), each shown
+once its `#voice_on_` flag is set (`IsVCOpen`; the two "others" always,
+`SYSTEM_CV_DEF_OPEN`), `CharaVoice-ButtonCheck` over it while heard; a
+200 ms fade; right-click or C closes it. Each voice line became
+`logvoice` + `if %97x == 0 dwave`. Ours: the 15×15 button 2 px lower is
+the whole picture; the pressed cell 1 px left is drawn at 557. The
+`cv/1章_` pictures are not used by the port's script. Checked headless:
+widget 3 (Kageaki, `%6935` set) toggles `%971` to 1, his voice line is
+skipped and a `%982` one plays.
+
