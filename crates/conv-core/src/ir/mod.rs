@@ -267,7 +267,9 @@ pub enum ScreenEffect {
     /// turn per ms; true: the picture jumps along a fixed 7-point path,
     /// moving on when `speed.0` × ms reaches 65536. `end_ms` > 0: it stops
     /// by itself after that long (0: until its slot is cleared).
-    Shake { time_ms: u32, interval_ms: u32, path: bool, speed: (i32, i32), range: [(i32, i32); 2], end_ms: u32 },
+    /// `delay_ms` > 0: it holds still that long first; `time_ms` and
+    /// `end_ms` count from then.
+    Shake { time_ms: u32, interval_ms: u32, path: bool, speed: (i32, i32), range: [(i32, i32); 2], end_ms: u32, delay_ms: u32 },
     /// Rippling through `map` (a greyscale picture as large as the screen):
     /// each pixel comes from `amplitude` × sin(2π(grey/256 + phase/1000))
     /// pixels away in direction `angle` (0.1°, 0 = right, 900 = down). The

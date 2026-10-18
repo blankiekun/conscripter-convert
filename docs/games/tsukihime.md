@@ -933,8 +933,7 @@ Flowchart, Movie and Ending List.
    layers with no picture).
 6. Every kind has a row in `tsukihime.findings.tsv` (2026-10-17, from
    the decompile; 45 rows open). The open ones that matter most, by
-   use: the layer quakes `_SQK2`/`_SHK2`/`_SSW2`, the screen
-   shake's start delay (`_SHOK` argument 4, 260 uses), `_STPV` (the layer's pivot), `_SNX2`/`_SNX3`
+   use: the layer quakes `_SQK2`/`_SHK2`/`_SSW2`, `_STPV` (the layer's pivot), `_SNX2`/`_SNX3`
    and `_STNS`/`_STRA`/`_STRR`/`_SACL`/`_SBAS`/`_SOXY` (layer fields
    whose drawing is not found yet), `_VCWT` (wait for the voice),
    `_VPL2`, `_SESP`, `_WKOR`, `_STTR`, `_STCL`, `_SGMA`, `_SPMA`, the
@@ -989,6 +988,10 @@ Open there, by size:
 
 ## History
 
+- 2026-10-18: **screen shake start delay**. `_SHOK`'s argument 4 (260
+  uses, 50 ms-3.95 s) goes to `screenshake`'s new `delay` (engine PR
+  blankiekun/CONscripter#167): the shake holds still that long, then
+  runs as before (`ScreenEffect::Shake::delay_ms`).
 - 2026-10-18: **story movies**. `_TOMP(n)` (`FUN_0016ef30`) opens overlay 0 with n; its start
   (`FUN_001402a0`) plays the movie table's entry n (0x50B890, 0x30 bytes
   an entry, the path first; `exe.rs` reads it): 4 `prologue`, 5-6 the

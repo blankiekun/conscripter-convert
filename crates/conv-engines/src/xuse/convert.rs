@@ -1638,6 +1638,7 @@ fn lower_environment(
         }
         (.., Some(s)) => {
             let effect = ScreenEffect::Shake {
+                delay_ms: 0,
                 time_ms: s.time_ms,
                 interval_ms: s.interval_ms,
                 path: s.option & 1 == 1,
@@ -1682,7 +1683,7 @@ fn lower_quake(q: &Quake, ops: &mut Vec<Op>) {
     let shrink_ms = x.max(y) as u32 * 1000 / shrink;
     let speed = (i64::from(points) * 65536 / 1000) as i32;
     for (time_ms, to) in [(hold_ms, (x, y)), (shrink_ms, (0, 0))] {
-        let effect = ScreenEffect::Shake { time_ms, interval_ms: 10, path: true, speed: (speed, 0), range: [(x, y), to], end_ms: 0 };
+        let effect = ScreenEffect::Shake { delay_ms: 0, time_ms, interval_ms: 10, path: true, speed: (speed, 0), range: [(x, y), to], end_ms: 0 };
         ops.push(Op::ScreenEffect { slot: QUAKE_SLOT, effect: Some(effect) });
         ops.push(Op::Wait { ms: time_ms });
     }
@@ -3864,7 +3865,7 @@ mod tests {
         lower_quake(&Quake { speed: 80, range: (10, 20) }, &mut ops);
         // 4 points at 30 a second and the switching frame at the full range,
         // then shrinking 20 px at 50 px a second.
-        let shake = |time_ms, to| ScreenEffect::Shake { time_ms, interval_ms: 10, path: true, speed: (1966, 0), range: [(10, 20), to], end_ms: 0 };
+        let shake = |time_ms, to| ScreenEffect::Shake { delay_ms: 0, time_ms, interval_ms: 10, path: true, speed: (1966, 0), range: [(10, 20), to], end_ms: 0 };
         assert_eq!(
             ops,
             [

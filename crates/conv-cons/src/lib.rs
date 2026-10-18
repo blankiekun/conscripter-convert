@@ -3122,7 +3122,7 @@ end
 
     #[test]
     fn screen_effects() {
-        let shake = ScreenEffect::Shake { time_ms: 1000, interval_ms: 100, path: false, speed: (800, 800), range: [(0, 0), (30, 30)], end_ms: 0 };
+        let shake = ScreenEffect::Shake { delay_ms: 0, time_ms: 1000, interval_ms: 100, path: false, speed: (800, 800), range: [(0, 0), (30, 30)], end_ms: 0 };
         let ripple = ScreenEffect::Ripple {
             map: "system/mask1001.png".into(),
             time_ms: 3000,
