@@ -38,6 +38,12 @@ bullet you need.
   (`xtrace.sh`, `ntrace.sh`) runs N times as fast with `SPEED=N`, its
   times still comparable (4 for 最果てのイマ, 8 for the Nitroplus games);
   the Switch one with `IDLEA=0.3` (`docs/new-game.md`, "Trace speeds").
+- Picture diff per page against the original: `ntrace.sh --shots <dir>`
+  (a frame per text block) and our `--shot-every 1`, then
+  `research/tools/picdiff.py orig.jsonl <dir> ours.jsonl <dir> --map
+  <map> --ms --thread 0 --mask <text window>`: differing pixels, RMSE
+  and their box per page, worst first, views of the worst
+  (`docs/new-game.md`, "Picture diff"; lossy WebP: `--fuzz 15`).
 - Frames mid-effect: the trace's `--shot-effects 25,50,75`. The older
   patched-script runs: `docs/new-game.md` step 9 and "When the trace
   can't do it". Anything that needs a display (Xvfb, wine, Vita3K,
