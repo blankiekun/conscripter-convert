@@ -107,6 +107,7 @@ mod shake;
 mod rain;
 mod turn;
 mod random;
+mod transition;
 pub(super) use fast_skip::read_flag;
 
 /// A window picture's text place ([`Game::box_text`]): picture, text x, y,
@@ -317,6 +318,10 @@ pub trait Assets {
     /// where the picture is drawn at `zoom` (per mille) about its centre.
     /// Its path.
     fn stenciled(&mut self, image: &str, mask: &str, colour: bool, dx: i64, dy: i64, zoom: (i64, i64)) -> Option<String>;
+    /// A screen-sized picture whose opacity is `table` at the grey (green)
+    /// of the output picture `mask` stretched over the screen
+    /// (`DrawTransition` stopped partway, [`transition::table`]). Its path.
+    fn veil(&mut self, mask: &str, table: &[u8; 256]) -> Option<String>;
     /// A picture decoded: one the scripts name (`cg/…`) or one in the
     /// output (`system/…`). `None` in a dry run.
     fn rgba(&mut self, path: &str) -> Option<image::RgbaImage>;
@@ -1191,6 +1196,9 @@ struct Object<'a> {
     /// (`CreateWindow`'s last argument not `true`; a name without
     /// [`Game::relative_children`]).
     screen_children: bool,
+    /// A `DrawTransition` stopped partway: the screen-sized picture whose
+    /// opacity the picture is drawn times ([`Assets::veil`]).
+    veil: Option<String>,
 }
 
 /// `DrawEffect(obj, ms, wave, from, to, tempo)`: the exe's wave
@@ -3025,7 +3033,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
 
     fn create(&mut self, name: String, kind: Kind<'a>, priority: i64, w: i64, h: i64) -> &mut Object<'a> {
         self.seq += 1;
-        let o = Object { kind, priority, x: 0, y: 0, w, h, opacity: 1000, locked: false, hideable: false, seq: self.seq, zoom: (1000, 1000), trail: None, blend: BLEND_NORMAL, vertex: None, turn: (0, 0, 0), shake: None, clip: None, over_text: false, container: false, erased: false, tone: None, shade: None, wave: None, stencil: None, cut: None, screen_children: false };
+        let o = Object { kind, priority, x: 0, y: 0, w, h, opacity: 1000, locked: false, hideable: false, seq: self.seq, zoom: (1000, 1000), trail: None, blend: BLEND_NORMAL, vertex: None, turn: (0, 0, 0), shake: None, clip: None, over_text: false, container: false, erased: false, tone: None, shade: None, wave: None, stencil: None, cut: None, screen_children: false, veil: None };
         self.objects.insert(name.clone(), o);
         self.objects.get_mut(&name).unwrap()
     }
@@ -3312,6 +3320,8 @@ impl<'a, 'b> Compiler<'a, 'b> {
             .collect();
         let (px, py) = self.parent_offset(name);
         let o = self.objects.get(name)?;
+        let mut stencils = stencils;
+        stencils.extend(o.veil.clone().map(|v| ((v, false), 0, 0)));
         let (x, y, zoom) = (o.x + px, o.y + py, o.zoom);
         let key = format!("{image}{stencils:?}{x},{y}{zoom:?}");
         if let Some((k, cut)) = &o.cut
@@ -4206,6 +4216,9 @@ mod tests {
         }
         fn stenciled(&mut self, image: &str, mask: &str, colour: bool, dx: i64, dy: i64, zoom: (i64, i64)) -> Option<String> {
             Some(format!("{image}%{mask}{}@{dx},{dy}x{}", if colour { "*" } else { "" }, zoom.0))
+        }
+        fn veil(&mut self, mask: &str, table: &[u8; 256]) -> Option<String> {
+            Some(format!("{mask}~{}", table.iter().filter(|&&v| v > 0).count()))
         }
         fn movie_frames(&mut self, path: &str, at: Option<u32>, alpha: bool, dark: bool) -> Option<(String, u32, u32, u32)> {
             let (w, h) = if alpha { (200, 108) } else { (1024, 576) };
@@ -5478,7 +5491,7 @@ function Nothing()
     }
 
     #[test]
-    fn a_full_draw_transition_out_sweeps_reversed_and_a_partial_one_is_noted() {
+    fn a_full_draw_transition_out_sweeps_reversed_and_a_partial_one_cuts_its_picture() {
         // src: Muramasa.exe 00457bf0: a falling threshold leaves the bright parts first.
         let story = r#"
 scene a.nss
@@ -5494,7 +5507,9 @@ scene a.nss
         let c = compile(story, LIBRARY);
         assert!(c.ops.iter().any(|op| matches!(op, Op::TransitionSoft { softness: 200, reverse: true })), "{:?}", c.ops);
         assert_eq!(c.ops.iter().filter(|op| matches!(op, Op::TransitionSoft { .. })).count(), 1, "{:?}", c.ops);
-        assert!(c.notes.contains_key("DrawTransition partial: ends masked in the exe"), "{:?}", c.notes);
+        // The partial one: its picture cut by the level's table, not noted.
+        assert!(!c.notes.contains_key("DrawTransition partial: ends masked in the exe"), "{:?}", c.notes);
+        assert!(format!("{:?}", c.ops).contains(".jpg~"), "{:?}", c.ops);
     }
 
     #[test]

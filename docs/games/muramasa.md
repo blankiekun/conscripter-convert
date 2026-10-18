@@ -659,8 +659,7 @@ arguments that change nothing (#366), a shake growing from 0 px (#374),
 `SetVertex` in lower case only (#380), the colour names (#383),
 `DrawTransition`'s softness and fade-out direction (#386, engine #138).
 Open: a `Zoom` to 0 leaves a 1 px line (ma04_015vs ×2, mc02_029; the exe
-draws nothing); a partial `DrawTransition` ends masked in the exe (374
-calls, needs a masked-sprite engine feature); sound fades with a tempo
+draws nothing); sound fades with a tempo
 (9 `SetVolume`, 37 `SetFrequency`) go straight; `SetFrequency` on music
 (1,486); `CreateSurface`/`SetSurface`, `Position`, `CreateMovie`'s
 arguments, `Delete`'s 1-2 unknown. Names were carried from Django.exe by
@@ -1129,9 +1128,10 @@ Next, in order:
      threshold, then a ramp losing 255 ÷ p × 255 ÷ softness a grey level; a
      fade-out's threshold falls, so the picture leaves the bright parts
      first. Full sweeps (0 → 1000, 1000 → 0: 2,073 calls) are drawn so with
-     CONscripter's `effectsoft` (engine #138, PR). Left: a partial one (to 200,
-     250 → 150: 374 calls) ends with the picture masked at that threshold in
-     the exe, a uniform opacity in ours (noted); 565 calls start from another
+     CONscripter's `effectsoft` (engine #138). A partial one (367 calls) now
+     leaves its picture cut by the table ("History", "Partial
+     `DrawTransition`"); its sweep is still a plain mask print, and one on
+     an effect (rain) is drawn unmasked (noted). 565 calls start from another
      opacity than shown (noted). A mask cg.npa lacks (ma04_018vs/020vs's
      `slide_01_02_2.png`, `cg/data/7.png`, an unset `$Transition`): the
      exe's step returns before the transition (seen), none drawn.
@@ -1261,6 +1261,32 @@ out on purpose.
 
 ## History
 
+### Partial `DrawTransition` (2026-10-17)
+
+A `DrawTransition` that ends between 0 and 1000 (to 200, 250 → 150)
+leaves its picture drawn times a table of the mask's grey, for good
+(seen in Muramasa.exe: `FUN_0044fe00` builds the table, `00457bf0`
+steps it each of `time` × 60 ÷ 1000 frames and keeps it once done unless
+the level is 255; the draw `00418320` reads the mask stretched to
+1024×576 at the screen pixel, the green byte, and multiplies it with the
+picture's own `Fade` opacity, which the transition leaves alone; only a
+new `DrawTransition` or `Delete` takes it away, `0045a490`). The
+converter now does the same with existing commands: `convert/transition.rs`
+replays the table (exact for the last frame; earlier frames take a
+straight curve, which only decides leftovers of the start's ramp), the
+assets draw it as a screen-sized `system/veil_*.png`, and the picture
+is cut by it as by a stencil (`Compiler::stenciled`, `lsp` of a new
+picture), keeping its opacity (fire01's `焚き火光`: `Fade` 0, the
+transition, then `Fade`s up): 367 calls, 6 of them on a rain effect,
+drawn unmasked (noted). The other partial ones (from a level to 0 or
+1000, or to a level under 4, which × 0.255 is 0) end unmasked or hidden,
+as before. Checked in a
+scene build of ma04_013vs: the five veils equal a Python replay of the
+exe's table over the source masks (0 differing pixels of 589,824 each).
+Snapshots: Muramasa and EN change (≈ 1,300 hunks: cut pictures in place
+of colours and pictures, `msp` opacity changes gone; 215 more cut
+pictures); Django's script doesn't change.
+
 ### `Wait` and clicks (2026-10-17)
 
 The exe's `Wait` (Muramasa.exe `0040f7f0`, Django's `0040bd80`) ends
@@ -1377,8 +1403,8 @@ cut's key), ma05_019's spider (seen: the event picture only inside the
 spider, its wave on), ma02_009vs's zoomed bg201 inside 月山 (seen). Not
 compared with the original (no wine run). Inferred, not checked:
 ma04_013vs's `DrawTransition` of the red to 200 through
-`slide_02_01_0.png` is drawn as a plain 20 % opacity (the transition's
-mask isn't kept at the end, an older gap). Snapshots: Muramasa and EN
+`slide_02_01_0.png` was drawn as a plain 20 % opacity (cut by the
+mask's table since "Partial `DrawTransition`"). Snapshots: Muramasa and EN
 change (the cut pictures; inferred: pictures under a cut child are
 no longer culled as under an opaque one).
 

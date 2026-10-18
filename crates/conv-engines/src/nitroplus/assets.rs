@@ -574,6 +574,24 @@ impl Assets for NpaAssets<'_> {
         Some(rel)
     }
 
+    fn veil(&mut self, mask: &str, table: &[u8; 256]) -> Option<String> {
+        use std::hash::{Hash, Hasher};
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        (mask, table).hash(&mut h);
+        let rel = format!("system/veil_{:016x}.png", h.finish());
+        if self.out.dry_run || self.out.root.join(&rel).exists() {
+            return Some(rel);
+        }
+        let m = image::open(self.out.root.join(mask)).ok()?.into_rgba8();
+        let (w, h) = (self.screen.0 as u32, self.screen.1 as u32);
+        // Stretched over the screen, nearest (src: Muramasa.exe 0044ff90, a 16.16 step).
+        let out = image::RgbaImage::from_fn(w, h, |x, y| {
+            image::Rgba([255, 255, 255, table[m.get_pixel(x * m.width() / w, y * m.height() / h).0[1] as usize]])
+        });
+        self.out.write_png(&rel, &out);
+        Some(rel)
+    }
+
     fn rgba(&mut self, path: &str) -> Option<image::RgbaImage> {
         if self.out.dry_run {
             return None;
