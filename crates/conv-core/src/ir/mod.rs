@@ -143,6 +143,11 @@ pub struct SpritePlacement {
     pub y: i32,
 }
 
+/// [`SpritePlacement::image`] for a copy of what the screen shows under
+/// the sprite's layer (CONscripter's `spgrab num,-3`), taken as it is
+/// placed, at (0, 0): a frozen screen to zoom or blend as one picture.
+pub const SCREEN_UNDER: &str = "(screen under)";
+
 /// Shows (`Some`) or removes (`None`) the sprite on one layer. Each layer
 /// holds one sprite; layers not mentioned keep theirs.
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -600,11 +600,13 @@ impl Compiler<'_, '_> {
                 let wave = Wave { start: self.sound_clock(), ms, period, from, to, ease: tempo(&arg(5)) };
                 for t in self.matching(&arg(0)) {
                     let Some(o) = self.objects.get_mut(&t) else { continue };
-                    if matches!(o.kind, Kind::Cover { .. }) {
+                    o.wave = Some(wave);
+                    // (A cover waves as a copy of the screen, drawn once it is shown.)
+                    if self.objects.get(&t).is_some_and(|o| matches!(o.kind, Kind::Cover { .. }) && !self.grabs(&t, &Object { opacity: 1000, ..o.clone() })) {
+                        self.objects.get_mut(&t).unwrap().wave = None;
                         self.note("DrawEffect wave on a Plain cover");
                         continue;
                     }
-                    o.wave = Some(wave);
                     if let Some(s) = self.shown.get(&t)
                         && let Some(op) = wave.op(s.layer, wave.start, s)
                     {

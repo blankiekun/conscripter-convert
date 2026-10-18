@@ -196,6 +196,17 @@ impl Compiler<'_, '_> {
                 want.push((n.clone(), shown, (o.priority, o.seq), (1000, 1000), (o.w, o.h), (false, false)));
             }
         }
+        // A cover moved, zoomed, turned, blended or waved: a copy of the screen under
+        // it, taken as it is first shown, drawn as one picture.
+        for (n, o) in &self.objects {
+            if self.grabs(n, o) {
+                let opacity = self.drawn_opacity(n, o.opacity);
+                // (Its size as drawn, about its centre: zoomed by the engine.)
+                let (w, h) = (o.w * o.zoom.0 / 1000, o.h * o.zoom.1 / 1000);
+                let shown = Shown { layer: 0, image: SCREEN_UNDER.into(), x: o.x + (o.w - w) / 2, y: o.y + (o.h - h) / 2, w, h, opacity, cells: None, source: String::new(), zoom: (1000, 1000), angle: o.angle(), clip: None, engine: Engine::default(), flash: 0, blend: o.blend, tint: None, over: false, whole: None, mask: o.veil.clone() };
+                want.push((n.clone(), shown, (o.priority, o.seq), o.zoom, (o.w, o.h), (false, false)));
+            }
+        }
         // Zoomed to 0 along an axis: nothing drawn (squashed away below).
         want.retain(|w| self.objects.get(&w.0).is_none_or(|o| o.zoom.0 > 0 && o.zoom.1 > 0));
         // Zoomed pictures: scaled copies, centred where the original was.
@@ -210,6 +221,7 @@ impl Compiler<'_, '_> {
                 (shown.source, shown.zoom) = (shown.image.clone(), zoom);
                 shown.over = self.over_text(&n);
                 if zoom != (1000, 1000)
+                    && shown.image != SCREEN_UNDER
                     && let Some((image, x, y, sw, sh)) = self.assets.scaled(&shown.image, zoom.0, zoom.1, (shown.x, shown.y, w, h))
                 {
                     let (ww, wh) = (w * zoom.0 / 1000, h * zoom.1 / 1000);
@@ -231,12 +243,13 @@ impl Compiler<'_, '_> {
         // The topmost tint shown: the pictures below it drawn through it.
         let tint = self
             .objects
-            .values()
-            .filter(|o| o.opacity > 0 && !o.hideable)
-            .filter_map(|o| {
+            .iter()
+            .filter(|(_, o)| o.opacity > 0 && !o.hideable)
+            .filter_map(|(n, o)| {
                 let fs = match &o.kind {
                     Kind::Tint(fs) => fs.clone(),
-                    Kind::Cover { .. } => o.filters((1000, 1000)),
+                    // (A copy of the screen: its own filters, below.)
+                    Kind::Cover { .. } if !self.grabs(n, o) => o.filters((1000, 1000)),
                     _ => return None,
                 };
                 (!fs.is_empty()).then(|| ((o.priority, o.seq), fs.iter().map(|f| SpriteFilter { strength: Operand::Const((o.opacity.min(1000) * 256 / 1000) as i32), ..*f }).collect::<Vec<_>>()))
@@ -457,7 +470,9 @@ impl Compiler<'_, '_> {
             let ((dx, dy), grown) = (from.get(name).copied().unwrap_or_default(), zoom_from.get(name).filter(|z| z.0 == 0 || z.1 == 0));
             // (Not moved at all too, so that a `Random` pick of 0 leaves
             // the sprite as the other picks: moved by the engine.)
-            if t == 0 || !from.contains_key(name) && grown.is_none() || self.shown.contains_key(name) || turning.contains_key(name) || paths.contains_key(name) {
+            // (A copy of the screen also as it zooms: a picture's zoom is in its image.)
+            let grab_zoom = size_from.get(name).filter(|z| now.image == SCREEN_UNDER && z.0 > 0 && z.1 > 0 && **z != now.zoom).copied();
+            if t == 0 || !from.contains_key(name) && grown.is_none() && grab_zoom.is_none() || self.shown.contains_key(name) || turning.contains_key(name) || paths.contains_key(name) {
                 continue;
             }
             let now = Shown { layer, ..now.clone() };
@@ -466,7 +481,11 @@ impl Compiler<'_, '_> {
             // takes as long and outlasts the wait.
             let angle = angle_from.get(name).copied().unwrap_or(now.angle);
             let faded = from_zero.contains(name) && fades.get(name) == Some(&t) && t > blocking;
-            let start = Shown { x: now.x + dx, y: now.y + dy, angle, opacity: if faded { 0 } else { now.opacity }, ..now.clone() };
+            let mut start = Shown { x: now.x + dx, y: now.y + dy, angle, opacity: if faded { 0 } else { now.opacity }, ..now.clone() };
+            if let Some(z) = grab_zoom {
+                let (w, h) = (now.w * z.0 / now.zoom.0.max(1), now.h * z.1 / now.zoom.1.max(1));
+                start = Shown { x: start.x + (now.w - w) / 2, y: start.y + (now.h - h) / 2, w, h, zoom: z, ..start };
+            }
             let mut ops = Vec::new();
             let (keys, end) = if let Some(&(zx, zy)) = grown {
                 // Growing from 0: from the zoom it had (about its vertex).
@@ -510,7 +529,7 @@ impl Compiler<'_, '_> {
         // black, the text 100 ms later under wine).
         for ((name, now, _), layer) in want.iter().zip(&layers) {
             let (Some(layer), Some(&t)) = (*layer, fades.get(name)) else { continue };
-            if t <= blocking || !from_zero.contains(name) || self.shown.contains_key(name) || from.contains_key(name) || turning.contains_key(name) || paths.contains_key(name) || now.cells.is_some() {
+            if t <= blocking || !from_zero.contains(name) || self.shown.contains_key(name) || from.contains_key(name) || moved_over.contains_key(name) || turning.contains_key(name) || paths.contains_key(name) || now.cells.is_some() {
                 continue;
             }
             let now = Shown { layer, ..now.clone() };
@@ -751,6 +770,17 @@ impl Compiler<'_, '_> {
                             now.engine = u.engine;
                             SpritePlacement { image: u.image, x: u.x as i32, y: u.y as i32 }
                         }
+                        // A copy of the screen: taken unzoomed, zoomed by the engine about its centre.
+                        // shortcut: one placed again (another layer) is taken again, from the screen as it is then
+                        None if now.image == SCREEN_UNDER => {
+                            let (x, y) = self.objects.get(&name).map_or((0, 0), |o| (o.x, o.y));
+                            // (Before its motion, which spzoom would cut short.)
+                            if now.zoom != (1000, 1000) || now.angle != 0 {
+                                animated.insert(placing, Op::SpriteAngle { layer, degrees: now.angle as i32, zoom: ((now.zoom.0 / 10) as i32, (now.zoom.1 / 10) as i32) });
+                                now.engine.zoomed = true;
+                            }
+                            SpritePlacement { image: now.image.clone(), x: x as i32, y: y as i32 }
+                        }
                         None => SpritePlacement { image: now.image.clone(), x: now.x as i32, y: now.y as i32 },
                     };
                     match now.cells {
@@ -785,8 +815,9 @@ impl Compiler<'_, '_> {
                     if let Some(keys) = shake_once.remove(&name) {
                         animated.push(Op::SpriteMotion { layer, keys, looped: false });
                     }
+                    // (Before its motion: msp ends a kept one, and the keys' alpha is times it.)
                     if now.opacity < 1000 {
-                        opacity.push(Op::SpriteOpacity { layer: Some(layer), opacity: (now.opacity * 256 / 1000) as u32 });
+                        animated.insert(placing, Op::SpriteOpacity { layer: Some(layer), opacity: (now.opacity * 256 / 1000) as u32 });
                     }
                     // spblend stays through lsp: cleared with the layer.
                     if now.blend != BLEND_NORMAL {
@@ -811,7 +842,7 @@ impl Compiler<'_, '_> {
                         now.engine.zoomed = true;
                     }
                     // spzoom's angle stays through lsp: cleared with the layer later.
-                    if now.angle != 0 {
+                    if now.angle != 0 && now.image != SCREEN_UNDER {
                         let zoom = now.cells.map_or((100, 100), |c| c.2);
                         opacity.push(Op::SpriteAngle { layer, degrees: now.angle as i32, zoom });
                         now.engine.zoomed = true;
@@ -871,8 +902,29 @@ impl Compiler<'_, '_> {
         if (o.x, o.y, o.zoom, o.turn) != (0, 0, (1000, 1000), (0, 0, 0)) || o.shake.is_some() || o.blend != BLEND_NORMAL || froze.iter().any(|(_, s)| s.cells.is_some()) {
             return false;
         }
+        self.changed_under(o, froze)
+    }
+
+    /// The pictures under a cover differ from those it froze.
+    fn changed_under(&self, o: &Object, froze: &[(String, Shown)]) -> bool {
         let under = self.shown.keys().filter(|n| self.objects.get(*n).is_none_or(|x| x.priority <= o.priority)).count();
         under != froze.len() || froze.iter().any(|(n, s)| self.shown.get(n).is_none_or(|t| *t != Shown { engine: t.engine, layer: t.layer, tint: t.tint.clone(), ..s.clone() }))
+    }
+
+    /// A cover moved, zoomed, turned, blended or waved is drawn as a copy of the
+    /// screen under it ([`SCREEN_UNDER`]), taken when it is first shown
+    /// (`name` shown since), while that is still what it froze.
+    // shortcut: one shown first over a screen that changed since it froze, or
+    // shaken, or over a strip or movie, keeps the screen as before; draw its
+    // froze pictures into the copy if a scene needs it
+    pub(super) fn grabs(&self, name: &str, o: &Object) -> bool {
+        let Kind::Cover { froze, .. } = &o.kind else { return false };
+        o.opacity > 0
+            && !o.hideable
+            && ((o.x, o.y, o.zoom, o.turn) != (0, 0, (1000, 1000), (0, 0, 0)) || o.blend != BLEND_NORMAL || o.wave.is_some())
+            && o.shake.is_none()
+            && !froze.iter().any(|(_, s)| s.cells.is_some())
+            && (self.shown.contains_key(name) || !self.changed_under(o, froze))
     }
 }
 

@@ -1115,6 +1115,13 @@ pub(crate) fn sprite_mode(image: &str) -> char {
 
 /// `lsp` for a sprite ([`sprite_mode`]).
 fn lsp(slot: u32, s: &SpritePlacement) -> String {
+    if s.image == conv_core::ir::SCREEN_UNDER {
+        // (Taken at (0, 0): moved to its place.)
+        return match (s.x, s.y) {
+            (0, 0) => format!("spgrab {slot},-3"),
+            (x, y) => format!("spgrab {slot},-3:msp {slot},{x},{y},0"),
+        };
+    }
     let mode = sprite_mode(&s.image);
     format!("lsp {slot},\":{mode};{}\",{},{}", path(&s.image), s.x, s.y)
 }
@@ -1973,6 +1980,10 @@ goto *conv_link1
         assert_eq!(lsp(70, &jpeg), "lsp 70,\":c;cg\\bg\\a.JPG\",0,0");
         let png = SpritePlacement { image: "cg/st/a.png".into(), x: 1, y: 2 };
         assert_eq!(lsp(70, &png), "lsp 70,\":a;cg\\st\\a.png\",1,2");
+        let under = SpritePlacement { image: conv_core::ir::SCREEN_UNDER.into(), x: 0, y: 0 };
+        assert_eq!(lsp(70, &under), "spgrab 70,-3");
+        let moved = SpritePlacement { image: conv_core::ir::SCREEN_UNDER.into(), x: 2, y: 0 };
+        assert_eq!(lsp(70, &moved), "spgrab 70,-3:msp 70,2,0,0");
     }
 
     #[test]
