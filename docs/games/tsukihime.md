@@ -793,93 +793,21 @@ python3 -I research/tools/trace_diff.py orig.jsonl ours.jsonl --map map.tsv --ms
 
 ## Status
 
-| Area | State |
-|---|---|
-| Getting the files out of the NSP | ✅ |
-| Engine identified | ✅ (TYPE-MOON, `mrgd00`/MZP) |
-| Survey of existing tools | ✅ (see "Existing tools") |
-| Archives (`hed`/`mrg`/`nam`, MZP, MZX, NXGX/NXCX) | ✅ every entry of both RomFS copies |
-| Pictures (BNTX) | ✅ every texture of both RomFS copies decodes |
-| Sound (`stream/*.opus`, `knife1.bfsar`) | ✅ every sound of both RomFS copies converts, with its loop (music and wave sounds) |
-| Exe (`main`) in Ghidra | ✅ decompiles; dispatcher, the top commands' handlers, the music, picture and motion tables named |
-| Exe tables (pictures, motions, scene numbers) | ✅ read from the NSO (`typemoon exe`); picture sizes checked against the textures |
-| Scripts | 🔶 read: every command of both languages splits (one malformed in the original) and its text and voices join; the top commands' arguments read from the exe, the rest not yet |
-| Media folder (`typemoon media`) | ✅ `allpac`'s pictures at full size (PNG, or WebP with the shared `--webp` flags), the movies as they are, the sound (WAV wave sounds, or Opus/Vorbis with the shared `--audio-*` flags), loops kept in every mode |
-| Script conversion (`typemoon convert`) | 🔶 the flow (labels, `_JUMP`, `_IF__`, flags), text (pages, ruby, voices; the fan patch's styled letters, private-use U+E000–U+E2FE drawn by its own `ja/TT_TsukuMin-D.ttf`, as ASCII: italic and serif italic as italic (`!i1`), mirrored and upside-down plain (mirrored lines, stored right to left, put back in reading order), U+E200 as `^-35`; its accents (é ï ç â à ê, 46 uses) and em dashes kept, as the `0.txt` is UTF-8; a `^` break in a choice's option as a space), pictures (`_STCH`/`_STCC`/`_FADS`: record size and place, fades and rule wipes), sound effects and music; plays from the start through `00_00` into the first arc headless. Layers drawn in priority order (`_STCP`, `_STCH` argument 6), changed keeping their settings (`_SCH2`) or copying another layer's (argument 18), zoomed (`_STZ4`), faded (`_STGS`) and moved (`_STMA`, the exe's motions, a −32766 field eased once across its key as the exe eases it (the keys between cut into straight steps of its values where one curve a key would miss it), turned by its turn keys, held where a key's mode 2 says, only the fields its mask drives, each key eased as the exe's (`spcurve` tables of its Penner set; between keys the zoom and turn drawn in 1/100 steps each frame, CONscripter's `spmotion`, the place in whole pixels), looping where the exe loops until `_STMA(n, 0)` (where it is), `_STCH` or another motion stops it, going on with its clock when its layer moves to another IR layer; curves, priority and expression keys not followed), children placed in their parent layers, orbiting with their turn and following their motions (`_STCH` argument 11), clipped to their panels with their soft edges (`_STCH` arguments 12–17, CONscripter's `spclip` feather), turned (`_STRT`), drawn with their shader as far as CONscripter's blends and filters go (`_STBR`) and drawn with their `_STEC` effect (levels, greyscale and colour layers; effect 1 a colour fill, CONscripter's `spfilter` 9 and 10). Choices (`_SELR`, `_SELD`, `_GOTS`; options under a flag offered by it, greyed ones shown greyed and not selectable (`seldisable`); the chapter-jump menus), `_GOTO` and the Switch's own branches (`_IFNX`/`_IFP4`). The text window hidden and faded (`_CLO2`, `_CLO3`/`_CLO4`/`_CLO5` with CONscripter's `windowfade`, the script going on; the next text fades it back in). Not yet: the other layer commands, screens |
-| Screens, extras | 🔶 the boot logo movie and caution screen (History, 2026-10-18); the title; the system menu's Save and Load tabs (see History, 2026-10-17), opened in game by a right click at a text wait (on its Save tab); Config (for now the language switch), FlowChart, the backlog not yet |
-| The original under an emulator | ✅ boots to the title under Ryubing headless on Xvfb, 60 fps; ✅ the trace hook, diffed against ours over `00_00`'s first 297 pages (see "Testing" and "Trace diff" below) |
-| Languages (`--english`) | 🔶 one `0.txt` with both copies (below); the switch is the system menu's **Config** tab for now (in game; at rest on the title), until the settings tab with its 日本語/English option is converted |
+Working: files out of the NSP; all archives, pictures (BNTX) and
+sounds (with loops) of both RomFS copies; the exe in Ghidra with its
+tables read (`typemoon exe`); `typemoon media`; scripts read (every
+command splits, text and voices join); `typemoon convert` plays from
+the start through `00_00` into the first arc (flow, text, pictures,
+sound, layers, motions, choices, text window fade); boot logos, title,
+the system menu's Save and Load tabs, Config (language switch only);
+`--english <game-en>` builds both languages in one `0.txt`, switching
+in game; the original boots under Ryubing and its trace diffs against
+ours over `00_00`'s first 297 pages. How each was done: History
+("Status as it stood before the 2026-10-18 prune" has the full table,
+Languages and Trace diff).
 
-#### Languages
-
-With `--english <game-en>` the build holds both copies of the
-scripts (`language.rs`): the Japanese as before (labels `tm_<script>…`)
-and the fan patch's (`tm_en_<script>…`, `pic/en/` for its own 155
-pictures, the English text layout). The flags keep the Japanese
-numbering (none is the English copy's alone). The language is the
-copy the script runs in, so a save keeps it; the engine's `language`
-is set at a new game's start, on each switch and after each load
-(`loadgosub`). A new game starts in the language last chosen (global
-%1800).
-
-The switch goes into the other copy at once:
-
-- At the same page when the script's ops up to it are the same in both
-  copies but for the text (screen, sound and flags then are too): 29,197
-  of 42,532 Japanese pages; 330 of the 515 scripts with text line up to
-  the end. The
-  rest differ from some point on (the fan patch splits and joins pages
-  with `_MSAD`, counts them in `F823`, and has its own waits).
-- Else where the scene was entered (a script's start or a label another
-  script's `_JUMP` goes to, 1,088 of them), put back as it was there:
-  each entry saves the game into slot 897, and the switch loads it,
-  then goes on in the other copy. After a load from the save screen
-  that slot is of another visit, so the entry is played again from a
-  cleared screen (sprites, music, every sound channel) with the flags
-  as they are (a flag the scene added to before the switch is added to
-  twice).
-
-Checked headless (trace, `--goto conv_title_start`, the switch
-reached by a patched `0.txt` that `return *tm_switch`s from a `gosub`
-at a page's wait as the menu does from the right click's `rgosub`):
-Japanese page 5 of `00_00` → English page 5 (same sprites and sound);
-the same with the page forced unaligned → slot 897 loaded, English from
-`00_00`'s `START`; %1800 = 1 → a new game in English; an English save
-loaded → `language "en"`, English pages; there a switch at an unaligned
-page → the reset path, Japanese from the entry, the old loops stopped.
-The Japanese-only build (no `--english`) is unchanged but for the right
-click.
-
-
-#### Trace diff
-
-`START_SCRIPT` and `00_00`'s first 297 pages (2026-10-17, "Testing",
-step 2): every page pairs with ours at the same command, in order.
-`_FADS` takes the exe's 3 frames besides its fade, even when nothing
-changed (`script_command`: `FUN_0012e0b0` asks for the pictures, a
-frame's countdown, the fade starts once `FUN_001b6920` has them all, it
-ends a frame after); a `_STMA` on a layer the next `_FADS` shows is
-marked as the `_STMA`'s in the source map; `trace_diff.py` matches a
-continued page by its own lines. `_STGS` on a layer already shown starts its fade (or sets its alpha) at
-once, as the exe's `FUN_00132820` sets the live layer's, and `_STCF`
-waits for it (`FUN_00162f90`, `FUN_001802c0`, `FUN_001329f0`: mask 8
-the fade, 0x20 a motion that doesn't loop; ours an `spmotionwait`).
-Left (was 46 `missing`, 149 `time`, 180 `text`; then 14 and 89):
-
-- With `--merge-into _FADS`, `trace_diff.py` credits a `missing`
-  command to the next one of its page that has ours when that is a
-  `_FADS`, as `merged` (counted, not listed): 29, all `_STGS` on a
-  layer the next `_FADS` shows (its fade or alpha is among the
-  `_FADS`'s ops; marking them the `_STGS`'s would put the `_FADS`'s
-  frames before them and add about 40 `time` findings). Left, 16
-  `missing`: 11 `_FADS(1,0,0)` that change nothing visible in ours,
-  so the trace has no event from them; `_STMA` `00_00:212` and `1121`
-  (never drawn in the exe either: `_STCP` sets their layer's priority
-  to 0); `_STCF` `00_00:55` and `_FADS` `00_00:57` (page 1) and
-  `_FADS` `00_00:2278`. Totals: merged 29, missing 16, time 73.
-- 73 `time`: chiefly `_FADS` after a new picture (12 after `_SEPL`,
-  13 after `_CLO3`, 6 after `_SEFD`: the original's 2–10 frames
-  loading it, left out), and `_MPLY(52)` at `00_00:4296`.
+Not yet: the other layer commands, FlowChart, the backlog, the settings
+tab, Gallery, Config on the title.
 
 ### Next
 
@@ -915,6 +843,12 @@ Left (was 46 `missing`, 149 `time`, 180 `text`; then 14 and 89):
    gallery flag `_STCG`, `_SELD`'s choice number and `_SELS`'s
    yes/no choice. `_FANX`, `_STQK` and `_TRPY` have no case in the
    exe: the next converter PR adds them to `LEFT_OUT`.
+7. Trace diff leftovers (`trace_diff.py --merge-into _FADS`): 16
+   `missing` (11 `_FADS(1,0,0)` that change nothing visible in ours;
+   `_STMA` `00_00:212` and `1121`, never drawn in the exe; `_STCF`
+   `00_00:55`, `_FADS` `00_00:57` and `00_00:2278`) and 73 `time`
+   (chiefly `_FADS` after a new picture: the original's 2-10 frames
+   loading it, left out; `_MPLY(52)` at `00_00:4296`).
 
 ### Accuracy
 
@@ -925,50 +859,30 @@ original (Japanese, default text size):
 - The text window's line pitch (45 px: 28 of the drawer's 448, the step
   it uses for its extra lines; the exe measures a line of the font) and
   so its 14 rows, and whether the glyph sits 16 px below its line's
-  y (`FUN_001a7790` adds 14 + 10 of 1080 inside the line). Place,
-  width and glyph size are the exe's (`FUN_001391a0`: from 88, 65 on
-  a 640 × 448 stage, 464 wide; glyphs of the screen width / 32 × 0.76).
+  y (`FUN_001a7790` adds 14 + 10 of 1080 inside the line).
 - The text speed: 35 ms a character, the exe's default for unread
-  text (the settings' defaults at 0x56b080, the same as the reset in
-  `FUN_0012c810`: +0xe unread 35 ms, +0x10 read 15 ms; `FUN_0013b2d0`
-  shows 16.67 / ms characters a frame, all at once at 0). Read text is
-  typed at the same 35 ms here (CONscripter has one speed); the other
-  defaults (volumes +4/+8/+0xa = 40, 40, 10; auto wait +0x1c = 2200)
-  wait for a settings screen.
+  text (+0xe unread 35 ms, +0x10 read 15 ms). Read text is typed at the
+  same 35 ms here (CONscripter has one speed); the other defaults
+  (volumes +4/+8/+0xa = 40, 40, 10; auto wait +0x1c = 2200) wait for a
+  settings screen.
 - `_STBR` 11 (gauss) drawn as a blur of 8.
-- Motions (`_STMA`): the keys' zoom is whole percents of the placed
-  zoom (motion 2's 984‰ → 942‰ is 100 → 96 %, the exe's 95.7 %), their
-  angle whole degrees and their offset whole pixels of 1280 × 720; between
-  keys the zoom and angle move in 1/100 steps (before engine PR #147 they
-  moved in whole steps: a slow zoom jumped 26 px at a time, the user's
-  "choppy" report), the place still a pixel at a time (a 5 s pan of
+- Motions (`_STMA`): the place moves a pixel at a time (a 5 s pan of
   16 px steps every 300 ms; the exe draws it at sub-pixel places).
-- Zooms are whole percents (`spzoom`): one under 10 % is coarse
-  (`spzoom 95,5,9` may be 4.5–5.5 %), and one under 1 % is placed at
-  1 %, not 0, with a motion's keys scaled from what was placed (a line
-  drawn at 1‰ across that a motion opens to 1933‰, `05_00_ARC05INTERLUDE`).
+- Zooms are whole percents (`spzoom`): one under 10 % is coarse, and
+  one under 1 % is placed at 1 %, not 0 (`05_00_ARC05INTERLUDE`).
   Exact would need a finer `spzoom` in the engine.
 
 ### Open questions
 
-The biggest commands not converted, looked up in `script_command`
-(0x177790):
-
-- `_SNX4(…)` (8,762), **seen**: `script_command` has no case for it
-  (`_SNX2` and `_SNX3` have), so the Switch exe does nothing. Left
-  out.
-
-The mapped commands, argument by argument and branch by branch, are in
-`docs/games/tsukihime.findings.tsv` (seen, inferred or unknown, and the
-cheapest check for each; redone 2026-10-17 against docs/new-game.md's
-steps 6–17: 67 seen, 16 inferred, 6 unknown). Open there, by size:
+Mapped commands, argument by argument, are in
+`docs/games/tsukihime.findings.tsv` (67 seen, 16 inferred, 6 unknown).
+Open there, by size:
 
 - Motion keys' priority (0x3C, 23,115 calls) and expression (0x32/0x34,
-  5,254), and the stepped fields 0x24–0x2A (shader, effect and colour
+  5,254), and the stepped fields 0x24-0x2A (shader, effect and colour
   changes mid-motion?).
 - `_SEPL`/`_MPLY` volume (option 17) and `_SEVL` (not converted, 1,285):
   every sound at full volume.
-- Zooms under 10 % are coarse (`spzoom` takes whole percents).
 
 ## History
 
@@ -1561,3 +1475,182 @@ steps 6–17: 67 seen, 16 inferred, 6 unknown). Open there, by size:
 - 2026-10-16: tool survey (mangetsu, deepLuna, PS-HuneX_Tools);
   the nesting of MZP, MZX and NXGX→BNTX checked on our files.
 - 2026-10-16: NSP unpacked, engine identified, this document started.
+
+### Status as it stood before the 2026-10-18 prune
+
+| Area | State |
+|---|---|
+| Getting the files out of the NSP | ✅ |
+| Engine identified | ✅ (TYPE-MOON, `mrgd00`/MZP) |
+| Survey of existing tools | ✅ (see "Existing tools") |
+| Archives (`hed`/`mrg`/`nam`, MZP, MZX, NXGX/NXCX) | ✅ every entry of both RomFS copies |
+| Pictures (BNTX) | ✅ every texture of both RomFS copies decodes |
+| Sound (`stream/*.opus`, `knife1.bfsar`) | ✅ every sound of both RomFS copies converts, with its loop (music and wave sounds) |
+| Exe (`main`) in Ghidra | ✅ decompiles; dispatcher, the top commands' handlers, the music, picture and motion tables named |
+| Exe tables (pictures, motions, scene numbers) | ✅ read from the NSO (`typemoon exe`); picture sizes checked against the textures |
+| Scripts | 🔶 read: every command of both languages splits (one malformed in the original) and its text and voices join; the top commands' arguments read from the exe, the rest not yet |
+| Media folder (`typemoon media`) | ✅ `allpac`'s pictures at full size (PNG, or WebP with the shared `--webp` flags), the movies as they are, the sound (WAV wave sounds, or Opus/Vorbis with the shared `--audio-*` flags), loops kept in every mode |
+| Script conversion (`typemoon convert`) | 🔶 the flow (labels, `_JUMP`, `_IF__`, flags), text (pages, ruby, voices; the fan patch's styled letters, private-use U+E000–U+E2FE drawn by its own `ja/TT_TsukuMin-D.ttf`, as ASCII: italic and serif italic as italic (`!i1`), mirrored and upside-down plain (mirrored lines, stored right to left, put back in reading order), U+E200 as `^-35`; its accents (é ï ç â à ê, 46 uses) and em dashes kept, as the `0.txt` is UTF-8; a `^` break in a choice's option as a space), pictures (`_STCH`/`_STCC`/`_FADS`: record size and place, fades and rule wipes), sound effects and music; plays from the start through `00_00` into the first arc headless. Layers drawn in priority order (`_STCP`, `_STCH` argument 6), changed keeping their settings (`_SCH2`) or copying another layer's (argument 18), zoomed (`_STZ4`), faded (`_STGS`) and moved (`_STMA`, the exe's motions, a −32766 field eased once across its key as the exe eases it (the keys between cut into straight steps of its values where one curve a key would miss it), turned by its turn keys, held where a key's mode 2 says, only the fields its mask drives, each key eased as the exe's (`spcurve` tables of its Penner set; between keys the zoom and turn drawn in 1/100 steps each frame, CONscripter's `spmotion`, the place in whole pixels), looping where the exe loops until `_STMA(n, 0)` (where it is), `_STCH` or another motion stops it, going on with its clock when its layer moves to another IR layer; curves, priority and expression keys not followed), children placed in their parent layers, orbiting with their turn and following their motions (`_STCH` argument 11), clipped to their panels with their soft edges (`_STCH` arguments 12–17, CONscripter's `spclip` feather), turned (`_STRT`), drawn with their shader as far as CONscripter's blends and filters go (`_STBR`) and drawn with their `_STEC` effect (levels, greyscale and colour layers; effect 1 a colour fill, CONscripter's `spfilter` 9 and 10). Choices (`_SELR`, `_SELD`, `_GOTS`; options under a flag offered by it, greyed ones shown greyed and not selectable (`seldisable`); the chapter-jump menus), `_GOTO` and the Switch's own branches (`_IFNX`/`_IFP4`). The text window hidden and faded (`_CLO2`, `_CLO3`/`_CLO4`/`_CLO5` with CONscripter's `windowfade`, the script going on; the next text fades it back in). Not yet: the other layer commands, screens |
+| Screens, extras | 🔶 the boot logo movie and caution screen (History, 2026-10-18); the title; the system menu's Save and Load tabs (see History, 2026-10-17), opened in game by a right click at a text wait (on its Save tab); Config (for now the language switch), FlowChart, the backlog not yet |
+| The original under an emulator | ✅ boots to the title under Ryubing headless on Xvfb, 60 fps; ✅ the trace hook, diffed against ours over `00_00`'s first 297 pages (see "Testing" and "Trace diff" below) |
+| Languages (`--english`) | 🔶 one `0.txt` with both copies (below); the switch is the system menu's **Config** tab for now (in game; at rest on the title), until the settings tab with its 日本語/English option is converted |
+
+##### Languages
+
+With `--english <game-en>` the build holds both copies of the
+scripts (`language.rs`): the Japanese as before (labels `tm_<script>…`)
+and the fan patch's (`tm_en_<script>…`, `pic/en/` for its own 155
+pictures, the English text layout). The flags keep the Japanese
+numbering (none is the English copy's alone). The language is the
+copy the script runs in, so a save keeps it; the engine's `language`
+is set at a new game's start, on each switch and after each load
+(`loadgosub`). A new game starts in the language last chosen (global
+%1800).
+
+The switch goes into the other copy at once:
+
+- At the same page when the script's ops up to it are the same in both
+  copies but for the text (screen, sound and flags then are too): 29,197
+  of 42,532 Japanese pages; 330 of the 515 scripts with text line up to
+  the end. The
+  rest differ from some point on (the fan patch splits and joins pages
+  with `_MSAD`, counts them in `F823`, and has its own waits).
+- Else where the scene was entered (a script's start or a label another
+  script's `_JUMP` goes to, 1,088 of them), put back as it was there:
+  each entry saves the game into slot 897, and the switch loads it,
+  then goes on in the other copy. After a load from the save screen
+  that slot is of another visit, so the entry is played again from a
+  cleared screen (sprites, music, every sound channel) with the flags
+  as they are (a flag the scene added to before the switch is added to
+  twice).
+
+Checked headless (trace, `--goto conv_title_start`, the switch
+reached by a patched `0.txt` that `return *tm_switch`s from a `gosub`
+at a page's wait as the menu does from the right click's `rgosub`):
+Japanese page 5 of `00_00` → English page 5 (same sprites and sound);
+the same with the page forced unaligned → slot 897 loaded, English from
+`00_00`'s `START`; %1800 = 1 → a new game in English; an English save
+loaded → `language "en"`, English pages; there a switch at an unaligned
+page → the reset path, Japanese from the entry, the old loops stopped.
+The Japanese-only build (no `--english`) is unchanged but for the right
+click.
+
+
+##### Trace diff
+
+`START_SCRIPT` and `00_00`'s first 297 pages (2026-10-17, "Testing",
+step 2): every page pairs with ours at the same command, in order.
+`_FADS` takes the exe's 3 frames besides its fade, even when nothing
+changed (`script_command`: `FUN_0012e0b0` asks for the pictures, a
+frame's countdown, the fade starts once `FUN_001b6920` has them all, it
+ends a frame after); a `_STMA` on a layer the next `_FADS` shows is
+marked as the `_STMA`'s in the source map; `trace_diff.py` matches a
+continued page by its own lines. `_STGS` on a layer already shown starts its fade (or sets its alpha) at
+once, as the exe's `FUN_00132820` sets the live layer's, and `_STCF`
+waits for it (`FUN_00162f90`, `FUN_001802c0`, `FUN_001329f0`: mask 8
+the fade, 0x20 a motion that doesn't loop; ours an `spmotionwait`).
+Left (was 46 `missing`, 149 `time`, 180 `text`; then 14 and 89):
+
+- With `--merge-into _FADS`, `trace_diff.py` credits a `missing`
+  command to the next one of its page that has ours when that is a
+  `_FADS`, as `merged` (counted, not listed): 29, all `_STGS` on a
+  layer the next `_FADS` shows (its fade or alpha is among the
+  `_FADS`'s ops; marking them the `_STGS`'s would put the `_FADS`'s
+  frames before them and add about 40 `time` findings). Left, 16
+  `missing`: 11 `_FADS(1,0,0)` that change nothing visible in ours,
+  so the trace has no event from them; `_STMA` `00_00:212` and `1121`
+  (never drawn in the exe either: `_STCP` sets their layer's priority
+  to 0); `_STCF` `00_00:55` and `_FADS` `00_00:57` (page 1) and
+  `_FADS` `00_00:2278`. Totals: merged 29, missing 16, time 73.
+- 73 `time`: chiefly `_FADS` after a new picture (12 after `_SEPL`,
+  13 after `_CLO3`, 6 after `_SEFD`: the original's 2–10 frames
+  loading it, left out), and `_MPLY(52)` at `00_00:4296`.
+
+#### Next
+
+1. The script conversion, next part: the layer commands the opening
+   leans on, in order of use. `typemoon convert --dry-run` prints the
+   counts. Splitting sprites into body and face crops is out unless
+   the user asks.
+2. The other picture archives in the media folder: `allpaccg` (the
+   gallery's CGs, 2 GB), `allui` (71 MB).
+3. The menus: the settings tab (the defaults in "Accuracy", the
+   日本語/English switch: move `SystemPage::Jump(language::SWITCH)`
+   from the Config tab to its option), the backlog; then the save list's route picture and chapter labels
+   (by the phase), and Config and Gallery on the title.
+4. Still open in the exe: the motion keyframes' other fields.
+5. The metrics (`tests/snapshots/tsukihime.metrics.json`) count each
+   argument a converted command passes and doesn't read as a gap
+   (`<command> argument <i> ignored`, `option <n>` for a backquote
+   option); the list is in that file. The biggest: `_STZ4`'s 2 timed uses (and 2 on
+   layers with no picture), `_WTTM` 1 (with it, the wait less
+   `DAT_00be0a00`, a frame count `FUN_00181b30` adds to; when it is
+   reset not found), `_SEPL` option 17.
+6. Every kind has a row in `tsukihime.findings.tsv` (2026-10-17, from
+   the decompile; 47 rows open). The open ones that matter most, by
+   use: `_STCF` (5,179: the script waits for a layer's fade or
+   motion; ours runs on), `_SEVL`/`_MVOL` (sound and music volume
+   fades), the layer quakes `_SQK2`/`_SHK2`/`_SSW2` and the screen
+   shake `_SHOK`/`_SHAF`, `_STPV` (the layer's pivot), `_SNX2`/`_SNX3`
+   and `_STNS`/`_STRA`/`_STRR`/`_SACL`/`_SBAS`/`_SOXY` (layer fields
+   whose drawing is not found yet), `_VCWT` (wait for the voice),
+   `_VPL2`, `_SESP`, `_WKOR`, `_STTR`, `_STCL`, `_SGMA`, `_SPMA`, the
+   chapter start (`_SELA`, `_TOMP`/`_TOMW`, `_ATSV`/`_WTSV`), the
+   read flags (`_RTST`/`_RDED`, which `_IFUR` in `QA_25` needs), the
+   gallery flag `_STCG`, `_SELD`'s choice number and `_SELS`'s
+   yes/no choice. `_FANX`, `_STQK` and `_TRPY` have no case in the
+   exe: the next converter PR adds them to `LEFT_OUT`.
+
+#### Accuracy
+
+The converter's hand-typed values carry a provenance comment (`src:`,
+`guess:`, `ours`). Open guesses, each settled by one frame of the
+original (Japanese, default text size):
+
+- The text window's line pitch (45 px: 28 of the drawer's 448, the step
+  it uses for its extra lines; the exe measures a line of the font) and
+  so its 14 rows, and whether the glyph sits 16 px below its line's
+  y (`FUN_001a7790` adds 14 + 10 of 1080 inside the line). Place,
+  width and glyph size are the exe's (`FUN_001391a0`: from 88, 65 on
+  a 640 × 448 stage, 464 wide; glyphs of the screen width / 32 × 0.76).
+- The text speed: 35 ms a character, the exe's default for unread
+  text (the settings' defaults at 0x56b080, the same as the reset in
+  `FUN_0012c810`: +0xe unread 35 ms, +0x10 read 15 ms; `FUN_0013b2d0`
+  shows 16.67 / ms characters a frame, all at once at 0). Read text is
+  typed at the same 35 ms here (CONscripter has one speed); the other
+  defaults (volumes +4/+8/+0xa = 40, 40, 10; auto wait +0x1c = 2200)
+  wait for a settings screen.
+- `_STBR` 11 (gauss) drawn as a blur of 8.
+- Motions (`_STMA`): the keys' zoom is whole percents of the placed
+  zoom (motion 2's 984‰ → 942‰ is 100 → 96 %, the exe's 95.7 %), their
+  angle whole degrees and their offset whole pixels of 1280 × 720; between
+  keys the zoom and angle move in 1/100 steps (before engine PR #147 they
+  moved in whole steps: a slow zoom jumped 26 px at a time, the user's
+  "choppy" report), the place still a pixel at a time (a 5 s pan of
+  16 px steps every 300 ms; the exe draws it at sub-pixel places).
+- Zooms are whole percents (`spzoom`): one under 10 % is coarse
+  (`spzoom 95,5,9` may be 4.5–5.5 %), and one under 1 % is placed at
+  1 %, not 0, with a motion's keys scaled from what was placed (a line
+  drawn at 1‰ across that a motion opens to 1933‰, `05_00_ARC05INTERLUDE`).
+  Exact would need a finer `spzoom` in the engine.
+
+#### Open questions
+
+The biggest commands not converted, looked up in `script_command`
+(0x177790):
+
+- `_SNX4(…)` (8,762), **seen**: `script_command` has no case for it
+  (`_SNX2` and `_SNX3` have), so the Switch exe does nothing. Left
+  out.
+
+The mapped commands, argument by argument and branch by branch, are in
+`docs/games/tsukihime.findings.tsv` (seen, inferred or unknown, and the
+cheapest check for each; redone 2026-10-17 against docs/new-game.md's
+steps 6–17: 67 seen, 16 inferred, 6 unknown). Open there, by size:
+
+- Motion keys' priority (0x3C, 23,115 calls) and expression (0x32/0x34,
+  5,254), and the stepped fields 0x24–0x2A (shader, effect and colour
+  changes mid-motion?).
+- `_SEPL`/`_MPLY` volume (option 17) and `_SEVL` (not converted, 1,285):
+  every sound at full volume.
+- Zooms under 10 % are coarse (`spzoom` takes whole percents).
