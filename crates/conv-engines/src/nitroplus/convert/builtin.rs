@@ -32,6 +32,9 @@ const UNREAD_HARMLESS: &[(&str, usize, Option<&str>, &str)] = &[
 ];
 
 /// The note on a `Conquest` call, left out ([`super::LEFT_OUT`]).
+/// How long auto mode lets a `WaitKey` wait, ms.
+const WAITKEY_AUTO_MS: u32 = 1500;
+
 pub(super) const CONQUEST: &str = "Conquest: whole-scene read marks";
 
 /// The note on a call of the choice screen's own code (`function_select.nss`:
@@ -801,9 +804,12 @@ impl Compiler<'_, '_> {
                     }
                 }
             }
+            // Auto mode ends it after 1.5 s (the original's trace: every
+            // `WaitKey(2000)` and `WaitKey()` of ma00_000 at 1505-1527 ms).
             "WaitKey" => match arg(0) {
                 Value::Null => {
                     self.sync(0);
+                    self.ops.push(Op::AutoWait { ms: WAITKEY_AUTO_MS });
                     self.ops.push(Op::ClickWait { skippable: true });
                 }
                 ms => {
@@ -813,6 +819,10 @@ impl Compiler<'_, '_> {
                     let shown = std::mem::take(&mut self.pending_ms).min(ms);
                     self.sync(shown);
                     if ms > shown {
+                        let auto = WAITKEY_AUTO_MS.saturating_sub(shown);
+                        if ms - shown > auto {
+                            self.ops.push(Op::AutoWait { ms: auto });
+                        }
                         self.ops.push(Op::Wait { ms: ms - shown });
                     }
                 }

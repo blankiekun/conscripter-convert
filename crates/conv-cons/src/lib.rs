@@ -3122,6 +3122,13 @@ end
     }
 
     #[test]
+    fn auto_wait_replaces_the_next_wait_in_auto_mode() {
+        let out = emit(&script(vec![Op::AutoWait { ms: 1500 }, Op::Wait { ms: 2000 }, Op::AutoWait { ms: 1500 }, Op::ClickWait { skippable: true }]));
+        assert!(out.contains("isskip %105\nif %105 == 2 delay 1500\nif %105 != 2 delay 2000\n"), "{out}");
+        assert!(out.contains("if %105 == 2 delay 1500\nif %105 != 2 mov %9,1:gosub *"), "{out}");
+    }
+
+    #[test]
     fn pauses_ignore_clicks() {
         let out = emit(&script(vec![Op::Wait { ms: 300 }, Op::Pause { ms: 500 }]));
         assert!(out.contains("delay 300\nwait 500\n"), "{out}");

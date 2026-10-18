@@ -780,6 +780,10 @@ pub enum Op {
     /// curve ([`Op::MoveEase`]'s), not straight (CONscripter's
     /// `chvolfade`/`chfreq` curve). Nitroplus's sound tempos.
     SoundEase { ease: u8, exponent: u32 },
+    /// Auto mode ends the next [`Op::Wait`] or [`Op::ClickWait`] (the op
+    /// right after this one) after `ms` instead. Nitroplus's `WaitKey`,
+    /// which auto mode ends after 1.5 s.
+    AutoWait { ms: u32 },
 }
 
 /// [`Op::HoldMovie`]'s prompt: `image` is `cells` pictures side by side,

@@ -741,8 +741,6 @@ Open, by area (each is small; most noticeable first):
   `絵背景*` before a `Wait`/`WaitKey`), calls on no object (`Comic*`);
   the 30 to 300 ms steps where the original is slower are its frames and
   loads under wine. Open:
-  - Auto mode: the original ends `WaitKey(N)`/`WaitKey()` after ~1.5 s
-    (ma00_000:2617 to 2662, 10 findings); ours waits N.
   - A waited action that starts none doesn't wait in the original
     (`cb_Fade` 0044f020 starts none on no object or an unchanged
     opacity; 00445ac0 waits on the objects' action slots, 004502b0):
@@ -1410,6 +1408,20 @@ out on purpose.
 - Engine: CONscripter segfaults on `end` after a `dwave` voice with Ctrl
   held (seen once in a small test script; not looked into).
 
+
+### Auto mode and `WaitKey` (2026-10-18)
+
+Auto mode ends a `WaitKey(N)` or `WaitKey()` after 1.5 s in the
+original: every one in the 300-page trace (ma00_000:2496 to 2662, the
+`Gin_song*` lines) ends after 1505 to 1527 ms, with N = 2000 or none.
+The exe (builtin_WaitKey 0040f9d0) waits on its input events with N
+as the timeout, and the defaults (0047b400) set a 1500 (0x5dc) beside
+the auto settings; 続・殺戮のジャンゴ's defaults
+(`reset_system_defaults` 0045cb30) set it too, so both games take it
+(not checked in a Django trace). The compiler puts `Op::AutoWait`
+(1500 ms less what the statement's sync showed) before the wait when N
+is longer, and before `WaitKey()`'s click wait; conv-cons makes it
+`isskip` and a `delay` in auto mode, the wait itself otherwise.
 
 ### Boot logos (2026-10-18)
 
