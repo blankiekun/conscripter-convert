@@ -16,6 +16,15 @@ if len(args) >= 6 and args[0] == "add":
     d = os.path.dirname(os.path.abspath(f))
     if not d.endswith(os.path.join("local", "shots")):
         sys.exit("shots.py: file must be in research/<engine>/local/shots/")
+    if f.lower().endswith((".png", ".bmp")):  # lossless WebP: pixel-exact, much smaller
+        try:
+            from PIL import Image
+            n = os.path.splitext(f)[0] + ".webp"
+            Image.open(f).save(n, lossless=True, quality=100, method=6)
+            os.remove(f)
+            f = n
+        except Exception as e:  # keep the original when Pillow has no WebP
+            print("shots.py: kept", f, "(%s)" % e, file=sys.stderr)
     with open(os.path.join(d, "INDEX.tsv"), "a") as o:
         o.write("\t".join([os.path.basename(f), game, scene, page, " ".join(what), str(datetime.date.today())]) + "\n")
 elif len(args) >= 2 and args[0] == "find":
