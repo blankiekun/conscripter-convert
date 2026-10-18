@@ -939,6 +939,10 @@ pub enum Setting {
     AutoWait { page_step: u32, char_step: u32 },
     /// The menus' sounds ([`Script::menu_sounds`]).
     SystemVolume,
+    /// Auto mode's time per character as a row of its own, beside an
+    /// [`Setting::AutoWait`] row (whose `char_step` it replaces): at level
+    /// v, (10 - v) × `step` ms for each character of the page.
+    AutoCharWait { step: u32 },
 }
 
 /// The text history: past pages stacked from the bottom of `area` up,

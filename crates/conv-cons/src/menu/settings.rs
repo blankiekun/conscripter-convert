@@ -45,7 +45,13 @@ pub(crate) fn settings_apply(out: &mut String, m: &SettingsMenu) {
         Setting::AutoWait { page_step, char_step } => Some((page_step, char_step)),
         _ => None,
     }) {
-        Some((page, char)) => w(format!("automode_time (10-{auto})*{page},(10-{auto})*{char}")),
+        Some((page, char)) => match rows.iter().find_map(|r| match r.setting {
+            Setting::AutoCharWait { step } => Some(step),
+            _ => None,
+        }) {
+            Some(step) => w(format!("automode_time (10-{auto})*{page},(10-{})*{step}", setting_var(Setting::AutoCharWait { step }))),
+            None => w(format!("automode_time (10-{auto})*{page},(10-{auto})*{char}")),
+        },
         None => w(format!("mov {TMP},(10-{auto})*400+600:automode_time {TMP}")),
     }
     if rows.iter().any(|r| r.setting == Setting::WindowTransparency) {
@@ -138,6 +144,9 @@ pub(crate) fn settings_init(out: &mut String, m: &SettingsMenu) {
         let v = setting_var(Setting::SystemVolume);
         out.push_str(&format!("if {SYSTEM_VOLUME_SET} == 0 mov {v},{}:mov {SYSTEM_VOLUME_SET},1\n", default_level(m, Setting::SystemVolume, 8)));
     }
+    if let Some(r) = m.rows.iter().find(|r| matches!(r.setting, Setting::AutoCharWait { .. })) {
+        out.push_str(&format!("if {AUTO_CHAR_SET} == 0 mov {},{}:mov {AUTO_CHAR_SET},1\n", setting_var(r.setting), default_level(m, r.setting, 5)));
+    }
     out.push_str(&format!("gosub *{SETTINGS_APPLY}\n"));
 }
 
@@ -201,5 +210,7 @@ pub(crate) fn setting_var(s: Setting) -> &'static str {
         Setting::WindowTransparency => "%910",
         // Added later: set to its default once [`SYSTEM_VOLUME_SET`] is 0.
         Setting::SystemVolume => "%911",
+        // Added later: set to its default once [`AUTO_CHAR_SET`] is 0.
+        Setting::AutoCharWait { .. } => "%913",
     }
 }

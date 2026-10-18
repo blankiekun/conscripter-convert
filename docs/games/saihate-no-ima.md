@@ -813,7 +813,6 @@ build needs the exe; a missing or different exe stops it with an error.
 - Screen positions and the blog bar's level number from the exe's layout
   tables (History, "Screen positions from the exe").
 - Settings not converted (six pages in the original; History item 26):
-  the auto waits as two rows,
   antialiasing, the CG viewer's voices, the system voice, wheel
   sensitivity, frame rate, inactive-window behaviour, shortcut menu,
   gamepad. Autosave slots (original: right-click menu, dropped).
@@ -847,6 +846,23 @@ wants it.
 
 Finished work, moved out of "Status" so a session reads only the open
 state. Items are referred to elsewhere as "History, item N".
+
+### The auto waits as two rows (2026-10-18)
+
+The dialog's テキスト page has two auto sliders (exe `0x4833a4`, set
+up in `0x484d60`): 改頁待ち 文章単位, ten steps of 0-5000 ms (control
+`0x424`, default 2.5 s, `0x51ed3c`), and 文字単位, ten steps of
+0-500 ms (control `0x485`, default 50 ms, `0x51ed68`; History item 9's
+0-100 ms is the text speed slider). The settings screen now has both
+rows (seven rows, 50 px apart): オート（文章単位） (`Setting::AutoWait`,
+500 ms a level, `%906`) and オート（文字単位） (`Setting::AutoCharWait`,
+50 ms a level, `%913`), applied as
+`automode_time (10-%906)*500,(10-%913)*50`. Defaults: levels 5 and 9,
+the original's. Old global saves get level 9 once (`%914`). Checked
+headless with the generated routine and a 10-character page in auto
+mode (page/character levels: ms waited, expected): 0/9 5520 (5500),
+10/9 534 (500), 0/10 5038 (5000), 4/7 4538 (4500); with `%914` unset,
+`%913` became 9.
 
 ### Title intro (2026-10-18)
 
