@@ -4436,12 +4436,19 @@ mod tests {
         }
     }
 
-    fn compile(story: &str, library: &str) -> Compiled {
+    /// The boot script, a `function.nss` holding `library` and the `(name, source)` scripts.
+    fn nss_files(library: &str, scripts: &[(&str, &str)]) -> BTreeMap<String, NssFile> {
         let mut files = BTreeMap::new();
         files.insert(BOOT.to_string(), nss::parse("#include \"nss/function.nss\"\n").unwrap());
         files.insert("function.nss".to_string(), nss::parse(library).unwrap());
-        files.insert("a.nss".to_string(), nss::parse(story).unwrap());
-        compile_scene(&files, "a.nss", "a.nss", &Game::PLAIN, &mut Fake).unwrap()
+        for (name, src) in scripts {
+            files.insert(name.to_string(), nss::parse(src).unwrap());
+        }
+        files
+    }
+
+    fn compile(story: &str, library: &str) -> Compiled {
+        compile_scene(&nss_files(library, &[("a.nss", story)]), "a.nss", "a.nss", &Game::PLAIN, &mut Fake).unwrap()
     }
 
     const LIBRARY: &str = r#"
@@ -4510,10 +4517,7 @@ scene a.nss
 	TypeBegin();
 }
 "#;
-        let mut files = BTreeMap::new();
-        files.insert(BOOT.to_string(), nss::parse("#include \"nss/function.nss\"\n").unwrap());
-        files.insert("function.nss".to_string(), nss::parse(LIBRARY).unwrap());
-        files.insert("a.nss".to_string(), nss::parse(story).unwrap());
+        let files = nss_files(LIBRARY, &[("a.nss", story)]);
         let w = compile_scene(&files, "a.nss", "a.nss", &MURAMASA_EN, &mut Fake).unwrap().window.unwrap();
         assert!(!w.vertical);
         assert_eq!(w.image, "cg/sys/adv/en/textwindow.png@1000");
@@ -4545,10 +4549,7 @@ scene ma01_009.nss
 	TypeBegin();
 }
 "#;
-        let mut files = BTreeMap::new();
-        files.insert(BOOT.to_string(), nss::parse("#include \"nss/function.nss\"\n").unwrap());
-        files.insert("function.nss".to_string(), nss::parse(LIBRARY).unwrap());
-        files.insert("ma01_009.nss".to_string(), nss::parse(story).unwrap());
+        let files = nss_files(LIBRARY, &[("ma01_009.nss", story)]);
         let c = compile_scene(&files, "ma01_009.nss", "ma01_009.nss", &MURAMASA_EN, &mut Fake).unwrap();
         let mut xs = vec![c.window.unwrap().x];
         xs.extend(c.ops.iter().filter_map(|op| if let Op::SetWindow(w) = op { Some(w.x) } else { None }));
@@ -4575,10 +4576,7 @@ scene a.nss
 	TypeBegin();
 }
 "#;
-        let mut files = BTreeMap::new();
-        files.insert(BOOT.to_string(), nss::parse("#include \"nss/function.nss\"\n").unwrap());
-        files.insert("function.nss".to_string(), nss::parse(LIBRARY).unwrap());
-        files.insert("a.nss".to_string(), nss::parse(story).unwrap());
+        let files = nss_files(LIBRARY, &[("a.nss", story)]);
         let w = compile_scene(&files, "a.nss", "a.nss", &MURAMASA_EN, &mut Fake).unwrap().window.unwrap();
         assert_eq!(w.text_x, 118);
     }
@@ -4600,10 +4598,7 @@ scene a.nss
 	TypeBegin();
 }
 "#;
-        let mut files = BTreeMap::new();
-        files.insert(BOOT.to_string(), nss::parse("#include \"nss/function.nss\"\n").unwrap());
-        files.insert("function.nss".to_string(), nss::parse(LIBRARY).unwrap());
-        files.insert("a.nss".to_string(), nss::parse(story).unwrap());
+        let files = nss_files(LIBRARY, &[("a.nss", story)]);
         let w = compile_scene(&files, "a.nss", "a.nss", &MURAMASA_EN, &mut Fake).unwrap().window.unwrap();
         assert!(!w.vertical);
         assert_eq!(w.image, "cg/sys/adv/en/thtextwindow_fw.png@1000");
@@ -4639,10 +4634,7 @@ scene a.nss
 	TypeBegin();
 }
 "#;
-        let mut files = BTreeMap::new();
-        files.insert(BOOT.to_string(), nss::parse("#include \"nss/function.nss\"\n").unwrap());
-        files.insert("function.nss".to_string(), nss::parse(LIBRARY).unwrap());
-        files.insert("a.nss".to_string(), nss::parse(story).unwrap());
+        let files = nss_files(LIBRARY, &[("a.nss", story)]);
         let c = compile_scene(&files, "a.nss", "a.nss", &MURAMASA_EN, &mut Fake).unwrap();
         let face = c.window.unwrap().image;
         assert_ne!(face, "cg/sys/adv/en/textwindow.png@1000");
@@ -5104,10 +5096,7 @@ scene a.nss
 }
 "#;
         static GAME: Game = Game { family: true, relative_children: true, ..Game::PLAIN };
-        let mut files = BTreeMap::new();
-        files.insert(BOOT.to_string(), nss::parse("#include \"nss/function.nss\"\n").unwrap());
-        files.insert("function.nss".to_string(), nss::parse(LIBRARY).unwrap());
-        files.insert("a.nss".to_string(), nss::parse(story).unwrap());
+        let files = nss_files(LIBRARY, &[("a.nss", story)]);
         let c = compile_scene(&files, "a.nss", "a.nss", &GAME, &mut Fake).unwrap();
         let shown: Vec<Vec<&str>> = c.ops.iter().filter_map(|op| match op {
             Op::Sprites { changes, .. } => Some(changes.iter().filter_map(|c| c.sprite.as_ref().map(|s| s.image.as_str())).collect()),
@@ -5136,10 +5125,7 @@ scene a.nss
 }
 "#;
         static GAME: Game = Game { family: true, relative_children: true, ..Game::PLAIN };
-        let mut files = BTreeMap::new();
-        files.insert(BOOT.to_string(), nss::parse("#include \"nss/function.nss\"\n").unwrap());
-        files.insert("function.nss".to_string(), nss::parse(LIBRARY).unwrap());
-        files.insert("a.nss".to_string(), nss::parse(story).unwrap());
+        let files = nss_files(LIBRARY, &[("a.nss", story)]);
         let c = compile_scene(&files, "a.nss", "a.nss", &GAME, &mut Fake).unwrap();
         let motions: Vec<&Vec<MotionKey>> = c.ops.iter().filter_map(|op| match op {
             Op::SpriteMotion2 { keys, end: MotionEnd::Keep, .. } => Some(keys),
@@ -5172,10 +5158,7 @@ scene a.nss
 	Fade("logo", 500, 0, null, true);
 }
 "#;
-        let mut files = BTreeMap::new();
-        files.insert(BOOT.to_string(), nss::parse("#include \"nss/function.nss\"\n").unwrap());
-        files.insert("function.nss".to_string(), nss::parse(LIBRARY).unwrap());
-        files.insert("a.nss".to_string(), nss::parse(story).unwrap());
+        let files = nss_files(LIBRARY, &[("a.nss", story)]);
         let c = compile_scene(&files, "a.nss", "a.nss", &Game::PLAIN, &mut Fake).unwrap();
         let keys = c.ops.iter().find_map(|op| match op {
             Op::SpriteMotion2 { keys, .. } => Some(keys),
@@ -5203,10 +5186,7 @@ scene a.nss
 }
 "#;
         static GAME: Game = Game { family: true, relative_children: true, ..Game::PLAIN };
-        let mut files = BTreeMap::new();
-        files.insert(BOOT.to_string(), nss::parse("#include \"nss/function.nss\"\n").unwrap());
-        files.insert("function.nss".to_string(), nss::parse(LIBRARY).unwrap());
-        files.insert("a.nss".to_string(), nss::parse(story).unwrap());
+        let files = nss_files(LIBRARY, &[("a.nss", story)]);
         let c = compile_scene(&files, "a.nss", "a.nss", &GAME, &mut Fake).unwrap();
         let at = c.ops.iter().position(|op| matches!(op, Op::SpriteMotion2 { .. })).unwrap_or_else(|| panic!("{:?}", c.ops));
         let lasts: Vec<u32> = c.ops.iter().filter_map(|op| match op {
@@ -5328,10 +5308,7 @@ scene a.nss
 }
 "#;
         static GAME: Game = Game { family: true, relative_children: true, ..Game::PLAIN };
-        let mut files = BTreeMap::new();
-        files.insert(BOOT.to_string(), nss::parse("#include \"nss/function.nss\"\n").unwrap());
-        files.insert("function.nss".to_string(), nss::parse(LIBRARY).unwrap());
-        files.insert("a.nss".to_string(), nss::parse(story).unwrap());
+        let files = nss_files(LIBRARY, &[("a.nss", story)]);
         let c = compile_scene(&files, "a.nss", "a.nss", &GAME, &mut Fake).unwrap();
         let motions = c.ops.iter().filter(|op| matches!(op, Op::SpriteMotion2 { .. })).count();
         assert_eq!(motions, 2, "{:?}", c.ops);
@@ -5599,9 +5576,7 @@ scene a.nss
 
     #[test]
     fn a_branch_that_left_the_chapter_early_goes_on_from_where_it_left() {
-        let mut files = BTreeMap::new();
-        files.insert(BOOT.to_string(), nss::parse("#include \"nss/function.nss\"\n").unwrap());
-        files.insert("function.nss".to_string(), nss::parse(LIBRARY).unwrap());
+        let mut files = nss_files(LIBRARY, &[]);
         // As 続・殺戮のジャンゴ's deaths: the chapter returns right after the
         // deadly answer, the caller then plays the bad end.
         let a = r#"scene a.nss
@@ -5748,10 +5723,7 @@ function Nothing()
         // Fade's tempo is read: its transition goes along Axl1 (t²) where
         // the game's exe eases fades.
         assert!(!c.ops.iter().any(|op| matches!(op, Op::TransitionEase { .. })), "{:?}", c.ops);
-        let mut files = BTreeMap::new();
-        files.insert(BOOT.to_string(), nss::parse("#include \"nss/function.nss\"\n").unwrap());
-        files.insert("function.nss".to_string(), nss::parse(LIBRARY).unwrap());
-        files.insert("a.nss".to_string(), nss::parse(story).unwrap());
+        let files = nss_files(LIBRARY, &[("a.nss", story)]);
         let eased = compile_scene(&files, "a.nss", "a.nss", &Game { fade_tempo: Some(tempo), ..Game::PLAIN }, &mut Fake).unwrap();
         assert!(eased.ops.iter().any(|op| matches!(op, Op::TransitionEase { ease: 1, exponent: 2 })), "{:?}", eased.ops);
         assert!(!c.notes.keys().any(|n| n.starts_with("Fade argument") || n.starts_with("CreateProcess argument")), "{:?}", c.notes);
@@ -5894,10 +5866,7 @@ scene a.nss
 }
 "#;
         static GAME: Game = Game { call: DJANGO.call, ..Game::PLAIN };
-        let mut files = BTreeMap::new();
-        files.insert(BOOT.to_string(), nss::parse("#include \"nss/function.nss\"\n").unwrap());
-        files.insert("function.nss".to_string(), nss::parse(LIBRARY).unwrap());
-        files.insert("a.nss".to_string(), nss::parse(story).unwrap());
+        let files = nss_files(LIBRARY, &[("a.nss", story)]);
         let c = compile_scene(&files, "a.nss", "a.nss", &GAME, &mut Fake).unwrap();
         let at = c.ops.iter().position(|op| matches!(op, Op::AnimatedSprite { cells: 3, frame_ms: 125, looped: false, .. }));
         assert!(at.is_some_and(|i| c.ops[i + 1..].iter().any(|op| matches!(op, Op::Wait { ms: 250 }))), "{:?}", c.ops);
@@ -5985,10 +5954,7 @@ scene a.nss
 }
 "#;
         static GAME: Game = Game { family: true, relative_children: true, ..Game::PLAIN };
-        let mut files = BTreeMap::new();
-        files.insert(BOOT.to_string(), nss::parse("#include \"nss/function.nss\"\n").unwrap());
-        files.insert("function.nss".to_string(), nss::parse(LIBRARY).unwrap());
-        files.insert("a.nss".to_string(), nss::parse(story).unwrap());
+        let files = nss_files(LIBRARY, &[("a.nss", story)]);
         let c = compile_scene(&files, "a.nss", "a.nss", &GAME, &mut Fake).unwrap();
         let clips: Vec<_> = c.ops.iter().filter_map(|op| match op {
             Op::SpriteClip { rect, .. } => Some(*rect),
@@ -6438,9 +6404,7 @@ function Roll()
     #[test]
     fn delete_all_in_a_chapter_keeps_what_was_made_before_it() {
         static GAME: Game = Game { chapter_objects: true, ..Game::PLAIN };
-        let mut files = BTreeMap::new();
-        files.insert(BOOT.to_string(), nss::parse("#include \"nss/function.nss\"\n").unwrap());
-        files.insert("function.nss".to_string(), nss::parse(LIBRARY).unwrap());
+        let mut files = nss_files(LIBRARY, &[]);
         let a = r#"scene a.nss
 {
 	CreateSound("bgm1", BGM, "sound/bgm/one");
@@ -6629,9 +6593,7 @@ scene a.nss
 
     #[test]
     fn a_choice_forks_the_run_to_each_branch_file() {
-        let mut files = BTreeMap::new();
-        files.insert(BOOT.to_string(), nss::parse("#include \"nss/function.nss\"\n").unwrap());
-        files.insert("function.nss".to_string(), nss::parse("function SetChoice02($テキストデータ１,$テキストデータ２){}").unwrap());
+        let mut files = nss_files("function SetChoice02($テキストデータ１,$テキストデータ２){}", &[]);
         let main = |name: &str, body: &str| format!("scene {name}_MAIN\n{{\n{body}\n}}\n");
         files.insert(
             "a.nss".into(),
@@ -6665,9 +6627,7 @@ scene a.nss
 
     #[test]
     fn a_choice_option_set_in_a_nested_runtime_if_is_picked_at_run_time() {
-        let mut files = BTreeMap::new();
-        files.insert(BOOT.to_string(), nss::parse("#include \"nss/function.nss\"\n").unwrap());
-        files.insert("function.nss".to_string(), nss::parse("function SetChoice02($テキストデータ１,$テキストデータ２){}").unwrap());
+        let mut files = nss_files("function SetChoice02($テキストデータ１,$テキストデータ２){}", &[]);
         // As md05_004hazure01: the option depends on a companion, inside
         // another runtime if.
         let a = r#"scene a.nss_MAIN
@@ -6698,9 +6658,7 @@ scene a.nss
     #[test]
     fn a_choice_that_names_its_own_file_replays_it() {
         // As md05_010vsaa: option 1 shows some text and asks again.
-        let mut files = BTreeMap::new();
-        files.insert(BOOT.to_string(), nss::parse("#include \"nss/function.nss\"\n").unwrap());
-        files.insert("function.nss".to_string(), nss::parse("function SetChoice02($テキストデータ１,$テキストデータ２){}").unwrap());
+        let mut files = nss_files("function SetChoice02($テキストデータ１,$テキストデータ２){}", &[]);
         let main = |name: &str, body: &str| format!("scene {name}_MAIN\n{{\n{body}\n}}\n");
         let a = r#"SetChoice02("もう一度","終わる");
 	select { case @選択肢１ { $GameName = "a.nss"; } case @選択肢２ { $GameName = "b.nss"; } }"#;
@@ -6774,9 +6732,7 @@ scene a.nss
 
     #[test]
     fn a_scene_name_set_by_a_runtime_if_is_called_at_run_time_in_each_file() {
-        let mut files = BTreeMap::new();
-        files.insert(BOOT.to_string(), nss::parse("#include \"nss/function.nss\"\n").unwrap());
-        files.insert("function.nss".to_string(), nss::parse("function F(){}").unwrap());
+        let mut files = nss_files("function F(){}", &[]);
         // As md05_004*: the scene to call is picked by a story flag, and
         // every file uses the same helper variable for it.
         let file = |name: &str, x: i32, next: &str| {
@@ -6816,11 +6772,7 @@ scene {name}_Y
             replays: |_| vec![Replay { label: "conv_r".into(), file: "r.nss".into(), set: vec![("$PLACE_reco".into(), 1)] }],
             ..Game::PLAIN
         };
-        let mut files = BTreeMap::new();
-        files.insert(BOOT.to_string(), nss::parse("#include \"nss/function.nss\"\n").unwrap());
-        files.insert("function.nss".to_string(), nss::parse("function F(){}").unwrap());
-        files.insert("a.nss".into(), nss::parse("scene a.nss_MAIN\n{\n\tif($f){$g = 1;}\n\t$GameCircle = 0;\n}").unwrap());
-        files.insert("r.nss".into(), nss::parse("scene r.nss_MAIN\n{\n\tif($PLACE_reco){$f = 7;}else{$f = 3;}\n\t$GameCircle = 0;\n}").unwrap());
+        let files = nss_files("function F(){}", &[("a.nss", "scene a.nss_MAIN\n{\n\tif($f){$g = 1;}\n\t$GameCircle = 0;\n}"), ("r.nss", "scene r.nss_MAIN\n{\n\tif($PLACE_reco){$f = 7;}else{$f = 3;}\n\t$GameCircle = 0;\n}")]);
         let (c, _) = compile_run(&files, "a.nss", 10, &GAME, &mut Fake).unwrap();
         let f = story_flags(&files, &GAME)["$f"];
         let at = c.ops.iter().position(|op| *op == Op::Label("conv_r".into())).expect("the replay's label");
@@ -6834,9 +6786,7 @@ scene {name}_Y
 
     #[test]
     fn flags_a_choice_sets_are_tested_at_run_time_after_it() {
-        let mut files = BTreeMap::new();
-        files.insert(BOOT.to_string(), nss::parse("#include \"nss/function.nss\"\n").unwrap());
-        files.insert("function.nss".to_string(), nss::parse("function F(){}").unwrap());
+        let mut files = nss_files("function F(){}", &[]);
         // As mc01_010vs: the cases set flags, the next file is picked after
         // the select.
         let a = r#"scene a.nss_MAIN
@@ -6854,9 +6804,7 @@ scene {name}_Y
 
     #[test]
     fn a_choice_inside_a_runtime_if_hands_each_option_s_file_to_the_code_after_it() {
-        let mut files = BTreeMap::new();
-        files.insert(BOOT.to_string(), nss::parse("#include \"nss/function.nss\"\n").unwrap());
-        files.insert("function.nss".to_string(), nss::parse("function F(){}").unwrap());
+        let mut files = nss_files("function F(){}", &[]);
         // As the airship rooms (mc02_031souko2): the select sets $GameName,
         // the code after it hands that to a story flag and goes through the
         // clock file, which dispatches on the flag.
@@ -6904,16 +6852,13 @@ scene {name}_Y
 
     #[test]
     fn route_ranking_runs_as_runtime_comparisons() {
-        let mut files = BTreeMap::new();
-        files.insert(BOOT.to_string(), nss::parse("#include \"nss/function.nss\"\n").unwrap());
-        files.insert("function.nss".to_string(), nss::parse("function RouteChicker(){}").unwrap());
         let story = r#"scene a.nss_MAIN
 {
 	$Others_Flag = 1; $Ichizyou_Flag = 3; $Kanae_Flag = 5; $Muramasa_Flag = 5;
 	RouteChicker();
 	$GameCircle = 0;
 }"#;
-        files.insert("a.nss".into(), nss::parse(story).unwrap());
+        let files = nss_files("function RouteChicker(){}", &[("a.nss", story)]);
         let (c, _) = compile_run(&files, "a.nss", 1, &MURAMASA, &mut Fake).unwrap();
         let vars = run_ir(&c.ops);
         let flags = story_flags(&files, &MURAMASA);
@@ -6924,9 +6869,6 @@ scene {name}_Y
 
     #[test]
     fn the_heroine_with_the_highest_counter_dies_and_set_hex_clears_her_counter() {
-        let mut files = BTreeMap::new();
-        files.insert(BOOT.to_string(), nss::parse("#include \"nss/function.nss\"\n").unwrap());
-        files.insert("function.nss".to_string(), nss::parse("function SatugaiSystem(){}\nfunction SetHex(){}").unwrap());
         let story = r#"scene a.nss_MAIN
 {
 	$Others_Flag = 1; $Ichizyou_Flag = 4; $Kanae_Flag = 4; $Muramasa_Flag = 2;
@@ -6935,7 +6877,8 @@ scene {name}_Y
 	if($一条死亡 == true){ $x = 1; }
 	$GameCircle = 0;
 }"#;
-        files.insert("a.nss".into(), nss::parse(story).unwrap());
+        let files = nss_files("function SatugaiSystem(){}
+function SetHex(){}", &[("a.nss", story)]);
         let (c, _) = compile_run(&files, "a.nss", 1, &MURAMASA, &mut Fake).unwrap();
         let vars = run_ir(&c.ops);
         let flags = story_flags(&files, &MURAMASA);
@@ -6992,10 +6935,7 @@ scene a.nss
 }
 "#;
         // The whole story: `$分岐` may hold anything when the file starts.
-        let mut files = BTreeMap::new();
-        files.insert(BOOT.to_string(), nss::parse("#include \"nss/function.nss\"\n").unwrap());
-        files.insert("function.nss".to_string(), nss::parse(LIBRARY).unwrap());
-        files.insert("a.nss".to_string(), nss::parse(story).unwrap());
+        let files = nss_files(LIBRARY, &[("a.nss", story)]);
         let c = compile_story(&files, "a.nss", "a.nss", &Game::PLAIN, &mut Fake).unwrap();
         let texts: Vec<&str> = c.ops.iter().filter_map(|op| if let Op::Text { text, .. } = op { Some(text.as_str()) } else { None }).collect();
         assert!(texts.iter().any(|t| t.contains('甲')) && texts.iter().any(|t| t.contains('乙')), "{texts:?}");
@@ -7113,10 +7053,7 @@ scene a.nss
         // 続・殺戮のジャンゴ's TypeEnd: the window drawn under the text faded out.
         let story = "scene a.nss\n{\n\tCreateWindow(\"box00\", 10300, 50, 472, 750, 130, true);\n\tRequest(\"@text001\", \"Enter\");\n<PRE box00>\n[text001]\nあ\n</PRE>\n\tFade(\"@box*\", 100, 0, null, true);\n}\n";
         static GAME: Game = Game { family: true, relative_children: true, ..Game::PLAIN };
-        let mut files = BTreeMap::new();
-        files.insert(BOOT.to_string(), nss::parse("#include \"nss/function.nss\"\n").unwrap());
-        files.insert("function.nss".to_string(), nss::parse(LIBRARY).unwrap());
-        files.insert("a.nss".to_string(), nss::parse(story).unwrap());
+        let files = nss_files(LIBRARY, &[("a.nss", story)]);
         let c = compile_scene(&files, "a.nss", "a.nss", &GAME, &mut Fake).unwrap();
         assert!(c.ops.iter().any(|op| matches!(op, Op::WindowFade { alpha: 0, ms: 100, .. })), "{:?}", c.ops);
         assert!(!c.ops.iter().any(|op| matches!(op, Op::HideTextWindow)), "{:?}", c.ops);
