@@ -199,7 +199,7 @@ fn replay(a: &mut dyn Assets, story: &Story) -> Option<PictureReplay> {
     for (cg, file) in replay_entries(story.files) {
         let Some(&unlocked_by) = story.flags.get(&format!("#{file}")) else { continue };
         let thumbnail = a.image(&format!("cg/sys/extra/thum/ev/{cg}.jpg"))?.0;
-        scenes.push(ReplayEntry { thumbnail, unlocked_by, label: replay_label(&file) });
+        scenes.push(ReplayEntry { thumbnail, unlocked_by, label: replay_label(&file), place: None, blank: None, cursor: None });
     }
     let state = |n: u32| format!("{DIR}/退出-{n:03}.png");
     let (exit, w, h) = a.strip(&[&state(1), &state(2), &state(3)])?;

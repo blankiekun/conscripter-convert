@@ -435,7 +435,7 @@ fn replay(a: &mut dyn Assets, story: &Story) -> Option<PictureReplay> {
     let mut scenes = Vec::new();
     for ((label, _), thumbnail) in SCENES.iter().zip(THUMBNAILS) {
         let thumbnail = a.image(&format!("cg/thum/{thumbnail}.jpg"))?.0;
-        scenes.push(ReplayEntry { thumbnail, unlocked_by: cleared, label: label.to_string() });
+        scenes.push(ReplayEntry { thumbnail, unlocked_by: cleared, label: label.to_string(), place: None, blank: None, cursor: None });
     }
     let (exit, w, h) = a.strip(&[&format!("{DIR}/EXIT001.png"), &format!("{DIR}/EXIT002.png"), &format!("{DIR}/EXIT003.png")])?;
     let clear = a.transparent();

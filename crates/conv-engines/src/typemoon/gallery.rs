@@ -26,14 +26,14 @@
 //! in pages of 6 rows (the exe scrolls it, 6 across); the viewer's zoom
 //! and pan (`FUN_0010c56c`: the right stick or a pinch zooms from fitted to
 //! 1:1, a button toggles fitted and filling the screen, the left stick or a
-//! drag pans; here a click goes to the next CG); the Music Player, Flowchart, Movie and Ending List (drawn, not
+//! drag pans; here a click goes to the next CG); the Music Player, Flowchart and Movie (drawn, not
 //! clickable).
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::Path;
 
 use anyhow::{Context, Result};
-use conv_core::ir::{ExtrasMode, GalleryCategory, PictureExtras, PictureExtrasItem, PictureGallery, PictureSlot, Placed, Seen, SlotCg, Var};
+use conv_core::ir::{ArithOp, Compare, ExtrasMode, GalleryCategory, Op, Operand, PictureExtras, PictureExtrasItem, PictureGallery, PictureReplay, PictureSlot, Placed, ReplayEntry, Seen, SlotCg, Var};
 use image::{Rgba, RgbaImage, imageops};
 
 use super::exe::{Exe, Picture};
@@ -265,6 +265,7 @@ pub fn extras(exe: &Exe, pictures: &[Picture], s: &Sources, flag557: Var, cg_fla
         Ok(bg)
     });
     let background = background.transpose()?;
+    let background_img = background.clone();
     // The gallery's: the menu's other rows at rest under its CG Gallery
     let gallery_background = match (&background, &parts) {
         (Some(bg), Some(p)) => {
@@ -288,7 +289,8 @@ pub fn extras(exe: &Exe, pictures: &[Picture], s: &Sources, flag557: Var, cg_fla
         let img = parts.as_ref().map(|p| p.cells("gallerymenu_btn", &[0, 1, 2].map(|c| (c * 800 / 3, r * 632 / 6, 266, 105)))).transpose()?;
         placed(name, img, at(80.0, 160.0 + 80.0 * r as f32), (px(266.0) * 3, px(105.0)))
     };
-    let modes = [ExtrasMode::Gallery, ExtrasMode::Sound, ExtrasMode::Recollection, ExtrasMode::Turntable, ExtrasMode::Recollection, ExtrasMode::Back];
+    // Music Player, Flowchart and Movie: modes the script lacks (not clickable)
+    let modes = [ExtrasMode::Gallery, ExtrasMode::Sound, ExtrasMode::Turntable, ExtrasMode::Turntable, ExtrasMode::Recollection, ExtrasMode::Back];
     let items = modes
         .iter()
         .enumerate()
@@ -404,7 +406,171 @@ pub fn extras(exe: &Exe, pictures: &[Picture], s: &Sources, flag557: Var, cg_fla
         category_hover: None,
         compact: true,
     };
-    Ok(PictureExtras { background, items, hover_se: None, back_se: None, fade_ms: 300, gallery: Some(gallery), sound: None, replay: None, turntable: None, passage: None })
+    // The Ending List: the menu's other rows at rest under it, its title
+    let ending_background = match (&background_img, &parts) {
+        (Some(bg), Some(p)) => {
+            let mut bg = bg.clone();
+            // the Ending List's row chosen (its second column)
+            for r in 0..6 {
+                let (x, y) = at(80.0, 160.0 + 80.0 * r as f32);
+                let column = if r == 4 { 800 / 3 } else { 0 };
+                imageops::overlay(&mut bg, &p.cells("gallerymenu_btn", &[(column, r * 632 / 6, 266, 105)])?, x.into(), y.into());
+            }
+            // src: the widget at 0x437498: ending_title (7203) at (96, 0)
+            let (x, y) = at(96.0, 0.0);
+            imageops::overlay(&mut bg, &p.scaled("ending_title", None)?, x.into(), y.into());
+            Some(bg)
+        }
+        _ => None,
+    };
+    // ours: Back in the title bar (the last lesson's icon is where the gallery's is)
+    let exit = Placed { y: px(20.0), ..gallery.exit.clone() };
+    let replay = ending_list(exe, parts.as_ref(), &|name, img| save(name, img), save("ending_bg", ending_background)?, exit)?;
+    Ok(PictureExtras { background, items, hover_se: None, back_se: None, fade_ms: 300, gallery: Some(gallery), sound: None, replay: Some(replay), turntable: None, passage: None })
+}
+
+/// The Ending List's entries (`cGalleryEnding`, the table at 0x4374E8,
+/// 12 bytes each: the scene it replays, its `_RDST` flag, a voice): the
+/// three endings' lessons, the 21 dead ends' lessons, the last lesson.
+const ENDINGS: usize = 0x43_74E8;
+/// The lessons' scenes: `QA_01`-`QA_25` are 1000-1024.
+const FIRST_LESSON: i32 = 1000;
+/// 1 while every lesson but the last is read (`all_read_check(1)` false).
+// ours: a global after convert's CG flags (1004, under 100 of them)
+pub const ALL_LESSONS: Var = Var { global: true, index: 1104 };
+/// The subroutine that sets [`ALL_LESSONS`], after each lesson's flag.
+pub const ALL_LESSONS_CHECK: &str = "tm_all_lessons";
+
+/// The replay's entry into scene `n`'s script, in the language chosen.
+fn replay_label(n: i32) -> String {
+    format!("tm_replay_QA_{:02}", n - FIRST_LESSON + 1)
+}
+
+/// The Ending List as the extras' replay (`FUN_0010d5e8`): an entry is
+/// lit and can be chosen once its `_RDST` flag is set, and replays its
+/// lesson (`FUN_00105040`: replay mode, which `_RDED` ends: `Op::SceneEnd`).
+/// Places in 1080p (`FUN_0010daf8`, `FUN_0010dda4`, `FUN_0010e1b0`): the
+/// three endings' icons (`ending_icon_*`, 432 × 544; `ending_icon_non`
+/// while unread) at (416 + 480 i, 120); the dead ends' cells of
+/// `ending_badend` (180 × 88 at (180 c + 8, 96 r), read ones 296 lower)
+/// 8 across from (384, 680), 180 and 96 apart; the last lesson's hit box
+/// (112 × 112 at (1700, 892)) once the others are all read.
+/// guess: the dead ends' button `ending_badendbtn` and the last lesson's
+/// `ending_btn` (3 cells each: at rest, lit, glowing; widgets not traced)
+/// centred on their hit boxes (88 × 88 at the cell's left, 112 × 112);
+/// ours: a white frame as the endings' cursor. Left out: the voice an
+/// entry plays when chosen (the table's third number), the pad's cursor.
+fn ending_list(exe: &Exe, parts: Option<&Parts>, save: &dyn Fn(&str, Option<RgbaImage>) -> Result<String>, background: String, exit: Placed) -> Result<PictureReplay> {
+    let entries = (0..25).map(|i| Ok((exe.i32(ENDINGS + 12 * i)?, exe.i32(ENDINGS + 12 * i + 4)?))).collect::<Result<Vec<_>>>()?;
+    let at = |x: f32, y: f32| Some((px(x), px(y)));
+    // A strip of two cells: nothing, then `img` over `under`'s size.
+    let strip = |under: (u32, u32), img: &RgbaImage, (x, y): (i64, i64)| {
+        let mut s = RgbaImage::new(under.0 * 2, under.1);
+        imageops::overlay(&mut s, img, i64::from(under.0) + x, y);
+        s
+    };
+    let mut scenes = Vec::new();
+    for (i, &(scene, flag)) in entries.iter().enumerate() {
+        let unlocked_by = super::convert::read_flag(flag as u16);
+        let label = replay_label(scene);
+        let (thumb, blank, cursor, place) = if i < 3 {
+            let name = ["ending_icon_Arcueid", "ending_icon_Ciel_1", "ending_icon_Ciel_2"][i];
+            let get = |n: &str| parts.map(|p| p.scaled(n, None)).transpose();
+            let frame = parts.map(|_| {
+                let (w, h) = (px(432.0) as u32, px(544.0) as u32);
+                let mut f = RgbaImage::new(w, h);
+                for (x, y, p) in f.enumerate_pixels_mut() {
+                    if x < 4 || y < 4 || x + 4 >= w || y + 4 >= h {
+                        *p = Rgba([255, 255, 255, 200]);
+                    }
+                }
+                strip((w, h), &f, (0, 0))
+            });
+            (get(name)?, get("ending_icon_non")?, frame, at(416.0 + 480.0 * i as f32, 120.0))
+        } else if i < 24 {
+            let k = (i - 3) as u32;
+            let (c, r) = (k % 8, k / 8);
+            let cell = |dy: u32| parts.map(|p| p.scaled("ending_badend", Some((180 * c + 8, 96 * r + dy, 180, 88)))).transpose();
+            let size = (px(180.0) as u32, px(88.0) as u32);
+            let button = |cell_no: u32| parts.map(|p| p.scaled("ending_badendbtn", Some((cell_no * 296 / 3, 0, 296 / 3, 104)))).transpose();
+            // the button centred on the 88 × 88 box at the cell's left
+            let off = (i64::from(px(44.0 - 296.0 / 6.0)), i64::from(px(44.0 - 52.0)));
+            let thumb = match (cell(296)?, button(0)?) {
+                (Some(mut t), Some(b)) => {
+                    imageops::overlay(&mut t, &b, off.0, off.1);
+                    Some(t)
+                }
+                _ => None,
+            };
+            let cursor = button(1)?.map(|b| strip(size, &b, off));
+            (thumb, cell(8)?, cursor, at(384.0 + 180.0 * c as f32, 680.0 + 96.0 * r as f32))
+        } else {
+            let size = (px(112.0) as u32, px(112.0) as u32);
+            let button = |cell_no: u32| parts.map(|p| p.scaled("ending_btn", Some((cell_no * 368 / 3, 0, 368 / 3, 128)))).transpose();
+            let off = (i64::from(px(56.0 - 368.0 / 6.0)), i64::from(px(56.0 - 64.0)));
+            let thumb = button(0)?.map(|b| {
+                let mut t = RgbaImage::new(size.0, size.1);
+                imageops::overlay(&mut t, &b, off.0, off.1);
+                t
+            });
+            let cursor = button(1)?.map(|b| strip(size, &b, off));
+            let blank = parts.map(|_| RgbaImage::new(size.0, size.1));
+            (thumb, blank, cursor, at(1700.0, 892.0))
+        };
+        let unlocked_by = if i == 24 { ALL_LESSONS } else { unlocked_by };
+        scenes.push(ReplayEntry {
+            thumbnail: save(&format!("ending/{i}"), thumb)?,
+            unlocked_by,
+            label,
+            place,
+            blank: Some(save(&format!("ending/{i}_locked"), blank)?),
+            cursor: Some(save(&format!("ending/{i}_cursor"), cursor)?),
+        });
+    }
+    Ok(PictureReplay {
+        background,
+        exit,
+        first: (0, 0),
+        row_step: 0,
+        column_step: 0,
+        rows: 1,
+        blank: scenes[0].blank.clone().unwrap(),
+        cursor: scenes[0].cursor.clone().unwrap(),
+        scenes,
+        // guess: the fades (the widgets' alpha steps not traced)
+        open_ms: 300,
+        start_ms: 300,
+        end_ms: 300,
+        across: None,
+        hold: None,
+        engine_screen: false,
+    })
+}
+
+/// The Ending List's script side: each entry's way into its lesson (in
+/// the copy of the language chosen when two are built: `english`), and
+/// [`ALL_LESSONS_CHECK`].
+pub fn ending_ops(english: bool) -> Vec<Op> {
+    let mut ops = vec![Op::ReturnToTitle];
+    for n in FIRST_LESSON..FIRST_LESSON + 25 {
+        let script = format!("tm_QA_{:02}", n - FIRST_LESSON + 1);
+        let l = replay_label(n);
+        ops.push(Op::Label(l.clone()));
+        if english {
+            let en = format!("{l}_en");
+            ops.push(Op::If { var: super::language::PREF, cmp: Compare::Eq, value: Operand::Const(1), label: en.clone() });
+            ops.extend([Op::Gosub(super::language::entry(false)), Op::Jump(script.clone()), Op::Label(en), Op::Gosub(super::language::entry(true))]);
+            ops.push(Op::Jump(script.replacen("tm_", "tm_en_", 1)));
+        } else {
+            ops.push(Op::Jump(script));
+        }
+    }
+    let done = format!("{ALL_LESSONS_CHECK}_done");
+    let set = |v| Op::Arith { var: ALL_LESSONS, op: ArithOp::Set, value: Operand::Const(v) };
+    ops.extend([Op::Label(ALL_LESSONS_CHECK.into()), set(0)]);
+    ops.extend((533..557).map(|n| Op::If { var: super::convert::lesson_flag(n).unwrap(), cmp: Compare::Eq, value: Operand::Const(0), label: done.clone() }));
+    ops.extend([set(1), Op::Label(done), Op::Return]);
+    ops
 }
 
 /// Each CG at the viewer's size: (source, destination, size), from the
@@ -447,6 +613,18 @@ mod tests {
 
     fn picture(name: &str, expression: bool) -> Picture {
         Picture { name: name.into(), width: 1.0, height: 1.0, centre: (0.0, 0.0), flags: 0, expression, shot: 0, pose_value: 0 }
+    }
+
+    #[test]
+    fn the_ending_list_enters_each_lesson_in_its_language() {
+        let ja = ending_ops(false);
+        let at = ja.iter().position(|o| *o == Op::Label("tm_replay_QA_25".into())).unwrap();
+        assert_eq!(ja[at + 1], Op::Jump("tm_QA_25".into()));
+        let en = ending_ops(true);
+        assert!(en.contains(&Op::Jump("tm_en_QA_12".into())) && en.contains(&Op::Gosub("tm_en_lang".into())));
+        // the check: 24 flags, then set and back
+        assert_eq!(ja.iter().filter(|o| matches!(o, Op::If { .. })).count(), 24);
+        assert_eq!(ja.last(), Some(&Op::Return));
     }
 
     #[test]

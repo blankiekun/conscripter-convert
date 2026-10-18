@@ -59,6 +59,11 @@ fn set(var: Var, value: i32) -> Op {
     Op::Arith { var, op: ArithOp::Set, value: Operand::Const(value) }
 }
 
+/// The subroutine that enters a copy (sets its language and window).
+pub(super) fn entry(english: bool) -> String {
+    format!("tm_{}lang", if english { EN } else { "" })
+}
+
 fn when(var: Var, cmp: Compare, value: Operand, label: String) -> Op {
     Op::If { var, cmp, value, label }
 }
@@ -194,7 +199,7 @@ pub fn compile(ja: &Game, en: &Game, own: &HashSet<String>, ja_window: TextWindo
     let aligned: Vec<usize> = sa.iter().zip(&sb).map(|(x, y)| aligned(x, y)).collect();
     let entries = entries([&sa, &sb]);
 
-    let enter = |c: &str| format!("tm_{c}lang");
+    let enter = |c: &str| entry(c == EN);
     let first = match sa.first().and_then(|o| o.first()) {
         Some(Op::Label(l)) => l.clone(),
         _ => return a,

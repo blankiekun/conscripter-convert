@@ -1013,6 +1013,10 @@ impl<'a> Emitter<'a> {
         Op::Progress { bit } => writeln!(out, "mov {},1", PROGRESS.at(*bit)).unwrap(),
         Op::CgSeen { number } => writeln!(out, "mov {},1", CG_SEEN.at(*number)).unwrap(),
         Op::SceneEnd if has_replay => writeln!(out, "if {} == 1 goto *{}", replay::REPLAYING, replay::END).unwrap(),
+        // a scene the picture extras' replay gosubbed: back to its list
+        Op::SceneEnd if script.picture_extras.as_ref().is_some_and(|e| e.replay.is_some()) => {
+            writeln!(out, "if {} == 1 return", crate::picture_replay::REPLAYING).unwrap()
+        }
         Op::SceneEnd => writeln!(out, "; scene end").unwrap(),
         op @ (Op::Choice { .. } | Op::RuntimeChoice { .. }) => {
             let (options, texts, style, disabled) = match op {

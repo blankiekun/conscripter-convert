@@ -652,6 +652,12 @@ pub struct ReplayEntry {
     pub unlocked_by: Var,
     /// The scene, a subroutine.
     pub label: String,
+    /// Its slot's top left (`None`: its place in the grid).
+    pub place: Option<(i32, i32)>,
+    /// Its own picture while locked and cursor (two cells: nothing, the
+    /// cursor), for a slot of another size (`None`: the replay's).
+    pub blank: Option<String>,
+    pub cursor: Option<String>,
 }
 
 /// The [`ExtrasMode::Turntable`] screen of [`PictureExtras`]: pages of
