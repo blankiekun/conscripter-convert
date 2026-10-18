@@ -775,6 +775,11 @@ calls convert, 3 are left out on purpose (the debug menu: `0x30`,
 user: WSS (system-voice room), right-click menus, native Linux/macOS
 movie playback.
 
+The scene replay's lists, the CG gallery's slots and the two staff
+rolls are read from `Farthest2015.exe` at build time (`xuse/exe.rs`;
+addresses in `xuse/replay.rs`, `gallery.rs`, `staffroll.rs`), so the
+build needs the exe; a missing or different exe stops it with an error.
+
 **Open**
 - Launch warning's visitor counter ("あなたは N 人目のお客様です"): not
   drawn. User (2026-10-18): not worth more than a one-line fix, so left
@@ -836,6 +841,15 @@ wants it.
 
 Finished work, moved out of "Status" so a session reads only the open
 state. Items are referred to elsewhere as "History, item N".
+
+### Exe tables read at build time (2026-10-18)
+
+The replay, gallery and staff roll tables were hand-copied into the
+source (~700 lines). They are now read from the exe; the parse equalled
+the copies entry for entry (all 418 scenes, every gallery slot, both
+rolls' gaps and key frames), and every game's `0.txt` stayed the same.
+The replay buttons' pictures are not in the exe's table and stay in
+`replay::BUTTONS`.
 
 ### Status as it stood before the 2026-10-18 prune
 

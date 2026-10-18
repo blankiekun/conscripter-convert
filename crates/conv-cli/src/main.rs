@@ -236,7 +236,7 @@ fn convert_script(game: &Path, script: u32, output: &Path, font: Option<&Path>, 
     let cd = parse_cd(&path, &bytes)?;
     fs::create_dir_all(output)?;
 
-    let mut assets = AssetBank::new(game, output);
+    let mut assets = AssetBank::new(game, output)?;
     let window = assets.text_window().context("building the text window")?;
     let presets = Default::default(); // the presets live in script 2
     let names = label_names(game)?;

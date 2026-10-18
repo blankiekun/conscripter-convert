@@ -25,6 +25,7 @@ use crate::xuse::cd::{
 };
 use crate::media;
 use crate::xuse::gaf::{Gaf, GafError};
+use crate::xuse::exe;
 use crate::xuse::gallery;
 use crate::xuse::music;
 use crate::xuse::replay;
@@ -410,6 +411,8 @@ pub enum ConvertError {
     Cd(#[from] CdError),
     #[error("{kind} {number} does not exist")]
     MissingAsset { kind: &'static str, number: usize },
+    #[error("{path}: {detail} (the replay, gallery and staff roll tables come from 最果てのイマ COMPLETE's exe)")]
+    Exe { path: PathBuf, detail: String },
     #[error("converting {path} with ffmpeg: {detail}")]
     Ffmpeg { path: PathBuf, detail: String },
 }
@@ -430,6 +433,8 @@ pub struct AssetBank {
     animations: HashMap<String, Option<FxAnimation>>,
     /// Write no files (a dry run): the names and sizes only.
     pub dry_run: bool,
+    /// The exe's replay, gallery and staff roll tables.
+    pub tables: exe::Tables,
 }
 
 /// A full-screen animation from `HD/fx.arc`, written as one picture.
@@ -526,8 +531,8 @@ pub struct Image {
 }
 
 impl AssetBank {
-    pub fn new(game: &Path, out: &Path) -> Self {
-        Self {
+    pub fn new(game: &Path, out: &Path) -> Result<Self, ConvertError> {
+        Ok(Self {
             game: game.to_path_buf(),
             out: out.to_path_buf(),
             images: HashMap::new(),
@@ -537,7 +542,8 @@ impl AssetBank {
             fx_arc: None,
             animations: HashMap::new(),
             dry_run: false,
-        }
+            tables: exe::Tables::read(game).map_err(|(path, detail)| ConvertError::Exe { path, detail })?,
+        })
     }
 
     /// Writes `data` to `name` in the output, unless this is a dry run.
@@ -1098,13 +1104,13 @@ impl AssetBank {
         if let Some(p) = self.written.get(&key) {
             return Ok(p.clone());
         }
-        let roll = staffroll::ROLLS.get(number).ok_or(ConvertError::MissingAsset { kind: STAFF_ROLL, number })?;
+        let roll = self.tables.rolls.get(number).cloned().ok_or(ConvertError::MissingAsset { kind: STAFF_ROLL, number })?;
         let song = self.bgm(roll.bgm)?;
         let song = self.out.join(song);
         let name = format!("movie/staffroll{number}.mp4");
         let dest = self.out.join(&name);
         if !self.dry_run && !dest.exists() {
-            let pictures = self.gaf_rgba("gd.arc", roll.file, STAFF_ROLL)?;
+            let pictures = self.gaf_rgba("gd.arc", &roll.file, STAFF_ROLL)?;
             let size = format!("{}x{}", staffroll::WIDTH, staffroll::HEIGHT);
             let seconds = format!("{:.3}", f64::from(roll.total_ms) / 1000.0);
             let mut args: Vec<std::ffi::OsString> = ["-f", "rawvideo", "-pix_fmt", "rgb24", "-s", &size, "-r", &STAFF_ROLL_FPS.to_string(), "-i", "-", "-i"].map(Into::into).to_vec();
@@ -1115,7 +1121,7 @@ impl AssetBank {
             let frames = u64::from(roll.total_ms) * u64::from(STAFF_ROLL_FPS) / 1000;
             media::ffmpeg(&dest, args, |stdin| {
                 (0..frames).try_for_each(|i| {
-                    staffroll::render(roll, &pictures, i as f64 * 1000.0 / f64::from(STAFF_ROLL_FPS), &mut frame);
+                    staffroll::render(&roll, &pictures, i as f64 * 1000.0 / f64::from(STAFF_ROLL_FPS), &mut frame);
                     stdin.write_all(frame.as_raw())
                 })
             })
@@ -2017,7 +2023,7 @@ pub fn lower_script(
                     let over = overlay_over(layer, pool_u32(cd, o + 2).unwrap_or(0));
                     overlay_depth = over.filter(|_| image.is_some());
                     ops.push(Op::Overlay { image, over_sprites: over.is_some() });
-                    if cd.bytes(o + 10, 1).is_some_and(|mark| mark[0] != 0) && let Some(number) = gallery_cg(number as i32) {
+                    if cd.bytes(o + 10, 1).is_some_and(|mark| mark[0] != 0) && let Some(number) = assets.tables.gallery_cg(number as i32) {
                         ops.push(Op::CgSeen { number });
                     }
                 }
@@ -2098,7 +2104,7 @@ pub fn lower_script(
                 ops.push(Op::ScreenFilter { slot: TOP_FILL_FILTER_SLOT, filter: None, fade_ms: 0 });
             }
             // 0x54 marks its picture as seen (0x4222c0's last argument).
-            if let Some(number) = gallery_cg(cd.arg(ins)) {
+            if let Some(number) = assets.tables.gallery_cg(cd.arg(ins)) {
                 ops.push(Op::CgSeen { number });
             }
             continue;
@@ -3502,14 +3508,6 @@ fn value_matches(pattern: &str, value: &str) -> bool {
 
 fn pool_u32(cd: &CdScript, offset: usize) -> Option<u32> {
     cd.bytes(offset, 4).map(|b| u32::from_le_bytes(b.try_into().unwrap()))
-}
-
-/// The image at half brightness. The log base is a white-to-black gradient;
-/// white text over its top half was hard to read.
-/// `number` (a background, 1-based) if the CG gallery shows it.
-fn gallery_cg(number: i32) -> Option<u32> {
-    let bit = u16::try_from(number.checked_sub(1)?).ok()?;
-    gallery::TABS.iter().flat_map(|t| t.iter()).flat_map(|p| p.iter()).any(|s| s.contains(&bit)).then_some(number as u32)
 }
 
 /// Cells `which` of a column of `count` cells, side by side.

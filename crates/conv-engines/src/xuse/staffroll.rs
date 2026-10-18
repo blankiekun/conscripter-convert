@@ -28,15 +28,16 @@ use image::{RgbImage, RgbaImage};
 pub const WIDTH: u32 = 800;
 pub const HEIGHT: u32 = 600;
 
-/// One staff roll (descriptor fields named by use).
-#[derive(Debug)]
+/// One staff roll (descriptor fields named by use), read from the exe
+/// ([`super::exe::Tables::rolls`]).
+#[derive(Debug, Clone)]
 pub struct Roll {
     /// The `.004` in `HD/gd.arc` with the panel pictures and the credits.
-    pub file: &'static str,
+    pub file: String,
     /// Index of the first credit picture (+0xc).
     pub first_part: usize,
     /// Pixels after each credit picture (+0x0, ends with -1 in the exe).
-    pub gaps: &'static [i32],
+    pub gaps: Vec<i32>,
     /// The credits' centre x (+0x14).
     pub centre_x: i32,
     /// When the credits start and finish scrolling, in ms (+0x18, +0x1c).
@@ -47,71 +48,8 @@ pub struct Roll {
     /// The BGM track it plays (+0x28, 1-based as in 0x57).
     pub bgm: usize,
     /// Panel key frames (+0x4, ends with -1 in the exe).
-    pub keys: &'static [[i32; 13]],
+    pub keys: Vec<[i32; 13]>,
 }
-
-/// Indexed by 0x91's arg.
-// src: exe 0x4fbf48, 0x4fc720
-pub const ROLLS: [Roll; 2] = [
-    Roll {
-        file: "StaffRoll1.004",
-        first_part: 1,
-        gaps: &[324, 324, 108, 108, 108, 36, 108, 108, 108],
-        centre_x: 400,
-        start_ms: 5000,
-        end_ms: 63000,
-        total_ms: 63000,
-        bgm: 23,
-        keys: &[[100, 0, 0, 800, 600, 0, 0, 0, 0, 0, 0, 0, 256]],
-    },
-    Roll {
-        file: "StaffRoll2.004",
-        first_part: 16,
-        gaps: &[360, 180, 180, 180, 180, 36, 180, 180, 180, 36, 180, 36, 180, 180, 36, 180, 180, 180, 180, 1224, 36],
-        centre_x: 600,
-        start_ms: 14000,
-        end_ms: 222000,
-        total_ms: 223000,
-        bgm: 22,
-        keys: &[
-            [100, 215, 0, 215, 600, 0, 0, 0, 256, 1, 0, 0, 256],
-            [1900, 215, 0, 215, 600, 0, 0, 0, 256, 1, 0, 0, 256],
-            [12500, 30, 0, 400, 600, 2, 0, 0, 0, 1, 0, 0, 256],
-            [1000, 30, 0, 400, 600, 2, -14, 0, 256, 1, 0, 0, 256],
-            [10000, 30, 0, 400, 600, 2, -186, 0, 256, 3, 0, 0, 256],
-            [1000, 30, 0, 400, 600, 2, -200, 0, 0, 3, -14, 0, 256],
-            [11500, 30, 0, 400, 600, 4, 0, 0, 0, 3, -186, 0, 256],
-            [1000, 30, 0, 400, 600, 4, -14, 0, 256, 3, -200, 0, 256],
-            [13000, 30, 0, 400, 600, 4, -186, 0, 256, 5, -200, 0, 256],
-            [1000, 30, 0, 400, 600, 4, -200, 0, 0, 5, -214, 0, 256],
-            [11000, 30, 0, 400, 600, 6, 0, 0, 0, 5, -386, 0, 256],
-            [1000, 30, 0, 400, 600, 6, -14, 0, 256, 5, -400, 0, 256],
-            [11000, 30, 0, 400, 600, 6, -186, 0, 256, 7, 0, 0, 256],
-            [1000, 30, 0, 400, 600, 6, -200, 0, 0, 7, -14, 0, 256],
-            [11000, 30, 0, 400, 600, 8, 0, 0, 0, 7, -186, 0, 256],
-            [1000, 30, 0, 400, 600, 8, -14, 0, 256, 7, -200, 0, 256],
-            [14000, 30, 0, 400, 600, 8, -186, 0, 256, 9, 0, 0, 256],
-            [1000, 30, 0, 400, 600, 8, -200, 0, 0, 9, -14, 0, 256],
-            [14000, 30, 0, 400, 600, 10, 0, 0, 0, 9, -186, 0, 256],
-            [1000, 30, 0, 400, 600, 10, -14, 0, 256, 9, -200, 0, 256],
-            [13000, 30, 0, 400, 600, 10, -186, 0, 256, 11, 0, 0, 256],
-            [1000, 30, 0, 400, 600, 10, -200, 0, 0, 11, -14, 0, 256],
-            [13000, 30, 0, 400, 600, 12, 0, 0, 0, 11, -186, 0, 256],
-            [1000, 30, 0, 400, 600, 12, -14, 0, 256, 11, -200, 0, 256],
-            [15000, 30, 0, 400, 600, 12, -186, 0, 256, 13, 0, 0, 256],
-            [1000, 30, 0, 400, 600, 12, -200, 0, 0, 13, -14, 0, 256],
-            [12000, 30, 0, 400, 600, 14, 0, 0, 0, 13, -186, 0, 256],
-            [1000, 30, 0, 400, 600, 14, -14, 0, 256, 13, -200, 0, 256],
-            [12000, 30, 0, 400, 600, 14, -186, 0, 256, 15, -200, 0, 256],
-            [1000, 30, 0, 400, 600, 14, -200, 0, 0, 15, -200, 0, 256],
-            [2000, 30, 0, 400, 600, 14, -200, 0, 0, 15, -200, 0, 256],
-            [8000, 0, 0, 800, 600, 1, 0, 0, 0, 15, 0, 0, 256],
-            [5000, 0, 0, 800, 600, 1, 0, 0, 0, 15, 0, 0, 256],
-            [5000, 0, 0, 800, 600, 1, 0, 0, 0, 15, 0, 0, 256],
-            [10000, 0, 0, 800, 600, 1, 0, 0, 256, 15, 0, 0, 256],
-        ],
-    },
-];
 
 /// The panel at time `t_ms`: the key frame values, moved linearly from the
 /// previous key frame; before the first key frame its values hold.
@@ -138,7 +76,7 @@ pub fn panel(keys: &[[i32; 13]], t_ms: f64) -> [i32; 13] {
 /// `pictures` are the `.004`'s images in order.
 pub fn render(roll: &Roll, pictures: &[RgbaImage], t_ms: f64, frame: &mut RgbImage) {
     frame.pixels_mut().for_each(|p| p.0 = [0; 3]);
-    let v = panel(roll.keys, t_ms);
+    let v = panel(&roll.keys, t_ms);
     let clip = (v[1].max(0), v[2].max(0), v[3].min(WIDTH as i32), v[4].min(HEIGHT as i32));
     for layer in [&v[9..13], &v[5..9]] {
         if let Some(p) = pictures.get(layer[0] as usize) {
@@ -150,7 +88,7 @@ pub fn render(roll: &Roll, pictures: &[RgbaImage], t_ms: f64, frame: &mut RgbIma
     let column: i32 = roll.gaps.iter().sum::<i32>() + parts.clone().map(|p| p.height() as i32).sum::<i32>() + HEIGHT as i32;
     let scrolled = f64::from(column) * (t_ms - f64::from(roll.start_ms)) / f64::from(roll.end_ms - roll.start_ms);
     let mut y = HEIGHT as i32 - scrolled.round() as i32;
-    for (p, gap) in parts.zip(roll.gaps) {
+    for (p, gap) in parts.zip(&roll.gaps) {
         draw(frame, p, roll.centre_x - (p.width() as i32 >> 1), y, 256, screen, true);
         y += p.height() as i32 + gap;
     }
@@ -186,21 +124,38 @@ mod tests {
 
     #[test]
     fn key_frames_move_linearly() {
-        let keys = ROLLS[1].keys;
+        // Roll 2's first key frames (exe 0x4fbfd0).
+        let keys = [
+            [100, 215, 0, 215, 600, 0, 0, 0, 256, 1, 0, 0, 256],
+            [1900, 215, 0, 215, 600, 0, 0, 0, 256, 1, 0, 0, 256],
+            [12500, 30, 0, 400, 600, 2, 0, 0, 0, 1, 0, 0, 256],
+            [1000, 30, 0, 400, 600, 2, -14, 0, 256, 1, 0, 0, 256],
+        ];
         // Before the first key frame and at it.
-        assert_eq!(panel(keys, 0.0)[1..5], [215, 0, 215, 600]);
+        assert_eq!(panel(&keys, 0.0)[1..5], [215, 0, 215, 600]);
         // Halfway through the panel opening (2000-14500 ms).
-        assert_eq!(panel(keys, 8250.0)[1..5], [123, 0, 308, 600]);
+        assert_eq!(panel(&keys, 8250.0)[1..5], [123, 0, 308, 600]);
         // The first picture pans while it fades in (14500-15500 ms).
-        let v = panel(keys, 15000.0);
+        let v = panel(&keys, 15000.0);
         assert_eq!((v[5], v[6], v[8], v[9]), (2, -7, 128, 1));
-        // After the last key frame: white over everything.
-        assert_eq!(panel(keys, 222000.0)[5..9], [1, 0, 0, 256]);
+        // After the last key frame its values hold.
+        assert_eq!(panel(&keys, 1e9)[5..9], [2, -14, 0, 256]);
     }
 
     #[test]
     fn credits_enter_at_the_bottom_and_leave_at_the_top() {
-        let roll = &ROLLS[0];
+        // Roll 1 (exe 0x4fbf48).
+        let roll = &Roll {
+            file: "StaffRoll1.004".into(),
+            first_part: 1,
+            gaps: vec![324, 324, 108, 108, 108, 36, 108, 108, 108],
+            centre_x: 400,
+            start_ms: 5000,
+            end_ms: 63000,
+            total_ms: 63000,
+            bgm: 23,
+            keys: vec![[100, 0, 0, 800, 600, 0, 0, 0, 0, 0, 0, 0, 256]],
+        };
         let white = |w, h| RgbaImage::from_pixel(w, h, image::Rgba([255; 4]));
         let mut pictures = vec![RgbaImage::from_pixel(800, 600, image::Rgba([0, 0, 0, 255]))];
         pictures.extend((0..9).map(|_| white(100, 20)));
