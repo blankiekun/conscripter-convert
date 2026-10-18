@@ -1,4 +1,4 @@
-"""Cuts the GXP shader programs out of the decrypted eboot (self2elf.py):
+"""Cuts the GXP shader programs out of the decrypted eboot (research/tools/ghidra/self2elf.py):
 every blob starting with "GXP\\0", named by its address, its size from
 the header. The InOut_Act types' fragment shaders are at 0x8115f63c (1),
 0x8115fb80 (2), 0x8115fe60 (3), 0x81160510 (6).

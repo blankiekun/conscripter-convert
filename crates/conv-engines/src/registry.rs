@@ -18,6 +18,10 @@ pub struct GameInfo {
     pub command: &'static [&'static str],
     /// The recommended options for the whole game (after the game folder).
     pub options: &'static [&'static str],
+    /// The id of an English release converted beside this install
+    /// (`--english <its folder>` after the options), or "": muramasa-en.
+    /// tests/snapshot.sh dry-runs it as a game of its own.
+    pub english: &'static str,
 }
 
 pub const GAMES: &[GameInfo] = &[
@@ -27,7 +31,8 @@ pub const GAMES: &[GameInfo] = &[
         engine: "Xuse",
         markers: &["Farthest2015.exe", "HD/CDFiles/", "CD/"],
         command: &["convert-game"],
-        options: &[],
+        options: &["--title", "Saihate no Ima COMPLETE"],
+        english: "",
     },
     GameInfo {
         id: "muramasa",
@@ -36,6 +41,7 @@ pub const GAMES: &[GameInfo] = &[
         markers: &["Muramasa.exe", "nss.npa", "cg.npa", "sound.npa", "voice.npa", "system.npa"],
         command: &["convert-nss"],
         options: &["--file", "ma00_000.nss", "--chain", "2000"],
+        english: "muramasa-en",
     },
     GameInfo {
         id: "django",
@@ -44,6 +50,7 @@ pub const GAMES: &[GameInfo] = &[
         markers: &["Django.exe", "nss.npa", "cg.npa", "sound.npa", "voice.npa", "system.npa"],
         command: &["convert-nss"],
         options: &[],
+        english: "",
     },
     GameInfo {
         id: "oretsuba",
@@ -52,6 +59,7 @@ pub const GAMES: &[GameInfo] = &[
         markers: &["media/SCRIPT.cpk", "media/CG.cpk", "sce_sys/param.sfo"],
         command: &["mages", "convert"],
         options: &[],
+        english: "",
     },
     GameInfo {
         id: "tsukihime",
@@ -60,6 +68,7 @@ pub const GAMES: &[GameInfo] = &[
         markers: &["allscr.mrg", "script_text.mrg", "allui.mrg", "knife1.bfsar"],
         command: &["typemoon", "convert"],
         options: &[],
+        english: "",
     },
 ];
 
@@ -82,13 +91,14 @@ pub fn json() -> String {
         .iter()
         .map(|g| {
             format!(
-                "  {{\"id\": {}, \"name\": {}, \"engine\": {}, \"markers\": {}, \"command\": {}, \"options\": {}}}",
+                "  {{\"id\": {}, \"name\": {}, \"engine\": {}, \"markers\": {}, \"command\": {}, \"options\": {}, \"english\": {}}}",
                 s(g.id),
                 s(g.name),
                 s(g.engine),
                 list(g.markers),
                 list(g.command),
-                list(g.options)
+                list(g.options),
+                s(g.english)
             )
         })
         .collect();

@@ -28,7 +28,7 @@ items of section 2's list "Mapping the whole exe", not rows of this table.
 | 1 | Archive reader and format decoders, `<format> list\|extract` | The whole corpus verifies and decodes; degenerate assets counted |
 | 2 | Decode the scripts; rank opcodes by use; Ghidra export with `names.tsv`; coverage table; map the exe (section 2 list, items 1-17) | Every script parses, every jump target exists; findings table marks each behaviour seen/inferred |
 | 3 | Lower to the IR; flags in `conv_core::alloc`'s free ranges | `--dry-run` writes a `0.txt`; what is left out is a ranked list |
-| 3a | Registry entry, `tests/snapshot.sh` case and baseline (`docs/new-engine.md` 6) | `tests/snapshot.sh` covers the game |
+| 3a | Registry entry (`tests/snapshot.sh` reads it) and baseline (`docs/new-engine.md` 6) | `tests/snapshot.sh` covers the game |
 | 4 | Dry run + `lint` + debug trace after every feature | Trace check clean; every ending reachable |
 | 5 | Text box, name plate, voices, ruby; the longest message fits | Every voiced line plays |
 | 6 | Pictures, sound, transitions with real durations | Sprite references match asset names |
@@ -1105,7 +1105,7 @@ natively, at every milestone:
   for any engine), and this playbook if the process changed.
 - **The game is in `crates/conv-engines/src/registry.rs`** (id, name,
   engine, marker files, command; `conscripter-convert games` lists it)
-  and in `tests/snapshot.sh` from its first dry run (checklist 3a). On a conflict in `tests/snapshots/` never take one side:
+  (which `tests/snapshot.sh` reads) from its first dry run (checklist 3a). On a conflict in `tests/snapshots/` never take one side:
   rebase, rerun `tests/snapshot.sh --update`, and explain each changed
   game's 0.txt in the PR body. Its `--update` also keeps
   `tests/snapshots/<game>.metrics.json`, the dry run's completion counts

@@ -34,7 +34,8 @@ own (`nitroplus/convert/muramasa.rs`).
    then to a new engine command (`docs/new-game.md` §10).
 6. **Registry, GUI, snapshot**: an entry in
    `crates/conv-engines/src/registry.rs`, the same in `gui/games.py`
-   (a test compares them), a case in `tests/snapshot.sh` and its
+   (a test compares them; `tests/snapshot.sh` takes its games and
+   dry-run options from the registry), and the snapshot
    baseline (`tests/snapshot.sh --update <id>`).
 7. **Tests**: a lowering test on a tiny synthetic input (Nitroplus'
    `Fake` assets in `nitroplus/convert.rs` are the pattern), and the

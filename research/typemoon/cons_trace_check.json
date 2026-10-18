@@ -1,0 +1,7 @@
+{
+ "_comment": "月姫 -A piece of blue glass moon- (docs/games/tsukihime.md): sprites 6-48 are the shared menus (6-33) and the button bar (34-48), which auto-play must never press; the conv_ labels are the converter's screens (the picture-drawn pages conv_pg*, title, extras), reached from menus, not by auto-play",
+ "script": "0.txt",
+ "ignore": "6-48",
+ "coverage_skip": "^conv_",
+ "known": []
+}

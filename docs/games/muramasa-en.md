@@ -5,6 +5,22 @@ The English release of 装甲悪鬼村正 is not a patch of the 2009 PC game
 engine (`muramasa_en.exe`, DirectX 11, Squirrel scripts, 1024×576).
 It has no NPA archives and no NSS scripts.
 
+## Milestones
+
+The date each phase was reached, and its PR (`-`: none yet, or made
+before PRs). Fill a row in at the end of its phase, so the next port
+can be compared with this one.
+
+| Milestone | Date | PR |
+|---|---|---|
+| First commit | 2026-10-15 13:05 (reuses the NSS reader) | - |
+| First dry run | 2026-10-15 13:17 | - |
+| Story plays | - | - |
+| Title, save, settings | 2026-10-15 20:18 to 10-16 00:25 | - |
+| Extras | - | - |
+| Progression verified | - | - |
+| Finished | - | - |
+
 ## Status
 
 Manual: `Manual.pdf` in the install (29 pages, English; screens: title

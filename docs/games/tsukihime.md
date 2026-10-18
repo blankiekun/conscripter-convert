@@ -826,6 +826,22 @@ Diff over the 208 pages: no text findings; 4 missing (`_STMA` at
 into `_FADS`; the 172 time findings mean nothing (ours ran without
 `--real-time`).
 
+## Milestones
+
+The date each phase was reached, and its PR (`-`: none yet, or made
+before PRs). Fill a row in at the end of its phase, so the next port
+can be compared with this one.
+
+| Milestone | Date | PR |
+|---|---|---|
+| First commit | 2026-10-16 14:12 | - |
+| First dry run | - | - |
+| Story plays | 2026-10-16 20:10 (opening) | - |
+| Title, save, settings | 2026-10-17 14:35-14:43; settings 2026-10-18 11:52 | - |
+| Extras | 2026-10-18 03:08 | - |
+| Progression verified | - | - |
+| Finished | - | - |
+
 ## Status
 
 Working: files out of the NSP; all archives, pictures (BNTX) and

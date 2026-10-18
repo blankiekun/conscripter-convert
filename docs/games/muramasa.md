@@ -640,6 +640,22 @@ python3 -I research/tools/nitroplus_save.py write <game>/Muramasa.exe <saves>/00
 The template must stand on a page of a story scene (not at a choice,
 whose `_SELECT` scene has already passed `call_scene $MainGameName`).
 
+## Milestones
+
+The date each phase was reached, and its PR (`-`: none yet, or made
+before PRs). Fill a row in at the end of its phase, so the next port
+can be compared with this one.
+
+| Milestone | Date | PR |
+|---|---|---|
+| First commit | 2026-10-13 13:00 | - |
+| First dry run | 2026-10-13 14:21 (first scene) | - |
+| Story plays | - | - |
+| Title, save, settings | 2026-10-14 18:18 to 10-15 00:37 | - |
+| Extras | 2026-10-15 | - |
+| Progression verified | - | - |
+| Finished | - | - |
+
 ## Status: in progress (2026-10-18)
 
 The whole story compiles and every ending is reached in the converted

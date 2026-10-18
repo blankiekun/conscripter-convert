@@ -758,6 +758,22 @@ the end. The dump shows each chunk as hex, the variables and the
 progress word, and `write` takes them back (setting CG or replay bits
 there unlocks the extras; seen).
 
+## Milestones
+
+The date each phase was reached, and its PR (`-`: none yet, or made
+before PRs). Fill a row in at the end of its phase, so the next port
+can be compared with this one.
+
+| Milestone | Date | PR |
+|---|---|---|
+| First commit | 2026-10-12 12:43 | - |
+| First dry run | 2026-10-12 14:06 (end to end) | - |
+| Story plays | 2026-10-12 14:06 | - |
+| Title, save, settings | 2026-10-12 16:54-17:58 | - |
+| Extras | 2026-10-13 17:19-18:44 | - |
+| Progression verified | - | - |
+| Finished | 2026-10-14 (reopened the same day: fixes, opcode audit) | - |
+
 ## Status: reopened (2026-10-14): fixes, then an opcode audit
 
 Finished 2026-10-14, reopened the same day for fixes from the debug

@@ -423,6 +423,22 @@ cut the scene file after the current page, the chapter file after the
 scene file's `call_chapter`, and `main_root` after the chapter's
 `call_chapter`, going on from the target's line (Status).
 
+## Milestones
+
+The date each phase was reached, and its PR (`-`: none yet, or made
+before PRs). Fill a row in at the end of its phase, so the next port
+can be compared with this one.
+
+| Milestone | Date | PR |
+|---|---|---|
+| First commit | 2026-10-15 00:42 (reuses the NSS reader) | - |
+| First dry run | 2026-10-15 00:57 (whole story) | - |
+| Story plays | 2026-10-15 00:57 | - |
+| Title, save, settings | 2026-10-15 01:53-02:31 | - |
+| Extras | 2026-10-15 08:45 | - |
+| Progression verified | - | - |
+| Finished | - | - |
+
 ## Status
 
 What works (details in "History", "Status as it stood before the
