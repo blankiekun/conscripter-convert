@@ -27,6 +27,10 @@ bullet you need.
   Start anywhere with `--goto <label> --vars <file>` instead of patching
   `0.txt`. Exit codes: 0 end, 1 auto-play stuck, 2 script error, 3
   startup failure, 128+n a signal.
+- Against the original (a trace of it, `docs/new-game.md` steps 22-23):
+  `research/tools/trace_diff.py orig.jsonl ours.jsonl --map <the
+  build's --source-map file>` prints the pages' text, command and time
+  differences (`--self-test` tests it).
 - Frames mid-effect: the trace's `--shot-effects 25,50,75`. The older
   patched-script runs: `docs/new-game.md` step 9 and "When the trace
   can't do it". On Xvfb always set

@@ -647,6 +647,21 @@ step 9). Helper scripts of the sessions are in `research/xuse/local/`
   (`0x470cc0`, then `0x49d740` on the link list); with no `--choices`
   the first link of each page is taken once. The hooks and records:
   `xtrace.c`'s head comment.
+- **Trace diff** (`docs/new-game.md` step 23), against a dry run with
+  the same choices:
+
+  ```sh
+  target/release/conscripter-convert convert-game <install> -o out/saiima-dry \
+    --dry-run --source-map out/saiima.map --title x
+  research/tools/scratch.sh out/saiima-cons <scratch> out/saiima-dry/0.txt
+  cp -r out/saiima-dry/screens out/saiima-dry/ons_args <scratch>/
+  <scratch>/run.sh --trace ours.jsonl --auto-play 60 --real-time \
+    --trace-ignore 22-48,lsp2:12-23
+  research/tools/trace_diff.py orig.jsonl ours.jsonl --map out/saiima.map --pages 50
+  ```
+
+  (`out/saiima-cons`: any full build, for its archives; the dry run's
+  `ons_args` and `screens/` go over its own.)
 - Dead ends: `winedbg` can read memory but detaching crashed the game;
   `/proc/<pid>/mem` is blocked by `ptrace_scope`.
 
@@ -732,11 +747,20 @@ there unlocks the extras; seen).
 
 ### Queue (2026-10-16)
 
-- Open (Z2): turn the trace DLL's records (History, "Trace DLL") into a
-  comparison with ours: map `"at"` (`<script>:<instruction>`) to the
-  `0.txt` line the converter emits for it (a source map), then diff page
-  order, text and times against our debug trace. The DLL's `--save`
-  start (title load, slot 1) is untested.
+- Open: waited transitions take about 3 frames (90 ms) longer in the
+  exe than their time, ours the time to the ms (trace diff, History,
+  "Trace diff"): `0x76`+`0x71` 1000 ms = 33 frames (1,096 ms), 1500 =
+  47, 2000 = 63, 3000 = 93; ours 1,009, 1,509, 2,009, 3,009 ms.
+  A fixed lag of the exe's frame loop (the transition starts on the
+  next frame, the wait ends a frame after it?), to be read in the
+  transition task's code before adding it to every `print`.
+- Open: at a scene's start the exe spends a frame on each `0x43` (arg
+  1, no fade) and on the `0x76` arm and `0x22` call: 5 frames (166 ms)
+  before `0004.cd` #8's background, ours none; 2 frames from an
+  unskippable click wait `0x68` in auto mode to the next command.
+- Open: the trace DLL's `--save` start (title load, slot 1) is still
+  untested: it needs a slot save the game wrote as `xuse_save.py`'s
+  template, and none is kept outside the user's folders.
 - Open: the extras' CG gallery, scene replay and BGM room drawn by the
   engine (`screens/gallery.lua`, `replay.lua`, `replay_list.lua`,
   `music.lua` from `ExtrasMenu` by `crates/conv-cons/src/extras_screens.rs`;
@@ -1002,6 +1026,19 @@ there and the next loop or route branch may not be the save's: a new
 game plays right. The system variables start at 0 (they lived in the
 slots); the slot variables' last values stay unused at %200-%220 of
 `gloval.sav`.
+
+**Trace diff (2026-10-17):** `--source-map` (each `0.txt` line's
+`<script>:<instruction>`) and `research/tools/trace_diff.py` (wine
+section, "Trace diff"). An `xtrace.sh` run from FIRST START (60 pages,
+first links) against our dry run's `--auto-play 60 --real-time` trace:
+the first 50 pages pair one to one by their message instruction, with
+the same text on every page (speaker, spaces and line breaks left out)
+and no instruction one side ran and the other didn't, but `2:74`
+(`0x8f`, remove the bust-ups, run twice before any was shown: our `csp
+-1` changed nothing, so no `ev`). The 8 time findings are the two open
+items in Status. Getting there took an engine fix (CONscripter #139):
+`--real-time` let auto-play click through effects, and with
+`clickskip` every later one up to the next page, so our times were 0.
 
 **Trace DLL (2026-10-17):** `research/xuse/tracedll/` (wine section,
 "Trace DLL"; `docs/new-game.md` step 22). `xlaunch.exe` starts the exe
