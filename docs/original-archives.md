@@ -10,7 +10,7 @@ and saves stay valid because `0.txt` is the same either way.
 
 Phase 1 (done): the design, and Django's NPA read in place
 (`--original-archives`). Phase 2: the other formats, one PR each
-(order at the end); done: Muramasa's zlib NPAs.
+(order at the end); done: Muramasa's zlib NPAs, the web player.
 
 ## The model
 
@@ -127,10 +127,11 @@ What must still be converted, whatever the engine reads:
   (`webPreload` → `self.consPreload(fd, offset, length)`, as for
   `arc.nsa` entries) and waits for it, so the page fills the bytes in
   and the read is served from memory. The NPA reader calls it for the
-  header, the index and each entry. Phase 2: the page side (a picker
-  on the player page and a `consPreload` that reads `File` ranges);
-  the hosted game then ships `0.txt`, the mapping and a small
-  `arc.nsa`.
+  header, the index and each entry. The site's player (its
+  `addArchives`) asks for the original game's folder when the picked
+  game folder lacks the archives `cons_archives.txt` names, and mounts
+  them as lazy `File` nodes (1 MB chunks behind `consPreload`), as it
+  mounts every game file.
 - **Android**: the Storage Access Framework gives a tree URI, not a
   path; the app opens each archive once through
   `ContentResolver.openFileDescriptor` and the engine reads the fd
@@ -202,8 +203,12 @@ converter PR).
    402 → 360 MB. `--english` is refused for now (the engine looks in the
    NPAs before `arc.nsa`, so the Japanese pictures would win). Left: the
    converter reads its zoom sources from the archive.
-2. **Web player**: folder picker / drop, `consPreload` over `File`
-   ranges, tried headless in Chromium with `web_run.py`.
+2. **Web player**, done (site PR `blankiekun.github.io#54`; needs the
+   site's wasm updated to an engine with the reader). Checked headless:
+   Django's whole-story build with its NPAs picked as a second folder
+   played 60 s to the script's end (569 pages), no missing files,
+   browser peak 495 MB, page text identical to a native run. Left: keep
+   the original folder's handle so a second visit doesn't ask again.
 3. **最果てのイマ** (XARC, XSA, GAF4): `xarc` lines and `=` lines for
    slots and frames; nothing to decode.
 4. **俺たちに翼はない** (CPK, AWB): `cpk` lines with `=` ID names for
