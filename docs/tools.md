@@ -185,6 +185,11 @@ through a file with `sed`.
   (`--update` then rewrites `tests/snapshots/`). `--diff origin/main`
   builds that ref in its own worktree and shows each game's 0.txt
   changes; `--map <rules>` checks a change is only a rename (below).
+  The dry runs go two at a time when memory allows (each game's last
+  peak plus 2 GB must be free), and a game's dry run is reused while
+  the binary, its arguments, the engine's command table and the script
+  are unchanged (`--no-cache` reruns them; after editing a game install,
+  use it).
   On a conflict in `tests/snapshots/` never take one side: rebase, rerun
   `--update`, and explain each changed game's 0.txt in the PR body.
   It prints each game's `gaps`/`left_out` change and exits 2 when either
