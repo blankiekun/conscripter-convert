@@ -345,29 +345,51 @@ each), on later ones "Loading complete" (circle, about 30 s in), then
 the title ("Press START button") by 40 s. The title is still: the
 counted distinct frames there are under 1 a second.
 
-Step 2, planned, not built: a trace of the original as JSONL for
-`research/tools/trace_diff.py` ("cmd" records with `at` =
-`<scene>:<instruction>` and `f` = frames, "page" records with the
-text). The hook point is `task_run` (0x81021070), the loop head at
-0x81021188 where `switch(*rec)` dispatches the current task record
-`rec = *(ctx + 0x4450)` on its task number. Two ways, the first first:
+Firmware (2026-10-17): `vita-emu.sh` with `APP=` (no `-r`) and
+`--firmware <PSVUPDAT.PUP>` installs 3.74 into `<emu>`'s `os0`/`vs0`
+(7 MB, 105 MB). It changes little: Vita3K then loads libSceFt2, libpvf,
+libnet*, np_* and libngs from it (LLE), and the title draws the same
+(the "Press START" blink aside); the crash below happens with and without it.
 
-1. Vita3K's GDB stub (`gdbstub: true` in config.yml): a Python client
-   sets a breakpoint at 0x81021188 (+ the load base, 0x81000000 when it
-   matches the ELF), reads `rec`, its task number and the scene it
-   belongs to, and a counter at the frame flip
-   (`sceGxmDisplayQueueAddEntry`), and writes the records. Slow per
-   stop, but nothing to patch.
-2. If that is too slow: an eboot patch through Vita3K's patch folder
-   (`data/Vita3K/patch/PCSG00299.txt`), a branch at 0x81021188 to a
-   code cave that `sceClibPrintf`s the task number, the record and the
-   frame, back again; the prints land in the log as `TTY:` lines, which
-   a small script turns into JSONL.
+Step 2, the trace (2026-10-17): **built, but blocked by a Vita3K crash
+at the first story task.**
 
-Either needs first, from the decompile: how a record maps to the
-scene's instruction index (the record size and the scene's base in
-the loaded script), and which task shows a page (the message task's
-text pointer).
+- The record-to-instruction mapping, from the decompile: `task_start`
+  (0x8100da30, r0 = the game context) starts every task. The context's
+  current record is +0x4450, its scene stack +0x4440/+0x4444 (0x1f0-byte
+  scene objects; empty: the scene at +0x424c). A scene object keeps the
+  task numbers (the N of `[TaskN]`, one per task found, in file order) as
+  a vector at +4, the records at +0x1c4, the current index at +0x1b8
+  (0x81028204/0x81028280/0x810282d2: current, next, jump to tag). A
+  record's first word is its task type (task_type_number: Message 0,
+  MoviePlay 0x48, SceneJumpDialog 0x84, unknown types 0x7e); a Message's
+  text (with every `:Message%d` appended) is at +0xb8. `scene_load`
+  (0x8102840a) gets the scene object and its path (`app0:/media/script/S01_01`).
+  Frames: 0x81000898 queues each frame (`sceGxmDisplayQueueAddEntry`).
+- Vita3K's GDB stub is no use: it polls for a stop every 100 ms, a
+  breakpoint in this build re-hits without stepping on, and the game hung
+  after 64 stops. (With `gdbstub: true` the game also waits for a client
+  before it starts.)
+- The eboot patch works: `research/oretsuba/vpatch.py patch
+  <emu>/home/data/Vita3K/patch/PCSG00299.txt` hooks the three functions
+  (a `b.w` over each first push, to code in FUN_810a8c9e, which nothing
+  calls) and `printf`s `@T scene task type`, `@M text`, `@S scene path`
+  and `@F`; Vita3K logs them as `*** TTY:` lines (log level 0), and
+  `vpatch.py log <emu>/logs/vita3k.log orig.jsonl` turns them into
+  `trace_diff.py`'s "cmd"/"page" records, `at` = `S01_01:100`, `f` =
+  frames (adding Vita3K's "Skipped N duplicate messages"). Checked: a run
+  logs `@S … S01_01` and `@T … 100 84` (S01_01's Task100 is the
+  SceneJumpDialog) and 30 `@F` a second.
+- Our side: the converter now writes `--source-map` for this engine
+  (each task's first 0.txt line → `<scene>:<task number>`, the same key).
+- **Blocker**: about 10 ms after S01_01's first task starts, Vita3K
+  (0.2.1 4190) dies in a host worker thread (a libc memcpy called from
+  Vita3K, `Unhandled access to 0x463780000`), with or without the
+  firmware, the patch, the scene jump dialog (patched off), movies
+  (patched to no-ops), NGS, the texture cache, async pipelines, surface
+  sync or memory mapping changed. So no scene has been traced and no diff
+  run (step c). Next: a newer Vita3K build, or a source build with
+  symbols to find what that thread copies.
 
 ## Status: the whole story plays (2026-10-15)
 
@@ -379,9 +401,11 @@ text pointer).
 - The user picks the next fixes from "Arguments not read" below.
 - Dropped arguments picked by the user (2026-10-17): the SE fades and waits, CharacterDelete's `:FadeOut 0` and the window's fade-out are done ("History"); SceneJumpDialogEnd's `:Fade` is left (table below). Next PR: BacklogMessage `:Message`, the shakes' `:Param` 2-5 and SpriteQuake's `:Wait`, SpriteMove `:Roll`, CharacterWait waiting for fades and CharacterActionEnd stopping moves.
 - Dropped arguments picked by the user (2026-10-17), second part: BacklogMessage `:Message` (a `logadd`), the shakes' swing (`:Param` 2-5) and SpriteQuake `:Wait` are done ("History"). SpriteMove `:Roll` is left (table below). CharacterWait waiting for fades needs nothing: no CharacterWait follows a `:FadeWait 0` character fade without a message between, whose click outlasts it (a dry run that waited for them added no line). CharacterActionEnd leaving moves running is what the eboot does: 0x81127a00 → 0x811277c0 ends only the action (+0x2e8).
-- Looks against the Vita: the original now boots to the title under
-  Vita3K ("Testing"), so screens can be filmed; the trace hook
-  (step 2 there) is planned, not built.
+- Looks against the Vita: the original boots to the title under
+  Vita3K ("Testing"), so the title can be filmed. The trace (step 2
+  there) is built (`vpatch.py`, `--source-map`), but Vita3K crashes as
+  the first story scene starts, so no diff yet: next a newer or
+  symbol-built Vita3K.
 - `spgrab` (engine #32, merged) could let SpriteBG/SpriteBS with
   `:FadeWait 0` (890) cross-fade without waiting: grab the screen, change
   the picture under the copy, fade the copy out. Not used yet.

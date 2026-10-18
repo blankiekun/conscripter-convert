@@ -86,6 +86,7 @@ pub fn build(game: &Path, scenes: &[String], opts: &Opts) -> Result<Built> {
         confirm,
         extras,
         ops: compiled.ops,
+        source_map: compiled.source_map,
         menu_sounds: super::screens::menu_sounds(&mut assets),
         ..Default::default()
     };

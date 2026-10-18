@@ -30,7 +30,7 @@ timeout -k 10 "$T" systemd-run --user --scope -q -p MemoryMax=6G \
   env -u WAYLAND_DISPLAY -u XDG_SESSION_TYPE DISPLAY=$N HOME="$H" XDG_RUNTIME_DIR="$H/run" \
   SDL_VIDEO_DRIVER=x11 SDL_VIDEODRIVER=x11 QT_QPA_PLATFORM=xcb \
   XDG_DATA_HOME="$H/data" XDG_CONFIG_HOME="$H/config" XDG_CACHE_HOME="$H/cache" \
-  SDL_AUDIODRIVER=dummy "$V/bin/Vita3K" -r PCSG00299 "$@" >"$L/vita3k.log" 2>&1 &
+  SDL_AUDIODRIVER=dummy "$V/bin/Vita3K" ${APP--r PCSG00299} "$@" >"$L/vita3k.log" 2>&1 &
 RPID=$!
 S=${SHOT:-15}; T0=$SECONDS; next=$S; ks=" ${KEYS:-} "; fps=${FPSAT:-}
 while kill -0 $RPID 2>/dev/null; do

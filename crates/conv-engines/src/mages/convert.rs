@@ -405,6 +405,8 @@ pub struct Compiled {
     pub notes: BTreeMap<String, usize>,
     /// The tasks, converted fully or with gaps.
     pub metrics: crate::metrics::Metrics,
+    /// (op index, `<scene>:<task number>`) at each task's first op, for `--source-map`.
+    pub source_map: Vec<(usize, conv_core::ir::SourceLoc)>,
 }
 
 /// A picture on screen, for moving and removing it.
@@ -1933,6 +1935,9 @@ pub fn compile(game: &Game, scenes: &[String], assets: &mut dyn Assets) -> Compi
         let mut calls = Vec::with_capacity(scene.tasks.len());
         for i in 0..scene.tasks.len() {
             l.out.metrics.begin(scene.tasks[i].task_type().unwrap_or("?"));
+            if let Some(index) = scene.tasks[i].name.strip_prefix("Task").and_then(|n| n.parse().ok()) {
+                l.out.source_map.push((l.out.ops.len(), conv_core::ir::SourceLoc { file: name.clone(), index }));
+            }
             l.task(name, &scene.tasks, i);
             calls.extend(l.out.metrics.pop());
         }

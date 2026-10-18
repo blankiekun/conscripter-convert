@@ -436,6 +436,12 @@ rather than by browsing:
     game. Input from the log: press A when the last command has sat on
     a text wait a second. 月姫: `research/typemoon/switchtrace/`
     (docs/games/tsukihime.md, "Testing").
+    A Vita game under Vita3K, likewise: an eboot patch
+    (`patch/<TITLEID>.txt`) branching from each hooked function's first
+    push to code in a function nothing calls, which `printf`s the record
+    (Vita3K logs it as a TTY line). Vita3K's GDB stub polls every 100 ms
+    and its breakpoints re-hit. 俺たちに翼はない: `research/oretsuba/vpatch.py`
+    (docs/games/oretsuba.md, "Testing").
 23. **Diff the two traces**: with the converter's `--source-map <file>`
     (each 0.txt line's `<script>:<instruction>`; the engine's lowering
     fills `Script::source_map`, as `xuse/convert.rs`'s `lower_script`
