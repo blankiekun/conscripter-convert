@@ -125,7 +125,7 @@ for id in "${ids[@]}"; do
     fi
     # The version line (build date, commit) changes with every build, and
     # so does the width of its strsp (a -dirty tree's line is longer).
-    ver='s/build [0-9]{4}-[0-9]{2}-[0-9]{2}, converter [0-9a-f]+(-dirty)?, CONscripter [^"]*/build VERSION/'
+    ver='s/build [0-9]{4}-[0-9]{2}-[0-9]{2}, converter [0-9a-f]+(-dirty)?, CONscripter [^"]*/build VERSION/;s/(build VERSION.*cols=)[0-9]+/\1W/'
     now="$(LC_ALL=C sed -E -e 's/"build [0-9]{4}-[0-9]{2}-[0-9]{2}, converter [^"]*",([0-9]+,[0-9]+),[0-9]+,/"build VERSION",\1,W,/' \
         -e "$ver" "$out/0.txt" | sha256sum | cut -d' ' -f1) $(wc -l < "$out/0.txt")"
     others=$(cd "$out" && find . -type f ! -name 0.txt ! -name metrics.json ! -name version.txt | LC_ALL=C sort | while read -r f; do
