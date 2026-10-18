@@ -4,9 +4,9 @@
  * in research/nitroplus/names.tsv (this exe only, sha256 1d67e4771a72...):
  * - run_statement 0x470a50 calls dispatch_builtin at 0x470b7c (every
  *   statement that is a call: a built-in or an NSS function) and, at
- *   0x470c9d, the text block's start 0x475000 (a <PRE> block reached:
- *   one page). Both calls are redirected to a stub that logs and jumps
- *   on. There EBX = the NSS process (thread object), ESI = the script
+ *   0x470c9d, the text block's start 0x475000 (a <PRE> block reached).
+ *   Both calls are redirected to a stub that logs and jumps on. There
+ *   EBX = the NSS process object (one per function call too), ESI = the script
  *   context; the process's +0x20 is its file's index, the context's
  *   +0x1130 + index * 0x158 that file's record (+0x11c its text);
  *   +0xe8c / +0x168c + 4 i a text block's start and end in that text.

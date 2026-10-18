@@ -1650,6 +1650,8 @@ struct Compiler<'a, 'b> {
     /// lines of the statements being run, innermost last.
     source_map: Vec<(usize, conv_core::ir::SourceLoc)>,
     running: Vec<(&'a str, u32)>,
+    /// The file of a page's code being run (the `<PRE>`'s), for the marks.
+    code_file: Option<&'a str>,
 }
 
 /// One way through a fork: its state at the end, and the op that marks it
@@ -2425,6 +2427,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
             random_sites: 0,
             source_map: Vec::new(),
             running: Vec::new(),
+            code_file: None,
         }
     }
 
@@ -2545,7 +2548,8 @@ impl<'a, 'b> Compiler<'a, 'b> {
     }
 
     fn exec(&mut self, stmt: &'a Stmt) -> Flow {
-        self.running.push((self.file, stmt.line));
+        let file = self.code_file.take().unwrap_or(self.file);
+        self.running.push((file, stmt.line));
         self.mark();
         let flow = self.exec_statement(stmt);
         self.running.pop();
@@ -3844,12 +3848,11 @@ impl<'a, 'b> Compiler<'a, 'b> {
         let pages = self.pages(t.block);
         for page in &pages {
             // (the page's code is its <PRE> file's, wherever it is shown)
-            let pre_file = t.at.map_or(self.file, |a| a.0);
-            let shown_from = std::mem::replace(&mut self.file, pre_file);
+            // shortcut: statements nested in it (an `if`'s) are marked with the showing file
             for &s in &page.code {
+                self.code_file = t.at.map(|a| a.0);
                 self.exec(s);
             }
-            self.file = shown_from;
             self.flush_sounds();
             if page.text.is_empty() && !page.goes_on {
                 continue;

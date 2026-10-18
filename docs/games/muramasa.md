@@ -523,6 +523,48 @@ Used to check what the engine does (`docs/new-game.md` step 9).
   after `#play_speed_plus = #SYSTEM_play_speed;` in `0_boot.nss`.
 - Film transitions with `ffmpeg -f x11grab -video_size 1024x576 -i
   :N+128,125`; single shots with `import` as above.
+- **Trace DLL** (`docs/new-game.md` step 22):
+  `GAME=<game> research/nitroplus/tracedll/ntrace.sh -o orig.jsonl
+  --pages 60` plays the game from the start of `ma00_000` with no
+  clicks (its own prefix in `out/ntrace`, Xvfb `-displayfd`, null audio,
+  ja_JP; about 8 minutes for 60 pages) and writes one `cmd` record per
+  call statement (built-in or NSS function: `op`, `at` =
+  `<file>:<line>`, `ms`, `th` the OS thread, 0 the story) and one
+  `page` record per page of a text block (split at blank lines and
+  `<k>`, tags and code left out). A patched copy of `nss.npa` skips the
+  logos and the title (0_boot.nss lines 85, 157) and turns auto mode on
+  where TypeBeginCIO unlocks it (function.nss line 1139; set at the
+  boot, while locked, it stays off); no line moves. `xlaunch.exe` from
+  `research/xuse/tracedll/` loads `ntrace.dll`, which redirects
+  run_statement's two calls (`0x470b7c` dispatch_builtin, `0x470c9d`
+  the text block's start `0x475000`); details in `ntrace.c`. The
+  loaded script text turns the CR LF of a text block's header and code
+  lines into LF LF, so a file line is a CR LF or two bare LFs. Times are
+  ms: the script's waits are timeGetTime waits in each process's thread
+  (the device's Present, hooked once, was never called through its
+  vtable slot). Not ported: Django.exe (the shipped exe is packed: the
+  hook points exist only once it has unpacked itself) and the English
+  release (another engine, Squirrel).
+- **Trace diff** (`docs/new-game.md` step 23): the same files built with
+  `--source-map` (each `0.txt` line's `<file>:<line>`: the statement
+  being run when the op was made, a page from its `<PRE>` block, a
+  function's ops from the function's own line), then our run and the
+  diff:
+
+  ```sh
+  target/release/conscripter-convert convert-nss <game> --file ma00_000.nss \
+    --chain 3 -o out/mura3 --font ipam.ttf --title 装甲悪鬼村正 --source-map out/mura3.map
+  research/tools/scratch.sh out/mura3 <scratch>
+  <scratch>/run.sh --trace ours.jsonl --auto-play 60 --real-time --trace-ignore 999
+  research/tools/trace_diff.py orig.jsonl ours.jsonl --map out/mura3.map \
+    --pages 50 --ms --fps 60 --thread 0
+  ```
+
+  Not findings: the times from a page's `Request(…, Enter)` to the box
+  fading out (the reader's wait), `extra` from `Request(…, Enter)` or
+  a page's own code (the original's page records are all written as
+  its block starts), `procAutoIcon` (a process in the original),
+  `missing` `Request`/0 ms `Move`/`Fade` that change nothing drawn.
 
 ## Save format
 
@@ -582,6 +624,30 @@ The template must stand on a page of a story scene (not at a choice,
 whose `_SELECT` scene has already passed `call_scene $MainGameName`).
 
 ## Status: in progress (2026-10-14)
+
+### Trace diff (2026-10-17)
+
+The original's trace (`ntrace.sh`, wine section) against our
+`--auto-play 60 --real-time` run, first 50 pages of `ma00_000`: every
+page pairs by its `<PRE>` line with the same text (ruby as its base).
+Open, not fixed:
+- **Moves not waited are no motion in ours:** `Move("背景20", 60000, 0,
+  -200, …, false)` (ma00_000.nss:136) and the 5 s `DxlAuto` pans at
+  372/373 and 384/385 put the picture at the move's end at once (`lsp
+  872 … 0,-200`; `lsp 944 … 82,22` = 182 − 100); the original pans,
+  and is cut by `PrintGO` 2 s later, mid-move.
+- **A waited fade after unwaited moves is longer:** `Fade("背景30", 500,
+  0, null, true)` (375) is `print 30`, a 1000 ms transition, in ours;
+  370 to 377 takes 554 ms in the original (ours 1009). The same at
+  `FadeDelete("上背景", 500, true)` (387, function.nss:4988): 4518 ms
+  against 4254 to the next one.
+- **The box fade-out after a page** (`Fade("@boxC*", $BoxFadeTime, 0,
+  null, true)`, function.nss:1158, TypeBeginCIO) takes 4, 161, 144, 145
+  and 53 ms to the next statement in the original (pages 12–15, 37),
+  150 ms (`windowfade 0,150` + `delay 150`) or 259 ms in ours; page 7
+  1159 against 1009 ms.
+- Smaller: `Fade("絵色100", 100, 1000, null, true)` (210) 109 ms in ours,
+  162 in the original.
 
 ### Exe mapping redone (2026-10-17)
 
