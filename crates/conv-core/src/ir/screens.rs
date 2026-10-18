@@ -1043,3 +1043,28 @@ pub struct SaveList {
     /// The slot under the pointer's thumbnail, larger (absolute).
     pub preview: Option<Rect>,
 }
+
+/// One step of [`Script::boot`]: a full-screen picture faded in from
+/// `backdrop` and out to it, a movie, or (no `image`) the backdrop alone
+/// for `hold_ms`.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct BootStep {
+    /// The picture, or the movie when `movie`; empty: the backdrop alone,
+    /// held for `hold_ms` with no fades.
+    pub image: String,
+    pub movie: bool,
+    /// The colour behind the picture (`"white"`, `"black"`, `"#RRGGBB"`);
+    /// after a movie, the screen held for `hold_ms`.
+    pub backdrop: String,
+    pub fade_in_ms: u32,
+    pub hold_ms: u32,
+    pub fade_out_ms: u32,
+    /// The colour the picture fades out to; `None`: the backdrop.
+    pub fade_out_to: Option<String>,
+    /// A click ends the hold (a movie: the movie) once this many ms of it
+    /// have passed; `None`: nothing skips it. Fades are never skipped.
+    pub skip_after_ms: Option<u32>,
+    /// Shown only while each of these variables has its value (a game's
+    /// flags, its language); empty: always.
+    pub when: Vec<(Var, i32)>,
+}
