@@ -162,6 +162,10 @@ through a file with `sed`.
   changes; `--map <rules>` checks a change is only a rename (below).
   On a conflict in `tests/snapshots/` never take one side: rebase, rerun
   `--update`, and explain each changed game's 0.txt in the PR body.
+  It prints each game's `gaps`/`left_out` change and exits 2 when either
+  rose against `<game>.metrics.json`, unless `--accept-gaps` (say why in
+  the PR). CI also runs `dropped_lint.py` and `findings_lint.py`, each
+  with a per-game ceiling that only goes down.
 - `python3 -I tests/extras_smoke.py <full build>`: opens the extras'
   menu headless with every lock open and checks each mode is a button
   and opens (the trace); run it on every full build handed to the user
