@@ -355,10 +355,36 @@ the check as the title comes up. The congratulations' pans move (each
 starts under a white flash and goes on while it fades); not compared
 with the original (it wants all eleven endings' flags under wine).
 
+## Save format
+
+装甲悪鬼村正's (`docs/games/muramasa.md`, "Save format") with this
+game's table (`npa::DJANGO_TABLE`), the same per-file keys and inner
+magic `c3 5f fc f1`. Folder `AppData\Roaming\Nitroplus\続・殺戮のジャンゴ
+-地獄の賞金首-\ver1.00\` (`9999`: the save made at a choice, with
+`script`, `frames`, `val`, `bklg`; `common`: `val.npf`, `bkmk.npf`).
+`val.npf` is the same; the current page is `$textdecor` (`@text022`),
+the scene file `$SYSTEM_spt_name`, its block `$単元名`. `script.npf`
+(`FUN_004545d0`) also keeps the full text of every loaded script (one
+block per `call_chapter` level: `boot.nss`, `dja000_開始スクリプト.nss`,
+the chapter file, the scene file) but lays it out differently: 0x40
+file slots (u32 1 before a text), blocks 0x400 apart.
+
+`research/tools/nitroplus_save.py` dumps and round-trips these files
+and writes variables and texts (checked on the original's `9999` and
+`common`); its `scene` option is Muramasa's only. For Django it would
+cut the scene file after the current page, the chapter file after the
+scene file's `call_chapter`, and `main_root` after the chapter's
+`call_chapter`, going on from the target's line (Status).
+
 ## Status
 
 ### Queue (2026-10-16)
 
+- Save tool: `nitroplus_save.py write` can't yet send a save to another
+  scene ("Save format" has the plan). Untried because the original
+  hangs under wine when a script `Save` runs from a process (the files
+  stay empty) and on timed actions; a template saved on a page from the
+  menu is needed first.
 - Merged: windows clip their children (#45), the song's lyrics in
   dja026 (#47), unread-argument notes ranked in Next (#51), the song
   lines type out (#55), `WaitPlay` on a sound waits (#70). Open:

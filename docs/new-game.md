@@ -610,10 +610,15 @@ anything is reached (step 11.6).
 - **Reach the moment by patching, not by clicking.** To see a page,
   effect or menu in the original, in this order of preference:
   0. **Write a save with `research/tools/<engine>_save.py`** where the
-     engine has one (最果てのイマ: `xuse_save.py`): it stands at any
-     label with the variables you give, and the original loads it from
-     its own load screen. Write such a tool once the save format is known
+     engine has one (最果てのイマ: `xuse_save.py`; 装甲悪鬼村正:
+     `nitroplus_save.py`): it stands at any label (Muramasa: goes to any
+     scene file one click after loading) with the variables you give, and
+     the original loads it from its own load screen (or from a patched
+     boot that calls the game's load). Make one save in the game first,
+     on a page, as the template. Write such a tool once the save format is known
      (the game document's "Save format"): it beats patching and clicking.
+     Engines that save their scripts' text with the state (Nitroplus NSS)
+     can be sent elsewhere by editing that text after the saved positions.
   1. **Patch the game's scripts** in a copy: skip the logos and title,
      start straight at the scene, set the flags its branch needs, and let
      the pages advance by themselves (auto mode, or a timed wait added
