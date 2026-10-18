@@ -121,6 +121,7 @@ pub fn build(romfs: &Path, main: &Path, english: Option<&Path>, opts: &Opts) -> 
         text_ms: Some(35),
         title_screen: Some(super::title::title(romfs, opts.output, opts.dry_run)?),
         system_menu: Some(super::menu::system_menu(romfs, opts.output, opts.dry_run, english.is_some())?),
+        boot: super::boot::steps(romfs, english.map(|en| (en, super::language::PREF)), opts.output, opts.dry_run)?,
         language: if is_english { "en" } else { "ja" }.into(),
         after_load: english.map(|_| super::language::LOADED.to_string()),
         ..Default::default()

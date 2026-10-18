@@ -33,7 +33,7 @@ const EN: &str = "en_";
 const SLOT: u32 = 897;
 // ours: globals %1800-%1802 (alloc.rs: free %1111-%1999, after the `_RDST` flags)
 /// The language last chosen (1: English): a new game starts in it.
-const PREF: Var = Var { global: true, index: 1000 };
+pub(super) const PREF: Var = Var { global: true, index: 1000 };
 /// The entry whose state [`SLOT`] holds; -1: none to trust.
 const SAVED: Var = Var { global: true, index: 1001 };
 /// 1 while [`SLOT`] is loaded for a switch.
