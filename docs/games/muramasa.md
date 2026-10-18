@@ -686,7 +686,7 @@ Open, by area (each is small; most noticeable first):
   KitanoBlue colours of `CreateEffect` are ours; the engine's blur keeps
   the alpha (the exe's too, unverified). Making every timed effect 4 %
   shorter (16/16.67) is possible, the lead's call.
-- **Processes**: `EndSong` (#176) was in review; `ma03_024`/`025`/
+- **Processes**: `ma03_024`/`025`/
   `027vs` `_runsProcess` (23, wait on the script) noted; endless
   processes with `Random` (`BGMoveLengthProcess`, `ma03_moveAuto*`,
   `RandomMeimetsuSet*`, `GunFlash`, shakes) stay noted; 108 process notes
@@ -730,11 +730,7 @@ Open, by area (each is small; most noticeable first):
 - **Optional**: 18 files whose `if`/`else if` chain has no `else`.
 - **Engine**: CONscripter segfaults on `end` after a `dwave` voice with
   Ctrl held (seen once; not looked into).
-- **Queue** (2026-10-16, probably stale; check against `gh pr list`):
-  `consset` (#9), `chvolfade` (#10), `sprot` as `spzoom`'s angle (#16),
-  `chfreq` for `SetFrequency` (#22), menu unrolls as motions (#34) wait
-  on engine PRs; `spgrab` could stand for `CreateTexture`'s
-  render-to-texture (unused).
+- **Unused**: `spgrab` could stand for `CreateTexture`'s render-to-texture.
 
 ## History
 
