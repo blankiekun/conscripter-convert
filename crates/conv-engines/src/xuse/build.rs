@@ -125,10 +125,11 @@ pub fn build(game: &Path, linear: bool, opts: &Opts) -> Result<Built> {
         ops.extend(lowered);
     }
     // The linear build plays the story straight through, without a menu.
-    let (title_screen, save_menu, button_bar, settings, backlog, confirm, extras) = if linear {
-        (None, None, None, None, None, None, None)
+    let (boot, title_screen, save_menu, button_bar, settings, backlog, confirm, extras) = if linear {
+        (Vec::new(), None, None, None, None, None, None, None)
     } else {
         (
+            vec![assets.entrance().context("building the warning screen")?],
             Some(assets.title_screen().context("building the title screen")?),
             Some(assets.save_menu().context("building the save menu")?),
             Some(assets.button_bar().context("building the button bar")?),
@@ -154,6 +155,7 @@ pub fn build(game: &Path, linear: bool, opts: &Opts) -> Result<Built> {
         extras,
         ops,
         source_map,
+        boot,
         ..Default::default()
     };
     Ok(Built { ir, notes, metrics, engine: "xuse", picture_dirs: PICTURE_DIRS, audio_dirs: AUDIO_DIRS, package: None })
