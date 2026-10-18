@@ -117,7 +117,7 @@ _SACL	(layer, on): bit 0x40 of layer byte 0x54; set, the draw leaves out an offs
 _SBAS	(layer, n = -1): layer short 0x93c = n; copied by _STCH argument 18 and into the draw record (+0x114)	943	script_command, frame_update	nothing	unknown	open: who reads the draw record's +0x114
 _SELA	choice screen mode 3 (two slots, the name _Dnnn its id) when state +0x8bc is 0, drawn by FUN_00184a90; at each arc's start, no _SELR or _GOTS	26	cmd_SELA	nothing	unknown	open: what mode 3 shows (FUN_00184a90)
 _SELD	opens the _SELR slots' choice (mode 1); argument 1 (choice 1-0x52) sets its flowchart flags (table 0x4594d0) and reads 07b0[n]	170	script_command, choice_flow_flags	the choice; argument 1 ignored (83)	seen	open: argument 1 for the flowchart
-_SELS	choice screen mode 2 (two slots: yes, no) with no _SELR; one use, QACALL	1	cmd_SELS	nothing, and its _GOTS has no option: not converted	seen	open: a two-option choice
+_SELS	choice screen mode 2 (two slots: yes, no) with no _SELR; one use, QACALL	1	cmd_SELS	a yes/no ButtonScreen per F027 lesson (question.rs): dialog_BG, dialog_win, the question (system message 0x5A5 + F027), No (index 0) left, Yes (index 1) right	seen	done
 _SESP	stops channel n % 20 (< 0: all 20) at once	18	script_command case S "ESP"	nothing	seen	open
 _SEVL	channel n % 20 volume to option 17 over option 1 ms (0: 2000 ms); a waiting loop only stores it	1285	cmd_SEVL	nothing	seen	open: chvolfade as _SEFD
 _SGMA	(layer, m, k): the layer's live x, y, alpha, picture and clip into key k of motion m, so the motion starts where the layer is	109	cmd_SGMA	nothing	seen	open: with the motion keys

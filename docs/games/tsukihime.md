@@ -798,7 +798,8 @@ sounds (with loops) of both RomFS copies; the exe in Ghidra with its
 tables read (`typemoon exe`); `typemoon media`; scripts read (every
 command splits, text and voices join); `typemoon convert` plays from
 the start through `00_00` into the first arc (flow, text, pictures,
-sound, layers, motions, choices, text window fade); boot logos, title,
+sound, layers, motions, choices, text window fade, the lessons' yes/no
+question); boot logos, title,
 the system menu's Save and Load tabs, Config (language switch only);
 `--english <game-en>` builds both languages in one `0.txt`, switching
 in game; the original boots under Ryubing and its trace diffs against
@@ -840,8 +841,7 @@ tab, Gallery, Config on the title.
    `_VPL2`, `_SESP`, `_WKOR`, `_STTR`, `_STCL`, `_SGMA`, `_SPMA`, the
    chapter start (`_SELA`, `_TOMP`/`_TOMW`, `_ATSV`/`_WTSV`), the
    read flags (`_RTST`/`_RDED`, which `_IFUR` in `QA_25` needs), the
-   gallery flag `_STCG`, `_SELD`'s choice number and `_SELS`'s
-   yes/no choice. `_FANX`, `_STQK` and `_TRPY` have no case in the
+   gallery flag `_STCG` and `_SELD`'s choice number. `_FANX`, `_STQK` and `_TRPY` have no case in the
    exe: the next converter PR adds them to `LEFT_OUT`.
 7. Trace diff leftovers (`trace_diff.py --merge-into _FADS`): 2
    `missing` (`_STMA` `00_00:212` and `1121`, never drawn in the exe)
@@ -884,6 +884,25 @@ Open there, by size:
   every sound at full volume.
 
 ## History
+
+- 2026-10-18: **`_SELS`, the lessons' yes/no question** (`QACALL`,
+  `question.rs`). **Seen**: `FUN_00192800` opens the choice in mode 2
+  with two slots (index 0, 1) and no texts, the pick going into `F000`
+  for `_GOTS(_D000, SEL_NO, SEL_YES)`; `FUN_00185900` draws it on the
+  640 × 448 stage from `allui`'s `DIALOG_PARTS`: `dialog_BG` (a dim
+  over the screen) and `dialog_win` centred, system message 0x5A5 +
+  `F027` (`FUN_00183b20`; `SYSMES_TEXT.DAT`, read by `FUN_0019a420`:
+  u32 languages, u32 messages, a u64 table offset a language, u64
+  offsets to NUL-ended UTF-8) centred at y 224 − 42.31 (「ヘンテコヒント
+  コーナー(第n回)に入りますか？」, the fan patch's "Enter hint corner
+  (No. n)？"), buttons 0xD9 (index 0) at (241, 238.53) and 0xDA
+  (index 1) at (327, 238.53), left and right moving between them
+  (`FUN_00185690`): No on the left, Yes on the right. Ours: one
+  `ButtonScreen` per lesson (`F027` 1–25), the question drawn into
+  `sys/question/q<n>.png` (`en/` for the English copy) with the
+  build's font. Guesses: the glyph size (22 px), the buttons' anchor
+  (their top left), the fade (167 ms); the window's pop from 105 % left
+  out.
 
 - 2026-10-18: **`_STCF` waits a frame more**: `FUN_00162f90` always
   returns 1 (wait) and the wait is checked from the next frame, so

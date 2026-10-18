@@ -105,6 +105,10 @@ pub fn build(romfs: &Path, main: &Path, english: Option<&Path>, opts: &Opts) -> 
     };
     if !opts.dry_run {
         window(romfs, &opts.output.join(WINDOW))?;
+        super::question::write(romfs, opts.output, opts.font, false)?;
+        if let Some(en) = english {
+            super::question::write(en, opts.output, opts.font, true)?;
+        }
     }
     let ir = Script {
         title: opts.title.to_string(),

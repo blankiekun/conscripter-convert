@@ -406,6 +406,10 @@ struct Lowering<'g, 'a> {
     choices: usize,
     /// The pictures drawn from `pic/en/` (the fan patch's own).
     own: &'g HashSet<String>,
+    /// The English copy of a build with both languages.
+    english: bool,
+    /// `_SELS` ran: the next `_GOTS` asks yes or no.
+    question: bool,
     /// The looping motion each shown layer runs (`FUN_001999a0`).
     looping: Vec<Option<usize>>,
     /// The looping `spmotion`s running: the layer whose motion it is, and
@@ -531,9 +535,21 @@ impl Lowering<'_, '_> {
                 }
                 self.options.push((i, text, grey, cond));
             }
-            // `_SELD`/`_SELA`/`_SELS(_D000, …)` show the choice; `_GOTS(_D000,
-            // label, …)` goes to the label of the option picked.
-            "_SELD" | "_SELA" | "_SELS" => {}
+            // `_SELD`/`_SELA(_D000, …)` show the choice; `_GOTS(_D000,
+            // label, …)` goes to the label of the option picked. `_SELS` asks
+            // yes or no (`question.rs`).
+            "_SELD" | "_SELA" => {}
+            "_SELS" => self.question = true,
+            "_GOTS" if self.question => {
+                self.question = false;
+                (1..a.len()).for_each(|i| mark(read, i));
+                let Some(lesson) = self.var("F027") else { return false };
+                let (no, yes) = (label(script, Some(arg(1))), label(script, Some(arg(2))));
+                self.choices += 1;
+                let k = self.choices;
+                let tag = |n: i32| label(script, Some(&format!("question{k}_{n}")));
+                self.ops.extend(super::question::ops(lesson, no, yes, self.english, tag));
+            }
             "_GOTS" => {
                 let options = std::mem::take(&mut self.options);
                 (1..a.len()).for_each(|i| mark(read, i));
@@ -1502,6 +1518,8 @@ pub(super) fn compile_copy(g: &Game, prefix: &str, vars: HashMap<String, Var>, c
         choice_mask,
         choices: 0,
         own,
+        english: !prefix.is_empty(),
+        question: false,
         looping: vec![None; LAYERS],
         loop_runs: Vec::new(),
         source_map: Vec::new(),

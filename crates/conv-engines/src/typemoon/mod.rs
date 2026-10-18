@@ -18,6 +18,7 @@ pub mod mzx;
 pub mod nso;
 pub mod nxopus;
 pub mod nxx;
+pub mod question;
 pub mod script;
 pub mod stec;
 pub mod title;
