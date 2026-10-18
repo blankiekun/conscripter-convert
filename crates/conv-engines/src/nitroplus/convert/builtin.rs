@@ -816,11 +816,15 @@ impl Compiler<'_, '_> {
                     self.play_movie(&t);
                 }
             }
-            "WaitAction" | "WaitFade" | "WaitMove" | "WaitZoom" | "Draw" => {
+            // src: Django.exe builtin_Draw 0040ba10, Muramasa.exe 0040f470: one
+            // frame (waits at most 4 ms), the running actions go on: shown as
+            // where the script doesn't wait (up to UNWAITED_MS).
+            "Draw" => self.sync(0),
+            "WaitAction" | "WaitFade" | "WaitMove" | "WaitZoom" => {
                 // Waits for the actions: their whole time. Given an object,
                 // only for that object's (`CP_EHPChange` waits on its own
                 // process, not on the 15 s zoom started before it).
-                let ms = if name == "Draw" || matches!(arg(0), Value::Null) {
+                let ms = if matches!(arg(0), Value::Null) {
                     std::mem::take(&mut self.pending_ms)
                 } else {
                     self.matching(&arg(0)).iter().filter_map(|t| self.pending_by.get(t)).copied().max().unwrap_or(0)

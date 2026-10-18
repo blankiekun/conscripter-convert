@@ -459,9 +459,6 @@ over 200, their bullets at once (ours at once both).
       linear; the data uses only 0 and ±1000, where they agree.
    4. `Fade` with four arguments takes the fourth as the tempo, not
       the wait; the six such calls take 0 ms.
-   5. `Draw` (`0040ba10`) draws one frame and lets running actions go
-      on; ours waits for them (as `WaitAction`, shared with
-      装甲悪鬼村正): 500 ms too long in dja019_02, 100 ms in dja053_02.
    6. `SetAlias` keeps one alias per object (a new one replaces it,
       `00432da0`); ours keeps the older alias too. Not checked whether
       the story re-aliases an object.
@@ -471,6 +468,17 @@ over 200, their bullets at once (ours at once both).
       inflate the gap count.
 
 ## History
+
+- **`Draw`** (2026-10-17): the exe's `Draw` (`0040ba10`, Muramasa.exe
+  `0040f470`) waits at most 4 ms for a frame and lets running actions
+  go on; ours waited for all of them (as `WaitAction`). It is a sync
+  now, as where the script doesn't wait (running actions cross-faded
+  up to `UNWAITED_MS`, 1 s). Neither game's 0.txt changes: no `Draw`
+  follows an action over 1 s. dja019_02's camera move still starts
+  500 ms late (its pictures' 500 ms fade-in is a blocking cross-fade
+  before the move); leaving the fade pending for the move's wait gets
+  the time right but places the new pictures where the move ends, the
+  280 px pan lost, so it stays.
 
 - **`Wait` and clicks** (2026-10-17): the exe's `Wait` (`0040bd80`,
   Muramasa.exe `0040f7f0`) ends only on quit, a state change or skip
