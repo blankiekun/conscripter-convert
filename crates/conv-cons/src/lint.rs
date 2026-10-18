@@ -1,9 +1,11 @@
 //! Checks on a finished `0.txt` for mistakes that stop the engine or lose
 //! content without an error message: jumps to labels that don't exist,
 //! effect numbers past 255, half-width characters in vertical text (the
-//! engine exits), and files the script names that aren't there.
+//! engine exits), files the script names that aren't there, labels
+//! defined twice (the engine keeps the first) and strings left open at
+//! the end of a line (the next lines show as text).
 
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 /// Examples kept per kind of problem.
 const EXAMPLES: usize = 5;
@@ -48,8 +50,17 @@ const EXTENSIONS: [&str; 10] = ["png", "jpg", "jpeg", "bmp", "ogg", "wav", "mp3"
 pub fn lint(script: &str, has_file: &dyn Fn(&str) -> bool) -> Report {
     let mut report = Report::default();
     let lines: Vec<&str> = script.lines().collect();
-    let labels: HashSet<String> =
-        lines.iter().filter_map(|l| l.strip_prefix('*')).map(|l| l.trim_end().to_ascii_lowercase()).collect();
+    let mut defined: HashMap<String, usize> = HashMap::new();
+    for (i, line) in lines.iter().enumerate() {
+        let Some(label) = line.strip_prefix('*') else { continue };
+        let label = label.trim_end().to_ascii_lowercase();
+        if let Some(first) = defined.get(&label) {
+            report.add("label defined twice (the engine keeps the first)", i, format!("*{label}, first at line {}", first + 1));
+        } else {
+            defined.insert(label, i);
+        }
+    }
+    let labels: HashSet<String> = defined.into_keys().collect();
     let mut vertical = false;
     let mut checked_files = HashSet::new();
     for (i, line) in lines.iter().enumerate() {
@@ -65,7 +76,10 @@ pub fn lint(script: &str, has_file: &dyn Fn(&str) -> bool) -> Report {
             }
             continue;
         }
-        let (code, strings) = split_strings(line);
+        let (code, strings, open) = split_strings(line);
+        if open {
+            report.add("string runs past the end of its line (the engine ends it there; the next lines show as text)", i, short(line));
+        }
         for cmd in code.split(':') {
             let cmd = cmd.trim();
             if cmd.starts_with("tateyoko") {
@@ -125,24 +139,25 @@ fn half_width_in_text(line: &str) -> Option<char> {
     None
 }
 
-/// The line without its `"…"` strings, and the strings.
-fn split_strings(line: &str) -> (String, Vec<&str>) {
+/// The line without its `"…"` strings or its comment, the strings, and
+/// whether the last string is still open at the end of the line.
+fn split_strings(line: &str) -> (String, Vec<&str>, bool) {
     let mut code = String::new();
     let mut strings = Vec::new();
     let mut rest = line;
-    while let Some(start) = rest.find('"') {
+    // A comment (`;` outside a string) ends the line.
+    while let Some(start) = rest.find(['"', ';']).filter(|&s| rest.as_bytes()[s] == b'"') {
         code.push_str(&rest[..start]);
         let after = &rest[start + 1..];
-        let end = after.find('"').unwrap_or(after.len());
+        let Some(end) = after.find('"') else {
+            strings.push(after);
+            return (code, strings, true);
+        };
         strings.push(&after[..end]);
-        rest = after.get(end + 1..).unwrap_or("");
+        rest = &after[end + 1..];
     }
-    code.push_str(rest);
-    // A comment ends the line.
-    if let Some(c) = code.find(';') {
-        code.truncate(c);
-    }
-    (code, strings)
+    code.push_str(rest.split(';').next().unwrap_or(""));
+    (code, strings, false)
 }
 
 /// `*name` references in code.
@@ -191,6 +206,10 @@ mov %1,(%1+1)%3:goto *start
 lsp 1,\":a;cg\\a.png\",0,0
 lsp 2,\":c;cg\\b.jpg\",0,0
 add $1,\".bmp\"
+*start
+logadd \"two
+　lines\",1
+mov %1,1 ; a \" in a comment
 tateyoko 1:setwindow 1,1,1,1,1,1,1,0,1,0,1,#000000
 　縦の!?テキスト\\
 　#ff0000赤い!s20字(る/び)@
@@ -209,6 +228,8 @@ tateyoko 0:setwindow 1,1,1,1,1,1,1,0,1,0,1,#000000
                 ("file not in the archives or the game directory", 1),
                 ("half-width character in vertical text (the engine exits)", 1),
                 ("jump to a label that doesn't exist", 2),
+                ("label defined twice (the engine keeps the first)", 1),
+                ("string runs past the end of its line (the engine ends it there; the next lines show as text)", 1),
             ],
             "{r}"
         );
