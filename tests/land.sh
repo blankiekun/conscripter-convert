@@ -46,6 +46,7 @@ if [ "${redo:-0}" = 1 ] || git diff --name-only origin/main...HEAD | grep -qE '^
 fi
 if [ $dry = 1 ]; then echo "dry run: rebased at $(git rev-parse --short HEAD), not pushed"; git log --oneline origin/main..HEAD; exit 0; fi
 git -c credential.helper= -c credential.helper='!gh auth git-credential' push -q --force-with-lease="$br:origin/$br" origin "HEAD:refs/heads/$br"
-sleep 20
+# the checks take a moment to register after a push
+for _ in $(seq 20); do gh pr checks "$pr" >/dev/null 2>&1 && break; [ $? = 8 ] && break; sleep 15; done
 gh pr checks "$pr" --watch --interval 30 || { echo "REFUSED: checks failed on #$pr"; exit 1; }
 gh pr merge "$pr" --squash
