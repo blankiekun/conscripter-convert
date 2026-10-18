@@ -127,6 +127,7 @@ class Game:
     icon: Optional[Callable[[Path], Optional[bytes]]] = None  # (game) -> its icon, an .ico or PNG file's bytes
     exe: str = ""  # the executable whose sha256 is checked against `hashes` (docs/games/*.md, "Executables")
     hashes: dict[str, str] = field(default_factory=dict)  # sha256 -> the build's label; empty = no check
+    outdated: dict[str, str] = field(default_factory=dict)  # a `hashes` label -> the warning for that build
     movies: bool = False  # its movies are in a folder of their own (movie/, ムービー/), in or beside the game
 
     def defaults(self) -> dict[str, object]:
@@ -221,6 +222,8 @@ def check_exe(game: Game, root: Path, d: Detection) -> None:
     digest = h.hexdigest()
     if digest in game.hashes:
         d.version = game.hashes[digest]
+        if d.version in game.outdated:
+            d.warnings.append(game.outdated[d.version])
     else:
         d.warnings.append(f"This {exe.name} is not the build we tested (sha256 {digest[:12]}…); "
                           "the conversion may still work.")
@@ -370,7 +373,7 @@ GAMES: tuple[Game, ...] = (
         command=_muramasa_command,
         font="ipam.ttf",  # the game's text is in a Mincho face
         output_name="muramasa-cons",
-        needs_ffmpeg=False,
+        needs_ffmpeg=True,  # movies become MP4s (without ffmpeg the build logs "asset error" and leaves them out)
         size_gb=3.7,
         doc="docs/games/muramasa.md",
         icon=lambda root: engine.exe_icon(_find(root, "Muramasa.exe")),
@@ -439,11 +442,33 @@ GAMES: tuple[Game, ...] = (
         output_name="tsukihime-cons",
         needs_ffmpeg=True,  # movies at 720p, sounds to Ogg
         size_gb=5.3,
+        exe="../exefs/main",  # the NSO beside the RomFS
+        hashes={
+            "6e41c7094303a48b3223147b0fe52a2995c48f59af9d480b7e523ed4a1f103c7": "main 1.0.0 (base game)",
+            "c128d79d3abd02b5581348618aa6403fdd651e77f4955f99ae43b34b90395faa": "main 1.0.2 (official update)",
+            "d28cb7c2391e74b2e3e2add120c208933aa314724efd2e47bfdf6c5c13aa6174": "main fan patch 2023.09.05",
+        },
+        outdated={"main 1.0.0 (base game)": "This is the base game, 1.0.0: the converter reads 1.0.2's tables and "
+                  "refuses it. Extract the RomFS and ExeFS of the base game with the 1.0.2 update applied "
+                  "(docs/games/tsukihime.md, 'Build')."},
         doc="docs/games/tsukihime.md",
         check=_tsukihime_check,
         options=_common("月姫 -A piece of blue glass moon-"),
     ),
 )
+
+
+def packaged_hint(path: Path) -> Optional[str]:
+    """What to tell someone who dropped an undecrypted Switch/Vita package
+    (no decryption tool is shipped: the keys stay the player's)."""
+    ext = path.suffix.lower()
+    if ext in (".nsp", ".xci"):
+        return ("This is an encrypted Switch package. Extract its RomFS and ExeFS first with hactool and your "
+                "console's prod.keys (docs/games/tsukihime.md, 'Build'), then give the RomFS folder.")
+    if ext == ".pkg":
+        return ("This is an encrypted PS Vita package. Decrypt and unpack it first with your console's keys "
+                "(docs/games/oretsuba.md, 'Decrypting the package'), then give the game folder.")
+    return None
 
 
 def _candidates(folder: Path, depth: int = 3):

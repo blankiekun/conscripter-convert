@@ -36,3 +36,16 @@ def test_differs():
 def test_missing():
     d = run({}, {hashlib.sha256(DATA).hexdigest(): "x"})
     assert not d.version and not d.warnings
+
+
+def test_tsukihime_base_game_warns():
+    game = next(g for g in games.GAMES if g.key == "tsukihime")
+    h = next(h for h, label in game.hashes.items() if "1.0.0" in label)
+    assert game.hashes[h] in game.outdated
+    assert "1.0.2" in game.outdated[game.hashes[h]]
+
+
+def test_packaged_hint():
+    assert "hactool" in games.packaged_hint(Path("x/Game.NSP"))
+    assert "PS Vita" in games.packaged_hint(Path("x/game.pkg"))
+    assert games.packaged_hint(Path("x/main")) is None
