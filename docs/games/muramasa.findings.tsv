@@ -17,7 +17,7 @@ SetVertex	px outside 0..size	seen	FUN_004891e0	that axis left as it was	the same
 Move	x, y	inferred	builtin_Move 0040e150; Django.exe 00437980	`@` relative, along the tempo	as Django
 BezierMove	points	inferred	builtin_BezierMove 0040e270	a Bézier path over time	spmotion keys along the path
 Rotate	x, y, z degrees	inferred	builtin_Rotate 0040e4f0; Django 00439590	`@` relative	about z noted (31); x/y turns as mirror or zoom
-Shake	n, tempo	seen	queue_shake 004462d0, shake_frame 004578e0	flip every 1000/(n·0.06) ms (fps 60 at 005dcaf0); n > 1000 does nothing; size args 2-3 → 4-5 along the tempo	screenshake mode 2 (#261); growing from 0 (#374)
+Shake	n, tempo	seen	queue_shake 004462d0, shake_frame 004578e0	flip once more than trunc(1000/(n·0.06)) ms have passed (_ftol2 at 004463c3; fps 60 at 005dcaf0); n > 1000 does nothing; size args 2-3 → 4-5 along the tempo	screenshake mode 2 (#261); growing from 0 (#374); the step rounded, not truncated (≤ 1 ms)
 Shake, ShakeOne	time ≥ 2,160,000	seen	script data	the scripts' endless shakes (36 min, 2.8 h), stopped by a later Shake or Delete	kept (census lead triaged)
 SetVolume	volume	seen	sound_set_volume 00475f50	0-1000 clamped, `@` relative; DirectSound max(−10000, 3322·log10(v/1000)·…) mB; 0 stops	percent(), the same curve
 SetVolume	fade	seen	00478570, sound_volume_fade_thread 00477ec0	steps by the tempo table	chvolfade straight: 9 fades noted
@@ -28,7 +28,7 @@ SetLoop, SetLoopPoint	loop	inferred	cb_SetLoop 00450650, cb_SetLoopPoint 0045070
 CreateSound	type	inferred	builtin_CreateSound 0040bca0; Django 00457940	BGM/SE/VOICE pick the volume setting	the same
 CreateColor, CreateColorSaddP	colour	seen	FUN_00414a50, FUN_00414dd0 (FUN_00414980 upper-cases)	#hex, 0x, RGB()/RGBA(), 16 HTML names (GREEN 0x008000)	the same names (#383); the corpus uses black/white/red/blue/hex
 CreateTexture, CreateTextureadd	source	seen	builtin_CreateTexture 00408cc0, parse_texture_source 00464b50	a file, an object's picture (FUN_004491a0, FUN_00488670), SCREEN/VIDEO/SCENE	files and objects; from the screen noted (25)
-CreateWindow	argument 6	seen	builtin_CreateWindow 0040b3a0 → FUN_00443500	kept only in the creation text (+0x180): no effect	read (#366)
+CreateWindow	argument 6	seen	builtin_CreateWindow 0040b3a0 → create_window 00443500 (EAX = argument 6), init_object_place 0044c8c0, parse_object_place 00458d50	anything but `true` clears the window's +0x9d4 (1 for every new object): its children are placed from the screen; `true` keeps it: a child starts at the window's place and Center/Middle count in its rect (74 calls `true`, 185 `false`)	gap: a window's children always placed from the screen (parent_offset; Muramasa has no relative_children): a `true` window's numbered children off by its place (絵演窓上 at y −50: 50 px)
 CreateWindow	children	seen	FUN_00443500	children clipped to the window	spclip
 CreateText	box, text	inferred	builtin_CreateText 0040aee0, parse_text_tags 00485760	text tags FONT, I, U, S, K, CENTER, MIDDLE, PRE, SPAN, WAIT, INTERVAL, RUBY, VALUE, VOICE	drawn to pictures at convert time; sideways text 17 px low (open)
 CreateEffect	Sepia, Monochrome, KitanoBlue, Plain	seen	0043fcc0, 004401d0, 004403d0, 004405e0	grey r28 g151 b77 /256 tables; sepia +30 g,r; KitanoBlue +20 g +80 b	spfilter 11 + colour; Lens, Drop noted (3)

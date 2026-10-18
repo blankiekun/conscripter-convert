@@ -1811,3 +1811,5 @@
 005a790a	cb_005a790a	reached only through a function pointer
 005b3908	cb_005b3908	reached only through a function pointer
 005b8c77	cb_005b8c77	reached only through a function pointer
+004359a0	sprite_shake_effect	sqSprite_shake → new Diesel::CEffectShake (findings audit 2026-10-18)
+00484990	CEffectShake_vfunction7	CEffectShake setup: period = param_5 % param_3, halved
