@@ -449,7 +449,7 @@ impl<'a> Emitter<'a> {
         Op::ScreenEffect { slot, effect } => {
             match effect {
                 None => writeln!(out, "screenshake {slot}").unwrap(),
-                Some(ScreenEffect::Shake { time_ms, interval_ms, path, speed, range, end_ms }) => {
+                Some(ScreenEffect::Shake { time_ms, interval_ms, path, speed, range, end_ms, delay_ms }) => {
                     let [(x0, y0), (x1, y1)] = range;
                     writeln!(
                         out,
@@ -457,7 +457,11 @@ impl<'a> Emitter<'a> {
                         u8::from(*path),
                         speed.0,
                         speed.1,
-                        if *end_ms > 0 { format!(",{end_ms}") } else { String::new() }
+                        match (*end_ms, *delay_ms) {
+                            (0, 0) => String::new(),
+                            (e, 0) => format!(",{e}"),
+                            (e, d) => format!(",{e},0,{d}"),
+                        }
                     )
                     .unwrap();
                 }

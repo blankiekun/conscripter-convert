@@ -1327,7 +1327,7 @@ impl Lowering<'_> {
                     },
                     _ => ((2200, 2900), (ax, ay), end),
                 };
-                let shake = ScreenEffect::Shake { time_ms: ms(time).max(1), interval_ms: 16, path: false, speed, range: [(ax, ay), end], end_ms };
+                let shake = ScreenEffect::Shake { delay_ms: 0, time_ms: ms(time).max(1), interval_ms: 16, path: false, speed, range: [(ax, ay), end], end_ms };
                 self.out.ops.push(Op::ScreenEffect { slot: 1, effect: Some(shake) });
                 if !looped && t.int("Wait").unwrap_or(1) != 0 {
                     self.out.ops.push(Op::Wait { ms: ms(time) });

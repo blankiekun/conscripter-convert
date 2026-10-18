@@ -611,17 +611,17 @@ impl Lowering<'_, '_> {
             // kind 1, drawn by `FUN_0012ef30`): both axes on one sine, a turn
             // every `period` ms, x and y in 1280 × 720 units (it scales them by
             // 640/1280 and 480/720), the size falling straight to 0 over the
-            // turns, then it ends. shortcut: shaken while skipping too (the exe
-            // doesn't; it ends by itself within ~1 s), and at once: the start
-            // delay (261 uses, most 50-200 ms, 9 over 1 s) needs one in screenshake.
+            // turns, then it ends, `delay` ms after the command (`FUN_0012ef30`
+            // counts it down). shortcut: shaken while skipping too (the exe
+            // doesn't; it ends by itself within ~1 s).
             "_SHOK" => {
                 let n = |i: usize, default: i32| if arg(i).is_empty() { Some(default) } else { number(arg(i)) };
-                let (Some(x), Some(y), Some(period), Some(turns)) = (n(0, 0), n(1, 0), n(2, 300), n(3, 3)) else { return false };
+                let (Some(x), Some(y), Some(period), Some(turns), Some(delay)) = (n(0, 0), n(1, 0), n(2, 300), n(3, 3), n(4, 0)) else { return false };
                 let (period, turns) = (period.max(17), turns.max(1));
                 let time_ms = (period * turns) as u32;
                 let speed = (65536 + period / 2) / period;
                 let range = [(x * SCREEN_W as i32 / 1280, y * SCREEN_H as i32 / 720), (0, 0)];
-                self.ops.push(Op::ScreenEffect { slot: 1, effect: Some(ScreenEffect::Shake { time_ms, interval_ms: 16, path: false, speed: (speed, speed), range, end_ms: time_ms }) });
+                self.ops.push(Op::ScreenEffect { slot: 1, effect: Some(ScreenEffect::Shake { delay_ms: delay.max(0) as u32, time_ms, interval_ms: 16, path: false, speed: (speed, speed), range, end_ms: time_ms }) });
             }
             // `shake_stop`: `_SHAF()` ends it at once (`_SHAF(ms)`, unused, decays it).
             "_SHAF" if arg(0).is_empty() => self.ops.push(Op::ScreenEffect { slot: 1, effect: None }),
@@ -2336,9 +2336,9 @@ mod tests {
 
     #[test]
     fn a_shake_dies_down_over_its_turns() {
-        let c = compile(&game("_SHOK(0,3,100,10);_SHOK(4);_SHAF();"));
-        let shake = |time_ms, speed, range| Op::ScreenEffect { slot: 1, effect: Some(ScreenEffect::Shake { time_ms, interval_ms: 16, path: false, speed: (speed, speed), range: [range, (0, 0)], end_ms: time_ms }) };
-        // a turn every 100 ms, 10 turns; the defaults 300 ms and 3 turns
-        assert_eq!(c.ops[1..], [shake(1000, 655, (0, 3)), shake(900, 218, (4, 0)), Op::ScreenEffect { slot: 1, effect: None }]);
+        let c = compile(&game("_SHOK(0,3,100,10,50);_SHOK(4);_SHAF();"));
+        let shake = |time_ms, speed, range, delay_ms| Op::ScreenEffect { slot: 1, effect: Some(ScreenEffect::Shake { delay_ms, time_ms, interval_ms: 16, path: false, speed: (speed, speed), range: [range, (0, 0)], end_ms: time_ms }) };
+        // a turn every 100 ms, 10 turns, 50 ms late; the defaults 300 ms and 3 turns
+        assert_eq!(c.ops[1..], [shake(1000, 655, (0, 3), 50), shake(900, 218, (4, 0), 0), Op::ScreenEffect { slot: 1, effect: None }]);
     }
 }

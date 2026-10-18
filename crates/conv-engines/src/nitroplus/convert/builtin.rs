@@ -829,7 +829,7 @@ impl Compiler<'_, '_> {
                             ScreenEffect::Jolt { time_ms: ms, interval_ms, range, ease, end_ms: ms }
                         }
                         // guess: a flip every 16 ms (a 60 Hz frame) and the engine's own speed; the exe's step isn't decoded
-                        None => ScreenEffect::Shake { time_ms: ms, interval_ms: 16, path: false, speed: (1300, 1700), range: [(x, y), end], end_ms: ms },
+                        None => ScreenEffect::Shake { delay_ms: 0, time_ms: ms, interval_ms: 16, path: false, speed: (1300, 1700), range: [(x, y), end], end_ms: ms },
                     };
                     self.ops.push(Op::ScreenEffect { slot: 1, effect: Some(shake) });
                     self.shaken = targets;
