@@ -374,9 +374,7 @@ pub fn emit_mapped(script: &Script) -> (String, Vec<(usize, Option<SourceLoc>)>)
     writeln!(out, "nsa").unwrap();
     writeln!(out, "globalon").unwrap();
     writeln!(out, "{}", notice::DEFINE).unwrap();
-    if boot::keeps_bgm(script) {
-        writeln!(out, "{}", boot::DEFINE).unwrap();
-    }
+    boot::define(&mut out, script);
     writeln!(out, "{NAME_SPRITES_DEFINE}").unwrap();
     writeln!(out, "{}", names_define()).unwrap();
     writeln!(out, "{}", links_define()).unwrap();
@@ -468,7 +466,7 @@ pub fn emit_mapped(script: &Script) -> (String, Vec<(usize, Option<SourceLoc>)>)
     if script.settings.as_ref().is_some_and(|s| s.skip_unread_label.is_some()) || script.picture_settings.as_ref().is_some_and(picture_settings::skips_unread) {
         writeln!(out, "kidokuskip").unwrap();
     }
-    if script.title_screen.as_ref().is_some_and(|t| !t.openings.is_empty()) || boot::once(script) {
+    if script.title_screen.as_ref().is_some_and(|t| !t.openings.is_empty()) {
         writeln!(out, "mov {TITLE_SHOWN},0").unwrap();
     }
     if !script.language.is_empty() {
@@ -2313,13 +2311,13 @@ effect 7,99,1000,\"cons_warp.dll/warp\\zoom_3_220_5.png,65\"
         s.title_screen = Some(TitleScreen { background: "system/title.png".into(), bgm: Some(bgm.into()), ..Default::default() });
         let out = emit(&s);
         assert!(out.contains("defvar conv_boot_bgm\n"), "{out}");
-        assert!(out.contains("mov %2960,0\n"), "{out}");
-        assert!(out.contains("if %2960 == 0 gosub *conv_boot:mov %2960,1:mov %conv_boot_bgm,1\n"), "{out}");
+        assert!(out.contains("defvar conv_booted,0,global\nmov %conv_booted,0\n"), "{out}");
+        assert!(out.contains("if %conv_booted == 1 goto *conv_boot_end\nmov %conv_booted,1\neffectskip 0\ngosub *conv_boot:mov %conv_boot_bgm,1\n"), "{out}");
         assert!(out.contains("if %conv_boot_bgm == 0 bgm \"sound\\bgm\\title.ogg\"\nmov %conv_boot_bgm,0\n"), "{out}");
         // Music the boot stops isn't kept.
         s.ops.insert(2, Op::BgmStop { fade_out_ms: 0 });
         let out = emit(&s);
-        assert!(out.contains("if %2960 == 0 gosub *conv_boot:mov %2960,1\n") && !out.contains("conv_boot_bgm"), "{out}");
+        assert!(out.contains("gosub *conv_boot\n") && !out.contains("conv_boot_bgm"), "{out}");
     }
 
     #[test]

@@ -4,18 +4,23 @@ use std::fmt::Write;
 
 use conv_core::ir::{BootStep, Op, Script};
 
-use crate::TITLE_SHOWN;
-
 /// A local, 1 from a [`BootStep::gosub`]'s end to the title's music: the
 /// boot left it playing, so the title doesn't start it again (`reset`
 /// clears it).
 pub(crate) const BGM_ON: &str = "%conv_boot_bgm";
-/// Its declaration, in the define section.
-pub(crate) const DEFINE: &str = "defvar conv_boot_bgm";
+/// 1 once the boot has run: a global, so `reset` back to the title
+/// doesn't show it again, cleared in the define section (each launch).
+const BOOTED: &str = "%conv_booted";
 
-/// A step is gosubbed once a run ([`TITLE_SHOWN`] 0 until the title is up).
-pub(crate) fn once(script: &Script) -> bool {
-    script.boot.iter().any(|s| s.gosub.is_some())
+/// The declarations, in the define section.
+pub(crate) fn define(out: &mut String, script: &Script) {
+    if script.boot.is_empty() {
+        return;
+    }
+    writeln!(out, "defvar conv_booted,0,global\nmov {BOOTED},0").unwrap();
+    if keeps_bgm(script) {
+        writeln!(out, "defvar conv_boot_bgm").unwrap();
+    }
 }
 
 /// A [`BootStep::gosub`] leaves the title's music playing.
@@ -37,13 +42,16 @@ pub(crate) fn keeps_bgm(script: &Script) -> bool {
     playing == Some(bgm)
 }
 
-/// The steps in order. A click cuts a fade only where the step says
+/// The steps in order, once a launch (every original converted so far
+/// shows them only at launch, not on going back to the title). A click cuts a fade only where the step says
 /// (`effectskip`); a skippable hold is a `wait` for its fixed part, then a
 /// `delay`.
 pub(crate) fn emit(out: &mut String, script: &Script, border: u32) {
     if script.boot.is_empty() {
         return;
     }
+    writeln!(out, "if {BOOTED} == 1 goto *conv_boot_end").unwrap();
+    writeln!(out, "mov {BOOTED},1").unwrap();
     for (i, s) in script.boot.iter().enumerate() {
         if !s.when.is_empty() {
             let cond: Vec<String> = s.when.iter().map(|(v, value)| format!("{} == {value}", crate::var_name(*v, border))).collect();
@@ -60,20 +68,16 @@ pub(crate) fn emit(out: &mut String, script: &Script, border: u32) {
         }
     }
     writeln!(out, "effectskip 1").unwrap();
+    writeln!(out, "*conv_boot_end").unwrap();
 }
 
-/// While the title hasn't been shown in this run; the title's openings
-/// then mark it shown, else this does.
 fn gosub(out: &mut String, script: &Script, label: &str) {
-    let mut then = format!("gosub *{label}");
-    if script.title_screen.as_ref().is_none_or(|t| t.openings.is_empty()) {
-        write!(then, ":mov {TITLE_SHOWN},1").unwrap();
-    }
-    if keeps_bgm(script) {
-        write!(then, ":mov {BGM_ON},1").unwrap();
-    }
     writeln!(out, "effectskip 0").unwrap();
-    writeln!(out, "if {TITLE_SHOWN} == 0 {then}").unwrap();
+    if keeps_bgm(script) {
+        writeln!(out, "gosub *{label}:mov {BGM_ON},1").unwrap();
+    } else {
+        writeln!(out, "gosub *{label}").unwrap();
+    }
 }
 
 fn step(out: &mut String, s: &BootStep) {
@@ -115,6 +119,8 @@ mod tests {
     use super::*;
     use conv_core::ir::Var;
 
+    const GUARD: &str = "if %conv_booted == 1 goto *conv_boot_end\nmov %conv_booted,1\n";
+
     fn emitted(boot: Vec<BootStep>) -> String {
         let mut out = String::new();
         emit(&mut out, &Script { boot, ..Default::default() }, 3000);
@@ -126,7 +132,7 @@ mod tests {
         let logo = BootStep { image: "system/logo.png".into(), backdrop: "white".into(), fade_in_ms: 567, hold_ms: 4000, fade_out_ms: 567, skip_after_ms: Some(3000), ..Default::default() };
         let movie = BootStep { image: "movie/op.mp4".into(), movie: true, backdrop: "black".into(), hold_ms: 1000, skip_after_ms: Some(0), ..Default::default() };
         let fade = crate::FADE;
-        assert_eq!(emitted(vec![logo, movie]), format!("effectskip 0\nbg white,1\nbg \"system\\logo.png\",{fade},567\nwait 3000\ndelay 1000\nbg white,{fade},567\neffectskip 0\nbg black,1\nmpegplay \"movie\\op.mp4\",1\nbg black,1\nwait 1000\neffectskip 1\n"));
+        assert_eq!(emitted(vec![logo, movie]), format!("{GUARD}effectskip 0\nbg white,1\nbg \"system\\logo.png\",{fade},567\nwait 3000\ndelay 1000\nbg white,{fade},567\neffectskip 0\nbg black,1\nmpegplay \"movie\\op.mp4\",1\nbg black,1\nwait 1000\neffectskip 1\n*conv_boot_end\n"));
     }
 
     #[test]
@@ -136,7 +142,7 @@ mod tests {
         let fade = crate::FADE;
         assert_eq!(
             emitted(vec![pause, caution]),
-            format!("effectskip 0\nbg black,1\nwait 250\nmov %105,0:if %3001 == 1 mov %105,1\nif %105 == 0 goto *conv_boot_skip1\neffectskip 0\nbg white,1\nbg \"c.png\",{fade},500\nwait 2000\nbg black,{fade},500\n*conv_boot_skip1\neffectskip 1\n")
+            format!("{GUARD}effectskip 0\nbg black,1\nwait 250\nmov %105,0:if %3001 == 1 mov %105,1\nif %105 == 0 goto *conv_boot_skip1\neffectskip 0\nbg white,1\nbg \"c.png\",{fade},500\nwait 2000\nbg black,{fade},500\n*conv_boot_skip1\neffectskip 1\n*conv_boot_end\n")
         );
     }
 
@@ -144,6 +150,6 @@ mod tests {
     fn until_click_with_skippable_fades() {
         let warning = BootStep { image: "w.png".into(), backdrop: "black".into(), fade_in_ms: 1000, fade_out_ms: 1000, until_click: true, click_skips_fades: true, ..Default::default() };
         let fade = crate::FADE;
-        assert_eq!(emitted(vec![warning]), format!("effectskip 1\nbg black,1\nbg \"w.png\",{fade},1000\nclick\nbg black,{fade},1000\neffectskip 1\n"));
+        assert_eq!(emitted(vec![warning]), format!("{GUARD}effectskip 1\nbg black,1\nbg \"w.png\",{fade},1000\nclick\nbg black,{fade},1000\neffectskip 1\n*conv_boot_end\n"));
     }
 }
