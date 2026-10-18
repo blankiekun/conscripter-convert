@@ -558,7 +558,9 @@ rather than by browsing:
     after each text block starts, as `<dir>/<pg>.webp` (pg: the block's
     first page; ntrace logs a block's pages all at its start, so one
     frame per block, not per page). Ours: the engine's `--trace
-    --auto-play N --shot-every 1 --shot-dir <dir>` (about 0.9 MB a
+    --auto-play N --real-time --shot-every 1 --shot-dir <dir>`
+    (`--real-time`: without it auto-play cuts every effect and motion
+    to its end, so a pan ends elsewhere; about 0.9 MB a
     page: keep N small, or `--shot-pages`). Then
     `research/tools/picdiff.py orig.jsonl <orig dir> ours.jsonl <our
     dir> --map <source map> --ms --thread 0 --mask WxH+X+Y` pairs the
@@ -572,8 +574,9 @@ rather than by browsing:
     Lossy WebP (fc.sh's default, q80) needs `--fuzz 15`: our own frames
     re-encoded at q80 have 4 % of pixels off by over 6 %, 0.2 % over
     15 %. Limits: the original's frame is a fixed time into the block,
-    ours the page's click wait with effects cut short by auto-play, so
-    a pan or cut-in still moving differs by timing; a second run with
+    ours the page's click wait (text typed out, the click-wait icon
+    up), so text still typing or a move still running differs by
+    timing; a second run with
     another `--shot-delay` tells (a difference at both is real).
     装甲悪鬼村正, first 80 pages (`SPEED=4`, 2 min, 14 MB of shots; ours
     100 pages, 86 MB), mask `130x576+447+0` (the vertical text window):
@@ -582,7 +585,10 @@ rather than by browsing:
     window at x 191 or 703); 8 over the whole frame, the same with a
     1 s and a 4 s delay: page 3 (the forest pan ends elsewhere), 62,
     64, 76-78 (another cut-in layout), 57 and 66 (ours uniformly
-    2.5/255 brighter).
+    2.5/255 brighter). Their causes (2026-10-18): 62, 64, 76-78 a
+    `Plain` cover shown again drew the live screen (fixed); 3 the pan
+    cut by auto-play (right with `--real-time`); 57, 66 the exe's
+    blur floors; the rest typing progress (`docs/games/muramasa.md`).
 24. **Which branches the original runs** (marks for the findings table,
     step 16). The trace DLL (step 22) also arms one-shot breakpoints:
     an `int3` on every code address of `names.tsv` and of the findings

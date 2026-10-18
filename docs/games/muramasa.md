@@ -748,9 +748,44 @@ Open, by area (each is small; most noticeable first):
     object".)
   - An unwaited `Fade` before a sound or the text is played out by the
     next sync (up to `UNWAITED_MS`): ma00_000:1625, :1674 (+280 ms).
+- **Picture diff of ma00_000** (#457's 24 blocks, rerun 2026-10-18 with
+  `--real-time`): what is left is small and not fixed.
+  - Page 3: `FadeDelete("絵背景10", 3000, false)` before the text
+    runs 1 s in ours (`UNWAITED_MS`, as in "Trace diff" above): the
+    original's frame still shows the old sky at about a third.
+  - Pages 57, 66 (66 is 57 kept in a cover): `SetShade(…, MEDIUM)`
+    pictures are about 2.5/255 darker in the exe. Its passes of a 3×3
+    mean floor (`FUN_00465b10`: `sum / 9` on unsigned ints), about
+    0.4/255 lost a pass (4 passes on a frame of the game, simulated:
+    1.5/255); the engine's blur rounds. Invisible; a fix would darken
+    a shaded picture by its passes' loss.
+  - Pages 55, 56, 62, 64, 76-79: inside the text window, which ours
+    moves to the same place (`SetTextEXR`/`EXL`, x 191 or 703): the
+    original's frame 1 s into the block is still typing (62: 3 of 4
+    columns), ours is typed out with the click-wait icon. 79: our
+    frame is 200 ms into the unwaited 300 ms `Move("@StC*", …, @+10,
+    @+5)` (the knight 4, 2 px short; the original's is done).
 - **Unused**: `spgrab` could stand for `CreateTexture`'s render-to-texture.
 
 ## History
+
+#### A Plain cover shown again (2026-10-18)
+
+A `CreateEffect("Plain")` cover keeps the screen as it was when it was
+made, and keeps it after it is faded out: ma00_000 makes one per
+fighter (`絵鷺沼側`, `絵垣見側`, the split screen `絵相対`), fades each
+out, deletes every picture under them and fades them in again (pages
+62, 64, 66, 76-78). Ours froze whatever was on screen at the fade-in,
+so the split screen stayed. The cover now remembers the pictures it
+froze; once it has been at 0 and the screen under it changed, it draws
+those (its shade or tone over them) at its own priority. 10 such
+fade-ins in 5 files by a scan of the scripts, more through
+`CreatePlainEX` (made at 0, faded in later: ma04_014vs's blurred
+copy, where the white flash above it no longer stays). A cover that is
+moved, zoomed, turned, shaken or blended (mc03_021vs's `SubRender`
+copy) or that froze a strip or movie (md04_037's rain) still keeps the
+screen as before. #457's picture diff of pages 62, 64, 76-78: 83-86 % of
+pixels differing before, only the text window after.
 
 ### Status as it stood before the 2026-10-18 prune
 

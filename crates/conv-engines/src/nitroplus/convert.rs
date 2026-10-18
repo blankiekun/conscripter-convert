@@ -1078,8 +1078,11 @@ fn color(v: &Value) -> Option<u32> {
 enum Kind<'a> {
     /// A texture or a colour: `image` is the output picture.
     Image { image: String },
-    /// `CreateEffect("Plain")`: the screen frozen as it was.
-    Cover,
+    /// `CreateEffect("Plain")`: the screen frozen as it was. `froze`: the
+    /// pictures it froze, top first; `again`: it has been faded out to 0
+    /// and the screen under it may have changed, so while shown it draws
+    /// `froze` (装甲悪鬼村正's ma00_000 shows each fighter's cover again).
+    Cover { froze: Vec<(String, Shown)>, again: bool },
     /// `CreateEffect("Sepia")` and the like: the pictures below its
     /// priority drawn through the filters (strength: its opacity).
     Tint(Vec<SpriteFilter>),
@@ -3544,7 +3547,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
     /// The screen is frozen under an opaque `Plain` cover while one is up:
     /// the top one's priority.
     fn frozen_at(&self) -> Option<i64> {
-        self.objects.values().filter(|o| matches!(o.kind, Kind::Cover) && o.opacity >= 1000).map(|o| o.priority).max()
+        self.objects.values().filter(|o| matches!(o.kind, Kind::Cover { .. }) && o.opacity >= 1000 && !self.shows_froze(o)).map(|o| o.priority).max()
     }
 
     /// Hides the text window once no picture of it is visible.
@@ -6879,6 +6882,27 @@ scene a.nss
         // The black drawn over the frozen screen, whose background stays.
         assert!(changes.iter().all(|c| c.sprite.is_some()), "{changes:?}");
         assert!(changes.iter().any(|c| c.sprite.as_ref().is_some_and(|s| s.image == "color/000000_1024x576.png")));
+    }
+
+    #[test]
+    fn a_plain_cover_shown_again_draws_what_it_froze() {
+        // 装甲悪鬼村正's ma00_000: each fighter's screen kept in a cover,
+        // faded out, and faded in again after the scene under it changed.
+        let story = r#"
+scene a.nss
+{
+	CreateTexture("絵背景100", 100, 0, 0, "cg/bg/a.jpg");
+	Wait(10);
+	CreateEffect("絵鷺沼側", 1200, 0, 0, 1024, 576, "Plain");
+	Delete("絵背景100");
+	CreateTexture("絵背景200", 100, 0, 0, "cg/bg/b.jpg");
+	Fade("絵鷺沼側", 300, 0, null, true);
+	Fade("絵鷺沼側", 300, 1000, null, true);
+}
+"#;
+        let c = compile(story, LIBRARY);
+        let Some(Op::Sprites { changes, .. }) = c.ops.iter().rev().find(|op| matches!(op, Op::Sprites { .. })) else { panic!() };
+        assert!(changes.iter().any(|c| c.sprite.as_ref().is_some_and(|s| s.image == "cg/bg/a.jpg")), "{changes:?}");
     }
 
     #[test]
