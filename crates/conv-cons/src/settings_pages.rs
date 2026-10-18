@@ -14,26 +14,27 @@ use crate::menu::{hidden_while_open, setting_var, settings_defaults, switch_off,
 use crate::screens::{image, lua, question};
 
 /// The variables a value lives in (set together), and whether they are 1
-/// for a 0 option.
-fn vars(v: &SettingValue) -> (Vec<String>, bool) {
+/// for a 0 option (`border`: the game's globals' first number).
+fn vars(v: &SettingValue, border: u32) -> (Vec<String>, bool) {
     match v {
         SettingValue::Level(s) => (vec![setting_var(*s).to_string()], false),
         // The globals are 1 while off.
         SettingValue::Switch(s) => (vec![switch_off(*s)], true),
         SettingValue::SkipUnread => (vec![SKIP_UNREAD.to_string()], false),
         SettingValue::Voices(c) => (c.iter().map(|c| format!("%{}", VOICE_OFF_BASE + c)).collect(), true),
+        SettingValue::Language(var) => (vec![crate::var_name(*var, border)], false),
     }
 }
 
 /// Sets `v` to `value`.
 fn set(v: &SettingValue, value: i32) -> String {
-    let (vars, inverted) = vars(v);
+    let (vars, inverted) = vars(v, 0);
     vars.iter().map(|var| format!("mov {var},{}", if inverted { 1 - value } else { value })).collect::<Vec<_>>().join(":")
 }
 
 /// `var=...` of a widget.
-fn var_field(v: &SettingValue) -> String {
-    let (vars, _) = vars(v);
+fn var_field(v: &SettingValue, border: u32) -> String {
+    let (vars, _) = vars(v, border);
     match &vars[..] {
         [one] => lua(one),
         all => format!("{{{}}}", all.iter().map(|v| lua(v)).collect::<Vec<_>>().join(", ")),
@@ -46,28 +47,45 @@ fn part(p: &Placed, extra: &str) -> String {
 }
 
 /// `screens/settings.lua`.
-pub(crate) fn lua_file(p: &PagedSettings, confirm: Option<&ConfirmDialog>, leave: Option<(&str, &str)>) -> String {
+/// `border`: the game's globals' first number.
+pub(crate) fn lua_file(p: &PagedSettings, confirm: Option<&ConfirmDialog>, leave: Option<(&str, &str)>, border: u32) -> String {
     let pages = p.pages.len().max(1);
     let apply = format!("action={{\"gosub\", \"*{SETTINGS_APPLY}\"}}");
+    // A language picked in game closes the screen (SystemPage::Settings).
+    let language = format!("action=in_game and {{{{\"gosub\", \"*{SETTINGS_APPLY}\"}}, {{\"close\", 3}}}} or {{\"gosub\", \"*{SETTINGS_APPLY}\"}}");
+    // The pages ◀ ▶ turn between: all, or with tabs those of the tab.
+    let span = |n: usize| p.tabs.iter().find(|t| (t.pages.0..=t.pages.1).contains(&n)).map_or((0, pages - 1), |t| t.pages);
     let mut w = Vec::new();
     for (n, page) in p.pages.iter().enumerate() {
         let on = format!(", page={}", n + 1);
         w.push(image("image", &page.base, &on));
-        if pages > 1 {
-            w.push(image("button", &p.prev, &format!("{on}, cells=2, action={{\"page\", {}}}", (n + pages - 1) % pages + 1)));
-            w.push(image("button", &p.next, &format!("{on}, cells=2, action={{\"page\", {}}}", (n + 1) % pages + 1)));
+        let (first, last) = span(n);
+        let count = last - first + 1;
+        // Round from the last to the first and back; with tabs not (the
+        // first's ◀ and the last's ▶ left out).
+        let at = |k: usize| first + k % count + 1;
+        if count > 1 && (p.tabs.is_empty() || n > first) {
+            w.push(image("button", &p.prev, &format!("{on}, cells=2, action={{\"page\", {}}}", at(n - first + count - 1))));
+        }
+        if count > 1 && (p.tabs.is_empty() || n < last) {
+            w.push(image("button", &p.next, &format!("{on}, cells=2, action={{\"page\", {}}}", at(n - first + 1))));
         }
         for c in &page.rows {
             match c {
                 RowControl::Choice { value, options } => {
-                    let inverted = vars(value).1;
+                    let inverted = vars(value, border).1;
+                    let act = if matches!(value, SettingValue::Language(_)) { &language } else { &apply };
                     for (v, o, current) in options {
                         let v = if inverted { 1 - v } else { *v };
-                        w.push(image("radio", o, &format!("{on}, cells=2, on_file={}, var={}, value={v}, {apply}", lua(current), var_field(value))));
+                        w.push(image("radio", o, &format!("{on}, cells=2, on_file={}, var={}, value={v}, {act}", lua(current), var_field(value, border))));
                     }
                 }
+                RowControl::Toggle { value, on: checked_value, button, checked } => {
+                    let v = if vars(value, border).1 { 1 - checked_value } else { *checked_value };
+                    w.push(image("toggle", button, &format!("{on}, cells=2, on_file={}, var={}, on={v}, off={}, {apply}", lua(checked), var_field(value, border), 1 - v)));
+                }
                 RowControl::Slider { value, knob, travel, fill, bar, minus, plus } => {
-                    let var = var_field(value);
+                    let var = var_field(value, border);
                     if let Some(bar) = bar {
                         w.push(image("image", bar, &on));
                     }
@@ -87,6 +105,10 @@ pub(crate) fn lua_file(p: &PagedSettings, confirm: Option<&ConfirmDialog>, leave
             }
         }
     }
+    for t in &p.tabs {
+        let (a, b) = (t.pages.0 + 1, t.pages.1 + 1);
+        w.push(image("button", &t.button, &format!(", cells=2, current={{{a}, {b}}}, selected={}, action={{\"page\", {a}}}", lua(&t.selected))));
+    }
     w.push(image("button", &p.close, ", cells=2, action={\"close\"}"));
     w.push(image("button", &p.defaults, ", cells=2, action={\"gosub\", \"*conv_settings_defaults\"}"));
     let mut out = format!("-- The settings (conscripter-convert, from PagedSettings).\nlocal in_game = var({}) == 1\nlocal w = {{\n", lua(IN_GAME));
@@ -99,14 +121,18 @@ pub(crate) fn lua_file(p: &PagedSettings, confirm: Option<&ConfirmDialog>, leave
     let title = ask(confirm.map(|c| &c.title), Switch::ConfirmTitle);
     let button = |p: &Placed, value: u32, q: &str| image("button", p, &format!(", cells=2, action={{\"close\", {value}{q}}}"));
     writeln!(out, "}}\nif in_game then").unwrap();
-    match leave {
-        Some((_, text)) => {
+    match (leave, &p.title) {
+        (_, None) => {}
+        (Some((_, text)), Some(t)) => {
             let leave_q = ask(confirm.map(|_| text.to_string()).as_ref(), Switch::ConfirmTitle);
-            writeln!(out, "  if var({}) == 1 then\n    w[#w+1] = {}\n  else\n    w[#w+1] = {}\n  end", lua(crate::replay::REPLAYING), button(&p.title, 1, &leave_q), button(&p.title, 1, &title)).unwrap();
+            writeln!(out, "  if var({}) == 1 then\n    w[#w+1] = {}\n  else\n    w[#w+1] = {}\n  end", lua(crate::replay::REPLAYING), button(t, 1, &leave_q), button(t, 1, &title)).unwrap();
         }
-        None => writeln!(out, "  w[#w+1] = {}", button(&p.title, 1, &title)).unwrap(),
+        (None, Some(t)) => writeln!(out, "  w[#w+1] = {}", button(t, 1, &title)).unwrap(),
     }
-    writeln!(out, "  w[#w+1] = {}\nend", button(&p.quit, 2, &ask(confirm.map(|c| &c.quit), Switch::ConfirmQuit))).unwrap();
+    if let Some(q) = &p.quit {
+        writeln!(out, "  w[#w+1] = {}", button(q, 2, &ask(confirm.map(|c| &c.quit), Switch::ConfirmQuit))).unwrap();
+    }
+    writeln!(out, "end").unwrap();
     let hidden: Vec<String> = hidden_while_open().iter().map(|s| if s.starts_with('%') { format!("var({})", lua(s)) } else { s.clone() }).collect();
     writeln!(
         out,
@@ -123,12 +149,13 @@ pub(crate) fn labels(out: &mut String, m: &SettingsMenu, p: &PagedSettings) {
     // The levels' defaults and those of the values on the pages.
     let mut defaults = vec![settings_defaults(m)];
     for c in p.pages.iter().flat_map(|page| &page.rows) {
-        let (RowControl::Choice { value: v, .. } | RowControl::Slider { value: v, .. }) = c;
+        let (RowControl::Choice { value: v, .. } | RowControl::Slider { value: v, .. } | RowControl::Toggle { value: v, .. }) = c;
         match v {
             SettingValue::Switch(s) => defaults.push(set(v, i32::from(!m.switches_off.contains(s)))),
             SettingValue::Voices(_) => defaults.push(set(v, 1)),
             SettingValue::SkipUnread => defaults.push(set(v, 0)),
-            SettingValue::Level(_) => {}
+            // The language stays as picked.
+            SettingValue::Level(_) | SettingValue::Language(_) => {}
         }
     }
     writeln!(out, "*conv_settings_defaults\n{}:gosub *{SETTINGS_APPLY}\nreturn", defaults.join(":")).unwrap();
@@ -147,7 +174,7 @@ mod tests {
     fn values_set() {
         assert_eq!(set(&SettingValue::Switch(Switch::SceneSkipDialog), 0), "mov %2919,1");
         assert_eq!(set(&SettingValue::Voices(vec![3, 5]), 0), "mov %973,1:mov %975,1");
-        assert_eq!(var_field(&SettingValue::Voices(vec![3, 5])), "{\"%973\", \"%975\"}");
+        assert_eq!(var_field(&SettingValue::Voices(vec![3, 5]), 0), "{\"%973\", \"%975\"}");
     }
 
     #[test]
@@ -169,10 +196,11 @@ mod tests {
             next: placed("next.png", 900),
             close: placed("close.png", 0),
             defaults: placed("defaults.png", 0),
-            title: placed("title.png", 0),
-            quit: placed("quit.png", 0),
+            title: Some(placed("title.png", 0)),
+            quit: Some(placed("quit.png", 0)),
+            tabs: Vec::new(),
         };
-        let lua = lua_file(&p, None, None);
+        let lua = lua_file(&p, None, None, 0);
         // The switch's global is 1 while off: option 1 is value 0.
         assert!(lua.contains("{\"radio\", file=\"on.png\", x=500, y=100, page=1, cells=2, on_file=\"on_lit.png\", var=\"%2919\", value=0,"), "{lua}");
         assert!(lua.contains("knob={file=\"k.png\", x=764, y=100}, fill={file=\"e.png\", x=509, y=100}, track="), "{lua}");

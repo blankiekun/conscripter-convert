@@ -28,8 +28,7 @@ fn stage(x: f32, y: f32) -> (i32, i32) {
 }
 
 /// The system menu, and (unless `dry_run`) its pictures in `<output>/sys/menu`.
-/// `languages`: the build has both; Config switches between them (for
-/// now, until the settings tab is converted: its 日本語/English option).
+/// `languages`: the build has both (the settings' 言語 switches between them).
 pub fn system_menu(romfs: &Path, output: &Path, dry_run: bool, languages: bool) -> Result<SystemMenu> {
     let (menu, save) = if dry_run { (None, None) } else { (Some(Parts::read(romfs, "MENU_PARTS")?), Some(Parts::read(romfs, "SAVE_PARTS")?)) };
     let write = |name: &str, img: Option<RgbaImage>| -> Result<(String, i32, i32)> {
@@ -101,7 +100,8 @@ pub fn system_menu(romfs: &Path, output: &Path, dry_run: bool, languages: bool) 
     // ours: menu_btn's cells cut 240 × 104 from (24, 26) so the hit box is
     // centred on each label, as measured from its alpha; its columns at
     // rest, under the pointer, lit
-    let config = if languages { SystemPage::Jump(super::language::SWITCH.into()) } else { SystemPage::Unavailable };
+    // The settings (settings.rs); a language picked there in game switches.
+    let config = SystemPage::Settings(languages.then(|| super::language::SWITCH.into()));
     let mut tabs = Vec::new();
     for (r, page) in [SystemPage::Save(list.clone()), SystemPage::Load(list), config, SystemPage::Unavailable, SystemPage::Title].into_iter().enumerate() {
         let r = r as u32;
