@@ -493,17 +493,11 @@ cp out/django-dry/ons_args <scratch>/   # the dry run's encoding, not the build'
 research/tools/trace_diff.py orig.jsonl ours.jsonl --map out/django.map --pages 50 --ms --thread 0
 ```
 
-All 50 pages pair, with the same text. Not findings: page 1's 50
+All 50 pages pair, with the same text (the window's fade between
+blocks since 2026-10-17, History). Not findings: page 1's 50
 `missing` (the patched boot skips the title, ours plays it),
 `call_chapter` lines (no call record in the original), 0-72 ms gaps.
 Open, not fixed:
-- **The text window blinks between blocks in the original, not in
-  ours:** each `TypeEnd()` fades `@box*` out over 100 ms and waits
-  (function.nss:510), and the next `TypeBegin` fades it in over 100 ms
-  and waits (502-503): 224 + 223 ms under wine. Ours goes from one
-  block's last page to the next block with the window up and nothing in
-  between (no op from 510 or 502 on 18 and 22 of the 49 page changes,
-  e.g. pages 1-4 of dja001_01).
 - **An unwaited fade to black holds the text in ours:**
   dja001_01:126-128 (`Fade("黒幕", 3000, 1000, null, false)` after
   `SetVolume("@dj*", 5000, 0, NULL)`), then text015: the original
@@ -562,6 +556,20 @@ Open, not fixed:
       the wait; the six such calls take 0 ms.
 
 ## History
+
+- **The text window fades between blocks** (2026-10-17, trace diff):
+  each `TypeEnd()` fades `@box*` out over 100 ms and waits
+  (function.nss:510), and the next `TypeBegin` fades the box in over
+  100 ms and waits (502-503) before it enters the text: the text, a
+  child of `box00`, is drawn at the window's opacity × its own
+  (`drawn_opacity`, Django's `relative_children`). Ours hid the text at
+  once (`textoff`) and waited 2 × 100 ms; now a waited fade that leaves
+  the shown text at 0 is `windowfade 0,ms` (the window picture is
+  transparent: only the text fades). 装甲悪鬼村正 is unchanged: its
+  exe leaves a faded `CreateWindow`'s children at full (builtins.md,
+  wine test), and its `TypeEnd` fades `Hideable` boxes, already
+  `windowfade`. Trace diff: the 502/510 records now pair (findings
+  178 → 41 lines, missing 164 → 146, all of them page 1's boot).
 
 - **Notes that only inflated the gaps** (2026-10-17): `SetFrequency`
   on music is noted only when it changes the rate (every Django call,

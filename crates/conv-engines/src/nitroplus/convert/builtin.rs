@@ -315,6 +315,18 @@ impl Compiler<'_, '_> {
                             self.fade_tempo = Some(e);
                         }
                     }
+                    // A waited fade that leaves the shown text at 0 as drawn
+                    // (its window's opacity × its own: 続・殺戮のジャンゴ's
+                    // TypeEnd, `Fade("@box*", 100, 0, null, true)`) fades the
+                    // text out with it, instead of the sync's instant `textoff`.
+                    let waited = !matches!(wait, Value::Null | Value::Int(0));
+                    let text = self.vars.get("$SYSTEM_present_text").map(|v| v.string().trim_start_matches('@').to_string());
+                    let gone = text.is_some_and(|t| self.objects.get(&t).is_some_and(|o| self.drawn_opacity(&t, o.opacity) == 0));
+                    if waited && ms > 0 && self.window_visible && gone && self.game.relative_children {
+                        self.ops.push(Op::WindowFade { alpha: 0, ms: ms as u32, from: None, delay: 0, show: false });
+                        self.window_visible = false;
+                        self.window_fade_in = None;
+                    }
                     self.timed(ms, &wait, &targets);
                 } else {
                     // The text window fades as the script's own `Fade`s say
