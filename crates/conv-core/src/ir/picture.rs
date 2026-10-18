@@ -492,8 +492,7 @@ pub struct PictureSlot {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SlotCg {
-    /// Non-zero once the CG has been seen.
-    pub seen: Var,
+    pub seen: Seen,
     /// The full picture and its size; one no larger than the screen is
     /// shown at its x, y.
     pub picture: Placed,
@@ -749,4 +748,15 @@ pub struct CategoryHover {
     pub places: Vec<(i32, i32)>,
     /// Played on opening another category.
     pub click_se: Option<String>,
+}
+
+/// [`SlotCg::seen`]: how a gallery knows a CG has been seen.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Seen {
+    /// Non-zero once seen.
+    Var(Var),
+    /// Seen once any of these pictures has been shown (CONscripter's file
+    /// log, `filelog` and `fchk`, which records every picture loaded and
+    /// keeps it across games).
+    Pictures(Vec<String>),
 }

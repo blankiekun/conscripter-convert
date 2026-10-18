@@ -15,7 +15,7 @@
 //! and `print 1` timed by `gettimer`, which a timed `btnwait` (`btntime`)
 //! lets clicks pause and a right-click end.
 
-use conv_core::ir::{PictureGallery, Placed};
+use conv_core::ir::{PictureGallery, Placed, Seen};
 
 use crate::menu::TMP;
 use crate::picture_extras::pic;
@@ -163,11 +163,11 @@ pub(crate) fn emit(out: &mut String, g: &PictureGallery, border: u32, width: u32
                 let n = slot.cgs.len();
                 w(format!("mov {TMP},0"));
                 for cg in &slot.cgs {
-                    w(format!("if {} != 0 inc {TMP}", var_name(cg.seen, border)));
+                    w(format!("if {} inc {TMP}", seen(&cg.seen, border).0));
                 }
                 w(format!("lsp {},\"{}\",{x},{y}", THUMB + i as u32, pic(&g.blank)));
                 for cg in slot.cgs.iter().rev() {
-                    w(format!("if {} != 0 lsp {},\"{}\",{x},{y}", var_name(cg.seen, border), THUMB + i as u32, pic(&cg.thumbnail)));
+                    w(format!("if {} lsp {},\"{}\",{x},{y}", seen(&cg.seen, border).0, THUMB + i as u32, pic(&cg.thumbnail)));
                 }
                 w(format!("if {TMP} > 0 && {TMP} < {n} amsp {},{x},{y},{}", THUMB + i as u32, g.partial_alpha));
                 w(format!("if {TMP} > 0 lsp {},\":a/2,0,3;{}\",{x},{y}:spbtn {},{}", CURSOR + i as u32, path(&g.cursor), CURSOR + i as u32, i + 1));
@@ -183,6 +183,23 @@ pub(crate) fn emit(out: &mut String, g: &PictureGallery, border: u32, width: u32
     viewers(out, g, border, width, height);
 }
 
+/// A CG's [`Seen`] as an `if` condition (seen), and as the start of an
+/// `if`/`notif` line that runs while it isn't.
+fn seen(s: &Seen, border: u32) -> (String, String) {
+    match s {
+        Seen::Var(v) => {
+            let v = var_name(*v, border);
+            (format!("{v} != 0"), format!("if {v} == 0"))
+        }
+        Seen::Pictures(p) => {
+            assert!(!p.is_empty(), "a CG seen by none of its pictures");
+            let f: Vec<String> = p.iter().map(|p| format!("fchk \"{}\"", path(p))).collect();
+            // `notif` negates each test: none seen is all of them unseen
+            (f.join(" || "), format!("notif {}", f.join(" && ")))
+        }
+    }
+}
+
 /// The viewer of each slot ([`CLOSE`] goes back to [`DRAW`] with the
 /// close fade), and the click and scroll subroutines.
 fn viewers(out: &mut String, g: &PictureGallery, border: u32, width: u32, height: u32) {
@@ -196,7 +213,7 @@ fn viewers(out: &mut String, g: &PictureGallery, border: u32, width: u32, height
             w(format!("*{label}"));
             w(format!("csp -1:bg black,1:mov {PREVIOUS_UNSEEN},0"));
             for (k, cg) in slot.cgs.iter().enumerate() {
-                let seen = var_name(cg.seen, border);
+                let (_, unseen) = seen(&cg.seen, border);
                 let p = &cg.picture;
                 let (over_x, over_y) = ((p.w - width as i32).max(0), (p.h - height as i32).max(0));
                 // The far end (bottom or right) and the top left.
@@ -209,7 +226,7 @@ fn viewers(out: &mut String, g: &PictureGallery, border: u32, width: u32, height
                 if over_y == 0 {
                     (start.1, end.1) = (p.y, p.y);
                 }
-                w(format!("if {seen} == 0 goto *{label}_{k}u"));
+                w(format!("{unseen} goto *{label}_{k}u"));
                 w(format!("lsp {VIEW},\"{}\",{},{}:print 10,{}", pic(&p.image), start.0, start.1, g.view_fade_ms));
                 w(format!("mov {PREVIOUS_UNSEEN},0:gosub *{CLICK}"));
                 w(format!("if {BUTTON_VAR} == -1 goto *{CLOSE}"));
@@ -266,4 +283,17 @@ fn viewers(out: &mut String, g: &PictureGallery, border: u32, width: u32, height
     w(format!("amsp {VIEW},{},{}:print 1", TO[0], TO[1]));
     w(format!("gosub *{CLICK}"));
     w("return".into());
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use conv_core::ir::Var;
+
+    #[test]
+    fn seen_by_a_variable_or_by_pictures() {
+        assert_eq!(seen(&Seen::Var(Var { global: true, index: 5 }), 200), ("%205 != 0".into(), "if %205 == 0".into()));
+        let s = Seen::Pictures(vec!["pic/a.png".into(), "pic/b.png".into()]);
+        assert_eq!(seen(&s, 200), (r#"fchk "pic\a.png" || fchk "pic\b.png""#.into(), r#"notif fchk "pic\a.png" && fchk "pic\b.png""#.into()));
+    }
 }
