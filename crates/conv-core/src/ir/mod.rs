@@ -980,4 +980,8 @@ pub struct Script {
     /// `clickskip`; [`Op::IfSkipping`] jumps then too): 最果てのイマ's
     /// skip_state_b.
     pub click_skips_effects: bool,
+    /// Where `ops` came from: (index of an op, the source instruction it
+    /// and the ops after it, up to the next entry, were lowered from),
+    /// sorted by op index. Written out by `--source-map`; empty: unknown.
+    pub source_map: Vec<(usize, SourceLoc)>,
 }

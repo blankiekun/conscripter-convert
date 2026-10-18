@@ -1881,6 +1881,7 @@ pub fn lower_script(
     assets: &mut AssetBank,
     presets: &Presets,
     names: &LabelNames,
+    starts: &mut Vec<(usize, usize)>,
 ) -> Result<Vec<Op>, ConvertError> {
     // A label's offset points at a marker instruction (a 0x10 that targets
     // itself); a jump lands just after it, so the label goes after that
@@ -1948,7 +1949,12 @@ pub fn lower_script(
     let mut unfold_id = 0;
     // Pages whose links depend on a variable ([`Link::style`]), numbered.
     let mut cond_link_id = 0;
+    // `starts`: (index in ops, the instruction lowered from there on)
     for (index, ins) in cd.code.iter().enumerate() {
+        if starts.last().is_some_and(|s| s.0 == ops.len()) {
+            starts.pop(); // the instruction before wrote nothing
+        }
+        starts.push((ops.len(), index));
         if let Some((message, paths)) = unfolded.remove(&index) {
             variants = Some((index, message, paths));
         }
@@ -2484,6 +2490,9 @@ pub fn lower_script(
                     let mut now = Vec::new();
                     lower_screen_module(&module, &mut replace_slots, assets, &mut now, at)?;
                     let n = now.len();
+                    let k = starts.partition_point(|s| s.0 < *start);
+                    starts[k..].iter_mut().for_each(|s| s.0 += n);
+                    starts.insert(k, (*start, index));
                     ops.splice(*start..*start, now);
                     *start += n;
                 }
