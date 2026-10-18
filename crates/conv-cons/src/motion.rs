@@ -166,12 +166,18 @@ pub(crate) fn emit(out: &mut String, layer: u32, keys: &[(u32, i32, i32)], loope
     emit2(out, layer, &keys, if looped { MotionEnd::Loop } else { MotionEnd::Back }, fade, 0, &mut BTreeMap::new());
 }
 
-/// Writes an [`conv_core::ir::Op::SpriteMotion2`] with `spmotion`. A fade
+/// Writes an [`conv_core::ir::Op::SpriteMotion2`] with `spmotion` (no
+/// keys: stops it, `Keep` where it is). A fade
 /// in over `fade` ms started with it goes into its keys; each key is
 /// reached along its own `ease` (its `spcurve` id given in `ids`), else
 /// along `curve` (0 straight, or an `spcurve` id).
 pub(crate) fn emit2(out: &mut String, layer: u32, keys: &[MotionKey], end: MotionEnd, fade: Option<u32>, curve: u32, ids: &mut BTreeMap<(u8, u32), u32>) {
     let slot = SPRITE_BASE + layer;
+    if keys.is_empty() {
+        let keep = if matches!(end, MotionEnd::Keep) { ",2" } else { "" };
+        writeln!(out, "spmotion {slot}{keep}").unwrap();
+        return;
+    }
     let mode = match end {
         MotionEnd::Back => "0".to_string(),
         MotionEnd::Loop => "1".to_string(),
@@ -245,6 +251,13 @@ mod tests {
         let mut out = String::new();
         arc_to(&mut out, 67, 400, 300, 200, Some((100, 200)), Some((1, 2)), 0, None, true);
         assert!(out.contains(",100,%3*256/1024,%4*256/1024,150,150,0,256,0,"), "{out}");
+    }
+
+    #[test]
+    fn a_stop_keeps_where_it_is() {
+        let mut out = String::new();
+        emit2(&mut out, 5, &[], MotionEnd::Keep, None, 0, &mut BTreeMap::new());
+        assert_eq!(out, "spmotion 67,2\n");
     }
 
     #[test]

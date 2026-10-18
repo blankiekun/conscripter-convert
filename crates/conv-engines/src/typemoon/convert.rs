@@ -814,7 +814,7 @@ impl Lowering<'_, '_> {
         // copies another's settings: then at the `_FADS`, which shows the copy's).
         let from = number(arg(18)).filter(|&s| (0..LAYERS as i32).contains(&s) && s as usize != n).map(|s| s as usize);
         if arg(1).is_empty() || from.is_none() {
-            self.stop_loop(n, &[]);
+            self.stop_loop(n, &[], false);
         } else {
             self.looping[n] = None;
         }
@@ -909,8 +909,8 @@ impl Lowering<'_, '_> {
         }
         let mut changed: Vec<usize> = (0..LAYERS).filter(|&s| want[s] != self.slots[s] || fades[s].is_some() || motions[s].is_some()).collect();
         // A loop goes on while its layer and children keep their IR layers, unchanged; else it
-        // stops, and starts again from the layer's new IR layer while the layer still runs it.
-        // shortcut: started again from its start, not where it was.
+        // stops, and starts again from the layer's new IR layer while the layer still runs it,
+        // with the old run's clock (CONscripter's `spmotionclock`).
         for (i, runs) in std::mem::take(&mut self.loop_runs) {
             let now: Vec<(usize, usize)> = (0..LAYERS).filter_map(|c| self.slot_layer[c].filter(|&j| j == i || self.descends(j, i)).map(|j| (c, j))).collect();
             let mut was = runs.clone();
@@ -918,6 +918,12 @@ impl Lowering<'_, '_> {
             if self.looping[i].is_some() && was == now && !runs.iter().any(|(c, _)| changed.contains(c)) {
                 self.loop_runs.push((i, runs));
                 continue;
+            }
+            let restart = self.looping[i].and(self.slot_layer.iter().position(|&l| l == Some(i))).is_some_and(|c| motions[c].is_none());
+            if let Some(&(from, _)) = runs.first().filter(|_| restart) {
+                // Only where the loop's spmotion comes next (a fade's would take the clock).
+                let to: Vec<usize> = now.iter().map(|&(d, _)| d).filter(|&d| fades[d].is_none() && want[d].as_ref().is_some_and(|l| self.look(l).is_ok())).collect();
+                self.ops.extend(to.into_iter().map(|d| Op::MotionClock { layer: d as u32, from: from as u32 }));
             }
             for (c, _) in runs {
                 self.ops.push(Op::SpriteMotion { layer: c as u32, keys: vec![], looped: false });
@@ -974,7 +980,7 @@ impl Lowering<'_, '_> {
         if m <= 0 {
             // src: exe 0x199620: motion 0 on both copies; the layer stays as the motion left it.
             // shortcut: a motion that doesn't loop runs on to its end (it has mostly ended by then).
-            self.stop_loop(n, &[]);
+            self.stop_loop(n, &[], true);
             if let Some(l) = self.staged[n].as_mut() {
                 l.motion = None;
             }
@@ -1059,7 +1065,7 @@ impl Lowering<'_, '_> {
         self.shown[i] = Some(shown);
         // A motion replaces the layer's loop: stopped where the new one doesn't run.
         let ran: Vec<usize> = moves.iter().map(|m| m.0).collect();
-        self.stop_loop(i, &ran);
+        self.stop_loop(i, &ran, false);
         let loop_from = motion.loop_from;
         let mut runs = Vec::new();
         for (c, start, keys) in moves {
@@ -1136,13 +1142,17 @@ impl Lowering<'_, '_> {
     /// Stops the loop layer `i`'s motion runs (`_STMA(i, 0)`, `_STCH`, a
     /// new motion), but on the IR layers in `keep`. The exe leaves the
     /// layer where the motion has it.
-    // shortcut: `spmotion n` puts the sprite back at its place (a loop's start, mostly where it ends).
-    fn stop_loop(&mut self, i: usize, keep: &[usize]) {
+    /// `here` stops it where it is (`_STMA(n, 0)`); else back at its place.
+    // shortcut: `_STCH` and a new motion put the sprite back at its place (it is placed or moved anew next).
+    fn stop_loop(&mut self, i: usize, keep: &[usize], here: bool) {
         self.looping[i] = None;
         let Some(at) = self.loop_runs.iter().position(|r| r.0 == i) else { return };
         for (slot, _) in self.loop_runs.remove(at).1 {
             if !keep.contains(&slot) {
-                self.ops.push(Op::SpriteMotion { layer: slot as u32, keys: vec![], looped: false });
+                self.ops.push(match here {
+                    true => Op::SpriteMotion2 { layer: slot as u32, keys: vec![], end: MotionEnd::Keep },
+                    false => Op::SpriteMotion { layer: slot as u32, keys: vec![], looped: false },
+                });
             }
         }
     }
@@ -1612,7 +1622,9 @@ mod tests {
             pic_ext: "webp",
             motions: vec![Motion { mask: u64::MAX, length_ms: 1500, keys: keys.clone(), loop_from }],
         };
+        // (None: a stop; `_STMA(n, 0)` stops it where it is, an empty Keep)
         let ends = |ops: &[Op]| ops.iter().filter_map(|o| match o {
+            Op::SpriteMotion2 { keys, end: MotionEnd::Keep, .. } if keys.is_empty() => Some(None),
             Op::SpriteMotion2 { end, .. } => Some(Some(*end)),
             Op::SpriteMotion { keys, .. } if keys.is_empty() => Some(None),
             _ => None,
@@ -1629,11 +1641,13 @@ mod tests {
         let src = "_STCH(1,img1,240,136);_FADS(1,0,0);_STMA(1,1);_STCH(0,img2,240,136,1000,255,5);_FADS(1,0,0);";
         let ops = compile(&g(src, 1)).ops;
         let layers: Vec<_> = ops.iter().filter_map(|o| match o {
-            Op::SpriteMotion2 { layer, .. } => Some((*layer, true)),
-            Op::SpriteMotion { layer, .. } => Some((*layer, false)),
+            Op::SpriteMotion2 { layer, .. } => Some((*layer, 2)),
+            Op::SpriteMotion { layer, .. } => Some((*layer, 0)),
+            Op::MotionClock { layer, from: 39 } => Some((*layer, 1)),
             _ => None,
         }).collect();
-        assert_eq!(layers, [(39, true), (39, false), (38, true)]);
+        // with the clock of the run it leaves
+        assert_eq!(layers, [(39, 2), (38, 1), (39, 0), (38, 2)]);
     }
 
     #[test]

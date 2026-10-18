@@ -307,6 +307,7 @@ impl<'a> Emitter<'a> {
             let curve = if fade.is_none() { ease::curve(ease, eased) } else { 0 };
             motion::emit2(out, *layer, keys, *end, fade, curve, eased);
         }
+        Op::MotionClock { layer, from } => writeln!(out, "spmotionclock {},{}", SPRITE_BASE + layer, SPRITE_BASE + from).unwrap(),
         Op::SpriteZoom { layer, x, y, from, to, ms } => {
             let ease = move_ease.take();
             let wait = !std::mem::take(move_nowait);
