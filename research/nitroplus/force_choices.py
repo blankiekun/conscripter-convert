@@ -8,10 +8,11 @@ Each FILE:N answers the next `select` in FILE (story file name without
 `dja004`; a file listed twice answers its first, then its second select)
 with option N. A path file is research/nitroplus/paths' format: its
 `FILE:N` lines are taken, `*` and the rest left out. In each select,
-`select` becomes `#keep_auto_and_skip=true;if(true)` (the games' option
-that turns auto mode back on after a choice), the case of option N `if(true)`, the other
-cases `if(false)`, and the line that turns auto mode off there
-(`if($SYSTEM_skip||$SYSTEM_text_auto)`) `if(false)`: every edit stays on
+`select` becomes `#keep_auto_and_skip=true;if(1)` (the games' option
+that turns auto mode back on after a choice), the case of option N `if(1)`, the other
+cases `if(0)` (`if(true)` reads as false in both exes: the trace showed no
+ChoiceA02 or ChoiceB02 run; the scripts write `while(1)`), and the line that turns auto mode off there
+(`if($SYSTEM_skip||$SYSTEM_text_auto)`) `if(0)`: every edit stays on
 its line, so the trace's lines are the shipped scripts' lines. The case
 names are `@選択肢N` / `選択肢N` (装甲悪鬼村正, 続・殺戮のジャンゴ).
 """
@@ -30,13 +31,13 @@ def force(text, answers):
         while not re.fullmatch(r'\s*select\s*\r?', lines[i]):
             i += 1
         # the game's own "keep auto mode past a choice" option: SetChoice turns it off
-        lines[i] = lines[i].replace('select', '#keep_auto_and_skip=true;if(true)', 1)
+        lines[i] = lines[i].replace('select', '#keep_auto_and_skip=true;if(1)', 1)
         depth, opened = 0, False
         while True:
             i += 1
             code = lines[i].split('//', 1)[0]
-            code = CASE.sub(lambda m: 'if(true)' if int(m[1].translate(FW)) == answers[done] else 'if(false)', code)
-            code = code.replace(OFF, 'if(false)')
+            code = CASE.sub(lambda m: 'if(1)' if int(m[1].translate(FW)) == answers[done] else 'if(0)', code)
+            code = code.replace(OFF, 'if(0)')
             rest = lines[i][len(lines[i].split('//', 1)[0]):]
             lines[i] = code + rest
             depth += code.count('{') - code.count('}')
@@ -81,7 +82,7 @@ if __name__ == '__main__':
             '\t\t\tb;\r\n\t\t}case\t@選択肢２{\r\n\t\t\tc;\r\n\t\t}\r\n\t}\r\ny\r\n'
         r = force(s, [2])
         assert r.count('\n') == s.count('\n') and '\tselect' not in r and 'case' not in r
-        assert '\t\tif(false){\r' in r and '}if(true){' in r and 'if(false){a;}' in r, r
+        assert '\t\tif(0){\r' in r and '}if(1){' in r and 'if(0){a;}' in r, r
         print('ok')
     else:
         main()
