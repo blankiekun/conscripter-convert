@@ -467,12 +467,6 @@ build tested headless. Output 960×544.
   Sprite at (640, 560) and SpriteBG at (640 - w/2, 360 - h/2); ours
   centres it (no script relies on it). The characters' has-a-place
   flag (+0x44 in CharacterOpen's record) has no reader traced.
-- SpriteMove `:Scale -2` (S01_05B, once): the eboot turns the picture
-  180° at 2× (the zoom goes straight through 0 to it); ours clamps to 0,
-  so the picture shrinks away. Found by running the sprite quad
-  (0x8103d53c) under `research/tools/exe_call.py` (2026-10-18): a
-  negative scale negates both corner offsets, same UVs and vertex order.
-  To convert: |scale| with a 180° turn (`spmotion2`).
 - Unknown in the eboot (`docs/games/oretsuba.findings.tsv`: 88 rows,
   5 unknown): keys with no value (6; inferred 0), the
   voice ducking's level and ramp (ours 50 %, 200/400 ms), where `Tag`
@@ -529,6 +523,13 @@ runs" (`engine/tools/cons_trace_check.py t.jsonl --script 0.txt
 --config research/oretsuba/cons_trace_check.json`).
 
 ## History
+
+- SpriteMove `:Scale -2` (S01_05B, once): the eboot turns the picture
+  180° at 2× (the zoom goes straight through 0 to it); ours clamps to 0,
+  so the picture shrinks away. Found by running the sprite quad
+  (0x8103d53c) under `research/tools/exe_call.py` (2026-10-18): a
+  negative scale negates both corner offsets, same UVs and vertex order.
+  Converted (SpriteZoom's `to` is signed; `spzoom`/`spmotion` zoom a negative percent as a flip both ways = the 180° turn): the zoom goes through 0 to -200 as in the eboot. Dry run: S01_05B's `spmotion 270` ends at -200,-200. Not filmed.
 
 Finished work, moved out of "Status" so a session reads only the open
 state.
@@ -798,9 +799,6 @@ into updates or turned into ms, as ours. Fixed from it: MoviePlay
 both explained: `chvolfade -1` (65,497: the music ducking under each
 message, -1 is the music channel) and `spmotion` 20000 ms (9: SpriteMove
 `:Time 1200`, S03C_02B's 20-second pan). Open questions:
-- SpriteMove `:Scale -2` (S01_05B, once): the eboot stores it as is;
-  ours clamps it to 0, so the picture shrinks away. Whether a negative
-  scale mirrors the quad: unknown (the corner maths of the sprite quad).
 - A key with no value (6: two `:FadeWait`, two `:Fade`, a `:Rule`, a
   `:SpriteMax`) is 0 if the parser (0x8108cc48) keeps the key, ours the
   default: inferred, the parser's value states not decompiled.

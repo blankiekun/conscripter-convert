@@ -600,7 +600,7 @@ impl Lowering<'_> {
         // A new picture on the layer would keep the old one's zoom.
         let zoom = self.scale;
         if zoom != 100 || self.shown.get(key).is_some_and(|old| old.layer == layer && old.zoom != 100) {
-            self.out.ops.push(Op::SpriteZoom { layer, x: cx, y: cy, from: zoom, to: zoom, ms: 0 });
+            self.out.ops.push(Op::SpriteZoom { layer, x: cx, y: cy, from: zoom, to: zoom as i32, ms: 0 });
         }
         self.shown.insert(key.to_string(), Shown { layer, tex, x: cx, y: cy, image: path, w, h, base_y: cy, look, zoom, motion: None });
         if opened {
@@ -645,7 +645,7 @@ impl Lowering<'_> {
         self.out.ops.push(Op::Sprites { changes, fade_ms: 0 });
         self.apply_look(layer, &s.look);
         if s.zoom != 100 {
-            self.out.ops.push(Op::SpriteZoom { layer, x: s.x, y: s.y, from: 100, to: s.zoom, ms: 0 });
+            self.out.ops.push(Op::SpriteZoom { layer, x: s.x, y: s.y, from: 100, to: s.zoom as i32, ms: 0 });
         }
         self.shown.insert(key.to_string(), Shown { layer, ..s });
     }
@@ -1356,7 +1356,11 @@ impl Lowering<'_> {
                 let time = ms(t.int("Time").unwrap_or(0));
                 // `:Scale` zooms the picture about its centre (a camera
                 // zoom); without it the zoom stays.
-                let zoom = t.float("Scale").map_or(s.zoom, |f| (f * 100.0).round() as u32);
+                // A negative one turns it 180° (the eboot's quad negates
+                // both corner offsets, 0x8103d53c; S01_05B's -2): the zoom
+                // goes through 0 to it. Kept as its size, upright.
+                let scale = t.float("Scale").map_or(s.zoom as i32, |f| (f * 100.0).round() as i32);
+                let zoom = scale.unsigned_abs();
                 let motion = self.no_wait(t, time);
                 let eased = self.ease(t);
                 // `:Curve c` bows the move by c/2 of its length at halfway
@@ -1368,8 +1372,8 @@ impl Lowering<'_> {
                 }
                 // A zoomed picture moves with spzoom too, which redraws
                 // where its zoomed picture was.
-                if zoom != s.zoom || zoom != 100 {
-                    self.out.ops.push(Op::SpriteZoom { layer: s.layer, x, y, from: s.zoom, to: zoom, ms: time });
+                if zoom != s.zoom || scale != 100 {
+                    self.out.ops.push(Op::SpriteZoom { layer: s.layer, x, y, from: s.zoom, to: scale, ms: time });
                 } else {
                     self.out.ops.push(Op::SpriteMove { layer: s.layer, x, y, ms: time });
                 }

@@ -90,7 +90,7 @@ pub(crate) fn alpha_loop(times: u32) -> i64 {
 /// motion the sprite had ends. A fade in over `fade` ms started with it
 /// goes into its alpha. Uses %1-%4.
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn move_to(out: &mut String, slot: u32, x: i32, y: i32, ms: u32, zoom: Option<(u32, u32)>, curve: u32, fade: Option<u32>, wait: bool) {
+pub(crate) fn move_to(out: &mut String, slot: u32, x: i32, y: i32, ms: u32, zoom: Option<(u32, i32)>, curve: u32, fade: Option<u32>, wait: bool) {
     let (from, to) = start_zoom(out, slot, zoom);
     // shortcut: a fade goes in at the two keys only (the place is an expression), so it lasts as long as the move; add a key between when a game's fades must keep their own length.
     let (a0, a1) = fade.map_or((256, 256), |f| (0, faded(ms, f)));
@@ -104,11 +104,11 @@ pub(crate) fn move_to(out: &mut String, slot: u32, x: i32, y: i32, ms: u32, zoom
 
 /// Sets the zoom a move starts from (spzoom); the motion's zoom keys
 /// (percent of it) at its start and end.
-fn start_zoom(out: &mut String, slot: u32, zoom: Option<(u32, u32)>) -> (u32, u32) {
+fn start_zoom(out: &mut String, slot: u32, zoom: Option<(u32, i32)>) -> (i32, i32) {
     match zoom {
         Some((from, to)) if from > 0 => {
             write!(out, "spzoom {slot},{from}:").unwrap();
-            (100, to * 100 / from)
+            (100, to * 100 / from as i32)
         }
         Some((_, to)) => {
             write!(out, "spzoom {slot},{to}:").unwrap();
@@ -123,7 +123,7 @@ fn start_zoom(out: &mut String, slot: u32, zoom: Option<(u32, u32)>) -> (u32, u3
 /// by `ease` ([`crate::ease::eased`]), the zoom and the fade straight
 /// with the time. The move (the offset to its end) goes in %3, %4.
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn arc_to(out: &mut String, slot: u32, x: i32, y: i32, ms: u32, zoom: Option<(u32, u32)>, ease: Option<(u8, u32)>, bow: i32, fade: Option<u32>, wait: bool) {
+pub(crate) fn arc_to(out: &mut String, slot: u32, x: i32, y: i32, ms: u32, zoom: Option<(u32, i32)>, ease: Option<(u8, u32)>, bow: i32, fade: Option<u32>, wait: bool) {
     let (from, to) = start_zoom(out, slot, zoom);
     let (a0, a1) = fade.map_or((256, 256), |f| (0, faded(ms, f)));
     writeln!(out, "getspsize {slot},%1,%2:getsppos {slot},%3,%4:mov %3,{x}-%1/2-%3:mov %4,{y}-%2/2-%4").unwrap();
@@ -142,7 +142,7 @@ pub(crate) fn arc_to(out: &mut String, slot: u32, x: i32, y: i32, ms: u32, zoom:
         let h = f64::from(bow) / 1000.0 * (std::f64::consts::PI * t).sin() / 2.0;
         let (a, b) = ((t * 1024.0).round() as i64, (h * 1024.0).round() as i64);
         let ms_i = ms * i / n;
-        let z = (i64::from(from) + (i64::from(to) - i64::from(from)) * i64::from(i) / i64::from(n)) as u32;
+        let z = i64::from(from) + (i64::from(to) - i64::from(from)) * i64::from(i) / i64::from(n);
         let alpha = (i64::from(a0) + (i64::from(a1) - i64::from(a0)) * i64::from(i) / i64::from(n)) as u32;
         let (kx, ky) = (format!("{}{}", term(3, a), term(4, b)), format!("{}{}", term(4, a), term(3, -b)));
         let k = |s: &str| if s.is_empty() { "0".to_string() } else { s.trim_start_matches('+').to_string() };

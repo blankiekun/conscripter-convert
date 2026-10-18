@@ -9,7 +9,7 @@ use crate::SPRITE_BASE;
 /// Writes a zoom of layer `layer`, along `curve` over time (0 straight, or
 /// an `spcurve` id, [`crate::ease`]).
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn emit(out: &mut String, layer: u32, x: i32, y: i32, from: u32, to: u32, ms: u32, in_transition: bool, curve: u32, wait: bool) {
+pub(crate) fn emit(out: &mut String, layer: u32, x: i32, y: i32, from: u32, to: i32, ms: u32, in_transition: bool, curve: u32, wait: bool) {
     let slot = SPRITE_BASE + layer;
     if ms > 0 && !in_transition {
         crate::motion::move_to(out, slot, x, y, ms, Some((from, to)), curve, None, wait);
