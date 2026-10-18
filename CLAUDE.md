@@ -91,6 +91,10 @@ not in the repo.
   times it emits, trace records, `compare -metric`). Start wine only
   when that leaves a real doubt that a frame can settle, say so in your
   report, and film the fewest frames that answer it.
+  Exception (the user, 2026-10-18): a quick check that a generated save
+  (or patched script) takes straight to the moment may run at once,
+  without waiting for a filming session; keep it to a few frames and
+  mind the tokens it costs.
 
 ## Working beside other agents
 
@@ -212,7 +216,8 @@ on each later turn; several agents run at once.
   `research/<engine>/local/shots/` (git-ignored) with a name that says
   what they show; reuse them before starting wine again. Search
   `research/tools/shots.py find <words>` first, `shots.py add` every
-  new shot; park a doubt only the original can settle in
+  new shot; a quick check from a generated save may run at once (Rules),
+  anything longer: park a doubt only the original can settle in
   `research/<engine>/local/film-list.md` (docs/new-game.md, "Film
   list"). A hook refuses wine/Xvfb/Vita3K/Ryujinx run outside
   `research/tools/headless-run.sh`.

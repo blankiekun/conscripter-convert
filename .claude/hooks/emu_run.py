@@ -14,8 +14,9 @@ CMD = re.compile(r"(?:^|[;&|(`]|\$\()\s*(?:(?:\w+=\S*|sudo|env|nohup|exec|time|t
                  r"(?:\S*/)?(wine|wine64|wineserver|winedbg|Vita3K\S*|Ryujinx\S*|Xvfb)(?:\s|$)")
 MSG = ("Run the original only through research/tools/headless-run.sh <cmd> (own Xvfb, no audio, "
        "never the user's desktop) or the wrappers xtrace.sh, ntrace.sh, vita-emu.sh, switch-emu.sh. "
-       "First search research/tools/shots.py find <words>, then add the doubt to "
-       "research/<engine>/local/film-list.md (docs/new-game.md, \"Film list\") and go on: "
+       "First search research/tools/shots.py find <words>. A quick check from a generated save may run "
+       "through headless-run.sh now; anything longer goes in "
+       "research/<engine>/local/film-list.md (docs/new-game.md, \"Film list\"): "
        "a session films the whole list at once.")
 
 
