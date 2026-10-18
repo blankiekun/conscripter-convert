@@ -1320,14 +1320,17 @@ struct SoundObject {
     len_ms: Option<u32>,
     /// `SetPan`: -1000 (left) .. 1000 (right), for its next `Play` too.
     pan: i64,
-    /// `SetFrequency` before it started: its rate (per mille) and ramp ms.
-    rate: Option<(u32, u32)>,
+    /// `SetFrequency` before it started: its rate (per mille), ramp ms and tempo.
+    rate: Option<Ramp>,
     /// The rate it plays at (per mille; 1000 its own).
     freq: u32,
     /// Faded to 0 by `SetVolume`: when it stops ([`Compiler::sound_clock`]),
     /// as the exe's fade thread (`0x459980`) stops it at the fade's end.
     stops_at: Option<u64>,
 }
+
+/// A sound's ramp: to (per mille), over ms, along a tempo ([`Op::SoundEase`]).
+type Ramp = (u32, u32, Option<(u8, u32)>);
 
 /// A game's reading of a tempo as [`Op::MoveEase`]'s (ease, exponent).
 type Tempo = fn(&Value) -> Option<(u8, u32)>;
@@ -3485,9 +3488,9 @@ impl<'a, 'b> Compiler<'a, 'b> {
     // -- sound --------------------------------------------------------------
 
     /// `SetFrequency`: a sound effect's speed and pitch (per mille) over
-    /// `ms`; one that hasn't started yet starts with it. (Its tempo curve,
-    /// the 4th argument, is drawn straight.)
-    fn set_frequency(&mut self, target: &Value, ms: i64, rate: i64) {
+    /// `ms` along `ease` (its tempo, as `Move`'s: `FUN_00478570`); one
+    /// that hasn't started yet starts with it.
+    fn set_frequency(&mut self, target: &Value, ms: i64, rate: i64, ease: Option<(u8, u32)>) {
         let (ms, rate) = (ms.max(0) as u32, rate.clamp(100, 4000) as u32);
         for t in self.matching(target) {
             let Some(Object { kind: Kind::Sound(s), .. }) = self.objects.get_mut(&t) else { continue };
@@ -3497,15 +3500,24 @@ impl<'a, 'b> Compiler<'a, 'b> {
                     self.note("SetFrequency on music");
                 }
             } else if s.starting {
-                s.rate = Some((rate, ms));
+                s.rate = Some((rate, ms, ease));
             } else if let Some(file) = s.playing.clone().filter(|_| s.freq != rate) {
                 s.freq = rate;
+                self.sound_ease(ease, ms);
                 self.ops.push(Op::SoundRate { file, rate, ms });
             }
         }
     }
 
-    fn set_volume(&mut self, target: &Value, ms: i64, volume: i64) {
+    /// Before a sound ramp over `ms`: its curve, if eased.
+    fn sound_ease(&mut self, ease: Option<(u8, u32)>, ms: u32) {
+        if let Some((ease, exponent)) = ease.filter(|_| ms > 0) {
+            self.ops.push(Op::SoundEase { ease, exponent });
+        }
+    }
+
+    /// `SetVolume`: over `ms` along `ease` (its tempo, as `SetFrequency`'s).
+    fn set_volume(&mut self, target: &Value, ms: i64, volume: i64, ease: Option<(u8, u32)>) {
         let ms = ms.max(0) as u32;
         let now = self.sound_clock();
         for t in self.matching(target) {
@@ -3517,7 +3529,13 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 // Reaching 0 stops it (`WaitPlay` waits for the fade).
                 let file = s.playing.take().unwrap();
                 s.stops_at = Some(now + u64::from(ms));
-                self.ops.push(match (s.bgm, ms) {
+                let bgm = s.bgm;
+                if bgm && ease.is_some() && ms > 0 {
+                    self.note("SetVolume tempo of a music fade-out drawn straight");
+                } else {
+                    self.sound_ease(ease, ms);
+                }
+                self.ops.push(match (bgm, ms) {
                     (true, _) => Op::BgmStop { fade_out_ms: ms },
                     (false, 0) => Op::SeStop { file: Some(file) },
                     (false, ms) => Op::SeFadeOut { file: Some(file), ms },
@@ -3525,6 +3543,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
             } else if let Some(file) = &s.playing {
                 s.volume = volume;
                 let file = (!s.bgm).then(|| file.clone());
+                self.sound_ease(ease, ms);
                 self.ops.push(Op::SoundVolume { file, percent: percent(volume), ms });
             } else {
                 s.volume = volume;
@@ -3614,8 +3633,9 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 self.ops.push(Op::SePlay { file: file.clone(), looped });
                 if let Some(Object { kind: Kind::Sound(s), .. }) = self.objects.get_mut(&name) {
                     s.freq = 1000;
-                    if let Some((rate, ms)) = s.rate.take().filter(|&(rate, _)| rate != 1000) {
+                    if let Some((rate, ms, ease)) = s.rate.take().filter(|&(rate, _, _)| rate != 1000) {
                         s.freq = rate;
+                        self.sound_ease(ease, ms);
                         self.ops.push(Op::SoundRate { file: file.clone(), rate, ms });
                     }
                 }

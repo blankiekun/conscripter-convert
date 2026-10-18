@@ -77,7 +77,7 @@ The other convert options (`--loose`, `--audio-codec`,
 | Parallel processes (`CreateProcess`: battle HUD, fire flicker, …) | 🟡 Endless loops of timed actions (`FlyMoving*`, `TurboBlur*`, `RotetoLoop*`, the clouds, `ma_03_SBProcess`, …) as looping `spmotion`, also behind an `if` and after a lead-in (the cockpit meters); the one-shots next (Status) |
 | Additive / multiply / subtractive blends (`Request` `AddRender`/`MulRender`/`SubRender`) | ✅ `spblend` 1/2/3 (History, "Render modes") |
 | `Rotate`, camera moves | 🟡 `Rotate` about z; cameras as 続・殺戮のジャンゴ's (Status) |
-| `SetFrequency` (pitch bends) | ✅ `chfreq` (tempo curve drawn straight) |
+| `SetFrequency` (pitch bends) | ✅ `chfreq` (along its tempo) |
 | 立方陣 minigame (`function_magiccube.nss`) | ✅ Ported (see "The 立方陣" below) |
 | System screens (title, save/load, settings, backlog) | ✅ Title, right-click menu, quick bar, confirmations, save/load, backlog, settings, favour screen, click-wait icon (each checked beside the original); 🟡 the title's fire flicker and openings left ("Next" item 4, step 7) |
 | Extras | ✅ The menu, CG gallery, sound room, recollection, 3D viewer, the way back to the title and the title's ライナー画像 link ("History", extras 1-7) |
@@ -670,8 +670,7 @@ dry run sees, marked seen/inferred/unknown with the exe address
 arguments that change nothing (#366), a shake growing from 0 px (#374),
 `SetVertex` in lower case only (#380), the colour names (#383),
 `DrawTransition`'s softness and fade-out direction (#386, engine #138).
-Open: sound fades with a tempo
-(9 `SetVolume`, 37 `SetFrequency`) go straight; `SetFrequency` on music
+Open: `SetFrequency` on music
 (1,486); `CreateSurface`/`SetSurface`, `Position`, `CreateMovie`'s
 arguments, `Delete`'s 1-2 unknown. Names were carried from Django.exe by
 hand (SetPan, Fade, SetVertex, colours), not by a version-tracking match
@@ -1271,6 +1270,17 @@ out on purpose.
   held (seen once in a small test script; not looked into).
 
 ## History
+
+### Eased sound ramps (2026-10-18)
+
+`SetVolume` and `SetFrequency` build their steps by the tempo as `Move`
+does (`FUN_00478570` → `apply_tempo`); ours were straight. Now the
+compiler puts `Op::SoundEase` before the ramp and conv-cons gives
+`chvolfade`/`chfreq` the curve (engine #145: an optional curve; a
+stop's fade-out goes along it, then the sound is halted): 32 `chfreq`
+and 7 `chvolfade` in the dry run. Still straight: the music's eased
+fade-out (mc02_013, `bgmfadeout`; noted) and a sound's fade-in as it
+starts (`dwavefadein`).
 
 ### Zoom to 0 (2026-10-18)
 

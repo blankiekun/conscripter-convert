@@ -875,10 +875,13 @@ impl<'a> Emitter<'a> {
                 Some(file) => se.stop(file).into_iter().collect(),
                 None => se.stop_all(),
             };
+            let curve = sound_curve(script, i, eased).map_or(String::new(), |c| format!(",{c}"));
             for ch in channels {
-                writeln!(out, "chvolfade {ch},0,{ms},1").unwrap();
+                writeln!(out, "chvolfade {ch},0,{ms},1{curve}").unwrap();
             }
         }
+        // (Read by the sound op after it.)
+        Op::SoundEase { .. } => {}
         Op::SoundVolume { file, percent, ms } => {
             // Right before the sound starts: for the channel it will
             // play on (CONscripter keeps a channel's volume for its next
@@ -889,7 +892,11 @@ impl<'a> Emitter<'a> {
                 (Some(f), Some(Op::SePlay { file: g, .. })) => f == g,
                 _ => false,
             };
-            let ms = if *ms > 0 { format!(",{ms}") } else { String::new() };
+            let ms = match sound_curve(script, i, eased) {
+                Some(c) if *ms > 0 => format!(",{ms},0,{c}"),
+                _ if *ms > 0 => format!(",{ms}"),
+                _ => String::new(),
+            };
             match file {
                 None => writeln!(out, "chvolfade -1,{percent}{ms}").unwrap(),
                 Some(f) => {
@@ -918,7 +925,11 @@ impl<'a> Emitter<'a> {
         }
         Op::SoundRate { file, rate, ms } => {
             if let Some(ch) = se.playing.get(file) {
-                let ms = if *ms > 0 { format!(",{ms}") } else { String::new() };
+                let ms = match sound_curve(script, i, eased) {
+                    Some(c) if *ms > 0 => format!(",{ms},{c}"),
+                    _ if *ms > 0 => format!(",{ms}"),
+                    _ => String::new(),
+                };
                 writeln!(out, "chfreq {ch},{rate}{ms}").unwrap();
             }
         }
@@ -1034,5 +1045,15 @@ impl<'a> Emitter<'a> {
             *picture_screens += 1;
         }
     }
+    }
+}
+
+/// The `chvolfade`/`chfreq` curve of the sound op at `i`: the
+/// [`Op::SoundEase`] right before it, as an `spmotion` curve (`None`
+/// straight).
+fn sound_curve(script: &Script, i: usize, eased: &mut BTreeMap<(u8, u32), u32>) -> Option<u32> {
+    match i.checked_sub(1).and_then(|j| script.ops.get(j)) {
+        Some(&Op::SoundEase { ease, exponent }) => Some(crate::ease::curve(Some((ease, exponent)), eased)).filter(|&c| c > 0),
+        _ => None,
     }
 }

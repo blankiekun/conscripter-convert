@@ -902,10 +902,7 @@ impl Compiler<'_, '_> {
             "SetVolume" => {
                 // src: Muramasa.exe sound_set_volume 00475f50: time 0 sets the volume at
                 // once; only a fade builds its steps by the tempo (00478570).
-                if arg(1).int() <= 0 {
-                    arg(3);
-                }
-                self.set_volume(&arg(0), arg(1).int(), arg(2).int())
+                self.set_volume(&arg(0), arg(1).int(), arg(2).int(), tempo(&arg(3)))
             }
             "SetPan" => self.set_pan(&arg(0), arg(1).int(), arg(2).int()),
             "SetLoopPoint" => {
@@ -925,7 +922,7 @@ impl Compiler<'_, '_> {
                     }
                 }
             }
-            "SetFrequency" => self.set_frequency(&arg(0), arg(1).int(), arg(2).int()),
+            "SetFrequency" => self.set_frequency(&arg(0), arg(1).int(), arg(2).int(), tempo(&arg(3))),
             // A sound: its length (it has only just started); played
             // through for PassageTime, whose busy loops (mc01_017vs waits
             // for its song's end) can't be waited out here.
