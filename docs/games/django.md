@@ -690,7 +690,7 @@ script's times add up). What it took, shared NSS code:
   from 0 with the move when the fade takes as long and the script
   doesn't wait it out (it showed upright, faded in by the cross-fade).
   Story pages change too: 21 pictures sliding in now fade in over their
-  slide (e.g. 300 ms, not the 100 ms cross-fade); 127 in 装甲悪鬼村正.
+  slide (e.g. 300 ms, not the 100 ms cross-fade); 128 in 装甲悪鬼村正.
 - A loop process whose timed actions come after a wait before the loop
   (`TumbleweedMove`: still 3 s, faded in and rolled once, 3 s, then the
   loop) plays them on paper as the motion's lead-in (`spmotion` loop 4);
