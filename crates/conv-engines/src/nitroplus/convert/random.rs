@@ -26,7 +26,7 @@ const MAX_OPS: usize = 6000;
 #[derive(Clone)]
 pub(super) struct Extra {
     clock_ms: u64,
-    vanishing: HashMap<String, u64>,
+    vanishing: BTreeMap<String, u64>,
     motion_until: HashMap<String, u64>,
     unwaited_motions: std::collections::HashSet<String>,
     runs: BTreeMap<String, super::Run>,

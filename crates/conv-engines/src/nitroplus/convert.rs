@@ -1630,8 +1630,8 @@ struct Compiler<'a, 'b> {
     /// The objects with a `Fade` over time pending (its ms).
     pending_fade: HashMap<String, u32>,
     /// Pictures moving as they fade out to 0, drawn till then
-    /// ([`Compiler::sound_clock`] ms).
-    vanishing: HashMap<String, u64>,
+    /// ([`Compiler::sound_clock`] ms). Ordered: sync.rs emits its keys.
+    vanishing: BTreeMap<String, u64>,
     /// When each picture's motion started at a sync ends
     /// ([`Compiler::sound_clock`] ms): its layer stays when the layers
     /// spread out again, so the engine's motion goes on.
@@ -2509,7 +2509,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
             transition_soft: None,
             pending_turn: HashMap::new(),
             pending_fade: HashMap::new(),
-            vanishing: HashMap::new(),
+            vanishing: BTreeMap::new(),
             motion_until: HashMap::new(),
             unwaited_motions: Default::default(),
             disused_fading: Vec::new(),
