@@ -10,7 +10,7 @@ and saves stay valid because `0.txt` is the same either way.
 
 Phase 1 (done): the design, and Django's NPA read in place
 (`--original-archives`). Phase 2: the other formats, one PR each
-(order at the end).
+(order at the end); done: Muramasa's zlib NPAs.
 
 ## The model
 
@@ -82,7 +82,7 @@ published figures for the libraries, not measured here.
 | Format (game) | Container, crypto, packing | Inside | Run-time cost | Verdict |
 |---|---|---|---|---|
 | NPA, uncompressed (Django: `cg`, `cg2`, `sound`, `voice`) | index with encrypted names; first `0x1000 + len(name)` bytes of each entry through a 256-byte table | PNG, JPEG, BMP, Ogg Vorbis | 4 KB table lookups: nothing | **done** |
-| NPA, zlib (Muramasa: every archive) | as above, then zlib per entry | PNG, JPEG, Ogg (zlib gains little on them) | inflate: ~300 MB/s desktop, ~50 MB/s weak, ~150 MB/s web; a 1 MB picture 3-20 ms | run time; needs inflate in the engine |
+| NPA, zlib (Muramasa: every archive) | as above, then zlib per entry | PNG, JPEG, Ogg (zlib gains little on them) | inflate: ~300 MB/s desktop, ~50 MB/s weak, ~150 MB/s web; a 1 MB picture 3-20 ms | **done**: the engine's own inflater (puff-style, no library) |
 | NPK3 (Muramasa EN) | AES-256-CBC index and data segments, then zstd per segment | lossless WebP (`.png` names), Ogg, TTF | AES ~1 GB/s with AES-NI, ~30-100 MB/s software (weak, web); zstd ~500 MB/s; WebP lossless decode is the larger cost (~30 ms for 1024×576 desktop) | run time; AES + zstd decoder |
 | MRG/MZP + NXGZ/NXCX + BNTX (月姫, Switch) | `.hed`/`.mrg`/`.nam` index, MZP sectors, gzip/deflate | BNTX: Tegra block-linear swizzled BC7 (BC4 masks) at up to 886×4160 | inflate + deswizzle + BC7: ~100 Mpx/s desktop, 10-20 weak/web; a 3.7 Mpx sprite 40 ms desktop, 200-400 ms weak/web, per expression change; 16 GB of archives | **convert** the pictures (or a decode-once disk cache, phase 3); read scripts' text, Opus voices and movies in place |
 | `stream/*.opus` (月姫) | loose files, Nintendo Opus framing | Opus 48 kHz | rewrap the header in Ogg: nothing (decode as today) | run time (`|nxopus`) |
@@ -194,10 +194,14 @@ converter PR).
 
 ## Phase 2, per format, in order
 
-1. **Muramasa NPA** (zlib): inflate in the engine (link zlib on every
-   platform); converter `--original-archives` for Muramasa; check as
-   Django was (AE 0 per page shot). Then the converter reads its zoom
-   sources from the archive.
+1. **Muramasa NPA** (zlib), done: the engine inflates with its own
+   decoder (zlib isn't linked on libretro, MSVC or Android). Whole
+   story: `0.txt` byte-identical; folder 3.6 GB → 889 MB (737 MB of it
+   `system/zoom`); build 381 → 307 s; 90 s headless auto-play reached
+   more pages (4,552 against 4,104), 80 page shots AE 0, engine memory
+   402 → 360 MB. `--english` is refused for now (the engine looks in the
+   NPAs before `arc.nsa`, so the Japanese pictures would win). Left: the
+   converter reads its zoom sources from the archive.
 2. **Web player**: folder picker / drop, `consPreload` over `File`
    ranges, tried headless in Chromium with `web_run.py`.
 3. **最果てのイマ** (XARC, XSA, GAF4): `xarc` lines and `=` lines for
