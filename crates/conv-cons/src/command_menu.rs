@@ -99,7 +99,7 @@ pub(crate) fn emit(out: &mut String, m: &CommandMenu, bar: &ButtonBar, picture_r
         w(line.clone());
     }
     w("print 1".into());
-    if m.key.is_some() || m.items.iter().any(|i| i.key.is_some()) {
+    if m.key.is_some() || m.items.iter().any(|i| i.key.is_some()) || !m.keys.is_empty() {
         w("getkey".into());
     }
     w(format!("btnwait {BUTTON_VAR}"));
@@ -115,8 +115,21 @@ pub(crate) fn emit(out: &mut String, m: &CommandMenu, bar: &ButtonBar, picture_r
     for i in 0..m.items.len() {
         w(format!("if {BUTTON_VAR} == {} goto *conv_cmd_item{i}", i + 1));
     }
+    for (j, &(k, _)) in m.keys.iter().enumerate() {
+        w(format!("if {BUTTON_VAR} == {} goto *conv_cmd_key{j}", key_code(k)));
+    }
     w(format!("goto *{WAIT}"));
 
+    for (j, &(_, a)) in m.keys.iter().enumerate() {
+        assert!(!matches!(a, BarAction::Call | BarAction::Close), "a key-only {a:?} in the command menu");
+        w(format!("*conv_cmd_key{j}"));
+        w(match a {
+            a if goes_on(a) => format!("gosub *{CLOSE}:mov {GO_ON},1:goto *{}", bar_label(a)),
+            BarAction::HideWindow => format!("gosub *{CLOSE}:goto *{}", bar_label(a)),
+            BarAction::Save | BarAction::Load | BarAction::Log | BarAction::Settings => format!("gosub *{HIDE}:gosub *{}:gosub *{SHOW}:goto *{WAIT}", bar_label(a)),
+            _ => format!("gosub *{}:goto *{WAIT}", bar_label(a)),
+        });
+    }
     for (i, it) in m.items.iter().enumerate() {
         w(format!("*conv_cmd_item{i}"));
         let label = bar_label(it.action);
@@ -204,6 +217,7 @@ mod tests {
             step_ms: 10,
             key: Some('M'),
             pressed: true,
+            keys: vec![],
         }
     }
 

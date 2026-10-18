@@ -91,7 +91,7 @@ pub(crate) fn pad_hide_key(menu: Option<&CommandMenu>) -> Option<String> {
 
 /// The waits read letters (`getkey`): the command menu has key shortcuts.
 fn reads_keys(menu: Option<&CommandMenu>) -> bool {
-    menu.is_some_and(|m| m.key.is_some() || m.items.iter().any(|i| i.key.is_some()))
+    menu.is_some_and(|m| m.key.is_some() || m.items.iter().any(|i| i.key.is_some()) || !m.keys.is_empty())
 }
 
 /// The value CONscripter's `getkey` makes `btnwait` return for a letter.
@@ -230,7 +230,8 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, s: BarScreens) {
     w(TOP_SPRITES2.map(|n| format!("csp2 {n}")).collect::<Vec<_>>().join(":"));
     w("return".into());
 
-    let all_actions: Vec<BarAction> = bar.buttons.iter().map(|b| b.action).chain(menu_items.iter().map(|i| i.action)).collect();
+    let menu_keys = menu.map_or(&[][..], |m| &m.keys[..]);
+    let all_actions: Vec<BarAction> = bar.buttons.iter().map(|b| b.action).chain(menu_items.iter().map(|i| i.action)).chain(menu_keys.iter().map(|k| k.1)).collect();
     let state = all_actions.iter().any(|&a| disabled_while(a, s.picture_replay).is_some());
     if state {
         w(format!("*{BAR_STATE}"));
@@ -372,6 +373,10 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, s: BarScreens) {
         };
         w(format!("if {BUTTON_VAR} == {} {go}goto *{target}", key_code(k)));
     }
+    for &(k, a) in menu_keys {
+        let go = if goes_on(a) { format!("mov {},1:", crate::command_menu::GO_ON) } else { String::new() };
+        w(format!("if {BUTTON_VAR} == {} {go}goto *{}", key_code(k), bar_label(a)));
+    }
     w(format!("if {BUTTON_VAR} == -2 goto *conv_bar_log"));
     if bar.top.is_some() {
         let last = BTN_SCENE_ROW + SCENE_ROWS as i32;
@@ -491,5 +496,5 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, s: BarScreens) {
 
 /// The bar or the command menu can go back to the last choice.
 pub(crate) fn has_back_to_choice(bar: &ButtonBar, menu: Option<&CommandMenu>) -> bool {
-    bar.buttons.iter().any(|b| b.action == BarAction::BackToChoice) || menu.is_some_and(|m| m.items.iter().any(|i| i.action == BarAction::BackToChoice))
+    bar.buttons.iter().any(|b| b.action == BarAction::BackToChoice) || menu.is_some_and(|m| m.items.iter().any(|i| i.action == BarAction::BackToChoice) || m.keys.iter().any(|k| k.1 == BarAction::BackToChoice))
 }

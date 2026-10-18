@@ -43,7 +43,7 @@ before the 2026-10-18 prune" and the sections after it).
   on the port's plates, and the port's `LANG_NAME` text-area lines are in.
 - Port screens: title, command menu, choices, line log, save/load
   (compared with the original under wine), settings, questions, click
-  icon, quick bar. The extras' menu, CG gallery, backlog, save/load are
+  icon, quick bar, back to the choice on R (no menu row, as the port). The extras' menu, CG gallery, backlog, save/load are
   the engine's `screen`s (0 px against main's routines).
 - Text box matches the original pixel for pixel in the text area
   (`ma00_000`); the text speed and volume curves are the exe's.
@@ -94,8 +94,7 @@ fit.
   port's particles (27 scenes) not drawn, as in the Japanese build; the
   port's calls taken in part (the build's `English: … port <function>
   argument <i> ignored` lines, "The port's calls, argument by argument"),
-  most noticeable first. To check: `sys_backselect.nut` and `sys_key.nut`'s
-  keys.
+  most noticeable first. To check: `sys_key.nut`'s other keys.
 
 ## Executables
 
@@ -322,7 +321,7 @@ compiles is the Japanese game's (its coverage belongs in
 | `system/sys_backlog.nut` | replaced: `line_log` (Japanese pictures; the English `backlog/` left) |
 | `system/sys_config.nut` | replaced: `settings` (Japanese pictures; the English `config/` left) |
 | `system/sys_extra*.nut` (6: main, cg, media, rec, turugi) | replaced: `extras` (`extras.rs`, Japanese layout); the English `extra/` left |
-| `system/sys_backselect.nut` | **to check:** the port's back-to-choice question (`選択肢まで`), opened by a key in `sys_key.nut`; the English command menu has no row for it |
+| `system/sys_backselect.nut` | in: the port's back-to-choice question (`選択肢まで`), opened by R (`sys_key.nut` BackToSelect); the English command menu has no row for it ("Back to the choice by R") |
 | `system/sys_hmode.nut` | from the NSS (`sys_hmode.nss`), opened by a key in `sys_key.nut` |
 | `system/sys_key.nut` | CONscripter's keys; **to check** against its 36 `KEY_CODE_*` (the command menu's keys are done) |
 | `system/sys_skip.nut`, `sys_cursor.nut`, `sys_function.nut`, `sys_val.nut`, `sys_val_product.nut` | engine state (skip, cursor, voice and skip toggles, globals): CONscripter's |
@@ -1112,3 +1111,18 @@ lines, `<voice>`/`<RUBY>`/`<center>` tags and newlines went into 16
 `logadd` strings, whose lines after the first showed in the text window
 (71 lines). The row is now parsed like the story's text (`log_text` in
 `nitroplus/english.rs`) and its lines joined by a space.
+
+### Back to the choice by R (2026-10-18)
+
+Comparing the JP and EN dry runs' command counts
+(`research/tools/cmdcheck.py --counts`) showed `savegame` 2 against
+170 and `select` 8 against 168. The `savegame`s are the save before
+each choice that 選択肢に戻る loads: the English command menu has no such
+row, so the build left back-to-choice out, yet the port keeps it on R
+(`sys_key.nut`: `KEY_CODE_R` → `BackToSelect`, `sys_backselect.nut`'s
+選択肢まで question). `CommandMenu::keys` now carries shortcuts with no
+row; the English menu gives R → back to the choice, and the counts match
+(169 `savegame` each). The `select` gap is intended: the English choices
+of up to four options are the port's plates (`choice_plates`, `btnwait`),
+not `select`; the 8 left are the 5- and 6-option choices, drawn in a
+window (the `shortcut:` on `choice_style_en`).

@@ -123,6 +123,9 @@ pub struct CommandMenu {
     /// Items have a fourth cell, shown while the mouse button is held on
     /// them.
     pub pressed: bool,
+    /// Shortcuts with no row in the menu (letter, action), run like the
+    /// items' keys; not [`BarAction::Call`] or [`BarAction::Close`].
+    pub keys: Vec<(char, BarAction)>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

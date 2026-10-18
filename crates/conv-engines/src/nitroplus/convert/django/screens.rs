@@ -495,7 +495,7 @@ fn command_menu(a: &mut dyn Assets) -> Option<CommandMenu> {
         items.push(CommandItem { button: Placed { image, x: 282, y: 113 + 24 * n as i32, w: w as i32, h: h as i32 }, action, key, label: None });
     }
     let (image, w, h) = a.image(&format!("{DIR}/プルダウン台座.png"))?;
-    Some(CommandMenu { backdrop: Placed { image, x: 282, y: 93, w: w as i32, h: h as i32 }, items, fade_ms: 600, step_ms: 0, key: None, pressed: true })
+    Some(CommandMenu { backdrop: Placed { image, x: 282, y: 93, w: w as i32, h: h as i32 }, items, fade_ms: 600, step_ms: 0, key: None, pressed: true, keys: vec![] })
 }
 
 /// The title (`boot.nss`, `TitleSet` and `TitleSelect`): the background
