@@ -814,8 +814,10 @@ fn title_screen(out: &mut String, t: &TitleScreen, fade: &str, save_menu: bool, 
                     writeln!(out, "mov {on},0").unwrap();
                 }
             }
-            // Its sprites go as the title's (the same picture) come.
-            writeln!(out, "bg black,0\ngosub *{label}\ncsp -1\nbg \"{}\",0", path(&t.background)).unwrap();
+            // Its sprites go as the title's (the same picture) come, once
+            // their motions have ended (one still running under its last
+            // cross-fade).
+            writeln!(out, "bg black,0\ngosub *{label}\nspmotionwait -1\ncsp -1\nbg \"{}\",0", path(&t.background)).unwrap();
             title_sprites(out, t, &buttons, quick, None, true, border);
             writeln!(out, "print 1\ngoto *{TITLE_MENU}").unwrap();
             continue;
@@ -2345,7 +2347,7 @@ effect 7,99,1000,\"cons_warp.dll/warp\\zoom_3_220_5.png,65\"
         let out = emit(&s);
         assert!(out.contains("if %2960 == 0 mov %2960,1:goto *conv_title_opening0\n"), "{out}");
         assert!(
-            out.contains("*conv_title_opening0\nif %conv_boot_bgm == 0 bgm \"sound\\bgm\\title.ogg\"\nmov %conv_boot_bgm,0\nbg black,0\ngosub *conv_open\ncsp -1\nbg \"system\\title.png\",0\nprint 1\ngoto *conv_title\n"),
+            out.contains("*conv_title_opening0\nif %conv_boot_bgm == 0 bgm \"sound\\bgm\\title.ogg\"\nmov %conv_boot_bgm,0\nbg black,0\ngosub *conv_open\nspmotionwait -1\ncsp -1\nbg \"system\\title.png\",0\nprint 1\ngoto *conv_title\n"),
             "{out}"
         );
     }

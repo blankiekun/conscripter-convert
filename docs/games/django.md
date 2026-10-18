@@ -488,9 +488,8 @@ research/tools/trace_diff.py orig.jsonl ours.jsonl --map out/django.map --pages 
 1. The title on coming back to it (`TitleSet` with `$Logo` 1: the
    logo turning in, the buttons flying in) fades in over 1 s; the
    buttons' shaking and the tumbleweed rolling by at rest are left out
-   (History, "Title opening"); before the story is finished the
-   opening's last frame shows EXTRA and LINER NOTES (a runtime `if`'s
-   merge). Not compared with the original's frames.
+   (History, "Title opening"). Not compared with the original's
+   frames.
 2. Extras: film the doors and the rifle beside the original once wine
    is next used (ours from the scripts' times only).
 3. The unread-argument notes (`<Builtin> argument <i> ignored`; 33
@@ -669,8 +668,9 @@ Open, not fixed:
 ### Title opening (2026-10-18)
 
 The first title of a run comes up as `TitleSet` draws it (`$Logo` 0):
-the function compiled after the boot logos (`Game::title_opening`, at
-`conv_title_script`) and played as the title's opening
+the function compiled after the boot logos (`Game::title_opening`,
+twice: at `conv_title_script` with `#ClearG` 0 and `conv_title_script1`
+with it 1, so its `if (#ClearG)` needn't be merged) and played as the title's opening
 (`TitleOpening::script`: from black, its sprites replaced by the
 title's at once as it returns, the boot's music going on). The
 background in over 4.9 s (`Axl2`); at 3 s the tumbleweed fades in and
@@ -682,7 +682,10 @@ script's times add up). What it took, shared NSS code:
 
 - A number as a timed action's wait (`Fade(…, 300, 1000, null, 50)`)
   waits that long, the action going on (Django.exe `004310e0`); it
-  waited the whole action. 装甲悪鬼村正's 56 such calls change too.
+  waited the whole action. 装甲悪鬼村正's 56 such calls change too:
+  Muramasa.exe's `Fade` (`0040e050` → `00445ac0`) passes `true` as -1
+  and a number through `atol` to the wait loop `004489e0`, which
+  returns once that many ms (`timeGetTime`) have passed.
 - A new picture moving in also turns (`Rotate` about z) and fades in
   from 0 with the move when the fade takes as long and the script
   doesn't wait it out (it showed upright, faded in by the cross-fade).
@@ -699,11 +702,10 @@ script's times add up). What it took, shared NSS code:
 
 Checked with a `--real-time` trace: the opening from 12,354 to
 17,960 ms (5,606; the script's 5,551 plus frames). Its last frame
-against the title's: the logo differs in 5,035 pixels (the opening's
-is the 600 px picture the engine zooms up, the title's the original),
-and EXTRA and LINER NOTES show in it before the story is finished: the
-runtime `if (#ClearG)` is merged with the cleared branch's pictures,
-drawn for the one `print 1` before the title's (a frame at most).
+against the title's (the title waits for the opening's last motions,
+EXIT's turn, before taking over): only the logo differs, in 5,044
+pixels (the opening's is the 600 px picture the engine zooms up, the
+title's the original).
 
 The tumbleweed is no longer in the title's background: it is never at
 rest there in the original (rolled off at the opening's end, then by

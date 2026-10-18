@@ -226,8 +226,11 @@ pub struct Game {
     /// A function of [`Game::boot_logos`]' file that draws the first title
     /// of a run coming up, run after the logos as the boot script does:
     /// compiled at [`OPENING_LABEL`] for the title's
-    /// [`conv_core::ir::TitleOpening::script`]. Empty: none.
-    title_opening: &'static str,
+    /// [`conv_core::ir::TitleOpening::script`]; and a flag it reads, then
+    /// compiled once with it 0 (there) and once with it 1 (at
+    /// [`OPENING_LABEL`] `1`), so that no runtime `if` on it has to be
+    /// merged (TitleSet's `#ClearG` buttons). Empty: none.
+    title_opening: (&'static str, &'static str),
 }
 
 impl Game {
@@ -259,7 +262,7 @@ impl Game {
         diesel_transition: false,
         fade_tempo: None,
         boot_logos: ("", ""),
-        title_opening: "",
+        title_opening: ("", ""),
     };
 
     /// Fills `script`'s system screens.
@@ -463,15 +466,24 @@ fn compile_boot<'a>(c: &mut Compiler<'a, '_>, files: &'a BTreeMap<String, NssFil
     c.sync(0);
     c.ops.push(Op::Return);
     // Compiled from where the logos leave things, as it runs after them.
+    let (function, flag) = game.title_opening;
     let opening = files[boot].items.iter().find_map(|item| match item {
-        Item::Function(f) if f.name == game.title_opening => Some(f),
+        Item::Function(f) if f.name == function => Some(f),
         _ => None,
     });
     if let Some(f) = opening {
-        c.ops.push(Op::Label(OPENING_LABEL.to_string()));
-        c.call_function(boot, f, Vec::new());
-        c.sync(0);
-        c.ops.push(Op::Return);
+        let after_logos = c.snapshot();
+        for v in if flag.is_empty() { 0..1 } else { 0..2 } {
+            c.restore(after_logos.clone());
+            if !flag.is_empty() {
+                c.vars.insert(flag.to_string(), Value::Int(v));
+            }
+            let suffix = if v == 0 { String::new() } else { v.to_string() };
+            c.ops.push(Op::Label(format!("{OPENING_LABEL}{suffix}")));
+            c.call_function(boot, f, Vec::new());
+            c.sync(0);
+            c.ops.push(Op::Return);
+        }
     }
     c.ops.push(Op::Label(end.to_string()));
     c.restore(before);

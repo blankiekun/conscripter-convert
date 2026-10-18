@@ -14,10 +14,17 @@ use super::super::{Assets, Story};
 /// Fills the script's system screens.
 pub fn menus(a: &mut dyn Assets, script: &mut Script, story: &Story) {
     script.title_screen = title(a);
-    // The first title of a run comes up as TitleSet draws it ($Logo 0).
+    // The first title of a run comes up as TitleSet draws it ($Logo 0),
+    // compiled for the story finished and not (#ClearG).
     let opening = super::super::OPENING_LABEL;
-    if let Some(t) = script.title_screen.as_mut().filter(|_| script.ops.iter().any(|op| matches!(op, Op::Label(l) if l == opening))) {
-        t.openings.push(TitleOpening { at_launch: true, script: Some(opening.to_string()), ..Default::default() });
+    let cleared = story.flags.get(super::extras::CLEARED).copied();
+    if let (Some(t), Some(cleared)) = (script.title_screen.as_mut(), cleared)
+        && script.ops.iter().any(|op| matches!(op, Op::Label(l) if l == opening))
+    {
+        for v in [1, 0] {
+            let label = if v == 0 { opening.to_string() } else { format!("{opening}{v}") };
+            t.openings.push(TitleOpening { at_launch: true, script: Some(label), when: vec![(cleared, v)], ..Default::default() });
+        }
     }
     // The game has no button bar; the command menu runs a bar's actions.
     script.button_bar = Some(ButtonBar { buttons: Vec::new(), top: None, base: None, slide: None, pressed: true, quick_save_se: None, load_fade_ms: 0, quick_saved: None });
