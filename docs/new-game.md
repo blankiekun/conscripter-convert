@@ -479,6 +479,10 @@ rather than by browsing:
     those clocks, wine's sound (a wait on a voice lasts the voice's
     real length, N times too long in game time) and loading (a
     `CreateTexture` costs N times its real time).
+    `trace_diff.py` knows: it reads `speed` from the trace's meta record
+    (or `--orig-speed N`) and counts a time finding whose step holds a
+    `WaitText`, `CreateSound`/`SE`/`BGM`, `CreateTexture`, `CreateMovie` or
+    `LoadImage` as `fast-voice` (not listed).
 
     | Game | Run | 1x | Fast | Same times |
     |---|---|---|---|---|
