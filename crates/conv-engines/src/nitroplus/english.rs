@@ -368,7 +368,7 @@ impl English {
                 if let ("SetBacklog", Some(nss::Expr::Str(t))) = (c, args.first_mut()) {
                     let k = key(t);
                     if let Some((_, en)) = rows.iter().find(|(jp, _)| !k.is_empty() && *jp == k) {
-                        *t = en.clone();
+                        *t = log_text(en).unwrap_or_else(|| t.clone());
                     }
                 }
             });
@@ -913,10 +913,29 @@ fn run_key(run: &[Inline]) -> String {
 
 /// The stretch with `english` in place of its text, or the stretch as it
 /// was if the English doesn't parse.
+/// ㉑-㉗ are the port's spaces of set widths (its font draws them blank),
+/// around italics; Shift-JIS has none of them.
+fn port_spaces(english: &str) -> String {
+    english.chars().map(|c| if ('\u{3251}'..='\u{3257}').contains(&c) { ' ' } else { c }).collect()
+}
+
+/// A row's English as the log shows it: parsed like the story's text (no
+/// `//` lines or tags), its lines joined by a space. None if it doesn't parse.
+fn log_text(english: &str) -> Option<String> {
+    let parsed = nss::parse_text(&port_spaces(english), 0, &mut Vec::new()).ok()?;
+    let mut lines = vec![String::new()];
+    for i in parsed {
+        match i {
+            Inline::Str(s) => lines.last_mut().unwrap().push_str(&s),
+            Inline::Newline => lines.push(String::new()),
+            _ => {}
+        }
+    }
+    Some(lines.iter().map(|l| l.trim()).filter(|l| !l.is_empty()).collect::<Vec<_>>().join(" "))
+}
+
 fn replace(mut run: Vec<Inline>, english: &str, line: u32) -> Result<Vec<Inline>, Vec<Inline>> {
-    // ㉑-㉗ are the port's spaces of set widths (its font draws them
-    // blank), around italics; Shift-JIS has none of them.
-    let english: String = english.chars().map(|c| if ('\u{3251}'..='\u{3257}').contains(&c) { ' ' } else { c }).collect();
+    let english = port_spaces(english);
     // `<?>` at the end: the text goes on after the code that follows
     // (ma01_026's typewriter), so the code runs before the page.
     let joined = run.iter().rev().find_map(|i| if let Inline::Str(s) = i { Some(s.trim_end().ends_with("<?>")) } else { None });
@@ -956,6 +975,13 @@ mod tests {
         assert_eq!(strs, ["\"...\"", "\"Ah.\""]);
         assert!(matches!(t.items[0], Inline::Marker(_)));
         assert_eq!(report.replaced, 2);
+    }
+
+    #[test]
+    fn log_lines_take_the_rows_text_without_its_source() {
+        // ma00: the row keeps the Japanese as `//` lines, the voice and the tags.
+        let row = "\n//【光】\n<voice name='光' class='光' src='voice/ma00/0001610a14'>\n//\u{3000}\n<center>\"Ladybug...\nComet.\"</center>\n";
+        assert_eq!(log_text(row).as_deref(), Some("\"Ladybug... Comet.\""));
     }
 
     #[test]

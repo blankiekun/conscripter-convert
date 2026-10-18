@@ -1097,3 +1097,11 @@ the whole picture; the pressed cell 1 px left is drawn at 557. The
 widget 3 (Kageaki, `%6935` set) toggles `%971` to 1, his voice line stays
 silent and a `%982` one plays.
 
+
+### Log lines without the port's source (2026-10-18)
+
+The log's copy of a line (`SetBacklog`) took the port row raw: its `//`
+lines, `<voice>`/`<RUBY>`/`<center>` tags and newlines went into 16
+`logadd` strings, whose lines after the first showed in the text window
+(71 lines). The row is now parsed like the story's text (`log_text` in
+`nitroplus/english.rs`) and its lines joined by a space.
