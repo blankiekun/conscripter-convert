@@ -30,6 +30,8 @@ OTHER = {
     "django": {"Camera", "Position", "text"},
     "oretsuba": {"Action", "voice"},
 }
+# ceiling per game for rows marked inferred or unknown (status/mark column): lower it as rows become seen, never raise it
+OPEN_MAX = {"django": 6, "muramasa-en": 4, "muramasa": 33, "saihate-no-ima": 1, "oretsuba": 15, "tsukihime": 35}
 GENERIC = {"handler", "command", "all", "dispatch", "hidden", "state", "sound", "timing", "effects", "effect", "waits", "timed"}
 
 bad = 0
@@ -50,10 +52,17 @@ for mf in sorted(os.listdir("tests/snapshots")):
     if hexmode:
         kinds = {k.split()[1] for k in kinds}
     named, ranges = set(), []
+    col, nopen = None, 0
     for line in open(tsv, encoding="utf-8"):
         if line.startswith("#") or not line.strip():
             continue
-        cell = line.split("\t")[0]
+        cols = line.rstrip("\n").split("\t")
+        if col is None:
+            col = next((i for i, c in enumerate(cols) if c in ("status", "mark")), -1)
+            continue
+        if col >= 0 and len(cols) > col and cols[col].strip() in ("inferred", "unknown"):
+            nopen += 1
+        cell = cols[0]
         if hexmode:
             for a, b in re.findall(r"(0x[0-9a-f]+)(?:-(0x[0-9a-f]+))?", cell):
                 if b:
@@ -77,7 +86,11 @@ for mf in sorted(os.listdir("tests/snapshots")):
             fail(f"{tsv}: range `{cell}` holds no kind")
     miss = sorted(kinds - named - NO_ROW.get(g, set()))
     nr = NO_ROW.get(g, set())
-    print(f"{g}: {len(nr)} kinds in NO_ROW")
+    print(f"{g}: {len(nr)} kinds in NO_ROW, {nopen} rows inferred/unknown")
+    if nopen > OPEN_MAX.get(g, 0):
+        fail(f"{g}: {nopen} inferred/unknown rows, ceiling {OPEN_MAX.get(g, 0)}: look them up in the decompile, don't grow the list")
+    elif nopen < OPEN_MAX.get(g, 0):
+        fail(f"{g}: {nopen} inferred/unknown rows, below ceiling {OPEN_MAX[g]}: lower OPEN_MAX in research/tools/findings_lint.py")
     for k in sorted(nr & named):
         fail(f"{tsv}: {k} now has a row: remove {k} from NO_ROW")
     for k in sorted(nr - kinds):

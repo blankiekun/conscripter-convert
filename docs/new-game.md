@@ -344,7 +344,8 @@ rather than by browsing:
     `research/tools/findings_lint.py` (CI's doc-paths job) ties the two:
     every kind needs a row, every row names a kind, a kind in `NO_ROW`
     that gets a row must leave `NO_ROW`, and `NO_ROW_MAX` per game only
-    goes down. A new game has no `NO_ROW` entry and a ceiling of 0: its
+    goes down; `OPEN_MAX` does the same for rows marked inferred or
+    unknown. A new game has no `NO_ROW` entry and a ceiling of 0: its
     table covers every kind from the first PR.
 17. **Write the results back.** Commit `names.tsv` with comments, fold the
    decoded semantics into the engine's built-ins reference
