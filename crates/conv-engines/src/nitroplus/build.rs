@@ -77,6 +77,11 @@ pub fn build(game: &Path, run: &Run, opts: &Opts) -> Result<Built> {
     if run.original_archives && (opts.webp.is_some() || opts.audio.reencodes()) {
         anyhow::bail!("--original-archives keeps the game's own pictures and sounds: no --webp or audio re-encoding");
     }
+    // The engine looks in the NPAs before arc.nsa, so the Japanese picture
+    // would win over the English one at the same path.
+    if run.original_archives && run.english.is_some() {
+        anyhow::bail!("--original-archives doesn't take --english yet (the Japanese pictures would win)");
+    }
     let mut port = crate::metrics::Metrics::default();
     if let Some(dir) = run.english {
         let report = english::English::load(&open_npk(dir, "script.npk")?)?.apply(&mut files);

@@ -680,6 +680,11 @@ The route runs and `--at` starts are in `research/nitroplus/engrun.py`.
 
 Open, by area (each is small; most noticeable first):
 
+- **Original archives** (`--original-archives`,
+  `docs/original-archives.md`): the whole story plays from the game's
+  own NPAs (page shots AE 0 against today's build, folder 3.6 GB →
+  889 MB); not with `--english` yet.
+
 - **Engine-drawn screens**
   - Save/load: the play time is read when the screen opens (the routine
     read it at the click); S and L no longer close the screens.
