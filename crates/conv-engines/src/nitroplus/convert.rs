@@ -229,8 +229,10 @@ pub struct Game {
     /// [`conv_core::ir::TitleOpening::script`]; and a flag it reads, then
     /// compiled once with it 0 (there) and once with it 1 (at
     /// [`OPENING_LABEL`] `1`), so that no runtime `if` on it has to be
-    /// merged (TitleSet's `#ClearG` buttons). Empty: none.
-    title_opening: (&'static str, &'static str),
+    /// merged (TitleSet's `#ClearG` buttons). Empty: none. The third, a
+    /// variable that is 1 on coming back to the title (TitleSet's `$Logo`):
+    /// both compiled again with it 1, at [`OPENING_BACK_LABEL`] (and `1`).
+    title_opening: (&'static str, &'static str, &'static str),
 }
 
 impl Game {
@@ -262,7 +264,7 @@ impl Game {
         diesel_transition: false,
         fade_tempo: None,
         boot_logos: ("", ""),
-        title_opening: ("", ""),
+        title_opening: ("", "", ""),
     };
 
     /// Fills `script`'s system screens.
@@ -436,6 +438,9 @@ pub const BOOT_LABEL: &str = "conv_boot";
 /// The label of the [`Game::title_opening`] subroutine.
 pub const OPENING_LABEL: &str = "conv_title_script";
 
+/// The label of the [`Game::title_opening`] subroutine on coming back to the title.
+pub const OPENING_BACK_LABEL: &str = "conv_title_script_back";
+
 /// Compiles the game's [`Game::boot_logos`] into a subroutine at
 /// [`BOOT_LABEL`], jumped over, from the story's `initial` state (the
 /// state now put back after it). At the end of the ops, so the story's
@@ -466,20 +471,24 @@ fn compile_boot<'a>(c: &mut Compiler<'a, '_>, files: &'a BTreeMap<String, NssFil
     c.sync(0);
     c.ops.push(Op::Return);
     // Compiled from where the logos leave things, as it runs after them.
-    let (function, flag) = game.title_opening;
+    let (function, flag, back) = game.title_opening;
     let opening = files[boot].items.iter().find_map(|item| match item {
         Item::Function(f) if f.name == function => Some(f),
         _ => None,
     });
     if let Some(f) = opening {
         let after_logos = c.snapshot();
-        for v in if flag.is_empty() { 0..1 } else { 0..2 } {
+        let labels = if back.is_empty() { &[OPENING_LABEL][..] } else { &[OPENING_LABEL, OPENING_BACK_LABEL] };
+        for (label, v) in labels.iter().flat_map(|l| (if flag.is_empty() { 0..1 } else { 0..2 }).map(move |v| (*l, v))) {
             c.restore(after_logos.clone());
             if !flag.is_empty() {
                 c.vars.insert(flag.to_string(), Value::Int(v));
             }
+            if label == OPENING_BACK_LABEL {
+                c.vars.insert(back.to_string(), Value::Int(1));
+            }
             let suffix = if v == 0 { String::new() } else { v.to_string() };
-            c.ops.push(Op::Label(format!("{OPENING_LABEL}{suffix}")));
+            c.ops.push(Op::Label(format!("{label}{suffix}")));
             c.call_function(boot, f, Vec::new());
             c.sync(0);
             c.ops.push(Op::Return);
@@ -1249,6 +1258,9 @@ struct Object<'a> {
     /// running it ([`loops`]: 続・殺戮のジャンゴ's `ShakeVLoop`, 装甲悪鬼村正's
     /// `FlyMoving`).
     shake: Option<ShakeLoop>,
+    /// The start and length of the first fade in [`Object::shake`]'s
+    /// lead-in (key times), for a fade at once before it is drawn.
+    loop_fade: Option<(u32, u32)>,
     /// `CreateWindow`'s size (w, h): its children are drawn only inside
     /// it, at its place.
     clip: Option<(i64, i64)>,
@@ -3172,7 +3184,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
 
     fn create(&mut self, name: String, kind: Kind<'a>, priority: i64, w: i64, h: i64) -> &mut Object<'a> {
         self.seq += 1;
-        let o = Object { kind, priority, x: 0, y: 0, w, h, opacity: 1000, locked: false, hideable: false, seq: self.seq, zoom: (1000, 1000), trail: None, blend: BLEND_NORMAL, vertex: None, turn: (0, 0, 0), shake: None, clip: None, over_text: false, container: false, erased: false, tone: None, shade: None, wave: None, stencil: None, cut: None, screen_children: false, veil: None };
+        let o = Object { kind, priority, x: 0, y: 0, w, h, opacity: 1000, locked: false, hideable: false, seq: self.seq, zoom: (1000, 1000), trail: None, blend: BLEND_NORMAL, vertex: None, turn: (0, 0, 0), shake: None, loop_fade: None, clip: None, over_text: false, container: false, erased: false, tone: None, shade: None, wave: None, stencil: None, cut: None, screen_children: false, veil: None };
         self.objects.insert(name.clone(), o);
         self.objects.get_mut(&name).unwrap()
     }
@@ -6404,26 +6416,22 @@ function Roll()
 	}
 }
 "#);
-        let story = r#"
-scene a.nss
-{
-	CreateTexture("c", 100, 100, 100, "cg/ef/a.png");
-	Fade("c", 0, 0, null, true);
-	CreateProcess("P", 150, 0, 0, "Roll");
-	Request("P", Start);
-	Wait(100);
-}
-"#;
-        let c = compile(story, &library);
-        let (keys, from) = c.ops.iter().find_map(|op| match op {
-            Op::SpriteMotion2 { keys, end: MotionEnd::LoopFrom(from), .. } => Some((keys.clone(), *from)),
-            _ => None,
-        }).unwrap_or_else(|| panic!("{:?}", c.ops));
-        let at = |ms: u32| keys.iter().find(|k| k.ms == ms).map(|k| (k.x, k.opacity)).unwrap_or_else(|| panic!("{ms}: {keys:?}"));
-        assert_eq!((at(0), at(3000), at(4000), at(5000)), ((0, 0), (0, 0), (300, 256), (600, 256)), "{keys:?}");
-        // The loop: from where the roll ends, back to the left and across.
-        assert_eq!((keys[from].ms, keys.last().map(|k| (k.ms, k.x))), (5000, Some((14000, 700))), "{keys:?}");
-        assert!(c.notes.is_empty(), "{:?}", c.notes);
+        // Faded out before the process starts, or (TitleSet's `$Logo` 1) just after.
+        for story in [
+            "scene a.nss\n{\n\tCreateTexture(\"c\", 100, 100, 100, \"cg/ef/a.png\");\n\tFade(\"c\", 0, 0, null, true);\n\tCreateProcess(\"P\", 150, 0, 0, \"Roll\");\n\tRequest(\"P\", Start);\n\tWait(100);\n}\n",
+            "scene a.nss\n{\n\tCreateTexture(\"c\", 100, 100, 100, \"cg/ef/a.png\");\n\tCreateProcess(\"P\", 150, 0, 0, \"Roll\");\n\tRequest(\"P\", Start);\n\tFade(\"c\", 0, 0, null, true);\n\tWait(100);\n}\n",
+        ] {
+            let c = compile(story, &library);
+            let (keys, from) = c.ops.iter().find_map(|op| match op {
+                Op::SpriteMotion2 { keys, end: MotionEnd::LoopFrom(from), .. } => Some((keys.clone(), *from)),
+                _ => None,
+            }).unwrap_or_else(|| panic!("{:?}", c.ops));
+            let at = |ms: u32| keys.iter().find(|k| k.ms == ms).map(|k| (k.x, k.opacity)).unwrap_or_else(|| panic!("{ms}: {keys:?}"));
+            assert_eq!((at(0), at(3000), at(4000), at(5000)), ((0, 0), (0, 0), (300, 256), (600, 256)), "{keys:?}");
+            // The loop: from where the roll ends, back to the left and across.
+            assert_eq!((keys[from].ms, keys.last().map(|k| (k.ms, k.x))), (5000, Some((14000, 700))), "{keys:?}");
+            assert!(c.notes.is_empty(), "{:?}", c.notes);
+        }
     }
 
     #[test]

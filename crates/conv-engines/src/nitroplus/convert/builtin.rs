@@ -319,11 +319,29 @@ impl Compiler<'_, '_> {
                 let mut window_only = !targets.is_empty();
                 for t in &targets {
                     let o = self.objects.get_mut(t).unwrap();
+                    window_only &= o.hideable;
+                    // A loop process with a lead-in that fades the picture in,
+                    // started before it is drawn, then a fade at once
+                    // (TitleSet's `$Logo` 1: TumbleweedMove, then
+                    // `Fade("タイトル*", 0, 0)`): the opacity holds in its keys
+                    // until the process's own fade; it is placed at the loop's.
+                    if ms <= 0 && !self.shown.contains_key(t)
+                        && let Some((_, keys, from)) = o.shake.as_mut()
+                        && *from > 0
+                        && let Some((s, d)) = o.loop_fade
+                        && let Some(end) = keys.iter().find(|k| k.ms >= s + d).map(|k| k.opacity)
+                    {
+                        let now = (to.position(o.opacity, 0, 0).clamp(0, 1000) * 256 / 1000) as u32;
+                        for k in keys.iter_mut().take_while(|k| k.ms < s + d) {
+                            let part = f64::from(k.ms.saturating_sub(s)) / f64::from(d);
+                            k.opacity = (f64::from(now) + (f64::from(end) - f64::from(now)) * part).round() as u32;
+                        }
+                        continue;
+                    }
                     if o.opacity == 0 {
                         self.fade_from_zero.insert(t.clone());
                     }
                     o.opacity = to.position(o.opacity, 0, 0).clamp(0, 1000);
-                    window_only &= o.hideable;
                 }
                 if ms <= 0 {
                     // src: Muramasa.exe cb_Fade 0044f020: time 0 sets the opacity at

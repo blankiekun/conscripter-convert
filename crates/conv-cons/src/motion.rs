@@ -172,7 +172,11 @@ pub(crate) fn emit(out: &mut String, layer: u32, keys: &[(u32, i32, i32)], loope
 /// reached along its own `ease` (its `spcurve` id given in `ids`), else
 /// along `curve` (0 straight, or an `spcurve` id).
 pub(crate) fn emit2(out: &mut String, layer: u32, keys: &[MotionKey], end: MotionEnd, fade: Option<u32>, curve: u32, ids: &mut BTreeMap<(u8, u32), u32>) {
-    let slot = SPRITE_BASE + layer;
+    emit_slot(out, SPRITE_BASE + layer, keys, end, fade, curve, ids);
+}
+
+/// [`emit2`] on sprite `slot`.
+pub(crate) fn emit_slot(out: &mut String, slot: u32, keys: &[MotionKey], end: MotionEnd, fade: Option<u32>, curve: u32, ids: &mut BTreeMap<(u8, u32), u32>) {
     if keys.is_empty() {
         let keep = if matches!(end, MotionEnd::Keep) { ",2" } else { "" };
         writeln!(out, "spmotion {slot}{keep}").unwrap();

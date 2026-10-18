@@ -407,6 +407,7 @@ impl<'a> Compiler<'a, '_> {
                 o.zoom = (v[2].round() as i64, v[3].round() as i64);
                 o.turn.2 = -(v[4].round() as i64);
                 o.opacity = top.round() as i64;
+                o.loop_fade = pass.props[5].actions.first().map(|&(s, ms, _)| (s, ms));
             }
             self.set_loop(name, &target, keys, from);
         }

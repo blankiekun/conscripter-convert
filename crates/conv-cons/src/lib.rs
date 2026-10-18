@@ -810,7 +810,7 @@ fn title_screen(out: &mut String, t: &TitleScreen, fade: &str, save_menu: bool, 
     for (i, o) in t.openings.iter().enumerate() {
         writeln!(out, "*conv_title_opening{i}").unwrap();
         if let Some(label) = &o.script {
-            if let Some(bgm) = &t.bgm {
+            if let Some(bgm) = t.bgm.as_ref().filter(|_| !o.after_extras) {
                 let on = boot::BGM_ON;
                 let only = if boot_bgm { format!("if {on} == 0 ") } else { String::new() };
                 writeln!(out, "{only}bgm \"{}\"", path(bgm)).unwrap();
@@ -820,8 +820,19 @@ fn title_screen(out: &mut String, t: &TitleScreen, fade: &str, save_menu: bool, 
             }
             // Its sprites go as the title's (the same picture) come, once
             // their motions have ended (one still running under its last
-            // cross-fade).
-            writeln!(out, "bg black,0\ngosub *{label}\nspmotionwait -1\ncsp -1\nbg \"{}\",0", path(&t.background)).unwrap();
+            // cross-fade); a looping one's clock goes on in the title's.
+            writeln!(out, "bg black,0\ngosub *{label}\nspmotionwait -1").unwrap();
+            for &(s, layer) in &o.clocks {
+                writeln!(out, "spmotionclock {},{}", title_slot(s), SPRITE_BASE + layer).unwrap();
+            }
+            if o.clocks.is_empty() {
+                writeln!(out, "csp -1").unwrap();
+            } else {
+                // csp -1 would drop the clocks: the opening's own sprites only.
+                let tmp = menu::TMP;
+                writeln!(out, "for {tmp}={SPRITE_BASE} to {MAX_SPRITE}:csp {tmp}:next").unwrap();
+            }
+            writeln!(out, "bg \"{}\",0", path(&t.background)).unwrap();
             title_sprites(out, t, &buttons, quick, None, true, border);
             writeln!(out, "print 1\ngoto *{TITLE_MENU}").unwrap();
             continue;
@@ -959,6 +970,25 @@ fn title_sprites(out: &mut String, t: &TitleScreen, buttons: &[(&conv_core::ir::
         }
         let only = title_button_shown(t, b, border);
         writeln!(out, "{only}lsp {slot},\"{image}\",{},{}", b.x, b.y).unwrap();
+    }
+    for m in t.motions.iter().filter(|_| moving) {
+        let only = match m.sprite {
+            conv_core::ir::TitleSprite::Button(i) => title_button_shown(t, &t.buttons[i], border),
+            conv_core::ir::TitleSprite::Picture(_) => String::new(),
+        };
+        let keys: Vec<_> = m.keys.iter().map(|k| conv_core::ir::MotionKey { ease: None, ..*k }).collect();
+        let end = if m.from_key > 0 { conv_core::ir::MotionEnd::LoopFrom(m.from_key) } else { conv_core::ir::MotionEnd::Loop };
+        let mut line = String::new();
+        motion::emit_slot(&mut line, title_slot(m.sprite), &keys, end, None, 0, &mut std::collections::BTreeMap::new());
+        write!(out, "{only}{line}").unwrap();
+    }
+}
+
+/// The sprite a [`conv_core::ir::TitleSprite`] is drawn on ([`title_sprites`]).
+fn title_slot(s: conv_core::ir::TitleSprite) -> u32 {
+    match s {
+        conv_core::ir::TitleSprite::Button(i) => MENU_SPRITES.start + i as u32,
+        conv_core::ir::TitleSprite::Picture(i) => MENU_SPRITES.end - 2 - i as u32,
     }
 }
 
@@ -2354,6 +2384,26 @@ effect 7,99,1000,\"cons_warp.dll/warp\\zoom_3_220_5.png,65\"
             out.contains("*conv_title_opening0\nif %conv_boot_bgm == 0 bgm \"sound\\bgm\\title.ogg\"\nmov %conv_boot_bgm,0\nbg black,0\ngosub *conv_open\nspmotionwait -1\ncsp -1\nbg \"system\\title.png\",0\nprint 1\ngoto *conv_title\n"),
             "{out}"
         );
+    }
+
+    #[test]
+    fn a_title_motion_goes_on_from_the_script_opening() {
+        use conv_core::ir::{MotionKey, TitleButton, TitleMotion, TitleSprite};
+        let key = |ms, y| MotionKey { ms, x: 0, y, zoom: 100, angle: 0, opacity: 256, zoom_y: 100, ease: None };
+        let mut s = script(vec![Op::Label("conv_open".into()), Op::Return]);
+        let opening = conv_core::ir::TitleOpening { script: Some("conv_open".into()), clocks: vec![(TitleSprite::Button(0), 900)], ..Default::default() };
+        s.title_screen = Some(TitleScreen {
+            background: "system/title.png".into(),
+            buttons: vec![TitleButton { image: "system/start.png".into(), x: 10, y: 20, ..Default::default() }],
+            motions: vec![TitleMotion { sprite: TitleSprite::Button(0), keys: vec![key(0, 0), key(100, 50), key(200, 0)], from_key: 0 }],
+            openings: vec![opening],
+            ..Default::default()
+        });
+        let out = emit(&s);
+        let motion = "spmotion 6,1,0,0,0,100,100,0,256,0,100,0,50,100,100,0,256,0,200,0,0,100,100,0,256,0\n";
+        assert!(out.contains(&format!("spmotionwait -1\nspmotionclock 6,962\nfor %105=62 to 999:csp %105:next\nbg \"system\\title.png\",0\nlsp 6,\":a/2,0,3;system\\start.png\",10,20\n{motion}print 1\n")), "{out}");
+        // Drawn again (after the settings): from its start.
+        assert!(out.contains(&format!("*conv_title_draw\nlsp 6,\":a/2,0,3;system\\start.png\",10,20\n{motion}")), "{out}");
     }
 
     #[test]

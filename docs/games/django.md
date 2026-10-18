@@ -485,11 +485,14 @@ research/tools/trace_diff.py orig.jsonl ours.jsonl --map out/django.map --pages 
 
 ### Next
 
-1. The title on coming back to it (`TitleSet` with `$Logo` 1: the
-   logo turning in, the buttons flying in) fades in over 1 s; the
-   buttons' shaking and the tumbleweed rolling by at rest are left out
-   (History, "Title opening"). Not compared with the original's
-   frames.
+1. The title, left from the scripts (History, "Title on coming back"):
+   on coming back the logo cross-fades in over its 1 s turn (the
+   original shows it at once, edge-on); a hovered button still jolts
+   (the original pauses its `*Shake` process on MouseOver); from the
+   extras the original fades to black over 300 ms first (ours
+   cross-fades from the extras); after the settings or load screens
+   the motions start again from their start. Not compared with the
+   original's frames.
 2. Extras: film the doors and the rifle beside the original once wine
    is next used (ours from the scripts' times only).
 3. The unread-argument notes (`<Builtin> argument <i> ignored`; 33
@@ -714,6 +717,41 @@ title's the original).
 The tumbleweed is no longer in the title's background: it is never at
 rest there in the original (rolled off at the opening's end, then by
 every 9 s), and its loop isn't drawn on the title.
+
+### Title on coming back, motions at rest (2026-10-18)
+
+Coming back to the title (from the story, or from the extras) plays
+`TitleSet` with `$Logo` 1, as the boot loop runs it again: compiled
+twice more (`Game::title_opening`'s third name, `$Logo`, set to 1; at
+`conv_title_script_back` and `…_back1`) and played as the openings for
+coming back and for after the extras (no music started there: the
+extras' way back sets it). The background in over 1 s, the logo
+zooming from 200 % and turning in about x over 1.2 s (1 s waited),
+the buttons flying in as at launch: 2,660 ms in a `--real-time` trace
+(the script's 2,450 plus frames).
+
+At rest the title now has TitleSet's processes: each button's `*Shake`
+(a jolt every 10-15 s, its first at 2, 3, 5, 7 or 8 s) and
+`TumbleweedMove` (the tumbleweed, a title picture at 300,420, rolling
+by every 9 s), as `TitleScreen::motions`, taken from the loops the
+compiled opening leaves on its pictures (`opening_loops`, matched by
+picture). Each goes on from the opening's (`TitleOpening::clocks`,
+`spmotionclock` before the opening's sprites are cleared, so the
+title clears only the story's sprites 62-999, not `csp -1`). Checked:
+the trace's title motions start `in` 1 ms (buttons) and 5,797 ms
+(tumbleweed, started 5,812 ms before at the opening's start); frames
+at the title's 0-10 s differ from its first only where the schedule
+says (LOAD at 3.05-3.15 s, START 5 s, CONFIG 7 s, EXIT 8 s; the
+tumbleweed from the left edge at 3 s, gone right by 9 s); the title at
+rest after the coming-back opening is pixel for pixel the one after
+the first.
+
+Shared NSS code: a loop process with a fade-in lead-in started on a
+picture not drawn yet, then an instant `Fade` of it before any time
+passes (the `$Logo` 1 branch starts `TumbleweedMove` before
+`Fade("タイトル*", 0, 0)`), now holds that opacity in the motion's keys
+until the process's own fade; it set the picture's opacity to 0, so it
+was never drawn. No change in 装甲悪鬼村正's scripts.
 
 ### Boot logos (2026-10-18)
 
