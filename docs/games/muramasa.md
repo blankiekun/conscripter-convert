@@ -734,8 +734,7 @@ Open, by area (each is small; most noticeable first):
 - **Effects**: `CreateEffect` Drop (1, mc04_052) and Lens (2); `DrawEffect`
   waves on a `Plain` cover that is shaken or whose screen changed (3),
   Ripple (4), Split (7), a wave picked up
-  later restarts straight; `DrawTransition` partial sweep is a plain mask
-  print; a moved/zoomed/blended `Plain` cover (History, "Plain covers as
+  later restarts straight; a moved/zoomed/blended `Plain` cover (History, "Plain covers as
   screen copies") first shown over a screen that changed since it froze,
   or shaken, keeps the screen; one placed again on another layer is copied
   again from the screen then; `OverlayRender` draws normally; 565 calls start from
@@ -796,6 +795,23 @@ Open, by area (each is small; most noticeable first):
 - **Unused**: `spgrab` could stand for `CreateTexture`'s render-to-texture.
 
 ## History
+
+### `DrawTransition` as the engine's `spfadeto` (2026-10-18)
+
+`DrawTransition` on a picture (image or strip) is now CONscripter's
+`spfadeto` (engine PR "spfadeto"): the sprite fades through its mask from
+`from` to `to` while the script goes on, the table made frame by frame as
+the exe makes it (transition_start 0044fe00, 00457bf0), the mask stretched
+over the screen. `from` is taken as given, whatever the picture showed
+(the exe's start doesn't read it): 620 of the 633 calls noted "from
+another opacity than the picture's" were pictures; the note now fires
+only for a `Plain` cover or other object, which keeps the masked print
+(13). Gaps 3,187 → 2,569. The `system/veil_*.png` pictures, the converter's copy of the table
+(`transition.rs`) and its `spmask` veils are gone; a waited call is an
+instant `print` and a `delay`. Checked headless on the full build: a
+full sweep (ma05 blind_01 in and out) matches the old `effectsoft` print
+at 25/50/75 % within 1.3 % of the pixels; a partial one (circle_01
+0 → 500 over 4 s) ends on the same frame as the old veil (AE 0).
 
 ### Plain covers as screen copies (2026-10-18)
 

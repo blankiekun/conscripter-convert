@@ -79,13 +79,15 @@ impl Compiler<'_, '_> {
             }
             return;
         }
+        // (One whose `DrawTransition` to 0 has ended goes: the exe leaves it at 0.)
+        let faded_out = |o: &Object| o.fade.as_ref().is_some_and(|f| f.to == 0 && f.until <= wave_clock);
         // Wanted: visible pictures, by (priority, seq), top first.
         let want: Vec<_> = self
             .objects
             .iter()
             .filter_map(|(n, o)| match &o.kind {
                 // (Fading out to 0 as it moves: kept for its motion, below.)
-                Kind::Image { image } if (o.opacity > 0 || (timed.contains_key(n) && self.shown.contains_key(n))) && !o.hideable => {
+                Kind::Image { image } if (o.opacity > 0 || (timed.contains_key(n) && self.shown.contains_key(n))) && !o.hideable && !faded_out(o) => {
                     let opacity = self.drawn_opacity(n, o.opacity);
                     if opacity == 0 && o.opacity > 0 {
                         return None;
@@ -124,7 +126,7 @@ impl Compiler<'_, '_> {
                         y = (sq[1].0 * c[1] + sq[1].1).round() as i64 - o.h / 2;
                         zoom = ((zoom.0 as f64 * sq[0].0).round().max(1.0) as i64, (zoom.1 as f64 * sq[1].0).round().max(1.0) as i64);
                     }
-                    let shown = Shown { layer: 0, image: image.clone(), x, y, w: o.w, h: o.h, opacity, cells: None, source: String::new(), zoom: (1000, 1000), angle: o.angle(), clip: None, engine: Engine::default(), flash: 0, blend: o.blend, tint: None, over: false, whole: None, mask: o.veil.clone() };
+                    let shown = Shown { layer: 0, image: image.clone(), x, y, w: o.w, h: o.h, opacity, cells: None, source: String::new(), zoom: (1000, 1000), angle: o.angle(), clip: None, engine: Engine::default(), flash: 0, blend: o.blend, tint: None, over: false, whole: None, fade: o.fade.clone() };
                     Some((n.clone(), shown, (o.priority, o.seq), zoom, (o.w, o.h), o.mirror()))
                 }
                 _ => None,
@@ -167,7 +169,7 @@ impl Compiler<'_, '_> {
             // One cell: a movie file loops with no time a cell (`:c/1,0,0;`).
             let looped = at.is_none() && m.looped;
             let frame_ms = if at.is_none() { 0 } else { 1000 / MOVIE_FPS };
-            let shown = Shown { layer: 0, image, x, y, w: cw as i64, h: ch as i64, opacity: o.opacity, cells: Some((1, looped, zoom, frame_ms)), source: String::new(), zoom: (1000, 1000), angle: 0, clip: None, engine: Engine::default(), flash: 0, blend: o.blend, tint: None, over: false, whole: None, mask: None };
+            let shown = Shown { layer: 0, image, x, y, w: cw as i64, h: ch as i64, opacity: o.opacity, cells: Some((1, looped, zoom, frame_ms)), source: String::new(), zoom: (1000, 1000), angle: 0, clip: None, engine: Engine::default(), flash: 0, blend: o.blend, tint: None, over: false, whole: None, fade: None };
             // (Turned over as a picture is: the frame, or the movie file.)
             want.push((n, shown, (o.priority, o.seq), (1000, 1000), (o.w, o.h), o.mirror()));
         }
@@ -175,6 +177,7 @@ impl Compiler<'_, '_> {
             if let Kind::Strip(s) = &o.kind
                 && o.opacity > 0
                 && !o.hideable
+                && !faded_out(o)
             {
                 // Zoomed and turned by the engine about its centre; a turn
                 // about x or y draws it that much shorter (no perspective).
@@ -183,7 +186,7 @@ impl Compiler<'_, '_> {
                 let cells = Some((s.cells, s.looped, zoom, s.frame_ms));
                 let (px, py) = self.parent_offset(n);
                 let (x, y) = (o.x + px, o.y + py);
-                let shown = Shown { layer: 0, image: s.image.clone(), x, y, w: s.w, h: s.h, opacity: o.opacity, cells, source: String::new(), zoom: (1000, 1000), angle: o.angle(), clip: None, engine: Engine::default(), flash: 0, blend: o.blend, tint: None, over: false, whole: None, mask: o.veil.clone() };
+                let shown = Shown { layer: 0, image: s.image.clone(), x, y, w: s.w, h: s.h, opacity: o.opacity, cells, source: String::new(), zoom: (1000, 1000), angle: o.angle(), clip: None, engine: Engine::default(), flash: 0, blend: o.blend, tint: None, over: false, whole: None, fade: o.fade.clone() };
                 want.push((n.clone(), shown, (o.priority, o.seq), (1000, 1000), (s.w, s.h), (false, false)));
             }
         }
@@ -192,7 +195,7 @@ impl Compiler<'_, '_> {
                 && o.opacity > 0
                 && !o.hideable
             {
-                let shown = Shown { layer: 0, image: f.image.clone(), x: o.x, y: o.y, w: o.w, h: o.h, opacity: 1000, cells: None, source: String::new(), zoom: (1000, 1000), angle: 0, clip: None, engine: Engine::default(), flash: o.seq, blend: BLEND_NORMAL, tint: None, over: false, whole: None, mask: None };
+                let shown = Shown { layer: 0, image: f.image.clone(), x: o.x, y: o.y, w: o.w, h: o.h, opacity: 1000, cells: None, source: String::new(), zoom: (1000, 1000), angle: 0, clip: None, engine: Engine::default(), flash: o.seq, blend: BLEND_NORMAL, tint: None, over: false, whole: None, fade: None };
                 want.push((n.clone(), shown, (o.priority, o.seq), (1000, 1000), (o.w, o.h), (false, false)));
             }
         }
@@ -203,7 +206,7 @@ impl Compiler<'_, '_> {
                 let opacity = self.drawn_opacity(n, o.opacity);
                 // (Its size as drawn, about its centre: zoomed by the engine.)
                 let (w, h) = (o.w * o.zoom.0 / 1000, o.h * o.zoom.1 / 1000);
-                let shown = Shown { layer: 0, image: SCREEN_UNDER.into(), x: o.x + (o.w - w) / 2, y: o.y + (o.h - h) / 2, w, h, opacity, cells: None, source: String::new(), zoom: (1000, 1000), angle: o.angle(), clip: None, engine: Engine::default(), flash: 0, blend: o.blend, tint: None, over: false, whole: None, mask: o.veil.clone() };
+                let shown = Shown { layer: 0, image: SCREEN_UNDER.into(), x: o.x + (o.w - w) / 2, y: o.y + (o.h - h) / 2, w, h, opacity, cells: None, source: String::new(), zoom: (1000, 1000), angle: o.angle(), clip: None, engine: Engine::default(), flash: 0, blend: o.blend, tint: None, over: false, whole: None, fade: o.fade.clone() };
                 want.push((n.clone(), shown, (o.priority, o.seq), o.zoom, (o.w, o.h), (false, false)));
             }
         }
@@ -323,7 +326,7 @@ impl Compiler<'_, '_> {
                 && s.flash == 0
                 && s.angle == 0
                 && s.clip.is_none()
-                && s.mask.is_none()
+                && s.fade.is_none()
                 && s.opacity >= 1000
                 && s.image.to_ascii_lowercase().ends_with(".jpg")
                 && s.x <= 0
@@ -716,8 +719,18 @@ impl Compiler<'_, '_> {
             }
         }
         // (A process's own time holds only the process.)
-        let rest = timed.iter().filter(|(n, _)| !moving.contains(n) && !matches!(self.objects.get(*n), Some(Object { kind: Kind::Process { .. }, .. }))).map(|(_, &t)| t).max().unwrap_or(0);
-        let ms = if moving.is_empty() { ms } else { blocking.max(rest.min(UNWAITED_MS)) };
+        // (A `DrawTransition` starts now and runs on in the engine: the
+        // print shows its start, then the script waits as it asked.)
+        let fading: Vec<&String> = want.iter().filter(|w| w.1.fade.is_some() && self.shown.get(&w.0).is_none_or(|o| o.fade != w.1.fade)).map(|w| &w.0).collect();
+        let rest = timed.iter().filter(|(n, _)| !moving.contains(n) && !fading.contains(n) && !matches!(self.objects.get(*n), Some(Object { kind: Kind::Process { .. }, .. }))).map(|(_, &t)| t).max().unwrap_or(0);
+        let (ms, after) = match (moving.is_empty(), fading.is_empty()) {
+            (true, true) => (ms, 0),
+            (false, true) => (blocking.max(rest.min(UNWAITED_MS)), 0),
+            (m, false) => {
+                let p = if m { rest.min(UNWAITED_MS) } else { blocking.max(rest.min(UNWAITED_MS)) };
+                (p, blocking.saturating_sub(p))
+            }
+        };
         let mut placed = Vec::new();
         let mut animated = Vec::new();
         // Layers whose movie (zoomed with spzoom) goes: removed even when a
@@ -746,7 +759,7 @@ impl Compiler<'_, '_> {
             }
             match self.shown.get(&name) {
                 Some(old) if *old == Shown { engine: old.engine, ..now.clone() } => continue,
-                Some(old) if old.layer == now.layer && old.image == now.image && old.x == now.x && old.y == now.y && old.cells == now.cells && old.flash == now.flash && old.angle == now.angle && old.clip == now.clip && old.mask == now.mask && old.over == now.over => {
+                Some(old) if old.layer == now.layer && old.image == now.image && old.x == now.x && old.y == now.y && old.cells == now.cells && old.flash == now.flash && old.angle == now.angle && old.clip == now.clip && old.fade == now.fade && old.over == now.over => {
                     now.engine = old.engine;
                     if old.tint != now.tint {
                         opacity.push(Op::SpriteFilters { layer, filters: now.tint.clone().unwrap_or_default() });
@@ -835,10 +848,13 @@ impl Compiler<'_, '_> {
                         opacity.push(Op::SpriteClip { layer, rect: (x as i32, y as i32, w as i32, h as i32) });
                         now.engine.zoomed = true;
                     }
-                    // spmask stays through lsp too: the veil read at the screen pixel
+                    // spfadeto stays through lsp too: the mask read at the screen pixel
                     // (src: Muramasa.exe 00418320), however the picture moves.
-                    if let Some(m) = &now.mask {
-                        opacity.push(Op::SpriteMask { layer, image: m.clone() });
+                    if let Some(f) = &now.fade {
+                        // shortcut: one placed after its time (under a cover) jumps to its end in one frame
+                        let ms = if f.until > clock { f.ms.min((f.until - clock) as u32) } else { 0 };
+                        let form = self.game.diesel_transition as u8;
+                        opacity.push(Op::SpriteFadeTo { layer, mask: f.mask.clone(), ms, from: f.from as u32, to: f.to as u32, softness: f.softness as u32, form, ease: f.ease });
                         now.engine.zoomed = true;
                     }
                     // spzoom's angle stays through lsp: cleared with the layer later.
@@ -883,6 +899,9 @@ impl Compiler<'_, '_> {
         self.ops.extend(animated);
         self.ops.extend(opacity);
         self.ops.push(Op::EndTransition);
+        if after > 0 {
+            self.ops.push(Op::Wait { ms: after });
+        }
     }
 }
 

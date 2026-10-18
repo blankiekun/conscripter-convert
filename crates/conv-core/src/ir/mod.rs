@@ -794,6 +794,13 @@ pub enum Op {
     /// cleared or `image` is empty (CONscripter's `spmask`). Nitroplus's
     /// partial `DrawTransition`, read at the screen pixel.
     SpriteMask { layer: u32, image: String },
+    /// Fades a layer's sprite through `mask`'s grey levels (stretched over
+    /// the screen) from level `from` to `to` (0-1000, 1000 whole) over `ms`
+    /// while the script goes on, `softness` the band's width, `form` 1 the
+    /// English port's band, eased by `ease` ([`Op::MoveEase`]'s); the
+    /// sprite's own opacity times it (CONscripter's `spfadeto`). Nitroplus's
+    /// `DrawTransition`.
+    SpriteFadeTo { layer: u32, mask: String, ms: u32, from: u32, to: u32, softness: u32, form: u8, ease: Option<(u8, u32)> },
 }
 
 /// [`Op::HoldMovie`]'s prompt: `image` is `cells` pictures side by side,

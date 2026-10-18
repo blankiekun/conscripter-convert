@@ -720,44 +720,43 @@ impl Compiler<'_, '_> {
                     }
                 }
                 let targets = self.matching(&arg(0));
-                // From what the screen shows of it (nothing, if not shown yet).
-                if targets.iter().any(|t| self.shown.get(t).map_or(0, |s| s.opacity) != from) {
-                    self.note("DrawTransition from another opacity than the picture's");
-                }
-                // Stopped partway: drawn through the mask at that level, its
-                // opacity left (src: the exe's table, `transition::table`; a
-                // later `Fade` multiplies it, as fire01's in function_process.nss).
-                let table = if self.game.diesel_transition { super::transition::diesel_table(to, arg(4).int()) } else { super::transition::table(from, to, arg(4).int(), arg(1).int()) };
-                let veil = table
-                    .filter(|t| t.iter().any(|&v| v > 0))
-                    .and_then(|t| self.assets.veil(&mask, &t));
-                if veil.is_some() && targets.iter().any(|t| !matches!(self.objects[t].kind, Kind::Image { .. } | Kind::Strip(_))) {
-                    self.note("DrawTransition partial on an effect: drawn unmasked");
-                }
-                for t in &targets {
+                let softness = arg(4).int().max(0);
+                let tempo = if arg(1).int() > 0 { self.game.fade_tempo.unwrap_or(|_| None)(&arg(5)) } else { None };
+                // A picture: the engine's spfadeto, from `from` whatever it
+                // showed (src: Muramasa.exe transition_start 0044fe00), its
+                // opacity left (a later `Fade` multiplies the mask's table,
+                // as fire01's in function_process.nss).
+                let (pictures, others): (Vec<_>, Vec<_>) = targets.iter().cloned().partition(|t| matches!(self.objects[t].kind, Kind::Image { .. } | Kind::Strip(_)));
+                let until = self.sound_clock() + arg(1).int().max(0) as u64;
+                for t in &pictures {
                     let o = self.objects.get_mut(t).unwrap();
-                    if veil.is_none() {
-                        o.opacity = to;
+                    if to == 1000 {
+                        o.opacity = 1000;
                     }
-                    o.veil = veil.clone();
+                    o.fade = Some(FadeTo { mask: mask.clone(), ms: arg(1).int().max(0) as u32, from, to, softness, ease: tempo, until });
                 }
-                // src: Muramasa.exe's transition step (FUN_0044fe00) eases by the tempo
-                // (apply_tempo); Django.exe's (FUN_00439d20) by FUN_00434ea0's curve
-                if arg(1).int() > 0 && let Some(e) = self.game.fade_tempo.unwrap_or(|_| None)(&arg(5)) {
-                    self.fade_tempo = Some(e);
+                // Anything else (a cover freezing the screen) is a print
+                // through the mask from the screen before to the one after:
+                // the threshold swept from 0 to 1000 or back (effectsoft).
+                if !others.is_empty() {
+                    let shown_at = |c: &Self, t: &String| match &c.objects[t].kind {
+                        Kind::Cover { .. } => c.objects[t].opacity,
+                        _ => c.shown.get(t).map_or(0, |s| s.opacity),
+                    };
+                    if others.iter().any(|t| shown_at(self, t) != from) || !matches!((from, to), (0, 1000) | (1000, 0)) {
+                        self.note("DrawTransition from another opacity than the picture's");
+                    }
+                    for t in &others {
+                        self.objects.get_mut(t).unwrap().opacity = to;
+                    }
+                    if tempo.is_some() {
+                        self.fade_tempo = tempo;
+                    }
+                    if matches!((from, to), (0, 1000) | (1000, 0)) && softness > 0 {
+                        self.transition_soft = Some((softness as u32, from > to));
+                    }
+                    self.pending_mask = Some(mask);
                 }
-                // The mask as a threshold table (src: Muramasa.exe FUN_0044fe00, the
-                // per-frame 00457bf0): from and to × 0.255 are its ends; up to the
-                // threshold p shown, then a ramp losing 255 ÷ p × 255 ÷ softness a
-                // grey level; a fade-out's threshold falls, so the picture leaves
-                // the mask's bright parts first. CONscripter's effectsoft draws the
-                // full sweeps; a partial one (to 200, 250 → 150) ends masked, its
-                // picture cut by the table above (the sweep to it a mask print).
-                let softness = arg(4).int();
-                if matches!((from, to), (0, 1000) | (1000, 0)) && softness > 0 {
-                    self.transition_soft = Some((softness as u32, from > to));
-                }
-                self.pending_mask = Some(mask);
                 self.timed(arg(1).int(), &arg(7), &targets);
             }
             "Shake" => {
