@@ -708,8 +708,9 @@ Open, by area (each is small; most noticeable first):
 - **Effects**: `CreateEffect` Drop (1, mc04_052) and Lens (2); `DrawEffect`
   waves on a `Plain` cover (10), Ripple (4), Split (7), a wave picked up
   later restarts straight; `DrawTransition` partial sweep is a plain mask
-  print, one on an effect (rain) is unmasked, 565 calls start from another
-  opacity (noted); `CreateStencil`/`CreateMask`: a moved or zoomed picture
+  print, two on a `Plain` cover (md05_016vs's `絵板写*`) are unmasked,
+  a rain strip keeps the cut made where it stood (mc04_022vs moves its
+  rain after), 565 calls start from another opacity (noted); `CreateStencil`/`CreateMask`: a moved or zoomed picture
   under them, a zoom about a vertex, a `Plain` cover under a stencil, a
   colour mask exact only for alpha blend; 25 `CreateTexture`s from an
   object or the screen; `Rotate` of other objects about z (31), a turn
@@ -1312,8 +1313,9 @@ Next, in order:
      first. Full sweeps (0 → 1000, 1000 → 0: 2,073 calls) are drawn so with
      CONscripter's `effectsoft` (engine #138). A partial one (367 calls) now
      leaves its picture cut by the table ("History", "Partial
-     `DrawTransition`"); its sweep is still a plain mask print, and one on
-     an effect (rain) is drawn unmasked (noted). 565 calls start from another
+     `DrawTransition`"), a rain strip each cell where it is drawn, zoomed
+     and turned; its sweep is still a plain mask print, and one on a
+     `Plain` cover is drawn unmasked (noted). 565 calls start from another
      opacity than shown (noted). A mask cg.npa lacks (ma04_018vs/020vs's
      `slide_01_02_2.png`, `cg/data/7.png`, an unset `$Transition`): the
      exe's step returns before the transition (seen), none drawn.
@@ -1569,8 +1571,14 @@ straight curve, which only decides leftovers of the start's ramp), the
 assets draw it as a screen-sized `system/veil_*.png`, and the picture
 is cut by it as by a stencil (`Compiler::stenciled`, `lsp` of a new
 picture), keeping its opacity (fire01's `焚き火光`: `Fade` 0, the
-transition, then `Fade`s up): 367 calls, 6 of them on a rain effect,
-drawn unmasked (noted). The other partial ones (from a level to 0 or
+transition, then `Fade`s up): 367 calls, 6 of them on effects, drawn
+unmasked at first; since 2026-10-18 the 4 on rain strips (mc01_021vsaba,
+mc04_022vs, md01_029vs's two) are cut too, each cell by the veil at its
+screen place through the strip's zoom and `lsp2` turn (an engine frame of
+mc04_022vs's turned, 2×4-zoomed strip: cut ÷ uncut equals the veil exactly
+wherever the veil is flat over 9×9 pixels, 4,748 lit pixels; it differs
+only at the veil's steps, where the zoomed sprite is filtered), leaving
+the 2 on md05_016vs's `Plain` covers unmasked (noted). The other partial ones (from a level to 0 or
 1000, or to a level under 4, which × 0.255 is 0) end unmasked or hidden,
 as before. Checked in a
 scene build of ma04_013vs: the five veils equal a Python replay of the

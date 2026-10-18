@@ -182,7 +182,10 @@ impl Compiler<'_, '_> {
                 let zoom = (s.zoom.0 * tilt(o.turn.1, o.zoom.0) / 1000, s.zoom.1 * tilt(o.turn.0, o.zoom.1) / 1000);
                 let cells = Some((s.cells, s.looped, zoom, s.frame_ms));
                 let (px, py) = self.parent_offset(n);
-                let shown = Shown { layer: 0, image: s.image.clone(), x: o.x + px, y: o.y + py, w: s.w, h: s.h, opacity: o.opacity, cells, source: String::new(), zoom: (1000, 1000), angle: o.angle(), clip: None, engine: Engine::default(), flash: 0, blend: o.blend, tint: None, over: false, whole: None };
+                let (x, y) = (o.x + px, o.y + py);
+                // A partial `DrawTransition`'s veil: each cell cut where it is drawn.
+                let image = o.veil.as_ref().and_then(|v| self.assets.stenciled(&s.image, v, false, (-x, -y), (zoom.0 as i64 * 10, zoom.1 as i64 * 10), (s.cells, o.angle()))).unwrap_or_else(|| s.image.clone());
+                let shown = Shown { layer: 0, image, x, y, w: s.w, h: s.h, opacity: o.opacity, cells, source: String::new(), zoom: (1000, 1000), angle: o.angle(), clip: None, engine: Engine::default(), flash: 0, blend: o.blend, tint: None, over: false, whole: None };
                 want.push((n.clone(), shown, (o.priority, o.seq), (1000, 1000), (s.w, s.h), (false, false)));
             }
         }
