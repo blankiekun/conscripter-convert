@@ -1595,6 +1595,10 @@ struct Compiler<'a, 'b> {
     /// Pictures faded since the last sync from 0 (hidden): a new one is
     /// faded in by the engine ([`Compiler::sync`]).
     fade_from_zero: std::collections::HashSet<String>,
+    /// Objects the script made that the compiler doesn't keep (a `Create*`
+    /// it leaves out, as the choice screen's), until deleted: an action on
+    /// them may still wait in the original.
+    untracked: std::collections::BTreeSet<String>,
     /// The cameras a `MoveCamera` over time moves at the next sync (its ms).
     pending_camera: HashMap<String, u32>,
     /// The pictures' moves running: a new picture beside them in a moving
@@ -2452,6 +2456,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
             motion_until: HashMap::new(),
             unwaited_motions: Default::default(),
             fade_from_zero: Default::default(),
+            untracked: Default::default(),
             pending_camera: HashMap::new(),
             runs: BTreeMap::new(),
             pending_mask: None,
@@ -3106,6 +3111,15 @@ impl<'a, 'b> Compiler<'a, 'b> {
             None if self.objects.contains_key(&name) => vec![name],
             None => Vec::new(),
         }
+    }
+
+    /// Whether a name or wildcard matches no object, kept or not: an
+    /// action on it starts nothing, and a waited one doesn't wait (src:
+    /// Muramasa.exe cb_Fade 0044f020 queues no action; the wait 00445ac0
+    /// waits on the objects' action slots).
+    fn no_object(&self, v: &Value) -> bool {
+        let name = self.object_name(v);
+        self.matching(v).is_empty() && !self.untracked.iter().any(|k| glob(&name, k))
     }
 
     fn create(&mut self, name: String, kind: Kind<'a>, priority: i64, w: i64, h: i64) -> &mut Object<'a> {
@@ -6891,9 +6905,23 @@ scene a.nss
     }
 
     #[test]
+    fn a_waited_action_on_no_object_does_not_wait() {
+        // ma00_000:2501's `Fade("silver_son*", 500, 0, null, true)` after they went.
+        let story = "scene a.nss\n{\n\tCreateColor(\"c1\", 100, 0, 0, 10, 10, \"BLACK\");\n\tDelete(\"c*\");\n\tFade(\"c*\", 500, 0, null, true);\n\tMove(\"c1\", 400, 0, 0, null, true);\n\tCreateTexture(\"gone\", 100, 0, 0, \"cg/none.png\");\n\tFade(\"gone\", 300, 0, null, true);\n}\n";
+        let c = compile(story, LIBRARY);
+        let waited: u32 = c.ops.iter().map(|op| match op {
+            Op::Wait { ms } | Op::Pause { ms } | Op::BeginTransition { fade_ms: ms, .. } => *ms,
+            _ => 0,
+        }).sum();
+        // Only the fade of the object the compiler left out waits.
+        assert_eq!(waited, 300, "{:?}", c.ops);
+    }
+
+    #[test]
     fn each_op_maps_to_the_statement_it_came_from() {
         let story = "scene a.nss\n{\n\tCreateTextureEX(\"bg\", 100, 0, 0, \"cg/bg/a.jpg\");\n\tFade(\"bg\", 500, 1000, null, true);\n<PRE @box0>\n[text0010]\nあ\n</PRE>\n\tSetText();\n\tTypeBegin();\n\tWait(300);\n}\n";
-        let c = compile(story, LIBRARY);
+        // (The box TypeBegin fades: a fade of no object doesn't wait.)
+        let c = compile(&story.replacen("{\n", "{\tCreateWindow(\"box\", 20000, 0, 0, 100, 100, true);\n", 1), LIBRARY);
         let at = |i: usize| c.source_map.iter().rev().find(|m| m.0 <= i).map(|m| format!("{}:{}", m.1.file, m.1.index)).unwrap();
         let find = |f: &dyn Fn(&Op) -> bool| c.ops.iter().position(f).unwrap_or_else(|| panic!("{:#?}", c.ops));
         // the page from its <PRE> line, though TypeBegin shows it
