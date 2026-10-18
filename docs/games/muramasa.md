@@ -708,9 +708,18 @@ Open, by area (each is small; most noticeable first):
 - **Effects**: `CreateEffect` Drop (1, mc04_052) and Lens (2); `DrawEffect`
   waves on a `Plain` cover (10), Ripple (4), Split (7), a wave picked up
   later restarts straight; `DrawTransition` partial sweep is a plain mask
-  print, two on a `Plain` cover (md05_016vs's `絵板写*`) are unmasked,
-  a rain strip keeps the cut made where it stood (mc04_022vs moves its
-  rain after), 565 calls start from another opacity (noted); `CreateStencil`/`CreateMask`: a moved or zoomed picture
+  print; md05_016vs's two on `Plain` covers (`絵板写*`, 1049-1050) don't
+  matter yet: those covers (`CreatePlainEXsub`/`EXadd`, then zoomed to
+  1500) aren't drawn at all (`shows_froze`'s shortcut for a blended or
+  zoomed cover), so the 空間歪曲 flashes show nothing: drawing them needs
+  blended, zoomed-over-time cover copies (and the wave), a feature; a
+  rain strip keeps the cut made where it stood: mc04_022vs's
+  `MoveFFP1("@絵効果線")` jitters it ±10 px (a looped `spmotion`) while
+  the exe's veil stays on the screen (`00418320` reads the mask at the
+  screen pixel); `slide_01_03_0`'s hard steps make a 10 px shift differ
+  by up to 255 on 80,000 pixels, but only a screen-anchored live mask in
+  the engine (none: `spcut` cuts once) would fix it; 565 calls start from
+  another opacity (noted); `CreateStencil`/`CreateMask`: a moved or zoomed picture
   under them, a zoom about a vertex, a `Plain` cover under a stencil, a
   colour mask exact only for alpha blend; 25 `CreateTexture`s from an
   object or the screen; `Rotate` of other objects about z (31), a turn
@@ -747,12 +756,9 @@ Open, by area (each is small; most noticeable first):
   changes credited to the statement that flushes them (`Gin_song*`,
   `絵背景*` before a `Wait`/`WaitKey`), calls on no object (`Comic*`);
   the 30 to 300 ms steps where the original is slower are its frames and
-  loads under wine. Open:
-  - A waited `Fade` that leaves the opacity as it was doesn't wait in
-    the original (`cb_Fade` 0044f020 starts no action then); ours does.
-    Not done: it changes 158 hunks (cockpit sprite numbers) still to
-    check. (A `Fade`/`Move` on no object: History, "Actions on no
-    object".)
+  loads under wine. (A `Fade` that leaves the opacity as it was, or
+  on no object: History, "Fades that change nothing", "Actions on no
+  object".)
 - **Picture diff of ma00_000** (#457's 24 blocks, rerun 2026-10-18 with
   `--real-time`): what is left is small and not fixed.
   - Pages 57, 66 (66 is 57 kept in a cover): `SetShade(…, MEDIUM)`
@@ -1443,6 +1449,27 @@ out on purpose.
 - Engine: CONscripter segfaults on `end` after a `dwave` voice with Ctrl
   held (seen once in a small test script; not looked into).
 
+
+### Fades that change nothing (2026-10-18)
+
+`cb_Fade` 0044f020 (Django.exe cb_00438fb0 the same) compares the
+target's opacity byte, round(n × 0.255), with the object's: equal, it
+sets it and starts no action, so a waited `Fade` doesn't wait and an
+unwaited one adds nothing to the next sync. A new object's byte is 255
+(`FUN_00488740`, called by every `Create*` through FUN_00488190), so
+`CreateColorSP(…); Fade(…, 1000, 1000, …)` (md02_021's `黒幕１`,
+md02_004, ma04_013vs's `絵色白`) shows it at once, not as a fade-in.
+The compiler skips such a `Fade` when every object it names keeps its
+byte and none has an action still unsynced (a `DrawTransition` under
+way: ma04_018vs's `FadeDelete("絵窓/絵被弾効果*", 450)` right after
+one keeps fading). Objects left out (`untracked`) and the text window's
+boxes wait as before. 174 calls in Muramasa: `bloodC*`/`bloodL*` at 0
+faded to 0, cockpit `@CPEn*` at 1000 faded to 1000, `FadeDelete` of
+pictures already out, new pictures faded to 1000. The 0.txt: 159 hunks,
+77 only `delay`/`wait` gone or merged; the rest follow from syncs no
+longer stretched by the dropped fade (ma01_022vs's `絵色200` 500 ms
+fade of a picture at 0 made the next 200 ms sync 500): sprite numbers
+of the cockpit pieces and counters re-drawn, the same pictures.
 
 ### Actions on no object (2026-10-18)
 

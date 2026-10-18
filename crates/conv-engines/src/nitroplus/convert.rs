@@ -5400,7 +5400,7 @@ scene a.nss
 scene a.nss
 {
 	CreateTexture("bg", 100, 0, 0, "cg/bg/a.jpg");
-	Fade("bg", 5000, 1000, null, false);
+	Fade("bg", 5000, 500, null, false);
 	Draw();
 }
 "#;
@@ -5411,6 +5411,23 @@ scene a.nss
             _ => None,
         }).max();
         assert_eq!(longest, Some(UNWAITED_MS), "{:?}", c.ops);
+    }
+
+    #[test]
+    fn a_fade_that_changes_nothing_does_not_wait() {
+        // A new picture is at 1000 (255): fading it to 1000 starts no action.
+        let story = r#"
+scene a.nss
+{
+	CreateTexture("bg", 100, 0, 0, "cg/bg/a.jpg");
+	Fade("bg", 700, 1000, null, true);
+}
+"#;
+        let c = compile(story, LIBRARY);
+        let waits = |c: &Compiled| c.ops.iter().any(|op| matches!(op, Op::BeginTransition { fade_ms: 700, .. } | Op::Wait { ms: 700 } | Op::Pause { ms: 700 }));
+        assert!(!waits(&c), "{:?}", c.ops);
+        let c = compile(&story.replace("Fade(\"bg\", 700", "Fade(\"bg\", 0, 0, null, true);\n\tFade(\"bg\", 700"), LIBRARY);
+        assert!(waits(&c), "{:?}", c.ops);
     }
 
     #[test]
@@ -5709,6 +5726,7 @@ function SoundPlay("ナット名", 秒数, ボリウム, ループ設定)
 scene a.nss
 {
 	CreateTexture("a", 100, 0, 0, "cg/bg/a.jpg");
+	Fade("a", 0, 0, null, true);
 	Fade("a", 300, 1000, Axl1, true);
 	DrawTransition("a", 300, 0, 1000, 100, null, "cg/bg/a.jpg", true);
 	CreateProcess("P", 100, 5, 5, "Nothing");
