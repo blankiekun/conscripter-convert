@@ -19,6 +19,10 @@ otherwise; `<install>` is the folder holding `Farthest2015.exe`.
 
 ## Build
 
+`conscripter-convert build <install> -o <output>` recognises the game and
+runs `convert-game` with `--title "Saihate no Ima COMPLETE"` (README, "Converting a game"); the
+convert options (`--dry-run`, `--font`, …) go after `-o`.
+
 Full build (2-3 min):
 
 ```sh

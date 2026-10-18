@@ -31,8 +31,8 @@ before the 2026-10-18 prune" and the sections after it).
 
 **Works** (details in History):
 
-- The English text in the converter: `convert-nss <game> --file
-  ma00_000.nss --chain 2000 --english <english game> …` reads the
+- The English text in the converter: `build <english game> --japanese <game>`
+  (`convert-nss <game> … --english <english game>`, its title) reads the
   English release's `script.npk` into the Japanese NSS (`english.rs`);
   every stretch takes its English, none stay in Japanese; the full build
   plays to the end with the trace (25,430 pages). Pass the release's

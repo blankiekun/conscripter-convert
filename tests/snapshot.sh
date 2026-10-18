@@ -71,9 +71,10 @@ all=()
 while IFS= read -r line; do all+=("${line%%$'\t'*}"); row[${all[-1]}]=$line; done < <("$bin" games --json | python3 -Ic '
 import json, sys
 for g in json.load(sys.stdin):
-    print("\t".join([g["id"], g["id"], *g["command"], "{}", *g["options"]]))
-    if g["english"]:
-        print("\t".join([g["english"], g["id"], *g["command"], "{}", *g["options"], "--english", "{en}"]))')
+    if g["japanese"]:  # an English edition, built on the Japanese game
+        print("\t".join([g["id"], g["japanese"], *g["command"], "{}", *g["options"], "--english", "{en}"]))
+    else:
+        print("\t".join([g["id"], g["id"], *g["command"], "{}", *g["options"]]))')
 [ ${#ids[@]} -gt 0 ] || ids=("${all[@]}")
 if [ -n "$ref" ]; then
     sha=$(git rev-parse --verify "$ref^{commit}")
@@ -94,6 +95,7 @@ for id in "${ids[@]}"; do
     IFS=$'\t' read -ra f <<< "${row[$id]}"
     game=$games_dir/${f[1]} english=$games_dir/$id
     if [ ! -e "$game" ] || { [ "${f[1]}" != "$id" ] && [ ! -e "$english" ]; }; then
+        [ -e "$game" ] && game=$english
         echo "$id: skipped (no $game)"
         continue
     fi

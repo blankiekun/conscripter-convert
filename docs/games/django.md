@@ -27,6 +27,10 @@ allowed.
 
 ## Build
 
+`conscripter-convert build <game> -o <output>` recognises the game and
+runs `convert-nss` with `--title 続・殺戮のジャンゴ` (README, "Converting a game"); the
+convert options (`--dry-run`, `--font`, …) go after `-o`.
+
 Script only (a few seconds; for anything about logic):
 
 ```sh
