@@ -535,7 +535,9 @@ inputs (`saihate-route.arg`, `<mura|django>-choose.txt`, the patched `*-patch/` 
 `reftrace.sh status <game>` prints at most 5 lines (running, pages, last scene, minutes since progress,
 free RAM); `reftrace.sh summary <game>` at most 15 (pages, how far, top `trace_diff.py` kinds). 続・殺戮のジャンゴ runs at
 `SPEED=1`: at `SPEED=8` its full run stalled on several pages (2026-10-18), and at 1 it ran on, so the speed
-hook is the suspected cause (not yet confirmed). A watchdog
+hook is the suspected cause (not yet confirmed). 装甲悪鬼村正's first H-mode screen
+(`sys_hmode.nss`, near page 4884) waits in a `select` for a click the clickless run never gives: `mura-patch/`
+holds a copy with that line's `select{` made `if(0){` (one line, so the trace's lines hold). A watchdog
 resumes 最果てのイマ from its last save after 10 min without progress; for the others it logs the stall
 to `watchdog.log`. Rhythm: one `status` about 5 min after the start (setup problems show then), then every
 30-60 min, `summary` at the end.
