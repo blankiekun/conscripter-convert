@@ -11,7 +11,9 @@
 # (_ZM, _MSAD), the opening's wait (_TOMW), a script's end (_RTMN, _END_: the
 # title follows) or none is logged yet: the trace's auto mode, leaving timed
 # waits alone. IDLEA may be a fraction (checked every 0.2 s): 0.3 is the fast
-# run (docs/new-game.md, "Trace speeds").
+# run (docs/new-game.md, "Trace speeds"). At a choice (_SELD) it moves the
+# cursor down to the first option neither greyed nor listed in AVOID (string
+# ids of the options' text, "042614 042606"), then presses A.
 # Setup of the data dir (firmware, keys, update): docs/games/tsukihime.md, "Testing".
 set -u
 [ -n "${HEADLESS:-}" ] || exec "$(dirname "$0")/../../research/tools/headless-run.sh" "$0" "$@"
@@ -41,7 +43,17 @@ while kill -0 $RPID 2>/dev/null; do
     last=$(grep -a 'TMT [0-9a-f]* [0-9a-f]* _' "$L/ryu.log" | tail -n 1); last=${last#*TMT }
     if [ "$last" != "$prev" ]; then prev=$last; since=$now
     elif [ $((now-since)) -ge "$idle" ] && [[ -z $last || $last =~ ^[0-9a-f]+\ [0-9a-f]+\ _(ZM|MSAD|TOMW|RTMN|END_) ]]; then
-      xdotool search --name '^Ryujinx' windowfocus keydown z sleep 0.15 keyup z 2>/dev/null; since=$now; fi
+      xdotool search --name '^Ryujinx' windowfocus keydown z sleep 0.15 keyup z 2>/dev/null; since=$now
+    elif [ $((now-since)) -ge "$idle" ] && [[ $last =~ ^[0-9a-f]+\ [0-9a-f]+\ _SELD ]]; then
+      # a choice: Down to the first option that is neither greyed nor in AVOID, then A
+      k=$(grep -a 'TMT [0-9a-f]* [0-9a-f]* _SEL[RD]' "$L/ryu.log" | sed 's/.*TMT //' | uniq | tail -n 20 | awk -v avoid=" ${AVOID:-} " '
+        /_SELR\(/ { if (shown) { split("", o); shown = 0 }
+                    match($0, /_SELR\([0-9]+,\$[0-9]+(,1)?/); split(substr($0, RSTART + 6, RLENGTH - 6), a, ",")
+                    o[a[1]] = (a[3] == 1 ? "" : substr(a[2], 2)); next }
+        /_SELD/ { shown = 1 }
+        END { k = 0; for (i = 0; i < 16; i++) if ((i in o) && o[i] != "") { if (!index(avoid, " " o[i] " ")) break; k++ } print k }')
+      for _ in $(seq "$k"); do xdotool search --name '^Ryujinx' windowfocus keydown Down sleep 0.15 keyup Down 2>/dev/null; sleep 0.1; done
+      xdotool search --name '^Ryujinx' windowfocus keydown z sleep 0.15 keyup z 2>/dev/null; echo "${t}s choice: down $k"; since=$now; fi
   fi
   if [ -n "$fps" ] && [ $t -ge $fps ]; then fps=
     ffmpeg -nostdin -loglevel info -f x11grab -framerate 60 -video_size 1280x720 -t 5 -i $N -vf mpdecimate=hi=1:lo=1:frac=0,showinfo -f null - 2>&1 | grep -c 'Parsed_showinfo.* n: *[0-9]' | awk '{printf "%ss: %.1f distinct frames/s\n", '$t', $1/5}'

@@ -794,6 +794,38 @@ conscripter --root . --save-dir saves --goto tm_START_SCRIPT --trace ours.jsonl 
 python3 -I research/tools/trace_diff.py orig.jsonl ours.jsonl --map map.tsv --ms --pages 297 --max 10000 --merge-into _FADS
 ```
 
+Step 3, the full-route reference trace (2026-10-18): **started, stopped
+in `00_00`** to free memory (Ryubing holds 5.5 GB and flatpak takes it
+out of the `MemoryMax` scope; the machine fell under 4 GB free beside
+the wine traces): 208 pages of `00_00` in 17 minutes, from the save at
+the title. The route is Arcueid's (the first play): ours takes every
+first option except the 11 dead ends of her route (the lessons
+`QA_01`–`QA_11`, table above) and reaches `14_00_ARC14_1` at page
+16334, about 6.4 h of original at `IDLEA=0.3`. The original takes the
+same options by `switch-emu.sh`'s `AVOID`: at a choice (`_SELD` the
+last command) it reads the `_SELR`s before it from the trace and
+presses Down past the greyed and avoided options, then A (not yet
+reached in a run: the first choice is day 1's `01_00_ARC01_1`).
+
+```sh
+SHOT=600 IDLEA=0.3 AVOID="042606 042614 042615 042617 042621 042623 042655 042665 042668 042679 042680" \
+  research/typemoon/switch-emu.sh <emu>/data 7200 --graphics-backend Vulkan \
+  --skip-user-profiles-manager --disable-ptc "<base nsp>"
+python3 -I research/typemoon/switchtrace/tmtrace.py <emu>/logs/ryu.log <scr> <txt> -o orig.jsonl
+# ours, in <ours> as above; <choose> = the 10 selects holding an avoided option, `*label:line=N`
+conscripter --root . --save-dir saves --goto tm_START_SCRIPT --trace ours.jsonl --auto-play 0 \
+  $(sed 's/^/--choose /' <choose>)
+python3 -I research/tools/trace_diff.py orig.jsonl ours.jsonl --map map.tsv --ms --pages 10000 --merge-into _FADS
+```
+
+The `AVOID` ids are the `$` string of each dead-end option's `_SELR`
+(`typemoon script` prints them: `_SELR(1,$042614)  « ……部屋で外の様子をうかがう。 »`);
+the selects for `--choose` are the 0.txt `select`s naming those texts.
+Diff over the 208 pages: no text findings; 4 missing (`_STMA` at
+`00_00:212` and `1121`, `_STGS` at `00_00:2243`, `2244`), 21 merged
+into `_FADS`; the 172 time findings mean nothing (ours ran without
+`--real-time`).
+
 ## Status
 
 Working: files out of the NSP; all archives, pictures (BNTX) and
@@ -847,7 +879,12 @@ Config on the title.
    from the Config tab to its option), the backlog; then the save list's route picture and chapter labels
    (by the phase), and Config and Gallery on the title.
 4. Still open in the exe: the motion keyframes' other fields.
-5. The metrics (`tests/snapshots/tsukihime.metrics.json`) count each
+5. The full-route reference trace (Testing, step 3): rerun it whole
+   once the machine has 8 GB free (Ryubing takes 5.5 GB), from the
+   title; so far `00_00`'s 208 pages, text clean; look at the
+   missing `_STMA` (`00_00:212`, `1121`) and `_STGS` (`00_00:2243`,
+   `2244`).
+6. The metrics (`tests/snapshots/tsukihime.metrics.json`) count each
    argument a converted command passes and doesn't read as a gap
    (`<command> argument <i> ignored`, `option <n>` for a backquote
    option); the list is in that file. The biggest: `_STZ4`'s 2 timed uses (and 2 on
