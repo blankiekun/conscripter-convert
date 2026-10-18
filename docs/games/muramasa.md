@@ -746,13 +746,8 @@ Open, by area (each is small; most noticeable first):
     Not done: it changes 158 hunks (cockpit sprite numbers) still to
     check. (A `Fade`/`Move` on no object: History, "Actions on no
     object".)
-  - An unwaited `Fade` before a sound or the text is played out by the
-    next sync (up to `UNWAITED_MS`): ma00_000:1625, :1674 (+280 ms).
 - **Picture diff of ma00_000** (#457's 24 blocks, rerun 2026-10-18 with
   `--real-time`): what is left is small and not fixed.
-  - Page 3: `FadeDelete("絵背景10", 3000, false)` before the text
-    runs 1 s in ours (`UNWAITED_MS`, as in "Trace diff" above): the
-    original's frame still shows the old sky at about a third.
   - Pages 57, 66 (66 is 57 kept in a cover): `SetShade(…, MEDIUM)`
     pictures are about 2.5/255 darker in the exe. Its passes of a 3×3
     mean floor (`FUN_00465b10`: `sum / 9` on unsigned ints), about
@@ -1505,6 +1500,24 @@ stop's fade-out goes along it, then the sound is halted): 32 `chfreq`
 and 7 `chvolfade` in the dry run. Still straight: the music's eased
 fade-out (mc02_013, `bgmfadeout`; noted) and a sound's fade-in as it
 starts (`dwavefadein`).
+
+### Unwaited fade-outs (2026-10-18)
+
+A `Fade` to 0 that outlasts the sync's wait used to be part of the
+blocking cross-fade, so the script waited for it (up to `UNWAITED_MS`):
+ma00_000:1624's `Fade("絵色100", 300, 0, null, false)` before `OnSE`
+and the text (the text 36 ms after it under wine, 918 ms in ours, now
+609 ms: the rest is the box's own fade-in, as on every page). Such a
+fade is now an engine motion to alpha 0, as a fade-in from 0 was
+already, and the picture is taken away at a later sync. A picture
+disused as such a fade starts (`FadeDelete(…, false)`: `Fade` then
+`Request(…, Disused)`) is kept until a sync after the fade, as the
+exe's frame on page 3 shows (ma00_000:137, the old sky still at about
+a third after the 1 s `Wait`); not one that also zooms or turns
+(mb02_028vs:123) or that a `DrawTransition` wipes (md01_029vs:2107):
+those go at once, as before. Limit: the later sync takes it away
+even if the reader clicks on before the fade's end (by the script's
+clock).
 
 ### Zoom to 0 (2026-10-18)
 

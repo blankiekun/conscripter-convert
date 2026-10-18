@@ -1627,6 +1627,10 @@ struct Compiler<'a, 'b> {
     /// Pictures whose motion the script went on from (longer than the
     /// sync waited): a later `WaitAction` on one waits for it in the engine.
     unwaited_motions: std::collections::HashSet<String>,
+    /// Pictures disused as an unwaited fade starts (`FadeDelete(…, false)`):
+    /// deleted at the first sync after its fade, if still the same object
+    /// (by its `seq`).
+    disused_fading: Vec<(String, u64)>,
     /// Pictures faded since the last sync from 0 (hidden): a new one is
     /// faded in by the engine ([`Compiler::sync`]).
     fade_from_zero: std::collections::HashSet<String>,
@@ -2496,6 +2500,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
             vanishing: HashMap::new(),
             motion_until: HashMap::new(),
             unwaited_motions: Default::default(),
+            disused_fading: Vec::new(),
             fade_from_zero: Default::default(),
             untracked: Default::default(),
             pending_camera: HashMap::new(),
@@ -3356,6 +3361,9 @@ impl<'a, 'b> Compiler<'a, 'b> {
                 // Looping sounds play on until stopped; one-shots until
                 // their end (`forget_ended_sounds`).
                 Kind::Sound(s) => s.disused = true,
+                // src: under wine ma00_000:137's `FadeDelete("絵背景10", 3000,
+                // false)` still shows the sky after the 1 s `Wait`: the fade runs on.
+                _ if !o.locked && self.pending_fade.contains_key(name) => self.disused_fading.push((name.to_string(), o.seq)),
                 _ if !o.locked => self.delete(name),
                 _ => {}
             },
@@ -7123,5 +7131,71 @@ scene a.nss
         let keys = c.ops.iter().find_map(|op| if let Op::SpriteMotion2 { keys, .. } = op { Some(keys.clone()) } else { None }).expect("motion");
         assert_eq!((keys[0].opacity, keys[1].ms, keys[1].opacity), (0, 3000, 256));
         assert!(c.ops.iter().any(|op| matches!(op, Op::MotionWait { .. })), "{:?}", c.ops);
+    }
+
+    #[test]
+    fn an_unwaited_fade_out_runs_on_and_is_waited_for_later() {
+        // ma00_000:1624: the text goes on as the white fades out.
+        let story = r#"
+scene a.nss
+{
+	CreateTexture("bg", 100, 0, 0, "cg/bg/a.jpg");
+	Wait(100);
+	Fade("bg", 300, 0, null, false);
+	Wait(10);
+	WaitFade("bg", null);
+}
+"#;
+        let c = compile(story, LIBRARY);
+        let fades: Vec<u32> = c.ops.iter().filter_map(|op| if let Op::BeginTransition { fade_ms, .. } = op { Some(*fade_ms) } else { None }).collect();
+        assert!(fades.iter().all(|&ms| ms <= 10), "{:?}", c.ops);
+        let keys = c.ops.iter().find_map(|op| if let Op::SpriteMotion2 { keys, .. } = op { Some(keys.clone()) } else { None }).expect("motion");
+        assert_eq!((keys[0].opacity, keys[1].ms, keys[1].opacity), (256, 300, 0));
+        assert!(c.ops.iter().any(|op| matches!(op, Op::MotionWait { .. })), "{:?}", c.ops);
+    }
+
+    #[test]
+    fn a_picture_disused_as_its_unwaited_fade_starts_fades_out_first() {
+        // ma00_000:137's FadeDelete("絵背景10", 3000, false), then Wait(1000).
+        let story = r#"
+scene a.nss
+{
+	CreateTexture("sky", 100, 0, 0, "cg/bg/a.jpg");
+	Wait(100);
+	Fade("sky", 3000, 0, null, false);
+	Request("sky", Disused);
+	Wait(1000);
+	Wait(5000);
+}
+"#;
+        let c = compile(story, LIBRARY);
+        let at = c.ops.iter().position(|op| matches!(op, Op::SpriteMotion2 { keys, .. } if keys[1].ms == 3000 && keys[1].opacity == 0)).unwrap_or_else(|| panic!("{:?}", c.ops));
+        let Op::SpriteMotion2 { layer, .. } = c.ops[at] else { unreachable!() };
+        // Taken away only at the sync after its fade.
+        let gone = c.ops.iter().position(|op| matches!(op, Op::Sprites { changes, .. } if changes.iter().any(|ch| ch.layer == layer && ch.sprite.is_none()))).unwrap_or_else(|| panic!("{:?}", c.ops));
+        assert!(gone > at && c.ops[at..gone].iter().any(|op| matches!(op, Op::Pause { ms: 1000 })), "{:?}", c.ops);
+    }
+
+    #[test]
+    fn a_disused_fading_picture_wiped_or_zoomed_goes_at_once() {
+        // md01_029vs:2107's FadeDelete then DrawTransition, mb02_028vs:123's Zoom then FadeDelete.
+        let story = r#"
+scene a.nss
+{
+	CreateTexture("c", 100, 0, 0, "cg/bg/a.jpg");
+	CreateTexture("z", 100, 0, 0, "cg/bg/a.jpg");
+	Wait(100);
+	Fade("c", 400, 0, null, false);
+	Request("c", Disused);
+	DrawTransition("c", 200, 1000, 0, 100, null, "cg/bg/a.jpg", true);
+	Zoom("z", 500, 4000, 4000, null, false);
+	Fade("z", 500, 0, null, false);
+	Request("z", Disused);
+	Wait(50);
+}
+"#;
+        let c = compile(story, LIBRARY);
+        assert!(!c.notes.contains_key("DrawTransition from another opacity than the picture's"), "{:?}", c.notes);
+        assert!(!c.notes.keys().any(|n| n.contains("drawn as a cross-fade")), "{:?}", c.notes);
     }
 }
