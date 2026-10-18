@@ -736,6 +736,21 @@ Next, in order:
 Finished work, moved out of "Status" so a session reads only the open
 state.
 
+**The boot (2026-10-18).** The eboot's boot (scene 7 then 1, 0x8103a7b0):
+the logos `media/img/logo/` makerlogo_WH_vita (MAGES.), brandlogo_5pb_vita,
+Navel_logo, criware960x544sw, each on white (0x810815bc, drawn 960×544),
+alpha +6 % an update at 30 updates a second (17 updates, 567 ms), held
+4000 ms from the fade-in's end, circle (input bit 0x1000, or 0x100)
+ending it after 3000 ms, faded out the same (0x81081c16); then, at every
+boot, the opening OP00.usm, stopped by circle or bit 0x10 (0x8108205c),
+then 30 updates of black (0x8108237a) and the title. Vita3K's log has
+the logos opened 5.22, 5.13, 5.17 s apart; our trace 5.21 s each.
+Ours: `Script::boot` (#425), before the port's notice and the title.
+Not converted: the Vita's save data check between the logos and the
+movie (scene 0xf, "There is no saved data" / "Loading complete"), and
+OP00 replayed from the title (its result 4 → scene 1; likely an idle
+timeout, not read).
+
 **CharacterStop and FlagSwitch_Tag's operator 6 (2026-10-18).**
 CharacterStop (task_run case 0x24) stops every character action and
 settles every move (0x81127620 → 0x81000c10 per slot): ours stops each

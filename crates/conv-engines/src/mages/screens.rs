@@ -2,9 +2,10 @@
 //! the eboot's (0x81083fd8); other parts' rectangles are measured from
 //! the pictures (`research/oretsuba/atlas.py`).
 
-use conv_core::ir::{MenuSounds, TitleAction, TitleButton, TitleScreen};
+use conv_core::ir::{BootStep, MenuSounds, TitleAction, TitleButton, TitleScreen};
 
 use super::assets::ArchiveAssets;
+use super::convert::Assets;
 
 /// `title_bg.png` (960×965): the title picture in the top 544 rows; the
 /// menu labels below, 173 wide, normal from x 0 and highlighted from x
@@ -57,4 +58,32 @@ pub fn menu_sounds(assets: &mut ArchiveAssets) -> Option<MenuSounds> {
     // src: exe 0x8105e7a6 (SystemSE ids)
     let (hover, confirm) = (assets.system_sound(0), assets.system_sound(1));
     (hover.is_some() || confirm.is_some()).then_some(MenuSounds { hover, confirm })
+}
+
+/// The boot (the eboot's scenes 7 then 1, 0x8103a7b0): the logos in
+/// `media/img/logo` on white, each faded in, held and faded out (scene 7,
+/// 0x81081c16), then the opening OP00.usm (scene 1, 0x8108205c). The Vita's
+/// save data check between them (scene 0xf) has no counterpart here.
+pub fn boot(assets: &mut ArchiveAssets, logo_dir: &std::path::Path) -> Vec<BootStep> {
+    // src: exe 0x810815bc (the logo of each step 0-3, 0x8103a7b0 stops after 3)
+    const LOGOS: [&str; 4] = ["makerlogo_WH_vita", "brandlogo_5pb_vita", "Navel_logo", "criware960x544sw"];
+    // src: exe 0x81081c16: alpha 6 % an update at 30 updates a second (the
+    // log's logos 5.13-5.22 s apart), so 17 updates; held 4000 ms from the
+    // fade-in's end, circle (or input bit 0x100) ending it after 3000 ms
+    let mut steps: Vec<BootStep> = LOGOS
+        .iter()
+        .filter_map(|name| {
+            let img = image::open(logo_dir.join(format!("{name}.png"))).ok()?;
+            // src: exe 0x810815bc (drawn 960×544, the 960×540 pictures stretched)
+            let img = image::imageops::resize(&img.to_rgba8(), super::convert::SCREEN_W as u32, super::convert::SCREEN_H as u32, image::imageops::FilterType::Triangle);
+            let image = assets.put_system_png(&name.to_ascii_lowercase(), &img);
+            Some(BootStep { image, backdrop: "white".into(), fade_in_ms: 567, hold_ms: 4000, fade_out_ms: 567, skip_after_ms: Some(3000), ..Default::default() })
+        })
+        .collect();
+    // src: exe 0x8108205c (OP00 at once, circle or up stops it), 0x8108237a
+    // (black for 30 updates after it, then the title)
+    if let Some(image) = assets.movie(0) {
+        steps.push(BootStep { image, movie: true, backdrop: "black".into(), hold_ms: 1000, skip_after_ms: Some(0), ..Default::default() });
+    }
+    steps
 }

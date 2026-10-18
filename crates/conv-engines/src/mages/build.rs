@@ -88,6 +88,7 @@ pub fn build(game: &Path, scenes: &[String], opts: &Opts) -> Result<Built> {
         ops: compiled.ops,
         source_map: compiled.source_map,
         menu_sounds: super::screens::menu_sounds(&mut assets),
+        boot: if scenes.is_empty() { super::screens::boot(&mut assets, &crate::find(game, "media/img/logo")) } else { Vec::new() },
         ..Default::default()
     };
     if !dry_run {
