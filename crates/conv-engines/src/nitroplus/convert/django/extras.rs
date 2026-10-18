@@ -7,7 +7,7 @@
 
 use std::collections::BTreeMap;
 
-use conv_core::ir::{CategoryHover, ExtrasMode, ExtrasPassage, GalleryCategory, PictureExtras, PictureExtrasItem, PictureGallery, PictureReplay, PictureSlot, Placed, ReplayEntry, RoomTrack, SlotCg, SoundRoom};
+use conv_core::ir::{CategoryHover, ExtrasMode, ExtrasPassage, GalleryCategory, PictureExtras, PictureExtrasItem, PictureGallery, PictureReplay, PictureSlot, Placed, ReplayEntry, RoomTrack, Seen, SlotCg, SoundRoom};
 
 use super::super::{Assets, Story};
 use crate::nitroplus::nss::{AssignOp, BinaryOp, Expr, Item, NssFile, Stmt, StmtKind, Var};
@@ -241,7 +241,7 @@ fn gallery(a: &mut dyn Assets, story: &Story) -> Option<PictureGallery> {
                 } else {
                     Placed { image, x: (800 - w as i32) / 2, y: (600 - h as i32) / 2, w: w as i32, h: h as i32 }
                 };
-                cgs.push(SlotCg { seen, picture, thumbnail: thumbnail.clone() });
+                cgs.push(SlotCg { seen: Seen::Var(seen), picture, thumbnail: thumbnail.clone() });
             }
             if !cgs.is_empty() {
                 slots.push(PictureSlot { cgs, reversed: s.scrolls });

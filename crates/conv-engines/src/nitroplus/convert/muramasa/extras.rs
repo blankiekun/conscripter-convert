@@ -4,7 +4,7 @@
 
 use std::collections::BTreeMap;
 
-use conv_core::ir::{ExtrasMode, GalleryCategory, PictureExtras, PictureExtrasItem, PictureGallery, PictureReplay, PictureSlot, Placed, ReplayEntry, RoomTrack, RoomVideo, SlotCg, SoundRoom, Turntable, TurntableEntry};
+use conv_core::ir::{ExtrasMode, GalleryCategory, PictureExtras, PictureExtrasItem, PictureGallery, PictureReplay, PictureSlot, Placed, ReplayEntry, RoomTrack, RoomVideo, Seen, SlotCg, SoundRoom, Turntable, TurntableEntry};
 
 use super::super::{Assets, Replay, Story, SCREEN_H, SCREEN_W};
 use crate::nitroplus::nss::{Expr, Item, NssFile, StmtKind};
@@ -330,7 +330,7 @@ fn gallery(a: &mut dyn Assets, story: &Story) -> Option<PictureGallery> {
                 let index = if n.contains("ev") { "ev" } else { "bg" };
                 let Some((image, w, h)) = a.image(&format!("cg/{index}/{n}.jpg")) else { continue };
                 let Some((thumbnail, _, _)) = a.image(&format!("cg/sys/extra/thum/{index}/{n}.jpg")) else { continue };
-                cgs.push(SlotCg { seen, picture: Placed { image, x: 0, y: 0, w: w as i32, h: h as i32 }, thumbnail });
+                cgs.push(SlotCg { seen: Seen::Var(seen), picture: Placed { image, x: 0, y: 0, w: w as i32, h: h as i32 }, thumbnail });
             }
             if !cgs.is_empty() {
                 out.push(PictureSlot { cgs, reversed: mode == "Vr" || mode == "Hr" });

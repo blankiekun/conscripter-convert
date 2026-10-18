@@ -13,7 +13,7 @@
 
 use std::fmt::Write as _;
 
-use conv_core::ir::{PictureGallery, Placed};
+use conv_core::ir::{PictureGallery, Placed, Seen};
 
 use crate::menu::TMP;
 use crate::picture_gallery::{DRAW, FADE, GALLERY, MENU, SCREEN_PAGE};
@@ -80,7 +80,15 @@ pub(crate) fn lua_file(g: &PictureGallery, border: u32) -> String {
         let (a, b) = (first_page, first_page + pages[c] - 1);
         for (s, slot) in category.slots.iter().enumerate() {
             let (x, y) = place(s % per_page);
-            let cgs: Vec<String> = slot.cgs.iter().map(|cg| format!("{{{}, {}}}", lua(&var_name(cg.seen, border)), file(&cg.thumbnail))).collect();
+            let cgs: Vec<String> = slot
+                .cgs
+                .iter()
+                .map(|cg| {
+                    // shortcut: the engine's gallery screen reads variables only; a CG seen by its pictures needs fchk in its Lua, when a game draws one so
+                    let Seen::Var(v) = &cg.seen else { panic!("the engine's gallery screen can't test a CG's pictures (Seen::Pictures)") };
+                    format!("{{{}, {}}}", lua(&var_name(*v, border)), file(&cg.thumbnail))
+                })
+                .collect();
             writeln!(out, "slot({}, {x}, {y}, {}, {{{}}})", a + s / per_page, value(c, s), cgs.join(", ")).unwrap();
         }
         // The open category's tab shows its pressed cell and is no button.
@@ -117,12 +125,12 @@ pub(crate) fn lua_file(g: &PictureGallery, border: u32) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use conv_core::ir::{GalleryCategory, PictureSlot, SlotCg, Var};
+    use conv_core::ir::{GalleryCategory, PictureSlot, Seen, SlotCg, Var};
 
     #[test]
     fn gallery_pages_become_a_screen() {
         let p = |name: &str, x, y| Placed { image: format!("sys/{name}.png"), x, y, w: 50, h: 50 };
-        let slot = |i: u16| PictureSlot { cgs: vec![SlotCg { seen: Var { global: true, index: i }, picture: p("cg", 0, 0), thumbnail: format!("t/{i}.jpg") }], reversed: false };
+        let slot = |i: u16| PictureSlot { cgs: vec![SlotCg { seen: Seen::Var(Var { global: true, index: i }), picture: p("cg", 0, 0), thumbnail: format!("t/{i}.jpg") }], reversed: false };
         let g = PictureGallery {
             background: "sys/bg.png".into(),
             categories: vec![GalleryCategory { button: p("c1", 862, 136), slots: (0..25).map(slot).collect() }, GalleryCategory { button: p("c2", 862, 240), slots: vec![slot(30)] }],
