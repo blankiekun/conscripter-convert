@@ -28,6 +28,7 @@ pub(super) struct Extra {
     clock_ms: u64,
     vanishing: HashMap<String, u64>,
     motion_until: HashMap<String, u64>,
+    unwaited_motions: std::collections::HashSet<String>,
     runs: BTreeMap<String, super::Run>,
     shaken: Vec<String>,
     one_shots: BTreeMap<String, super::one_shot::OneShot>,
@@ -451,6 +452,7 @@ impl<'a> Compiler<'a, '_> {
             || !self.pending_path.is_empty()
             || !self.pending_from.is_empty()
             || !self.pending_zoom_from.is_empty()
+            || !self.fade_from_zero.is_empty()
             || self.pending_mask.is_some()
             || self.pending_enter.is_some()
     }
@@ -464,7 +466,7 @@ impl<'a> Compiler<'a, '_> {
             v.join(",")
         };
         format!(
-            "{} {} {} {:?} {} {} {} {} {} {} {} {:?} {:?} {:?}",
+            "{} {} {} {:?} {} {} {} {} {} {} {} {} {:?} {:?} {:?}",
             self.pending_ms,
             sorted(&self.pending_by),
             sorted(&self.pending_tempo),
@@ -476,6 +478,7 @@ impl<'a> Compiler<'a, '_> {
             sorted(&self.pending_path),
             sorted(&self.pending_from),
             sorted(&self.pending_zoom_from),
+            sorted(&self.fade_from_zero),
             self.pending_mask,
             self.pending_enter,
             self.objects
@@ -502,6 +505,7 @@ impl<'a> Compiler<'a, '_> {
         self.pending_path.clear();
         self.pending_from.clear();
         self.pending_zoom_from.clear();
+        self.fade_from_zero.clear();
         self.pending_mask = None;
         self.pending_enter = None;
     }
@@ -542,6 +546,7 @@ impl<'a> Compiler<'a, '_> {
             clock_ms: self.clock_ms,
             vanishing: self.vanishing.clone(),
             motion_until: self.motion_until.clone(),
+            unwaited_motions: self.unwaited_motions.clone(),
             runs: self.runs.clone(),
             shaken: self.shaken.clone(),
             one_shots: self.one_shots.clone(),
@@ -559,6 +564,7 @@ impl<'a> Compiler<'a, '_> {
             clock_ms: self.clock_ms,
             vanishing: self.vanishing,
             motion_until: self.motion_until,
+            unwaited_motions: self.unwaited_motions,
             runs: self.runs,
             shaken: self.shaken,
             one_shots: self.one_shots,

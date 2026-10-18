@@ -3064,6 +3064,8 @@ impl<'a, 'b> Compiler<'a, 'b> {
             self.delete(&c);
         }
         let Some(o) = self.objects.remove(name) else { return };
+        // A new object of the name (maybe on a reused layer) has no motion to wait for.
+        self.unwaited_motions.remove(name);
         self.stop_loops(name);
         if let Kind::Sound(s) = o.kind
             && let Some(file) = s.playing
