@@ -57,11 +57,14 @@ pub struct NpaAssets<'a> {
     pub out: Output,
     /// The screen's size, which big zooms are cut to.
     pub screen: (i64, i64),
+    /// The output files copied unchanged from an NPA (`--original-archives`
+    /// drops them: the engine reads them from the archive).
+    pub copied: Vec<String>,
 }
 
 impl<'a> NpaAssets<'a> {
     pub fn new(cg: Npa<'a>, sound: Npa<'a>, voice: Npa<'a>, output: &Path) -> Self {
-        NpaAssets { cg, sound, voice, cg2: None, cg_en: None, font_en: None, font: Vec::new(), images: HashMap::new(), sounds: HashMap::new(), movies: HashMap::new(), movie_dir: None, out: Output::new(output), screen: (SCREEN_W, SCREEN_H) }
+        NpaAssets { cg, sound, voice, cg2: None, cg_en: None, font_en: None, font: Vec::new(), images: HashMap::new(), sounds: HashMap::new(), movies: HashMap::new(), movie_dir: None, out: Output::new(output), screen: (SCREEN_W, SCREEN_H), copied: Vec::new() }
     }
 
     /// The movie file a script path names, and its name in the output:
@@ -138,6 +141,9 @@ impl<'a> NpaAssets<'a> {
             }
         };
         self.out.write(out, &data);
+        if out == path {
+            self.copied.push(path);
+        }
         Some(data)
     }
 

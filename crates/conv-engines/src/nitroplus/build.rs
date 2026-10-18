@@ -42,6 +42,10 @@ pub struct Run<'a> {
     /// The English release's folder (`script.npk`): its text replaces the
     /// Japanese.
     pub english: Option<&'a Path>,
+    /// Leave the pictures and sounds the archives hold as they are out of
+    /// the output: CONscripter reads them from the game's own `*.npa`,
+    /// which `cons_archives.txt` names (docs/original-archives.md).
+    pub original_archives: bool,
 }
 
 /// Compiles `run` from `game` (the folder with the exe and the `*.npa`
@@ -70,6 +74,9 @@ pub fn build(game: &Path, run: &Run, opts: &Opts) -> Result<Built> {
         let file = File::open(&path).with_context(|| format!("opening {}", path.display()))?;
         npk::Npk::open(file).with_context(|| format!("parsing {}", path.display()))
     };
+    if run.original_archives && (opts.webp.is_some() || opts.audio.reencodes()) {
+        anyhow::bail!("--original-archives keeps the game's own pictures and sounds: no --webp or audio re-encoding");
+    }
     let mut port = crate::metrics::Metrics::default();
     if let Some(dir) = run.english {
         let report = english::English::load(&open_npk(dir, "script.npk")?)?.apply(&mut files);
@@ -176,10 +183,33 @@ pub fn build(game: &Path, run: &Run, opts: &Opts) -> Result<Built> {
         ..Default::default()
     };
     g.menus(&mut assets, &mut ir, &story);
+    if run.original_archives {
+        original_archives(game, &key, &mut assets, opts.output)?;
+    }
     println!("{file} -> {scene} -> {}", opts.output.join("0.txt").display());
     let mut metrics = compiled.metrics;
     metrics.merge(port);
     Ok(Built { ir, notes: compiled.notes, metrics, engine: "nitroplus", picture_dirs: &PICTURE_DIRS, audio_dirs: AUDIO_DIRS, package: None })
+}
+
+/// Writes `cons_archives.txt` (each script folder and its archive) and
+/// deletes the files copied from them: the engine reads those in place.
+fn original_archives(game: &Path, key: &Key, assets: &mut NpaAssets, output: &Path) -> Result<()> {
+    let mut list = String::new();
+    for folder in ["cg", "cg2", "sound", "voice"] {
+        let path = crate::find(game, &format!("{folder}.npa"));
+        if let Some(name) = path.file_name().filter(|_| path.exists()) {
+            list += &format!("npa {folder} {} {}\n", name.to_string_lossy(), key.hex());
+        }
+    }
+    fs::create_dir_all(output)?;
+    fs::write(output.join("cons_archives.txt"), list)?;
+    if !assets.out.dry_run {
+        for rel in assets.copied.drain(..) {
+            let _ = fs::remove_file(output.join(&rel));
+        }
+    }
+    Ok(())
 }
 
 /// The archives' key, from the game's exe.

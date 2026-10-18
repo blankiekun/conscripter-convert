@@ -462,6 +462,10 @@ hand; the log's scrolling and a slot's hover details not tried.
 
 Open:
 
+- Reading the original archives in place (`--original-archives`,
+  `docs/original-archives.md`): works for the whole story (page shots
+  AE 0 against today's build, 1.3 GB → 510 MB folder); the web
+  player's side (picking the player's files) is phase 2.
 - Save tool: `nitroplus_save.py write` can't yet send a save to another
   scene ("Save format" has the plan). Untried because the original
   hangs under wine when a script `Save` runs from a process (the files
