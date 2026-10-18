@@ -462,10 +462,8 @@ hand; the log's scrolling and a slot's hover details not tried.
 
 Open:
 
-- Reading the original archives in place (`--original-archives`,
-  `docs/original-archives.md`): works for the whole story (page shots
-  AE 0 against today's build, 1.3 GB → 510 MB folder); the web
-  player's side (picking the player's files) is phase 2.
+- `--original-archives` (`docs/original-archives.md`) plays the whole
+  story; the web player's side (picking the files) is phase 2.
 - Save tool: `nitroplus_save.py write` can't yet send a save to another
   scene ("Save format" has the plan). Untried because the original
   hangs under wine when a script `Save` runs from a process (the files
@@ -534,10 +532,8 @@ research/tools/trace_diff.py orig.jsonl ours.jsonl --map out/django.map --pages 
       children yet: nothing moves) and `CreateEffect` 2-3 (1, the
       `Sepia` effect at 0,0 over the whole screen; Muramasa's undrawn
       effects pass 0 too). Left noted.
-4. Sounds kept until their end (shared NSS code, `convert/sounds.rs`):
-   the sound clock adds up the ops of both branches of a runtime
-   `if`/`else`, so a sound started before one may be taken as ended too
-   soon. Fine as is.
+4. Sounds kept until their end (`convert/sounds.rs`): the sound clock
+   adds up both branches of a runtime `if`/`else`. Fine as is.
 5. `CreateEffect` Rain (37), Drop (4), Lens (2): 装甲悪鬼村正's, shared
    NSS code; noted, drawn as nothing.
 6. The exe mapping (`docs/games/django.findings.tsv`; the census
