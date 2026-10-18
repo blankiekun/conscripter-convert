@@ -10,7 +10,7 @@ DrawTransition	fade-out direction	seen	00457bf0	the threshold falls: the picture
 DrawTransition	partial from/to (0→200, 250→150)	seen	00457bf0 (end: table kept unless to is 0 or 255)	the picture stays masked at the end threshold	a uniform opacity: noted (374)
 DrawTransition	missing mask	seen	FUN_0044fe00 → FUN_00488130	returns before the transition: nothing drawn	nothing drawn (#357)
 DrawTransition	from ≠ shown opacity	unknown	FUN_0044fe00 stores from at +0xb78	the table starts from `from`	from what is shown: noted (565)
-Zoom	x, y per mille	seen	builtin_Zoom 0040e3e0 → FUN_00445d60 → FUN_0044f2a0	atol, `@` relative; 0 not clamped (drawn at size 0: invisible, inferred)	at least 1‰: a 1 px line/dot stays (ma04_015vs ×2, mc02_029): open
+Zoom	x, y per mille	seen	builtin_Zoom 0040e3e0 → FUN_00445d60 → FUN_0044f2a0	atol, `@` relative; 0 not clamped (drawn at size 0: invisible, inferred)	as the exe: not drawn; over time squashed to 0 by the engine (`spmotion` zoom 0) or grown from 0
 Zoom	SetVertex point	seen	FUN_004891e0	zoom about the vertex	about the vertex (#61)
 SetVertex	names	seen	FUN_004891e0, eval_arg 00413740	lower case only, per axis; other words → atol (`Center`, `Middle` = 0)	the same (#380)
 SetVertex	px outside 0..size	seen	FUN_004891e0	that axis left as it was	the same
@@ -65,4 +65,4 @@ Strstr	search	inferred	-	substring position	compile-time
 Boxframe, DeleteFw, MoveFFPstop, SL_Rightdown, SL_Rightdownfade, KaisouReverse	script functions	seen	corpus	typos or removed helpers nothing defines: call_nss_function 004130a0 finds no function, does nothing	dropped
 RecoIn, RecoOut, RecoReturn	recollection	seen	extra_recollection.nss	the scene replay's fades and return	our replay (extras.rs)
 md02_023_comic	comic process	seen	md02_023.nss	a comic-panel process	played on paper
-Zoom	census spmotion zoom 100000%	seen	dry run	the inverse of a picture pre-scaled to 1‰ (Zoom to 0)	see Zoom x, y
+Zoom	census spmotion zoom 100000%	seen	dry run	the inverse of a picture pre-scaled to 1‰ (Zoom to 0)	gone: no 1‰ copies (see Zoom x, y)
