@@ -226,6 +226,10 @@ The steps that apply them are in `docs/new-game.md`.
   with a wrong OpusTags vendor length played in ffmpeg and failed in
   opusfile, which the engine uses for chunks; music, through SDL_mixer,
   played. The trace's "broken sound" found it.
+- **No HashMap or HashSet iteration into output** (村正): its order changes
+  from run to run, so two dry runs of one commit gave different `0.txt`
+  (`csp` lines swapped). Iterate a `BTreeMap`/`BTreeSet`, or sort first;
+  a hash map is fine for lookups only. Check: dry-run twice, same hash.
 
 ## Ways to speed up conversion
 
