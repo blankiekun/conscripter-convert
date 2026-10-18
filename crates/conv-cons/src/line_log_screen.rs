@@ -1,5 +1,5 @@
 //! [`LineLog`] drawn by the engine (`screen "backlog"`, COMMANDS.md
-//! "Screens") when it has [`LineLog::engine_screen`]: the background, the
+//! "Screens"): the background, the
 //! history's rows as `logrows` lays them out (a list of rows, each voiced
 //! page's first row with its voice button), 逆/進 and the wheel a row back
 //! or forward (the wheel past the newest row closes), the knob a picture
@@ -17,15 +17,14 @@ use conv_core::ir::{LineLog, Script};
 use crate::menu::IN_GAME;
 use crate::screens::{image, lua};
 
-/// Rows back from the newest (shared with [`crate::line_log`]'s
-/// variables, never both in one script).
+/// Rows back from the newest.
 const ROWS_BACK: &str = "%170";
 const ROWS: &str = "%171";
 const BACK_MAX: &str = "%174";
 
 /// The line log is the engine's.
 pub(crate) fn engine_log(script: &Script) -> Option<&LineLog> {
-    script.line_log.as_ref().filter(|l| l.engine_screen)
+    script.line_log.as_ref()
 }
 
 /// `*conv_backlog`.
@@ -121,7 +120,6 @@ mod tests {
             fade_ms: 300,
             outline: Some("#AAAA88".into()),
             row_width: None,
-            engine_screen: true,
         }
     }
 
@@ -175,7 +173,6 @@ mod tests {
             pictures: None,
             defaults: Vec::new(),
             switches_off: Vec::new(),
-            engine_screen: false,
             text_ms: None,
             switches: vec![conv_core::ir::SettingSwitch { label: "セーブ確認".into(), switch: Switch::ConfirmSave }],
         };

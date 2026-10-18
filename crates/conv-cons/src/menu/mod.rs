@@ -23,7 +23,7 @@
 //!   buttons and labels `lsp` sprites over them. The text window, name
 //!   plate and link words are hidden while the menu is open.
 
-use conv_core::ir::{BarAction, ButtonBar, CommandMenu, ConfirmDialog, Placed, Setting, SettingsMenu, Switch, TextSpot, TopBars, VoiceToggle, WaitIcon};
+use conv_core::ir::{BarAction, ButtonBar, CommandMenu, ConfirmDialog, Placed, Setting, SettingsMenu, Switch, TextSpot, TopBars, WaitIcon};
 
 use crate::{escape, path, BAR_SPRITES, BUTTON_VAR, DIALOG_SPRITES, LINK_SPRITE_COUNT, MENU_SPRITES, NAME_PLATE_SPRITE, NAME_TEXT_SPRITE};
 
@@ -58,37 +58,11 @@ pub(crate) const SKIP_UNREAD: &str = "%908";
 pub(crate) const TEXT_MS: &str = "%907";
 const TEXT_MS_STEP: u32 = 6;
 // Settings and backlog sprites (lsp, within MENU_SPRITES).
-/// A level row's label and level, one text sprite.
-const SETTING_ROW: u32 = M; // + row
-const SETTING_TAB: u32 = M + 21; // + page
-const SETTING_SKIP: u32 = M + 8;
-const SETTING_MINUS: u32 = M + 9; // + row
-const SETTING_PLUS: u32 = M + 15; // + row
-const SETTING_TITLE: u32 = M + 25;
-const SETTING_QUIT: u32 = M + 26;
-/// The build's version line, bottom left.
-const SETTING_VERSION: u32 = M + 24;
 const MAX_SETTING_ROWS: usize = 6;
-/// Voice switches, on the voice page (in place of the level rows), and the
-/// switches page's options.
-const SETTING_VOICE: u32 = M + 6; // + switch
-const MAX_VOICES: usize = 15;
-const SETTING_SWITCH: u32 = M + 6; // + switch
-const MAX_SWITCHES: usize = 15;
-const BTN_SWITCH: u32 = 70; // + 1 + switch
 // The switches' flags: see `switches.rs`.
 /// The confirmation being asked (a [`Switch`] + 1; 0 = always ask).
 pub(crate) const CONFIRM_KIND: &str = "%125";
-const BTN_MINUS: u32 = 10;
-const BTN_PLUS: u32 = 20;
-const BTN_TITLE: u32 = 30;
-const BTN_QUIT: u32 = 31;
-const BTN_TAB: u32 = 40; // + 1 + page
-const BTN_SKIP: u32 = 32;
-const BTN_VOICE: u32 = 50; // + 1 + switch
 pub(crate) const LOG_NAME_COLOR: &str = "#D8C088";
-/// The settings page shown: 0 levels, 1 voices.
-pub(crate) const SETTINGS_PAGE: &str = "%176";
 /// Voice character c is muted when the global %(VOICE_OFF_BASE + c) is 1.
 pub(crate) const VOICE_OFF_BASE: u32 = 970;
 /// Asks the question in [`CONFIRM_TEXT`]; [`CONFIRM`] = 1 for yes.
@@ -186,18 +160,12 @@ pub(crate) const IN_GAME: &str = "%101";
 
 // Local scratch variables (below the game's locals at %10-%12 would be too
 // close; these are free).
-pub(crate) const MODE: &str = "%100"; // 1 save, 2 load
 pub(crate) const SELECTED: &str = "%102"; // selected slot, 0 = none
 pub(crate) const SLOT: &str = "%103";
 pub(crate) const HAS_DATA: &str = "%104";
 pub(crate) const TMP: &str = "%105";
-pub(crate) const FIRST: &str = "%106"; // first slot on the page
 const MODE_STATE: &str = "%108"; // isskip: 1 skip, 2 auto
-pub(crate) const DATE: [&str; 6] = ["%110", "%111", "%112", "%113", "%114", "%115"];
 pub(crate) const LABEL: &str = "$100";
-const LINE1: &str = "$101";
-pub(crate) const FILE: &str = "$103"; // thumbnail file
-pub(crate) const THUMB_IMAGE: &str = "$105"; // the same with its sprite tag
 pub(crate) const STR_TMP: &str = "$104";
 // Globals (`globalon` keeps %200 and up; the game uses up to %220).
 pub(crate) const PAGE: &str = "%900";
@@ -208,7 +176,6 @@ pub(crate) const CHAPTER: &str = "$150";
 
 // lsp slots (all within MENU_SPRITES).
 const M: u32 = MENU_SPRITES.start;
-const CLOSE: u32 = M + 27;
 // Dialog lsp slots (DIALOG_SPRITES).
 const DIALOG_TEXT: u32 = DIALOG_SPRITES.start;
 const DIALOG_YES_LABEL: u32 = DIALOG_TEXT + 1;
@@ -216,11 +183,6 @@ const DIALOG_NO_LABEL: u32 = DIALOG_TEXT + 2;
 const DIALOG_YES: u32 = DIALOG_TEXT + 3;
 const DIALOG_NO: u32 = DIALOG_TEXT + 4;
 const DIALOG_BASE: u32 = DIALOG_TEXT + 5;
-// lsp2 slots (higher numbers are drawn further down).
-const HEADER: u32 = 9;
-pub(crate) const BASE: u32 = 11;
-// Button numbers returned by btnwait: rows 1.., pages 101..
-const BTN_CLOSE: u32 = 202;
 
 /// Sprites hidden while a full-screen menu is open: the bars, the name
 /// plate and the link words.
@@ -260,6 +222,7 @@ pub(crate) fn lsp2(slot: u32, p: &Placed, opacity: Option<u8>) -> String {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
+    use conv_core::ir::VoiceToggle;
 
     fn placed(name: &str, w: i32, h: i32) -> Placed {
         Placed { image: format!("system/{name}.png"), x: 10, y: 20, w, h }
@@ -359,7 +322,7 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn settings_voice_page() {
+    fn settings_fallback_defaults() {
         use conv_core::ir::SettingRow;
         let m = SettingsMenu {
             base: placed("base", 800, 600),
@@ -390,38 +353,9 @@ pub(crate) mod tests {
             pictures: None,
             defaults: Vec::new(),
             switches_off: Vec::new(),
-            engine_screen: false,
             text_ms: None,
             switches: vec![conv_core::ir::SettingSwitch { label: "セーブ確認".into(), switch: Switch::ConfirmSave }],
         };
-        let mut out = String::new();
-        settings_menu(&mut out, &m, None, None, None);
-        for line in [
-            // The current tab can't be clicked; the other one can.
-            "if %176 != 1 strsp 28,\"音声\",392,34,3,1,22,22,0,0,0,1,\"#FFFFFF\",\"#F0C040\"\n",
-            "if %176 == 0 strsp 27,\"音量\",300,34,3,1,22,22,0,0,0,1,\"#F0C040\"\n",
-            "if %176 == 1 goto *conv_settings_draw_voices\n",
-            // One per column: the second switch is in the second column.
-            "mov $104,\"■　\"\nif %973 == 1 mov $104,\"□　\"\nadd $104,\"あずさ\"\nstrsp 12,$104,140,140,6,1,22,22,0,0,0,1,\"#FFFFFF\",\"#F0C040\"\n",
-            "strsp 13,$104,440,140,",
-            "*conv_settings_wait_voices\nspbtn 12,51\nspbtn 13,52\ngoto *conv_settings_wait_any\n*conv_settings_wait_switches\nspbtn 12,71\n",
-            "if %176 != 0 spbtn 27,41\nif %176 != 1 spbtn 28,42\nif %176 != 2 spbtn 29,43\n",
-            // A confirmation switch: its off flag, and the dialog answers yes when off.
-            "if %9 == 71 mov %3642,1-%3642:goto *conv_settings_draw\n",
-            "if %9 > 40 && %9 <= 43 mov %176,%9-41:goto *conv_settings_draw\n",
-            // A level row: label padded to the level's column, one sprite.
-            "mov $104,\"ＢＧＭ　　　　　　　\"\n",
-            "strsp 6,$104,140,140,24,1,22,22,0,0,0,1\n",
-            "spbtn 15,11\nspbtn 21,21\n",
-            // Skip unread text: under the levels, applied as kidokumode.
-            "if %908 == 1 mov $104,\"■　\"\nadd $104,\"未読\"\nstrsp 14,$104,140,210,5,1,",
-            "if %9 == 32 mov %908,1-%908\n",
-            "if %908 == 0 kidokumode 1\nif %908 == 1 kidokumode 0\nreturn\n",
-            // A switch sets all its characters.
-            "if %9 == 52 && %970 == 0 mov %970,1:mov %972,1:goto *conv_settings_draw\nif %9 == 52 mov %970,0:mov %972,0:goto *conv_settings_draw\n",
-        ] {
-            assert!(out.contains(line), "missing {line:?} in\n{out}");
-        }
         // The report lists the shared defaults it took (no window row: not that one).
         let mut m = m;
         m.defaults = vec![(Setting::BgmVolume, 6), (Setting::AutoWait { page_step: 500, char_step: 10 }, 5)];
@@ -659,30 +593,27 @@ pub(crate) mod tests {
             pictures: None,
             defaults: Vec::new(),
             switches_off: Vec::new(),
-            engine_screen: false,
             text_ms: None,
             switches: Vec::new(),
         };
         let mut out = String::new();
-        settings_menu(&mut out, &m, None, None, None);
+        settings_apply(&mut out, &m);
         assert!(out.contains("mov %105,(10-%906)*400+600:automode_time %105\n"), "{out}");
         m.rows[0].setting = Setting::AutoWait { page_step: 500, char_step: 4 };
         let mut out = String::new();
-        settings_menu(&mut out, &m, None, None, None);
+        settings_apply(&mut out, &m);
         assert!(out.contains("automode_time (10-%906)*500,(10-%906)*4\n"), "{out}");
         // A mute switch: volume 0, the level kept; applied when toggled.
         m.switches = vec![conv_core::ir::SettingSwitch { label: "ＢＧＭ".into(), switch: Switch::BgmOn }];
         m.tab_labels = vec!["a".into(), "b".into()];
         let mut out = String::new();
-        settings_menu(&mut out, &m, None, None, None);
+        settings_apply(&mut out, &m);
         assert!(out.contains("mov %105,%902*10\nif %2911 == 1 mov %105,0\nbgmvol %105\n"), "{out}");
-        assert!(out.contains("if %9 == 71 mov %2911,1-%2911:gosub *conv_settings_apply:goto *conv_settings_draw\n"), "{out}");
-        assert!(out.contains("itoa2 $101,%906\n"), "{out}");
         // A game's own text speeds replace the shared formula.
         assert!(out.contains("mov %907,(10-%905)*6:textspeed %907\n"), "{out}");
         m.text_ms = Some([500, 500, 500, 500, 500, 167, 167, 167, 33, 33, 0]);
         let mut out = String::new();
-        settings_menu(&mut out, &m, None, None, None);
+        settings_apply(&mut out, &m);
         assert!(out.contains("if %905 == 4 mov %907,500\n") && out.contains("if %905 == 10 mov %907,0\ntextspeed %907\n"), "{out}");
         assert!(!out.contains("(10-%905)"), "{out}");
     }

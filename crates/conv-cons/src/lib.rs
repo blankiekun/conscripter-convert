@@ -60,7 +60,6 @@ mod settings_pages;
 mod settings_screen;
 mod switches;
 mod system_menu;
-mod line_log;
 mod line_log_screen;
 mod lua;
 pub use lua::system_lua;
@@ -648,12 +647,9 @@ pub fn emit_mapped(script: &Script) -> (String, Vec<(usize, Option<SourceLoc>)>)
         writeln!(out, "click").unwrap();
         writeln!(out, "return").unwrap();
     }
-    let scene_stack = script.button_bar.as_ref().is_some_and(|b| b.top.is_some());
     if let Some(g) = save_grid_screen::engine_grid(script) {
         // shortcut: no link scene levels (scene_stack) kept with a save; add them when a game with both needs it.
         save_grid_screen::labels(&mut out, g);
-    } else if let Some(g) = &script.save_grid {
-        save_grid::emit(&mut out, g, script.confirm.as_ref(), script.width, script.height, scene_stack);
     } else if screens::engine_menu(script).is_some() {
         screens::save_labels(&mut out);
     } else if let Some(m) = system_menu::menu(script) {
@@ -687,18 +683,15 @@ pub fn emit_mapped(script: &Script) -> (String, Vec<(usize, Option<SourceLoc>)>)
         }
     }
     if let Some(s) = &script.picture_settings {
-        picture_settings::emit(&mut out, s, border);
+        picture_settings::emit(&mut out, s);
     } else if let Some(m) = screens::engine_settings(script) {
         screens::settings_labels(&mut out, has_replay);
         menu::settings_apply(&mut out, m);
     } else if let Some(m) = &script.settings {
-        let replay = script.extras.as_ref().and_then(|e| e.replay.as_ref()).filter(|_| has_replay);
-        menu::settings_menu(&mut out, m, script.confirm.as_ref(), replay.map(|r| (r.leave_label.as_str(), r.leave_question.as_str())), script.version.as_deref().map(|v| (v, script.height)));
+        menu::settings_menu(&mut out, m, has_replay);
     }
     if let Some(l) = line_log_screen::engine_log(script) {
         line_log_screen::labels(&mut out, l);
-    } else if let Some(l) = &script.line_log {
-        line_log::emit(&mut out, l, script.single_byte_text);
     } else if script.backlog.is_some() {
         screens::backlog_labels(&mut out);
     }

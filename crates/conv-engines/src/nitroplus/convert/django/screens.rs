@@ -231,7 +231,7 @@ fn settings(a: &mut dyn Assets) -> Option<PictureSettings> {
         // src: sys_config.nss: bullets switch at once; the pairs fade over 200 (one value here)
         pair_fade_ms: 0,
         voice_window: None,
-        engine_screen: Some(SettingsScreen { chosen, voices_checked: Vec::new(), steps_chosen }),
+        screen: SettingsScreen { chosen, voices_checked: Vec::new(), steps_chosen },
     })
 }
 
@@ -287,7 +287,6 @@ fn line_log(a: &mut dyn Assets) -> Option<LineLog> {
         fade_ms: 300,
         outline: Some("#AAAA88".into()),
         row_width: None,
-        engine_screen: true,
     })
 }
 
@@ -409,7 +408,6 @@ fn save_grid(a: &mut dyn Assets) -> Option<SaveGrid> {
         quick_page: false,
         play_time_prefix: String::new(),
         play_time_hm: false,
-        engine_screen: true,
     })
 }
 

@@ -1,90 +1,36 @@
-//! [`PictureSettings`] as an NScripter subroutine under the settings label
-//! ([`menu::SETTINGS`]), entered the same way as [`menu::settings`].
-//!
-//! The screen takes the game's sprite range between `pushscreen` and
-//! `popscreen`, like the backlog ([`crate::line_log`]): the picture, the
-//! fixed pictures and texts, then the controls over it. A button or a
-//! pair's side is a sprite whose first cell is empty (the picture shows it
-//! at rest), its second shown under the pointer (`spbtn`); a pair's chosen
-//! side is a second sprite showing that strip's third cell. A slider's
-//! track is an invisible sprite whose `exbtn` shows the knob's second cell
-//! while the pointer is over it; pressing there drags the knob.
+//! [`PictureSettings`] values: the engine's screen
+//! ([`settings_screen`](crate::settings_screen)) binds them by name
+//! (`defvar ...,global`); this writes their defaults, the routine applying
+//! them to the engine ([`APPLY`]), and the start-up code.
 //!
 //! The values are globals (a slider's position 0-1000, a pair's 1 = on),
-//! given their defaults on the first start and applied to the engine by
-//! [`APPLY`] at startup and as they change. The game's speed is kept in
-//! [`GAME_SPEED`] and applied by the click wait as it ends (menus, which
-//! are opened from it, run at 100 %).
-//!
-//! The voice window ([`VoiceWindow`]) lays its pictures over the settings
-//! (lower sprite numbers): an entry shows once its flag is set, with a
-//! check while its characters' voices play (the per-character switches
-//! `dwave` reads, [`menu::VOICE_OFF_BASE`]); a `btn` over its box toggles
-//! them all.
+//! given their defaults on the first start and applied by [`APPLY`] at
+//! startup and as they change. The game's speed is kept in [`GAME_SPEED`]
+//! and applied by the click wait as it ends (menus, which are opened from
+//! it, run at 100 %).
 
-use conv_core::ir::{PairOption, PictureSettings, PictureSlider, Placed, SliderSetting, Switch, Var, VoiceWindow};
+use conv_core::ir::{PairOption, PictureSettings, SliderSetting, Switch};
 
-use crate::menu::{self, CONFIRM, IN_GAME, TEXT_MS, TMP};
-use crate::{escape, path, var_name, BUTTON_VAR, MAX_SPRITE};
+use crate::menu::{self, TEXT_MS, TMP};
 
 // Globals (`globalon` keeps %200 and up): 2920-2949, after the switches'
 // second range (2910-2919; the third is 2950 up), below the scene replay's flags (3000).
-/// 1 once the values have their defaults.
+// The first two and the slider and pair ranges are where builds before the
+// named globals kept the values (read once by [`init`]).
+/// 1 once builds before the named globals had set the values.
 const SET: &str = "%2920";
 /// The `gamespeed` setting's percent the story runs at.
 pub(crate) const GAME_SPEED: &str = "%2921";
-/// Slider i's position.
+/// Slider i's position (before the named globals).
 const SLIDER_BASE: u32 = 2922;
-const MAX_SLIDERS: usize = 8;
-/// Pair i's value.
+/// Pair i's value (before the named globals).
 const PAIR_BASE: u32 = 2930;
-const MAX_PAIRS: usize = 12;
-// Locals (the backlog's; the two screens are never open together).
-const DRAGGED: &str = "%170";
-const MOUSE_X: &str = "%177";
-const MOUSE_Y: &str = "%178";
+
+// Locals.
 const MUTE: [&str; 3] = ["%171", "%172", "%173"];
-/// The voice window's layout shown.
-const LAYOUT: &str = "%174";
 
 pub(crate) const APPLY: &str = "conv_ps_apply";
 pub(crate) const DEFAULTS: &str = "conv_ps_defaults";
-
-// Sprites in the game's range (lower numbers drawn on top).
-const BACKGROUND: u32 = MAX_SPRITE;
-const KNOB: u32 = 700; // + slider
-const CLOSE: u32 = 710;
-const RESET: u32 = 711;
-const VOICE_TEST: u32 = 712;
-const VOICE_OPEN: u32 = 713;
-// The voice window, over the settings.
-const VOICE_BACKDROP: u32 = 689;
-const VOICE_BACKGROUND: u32 = 688;
-const VOICE_ENTRY: u32 = 600; // + entry
-const VOICE_CHECK: u32 = 540; // + entry
-const MAX_VOICE_ENTRIES: usize = 60;
-const CHOSEN: u32 = 720; // + 2 × pair (+ 1 off)
-const PAIR: u32 = 750; // + 2 × pair (+ 1 off)
-const TRACK: u32 = 780; // + slider
-// A stepped slider's buttons and their chosen cells: + 10 × slider + step
-// (the chosen cells over the buttons).
-const STEP_CHOSEN: u32 = 380;
-const STEP: u32 = 460;
-const MAX_STEPS: usize = 10;
-const TEXT: u32 = 790; // + text
-const FIXED: u32 = 800; // + picture
-const MAX_FIXED: usize = 100;
-/// A lying slider's bar: + slider (under the knobs and the pictures).
-const FILL: u32 = 900;
-// Buttons.
-const BTN_CLOSE: i32 = 1;
-const BTN_RESET: i32 = 2;
-const BTN_VOICE_TEST: i32 = 3;
-const BTN_VOICES: i32 = 4;
-const BTN_VOICE_ENTRY: i32 = 100; // + entry
-const BTN_TRACK: i32 = 10; // + slider
-const BTN_PAIR: i32 = 30; // + 2 × pair (+ 1 off)
-const BTN_STEP: i32 = 200; // + 10 × slider + step
 
 /// The questions [`PairOption::Confirm`] turns off.
 const QUESTIONS: [Switch; 8] = [
@@ -104,10 +50,7 @@ pub(crate) fn check_box(p: &conv_core::ir::PicturePair) -> bool {
 }
 
 pub(crate) fn slider_var(s: &PictureSettings, i: usize) -> String {
-    if s.engine_screen.is_some() {
-        return format!("%{}", named(slider_name(s.sliders[i].setting)));
-    }
-    format!("%{}", SLIDER_BASE + i as u32)
+    format!("%{}", named(slider_name(s.sliders[i].setting)))
 }
 
 /// The engine's screen binds its values by name (`defvar ...,global`).
@@ -140,42 +83,24 @@ fn pair_name(p: PairOption) -> &'static str {
     }
 }
 
-/// 1 once the values have their defaults.
-fn set_var(s: &PictureSettings) -> String {
-    if s.engine_screen.is_some() { format!("%{}", named("done")) } else { SET.to_string() }
-}
-
 /// The define section's names, for the engine's screen.
 pub(crate) fn define(out: &mut String, s: &PictureSettings) {
-    if s.engine_screen.is_none() {
-        return;
-    }
     let names = s.sliders.iter().map(|l| slider_name(l.setting)).chain(s.pairs.iter().map(|p| pair_name(p.option))).chain(["done"]);
     for n in names {
         out.push_str(&format!("defvar {},global\n", named(n)));
     }
 }
 
-/// A stepped slider's steps, if it is one.
-fn steps(l: &PictureSlider) -> Option<&conv_core::ir::SliderSteps> {
-    l.steps.as_ref()
-}
-
 pub(crate) fn pair_var(s: &PictureSettings, i: usize) -> String {
-    if s.engine_screen.is_some() {
-        return format!("%{}", named(pair_name(s.pairs[i].option)));
-    }
-    format!("%{}", PAIR_BASE + i as u32)
+    format!("%{}", named(pair_name(s.pairs[i].option)))
 }
 
 /// At `*start`: the defaults on the first start, then the values applied.
 pub(crate) fn init(out: &mut String, s: &PictureSettings) {
-    let set = set_var(s);
-    if s.engine_screen.is_some() {
-        // shortcut: takes the values from where builds before the names kept them; drop once no such gloval.sav is played
-        let copies: String = (0..s.sliders.len()).map(|i| format!(":mov {},%{}", slider_var(s, i), SLIDER_BASE + i as u32)).chain((0..s.pairs.len()).map(|i| format!(":mov {},%{}", pair_var(s, i), PAIR_BASE + i as u32))).collect();
-        out.push_str(&format!("if {set} == 0 && {SET} == 1 mov {set},1{copies}\n"));
-    }
+    let set = format!("%{}", named("done"));
+    // shortcut: takes the values from where builds before the names kept them; drop once no such gloval.sav is played
+    let copies: String = (0..s.sliders.len()).map(|i| format!(":mov {},%{}", slider_var(s, i), SLIDER_BASE + i as u32)).chain((0..s.pairs.len()).map(|i| format!(":mov {},%{}", pair_var(s, i), PAIR_BASE + i as u32))).collect();
+    out.push_str(&format!("if {set} == 0 && {SET} == 1 mov {set},1{copies}\n"));
     out.push_str(&format!("if {set} == 0 gosub *{DEFAULTS}\ngosub *{APPLY}\n"));
     // `reset` comes back here: the title runs at the normal speed.
     if s.sliders.iter().any(|l| matches!(l.setting, SliderSetting::GameSpeed { .. })) {
@@ -188,232 +113,11 @@ pub(crate) fn skips_unread(s: &PictureSettings) -> bool {
     s.pairs.iter().any(|p| p.option == PairOption::SkipUnread)
 }
 
-/// The settings label (the engine's screen, or a script routine), and
-/// the routines that put the defaults back and apply the values.
-pub(crate) fn emit(out: &mut String, s: &PictureSettings, border: u32) {
-    match s.engine_screen {
-        Some(_) => crate::settings_screen::labels(out, s),
-        None => routine(out, s, border),
-    }
+/// The settings label (the engine's screen), and the routines that put the
+/// defaults back and apply the values.
+pub(crate) fn emit(out: &mut String, s: &PictureSettings) {
+    crate::settings_screen::labels(out, s);
     values(out, s);
-}
-
-fn routine(out: &mut String, s: &PictureSettings, border: u32) {
-    assert!(s.sliders.len() <= MAX_SLIDERS && s.pairs.len() <= MAX_PAIRS && s.fixed.len() <= MAX_FIXED, "too many settings controls");
-    assert!(s.sliders.iter().filter_map(steps).all(|st| st.buttons.len() <= MAX_STEPS), "too many steps");
-    let step_slot = |base: u32, i: usize, k: usize| base + (MAX_STEPS * i + k) as u32;
-    // The sliders with a knob (the others are rows of buttons).
-    let knobbed: Vec<(usize, &PictureSlider)> = s.sliders.iter().enumerate().filter(|(_, l)| l.steps.is_none()).collect();
-    let mut w = lines!(out);
-    let strip = |slot: u32, cells: u32, p: &Placed| format!("lsp {slot},\":a/{cells},0,3;{}\",{},{}", path(&p.image), p.x, p.y);
-    let fade = if s.fade_ms > 0 { format!("print 10,{}", s.fade_ms) } else { "print 1".into() };
-    let pair_fade = if s.pair_fade_ms > 0 { format!("print 10,{}", s.pair_fade_ms) } else { "print 1".into() };
-    let buttons: Vec<(u32, i32, &Placed)> = [(CLOSE, BTN_CLOSE, Some(&s.close)), (RESET, BTN_RESET, s.reset.as_ref()), (VOICE_TEST, BTN_VOICE_TEST, s.voice_test.as_ref()), (VOICE_OPEN, BTN_VOICES, s.voice_window.as_ref().map(|v| &v.open))]
-        .into_iter()
-        .filter_map(|(slot, n, p)| Some((slot, n, p?)))
-        .collect();
-
-    w(format!("*{}", menu::SETTINGS));
-    w(format!("if {IN_GAME} == 1 textoff"));
-    w(format!("pushscreen {},{MAX_SPRITE}", crate::SPRITE_BASE));
-    // pushscreen keeps the scene's sprites up: the screen covers them.
-    w(format!("for {TMP} = {} to {MAX_SPRITE}:csp {TMP}:next", crate::SPRITE_BASE));
-    let b = &s.background;
-    w(format!("lsp {BACKGROUND},\":c;{}\",{},{}", path(&b.image), b.x, b.y));
-    for (k, p) in s.fixed.iter().enumerate() {
-        w(format!("lsp {},\":a;{}\",{},{}", FIXED + k as u32, path(&p.image), p.x, p.y));
-    }
-    for (k, t) in s.texts.iter().enumerate() {
-        let columns = t.text.chars().count();
-        w(format!("strsp {},\"{}\",{},{},{columns},1,{f},{f},0,0,0,0,\"{}\"", TEXT + k as u32, escape(&t.text), t.x, t.y, t.colour, f = t.font_size));
-    }
-    for &(slot, _, p) in &buttons {
-        w(strip(slot, 3, p));
-    }
-    for (i, p) in s.pairs.iter().enumerate() {
-        w(strip(PAIR + 2 * i as u32, 3, &p.on));
-        w(strip(PAIR + 2 * i as u32 + 1, 3, &p.off));
-    }
-    for &(i, l) in &knobbed {
-        let t = &l.track;
-        w(format!("lsp {},\":c;>{},{},#000000\",{},{},0", TRACK + i as u32, t.w, t.h, t.x, t.y));
-        w(strip(KNOB + i as u32, 2, &l.knob));
-    }
-    for (i, st) in s.sliders.iter().enumerate().filter_map(|(i, l)| Some((i, steps(l)?))) {
-        for (k, (p, _)) in st.buttons.iter().enumerate() {
-            w(strip(step_slot(STEP, i, k), 3, p));
-        }
-    }
-    w("gosub *conv_ps_draw".into());
-    w(fade.clone());
-
-    w("*conv_ps_wait".into());
-    w("btndef clear".into());
-    let knobs_at_rest: String = knobbed.iter().map(|&(i, _)| format!("P{},0", KNOB + i as u32)).collect();
-    w(format!("exbtn_d \"{knobs_at_rest}\""));
-    for &(i, _) in &knobbed {
-        w(format!("exbtn {},{},\"{knobs_at_rest}P{},1\"", TRACK + i as u32, BTN_TRACK + i as i32, KNOB + i as u32));
-    }
-    for (i, st) in s.sliders.iter().enumerate().filter_map(|(i, l)| Some((i, steps(l)?))) {
-        for k in 0..st.buttons.len() {
-            w(format!("spbtn {},{}", step_slot(STEP, i, k), BTN_STEP + (MAX_STEPS * i + k) as i32));
-        }
-    }
-    for &(slot, n, _) in &buttons {
-        w(format!("spbtn {slot},{n},2"));
-    }
-    for (i, p) in s.pairs.iter().enumerate() {
-        for side in 0..2 {
-            // A check box: only the side shown.
-            let shown = if check_box(p) { format!("if {} == {} ", pair_var(s, i), 1 - side) } else { String::new() };
-            w(format!("{shown}spbtn {},{}", PAIR + 2 * i as u32 + side, BTN_PAIR + 2 * i as i32 + side as i32));
-        }
-    }
-    // After btndef, which turns it off: a press on a track starts a drag.
-    w("btndown 1".into());
-    w("getkey".into());
-    w(format!("btnwait {BUTTON_VAR}"));
-    // A right-click, or the screen's key (C), leaves.
-    w(format!("if {BUTTON_VAR} == -1 || {BUTTON_VAR} == {} goto *conv_ps_close", menu::key_code('C')));
-    // A release, or a move with the button held: nothing.
-    w(format!("isdown {TMP}"));
-    w(format!("if {TMP} == 0 goto *conv_ps_wait"));
-    if !knobbed.is_empty() {
-        w(format!(
-            "if {BUTTON_VAR} >= {BTN_TRACK} && {BUTTON_VAR} < {} mov {DRAGGED},{BUTTON_VAR}-{BTN_TRACK}:goto *conv_ps_drag",
-            BTN_TRACK + s.sliders.len() as i32
-        ));
-    }
-    w("gosub *conv_ps_release".into());
-    for (i, st) in s.sliders.iter().enumerate().filter_map(|(i, l)| Some((i, steps(l)?))) {
-        for (k, (_, position)) in st.buttons.iter().enumerate() {
-            w(format!("if {BUTTON_VAR} == {} mov {},{position}:goto *conv_ps_changed", BTN_STEP + (MAX_STEPS * i + k) as i32, slider_var(s, i)));
-        }
-    }
-    w(format!("if {BUTTON_VAR} == {BTN_CLOSE} goto *conv_ps_close"));
-    if s.reset.is_some() {
-        w(format!("if {BUTTON_VAR} == {BTN_RESET} goto *conv_ps_reset"));
-    }
-    if s.voice_window.is_some() {
-        w(format!("if {BUTTON_VAR} == {BTN_VOICES} goto *conv_ps_voices"));
-    }
-    if let Some(v) = &s.test_voice {
-        w(format!("if {BUTTON_VAR} == {BTN_VOICE_TEST} dwave 0,\"{}\"", path(v)));
-    }
-    for (i, p) in s.pairs.iter().enumerate() {
-        let (n, v) = (BTN_PAIR + 2 * i as i32, pair_var(s, i));
-        // A check box's side switches to the other.
-        let (on, off) = if check_box(p) { (n + 1, n) } else { (n, n + 1) };
-        w(format!("if {BUTTON_VAR} == {on} && {v} == 0 mov {v},1:goto *conv_ps_changed"));
-        w(format!("if {BUTTON_VAR} == {off} && {v} == 1 mov {v},0:goto *conv_ps_changed"));
-    }
-    w("goto *conv_ps_wait".into());
-    w("*conv_ps_changed".into());
-    w(format!("gosub *{APPLY}:gosub *conv_ps_draw"));
-    w(pair_fade);
-    w("goto *conv_ps_wait".into());
-    w("*conv_ps_release".into());
-    w(format!("isdown {TMP}"));
-    w(format!("if {TMP} == 1 wait 16:goto *conv_ps_release"));
-    w("return".into());
-
-    if s.reset.is_some() {
-        w("*conv_ps_reset".into());
-        w(menu::confirm_call("", Switch::ConfirmReset));
-        w(format!("if {CONFIRM} == 0 goto *conv_ps_wait"));
-        w(format!("gosub *{DEFAULTS}:gosub *{APPLY}:gosub *conv_ps_draw"));
-        w(fade.clone());
-        w("goto *conv_ps_wait".into());
-    }
-
-    // Dragging a knob: its middle follows the pointer.
-    if !knobbed.is_empty() {
-        w("*conv_ps_drag".into());
-        w(format!("isdown {TMP}"));
-        w(format!("if {TMP} == 0 goto *conv_ps_wait"));
-        w(format!("getmousepos {MOUSE_X},{MOUSE_Y}"));
-        for &(i, l) in &knobbed {
-            let (k0, k1) = l.knob_y;
-            let v = slider_var(s, i);
-            if l.horizontal {
-                w(format!("if {DRAGGED} == {i} mov {TMP},({k1}-{MOUSE_X}+{})*1000/{}", l.knob.w / 2, (k1 - k0).max(1)));
-            } else {
-                w(format!("if {DRAGGED} == {i} mov {TMP},({MOUSE_Y}-{}-{k0})*1000/{}", l.knob.h / 2, (k1 - k0).max(1)));
-            }
-            w(format!("if {DRAGGED} == {i} && {TMP} < 0 mov {TMP},0"));
-            w(format!("if {DRAGGED} == {i} && {TMP} > 1000 mov {TMP},1000"));
-            w(format!("if {DRAGGED} == {i} && {TMP} != {v} mov {v},{TMP}:gosub *{APPLY}:gosub *conv_ps_draw"));
-            w(format!("if {DRAGGED} == {i} cell {},1", KNOB + i as u32));
-        }
-        w("print 1".into());
-        w("wait 16".into());
-        w("goto *conv_ps_drag".into());
-    }
-
-    w("*conv_ps_close".into());
-    w("btndown 0:btndef clear:exbtn_d \"\"".into());
-    let mut controls: Vec<u32> = buttons.iter().map(|b| b.0).collect();
-    controls.extend(knobbed.iter().map(|&(i, _)| KNOB + i as u32));
-    controls.extend(knobbed.iter().filter(|(_, l)| l.fill.is_some()).map(|&(i, _)| FILL + i as u32));
-    for (i, st) in s.sliders.iter().enumerate().filter_map(|(i, l)| Some((i, steps(l)?))) {
-        for k in 0..st.buttons.len() {
-            controls.extend([step_slot(STEP, i, k), step_slot(STEP_CHOSEN, i, k)]);
-        }
-    }
-    if !controls.is_empty() {
-        w(controls.iter().map(|n| format!("csp {n}")).collect::<Vec<_>>().join(":"));
-    }
-    w("popscreen".into());
-    // The scene first, then the window: texton drops the pending screen
-    // updates but the window's.
-    w(fade.clone());
-    w(format!("if {IN_GAME} == 1 texton"));
-    w("return".into());
-
-    // The chosen side of each pair, the knobs.
-    w("*conv_ps_draw".into());
-    for (i, p) in s.pairs.iter().enumerate() {
-        let (on, off) = (CHOSEN + 2 * i as u32, CHOSEN + 2 * i as u32 + 1);
-        let v = pair_var(s, i);
-        if check_box(p) {
-            let (on, off) = (PAIR + 2 * i as u32, PAIR + 2 * i as u32 + 1);
-            w(format!("vsp {on},{v}:mov {TMP},1-{v}:vsp {off},{TMP}"));
-            continue;
-        }
-        w(format!("if {v} == 1 csp {off}:{}:cell {on},2", strip(on, 3, &p.on)));
-        w(format!("if {v} == 0 csp {on}:{}:cell {off},2", strip(off, 3, &p.off)));
-    }
-    for &(i, l) in &knobbed {
-        let (k0, k1) = l.knob_y;
-        if l.horizontal {
-            w(format!("mov {TMP},{k1}-{}*{}/1000", slider_var(s, i), k1 - k0));
-            w(format!("amsp {},{TMP},{}", KNOB + i as u32, l.knob.y));
-        } else {
-            w(format!("mov {TMP},{}*{}/1000+{k0}", slider_var(s, i), k1 - k0));
-            w(format!("amsp {},{},{TMP}", KNOB + i as u32, l.knob.x));
-        }
-        if let Some((f, mask)) = &l.fill {
-            let n = FILL + i as u32;
-            w(format!("lsp {n},\":a;{}\",{},{}:spcut {n},\"{}\",{TMP}+{},{}", path(&f.image), f.x, f.y, path(mask), l.knob.w / 2, f.y));
-        }
-    }
-    // A stepped slider: the step its value is (TMP), then the chosen cells.
-    for (i, st) in s.sliders.iter().enumerate().filter_map(|(i, l)| Some((i, steps(l)?))) {
-        w(format!("mov {TMP},-1"));
-        for (k, (_, position)) in st.buttons.iter().enumerate() {
-            w(format!("if {} == {position} mov {TMP},{k}", slider_var(s, i)));
-        }
-        for (k, (p, _)) in st.buttons.iter().enumerate() {
-            let slot = step_slot(STEP_CHOSEN, i, k);
-            let shown = if st.filled { format!("{TMP} >= {k}") } else { format!("{TMP} == {k}") };
-            w(format!("csp {slot}:if {shown} {}:cell {slot},2", strip(slot, 3, p)));
-        }
-    }
-    w("return".into());
-
-    if let Some(v) = &s.voice_window {
-        voice_window(&mut w, v, border, &fade);
-    }
 }
 
 /// `*conv_ps_defaults` and [`APPLY`].
@@ -426,7 +130,7 @@ fn values(out: &mut String, s: &PictureSettings) {
     for (i, p) in s.pairs.iter().enumerate() {
         w(format!("mov {},{}", pair_var(s, i), u8::from(p.default_on)));
     }
-    w(format!("mov {},1", set_var(s)));
+    w(format!("mov %{},1", named("done")));
     w("return".into());
 
     w(format!("*{APPLY}"));
@@ -488,160 +192,8 @@ fn values(out: &mut String, s: &PictureSettings) {
     w("return".into());
 }
 
-/// The voice window's routines (`*conv_ps_voices`, back to the settings'
-/// wait when it closes).
-fn voice_window(w: &mut impl FnMut(String), v: &VoiceWindow, border: u32, fade: &str) {
-    assert!(v.layouts.iter().all(|l| l.entries.len() <= MAX_VOICE_ENTRIES), "too many voice entries");
-    let fade = if v.fade_ms > 0 { format!("print 10,{}", v.fade_ms) } else { fade.to_string() };
-    let off = |c: u32| format!("%{}", menu::VOICE_OFF_BASE + c);
-    // The test that shows entry k of layout l.
-    let shown = |l: usize, heard: Option<Var>| match heard {
-        Some(h) => format!("{LAYOUT} == {l} && {} == 1", var_name(h, border)),
-        None => format!("{LAYOUT} == {l}"),
-    };
-    let (b, opacity) = &v.backdrop;
-    w("*conv_ps_voices".into());
-    w(format!("lsp {VOICE_BACKDROP},\":c;{}\",{},{},{opacity}", path(&b.image), b.x, b.y));
-    let g = &v.background;
-    w(format!("lsp {VOICE_BACKGROUND},\":a;{}\",{},{}", path(&g.image), g.x, g.y));
-    w(format!("mov {LAYOUT},{}", v.layouts.len().saturating_sub(1)));
-    for (l, layout) in v.layouts.iter().enumerate().rev() {
-        if let Some(when) = layout.when {
-            w(format!("if {} == 1 mov {LAYOUT},{l}", var_name(when, border)));
-        }
-    }
-    w("gosub *conv_ps_voices_draw".into());
-    w(fade.clone());
-
-    w("*conv_ps_voices_wait".into());
-    w("btndef clear".into());
-    for (l, layout) in v.layouts.iter().enumerate() {
-        for (k, e) in layout.entries.iter().enumerate().filter(|(_, e)| !e.characters.is_empty()) {
-            let p = &e.picture;
-            w(format!("if {} btn {},{},{},{},{},0,0", shown(l, e.heard), BTN_VOICE_ENTRY + k as i32, p.x, p.y, e.hit.0, e.hit.1));
-        }
-    }
-    w("getkey".into());
-    w(format!("btnwait {BUTTON_VAR}"));
-    w(format!("if {BUTTON_VAR} == -1 || {BUTTON_VAR} == {} goto *conv_ps_voices_close", menu::key_code('C')));
-    for (l, layout) in v.layouts.iter().enumerate() {
-        for (k, e) in layout.entries.iter().enumerate() {
-            let Some(&first) = e.characters.first() else { continue };
-            let all = |to: u32| e.characters.iter().map(|&c| format!("mov {},{to}", off(c))).collect::<Vec<_>>().join(":");
-            let n = BTN_VOICE_ENTRY + k as i32;
-            w(format!("if {LAYOUT} == {l} && {BUTTON_VAR} == {n} && {} == 0 {}:goto *conv_ps_voices_toggled", off(first), all(1)));
-            w(format!("if {LAYOUT} == {l} && {BUTTON_VAR} == {n} {}:goto *conv_ps_voices_toggled", all(0)));
-        }
-    }
-    w("goto *conv_ps_voices_wait".into());
-    w("*conv_ps_voices_toggled".into());
-    w("gosub *conv_ps_voices_draw:print 1".into());
-    w("goto *conv_ps_voices_wait".into());
-
-    w("*conv_ps_voices_close".into());
-    w("btndef clear".into());
-    w(format!("for {TMP} = {VOICE_CHECK} to {VOICE_BACKDROP}:csp {TMP}:next"));
-    w(fade);
-    w("goto *conv_ps_wait".into());
-
-    w("*conv_ps_voices_draw".into());
-    w(format!("for {TMP} = {VOICE_CHECK} to {}:csp {TMP}:next", VOICE_ENTRY as usize + MAX_VOICE_ENTRIES - 1));
-    let c = &v.check;
-    for (l, layout) in v.layouts.iter().enumerate() {
-        for (k, e) in layout.entries.iter().enumerate() {
-            let p = &e.picture;
-            let cond = shown(l, e.heard);
-            w(format!("if {cond} lsp {},\":a;{}\",{},{}", VOICE_ENTRY + k as u32, path(&p.image), p.x, p.y));
-            // An entry with no voices in the story is always heard.
-            let heard = e.characters.first().map_or(String::new(), |&first| format!(" && {} == 0", off(first)));
-            w(format!("if {cond}{heard} lsp {},\":a;{}\",{},{}", VOICE_CHECK + k as u32, path(&c.image), p.x, p.y));
-        }
-    }
-    w("return".into());
-}
-
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use conv_core::ir::{PicturePair, PictureSlider, PictureText, Rect, VoiceEntry, VoiceLayout};
-
-    fn placed(name: &str, x: i32, y: i32) -> Placed {
-        Placed { image: format!("system/{name}.png"), x, y, w: 24, h: 7 }
-    }
-
-    fn settings() -> PictureSettings {
-        PictureSettings {
-            background: placed("bg", 0, 0),
-            fixed: vec![placed("aspect", 215, 51)],
-            close: placed("exit", 26, 108),
-            reset: Some(placed("reset", 899, 197)),
-            voice_test: Some(placed("test", 287, 197)),
-            test_voice: Some("voice/test.ogg".into()),
-            sliders: vec![
-                PictureSlider { setting: SliderSetting::VoiceVolume, knob: placed("knob", 358, 67), knob_y: (67, 206), track: Rect { x: 358, y: 67, w: 24, h: 147 }, default: 207, steps: None, horizontal: false, fill: None },
-                PictureSlider {
-                    setting: SliderSetting::GameSpeed { levels: [50, 75, 100, 150, 200, 300, 400, 550, 800, 1200, 1600, 3200] },
-                    knob: placed("knob", 862, 67),
-                    knob_y: (67, 206),
-                    track: Rect { x: 862, y: 67, w: 24, h: 147 },
-                    default: 750,
-                    steps: None,
-                    horizontal: false,
-                    fill: None,
-                },
-            ],
-            pairs: vec![
-                PicturePair { option: PairOption::Confirm, on: placed("on", 827, 183), off: placed("off", 827, 213), default_on: true },
-                PicturePair { option: PairOption::Voice, on: placed("on", 395, 183), off: placed("off", 395, 213), default_on: true },
-            ],
-            texts: vec![PictureText { text: "v1.00".into(), x: 453, y: 548, font_size: 11, colour: "#bb7420".into() }],
-            fade_ms: 300,
-            pair_fade_ms: 100,
-            voice_window: Some(VoiceWindow {
-                open: placed("open", 323, 151),
-                backdrop: (placed("black", 0, 0), 178),
-                background: placed("voices", 0, 0),
-                check: placed("check", 0, 0),
-                layouts: vec![
-                    VoiceLayout { when: Some(Var { global: true, index: 50 }), entries: vec![VoiceEntry { picture: placed("a", 790, 82), hit: (15, 142), characters: vec![3, 7], heard: Some(Var { global: true, index: 10 }) }] },
-                    VoiceLayout { when: None, entries: vec![VoiceEntry { picture: placed("b", 214, 376), hit: (15, 142), characters: vec![], heard: None }] },
-                ],
-                fade_ms: 300,
-            }),
-            engine_screen: None,
-        }
-    }
-
-    #[test]
-    fn stepped_slider() {
-        let mut s = settings();
-        let buttons = (0..3).map(|k| (placed("bullet", 306 + 12 * k, 212), 900 - 100 * k as u32)).collect();
-        s.sliders.push(PictureSlider {
-            setting: SliderSetting::BgmVolume,
-            knob: placed("none", 0, 0),
-            knob_y: (0, 0),
-            track: Rect { x: 0, y: 0, w: 0, h: 0 },
-            default: 800,
-            steps: Some(conv_core::ir::SliderSteps { buttons, filled: true }),
-            horizontal: false,
-            fill: None,
-        });
-        let mut out = String::new();
-        emit(&mut out, &s, 800);
-        for line in [
-            "lsp 480,\":a/3,0,3;system\\bullet.png\",306,212\n",
-            "spbtn 482,222\n",
-            "if %9 == 221 mov %2924,800:goto *conv_ps_changed\n",
-            "if %2924 == 700 mov %105,2\n",
-            "csp 401:if %105 >= 1 lsp 401,\":a/3,0,3;system\\bullet.png\",318,212:cell 401,2\n",
-            "mov %2924,800\n",
-        ] {
-            assert!(out.contains(line), "missing {line:?} in\n{out}");
-        }
-        // No knob or track for it.
-        assert!(!out.contains("exbtn 782"));
-    }
-
     #[test]
     fn text_speed_curve_follows_the_rate() {
         // The integer sum TextSpeedCurve writes, against 1 / (u/fast + (1-u)/slow).
@@ -657,70 +209,6 @@ mod tests {
             let u = (1.0 - v as f64 / 1000.0).powi(4);
             let want = 1.0 / (u / (fast as f64 / 10.0) + (1.0 - u) / (slow as f64 / 10.0));
             assert!((text_ms(v) as f64 - want).abs() <= 1.0, "v {v}: {} vs {want}", text_ms(v));
-        }
-    }
-
-    #[test]
-    fn picture_settings_routine() {
-        let mut out = String::new();
-        emit(&mut out, &settings(), 800);
-        for line in [
-            "*conv_settings\n",
-            "lsp 800,\":a;system\\aspect.png\",215,51\n",
-            "strsp 790,\"v1.00\",453,548,5,1,11,11,0,0,0,0,\"#bb7420\"\n",
-            // The track shows its knob's hover cell.
-            "exbtn_d \"P700,0P701,0\"\nexbtn 780,10,\"P700,0P701,0P700,1\"\n",
-            "spbtn 710,1,2\n",
-            "if %9 == 30 && %2930 == 0 mov %2930,1:goto *conv_ps_changed\n",
-            "if %9 == 31 && %2930 == 1 mov %2930,0:goto *conv_ps_changed\n",
-            "if %9 == 3 dwave 0,\"voice\\test.ogg\"\n",
-            "if %170 == 0 mov %105,(%178-3-67)*1000/139\n",
-            "if %2931 == 1 csp 723:lsp 722,\":a/3,0,3;system\\on.png\",395,183:cell 722,2\n",
-            "mov %105,%2922*139/1000+67\namsp 700,358,%105\n",
-            "mov %2922,207\nmov %2923,750\nmov %2930,1\nmov %2931,1\nmov %2920,1\n",
-            "mov %105,(1000-%2922)/10:mov %105,(%105*%105/50+%105)/3:voicevol %105\n",
-            "if %105 == 3 mov %2921,100\n",
-            "mov %3642,1-%2930\n",
-            "mov %2914,1-%2930\n",
-            "mov %171,0\nmov %172,0\nmov %173,1-%2931\nconsset \"mutebgm\",%171:consset \"mutese\",%172:consset \"mutevoice\",%173\n",
-            // The voice window: layout 0 when its flag is set.
-            "if %9 == 4 goto *conv_ps_voices\n",
-            "mov %174,1\nif %850 == 1 mov %174,0\n",
-            "if %174 == 0 && %810 == 1 btn 100,790,82,15,142,0,0\n",
-            "if %174 == 0 && %9 == 100 && %973 == 0 mov %973,1:mov %977,1:goto *conv_ps_voices_toggled\n",
-            "if %174 == 0 && %810 == 1 && %973 == 0 lsp 540,\":a;system\\check.png\",790,82\n",
-            "if %174 == 1 lsp 540,\":a;system\\check.png\",214,376\n",
-        ] {
-            assert!(out.contains(line), "missing {line:?} in\n{out}");
-        }
-    }
-
-    #[test]
-    fn lying_slider_with_its_bar_and_a_check_box() {
-        let mut s = settings();
-        s.sliders.push(PictureSlider {
-            setting: SliderSetting::BgmVolume,
-            knob: placed("knob", 588, 84),
-            knob_y: (588, 722),
-            track: Rect { x: 588, y: 65, w: 141, h: 34 },
-            default: 407,
-            steps: None,
-            horizontal: true,
-            fill: Some((placed("full", 584, 72), "system/black.png".into())),
-        });
-        s.pairs.push(PicturePair { option: PairOption::Bgm, on: placed("heard", 769, 57), off: placed("muted", 769, 57), default_on: true });
-        let mut out = String::new();
-        emit(&mut out, &s, 200);
-        for line in [
-            // Position 0 at the right end; the bar cut from the knob's middle.
-            "mov %105,722-%2924*134/1000\namsp 702,%105,84\nlsp 902,\":a;system\\full.png\",584,72:spcut 902,\"system\\black.png\",%105+12,72\n",
-            "if %170 == 2 mov %105,(722-%177+12)*1000/134\n",
-            // The check box: only its current side, which switches to the other.
-            "vsp 754,%2932:mov %105,1-%2932:vsp 755,%105\n",
-            "if %2932 == 1 spbtn 754,34\nif %2932 == 0 spbtn 755,35\n",
-            "if %9 == 35 && %2932 == 0 mov %2932,1:goto *conv_ps_changed\nif %9 == 34 && %2932 == 1 mov %2932,0:goto *conv_ps_changed\n",
-        ] {
-            assert!(out.contains(line), "missing:\n{line}\nin:\n{out}");
         }
     }
 }

@@ -1,5 +1,5 @@
 //! [`PictureSettings`] drawn by the engine (`screen "settings"`,
-//! COMMANDS.md "Screens") when it has an [`engine_screen`]: the picture,
+//! COMMANDS.md "Screens"): the picture,
 //! its fixed pictures and texts, each pair's sides as radios (the chosen
 //! side's picture while on), the buttons, and each slider as a picture
 //! slider (its knob dragged along an invisible track). The values are the
@@ -11,7 +11,6 @@
 //! The screens fade in and out, a pair's chosen side cross-fades, and the
 //! reset question unrolls as the game's dialog does.
 //!
-//! [`engine_screen`]: PictureSettings::engine_screen
 //! [`APPLY`]: picture_settings::APPLY
 
 use std::fmt::Write as _;
@@ -28,14 +27,14 @@ const VOICE_TEST: &str = "conv_ps_test";
 
 /// The settings' files under `screens/`, if the engine draws them.
 pub(crate) fn files(script: &Script, border: u32) -> Vec<(String, String)> {
-    let Some(s) = script.picture_settings.as_ref().filter(|s| s.engine_screen.is_some()) else { return Vec::new() };
+    let Some(s) = script.picture_settings.as_ref() else { return Vec::new() };
     let question = script.confirm.as_ref().and_then(|d| Some((d, &d.pictures.iter().find(|(q, _)| *q == Switch::ConfirmReset)?.1)));
     let mut files = vec![("settings.lua".to_string(), settings_lua(s, question.is_some()))];
     if let Some((d, picture)) = question {
         files.push(("settings_confirm.lua".to_string(), question_lua(d, picture, "The reset question")));
     }
-    if let (Some(v), Some(e)) = (&s.voice_window, &s.engine_screen) {
-        files.push(("settings_voices.lua".to_string(), voices_lua(v, &e.voices_checked, border)));
+    if let Some(v) = &s.voice_window {
+        files.push(("settings_voices.lua".to_string(), voices_lua(v, &s.screen.voices_checked, border)));
     }
     files
 }
@@ -88,7 +87,7 @@ pub(crate) fn labels(out: &mut String, s: &PictureSettings) {
 }
 
 fn settings_lua(s: &PictureSettings, asks: bool) -> String {
-    let e = s.engine_screen.as_ref().expect("an engine screen");
+    let e = &s.screen;
     assert!(s.sliders.iter().all(|l| l.steps.is_some() || l.horizontal || l.fill.is_none()), "the engine's sliders have a lit bar only lying");
     assert!(e.chosen.len() == s.pairs.len(), "a chosen picture pair per pair");
     let apply = format!("action={{\"gosub\", \"*{APPLY}\"}}");
@@ -247,7 +246,7 @@ mod tests {
             fade_ms: 300,
             pair_fade_ms: 100,
             voice_window: Some(voice),
-            engine_screen: Some(SettingsScreen { chosen: vec![(placed("on3", 827, 183), placed("off3", 827, 213))], voices_checked: vec![vec!["system/a_c.png".into()], vec!["system/b_c.png".into()]], steps_chosen: vec![] }),
+            screen: SettingsScreen { chosen: vec![(placed("on3", 827, 183), placed("off3", 827, 213))], voices_checked: vec![vec!["system/a_c.png".into()], vec!["system/b_c.png".into()]], steps_chosen: vec![] },
         };
         script.picture_settings = Some(s.clone());
         let files = files(&script, 800);
@@ -303,7 +302,7 @@ mod tests {
             assert!(question.contains(line), "missing {line:?} in\n{question}");
         }
         let mut out = String::new();
-        picture_settings::emit(&mut out, &s, 800);
+        picture_settings::emit(&mut out, &s);
         assert!(out.starts_with("*conv_settings\nscreen \"settings\"\nreturn\n*conv_ps_reset\ngosub *conv_ps_defaults\ngosub *conv_ps_apply\nreturn\n*conv_ps_test\ndwave 0,\"voice\\test.ogg\"\nreturn\n"), "{out}");
         assert!(out.contains("mov %conv_set_voice_volume,207\nmov %conv_set_confirm,1\nmov %conv_set_done,1\n"), "{out}");
     }
@@ -333,7 +332,7 @@ mod tests {
             fade_ms: 300,
             pair_fade_ms: 0,
             voice_window: None,
-            engine_screen: Some(SettingsScreen { chosen: vec![(placed("heard", 769, 57), placed("muted", 769, 57))], voices_checked: vec![], steps_chosen: vec![] }),
+            screen: SettingsScreen { chosen: vec![(placed("heard", 769, 57), placed("muted", 769, 57))], voices_checked: vec![], steps_chosen: vec![] },
         };
         script.picture_settings = Some(s.clone());
         let lua = &files(&script, 800)[0].1;
@@ -344,7 +343,7 @@ mod tests {
             assert!(lua.contains(line), "missing {line:?} in\n{lua}");
         }
         let mut out = String::new();
-        picture_settings::emit(&mut out, &s, 800);
+        picture_settings::emit(&mut out, &s);
         assert!(out.starts_with("*conv_settings\nscreen \"settings\"\nreturn\n"), "{out}");
         let mut define = String::new();
         picture_settings::define(&mut define, &s);
@@ -378,7 +377,7 @@ mod tests {
             fade_ms: 0,
             pair_fade_ms: 0,
             voice_window: None,
-            engine_screen: Some(SettingsScreen { chosen: vec![], voices_checked: vec![], steps_chosen: vec![vec![placed("lit", 306, 422), placed("lit", 318, 422), placed("lit", 330, 422)]] }),
+            screen: SettingsScreen { chosen: vec![], voices_checked: vec![], steps_chosen: vec![vec![placed("lit", 306, 422), placed("lit", 318, 422), placed("lit", 330, 422)]] },
         };
         script.picture_settings = Some(s);
         let lua = &files(&script, 800)[0].1;

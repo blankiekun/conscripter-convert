@@ -662,8 +662,7 @@ Open, by area (each is small; most noticeable first):
     read it at the click); S and L no longer close the screens.
   - Backlog: the knob sits up to 1 px off after a wheel or drag; a press
     on the sweep jumps the knob; 逆 at the oldest row and 進 at the newest
-    are not buttons (no hover light); Muramasa EN's backlog (`row_width`)
-    still uses the script routine; `SetBacklog`'s 鈴川 in ma01_021 has no
+    are not buttons (no hover light); `SetBacklog`'s 鈴川 in ma01_021 has no
     voice switch.
   - Extras: the four modes' screens; the gallery's viewer is still the
     script's.
@@ -673,8 +672,7 @@ Open, by area (each is small; most noticeable first):
     fails on such a build. A songs-only sound room without the movies is
     not done.
   - Settings: a press on a knob keeps the grab offset (a drag ends 2 px
-    from the routine's); Django's stepped sliders use the script routine;
-    EN's screen fades 300 ms (guess) and its pairs switch at once.
+    from the routine's); EN's screen fades 300 ms (guess) and its pairs switch at once.
   - The quick bar sliding while text types (user's choice, 2026-10-15:
     left; needs the engine to move the bar).
 - **Movies**: sprite movies don't play in CONscripter for Windows (opens
@@ -968,8 +966,6 @@ oldest row. Open:
 - 逆 at the oldest row and 進 at the newest are not buttons (the screen
   turns off a scroll that can't move), so they don't light under the
   pointer; the routine's did.
-- Muramasa EN's backlog (single-byte rows, `row_width`) still uses the
-  script routine.
 - A row's voice button follows the voice switches when the backlog opens
   (below, "History", "The backlog's voices and the voice switches");
   `SetBacklog`'s speaker 鈴川 in ma01_021, voiced in no earlier file, has
@@ -2346,7 +2342,7 @@ page each punctuation mark or symbol shows on (`--shot-pages`):
    Fixed on the way: the title's しおりから used `load`, which isn't a
    command (NScripter's is `loadgame`), so it stopped the game.
 4. Done: the save and load screens (a new `SaveGrid`, emitted by
-   `conv-cons/src/save_grid.rs`, Muramasa's values in
+   `conv-cons/src/save_grid_screen.rs`, Muramasa's values in
    `convert/muramasa/screens.rs` from `sys_save.nss`/`sys_load.nss`).
    Five pages of twenty thumbnails over each page's own picture
    (数字01-20背景save … 数字80-100背景load), four columns from the right,
@@ -2381,7 +2377,7 @@ page each punctuation mark or symbol shows on (`--shot-pages`):
    - No transitions inside the screen (the details appear at once;
      the original fades them).
 5. Done: the backlog (a new `LineLog`, in
-   `conv-cons/src/line_log.rs`; Muramasa's values in
+   `conv-cons/src/line_log_screen.rs`; Muramasa's values in
    `convert/muramasa/screens.rs`, `line_log()`): sixteen rows of 26
    characters over バックログ背景, the history laid out as rows by
    CONscripter (`logrows`, `getlogrow`, 8a7a34e: each page's lines cut
@@ -2419,7 +2415,7 @@ page each punctuation mark or symbol shows on (`--shot-pages`):
    `WaitIcon::frame_ms`). Not done: the auto-mode icon (自動送りアイコン,
    15 pictures).
 6. Done: the settings screen (a new
-   `PictureSettings`, in `conv-cons/src/picture_settings.rs`; Muramasa's
+   `PictureSettings`, in `conv-cons/src/settings_screen.rs`; Muramasa's
    values in `convert/muramasa/screens.rs`, `settings()`, from
    `sys_config.nss`). コンフィグ over the screen, the controls laid over
    it: six vertical sliders (voice, effects and music volume, auto wait,

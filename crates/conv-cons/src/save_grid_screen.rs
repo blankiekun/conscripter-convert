@@ -1,5 +1,5 @@
 //! [`SaveGrid`] drawn by the engine (`screen "save"`, `screen "load"`,
-//! COMMANDS.md "Screens") when it has [`SaveGrid::engine_screen`]: the
+//! COMMANDS.md "Screens"): the
 //! page's picture, the frames, the slots (down the columns), each slot's
 //! details shown while the pointer is on it (`hover`), previous and next
 //! page (going round, cross-faded), the delete mode as a toggle and the
@@ -14,9 +14,8 @@
 //! widget holding only the quick save.
 //!
 //! A save's text is "|play time|chapter|last line", made before the screen
-//! opens ([`save_grid::details`]); the date is the save file's. A save of
-//! the script routine's ("date|play time|…") shows the same, its parts
-//! counted from the last.
+//! opens ([`save_grid::details`]); the date is the save file's. Its parts
+//! are counted from the last.
 
 use std::fmt::Write as _;
 
@@ -32,7 +31,7 @@ const ASKS: [(Switch, &str); 3] = [(Switch::ConfirmSave, "save_ask_save"), (Swit
 
 /// The save grid is the engine's.
 pub(crate) fn engine_grid(script: &Script) -> Option<&SaveGrid> {
-    script.save_grid.as_ref().filter(|g| g.engine_screen)
+    script.save_grid.as_ref()
 }
 
 /// `*conv_save` and `*conv_load`. The thumbnail is the scene without the
@@ -276,8 +275,7 @@ mod tests {
 
     #[test]
     fn grid_becomes_a_screen() {
-        let mut g = crate::save_grid::tests::grid();
-        g.engine_screen = true;
+        let g = crate::save_grid::tests::grid();
         let mut script = Script { width: 1024, height: 576, ..Default::default() };
         script.save_grid = Some(g.clone());
         let p = |name: &str| Placed { image: format!("sys/{name}.png"), x: 412, y: 88, w: 100, h: 400 };
@@ -330,7 +328,6 @@ mod tests {
     #[test]
     fn popup_tabs_and_quick_page_as_screens() {
         let mut g = crate::save_grid::tests::grid();
-        g.engine_screen = true;
         let p = |name: &str, x: i32, y: i32| Placed { image: format!("sys/{name}.png"), x, y, w: 10, h: 10 };
         g.tabs = vec![p("tab1", 157, 0), p("tab2", 299, 0)];
         g.quick_page = true;

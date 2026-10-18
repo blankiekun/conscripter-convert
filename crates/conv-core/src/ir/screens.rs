@@ -757,9 +757,6 @@ pub struct SettingsMenu {
     pub defaults: Vec<(Setting, u32)>,
     /// Switches that start off (and go back off with the defaults button).
     pub switches_off: Vec<Switch>,
-    /// Drawn by the engine (CONscripter's `screen`, `screens/settings.lua`)
-    /// rather than by script loops (without `pictures` only).
-    pub engine_screen: bool,
     /// Milliseconds a character for text speed levels 0-10, where the
     /// game's speeds differ from the shared `(10 - level) × 6`.
     pub text_ms: Option<[u32; 11]>,

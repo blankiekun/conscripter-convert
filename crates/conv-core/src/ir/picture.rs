@@ -81,9 +81,6 @@ pub struct SaveGrid {
     /// The play time as hours and minutes, two digits each (up to 99:59),
     /// instead of hours (three digits), minutes and seconds.
     pub play_time_hm: bool,
-    /// Drawn by the engine (CONscripter's `screen`, `screens/save.lua` and
-    /// `load.lua`) rather than by script loops.
-    pub engine_screen: bool,
 }
 
 /// A text of [`SaveGrid`]: its box's top left (for vertical text, its top
@@ -176,9 +173,6 @@ pub struct LineLog {
     /// Rows this many pixels wide instead of `columns` cells (proportional
     /// text in a field of its own width).
     pub row_width: Option<u32>,
-    /// Drawn by the engine (CONscripter's `screen`, `screens/backlog.lua`)
-    /// rather than by script loops.
-    pub engine_screen: bool,
 }
 
 /// An animated click-wait icon ([`Script::wait_icon`]): pictures of `w`×`h`
@@ -219,9 +213,8 @@ pub struct PictureSettings {
     pub pair_fade_ms: u32,
     /// Opened by its own button: a switch for each character's voice.
     pub voice_window: Option<VoiceWindow>,
-    /// Drawn by the engine (`screen "settings"`) instead of a script
-    /// routine, with the pictures it needs besides.
-    pub engine_screen: Option<SettingsScreen>,
+    /// The pictures the engine's screen (`screen "settings"`) needs besides.
+    pub screen: SettingsScreen,
 }
 
 /// The pictures [`PictureSettings`] drawn by the engine needs besides its
