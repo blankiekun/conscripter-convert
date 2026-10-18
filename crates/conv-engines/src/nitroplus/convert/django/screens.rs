@@ -4,7 +4,7 @@
 //! under wine).
 
 use conv_core::ir::{
-    BarAction, ButtonBar, CommandItem, CommandMenu, ConfirmDialog, GridText, LineLog, Placed, Rect, SaveGrid, Script, Switch, TitleAction, TitleButton, TitleScreen, WaitIcon,
+    BarAction, ButtonBar, CommandItem, CommandMenu, ConfirmDialog, GridText, LineLog, Op, Placed, Rect, SaveGrid, Script, Switch, TitleAction, TitleButton, TitleOpening, TitleScreen, WaitIcon,
 };
 
 use conv_core::ir::{PairOption, PicturePair, PictureSettings, PictureSlider, SettingsScreen, SliderSetting, SliderSteps};
@@ -14,6 +14,11 @@ use super::super::{Assets, Story};
 /// Fills the script's system screens.
 pub fn menus(a: &mut dyn Assets, script: &mut Script, story: &Story) {
     script.title_screen = title(a);
+    // The first title of a run comes up as TitleSet draws it ($Logo 0).
+    let opening = super::super::OPENING_LABEL;
+    if let Some(t) = script.title_screen.as_mut().filter(|_| script.ops.iter().any(|op| matches!(op, Op::Label(l) if l == opening))) {
+        t.openings.push(TitleOpening { at_launch: true, script: Some(opening.to_string()), ..Default::default() });
+    }
     // The game has no button bar; the command menu runs a bar's actions.
     script.button_bar = Some(ButtonBar { buttons: Vec::new(), top: None, base: None, slide: None, pressed: true, quick_save_se: None, load_fade_ms: 0, quick_saved: None });
     script.command_menu = command_menu(a);
@@ -382,21 +387,23 @@ fn command_menu(a: &mut dyn Assets) -> Option<CommandMenu> {
 }
 
 /// The title (`boot.nss`, `TitleSet` and `TitleSelect`): the background
-/// with the logo at (84,111) and the tumbleweed at (300,420); six buttons
+/// with the logo at (84,111); six buttons
 /// where `TitleSet` puts them, white at rest (`-01`), red under the
 /// pointer (`-02`, with a revolver being cocked); a shot when one is
 /// clicked. Start fades the music and the screen to black over a second.
 /// 特別 and LINER NOTES answer only once the story is finished
 /// (`#ClearG`): the extras aren't converted yet, and LINER NOTES opened a
-/// page of Nitroplus's site; both are shown and refuse a click. Left out:
-/// the buttons flying in turning (`Rotate`, `Move`), their shaking, the
-/// tumbleweed rolling, the red slash over the screen on a click (`-03`),
-/// and the tumbleweed's hidden chapter select.
+/// page of Nitroplus's site; both are shown and refuse a click. The first
+/// title of a run comes up as `TitleSet` draws it (compiled, [`menus`]).
+/// Left out: the opening on coming back to the title (it fades in), the
+/// buttons' shaking, the tumbleweed rolling by (once it has rolled off in
+/// the opening, it is never seen at rest), the red slash over the screen
+/// on a click (`-03`), and the tumbleweed's hidden chapter select.
 fn title(a: &mut dyn Assets) -> Option<TitleScreen> {
     const DIR: &str = "cg/sys/title";
     // src: boot.nss TitleSet (places), TitleSelect (Start: SetVolume 1000, Fade 1000)
     let mut parts = Vec::new();
-    for (name, x, y) in [("title-back.jpg", 0, 0), ("title-logo.png", 84, 111), ("tumbleweed.png", 300, 420)] {
+    for (name, x, y) in [("title-back.jpg", 0, 0), ("title-logo.png", 84, 111)] {
         parts.push((a.image(&format!("{DIR}/{name}"))?.0, x, y, 1000));
     }
     let (background, _, _) = a.composite(&parts)?;

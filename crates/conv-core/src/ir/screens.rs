@@ -115,6 +115,11 @@ pub struct TitleOpening {
     pub random: bool,    /// Only on coming back from the [`Script::picture_extras`] (instead of
     /// [`TitleOpening::at_launch`]'s choice).
     pub after_extras: bool,
+    /// Drawn by this subroutine of the script instead of `movie`: from a
+    /// black screen, with sprites of its own, which the title's take the
+    /// place of at once as it returns (on the title as it rests); the
+    /// music isn't started again when the boot left it playing.
+    pub script: Option<String>,
 }
 
 /// [`TitleScreen::glow`]: a full-screen picture drawn at a changing

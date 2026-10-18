@@ -91,6 +91,14 @@ impl Compiler<'_, '_> {
         let (r0, r1) = (r0.or(r1)?, r1.or(r0)?);
         let (placed, sp) = if at_end { (now?, s1) } else { (old?, s0) };
         let cp = centre(placed);
+        // Zoomed and faded on the way too (the logo shot away in
+        // boot.nss): its unsquashed size and its opacity, straight
+        // between (the size by the turn's ease).
+        let size = |s: &Shown, sq: Squash| [s.w as f64 / sq[0].0.max(1e-3), s.h as f64 / sq[1].0.max(1e-3)];
+        let (z0, z1) = (old.map(|s| size(s, s0)), now.map(|s| size(s, s1)));
+        let (z0, z1, zp) = (z0.or(z1)?, z1.or(z0)?, size(placed, sp));
+        let (a0, a1) = (old.or(now)?.opacity as f64, now.or(old)?.opacity as f64);
+        let ap = (placed.opacity as f64).max(1.0);
         let span = (t.to.0 - t.from.0).abs().max((t.to.1 - t.from.1).abs());
         // ours: a key every 10° (at most 63)
         let steps = (span / 10).clamp(4, 63) as u32;
@@ -101,8 +109,9 @@ impl Compiler<'_, '_> {
                 let turn = ((t.from.0 as f64 + (t.to.0 - t.from.0) as f64 * e).round() as i64, (t.from.1 as f64 + (t.to.1 - t.from.1) as f64 * e).round() as i64);
                 let s = at(turn);
                 let c = [0, 1].map(|a| s[a].0 * (r0[a] + (r1[a] - r0[a]) * u) + s[a].1);
-                let zoom = [0, 1].map(|a| (s[a].0 / sp[a].0.max(1e-3) * 100.0).round().clamp(0.0, 10000.0) as u32);
-                MotionKey { ms: (u * f64::from(t.ms)).round() as u32, x: (c[0] - cp[0]).round() as i32, y: (c[1] - cp[1]).round() as i32, zoom: zoom[0], angle: 0, opacity: 256, zoom_y: zoom[1], ease: None }
+                let zoom = [0, 1].map(|a| (s[a].0 / sp[a].0.max(1e-3) * (z0[a] + (z1[a] - z0[a]) * e) / zp[a].max(1e-3) * 100.0).round().clamp(0.0, 10000.0) as u32);
+                let opacity = ((a0 + (a1 - a0) * u) / ap * 256.0).round().clamp(0.0, 256.0) as u32;
+                MotionKey { ms: (u * f64::from(t.ms)).round() as u32, x: (c[0] - cp[0]).round() as i32, y: (c[1] - cp[1]).round() as i32, zoom: zoom[0], angle: 0, opacity, zoom_y: zoom[1], ease: None }
             })
             .collect();
         Some(Op::SpriteMotion2 { layer, keys, end: MotionEnd::Keep })

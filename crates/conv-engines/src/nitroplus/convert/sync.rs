@@ -26,6 +26,7 @@ impl Compiler<'_, '_> {
         }
         let mut paths = std::mem::take(&mut self.pending_path);
         let from = std::mem::take(&mut self.pending_from);
+        let angle_from = std::mem::take(&mut self.pending_angle_from);
         let zoom_from = std::mem::take(&mut self.pending_zoom_from);
         let wave_clock = self.sound_clock();
         let mask = self.pending_mask.take();
@@ -265,8 +266,9 @@ impl Compiler<'_, '_> {
         want.sort_by_key(|w| std::cmp::Reverse(w.2));
         // A picture fading out to 0 stays only when it also moves or zooms
         // as one motion (alpha keys to 0), drawn until a later sync.
+        // (Or as it turns: the turn's motion fades it too, convert/turn.rs.)
         want.retain(|(n, s, _)| {
-            s.opacity > 0 || fades.contains_key(n) && self.shown.get(n).is_some_and(|old| (old.x, old.y, old.w, old.h) != (s.x, s.y, s.w, s.h) && motion(old, &Shown { layer: old.layer, ..s.clone() }, 1).is_some())
+            s.opacity > 0 || fades.contains_key(n) && self.shown.get(n).is_some_and(|old| turning.contains_key(n) || (old.x, old.y, old.w, old.h) != (s.x, s.y, s.w, s.h) && motion(old, &Shown { layer: old.layer, ..s.clone() }, 1).is_some())
         });
         // Pictures under an opaque one that fills the screen (an old
         // background left up under a new one) aren't drawn.
@@ -411,7 +413,7 @@ impl Compiler<'_, '_> {
                 && let Some(op) = self.turn_motion(name, t, layer, Some(old), Some(now), false)
             {
                 let now = Shown { layer, engine: Engine { zoomed: true, moved: true }, ..now.clone() };
-                self.ops.push(op);
+                self.ops.push(bent(op, paths.remove(name)));
                 self.shown.insert(name.clone(), now);
                 moving.push(name.clone());
             }
@@ -428,7 +430,12 @@ impl Compiler<'_, '_> {
                 continue;
             }
             let now = Shown { layer, ..now.clone() };
-            let start = Shown { x: now.x + dx, y: now.y + dy, ..now.clone() };
+            // Turning and fading in from 0 with the move too (the title's
+            // buttons flying in): from its angle, and from 0 when the fade
+            // takes as long and outlasts the wait.
+            let angle = angle_from.get(name).copied().unwrap_or(now.angle);
+            let faded = from_zero.contains(name) && fades.get(name) == Some(&t) && t > blocking;
+            let start = Shown { x: now.x + dx, y: now.y + dy, angle, opacity: if faded { 0 } else { now.opacity }, ..now.clone() };
             let mut ops = Vec::new();
             let (keys, end) = if let Some(&(zx, zy)) = grown {
                 // Growing from 0: from the zoom it had (about its vertex).
@@ -563,9 +570,9 @@ impl Compiler<'_, '_> {
             match motion(&start, &now, t) {
                 // The move a loop starts after: its lead-in, from where the
                 // picture was to its new place (where it is put now).
-                Some(Op::SpriteMotion2 { keys: mk, .. }) if mk[1].zoom == 100 && mk[1].angle == 0 && self.lead_ins.contains_key(name) && let Some(Object { shake: Some((_, keys)), .. }) = self.objects.get(name) => {
+                Some(Op::SpriteMotion2 { keys: mk, .. }) if mk[1].zoom == 100 && mk[1].angle == 0 && self.lead_ins.contains_key(name) && let Some(Object { shake: Some((_, keys, from)), .. }) = self.objects.get(name) => {
                     let lead = self.lead_ins.remove(name).unwrap();
-                    self.ops.push(super::loops::lead_in_loop(layer, (-mk[1].x, -mk[1].y, t), lead, keys.clone()));
+                    self.ops.push(super::loops::lead_in_loop(layer, (-mk[1].x, -mk[1].y, t), lead, keys.clone(), *from));
                     self.ops.push(Op::SpriteMove { layer, x: (now.x + now.w / 2) as i32, y: (now.y + now.h / 2) as i32, ms: 0 });
                     self.shown.insert(name.clone(), Shown { engine: Engine { moved: true, ..old.engine }, ..now });
                     moving.push(name.clone());
@@ -680,7 +687,7 @@ impl Compiler<'_, '_> {
             if let Some(old) = grow.get(&name)
                 && let Some(op) = self.turn_motion(&name, &turning[&name], layer, old.as_ref(), Some(&now), true)
             {
-                animated.push(op);
+                animated.push(bent(op, paths.remove(&name)));
                 now.engine.moved = true;
             }
             if let Some(ops) = moved_over.remove(&name) {
@@ -740,8 +747,9 @@ impl Compiler<'_, '_> {
                     if now.over {
                         animated.push(Op::SpriteOverText { layer });
                     }
-                    if let Some(Object { shake: Some((_, keys)), .. }) = self.objects.get(&name) {
-                        animated.push(Op::SpriteMotion2 { layer, keys: keys.clone(), end: conv_core::ir::MotionEnd::Loop });
+                    if let Some(Object { shake: Some((_, keys, from)), .. }) = self.objects.get(&name) {
+                        let end = if *from > 0 { conv_core::ir::MotionEnd::LoopFrom(*from) } else { conv_core::ir::MotionEnd::Loop };
+                        animated.push(Op::SpriteMotion2 { layer, keys: keys.clone(), end });
                     }
                     if let Some(keys) = shake_once.remove(&name) {
                         animated.push(Op::SpriteMotion { layer, keys, looped: false });
@@ -782,8 +790,8 @@ impl Compiler<'_, '_> {
         animated.extend(self.start_one_shots());
         // Loops started during a change that isn't a move: after their lead.
         for (name, lead) in std::mem::take(&mut self.lead_ins) {
-            if let (Some(s), Some(Object { shake: Some((_, keys)), .. })) = (self.shown.get(&name), self.objects.get(&name)) {
-                animated.push(super::loops::lead_in_loop(s.layer, (0, 0, 0), lead, keys.clone()));
+            if let (Some(s), Some(Object { shake: Some((_, keys, from)), .. })) = (self.shown.get(&name), self.objects.get(&name)) {
+                animated.push(super::loops::lead_in_loop(s.layer, (0, 0, 0), lead, keys.clone(), *from));
             }
         }
         if changes.is_empty() && animated.is_empty() && opacity.is_empty() {
@@ -909,6 +917,29 @@ fn along(op: Op, path: Option<Vec<MotionKey>>) -> Op {
             ..*k
         })
         .collect();
+    Op::SpriteMotion2 { layer: *layer, keys, end: *end }
+}
+
+/// A motion straight from its start to its end (a turn's, [`Compiler::turn_motion`])
+/// bent along `path`'s offsets (a `BezierMove` ending as far: the shot logo).
+fn bent(op: Op, path: Option<Vec<MotionKey>>) -> Op {
+    let (Op::SpriteMotion2 { layer, keys, end }, Some(path)) = (&op, path) else { return op };
+    let (Some(last), Some(b)) = (path.last(), keys.last()) else { return op };
+    if last.ms != b.ms || b.ms == 0 {
+        return op;
+    }
+    // The path's offset at `t` (ms), and how far it is off the straight line.
+    let at = |t: u32| {
+        let i = path.iter().position(|k| k.ms >= t).unwrap_or(path.len() - 1);
+        let (p, q) = (path[i.saturating_sub(1)], path[i]);
+        let f = if q.ms > p.ms { f64::from(t - p.ms.min(t)) / f64::from(q.ms - p.ms) } else { 1.0 };
+        let line = f64::from(t) / f64::from(last.ms);
+        [(p.x, q.x, last.x), (p.y, q.y, last.y)].map(|(a, b, l)| (f64::from(a) + f64::from(b - a) * f - f64::from(l) * line).round() as i32)
+    };
+    let keys = keys.iter().map(|k| {
+        let [dx, dy] = at(k.ms);
+        MotionKey { x: k.x + dx, y: k.y + dy, ..*k }
+    }).collect();
     Op::SpriteMotion2 { layer: *layer, keys, end: *end }
 }
 

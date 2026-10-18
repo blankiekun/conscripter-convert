@@ -460,8 +460,8 @@ Open:
   pages from dja001, `docs/new-game.md` step 23); all pair. 2026-10-18,
   50 lines left (`missing` 145, `extra` 9, `time` 21), by cause:
   - Not findings: page 1's boot (the original's trace has a patched
-    boot: no logos, so ours' `boot.nss:128-171` are `extra`, and the
-    title's opening is item 1 of "Next"; `SetVolume` 0 on created
+    boot: no logos, so ours' `boot.nss:128-171` are `extra`, as is
+    `TitleSet`'s opening now; `SetVolume` 0 on created
     sounds and 0 ms fades give no command of ours); `call_chapter`
     lines; 0-72 ms gaps; page 18's `WaitFade` (auto mode's reading
     time differs, so the 3 s fade had or hadn't ended).
@@ -485,11 +485,12 @@ research/tools/trace_diff.py orig.jsonl ours.jsonl --map out/django.map --pages 
 
 ### Next
 
-1. Boot logos (History, "Boot logos"): the Nitroplus logo's fade-out
-   during its flight is lost (it goes at the flight's end), and its
-   `Rotate` @60 isn't drawn; `TitleSet`'s first-title opening (the
-   background in over 4.9 s, the logo slammed in, the tumbleweed) isn't
-   converted: the title fades in over 1 s.
+1. The title on coming back to it (`TitleSet` with `$Logo` 1: the
+   logo turning in, the buttons flying in) fades in over 1 s; the
+   buttons' shaking and the tumbleweed rolling by at rest are left out
+   (History, "Title opening"); before the story is finished the
+   opening's last frame shows EXTRA and LINER NOTES (a runtime `if`'s
+   merge). Not compared with the original's frames.
 2. Extras: film the doors and the rifle beside the original once wine
    is next used (ours from the scripts' times only).
 3. The unread-argument notes (`<Builtin> argument <i> ignored`; 33
@@ -664,6 +665,49 @@ Open, not fixed:
    4. `Fade` with four arguments takes the fourth as the tempo, not
       the wait; the six such calls take 0 ms.
 
+
+### Title opening (2026-10-18)
+
+The first title of a run comes up as `TitleSet` draws it (`$Logo` 0):
+the function compiled after the boot logos (`Game::title_opening`, at
+`conv_title_script`) and played as the title's opening
+(`TitleOpening::script`: from black, its sprites replaced by the
+title's at once as it returns, the boot's music going on). The
+background in over 4.9 s (`Axl2`); at 3 s the tumbleweed fades in and
+rolls off to the right (`TumbleweedMove`'s lead-in, below); a shot and
+the logo zooms in over 200 ms, a double shot and it jolts (300, 900,
+600, 1000 per mille, a frame each); the buttons fly in turning and
+fading, a panned shot each, 50 ms apart (5.55 s in all, as the
+script's times add up). What it took, shared NSS code:
+
+- A number as a timed action's wait (`Fade(…, 300, 1000, null, 50)`)
+  waits that long, the action going on (Django.exe `004310e0`); it
+  waited the whole action. 装甲悪鬼村正's 56 such calls change too.
+- A new picture moving in also turns (`Rotate` about z) and fades in
+  from 0 with the move when the fade takes as long and the script
+  doesn't wait it out (it showed upright, faded in by the cross-fade).
+  Story pages change too: 21 pictures sliding in now fade in over their
+  slide (e.g. 300 ms, not the 100 ms cross-fade); 127 in 装甲悪鬼村正.
+- A loop process whose timed actions come after a wait before the loop
+  (`TumbleweedMove`: still 3 s, faded in and rolled once, 3 s, then the
+  loop) plays them on paper as the motion's lead-in (`spmotion` loop 4);
+  they were drawn at once and the loop started at the process's start.
+- A picture turning about x or y as it zooms, moves along a path or
+  fades (the boot's Nitroplus logo: `BezierMove`, `Zoom` 500, `Rotate`
+  @60, `Fade` 0) does all of them in one motion; the turn's motion
+  dropped the rest (the logo kept its size and went at the end).
+
+Checked with a `--real-time` trace: the opening from 12,354 to
+17,960 ms (5,606; the script's 5,551 plus frames). Its last frame
+against the title's: the logo differs in 5,035 pixels (the opening's
+is the 600 px picture the engine zooms up, the title's the original),
+and EXTRA and LINER NOTES show in it before the story is finished: the
+runtime `if (#ClearG)` is merged with the cleared branch's pictures,
+drawn for the one `print 1` before the title's (a frame at most).
+
+The tumbleweed is no longer in the title's background: it is never at
+rest there in the original (rolled off at the opening's end, then by
+every 9 s), and its loop isn't drawn on the title.
 
 ### Boot logos (2026-10-18)
 

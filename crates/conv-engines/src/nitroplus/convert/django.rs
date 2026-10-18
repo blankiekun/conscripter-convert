@@ -35,6 +35,7 @@ pub const DJANGO: Game = Game {
     shake_jolts: true,
     fade_tempo: Some(super::tempo),
     boot_logos: ("boot.nss", BOOT_LOGOS),
+    title_opening: "TitleSet", // src: boot.nss main (TitleLogo, then TitleSet)
     ..Game::PLAIN
 };
 

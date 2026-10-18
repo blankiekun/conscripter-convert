@@ -490,6 +490,9 @@ impl Compiler<'_, '_> {
                     o.turn = (turn_x.position(o.turn.0, 0, 0), turn_y.position(o.turn.1, 0, 0), turn_z.position(o.turn.2, 0, 0));
                     if ms > 0 && o.turn.2 != before.2 {
                         self.set_tempo(ease, std::slice::from_ref(t));
+                        if !self.shown.contains_key(t) {
+                            self.pending_angle_from.entry(t.clone()).or_insert(-before.2);
+                        }
                     }
                     let o = self.objects.get_mut(t).unwrap();
                     let turn = o.turn;

@@ -805,6 +805,21 @@ fn title_screen(out: &mut String, t: &TitleScreen, fade: &str, save_menu: bool, 
     // ends on the title as the sprites show it.
     for (i, o) in t.openings.iter().enumerate() {
         writeln!(out, "*conv_title_opening{i}").unwrap();
+        if let Some(label) = &o.script {
+            if let Some(bgm) = &t.bgm {
+                let on = boot::BGM_ON;
+                let only = if boot_bgm { format!("if {on} == 0 ") } else { String::new() };
+                writeln!(out, "{only}bgm \"{}\"", path(bgm)).unwrap();
+                if boot_bgm {
+                    writeln!(out, "mov {on},0").unwrap();
+                }
+            }
+            // Its sprites go as the title's (the same picture) come.
+            writeln!(out, "bg black,0\ngosub *{label}\ncsp -1\nbg \"{}\",0", path(&t.background)).unwrap();
+            title_sprites(out, t, &buttons, quick, None, true, border);
+            writeln!(out, "print 1\ngoto *{TITLE_MENU}").unwrap();
+            continue;
+        }
         // Back from the extras, the music is playing.
         if let Some(bgm) = t.bgm.as_ref().filter(|_| !o.after_extras) {
             writeln!(out, "bgm \"{}\"", path(bgm)).unwrap();
@@ -2318,6 +2333,21 @@ effect 7,99,1000,\"cons_warp.dll/warp\\zoom_3_220_5.png,65\"
         s.ops.insert(2, Op::BgmStop { fade_out_ms: 0 });
         let out = emit(&s);
         assert!(out.contains("gosub *conv_boot\n") && !out.contains("conv_boot_bgm"), "{out}");
+    }
+
+    #[test]
+    fn a_script_opening_plays_once_on_the_music_the_boot_left() {
+        let bgm = "sound/bgm/title.ogg";
+        let mut s = script(vec![Op::Label("conv_boot".into()), Op::BgmPlay { file: bgm.into(), fade_in_ms: 0 }, Op::Return, Op::Label("conv_open".into()), Op::Return]);
+        s.boot = vec![conv_core::ir::BootStep { gosub: Some("conv_boot".into()), ..Default::default() }];
+        let opening = conv_core::ir::TitleOpening { at_launch: true, script: Some("conv_open".into()), ..Default::default() };
+        s.title_screen = Some(TitleScreen { background: "system/title.png".into(), bgm: Some(bgm.into()), openings: vec![opening], ..Default::default() });
+        let out = emit(&s);
+        assert!(out.contains("if %2960 == 0 mov %2960,1:goto *conv_title_opening0\n"), "{out}");
+        assert!(
+            out.contains("*conv_title_opening0\nif %conv_boot_bgm == 0 bgm \"sound\\bgm\\title.ogg\"\nmov %conv_boot_bgm,0\nbg black,0\ngosub *conv_open\ncsp -1\nbg \"system\\title.png\",0\nprint 1\ngoto *conv_title\n"),
+            "{out}"
+        );
     }
 
     #[test]
