@@ -54,7 +54,8 @@ enum Command {
         #[arg(short, long)]
         output: PathBuf,
         /// Font to copy into the output as default.ttf (CONscripter needs one;
-        /// default: the bundled IPA Gothic)
+        /// default: the bundled IPA Gothic, which also goes in as fallback.ttf
+        /// when the font lacks Japanese)
         #[arg(long)]
         font: Option<PathBuf>,
         /// Window caption

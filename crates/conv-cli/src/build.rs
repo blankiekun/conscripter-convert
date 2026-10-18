@@ -19,7 +19,8 @@ pub struct BuildArgs {
     #[arg(short, long)]
     pub output: PathBuf,
     /// Font to copy into the output as default.ttf (CONscripter needs one;
-    /// default: the bundled IPA Gothic)
+    /// default: the bundled IPA Gothic, which also goes in as fallback.ttf
+    /// when the font lacks Japanese)
     #[arg(long)]
     pub font: Option<PathBuf>,
     /// Keep assets as loose files instead of packing them into .nsa
@@ -228,10 +229,20 @@ pub fn read_font(path: Option<&Path>) -> Result<Cow<'static, [u8]>> {
     })
 }
 
+/// True when `font` lacks common Japanese (a Latin font such as the
+/// English Muramasa's, which has a few kana and `卍` for the game's art
+/// but no `「」`): the engine then draws what it lacks from `fallback.ttf`
+/// instead of boxes.
+pub fn needs_fallback(font: &[u8]) -> bool {
+    use ab_glyph::Font;
+    ab_glyph::FontRef::try_from_slice(font).map_or(true, |f| "、。「」あア日本".chars().any(|c| f.glyph_id(c).0 == 0))
+}
+
 /// Writes the game into `output`: `0.txt` from `source` (the emitted
 /// script), `system.lua` when the script has Lua, `version.txt` (with
 /// `package`, the source's own version, when known), `ons_args` and, when
-/// given, the font as `default.ttf`. Returns
+/// given, the font as `default.ttf` (with [`DEFAULT_FONT`] as
+/// `fallback.ttf` when it lacks Japanese: [`needs_fallback`]). Returns
 /// the number of characters the engine can't draw. Fails when a game
 /// variable is one conv-cons keeps for itself ([`conv_cons::clashes`]).
 pub fn write_game(output: &Path, ir: &Script, source: &str, font: Option<&[u8]>, package: Option<&str>) -> Result<usize> {
@@ -255,6 +266,13 @@ pub fn write_game(output: &Path, ir: &Script, source: &str, font: Option<&[u8]>,
     fs::write(output.join("ons_args"), conv_cons::engine_args(ir))?;
     if let Some(font) = font {
         fs::write(output.join("default.ttf"), font)?;
+        // the engine draws the characters default.ttf lacks from fallback.ttf
+        let fallback = output.join("fallback.ttf");
+        if needs_fallback(font) {
+            fs::write(fallback, DEFAULT_FONT)?;
+        } else if fallback.exists() {
+            fs::remove_file(fallback)?;
+        }
     }
     Ok(lost)
 }
@@ -383,4 +401,13 @@ pub fn lint_dir(dir: &Path, files: bool) -> Result<conv_cons::lint::Report> {
         walk(dir, "", &mut have);
     }
     Ok(conv_cons::lint::lint(&script, &|n| !files || have.contains(&n.replace('/', "\\").to_lowercase())))
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn fallback_only_without_japanese() {
+        assert!(!super::needs_fallback(super::DEFAULT_FONT));
+        assert!(super::needs_fallback(b"not a font"));
+    }
 }
