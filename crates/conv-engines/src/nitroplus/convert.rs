@@ -1576,6 +1576,9 @@ struct Compiler<'a, 'b> {
     /// `BezierMove`s since the last sync: the pictures' places along the
     /// way, as `spmotion` keys from where they start ([`loops`]).
     pending_path: HashMap<String, Vec<MotionKey>>,
+    /// Pictures not shown yet that `Move`s since the last sync: where they
+    /// start, from where they end (shown there and moved, [`Compiler::sync`]).
+    pending_from: HashMap<String, (i64, i64)>,
     /// The action process running ([`Compiler::start_process`]): its
     /// actions don't block, and their time counts as its own.
     action_process: Option<String>,
@@ -2399,6 +2402,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
             clock_scanned: 0,
             shake_once: HashMap::new(),
             pending_path: HashMap::new(),
+            pending_from: HashMap::new(),
             action_process: None,
             process_lead: 0,
             lead_ins: BTreeMap::new(),
@@ -4817,6 +4821,26 @@ scene a.nss
         // The centre of the 1024-wide picture at x 696.
         let moved = c.ops.iter().any(|op| matches!(op, Op::SpriteMove { x: 1208, ms: 600, .. }));
         assert!(moved, "{:?}", c.ops);
+    }
+
+    #[test]
+    fn a_new_picture_moved_without_waiting_moves_from_its_start() {
+        // ma00_000.nss:370-375: the pans run under the cover's 500 ms fade.
+        let story = r#"
+scene a.nss
+{
+	CreateTexture("cover", 2500, 0, 0, "cg/bg/a.jpg");
+	Wait(100);
+	CreateTexture("st", 600, 182, 0, "cg/st/a.png");
+	Move("st", 5000, @-100, @0, null, false);
+	Fade("cover", 500, 0, null, true);
+}
+"#;
+        let c = compile(story, LIBRARY);
+        let pan = c.ops.iter().find_map(|op| match op { Op::SpriteMotion2 { keys, .. } => Some((keys[0].x, keys[1].x, keys[1].ms)), _ => None });
+        assert_eq!(pan, Some((100, 0, 5000)), "{:?}", c.ops);
+        let fades: Vec<_> = c.ops.iter().filter_map(|op| match op { Op::BeginTransition { fade_ms, .. } => Some(*fade_ms), _ => None }).collect();
+        assert_eq!(fades.last(), Some(&500), "{:?}", c.ops);
     }
 
     #[test]

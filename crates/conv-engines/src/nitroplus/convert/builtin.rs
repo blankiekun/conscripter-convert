@@ -369,18 +369,28 @@ impl Compiler<'_, '_> {
                     }
                     return Value::Null;
                 }
+                let mut from = Vec::new();
                 for t in &targets {
                     let (screen_w, screen_h) = self.frame(t);
                     let o = self.objects.get_mut(t).unwrap();
+                    let (x, y) = (o.x, o.y);
                     o.x = to_x.position(o.x, o.w, screen_w);
                     o.y = to_y.position(o.y, o.h, screen_h);
+                    from.push((t.clone(), (x - o.x, y - o.y)));
                 }
                 // Children placed from their parent slide with it (a face in
                 // its frame: `WindowMoveM` moves only the frame).
                 let mut moved = targets.clone();
-                for t in targets.iter().filter(|t| self.game.relative_children || self.places_children(t)) {
+                for (t, d) in from.clone().iter().filter(|(t, _)| self.game.relative_children || self.places_children(t)) {
                     let inside = format!("{t}/");
-                    moved.extend(self.objects.keys().filter(|k| k.starts_with(&inside) && !targets.contains(k)).cloned());
+                    let children: Vec<String> = self.objects.keys().filter(|k| k.starts_with(&inside) && !targets.contains(k)).cloned().collect();
+                    from.extend(children.iter().map(|c| (c.clone(), *d)));
+                    moved.extend(children);
+                }
+                // (Not shown yet: shown at its start by the next sync, and moved.)
+                for (t, (dx, dy)) in from.into_iter().filter(|(t, _)| ms > 0 && !self.shown.contains_key(t)) {
+                    let d = self.pending_from.entry(t).or_default();
+                    *d = (d.0 + dx, d.1 + dy);
                 }
                 self.set_tempo(tempo, &moved);
                 self.timed(ms, &arg(5), &moved);

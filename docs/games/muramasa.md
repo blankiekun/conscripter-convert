@@ -630,24 +630,19 @@ whose `_SELECT` scene has already passed `call_scene $MainGameName`).
 The original's trace (`ntrace.sh`, wine section) against our
 `--auto-play 60 --real-time` run, first 50 pages of `ma00_000`: every
 page pairs by its `<PRE>` line with the same text (ruby as its base).
-Open, not fixed:
-- **Moves not waited are no motion in ours:** `Move("背景20", 60000, 0,
-  -200, …, false)` (ma00_000.nss:136) and the 5 s `DxlAuto` pans at
-  372/373 and 384/385 put the picture at the move's end at once (`lsp
-  872 … 0,-200`; `lsp 944 … 82,22` = 182 − 100); the original pans,
-  and is cut by `PrintGO` 2 s later, mid-move.
-- **A waited fade after unwaited moves is longer:** `Fade("背景30", 500,
-  0, null, true)` (375) is `print 30`, a 1000 ms transition, in ours;
-  370 to 377 takes 554 ms in the original (ours 1009). The same at
-  `FadeDelete("上背景", 500, true)` (387, function.nss:4988): 4518 ms
-  against 4254 to the next one.
-- **The box fade-out after a page** (`Fade("@boxC*", $BoxFadeTime, 0,
-  null, true)`, function.nss:1158, TypeBeginCIO) takes 4, 161, 144, 145
-  and 53 ms to the next statement in the original (pages 12–15, 37),
-  150 ms (`windowfade 0,150` + `delay 150`) or 259 ms in ours; page 7
-  1159 against 1009 ms.
-- Smaller: `Fade("絵色100", 100, 1000, null, true)` (210) 109 ms in ours,
-  162 in the original.
+The unwaited moves are fixed (History, "Trace diff fixes"). Open, not
+fixed: the exe's waited `Fade`s last longer than their time, the more
+the shorter they are: 150 ms (function.nss:1158, the box) 195 to 225 ms
+to the next statement, 100 ms 145 to 162, 500 ms 530 to 545, 1000 ms
+1008 to 1028 (a `Wait` 10 more); ours take the script's time (150, 109,
+509, 1009). The wait polls every 16 ms frame (`FUN_004489e0`, its
+interval from `init_frame_tables` 0048c5d0) until the render thread ends
+the fade; where the extra 30 to 60 ms comes from (wine's frames or the
+exe's fade steps) needs the fade's step code (`cb_Fade_0044f020`,
+`FUN_00449de0`) or a frame count of the original. Reading the diff: the
+original's command ends when its next record starts, ours when its last
+`ev` is written (`trace_diff.py`), so the 4 to 161 ms after a page's box
+fade were the next command's time against the box fade's: not findings.
 
 ### Exe mapping redone (2026-10-17)
 
@@ -1260,6 +1255,21 @@ out on purpose.
   held (seen once in a small test script; not looked into).
 
 ## History
+
+### Trace diff fixes (2026-10-17)
+
+A `Move` of a picture not shown yet (created since the last sync, as in
+ma00_000.nss:128-136, 370-373, 380-385) put it where the move ends; the
+original pans it from where it was created while the script goes on
+(`PrintGO` cuts it mid-move). Now the next sync places it at its end and
+moves it there from its start (`spmotion`, its tempo kept), and, as a
+moving picture, it no longer stretches the sync's cross-fade to
+`UNWAITED_MS`: `Fade("背景30", 500, …, true)` after the two pans (375) is
+`print 10,500` again, 509 ms against the original's 545 (was 1009);
+`FadeDelete("上背景", 500, true)` (387) the same. The script changed
+wherever a new picture moves (about 1,360 `spmotion`s, fewer layer
+changes and cross-fades; 続・殺戮のジャンゴ about 200, the English release
+the same as this game).
 
 ### Partial `DrawTransition` (2026-10-17)
 
