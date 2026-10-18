@@ -7,12 +7,18 @@
 #
 #   tests/land.sh [--dry-run] <pr>     --dry-run stops before the push
 #
+# Takes out/land.lock (one landing at a time) and refuses a draft or non-OPEN PR.
 # Any other conflict stops with a message to pass to the PR's agent.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 dry=0; [ "${1:-}" = --dry-run ] && { dry=1; shift; }
 pr=${1:?usage: tests/land.sh [--dry-run] <pr>}
-br=$(gh pr view "$pr" --json headRefName --jq .headRefName)
+mkdir -p out
+exec 9>out/land.lock
+flock -n 9 || { echo "REFUSED: another landing is running (out/land.lock); wait for it."; exit 1; }
+read -r state draft br title < <(gh pr view "$pr" --json state,isDraft,headRefName,title --jq '[.state,.isDraft,.headRefName,.title]|@tsv' | tr '\t' ' ')
+echo "#$pr  $title  [$br]  $state"
+[ "$state" = OPEN ] && [ "$draft" = false ] || { echo "REFUSED: #$pr is not an open, non-draft PR"; exit 1; }
 git fetch -q origin main "$br"
 wt=out/land-$pr
 [ -e "$wt/.git" ] || git worktree add -q --detach "$wt" "origin/$br"
