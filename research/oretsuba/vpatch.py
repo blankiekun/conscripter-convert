@@ -216,7 +216,8 @@ def log(path, out):
                 n += 1
             elif text.startswith('@M '):
                 pages += 1
-                o.write(json.dumps({'t': 'page', 'at': at, 'f': frames, 'pg': pages, 'segs': [text[3:]]}, ensure_ascii=False) + '\n')
+                # the record keeps the script's `\n`; the line layout breaks there (0x81016eca)
+                o.write(json.dumps({'t': 'page', 'at': at, 'f': frames, 'pg': pages, 'segs': [text[3:].replace('\\n', '\n')]}, ensure_ascii=False) + '\n')
     print(f'{n} tasks, {pages} pages, {frames} frames, scenes {sorted(set(scenes.values()))}')
 
 
