@@ -186,7 +186,7 @@ fn main() -> Result<()> {
             Ok(())
         }
         Command::Lint { dir } => {
-            let report = build::lint_dir(&dir, true)?;
+            let report = build::lint_dir(&dir, Some(&build::dir_files(&dir)?))?;
             print!("{report}");
             if !report.is_empty() {
                 bail!("problems found");

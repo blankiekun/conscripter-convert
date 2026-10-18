@@ -89,7 +89,7 @@ impl<'a> NpaAssets<'a> {
     fn mirrored_movie(&mut self, movie: &str, stem: &str, x: bool, y: bool, flip: &str) -> Option<String> {
         let rel = format!("movie/{stem}_{flip}.mp4");
         let dest = self.out.root.join(&rel);
-        if self.out.dry_run || dest.exists() {
+        if self.out.have(&rel) {
             return Some(rel);
         }
         let turn = [x.then_some("hflip"), y.then_some("vflip")].into_iter().flatten().collect::<Vec<_>>().join(",");
@@ -127,6 +127,7 @@ impl<'a> NpaAssets<'a> {
         };
         let Some(entry) = npa.find(rest) else { return self.extract_english(&path, out) };
         if self.out.dry_run && archive != "cg" && archive != "cg2" {
+            crate::output::record(out);
             return Some(Vec::new());
         }
         let data = match npa.data(entry) {
@@ -190,6 +191,7 @@ impl<'a> NpaAssets<'a> {
         // Its size, for pictures made from it (a dry run has no file).
         self.images.insert(normalize(&rel), Some((rel.clone(), ow, oh)));
         if self.out.dry_run {
+            crate::output::record(&rel);
             return Some((rel, ow, oh));
         }
         let img = image::open(self.out.root.join(image)).ok()?;
@@ -267,7 +269,7 @@ impl Assets for NpaAssets<'_> {
         let mut h = crate::nitroplus::NameHasher::default();
         parts.hash(&mut h);
         let rel = format!("system/window_{:016x}.png", h.finish());
-        if self.out.dry_run || self.out.root.join(&rel).exists() {
+        if self.out.have(&rel) {
             return Some((rel, x0, y0));
         }
         let mut out = image::RgbaImage::new((x1 - x0) as u32, (y1 - y0) as u32);
@@ -288,7 +290,7 @@ impl Assets for NpaAssets<'_> {
             return Some(rel);
         }
         let cut = rel.replace(".png", "_screen.png");
-        if self.out.dry_run || self.out.root.join(&cut).exists() {
+        if self.out.have(&cut) {
             return Some(cut);
         }
         let img = image::open(self.out.root.join(&rel)).ok()?.into_rgba8();
@@ -348,6 +350,7 @@ impl Assets for NpaAssets<'_> {
             let rel = format!("system/mirror/{}/{stem}_{flip}.{ext}", dir.replace('/', "_"));
             if self.out.dry_run {
                 let (w, h) = self.size(image)?;
+                crate::output::record(&rel);
                 return Some((rel, w, h));
             }
             // Read and written as they are: a JPEG keeps its quality, a
@@ -391,7 +394,7 @@ impl Assets for NpaAssets<'_> {
         parts.hash(&mut hash);
         let rel = format!("system/strip/{:016x}.png", hash.finish());
         let size = (w * cells.len() as u32, h);
-        if self.out.dry_run || self.out.root.join(&rel).exists() {
+        if self.out.have(&rel) {
             return Some((rel, size.0, size.1));
         }
         let mut out = image::RgbaImage::new(size.0, size.1);
@@ -416,7 +419,7 @@ impl Assets for NpaAssets<'_> {
         let (src, name) = self.movie_source(path)?;
         let rel = format!("movie/{name}{}.mp4", if sound { "" } else { "_mute" });
         let dest = self.out.root.join(&rel);
-        if !self.out.dry_run && !dest.exists() {
+        if !self.out.have(&rel) {
             let mut args: Vec<std::ffi::OsString> = vec!["-i".into(), src.clone().into()];
             args.extend(crate::media::mp4_options(22, "slow").into_iter().map(Into::into));
             if !sound {
@@ -455,6 +458,7 @@ impl Assets for NpaAssets<'_> {
         let cells = at.map_or(full.min(fit), |_| 1);
         let fps = if cells < full { f64::from(cells) * 1000.0 / f64::from(info.ms.max(1)) } else { f64::from(MOVIE_FPS) };
         let r = if self.out.dry_run {
+            crate::output::record(&rel);
             Some(cells)
         } else if self.out.root.join(&rel).exists() {
             self.size(&rel).map(|(sw, _)| sw / w)
@@ -485,7 +489,7 @@ impl Assets for NpaAssets<'_> {
         let rel = format!("movie/{name}_mute{}{}.mp4", if dark { "_dark" } else { "" }, if alpha { "_alpha" } else { "" });
         let size = if alpha { (info.w, info.h / 2) } else { (info.w, info.h) };
         let dest = self.out.root.join(&rel);
-        if self.out.dry_run || dest.exists() {
+        if self.out.have(&rel) {
             return Some((rel, size.0, size.1));
         }
         // All in video range (16-235): black is 16. `:a` takes the right
@@ -513,7 +517,7 @@ impl Assets for NpaAssets<'_> {
         let mut h = crate::nitroplus::NameHasher::default();
         (base, &top, zoom, opacity).hash(&mut h);
         let rel = format!("system/overlay_{:016x}.jpg", h.finish());
-        if self.out.dry_run || self.out.root.join(&rel).exists() {
+        if self.out.have(&rel) {
             return Some(rel);
         }
         let base_img = image::open(self.out.root.join(base)).ok()?.into_rgb8();
@@ -554,7 +558,7 @@ impl Assets for NpaAssets<'_> {
         // Its size, for a zoom of it (a dry run has no file).
         let (w, h) = self.size(image)?;
         self.images.insert(normalize(&rel), Some((rel.clone(), w, h)));
-        if self.out.dry_run || self.out.root.join(&rel).exists() {
+        if self.out.have(&rel) {
             return Some(rel);
         }
         let mut out = image::open(self.out.root.join(image)).ok()?.into_rgba8();
@@ -580,7 +584,7 @@ impl Assets for NpaAssets<'_> {
         let mut h = crate::nitroplus::NameHasher::default();
         (mask, table).hash(&mut h);
         let rel = format!("system/veil_{:016x}.png", h.finish());
-        if self.out.dry_run || self.out.root.join(&rel).exists() {
+        if self.out.have(&rel) {
             return Some(rel);
         }
         let m = image::open(self.out.root.join(mask)).ok()?.into_rgba8();
@@ -604,7 +608,7 @@ impl Assets for NpaAssets<'_> {
     fn frames_movie(&mut self, name: &str, fps: u32, frames: u32, draw: &mut dyn FnMut(u32, &mut image::RgbImage)) -> Option<String> {
         let rel = format!("movie/{name}.mp4");
         let dest = self.out.root.join(&rel);
-        if self.out.dry_run || dest.exists() {
+        if self.out.have(&rel) {
             return Some(rel);
         }
         let (w, h) = (SCREEN_W as u32, SCREEN_H as u32);
@@ -630,7 +634,7 @@ impl Assets for NpaAssets<'_> {
         let rel = format!("system/strip/{name}.png");
         // Its size, for a cut of it (a dry run has no file).
         self.images.insert(normalize(&rel), Some((rel.clone(), w * frames, h)));
-        if self.out.dry_run || self.out.root.join(&rel).exists() {
+        if self.out.have(&rel) {
             return Some(rel);
         }
         let mut out = image::RgbaImage::new(w * frames, h);
@@ -648,7 +652,7 @@ impl Assets for NpaAssets<'_> {
         let src = self.sound(path)?;
         let rel = format!("{}_after{delay_ms}.ogg", src.trim_end_matches(".ogg"));
         let dest = self.out.root.join(&rel);
-        if self.out.dry_run || dest.exists() {
+        if self.out.have(&rel) {
             return Some(rel);
         }
         let delay = format!("adelay={delay_ms}:all=1");
@@ -663,7 +667,7 @@ impl Assets for NpaAssets<'_> {
     fn looped_sound(&mut self, path: &str, start_ms: u32, end_ms: u32) -> Option<String> {
         let src = self.sound(path)?;
         let rel = format!("{}_loop{start_ms}-{end_ms}.ogg", src.trim_end_matches(".ogg"));
-        if self.out.dry_run || self.out.root.join(&rel).exists() {
+        if self.out.have(&rel) {
             return Some(rel);
         }
         let data = std::fs::read(self.out.root.join(&src)).ok()?;

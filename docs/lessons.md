@@ -238,15 +238,17 @@ Done, use them: the engine's debug trace with `--auto-play`, `--goto`
 smoke-test recipe and filming our side's effects on Xvfb;
 `engine/DEBUG.md`); `--dry-run` for logic (seconds, script only);
 `conscripter-convert lint`; `convert-script` for one scene; `nss route`
-for a route map.
+for a route map; `tests/snapshot.sh`, whose dry runs also check that
+every file 0.txt names would be written (docs/tools.md).
 
 Still worth building, in rough order of payoff:
 1. **Incremental full builds**: keep extracted assets between runs and
    repack only what changed, or stream archive entries straight into the
    `.nsa`; extract in parallel. A full build is minutes, nearly all of it
    assets.
-2. **Corpus tests in `cargo test`**: every message parses, every jump
-   target exists, every referenced asset is in the archive.
+2. **Corpus tests in `cargo test`**: every message parses. (Every jump
+   target exists and every referenced asset is written: the dry run's
+   lint in `tests/snapshot.sh`, done.)
 3. **A frontier report**: compare the files a run reaches with the route
    map's successors and print the condition that blocks each.
 4. **Game knowledge up front**: route structure, the choice mechanic,

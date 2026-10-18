@@ -166,6 +166,14 @@ through a file with `sed`.
   rose against `<game>.metrics.json`, unless `--accept-gaps` (say why in
   the PR). CI also runs `dropped_lint.py` and `findings_lint.py`, each
   with a per-game ceiling that only goes down.
+  It also fails a game whose dry run names files the build wouldn't
+  write: the dry run's lint checks 0.txt's file names against the files
+  each engine records it would write (`conv_engines::output::record`;
+  `Output::write`, `Output::have` do it), not against the folder. Code
+  that writes a file outside `Output` (its own `fs::write`, ffmpeg, a
+  dry-run shortcut that skips making it) calls `record` with the
+  output-relative name, in a dry run too. Movies (`.mp4`) and `.webp`
+  aren't among the names the lint checks.
 - `python3 -I tests/extras_smoke.py <full build>`: opens the extras'
   menu headless with every lock open and checks each mode is a button
   and opens (the trace); run it on every full build handed to the user

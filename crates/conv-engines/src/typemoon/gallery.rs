@@ -242,6 +242,7 @@ pub fn extras(exe: &Exe, pictures: &[Picture], s: &Sources, flag557: Var, cg_fla
     let parts = if s.dry_run { None } else { Some(Parts::read(s.romfs, "GALLERY_PARTS")?) };
     let save = |name: &str, img: Option<RgbaImage>| -> Result<String> {
         let file = format!("{DIR}/{name}.png");
+        crate::output::record(&file);
         if let Some(img) = img {
             let dest = s.output.join(&file);
             std::fs::create_dir_all(dest.parent().unwrap())?;
@@ -333,6 +334,7 @@ pub fn extras(exe: &Exe, pictures: &[Picture], s: &Sources, flag557: Var, cg_fla
             let (w, h) = ((cg.size.0 as f32 * k).round() as i32, (cg.size.1 as f32 * k).round() as i32);
             let source = if s.cgs.contains(&lower) { format!("cg/{lower}.{}", s.pic_ext) } else { format!("pic/{lower}.{}", s.pic_ext) };
             let image = format!("{DIR}/fit/{lower}.png");
+            crate::output::record(&image);
             views.push((source, image.clone(), (w as u32, h as u32)));
             // FUN_00104470: its pictures, its own name, then flag 557
             let mut any = Vec::new();

@@ -2,7 +2,7 @@
 //! write the game's files, pack the assets, report.
 
 use std::borrow::Cow;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -10,6 +10,7 @@ use anyhow::{Context, Result, bail};
 use conv_core::ir::{Op, Script};
 use conv_engines::build::{Built, Opts};
 use conv_engines::media::{self, AudioCodec, AudioFormat};
+use conv_engines::output::record;
 
 use crate::version;
 
@@ -69,8 +70,11 @@ pub fn run(args: BuildArgs, title: &str, output_dirs: &[&str], compile: impl FnO
     let source = webp_tree(&output, picture_dirs, webp.get(), dry_run, source)?;
     if !dry_run {
         reencode_audio(&output, audio_dirs, opts.audio)?;
-        // lossless PNGs (outside picture_dirs: --webp leaves them alone)
-        for (rel, map) in conv_cons::warp_maps(&ir) {
+    }
+    // lossless PNGs (outside picture_dirs: --webp leaves them alone)
+    for (rel, map) in conv_cons::warp_maps(&ir) {
+        record(&rel);
+        if !dry_run {
             let path = output.join(&rel);
             fs::create_dir_all(path.parent().unwrap())?;
             map.save_with_format(&path, image::ImageFormat::Png).with_context(|| format!("writing {}", path.display()))?;
@@ -97,7 +101,8 @@ pub fn run(args: BuildArgs, title: &str, output_dirs: &[&str], compile: impl FnO
             pct(weighted)
         );
     }
-    summary(&output, &ir, lost, notes, Some(!dry_run))
+    let files = if dry_run { dry_run_files(picture_dirs, webp.get().is_some()) } else { dir_files(&output)? };
+    summary(&output, &ir, lost, notes, Some(Some(&files)))
 }
 
 /// `--audio-codec` and `--audio-quality`, for every convert command.
@@ -156,6 +161,17 @@ impl WebpArgs {
     pub fn get(&self) -> Option<Option<u8>> {
         self.webp.then_some(self.webp_quality)
     }
+}
+
+/// The files a dry run would have written ([`record`]), named as the
+/// script names them: with `webp`, the pictures under `picture_dirs` as
+/// [`webp_tree`] retargets them.
+fn dry_run_files(picture_dirs: &[&str], webp: bool) -> BTreeSet<String> {
+    let files = conv_engines::output::written();
+    if !webp {
+        return files;
+    }
+    files.into_iter().map(|f| conv_cons::webp::retarget_dirs(&format!("\"{f}\""), picture_dirs).trim_matches('"').to_string()).collect()
 }
 
 /// With `webp` (Some: the lossy quality, if any), re-encodes the pictures
@@ -253,10 +269,12 @@ pub fn write_game(output: &Path, ir: &Script, source: &str, font: Option<&[u8]>,
     let (encoded, lost) = conv_cons::encode(source);
     fs::write(output.join("0.txt"), encoded)?;
     if let Some(lua) = conv_cons::system_lua(ir) {
+        record("system.lua");
         fs::write(output.join("system.lua"), conv_cons::encode(&lua).0)?;
     }
     // Menus the engine draws, UTF-8 (packed with the pictures)
     for (name, lua) in conv_cons::screen_files(ir) {
+        record(&format!("{SCREENS}/{name}"));
         fs::create_dir_all(output.join(SCREENS))?;
         fs::write(output.join(SCREENS).join(name), lua)?;
     }
@@ -279,10 +297,10 @@ pub fn write_game(output: &Path, ir: &Script, source: &str, font: Option<&[u8]>,
 
 /// Prints the build's report: [`report`], then what the compiler left out
 /// or approximated (`notes`, with counts), then [`lint_dir`]'s findings
-/// (`Some(files)`; `files`: also look for the files the script names).
-/// A build of part of a game skips the lint (`None`): its jumps out of
+/// (`Some(files)`: also look for the files the script names among `files`,
+/// as [`lint_dir`]). A build of part of a game skips the lint (`None`): its jumps out of
 /// the part have no labels.
-pub fn summary(output: &Path, ir: &Script, lost: usize, notes: BTreeMap<String, usize>, lint: Option<bool>) -> Result<()> {
+pub fn summary(output: &Path, ir: &Script, lost: usize, notes: BTreeMap<String, usize>, lint: Option<Option<&BTreeSet<String>>>) -> Result<()> {
     report(ir, lost);
     let fallbacks = conv_cons::settings_fallbacks(ir);
     if !fallbacks.is_empty() {
@@ -368,43 +386,61 @@ fn report(ir: &Script, lost: usize) {
     }
 }
 
+/// The files in `dir` that CONscripter finds: those in its .nsa archives,
+/// and loose ones with an ASCII name (it doesn't find loose files with
+/// Japanese names). Lowercase, `\`-separated, as [`lint_dir`] compares.
+pub fn dir_files(dir: &Path) -> Result<BTreeSet<String>> {
+    let mut have = BTreeSet::new();
+    for entry in fs::read_dir(dir)? {
+        let path = entry?.path();
+        let name = path.file_name().unwrap_or_default().to_string_lossy().to_ascii_lowercase();
+        if name.starts_with("arc") && name.ends_with(".nsa") {
+            for n in conv_cons::nsa::read_names(&path).with_context(|| format!("reading {}", path.display()))? {
+                have.insert(n.to_lowercase());
+            }
+        }
+    }
+    fn walk(dir: &Path, name: &str, have: &mut BTreeSet<String>) {
+        let Ok(entries) = fs::read_dir(dir) else { return };
+        for path in entries.filter_map(|e| e.ok()).map(|e| e.path()) {
+            let file = path.file_name().unwrap_or_default().to_string_lossy().to_lowercase();
+            let name = if name.is_empty() { file } else { format!("{name}\\{file}") };
+            if path.is_dir() {
+                walk(&path, &name, have);
+            } else {
+                have.insert(name);
+            }
+        }
+    }
+    walk(dir, "", &mut have);
+    Ok(have)
+}
+
 /// Lints `dir/0.txt` ([`conv_cons::lint`]). With `files`, also checks that
-/// the files it names are in `dir`'s .nsa archives, or loose with an ASCII
-/// name (CONscripter doesn't find loose files with Japanese names).
-pub fn lint_dir(dir: &Path, files: bool) -> Result<conv_cons::lint::Report> {
+/// the files it names are among them: [`dir_files`] after a build, or the
+/// names a dry run would have written ([`conv_engines::output::written`]).
+pub fn lint_dir(dir: &Path, files: Option<&BTreeSet<String>>) -> Result<conv_cons::lint::Report> {
     let path = dir.join("0.txt");
     let bytes = fs::read(&path).with_context(|| format!("reading {}", path.display()))?;
     let script = conv_cons::decode(&bytes);
-    let mut have = std::collections::HashSet::new();
-    if files {
-        for entry in fs::read_dir(dir)? {
-            let path = entry?.path();
-            let name = path.file_name().unwrap_or_default().to_string_lossy().to_ascii_lowercase();
-            if name.starts_with("arc") && name.ends_with(".nsa") {
-                for n in conv_cons::nsa::read_names(&path).with_context(|| format!("reading {}", path.display()))? {
-                    have.insert(n.to_lowercase());
-                }
-            }
-        }
-        fn walk(dir: &Path, name: &str, have: &mut std::collections::HashSet<String>) {
-            let Ok(entries) = fs::read_dir(dir) else { return };
-            for path in entries.filter_map(|e| e.ok()).map(|e| e.path()) {
-                let file = path.file_name().unwrap_or_default().to_string_lossy().to_lowercase();
-                let name = if name.is_empty() { file } else { format!("{name}\\{file}") };
-                if path.is_dir() {
-                    walk(&path, &name, have);
-                } else {
-                    have.insert(name);
-                }
-            }
-        }
-        walk(dir, "", &mut have);
-    }
-    Ok(conv_cons::lint::lint(&script, &|n| !files || have.contains(&n.replace('/', "\\").to_lowercase())))
+    Ok(conv_cons::lint::lint(&script, &|n| files.is_none_or(|f| f.contains(&n.replace('/', "\\").to_lowercase()))))
 }
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn dry_run_lint_finds_a_file_not_written() {
+        let dir = std::env::temp_dir().join(format!("conv-lint-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("0.txt"), "*start\nlsp 1,\":a;cg\\a.png\",0,0\nlsp 2,\"cg/missing.png\",0,0\nend\n").unwrap();
+        conv_engines::output::Output { root: dir.clone(), dry_run: true, errors: Vec::new() }.write("cg/A.png", b"x");
+        let written = conv_engines::output::written();
+        let report = super::lint_dir(&dir, Some(&written)).unwrap().to_string();
+        std::fs::remove_dir_all(&dir).unwrap();
+        assert!(report.contains("cg\\missing.png") || report.contains("cg/missing.png"), "{report}");
+        assert!(!report.contains("a.png"), "{report}");
+    }
+
     #[test]
     fn fallback_only_without_japanese() {
         assert!(!super::needs_fallback(super::DEFAULT_FONT));

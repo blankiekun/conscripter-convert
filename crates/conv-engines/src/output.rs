@@ -1,7 +1,24 @@
 //! Writing a build's files: what every engine's asset bank shares.
 
+use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
+
+/// Every file the build writes or, in a dry run, would write ([`record`]).
+static WRITTEN: Mutex<BTreeSet<String>> = Mutex::new(BTreeSet::new());
+
+/// Notes that the build writes `rel` (relative to the output folder), or
+/// would in a dry run: the dry run's lint checks the script's file names
+/// against these ([`written`]), kept `\`-separated and lowercase.
+pub fn record(rel: &str) {
+    WRITTEN.lock().unwrap().insert(rel.replace('/', "\\").to_lowercase());
+}
+
+/// The files [`record`] noted so far.
+pub fn written() -> BTreeSet<String> {
+    WRITTEN.lock().unwrap().clone()
+}
 
 /// The output directory of a build, as the asset banks write into it.
 pub struct Output {
@@ -20,6 +37,7 @@ impl Output {
     /// Writes `data` to `rel` (relative to the root), making its folders.
     /// A failure goes to [`Output::errors`].
     pub fn write(&mut self, rel: &str, data: &[u8]) {
+        record(rel);
         if self.dry_run {
             return;
         }
@@ -30,9 +48,17 @@ impl Output {
         }
     }
 
+    /// True when `rel` needn't be made: a dry run, or there from an earlier
+    /// build. Records it ([`record`]): the build makes it otherwise.
+    pub fn have(&self, rel: &str) -> bool {
+        record(rel);
+        self.dry_run || self.root.join(rel).exists()
+    }
+
     /// Writes `img` as a PNG to `rel`, as [`Output::write`].
     pub fn write_png(&mut self, rel: &str, img: &image::RgbaImage) {
         if self.dry_run {
+            record(rel);
             return;
         }
         let mut png = Vec::new();

@@ -918,6 +918,11 @@ Flowchart, Movie and Ending List.
    and 72 `time` (chiefly `_FADS` after a new
    picture: the original's 2-10 frames loading it, left out;
    `_MPLY(52)` at `00_00:4296`).
+8. The title's three sounds (`title.rs` `se()`: hover `SE00001`,
+   decide `SE00002`, start `SE00011`) are named `se/WSD_MOON_*.ogg`,
+   but the build writes the wave sounds as `.wav` unless
+   `--audio-codec` re-encodes them: the dry run's lint
+   (`tests/snapshot.sh`) reports the 3 as not written.
 
 ### Accuracy
 

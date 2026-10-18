@@ -75,8 +75,15 @@ pub(super) fn ops(lesson: Var, no: String, yes: String, english: bool, tag: impl
 }
 
 /// Writes the dialog's pictures into `<output>/sys/question`, the
-/// questions in `romfs`'s language (`en/` with `english`).
-pub(super) fn write(romfs: &Path, output: &Path, font: &[u8], english: bool) -> Result<()> {
+/// questions in `romfs`'s language (`en/` with `english`). A dry run
+/// only records their names.
+pub(super) fn write(romfs: &Path, output: &Path, font: &[u8], english: bool, dry_run: bool) -> Result<()> {
+    let d = dir(english);
+    let names = [format!("{DIR}/dim.png"), format!("{DIR}/window.png"), format!("{d}yes.png"), format!("{d}no.png")];
+    names.iter().cloned().chain((1..=LESSONS).map(|n| format!("{d}q{n}.png"))).for_each(|n| crate::output::record(&n));
+    if dry_run {
+        return Ok(());
+    }
     let parts = Parts::read(romfs, "DIALOG_PARTS")?;
     let save = |name: String, img: &RgbaImage| -> Result<()> {
         let dest = output.join(name);
@@ -86,7 +93,6 @@ pub(super) fn write(romfs: &Path, output: &Path, font: &[u8], english: bool) -> 
     save(format!("{DIR}/dim.png"), &parts.scaled("dialog_BG", None)?)?;
     save(format!("{DIR}/window.png"), &parts.scaled("dialog_win", None)?)?;
     // dialog_btn_ja: 224 × 66 cells, rows Yes, No, then each lit
-    let d = dir(english);
     save(format!("{d}yes.png"), &parts.cells("dialog_btn_ja", &[(0, 0, 224, 66), (0, 132, 224, 66)])?)?;
     save(format!("{d}no.png"), &parts.cells("dialog_btn_ja", &[(0, 66, 224, 66), (0, 198, 224, 66)])?)?;
     let messages = messages(&entry(romfs, "SYSMES_TEXT.DAT")?)?;

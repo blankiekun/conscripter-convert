@@ -114,12 +114,13 @@ pub fn build(romfs: &Path, main: &Path, english: Option<&Path>, opts: &Opts) -> 
             v.character = v.file.trim_start_matches("stream/").get(..3).and_then(|p| rows.get(p)).copied().unwrap_or(other);
         }
     }
+    crate::output::record(WINDOW);
     if !opts.dry_run {
         window(romfs, &opts.output.join(WINDOW))?;
-        super::question::write(romfs, opts.output, opts.font, false)?;
-        if let Some(en) = english {
-            super::question::write(en, opts.output, opts.font, true)?;
-        }
+    }
+    super::question::write(romfs, opts.output, opts.font, false, opts.dry_run)?;
+    if let Some(en) = english {
+        super::question::write(en, opts.output, opts.font, true, opts.dry_run)?;
     }
     let ir = Script {
         title: opts.title.to_string(),

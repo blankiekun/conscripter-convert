@@ -40,6 +40,7 @@ pub fn title(romfs: &Path, output: &Path, dry_run: bool) -> Result<TitleScreen> 
     let parts = if dry_run { None } else { Some(Parts::read(romfs, "TITLE_PARTS")?) };
     let save = |name: &str, img: Option<RgbaImage>| -> Result<String> {
         let file = format!("{DIR}/{name}.png");
+        crate::output::record(&file);
         if let Some(img) = img {
             let dest = output.join(&file);
             std::fs::create_dir_all(dest.parent().unwrap())?;

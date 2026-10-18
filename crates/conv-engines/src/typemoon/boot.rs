@@ -36,6 +36,7 @@ pub fn steps(romfs: &Path, english: Option<(&Path, Var)>, output: &Path, dry_run
     let read = (read_flag(485), 1);
     let mut add = |dir: &Path, sub: &str, lang: Option<(Var, i32)>| -> Result<()> {
         let image = format!("{DIR}/{sub}caution.png");
+        crate::output::record(&image);
         if !dry_run {
             let dest = output.join(&image);
             std::fs::create_dir_all(dest.parent().unwrap())?;

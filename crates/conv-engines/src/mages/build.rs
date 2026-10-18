@@ -91,6 +91,9 @@ pub fn build(game: &Path, scenes: &[String], opts: &Opts) -> Result<Built> {
         boot: if scenes.is_empty() { super::screens::boot(&mut assets, &crate::find(game, "media/img/logo")) } else { Vec::new() },
         ..Default::default()
     };
+    // made below, after the IR (none in a dry run)
+    assets.audio.values().filter_map(|j| j.output.strip_prefix(output).ok()).for_each(|rel| crate::output::record(&rel.to_string_lossy()));
+    assets.movies.keys().for_each(|rel| crate::output::record(rel));
     if !dry_run {
         audio(&assets.audio, output, audio_format)?;
         movies(&assets.movies, output)?;

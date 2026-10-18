@@ -9,6 +9,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use clap::Subcommand;
 use conv_engines::media::AudioFormat;
+use conv_engines::output::record;
 use conv_engines::typemoon::{self, bfsar, bntx, exe, fwav, mrg, mzp, nxopus, script};
 
 use crate::{map, safe_relative_path};
@@ -121,16 +122,14 @@ pub fn run(command: TypemoonCommand) -> Result<()> {
         }),
         TypemoonCommand::Extract { archive, output, prefix, png, max_bytes } => extract(&archive, &output, &prefix.to_lowercase(), png, max_bytes),
         TypemoonCommand::Check { dir } => check(&dir),
-        TypemoonCommand::Sounds { dir, output, audio } => sounds(&dir, &output, audio.format()?),
+        TypemoonCommand::Sounds { dir, output, audio } => sounds(&dir, &output, audio.format()?, false),
         TypemoonCommand::Script { dir, output } => scripts(&dir, output.as_deref()),
         TypemoonCommand::Exe { main, romfs, motion } => exe_tables(&main, romfs.as_deref(), &motion),
-        TypemoonCommand::Media { dir, output, english, webp, audio } => media(&dir, english.as_deref(), &output, webp.get(), audio.format()?),
+        TypemoonCommand::Media { dir, output, english, webp, audio } => media(&dir, english.as_deref(), &output, webp.get(), audio.format()?, false),
         TypemoonCommand::Convert { dir, exe, title, english, build } => {
             let exe = exe.unwrap_or_else(|| dir.join("../exefs/main"));
             crate::build::run(build, &title, &typemoon::build::OUTPUT_DIRS, |opts| {
-                if !opts.dry_run {
-                    media(&dir, english.as_deref(), opts.output, opts.webp, opts.audio)?;
-                }
+                media(&dir, english.as_deref(), opts.output, opts.webp, opts.audio, opts.dry_run)?;
                 typemoon::build::build(&dir, &exe, english.as_deref(), opts)
             })
         }
@@ -337,7 +336,8 @@ fn exe_tables(main: &Path, romfs: Option<&Path>, show: &[usize]) -> Result<()> {
 /// The wave sounds as WAV (`smpl` loop) unless `audio` re-encodes them:
 /// then Opus or Vorbis with `LOOPSTART`/`LOOPEND`, which CONscripter's
 /// `dwaveloop` loops by for both. The streams stay the game's Opus.
-fn sounds(dir: &Path, output: &Path, audio: AudioFormat) -> Result<()> {
+/// A dry run only records the names.
+fn sounds(dir: &Path, output: &Path, audio: AudioFormat, dry_run: bool) -> Result<()> {
     use std::sync::Mutex;
     use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
     let mut failed = Vec::new();
@@ -346,6 +346,13 @@ fn sounds(dir: &Path, output: &Path, audio: AudioFormat) -> Result<()> {
     let mut streams: Vec<PathBuf> = fs::read_dir(dir.join("stream"))?.map(|e| e.map(|e| e.path())).collect::<Result<_, _>>()?;
     streams.sort();
     let bfsar = map(&dir.join("knife1.bfsar"))?;
+    let ext = if audio.reencodes() { "ogg" } else { "wav" };
+    streams.iter().for_each(|p| record(&format!("stream/{}", p.with_extension("ogg").file_name().unwrap().to_string_lossy())));
+    let waves = bfsar::wave_sounds(&bfsar).context("reading knife1.bfsar")?;
+    waves.iter().for_each(|w| record(&format!("se/{}.{ext}", w.name)));
+    if dry_run {
+        return Ok(());
+    }
     let loops = bfsar::stream_loops(&bfsar).context("reading knife1.bfsar")?;
     let (mut count, mut seconds, mut looped) = (0, 0.0, 0);
     for path in &streams {
@@ -366,7 +373,6 @@ fn sounds(dir: &Path, output: &Path, audio: AudioFormat) -> Result<()> {
 
     let out = output.join("se");
     fs::create_dir_all(&out)?;
-    let waves = bfsar::wave_sounds(&bfsar).context("reading knife1.bfsar")?;
     let (kinds, failed_waves) = (Mutex::new(BTreeMap::<String, usize>::new()), Mutex::new(Vec::new()));
     let (wav_bytes, written_bytes, next) = (AtomicU64::new(0), AtomicU64::new(0), AtomicUsize::new(0));
     let one = |w: &bfsar::WaveSound| -> Result<()> {
@@ -377,7 +383,6 @@ fn sounds(dir: &Path, output: &Path, audio: AudioFormat) -> Result<()> {
             Some(_) => ", loops from inside",
         };
         *kinds.lock().unwrap().entry(format!("{} ch {} Hz{looped}", wave.channels, wave.rate)).or_default() += 1;
-        let ext = if audio.reencodes() { "ogg" } else { "wav" };
         let file = out.join(safe_relative_path(&format!("{}.{ext}", w.name)).with_context(|| format!("unsafe name {:?}", w.name))?);
         let wav = fwav::to_wav(&wave);
         wav_bytes.fetch_add(wav.len() as u64, Ordering::Relaxed);
@@ -418,13 +423,19 @@ fn sounds(dir: &Path, output: &Path, audio: AudioFormat) -> Result<()> {
     Ok(())
 }
 
-fn media(dir: &Path, english: Option<&Path>, output: &Path, webp: Option<Option<u8>>, audio: AudioFormat) -> Result<()> {
-    pictures(dir, "allpac", &output.join("pic"), webp, None)?;
-    pictures(dir, "allpaccg", &output.join("cg"), webp, None)?;
+fn media(dir: &Path, english: Option<&Path>, output: &Path, webp: Option<Option<u8>>, audio: AudioFormat, dry_run: bool) -> Result<()> {
+    pictures(dir, "allpac", output, "pic", webp, None, dry_run)?;
+    pictures(dir, "allpaccg", output, "cg", webp, None, dry_run)?;
+    if let Some(en) = english {
+        pictures(en, "allpac", output, "pic/en", webp, Some(dir), dry_run)?;
+        pictures(en, "allpaccg", output, "cg/en", webp, Some(dir), dry_run)?;
+    }
+    if dry_run {
+        // the movies aren't among the names the lint checks
+        return sounds(dir, output, audio, true);
+    }
     movies(&dir.join("movie"), &output.join("movie"), None)?;
     if let Some(en) = english {
-        pictures(en, "allpac", &output.join("pic/en"), webp, Some(dir))?;
-        pictures(en, "allpaccg", &output.join("cg/en"), webp, Some(dir))?;
         movies(&en.join("movie"), &output.join("movie/en"), Some(&dir.join("movie")))?;
         // The sound comes from `dir` alone: the fan patch's is the same.
         let same = |rel: &str| -> Result<bool> { Ok(map(&dir.join(rel))?[..] == map(&en.join(rel))?[..]) };
@@ -436,7 +447,7 @@ fn media(dir: &Path, english: Option<&Path>, output: &Path, webp: Option<Option<
         };
         anyhow::ensure!(names(dir)? == names(en)?, "the fan patch's stream/ differs from {}'s", dir.display());
     }
-    sounds(dir, output, audio)
+    sounds(dir, output, audio, false)
 }
 
 /// `archive`'s pictures (`allpac`, or `allpaccg`'s gallery CGs, the
@@ -444,8 +455,9 @@ fn media(dir: &Path, english: Option<&Path>, output: &Path, webp: Option<Option<
 /// `rule_*` masks always PNG, exact. Per name (case ignored, extension
 /// dropped) the `.JPG` if there is one, else the largest entry. With
 /// `base` (another RomFS), only the pictures whose data differ from its
-/// own.
-fn pictures(dir: &Path, archive: &str, out: &Path, webp: Option<Option<u8>>, base: Option<&Path>) -> Result<()> {
+/// own. Into `output`'s folder `sub`; a dry run only records the names.
+fn pictures(dir: &Path, archive: &str, output: &Path, sub: &str, webp: Option<Option<u8>>, base: Option<&Path>, dry_run: bool) -> Result<()> {
+    let out = &output.join(sub);
     let ext = |stem: &str| if webp.is_none() || stem.starts_with("rule_") { "png" } else { "webp" };
     use std::sync::Mutex;
     use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
@@ -463,6 +475,10 @@ fn pictures(dir: &Path, archive: &str, out: &Path, webp: Option<Option<u8>>, bas
         let base_entries = mrg::parse(&map(&path.with_extension("hed"))?, Some(&map(&path.with_extension("nam"))?)).with_context(|| format!("reading {archive}.hed"))?;
         let keep: std::collections::BTreeSet<String> = typemoon::differing(&typemoon::full_copies(&base_entries), &base_bytes, &best, &bytes)?.into_iter().collect();
         best.retain(|stem, _| keep.contains(stem));
+    }
+    best.keys().for_each(|stem| record(&format!("{sub}/{stem}.{}", ext(stem))));
+    if dry_run {
+        return Ok(());
     }
     fs::create_dir_all(out)?;
     let jobs: Vec<(&String, &&mrg::Entry)> = best.iter().filter(|(stem, _)| !out.join(format!("{stem}.{}", ext(stem))).exists()).collect();
