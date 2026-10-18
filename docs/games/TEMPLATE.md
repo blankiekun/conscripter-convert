@@ -56,6 +56,22 @@ globals; clear of `conv_core::alloc`'s ranges).
 The trace check (config, `--trace-ignore` ranges), route runs, wine
 recipes for filming the original.
 
+## Milestones
+
+The date each phase was reached, and its PR (`-`: none yet, or made
+before PRs). Fill a row in at the end of its phase, so the next port
+can be compared with this one.
+
+| Milestone | Date | PR |
+|---|---|---|
+| First commit | - | - |
+| First dry run | - | - |
+| Story plays | - | - |
+| Title, save, settings | - | - |
+| Extras | - | - |
+| Progression verified | - | - |
+| Finished | - | - |
+
 ## Status
 
 Only the open state: a table of the areas (✅ done, 🟡 partly, ❌ not

@@ -49,12 +49,12 @@ Two layers: the package (AES-CTR) and the PFS file encryption.
 ### The eboot
 
 `<game>/eboot.bin` is still an NPDRM SELF after the steps above.
-`research/oretsuba/self2elf.py` decrypts it to an ARM ELF the way
+`research/tools/ghidra/self2elf.py` decrypts it to an ARM ELF the way
 Vita3K's `decrypt_fself` does (klicensee from `work.bin` at 0x50,
 key revision 5); it reads the keys from a Vita3K checkout
 (`vita3k/packages/src/sce_utils.cpp`) rather than keeping them:
 
-    python3 -I self2elf.py <game>/eboot.bin work.bin <Vita3K>/vita3k/packages/src/sce_utils.cpp local/eboot.elf
+    python3 -I ../tools/ghidra/self2elf.py <game>/eboot.bin work.bin <Vita3K>/vita3k/packages/src/sce_utils.cpp local/eboot.elf
     python3 disasm.py local/eboot.elf > local/eboot.asm   # needs capstone
 
 **Decompiled with Ghidra** (`docs/new-game.md` §2), with the
@@ -473,6 +473,22 @@ CharacterDelete, 0x20, 0x26 once each; 181 quiet. The 1024 time
 findings mean nothing (ours ran without `--real-time`).
 `routes.py` reads START's story menu as the button screens it now is
 (it looked for a `select`).
+
+## Milestones
+
+The date each phase was reached, and its PR (`-`: none yet, or made
+before PRs). Fill a row in at the end of its phase, so the next port
+can be compared with this one.
+
+| Milestone | Date | PR |
+|---|---|---|
+| First commit | 2026-10-13 22:41 | - |
+| First dry run | 2026-10-13 23:15 (lowering) | - |
+| Story plays | - | - |
+| Title, save, settings | 2026-10-13 23:30 (title); engine-drawn menus 2026-10-17 | - |
+| Extras | 2026-10-14 08:47 | - |
+| Progression verified | - | - |
+| Finished | - | - |
 
 ## Status: the whole story plays (2026-10-18)
 
