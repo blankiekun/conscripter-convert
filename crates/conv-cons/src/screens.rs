@@ -181,7 +181,7 @@ fn save_lua(m: &SaveMenu, confirm: Option<&ConfirmDialog>, scene_stack: bool, sa
 /// title and quit.
 fn settings_lua(m: &SettingsMenu, confirm: Option<&ConfirmDialog>, leave: Option<(&str, &str)>, version: Option<(&str, u32)>) -> String {
     use crate::menu::{setting_var, SETTINGS_APPLY, SKIP_UNREAD, VOICE_OFF_BASE};
-    let rows = &m.rows[..m.rows.len().min(6)];
+    let rows = &m.rows[..m.rows.len().min(crate::menu::MAX_SETTING_ROWS)];
     let voices = &m.voices[..m.voices.len().min(15)];
     // 15 switches a page, as many pages as there are tabs for.
     let first_switch_page = 2 + usize::from(!voices.is_empty());

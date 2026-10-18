@@ -587,10 +587,12 @@ impl AssetBank {
                 row("効果音", Setting::SeVolume),
                 row("音声", Setting::VoiceVolume),
                 row("文字速度", Setting::TextSpeed),
-                // src: exe 0x46d000 (level 5 is the default auto wait):
-                // 2.5 s a page (0x51ed3c) plus 50 ms a character
-                // (0x51ed68), 0x476f50.
-                row("オート速度", Setting::AutoWait { page_step: 500, char_step: 10 }),
+                // The dialog's 改頁待ち 文章単位 and 文字単位 sliders, used in
+                // 0x476f50. src: exe 0x4833a4: ten steps of 0-5000 ms
+                // (0x424) and of 0-500 ms (0x485); defaults 2.5 s
+                // (0x51ed3c) and 50 ms (0x51ed68) in 0x46d000.
+                row("オート（文章単位）", Setting::AutoWait { page_step: 500, char_step: 0 }),
+                row("オート（文字単位）", Setting::AutoCharWait { step: 50 }),
                 row("ウィンドウ透過", Setting::WindowTransparency),
             ],
             // Labels and levels share a text line: level_x - label_x is
@@ -600,7 +602,8 @@ impl AssetBank {
             level_x: 380,
             plus_x: 680,
             y: 140,
-            pitch: 60,
+            // Seven rows and the skip box above the exits at 540.
+            pitch: 50,
             font_size: 22,
             title_label: "タイトルに戻る".into(),
             quit_label: "ゲームを終了".into(),
@@ -627,6 +630,7 @@ impl AssetBank {
                 (Setting::VoiceVolume, 10),
                 (Setting::TextSpeed, 8),
                 (Setting::AutoSpeed, 5),
+                (Setting::AutoCharWait { step: 50 }, 9),
                 (Setting::WindowTransparency, 0),
             ],
             switches_off: Vec::new(),

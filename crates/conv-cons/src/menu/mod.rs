@@ -52,13 +52,15 @@ pub(crate) const PRETEXT: &str = "conv_pretext";
 pub(crate) const SETTINGS_SET: &str = "%909";
 /// 1 once the system volume (added later than %909) has its default.
 const SYSTEM_VOLUME_SET: &str = "%912";
+/// 1 once the auto wait per character (added later than %909) has its default.
+const AUTO_CHAR_SET: &str = "%914";
 /// 1: skip goes on through unread text (`kidokumode 0`).
 pub(crate) const SKIP_UNREAD: &str = "%908";
 /// Milliseconds per character, for `setwindow`.
 pub(crate) const TEXT_MS: &str = "%907";
 const TEXT_MS_STEP: u32 = 6;
 // Settings and backlog sprites (lsp, within MENU_SPRITES).
-const MAX_SETTING_ROWS: usize = 6;
+pub(crate) const MAX_SETTING_ROWS: usize = 7;
 // The switches' flags: see `switches.rs`.
 /// The confirmation being asked (a [`Switch`] + 1; 0 = always ask).
 pub(crate) const CONFIRM_KIND: &str = "%125";
@@ -603,6 +605,15 @@ pub(crate) mod tests {
         let mut out = String::new();
         settings_apply(&mut out, &m);
         assert!(out.contains("automode_time (10-%906)*500,(10-%906)*4\n"), "{out}");
+        // A row of its own for the time per character; old saves get its default.
+        m.rows.push(SettingRow { label: "文字".into(), setting: Setting::AutoCharWait { step: 10 } });
+        let mut out = String::new();
+        settings_apply(&mut out, &m);
+        assert!(out.contains("automode_time (10-%906)*500,(10-%913)*10\n"), "{out}");
+        let mut out = String::new();
+        settings_init(&mut out, &m);
+        assert!(out.contains("if %914 == 0 mov %913,5:mov %914,1\ngosub"), "{out}");
+        m.rows.pop();
         // A mute switch: volume 0, the level kept; applied when toggled.
         m.switches = vec![conv_core::ir::SettingSwitch { label: "ＢＧＭ".into(), switch: Switch::BgmOn }];
         m.tab_labels = vec!["a".into(), "b".into()];
