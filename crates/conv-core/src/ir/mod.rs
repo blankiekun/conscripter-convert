@@ -576,6 +576,8 @@ pub enum Op {
     /// key ([`MotionKey`]), and what happens after the last key
     /// ([`MotionEnd`]). A character jumping toward the viewer, spinning,
     /// or walking off and fading out (俺たちに翼はない's CharacterAction).
+    /// No keys: stop the motion, with [`MotionEnd::Keep`] where it is now
+    /// (otherwise back at its place).
     SpriteMotion2 { layer: u32, keys: Vec<MotionKey>, end: MotionEnd },
     /// Set the volume of the sound effect `file` (as [`Op::SePlay`] names
     /// it), or of the music (`None`), to `percent` of the player's setting,
@@ -767,6 +769,11 @@ pub enum Op {
     /// dark, or with `reverse` the old screen leaving its bright parts
     /// first. Nitroplus's `DrawTransition` softness.
     TransitionSoft { softness: u32, reverse: bool },
+    /// The next [`Op::SpriteMotion2`] with keys on `layer` starts as far
+    /// in as the motion on layer `from` has run when this op runs, so a
+    /// motion handed to another layer goes on (CONscripter's
+    /// `spmotionclock`). 月姫's loops whose layer moves at a `_FADS`.
+    MotionClock { layer: u32, from: u32 },
 }
 
 /// [`Op::HoldMovie`]'s prompt: `image` is `cells` pictures side by side,
