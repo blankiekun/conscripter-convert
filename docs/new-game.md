@@ -428,6 +428,14 @@ rather than by browsing:
     mutex to a suspended thread that was waiting for it (Windows stops
     such a wait), so every thread then waits; the DLL makes the threads
     suspend themselves between waits (docs/games/django.md).
+    A Switch game under Ryubing: an ExeFS mod, a `main` NSO whose text
+    segment is lengthened over the padding before the rodata page to
+    hold a hook, branched to from the dispatcher's loop head, that logs
+    each command through `svcOutputDebugString` (Ryubing's log, with
+    its clock: `--ms`). No GDB stub: a stop per command stalls the
+    game. Input from the log: press A when the last command has sat on
+    a text wait a second. 月姫: `research/typemoon/switchtrace/`
+    (docs/games/tsukihime.md, "Testing").
 23. **Diff the two traces**: with the converter's `--source-map <file>`
     (each 0.txt line's `<script>:<instruction>`; the engine's lowering
     fills `Script::source_map`, as `xuse/convert.rs`'s `lower_script`

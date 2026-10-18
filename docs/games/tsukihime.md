@@ -694,9 +694,15 @@ Setup, in a data dir of its own (`<emu>/data`, never the flatpak's
   then says `Application Loaded: ... v1.0.2`.
 - Run: `SHOT=15 research/typemoon/switch-emu.sh <emu>/data 240
   --graphics-backend Vulkan --skip-user-profiles-manager "<base nsp>"`
-  (Xvfb by `-displayfd`, `SDL_AUDIODRIVER=dummy`, `MemoryMax=8G`; log
-  and a root-window shot every `SHOT` s in `<emu>/logs`). Vulkan runs
-  on the host GPU under Xvfb.
+  (Xvfb by `-displayfd`, `SDL_AUDIODRIVER=dummy`; log and a
+  root-window shot every `SHOT` s in `<emu>/logs`). Vulkan runs on the
+  host GPU under Xvfb. Never the desktop: no Wayland socket, an empty
+  `XDG_RUNTIME_DIR` (SDL finds a Wayland socket there even without
+  `WAYLAND_DISPLAY`), `SDL_VIDEODRIVER=x11`, and the run stops unless
+  its window is on its own Xvfb. The `MemoryMax=8G` scope does not
+  hold it: flatpak moves the emulator into a scope of its own, so the
+  script stops only the Ryujinx on its display (SIGKILL after 10 s:
+  it outlives SIGTERM), never one the user runs.
 
 - Input: `KEYS="40:z 41:z"` presses keys at those seconds, held
   150 ms (Ryubing's default keyboard: `z` = A, `x` = B); `FPSAT=<s>`
@@ -720,14 +726,62 @@ key_area_key_application_16`; with those left out, the game dies 8 s
 in without the shared font, `0100000000000811`). Firmware 22.5.0 with
 its own keys works.
 
-Step 2, not started: a hook writing `--trace`-style JSONL from the
-original, to diff against our conversion. It would need the boot
-above, then either Ryubing's GDB stub (`--enable-gdb-stub`,
-`--suspend-on-start`) with breakpoints on the script dispatcher and
-the handlers named in Ghidra (offsets from `exefs/main`'s load base),
-or a patched `main` NSO / an exefs mod (`<emu>/data/mods/contents/<title
-id>/exefs/`) that logs through `svcOutputDebugString` (Ryubing prints
-guest logs) at those handlers.
+Step 2, the trace (2026-10-17): an ExeFS mod logs every script
+command the original runs, and `research/tools/trace_diff.py` compares
+it with our `--trace`. No GDB stub: one stop a command would stall the
+game, and a log line costs nothing.
+
+- The hook (`research/typemoon/switchtrace/hook.s`): `script_command`
+  (0x177790) runs commands in a loop, and its head (0x177828, `mov x8,
+  xzr`, x0 = the next command's text) branches to it. It writes
+  `TMT <script index> <offset> <command text>` through
+  `svcOutputDebugString`, which Ryubing logs as a warning with its
+  clock (`00:01:23.456`), then goes back. The script index is the u16
+  behind the GOT slot 0xbe04f0 (`FUN_00159ad0` sets it: entry 3 + i of
+  `allscr.mrg`), the offset is from the loaded script's buffer
+  (0x1473e04, `FUN_00157390`). A command that waits (a fade, `_TOMW`)
+  is run again each frame, after an empty one (its `;`).
+- `mkmain.py` puts it in 1.0.2's `main`: the text segment lengthened
+  over the zeros before the rodata page (0x1542c0 to 0x155000, mapped
+  executable already; Ryubing writes only a segment's own bytes, so an
+  IPS patch there would be lost), written uncompressed, the build ID
+  kept. Ryubing replaces `main` with it from
+  `<emu>/data/mods/contents/01001dc01486a000/tmtrace/exefs/main`
+  (`ModLoader ApplyExefsMods: NSO 'main' replaced`).
+
+```sh
+clang --target=aarch64-none-elf -c research/typemoon/switchtrace/hook.s -o hook.o
+ld.lld -Ttext=0x2542c0 --defsym=SCRIPT_INDEX_PTR=0xbe04f0 --defsym=SCRIPT_BUF=0x1473e04 \
+  --defsym=RETURN=0x17782c -e hook hook.o -o hook.elf && llvm-objcopy -O binary hook.elf hook.bin
+python3 -I research/typemoon/switchtrace/mkmain.py <exefs-102>/main hook.bin \
+  <emu>/data/mods/contents/01001dc01486a000/tmtrace/exefs/main
+SHOT=60 IDLEA=1 research/typemoon/switch-emu.sh <emu>/data 780 --graphics-backend Vulkan \
+  --skip-user-profiles-manager --disable-ptc "<base nsp>"
+conscripter-convert typemoon extract <game-102>/allscr.mrg -o <scr>
+conscripter-convert typemoon extract <game-102>/script_text.mrg -o <txt>
+python3 -I research/typemoon/switchtrace/tmtrace.py <emu>/logs/ryu.log <scr> <txt> -o orig.jsonl
+```
+
+`IDLEA=1` is the original's auto mode: A once the last command has
+stayed a second on a text, the opening's `_TOMW` or a script's end (the
+title then takes A as New Game). `tmtrace.py` turns the log into
+`trace_diff.py`'s records: "at" `<script>:<command>` counted as
+`script::parse` counts them (the converter's `--source-map` gives the
+same), "ms" the log's clock, one record for a command run again, a
+page per `_ZM`/`_MSAD` with the `@n` lines before it. The data dir
+needs `bis/user` from a first boot: with none, the game aborts in
+`nn::fs::MountSaveData` (headless does not make the save). From that
+save, run 5 went through the opening's `00_01` (`_TOMP(4)`, its
+pages drawn by the exe, not by commands), the title, New Game,
+`START_SCRIPT` and 297 pages of `00_00` in 13 minutes. Ours:
+
+```sh
+conscripter-convert typemoon convert <game-102> -o <ours> --dry-run --source-map <ours>/map.tsv
+# in <ours>, the full build's pic, se, stream, movie, sys, default.ttf linked in:
+conscripter --root . --save-dir saves --goto tm_START_SCRIPT --trace ours.jsonl \
+  --auto-play 0 --real-time --max-pages 297
+python3 -I research/tools/trace_diff.py orig.jsonl ours.jsonl --map map.tsv --ms --pages 297 --max 10000
+```
 
 ## Status
 
@@ -745,7 +799,7 @@ guest logs) at those handlers.
 | Media folder (`typemoon media`) | ✅ `allpac`'s pictures at full size (PNG, or WebP with the shared `--webp` flags), the movies as they are, the sound (WAV wave sounds, or Opus/Vorbis with the shared `--audio-*` flags), loops kept in every mode |
 | Script conversion (`typemoon convert`) | 🔶 the flow (labels, `_JUMP`, `_IF__`, flags), text (pages, ruby, voices; the fan patch's styled letters, private-use U+E000–U+E2FE drawn by its own `ja/TT_TsukuMin-D.ttf`, as ASCII: italic and serif italic as italic (`!i1`), mirrored and upside-down plain (mirrored lines, stored right to left, put back in reading order), U+E200 as `^-35`; its accents (é ï ç â à ê, 46 uses) and em dashes kept, as the `0.txt` is UTF-8; a `^` break in a choice's option as a space), pictures (`_STCH`/`_STCC`/`_FADS`: record size and place, fades and rule wipes), sound effects and music; plays from the start through `00_00` into the first arc headless. Layers drawn in priority order (`_STCP`, `_STCH` argument 6), changed keeping their settings (`_SCH2`) or copying another layer's (argument 18), zoomed (`_STZ4`), faded (`_STGS`) and moved (`_STMA`, the exe's motions, a −32766 field eased once across its key as the exe eases it (the keys between cut into straight steps of its values where one curve a key would miss it), turned by its turn keys, held where a key's mode 2 says, only the fields its mask drives, each key eased as the exe's (`spcurve` tables of its Penner set), looping where the exe loops until `_STMA(n, 0)` (where it is), `_STCH` or another motion stops it, going on with its clock when its layer moves to another IR layer; curves, priority and expression keys not followed), children placed in their parent layers, orbiting with their turn and following their motions (`_STCH` argument 11), clipped to their panels with their soft edges (`_STCH` arguments 12–17, CONscripter's `spclip` feather), turned (`_STRT`), drawn with their shader as far as CONscripter's blends and filters go (`_STBR`) and drawn with their `_STEC` effect (levels, greyscale and colour layers; effect 1 a colour fill, CONscripter's `spfilter` 9 and 10). Choices (`_SELR`, `_SELD`, `_GOTS`; options under a flag offered by it, greyed ones shown greyed and not selectable (`seldisable`); the chapter-jump menus), `_GOTO` and the Switch's own branches (`_IFNX`/`_IFP4`). The text window hidden and faded (`_CLO2`, `_CLO3`/`_CLO4`/`_CLO5` with CONscripter's `windowfade`, the script going on; the next text fades it back in). Not yet: the other layer commands, screens |
 | Screens, extras | 🔶 the title; the system menu's Save and Load tabs (see History, 2026-10-17), opened in game by a right click at a text wait (on its Save tab); Config (for now the language switch), FlowChart, the backlog not yet |
-| The original under an emulator | ✅ boots to the title under Ryubing headless on Xvfb, 60 fps (see "Testing"); the trace hook not started |
+| The original under an emulator | ✅ boots to the title under Ryubing headless on Xvfb, 60 fps; ✅ the trace hook, diffed against ours over `00_00`'s first 297 pages (see "Testing" and "Trace diff" below) |
 | Languages (`--english`) | 🔶 one `0.txt` with both copies (below); the switch is the system menu's **Config** tab for now (in game; at rest on the title), until the settings tab with its 日本語/English option is converted |
 
 #### Languages
@@ -788,6 +842,27 @@ page → the reset path, Japanese from the entry, the old loops stopped.
 The Japanese-only build (no `--english`) is unchanged but for the right
 click.
 
+
+#### Trace diff
+
+`START_SCRIPT` and `00_00`'s first 297 pages (2026-10-17, "Testing",
+step 2): every page pairs with ours at the same command, in order.
+Not fixed yet:
+
+- 46 `missing`: 30 `_STMA` (motions that gave none of our commands
+  there, e.g. `00_00:212`, `1121`, `1311`, `2488`–`2493`) and 16
+  `_FADS` (`00_00:1575`, `1583`, `2278`, …).
+- 149 `time` (more than a frame apart, the original by the log's
+  clock): 94 where ours takes 0 ms, chiefly after `_FADS(1,0,0)` (68:
+  the original spends 3–8 frames, at times 1–1.6 s, on a fade of
+  0 ms; part of that may be the emulator loading textures), `_CLO3`
+  (17: 84 ms, the exe's 4-frame fade, ours none there) and `_SEFD`/
+  `_SEPL` (9); the rest are off by about 100–200 ms after `_SEPL`
+  (21), `_CLO3` (20), `_SEFD`, `_FADS` (ours shorter), and
+  `_MPLY(52)` at `00_00:4296` (ours 609 ms, original 1538 ms).
+- The 180 `text` findings are all one thing: our page record holds the
+  screen's earlier lines (`continues`), the original's only its own
+  line. The text itself matches on every page.
 
 ### Next
 
