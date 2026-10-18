@@ -98,12 +98,32 @@ pub(crate) fn pair_var(s: &PictureSettings, i: usize) -> String {
     format!("%{}", named(pair_name(s.pairs[i].option)))
 }
 
+/// What `done` holds once the settings are set: the newest of the pairs'
+/// versions (see [`added_in`]).
+fn done(s: &PictureSettings) -> u8 {
+    s.pairs.iter().map(|p| added_in(p.option)).max().unwrap_or(1)
+}
+
+/// The version a pair came in (`done` older than it: the save lacks it).
+fn added_in(o: PairOption) -> u8 {
+    match o {
+        PairOption::ClickStopsAuto => 2,
+        _ => 1,
+    }
+}
+
 /// At `*start`: the defaults on the first start, then the values applied.
 pub(crate) fn init(out: &mut String, s: &PictureSettings) {
     let set = format!("%{}", named("done"));
     // shortcut: takes the values from where builds before the names kept them; drop once no such gloval.sav is played
     let copies: String = (0..s.sliders.len()).map(|i| format!(":mov {},%{}", slider_var(s, i), SLIDER_BASE + i as u32)).chain((0..s.pairs.len()).map(|i| format!(":mov {},%{}", pair_var(s, i), PAIR_BASE + i as u32))).collect();
     out.push_str(&format!("if {set} == 0 && {SET} == 1 mov {set},1{copies}\n"));
+    // A global save from before a pair was added: that pair takes its default.
+    for v in 2..=done(s) {
+        let fresh: String = s.pairs.iter().enumerate().filter(|(_, p)| added_in(p.option) == v)
+            .map(|(i, p)| format!(":mov {},{}", pair_var(s, i), u8::from(p.default_on))).collect();
+        out.push_str(&format!("if {set} == {} mov {set},{v}{fresh}\n", v - 1));
+    }
     out.push_str(&format!("if {set} == 0 gosub *{DEFAULTS}\ngosub *{APPLY}\n"));
     // `reset` comes back here: the title runs at the normal speed.
     if s.sliders.iter().any(|l| matches!(l.setting, SliderSetting::GameSpeed { .. })) {
@@ -133,7 +153,7 @@ fn values(out: &mut String, s: &PictureSettings) {
     for (i, p) in s.pairs.iter().enumerate() {
         w(format!("mov {},{}", pair_var(s, i), u8::from(p.default_on)));
     }
-    w(format!("mov %{},1", named("done")));
+    w(format!("mov %{},{}", named("done"), done(s)));
     w("return".into());
 
     w(format!("*{APPLY}"));
