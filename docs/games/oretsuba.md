@@ -564,8 +564,7 @@ ones that still lose something:
 **Commands.**
 
     conscripter-convert mages check <game>
-    conscripter-convert build <game> -o out/oretsuba-cons   # mages convert with --title 俺たちに翼はない
-    conscripter-convert mages convert <game> -o out/oretsuba-cons [--scenes S01_01A] [--webp] [--dry-run]
+    conscripter-convert build <game> -o out/oretsuba-cons [--scenes S01_01A] [--webp] [--dry-run]   # mages convert --title 俺たちに翼はない
     conscripter-convert mages convert <game> -o out/oretsuba-web --loose   # web build, see History
 
 Full build about 4 minutes, 1.7 GB `arc.nsa`. Debug trace of a build and

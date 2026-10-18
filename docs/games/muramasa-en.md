@@ -31,16 +31,14 @@ before the 2026-10-18 prune" and the sections after it).
 
 **Works** (details in History):
 
-- The English text in the converter: `convert-nss <game> --file
-  ma00_000.nss --chain 2000 --english <english game> …` reads the
+- The English text in the converter: `build <english game> --japanese <game>`
+  (`convert-nss <game> … --english <english game>`, its title) reads the
   English release's `script.npk` into the Japanese NSS (`english.rs`);
   every stretch takes its English, none stay in Japanese; the full build
   plays to the end with the trace (25,430 pages). Pass the release's
   `droidserif-muramasa.ttf` as `--font`; the converter adds IPA Gothic
   as `fallback.ttf`, from which the engine draws what the font lacks
-  (`「」・✓`, the Japanese a few kept lines carry). `conscripter-convert
-  build <english game> --japanese <game> -o <output>` runs this command
-  with `--title "Full Metal Daemon Muramasa"`. English boxes, pictures
+  (`「」・✓`, the Japanese a few kept lines carry). English boxes, pictures
   (`cg.npk`), name plates, telops, subtitles, story captions, choices
   on the port's plates, and the port's `LANG_NAME` text-area lines are in.
 - Port screens: title, command menu, choices, line log, save/load
