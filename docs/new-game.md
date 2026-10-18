@@ -452,7 +452,8 @@ rather than by browsing:
     prints, per page, the text that differs, the instructions one side
     ran and the other didn't (`--merge-into OP[,OP]`: a `missing` one whose ops ours emits
     under the next command of the page, if that is one of those ops,
-    counts as `merged`), and the times from one command to the
+    counts as `merged`; one the map has lines from that gave no trace
+    record, as `quiet`), and the times from one command to the
     next off by more than a frame. Ours: a `--dry-run` build's
     `--trace --auto-play N --real-time` (no click then ends an effect,
     so its times are real); the same choices as the original's run.

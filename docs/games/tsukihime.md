@@ -843,12 +843,11 @@ tab, Gallery, Config on the title.
    gallery flag `_STCG`, `_SELD`'s choice number and `_SELS`'s
    yes/no choice. `_FANX`, `_STQK` and `_TRPY` have no case in the
    exe: the next converter PR adds them to `LEFT_OUT`.
-7. Trace diff leftovers (`trace_diff.py --merge-into _FADS`): 16
-   `missing` (11 `_FADS(1,0,0)` that change nothing visible in ours;
-   `_STMA` `00_00:212` and `1121`, never drawn in the exe; `_STCF`
-   `00_00:55`, `_FADS` `00_00:57` and `00_00:2278`) and 73 `time`
-   (chiefly `_FADS` after a new picture: the original's 2-10 frames
-   loading it, left out; `_MPLY(52)` at `00_00:4296`).
+7. Trace diff leftovers (`trace_diff.py --merge-into _FADS`): 3
+   `missing` (`_STMA` `00_00:212` and `1121`, never drawn in the exe;
+   `_STCF` `00_00:55`) and 73 `time` (chiefly `_FADS` after a new
+   picture: the original's 2-10 frames loading it, left out;
+   `_MPLY(52)` at `00_00:4296`).
 
 ### Accuracy
 
@@ -886,6 +885,14 @@ Open there, by size:
 
 ## History
 
+- 2026-10-18: **trace diff `quiet`**: `trace_diff.py` counts a
+  `missing` command the map has lines from as `quiet` (counted, not a
+  finding). 13 of the 16 `missing`: 11 `_FADS(1,0,0)` after an
+  `_STCC` of a layer `_STCP(n, 0)` had hidden and faded out (or after
+  `_SEPL`), and `_FADS` `00_00:57` and `2278`. Nothing changes in
+  either game; the original's take its 3 frames (50 ms), ours its
+  `wait 50` and a `print 1` the engine trace doesn't record (nothing
+  changed). Missing 16 to 3.
 - 2026-10-18: **the boot logos** (`typemoon/boot.rs`, the shared
   `Script::boot` steps), from the exe's `FUN_001b5650` (one state a
   frame) and its step table at 0x4C98FC (0x18 a step: picture, hold
