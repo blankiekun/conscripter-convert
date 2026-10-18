@@ -774,7 +774,8 @@ impl Compiler<'_, '_> {
             self.ops.push(Op::TransitionEase { ease, exponent });
         }
         if let Some((softness, reverse)) = soft {
-            self.ops.push(Op::TransitionSoft { softness, reverse });
+            let form = self.game.diesel_transition as u8;
+            self.ops.push(Op::TransitionSoft { softness, reverse, form });
         }
         if !changes.is_empty() {
             self.ops.push(Op::Sprites { changes, fade_ms: 0 });

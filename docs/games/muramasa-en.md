@@ -15,15 +15,7 @@ basic/text/sound/display tabs). Use it before asking for screenshots.
 
 `docs/games/muramasa-en.findings.tsv`: the port's rows (tempo table, text,
 choices, pictures, subtitles) and the NSS built-ins it shares with the
-Japanese build (`muramasa.findings.tsv`). Open: the port's `Transition`
-(DrawTransition) softness: its rule table is drawn by Mware's
-`psUpdateTransitionRule` shader, a level u (0-1) showing at
-sat(k(now − u) + u·now), k = 2 ÷ rate (decoded from the DXBC), a band about
-as wide all the way, where Muramasa.exe's (ours, `effectsoft`) widens with
-the threshold; how the script's rate (0-1000) and progress reach the shader
-isn't found (Mware's set-up code, or a frame of the original would settle
-it), and matching it needs a new `effectsoft` form in the engine;
-`Move`/`Zoom`/`Rotate`
+Japanese build (`muramasa.findings.tsv`). Open: `Move`/`Zoom`/`Rotate`
 keep the Japanese curves. No names carried between muramasa_en.exe and
 Muramasa.exe: different engines (Diesel/Squirrel against NSS).
 
@@ -759,6 +751,20 @@ and the build prints one line per argument passed and not read
 | `setting.ini` keys | files table | there |
 
 ## History
+
+### The port's DrawTransition edge (2026-10-18)
+
+The port draws `DrawTransition`'s rule through Mware's
+`psUpdateTransitionRule` shader (DXBC decoded; cbuffer Now, Dst, Src,
+Rate): a mask level u (grey ÷ 255) shows at sat(k(now − u) + u·now),
+k = 2 ÷ rate. The scripts' values reach it ÷ 1000 (`CCommandAction.transition`
+`tofloat() / 1000.0`; `sqSprite_transition` → `FUN_00435760`: rate at
++0x4f4, now the timeline at +0x4a8 going from src to dst along the tempo),
+so k = 2000 ÷ softness. Ours had Muramasa.exe's table, whose band widens
+with the threshold. Now `Game::diesel_transition` gives `effectsoft` form 1
+(engine #146) and the port's table for transitions stopped partway
+(`transition::diesel_table`, which depends on the end alone). Checked
+headless by numbers (engine PR); no wine.
 
 ### Shake as the port's (2026-10-18)
 

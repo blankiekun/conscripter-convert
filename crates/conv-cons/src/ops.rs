@@ -504,10 +504,14 @@ impl<'a> Emitter<'a> {
             }
         }
         Op::TransitionEase { .. } => {}
-        Op::TransitionSoft { softness, reverse } => {
+        Op::TransitionSoft { softness, reverse, form } => {
             // Before the transition's masked print.
             if let Some(i) = transition.as_ref().and_then(|l| l.iter().position(|l| l.starts_with("print ") && l.contains('"'))) {
-                let line = if *reverse { format!("effectsoft {softness},1") } else { format!("effectsoft {softness}") };
+                let line = match (*reverse, *form) {
+                    (r, 0) if !r => format!("effectsoft {softness}"),
+                    (r, 0) => format!("effectsoft {softness},{}", r as u8),
+                    (r, f) => format!("effectsoft {softness},{},{f}", r as u8),
+                };
                 transition.as_mut().unwrap().insert(i, line);
             }
         }

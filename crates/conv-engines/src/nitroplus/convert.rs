@@ -215,6 +215,9 @@ pub struct Game {
     /// `Shake` (a Diesel `CEffectShake`), turning every (1000 ÷ `n`) × 20
     /// ms, the size straight (its tempo is the swings' own).
     diesel_shake: bool,
+    /// Full Metal Daemon Muramasa's English port's `DrawTransition` edge
+    /// (Mware's `psUpdateTransitionRule`, [`transition::diesel_table`]).
+    diesel_transition: bool,
 }
 
 impl Game {
@@ -243,6 +246,7 @@ impl Game {
         box_text: &[],
         shake_jolts: false,
         diesel_shake: false,
+        diesel_transition: false,
         fade_tempo: None,
     };
 
@@ -5569,7 +5573,7 @@ scene a.nss
 }
 "#;
         let c = compile(story, LIBRARY);
-        assert!(c.ops.iter().any(|op| matches!(op, Op::TransitionSoft { softness: 200, reverse: true })), "{:?}", c.ops);
+        assert!(c.ops.iter().any(|op| matches!(op, Op::TransitionSoft { softness: 200, reverse: true, .. })), "{:?}", c.ops);
         assert_eq!(c.ops.iter().filter(|op| matches!(op, Op::TransitionSoft { .. })).count(), 1, "{:?}", c.ops);
         // The partial one: its picture cut by the level's table, not noted.
         assert!(!c.notes.contains_key("DrawTransition partial: ends masked in the exe"), "{:?}", c.notes);
