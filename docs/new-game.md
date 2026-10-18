@@ -1340,7 +1340,9 @@ so doubts are batched:
   `shots.py add <file> <game> <scene> <page> <what>`.
 - If only the original can settle a doubt, append a line to
   `research/<engine>/local/film-list.md` (git-ignored) and carry on; do
-  not start wine/Vita3K/Ryujinx for it. Format:
+  not start wine/Vita3K/Ryujinx for it. Exception: a quick check that a
+  generated save or patched script reaches directly (a few frames) may
+  run at once through `headless-run.sh`; mind its token cost. Format:
 
   ```
   | game | scene / page | question | asked by | date |
