@@ -28,3 +28,9 @@
   clear option, or a gap no queued item covers. Ask the user in one
   line ("Run an idea agent on <focus>?") with the focus outline you
   would give it; start it only on a yes.
+- **Landing a PR**: `tests/land.sh <pr>` (`--dry-run` stops before the
+  push) rebases it in a scratch worktree, reruns `tests/snapshot.sh
+  --update` when snapshots conflicted or shared code changed, pushes,
+  waits for the checks and squash-merges. Use it instead of messaging the
+  agent to rebase; on a real conflict it refuses and prints what to tell
+  the agent.

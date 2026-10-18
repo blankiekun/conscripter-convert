@@ -55,6 +55,8 @@ not in the repo.
   `git -c credential.helper= -c credential.helper='!gh auth git-credential' push --force-with-lease`
   (git has no credential helper; `gh` is logged in). Don't change the
   global git config.
+  After the agent reports, the lead may rebase and land the PR itself
+  with `tests/land.sh <pr>` (user, 2026-10-18).
 - The PR body says what changed and why, links the engine PR, and gives
   the `cargo test`/`clippy` and `tests/snapshot.sh` results (CI has no
   games: name every game whose `0.txt` changed and why) and how it was
