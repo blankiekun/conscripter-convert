@@ -248,6 +248,9 @@ pub struct VoiceWindow {
     pub check: Placed,
     pub layouts: Vec<VoiceLayout>,
     pub fade_ms: u32,
+    /// A button closing it (three cells: at rest, under the pointer,
+    /// pressed), as 続・殺戮のジャンゴ's OK.
+    pub close: Option<Placed>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

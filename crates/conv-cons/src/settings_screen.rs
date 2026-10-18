@@ -205,6 +205,9 @@ fn voices_lua(v: &VoiceWindow, checked: &[Vec<String>], border: u32) -> String {
         }
         out.push_str("end\n");
     }
+    if let Some(c) = &v.close {
+        writeln!(out, "w[#w+1] = {}", image("button", c, ", cells=3, pressed=2, action={\"close\"}")).unwrap();
+    }
     let fade = if v.fade_ms > 0 { format!("\n  fade = {},", v.fade_ms) } else { String::new() };
     writeln!(out, "return {{\n  kind = \"settings\",{fade}\n  widgets = w,\n}}").unwrap();
     out
@@ -232,6 +235,7 @@ mod tests {
                 VoiceLayout { when: None, entries: vec![VoiceEntry { picture: placed("b", 214, 376), hit: (15, 142), characters: vec![], heard: None }] },
             ],
             fade_ms: 300,
+            close: Some(placed("ok", 390, 340)),
         };
         let s = PictureSettings {
             background: placed("bg", 0, 0),
@@ -269,6 +273,7 @@ mod tests {
             "local layout = 2\nif var(\"%850\") == 1 then layout = 1 end\n",
             "  if var(\"%810\") == 1 then w[#w+1] = {\"toggle\", file=\"system/a.png\", x=790, y=82, on_file=\"system/a_c.png\", var={\"%973\", \"%977\"}, on=0, off=1} end\n",
             "if layout == 2 then\n  w[#w+1] = {\"image\", file=\"system/b_c.png\", x=214, y=376}\nend\n",
+            "w[#w+1] = {\"button\", file=\"system/ok.png\", x=390, y=340, cells=3, pressed=2, action={\"close\"}}\n",
         ] {
             assert!(voices.contains(line), "missing {line:?} in\n{voices}");
         }
