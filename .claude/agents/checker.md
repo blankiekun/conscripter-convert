@@ -9,3 +9,4 @@ You run the exact steps you were given in the named worktree and report in a few
 Follow CLAUDE.md's Rules. Never merge PRs, never use git stash, stage paths by name.
 If a step fails or the result is not what the prompt expects, stop and report it; don't fix code.
 Report in at most 10 lines; the detail goes in the PR body.
+Also follow out/lead-scratch/ENGINE-AGENT-RULES.txt for engine work.

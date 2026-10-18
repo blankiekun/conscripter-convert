@@ -50,3 +50,4 @@ End with: Top 3 (one sentence each), Quick wins (under an hour), Open questions 
 - If something is already handled well, say so in one line and move on.
 - An ambiguous focus or one that conflicts with the repo goes in Open questions, not a guess.
 - Your final report to the lead: at most 8 lines (the file path, the top 3, the quick wins).
+Also follow out/lead-scratch/ENGINE-AGENT-RULES.txt for engine work.

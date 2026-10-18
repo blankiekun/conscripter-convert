@@ -341,7 +341,7 @@ rather than by browsing:
     The table starts as soon as the dry run's metrics exist
     (`tests/snapshots/<game>.metrics.json`, from `tests/snapshot.sh
     --update`): one row per kind, the kind in the first column.
-    `research/tools/findings_lint.py` (CI's doc-paths job) ties the two:
+    `research/tools/findings_lint.py` (CI's check job) ties the two:
     every kind needs a row, every row names a kind, a kind in `NO_ROW`
     that gets a row must leave `NO_ROW`, and `NO_ROW_MAX` per game only
     goes down; `OPEN_MAX` does the same for rows marked inferred or

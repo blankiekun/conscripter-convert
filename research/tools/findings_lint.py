@@ -53,10 +53,14 @@ for mf in sorted(os.listdir("tests/snapshots")):
         kinds = {k.split()[1] for k in kinds}
     named, ranges = set(), []
     col, nopen = None, 0
+    seen = set()
     for line in open(tsv, encoding="utf-8"):
         if line.startswith("#") or not line.strip():
             continue
         cols = line.rstrip("\n").split("\t")
+        if line in seen:
+            fail(f"{tsv}: duplicate row `{cols[0]}` (a union merge can double a row)")
+        seen.add(line)
         if col is None:
             col = next((i for i, c in enumerate(cols) if c in ("status", "mark")), -1)
             continue

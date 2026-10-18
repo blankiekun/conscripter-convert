@@ -16,3 +16,4 @@ once in the shared code, and leave a test that would have caught it. The PR body
 expected, actual, root cause, fix, and the test.
 A design call: name each option with its pros and cons, the trade-off, and what becomes
 easier or harder; that goes in the PR body (or the game document when it outlives the PR).
+Also follow out/lead-scratch/ENGINE-AGENT-RULES.txt for engine work.
