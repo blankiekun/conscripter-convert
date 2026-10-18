@@ -99,6 +99,7 @@ The builds the decompile addresses in this document belong to.
 |---|---|---|
 | `Django.exe` 1.01 (`DjangoUpdate101`, 1.6 MB) | 1.01 | `b40fb35cacc672c5ea377ab86e5358fbe85b2a05c30edf5981fd509c5fc390e7` |
 | `Django.exe` 1.00 (installed, 3.1 MB) | 1.00 | `d4bed22dd7062880b96476fe423f495cc1872bfb6a3b17c593c8313976040537` |
+| `Django.exe` 1.01 unpacked (no-CD, 0.9 MB; "The exe") | 1.01 | `3dbfe8f30e07a244ad294c80c0457b87bc3b1a49af4b6b0c86bf7140d63bc7bd` |
 
 ## Script language: what differs from Muramasa
 
@@ -184,6 +185,20 @@ text on the scene, with no window picture).
 The 1.01 update's `Django.exe` is packed (every section encrypted);
 Ghidra reads the unpacked 1.01 exe, the no-CD one used under wine:
 
+- The packed exe: five sections, four unnamed and the last `.text`
+  holding the entry point (0x57d000), each at 7.3-8.0 bits/byte; the
+  stub's strings are "Application cannot be run with debugger or
+  monitoring tool(s) loaded!" and the disc check's "[1103]"; 1.00 has a
+  `.settec` section (SETTEC's disc protection). No public unpacker for
+  it here, and its disc check runs before the game's entry point, so a
+  dump under wine stops there without the disc.
+- The unpacked one the user owns (`ver1.01_プロテクト障害対応`, sha256
+  `3dbfe8f3…`; `ver1.01` `e1c690ef…` has the same `.text` byte for
+  byte) is that image dumped at its entry point 0x4b4726, imports
+  rebuilt: `.text`/`.rdata`/`.data`/`.data1`/`.rsrc` at 5.7-6.7
+  bits/byte. Its addresses are the ones in `django-names.tsv`; the
+  trace DLL hooks it (Running the original under wine).
+
 ```sh
 research/tools/ghidra/ghidra_export.sh <unpacked 1.01 Django.exe> \
     research/nitroplus/local/ghidra-django --names research/nitroplus/django-names.tsv
@@ -250,7 +265,9 @@ use a no-CD 1.01 exe the user owns, copied into the scratch game folder
   turns now and then; `WaitPlay`, the null sound device never ending):
   a patched boot with CHAPTER and SKIP (below) makes them take no time
   from the scene SKIP names on and leaves out `WaitPlay`, so end states
-  can be compared. Start again when a run stalls.
+  can be compared. Start again when a run stalls. The cause (2026-10-17,
+  below): `SuspendThread` on a thread waiting for a mutex; `ntrace.dll`
+  works around it (a `WaitPlay` on the null device not tried with it).
 - Clicks: `xdotool mousemove X Y`, then `mousedown 1; sleep 0.15;
   mouseup 1` (a bare `click` is often lost).
 - **Patched boots**: `research/nitroplus/django_patch.py <table> <game>/nss.npa
@@ -260,6 +277,30 @@ use a no-CD 1.01 exe the user owns, copied into the scratch game folder
   from its call naming SKIP (`_05_`). `<table>` is `npa::DJANGO_TABLE`
   as a 256-byte file; `npa.py` takes it in place of the exe. Link the
   copy as `nss.npa` in `C:\django\`.
+
+- **Trace DLL** (`docs/new-game.md` step 22; 装甲悪鬼村正's tool):
+  `GAME=<game, 1.01 files over the install> EXE=<the unpacked 1.01
+  Django.exe> research/nitroplus/tracedll/ntrace.sh -o orig.jsonl
+  --pages 50` plays from the start of dja001 by itself (about 6 minutes
+  for 50 pages) and writes `cmd` and `page` records as Muramasa's. The
+  patched `nss.npa` (table from `npa.rs`) skips the logos and the title
+  (boot.nss `$Logo = 1`, `$TitleSelect=1`) and turns auto mode on
+  where `SelectStoryMode` unlocks the menu (dja000); no line moves.
+  `ntrace.dll` hooks the unpacked exe (addresses in `ntrace.c`):
+  run_statement's call of dispatch_builtin (`0x453cca`), and for the
+  pages builtin_LoadText's layout of each `[textNNN]` (`0x40a3a0`) and
+  `Request(text, Enter)` (`request_enter`, called at `0x43d3d7`,
+  `0x43d6d8`): a block's pages are logged when its text is entered, at
+  its `<PRE>` line (the converter's source map does the same). Two wine
+  fixes in the DLL: the main loop's `GetMessageA` gets a `WM_NULL`
+  every 10 ms without a message, and a thread waiting for the object
+  mutex (`0x52985c`) is never suspended inside that wait (the game
+  pauses its NSS process threads with `SuspendThread`, `00466010`;
+  wine handed the mutex to a suspended waiter and every thread then
+  waited for it: the random hangs on timed actions above, seen with
+  `winedbg` and a log of who took the mutex). With the pointer nudged
+  as above, 50 pages ran without a click (2026-10-17); should it stop
+  for 60 s, the script clicks.
 
 What it showed (2026-10-15):
 
@@ -438,6 +479,40 @@ rest. Open guesses, each settled by a frame of the original:
 One value where the original has two: the save screen opens over
 200 ms and closes over 300 (ours 300 both); the settings' pairs fade
 over 200, their bullets at once (ours at once both).
+
+### Trace diff (2026-10-17)
+
+The original's trace (`ntrace.sh`, wine section) against ours, the
+first 50 pages from dja001 (`docs/new-game.md` step 23):
+
+```sh
+target/release/conscripter-convert convert-nss <game> -o out/django-dry --dry-run --source-map out/django.map
+research/tools/scratch.sh <a full build> <scratch> out/django-dry/0.txt
+cp out/django-dry/ons_args <scratch>/   # the dry run's encoding, not the build's
+<scratch>/run.sh --trace ours.jsonl --auto-play 60 --real-time --trace-ignore 999
+research/tools/trace_diff.py orig.jsonl ours.jsonl --map out/django.map --pages 50 --ms --thread 0
+```
+
+All 50 pages pair, with the same text. Not findings: page 1's 50
+`missing` (the patched boot skips the title, ours plays it),
+`call_chapter` lines (no call record in the original), 0-72 ms gaps.
+Open, not fixed:
+- **The text window blinks between blocks in the original, not in
+  ours:** each `TypeEnd()` fades `@box*` out over 100 ms and waits
+  (function.nss:510), and the next `TypeBegin` fades it in over 100 ms
+  and waits (502-503): 224 + 223 ms under wine. Ours goes from one
+  block's last page to the next block with the window up and nothing in
+  between (no op from 510 or 502 on 18 and 22 of the 49 page changes,
+  e.g. pages 1-4 of dja001_01).
+- **An unwaited fade to black holds the text in ours:**
+  dja001_01:126-128 (`Fade("黒幕", 3000, 1000, null, false)` after
+  `SetVolume("@dj*", 5000, 0, NULL)`), then text015: the original
+  shows the text 240 ms later while the screen darkens for 3 s; ours
+  `print`s a 1 s transition first (1009 ms).
+- Smaller, maybe wine's timing: dja001_02:50 (`Move("背景10", 1000, …,
+  true)`) then `Zoom` (function.nss:877): 419 + 2 ms in the original,
+  0 + 300 in ours; a 0 ms waited `Move` (function.nss:910) took 618 ms
+  in the original (page 44).
 
 ### Next
 

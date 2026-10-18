@@ -143,6 +143,23 @@ you reach it, not the whole file up front
   reached only through vtables, outside any function, and the script makes
   one at every Thumb pointer stored as data. `objdump -d -M intel` is still
   handy for a quick look at the bytes.
+- **A packed exe** (a disc protection or packer: section names gone or
+  odd, every section's entropy near 8 bits/byte, an entry point in the
+  last section, a stub's strings such as "cannot be run with debugger")
+  gives Ghidra nothing to read. Work on a copy only, never the user's
+  install, and keep unpacked binaries in a git-ignored `local/` folder.
+  In order: (1) an unpacked build the user already owns of the same
+  version (a no-CD exe is a dump of the image after the stub ran, with
+  its imports rebuilt: plain section entropies, an extra import
+  section); check its code sections against each other's copies and
+  its addresses against the scripts' behaviour before trusting it;
+  (2) a standard unpacker for the packer the stub's strings name;
+  (3) dump it under wine once the stub has reached the original entry
+  point (stop on the first execution in the first section; a disc check
+  in the stub stops this without the disc) and rebuild its imports
+  (Scylla's method). Hooks written for the unpacked exe (step 22)
+  then go into that exe run under wine: its call sites only exist
+  there. 続・殺戮のジャンゴ: (1), docs/games/django.md "The exe".
 - Work out **every index space a jump uses** (per-script labels or
   global tables, implicit entries, labels on marker instructions) and
   check all targets across the corpus. A wrong guess still produces a
@@ -402,7 +419,15 @@ rather than by browsing:
     on by patching one script line in place (lines must not move), where
     the script itself unlocks it. 装甲悪鬼村正:
     `research/nitroplus/tracedll/` (`ntrace.sh`, docs/games/muramasa.md,
-    "Running the original under wine").
+    "Running the original under wine"). A packed exe: hook the unpacked
+    one (step 1 of the decompile, "A packed exe") run under wine. Where
+    the original hangs under wine at random, find what its threads wait
+    on (`winedbg`, `attach`, `bt all`; then hook the waits in the DLL and
+    log who takes the lock) before blaming timing: 続・殺戮のジャンゴ
+    pauses its script threads with `SuspendThread`, and wine hands a
+    mutex to a suspended thread that was waiting for it (Windows stops
+    such a wait), so every thread then waits; the DLL makes the threads
+    suspend themselves between waits (docs/games/django.md).
 23. **Diff the two traces**: with the converter's `--source-map <file>`
     (each 0.txt line's `<script>:<instruction>`; the engine's lowering
     fills `Script::source_map`, as `xuse/convert.rs`'s `lower_script`

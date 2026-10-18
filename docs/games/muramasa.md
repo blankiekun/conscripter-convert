@@ -542,9 +542,9 @@ Used to check what the engine does (`docs/new-game.md` step 9).
   lines into LF LF, so a file line is a CR LF or two bare LFs. Times are
   ms: the script's waits are timeGetTime waits in each process's thread
   (the device's Present, hooked once, was never called through its
-  vtable slot). Not ported: Django.exe (the shipped exe is packed: the
-  hook points exist only once it has unpacked itself) and the English
-  release (another engine, Squirrel).
+  vtable slot). The same tool traces 続・殺戮のジャンゴ's unpacked exe
+  (docs/games/django.md); not ported: the English release (another
+  engine, Squirrel).
 - **Trace diff** (`docs/new-game.md` step 23): the same files built with
   `--source-map` (each `0.txt` line's `<file>:<line>`: the statement
   being run when the op was made, a page from its `<PRE>` block, a
