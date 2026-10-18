@@ -296,6 +296,9 @@ impl Compiler<'_, '_> {
                 let mut window_only = !targets.is_empty();
                 for t in &targets {
                     let o = self.objects.get_mut(t).unwrap();
+                    if o.opacity == 0 {
+                        self.fade_from_zero.insert(t.clone());
+                    }
                     o.opacity = to.position(o.opacity, 0, 0).clamp(0, 1000);
                     window_only &= o.hideable;
                 }
@@ -871,6 +874,15 @@ impl Compiler<'_, '_> {
                     self.matching(&arg(0)).iter().filter_map(|t| self.pending_by.get(t)).copied().max().unwrap_or(0)
                 };
                 self.sync(ms);
+                // An action the engine still runs (one the script went on
+                // from): waited for to its end.
+                if !matches!(arg(0), Value::Null) {
+                    for t in self.matching(&arg(0)) {
+                        if self.unwaited_motions.remove(&t) && let Some(s) = self.shown.get(&t) {
+                            self.ops.push(Op::MotionWait { layer: s.layer });
+                        }
+                    }
+                }
             }
             // In a music process, on a sound playing (not one it starts): on
             // its clock, which only a WaitAction on it moves (EndSong fades

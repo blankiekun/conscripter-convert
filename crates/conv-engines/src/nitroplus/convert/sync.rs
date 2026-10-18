@@ -14,6 +14,7 @@ impl Compiler<'_, '_> {
         let soft = self.transition_soft.take();
         let turning = std::mem::take(&mut self.pending_turn);
         let fades = std::mem::take(&mut self.pending_fade);
+        let from_zero = std::mem::take(&mut self.fade_from_zero);
         let cameras = std::mem::take(&mut self.pending_camera);
         let mut shake_once = std::mem::take(&mut self.shake_once);
         let mut paths = std::mem::take(&mut self.pending_path);
@@ -441,6 +442,26 @@ impl Compiler<'_, '_> {
             self.runs.insert(name.clone(), Run { from: start, to: now, ms: t, at: clock, ease: tempo.get(name).copied() });
             moving.push(name.clone());
         }
+        // A new picture fading in longer than the script waits: faded in by
+        // the engine while the script goes on, as a shown one's fade is
+        // (below), not held in the cross-fade (dja001_01:128's 3 s fade to
+        // black, the text 100 ms later under wine).
+        for ((name, now, _), layer) in want.iter().zip(&layers) {
+            let (Some(layer), Some(&t)) = (*layer, fades.get(name)) else { continue };
+            if t <= blocking || !from_zero.contains(name) || self.shown.contains_key(name) || from.contains_key(name) || turning.contains_key(name) || paths.contains_key(name) || now.cells.is_some() {
+                continue;
+            }
+            let now = Shown { layer, ..now.clone() };
+            let Some(Op::SpriteMotion2 { keys, end, .. }) = motion(&Shown { opacity: 0, ..now.clone() }, &now, t) else { continue };
+            let mut ops = Vec::new();
+            if let Some((ease, exponent)) = fade_tempo {
+                ops.push(Op::MoveEase { ease, exponent });
+            }
+            ops.push(Op::SpriteMotion2 { layer, keys, end });
+            moved_over.insert(name.clone(), ops);
+            self.runs.insert(name.clone(), Run { from: Shown { opacity: 0, ..now.clone() }, to: now, ms: t, at: clock, ease: fade_tempo });
+            moving.push(name.clone());
+        }
         for ((name, now, _), layer) in want.iter().zip(&layers) {
             if turning.contains_key(name) {
                 continue;
@@ -608,6 +629,9 @@ impl Compiler<'_, '_> {
         for name in &moving {
             if let Some(t) = timed.get(name).copied().or(turning.get(name).map(|t| t.ms)) {
                 self.motion_until.insert(name.clone(), clock + u64::from(t));
+                if t > blocking {
+                    self.unwaited_motions.insert(name.clone());
+                }
             }
         }
         // (A process's own time holds only the process.)

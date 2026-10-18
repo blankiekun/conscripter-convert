@@ -1533,6 +1533,12 @@ struct Compiler<'a, 'b> {
     /// ([`Compiler::sound_clock`] ms): its layer stays when the layers
     /// spread out again, so the engine's motion goes on.
     motion_until: HashMap<String, u64>,
+    /// Pictures whose motion the script went on from (longer than the
+    /// sync waited): a later `WaitAction` on one waits for it in the engine.
+    unwaited_motions: std::collections::HashSet<String>,
+    /// Pictures faded since the last sync from 0 (hidden): a new one is
+    /// faded in by the engine ([`Compiler::sync`]).
+    fade_from_zero: std::collections::HashSet<String>,
     /// The cameras a `MoveCamera` over time moves at the next sync (its ms).
     pending_camera: HashMap<String, u32>,
     /// The pictures' moves running: a new picture beside them in a moving
@@ -2385,6 +2391,8 @@ impl<'a, 'b> Compiler<'a, 'b> {
             pending_fade: HashMap::new(),
             vanishing: HashMap::new(),
             motion_until: HashMap::new(),
+            unwaited_motions: Default::default(),
+            fade_from_zero: Default::default(),
             pending_camera: HashMap::new(),
             runs: BTreeMap::new(),
             pending_mask: None,
@@ -6796,5 +6804,25 @@ scene a.nss
         let c = compile_scene(&files, "a.nss", "a.nss", &GAME, &mut Fake).unwrap();
         assert!(c.ops.iter().any(|op| matches!(op, Op::WindowFade { alpha: 0, ms: 100, .. })), "{:?}", c.ops);
         assert!(!c.ops.iter().any(|op| matches!(op, Op::HideTextWindow)), "{:?}", c.ops);
+    }
+
+    #[test]
+    fn an_unwaited_fade_in_runs_on_and_is_waited_for_later() {
+        let story = r#"
+scene a.nss
+{
+	CreateTexture("bg", 100, 0, 0, "cg/bg/a.jpg");
+	Fade("bg", 0, 0, null, true);
+	Fade("bg", 3000, 1000, null, false);
+	Wait(100);
+	WaitFade("bg", null);
+}
+"#;
+        let c = compile(story, LIBRARY);
+        let fades: Vec<u32> = c.ops.iter().filter_map(|op| if let Op::BeginTransition { fade_ms, .. } = op { Some(*fade_ms) } else { None }).collect();
+        assert!(fades.iter().all(|&ms| ms <= 100), "{:?}", c.ops);
+        let keys = c.ops.iter().find_map(|op| if let Op::SpriteMotion2 { keys, .. } = op { Some(keys.clone()) } else { None }).expect("motion");
+        assert_eq!((keys[0].opacity, keys[1].ms, keys[1].opacity), (0, 3000, 256));
+        assert!(c.ops.iter().any(|op| matches!(op, Op::MotionWait { .. })), "{:?}", c.ops);
     }
 }
