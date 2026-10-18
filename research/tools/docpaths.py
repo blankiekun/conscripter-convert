@@ -33,7 +33,9 @@ for f in files:
             if p.startswith("engine/") and not engine:
                 continue
             # build outputs such as gui/dist/ are git-ignored
-            if not os.path.exists(p) and subprocess.run(["git", "check-ignore", "-q", p], stderr=subprocess.DEVNULL).returncode:
+            # engine/ is a submodule: ask its own .gitignore (engine/build/ and the like)
+            repo, rel = ("engine", p[len("engine/"):]) if p.startswith("engine/") else (".", p)
+            if not os.path.exists(p) and subprocess.run(["git", "-C", repo, "check-ignore", "-q", rel], stderr=subprocess.DEVNULL).returncode:
                 print(f"{f}:{n} {p}")
                 bad += 1
 sys.exit(1 if bad else 0)

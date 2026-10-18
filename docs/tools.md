@@ -117,8 +117,9 @@ against ceilings that only go down) and `tests/snapshot.sh --diff`, and
 prints a Markdown block for the PR body: per changed game the txtdiff
 counts, metrics totals before and after, and a `why it changed: <fill in>`
 line. It also fails when a branch changes `crates/conv-engines/src/<engine>/`
-without a `docs/games/*.md`. `docpaths` reports `engine/build/...` in a
-worktree that has not built the engine.
+without a `docs/games/*.md`. `docpaths` skips paths that the
+engine's own `.gitignore` ignores, so a worktree that has not built the
+engine passes.
 
 ## Reading files cheaply
 
