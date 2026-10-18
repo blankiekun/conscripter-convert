@@ -40,7 +40,7 @@ bullet you need.
   Ryujinx) runs only through `research/tools/headless-run.sh <cmd>
   [args...]`: it starts its own Xvfb on a free display (`-displayfd`),
   unsets `WAYLAND_DISPLAY`, gives an empty `XDG_RUNTIME_DIR`, no D-Bus,
-  no-op `xdg-open`/`gio`, dummy audio (also for wine), and kills Xvfb
+  no-op `xdg-open`/`gio`, dummy SDL audio, no pulse/oss in wine (the trace scripts keep a null ALSA device, so voices still time their waits), and kills Xvfb
   on exit. It sets `HEADLESS=1` and `DISPLAY`; `xtrace.sh`, `ntrace.sh`,
   `vita-emu.sh` and `switch-emu.sh` re-run themselves under it. Never
   `pkill Xvfb` (other agents' displays).
