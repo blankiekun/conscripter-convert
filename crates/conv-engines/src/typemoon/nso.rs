@@ -2,7 +2,7 @@
 //! u32 flags at 0xC: bits 0–2 say text, rodata and data are LZ4), the
 //! three segments' (file offset, memory offset, size) at 0x10, 0x20 and
 //! 0x30, and their packed sizes at 0x60. Only the loaded image is built;
-//! relocations aren't applied (the tables read here hold no pointers).
+//! relocations aren't applied: [`relative`] gives the pointers' values.
 
 use super::FormatError;
 use crate::read::Reader;
@@ -26,6 +26,35 @@ pub fn image(data: &[u8]) -> Result<Vec<u8>, FormatError> {
         image[memory..memory + size].copy_from_slice(&segment);
     }
     Ok(image)
+}
+
+/// The image's `R_AARCH64_RELATIVE` relocations: each pointer's place and
+/// value (offsets in the image, as loaded at 0). The MOD0 header (its
+/// offset at 4) gives the dynamic section (its offset from MOD0 at +4),
+/// whose `DT_RELA` (7) and `DT_RELASZ` (8) give the table: 24 bytes each,
+/// place, info (type 1027 in the low half), addend.
+pub fn relative(image: &[u8]) -> Result<std::collections::HashMap<usize, usize>, FormatError> {
+    let r = Reader(image);
+    let u64_at = |o: usize| -> Result<u64, FormatError> { Ok(u64::from_le_bytes(r.slice(o, 8)?.try_into().unwrap())) };
+    let mod0 = r.u32(4)? as usize;
+    let mut dynamic = (mod0 as i64 + i64::from(r.u32(mod0 + 4)? as i32)) as usize;
+    let (mut rela, mut size) = (0, 0);
+    loop {
+        match u64_at(dynamic)? {
+            0 => break,
+            7 => rela = u64_at(dynamic + 8)? as usize,
+            8 => size = u64_at(dynamic + 8)? as usize,
+            _ => {}
+        }
+        dynamic += 16;
+    }
+    let mut out = std::collections::HashMap::new();
+    for at in (rela..rela + size).step_by(24) {
+        if u64_at(at + 8)? & 0xffff_ffff == 1027 {
+            out.insert(u64_at(at)? as usize, u64_at(at + 16)? as usize);
+        }
+    }
+    Ok(out)
 }
 
 /// An LZ4 block (no frame) that unpacks to `size` bytes.
