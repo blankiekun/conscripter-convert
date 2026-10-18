@@ -107,7 +107,6 @@ mod shake;
 mod rain;
 mod turn;
 mod random;
-mod transition;
 mod story;
 pub use story::{compile_run, compile_scene, compile_story, library, story_flags, BOOT_LABEL, OPENING_BACK_LABEL, OPENING_LABEL};
 use story::*;
@@ -226,7 +225,7 @@ pub struct Game {
     /// ms, the size straight (its tempo is the swings' own).
     diesel_shake: bool,
     /// Full Metal Daemon Muramasa's English port's `DrawTransition` edge
-    /// (Mware's `psUpdateTransitionRule`, [`transition::diesel_table`]).
+    /// (Mware's `psUpdateTransitionRule`, `spfadeto`'s form 1).
     diesel_transition: bool,
     /// A script file and the NSS source of a function played once each
     /// launch before the first title, as if in that file (its functions
@@ -354,10 +353,6 @@ pub trait Assets {
     /// the picture is drawn at `zoom` (per mille) about its centre. Its
     /// path.
     fn stenciled(&mut self, image: &str, mask: &str, colour: bool, at: (i64, i64), zoom: (i64, i64)) -> Option<String>;
-    /// A screen-sized picture whose opacity is `table` at the grey (green)
-    /// of the output picture `mask` stretched over the screen
-    /// (`DrawTransition` stopped partway, [`transition::table`]). Its path.
-    fn veil(&mut self, mask: &str, table: &[u8; 256]) -> Option<String>;
     /// A picture decoded: one the scripts name (`cg/…`) or one in the
     /// output (`system/…`). `None` in a dry run.
     fn rgba(&mut self, path: &str) -> Option<image::RgbaImage>;
@@ -627,10 +622,9 @@ struct Object<'a> {
     /// (`CreateWindow`'s last argument not `true`; a name without
     /// [`Game::relative_children`]).
     screen_children: bool,
-    /// A `DrawTransition` stopped partway: the screen-sized picture whose
-    /// opacity the picture is drawn times ([`Assets::veil`]), laid on the
-    /// screen however the picture moves ([`Shown::mask`]).
-    veil: Option<String>,
+    /// Its last `DrawTransition` (the engine's `spfadeto`), which it is
+    /// drawn through from then on.
+    fade: Option<FadeTo>,
 }
 
 /// `DrawEffect(obj, ms, wave, from, to, tempo)`: the exe's wave
@@ -802,8 +796,8 @@ fn left_out(reasons: &[String]) -> Option<&'static str> {
 /// times the sprite's, which must first be set to the larger of the two
 /// ([`fade_base`]).
 fn motion(old: &Shown, now: &Shown, ms: u32) -> Option<Op> {
-    // (A veil that comes or goes is a sweep through its mask, a print.)
-    if old.layer != now.layer || old.source != now.source || old.mask != now.mask {
+    // (A `DrawTransition` is the engine's spfadeto, after a placement.)
+    if old.layer != now.layer || old.source != now.source || old.fade != now.fade {
         return None;
     }
     // A movie (one cell, the same file or frame) keeps playing as it moves:
@@ -910,9 +904,26 @@ struct Shown {
     /// Cut to the screen at a big zoom (`Assets::scaled`): the place and
     /// size of the whole picture (x, y, w, h), which a motion goes by.
     whole: Option<(i64, i64, i64, i64)>,
-    /// A partial `DrawTransition`'s veil, laid on the screen
-    /// ([`Op::SpriteMask`]).
-    mask: Option<String>,
+    /// Its `DrawTransition` ([`Op::SpriteFadeTo`]).
+    fade: Option<FadeTo>,
+}
+
+/// `DrawTransition(obj, ms, from, to, softness, tempo, mask, wait)` on a
+/// picture: through `mask` (an output picture) from level `from` to `to`
+/// over `ms`, eased by `ease`, ending at `until` on the sound clock (which
+/// tells one call from the next, so each starts again).
+// src: Muramasa.exe transition_start 0044fe00 starts at `from` whatever the
+// picture showed, and leaves its opacity; each frame (00457bf0) draws it
+// times the table.
+#[derive(Debug, Clone, PartialEq)]
+struct FadeTo {
+    mask: String,
+    ms: u32,
+    from: i64,
+    to: i64,
+    softness: i64,
+    ease: Option<(u8, u32)>,
+    until: u64,
 }
 
 /// What the engine's motions did to a [`Shown`] picture.

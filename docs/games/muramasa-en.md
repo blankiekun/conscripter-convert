@@ -402,6 +402,13 @@ and the build prints one line per argument passed and not read
 | `setting.ini` keys | files table | there |
 
 ## History
+
+### `DrawTransition` as `spfadeto` (2026-10-18)
+
+As in the Japanese build (muramasa.md, History): a picture's
+`DrawTransition` is CONscripter's `spfadeto` with form 1 (the
+`psUpdateTransitionRule` band) from `from` to `to`, no veil pictures;
+gaps 3,190 → 2,572.
 ### Status as it stood before the 2026-10-18 prune
 
 Kept whole; the open items are in Status.

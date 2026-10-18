@@ -1,8 +1,9 @@
 use super::*;
 
 #[test]
-fn a_full_draw_transition_out_sweeps_reversed_and_a_partial_one_cuts_its_picture() {
-    // src: Muramasa.exe 00457bf0: a falling threshold leaves the bright parts first.
+fn a_draw_transition_on_a_picture_is_the_engines_masked_fade_from_its_from_level() {
+    // src: Muramasa.exe 0044fe00: from `from` whatever the picture showed;
+    // the table each frame (00457bf0) is the engine's spfadeto.
     let story = r#"
 scene a.nss
 {
@@ -15,11 +16,14 @@ scene a.nss
 }
 "#;
     let c = compile(story, LIBRARY);
-    assert!(c.ops.iter().any(|op| matches!(op, Op::TransitionSoft { softness: 200, reverse: true, .. })), "{:?}", c.ops);
-    assert_eq!(c.ops.iter().filter(|op| matches!(op, Op::TransitionSoft { .. })).count(), 1, "{:?}", c.ops);
-    // The partial one: its picture cut by the level's table, not noted.
-    assert!(!c.notes.contains_key("DrawTransition partial: ends masked in the exe"), "{:?}", c.notes);
-    assert!(format!("{:?}", c.ops).contains(".jpg~"), "{:?}", c.ops);
+    let fades: Vec<_> = c.ops.iter().filter_map(|op| match op {
+        Op::SpriteFadeTo { ms, from, to, softness, .. } => Some((*ms, *from, *to, *softness)),
+        _ => None,
+    }).collect();
+    assert_eq!(fades, [(300, 1000, 0, 200), (300, 0, 400, 100)], "{:?}", c.ops);
+    // No print through the mask, nor a note.
+    assert!(!c.ops.iter().any(|op| matches!(op, Op::TransitionSoft { .. } | Op::BeginTransition { mask: Some(_), .. })), "{:?}", c.ops);
+    assert!(!c.notes.keys().any(|n| n.starts_with("DrawTransition")), "{:?}", c.notes);
 }
 
 #[test]

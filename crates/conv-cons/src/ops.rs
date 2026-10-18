@@ -224,6 +224,18 @@ impl<'a> Emitter<'a> {
                 writeln!(out, "print 1").unwrap();
             }
         }
+        Op::SpriteFadeTo { layer, mask, ms, from, to, softness, form, ease } => {
+            let curve = ease.filter(|(e, _)| (1..=7).contains(e)).and_then(|(e, x)| crate::ease::curve_id(e, x, eased)).unwrap_or(0);
+            let tail = match (*form, curve) {
+                (0, 0) => String::new(),
+                (f, 0) => format!(",{f}"),
+                (f, c) => format!(",{f},{c}"),
+            };
+            writeln!(out, "spfadeto {},\"{}\",{ms},{from},{to},{softness}{tail}", SPRITE_BASE + layer, path(mask)).unwrap();
+            if transition.is_none() {
+                writeln!(out, "print 1").unwrap();
+            }
+        }
         Op::SpriteBlend { layer, mode } => {
             writeln!(out, "spblend {},{mode}", SPRITE_BASE + layer).unwrap();
             if transition.is_none() {
@@ -511,8 +523,8 @@ impl<'a> Emitter<'a> {
         }
         Op::TransitionEase { .. } => {}
         Op::TransitionSoft { softness, reverse, form } => {
-            // Before the transition's masked print.
-            if let Some(i) = transition.as_ref().and_then(|l| l.iter().position(|l| l.starts_with("print ") && l.contains('"'))) {
+            // Before the transition's masked print (numbered or not).
+            if let Some(i) = transition.as_ref().and_then(|l| l.iter().position(|l| l.starts_with("print ") && l != "print 1")) {
                 let line = match (*reverse, *form) {
                     (r, 0) if !r => format!("effectsoft {softness}"),
                     (r, 0) => format!("effectsoft {softness},{}", r as u8),

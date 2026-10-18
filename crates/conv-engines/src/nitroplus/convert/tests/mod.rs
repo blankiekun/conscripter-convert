@@ -68,9 +68,6 @@ impl Assets for Fake {
     fn stenciled(&mut self, image: &str, mask: &str, colour: bool, (dx, dy): (i64, i64), zoom: (i64, i64)) -> Option<String> {
         Some(format!("{image}%{mask}{}@{dx},{dy}x{}", if colour { "*" } else { "" }, zoom.0))
     }
-    fn veil(&mut self, mask: &str, table: &[u8; 256]) -> Option<String> {
-        Some(format!("{mask}~{}", table.iter().filter(|&&v| v > 0).count()))
-    }
     fn movie_frames(&mut self, path: &str, at: Option<u32>, alpha: bool, dark: bool) -> Option<(String, u32, u32, u32)> {
         let (w, h) = if alpha { (200, 108) } else { (1024, 576) };
         let cells = if at.is_some() { 1 } else { 30 };

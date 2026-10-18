@@ -1,13 +1,12 @@
 {
 "game": "muramasa-en",
 "engine": "nitroplus",
-"commit": "45152f1a",
+"commit": "96685843",
 "commit_date": "2026-10-18",
-"totals": {"calls": 1201891, "full": 1190107, "gaps": 3190, "left_out": 8594, "weighted": 1193232.2},
+"totals": {"calls": 1201891, "full": 1190725, "gaps": 2572, "left_out": 8594, "weighted": 1193232.2},
 "kinds": {
 "Request": {"calls": 239991, "gaps": 1305, "reasons": [["Request stop", 1068], ["Request overlayrender", 111], ["Request compulsorysuspend", 18], ["Request pushtext", 14], ["Request entrustsuspend", 12], ["27 more", 82]], "weighted": 239991.0},
 "Random": {"calls": 7411, "gaps": 803, "reasons": [["Random picked when converting", 803]], "weighted": 7411.0},
-"DrawTransition": {"calls": 2650, "gaps": 640, "reasons": [["DrawTransition from another opacity than the picture's", 633], ["DrawTransition mask missing: cg/data/slide_01_02_2.png", 2], ["DrawTransition partial on an effect: drawn unmasked", 2], ["DrawTransition mask missing: $Transition", 1], ["DrawTransition mask missing: cg/data/7.png", 1], ["1 more", 1]], "weighted": 2650.0},
 "Position": {"calls": 506, "gaps": 62, "left_out": 444, "reasons": [["the choice screen's own code: the engine's choice stands in", 444], ["built-in Position", 62]], "weighted": 62.0},
 "CreateMovie": {"calls": 61, "gaps": 61, "reasons": [["CreateMovie argument 2 ignored", 61], ["CreateMovie argument 3 ignored", 61], ["CreateMovie argument 4 ignored", 61], ["CreateMovie argument 5 ignored", 61], ["CreateMovie of a missing movie", 61]], "weighted": 26.1},
 "SetSurface": {"calls": 58, "gaps": 58, "reasons": [["built-in SetSurface", 58]], "weighted": 58.0},
@@ -16,6 +15,7 @@
 "CreateProcess": {"calls": 5582, "gaps": 35, "reasons": [["CreateProcess TurboBlur3", 10], ["CreateProcess KodouSET", 3], ["CreateProcess Window_Delete_Process", 3], ["CreateProcess FrameShake_RanProcess", 2], ["CreateProcess ActionCameraProcess", 1], ["16 more", 16]], "weighted": 5582.0},
 "WaitAction": {"calls": 5437, "gaps": 29, "reasons": [["WaitAction argument 1 ignored", 28], ["move or zoom over time with a fade or a new picture drawn as a cross-fade", 1]], "weighted": 5423.0},
 "CreateTexture": {"calls": 61266, "gaps": 25, "left_out": 1776, "reasons": [["the choice screen's own code: the engine's choice stands in", 1776], ["CreateTexture from an object or the screen", 25]], "weighted": 59490.0},
+"DrawTransition": {"calls": 2650, "gaps": 22, "reasons": [["DrawTransition from another opacity than the picture's", 13], ["move or zoom over time with a fade or a new picture drawn as a cross-fade", 4], ["DrawTransition mask missing: cg/data/slide_01_02_2.png", 2], ["DrawTransition mask missing: $Transition", 1], ["DrawTransition mask missing: cg/data/7.png", 1], ["1 more", 1]], "weighted": 2650.0},
 "SetBlur": {"calls": 985, "gaps": 16, "reasons": [["SetBlur argument 4 ignored", 16]], "weighted": 982.3},
 "DrawEffect": {"calls": 76, "gaps": 14, "reasons": [["DrawEffect argument 0 ignored", 11], ["DrawEffect argument 1 ignored", 11], ["DrawEffect argument 3 ignored", 11], ["DrawEffect argument 4 ignored", 11], ["DrawEffect argument 5 ignored", 11], ["6 more", 15]], "weighted": 66.8},
 "Wait": {"calls": 56002, "gaps": 11, "reasons": [["move or zoom over time with a fade or a new picture drawn as a cross-fade", 11]], "weighted": 56002.0},
@@ -92,5 +92,5 @@
 "SL_Rightdownfade": {"calls": 1, "gaps": 0, "left_out": 1, "reasons": [["no function of this name: the exe skips the call too", 1]], "weighted": 0.0},
 "ShakeOne": {"calls": 1, "gaps": 0, "left_out": 1, "reasons": [["no function of this name: the exe skips the call too", 1]], "weighted": 0.0}
 },
-"outside_calls": [["branches of a runtime if end with different helper variables", 78878], ["paths merge with different $テキストデータバックログ１", 4597], ["paths merge with different $LOCAL_last_text2", 4578], ["paths merge with different $DEBUG_cgbglist", 4569], ["paths merge with different $filename", 4561], ["3304 more", 625095]]
+"outside_calls": [["branches of a runtime if end with different helper variables", 78878], ["paths merge with different $テキストデータバックログ１", 4597], ["paths merge with different $LOCAL_last_text2", 4578], ["paths merge with different $DEBUG_cgbglist", 4569], ["paths merge with different $filename", 4561], ["3304 more", 625096]]
 }

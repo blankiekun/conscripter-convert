@@ -129,8 +129,8 @@ function SoundPlay("ナット名", 秒数, ボリウム, ループ設定)
 
 #[test]
 fn an_argument_a_built_in_does_not_read_is_noted() {
-    // DrawTransition's softness is read (effectsoft; its start opacity is
-    // noted where the picture isn't shown at it); a process's place is harmless.
+    // DrawTransition's softness is read (spfadeto, from its own start
+    // level whatever the picture showed); a process's place is harmless.
     let story = r#"
 scene a.nss
 {
@@ -146,7 +146,7 @@ function Nothing()
 "#;
     let c = compile(story, LIBRARY);
     assert!(!c.notes.keys().any(|n| n.starts_with("DrawTransition argument")), "{:?}", c.notes);
-    assert!(c.notes.contains_key("DrawTransition from another opacity than the picture's"), "{:?}", c.notes);
+    assert!(!c.notes.contains_key("DrawTransition from another opacity than the picture's"), "{:?}", c.notes);
     // Fade's tempo is read: its transition goes along Axl1 (t²) where
     // the game's exe eases fades.
     assert!(!c.ops.iter().any(|op| matches!(op, Op::TransitionEase { .. })), "{:?}", c.ops);
