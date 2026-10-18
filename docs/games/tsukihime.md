@@ -920,9 +920,7 @@ Flowchart, Movie and Ending List.
    argument a converted command passes and doesn't read as a gap
    (`<command> argument <i> ignored`, `option <n>` for a backquote
    option); the list is in that file. The biggest: `_STZ4`'s 2 timed uses (and 2 on
-   layers with no picture), `_WTTM` 1 (with it, the wait less
-   `DAT_00be0a00`, a frame count `FUN_00181b30` adds to; when it is
-   reset not found).
+   layers with no picture).
 6. Every kind has a row in `tsukihime.findings.tsv` (2026-10-17, from
    the decompile; 47 rows open). The open ones that matter most, by
    use: the layer quakes `_SQK2`/`_SHK2`/`_SSW2` and the screen
@@ -977,6 +975,19 @@ Open there, by size:
 
 ## History
 
+- 2026-10-18: **`_WTTM`'s second argument** (14,821 calls, the biggest
+  gap) changes nothing seen. The decompile seems to take the frame
+  counter `DAT_00be0a00` (0x1473cde) off the wait when a second
+  argument is there, but only two instructions touch it (the reloc
+  0xbe0a00 is its only pointer; a scan of the code for loads of that
+  slot finds the read in `_WTTM`, 0x17fda8, and the tick's add,
+  0x181b9c): it counts frames from boot and is never reset, so the
+  waits would be one frame or minutes. The original's trace says
+  otherwise: over `00_00`'s 208 pages, 33 of the 46 `_WTTM(ms,1)`
+  waits are within 2 frames of ms, 11 are 35-168 ms shorter, and the
+  one `_WTTM(1000,0)` is also shorter (810 ms). So shortfalls happen
+  with `0` too, after heavy commands (loading). Ours waits ms for both,
+  as before; the argument is now read.
 - 2026-10-18: **lesson read flags**. `_RDED(n)` (`cmd_RDED`) sets
   global read flag n when n is the current scene (+0xdc) with its
   per-play bit set; `_RTST(n)` (`cmd_RTST`) sets both for a lesson
