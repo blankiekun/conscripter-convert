@@ -843,9 +843,9 @@ tab, Gallery, Config on the title.
    gallery flag `_STCG`, `_SELD`'s choice number and `_SELS`'s
    yes/no choice. `_FANX`, `_STQK` and `_TRPY` have no case in the
    exe: the next converter PR adds them to `LEFT_OUT`.
-7. Trace diff leftovers (`trace_diff.py --merge-into _FADS`): 3
-   `missing` (`_STMA` `00_00:212` and `1121`, never drawn in the exe;
-   `_STCF` `00_00:55`) and 73 `time` (chiefly `_FADS` after a new
+7. Trace diff leftovers (`trace_diff.py --merge-into _FADS`): 2
+   `missing` (`_STMA` `00_00:212` and `1121`, never drawn in the exe)
+   and 72 `time` (chiefly `_FADS` after a new
    picture: the original's 2-10 frames loading it, left out;
    `_MPLY(52)` at `00_00:4296`).
 
@@ -885,6 +885,13 @@ Open there, by size:
 
 ## History
 
+- 2026-10-18: **`_STCF` waits a frame more**: `FUN_00162f90` always
+  returns 1 (wait) and the wait is checked from the next frame, so
+  every `_STCF` takes a frame (17 ms) after the change it waits for,
+  or one frame alone (the trace: a 1 ms fade 17 ms, 50 ms 67, 1000 ms
+  1016). Ours: a `wait 17` after its `spmotionwait` (all 5,179 uses).
+  Trace diff: `_STCF` `00_00:55` now `quiet`; missing 3 to 2, time 73
+  to 72.
 - 2026-10-18: **trace diff `quiet`**: `trace_diff.py` counts a
   `missing` command the map has lines from as `quiet` (counted, not a
   finding). 13 of the 16 `missing`: 11 `_FADS(1,0,0)` after an

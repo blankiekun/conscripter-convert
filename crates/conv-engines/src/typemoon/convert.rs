@@ -804,7 +804,9 @@ impl Lowering<'_, '_> {
             // shown layer's changes under `mask` (default 0x3f) have ended
             // (`FUN_001802c0`, each frame `FUN_001329f0`): 8 its `_STGS` fade,
             // 0x20 its motion unless it loops; 1, 2, 4 timed changes ours
-            // doesn't make, 0x10 a field not found yet.
+            // doesn't make, 0x10 a field not found yet. It always returns 1
+            // (wait), and the wait is checked from the next frame: a frame
+            // more than the change (trace: a 1 ms fade 17 ms, 1000 ms 1016).
             "_STCF" => {
                 let Some(n) = number(arg(0)).filter(|n| (0..LAYERS as i32).contains(n)) else { return false };
                 let mask = number(arg(1)).unwrap_or(0x3f);
@@ -813,6 +815,7 @@ impl Lowering<'_, '_> {
                 {
                     self.ops.push(Op::MotionWait { layer: slot as u32 });
                 }
+                self.ops.push(Op::Pause { ms: 17 }); // src: exe 0x162f90, a frame at 60 fps
             }
             "_STCP" => {
                 let Some(n) = number(arg(0)).filter(|n| (0..LAYERS as i32).contains(n)) else { return false };
@@ -2092,6 +2095,8 @@ mod tests {
         assert!(c.notes.is_empty(), "{:?}", c.notes);
         let waits: Vec<_> = c.ops.iter().filter(|o| matches!(o, Op::MotionWait { .. })).collect();
         assert_eq!(waits, [&Op::MotionWait { layer: 39 }, &Op::MotionWait { layer: 39 }]);
+        // and each `_STCF` a frame more, waiting or not
+        assert_eq!(c.ops.iter().filter(|o| **o == Op::Pause { ms: 17 }).count(), 4);
         // On a layer already shown the fade starts at the `_STGS`, and `_STCF` waits for it.
         let src = "_STCH(1,img1,240,136,1000,0);_FADS(1,0,0);_STGS(1,,255,1000,0);_STCF(1,8);_FADS(1,0,0);";
         let g = Game { scripts: vec![("S".into(), script::parse(src).into_iter().map(Result::unwrap).collect())], ..g };
