@@ -34,3 +34,9 @@
   waits for the checks and squash-merges. Use it instead of messaging the
   agent to rebase; on a real conflict it refuses and prints what to tell
   the agent.
+- **Mechanical guards** (`.claude/hooks/bash_guards.py`, on every Bash
+  call; self-test `--test`): refuses `pkill -f`/`pgrep -f`, a
+  `git commit` carrying a Claude-Session line, and heavy commands
+  (cargo, snapshot, pr-report, engine builds, convert-game) when under
+  6 GiB of memory is free. `tests/land.sh` takes `out/land.lock` (one
+  landing at a time) and refuses a draft or non-OPEN PR.

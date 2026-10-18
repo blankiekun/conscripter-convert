@@ -195,6 +195,8 @@ Steps in `docs/releasing.md`; read it only when releasing.
 
 - `pkill -f`/`pgrep -f` match your own shell when the pattern is in the
   command line: use `pkill -x conscripter`.
+  The hook `.claude/hooks/bash_guards.py` refuses `-f`, session lines in
+  commits and heavy builds on low memory.
 - ONScripter ignores SIGTERM in script loops: always `timeout -k 5`.
 - Python text-mode writes turn CRLF files into LF: check
   `grep -c $'\r$'` before committing engine files.
