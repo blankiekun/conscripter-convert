@@ -761,6 +761,18 @@ there unlocks the extras; seen).
 
 ### Queue (2026-10-16)
 
+- Open: the launch warning's visitor counter ("あなたは N 人目のお客様です",
+  History, "The launch warning"): not drawn, its gap left empty. It is the
+  system data's u32 at `0x51eb50` (a FILETIME's low half at the first
+  start, plus `rand() % 10000` each launch, 0x44f150) in `digit.png`
+  digits at (492, 173) (0x488f30, proportional cells whose widths and
+  alignment are in the digit object's setup, not read). Needs a global
+  variable (alloc) and the digit metrics. User (2026-10-18): not worth
+  more than a one-line fix, so left out. Likewise ENTER only: any click
+  goes on, since a button there needs more `BootStep` fields.
+- Open: the title's own intro before its buttons (title_task 0x45b6f0,
+  the state machine at 0x561ee0: "click past the intro, wait ~14 s",
+  "Testing") is not converted; ours fades the title in over 1 s.
 - Open: branch coverage of the original (`docs/new-game.md` step 24,
   `research/xuse/cover.py`): one FIRST START xtrace run (390 pages,
   first links, 2026-10-17) hit 173 of 598 armed addresses (47 opcodes);
@@ -1030,6 +1042,21 @@ empty). Gaps found, where the exe and the converter differ:
 
 Finished work, moved out of "Status" so a session reads only the open
 state. Items are referred to elsewhere as "History, item N".
+
+**The launch warning (2026-10-18):** at every launch, before the title,
+the exe shows `Entrance.cpp`'s screen (`gd.arc` → `Entrance.004`):
+background (#0), the text (#3, the 18+ and content warning) at
+(113, 166) (0x44f400), the ENTER button (#2, cells of 225×35: normal,
+under the pointer, pressed) at (288, 446) (0x44f150); `window.png` (#4)
+is empty and not drawn. It cross-fades in over 1000 ms (0x44f7b0, `mov
+eax,0x3e8` before 0x442c70), waits for ENTER or the Enter key (0x44f550
+cases 3/4, 0x44f3a0 bit 0x10000), cross-fades out over 1000 ms
+(0x44f720) and starts the title task (0x44f6b0 → 0x45b6f0); a click or
+key ends a cross-fade early (0x449c40). No brand logo or movie comes
+before it; the opening movie (`mv0001`) belongs to the story's start.
+Ours: one `Script::boot` step (#425), the picture composed with ENTER's
+normal cell, ended by any click; trace: the fade-in ends 1044 ms after
+the black. Not converted: the visitor counter (Status).
 
 **Slot variables (2026-10-18):** the original keeps the bytecode's
 bit-15 variables (the route and loop state, `sentaku_*`, `loop1`-`loop3`,

@@ -50,6 +50,32 @@ impl AssetBank {
         Ok(TitleScreen { background: background_path, fade_ms: TITLE_FADE_MS, buttons, ..Default::default() })
     }
 
+    /// The warning shown at every launch before the title (`Entrance.cpp`,
+    /// `HD/gd.arc` → `Entrance.004`): the background (0) and the text (3)
+    /// at (113, 166) (0x44f400) with the ENTER button (2, the normal of
+    /// its 225-wide cells) at (288, 446) (0x44f150); 1000 ms cross-fades in
+    /// and out (0x44f7b0, 0x44f720: `mov eax,0x3e8` before 0x442c70),
+    /// which a click ends (0x449c40). The exe goes on at ENTER or the
+    /// Enter key (0x44f550, 0x44f3a0); ours at any click. Not drawn: the
+    /// visitor counter in the text's gap (digits 1 at (492, 173), a number
+    /// kept with the system data, 0x51eb50).
+    pub fn entrance(&mut self) -> Result<BootStep, ConvertError> {
+        let images = self.gaf_images("gd.arc", "Entrance.004", "warning screen")?;
+        let get = |n: usize| {
+            let png = images.get(n).ok_or(ConvertError::MissingAsset { kind: "warning screen image", number: n })?;
+            image::load_from_memory_with_format(png, image::ImageFormat::Png)
+                .map(|i| i.to_rgba8())
+                .map_err(|source| ConvertError::Image { what: format!("Entrance.004 #{n}"), source })
+        };
+        let mut picture = get(0)?;
+        image::imageops::overlay(&mut picture, &get(3)?, 113, 166);
+        let enter = get(2)?;
+        image::imageops::overlay(&mut picture, &image::imageops::crop_imm(&enter, 0, 0, enter.width() / 4, enter.height()).to_image(), 288, 446);
+        let path = "system/entrance.png".to_string();
+        self.save_image(&path, &picture)?;
+        Ok(BootStep { image: path, backdrop: "black".into(), fade_in_ms: 1000, fade_out_ms: 1000, until_click: true, click_skips_fades: true, ..Default::default() })
+    }
+
     /// The extras menu and the CG gallery (see [`gallery`]). Positions
     /// measured on screenshots of the original.
     /// `label(file, name)`: the converted label of a scene replay entry
