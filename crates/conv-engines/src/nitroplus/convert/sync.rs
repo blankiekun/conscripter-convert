@@ -6,6 +6,20 @@ impl Compiler<'_, '_> {
     /// Shows the changes since the last sync, as a cross-fade over `ms`,
     /// or the pending actions' time up to [`UNWAITED_MS`] if longer.
     pub(super) fn sync(&mut self, ms: u32) {
+        let disused = std::mem::take(&mut self.disused_fading);
+        self.draw(ms);
+        // (Kept while the engine fades it out, then deleted.)
+        for (n, seq) in disused {
+            if self.objects.get(&n).is_some_and(|o| o.seq == seq) {
+                match self.vanishing.contains_key(&n) {
+                    true => self.disused_fading.push((n, seq)),
+                    false => self.delete(&n),
+                }
+            }
+        }
+    }
+
+    fn draw(&mut self, ms: u32) {
         let blocking = ms;
         let ms = ms.max(std::mem::take(&mut self.pending_ms).min(UNWAITED_MS));
         let timed = std::mem::take(&mut self.pending_by);
@@ -271,10 +285,14 @@ impl Compiler<'_, '_> {
         }
         want.sort_by_key(|w| std::cmp::Reverse(w.2));
         // A picture fading out to 0 stays only when it also moves or zooms
-        // as one motion (alpha keys to 0), drawn until a later sync.
+        // as one motion (alpha keys to 0), drawn until a later sync; or
+        // when the fade outlasts the wait (ma00_000:1624's unwaited
+        // `Fade(…, 300, 0, null, false)`, the text at once under wine).
         // (Or as it turns: the turn's motion fades it too, convert/turn.rs.)
         want.retain(|(n, s, _)| {
-            s.opacity > 0 || fades.contains_key(n) && self.shown.get(n).is_some_and(|old| turning.contains_key(n) || (old.x, old.y, old.w, old.h) != (s.x, s.y, s.w, s.h) && motion(old, &Shown { layer: old.layer, ..s.clone() }, 1).is_some())
+            let unwaited = timed.get(n).is_some_and(|&t| t > blocking);
+            s.opacity > 0
+                || fades.contains_key(n) && self.shown.get(n).is_some_and(|old| turning.contains_key(n) || ((old.x, old.y, old.w, old.h) != (s.x, s.y, s.w, s.h) || unwaited) && motion(old, &Shown { layer: old.layer, ..s.clone() }, 1).is_some())
         });
         // Pictures under an opaque one that fills the screen (an old
         // background left up under a new one) aren't drawn.
