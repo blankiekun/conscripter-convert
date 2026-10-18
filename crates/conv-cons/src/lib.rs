@@ -706,7 +706,7 @@ pub fn emit_mapped(script: &Script) -> (String, Vec<(usize, Option<SourceLoc>)>)
         menu::confirm(&mut out, d);
     }
     if let (Some(m), Some(t)) = (&script.extras, &script.title_screen) {
-        extras::extras(&mut out, m, &effect(t.fade_ms), script.settings.is_some());
+        extras::extras(&mut out, m, &effect(t.fade_ms), script.settings.is_some(), !t.openings.is_empty());
     }
     if let (Some(e), Some(_)) = (&script.picture_extras, &script.title_screen) {
         picture_extras::emit(&mut out, e, border, script.width, script.height);
@@ -749,8 +749,9 @@ fn title_screen(out: &mut String, t: &TitleScreen, fade: &str, save_menu: bool, 
     // Effect 0 = update the buffer only; the print shows it all.
     writeln!(out, "bg \"{}\",0", path(&t.background)).unwrap();
     title_openings(out, &t.openings, border);
-    // Back from the picture extras: the music goes on.
-    if picture_extras {
+    // Back from the extras: the music goes on.
+    let back = picture_extras || (extras && !t.openings.is_empty());
+    if back {
         writeln!(out, "if {TITLE_SHOWN} == 2 mov {TITLE_SHOWN},1:goto *{TITLE_SPRITES}").unwrap();
     }
     if !t.openings.is_empty() {
@@ -767,7 +768,7 @@ fn title_screen(out: &mut String, t: &TitleScreen, fade: &str, save_menu: bool, 
         }
     }
     title_movies(out, t, true, border);
-    if picture_extras {
+    if back {
         writeln!(out, "*{TITLE_SPRITES}").unwrap();
     }
     title_sprites(out, t, &buttons, quick, None, true, border);

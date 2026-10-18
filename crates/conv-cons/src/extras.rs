@@ -7,7 +7,7 @@
 
 use conv_core::ir::{ExtrasAction, ExtrasMenu, Placed};
 
-use crate::{extras_screens, menu, movies, music, path, replay, BUTTON_VAR, CG_SEEN};
+use crate::{extras_screens, menu, movies, music, path, replay, BUTTON_VAR, CG_SEEN, TITLE_SHOWN};
 
 pub(crate) const EXTRAS: &str = "conv_extras";
 /// Back to the title screen (its background and buttons).
@@ -48,7 +48,8 @@ fn seen(number: u32) -> String {
 
 /// `fade`: the effect the title fades in with. `settings`: there is a
 /// settings screen for the option heading to open.
-pub(crate) fn extras(out: &mut String, m: &ExtrasMenu, fade: &str, settings: bool) {
+/// `openings`: the title has openings, which closing the menu doesn't play.
+pub(crate) fn extras(out: &mut String, m: &ExtrasMenu, fade: &str, settings: bool, openings: bool) {
     let mut w = lines!(out);
     let gallery = m.gallery.as_ref();
     let clear_vars = [TAB_VAR, PAGE_VAR, TMP, SLOT_VAR, VARIANT, STEP, PAGE_FIRST, UNLOCKED, PANEL_HIDDEN]
@@ -139,7 +140,9 @@ pub(crate) fn extras(out: &mut String, m: &ExtrasMenu, fade: &str, settings: boo
     w(format!("goto *{DRAW}"));
     w("*conv_extras_close".into());
     w(format!("csp -1:{clear_vars}"));
-    w(format!("goto *{TITLE_BACK}"));
+    // The title without its openings, the music going on.
+    let back = if openings { format!("mov {TITLE_SHOWN},2:") } else { String::new() };
+    w(format!("{back}goto *{TITLE_BACK}"));
     if gallery.is_some() {
         // The screen's page from the first each time.
         out.push_str(&format!("*{GALLERY}\ncsp -1:mov {},0:screen \"gallery\"\nreturn\n", extras_screens::GALLERY_PAGE));

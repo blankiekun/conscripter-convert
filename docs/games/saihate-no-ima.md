@@ -400,7 +400,8 @@ committed):
   scripts' positions, margins and metrics from the exe's table.
 - **Backlog:** a full-screen dark window (like `TextWnd5`, 714×472) with
   names and voice replay.
-- **Title:** FIRST START / load / option / EXIT over `Entrance.004`.
+- **Title:** FIRST START / load / option / EXIT over `Title.004`, with
+  the title music (BGM 14) and the exe's intro (History, "Title intro").
 - **Save/load:** 5 slots per page with thumbnails, 10 pages,
   delete/save/close, a slot label of date plus chapter name.
 - **Settings:** the original is a native Windows dialog. Converted as an
@@ -785,8 +786,12 @@ build needs the exe; a missing or different exe stops it with an error.
   drawn. User (2026-10-18): not worth more than a one-line fix, so left
   out; likewise ENTER only (any click goes on). Data: the system data's
   u32 at `0x51eb50`, `digit.png` digits at (492, 173) (`0x488f30`).
-- The title's own intro before its buttons (title_task `0x45b6f0`, state
-  machine `0x561ee0`) is not converted; ours fades the title in over 1 s.
+- Title intro (History, "Title intro"): its ripple takes one direction
+  every time (the exe picks one of 256 at random); closing the extras
+  fades the title in over 1 s (exe: the words fade in 200 ms apart); after
+  the extras' sub-modes were opened, the exe plays no title music on
+  coming back from the story (ours does). Not compared with a frame of
+  the original.
 - Waited transitions take about 3 frames (90 ms) longer in the exe than
   their time (`0x76`+`0x71` 1000 ms = 33 frames; ours 1,009 ms). Read
   the transition task's code before adding a lag to every `print`.
@@ -817,10 +822,8 @@ build needs the exe; a missing or different exe stops it with an error.
   "Value audit"): the save menu's thumbnail position, "New" mark and
   slot text; the yes/no message's y; text styles 3/4 rows (23 or 24)
   and the name plate's font (20); the CG gallery's header, headings and
-  page marker; the top bars' row colours and font sizes; the title's 1 s
-  fade (the exe cross-fades 2 s `0x459d10`, 1 s `0x45a240`); the quake's
-  hold and shrink; a picture the title draws at (680, 444), unidentified;
-  the CG viewer's panel x (exe 461, ours 451 meets the art).
+  page marker; the top bars' row colours and font sizes; the quake's
+  hold and shrink; the CG viewer's panel x (exe 461, ours 451 meets the art).
 - Layout left open by the exe-table check: backlog (exe: one 720×20
   line per entry at x 52, y 49 + 35·i, 15 shown, `0x41ffa0`; ours wraps
   from (30, 44) at 24 px); top bars' text origins (`0x496fe0`: scene
@@ -841,6 +844,42 @@ wants it.
 
 Finished work, moved out of "Status" so a session reads only the open
 state. Items are referred to elsewhere as "History, item N".
+
+### Title intro (2026-10-18)
+
+Read from the exe (`Title\title.cpp`; `research/xuse/names.tsv` has no
+names for it yet). Title mode 0 (`title_task` 0x45b6f0) runs at every
+title entered from the warning screen (0x450870) or the story (opcode
+0x96, back-to-title 0x478300); mode 2 (0x45b720) is the way back from
+the extras' sub-modes, without the intro. Its states (table 0x561ee0,
+filled by 0x4f0a70; per frame 0x45b5d0), from black, with `Title.004`:
+
+| ms | state | what |
+|---|---|---|
+| 0-2000 | 1-3 (0x459cd0, 0x459d50, 0x459e00) | background #0 cross-fades in (`CrossFade` 0x442c70, 2000 ms) |
+| 2000-3000 | 4 (0x459eb0) | nothing |
+| 3000-5000 | 5 (0x459fa0) | ripple under the logo, opacity 0 → 256, size 0 → 25 px |
+| 5000-7000 | 6 (0x45a070) | logo #10 at (0, 171) fades in; ripple size 25 → 50 px |
+| 7000-8100 | 11-13 (0x45a330, 0x45a4b0, 0x45a530) | ripple off; COMPLETE #14 at (100, 383); the four words fade in, 500 ms each, 0/200/400/600 ms late (table 0x4fb808) |
+
+The ripple (drawn by 0x4599a0, Filter-Replace's pixel loop 0x43d9d0):
+the background in the map's 590 × 262 at (0, 171), each pixel taken from
+d·sin(2π m/256) px away along a direction `rand() & 0xff` (256 steps a
+turn, sine tables 0x501538, 0x501938), m the grey of map #11; drawn over
+the background at the state's opacity. A click or key in any state
+jumps to the title at rest (flag +0x370). The title's music: BGM slot 13
+(track 14) looped, from the title's start (0x459320,
+`0x47fe30(0xd, ...)`), unless a sub-mode of the extras exists (0x51f858,
+whose music goes on); Start fades it out over 2000 ms (0x45abe0). This
+corrects the earlier "No title BGM" (item list below). Picture #9, drawn
+at (680, 444) with the logo's opacity (0x459b90), is fully transparent.
+
+Ours: `xuse/titleintro.rs` draws every frame at 30 fps into
+`movie/title_intro.mp4` (522 KB, 8.2 s, silent), played as the title's
+opening at launch and after a `reset` (mpegplay, click skips) with
+`bgm14` under it; closing the extras goes back without it and keeps the
+music. The movie's last frame against the engine's title at rest:
+RMSE 1.8 % (H.264), 0.24 % of pixels over 3 %.
 
 ### Exe tables read at build time (2026-10-18)
 

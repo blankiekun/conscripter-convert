@@ -362,9 +362,10 @@ const SE_FIRST_BANK: usize = 256;
 /// every row of the box's gradient and 0.50 on the save menu's.
 /// src: exe 0x46d000 (setting 0x51ed12 defaults to 128 of 256).
 const WINDOW_OPACITY_PERCENT: u32 = 50;
-/// guess: the title screen fades in and out over this long (the exe's title
-/// states cross-fade over 2000 ms, 0x459d10, and 1000 ms, 0x45a240; which
-/// one shows the menu isn't traced).
+/// guess: the title fades in over this long where it has no intro (back
+/// from the load screen or the extras; the exe's extras cross-fade back
+/// over 1000 ms, 0x45a240, as the words fade in, [`super::titleintro`]),
+/// and Start fades out over it.
 const TITLE_FADE_MS: u32 = 1000;
 /// A voice id's character is `id / VOICE_CHARACTER`.
 const VOICE_CHARACTER: u32 = 100_000; // src: the scripts' voice ids
