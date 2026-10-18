@@ -150,7 +150,7 @@ type Curve = Option<(u8, u32)>;
 /// quart, quint, sine, circ, expo, elastic, back and bounce, each in,
 /// out, in-out, out-in) as [`Op::MoveEase`]'s; 0, 1 and the rest are
 /// straight (`None`).
-fn ease(code: i32) -> Curve {
+pub(super) fn ease(code: i32) -> Curve {
     let (family, kind) = ((code - 2) / 4, (code - 2) % 4);
     if code < 2 {
         return None;
@@ -998,8 +998,8 @@ impl Lowering<'_, '_> {
     /// children (and theirs) follow it, each with an `spmotion` of its
     /// own from where the parent's keys place it.
     // Each key is reached along the easing (0x04) of the last key before it that sets one (`FUN_00197710`).
-    // shortcut: the exe eases each field from the key that sets it to the next that does; a field another key
-    // passes through (-32766) is eased per key here. Curve (0x06 = 1), priority (0x3C), expression (0x32, 0x34) and
+    // A field a key passes through (-32766) is eased once across it: `Motion::through_resolved` cuts those keys' ways.
+    // shortcut: curve (0x06 = 1), priority (0x3C), expression (0x32, 0x34) and
     // the other fields are not followed. Mode 2 holds: a key 1 ms early. A loop (`FUN_001999a0`) runs until stopped.
     fn run_motion(&mut self, slot: usize, m: usize) {
         let Some(i) = self.slot_layer[slot] else { return };

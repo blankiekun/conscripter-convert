@@ -730,7 +730,7 @@ guest logs) at those handlers.
 | Exe tables (pictures, motions, scene numbers) | ✅ read from the NSO (`typemoon exe`); picture sizes checked against the textures |
 | Scripts | 🔶 read: every command of both languages splits (one malformed in the original) and its text and voices join; the top commands' arguments read from the exe, the rest not yet |
 | Media folder (`typemoon media`) | ✅ `allpac`'s pictures at full size (PNG, or WebP with the shared `--webp` flags), the movies as they are, the sound (WAV wave sounds, or Opus/Vorbis with the shared `--audio-*` flags), loops kept in every mode |
-| Script conversion (`typemoon convert`) | 🔶 the flow (labels, `_JUMP`, `_IF__`, flags), text (pages, ruby, voices; the fan patch's styled letters, private-use U+E000–U+E2FE drawn by its own `ja/TT_TsukuMin-D.ttf`, as ASCII: italic and serif italic as italic (`!i1`), mirrored and upside-down plain (mirrored lines, stored right to left, put back in reading order), U+E200 as `^-35`; its accents (é ï ç â à ê, 46 uses) and em dashes kept, as the `0.txt` is UTF-8; a `^` break in a choice's option as a space), pictures (`_STCH`/`_STCC`/`_FADS`: record size and place, fades and rule wipes), sound effects and music; plays from the start through `00_00` into the first arc headless. Layers drawn in priority order (`_STCP`, `_STCH` argument 6), changed keeping their settings (`_SCH2`) or copying another layer's (argument 18), zoomed (`_STZ4`), faded (`_STGS`) and moved (`_STMA`, the exe's motions, a −32766 field interpolated across its key, turned by its turn keys, held where a key's mode 2 says, only the fields its mask drives, each key eased as the exe's (`spcurve` tables of its Penner set), looping where the exe loops until `_STMA(n, 0)`, `_STCH` or another motion stops it; curves, priority and expression keys not followed), children placed in their parent layers, orbiting with their turn and following their motions (`_STCH` argument 11), clipped to their panels with their soft edges (`_STCH` arguments 12–17, CONscripter's `spclip` feather), turned (`_STRT`), drawn with their shader as far as CONscripter's blends and filters go (`_STBR`) and drawn with their `_STEC` effect (levels, greyscale and colour layers; effect 1 a colour fill, CONscripter's `spfilter` 9 and 10). Choices (`_SELR`, `_SELD`, `_GOTS`; options under a flag offered by it, greyed ones shown greyed and not selectable (`seldisable`); the chapter-jump menus), `_GOTO` and the Switch's own branches (`_IFNX`/`_IFP4`). The text window hidden and faded (`_CLO2`, `_CLO3`/`_CLO4`/`_CLO5` with CONscripter's `windowfade`, the script going on; the next text fades it back in). Not yet: the other layer commands, screens |
+| Script conversion (`typemoon convert`) | 🔶 the flow (labels, `_JUMP`, `_IF__`, flags), text (pages, ruby, voices; the fan patch's styled letters, private-use U+E000–U+E2FE drawn by its own `ja/TT_TsukuMin-D.ttf`, as ASCII: italic and serif italic as italic (`!i1`), mirrored and upside-down plain (mirrored lines, stored right to left, put back in reading order), U+E200 as `^-35`; its accents (é ï ç â à ê, 46 uses) and em dashes kept, as the `0.txt` is UTF-8; a `^` break in a choice's option as a space), pictures (`_STCH`/`_STCC`/`_FADS`: record size and place, fades and rule wipes), sound effects and music; plays from the start through `00_00` into the first arc headless. Layers drawn in priority order (`_STCP`, `_STCH` argument 6), changed keeping their settings (`_SCH2`) or copying another layer's (argument 18), zoomed (`_STZ4`), faded (`_STGS`) and moved (`_STMA`, the exe's motions, a −32766 field eased once across its key as the exe eases it (the keys between cut into straight steps of its values where one curve a key would miss it), turned by its turn keys, held where a key's mode 2 says, only the fields its mask drives, each key eased as the exe's (`spcurve` tables of its Penner set), looping where the exe loops until `_STMA(n, 0)`, `_STCH` or another motion stops it; curves, priority and expression keys not followed), children placed in their parent layers, orbiting with their turn and following their motions (`_STCH` argument 11), clipped to their panels with their soft edges (`_STCH` arguments 12–17, CONscripter's `spclip` feather), turned (`_STRT`), drawn with their shader as far as CONscripter's blends and filters go (`_STBR`) and drawn with their `_STEC` effect (levels, greyscale and colour layers; effect 1 a colour fill, CONscripter's `spfilter` 9 and 10). Choices (`_SELR`, `_SELD`, `_GOTS`; options under a flag offered by it, greyed ones shown greyed and not selectable (`seldisable`); the chapter-jump menus), `_GOTO` and the Switch's own branches (`_IFNX`/`_IFP4`). The text window hidden and faded (`_CLO2`, `_CLO3`/`_CLO4`/`_CLO5` with CONscripter's `windowfade`, the script going on; the next text fades it back in). Not yet: the other layer commands, screens |
 | Screens, extras | 🔶 the title; the system menu's Save and Load tabs (see History, 2026-10-17), opened in game by a right click at a text wait (on its Save tab); Config (for now the language switch), FlowChart, the backlog not yet |
 | The original under an emulator | ❌ boot check fails: the keys lack master key 0x16 that firmware 23.0.1 needs (see "Testing") |
 | Languages (`--english`) | 🔶 one `0.txt` with both copies (below); the switch is the system menu's **Config** tab for now (in game; at rest on the title), until the settings tab with its 日本語/English option is converted |
@@ -851,9 +851,6 @@ The mapped commands, argument by argument and branch by branch, are in
 cheapest check for each; redone 2026-10-17 against docs/new-game.md's
 steps 6–17: 67 seen, 16 inferred, 6 unknown). Open there, by size:
 
-- A motion field set on keys apart, with keys between that pass it
-  through (−32766, 5,926 fields): the exe eases it once across them, the
-  converter per key (its value at the key between straight).
 - Motion keys' priority (0x3C, 23,115 calls) and expression (0x32/0x34,
   5,254), and the stepped fields 0x24–0x2A (shader, effect and colour
   changes mid-motion?).
@@ -861,13 +858,26 @@ steps 6–17: 67 seen, 16 inferred, 6 unknown). Open there, by size:
   drawn below it come or go: 1,916 times in the Japanese build) or whose
   IR layers change (324) starts again from its start; a stopped loop
   goes back to its place where the exe leaves it as it is (`spmotion n`
-  drops the offset).
+  drops the offset). Both need CONscripter: a running `spmotion` handed
+  to another sprite with its clock, and a stop that keeps the pose.
 - `_SEPL`/`_MPLY` volume (option 17) and `_SEVL` (not converted, 1,285):
   every sound at full volume.
 - Zooms under 10 % are coarse (`spzoom` takes whole percents).
 
 ## History
 
+- 2026-10-17: a motion field passed through (−32766), **seen**:
+  `FUN_00197710` takes a field from the last key before the time that
+  doesn't pass it through to the next, along the easing of the last key
+  before the time that gives the field and an easing (`FUN_001961b0`),
+  once across the keys between; mode 2 and the stepped fields (0x24,
+  0x28–0x3C) hold the value before. `exe.rs` (`Motion::value_at`) works
+  it out the same way; each passed-through key takes its value there,
+  and a key's way that `spmotion`'s one curve would draw more than 1
+  unit off is cut into 8 straight steps of the exe's values (fewer past
+  64 keys). Japanese build: 1,101 `spmotion`s changed, 12,387 keys
+  added (94,302 → 106,689). Mode 2 on a passed-through key (594 keys)
+  now holds the value before, as the exe, not a straight midpoint.
 - 2026-10-17: looping motions, **seen**: `FUN_001999a0(m)` (a switch
   compiled to jump tables, so `exe.rs` runs it: `run_switch`, a few
   AArch64 instructions) gives where motion m loops from: 0 not at all

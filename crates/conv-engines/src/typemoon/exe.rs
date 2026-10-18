@@ -5,6 +5,7 @@
 
 use super::FormatError;
 use super::nso;
+use conv_core::ease::eased;
 use crate::read::Reader;
 
 const BASE: usize = 0x10_0000;
@@ -49,7 +50,7 @@ pub struct Picture {
 }
 
 /// One keyframe of a motion: fields not given are −32767 in the exe;
-/// −32766 (`Key::THROUGH`) is resolved by `Motion::through_filled`.
+/// −32766 (`Key::THROUGH`) is resolved by `Motion::through_resolved`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Key {
     pub time_ms: u32,
@@ -126,38 +127,111 @@ impl Motion {
     pub const ZOOM_Y: u64 = 0x1_0040_0000;
     pub const TURN: u64 = 0x8_8000;
 
-    /// Each `Key::THROUGH` field given its value on the straight line
-    /// between the keys before and after it that set the field; with none
-    /// after, unset (the exe holds the last value set).
-    fn through_filled(mut self) -> Self {
-        // Fields 8 and 9 (0x14) are one i32, the turn, whose skip value is
-        // −100000; 0 and 1 (easing, mode) are looked for, not interpolated.
-        for f in (0..30).filter(|f| !matches!(f, 0 | 1 | 8 | 9)) {
-            self.fill(|k| i32::from(k.fields[f]), |k, v| k.fields[f] = v as i16, Key::THROUGH.into(), Key::UNSET.into());
-        }
-        self.fill(Key::turn_raw, Key::set_turn, Key::TURN_THROUGH, Key::TURN_UNSET);
-        self
+    /// The value fields (index into `Key::fields`; 8 is the turn's i32 at
+    /// 0x14, which takes 9 too); 0 and 1 (easing, mode) are looked for.
+    const FIELDS: [usize; 27] = [2, 3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29];
+
+    fn get(k: &Key, f: usize) -> i32 {
+        if f == 8 { k.turn_raw() } else { k.fields[f].into() }
     }
 
-    fn fill(&mut self, get: impl Fn(&Key) -> i32, set: impl Fn(&mut Key, i32), through: i32, unset: i32) {
-        let given = |k: &Key| ![unset, through].contains(&get(k));
-        for i in 0..self.keys.len() {
-            if get(&self.keys[i]) != through {
-                continue;
-            }
-            let before = self.keys[..i].iter().rev().find(|k| given(k));
-            let after = self.keys[i + 1..].iter().find(|k| given(k));
-            let t = self.keys[i].time_ms as f64;
-            let v = match (before, after) {
-                (Some(a), Some(b)) if b.time_ms > a.time_ms => {
-                    let (va, vb) = (f64::from(get(a)), f64::from(get(b)));
-                    (va + (vb - va) * (t - a.time_ms as f64) / (b.time_ms - a.time_ms) as f64).round() as i32
-                }
-                (Some(a), Some(_)) => get(a),
-                _ => unset,
-            };
-            set(&mut self.keys[i], v);
+    fn put(k: &mut Key, f: usize, v: i32) {
+        if f == 8 { k.set_turn(v) } else { k.fields[f] = v as i16 }
+    }
+
+    /// Field `f`'s "no key here" and "not set" values.
+    fn skips(f: usize) -> (i32, i32) {
+        if f == 8 { (Key::TURN_THROUGH, Key::TURN_UNSET) } else { (Key::THROUGH.into(), Key::UNSET.into()) }
+    }
+
+    /// Field `f` at `t` ms as `FUN_00197710` works it out: from the last key
+    /// at or before `t` that doesn't pass it through to the next, eased once
+    /// across the keys between (the easing of the last key before `t` that
+    /// gives the field and an easing); held at the value before under mode
+    /// 2 and in the stepped fields (0x24, 0x28–0x3C); a key leaving it unset
+    /// holds the value before until its own time. `None` before it is set.
+    // shortcut: mode 1 (FUN_001972c0's cubic) is taken as eased, as the converter takes it.
+    fn value_at(&self, f: usize, t: u32) -> Option<f64> {
+        let (through, unset) = Self::skips(f);
+        let v = |k: &Key| Self::get(k, f);
+        let held = |end: usize| self.keys[..end].iter().rev().map(v).find(|&x| x != through && x != unset).map(f64::from);
+        let Some(end) = self.keys.iter().position(|k| k.time_ms > t) else { return held(self.keys.len()) };
+        let p = self.keys[..end].iter().rposition(|k| v(k) != through)?;
+        let from = held(p + 1)?;
+        let Some(next) = self.keys[end..].iter().find(|k| v(k) != through).filter(|k| v(k) != unset) else { return Some(from) };
+        let mode = self.keys[..end].iter().rev().find_map(Key::mode);
+        if mode == Some(2) || f == 16 || (18..=28).contains(&f) {
+            return Some(from);
         }
+        let set = |e: &i16| ![Key::UNSET, Key::THROUGH].contains(e);
+        let code = self.keys[..end].iter().rev().find(|k| v(k) != through && set(&k.fields[0])).map_or(0, |k| k.fields[0]);
+        let (t0, t1) = (self.keys[p].time_ms, next.time_ms);
+        let u = if t1 <= t0 { 1.0 } else { f64::from(t - t0) / f64::from(t1 - t0) };
+        let u = super::convert::ease(code.into()).map_or(u, |(e, n)| eased(e, n, u));
+        Some(from + (f64::from(v(next)) - from) * u)
+    }
+
+    /// Each `Key::THROUGH` field given the exe's value at its key; and where
+    /// the converter's one curve per key would miss a field eased across
+    /// such a key (each key's way there eased on its own), the way cut into
+    /// straight steps of the exe's values (8 a key, fewer past 64 keys).
+    fn through_resolved(self) -> Self {
+        let through = |k: &Key| Self::FIELDS.iter().any(|&f| Self::get(k, f) == Self::skips(f).0);
+        if !self.keys.iter().any(through) {
+            return self;
+        }
+        let exact = |t: u32, k: &mut Key| {
+            for f in Self::FIELDS {
+                Self::put(k, f, self.value_at(f, t).map_or(Self::skips(f).1, |x| x.round() as i32));
+            }
+        };
+        let mut keys = self.keys.clone();
+        for k in &mut keys {
+            let passed: Vec<usize> = Self::FIELDS.into_iter().filter(|&f| Self::get(k, f) == Self::skips(f).0).collect();
+            for f in passed {
+                Self::put(k, f, self.value_at(f, k.time_ms).map_or(Self::skips(f).1, |x| x.round() as i32));
+            }
+        }
+        // What the converter draws (convert.rs `run_motion`): each key reached along the easing last
+        // set before it, a field a key leaves unset holding; mode 2 holds, so it is exact at the keys.
+        let in_force = |j: usize| self.keys[..=j].iter().rev().find_map(|k| k.easing().filter(|&e| e != Key::THROUGH)).unwrap_or(0);
+        let followed = [(2, Self::X), (3, Self::Y), (4, Self::ALPHA), (10, Self::ZOOM_X), (11, Self::ZOOM_Y), (8, Self::TURN)];
+        let carried = |f: usize, j: usize| keys[..=j].iter().rev().map(|k| Self::get(k, f)).find(|&x| x != Self::skips(f).1).map(f64::from);
+        let pieces = |a: u32, b: u32, n: u32| (1..n).map(move |s| a + (b - a) * s / n);
+        let off = |j: usize, n: u32| {
+            let (a, b) = (&self.keys[j], &self.keys[j + 1]);
+            b.time_ms > a.time_ms + 1
+                && self.keys[..=j].iter().rev().find_map(Key::mode) != Some(2)
+                && followed.iter().filter(|(_, m)| self.mask & m != 0).any(|&(f, _)| {
+                    let (Some(va), Some(vb)) = (carried(f, j), carried(f, j + 1)) else { return false };
+                    pieces(a.time_ms, b.time_ms, n).any(|t| {
+                        let u = f64::from(t - a.time_ms) / f64::from(b.time_ms - a.time_ms);
+                        let u = super::convert::ease(in_force(j).into()).map_or(u, |(e, n)| eased(e, n, u));
+                        self.value_at(f, t).is_some_and(|x| (x - (va + (vb - va) * u)).abs() > 1.0)
+                    })
+                })
+        };
+        let cut: Vec<bool> = (0..keys.len()).map(|j| j + 1 < keys.len() && off(j, 8)).collect();
+        let count = cut.iter().filter(|&&c| c).count() as u32;
+        let n = 64u32.saturating_sub(keys.len() as u32).checked_div(count).map_or(1, |n| (n + 1).min(8));
+        if n < 2 {
+            return Motion { keys, ..self };
+        }
+        let mut out = Vec::new();
+        for (j, mut k) in keys.into_iter().enumerate() {
+            // Every key says its easing, as the steps between change the one in force.
+            k.fields[0] = if cut[j] { 0 } else { in_force(j) };
+            out.push(k);
+            if cut[j] {
+                for t in pieces(self.keys[j].time_ms, self.keys[j + 1].time_ms, n) {
+                    let mut step = Key { time_ms: t, fields: [Key::UNSET; 30] };
+                    step.fields[0] = 0;
+                    exact(t, &mut step);
+                    out.push(step);
+                }
+            }
+        }
+        Motion { keys: out, ..self }
     }
 }
 
@@ -236,7 +310,7 @@ impl Exe {
                     .collect::<Result<_, FormatError>>()?;
                 let mask = u64::from_le_bytes(self.bytes(MOTION_MASKS + 8 * (m + 1), 8)?.try_into().unwrap());
                 let loop_from = run_switch(&self.image, MOTION_LOOP - BASE, m as u64 + 1)?;
-                Ok(Motion { length_ms: self.u32(MOTION_LENGTH + 4 * m)?, keys, mask, loop_from }.through_filled())
+                Ok(Motion { length_ms: self.u32(MOTION_LENGTH + 4 * m)?, keys, mask, loop_from }.through_resolved())
             })
             .collect()
     }
@@ -391,10 +465,29 @@ mod tests {
             fields[2] = x;
             Key { time_ms, fields }
         };
-        let m = Motion { mask: 0, length_ms: 1700, keys: vec![key(0, -205), key(1000, 885), key(1400, Key::THROUGH), key(1700, 175), key(1800, Key::THROUGH)], loop_from: 0 }.through_filled();
+        let m = Motion { mask: 0, length_ms: 1700, keys: vec![key(0, -205), key(1000, 885), key(1400, Key::THROUGH), key(1700, 175), key(1800, Key::THROUGH)], loop_from: 0 }.through_resolved();
         let xs: Vec<_> = m.keys.iter().map(Key::x).collect();
-        // 885 + (175 − 885) × 400 / 700
-        assert_eq!(xs, [Some(-205), Some(885), Some(479), Some(175), None]);
+        // 885 + (175 − 885) × 400 / 700; the last held
+        assert_eq!(xs, [Some(-205), Some(885), Some(479), Some(175), Some(175)]);
+    }
+
+    #[test]
+    fn a_field_passed_through_is_eased_once_across() {
+        let key = |time_ms, easing, x, y| {
+            let mut fields = [Key::UNSET; 30];
+            (fields[0], fields[2], fields[3]) = (easing, x, y);
+            Key { time_ms, fields }
+        };
+        // easing 3: out quad; x from 0 to 1000 across the key at 500, y to 100 at it
+        let keys = vec![key(0, 3, 0, 0), key(500, Key::UNSET, Key::THROUGH, 100), key(1000, Key::UNSET, 1000, Key::UNSET)];
+        let m = Motion { mask: Motion::X | Motion::Y, length_ms: 1000, keys, loop_from: 0 }.through_resolved();
+        let at = |t| m.keys.iter().find(|k| k.time_ms == t).map(|k| (k.easing(), k.x(), k.y()));
+        // x: 1000 × (1 − (1 − t)²) across both; y: 100 × the same to 500, then held. Cut in 8 to
+        // 500; from there out quad from 750 to 1000 is the exe's curve already.
+        assert_eq!(m.keys.len(), 3 + 7);
+        assert_eq!(at(250), Some((Some(0), Some(438), Some(75))));
+        assert_eq!(at(500), Some((Some(3), Some(750), Some(100))));
+        assert_eq!(at(1000), Some((Some(3), Some(1000), None)));
     }
 
     #[test]
@@ -404,7 +497,7 @@ mod tests {
             k.set_turn(turn);
             k
         };
-        let m = Motion { mask: Motion::TURN, length_ms: 400, keys: vec![key(0, 0), key(100, Key::TURN_THROUGH), key(200, 36000), key(400, Key::TURN_UNSET)], loop_from: 0 }.through_filled();
+        let m = Motion { mask: Motion::TURN, length_ms: 400, keys: vec![key(0, 0), key(100, Key::TURN_THROUGH), key(200, 36000), key(400, Key::TURN_UNSET)], loop_from: 0 }.through_resolved();
         assert_eq!(m.keys.iter().map(Key::turn).collect::<Vec<_>>(), [Some(0), Some(18000), Some(36000), None]);
     }
 }
