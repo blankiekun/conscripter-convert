@@ -1,7 +1,7 @@
 //! Menus the engine draws (CONscripter's `screen`, COMMANDS.md "Screens"):
 //! the save and load menus, the settings and the yes/no dialog as Lua
 //! tables in `screens/`, for a [`SaveMenu`], and a [`SettingsMenu`] with
-//! `engine_screen`.
+//! pictures.
 
 use std::fmt::Write as _;
 
@@ -16,7 +16,7 @@ pub(crate) fn engine_menu(script: &Script) -> Option<&SaveMenu> {
 
 /// The settings are the engine's.
 pub(crate) fn engine_settings(script: &Script) -> Option<&SettingsMenu> {
-    script.settings.as_ref().filter(|m| m.engine_screen && m.pictures.is_none()).filter(|_| script.picture_settings.is_none())
+    script.settings.as_ref().filter(|m| m.pictures.is_none()).filter(|_| script.picture_settings.is_none())
 }
 
 /// The files under `screens/` (name, UTF-8 Lua), empty when the game has
@@ -387,7 +387,6 @@ mod tests {
             pictures: None,
             defaults: Vec::new(),
             switches_off: Vec::new(),
-            engine_screen: true,
             text_ms: None,
         };
         let lua = settings_lua(&m, None, None, None);

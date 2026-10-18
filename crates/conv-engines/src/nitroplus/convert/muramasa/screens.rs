@@ -143,7 +143,7 @@ fn settings(a: &mut dyn Assets, story: &Story) -> Option<PictureSettings> {
         fade_ms: 300,
         pair_fade_ms: 100,
         voice_window,
-        engine_screen: Some(SettingsScreen { chosen, voices_checked, steps_chosen: Vec::new() }),
+        screen: SettingsScreen { chosen, voices_checked, steps_chosen: Vec::new() },
     })
 }
 
@@ -275,7 +275,7 @@ fn settings_en(a: &mut dyn Assets) -> Option<PictureSettings> {
         fade_ms: 300,
         pair_fade_ms: 0,
         voice_window: None,
-        engine_screen: Some(SettingsScreen { chosen, voices_checked: Vec::new(), steps_chosen: Vec::new() }),
+        screen: SettingsScreen { chosen, voices_checked: Vec::new(), steps_chosen: Vec::new() },
     })
 }
 
@@ -427,7 +427,6 @@ fn line_log(a: &mut dyn Assets, en: bool) -> Option<LineLog> {
         fade_ms: 300,
         outline: None,
         row_width: en.then_some(570),
-        engine_screen: true,
     })
 }
 
@@ -511,7 +510,6 @@ fn save_grid(a: &mut dyn Assets) -> Option<SaveGrid> {
         quick_page: false,
         play_time_prefix: String::new(),
         play_time_hm: false,
-        engine_screen: true,
     })
 }
 
@@ -650,7 +648,6 @@ fn save_grid_en(a: &mut dyn Assets) -> Option<SaveGrid> {
         quick_page: true,
         play_time_prefix: "PLAY TIME ".into(),
         play_time_hm: true,
-        engine_screen: true,
     })
 }
 

@@ -360,7 +360,7 @@ pub fn settings_menu(assets: &mut ArchiveAssets, labels: &Labels) -> Option<Sett
             (Setting::SystemVolume, 6),
         ],
         switches_off: vec![Switch::BgmFullForVoice],
-        engine_screen: false,
+        
         // src: exe 0x81126a80, 0x8107145c: a character every 15, 5 and 1
         // updates (遅い, 普通, 早い: speeds 59, 55, 10; 一括 at once). The
         // text drawer runs once per scene update, and an update is 2

@@ -630,7 +630,6 @@ impl AssetBank {
                 (Setting::WindowTransparency, 0),
             ],
             switches_off: Vec::new(),
-            engine_screen: true,
             // src: exe 0x484d60: the dialog's text speed slider, 10 steps
             // of 0-100 ms a character (0 = at once).
             text_ms: Some([100, 90, 80, 70, 60, 50, 40, 30, 20, 10, 0]),
