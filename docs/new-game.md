@@ -167,6 +167,33 @@ items of section 2's list "Mapping the whole exe", not rows of this table.
   check all targets across the corpus. A wrong guess still produces a
   script that runs.
 
+### Running one exe function
+
+When a value comes out of a small function (a curve, a table lookup,
+the corners of a sprite quad), run that function rather than reading
+its maths: `research/tools/exe_call.py` maps the exe into the Unicorn
+CPU emulator (a PE x86-32 at its ImageBase, a Vita eboot ELF at its own
+addresses, a Switch NSO at 0x100000 with its relocations: Ghidra's
+addresses throughout)
+and calls one address with int, float and pointer arguments (x86
+cdecl/stdcall/thiscall/fastcall, ARM hard-float AAPCS, AArch64), then
+prints the return value and any buffers; calls into imports, or into
+addresses given with `--stub`, return 0 or a chosen value and are
+listed. Seconds, no game, no wine. Its Python API (`Exe(path).call`)
+runs thousands of calls for a sweep. Setup, once per machine (pip
+refuses `--user` on a system Python):
+`python3 -m venv research/tools/.venv && research/tools/.venv/bin/pip
+install unicorn==2.1.4`. Examples: `research/nitroplus/en_tempo_exe.py`
+(every tempo curve of the English Muramasa's table, checked by a test
+in `muramasa.rs`), and 俺たちに翼はない's sprite quad with a negative
+scale (`docs/games/oretsuba.findings.tsv`). Limits: no OS, so a
+function that allocates, does file or GPU work, or reads state the
+game set up needs that state written into memory first (fields of an
+object passed as a buffer); a stdcall import's stub leaves its
+arguments on the stack; the Vita's SCE relocations and import stubs
+are not read (the eboot runs at its own addresses, so only an import
+call is wrong: stub it).
+
 ### Marking what a finding rests on
 
 Mark each finding **seen** (the code, a script or a trace shows it),

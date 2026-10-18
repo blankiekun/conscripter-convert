@@ -69,6 +69,10 @@ bullet you need.
 - Test scripts: UTF-8 with `--enc:utf8` in `ons_args`, as the builds;
   a Shift-JIS one with `iconv -t cp932` (not `sjis`, which turns `\` into
   `＼`) and `--enc:sjis`.
+- One function of the exe without the game: `research/tools/.venv/bin/python
+  -I research/tools/exe_call.py <exe> <addr|*table+4*i> [args] --ret
+  float` (PE, Vita ELF, Switch NSO under Unicorn; `docs/new-game.md`,
+  "Running one exe function").
 - Read a variable headless: `lsp 999,"X:"+$1,0,0` prints "can't find
   file X:..." on stderr.
 

@@ -151,6 +151,14 @@ match Muramasa.exe's curves (`tempo` in `convert.rs`) except `AxlDxl`
 and `DxlAxl`, where Muramasa.exe has a cosine and an arccosine
 (`diesel_tempo` in `muramasa.rs`).
 
+Run in the exe (`research/tools/exe_call.py`;
+`research/nitroplus/en_tempo_exe.py <exe>` prints them), the eleven
+curves above give our shares at t = 0, 1/16, …, 1 to within 2e-6 (a test
+in `muramasa.rs` holds the exe's numbers). The rest of the table, from
+`--all`: ids 7-16 are t⁵…t⁹ in and out, 19-32 the in-out pairs up to
+t⁹, 33-96 overshoot below 0 or past 1, and 132 (`DxlAxl1d`) gives the
+same as 131 (`AxlDxl1d`, ½ - ½cos πt); no scene uses these.
+
 ## Scripts (Squirrel 2.2)
 
     python3 -I research/nitroplus/nut.py FILE.nut [--strings | --tables]
