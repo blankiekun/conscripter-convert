@@ -593,17 +593,6 @@ impl Assets for NpaAssets<'_> {
         Some(rel)
     }
 
-    fn veil_cut(&mut self, veil: &str) -> Option<String> {
-        let rel = veil.replace("veil_", "veilcut_");
-        if self.out.dry_run || self.out.root.join(&rel).exists() {
-            return Some(rel);
-        }
-        let mut m = image::open(self.out.root.join(veil)).ok()?.into_rgba8();
-        m.pixels_mut().for_each(|p| *p = image::Rgba([0, 0, 0, 255 - p.0[3]]));
-        self.out.write_png(&rel, &m);
-        Some(rel)
-    }
-
     fn rgba(&mut self, path: &str) -> Option<image::RgbaImage> {
         if self.out.dry_run {
             return None;

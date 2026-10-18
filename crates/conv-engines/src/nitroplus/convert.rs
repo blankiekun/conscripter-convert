@@ -348,9 +348,6 @@ pub trait Assets {
     /// of the output picture `mask` stretched over the screen
     /// (`DrawTransition` stopped partway, [`transition::table`]). Its path.
     fn veil(&mut self, mask: &str, table: &[u8; 256]) -> Option<String>;
-    /// A [`Assets::veil`] as `spcut` takes it: black, as opaque as the
-    /// veil is clear. Its path.
-    fn veil_cut(&mut self, veil: &str) -> Option<String>;
     /// A picture decoded: one the scripts name (`cg/…`) or one in the
     /// output (`system/…`). `None` in a dry run.
     fn rgba(&mut self, path: &str) -> Option<image::RgbaImage>;
@@ -4429,9 +4426,6 @@ mod tests {
         }
         fn veil(&mut self, mask: &str, table: &[u8; 256]) -> Option<String> {
             Some(format!("{mask}~{}", table.iter().filter(|&&v| v > 0).count()))
-        }
-        fn veil_cut(&mut self, veil: &str) -> Option<String> {
-            Some(format!("{veil}-cut"))
         }
         fn movie_frames(&mut self, path: &str, at: Option<u32>, alpha: bool, dark: bool) -> Option<(String, u32, u32, u32)> {
             let (w, h) = if alpha { (200, 108) } else { (1024, 576) };

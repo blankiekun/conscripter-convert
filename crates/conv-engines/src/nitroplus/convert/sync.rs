@@ -198,18 +198,12 @@ impl Compiler<'_, '_> {
         }
         // A cover moved, zoomed, turned, blended or waved: a copy of the screen under
         // it, taken as it is first shown, drawn as one picture.
-        let grabbed: Vec<_> = self.objects.iter().filter(|(n, o)| self.grabs(n, o)).map(|(n, o)| (n.clone(), o.clone())).collect();
-        for (n, o) in &grabbed {
-            {
+        for (n, o) in &self.objects {
+            if self.grabs(n, o) {
                 let opacity = self.drawn_opacity(n, o.opacity);
                 // (Its size as drawn, about its centre: zoomed by the engine.)
                 let (w, h) = (o.w * o.zoom.0 / 1000, o.h * o.zoom.1 / 1000);
-                // A partial `DrawTransition`'s veil: cut out of the copy (`spcut`).
-                let image = match o.veil.clone().and_then(|v| self.assets.veil_cut(&v)) {
-                    Some(cut) => format!("{SCREEN_UNDER}|{cut}"),
-                    None => SCREEN_UNDER.into(),
-                };
-                let shown = Shown { layer: 0, image, x: o.x + (o.w - w) / 2, y: o.y + (o.h - h) / 2, w, h, opacity, cells: None, source: String::new(), zoom: (1000, 1000), angle: o.angle(), clip: None, engine: Engine::default(), flash: 0, blend: o.blend, tint: None, over: false, whole: None };
+                let shown = Shown { layer: 0, image: SCREEN_UNDER.into(), x: o.x + (o.w - w) / 2, y: o.y + (o.h - h) / 2, w, h, opacity, cells: None, source: String::new(), zoom: (1000, 1000), angle: o.angle(), clip: None, engine: Engine::default(), flash: 0, blend: o.blend, tint: None, over: false, whole: None, mask: o.veil.clone() };
                 want.push((n.clone(), shown, (o.priority, o.seq), o.zoom, (o.w, o.h), (false, false)));
             }
         }
@@ -227,7 +221,7 @@ impl Compiler<'_, '_> {
                 (shown.source, shown.zoom) = (shown.image.clone(), zoom);
                 shown.over = self.over_text(&n);
                 if zoom != (1000, 1000)
-                    && !shown.image.starts_with(SCREEN_UNDER)
+                    && shown.image != SCREEN_UNDER
                     && let Some((image, x, y, sw, sh)) = self.assets.scaled(&shown.image, zoom.0, zoom.1, (shown.x, shown.y, w, h))
                 {
                     let (ww, wh) = (w * zoom.0 / 1000, h * zoom.1 / 1000);
@@ -477,7 +471,7 @@ impl Compiler<'_, '_> {
             // (Not moved at all too, so that a `Random` pick of 0 leaves
             // the sprite as the other picks: moved by the engine.)
             // (A copy of the screen also as it zooms: a picture's zoom is in its image.)
-            let grab_zoom = size_from.get(name).filter(|z| now.image.starts_with(SCREEN_UNDER) && z.0 > 0 && z.1 > 0 && **z != now.zoom).copied();
+            let grab_zoom = size_from.get(name).filter(|z| now.image == SCREEN_UNDER && z.0 > 0 && z.1 > 0 && **z != now.zoom).copied();
             if t == 0 || !from.contains_key(name) && grown.is_none() && grab_zoom.is_none() || self.shown.contains_key(name) || turning.contains_key(name) || paths.contains_key(name) {
                 continue;
             }
@@ -778,7 +772,7 @@ impl Compiler<'_, '_> {
                         }
                         // A copy of the screen: taken unzoomed, zoomed by the engine about its centre.
                         // shortcut: one placed again (another layer) is taken again, from the screen as it is then
-                        None if now.image.starts_with(SCREEN_UNDER) => {
+                        None if now.image == SCREEN_UNDER => {
                             let (x, y) = self.objects.get(&name).map_or((0, 0), |o| (o.x, o.y));
                             // (Before its motion, which spzoom would cut short.)
                             if now.zoom != (1000, 1000) || now.angle != 0 {
@@ -848,7 +842,7 @@ impl Compiler<'_, '_> {
                         now.engine.zoomed = true;
                     }
                     // spzoom's angle stays through lsp: cleared with the layer later.
-                    if now.angle != 0 && !now.image.starts_with(SCREEN_UNDER) {
+                    if now.angle != 0 && now.image != SCREEN_UNDER {
                         let zoom = now.cells.map_or((100, 100), |c| c.2);
                         opacity.push(Op::SpriteAngle { layer, degrees: now.angle as i32, zoom });
                         now.engine.zoomed = true;

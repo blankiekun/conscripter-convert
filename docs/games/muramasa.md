@@ -783,7 +783,7 @@ engine: the background and the sprites drawn before n), taken when it is
 first shown while the screen under it is still what it froze; the engine
 zooms it (`spzoom`, the zoom over time as `spmotion` keys from the start
 zoom), blends it (`spblend`), waves it (`spwave`), and a partial
-`DrawTransition`'s veil cuts it (`spcut` with `system/veilcut_*.png`,
+`DrawTransition`'s veil cuts it (`spmask`, laid on the screen,
 md05_016vs 1049-1050). 153 copies in Muramasa (55 scenes: ma04_013vs's
 additive zoomed flashes, mc01_020vsa's ghosted 1100/1300 copies, …);
 Django has no `Plain` covers. Wave notes on covers 10 → 3.
