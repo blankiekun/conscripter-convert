@@ -83,6 +83,8 @@ pub fn build(game: &Path, run: &Run, opts: &Opts) -> Result<Built> {
         anyhow::bail!("--original-archives doesn't take --english yet (the Japanese pictures would win)");
     }
     let mut port = crate::metrics::Metrics::default();
+    // the Japanese, compiled too: its text fills text.ja.txt
+    let ja_files = run.english.map(|_| files.clone());
     if let Some(dir) = run.english {
         let report = english::English::load(&open_npk(dir, "script.npk")?)?.apply(&mut files);
         println!(
@@ -145,6 +147,7 @@ pub fn build(game: &Path, run: &Run, opts: &Opts) -> Result<Built> {
     }
     // The game's own additions to the compiler, by its exe.
     let g = GAMES.iter().find(|(exe, _)| *exe == exe_name).map_or(&Game::PLAIN, |(_, g)| *g);
+    let g_ja = g;
     let g = if run.english.is_some() && exe_name == "Muramasa.exe" { &convert::MURAMASA_EN } else { g };
     assets.screen = g.screen;
     let (file, scene) = match (run.file, g.story) {
@@ -152,15 +155,19 @@ pub fn build(game: &Path, run: &Run, opts: &Opts) -> Result<Built> {
         (None, Some((file, story))) => (file, run.scene.unwrap_or(story)),
         (None, None) => anyhow::bail!("this game needs --file"),
     };
-    let compiled = match run.chain {
-        _ if g.story.is_some_and(|s| s.0 == file) => convert::compile_story(&files, file, scene, g, &mut assets).map_err(anyhow::Error::msg)?,
-        Some(n) => {
-            let (compiled, played) = convert::compile_run(&files, file, n, g, &mut assets).map_err(anyhow::Error::msg)?;
-            println!("{} files: {}", played.len(), played.join(" "));
-            compiled
-        }
-        None => convert::compile_scene(&files, file, scene, g, &mut assets).map_err(anyhow::Error::msg)?,
+    let compile = |files: &BTreeMap<String, nss::NssFile>, g: &'static Game, assets: &mut NpaAssets| -> Result<convert::Compiled> {
+        Ok(match run.chain {
+            _ if g.story.is_some_and(|s| s.0 == file) => convert::compile_story(files, file, scene, g, assets).map_err(anyhow::Error::msg)?,
+            Some(n) => {
+                let (compiled, played) = convert::compile_run(files, file, n, g, assets).map_err(anyhow::Error::msg)?;
+                println!("{} files: {}", played.len(), played.join(" "));
+                compiled
+            }
+            None => convert::compile_scene(files, file, scene, g, assets).map_err(anyhow::Error::msg)?,
+        })
     };
+    let compiled = compile(&files, g, &mut assets)?;
+    let ja = ja_files.map(|f| compile(&f, g_ja, &mut assets)).transpose()?;
     for e in &assets.out.errors {
         println!("  asset error: {e}");
     }
@@ -188,13 +195,21 @@ pub fn build(game: &Path, run: &Run, opts: &Opts) -> Result<Built> {
         ..Default::default()
     };
     g.menus(&mut assets, &mut ir, &story);
+    // the Japanese's text lines as the English build lays them out around them
+    let translation = ja.map(|c| {
+        let ops = std::mem::take(&mut ir.ops);
+        let map = std::mem::take(&mut ir.source_map);
+        let t = Script { ops: c.ops, source_map: c.source_map, window: c.window, single_byte_text: false, language: "ja".into(), ..ir.clone() };
+        (ir.ops, ir.source_map) = (ops, map);
+        t
+    });
     if run.original_archives {
         original_archives(game, &key, &mut assets, opts.output)?;
     }
     println!("{file} -> {scene} -> {}", opts.output.join("0.txt").display());
     let mut metrics = compiled.metrics;
     metrics.merge(port);
-    Ok(Built { ir, notes: compiled.notes, metrics, engine: "nitroplus", engine_doc: "nitroplus-nss", picture_dirs: &PICTURE_DIRS, audio_dirs: AUDIO_DIRS, package: None })
+    Ok(Built { ir, notes: compiled.notes, metrics, engine: "nitroplus", engine_doc: "nitroplus-nss", picture_dirs: &PICTURE_DIRS, audio_dirs: AUDIO_DIRS, package: None, translation })
 }
 
 /// Writes `cons_archives.txt` (each script folder and its archive) and

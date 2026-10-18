@@ -312,13 +312,24 @@ const TEXT_COLOR: &str = "#FFFFFF";
 /// Renders the script as NScripter source text (use [`encode`] for the
 /// bytes CONscripter reads).
 pub fn emit(script: &Script) -> String {
-    emit_mapped(script).0
+    emit_mapped(script, strtab::Strings::default()).script
 }
 
-/// [`emit`], and where its lines came from ([`Script::source_map`]): (a
-/// line number, from 1; the source instruction of it and the lines after
-/// it up to the next entry, `None` = none).
-pub fn emit_mapped(script: &Script) -> (String, Vec<(usize, Option<SourceLoc>)>) {
+/// A script emitted by [`emit_mapped`].
+pub struct Emitted {
+    pub script: String,
+    /// Where its lines came from ([`Script::source_map`]): a line number,
+    /// from 1; the source instruction of it and the lines after it up to
+    /// the next entry, `None` = none.
+    pub lines: Vec<(usize, Option<SourceLoc>)>,
+    /// Its text table, when `strings` put the text in one.
+    pub rows: Vec<strtab::Row>,
+}
+
+/// [`emit`], with the text where `strings` puts it, and where the lines
+/// came from.
+pub fn emit_mapped(script: &Script, strings: strtab::Strings) -> Emitted {
+    let mut strings = strings;
     let effects = fade_effects(script);
     let has_ruby = script.ops.iter().any(|op| matches!(op, Op::Text { ruby, .. } if !ruby.is_empty()));
     let has_overlay = script.ops.iter().any(|op| matches!(op, Op::Overlay { .. }));
@@ -517,7 +528,7 @@ pub fn emit_mapped(script: &Script) -> (String, Vec<(usize, Option<SourceLoc>)>)
     // setwindow redraws the screen, so it must come after `game` (ONScripter
     // crashes if it runs in the define section).
     if let Some(w) = &script.window {
-        writeln!(out, "{}", setwindow(w, speed, has_ruby, has_vertical, true, script)).unwrap();
+        writeln!(out, "{}", strings.lines(strtab::WINDOW, &setwindow(w, speed, has_ruby, has_vertical, true, script))).unwrap();
         // Keep the window up while sprites change and pages are printed
         // (by default every print hides it until the next text, which
         // flickers); the script hides it explicitly with textoff.
@@ -608,18 +619,22 @@ pub fn emit_mapped(script: &Script) -> (String, Vec<(usize, Option<SourceLoc>)>)
             _ => None,
         })
         .collect();
-    let mut e = ops::Emitter { script, out, effects, has_ruby, has_overlay, has_noise, has_chapters, has_animation, root_returns, has_replay, has_vertical, border, voice_switches, duck, back_to_choice, speed, link_depth, clear_fade, restore_overlay, link_targets, zoomed_layers, root_resumes, puzzles, button_screens, plate_choices, picture_screens, se, se_not_skipped, noise_fade_in, move_ease, move_nowait, move_arc, eased, needs_click_wait, plate_visible, link_pages, transition, window, page_rows, page_tag, text_goes_on: false, fading };
+    let mut e = ops::Emitter { script, out, effects, has_ruby, has_overlay, has_noise, has_chapters, has_animation, root_returns, has_replay, has_vertical, border, voice_switches, duck, back_to_choice, speed, link_depth, clear_fade, restore_overlay, link_targets, zoomed_layers, root_resumes, puzzles, button_screens, plate_choices, picture_screens, se, se_not_skipped, noise_fade_in, move_ease, move_nowait, move_arc, eased, needs_click_wait, plate_visible, link_pages, transition, window, page_rows, page_tag, text_goes_on: false, fading, strings };
     // (byte offset in out, source), up to the end of the ops' lines
     let mut starts: Vec<(usize, Option<&SourceLoc>)> = Vec::new();
     let mut map = script.source_map.iter().peekable();
     for (i, op) in script.ops.iter().enumerate() {
         while let Some((_, at)) = map.next_if(|(o, _)| *o <= i) {
             starts.push((e.out.len(), Some(at)));
+            e.strings.at = format!("{}:{}", at.file, at.index);
+        }
+        if let Op::Label(name) = op {
+            e.strings.label = name.clone();
         }
         e.op(i, op);
     }
     starts.push((e.out.len(), None));
-    let ops::Emitter { mut out, effects, eased, needs_click_wait, .. } = e;
+    let ops::Emitter { mut out, effects, eased, needs_click_wait, strings, .. } = e;
     let effect = |ms: u32| if ms == 0 { "1".to_string() } else { effects[&(ms, Effect::Fade)].clone() };
     writeln!(out, "end").unwrap();
     // shortcut: clears the name plate's old sprites 49/50 from saves made before #222, and the link words' 51-58 from before the link names; drop once no such saves are played
@@ -731,7 +746,7 @@ pub fn emit_mapped(script: &Script) -> (String, Vec<(usize, Option<SourceLoc>)>)
     if script.source_map.is_empty() {
         lines.clear();
     }
-    (out, lines)
+    Emitted { script: out, lines, rows: strings.rows }
 }
 
 /// The title menu: buttons are sprites over the picture, faded in together;
@@ -3349,7 +3364,7 @@ return
         let ops = vec![Op::Label("a".into()), Op::Wait { ms: 5 }, Op::Wait { ms: 7 }];
         // instruction 0 lowered to nothing: instruction 1's line wins
         let script = Script { ops, source_map: vec![(0, at(0)), (0, at(1)), (2, at(2))], ..Default::default() };
-        let (out, map) = emit_mapped(&script);
+        let Emitted { script: out, lines: map, .. } = emit_mapped(&script, strtab::Strings::default());
         let lines: Vec<&str> = out.lines().collect();
         assert_eq!(map.len(), 3, "{map:?}");
         assert_eq!((lines[map[0].0 - 1], &map[0].1), ("*a", &Some(at(1))));

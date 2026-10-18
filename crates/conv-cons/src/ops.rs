@@ -2,6 +2,7 @@
 //! the state the ops share while the script is written in order.
 
 use super::*;
+use crate::strtab::{CHOICE, LOG, NAME, TEXT, WINDOW};
 
 /// What [`emit`] keeps while it writes the ops in order: what the script
 /// has (worked out first) and what the ops before left behind.
@@ -55,6 +56,8 @@ pub(crate) struct Emitter<'a> {
     /// The last page stopped for code inside it ([`conv_core::ir::GOES_ON_MARK`]): the
     /// next text goes on in it.
     pub text_goes_on: bool,
+    /// Where text goes: inline or in the text table.
+    pub strings: crate::strtab::Strings,
 }
 
 impl<'a> Emitter<'a> {
@@ -63,7 +66,7 @@ impl<'a> Emitter<'a> {
         if !matches!(op, Op::Sprites { .. } | Op::SpritesFading { .. } | Op::SpriteMotion { .. } | Op::SpriteMotion2 { .. } | Op::SpriteMove { .. } | Op::MoveEase { .. } | Op::MoveNoWait | Op::MoveArc { .. }) {
             self.fading.clear();
         }
-        let &mut Emitter { has_ruby, has_overlay, has_noise, has_chapters, has_animation, root_returns, has_replay, has_vertical, border, voice_switches, duck, back_to_choice, speed, link_depth, script, ref clear_fade, ref restore_overlay, ref effects, ref link_targets, ref zoomed_layers, ref mut out, ref mut root_resumes, ref mut puzzles, ref mut button_screens, ref mut plate_choices, ref mut picture_screens, ref mut se, ref mut se_not_skipped, ref mut noise_fade_in, ref mut move_ease, ref mut move_nowait, ref mut move_arc, ref mut eased, ref mut needs_click_wait, ref mut plate_visible, ref mut link_pages, ref mut transition, ref mut window, ref mut page_rows, ref mut page_tag, ref mut text_goes_on, fading: ref mut fading_slots } = self;
+        let &mut Emitter { has_ruby, has_overlay, has_noise, has_chapters, has_animation, root_returns, has_replay, has_vertical, border, voice_switches, duck, back_to_choice, speed, link_depth, script, ref clear_fade, ref restore_overlay, ref effects, ref link_targets, ref zoomed_layers, ref mut out, ref mut root_resumes, ref mut puzzles, ref mut button_screens, ref mut plate_choices, ref mut picture_screens, ref mut se, ref mut se_not_skipped, ref mut noise_fade_in, ref mut move_ease, ref mut move_nowait, ref mut move_arc, ref mut eased, ref mut needs_click_wait, ref mut plate_visible, ref mut link_pages, ref mut transition, ref mut window, ref mut page_rows, ref mut page_tag, ref mut text_goes_on, ref mut strings, fading: ref mut fading_slots } = self;
         let effect = |ms: u32| if ms == 0 { "1".to_string() } else { effects[&(ms, Effect::Fade)].clone() };
         let visited = |target: &str| format!("?{LINK_VISITED}[{}]", link_targets.iter().position(|&t| t == target).unwrap());
     if let Op::Text { .. } = op {
@@ -182,16 +185,16 @@ impl<'a> Emitter<'a> {
         Op::StopAutoSkip => writeln!(out, "skipoff:autooff").unwrap(),
         Op::BacklogLine { text, voice, character } => match (voice, character) {
             (Some(v), Some(c)) if voice_switches && crate::line_log_screen::engine_log(script).is_some() => {
-                writeln!(out, "logadd \"{}\",\"{}\",{c}", escape(text), path(v)).unwrap()
+                writeln!(out, "logadd \"{}\",\"{}\",{c}", strings.string(LOG, escape(text)), path(v)).unwrap()
             }
-            (Some(v), _) => writeln!(out, "logadd \"{}\",\"{}\"", escape(text), path(v)).unwrap(),
-            (None, _) => writeln!(out, "logadd \"{}\"", escape(text)).unwrap(),
+            (Some(v), _) => writeln!(out, "logadd \"{}\",\"{}\"", strings.string(LOG, escape(text)), path(v)).unwrap(),
+            (None, _) => writeln!(out, "logadd \"{}\"", strings.string(LOG, escape(text))).unwrap(),
         },
         Op::RuntimeBacklogLine { text, runtime } => {
             let s = crate::RUNTIME_LOG;
-            writeln!(out, "mov {s},\"{}\"", escape(text)).unwrap();
+            writeln!(out, "mov {s},\"{}\"", strings.string(LOG, escape(text))).unwrap();
             for (value, t) in &runtime.texts {
-                writeln!(out, "if {} == {value} mov {s},\"{}\"", var_name(runtime.var, border), escape(t)).unwrap();
+                writeln!(out, "if {} == {value} mov {s},\"{}\"", var_name(runtime.var, border), strings.string(LOG, escape(t))).unwrap();
             }
             writeln!(out, "logadd {s}").unwrap();
         }
@@ -370,7 +373,7 @@ impl<'a> Emitter<'a> {
         }
         Op::InstantText(on) => writeln!(out, "textspeed {}", if *on { "0" } else { speed }).unwrap(),
         Op::SetWindow(w) => {
-            writeln!(out, "{}", setwindow(w, speed, has_ruby, has_vertical, true, script)).unwrap();
+            writeln!(out, "{}", strings.lines(WINDOW, &setwindow(w, speed, has_ruby, has_vertical, true, script))).unwrap();
             writeln!(out, "csp {NAME_PLATE_SPRITE}:csp {NAME_TEXT_SPRITE}").unwrap();
             *plate_visible = false;
             *page_rows = 0;
@@ -588,7 +591,7 @@ impl<'a> Emitter<'a> {
                     writeln!(
                         out,
                         "strsp {NAME_TEXT_SPRITE},\"{}\",{},{},16,1,{},{},1,0,0,1",
-                        text_safe(name), p.text_x, p.text_y, p.font_size, p.font_size
+                        strings.string(NAME, text_safe(name)), p.text_x, p.text_y, p.font_size, p.font_size
                     )
                     .unwrap();
                     writeln!(out, "print 1").unwrap();
@@ -651,7 +654,7 @@ impl<'a> Emitter<'a> {
                     _ if *continues => "@",
                     _ => "\\",
                 };
-                writeln!(out, "{}{end}", lines.join("\n")).unwrap();
+                writeln!(out, "{}", strings.lines(TEXT, &format!("{}{end}", lines.join("\n")))).unwrap();
                 if indent > 0 {
                     writeln!(out, "indent 0").unwrap();
                 }
@@ -660,7 +663,7 @@ impl<'a> Emitter<'a> {
             *page_rows = 0; // link pages always end with textclear
             // No page wait: the words become buttons and btnwait waits for
             // a click on one of them or anywhere else (= next page).
-            writeln!(out, "{}", lines.join("\n")).unwrap();
+            writeln!(out, "{}", strings.lines(TEXT, &lines.join("\n"))).unwrap();
             if indent > 0 {
                 writeln!(out, "indent 0").unwrap();
             }
@@ -804,7 +807,7 @@ impl<'a> Emitter<'a> {
                 }
                 if let Some(w) = window {
                     // The scene may have switched the text window.
-                    writeln!(out, "{}", setwindow(w, speed, has_ruby, has_vertical, true, script)).unwrap();
+                    writeln!(out, "{}", strings.lines(WINDOW, &setwindow(w, speed, has_ruby, has_vertical, true, script))).unwrap();
                 }
                 if root_returns > 0 {
                     writeln!(out, "if {ROOT_RESUME} != 0 goto *{UNWIND}").unwrap();
@@ -1027,7 +1030,7 @@ impl<'a> Emitter<'a> {
             let plates = style.as_ref().and_then(|s| s.plates.as_ref());
             if let Some(s) = style.as_ref().filter(|_| plates.is_none()) {
                 writeln!(out, "selectcolor \"#{:06X}\",\"#{:06X}\"", s.on_color, s.off_color).unwrap();
-                writeln!(out, "{}", setwindow(&s.window, speed, has_ruby, has_vertical, false, script)).unwrap();
+                writeln!(out, "{}", strings.lines(WINDOW, &setwindow(&s.window, speed, has_ruby, has_vertical, false, script))).unwrap();
                 writeln!(out, "csp {NAME_PLATE_SPRITE}:csp {NAME_TEXT_SPRITE}").unwrap();
                 *plate_visible = false;
                 *page_rows = 0;
@@ -1039,7 +1042,7 @@ impl<'a> Emitter<'a> {
             }
             if let Some(p) = plates {
                 assert!(disabled.is_empty(), "disabled options on picture plates");
-                choice_plates::emit(out, options, texts, p, *plate_choices, script.button_bar.is_some(), border);
+                choice_plates::emit(out, strings, options, texts, p, *plate_choices, script.button_bar.is_some(), border);
                 *plate_choices += 1;
             } else {
                 let mut items = Vec::new();
@@ -1047,13 +1050,13 @@ impl<'a> Emitter<'a> {
                     match texts.get(i).and_then(Option::as_ref) {
                         Some(rt) => {
                             let (s, _) = crate::runtime_option(i);
-                            writeln!(out, "mov {s},\"{}\"", text_safe(t)).unwrap();
+                            writeln!(out, "mov {s},\"{}\"", strings.string(CHOICE, text_safe(t))).unwrap();
                             for (value, text) in &rt.texts {
-                                writeln!(out, "if {} == {value} mov {s},\"{}\"", var_name(rt.var, border), text_safe(text)).unwrap();
+                                writeln!(out, "if {} == {value} mov {s},\"{}\"", var_name(rt.var, border), strings.string(CHOICE, text_safe(text))).unwrap();
                             }
                             items.push(format!("{s},*{}", label(l)));
                         }
-                        None => items.push(format!("\"{}\",*{}", text_safe(t), label(l))),
+                        None => items.push(format!("\"{}\",*{}", strings.string(CHOICE, text_safe(t)), label(l))),
                     }
                 }
                 if !disabled.is_empty() {

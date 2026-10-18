@@ -9,6 +9,7 @@ use std::fmt::Write;
 
 use conv_core::ir::{ChoicePlates, RuntimeText};
 
+use crate::strtab::PLATE;
 use crate::{escape, label, menu, path, var_name, BUTTON_VAR, LINK_SPRITE_COUNT};
 
 /// The sprites there are (two an option).
@@ -17,7 +18,8 @@ const SPRITES: usize = LINK_SPRITE_COUNT;
 /// Writes the choice; `n` keeps its labels apart from other choices'.
 /// `texts[i]`, when given, picks option i's text at run time (centred by
 /// a variable set with it).
-pub(crate) fn emit(out: &mut String, options: &[(String, String)], texts: &[Option<RuntimeText>], p: &ChoicePlates, n: usize, bar: bool, border: u32) {
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn emit(out: &mut String, strings: &mut crate::strtab::Strings, options: &[(String, String)], texts: &[Option<RuntimeText>], p: &ChoicePlates, n: usize, bar: bool, border: u32) {
     assert!(2 * options.len() <= SPRITES, "more choice options than link sprites");
     let l = format!("conv_cplate{n}");
     // The text over its plate: lower handles are drawn on top.
@@ -34,12 +36,13 @@ pub(crate) fn emit(out: &mut String, options: &[(String, String)], texts: &[Opti
         let (text, x, columns) = match texts.get(i).and_then(Option::as_ref) {
             Some(rt) => {
                 let (s, x) = crate::runtime_option(i);
-                writeln!(out, "mov {s},\"{text}\":mov {x},{}", p.text_x - width(&text) / 2).unwrap();
+                writeln!(out, "{}", strings.lines(PLATE, &format!("mov {s},\"{text}\":mov {x},{}", p.text_x - width(&text) / 2))).unwrap();
                 let mut columns = text.chars().count();
                 for (value, t) in &rt.texts {
                     let t = escape(t);
                     columns = columns.max(t.chars().count());
-                    writeln!(out, "if {} == {value} mov {s},\"{t}\":mov {x},{}", var_name(rt.var, border), p.text_x - width(&t) / 2).unwrap();
+                    let line = format!("if {} == {value} mov {s},\"{t}\":mov {x},{}", var_name(rt.var, border), p.text_x - width(&t) / 2);
+                    writeln!(out, "{}", strings.lines(PLATE, &line)).unwrap();
                 }
                 (s, x, columns + 1)
             }
@@ -47,15 +50,10 @@ pub(crate) fn emit(out: &mut String, options: &[(String, String)], texts: &[Opti
         };
         text_at.push((x.clone(), y + p.text_dy));
         writeln!(out, "lsp {},\":a/2,0,3;{}\",{},{y}", plate_slot(i), path(&p.image), p.x).unwrap();
-        writeln!(
-            out,
-            "strsp {},{text},{x},{},{columns},1,{size},{size},0,0,0,1,\"{c}\",\"{c}\"",
-            text_slot(i),
-            y + p.text_dy,
-            size = p.font_size,
-            c = p.colour
-        )
-        .unwrap();
+        let line = format!("strsp {},{text},{x},{},{columns},1,{size},{size},0,0,0,1,\"{c}\",\"{c}\"", text_slot(i), y + p.text_dy, size = p.font_size, c = p.colour);
+        // placed by its width: the whole line is the language's
+        let line = if texts.get(i).is_some_and(Option::is_some) { line } else { strings.lines(PLATE, &line) };
+        writeln!(out, "{line}").unwrap();
     }
     writeln!(out, "{fade}").unwrap();
     writeln!(out, "*{l}_wait").unwrap();

@@ -13,7 +13,7 @@
 # release; needs muramasa too), django, oretsuba, tsukihime (the RomFS of
 # 1.0.2, its ExeFS beside it as ../exefs). A game without its
 # link is skipped. --update writes the snapshots of the games run.
-# Each 0.txt's commands are checked against the engine's command table
+# Each 0.txt's commands (text filled in) are checked against the engine's command table
 # (research/tools/cmdcheck.py): an unknown one is printed.
 # The snapshot also holds a sha256 per other file the dry run writes
 # (screens/*.lua, ons_args, …; not metrics.json or version.txt), so a
@@ -47,7 +47,8 @@
 #
 # --diff REF also builds REF (a commit, branch or tag; origin/main for a
 # fresh base) in its own worktree out/snapshot-ref with its own target
-# dir, dry-runs each game with it and shows what changed in 0.txt with
+# dir, dry-runs each game with it and shows what changed in 0.txt (its
+# text filled in from its table: `conscripter-convert fill`) with
 # research/tools/txtdiff.py (hunks under their labels, changed lines
 # counted by command). --map RULES (a file of s/old/new/ lines, or one
 # such rule) checks that the change is only a rename: the rules map
@@ -145,6 +146,9 @@ job() { # id, then the arguments
     dry "$bin" "out/snapshot/$1" "${key[$1]}" "${@:2}"
     [ -z "$ref" ] || dry $refdir/target/release/conscripter-convert "$refdir/out/$1" "${rkey[$1]}" "${@:2}"
 }
+# A dry run's 0.txt with its text filled in from its table, as the engine
+# reads it (--diff compares these): <out>.filled.
+filled() { if ls "$1"/text.*.txt >/dev/null 2>&1; then "$bin" fill "$1" > "$1.filled"; else cp "$1/0.txt" "$1.filled"; fi; }
 reused=()
 mkdir -p out/snapshot
 [ -z "$ref" ] || mkdir -p $refdir/out
@@ -178,7 +182,8 @@ for id in "${ids[@]}"; do
         echo "$id: dry run failed, see $out.log"; changed=1; continue
     fi
     # every command it uses is in the engine's command table (the submodule's)
-    python3 -I research/tools/cmdcheck.py engine/src/cons/ONScripter_lut.cpp "$out/0.txt" --counts "$out.cmds.json" || changed=1
+    filled "$out"
+    python3 -I research/tools/cmdcheck.py engine/src/cons/ONScripter_lut.cpp "$out.filled" --counts "$out.cmds.json" || changed=1
     csnap=tests/snapshots/$id.cmds.json
     if [ $update = 1 ]; then
         cp "$out.cmds.json" "$csnap"
@@ -192,10 +197,10 @@ for id in "${ids[@]}"; do
         rout=$refdir/out/$id
         if [ "$(cat "$rout.key" 2>/dev/null)" != "${rkey[$id]}" ]; then
             echo "$id: dry run at $ref failed, see $rout.log"; changed=1
-        elif python3 -I research/tools/txtdiff.py "$rout/0.txt" "$out/0.txt" "${map[@]}" --hunks 5 --top 10 > "$out.diff"; then
+        elif filled "$rout" && python3 -I research/tools/txtdiff.py "$rout.filled" "$out.filled" "${map[@]}" --hunks 5 --top 10 > "$out.diff"; then
             echo "$id: 0.txt $(cat "$out.diff") (vs $ref)"
         else
-            echo "$id: 0.txt differs from $ref ($rout/0.txt; full report: python3 -I research/tools/txtdiff.py $rout/0.txt $out/0.txt):"
+            echo "$id: 0.txt differs from $ref ($rout.filled; full report: python3 -I research/tools/txtdiff.py $rout.filled $out.filled):"
             sed 's/^/    /' "$out.diff"; changed=1
         fi
     fi
@@ -220,7 +225,7 @@ $others"
             echo "$id: CHANGED (was $(head -n1 "$snap"), now $(head -n1 <<< "$now"); script in $out/0.txt)"
         for f in $(diff <(tail -n +2 "$snap") <(tail -n +2 <<< "$now") | sed -n 's/^[<>] [0-9a-f]*  //p' | sort -u); do
             echo "$id: $f CHANGED ($out/$f)"
-            [ -z "$ref" ] || diff -u "$rout/$f" "$out/$f" | head -n 40 | sed 's/^/    /'
+            [ -z "$ref" ] || [ ! -f "$rout/$f" ] || { diff -u "$rout/$f" "$out/$f" | head -n 40 | sed 's/^/    /'; } || true
         done
         changed=1
     fi
