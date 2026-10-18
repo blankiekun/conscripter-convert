@@ -95,6 +95,7 @@ for id in "${ids[@]}"; do
     IFS=$'\t' read -ra f <<< "${row[$id]}"
     game=$games_dir/${f[1]} english=$games_dir/$id
     if [ ! -e "$game" ] || { [ "${f[1]}" != "$id" ] && [ ! -e "$english" ]; }; then
+        [ -e "$game" ] && game=$english
         echo "$id: skipped (no $game)"
         continue
     fi
