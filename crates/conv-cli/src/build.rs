@@ -28,6 +28,11 @@ pub struct BuildArgs {
     /// Compile and write 0.txt only, no assets
     #[arg(long)]
     pub dry_run: bool,
+    /// Also write where each 0.txt line came from in the game's scripts:
+    /// one line per run of lines, `<0.txt line>\t<script>:<instruction>`
+    /// (`-` = no source from that line on); engines that record it only
+    #[arg(long, value_name = "FILE")]
+    pub source_map: Option<PathBuf>,
     #[command(flatten)]
     pub webp: WebpArgs,
     #[command(flatten)]
@@ -42,7 +47,7 @@ pub struct BuildArgs {
 const SCREENS: &str = "screens";
 
 pub fn run(args: BuildArgs, title: &str, output_dirs: &[&str], compile: impl FnOnce(&Opts) -> Result<Built>) -> Result<()> {
-    let BuildArgs { output, font, loose, dry_run, webp, audio } = args;
+    let BuildArgs { output, font, loose, dry_run, source_map, webp, audio } = args;
     // every engine's folders, the warp maps of its transitions and the screens
     let output_dirs: Vec<&str> = output_dirs.iter().copied().chain([conv_cons::warp::DIR, SCREENS]).collect();
     let output_dirs = &output_dirs[..];
@@ -52,7 +57,15 @@ pub fn run(args: BuildArgs, title: &str, output_dirs: &[&str], compile: impl FnO
     let Built { mut ir, notes, metrics, engine, picture_dirs, audio_dirs, package } = compile(&opts)?;
     ir.version = Some(version::line());
     // A dry run writes the script but no assets (no WebP, no sound).
-    let source = webp_tree(&output, picture_dirs, webp.get(), dry_run, conv_cons::emit(&ir))?;
+    let (source, lines) = conv_cons::emit_mapped(&ir);
+    if let Some(path) = source_map {
+        let text: String = lines.iter().map(|(n, at)| match at {
+            Some(at) => format!("{n}\t{}:{}\n", at.file, at.index),
+            None => format!("{n}\t-\n"),
+        }).collect();
+        fs::write(&path, text).with_context(|| format!("writing {}", path.display()))?;
+    }
+    let source = webp_tree(&output, picture_dirs, webp.get(), dry_run, source)?;
     if !dry_run {
         reencode_audio(&output, audio_dirs, opts.audio)?;
         // lossless PNGs (outside picture_dirs: --webp leaves them alone)

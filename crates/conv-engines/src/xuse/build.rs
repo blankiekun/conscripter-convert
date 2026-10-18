@@ -6,7 +6,7 @@ use std::fs;
 use std::path::Path;
 
 use anyhow::{Context, Result, bail};
-use conv_core::ir::Script;
+use conv_core::ir::{Script, SourceLoc};
 use memmap2::Mmap;
 
 use super::cd::CdScript;
@@ -94,10 +94,13 @@ pub fn build(game: &Path, linear: bool, opts: &Opts) -> Result<Built> {
     let presets = presets(&scripts).context("reading the preset subroutines")?;
     let names = label_names(game)?;
     let mut ops = Vec::new();
+    let mut source_map = Vec::new();
     let mut metrics = crate::metrics::Metrics::default();
     let mut notes = BTreeMap::new();
     for (file, cd) in &scripts {
-        let lowered = lower_script(cd, file, flow, &mut assets, &presets, &names).with_context(|| format!("converting {file}"))?;
+        let mut starts = Vec::new();
+        let lowered = lower_script(cd, file, flow, &mut assets, &presets, &names, &mut starts).with_context(|| format!("converting {file}"))?;
+        source_map.extend(starts.into_iter().map(|(i, index)| (ops.len() + i, SourceLoc { file: file.to_string(), index })));
         // Each instruction is a call; its gaps are the unsupported ops it
         // lowered to (their record bytes left out of the reason).
         let mut gaps: std::collections::HashMap<usize, Vec<String>> = Default::default();
@@ -150,6 +153,7 @@ pub fn build(game: &Path, linear: bool, opts: &Opts) -> Result<Built> {
         confirm,
         extras,
         ops,
+        source_map,
         ..Default::default()
     };
     Ok(Built { ir, notes, metrics, engine: "xuse", picture_dirs: PICTURE_DIRS, audio_dirs: AUDIO_DIRS, package: None })

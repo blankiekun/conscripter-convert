@@ -10,7 +10,7 @@ use std::fmt::Write;
 
 use conv_core::ir::{
     ArithOp, ConfirmDialog, Op, ScreenEffect, SliderSetting, Switch, Operand, Script, Ruby, SlideLayer, TextStyle, SpritePlacement, TextLink, TextWindow, TitleAction, TitleScreen,
-    TransitionStyle, Var, ZoomStyle,
+    SourceLoc, TransitionStyle, Var, ZoomStyle,
 };
 
 mod button_screen;
@@ -298,6 +298,13 @@ const TEXT_COLOR: &str = "#FFFFFF";
 /// Renders the script as NScripter source text (use [`encode`] for the
 /// bytes CONscripter reads).
 pub fn emit(script: &Script) -> String {
+    emit_mapped(script).0
+}
+
+/// [`emit`], and where its lines came from ([`Script::source_map`]): (a
+/// line number, from 1; the source instruction of it and the lines after
+/// it up to the next entry, `None` = none).
+pub fn emit_mapped(script: &Script) -> (String, Vec<(usize, Option<SourceLoc>)>) {
     let effects = fade_effects(script);
     let has_ruby = script.ops.iter().any(|op| matches!(op, Op::Text { ruby, .. } if !ruby.is_empty()));
     let has_overlay = script.ops.iter().any(|op| matches!(op, Op::Overlay { .. }));
@@ -578,9 +585,16 @@ pub fn emit(script: &Script) -> String {
         })
         .collect();
     let mut e = ops::Emitter { script, out, effects, has_ruby, has_overlay, has_noise, has_chapters, has_animation, root_returns, has_replay, has_vertical, border, voice_switches, duck, back_to_choice, speed, link_depth, clear_fade, restore_overlay, link_targets, zoomed_layers, root_resumes, puzzles, button_screens, plate_choices, picture_screens, se, se_not_skipped, noise_fade_in, move_ease, move_nowait, move_arc, eased, needs_click_wait, plate_visible, link_pages, transition, window, page_rows, page_tag, text_goes_on: false, fading };
+    // (byte offset in out, source), up to the end of the ops' lines
+    let mut starts: Vec<(usize, Option<&SourceLoc>)> = Vec::new();
+    let mut map = script.source_map.iter().peekable();
     for (i, op) in script.ops.iter().enumerate() {
+        while let Some((_, at)) = map.next_if(|(o, _)| *o <= i) {
+            starts.push((e.out.len(), Some(at)));
+        }
         e.op(i, op);
     }
+    starts.push((e.out.len(), None));
     let ops::Emitter { mut out, effects, eased, needs_click_wait, .. } = e;
     let effect = |ms: u32| if ms == 0 { "1".to_string() } else { effects[&(ms, Effect::Fade)].clone() };
     writeln!(out, "end").unwrap();
@@ -589,6 +603,7 @@ pub fn emit(script: &Script) -> String {
         let defs: String = eased.iter().map(|(&(e, n), &id)| ease::curve_def(id, e, n) + "\n").collect();
         let at = out.find("\n*start\n").map(|i| i + "\n*start\n".len()).expect("*start");
         out.insert_str(at, &defs);
+        starts.iter_mut().filter(|s| s.0 >= at).for_each(|s| s.0 += defs.len());
     }
     if root_returns > 0 {
         // Reached from a link page once its scene returned and the page
@@ -676,7 +691,21 @@ pub fn emit(script: &Script) -> String {
     if let (Some(e), Some(_)) = (&script.picture_extras, &script.title_screen) {
         picture_extras::emit(&mut out, e, border, script.width, script.height);
     }
-    out
+    let mut lines: Vec<(usize, Option<SourceLoc>)> = Vec::new();
+    let (mut line, mut from) = (1, 0);
+    for (offset, at) in starts {
+        line += out.as_bytes()[from..offset].iter().filter(|&&b| b == b'\n').count();
+        from = offset;
+        // an instruction that wrote nothing gives way to the next one
+        if lines.last().is_some_and(|l| l.0 == line) {
+            lines.pop();
+        }
+        lines.push((line, at.cloned()));
+    }
+    if script.source_map.is_empty() {
+        lines.clear();
+    }
+    (out, lines)
 }
 
 /// The title menu: buttons are sprites over the picture, faded in together;
@@ -3142,5 +3171,19 @@ end
         assert!(out.contains("rubyon\n"));
         assert!(out.contains("setwindow3 105,457,25,3,24,24,1,13,"), "{out}");
         assert!(out.contains("(獄/ひとや)\\\n"), "{out}");
+    }
+
+    #[test]
+    fn source_map_lines() {
+        let at = |index| SourceLoc { file: "1.cd".into(), index };
+        let ops = vec![Op::Label("a".into()), Op::Wait { ms: 5 }, Op::Wait { ms: 7 }];
+        // instruction 0 lowered to nothing: instruction 1's line wins
+        let script = Script { ops, source_map: vec![(0, at(0)), (0, at(1)), (2, at(2))], ..Default::default() };
+        let (out, map) = emit_mapped(&script);
+        let lines: Vec<&str> = out.lines().collect();
+        assert_eq!(map.len(), 3, "{map:?}");
+        assert_eq!((lines[map[0].0 - 1], &map[0].1), ("*a", &Some(at(1))));
+        assert_eq!((lines[map[1].0 - 1], &map[1].1), ("delay 7", &Some(at(2))));
+        assert_eq!((lines[map[2].0 - 1], &map[2].1), ("end", &None));
     }
 }
