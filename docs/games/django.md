@@ -425,7 +425,99 @@ scene file's `call_chapter`, and `main_root` after the chapter's
 
 ## Status
 
-### Queue (2026-10-16)
+What works (details in "History", "Status as it stood before the
+2026-10-18 prune"): NPA archives, images, sounds, script parsing; the
+whole story (56 chapters, 10 choices, bad ends; the good path plays to
+the end, 6,496 pages, `research/nitroplus/django_routes.sh`); text in
+the boxes' places, choices, pictures and motion, cameras, movies,
+sounds; the system screens (title, right-click menu, save/load, log,
+settings, yes/no) and extras, drawn by the engine from the game's
+pictures and compared under wine; save round trips (`--roundtrip-every`).
+Partial: the web build plays in a browser (title, story pages); saves,
+sound and touch not checked there. Saves from the screens not tried by
+hand; the log's scrolling and a slot's hover details not tried.
+
+Open:
+
+- Save tool: `nitroplus_save.py write` can't yet send a save to another
+  scene ("Save format" has the plan). Untried because the original
+  hangs under wine when a script `Save` runs from a process (the files
+  stay empty) and on timed actions; a template saved on a page from the
+  menu is needed first.
+- `spgrab` (engine #32, merged) could draw a move that changes picture
+  as a copy fading out over the moved picture: not used yet.
+- `RemainTime` on a sound returns its whole length, not the rest
+  (`sound_left` has it); right after the start, where most calls are,
+  the two agree.
+- Guesses, each settled by a frame of the original: the log's knob
+  travel (its top from y 90 to 460; `CreateScrollbar`'s 646, 490 to
+  646, 90 may be the knob's centre); the click-wait bullet's frame time
+  (50 ms; not in the files). One value where the original has two: the
+  save screen opens over 200 ms and closes over 300 (ours 300 both);
+  the settings' pairs fade over 200, their bullets at once (ours at
+  once both).
+- Trace diff against the original (`ntrace.sh`, wine section; first 50
+  pages from dja001, `docs/new-game.md` step 23); all pair. Open, maybe
+  wine's timing: dja001_02:50 (`Move("背景10", 1000, …, true)`) then
+  `Zoom` (function.nss:877): 419 + 2 ms in the original, 0 + 300 in
+  ours; a 0 ms waited `Move` (function.nss:910) took 618 ms in the
+  original (page 44). Not findings: page 1's 50 `missing` (the patched
+  boot skips the title), `call_chapter` lines, 0-72 ms gaps.
+
+```sh
+target/release/conscripter-convert convert-nss <game> -o out/django-dry --dry-run --source-map out/django.map
+research/tools/scratch.sh <a full build> <scratch> out/django-dry/0.txt
+cp out/django-dry/ons_args <scratch>/   # the dry run's encoding, not the build's
+<scratch>/run.sh --trace ours.jsonl --auto-play 60 --real-time --trace-ignore 999
+research/tools/trace_diff.py orig.jsonl ours.jsonl --map out/django.map --pages 50 --ms --thread 0
+```
+
+### Next
+
+1. Boot logos (History, "Boot logos"): the Nitroplus logo's fade-out
+   during its flight is lost (it goes at the flight's end), and its
+   `Rotate` @60 isn't drawn; `TitleSet`'s first-title opening (the
+   background in over 4.9 s, the logo slammed in, the tumbleweed) isn't
+   converted: the title fades in over 1 s.
+2. Extras: film the doors and the rifle beside the original once wine
+   is next used (ours from the scripts' times only).
+3. The unread-argument notes (`<Builtin> argument <i> ignored`; 33
+   kinds, 18,947 notes at the 2026-10-16 dry run), most visible first;
+   what the original does is from the scripts and
+   `research/nitroplus/builtins.md`:
+   1. `Fade` 3, tempo (77 non-`null`, mostly `DxlAuto`/`AxlDxl`): an
+      eased fade; ours linear. Hard to see.
+   2. `Rotate` 5, tempo (42 left): read for turns about x or y over
+      time; the rest are about z (`spmotion` straight) or in loops.
+   3. No-change candidates: `MoveCamera` 6 (15, a camera with no
+      children yet: nothing moves) and `CreateEffect` 2-3 (1, the
+      `Sepia` effect at 0,0 over the whole screen; Muramasa's undrawn
+      effects pass 0 too). Left noted.
+4. Sounds kept until their end (shared NSS code, `convert/sounds.rs`):
+   the sound clock adds up the ops of both branches of a runtime
+   `if`/`else`, so a sound started before one may be taken as ended too
+   soon. Fine as is.
+5. `CreateEffect` Rain (37), Drop (4), Lens (2): 装甲悪鬼村正's, shared
+   NSS code; noted, drawn as nothing.
+6. The exe mapping (`docs/games/django.findings.tsv`; the census
+   `argcensus.py` flags only the script's own values). Open, each from
+   the decompile:
+   1. `SetVertex` names: the exe compares lower case; ours any case,
+      as 装甲悪鬼村正 writes `Center`/`Middle` (whether its reader
+      lowers them first is unchecked).
+   2. `CreateColor` `GREEN` is 0x008000 in the exe (`LIME` 0x00FF00),
+      ours 0x00FF00; the other HTML names are missing. Not in Django's
+      data.
+   3. `SetPan` is DirectSound's (dB on the other side), `chpan`
+      linear; the data uses only 0 and ±1000, where they agree.
+   4. `Fade` with four arguments takes the fourth as the tempo, not
+      the wait; the six such calls take 0 ms.
+
+## History
+
+### Status as it stood before the 2026-10-18 prune
+
+#### Queue (2026-10-16)
 
 - Save tool: `nitroplus_save.py write` can't yet send a save to another
   scene ("Save format" has the plan). Untried because the original
@@ -458,7 +550,7 @@ scene file's `call_chapter`, and `main_root` after the chapter's
 | Saves | 🟡 `--roundtrip-every 100` over the first 1,500 pages, and `--roundtrip-every 1` over the 569 pages one auto-play reaches: no save/load mismatch (a music played once before the next part, `BgmLater`, is `mp3save`, so a load plays it again); saves from the screens not tried by hand |
 | Web build | 🟡 Plays in a browser (title, story pages); saves, sound and touch not checked yet |
 
-### Screens drawn by the engine (2026-10-17)
+#### Screens drawn by the engine (2026-10-17)
 
 Save/load, the text log and the extras' menu are CONscripter `screen`s,
 as in 装甲悪鬼村正 (`SaveGrid`, `LineLog` and `PictureExtras` built by
@@ -470,7 +562,7 @@ log after 32 pages: 0 pixels each. Not tried: the pointer's hover
 details on a slot, scrolling the log, a save or load from the screens
 by hand.
 
-### Accuracy (value audit, 2026-10-17)
+#### Accuracy (value audit, 2026-10-17)
 
 Every hand-typed value in `convert/django.rs` and `convert/django/`
 carries its source (`// src:`, `// guess:`, `// ours`). Fixed: the save
@@ -486,7 +578,7 @@ One value where the original has two: the save screen opens over
 200 ms and closes over 300 (ours 300 both); the settings' pairs fade
 over 200, their bullets at once (ours at once both).
 
-### Trace diff (2026-10-17)
+#### Trace diff (2026-10-17)
 
 The original's trace (`ntrace.sh`, wine section) against ours, the
 first 50 pages from dja001 (`docs/new-game.md` step 23):
@@ -509,7 +601,7 @@ Open, not fixed:
   0 + 300 in ours; a 0 ms waited `Move` (function.nss:910) took 618 ms
   in the original (page 44).
 
-### Next
+#### Next
 
 0. Boot logos (History, "Boot logos"): the Nitroplus logo's fade-out
    during its flight is lost (it goes at the flight's end), and its
@@ -561,7 +653,6 @@ Open, not fixed:
    4. `Fade` with four arguments takes the fourth as the tempo, not
       the wait; the six such calls take 0 ms.
 
-## History
 
 ### Boot logos (2026-10-18)
 
