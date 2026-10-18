@@ -169,6 +169,9 @@ fn overlays_define(animation: bool, noise: bool, overlay: bool) -> String {
 }
 /// Sprite layer n is NScripter sprite 62 + n.
 const SPRITE_BASE: u32 = 62;
+/// The `loadgosub` routine: clears UI sprites old saves left, then goes on
+/// to the game's own routine.
+const LOAD_CLEAR: &str = "conv_load_clear";
 /// The lsp2 slot of a flash ([`Op::Flash`]), under the menus' and the top
 /// bars' (0-23).
 const FLASH_SPRITE2: u32 = 24;
@@ -437,19 +440,20 @@ pub fn emit_mapped(script: &Script) -> (String, Vec<(usize, Option<SourceLoc>)>)
         // (gettaglog); tags are only kept with a pretextgosub.
         writeln!(out, "pretextgosub *{}", menu::PRETEXT).unwrap();
     }
-    if let Some(bar) = &script.button_bar {
+    if script.button_bar.is_some() {
         // Every click wait runs the bar routine instead of waiting itself.
         writeln!(out, "textgosub *{}", menu::WAIT).unwrap();
+    }
+    // shortcut: script.after_load replaces a bar's routine; chain the two when a game with a bar needs both.
+    let after_load = script.after_load.clone().or_else(|| {
+        let bar = script.button_bar.as_ref()?;
         if menu::has_back_to_choice(bar, script.command_menu.as_ref()) {
-            writeln!(out, "loadgosub *{}", menu::LOADED).unwrap();
-        } else if bar.top.is_some() {
-            writeln!(out, "loadgosub *{}", menu::SCENE_LOADED).unwrap();
+            Some(menu::LOADED.to_string())
+        } else {
+            bar.top.is_some().then(|| menu::SCENE_LOADED.to_string())
         }
-    }
-    if let Some(label) = &script.after_load {
-        // shortcut: replaces a bar's loadgosub above; chain the two when a game with a bar needs both.
-        writeln!(out, "loadgosub *{label}").unwrap();
-    }
+    });
+    writeln!(out, "loadgosub *{LOAD_CLEAR}").unwrap();
     // CONscripter converts the caption to UTF-8 for the window title.
     if has_ruby {
         // Draw ruby (readings) in the line gap above the text. Text then
@@ -618,6 +622,12 @@ pub fn emit_mapped(script: &Script) -> (String, Vec<(usize, Option<SourceLoc>)>)
     let ops::Emitter { mut out, effects, eased, needs_click_wait, .. } = e;
     let effect = |ms: u32| if ms == 0 { "1".to_string() } else { effects[&(ms, Effect::Fade)].clone() };
     writeln!(out, "end").unwrap();
+    // shortcut: clears the name plate's old sprites 49/50 from saves made before #222, and the link words' 51-58 from before the link names; drop once no such saves are played
+    writeln!(out, "*{LOAD_CLEAR}\n{}", (49..=58).map(|n| format!("csp {n}")).collect::<Vec<_>>().join(":")).unwrap();
+    match &after_load {
+        Some(label) => writeln!(out, "goto *{label}").unwrap(),
+        None => writeln!(out, "return").unwrap(),
+    }
     if !eased.is_empty() {
         // The eased moves' curves, defined as the game starts (saves keep them).
         let defs: String = eased.iter().map(|(&(e, n), &id)| ease::curve_def(id, e, n) + "\n").collect();
@@ -2630,7 +2640,7 @@ effect 7,99,1000,\"cons_warp.dll/warp\\zoom_3_220_5.png,65\"
         let text = |t: &str, continues| Op::Text { speaker: None, text: t.into(), voice: None, links: vec![], ruby: vec![], styles: vec![], hang: None, continues };
         let s = script(vec![Op::SetWindow(nvl), text("一行目", true), text("二行目", false), text("新頁", false)]);
         let out = emit(&s);
-        assert!(out.contains("\":a;system\\textwnd5.png\",47,452\ncsp %conv_name_plate:csp %conv_name_text:csp 50:csp 49:csp 51:csp 52:csp 53:csp 54:csp 55:csp 56:csp 57:csp 58\n一行目@\n二行目\\\n新頁\\\n"), "{out}");
+        assert!(out.contains("\":a;system\\textwnd5.png\",47,452\ncsp %conv_name_plate:csp %conv_name_text\n一行目@\n二行目\\\n新頁\\\n"), "{out}");
     }
 
     #[test]
@@ -2773,6 +2783,7 @@ for %0 = 0 to 445
 mov %1,3650+%0
 if %%1 != 0 mov ?conv_scene_replayed[%0],%%1
 next
+loadgosub *conv_load_clear
 caption \"Test\"
 effect 2,10,500
 game
@@ -2806,6 +2817,9 @@ bgmstop
 delay 500
 ; unsupported: op 0x76 (0003.cd #7)
 end
+*conv_load_clear
+csp 49:csp 50:csp 51:csp 52:csp 53:csp 54:csp 55:csp 56:csp 57:csp 58
+return
 ";
         assert_eq!(text, expected);
     }
