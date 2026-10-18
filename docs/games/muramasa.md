@@ -675,13 +675,9 @@ write-ups, the route-run table and the old queue are in "History"
 with gaps, 8,594 left out on purpose.
 
 Japanese and English in one build (in progress, `docs/string-tables.md`):
-phase 1 prototyped on three scenes (both editions' source maps,
-`layer\en\` for the English pictures). Every build now writes its text
-in `text.ja.txt`; the `--english` build compiles the Japanese too and
-writes `text.en.txt` and `text.ja.txt`. Next: one build on the Japanese
-base with `layer\en\` and `layer\uncensored\`, the language and pictures
-(censored/uncensored) rows in the settings, the English font for
-English text.
+every build writes its text in tables; the `--english` build compiles
+the Japanese too (`text.en.txt`, `text.ja.txt`). Next: Japanese base,
+`layer\en\` and `layer\uncensored\`, language and pictures rows, EN font.
 
 Testing notes: other agents stop engines with `pkill -x conscripter`; run
 ours through a symlink with another name (`--engine out/conscripter-mura`).
