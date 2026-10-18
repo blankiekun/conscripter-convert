@@ -118,14 +118,14 @@ for id in "${ids[@]}"; do
         echo "$id: dry run failed, see $out.log"; changed=1; continue
     fi
     # every command it uses is in the engine's command table (the submodule's)
-    python3 -I research/tools/cmdcheck.py engine/src/cons/ONScripter_lut.cpp "$out/0.txt" --counts "$out/cmds.json" || changed=1
+    python3 -I research/tools/cmdcheck.py engine/src/cons/ONScripter_lut.cpp "$out/0.txt" --counts "$out.cmds.json" || changed=1
     csnap=tests/snapshots/$id.cmds.json
     if [ $update = 1 ]; then
-        cp "$out/cmds.json" "$csnap"
+        cp "$out.cmds.json" "$csnap"
     elif [ ! -f "$csnap" ]; then
         echo "$id: no command counts snapshot (run with --update)"; changed=1
-    elif ! moved=$(python3 -I research/tools/cmdcheck.py --compare "$csnap" "$out/cmds.json"); then
-        echo "$id: command counts moved over 5 % (diff $csnap $out/cmds.json):"; echo "$moved" | sed 's/^/    /'
+    elif ! moved=$(python3 -I research/tools/cmdcheck.py --compare "$csnap" "$out.cmds.json"); then
+        echo "$id: command counts moved over 5 % (diff $csnap $out.cmds.json):"; echo "$moved" | sed 's/^/    /'
         [ $accept = 1 ] || rose=1
     fi
     if [ -n "$ref" ]; then
@@ -196,7 +196,7 @@ done
 # edition pairs: the English row reads its Japanese twin's install (f[1])
 for id in "${ids[@]}"; do
     IFS=$'\t' read -ra f <<< "${row[$id]}"
-    a=out/snapshot/${f[1]}/cmds.json b=out/snapshot/$id/cmds.json
+    a=out/snapshot/${f[1]}.cmds.json b=out/snapshot/$id.cmds.json
     if [ "${f[1]}" != "$id" ] && [[ " ${ids[*]} " == *" ${f[1]} "* ]] && [ -f "$a" ] && [ -f "$b" ] && off=$(python3 -I research/tools/cmdcheck.py --pair "$a" "$b") && [ -n "$off" ]; then
         echo "${f[1]} : $id command counts off the pair's ratio (informative):"; echo "$off" | sed 's/^/    /'
     fi
