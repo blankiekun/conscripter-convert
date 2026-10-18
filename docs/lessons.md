@@ -258,3 +258,14 @@ Still worth building, in rough order of payoff:
    pixels without porting its code, and nothing from the exe goes into
    the engine or the repo. Works for self-contained functions; one that
    reaches into the exe's objects or renderer still needs reading.
+
+## Open items from the October 2026 audit
+
+The audit itself, `docs/audit-2026-10.md`, is history. Still open:
+
+- **Colours into the IR (step 17):** skipped while one game has links;
+  move them into the IR when a second game needs other ones.
+- **Rename `onsyuri` (step 21):** the source folders are `src/cons*`; the
+  names outside pages and saved data use (the web hooks `onsyuri*`,
+  `onsyuri_index.json`, `/onsyuri_save`, the `onsyuri` JS factory, the
+  Android package) wait for the user.
