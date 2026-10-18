@@ -1062,9 +1062,13 @@ pub struct BootStep {
     /// The colour the picture fades out to; `None`: the backdrop.
     pub fade_out_to: Option<String>,
     /// A click ends the hold (a movie: the movie) once this many ms of it
-    /// have passed; `None`: nothing skips it. Fades are never skipped.
+    /// have passed; `None`: nothing skips it.
     pub skip_after_ms: Option<u32>,
     /// Shown only while each of these variables has its value (a game's
     /// flags, its language); empty: always.
     pub when: Vec<(Var, i32)>,
+    /// The hold lasts until a click (or key), not `hold_ms`.
+    pub until_click: bool,
+    /// A click cuts the fades short (else they always run their time).
+    pub click_skips_fades: bool,
 }
