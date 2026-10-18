@@ -8,7 +8,8 @@ Each FILE:N answers the next `select` in FILE (story file name without
 `dja004`; a file listed twice answers its first, then its second select)
 with option N. A path file is research/nitroplus/paths' format: its
 `FILE:N` lines are taken, `*` and the rest left out. In each select,
-`select` becomes `if(true)`, the case of option N `if(true)`, the other
+`select` becomes `#keep_auto_and_skip=true;if(true)` (the games' option
+that turns auto mode back on after a choice), the case of option N `if(true)`, the other
 cases `if(false)`, and the line that turns auto mode off there
 (`if($SYSTEM_skip||$SYSTEM_text_auto)`) `if(false)`: every edit stays on
 its line, so the trace's lines are the shipped scripts' lines. The case
@@ -28,7 +29,8 @@ def force(text, answers):
     while done < len(answers):
         while not re.fullmatch(r'\s*select\s*\r?', lines[i]):
             i += 1
-        lines[i] = lines[i].replace('select', 'if(true)', 1)
+        # the game's own "keep auto mode past a choice" option: SetChoice turns it off
+        lines[i] = lines[i].replace('select', '#keep_auto_and_skip=true;if(true)', 1)
         depth, opened = 0, False
         while True:
             i += 1
@@ -78,7 +80,7 @@ if __name__ == '__main__':
         s = 'x\r\n\tselect\r\n\t{\r\n\t\tif($SYSTEM_skip||$SYSTEM_text_auto){a;}\r\n\t\tcase\t@選択肢１{\r\n' \
             '\t\t\tb;\r\n\t\t}case\t@選択肢２{\r\n\t\t\tc;\r\n\t\t}\r\n\t}\r\ny\r\n'
         r = force(s, [2])
-        assert r.count('\n') == s.count('\n') and 'select' not in r and 'case' not in r
+        assert r.count('\n') == s.count('\n') and '\tselect' not in r and 'case' not in r
         assert '\t\tif(false){\r' in r and '}if(true){' in r and 'if(false){a;}' in r, r
         print('ok')
     else:
