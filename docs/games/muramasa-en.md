@@ -212,7 +212,7 @@ same as 131 (`AxlDxl1d`, ½ - ½cos πt); no scene uses these.
 
 ## The exe (muramasa_en.exe)
 
-    GHIDRA_HEADLESS_MAXMEM=2G systemd-run --user --scope -p MemoryMax=3G \
+    GHIDRA_HEADLESS_MAXMEM=2G research/tools/capped.sh 3 \
       research/tools/ghidra/ghidra_export.sh <game>/muramasa_en.exe \
       research/nitroplus/local/ghidra-en --names research/nitroplus/en-names.tsv --rtti
 

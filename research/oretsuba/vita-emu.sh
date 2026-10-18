@@ -2,7 +2,7 @@
 # vita-emu.sh <home dir> <secs> [Vita3K args...]
 # Runs Vita3K (the AppImage, extracted) with `-r PCSG00299` on its own Xvfb
 # (never the desktop), with its own XDG dirs under <home dir> (config, ux0, caches), no audio, memory
-# capped (MEM, default 6G), and saves a root-window shot every $SHOT seconds into <home dir>/../logs.
+# capped (MEM GiB, default 6, research/tools/capped.sh), and saves a root-window shot every $SHOT seconds into <home dir>/../logs.
 # V3K=<extracted AppImage dir> (default: <home dir>/../AppDir).
 # KEYS="30:c 34:c" presses keys (xdotool) at those seconds (Vita3K's default
 # keyboard: c = circle, this Japanese game's OK; x = cross; Return = start);
@@ -31,7 +31,7 @@ for f in "$V"/share/*; do [ "${f##*/}" = fonts ] || ln -sfn "$f" "$S/"; done
 ln -sfn /usr/share/fonts "$S/fonts"; ln -sfn "$S" /tmp/17-Tt; ln -sfn "$V/lib" /tmp/8_P
 for f in "$V"/share/Vita3K/*; do ln -sfn "../share/Vita3K/${f##*/}" "$V/bin/"; done
 N=$DISPLAY
-timeout -k 10 "$T" env XDG_RUNTIME_DIR="$HEADLESS_USER_RUNTIME" DBUS_SESSION_BUS_ADDRESS=unix:path=$HEADLESS_USER_RUNTIME/bus systemd-run --user --scope -q -p MemoryMax=${MEM:-6G} \
+timeout -k 10 "$T" "$(dirname "$0")/../tools/capped.sh" "${MEM:-6}" \
   env DBUS_SESSION_BUS_ADDRESS=disabled: PATH="$B:$PATH" HOME="$H" XDG_RUNTIME_DIR="$H/run" \
   SDL_VIDEO_DRIVER=x11 SDL_VIDEODRIVER=x11 QT_QPA_PLATFORM=xcb \
   XDG_DATA_HOME="$H/data" XDG_CONFIG_HOME="$H/config" XDG_CACHE_HOME="$H/cache" \

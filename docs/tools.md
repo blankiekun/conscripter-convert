@@ -56,7 +56,7 @@ bullet you need.
   `pkill Xvfb` (other agents' displays).
   Xvfb also dies if the wrapper is SIGKILLed (a pid watcher). 2026-10-18: all four
   scripts started, ran and exited cleanly through it (short capped runs); `vita-emu.sh` and
-  `switch-emu.sh` get the user bus for `systemd-run` only (`HEADLESS_USER_RUNTIME`).
+  `switch-emu.sh` cap memory with `capped.sh`, which takes the user bus for `systemd-run` only (`HEADLESS_USER_RUNTIME`).
 - What a frame costs: `--trace-perf` adds a `perf` record per page
   (frames presented, the wall-clock ms worked for them, the slowest
   frame); `--dump-frames frames.tsv` writes a line per present (game ms,
@@ -168,6 +168,16 @@ through a file with `sed`.
 
 ## Build and test details
 
+- Memory caps: run builds, engine runs and emulators that may grow
+  through `research/tools/capped.sh <GiB> <cmd> [args...]`, never a raw
+  `systemd-run -p MemoryMax` (the bash hook refuses it): a kernel OOM
+  kill pops a "killed" notification on the user's desktop. capped.sh
+  runs cmd in its own `systemd-run --user` scope (MemoryHigh=<GiB>,
+  MemoryMax=<GiB>+1 as a backstop), stops it itself at 90 % of <GiB>
+  (SIGTERM, SIGKILL after 5 s; prints `capped.sh: stopped at X MiB`,
+  exit 137), refuses to start with exit 75 when less than <GiB>+2 GiB
+  is available, and passes cmd's exit code through otherwise. It works
+  inside `headless-run.sh`. Self-test: `research/tools/test_capped.sh`.
 - `tests/snapshot.sh`: dry-runs every game present on the machine (links
   in `$CONS_GAMES`, see the script) and says which games' `0.txt`
   changed. Run it after any change to shared code; a change to another

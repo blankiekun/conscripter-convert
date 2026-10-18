@@ -456,7 +456,7 @@ python3 -I research/oretsuba/vpatch.py patch <emu>/home/data/Vita3K/patch/PCSG00
 # <keys.sh secs log>: circle every 2 s and Return every 8 s from 46 s to 100 s; then circle
 # every 0.4 s, with Down before it while the log's last @T/@M line is a task of type 6
 research/tools/headless-run.sh bash -c "<keys.sh> 7200 <emu>/logs/vita3k.log & \
-  MEM=3G SHOT=300 V3K=<v3k> research/oretsuba/vita-emu.sh <emu>/home 7200"
+  MEM=3 SHOT=300 V3K=<v3k> research/oretsuba/vita-emu.sh <emu>/home 7200"
 python3 -I research/oretsuba/vpatch.py log <emu>/logs/vita3k.log <out>/orig.jsonl
 conscripter-convert mages convert <game> -o <out>/game --dry-run --source-map <out>/map.tsv
 # <out>/game: a full build's arc.nsa, default.ttf, movie and ons_args linked in

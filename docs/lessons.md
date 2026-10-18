@@ -215,8 +215,8 @@ The steps that apply them are in `docs/new-game.md`.
 - **Measure memory before blaming it on mapped files:** (村正) the kernel's OOM
   line gives anon-rss. The full build's 7 GB was heap (60x zooms scaled
   whole, 8 GB bitmaps), not the mapped archives; cutting big zooms to the
-  screen brought it to 1.2 GB. Run builds under `systemd-run --user
-  --scope -p MemoryMax=…` so a regression can't take the desktop down.
+  screen brought it to 1.2 GB. Run builds under `research/tools/capped.sh
+  <GiB> <cmd>` so a regression can't take the desktop down.
 - **An opaque WebP has no alpha channel** (月姫): libwebp leaves it out when
   every pixel is opaque, and on native builds (SDL_image) `lsp ":a;…"`
   took such a picture's right half as the mask; a PNG without alpha was

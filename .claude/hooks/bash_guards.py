@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""PreToolUse hook on Bash: pkill/pgrep -f, session lines in commits, low memory.
+"""PreToolUse hook on Bash: pkill/pgrep -f, session lines in commits, low memory,
+raw systemd-run memory caps (use research/tools/capped.sh).
 
 Self-test: python3 .claude/hooks/bash_guards.py --test
 """
@@ -12,6 +13,8 @@ MIN_GIB = 6
 POS = r"(?:^|[;&|(`]|\$\()\s*(?:\w+=\S*\s+)*"
 PGREP = re.compile(POS + r"(?:pkill|pgrep)\s+(?:-\w+\s+)*-\w*f")
 COMMIT = re.compile(POS + r"git\s+(?:-\S+\s+)*commit\b")
+# systemd-run as a word (not inside a quoted pattern) with MemoryMax after it
+RAWCAP = re.compile(r"(?:^|[\s;&|(`])systemd-run\b[^\n'\"]*MemoryMax")
 SESSION = re.compile(r"Claude-Session:|claude\.ai/code/session")
 HEAVY = re.compile(POS + r"(?:cargo\s+(?:build|test|clippy)\b|\S*tests/snapshot\.sh|\S*tests/pr-report\.sh"
                    r"|\S*build-engine\.sh|\S*cross_web\.sh|\S*conscripter-convert\s+(?:convert-game|build)\b)")
@@ -27,6 +30,9 @@ def mem_gib():
 def check(cmd, gib):
     if PGREP.search(cmd):
         return "pkill -f/pgrep -f match your own shell: use pkill -x/pgrep -x or a PID."
+    if RAWCAP.search(cmd):
+        return ("a kernel OOM kill at MemoryMax pops a notification on the user's desktop: "
+                "use research/tools/capped.sh <GiB> <cmd...> (it stops the run itself first).")
     if COMMIT.search(cmd) and SESSION.search(cmd):
         return "Drop the Claude-Session / claude.ai/code/session line from the commit message (the user forbade it; CI rejects it)."
     if HEAVY.search(cmd) and "--dry-run" not in cmd and gib < MIN_GIB:
@@ -39,13 +45,18 @@ def test():
     lo, hi = 2.0, 20.0
     for c in ["pkill -f conscripter", "x && pgrep -fa foo", "pkill -9 -f foo",
               "git commit -m 'a\n\nClaude-Session: https://x'",
-              "git commit -m 'https://claude.ai/code/session_1'"]:
+              "git commit -m 'https://claude.ai/code/session_1'",
+              "systemd-run --user --scope -p MemoryMax=3G cargo build",
+              "X=1 timeout 60 systemd-run --user --scope -q -p MemoryMax=8G foo",
+              "cd x && env A=b systemd-run --user --scope -p MemoryHigh=1G -p MemoryMax=2G y"]:
         assert check(c, hi), c
     for c in ["cargo build", "cargo test -q", "tests/snapshot.sh", "FOO=1 cargo clippy --all-targets",
               "target/release/conscripter-convert convert-game x"]:
         assert check(c, lo) and not check(c, hi), c
     for c in ["pkill -x conscripter", "pgrep -x foo", "git commit -m 'x'", "echo Claude-Session:",
-              "grep -n 'pkill -f' CLAUDE.md", "convert-game x --dry-run", "ls cargo", "echo cargo build"]:
+              "grep -n 'pkill -f' CLAUDE.md", "convert-game x --dry-run", "ls cargo", "echo cargo build",
+              "research/tools/capped.sh 3 cargo build", "grep -n 'systemd-run.*MemoryMax' docs/x.md",
+              "systemd-run --user --scope -q true"]:
         assert not check(c, lo), c
     print("ok")
 
