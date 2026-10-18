@@ -1,13 +1,13 @@
 {
 "game": "muramasa",
 "engine": "nitroplus",
-"commit": "955e8680",
+"commit": "a5d94106",
 "commit_date": "2026-10-18",
-"totals": {"calls": 1162155, "full": 1150361, "gaps": 3200, "left_out": 8594, "weighted": 1153496.2},
+"totals": {"calls": 1162155, "full": 1150364, "gaps": 3197, "left_out": 8594, "weighted": 1153496.2},
 "kinds": {
 "Request": {"calls": 239985, "gaps": 1302, "reasons": [["Request stop", 1068], ["Request overlayrender", 111], ["Request compulsorysuspend", 18], ["Request pushtext", 15], ["Request entrustsuspend", 12], ["27 more", 78]], "weighted": 239985.0},
 "Random": {"calls": 7411, "gaps": 803, "reasons": [["Random picked when converting", 803]], "weighted": 7411.0},
-"DrawTransition": {"calls": 2650, "gaps": 646, "reasons": [["DrawTransition from another opacity than the picture's", 636], ["DrawTransition partial on an effect: drawn unmasked", 6], ["DrawTransition mask missing: cg/data/slide_01_02_2.png", 2], ["DrawTransition mask missing: $Transition", 1], ["DrawTransition mask missing: cg/data/7.png", 1], ["1 more", 1]], "weighted": 2650.0},
+"DrawTransition": {"calls": 2650, "gaps": 643, "reasons": [["DrawTransition from another opacity than the picture's", 636], ["DrawTransition mask missing: cg/data/slide_01_02_2.png", 2], ["DrawTransition partial on an effect: drawn unmasked", 2], ["DrawTransition mask missing: $Transition", 1], ["DrawTransition mask missing: cg/data/7.png", 1], ["1 more", 1]], "weighted": 2650.0},
 "Position": {"calls": 506, "gaps": 62, "left_out": 444, "reasons": [["the choice screen's own code: the engine's choice stands in", 444], ["built-in Position", 62]], "weighted": 62.0},
 "CreateMovie": {"calls": 61, "gaps": 61, "reasons": [["CreateMovie argument 2 ignored", 61], ["CreateMovie argument 3 ignored", 61], ["CreateMovie argument 4 ignored", 61], ["CreateMovie argument 5 ignored", 61], ["CreateMovie of a missing movie", 61]], "weighted": 26.1},
 "SetSurface": {"calls": 58, "gaps": 58, "reasons": [["built-in SetSurface", 58]], "weighted": 58.0},

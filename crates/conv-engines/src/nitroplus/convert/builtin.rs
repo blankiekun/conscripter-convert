@@ -688,7 +688,7 @@ impl Compiler<'_, '_> {
                 let veil = table
                     .filter(|t| t.iter().any(|&v| v > 0))
                     .and_then(|t| self.assets.veil(&mask, &t));
-                if veil.is_some() && targets.iter().any(|t| !matches!(self.objects[t].kind, Kind::Image { .. })) {
+                if veil.is_some() && targets.iter().any(|t| !matches!(self.objects[t].kind, Kind::Image { .. } | Kind::Strip(_))) {
                     self.note("DrawTransition partial on an effect: drawn unmasked");
                 }
                 for t in &targets {
