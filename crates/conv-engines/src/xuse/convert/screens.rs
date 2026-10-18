@@ -2,6 +2,8 @@
 //! button and top bars, settings, confirmation, backlog, extras.
 
 use super::*;
+use crate::xuse::titleintro;
+use conv_core::ir::TitleOpening;
 
 impl AssetBank {
     /// The title screen from `HD/gd.arc` → `Title.004`: background (0) with
@@ -47,7 +49,36 @@ impl AssetBank {
             self.save_image(&image, &strip)?;
             buttons.push(TitleButton { image, x, y, action, ..Default::default() });
         }
-        Ok(TitleScreen { background: background_path, fade_ms: TITLE_FADE_MS, buttons, ..Default::default() })
+        // The intro plays at launch and back from the story alike.
+        let movie = self.title_intro()?;
+        let openings = [true, false].map(|at_launch| TitleOpening { movie: movie.clone(), at_launch, ..Default::default() }).to_vec();
+        // src: exe 0x459320 (BGM slot 13, looped), 0x45abe0 (Start fades it out over 2000 ms).
+        let bgm = Some(self.bgm(14)?);
+        Ok(TitleScreen { background: background_path, fade_ms: TITLE_FADE_MS, buttons, openings, bgm, start_bgm_fade_ms: 2000, ..Default::default() })
+    }
+
+    /// The title's intro ([`titleintro`]) as a silent movie at 30 fps,
+    /// ending on the title at rest. Kept like the movies: delete it to draw
+    /// it again.
+    fn title_intro(&mut self) -> Result<String, ConvertError> {
+        let name = "movie/title_intro.mp4".to_string();
+        let dest = self.out.join(&name);
+        if !self.dry_run && !dest.exists() {
+            let pictures = self.gaf_rgba("gd.arc", "Title.004", "title screen")?;
+            let size = format!("{}x{}", titleintro::WIDTH, titleintro::HEIGHT);
+            let fps = STAFF_ROLL_FPS;
+            let mut args: Vec<String> = ["-f", "rawvideo", "-pix_fmt", "rgb24", "-s", &size, "-r", &fps.to_string(), "-i", "-"].map(String::from).to_vec();
+            args.extend(media::mp4_options(20, "slow"));
+            let mut frame = image::RgbImage::new(titleintro::WIDTH, titleintro::HEIGHT);
+            media::ffmpeg(&dest, args, |stdin| {
+                (0..=titleintro::LENGTH_MS * fps / 1000).try_for_each(|i| {
+                    titleintro::render(&pictures, i * 1000 / fps, &mut frame);
+                    stdin.write_all(frame.as_raw())
+                })
+            })
+            .map_err(|detail| ConvertError::Ffmpeg { path: PathBuf::from("Title.004"), detail })?;
+        }
+        Ok(name)
     }
 
     /// The warning shown at every launch before the title (`Entrance.cpp`,
