@@ -542,6 +542,19 @@ arguments, `Delete`'s 1-2 unknown. Names were carried from Django.exe by
 hand (SetPan, Fade, SetVertex, colours), not by a version-tracking match
 (step 21).
 
+Findings audit (2026-10-18, `docs/new-game.md` step 17, seed 20261018):
+10 "seen" rows and the 3 `left_out` kinds (no such function, `Conquest`,
+the choice screen's calls) re-derived from the decompile and the
+disassembly: 12 of 13 confirmed, one wrong. `CreateWindow`'s argument 6
+is not inert: anything but `true` clears the window's +0x9d4
+(`create_window` 00443500, the value in EAX), so `true` windows place
+their children from the window's place (`init_object_place` 0044c8c0,
+`parse_object_place` 00458d50), as in Django; ours places them from the
+screen (74 `true` calls; 絵演窓上's children 50 px off). Row corrected,
+the converter gap is open. `Shake`'s flip step is truncated in the exe,
+rounded in ours (≤ 1 ms); `DrawTransition`'s table is stored truncated
+(fldcw 0xc00 at 00457dee), as the engine's `effectsoft` does.
+
 ### Accuracy (2026-10-17)
 
 Every hand-typed value of the Nitroplus converter that stands for the

@@ -4,8 +4,8 @@ Fade	tempo	seen	Diesel tempo table 0x40bca0…0x40cf50 (Eased fades)	the port's 
 Move, Zoom, Rotate	tempo	inferred	same table (Status, Eased fades)	the port's curves (AxlDxl, DxlAxl differ from the Japanese exe's)	the Japanese exe's curves: open
 DrawTransition	softness, direction	unknown	the port's Transition(name, time, src, dst, rate, file, tempo, wait) in ccommand.nut; native not mapped	-	effectsoft as Muramasa.exe (#386): inferred to match
 Shake	n, tempo	unknown	sqSprite_shake 004eb3f0 → FUN_004359a0 → Diesel::CEffectShake vfunction7 00484990	a CEffectShake with a period argument (param_5 % param_3, halved) and repeat/round/return_tempo options from ccommand.nut's Shake	shake_jolts off: the old 16 ms shake; n and tempo noted (1,486): open
-ShowVOICESEText, port ShowVOICESEText	subtitle	seen	function_textbox.nut	a centred English line for voices played as sound effects	converted (Subtitles)
+ShowVOICESEText, port ShowVOICESEText	subtitle	seen	function.nut	a centred English line for voices played as sound effects	converted (Subtitles)
 port Print	text	seen	CTextEnglish_layout 0x4a7f60, text_tokenize_markup 0x4c3440, text speed 004b4510	horizontal English text: breaks at spaces and CR/LF, RUBY/SMALL/CENTER native, s = speed/1000, a character fading in at (212.5 − 5.3125)(1 − s)⁴ + 5.3125 alpha per 16 ms	CONscripter's layout; <SMALL> 50 % (ruby font)
 port SetChoice	choices	seen	function_select.nut (LANG_NAME en)	440×50 plates	choice_style_en
-port CreateTextureEX, port CreateTextureSP	pictures	seen	function.nut	the port's English pictures	the English pictures in place of the Japanese
+port CreateTextureEX, port CreateTextureSP	pictures	inferred	cg.npk (English pictures under the Japanese names, e.g. cg/sys/telop/); function.nut's CreateTextureEX/SP → CreateSpriteBase load by name, no language test	the picture of that name in the port's cg.npk: English where it has words	the English picture for cg/fw/nw*, cg/sys/quick/, cg/sys/telop/ (ENGLISH_FIRST in assets.rs); the others the Japanese
 port Move	box	seen	function_textbox.nut	the port moves its text boxes	the port's places (EN_TEXT)

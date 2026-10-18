@@ -228,3 +228,21 @@
 00435e00	cb_00435e00	code reached through a pointer (callback), recovered by the export loop (new-game.md step 2)
 00435e40	cb_00435e40	code reached through a pointer (callback), recovered by the export loop (new-game.md step 2)
 00440820	cb_00440820	code reached through a pointer (callback), recovered by the export loop (new-game.md step 2)
+0044c8c0	init_object_place	new object: +0x9d4 (children placed relative to it) = 1; starts at its parent's place (+0x9f8/+0x9fc) when the parent's +0x9d4 is set (findings audit 2026-10-18)
+00458d50	parse_object_place	an object's x/y: numbers and @ added to its start place, Center/Middle/In*/Out* against the parent's rect when the parent's +0x9d4 is set, else the screen; +0x9ec/+0x9f0 = the parent's place
+00443500	create_window	CreateWindow's worker: argument 6 (EAX) not `true` clears +0x9d4 and +0x9ec..+0x9f4, so the window's children are placed from the screen
+0044be20	find_or_create_object	deletes an object of the same name (00452d00), then creates it (0044c8c0)
+00445ac0	queue_fade	Fade's worker: cb_Fade on each named object; the wait (ESI) `true` with time (EAX) > 0, or a number, waits
+004465d0	queue_transition	DrawTransition's worker: softness < 1001 or nothing; FUN_0044fe00 on each object, then the wait as Fade's
+0044fe00	transition_start	DrawTransition's step: loads the mask (FUN_00488130; none: returns, nothing drawn), threshold table ends from/to × 0.255, +0xc90 = 255 / softness
+00457bf0	transition_frame	DrawTransition per frame: table 255 up to the eased threshold p, then −255/p × 255/softness a level, stored truncated (fldcw 0xc00 at 00457dee)
+00488130	load_texture_source	parse_texture_source into a new surface; 0 when the file is missing
+0045a490	transition_clear	frees a transition's mask and table, resets the object's draw callback
+00489570	camera_project	a camera's vertices: x = 512 + c·(X − 512)/Z, y about 288 (00489a52)
+00452ab0	cb_SetBlur	SetBlur on an object: on → FUN_00460230, off → +0xdb8 = 0
+00460230	blur_trail_set	SetBlur trail: copies (≤ 128), interval (1..999), alpha; +0xdbc the `true` flag: trail drawn under the object (00454ca4), else over
+004760f0	sound_set_pan	SetPan: value × 10 (@ relative) clamped ±10000 → IDirectSoundBuffer::SetPan, or a fade thread
+00476230	sound_set_frequency	SetFrequency: base rate × value / 1000 (@ relative) → IDirectSoundBuffer::SetFrequency on any sound, or a fade thread
+00472620	conquest	Conquest(file, label, set): the read marks of a scene; `true` marks it all read, null returns whether all is read (the skip's $AllRead)
+00470a50	run_statement	runs one statement: dispatch_builtin, else (a letter or $ # ( + -) FUN_00472e50
+00472e50	eval_statement	reads a statement to `;` and evaluates it as an expression: a call of no built-in and no NSS function does nothing

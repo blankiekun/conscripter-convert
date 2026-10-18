@@ -19,6 +19,16 @@ not mapped (ours: Muramasa.exe's `effectsoft`); `Move`/`Zoom`/`Rotate`
 keep the Japanese curves. No names carried between muramasa_en.exe and
 Muramasa.exe: different engines (Diesel/Squirrel against NSS).
 
+Findings audit (2026-10-18, `docs/new-game.md` step 17): all 10 rows
+re-derived from the decompile, the compiled scripts (`nut.py`) and the
+archives: 8 confirmed (the tempo table's `AxlDxl1` 17 and `DxlAxl1` 18
+at 0x40cec0/0x40cf50, the text fade's 212.5 and 5.3125 at 004ad32f, the
+440×50 choice plates), one stale (`ShowVOICESEText` is in
+`function.nut`), one unsupported: `CreateTextureEX`/`SP` have no
+language test; the English pictures are `cg.npk`'s under the Japanese
+names, and ours takes them only for the name plates, quick bar and
+telops (`ENGLISH_FIRST`): now inferred.
+
 ### Accuracy (2026-10-17)
 
 The port's hand-typed values (`muramasa.rs`'s English parts,
@@ -421,8 +431,8 @@ arrow).
      nowhere to be seen" / "My comrades …", ma01_003's `<CLICK>`
      rows); ma01_026's document is shown whole, then its typing
      sounds play; the port types it letter by letter (`FadeCharacter`).
-  3. Gaps from the exe map ("The exe", coverage table): `<SMALL>`'s
-     size (75 %) is a guess; its larger-type text boxes (`SetTextEXC_Large` …, 16
+  3. Gaps from the exe map ("The exe", coverage table): its
+     larger-type text boxes (`SetTextEXC_Large` …, 16
      calls in 8 scenes).
   4. Gaps from the scripts' coverage ("The scripts' coverage"):
      `TransLog` (125) and
