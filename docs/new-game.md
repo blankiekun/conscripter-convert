@@ -24,7 +24,7 @@ items of section 2's list "Mapping the whole exe", not rows of this table.
 
 | Step | Do | Done when |
 |---|---|---|
-| 0 | Ask the user the scope; learn the game as a player; identify the engine; start `docs/games/<id>.md` from the template | Scope, walkthrough source and engine are in the document |
+| 0 | Ask the user the scope; learn the game as a player; identify the engine (first-contact kit: report, then one logged run); start `docs/games/<id>.md` from the template | Scope, walkthrough source and engine are in the document |
 | 1 | Archive reader and format decoders, `<format> list\|extract` | The whole corpus verifies and decodes; degenerate assets counted |
 | 2 | Decode the scripts; rank opcodes by use; Ghidra export with `names.tsv`; coverage table; map the exe (section 2 list, items 1-17) | Every script parses, every jump target exists; findings table marks each behaviour seen/inferred |
 | 3 | Lower to the IR; flags in `conv_core::alloc`'s free ranges | `--dry-run` writes a `0.txt`; what is left out is a ranked list |
@@ -58,6 +58,32 @@ items of section 2's list "Mapping the whole exe", not rows of this table.
    `.cpp`/RTTI names, archive magic numbers, config files. If it is a
    known engine (KiriKiri, NScripter, Siglus, Nitroplus NSS, ...), find
    the existing format documentation and tools before reversing anything.
+   For a Windows game, start with the **first-contact kit**
+   (`research/tools/firstcontact/`): `first_contact.py <install>
+   [--ghidra <export> | --ghidra-run]` writes
+   `out/<install name>-first-contact/report.md` (engine guesses from file
+   names, archive magic and exe strings; imports by use; files by
+   extension; RTTI) and, with a Ghidra export, `hooks.tsv`: candidate
+   dispatch, wait-loop and present functions as count breakpoints. Then
+   **one** logged run, `fc.sh <install> --hooks <out>/hooks.tsv`
+   (headless, 300 s, a click and Enter every 2 s): `trace.jsonl.gz`
+   holds every file opened and read (offsets, so archive entries can be
+   named), DirectSound buffers and plays with the file read just before,
+   presents with their times, input, timers, a per-second count of
+   sleeps, clock calls and breakpoint hits, and the exe call sites on
+   the stack of each open, sound and present (the present's function,
+   found from the run). `summary.txt` ranks each breakpoint against the
+   presents. Answer later questions from this log, not new runs.
+   The run folder stays small: screenshots are lossy WebP (quality 80:
+   for looking and coarse compares, RMSE or a fuzz, not AE 0;
+   `--lossless` for pixel compares), every 120 presents, an unchanged
+   screen left out, at most 500, and none once the folder passes 200 MB
+   (`--max-shots`, `--cap-mb`; the log goes on and `shots.log` says so).
+   Tried on 装甲悪鬼村正 next to `ntrace.dll` (`--dll`): every sound
+   statement with a file name matched a DirectSound buffer 12 ms later,
+   every literal CG name a `cg.npa` read about 20 ms later; it can't see
+   script positions, text or variables (that is the engine trace's job),
+   XAudio2 or Vulkan presents, and 64-bit games are built but untried.
 4. **Start the files that survive context resets**:
    - `docs/games/<game>.md` (copied from `docs/games/TEMPLATE.md`; a
      new engine also follows `docs/new-engine.md`), committed: the game's record and its
