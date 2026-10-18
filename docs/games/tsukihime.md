@@ -852,25 +852,24 @@ changed (`script_command`: `FUN_0012e0b0` asks for the pictures, a
 frame's countdown, the fade starts once `FUN_001b6920` has them all, it
 ends a frame after); a `_STMA` on a layer the next `_FADS` shows is
 marked as the `_STMA`'s in the source map; `trace_diff.py` matches a
-continued page by its own lines. Left (was 46 `missing`, 149 `time`,
-180 `text`):
+continued page by its own lines. `_STGS` on a layer already shown starts its fade (or sets its alpha) at
+once, as the exe's `FUN_00132820` sets the live layer's, and `_STCF`
+waits for it (`FUN_00162f90`, `FUN_001802c0`, `FUN_001329f0`: mask 8
+the fade, 0x20 a motion that doesn't loop; ours an `spmotionwait`).
+Left (was 46 `missing`, 149 `time`, 180 `text`; then 14 and 89):
 
-- 14 `missing`: `_STMA` `00_00:212` and `1121` (`_STMA(7,5)`,
-  `_STMA(20,6)`, whose layer is shown by a later `_FADS`; why no
-  motion of ours comes from them is not traced yet), and 12 `_FADS(1,0,0)` that change
-  nothing visible in ours, so the trace has no event from them
-  (`00_00:1583`, `2278`, `3381`, …): a trace-side gap, not a
-  difference.
-- 89 `time`. The biggest group (30) is `_STGS(n,,255,1000,0)` then
-  `_STCF(n,8)` after a `_FADS`: the original's `_STCF` waits the
-  fade's 1 s there (`FUN_00162f90`, `FUN_001802c0`, `FUN_001329f0`:
-  mask 8 the fade, 0x20 a motion that doesn't loop), so the fade of a
-  layer already shown starts at the `_STGS`, not at the next `_FADS`
-  as ours has it. That `_STGS` timing and `_STCF` go together (a
-  draft that only adds the wait changed no finding). Then `_FADS`
-  after a new picture (19 after `_SEPL`, 13 after `_CLO3`, 6 after
-  `_SEFD`: the original's 2–10 frames loading it, left out), and
-  `_MPLY(52)` at `00_00:4296`.
+- 45 `missing`: 29 `_STGS` on a layer the next `_FADS` shows (its
+  fade or alpha is among the `_FADS`'s ops; marking it the `_STGS`'s
+  puts the `_FADS`'s frames before it and adds about 40 `time`
+  findings, so it stays the `_FADS`'s); `_STMA` `00_00:212` and `1121`
+  (`_STMA(7,5)`, `_STMA(20,6)`: their layer is set to priority 0 by
+  `_STCP` before its `_FADS`, so it is never drawn, in the exe too);
+  13 `_FADS(1,0,0)` that change nothing visible in ours, so the trace
+  has no event from them; one `_STCF` after a 1 ms `_STGS` (the exe
+  waits a frame).
+- 73 `time`: chiefly `_FADS` after a new picture (12 after `_SEPL`,
+  13 after `_CLO3`, 6 after `_SEFD`: the original's 2–10 frames
+  loading it, left out), and `_MPLY(52)` at `00_00:4296`.
 
 ### Next
 

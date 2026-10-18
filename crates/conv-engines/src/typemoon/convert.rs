@@ -417,6 +417,9 @@ struct Lowering<'g, 'a> {
     /// The `_STMA` that gave a staged layer its `Layer::motion`: its
     /// `spmotion` at the `_FADS` is marked as that command's.
     motion_from: Vec<Option<conv_core::ir::SourceLoc>>,
+    /// What the last `spmotion` on each IR layer is, as `_STCF`'s mask
+    /// bits (`FUN_001329f0`): 8 an `_STGS` fade, 0x20 an `_STMA` motion.
+    motion_bits: Vec<u8>,
 }
 
 impl Lowering<'_, '_> {
@@ -736,7 +739,10 @@ impl Lowering<'_, '_> {
             }
             // `_STGS(layer, from, to, ms, ease)` (`FUN_001637a0`): the alpha
             // from `from` (default: the layer's) to `to` (default 0) over `ms`,
-            // running from the next `_FADS` while the script goes on.
+            // while the script goes on. The fade starts at once on the shown
+            // layer (`FUN_00132820` sets the live layer's); ours does that when
+            // nothing else of the layer waits for a `_FADS`, else from the next
+            // `_FADS` (that comes right after in the script).
             "_STGS" => {
                 let Some(n) = number(arg(0)).filter(|n| (0..LAYERS as i32).contains(n)) else { return false };
                 let Some(l) = self.staged[n as usize].as_mut() else { return true };
@@ -747,6 +753,9 @@ impl Lowering<'_, '_> {
                 // src: exe 0x130c80 (easing 0, 1 and any it doesn't know: straight)
                 let curve = ease(number(arg(4)).unwrap_or(0));
                 l.fade = (ms > 16 && from != to).then_some((from, to, ms, curve)); // ours: under a frame is at once
+                // Else from the `_FADS`, whose ops these are (marking them the `_STGS`'s puts the
+                // `_FADS`'s own frames before it in the trace diff).
+                self.fade_now(n as usize);
             }
             "_STMA" => {
                 self.hide_window_for(number(arg(2)), None);
@@ -789,6 +798,20 @@ impl Lowering<'_, '_> {
                     (1, None) => return false,
                     (e, c) if super::stec::filters(e, 0).is_some() => l.effect = Some((e, c.unwrap_or(0))),
                     _ => return false,
+                }
+            }
+            // `_STCF(layer, mask)` (`FUN_00162f90`): the script waits until the
+            // shown layer's changes under `mask` (default 0x3f) have ended
+            // (`FUN_001802c0`, each frame `FUN_001329f0`): 8 its `_STGS` fade,
+            // 0x20 its motion unless it loops; 1, 2, 4 timed changes ours
+            // doesn't make, 0x10 a field not found yet.
+            "_STCF" => {
+                let Some(n) = number(arg(0)).filter(|n| (0..LAYERS as i32).contains(n)) else { return false };
+                let mask = number(arg(1)).unwrap_or(0x3f);
+                if let Some(slot) = self.slot_layer.iter().position(|&l| l == Some(n as usize))
+                    && i32::from(self.motion_bits[slot]) & mask != 0
+                {
+                    self.ops.push(Op::MotionWait { layer: slot as u32 });
                 }
             }
             "_STCP" => {
@@ -884,6 +907,38 @@ impl Lowering<'_, '_> {
         true
     }
 
+    /// Starts layer `n`'s staged `_STGS` fade (or sets its alpha) at once
+    /// when the layer is shown and differs from what is shown only by its
+    /// alpha; false when it waits for the `_FADS`.
+    // shortcut: a layer with a parent or shown children (their alpha multiplies) or a loop waits for the `_FADS`.
+    fn fade_now(&mut self, n: usize) -> bool {
+        let Some(Layer { fade, alpha, .. }) = self.staged[n] else { return false };
+        let Some(slot) = self.slot_layer.iter().position(|&l| l == Some(n)) else { return false };
+        let same = |a: &Option<Layer>| a.clone().map(|l| Layer { alpha: 0, fade: None, motion: None, ..l });
+        if same(&self.staged[n]) != same(&self.shown[n])
+            || self.shown[n].as_ref().is_some_and(|l| l.parent.is_some() || l.motion.is_some())
+            || self.shown.iter().flatten().any(|c| c.parent == Some(n))
+            || self.loop_runs.iter().any(|(_, runs)| runs.iter().any(|&(c, _)| c == slot))
+        {
+            return false;
+        }
+        if let Some(l) = self.staged[n].as_mut() {
+            l.fade = None;
+        }
+        self.shown[n].clone_from(&self.staged[n]);
+        self.slots[slot] = self.resolved(n, 0);
+        let layer = slot as u32;
+        let Some((from, to, ms, curve)) = fade else {
+            self.ops.push(Op::SpriteOpacity { layer: Some(layer), opacity: alpha * 256 / 255 });
+            return true;
+        };
+        let key = |ms, alpha: u32| MotionKey { ms, x: 0, y: 0, zoom: 100, angle: 0, opacity: alpha * 256 / 255, zoom_y: 100, ease: None };
+        self.ops.push(Op::SpriteOpacity { layer: Some(layer), opacity: 256 });
+        self.ops.push(Op::SpriteMotion2 { layer, keys: vec![key(0, from), MotionKey { ease: curve, ..key(ms, to) }], end: MotionEnd::Keep });
+        self.motion_bits[slot] = 8;
+        true
+    }
+
     /// The staged picture on layer `arg`, if any.
     fn staged_layer(&mut self, arg: &str) -> Option<&mut Layer> {
         let n = number(arg).filter(|n| (0..LAYERS as i32).contains(n))?;
@@ -958,6 +1013,7 @@ impl Lowering<'_, '_> {
         let mask = (kind == 2).then(|| format!("pic/rule_{rule:02}.png"));
         self.ops.push(Op::BeginTransition { effect: format!("_FADS({kind},{ms},{rule})"), fade_ms, mask, style: TransitionStyle::Fade });
         for slot in changed {
+            self.motion_bits[slot] = 0;
             self.slots[slot] = want[slot].clone();
             let layer = slot as u32;
             match (want[slot].take(), fades[slot]) {
@@ -966,6 +1022,7 @@ impl Lowering<'_, '_> {
                     self.place(layer, &Layer { alpha: 255, ..l });
                     let key = |ms, alpha: u32| MotionKey { ms, x: 0, y: 0, zoom: 100, angle: 0, opacity: alpha * 256 / 255, zoom_y: 100, ease: None };
                     self.ops.push(Op::SpriteMotion2 { layer, keys: vec![key(0, from), MotionKey { ease: curve, ..key(ms, to) }], end: MotionEnd::Keep });
+                    self.motion_bits[slot] = 8;
                 }
                 (Some(l), None) => self.place(layer, &l),
                 (None, _) => {
@@ -974,6 +1031,7 @@ impl Lowering<'_, '_> {
                     self.clips[slot] = None;
                 }
             }
+
         }
         // After every place: a parent's motion moves its children too.
         let here = self.source_map.last().cloned();
@@ -1096,6 +1154,9 @@ impl Lowering<'_, '_> {
         for (c, start, keys) in moves {
             if self.emit_motion(c, &start, &keys, loop_from) {
                 runs.push((c, self.slot_layer[c].unwrap_or(i)));
+                if c == slot {
+                    self.motion_bits[c] = 0x20; // a child's own motion stays as it was
+                }
             }
         }
         if loop_from != 0 {
@@ -1442,6 +1503,7 @@ pub(super) fn compile_copy(g: &Game, prefix: &str, vars: HashMap<String, Var>, c
         loop_runs: Vec::new(),
         source_map: Vec::new(),
         motion_from: vec![None; LAYERS],
+        motion_bits: vec![0; LAYERS],
     };
     let mut starts = Vec::new();
     for (name, commands) in &g.scripts {
@@ -2009,6 +2071,37 @@ mod tests {
                 Op::Choice { options: vec![opt("父の事だ。", "A"), opt("妹の事だ。", "B"), opt("妹の事だ。", "C"), opt("next", "D")], style: None, disabled: vec![2] },
             ]
         );
+    }
+
+    #[test]
+    fn stcf_waits_for_the_layers_fade_or_motion() {
+        // A fade waits under mask 8 and the default, not under 0x20; a layer not shown doesn't wait.
+        let src = "_STCH(1,img1,240,136,1000,0);_STGS(1,,255,1000,0);_FADS(1,0,0);_STCF(1,8);_STCF(1,32);_STCF(1);_STCF(2);";
+        let g = Game {
+            scripts: vec![("S".into(), script::parse(src).into_iter().map(Result::unwrap).collect())],
+            scenes: vec![],
+            lines: vec![],
+            pictures: [picture("img1", 1280.0, 724.0)].into(),
+            textures: HashMap::new(),
+            sounds: vec![],
+            waves: HashMap::new(),
+            pic_ext: "webp",
+            motions: vec![],
+        };
+        let c = compile(&g);
+        assert!(c.notes.is_empty(), "{:?}", c.notes);
+        let waits: Vec<_> = c.ops.iter().filter(|o| matches!(o, Op::MotionWait { .. })).collect();
+        assert_eq!(waits, [&Op::MotionWait { layer: 39 }, &Op::MotionWait { layer: 39 }]);
+        // On a layer already shown the fade starts at the `_STGS`, and `_STCF` waits for it.
+        let src = "_STCH(1,img1,240,136,1000,0);_FADS(1,0,0);_STGS(1,,255,1000,0);_STCF(1,8);_FADS(1,0,0);";
+        let g = Game { scripts: vec![("S".into(), script::parse(src).into_iter().map(Result::unwrap).collect())], ..g };
+        let ops = compile(&g).ops;
+        let at = |f: fn(&Op) -> bool| ops.iter().position(f).unwrap();
+        let (fade, wait) = (at(|o| matches!(o, Op::SpriteMotion2 { layer: 39, .. })), at(|o| matches!(o, Op::MotionWait { layer: 39 })));
+        let second = ops.iter().rposition(|o| matches!(o, Op::BeginTransition { .. })).unwrap();
+        assert!(fade < wait && wait < second, "{ops:?}");
+        // the second `_FADS` doesn't place it again
+        assert!(!ops[second..].iter().any(|o| matches!(o, Op::Sprites { .. } | Op::SpriteMotion2 { .. })), "{ops:?}");
     }
 
     #[test]
