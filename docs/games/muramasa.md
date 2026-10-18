@@ -1513,7 +1513,9 @@ already, and the picture is taken away at a later sync. A picture
 disused as such a fade starts (`FadeDelete(…, false)`: `Fade` then
 `Request(…, Disused)`) is kept until a sync after the fade, as the
 exe's frame on page 3 shows (ma00_000:137, the old sky still at about
-a third after the 1 s `Wait`). Limit: the later sync takes it away
+a third after the 1 s `Wait`); not one that also zooms or turns
+(mb02_028vs:123) or that a `DrawTransition` wipes (md01_029vs:2107):
+those go at once, as before. Limit: the later sync takes it away
 even if the reader clicks on before the fade's end (by the script's
 clock).
 
