@@ -706,13 +706,13 @@ Open, by area (each is small; most noticeable first):
   random place (md04_043, `CP_AziChange`), or give a loop to a picture
   shown only later.
 - **Effects**: `CreateEffect` Drop (1, mc04_052) and Lens (2); `DrawEffect`
-  waves on a `Plain` cover (10), Ripple (4), Split (7), a wave picked up
+  waves on a `Plain` cover that is shaken or whose screen changed (3),
+  Ripple (4), Split (7), a wave picked up
   later restarts straight; `DrawTransition` partial sweep is a plain mask
-  print; md05_016vs's two on `Plain` covers (`絵板写*`, 1049-1050) don't
-  matter yet: those covers (`CreatePlainEXsub`/`EXadd`, then zoomed to
-  1500) aren't drawn at all (`shows_froze`'s shortcut for a blended or
-  zoomed cover), so the 空間歪曲 flashes show nothing: drawing them needs
-  blended, zoomed-over-time cover copies (and the wave), a feature; 565 calls start from
+  print; a moved/zoomed/blended `Plain` cover (History, "Plain covers as
+  screen copies") first shown over a screen that changed since it froze,
+  or shaken, keeps the screen; one placed again on another layer is copied
+  again from the screen then; `OverlayRender` draws normally; 565 calls start from
   another opacity (noted); `CreateStencil`/`CreateMask`: a moved or zoomed picture
   under them, a zoom about a vertex, a `Plain` cover under a stencil, a
   colour mask exact only for alpha blend; 25 `CreateTexture`s from an
@@ -770,6 +770,32 @@ Open, by area (each is small; most noticeable first):
 - **Unused**: `spgrab` could stand for `CreateTexture`'s render-to-texture.
 
 ## History
+
+### Plain covers as screen copies (2026-10-18)
+
+A `Plain` cover that is moved, zoomed, turned, blended (`Request`
+`AddRender`/`SubRender`/`MulRender`, the `CreatePlainEX*`/`SP*` helpers)
+or waved (`DrawEffect`) was not drawn at all, so md05_016vs's 空間歪曲
+flashes (`CreatePlainEXadd` + `CreatePlainEX`, faded to 500 as they zoom
+to 1500, a HighWave on one) showed nothing. Such a cover is now one
+sprite holding a copy of the screen under it (`spgrab n,-3`, new in the
+engine: the background and the sprites drawn before n), taken when it is
+first shown while the screen under it is still what it froze; the engine
+zooms it (`spzoom`, the zoom over time as `spmotion` keys from the start
+zoom), blends it (`spblend`), waves it (`spwave`), and a partial
+`DrawTransition`'s veil cuts it (`spcut` with `system/veilcut_*.png`,
+md05_016vs 1049-1050). 153 copies in Muramasa (55 scenes: ma04_013vs's
+additive zoomed flashes, mc01_020vsa's ghosted 1100/1300 copies, …);
+Django has no `Plain` covers. Wave notes on covers 10 → 3.
+
+The same change fixes the order of a new picture's opacity and its
+motion: `msp` came after `spmotion`, and `msp` ends a kept motion, so a
+picture fading in to a partial opacity over longer than the wait jumped
+to its end (trace: `"ended":"cut short","ran":0`); `msp` now comes first
+(≈ 760 lines in Muramasa, 7 in Django). Checked in a scene build of
+md05_016vs with `--shot-at`: the flash's copy runs its motion (`"ran out",
+"ran":305`), the frame 200 ms in is the additive zoomed copy (RMSE 0.19
+against the frame before), 800 ms in the 50 % waved copy (0.06).
 
 #### A Plain cover shown again (2026-10-18)
 

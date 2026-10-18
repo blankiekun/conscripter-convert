@@ -39,7 +39,7 @@
 
 use std::collections::{BTreeMap, HashMap};
 
-use conv_core::ir::{ArithOp, SpriteFilter, BLEND_ADD, BLEND_MULTIPLY, BLEND_NORMAL, BLEND_SUBTRACT, ChoiceStyle, CLICK_WAIT_MARK, MotionEnd, MotionKey, Op, Operand, ScreenEffect, Ruby, Script, TextStyle, SpriteChange, SpritePlacement, TextWindow, TransitionStyle, Voice};
+use conv_core::ir::{ArithOp, SpriteFilter, BLEND_ADD, BLEND_MULTIPLY, BLEND_NORMAL, BLEND_SUBTRACT, ChoiceStyle, SCREEN_UNDER, CLICK_WAIT_MARK, MotionEnd, MotionKey, Op, Operand, ScreenEffect, Ruby, Script, TextStyle, SpriteChange, SpritePlacement, TextWindow, TransitionStyle, Voice};
 
 use super::nss::{AssignOp, BinaryOp, Expr, Function, Inline, Item, NssFile, Param, Stmt, StmtKind, Target, Text, UnaryOp};
 
@@ -348,6 +348,9 @@ pub trait Assets {
     /// of the output picture `mask` stretched over the screen
     /// (`DrawTransition` stopped partway, [`transition::table`]). Its path.
     fn veil(&mut self, mask: &str, table: &[u8; 256]) -> Option<String>;
+    /// A [`Assets::veil`] as `spcut` takes it: black, as opaque as the
+    /// veil is clear. Its path.
+    fn veil_cut(&mut self, veil: &str) -> Option<String>;
     /// A picture decoded: one the scripts name (`cg/…`) or one in the
     /// output (`system/…`). `None` in a dry run.
     fn rgba(&mut self, path: &str) -> Option<image::RgbaImage>;
@@ -3622,7 +3625,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
     /// The screen is frozen under an opaque `Plain` cover while one is up:
     /// the top one's priority.
     fn frozen_at(&self) -> Option<i64> {
-        self.objects.values().filter(|o| matches!(o.kind, Kind::Cover { .. }) && o.opacity >= 1000 && !self.shows_froze(o)).map(|o| o.priority).max()
+        self.objects.iter().filter(|(n, o)| matches!(o.kind, Kind::Cover { .. }) && o.opacity >= 1000 && !self.shows_froze(o) && !self.grabs(n, o)).map(|(_, o)| o.priority).max()
     }
 
     /// Hides the text window once no picture of it is visible.
@@ -4426,6 +4429,9 @@ mod tests {
         }
         fn veil(&mut self, mask: &str, table: &[u8; 256]) -> Option<String> {
             Some(format!("{mask}~{}", table.iter().filter(|&&v| v > 0).count()))
+        }
+        fn veil_cut(&mut self, veil: &str) -> Option<String> {
+            Some(format!("{veil}-cut"))
         }
         fn movie_frames(&mut self, path: &str, at: Option<u32>, alpha: bool, dark: bool) -> Option<(String, u32, u32, u32)> {
             let (w, h) = if alpha { (200, 108) } else { (1024, 576) };
@@ -7001,6 +7007,39 @@ scene a.nss
         let c = compile(story, LIBRARY);
         let Some(Op::Sprites { changes, .. }) = c.ops.iter().rev().find(|op| matches!(op, Op::Sprites { .. })) else { panic!() };
         assert!(changes.iter().any(|c| c.sprite.as_ref().is_some_and(|s| s.image == "cg/bg/a.jpg")), "{changes:?}");
+    }
+
+    #[test]
+    fn a_blended_zoomed_plain_cover_is_a_copy_of_the_screen() {
+        // 装甲悪鬼村正's md05_016vs: CreatePlainEXadd, faded in as it zooms, waved.
+        let story = r#"
+scene a.nss
+{
+	CreateTexture("絵背景100", 100, 0, 0, "cg/bg/a.jpg");
+	Wait(10);
+	CreateEffect("絵板写", 1000, 0, 0, 1024, 576, "Plain");
+	Fade("絵板写", 0, 0, null, true);
+	Request("絵板写", AddRender);
+	Fade("絵板写", 300, 500, null, false);
+	Zoom("絵板写", 300, 1500, 1500, Dxl2, false);
+	Wait(200);
+	DrawEffect("絵板写", 1000, "HighWave", 300, 300, Dxl2);
+	Wait(200);
+}
+"#;
+        let c = compile(story, LIBRARY);
+        let placed = c.ops.iter().find_map(|op| match op {
+            Op::Sprites { changes, .. } => changes.iter().find(|c| c.sprite.as_ref().is_some_and(|s| s.image == SCREEN_UNDER)).map(|c| (c.layer, c.sprite.clone().unwrap())),
+            _ => None,
+        });
+        let Some((layer, at)) = placed else { panic!("{:?}", c.ops) };
+        assert_eq!((at.x, at.y), (0, 0));
+        assert!(c.ops.iter().any(|op| matches!(op, Op::SpriteAngle { layer: l, zoom: (150, 150), .. } if *l == layer)), "{:?}", c.ops);
+        assert!(c.ops.iter().any(|op| matches!(op, Op::SpriteBlend { layer: l, mode: BLEND_ADD } if *l == layer)), "{:?}", c.ops);
+        // Zoomed from 1000 (2/3 of its end) as it fades in.
+        assert!(c.ops.iter().any(|op| matches!(op, Op::SpriteMotion2 { layer: l, keys, .. } if *l == layer && keys[0].zoom == 66 && keys[0].opacity == 0)), "{:?}", c.ops);
+        assert!(c.ops.iter().any(|op| matches!(op, Op::SpriteWave { layer: l, .. } if *l == layer)), "{:?}", c.ops);
+        assert!(!c.notes.keys().any(|n| n.contains("DrawEffect")), "{:?}", c.notes);
     }
 
     #[test]

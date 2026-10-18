@@ -1115,6 +1115,17 @@ pub(crate) fn sprite_mode(image: &str) -> char {
 
 /// `lsp` for a sprite ([`sprite_mode`]).
 fn lsp(slot: u32, s: &SpritePlacement) -> String {
+    if let Some(rest) = s.image.strip_prefix(conv_core::ir::SCREEN_UNDER) {
+        let mut out = format!("spgrab {slot},-3");
+        if let Some(cut) = rest.strip_prefix('|') {
+            out += &format!(":spcut {slot},\"{}\",0,0", path(cut));
+        }
+        // (Taken at (0, 0): moved to its place.)
+        if (s.x, s.y) != (0, 0) {
+            out += &format!(":msp {slot},{},{},0", s.x, s.y);
+        }
+        return out;
+    }
     let mode = sprite_mode(&s.image);
     format!("lsp {slot},\":{mode};{}\",{},{}", path(&s.image), s.x, s.y)
 }
@@ -1973,6 +1984,10 @@ goto *conv_link1
         assert_eq!(lsp(70, &jpeg), "lsp 70,\":c;cg\\bg\\a.JPG\",0,0");
         let png = SpritePlacement { image: "cg/st/a.png".into(), x: 1, y: 2 };
         assert_eq!(lsp(70, &png), "lsp 70,\":a;cg\\st\\a.png\",1,2");
+        let under = SpritePlacement { image: conv_core::ir::SCREEN_UNDER.into(), x: 0, y: 0 };
+        assert_eq!(lsp(70, &under), "spgrab 70,-3");
+        let cut = SpritePlacement { image: format!("{}|system/c.png", conv_core::ir::SCREEN_UNDER), x: 2, y: 0 };
+        assert_eq!(lsp(70, &cut), "spgrab 70,-3:spcut 70,\"system\\c.png\",0,0:msp 70,2,0,0");
     }
 
     #[test]
