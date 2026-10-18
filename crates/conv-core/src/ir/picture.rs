@@ -474,6 +474,10 @@ pub struct PictureGallery {
     pub engine_screen: bool,
     /// Over a category's button under the pointer.
     pub category_hover: Option<CategoryHover>,
+    /// Only the slots with a CG seen are listed, closing up, in pages of
+    /// `rows` × `columns` (月姫's, `FUN_0010b830`); the pages and the
+    /// arrows follow how many are listed. Not with `engine_screen`.
+    pub compact: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -60,6 +60,21 @@ const HOVER: u32 = DIALOG_SPRITES.start; // + category
 const BTN_PREVIOUS: u32 = 201;
 const BTN_NEXT: u32 = 202;
 const BTN_EXIT: u32 = 203;
+/// A compact gallery's slot buttons: 1000 × (category + 1) + slot.
+const COMPACT_BUTTON: u32 = 1000;
+const CELL: &str = "conv_pg_cell";
+// A compact page's count of slots listed, its first and last (from 0, up
+// to), the slot drawn (its button), its CGs, its place on the page and
+// where, its thumbnail.
+const SHOWN: &str = "%conv_pg_shown";
+const FIRST: &str = "%conv_pg_first";
+const LAST: &str = "%conv_pg_last";
+const SLOT: &str = "%conv_pg_slot";
+const CGS: &str = "%conv_pg_cgs";
+const AT: &str = "%conv_pg_at";
+const X: &str = "%conv_pg_x";
+const Y: &str = "%conv_pg_y";
+const THUMBNAIL: &str = "$conv_pg_thumb";
 
 fn button(slot: u32, p: &Placed) -> String {
     format!("lsp {slot},\":a/3,0,3;{}\",{},{}", path(&p.image), p.x, p.y)
@@ -73,7 +88,9 @@ pub(crate) fn emit(out: &mut String, g: &PictureGallery, border: u32, width: u32
     }
     let per_page = g.rows * g.columns;
     assert!(per_page <= MAX_SLOTS && g.categories.len() as u32 <= MAX_CATEGORIES, "a picture gallery larger than its sprites");
-    let pages: Vec<usize> = g.categories.iter().map(|c| c.slots.len().div_ceil(per_page as usize).max(1)).collect();
+    assert!(!g.compact || g.categories.iter().all(|c| c.slots.len() < COMPACT_BUTTON as usize), "a compact gallery's slots past its buttons");
+    // A compact gallery's category is one label drawing the page asked for.
+    let pages: Vec<usize> = g.categories.iter().map(|c| if g.compact { 1 } else { c.slots.len().div_ceil(per_page as usize).max(1) }).collect();
     let max_pages = pages.iter().copied().max().unwrap_or(1);
     let place = |i: u32| {
         let (column, row) = if g.across { (i % g.columns, i / g.columns) } else { (i / g.rows, i % g.rows) };
@@ -118,6 +135,9 @@ pub(crate) fn emit(out: &mut String, g: &PictureGallery, border: u32, width: u32
     // Only in a category of more pages, if so asked.
     let paged: Vec<String> = pages.iter().enumerate().filter(|(_, n)| **n > 1).map(|(c, _)| format!("if {CATEGORY} == {c} ")).collect();
     for (slot, b, n) in [(PREVIOUS, &g.previous, BTN_PREVIOUS), (NEXT, &g.next, BTN_NEXT), (EXIT, &g.exit, BTN_EXIT)] {
+        if g.compact && slot != EXIT {
+            continue; // drawn by the page, which counts the slots
+        }
         let only = if g.arrows_when_paged && slot != EXIT { paged.clone() } else { vec![String::new()] };
         for only in only {
             w(format!("{only}{}", button(slot, b)));
@@ -128,7 +148,8 @@ pub(crate) fn emit(out: &mut String, g: &PictureGallery, border: u32, width: u32
     let targets: Vec<String> = (0..g.categories.len())
         .flat_map(|c| (0..max_pages).map(move |p| format!("*conv_pg_c{c}_p{}", if p < counts[c] { p } else { 0 })))
         .collect();
-    w(format!("mov {TMP},{CATEGORY}*{max_pages}+{PAGE}"));
+    let page = if g.compact { String::new() } else { format!("+{PAGE}") }; // a compact category's label draws any page
+    w(format!("mov {TMP},{CATEGORY}*{max_pages}{page}"));
     w(format!("tablegoto {TMP},{}", targets.join(",")));
     // Shows the page drawn, then waits for a button.
     w("*conv_pg_show".into());
@@ -141,9 +162,21 @@ pub(crate) fn emit(out: &mut String, g: &PictureGallery, border: u32, width: u32
     w(format!("if {BUTTON_VAR} == -1 || {BUTTON_VAR} == {BTN_EXIT} goto *{MENU}"));
     w(format!("if {BUTTON_VAR} == {BTN_PREVIOUS} mov {FADE},{}:dec {PAGE}", g.page_ms));
     w(format!("if {BUTTON_VAR} == {BTN_NEXT} mov {FADE},{}:inc {PAGE}", g.page_ms));
-    for (c, n) in pages.iter().enumerate() {
-        w(format!("if {CATEGORY} == {c} && {PAGE} < 0 mov {PAGE},{}", n - 1));
-        w(format!("if {CATEGORY} == {c} && {PAGE} >= {n} mov {PAGE},0"));
+    if g.compact {
+        // SHOWN: the slots the page drawn counted in its category
+        w(format!("if {PAGE} < 0 mov {PAGE},({SHOWN}-1)/{per_page}"));
+        w(format!("mov {TMP},{PAGE}*{per_page}"));
+        w(format!("if {TMP} >= {SHOWN} mov {PAGE},0"));
+        for (c, category) in g.categories.iter().enumerate().filter(|(_, c)| !c.slots.is_empty()) {
+            let base = COMPACT_BUTTON * (c as u32 + 1);
+            let opens: Vec<String> = (0..category.slots.len()).map(|s| format!("*conv_pg_v{c}_{s}")).collect();
+            w(format!("if {BUTTON_VAR} >= {base} && {BUTTON_VAR} < {} mov {TMP},{BUTTON_VAR}-{base}:tablegoto {TMP},{}", base + COMPACT_BUTTON, opens.join(",")));
+        }
+    } else {
+        for (c, n) in pages.iter().enumerate() {
+            w(format!("if {CATEGORY} == {c} && {PAGE} < 0 mov {PAGE},{}", n - 1));
+            w(format!("if {CATEGORY} == {c} && {PAGE} >= {n} mov {PAGE},0"));
+        }
     }
     let shot = g.category_hover.as_ref().and_then(|h| h.click_se.as_ref()).map_or(String::new(), |se| format!(":dwave {},\"{}\"", SE_CHANNELS.start(), path(se)));
     w(format!(
@@ -152,9 +185,20 @@ pub(crate) fn emit(out: &mut String, g: &PictureGallery, border: u32, width: u32
         g.page_ms
     ));
     // A slot: the page's own label goes on to its viewer.
-    w(format!("if {BUTTON_VAR} >= 1 && {BUTTON_VAR} <= {per_page} mov {TMP},{CATEGORY}*{max_pages}+{PAGE}:tablegoto {TMP},{}", targets.iter().map(|t| format!("{t}_open")).collect::<Vec<_>>().join(",")));
+    if !g.compact {
+        w(format!("if {BUTTON_VAR} >= 1 && {BUTTON_VAR} <= {per_page} mov {TMP},{CATEGORY}*{max_pages}+{PAGE}:tablegoto {TMP},{}", targets.iter().map(|t| format!("{t}_open")).collect::<Vec<_>>().join(",")));
+    }
     w(format!("goto *{DRAW}"));
 
+    if g.compact {
+        compact_pages(out, g, border, per_page);
+        viewers(out, g, border, width, height);
+        return;
+    }
+    let mut w = |line: String| {
+        out.push_str(&line);
+        out.push('\n');
+    };
     for (c, category) in g.categories.iter().enumerate() {
         for (p, slots) in category.slots.chunks(per_page as usize).enumerate() {
             w(format!("*conv_pg_c{c}_p{p}"));
@@ -181,6 +225,54 @@ pub(crate) fn emit(out: &mut String, g: &PictureGallery, border: u32, width: u32
     }
 
     viewers(out, g, border, width, height);
+}
+
+/// A compact gallery's pages: each category's label counts its slots with a
+/// CG seen (SHOWN), drawing those on the page asked for ([`CELL`]), then
+/// the arrows if they fill more than a page.
+fn compact_pages(out: &mut String, g: &PictureGallery, border: u32, per_page: u32) {
+    let mut w = |line: String| {
+        out.push_str(&line);
+        out.push('\n');
+    };
+    for (c, category) in g.categories.iter().enumerate() {
+        w(format!("*conv_pg_c{c}_p0"));
+        w(format!("mov {SHOWN},0:mov {FIRST},{PAGE}*{per_page}:mov {LAST},{FIRST}+{per_page}"));
+        for (s, slot) in category.slots.iter().enumerate() {
+            w(format!("mov {TMP},0"));
+            // from the last CG to the first: THUMBNAIL ends as the first seen's
+            for cg in slot.cgs.iter().rev() {
+                w(format!("if {} inc {TMP}:mov {THUMBNAIL},\"{}\"", seen(&cg.seen, border).0, pic(&cg.thumbnail)));
+            }
+            w(format!("if {TMP} > 0 inc {SHOWN}"));
+            w(format!("if {TMP} > 0 && {SHOWN} > {FIRST} && {SHOWN} <= {LAST} mov {SLOT},{}:mov {CGS},{}:gosub *{CELL}", COMPACT_BUTTON * (c as u32 + 1) + s as u32, slot.cgs.len()));
+        }
+        let paged = if g.arrows_when_paged { format!("if {SHOWN} > {per_page} ") } else { String::new() };
+        for (slot, b, n) in [(PREVIOUS, &g.previous, BTN_PREVIOUS), (NEXT, &g.next, BTN_NEXT)] {
+            w(format!("{paged}{}:spbtn {slot},{n},2", button(slot, b)));
+        }
+        w("goto *conv_pg_show".into());
+    }
+    // The slot SHOWN - FIRST of the page (from 1), TMP of its CGS seen.
+    let (columns, rows) = (g.columns, g.rows);
+    let (column, row) = if g.across { (format!("({AT} mod {columns})"), format!("({AT}/{columns})")) } else { (format!("({AT}/{rows})"), format!("({AT} mod {rows})")) };
+    w(format!("*{CELL}"));
+    w(format!("mov {AT},{SHOWN}-{FIRST}-1"));
+    w(format!("mov {X},{}+{}*{column}:mov {Y},{}+{}*{row}", g.first.0, g.column_step, g.first.1, g.row_step));
+    w(format!("lsp {THUMB}+{AT},{THUMBNAIL},{X},{Y}"));
+    w(format!("if {TMP} < {CGS} amsp {THUMB}+{AT},{X},{Y},{}", g.partial_alpha));
+    w(format!("lsp {CURSOR}+{AT},\":a/2,0,3;{}\",{X},{Y}:spbtn {CURSOR}+{AT},{SLOT}", path(&g.cursor)));
+    w("return".into());
+}
+
+/// A compact gallery's variables, in the define section.
+pub(crate) fn define(out: &mut String, g: &PictureGallery) {
+    if g.compact && !g.engine_screen {
+        for v in [SHOWN, FIRST, LAST, SLOT, CGS, AT, X, Y] {
+            out.push_str(&format!("defvar {}\n", &v[1..]));
+        }
+        out.push_str(&format!("defstr {}\n", &THUMBNAIL[1..]));
+    }
 }
 
 /// A CG's [`Seen`] as an `if` condition (seen), and as the start of an
@@ -295,5 +387,53 @@ mod tests {
         assert_eq!(seen(&Seen::Var(Var { global: true, index: 5 }), 200), ("%205 != 0".into(), "if %205 == 0".into()));
         let s = Seen::Pictures(vec!["pic/a.png".into(), "pic/b.png".into()]);
         assert_eq!(seen(&s, 200), (r#"fchk "pic\a.png" || fchk "pic\b.png""#.into(), r#"notif fchk "pic\a.png" && fchk "pic\b.png""#.into()));
+    }
+
+    #[test]
+    fn a_compact_gallery_lists_the_slots_seen() {
+        use conv_core::ir::{GalleryCategory, PictureSlot, SlotCg};
+        let p = |name: &str| Placed { image: format!("sys/{name}.png"), x: 0, y: 0, w: 50, h: 50 };
+        let cg = |i: u16| SlotCg { seen: Seen::Var(Var { global: true, index: i }), picture: p("cg"), thumbnail: format!("t/{i}.png") };
+        let slots = vec![PictureSlot { cgs: vec![cg(1), cg(2)], reversed: false }, PictureSlot { cgs: vec![cg(3)], reversed: false }];
+        let g = PictureGallery {
+            background: "sys/bg.png".into(),
+            categories: vec![GalleryCategory { button: p("c"), slots }],
+            previous: p("prev"),
+            next: p("next"),
+            exit: p("exit"),
+            first: (100, 50),
+            row_step: 90,
+            column_step: 160,
+            rows: 2,
+            columns: 3,
+            blank: "sys/blank.png".into(),
+            cursor: "sys/cursor.png".into(),
+            partial_alpha: 128,
+            unseen: "sys/unseen.png".into(),
+            open_ms: 300,
+            page_ms: 300,
+            view_fade_ms: 300,
+            close_ms: 300,
+            scroll_ms_per_px: 6,
+            across: true,
+            arrows_when_paged: true,
+            engine_screen: false,
+            category_hover: None,
+            compact: true,
+        };
+        let mut out = String::new();
+        emit(&mut out, &g, 200, 1280, 720);
+        for part in [
+            // the first seen of slot 0's CGs is its thumbnail; a slot is counted, and drawn when on the page
+            "if %201 != 0 inc %105:mov $conv_pg_thumb,\":a;t\\1.png\"\nif %105 > 0 inc %conv_pg_shown\n",
+            "mov %conv_pg_slot,1001:mov %conv_pg_cgs,1:gosub *conv_pg_cell\n",
+            "if %conv_pg_shown > 6 lsp",
+            "mov %conv_pg_x,100+160*(%conv_pg_at mod 3):mov %conv_pg_y,50+90*(%conv_pg_at/3)\n",
+            "if %131 < 0 mov %131,(%conv_pg_shown-1)/6\n",
+            "if %9 >= 1000 && %9 < 2000 mov %105,%9-1000:tablegoto %105,*conv_pg_v0_0,*conv_pg_v0_1\n",
+        ] {
+            assert!(out.contains(part), "missing {part:?} in\n{out}");
+        }
+        assert!(!out.contains("_open"), "{out}");
     }
 }

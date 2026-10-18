@@ -52,6 +52,7 @@ fn button(p: &Placed, extra: &str) -> String {
 
 /// `screens/gallery.lua`.
 pub(crate) fn lua_file(g: &PictureGallery, border: u32) -> String {
+    assert!(!g.compact, "the engine's gallery screen lists every slot (PictureGallery::compact)");
     let per_page = (g.rows * g.columns) as usize;
     let pages = pages(g);
     let total: usize = pages.iter().sum();
@@ -155,6 +156,7 @@ mod tests {
             arrows_when_paged: true,
             engine_screen: true,
             category_hover: None,
+            compact: false,
         };
         let lua = lua_file(&g, 4000);
         for part in [
