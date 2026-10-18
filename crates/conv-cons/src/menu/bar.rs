@@ -28,6 +28,10 @@ pub(crate) struct BarScreens<'a> {
     /// The variable holding the story's `gamespeed` percent: the click wait
     /// (and the menus opened from it) run at 100, the story at that.
     pub game_speed: Option<&'static str>,
+    /// The auto and skip buttons end their mode when it is on: a click
+    /// elsewhere may not (a settings switch sets `clickautostop` or
+    /// `clickskipstop` to 0).
+    pub toggles: bool,
 }
 
 /// The routine that runs a bar action (`gosub` it).
@@ -396,7 +400,9 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, s: BarScreens) {
     for a in actions {
         w(format!("*{}", bar_label(a)));
         match a {
+            BarAction::Auto if s.toggles => w(format!("isskip {MODE_STATE}\nif {MODE_STATE} == 2 autooff:return\nsystemcall automode")),
             BarAction::Auto => w("systemcall automode".into()),
+            BarAction::Skip if s.toggles => w(format!("isskip {MODE_STATE}\nif {MODE_STATE} == 1 skipoff:return\n{}systemcall skip", if fast_skip { format!("mov {FAST_SKIP},0:") } else { String::new() })),
             BarAction::Skip if fast_skip => w(format!("mov {FAST_SKIP},0:systemcall skip")),
             BarAction::Skip => w("systemcall skip".into()),
             BarAction::FastSkip => w(format!("mov {FAST_SKIP},1:systemcall skip")),

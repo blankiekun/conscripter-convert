@@ -889,6 +889,16 @@ pub enum Switch {
     /// Ask before a quick load ([`BarAction::QuickLoad`]); asked only by a
     /// [`ConfirmDialog`] with a picture for it.
     ConfirmQuickLoad,
+    /// A click (or key) during auto mode ends it; off: auto mode goes on
+    /// and the click reads on (the auto button still ends it).
+    ClickStopsAuto,
+    /// A click (or key) during skip ends it; off: only the skip button does.
+    ClickStopsSkip,
+    /// Auto mode stops at a choice (a select, a page of links); off: it
+    /// goes on past it.
+    ChoiceStopsAuto,
+    /// Skip stops at a choice; off: it goes on past it.
+    ChoiceStopsSkip,
 }
 
 /// A voiced line's clip and whose voice it is (for the per-character

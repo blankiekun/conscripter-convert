@@ -153,14 +153,15 @@ fn settings(a: &mut dyn Assets, story: &Story) -> Option<PictureSettings> {
 /// (91,74), wait for the voice in auto mode (377,396); the mutes
 /// (`Toggle3`, round, 769 × 57/130/203); the ON/OFF pairs (`Toggle2`, 37×37
 /// `ConfigButton-small-…`, ON at x 394, OFF 35 right): skip unread (y 179),
-/// skip the voice on a click (239), stop auto and skip at a choice (299).
+/// skip the voice on a click (239), a click stops auto mode (269), stop
+/// auto and skip at a choice (299).
 /// Gauges (`ConfigCreateGage`): a 141×34 track, the knob (7×13) 19 down
 /// and running 134 across, `ConfigSlider-Full` lit from 4 left and 7 down
 /// to the knob: auto speed (133,405), text speed (133,483), music,
 /// effects and voices (588 × 65/138/211). Restore (377,74), the voice
 /// test (851,203), Close (854,555). What we can't set is drawn as a first
 /// start leaves it: auto save at choices (on), read text's colour (on),
-/// a click stopping auto mode (on), syncing text to voices (off), the
+/// syncing text to voices (off), the
 /// effects test, full screen (off), 1024×576, the display's aspect.
 /// Compared with the original at a first start; the character voices
 /// window (`OpenCVSetting`) and the text sample are not done.
@@ -195,7 +196,14 @@ fn settings_en(a: &mut dyn Assets) -> Option<PictureSettings> {
     }
     // ON and OFF: (the option's on side's column, …).
     let small = |a: &mut dyn Assets, side: &str, x: i32, y: i32| strip(a, &["ConfigButton-small-no", &format!("ConfigButton-small-{side}"), &format!("ConfigButton-small-{side}check")], x, y);
-    for (option, y, on_is_on, default_on) in [(PairOption::SkipUnread, 179, true, false), (PairOption::VoicePlaysOn, 239, false, true), (PairOption::StopAtChoice, 299, true, true)] {
+    // src: sys_config.nut main, ConfigCreateToggle2's order: SKIP_ABS, CHANGE_COLOR, STOP_VOICE, CLICK_AUTO_BREAK, SELECT_AUTO_BREAK
+    for (option, y, on_is_on, default_on) in [
+        (PairOption::SkipUnread, 179, true, false),
+        (PairOption::VoicePlaysOn, 239, false, true),
+        (PairOption::StopAtChoice, 299, true, true),
+        // Last: the pairs' old numbered globals (`picture_settings::init`) keep their order.
+        (PairOption::ClickStopsAuto, 269, true, true),
+    ] {
         let (on_x, off_x) = if on_is_on { (394, 429) } else { (429, 394) };
         let (on_side, off_side) = if on_is_on { ("on", "off") } else { ("off", "on") };
         pairs.push(PicturePair { option, on: small(a, on_side, on_x, y)?, off: small(a, off_side, off_x, y)?, default_on });
@@ -245,8 +253,6 @@ fn settings_en(a: &mut dyn Assets) -> Option<PictureSettings> {
         ("ConfigButton-boxONcheck", 229, 74),
         ("ConfigButton-small-oncheck", 394, 209),
         ("ConfigButton-small-no", 429, 209),
-        ("ConfigButton-small-oncheck", 394, 269),
-        ("ConfigButton-small-no", 429, 269),
         ("ConfigButton-box", 377, 472),
         ("ConfigButton-round", 851, 130),
         ("ConfigButton-box", 570, 423),

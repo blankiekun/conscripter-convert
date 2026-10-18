@@ -605,7 +605,7 @@ impl AssetBank {
             title_label: "タイトルに戻る".into(),
             quit_label: "ゲームを終了".into(),
             exits_y: 540,
-            tab_labels: vec!["音量・速度".into(), "音声".into(), "その他".into()],
+            tab_labels: vec!["音量・速度".into(), "音声".into(), "その他".into(), "スキップ・オート".into()],
             tabs_x: 300,
             tabs_y: 34,
             voices: VOICE_TOGGLES
@@ -654,6 +654,12 @@ impl AssetBank {
                 ("セーブファイルのプレビューを表示", Switch::SavePreview),
                 ("文字装飾", Switch::TextShadow),
                 ("チャプタ履歴の上書き確認", Switch::ConfirmChapter),
+                // The テキスト page's four boxes, on by default (as filmed, item 26),
+                // on a page of their own: リンク (a link page) is a choice.
+                ("選択でスキップモードを解除", Switch::ChoiceStopsSkip),
+                ("クリックでスキップモードを解除", Switch::ClickStopsSkip),
+                ("選択でオートモードを解除", Switch::ChoiceStopsAuto),
+                ("クリックでオートモードを解除", Switch::ClickStopsAuto),
             ]
             .into_iter()
             .map(|(label, switch)| SettingSwitch { label: label.into(), switch })
