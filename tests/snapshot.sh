@@ -15,12 +15,20 @@
 # link is skipped. --update writes the snapshots of the games run.
 # Each 0.txt's commands are checked against the engine's command table
 # (research/tools/cmdcheck.py): an unknown one is printed.
-# Exit status 1 when a snapshot differs, a command is unknown, or the dry
-# run's lint finds files the script names that the build wouldn't write
-# (each engine records the files it writes, or would:
-# conv_engines::output::record); 2 when a game's gaps or left_out total
-# rose against its metrics snapshot (each printed per game), unless
-# --accept-gaps.
+# The snapshot also holds a sha256 per other file the dry run writes
+# (screens/*.lua, ons_args, …; not metrics.json or version.txt), so a
+# change to a shared menu shows which game's screen it changed.
+#
+# The dry run's lint findings (build.rs summary: labels, strings, files
+# the script names that the build wouldn't write, …) are counted per kind
+# against <game>.lint, a ceiling per kind ("N  kind"; no file, no line:
+# 0). A count above its ceiling fails; one below prints "lower to N", and
+# --update writes the lower counts (it never raises one: a new ceiling
+# goes in by hand, with the reason in the PR).
+#
+# Exit status 1 when a snapshot differs, a command is unknown, or a lint
+# count rose; 2 when a game's gaps or left_out total rose against its
+# metrics snapshot (each printed per game), unless --accept-gaps.
 #
 # Each game's completion counts (the dry run's metrics.json: source
 # calls fully converted or with gaps) are kept as <game>.metrics.json
@@ -95,6 +103,7 @@ for id in "${ids[@]}"; do
     for a in "${f[@]:2}"; do
         case $a in "{}") args+=("$game") ;; "{en}") args+=("$english") ;; *) args+=("$a") ;; esac
     done
+    rm -rf "$out" # files from an older run would be hashed
     if ! "$bin" "${args[@]}" -o "$out" --dry-run > "$out.log" 2>&1; then
         echo "$id: dry run failed, see $out.log"; changed=1; continue
     fi
@@ -114,12 +123,13 @@ for id in "${ids[@]}"; do
     fi
     # The version line (build date, commit) changes with every build, and
     # so does the width of its strsp (a -dirty tree's line is longer).
-    missing=$(sed -n 's/^ *\([0-9]*\)  file not in the archives.*/\1/p' "$out.log")
-    if [ -n "$missing" ]; then
-        echo "$id: $missing files the script names aren't written (lint in $out.log)"; changed=1
-    fi
+    ver='s/build [0-9]{4}-[0-9]{2}-[0-9]{2}, converter [0-9a-f]+(-dirty)?, CONscripter [^"]*/build VERSION/'
     now="$(LC_ALL=C sed -E -e 's/"build [0-9]{4}-[0-9]{2}-[0-9]{2}, converter [^"]*",([0-9]+,[0-9]+),[0-9]+,/"build VERSION",\1,W,/' \
-        -e 's/build [0-9]{4}-[0-9]{2}-[0-9]{2}, converter [0-9a-f]+(-dirty)?, CONscripter [^"]*/build VERSION/' "$out/0.txt" | sha256sum | cut -d' ' -f1) $(wc -l < "$out/0.txt")"
+        -e "$ver" "$out/0.txt" | sha256sum | cut -d' ' -f1) $(wc -l < "$out/0.txt")"
+    others=$(cd "$out" && find . -type f ! -name 0.txt ! -name metrics.json ! -name version.txt | LC_ALL=C sort | while read -r f; do
+        echo "$(LC_ALL=C sed -E "$ver" "$f" | sha256sum | cut -d' ' -f1)  ${f#./}"; done)
+    [ -z "$others" ] || now="$now
+$others"
     snap=tests/snapshots/$id.txt
     if [ $update = 1 ]; then
         echo "$now" > "$snap"; echo "$id: written"
@@ -128,7 +138,25 @@ for id in "${ids[@]}"; do
     elif [ "$(cat "$snap")" = "$now" ]; then
         echo "$id: same"
     else
-        echo "$id: CHANGED (was $(cat "$snap"), now $now; script in $out/0.txt)"; changed=1
+        [ "$(head -n1 "$snap")" = "$(head -n1 <<< "$now")" ] ||
+            echo "$id: CHANGED (was $(head -n1 "$snap"), now $(head -n1 <<< "$now"); script in $out/0.txt)"
+        for f in $(diff <(tail -n +2 "$snap") <(tail -n +2 <<< "$now") | sed -n 's/^[<>] [0-9a-f]*  //p' | sort -u); do
+            echo "$id: $f CHANGED ($out/$f)"
+            [ -z "$ref" ] || diff -u "$rout/$f" "$out/$f" | head -n 40 | sed 's/^/    /'
+        done
+        changed=1
+    fi
+    lsnap=tests/snapshots/$id.lint
+    lint=$(sed -n '/^  lint:$/,$s/^ *\([0-9][0-9]*\)  /\1  /p' "$out.log")
+    cmp=$(awk -F'  ' -v id="$id" 'FILENAME == ARGV[1] { c[$2] = $1; next } { n[$2] = $1 }
+        END { for (k in n) if (n[k] > c[k] + 0) print "ROSE " id ": lint " c[k] + 0 " -> " n[k] ": " k
+              for (k in c) if (n[k] + 0 < c[k]) print id ": lint " c[k] " -> " n[k] + 0 ", lower to " n[k] + 0 ": " k }' \
+        <(cat "$lsnap" 2>/dev/null) <(echo -n "$lint"))
+    [ -z "$cmp" ] || echo "$cmp"
+    if grep -q '^ROSE' <<< "$cmp"; then
+        echo "$id: a lint count rose (findings in $out.log): fix it, or raise $lsnap by hand and say why in the PR"; changed=1
+    elif [ $update = 1 ] && [ -n "$cmp" ]; then
+        if [ -n "$lint" ]; then echo "$lint" > "$lsnap"; else rm -f "$lsnap"; fi; echo "$id: lint ceilings lowered"
     fi
     msnap=tests/snapshots/$id.metrics.json
     counts() { grep -v '^"commit' "$1" 2>/dev/null; }

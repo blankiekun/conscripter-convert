@@ -181,7 +181,17 @@ through a file with `sed`.
   rose against `<game>.metrics.json`, unless `--accept-gaps` (say why in
   the PR). CI also runs `dropped_lint.py` and `findings_lint.py`, each
   with a per-game ceiling that only goes down.
-  It also fails a game whose dry run names files the build wouldn't
+  The snapshot holds a sha256 per other file the dry run writes
+  (`screens/*.lua`, `ons_args`), so it names the screen a shared change
+  touched (`--diff` shows the first lines of each changed file's diff).
+  It fails a game when a count of the dry run's lint (the `lint:` lines
+  at the end of its log: a jump to no label, a label defined twice, a
+  string that runs past its line, `?` in text, a file not written, …)
+  rises above its ceiling in `<game>.lint` (`N  kind`; a kind not there
+  is 0). A count below its ceiling prints `lower to N`; `--update`
+  writes the lower counts but never raises one: a new ceiling goes in
+  by hand, with the reason in the PR.
+  Among the lint's kinds, a file the script names that the build wouldn't
   write: the dry run's lint checks 0.txt's file names against the files
   each engine records it would write (`conv_engines::output::record`;
   `Output::write`, `Output::have` do it), not against the folder. Code
@@ -192,7 +202,7 @@ through a file with `sed`.
 - `python3 -I tests/extras_smoke.py <full build>`: opens the extras'
   menu headless with every lock open and checks each mode is a button
   and opens (the trace); run it on every full build handed to the user
-  (the snapshot sees only 0.txt, route runs skip the screens).
+  (the snapshot sees only the screens' text, route runs skip them).
 - Engine: `research/tools/build-engine.sh [engine dir] [build dir]`
   (cmake + make; `SDL2_MIXER_PREFIX=<prefix>` when the system has no
   SDL2_mixer) → `engine/build/conscripter`.
