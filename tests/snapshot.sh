@@ -3,7 +3,7 @@
 # 0.txt with tests/snapshots/<game>.txt (sha256 and line count), so a
 # change to shared code shows which games' scripts it changed.
 #
-#   tests/snapshot.sh [--update] [--diff REF] [--map RULES] [game ...]
+#   tests/snapshot.sh [--update] [--accept-gaps] [--diff REF] [--map RULES] [game ...]
 #
 # Games are found through $CONS_GAMES (default ~/.config/conscripter-convert/games),
 # a folder of links named by game id to each game's folder (<game> in
@@ -11,7 +11,9 @@
 # release; needs muramasa too), django, oretsuba, tsukihime (the RomFS of
 # 1.0.2, its ExeFS beside it as ../exefs). A game without its
 # link is skipped. --update writes the snapshots of the games run.
-# Exit status 1 when a snapshot differs.
+# Exit status 1 when a snapshot differs; 2 when a game's gaps or
+# left_out total rose against its metrics snapshot (each printed per
+# game), unless --accept-gaps.
 #
 # Each game's completion counts (the dry run's metrics.json: source
 # calls fully converted or with gaps) are kept as <game>.metrics.json
@@ -32,10 +34,11 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 games_dir=${CONS_GAMES:-$HOME/.config/conscripter-convert/games}
 bin=target/release/conscripter-convert
-update=0 ref= map=()
+update=0 accept=0 rose=0 ref= map=()
 while [ $# -gt 0 ]; do
     case $1 in
         --update) update=1 ;;
+        --accept-gaps) accept=1 ;;
         --diff) ref=$2; shift ;;
         --map) if [ -f "$2" ]; then map=(--rules "$2"); else map=(--map "$2"); fi; shift ;;
         *) break ;;
@@ -119,6 +122,12 @@ for id in "${ids[@]}"; do
         sed -e "s/^\"commit\": .*/$base_line/" -e "s/^\"commit_date\": .*/$base_date/" "$out/metrics.json" > "$msnap"; echo "$id: metrics written ($(totals "$msnap"))"
     else
         echo "$id: metrics CHANGED (now $(totals "$out/metrics.json"); diff $msnap $out/metrics.json)"; changed=1
+        for k in gaps left_out; do
+            o=$(totals "$msnap" | sed -n "s/.*\"$k\": \([0-9]*\).*/\1/p"); n=$(totals "$out/metrics.json" | sed -n "s/.*\"$k\": \([0-9]*\).*/\1/p")
+            [ "${o:-0}" = "${n:-0}" ] || echo "$id: $k ${o:-0} -> ${n:-0}"
+            [ "${n:-0}" -le "${o:-0}" ] || [ $accept = 1 ] || rose=1
+        done
     fi
 done
+[ $rose = 0 ] || { echo "gaps/left_out rose: fix them, or rerun with --accept-gaps and explain in the PR"; exit 2; }
 exit $changed
