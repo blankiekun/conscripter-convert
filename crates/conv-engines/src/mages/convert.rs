@@ -426,8 +426,8 @@ struct Shown {
     look: Look,
     /// Its zoom (SpriteMove `:Scale`), in percent.
     zoom: u32,
-    /// A motion (CharacterAction, or a `:Wait 0` move) runs: looping, or
-    /// once for this many ms from the message count given.
+    /// A motion (CharacterAction, or a `:Wait 0` move) runs, looping or
+    /// once.
     motion: Option<Motion>,
 }
 
@@ -436,8 +436,6 @@ struct Motion {
     looped: bool,
     /// It leaves the character at its last key ([`MotionEnd::Keep`]).
     keep: bool,
-    ms: u32,
-    since_message: usize,
     /// A CharacterAction (not a move), which CharacterActionEnd ends.
     action: bool,
 }
@@ -1211,7 +1209,7 @@ impl Lowering<'_> {
                         };
                         self.out.ops.push(Op::SpriteMotion2 { layer: s.layer, keys, end });
                     }
-                    let motion = Motion { looped: a.looped, keep, ms: length, since_message: self.messages, action: true };
+                    let motion = Motion { looped: a.looped, keep, action: true };
                     let mut s = Shown { motion: Some(motion), ..s };
                     if keep {
                         s.x += last.x;
@@ -1238,8 +1236,9 @@ impl Lowering<'_> {
                     let layer = s.layer;
                     if m.looped || !wait {
                         self.out.ops.push(Op::SpriteMotion { layer, keys: vec![], looped: false });
-                    } else if m.since_message == self.messages {
-                        self.out.ops.push(Op::Wait { ms: m.ms });
+                    } else {
+                        // A message between leaves only the rest of it to wait for.
+                        self.out.ops.push(Op::MotionWait { layer });
                     }
                 }
             }
@@ -1733,7 +1732,7 @@ impl Lowering<'_> {
             return None;
         }
         self.out.ops.push(Op::MoveNoWait);
-        Some(Motion { looped: false, keep: true, ms: time, since_message: self.messages, action: false })
+        Some(Motion { looped: false, keep: true, action: false })
     }
 
     /// Waits for the motions that end of the pictures `which` picks.
