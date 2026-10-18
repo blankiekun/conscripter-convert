@@ -588,7 +588,7 @@ fn command_menu(a: &mut dyn Assets) -> Option<CommandMenu> {
     // src: sys_menu.nss ($MenuX 636, $Menu*Y 89 + 20 a row; Fade 100, $menuwait 10); 0_boot.nss SetShortcut
     let items = menu_items(a, "cg/sys/menu", (636, 89), &rows, &[1, 2, 0])?;
     let backdrop = picture(a, "cg/sys/menu/メニュー黒バック.png", 0, 0)?;
-    Some(CommandMenu { backdrop, items, fade_ms: 100, step_ms: 10, key: Some('M'), pressed: false })
+    Some(CommandMenu { backdrop, items, fade_ms: 100, step_ms: 10, key: Some('M'), pressed: false, keys: vec![] })
 }
 
 /// The English port's save and load screen (`sys_saveload.nut`, its own
@@ -702,7 +702,9 @@ fn save_grid_en(a: &mut dyn Assets) -> Option<SaveGrid> {
 /// 栞を差す's and 栞を開く's places (no ロード). Backdrop and rows fade in
 /// together over 300 ms (the rows through メニューエフェクト, a wipe left
 /// out here; both fade out together too). Its shortcuts (`IsKeyDown` in `main`): S quick save, L
-/// quick load, D the save screen; the rest as in the Japanese.
+/// quick load, D the save screen; the rest as in the Japanese, R going
+/// back to the choice with no row (`sys_key.nut` BackToSelect,
+/// `sys_backselect.nut`'s 選択肢まで question).
 fn command_menu_en(a: &mut dyn Assets) -> Option<CommandMenu> {
     let rows = [
         ("キャンセル", BarAction::Close, None),
@@ -723,7 +725,7 @@ fn command_menu_en(a: &mut dyn Assets) -> Option<CommandMenu> {
     // src: sys_menu.nut (637, 90; Fade 300); main IsKeyDown
     let items = menu_items(a, "en/cg/sys/menu", (637, 90), &rows, &[1, 2, 0, 3])?;
     let backdrop = picture(a, "en/cg/sys/menu/メニュー黒バック.png", 0, 0)?;
-    Some(CommandMenu { backdrop, items, fade_ms: 300, step_ms: 0, key: Some('M'), pressed: true })
+    Some(CommandMenu { backdrop, items, fade_ms: 300, step_ms: 0, key: Some('M'), pressed: true, keys: vec![('R', BarAction::BackToChoice)] })
 }
 
 /// The menu's rows, 20 apart from `at`, each a strip of its `states`
