@@ -490,7 +490,12 @@ impl Compiler<'_, '_> {
                 let targets = self.matching(&arg(0));
                 for t in &targets {
                     let o = self.objects.get_mut(t).unwrap();
-                    o.zoom = (zx.position(o.zoom.0, 0, 0).max(1), zy.position(o.zoom.1, 0, 0).max(1));
+                    let was = o.zoom;
+                    // src: 0 not clamped (FUN_0044f2a0): drawn at size 0, nothing (sync).
+                    o.zoom = (zx.position(o.zoom.0, 0, 0).max(0), zy.position(o.zoom.1, 0, 0).max(0));
+                    if arg(1).int() > 0 && [was.0, was.1, o.zoom.0, o.zoom.1].contains(&0) {
+                        self.pending_zoom_from.entry(t.clone()).or_insert(was);
+                    }
                 }
                 self.set_tempo(tempo(&arg(4)), &targets);
                 self.timed(arg(1).int(), &arg(5), &targets);

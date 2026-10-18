@@ -666,8 +666,7 @@ dry run sees, marked seen/inferred/unknown with the exe address
 arguments that change nothing (#366), a shake growing from 0 px (#374),
 `SetVertex` in lower case only (#380), the colour names (#383),
 `DrawTransition`'s softness and fade-out direction (#386, engine #138).
-Open: a `Zoom` to 0 leaves a 1 px line (ma04_015vs ×2, mc02_029; the exe
-draws nothing); sound fades with a tempo
+Open: sound fades with a tempo
 (9 `SetVolume`, 37 `SetFrequency`) go straight; `SetFrequency` on music
 (1,486); `CreateSurface`/`SetSurface`, `Position`, `CreateMovie`'s
 arguments, `Delete`'s 1-2 unknown. Names were carried from Django.exe by
@@ -1268,6 +1267,19 @@ out on purpose.
   held (seen once in a small test script; not looked into).
 
 ## History
+
+### Zoom to 0 (2026-10-18)
+
+A `Zoom` to 0 along an axis was kept at 1‰, so a 1 px line or dot stayed
+(ma04_015vs ×2, mc02_029, 32 static 1×1 copies in the dry run; django's
+dja023 one). The exe stores the zoom as `atol` gives it
+(`FUN_0044f2a0`, only the time 0 becomes 1), so a picture at 0 is not
+drawn. Now it isn't (`sync`); one zoomed to 0 over time is squashed by
+the engine on the sprite it was (`spmotion` to zoom 0, moved and turned
+with it), then removed; one not shown that grows from 0 is placed where
+it ends and keyed from its zoom of 0 (`Compiler::pending_zoom_from`).
+`Random` over a picture at 0 (ma04_016vs:6680) is now picked when
+converting (35 draws): its moves change only the unshown state.
 
 ### Trace diff fixes (2026-10-17)
 

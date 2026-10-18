@@ -1579,6 +1579,10 @@ struct Compiler<'a, 'b> {
     /// Pictures not shown yet that `Move`s since the last sync: where they
     /// start, from where they end (shown there and moved, [`Compiler::sync`]).
     pending_from: HashMap<String, (i64, i64)>,
+    /// Pictures that `Zoom`s since the last sync zoom from or to 0 along
+    /// an axis over time: the zoom they had (squashed away or grown back,
+    /// [`Compiler::sync`]).
+    pending_zoom_from: HashMap<String, (i64, i64)>,
     /// The action process running ([`Compiler::start_process`]): its
     /// actions don't block, and their time counts as its own.
     action_process: Option<String>,
@@ -2403,6 +2407,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
             shake_once: HashMap::new(),
             pending_path: HashMap::new(),
             pending_from: HashMap::new(),
+            pending_zoom_from: HashMap::new(),
             action_process: None,
             process_lead: 0,
             lead_ins: BTreeMap::new(),
@@ -6025,6 +6030,29 @@ function Up()
         }).unwrap_or_else(|| panic!("{:?}", c.ops));
         assert_eq!(keys.iter().map(|k| (k.ms, k.zoom, k.zoom_y)).collect::<Vec<_>>(), [(0, 100, 1), (1, 100, 1), (201, 100, 100)], "{:?}", c.ops);
         assert!(c.notes.is_empty(), "{:?}", c.notes);
+    }
+
+    #[test]
+    fn a_zoom_to_0_squashes_the_picture_away_and_grows_it_back_from_0() {
+        // ma04_015vs: squashed across to nothing; mc02_029: grown from 0.
+        let story = r#"
+scene a.nss
+{
+	CreateTexture("p", 100, 0, 0, "cg/st/a.png");
+	Fade("p", 0, 1000, null, true);
+	Wait(100);
+	Zoom("p", 150, 0, 2000, null, true);
+	Wait(100);
+	Zoom("p", 300, 1000, 1000, null, true);
+	Wait(100);
+}
+"#;
+        let c = compile(story, LIBRARY);
+        let keys: Vec<Vec<(u32, u32, u32)>> = c.ops.iter().filter_map(|op| match op {
+            Op::SpriteMotion2 { keys, .. } => Some(keys.iter().map(|k| (k.ms, k.zoom, k.zoom_y)).collect()),
+            _ => None,
+        }).collect();
+        assert_eq!(keys, [vec![(0, 100, 100), (150, 0, 200)], vec![(0, 0, 200), (300, 100, 100)]], "{:?}", c.ops);
     }
 
     #[test]

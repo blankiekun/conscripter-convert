@@ -18,6 +18,7 @@ impl Compiler<'_, '_> {
         let mut shake_once = std::mem::take(&mut self.shake_once);
         let mut paths = std::mem::take(&mut self.pending_path);
         let from = std::mem::take(&mut self.pending_from);
+        let zoom_from = std::mem::take(&mut self.pending_zoom_from);
         let wave_clock = self.sound_clock();
         let mask = self.pending_mask.take();
         self.flush_sounds();
@@ -160,6 +161,8 @@ impl Compiler<'_, '_> {
                 want.push((n.clone(), shown, (o.priority, o.seq), (1000, 1000), (o.w, o.h), (false, false)));
             }
         }
+        // Zoomed to 0 along an axis: nothing drawn (squashed away below).
+        want.retain(|w| self.objects.get(&w.0).is_none_or(|o| o.zoom.0 > 0 && o.zoom.1 > 0));
         // Zoomed pictures: scaled copies, centred where the original was.
         let mut want: Vec<(String, Shown, (i64, u64))> = want
             .into_iter()
@@ -289,6 +292,35 @@ impl Compiler<'_, '_> {
                 moving.push(n);
                 continue;
             }
+            // Zooming to 0 over time: squashed away by the engine (moved and
+            // turned as it goes), then gone at a later sync (its layer kept
+            // till then).
+            if let Some(&t) = timed.get(&n).filter(|&&t| t > 0)
+                && let Some(o) = self.objects.get(&n).filter(|o| o.zoom.0 == 0 || o.zoom.1 == 0)
+            {
+                // (Against the zoom it had: a camera's depth scales both alike.)
+                let (wx, wy) = zoom_from.get(&n).copied().unwrap_or_else(|| scale(&s));
+                let z = |now: i64, was: i64| (now * 100 / was.max(1)).clamp(0, 1_000_000) as u32;
+                // Its centre at the end: a zoom about the vertex keeps that in place.
+                let (px, py) = self.parent_offset(&n);
+                let (vx, vy) = o.vertex.unwrap_or((o.w / 2, o.h / 2));
+                let end = |p: i64, v: i64, w: i64, zoom: i64| p + v + (w / 2 - v) * zoom / 1000;
+                let (cx, cy) = (end(o.x + px, vx, o.w, o.zoom.0), end(o.y + py, vy, o.h, o.zoom.1));
+                let (x, y, w, h) = s.whole.unwrap_or((s.x, s.y, s.w, s.h));
+                let opacity = if o.opacity > 0 { 256 } else { 0 };
+                if let Some(&(ease, exponent)) = tempo.get(&n) {
+                    self.ops.push(Op::MoveEase { ease, exponent });
+                }
+                let keys = vec![
+                    MotionKey { ms: 0, x: 0, y: 0, zoom: 100, zoom_y: 100, angle: 0, opacity: 256, ease: None },
+                    MotionKey { ms: t, x: (cx - x - w / 2) as i32, y: (cy - y - h / 2) as i32, zoom: z(o.zoom.0, wx), zoom_y: z(o.zoom.1, wy), angle: (o.angle() - s.angle) as i32, opacity, ease: None },
+                ];
+                self.ops.push(Op::SpriteMotion2 { layer: s.layer, keys, end: MotionEnd::Keep });
+                self.vanishing.insert(n.clone(), clock + u64::from(t));
+                self.shown.insert(n.clone(), Shown { engine: Engine { zoomed: true, moved: true }, ..s });
+                moving.push(n);
+                continue;
+            }
             changes.push(SpriteChange { layer: s.layer, sprite: None, keep_filters: false });
         }
         // Layers of the wanted pictures in drawing order, top first: each
@@ -363,23 +395,48 @@ impl Compiler<'_, '_> {
         // from where it starts (under wine ma00_000's pans run as the
         // script goes on).
         for ((name, now, _), layer) in want.iter().zip(&layers) {
-            let (Some(layer), Some(&(dx, dy)), Some(&t)) = (*layer, from.get(name), timed.get(name)) else { continue };
+            let (Some(layer), Some(&t)) = (*layer, timed.get(name)) else { continue };
+            let ((dx, dy), grown) = (from.get(name).copied().unwrap_or_default(), zoom_from.get(name).filter(|z| z.0 == 0 || z.1 == 0));
             // (Not moved at all too, so that a `Random` pick of 0 leaves
             // the sprite as the other picks: moved by the engine.)
-            if t == 0 || self.shown.contains_key(name) || turning.contains_key(name) || paths.contains_key(name) {
+            if t == 0 || !from.contains_key(name) && grown.is_none() || self.shown.contains_key(name) || turning.contains_key(name) || paths.contains_key(name) {
                 continue;
             }
             let now = Shown { layer, ..now.clone() };
             let start = Shown { x: now.x + dx, y: now.y + dy, ..now.clone() };
-            let Some(Op::SpriteMotion2 { keys, end, .. }) = motion(&start, &now, t) else { continue };
             let mut ops = Vec::new();
+            let (keys, end) = if let Some(&(zx, zy)) = grown {
+                // Growing from 0: from the zoom it had (about its vertex).
+                let Some(o) = self.objects.get(name) else { continue };
+                let (vx, vy) = o.vertex.unwrap_or((o.w / 2, o.h / 2));
+                // (A picture cut to the screen: the whole one, zoomed by the engine.)
+                match now.whole {
+                    Some((x, y, w, h)) if now.angle == 0 && now.zoom.0 > 0 && now.zoom.1 > 0 => {
+                        let (sw, sh) = (w * 1000 / now.zoom.0, h * 1000 / now.zoom.1);
+                        let engine = Engine { zoomed: true, moved: true };
+                        uncut.insert(name.clone(), Shown { image: now.source.clone(), x: x + w / 2 - sw / 2, y: y + h / 2 - sh / 2, w: sw, h: sh, whole: None, engine, ..now.clone() });
+                        ops.push(Op::SpriteAngle { layer, degrees: 0, zoom: ((now.zoom.0 / 10) as i32, (now.zoom.1 / 10) as i32) });
+                    }
+                    Some(_) => continue,
+                    None => {}
+                }
+                // (Against the zoom it ends at: a camera's depth scales both alike.)
+                let ((sx, sy), z) = (o.zoom, |z: i64, s: i64| (z * 100 / s.max(1)).clamp(0, 1_000_000) as u32);
+                let shift = |w: i64, v: i64, from: i64, to: i64| (w / 2 - v) * (from - to) / 1000;
+                let key = |ms, x, y, zoom, zoom_y| MotionKey { ms, x, y, zoom, zoom_y, angle: 0, opacity: 256, ease: None };
+                let start = key(0, (dx + shift(o.w, vx, zx, o.zoom.0)) as i32, (dy + shift(o.h, vy, zy, o.zoom.1)) as i32, z(zx, sx), z(zy, sy));
+                (vec![start, key(t, 0, 0, 100, 100)], MotionEnd::Keep)
+            } else {
+                let Some(Op::SpriteMotion2 { keys, end, .. }) = motion(&start, &now, t) else { continue };
+                (from_end(keys), end)
+            };
             if let Some(t) = self.objects.get(name).and_then(|o| o.trail) {
                 ops.push(Op::SpriteTrail { layer, passes: t.passes, alpha: t.alpha, lag: t.lag, over: t.over });
             }
             if let Some(&(ease, exponent)) = tempo.get(name) {
                 ops.push(Op::MoveEase { ease, exponent });
             }
-            ops.push(Op::SpriteMotion2 { layer, keys: from_end(keys), end });
+            ops.push(Op::SpriteMotion2 { layer, keys, end });
             moved_over.insert(name.clone(), ops);
             self.runs.insert(name.clone(), Run { from: start, to: now, ms: t, at: clock, ease: tempo.get(name).copied() });
             moving.push(name.clone());
