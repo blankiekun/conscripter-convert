@@ -1,9 +1,9 @@
 {
 "game": "tsukihime",
 "engine": "typemoon",
-"commit": "cbc2cca0",
+"commit": "948a4026",
 "commit_date": "2026-10-18",
-"totals": {"calls": 1082419, "full": 1019258, "gaps": 37197, "left_out": 25964, "weighted": 1030648.8},
+"totals": {"calls": 1082419, "full": 1019834, "gaps": 36621, "left_out": 25964, "weighted": 1031224.8},
 "kinds": {
 "_WTTM": {"calls": 14828, "gaps": 14821, "reasons": [["_WTTM argument 1 ignored", 14821]], "weighted": 7417.5},
 "_SEPL": {"calls": 14543, "gaps": 3513, "reasons": [["_SEPL option 68 ignored", 3467], ["not converted", 31], ["_SEPL option 70 ignored", 19], ["_SEPL option 18 ignored", 15]], "weighted": 13819.0},
@@ -17,11 +17,10 @@
 "_STPV": {"calls": 734, "gaps": 734, "reasons": [["not converted", 734]], "weighted": 0.0},
 "_SEFD": {"calls": 3516, "gaps": 583, "reasons": [["_SEFD option 68 ignored", 583]], "weighted": 3321.7},
 "_STRA": {"calls": 569, "gaps": 569, "reasons": [["not converted", 569]], "weighted": 0.0},
-"_RDED": {"calls": 550, "gaps": 548, "reasons": [["not converted", 548]], "weighted": 2.0},
 "_RTM_": {"calls": 544, "gaps": 544, "reasons": [["not converted", 544]], "weighted": 0.0},
 "_SQS2": {"calls": 532, "gaps": 532, "reasons": [["not converted", 532]], "weighted": 0.0},
 "_RDAS": {"calls": 530, "gaps": 530, "reasons": [["not converted", 530]], "weighted": 0.0},
-"_RTST": {"calls": 527, "gaps": 527, "reasons": [["not converted", 527]], "weighted": 0.0},
+"_RDED": {"calls": 550, "gaps": 500, "reasons": [["not converted", 500]], "weighted": 50.0},
 "_SPFC": {"calls": 487, "gaps": 487, "reasons": [["not converted", 487]], "weighted": 0.0},
 "_SACL": {"calls": 450, "gaps": 450, "reasons": [["not converted", 450]], "weighted": 0.0},
 "_STRR": {"calls": 448, "gaps": 448, "reasons": [["not converted", 448]], "weighted": 0.0},
@@ -67,7 +66,6 @@
 "_STRT": {"calls": 21691, "gaps": 1, "reasons": [["_STRT argument 1 ignored", 1], ["_STRT argument 2 ignored", 1], ["_STRT argument 3 ignored", 1], ["_STRT argument 4 ignored", 1]], "weighted": 21690.2},
 "_VPLY": {"calls": 16690, "gaps": 1, "reasons": [["_VPLY argument 2 ignored", 1]], "weighted": 16689.7},
 "_MFAD": {"calls": 724, "gaps": 1, "reasons": [["_MFAD option 11 ignored", 1]], "weighted": 723.5},
-"_IFUR": {"calls": 1, "gaps": 1, "reasons": [["not converted", 1]], "weighted": 0.0},
 "_NOP_": {"calls": 1, "gaps": 1, "reasons": [["not converted", 1]], "weighted": 0.0},
 "_RTM2": {"calls": 1, "gaps": 1, "reasons": [["not converted", 1]], "weighted": 0.0},
 "_RTMN": {"calls": 1, "gaps": 1, "reasons": [["not converted", 1]], "weighted": 0.0},
@@ -91,6 +89,7 @@
 "_MVOL": {"calls": 780, "gaps": 0, "reasons": [], "weighted": 780.0},
 "_CLO5": {"calls": 596, "gaps": 0, "reasons": [], "weighted": 596.0},
 "_RDST": {"calls": 530, "gaps": 0, "reasons": [], "weighted": 530.0},
+"_RTST": {"calls": 527, "gaps": 0, "reasons": [], "weighted": 527.0},
 "_END_": {"calls": 519, "gaps": 0, "reasons": [], "weighted": 519.0},
 "_IFNX": {"calls": 234, "gaps": 0, "reasons": [], "weighted": 234.0},
 "_IFP4": {"calls": 204, "gaps": 0, "reasons": [], "weighted": 204.0},
@@ -100,6 +99,7 @@
 "_SELA": {"calls": 26, "gaps": 0, "reasons": [], "weighted": 26.0},
 "_CLO2": {"calls": 5, "gaps": 0, "reasons": [], "weighted": 5.0},
 "_IFSC": {"calls": 2, "gaps": 0, "reasons": [], "weighted": 2.0},
+"_IFUR": {"calls": 1, "gaps": 0, "reasons": [], "weighted": 1.0},
 "_SELS": {"calls": 1, "gaps": 0, "reasons": [], "weighted": 1.0}
 },
 "outside_calls": []
