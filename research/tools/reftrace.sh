@@ -68,8 +68,9 @@ case $kind in
   SPD=4; ENV=(XTRACE_HOME="$OUT/home" GAME="$GAME" SPEED=4)
   RUN=(research/xuse/tracedll/xtrace.sh -o "$T" --route "$(cat "$CD/saihate-route.arg")" --pages 0 --seconds "$SECS" --no-cover ${resume:+--save "$resume"});;
  nitro)
-  SPD=8; [ $g = django ] && ENV+=(EXE="${DJANGO_EXE:?set DJANGO_EXE to Django.exe}")
-  ENV+=(NTRACE_HOME="$OUT/home" GAME="$GAME" SPEED=8)
+  # Django at SPEED=8 stalled on several pages; at 1 it ran on (2026-10-18), so 1 for now
+  SPD=8; [ $g = django ] && SPD=1 ENV+=(EXE="${DJANGO_EXE:?set DJANGO_EXE to Django.exe}")
+  ENV+=(NTRACE_HOME="$OUT/home" GAME="$GAME" SPEED=$SPD)
   RUN=(research/nitroplus/tracedll/ntrace.sh -o "$T" --pages 0 --seconds "$SECS" --patch "$CD/$pre-patch");;
  fc) RUN=(research/tools/firstcontact/fc.sh "$GAME" -o "$OUT" --seconds "$SECS");;
  vita) ENV=(MEM=3G SHOT=300 V3K="$EMU/v3k")
