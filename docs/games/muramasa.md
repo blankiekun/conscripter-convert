@@ -730,6 +730,29 @@ Open, by area (each is small; most noticeable first):
 - **Optional**: 18 files whose `if`/`else if` chain has no `else`.
 - **Engine**: CONscripter segfaults on `end` after a `dwave` voice with
   Ctrl held (seen once; not looked into).
+- **Trace diff, 300 pages** (2026-10-18; the original at `SPEED=8`
+  against our full build, `trace_diff.py --pages 300 --ms --thread 0`;
+  with CONscripter #150's `ev` for `wait`/`delay`: missing 1741, time 73,
+  extra 57). Most "missing" are artefacts: the text box's own calls
+  (`Request` Lock/Hideable/Enter/UnLock/Disused, the text's and `@box*`'s
+  `Fade`/`Move`, `@Face_Sepia`: ~700), calls folded into one of ours
+  (`OnSE`'s `SetVolume` + `Request(Play)`, `CreateBGM`'s `Lock`), staged
+  changes credited to the statement that flushes them (`Gin_song*`,
+  `絵背景*` before a `Wait`/`WaitKey`), calls on no object (`Comic*`);
+  the 30 to 300 ms steps where the original is slower are its frames and
+  loads under wine. Open:
+  - Auto mode: the original ends `WaitKey(N)`/`WaitKey()` after ~1.5 s
+    (ma00_000:2617 to 2662, 10 findings); ours waits N.
+  - A waited action that starts none doesn't wait in the original
+    (`cb_Fade` 0044f020 starts none on no object or an unchanged
+    opacity; 00445ac0 waits on the objects' action slots, 004502b0):
+    ma00_000:2501 `Fade("silver_son*", 500, 0, null, true)` +500 ms,
+    function_process:1147 +481, :3028/:3038 +300. Not done: the compiler
+    doesn't track every object (`@boxCC` matches none, so "no object, no
+    wait" drops 5717 box `delay`s), and "unchanged, no wait" changes 158
+    hunks (cockpit sprite numbers) still to check.
+  - An unwaited `Fade` before a sound or the text is played out by the
+    next sync (up to `UNWAITED_MS`): ma00_000:1625, :1674 (+280 ms).
 - **Unused**: `spgrab` could stand for `CreateTexture`'s render-to-texture.
 
 ## History
