@@ -757,9 +757,93 @@ the end. The dump shows each chunk as hex, the variables and the
 progress word, and `write` takes them back (setting CG or replay bits
 there unlocks the extras; seen).
 
-## Status: reopened (2026-10-14): fixes from the debug trace, then an opcode audit
+## Status: reopened (2026-10-14): fixes, then an opcode audit
 
-### Queue (2026-10-16)
+Finished 2026-10-14, reopened the same day for fixes from the debug
+trace and an opcode audit; both are done (History). Everything below is
+optional leftover; nothing in it was asked for.
+
+**What works.** Played from start to end: text, voices, sprites with
+filters, backgrounds, BGM with loop points, sound effects, movies, every
+transition kind, screen filters and moving effects, text modes, ruby,
+links, chapter titles, the launch warning, the system screens drawn by
+the engine (title, save/load, settings, backlog, button bars, yes/no)
+and the extras (CG gallery, scene replay, BGM room). All 82 opcodes the
+corpus uses are converted and agree with the exe; 84,710 of 84,713
+calls convert, 3 are left out on purpose (the debug menu: `0x30`,
+`0x62` and its message, `LEFT_OUT` in `xuse/build.rs`). Dropped by the
+user: WSS (system-voice room), right-click menus, native Linux/macOS
+movie playback.
+
+**Open**
+- Launch warning's visitor counter ("あなたは N 人目のお客様です"): not
+  drawn. User (2026-10-18): not worth more than a one-line fix, so left
+  out; likewise ENTER only (any click goes on). Data: the system data's
+  u32 at `0x51eb50`, `digit.png` digits at (492, 173) (`0x488f30`).
+- The title's own intro before its buttons (title_task `0x45b6f0`, state
+  machine `0x561ee0`) is not converted; ours fades the title in over 1 s.
+- Waited transitions take about 3 frames (90 ms) longer in the exe than
+  their time (`0x76`+`0x71` 1000 ms = 33 frames; ours 1,009 ms). Read
+  the transition task's code before adding a lag to every `print`.
+- At a scene's start the exe spends a frame on each `0x43` (arg 1), the
+  `0x76` arm and the `0x22` call (5 frames before `0004.cd` #8's
+  background); 2 frames after an unskippable click wait `0x68` in auto
+  mode. Ours none.
+- Branch coverage of the original (`docs/new-game.md` step 24,
+  `research/xuse/cover.py`): one FIRST START run hit 173 of 598 armed
+  addresses (47 opcodes); marks are in the findings table's last
+  column. Later runs (`--save` or `--choices`) add to them
+  (`cover.py mark t1.jsonl t2.jsonl --write`).
+- The trace DLL's `--save` start (title load, slot 1) is untested: it
+  needs a slot save written by the game as `xuse_save.py`'s template.
+- Findings table (`docs/games/saihate-no-ima.findings.tsv`): the volume
+  curve of `sound_request` (`0x47aab0`) is unknown.
+- Hide button and right-click hide the link words, bars and name plate
+  too (History, "Hiding the window").
+- Screen positions and the blog bar's level number from the exe's layout
+  tables (History, "Screen positions from the exe").
+- Settings not converted (six pages in the original; History item 26):
+  the auto waits as two rows, skip/auto switches (defaults are done),
+  antialiasing, the CG viewer's voices, the system voice, wheel
+  sensitivity, frame rate, inactive-window behaviour, shortcut menu,
+  gamepad. Autosave slots (original: right-click menu, dropped).
+  Settings' yes/no questions still use `*conv_confirm`.
+- Hand-typed guesses a frame of the original would settle (History,
+  "Value audit"): the save menu's thumbnail position, "New" mark and
+  slot text; the yes/no message's y; text styles 3/4 rows (23 or 24)
+  and the name plate's font (20); the CG gallery's header, headings and
+  page marker; the top bars' row colours and font sizes; the title's 1 s
+  fade (the exe cross-fades 2 s `0x459d10`, 1 s `0x45a240`); the quake's
+  hold and shrink; a picture the title draws at (680, 444), unidentified;
+  the CG viewer's panel x (exe 461, ours 451 meets the art).
+- Layout left open by the exe-table check: backlog (exe: one 720×20
+  line per entry at x 52, y 49 + 35·i, 15 shown, `0x41ffa0`; ours wraps
+  from (30, 44) at 24 px); top bars' text origins (`0x496fe0`: scene
+  name (531, 6), ours 524, rows +24, ours +19; `0x49b1a0`: chapter name
+  (73, 6), ours (72, 7)); the CG viewer's 21×21 button (image 9 at
+  (566, 547), table `0x4fe3c0`) is not placed. Each needs a frame of
+  the original.
+- MeltDown's stretch for subs 46/47 is scaled from the exe (filmed for
+  item 25, not yet compared).
+- Media: `arc.nsa` is about 1.2 GB; if the web build can't handle it,
+  split the voices into `arc1.nsa`. Check that saves, thumbnails
+  (`savethumbN.bmp`) and `kidoku.dat` persist in the WebAssembly build.
+
+**Next steps:** none asked for; take an open item only if the user
+wants it.
+
+## History
+
+Finished work, moved out of "Status" so a session reads only the open
+state. Items are referred to elsewhere as "History, item N".
+
+### Status as it stood before the 2026-10-18 prune
+
+The former Status section, kept whole. All its PRs (converter and engine) are merged;
+its still-open items are restated in Status.
+
+
+#### Queue (2026-10-16)
 
 - Open: the launch warning's visitor counter ("あなたは N 人目のお客様です",
   History, "The launch warning"): not drawn, its gap left empty. It is the
@@ -1038,10 +1122,7 @@ empty). Gaps found, where the exe and the converter differ:
 - Check that saves, thumbnails (`savethumbN.bmp`) and `kidoku.dat`
   persist in the WebAssembly build.
 
-## History
 
-Finished work, moved out of "Status" so a session reads only the open
-state. Items are referred to elsewhere as "History, item N".
 
 **The launch warning (2026-10-18):** at every launch, before the title,
 the exe shows `Entrance.cpp`'s screen (`gd.arc` → `Entrance.004`):
