@@ -28,10 +28,7 @@ pub(crate) fn settings_menu(
     let switches = &m.switches[..m.switches.len().min(MAX_SWITCHES)];
     // Pages: levels, voices, switches (only as many as there are tabs).
     let pages = m.tab_labels.len().min(1 + usize::from(!voices.is_empty()) + usize::from(!switches.is_empty())) as u32;
-    let mut w = |line: String| {
-        out.push_str(&line);
-        out.push('\n');
-    };
+    let mut w = lines!(out);
     let size = m.font_size;
     let others = hidden_while_open();
     let vsp = |on: u32| others.iter().map(|n| format!("vsp {n},{on}")).collect::<Vec<_>>().join(":");
@@ -229,10 +226,7 @@ pub(crate) fn settings_menu(
 /// skip).
 pub(crate) fn settings_apply(out: &mut String, m: &SettingsMenu) {
     let rows = &m.rows[..m.rows.len().min(MAX_SETTING_ROWS)];
-    let mut w = |line: String| {
-        out.push_str(&line);
-        out.push('\n');
-    };
+    let mut w = lines!(out);
     w(format!("*{SETTINGS_APPLY}"));
     let used = used_switches(m);
     for (setting, cmd) in [(Setting::BgmVolume, "bgmvol"), (Setting::SeVolume, "sevol"), (Setting::VoiceVolume, "voicevol")] {

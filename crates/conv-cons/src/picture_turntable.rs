@@ -36,10 +36,7 @@ const BTN_EXIT: usize = 1003;
 
 pub(crate) fn emit(out: &mut String, t: &Turntable, border: u32) {
     assert!(t.per_page > 0 && t.per_page <= MAX_PER_PAGE && t.entries.len() < BTN_PREVIOUS, "a turntable larger than its sprites");
-    let mut w = |line: String| {
-        out.push_str(&line);
-        out.push('\n');
-    };
+    let mut w = lines!(out);
     let n = t.entries.len();
     let pages = n.div_ceil(t.per_page).max(1);
     w(format!("*{TURNTABLE}"));

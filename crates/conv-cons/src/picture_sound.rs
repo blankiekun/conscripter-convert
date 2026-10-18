@@ -77,10 +77,7 @@ pub(crate) fn emit(out: &mut String, r: &SoundRoom, border: u32, width: u32, hei
         return;
     }
     assert!(r.tracks.len() <= MAX_TRACKS && r.movies.len() <= MAX_VIDEOS, "a sound room larger than its sprites");
-    let mut w = |line: String| {
-        out.push_str(&line);
-        out.push('\n');
-    };
+    let mut w = lines!(out);
     // The track's number in MUSIC.
     let number = |i: usize| if i == r.title_track { 0 } else { i as i32 + 1 };
     let unlocked = |v: Option<conv_core::ir::Var>| v.map(|v| crate::var_name(v, border));

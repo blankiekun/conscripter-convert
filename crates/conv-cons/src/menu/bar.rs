@@ -124,10 +124,7 @@ pub(crate) fn button_bar(out: &mut String, bar: &ButtonBar, s: BarScreens) {
     // The click-wait icon: over the text window (below humanz), cleared
     // with the bar.
     let icon_slot = s.wait_icon.map(|_| slots.next().expect("no bar sprite left for the click-wait icon"));
-    let mut w = |line: String| {
-        out.push_str(&line);
-        out.push('\n');
-    };
+    let mut w = lines!(out);
     let slide = bar.slide;
     // Where an unpinned bar shows ([`BarAction::Lock`]).
     let reveal = bar.buttons.iter().find_map(|b| match b.action {

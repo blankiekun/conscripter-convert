@@ -61,10 +61,7 @@ const ROW_CHARS: u32 = 20;
 
 /// The routines: [`KEEP`], [`OPEN`] and [`LOADED`].
 pub(crate) fn emit(out: &mut String, h: &ChapterHistory) {
-    let mut w = |line: String| {
-        out.push_str(&line);
-        out.push('\n');
-    };
+    let mut w = lines!(out);
     let max = h.rows * h.columns;
 
     w(format!("*{KEEP}"));

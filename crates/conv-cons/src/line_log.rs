@@ -59,10 +59,7 @@ const BTN_VOICE: u32 = 10; // + row
 /// paragraph's indent).
 pub(crate) fn emit(out: &mut String, l: &LineLog, single_byte: bool) {
     assert!(l.rows <= MAX_ROWS, "a line log shows more rows than its sprites");
-    let mut w = |line: String| {
-        out.push_str(&line);
-        out.push('\n');
-    };
+    let mut w = lines!(out);
     let lsp = |slot: u32, cells: &str, p: &Placed| format!("lsp {slot},\":a{cells};{}\",{},{}", path(&p.image), p.x, p.y);
     let fade = if l.fade_ms > 0 { format!("print 10,{}", l.fade_ms) } else { "print 1".into() };
     let (k0, k1) = l.knob_y;

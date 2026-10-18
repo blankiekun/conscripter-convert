@@ -41,10 +41,7 @@ pub(crate) fn after_reset() -> String {
 pub(crate) fn emit(out: &mut String, r: &PictureReplay, border: u32, music: Option<&str>) {
     assert!(r.scenes.len() <= MAX_SCENES, "a replay with more scenes than its sprites");
     let place = |i: u32| place(r, i);
-    let mut w = |line: String| {
-        out.push_str(&line);
-        out.push('\n');
-    };
+    let mut w = lines!(out);
     // The list: the engine's screen (closing with the scene, 0 to leave,
     // holding its frame), or a script loop.
     let screen = r.engine_screen;

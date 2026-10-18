@@ -547,7 +547,7 @@ impl AssetBank {
         let row = |label: &str, setting| SettingRow { label: label.to_string(), setting };
         // ours: the layout, sizes and opacity (the original has a dialog).
         Ok(SettingsMenu {
-            base: self.place("menu_base", &darker(get(&log, 0)?), None, 0, 0)?,
+            base: self.place("menu_base", &crate::output::darker(get(&log, 0)?, 50), None, 0, 0)?,
             base_opacity: 210,
             header: self.place("settings_header", &get(&title, 12)?, None, 40, 20)?,
             close: self.place("menu_close", &get(&log, 5)?, Some((4, &[0, 1, 3])), 700, 540)?,

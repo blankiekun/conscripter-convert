@@ -17,6 +17,7 @@ use conv_core::ir::{
 
 pub use crate::labels::Labels;
 use crate::labels::spread;
+use crate::output::darker;
 
 use super::assets::ArchiveAssets;
 use super::convert::{SCREEN_H, SCREEN_W};
@@ -73,15 +74,6 @@ pub(crate) fn side_by_side(cells: &[RgbaImage]) -> RgbaImage {
         imageops::overlay(&mut out, c, (i as u32 * w + (w - c.width()) / 2) as i64, ((h - c.height()) / 2) as i64);
     }
     out
-}
-
-fn darker(mut img: RgbaImage, percent: u32) -> RgbaImage {
-    for px in img.pixels_mut() {
-        for c in &mut px.0[..3] {
-            *c = (*c as u32 * percent / 100) as u8;
-        }
-    }
-    img
 }
 
 /// Paints over `rect`: each column blends from the pixel above it to

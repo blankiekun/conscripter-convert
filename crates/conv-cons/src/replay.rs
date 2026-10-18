@@ -39,10 +39,7 @@ pub(crate) const VARS: [&str; 3] = [REPLAYING, LIST_VAR, TMP];
 
 /// `back`: the extras menu's label.
 pub(crate) fn replay(out: &mut String, r: &SceneReplay, back: &str) {
-    let mut w = |line: String| {
-        out.push_str(&line);
-        out.push('\n');
-    };
+    let mut w = lines!(out);
     let lists = &r.lists[..r.lists.len().min(MAX_LISTS)];
     let max_rows = (r.rows * r.columns).min(MAX_ROWS);
     let b = BUTTON_VAR;

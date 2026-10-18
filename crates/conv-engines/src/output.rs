@@ -73,6 +73,16 @@ pub fn image_size(data: &[u8]) -> Option<(u32, u32)> {
     None
 }
 
+/// `img` with its colour scaled to `percent` per cent (alpha kept).
+pub fn darker(mut img: image::RgbaImage, percent: u32) -> image::RgbaImage {
+    for px in img.pixels_mut() {
+        for c in &mut px.0[..3] {
+            *c = (*c as u32 * percent / 100) as u8;
+        }
+    }
+    img
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
