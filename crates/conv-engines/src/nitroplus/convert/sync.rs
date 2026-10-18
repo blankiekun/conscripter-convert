@@ -6,7 +6,12 @@ impl Compiler<'_, '_> {
     /// Shows the changes since the last sync, as a cross-fade over `ms`,
     /// or the pending actions' time up to [`UNWAITED_MS`] if longer.
     pub(super) fn sync(&mut self, ms: u32) {
-        let disused = std::mem::take(&mut self.disused_fading);
+        // (One that also zooms or turns isn't kept: that fade isn't one
+        // motion, and a cross-fade would hold the script; mb02_028vs:123.)
+        let (disused, now): (Vec<_>, Vec<_>) = std::mem::take(&mut self.disused_fading).into_iter().partition(|(n, _)| !self.pending_size_from.contains_key(n) && !self.pending_turn.contains_key(n));
+        for (n, _) in now {
+            self.delete(&n);
+        }
         self.draw(ms);
         // (Kept while the engine fades it out, then deleted.)
         for (n, seq) in disused {

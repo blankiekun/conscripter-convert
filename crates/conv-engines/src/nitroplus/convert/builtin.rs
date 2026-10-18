@@ -649,6 +649,15 @@ impl Compiler<'_, '_> {
                     return Value::Null;
                 };
                 let (from, to) = (arg(2).int().clamp(0, 1000), arg(3).int().clamp(0, 1000));
+                // A picture disused as it fades out goes now, as before its
+                // fade was kept (md01_029vs:2107: `FadeDelete("絵色*", 400,
+                // false)`, then their wipe).
+                for t in self.matching(&arg(0)) {
+                    if let Some(i) = self.disused_fading.iter().position(|d| d.0 == t) {
+                        self.disused_fading.remove(i);
+                        self.delete(&t);
+                    }
+                }
                 let targets = self.matching(&arg(0));
                 // From what the screen shows of it (nothing, if not shown yet).
                 if targets.iter().any(|t| self.shown.get(t).map_or(0, |s| s.opacity) != from) {

@@ -7175,4 +7175,27 @@ scene a.nss
         let gone = c.ops.iter().position(|op| matches!(op, Op::Sprites { changes, .. } if changes.iter().any(|ch| ch.layer == layer && ch.sprite.is_none()))).unwrap_or_else(|| panic!("{:?}", c.ops));
         assert!(gone > at && c.ops[at..gone].iter().any(|op| matches!(op, Op::Pause { ms: 1000 })), "{:?}", c.ops);
     }
+
+    #[test]
+    fn a_disused_fading_picture_wiped_or_zoomed_goes_at_once() {
+        // md01_029vs:2107's FadeDelete then DrawTransition, mb02_028vs:123's Zoom then FadeDelete.
+        let story = r#"
+scene a.nss
+{
+	CreateTexture("c", 100, 0, 0, "cg/bg/a.jpg");
+	CreateTexture("z", 100, 0, 0, "cg/bg/a.jpg");
+	Wait(100);
+	Fade("c", 400, 0, null, false);
+	Request("c", Disused);
+	DrawTransition("c", 200, 1000, 0, 100, null, "cg/bg/a.jpg", true);
+	Zoom("z", 500, 4000, 4000, null, false);
+	Fade("z", 500, 0, null, false);
+	Request("z", Disused);
+	Wait(50);
+}
+"#;
+        let c = compile(story, LIBRARY);
+        assert!(!c.notes.contains_key("DrawTransition from another opacity than the picture's"), "{:?}", c.notes);
+        assert!(!c.notes.keys().any(|n| n.contains("drawn as a cross-fade")), "{:?}", c.notes);
+    }
 }
