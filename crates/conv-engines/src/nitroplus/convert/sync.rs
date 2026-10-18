@@ -12,8 +12,14 @@ impl Compiler<'_, '_> {
         let tempo = std::mem::take(&mut self.pending_tempo);
         let fade_tempo = self.fade_tempo.take();
         let soft = self.transition_soft.take();
-        let turning = std::mem::take(&mut self.pending_turn);
         let fades = std::mem::take(&mut self.pending_fade);
+        let mut turning = std::mem::take(&mut self.pending_turn);
+        let size_from = std::mem::take(&mut self.pending_size_from);
+        for (n, t) in &mut turning {
+            t.zoom = size_from.get(n).zip(self.objects.get(n)).map(|(&a, o)| (a, o.zoom)).filter(|(a, b)| a != b);
+            // (A child fades with the turned picture it is drawn in.)
+            t.fade_ms = fades.get(n).or_else(|| fades.get(&t.target)).copied().unwrap_or(0);
+        }
         let from_zero = std::mem::take(&mut self.fade_from_zero);
         let cameras = std::mem::take(&mut self.pending_camera);
         let mut shake_once = std::mem::take(&mut self.shake_once);

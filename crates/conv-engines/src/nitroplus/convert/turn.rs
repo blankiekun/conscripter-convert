@@ -16,6 +16,11 @@ pub(super) struct Turning {
     pub to: (i64, i64),
     pub ms: u32,
     pub ease: Option<(u8, u32)>,
+    /// The picture's own zoom (per mille) before and after the `Zoom`s
+    /// since the last sync, when it zooms too ([`Compiler::sync`] sets it).
+    pub zoom: Option<((i64, i64), (i64, i64))>,
+    /// How long its fade since the last sync takes, ms (0: none).
+    pub fade_ms: u32,
 }
 
 /// Per axis (scale, offset): drawn = scale × place + offset.
@@ -92,12 +97,17 @@ impl Compiler<'_, '_> {
         let (placed, sp) = if at_end { (now?, s1) } else { (old?, s0) };
         let cp = centre(placed);
         // Zoomed and faded on the way too (the logo shot away in
-        // boot.nss): its unsquashed size and its opacity, straight
-        // between (the size by the turn's ease).
-        let size = |s: &Shown, sq: Squash| [s.w as f64 / sq[0].0.max(1e-3), s.h as f64 / sq[1].0.max(1e-3)];
-        let (z0, z1) = (old.map(|s| size(s, s0)), now.map(|s| size(s, s1)));
-        let (z0, z1, zp) = (z0.or(z1)?, z1.or(z0)?, size(placed, sp));
-        let (a0, a1) = (old.or(now)?.opacity as f64, now.or(old)?.opacity as f64);
+        // boot.nss): its zoom (from the `Zoom`s since the last sync, by
+        // the turn's ease and time) and its opacity (straight, over the
+        // fade's time) between.
+        let (z0, z1) = t.zoom.map_or(([1.0; 2], [1.0; 2]), |(a, b)| ([a.0 as f64, a.1 as f64], [b.0 as f64, b.1 as f64]));
+        let zp = if at_end { z1 } else { z0 };
+        // (Gone at the end while it fades: faded out.)
+        let a1 = match now {
+            None if t.fade_ms > 0 => 0.0,
+            _ => now.or(old)?.opacity as f64,
+        };
+        let a0 = old.or(now)?.opacity as f64;
         let ap = (placed.opacity as f64).max(1.0);
         let span = (t.to.0 - t.from.0).abs().max((t.to.1 - t.from.1).abs());
         // ours: a key every 10° (at most 63)
@@ -110,7 +120,8 @@ impl Compiler<'_, '_> {
                 let s = at(turn);
                 let c = [0, 1].map(|a| s[a].0 * (r0[a] + (r1[a] - r0[a]) * u) + s[a].1);
                 let zoom = [0, 1].map(|a| (s[a].0 / sp[a].0.max(1e-3) * (z0[a] + (z1[a] - z0[a]) * e) / zp[a].max(1e-3) * 100.0).round().clamp(0.0, 10000.0) as u32);
-                let opacity = ((a0 + (a1 - a0) * u) / ap * 256.0).round().clamp(0.0, 256.0) as u32;
+                let f = if t.fade_ms == 0 { 1.0 } else { (u * f64::from(t.ms) / f64::from(t.fade_ms)).min(1.0) };
+                let opacity = ((a0 + (a1 - a0) * f) / ap * 256.0).round().clamp(0.0, 256.0) as u32;
                 MotionKey { ms: (u * f64::from(t.ms)).round() as u32, x: (c[0] - cp[0]).round() as i32, y: (c[1] - cp[1]).round() as i32, zoom: zoom[0], angle: 0, opacity, zoom_y: zoom[1], ease: None }
             })
             .collect();

@@ -1683,6 +1683,9 @@ struct Compiler<'a, 'b> {
     /// Of those, the ones that `Rotate` about z over time: the angle they
     /// had (shown at it and turned as they move).
     pending_angle_from: HashMap<String, i64>,
+    /// Pictures that `Zoom` over time since the last sync: the zoom they
+    /// had (for a turn's motion, [`turn::Turning::zoom`]).
+    pending_size_from: HashMap<String, (i64, i64)>,
     /// Pictures that `Zoom`s since the last sync zoom from or to 0 along
     /// an axis over time: the zoom they had (squashed away or grown back,
     /// [`Compiler::sync`]).
@@ -2518,6 +2521,7 @@ impl<'a, 'b> Compiler<'a, 'b> {
             pending_path: HashMap::new(),
             pending_from: HashMap::new(),
             pending_angle_from: HashMap::new(),
+            pending_size_from: HashMap::new(),
             pending_zoom_from: HashMap::new(),
             action_process: None,
             process_lead: 0,

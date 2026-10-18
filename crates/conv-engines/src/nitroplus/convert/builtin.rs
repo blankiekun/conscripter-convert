@@ -516,7 +516,7 @@ impl Compiler<'_, '_> {
                             self.note("Rotate over time turning a picture over: mirrored at once");
                         }
                         // It and its children squash as it turns (convert/turn.rs).
-                        let turning = turn::Turning { target: t.clone(), from: (before.0, before.1), to: (turn.0, turn.1), ms: ms as u32, ease };
+                        let turning = turn::Turning { target: t.clone(), from: (before.0, before.1), to: (turn.0, turn.1), ms: ms as u32, ease, zoom: None, fade_ms: 0 };
                         let prefix = format!("{t}/");
                         let children: Vec<String> = self.objects.keys().filter(|k| k.starts_with(&prefix)).cloned().collect();
                         for n in children.iter().chain([t]) {
@@ -536,6 +536,10 @@ impl Compiler<'_, '_> {
                 for t in &targets {
                     let o = self.objects.get_mut(t).unwrap();
                     let was = o.zoom;
+                    if arg(1).int() > 0 {
+                        self.pending_size_from.entry(t.clone()).or_insert(was);
+                    }
+                    let o = self.objects.get_mut(t).unwrap();
                     // src: 0 not clamped (FUN_0044f2a0): drawn at size 0, nothing (sync).
                     o.zoom = (zx.position(o.zoom.0, 0, 0).max(0), zy.position(o.zoom.1, 0, 0).max(0));
                     if arg(1).int() > 0 && [was.0, was.1, o.zoom.0, o.zoom.1].contains(&0) {
