@@ -1078,6 +1078,6 @@ once its `#voice_on_` flag is set (`IsVCOpen`; the two "others" always,
 `logvoice` + `if %97x == 0 dwave`. Ours: the 15×15 button 2 px lower is
 the whole picture; the pressed cell 1 px left is drawn at 557. The
 `cv/1章_` pictures are not used by the port's script. Checked headless:
-widget 3 (Kageaki, `%6935` set) toggles `%971` to 1, his voice line is
-skipped and a `%982` one plays.
+widget 3 (Kageaki, `%6935` set) toggles `%971` to 1, his voice line stays
+silent and a `%982` one plays.
 
